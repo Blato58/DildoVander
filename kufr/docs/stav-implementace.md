@@ -83,7 +83,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 - Rozsah: `control-message-v1.schema.json` přidává vstupní `conversation.text/cancel` s device/boot/manual lease, conversation ID a generation; text má jednorázové clientTurnId, expectedRevision a 1–1000 znaků. `control-validator.mjs` drží běžné zprávy pod 2048 bajty a textovou výjimku do 8192 UTF-8 bajtů; WSS nastavuje stejný maximální frame, ostatní zprávy nad 2048 odmítá parser. Fixtures a testy ověřují chybějící lease/generation, nechtěná pole aktuátoru, délku textu a oba byte limity. Plán/README vysvětlují obálku a omezení.
 - Ověření: `kufr/contracts` pod Node 24.21.0 `npm test` — 19 platných a 34 chybných control zpráv + OpenAPI test prošly. `kufr/simulator` s MSVC bridge/OpenSSL `npm test` — WSS/restart scénáře prošly. Firmware není tímto kontraktním krokem změněn.
 - Omezení: WSS facade tyto dosud neimplementované směry odmítá; žádný rozhovor, cancel nebo AI výsledek nebyl vykonán. Následuje E2.8b vlastník fake sezení a integrační test. Browser certifikát E2.5 zůstává neověřený.
-- Revize a doručení: doplnit po commitu a push.
+- Revize a doručení: E2.8a je v commitu `e637db2fcbbf873925416dca830aa26921384201`; `./scripts/Push-CurrentBranch.ps1` potvrdil push `main` na `origin/main` v této revizi.
 
 ### D13 – 29. 9. 2026 – E2.7 potvrzení znovuzaložení
 
