@@ -83,7 +83,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 - Rozsah: `simulator/mobile-dev-server.mjs` servíruje sestavený mobilní web pouze na `127.0.0.1`, `/dev-mode` určuje vývojový režim, `/dev/control` předává textové E2 zprávy mezi browser WebSocket a autentizovaným TLS WSS simulátoru. Přijímá pouze shodný origin, jeden browser socket a přísně validované control zprávy; bearer token a CA jsou jen v procesu mostu. `verify-socket.mjs` přidává kontrolu statické stránky, režimu, zakázaného cizího originu a `hello` přes most. README popisuje lokální spuštění a hranice.
 - Ověření: v `kufr/simulator` pod Node 24.21.0 s MSVC `bridge.exe` a místním OpenSSL `node verify-socket.mjs` i celé `npm test` prošly. Test mostu kryje cizí origin, souběžný socket, `hello`/`welcome`, skutečné acquire přes C++ model a 9000bajtový rámec odmítnutý `1009` bez pádu procesu. Před opravou most poslal textovou zprávu jako binární Buffer a E2 server ji správně odmítl `1003`; převod na UTF-8 text odstranil chybu. Upstream používá `ca` s `rejectUnauthorized:true`. Browser UI most dosud nepoužívá.
 - Omezení: lokální HTTP je jen vývojová loopback cesta; pro LAN/iPhone se nesmí použít. Origin kontrola blokuje cizí web, ale místní neprohlížečový proces ji může napodobit. Není to nativní TLS pinning, skutečná komunikace ESP32 ani E3 uživatelský integrační test. Následuje E3.2b.
-- Revize a doručení: místní změny, commit/push po závěrečné kontrole slice.
+- Revize a doručení: E3.2a je v commitu `1ce93a98c1095ccd2baa5e17fc4ff2cf4364032d`; `./scripts/Push-CurrentBranch.ps1` potvrdil push `main` na `origin/main` v této revizi.
 
 ### D19 – 29. 9. 2026 – E3.1 ruční webová fake obrazovka
 
