@@ -12,6 +12,7 @@
 /kufr/backend/**/obj/
 /kufr/backend-tests/**/bin/
 /kufr/backend-tests/**/obj/
+**/__pycache__/
 
 # Editor and OS files
 .vs/

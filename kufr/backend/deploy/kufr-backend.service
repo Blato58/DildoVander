@@ -1,0 +1,22 @@
+[Unit]
+Description=Kufr backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=kufr-backend
+Group=kufr-backend
+WorkingDirectory=/opt/kufr-backend/current
+EnvironmentFile=/etc/kufr-backend/backend.env
+ExecStart=/opt/kufr-backend/current/backend
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/kufr-backend
+
+[Install]
+WantedBy=multi-user.target
