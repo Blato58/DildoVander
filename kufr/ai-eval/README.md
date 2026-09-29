@@ -6,7 +6,7 @@ ESP32, Device ID, device credential, backend, server ani mobilní aplikaci.
 Nevydává žádný příkaz k pohonu. Skutečný E8 backendový adaptér a hlasové
 testy jsou další práce.
 
-Výchozí model je gpt-6.1-sol s nízkým reasoning effort. Stejné scénáře
+Prompt je v prompt.txt: drzý, vtipný prodejce pro soukromou party 18+, s občasným přátelským roastem. Výchozí model je gpt-6.1-sol s nízkým reasoning effort. Stejné scénáře
 lze ručně porovnat s gpt-6-astra a gpt-6-luna. STT a TTS se v tomto
 textovém testu nevolají. Model musí vrátit přísné JSON schéma; parser navíc
 kontroluje délky, decision, compartment a aktuální readyMask.
