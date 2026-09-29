@@ -2,12 +2,11 @@ using System.Security.Cryptography;
 
 namespace Kufr.Backend.Features.Conversations;
 
-internal sealed class ConversationStore(TimeProvider clock)
+internal sealed class ConversationStore(TimeProvider clock, OperationJournal journal)
 {
     private readonly Lock gate = new();
     private readonly Dictionary<string, ConversationEntry> conversations = new(StringComparer.Ordinal);
     private readonly Dictionary<string, IdempotencyEntry> idempotency = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, TurnIdempotencyEntry> turnIdempotency = new(StringComparer.Ordinal);
     private readonly Dictionary<string, TurnOperation> operations = new(StringComparer.Ordinal);
 
     public CreateResult Create(string deviceId, Guid key, ReadOnlySpan<byte> requestBody, CreateConversationRequest request)
@@ -59,18 +58,19 @@ internal sealed class ConversationStore(TimeProvider clock)
         TextTurnRequest request)
     {
         var now = clock.GetUtcNow();
-        var scopedKey = $"{deviceId}:POST:/v1/conversations/{conversationId}/turns:{key:D}";
+        var route = $"/v1/conversations/{conversationId}/turns";
         var bodyHash = Convert.ToHexString(SHA256.HashData(requestBody));
 
         lock (gate)
         {
             CleanupExpired(now);
 
-            if (turnIdempotency.TryGetValue(scopedKey, out var previous))
+            var previous = journal.FindExisting(deviceId, route, key, bodyHash);
+            if (previous is not null)
             {
-                return previous.BodyHash == bodyHash
-                    ? new SubmitTurnResult(202, previous.OperationId, null)
-                    : new SubmitTurnResult(409, null, "idempotency_conflict");
+                return previous.Conflict
+                    ? new SubmitTurnResult(409, null, "idempotency_conflict")
+                    : new SubmitTurnResult(202, previous.OperationId, null);
             }
 
             if (!conversations.TryGetValue(conversationId, out var conversation))
@@ -95,29 +95,42 @@ internal sealed class ConversationStore(TimeProvider clock)
                 return new SubmitTurnResult(429, null, "turn_limit");
             }
 
-            if (!conversation.TurnIds.Add(request.ClientTurnId))
+            if (conversation.TurnIds.Contains(request.ClientTurnId))
             {
                 return new SubmitTurnResult(409, null, "duplicate_turn_id");
             }
 
             // The fake adapter does not inspect or retain the visitor's text.
-            var operationId = Guid.NewGuid().ToString("D");
+            var correlation = new TurnCorrelation(
+                deviceId,
+                request.BootId,
+                conversationId,
+                request.ClientTurnId,
+                request.Generation,
+                request.DeviceRevision);
+            var reservation = journal.Reserve(deviceId, route, key, bodyHash, correlation);
+            if (reservation.Conflict)
+            {
+                return new SubmitTurnResult(409, null, "idempotency_conflict");
+            }
+
+            if (reservation.Existing)
+            {
+                return new SubmitTurnResult(202, reservation.OperationId, null);
+            }
+
+            var operationId = reservation.OperationId;
             var operation = new TurnOperation(
                 operationId,
                 "turn",
                 "completed",
-                new TurnCorrelation(
-                    deviceId,
-                    request.BootId,
-                    conversationId,
-                    request.ClientTurnId,
-                    request.Generation,
-                    request.DeviceRevision),
+                correlation,
                 new TurnResult("Toto je testovací odpověď bez AI.", "ask", "", null),
                 null);
 
+            journal.MarkCompleted(operationId);
             operations.Add(operationId, operation);
-            turnIdempotency.Add(scopedKey, new TurnIdempotencyEntry(bodyHash, operationId, now.AddHours(24)));
+            conversation.TurnIds.Add(request.ClientTurnId);
             conversation.TurnCount++;
             var idleExpiresAt = now.AddMinutes(15);
             conversation.ExpiresAt = idleExpiresAt < conversation.AbsoluteExpiresAt
@@ -131,14 +144,20 @@ internal sealed class ConversationStore(TimeProvider clock)
     {
         lock (gate)
         {
-            if (!operations.TryGetValue(operationId, out var operation))
+            var recorded = journal.GetOperation(deviceId, operationId);
+            if (recorded.Status != 200)
             {
-                return new GetOperationResult(404, null);
+                if (recorded.Status == 404)
+                {
+                    operations.Remove(operationId);
+                }
+
+                return recorded;
             }
 
-            return operation.Correlation.DeviceId == deviceId
+            return operations.TryGetValue(operationId, out var operation)
                 ? new GetOperationResult(200, operation)
-                : new GetOperationResult(403, null);
+                : recorded;
         }
     }
 
@@ -154,10 +173,6 @@ internal sealed class ConversationStore(TimeProvider clock)
             idempotency.Remove(key);
         }
 
-        foreach (var key in turnIdempotency.Where(pair => pair.Value.ExpiresAt <= now).Select(pair => pair.Key).ToArray())
-        {
-            turnIdempotency.Remove(key);
-        }
     }
 
     private sealed class ConversationEntry(
@@ -179,7 +194,6 @@ internal sealed class ConversationStore(TimeProvider clock)
     }
 
     private sealed record IdempotencyEntry(string BodyHash, ConversationResponse Response, DateTimeOffset ExpiresAt);
-    private sealed record TurnIdempotencyEntry(string BodyHash, string OperationId, DateTimeOffset ExpiresAt);
 }
 
 internal sealed record CreateResult(int Status, ConversationResponse? Response);

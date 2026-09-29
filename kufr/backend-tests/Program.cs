@@ -3,9 +3,19 @@ using System.Text;
 using Kufr.Backend.Features.Access;
 using Kufr.Backend.Features.Conversations;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Data.Sqlite;
 
 var clock = new AdjustableTimeProvider(new DateTimeOffset(2026, 9, 29, 10, 0, 0, TimeSpan.Zero));
-var conversations = new ConversationStore(clock);
+var databaseDirectory = Path.Combine(Path.GetTempPath(), $"kufr-backend-tests-{Guid.NewGuid():N}");
+Directory.CreateDirectory(databaseDirectory);
+var journalConfiguration = new ConfigurationBuilder()
+    .AddInMemoryCollection(new Dictionary<string, string?>
+    {
+        ["Backend:DatabasePath"] = Path.Combine(databaseDirectory, "journal.sqlite")
+    })
+    .Build();
+var journal = new OperationJournal(journalConfiguration, clock);
+var conversations = new ConversationStore(clock, journal);
 var bootId = Guid.NewGuid();
 var request = new CreateConversationRequest("device-a", bootId, 1, "catalog-1", "cs-CZ", new ConversationConsent(false, false));
 var body = Encoding.UTF8.GetBytes("create-body");
@@ -44,6 +54,58 @@ Require(issued is not null && access.VerifyAccessToken(issued.AccessToken) == "d
 clock.Advance(TimeSpan.FromMinutes(15));
 Require(access.VerifyAccessToken(issued!.AccessToken) is null, "token expiry");
 
+var pendingCorrelation = new TurnCorrelation("device-a", bootId, conversationId, Guid.NewGuid(), 1, 7);
+var pending = journal.Reserve("device-a", "/v1/conversations/pending/turns", Guid.NewGuid(), "pending-hash", pendingCorrelation);
+var concurrentKey = Guid.NewGuid();
+var concurrentCorrelation = pendingCorrelation with { ClientTurnId = Guid.NewGuid() };
+var concurrentReservations = await Task.WhenAll(
+    Task.Run(() => journal.Reserve("device-a", "concurrent", concurrentKey, "same-hash", concurrentCorrelation)),
+    Task.Run(() => journal.Reserve("device-a", "concurrent", concurrentKey, "same-hash", concurrentCorrelation)));
+Require(concurrentReservations[0].OperationId == concurrentReservations[1].OperationId,
+    "atomic concurrent idempotency");
+Require(concurrentReservations.Count(value => !value.Existing) == 1,
+    "one concurrent reservation");
+Require(journal.Reserve("device-a", "concurrent", concurrentKey, "different-hash", concurrentCorrelation).Conflict,
+    "same key with different body");
+
+try
+{
+    _ = new OperationJournal(journalConfiguration, clock);
+    throw new Exception("Second live database owner was accepted.");
+}
+catch (InvalidOperationException)
+{
+    // Startup recovery is allowed only for the single database owner.
+}
+
+journal.Dispose();
+var restartedJournal = new OperationJournal(journalConfiguration, clock);
+var restartedStore = new ConversationStore(clock, restartedJournal);
+var replayAfterRestart = restartedStore.SubmitTurn("device-a", conversationId, turnKey, turnBody, turn);
+Require(replayAfterRestart.OperationId == accepted.OperationId, "idempotent retry after restart");
+var lostResult = restartedStore.GetOperation("device-a", accepted.OperationId!);
+Require(lostResult.Status == 200 && lostResult.Operation?.Status == "failed", "lost result after restart");
+Require(restartedStore.GetOperation("other-device", accepted.OperationId!).Status == 403,
+    "journaled operation device scope");
+Require(restartedJournal.GetOperation("device-a", pending.OperationId).Operation?.Status == "unknown",
+    "pending reservation becomes unknown on restart");
+AssertNoVisitorText(Path.Combine(databaseDirectory, "journal.sqlite"), "private text");
+
+var liveConversation = restartedStore.Create("device-a", Guid.NewGuid(), body, request);
+Require(liveConversation.Response is not null, "new session after restart");
+var liveTurn = restartedStore.SubmitTurn(
+    "device-a",
+    liveConversation.Response!.ConversationId,
+    Guid.NewGuid(),
+    turnBody,
+    turn with { ClientTurnId = Guid.NewGuid() });
+Require(liveTurn.OperationId is not null
+    && restartedStore.GetOperation("device-a", liveTurn.OperationId).Operation?.Status == "completed",
+    "live fake result before expiry");
+clock.Advance(TimeSpan.FromHours(24));
+Require(restartedStore.GetOperation("device-a", liveTurn.OperationId!).Status == 404,
+    "cached fake result expires with journal");
+
 var duplicateConfiguration = new ConfigurationBuilder()
     .AddInMemoryCollection(new Dictionary<string, string?>
     {
@@ -63,13 +125,37 @@ catch (InvalidOperationException)
     // A shared credential must not select a device by configuration order.
 }
 
-Console.WriteLine("Backend clock tests: session, retry, token expiry and provisioning passed");
+Console.WriteLine("Backend clock tests: expiry, restart, SQLite concurrency and provisioning passed");
+restartedJournal.Dispose();
+SqliteConnection.ClearAllPools();
+Directory.Delete(databaseDirectory, recursive: true);
 
 static void Require(bool condition, string name)
 {
     if (!condition)
     {
         throw new Exception($"Failed: {name}");
+    }
+}
+
+static void AssertNoVisitorText(string databasePath, string text)
+{
+    using var connection = new SqliteConnection($"Data Source={databasePath}");
+    connection.Open();
+
+    foreach (var table in new[] { "turn_operations", "turn_idempotency" })
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT * FROM {table}";
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            for (var column = 0; column < reader.FieldCount; column++)
+            {
+                Require(!reader.GetValue(column).ToString()!.Contains(text, StringComparison.Ordinal),
+                    "visitor text absent from SQLite");
+            }
+        }
     }
 }
 

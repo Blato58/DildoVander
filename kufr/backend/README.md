@@ -4,12 +4,24 @@ ASP.NET Core 10 Minimal API pro přímé HTTPS spojení ESP32 s backendem.
 Současné E7.1–2 slices přijímají servisně provisionovaný device credential,
 vydávají 15minutový access token, zakládají nejvýše jedno fake sezení pro zařízení
 a zpracují až deset textových tahů s deterministickou odpovědí `ask`.
-V této verzi nejsou STT/TTS, SQLite ani volání placené AI.
+E7.3a přidává SQLite journal pouze pro technická metadata textového tahu.
+V této verzi nejsou STT/TTS ani volání placené AI.
 Žádná trasa neovládá aktuátory.
 
 ## Vývojové spuštění
 
 SDK je připnuté v `../global.json`; .NET 10 ASP.NET Core runtime je nutný.
+Pro běh nastav `Backend__DatabasePath` na absolutní cestu k místnímu
+SQLite souboru mimo git (adresář musí existovat). Na Windows PowerShell:
+
+```powershell
+$databaseDirectory = Join-Path $env:LOCALAPPDATA 'KufrBackend'
+New-Item -ItemType Directory -Path $databaseDirectory -Force | Out-Null
+$env:Backend__DatabasePath = Join-Path $databaseDirectory 'journal.sqlite'
+```
+
+Backend bez cesty odmítne start; žádný soubor s daty ani credential není
+součástí repozitáře.
 Z adresáře `kufr/backend/`:
 
 ```text
@@ -22,8 +34,11 @@ dotnet run --project ../backend-tests/BackendTests.csproj
 HTTPS profil používá `https://localhost:7043` a důvěryhodný místní
 vývojový certifikát. Smoke test sám spouští krátkodobý backend pouze na
 `127.0.0.1`, vytváří náhodné credentials a ověřuje skutečné HTTP odpovědi.
-Test je samostatný proces a nepotřebuje poskytovatele AI ani databázi.
+Test je samostatný proces, vytvoří dočasný SQLite soubor a nepotřebuje
+poskytovatele AI.
 Samostatný C# test s řízeným časem ověřuje expiraci tokenu/sezení a retry.
+Používá dočasný SQLite soubor a ověřuje také atomický souběh rezervací a
+znovuotevření po restartu. `Microsoft.Data.Sqlite` je připnutý na `10.0.12`.
 
 Zařízení se registrují mimo HTTP API konfigurací `Devices__0__DeviceId`
 a `Devices__0__CredentialSha256` (64 hex znaků SHA-256 credential).
@@ -43,8 +58,15 @@ fake operaci ve stavu `completed` s identitami požadavku, pevnou odpovědí
 Odpovědi `/v1` mají `Cache-Control: no-store`; chyby používají
 `application/problem+json` se stabilním `code` a `traceId`.
 
-Sezení, operace a idempotence jsou nyní jen v paměti jedné instance. Po restartu
-se tokeny i sezení ztratí; trvalou atomickou idempotenci, limity placených
-operací, cleanup timer, rušení operací a retenci doplní další E7 slices. Backend zatím
+Sezení, tokeny a fake obsah výsledku jsou jen v paměti jedné instance.
+SQLite drží hash těla, idempotency key, identifikátory, status a 24hodinovou
+expiraci textové operace, nikdy text návštěvníka. Po restartu lze opakovat
+stejný turn key bez druhého požadavku. Rozběhnutá rezervace přejde na
+`unknown`; již dokončený, ale z RAM ztracený výsledek se čte jako
+`failed/result_expired`. Nové tahy starého sezení nejsou po restartu možné.
+Soubor `journal.sqlite.instance.lock` dovoluje právě jeden běžící backend
+nad databází; druhá instance skončí chybou před recovery.
+Trvalou idempotenci založení sezení, limity placených operací, časovaný cleanup,
+rušení operací a retenci doplní další E7 slices. Backend zatím
 nesmí být použit pro placené tahy nebo veřejný provoz. Stav a další krok
 jsou v `../docs/stav-implementace.md`.

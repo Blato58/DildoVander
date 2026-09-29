@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const credentialA = randomBytes(32).toString('base64');
 const credentialB = randomBytes(32).toString('base64');
@@ -16,6 +19,7 @@ const port = await new Promise((resolve, reject) => {
 });
 
 const baseUrl = `http://127.0.0.1:${port}`;
+const databaseDirectory = await mkdtemp(join(tmpdir(), 'kufr-backend-smoke-'));
 const server = spawn('dotnet', ['bin/Debug/net10.0/backend.dll', '--urls', baseUrl], {
   cwd: new URL('..', import.meta.url),
   env: {
@@ -24,6 +28,7 @@ const server = spawn('dotnet', ['bin/Debug/net10.0/backend.dll', '--urls', baseU
     Devices__0__CredentialSha256: sha256(credentialA),
     Devices__1__DeviceId: 'device-b',
     Devices__1__CredentialSha256: sha256(credentialB),
+    Backend__DatabasePath: join(databaseDirectory, 'journal.sqlite'),
     ASPNETCORE_ENVIRONMENT: 'Production'
   },
   windowsHide: true,
@@ -206,5 +211,9 @@ try {
   assert.doesNotMatch(serverOutput, new RegExp(`${credentialA}|${credentialB}|${tokenA}|${tokenB}`));
   console.log('Backend HTTP smoke: access, scope, fake turn, idempotency, limits and concurrency passed');
 } finally {
-  server.kill();
+  if (server.exitCode === null) {
+    server.kill();
+    await new Promise(resolve => server.once('exit', resolve));
+  }
+  await rm(databaseDirectory, { recursive: true, force: true });
 }

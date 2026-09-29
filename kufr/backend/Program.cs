@@ -5,9 +5,11 @@ var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 4096);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<DeviceAccessStore>();
+builder.Services.AddSingleton<OperationJournal>();
 builder.Services.AddSingleton<ConversationStore>();
 
 var app = builder.Build();
+app.Services.GetRequiredService<OperationJournal>();
 
 app.Use(async (context, next) =>
 {
