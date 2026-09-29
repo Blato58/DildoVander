@@ -77,15 +77,16 @@ TokenExchangeResponse EspIdfTokenExchangeTransport::Exchange(
       esp_http_client_set_post_field(client, "", 0) == ESP_OK;
   const esp_err_t result =
       configured ? esp_http_client_perform(client) : ESP_FAIL;
-  const int status =
-      result == ESP_OK ? esp_http_client_get_status_code(client) : 0;
+  // ESP-IDF returns ESP_FAIL for HTTP 401 when auth retries are disabled,
+  // although the response status has already been parsed.
+  const int status = esp_http_client_get_status_code(client);
   esp_http_client_cleanup(client);
   Wipe(authorization.data(), authorization.size());
 
   TokenExchangeResponse response;
   if (status == 401) {
     response.status = TokenExchangeStatus::Unauthorized;
-  } else if (status == 200 && !body.overflow) {
+  } else if (result == ESP_OK && status == 200 && !body.overflow) {
     response = ParseResponse(body);
   }
   Wipe(body.data, sizeof(body.data));
@@ -94,7 +95,8 @@ TokenExchangeResponse EspIdfTokenExchangeTransport::Exchange(
 
 esp_err_t EspIdfTokenExchangeTransport::OnHttpEvent(
     esp_http_client_event_t* event) {
-  if (event->event_id != HTTP_EVENT_ON_DATA) {
+  if (event->event_id != HTTP_EVENT_ON_DATA ||
+      esp_http_client_get_status_code(event->client) != 200) {
     return ESP_OK;
   }
   if (event->data_len == 0) {
