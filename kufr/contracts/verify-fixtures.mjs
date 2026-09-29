@@ -36,6 +36,15 @@ const stateSnapshot = validateMessage(
 const safetyReset = validateMessage(
   await readFile(new URL('./fixtures/valid/safety-reset.json', import.meta.url)),
 );
+const hello = validateMessage(
+  await readFile(new URL('./fixtures/valid/hello.json', import.meta.url)),
+);
+const welcome = validateMessage(
+  await readFile(new URL('./fixtures/valid/welcome.json', import.meta.url)),
+);
+const heartbeat = validateMessage(
+  await readFile(new URL('./fixtures/valid/heartbeat.json', import.meta.url)),
+);
 
 function expectRejectedMutation(label, original, mutate) {
   const message = structuredClone(original);
@@ -82,6 +91,18 @@ expectRejectedMutation('invalid ready mask', stateSnapshot, (message) => {
 });
 expectRejectedMutation('reset without inspection', safetyReset, (message) => {
   message.inspectionConfirmed = false;
+});
+expectRejectedMutation('hello with unsupported version', hello, (message) => {
+  message.protocolVersion = 2;
+});
+expectRejectedMutation('hello with extra bearer token', hello, (message) => {
+  message.token = 'must-not-be-in-control-json';
+});
+expectRejectedMutation('welcome with mismatched snapshot type', welcome, (message) => {
+  message.snapshot.type = 'hello';
+});
+expectRejectedMutation('heartbeat without lease', heartbeat, (message) => {
+  delete message.controlLeaseId;
 });
 
 const oversizedMessage = Buffer.concat([
