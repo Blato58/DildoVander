@@ -14,6 +14,8 @@ idf_component_register(
         "features/backend_access/TrustedTime.cpp"
         "features/conversation/ConversationStartCodec.cpp"
         "features/conversation/ConversationStartCoordinator.cpp"
+        "features/conversation/ConversationSession.cpp"
+        "features/conversation/ConversationTextCodec.cpp"
         "features/conversation/EspIdfConversationStartTransport.cpp"
         "features/device_control/EspIdfJournalStorage.cpp"
         "features/device_control/PersistentCommandJournal.cpp"

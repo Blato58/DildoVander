@@ -1,0 +1,83 @@
+#include "ConversationTextCodec.h"
+
+#include "ConversationSession.h"
+#include "ConversationStartCodec.h"
+
+namespace {
+
+constexpr char HexDigits[] = "0123456789abcdef";
+
+bool IsValidCatalogVersion(const std::string& version) {
+  if (version.empty() || version.size() > 128) {
+    return false;
+  }
+  for (char value : version) {
+    if (!((value >= 'A' && value <= 'Z') ||
+          (value >= 'a' && value <= 'z') ||
+          (value >= '0' && value <= '9') || value == '-' ||
+          value == '_' || value == '.')) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool HasNonWhitespaceText(const std::string& value) {
+  for (unsigned char current : value) {
+    if (current > 0x7f ||
+        (current != ' ' && current != '\t' && current != '\r' &&
+         current != '\n')) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void AppendJsonString(const std::string& value, std::string& output) {
+  output.push_back('"');
+  for (unsigned char current : value) {
+    if (current == '"' || current == '\\') {
+      output.push_back('\\');
+      output.push_back(static_cast<char>(current));
+    } else if (current < 0x20) {
+      output += "\\u00";
+      output.push_back(HexDigits[current >> 4]);
+      output.push_back(HexDigits[current & 0x0f]);
+    } else {
+      output.push_back(static_cast<char>(current));
+    }
+  }
+  output.push_back('"');
+}
+
+}  // namespace
+
+bool BuildConversationTextTurnRequest(
+    const ConversationTextTurnRequest& request, std::string& body) {
+  body.clear();
+  if (!IsConversationUuid(request.conversationId) ||
+      !IsConversationUuid(request.clientTurnId) ||
+      !IsConversationUuid(request.bootId) ||
+      !IsConversationUuid(request.idempotencyKey) ||
+      !IsValidCatalogVersion(request.catalogVersion) ||
+      request.readyMask > 63 || request.text.size() > 4000 ||
+      !IsValidConversationText(request.text) ||
+      !HasNonWhitespaceText(request.text)) {
+    return false;
+  }
+
+  body = "{\"clientTurnId\":\"" + request.clientTurnId +
+         "\",\"bootId\":\"" + request.bootId +
+         "\",\"generation\":" + std::to_string(request.generation) +
+         ",\"text\":";
+  AppendJsonString(request.text, body);
+  body += ",\"readyMask\":" + std::to_string(request.readyMask) +
+          ",\"deviceRevision\":" +
+          std::to_string(request.deviceRevision) +
+          ",\"catalogVersion\":\"" + request.catalogVersion + "\"}";
+  if (body.size() > 4096) {
+    body.clear();
+    return false;
+  }
+  return true;
+}
