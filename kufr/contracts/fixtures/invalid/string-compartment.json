@@ -1,0 +1,1 @@
+{"protocolVersion":1,"type":"selection.start","commandId":"523ef590-ce4d-4901-91b3-79de1bfe7e35","deviceId":"kufr-001","bootId":"c85743d5-1b72-41b8-8500-ae3c102b27d6","controlLeaseId":"a8287a95-b6a1-4501-bdaa-38721ec83191","sequence":12,"expectedRevision":37,"issuedAtDeviceMs":153200,"maxAgeMs":2000,"payload":{"compartment":"4","selectionSource":"manual"}}

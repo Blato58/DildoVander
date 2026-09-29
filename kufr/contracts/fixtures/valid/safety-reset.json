@@ -1,0 +1,9 @@
+{
+  "protocolVersion": 1,
+  "type": "safety.reset",
+  "messageId": "d4d337c9-cc9e-4ab5-97db-e70e782211e4",
+  "deviceId": "kufr-001",
+  "bootId": "c85743d5-1b72-41b8-8500-ae3c102b27d6",
+  "controlLeaseId": "a8287a95-b6a1-4501-bdaa-38721ec83191",
+  "inspectionConfirmed": true
+}

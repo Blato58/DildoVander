@@ -1,0 +1,12 @@
+{
+  "protocolVersion": 1,
+  "type": "selection.result",
+  "commandId": "523ef590-ce4d-4901-91b3-79de1bfe7e35",
+  "bootId": "c85743d5-1b72-41b8-8500-ae3c102b27d6",
+  "eventSequence": 89,
+  "status": "completed",
+  "revision": 45,
+  "compartment": 4,
+  "physicalVerification": "unavailable",
+  "requiresReload": true
+}
