@@ -12,7 +12,7 @@ přidává fake syntézu krátkého tichého WAV pro existující textový tah.
 V této verzi nejsou skutečné STT/TTS. Textový tah má výchozí fake režim;
 výslovný režim `responses` používá GPT-6.1 Sol se sdíleným party promptem,
 šesticí hůlek z `../ai-eval/wand-catalog.json`, přísným JSON schématem a kontrolou dostupné přihrádky. Model dostává jen dostupné položky a hraje mluvící kouzelný kufr Ollivanderova obchodu. Před odesláním do
-OpenAI transakčně rezervuje 0,05 USD, jeden backend spustí nejvýše jedno
+OpenAI transakčně rezervuje nejméně 0,10 USD (více podle paměti), jeden backend spustí nejvýše jedno
 placené volání současně a výsledek dokončí asynchronně. Nejasný výpadek
 ponechá rezervaci a restart volání neopakuje. Zrušený tah nezveřejní pozdní
 výsledek, ale skutečně vrácené tokeny vyúčtuje. Návrh přihrádky vzniká na
