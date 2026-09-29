@@ -5,6 +5,10 @@
 **/node_modules/
 **/dist/
 
+# .NET backend
+/kufr/backend/**/bin/
+/kufr/backend/**/obj/
+
 # Editor and OS files
 .vs/
 .vscode/
