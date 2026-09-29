@@ -104,7 +104,7 @@ internal static class TextDialogRuntimeTests
 
         finish.SetResult(new TextDialogResponse(
             "Jaký průšvih má hůlka napravit?", "ask", "", null,
-            ResponsesTextDialogBudget.Model, 621, 102));
+            ResponsesTextDialogBudget.Model, 621, 102, "default"));
         var completed = await PollAsync(store, runner, operationId, "completed");
         var result = completed.Result as TurnResult;
         Require(result?.Decision == "ask" && result.Proposal is null
@@ -117,7 +117,7 @@ internal static class TextDialogRuntimeTests
 
     private static async Task RunFailedTurnAsync(string directory)
     {
-        var configuration = BuildConfiguration(Path.Combine(directory, "failure.sqlite"), 50_000);
+        var configuration = BuildConfiguration(Path.Combine(directory, "failure.sqlite"), ResponsesTextDialogBudget.ReservedMicroUsd);
         using var journal = new OperationJournal(configuration, TimeProvider.System);
         using var runner = new TextDialogRunner((_, _, _, _, _) =>
             throw new TextDialogUnavailableException("Synthetic provider failure."));
@@ -155,12 +155,12 @@ internal static class TextDialogRuntimeTests
             var response = seenHistory.Count switch
             {
                 1 => new TextDialogResponse("Jaký trapas má magie napravit?", "ask", "", null,
-                    ResponsesTextDialogBudget.Model, 100, 20),
+                    ResponsesTextDialogBudget.Model, 100, 20, "default"),
                 2 => new TextDialogResponse("Jaký druh magie?", "ask", "", null,
-                    ResponsesTextDialogBudget.Model, 200, 20),
+                    ResponsesTextDialogBudget.Model, 200, 20, "default"),
                 _ => new TextDialogResponse("Třpyt a chaos? Hůlka dvě tě zvládne líp než ty svůj plán.",
                     "propose", "Třpyt a chaos", 2,
-                    ResponsesTextDialogBudget.Model, 300, 30)
+                    ResponsesTextDialogBudget.Model, 300, 30, "default")
             };
             return Task.FromResult(response);
         });
@@ -216,7 +216,7 @@ internal static class TextDialogRuntimeTests
 
     private static async Task RunCancelledTurnAsync(string directory)
     {
-        var configuration = BuildConfiguration(Path.Combine(directory, "cancelled.sqlite"), 50_000);
+        var configuration = BuildConfiguration(Path.Combine(directory, "cancelled.sqlite"), ResponsesTextDialogBudget.ReservedMicroUsd);
         using var journal = new OperationJournal(configuration, TimeProvider.System);
         var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var finish = new TaskCompletionSource<TextDialogResponse>(
@@ -242,7 +242,7 @@ internal static class TextDialogRuntimeTests
             "in-flight request can be cancelled");
         finish.SetResult(new TextDialogResponse(
             "Pozdní odpověď", "propose", "", 1,
-            ResponsesTextDialogBudget.Model, 621, 102));
+            ResponsesTextDialogBudget.Model, 621, 102, "default"));
         var acquired = false;
         for (var attempt = 0; attempt < 100; attempt++)
         {
@@ -266,7 +266,7 @@ internal static class TextDialogRuntimeTests
 
     private static async Task RunOversizedRequestAsync(string directory)
     {
-        var configuration = BuildConfiguration(Path.Combine(directory, "oversized.sqlite"), 50_000);
+        var configuration = BuildConfiguration(Path.Combine(directory, "oversized.sqlite"), ResponsesTextDialogBudget.ReservedMicroUsd);
         using var journal = new OperationJournal(configuration, TimeProvider.System);
         using var runner = new TextDialogRunner((_, _, _, _, _) =>
             throw new TextDialogRequestTooLargeException());
@@ -290,7 +290,7 @@ internal static class TextDialogRuntimeTests
 
     private static async Task RunPromptCancellationAsync(string directory)
     {
-        var configuration = BuildConfiguration(Path.Combine(directory, "prompt-cancel.sqlite"), 50_000);
+        var configuration = BuildConfiguration(Path.Combine(directory, "prompt-cancel.sqlite"), ResponsesTextDialogBudget.ReservedMicroUsd);
         using var journal = new OperationJournal(configuration, TimeProvider.System);
         var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var runner = new TextDialogRunner(async (_, _, _, _, token) =>

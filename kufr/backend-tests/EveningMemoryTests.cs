@@ -157,7 +157,7 @@ internal static class EveningMemoryTests
     }
 
     private static TextDialogResponse Reply(string text) =>
-        new(text, "ask", "", null, ResponsesTextDialogBudget.Model, 100, 30);
+        new(text, "ask", "", null, ResponsesTextDialogBudget.Model, 100, 30, "default");
 
     private static async Task CompletedAsync(ConversationStore store, TextDialogRunner runner, string operationId)
     {

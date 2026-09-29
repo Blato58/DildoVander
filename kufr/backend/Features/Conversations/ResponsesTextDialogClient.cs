@@ -64,6 +64,7 @@ internal sealed class ResponsesTextDialogClient(
         {
             model,
             store = false,
+            service_tier = "default",
             reasoning = new { effort = "low" },
             max_output_tokens = MaxOutputTokens,
             instructions = Instructions,
@@ -261,13 +262,15 @@ internal sealed class ResponsesTextDialogClient(
         if (!response.TryGetProperty("usage", out var usage)
             || !TryReadNonnegativeInt(usage, "input_tokens", out var inputTokens)
             || !TryReadNonnegativeInt(usage, "output_tokens", out var outputTokens)
-            || !TryReadString(response, "model", 1, 128, out var returnedModel))
+            || !TryReadString(response, "model", 1, 128, out var returnedModel)
+            || !TryReadString(response, "service_tier", 1, 32, out var serviceTier)
+            || serviceTier != "default")
         {
             throw new TextDialogUnavailableException("Provider usage is invalid.");
         }
 
         return new TextDialogResponse(
-            reply!, decision!, reason!, compartment, returnedModel!, inputTokens, outputTokens);
+            reply!, decision!, reason!, compartment, returnedModel!, inputTokens, outputTokens, serviceTier);
     }
 
     private static bool TryReadString(
@@ -338,7 +341,8 @@ internal sealed record TextDialogResponse(
     int? Compartment,
     string ReturnedModel,
     int InputTokens,
-    int OutputTokens);
+    int OutputTokens,
+    string? ServiceTier);
 
 internal sealed record DialogExchange(string VisitorText, string Reply);
 

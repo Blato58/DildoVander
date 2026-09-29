@@ -36,6 +36,7 @@ internal static class ResponsesTextDialogClientTests
         using (var request = JsonDocument.Parse(capturedRequest!))
         {
             var root = request.RootElement;
+            Check(root.GetProperty("service_tier").GetString() == "default", "explicit Standard tier");
             Check(root.GetProperty("store").ValueKind == JsonValueKind.False, "store disabled");
             Check(root.GetProperty("text").GetProperty("format").GetProperty("strict").GetBoolean(),
                 "strict structured output");
@@ -123,6 +124,19 @@ internal static class ResponsesTextDialogClientTests
             "explicit refusal");
         await ExpectUnavailableAsync(ProviderResponse("propose", 5, outputTokens: -1), 16,
             "invalid usage");
+        foreach (var tier in new string?[] { null, "fast", "priority", "unknown" })
+        {
+            var wrongTier = JsonNode.Parse(ProviderResponse("propose", 5))!;
+            if (tier is null)
+            {
+                wrongTier.AsObject().Remove("service_tier");
+            }
+            else
+            {
+                wrongTier["service_tier"] = tier;
+            }
+            await ExpectUnavailableAsync(wrongTier.ToJsonString(), 16, "unconfirmed Standard tier");
+        }
         var mixedResponse = JsonNode.Parse(ProviderResponse("propose", 5))!;
         mixedResponse["output"]![0]!["content"]!.AsArray().Add(new JsonObject
         {
@@ -221,6 +235,7 @@ internal static class ResponsesTextDialogClientTests
         return JsonSerializer.Serialize(new
         {
             model = "gpt-6.1-sol",
+            service_tier = "default",
             status,
             output = new[]
             {

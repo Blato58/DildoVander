@@ -2,7 +2,7 @@
 
 První běh: [36645718827](https://github.com/Blato58/DildoVander/actions/runs/36645718827), commit `3693379`. Výhradně fiktivní lidé; toto nejsou skuteční návštěvníci ani hlasová/hardwarová akceptace.
 
-Celkem 30 živých API volání včetně simulovaných návštěvníků. Konzervativní odhad pro hlídání rozpočtu z reportovaných tokenů: **0,325139 USD** (vstup oceněn celý cache-write sazbou). Skutečně účtovaná cena **není ověřená**. Majitel v OpenAI v době kontroly vidí méně než jeden cent; původní vyjádření o utracené částce bylo chybné. Příčinu rozdílu nemáme doloženou a odhad se nesmí vydávat za fakturu. Schválený společný rozpočet je 1 USD.
+Celkem 30 živých API volání včetně simulovaných návštěvníků. Původní odhad podle standardního ceníku (před odhalením chyby tarifu): **0,325139 USD** (vstup oceněn celý cache-write sazbou). Skutečně účtovaná cena **není ověřená**. Majitel v OpenAI v době kontroly vidí méně než jeden cent; původní vyjádření o utracené částce bylo chybné. Příčinu rozdílu nemáme doloženou a odhad se nesmí vydávat za fakturu. Schválený společný rozpočet je 1 USD.
 
 | Model kufru | Počet replik | Medián odezvy | Horní odhad kufrových replik |
 | --- | ---: | ---: | ---: |
@@ -13,7 +13,7 @@ Pozorování z přepisů (posouzení Codexem, ne uživatelská obsahová akcepta
 
 Slabiny: opakovaný začátek „Pojď blíž“, formální „navrhuju ... za sebeironii“, někdy pochvala oslabující roast. Lenka v prvním běhu **neodmítla téma** a její simulátor neodpověděl přímo na otázku o hádce: tato větev není živě ověřená. Následující iterace promptu a persony řeší tyto konkrétní důkazy.
 
-Výpočet používá [veřejný ceník](https://developers.openai.com/api/docs/pricing), nikoli billing API. Astra: 17 679 vstupních + 755 výstupních tokenů; Sol včetně návštěvníků: 21 486 + 1 268. Jednotky jsou USD za milion tokenů, proto součin tokenů a sazby dává mikro USD. První report neuchoval rozpad cached tokenů ani response ID; další běhy je uchovávají spolu s `billingVerified: false` a `billedCostMicroUsd: null`. Konzervativní pojistku schváleného rozpočtu ponecháváme beze změny.
+Výpočet používá [veřejný ceník](https://developers.openai.com/api/docs/pricing), nikoli billing API. Astra: 17 679 vstupních + 755 výstupních tokenů; Sol včetně návštěvníků: 21 486 + 1 268. Jednotky jsou USD za milion tokenů, proto součin tokenů a sazby dává mikro USD. První report neuchoval rozpad cached tokenů ani response ID; další běhy je uchovávají spolu s `billingVerified: false` a `billedCostMicroUsd: null`. Druhý běh odhalil navíc rozdílný service tier; původní čísla proto nejsou prokázaným horním limitem. Viz oprava níže. Další živé volání v tomto zadání již nespouštíme.
 
 ## gpt-6.1-sol – petr-taxi
 
@@ -98,4 +98,59 @@ Výsledek: propose; horní odhad dialogu včetně návštěvníka 0.090061 USD.
 **Kufr:** Lenko, navrhuju dvojku, Parketový kompas — za odvahu machrovat tancem i s vlastní diagnózou rozbitýho věšáku. Hlavně se nenech odnést do šatny.
 
 Výsledek: propose; horní odhad dialogu včetně návštěvníka 0.086952 USD.
+
+
+## Druhá iterace a oprava cenového odhadu
+
+Běh [36646636262](https://github.com/Blato58/DildoVander/actions/runs/36646636262), commit `120fed5`: 3 adaptivní dialogy, 19 API volání, 11 replik kufru, medián 2377 ms. Všechny skončily platným návrhem. Lenka tentokrát skutečně odmítla otázku a kufr přešel na tanec. U Petra ověřil starší historku a položil navazující otázku. Stále opakuje „Pojď blíž“ a některé závěry zbytečně popisují hůlku; tři persony nejsou finální akceptace humoru ani důkaz nejlepšího modelu.
+
+[Původní syntetický JSON s provider usage a response ID](2026-09-30-party-followup.raw.json) uchovává přesný výstup běhu. Jeho `upperCostMicroUsd` je **původní chybný odhad**: počítal Standard, přestože všech 19 odpovědí uvádí `serviceTier: fast`. Není to billing. Podle [ceníku](https://developers.openai.com/api/docs/pricing) a skutečných cache-write/cached tokenů vychází nový ceníkový odhad druhého běhu na **0.088480 USD**; při ocenění všech vstupů jako cache write v tarifu Fast na **0.152560 USD**. Ani jedna částka není potvrzená útrata na účtu. První běh tier/cache rozpad neuchoval a nelze jej zpětně přesně dopočítat.
+
+Oprava po tomto zjištění: backend i oba eval požadavky explicitně nastavují `service_tier: default`, kontrolují vrácený tarif a při odchylce zastaví zpracování bez automatického opakování. Před odesláním drží i dvojnásobnou rezervu pro případ neočekávaného Fast. Eval umí ocenit vrácený tarif i rozpad cache; `billingVerified` zůstává false a účtovaná cena null. Oprava je ověřena offline testy, nové živé ověření standardního tarifu neproběhlo.
+
+### Druhá iterace – petr-taxi
+
+**Kufr:** Pojď blíž, přes místnost tě zpovídat nebudu. Jak ti říkají?
+
+**Návštěvník:** Petr
+
+**Kufr:** Petře, kdy jsi naposledy před kámošema prohlásil „to mám pod kontrolou“ a za chvíli potřeboval zachránit?
+
+**Návštěvník:** Minule, když jsem objednal taxík k sousedům a čekal před vlastním domem. To jsem to měl pod kontrolou asi jako navigace bez signálu.
+
+**Kufr:** Petře, sedne ti Ořechová hůlka Výbor pro špatné nápady, ta je na velké plány a improvizaci. Taxík k sousedům, ty před vlastním domem — delegoval jsi i vlastní odjezd.
+
+
+### Druhá iterace – returning-petr
+
+**Kufr:** Pojď blíž, z dálky tě soudit nebudu. Jak ti říkají?
+
+**Návštěvník:** Petr, už jsem tu byl.
+
+**Kufr:** Petr s tím taxíkem u sousedů, nebo tu máme dalšího Petra na reklamaci?
+
+**Návštěvník:** Ano, Petr s tím taxíkem u sousedů. Teď už jdu pěšky.
+
+**Kufr:** Pěšky už aspoň reklamuješ navigaci u sebe. Když jsi ten taxík nenašel, koho jsi obvinil jako prvního?
+
+**Návštěvník:** Na to si nevzpomínám.
+
+**Kufr:** Sedne ti pětka, Kaštanová hůlka Kocovina věštců, pro tu sebeironii s pěší cestou. Taxík našel sousedy, viník našel výpadek paměti.
+
+
+### Druhá iterace – lenka-boundary
+
+**Kufr:** Pojď blíž, z dálky se blbě soudí. Jak ti říkají kamarádi?
+
+**Návštěvník:** Lenka
+
+**Kufr:** Lenko, kdy ses naposledy hádala o úplnou blbost, ale poslední slovo muselo být tvoje?
+
+**Návštěvník:** Tohle neřeš, radši se mě zeptej na tanec.
+
+**Kufr:** Hádky necháme spát. Když jdeš na parket, máš nacvičený kroky, nebo spoléháš, že si ostatní budou pamatovat hlavně refrén?
+
+**Návštěvník:** Na parketu machruju, i když vypadám jak rozbitej věšák. Na nacvičený kroky to fakt není.
+
+**Kufr:** Lenko, tobě sedne třešňový Parketový kompas z dvojky. Kroky nenajde, ale rozbitej věšák s ním bude mít aspoň pořádnou anténu.
 

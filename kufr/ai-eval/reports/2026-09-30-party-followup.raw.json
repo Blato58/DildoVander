@@ -1,0 +1,586 @@
+{
+  "synthetic": true,
+  "requiresHumanStyleReview": true,
+  "actuatorCommandIssued": false,
+  "approvedRunCapMicroUsd": 674861,
+  "dialogues": [
+    {
+      "model": "gpt-6.1-sol",
+      "persona": "petr-taxi",
+      "dialogue": [
+        {
+          "speaker": "kufr",
+          "reply": "Pojď blíž, přes místnost tě zpovídat nebudu. Jak ti říkají?",
+          "decision": "ask",
+          "compartment": null,
+          "reason": ""
+        },
+        {
+          "speaker": "visitor",
+          "reply": "Petr"
+        },
+        {
+          "speaker": "kufr",
+          "reply": "Petře, kdy jsi naposledy před kámošema prohlásil „to mám pod kontrolou“ a za chvíli potřeboval zachránit?",
+          "decision": "ask",
+          "compartment": null,
+          "reason": ""
+        },
+        {
+          "speaker": "visitor",
+          "reply": "Minule, když jsem objednal taxík k sousedům a čekal před vlastním domem. To jsem to měl pod kontrolou asi jako navigace bez signálu."
+        },
+        {
+          "speaker": "kufr",
+          "reply": "Petře, sedne ti Ořechová hůlka Výbor pro špatné nápady, ta je na velké plány a improvizaci. Taxík k sousedům, ty před vlastním domem — delegoval jsi i vlastní odjezd.",
+          "decision": "propose",
+          "compartment": 3,
+          "reason": "Plán s taxíkem na špatné adrese a Petrova sebeironická pointa sedí k improvizaci a přátelskému roastu."
+        }
+      ],
+      "terminated": true,
+      "upperCostMicroUsd": 20156
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "persona": "returning-petr",
+      "dialogue": [
+        {
+          "speaker": "kufr",
+          "reply": "Pojď blíž, z dálky tě soudit nebudu. Jak ti říkají?",
+          "decision": "ask",
+          "compartment": null,
+          "reason": ""
+        },
+        {
+          "speaker": "visitor",
+          "reply": "Petr, už jsem tu byl."
+        },
+        {
+          "speaker": "kufr",
+          "reply": "Petr s tím taxíkem u sousedů, nebo tu máme dalšího Petra na reklamaci?",
+          "decision": "ask",
+          "compartment": null,
+          "reason": ""
+        },
+        {
+          "speaker": "visitor",
+          "reply": "Ano, Petr s tím taxíkem u sousedů. Teď už jdu pěšky."
+        },
+        {
+          "speaker": "kufr",
+          "reply": "Pěšky už aspoň reklamuješ navigaci u sebe. Když jsi ten taxík nenašel, koho jsi obvinil jako prvního?",
+          "decision": "ask",
+          "compartment": null,
+          "reason": ""
+        },
+        {
+          "speaker": "visitor",
+          "reply": "Na to si nevzpomínám."
+        },
+        {
+          "speaker": "kufr",
+          "reply": "Sedne ti pětka, Kaštanová hůlka Kocovina věštců, pro tu sebeironii s pěší cestou. Taxík našel sousedy, viník našel výpadek paměti.",
+          "decision": "propose",
+          "compartment": 5,
+          "reason": "Sebeironicky přiznal omyl s taxíkem a teď jde pěšky."
+        }
+      ],
+      "terminated": true,
+      "upperCostMicroUsd": 28242
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "persona": "lenka-boundary",
+      "dialogue": [
+        {
+          "speaker": "kufr",
+          "reply": "Pojď blíž, z dálky se blbě soudí. Jak ti říkají kamarádi?",
+          "decision": "ask",
+          "compartment": null,
+          "reason": ""
+        },
+        {
+          "speaker": "visitor",
+          "reply": "Lenka"
+        },
+        {
+          "speaker": "kufr",
+          "reply": "Lenko, kdy ses naposledy hádala o úplnou blbost, ale poslední slovo muselo být tvoje?",
+          "decision": "ask",
+          "compartment": null,
+          "reason": ""
+        },
+        {
+          "speaker": "visitor",
+          "reply": "Tohle neřeš, radši se mě zeptej na tanec."
+        },
+        {
+          "speaker": "kufr",
+          "reply": "Hádky necháme spát. Když jdeš na parket, máš nacvičený kroky, nebo spoléháš, že si ostatní budou pamatovat hlavně refrén?",
+          "decision": "ask",
+          "compartment": null,
+          "reason": ""
+        },
+        {
+          "speaker": "visitor",
+          "reply": "Na parketu machruju, i když vypadám jak rozbitej věšák. Na nacvičený kroky to fakt není."
+        },
+        {
+          "speaker": "kufr",
+          "reply": "Lenko, tobě sedne třešňový Parketový kompas z dvojky. Kroky nenajde, ale rozbitej věšák s ním bude mít aspoň pořádnou anténu.",
+          "decision": "propose",
+          "compartment": 2,
+          "reason": "Tanec, machrování a sebeironická improvizace na parketu."
+        }
+      ],
+      "terminated": true,
+      "upperCostMicroUsd": 27886
+    }
+  ],
+  "completed": true,
+  "costBasis": "Conservative list-price estimate; all input at cache-write rate; not billing",
+  "pricingSource": "https://developers.openai.com/api/docs/pricing",
+  "billedCostMicroUsd": null,
+  "billingVerified": false,
+  "upperCostMicroUsd": 76284,
+  "calls": [
+    {
+      "model": "gpt-6.1-sol",
+      "purpose": "petr-taxi:suitcase",
+      "latencyMs": 2725,
+      "inputTokens": 2010,
+      "outputTokens": 50,
+      "responseId": "resp_049adbc051ae0be5016abc4d05fe5087d0bbfc88f76eaeb108",
+      "serviceTier": "fast",
+      "providerUsage": {
+        "input_tokens": 2010,
+        "input_tokens_details": {
+          "cache_write_tokens": 2007,
+          "cached_tokens": 0
+        },
+        "output_tokens": 50,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 2060
+      },
+      "billedCostMicroUsd": null,
+      "upperCostMicroUsd": 5525
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "purpose": "petr-taxi:visitor",
+      "latencyMs": 1538,
+      "inputTokens": 248,
+      "outputTokens": 14,
+      "responseId": "resp_05619cf5914908de016abc4d08214c87d088daee1a13f834c6",
+      "serviceTier": "fast",
+      "providerUsage": {
+        "input_tokens": 248,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 14,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 262
+      },
+      "billedCostMicroUsd": null,
+      "upperCostMicroUsd": 760
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "purpose": "petr-taxi:suitcase",
+      "latencyMs": 1891,
+      "inputTokens": 2077,
+      "outputTokens": 62,
+      "responseId": "resp_0344b00be6b799f7016abc4d09ab4087d0ad62eb0948a21612",
+      "serviceTier": "fast",
+      "providerUsage": {
+        "input_tokens": 2077,
+        "input_tokens_details": {
+          "cache_write_tokens": 728,
+          "cached_tokens": 1346
+        },
+        "output_tokens": 62,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 2139
+      },
+      "billedCostMicroUsd": null,
+      "upperCostMicroUsd": 5813
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "purpose": "petr-taxi:visitor",
+      "latencyMs": 2159,
+      "inputTokens": 326,
+      "outputTokens": 49,
+      "responseId": "resp_0538ccc09e9ba455016abc4d0b8ee087d0a51254fa8055f7bd",
+      "serviceTier": "fast",
+      "providerUsage": {
+        "input_tokens": 326,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 49,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 375
+      },
+      "billedCostMicroUsd": null,
+      "upperCostMicroUsd": 1305
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "purpose": "petr-taxi:suitcase",
+      "latencyMs": 3272,
+      "inputTokens": 2225,
+      "outputTokens": 119,
+      "responseId": "resp_01728bed1841d403016abc4d0dba0487d09e94f489e44fd266",
+      "serviceTier": "fast",
+      "providerUsage": {
+        "input_tokens": 2225,
+        "input_tokens_details": {
+          "cache_write_tokens": 2222,
+          "cached_tokens": 0
+        },
+        "output_tokens": 119,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 2344
+      },
+      "billedCostMicroUsd": null,
+      "upperCostMicroUsd": 6753
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "purpose": "returning-petr:suitcase",
+      "latencyMs": 1423,
+      "inputTokens": 2066,
+      "outputTokens": 48,
+      "responseId": "resp_07de2c5fd97ffe04016abc4d10f73c87d0bcb338e19a346113",
+      "serviceTier": "fast",
+      "providerUsage": {
+        "input_tokens": 2066,
+        "input_tokens_details": {
+          "cache_write_tokens": 717,
+          "cached_tokens": 1346
+        },
+        "output_tokens": 48,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 2114
+      },
+      "billedCostMicroUsd": null,
+      "upperCostMicroUsd": 5645
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "purpose": "returning-petr:visitor",
+      "latencyMs": 1999,
+      "inputTokens": 235,
+      "outputTokens": 20,
+      "responseId": "resp_0fe8954ec438ab44016abc4d1273bc87d095adb92c97e78900",
+      "serviceTier": "fast",
+      "providerUsage": {
+        "input_tokens": 235,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 20,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 255
+      },
+      "billedCostMicroUsd": null,
+      "upperCostMicroUsd": 788
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "purpose": "returning-petr:suitcase",
+      "latencyMs": 1375,
+      "inputTokens": 2137,
+      "outputTokens": 48,
+      "responseId": "resp_0e8691ae61616b5f016abc4d14605887d098101700eb99a537",
+      "serviceTier": "fast",
+      "providerUsage": {
+        "input_tokens": 2137,
+        "input_tokens_details": {
+          "cache_write_tokens": 788,
+          "cached_tokens": 1346
+        },
+        "output_tokens": 48,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 2185
+      },
+      "billedCostMicroUsd": null,
+      "upperCostMicroUsd": 5823
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "purpose": "returning-petr:visitor",
+      "latencyMs": 1383,
+      "inputTokens": 305,
+      "outputTokens": 34,
+      "responseId": "resp_02b42a5c496742d0016abc4d15c5bc87d09710d78b850cac69",
+      "serviceTier": "fast",
+      "providerUsage": {
+        "input_tokens": 305,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 34,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 339
+      },
+      "billedCostMicroUsd": null,
+      "upperCostMicroUsd": 1103
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "purpose": "returning-petr:suitcase",
+      "latencyMs": 2419,
+      "inputTokens": 2246,
+      "outputTokens": 62,
+      "responseId": "resp_02d997b7672caa2f016abc4d17234c87d0ae7d8854d85d8b06",
+      "serviceTier": "fast",
+      "providerUsage": {
+        "input_tokens": 2246,
+        "input_tokens_details": {
+          "cache_write_tokens": 894,
+          "cached_tokens": 1349
+        },
+        "output_tokens": 62,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 2308
+      },
+      "billedCostMicroUsd": null,
+      "upperCostMicroUsd": 6235
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "purpose": "returning-petr:visitor",
+      "latencyMs": 1969,
+      "inputTokens": 403,
+      "outputTokens": 79,
+      "responseId": "resp_0706dae61de70442016abc4d198dd087d08189308f8b2eed06",
+      "serviceTier": "fast",
+      "providerUsage": {
+        "input_tokens": 403,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 79,
+        "output_tokens_details": {
+          "reasoning_tokens": 56
+        },
+        "total_tokens": 482
+      },
+      "billedCostMicroUsd": null,
+      "upperCostMicroUsd": 1798
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "purpose": "returning-petr:suitcase",
+      "latencyMs": 2377,
+      "inputTokens": 2348,
+      "outputTokens": 98,
+      "responseId": "resp_0de68376a4dc201d016abc4d1b8b4487d0816d6e87e30fc572",
+      "serviceTier": "fast",
+      "providerUsage": {
+        "input_tokens": 2348,
+        "input_tokens_details": {
+          "cache_write_tokens": 996,
+          "cached_tokens": 1349
+        },
+        "output_tokens": 98,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 2446
+      },
+      "billedCostMicroUsd": null,
+      "upperCostMicroUsd": 6850
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "purpose": "lenka-boundary:suitcase",
+      "latencyMs": 3074,
+      "inputTokens": 2010,
+      "outputTokens": 50,
+      "responseId": "resp_0cabb6e951f96224016abc4d1e006c87d0be5c26a666a85c97",
+      "serviceTier": "fast",
+      "providerUsage": {
+        "input_tokens": 2010,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 2007
+        },
+        "output_tokens": 50,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 2060
+      },
+      "billedCostMicroUsd": null,
+      "upperCostMicroUsd": 5525
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "purpose": "lenka-boundary:visitor",
+      "latencyMs": 1135,
+      "inputTokens": 305,
+      "outputTokens": 14,
+      "responseId": "resp_019c62d07406cc3e016abc4d20fc2c87d0aca15d1bf095d9f9",
+      "serviceTier": "fast",
+      "providerUsage": {
+        "input_tokens": 305,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 14,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 319
+      },
+      "billedCostMicroUsd": null,
+      "upperCostMicroUsd": 903
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "purpose": "lenka-boundary:suitcase",
+      "latencyMs": 1673,
+      "inputTokens": 2078,
+      "outputTokens": 55,
+      "responseId": "resp_0b57f047c8f32121016abc4d221c9087d0a4aa46e5f0ec4836",
+      "serviceTier": "fast",
+      "providerUsage": {
+        "input_tokens": 2078,
+        "input_tokens_details": {
+          "cache_write_tokens": 729,
+          "cached_tokens": 1346
+        },
+        "output_tokens": 55,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 2133
+      },
+      "billedCostMicroUsd": null,
+      "upperCostMicroUsd": 5745
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "purpose": "lenka-boundary:visitor",
+      "latencyMs": 1192,
+      "inputTokens": 376,
+      "outputTokens": 29,
+      "responseId": "resp_09b0fdb732376803016abc4d23c8a087d0b9c6ffdceef7c2b3",
+      "serviceTier": "fast",
+      "providerUsage": {
+        "input_tokens": 376,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 29,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 405
+      },
+      "billedCostMicroUsd": null,
+      "upperCostMicroUsd": 1230
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "purpose": "lenka-boundary:suitcase",
+      "latencyMs": 2227,
+      "inputTokens": 2191,
+      "outputTokens": 69,
+      "responseId": "resp_09c48f8c4df065c1016abc4d24fe6487d099286f9a0dc7d5dd",
+      "serviceTier": "fast",
+      "providerUsage": {
+        "input_tokens": 2191,
+        "input_tokens_details": {
+          "cache_write_tokens": 839,
+          "cached_tokens": 1349
+        },
+        "output_tokens": 69,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 2260
+      },
+      "billedCostMicroUsd": null,
+      "upperCostMicroUsd": 6168
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "purpose": "lenka-boundary:visitor",
+      "latencyMs": 1612,
+      "inputTokens": 476,
+      "outputTokens": 43,
+      "responseId": "resp_0c8d60a055b83cd2016abc4d2735c887d09c52be1d913c2b76",
+      "serviceTier": "fast",
+      "providerUsage": {
+        "input_tokens": 476,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 43,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 519
+      },
+      "billedCostMicroUsd": null,
+      "upperCostMicroUsd": 1620
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "purpose": "lenka-boundary:suitcase",
+      "latencyMs": 2392,
+      "inputTokens": 2322,
+      "outputTokens": 89,
+      "responseId": "resp_09eb57eafac87c1c016abc4d28d34487d08ec06832d2cf589c",
+      "serviceTier": "fast",
+      "providerUsage": {
+        "input_tokens": 2322,
+        "input_tokens_details": {
+          "cache_write_tokens": 970,
+          "cached_tokens": 1349
+        },
+        "output_tokens": 89,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 2411
+      },
+      "billedCostMicroUsd": null,
+      "upperCostMicroUsd": 6695
+    }
+  ]
+}

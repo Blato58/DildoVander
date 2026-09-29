@@ -11,11 +11,12 @@ from evaluate import (
     parse_response,
     upper_bound_micro_usd,
     validate_result,
+    estimate_usage_micro_usd,
 )
 
 
 class EvalTests(unittest.TestCase):
-    def test_each_case_is_bounded_and_under_session_cap(self):
+    def test_each_case_has_bounded_reservation(self):
         cases = json.loads(__import__("pathlib").Path(__file__).with_name("cases.json").read_text(encoding="utf-8"))
         self.assertEqual(62, len(cases))
         self.assertEqual(len(cases), len({case["id"] for case in cases}))
@@ -24,7 +25,19 @@ class EvalTests(unittest.TestCase):
             for model in MODEL_PRICES:
                 request = build_request(loaded, model)
                 self.assertFalse(request["store"])
-                self.assertLess(upper_bound_micro_usd(request, model), 500_000)
+                self.assertEqual("default", request["service_tier"])
+                self.assertLess(upper_bound_micro_usd(request, model), 1_000_000)
+
+    def test_usage_estimate_accounts_for_cache_and_returned_tier(self):
+        response = {"model": "gpt-6.1-sol", "service_tier": "fast", "usage": {
+            "input_tokens": 100, "output_tokens": 10,
+            "input_tokens_details": {"cached_tokens": 60, "cache_write_tokens": 30}}}
+        self.assertEqual(700, estimate_usage_micro_usd(response, "gpt-6.1-sol"))
+        self.assertEqual(402, estimate_usage_micro_usd(response, "gpt-6.1-sol", include_cache=True))
+        for tier in (None, "unknown"):
+            response["service_tier"] = tier
+            with self.assertRaisesRegex(ValueError, "tier"):
+                estimate_usage_micro_usd(response, "gpt-6.1-sol")
 
     def test_catalog_has_six_fixed_compartments_and_filters_unavailable_wands(self):
         self.assertEqual("ollivander-private-party-v1", CATALOG["catalogVersion"])
