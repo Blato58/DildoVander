@@ -7,6 +7,8 @@
 #include "nvs_flash.h"
 
 #include "features/device_control/EspIdfJournalStorage.h"
+#include "features/device_control/DeviceControl.h"
+#include "features/device_control/DeviceControlRuntime.h"
 #include "features/device_control/PersistentCommandJournal.h"
 #include "features/backend_access/EspIdfBackendNetwork.h"
 #include "features/conversation/ConversationRuntimeState.h"
@@ -69,11 +71,15 @@ extern "C" void app_main() {
   } else if (!identity.IsProvisioned()) {
     ESP_LOGW(LogTag, "Device identity not provisioned; network stays offline");
   }
-  // With no live control adapter, the journal supplies the only available
-  // state. Later control transitions must publish their coherent snapshot.
-  ConversationRuntimeState runtimeState(
-      journal.IsHealthy() && !journal.HasPending(), journal.ReadyMask(),
-      "neutral-1");
+  // No local control transport or calibrated actuator adapter exists yet.
+  // Empty boot identity and zero calibration keep command execution disabled.
+  // The command result cache is too large for the ESP-IDF app_main stack.
+  static DeviceControl deviceControl(identity.DeviceId(), "", selectionSequence,
+                                     journal, 0);
+  ConversationRuntimeState runtimeState(false, 0, "");
+  DeviceControlRuntime controlRuntime(deviceControl, selectionSequence,
+                                      runtimeState, "neutral-1");
+  controlRuntime.PublishCurrent();
   EspIdfBackendNetwork backendNetwork(identity, runtimeState);
   if (!backendNetwork.Start(nvsStatus == ESP_OK)) {
     ESP_LOGW(LogTag, "Backend network not configured; stays offline");
@@ -85,9 +91,7 @@ extern "C" void app_main() {
         static_cast<uint32_t>(esp_timer_get_time() / 1000);
     SelectionStep step;
 
-    if (selectionSequence.ObserveControlLoopPass(nowMs, step)) {
-      LogStep(step);
-    } else if (selectionSequence.Update(nowMs, step)) {
+    if (controlRuntime.Tick(nowMs, step)) {
       LogStep(step);
     }
 
