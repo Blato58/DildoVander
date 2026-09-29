@@ -16,6 +16,7 @@ idf_component_register(
         "features/conversation/ConversationStartCoordinator.cpp"
         "features/conversation/ConversationSession.cpp"
         "features/conversation/ConversationTextCodec.cpp"
+        "features/conversation/ConversationTextInbox.cpp"
         "features/conversation/ConversationUuid.cpp"
         "features/conversation/EspIdfConversationStartTransport.cpp"
         "features/conversation/EspIdfConversationTextTransport.cpp"

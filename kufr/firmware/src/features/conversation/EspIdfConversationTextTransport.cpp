@@ -1,5 +1,6 @@
 #include "EspIdfConversationTextTransport.h"
 
+#include <algorithm>
 #include <array>
 #include <cstring>
 
@@ -110,6 +111,7 @@ ConversationTextHttpResult EspIdfConversationTextTransport::Submit(
     response.statusCode = 0;
   }
   esp_http_client_cleanup(client);
+  std::fill(body.begin(), body.end(), '\0');
   Wipe(authorization.data(), authorization.size());
   Wipe(received.data, sizeof(received.data));
   return response;

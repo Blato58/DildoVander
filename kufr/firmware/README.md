@@ -14,8 +14,10 @@ Výchozí sestavení `pio run` používá **ESP-IDF 6.1** v profilu
 `pio run -e esp32-s3-arduino-serial`. Oba profily byly sestaveny lokálně;
 žádný firmware se zatím nenahrával do desky.
 Podrobný postup a skutečně provedené kontroly jsou ve
-[stavu implementace](../docs/stav-implementace.md). Popis níže je současný
-sériový prototyp, nikoli implementované síťové či bezpečnostní řízení.
+[stavu implementace](../docs/stav-implementace.md). ESP-IDF profil má
+read-only síťový základ a nyní i interní cestu pro jeden explicitně předaný
+fake textový tah. Zdroj události, místní WSS a fyzické výstupy zatím připojené
+nejsou.
 
 ## Architektura
 
@@ -65,6 +67,7 @@ src/
       ConversationStartPort.h               port pro test a HTTPS adaptér
       ConversationTextCodec.h/.cpp          validace a JSON textového tahu
       ConversationUuid.h/.cpp               kanonický UUID v4 formát
+      ConversationTextInbox.h/.cpp           jediná explicitní čekající textová událost
       EspIdfConversationStartTransport.h/.cpp  HTTPS start sezení
       EspIdfConversationTextTransport.h/.cpp   HTTPS textový tah
       EspIdfConversationUuid.h/.cpp         UUID z HW RNG po startu Wi-Fi
@@ -347,6 +350,22 @@ g++ -std=c++14 -Wall -Wextra -Werror src/features/conversation/ConversationStart
 g++ -std=c++14 -Wall -Wextra -Werror src/features/conversation/TurnPollSchedule.cpp tests/turn_poll_schedule_test.cpp -o <docasna-slozka>/turn_poll_schedule_test
 <docasna-slozka>/turn_poll_schedule_test
 ```
+
+Vstupní schránku textového tahu lze ověřit samostatně:
+
+```text
+g++ -std=c++14 -Wall -Wextra -Werror -pthread src/features/conversation/ConversationSession.cpp src/features/conversation/ConversationTextInbox.cpp tests/conversation_text_inbox_test.cpp -o <docasna-slozka>/conversation_text_inbox_test
+<docasna-slozka>/conversation_text_inbox_test
+```
+
+ESP-IDF síťová úloha přijme přes `QueueTextTurn` nejvýše jeden čekající
+validovaný UTF-8 text, po důvěryhodném čase a tokenu založí nebo znovu použije
+fake backend sezení, odešle tah a omezeně polluje výsledek. Pouze shodná
+odpověď typu `ask`/`no_selection` je přijata do read-only diagnostiky;
+neovládá sekvenci ani GPIO. Volání `QueueTextTurn` zatím nemá v runtime
+producenta. Katalog je dočasná verze `neutral-1`, dostupnost čte NVS journal
+a revize/generace jsou 0, protože IDF profil dosud nemá běžící místní řízení.
+Tyto hodnoty je nutné nahradit atomickým snapshotem před připojením WSS.
 
 ## Další slices a podmínky zapojení
 
