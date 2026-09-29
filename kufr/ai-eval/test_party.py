@@ -20,19 +20,24 @@ class PartyTests(unittest.TestCase):
         request = build_request({"readyMask": 63, "visitorText": "Petr"}, "gpt-6.1-sol")
         with self.assertRaisesRegex(RuntimeError, "network"):
             meter.invoke(request, "gpt-6.1-sol", "test")
-        self.assertGreater(meter.spent, 0)
-        self.assertEqual(meter.spent, meter.session_spent)
+        self.assertGreater(meter.estimated_micro_usd, 0)
+        self.assertEqual(meter.estimated_micro_usd, meter.session_estimated_micro_usd)
 
-    def test_actual_usage_is_shared_across_dialogues_and_models(self):
+    def test_token_estimate_is_shared_across_dialogues_and_models(self):
         meter = Meter("fake", send=lambda request, _: {
-            "model": request["model"], "usage": {"input_tokens": 100, "output_tokens": 10}})
+            "id": "resp_test", "service_tier": "default",
+            "model": request["model"], "usage": {"input_tokens": 100, "output_tokens": 10,
+                                                   "input_tokens_details": {"cached_tokens": 64}}})
         request = build_request({"readyMask": 63, "visitorText": "Petr"}, "gpt-6.1-sol")
         meter.invoke(request, "gpt-6.1-sol", "first")
-        self.assertEqual(350, meter.spent)
-        meter.session_spent = 0
+        self.assertEqual(350, meter.estimated_micro_usd)
+        self.assertIsNone(meter.calls[0]["billedCostMicroUsd"])
+        self.assertEqual(64, meter.calls[0]["providerUsage"]["input_tokens_details"]["cached_tokens"])
+        self.assertEqual("resp_test", meter.calls[0]["responseId"])
+        meter.session_estimated_micro_usd = 0
         meter.invoke(request, "gpt-6.1-sol", "second")
-        self.assertEqual(700, meter.spent)
-        self.assertEqual(350, meter.session_spent)
+        self.assertEqual(700, meter.estimated_micro_usd)
+        self.assertEqual(350, meter.session_estimated_micro_usd)
 
     def test_incomplete_visitor_is_not_a_real_reply(self):
         with self.assertRaisesRegex(ValueError, "incomplete"):

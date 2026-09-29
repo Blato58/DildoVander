@@ -63,7 +63,7 @@ Síťový výpadek se neopakuje
 ani nepovažuje za bezplatný. Ruční běh je placený; běžné PR CI pouze offline.
 
 Výstup `evaluation.json` obsahuje celé **syntetické** dialogy, modely, tokeny,
-latence a konzervativně oceněnou spotřebu včetně reasoning; není fakturou.
+latence, response ID, původní provider usage včetně cache/reasoning a konzervativní ceníkový odhad. `billingVerified: false` a `billedCostMicroUsd: null` výslovně označují, že skutečnou účtovanou cenu neznáme. `upperCostMicroUsd` je pouze pojistka rozpočtu, nikdy údaj o utracených penězích.
 Přepis posuzuj podle konkrétnosti pointy, přirozené češtiny, návaznosti,
 zbytečného představování, respektování změny tématu a správného připomenutí
 historie. Platný JSON sám není známka dobrého humoru. Model návštěvníka také

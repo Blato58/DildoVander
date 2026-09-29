@@ -2,16 +2,18 @@
 
 První běh: [36645718827](https://github.com/Blato58/DildoVander/actions/runs/36645718827), commit `3693379`. Výhradně fiktivní lidé; toto nejsou skuteční návštěvníci ani hlasová/hardwarová akceptace.
 
-Celkem 30 placených volání včetně simulovaných návštěvníků. Konzervativní cena z reportovaných tokenů: **0,325139 USD** (vstup oceněn celý cache-write sazbou). Skutečná faktura může být nižší; nejde o odečet dashboardu. Schválený společný rozpočet je 1 USD.
+Celkem 30 živých API volání včetně simulovaných návštěvníků. Konzervativní odhad pro hlídání rozpočtu z reportovaných tokenů: **0,325139 USD** (vstup oceněn celý cache-write sazbou). Skutečně účtovaná cena **není ověřená**. Majitel v OpenAI v době kontroly vidí méně než jeden cent; původní vyjádření o utracené částce bylo chybné. Příčinu rozdílu nemáme doloženou a odhad se nesmí vydávat za fakturu. Schválený společný rozpočet je 1 USD.
 
-| Model kufru | Počet replik | Medián odezvy | Cena kufrových replik |
+| Model kufru | Počet replik | Medián odezvy | Horní odhad kufrových replik |
 | --- | ---: | ---: | ---: |
 | gpt-6.1-sol | 9 | 2478 ms | 0.053110 USD |
 | gpt-6-astra | 9 | 2471 ms | 0.258740 USD |
 
-Pozorování z přepisů (posouzení Codexem, ne uživatelská obsahová akceptace): oba modely začínají bez představování a u návratu Petra si ověřily vazbu na starší historku. Astra má v tomto malém vzorku kratší závěrečné pointy, ale cenový rozdíl je zhruba pětinásobný. Sol zůstává výchozí, protože tři situace neprokazují stabilní převahu Astra.
+Pozorování z přepisů (posouzení Codexem, ne uživatelská obsahová akceptace): oba modely začínají bez představování a u návratu Petra si ověřily vazbu na starší historku. Astra má v tomto malém vzorku kratší závěrečné pointy, ale rozdíl ceníkových odhadů je zhruba pětinásobný. Sol zůstává výchozí, protože tři situace neprokazují stabilní převahu Astra.
 
 Slabiny: opakovaný začátek „Pojď blíž“, formální „navrhuju ... za sebeironii“, někdy pochvala oslabující roast. Lenka v prvním běhu **neodmítla téma** a její simulátor neodpověděl přímo na otázku o hádce: tato větev není živě ověřená. Následující iterace promptu a persony řeší tyto konkrétní důkazy.
+
+Výpočet používá [veřejný ceník](https://developers.openai.com/api/docs/pricing), nikoli billing API. Astra: 17 679 vstupních + 755 výstupních tokenů; Sol včetně návštěvníků: 21 486 + 1 268. Jednotky jsou USD za milion tokenů, proto součin tokenů a sazby dává mikro USD. První report neuchoval rozpad cached tokenů ani response ID; další běhy je uchovávají spolu s `billingVerified: false` a `billedCostMicroUsd: null`. Konzervativní pojistku schváleného rozpočtu ponecháváme beze změny.
 
 ## gpt-6.1-sol – petr-taxi
 
@@ -25,7 +27,7 @@ Slabiny: opakovaný začátek „Pojď blíž“, formální „navrhuju ... za 
 
 **Kufr:** Petře, navrhuju trojku, Výbor pro špatné nápady: velký plán, jen nástupní místo o dům vedle. A přiznat „byl jsem za blbce“ je aspoň improvizace bez zbytečnýho alibi.
 
-Výsledek: propose; celý dialog včetně návštěvníka 0.020093 USD.
+Výsledek: propose; horní odhad dialogu včetně návštěvníka 0.020093 USD.
 
 ## gpt-6.1-sol – returning-petr
 
@@ -39,7 +41,7 @@ Výsledek: propose; celý dialog včetně návštěvníka 0.020093 USD.
 
 **Kufr:** Navrhuju pětku, Kocovinu věštců, za tu sebeironii. Taxík našel sousedy, ty teď hledáš cestu pěšky — aspoň už reklamuješ jen vlastní nohy.
 
-Výsledek: propose; celý dialog včetně návštěvníka 0.019961 USD.
+Výsledek: propose; horní odhad dialogu včetně návštěvníka 0.019961 USD.
 
 ## gpt-6.1-sol – lenka-boundary
 
@@ -53,7 +55,7 @@ Výsledek: propose; celý dialog včetně návštěvníka 0.019961 USD.
 
 **Kufr:** Lenko, rozbitej věšák, co si troufne na parket, má aspoň odvahu. Navrhuju dvojku, Třešňovou hůlku Parketový kompas — pro návrat po trapasu, ne pro opravu choreografie.
 
-Výsledek: propose; celý dialog včetně návštěvníka 0.019711 USD.
+Výsledek: propose; horní odhad dialogu včetně návštěvníka 0.019711 USD.
 
 ## gpt-6-astra – petr-taxi
 
@@ -67,7 +69,7 @@ Výsledek: propose; celý dialog včetně návštěvníka 0.019711 USD.
 
 **Kufr:** Petře, navrhuju ti Kocovinu věštců z přihrádky 5 za tu sebeironii. Vlastní pravdu už zpochybnit umíš, příště zkus i adresu taxíku.
 
-Výsledek: propose; celý dialog včetně návštěvníka 0.088361 USD.
+Výsledek: propose; horní odhad dialogu včetně návštěvníka 0.088361 USD.
 
 ## gpt-6-astra – returning-petr
 
@@ -81,7 +83,7 @@ Výsledek: propose; celý dialog včetně návštěvníka 0.088361 USD.
 
 **Kufr:** Petře, navrhuju ti Kaštanovou hůlku Kocovina věštců z pětky za sebeironii a poučení z taxíku. Pěšky už zbývá splést jen vlastní dveře.
 
-Výsledek: propose; celý dialog včetně návštěvníka 0.090061 USD.
+Výsledek: propose; horní odhad dialogu včetně návštěvníka 0.090061 USD.
 
 ## gpt-6-astra – lenka-boundary
 
@@ -95,5 +97,5 @@ Výsledek: propose; celý dialog včetně návštěvníka 0.090061 USD.
 
 **Kufr:** Lenko, navrhuju dvojku, Parketový kompas — za odvahu machrovat tancem i s vlastní diagnózou rozbitýho věšáku. Hlavně se nenech odnést do šatny.
 
-Výsledek: propose; celý dialog včetně návštěvníka 0.086952 USD.
+Výsledek: propose; horní odhad dialogu včetně návštěvníka 0.086952 USD.
 
