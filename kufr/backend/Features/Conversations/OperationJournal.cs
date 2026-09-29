@@ -370,6 +370,30 @@ internal sealed class OperationJournal : IDisposable
         return command.ExecuteNonQuery() == 1;
     }
 
+    public bool MarkRunning(string operationId)
+    {
+        using var connection = Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE turn_operations SET status = 'running'
+            WHERE operation_id = $operation AND status = 'pending'
+            """;
+        command.Parameters.AddWithValue("$operation", operationId);
+        return command.ExecuteNonQuery() == 1;
+    }
+
+    public bool MarkFailed(string operationId)
+    {
+        using var connection = Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE turn_operations SET status = 'failed'
+            WHERE operation_id = $operation AND status IN ('pending', 'running')
+            """;
+        command.Parameters.AddWithValue("$operation", operationId);
+        return command.ExecuteNonQuery() == 1;
+    }
+
     public bool SettleCost(string operationId, long actualMicroUsd)
     {
         using var connection = Open();
@@ -519,9 +543,14 @@ internal sealed class OperationJournal : IDisposable
             Guid.Parse(reader.GetString(3)),
             reader.GetInt32(4),
             reader.GetInt32(5));
-        var operation = status == "completed"
-            ? new TurnOperation(operationId, kind, "failed", correlation, null, new { code = "result_expired" })
-            : new TurnOperation(operationId, kind, status, correlation, null, null);
+        var operation = status switch
+        {
+            "completed" => new TurnOperation(
+                operationId, kind, "failed", correlation, null, new { code = "result_expired" }),
+            "failed" => new TurnOperation(
+                operationId, kind, "failed", correlation, null, new { code = "provider_unavailable" }),
+            _ => new TurnOperation(operationId, kind, status, correlation, null, null)
+        };
         return new GetOperationResult(200, operation);
     }
 
