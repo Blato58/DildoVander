@@ -24,4 +24,5 @@ app.Use(async (context, next) =>
 
 app.MapDeviceAccess();
 app.MapConversations();
+app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 app.Run();

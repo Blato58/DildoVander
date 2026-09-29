@@ -150,6 +150,9 @@ async function downloadAudio(path, token) {
 startServer();
 try {
   await waitForServer();
+  const health = await fetch(`${baseUrl}/healthz`);
+  assert.equal(health.status, 200);
+  assert.deepEqual(await health.json(), { status: 'ok' });
 
   assert.equal((await call('/v1/device-access/token')).status, 401);
   assert.equal((await call('/v1/device-access/token', { credential: 'wrong' })).status, 401);

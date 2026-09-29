@@ -116,3 +116,50 @@ nevytváří; polling vrátí `result_expired`. Skutečný placený adaptér, ce
 provozní limity doplní E8. Backend zatím
 nesmí být použit pro placené tahy nebo veřejný provoz. Stav a další krok
 jsou v `../docs/stav-implementace.md`.
+
+## Ubuntu runner a nasazení
+
+Workflow `.github/workflows/kufr-backend.yml` při změnách backendu v `main`
+sestaví a otestuje samostatný `linux-x64` release na GitHub runneru. Ruční
+`workflow_dispatch` z `main` navíc aktivuje artefakt na self-hosted runneru
+se štítky `self-hosted`, `Linux`, `X64` a
+`kufr-backend` v environmentu `backend-production`. Na serveru je nutný
+jednorázový bootstrap z důvěryhodné kopie repozitáře:
+
+```bash
+sudo bash kufr/backend/deploy/bootstrap-ubuntu.sh RUNNER_USER
+```
+
+`RUNNER_USER` je skutečný účet, pod kterým běží GitHub runner, nikoli název
+runneru; zjistíš jej na serveru přes `ps -eo user,args | grep '[R]unner.Listener'`.
+Bootstrap vytvoří odděleného systémového uživatele `kufr-backend`,
+datový adresář `/var/lib/kufr-backend`, systemd unit a root-owned aktivační
+helper. Sudo pro runner dovolí jen tento helper s příkazem `activate`.
+Release leží v `/opt/kufr-backend/releases`; `current` se po úspěchu přepne
+atomicky. Při neúspěšném startu či `GET /healthz` se obnoví předchozí release
+i konfigurace. SQLite leží mimo releasy a rollback schématu databáze se
+neprovádí; před změnou schématu je nutné ověřit kompatibilitu.
+
+Environment `backend-production` má tyto GitHub Actions secrets:
+
+| Secret | Hodnota |
+| --- | --- |
+| `DEVICE_ID` | ID servisně provisionovaného kufru; s hashem se zadává společně. |
+| `DEVICE_CREDENTIAL_SHA256` | 64 hex znaků SHA-256 skutečného device credential; samotný credential patří jen do zařízení. |
+| `OPENAI_API_KEY` | Projektový OpenAI API klíč. Backend jej zatím nepoužívá; E8 jej zavede až po schválení placených testů. |
+| `SESSION_CAP_MICRO_USD` | Kladný limit v miliontinách USD; spolu s dalšími dvěma limity. |
+| `DAILY_CAP_MICRO_USD` | Kladný denní limit v miliontinách USD. |
+| `MONTHLY_CAP_MICRO_USD` | Kladný měsíční limit v miliontinách USD. |
+
+Všechny hodnoty mohou pro první fake nasazení chybět. Bez dvojice zařízení
+se nikdo nepřihlásí; bez všech tří nákladových limitů backend odmítne
+budoucí placené rezervace. Částečná dvojice nebo trojice nasazení zastaví.
+Environment je omezený na větev `main`; podle potřeby nastav požadované
+schválení. Při změně secrets spusť workflow znovu; běžící služba se sama
+nepřekonfiguruje. Klíč nevkládej do chatu, repozitáře ani mobilní aplikace.
+
+Služba poslouchá pouze `http://127.0.0.1:5080`. Samotná IP adresa bez
+ověřeného certifikátu nestačí pro firmware HTTPS klienta. Veřejnou TLS
+terminaci, DNS/certifikát a firewall je nutné připravit zvlášť; port 5080
+nemá být veřejně otevřený. Pro kontrolu na serveru použij
+`curl -fsS http://127.0.0.1:5080/healthz` a `systemctl status kufr-backend`.
