@@ -247,3 +247,21 @@ variable `KUFR_BACKEND_PUBLIC_IPV4`. Bez úspěšného veřejného běhu se B4
 nepovažuje za ověřené. Certifikát je krátkodobý, proto je průběžná obnova
 součástí provozu. Při chybě lze zastavit jen Nginx (`systemctl stop nginx`);
 backend zůstane dostupný na loopbacku pro runner/deploy diagnostiku.
+
+### Safari instalace iOS aplikace
+
+Po ověření veřejného HTTPS připrav režimem `stage` téhož workflow aktuální
+soubory a jako root spusť `sudo bash CESTA/install-ios-host.sh 2.28.202.220
+github-runner`. Skript přidá do vlastního Nginx site pouze statickou cestu
+`/ios/`, vytvoří stránku „podepsaná verze se připravuje“ a při chybě
+konfigurace vrátí předchozí site. Adresář `/var/www/kufr-ios` vlastní
+serverový runner, který smí publikovat pouze statické soubory. Přístup k
+backendovým secrets ani k portu 5080 stránka nemá.
+
+Po úspěšném Ad Hoc podpisu workflow **Kufr iOS** nahraje do tohoto adresáře
+verzovanou IPA, `manifest.plist`, SHA-256 a instalační stránku. Změna
+hlavní stránky proběhne atomicky až po uložení celé verze. Samostatný
+GitHub-hosted job ověří přes veřejné HTTPS stránku, manifest, MIME typy,
+staženou IPA a checksum. Instalaci `itms-services` a spuštění může potvrdit
+jen registrovaný iPhone v Safari; serverový test to nenahrazuje. Soubory
+pod `/ios/` jsou veřejně čitelné, proto IPA nesmí obsahovat tajemství.
