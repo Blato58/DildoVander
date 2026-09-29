@@ -1,0 +1,13 @@
+{
+  "protocolVersion": 1,
+  "type": "conversation.ack",
+  "requestMessageId": "70384126-a360-45ba-9173-ded8287f0f57",
+  "bootId": "c85743d5-1b72-41b8-8500-ae3c102b27d6",
+  "conversationId": "ac665612-864c-4482-bb68-7415921119ae",
+  "clientTurnId": "8475532e-92b2-487e-b476-7f98f0030e68",
+  "generation": 2,
+  "eventSequence": 83,
+  "status": "accepted",
+  "duplicate": false,
+  "errorCode": null
+}

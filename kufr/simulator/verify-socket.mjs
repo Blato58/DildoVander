@@ -184,6 +184,86 @@ try {
   const acquired = await client.next('state.snapshot');
   assert.equal(acquired.controlMode, 'manual');
   assert.ok(acquired.controlLeaseId);
+  assert.ok(acquired.conversation.conversationId);
+
+  const textTurnId = randomUUID();
+  const textMessageId = randomUUID();
+  client.send({
+    protocolVersion: 1,
+    type: 'conversation.text',
+    messageId: textMessageId,
+    deviceId: 'kufr-001',
+    bootId: simulator.bootId,
+    controlLeaseId: acquired.controlLeaseId,
+    conversationId: acquired.conversation.conversationId,
+    clientTurnId: textTurnId,
+    generation: acquired.conversation.generation,
+    expectedRevision: acquired.revision,
+    text: 'Česká otázka',
+  });
+  const textAck = await client.next('conversation.ack');
+  assert.equal(textAck.requestMessageId, textMessageId);
+  assert.equal(textAck.status, 'accepted');
+  assert.equal(textAck.duplicate, false);
+  const cancelMessage = {
+    protocolVersion: 1,
+    type: 'conversation.cancel',
+    messageId: randomUUID(),
+    deviceId: 'kufr-001',
+    bootId: simulator.bootId,
+    controlLeaseId: acquired.controlLeaseId,
+    conversationId: acquired.conversation.conversationId,
+    generation: acquired.conversation.generation,
+  };
+  client.send(cancelMessage);
+  const cancelAck = await client.next('conversation.ack');
+  assert.equal(cancelAck.status, 'accepted');
+  assert.equal(cancelAck.generation, acquired.conversation.generation + 1);
+  client.send(cancelMessage);
+  const repeatedCancelAck = await client.next('conversation.ack');
+  assert.equal(repeatedCancelAck.status, 'accepted');
+  assert.equal(repeatedCancelAck.duplicate, true);
+  assert.equal(repeatedCancelAck.generation, cancelAck.generation);
+  await new Promise((resolve) => setTimeout(resolve, 450));
+  assert.equal(client.latest('conversation.result'), undefined);
+
+  client.send({
+    protocolVersion: 1,
+    type: 'conversation.text',
+    messageId: randomUUID(),
+    deviceId: 'kufr-001',
+    bootId: simulator.bootId,
+    controlLeaseId: acquired.controlLeaseId,
+    conversationId: acquired.conversation.conversationId,
+    clientTurnId: textTurnId,
+    generation: acquired.conversation.generation,
+    expectedRevision: acquired.revision,
+    text: 'po zrušení',
+  });
+  const staleTextAck = await client.next('conversation.ack');
+  assert.equal(staleTextAck.status, 'rejected');
+  assert.equal(staleTextAck.errorCode, 'wrong_generation');
+
+  const nextTurnId = randomUUID();
+  client.send({
+    protocolVersion: 1,
+    type: 'conversation.text',
+    messageId: randomUUID(),
+    deviceId: 'kufr-001',
+    bootId: simulator.bootId,
+    controlLeaseId: acquired.controlLeaseId,
+    conversationId: acquired.conversation.conversationId,
+    clientTurnId: nextTurnId,
+    generation: cancelAck.generation,
+    expectedRevision: acquired.revision,
+    text: 'Nová česká otázka',
+  });
+  assert.equal((await client.next('conversation.ack')).status, 'accepted');
+  const fakeReply = await client.next('conversation.result');
+  assert.equal(fakeReply.clientTurnId, nextTurnId);
+  assert.equal(fakeReply.generation, cancelAck.generation);
+  assert.equal(fakeReply.simulated, true);
+  assert.equal(timeline.filter((event) => event.event === 'release_latch').length, 0);
 
   const command = {
     protocolVersion: 1,
@@ -435,7 +515,7 @@ try {
       resolve();
     });
   });
-  console.log('WSS: TLS/auth, lease expiry, ACK retry, reload, priority Stop, strict input, restart and close/acquire race passed');
+  console.log('WSS: TLS/auth, lease expiry, conversation text/result/cancel, ACK retry, reload, priority Stop, strict input, restart and close/acquire race passed');
 } finally {
   observer?.response.destroy();
   client?.socket.terminate();

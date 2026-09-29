@@ -18,6 +18,7 @@
 #endif
 
 #include "../firmware/src/features/device_control/DeviceControl.h"
+#include "../firmware/src/features/conversation/ConversationSession.h"
 #include "../firmware/src/features/safety/SafetyController.h"
 
 namespace {
@@ -51,6 +52,50 @@ const char* OutcomeName(CommandOutcome outcome) {
     case CommandOutcome::OutcomeUnknown: return "outcome_unknown";
   }
   return "outcome_unknown";
+}
+
+const char* ConversationErrorName(ConversationCommandError error) {
+  switch (error) {
+    case ConversationCommandError::None: return "none";
+    case ConversationCommandError::Unauthorized: return "unauthorized";
+    case ConversationCommandError::WrongBoot: return "wrong_boot";
+    case ConversationCommandError::WrongSession: return "wrong_session";
+    case ConversationCommandError::WrongGeneration: return "wrong_generation";
+    case ConversationCommandError::StaleRevision: return "stale_revision";
+    case ConversationCommandError::InvalidText: return "invalid_message";
+    case ConversationCommandError::Busy: return "busy";
+    case ConversationCommandError::IdConflict: return "id_conflict";
+    case ConversationCommandError::TurnAlreadySeen: return "already_seen_result_unavailable";
+    case ConversationCommandError::TurnLimitReached: return "turn_limit_reached";
+  }
+  return "invalid_message";
+}
+
+bool DecodeHex(const std::string& encoded, std::string& decoded) {
+  if (encoded.empty() || encoded.size() > 16384 || encoded.size() % 2 != 0) {
+    return false;
+  }
+  decoded.clear();
+  decoded.reserve(encoded.size() / 2);
+  for (size_t index = 0; index < encoded.size(); index += 2) {
+    const auto digit = [](char value) -> int {
+      if (value >= '0' && value <= '9') {
+        return value - '0';
+      }
+      if (value >= 'a' && value <= 'f') {
+        return value - 'a' + 10;
+      }
+      return -1;
+    };
+    const int high = digit(encoded[index]);
+    const int low = digit(encoded[index + 1]);
+    if (high < 0 || low < 0) {
+      decoded.clear();
+      return false;
+    }
+    decoded.push_back(static_cast<char>((high << 4) | low));
+  }
+  return true;
 }
 
 class BridgePort : public SafetyPort {
@@ -313,7 +358,8 @@ bool ReadEnd(std::istringstream& input) {
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  if (argc != 3 || argv[1][0] == '\0' || argv[2][0] == '\0') {
+  if (argc != 4 || argv[1][0] == '\0' || argv[2][0] == '\0' ||
+      argv[3][0] == '\0') {
     return 2;
   }
 
@@ -327,6 +373,7 @@ int main(int argc, char* argv[]) {
   SafetyController safety(port);
   SelectionSequence sequence(safety);
   DeviceControl control("kufr-001", bootId, sequence, journal, 1);
+  ConversationSession conversation(bootId, argv[3]);
   safety.InitializeSafe();
   if (!journal.HasPending() && !control.RecoverAfterInspection()) {
     return 1;
@@ -337,6 +384,15 @@ int main(int argc, char* argv[]) {
   std::string activeCommandId;
   std::string lastCommandId;
   std::string lastOutcome;
+  std::string activeConversationTurnId;
+  std::string completedConversationTurnId;
+  uint64_t conversationDueAtMs = 0;
+  uint64_t completedConversationGeneration = 0;
+  std::string lastCancelMessageId;
+  std::string lastCancelBootId;
+  std::string lastCancelLeaseId;
+  std::string lastCancelConversationId;
+  uint64_t lastCancelGeneration = 0;
   std::string phase = journal.HasPending() ? "recoveryRequired" : "ready";
   uint8_t lastCompartment = 0;
   bool success = false;
@@ -355,6 +411,7 @@ int main(int argc, char* argv[]) {
     outcome = "none";
     SelectionStep step;
     uint64_t nowMs = 0;
+    const bool hadManualLease = !leaseId.empty();
 
     if (operation == "ACQUIRE") {
       std::string requestedLease;
@@ -456,6 +513,63 @@ int main(int argc, char* argv[]) {
           }
         }
       }
+    } else if (operation == "TEXT") {
+      ConversationTextCommand command;
+      std::string controlLeaseId;
+      std::string encodedText;
+      if ((input >> command.bootId >> controlLeaseId >>
+           command.conversationId >> command.clientTurnId >>
+           command.generation >> command.expectedRevision >> encodedText >>
+           nowMs) && ReadEnd(input) && DecodeHex(encodedText, command.text)) {
+        const bool manualLeaseValid = !leaseId.empty() &&
+            controlLeaseId == leaseId && nowMs < leaseExpiresAtMs;
+        const ConversationCommandReceipt receipt = conversation.SubmitText(
+            command, manualLeaseValid, control.Revision());
+        success = receipt.error == ConversationCommandError::None;
+        duplicate = receipt.duplicate;
+        error = ConversationErrorName(receipt.error);
+        if (success && !duplicate) {
+          activeConversationTurnId = command.clientTurnId;
+          conversationDueAtMs = nowMs + 300;
+        }
+      }
+    } else if (operation == "CANCEL") {
+      std::string messageId;
+      std::string requestedBootId;
+      std::string controlLeaseId;
+      std::string requestedConversationId;
+      uint64_t generation = 0;
+      if ((input >> messageId >> requestedBootId >> controlLeaseId >>
+           requestedConversationId >> generation >> nowMs) && ReadEnd(input)) {
+        const bool manualLeaseValid = !leaseId.empty() &&
+            controlLeaseId == leaseId && nowMs < leaseExpiresAtMs;
+        ConversationCommandError result;
+        if (!manualLeaseValid) {
+          result = ConversationCommandError::Unauthorized;
+        } else if (messageId == lastCancelMessageId) {
+          const bool sameCancel = requestedBootId == lastCancelBootId &&
+              controlLeaseId == lastCancelLeaseId &&
+              requestedConversationId == lastCancelConversationId &&
+              generation == lastCancelGeneration;
+          result = sameCancel ? ConversationCommandError::None
+                              : ConversationCommandError::IdConflict;
+          duplicate = sameCancel;
+        } else {
+          result = conversation.Cancel(requestedBootId, requestedConversationId,
+                                       generation, true);
+        }
+        success = result == ConversationCommandError::None;
+        error = ConversationErrorName(result);
+        if (success && !duplicate) {
+          lastCancelMessageId = messageId;
+          lastCancelBootId = requestedBootId;
+          lastCancelLeaseId = controlLeaseId;
+          lastCancelConversationId = requestedConversationId;
+          lastCancelGeneration = generation;
+          activeConversationTurnId.clear();
+          completedConversationTurnId.clear();
+        }
+      }
     } else if (operation == "BEGIN") {
       if ((input >> nowMs) && ReadEnd(input)) {
         port.nowMs = nowMs;
@@ -491,6 +605,16 @@ int main(int argc, char* argv[]) {
           leaseId.clear();
           leaseExpiresAtMs = 0;
         }
+        if (!leaseId.empty() && !activeConversationTurnId.empty() &&
+            nowMs >= conversationDueAtMs) {
+          completedConversationGeneration = conversation.Generation();
+          if (conversation.CompleteTurn(activeConversationTurnId,
+                                        completedConversationGeneration)) {
+            completedConversationTurnId = activeConversationTurnId;
+            activeConversationTurnId.clear();
+            success = true;
+          }
+        }
       }
     } else if (operation == "STOP" || operation == "DISCONNECT") {
       if ((input >> nowMs) && ReadEnd(input)) {
@@ -508,6 +632,11 @@ int main(int argc, char* argv[]) {
           lastOutcome = "outcome_unknown";
           activeCommandId.clear();
         }
+        if (operation == "STOP") {
+          conversation.LoseManualLease();
+          activeConversationTurnId.clear();
+          completedConversationTurnId.clear();
+        }
       }
     } else if (operation == "RECOVER") {
       if ((input >> nowMs) && ReadEnd(input)) {
@@ -520,6 +649,12 @@ int main(int argc, char* argv[]) {
       if ((input >> nowMs) && ReadEnd(input)) {
         success = true;
       }
+    }
+
+    if (hadManualLease && leaseId.empty()) {
+      conversation.LoseManualLease();
+      activeConversationTurnId.clear();
+      completedConversationTurnId.clear();
     }
 
     if (!success && error == "none" && operation != "TICK" &&
@@ -542,7 +677,13 @@ int main(int argc, char* argv[]) {
               << "\",\"lastCommandId\":\"" << lastCommandId
               << "\",\"lastCompartment\":" << static_cast<int>(lastCompartment)
               << ",\"lastOutcome\":\"" << lastOutcome
-              << "\",\"journalPending\":"
+              << "\",\"conversationId\":\"" << conversation.ConversationId()
+              << "\",\"conversationGeneration\":" << conversation.Generation()
+              << ",\"activeConversationTurnId\":\"" << activeConversationTurnId
+              << "\",\"completedConversationTurnId\":\"" << completedConversationTurnId
+              << "\",\"completedConversationGeneration\":"
+              << completedConversationGeneration
+              << ",\"journalPending\":"
               << (journal.HasPending() ? "true" : "false")
               << ",\"journalFault\":"
               << (journal.HasFault() ? "true" : "false")

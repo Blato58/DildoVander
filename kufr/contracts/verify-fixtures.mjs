@@ -51,6 +51,12 @@ const conversationText = validateMessage(
 const conversationCancel = validateMessage(
   await readFile(new URL('./fixtures/valid/conversation-cancel.json', import.meta.url)),
 );
+const conversationAck = validateMessage(
+  await readFile(new URL('./fixtures/valid/conversation-ack.json', import.meta.url)),
+);
+const conversationResult = validateMessage(
+  await readFile(new URL('./fixtures/valid/conversation-result.json', import.meta.url)),
+);
 
 function expectRejectedMutation(label, original, mutate) {
   const message = structuredClone(original);
@@ -121,6 +127,15 @@ expectRejectedMutation('conversation text cannot carry actuator instruction', co
 });
 expectRejectedMutation('conversation cancel without generation', conversationCancel, (message) => {
   delete message.generation;
+});
+expectRejectedMutation('accepted conversation ack with an error', conversationAck, (message) => {
+  message.errorCode = 'busy';
+});
+expectRejectedMutation('conversation result cannot issue actuator command', conversationResult, (message) => {
+  message.compartment = 4;
+});
+expectRejectedMutation('snapshot requires conversation generation', stateSnapshot, (message) => {
+  delete message.conversation.generation;
 });
 
 const oversizedMessage = Buffer.concat([

@@ -46,11 +46,13 @@ chybové kódy odmítnutých příkazů.
 masku dostupnosti musí zařízení trvale zapsat před ACK. Opakování stejného
 příkazu masku znovu nepřepíše, stejné ID s jiným obsahem je konflikt.
 
-`conversation.text/cancel` zatím popisují pouze vstupní kontrakt. Mají
-manual lease, boot a conversation generation; text obsahuje jednorázové
-`clientTurnId` a expectedRevision. Simulator tyto zprávy zatím nepředává
-conversation runtime a bezpečně je odmítne. Přijetí textu v parseru není
-důkaz, že existuje cloudový tah, zrušení nebo potvrzení návrhu.
+`conversation.text/cancel` mají manual lease, boot a conversation generation;
+text obsahuje jednorázové `clientTurnId` a expectedRevision. Identitu
+`conversationId`, generaci a aktivní tah vrací snapshot od zařízení.
+`conversation.ack` odlišuje přijetí, odmítnutí a duplicitní aktivní text.
+`conversation.result` v současném simulátoru obsahuje pouze pevnou fake
+odpověď se `simulated:true`, bez návrhu přihrádky. Přijetí textu v parseru
+ani fake výsledek nejsou důkaz cloudového tahu či fyzického potvrzení.
 
 ## Ověření
 

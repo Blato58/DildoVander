@@ -29,7 +29,7 @@ TLS, skutečné WSS spojení ani časování na ESP32.
 ve Visual Studio Developer Command Prompt z kořene repozitáře:
 
 ```text
-cl /nologo /std:c++14 /W4 /WX /EHsc kufr\firmware\src\features\safety\SafetyController.cpp kufr\firmware\src\features\wand_selection\SelectionSequence.cpp kufr\firmware\src\features\device_control\DeviceControl.cpp kufr\simulator\bridge.cpp /Fe:<docasna-slozka>\bridge.exe
+cl /nologo /std:c++14 /W4 /WX /EHsc kufr\firmware\src\features\safety\SafetyController.cpp kufr\firmware\src\features\wand_selection\SelectionSequence.cpp kufr\firmware\src\features\device_control\DeviceControl.cpp kufr\firmware\src\features\conversation\ConversationSession.cpp kufr\simulator\bridge.cpp /Fe:<docasna-slozka>\bridge.exe
 ```
 
 Node verze 24.21.0 je v `.nvmrc`. V `kufr/contracts` i `kufr/simulator`
@@ -45,7 +45,9 @@ lease, retry, Stop, snapshot a odmítnutí chybné zprávy.
 soukromý klíč nedávejte do repozitáře. Server naslouchá pouze na
 `127.0.0.1:8443`, přijímá jeden autorizovaný control socket, odmítá kompresi
 a běžné zprávy nad 2048 bajtů; `conversation.text` má smluvní limit 8192
-bajtů, ale facade jej zatím odmítá jako neimplementovaný směr. Token patří do `Authorization: Bearer` při WSS
+bajtů. Facade předává text a cancel do C++ modelu, vrací ACK a po fake
+dokončení pevnou odpověď se `simulated:true`. Text nikdy nevydá událost
+motoru či západky. Token patří do `Authorization: Bearer` při WSS
 handshake. Vstup prochází sdíleným přísným E2 parserem. Certifikát klient
 musí ověřit nebo připnout, test jej používá jako explicitní CA.
 
@@ -62,6 +64,14 @@ Záznam `M` ukládá potvrzené znovuzaložení přihrádky mimo transakci výb�
 WSS příkaz `inventory.confirmReload` vyžaduje platný ruční lease, kontrolu
 obsluhou, čerstvou revision a pořadí. Bridge vrací ACK a snapshot, bez
 události motoru či západky.
+
+Snapshot nyní obsahuje zařízením založené `conversationId`, `generation`
+a aktivní tah. Stejný aktivní `clientTurnId` se pouze potvrdí znovu;
+již dokončené či zrušené ID se v rámci sezení znovu nepřijme. Cancel,
+Stop a ztráta ručního lease zneplatní pozdní fake výsledek. Čistý
+`ConversationSession` má hostitelský test a `verify-conversation.mjs`
+kontroluje propojení s bridge, ale skutečný HTTPS backend a ověření jeho
+echo identity zde zatím nejsou.
 
 ## Webová časová osa E2.5
 
