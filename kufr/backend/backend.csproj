@@ -9,6 +9,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="BackendTests" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
+    <EmbeddedResource Include="../ai-eval/prompt.txt" LogicalName="Kufr.Backend.PartyPrompt" />
   </ItemGroup>
 
 </Project>
