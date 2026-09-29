@@ -42,6 +42,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      - run: bash -n scripts/build-ios-ipa.sh
 
   ios-simulator:
     needs: web
