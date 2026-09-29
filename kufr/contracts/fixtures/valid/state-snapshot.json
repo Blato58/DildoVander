@@ -1,0 +1,19 @@
+{
+  "protocolVersion": 1,
+  "type": "state.snapshot",
+  "deviceId": "kufr-001",
+  "bootId": "c85743d5-1b72-41b8-8500-ae3c102b27d6",
+  "deviceUptimeMs": 153200,
+  "eventSequence": 80,
+  "revision": 37,
+  "controlMode": "manual",
+  "controlLeaseId": "a8287a95-b6a1-4501-bdaa-38721ec83191",
+  "phase": "ready",
+  "activeCommandId": null,
+  "readyMask": 63,
+  "calibrationRevision": 2,
+  "faults": [],
+  "microphoneState": "idle",
+  "capabilities": ["manualControl", "conversationText"],
+  "lastResult": null
+}

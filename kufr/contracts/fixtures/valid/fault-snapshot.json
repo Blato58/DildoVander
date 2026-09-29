@@ -1,0 +1,19 @@
+{
+  "protocolVersion": 1,
+  "type": "state.snapshot",
+  "deviceId": "kufr-001",
+  "bootId": "c85743d5-1b72-41b8-8500-ae3c102b27d6",
+  "deviceUptimeMs": 153500,
+  "eventSequence": 82,
+  "revision": 38,
+  "controlMode": "recovery",
+  "controlLeaseId": null,
+  "phase": "fault",
+  "activeCommandId": null,
+  "readyMask": 0,
+  "calibrationRevision": 2,
+  "faults": ["watchdog_timeout", "calibration_invalid"],
+  "microphoneState": "idle",
+  "capabilities": ["manualControl"],
+  "lastResult": null
+}

@@ -1,20 +1,20 @@
 # Stav implementace AI kufru
 
-Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální firmware build E1.2. Ostatní etapy, hardware, iPhone a CI zůstávají bez runtime akceptace. Hotový návrh není hotová implementace.
+Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální firmware build E1.2 a kontrola fixtures E2.1. Ostatní etapy, hardware, iPhone a CI zůstávají bez runtime akceptace. Hotový návrh není hotová implementace.
 
 [Implementační plán](implementacni-plan.md) určuje architekturu a akceptaci. [AGENTS.md](../../AGENTS.md) určuje pracovní postup AI. Tento soubor je jediný průběžný záznam postupu; README ho pouze odkazují.
 
 ## Předání další AI
 
-**Aktivní implementační krok:** žádný. E1.2 bylo 29. 9. 2026 implementováno a hostitelsky ověřeno; rozsah a kontroly jsou v deníku D2. E1 je dokončené jako softwarové jádro bez desky. Fyzické nezávislé vypnutí při zamrzlé smyčce a další měření zůstávají kritérii E5.
+**Aktivní implementační krok:** žádný. E2.1 bylo 29. 9. 2026 implementováno a ověřeno fixtures; rozsah a kontroly jsou v deníku D3. E1 je dokončené jako softwarové jádro bez desky. Fyzické nezávislé vypnutí při zamrzlé smyčce a další měření zůstávají kritérii E5.
 
-**Další konkrétní krok: E2.1 – sdílené kontrakty a negativní protokolové fixtures.**
+**Další konkrétní krok: E2.2 – hostitelský model příkazů se simulovaným časem a journalem.**
 
-1. Podle kapitoly 5 plánu založit verzované kontrakty pro `selection.start`, `command.ack`, `selection.result`, snapshot a bezpečnostní povely. Pokrýt přesné typy, rozsahy a zákaz nadbytečných polí, duplicitních klíčů a neplatných čísel.
-2. Přidat pozitivní i chybné sdílené fixtures a ověřovací příkaz. Následující E2 slices doplní fake clock, journal, idempotenci a síťový simulátor. E2 není dokončené samotnými schématy.
-3. Samostatná HW akceptace inhibit/watchdogu, resetu a fyzických limitů zůstává v E5 po vstupu B1.
+1. Nad čistým C++ `SelectionSequence` postavit hostitelský model vlastníka stavu s fake clock, bootId, revision, monotónním pořadím a 64 výsledky. Znovu použít typy/fixtures E2.1, nezavádět GPIO ani síťové spojení před E4.
+2. Simulovat zápis malého journalu před prvním pohybem, zamítnutí při chybě zápisu a `RecoveryRequired` po restartu s neuzavřeným záznamem. Ověřit ztracený ACK, duplicitu, změněný payload pod stejným ID, starý příkaz a Stop před běžným výběrem; nepřijetí se nesmí změnit v druhou aktivaci.
+3. Další E2 slices doplní WSS facade/UI časovou osu, zbývající zprávy a OpenAPI backendu. Samostatná HW akceptace zůstává v E5 po vstupu B1.
 
-Předpokládané dotčené cesty: `kufr/contracts/`, testovací fixtures a související README. Krok nevyžaduje fyzickou desku, cloudový klíč ani Apple certifikát. Toto je implementační předání, nikoli příkaz něco nahrát či publikovat.
+Předpokládané dotčené cesty: `kufr/simulator/`, `kufr/firmware/src/features/device_control/`, sdílené fixtures/testy a související README. Krok nevyžaduje fyzickou desku, cloudový klíč ani Apple certifikát. Toto je implementační předání, nikoli příkaz něco nahrát či publikovat.
 
 Pokud uživatel omezí práci pouze na mobilní aplikaci, neoznačuj závislosti E2 za splněné. Lze připravit samostatnou UI část E3 proti výslovně označenému fake transportu, ale E3 zůstane částečné do integrace se simulátorem/protokolem E2. Rozsah a mezeru zapiš sem.
 
@@ -36,7 +36,7 @@ Pokud uživatel omezí práci pouze na mobilní aplikaci, neoznačuj závislosti
 | --- | --- | --- |
 | Firmware | Čistá neblokující `SelectionSequence`, `SafetyController` s portem pro požadavky na bezpečný výstup, Stop/poruchu/zotavení, hostitelský timeout smyčky a vstup ztráty ručního lease; sériové `select 1..6`, `stop`, `reset`, `status`, `help`. Hostitelské testy a lokální Arduino/PlatformIO build E1.2. | Nezávislý fyzický watchdog/inhibit, GPIO, síťový detektor lease, provisioning, I2S, dialog a skutečné ovládání. |
 | Mobil | Statická obrazovka TypeScript/Vite, build script a lockfile. | Interaktivní ruční řízení, transport, simulátor, Capacitor, iOS/Swift projekt a testy. |
-| Backend/kontrakty/simulátor | Návrh v plánu. | Implementační adresáře, autentizace, fake/AI adaptéry, schémata a integrační testy. |
+| Backend/kontrakty/simulátor | První část lokálního protokolu v `contracts/control-message-v1.schema.json`, osm pozitivních a 23 negativních kontrol, připnutý Node/npm test E2.1. | Backend, OpenAPI, simulátor, autentizace, fake/AI adaptéry, zbývající schémata a integrační testy. |
 | iOS CI | Majitelem popsaný existující postup Windows → macOS runner → podepsaná IPA. | Skutečný workflow v tomto checkoutu, ověřená identita/profil a běh/instalace. |
 | Hardware | Dodaný obrázek pinů, návrh napájení a předběžné profily A/B. | Revize konkrétní desky, schéma bezpečnostní větve, měření a fyzická akceptace. |
 
@@ -50,7 +50,7 @@ Přesné závislosti a kritéria dokončení jsou v kapitole 12 plánu. Následu
 | --- | --- | --- | --- |
 | E0 – provozní předpoklady | rozpracováno | Architektonické výchozí předpoklady v plánu; žádná měření. | Vstupy B1–B5 níže; software E1 může začít. |
 | E1 – bezpečné jádro | hotovo | E1.1: Stop v každé fázi, safety port, 250/500/5000ms limity, explicitní zotavení (D1). E1.2: hostitelský timeout průchodu smyčkou, porucha, výpadek ručního lease a přednost Stop; hostitelské testy a firmware build prošly (D2). | Fyzická reakce nezávislého watchdogu patří E5 a nebyla měřena; softwarový model vypíná až při dalším průchodu smyčkou. |
-| E2 – smlouvy a simulátor | nezahájeno | Pouze návrh kontraktů. | E2.1 schémata a fixtures; potom simulátor a negativní scénáře. |
+| E2 – smlouvy a simulátor | rozpracováno | E2.1: první JSON Schema lokálního protokolu, přísný parser a pozitivní/chybné fixtures (D3). | E2.2 fake clock, journal a idempotence; potom WSS facade, UI časová osa, další zprávy a OpenAPI. Kritéria ztraceného ACK/restartu zatím nesplněna. |
 | E3 – ruční mobil bez HW | nezahájeno | Statická stránka není ruční řízení. | E2; UI, potvrzení/Stop a integrace. |
 | E3a – iOS CI základ | nezahájeno | Jen majitelem popsaný postup. | E3; B2/B3 pro podpis a skutečnou instalaci. |
 | E4 – runtime a přímá síť | nezahájeno | Arduino prototyp. | E2; pro nahrání B1. |
@@ -77,6 +77,14 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 | B5 | Majitel: finální katalog a publikum, rozměry, router a prostředí akce. | Obsahovou/provozní akceptaci E8/E11 a finální mechaniku. | Neutrální testovací katalog a laboratorní/simulované scénáře. |
 
 ## Deník změn a ověření
+
+### D3 – 29. 9. 2026 – E2.1 první sdílené kontrakty
+
+- Převzetí: E1.2 bylo jako softwarové jádro pushnuto na `origin/main`; E2 podle kapitoly 12 smí začít bez desky. Před změnou byl krok E2.1 zapsán jako aktivní.
+- Rozsah: nové `contracts/control-message-v1.schema.json` (JSON Schema 2020-12) pro `selection.start`, `command.ack`, `selection.result`, `state.snapshot`, `safety.stop` a `safety.reset`; `contracts/fixtures/` se sdílenými platnými/chybnými zprávami; `verify-fixtures.mjs`, připnuté `package.json`/lockfile/`.nvmrc` a README. Přísný vstup odmítá neplatné UTF-8, duplicitní klíče, desetinný/exponenciální zápis celočíselných polí a zprávy nad 2048 bajtů. Schéma odmítá nadbytečná pole, chybné typy/rozsahy a vynucuje oddělené kódy poruch, bezpečnostní povely a `eventSequence` watermark snapshotu. Kořenové `kufr/README.md` ukazuje existující adresář.
+- Ověření z `kufr/contracts`: s Node `24.21.0` a npm `11.19.0` podle `.nvmrc` proběhlo `npm ci` a `npm test` — **8 platných a 23 chybných zpráv správně rozlišeno**, žádná chyba. Přísné schéma se zkompilovalo; `npm ci` nahlásilo 0 známých zranitelností v instalovaných osmi balíčcích. `git diff --check` bez chyb. Neprováděl se firmware, mobilní ani CI build, protože se změnily jen kontrakty a jejich vlastní verifier.
+- Revize a doručení: změny jsou připravené pro commit/push tohoto slice; skutečné SHA a výsledek doplnit po doručení. Schéma neověřuje identitu/TLS, lease, boot, čas, revision, idempotenci ani journal; tyto stavové kontroly jsou následující E2 slices. Přijímače musí přísný parser a pravidla přenést do svých adaptérů; tento test je nespojuje se skutečnou sítí.
+- Předání: E2 zůstává rozpracované. Následuje E2.2 podle horní části souboru; B1/B2/B4 nebrání hostitelskému modelu.
 
 ### D2 – 29. 9. 2026 – E1.2 hostitelský timeout a ztráta řízení
 
