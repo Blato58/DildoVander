@@ -108,6 +108,8 @@ def validate_result(result, ready_mask):
             raise ValueError("Proposed compartment is unavailable")
     elif compartment is not None:
         raise ValueError("Non-proposal has a compartment")
+    if ready_mask == 0 and decision != "no_selection":
+        raise ValueError("Empty inventory requires no_selection")
     return result
 
 

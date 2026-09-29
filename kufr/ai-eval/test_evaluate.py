@@ -43,6 +43,16 @@ class EvalTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Non-proposal"):
             validate_result(result, 63)
 
+    def test_empty_inventory_requires_no_selection(self):
+        result = {
+            "reply": "Nevím, co nabídnout.",
+            "decision": "ask",
+            "compartment": None,
+            "reason": "Žádná hůlka",
+        }
+        with self.assertRaisesRegex(ValueError, "Empty inventory"):
+            validate_result(result, 0)
+
     def test_incomplete_response_is_rejected(self):
         response = {
             "status": "incomplete",
