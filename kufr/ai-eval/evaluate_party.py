@@ -49,19 +49,19 @@ class Meter:
         self.api_key = api_key
         self.limit = min(limit, MAX_RUN_MICRO_USD)
         self.session_limit = min(session_limit, 500_000)
-        self.spent = 0
-        self.session_spent = 0
+        self.estimated_micro_usd = 0
+        self.session_estimated_micro_usd = 0
         self.send = send
         self.calls = []
 
     def invoke(self, request, model, purpose):
         reservation = upper_bound_micro_usd(request, model)
-        if (self.spent + reservation > self.limit
-                or self.session_spent + reservation > self.session_limit):
+        if (self.estimated_micro_usd + reservation > self.limit
+                or self.session_estimated_micro_usd + reservation > self.session_limit):
             raise RuntimeError("Conservative reservation would exceed the approved run/session cap")
         # Retain the reservation on network/parse failure; never retry a POST.
-        self.spent += reservation
-        self.session_spent += reservation
+        self.estimated_micro_usd += reservation
+        self.session_estimated_micro_usd += reservation
         started = time.perf_counter()
         response = self.send(request, self.api_key)
         usage = response.get("usage", {})
@@ -70,14 +70,16 @@ class Meter:
                 or min(inputs, outputs) < 0):
             raise RuntimeError("Usage/model cannot be priced; retained reservation")
         input_price, output_price = MODEL_PRICES[model]
-        actual = int((inputs * input_price + outputs * output_price).to_integral_value(rounding=ROUND_CEILING))
-        self.spent += actual - reservation
-        self.session_spent += actual - reservation
+        estimated = int((inputs * input_price + outputs * output_price).to_integral_value(rounding=ROUND_CEILING))
+        self.estimated_micro_usd += estimated - reservation
+        self.session_estimated_micro_usd += estimated - reservation
         self.calls.append({"model": model, "purpose": purpose,
                            "latencyMs": round((time.perf_counter() - started) * 1000),
                            "inputTokens": inputs, "outputTokens": outputs,
-                           "upperCostMicroUsd": actual})
-        if actual > reservation:
+                           "responseId": response.get("id"), "serviceTier": response.get("service_tier"),
+                           "providerUsage": usage, "billedCostMicroUsd": None,
+                           "upperCostMicroUsd": estimated})
+        if estimated > reservation:
             raise RuntimeError("Provider usage exceeded reservation; stopping all further calls")
         return response
 
@@ -110,7 +112,7 @@ def read_visitor(response):
 
 
 def run_dialogue(meter, model, persona):
-    meter.session_spent = 0
+    meter.session_estimated_micro_usd = 0
     history, dialogue, completed = [], [], []
     visitor = ""
     completed_questions = 0
@@ -131,14 +133,14 @@ def run_dialogue(meter, model, persona):
         history = (history + [{"VisitorText": visitor, "Reply": result["reply"][:300]}])[-2:]
         if result["decision"] != "ask":
             return {"model": model, "persona": persona["id"], "dialogue": dialogue,
-                    "terminated": True, "upperCostMicroUsd": meter.session_spent}
+                    "terminated": True, "upperCostMicroUsd": meter.session_estimated_micro_usd}
         completed_questions += 1
         if index < 4:
             visitor = read_visitor(meter.invoke(visitor_request(persona, dialogue), VISITOR_MODEL,
                                                f"{persona['id']}:visitor"))
             dialogue.append({"speaker": "visitor", "reply": visitor})
     return {"model": model, "persona": persona["id"], "dialogue": dialogue,
-            "terminated": False, "upperCostMicroUsd": meter.session_spent}
+            "terminated": False, "upperCostMicroUsd": meter.session_estimated_micro_usd}
 
 
 def main():
@@ -154,14 +156,17 @@ def main():
         raise ValueError("Run budget must be positive and no more than 1 USD")
     meter = Meter(key, limit=args.budget_micro_usd, session_limit=int(os.environ.get("SESSION_CAP_MICRO_USD") or 500_000))
     report = {"synthetic": True, "requiresHumanStyleReview": True, "actuatorCommandIssued": False,
-              "approvedRunCapMicroUsd": meter.limit, "dialogues": [], "completed": False}
+              "approvedRunCapMicroUsd": meter.limit, "dialogues": [], "completed": False,
+              "costBasis": "Conservative list-price estimate; all input at cache-write rate; not billing",
+              "pricingSource": "https://developers.openai.com/api/docs/pricing",
+              "billedCostMicroUsd": None, "billingVerified": False}
     try:
         for model in args.models:
             for persona in PERSONAS:
                 report["dialogues"].append(run_dialogue(meter, model, persona))
         report["completed"] = True
     finally:
-        report["upperCostMicroUsd"] = meter.spent
+        report["upperCostMicroUsd"] = meter.estimated_micro_usd
         report["calls"] = meter.calls
         args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(json.dumps(report, ensure_ascii=False, indent=2))
