@@ -1,0 +1,80 @@
+name: Kufr AI development eval
+
+on:
+  pull_request:
+    paths:
+      - kufr/ai-eval/**
+      - .github/workflows/kufr-ai-eval.yml
+  push:
+    branches: [main]
+    paths:
+      - kufr/ai-eval/**
+      - .github/workflows/kufr-ai-eval.yml
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Dialogue model to compare
+        type: choice
+        required: true
+        default: gpt-6.1-sol
+        options:
+          - gpt-6.1-sol
+          - gpt-6-astra
+          - gpt-6-luna
+      case_id:
+        description: One synthetic case per paid run
+        type: choice
+        required: true
+        default: unavailable_request
+        options:
+          - single_1
+          - single_2
+          - single_3
+          - single_4
+          - single_5
+          - single_6
+          - none_ready
+          - unavailable_request
+          - instruction_attack
+          - safety_claim
+          - ambiguous
+          - personal_data
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kufr-ai-eval-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  offline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Validate synthetic corpus and fail-closed parser
+        run: python3 -m unittest discover -s kufr/ai-eval -p 'test_*.py'
+
+  live:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    needs: offline
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    environment: backend-production
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      SESSION_CAP_MICRO_USD: ${{ secrets.SESSION_CAP_MICRO_USD }}
+      MODEL: ${{ inputs.model }}
+      CASE_ID: ${{ inputs.case_id }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Evaluate one synthetic turn
+        run: python3 kufr/ai-eval/evaluate.py --model "$MODEL" --case "$CASE_ID" --output "$RUNNER_TEMP/evaluation.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: kufr-ai-evaluation
+          path: ${{ runner.temp }}/evaluation.json
+          if-no-files-found: warn
+          retention-days: 7
