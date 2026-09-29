@@ -12,6 +12,10 @@ on:
       - .github/workflows/kufr-ai-eval.yml
   workflow_dispatch:
     inputs:
+      party_compare:
+        description: Adaptive party conversations comparing Sol and Astra (total cap 1 USD)
+        type: boolean
+        default: false
       model:
         description: Dialogue model to compare
         type: choice
@@ -47,7 +51,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     needs: offline
     runs-on: ubuntu-24.04
-    timeout-minutes: 3
+    timeout-minutes: 12
     environment: backend-production
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -57,7 +61,11 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Evaluate one synthetic turn
+        if: ${{ !inputs.party_compare }}
         run: python3 kufr/ai-eval/evaluate.py --model "$MODEL" --case "$CASE_ID" --output "$RUNNER_TEMP/evaluation.json"
+      - name: Compare adaptive synthetic party dialogues
+        if: ${{ inputs.party_compare }}
+        run: python3 kufr/ai-eval/evaluate_party.py --output "$RUNNER_TEMP/evaluation.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:

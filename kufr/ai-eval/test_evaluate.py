@@ -35,7 +35,7 @@ class EvalTests(unittest.TestCase):
         self.assertIn("Kaštanová hůlka Kocovina věštců", request["input"])
         self.assertNotIn("Jasanová hůlka Poslední slovo", request["input"])
         self.assertIn("Ollivanderova obchodu", request["instructions"])
-        self.assertIn("V první odpovědi", request["instructions"])
+        self.assertIn("Nepředstavuj se znovu", request["instructions"])
 
     def test_unavailable_proposal_is_rejected(self):
         result = {
@@ -93,36 +93,41 @@ class EvalTests(unittest.TestCase):
         }
         self.assertEqual(result, parse_response(response, 63)[0])
 
-    def test_offline_multiturn_fixture_carries_two_answers_into_proposal(self):
-        case = load_dialogue_case("sparkle-chaos")
-        requests = build_dialogue_requests(case, "gpt-6.1-sol")
-        self.assertEqual(3, len(requests))
-        self.assertIn("Na parketu mi spadla koruna.", requests[2]["input"])
-        self.assertIn("Jaký trapas má hůlka zachránit?", requests[2]["input"])
-        self.assertIn("koruna", case["turns"][2]["mockResult"]["reply"].lower())
-        self.assertIn("třpytivý chaos", case["turns"][2]["mockResult"]["reply"].lower())
-        self.assertTrue(all(not request["store"] for request in requests))
+    def test_suitcase_opens_without_a_visitor_message(self):
+        requests = build_dialogue_requests(load_dialogue_case("taxi-petr"), "gpt-6.1-sol")
+        self.assertIn("opening", requests[0]["input"])
+        self.assertNotIn("Text návštěvníka:", requests[0]["input"])
+        decisions = requests[0]["text"]["format"]["schema"]["properties"]["decision"]["enum"]
+        self.assertNotIn("propose", decisions)
+        self.assertIn("Petr.", requests[2]["input"])
+
+    def test_returning_person_has_prior_evening_evidence(self):
+        requests = build_dialogue_requests(load_dialogue_case("returning-petr"), "gpt-6.1-sol")
+        self.assertIn("taxík k sousedům", requests[1]["input"])
+        self.assertIn("earlier-petr", requests[1]["input"])
 
     def test_offline_multiturn_rejects_early_proposal(self):
-        case = load_dialogue_case("sparkle-chaos")
+        case = load_dialogue_case("taxi-petr")
         case["turns"][0]["mockResult"] = {
-            "reply": "Hůlka jedna.",
-            "decision": "propose",
-            "compartment": 1,
-            "reason": "Brzy",
+            "reply": "Hůlka jedna.", "decision": "propose",
+            "compartment": 1, "reason": "Brzy",
         }
         with self.assertRaisesRegex(ValueError, "before two completed questions"):
             build_dialogue_requests(case, "gpt-6.1-sol")
+
+    def test_boundary_dialogue_can_take_an_extra_turn(self):
+        requests = build_dialogue_requests(load_dialogue_case("boundary-lenka"), "gpt-6.1-sol")
+        self.assertEqual(4, len(requests))
+        self.assertIn("Ex fakt neřeš", requests[3]["input"])
 
     def test_offline_empty_inventory_has_no_proposal(self):
         requests = build_dialogue_requests(load_dialogue_case("no-inventory"), "gpt-6.1-sol")
         self.assertEqual(1, len(requests))
 
-    def test_offline_political_roast_uses_stated_position(self):
-        case = load_dialogue_case("political-roast")
-        requests = build_dialogue_requests(case, "gpt-6.1-sol")
-        self.assertIn("zrušit pondělky", requests[2]["input"])
-        self.assertIn("třpytem", case["turns"][2]["mockResult"]["reply"])
+    def test_memory_has_a_hard_context_bound(self):
+        with self.assertRaisesRegex(ValueError, "Evening context"):
+            build_request({"readyMask": 63, "visitorText": "Petr"}, "gpt-6.1-sol",
+                          evening_context="x" * 16001)
 
 
 if __name__ == "__main__":

@@ -204,8 +204,123 @@
           "409": { "$ref": "#/components/responses/Problem" }
         }
       }
+    },
+    "/v1/conversations/{id}/opening": {
+      "post": {
+        "operationId": "startSuitcaseDialogue",
+        "summary": "Suitcase speaks first without a visitor message; only before the first turn",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConversationId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpeningTurn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Existing or newly accepted operation; the same idempotency key and body return the same operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationAccepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "502": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "504": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/v1/evening-memory": {
+      "get": {
+        "operationId": "getEveningMemoryStatus",
+        "summary": "Read current device evening ID and storage counters; no transcript content",
+        "responses": {
+          "200": {
+            "description": "Current evening",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EveningMemoryStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/v1/evening-memory/{id}": {
+      "delete": {
+        "operationId": "clearEveningMemory",
+        "summary": "Erase device evening and cancel its current conversations; stale IDs are a harmless no-op",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Expected evening erased or already absent; later evenings are preserved"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
     }
-  },
+},
   "components": {
     "securitySchemes": {
       "DeviceCredential": { "type": "http", "scheme": "bearer", "description": "Unique service-provisioned device credential, never placed in a URL or firmware image" },
@@ -449,7 +564,84 @@
           "code": { "type": "string", "minLength": 1 },
           "traceId": { "type": "string", "minLength": 1 }
         }
+      },
+      "OpeningTurn": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "clientTurnId",
+          "bootId",
+          "generation",
+          "readyMask",
+          "deviceRevision",
+          "catalogVersion"
+        ],
+        "properties": {
+          "clientTurnId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bootId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "generation": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "readyMask": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 63
+          },
+          "deviceRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "catalogVersion": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "EveningMemoryStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eveningId",
+          "exchangeCount",
+          "contentBytes",
+          "droppedExchangeCount",
+          "maxExchanges",
+          "maxContentBytes"
+        ],
+        "properties": {
+          "eveningId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "exchangeCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "contentBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "droppedExchangeCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "maxExchanges": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "maxContentBytes": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
       }
-    }
+  }
   }
 }

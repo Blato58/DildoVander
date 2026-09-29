@@ -43,8 +43,8 @@ internal static class ResponsesTextDialogClientTests
                 "shared party prompt embedded");
             Check(root.GetProperty("instructions").GetString()!.Contains("Ollivanderova obchodu", StringComparison.Ordinal),
                 "shared prompt establishes magical suitcase role");
-            Check(root.GetProperty("instructions").GetString()!.Contains("V první odpovědi", StringComparison.Ordinal),
-                "shared prompt introduces the suitcase in the first reply");
+            Check(root.GetProperty("instructions").GetString()!.Contains("Nepředstavuj se znovu", StringComparison.Ordinal),
+                "host introduces the suitcase, model must not repeat it");
             Check(root.GetProperty("input").GetString()!.Contains("[5]", StringComparison.Ordinal),
                 "ready mask limits provider input");
             Check(root.GetProperty("input").GetString()!.Contains("Kaštanová hůlka Kocovina věštců", StringComparison.Ordinal),
@@ -78,6 +78,20 @@ internal static class ResponsesTextDialogClientTests
             Check(root.GetProperty("input").GetString()!.Contains("polož vlastní navazující otázku",
                     StringComparison.Ordinal),
                 "model is asked to generate its own clarification");
+        }
+
+        using (var openingHttp = new HttpClient(new StubHandler(async (request, token) =>
+        {
+            using var document = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(token));
+            var input = document.RootElement.GetProperty("input").GetString()!;
+            Check(input.Contains("Událost: opening", StringComparison.Ordinal), "explicit opening event");
+            Check(!input.Contains("Text návštěvníka:", StringComparison.Ordinal), "no fabricated visitor text");
+            Check(input.Contains("Petr a taxik", StringComparison.Ordinal), "evening memory reaches provider");
+            return JsonResponse(ProviderResponse("ask", null));
+        })))
+        {
+            var openingClient = new ResponsesTextDialogClient(openingHttp, "test-key", "gpt-6.1-sol");
+            await openingClient.GenerateAsync("", 63, [], true, CancellationToken.None, "Petr a taxik");
         }
 
         using (var earlyHttp = new HttpClient(new StubHandler((_, _) =>

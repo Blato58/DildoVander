@@ -1,3 +1,6 @@
+using System.Text;
+using System.Text.Json;
+
 namespace Kufr.Backend.Features.Conversations;
 
 internal static class ResponsesTextDialogBudget
@@ -8,6 +11,15 @@ internal static class ResponsesTextDialogBudget
     // The 14 kB serialized request cap bounds input below 14,000 tokens;
     // 1,200 output tokens then fit under this $0.05 reservation at Sol rates.
     internal const long ReservedMicroUsd = 50_000;
+
+    internal static int RequestByteLimit(string context) => MaxRequestBytes + ContextBytes(context);
+
+    internal static long ReserveForContext(string context) =>
+        checked(ReservedMicroUsd + (ContextBytes(context) * 5L + 1) / 2);
+
+    private static int ContextBytes(string context) => context.Length == 0
+        ? 0
+        : Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(context));
 
     internal static long CalculateActualMicroUsd(TextDialogResponse response)
     {

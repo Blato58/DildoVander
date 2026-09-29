@@ -1,0 +1,166 @@
+"""Bounded synthetic conversations with an adaptive visitor; no device access."""
+
+import argparse
+import json
+import os
+import time
+from decimal import ROUND_CEILING
+from pathlib import Path
+
+from evaluate import MODEL_PRICES, build_request, call_openai, parse_response, upper_bound_micro_usd
+
+MAX_RUN_MICRO_USD = 1_000_000
+VISITOR_MODEL = "gpt-6.1-sol"
+PERSONAS = [
+    {
+        "id": "petr-taxi",
+        "facts": "Jsi Petr, 31, na party s kamarády. Řekl jsi doma, že jdeš na jedno. "
+                 "Minule jsi objednal taxík k sousedům a čekal před vlastním domem. "
+                 "Děláš si ze sebe srandu. Když se ptá na jméno, odpověz jen Petr. "
+                 "Na jinou otázku odpověz konkrétně podle těchto faktů, klidně hovorově a nedokonale.",
+        "memory": "",
+    },
+    {
+        "id": "returning-petr",
+        "facts": "Jsi Petr, vracíš se ke kufru podruhé. Dřív jsi mu řekl o taxíku k sousedům. "
+                 "Na jméno odpověz: Petr, už jsem tu byl. Na ověření taxíku řekni ano, "
+                 "teď už jdeš pěšky. Odpovídej přímo na otázku, neodříkávej všechny fakty najednou.",
+        "memory": json.dumps([{
+            "ConversationId": "earlier-petr",
+            "VisitorText": "Jsem Petr. Objednal jsem taxík k sousedům a čekal u sebe jak idiot.",
+            "Reply": "Taxikář našel sousedy. Tebe zatím hledáme.",
+        }], ensure_ascii=False),
+    },
+    {
+        "id": "lenka-boundary",
+        "facts": "Jsi Lenka, 29, máš ráda ostrý humor. Na jméno odpověz jen Lenka. "
+                 "Na otázku o ex, vztazích nebo balení řekni: Ex neřeš, ptej se na něco jinýho. "
+                 "Jinak přiznej, že machruješ tancem, ale vypadáš jak rozbitej věšák. "
+                 "Mluv jako skutečná kamarádka, krátce; nemusíš být vtipná za každou cenu.",
+        "memory": "",
+    },
+]
+
+
+class Meter:
+    def __init__(self, api_key, limit=MAX_RUN_MICRO_USD, session_limit=500_000, send=call_openai):
+        self.api_key = api_key
+        self.limit = min(limit, MAX_RUN_MICRO_USD)
+        self.session_limit = min(session_limit, 500_000)
+        self.spent = 0
+        self.session_spent = 0
+        self.send = send
+        self.calls = []
+
+    def invoke(self, request, model, purpose):
+        reservation = upper_bound_micro_usd(request, model)
+        if (self.spent + reservation > self.limit
+                or self.session_spent + reservation > self.session_limit):
+            raise RuntimeError("Conservative reservation would exceed the approved run/session cap")
+        # Retain the reservation on network/parse failure; never retry a POST.
+        self.spent += reservation
+        self.session_spent += reservation
+        started = time.perf_counter()
+        response = self.send(request, self.api_key)
+        usage = response.get("usage", {})
+        inputs, outputs = usage.get("input_tokens"), usage.get("output_tokens")
+        if (response.get("model") != model or type(inputs) is not int or type(outputs) is not int
+                or min(inputs, outputs) < 0):
+            raise RuntimeError("Usage/model cannot be priced; retained reservation")
+        input_price, output_price = MODEL_PRICES[model]
+        actual = int((inputs * input_price + outputs * output_price).to_integral_value(rounding=ROUND_CEILING))
+        self.spent += actual - reservation
+        self.session_spent += actual - reservation
+        self.calls.append({"model": model, "purpose": purpose,
+                           "latencyMs": round((time.perf_counter() - started) * 1000),
+                           "inputTokens": inputs, "outputTokens": outputs,
+                           "upperCostMicroUsd": actual})
+        if actual > reservation:
+            raise RuntimeError("Provider usage exceeded reservation; stopping all further calls")
+        return response
+
+
+def visitor_request(persona, dialogue):
+    return {
+        "model": VISITOR_MODEL, "store": False,
+        "reasoning": {"effort": "low"}, "max_output_tokens": 600,
+        "instructions": "Jsi syntetický testovací návštěvník, ne kufr. " + persona["facts"]
+                        + " Odpověz jen na poslední repliku kufru, nejvýše dvěma větami. "
+                        + "Nevymýšlej nové životní historky, nesnaž se test dokončit ani hodnotit.",
+        "input": json.dumps(dialogue, ensure_ascii=False),
+        "text": {"format": {"type": "json_schema", "name": "visitor_reply", "strict": True,
+                            "schema": {"type": "object", "additionalProperties": False,
+                                       "properties": {"reply": {"type": "string"}}, "required": ["reply"]}}},
+    }
+
+
+def read_visitor(response):
+    if response.get("status") != "completed":
+        raise ValueError("Visitor simulation is incomplete")
+    texts = [part["text"] for item in response.get("output", []) if item.get("type") == "message"
+             for part in item.get("content", []) if part.get("type") == "output_text"]
+    if len(texts) != 1:
+        raise ValueError("Visitor simulation has no unique reply")
+    reply = json.loads(texts[0])["reply"]
+    if not isinstance(reply, str) or not 1 <= len(reply) <= 500:
+        raise ValueError("Visitor reply exceeds bounds")
+    return reply
+
+
+def run_dialogue(meter, model, persona):
+    meter.session_spent = 0
+    history, dialogue, completed = [], [], []
+    visitor = ""
+    completed_questions = 0
+    for index in range(5):
+        memory_context = persona["memory"]
+        if completed:
+            memory_context += json.dumps(completed, ensure_ascii=False)
+        request = build_request({"readyMask": 63, "visitorText": visitor}, model,
+                                history, memory_context, opening=index == 0,
+                                require_question=completed_questions < 2)
+        response = meter.invoke(request, model, f"{persona['id']}:suitcase")
+        result, _ = parse_response(response, 63)
+        if result["decision"] == "propose" and completed_questions < 2:
+            raise ValueError("Premature proposal")
+        dialogue.append({"speaker": "kufr", **result})
+        completed.append({"ConversationId": persona["id"] + "-current",
+                          "VisitorText": visitor, "Reply": result["reply"]})
+        history = (history + [{"VisitorText": visitor, "Reply": result["reply"][:300]}])[-2:]
+        if result["decision"] != "ask":
+            return {"model": model, "persona": persona["id"], "dialogue": dialogue,
+                    "terminated": True, "upperCostMicroUsd": meter.session_spent}
+        completed_questions += 1
+        if index < 4:
+            visitor = read_visitor(meter.invoke(visitor_request(persona, dialogue), VISITOR_MODEL,
+                                               f"{persona['id']}:visitor"))
+            dialogue.append({"speaker": "visitor", "reply": visitor})
+    return {"model": model, "persona": persona["id"], "dialogue": dialogue,
+            "terminated": False, "upperCostMicroUsd": meter.session_spent}
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--models", nargs="+", choices=MODEL_PRICES, default=["gpt-6.1-sol", "gpt-6-astra"])
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+    key = os.environ.get("OPENAI_API_KEY")
+    if not key:
+        raise ValueError("OPENAI_API_KEY is missing")
+    meter = Meter(key, session_limit=int(os.environ.get("SESSION_CAP_MICRO_USD") or 500_000))
+    report = {"synthetic": True, "requiresHumanStyleReview": True, "actuatorCommandIssued": False,
+              "approvedRunCapMicroUsd": MAX_RUN_MICRO_USD, "dialogues": [], "completed": False}
+    try:
+        for model in args.models:
+            for persona in PERSONAS:
+                report["dialogues"].append(run_dialogue(meter, model, persona))
+        report["completed"] = True
+    finally:
+        report["upperCostMicroUsd"] = meter.spent
+        report["calls"] = meter.calls
+        args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+
+
+if __name__ == "__main__":
+    main()
