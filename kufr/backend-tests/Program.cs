@@ -68,6 +68,36 @@ Require(concurrentReservations.Count(value => !value.Existing) == 1,
 Require(journal.Reserve("device-a", "concurrent", concurrentKey, "different-hash", concurrentCorrelation).Conflict,
     "same key with different body");
 
+var quotaConversationId = Guid.NewGuid().ToString("D");
+var quotaCorrelation = pendingCorrelation with { ConversationId = quotaConversationId };
+var quotaKeys = new List<Guid>();
+for (var index = 0; index < 9; index++)
+{
+    var quotaKey = Guid.NewGuid();
+    quotaKeys.Add(quotaKey);
+    var reservation = journal.Reserve(
+        "device-a",
+        "quota",
+        quotaKey,
+        "quota-body",
+        quotaCorrelation with { ClientTurnId = Guid.NewGuid() });
+    Require(!reservation.LimitExceeded, "first nine turn reservations");
+}
+
+var quotaBoundary = await Task.WhenAll(
+    Task.Run(() => journal.Reserve(
+        "device-a", "quota", Guid.NewGuid(), "quota-body",
+        quotaCorrelation with { ClientTurnId = Guid.NewGuid() })),
+    Task.Run(() => journal.Reserve(
+        "device-a", "quota", Guid.NewGuid(), "quota-body",
+        quotaCorrelation with { ClientTurnId = Guid.NewGuid() })));
+Require(quotaBoundary.Count(value => value.LimitExceeded) == 1,
+    "one of two concurrent reservations at tenth turn is rejected");
+Require(journal.Reserve("device-a", "quota", Guid.NewGuid(), "quota-body", quotaCorrelation).LimitExceeded,
+    "eleventh turn reservation rejected");
+Require(journal.Reserve("device-a", "quota", quotaKeys[0], "quota-body", quotaCorrelation).Existing,
+    "idempotent retry allowed at quota limit");
+
 try
 {
     _ = new OperationJournal(journalConfiguration, clock);
@@ -81,6 +111,8 @@ catch (InvalidOperationException)
 journal.Dispose();
 var restartedJournal = new OperationJournal(journalConfiguration, clock);
 var restartedStore = new ConversationStore(clock, restartedJournal);
+Require(restartedJournal.Reserve("device-a", "quota", Guid.NewGuid(), "quota-body", quotaCorrelation).LimitExceeded,
+    "turn reservation limit survives restart");
 var replayAfterRestart = restartedStore.SubmitTurn("device-a", conversationId, turnKey, turnBody, turn);
 Require(replayAfterRestart.OperationId == accepted.OperationId, "idempotent retry after restart");
 var lostResult = restartedStore.GetOperation("device-a", accepted.OperationId!);
@@ -106,6 +138,75 @@ clock.Advance(TimeSpan.FromHours(24));
 Require(restartedStore.GetOperation("device-a", liveTurn.OperationId!).Status == 404,
     "cached fake result expires with journal");
 
+var migrationPath = Path.Combine(databaseDirectory, "legacy-v1.sqlite");
+var legacyOperationId = Guid.NewGuid().ToString("D");
+var legacyKey = Guid.NewGuid();
+var legacyConversationId = Guid.NewGuid().ToString("D");
+using (var legacyConnection = new SqliteConnection($"Data Source={migrationPath}"))
+{
+    legacyConnection.Open();
+    using var legacySchema = legacyConnection.CreateCommand();
+    legacySchema.CommandText = """
+        CREATE TABLE turn_operations (
+            operation_id TEXT PRIMARY KEY, device_id TEXT NOT NULL,
+            conversation_id TEXT NOT NULL, boot_id TEXT NOT NULL,
+            client_turn_id TEXT NOT NULL, generation INTEGER NOT NULL,
+            device_revision INTEGER NOT NULL, status TEXT NOT NULL,
+            expires_at_ms INTEGER NOT NULL
+        );
+        CREATE TABLE turn_idempotency (
+            device_id TEXT NOT NULL, route TEXT NOT NULL, key TEXT NOT NULL,
+            body_hash TEXT NOT NULL, operation_id TEXT NOT NULL,
+            expires_at_ms INTEGER NOT NULL,
+            PRIMARY KEY (device_id, route, key)
+        );
+        PRAGMA user_version=1;
+        """;
+    legacySchema.ExecuteNonQuery();
+    using var legacyRows = legacyConnection.CreateCommand();
+    legacyRows.CommandText = """
+        INSERT INTO turn_operations
+            (operation_id, device_id, conversation_id, boot_id, client_turn_id,
+             generation, device_revision, status, expires_at_ms)
+        VALUES ($operation, 'device-a', $conversation, $boot, $turn, 1, 7, 'completed', $expires);
+        INSERT INTO turn_idempotency
+            (device_id, route, key, body_hash, operation_id, expires_at_ms)
+        VALUES ('device-a', 'legacy', $key, 'legacy-hash', $operation, $expires);
+        """;
+    legacyRows.Parameters.AddWithValue("$operation", legacyOperationId);
+    legacyRows.Parameters.AddWithValue("$conversation", legacyConversationId);
+    legacyRows.Parameters.AddWithValue("$boot", bootId.ToString("D"));
+    legacyRows.Parameters.AddWithValue("$turn", Guid.NewGuid().ToString("D"));
+    legacyRows.Parameters.AddWithValue("$expires", clock.GetUtcNow().AddHours(24).ToUnixTimeMilliseconds());
+    legacyRows.Parameters.AddWithValue("$key", legacyKey.ToString("D"));
+    legacyRows.ExecuteNonQuery();
+}
+
+var migrationConfiguration = new ConfigurationBuilder()
+    .AddInMemoryCollection(new Dictionary<string, string?> { ["Backend:DatabasePath"] = migrationPath })
+    .Build();
+using (var migratedJournal = new OperationJournal(migrationConfiguration, clock))
+{
+    Require(migratedJournal.FindExisting("device-a", "legacy", legacyKey, "legacy-hash")?.OperationId
+        == legacyOperationId, "v1 idempotency row preserved");
+    Require(migratedJournal.GetOperation("device-a", legacyOperationId).Operation?.Status == "failed",
+        "v1 completed operation preserved without sensitive result");
+    Require(!migratedJournal.Reserve(
+        "device-a",
+        "migrated",
+        Guid.NewGuid(),
+        "hash",
+        quotaCorrelation with { ConversationId = Guid.NewGuid().ToString("D") }).LimitExceeded,
+        "v1 schema supports v2 quota reservation");
+}
+using (var migratedConnection = new SqliteConnection($"Data Source={migrationPath}"))
+{
+    migratedConnection.Open();
+    using var version = migratedConnection.CreateCommand();
+    version.CommandText = "PRAGMA user_version";
+    Require((long)version.ExecuteScalar()! == 2, "schema migrated from v1 to v2");
+}
+
 var duplicateConfiguration = new ConfigurationBuilder()
     .AddInMemoryCollection(new Dictionary<string, string?>
     {
@@ -125,7 +226,7 @@ catch (InvalidOperationException)
     // A shared credential must not select a device by configuration order.
 }
 
-Console.WriteLine("Backend clock tests: expiry, restart, SQLite concurrency and provisioning passed");
+Console.WriteLine("Backend clock tests: expiry, restart, SQLite quota, concurrency and migration passed");
 restartedJournal.Dispose();
 SqliteConnection.ClearAllPools();
 Directory.Delete(databaseDirectory, recursive: true);
