@@ -20,9 +20,7 @@ const port = await new Promise((resolve, reject) => {
 
 const baseUrl = `http://127.0.0.1:${port}`;
 const databaseDirectory = await mkdtemp(join(tmpdir(), 'kufr-backend-smoke-'));
-const server = spawn('dotnet', ['bin/Debug/net10.0/backend.dll', '--urls', baseUrl], {
-  cwd: new URL('..', import.meta.url),
-  env: {
+const serverEnvironment = {
     ...process.env,
     Devices__0__DeviceId: 'device-a',
     Devices__0__CredentialSha256: sha256(credentialA),
@@ -30,14 +28,41 @@ const server = spawn('dotnet', ['bin/Debug/net10.0/backend.dll', '--urls', baseU
     Devices__1__CredentialSha256: sha256(credentialB),
     Backend__DatabasePath: join(databaseDirectory, 'journal.sqlite'),
     ASPNETCORE_ENVIRONMENT: 'Production'
-  },
-  windowsHide: true,
-  stdio: ['ignore', 'pipe', 'pipe']
-});
+};
 
 let serverOutput = '';
-for (const stream of [server.stdout, server.stderr]) {
-  stream.on('data', chunk => { serverOutput += chunk.toString(); });
+let server;
+function startServer() {
+  server = spawn('dotnet', ['bin/Debug/net10.0/backend.dll', '--urls', baseUrl], {
+    cwd: new URL('..', import.meta.url),
+    env: serverEnvironment,
+    windowsHide: true,
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  for (const stream of [server.stdout, server.stderr]) {
+    stream.on('data', chunk => { serverOutput += chunk.toString(); });
+  }
+}
+
+async function stopServer() {
+  if (server?.exitCode === null) {
+    const exited = new Promise(resolve => server.once('exit', resolve));
+    server.kill();
+    await exited;
+  }
+}
+
+async function waitForServer() {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    if (server.exitCode !== null) throw new Error(`Backend exited: ${serverOutput}`);
+    try {
+      await fetch(`${baseUrl}/`);
+      return;
+    } catch {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+  }
+  throw new Error(`Backend did not start: ${serverOutput}`);
 }
 
 async function call(path, { credential, token, key, body } = {}) {
@@ -63,19 +88,9 @@ async function read(path, token) {
   return { status: response.status, result: await response.json() };
 }
 
+startServer();
 try {
-  let ready = false;
-  for (let attempt = 0; attempt < 100; attempt++) {
-    if (server.exitCode !== null) throw new Error(`Backend exited: ${serverOutput}`);
-    try {
-      await fetch(`${baseUrl}/`);
-      ready = true;
-      break;
-    } catch {
-      await new Promise(resolve => setTimeout(resolve, 50));
-    }
-  }
-  assert.ok(ready, `Backend did not start: ${serverOutput}`);
+  await waitForServer();
 
   assert.equal((await call('/v1/device-access/token')).status, 401);
   assert.equal((await call('/v1/device-access/token', { credential: 'wrong' })).status, 401);
@@ -209,11 +224,37 @@ try {
   }
   assert.equal((await call('/v1/device-access/token', { credential: credentialA })).status, 429);
   assert.doesNotMatch(serverOutput, new RegExp(`${credentialA}|${credentialB}|${tokenA}|${tokenB}`));
-  console.log('Backend HTTP smoke: access, scope, fake turn, idempotency, limits and concurrency passed');
+
+  await stopServer();
+  startServer();
+  await waitForServer();
+  assert.equal((await call('/v1/conversations', { token: tokenA, key, body })).status, 401);
+  const newToken = (await call('/v1/device-access/token', { credential: credentialA })).result.accessToken;
+  const createReplay = await call('/v1/conversations', { token: newToken, key, body });
+  assert.equal(createReplay.result.conversationId, created.result.conversationId);
+  assert.equal((await call('/v1/conversations', {
+    token: newToken,
+    key,
+    body: { ...body, generation: 2 }
+  })).status, 409);
+  const newTokenB = (await call('/v1/device-access/token', { credential: credentialB })).result.accessToken;
+  const otherDeviceCreate = await call('/v1/conversations', {
+    token: newTokenB,
+    key,
+    body: { ...body, deviceId: 'device-b' }
+  });
+  assert.equal(otherDeviceCreate.status, 201);
+  assert.notEqual(otherDeviceCreate.result.conversationId, created.result.conversationId);
+  const lostOperation = await read(operationPath, newToken);
+  assert.equal(lostOperation.result.status, 'failed');
+  assert.equal(lostOperation.result.error.code, 'result_expired');
+  assert.equal((await call(turnPath, {
+    token: newToken,
+    key: randomUUID(),
+    body: { ...turn, clientTurnId: randomUUID() }
+  })).status, 404);
+  console.log('Backend HTTP smoke: access, scope, fake turn, limits and restart idempotency passed');
 } finally {
-  if (server.exitCode === null) {
-    server.kill();
-    await new Promise(resolve => server.once('exit', resolve));
-  }
+  await stopServer();
   await rm(databaseDirectory, { recursive: true, force: true });
 }

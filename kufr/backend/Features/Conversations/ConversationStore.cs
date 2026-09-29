@@ -6,24 +6,23 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
 {
     private readonly Lock gate = new();
     private readonly Dictionary<string, ConversationEntry> conversations = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, IdempotencyEntry> idempotency = new(StringComparer.Ordinal);
     private readonly Dictionary<string, TurnOperation> operations = new(StringComparer.Ordinal);
 
     public CreateResult Create(string deviceId, Guid key, ReadOnlySpan<byte> requestBody, CreateConversationRequest request)
     {
         var now = clock.GetUtcNow();
-        var scopedKey = $"{deviceId}:POST:/v1/conversations:{key:D}";
         var bodyHash = Convert.ToHexString(SHA256.HashData(requestBody));
 
         lock (gate)
         {
             CleanupExpired(now);
 
-            if (idempotency.TryGetValue(scopedKey, out var previous))
+            var previous = journal.FindExistingCreate(deviceId, key, bodyHash);
+            if (previous is not null)
             {
-                return previous.BodyHash == bodyHash
-                    ? new CreateResult(201, previous.Response)
-                    : new CreateResult(409, null);
+                return previous.Conflict
+                    ? new CreateResult(409, null)
+                    : new CreateResult(201, previous.Response);
             }
 
             if (conversations.Values.Any(entry => entry.DeviceId == deviceId))
@@ -31,10 +30,18 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
                 return new CreateResult(409, null);
             }
 
-            var response = new ConversationResponse(
-                Guid.NewGuid().ToString("D"),
-                now.AddMinutes(15),
-                new ConversationLimits(10, 1000, 900, 1800));
+            var reservation = journal.ReserveCreate(deviceId, key, bodyHash);
+            if (reservation.Conflict)
+            {
+                return new CreateResult(409, null);
+            }
+
+            if (reservation.Existing)
+            {
+                return new CreateResult(201, reservation.Response);
+            }
+
+            var response = reservation.Response!;
 
             conversations.Add(
                 response.ConversationId,
@@ -45,7 +52,6 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
                     request.CatalogVersion,
                     response.ExpiresAt,
                     now.AddMinutes(30)));
-            idempotency.Add(scopedKey, new IdempotencyEntry(bodyHash, response, now.AddHours(24)));
             return new CreateResult(201, response);
         }
     }
@@ -173,10 +179,6 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
             conversations.Remove(key);
         }
 
-        foreach (var key in idempotency.Where(pair => pair.Value.ExpiresAt <= now).Select(pair => pair.Key).ToArray())
-        {
-            idempotency.Remove(key);
-        }
 
     }
 
@@ -198,7 +200,6 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
         public HashSet<Guid> TurnIds { get; } = [];
     }
 
-    private sealed record IdempotencyEntry(string BodyHash, ConversationResponse Response, DateTimeOffset ExpiresAt);
 }
 
 internal sealed record CreateResult(int Status, ConversationResponse? Response);
