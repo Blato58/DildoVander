@@ -47,6 +47,10 @@ src/
       DeviceIdentity.h/.cpp                 formát identity a servisní brána
       ProvisioningStorage.h                 port úložiště identity
       EspIdfProvisioningStorage.h/.cpp      NVS identita v ESP-IDF profilu
+    backend_access/
+      DeviceTokenSession.h/.cpp             obnova access tokenu v RAM
+      TokenResponseParser.h/.cpp            omezená odpověď token endpointu
+      EspIdfTokenExchangeTransport.h/.cpp   blokující HTTPS výměna tokenu
     conversation/
       ConversationSession.h/.cpp            čistý model generace textového sezení
 tests/
@@ -54,6 +58,7 @@ tests/
   device_control_test.cpp                   test idempotence a restartu
   persistent_command_journal_test.cpp      test trvalého záznamu a selhání zápisu
   device_identity_test.cpp                  test identity a servisní brány
+  device_token_session_test.cpp             test tokenu, obnovy a parseru
   conversation_session_test.cpp             test textu, zrušení a generace
 ```
 
@@ -95,7 +100,7 @@ chyba zápisu drží řízení v bezpečném stavu; prázdná NVS nezačne s dos
 přihrádkami. ESP-IDF profil otevírá NVS adaptér při startu bez automatického
 mazání. Hostitelské testy ověřují restart a selhání zápisu přes paměťový port.
 `DeviceControl` zatím není připojený k živému vstupu ESP-IDF smyčky; skutečný
-NVS běh na desce, TLS/parser a servisní USB zápis zbývají.
+NVS běh na desce, síťový parser povelů a servisní USB zápis zbývají.
 
 `DeviceIdentity` čte oddělený verzovaný NVS záznam s `deviceId` a 32 bajty
 device credential. Pro HTTP Authorization jej lze vyjádřit 64 malými
@@ -103,7 +108,17 @@ hexadecimálními znaky; backend porovnává SHA-256 přesně těchto UTF-8 znak
 Případný zápis vyžaduje v modelu současně aktivní fyzický servisní režim a
 odpojenou větev pohonů. ESP-IDF smyčka zatím identitu pouze čte a oznamuje
 stav bez její hodnoty. Skutečné USB servisní rozhraní, ověření fyzické brány,
-náhodné generování credential mimo image a provozní TLS klient zbývají.
+náhodné generování credential mimo image a běžící TLS spojení zbývají.
+
+`DeviceTokenSession` je čistý model obnovy backend access tokenu po 12 minutách,
+jeho 15minutové expirace a jediného nového přihlášení po 401. Drží token pouze
+v RAM a odmítá odpověď s jiným `deviceId`, typem tokenu nebo dobou platnosti.
+ESP-IDF HTTPS adaptér má pevnou cestu token endpointu, ověřuje server přes CA
+bundle a hostname, nepovoluje redirect a omezuje odpověď na 512 bajtů.
+`TokenResponseParser` přijímá pouze čtyři očekávaná pole a odmítá duplicity.
+Adaptér zatím není připojen k Wi-Fi ani samostatné síťové úloze, takže nebylo
+navázáno žádné skutečné TLS spojení. Backend host přijde až ze servisní
+konfigurace; v image není URL ani credential.
 
 `ConversationSession` je čistý model jednoho textového sezení. Kontroluje
 ruční lease, boot/session/generation, revision a délku UTF-8 textu. V jednom
@@ -140,8 +155,8 @@ pio run
 Výchozí profil používá PlatformIO `espressif32@7.1.3`, připnutý ESP-IDF 6.1,
 `sdkconfig.defaults` a vlastní kopii 16MB tabulky oddílů. Zatím pouze
 vyžaduje bezpečný výstup, prochází čistým jádrem s monotónním časem a vypisuje
-požadavky do logu. Inicializuje NVS journal bez fyzických výstupů; neobsahuje
-sériové příkazy, GPIO, Wi-Fi ani TLS.
+požadavky do logu. Inicializuje NVS journal a čte identitu bez fyzických
+výstupů; neobsahuje sériové příkazy, GPIO ani běžící Wi-Fi/TLS spojení.
 Skutečný výsledek sestavení a mezery akceptace jsou ve stavu implementace.
 Původní sériový prototyp lze sestavit `pio run -e esp32-s3-arduino-serial`.
 
@@ -188,6 +203,13 @@ Formát identity a servisní bránu lze hostitelsky ověřit samostatně:
 ```text
 g++ -std=c++14 -Wall -Wextra -Werror src/features/provisioning/DeviceIdentity.cpp tests/device_identity_test.cpp -o <docasna-slozka>/device_identity_test
 <docasna-slozka>/device_identity_test
+```
+
+Stav tokenu a parser omezené HTTP odpovědi:
+
+```text
+g++ -std=c++14 -Wall -Wextra -Werror src/features/provisioning/DeviceIdentity.cpp src/features/backend_access/DeviceTokenSession.cpp src/features/backend_access/TokenResponseParser.cpp tests/device_token_session_test.cpp -o <docasna-slozka>/device_token_session_test
+<docasna-slozka>/device_token_session_test
 ```
 
 Čistý model textového sezení lze ověřit samostatně:
