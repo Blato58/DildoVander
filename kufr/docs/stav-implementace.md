@@ -6,15 +6,15 @@ Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**Aktivní implementační krok:** E7.1 – založit nejmenší ASP.NET Core 10 backend s fake konverzací a testovatelnými bezpečnostními hranicemi podle kapitol 3–5 a 7 plánu. E2.5b ověřila časovou osu v prohlížeči přes důvěryhodný vývojový certifikát (D22), takže E2 je dokončená v rozsahu hostitelského simulátoru. E3.2b dokončila simulátorové kritérium E3 (D21). E1 je dokončené jako softwarové jádro bez desky. Fyzické nezávislé vypnutí a měření zůstávají kritérii E5.
+**Aktivní implementační krok:** E7.2 – navázat fake textový tah a operaci na ověřenou identitu a sezení z E7.1 (D23). E7.1 založila ASP.NET Core 10 backend, oddělený credential a 15minutový access token, device scope, fake sezení a paměťovou idempotenci; SQLite a placená AI stále chybí. E2/E3 jsou dokončené v hostitelském/simulátorovém rozsahu. Fyzické nezávislé vypnutí a měření zůstávají kritérii E5.
 
-**Další konkrétní krok: E7.1 – backend bez placené AI.**
+**Další konkrétní krok: E7.2 – fake tah bez placené AI.**
 
-1. Založit `kufr/backend/` s připnutým SDK a malým Minimal API vertical slicem pro fake conversation. Před volbou rout a DTO vyčíst přesné kontrakty kapitoly 7; firmware má backend volat samo, telefon není prostředník. Provider klíč ani placený adaptér do tohoto slice nepatří.
-2. Oddělit ověřenou device identitu, limity/idempotenci a fake odpověď od budoucího STT/Responses/TTS. Zvolit první testovatelnou hranici a integrováný hostitelský test bez cloudu. SQLite atomicita a restart/retence patří do dalších E7 kroků; nic z toho neprohlásit za hotové jen z prvního endpointu.
+1. Z rozpracovaného `kufr/backend/` přidat `POST /v1/conversations/{id}/turns` a `GET /v1/operations/{id}` přes deterministický fake; výsledky se nesmějí změnit v příkaz aktuátoru. Ověřit vlastnictví sezení a operace, generaci, limity textu, idempotenci a souběh. Předplacené volání ani provider klíč do fake cesty nepatří.
+2. Následně doplnit SQLite pro atomickou idempotenci/limity a restart, retenci/cleanup, zrušení a další HTTP trasy. E7 neoznačovat za hotové, dokud nejsou splněna všechna integrační kritéria v kapitole 12.
 3. Fyzická HW akceptace zůstává v E5 po vstupu B1; nativní iOS E3a čeká na B2/B3. Nezaměnit fake log s NVS ani fake odpověď se skutečnou AI.
 
-Předpokládané dotčené cesty: nový `kufr/backend/`, související README a tento stav. Krok nevyžaduje fyzickou desku, cloudový klíč ani Apple certifikát. Toto je implementační předání, nikoli příkaz něco nahrát či publikovat.
+Předpokládané dotčené cesty: `kufr/backend/`, související README a tento stav. Krok nevyžaduje fyzickou desku, cloudový klíč ani Apple certifikát. Toto je implementační předání, nikoli příkaz něco nahrát či publikovat.
 
 Pokud uživatel omezí práci pouze na mobilní aplikaci, neoznačuj závislosti E2 za splněné. Lze připravit samostatnou UI část E3 proti výslovně označenému fake transportu, ale E3 zůstane částečné do integrace se simulátorem/protokolem E2. Rozsah a mezeru zapiš sem.
 
@@ -36,7 +36,7 @@ Pokud uživatel omezí práci pouze na mobilní aplikaci, neoznačuj závislosti
 | --- | --- | --- |
 | Firmware | Čistá neblokující `SelectionSequence`/`SafetyController` z E1, nezapojený `DeviceControl` s fake clock vstupy, 64 výsledky a `CommandJournal` portem E2.2, čistý `ConversationSession` s generací a stropem 10 tahů E2.8b1. Sériové `select 1..6`, `stop`, `reset`, `status`, `help` zůstává vývojovým vstupem. Hostitelské testy a lokální Arduino/PlatformIO build prošly. | Nezávislý fyzický watchdog/inhibit, skutečný NVS journal/GPIO/síťový detektor lease, provisioning, I2S, propojení dialogu a ovládání. |
 | Mobil | TypeScript/Vite webová obrazovka se šesti přihrádkami, potvrzením, Stop a místním fake režimem; E3.2b adaptér přes E3.2a most proti E2 C++ simulátoru, cílené testy spojení a build. | Capacitor, iOS/Swift projekt a fyzický iPhone test. |
-| Backend/kontrakty/simulátor | Lokální protokol v `contracts/control-message-v1.schema.json`, 22 pozitivních a 39 negativních kontrol, připnutý Node/npm test; spustitelný C++ simulátor a šest deterministických scénářů E2.3; místní TLS WSS facade nad C++ modelem s auth/lease/retry/Stop a restartovým fake journalem E2.4c/d; webová časová osa a HTTPS pozorovací proud E2.5 ověřené i v browseru; základní OpenAPI všech neobrazových HTTP tras E2.6; potvrzení reloadu a perzistence masky E2.7; fake text/cancel přes C++ model E2.8; binární media parser a oddělený fake media socket E2.9. | Backend E7 a skutečný AI/audio adaptér dalších etap. |
+| Backend/kontrakty/simulátor | E7.1 ASP.NET Core 10 základ s device credential/tokenem, fake sezením, device scope a paměťovou idempotencí (D23). Lokální protokol v `contracts/control-message-v1.schema.json`, hostitelský C++ simulátor, TLS WSS facade, webová časová osa, OpenAPI HTTP tras, reload, fake text/cancel a media parser/socket E2. | Backendové tahy/operace, SQLite limity/idempotence, retence a skutečný AI/audio adaptér dalších etap. |
 | iOS CI | Majitelem popsaný existující postup Windows → macOS runner → podepsaná IPA. | Skutečný workflow v tomto checkoutu, ověřená identita/profil a běh/instalace. |
 | Hardware | Dodaný obrázek pinů, návrh napájení a předběžné profily A/B. | Revize konkrétní desky, schéma bezpečnostní větve, měření a fyzická akceptace. |
 
@@ -56,7 +56,7 @@ Přesné závislosti a kritéria dokončení jsou v kapitole 12 plánu. Následu
 | E4 – runtime a přímá síť | nezahájeno | Arduino prototyp. | E2; pro nahrání B1. |
 | E5 – jedna bezpečná přihrádka | nezahájeno | Bez ovládání a měření. | E0/E1/E4; B1, fyzická akceptace. |
 | E6 – šest přihrádek | nezahájeno | Bez fyzického ověření. | E5; cykly, proudy, dostupnost/reload. |
-| E7 – backend bez skutečné AI | nezahájeno | Bez projektu. | E2; lokální fake bez placeného účtu. |
+| E7 – backend bez skutečné AI | rozpracováno | E7.1 backend, provisionované identity, 15minutové tokeny, device scope, jedno fake sezení na zařízení a paměťová idempotence; HTTP smoke test (D23). | E7.2 fake tah/operace, SQLite limity/idempotence, restart a cleanup/retence; integrační testy všech kritérií etapy. |
 | E8 – skutečný textový dialog | nezahájeno | Bez adaptéru a evaluace. | E2/E7, na desce E4; B4/B5 před placenou akceptací. |
 | E9 – samostatný hlas kufru | nezahájeno | Bez audio cesty. | E4/E5/E8; hardware a hlasová akceptace. |
 | E10 – dokončení mobilní zálohy | nezahájeno | Bez native transportu. | E3/E3a/E4/E8; audio po E9; skutečný iPhone. |
@@ -77,6 +77,13 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 | B5 | Majitel: finální katalog a publikum, rozměry, router a prostředí akce. | Obsahovou/provozní akceptaci E8/E11 a finální mechaniku. | Neutrální testovací katalog a laboratorní/simulované scénáře. |
 
 ## Deník změn a ověření
+
+### D23 – 29. 9. 2026 – E7.1 backend identita a fake sezení
+
+- Rozsah: nový `kufr/backend/` s připnutým .NET 10 SDK, Minimal API trasami `POST /v1/device-access/token` a `POST /v1/conversations`. Servisně provisionovaný credential se ověřuje podle SHA-256 hashe z konfigurace mimo git; duplicitní ID/hash je odmítnut při startu. Náhodný access token platí 15 minut, v serverové paměti je uložen jen jeho hash a souběžné granty mají strop 16/zařízení. Sezení kontroluje device scope, locale, consent a tvar generační identity, vrací limity OpenAPI; jedno současné sezení na zařízení a opakování `Idempotency-Key`/stejného těla se zpracuje atomicky pod zámkem. README a `.gitignore` odpovídají novému projektu. Klient nedostává ovládací povel aktuátoru.
+- Ověření: `kufr/backend`: `dotnet build backend.csproj --no-restore` prošel bez varování po počáteční opravě neexistujícího `Convert.TryFromHexString`; `node tests/smoke.mjs` spustil skutečný loopback HTTP host, ověřil dvě identity, odmítnutí chybného credential a použití credential místo access tokenu, cizí device scope, shodný retry, konflikt změněného těla, paralelní založení sezení a strop tokenů. Log procesu neobsahoval testovací credentials/tokeny. Read-only review opravila počáteční rozdíl mezi 15minutovou expirací odpovědi a 30minutovou blokací dalšího sezení; tyto dva časy jsou nyní shodné.
+- Omezení: konverzace zatím neprovádí tah, STT/TTS ani placené volání; tokeny, sezení a idempotence jsou paměťové a po restartu zaniknou. Cleanup je nyní oportunní při vytváření sezení, nikoli časovač; SQLite, retence obsahu a restartové zkoušky jsou další E7 práce. HTTP test používá pouze loopback; produkční HTTPS/reverse proxy a device provisionování nebyly akceptovány. E7 zůstává rozpracovaná.
+- Revize a doručení: doplnit po ověřeném commitu a skutečném výsledku push.
 
 ### D22 – 29. 9. 2026 – E2.5b browser časová osa s důvěryhodným TLS
 
