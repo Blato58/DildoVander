@@ -8,10 +8,11 @@ Zatím popisuje `hello`, `welcome`, `state.get`, `control.acquire/release`,
 `fixtures/valid/` a `fixtures/invalid/` obsahují zprávy pro další adaptéry.
 Schéma je zdroj typů a rozsahů; další typy a OpenAPI backendu přibudou v E2.
 
-`backend-openapi-v1.json` je rozpracovaný HTTP kontrakt E2.6a. Zatím
-pokrývá výměnu servisně provisionovaného device credential za 15minutový
-access token, založení sezení, textový tah a polling jeho operace. Další
-trasy pro přepis, syntézu, audio a úklid budou doplněny před uzavřením E2.
+`backend-openapi-v1.json` je HTTP kontrakt E2.6. Pokrývá výměnu servisně
+provisionovaného device credential za 15minutový access token, založení
+sezení, textový tah, WAV přepis, syntézu, polling/rušení operace, stažení
+krátkodobého WAV a ukončení sezení. Pozdější kostýmní snímek do v1 první
+verze nepatří.
 Device credential a krátkodobý access token jsou oddělená bearer schémata;
 token endpoint nepřijímá access token jako náhradu credential. Sezení,
 operace a výsledky musí backend ověřovat proti identitě device tokenu,
@@ -56,6 +57,7 @@ ověřit znovu v jejich skutečném parseru; tento test zatím nedokazuje běh
 firmwaru, mobilní aplikace ani síťového simulátoru.
 
 `verify-backend-openapi.mjs` kontroluje reference, trasy, security schémata
-a kladné/chybné HTTP struktury přes AJV. Zatím jde o kontrolu dokumentu,
+a kladné/chybné HTTP struktury přes AJV. WAV byte stream zde není dekódován;
+hlavičky, délku a PCM formát musí ověřit backendový upload parser. Jde o kontrolu dokumentu,
 nikoli o integrační test skutečného backendu nebo důkaz vynucení scope,
 idempotence, kvót a retence v běžící službě.

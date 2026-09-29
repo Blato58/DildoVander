@@ -3,7 +3,7 @@
   "info": {
     "title": "Kufr device backend API",
     "version": "1.0.0-draft",
-    "description": "E2.6a contract for device authentication, conversation creation, text turns and turn polling. Audio and cleanup routes are pending. This API returns data and never commands physical actuators."
+    "description": "Device authentication, conversations, transcription, text turns, operation polling/cancellation, speech, audio and cleanup. This API returns data and never commands physical actuators. Sensitive responses use Cache-Control: no-store."
   },
   "servers": [{ "url": "https://localhost:7043", "description": "Local development only" }],
   "security": [{ "DeviceAccess": [] }],
@@ -75,20 +75,133 @@
         }
       }
     },
+    "/v1/conversations/{id}/transcriptions": {
+      "post": {
+        "operationId": "submitTranscription",
+        "summary": "Submit one PCM16 mono 32 kHz WAV recording for transcription",
+        "description": "At most 30 seconds and 1.92 MiB of samples plus a small WAV header; upload is streamed without base64. The operation is tied to the current device, conversation and generation.",
+        "parameters": [
+          { "$ref": "#/components/parameters/ConversationId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": { "$ref": "#/components/schemas/TranscriptionUpload" },
+              "encoding": { "wav": { "contentType": "audio/wav" } }
+            }
+          }
+        },
+        "responses": {
+          "202": { "$ref": "#/components/responses/AcceptedOperation" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Problem" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "413": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/Problem" },
+          "502": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" },
+          "504": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/conversations/{id}/speech": {
+      "post": {
+        "operationId": "submitSpeech",
+        "summary": "Synthesize the server-validated reply from an existing turn",
+        "description": "Client text is never accepted by this operation. Only one output target plays at a time.",
+        "parameters": [
+          { "$ref": "#/components/parameters/ConversationId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SpeechRequest" } } }
+        },
+        "responses": {
+          "202": { "$ref": "#/components/responses/AcceptedOperation" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Problem" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/Problem" },
+          "502": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" },
+          "504": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
     "/v1/operations/{id}": {
       "get": {
         "operationId": "getTurnOperation",
-        "summary": "Read a device-owned turn operation without starting another provider call",
+        "summary": "Read a device-owned operation without starting another provider call",
         "parameters": [{ "$ref": "#/components/parameters/OperationId" }],
         "responses": {
           "200": {
             "description": "Current operation state; result may expire without a provider replay",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TurnOperation" } } }
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Operation" } } }
           },
           "401": { "$ref": "#/components/responses/Problem" },
           "403": { "$ref": "#/components/responses/Problem" },
           "404": { "$ref": "#/components/responses/Problem" },
           "429": { "$ref": "#/components/responses/Problem" }
+        }
+      },
+      "delete": {
+        "operationId": "cancelOperation",
+        "summary": "Cancel client interest and suppress publication of a late result",
+        "description": "A provider request already sent may still be charged. Cancellation does not retry or regenerate it.",
+        "parameters": [
+          { "$ref": "#/components/parameters/OperationId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "responses": {
+          "204": { "description": "Cancellation recorded" },
+          "401": { "$ref": "#/components/responses/Problem" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "409": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/audio/{audioId}": {
+      "get": {
+        "operationId": "getAudio",
+        "summary": "Download a short-lived device-owned audio result",
+        "parameters": [{ "name": "audioId", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1 } }],
+        "responses": {
+          "200": {
+            "description": "At most 30 seconds of PCM16 mono 32 kHz WAV, retained at most 120 seconds",
+            "headers": {
+              "Cache-Control": { "schema": { "type": "string", "const": "no-store" } },
+              "X-Audio-Sample-Rate-Hz": { "schema": { "type": "integer", "const": 32000 } },
+              "X-Audio-Channels": { "schema": { "type": "integer", "const": 1 } }
+            },
+            "content": { "audio/wav": { "schema": { "type": "string", "format": "binary" } } }
+          },
+          "401": { "$ref": "#/components/responses/Problem" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "410": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/conversations/{id}": {
+      "delete": {
+        "operationId": "deleteConversation",
+        "summary": "End a device-owned conversation and erase in-memory sensitive content",
+        "parameters": [
+          { "$ref": "#/components/parameters/ConversationId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "responses": {
+          "204": { "description": "Conversation ended; active operations cancelled" },
+          "401": { "$ref": "#/components/responses/Problem" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "409": { "$ref": "#/components/responses/Problem" }
         }
       }
     }
@@ -108,6 +221,10 @@
       "OperationId": { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1 } }
     },
     "responses": {
+      "AcceptedOperation": {
+        "description": "Existing or newly accepted asynchronous operation for the idempotency key and body",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OperationAccepted" } } }
+      },
       "Problem": {
         "description": "ProblemDetails with a stable code and trace identifier; no prompt, token or provider secret",
         "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } } }
@@ -173,10 +290,53 @@
           "catalogVersion": { "type": "string", "minLength": 1 }
         }
       },
+      "TranscriptionUpload": {
+        "type": "object", "additionalProperties": false,
+        "required": ["clientTurnId", "bootId", "generation", "deviceRevision", "wav"],
+        "properties": {
+          "clientTurnId": { "type": "string", "format": "uuid" },
+          "bootId": { "type": "string", "format": "uuid" },
+          "generation": { "type": "integer", "minimum": 0 },
+          "deviceRevision": { "type": "integer", "minimum": 0 },
+          "wav": { "type": "string", "format": "binary", "description": "PCM16 mono 32 kHz, at most 30 seconds; reject oversized or malformed WAV before provider use" }
+        }
+      },
+      "SpeechRequest": {
+        "type": "object", "additionalProperties": false,
+        "required": ["turnId", "outputTarget"],
+        "properties": {
+          "turnId": { "type": "string", "minLength": 1 },
+          "outputTarget": { "type": "string", "enum": ["device", "phone"] }
+        }
+      },
       "OperationAccepted": {
         "type": "object", "additionalProperties": false,
         "required": ["operationId"],
         "properties": { "operationId": { "type": "string", "minLength": 1 } }
+      },
+      "Operation": {
+        "oneOf": [
+          { "$ref": "#/components/schemas/TranscriptionOperation" },
+          { "$ref": "#/components/schemas/TurnOperation" },
+          { "$ref": "#/components/schemas/SpeechOperation" }
+        ]
+      },
+      "TranscriptionOperation": {
+        "type": "object", "additionalProperties": false,
+        "required": ["operationId", "kind", "status", "correlation", "result", "error"],
+        "properties": {
+          "operationId": { "type": "string", "minLength": 1 },
+          "kind": { "type": "string", "const": "transcription" },
+          "status": { "$ref": "#/components/schemas/OperationStatus" },
+          "correlation": { "$ref": "#/components/schemas/TurnCorrelation" },
+          "result": { "oneOf": [{ "$ref": "#/components/schemas/TranscriptionResult" }, { "type": "null" }] },
+          "error": { "oneOf": [{ "$ref": "#/components/schemas/OperationError" }, { "type": "null" }] }
+        },
+        "allOf": [
+          { "if": { "properties": { "status": { "const": "completed" } } }, "then": { "properties": { "result": { "$ref": "#/components/schemas/TranscriptionResult" }, "error": { "type": "null" } } } },
+          { "if": { "properties": { "status": { "enum": ["pending", "running", "cancelled", "unknown"] } } }, "then": { "properties": { "result": { "type": "null" } } } },
+          { "if": { "properties": { "status": { "const": "failed" } } }, "then": { "properties": { "result": { "type": "null" }, "error": { "$ref": "#/components/schemas/OperationError" } } } }
+        ]
       },
       "TurnOperation": {
         "type": "object", "additionalProperties": false,
@@ -184,15 +344,36 @@
         "properties": {
           "operationId": { "type": "string", "minLength": 1 },
           "kind": { "type": "string", "const": "turn" },
-          "status": { "type": "string", "enum": ["pending", "running", "completed", "failed", "cancelled", "unknown"] },
+          "status": { "$ref": "#/components/schemas/OperationStatus" },
           "correlation": { "$ref": "#/components/schemas/TurnCorrelation" },
           "result": { "oneOf": [{ "$ref": "#/components/schemas/TurnResult" }, { "type": "null" }] },
           "error": { "oneOf": [{ "$ref": "#/components/schemas/OperationError" }, { "type": "null" }] }
         },
         "allOf": [
           { "if": { "properties": { "status": { "const": "completed" } } }, "then": { "properties": { "result": { "$ref": "#/components/schemas/TurnResult" }, "error": { "type": "null" } } } },
-          { "if": { "properties": { "status": { "enum": ["pending", "running", "cancelled", "unknown"] } } }, "then": { "properties": { "result": { "type": "null" } } } }
+          { "if": { "properties": { "status": { "enum": ["pending", "running", "cancelled", "unknown"] } } }, "then": { "properties": { "result": { "type": "null" } } } },
+          { "if": { "properties": { "status": { "const": "failed" } } }, "then": { "properties": { "result": { "type": "null" }, "error": { "$ref": "#/components/schemas/OperationError" } } } }
         ]
+      },
+      "SpeechOperation": {
+        "type": "object", "additionalProperties": false,
+        "required": ["operationId", "kind", "status", "correlation", "result", "error"],
+        "properties": {
+          "operationId": { "type": "string", "minLength": 1 },
+          "kind": { "type": "string", "const": "speech" },
+          "status": { "$ref": "#/components/schemas/OperationStatus" },
+          "correlation": { "$ref": "#/components/schemas/TurnCorrelation" },
+          "result": { "oneOf": [{ "$ref": "#/components/schemas/SpeechResult" }, { "type": "null" }] },
+          "error": { "oneOf": [{ "$ref": "#/components/schemas/OperationError" }, { "type": "null" }] }
+        },
+        "allOf": [
+          { "if": { "properties": { "status": { "const": "completed" } } }, "then": { "properties": { "result": { "$ref": "#/components/schemas/SpeechResult" }, "error": { "type": "null" } } } },
+          { "if": { "properties": { "status": { "enum": ["pending", "running", "cancelled", "unknown"] } } }, "then": { "properties": { "result": { "type": "null" } } } },
+          { "if": { "properties": { "status": { "const": "failed" } } }, "then": { "properties": { "result": { "type": "null" }, "error": { "$ref": "#/components/schemas/OperationError" } } } }
+        ]
+      },
+      "OperationStatus": {
+        "type": "string", "enum": ["pending", "running", "completed", "failed", "cancelled", "unknown"]
       },
       "TurnCorrelation": {
         "type": "object", "additionalProperties": false,
@@ -218,6 +399,23 @@
         "if": { "properties": { "decision": { "const": "propose" } } },
         "then": { "properties": { "proposal": { "$ref": "#/components/schemas/Proposal" } } },
         "else": { "properties": { "proposal": { "type": "null" } } }
+      },
+      "TranscriptionResult": {
+        "type": "object", "additionalProperties": false,
+        "required": ["transcript", "source"],
+        "properties": {
+          "transcript": { "type": "string", "maxLength": 1000 },
+          "source": { "type": "string", "enum": ["deviceMicrophone", "phoneMicrophone"] }
+        }
+      },
+      "SpeechResult": {
+        "type": "object", "additionalProperties": false,
+        "required": ["audioId", "expiresAt", "outputTarget"],
+        "properties": {
+          "audioId": { "type": "string", "minLength": 1 },
+          "expiresAt": { "type": "string", "format": "date-time" },
+          "outputTarget": { "type": "string", "enum": ["device", "phone"] }
+        }
       },
       "Proposal": {
         "type": "object", "additionalProperties": false,
