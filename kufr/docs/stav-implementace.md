@@ -83,7 +83,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 - Rozsah: `simulator/server.mjs` vystavuje na stejném loopback TLS portu stránku `/simulator` a pouze čtecí `GET /v1/observe` s bearer autorizací, nejvýše čtyřmi pozorovateli a NDJSON snapshot/událostmi ze stejného C++ modelu. `dashboard.html`/`dashboard.js` viditelně označují `SIMULACE`, zobrazují šest přihrádek, fázi, režim, journal, revizi a časovou osu. Stránka neposílá řídicí povely; token použije v HTTPS hlavičce a vymaže vstupní pole. `verify-socket.mjs` kontroluje stránku, script, odmítnutí bez tokenu, úvodní snapshot a právě jednu událost uvolnění po opakovaném příkazu. Plán v kapitole 11 zaznamenává vývojový pozorovací proud odděleně od nativního WSS kontraktu.
 - Ověření z `kufr/simulator`: Node `--check` pro `server.mjs`, `dashboard.js`, `verify-socket.mjs` a Node 24.21.0 `npm test` s MSVC bridge a OpenSSL v dočasné složce — úspěšně. In-app Browser pokus o `https://127.0.0.1:8443/simulator` skončil `ERR_CERT_AUTHORITY_INVALID` na dočasném self-signed certifikátu; žádná výjimka z TLS nebyla udělena. Vykreslení, interakce a mobilní viewport proto nejsou potvrzeny.
 - Omezení: `GET /v1/observe` je pouze vývojové rozhraní hostitelského procesu; neprokazuje TLS důvěru telefonu, ESP32 síť ani skutečnou mechaniku. K vizuálnímu browser ověření je třeba certifikát důvěryhodný pro testovací prohlížeč. E2 pokračuje E2.6.
-- Revize a doručení: doplnit po commitu a push.
+- Revize a doručení: E2.5 je v commitu `11c358017a9ca1ca2e7a26d75fb5379a81df3840`; `./scripts/Push-CurrentBranch.ps1` potvrdil push `main` na `origin/main` v této revizi.
 
 ### D9 – 29. 9. 2026 – E2.4d fake journal a restart WSS
 
