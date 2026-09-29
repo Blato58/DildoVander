@@ -82,7 +82,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 - Ověření: v `C:\Development\DildoVander` prošel MSVC `/std:c++14 /utf-8 /W4 /WX` hostitelský `conversation_text_inbox_test.cpp` a stávající `conversation_start_coordinator_test.cpp` (včetně opakovaného startu a ztracené odpovědi). V `kufr/firmware` prošel `pio run` pro ESP-IDF a `pio run -e esp32-s3-arduino-serial -s`. Nový síťový cyklus se nespustil na desce ani proti živému backendu, protože událost nemá producenta a B1 chybí.
 - Omezení: IDF profil nemá místní řadič stavu. Pro tento read-only fake cyklus je `generation = 0`, `deviceRevision = 0`, katalog `neutral-1` a `readyMask` z NVS journalu. Před místním WSS musí vzniknout atomický snapshot skutečného řízení, revize a katalogu. Již běžící blokující HTTPS nelze přerušit 45s deadlinem; vstupní fronta nepřenáší text přes reconnect. Opakované tahy po dosažení limitu backendu potřebují explicitní ukončení sezení.
 - Předání: zdroj autorizované události a atomický snapshot, potom hostitelský integrační test celého fake cyklu a místní WSS. B1 stále blokuje provisionování lokální TLS identity, nahrání a fyzickou akceptaci.
-- Revize a doručení: místní změny před commitem; push dosud neproveden.
+- Revize a doručení: E4.3c12 je v commitu `392c62961a898eb07f04225722fc638e7362f1ad`; `./scripts/Push-CurrentBranch.ps1` potvrdil push `main` na `origin/main` v této revizi.
 
 ### D48 – 29. 9. 2026 – E4.3c11 plánování pollu
 
