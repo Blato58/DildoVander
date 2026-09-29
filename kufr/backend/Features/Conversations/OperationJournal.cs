@@ -69,7 +69,7 @@ internal sealed class OperationJournal : IDisposable
         using var version = connection.CreateCommand();
         version.CommandText = "PRAGMA user_version";
         var schemaVersion = (long)version.ExecuteScalar()!;
-        if (schemaVersion is not 0 and not 1 and not 2 and not 3 and not 4)
+        if (schemaVersion is not 0 and not 1 and not 2 and not 3 and not 4 and not 5)
         {
             throw new InvalidOperationException("Unsupported backend database schema version.");
         }
@@ -126,8 +126,15 @@ internal sealed class OperationJournal : IDisposable
             CREATE INDEX IF NOT EXISTS ix_conversation_turn_usage_expiry ON conversation_turn_usage(expires_at_ms);
             CREATE INDEX IF NOT EXISTS ix_conversation_creates_expiry ON conversation_creates(record_expires_at_ms);
             CREATE INDEX IF NOT EXISTS ix_mutation_idempotency_expiry ON mutation_idempotency(expires_at_ms);
-            PRAGMA user_version=4;
             """;
+        schema.ExecuteNonQuery();
+        if (schemaVersion < 5)
+        {
+            schema.CommandText = "ALTER TABLE turn_operations ADD COLUMN kind TEXT NOT NULL DEFAULT 'turn';";
+            schema.ExecuteNonQuery();
+        }
+
+        schema.CommandText = "PRAGMA user_version=5";
         schema.ExecuteNonQuery();
         migration.Commit();
 
@@ -197,7 +204,9 @@ internal sealed class OperationJournal : IDisposable
         string route,
         Guid key,
         string bodyHash,
-        TurnCorrelation correlation)
+        TurnCorrelation correlation,
+        string kind = "turn",
+        bool consumesTurn = true)
     {
         using var connection = Open();
         using var transaction = connection.BeginTransaction();
@@ -220,8 +229,9 @@ internal sealed class OperationJournal : IDisposable
             return existing;
         }
 
-        using (var usage = connection.CreateCommand())
+        if (consumesTurn)
         {
+            using var usage = connection.CreateCommand();
             usage.Transaction = transaction;
             usage.CommandText = """
                 SELECT reserved_turns FROM conversation_turn_usage
@@ -240,8 +250,9 @@ internal sealed class OperationJournal : IDisposable
         var operationId = Guid.NewGuid().ToString("D");
         var expiresAt = clock.GetUtcNow().AddHours(24).ToUnixTimeMilliseconds();
 
-        using (var usage = connection.CreateCommand())
+        if (consumesTurn)
         {
+            using var usage = connection.CreateCommand();
             usage.Transaction = transaction;
             usage.CommandText = """
                 INSERT INTO conversation_turn_usage
@@ -266,9 +277,9 @@ internal sealed class OperationJournal : IDisposable
             operation.CommandText = """
                 INSERT INTO turn_operations
                     (operation_id, device_id, conversation_id, boot_id, client_turn_id,
-                     generation, device_revision, status, expires_at_ms)
+                     generation, device_revision, status, expires_at_ms, kind)
                 VALUES ($operation, $device, $conversation, $boot, $turn,
-                        $generation, $revision, 'pending', $expires)
+                        $generation, $revision, 'pending', $expires, $kind)
                 """;
             operation.Parameters.AddWithValue("$operation", operationId);
             operation.Parameters.AddWithValue("$device", deviceId);
@@ -278,6 +289,7 @@ internal sealed class OperationJournal : IDisposable
             operation.Parameters.AddWithValue("$generation", correlation.Generation);
             operation.Parameters.AddWithValue("$revision", correlation.DeviceRevision);
             operation.Parameters.AddWithValue("$expires", expiresAt);
+            operation.Parameters.AddWithValue("$kind", kind);
             operation.ExecuteNonQuery();
         }
 
@@ -422,7 +434,7 @@ internal sealed class OperationJournal : IDisposable
         using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT device_id, conversation_id, boot_id, client_turn_id,
-                   generation, device_revision, status
+                   generation, device_revision, status, kind
             FROM turn_operations
             WHERE operation_id = $operation AND expires_at_ms > $now
             """;
@@ -440,6 +452,7 @@ internal sealed class OperationJournal : IDisposable
         }
 
         var status = reader.GetString(6);
+        var kind = reader.GetString(7);
         var correlation = new TurnCorrelation(
             deviceId,
             Guid.Parse(reader.GetString(2)),
@@ -448,8 +461,8 @@ internal sealed class OperationJournal : IDisposable
             reader.GetInt32(4),
             reader.GetInt32(5));
         var operation = status == "completed"
-            ? new TurnOperation(operationId, "turn", "failed", correlation, null, new { code = "result_expired" })
-            : new TurnOperation(operationId, "turn", status, correlation, null, null);
+            ? new TurnOperation(operationId, kind, "failed", correlation, null, new { code = "result_expired" })
+            : new TurnOperation(operationId, kind, status, correlation, null, null);
         return new GetOperationResult(200, operation);
     }
 

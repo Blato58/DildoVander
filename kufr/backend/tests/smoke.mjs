@@ -101,6 +101,38 @@ async function remove(path, token, key, body) {
   return response.status;
 }
 
+function makeWav(sampleBytes = 2) {
+  const wav = Buffer.alloc(44 + sampleBytes);
+  wav.write('RIFF', 0);
+  wav.writeUInt32LE(wav.length - 8, 4);
+  wav.write('WAVEfmt ', 8);
+  wav.writeUInt32LE(16, 16);
+  wav.writeUInt16LE(1, 20);
+  wav.writeUInt16LE(1, 22);
+  wav.writeUInt32LE(32000, 24);
+  wav.writeUInt32LE(64000, 28);
+  wav.writeUInt16LE(2, 32);
+  wav.writeUInt16LE(16, 34);
+  wav.write('data', 36);
+  wav.writeUInt32LE(sampleBytes, 40);
+  return wav;
+}
+
+async function transcribe(path, token, key, fields, wav = makeWav()) {
+  const form = new FormData();
+  for (const [name, value] of Object.entries(fields)) {
+    form.append(name, String(value));
+  }
+  form.append('wav', new Blob([wav], { type: 'audio/wav' }), 'capture.wav');
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Idempotency-Key': key },
+    body: form
+  });
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  return { status: response.status, result: await response.json() };
+}
+
 startServer();
 try {
   await waitForServer();
@@ -120,7 +152,7 @@ try {
     generation: 1,
     catalogVersion: 'fixture-1',
     locale: 'cs-CZ',
-    consent: { audio: false, image: false }
+    consent: { audio: true, image: false }
   };
   const key = randomUUID();
   const tokenA = issuedA.result.accessToken;
@@ -209,6 +241,60 @@ try {
   assert.equal(operation.result.result.decision, 'ask');
   assert.equal(operation.result.result.proposal, null);
   assert.doesNotMatch(JSON.stringify(operation.result), /Soukromá testovací otázka/);
+
+  const transcriptionPath = `/v1/conversations/${created.result.conversationId}/transcriptions`;
+  const transcriptionFields = {
+    clientTurnId: randomUUID(),
+    bootId: body.bootId,
+    generation: body.generation,
+    deviceRevision: 7
+  };
+  const transcriptionKey = randomUUID();
+  assert.equal((await transcribe(transcriptionPath, tokenB, randomUUID(), transcriptionFields)).status, 403);
+  const malformedWav = makeWav();
+  malformedWav.writeUInt32LE(44100, 24);
+  assert.equal((await transcribe(transcriptionPath, tokenA, randomUUID(), transcriptionFields, malformedWav)).status, 400);
+  assert.equal((await transcribe(transcriptionPath, tokenA, randomUUID(), transcriptionFields, makeWav(1_920_002))).status, 413);
+  const oversizedForm = new FormData();
+  oversizedForm.append('wav', new Blob([Buffer.alloc(2_000_001)], { type: 'audio/wav' }), 'oversized.wav');
+  assert.equal((await fetch(`${baseUrl}${transcriptionPath}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${tokenA}`, 'Idempotency-Key': randomUUID() },
+    body: oversizedForm
+  })).status, 413);
+  const chunkedBoundary = 'kufr-test-boundary';
+  const chunkedResponse = await fetch(`${baseUrl}${transcriptionPath}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${tokenA}`,
+      'Idempotency-Key': randomUUID(),
+      'Content-Type': `multipart/form-data; boundary=${chunkedBoundary}`
+    },
+    body: new ReadableStream({
+      start(controller) {
+        controller.enqueue(Buffer.from(`--${chunkedBoundary}\r\nContent-Disposition: form-data; name="wav"; filename="large.wav"\r\nContent-Type: audio/wav\r\n\r\n`));
+        controller.enqueue(Buffer.alloc(2_000_001));
+        controller.enqueue(Buffer.from(`\r\n--${chunkedBoundary}--\r\n`));
+        controller.close();
+      }
+    }),
+    duplex: 'half'
+  });
+  assert.equal(chunkedResponse.status, 413);
+  const transcription = await transcribe(transcriptionPath, tokenA, transcriptionKey, transcriptionFields);
+  assert.equal(transcription.status, 202);
+  assert.equal((await transcribe(transcriptionPath, tokenA, transcriptionKey, transcriptionFields)).result.operationId,
+    transcription.result.operationId);
+  assert.equal((await transcribe(transcriptionPath, tokenA, transcriptionKey,
+    { ...transcriptionFields, deviceRevision: 8 })).status, 409);
+  const transcriptionOperationPath = `/v1/operations/${transcription.result.operationId}`;
+  const transcriptionOperation = await read(transcriptionOperationPath, tokenA);
+  assert.equal(transcriptionOperation.result.kind, 'transcription');
+  assert.equal(transcriptionOperation.result.status, 'completed');
+  assert.equal(transcriptionOperation.result.result.source, 'deviceMicrophone');
+  assert.equal((await read(transcriptionOperationPath, tokenB)).status, 403);
+  assert.equal((await transcribe(transcriptionPath, tokenA, randomUUID(),
+    { ...transcriptionFields, clientTurnId: randomUUID() }, makeWav(8192))).status, 202);
 
   for (let index = 1; index < 9; index++) {
     const next = await call(turnPath, {
@@ -310,11 +396,13 @@ try {
   const otherDeviceCreate = await call('/v1/conversations', {
     token: newTokenB,
     key,
-    body: { ...body, deviceId: 'device-b' }
+    body: { ...body, deviceId: 'device-b', consent: { audio: false, image: false } }
   });
   assert.equal(otherDeviceCreate.status, 201);
   assert.notEqual(otherDeviceCreate.result.conversationId, created.result.conversationId);
   const raceConversationPath = `/v1/conversations/${otherDeviceCreate.result.conversationId}`;
+  assert.equal((await transcribe(`${raceConversationPath}/transcriptions`, newTokenB,
+    randomUUID(), { clientTurnId: randomUUID(), bootId: body.bootId, generation: 1, deviceRevision: 7 })).status, 403);
   const raceTurnPath = `${raceConversationPath}/turns`;
   const [raceTurn, raceEnd] = await Promise.all([
     call(raceTurnPath, {
@@ -332,6 +420,9 @@ try {
     assert.equal(racedOperation.result.result, null);
   }
   const lostOperation = await read(operationPath, newToken);
+  const lostTranscription = await read(transcriptionOperationPath, newToken);
+  assert.equal(lostTranscription.result.kind, 'transcription');
+  assert.equal(lostTranscription.result.status, 'failed');
   assert.equal(lostOperation.result.status, 'failed');
   assert.equal(lostOperation.result.error.code, 'result_expired');
   assert.equal((await call(turnPath, {
@@ -339,7 +430,7 @@ try {
     key: randomUUID(),
     body: { ...turn, clientTurnId: randomUUID() }
   })).status, 404);
-  console.log('Backend HTTP smoke: access, scope, fake turn, limits and restart idempotency passed');
+  console.log('Backend HTTP smoke: access, scope, fake turn/transcription, limits and restart passed');
 } finally {
   await stopServer();
   await rm(databaseDirectory, { recursive: true, force: true });

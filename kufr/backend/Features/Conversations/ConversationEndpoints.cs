@@ -1,5 +1,7 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using Kufr.Backend.Features.Access;
+using Microsoft.AspNetCore.Http.Features;
 
 namespace Kufr.Backend.Features.Conversations;
 
@@ -9,6 +11,7 @@ internal static class ConversationEndpoints
     {
         endpoints.MapPost("/v1/conversations", CreateConversationAsync);
         endpoints.MapPost("/v1/conversations/{id}/turns", SubmitTurnAsync);
+        endpoints.MapPost("/v1/conversations/{id}/transcriptions", SubmitTranscriptionAsync);
         endpoints.MapGet("/v1/operations/{id}", GetOperation);
         endpoints.MapDelete("/v1/operations/{id}", CancelOperationAsync);
         endpoints.MapDelete("/v1/conversations/{id}", EndConversationAsync);
@@ -178,6 +181,65 @@ internal static class ConversationEndpoints
                 result.Status,
                 result.Status == 403 ? "device_scope_mismatch" : "operation_not_found")
             : Results.Json(result.Operation);
+    }
+
+    private static async Task<IResult> SubmitTranscriptionAsync(
+        string id,
+        HttpContext context,
+        DeviceAccessStore access,
+        ConversationStore conversations)
+    {
+        var deviceId = DeviceAccessEndpoints.Authenticate(context, access);
+        if (deviceId is null)
+        {
+            return ApiProblem.Create(context, 401, "access_token_required");
+        }
+
+        if (!Guid.TryParseExact(context.Request.Headers["Idempotency-Key"], "D", out var key))
+        {
+            return ApiProblem.Create(context, 400, "invalid_idempotency_key");
+        }
+
+        var sizeFeature = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
+        if (sizeFeature is { IsReadOnly: false })
+        {
+            sizeFeature.MaxRequestBodySize = TranscriptionUploadReader.MaxRequestBytes;
+        }
+
+        if (context.Request.ContentLength is > TranscriptionUploadReader.MaxRequestBytes)
+        {
+            return ApiProblem.Create(context, 413, "request_too_large");
+        }
+
+        UploadReadResult read;
+        try
+        {
+            read = await TranscriptionUploadReader.ReadAsync(context.Request, context.RequestAborted);
+        }
+        catch (BadHttpRequestException exception) when (exception.StatusCode == 413)
+        {
+            return ApiProblem.Create(context, 413, "request_too_large");
+        }
+
+        if (read.Upload is null)
+        {
+            return ApiProblem.Create(
+                context,
+                read.Status,
+                read.Status == 413 ? "request_too_large" : "invalid_request");
+        }
+
+        try
+        {
+            var result = conversations.SubmitTranscription(deviceId, id, key, read.Upload);
+            return result.OperationId is null
+                ? ApiProblem.Create(context, result.Status, result.ErrorCode ?? "transcription_rejected")
+                : Results.Json(new { operationId = result.OperationId }, statusCode: result.Status);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(read.Upload.Wav);
+        }
     }
 
     private static async Task<IResult> CancelOperationAsync(
