@@ -67,6 +67,7 @@ src/
       EspIdfConversationStartTransport.h/.cpp  HTTPS start sezení
       EspIdfConversationTextTransport.h/.cpp   HTTPS textový tah
       OperationAcceptedCodec.h/.cpp         omezená odpověď 202
+      TurnPollGuard.h/.cpp                  korelace pollovaného výsledku
 tests/
   selection_sequence_test.cpp               test bez hardwaru
   device_control_test.cpp                   test idempotence a restartu
@@ -79,6 +80,7 @@ tests/
   conversation_start_coordinator_test.cpp   test retry a scope startu
   conversation_text_codec_test.cpp          test UTF-8 a JSON textového tahu
   operation_accepted_codec_test.cpp         test operationId odpovědi
+  turn_poll_guard_test.cpp                  test pozdních/cizích výsledků
 ```
 
 První slice řídí výběr jedné ze šesti hůlek. `SelectionSequence` přijímá
@@ -167,6 +169,10 @@ validací UTF-8/1000 znaků, UUID, masky 0–63 a konečným limitem 4096 bajtů
 jen na pevnou HTTPS cestu daného UUID, s CA bundle, kontrolou hostname,
 Authorization a Idempotency-Key. Potvrzení 202 přijme jen s platným ID operace.
 Transport ještě není zapojený do runtime; poll výsledku chybí.
+`TurnPollGuard` porovnává operation ID i všech šest korelačních polí s aktuální
+generací a revision. Pouze dokončená textová odpověď bez návrhu projde jako
+data; kandidát s návrhem zůstává odmítnutý, dokud nebude mít expiraci a
+fyzické potvrzení. Parser poll odpovědi a jeho HTTPS volání ještě chybí.
 Zatím jej nevolá síťová úloha: chybí událost zahájení rozhovoru, UUID generátor,
 textové tahy a pollování. Žádná odpověď z backendu neřídí fyzické výstupy.
 
@@ -297,6 +303,13 @@ Odpověď 202 s ID operace:
 ```text
 g++ -std=c++14 -Wall -Wextra -Werror src/features/conversation/ConversationStartCodec.cpp src/features/conversation/OperationAcceptedCodec.cpp tests/operation_accepted_codec_test.cpp -o <docasna-slozka>/operation_accepted_codec_test
 <docasna-slozka>/operation_accepted_codec_test
+```
+
+Korelace pozdních odpovědí:
+
+```text
+g++ -std=c++14 -Wall -Wextra -Werror src/features/conversation/TurnPollGuard.cpp tests/turn_poll_guard_test.cpp -o <docasna-slozka>/turn_poll_guard_test
+<docasna-slozka>/turn_poll_guard_test
 ```
 
 ## Další slices a podmínky zapojení

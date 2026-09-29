@@ -6,7 +6,7 @@ Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**Aktivní implementační krok:** E4.3 – samostatný ESP32 klient backendu. E4.1 ESP-IDF profil a bezpečná smyčka jsou softwarově sestavené (D33); E4.2 má trvalý journal a model identity s NVS adaptéry bez HW/USB akceptace (D34–D35). E4.3a přidává model backend tokenu a HTTPS adaptér (D36), E4.3b servisně čtenou síť, SNTP/časovou bránu a samostatnou úlohu (D37). E4.3c má JSON kodeky startu, textového tahu a potvrzení operace, HTTPS adaptéry startu/tahu a hostitelsky testovanou obnovu tokenu (D38–D43); runtime start/tah a poll ještě nejsou připojené. E7 backend bez skutečné AI je dokončen v lokálním fake rozsahu včetně nákladové rezervace a integračních testů (D23–D32). E2/E3 jsou dokončené v hostitelském/simulátorovém rozsahu. Fyzické nezávislé vypnutí a měření zůstávají kritérii E5; placená AI E8 čeká na B4.
+**Aktivní implementační krok:** E4.3 – samostatný ESP32 klient backendu. E4.1 ESP-IDF profil a bezpečná smyčka jsou softwarově sestavené (D33); E4.2 má trvalý journal a model identity s NVS adaptéry bez HW/USB akceptace (D34–D35). E4.3a přidává model backend tokenu a HTTPS adaptér (D36), E4.3b servisně čtenou síť, SNTP/časovou bránu a samostatnou úlohu (D37). E4.3c má JSON kodeky startu, textového tahu a potvrzení operace, HTTPS adaptéry startu/tahu, obnovu tokenu a čistý guard korelace výsledku (D38–D44); runtime start/tah a poll ještě nejsou připojené. E7 backend bez skutečné AI je dokončen v lokálním fake rozsahu včetně nákladové rezervace a integračních testů (D23–D32). E2/E3 jsou dokončené v hostitelském/simulátorovém rozsahu. Fyzické nezávislé vypnutí a měření zůstávají kritérii E5; placená AI E8 čeká na B4.
 
 **Další konkrétní krok: E4.3c – HTTPS vytvoření fake backend sezení, textový tah a poll výsledku; potom lokální WSS. E4.2 servisní USB zápis čeká na B1.**
 
@@ -51,7 +51,7 @@ Přesné závislosti a kritéria dokončení jsou v kapitole 12 plánu. Následu
 | E2 – smlouvy a simulátor | hotovo | E2.1–4 kontrakty, C++ model, fake journal, parser a WSS; E2.5 časová osa s browser ověřením (D10,D22); E2.6 OpenAPI, E2.7 reload, E2.8 fake text/cancel, E2.9 fake media parser/socket (D3–D18). Ztracený ACK, duplicitní/pozdní příkaz, restart a zotavení kryjí hostitelské testy a WSS scénáře. | Fake není skutečný audio buffer, NVS ani backend; tyto hranice patří E4/E7/E9. |
 | E3 – ruční mobil bez HW | hotovo | E3.1 fake UI (D19), E3.2a ověřený místní most (D20), E3.2b UI adaptér a celý výběr/reload/Stop/odpojení proti C++ simulátoru, cílené testy ztracených zpráv a nového lease (D21). | Jde pouze o webovou/simulátorovou akceptaci E3; nativní iPhone, TLS pinning a fyzický kufr patří E3a/E10/E5. |
 | E3a – iOS CI základ | nezahájeno | Jen majitelem popsaný postup. | E3; B2/B3 pro podpis a skutečnou instalaci. |
-| E4 – runtime a přímá síť | rozpracováno | E4.1: ESP-IDF 6.1 profil, CMake, bezpečná smyčka, 16MB oddíly a lokální build; Arduino sériový profil zachován (D33). E4.2a: trvalý journal a NVS adaptér v IDF sestavení, hostitelský restart a chyby úložiště (D34). E4.2b: formát identity, softwarová servisní brána a NVS čtení (D35). E4.3a: tokenový model, parser a HTTPS adaptér (D36). E4.3b: NVS síťové nastavení, Wi-Fi STA/SNTP/čas v samostatném tasku (D37). E4.3c1–6: JSON kodeky a HTTPS adaptéry startu/tahu s 401 retry startu (D38–D43). | Fyzicky střežený USB provisioning, runtime vytvoření sezení/tahy/WSS, NVS/síť runtime a pro nahrání B1. |
+| E4 – runtime a přímá síť | rozpracováno | E4.1: ESP-IDF 6.1 profil, CMake, bezpečná smyčka, 16MB oddíly a lokální build; Arduino sériový profil zachován (D33). E4.2a: trvalý journal a NVS adaptér v IDF sestavení, hostitelský restart a chyby úložiště (D34). E4.2b: formát identity, softwarová servisní brána a NVS čtení (D35). E4.3a: tokenový model, parser a HTTPS adaptér (D36). E4.3b: NVS síťové nastavení, Wi-Fi STA/SNTP/čas v samostatném tasku (D37). E4.3c1–7: JSON kodeky, HTTPS adaptéry startu/tahu a guard korelace pollu (D38–D44). | Fyzicky střežený USB provisioning, runtime vytvoření sezení/tahy/WSS, NVS/síť runtime a pro nahrání B1. |
 | E5 – jedna bezpečná přihrádka | nezahájeno | Bez ovládání a měření. | E0/E1/E4; B1, fyzická akceptace. |
 | E6 – šest přihrádek | nezahájeno | Bez fyzického ověření. | E5; cykly, proudy, dostupnost/reload. |
 | E7 – backend bez skutečné AI | hotovo | E7.1–2 identity/fake dialog; E7.3a–c SQLite idempotence, restart a kvóta; E7.4a–b cleanup/retence a rušení; E7.5a–b WAV fake hlas; E7.6 transakční nákladová rezervace. Lokální HTTP/SQLite testy přístupů, souběhu, restartu, retence a logů prošly (D23–D32). | Skutečné provider ceny/limity/klíče a placená akceptace patří E8/B4; device HTTPS/TLS integrace E4. |
@@ -76,11 +76,19 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 
 ## Deník změn a ověření
 
+### D44 – 29. 9. 2026 – E4.3c7 korelace pollu
+
+- Rozsah: `TurnPollGuard` porovná očekávaný operation ID, `deviceId`, `bootId`, `conversationId`, `clientTurnId`, `generation` a `deviceRevision` s odpovědí i aktuální generací/revision. Pozdní/cizí odpověď zahodí; pending/running pouze čeká, failed/cancelled/unknown ukončí. Pro fake text přijme jen dokončené `ask`/`no_selection` bez návrhu a s omezenou neprázdnou odpovědí. `propose` zůstává odmítnutý, dokud není ověřena expirace a fyzická potvrzovací cesta. Guard nemá přístup k pohonům.
+- Ověření: v `C:\Development\DildoVander` prošel MSVC `/std:c++14 /W4 /WX` test `tests/turn_poll_guard_test.cpp` pro každé korelační pole, změnu generace/revision, čekání, chybu a odmítnutí návrhu. V `kufr/firmware` prošel `pio run` pro ESP-IDF (40 588 B RAM, 1 003 813 B flash) a `pio run -e esp32-s3-arduino-serial` (18 660 B RAM, 280 345 B flash); PlatformIO bylo spuštěno plnou cestou k `pio.exe`.
+- Omezení: není JSON parser výsledku ani HTTPS poll; guard pracuje nad již parsovanými daty. Neproběhlo síťové ani HW ověření.
+- Předání: přidat omezený parser operace a GET poll nad HTTPS, potom napojit na fake událost textového tahu při zachování všech kontrol.
+
 ### D43 – 29. 9. 2026 – E4.3c6 HTTPS textový tah
 
 - Rozsah: `EspIdfConversationTextTransport` sestaví pouze pevnou HTTPS cestu nad validovaným backend hostem a kanonickým UUID sezení, odešle tělo `ConversationTextCodec` s Authorization/Idempotency-Key a přijme nejvýše 128 B odpovědi 202 přes `OperationAcceptedCodec`. CA bundle a hostname kontrola zůstávají povinné; redirect ani automatický auth retry nejsou povolené. Parsovanou 401 vrací i při `ESP_FAIL` připnutého ESP-IDF.
 - Ověření: v `kufr/firmware` prošel `pio run` pro ESP-IDF (40 588 B RAM, 1 003 813 B flash) a `pio run -e esp32-s3-arduino-serial` (18 660 B RAM, 280 345 B flash); PlatformIO bylo spuštěno plnou cestou k `pio.exe`. Parser D42 prošel hostitelsky, síťový adaptér nemá živý TLS test.
 - Omezení: transport není zapojený do síťové úlohy ani koordinačního modelu, protože chybí explicitní vstup textového tahu; bez B1 není možné ověřit běh na desce. Nadměrná pomalu streamovaná odpověď může zdržet síťovou úlohu obdobně jako u start adaptéru D39. Nenahrávalo se.
+- Revize a doručení: E4.3c5–6 jsou v commitu `86a33fe6333f89c2356b8cdec4606536e130b60d`; `./scripts/Push-CurrentBranch.ps1` potvrdil push `main` na `origin/main` v této revizi.
 - Předání: navázat hostitelsky testovaným 401 retry se stejným tělem/UUID a doplnit korelovaný poll; před runtime připojením ověřit HTTPS stavové kódy.
 
 ### D42 – 29. 9. 2026 – E4.3c5 potvrzení operace
