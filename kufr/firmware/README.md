@@ -65,6 +65,8 @@ src/
       ConversationStartPort.h               port pro test a HTTPS adaptér
       ConversationTextCodec.h/.cpp          validace a JSON textového tahu
       EspIdfConversationStartTransport.h/.cpp  HTTPS start sezení
+      EspIdfConversationTextTransport.h/.cpp   HTTPS textový tah
+      OperationAcceptedCodec.h/.cpp         omezená odpověď 202
 tests/
   selection_sequence_test.cpp               test bez hardwaru
   device_control_test.cpp                   test idempotence a restartu
@@ -76,6 +78,7 @@ tests/
   conversation_start_codec_test.cpp         test HTTP těla a odpovědi startu
   conversation_start_coordinator_test.cpp   test retry a scope startu
   conversation_text_codec_test.cpp          test UTF-8 a JSON textového tahu
+  operation_accepted_codec_test.cpp         test operationId odpovědi
 ```
 
 První slice řídí výběr jedné ze šesti hůlek. `SelectionSequence` přijímá
@@ -159,7 +162,11 @@ právě jednou; druhé volání dostane původní tělo a Idempotency-Key. Po ch
 musí volající pro opakování ponechat stejné UUID požadavku.
 `ConversationTextCodec` sestaví tělo textového tahu s bezpečným JSON escapingem,
 validací UTF-8/1000 znaků, UUID, masky 0–63 a konečným limitem 4096 bajtů.
-Potvrzení `operationId`, HTTPS POST a poll výsledku zatím chybí.
+`OperationAcceptedCodec` přijímá nejvýše 128B odpověď 202 s jediným UUID
+`operationId`. `EspIdfConversationTextTransport` posílá validovaný textový tah
+jen na pevnou HTTPS cestu daného UUID, s CA bundle, kontrolou hostname,
+Authorization a Idempotency-Key. Potvrzení 202 přijme jen s platným ID operace.
+Transport ještě není zapojený do runtime; poll výsledku chybí.
 Zatím jej nevolá síťová úloha: chybí událost zahájení rozhovoru, UUID generátor,
 textové tahy a pollování. Žádná odpověď z backendu neřídí fyzické výstupy.
 
@@ -283,6 +290,13 @@ Omezené JSON tělo textového tahu:
 ```text
 g++ -std=c++14 -Wall -Wextra -Werror src/features/conversation/ConversationSession.cpp src/features/conversation/ConversationStartCodec.cpp src/features/conversation/ConversationTextCodec.cpp tests/conversation_text_codec_test.cpp -o <docasna-slozka>/conversation_text_codec_test
 <docasna-slozka>/conversation_text_codec_test
+```
+
+Odpověď 202 s ID operace:
+
+```text
+g++ -std=c++14 -Wall -Wextra -Werror src/features/conversation/ConversationStartCodec.cpp src/features/conversation/OperationAcceptedCodec.cpp tests/operation_accepted_codec_test.cpp -o <docasna-slozka>/operation_accepted_codec_test
+<docasna-slozka>/operation_accepted_codec_test
 ```
 
 ## Další slices a podmínky zapojení
