@@ -3,9 +3,10 @@ namespace Kufr.Backend.Features.Conversations;
 internal static class ResponsesTextDialogBudget
 {
     internal const string Model = "gpt-6.1-sol";
+    internal const int MaxRequestBytes = 14_000;
 
-    // The request caps output at 1,200 tokens. This reserves another 15,200
-    // input tokens at the cache-write rate before any paid call is started.
+    // The 14 kB serialized request cap bounds input below 14,000 tokens;
+    // 1,200 output tokens then fit under this $0.05 reservation at Sol rates.
     internal const long ReservedMicroUsd = 50_000;
 
     internal static long CalculateActualMicroUsd(TextDialogResponse response)

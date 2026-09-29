@@ -14,9 +14,11 @@ internal static class TextDialogRuntimeTests
         {
             CheckModeConfiguration(directory);
             await RunSuccessfulTurnAsync(directory);
+            await RunMultiTurnDialogueAsync(directory);
             await RunPromptCancellationAsync(directory);
             await RunCancelledTurnAsync(directory);
             await RunFailedTurnAsync(directory);
+            await RunOversizedRequestAsync(directory);
         }
         finally
         {
@@ -68,7 +70,7 @@ internal static class TextDialogRuntimeTests
         var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var finish = new TaskCompletionSource<TextDialogResponse>(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        using var runner = new TextDialogRunner((_, _, _) =>
+        using var runner = new TextDialogRunner((_, _, _, _, _) =>
         {
             started.SetResult(true);
             return finish.Task;
@@ -101,20 +103,13 @@ internal static class TextDialogRuntimeTests
             "second paid call is rejected before reservation");
 
         finish.SetResult(new TextDialogResponse(
-            "Hůlka jedna čeká na potvrzení.", "propose", "Sedí jí odvaha.", 1,
+            "Jaký průšvih má hůlka napravit?", "ask", "", null,
             ResponsesTextDialogBudget.Model, 621, 102));
         var completed = await PollAsync(store, operationId, "completed");
         var result = completed.Result as TurnResult;
-        Require(result?.Decision == "propose", "paid result is available after durable completion");
-        var proposal = result!.Proposal as SelectionProposal
-            ?? throw new Exception("Paid result has no proposal.");
-        Require(proposal.Compartment == 1
-            && proposal.ConversationId == conversationId
-            && proposal.TurnId == request.ClientTurnId
-            && proposal.DeviceRevision == request.DeviceRevision
-            && proposal.CatalogVersion == request.CatalogVersion
-            && proposal.ExpiresAt <= DateTimeOffset.UtcNow.AddSeconds(60),
-            "server-generated proposal preserves device correlation and short expiry");
+        Require(result?.Decision == "ask" && result.Proposal is null
+            && result.Reply == "Jaký průšvih má hůlka napravit?",
+            "first-turn clarification comes from the provider");
         Require(journal.SettleCost(operationId, 2573)
             && !journal.SettleCost(operationId, 0),
             "provider token usage was settled exactly once");
@@ -124,7 +119,7 @@ internal static class TextDialogRuntimeTests
     {
         var configuration = BuildConfiguration(Path.Combine(directory, "failure.sqlite"), 50_000);
         using var journal = new OperationJournal(configuration, TimeProvider.System);
-        using var runner = new TextDialogRunner((_, _, _) =>
+        using var runner = new TextDialogRunner((_, _, _, _, _) =>
             throw new TextDialogUnavailableException("Synthetic provider failure."));
         var store = new ConversationStore(TimeProvider.System, journal, runner);
         var boot = Guid.NewGuid();
@@ -147,6 +142,78 @@ internal static class TextDialogRuntimeTests
             "ambiguous provider failure keeps the reservation");
     }
 
+    private static async Task RunMultiTurnDialogueAsync(string directory)
+    {
+        var configuration = BuildConfiguration(Path.Combine(directory, "multi-turn.sqlite"), 500_000);
+        using var journal = new OperationJournal(configuration, TimeProvider.System);
+        var seenHistory = new List<DialogExchange[]>();
+        var requiredQuestions = new List<bool>();
+        using var runner = new TextDialogRunner((_, _, history, requireQuestion, _) =>
+        {
+            seenHistory.Add(history.ToArray());
+            requiredQuestions.Add(requireQuestion);
+            var response = seenHistory.Count switch
+            {
+                1 => new TextDialogResponse("Jaký trapas má magie napravit?", "ask", "", null,
+                    ResponsesTextDialogBudget.Model, 100, 20),
+                2 => new TextDialogResponse("Jaký druh magie?", "ask", "", null,
+                    ResponsesTextDialogBudget.Model, 200, 20),
+                _ => new TextDialogResponse("Třpyt a chaos? Hůlka dvě tě zvládne líp než ty svůj plán.",
+                    "propose", "Třpyt a chaos", 2,
+                    ResponsesTextDialogBudget.Model, 300, 30)
+            };
+            return Task.FromResult(response);
+        });
+        var store = new ConversationStore(TimeProvider.System, journal, runner);
+        var boot = Guid.NewGuid();
+        var created = store.Create("device-a", Guid.NewGuid(), "create"u8,
+            new CreateConversationRequest("device-a", boot, 0, "neutral-1", "cs-CZ",
+                new ConversationConsent(false, false)));
+        var conversationId = created.Response!.ConversationId;
+        var answers = new[] { "Chci hůlku.", "Třpyt.", "Chaos." };
+        for (var index = 0; index < answers.Length; index++)
+        {
+            var request = new TextTurnRequest(Guid.NewGuid(), boot, 0, answers[index], 2, 7,
+                "neutral-1");
+            var accepted = store.SubmitTurn("device-a", conversationId, Guid.NewGuid(),
+                Encoding.UTF8.GetBytes($"multi-{index}"), request);
+            Require(accepted.OperationId is not null, "multi-turn request was accepted");
+            var operation = await PollAsync(store, accepted.OperationId!, "completed");
+            var result = (TurnResult)operation.Result!;
+            if (index < 2)
+            {
+                Require(result.Decision == "ask" && result.Proposal is null,
+                    "two completed questions precede any proposal");
+            }
+            else
+            {
+                var proposal = result.Proposal as SelectionProposal;
+                Require(result.Decision == "propose" && proposal?.Compartment == 2
+                    && proposal.ConversationId == conversationId
+                    && proposal.TurnId == request.ClientTurnId
+                    && proposal.DeviceRevision == request.DeviceRevision,
+                    "third turn may publish a correlated proposal");
+            }
+        }
+
+        Require(seenHistory.Count == 3
+            && seenHistory[0].Length == 0
+            && seenHistory[1].Length == 1
+            && seenHistory[1][0].Reply.Contains("trapas", StringComparison.Ordinal)
+            && seenHistory[2].Length == 2
+            && seenHistory[2][1].VisitorText == "Třpyt.",
+            "provider receives completed question and answer pairs in order");
+        Require(requiredQuestions.SequenceEqual(new[] { true, true, false }),
+            "only first two turns require a model-generated question");
+        Require(store.EndConversation("device-a", conversationId, Guid.NewGuid()).Status == 204,
+            "ending conversation discards its RAM history");
+        var next = store.Create("device-a", Guid.NewGuid(), "next"u8,
+            new CreateConversationRequest("device-a", boot, 1, "neutral-1", "cs-CZ",
+                new ConversationConsent(false, false)));
+        Require(next.Status == 201 && next.Response is not null,
+            "new conversation starts after old history is cleared");
+    }
+
     private static async Task RunCancelledTurnAsync(string directory)
     {
         var configuration = BuildConfiguration(Path.Combine(directory, "cancelled.sqlite"), 50_000);
@@ -154,7 +221,7 @@ internal static class TextDialogRuntimeTests
         var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var finish = new TaskCompletionSource<TextDialogResponse>(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        using var runner = new TextDialogRunner((_, _, _) =>
+        using var runner = new TextDialogRunner((_, _, _, _, _) =>
         {
             started.SetResult(true);
             return finish.Task;
@@ -197,12 +264,36 @@ internal static class TextDialogRuntimeTests
             "late provider usage was charged despite cancellation");
     }
 
+    private static async Task RunOversizedRequestAsync(string directory)
+    {
+        var configuration = BuildConfiguration(Path.Combine(directory, "oversized.sqlite"), 50_000);
+        using var journal = new OperationJournal(configuration, TimeProvider.System);
+        using var runner = new TextDialogRunner((_, _, _, _, _) =>
+            throw new TextDialogRequestTooLargeException());
+        var store = new ConversationStore(TimeProvider.System, journal, runner);
+        var boot = Guid.NewGuid();
+        var created = store.Create("device-a", Guid.NewGuid(), "create"u8,
+            new CreateConversationRequest("device-a", boot, 0, "neutral-1", "cs-CZ",
+                new ConversationConsent(false, false)));
+        var request = new TextTurnRequest(Guid.NewGuid(), boot, 0, "Syntetický test", 1, 3,
+            "neutral-1");
+        var first = store.SubmitTurn("device-a", created.Response!.ConversationId,
+            Guid.NewGuid(), "first"u8, request);
+        Require(first.OperationId is not null, "oversized request reserved");
+        await PollAsync(store, first.OperationId!, "failed");
+        var second = store.SubmitTurn("device-a", created.Response.ConversationId,
+            Guid.NewGuid(), "second"u8, request with { ClientTurnId = Guid.NewGuid() });
+        Require(second.Status == 202,
+            "pre-send request rejection releases the full cost reservation");
+        await PollAsync(store, second.OperationId!, "failed");
+    }
+
     private static async Task RunPromptCancellationAsync(string directory)
     {
         var configuration = BuildConfiguration(Path.Combine(directory, "prompt-cancel.sqlite"), 50_000);
         using var journal = new OperationJournal(configuration, TimeProvider.System);
         var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var runner = new TextDialogRunner(async (_, _, token) =>
+        using var runner = new TextDialogRunner(async (_, _, _, _, token) =>
         {
             started.SetResult(true);
             await Task.Delay(Timeout.InfiniteTimeSpan, token);
