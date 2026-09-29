@@ -57,11 +57,13 @@ simulovaný modelem Sol odpovídá na **skutečnou poslední otázku**, místo
 předem napsané repliky bez souvislosti. Každý dialog má nejvýše pět replik
 kufru; hned končí návrhem/no_selection. Další placené volání se předem
 rezervuje; všechny návštěvnické i kufrové modely sdílí celkový strop 1 USD,
-každý rozhovor nejvýše dosavadních 0,50 USD. Síťový výpadek se neopakuje
+každý rozhovor nejvýše dosavadních 0,50 USD. Vstup `party_models=selected` použije jen vybraný model; `party_budget_micro_usd`
+snižuje strop na zbývající schválený rozpočet mezi iteracemi.
+Síťový výpadek se neopakuje
 ani nepovažuje za bezplatný. Ruční běh je placený; běžné PR CI pouze offline.
 
 Výstup `evaluation.json` obsahuje celé **syntetické** dialogy, modely, tokeny,
-latence a konzervativně oceněnou spotřebu včetně reasoning; není fakturou.
+latence, response ID, původní provider usage včetně cache/reasoning a konzervativní ceníkový odhad. `billingVerified: false` a `billedCostMicroUsd: null` výslovně označují, že skutečnou účtovanou cenu neznáme. `upperCostMicroUsd` je pouze pojistka rozpočtu, nikdy údaj o utracených penězích.
 Přepis posuzuj podle konkrétnosti pointy, přirozené češtiny, návaznosti,
 zbytečného představování, respektování změny tématu a správného připomenutí
 historie. Platný JSON sám není známka dobrého humoru. Model návštěvníka také
@@ -98,3 +100,5 @@ zapíše do výsledku. Tato ochrana není průběžný měsíční účet ani p�
 faktura; celý účet chrání projektový hard spend limit. Backendové
 SESSION_CAP_MICRO_USD=500000 a MONTHLY_CAP_MICRO_USD=10000000 jsou
 samostatné limity pro pozdější E8 integraci.
+
+[Živé syntetické přepisy a pozorování z 30. 9.](reports/2026-09-30-party-dialogue.md)
