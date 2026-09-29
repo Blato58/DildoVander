@@ -83,7 +83,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 - Rozsah: `DELETE /v1/operations/{id}` a `DELETE /v1/conversations/{id}` vyžadují device access token, UUID `Idempotency-Key` a prázdné tělo; cizí identita je odmítnuta. SQLite schéma v4 přidává 24hodinový záznam úspěšného DELETE pro bezpečný retry po restartu. Zrušení operace potlačí publikaci výsledku v RAM; ukončení sezení odstraní jeho RAM obsah a označí jeho operace jako `cancelled`. Dokončení již zrušené rezervace nesmí přepsat status. Rezervovaný tah se nerefunduje.
 - Ověření: `kufr/backend` `dotnet build backend.csproj` bez varování; z kořene `dotnet run --project kufr/backend-tests/BackendTests.csproj` ověřil vlastnictví, pozdní dokončení, restartový retry, migrace osazených v1/v2/v3 schémat a retenci páté SQLite tabulky. `node kufr/backend/tests/smoke.mjs` prošel nad HTTP hostem: cizí scope, cancellation/end, vymazaný výsledek, opakování po restartu, současný DELETE/tah a odmítnutí běžného i chunked těla DELETE.
 - Omezení: fake tah se dokončuje synchronně, takže souběh skutečného provider volání nebyl ověřen; tento kód konzervativně brání pozdnímu přepsání. SQLite ponechává technické identity do 24 h kvůli idempotenci. Placené volání ani jeho nákladová rezervace zatím neexistují. Hlasové trasy zbývají.
-- Revize a doručení: čeká na commit a push tohoto ověřeného slice.
+- Revize a doručení: E7.4b je v commitu `6730b4cf9d4ecd4fddc7d5ec1d0b4598465904e8`; `./scripts/Push-CurrentBranch.ps1` potvrdil push `main` na `origin/main` v této revizi.
 
 ### D28 – 29. 9. 2026 – E7.4a časovaná retence
 
