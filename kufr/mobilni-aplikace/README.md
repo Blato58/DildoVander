@@ -1,6 +1,6 @@
 # Mobilní ovládání kufru
 
-Současný kód je pouze statická TypeScript/Vite obrazovka. Nemá ovládání přihrádek, síť, testovací simulátor, Capacitor ani nativní iOS projekt. Zvolenou architekturu určuje [implementační plán](../docs/implementacni-plan.md), skutečný postup a předání [stav implementace](../docs/stav-implementace.md). Při dalším zadání začni podle [AGENTS.md](../../AGENTS.md), nikoli novým návrhem transportu.
+Současný kód nabízí vývojovou webovou obrazovku E3.1 se šesti přihrádkami, ručním převzetím, potvrzením výběru/založení a Stop nad místním fake stavem. Stránka je výslovně označena jako simulace; nepřipojuje se ke kufru ani k E2 WSS simulátoru. Capacitor a nativní iOS projekt zatím nejsou. Zvolenou architekturu určuje [implementační plán](../docs/implementacni-plan.md), skutečný postup a předání [stav implementace](../docs/stav-implementace.md).
 
 ## Cílová role aplikace
 
@@ -25,7 +25,7 @@ Kontrola sestavení:
 npm run build
 ```
 
-Build provádí `tsc --noEmit && vite build`; neověřuje iOS podpis, LAN ani fyzický kufr. Zatím není testovací script ani příkaz pro native build. Nové příkazy doplnit až spolu s jejich zavedením a výsledkem do stavu implementace.
+Build provádí `tsc --noEmit && vite build`; neověřuje iOS podpis, LAN ani fyzický kufr. Ve webovém fake režimu lze převzít řízení, potvrdit výběr nebo založení 1–6 a vyzkoušet Stop. Ztráta viditelnosti stránky uvolní fake lease; rozběhnutý výběr skončí jako nejistý a vyžaduje výslovnou simulovanou kontrolu. Stav se neukládá přes reload stránky. Zatím není testovací script ani příkaz pro native build.
 
 ## Etapy a vzdálený iOS build
 
