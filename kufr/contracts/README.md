@@ -3,7 +3,7 @@
 `control-message-v1.schema.json` je první část lokálního WSS protokolu verze 1
 podle kapitoly 5 [implementačního plánu](../docs/implementacni-plan.md).
 Zatím popisuje `hello`, `welcome`, `state.get`, `control.acquire/release`,
-`heartbeat/heartbeat.ack`, `selection.start`, `command.ack`, `selection.result`,
+`heartbeat/heartbeat.ack`, `selection.start`, `inventory.confirmReload`, `command.ack`, `selection.result`,
 `state.snapshot`, `safety.stop` a `safety.reset`. Adresáře
 `fixtures/valid/` a `fixtures/invalid/` obsahují zprávy pro další adaptéry.
 Schéma je zdroj typů a rozsahů; další typy a OpenAPI backendu přibudou v E2.
@@ -36,6 +36,13 @@ Jeho `eventSequence` je nejvyšší pořadové číslo události zahrnuté v ato
 pořízeném snímku; klient podle něj po reconnectu nebo mezeře pozná další
 očekávanou událost. Pole `faults` používá samostatné kódy poruch, nikoli
 chybové kódy odmítnutých příkazů.
+
+`inventory.confirmReload` potvrzuje fyzickou kontrolu jedné přihrádky
+`1..6` přes `payload: {compartment, inspectionConfirmed:true}`. Sdílí
+`commandId`, pořadí, lease, deadline a expectedRevision s výběrem, vrací
+`command.ack` a nový snapshot. Nevydá žádný požadavek na motor/západku;
+masku dostupnosti musí zařízení trvale zapsat před ACK. Opakování stejného
+příkazu masku znovu nepřepíše, stejné ID s jiným obsahem je konflikt.
 
 ## Ověření
 

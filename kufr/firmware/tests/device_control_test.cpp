@@ -36,7 +36,7 @@ class FakeJournal : public CommandJournal {
   explicit FakeJournal(uint8_t readyMask = 63)
       : persistedReadyMask(readyMask) {}
 
-  bool HasPending() const override { return pending; }
+  bool HasPending() const override { return pending || fault; }
   uint8_t PendingCompartment() const override { return compartment; }
   uint8_t ReadyMask() const override { return persistedReadyMask; }
 
@@ -64,13 +64,26 @@ class FakeJournal : public CommandJournal {
     return true;
   }
 
+  bool PersistReadyMask(uint8_t readyMask) override {
+    ++persistMaskCount;
+    if (failPersistMask || pending) {
+      fault = true;
+      return false;
+    }
+    persistedReadyMask = readyMask;
+    return true;
+  }
+
   bool pending = false;
+  bool fault = false;
   bool failBegin = false;
   bool failResolve = false;
+  bool failPersistMask = false;
   uint8_t persistedReadyMask = 63;
   uint8_t compartment = 0;
   int beginCount = 0;
   int resolveCount = 0;
+  int persistMaskCount = 0;
   std::string lastCommandId;
 };
 
@@ -98,6 +111,24 @@ struct Fixture {
     command.issuedAtDeviceMs = issuedAtMs;
     command.maxAgeMs = 2000;
     command.compartment = compartment;
+    return command;
+  }
+
+  InventoryReloadCommand ReloadCommand(uint64_t sequenceNumber,
+                                       uint8_t compartment,
+                                       const std::string& commandId,
+                                       uint64_t issuedAtMs = 0) const {
+    InventoryReloadCommand command;
+    command.commandId = commandId;
+    command.deviceId = "kufr-001";
+    command.bootId = "boot-1";
+    command.controlLeaseId = "lease-1";
+    command.sequence = sequenceNumber;
+    command.expectedRevision = control.Revision();
+    command.issuedAtDeviceMs = issuedAtMs;
+    command.maxAgeMs = 2000;
+    command.compartment = compartment;
+    command.inspectionConfirmed = true;
     return command;
   }
 
@@ -353,6 +384,94 @@ void TestJournalResolveFailureDoesNotReportCompletion() {
   assert(fixture.control.NeedsRecovery());
 }
 
+void TestReloadPersistsWithoutPhysicalOutput() {
+  Fixture fixture(55);
+  const InventoryReloadCommand reload = fixture.ReloadCommand(1, 4, "reload-4");
+  const uint64_t previousRevision = fixture.control.Revision();
+  assert(fixture.control.ConfirmReload(reload, true, 0).outcome ==
+         CommandOutcome::Accepted);
+  assert(fixture.control.ReadyMask() == 63);
+  assert(fixture.journal.persistedReadyMask == 63);
+  assert(fixture.journal.persistMaskCount == 1);
+  assert(fixture.control.Revision() == previousRevision + 1);
+
+  InventoryReloadCommand conflicting = reload;
+  conflicting.compartment = 5;
+  assert(fixture.control.ConfirmReload(conflicting, true, 0).error ==
+         CommandError::IdConflict);
+  assert(fixture.journal.persistMaskCount == 1);
+  assert(fixture.port.releaseCount == 0);
+  assert(!fixture.port.vibrationOn);
+
+  const CommandReceipt duplicate = fixture.control.ConfirmReload(reload, true, 0);
+  assert(duplicate.duplicate);
+  assert(fixture.journal.persistMaskCount == 1);
+  assert(fixture.control.Revision() == previousRevision + 1);
+
+  SelectionCommand reusedId = fixture.Command(2, 2, "reload-4");
+  assert(fixture.control.AcceptSelection(reusedId, true, 0).error ==
+         CommandError::IdConflict);
+
+  FakeSafetyPort rebootPort;
+  SafetyController rebootSafety(rebootPort);
+  SelectionSequence rebootSequence(rebootSafety);
+  DeviceControl rebooted("kufr-001", "boot-2", rebootSequence,
+                         fixture.journal, 1);
+  assert(rebooted.ReadyMask() == 63);
+  assert(rebootPort.releaseCount == 0);
+}
+
+void TestReloadRejectsUnsafeOrStaleRequests() {
+  Fixture stale(55);
+  InventoryReloadCommand reload = stale.ReloadCommand(1, 4, "stale-reload");
+  reload.expectedRevision -= 1;
+  assert(stale.control.ConfirmReload(reload, true, 0).error ==
+         CommandError::StaleRevision);
+  assert(stale.control.ReadyMask() == 55);
+  assert(stale.journal.persistMaskCount == 0);
+
+  Fixture invalid(55);
+  reload = invalid.ReloadCommand(1, 4, "uninspected");
+  reload.inspectionConfirmed = false;
+  assert(invalid.control.ConfirmReload(reload, true, 0).error ==
+         CommandError::InvalidMessage);
+  reload.inspectionConfirmed = true;
+  reload.compartment = 7;
+  assert(invalid.control.ConfirmReload(reload, true, 0).error ==
+         CommandError::InvalidMessage);
+  reload.compartment = 4;
+  assert(invalid.control.ConfirmReload(reload, false, 0).error ==
+         CommandError::Unauthorized);
+  reload.controlLeaseId = "wrong";
+  assert(invalid.control.ConfirmReload(reload, true, 0).error ==
+         CommandError::LeaseExpired);
+  assert(invalid.journal.persistMaskCount == 0);
+
+  Fixture late(55);
+  reload = late.ReloadCommand(1, 4, "late-reload");
+  assert(late.control.ConfirmReload(reload, true, 6000).error ==
+         CommandError::LeaseExpired);
+  assert(late.control.ReadyMask() == 55);
+  assert(late.journal.persistMaskCount == 0);
+
+  Fixture busy(55);
+  SelectionCommand selection = busy.Command(1, 1, "selection-active");
+  assert(busy.control.AcceptSelection(selection, true, 0).outcome ==
+         CommandOutcome::Accepted);
+  reload = busy.ReloadCommand(2, 4, "reload-busy");
+  assert(busy.control.ConfirmReload(reload, true, 0).error ==
+         CommandError::Busy);
+  assert(busy.control.ReadyMask() == 55);
+
+  Fixture failed(55);
+  failed.journal.failPersistMask = true;
+  reload = failed.ReloadCommand(1, 4, "reload-failed");
+  assert(failed.control.ConfirmReload(reload, true, 0).error ==
+         CommandError::JournalFailed);
+  assert(failed.control.ReadyMask() == 55);
+  assert(failed.control.NeedsRecovery());
+}
+
 }  // namespace
 
 int main() {
@@ -365,4 +484,6 @@ int main() {
   TestCommandIdCannotCrossManualLeases();
   TestRebootAfterInterruptedRelease();
   TestJournalResolveFailureDoesNotReportCompletion();
+  TestReloadPersistsWithoutPhysicalOutput();
+  TestReloadRejectsUnsafeOrStaleRequests();
 }

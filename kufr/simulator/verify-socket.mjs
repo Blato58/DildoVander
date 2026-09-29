@@ -225,12 +225,38 @@ try {
   } while (state.lastResult?.status !== 'completed');
   assert.equal(state.readyMask, 55);
 
-  const secondCommand = {
-    ...command,
+  const reloadCommand = {
+    protocolVersion: 1,
+    type: 'inventory.confirmReload',
     commandId: randomUUID(),
+    deviceId: 'kufr-001',
+    bootId: simulator.bootId,
+    controlLeaseId: acquired.controlLeaseId,
     sequence: 2,
     expectedRevision: state.revision,
     issuedAtDeviceMs: state.deviceUptimeMs,
+    maxAgeMs: 2000,
+    payload: { compartment: 4, inspectionConfirmed: true },
+  };
+  client.send(reloadCommand);
+  const reloadAck = await client.next('command.ack');
+  assert.equal(reloadAck.status, 'accepted');
+  let reloaded;
+  do {
+    reloaded = await client.next('state.snapshot');
+  } while (reloaded.readyMask !== 63);
+  assert.equal(timeline.filter((event) => event.event === 'release_latch').length, 1);
+  client.send(reloadCommand);
+  const repeatedReloadAck = await client.next('command.ack');
+  assert.equal(repeatedReloadAck.status, 'accepted');
+  assert.equal(repeatedReloadAck.commandId, reloadCommand.commandId);
+
+  const secondCommand = {
+    ...command,
+    commandId: randomUUID(),
+    sequence: 3,
+    expectedRevision: reloaded.revision,
+    issuedAtDeviceMs: reloaded.deviceUptimeMs,
     payload: { compartment: 5, selectionSource: 'manual' },
   };
   client.send(secondCommand);
@@ -302,7 +328,7 @@ try {
   const afterRestart = await client.next('welcome');
   assert.equal(afterRestart.snapshot.controlMode, 'recovery');
   assert.equal(afterRestart.snapshot.phase, 'recoveryRequired');
-  assert.equal(afterRestart.snapshot.readyMask, 55);
+  assert.equal(afterRestart.snapshot.readyMask, 63);
   assert.equal(afterRestart.snapshot.controlLeaseId, null);
   client.send({
     protocolVersion: 1,
@@ -322,7 +348,7 @@ try {
   client.send({ protocolVersion: 1, type: 'hello', messageId: randomUUID(), deviceId: 'kufr-001' });
   const afterInspection = await client.next('welcome');
   assert.equal(afterInspection.snapshot.controlMode, 'standalone');
-  assert.equal(afterInspection.snapshot.readyMask, 39);
+  assert.equal(afterInspection.snapshot.readyMask, 47);
 
   client.socket.terminate();
   client = null;
@@ -409,7 +435,7 @@ try {
       resolve();
     });
   });
-  console.log('WSS: TLS/auth, lease expiry, ACK retry, priority Stop, strict input, restart and close/acquire race passed');
+  console.log('WSS: TLS/auth, lease expiry, ACK retry, reload, priority Stop, strict input, restart and close/acquire race passed');
 } finally {
   observer?.response.destroy();
   client?.socket.terminate();

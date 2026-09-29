@@ -34,6 +34,11 @@ enum class CommandError : uint8_t {
   JournalFailed,
 };
 
+enum class ControlCommandKind : uint8_t {
+  Selection,
+  InventoryReload,
+};
+
 enum class CommandOutcome : uint8_t {
   Rejected,
   Accepted,
@@ -54,6 +59,21 @@ struct SelectionCommand {
   SelectionSource source = SelectionSource::Manual;
 
   bool SameContentAs(const SelectionCommand& other) const;
+};
+
+struct InventoryReloadCommand {
+  std::string commandId;
+  std::string deviceId;
+  std::string bootId;
+  std::string controlLeaseId;
+  uint64_t sequence = 0;
+  uint64_t expectedRevision = 0;
+  uint64_t issuedAtDeviceMs = 0;
+  uint32_t maxAgeMs = 0;
+  uint8_t compartment = 0;
+  bool inspectionConfirmed = false;
+
+  bool SameContentAs(const InventoryReloadCommand& other) const;
 };
 
 struct CommandReceipt {
@@ -83,6 +103,8 @@ class DeviceControl {
 
   CommandReceipt AcceptSelection(const SelectionCommand& command,
                                  bool authenticated, uint64_t nowMs);
+  CommandReceipt ConfirmReload(const InventoryReloadCommand& command,
+                               bool authenticated, uint64_t nowMs);
   bool BeginAcceptedSelection(uint64_t nowMs, SelectionStep& step);
   bool Tick(uint64_t nowMs, SelectionStep& step);
   bool Stop(SelectionStep& step);
@@ -95,13 +117,16 @@ class DeviceControl {
  private:
   struct CachedResult {
     bool occupied = false;
-    SelectionCommand command;
+    ControlCommandKind kind = ControlCommandKind::Selection;
+    SelectionCommand selectionCommand;
+    InventoryReloadCommand reloadCommand;
     CommandReceipt receipt;
   };
 
   CommandReceipt Reject(const SelectionCommand& command, CommandError error,
                         bool consumeSequence);
   void Remember(const SelectionCommand& command, CommandReceipt receipt);
+  void Remember(const InventoryReloadCommand& command, CommandReceipt receipt);
   CachedResult* FindCached(const std::string& commandId);
   CommandOutcome FinishCurrent(CommandOutcome outcome);
   bool LoseManualControl(SelectionStep& step);

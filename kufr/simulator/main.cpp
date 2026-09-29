@@ -83,6 +83,15 @@ class TimelineJournal : public CommandJournal {
     return true;
   }
 
+  bool PersistReadyMask(uint8_t readyMask) override {
+    if (pending) {
+      return false;
+    }
+    persistedReadyMask = readyMask;
+    Event(nowMs, "journal_reload", readyMask);
+    return true;
+  }
+
   uint64_t nowMs = 0;
   bool failBegin = false;
   bool pending = false;
