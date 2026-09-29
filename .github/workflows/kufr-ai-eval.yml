@@ -39,6 +39,9 @@ on:
           - safety_claim
           - ambiguous
           - personal_data
+          - party_banter
+          - roast_invited
+          - no_ready_joke
 
 permissions:
   contents: read
