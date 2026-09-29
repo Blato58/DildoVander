@@ -160,12 +160,20 @@ Environment `backend-production` má tyto GitHub Actions secrets:
 
 | Secret | Hodnota |
 | --- | --- |
-| `DEVICE_ID` | ID servisně provisionovaného kufru; s hashem se zadává společně. |
-| `DEVICE_CREDENTIAL_SHA256` | 64 hex znaků SHA-256 skutečného device credential; samotný credential patří jen do zařízení. |
+| `DEVICE_ID` | Nyní `dev-simulator-1` pro vývoj; před použitím skutečného kufru jej nahradit servisně provisionovaným ID společně s hashem. |
+| `DEVICE_CREDENTIAL_SHA256` | 64 hex znaků SHA-256 credential pro dané ID; nyní odpovídá vývojovému `DEV_DEVICE_CREDENTIAL`. |
+| `DEV_DEVICE_CREDENTIAL` | Jen pro ruční loopback smoke nasazené vývojové instance; odpovídá hashi vývojového `DEVICE_ID`, není provisionovaný v kufru. Před fyzickým nasazením jej nahradit skutečnou identitou a oddělit testovací prostředí. |
 | `OPENAI_API_KEY` | Projektový OpenAI API klíč. Backend jej zatím nepoužívá; E8 jej zavede až po schválení placených testů. |
 | `SESSION_CAP_MICRO_USD` | Kladný limit v miliontinách USD; spolu s dalšími dvěma limity. |
 | `DAILY_CAP_MICRO_USD` | Kladný denní limit v miliontinách USD. |
 | `MONTHLY_CAP_MICRO_USD` | Kladný měsíční limit v miliontinách USD. |
+
+Po prvním úspěšném nasazení lze ručně spustit workflow **Kufr backend
+deployed smoke** z `main`. S vývojovou identitou v `backend-production`
+ověří přes `127.0.0.1:5080` vydání tokenu, vytvoření fake sezení,
+idempotentní textový tah, výsledek operace a ukončení sezení. Nevypisuje
+credential ani access token. Nevolá OpenAI a nedokazuje veřejné HTTPS ani
+spojení skutečného kufru.
 
 Všechny hodnoty mohou pro první fake nasazení chybět. Bez dvojice zařízení
 se nikdo nepřihlásí; bez všech tří nákladových limitů backend odmítne
