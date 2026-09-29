@@ -6,22 +6,17 @@
 
 #include "esp_http_client.h"
 
-#include "ConversationStartCodec.h"
-
-struct ConversationStartHttpResult {
-  int statusCode = 0;
-  ConversationStartResponse conversation;
-};
+#include "ConversationStartPort.h"
 
 // Blocking HTTPS transport. Call only from the backend network task.
-class EspIdfConversationStartTransport final {
+class EspIdfConversationStartTransport final : public ConversationStartPort {
  public:
   explicit EspIdfConversationStartTransport(const std::string& backendHost,
                                             uint16_t port = 443);
 
   bool IsConfigured() const;
   ConversationStartHttpResult Create(const ConversationStartRequest& request,
-                                     const char* accessToken);
+                                     const char* accessToken) override;
 
  private:
   struct ResponseBody {
