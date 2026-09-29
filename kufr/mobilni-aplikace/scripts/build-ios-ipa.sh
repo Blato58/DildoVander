@@ -5,13 +5,19 @@ umask 077
 : "${RUNNER_TEMP:?RUNNER_TEMP is required}"
 : "${IOS_BUNDLE_ID:?IOS_BUNDLE_ID is required}"
 : "${IOS_TEAM_ID:?IOS_TEAM_ID is required}"
+: "${IOS_SIGNING_KIND:?Signing kind is required}"
 : "${IOS_BUILD_CERTIFICATE_BASE64:?Certificate secret is required}"
 : "${IOS_P12_PASSWORD:?Certificate password is required}"
 : "${IOS_PROVISION_PROFILE_BASE64:?Profile secret is required}"
 : "${IOS_KEYCHAIN_PASSWORD:?Keychain password is required}"
 
-if ! xcodebuild -help 2>&1 | grep -q 'debugging'; then
-  echo 'This Xcode does not support the debugging export method.' >&2
+case "${IOS_SIGNING_KIND}" in
+  development) export_method=debugging ;;
+  ad_hoc) export_method=release-testing ;;
+  *) echo 'Unsupported iOS signing kind.' >&2; exit 2 ;;
+esac
+if ! xcodebuild -help 2>&1 | grep -q "${export_method}"; then
+  echo "This Xcode does not support the ${export_method} export method." >&2
   exit 1
 fi
 
@@ -41,7 +47,7 @@ printf '%s' "${IOS_BUILD_CERTIFICATE_BASE64}" | base64 -D > "${work_dir}/certifi
 printf '%s' "${IOS_PROVISION_PROFILE_BASE64}" | base64 -D > "${work_dir}/profile.mobileprovision"
 security cms -D -i "${work_dir}/profile.mobileprovision" > "${work_dir}/profile.plist"
 
-profile_uuid="$(python3 - "${work_dir}/profile.plist" "${IOS_TEAM_ID}" "${IOS_BUNDLE_ID}" <<'PY'
+profile_uuid="$(python3 - "${work_dir}/profile.plist" "${IOS_TEAM_ID}" "${IOS_BUNDLE_ID}" "${IOS_SIGNING_KIND}" <<'PY'
 import datetime
 import plistlib
 import sys
@@ -49,14 +55,14 @@ import sys
 with open(sys.argv[1], 'rb') as profile_file:
     profile = plistlib.load(profile_file)
 
-team_id, bundle_id = sys.argv[2:4]
+team_id, bundle_id, signing_kind = sys.argv[2:5]
 entitlements = profile.get('Entitlements', {})
 if profile.get('TeamIdentifier') != [team_id]:
     raise SystemExit('Provisioning profile Team ID does not match.')
 if entitlements.get('application-identifier') != f'{team_id}.{bundle_id}':
     raise SystemExit('Provisioning profile Bundle ID does not match.')
-if entitlements.get('get-task-allow') is not True:
-    raise SystemExit('A development provisioning profile is required.')
+if entitlements.get('get-task-allow') is not (signing_kind == 'development'):
+    raise SystemExit('The provisioning profile type does not match the signing kind.')
 if not profile.get('ProvisionedDevices'):
     raise SystemExit('The profile does not contain a registered device.')
 if profile['ExpirationDate'] <= datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None):
@@ -87,11 +93,14 @@ if ! security import "${work_dir}/certificate.p12" -k "${keychain}" \
     echo 'OpenSSL could not read the PKCS#12 with IOS_P12_PASSWORD.' >&2
     exit 1
   fi
-  export_options=()
   if openssl pkcs12 -help 2>&1 | grep -q -- '-legacy'; then
-    export_options+=(-legacy)
-  fi
-  if ! openssl pkcs12 -export "${export_options[@]}" \
+    if ! openssl pkcs12 -export -legacy \
+      -in "${pem_path}" -out "${compatible_path}" \
+      -passout env:IOS_P12_PASSWORD >/dev/null 2>&1; then
+      echo 'OpenSSL could not repackage the PKCS#12 for Keychain.' >&2
+      exit 1
+    fi
+  elif ! openssl pkcs12 -export \
     -in "${pem_path}" -out "${compatible_path}" \
     -passout env:IOS_P12_PASSWORD >/dev/null 2>&1; then
     echo 'OpenSSL could not repackage the PKCS#12 for Keychain.' >&2
@@ -136,7 +145,7 @@ cat > "${work_dir}/ExportOptions.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>method</key><string>debugging</string>
+  <key>method</key><string>${export_method}</string>
   <key>signingStyle</key><string>manual</string>
   <key>teamID</key><string>${IOS_TEAM_ID}</string>
   <key>signingCertificate</key><string>${sign_identity}</string>
@@ -157,7 +166,8 @@ xcodebuild archive \
   CODE_SIGN_IDENTITY="${sign_identity}" \
   PROVISIONING_PROFILE_SPECIFIER="${profile_uuid}" \
   DEVELOPMENT_TEAM="${IOS_TEAM_ID}" \
-  PRODUCT_BUNDLE_IDENTIFIER="${IOS_BUNDLE_ID}"
+  PRODUCT_BUNDLE_IDENTIFIER="${IOS_BUNDLE_ID}" \
+  CURRENT_PROJECT_VERSION="${GITHUB_RUN_NUMBER:-1}"
 
 xcodebuild -exportArchive \
   -archivePath "${work_dir}/App.xcarchive" \
@@ -196,4 +206,4 @@ if actual['UUID'] != expected['UUID']:
 PY
 
 shasum -a 256 "${ipa_files[0]}" > "${ipa_files[0]}.sha256"
-echo 'Development-signed IPA verified and checksummed.'
+echo "${IOS_SIGNING_KIND} IPA verified and checksummed."

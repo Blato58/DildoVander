@@ -33,8 +33,8 @@ jobs:
         run: |
           set -euo pipefail
           source_dir=kufr/backend/deploy/ip-https
-          bash -n "$source_dir/bootstrap-ip-https.sh" "$source_dir/kufr-cert-reload.sh"
-          for source_file in kufr-ip-http.conf.in kufr-ip-https.conf.in kufr-cert-renew.service kufr-cert-renew.timer; do
+          bash -n "$source_dir/bootstrap-ip-https.sh" "$source_dir/kufr-cert-reload.sh" "$source_dir/install-ios-host.sh"
+          for source_file in kufr-ip-http.conf.in kufr-ip-https.conf.in kufr-cert-renew.service kufr-cert-renew.timer ios-placeholder.html; do
             test -s "$source_dir/$source_file"
           done
 
@@ -49,7 +49,7 @@ jobs:
         run: |
           set -euo pipefail
           source_dir=kufr/backend/deploy/ip-https
-          bash -n "$source_dir/bootstrap-ip-https.sh" "$source_dir/kufr-cert-reload.sh"
+          bash -n "$source_dir/bootstrap-ip-https.sh" "$source_dir/kufr-cert-reload.sh" "$source_dir/install-ios-host.sh"
           stage_dir="$(mktemp -d "$HOME/kufr-ip-https.XXXXXXXX")"
           for source_file in "$source_dir"/*; do
             install -m 0400 "$source_file" "$stage_dir/$(basename "$source_file")"
