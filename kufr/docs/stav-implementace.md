@@ -83,7 +83,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 - Rozsah: `contracts/backend-openapi-v1.json` nyní popisuje i multipart PCM16 mono 32 kHz WAV přepis, speech nad ID validovaného tahu, download krátkodobého `audio/wav`, rušení operace a ukončení sezení. Operation union rozlišuje transcription/turn/speech s typovanými výsledky; stav failed vyžaduje chybu, completed výsledek. Přepis předává deviceRevision pro požadované echo korelace. `verify-backend-openapi.mjs` kontroluje všech osm skupin tras, media type, auth/idempotency metadata a pozitivní/chybné struktury. Plán v kapitole 6 zaznamenává upřesněné formáty.
 - Ověření z `kufr/contracts` pod Node 24.21.0: `npm test` — 15 platných a 27 chybných control zpráv a rozšířený test OpenAPI prošly. WAV bajty ani runtime auth/retence/idempotence tento test neověřuje; to patří backendové integraci E7.
 - Omezení: pozdější kostýmní snímek je výslovně mimo základní v1; skutečný backend, stream parser a autorizace zatím neexistují. E2 pokračuje lokálním protokolem E2.7.
-- Revize a doručení: doplnit po commitu a push.
+- Revize a doručení: E2.6b je v commitu `e09c4b6a513b076c0fbd425d43347e7c2007b5a8`; `./scripts/Push-CurrentBranch.ps1` potvrdil push `main` na `origin/main` v této revizi.
 
 ### D11 – 29. 9. 2026 – E2.6a základ backend OpenAPI
 
