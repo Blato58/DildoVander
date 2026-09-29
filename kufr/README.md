@@ -10,7 +10,7 @@ Vybraná rekvizita: [sada dvou dřevěných truhel Marketos](https://www.marketo
 - [`mobilni-aplikace/`](mobilni-aplikace/) — současný TypeScript/Vite základ; plánované iOS balení Capacitor/Swift, vývoj Windows a vzdálený macOS CI build.
 - [`contracts/`](contracts/) — první JSON Schema lokálního protokolu v1 a sdílené pozitivní/chybné zprávy.
 - [`simulator/`](simulator/) — spustitelná hostitelská časová osa čistého modelu výběru a deterministické scénáře.
-- [`backend/`](backend/) — ASP.NET Core 10 základ E7 s device tokenem a fake sezením; zatím bez AI/SQLite.
+- [`backend/`](backend/) — ASP.NET Core 10 základ E7 s device tokenem, fake sezením a textovým tahem; zatím bez AI/SQLite.
 - [`docs/implementacni-plan.md`](docs/implementacni-plan.md) — rozhodnutí, protokol, bezpečnost, předběžné piny A/B, testování a etapy.
 - [`docs/stav-implementace.md`](docs/stav-implementace.md) — jediný průběžný přehled realizace, ověření, blokací a dalšího kroku.
 - [`docs/kamera.md`](docs/kamera.md) — volitelné rozšíření o obraz; vybraná deska má kamerový konektor.
