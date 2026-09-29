@@ -6,7 +6,7 @@ Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**Aktivní implementační krok:** E2.4 – lokální WSS facade nad sdíleným kontraktem a simulátorem. E2.3 bylo 29. 9. 2026 implementováno a hostitelsky ověřeno; rozsah a kontroly jsou v deníku D5. E1 je dokončené jako softwarové jádro bez desky. Fyzické nezávislé vypnutí při zamrzlé smyčce a další měření zůstávají kritérii E5.
+**Aktivní implementační krok:** E2.4 – lokální WSS facade nad sdíleným kontraktem a simulátorem. Podkrok E2.4a extrahoval přísný parser do sdíleného modulu; E2.3 bylo 29. 9. 2026 implementováno a hostitelsky ověřeno (D5). E1 je dokončené jako softwarové jádro bez desky. Fyzické nezávislé vypnutí při zamrzlé smyčce a další měření zůstávají kritérii E5.
 
 **Další konkrétní krok: E2.4 – lokální WSS facade simulátoru.**
 
@@ -50,7 +50,7 @@ Přesné závislosti a kritéria dokončení jsou v kapitole 12 plánu. Následu
 | --- | --- | --- | --- |
 | E0 – provozní předpoklady | rozpracováno | Architektonické výchozí předpoklady v plánu; žádná měření. | Vstupy B1–B5 níže; software E1 může začít. |
 | E1 – bezpečné jádro | hotovo | E1.1: Stop v každé fázi, safety port, 250/500/5000ms limity, explicitní zotavení (D1). E1.2: hostitelský timeout průchodu smyčkou, porucha, výpadek ručního lease a přednost Stop; hostitelské testy a firmware build prošly (D2). | Fyzická reakce nezávislého watchdogu patří E5 a nebyla měřena; softwarový model vypíná až při dalším průchodu smyčkou. |
-| E2 – smlouvy a simulátor | rozpracováno | E2.1: první JSON Schema lokálního protokolu, přísný parser a pozitivní/chybné fixtures (D3). E2.2: C++ model fake času, journalu, idempotence a hostitelské scénáře ztraceného ACK/restartu (D4). E2.3: spustitelná časová osa a šest hostitelských scénářů nad sdílenou fixture (D5). | E2.4 WSS facade, integrace parseru, další zprávy, UI časová osa a OpenAPI. Kritéria E2 zatím nejsou integračně doložena přes protokol. |
+| E2 – smlouvy a simulátor | rozpracováno | E2.1: první JSON Schema lokálního protokolu, přísný parser a pozitivní/chybné fixtures (D3). E2.2: C++ model fake času, journalu, idempotence a hostitelské scénáře ztraceného ACK/restartu (D4). E2.3: spustitelná časová osa a šest hostitelských scénářů nad sdílenou fixture (D5). E2.4a: přísný parser vyčleněný pro Node síťový adaptér (D6). | E2.4 WSS facade a propojení parseru, další zprávy, UI časová osa a OpenAPI. Kritéria E2 zatím nejsou integračně doložena přes protokol. |
 | E3 – ruční mobil bez HW | nezahájeno | Statická stránka není ruční řízení. | E2; UI, potvrzení/Stop a integrace. |
 | E3a – iOS CI základ | nezahájeno | Jen majitelem popsaný postup. | E3; B2/B3 pro podpis a skutečnou instalaci. |
 | E4 – runtime a přímá síť | nezahájeno | Arduino prototyp. | E2; pro nahrání B1. |
@@ -77,6 +77,12 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 | B5 | Majitel: finální katalog a publikum, rozměry, router a prostředí akce. | Obsahovou/provozní akceptaci E8/E11 a finální mechaniku. | Neutrální testovací katalog a laboratorní/simulované scénáře. |
 
 ## Deník změn a ověření
+
+### D6 – 29. 9. 2026 – E2.4a přenosný vstupní parser
+
+- Převzetí: po doručení E2.3 v `e03672f2fe974a790b374cc1ad5ca5ea4a15451a` začala E2.4. Před WSS vstupem bylo nutné použít skutečná E2.1 pravidla z runtime modulu, nikoli je zkopírovat do síťové vrstvy.
+- Rozsah: `contracts/control-validator.mjs` vyčlenil přísné UTF-8/JSON/schema ověření do exportu `validateControlMessage(bytes)`, `verify-fixtures.mjs` ho nyní používá, contracts README popisuje hranici. Žádná změna schématu ani wire kontraktu.
+- Ověření z `kufr/contracts`: `& 'C:\Users\vojtech.petrik\AppData\Roaming\nvm\v24.21.0\npm.cmd' test` — 8 platných a 23 chybných zpráv správně rozlišeno. WSS adaptér ještě neexistuje, takže toto není síťová integrace; pokračovat v E2.4.
 
 ### D5 – 29. 9. 2026 – E2.3 hostitelský simulátor
 
