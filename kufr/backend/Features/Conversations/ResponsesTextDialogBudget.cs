@@ -9,13 +9,14 @@ internal static class ResponsesTextDialogBudget
     internal const int MaxRequestBytes = 14_000;
 
     // The 14 kB serialized request cap bounds input below 14,000 tokens;
-    // 1,200 output tokens then fit under this $0.05 reservation at Sol rates.
-    internal const long ReservedMicroUsd = 50_000;
+    // 1,200 output tokens fit under $0.05 at Standard Sol rates. Reserve
+    // twice that amount so an unexpected Fast response can retain its full cost.
+    internal const long ReservedMicroUsd = 100_000;
 
     internal static int RequestByteLimit(string context) => MaxRequestBytes + ContextBytes(context);
 
     internal static long ReserveForContext(string context) =>
-        checked(ReservedMicroUsd + (ContextBytes(context) * 5L + 1) / 2);
+        checked(ReservedMicroUsd + ContextBytes(context) * 5L);
 
     private static int ContextBytes(string context) => context.Length == 0
         ? 0
@@ -24,12 +25,14 @@ internal static class ResponsesTextDialogBudget
     internal static long CalculateActualMicroUsd(TextDialogResponse response)
     {
         if (response.ReturnedModel != Model
+            || response.ServiceTier != "default"
             || response.InputTokens < 0
             || response.OutputTokens < 0)
         {
             throw new TextDialogUnavailableException("Provider usage cannot be priced.");
         }
 
+        // This is a conservative list-price estimate, not verified account billing.
         // Standard processing: cache writes cost $2.50 and output costs $10
         // per million tokens. Charging all input at the cache-write rate is
         // conservative even when the provider reports cached input tokens.

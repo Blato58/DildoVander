@@ -95,10 +95,12 @@ neukládá do projektu. Při časovém limitu se POST neopakuje automaticky,
 protože už mohl být účtován.
 
 Skript před voláním používá konzervativní odhad maximální ceny jednoho
-tahu a odmítne odhad nad 0,50 USD. Skutečné tokeny a horní cenový odhad
+tahu a odmítne odhad nad 0,50 USD. Skutečné tokeny a horní ceníkový odhad
 zapíše do výsledku. Tato ochrana není průběžný měsíční účet ani přesná
 faktura; celý účet chrání projektový hard spend limit. Backendové
 SESSION_CAP_MICRO_USD=500000 a MONTHLY_CAP_MICRO_USD=10000000 jsou
 samostatné limity pro pozdější E8 integraci.
 
 [Živé syntetické přepisy a pozorování z 30. 9.](reports/2026-09-30-party-dialogue.md)
+
+Backend i eval volají explicitně `service_tier: default`; jiný/chybějící vrácený tarif zastaví běh a ponechá rezervaci. Rezervace kryje i 2× sazbu Fast. Známé vrácené tarify se oceňují podle vlastního ceníku, `cacheAdjustedEstimateMicroUsd` navíc využívá rozpad cache; stále nejde o fakturu. Příliš velký požadavek může být odmítnut ještě před odesláním. Starší reporty před touto opravou tarif nezohledňovaly; jejich částky nelze vydávat za ověřenou útratu ani spolehlivý horní limit.
