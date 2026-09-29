@@ -71,6 +71,7 @@ src/
       EspIdfTurnPollTransport.h/.cpp       HTTPS GET a korelace výsledku
       OperationAcceptedCodec.h/.cpp         omezená odpověď 202
       TurnPollGuard.h/.cpp                  korelace pollovaného výsledku
+      TurnPollSchedule.h/.cpp               intervaly a deadline pollu
       TurnOperationCodec.h/.cpp            omezený JSON poll výsledku
 tests/
   selection_sequence_test.cpp               test bez hardwaru
@@ -182,6 +183,8 @@ fyzické potvrzení. `TurnOperationCodec` přijímá nejvýše 4096B JSON operac
 nekonzistentní status/result/error a jakýkoli návrh. `EspIdfTurnPollTransport`
 čte GET `/v1/operations/{id}` jen přes ověřené HTTPS, omezuje tělo na 4096 B
 a propouští odpověď pouze po `TurnPollGuard` korelaci.
+`TurnPollSchedule` povoluje vždy jediný dotaz, první po 500 ms, další po
+500 ms a od 3 s po 1 s; po 45 s od začátku tahu už další poll nepovolí.
 `ConversationUuid` formátuje 16 náhodných bajtů jako UUID v4;
 `EspIdfConversationUuid` čerpá HW RNG až po startu Wi-Fi. Generátor zatím
 nepoužívá runtime konverzace.
@@ -336,6 +339,13 @@ Formát UUID v4 pro ESP-IDF požadavky:
 ```text
 g++ -std=c++14 -Wall -Wextra -Werror src/features/conversation/ConversationStartCodec.cpp src/features/conversation/ConversationUuid.cpp tests/conversation_uuid_test.cpp -o <docasna-slozka>/conversation_uuid_test
 <docasna-slozka>/conversation_uuid_test
+```
+
+Časování pollu a jediný aktivní dotaz:
+
+```text
+g++ -std=c++14 -Wall -Wextra -Werror src/features/conversation/TurnPollSchedule.cpp tests/turn_poll_schedule_test.cpp -o <docasna-slozka>/turn_poll_schedule_test
+<docasna-slozka>/turn_poll_schedule_test
 ```
 
 ## Další slices a podmínky zapojení
