@@ -1,20 +1,20 @@
 # Stav implementace AI kufru
 
-Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální firmware build E1/E2, kontrakty a simulátor E2, Vite build a browser průchod fake mobilní obrazovkou E3.1. Hardware, iPhone a CI zůstávají bez runtime akceptace. Hotový návrh není hotová implementace.
+Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální firmware build E1/E2, kontrakty a simulátor E2, Vite build, cílené testy adaptéru a browser průchod mobilní obrazovkou proti E2. Hardware, iPhone a CI zůstávají bez runtime akceptace. Hotový návrh není hotová implementace.
 
 [Implementační plán](implementacni-plan.md) určuje architekturu a akceptaci. [AGENTS.md](../../AGENTS.md) určuje pracovní postup AI. Tento soubor je jediný průběžný záznam postupu; README ho pouze odkazují.
 
 ## Předání další AI
 
-**Aktivní implementační krok:** E3.2b – napojit ruční mobilní UI na vývojový most E3.2a a prověřit chyby spojení. E3.1 dodala místní fake UI (D19), E3.2a loopback HTTP/WSS most s bearer tokenem pouze na serveru (D20). E2.4a–d přidaly parser, TLS socket nad C++ modelem a fake journal (D6–D9). E2.5 přidává webovou časovou osu (D10), ale její vykreslení čeká na prohlížeči důvěryhodný certifikát. E2.6–E2.9 doplnily OpenAPI, reload, text a fake média (D11–D18). E2 ještě není hotové kvůli browser ověření; skutečný backend patří E7. E1 je dokončené jako softwarové jádro bez desky. Fyzické nezávislé vypnutí a měření zůstávají kritérii E5.
+**Aktivní implementační krok:** E2.5b – ověřit webovou časovou osu v prohlížeči proti E2 C++ modelu s již existujícím místním důvěryhodným vývojovým certifikátem. E3.2b propojila ruční mobilní UI s E3.2a mostem a dokončila simulátorové kritérium E3 (D21). E2.4a–d přidaly parser, TLS socket nad C++ modelem a fake journal (D6–D9); E2.5 časovou osu (D10); E2.6–E2.9 OpenAPI, reload, text a fake média (D11–D18). E2 ještě čeká na browser ověření; skutečný backend patří E7. E1 je dokončené jako softwarové jádro bez desky. Fyzické nezávislé vypnutí a měření zůstávají kritérii E5.
 
-**Další konkrétní krok: E3.2b – integrační adaptér ručního UI proti E2 simulátoru.**
+**Další konkrétní krok: E2.5b – browser ověření časové osy.**
 
-1. Napojit webové UI přes již ověřený místní E3.2a most na E2 protokol. Browser WebSocket neumí nastavit `Authorization` v handshake; most proto předává token jen na serveru a ověřuje upstream certifikát. V UI odlišit fake režim od živého E2 simulátoru, mapovat snapshot/ACK/result, lease, výběr/reload/Stop a bezpečně ukončit ovládání při přerušení. Ověřit sekvenci a chyby proti C++ modelu.
-2. Webová časová osa E2.5 používá samostatný pouze čtecí HTTPS proud se stejnými C++ událostmi: běžné browser WebSocket API neumí hlavičku `Authorization` při nativním handshake. Po získání důvěryhodného místního certifikátu ověřit její skutečné vykreslení, chybový stav a úzký viewport v prohlížeči; nevypínat TLS ověřování.
+1. Webová časová osa E2.5 používá samostatný pouze čtecí HTTPS proud se stejnými C++ událostmi. Dva existující `localhost` HTTPS development certifikáty jsou podle `dotnet dev-certs https --check --trust` důvěryhodné. Pro test exportovat jednu identitu jen do dočasných souborů mimo repozitář, ověřit její běh v prohlížeči a pak dočasný klíč odstranit. Nevypínat TLS ověřování ani neobcházet varování prohlížeče.
+2. Ověřit vykreslení snapshotu/časové osy, chybový stav a úzký viewport. Doložit, že stream je jen pozorovací a Stop/lease přes něj nejde. Potom znovu vyhodnotit splnění E2 a zahájit nejbližší nezávislý software E7.1.
 3. Nezaměnit fake log s NVS ani s fyzickým potvrzením západky. Samostatná HW akceptace zůstává v E5 po vstupu B1.
 
-Předpokládané dotčené cesty: `kufr/mobilni-aplikace/`, `kufr/simulator/` a související README. Krok nevyžaduje fyzickou desku, cloudový klíč ani Apple certifikát. Toto je implementační předání, nikoli příkaz něco nahrát či publikovat.
+Předpokládané dotčené cesty: `kufr/simulator/` a tento stav. Krok nevyžaduje fyzickou desku, cloudový klíč ani Apple certifikát. Toto je implementační předání, nikoli příkaz něco nahrát či publikovat.
 
 Pokud uživatel omezí práci pouze na mobilní aplikaci, neoznačuj závislosti E2 za splněné. Lze připravit samostatnou UI část E3 proti výslovně označenému fake transportu, ale E3 zůstane částečné do integrace se simulátorem/protokolem E2. Rozsah a mezeru zapiš sem.
 
@@ -35,7 +35,7 @@ Pokud uživatel omezí práci pouze na mobilní aplikaci, neoznačuj závislosti
 | Část | Co skutečně existuje | Co zatím chybí |
 | --- | --- | --- |
 | Firmware | Čistá neblokující `SelectionSequence`/`SafetyController` z E1, nezapojený `DeviceControl` s fake clock vstupy, 64 výsledky a `CommandJournal` portem E2.2, čistý `ConversationSession` s generací a stropem 10 tahů E2.8b1. Sériové `select 1..6`, `stop`, `reset`, `status`, `help` zůstává vývojovým vstupem. Hostitelské testy a lokální Arduino/PlatformIO build prošly. | Nezávislý fyzický watchdog/inhibit, skutečný NVS journal/GPIO/síťový detektor lease, provisioning, I2S, propojení dialogu a ovládání. |
-| Mobil | TypeScript/Vite fake obrazovka E3.1 se šesti přihrádkami, potvrzením, Stop a lokálním lease; build script a lockfile. | Napojení na E2 simulátor, síťové chyby, Capacitor, iOS/Swift projekt a testy. |
+| Mobil | TypeScript/Vite webová obrazovka se šesti přihrádkami, potvrzením, Stop a místním fake režimem; E3.2b adaptér přes E3.2a most proti E2 C++ simulátoru, cílené testy spojení a build. | Capacitor, iOS/Swift projekt a fyzický iPhone test. |
 | Backend/kontrakty/simulátor | Lokální protokol v `contracts/control-message-v1.schema.json`, 22 pozitivních a 39 negativních kontrol, připnutý Node/npm test; spustitelný C++ simulátor a šest deterministických scénářů E2.3; místní TLS WSS facade nad C++ modelem s auth/lease/retry/Stop a restartovým fake journalem E2.4c/d; webová časová osa a HTTPS pozorovací proud E2.5; základní OpenAPI všech neobrazových HTTP tras E2.6; potvrzení reloadu a perzistence masky E2.7; fake text/cancel přes C++ model E2.8; binární media parser a oddělený fake media socket E2.9. | Backend E7, browser vizuální ověření E2.5, skutečný AI/audio adaptér dalších etap. |
 | iOS CI | Majitelem popsaný existující postup Windows → macOS runner → podepsaná IPA. | Skutečný workflow v tomto checkoutu, ověřená identita/profil a běh/instalace. |
 | Hardware | Dodaný obrázek pinů, návrh napájení a předběžné profily A/B. | Revize konkrétní desky, schéma bezpečnostní větve, měření a fyzická akceptace. |
@@ -51,7 +51,7 @@ Přesné závislosti a kritéria dokončení jsou v kapitole 12 plánu. Následu
 | E0 – provozní předpoklady | rozpracováno | Architektonické výchozí předpoklady v plánu; žádná měření. | Vstupy B1–B5 níže; software E1 může začít. |
 | E1 – bezpečné jádro | hotovo | E1.1: Stop v každé fázi, safety port, 250/500/5000ms limity, explicitní zotavení (D1). E1.2: hostitelský timeout průchodu smyčkou, porucha, výpadek ručního lease a přednost Stop; hostitelské testy a firmware build prošly (D2). | Fyzická reakce nezávislého watchdogu patří E5 a nebyla měřena; softwarový model vypíná až při dalším průchodu smyčkou. |
 | E2 – smlouvy a simulátor | rozpracováno | E2.1: první JSON Schema lokálního protokolu, přísný parser a pozitivní/chybné fixtures (D3). E2.2: C++ model fake času, journalu, idempotence a hostitelské scénáře ztraceného ACK/restartu (D4). E2.3: spustitelná časová osa a šest hostitelských scénářů nad sdílenou fixture (D5). E2.4a–d: Node parser, handshake/lease schéma, místní WSS facade nad C++ modelem a souborový fake journal (D6–D9). E2.5: webová časová osa a test HTTPS proudu (D10). E2.6a/b: základní OpenAPI a validace schémat (D11–D12). E2.7: perzistované `inventory.confirmReload` přes C++ model, WSS a kontrakt (D13). E2.8a/b: text/cancel schéma, čistý model a WSS fake runtime (D14–D16). E2.9a/b: binární media parser, JSON zprávy a oddělený fake WSS socket (D17–D18). | Browser vizuální ověření E2.5; fake není skutečný audio buffer ani backend. Kritéria E2 ještě nejsou úplně doložena. |
-| E3 – ruční mobil bez HW | rozpracováno | E3.1: webové fake UI se šesti přihrádkami, ručním převzetím, potvrzením/reloadem, Stop a stavem bez fyzického zařízení; Vite build a browser průchod (D19). E3.2a: místní vývojový most s ověřeným TLS/upstream tokenem, test handshake a odmítnutí cizího originu (D20). | E3.2b: UI adaptér, snapshot/lease, celá sekvence a chyby spojení. Fake UI ani samotný most nejsou akceptací E3. |
+| E3 – ruční mobil bez HW | hotovo | E3.1 fake UI (D19), E3.2a ověřený místní most (D20), E3.2b UI adaptér a celý výběr/reload/Stop/odpojení proti C++ simulátoru, cílené testy ztracených zpráv a nového lease (D21). | Jde pouze o webovou/simulátorovou akceptaci E3; nativní iPhone, TLS pinning a fyzický kufr patří E3a/E10/E5. |
 | E3a – iOS CI základ | nezahájeno | Jen majitelem popsaný postup. | E3; B2/B3 pro podpis a skutečnou instalaci. |
 | E4 – runtime a přímá síť | nezahájeno | Arduino prototyp. | E2; pro nahrání B1. |
 | E5 – jedna bezpečná přihrádka | nezahájeno | Bez ovládání a měření. | E0/E1/E4; B1, fyzická akceptace. |
@@ -77,6 +77,14 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 | B5 | Majitel: finální katalog a publikum, rozměry, router a prostředí akce. | Obsahovou/provozní akceptaci E8/E11 a finální mechaniku. | Neutrální testovací katalog a laboratorní/simulované scénáře. |
 
 ## Deník změn a ověření
+
+### D21 – 29. 9. 2026 – E3.2b mobilní UI proti E2 simulátoru
+
+- Rozsah: `SimulatorDeviceConnection.ts` připojuje mobilní web pouze přes loopback E3.2a most; rozlišuje observer/manual lease, korelovaný heartbeat preflight s kontrolou revision/RTT, šestibitovou masku, výběr/reload, ACK/výsledek, konzervativní opakování stejného příkazu, Stop a nejasný výsledek po odpojení. `main.ts` odlišuje fake/E2 režim a při výpadku označí masku jako neaktuální; `FakeDeviceConnection.ts` sdílí typ snapshotu. Nový cílený Node test, script v `package.json` a README popisují oba režimy. Bearer token zůstává jen v místním mostu.
+- Ověření: `kufr/mobilni-aplikace` pod Node 24.21.0 `npm test` – 4 testy prošly (nový lease a totožný retry, chybějící výsledek, rekonciliace reloadu/nejistý výběr, změněná revision v heartbeat); `npm run build` (`tsc --noEmit && vite build`) prošel. `kufr/simulator` s existujícím MSVC `bridge.exe`, OpenSSL a Node 24.21.0 `npm test` prošel včetně TLS/auth, lease, reload, Stop, proxy a media WSS. In-app Browser na místním E3.2a mostu proti skutečnému C++ modelu: observer zablokoval povely; acquire, výběr 1, dokončení 5/6, potvrzení reloadu 6/6, Stop a odpojení zobrazily očekávané stavy; při odpojení se tlačítka zablokovala a maska se označila neaktuální. Úzký viewport 390×844 a konzole bez chyby. `git diff --check` prošel.
+- Instalační omezení: běžící místní Vite proces držel `esbuild.exe`, takže `npm ci` přímo v mobilní složce skončilo Windows `EPERM`; čisté `npm ci` ze stejného `package.json`/lockfile v dočasné složce prošlo (0 známých zranitelností). Závislosti v mobilní složce byly obnoveny kopírováním bez přepisu právě používaných binárek a následný test/build prošel.
+- Omezení: fake/hostitelský simulátor není fyzický kufr, iOS ani nativní TLS. Protokolový snapshot nemá korelaci `state.get`, proto preflight používá korelovaný `heartbeat.ack` s revision a aktuální masku ze snapshotu; finální hranici drží kontrola revision/lease/TTL v E2 modelu. Chybějící fyzické ověření otevření se v UI neprohlašuje za úspěch. E2.5 browser vizualizace zůstává další krok.
+- Revize a doručení: před commitem/push doplnit skutečný hash a výsledek.
 
 ### D20 – 29. 9. 2026 – E3.2a místní most k E2 WSS
 

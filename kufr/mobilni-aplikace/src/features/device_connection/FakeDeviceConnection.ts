@@ -1,11 +1,14 @@
 export type ControlMode = 'observer' | 'manual';
-export type DevicePhase = 'ready' | 'running' | 'stopped';
+export type DevicePhase = 'ready' | 'running' | 'stopped' | 'disconnected';
 
 export interface DeviceSnapshot {
+  source: 'local-fake' | 'e2-simulator';
   controlMode: ControlMode;
   phase: DevicePhase;
   readyMask: number;
   activeCompartment: number | null;
+  busy: boolean;
+  revision?: number;
   status: string;
 }
 
@@ -14,10 +17,12 @@ const manualLeaseDurationMs = 6000;
 // Development-only state machine. It never opens a network connection.
 export class FakeDeviceConnection {
   private state: DeviceSnapshot = {
+    source: 'local-fake',
     controlMode: 'observer',
     phase: 'ready',
     readyMask: 63,
     activeCompartment: null,
+    busy: false,
     status: 'Webová simulace je připravena. Ke kufru není připojena.',
   };
   private leaseExpiresAtMs = 0;

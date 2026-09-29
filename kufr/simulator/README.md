@@ -120,5 +120,6 @@ stejný webový origin na `/dev/control`, jeden ovládací socket a předá vali
 textové zprávy do `wss://127.0.0.1:8443/v1/control` s bearer hlavičkou.
 Certifikát upstream spojení ověřuje proti explicitnímu místnímu certifikátu;
 token neposílá webové stránce ani jej nevkládá do URL. Je to jen místní
-vývojová cesta, bez zveřejnění v LAN a bez iOS transportu. Webové UI dosud
-most nepoužívá; napojení je další díl E3.2.
+vývojová cesta, bez zveřejnění v LAN a bez iOS transportu. Mobilní web při
+odpovědi `/dev-mode` s `simulator:true` používá tento most; samostatný Vite
+server zůstává v místním fake režimu.
