@@ -113,6 +113,7 @@ class DeviceControl {
   uint8_t ReadyMask() const;
   bool NeedsRecovery() const;
   bool HasPendingSelection() const;
+  bool HasManualControl() const;
 
  private:
   struct CachedResult {
