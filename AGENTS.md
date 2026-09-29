@@ -19,7 +19,7 @@
 
 ## Git předání po implementačním slice
 
-- Po ověření slice aktualizuj stav implementace, zkontroluj `git status` a obsah změn, přidej pouze soubory patřící k danému slice a vytvoř commit. Následně pushni jeho větev na nakonfigurovaný upstream bez další žádosti o potvrzení. Do stavu a odpovědi zapiš commit a skutečný výsledek push.
+- Po ověření slice aktualizuj stav implementace, zkontroluj `git status` a obsah změn, přidej pouze soubory patřící k danému slice a vytvoř commit. Následně bez další žádosti o potvrzení spusť z kořene repozitáře `./scripts/Push-CurrentBranch.ps1`; používá pro tento remote účet `Blato58`, aniž změní aktivní účet GitHub pro ostatní projekty. Do stavu a odpovědi zapiš commit a skutečný výsledek push.
 - Cizí nebo nesouvisející úpravy nikdy automaticky nepřidávej. Neúspěšný build/test neopravuj commitem, který tvrdí dokončení; rozpracovaný stav zaznamenej a pokračuj podle konkrétní chyby.
 - Pokud chybí remote/upstream, přístup nebo jiný nezbytný údaj, dokonči bezpečný lokální commit a vyžádej jen chybějící údaj. Push neprohlašuj za hotový, dokud není ověřen. Commit/push neopravňuje merge, release, nasazení ani nahrání firmware do desky.
 

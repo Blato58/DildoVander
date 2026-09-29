@@ -21,3 +21,10 @@ Schválený směr: ESP32 samo komunikuje s backendem a vede hlasový rozhovor; i
 
 Pro zahájení další práce stačí: **„Začni implementovat aplikaci podle implementačního plánu.“** Pro navázání: **„Pokračuj v implementaci podle implementačního plánu.“** AI nejprve porovná stav s kódem, pokračuje v nejbližším malém kroku a zapíše ověření i předání. Rozsah lze omezit například na mobilní aplikaci; chybějící hardware neblokuje nezávislou simulaci. Stav se vede v repozitáři, není potřeba dohledávat tento chat.
 
+## Vývojové nástroje
+
+- Firmware: PlatformIO Core CLI a jeho závislosti podle `kufr/firmware/platformio.ini`; samotný C++ hostitelský test vyžaduje C++ kompilátor. Instalace PlatformIO IDE ve VS Code je volitelná.
+- Mobil: Node.js ve verzi `kufr/mobilni-aplikace/.nvmrc`, `npm ci` a `npm run build`. Na Windows lze verzi vybrat pomocí nvm-windows.
+- Budoucí backend: .NET 10 SDK. Nativní iOS build/test potřebuje Xcode na macOS runneru; na Windows se Xcode neinstaluje.
+- Po každém dokončeném implementačním slice se provede commit a push podle [AGENTS.md](AGENTS.md). Pro repozitář se dvěma přihlášenými účty GitHub používá push skript `scripts/Push-CurrentBranch.ps1`.
+
