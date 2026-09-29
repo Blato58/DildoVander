@@ -128,9 +128,10 @@ znamená, že níže uvedený jednorázový bootstrap ještě neproběhl.
 
 Pokud správce nemá na serveru checkout soukromého repozitáře, ruční workflow
 Kufr backend bootstrap source stáhne aktuální `main` na serverovém runneru,
-uloží `bootstrap-ubuntu.sh` do soukromého adresáře runneru a vypíše absolutní
-cestu i SHA-256. Správce porovná hash v root shellu příkazem `sha256sum CESTA`
-a spustí `sudo bash CESTA github-runner`. Soubor není nutné kopírovat do
+uloží `bootstrap-ubuntu.sh`, `deploy-helper.py` a `kufr-backend.service` do
+jednoho soukromého adresáře runneru a vypíše absolutní cestu i jejich SHA-256.
+Správce porovná hashe v root shellu příkazem `sha256sum CESTA/*`
+a spustí `sudo bash CESTA/bootstrap-ubuntu.sh github-runner`. Soubory není nutné kopírovat do
 `/root`; workflow skript samo nespouští ani nepoužívá sudo.
 
 
