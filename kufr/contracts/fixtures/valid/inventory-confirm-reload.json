@@ -1,0 +1,16 @@
+{
+  "protocolVersion": 1,
+  "type": "inventory.confirmReload",
+  "commandId": "3ee1962d-eb72-461b-ad0d-cadac8a57ef6",
+  "deviceId": "kufr-001",
+  "bootId": "c85743d5-1b72-41b8-8500-ae3c102b27d6",
+  "controlLeaseId": "a8287a95-b6a1-4501-bdaa-38721ec83191",
+  "sequence": 13,
+  "expectedRevision": 38,
+  "issuedAtDeviceMs": 153400,
+  "maxAgeMs": 2000,
+  "payload": {
+    "compartment": 4,
+    "inspectionConfirmed": true
+  }
+}

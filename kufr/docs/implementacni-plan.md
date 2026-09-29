@@ -255,6 +255,8 @@ Přijetí a dokončení jsou různé zprávy:
 
 Servisní kalibrace bude samostatná fyzicky odemčená funkce s lokálními omezeními; produkční protokol nemá univerzální `setServoAngle`. Firmwareový serial `select` v produkčním profilu vypnout nebo vést přes stejný autorizovaný servisní vstup, aby neobcházel bezpečnostní pravidla.
 
+`inventory.confirmReload` používá stejnou autorizovanou obálku jako `selection.start` (`commandId`, boot, manual lease, sequence, revision a deadline); payload obsahuje právě `compartment` 1–6 a `inspectionConfirmed: true`. Sdílí čítač a 64 výsledků, takže stejné ID s jiným typem nebo obsahem je konflikt. Po kontrole v bezpečném klidu trvale nastaví bit dostupnosti před `command.ack` a pošle snapshot, bez spuštění fyzické sekvence. Jeho journal aktualizace masky je samostatná operace, ne falešné uzavření transakce výběru. Hostitelský souborový journal je pouze fake; skutečná NVS atomicita čeká na E4.
+
 ### ACK, opakování a neznámý výsledek
 
 - Cíl ACK do 200 ms na LAN, čekání 500 ms. Při ztrátě ACK nejvýše dvakrát opakovat **stejný příkaz, commandId, sequence i obsah**, po 500 a 1000 ms od prvního odeslání; stále musí platit lease a deadline. Nové ID při retry je chyba.

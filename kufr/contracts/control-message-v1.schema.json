@@ -11,6 +11,7 @@
     { "$ref": "#/$defs/heartbeat" },
     { "$ref": "#/$defs/heartbeatAck" },
     { "$ref": "#/$defs/selectionStart" },
+    { "$ref": "#/$defs/inventoryConfirmReload" },
     { "$ref": "#/$defs/commandAck" },
     { "$ref": "#/$defs/selectionResult" },
     { "$ref": "#/$defs/stateSnapshot" },
@@ -189,6 +190,36 @@
                 "buttonConfirmedAi"
               ]
             }
+          }
+        }
+      }
+    },
+    "inventoryConfirmReload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion", "type", "commandId", "deviceId", "bootId",
+        "controlLeaseId", "sequence", "expectedRevision", "issuedAtDeviceMs",
+        "maxAgeMs", "payload"
+      ],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "type": { "const": "inventory.confirmReload" },
+        "commandId": { "$ref": "#/$defs/uuid" },
+        "deviceId": { "$ref": "#/$defs/deviceId" },
+        "bootId": { "$ref": "#/$defs/uuid" },
+        "controlLeaseId": { "$ref": "#/$defs/uuid" },
+        "sequence": { "$ref": "#/$defs/safeInteger" },
+        "expectedRevision": { "$ref": "#/$defs/safeInteger" },
+        "issuedAtDeviceMs": { "$ref": "#/$defs/safeInteger" },
+        "maxAgeMs": { "type": "integer", "minimum": 1, "maximum": 2000 },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["compartment", "inspectionConfirmed"],
+          "properties": {
+            "compartment": { "type": "integer", "minimum": 1, "maximum": 6 },
+            "inspectionConfirmed": { "const": true }
           }
         }
       }

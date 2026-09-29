@@ -57,6 +57,10 @@ kontrole obsluhou: do konzole `run-server.mjs` zadejte `inspected`.
 Tento souborový log není NVS ani důkaz atomicity či odolnosti proti výpadku
 napájení; používá `flush`, nikoli fyzicky ověřený fsync. Journal ani jeho
 `.lock` soubor nemažte jen kvůli opětovnému otevření přihrádky.
+Záznam `M` ukládá potvrzené znovuzaložení přihrádky mimo transakci výběru;
+WSS příkaz `inventory.confirmReload` vyžaduje platný ruční lease, kontrolu
+obsluhou, čerstvou revision a pořadí. Bridge vrací ACK a snapshot, bez
+události motoru či západky.
 
 ## Webová časová osa E2.5
 

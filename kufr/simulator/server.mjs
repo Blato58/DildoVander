@@ -146,7 +146,7 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
       calibrationRevision: 1,
       faults: current.journalFault ? ['journal_failed'] : [],
       microphoneState: 'unavailable',
-      capabilities: ['manualControl'],
+      capabilities: ['manualControl', 'inventoryReload'],
       lastResult,
     };
   }
@@ -320,6 +320,31 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
           sendSnapshot();
         } else if (result.state.duplicate) {
           sendTerminalResult();
+        }
+        break;
+      }
+      case 'inventory.confirmReload': {
+        const command = message;
+        const result = await native(
+          'RELOAD', command.commandId, command.deviceId, command.bootId,
+          command.controlLeaseId, command.sequence, command.expectedRevision,
+          command.issuedAtDeviceMs, command.maxAgeMs,
+          command.payload.compartment,
+          command.payload.inspectionConfirmed ? 1 : 0, time,
+        );
+        eventSequence += 1;
+        send({
+          protocolVersion: 1,
+          type: 'command.ack',
+          commandId: command.commandId,
+          bootId,
+          eventSequence,
+          status: result.state.success ? 'accepted' : 'rejected',
+          revision: current.revision,
+          errorCode: result.state.success ? null : result.state.error,
+        });
+        if (result.state.success && !result.state.duplicate) {
+          sendSnapshot();
         }
         break;
       }

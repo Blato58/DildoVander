@@ -62,13 +62,16 @@ budoucí hardwarový watchdog a inhibit.
 Časování je zatím výchozí pro prototyp; délku pulzů a polohu serva
 bude třeba doladit podle skutečné mechaniky a měření proudu.
 
-`DeviceControl` je čistý model E2.2 pro pozdějšího jediného vlastníka povelů.
+`DeviceControl` je čistý model E2.2/E2.7 pro pozdějšího jediného vlastníka povelů.
 Po autentizaci/ověření obálky přijme ruční výběr jen v platném lease, s
 očekávaným `bootId`, pořadím a revision. Uchovává posledních 64 výsledků,
 takže stejný `commandId` a obsah znovu nespustí výběr. Před pohybem vyžaduje
 úspěšný zápis přes `CommandJournal`, potom odděluje přijetí od spuštění
 sekvence. Dokončení musí atomicky uložit novou masku dostupnosti a uzavřít
 journal; při přerušení záznam zůstává otevřený až do kontroly obsluhou.
+Potvrzení znovuzaložení jedné přihrádky sdílí lease, pořadí a cache ID,
+vyžaduje kontrolu v klidu a samostatně ukládá novou masku před ACK bez
+spuštění výběru nebo pohonu.
 Hostitelské testy používají fake journal a čas; skutečný NVS adaptér,
 TLS/parser a zapojení tohoto modelu do `main.cpp` zatím nejsou hotové.
 
@@ -121,14 +124,14 @@ g++ -std=c++11 -Wall -Wextra -Werror src/features/safety/SafetyController.cpp sr
 
 Pokrývá ztracený ACK a opakování, konflikt ID, mezery v pořadí, vytěsnění z
 cache, chybu zápisu/uzavření journalu, restart po dokončení i přerušeném
-uvolnění, Stop a výpadek ručního lease při aktivním výstupu. Neověřuje NVS ani
+uvolnění, potvrzený reload a jeho trvalou masku, Stop a výpadek ručního lease při aktivním výstupu. Neověřuje NVS ani
 skutečnou síť.
 
 ## Další slices a podmínky zapojení
 
 Pořadí a akceptace se řídí kapitolou 12 plánu; rozpracovaný krok se vede
 výhradně ve stavu implementace. E1 přidalo Stop, safety port, časové limity a
-testy bez desky; E2.2 přidává model ručního příkazu. Další krok určuje stav; migrace
+testy bez desky; E2.2/E2.7 rozvíjí model ručního příkazu. Další krok určuje stav; migrace
 runtime a přímé HTTPS/WSS spojení patří E4. E5/E6 teprve připojí jednu
 a potom šest skutečných přihrádek po ověření zapojení a bezpečnostního obvodu.
 

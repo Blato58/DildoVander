@@ -172,6 +172,18 @@ class BridgeJournal : public CommandJournal {
     return true;
   }
 
+  bool PersistReadyMask(uint8_t readyMask) override {
+    if (fault_ || pending_ || readyMask > 63) {
+      return false;
+    }
+    if (!Append("M " + std::to_string(readyMask) + "\n")) {
+      fault_ = true;
+      return false;
+    }
+    readyMask_ = readyMask;
+    return true;
+  }
+
  private:
   bool Append(const std::string& record) {
     std::ofstream output(path_.c_str(), std::ios::binary | std::ios::app);
@@ -237,6 +249,12 @@ class BridgeJournal : public CommandJournal {
         }
         pending_ = false;
         compartment_ = 0;
+        readyMask_ = static_cast<uint8_t>(value);
+      } else if (operation == 'M' && initialized) {
+        if (pending_ || !(record >> value) || value > 63 || !ReadEnd(record)) {
+          fault_ = true;
+          return;
+        }
         readyMask_ = static_cast<uint8_t>(value);
       } else {
         fault_ = true;
@@ -406,6 +424,36 @@ int main(int argc, char* argv[]) {
           lastCommandId = command.commandId;
           lastCompartment = command.compartment;
           lastOutcome = "accepted";
+        }
+      }
+    } else if (operation == "RELOAD") {
+      InventoryReloadCommand command;
+      unsigned int compartment = 0;
+      unsigned int inspectionConfirmed = 0;
+      if ((input >> command.commandId >> command.deviceId >> command.bootId >>
+           command.controlLeaseId >> command.sequence >>
+           command.expectedRevision >> command.issuedAtDeviceMs >>
+           command.maxAgeMs >> compartment >> inspectionConfirmed >> nowMs) &&
+          ReadEnd(input) && compartment <= 255 &&
+          inspectionConfirmed <= 1) {
+        command.compartment = static_cast<uint8_t>(compartment);
+        command.inspectionConfirmed = inspectionConfirmed == 1;
+        const CommandReceipt receipt = control.ConfirmReload(command, true,
+                                                             nowMs);
+        success = receipt.error == CommandError::None;
+        duplicate = receipt.duplicate;
+        error = ErrorName(receipt.error);
+        outcome = OutcomeName(receipt.outcome);
+        if (receipt.error == CommandError::LeaseExpired &&
+            nowMs >= leaseExpiresAtMs) {
+          leaseId.clear();
+          leaseExpiresAtMs = 0;
+          if (!activeCommandId.empty()) {
+            lastOutcome = "outcome_unknown";
+            activeCommandId.clear();
+            phase = "stopped";
+            port.Emit("stopped", lastCompartment);
+          }
         }
       }
     } else if (operation == "BEGIN") {

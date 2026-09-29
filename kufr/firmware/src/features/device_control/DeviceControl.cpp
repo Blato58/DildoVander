@@ -10,6 +10,17 @@ bool SelectionCommand::SameContentAs(const SelectionCommand& other) const {
          source == other.source;
 }
 
+bool InventoryReloadCommand::SameContentAs(
+    const InventoryReloadCommand& other) const {
+  return commandId == other.commandId && deviceId == other.deviceId &&
+         bootId == other.bootId && controlLeaseId == other.controlLeaseId &&
+         sequence == other.sequence &&
+         expectedRevision == other.expectedRevision &&
+         issuedAtDeviceMs == other.issuedAtDeviceMs &&
+         maxAgeMs == other.maxAgeMs && compartment == other.compartment &&
+         inspectionConfirmed == other.inspectionConfirmed;
+}
+
 DeviceControl::DeviceControl(const std::string& deviceId,
                              const std::string& bootId,
                              SelectionSequence& selection,
@@ -103,7 +114,8 @@ CommandReceipt DeviceControl::AcceptSelection(const SelectionCommand& command,
 
   CachedResult* cached = FindCached(command.commandId);
   if (cached != nullptr) {
-    if (!cached->command.SameContentAs(command)) {
+    if (cached->kind != ControlCommandKind::Selection ||
+        !cached->selectionCommand.SameContentAs(command)) {
       return {CommandError::IdConflict, CommandOutcome::Rejected, false};
     }
 
@@ -169,6 +181,90 @@ CommandReceipt DeviceControl::AcceptSelection(const SelectionCommand& command,
   pendingCompartment_ = command.compartment;
   executionStarted_ = false;
   ++revision_;
+
+  const CommandReceipt accepted = {CommandError::None,
+                                   CommandOutcome::Accepted, false};
+  Remember(command, accepted);
+  return accepted;
+}
+
+CommandReceipt DeviceControl::ConfirmReload(
+    const InventoryReloadCommand& command, bool authenticated,
+    uint64_t nowMs) {
+  if (!authenticated || command.deviceId != deviceId_) {
+    return {CommandError::Unauthorized, CommandOutcome::Rejected, false};
+  }
+  if (command.bootId != bootId_) {
+    return {CommandError::WrongBoot, CommandOutcome::Rejected, false};
+  }
+  if (manualLeaseId_.empty() || command.controlLeaseId != manualLeaseId_) {
+    return {CommandError::LeaseExpired, CommandOutcome::Rejected, false};
+  }
+  if (nowMs >= leaseExpiresAtMs_) {
+    SelectionStep step;
+    LoseManualControl(step);
+    return {CommandError::LeaseExpired, CommandOutcome::Rejected, false};
+  }
+
+  CachedResult* cached = FindCached(command.commandId);
+  if (cached != nullptr) {
+    if (cached->kind != ControlCommandKind::InventoryReload ||
+        !cached->reloadCommand.SameContentAs(command)) {
+      return {CommandError::IdConflict, CommandOutcome::Rejected, false};
+    }
+    if (command.issuedAtDeviceMs > nowMs + 500 ||
+        nowMs > command.issuedAtDeviceMs + command.maxAgeMs) {
+      return {CommandError::Expired, CommandOutcome::Rejected, false};
+    }
+    CommandReceipt repeated = cached->receipt;
+    repeated.duplicate = true;
+    return repeated;
+  }
+
+  if (command.commandId.empty() || command.sequence == 0 ||
+      command.compartment < 1 ||
+      command.compartment > SelectionSequence::CompartmentCount ||
+      command.maxAgeMs < 1 || command.maxAgeMs > 2000 ||
+      !command.inspectionConfirmed) {
+    return {CommandError::InvalidMessage, CommandOutcome::Rejected, false};
+  }
+  if (command.sequence <= lastSequence_) {
+    return {CommandError::AlreadySeenResultUnavailable,
+            CommandOutcome::Rejected, false};
+  }
+  if (command.sequence != lastSequence_ + 1) {
+    return {CommandError::SequenceGap, CommandOutcome::Rejected, false};
+  }
+  lastSequence_ = command.sequence;
+
+  const auto reject = [&](CommandError error) {
+    const CommandReceipt rejected = {error, CommandOutcome::Rejected, false};
+    Remember(command, rejected);
+    return rejected;
+  };
+  if (command.issuedAtDeviceMs > nowMs + 500 ||
+      nowMs > command.issuedAtDeviceMs + command.maxAgeMs) {
+    return reject(CommandError::Expired);
+  }
+  if (command.expectedRevision != revision_) {
+    return reject(CommandError::StaleRevision);
+  }
+  if (HasPendingSelection() || selection_.IsBusy()) {
+    return reject(CommandError::Busy);
+  }
+  if (selection_.NeedsRecovery() || journal_.HasPending()) {
+    return reject(CommandError::SafetyLatched);
+  }
+
+  const uint8_t nextMask = static_cast<uint8_t>(
+      readyMask_ | (1u << (command.compartment - 1)));
+  if (nextMask != readyMask_) {
+    if (!journal_.PersistReadyMask(nextMask)) {
+      return reject(CommandError::JournalFailed);
+    }
+    readyMask_ = nextMask;
+    ++revision_;
+  }
 
   const CommandReceipt accepted = {CommandError::None,
                                    CommandOutcome::Accepted, false};
@@ -266,7 +362,20 @@ void DeviceControl::Remember(const SelectionCommand& command,
                               CommandReceipt receipt) {
   CachedResult& result = recentResults_[nextResultIndex_];
   result.occupied = true;
-  result.command = command;
+  result.kind = ControlCommandKind::Selection;
+  result.selectionCommand = command;
+  result.reloadCommand = InventoryReloadCommand();
+  result.receipt = receipt;
+  nextResultIndex_ = (nextResultIndex_ + 1) % ResultCacheSize;
+}
+
+void DeviceControl::Remember(const InventoryReloadCommand& command,
+                             CommandReceipt receipt) {
+  CachedResult& result = recentResults_[nextResultIndex_];
+  result.occupied = true;
+  result.kind = ControlCommandKind::InventoryReload;
+  result.selectionCommand = SelectionCommand();
+  result.reloadCommand = command;
   result.receipt = receipt;
   nextResultIndex_ = (nextResultIndex_ + 1) % ResultCacheSize;
 }
@@ -274,7 +383,11 @@ void DeviceControl::Remember(const SelectionCommand& command,
 DeviceControl::CachedResult* DeviceControl::FindCached(
     const std::string& commandId) {
   for (CachedResult& result : recentResults_) {
-    if (result.occupied && result.command.commandId == commandId) {
+    if (result.occupied &&
+        ((result.kind == ControlCommandKind::Selection &&
+          result.selectionCommand.commandId == commandId) ||
+         (result.kind == ControlCommandKind::InventoryReload &&
+          result.reloadCommand.commandId == commandId))) {
       return &result;
     }
   }

@@ -15,4 +15,6 @@ class CommandJournal {
   virtual bool Begin(const std::string& commandId, uint8_t compartment) = 0;
   // Persist the new availability mask and close the record atomically.
   virtual bool Resolve(uint8_t readyMask) = 0;
+  // Persist a confirmed reload without opening or closing a selection record.
+  virtual bool PersistReadyMask(uint8_t readyMask) = 0;
 };

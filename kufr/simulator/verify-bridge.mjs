@@ -46,7 +46,8 @@ try {
   assert.equal(snapshot.state.lastOutcome, 'outcome_unknown');
   await bridge.close();
 
-  bridge = new NativeBridge(bridgeExecutable, randomUUID(), journalPath);
+  const recoveryBootId = randomUUID();
+  bridge = new NativeBridge(bridgeExecutable, recoveryBootId, journalPath);
   const restarted = await bridge.send('SNAPSHOT', 0);
   assert.equal(restarted.state.needsRecovery, true);
   assert.equal(restarted.state.journalPending, true);
@@ -56,11 +57,28 @@ try {
   assert.equal(recovered.state.success, true);
   assert.equal(recovered.state.readyMask, 55);
   assert.equal(recovered.state.journalPending, false);
+  const reloadLeaseId = randomUUID();
+  const reloadCommandId = randomUUID();
+  const reloadAcquire = await bridge.send('ACQUIRE', reloadLeaseId, 0);
+  assert.equal(reloadAcquire.state.success, true);
+  const reload = await bridge.send(
+    'RELOAD', reloadCommandId, 'kufr-001', recoveryBootId, reloadLeaseId,
+    1, reloadAcquire.state.revision, 0, 2000, 4, 1, 0,
+  );
+  assert.equal(reload.state.success, true);
+  assert.equal(reload.state.readyMask, 63);
+  assert.deepEqual(reload.events, []);
+  const duplicateReload = await bridge.send(
+    'RELOAD', reloadCommandId, 'kufr-001', recoveryBootId, reloadLeaseId,
+    1, reloadAcquire.state.revision, 0, 2000, 4, 1, 0,
+  );
+  assert.equal(duplicateReload.state.duplicate, true);
+  assert.deepEqual(duplicateReload.events, []);
   await bridge.close();
 
   bridge = new NativeBridge(bridgeExecutable, randomUUID(), journalPath);
   const stable = await bridge.send('SNAPSHOT', 0);
-  assert.equal(stable.state.readyMask, 55);
+  assert.equal(stable.state.readyMask, 63);
   assert.equal(stable.state.needsRecovery, false);
   await bridge.close();
 
@@ -77,7 +95,7 @@ try {
   const lostJournal = await bridge.send('SNAPSHOT', 0);
   assert.equal(lostJournal.state.journalFault, true);
   assert.equal(lostJournal.state.readyMask, 0);
-  console.log('Native bridge: exclusive writer, late lease, restart recovery and journal loss fail closed');
+  console.log('Native bridge: exclusive writer, late lease, restart recovery, durable reload and journal loss fail closed');
 } finally {
   await bridge.close();
   await rm(temporaryDirectory, { recursive: true, force: true });
