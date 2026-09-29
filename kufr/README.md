@@ -9,6 +9,7 @@ Vybraná rekvizita: [sada dvou dřevěných truhel Marketos](https://www.marketo
 - [`firmware/`](firmware/) — samostatný projekt PlatformIO pro ESP32-S3.
 - [`mobilni-aplikace/`](mobilni-aplikace/) — současný TypeScript/Vite základ; plánované iOS balení Capacitor/Swift, vývoj Windows a vzdálený macOS CI build.
 - [`contracts/`](contracts/) — první JSON Schema lokálního protokolu v1 a sdílené pozitivní/chybné zprávy.
+- [`simulator/`](simulator/) — spustitelná hostitelská časová osa čistého modelu výběru a deterministické scénáře.
 - [`docs/implementacni-plan.md`](docs/implementacni-plan.md) — rozhodnutí, protokol, bezpečnost, předběžné piny A/B, testování a etapy.
 - [`docs/stav-implementace.md`](docs/stav-implementace.md) — jediný průběžný přehled realizace, ověření, blokací a dalšího kroku.
 - [`docs/kamera.md`](docs/kamera.md) — volitelné rozšíření o obraz; vybraná deska má kamerový konektor.
@@ -21,6 +22,6 @@ Přečti [AGENTS.md](../AGENTS.md), plán a stav implementace. Plán říká **c
 
 Začíná se bezpečným jádrem E1 a kontrakty/simulátorem E2. Následuje ruční aplikace E3 a její iOS CI E3a; souběžně lze rozvíjet backend E7 bez desky. Přímá síť firmware E4, měřený hardware E5/E6 a dialog E8 umožní samostatný hlas E9. E10 dokončí mobilní zálohu, E11 provozní balení. Kamera E12/E13 je volitelné pozdější rozšíření. E0 sbírá provozní a hardwarové předpoklady průběžně; chybějící měření blokují hardware, nikoli hostitelské testy.
 
-Backend, simulátor a iOS projekt jsou zatím plánované adresáře, ne hotové součásti. Sdílené kontrakty pokrývají jen první část lokálního protokolu. Po každém implementačním kroku aktualizovat stav i README skutečně změněné komponenty. Build není důkaz fyzického účinku ani úspěšné instalace IPA.
+Backend a iOS projekt jsou zatím plánované adresáře, ne hotové součásti. Simulátor pokrývá jen čistý model výběru; sdílené kontrakty pokrývají první část lokálního protokolu. Po každém implementačním kroku aktualizovat stav i README skutečně změněné komponenty. Build není důkaz fyzického účinku ani úspěšné instalace IPA.
 
 Nákupní seznam je v [`docs/elektronika.md`](../docs/elektronika.md). Současný firmware a mobilní aplikace jsou pouze startovní projekty; neovládají hardware ani AI.
