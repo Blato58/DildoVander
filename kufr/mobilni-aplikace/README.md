@@ -1,6 +1,6 @@
 # Mobilní ovládání kufru
 
-Současný kód nabízí vývojovou webovou obrazovku se šesti přihrádkami, ručním převzetím, potvrzením výběru/založení a Stop. Přes Vite používá místní fake stav; přes E3.2a vývojový most komunikuje s E2 C++ simulátorem. Oba režimy jsou výslovně označené. Žádný z nich se nepřipojuje k fyzickému kufru. Capacitor a nativní iOS projekt zatím nejsou. Zvolenou architekturu určuje [implementační plán](../docs/implementacni-plan.md), skutečný postup a předání [stav implementace](../docs/stav-implementace.md).
+Současný kód nabízí vývojovou webovou obrazovku se šesti přihrádkami, ručním převzetím, potvrzením výběru/založení a Stop. Přes Vite používá místní fake stav; přes E3.2a vývojový most komunikuje s E2 C++ simulátorem. Oba režimy jsou výslovně označené. Žádný z nich se nepřipojuje k fyzickému kufru. Capacitor 8 a zdrojový iOS projekt nyní balí stejnou obrazovku; nativní transport kufru zatím neexistuje. Zvolenou architekturu určuje [implementační plán](../docs/implementacni-plan.md), skutečný postup a předání [stav implementace](../docs/stav-implementace.md).
 
 ## Cílová role aplikace
 
@@ -12,7 +12,7 @@ Nativní adaptér bude vlastnit TLS pin, Bonjour discovery, oprávnění LAN/aud
 
 ## Současný lokální webový vývoj
 
-Ve složce `kufr/mobilni-aplikace`, po zajištění kompatibilního Node.js podle lockfile (pro plánovaný Capacitor zvolit připnutou verzi podle plánu):
+Ve složce `kufr/mobilni-aplikace` použijte Node.js 24.21.0 z `.nvmrc`:
 
 ```text
 npm ci
@@ -28,13 +28,19 @@ npm test
 
 Build provádí `tsc --noEmit && vite build`; test kontroluje nové lease, opakování totožného příkazu, chybějící výsledek a rekonciliaci po odpojení. Ani jedna kontrola neověřuje iOS podpis, LAN nebo fyzický kufr. Ve webovém fake režimu lze převzít řízení, potvrdit výběr nebo založení 1–6 a vyzkoušet Stop. Ztráta viditelnosti stránky uvolní fake lease; rozběhnutý výběr skončí jako nejistý a vyžaduje výslovnou simulovanou kontrolu. Stav se neukládá přes reload stránky.
 
-Pro E2 simulátor nejprve sestavte mobilní web pomocí `npm run build`, spusťte E2 WSS server a pak místní most podle [návodu simulátoru](../simulator/README.md). Stránka na `http://127.0.0.1:5174` vybere simulátor podle odpovědi `/dev-mode`; Vite stránka zůstává na fake adaptéru. Web nevidí bearer token ani certifikát upstreamu. Po ztrátě spojení zablokuje povely a ukáže nedostupný stav; nejasný výsledek předchozího výběru vyžaduje kontrolu mimo UI. Snapshot a ACK simulátoru nejsou důkaz fyzického otevření. Native build zatím nemá příkaz.
+Pro E2 simulátor nejprve sestavte mobilní web pomocí `npm run build`, spusťte E2 WSS server a pak místní most podle [návodu simulátoru](../simulator/README.md). Stránka na `http://127.0.0.1:5174` vybere simulátor podle odpovědi `/dev-mode`; Vite stránka zůstává na fake adaptéru. Web nevidí bearer token ani certifikát upstreamu. Po ztrátě spojení zablokuje povely a ukáže nedostupný stav; nejasný výsledek předchozího výběru vyžaduje kontrolu mimo UI. Snapshot a ACK simulátoru nejsou důkaz fyzického otevření.
 
 ## Etapy a vzdálený iOS build
 
-E3a přidá nativní projekt a CI; E10 dokončí native TLS/discovery a skutečnou mobilní zálohu. Úspěšné UI proti E2 simulátoru není hardwarovým ani iPhone ověřením.
+E3a má zdrojový projekt `ios/App/App.xcodeproj`, sdílené scheme `App` a [CI workflow](../../.github/workflows/kufr-ios.yml). Capacitor `@capacitor/core`, CLI a iOS jsou připnuté na 8.4.3. Po změně webu lze na Macu synchronizovat balíček příkazy:
 
-Majitel popsal fungující postup Windows → GitHub → macOS/Xcode → testy → dočasný keychain s `.p12` a provisioning profilem ze Secrets → podepsaná IPA artifact → volitelný Release/Pages/feed/OTA/ntfy → úklid vždy. **V tomto checkoutu žádné workflow zatím není.** Při E3a převzít jeho skutečný zdroj a zachovat kompatibilní ověřený postup; nevydávat tento popis za dokončené CI.
+```text
+npm ci
+npm run build
+npx cap sync ios
+```
 
-Přesné kroky a distribuční podmínky jsou v kapitole 3 plánu. Výchozí doporučení je Ad Hoc pro registrovaný iPhone; artifact není veřejný instalační URL. Feather/AltStore a OTA mají odlišné podmínky instalace/přepodpisu. Certifikáty, hesla, provisioning soubory a tokeny se necommitují. Stabilní identita aplikace a fyzická zkouška aktualizace/Keychain jsou součástí akceptace, nejen úspěšný export IPA. Veřejná publikace je samostatný volitelný krok.
+Na Windows lze tyto příkazy použít pro kontrolu zdrojů, Xcode build a iOS Simulator však provádí macOS CI. Push/PR spouští `web` a nepodepsaný `ios-simulator` job. Ruční `workflow_dispatch` s `sign_ipa=true` na `main` spouští po jejich úspěchu podpisový job v environmentu `ios-signing`; výsledek je 14denní Actions artifact, nikoli veřejný instalační URL. Do environmentu patří secrets `IOS_BUILD_CERTIFICATE_BASE64`, `IOS_P12_PASSWORD`, `IOS_PROVISION_PROFILE_BASE64` a `IOS_KEYCHAIN_PASSWORD`. První a třetí jsou base64 celého `.p12` a `.mobileprovision`; žádný z těchto souborů ani hesla nepatří do repozitáře. Environment může mít vlastní schvalovací pravidla.
+
+Nativní identita má Bundle ID `app.turquoise6409.green2444` a Team ID `3QRXV8G5Y3`, převzaté z dodaného profilu. Profil je vývojový, má jednu registrovanou iOS jednotku a expiruje 25. 12. 2026. CI kontroluje shodu identity, platnost a certifikát a exportuje vývojově podepsanou IPA. Instalace bude možná pouze na zařízení obsažené v profilu; cílový iPhone a skutečná instalace zatím nejsou ověřené. Ad Hoc distribuce vyžaduje jiný odpovídající profil a certifikát. Stabilní identita je důležitá pro budoucí aktualizaci a Keychain. E10 teprve doplní native TLS/discovery/Keychain. Veřejné Release/Pages/feed/OTA/ntfy zde nejsou zapnuté.
 
