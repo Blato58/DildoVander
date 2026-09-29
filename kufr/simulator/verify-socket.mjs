@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { request as httpsRequest } from 'node:https';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import WebSocket from 'ws';
 import { validateControlMessage } from '../contracts/control-validator.mjs';
 import { createSimulatorServer } from './server.mjs';
+import { createMobileDevServer } from './mobile-dev-server.mjs';
 
 const bridgeExecutable = process.env.KUFR_SIMULATOR_BRIDGE;
 if (!bridgeExecutable) {
@@ -21,6 +22,7 @@ const privateKeyPath = join(temporaryDirectory, 'private-key.pem');
 let simulator;
 let client;
 let observer;
+let mobileDevServer;
 
 function requestPage(port, certificate, path, authorization) {
   return new Promise((resolve, reject) => {
@@ -515,10 +517,104 @@ try {
       resolve();
     });
   });
-  console.log('WSS: TLS/auth, lease expiry, conversation text/result/cancel, ACK retry, reload, priority Stop, strict input, restart and close/acquire race passed');
+  client = null;
+  await simulator.close();
+  simulator = await createSimulatorServer({
+    certificate,
+    privateKey,
+    token,
+    bridgeExecutable,
+    journalPath: join(temporaryDirectory, 'mobile-proxy-journal.log'),
+  });
+  await writeFile(join(temporaryDirectory, 'index.html'), '<h1>SIMULACE</h1>');
+  mobileDevServer = await createMobileDevServer({
+    certificate,
+    token,
+    distDirectory: temporaryDirectory,
+    simulatorPort: simulator.port,
+    port: 0,
+  });
+  const mobileOrigin = `http://127.0.0.1:${mobileDevServer.port}`;
+  const mobileMode = await fetch(`${mobileOrigin}/dev-mode`);
+  assert.deepEqual(await mobileMode.json(), { simulator: true });
+  assert.match(await (await fetch(mobileOrigin)).text(), /SIMULACE/);
+  const deniedBrowser = new WebSocket(`ws://127.0.0.1:${mobileDevServer.port}/dev/control`, {
+    origin: 'http://example.invalid',
+  });
+  assert.equal(await new Promise((resolve) => {
+    deniedBrowser.once('unexpected-response', (_request, response) => {
+      response.resume();
+      resolve(response.statusCode);
+    });
+    deniedBrowser.once('error', () => resolve(0));
+  }), 403);
+  const mobileClient = new WebSocket(`ws://127.0.0.1:${mobileDevServer.port}/dev/control`, {
+    origin: mobileOrigin,
+  });
+  await new Promise((resolve, reject) => {
+    mobileClient.once('open', resolve);
+    mobileClient.once('error', reject);
+  });
+  const competingBrowser = new WebSocket(`ws://127.0.0.1:${mobileDevServer.port}/dev/control`, {
+    origin: mobileOrigin,
+  });
+  assert.equal(await new Promise((resolve) => {
+    competingBrowser.once('unexpected-response', (_request, response) => {
+      response.resume();
+      resolve(response.statusCode);
+    });
+    competingBrowser.once('error', () => resolve(0));
+  }), 403);
+  mobileClient.send(JSON.stringify({
+    protocolVersion: 1,
+    type: 'hello',
+    messageId: randomUUID(),
+    deviceId: 'kufr-001',
+  }));
+  const proxiedWelcome = await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('mobile proxy welcome timed out')), 3000);
+    mobileClient.once('message', (bytes) => {
+      clearTimeout(timeout);
+      resolve(validateControlMessage(bytes));
+    });
+    mobileClient.once('close', (code, reason) => {
+      clearTimeout(timeout);
+      reject(new Error(`mobile proxy closed before welcome: ${code} ${reason}`));
+    });
+    mobileClient.once('error', reject);
+  });
+  assert.equal(proxiedWelcome.type, 'welcome');
+  const acquiredSnapshot = new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('mobile proxy acquire timed out')), 3000);
+    const onMessage = (bytes) => {
+      const message = validateControlMessage(bytes);
+      if (message.type === 'state.snapshot' && message.controlMode === 'manual') {
+        clearTimeout(timeout);
+        mobileClient.off('message', onMessage);
+        resolve(message);
+      }
+    };
+    mobileClient.on('message', onMessage);
+    mobileClient.once('error', reject);
+  });
+  mobileClient.send(JSON.stringify({
+    protocolVersion: 1,
+    type: 'control.acquire',
+    messageId: randomUUID(),
+    deviceId: 'kufr-001',
+    bootId: proxiedWelcome.snapshot.bootId,
+  }));
+  assert.equal((await acquiredSnapshot).controlMode, 'manual');
+  mobileClient.send('x'.repeat(9000));
+  assert.equal(await new Promise((resolve) => mobileClient.once('close', resolve)), 1009);
+  assert.deepEqual(await (await fetch(`${mobileOrigin}/dev-mode`)).json(), { simulator: true });
+  await mobileDevServer.close();
+  mobileDevServer = null;
+  console.log('WSS: TLS/auth, lease expiry, conversation text/result/cancel, ACK retry, reload, priority Stop, strict input, restart, proxy and close/acquire race passed');
 } finally {
   observer?.response.destroy();
   client?.socket.terminate();
+  await mobileDevServer?.close();
   await simulator?.close();
   await rm(temporaryDirectory, { recursive: true, force: true });
 }

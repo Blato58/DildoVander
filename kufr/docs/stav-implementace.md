@@ -6,11 +6,11 @@ Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**Aktivní implementační krok:** E3.2 – spojit ruční mobilní UI s E2 hostitelským simulátorem a prověřit chyby spojení. E3.1 dodala místní fake UI (D19); stav se nečte z E2 socketu. E2.4a–d přidaly parser, TLS socket nad C++ modelem a fake journal (D6–D9). E2.5 přidává webovou časovou osu (D10), ale její vykreslení čeká na prohlížeči důvěryhodný certifikát. E2.6–E2.9 doplnily OpenAPI, reload, text a fake média (D11–D18). E2 ještě není hotové kvůli browser ověření; skutečný backend patří E7. E1 je dokončené jako softwarové jádro bez desky. Fyzické nezávislé vypnutí a měření zůstávají kritérii E5.
+**Aktivní implementační krok:** E3.2b – napojit ruční mobilní UI na vývojový most E3.2a a prověřit chyby spojení. E3.1 dodala místní fake UI (D19), E3.2a loopback HTTP/WSS most s bearer tokenem pouze na serveru (D20). E2.4a–d přidaly parser, TLS socket nad C++ modelem a fake journal (D6–D9). E2.5 přidává webovou časovou osu (D10), ale její vykreslení čeká na prohlížeči důvěryhodný certifikát. E2.6–E2.9 doplnily OpenAPI, reload, text a fake média (D11–D18). E2 ještě není hotové kvůli browser ověření; skutečný backend patří E7. E1 je dokončené jako softwarové jádro bez desky. Fyzické nezávislé vypnutí a měření zůstávají kritérii E5.
 
-**Další konkrétní krok: E3.2 – integrační transport ručního UI proti E2 simulátoru.**
+**Další konkrétní krok: E3.2b – integrační adaptér ručního UI proti E2 simulátoru.**
 
-1. Připravit vývojovou cestu z webového UI k E2 simulátoru bez vypnutí TLS kontroly a bez vložení bearer tokenu do URL/balíčku. Browser WebSocket neumí nastavit `Authorization` v handshake; integrační adaptér proto potřebuje bezpečnou místní mezivrstvu nebo nativní bridge. Ověřit výběr, reload, Stop, lease a přerušení proti C++ modelu; fake UI držet výslovně oddělené.
+1. Napojit webové UI přes již ověřený místní E3.2a most na E2 protokol. Browser WebSocket neumí nastavit `Authorization` v handshake; most proto předává token jen na serveru a ověřuje upstream certifikát. V UI odlišit fake režim od živého E2 simulátoru, mapovat snapshot/ACK/result, lease, výběr/reload/Stop a bezpečně ukončit ovládání při přerušení. Ověřit sekvenci a chyby proti C++ modelu.
 2. Webová časová osa E2.5 používá samostatný pouze čtecí HTTPS proud se stejnými C++ událostmi: běžné browser WebSocket API neumí hlavičku `Authorization` při nativním handshake. Po získání důvěryhodného místního certifikátu ověřit její skutečné vykreslení, chybový stav a úzký viewport v prohlížeči; nevypínat TLS ověřování.
 3. Nezaměnit fake log s NVS ani s fyzickým potvrzením západky. Samostatná HW akceptace zůstává v E5 po vstupu B1.
 
@@ -51,7 +51,7 @@ Přesné závislosti a kritéria dokončení jsou v kapitole 12 plánu. Následu
 | E0 – provozní předpoklady | rozpracováno | Architektonické výchozí předpoklady v plánu; žádná měření. | Vstupy B1–B5 níže; software E1 může začít. |
 | E1 – bezpečné jádro | hotovo | E1.1: Stop v každé fázi, safety port, 250/500/5000ms limity, explicitní zotavení (D1). E1.2: hostitelský timeout průchodu smyčkou, porucha, výpadek ručního lease a přednost Stop; hostitelské testy a firmware build prošly (D2). | Fyzická reakce nezávislého watchdogu patří E5 a nebyla měřena; softwarový model vypíná až při dalším průchodu smyčkou. |
 | E2 – smlouvy a simulátor | rozpracováno | E2.1: první JSON Schema lokálního protokolu, přísný parser a pozitivní/chybné fixtures (D3). E2.2: C++ model fake času, journalu, idempotence a hostitelské scénáře ztraceného ACK/restartu (D4). E2.3: spustitelná časová osa a šest hostitelských scénářů nad sdílenou fixture (D5). E2.4a–d: Node parser, handshake/lease schéma, místní WSS facade nad C++ modelem a souborový fake journal (D6–D9). E2.5: webová časová osa a test HTTPS proudu (D10). E2.6a/b: základní OpenAPI a validace schémat (D11–D12). E2.7: perzistované `inventory.confirmReload` přes C++ model, WSS a kontrakt (D13). E2.8a/b: text/cancel schéma, čistý model a WSS fake runtime (D14–D16). E2.9a/b: binární media parser, JSON zprávy a oddělený fake WSS socket (D17–D18). | Browser vizuální ověření E2.5; fake není skutečný audio buffer ani backend. Kritéria E2 ještě nejsou úplně doložena. |
-| E3 – ruční mobil bez HW | rozpracováno | E3.1: webové fake UI se šesti přihrádkami, ručním převzetím, potvrzením/reloadem, Stop a stavem bez fyzického zařízení; Vite build a browser průchod (D19). | E3.2: skutečný transport do E2 simulátoru, snapshot/lease, celá sekvence a chyby spojení. Fake UI není akceptací E3. |
+| E3 – ruční mobil bez HW | rozpracováno | E3.1: webové fake UI se šesti přihrádkami, ručním převzetím, potvrzením/reloadem, Stop a stavem bez fyzického zařízení; Vite build a browser průchod (D19). E3.2a: místní vývojový most s ověřeným TLS/upstream tokenem, test handshake a odmítnutí cizího originu (D20). | E3.2b: UI adaptér, snapshot/lease, celá sekvence a chyby spojení. Fake UI ani samotný most nejsou akceptací E3. |
 | E3a – iOS CI základ | nezahájeno | Jen majitelem popsaný postup. | E3; B2/B3 pro podpis a skutečnou instalaci. |
 | E4 – runtime a přímá síť | nezahájeno | Arduino prototyp. | E2; pro nahrání B1. |
 | E5 – jedna bezpečná přihrádka | nezahájeno | Bez ovládání a měření. | E0/E1/E4; B1, fyzická akceptace. |
@@ -77,6 +77,13 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 | B5 | Majitel: finální katalog a publikum, rozměry, router a prostředí akce. | Obsahovou/provozní akceptaci E8/E11 a finální mechaniku. | Neutrální testovací katalog a laboratorní/simulované scénáře. |
 
 ## Deník změn a ověření
+
+### D20 – 29. 9. 2026 – E3.2a místní most k E2 WSS
+
+- Rozsah: `simulator/mobile-dev-server.mjs` servíruje sestavený mobilní web pouze na `127.0.0.1`, `/dev-mode` určuje vývojový režim, `/dev/control` předává textové E2 zprávy mezi browser WebSocket a autentizovaným TLS WSS simulátoru. Přijímá pouze shodný origin, jeden browser socket a přísně validované control zprávy; bearer token a CA jsou jen v procesu mostu. `verify-socket.mjs` přidává kontrolu statické stránky, režimu, zakázaného cizího originu a `hello` přes most. README popisuje lokální spuštění a hranice.
+- Ověření: v `kufr/simulator` pod Node 24.21.0 s MSVC `bridge.exe` a místním OpenSSL `node verify-socket.mjs` i celé `npm test` prošly. Test mostu kryje cizí origin, souběžný socket, `hello`/`welcome`, skutečné acquire přes C++ model a 9000bajtový rámec odmítnutý `1009` bez pádu procesu. Před opravou most poslal textovou zprávu jako binární Buffer a E2 server ji správně odmítl `1003`; převod na UTF-8 text odstranil chybu. Upstream používá `ca` s `rejectUnauthorized:true`. Browser UI most dosud nepoužívá.
+- Omezení: lokální HTTP je jen vývojová loopback cesta; pro LAN/iPhone se nesmí použít. Origin kontrola blokuje cizí web, ale místní neprohlížečový proces ji může napodobit. Není to nativní TLS pinning, skutečná komunikace ESP32 ani E3 uživatelský integrační test. Následuje E3.2b.
+- Revize a doručení: místní změny, commit/push po závěrečné kontrole slice.
 
 ### D19 – 29. 9. 2026 – E3.1 ruční webová fake obrazovka
 

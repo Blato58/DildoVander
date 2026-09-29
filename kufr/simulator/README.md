@@ -109,3 +109,16 @@ Výsledek příjmu je výslovně `simulated:true`: PCM se pouze průběžně has
 nevzniká přepis, WAV ani HTTP upload. Přehrávání/JPEG a skutečný PSRAM buffer
 zůstávají dalšími kroky. Facade stále nepokrývá Bonjour ani běh ESP32. Je to
 vývojový simulátor, nikoli produkční server nebo náhrada fyzické akceptace.
+
+## Vývojový most pro mobilní web E3.2a
+
+Po `npm run build` v `kufr/mobilni-aplikace` lze při spuštěném E2 simulátoru
+spustit `node kufr/simulator/mobile-dev-server.mjs` se stejnými
+`KUFR_SIMULATOR_CERT` a `KUFR_SIMULATOR_TOKEN` v prostředí. Otevře
+`http://127.0.0.1:5174` pro lokální webový build. Most přijme pouze
+stejný webový origin na `/dev/control`, jeden ovládací socket a předá validní
+textové zprávy do `wss://127.0.0.1:8443/v1/control` s bearer hlavičkou.
+Certifikát upstream spojení ověřuje proti explicitnímu místnímu certifikátu;
+token neposílá webové stránce ani jej nevkládá do URL. Je to jen místní
+vývojová cesta, bez zveřejnění v LAN a bez iOS transportu. Webové UI dosud
+most nepoužívá; napojení je další díl E3.2.
