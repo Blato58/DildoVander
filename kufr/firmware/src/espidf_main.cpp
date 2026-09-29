@@ -8,6 +8,8 @@
 
 #include "features/device_control/EspIdfJournalStorage.h"
 #include "features/device_control/PersistentCommandJournal.h"
+#include "features/provisioning/DeviceIdentity.h"
+#include "features/provisioning/EspIdfProvisioningStorage.h"
 #include "features/safety/SafetyController.h"
 #include "features/wand_selection/SelectionSequence.h"
 
@@ -51,12 +53,19 @@ extern "C" void app_main() {
   const esp_err_t nvsStatus = nvs_flash_init();
   EspIdfJournalStorage journalStorage(nvsStatus == ESP_OK);
   PersistentCommandJournal journal(journalStorage);
+  EspIdfProvisioningStorage identityStorage(nvsStatus == ESP_OK);
+  DeviceIdentity identity(identityStorage);
   if (!journal.IsHealthy()) {
     safetyController.ReportFault();
     ESP_LOGE(LogTag, "Journal unavailable; control remains faulted (%d)",
              static_cast<int>(nvsStatus));
   } else if (journal.HasPending()) {
     ESP_LOGW(LogTag, "Pending selection requires inspection before recovery");
+  }
+  if (!identity.IsHealthy()) {
+    ESP_LOGE(LogTag, "Device identity unavailable; network stays offline");
+  } else if (!identity.IsProvisioned()) {
+    ESP_LOGW(LogTag, "Device identity not provisioned; network stays offline");
   }
   ESP_LOGI(LogTag, "ESP-IDF control loop started; actuators are unconnected");
 
