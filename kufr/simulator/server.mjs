@@ -1,5 +1,6 @@
 import { timingSafeEqual, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:https';
 import { createInterface } from 'node:readline';
 import { performance } from 'node:perf_hooks';
@@ -106,6 +107,9 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
   let eventSequence = 0;
   let lastResultSent = '';
   let ticking = false;
+  const observers = new Set();
+  const dashboardHtml = await readFile(new URL('./dashboard.html', import.meta.url));
+  const dashboardScript = await readFile(new URL('./dashboard.js', import.meta.url));
 
   const nowMs = () => Math.floor(performance.now() - startedAtMs);
 
@@ -157,6 +161,19 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
   function sendSnapshot() {
     eventSequence += 1;
     send(snapshot());
+    broadcast({ kind: 'snapshot', snapshot: snapshot(), journalPending: current.journalPending });
+  }
+
+  function broadcast(message) {
+    const line = `${JSON.stringify(message)}\n`;
+    for (const observer of observers) {
+      if (observer.writableLength > 65536) {
+        observer.destroy();
+        observers.delete(observer);
+      } else {
+        observer.write(line);
+      }
+    }
   }
 
   function sendTerminalResult() {
@@ -180,6 +197,7 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
     current = result.state;
     for (const event of result.events) {
       onTimeline(event);
+      broadcast({ kind: 'timeline', event });
     }
     return result;
   }
@@ -318,9 +336,51 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
     }
   }
 
-  const server = createServer({ key: privateKey, cert: certificate }, (_request, response) => {
-    response.writeHead(404);
-    response.end();
+  const server = createServer({ key: privateKey, cert: certificate }, (request, response) => {
+    const headers = {
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'no-referrer',
+    };
+    if (request.method !== 'GET') {
+      response.writeHead(405, headers);
+      response.end();
+      return;
+    }
+
+    if (request.url === '/simulator' || request.url === '/simulator/') {
+      response.writeHead(200, {
+        ...headers,
+        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'",
+      });
+      response.end(dashboardHtml);
+    } else if (request.url === '/simulator/dashboard.js') {
+      response.writeHead(200, { ...headers, 'Content-Type': 'text/javascript; charset=utf-8' });
+      response.end(dashboardScript);
+    } else if (request.url === '/v1/observe') {
+      if (!isBearerToken(request.headers.authorization, token)) {
+        response.writeHead(401, headers);
+        response.end();
+        return;
+      }
+      if (observers.size >= 4) {
+        response.writeHead(429, headers);
+        response.end();
+        return;
+      }
+      response.writeHead(200, {
+        ...headers,
+        'Content-Type': 'application/x-ndjson; charset=utf-8',
+        'X-Accel-Buffering': 'no',
+      });
+      observers.add(response);
+      response.write(`${JSON.stringify({ kind: 'snapshot', snapshot: snapshot(), journalPending: current.journalPending })}\n`);
+      response.on('close', () => observers.delete(response));
+    } else {
+      response.writeHead(404, headers);
+      response.end();
+    }
   });
   const webSockets = new WebSocketServer({ noServer: true, maxPayload: 2048, perMessageDeflate: false });
 
@@ -444,6 +504,10 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
     },
     close: async () => {
       clearInterval(tickTimer);
+      for (const observer of observers) {
+        observer.end();
+      }
+      observers.clear();
       socket?.terminate();
       webSockets.close();
       await new Promise((resolve) => server.close(resolve));

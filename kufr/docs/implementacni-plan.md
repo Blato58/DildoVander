@@ -535,6 +535,8 @@ Zaznamenat fotografie obou stran, přesné označení modulu/PCB, dostupné sch�
 
 Hostitelský C++ proces znovu používá `SelectionSequence` a budoucí parser/řadič/safety/conversation logiku. Simuluje PTT a potvrzení, jako device HTTPS klient volá lokální backend bez telefonu. Výstupní port vytváří časovou osu LED, motorů, servo PWM a inhibit; čas lze řídit deterministicky bez čekání. WSS facade napodobí stejný handshake a kontrakty jako ESP32, obsahuje testovací identitu a oddělený certifikát. UI ukazuje šest přihrádek a viditelné „SIMULACE“; nesmí vypadat jako připojený fyzický kufr.
 
+Hostitelský simulátor může pro vývojové webové UI vystavit samostatný pouze čtecí HTTPS proud nad stejnými událostmi C++ modelu. Prohlížeč v běžném WebSocket API neumí přidat `Authorization` hlavičku nativního WSS handshake; token proto webové UI posílá v HTTPS hlavičce, nikdy v URL. Tento proud není kontrakt telefonu ani firmware a nemění jediné řídicí WSS spojení.
+
 Fault injection: ztracený ACK, zpožděný příkaz, zavřený socket v každé fázi, restart s novým bootId, přetečení času, obsazená přihrádka, neplatná kalibrace, zamrzlá I2C, plný buffer, přerušení audia a neuzavřený journal. Backend fake vrací ask/propose/refusal/invalid/timeout/429, STT testovací přepis a TTS fixture WAV. Simulátor neověřuje GPIO, proud, DMA timing ani bezpečnost mechaniky; Wokwi/QEMU jsou volitelné doplňky, ne důkaz kompatibility této konkrétní desky.
 
 ### Testovací vrstvy a konkrétní akceptace
