@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text;
 
 namespace Kufr.Backend.Features.Conversations;
 
@@ -61,6 +62,7 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
                     request.BootId,
                     request.Generation,
                     request.CatalogVersion,
+                    request.Consent.Audio,
                     response.ExpiresAt,
                     now.AddMinutes(30)));
             return new CreateResult(201, response);
@@ -166,6 +168,107 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
         }
     }
 
+    public SubmitTurnResult SubmitTranscription(
+        string deviceId,
+        string conversationId,
+        Guid key,
+        TranscriptionUpload upload)
+    {
+        var now = clock.GetUtcNow();
+        var route = $"/v1/conversations/{conversationId}/transcriptions";
+        var audioHash = Convert.ToHexString(SHA256.HashData(upload.Wav));
+        var canonicalBody = $"{upload.ClientTurnId:D}|{upload.BootId:D}|{upload.Generation}|{upload.DeviceRevision}|{audioHash}";
+        var bodyHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonicalBody)));
+
+        lock (gate)
+        {
+            CleanupExpired(now);
+            var previous = journal.FindExisting(deviceId, route, key, bodyHash);
+            if (previous is not null)
+            {
+                return previous.Conflict
+                    ? new SubmitTurnResult(409, null, "idempotency_conflict")
+                    : new SubmitTurnResult(202, previous.OperationId, null);
+            }
+
+            if (!conversations.TryGetValue(conversationId, out var conversation))
+            {
+                return new SubmitTurnResult(404, null, "conversation_not_found");
+            }
+
+            if (conversation.DeviceId != deviceId)
+            {
+                return new SubmitTurnResult(403, null, "device_scope_mismatch");
+            }
+
+            if (!conversation.AudioConsented)
+            {
+                return new SubmitTurnResult(403, null, "audio_consent_required");
+            }
+
+            if (upload.BootId != conversation.BootId || upload.Generation != conversation.Generation)
+            {
+                return new SubmitTurnResult(409, null, "conversation_version_mismatch");
+            }
+
+            if (conversation.TranscriptionIds.Count >= 10)
+            {
+                return new SubmitTurnResult(429, null, "transcription_limit");
+            }
+
+            if (conversation.TranscriptionIds.Contains(upload.ClientTurnId))
+            {
+                return new SubmitTurnResult(409, null, "duplicate_turn_id");
+            }
+
+            var correlation = new TurnCorrelation(
+                deviceId,
+                upload.BootId,
+                conversationId,
+                upload.ClientTurnId,
+                upload.Generation,
+                upload.DeviceRevision);
+            var reservation = journal.Reserve(
+                deviceId,
+                route,
+                key,
+                bodyHash,
+                correlation,
+                kind: "transcription",
+                consumesTurn: false);
+            if (reservation.Conflict)
+            {
+                return new SubmitTurnResult(409, null, "idempotency_conflict");
+            }
+
+            if (reservation.Existing)
+            {
+                return new SubmitTurnResult(202, reservation.OperationId, null);
+            }
+
+            if (!journal.MarkCompleted(reservation.OperationId))
+            {
+                return new SubmitTurnResult(409, null, "operation_cancelled");
+            }
+
+            operations.Add(
+                reservation.OperationId,
+                new TurnOperation(
+                    reservation.OperationId,
+                    "transcription",
+                    "completed",
+                    correlation,
+                    new TranscriptionResult("Testovací přepis bez STT.", "deviceMicrophone"),
+                    null));
+            conversation.TranscriptionIds.Add(upload.ClientTurnId);
+            var idleExpiresAt = now.AddMinutes(15);
+            conversation.ExpiresAt = idleExpiresAt < conversation.AbsoluteExpiresAt
+                ? idleExpiresAt
+                : conversation.AbsoluteExpiresAt;
+            return new SubmitTurnResult(202, reservation.OperationId, null);
+        }
+    }
+
     public GetOperationResult GetOperation(string deviceId, string operationId)
     {
         lock (gate)
@@ -268,6 +371,7 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
         Guid bootId,
         int generation,
         string catalogVersion,
+        bool audioConsented,
         DateTimeOffset expiresAt,
         DateTimeOffset absoluteExpiresAt)
     {
@@ -275,10 +379,12 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
         public Guid BootId { get; } = bootId;
         public int Generation { get; } = generation;
         public string CatalogVersion { get; } = catalogVersion;
+        public bool AudioConsented { get; } = audioConsented;
         public DateTimeOffset ExpiresAt { get; set; } = expiresAt;
         public DateTimeOffset AbsoluteExpiresAt { get; } = absoluteExpiresAt;
         public int TurnCount { get; set; }
         public HashSet<Guid> TurnIds { get; } = [];
+        public HashSet<Guid> TranscriptionIds { get; } = [];
     }
 
 }
@@ -312,10 +418,11 @@ internal sealed record TurnCorrelation(
     int Generation,
     int DeviceRevision);
 internal sealed record TurnResult(string Reply, string Decision, string Reason, object? Proposal);
+internal sealed record TranscriptionResult(string Transcript, string Source);
 internal sealed record TurnOperation(
     string OperationId,
     string Kind,
     string Status,
     TurnCorrelation Correlation,
-    TurnResult? Result,
+    object? Result,
     object? Error);

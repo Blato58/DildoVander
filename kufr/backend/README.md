@@ -6,8 +6,9 @@ vydávají 15minutový access token, zakládají nejvýše jedno fake sezení pr
 a zpracují až deset textových tahů s deterministickou odpovědí `ask`.
 E7.3a–c přidávají SQLite journal technických metadat textového tahu a
 založení sezení, atomickou rezervaci nejvýše deseti tahů v jednom sezení a
-idempotenci po restartu. E7.4 přidává retenci a explicitní rušení.
-V této verzi nejsou STT/TTS ani volání placené AI.
+idempotenci po restartu. E7.4 přidává retenci a explicitní rušení. E7.5a
+přidává omezený WAV upload s deterministickým fake přepisem.
+V této verzi nejsou skutečné STT/TTS ani volání placené AI.
 Žádná trasa neovládá aktuátory.
 
 ## Vývojové spuštění
@@ -61,6 +62,13 @@ fake operaci ve stavu `completed` s identitami požadavku, pevnou odpovědí
 access token, UUID `Idempotency-Key` a prázdné tělo. Rušení potlačí publikaci
 výsledku v RAM i pozdě dokončeného tahu; již odeslaná placená práce by ale
 nebyla refundována. Úspěšný DELETE key lze po restartu opakovat po dobu 24 h.
+`POST /v1/conversations/{id}/transcriptions` přijímá pouze se souhlasem
+`consent.audio=true` multipart s `clientTurnId`, `bootId`, `generation`,
+`deviceRevision` a `wav` (`audio/wav`). WAV musí být PCM16 mono 32 kHz,
+nejvýše 30 sekund / 1 920 000 bajtů vzorků; celý požadavek má strop 2 MB.
+Backend vrací pevný testovací přepis se zdrojem `deviceMicrophone` bez STT.
+Nahrávka ani přepis se nezapisují do SQLite; operace je device-scoped a po
+restartu se její ztracený RAM výsledek neobnoví.
 Odpovědi `/v1` mají `Cache-Control: no-store`; chyby používají
 `application/problem+json` se stabilním `code` a `traceId`.
 
@@ -78,7 +86,8 @@ s pending operací a idempotency key. Schéma v3 přidává
 přežijí restart. Po restartu je starý conversationId pouze identitou retry;
 obsah sezení z RAM zmizel a nový rozhovor vyžaduje nový key. Schéma v4 přidává
 `mutation_idempotency` pro DELETE retry. Migrace v1/v2/v3→v4 je dopředná a
-přidává pouze tabulky/indexy. Nákladový rozpočet placených
+schéma v5 přidává typ operace do technického journalu; osazené v4 řádky jsou
+typ `turn`. Nákladový rozpočet placených
 operací zatím chybí.
 `RetentionWorker` každou minutu smaže expirované paměťové sezení/výsledky,
 granty a 24hodinové technické SQLite záznamy. Sezení trvá nejvýše

@@ -33,6 +33,30 @@ Require(accepted.Status == 202 && accepted.OperationId is not null, "fake turn a
 Require(conversations.GetOperation("device-a", accepted.OperationId!).Operation?.Status == "completed",
     "fake result available during live session");
 
+var audioRequest = request with
+{
+    DeviceId = "device-c",
+    Consent = new ConversationConsent(true, false)
+};
+var audioSession = conversations.Create("device-c", Guid.NewGuid(), body, audioRequest);
+Require(audioSession.Response is not null, "audio-consented session created");
+var audioUpload = new TranscriptionUpload(
+    Guid.NewGuid(), bootId, 1, 7, Encoding.UTF8.GetBytes("private audio payload"));
+var transcriptionKey = Guid.NewGuid();
+var transcription = conversations.SubmitTranscription(
+    "device-c", audioSession.Response!.ConversationId, transcriptionKey, audioUpload);
+Require(transcription.Status == 202 && transcription.OperationId is not null,
+    "fake transcription accepted");
+Require(conversations.GetOperation("device-c", transcription.OperationId!).Operation?.Kind == "transcription",
+    "transcription kind and result retained in RAM");
+Require(conversations.SubmitTranscription(
+    "device-c", audioSession.Response.ConversationId, transcriptionKey, audioUpload).OperationId
+    == transcription.OperationId, "transcription retry");
+Require(conversations.SubmitTranscription(
+    "device-c", audioSession.Response.ConversationId, transcriptionKey,
+    audioUpload with { DeviceRevision = 8 }).Status == 409,
+    "transcription retry body conflict");
+
 clock.Advance(TimeSpan.FromMinutes(15));
 conversations.SweepExpired();
 Require(conversations.GetOperation("device-a", accepted.OperationId!).Operation?.Status == "failed",
@@ -143,6 +167,10 @@ Require(restartedStore.GetOperation("other-device", accepted.OperationId!).Statu
 Require(restartedJournal.GetOperation("device-a", pending.OperationId).Operation?.Status == "unknown",
     "pending reservation becomes unknown on restart");
 AssertNoVisitorText(Path.Combine(databaseDirectory, "journal.sqlite"), "private text");
+AssertNoVisitorText(Path.Combine(databaseDirectory, "journal.sqlite"), "private audio payload");
+Require(restartedStore.GetOperation("device-c", transcription.OperationId!).Operation is
+    { Kind: "transcription", Status: "failed" },
+    "completed transcription becomes result_expired after restart");
 
 var liveConversation = restartedStore.Create("device-a", Guid.NewGuid(), body, request);
 Require(liveConversation.Response is not null, "new session after restart");
@@ -263,7 +291,7 @@ using (var migratedConnection = new SqliteConnection($"Data Source={migrationPat
     migratedConnection.Open();
     using var version = migratedConnection.CreateCommand();
     version.CommandText = "PRAGMA user_version";
-    Require((long)version.ExecuteScalar()! == 4, "schema migrated from v1 to v4");
+    Require((long)version.ExecuteScalar()! == 5, "schema migrated from v1 to v5");
 }
 
 var versionTwoPath = Path.Combine(databaseDirectory, "legacy-v2.sqlite");
@@ -339,6 +367,44 @@ using (var versionFourJournal = new OperationJournal(versionThreeConfiguration, 
         "v4 mutation table available after v3 migration");
 }
 
+var versionFourPath = Path.Combine(databaseDirectory, "legacy-v4.sqlite");
+var versionFourOperationId = Guid.NewGuid().ToString("D");
+using (var versionFourConnection = new SqliteConnection($"Data Source={versionFourPath}"))
+{
+    versionFourConnection.Open();
+    using var versionFourSchema = versionFourConnection.CreateCommand();
+    versionFourSchema.CommandText = """
+        CREATE TABLE turn_operations (
+            operation_id TEXT PRIMARY KEY, device_id TEXT NOT NULL,
+            conversation_id TEXT NOT NULL, boot_id TEXT NOT NULL,
+            client_turn_id TEXT NOT NULL, generation INTEGER NOT NULL,
+            device_revision INTEGER NOT NULL, status TEXT NOT NULL,
+            expires_at_ms INTEGER NOT NULL
+        );
+        INSERT INTO turn_operations
+            (operation_id, device_id, conversation_id, boot_id, client_turn_id,
+             generation, device_revision, status, expires_at_ms)
+        VALUES ($operation, 'device-a', $conversation, $boot, $turn, 1, 7, 'completed', $expires);
+        PRAGMA user_version=4;
+        """;
+    versionFourSchema.Parameters.AddWithValue("$operation", versionFourOperationId);
+    versionFourSchema.Parameters.AddWithValue("$conversation", Guid.NewGuid().ToString("D"));
+    versionFourSchema.Parameters.AddWithValue("$boot", bootId.ToString("D"));
+    versionFourSchema.Parameters.AddWithValue("$turn", Guid.NewGuid().ToString("D"));
+    versionFourSchema.Parameters.AddWithValue("$expires", clock.GetUtcNow().AddHours(24).ToUnixTimeMilliseconds());
+    versionFourSchema.ExecuteNonQuery();
+}
+
+var versionFourConfiguration = new ConfigurationBuilder()
+    .AddInMemoryCollection(new Dictionary<string, string?> { ["Backend:DatabasePath"] = versionFourPath })
+    .Build();
+using (var versionFiveJournal = new OperationJournal(versionFourConfiguration, clock))
+{
+    Require(versionFiveJournal.GetOperation("device-a", versionFourOperationId).Operation is
+        { Kind: "turn", Status: "failed" },
+        "populated v4 turn becomes v5 turn with result_expired");
+}
+
 var workerClock = new AdjustableTimeProvider(new DateTimeOffset(2026, 9, 29, 10, 0, 0, TimeSpan.Zero));
 var workerDatabasePath = Path.Combine(databaseDirectory, "worker.sqlite");
 var workerConfiguration = new ConfigurationBuilder()
@@ -401,7 +467,7 @@ catch (InvalidOperationException)
     // A shared credential must not select a device by configuration order.
 }
 
-Console.WriteLine("Backend clock tests: expiry, restart, SQLite quota, concurrency and migration passed");
+Console.WriteLine("Backend clock tests: expiry, restart, quota, transcription and migrations passed");
 restartedJournal.Dispose();
 SqliteConnection.ClearAllPools();
 Directory.Delete(databaseDirectory, recursive: true);
