@@ -11,6 +11,7 @@ bool SafetyController::RecoverAfterInspection() {
 
   port_.DisableActuators();
   output_ = Output::Off;
+  faultLatched_ = false;
   compartment_ = 0;
   state_ = State::Ready;
   return true;
@@ -69,8 +70,24 @@ bool SafetyController::Stop() {
   return newlyStopped;
 }
 
-bool SafetyController::IsStopped() const { return state_ == State::Stopped; }
+bool SafetyController::ReportFault() {
+  DisableActuators();
+  const bool newlyFaulted = !faultLatched_;
+  faultLatched_ = true;
+  if (state_ != State::Stopped) {
+    state_ = State::Fault;
+  }
+
+  return newlyFaulted;
+}
+
+bool SafetyController::IsStopped() const {
+  return state_ == State::Stopped || state_ == State::Fault;
+}
+
+bool SafetyController::IsFaulted() const { return faultLatched_; }
 
 bool SafetyController::NeedsRecovery() const {
-  return state_ == State::RecoveryRequired || state_ == State::Stopped;
+  return state_ == State::RecoveryRequired || state_ == State::Stopped ||
+         state_ == State::Fault;
 }

@@ -102,9 +102,11 @@ void TestCompleteSequence() {
   assert(fixture.sequence.Start(6, 2300, step));
 }
 
-void AdvanceToPhase(SelectionSequence& sequence, uint8_t phase) {
+void AdvanceToPhase(SelectionSequence& sequence, uint8_t phase,
+                    SelectionControlMode controlMode =
+                        SelectionControlMode::Standalone) {
   SelectionStep step;
-  assert(sequence.Start(4, 0, step));
+  assert(sequence.Start(4, 0, controlMode, step));
 
   if (phase >= 1) {
     for (uint8_t compartment = 2;
@@ -278,6 +280,122 @@ void TestLatchLimitAcrossWraparound() {
   assert(!fixture.port.latchOn);
 }
 
+void TestManualLeaseLoss() {
+  for (uint8_t phase = 0; phase <= 4; ++phase) {
+    Fixture fixture;
+    fixture.Recover();
+    AdvanceToPhase(fixture.sequence, phase, SelectionControlMode::Manual);
+
+    const int releaseCount = fixture.port.releaseCount;
+    SelectionStep step;
+    assert(fixture.sequence.ReportManualLeaseLost(step));
+    assert(step.effect == SelectionEffect::Stopped);
+    assert(!fixture.port.vibrationOn && !fixture.port.latchOn);
+    assert(!fixture.sequence.IsBusy());
+    assert(fixture.sequence.NeedsRecovery());
+    assert(fixture.port.releaseCount == releaseCount);
+    assert(!fixture.sequence.Start(2, 2000, step));
+  }
+
+  Fixture standaloneFixture;
+  standaloneFixture.Recover();
+  AdvanceToPhase(standaloneFixture.sequence, 2);
+  SelectionStep step;
+  assert(!standaloneFixture.sequence.ReportManualLeaseLost(step));
+  assert(standaloneFixture.port.vibrationOn);
+  assert(standaloneFixture.sequence.IsBusy());
+  assert(!standaloneFixture.sequence.NeedsRecovery());
+}
+
+void TestFaultAndStopPriority() {
+  Fixture fixture;
+  fixture.Recover();
+  AdvanceToPhase(fixture.sequence, 4, SelectionControlMode::Manual);
+
+  SelectionStep step;
+  assert(fixture.sequence.Stop(step));
+  const int releaseCount = fixture.port.releaseCount;
+  assert(fixture.sequence.ReportFault(step));
+  assert(fixture.safety.IsFaulted());
+  assert(!fixture.sequence.ReportManualLeaseLost(step));
+  assert(!fixture.port.vibrationOn && !fixture.port.latchOn);
+  assert(fixture.port.releaseCount == releaseCount);
+  assert(fixture.sequence.NeedsRecovery());
+
+  fixture.Recover();
+  assert(!fixture.safety.IsFaulted());
+  assert(fixture.sequence.Start(2, 0, step));
+  assert(fixture.sequence.ReportFault(step));
+  assert(step.effect == SelectionEffect::Stopped);
+  assert(fixture.safety.IsFaulted());
+  assert(!fixture.sequence.ObserveControlLoopPass(250, step));
+  assert(fixture.safety.IsFaulted());
+  assert(fixture.sequence.Stop(step));
+  assert(fixture.safety.IsFaulted());
+  assert(!fixture.sequence.Start(3, 0, step));
+  fixture.Recover();
+  assert(!fixture.safety.IsFaulted());
+}
+
+void TestFaultWhileOutputsActive() {
+  for (uint8_t phase = 2; phase <= 4; phase += 2) {
+    Fixture fixture;
+    fixture.Recover();
+    AdvanceToPhase(fixture.sequence, phase);
+
+    const int releaseCount = fixture.port.releaseCount;
+    SelectionStep step;
+    assert(fixture.sequence.ReportFault(step));
+    assert(step.effect == SelectionEffect::Stopped);
+    assert(!fixture.port.vibrationOn && !fixture.port.latchOn);
+    assert(fixture.port.releaseCount == releaseCount);
+    assert(fixture.safety.IsFaulted());
+    assert(fixture.sequence.NeedsRecovery());
+    assert(!fixture.sequence.Start(3, 2000, step));
+  }
+}
+
+void AdvanceWithControlLoop(Fixture& fixture, uint32_t untilMs) {
+  for (uint32_t nowMs = 50; nowMs <= untilMs; nowMs += 50) {
+    SelectionStep step;
+    assert(!fixture.sequence.ObserveControlLoopPass(nowMs, step));
+    fixture.sequence.Update(nowMs, step);
+  }
+}
+
+void TestControlLoopTimeout() {
+  Fixture motorFixture;
+  motorFixture.Recover();
+  SelectionStep step;
+  assert(motorFixture.sequence.Start(4, 0, step));
+  AdvanceWithControlLoop(motorFixture, 1000);
+  assert(motorFixture.port.vibrationOn);
+  assert(motorFixture.sequence.ObserveControlLoopPass(1250, step));
+  assert(step.effect == SelectionEffect::Stopped);
+  assert(!motorFixture.port.vibrationOn);
+  assert(motorFixture.sequence.NeedsRecovery());
+
+  Fixture latchFixture;
+  latchFixture.Recover();
+  assert(latchFixture.sequence.Start(4, 0, step));
+  AdvanceWithControlLoop(latchFixture, 1900);
+  assert(latchFixture.port.latchOn);
+  assert(latchFixture.sequence.ObserveControlLoopPass(2150, step));
+  assert(!latchFixture.port.latchOn);
+  assert(latchFixture.port.releaseCount == 1);
+  assert(latchFixture.sequence.NeedsRecovery());
+
+  Fixture wrappedFixture;
+  wrappedFixture.Recover();
+  const uint32_t startMs = UINT32_MAX - 100;
+  assert(wrappedFixture.sequence.Start(1, startMs, step));
+  assert(!wrappedFixture.sequence.ObserveControlLoopPass(startMs + 249,
+                                                         step));
+  assert(wrappedFixture.sequence.ObserveControlLoopPass(startMs + 499,
+                                                        step));
+  assert(wrappedFixture.sequence.NeedsRecovery());
+}
+
 }  // namespace
 
 int main() {
@@ -289,4 +407,8 @@ int main() {
   TestExternalSafetyStop();
   TestMotorLimitAcrossWraparound();
   TestLatchLimitAcrossWraparound();
+  TestManualLeaseLoss();
+  TestFaultAndStopPriority();
+  TestFaultWhileOutputsActive();
+  TestControlLoopTimeout();
 }

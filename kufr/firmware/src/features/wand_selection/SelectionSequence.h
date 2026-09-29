@@ -14,6 +14,11 @@ enum class SelectionEffect : uint8_t {
   Stopped,
 };
 
+enum class SelectionControlMode : uint8_t {
+  Standalone,
+  Manual,
+};
+
 struct SelectionStep {
   SelectionStep(SelectionEffect effect = SelectionEffect::Idle,
                 uint8_t compartment = 0)
@@ -30,8 +35,13 @@ class SelectionSequence {
   explicit SelectionSequence(SafetyController& safety);
 
   bool Start(uint8_t compartment, uint32_t nowMs, SelectionStep& step);
+  bool Start(uint8_t compartment, uint32_t nowMs,
+             SelectionControlMode controlMode, SelectionStep& step);
   bool Update(uint32_t nowMs, SelectionStep& step);
   bool Stop(SelectionStep& step);
+  bool ReportFault(SelectionStep& step);
+  bool ReportManualLeaseLost(SelectionStep& step);
+  bool ObserveControlLoopPass(uint32_t nowMs, SelectionStep& step);
   bool RecoverAfterInspection();
 
   bool IsBusy() const;
@@ -50,6 +60,9 @@ class SelectionSequence {
 
   SafetyController& safety_;
   Phase phase_ = Phase::Idle;
+  SelectionControlMode controlMode_ = SelectionControlMode::Standalone;
+  bool hasControlLoopPass_ = false;
+  uint32_t lastControlLoopPassAtMs_ = 0;
   uint32_t sequenceStartedAtMs_ = 0;
   uint32_t phaseStartedAtMs_ = 0;
   uint8_t selectedCompartment_ = 0;

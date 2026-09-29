@@ -20,9 +20,15 @@ void setup() {
 
 void loop() {
   const uint32_t nowMs = millis();
-  serialPort.Poll(selectionSequence, nowMs);
 
   SelectionStep step;
+  if (selectionSequence.ObserveControlLoopPass(nowMs, step)) {
+    serialPort.Emit(step);
+    return;
+  }
+
+  serialPort.Poll(selectionSequence, nowMs);
+
   if (selectionSequence.Update(nowMs, step)) {
     serialPort.Emit(step);
   }

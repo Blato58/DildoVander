@@ -10,6 +10,7 @@ constexpr uint32_t LatchReleaseDurationMs = 400;
 constexpr uint32_t VibrationHardLimitMs = 250;
 constexpr uint32_t LatchHardLimitMs = 500;
 constexpr uint32_t SequenceHardLimitMs = 5000;
+constexpr uint32_t ControlLoopHardLimitMs = 250;
 constexpr uint8_t VibrationPulseCount = 3;
 
 }  // namespace
@@ -18,16 +19,25 @@ SelectionSequence::SelectionSequence(SafetyController& safety) : safety_(safety)
 
 bool SelectionSequence::Start(uint8_t compartment, uint32_t nowMs,
                               SelectionStep& step) {
+  return Start(compartment, nowMs, SelectionControlMode::Standalone, step);
+}
+
+bool SelectionSequence::Start(uint8_t compartment, uint32_t nowMs,
+                              SelectionControlMode controlMode,
+                              SelectionStep& step) {
   if (IsBusy() || compartment < 1 || compartment > CompartmentCount ||
       !safety_.BeginSelection(compartment)) {
     return false;
   }
 
   selectedCompartment_ = compartment;
+  controlMode_ = controlMode;
   searchStep_ = 1;
   completedPulses_ = 0;
   sequenceStartedAtMs_ = nowMs;
   phaseStartedAtMs_ = nowMs;
+  lastControlLoopPassAtMs_ = nowMs;
+  hasControlLoopPass_ = true;
   phase_ = Phase::Searching;
   step = {SelectionEffect::SearchStep, searchStep_};
   return true;
@@ -39,7 +49,8 @@ bool SelectionSequence::Update(uint32_t nowMs, SelectionStep& step) {
   }
 
   if (safety_.IsStopped()) {
-    Stop(step);
+    phase_ = Phase::Idle;
+    step = {SelectionEffect::Stopped, selectedCompartment_};
     return true;
   }
 
@@ -137,6 +148,7 @@ bool SelectionSequence::Update(uint32_t nowMs, SelectionStep& step) {
       safety_.Complete();
       phase_ = Phase::Idle;
       selectedCompartment_ = 0;
+      controlMode_ = SelectionControlMode::Standalone;
       step = {SelectionEffect::Idle, 0};
       return true;
   }
@@ -151,12 +163,45 @@ bool SelectionSequence::Stop(SelectionStep& step) {
   return newlyStopped;
 }
 
+bool SelectionSequence::ReportFault(SelectionStep& step) {
+  const bool newlyFaulted = safety_.ReportFault();
+  phase_ = Phase::Idle;
+  step = {SelectionEffect::Stopped, selectedCompartment_};
+  return newlyFaulted;
+}
+
+bool SelectionSequence::ReportManualLeaseLost(SelectionStep& step) {
+  if (controlMode_ != SelectionControlMode::Manual || !IsBusy()) {
+    return false;
+  }
+
+  return Stop(step);
+}
+
+bool SelectionSequence::ObserveControlLoopPass(uint32_t nowMs,
+                                                SelectionStep& step) {
+  if (hasControlLoopPass_ &&
+      nowMs - lastControlLoopPassAtMs_ >= ControlLoopHardLimitMs) {
+    lastControlLoopPassAtMs_ = nowMs;
+    if (safety_.IsStopped()) {
+      return false;
+    }
+
+    return Stop(step);
+  }
+
+  lastControlLoopPassAtMs_ = nowMs;
+  hasControlLoopPass_ = true;
+  return false;
+}
+
 bool SelectionSequence::RecoverAfterInspection() {
   if (IsBusy() || !safety_.RecoverAfterInspection()) {
     return false;
   }
 
   selectedCompartment_ = 0;
+  controlMode_ = SelectionControlMode::Standalone;
   return true;
 }
 
