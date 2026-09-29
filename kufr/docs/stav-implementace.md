@@ -1,20 +1,20 @@
 # Stav implementace AI kufru
 
-Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální firmware build E2.2, kontrola fixtures E2.1 a hostitelský simulátor E2.3. Ostatní etapy, hardware, iPhone a CI zůstávají bez runtime akceptace. Hotový návrh není hotová implementace.
+Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální firmware build E2.2, kontrola fixtures E2.1/E2.4b, hostitelský simulátor E2.3 a místní WSS test E2.4c. Ostatní etapy, hardware, iPhone a CI zůstávají bez runtime akceptace. Hotový návrh není hotová implementace.
 
 [Implementační plán](implementacni-plan.md) určuje architekturu a akceptaci. [AGENTS.md](../../AGENTS.md) určuje pracovní postup AI. Tento soubor je jediný průběžný záznam postupu; README ho pouze odkazují.
 
 ## Předání další AI
 
-**Aktivní implementační krok:** E2.4 – lokální WSS facade nad sdíleným kontraktem a simulátorem. Podkroky E2.4a/b připravily sdílený parser a handshake/lease kontrakty (D6/D7); samotný socket a napojení C++ modelu zbývají. E1 je dokončené jako softwarové jádro bez desky. Fyzické nezávislé vypnutí při zamrzlé smyčce a další měření zůstávají kritérii E5.
+**Aktivní implementační krok:** E2.4 – dokončit místní WSS simulátor. Podkroky E2.4a/b/c přidaly parser, handshake/lease kontrakty a testovaný TLS socket nad C++ modelem (D6–D8). Zbývá trvalý fake journal při restartu procesu, širší integrační hrany a UI časová osa; E2 není hotové. E1 je dokončené jako softwarové jádro bez desky. Fyzické nezávislé vypnutí při zamrzlé smyčce a další měření zůstávají kritérii E5.
 
-**Další konkrétní krok: E2.4 – lokální WSS facade simulátoru.**
+**Další konkrétní krok: E2.4d – restart a lease hranice místní WSS facade.**
 
-1. Zpřístupnit hostitelský model přes lokální WSS na vývojovém portu podle kapitoly 4 plánu. Sdílená E2.1 schémata/parsing musí být vstupní branou; události a stav mají vycházet ze stejného modelu, ne z druhé implementace pohybu v JavaScriptu.
-2. Otestovat hello/párování pro vývojovou identitu, manual lease, ACK/retry, Stop, snapshot a chybný vstup proti skutečnému socketu. Certifikát a testovací identitu držet odděleně od produkčního provisioningu. Následující E2 slices doplní zbývající zprávy a OpenAPI backendu.
+1. Zachovat fake journal a readyMask při restartu procesu síťového simulátoru; proces po neuzavřeném záznamu musí nahlásit RecoveryRequired, ne znovu nabídnout přihrádku. Ověřit scénář WSS restartu a výslovného zotavení bez tvrzení o NVS atomicitě.
+2. Rozšířit socket test o odpojení v průběhu `control.acquire`/běžící sekvence a pozdní heartbeat. Zkontrolovat, že Stop předbíhá frontu, žádný nový `BEGIN` nenastane po Stop či zavření. Potom UI časová osa a OpenAPI podle E2.
 3. Samostatná HW akceptace zůstává v E5 po vstupu B1.
 
-Předpokládané dotčené cesty: `kufr/simulator/`, `kufr/contracts/` a související README. Krok nevyžaduje fyzickou desku, cloudový klíč ani Apple certifikát. Toto je implementační předání, nikoli příkaz něco nahrát či publikovat.
+Předpokládané dotčené cesty: `kufr/simulator/` a související README. Krok nevyžaduje fyzickou desku, cloudový klíč ani Apple certifikát. Toto je implementační předání, nikoli příkaz něco nahrát či publikovat.
 
 Pokud uživatel omezí práci pouze na mobilní aplikaci, neoznačuj závislosti E2 za splněné. Lze připravit samostatnou UI část E3 proti výslovně označenému fake transportu, ale E3 zůstane částečné do integrace se simulátorem/protokolem E2. Rozsah a mezeru zapiš sem.
 
@@ -36,7 +36,7 @@ Pokud uživatel omezí práci pouze na mobilní aplikaci, neoznačuj závislosti
 | --- | --- | --- |
 | Firmware | Čistá neblokující `SelectionSequence`/`SafetyController` z E1 a čistý, zatím nezapojený `DeviceControl` s fake clock vstupy, 64 výsledky a `CommandJournal` portem E2.2. Sériové `select 1..6`, `stop`, `reset`, `status`, `help` zůstává vývojovým vstupem. Hostitelské testy a lokální Arduino/PlatformIO build prošly. | Nezávislý fyzický watchdog/inhibit, skutečný NVS journal/GPIO/síťový detektor lease, provisioning, I2S, dialog a ovládání. |
 | Mobil | Statická obrazovka TypeScript/Vite, build script a lockfile. | Interaktivní ruční řízení, transport, simulátor, Capacitor, iOS/Swift projekt a testy. |
-| Backend/kontrakty/simulátor | První část lokálního protokolu v `contracts/control-message-v1.schema.json`, osm pozitivních a 23 negativních kontrol, připnutý Node/npm test E2.1; spustitelný čistý C++ simulátor a šest deterministických scénářů E2.3. | Backend, OpenAPI, síťová facade simulátoru, autentizace, fake/AI adaptéry, zbývající schémata a integrační testy. |
+| Backend/kontrakty/simulátor | Lokální protokol v `contracts/control-message-v1.schema.json`, 15 pozitivních a 27 negativních kontrol, připnutý Node/npm test; spustitelný C++ simulátor a šest deterministických scénářů E2.3; místní TLS WSS facade nad C++ modelem s ověřením auth/lease/retry/Stop E2.4c. | Backend, OpenAPI, trvalý fake journal pro restart WSS simulátoru, UI časová osa, fake/AI adaptéry, zbývající zprávy a integrační hrany. |
 | iOS CI | Majitelem popsaný existující postup Windows → macOS runner → podepsaná IPA. | Skutečný workflow v tomto checkoutu, ověřená identita/profil a běh/instalace. |
 | Hardware | Dodaný obrázek pinů, návrh napájení a předběžné profily A/B. | Revize konkrétní desky, schéma bezpečnostní větve, měření a fyzická akceptace. |
 
@@ -50,7 +50,7 @@ Přesné závislosti a kritéria dokončení jsou v kapitole 12 plánu. Následu
 | --- | --- | --- | --- |
 | E0 – provozní předpoklady | rozpracováno | Architektonické výchozí předpoklady v plánu; žádná měření. | Vstupy B1–B5 níže; software E1 může začít. |
 | E1 – bezpečné jádro | hotovo | E1.1: Stop v každé fázi, safety port, 250/500/5000ms limity, explicitní zotavení (D1). E1.2: hostitelský timeout průchodu smyčkou, porucha, výpadek ručního lease a přednost Stop; hostitelské testy a firmware build prošly (D2). | Fyzická reakce nezávislého watchdogu patří E5 a nebyla měřena; softwarový model vypíná až při dalším průchodu smyčkou. |
-| E2 – smlouvy a simulátor | rozpracováno | E2.1: první JSON Schema lokálního protokolu, přísný parser a pozitivní/chybné fixtures (D3). E2.2: C++ model fake času, journalu, idempotence a hostitelské scénáře ztraceného ACK/restartu (D4). E2.3: spustitelná časová osa a šest hostitelských scénářů nad sdílenou fixture (D5). E2.4a/b: přísný Node parser a handshake/lease schéma (D6/D7). | E2.4 WSS facade a propojení parseru, další zprávy, UI časová osa a OpenAPI. Kritéria E2 zatím nejsou integračně doložena přes protokol. |
+| E2 – smlouvy a simulátor | rozpracováno | E2.1: první JSON Schema lokálního protokolu, přísný parser a pozitivní/chybné fixtures (D3). E2.2: C++ model fake času, journalu, idempotence a hostitelské scénáře ztraceného ACK/restartu (D4). E2.3: spustitelná časová osa a šest hostitelských scénářů nad sdílenou fixture (D5). E2.4a/b/c: Node parser, handshake/lease schéma a místní WSS facade nad C++ modelem (D6–D8). | Trvalý fake journal/restart WSS, širší hraniční testy, UI časová osa a OpenAPI. Kritéria E2 ještě nejsou úplně doložena. |
 | E3 – ruční mobil bez HW | nezahájeno | Statická stránka není ruční řízení. | E2; UI, potvrzení/Stop a integrace. |
 | E3a – iOS CI základ | nezahájeno | Jen majitelem popsaný postup. | E3; B2/B3 pro podpis a skutečnou instalaci. |
 | E4 – runtime a přímá síť | nezahájeno | Arduino prototyp. | E2; pro nahrání B1. |
@@ -78,16 +78,24 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 
 ## Deník změn a ověření
 
+### D8 – 29. 9. 2026 – E2.4c místní WSS facade
+
+- Rozsah: `simulator/bridge.cpp` je hostitelský proces nad stejným `DeviceControl`, `SelectionSequence` a fake portem/journalem. `server.mjs` přijímá na loopback TLS/WSS jeden socket, vyžaduje bearer v handshake, 10s hello a přísný E2 parser, odmítá kompresi a control payload nad 2048 B. Převzetí, heartbeat, výběr, ACK/retry, Stop, reset a snapshot volají C++ model. Stop předbíhá běžnou frontu, zneplatní před ním přijatý reset a počet čekajících zpráv je omezený. Odpojení zruší lease i po souběžném acquire. `run-server.mjs` čte certifikát, klíč, testovací token a cestu bridge z prostředí; nic z toho není ve zdroji. `verify-bridge.mjs` a `verify-socket.mjs` testují fake čas, pozdní lease, TLS/autorizaci, handshake, jediné uvolnění po retry, Stop se zatíženou frontou včetně staršího resetu, snapshot a chybný JSON. `simulator/package.json`/lockfile připíná `ws@8.21.3` a Node 24.21.0.
+- Ověření z `%TEMP%\dildovander-e2-simulator`: MSVC `cl /nologo /std:c++14 /W4 /WX /EHsc` nad `SafetyController.cpp`, `SelectionSequence.cpp`, `DeviceControl.cpp` a `simulator/bridge.cpp` s `/Fe:bridge.exe` — úspěšně. Z `kufr/simulator` po nastavení `KUFR_SIMULATOR_BRIDGE` na tento soubor, `OPENSSL` na místní OpenSSL CLI a PATH na Node 24.21.0: `npm ci`, `npm test` — obojí úspěšně; test vytváří krátkodobý certifikát mimo repo a ověřuje jej klientem. Z `kufr/contracts` pod stejným Node proběhlo `npm ci`, `npm test` — 15 platných a 27 chybných zpráv prošlo. Před opravami test odhalil duplicitně čtenou ACK ve verifieru a nesprávný exit po zavření socketu; oba opraveny, opakovaný běh prošel. `npm ci` hlásilo 0 známých zranitelností pro `ws` v tomto lokálním auditu.
+- Omezení: `BridgeJournal` je dosud pouze v RAM; restart procesu nedrží pending/masku. Socket test zatím neprokazuje close/acquire závod ani přerušení během motoru, chybí OpenAPI, UI a fyzický hardware. `server.mjs` je vývojový loopback server s dočasnou identitou; nahrání do ESP32 nebo produkční provisioning nebyly provedeny. Další E2.4d výslovně řeší tuto mezeru.
+
 ### D7 – 29. 9. 2026 – E2.4b zprávy spojení a lease
 
 - Rozsah: plán v kapitole 4 upřesňuje tvar `hello`/`welcome`, `state.get`, `control.acquire/release` a heartbeat, vždy s oddělením tokenu do TLS handshake. `contracts/control-message-v1.schema.json` přidává jejich přísné varianty; sedm platných fixtures a čtyři negativní mutace hlídají verzi, pole navíc, vložený snapshot a lease. Contracts README nyní uvádí rozsah schématu.
 - Ověření z `kufr/contracts`: `& 'C:\Users\vojtech.petrik\AppData\Roaming\nvm\v24.21.0\npm.cmd' test` — 15 platných a 27 chybných zpráv správně rozlišeno. Schéma neověřuje identitu, pořadí handshake ani životnost lease; bez WSS testu je E2.4 stále rozpracované.
+- Revize a doručení: E2.4b je v commitu `fd3d211e7f0c0a5f91f6a99339cc9827a8aebeef`; `./scripts/Push-CurrentBranch.ps1` potvrdil shodu `origin/main` s tímto commitem.
 
 ### D6 – 29. 9. 2026 – E2.4a přenosný vstupní parser
 
 - Převzetí: po doručení E2.3 v `e03672f2fe974a790b374cc1ad5ca5ea4a15451a` začala E2.4. Před WSS vstupem bylo nutné použít skutečná E2.1 pravidla z runtime modulu, nikoli je zkopírovat do síťové vrstvy.
 - Rozsah: `contracts/control-validator.mjs` vyčlenil přísné UTF-8/JSON/schema ověření do exportu `validateControlMessage(bytes)`, `verify-fixtures.mjs` ho nyní používá, contracts README popisuje hranici. Žádná změna schématu ani wire kontraktu.
 - Ověření z `kufr/contracts`: `& 'C:\Users\vojtech.petrik\AppData\Roaming\nvm\v24.21.0\npm.cmd' test` — 8 platných a 23 chybných zpráv správně rozlišeno. WSS adaptér ještě neexistuje, takže toto není síťová integrace; pokračovat v E2.4.
+- Revize a doručení: E2.4a je v commitu `5a55716dfd661355d456cb69b58120ed39b89764`; `./scripts/Push-CurrentBranch.ps1` potvrdil shodu `origin/main` s tímto commitem.
 
 ### D5 – 29. 9. 2026 – E2.3 hostitelský simulátor
 
