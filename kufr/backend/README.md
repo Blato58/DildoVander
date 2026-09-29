@@ -198,10 +198,20 @@ Po prvním úspěšném nasazení lze ručně spustit workflow **Kufr backend
 deployed smoke** z `main`. S vývojovou identitou v `backend-production`
 ověří přes `127.0.0.1:5080` vydání tokenu, sezení, idempotentní textový tah,
 výsledek operace a ukončení sezení. Výchozí vstup `dialog_mode=fake` nevolá
-OpenAI; `dialog_mode=responses` provede jeden syntetický placený tah a čeká
-na jeho výsledek. Vstup musí odpovídat právě nasazenému režimu. Test
+OpenAI; `dialog_mode=responses` provede tři syntetické placené tahy a čeká
+na jejich výsledky. Vstup musí odpovídat právě nasazenému režimu. Test
 nevypisuje credential ani access token a nedokazuje veřejné HTTPS ani
 spojení skutečného kufru.
+
+Po zprovoznění IP certifikátu lze ručně spustit workflow **Kufr backend
+public dialogue** z `main`. GitHub-hosted runner se připojí přes veřejné
+HTTPS se standardním ověřením IP certifikátu, vydá vývojový token a provede
+tři placené syntetické tahy: dvě otázky vytvořené modelem a závěrečný návrh.
+Odpovědi modelu vypíše pro lidské posouzení humoru a návaznosti. Maximální
+rezervace dialogu je 3 × 0,05 USD, tedy pod limitem 0,50 USD/sezení; skutečná
+cena se účtuje dle vrácených tokenů. Workflow je pouze ruční a vyžaduje
+aktuální nasazení `responses`. Syntetické testovací texty nejsou tajemství;
+vývojové device credential a token se nevypisují.
 
 Všechny hodnoty mohou pro první fake nasazení chybět. Bez dvojice zařízení
 se nikdo nepřihlásí; bez všech tří nákladových limitů backend odmítne

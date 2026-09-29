@@ -1,6 +1,7 @@
-"""Exercise the installed fake backend without exposing its test credential."""
+"""Exercise the installed backend without exposing its test credential."""
 
 import json
+import ipaddress
 import os
 import time
 import urllib.error
@@ -49,6 +50,18 @@ def call(method, path, *, bearer=None, key=None, body=None):
 
 
 def main():
+    global BASE_URL
+    transport = os.environ.get("SMOKE_TRANSPORT", "loopback")
+    check(transport in {"loopback", "public"}, "invalid_smoke_transport")
+    if transport == "public":
+        public_ip = os.environ.get("PUBLIC_IPV4", "")
+        try:
+            address = ipaddress.IPv4Address(public_ip)
+        except ipaddress.AddressValueError as error:
+            raise RuntimeError("invalid_public_ipv4") from error
+        check(address.is_global, "public_ipv4_not_global")
+        BASE_URL = f"https://{address}"
+
     expectation = os.environ.get("DIALOG_EXPECTATION", "fake")
     check(expectation in {"fake", "responses"}, "invalid_dialog_expectation")
     device_id = os.environ.get("DEVICE_ID")
@@ -80,72 +93,82 @@ def main():
     check(status == 201 and created.get("conversationId"), "conversation_create_failed")
     conversation_id = created["conversationId"]
 
-    turn_body = {
-        "clientTurnId": str(uuid4()),
-        "bootId": boot_id,
-        "generation": 0,
-        "text": (
-            "Na večírku chci Hůlku 1. Klidně mě lehce popíchni. "
-            "Po výběru potvrdím fyzickým tlačítkem."
-            if expectation == "responses"
-            else "Syntetický test nasazené vývojové instance."
-        ),
-        "readyMask": 1,
-        "deviceRevision": 0,
-        "catalogVersion": "neutral-1",
-    }
-    turn_path = f"/v1/conversations/{conversation_id}/turns"
-    turn_key = str(uuid4())
-    status, accepted = call("POST", turn_path, bearer=token, key=turn_key, body=turn_body)
-    check(status == 202 and accepted.get("operationId"), "turn_submit_failed")
-    status, repeated = call("POST", turn_path, bearer=token, key=turn_key, body=turn_body)
-    check(
-        status == 202 and repeated.get("operationId") == accepted["operationId"],
-        "turn_idempotency_failed",
+    visitor_turns = (
+        [
+            "Přišel jsem si vybrat hůlku. Klidně mi dej pořádný roast.",
+            "Můj velkolepý plán je zrušit pondělky vyhláškou.",
+            "Jako financování navrhuji proměnit rozpočet v konfety a říkat tomu reforma.",
+        ]
+        if expectation == "responses"
+        else ["Syntetický test nasazené vývojové instance."]
     )
+    turn_path = f"/v1/conversations/{conversation_id}/turns"
+    for index, visitor_text in enumerate(visitor_turns):
+        turn_body = {
+            "clientTurnId": str(uuid4()),
+            "bootId": boot_id,
+            "generation": 0,
+            "text": visitor_text,
+            "readyMask": 1,
+            "deviceRevision": 0,
+            "catalogVersion": "neutral-1",
+        }
+        turn_key = str(uuid4())
+        status, accepted = call("POST", turn_path, bearer=token, key=turn_key, body=turn_body)
+        check(status == 202 and accepted.get("operationId"), "turn_submit_failed")
+        if index == 0:
+            status, repeated = call(
+                "POST", turn_path, bearer=token, key=turn_key, body=turn_body
+            )
+            check(
+                status == 202 and repeated.get("operationId") == accepted["operationId"],
+                "turn_idempotency_failed",
+            )
 
-    operation = None
-    for _ in range(260):
-        status, operation = call(
-            "GET", f"/v1/operations/{accepted['operationId']}", bearer=token
-        )
-        check(status == 200, "operation_poll_failed")
-        if operation.get("status") not in {"pending", "running"}:
-            break
-        time.sleep(0.25)
+        operation = None
+        for _ in range(260):
+            status, operation = call(
+                "GET", f"/v1/operations/{accepted['operationId']}", bearer=token
+            )
+            check(status == 200, "operation_poll_failed")
+            if operation.get("status") not in {"pending", "running"}:
+                break
+            time.sleep(0.25)
 
-    check(operation is not None and operation.get("status") == "completed", "turn_failed")
-    result = operation.get("result", {})
-    if expectation == "fake":
-        check(
-            result.get("decision") == "ask" and result.get("proposal") is None,
-            "fake_result_failed",
-        )
-    else:
+        check(operation is not None and operation.get("status") == "completed", "turn_failed")
+        result = operation.get("result", {})
+        if expectation == "fake":
+            check(
+                result.get("decision") == "ask" and result.get("proposal") is None,
+                "fake_result_failed",
+            )
+            continue
+
         check(
             isinstance(result.get("reply"), str)
             and bool(result["reply"])
-            and result["reply"] != "Toto je testovací odpověď bez AI."
-            and result.get("decision") in {"ask", "propose", "no_selection"},
+            and result["reply"] != "Toto je testovací odpověď bez AI.",
             "responses_result_failed",
         )
         proposal = result.get("proposal")
-        check(
-            (result["decision"] in {"ask", "no_selection"} and proposal is None)
-            or (
-                result["decision"] == "propose"
+        if index < 2:
+            check(result.get("decision") == "ask" and proposal is None,
+                  "responses_question_failed")
+        else:
+            check(
+                result.get("decision") == "propose"
                 and isinstance(proposal, dict)
                 and proposal.get("compartment") == 1
                 and proposal.get("deviceRevision") == turn_body["deviceRevision"]
-                and proposal.get("turnId") == turn_body["clientTurnId"]
-            ),
-            "responses_proposal_failed",
-        )
+                and proposal.get("turnId") == turn_body["clientTurnId"],
+                "responses_proposal_failed",
+            )
+        print(f"responses_turn_{index + 1}_reply=" + json.dumps(result["reply"], ensure_ascii=False))
     status, _ = call(
         "DELETE", f"/v1/conversations/{conversation_id}", bearer=token, key=str(uuid4())
     )
     check(status == 204, "conversation_cleanup_failed")
-    print(f"deployed_{expectation}_dialogue=ok; token, idempotency, poll and cleanup verified")
+    print(f"deployed_{expectation}_dialogue=ok; transport={transport}; {len(visitor_turns)} turns, token, idempotency, poll and cleanup verified")
 
 
 if __name__ == "__main__":
