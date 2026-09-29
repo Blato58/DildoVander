@@ -50,6 +50,14 @@ async function call(path, { credential, token, key, body } = {}) {
   return { status: response.status, result };
 }
 
+async function read(path, token) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  return { status: response.status, result: await response.json() };
+}
+
 try {
   let ready = false;
   for (let attempt = 0; attempt < 100; attempt++) {
@@ -119,12 +127,84 @@ try {
   ]);
   assert.deepEqual(parallel.map(value => value.status).sort(), [201, 409]);
 
+  const turn = {
+    clientTurnId: randomUUID(),
+    bootId: body.bootId,
+    generation: body.generation,
+    text: 'Soukromá testovací otázka',
+    readyMask: 63,
+    deviceRevision: 7,
+    catalogVersion: body.catalogVersion
+  };
+  const turnPath = `/v1/conversations/${created.result.conversationId}/turns`;
+  const turnKey = randomUUID();
+  assert.equal((await call(turnPath, {
+    token: tokenB,
+    key: turnKey,
+    body: turn
+  })).status, 403);
+  assert.equal((await call(turnPath, {
+    token: tokenA,
+    key: randomUUID(),
+    body: { ...turn, bootId: randomUUID() }
+  })).status, 409);
+  const accepted = await call(turnPath, { token: tokenA, key: turnKey, body: turn });
+  assert.equal(accepted.status, 202);
+  assert.equal((await call(turnPath, {
+    token: tokenA,
+    key: turnKey,
+    body: turn
+  })).result.operationId, accepted.result.operationId);
+  assert.equal((await call(turnPath, {
+    token: tokenA,
+    key: turnKey,
+    body: { ...turn, text: 'changed' }
+  })).status, 409);
+  assert.equal((await call(turnPath, {
+    token: tokenA,
+    key: randomUUID(),
+    body: turn
+  })).status, 409);
+  const operationPath = `/v1/operations/${accepted.result.operationId}`;
+  assert.equal((await read(operationPath, tokenB)).status, 403);
+  const operation = await read(operationPath, tokenA);
+  assert.equal(operation.status, 200);
+  assert.equal(operation.result.kind, 'turn');
+  assert.equal(operation.result.status, 'completed');
+  assert.equal(operation.result.correlation.clientTurnId, turn.clientTurnId);
+  assert.equal(operation.result.correlation.deviceRevision, turn.deviceRevision);
+  assert.equal(operation.result.result.decision, 'ask');
+  assert.equal(operation.result.result.proposal, null);
+  assert.doesNotMatch(JSON.stringify(operation.result), /Soukromá testovací otázka/);
+
+  for (let index = 1; index < 9; index++) {
+    const next = await call(turnPath, {
+      token: tokenA,
+      key: randomUUID(),
+      body: { ...turn, clientTurnId: randomUUID() }
+    });
+    assert.equal(next.status, 202);
+  }
+  const competingTurns = await Promise.all([
+    call(turnPath, {
+      token: tokenA,
+      key: randomUUID(),
+      body: { ...turn, clientTurnId: randomUUID() }
+    }),
+    call(turnPath, {
+      token: tokenA,
+      key: randomUUID(),
+      body: { ...turn, clientTurnId: randomUUID() }
+    })
+  ]);
+  assert.deepEqual(competingTurns.map(value => value.status).sort(), [202, 429]);
+
   for (let index = 0; index < 15; index++) {
     assert.equal((await call('/v1/device-access/token', { credential: credentialA })).status, 200);
   }
   assert.equal((await call('/v1/device-access/token', { credential: credentialA })).status, 429);
   assert.doesNotMatch(serverOutput, new RegExp(`${credentialA}|${credentialB}|${tokenA}|${tokenB}`));
-  console.log('Backend HTTP smoke: access, scope, idempotency, concurrency and token cap passed');
+  console.log('Backend HTTP smoke: access, scope, fake turn, idempotency, limits and concurrency passed');
 } finally {
   server.kill();
 }

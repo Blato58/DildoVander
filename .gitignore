@@ -8,6 +8,8 @@
 # .NET backend
 /kufr/backend/**/bin/
 /kufr/backend/**/obj/
+/kufr/backend-tests/**/bin/
+/kufr/backend-tests/**/obj/
 
 # Editor and OS files
 .vs/
