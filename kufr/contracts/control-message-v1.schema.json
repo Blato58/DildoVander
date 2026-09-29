@@ -12,6 +12,8 @@
     { "$ref": "#/$defs/heartbeatAck" },
     { "$ref": "#/$defs/selectionStart" },
     { "$ref": "#/$defs/inventoryConfirmReload" },
+    { "$ref": "#/$defs/conversationText" },
+    { "$ref": "#/$defs/conversationCancel" },
     { "$ref": "#/$defs/commandAck" },
     { "$ref": "#/$defs/selectionResult" },
     { "$ref": "#/$defs/stateSnapshot" },
@@ -222,6 +224,46 @@
             "inspectionConfirmed": { "const": true }
           }
         }
+      }
+    },
+    "conversationText": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion", "type", "messageId", "deviceId", "bootId",
+        "controlLeaseId", "conversationId", "clientTurnId", "generation",
+        "expectedRevision", "text"
+      ],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "type": { "const": "conversation.text" },
+        "messageId": { "$ref": "#/$defs/uuid" },
+        "deviceId": { "$ref": "#/$defs/deviceId" },
+        "bootId": { "$ref": "#/$defs/uuid" },
+        "controlLeaseId": { "$ref": "#/$defs/uuid" },
+        "conversationId": { "$ref": "#/$defs/uuid" },
+        "clientTurnId": { "$ref": "#/$defs/uuid" },
+        "generation": { "$ref": "#/$defs/safeInteger" },
+        "expectedRevision": { "$ref": "#/$defs/safeInteger" },
+        "text": { "type": "string", "minLength": 1, "maxLength": 1000 }
+      }
+    },
+    "conversationCancel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion", "type", "messageId", "deviceId", "bootId",
+        "controlLeaseId", "conversationId", "generation"
+      ],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "type": { "const": "conversation.cancel" },
+        "messageId": { "$ref": "#/$defs/uuid" },
+        "deviceId": { "$ref": "#/$defs/deviceId" },
+        "bootId": { "$ref": "#/$defs/uuid" },
+        "controlLeaseId": { "$ref": "#/$defs/uuid" },
+        "conversationId": { "$ref": "#/$defs/uuid" },
+        "generation": { "$ref": "#/$defs/safeInteger" }
       }
     },
     "commandAck": {

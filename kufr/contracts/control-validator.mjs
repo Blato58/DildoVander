@@ -7,6 +7,7 @@ import { getNodeValue, parseTree } from 'jsonc-parser';
 
 const decoder = new TextDecoder('utf-8', { fatal: true });
 const maximumControlMessageBytes = 2048;
+const maximumConversationTextBytes = 8192;
 
 function assertStrictJsonTokens(node, source) {
   if (node.type === 'number') {
@@ -63,7 +64,11 @@ addFormats(ajv, ['uuid']);
 const validateSchema = ajv.compile(schema);
 
 export function validateControlMessage(bytes) {
-  const message = parseStrictJson(bytes, maximumControlMessageBytes);
+  const message = parseStrictJson(bytes, maximumConversationTextBytes);
+  if (bytes.length > maximumControlMessageBytes &&
+      message.type !== 'conversation.text') {
+    throw new Error(`message exceeds ${maximumControlMessageBytes} UTF-8 bytes`);
+  }
   if (!validateSchema(message)) {
     throw new Error(ajv.errorsText(validateSchema.errors));
   }

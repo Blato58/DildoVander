@@ -1,0 +1,10 @@
+{
+  "protocolVersion": 1,
+  "type": "conversation.cancel",
+  "messageId": "26cf1300-e5d6-45a6-b8d6-94939a31a5e6",
+  "deviceId": "kufr-001",
+  "bootId": "c85743d5-1b72-41b8-8500-ae3c102b27d6",
+  "controlLeaseId": "a8287a95-b6a1-4501-bdaa-38721ec83191",
+  "conversationId": "ac665612-864c-4482-bb68-7415921119ae",
+  "generation": 2
+}

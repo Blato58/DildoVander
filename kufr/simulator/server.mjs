@@ -407,7 +407,7 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
       response.end();
     }
   });
-  const webSockets = new WebSocketServer({ noServer: true, maxPayload: 2048, perMessageDeflate: false });
+  const webSockets = new WebSocketServer({ noServer: true, maxPayload: 8192, perMessageDeflate: false });
 
   server.on('upgrade', (request, networkSocket, head) => {
     if (request.url !== '/v1/control') {

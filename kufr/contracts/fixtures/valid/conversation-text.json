@@ -1,0 +1,13 @@
+{
+  "protocolVersion": 1,
+  "type": "conversation.text",
+  "messageId": "70384126-a360-45ba-9173-ded8287f0f57",
+  "deviceId": "kufr-001",
+  "bootId": "c85743d5-1b72-41b8-8500-ae3c102b27d6",
+  "controlLeaseId": "a8287a95-b6a1-4501-bdaa-38721ec83191",
+  "conversationId": "ac665612-864c-4482-bb68-7415921119ae",
+  "clientTurnId": "8475532e-92b2-487e-b476-7f98f0030e68",
+  "generation": 2,
+  "expectedRevision": 37,
+  "text": "Hledám hůlku pro dobrodružství."
+}

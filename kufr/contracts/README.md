@@ -1,12 +1,13 @@
 # Sdílené kontrakty kufru
 
-`control-message-v1.schema.json` je první část lokálního WSS protokolu verze 1
+`control-message-v1.schema.json` je rozpracovaný lokální WSS protokol verze 1
 podle kapitoly 5 [implementačního plánu](../docs/implementacni-plan.md).
 Zatím popisuje `hello`, `welcome`, `state.get`, `control.acquire/release`,
-`heartbeat/heartbeat.ack`, `selection.start`, `inventory.confirmReload`, `command.ack`, `selection.result`,
+`heartbeat/heartbeat.ack`, `selection.start`, `inventory.confirmReload`,
+`conversation.text/cancel`, `command.ack`, `selection.result`,
 `state.snapshot`, `safety.stop` a `safety.reset`. Adresáře
 `fixtures/valid/` a `fixtures/invalid/` obsahují zprávy pro další adaptéry.
-Schéma je zdroj typů a rozsahů; další typy a OpenAPI backendu přibudou v E2.
+Schéma je zdroj typů a rozsahů; další mediální typy přibudou v E2.
 
 `backend-openapi-v1.json` je HTTP kontrakt E2.6. Pokrývá výměnu servisně
 provisionovaného device credential za 15minutový access token, založení
@@ -21,7 +22,8 @@ kolize se stejným klíčem, ale jiným tělem vrací 409.
 
 Každý přijímač musí před validací schématu odmítnout neplatné UTF-8,
 duplicitní JSON klíče, desetinný/exponenciální zápis celočíselných polí a
-control zprávy nad 2048 bajtů. Samotné JSON Schema
+control zprávy nad 2048 bajtů, s výjimkou `conversation.text` do 8192 bajtů
+a 1000 znaků textu. Samotné JSON Schema
 tyto vlastnosti syrové zprávy neověří. Validace schématu nenahrazuje ověření
 TLS identity, tokenu, `bootId`, ručního lease, monotónního času, revision,
 idempotence a journalu. Hodnota `selectionSource` je pouze auditní údaj,
@@ -43,6 +45,12 @@ chybové kódy odmítnutých příkazů.
 `command.ack` a nový snapshot. Nevydá žádný požadavek na motor/západku;
 masku dostupnosti musí zařízení trvale zapsat před ACK. Opakování stejného
 příkazu masku znovu nepřepíše, stejné ID s jiným obsahem je konflikt.
+
+`conversation.text/cancel` zatím popisují pouze vstupní kontrakt. Mají
+manual lease, boot a conversation generation; text obsahuje jednorázové
+`clientTurnId` a expectedRevision. Simulator tyto zprávy zatím nepředává
+conversation runtime a bezpečně je odmítne. Přijetí textu v parseru není
+důkaz, že existuje cloudový tah, zrušení nebo potvrzení návrhu.
 
 ## Ověření
 

@@ -257,6 +257,8 @@ Servisní kalibrace bude samostatná fyzicky odemčená funkce s lokálními ome
 
 `inventory.confirmReload` používá stejnou autorizovanou obálku jako `selection.start` (`commandId`, boot, manual lease, sequence, revision a deadline); payload obsahuje právě `compartment` 1–6 a `inspectionConfirmed: true`. Sdílí čítač a 64 výsledků, takže stejné ID s jiným typem nebo obsahem je konflikt. Po kontrole v bezpečném klidu trvale nastaví bit dostupnosti před `command.ack` a pošle snapshot, bez spuštění fyzické sekvence. Jeho journal aktualizace masky je samostatná operace, ne falešné uzavření transakce výběru. Hostitelský souborový journal je pouze fake; skutečná NVS atomicita čeká na E4.
 
+`conversation.text` má odlišnou textovou obálku: `messageId`, `deviceId`, `bootId`, manual `controlLeaseId`, `conversationId`, jednorázové `clientTurnId`, `generation`, `expectedRevision` a text 1–1000 znaků. Zpráva je výjimkou z 2048bajtového control limitu do 8192 bajtů UTF-8. `conversation.cancel` nese stejný device/boot/lease/session kontext a očekávanou `generation`; vlastní conversation slice při přijetí zvýší generation a zahodí starší výsledek. Textová zpráva nikdy neobsahuje číslo aktuátoru nebo povel k výběru. E2.8a definuje schéma a parser; runtime vlastníka sezení se zapojí až v následujícím slice, takže dosavadní WSS facade tyto zprávy bezpečně odmítá jako nepodporovaný směr.
+
 ### ACK, opakování a neznámý výsledek
 
 - Cíl ACK do 200 ms na LAN, čekání 500 ms. Při ztrátě ACK nejvýše dvakrát opakovat **stejný příkaz, commandId, sequence i obsah**, po 500 a 1000 ms od prvního odeslání; stále musí platit lease a deadline. Nové ID při retry je chyba.
