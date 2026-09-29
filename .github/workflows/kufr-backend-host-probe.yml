@@ -43,3 +43,21 @@ jobs:
           else
             echo "loopback_health=unavailable"
           fi
+          . /etc/os-release
+          echo "host_os=${ID}-${VERSION_ID}"
+          for package in nginx certbot python3 snap; do
+            if command -v "$package" >/dev/null 2>&1; then
+              echo "$package=$(command -v "$package")"
+            else
+              echo "$package=missing"
+            fi
+          done
+          for service in nginx apache2 caddy certbot.timer snap.certbot.renew.timer; do
+            if systemctl is-active --quiet "$service"; then
+              echo "$service=active"
+            else
+              echo "$service=inactive_or_missing"
+            fi
+          done
+          echo 'listening_ports_80_443_5080:'
+          ss -H -lnt '( sport = :80 or sport = :443 or sport = :5080 )'
