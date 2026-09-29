@@ -25,7 +25,6 @@ class EspIdfTokenExchangeTransport final : public TokenExchangePort {
     bool overflow = false;
   };
 
-  static bool IsValidHost(const std::string& host);
   static esp_err_t OnHttpEvent(esp_http_client_event_t* event);
   static TokenExchangeResponse ParseResponse(const ResponseBody& body);
 

@@ -1,0 +1,137 @@
+#include "EspIdfWifiStation.h"
+
+#include <cstring>
+
+#include "esp_wifi.h"
+
+namespace {
+
+class WifiConfigWiper final {
+ public:
+  explicit WifiConfigWiper(wifi_config_t& config) : config_(config) {}
+  ~WifiConfigWiper() {
+    volatile uint8_t* bytes = reinterpret_cast<uint8_t*>(&config_);
+    for (size_t index = 0; index < sizeof(config_); ++index) {
+      bytes[index] = 0;
+    }
+  }
+
+ private:
+  wifi_config_t& config_;
+};
+
+}  // namespace
+
+EspIdfWifiStation::~EspIdfWifiStation() {
+  if (wifiStarted_) {
+    esp_wifi_stop();
+  }
+  if (wifiHandler_ != nullptr) {
+    esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID,
+                                          wifiHandler_);
+  }
+  if (ipHandler_ != nullptr) {
+    esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP,
+                                          ipHandler_);
+  }
+  if (wifiInitialized_) {
+    esp_wifi_deinit();
+  }
+  if (netif_ != nullptr) {
+    esp_netif_destroy_default_wifi(netif_);
+  }
+  if (ownsEventLoop_) {
+    esp_event_loop_delete_default();
+  }
+  if (events_ != nullptr) {
+    vEventGroupDelete(events_);
+  }
+}
+
+bool EspIdfWifiStation::Start(const NetworkSettings& settings) {
+  if (!settings.IsConfigured() || events_ != nullptr) {
+    return false;
+  }
+  events_ = xEventGroupCreate();
+  if (events_ == nullptr || esp_netif_init() != ESP_OK) {
+    return false;
+  }
+
+  const esp_err_t loopResult = esp_event_loop_create_default();
+  if (loopResult == ESP_OK) {
+    ownsEventLoop_ = true;
+  } else if (loopResult != ESP_ERR_INVALID_STATE) {
+    return false;
+  }
+  netif_ = esp_netif_create_default_wifi_sta();
+  if (netif_ == nullptr) {
+    return false;
+  }
+
+  wifi_init_config_t wifiInit = WIFI_INIT_CONFIG_DEFAULT();
+  if (esp_wifi_init(&wifiInit) != ESP_OK) {
+    return false;
+  }
+  wifiInitialized_ = true;
+  if (esp_event_handler_instance_register(
+          WIFI_EVENT, ESP_EVENT_ANY_ID, OnEvent, this,
+          &wifiHandler_) != ESP_OK ||
+      esp_event_handler_instance_register(
+          IP_EVENT, IP_EVENT_STA_GOT_IP, OnEvent, this,
+          &ipHandler_) != ESP_OK ||
+      esp_wifi_set_storage(WIFI_STORAGE_RAM) != ESP_OK ||
+      esp_wifi_set_mode(WIFI_MODE_STA) != ESP_OK) {
+    return false;
+  }
+
+  wifi_config_t wifiConfig = {};
+  WifiConfigWiper wipe(wifiConfig);
+  const size_t ssidLength = std::strlen(settings.Ssid());
+  const size_t passwordLength = std::strlen(settings.Password());
+  std::memcpy(wifiConfig.sta.ssid, settings.Ssid(), ssidLength);
+  std::memcpy(wifiConfig.sta.password, settings.Password(), passwordLength);
+  wifiConfig.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
+  if (esp_wifi_set_config(WIFI_IF_STA, &wifiConfig) != ESP_OK) {
+    return false;
+  }
+  if (esp_wifi_start() != ESP_OK) {
+    return false;
+  }
+  wifiStarted_ = true;
+  return true;
+}
+
+bool EspIdfWifiStation::ConnectAndWait(uint32_t timeoutMs) {
+  if (!wifiStarted_ ||
+      (xEventGroupWaitBits(events_, StartedBit, pdFALSE, pdTRUE,
+                           pdMS_TO_TICKS(5000)) & StartedBit) == 0) {
+    return false;
+  }
+  if (HasIp()) {
+    return true;
+  }
+  if (esp_wifi_connect() != ESP_OK && !HasIp()) {
+    return false;
+  }
+  return (xEventGroupWaitBits(events_, GotIpBit, pdFALSE, pdTRUE,
+                              pdMS_TO_TICKS(timeoutMs)) & GotIpBit) != 0;
+}
+
+bool EspIdfWifiStation::HasIp() const {
+  return events_ != nullptr &&
+         (xEventGroupGetBits(events_) & GotIpBit) != 0;
+}
+
+void EspIdfWifiStation::OnEvent(void* argument,
+                                esp_event_base_t eventBase, int32_t eventId,
+                                void*) {
+  EspIdfWifiStation* station = static_cast<EspIdfWifiStation*>(argument);
+  if (eventBase == WIFI_EVENT && eventId == WIFI_EVENT_STA_START) {
+    xEventGroupSetBits(station->events_, StartedBit);
+  } else if (eventBase == WIFI_EVENT &&
+             eventId == WIFI_EVENT_STA_DISCONNECTED) {
+    xEventGroupClearBits(station->events_, GotIpBit);
+  } else if (eventBase == IP_EVENT && eventId == IP_EVENT_STA_GOT_IP) {
+    xEventGroupSetBits(station->events_, GotIpBit);
+  }
+}
