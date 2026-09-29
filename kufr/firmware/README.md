@@ -40,11 +40,15 @@ src/
     device_control/
       DeviceControl.h/.cpp                  hostitelský model ručního příkazu
       CommandJournal.h                     port pro zápis před pohybem
+      PersistentCommandJournal.h/.cpp      trvalý journal a maska dostupnosti
+      JournalStorage.h                     port trvalého úložiště pro testy
+      EspIdfJournalStorage.h/.cpp           NVS blob v ESP-IDF profilu
     conversation/
       ConversationSession.h/.cpp            čistý model generace textového sezení
 tests/
   selection_sequence_test.cpp               test bez hardwaru
   device_control_test.cpp                   test idempotence a restartu
+  persistent_command_journal_test.cpp      test trvalého záznamu a selhání zápisu
   conversation_session_test.cpp             test textu, zrušení a generace
 ```
 
@@ -80,8 +84,13 @@ journal; při přerušení záznam zůstává otevřený až do kontroly obsluho
 Potvrzení znovuzaložení jedné přihrádky sdílí lease, pořadí a cache ID,
 vyžaduje kontrolu v klidu a samostatně ukládá novou masku před ACK bez
 spuštění výběru nebo pohonu.
-Hostitelské testy používají fake journal a čas; skutečný NVS adaptér,
-TLS/parser a zapojení tohoto modelu do `main.cpp` zatím nejsou hotové.
+`PersistentCommandJournal` ukládá stav před pohybem a po dokončení uzavírá
+záznam společně s novou maskou dostupnosti. Chyba čtení, poškozený záznam nebo
+chyba zápisu drží řízení v bezpečném stavu; prázdná NVS nezačne s dostupnými
+přihrádkami. ESP-IDF profil otevírá NVS adaptér při startu bez automatického
+mazání. Hostitelské testy ověřují restart a selhání zápisu přes paměťový port.
+`DeviceControl` zatím není připojený k živému vstupu ESP-IDF smyčky; skutečný
+NVS běh na desce, TLS/parser a servisní identita zbývají.
 
 `ConversationSession` je čistý model jednoho textového sezení. Kontroluje
 ruční lease, boot/session/generation, revision a délku UTF-8 textu. V jednom
@@ -118,7 +127,8 @@ pio run
 Výchozí profil používá PlatformIO `espressif32@7.1.3`, připnutý ESP-IDF 6.1,
 `sdkconfig.defaults` a vlastní kopii 16MB tabulky oddílů. Zatím pouze
 vyžaduje bezpečný výstup, prochází čistým jádrem s monotónním časem a vypisuje
-požadavky do logu. Neobsahuje sériové příkazy, GPIO, NVS, Wi-Fi ani TLS.
+požadavky do logu. Inicializuje NVS journal bez fyzických výstupů; neobsahuje
+sériové příkazy, GPIO, Wi-Fi ani TLS.
 Skutečný výsledek sestavení a mezery akceptace jsou ve stavu implementace.
 Původní sériový prototyp lze sestavit `pio run -e esp32-s3-arduino-serial`.
 
@@ -148,6 +158,17 @@ Pokrývá ztracený ACK a opakování, konflikt ID, mezery v pořadí, vytěsně
 cache, chybu zápisu/uzavření journalu, restart po dokončení i přerušeném
 uvolnění, potvrzený reload a jeho trvalou masku, Stop a výpadek ručního lease při aktivním výstupu. Neověřuje NVS ani
 skutečnou síť.
+
+Hostitelský test trvalého journalu používá také čistý `DeviceControl` a
+paměťový port úložiště:
+
+```text
+g++ -std=c++14 -Wall -Wextra -Werror src/features/safety/SafetyController.cpp src/features/wand_selection/SelectionSequence.cpp src/features/device_control/DeviceControl.cpp src/features/device_control/PersistentCommandJournal.cpp tests/persistent_command_journal_test.cpp -o <docasna-slozka>/persistent_command_journal_test
+<docasna-slozka>/persistent_command_journal_test
+```
+
+Pokrývá restart s otevřeným záznamem, společné uzavření s maskou, chyby
+čtení/zápisu, poškozený blob a blokaci pohybu před úspěšným zápisem.
 
 Čistý model textového sezení lze ověřit samostatně:
 
