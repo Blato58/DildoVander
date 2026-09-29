@@ -2,6 +2,7 @@ import json
 import unittest
 
 from evaluate import (
+    CATALOG,
     MODEL_PRICES,
     build_dialogue_requests,
     build_request,
@@ -24,6 +25,16 @@ class EvalTests(unittest.TestCase):
                 request = build_request(loaded, model)
                 self.assertFalse(request["store"])
                 self.assertLess(upper_bound_micro_usd(request, model), 500_000)
+
+    def test_catalog_has_six_fixed_compartments_and_filters_unavailable_wands(self):
+        self.assertEqual("ollivander-private-party-v1", CATALOG["catalogVersion"])
+        self.assertEqual(list(range(1, 7)),
+                         [wand["compartment"] for wand in CATALOG["wands"]])
+        request = build_request({"readyMask": 16, "visitorText": "Chci hůlku."},
+                                "gpt-6.1-sol")
+        self.assertIn("Kaštanová hůlka Kocovina věštců", request["input"])
+        self.assertNotIn("Jasanová hůlka Poslední slovo", request["input"])
+        self.assertIn("Ollivanderova obchodu", request["instructions"])
 
     def test_unavailable_proposal_is_rejected(self):
         result = {
