@@ -83,7 +83,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 - Rozsah: dopředná transakční migrace SQLite na v3 přidává `conversation_creates` s device-scoped create key, SHA-256 hashem syrového těla, původní conversationId/response expiry a 24h expirací záznamu. `ConversationStore.Create` vyhodnotí retry před kontrolou živého sezení; po restartu stejný key/tělo vrátí původní identitu, jiný obsah 409. Ztracený obsah paměťového sezení se neobnovuje, staré ID nepřijme nový tah a nový rozhovor vyžaduje nový key. Technický journal neukládá text návštěvníka.
 - Ověření: `kufr/backend` `dotnet build backend.csproj` bez varování; `kufr` `dotnet run --project backend-tests/BackendTests.csproj` ověřil create retry/kolizi po znovuotevření DB, migraci osazeného v1 a v2 schématu do v3, zachování kvóty a absenci testovacího textu ve všech čtyřech SQLite tabulkách. `node backend/tests/smoke.mjs` zastavil a znovu spustil skutečný HTTP proces nad stejným souborem: starý token odmítnut, původní create key vrátil stejné conversationId, změněné tělo 409, stejný UUID key jiného zařízení dostal vlastní sezení, ztracený výsledek `result_expired` a nový tah starého sezení 404.
 - Omezení: create odpověď po restartu může odkazovat na již zaniklé sezení; klient musí použít nový key pro nový rozhovor. Staré RAM sezení se bezpečně neobnovuje. Nákladový rozpočet, cleanup/retence, cancellation a další HTTP trasy stále chybí.
-- Revize a doručení: doplnit po ověřeném commitu a skutečném výsledku push.
+- Revize a doručení: E7.3c je v commitu `cf7bc1c679c84fdc3abf98fab83a92ff0919843d`; `./scripts/Push-CurrentBranch.ps1` potvrdil push `main` na `origin/main` v této revizi.
 
 ### D26 – 29. 9. 2026 – E7.3b atomická SQLite kvóta tahů
 
