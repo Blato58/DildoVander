@@ -83,7 +83,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 - Rozsah: `contracts/backend-openapi-v1.json` popisuje device credential výměnu, založení sezení, textový tah a polling jeho operace; oddělená bearer schémata, UUID idempotency hlavičku, ProblemDetails, šestibitovou masku, limit 1000 znaků, stav operace, echo identit a typovaný validovaný návrh. `verify-backend-openapi.mjs` kontroluje reference, požadované trasy/security a pozitivní/chybné hodnoty. `contracts/README.md` a kapitola 6 plánu vymezují tento dílčí kontrakt.
 - Ověření z `kufr/contracts` pod Node 24.21.0: `npm test` — 15 platných a 27 chybných control zpráv a test E2.6a prošly. Backend ještě neexistuje, takže scope, skutečná idempotence, kvóty a retence nebyly ověřeny v HTTP runtime.
 - Omezení: dokument má zatím čtyři trasy; WAV přepis, syntéza, binární audio a rušení/úklid chybí. Otevřené detaily těchto tras se neprohlašují za hotové. Pokračuje E2.6b.
-- Revize a doručení: doplnit po commitu a push.
+- Revize a doručení: E2.6a je v commitu `49ef3f9e283ac36738406a1280383e7d99dc4a80`; `./scripts/Push-CurrentBranch.ps1` potvrdil push `main` na `origin/main` v této revizi.
 
 ### D10 – 29. 9. 2026 – E2.5 webová časová osa simulátoru
 
