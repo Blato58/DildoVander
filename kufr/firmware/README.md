@@ -370,7 +370,7 @@ g++ -std=c++14 -Wall -Wextra -Werror src/features/conversation/TurnPollSchedule.
 Vstupní schránku textového tahu lze ověřit samostatně:
 
 ```text
-g++ -std=c++14 -Wall -Wextra -Werror -pthread src/features/conversation/ConversationSession.cpp src/features/conversation/ConversationTextInbox.cpp tests/conversation_text_inbox_test.cpp -o <docasna-slozka>/conversation_text_inbox_test
+g++ -std=c++14 -Wall -Wextra -Werror -pthread src/features/conversation/ConversationSession.cpp src/features/conversation/ConversationRuntimeState.cpp src/features/conversation/ConversationTextInbox.cpp tests/conversation_text_inbox_test.cpp -o <docasna-slozka>/conversation_text_inbox_test
 <docasna-slozka>/conversation_text_inbox_test
 ```
 
@@ -379,9 +379,11 @@ validovaný UTF-8 text, po důvěryhodném čase a tokenu založí nebo znovu po
 fake backend sezení, odešle tah a omezeně polluje výsledek. Pouze shodná
 odpověď typu `ask`/`no_selection` je přijata do read-only diagnostiky;
 neovládá sekvenci ani GPIO. Volání `QueueTextTurn` zatím nemá v runtime
-producenta. `ConversationRuntimeState` dává síťové úloze jeden uzamčený snapshot
-generace, revize, masky a katalogu; textová schránka uchovává jeho verzi a po
-změně stavu se starý tah zahodí. Inicializace čte dostupnost z NVS journalu,
+producenta. Volající musí předat přesný snapshot, proti kterému už ověřil
+vstup; fronta jej těsně při přijetí znovu porovná a odmítne starou nebo
+nedostupnou verzi. `ConversationRuntimeState` dává síťové úloze jeden uzamčený
+snapshot generace, revize, masky a katalogu; textová schránka uchovává jeho
+verzi a po pozdější změně stavu se starý tah zahodí. Inicializace čte dostupnost z NVS journalu,
 katalog je dočasná verze `neutral-1` a revize/generace jsou 0, protože IDF
 profil dosud nemá běžící místní řízení. Budoucí vlastník řízení musí po každé
 změně journalu, revize nebo generace publikovat snapshot a při poruše jej

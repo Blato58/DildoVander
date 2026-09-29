@@ -6,8 +6,9 @@
 #include "ConversationSession.h"
 
 bool ConversationTextInbox::Submit(const std::string& text,
-                                   uint64_t snapshotVersion) {
-  if (snapshotVersion == 0 || text.size() > 4000 ||
+                                   const ConversationRuntimeSnapshot& expectedSnapshot,
+                                   const ConversationRuntimeState& runtimeState) {
+  if (expectedSnapshot.version == 0 || text.size() > 4000 ||
       !IsValidConversationText(text)) {
     return false;
   }
@@ -25,11 +26,13 @@ bool ConversationTextInbox::Submit(const std::string& text,
   }
 
   std::lock_guard<std::mutex> lock(mutex_);
-  if (!pendingText_.empty()) {
+  // Recheck at admission: a control transition may invalidate the snapshot
+  // while the producer validates text or waits for the inbox lock.
+  if (!pendingText_.empty() || !runtimeState.Matches(expectedSnapshot)) {
     return false;
   }
   pendingText_ = text;
-  pendingVersion_ = snapshotVersion;
+  pendingVersion_ = expectedSnapshot.version;
   return true;
 }
 

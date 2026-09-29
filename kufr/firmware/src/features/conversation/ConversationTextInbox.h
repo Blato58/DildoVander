@@ -5,10 +5,14 @@
 #include <mutex>
 #include <string>
 
+#include "ConversationRuntimeState.h"
+
 // One explicit development text event. No event is replayed after disconnect.
 class ConversationTextInbox final {
  public:
-  bool Submit(const std::string& text, uint64_t snapshotVersion);
+  bool Submit(const std::string& text,
+              const ConversationRuntimeSnapshot& expectedSnapshot,
+              const ConversationRuntimeState& runtimeState);
   bool Take(std::string& text, uint64_t& snapshotVersion);
   void Clear();
 
