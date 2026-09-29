@@ -12,6 +12,7 @@ idf_component_register(
         "features/backend_access/ReconnectPolicy.cpp"
         "features/backend_access/TokenResponseParser.cpp"
         "features/backend_access/TrustedTime.cpp"
+        "features/conversation/ConversationStartCodec.cpp"
         "features/device_control/EspIdfJournalStorage.cpp"
         "features/device_control/PersistentCommandJournal.cpp"
         "features/provisioning/DeviceIdentity.cpp"
