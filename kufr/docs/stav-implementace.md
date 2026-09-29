@@ -83,7 +83,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 - Rozsah: `ConversationSession.h/.cpp` drží jediný aktivní textový tah, `bootId`/conversation ID/generation a nejvýše 10 jedinečných `clientTurnId` na sezení. Při přijetí kontroluje ruční lease, revision, UTF-8 a délku 1–1000 znaků / 8192 bajtů; opakovaný aktivní tah nevyvolá druhé přijetí, pozdější retry dokončeného či zrušeného ID se odmítne. Cancel a ztráta lease zvyšují generation, pozdní dokončení se zahodí. Test kryje tyto stavy, kolize ID, neplatný text a strop tahů. Model nepředává text backendu a nemá fyzický výstup.
 - Ověření: MSVC `cl /nologo /std:c++14 /W4 /WX /EHsc` přes `%TEMP%\dildovander-e2-simulator\build-conversation-test.cmd` nad modelem a testem — úspěšně. `kufr/firmware`: `C:\Users\vojtech.petrik\.platformio\penv\Scripts\pio.exe run` — SUCCESS na Arduino ESP32-S3 profilu. První build před opravou C++11 konstruktoru selhal; opravená verze prošla. Read-only risk review odhalilo možnost znovupřijetí ID po dokončení; doplněna evidence ID po dobu sezení a test.
 - Omezení: model ještě není napojený na WSS/native bridge ani fake backend, proto runtime `conversation.text/cancel` zůstává nepodporovaný. Volající musí před `CompleteTurn` ověřit echo identity backendu a nevytvářet fyzický povel z textu. E2.8b2 propojí model a testuje pozdní výsledek po cancel/lease loss. Browser certifikát E2.5 trvá.
-- Revize a doručení: bude doplněno po commitu a push tohoto slice.
+- Revize a doručení: E2.8b1 je v commitu `b825e1c1b03de917df3fe30bb20bb47312547050`; `./scripts/Push-CurrentBranch.ps1` potvrdil push `main` na `origin/main` v této revizi.
 
 ### D14 – 29. 9. 2026 – E2.8a textový lokální kontrakt
 
