@@ -300,6 +300,11 @@ bool DeviceControl::Tick(uint64_t nowMs, SelectionStep& step) {
   }
 
   if (!executionStarted_) {
+    if (selection_.ObserveControlLoopPass(static_cast<uint32_t>(nowMs),
+                                          step)) {
+      FinishCurrent(CommandOutcome::OutcomeUnknown);
+      return true;
+    }
     return false;
   }
 
@@ -344,6 +349,10 @@ bool DeviceControl::NeedsRecovery() const {
 
 bool DeviceControl::HasPendingSelection() const {
   return !pendingCommandId_.empty();
+}
+
+bool DeviceControl::HasManualControl() const {
+  return !manualLeaseId_.empty();
 }
 
 CommandReceipt DeviceControl::Reject(const SelectionCommand& command,
