@@ -105,7 +105,7 @@ internal static class TextDialogRuntimeTests
         finish.SetResult(new TextDialogResponse(
             "Jaký průšvih má hůlka napravit?", "ask", "", null,
             ResponsesTextDialogBudget.Model, 621, 102));
-        var completed = await PollAsync(store, operationId, "completed");
+        var completed = await PollAsync(store, runner, operationId, "completed");
         var result = completed.Result as TurnResult;
         Require(result?.Decision == "ask" && result.Proposal is null
             && result.Reply == "Jaký průšvih má hůlka napravit?",
@@ -133,7 +133,7 @@ internal static class TextDialogRuntimeTests
         var first = store.SubmitTurn(
             "device-a", conversationId, Guid.NewGuid(), "first"u8, request);
         Require(first.OperationId is not null, "failed provider request was reserved");
-        var failed = await PollAsync(store, first.OperationId!, "failed");
+        var failed = await PollAsync(store, runner, first.OperationId!, "failed");
         Require(failed.Error is not null, "provider failure is visible without visitor text");
         var second = store.SubmitTurn(
             "device-a", conversationId, Guid.NewGuid(), "second"u8,
@@ -178,7 +178,7 @@ internal static class TextDialogRuntimeTests
             var accepted = store.SubmitTurn("device-a", conversationId, Guid.NewGuid(),
                 Encoding.UTF8.GetBytes($"multi-{index}"), request);
             Require(accepted.OperationId is not null, "multi-turn request was accepted");
-            var operation = await PollAsync(store, accepted.OperationId!, "completed");
+            var operation = await PollAsync(store, runner, accepted.OperationId!, "completed");
             var result = (TurnResult)operation.Result!;
             if (index < 2)
             {
@@ -280,12 +280,12 @@ internal static class TextDialogRuntimeTests
         var first = store.SubmitTurn("device-a", created.Response!.ConversationId,
             Guid.NewGuid(), "first"u8, request);
         Require(first.OperationId is not null, "oversized request reserved");
-        await PollAsync(store, first.OperationId!, "failed");
+        await PollAsync(store, runner, first.OperationId!, "failed");
         var second = store.SubmitTurn("device-a", created.Response.ConversationId,
             Guid.NewGuid(), "second"u8, request with { ClientTurnId = Guid.NewGuid() });
         Require(second.Status == 202,
             "pre-send request rejection releases the full cost reservation");
-        await PollAsync(store, second.OperationId!, "failed");
+        await PollAsync(store, runner, second.OperationId!, "failed");
     }
 
     private static async Task RunPromptCancellationAsync(string directory)
@@ -351,14 +351,18 @@ internal static class TextDialogRuntimeTests
 
     private static async Task<TurnOperation> PollAsync(
         ConversationStore store,
+        TextDialogRunner runner,
         string operationId,
         string expectedStatus)
     {
         for (var attempt = 0; attempt < 100; attempt++)
         {
             var operation = store.GetOperation("device-a", operationId).Operation;
-            if (operation?.Status == expectedStatus)
+            if (operation?.Status == expectedStatus && runner.TryAcquire())
             {
+                // Terminal publication precedes the worker's finally block.
+                // Wait for slot cleanup before this test submits its next turn.
+                runner.Release();
                 return operation;
             }
 

@@ -111,7 +111,7 @@ internal static class EveningMemoryTests
         var opening = Turn("");
         var key = Guid.NewGuid();
         var first = store.SubmitTurn("device-a", conversation, key, "opening"u8, opening, opening: true);
-        await CompletedAsync(store, first.OperationId!);
+        await CompletedAsync(store, runner, first.OperationId!);
         Check(calls[0].Text == "" && calls[0].Context == "", "suitcase begins with no invented visitor message");
         Check(store.SubmitTurn("device-a", conversation, key, "opening"u8, opening, opening: true).OperationId
             == first.OperationId && calls.Count == 1, "opening retry does not call model twice");
@@ -119,12 +119,12 @@ internal static class EveningMemoryTests
             Turn(""), opening: true).Status == 409, "opening cannot repeat inside a conversation");
         var answer = store.SubmitTurn("device-a", conversation, Guid.NewGuid(), "answer"u8,
             Turn("Jsem Petr a taxik jsem objednal k sousedum."));
-        await CompletedAsync(store, answer.OperationId!);
+        await CompletedAsync(store, runner, answer.OperationId!);
         store.EndConversation("device-a", conversation, Guid.NewGuid());
         conversation = Create();
         var returning = store.SubmitTurn("device-a", conversation, Guid.NewGuid(), "returning"u8,
             Turn("Petr, uz jsem tu byl."));
-        await CompletedAsync(store, returning.OperationId!);
+        await CompletedAsync(store, runner, returning.OperationId!);
         Check(calls[^1].Context.Contains("sousedum"), "next visitor session recalls earlier answers");
         var oldEvening = memory.GetStatus("device-a").EveningId;
         delayed = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -159,13 +159,14 @@ internal static class EveningMemoryTests
     private static TextDialogResponse Reply(string text) =>
         new(text, "ask", "", null, ResponsesTextDialogBudget.Model, 100, 30);
 
-    private static async Task CompletedAsync(ConversationStore store, string operationId)
+    private static async Task CompletedAsync(ConversationStore store, TextDialogRunner runner, string operationId)
     {
         for (var attempt = 0; attempt < 200; attempt++)
         {
             var result = store.GetOperation("device-a", operationId);
-            if (result.Operation?.Status == "completed")
+            if (result.Operation?.Status == "completed" && runner.TryAcquire())
             {
+                runner.Release();
                 return;
             }
             await Task.Delay(10);

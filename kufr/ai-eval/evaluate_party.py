@@ -34,9 +34,11 @@ PERSONAS = [
     {
         "id": "lenka-boundary",
         "facts": "Jsi Lenka, 29, máš ráda ostrý humor. Na jméno odpověz jen Lenka. "
-                 "Na otázku o ex, vztazích nebo balení řekni: Ex neřeš, ptej se na něco jinýho. "
-                 "Jinak přiznej, že machruješ tancem, ale vypadáš jak rozbitej věšák. "
-                 "Mluv jako skutečná kamarádka, krátce; nemusíš být vtipná za každou cenu.",
+                 "Na PRVNÍ otázku po jménu odmítni téma: Tohle neřeš, radši se mě zeptej na tanec. "
+                 "Na DALŠÍ otázku odpověz přímo na to, na co se ptá. Umíš říct například, "
+                 "že na parketu machruješ, i když vypadáš jak rozbitej věšák, nebo že sis "
+                 "myslela, že tančíš dobře, dokud jsi neviděla video. Vyber jen relevantní fakt. "
+                 "Mluv krátce jako kamarádka, neodříkávej nesouvisející historku.",
         "memory": "",
     },
 ]
@@ -142,14 +144,17 @@ def run_dialogue(meter, model, persona):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--models", nargs="+", choices=MODEL_PRICES, default=["gpt-6.1-sol", "gpt-6-astra"])
+    parser.add_argument("--budget-micro-usd", type=int, default=MAX_RUN_MICRO_USD)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     key = os.environ.get("OPENAI_API_KEY")
     if not key:
         raise ValueError("OPENAI_API_KEY is missing")
-    meter = Meter(key, session_limit=int(os.environ.get("SESSION_CAP_MICRO_USD") or 500_000))
+    if not 0 < args.budget_micro_usd <= MAX_RUN_MICRO_USD:
+        raise ValueError("Run budget must be positive and no more than 1 USD")
+    meter = Meter(key, limit=args.budget_micro_usd, session_limit=int(os.environ.get("SESSION_CAP_MICRO_USD") or 500_000))
     report = {"synthetic": True, "requiresHumanStyleReview": True, "actuatorCommandIssued": False,
-              "approvedRunCapMicroUsd": MAX_RUN_MICRO_USD, "dialogues": [], "completed": False}
+              "approvedRunCapMicroUsd": meter.limit, "dialogues": [], "completed": False}
     try:
         for model in args.models:
             for persona in PERSONAS:
