@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { request } from 'node:http';
 import { createServer } from 'node:net';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -278,13 +279,24 @@ try {
   malformedWav.writeUInt32LE(44100, 24);
   assert.equal((await transcribe(transcriptionPath, tokenA, randomUUID(), transcriptionFields, malformedWav)).status, 400);
   assert.equal((await transcribe(transcriptionPath, tokenA, randomUUID(), transcriptionFields, makeWav(1_920_002))).status, 413);
-  const oversizedForm = new FormData();
-  oversizedForm.append('wav', new Blob([Buffer.alloc(2_000_001)], { type: 'audio/wav' }), 'oversized.wav');
-  assert.equal((await fetch(`${baseUrl}${transcriptionPath}`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${tokenA}`, 'Idempotency-Key': randomUUID() },
-    body: oversizedForm
-  })).status, 413);
+  const oversizedStatus = await new Promise((resolve, reject) => {
+    const oversizedRequest = request(`${baseUrl}${transcriptionPath}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${tokenA}`,
+        'Idempotency-Key': randomUUID(),
+        'Content-Type': 'multipart/form-data; boundary=oversized',
+        'Content-Length': 2_000_001
+      }
+    }, response => {
+      response.resume();
+      response.on('end', () => resolve(response.statusCode));
+    });
+    oversizedRequest.on('error', reject);
+    oversizedRequest.setTimeout(5000, () => oversizedRequest.destroy(new Error('Oversized request timed out')));
+    oversizedRequest.flushHeaders();
+  });
+  assert.equal(oversizedStatus, 413);
   const chunkedBoundary = 'kufr-test-boundary';
   const chunkedResponse = await fetch(`${baseUrl}${transcriptionPath}`, {
     method: 'POST',
