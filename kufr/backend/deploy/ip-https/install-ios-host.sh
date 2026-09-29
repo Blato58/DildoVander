@@ -44,9 +44,20 @@ fi
 previous_site=$(mktemp)
 cp -- "$site" "$previous_site"
 sed "s/__PUBLIC_IP__/$public_ip/g" "$script_dir/kufr-ip-https.conf.in" > "$site"
-if ! nginx -t || ! systemctl reload nginx.service ||
-    ! curl --fail --silent --show-error --max-time 10 --connect-to \
+wait_for_ios_site() {
+  local attempt
+  for attempt in {1..10}; do
+    if curl --fail --silent --max-time 10 --connect-to \
       "$public_ip:443:127.0.0.1:443" -o /dev/null "https://$public_ip/ios/"; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo 'The iOS route did not become available after the Nginx reload.' >&2
+  return 1
+}
+
+if ! nginx -t || ! systemctl reload nginx.service || ! wait_for_ios_site; then
   cp -- "$previous_site" "$site"
   nginx -t
   systemctl reload nginx.service
