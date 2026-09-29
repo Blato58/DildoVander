@@ -32,8 +32,12 @@ src/
     wand_selection/
       SelectionSequence.h/.cpp              čistá, časovaná posloupnost
       SerialSelectionPort.h/.cpp            vývojové příkazy a výpis požadavků
+    device_control/
+      DeviceControl.h/.cpp                  hostitelský model ručního příkazu
+      CommandJournal.h                     port pro zápis před pohybem
 tests/
   selection_sequence_test.cpp               test bez hardwaru
+  device_control_test.cpp                   test idempotence a restartu
 ```
 
 První slice řídí výběr jedné ze šesti hůlek. `SelectionSequence` přijímá
@@ -57,6 +61,16 @@ až při dalším průchodu; nezávislé vypnutí při úplném zamrznutí musí
 budoucí hardwarový watchdog a inhibit.
 Časování je zatím výchozí pro prototyp; délku pulzů a polohu serva
 bude třeba doladit podle skutečné mechaniky a měření proudu.
+
+`DeviceControl` je čistý model E2.2 pro pozdějšího jediného vlastníka povelů.
+Po autentizaci/ověření obálky přijme ruční výběr jen v platném lease, s
+očekávaným `bootId`, pořadím a revision. Uchovává posledních 64 výsledků,
+takže stejný `commandId` a obsah znovu nespustí výběr. Před pohybem vyžaduje
+úspěšný zápis přes `CommandJournal`, potom odděluje přijetí od spuštění
+sekvence. Dokončení musí atomicky uložit novou masku dostupnosti a uzavřít
+journal; při přerušení záznam zůstává otevřený až do kontroly obsluhou.
+Hostitelské testy používají fake journal a čas; skutečný NVS adaptér,
+TLS/parser a zapojení tohoto modelu do `main.cpp` zatím nejsou hotové.
 
 `SerialSelectionPort` je první vstup/výstup pro vývoj bez zapojené elektroniky.
 Příkazy na sériovém monitoru (115200 Bd, ukončení řádku LF nebo CRLF):
@@ -97,11 +111,24 @@ smyčkou, poruchu, ztrátu ručního lease a vzájemné vyloučení výstupů. N
 ESP32 ani knihovnu Arduino.
 Na Windows lze použít také Visual Studio Developer Command Prompt a `cl`.
 
+Hostitelský test modelu příkazů používá stejné čisté zdroje a navíc
+`device_control/DeviceControl.cpp`:
+
+```text
+g++ -std=c++11 -Wall -Wextra -Werror src/features/safety/SafetyController.cpp src/features/wand_selection/SelectionSequence.cpp src/features/device_control/DeviceControl.cpp tests/device_control_test.cpp -o <docasna-slozka>/device_control_test
+<docasna-slozka>/device_control_test
+```
+
+Pokrývá ztracený ACK a opakování, konflikt ID, mezery v pořadí, vytěsnění z
+cache, chybu zápisu/uzavření journalu, restart po dokončení i přerušeném
+uvolnění, Stop a výpadek ručního lease při aktivním výstupu. Neověřuje NVS ani
+skutečnou síť.
+
 ## Další slices a podmínky zapojení
 
 Pořadí a akceptace se řídí kapitolou 12 plánu; rozpracovaný krok se vede
-výhradně ve stavu implementace. E1.1 přidává Stop, safety port,
-časové limity a testy bez desky. Další krok určuje stav; migrace
+výhradně ve stavu implementace. E1 přidalo Stop, safety port, časové limity a
+testy bez desky; E2.2 přidává model ručního příkazu. Další krok určuje stav; migrace
 runtime a přímé HTTPS/WSS spojení patří E4. E5/E6 teprve připojí jednu
 a potom šest skutečných přihrádek po ověření zapojení a bezpečnostního obvodu.
 

@@ -1,20 +1,20 @@
 # Stav implementace AI kufru
 
-Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální firmware build E1.2 a kontrola fixtures E2.1. Ostatní etapy, hardware, iPhone a CI zůstávají bez runtime akceptace. Hotový návrh není hotová implementace.
+Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální firmware build E2.2 a kontrola fixtures E2.1. Ostatní etapy, hardware, iPhone a CI zůstávají bez runtime akceptace. Hotový návrh není hotová implementace.
 
 [Implementační plán](implementacni-plan.md) určuje architekturu a akceptaci. [AGENTS.md](../../AGENTS.md) určuje pracovní postup AI. Tento soubor je jediný průběžný záznam postupu; README ho pouze odkazují.
 
 ## Předání další AI
 
-**Aktivní implementační krok:** žádný. E2.1 bylo 29. 9. 2026 implementováno a ověřeno fixtures; rozsah a kontroly jsou v deníku D3. E1 je dokončené jako softwarové jádro bez desky. Fyzické nezávislé vypnutí při zamrzlé smyčce a další měření zůstávají kritérii E5.
+**Aktivní implementační krok:** žádný. E2.2 bylo 29. 9. 2026 implementováno a hostitelsky ověřeno; rozsah a kontroly jsou v deníku D4. E1 je dokončené jako softwarové jádro bez desky. Fyzické nezávislé vypnutí při zamrzlé smyčce a další měření zůstávají kritérii E5.
 
-**Další konkrétní krok: E2.2 – hostitelský model příkazů se simulovaným časem a journalem.**
+**Další konkrétní krok: E2.3 – časová osa a spustitelný hostitelský simulátor.**
 
-1. Nad čistým C++ `SelectionSequence` postavit hostitelský model vlastníka stavu s fake clock, bootId, revision, monotónním pořadím a 64 výsledky. Znovu použít typy/fixtures E2.1, nezavádět GPIO ani síťové spojení před E4.
-2. Simulovat zápis malého journalu před prvním pohybem, zamítnutí při chybě zápisu a `RecoveryRequired` po restartu s neuzavřeným záznamem. Ověřit ztracený ACK, duplicitu, změněný payload pod stejným ID, starý příkaz a Stop před běžným výběrem; nepřijetí se nesmí změnit v druhou aktivaci.
-3. Další E2 slices doplní WSS facade/UI časovou osu, zbývající zprávy a OpenAPI backendu. Samostatná HW akceptace zůstává v E5 po vstupu B1.
+1. Nad `DeviceControl`, `SelectionSequence` a fake portem vytvořit spustitelný hostitelský proces, který řízeným časem vypisuje bezpečnou časovou osu požadavků na LED/motor/západku a stav journalu. Znovu použít E2.1 fixtures pro vstup nebo ověřovací scénář; neoznačovat simulaci za fyzický kufr.
+2. Umožnit deterministické scénáře ztraceného ACK, Stop/lease ztráty, restartu a poruchy journalu; integračně doložit jeden výběr a žádný druhý při retry. Následující E2 slices doplní WSS facade, zbývající zprávy a OpenAPI backendu.
+3. Samostatná HW akceptace zůstává v E5 po vstupu B1.
 
-Předpokládané dotčené cesty: `kufr/simulator/`, `kufr/firmware/src/features/device_control/`, sdílené fixtures/testy a související README. Krok nevyžaduje fyzickou desku, cloudový klíč ani Apple certifikát. Toto je implementační předání, nikoli příkaz něco nahrát či publikovat.
+Předpokládané dotčené cesty: `kufr/simulator/`, sdílené fixtures/testy a související README. Krok nevyžaduje fyzickou desku, cloudový klíč ani Apple certifikát. Toto je implementační předání, nikoli příkaz něco nahrát či publikovat.
 
 Pokud uživatel omezí práci pouze na mobilní aplikaci, neoznačuj závislosti E2 za splněné. Lze připravit samostatnou UI část E3 proti výslovně označenému fake transportu, ale E3 zůstane částečné do integrace se simulátorem/protokolem E2. Rozsah a mezeru zapiš sem.
 
@@ -34,7 +34,7 @@ Pokud uživatel omezí práci pouze na mobilní aplikaci, neoznačuj závislosti
 
 | Část | Co skutečně existuje | Co zatím chybí |
 | --- | --- | --- |
-| Firmware | Čistá neblokující `SelectionSequence`, `SafetyController` s portem pro požadavky na bezpečný výstup, Stop/poruchu/zotavení, hostitelský timeout smyčky a vstup ztráty ručního lease; sériové `select 1..6`, `stop`, `reset`, `status`, `help`. Hostitelské testy a lokální Arduino/PlatformIO build E1.2. | Nezávislý fyzický watchdog/inhibit, GPIO, síťový detektor lease, provisioning, I2S, dialog a skutečné ovládání. |
+| Firmware | Čistá neblokující `SelectionSequence`/`SafetyController` z E1 a čistý, zatím nezapojený `DeviceControl` s fake clock vstupy, 64 výsledky a `CommandJournal` portem E2.2. Sériové `select 1..6`, `stop`, `reset`, `status`, `help` zůstává vývojovým vstupem. Hostitelské testy a lokální Arduino/PlatformIO build prošly. | Nezávislý fyzický watchdog/inhibit, skutečný NVS journal/GPIO/síťový detektor lease, provisioning, I2S, dialog a ovládání. |
 | Mobil | Statická obrazovka TypeScript/Vite, build script a lockfile. | Interaktivní ruční řízení, transport, simulátor, Capacitor, iOS/Swift projekt a testy. |
 | Backend/kontrakty/simulátor | První část lokálního protokolu v `contracts/control-message-v1.schema.json`, osm pozitivních a 23 negativních kontrol, připnutý Node/npm test E2.1. | Backend, OpenAPI, simulátor, autentizace, fake/AI adaptéry, zbývající schémata a integrační testy. |
 | iOS CI | Majitelem popsaný existující postup Windows → macOS runner → podepsaná IPA. | Skutečný workflow v tomto checkoutu, ověřená identita/profil a běh/instalace. |
@@ -50,7 +50,7 @@ Přesné závislosti a kritéria dokončení jsou v kapitole 12 plánu. Následu
 | --- | --- | --- | --- |
 | E0 – provozní předpoklady | rozpracováno | Architektonické výchozí předpoklady v plánu; žádná měření. | Vstupy B1–B5 níže; software E1 může začít. |
 | E1 – bezpečné jádro | hotovo | E1.1: Stop v každé fázi, safety port, 250/500/5000ms limity, explicitní zotavení (D1). E1.2: hostitelský timeout průchodu smyčkou, porucha, výpadek ručního lease a přednost Stop; hostitelské testy a firmware build prošly (D2). | Fyzická reakce nezávislého watchdogu patří E5 a nebyla měřena; softwarový model vypíná až při dalším průchodu smyčkou. |
-| E2 – smlouvy a simulátor | rozpracováno | E2.1: první JSON Schema lokálního protokolu, přísný parser a pozitivní/chybné fixtures (D3). | E2.2 fake clock, journal a idempotence; potom WSS facade, UI časová osa, další zprávy a OpenAPI. Kritéria ztraceného ACK/restartu zatím nesplněna. |
+| E2 – smlouvy a simulátor | rozpracováno | E2.1: první JSON Schema lokálního protokolu, přísný parser a pozitivní/chybné fixtures (D3). E2.2: C++ model fake času, journalu, idempotence a hostitelské scénáře ztraceného ACK/restartu (D4). | E2.3 spustitelný simulátor/časová osa; potom WSS facade, integrace parseru, další zprávy a OpenAPI. Kritéria E2 zatím nejsou integračně doložena přes protokol. |
 | E3 – ruční mobil bez HW | nezahájeno | Statická stránka není ruční řízení. | E2; UI, potvrzení/Stop a integrace. |
 | E3a – iOS CI základ | nezahájeno | Jen majitelem popsaný postup. | E3; B2/B3 pro podpis a skutečnou instalaci. |
 | E4 – runtime a přímá síť | nezahájeno | Arduino prototyp. | E2; pro nahrání B1. |
@@ -77,6 +77,15 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 | B5 | Majitel: finální katalog a publikum, rozměry, router a prostředí akce. | Obsahovou/provozní akceptaci E8/E11 a finální mechaniku. | Neutrální testovací katalog a laboratorní/simulované scénáře. |
 
 ## Deník změn a ověření
+
+### D4 – 29. 9. 2026 – E2.2 model příkazu a journalu
+
+- Převzetí: E2.1 bylo doručeno v `b2e9b8d9fc2ddb362b2ae31b0a98fad4a53bd12e`; krok E2.2 byl při zahájení zapsán jako aktivní. Schéma E2.1 validuje syrové zprávy, tento krok navazuje až na strukturovaný příkaz; propojení parseru s modelem zůstává na E2.3 a další E2 slices.
+- Rozsah: nové `firmware/src/features/device_control/CommandJournal.h` a `DeviceControl.h/.cpp` modelují ruční lease 6 s, `bootId`/revision/pořadí, 64 posledních výsledků, konflikt ID, zamítnutí starého příkazu a zápis journalu před prvním pohybem. Přijetí a spuštění jsou samostatné operace. Při přerušení zůstává journal otevřený; po kontrole obsluhou se označí přihrádka jako nedostupná. Dokončení musí v jedné trvalé operaci uložit novou masku a uzavřít journal. Po selhání uzavření se nesmí emitovat dokončený výsledek. `firmware/tests/device_control_test.cpp` používá fake čas, port a journal; firmware README popisuje omezení.
+- Ověření z `%TEMP%\dildovander-e2-validation`: `cmd /c '"C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Auxiliary\Build\vcvars64.bat" >nul && cl /nologo /std:c++14 /W4 /WX /EHsc C:\Development\DildoVander\kufr\firmware\src\features\safety\SafetyController.cpp C:\Development\DildoVander\kufr\firmware\src\features\wand_selection\SelectionSequence.cpp C:\Development\DildoVander\kufr\firmware\src\features\device_control\DeviceControl.cpp C:\Development\DildoVander\kufr\firmware\tests\device_control_test.cpp /Fe:device_control_test.exe'`, pak `.\device_control_test.exe` — úspěšně. Scénáře pokrývají ztracený ACK, stejné/změněné ID, 64 výsledků a vytěsnění, neplatnou obálku, zpožděný příkaz, auth/lease, poruchu journalu, restart po přijetí i přerušeném uvolnění, perzistovanou nedostupnost po dokončení a vypnutí při ztrátě lease.
+- Firmware build z `kufr/firmware`: `& 'C:\Users\vojtech.petrik\.platformio\penv\Scripts\pio.exe' run` — **SUCCESS**, `espressif32@7.1.3`/Arduino; 18 660 B RAM a 279 157 B flash. První pokus selhal na C++11 inicializaci `CommandReceipt`; po přidání konstruktoru prošel. `DeviceControl` se překládá, ale není zapojený do `main.cpp`, takže velikost výsledné binárky není měřením jeho provozní paměti.
+- Revize a doručení: změny jsou připravené pro commit/push tohoto slice; skutečné SHA a výsledek doplnit po doručení. Neprovedeno: skutečná NVS atomicita, síť/parser/TLS, hardware a společný C++/TypeScript/.NET fixture test. Fake ověření nesmí nahradit tyto integrační a fyzické kontroly.
+- Předání: E2 zůstává rozpracované. Následuje E2.3 podle horní části souboru.
 
 ### D3 – 29. 9. 2026 – E2.1 první sdílené kontrakty
 

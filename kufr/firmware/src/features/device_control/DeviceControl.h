@@ -1,0 +1,124 @@
+#pragma once
+
+#include <stdint.h>
+#include <stddef.h>
+
+#include <array>
+#include <string>
+
+#include "../wand_selection/SelectionSequence.h"
+#include "CommandJournal.h"
+
+enum class SelectionSource : uint8_t {
+  Manual,
+  OperatorConfirmedAi,
+  OperatorCorrectedAi,
+  ButtonConfirmedAi,
+};
+
+enum class CommandError : uint8_t {
+  None,
+  InvalidMessage,
+  Unauthorized,
+  WrongBoot,
+  LeaseExpired,
+  Expired,
+  StaleRevision,
+  SequenceGap,
+  AlreadySeenResultUnavailable,
+  IdConflict,
+  Busy,
+  CompartmentUnavailable,
+  NotCalibrated,
+  SafetyLatched,
+  JournalFailed,
+};
+
+enum class CommandOutcome : uint8_t {
+  Rejected,
+  Accepted,
+  Completed,
+  OutcomeUnknown,
+};
+
+struct SelectionCommand {
+  std::string commandId;
+  std::string deviceId;
+  std::string bootId;
+  std::string controlLeaseId;
+  uint64_t sequence = 0;
+  uint64_t expectedRevision = 0;
+  uint64_t issuedAtDeviceMs = 0;
+  uint32_t maxAgeMs = 0;
+  uint8_t compartment = 0;
+  SelectionSource source = SelectionSource::Manual;
+
+  bool SameContentAs(const SelectionCommand& other) const;
+};
+
+struct CommandReceipt {
+  CommandReceipt(CommandError error = CommandError::None,
+                 CommandOutcome outcome = CommandOutcome::Rejected,
+                 bool duplicate = false)
+      : error(error), outcome(outcome), duplicate(duplicate) {}
+
+  CommandError error;
+  CommandOutcome outcome;
+  bool duplicate;
+};
+
+class DeviceControl {
+ public:
+  static constexpr uint64_t ManualLeaseDurationMs = 6000;
+  static constexpr size_t ResultCacheSize = 64;
+
+  DeviceControl(const std::string& deviceId, const std::string& bootId,
+                SelectionSequence& sequence, CommandJournal& journal,
+                uint64_t calibrationRevision);
+
+  bool RecoverAfterInspection();
+  bool AcquireManualControl(const std::string& leaseId, uint64_t nowMs);
+  bool RenewManualLease(const std::string& leaseId, uint64_t nowMs);
+  bool DisconnectManualControl(SelectionStep& step);
+
+  CommandReceipt AcceptSelection(const SelectionCommand& command,
+                                 bool authenticated, uint64_t nowMs);
+  bool BeginAcceptedSelection(uint64_t nowMs, SelectionStep& step);
+  bool Tick(uint64_t nowMs, SelectionStep& step);
+  bool Stop(SelectionStep& step);
+
+  uint64_t Revision() const;
+  uint8_t ReadyMask() const;
+  bool NeedsRecovery() const;
+  bool HasPendingSelection() const;
+
+ private:
+  struct CachedResult {
+    bool occupied = false;
+    SelectionCommand command;
+    CommandReceipt receipt;
+  };
+
+  CommandReceipt Reject(const SelectionCommand& command, CommandError error,
+                        bool consumeSequence);
+  void Remember(const SelectionCommand& command, CommandReceipt receipt);
+  CachedResult* FindCached(const std::string& commandId);
+  CommandOutcome FinishCurrent(CommandOutcome outcome);
+  bool LoseManualControl(SelectionStep& step);
+
+  std::string deviceId_;
+  std::string bootId_;
+  SelectionSequence& selection_;
+  CommandJournal& journal_;
+  uint8_t readyMask_;
+  uint64_t calibrationRevision_;
+  uint64_t revision_ = 0;
+  uint64_t lastSequence_ = 0;
+  uint64_t leaseExpiresAtMs_ = 0;
+  std::string manualLeaseId_;
+  std::array<CachedResult, ResultCacheSize> recentResults_;
+  size_t nextResultIndex_ = 0;
+  std::string pendingCommandId_;
+  uint8_t pendingCompartment_ = 0;
+  bool executionStarted_ = false;
+};
