@@ -83,7 +83,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 - Rozsah: `mobilni-aplikace/src/features/device_connection/FakeDeviceConnection.ts` drží místní observer/manual lease, šestibitovou dostupnost, běžící simulovanou sekvenci, Stop s konzervativní nedostupností rozběhnuté přihrádky a explicitní fake kontrolu. `src/main.ts`/`style.css` zobrazují šest přihrádek, stav, převzetí/uvolnění, dvojí potvrzení výběru a založení; všechny akce jsou označené jako simulace bez připojení. Skrytí stránky uvolní lease. `index.html` a mobilní README odpovídají novému UI. Žádný token, síťový transport ani fyzický aktuátor nejsou součástí stránky.
 - Ověření: v `kufr/mobilni-aplikace` pod Node 24.21.0 `npm ci` (0 známých zranitelností) a `npm run build` (`tsc --noEmit && vite build`) prošly. In-app Browser na `http://127.0.0.1:5173/`: výchozí observer zablokoval všech šest tlačítek, převzetí povolilo výběr, potvrzení spustilo fake sekvenci, dokončení snížilo masku, potvrzení založení ji obnovilo, Stop během dalšího výběru snížil masku a zakázal akce; konzole neměla chyby. Prohlédnut úzký viewport 390×844.
 - Omezení: fake stav se resetuje při reloadu; časování/lease nejsou odvozeny z E2 C++ modelu, síťové chyby nejsou vyzkoušené. Mobil ani iPhone nejsou připojené ke kufru. Následuje E3.2 proti simulátoru; E2.5 stále čeká browser s důvěryhodným certifikátem.
-- Revize a doručení: místní změny, commit/push po závěrečné kontrole tohoto slice.
+- Revize a doručení: E3.1 je v commitu `b00faeade3d11dbc8e860e3471cc71579e635dbb`; `./scripts/Push-CurrentBranch.ps1` potvrdil push `main` na `origin/main` v této revizi.
 
 ### D18 – 29. 9. 2026 – E2.9b oddělený fake media socket
 
