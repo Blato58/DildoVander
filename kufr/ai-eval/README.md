@@ -30,7 +30,11 @@ Neplatný, odmítnutý či neúplný výsledek končí bezpečnou chybou. Kvalit
 ## Spuštění
 
 V Actions vyber **Kufr AI development eval → Run workflow**, model a
-jeden případ. Jeden běh = jeden placený textový tah. Výsledek je v logu
+jeden identifikátor z 62 případů v `cases.json` (60 českých a dvě jazykové
+odbočky). Jeden běh = jeden placený
+textový tah. Korpus pokrývá dostupnost, nejasný výběr, pokusy změnit pravidla,
+fyzickou hranici, party humor a různé podoby češtiny; samotná existence scénářů
+neznamená, že model prošel jejich živým ani lidským hodnocením. Výsledek je v logu
 a v artefaktu kufr-ai-evaluation. Všechny scénáře v cases.json jsou
 fiktivní; nepoužívej osobní údaje skutečných návštěvníků.
 
