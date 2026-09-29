@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 
 namespace Kufr.Backend.Features.Conversations;
@@ -12,6 +13,10 @@ internal sealed class ResponsesTextDialogClient(
 {
     private const int MaxOutputTokens = 1200;
     private const int MaxResponseBytes = 65_536;
+    private static readonly JsonSerializerOptions RequestJsonOptions = new()
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
     private static readonly TimeSpan DefaultRequestTimeout = TimeSpan.FromSeconds(45);
     private static readonly Uri Endpoint = new("https://api.openai.com/v1/responses");
     private static readonly string Instructions = ReadInstructions();
@@ -19,6 +24,8 @@ internal sealed class ResponsesTextDialogClient(
     public async Task<TextDialogResponse> GenerateAsync(
         string visitorText,
         int readyMask,
+        IReadOnlyList<DialogExchange> history,
+        bool requireQuestion,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(model)
@@ -31,9 +38,21 @@ internal sealed class ResponsesTextDialogClient(
 
         var available = Enumerable.Range(1, 6)
             .Where(number => (readyMask & (1 << (number - 1))) != 0);
+        if (history.Count > 2 || history.Any(exchange =>
+                exchange.VisitorText.Length > 500 || exchange.Reply.Length > 300))
+        {
+            throw new ArgumentException("Dialogue history exceeds its bounds.");
+        }
+
         var input = $"Dostupné přihrádky: [{string.Join(", ", available)}]. "
             + "Nejsou-li dostupné žádné, vrať no_selection. "
             + "Katalog: neutrální Hůlka 1 až Hůlka 6. "
+            + "Dokončené výměny (odpovědi návštěvníka používej pro závěrečný vtip): "
+            + JsonSerializer.Serialize(history, RequestJsonOptions)
+            + ". "
+            + (requireQuestion
+                ? "V tomto tahu polož vlastní navazující otázku; výběr zatím nenavrhuj. "
+                : "")
             + $"Text návštěvníka: {visitorText}";
         var requestBody = new
         {
@@ -50,14 +69,20 @@ internal sealed class ResponsesTextDialogClient(
                     type = "json_schema",
                     name = "wand_decision",
                     strict = true,
-                    schema = ResultSchema
+                    schema = ResultSchema(requireQuestion, readyMask)
                 }
             }
         };
 
+        var payload = JsonSerializer.Serialize(requestBody, RequestJsonOptions);
+        if (Encoding.UTF8.GetByteCount(payload) > ResponsesTextDialogBudget.MaxRequestBytes)
+        {
+            throw new TextDialogRequestTooLargeException();
+        }
+
         using var request = new HttpRequestMessage(HttpMethod.Post, Endpoint)
         {
-            Content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json")
+            Content = new StringContent(payload, Encoding.UTF8, "application/json")
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -98,7 +123,13 @@ internal sealed class ResponsesTextDialogClient(
         try
         {
             using var document = JsonDocument.Parse(buffer.AsMemory(0, count));
-            return ParseResponse(document.RootElement, readyMask);
+            var result = ParseResponse(document.RootElement, readyMask);
+            if (requireQuestion && result.Decision == "propose")
+            {
+                throw new TextDialogUnavailableException("Provider proposed before clarification.");
+            }
+
+            return result;
         }
         catch (JsonException)
         {
@@ -271,14 +302,22 @@ internal sealed class ResponsesTextDialogClient(
         return reader.ReadToEnd().Trim();
     }
 
-    private static readonly object ResultSchema = new
+    private static object ResultSchema(bool requireQuestion, int readyMask) => new
     {
         type = "object",
         additionalProperties = false,
         properties = new
         {
             reply = new { type = "string" },
-            decision = new { type = "string", @enum = new[] { "ask", "propose", "no_selection" } },
+            decision = new
+            {
+                type = "string",
+                @enum = readyMask == 0
+                    ? new[] { "no_selection" }
+                    : requireQuestion
+                        ? new[] { "ask", "no_selection" }
+                        : new[] { "ask", "propose", "no_selection" }
+            },
             compartment = new { type = new[] { "integer", "null" }, @enum = new object?[] { 1, 2, 3, 4, 5, 6, null } },
             reason = new { type = "string" }
         },
@@ -295,4 +334,8 @@ internal sealed record TextDialogResponse(
     int InputTokens,
     int OutputTokens);
 
+internal sealed record DialogExchange(string VisitorText, string Reply);
+
 internal sealed class TextDialogUnavailableException(string message) : Exception(message);
+
+internal sealed class TextDialogRequestTooLargeException() : Exception("Dialogue request exceeds its reserved size.");

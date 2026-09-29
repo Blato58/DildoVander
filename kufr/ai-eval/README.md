@@ -42,6 +42,14 @@ Lokální kontrola bez placeného volání:
 
     python -m unittest discover -s kufr/ai-eval -p 'test_*.py'
 
+`dialogue_cases.json` obsahuje syntetické tříkrokové rozhovory pro offline test.
+`build_dialogue_requests` skládá každý další požadavek z nejvýše dvou dokončených
+výměn a odmítá návrh před dvěma dokončenými otázkami. Test zahrnuje ostrý
+roast konkrétního politického slibu a scénář bez dostupné přihrádky.
+Tyto fixtures nejsou živé hodnocení stylu modelu. Backend drží krátkou historii
+jen v paměti do konce sezení a před odesláním omezuje celé JSON tělo na 14 kB,
+aby zůstala zachována rezervace 0,05 USD na tah.
+
 Pro lokální placený pokus nastav OPENAI_API_KEY pouze v prostředí procesu
 a spusť python kufr/ai-eval/evaluate.py --case none_ready. Klíč se
 neukládá do projektu. Při časovém limitu se POST neopakuje automaticky,

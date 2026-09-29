@@ -11,6 +11,7 @@ from decimal import Decimal
 from pathlib import Path
 
 CASES = Path(__file__).with_name("cases.json")
+DIALOGUE_CASES = Path(__file__).with_name("dialogue_cases.json")
 MODEL_PRICES = {
     # USD per million tokens; input uses the higher cache-write rate.
     "gpt-6.1-sol": (Decimal("2.50"), Decimal("10")),
@@ -52,12 +53,19 @@ def load_case(case_id):
     return case
 
 
-def build_request(case, model):
+def build_request(case, model, history=()):
     mask = case["readyMask"]
+    if len(history) > 2 or any(
+        len(exchange["VisitorText"]) > 500 or len(exchange["Reply"]) > 300
+        for exchange in history
+    ):
+        raise ValueError("Dialogue history exceeds its bounds")
     available = [number for number in range(1, 7) if mask & (1 << (number - 1))]
     prompt = (
         f"Dostupné přihrádky: {available}. Nejsou-li dostupné žádné, "
         "vrať no_selection. Katalog: neutrální Hůlka 1 až Hůlka 6. "
+        "Dokončené výměny (odpovědi návštěvníka používej pro závěrečný vtip): "
+        f"{json.dumps(history, ensure_ascii=False)}. "
         f"Text návštěvníka: {case['visitorText']}"
     )
     return {
@@ -76,6 +84,37 @@ def build_request(case, model):
             }
         },
     }
+
+
+def load_dialogue_case(case_id):
+    cases = json.loads(DIALOGUE_CASES.read_text(encoding="utf-8"))
+    matches = [case for case in cases if case["id"] == case_id]
+    if len(matches) != 1:
+        raise ValueError(f"Unknown dialogue case: {case_id}")
+    return matches[0]
+
+
+def build_dialogue_requests(case, model):
+    """Offline request sequence; never sends a provider call."""
+    history = []
+    requests = []
+    completed_questions = 0
+    for turn in case["turns"]:
+        request_case = {
+            "readyMask": case["readyMask"],
+            "visitorText": turn["visitorText"],
+        }
+        requests.append(build_request(request_case, model, history))
+        result = validate_result(turn["mockResult"], case["readyMask"])
+        if result["decision"] == "propose" and completed_questions < 2:
+            raise ValueError("Proposal before two completed questions")
+        if result["decision"] == "ask":
+            completed_questions += 1
+        history = (history + [{
+            "VisitorText": turn["visitorText"][:500],
+            "Reply": result["reply"][:300],
+        }])[-2:]
+    return requests
 
 
 def upper_bound_micro_usd(request, model):

@@ -18,6 +18,12 @@ ponechá rezervaci a restart volání neopakuje. Zrušený tah nezveřejní pozd
 výsledek, ale skutečně vrácené tokeny vyúčtuje. Návrh přihrádky vzniká na
 serveru s korelací a expirací 60 sekund.
 Žádná trasa neovládá aktuátory.
+V režimu `responses` vytváří otázky i pointu model. První dva dokončené
+dialogové tahy vyžadují otázku; schema v nich nepovolí návrh přihrádky.
+Dvě poslední výměny (nejvýše 500 znaků vstupu a 300 znaků odpovědi v každé)
+zůstávají jen v RAM po dobu sezení a další tah je předá modelu. Ukončení či
+expirace sezení je odstraní. Celé odeslané JSON tělo je omezeno na 14 kB,
+takže i s historií zůstává konzervativní rezervace 0,05 USD na tah.
 
 `responses` je zatím pouze vývojový režim pro syntetické vstupy přes loopback.
 Vyžaduje `Backend__Dialog__Mode=responses`, `OPENAI_API_KEY`, všechny tři

@@ -15,6 +15,14 @@ internal static class ResponsesTextDialogBudgetTests
         Require(ResponsesTextDialogBudget.CalculateActualMicroUsd(maximumRequest)
             == ResponsesTextDialogBudget.ReservedMicroUsd,
             "reservation covers the documented output cap and generous input allowance");
+        var serializedRequestCap = response with
+        {
+            InputTokens = ResponsesTextDialogBudget.MaxRequestBytes,
+            OutputTokens = 1_200
+        };
+        Require(ResponsesTextDialogBudget.CalculateActualMicroUsd(serializedRequestCap)
+            <= ResponsesTextDialogBudget.ReservedMicroUsd,
+            "serialized request cap stays below the per-call reservation");
 
         var wrongModel = response with { ReturnedModel = "other-model" };
         try

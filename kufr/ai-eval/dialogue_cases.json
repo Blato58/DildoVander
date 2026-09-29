@@ -1,0 +1,48 @@
+[
+  {
+    "id": "political-roast",
+    "readyMask": 4,
+    "turns": [
+      {
+        "visitorText": "Chci ostrý roast a hůlku pro politika.",
+        "mockResult": {"reply": "Jaký politický nápad mám poslat do kouzelnického výboru?", "decision": "ask", "compartment": null, "reason": "První upřesnění"}
+      },
+      {
+        "visitorText": "Slibuje zrušit pondělky vyhláškou.",
+        "mockResult": {"reply": "A čím přesně má hůlka ten slavný plán podpořit?", "decision": "ask", "compartment": null, "reason": "Druhé upřesnění"}
+      },
+      {
+        "visitorText": "Třpytem místo rozpočtu.",
+        "mockResult": {"reply": "Zrušit pondělky vyhláškou a rozpočet nahradit třpytem? Hůlka 3 je jediná věc v tom programu s funkčním bodem.", "decision": "propose", "compartment": 3, "reason": "Satira konkrétního slibu"}
+      }
+    ]
+  },
+  {
+    "id": "sparkle-chaos",
+    "readyMask": 3,
+    "turns": [
+      {
+        "visitorText": "Chci něco velkolepého.",
+        "mockResult": {"reply": "Jaký trapas má hůlka zachránit?", "decision": "ask", "compartment": null, "reason": "První upřesnění"}
+      },
+      {
+        "visitorText": "Na parketu mi spadla koruna.",
+        "mockResult": {"reply": "A jaký efekt by ten návrat měl mít?", "decision": "ask", "compartment": null, "reason": "Druhé upřesnění"}
+      },
+      {
+        "visitorText": "Třpytivý chaos.",
+        "mockResult": {"reply": "Koruna na zemi, třpytivý chaos v plánu. Hůlka 2 aspoň ví, kam míří.", "decision": "propose", "compartment": 2, "reason": "Třpytivý návrat na parket"}
+      }
+    ]
+  },
+  {
+    "id": "no-inventory",
+    "readyMask": 0,
+    "turns": [
+      {
+        "visitorText": "Chci hůlku hned.",
+        "mockResult": {"reply": "Dnes je prázdno. I regál má nárok na pauzu.", "decision": "no_selection", "compartment": null, "reason": "Žádná dostupná přihrádka"}
+      }
+    ]
+  }
+]
