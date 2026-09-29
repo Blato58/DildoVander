@@ -83,7 +83,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 - Rozsah: `contracts/media-frame-v1.mjs` kóduje a validuje 16bajtovou `KF` hlavičku, druh média, uint32 stream/sequence/length v little-endian a payload 1–4096 B. `MediaStreamVerifier` kontroluje jediný domluvený stream, pořadí, limit 1,92 MB/2 MiB/512 KiB podle druhu, 1 s bez pokroku a na konci délku/SHA-256; po chybě zavře stream bez dalšího přijetí. Test používá binární data, změněné hlavičky/délky, nesprávný stream/pořadí/hash a timeout; nic neukládá v base64.
 - Ověření: `kufr/contracts` pod Node 24.21.0 `npm test` — 21 platných a 37 chybných control zpráv, OpenAPI a nový media frame test prošly. Firmware, simulátor a hardware se při tomto čistém kontraktním kroku neměnily.
 - Omezení: neexistuje media JSON handshake, `/v1/media` WSS socket, 16KiB credit, skutečný audio buffer/PSRAM, driver ani HTTP upload. Následuje E2.9b; tyto podmínky zatím nejsou ověřené.
-- Revize a doručení: bude doplněno po commitu a push tohoto slice.
+- Revize a doručení: E2.9a je v commitu `032fc3fff1f5af24ae33d749721197fab587155d`; `./scripts/Push-CurrentBranch.ps1` potvrdil push `main` na `origin/main` v této revizi.
 
 ### D16 – 29. 9. 2026 – E2.8b2 fake text/cancel přes WSS
 
