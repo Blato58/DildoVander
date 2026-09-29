@@ -14,6 +14,8 @@
     { "$ref": "#/$defs/inventoryConfirmReload" },
     { "$ref": "#/$defs/conversationText" },
     { "$ref": "#/$defs/conversationCancel" },
+    { "$ref": "#/$defs/conversationAck" },
+    { "$ref": "#/$defs/conversationResult" },
     { "$ref": "#/$defs/commandAck" },
     { "$ref": "#/$defs/selectionResult" },
     { "$ref": "#/$defs/stateSnapshot" },
@@ -39,6 +41,9 @@
         "unauthorized",
         "controller_busy",
         "wrong_boot",
+        "wrong_session",
+        "wrong_generation",
+        "turn_limit_reached",
         "lease_expired",
         "expired",
         "stale_revision",
@@ -266,6 +271,54 @@
         "generation": { "$ref": "#/$defs/safeInteger" }
       }
     },
+    "conversationAck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion", "type", "requestMessageId", "bootId",
+        "conversationId", "clientTurnId", "generation", "eventSequence",
+        "status", "duplicate", "errorCode"
+      ],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "type": { "const": "conversation.ack" },
+        "requestMessageId": { "$ref": "#/$defs/uuid" },
+        "bootId": { "$ref": "#/$defs/uuid" },
+        "conversationId": { "$ref": "#/$defs/uuid" },
+        "clientTurnId": {
+          "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/uuid" }]
+        },
+        "generation": { "$ref": "#/$defs/safeInteger" },
+        "eventSequence": { "$ref": "#/$defs/safeInteger" },
+        "status": { "enum": ["accepted", "rejected"] },
+        "duplicate": { "type": "boolean" },
+        "errorCode": {
+          "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/errorCode" }]
+        }
+      },
+      "if": { "properties": { "status": { "const": "accepted" } } },
+      "then": { "properties": { "errorCode": { "type": "null" } } },
+      "else": { "properties": { "errorCode": { "$ref": "#/$defs/errorCode" } } }
+    },
+    "conversationResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion", "type", "bootId", "conversationId",
+        "clientTurnId", "generation", "eventSequence", "reply", "simulated"
+      ],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "type": { "const": "conversation.result" },
+        "bootId": { "$ref": "#/$defs/uuid" },
+        "conversationId": { "$ref": "#/$defs/uuid" },
+        "clientTurnId": { "$ref": "#/$defs/uuid" },
+        "generation": { "$ref": "#/$defs/safeInteger" },
+        "eventSequence": { "$ref": "#/$defs/safeInteger" },
+        "reply": { "type": "string", "minLength": 1, "maxLength": 400 },
+        "simulated": { "const": true }
+      }
+    },
     "commandAck": {
       "type": "object",
       "additionalProperties": false,
@@ -346,7 +399,8 @@
         "faults",
         "microphoneState",
         "capabilities",
-        "lastResult"
+        "lastResult",
+        "conversation"
       ],
       "properties": {
         "protocolVersion": { "const": 1 },
@@ -398,6 +452,18 @@
             { "type": "null" },
             { "$ref": "#/$defs/selectionResult" }
           ]
+        },
+        "conversation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["conversationId", "generation", "activeTurnId"],
+          "properties": {
+            "conversationId": { "$ref": "#/$defs/uuid" },
+            "generation": { "$ref": "#/$defs/safeInteger" },
+            "activeTurnId": {
+              "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/uuid" }]
+            }
+          }
         }
       },
       "if": { "properties": { "controlMode": { "const": "manual" } } },

@@ -15,5 +15,10 @@
   "faults": ["watchdog_timeout", "calibration_invalid"],
   "microphoneState": "idle",
   "capabilities": ["manualControl"],
-  "lastResult": null
+  "lastResult": null,
+  "conversation": {
+    "conversationId": "9a8dd264-61f7-4339-b677-866798263cb2",
+    "generation": 0,
+    "activeTurnId": null
+  }
 }

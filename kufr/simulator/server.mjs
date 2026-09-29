@@ -21,8 +21,8 @@ function isBearerToken(header, expectedToken) {
 }
 
 export class NativeBridge {
-  constructor(executable, bootId, journalPath) {
-    this.process = spawn(executable, [bootId, journalPath], { stdio: ['pipe', 'pipe', 'pipe'] });
+  constructor(executable, bootId, journalPath, conversationId = randomUUID()) {
+    this.process = spawn(executable, [bootId, journalPath, conversationId], { stdio: ['pipe', 'pipe', 'pipe'] });
     this.pending = [];
     this.failed = null;
     this.closed = false;
@@ -146,8 +146,13 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
       calibrationRevision: 1,
       faults: current.journalFault ? ['journal_failed'] : [],
       microphoneState: 'unavailable',
-      capabilities: ['manualControl', 'inventoryReload'],
+      capabilities: ['manualControl', 'inventoryReload', 'conversationText'],
       lastResult,
+      conversation: {
+        conversationId: current.conversationId,
+        generation: current.conversationGeneration,
+        activeTurnId: current.activeConversationTurnId || null,
+      },
     };
   }
 
@@ -189,6 +194,31 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
     eventSequence += 1;
     result.eventSequence = eventSequence;
     send(result);
+  }
+
+  let lastConversationResultSent = '';
+  function sendConversationResult() {
+    if (!current.completedConversationTurnId) {
+      return;
+    }
+    const resultKey = `${current.completedConversationTurnId}:${current.completedConversationGeneration}`;
+    if (resultKey === lastConversationResultSent ||
+        current.completedConversationGeneration !== current.conversationGeneration) {
+      return;
+    }
+    lastConversationResultSent = resultKey;
+    eventSequence += 1;
+    send({
+      protocolVersion: 1,
+      type: 'conversation.result',
+      bootId,
+      conversationId: current.conversationId,
+      clientTurnId: current.completedConversationTurnId,
+      generation: current.completedConversationGeneration,
+      eventSequence,
+      reply: 'SIMULACE: Text byl prijat.',
+      simulated: true,
+    });
   }
 
   async function native(operation, ...args) {
@@ -344,6 +374,56 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
           errorCode: result.state.success ? null : result.state.error,
         });
         if (result.state.success && !result.state.duplicate) {
+          sendSnapshot();
+        }
+        break;
+      }
+      case 'conversation.text': {
+        const result = await native(
+          'TEXT', message.bootId, message.controlLeaseId,
+          message.conversationId, message.clientTurnId, message.generation,
+          message.expectedRevision, Buffer.from(message.text, 'utf8').toString('hex'),
+          time,
+        );
+        eventSequence += 1;
+        send({
+          protocolVersion: 1,
+          type: 'conversation.ack',
+          requestMessageId: message.messageId,
+          bootId,
+          conversationId: current.conversationId,
+          clientTurnId: message.clientTurnId,
+          generation: current.conversationGeneration,
+          eventSequence,
+          status: result.state.success ? 'accepted' : 'rejected',
+          duplicate: result.state.duplicate,
+          errorCode: result.state.success ? null : result.state.error,
+        });
+        if (result.state.success && !result.state.duplicate) {
+          sendSnapshot();
+        }
+        break;
+      }
+      case 'conversation.cancel': {
+        const result = await native(
+          'CANCEL', message.messageId, message.bootId, message.controlLeaseId,
+          message.conversationId, message.generation, time,
+        );
+        eventSequence += 1;
+        send({
+          protocolVersion: 1,
+          type: 'conversation.ack',
+          requestMessageId: message.messageId,
+          bootId,
+          conversationId: current.conversationId,
+          clientTurnId: null,
+          generation: current.conversationGeneration,
+          eventSequence,
+          status: result.state.success ? 'accepted' : 'rejected',
+          duplicate: result.state.duplicate,
+          errorCode: result.state.success ? null : result.state.error,
+        });
+        if (result.state.success) {
           sendSnapshot();
         }
         break;
@@ -508,6 +588,7 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
       const result = await native('TICK', nowMs());
       if (result.events.length > 0 || result.state.success) {
         sendTerminalResult();
+        sendConversationResult();
         sendSnapshot();
       }
     } catch {
