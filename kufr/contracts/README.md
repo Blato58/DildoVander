@@ -87,3 +87,14 @@ stream uzavře bez možnosti pokračovat; neukládá obsah média. Nyní jde o
 čistý hostitelský parser/test, bez WSS media socketu, audio driveru,
 alokací PSRAM či HTTP uploadu. Konec streamu musí přijít až po úplné délce;
 samotný hash není oprávnění k přehrání.
+
+`media-control-v1.schema.json` a `media-validator.mjs` tvoří samostatný
+přísný JSON kontrakt pro `/v1/media`. `media.hello` váže telefon na
+aktuální boot/manual lease/conversation generation a náhodný `mediaTicket`,
+který se po acquire posílá pouze vlastnickému control socketu zprávou
+`media.authorize`, nikdy v observer snapshotu. `media.open` přidělí
+device stream ID a PCM16 mono 32 kHz limity, `media.credit` obnovuje
+16KiB okno a `media.end/cancel` končí stream. `verify-media-control.mjs`
+hlídá povinný kontext, formát, rozsahy, SHA-256 tvar a zákaz polí pohonu.
+Současný simulátor přijímá jen telefonní PCM capture; typy rámců PCM
+playback/JPEG zůstávají zatím pouze binárními hodnotami kontraktu.

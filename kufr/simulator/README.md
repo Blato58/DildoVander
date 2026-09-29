@@ -89,5 +89,23 @@ a neuděluje manual lease. Je to vývojové rozhraní pro webovou stránku;
 nativní telefonní kontrakt zůstává na `wss://127.0.0.1:8443/v1/control`.
 Token nikdy nevkládejte do URL, repozitáře ani snímků obrazovky.
 
-Aktuální WSS facade nepokrývá média, Bonjour ani běh ESP32. Je to vývojový
-simulátor, nikoli produkční server nebo náhrada fyzické akceptace.
+## Místní media socket E2.9b
+
+`/v1/media` má vlastní TLS/WSS socket se stejnou bearer autentizací. Po
+acquire dostane vlastnický control socket náhodný `mediaTicket` ve zprávě
+`media.authorize`; pozorovací snapshot jej neobsahuje. Telefon pošle
+`media.hello` s ticketem, bootem, platným ručním lease a conversation
+ID/generation ze snapshotu; simulátor přidělí `streamId` a povolí pouze PCM16 mono 32 kHz
+z telefonu do kufru. Binární `KF` rámce mají payload nejvýše 4096 B a
+pořadí od nuly. Klient smí odesílat jen v přiděleném 16KiB credit okně;
+`media.end` vyžaduje 19 200–1 920 000 B sudé délky a přesný SHA-256.
+`media.cancel` stream zahodí. Chybný rámec/hash, 1 s bez pokroku, Stop nebo
+ztráta lease spojení ukončí. Řídicí heartbeat a Stop používají vlastní
+socket. `verify-media-socket.mjs` testuje místní TLS, oddělení druhého
+držitele bearer tokenu bez ticketu, credit, dobrý/chybný hash, mezeru
+v pořadí, timeout, cancel, uvolnění lease a Stop.
+
+Výsledek příjmu je výslovně `simulated:true`: PCM se pouze průběžně hashují,
+nevzniká přepis, WAV ani HTTP upload. Přehrávání/JPEG a skutečný PSRAM buffer
+zůstávají dalšími kroky. Facade stále nepokrývá Bonjour ani běh ESP32. Je to
+vývojový simulátor, nikoli produkční server nebo náhrada fyzické akceptace.

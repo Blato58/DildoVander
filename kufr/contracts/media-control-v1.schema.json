@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:kufr:media-control:v1",
+  "oneOf": [
+    { "$ref": "#/$defs/hello" },
+    { "$ref": "#/$defs/open" },
+    { "$ref": "#/$defs/credit" },
+    { "$ref": "#/$defs/end" },
+    { "$ref": "#/$defs/cancel" },
+    { "$ref": "#/$defs/result" }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid", "maxLength": 36 },
+    "safeInteger": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "streamId": { "type": "integer", "minimum": 1, "maximum": 4294967295 },
+    "hello": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "type", "messageId", "deviceId", "bootId", "controlLeaseId", "conversationId", "generation", "mediaTicket"],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "type": { "const": "media.hello" },
+        "messageId": { "$ref": "#/$defs/uuid" },
+        "deviceId": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+        "bootId": { "$ref": "#/$defs/uuid" },
+        "controlLeaseId": { "$ref": "#/$defs/uuid" },
+        "conversationId": { "$ref": "#/$defs/uuid" },
+        "generation": { "$ref": "#/$defs/safeInteger" },
+        "mediaTicket": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "open": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "type", "requestMessageId", "bootId", "conversationId", "generation", "streamId", "direction", "kind", "format", "sampleRateHz", "channels", "maxBytes", "creditBytes"],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "type": { "const": "media.open" },
+        "requestMessageId": { "$ref": "#/$defs/uuid" },
+        "bootId": { "$ref": "#/$defs/uuid" },
+        "conversationId": { "$ref": "#/$defs/uuid" },
+        "generation": { "$ref": "#/$defs/safeInteger" },
+        "streamId": { "$ref": "#/$defs/streamId" },
+        "direction": { "const": "phoneToDevice" },
+        "kind": { "const": "pcmCapture" },
+        "format": { "const": "pcm16le" },
+        "sampleRateHz": { "const": 32000 },
+        "channels": { "const": 1 },
+        "maxBytes": { "const": 1920000 },
+        "creditBytes": { "const": 16384 }
+      }
+    },
+    "credit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "type", "streamId", "creditBytes"],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "type": { "const": "media.credit" },
+        "streamId": { "$ref": "#/$defs/streamId" },
+        "creditBytes": { "type": "integer", "minimum": 1, "maximum": 16384 }
+      }
+    },
+    "end": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "type", "messageId", "bootId", "controlLeaseId", "conversationId", "generation", "streamId", "totalBytes", "sha256"],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "type": { "const": "media.end" },
+        "messageId": { "$ref": "#/$defs/uuid" },
+        "bootId": { "$ref": "#/$defs/uuid" },
+        "controlLeaseId": { "$ref": "#/$defs/uuid" },
+        "conversationId": { "$ref": "#/$defs/uuid" },
+        "generation": { "$ref": "#/$defs/safeInteger" },
+        "streamId": { "$ref": "#/$defs/streamId" },
+        "totalBytes": { "type": "integer", "minimum": 1, "maximum": 1920000 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "cancel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "type", "messageId", "bootId", "controlLeaseId", "conversationId", "generation", "streamId"],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "type": { "const": "media.cancel" },
+        "messageId": { "$ref": "#/$defs/uuid" },
+        "bootId": { "$ref": "#/$defs/uuid" },
+        "controlLeaseId": { "$ref": "#/$defs/uuid" },
+        "conversationId": { "$ref": "#/$defs/uuid" },
+        "generation": { "$ref": "#/$defs/safeInteger" },
+        "streamId": { "$ref": "#/$defs/streamId" }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "type", "requestMessageId", "streamId", "status", "totalBytes", "errorCode", "simulated"],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "type": { "const": "media.result" },
+        "requestMessageId": { "$ref": "#/$defs/uuid" },
+        "streamId": { "$ref": "#/$defs/streamId" },
+        "status": { "enum": ["received", "cancelled"] },
+        "totalBytes": { "type": "integer", "minimum": 0, "maximum": 1920000 },
+        "errorCode": { "type": "null" },
+        "simulated": { "const": true }
+      }
+    }
+  }
+}

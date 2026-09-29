@@ -57,6 +57,16 @@ const conversationAck = validateMessage(
 const conversationResult = validateMessage(
   await readFile(new URL('./fixtures/valid/conversation-result.json', import.meta.url)),
 );
+const mediaAuthorize = {
+  protocolVersion: 1,
+  type: 'media.authorize',
+  requestMessageId: hello.messageId,
+  bootId: stateSnapshot.bootId,
+  controlLeaseId: stateSnapshot.controlLeaseId,
+  mediaTicket: 'a'.repeat(64),
+};
+validateMessage(Buffer.from(JSON.stringify(mediaAuthorize)));
+validCount += 1;
 
 function expectRejectedMutation(label, original, mutate) {
   const message = structuredClone(original);
@@ -136,6 +146,12 @@ expectRejectedMutation('conversation result cannot issue actuator command', conv
 });
 expectRejectedMutation('snapshot requires conversation generation', stateSnapshot, (message) => {
   delete message.conversation.generation;
+});
+expectRejectedMutation('observer snapshot cannot contain media ticket', stateSnapshot, (message) => {
+  message.mediaTicket = 'a'.repeat(64);
+});
+expectRejectedMutation('media authorization requires opaque ticket', mediaAuthorize, (message) => {
+  message.mediaTicket = 'short';
 });
 
 const oversizedMessage = Buffer.concat([
