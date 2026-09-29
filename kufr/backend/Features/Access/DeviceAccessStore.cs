@@ -104,6 +104,15 @@ internal sealed class DeviceAccessStore
         return grant.DeviceId;
     }
 
+    public void PurgeExpired()
+    {
+        var now = clock.GetUtcNow();
+        foreach (var grant in grants.Where(pair => pair.Value.ExpiresAt <= now).ToArray())
+        {
+            grants.TryRemove(grant.Key, out _);
+        }
+    }
+
     private static string HashToken(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 
     private sealed record ProvisionedDevice(string DeviceId, byte[] CredentialHash);

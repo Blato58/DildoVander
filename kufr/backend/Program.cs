@@ -7,6 +7,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<DeviceAccessStore>();
 builder.Services.AddSingleton<OperationJournal>();
 builder.Services.AddSingleton<ConversationStore>();
+builder.Services.AddHostedService<RetentionWorker>();
 
 var app = builder.Build();
 app.Services.GetRequiredService<OperationJournal>();
