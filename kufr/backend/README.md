@@ -9,7 +9,11 @@ založení sezení, atomickou rezervaci nejvýše deseti tahů v jednom sezení 
 idempotenci po restartu. E7.4 přidává retenci a explicitní rušení. E7.5a
 přidává omezený WAV upload s deterministickým fake přepisem. E7.5b
 přidává fake syntézu krátkého tichého WAV pro existující textový tah.
-V této verzi nejsou skutečné STT/TTS ani volání placené AI.
+V této verzi nejsou skutečné STT/TTS ani volání placené AI. E8 má samostatný
+`ResponsesTextDialogClient` s vestavěným party promptem, přísným JSON schématem,
+omezením odpovědi a kontrolou dostupné přihrádky; zatím jej endpointy nevolají.
+Před jeho zapojením je nutné dokončit atomickou rezervaci nákladu, asynchronní
+zpracování mimo zámek sezení a bezpečné dokončení/zrušení operace.
 Žádná trasa neovládá aktuátory.
 
 ## Vývojové spuštění

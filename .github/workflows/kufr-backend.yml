@@ -6,6 +6,7 @@ on:
     paths:
       - kufr/backend/**
       - kufr/backend-tests/**
+      - kufr/ai-eval/prompt.txt
       - kufr/global.json
       - .github/workflows/kufr-backend.yml
   workflow_dispatch:
