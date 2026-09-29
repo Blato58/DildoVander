@@ -35,6 +35,7 @@ class EvalTests(unittest.TestCase):
         self.assertIn("Kaštanová hůlka Kocovina věštců", request["input"])
         self.assertNotIn("Jasanová hůlka Poslední slovo", request["input"])
         self.assertIn("Ollivanderova obchodu", request["instructions"])
+        self.assertIn("V první odpovědi", request["instructions"])
 
     def test_unavailable_proposal_is_rejected(self):
         result = {
