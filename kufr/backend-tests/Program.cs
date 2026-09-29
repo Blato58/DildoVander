@@ -111,6 +111,10 @@ catch (InvalidOperationException)
 journal.Dispose();
 var restartedJournal = new OperationJournal(journalConfiguration, clock);
 var restartedStore = new ConversationStore(clock, restartedJournal);
+Require(restartedStore.Create("device-a", key, body, request).Response?.ConversationId == conversationId,
+    "create idempotency survives restart");
+Require(restartedStore.Create("device-a", key, Encoding.UTF8.GetBytes("changed-body"), request).Status == 409,
+    "create body mismatch survives restart");
 Require(restartedJournal.Reserve("device-a", "quota", Guid.NewGuid(), "quota-body", quotaCorrelation).LimitExceeded,
     "turn reservation limit survives restart");
 var replayAfterRestart = restartedStore.SubmitTurn("device-a", conversationId, turnKey, turnBody, turn);
@@ -204,7 +208,42 @@ using (var migratedConnection = new SqliteConnection($"Data Source={migrationPat
     migratedConnection.Open();
     using var version = migratedConnection.CreateCommand();
     version.CommandText = "PRAGMA user_version";
-    Require((long)version.ExecuteScalar()! == 2, "schema migrated from v1 to v2");
+    Require((long)version.ExecuteScalar()! == 3, "schema migrated from v1 to v3");
+}
+
+var versionTwoPath = Path.Combine(databaseDirectory, "legacy-v2.sqlite");
+var versionTwoConversationId = Guid.NewGuid().ToString("D");
+using (var versionTwoConnection = new SqliteConnection($"Data Source={versionTwoPath}"))
+{
+    versionTwoConnection.Open();
+    using var versionTwoSchema = versionTwoConnection.CreateCommand();
+    versionTwoSchema.CommandText = """
+        CREATE TABLE conversation_turn_usage (
+            conversation_id TEXT PRIMARY KEY,
+            device_id TEXT NOT NULL,
+            reserved_turns INTEGER NOT NULL CHECK (reserved_turns BETWEEN 0 AND 10),
+            expires_at_ms INTEGER NOT NULL
+        );
+        INSERT INTO conversation_turn_usage
+            (conversation_id, device_id, reserved_turns, expires_at_ms)
+        VALUES ($conversation, 'device-a', 10, $expires);
+        PRAGMA user_version=2;
+        """;
+    versionTwoSchema.Parameters.AddWithValue("$conversation", versionTwoConversationId);
+    versionTwoSchema.Parameters.AddWithValue("$expires", clock.GetUtcNow().AddHours(24).ToUnixTimeMilliseconds());
+    versionTwoSchema.ExecuteNonQuery();
+}
+var versionTwoConfiguration = new ConfigurationBuilder()
+    .AddInMemoryCollection(new Dictionary<string, string?> { ["Backend:DatabasePath"] = versionTwoPath })
+    .Build();
+using (var versionThreeJournal = new OperationJournal(versionTwoConfiguration, clock))
+{
+    Require(versionThreeJournal.Reserve(
+        "device-a", "quota", Guid.NewGuid(), "hash",
+        quotaCorrelation with { ConversationId = versionTwoConversationId }).LimitExceeded,
+        "populated v2 quota survives v3 migration");
+    Require(versionThreeJournal.ReserveCreate("device-a", Guid.NewGuid(), "hash").Response is not null,
+        "v3 create table available after v2 migration");
 }
 
 var duplicateConfiguration = new ConfigurationBuilder()
@@ -244,7 +283,13 @@ static void AssertNoVisitorText(string databasePath, string text)
     using var connection = new SqliteConnection($"Data Source={databasePath}");
     connection.Open();
 
-    foreach (var table in new[] { "turn_operations", "turn_idempotency" })
+    foreach (var table in new[]
+    {
+        "turn_operations",
+        "turn_idempotency",
+        "conversation_turn_usage",
+        "conversation_creates"
+    })
     {
         using var command = connection.CreateCommand();
         command.CommandText = $"SELECT * FROM {table}";

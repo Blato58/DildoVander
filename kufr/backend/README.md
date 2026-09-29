@@ -67,10 +67,14 @@ stejný turn key bez druhého požadavku. Rozběhnutá rezervace přejde na
 `failed/result_expired`. Nové tahy starého sezení nejsou po restartu možné.
 Soubor `journal.sqlite.instance.lock` dovoluje právě jeden běžící backend
 nad databází; druhá instance skončí chybou před recovery.
-Schéma v2 přidává `conversation_turn_usage` a atomicky zapisuje kvótu spolu
-s pending operací a idempotency key. Migrace v1→v2 je dopředná a přidává
-pouze tabulku/index. Nákladový rozpočet placených operací zatím chybí.
-Trvalou idempotenci založení sezení, limity placených operací, časovaný cleanup,
+Schéma v2 přidalo `conversation_turn_usage` a atomicky zapisuje kvótu spolu
+s pending operací a idempotency key. Schéma v3 přidává
+`conversation_creates`: create key, hash těla, původní ID odpovědi a expirace
+přežijí restart. Po restartu je starý conversationId pouze identitou retry;
+obsah sezení z RAM zmizel a nový rozhovor vyžaduje nový key. Migrace v1/v2→v3
+je dopředná a přidává pouze tabulky/indexy. Nákladový rozpočet placených
+operací zatím chybí.
+Limity placených operací, časovaný cleanup,
 rušení operací a retenci doplní další E7 slices. Backend zatím
 nesmí být použit pro placené tahy nebo veřejný provoz. Stav a další krok
 jsou v `../docs/stav-implementace.md`.

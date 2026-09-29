@@ -68,7 +68,7 @@ internal sealed class OperationJournal : IDisposable
         using var version = connection.CreateCommand();
         version.CommandText = "PRAGMA user_version";
         var schemaVersion = (long)version.ExecuteScalar()!;
-        if (schemaVersion is not 0 and not 1 and not 2)
+        if (schemaVersion is not 0 and not 1 and not 2 and not 3)
         {
             throw new InvalidOperationException("Unsupported backend database schema version.");
         }
@@ -103,10 +103,20 @@ internal sealed class OperationJournal : IDisposable
                 reserved_turns INTEGER NOT NULL CHECK (reserved_turns BETWEEN 0 AND 10),
                 expires_at_ms INTEGER NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS conversation_creates (
+                device_id TEXT NOT NULL,
+                key TEXT NOT NULL,
+                body_hash TEXT NOT NULL,
+                conversation_id TEXT NOT NULL,
+                response_expires_at_ms INTEGER NOT NULL,
+                record_expires_at_ms INTEGER NOT NULL,
+                PRIMARY KEY (device_id, key)
+            );
             CREATE INDEX IF NOT EXISTS ix_turn_operations_expiry ON turn_operations(expires_at_ms);
             CREATE INDEX IF NOT EXISTS ix_turn_idempotency_expiry ON turn_idempotency(expires_at_ms);
             CREATE INDEX IF NOT EXISTS ix_conversation_turn_usage_expiry ON conversation_turn_usage(expires_at_ms);
-            PRAGMA user_version=2;
+            CREATE INDEX IF NOT EXISTS ix_conversation_creates_expiry ON conversation_creates(record_expires_at_ms);
+            PRAGMA user_version=3;
             """;
         schema.ExecuteNonQuery();
         migration.Commit();
@@ -121,6 +131,55 @@ internal sealed class OperationJournal : IDisposable
     {
         using var connection = Open();
         return FindExisting(connection, null, deviceId, route, key, bodyHash);
+    }
+
+    public JournalCreateReservation? FindExistingCreate(string deviceId, Guid key, string bodyHash)
+    {
+        using var connection = Open();
+        return FindExistingCreate(connection, null, deviceId, key, bodyHash);
+    }
+
+    public JournalCreateReservation ReserveCreate(string deviceId, Guid key, string bodyHash)
+    {
+        using var connection = Open();
+        using var transaction = connection.BeginTransaction();
+
+        using (var cleanup = connection.CreateCommand())
+        {
+            cleanup.Transaction = transaction;
+            cleanup.CommandText = "DELETE FROM conversation_creates WHERE record_expires_at_ms <= $now";
+            cleanup.Parameters.AddWithValue("$now", clock.GetUtcNow().ToUnixTimeMilliseconds());
+            cleanup.ExecuteNonQuery();
+        }
+
+        var existing = FindExistingCreate(connection, transaction, deviceId, key, bodyHash);
+        if (existing is not null)
+        {
+            transaction.Commit();
+            return existing;
+        }
+
+        var now = clock.GetUtcNow();
+        var response = new ConversationResponse(
+            Guid.NewGuid().ToString("D"),
+            now.AddMinutes(15),
+            new ConversationLimits(10, 1000, 900, 1800));
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            INSERT INTO conversation_creates
+                (device_id, key, body_hash, conversation_id, response_expires_at_ms, record_expires_at_ms)
+            VALUES ($device, $key, $hash, $conversation, $responseExpiry, $recordExpiry)
+            """;
+        command.Parameters.AddWithValue("$device", deviceId);
+        command.Parameters.AddWithValue("$key", key.ToString("D"));
+        command.Parameters.AddWithValue("$hash", bodyHash);
+        command.Parameters.AddWithValue("$conversation", response.ConversationId);
+        command.Parameters.AddWithValue("$responseExpiry", response.ExpiresAt.ToUnixTimeMilliseconds());
+        command.Parameters.AddWithValue("$recordExpiry", now.AddHours(24).ToUnixTimeMilliseconds());
+        command.ExecuteNonQuery();
+        transaction.Commit();
+        return new JournalCreateReservation(response, false, false);
     }
 
     public JournalReservation Reserve(
@@ -311,6 +370,41 @@ internal sealed class OperationJournal : IDisposable
         return new JournalReservation(reader.GetString(1), true, reader.GetString(0) != bodyHash, false);
     }
 
+    private JournalCreateReservation? FindExistingCreate(
+        SqliteConnection connection,
+        SqliteTransaction? transaction,
+        string deviceId,
+        Guid key,
+        string bodyHash)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            SELECT body_hash, conversation_id, response_expires_at_ms
+            FROM conversation_creates
+            WHERE device_id = $device AND key = $key AND record_expires_at_ms > $now
+            """;
+        command.Parameters.AddWithValue("$device", deviceId);
+        command.Parameters.AddWithValue("$key", key.ToString("D"));
+        command.Parameters.AddWithValue("$now", clock.GetUtcNow().ToUnixTimeMilliseconds());
+        using var reader = command.ExecuteReader();
+        if (!reader.Read())
+        {
+            return null;
+        }
+
+        if (reader.GetString(0) != bodyHash)
+        {
+            return new JournalCreateReservation(null, true, true);
+        }
+
+        var response = new ConversationResponse(
+            reader.GetString(1),
+            DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(2)),
+            new ConversationLimits(10, 1000, 900, 1800));
+        return new JournalCreateReservation(response, true, false);
+    }
+
     private SqliteConnection Open()
     {
         var connection = new SqliteConnection(connectionString);
@@ -320,3 +414,4 @@ internal sealed class OperationJournal : IDisposable
 }
 
 internal sealed record JournalReservation(string OperationId, bool Existing, bool Conflict, bool LimitExceeded);
+internal sealed record JournalCreateReservation(ConversationResponse? Response, bool Existing, bool Conflict);
