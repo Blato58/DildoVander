@@ -85,7 +85,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 
 ### D56 – 29. 9. 2026 – předání zdroje bootstrapu na soukromý runner
 
-- Rozsah: ruční workflow `kufr-backend-bootstrap-source.yml` stáhne aktuální `main` přímo na serverovém runneru a uloží pouze `bootstrap-ubuntu.sh` do soukromého dočasného adresáře jeho účtu. Vypíše absolutní cestu, commit a SHA-256 pro ověření správcem. Bez sudo, secrets, aktivace služby a automatického spuštění skriptu.
+- Rozsah: ruční workflow `kufr-backend-bootstrap-source.yml` stáhne aktuální `main` přímo na serverovém runneru a uloží `bootstrap-ubuntu.sh` spolu se závislými `deploy-helper.py` a `kufr-backend.service` do jednoho soukromého adresáře jeho účtu. Vypíše absolutní cestu, commit a SHA-256 pro ověření správcem. První běh 36618631962 přenesl jen skript; správce ověřil hash, ale bootstrap skončil na chybějícím `deploy-helper.py` po vytvoření adresářů a servisního účtu. Opravený workflow přenese všechny tři soubory. Bez sudo, secrets, aktivace služby a automatického spuštění skriptu.
 - Předání: po průchodu workflow správce porovná SHA-256 v root shellu a spustí přesně tento soubor s argumentem `github-runner`. Pak znovu pustit host probe a deployment; do té doby serverová akceptace chybí.
 
 
