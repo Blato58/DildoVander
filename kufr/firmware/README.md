@@ -64,8 +64,10 @@ src/
       ConversationStartCoordinator.h/.cpp   jediné obnovení tokenu při 401
       ConversationStartPort.h               port pro test a HTTPS adaptér
       ConversationTextCodec.h/.cpp          validace a JSON textového tahu
+      ConversationUuid.h/.cpp               kanonický UUID v4 formát
       EspIdfConversationStartTransport.h/.cpp  HTTPS start sezení
       EspIdfConversationTextTransport.h/.cpp   HTTPS textový tah
+      EspIdfConversationUuid.h/.cpp         UUID z HW RNG po startu Wi-Fi
       EspIdfTurnPollTransport.h/.cpp       HTTPS GET a korelace výsledku
       OperationAcceptedCodec.h/.cpp         omezená odpověď 202
       TurnPollGuard.h/.cpp                  korelace pollovaného výsledku
@@ -180,6 +182,9 @@ fyzické potvrzení. `TurnOperationCodec` přijímá nejvýše 4096B JSON operac
 nekonzistentní status/result/error a jakýkoli návrh. `EspIdfTurnPollTransport`
 čte GET `/v1/operations/{id}` jen přes ověřené HTTPS, omezuje tělo na 4096 B
 a propouští odpověď pouze po `TurnPollGuard` korelaci.
+`ConversationUuid` formátuje 16 náhodných bajtů jako UUID v4;
+`EspIdfConversationUuid` čerpá HW RNG až po startu Wi-Fi. Generátor zatím
+nepoužívá runtime konverzace.
 Zatím jej nevolá síťová úloha: chybí událost zahájení rozhovoru, UUID generátor,
 textové tahy a pollování. Žádná odpověď z backendu neřídí fyzické výstupy.
 
@@ -324,6 +329,13 @@ JSON odpověď fake pollu:
 ```text
 g++ -std=c++14 -Wall -Wextra -Werror src/features/conversation/ConversationSession.cpp src/features/conversation/ConversationStartCodec.cpp src/features/conversation/TurnOperationCodec.cpp tests/turn_operation_codec_test.cpp -o <docasna-slozka>/turn_operation_codec_test
 <docasna-slozka>/turn_operation_codec_test
+```
+
+Formát UUID v4 pro ESP-IDF požadavky:
+
+```text
+g++ -std=c++14 -Wall -Wextra -Werror src/features/conversation/ConversationStartCodec.cpp src/features/conversation/ConversationUuid.cpp tests/conversation_uuid_test.cpp -o <docasna-slozka>/conversation_uuid_test
+<docasna-slozka>/conversation_uuid_test
 ```
 
 ## Další slices a podmínky zapojení
