@@ -14,7 +14,7 @@ from evaluate import (
 class EvalTests(unittest.TestCase):
     def test_each_case_is_bounded_and_under_session_cap(self):
         cases = json.loads(__import__("pathlib").Path(__file__).with_name("cases.json").read_text(encoding="utf-8"))
-        self.assertEqual(15, len(cases))
+        self.assertEqual(62, len(cases))
         self.assertEqual(len(cases), len({case["id"] for case in cases}))
         for case in cases:
             loaded = load_case(case["id"])
