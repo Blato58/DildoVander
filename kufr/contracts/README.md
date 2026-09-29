@@ -34,6 +34,10 @@ npm ci
 npm test
 ```
 
+`control-validator.mjs` exportuje `validateControlMessage(bytes)` pro příjemce
+syrových control zpráv v Node. Funkce provede přísné parsování a stejné
+schéma, které používá následující test. Síťová facade jej teprve zapojí.
+
 Test v `verify-fixtures.mjs` ověřuje schéma v přísném režimu a pozitivní i
 negativní fixtures včetně duplicitního klíče, chybných typů, hranic, stavu
 lease a velikosti zprávy. V produkčních adaptérech se stejná pravidla musí
