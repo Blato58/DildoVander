@@ -6,11 +6,11 @@ Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**Aktivní implementační krok:** E2.9 – mediální kontrakty a fake transport. E2.4a–d přidaly parser, handshake/lease kontrakty, TLS socket nad C++ modelem a souborový fake journal s restartovým ověřením (D6–D9). E2.5 přidává webovou časovou osu nad stejnými C++ událostmi (D10), ale její vykreslení čeká na prohlížeči důvěryhodný vývojový certifikát. E2.6a/b přidaly backend OpenAPI (D11–D12), E2.7 bezpečné potvrzení znovuzaložení (D13), E2.8a/b čistý model a fake WSS text/cancel (D14–D16). E2 ještě není hotové; média, skutečný backend a reálné browser ověření UI chybí. E1 je dokončené jako softwarové jádro bez desky. Fyzické nezávislé vypnutí při zamrzlé smyčce a další měření zůstávají kritérii E5.
+**Aktivní implementační krok:** E2.9b – mediální zprávy a fake WSS transport. E2.4a–d přidaly parser, handshake/lease kontrakty, TLS socket nad C++ modelem a souborový fake journal s restartovým ověřením (D6–D9). E2.5 přidává webovou časovou osu nad stejnými C++ událostmi (D10), ale její vykreslení čeká na prohlížeči důvěryhodný vývojový certifikát. E2.6a/b přidaly backend OpenAPI (D11–D12), E2.7 bezpečné potvrzení znovuzaložení (D13), E2.8a/b čistý model a fake WSS text/cancel (D14–D16), E2.9a binární media parser (D17). E2 ještě není hotové; media socket, skutečný backend a reálné browser ověření UI chybí. E1 je dokončené jako softwarové jádro bez desky. Fyzické nezávislé vypnutí při zamrzlé smyčce a další měření zůstávají kritérii E5.
 
-**Další konkrétní krok: E2.9 – mediální kontrakty a fake transport.**
+**Další konkrétní krok: E2.9b – mediální zprávy a fake transport.**
 
-1. Zavést `media.open/end` a rámec médií podle kapitoly 7 do přísného parseru a hostitelského simulátoru, s limitem 4096 B, pořadím chunků, SHA-256 a cancel bez AI/aktuátorů. E2.8b2 již předává text/cancel do jediného C++ modelu a fake výsledek; skutečný backend zůstává E7/E8.
+1. Zavést `media.open/end/cancel` a `/v1/media` podle kapitoly 7 do samostatného TLS socketu nad již ověřeným E2.9a `KF` parserem, s limitem 4096 B, pořadím chunků, SHA-256, 16KiB credit a cancel bez AI/aktuátorů. E2.8b2 již předává text/cancel do jediného C++ modelu a fake výsledek; skutečný backend zůstává E7/E8.
 2. Webová časová osa E2.5 používá samostatný pouze čtecí HTTPS proud se stejnými C++ událostmi: běžné browser WebSocket API neumí hlavičku `Authorization` při nativním handshake. Po získání důvěryhodného místního certifikátu ověřit její skutečné vykreslení, chybový stav a úzký viewport v prohlížeči; nevypínat TLS ověřování.
 3. Nezaměnit fake log s NVS ani s fyzickým potvrzením západky. Samostatná HW akceptace zůstává v E5 po vstupu B1.
 
@@ -36,7 +36,7 @@ Pokud uživatel omezí práci pouze na mobilní aplikaci, neoznačuj závislosti
 | --- | --- | --- |
 | Firmware | Čistá neblokující `SelectionSequence`/`SafetyController` z E1, nezapojený `DeviceControl` s fake clock vstupy, 64 výsledky a `CommandJournal` portem E2.2, čistý `ConversationSession` s generací a stropem 10 tahů E2.8b1. Sériové `select 1..6`, `stop`, `reset`, `status`, `help` zůstává vývojovým vstupem. Hostitelské testy a lokální Arduino/PlatformIO build prošly. | Nezávislý fyzický watchdog/inhibit, skutečný NVS journal/GPIO/síťový detektor lease, provisioning, I2S, propojení dialogu a ovládání. |
 | Mobil | Statická obrazovka TypeScript/Vite, build script a lockfile. | Interaktivní ruční řízení, transport, simulátor, Capacitor, iOS/Swift projekt a testy. |
-| Backend/kontrakty/simulátor | Lokální protokol v `contracts/control-message-v1.schema.json`, 21 pozitivních a 37 negativních kontrol, připnutý Node/npm test; spustitelný C++ simulátor a šest deterministických scénářů E2.3; místní TLS WSS facade nad C++ modelem s auth/lease/retry/Stop a restartovým fake journalem E2.4c/d; webová časová osa a HTTPS pozorovací proud E2.5; základní OpenAPI všech neobrazových HTTP tras E2.6; potvrzení reloadu a perzistence masky E2.7; fake text/cancel přes C++ model E2.8. | Backend, browser vizuální ověření E2.5, média a skutečný AI adaptér. |
+| Backend/kontrakty/simulátor | Lokální protokol v `contracts/control-message-v1.schema.json`, 21 pozitivních a 37 negativních kontrol, připnutý Node/npm test; spustitelný C++ simulátor a šest deterministických scénářů E2.3; místní TLS WSS facade nad C++ modelem s auth/lease/retry/Stop a restartovým fake journalem E2.4c/d; webová časová osa a HTTPS pozorovací proud E2.5; základní OpenAPI všech neobrazových HTTP tras E2.6; potvrzení reloadu a perzistence masky E2.7; fake text/cancel přes C++ model E2.8; čistý binární media parser E2.9a. | Backend, browser vizuální ověření E2.5, media socket a skutečný AI adaptér. |
 | iOS CI | Majitelem popsaný existující postup Windows → macOS runner → podepsaná IPA. | Skutečný workflow v tomto checkoutu, ověřená identita/profil a běh/instalace. |
 | Hardware | Dodaný obrázek pinů, návrh napájení a předběžné profily A/B. | Revize konkrétní desky, schéma bezpečnostní větve, měření a fyzická akceptace. |
 
@@ -50,7 +50,7 @@ Přesné závislosti a kritéria dokončení jsou v kapitole 12 plánu. Následu
 | --- | --- | --- | --- |
 | E0 – provozní předpoklady | rozpracováno | Architektonické výchozí předpoklady v plánu; žádná měření. | Vstupy B1–B5 níže; software E1 může začít. |
 | E1 – bezpečné jádro | hotovo | E1.1: Stop v každé fázi, safety port, 250/500/5000ms limity, explicitní zotavení (D1). E1.2: hostitelský timeout průchodu smyčkou, porucha, výpadek ručního lease a přednost Stop; hostitelské testy a firmware build prošly (D2). | Fyzická reakce nezávislého watchdogu patří E5 a nebyla měřena; softwarový model vypíná až při dalším průchodu smyčkou. |
-| E2 – smlouvy a simulátor | rozpracováno | E2.1: první JSON Schema lokálního protokolu, přísný parser a pozitivní/chybné fixtures (D3). E2.2: C++ model fake času, journalu, idempotence a hostitelské scénáře ztraceného ACK/restartu (D4). E2.3: spustitelná časová osa a šest hostitelských scénářů nad sdílenou fixture (D5). E2.4a–d: Node parser, handshake/lease schéma, místní WSS facade nad C++ modelem a souborový fake journal (D6–D9). E2.5: webová časová osa a test HTTPS proudu (D10). E2.6a/b: základní OpenAPI a validace schémat (D11–D12). E2.7: perzistované `inventory.confirmReload` přes C++ model, WSS a kontrakt (D13). E2.8a/b: text/cancel schéma, čistý model a WSS fake runtime (D14–D16). | Mediální zprávy a browser vizuální ověření E2.5. Kritéria E2 ještě nejsou úplně doložena. |
+| E2 – smlouvy a simulátor | rozpracováno | E2.1: první JSON Schema lokálního protokolu, přísný parser a pozitivní/chybné fixtures (D3). E2.2: C++ model fake času, journalu, idempotence a hostitelské scénáře ztraceného ACK/restartu (D4). E2.3: spustitelná časová osa a šest hostitelských scénářů nad sdílenou fixture (D5). E2.4a–d: Node parser, handshake/lease schéma, místní WSS facade nad C++ modelem a souborový fake journal (D6–D9). E2.5: webová časová osa a test HTTPS proudu (D10). E2.6a/b: základní OpenAPI a validace schémat (D11–D12). E2.7: perzistované `inventory.confirmReload` přes C++ model, WSS a kontrakt (D13). E2.8a/b: text/cancel schéma, čistý model a WSS fake runtime (D14–D16). E2.9a: čistý binární media parser a test (D17). | Mediální zprávy/socket a browser vizuální ověření E2.5. Kritéria E2 ještě nejsou úplně doložena. |
 | E3 – ruční mobil bez HW | nezahájeno | Statická stránka není ruční řízení. | E2; UI, potvrzení/Stop a integrace. |
 | E3a – iOS CI základ | nezahájeno | Jen majitelem popsaný postup. | E3; B2/B3 pro podpis a skutečnou instalaci. |
 | E4 – runtime a přímá síť | nezahájeno | Arduino prototyp. | E2; pro nahrání B1. |
@@ -77,6 +77,13 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 | B5 | Majitel: finální katalog a publikum, rozměry, router a prostředí akce. | Obsahovou/provozní akceptaci E8/E11 a finální mechaniku. | Neutrální testovací katalog a laboratorní/simulované scénáře. |
 
 ## Deník změn a ověření
+
+### D17 – 29. 9. 2026 – E2.9a binární media parser
+
+- Rozsah: `contracts/media-frame-v1.mjs` kóduje a validuje 16bajtovou `KF` hlavičku, druh média, uint32 stream/sequence/length v little-endian a payload 1–4096 B. `MediaStreamVerifier` kontroluje jediný domluvený stream, pořadí, limit 1,92 MB/2 MiB/512 KiB podle druhu, 1 s bez pokroku a na konci délku/SHA-256; po chybě zavře stream bez dalšího přijetí. Test používá binární data, změněné hlavičky/délky, nesprávný stream/pořadí/hash a timeout; nic neukládá v base64.
+- Ověření: `kufr/contracts` pod Node 24.21.0 `npm test` — 21 platných a 37 chybných control zpráv, OpenAPI a nový media frame test prošly. Firmware, simulátor a hardware se při tomto čistém kontraktním kroku neměnily.
+- Omezení: neexistuje media JSON handshake, `/v1/media` WSS socket, 16KiB credit, skutečný audio buffer/PSRAM, driver ani HTTP upload. Následuje E2.9b; tyto podmínky zatím nejsou ověřené.
+- Revize a doručení: bude doplněno po commitu a push tohoto slice.
 
 ### D16 – 29. 9. 2026 – E2.8b2 fake text/cancel přes WSS
 
