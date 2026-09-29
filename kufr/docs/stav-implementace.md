@@ -6,11 +6,11 @@ Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**Aktivní implementační krok:** E2.6 – OpenAPI a zbývající integrační hrany. E2.4a–d přidaly parser, handshake/lease kontrakty, TLS socket nad C++ modelem a souborový fake journal s restartovým ověřením (D6–D9). E2.5 přidává webovou časovou osu nad stejnými C++ událostmi (D10), ale její vykreslení čeká na prohlížeči důvěryhodný vývojový certifikát. E2 ještě není hotové; OpenAPI a zbývající integrační zprávy chybí. E1 je dokončené jako softwarové jádro bez desky. Fyzické nezávislé vypnutí při zamrzlé smyčce a další měření zůstávají kritérii E5.
+**Aktivní implementační krok:** E2.6b – zbývající HTTP trasy a integrační hrany. E2.4a–d přidaly parser, handshake/lease kontrakty, TLS socket nad C++ modelem a souborový fake journal s restartovým ověřením (D6–D9). E2.5 přidává webovou časovou osu nad stejnými C++ událostmi (D10), ale její vykreslení čeká na prohlížeči důvěryhodný vývojový certifikát. E2.6a přidává první část backend OpenAPI (D11). E2 ještě není hotové; audio/cleanup HTTP trasy a zbývající integrační zprávy chybí. E1 je dokončené jako softwarové jádro bez desky. Fyzické nezávislé vypnutí při zamrzlé smyčce a další měření zůstávají kritérii E5.
 
-**Další konkrétní krok: E2.6 – OpenAPI backendu.**
+**Další konkrétní krok: E2.6b – dokončení OpenAPI backendu.**
 
-1. Doplnit OpenAPI backendu podle kapitoly 5 na základě existujících limitů a identit; ověřit schéma a pozitivní/chybné požadavky bez cloudového účtu.
+1. Doplnit do `contracts/backend-openapi-v1.json` přepis, syntézu, audio a cleanup podle kapitoly 6, včetně typů výsledků, limitů a chyb; ověřit schéma a pozitivní/chybné požadavky bez cloudového účtu. E2.6a již pokrývá token, sezení, textový tah a polling.
 2. Doplnit zbývající zprávy/protokolové integrační hrany. Webová časová osa E2.5 používá samostatný pouze čtecí HTTPS proud se stejnými C++ událostmi: běžné browser WebSocket API neumí hlavičku `Authorization` při nativním handshake. Po získání důvěryhodného místního certifikátu ověřit její skutečné vykreslení, chybový stav a úzký viewport v prohlížeči; nevypínat TLS ověřování.
 3. Nezaměnit fake log s NVS ani s fyzickým potvrzením západky. Samostatná HW akceptace zůstává v E5 po vstupu B1.
 
@@ -36,7 +36,7 @@ Pokud uživatel omezí práci pouze na mobilní aplikaci, neoznačuj závislosti
 | --- | --- | --- |
 | Firmware | Čistá neblokující `SelectionSequence`/`SafetyController` z E1 a čistý, zatím nezapojený `DeviceControl` s fake clock vstupy, 64 výsledky a `CommandJournal` portem E2.2. Sériové `select 1..6`, `stop`, `reset`, `status`, `help` zůstává vývojovým vstupem. Hostitelské testy a lokální Arduino/PlatformIO build prošly. | Nezávislý fyzický watchdog/inhibit, skutečný NVS journal/GPIO/síťový detektor lease, provisioning, I2S, dialog a ovládání. |
 | Mobil | Statická obrazovka TypeScript/Vite, build script a lockfile. | Interaktivní ruční řízení, transport, simulátor, Capacitor, iOS/Swift projekt a testy. |
-| Backend/kontrakty/simulátor | Lokální protokol v `contracts/control-message-v1.schema.json`, 15 pozitivních a 27 negativních kontrol, připnutý Node/npm test; spustitelný C++ simulátor a šest deterministických scénářů E2.3; místní TLS WSS facade nad C++ modelem s auth/lease/retry/Stop a restartovým fake journalem E2.4c/d; webová časová osa a HTTPS pozorovací proud E2.5. | Backend, OpenAPI, browser vizuální ověření E2.5, fake/AI adaptéry, zbývající zprávy a integrační hrany. |
+| Backend/kontrakty/simulátor | Lokální protokol v `contracts/control-message-v1.schema.json`, 15 pozitivních a 27 negativních kontrol, připnutý Node/npm test; spustitelný C++ simulátor a šest deterministických scénářů E2.3; místní TLS WSS facade nad C++ modelem s auth/lease/retry/Stop a restartovým fake journalem E2.4c/d; webová časová osa a HTTPS pozorovací proud E2.5; OpenAPI token/sezení/text/polling E2.6a. | Backend, zbývající OpenAPI, browser vizuální ověření E2.5, fake/AI adaptéry, zbývající zprávy a integrační hrany. |
 | iOS CI | Majitelem popsaný existující postup Windows → macOS runner → podepsaná IPA. | Skutečný workflow v tomto checkoutu, ověřená identita/profil a běh/instalace. |
 | Hardware | Dodaný obrázek pinů, návrh napájení a předběžné profily A/B. | Revize konkrétní desky, schéma bezpečnostní větve, měření a fyzická akceptace. |
 
@@ -50,7 +50,7 @@ Přesné závislosti a kritéria dokončení jsou v kapitole 12 plánu. Následu
 | --- | --- | --- | --- |
 | E0 – provozní předpoklady | rozpracováno | Architektonické výchozí předpoklady v plánu; žádná měření. | Vstupy B1–B5 níže; software E1 může začít. |
 | E1 – bezpečné jádro | hotovo | E1.1: Stop v každé fázi, safety port, 250/500/5000ms limity, explicitní zotavení (D1). E1.2: hostitelský timeout průchodu smyčkou, porucha, výpadek ručního lease a přednost Stop; hostitelské testy a firmware build prošly (D2). | Fyzická reakce nezávislého watchdogu patří E5 a nebyla měřena; softwarový model vypíná až při dalším průchodu smyčkou. |
-| E2 – smlouvy a simulátor | rozpracováno | E2.1: první JSON Schema lokálního protokolu, přísný parser a pozitivní/chybné fixtures (D3). E2.2: C++ model fake času, journalu, idempotence a hostitelské scénáře ztraceného ACK/restartu (D4). E2.3: spustitelná časová osa a šest hostitelských scénářů nad sdílenou fixture (D5). E2.4a–d: Node parser, handshake/lease schéma, místní WSS facade nad C++ modelem a souborový fake journal (D6–D9). E2.5: webová časová osa a test HTTPS proudu (D10). | OpenAPI, zbývající protokolové hrany a browser vizuální ověření E2.5. Kritéria E2 ještě nejsou úplně doložena. |
+| E2 – smlouvy a simulátor | rozpracováno | E2.1: první JSON Schema lokálního protokolu, přísný parser a pozitivní/chybné fixtures (D3). E2.2: C++ model fake času, journalu, idempotence a hostitelské scénáře ztraceného ACK/restartu (D4). E2.3: spustitelná časová osa a šest hostitelských scénářů nad sdílenou fixture (D5). E2.4a–d: Node parser, handshake/lease schéma, místní WSS facade nad C++ modelem a souborový fake journal (D6–D9). E2.5: webová časová osa a test HTTPS proudu (D10). E2.6a: základ backend OpenAPI a validace schémat (D11). | Zbývající OpenAPI, protokolové hrany a browser vizuální ověření E2.5. Kritéria E2 ještě nejsou úplně doložena. |
 | E3 – ruční mobil bez HW | nezahájeno | Statická stránka není ruční řízení. | E2; UI, potvrzení/Stop a integrace. |
 | E3a – iOS CI základ | nezahájeno | Jen majitelem popsaný postup. | E3; B2/B3 pro podpis a skutečnou instalaci. |
 | E4 – runtime a přímá síť | nezahájeno | Arduino prototyp. | E2; pro nahrání B1. |
@@ -77,6 +77,13 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 | B5 | Majitel: finální katalog a publikum, rozměry, router a prostředí akce. | Obsahovou/provozní akceptaci E8/E11 a finální mechaniku. | Neutrální testovací katalog a laboratorní/simulované scénáře. |
 
 ## Deník změn a ověření
+
+### D11 – 29. 9. 2026 – E2.6a základ backend OpenAPI
+
+- Rozsah: `contracts/backend-openapi-v1.json` popisuje device credential výměnu, založení sezení, textový tah a polling jeho operace; oddělená bearer schémata, UUID idempotency hlavičku, ProblemDetails, šestibitovou masku, limit 1000 znaků, stav operace, echo identit a typovaný validovaný návrh. `verify-backend-openapi.mjs` kontroluje reference, požadované trasy/security a pozitivní/chybné hodnoty. `contracts/README.md` a kapitola 6 plánu vymezují tento dílčí kontrakt.
+- Ověření z `kufr/contracts` pod Node 24.21.0: `npm test` — 15 platných a 27 chybných control zpráv a test E2.6a prošly. Backend ještě neexistuje, takže scope, skutečná idempotence, kvóty a retence nebyly ověřeny v HTTP runtime.
+- Omezení: dokument má zatím čtyři trasy; WAV přepis, syntéza, binární audio a rušení/úklid chybí. Otevřené detaily těchto tras se neprohlašují za hotové. Pokračuje E2.6b.
+- Revize a doručení: doplnit po commitu a push.
 
 ### D10 – 29. 9. 2026 – E2.5 webová časová osa simulátoru
 
