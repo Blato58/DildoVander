@@ -16,6 +16,15 @@ on:
         description: Adaptive party conversations comparing Sol and Astra (total cap 1 USD)
         type: boolean
         default: false
+      party_models:
+        description: Compare both models or test only the selected model
+        type: choice
+        options: [compare, selected]
+        default: compare
+      party_budget_micro_usd:
+        description: Remaining authorized total run budget in millionths of USD (max 1000000)
+        type: string
+        default: '1000000'
       model:
         description: Dialogue model to compare
         type: choice
@@ -58,6 +67,8 @@ jobs:
       SESSION_CAP_MICRO_USD: ${{ secrets.SESSION_CAP_MICRO_USD }}
       MODEL: ${{ inputs.model }}
       CASE_ID: ${{ inputs.case_id }}
+      PARTY_MODELS: ${{ inputs.party_models }}
+      PARTY_BUDGET: ${{ inputs.party_budget_micro_usd }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Evaluate one synthetic turn
@@ -65,7 +76,12 @@ jobs:
         run: python3 kufr/ai-eval/evaluate.py --model "$MODEL" --case "$CASE_ID" --output "$RUNNER_TEMP/evaluation.json"
       - name: Compare adaptive synthetic party dialogues
         if: ${{ inputs.party_compare }}
-        run: python3 kufr/ai-eval/evaluate_party.py --output "$RUNNER_TEMP/evaluation.json"
+        run: |
+          if [ "$PARTY_MODELS" = selected ]; then
+            python3 kufr/ai-eval/evaluate_party.py --models "$MODEL" --budget-micro-usd "$PARTY_BUDGET" --output "$RUNNER_TEMP/evaluation.json"
+          else
+            python3 kufr/ai-eval/evaluate_party.py --budget-micro-usd "$PARTY_BUDGET" --output "$RUNNER_TEMP/evaluation.json"
+          fi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
