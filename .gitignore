@@ -1,5 +1,7 @@
 # PlatformIO
 **/.pio/
+/kufr/firmware/sdkconfig.esp32-s3-idf
+/kufr/firmware/sdkconfig.esp32-s3-idf.old
 
 # Mobile app
 **/node_modules/

@@ -9,7 +9,10 @@ nahráním ověřit revizi skutečné desky, typ flash/PSRAM a USB rozhraní.
 PlatformIO používá připnutou platformu Espressif 32 7.1.3. Zvolená tabulka
 oddílů dává ze 16 MB flash každému ze dvou OTA slotů 6,25 MiB pro aplikaci.
 
-Aktuální runtime je **Arduino**; přechod na ESP-IDF je plánovaná etapa E4.
+Výchozí sestavení `pio run` používá **ESP-IDF 6.1** v profilu
+`esp32-s3-idf`. Původní sériový Arduino prototyp je dostupný samostatně přes
+`pio run -e esp32-s3-arduino-serial`. Oba profily byly sestaveny lokálně;
+žádný firmware se zatím nenahrával do desky.
 Podrobný postup a skutečně provedené kontroly jsou ve
 [stavu implementace](../docs/stav-implementace.md). Popis níže je současný
 sériový prototyp, nikoli implementované síťové či bezpečnostní řízení.
@@ -18,13 +21,15 @@ sériový prototyp, nikoli implementované síťové či bezpečnostní řízen�
 
 Firmware roste po vertical slices. Každá funkce drží své rozhodování a své
 vstupní/výstupní porty pohromadě. `main.cpp` jen skládá instance a volá je
-ve smyčce s časováním bez `delay()`. Nezavádíme globální vrstvu
+ve smyčce s časováním bez `delay()`. ESP-IDF `espidf_main.cpp` skládá stejné
+bezpečnostní jádro nad FreeRTOS smyčkou. Nezavádíme globální vrstvu
 service/repository ani společné rozhraní pro každou periferii předtím, než
 bude potřeba.
 
 ```text
 src/
-  main.cpp                                  sestavení a smyčka
+  main.cpp                                  Arduino sestavení a smyčka
+  espidf_main.cpp                           rozpracovaná IDF smyčka bez GPIO
   features/
     safety/
       SafetyPort.h                          požadavky na vypnutí/pohony
@@ -109,6 +114,13 @@ Ve složce `kufr/firmware`:
 ```text
 pio run
 ```
+
+Výchozí profil používá PlatformIO `espressif32@7.1.3`, připnutý ESP-IDF 6.1,
+`sdkconfig.defaults` a vlastní kopii 16MB tabulky oddílů. Zatím pouze
+vyžaduje bezpečný výstup, prochází čistým jádrem s monotónním časem a vypisuje
+požadavky do logu. Neobsahuje sériové příkazy, GPIO, NVS, Wi-Fi ani TLS.
+Skutečný výsledek sestavení a mezery akceptace jsou ve stavu implementace.
+Původní sériový prototyp lze sestavit `pio run -e esp32-s3-arduino-serial`.
 
 Jednotkový test čisté sekvence lze sestavit libovolným hostitelským C++
 kompilátorem (C++11 nebo novějším), např.:

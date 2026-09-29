@@ -1,22 +1,20 @@
 # Stav implementace AI kufru
 
-Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální firmware build E1/E2, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a browser průchod mobilní obrazovkou proti E2. Hardware, iPhone a CI zůstávají bez runtime akceptace. Hotový návrh není hotová implementace.
+Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální Arduino i ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a browser průchod mobilní obrazovkou proti E2. Hardware, iPhone a CI zůstávají bez runtime akceptace. Hotový návrh není hotová implementace.
 
 [Implementační plán](implementacni-plan.md) určuje architekturu a akceptaci. [AGENTS.md](../../AGENTS.md) určuje pracovní postup AI. Tento soubor je jediný průběžný záznam postupu; README ho pouze odkazují.
 
 ## Předání další AI
 
-**Aktivní implementační krok:** E4.1 – připravit ESP-IDF runtime/profil a přímý síťový klient bez nahrání do neověřené desky. E7 backend bez skutečné AI je dokončen v lokálním fake rozsahu včetně nákladové rezervace a integračních testů (D23–D32). E2/E3 jsou dokončené v hostitelském/simulátorovém rozsahu. Fyzické nezávislé vypnutí a měření zůstávají kritérii E5; placená AI E8 čeká na B4.
+**Aktivní implementační krok:** E4.2 – servisní provisionování device identity mimo firmware image a trvalý NVS journal. E4.1 ESP-IDF profil a bezpečná smyčka jsou softwarově sestavené (D33), bez uploadu a HW akceptace. E7 backend bez skutečné AI je dokončen v lokálním fake rozsahu včetně nákladové rezervace a integračních testů (D23–D32). E2/E3 jsou dokončené v hostitelském/simulátorovém rozsahu. Fyzické nezávislé vypnutí a měření zůstávají kritérii E5; placená AI E8 čeká na B4.
 
-**Další konkrétní krok: E4.1 – softwarový základ ESP-IDF runtime.**
+**Další konkrétní krok: E4.2 – device identita a NVS journal.**
 
-1. Ověřit dostupnost přesné ESP-IDF/PlatformIO toolchain kombinace z plánu a převést nejmenší kompilovatelný runtime slice s existujícím čistým bezpečnostním jádrem; bez známé revize desky nic nenahrávat. Zachovat E1/E2 hostitelské testy a sepsat konkrétní migraci/případný nezbytný odklon v plánu před změnou kontraktu.
-2. Navázat provisionováním identity mimo image, Wi-Fi/HTTPS fake backend klientem a lokálním WSS podle E4, pokud softwarové závislosti dovolí. Pro TLS a skutečné GPIO/USB měření platí B1; E8 provider čeká na B4.
+1. Navrhnout a hostitelsky otestovat servisní zápis/čtení device identity a journalu, potom připojit NVS adaptér v ESP-IDF. Identitu ani credential nevkládat do image. Bez známé revize desky nic nenahrávat.
+2. Navázat Wi-Fi/HTTPS fake backend klientem a lokálním WSS podle E4. Pro skutečné TLS spojení a GPIO/USB měření platí B1; E8 provider čeká na B4.
 3. Fyzická HW akceptace zůstává v E5 po vstupu B1; nativní iOS E3a čeká na B2/B3. Nezaměnit fake log s NVS ani fake odpověď se skutečnou AI.
 
-Předpokládané dotčené cesty: `kufr/backend/`, související README a tento stav. Krok nevyžaduje fyzickou desku, cloudový klíč ani Apple certifikát. Toto je implementační předání, nikoli příkaz něco nahrát či publikovat.
-
-Pokud uživatel omezí práci pouze na mobilní aplikaci, neoznačuj závislosti E2 za splněné. Lze připravit samostatnou UI část E3 proti výslovně označenému fake transportu, ale E3 zůstane částečné do integrace se simulátorem/protokolem E2. Rozsah a mezeru zapiš sem.
+Dotčené cesty: `kufr/firmware/`, související README a tento stav. Krok nevyžaduje fyzickou desku, cloudový klíč ani Apple certifikát. Toto je implementační předání, nikoli příkaz něco nahrát či publikovat.
 
 ## Jak se eviduje práce
 
@@ -53,7 +51,7 @@ Přesné závislosti a kritéria dokončení jsou v kapitole 12 plánu. Následu
 | E2 – smlouvy a simulátor | hotovo | E2.1–4 kontrakty, C++ model, fake journal, parser a WSS; E2.5 časová osa s browser ověřením (D10,D22); E2.6 OpenAPI, E2.7 reload, E2.8 fake text/cancel, E2.9 fake media parser/socket (D3–D18). Ztracený ACK, duplicitní/pozdní příkaz, restart a zotavení kryjí hostitelské testy a WSS scénáře. | Fake není skutečný audio buffer, NVS ani backend; tyto hranice patří E4/E7/E9. |
 | E3 – ruční mobil bez HW | hotovo | E3.1 fake UI (D19), E3.2a ověřený místní most (D20), E3.2b UI adaptér a celý výběr/reload/Stop/odpojení proti C++ simulátoru, cílené testy ztracených zpráv a nového lease (D21). | Jde pouze o webovou/simulátorovou akceptaci E3; nativní iPhone, TLS pinning a fyzický kufr patří E3a/E10/E5. |
 | E3a – iOS CI základ | nezahájeno | Jen majitelem popsaný postup. | E3; B2/B3 pro podpis a skutečnou instalaci. |
-| E4 – runtime a přímá síť | rozpracováno | Arduino prototyp; E4.1 softwarový základ se začíná ověřovat po E7. | E2; pro nahrání B1. |
+| E4 – runtime a přímá síť | rozpracováno | E4.1: ESP-IDF 6.1 profil, CMake, bezpečná smyčka, 16MB oddíly a lokální build; Arduino sériový profil zachován (D33). | NVS/Wi-Fi/HTTPS/WSS a pro nahrání B1. |
 | E5 – jedna bezpečná přihrádka | nezahájeno | Bez ovládání a měření. | E0/E1/E4; B1, fyzická akceptace. |
 | E6 – šest přihrádek | nezahájeno | Bez fyzického ověření. | E5; cykly, proudy, dostupnost/reload. |
 | E7 – backend bez skutečné AI | hotovo | E7.1–2 identity/fake dialog; E7.3a–c SQLite idempotence, restart a kvóta; E7.4a–b cleanup/retence a rušení; E7.5a–b WAV fake hlas; E7.6 transakční nákladová rezervace. Lokální HTTP/SQLite testy přístupů, souběhu, restartu, retence a logů prošly (D23–D32). | Skutečné provider ceny/limity/klíče a placená akceptace patří E8/B4; device HTTPS/TLS integrace E4. |
@@ -77,6 +75,13 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 | B5 | Majitel: finální katalog a publikum, rozměry, router a prostředí akce. | Obsahovou/provozní akceptaci E8/E11 a finální mechaniku. | Neutrální testovací katalog a laboratorní/simulované scénáře. |
 
 ## Deník změn a ověření
+
+### D33 – 29. 9. 2026 – E4.1 sestavený ESP-IDF základ
+
+- Převzetí a rozsah: po dokončení E7 byl převzat první E4 software slice. PlatformIO `espressif32@7.1.3` nainstalovalo `framework-espidf@4.60100.0` (ESP-IDF 6.1.0). Přibyly CMake soubory, `sdkconfig.defaults` s předběžným profilem N16R8, 16MB tabulka oddílů a `app_main` se safety portem bez GPIO a neblokující smyčkou. Generované IDF sdkconfig se ignoruje. ESP-IDF je výchozí profil; Arduino sériový profil má oddělený zdrojový filtr.
+- Ověření: `pio run` prošel pro ESP-IDF 6.1.0; obraz obsahuje platný checksum/hash, 16MB flash a 80MHz režim. Výstup: 16 604 B RAM a 181 137 B flash z OTA slotu 6 553 600 B. Účinný sdkconfig potvrzuje QIO výběr (boot image začíná v DIO dle ESP-IDF), octal PSRAM a vlastní 16MB oddíly. `pio run -e esp32-s3-arduino-serial` prošel (18 660 B RAM, 279 333 B flash). Všechny tři hostitelské C++ testy (`selection_sequence`, `device_control`, `conversation_session`) prošly s MSVC `/W4 /WX`; zdroje čistého jádra se neměnily. Kopii tabulky oddílů ověřil lokální `gen_esp32part.py --flash-size 16MB`; `git diff --check` prošel. První pokusy instalace toolchainu selhaly na `HTTPClientError`, pozdější pokus nainstaloval všechny balíčky a build dokončil.
+- Omezení: sestavení neověřuje boot ani PSRAM na skutečné desce, fyzický inhibit/watchdog, NVS, Wi-Fi, TLS či WSS. Nenahrávalo se. Volba generické `esp32-s3-devkitc-1` se skutečnou N16R8 revizí ověří až po B1.
+- Předání: E4.1 software slice je sestavený; následuje E4.2 NVS identita a journal. Fyzické ověření až po B1.
 
 ### D32 – 29. 9. 2026 – E7.6 nákladová rezervace a E7 integrace
 
