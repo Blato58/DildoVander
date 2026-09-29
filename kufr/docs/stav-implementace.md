@@ -8,7 +8,7 @@ Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 **Aktivní implementační krok:** E4.3 – samostatný ESP32 klient backendu. E4.1 ESP-IDF profil a bezpečná smyčka jsou softwarově sestavené (D33); E4.2 má trvalý journal a model identity s NVS adaptéry bez HW/USB akceptace (D34–D35). E4.3a přidává model backend tokenu a HTTPS adaptér (D36), E4.3b servisně čtenou síť, SNTP/časovou bránu a samostatnou úlohu (D37). E4.3c má JSON kodeky startu, textového tahu, potvrzení i pollu operace, HTTPS adaptéry startu/tahu/pollu, obnovu tokenu, guard korelace výsledku, UUID generátor a časování pollu (D38–D48); runtime start/tah/poll ještě nejsou připojené. E7 backend bez skutečné AI je dokončen v lokálním fake rozsahu včetně nákladové rezervace a integračních testů (D23–D32). E2/E3 jsou dokončené v hostitelském/simulátorovém rozsahu. Fyzické nezávislé vypnutí a měření zůstávají kritérii E5; placená AI E8 čeká na B4.
 
-**Další konkrétní krok: E4.3c – HTTPS vytvoření fake backend sezení, textový tah a poll výsledku; potom lokální WSS. E4.2 servisní USB zápis čeká na B1.**
+**Další konkrétní krok: E4.3c – přivést do síťové úlohy explicitní textovou událost a autoritativní snapshot `generation`, `deviceRevision`, `readyMask` a katalogu; teprve z těchto hodnot sestavit jeden start/tah/poll cyklus. Potom lokální WSS. E4.2 servisní USB zápis čeká na B1.**
 
 1. Formát a NVS čtení identity jsou v softwaru. Pro skutečný servisní zápis doplnit USB nástroj až s ověřenou fyzickou servisní bránou a odpojenou větví pohonů (B1). Credential musí vzniknout mimo image a zůstat mimo argumenty/logy. Bez známé revize desky nic nenahrávat. Journal ani identita nemají ověřený běh na desce.
 2. Po softwarovém Wi-Fi a tokenovém bootstrappingu připojit HTTPS fake backend konverzaci a lokální WSS podle E4. Skutečné TLS spojení na desce a GPIO/USB měření vyžadují B1; E8 provider čeká na B4.
@@ -68,7 +68,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 
 | ID | Chybějící vstup a kdo ho dodá | Co blokuje | Co může pokračovat |
 | --- | --- | --- | --- |
-| B1 | Majitel/stavitel: revize PCB, měření USB/LED/paměti, mechanika a schéma/měření watchdogu a napájení; pro servisní USB zápis také měřitelný vstup servisního režimu a stav odpojené větve pohonů. | Nahrání do neověřené desky, skutečné servisní provisionování, E5/E6 a HW akceptaci E9/E13. | Hostitelské testy, protokol, simulátor, SW build. |
+| B1 | Majitel/stavitel: revize PCB, měření USB/LED/paměti, mechanika a schéma/měření watchdogu a napájení; pro servisní USB zápis také měřitelný vstup servisního režimu a stav odpojené větve pohonů. Dne 29. 9. majitel potvrdil, že údaje o revizi desky, flash, PSRAM a USB zatím nemá. | Nahrání do neověřené desky, skutečné servisní provisionování, E5/E6 a HW akceptaci E9/E13. | Hostitelské testy, protokol, simulátor, SW build. |
 | B2 | Majitel: skutečný soubor již používaného iOS workflow, Team/Bundle ID, distribuční režim a platná identita/profil do secrets. | Převzetí a ověření podpisové části E3a, vydání E11. | Webový vývoj, příprava nativního projektu a kontrol bez podpisových secrets. |
 | B3 | Majitel: model/verze iOS, registrovaný iPhone pro Ad Hoc a vybraný instalační klient/hosting IPA. | Fyzickou instalaci E3a, LAN/Keychain akceptaci E10 a distribuci E11. | UI/protokolové testy; CI simulator test není náhrada iPhonu. |
 | B4 | Správce/majitel: účet, AI klíč mimo repo, hosting, region/retence a schválené provozní limity. | Skutečná placená volání a provozní nasazení. | E7 a fake integrační/eval scénáře; připravit konfiguraci bez hodnot tajemství. |
@@ -82,6 +82,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 - Ověření: v `C:\Development\DildoVander` prošel MSVC `/std:c++14 /utf-8 /W4 /WX` test `turn_poll_schedule_test.cpp` pro hranice intervalů, souběh, deadline a vadné pořadí časů. V `kufr/firmware` prošel `pio run` pro ESP-IDF (40 588 B RAM, 1 003 813 B flash) a `pio run -e esp32-s3-arduino-serial` (18 660 B RAM, 280 489 B flash).
 - Omezení: časování zatím nevolá síťová úloha. Deadline nepřeruší již běžící blokující HTTPS požadavek; skutečný čas tahu na desce není změřen.
 - Předání: připojit explicitní událost textového tahu a platný snapshot stavu, potom jeden runtime start/tah/poll cyklus bez fyzických výstupů.
+- Revize a doručení: E4.3c11 je v commitu `379cd143b2273f87c9053d6c9b814387982c4b44`; `./scripts/Push-CurrentBranch.ps1` potvrdil push `main` na `origin/main` v této revizi.
 
 ### D47 – 29. 9. 2026 – E4.3c10 UUID pro boot a požadavky
 
