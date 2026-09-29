@@ -19,7 +19,12 @@ internal static class ResponsesTextDialogClientTests
         });
         using var validHttp = new HttpClient(validHandler);
         var validClient = new ResponsesTextDialogClient(validHttp, "test-key", "gpt-6.1-sol");
-        var proposed = await validClient.GenerateAsync("Vyber něco veselého.", 16, CancellationToken.None);
+        var history = new[]
+        {
+            new DialogExchange("Chci chaos.", "Jaký chaos?"),
+            new DialogExchange("Vtipný a třpytivý.", "Jak moc třpytu?")
+        };
+        var proposed = await validClient.GenerateAsync("Hodně.", 16, history, false, CancellationToken.None);
         Check(proposed is
         {
             Decision: "propose",
@@ -38,6 +43,47 @@ internal static class ResponsesTextDialogClientTests
                 "shared party prompt embedded");
             Check(root.GetProperty("input").GetString()!.Contains("[5]", StringComparison.Ordinal),
                 "ready mask limits provider input");
+            Check(root.GetProperty("input").GetString()!.Contains("Vtipný a třpytivý.", StringComparison.Ordinal),
+                "completed visitor answer is passed to provider");
+        }
+
+        string? questionRequest = null;
+        using (var questionHttp = new HttpClient(new StubHandler(async (request, token) =>
+        {
+            questionRequest = await request.Content!.ReadAsStringAsync(token);
+            return JsonResponse(ProviderResponse("ask", null));
+        })))
+        {
+            var questionClient = new ResponsesTextDialogClient(questionHttp, "test-key", "gpt-6.1-sol");
+            var question = await questionClient.GenerateAsync("Chci drama.", 16, [], true,
+                CancellationToken.None);
+            Check(question.Decision == "ask", "provider generates the clarification turn");
+        }
+        using (var request = JsonDocument.Parse(questionRequest!))
+        {
+            var root = request.RootElement;
+            var decisions = root.GetProperty("text").GetProperty("format")
+                .GetProperty("schema").GetProperty("properties")
+                .GetProperty("decision").GetProperty("enum");
+            Check(decisions.EnumerateArray().All(item => item.GetString() != "propose"),
+                "early-turn schema excludes proposals");
+            Check(root.GetProperty("input").GetString()!.Contains("polož vlastní navazující otázku",
+                    StringComparison.Ordinal),
+                "model is asked to generate its own clarification");
+        }
+
+        using (var earlyHttp = new HttpClient(new StubHandler((_, _) =>
+            Task.FromResult(JsonResponse(ProviderResponse("propose", 5))))))
+        {
+            var earlyClient = new ResponsesTextDialogClient(earlyHttp, "test-key", "gpt-6.1-sol");
+            try
+            {
+                await earlyClient.GenerateAsync("Chci drama.", 16, [], true, CancellationToken.None);
+                throw new Exception("Early proposal was accepted.");
+            }
+            catch (TextDialogUnavailableException)
+            {
+            }
         }
 
         await ExpectUnavailableAsync(ProviderResponse("propose", 6), 16, "unavailable compartment");
@@ -68,6 +114,24 @@ internal static class ResponsesTextDialogClientTests
 
         await ExpectUnavailableAsync(new string('x', 65_537), 16, "oversized body");
 
+        using var neverSentHttp = new HttpClient(new StubHandler((_, _) =>
+            throw new Exception("Oversized request reached the provider.")));
+        var boundedClient = new ResponsesTextDialogClient(neverSentHttp, "test-key", "gpt-6.1-sol");
+        try
+        {
+            var oversizedHistory = new[]
+            {
+                new DialogExchange(new string('\u0001', 500), new string('\u0001', 300)),
+                new DialogExchange(new string('\u0001', 500), new string('\u0001', 300))
+            };
+            await boundedClient.GenerateAsync(new string('\u0001', 1000), 1,
+                oversizedHistory, false, CancellationToken.None);
+            throw new Exception("Oversized request passed the reservation boundary.");
+        }
+        catch (TextDialogRequestTooLargeException)
+        {
+        }
+
         using var stalledHttp = new HttpClient(new StubHandler((_, _) =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
@@ -80,7 +144,7 @@ internal static class ResponsesTextDialogClientTests
             TimeSpan.FromMilliseconds(50));
         try
         {
-            await stalledClient.GenerateAsync("Test", 1, CancellationToken.None);
+            await stalledClient.GenerateAsync("Test", 1, [], false, CancellationToken.None);
             throw new Exception("Stalled body passed the deadline.");
         }
         catch (OperationCanceledException)
@@ -95,7 +159,7 @@ internal static class ResponsesTextDialogClientTests
         var failedClient = new ResponsesTextDialogClient(failedHttp, "test-key", "gpt-6.1-sol");
         try
         {
-            await failedClient.GenerateAsync("Test", 1, CancellationToken.None);
+            await failedClient.GenerateAsync("Test", 1, [], false, CancellationToken.None);
             throw new Exception("Provider HTTP error was accepted.");
         }
         catch (TextDialogUnavailableException error)
@@ -111,7 +175,7 @@ internal static class ResponsesTextDialogClientTests
         var client = new ResponsesTextDialogClient(http, "test-key", "gpt-6.1-sol");
         try
         {
-            await client.GenerateAsync("Test", readyMask, CancellationToken.None);
+            await client.GenerateAsync("Test", readyMask, [], false, CancellationToken.None);
             throw new Exception($"Failed: {label}");
         }
         catch (TextDialogUnavailableException)
