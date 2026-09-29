@@ -7,6 +7,9 @@
 #include <string>
 
 bool IsValidConversationText(const std::string& text);
+bool IsValidConversationUtf8(const std::string& text,
+                             size_t maximumCharacters,
+                             bool allowEmpty);
 
 enum class ConversationCommandError : uint8_t {
   None,

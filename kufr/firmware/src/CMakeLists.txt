@@ -20,6 +20,7 @@ idf_component_register(
         "features/conversation/EspIdfConversationTextTransport.cpp"
         "features/conversation/OperationAcceptedCodec.cpp"
         "features/conversation/TurnPollGuard.cpp"
+        "features/conversation/TurnOperationCodec.cpp"
         "features/device_control/EspIdfJournalStorage.cpp"
         "features/device_control/PersistentCommandJournal.cpp"
         "features/provisioning/DeviceIdentity.cpp"

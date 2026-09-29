@@ -2,7 +2,9 @@
 
 #include <algorithm>
 
-bool IsValidConversationText(const std::string& text) {
+bool IsValidConversationUtf8(const std::string& text,
+                             size_t maximumCharacters,
+                             bool allowEmpty) {
   size_t characters = 0;
   for (size_t index = 0; index < text.size();) {
     const unsigned char first = static_cast<unsigned char>(text[index]);
@@ -39,12 +41,16 @@ bool IsValidConversationText(const std::string& text) {
       }
     }
     ++characters;
-    if (characters > 1000) {
+    if (characters > maximumCharacters) {
       return false;
     }
     index += width;
   }
-  return characters > 0;
+  return allowEmpty || characters > 0;
+}
+
+bool IsValidConversationText(const std::string& text) {
+  return IsValidConversationUtf8(text, 1000, false);
 }
 
 ConversationSession::ConversationSession(const std::string& bootId,
