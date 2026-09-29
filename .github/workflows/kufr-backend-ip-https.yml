@@ -1,0 +1,89 @@
+name: Kufr backend IP HTTPS
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/kufr-backend-ip-https.yml
+      - kufr/backend/deploy/ip-https/**
+  schedule:
+    - cron: '23 9 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Stage root bootstrap or verify public HTTPS
+        type: choice
+        options: [stage, verify]
+        required: true
+      public_ipv4:
+        description: Public IPv4 address, required for verify
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Check bootstrap scripts and required files
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_dir=kufr/backend/deploy/ip-https
+          bash -n "$source_dir/bootstrap-ip-https.sh" "$source_dir/kufr-cert-reload.sh"
+          for source_file in kufr-ip-http.conf.in kufr-ip-https.conf.in kufr-cert-renew.service kufr-cert-renew.timer; do
+            test -s "$source_dir/$source_file"
+          done
+
+  stage:
+    if: github.ref == 'refs/heads/main' && inputs.mode == 'stage'
+    runs-on: [self-hosted, Linux, X64, kufr-backend]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Stage reviewed root bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_dir=kufr/backend/deploy/ip-https
+          bash -n "$source_dir/bootstrap-ip-https.sh" "$source_dir/kufr-cert-reload.sh"
+          stage_dir="$(mktemp -d "$HOME/kufr-ip-https.XXXXXXXX")"
+          for source_file in "$source_dir"/*; do
+            install -m 0400 "$source_file" "$stage_dir/$(basename "$source_file")"
+          done
+          echo "commit=$GITHUB_SHA"
+          echo "stage_dir=$stage_dir"
+          sha256sum "$stage_dir"/*
+          echo 'An administrator must verify the script hash and run it as root.'
+
+  verify:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.mode == 'verify')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      PUBLIC_IPV4: ${{ inputs.public_ipv4 || vars.KUFR_BACKEND_PUBLIC_IPV4 }}
+    steps:
+      - name: Verify publicly trusted IP HTTPS
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import ipaddress
+          import os
+
+          address = ipaddress.IPv4Address(os.environ['PUBLIC_IPV4'])
+          if not address.is_global:
+              raise SystemExit('A public IPv4 address is required')
+          PY
+          curl --fail --silent --show-error --max-time 15 \
+            -o /dev/null "https://$PUBLIC_IPV4/healthz"
+          echo | openssl s_client -connect "$PUBLIC_IPV4:443" \
+            -servername "$PUBLIC_IPV4" 2>/dev/null |
+            openssl x509 -noout -checkend 172800
+          redirect=$(curl --silent --show-error --max-time 15 -o /dev/null \
+            -w '%{http_code}' "http://$PUBLIC_IPV4/healthz")
+          test "$redirect" = 308
+          echo 'Public TLS trust, IP SAN, >=48h validity, backend health, and HTTP redirect passed.'
