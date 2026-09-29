@@ -98,3 +98,12 @@ device stream ID a PCM16 mono 32 kHz limity, `media.credit` obnovuje
 hlídá povinný kontext, formát, rozsahy, SHA-256 tvar a zákaz polí pohonu.
 Současný simulátor přijímá jen telefonní PCM capture; typy rámců PCM
 playback/JPEG zůstávají zatím pouze binárními hodnotami kontraktu.
+
+## Party opening a paměť večera
+
+HTTP OpenAPI nově popisuje `/v1/conversations/{id}/opening` bez textu,
+`GET /v1/evening-memory` pro device-scoped ID/počty a
+`DELETE /v1/evening-memory/{id}` pro smazání konkrétního večera. Opening
+používá původní turn operaci a korelaci; nemění WSS control zprávy ani
+oprávnění fyzického pohybu. Starší klienti mohou dál používat `/turns`.
+Skutečný firmware/telefon musí nové operace teprve zapojit.

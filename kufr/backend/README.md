@@ -20,10 +20,40 @@ serveru s korelací a expirací 60 sekund.
 Žádná trasa neovládá aktuátory.
 V režimu `responses` vytváří otázky i pointu model. První dva dokončené
 dialogové tahy vyžadují otázku; schema v nich nepovolí návrh přihrádky.
-Dvě poslední výměny (nejvýše 500 znaků vstupu a 300 znaků odpovědi v každé)
-zůstávají jen v RAM po dobu sezení a další tah je předá modelu. Ukončení či
-expirace sezení je odstraní. Celé odeslané JSON tělo je omezeno na 14 kB,
-takže i s historií zůstává konzervativní rezervace 0,05 USD na tah.
+Dvě poslední výměny zůstávají v RAM pro aktuální tah. Celé dokončené textové
+výměny se navíc ukládají do `Backend:DatabasePath` + `.evening.sqlite`.
+Tato paměť je oddělená podle zařízení, přežije konec sezení i restart a nemá
+časovou expiraci. Po 2000 výměnách nebo 2 MB UTF-8 textu vytěsňuje nejstarší
+výměny; status uvádí počet vytěsnění. Žádné audio ani fotografie neukládá.
+Soubor má být ve stejném soukromém adresáři služby jako journal, ale vynechaný
+z technických záloh. SQLite používá secure_delete a rollback journal; smazání
+není zárukou odstranění kopií v externích zálohách nebo u poskytovatele.
+
+Model dostane nejvýše 16000 znaků vybraných původních replik: aktuální
+rozhovor, starší rozhovory podle shody slov ve jméně/odpovědi a nedávný kontext.
+Jde o lexikální vybavení, ne neomylný profil člověka ani biometrickou identitu.
+Dva Petrové vyžadují upřesnění. Jména/opravy musí vycházet z řečeného.
+Obsah paměti se nikdy nepovažuje za instrukce či aktuální dostupnost hůlek.
+Limit základního JSON těla je 14 kB plus JSON-encoded velikost paměti;
+rezervace před voláním je 0,05 USD plus konzervativní cache-write cena
+přidaných bajtů. Všechny tři stávající nákladové stropy zůstávají účinné.
+
+`POST /v1/conversations/{id}/opening` přijímá pole textového tahu **bez text**.
+Vytvoří běžnou pollovatelnou turn operaci: kufr promluví první a zeptá se na
+jméno bez představování. Po prvním přijatém tahu se nový opening odmítne;
+retry se stejným klíčem vrací tutéž operaci. Starý `/turns` zůstává kompatibilní.
+Firmware ani mobil zatím novou událost nevolají; samostatný hlas vyžaduje E9.
+
+`GET /v1/evening-memory` vrací pro device token `eveningId`, počty a limity,
+nikoli obsah. Obsluha smaže konkrétní večer pomocí
+`DELETE /v1/evening-memory/{eveningId}`, prázdného těla a UUID `Idempotency-Key`.
+Smazání také ukončí aktivní sezení; zrušená pozdní odpověď nesmí nic obnovit.
+Stará/cizí ID vrací neškodné 204; nemohou smazat nový večer nebo jiné zařízení.
+Samotné `DELETE /v1/conversations/{id}` paměť večera nemaže. UI tlačítko a
+lokální autorizovaná cesta ze spárovaného telefonu jsou ještě integrace E10.
+Technický journal neobsahuje text. Zápis paměti předchází publikaci odpovědi;
+při pádu mezi dvěma SQLite commity může obsahovat vygenerovanou repliku,
+kterou zařízení nepřevzalo. Ani dokončený tah není důkazem přehrání zvuku.
 
 `responses` je zatím pouze vývojový režim pro syntetické vstupy přes loopback.
 Vyžaduje `Backend__Dialog__Mode=responses`, `OPENAI_API_KEY`, všechny tři
@@ -78,7 +108,7 @@ nejvýše 16 současně platných access tokenů; další výměna vrátí 429.
 vydaný access token, UUID hlavičku `Idempotency-Key` a tělo dle
 `../contracts/backend-openapi-v1.json`. `GET /v1/operations/{id}` vrací
 fake operaci ve stavu `completed` s identitami požadavku, pevnou odpovědí
-`ask` a `proposal:null`. Text návštěvníka se neukládá do operace ani logu.
+`ask` a `proposal:null`. Text návštěvníka se neukládá do technické operace ani logu; dokončený textový tah patří do oddělené paměti večera.
 `DELETE /v1/operations/{id}` a `DELETE /v1/conversations/{id}` vyžadují stejný
 access token, UUID `Idempotency-Key` a prázdné tělo. Rušení potlačí publikaci
 výsledku v RAM i pozdě dokončeného tahu; již odeslaná placená práce by ale
@@ -104,7 +134,7 @@ Odpovědi `/v1` mají `Cache-Control: no-store`; chyby používají
 
 Sezení, tokeny a fake obsah výsledku jsou jen v paměti jedné instance.
 SQLite drží hash těla, idempotency key, identifikátory, status a 24hodinovou
-expiraci textové operace, nikdy text návštěvníka. Po restartu lze opakovat
+expiraci textové operace, nikdy text návštěvníka; ten má oddělený obsahový soubor popsaný výše. Po restartu lze opakovat
 stejný turn key bez druhého požadavku. Rozběhnutá rezervace přejde na
 `unknown`; již dokončený, ale z RAM ztracený výsledek se čte jako
 `failed/result_expired`. Nové tahy starého sezení nejsou po restartu možné.

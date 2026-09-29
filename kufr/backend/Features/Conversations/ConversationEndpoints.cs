@@ -11,6 +11,9 @@ internal static class ConversationEndpoints
     {
         endpoints.MapPost("/v1/conversations", CreateConversationAsync);
         endpoints.MapPost("/v1/conversations/{id}/turns", SubmitTurnAsync);
+        endpoints.MapPost("/v1/conversations/{id}/opening", SubmitOpeningAsync);
+        endpoints.MapGet("/v1/evening-memory", GetEveningMemory);
+        endpoints.MapDelete("/v1/evening-memory/{id}", ClearEveningMemoryAsync);
         endpoints.MapPost("/v1/conversations/{id}/transcriptions", SubmitTranscriptionAsync);
         endpoints.MapPost("/v1/conversations/{id}/speech", SubmitSpeechAsync);
         endpoints.MapGet("/v1/operations/{id}", GetOperation);
@@ -100,11 +103,20 @@ internal static class ConversationEndpoints
             : Results.Json(result.Response, statusCode: result.Status);
     }
 
-    private static async Task<IResult> SubmitTurnAsync(
+    private static Task<IResult> SubmitTurnAsync(string id, HttpContext context,
+        DeviceAccessStore access, ConversationStore conversations) =>
+        SubmitDialogueAsync(id, context, access, conversations, opening: false);
+
+    private static Task<IResult> SubmitOpeningAsync(string id, HttpContext context,
+        DeviceAccessStore access, ConversationStore conversations) =>
+        SubmitDialogueAsync(id, context, access, conversations, opening: true);
+
+    private static async Task<IResult> SubmitDialogueAsync(
         string id,
         HttpContext context,
         DeviceAccessStore access,
-        ConversationStore conversations)
+        ConversationStore conversations,
+        bool opening)
     {
         var deviceId = DeviceAccessEndpoints.Authenticate(context, access);
         if (deviceId is null)
@@ -138,7 +150,9 @@ internal static class ConversationEndpoints
             var root = document.RootElement;
             if (!HasExpectedProperties(
                     root,
-                    ["clientTurnId", "bootId", "generation", "text", "readyMask", "deviceRevision", "catalogVersion"])
+                    opening
+                        ? ["clientTurnId", "bootId", "generation", "readyMask", "deviceRevision", "catalogVersion"]
+                        : ["clientTurnId", "bootId", "generation", "text", "readyMask", "deviceRevision", "catalogVersion"])
                 || !IsUuid(root, "clientTurnId")
                 || !IsUuid(root, "bootId")
                 || !IsInteger(root, "generation")
@@ -157,12 +171,17 @@ internal static class ConversationEndpoints
             return ApiProblem.Create(context, 400, "invalid_request");
         }
 
+        if (opening && request is not null)
+        {
+            request = request with { Text = "" };
+        }
+
         if (request is null
             || request.ClientTurnId == Guid.Empty
             || request.BootId == Guid.Empty
             || request.Generation < 0
-            || request.Text is not { Length: > 0 and <= 1000 }
-            || string.IsNullOrWhiteSpace(request.Text)
+            || !opening && (request.Text is not { Length: > 0 and <= 1000 }
+                || string.IsNullOrWhiteSpace(request.Text))
             || request.ReadyMask is < 0 or > 63
             || request.DeviceRevision < 0
             || request.CatalogVersion is not { Length: > 0 and <= 128 })
@@ -170,7 +189,7 @@ internal static class ConversationEndpoints
             return ApiProblem.Create(context, 400, "invalid_request");
         }
 
-        var result = conversations.SubmitTurn(deviceId, id, key, body, request);
+        var result = conversations.SubmitTurn(deviceId, id, key, body, request, opening);
         return result.OperationId is null
             ? ApiProblem.Create(context, result.Status, result.ErrorCode ?? "turn_rejected")
             : Results.Json(new { operationId = result.OperationId }, statusCode: result.Status);
@@ -398,6 +417,39 @@ internal static class ConversationEndpoints
             : ApiProblem.Create(context, result.Status, result.Status == 403
                 ? "device_scope_mismatch"
                 : "conversation_not_found");
+    }
+
+    private static IResult GetEveningMemory(HttpContext context,
+        DeviceAccessStore access, ConversationStore conversations)
+    {
+        var deviceId = DeviceAccessEndpoints.Authenticate(context, access);
+        if (deviceId is null)
+        {
+            return ApiProblem.Create(context, 401, "access_token_required");
+        }
+
+        return Results.Ok(conversations.GetEveningMemory(deviceId));
+    }
+
+    private static async Task<IResult> ClearEveningMemoryAsync(string id, HttpContext context,
+        DeviceAccessStore access, ConversationStore conversations)
+    {
+        var deviceId = DeviceAccessEndpoints.Authenticate(context, access);
+        if (deviceId is null)
+        {
+            return ApiProblem.Create(context, 401, "access_token_required");
+        }
+
+        if (!Guid.TryParseExact(id, "D", out var eveningId)
+            || !Guid.TryParseExact(context.Request.Headers["Idempotency-Key"], "D", out _)
+            || !await HasEmptyBodyAsync(context))
+        {
+            return ApiProblem.Create(context, 400, "invalid_request");
+        }
+
+        // The expected evening ID makes this mutation idempotent indefinitely.
+        conversations.ClearEveningMemory(deviceId, eveningId.ToString("D"));
+        return Results.NoContent();
     }
 
     private static bool IsUuid(JsonElement root, string name)

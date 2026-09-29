@@ -24,6 +24,19 @@ internal static class ResponsesTextDialogBudgetTests
             <= ResponsesTextDialogBudget.ReservedMicroUsd,
             "serialized request cap stays below the per-call reservation");
 
+        var context = new string('\u0001', 1000) + new string('\u4e00', 3000);
+        var withMemory = response with
+        {
+            InputTokens = ResponsesTextDialogBudget.RequestByteLimit(context),
+            OutputTokens = 1200
+        };
+        Require(ResponsesTextDialogBudget.CalculateActualMicroUsd(withMemory)
+            <= ResponsesTextDialogBudget.ReserveForContext(context),
+            "escaped Unicode memory fits its pre-call reservation");
+        Require(ResponsesTextDialogBudget.ReserveForContext(context)
+            > ResponsesTextDialogBudget.ReservedMicroUsd,
+            "memory increases reservation before provider dispatch");
+
         var wrongModel = response with { ReturnedModel = "other-model" };
         try
         {
