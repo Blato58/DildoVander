@@ -2,7 +2,8 @@
 
 `control-message-v1.schema.json` je první část lokálního WSS protokolu verze 1
 podle kapitoly 5 [implementačního plánu](../docs/implementacni-plan.md).
-Zatím popisuje `selection.start`, `command.ack`, `selection.result`,
+Zatím popisuje `hello`, `welcome`, `state.get`, `control.acquire/release`,
+`heartbeat/heartbeat.ack`, `selection.start`, `command.ack`, `selection.result`,
 `state.snapshot`, `safety.stop` a `safety.reset`. Adresáře
 `fixtures/valid/` a `fixtures/invalid/` obsahují zprávy pro další adaptéry.
 Schéma je zdroj typů a rozsahů; další typy a OpenAPI backendu přibudou v E2.

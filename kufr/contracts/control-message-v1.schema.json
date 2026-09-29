@@ -3,6 +3,13 @@
   "$id": "urn:kufr:control-message:v1",
   "title": "Kufr local control messages v1",
   "oneOf": [
+    { "$ref": "#/$defs/hello" },
+    { "$ref": "#/$defs/welcome" },
+    { "$ref": "#/$defs/stateGet" },
+    { "$ref": "#/$defs/controlAcquire" },
+    { "$ref": "#/$defs/controlRelease" },
+    { "$ref": "#/$defs/heartbeat" },
+    { "$ref": "#/$defs/heartbeatAck" },
     { "$ref": "#/$defs/selectionStart" },
     { "$ref": "#/$defs/commandAck" },
     { "$ref": "#/$defs/selectionResult" },
@@ -53,6 +60,92 @@
         "journal_failed",
         "brownout"
       ]
+    },
+    "hello": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "type", "messageId", "deviceId"],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "type": { "const": "hello" },
+        "messageId": { "$ref": "#/$defs/uuid" },
+        "deviceId": { "$ref": "#/$defs/deviceId" }
+      }
+    },
+    "welcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "type", "requestMessageId", "snapshot"],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "type": { "const": "welcome" },
+        "requestMessageId": { "$ref": "#/$defs/uuid" },
+        "snapshot": { "$ref": "#/$defs/stateSnapshot" }
+      }
+    },
+    "stateGet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "type", "messageId", "deviceId", "bootId"],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "type": { "const": "state.get" },
+        "messageId": { "$ref": "#/$defs/uuid" },
+        "deviceId": { "$ref": "#/$defs/deviceId" },
+        "bootId": { "$ref": "#/$defs/uuid" }
+      }
+    },
+    "controlAcquire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "type", "messageId", "deviceId", "bootId"],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "type": { "const": "control.acquire" },
+        "messageId": { "$ref": "#/$defs/uuid" },
+        "deviceId": { "$ref": "#/$defs/deviceId" },
+        "bootId": { "$ref": "#/$defs/uuid" }
+      }
+    },
+    "controlRelease": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "type", "messageId", "deviceId", "bootId", "controlLeaseId"],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "type": { "const": "control.release" },
+        "messageId": { "$ref": "#/$defs/uuid" },
+        "deviceId": { "$ref": "#/$defs/deviceId" },
+        "bootId": { "$ref": "#/$defs/uuid" },
+        "controlLeaseId": { "$ref": "#/$defs/uuid" }
+      }
+    },
+    "heartbeat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "type", "messageId", "deviceId", "bootId", "controlLeaseId"],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "type": { "const": "heartbeat" },
+        "messageId": { "$ref": "#/$defs/uuid" },
+        "deviceId": { "$ref": "#/$defs/deviceId" },
+        "bootId": { "$ref": "#/$defs/uuid" },
+        "controlLeaseId": { "$ref": "#/$defs/uuid" }
+      }
+    },
+    "heartbeatAck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "type", "requestMessageId", "bootId", "deviceUptimeMs", "revision", "controlLeaseId"],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "type": { "const": "heartbeat.ack" },
+        "requestMessageId": { "$ref": "#/$defs/uuid" },
+        "bootId": { "$ref": "#/$defs/uuid" },
+        "deviceUptimeMs": { "$ref": "#/$defs/safeInteger" },
+        "revision": { "$ref": "#/$defs/safeInteger" },
+        "controlLeaseId": { "$ref": "#/$defs/uuid" }
+      }
     },
     "selectionStart": {
       "type": "object",
