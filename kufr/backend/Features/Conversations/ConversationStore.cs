@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -8,6 +9,8 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
     private readonly Lock gate = new();
     private readonly Dictionary<string, ConversationEntry> conversations = new(StringComparer.Ordinal);
     private readonly Dictionary<string, TurnOperation> operations = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, AudioEntry> audio = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, AudioTombstone> expiredAudio = new(StringComparer.Ordinal);
 
     internal int CachedOperationCount
     {
@@ -16,6 +19,17 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
             lock (gate)
             {
                 return operations.Count;
+            }
+        }
+    }
+
+    internal int CachedAudioCount
+    {
+        get
+        {
+            lock (gate)
+            {
+                return audio.Count;
             }
         }
     }
@@ -269,6 +283,126 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
         }
     }
 
+    public SubmitTurnResult SubmitSpeech(
+        string deviceId,
+        string conversationId,
+        Guid key,
+        ReadOnlySpan<byte> requestBody,
+        SpeechRequest request)
+    {
+        var now = clock.GetUtcNow();
+        var route = $"/v1/conversations/{conversationId}/speech";
+        var bodyHash = Convert.ToHexString(SHA256.HashData(requestBody));
+
+        lock (gate)
+        {
+            CleanupExpired(now);
+            var previous = journal.FindExisting(deviceId, route, key, bodyHash);
+            if (previous is not null)
+            {
+                return previous.Conflict
+                    ? new SubmitTurnResult(409, null, "idempotency_conflict")
+                    : new SubmitTurnResult(202, previous.OperationId, null);
+            }
+
+            if (!conversations.TryGetValue(conversationId, out var conversation))
+            {
+                return new SubmitTurnResult(404, null, "conversation_not_found");
+            }
+
+            if (conversation.DeviceId != deviceId || !conversation.AudioConsented)
+            {
+                return new SubmitTurnResult(403, null, conversation.DeviceId != deviceId
+                    ? "device_scope_mismatch"
+                    : "audio_consent_required");
+            }
+
+            if (conversation.SpeechCount >= 10)
+            {
+                return new SubmitTurnResult(429, null, "speech_limit");
+            }
+
+            if (conversation.ActiveAudioId is not null)
+            {
+                return new SubmitTurnResult(409, null, "speech_output_active");
+            }
+
+            var source = operations.Values.FirstOrDefault(operation =>
+                operation.Kind == "turn"
+                && operation.Status == "completed"
+                && operation.Correlation.ConversationId == conversationId
+                && operation.Correlation.ClientTurnId == request.TurnId);
+            if (source is null)
+            {
+                return new SubmitTurnResult(404, null, "turn_not_found");
+            }
+
+            var reservation = journal.Reserve(
+                deviceId,
+                route,
+                key,
+                bodyHash,
+                source.Correlation,
+                kind: "speech",
+                consumesTurn: false);
+            if (reservation.Conflict)
+            {
+                return new SubmitTurnResult(409, null, "idempotency_conflict");
+            }
+
+            if (reservation.Existing)
+            {
+                return new SubmitTurnResult(202, reservation.OperationId, null);
+            }
+
+            if (!journal.MarkCompleted(reservation.OperationId))
+            {
+                return new SubmitTurnResult(409, null, "operation_cancelled");
+            }
+
+            var audioId = Guid.NewGuid().ToString("D");
+            var expiresAt = now.AddSeconds(120);
+            audio.Add(audioId, new AudioEntry(deviceId, conversationId, reservation.OperationId, expiresAt, BuildFakeWav()));
+            operations.Add(
+                reservation.OperationId,
+                new TurnOperation(
+                    reservation.OperationId,
+                    "speech",
+                    "completed",
+                    source.Correlation,
+                    new SpeechResult(audioId, expiresAt, request.OutputTarget),
+                    null));
+            conversation.ActiveAudioId = audioId;
+            conversation.SpeechCount++;
+            var idleExpiresAt = now.AddMinutes(15);
+            conversation.ExpiresAt = idleExpiresAt < conversation.AbsoluteExpiresAt
+                ? idleExpiresAt
+                : conversation.AbsoluteExpiresAt;
+            return new SubmitTurnResult(202, reservation.OperationId, null);
+        }
+    }
+
+    public AudioReadResult GetAudio(string deviceId, string audioId)
+    {
+        lock (gate)
+        {
+            CleanupExpired(clock.GetUtcNow());
+            if (audio.TryGetValue(audioId, out var entry))
+            {
+                return entry.DeviceId == deviceId
+                    ? new AudioReadResult(200, entry.Wav.ToArray())
+                    : new AudioReadResult(403, null);
+            }
+
+            if (expiredAudio.TryGetValue(audioId, out var tombstone))
+            {
+                return new AudioReadResult(tombstone.DeviceId == deviceId ? 410 : 403, null);
+            }
+
+            return new AudioReadResult(404, null);
+        }
+    }
+
     public GetOperationResult GetOperation(string deviceId, string operationId)
     {
         lock (gate)
@@ -300,6 +434,11 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
             if (result.Status == 204)
             {
                 operations.Remove(operationId);
+                foreach (var audioId in audio.Where(pair => pair.Value.OperationId == operationId)
+                    .Select(pair => pair.Key).ToArray())
+                {
+                    RemoveAudio(audioId, expired: false, clock.GetUtcNow());
+                }
             }
 
             return result;
@@ -348,6 +487,18 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
 
     private void CleanupExpired(DateTimeOffset now)
     {
+        foreach (var audioId in audio.Where(pair => pair.Value.ExpiresAt <= now)
+            .Select(pair => pair.Key).ToArray())
+        {
+            RemoveAudio(audioId, expired: true, now);
+        }
+
+        foreach (var audioId in expiredAudio.Where(pair => pair.Value.RemoveAt <= now)
+            .Select(pair => pair.Key).ToArray())
+        {
+            expiredAudio.Remove(audioId);
+        }
+
         foreach (var key in conversations.Where(pair => pair.Value.ExpiresAt <= now).Select(pair => pair.Key).ToArray())
         {
             RemoveConversation(key);
@@ -357,6 +508,12 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
     private void RemoveConversation(string conversationId)
     {
         conversations.Remove(conversationId);
+        foreach (var audioId in audio.Where(pair => pair.Value.ConversationId == conversationId)
+            .Select(pair => pair.Key).ToArray())
+        {
+            RemoveAudio(audioId, expired: false, clock.GetUtcNow());
+        }
+
         foreach (var operationId in operations
             .Where(pair => pair.Value.Correlation.ConversationId == conversationId)
             .Select(pair => pair.Key)
@@ -364,6 +521,45 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
         {
             operations.Remove(operationId);
         }
+    }
+
+    private void RemoveAudio(string audioId, bool expired, DateTimeOffset now)
+    {
+        if (!audio.Remove(audioId, out var entry))
+        {
+            return;
+        }
+
+        CryptographicOperations.ZeroMemory(entry.Wav);
+        if (conversations.TryGetValue(entry.ConversationId, out var conversation)
+            && conversation.ActiveAudioId == audioId)
+        {
+            conversation.ActiveAudioId = null;
+        }
+
+        if (expired)
+        {
+            expiredAudio[audioId] = new AudioTombstone(entry.DeviceId, now.AddHours(24));
+        }
+    }
+
+    private static byte[] BuildFakeWav()
+    {
+        const int sampleBytes = 6400;
+        var wav = new byte[44 + sampleBytes];
+        "RIFF"u8.CopyTo(wav.AsSpan(0));
+        BinaryPrimitives.WriteUInt32LittleEndian(wav.AsSpan(4), (uint)(wav.Length - 8));
+        "WAVEfmt "u8.CopyTo(wav.AsSpan(8));
+        BinaryPrimitives.WriteUInt32LittleEndian(wav.AsSpan(16), 16);
+        BinaryPrimitives.WriteUInt16LittleEndian(wav.AsSpan(20), 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(wav.AsSpan(22), 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(wav.AsSpan(24), 32000);
+        BinaryPrimitives.WriteUInt32LittleEndian(wav.AsSpan(28), 64000);
+        BinaryPrimitives.WriteUInt16LittleEndian(wav.AsSpan(32), 2);
+        BinaryPrimitives.WriteUInt16LittleEndian(wav.AsSpan(34), 16);
+        "data"u8.CopyTo(wav.AsSpan(36));
+        BinaryPrimitives.WriteUInt32LittleEndian(wav.AsSpan(40), sampleBytes);
+        return wav;
     }
 
     private sealed class ConversationEntry(
@@ -385,6 +581,8 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
         public int TurnCount { get; set; }
         public HashSet<Guid> TurnIds { get; } = [];
         public HashSet<Guid> TranscriptionIds { get; } = [];
+        public int SpeechCount { get; set; }
+        public string? ActiveAudioId { get; set; }
     }
 
 }
@@ -419,6 +617,11 @@ internal sealed record TurnCorrelation(
     int DeviceRevision);
 internal sealed record TurnResult(string Reply, string Decision, string Reason, object? Proposal);
 internal sealed record TranscriptionResult(string Transcript, string Source);
+internal sealed record SpeechRequest(Guid TurnId, string OutputTarget);
+internal sealed record SpeechResult(string AudioId, DateTimeOffset ExpiresAt, string OutputTarget);
+internal sealed record AudioReadResult(int Status, byte[]? Wav);
+internal sealed record AudioEntry(string DeviceId, string ConversationId, string OperationId, DateTimeOffset ExpiresAt, byte[] Wav);
+internal sealed record AudioTombstone(string DeviceId, DateTimeOffset RemoveAt);
 internal sealed record TurnOperation(
     string OperationId,
     string Kind,

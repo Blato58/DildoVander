@@ -7,7 +7,8 @@ a zpracují až deset textových tahů s deterministickou odpovědí `ask`.
 E7.3a–c přidávají SQLite journal technických metadat textového tahu a
 založení sezení, atomickou rezervaci nejvýše deseti tahů v jednom sezení a
 idempotenci po restartu. E7.4 přidává retenci a explicitní rušení. E7.5a
-přidává omezený WAV upload s deterministickým fake přepisem.
+přidává omezený WAV upload s deterministickým fake přepisem. E7.5b
+přidává fake syntézu krátkého tichého WAV pro existující textový tah.
 V této verzi nejsou skutečné STT/TTS ani volání placené AI.
 Žádná trasa neovládá aktuátory.
 
@@ -69,6 +70,15 @@ nejvýše 30 sekund / 1 920 000 bajtů vzorků; celý požadavek má strop 2 MB.
 Backend vrací pevný testovací přepis se zdrojem `deviceMicrophone` bez STT.
 Nahrávka ani přepis se nezapisují do SQLite; operace je device-scoped a po
 restartu se její ztracený RAM výsledek neobnoví.
+`POST /v1/conversations/{id}/speech` bere pouze UUID předchozího
+`clientTurnId` a `outputTarget` (`device` nebo `phone`), nikdy klientský text.
+Vyžaduje audio souhlas, nejvýše deset fake syntéz v jednom sezení a právě jeden
+aktivní výstup. Výsledek operace nese `audioId`; autentizované
+`GET /v1/audio/{audioId}` vrací tichý testovací PCM16 mono 32 kHz WAV s
+metadaty a `no-store`. Obsah zůstává jen v RAM nejvýše 120 sekund; po expiraci
+vrací vlastník `410`, cizí zařízení `403`. Po přehrání klient použije
+`DELETE /v1/operations/{id}` k uvolnění aktivního výstupu; jinak jej uvolní
+120sekundová expirace. Ukončení sezení také audio odstraní.
 Odpovědi `/v1` mají `Cache-Control: no-store`; chyby používají
 `application/problem+json` se stabilním `code` a `traceId`.
 

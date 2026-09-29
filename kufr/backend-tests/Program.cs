@@ -56,6 +56,53 @@ Require(conversations.SubmitTranscription(
     "device-c", audioSession.Response.ConversationId, transcriptionKey,
     audioUpload with { DeviceRevision = 8 }).Status == 409,
     "transcription retry body conflict");
+var audioTurnId = Guid.NewGuid();
+var audioTurn = conversations.SubmitTurn(
+    "device-c", audioSession.Response.ConversationId, Guid.NewGuid(), turnBody,
+    turn with { ClientTurnId = audioTurnId });
+Require(audioTurn.Status == 202, "speech source turn accepted");
+var speechBody = Encoding.UTF8.GetBytes("speech-device");
+var speechKey = Guid.NewGuid();
+var speech = conversations.SubmitSpeech(
+    "device-c", audioSession.Response.ConversationId, speechKey, speechBody,
+    new SpeechRequest(audioTurnId, "device"));
+Require(speech.Status == 202 && speech.OperationId is not null, "fake speech accepted");
+var speechResult = conversations.GetOperation("device-c", speech.OperationId!).Operation?.Result as SpeechResult;
+Require(speechResult is { OutputTarget: "device" }, "speech result target");
+Require(conversations.GetAudio("device-c", speechResult!.AudioId).Wav is { Length: 6444 },
+    "valid short fake WAV available");
+Require(conversations.GetAudio("other-device", speechResult.AudioId).Status == 403,
+    "foreign audio denied");
+Require(conversations.SubmitSpeech(
+    "device-c", audioSession.Response.ConversationId, Guid.NewGuid(), speechBody,
+    new SpeechRequest(audioTurnId, "phone")).Status == 409,
+    "only one output target while audio active");
+Require(conversations.SubmitSpeech(
+    "device-c", audioSession.Response.ConversationId, speechKey, speechBody,
+    new SpeechRequest(audioTurnId, "device")).OperationId == speech.OperationId,
+    "speech retry preserves operation");
+clock.Advance(TimeSpan.FromSeconds(121));
+Require(conversations.GetAudio("device-c", speechResult.AudioId).Status == 410,
+    "audio expires after 120 seconds");
+var nextSpeech = conversations.SubmitSpeech(
+    "device-c", audioSession.Response.ConversationId, Guid.NewGuid(),
+    Encoding.UTF8.GetBytes("speech-phone"), new SpeechRequest(audioTurnId, "phone"));
+Require(nextSpeech.Status == 202 && nextSpeech.OperationId is not null,
+    "speech can resume after audio expiry");
+var nextAudioId = ((SpeechResult)conversations.GetOperation("device-c", nextSpeech.OperationId!).Operation!.Result!).AudioId;
+Require(conversations.CancelOperation("device-c", nextSpeech.OperationId!, Guid.NewGuid()).Status == 204,
+    "speech cancellation recorded");
+Require(conversations.GetAudio("device-c", nextAudioId).Status == 404,
+    "speech cancellation removes audio");
+var finalSpeech = conversations.SubmitSpeech(
+    "device-c", audioSession.Response.ConversationId, Guid.NewGuid(),
+    Encoding.UTF8.GetBytes("speech-final"), new SpeechRequest(audioTurnId, "device"));
+Require(finalSpeech.Status == 202, "speech after cancellation accepted");
+var finalAudioId = ((SpeechResult)conversations.GetOperation("device-c", finalSpeech.OperationId!).Operation!.Result!).AudioId;
+Require(conversations.EndConversation("device-c", audioSession.Response.ConversationId, Guid.NewGuid()).Status == 204,
+    "audio session ended");
+Require(conversations.GetAudio("device-c", finalAudioId).Status == 404,
+    "conversation end removes audio");
 
 clock.Advance(TimeSpan.FromMinutes(15));
 conversations.SweepExpired();
@@ -169,8 +216,8 @@ Require(restartedJournal.GetOperation("device-a", pending.OperationId).Operation
 AssertNoVisitorText(Path.Combine(databaseDirectory, "journal.sqlite"), "private text");
 AssertNoVisitorText(Path.Combine(databaseDirectory, "journal.sqlite"), "private audio payload");
 Require(restartedStore.GetOperation("device-c", transcription.OperationId!).Operation is
-    { Kind: "transcription", Status: "failed" },
-    "completed transcription becomes result_expired after restart");
+    { Kind: "transcription", Status: "cancelled" },
+    "conversation end keeps transcription cancelled after restart");
 
 var liveConversation = restartedStore.Create("device-a", Guid.NewGuid(), body, request);
 Require(liveConversation.Response is not null, "new session after restart");
@@ -405,6 +452,35 @@ using (var versionFiveJournal = new OperationJournal(versionFourConfiguration, c
         "populated v4 turn becomes v5 turn with result_expired");
 }
 
+var speechClock = new AdjustableTimeProvider(new DateTimeOffset(2026, 9, 29, 10, 0, 0, TimeSpan.Zero));
+var speechConfiguration = new ConfigurationBuilder()
+    .AddInMemoryCollection(new Dictionary<string, string?>
+    {
+        ["Backend:DatabasePath"] = Path.Combine(databaseDirectory, "speech-idle.sqlite")
+    })
+    .Build();
+using (var speechJournal = new OperationJournal(speechConfiguration, speechClock))
+{
+    var speechStore = new ConversationStore(speechClock, speechJournal);
+    var speechSession = speechStore.Create(
+        "device-a", Guid.NewGuid(), body, request with { Consent = new ConversationConsent(true, false) });
+    Require(speechSession.Response is not null, "speech idle fixture session");
+    var speechTurnId = Guid.NewGuid();
+    Require(speechStore.SubmitTurn(
+        "device-a", speechSession.Response!.ConversationId, Guid.NewGuid(), turnBody,
+        turn with { ClientTurnId = speechTurnId }).Status == 202, "speech idle fixture turn");
+    speechClock.Advance(TimeSpan.FromMinutes(14));
+    Require(speechStore.SubmitSpeech(
+        "device-a", speechSession.Response.ConversationId, Guid.NewGuid(), speechBody,
+        new SpeechRequest(speechTurnId, "device")).Status == 202,
+        "speech near original idle deadline");
+    speechClock.Advance(TimeSpan.FromMinutes(2) + TimeSpan.FromSeconds(1));
+    Require(speechStore.SubmitSpeech(
+        "device-a", speechSession.Response.ConversationId, Guid.NewGuid(), speechBody,
+        new SpeechRequest(speechTurnId, "phone")).Status == 202,
+        "speech activity extends idle deadline within absolute lifetime");
+}
+
 var workerClock = new AdjustableTimeProvider(new DateTimeOffset(2026, 9, 29, 10, 0, 0, TimeSpan.Zero));
 var workerDatabasePath = Path.Combine(databaseDirectory, "worker.sqlite");
 var workerConfiguration = new ConfigurationBuilder()
@@ -417,13 +493,20 @@ var workerConfiguration = new ConfigurationBuilder()
 using (var workerJournal = new OperationJournal(workerConfiguration, workerClock))
 {
     var workerStore = new ConversationStore(workerClock, workerJournal);
-    var workerSession = workerStore.Create("device-a", Guid.NewGuid(), body, request);
+    var workerSession = workerStore.Create(
+        "device-a", Guid.NewGuid(), body, request with { Consent = new ConversationConsent(true, false) });
     Require(workerSession.Response is not null, "worker fixture session");
+    var workerTurnId = Guid.NewGuid();
     var workerTurn = workerStore.SubmitTurn(
         "device-a", workerSession.Response!.ConversationId, Guid.NewGuid(), turnBody,
-        turn with { ClientTurnId = Guid.NewGuid() });
+        turn with { ClientTurnId = workerTurnId });
     Require(workerTurn.Status == 202 && workerStore.CachedOperationCount == 1,
         "worker fixture cached result");
+    Require(workerStore.SubmitSpeech(
+        "device-a", workerSession.Response.ConversationId, Guid.NewGuid(), speechBody,
+        new SpeechRequest(workerTurnId, "device")).Status == 202
+        && workerStore.CachedAudioCount == 1,
+        "worker fixture cached audio");
     workerClock.Advance(TimeSpan.FromHours(24));
 
     using var worker = new RetentionWorker(
@@ -439,6 +522,7 @@ using (var workerJournal = new OperationJournal(workerConfiguration, workerClock
         await Task.Delay(100);
     }
     Require(workerStore.CachedOperationCount == 0, "hosted worker clears RAM without traffic");
+    Require(workerStore.CachedAudioCount == 0, "hosted worker clears audio without traffic");
     await worker.StopAsync(CancellationToken.None);
 
     using var workerConnection = new SqliteConnection($"Data Source={workerDatabasePath}");
@@ -467,7 +551,7 @@ catch (InvalidOperationException)
     // A shared credential must not select a device by configuration order.
 }
 
-Console.WriteLine("Backend clock tests: expiry, restart, quota, transcription and migrations passed");
+Console.WriteLine("Backend clock tests: expiry, restart, quota, fake voice and migrations passed");
 restartedJournal.Dispose();
 SqliteConnection.ClearAllPools();
 Directory.Delete(databaseDirectory, recursive: true);
