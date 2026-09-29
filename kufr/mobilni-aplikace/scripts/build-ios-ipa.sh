@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 : "${RUNNER_TEMP:?RUNNER_TEMP is required}"
 : "${IOS_BUNDLE_ID:?IOS_BUNDLE_ID is required}"
@@ -76,7 +77,31 @@ cp "${work_dir}/profile.mobileprovision" "${profile_path}"
 security create-keychain -p "${IOS_KEYCHAIN_PASSWORD}" "${keychain}"
 security set-keychain-settings -lut 21600 "${keychain}"
 security unlock-keychain -p "${IOS_KEYCHAIN_PASSWORD}" "${keychain}"
-security import "${work_dir}/certificate.p12" -k "${keychain}" -P "${IOS_P12_PASSWORD}" -T /usr/bin/codesign >/dev/null
+if ! security import "${work_dir}/certificate.p12" -k "${keychain}" \
+  -P "${IOS_P12_PASSWORD}" -T /usr/bin/codesign >/dev/null 2>&1; then
+  echo 'Keychain rejected the original PKCS#12; checking it with OpenSSL.'
+  pem_path="${work_dir}/certificate.pem"
+  compatible_path="${work_dir}/certificate-compatible.p12"
+  if ! openssl pkcs12 -in "${work_dir}/certificate.p12" \
+    -passin env:IOS_P12_PASSWORD -nodes -out "${pem_path}" >/dev/null 2>&1; then
+    echo 'OpenSSL could not read the PKCS#12 with IOS_P12_PASSWORD.' >&2
+    exit 1
+  fi
+  export_options=()
+  if openssl pkcs12 -help 2>&1 | grep -q -- '-legacy'; then
+    export_options+=(-legacy)
+  fi
+  if ! openssl pkcs12 -export "${export_options[@]}" \
+    -in "${pem_path}" -out "${compatible_path}" \
+    -passout env:IOS_P12_PASSWORD >/dev/null 2>&1; then
+    echo 'OpenSSL could not repackage the PKCS#12 for Keychain.' >&2
+    exit 1
+  fi
+  rm -f -- "${pem_path}"
+  security import "${compatible_path}" -k "${keychain}" \
+    -P "${IOS_P12_PASSWORD}" -T /usr/bin/codesign >/dev/null
+  echo 'OpenSSL-compatible PKCS#12 imported into Keychain.'
+fi
 security set-key-partition-list -S apple-tool:,apple: -s -k "${IOS_KEYCHAIN_PASSWORD}" "${keychain}" >/dev/null
 previous_keychains=()
 while IFS= read -r item; do
