@@ -13,6 +13,7 @@ idf_component_register(
         "features/backend_access/TokenResponseParser.cpp"
         "features/backend_access/TrustedTime.cpp"
         "features/conversation/ConversationStartCodec.cpp"
+        "features/conversation/ConversationStartCoordinator.cpp"
         "features/conversation/EspIdfConversationStartTransport.cpp"
         "features/device_control/EspIdfJournalStorage.cpp"
         "features/device_control/PersistentCommandJournal.cpp"

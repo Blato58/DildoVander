@@ -61,6 +61,8 @@ src/
     conversation/
       ConversationSession.h/.cpp            čistý model generace textového sezení
       ConversationStartCodec.h/.cpp         omezený JSON startu backend sezení
+      ConversationStartCoordinator.h/.cpp   jediné obnovení tokenu při 401
+      ConversationStartPort.h               port pro test a HTTPS adaptér
       EspIdfConversationStartTransport.h/.cpp  HTTPS start sezení
 tests/
   selection_sequence_test.cpp               test bez hardwaru
@@ -71,6 +73,7 @@ tests/
   network_settings_test.cpp                 test konfigurace, času a reconnectu
   conversation_session_test.cpp             test textu, zrušení a generace
   conversation_start_codec_test.cpp         test HTTP těla a odpovědi startu
+  conversation_start_coordinator_test.cpp   test retry a scope startu
 ```
 
 První slice řídí výběr jedné ze šesti hůlek. `SelectionSequence` přijímá
@@ -149,6 +152,9 @@ včetně serverových limitů. Idempotency-Key je samostatný UUID vstup pro
 HTTPS adaptér. `EspIdfConversationStartTransport` volá pevnou cestu
 `/v1/conversations`, ověřuje certifikát a hostname přes CA bundle, nepovoluje
 redirect ani automatickou autentizaci a vyžaduje odpověď 201 s platným tělem.
+`ConversationStartCoordinator` kontroluje device scope a při 401 obnoví token
+právě jednou; druhé volání dostane původní tělo a Idempotency-Key. Po chybě
+musí volající pro opakování ponechat stejné UUID požadavku.
 Zatím jej nevolá síťová úloha: chybí událost zahájení rozhovoru, UUID generátor,
 textové tahy a pollování. Žádná odpověď z backendu neřídí fyzické výstupy.
 
@@ -258,6 +264,13 @@ JSON tělo a omezenou odpověď startu backend sezení lze ověřit samostatně:
 ```text
 g++ -std=c++14 -Wall -Wextra -Werror src/features/conversation/ConversationStartCodec.cpp tests/conversation_start_codec_test.cpp -o <docasna-slozka>/conversation_start_codec_test
 <docasna-slozka>/conversation_start_codec_test
+```
+
+Jednorázové obnovení tokenu a opakování založení sezení:
+
+```text
+g++ -std=c++14 -Wall -Wextra -Werror src/features/provisioning/DeviceIdentity.cpp src/features/backend_access/DeviceTokenSession.cpp src/features/conversation/ConversationStartCodec.cpp src/features/conversation/ConversationStartCoordinator.cpp tests/conversation_start_coordinator_test.cpp -o <docasna-slozka>/conversation_start_coordinator_test
+<docasna-slozka>/conversation_start_coordinator_test
 ```
 
 ## Další slices a podmínky zapojení
