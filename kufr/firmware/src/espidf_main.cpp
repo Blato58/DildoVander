@@ -68,7 +68,7 @@ extern "C" void app_main() {
   } else if (!identity.IsProvisioned()) {
     ESP_LOGW(LogTag, "Device identity not provisioned; network stays offline");
   }
-  EspIdfBackendNetwork backendNetwork(identity);
+  EspIdfBackendNetwork backendNetwork(identity, journal);
   if (!backendNetwork.Start(nvsStatus == ESP_OK)) {
     ESP_LOGW(LogTag, "Backend network not configured; stays offline");
   }

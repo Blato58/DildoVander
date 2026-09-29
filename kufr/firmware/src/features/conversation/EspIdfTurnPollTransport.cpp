@@ -1,5 +1,6 @@
 #include "EspIdfTurnPollTransport.h"
 
+#include <algorithm>
 #include <array>
 #include <cstring>
 
@@ -110,6 +111,7 @@ TurnPollHttpResult EspIdfTurnPollTransport::Poll(
       if (response.decision == TurnPollDecision::ReplyReady) {
         response.reply = observed.reply;
       }
+      std::fill(observed.reply.begin(), observed.reply.end(), '\0');
     }
   }
   esp_http_client_cleanup(client);
