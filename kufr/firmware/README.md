@@ -66,6 +66,7 @@ src/
       ConversationTextCodec.h/.cpp          validace a JSON textového tahu
       EspIdfConversationStartTransport.h/.cpp  HTTPS start sezení
       EspIdfConversationTextTransport.h/.cpp   HTTPS textový tah
+      EspIdfTurnPollTransport.h/.cpp       HTTPS GET a korelace výsledku
       OperationAcceptedCodec.h/.cpp         omezená odpověď 202
       TurnPollGuard.h/.cpp                  korelace pollovaného výsledku
       TurnOperationCodec.h/.cpp            omezený JSON poll výsledku
@@ -170,13 +171,15 @@ validací UTF-8/1000 znaků, UUID, masky 0–63 a konečným limitem 4096 bajtů
 `operationId`. `EspIdfConversationTextTransport` posílá validovaný textový tah
 jen na pevnou HTTPS cestu daného UUID, s CA bundle, kontrolou hostname,
 Authorization a Idempotency-Key. Potvrzení 202 přijme jen s platným ID operace.
-Transport ještě není zapojený do runtime; poll výsledku chybí.
+Transport ještě není zapojený do runtime.
 `TurnPollGuard` porovnává operation ID i všech šest korelačních polí s aktuální
 generací a revision. Pouze dokončená textová odpověď bez návrhu projde jako
 data; kandidát s návrhem zůstává odmítnutý, dokud nebude mít expiraci a
 fyzické potvrzení. `TurnOperationCodec` přijímá nejvýše 4096B JSON operace
 `turn`, dekóduje UTF-8 i JSON Unicode escape a odmítá duplicity, neznámá pole,
-nekonzistentní status/result/error a jakýkoli návrh. HTTPS GET poll ještě chybí.
+nekonzistentní status/result/error a jakýkoli návrh. `EspIdfTurnPollTransport`
+čte GET `/v1/operations/{id}` jen přes ověřené HTTPS, omezuje tělo na 4096 B
+a propouští odpověď pouze po `TurnPollGuard` korelaci.
 Zatím jej nevolá síťová úloha: chybí událost zahájení rozhovoru, UUID generátor,
 textové tahy a pollování. Žádná odpověď z backendu neřídí fyzické výstupy.
 
