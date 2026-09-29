@@ -1,0 +1,25 @@
+#pragma once
+
+#include <stddef.h>
+#include <stdint.h>
+
+#include <string>
+
+struct ConversationStartRequest {
+  std::string deviceId;
+  std::string bootId;
+  std::string idempotencyKey;
+  std::string catalogVersion;
+  uint64_t generation = 0;
+};
+
+struct ConversationStartResponse {
+  std::string conversationId;
+  std::string expiresAt;
+};
+
+// Text-only start request: audio and image consent remain false.
+bool BuildConversationStartRequest(const ConversationStartRequest& request,
+                                   std::string& body);
+bool ParseConversationStartResponse(const char* data, size_t length,
+                                    ConversationStartResponse& response);

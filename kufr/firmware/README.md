@@ -60,6 +60,7 @@ src/
       EspIdfTrustedTimeStore.h/.cpp         uložený čas v NVS
     conversation/
       ConversationSession.h/.cpp            čistý model generace textového sezení
+      ConversationStartCodec.h/.cpp         omezený JSON startu backend sezení
 tests/
   selection_sequence_test.cpp               test bez hardwaru
   device_control_test.cpp                   test idempotence a restartu
@@ -68,6 +69,7 @@ tests/
   device_token_session_test.cpp             test tokenu, obnovy a parseru
   network_settings_test.cpp                 test konfigurace, času a reconnectu
   conversation_session_test.cpp             test textu, zrušení a generace
+  conversation_start_codec_test.cpp         test HTTP těla a odpovědi startu
 ```
 
 První slice řídí výběr jedné ze šesti hůlek. `SelectionSequence` přijímá
@@ -140,6 +142,10 @@ sezení přijme nejvýše deset jedinečných `clientTurnId`; opakovaný aktivn�
 rozpozná a po dokončení či zrušení již stejné ID znovu nespustí. Zrušení nebo
 ztráta lease zvýší generation a pozdní dokončení se odmítne. Model zatím není
 zapojený do WSS ani backendu a neřídí žádný fyzický výstup.
+`ConversationStartCodec` sestaví přesné JSON tělo pro založení textového
+backend sezení s vypnutým audio/image souhlasem a omezeně parsuje odpověď
+včetně serverových limitů. Idempotency-Key je samostatný UUID vstup pro
+budoucí HTTPS adaptér. Samotné HTTP volání, tahy a pollování ještě chybí.
 
 `SerialSelectionPort` je první vstup/výstup pro vývoj bez zapojené elektroniky.
 Příkazy na sériovém monitoru (115200 Bd, ukončení řádku LF nebo CRLF):
@@ -240,6 +246,13 @@ g++ -std=c++14 -Wall -Wextra -Werror src/features/backend_access/BuildDate.cpp s
 ```text
 g++ -std=c++11 -Wall -Wextra -Werror src/features/conversation/ConversationSession.cpp tests/conversation_session_test.cpp -o <docasna-slozka>/conversation_session_test
 <docasna-slozka>/conversation_session_test
+```
+
+JSON tělo a omezenou odpověď startu backend sezení lze ověřit samostatně:
+
+```text
+g++ -std=c++14 -Wall -Wextra -Werror src/features/conversation/ConversationStartCodec.cpp tests/conversation_start_codec_test.cpp -o <docasna-slozka>/conversation_start_codec_test
+<docasna-slozka>/conversation_start_codec_test
 ```
 
 ## Další slices a podmínky zapojení
