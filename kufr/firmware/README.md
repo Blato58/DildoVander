@@ -35,9 +35,12 @@ src/
     device_control/
       DeviceControl.h/.cpp                  hostitelský model ručního příkazu
       CommandJournal.h                     port pro zápis před pohybem
+    conversation/
+      ConversationSession.h/.cpp            čistý model generace textového sezení
 tests/
   selection_sequence_test.cpp               test bez hardwaru
   device_control_test.cpp                   test idempotence a restartu
+  conversation_session_test.cpp             test textu, zrušení a generace
 ```
 
 První slice řídí výběr jedné ze šesti hůlek. `SelectionSequence` přijímá
@@ -74,6 +77,13 @@ vyžaduje kontrolu v klidu a samostatně ukládá novou masku před ACK bez
 spuštění výběru nebo pohonu.
 Hostitelské testy používají fake journal a čas; skutečný NVS adaptér,
 TLS/parser a zapojení tohoto modelu do `main.cpp` zatím nejsou hotové.
+
+`ConversationSession` je čistý model jednoho textového sezení. Kontroluje
+ruční lease, boot/session/generation, revision a délku UTF-8 textu. V jednom
+sezení přijme nejvýše deset jedinečných `clientTurnId`; opakovaný aktivní tah
+rozpozná a po dokončení či zrušení již stejné ID znovu nespustí. Zrušení nebo
+ztráta lease zvýší generation a pozdní dokončení se odmítne. Model zatím není
+zapojený do WSS ani backendu a neřídí žádný fyzický výstup.
 
 `SerialSelectionPort` je první vstup/výstup pro vývoj bez zapojené elektroniky.
 Příkazy na sériovém monitoru (115200 Bd, ukončení řádku LF nebo CRLF):
@@ -126,6 +136,13 @@ Pokrývá ztracený ACK a opakování, konflikt ID, mezery v pořadí, vytěsně
 cache, chybu zápisu/uzavření journalu, restart po dokončení i přerušeném
 uvolnění, potvrzený reload a jeho trvalou masku, Stop a výpadek ručního lease při aktivním výstupu. Neověřuje NVS ani
 skutečnou síť.
+
+Čistý model textového sezení lze ověřit samostatně:
+
+```text
+g++ -std=c++11 -Wall -Wextra -Werror src/features/conversation/ConversationSession.cpp tests/conversation_session_test.cpp -o <docasna-slozka>/conversation_session_test
+<docasna-slozka>/conversation_session_test
+```
 
 ## Další slices a podmínky zapojení
 
