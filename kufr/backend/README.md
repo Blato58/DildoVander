@@ -111,8 +111,10 @@ Jednotkou je miliontina USD, limity jsou na sezení a globálně na UTC den/měs
 napříč zařízeními. Po odpovědi `SettleCost` zaúčtuje skutečnost; levnější
 odpověď uvolní rozdíl, vyšší cenu eviduje a zablokuje další placenou práci.
 Neznámý výsledek po restartu si rezervaci ponechá. Technický audit se maže po
-7 dnech, denní/měsíční agregáty po 90 dnech. Schválené částky a ceny provideru
-zatím nejsou nakonfigurovány; zde se placené volání nespouští.
+7 dnech, denní/měsíční agregáty po 90 dnech. Schválené limity jsou na
+testovacím serveru nakonfigurovány a D61 přidal ověřenou konzervativní sazbu
+pro `gpt-6.1-sol`; endpoint ji ještě nepoužívá, takže se zde placené volání
+nespouští.
 `RetentionWorker` každou minutu smaže expirované paměťové sezení/výsledky,
 granty a 24hodinové technické SQLite záznamy. Sezení trvá nejvýše
 15 minut nečinnosti a 30 minut od vytvoření. Ztracený výsledek se znovu
@@ -167,7 +169,7 @@ Environment `backend-production` má tyto GitHub Actions secrets:
 | `DEVICE_ID` | Nyní `dev-simulator-1` pro vývoj; před použitím skutečného kufru jej nahradit servisně provisionovaným ID společně s hashem. |
 | `DEVICE_CREDENTIAL_SHA256` | 64 hex znaků SHA-256 credential pro dané ID; nyní odpovídá vývojovému `DEV_DEVICE_CREDENTIAL`. |
 | `DEV_DEVICE_CREDENTIAL` | Jen pro ruční loopback smoke nasazené vývojové instance; odpovídá hashi vývojového `DEVICE_ID`, není provisionovaný v kufru. Před fyzickým nasazením jej nahradit skutečnou identitou a oddělit testovací prostředí. |
-| `OPENAI_API_KEY` | Projektový OpenAI API klíč. Backend jej zatím nepoužívá; E8 jej zavede až po schválení placených testů. |
+| `OPENAI_API_KEY` | Projektový OpenAI API klíč. Backend jej zatím nepoužívá; zapojení do E8 vyžaduje atomickou rezervaci nákladu a explicitní přepínač režimu. |
 | `SESSION_CAP_MICRO_USD` | Kladný limit v miliontinách USD; spolu s dalšími dvěma limity. |
 | `DAILY_CAP_MICRO_USD` | Kladný denní limit v miliontinách USD. |
 | `MONTHLY_CAP_MICRO_USD` | Kladný měsíční limit v miliontinách USD. |
