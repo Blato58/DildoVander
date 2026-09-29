@@ -6,11 +6,11 @@ Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**Aktivní implementační krok:** E2.8 – conversation text/cancel a související integrační hrany. E2.4a–d přidaly parser, handshake/lease kontrakty, TLS socket nad C++ modelem a souborový fake journal s restartovým ověřením (D6–D9). E2.5 přidává webovou časovou osu nad stejnými C++ událostmi (D10), ale její vykreslení čeká na prohlížeči důvěryhodný vývojový certifikát. E2.6a/b přidaly backend OpenAPI (D11–D12), E2.7 bezpečné potvrzení znovuzaložení (D13). E2 ještě není hotové; conversation/media zprávy a reálné browser ověření UI chybí. E1 je dokončené jako softwarové jádro bez desky. Fyzické nezávislé vypnutí při zamrzlé smyčce a další měření zůstávají kritérii E5.
+**Aktivní implementační krok:** E2.8b – vlastník fake conversation text/cancel. E2.4a–d přidaly parser, handshake/lease kontrakty, TLS socket nad C++ modelem a souborový fake journal s restartovým ověřením (D6–D9). E2.5 přidává webovou časovou osu nad stejnými C++ událostmi (D10), ale její vykreslení čeká na prohlížeči důvěryhodný vývojový certifikát. E2.6a/b přidaly backend OpenAPI (D11–D12), E2.7 bezpečné potvrzení znovuzaložení (D13), E2.8a smlouvy text/cancel (D14). E2 ještě není hotové; conversation runtime/media zprávy a reálné browser ověření UI chybí. E1 je dokončené jako softwarové jádro bez desky. Fyzické nezávislé vypnutí při zamrzlé smyčce a další měření zůstávají kritérii E5.
 
-**Další konkrétní krok: E2.8 – textové conversation zprávy.**
+**Další konkrétní krok: E2.8b – fake conversation runtime.**
 
-1. Doplnit `conversation.text/cancel` podle kapitoly 5 jako textový alternativní vstup přes vlastnický conversation slice, s manual lease a generation; text sám nikdy nespustí výběr. Ověřit přísné schéma, simulovaný tok a zrušení bez AI klíče. E2.7 již pokrývá `inventory.confirmReload` se sdílenou cache ID/pořadí a trvalou maskou.
+1. Napojit E2.8a `conversation.text/cancel` na jediný vlastnický fake conversation slice s manual lease, session/generation a výsledkem bez AI klíče; pozdní výsledek po cancel/lease loss odmítnout. Text nesmí spustit výběr. E2.7 již pokrývá `inventory.confirmReload` se sdílenou cache ID/pořadí a trvalou maskou.
 2. Pak pokračovat mediálními zprávami podle závislostí. Webová časová osa E2.5 používá samostatný pouze čtecí HTTPS proud se stejnými C++ událostmi: běžné browser WebSocket API neumí hlavičku `Authorization` při nativním handshake. Po získání důvěryhodného místního certifikátu ověřit její skutečné vykreslení, chybový stav a úzký viewport v prohlížeči; nevypínat TLS ověřování.
 3. Nezaměnit fake log s NVS ani s fyzickým potvrzením západky. Samostatná HW akceptace zůstává v E5 po vstupu B1.
 
@@ -36,7 +36,7 @@ Pokud uživatel omezí práci pouze na mobilní aplikaci, neoznačuj závislosti
 | --- | --- | --- |
 | Firmware | Čistá neblokující `SelectionSequence`/`SafetyController` z E1 a čistý, zatím nezapojený `DeviceControl` s fake clock vstupy, 64 výsledky a `CommandJournal` portem E2.2. Sériové `select 1..6`, `stop`, `reset`, `status`, `help` zůstává vývojovým vstupem. Hostitelské testy a lokální Arduino/PlatformIO build prošly. | Nezávislý fyzický watchdog/inhibit, skutečný NVS journal/GPIO/síťový detektor lease, provisioning, I2S, dialog a ovládání. |
 | Mobil | Statická obrazovka TypeScript/Vite, build script a lockfile. | Interaktivní ruční řízení, transport, simulátor, Capacitor, iOS/Swift projekt a testy. |
-| Backend/kontrakty/simulátor | Lokální protokol v `contracts/control-message-v1.schema.json`, 16 pozitivních a 29 negativních kontrol, připnutý Node/npm test; spustitelný C++ simulátor a šest deterministických scénářů E2.3; místní TLS WSS facade nad C++ modelem s auth/lease/retry/Stop a restartovým fake journalem E2.4c/d; webová časová osa a HTTPS pozorovací proud E2.5; základní OpenAPI všech neobrazových HTTP tras E2.6; potvrzení reloadu a perzistence masky E2.7. | Backend, browser vizuální ověření E2.5, fake/AI adaptéry, zbývající conversation/media zprávy a integrační hrany. |
+| Backend/kontrakty/simulátor | Lokální protokol v `contracts/control-message-v1.schema.json`, 19 pozitivních a 34 negativních kontrol, připnutý Node/npm test; spustitelný C++ simulátor a šest deterministických scénářů E2.3; místní TLS WSS facade nad C++ modelem s auth/lease/retry/Stop a restartovým fake journalem E2.4c/d; webová časová osa a HTTPS pozorovací proud E2.5; základní OpenAPI všech neobrazových HTTP tras E2.6; potvrzení reloadu a perzistence masky E2.7; text/cancel kontrakt E2.8a. | Backend, browser vizuální ověření E2.5, fake/AI adaptéry, conversation runtime/media zprávy a integrační hrany. |
 | iOS CI | Majitelem popsaný existující postup Windows → macOS runner → podepsaná IPA. | Skutečný workflow v tomto checkoutu, ověřená identita/profil a běh/instalace. |
 | Hardware | Dodaný obrázek pinů, návrh napájení a předběžné profily A/B. | Revize konkrétní desky, schéma bezpečnostní větve, měření a fyzická akceptace. |
 
@@ -50,7 +50,7 @@ Přesné závislosti a kritéria dokončení jsou v kapitole 12 plánu. Následu
 | --- | --- | --- | --- |
 | E0 – provozní předpoklady | rozpracováno | Architektonické výchozí předpoklady v plánu; žádná měření. | Vstupy B1–B5 níže; software E1 může začít. |
 | E1 – bezpečné jádro | hotovo | E1.1: Stop v každé fázi, safety port, 250/500/5000ms limity, explicitní zotavení (D1). E1.2: hostitelský timeout průchodu smyčkou, porucha, výpadek ručního lease a přednost Stop; hostitelské testy a firmware build prošly (D2). | Fyzická reakce nezávislého watchdogu patří E5 a nebyla měřena; softwarový model vypíná až při dalším průchodu smyčkou. |
-| E2 – smlouvy a simulátor | rozpracováno | E2.1: první JSON Schema lokálního protokolu, přísný parser a pozitivní/chybné fixtures (D3). E2.2: C++ model fake času, journalu, idempotence a hostitelské scénáře ztraceného ACK/restartu (D4). E2.3: spustitelná časová osa a šest hostitelských scénářů nad sdílenou fixture (D5). E2.4a–d: Node parser, handshake/lease schéma, místní WSS facade nad C++ modelem a souborový fake journal (D6–D9). E2.5: webová časová osa a test HTTPS proudu (D10). E2.6a/b: základní OpenAPI a validace schémat (D11–D12). E2.7: perzistované `inventory.confirmReload` přes C++ model, WSS a kontrakt (D13). | Conversation/media zprávy a browser vizuální ověření E2.5. Kritéria E2 ještě nejsou úplně doložena. |
+| E2 – smlouvy a simulátor | rozpracováno | E2.1: první JSON Schema lokálního protokolu, přísný parser a pozitivní/chybné fixtures (D3). E2.2: C++ model fake času, journalu, idempotence a hostitelské scénáře ztraceného ACK/restartu (D4). E2.3: spustitelná časová osa a šest hostitelských scénářů nad sdílenou fixture (D5). E2.4a–d: Node parser, handshake/lease schéma, místní WSS facade nad C++ modelem a souborový fake journal (D6–D9). E2.5: webová časová osa a test HTTPS proudu (D10). E2.6a/b: základní OpenAPI a validace schémat (D11–D12). E2.7: perzistované `inventory.confirmReload` přes C++ model, WSS a kontrakt (D13). E2.8a: text/cancel schéma a byte/char limity (D14). | Conversation runtime/media zprávy a browser vizuální ověření E2.5. Kritéria E2 ještě nejsou úplně doložena. |
 | E3 – ruční mobil bez HW | nezahájeno | Statická stránka není ruční řízení. | E2; UI, potvrzení/Stop a integrace. |
 | E3a – iOS CI základ | nezahájeno | Jen majitelem popsaný postup. | E3; B2/B3 pro podpis a skutečnou instalaci. |
 | E4 – runtime a přímá síť | nezahájeno | Arduino prototyp. | E2; pro nahrání B1. |
@@ -77,6 +77,13 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 | B5 | Majitel: finální katalog a publikum, rozměry, router a prostředí akce. | Obsahovou/provozní akceptaci E8/E11 a finální mechaniku. | Neutrální testovací katalog a laboratorní/simulované scénáře. |
 
 ## Deník změn a ověření
+
+### D14 – 29. 9. 2026 – E2.8a textový lokální kontrakt
+
+- Rozsah: `control-message-v1.schema.json` přidává vstupní `conversation.text/cancel` s device/boot/manual lease, conversation ID a generation; text má jednorázové clientTurnId, expectedRevision a 1–1000 znaků. `control-validator.mjs` drží běžné zprávy pod 2048 bajty a textovou výjimku do 8192 UTF-8 bajtů; WSS nastavuje stejný maximální frame, ostatní zprávy nad 2048 odmítá parser. Fixtures a testy ověřují chybějící lease/generation, nechtěná pole aktuátoru, délku textu a oba byte limity. Plán/README vysvětlují obálku a omezení.
+- Ověření: `kufr/contracts` pod Node 24.21.0 `npm test` — 19 platných a 34 chybných control zpráv + OpenAPI test prošly. `kufr/simulator` s MSVC bridge/OpenSSL `npm test` — WSS/restart scénáře prošly. Firmware není tímto kontraktním krokem změněn.
+- Omezení: WSS facade tyto dosud neimplementované směry odmítá; žádný rozhovor, cancel nebo AI výsledek nebyl vykonán. Následuje E2.8b vlastník fake sezení a integrační test. Browser certifikát E2.5 zůstává neověřený.
+- Revize a doručení: doplnit po commitu a push.
 
 ### D13 – 29. 9. 2026 – E2.7 potvrzení znovuzaložení
 

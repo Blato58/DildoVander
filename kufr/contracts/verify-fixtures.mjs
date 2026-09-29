@@ -45,6 +45,12 @@ const welcome = validateMessage(
 const heartbeat = validateMessage(
   await readFile(new URL('./fixtures/valid/heartbeat.json', import.meta.url)),
 );
+const conversationText = validateMessage(
+  await readFile(new URL('./fixtures/valid/conversation-text.json', import.meta.url)),
+);
+const conversationCancel = validateMessage(
+  await readFile(new URL('./fixtures/valid/conversation-cancel.json', import.meta.url)),
+);
 
 function expectRejectedMutation(label, original, mutate) {
   const message = structuredClone(original);
@@ -104,12 +110,37 @@ expectRejectedMutation('welcome with mismatched snapshot type', welcome, (messag
 expectRejectedMutation('heartbeat without lease', heartbeat, (message) => {
   delete message.controlLeaseId;
 });
+expectRejectedMutation('conversation text too long', conversationText, (message) => {
+  message.text = 'č'.repeat(1001);
+});
+expectRejectedMutation('conversation text without lease', conversationText, (message) => {
+  delete message.controlLeaseId;
+});
+expectRejectedMutation('conversation text cannot carry actuator instruction', conversationText, (message) => {
+  message.payload = { compartment: 4 };
+});
+expectRejectedMutation('conversation cancel without generation', conversationCancel, (message) => {
+  delete message.generation;
+});
 
 const oversizedMessage = Buffer.concat([
   Buffer.from(JSON.stringify(selectionStart)),
   Buffer.alloc(2048, 0x20),
 ]);
 assert.throws(() => validateMessage(oversizedMessage), 'oversized control message');
+invalidCount += 1;
+
+const expandedConversation = Buffer.concat([
+  Buffer.from(JSON.stringify(conversationText)),
+  Buffer.alloc(3000, 0x20),
+]);
+assert.ok(expandedConversation.length > 2048);
+assert.doesNotThrow(() => validateMessage(expandedConversation));
+validCount += 1;
+assert.throws(() => validateMessage(Buffer.concat([
+  Buffer.from(JSON.stringify(conversationText)),
+  Buffer.alloc(8192, 0x20),
+])), 'conversation message over 8192 UTF-8 bytes');
 invalidCount += 1;
 
 console.log(`Validated ${validCount} valid and ${invalidCount} invalid control messages.`);

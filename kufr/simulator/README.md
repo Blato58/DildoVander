@@ -44,7 +44,8 @@ lease, retry, Stop, snapshot a odmítnutí chybné zprávy.
 (absolutní cesta mimo repozitář) před spuštěním. Token ani
 soukromý klíč nedávejte do repozitáře. Server naslouchá pouze na
 `127.0.0.1:8443`, přijímá jeden autorizovaný control socket, odmítá kompresi
-a zprávy nad 2048 bajtů; token patří do `Authorization: Bearer` při WSS
+a běžné zprávy nad 2048 bajtů; `conversation.text` má smluvní limit 8192
+bajtů, ale facade jej zatím odmítá jako neimplementovaný směr. Token patří do `Authorization: Bearer` při WSS
 handshake. Vstup prochází sdíleným přísným E2 parserem. Certifikát klient
 musí ověřit nebo připnout, test jej používá jako explicitní CA.
 
