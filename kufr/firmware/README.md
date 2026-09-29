@@ -43,12 +43,17 @@ src/
       PersistentCommandJournal.h/.cpp      trvalý journal a maska dostupnosti
       JournalStorage.h                     port trvalého úložiště pro testy
       EspIdfJournalStorage.h/.cpp           NVS blob v ESP-IDF profilu
+    provisioning/
+      DeviceIdentity.h/.cpp                 formát identity a servisní brána
+      ProvisioningStorage.h                 port úložiště identity
+      EspIdfProvisioningStorage.h/.cpp      NVS identita v ESP-IDF profilu
     conversation/
       ConversationSession.h/.cpp            čistý model generace textového sezení
 tests/
   selection_sequence_test.cpp               test bez hardwaru
   device_control_test.cpp                   test idempotence a restartu
   persistent_command_journal_test.cpp      test trvalého záznamu a selhání zápisu
+  device_identity_test.cpp                  test identity a servisní brány
   conversation_session_test.cpp             test textu, zrušení a generace
 ```
 
@@ -90,7 +95,15 @@ chyba zápisu drží řízení v bezpečném stavu; prázdná NVS nezačne s dos
 přihrádkami. ESP-IDF profil otevírá NVS adaptér při startu bez automatického
 mazání. Hostitelské testy ověřují restart a selhání zápisu přes paměťový port.
 `DeviceControl` zatím není připojený k živému vstupu ESP-IDF smyčky; skutečný
-NVS běh na desce, TLS/parser a servisní identita zbývají.
+NVS běh na desce, TLS/parser a servisní USB zápis zbývají.
+
+`DeviceIdentity` čte oddělený verzovaný NVS záznam s `deviceId` a 32 bajty
+device credential. Pro HTTP Authorization jej lze vyjádřit 64 malými
+hexadecimálními znaky; backend porovnává SHA-256 přesně těchto UTF-8 znaků.
+Případný zápis vyžaduje v modelu současně aktivní fyzický servisní režim a
+odpojenou větev pohonů. ESP-IDF smyčka zatím identitu pouze čte a oznamuje
+stav bez její hodnoty. Skutečné USB servisní rozhraní, ověření fyzické brány,
+náhodné generování credential mimo image a provozní TLS klient zbývají.
 
 `ConversationSession` je čistý model jednoho textového sezení. Kontroluje
 ruční lease, boot/session/generation, revision a délku UTF-8 textu. V jednom
@@ -169,6 +182,13 @@ g++ -std=c++14 -Wall -Wextra -Werror src/features/safety/SafetyController.cpp sr
 
 Pokrývá restart s otevřeným záznamem, společné uzavření s maskou, chyby
 čtení/zápisu, poškozený blob a blokaci pohybu před úspěšným zápisem.
+
+Formát identity a servisní bránu lze hostitelsky ověřit samostatně:
+
+```text
+g++ -std=c++14 -Wall -Wextra -Werror src/features/provisioning/DeviceIdentity.cpp tests/device_identity_test.cpp -o <docasna-slozka>/device_identity_test
+<docasna-slozka>/device_identity_test
+```
 
 Čistý model textového sezení lze ověřit samostatně:
 

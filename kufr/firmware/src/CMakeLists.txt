@@ -3,6 +3,8 @@ idf_component_register(
         "espidf_main.cpp"
         "features/device_control/EspIdfJournalStorage.cpp"
         "features/device_control/PersistentCommandJournal.cpp"
+        "features/provisioning/DeviceIdentity.cpp"
+        "features/provisioning/EspIdfProvisioningStorage.cpp"
         "features/safety/SafetyController.cpp"
         "features/wand_selection/SelectionSequence.cpp"
     INCLUDE_DIRS "."

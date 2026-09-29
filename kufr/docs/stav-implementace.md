@@ -6,11 +6,11 @@ Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**Aktivní implementační krok:** E4.2 – servisní provisionování device identity mimo firmware image; trvalý NVS journal má implementovaný a hostitelsky ověřený software (D34). E4.1 ESP-IDF profil a bezpečná smyčka jsou softwarově sestavené (D33), bez uploadu a HW akceptace. E7 backend bez skutečné AI je dokončen v lokálním fake rozsahu včetně nákladové rezervace a integračních testů (D23–D32). E2/E3 jsou dokončené v hostitelském/simulátorovém rozsahu. Fyzické nezávislé vypnutí a měření zůstávají kritérii E5; placená AI E8 čeká na B4.
+**Aktivní implementační krok:** E4.2 – servisní provisionování device identity mimo firmware image; trvalý NVS journal má implementovaný a hostitelsky ověřený software (D34), formát identity, servisní softwarová brána a čtení NVS jsou rozpracované (D35). E4.1 ESP-IDF profil a bezpečná smyčka jsou softwarově sestavené (D33), bez uploadu a HW akceptace. E7 backend bez skutečné AI je dokončen v lokálním fake rozsahu včetně nákladové rezervace a integračních testů (D23–D32). E2/E3 jsou dokončené v hostitelském/simulátorovém rozsahu. Fyzické nezávislé vypnutí a měření zůstávají kritérii E5; placená AI E8 čeká na B4.
 
-**Další konkrétní krok: E4.2 – servisní device identita.**
+**Další konkrétní krok: E4.2 – fyzicky střežený servisní USB zápis; nezávisle E4.3 Wi-Fi/HTTPS fake backend klient.**
 
-1. Navrhnout a hostitelsky otestovat servisní zápis/čtení device identity a připojit bezpečný adaptér v ESP-IDF. Identitu ani credential nevkládat do image. Bez známé revize desky nic nenahrávat. Journal má software adaptér, jeho běh na desce není ověřen.
+1. Formát a NVS čtení identity jsou v softwaru. Pro skutečný servisní zápis doplnit USB nástroj až s ověřenou fyzickou servisní bránou a odpojenou větví pohonů (B1). Credential musí vzniknout mimo image a zůstat mimo argumenty/logy. Bez známé revize desky nic nenahrávat. Journal ani identita nemají ověřený běh na desce.
 2. Navázat Wi-Fi/HTTPS fake backend klientem a lokálním WSS podle E4. Pro skutečné TLS spojení a GPIO/USB měření platí B1; E8 provider čeká na B4.
 3. Fyzická HW akceptace zůstává v E5 po vstupu B1; nativní iOS E3a čeká na B2/B3. Nezaměnit fake log s NVS ani fake odpověď se skutečnou AI.
 
@@ -32,7 +32,7 @@ Dotčené cesty: `kufr/firmware/`, související README a tento stav. Krok nevy�
 
 | Část | Co skutečně existuje | Co zatím chybí |
 | --- | --- | --- |
-| Firmware | Čistá neblokující `SelectionSequence`/`SafetyController` z E1, nezapojený `DeviceControl` s fake clock vstupy, 64 výsledky a `CommandJournal` portem E2.2, čistý `ConversationSession` s generací a stropem 10 tahů E2.8b1. E4.2 přidává trvalý journal s NVS adaptérem pro ESP-IDF a hostitelské testy restartu/selhání (D34). Sériové `select 1..6`, `stop`, `reset`, `status`, `help` zůstává vývojovým vstupem. | Nezávislý fyzický watchdog/inhibit, běh NVS na desce, GPIO/síťový detektor lease, provisioning, I2S, propojení dialogu a ovládání. |
+| Firmware | Čistá neblokující `SelectionSequence`/`SafetyController` z E1, nezapojený `DeviceControl` s fake clock vstupy, 64 výsledky a `CommandJournal` portem E2.2, čistý `ConversationSession` s generací a stropem 10 tahů E2.8b1. E4.2 přidává trvalý journal s NVS adaptérem (D34) a model identity s NVS čtením (D35). Sériové `select 1..6`, `stop`, `reset`, `status`, `help` zůstává vývojovým vstupem. | Nezávislý fyzický watchdog/inhibit, běh NVS na desce, GPIO/síťový detektor lease, fyzicky střežený servisní USB zápis, I2S, propojení dialogu a ovládání. |
 | Mobil | TypeScript/Vite webová obrazovka se šesti přihrádkami, potvrzením, Stop a místním fake režimem; E3.2b adaptér přes E3.2a most proti E2 C++ simulátoru, cílené testy spojení a build. | Capacitor, iOS/Swift projekt a fyzický iPhone test. |
 | Backend/kontrakty/simulátor | E7.1–2 ASP.NET Core 10 s device tokenem, fake sezením/textovým tahem; E7.3a–c SQLite idempotence, restart a kvóta; E7.4a–b retence a rušení; E7.5a–b fake přepis a 120s audio; E7.6 nákladové stropy a integrační testy (D23–D32). Lokální protokol, C++ simulátor, TLS WSS facade, časová osa, OpenAPI, reload a fake média E2. | Skutečný AI/audio adaptér E8/E9 a jeho B4 provozní konfigurace. |
 | iOS CI | Majitelem popsaný existující postup Windows → macOS runner → podepsaná IPA. | Skutečný workflow v tomto checkoutu, ověřená identita/profil a běh/instalace. |
@@ -51,7 +51,7 @@ Přesné závislosti a kritéria dokončení jsou v kapitole 12 plánu. Následu
 | E2 – smlouvy a simulátor | hotovo | E2.1–4 kontrakty, C++ model, fake journal, parser a WSS; E2.5 časová osa s browser ověřením (D10,D22); E2.6 OpenAPI, E2.7 reload, E2.8 fake text/cancel, E2.9 fake media parser/socket (D3–D18). Ztracený ACK, duplicitní/pozdní příkaz, restart a zotavení kryjí hostitelské testy a WSS scénáře. | Fake není skutečný audio buffer, NVS ani backend; tyto hranice patří E4/E7/E9. |
 | E3 – ruční mobil bez HW | hotovo | E3.1 fake UI (D19), E3.2a ověřený místní most (D20), E3.2b UI adaptér a celý výběr/reload/Stop/odpojení proti C++ simulátoru, cílené testy ztracených zpráv a nového lease (D21). | Jde pouze o webovou/simulátorovou akceptaci E3; nativní iPhone, TLS pinning a fyzický kufr patří E3a/E10/E5. |
 | E3a – iOS CI základ | nezahájeno | Jen majitelem popsaný postup. | E3; B2/B3 pro podpis a skutečnou instalaci. |
-| E4 – runtime a přímá síť | rozpracováno | E4.1: ESP-IDF 6.1 profil, CMake, bezpečná smyčka, 16MB oddíly a lokální build; Arduino sériový profil zachován (D33). E4.2a: trvalý journal a NVS adaptér v IDF sestavení, hostitelský restart a chyby úložiště (D34). | Servisní identita, Wi-Fi/HTTPS/WSS, NVS runtime a pro nahrání B1. |
+| E4 – runtime a přímá síť | rozpracováno | E4.1: ESP-IDF 6.1 profil, CMake, bezpečná smyčka, 16MB oddíly a lokální build; Arduino sériový profil zachován (D33). E4.2a: trvalý journal a NVS adaptér v IDF sestavení, hostitelský restart a chyby úložiště (D34). E4.2b: formát identity, softwarová servisní brána a NVS čtení (D35). | Fyzicky střežený USB provisioning, Wi-Fi/HTTPS/WSS, NVS runtime a pro nahrání B1. |
 | E5 – jedna bezpečná přihrádka | nezahájeno | Bez ovládání a měření. | E0/E1/E4; B1, fyzická akceptace. |
 | E6 – šest přihrádek | nezahájeno | Bez fyzického ověření. | E5; cykly, proudy, dostupnost/reload. |
 | E7 – backend bez skutečné AI | hotovo | E7.1–2 identity/fake dialog; E7.3a–c SQLite idempotence, restart a kvóta; E7.4a–b cleanup/retence a rušení; E7.5a–b WAV fake hlas; E7.6 transakční nákladová rezervace. Lokální HTTP/SQLite testy přístupů, souběhu, restartu, retence a logů prošly (D23–D32). | Skutečné provider ceny/limity/klíče a placená akceptace patří E8/B4; device HTTPS/TLS integrace E4. |
@@ -68,7 +68,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 
 | ID | Chybějící vstup a kdo ho dodá | Co blokuje | Co může pokračovat |
 | --- | --- | --- | --- |
-| B1 | Majitel/stavitel: revize PCB, měření USB/LED/paměti, mechanika a schéma/měření watchdogu a napájení. | Nahrání do neověřené desky, E5/E6 a HW akceptaci E9/E13. | Hostitelské testy, protokol, simulátor, SW build. |
+| B1 | Majitel/stavitel: revize PCB, měření USB/LED/paměti, mechanika a schéma/měření watchdogu a napájení; pro servisní USB zápis také měřitelný vstup servisního režimu a stav odpojené větve pohonů. | Nahrání do neověřené desky, skutečné servisní provisionování, E5/E6 a HW akceptaci E9/E13. | Hostitelské testy, protokol, simulátor, SW build. |
 | B2 | Majitel: skutečný soubor již používaného iOS workflow, Team/Bundle ID, distribuční režim a platná identita/profil do secrets. | Převzetí a ověření podpisové části E3a, vydání E11. | Webový vývoj, příprava nativního projektu a kontrol bez podpisových secrets. |
 | B3 | Majitel: model/verze iOS, registrovaný iPhone pro Ad Hoc a vybraný instalační klient/hosting IPA. | Fyzickou instalaci E3a, LAN/Keychain akceptaci E10 a distribuci E11. | UI/protokolové testy; CI simulator test není náhrada iPhonu. |
 | B4 | Správce/majitel: účet, AI klíč mimo repo, hosting, region/retence a schválené provozní limity. | Skutečná placená volání a provozní nasazení. | E7 a fake integrační/eval scénáře; připravit konfiguraci bez hodnot tajemství. |
@@ -76,11 +76,19 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 
 ## Deník změn a ověření
 
+### D35 – 29. 9. 2026 – E4.2b model servisní identity
+
+- Rozsah: `DeviceIdentity` validuje verzovaný záznam s omezeným `deviceId` a 32 bajty device credential. Z prázdného úložiště vzniká stav bez identity, chybné čtení či formát zablokuje použití. Zápis model dovolí jen při současně aktivním servisním režimu a odpojené větvi pohonů; samotné fyzické vstupy zatím nejsou zapojené. Pro budoucí HTTP Authorization poskytuje credential jako 64 malých hexadecimálních znaků, které backend hashují jako UTF-8. ESP-IDF smyčka identitu čte z odděleného NVS blobu a loguje jen stav, nikoli hodnotu. Záznam se maže z dočasného pracovního bufferu.
+- Ověření: v `kufr/firmware` hostitelský MSVC test `tests/device_identity_test.cpp` s `/std:c++14 /W4 /WX` prošel: fyzická softwarová brána, restart, hex formát, vadná data a selhání čtení/zápisu. `pio run` pro ESP-IDF 6.1 prošel (16 892 B RAM, 207 441 B flash), `pio run -e esp32-s3-arduino-serial` prošel (18 660 B RAM, 279 621 B flash); oba byly spuštěny plnou cestou k `pio.exe`.
+- Omezení: žádný USB servisní protokol ani zdroj bezpečné náhody/credential zatím nejsou připojené. Neexistuje fyzicky ověřený signál servisního režimu či odpojené napájecí větve (B1); zápis z běžícího firmwaru není zpřístupněn. NVS na desce ani fyzická ochrana flash se neověřovaly; šifrování/secure boot a nevratné eFuse vyžadují samostatné rozhodnutí dle plánu. Není Wi-Fi ani HTTPS klient. Nenahrávalo se.
+- Předání: pokračovat nezávislou softwarovou částí E4 Wi-Fi/HTTPS fake backend klienta; fyzický servisní zápis až po B1.
+
 ### D34 – 29. 9. 2026 – E4.2a trvalý journal
 
 - Rozsah: `PersistentCommandJournal` ukládá verzovaný záznam s `commandId`, číslem přihrádky, příznakem otevřeného příkazu a maskou dostupnosti. Začátek se zapisuje před prvním výstupem; uzavření příkazu zapisuje masku i konec jedním blobem. Prázdné NVS znamená nulovou masku. Chyba čtení/zápisu a poškozený záznam blokují další řízení. `EspIdfJournalStorage` čte/zapisuje blob přes NVS a `nvs_commit`, bez automatického mazání při chybě. `espidf_main.cpp` inicializuje NVS až po bezpečném vypnutí, při chybě latchuje safety fault a při otevřeném journalu požaduje kontrolu. Arduino profil NVS adaptér vylučuje.
 - Ověření: v `kufr/firmware` hostitelský MSVC test `tests/persistent_command_journal_test.cpp` s `/std:c++14 /W4 /WX` prošel; pokrývá restart, otevřený záznam, uzavření s maskou, poškozený blob, selhání čtení/zápisu a blokaci pohybu v `DeviceControl`. `pio run` pro ESP-IDF 6.1 prošel (16 892 B RAM, 206 181 B flash); `pio run -e esp32-s3-arduino-serial` prošel (18 660 B RAM, 279 529 B flash). Příkazy PlatformIO byly spuštěny plnou cestou k `pio.exe` v uživatelském prostředí.
 - Omezení: NVS nebylo čteno ani zapsáno na skutečné desce a nebyl simulován výpadek napájení během flash operace. `DeviceControl` ještě není připojený ke vstupu živé ESP-IDF smyčky; sériový Arduino prototyp jej rovněž nepoužívá. Není servisní device identita ani síťová vrstva. Nenahrávalo se do desky.
+- Revize a doručení: E4.2a je v commitu `25469a0ac5a5c38bfd4a17e740f9c3eeeb857ded`; `./scripts/Push-CurrentBranch.ps1` potvrdil push `main` na `origin/main` v této revizi.
 - Předání: pokračovat E4.2b servisní identitou mimo image, pak E4 Wi-Fi/HTTPS/WSS; pro upload a fyzickou akceptaci platí B1.
 
 ### D33 – 29. 9. 2026 – E4.1 sestavený ESP-IDF základ
