@@ -88,6 +88,7 @@ try {
     privateKey,
     token,
     bridgeExecutable,
+    journalPath: join(temporaryDirectory, 'journal.log'),
     onTimeline: (event) => timeline.push(event),
   });
   const url = `wss://127.0.0.1:${simulator.port}/v1/control`;
@@ -221,7 +222,132 @@ try {
 
   client.socket.send('{"protocolVersion":1,"type":"state.get","type":"state.get"}');
   await new Promise((resolve) => client.socket.once('close', resolve));
-  console.log('WSS: TLS/auth, hello, lease, ACK retry, one release, priority Stop, snapshot and strict input passed');
+  client = null;
+  await simulator.close();
+  simulator = await createSimulatorServer({
+    certificate,
+    privateKey,
+    token,
+    bridgeExecutable,
+    journalPath: join(temporaryDirectory, 'journal.log'),
+  });
+  client = createClient(`wss://127.0.0.1:${simulator.port}/v1/control`, certificate, token);
+  await new Promise((resolve, reject) => {
+    client.socket.once('open', resolve);
+    client.socket.once('error', reject);
+  });
+  client.send({ protocolVersion: 1, type: 'hello', messageId: randomUUID(), deviceId: 'kufr-001' });
+  const afterRestart = await client.next('welcome');
+  assert.equal(afterRestart.snapshot.controlMode, 'recovery');
+  assert.equal(afterRestart.snapshot.phase, 'recoveryRequired');
+  assert.equal(afterRestart.snapshot.readyMask, 55);
+  assert.equal(afterRestart.snapshot.controlLeaseId, null);
+  client.send({
+    protocolVersion: 1,
+    type: 'control.acquire',
+    messageId: randomUUID(),
+    deviceId: 'kufr-001',
+    bootId: simulator.bootId,
+  });
+  await new Promise((resolve) => client.socket.once('close', resolve));
+  client = null;
+  assert.equal(await simulator.recoverAfterInspection(), true);
+  client = createClient(`wss://127.0.0.1:${simulator.port}/v1/control`, certificate, token);
+  await new Promise((resolve, reject) => {
+    client.socket.once('open', resolve);
+    client.socket.once('error', reject);
+  });
+  client.send({ protocolVersion: 1, type: 'hello', messageId: randomUUID(), deviceId: 'kufr-001' });
+  const afterInspection = await client.next('welcome');
+  assert.equal(afterInspection.snapshot.controlMode, 'standalone');
+  assert.equal(afterInspection.snapshot.readyMask, 39);
+
+  client.socket.terminate();
+  client = null;
+  await simulator.close();
+  let closeOnAcquire = true;
+  let racingSocket;
+  simulator = await createSimulatorServer({
+    certificate,
+    privateKey,
+    token,
+    bridgeExecutable,
+    journalPath: join(temporaryDirectory, 'journal.log'),
+    onNativeCommand: (operation) => {
+      if (operation === 'ACQUIRE' && closeOnAcquire) {
+        closeOnAcquire = false;
+        racingSocket?.terminate();
+      }
+    },
+  });
+  const raceUrl = `wss://127.0.0.1:${simulator.port}/v1/control`;
+  client = createClient(raceUrl, certificate, token);
+  racingSocket = client.socket;
+  await new Promise((resolve, reject) => {
+    client.socket.once('open', resolve);
+    client.socket.once('error', reject);
+  });
+  client.send({ protocolVersion: 1, type: 'hello', messageId: randomUUID(), deviceId: 'kufr-001' });
+  await client.next('welcome');
+  client.send({
+    protocolVersion: 1,
+    type: 'control.acquire',
+    messageId: randomUUID(),
+    deviceId: 'kufr-001',
+    bootId: simulator.bootId,
+  });
+  await new Promise((resolve) => client.socket.once('close', resolve));
+  client = null;
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const candidate = createClient(raceUrl, certificate, token);
+    const opened = await new Promise((resolve) => {
+      candidate.socket.once('open', () => resolve(true));
+      candidate.socket.once('unexpected-response', (_request, response) => {
+        response.resume();
+        resolve(false);
+      });
+      candidate.socket.once('error', () => resolve(false));
+    });
+    if (opened) {
+      client = candidate;
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  assert.ok(client, 'socket did not become available after disconnect');
+  client.send({ protocolVersion: 1, type: 'hello', messageId: randomUUID(), deviceId: 'kufr-001' });
+  const afterRace = await client.next('welcome');
+  assert.equal(afterRace.snapshot.controlLeaseId, null);
+  assert.equal(await simulator.recoverAfterInspection(), true);
+  await client.next('state.snapshot');
+  client.send({
+    protocolVersion: 1,
+    type: 'control.acquire',
+    messageId: randomUUID(),
+    deviceId: 'kufr-001',
+    bootId: simulator.bootId,
+  });
+  const renewedLease = await client.next('state.snapshot');
+  assert.equal(renewedLease.controlMode, 'manual');
+  await new Promise((resolve) => setTimeout(resolve, 6200));
+  assert.equal(client.socket.readyState, WebSocket.OPEN);
+  client.send({
+    protocolVersion: 1,
+    type: 'heartbeat',
+    messageId: randomUUID(),
+    deviceId: 'kufr-001',
+    bootId: simulator.bootId,
+    controlLeaseId: renewedLease.controlLeaseId,
+  });
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('late heartbeat was not rejected')), 3000);
+    client.socket.once('close', () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+  });
+  console.log('WSS: TLS/auth, lease expiry, ACK retry, priority Stop, strict input, restart and close/acquire race passed');
 } finally {
   client?.socket.terminate();
   await simulator?.close();

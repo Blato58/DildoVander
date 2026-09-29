@@ -20,12 +20,14 @@ function isBearerToken(header, expectedToken) {
 }
 
 export class NativeBridge {
-  constructor(executable, bootId) {
-    this.process = spawn(executable, [bootId], { stdio: ['pipe', 'pipe', 'pipe'] });
+  constructor(executable, bootId, journalPath) {
+    this.process = spawn(executable, [bootId, journalPath], { stdio: ['pipe', 'pipe', 'pipe'] });
     this.pending = [];
     this.failed = null;
+    this.closed = false;
     this.process.on('error', (error) => this.fail(error));
     this.process.on('exit', (code) => this.fail(new Error(`native simulator exited: ${code}`)));
+    this.process.on('close', () => { this.closed = true; });
     this.process.stdin.on('error', (error) => this.fail(error));
 
     const lines = createInterface({ input: this.process.stdout });
@@ -78,19 +80,25 @@ export class NativeBridge {
     });
   }
 
-  close() {
-    this.process.kill();
+  async close() {
+    if (this.closed) {
+      return;
+    }
+    await new Promise((resolve) => {
+      this.process.once('close', resolve);
+      this.process.kill();
+    });
   }
 }
 
-export async function createSimulatorServer({ certificate, privateKey, token, bridgeExecutable, port = 0, onTimeline = () => {} }) {
-  if (!certificate || !privateKey || !token || !bridgeExecutable) {
-    throw new Error('TLS certificate, private key, test token and native bridge are required');
+export async function createSimulatorServer({ certificate, privateKey, token, bridgeExecutable, journalPath, port = 0, onTimeline = () => {}, onNativeCommand = () => {} }) {
+  if (!certificate || !privateKey || !token || !bridgeExecutable || !journalPath) {
+    throw new Error('TLS certificate, private key, test token, native bridge and journal path are required');
   }
 
   const bootId = randomUUID();
   const startedAtMs = performance.now();
-  const bridge = new NativeBridge(bridgeExecutable, bootId);
+  const bridge = new NativeBridge(bridgeExecutable, bootId, journalPath);
   let current = (await bridge.send('SNAPSHOT', 0)).state;
   let socket = null;
   let disconnecting = false;
@@ -130,9 +138,9 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
       controlLeaseId: current.leaseId || null,
       phase: current.phase,
       activeCommandId: current.activeCommandId || null,
-      readyMask: current.readyMask,
+      readyMask: current.journalFault ? 0 : current.readyMask,
       calibrationRevision: 1,
-      faults: [],
+      faults: current.journalFault ? ['journal_failed'] : [],
       microphoneState: 'unavailable',
       capabilities: ['manualControl'],
       lastResult,
@@ -167,6 +175,7 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
   }
 
   async function native(operation, ...args) {
+    onNativeCommand(operation);
     const result = await bridge.send(operation, ...args);
     current = result.state;
     for (const event of result.events) {
@@ -394,10 +403,16 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
     });
   });
 
-  await new Promise((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(port, '127.0.0.1', resolve);
-  });
+  try {
+    await new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(port, '127.0.0.1', resolve);
+    });
+  } catch (error) {
+    webSockets.close();
+    await bridge.close();
+    throw error;
+  }
 
   const tickTimer = setInterval(async () => {
     if (ticking) {
@@ -420,12 +435,19 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
   return {
     port: server.address().port,
     bootId,
+    recoverAfterInspection: async () => {
+      const result = await native('RECOVER', nowMs());
+      if (result.state.success) {
+        sendSnapshot();
+      }
+      return result.state.success;
+    },
     close: async () => {
       clearInterval(tickTimer);
       socket?.terminate();
       webSockets.close();
       await new Promise((resolve) => server.close(resolve));
-      bridge.close();
+      await bridge.close();
     },
   };
 }
