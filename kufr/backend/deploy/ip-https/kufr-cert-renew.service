@@ -1,0 +1,8 @@
+[Unit]
+Description=Renew kufr public IP certificate
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/snap/bin/certbot renew --quiet --non-interactive
