@@ -1,0 +1,62 @@
+name: Kufr firmware
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - kufr/firmware/**
+      - .github/workflows/kufr-firmware.yml
+  pull_request:
+    paths:
+      - kufr/firmware/**
+      - .github/workflows/kufr-firmware.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  host-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Device control tests
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          sources=(
+            src/features/safety/SafetyController.cpp
+            src/features/wand_selection/SelectionSequence.cpp
+            src/features/device_control/DeviceControl.cpp
+          )
+          g++ -std=c++14 -Wall -Wextra -Werror \
+            "${sources[@]}" tests/device_control_test.cpp \
+            -o "$RUNNER_TEMP/device-control-test"
+          "$RUNNER_TEMP/device-control-test"
+          g++ -std=c++14 -Wall -Wextra -Werror \
+            "${sources[@]}" \
+            src/features/device_control/DeviceControlRuntime.cpp \
+            src/features/conversation/ConversationRuntimeState.cpp \
+            tests/device_control_runtime_test.cpp \
+            -o "$RUNNER_TEMP/device-control-runtime-test"
+          "$RUNNER_TEMP/device-control-runtime-test"
+
+  firmware-build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install pinned PlatformIO Core
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/platformio-venv"
+          "$RUNNER_TEMP/platformio-venv/bin/python" -m pip install platformio==6.2.0
+      - name: Build ESP-IDF profile
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/platformio-venv/bin/pio" run -d kufr/firmware -e esp32-s3-idf -s
+      - name: Build Arduino serial profile
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/platformio-venv/bin/pio" run -d kufr/firmware -e esp32-s3-arduino-serial -s
