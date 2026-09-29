@@ -58,5 +58,21 @@ Tento souborový log není NVS ani důkaz atomicity či odolnosti proti výpadku
 napájení; používá `flush`, nikoli fyzicky ověřený fsync. Journal ani jeho
 `.lock` soubor nemažte jen kvůli opětovnému otevření přihrádky.
 
+## Webová časová osa E2.5
+
+Při spuštěném `run-server.mjs` otevřete `https://127.0.0.1:8443/simulator`.
+Stránka má výrazné označení `SIMULACE` a ukazuje stav šesti přihrádek,
+fázi, režim, journal a posledních 100 událostí C++ modelu. Neobsahuje
+ovládání výběru ani pohonů. Prohlížeč musí důvěřovat místnímu vývojovému
+certifikátu; neobcházejte jeho bezpečnostní upozornění.
+
+Testovací token z `KUFR_SIMULATOR_TOKEN` zadejte do pole stránky. Stránka
+jej po zahájení spojení vymaže z pole a použije jen v `Authorization: Bearer`
+hlavičce požadavku na `GET /v1/observe`. Tento místní HTTPS NDJSON proud
+posílá snapshot a události stejného C++ modelu, má nejvýše čtyři pozorovatele
+a neuděluje manual lease. Je to vývojové rozhraní pro webovou stránku;
+nativní telefonní kontrakt zůstává na `wss://127.0.0.1:8443/v1/control`.
+Token nikdy nevkládejte do URL, repozitáře ani snímků obrazovky.
+
 Aktuální WSS facade nepokrývá média, Bonjour ani běh ESP32. Je to vývojový
 simulátor, nikoli produkční server nebo náhrada fyzické akceptace.

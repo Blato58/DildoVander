@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { request as httpsRequest } from 'node:https';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -19,6 +20,51 @@ const certificatePath = join(temporaryDirectory, 'certificate.pem');
 const privateKeyPath = join(temporaryDirectory, 'private-key.pem');
 let simulator;
 let client;
+let observer;
+
+function requestPage(port, certificate, path, authorization) {
+  return new Promise((resolve, reject) => {
+    const request = httpsRequest({
+      hostname: '127.0.0.1',
+      port,
+      path,
+      ca: certificate,
+      headers: authorization ? { Authorization: authorization } : {},
+    }, (response) => {
+      const chunks = [];
+      response.on('data', (chunk) => chunks.push(chunk));
+      response.on('end', () => resolve({ status: response.statusCode, body: Buffer.concat(chunks).toString('utf8') }));
+    });
+    request.on('error', reject);
+    request.end();
+  });
+}
+
+function observe(port, certificate, token) {
+  return new Promise((resolve, reject) => {
+    const request = httpsRequest({
+      hostname: '127.0.0.1',
+      port,
+      path: '/v1/observe',
+      ca: certificate,
+      headers: { Authorization: `Bearer ${token}` },
+    }, (response) => {
+      const messages = [];
+      let pending = '';
+      response.on('data', (chunk) => {
+        pending += chunk.toString('utf8');
+        let newline;
+        while ((newline = pending.indexOf('\n')) !== -1) {
+          messages.push(JSON.parse(pending.slice(0, newline)));
+          pending = pending.slice(newline + 1);
+        }
+      });
+      resolve({ response, messages, status: response.statusCode });
+    });
+    request.on('error', reject);
+    request.end();
+  });
+}
 
 function createClient(url, certificate, token) {
   const socket = new WebSocket(url, {
@@ -93,6 +139,19 @@ try {
   });
   const url = `wss://127.0.0.1:${simulator.port}/v1/control`;
 
+  const page = await requestPage(simulator.port, certificate, '/simulator');
+  assert.equal(page.status, 200);
+  assert.match(page.body, /SIMULACE/);
+  const script = await requestPage(simulator.port, certificate, '/simulator/dashboard.js');
+  assert.equal(script.status, 200);
+  assert.match(script.body, /v1\/observe/);
+  assert.equal((await requestPage(simulator.port, certificate, '/v1/observe')).status, 401);
+  observer = await observe(simulator.port, certificate, token);
+  assert.equal(observer.status, 200);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(observer.messages[0].kind, 'snapshot');
+  assert.equal(observer.messages[0].snapshot.controlMode, 'standalone');
+
   await new Promise((resolve, reject) => {
     const unauthorized = new WebSocket(url, { ca: certificate, rejectUnauthorized: true });
     unauthorized.on('unexpected-response', (_request, response) => {
@@ -151,6 +210,7 @@ try {
   assert.equal(result.status, 'completed');
   assert.equal(result.compartment, 4);
   assert.equal(timeline.filter((event) => event.event === 'release_latch').length, 1);
+  assert.equal(observer.messages.filter((message) => message.kind === 'timeline' && message.event.event === 'release_latch').length, 1);
 
   client.send({
     protocolVersion: 1,
@@ -223,6 +283,8 @@ try {
   client.socket.send('{"protocolVersion":1,"type":"state.get","type":"state.get"}');
   await new Promise((resolve) => client.socket.once('close', resolve));
   client = null;
+  observer.response.destroy();
+  observer = null;
   await simulator.close();
   simulator = await createSimulatorServer({
     certificate,
@@ -349,6 +411,7 @@ try {
   });
   console.log('WSS: TLS/auth, lease expiry, ACK retry, priority Stop, strict input, restart and close/acquire race passed');
 } finally {
+  observer?.response.destroy();
   client?.socket.terminate();
   await simulator?.close();
   await rm(temporaryDirectory, { recursive: true, force: true });
