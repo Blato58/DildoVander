@@ -1,7 +1,7 @@
 # Vývojový test dialogu AI bez kufru
 
-Tento adresář je samostatná E8 příprava. Posílá jeden **syntetický** český
-text přímo do OpenAI Responses API z GitHub hosted runneru. Nevyžaduje
+Tento adresář je samostatná E8 příprava. Posílá **syntetické** české
+texty přímo do OpenAI Responses API z GitHub hosted runneru. Nevyžaduje
 ESP32, Device ID, device credential, backend, server ani mobilní aplikaci.
 Nevydává žádný příkaz k pohonu. Skutečný E8 backendový adaptér a hlasové
 testy jsou další práce.
@@ -42,13 +42,50 @@ Lokální kontrola bez placeného volání:
 
     python -m unittest discover -s kufr/ai-eval -p 'test_*.py'
 
-`dialogue_cases.json` obsahuje syntetické tříkrokové rozhovory pro offline test.
-`build_dialogue_requests` skládá každý další požadavek z nejvýše dvou dokončených
-výměn a odmítá návrh před dvěma dokončenými otázkami. Test zahrnuje ostrý
-roast konkrétního politického slibu a scénář bez dostupné přihrádky.
-Tyto fixtures nejsou živé hodnocení stylu modelu. Backend drží krátkou historii
-jen v paměti do konce sezení a před odesláním omezuje celé JSON tělo na 14 kB,
-aby zůstala zachována rezervace 0,05 USD na tah.
+`dialogue_cases.json` má přirozené scénáře: opening bez návštěvnického textu,
+Petr s taxíkem, návrat Petra s pamětí a Lenka odmítající téma ex. Fixtures
+ověřují skládání požadavků a hranici návrhu, nikoli skutečný humor modelu.
+Backend archivuje celý večer odděleně od krátkého sezení; viz
+[backend README](../backend/README.md). Eval používá stejný prompt a přísné
+schéma. Paměť ve vývojových scénářích je výhradně fiktivní.
+
+## Adaptivní srovnání humoru
+
+Ruční workflow má volbu `party_compare`. Spustí `evaluate_party.py`, který
+porovná Sol a Astra na stejných třech fiktivních osobnostech. Návštěvník
+simulovaný modelem Sol odpovídá na **skutečnou poslední otázku**, místo
+předem napsané repliky bez souvislosti. Každý dialog má nejvýše pět replik
+kufru; hned končí návrhem/no_selection. Další placené volání se předem
+rezervuje; všechny návštěvnické i kufrové modely sdílí celkový strop 1 USD,
+každý rozhovor nejvýše dosavadních 0,50 USD. Síťový výpadek se neopakuje
+ani nepovažuje za bezplatný. Ruční běh je placený; běžné PR CI pouze offline.
+
+Výstup `evaluation.json` obsahuje celé **syntetické** dialogy, modely, tokeny,
+latence a konzervativně oceněnou spotřebu včetně reasoning; není fakturou.
+Přepis posuzuj podle konkrétnosti pointy, přirozené češtiny, návaznosti,
+zbytečného představování, respektování změny tématu a správného připomenutí
+historie. Platný JSON sám není známka dobrého humoru. Model návštěvníka také
+může produkovat umělou řeč, takže finální akceptace patří skutečné obsluze.
+
+## Nastavení OpenAI pro tento projekt
+
+- Responses API + strict Structured Outputs, výběr přihrádky validuje backend.
+- Sdílený prompt je verzovaný v Gitu; žádné další skryté instrukce v Playgroundu.
+- Sol s reasoning `low` je výchozí. Astra je kandidát pro slepé porovnání
+  kvality; vyšší cena ani reasoning automaticky nezlepší dialog.
+- `store:false`, vlastní textová paměť na backendu. Conversations API umí
+  trvalé objekty napříč sezeními, ale majitel výslovně zvolil vlastní archiv.
+  Compaction je alternativa pro dlouhý provider kontext, nikoli náhrada
+  archivu s mazáním a pravidly přiřazení lidí. V tomto slice se nevolá.
+- Klíč pouze v serverovém/GitHub secret store, samostatný projekt s potvrzeným
+  hard limitem. Zachovat 10 USD/měsíc, aplikační rezervace a měření latence.
+- Prompt a výběr kontextu nejsou trénování modelu. Fine-tuning, agentní
+  framework ani vector store nemají bez měřeného přínosu smysl přidávat.
+
+Oficiální zdroje ověřené 30. 9. 2026:
+[conversation state](https://developers.openai.com/api/docs/guides/conversation-state),
+[compaction](https://developers.openai.com/api/docs/guides/compaction),
+[GPT-6.1 Sol](https://developers.openai.com/api/docs/models/gpt-6.1-sol).
 
 Pro lokální placený pokus nastav OPENAI_API_KEY pouze v prostředí procesu
 a spusť python kufr/ai-eval/evaluate.py --case none_ready. Klíč se

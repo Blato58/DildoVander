@@ -4,7 +4,7 @@ namespace Kufr.Backend.Features.Conversations;
 
 internal sealed class TextDialogRunner : IDisposable
 {
-    private readonly Func<string, int, IReadOnlyList<DialogExchange>, bool, CancellationToken, Task<TextDialogResponse>>? generate;
+    private readonly Func<string, int, IReadOnlyList<DialogExchange>, bool, CancellationToken, string, Task<TextDialogResponse>>? generate;
     private readonly SemaphoreSlim slot = new(1, 1);
     private readonly HttpClient? httpClient;
 
@@ -42,8 +42,14 @@ internal sealed class TextDialogRunner : IDisposable
         Func<string, int, IReadOnlyList<DialogExchange>, bool, CancellationToken, Task<TextDialogResponse>> generate,
         CancellationToken stopping = default)
     {
-        this.generate = generate;
+        this.generate = (text, mask, history, question, token, _) => generate(text, mask, history, question, token);
         Stopping = stopping;
+    }
+
+    internal TextDialogRunner(
+        Func<string, int, IReadOnlyList<DialogExchange>, bool, CancellationToken, string, Task<TextDialogResponse>> generate)
+    {
+        this.generate = generate;
     }
 
     public bool Enabled => generate is not null;
@@ -57,9 +63,10 @@ internal sealed class TextDialogRunner : IDisposable
         int readyMask,
         IReadOnlyList<DialogExchange> history,
         bool requireQuestion,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string eveningContext = "")
     {
-        return generate!(text, readyMask, history, requireQuestion, cancellationToken);
+        return generate!(text, readyMask, history, requireQuestion, cancellationToken, eveningContext);
     }
 
     public void Release() => slot.Release();

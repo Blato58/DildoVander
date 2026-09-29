@@ -8,7 +8,8 @@ internal sealed class ConversationStore(
     TimeProvider clock,
     OperationJournal journal,
     TextDialogRunner? dialogRunner = null,
-    ILogger<ConversationStore>? logger = null)
+    ILogger<ConversationStore>? logger = null,
+    EveningMemoryStore? eveningMemory = null)
 {
     private readonly Lock gate = new();
     private readonly Dictionary<string, ConversationEntry> conversations = new(StringComparer.Ordinal);
@@ -93,10 +94,11 @@ internal sealed class ConversationStore(
         string conversationId,
         Guid key,
         ReadOnlySpan<byte> requestBody,
-        TextTurnRequest request)
+        TextTurnRequest request,
+        bool opening = false)
     {
         var now = clock.GetUtcNow();
-        var route = $"/v1/conversations/{conversationId}/turns";
+        var route = $"/v1/conversations/{conversationId}/{(opening ? "opening" : "turns")}";
         var bodyHash = Convert.ToHexString(SHA256.HashData(requestBody));
 
         lock (gate)
@@ -128,6 +130,11 @@ internal sealed class ConversationStore(
                 return new SubmitTurnResult(409, null, "conversation_version_mismatch");
             }
 
+            if (opening && (conversation.TurnCount != 0 || request.Text.Length != 0))
+            {
+                return new SubmitTurnResult(409, null, "opening_already_started");
+            }
+
             if (conversation.TurnCount >= 10)
             {
                 return new SubmitTurnResult(429, null, "turn_limit");
@@ -145,9 +152,11 @@ internal sealed class ConversationStore(
             }
 
             var queued = false;
+            EveningContext? memory = null;
             try
             {
-                // The journal records only a body hash, never the visitor's text.
+                memory = eveningMemory?.ReadContext(deviceId, conversationId, request.Text);
+                // The technical journal remains free of visitor content.
                 var correlation = new TurnCorrelation(
                     deviceId,
                     request.BootId,
@@ -161,7 +170,7 @@ internal sealed class ConversationStore(
                     key,
                     bodyHash,
                     correlation,
-                    estimatedCostMicroUsd: paid ? ResponsesTextDialogBudget.ReservedMicroUsd : 0);
+                    estimatedCostMicroUsd: paid ? ResponsesTextDialogBudget.ReserveForContext(memory?.Transcript ?? "") : 0);
                 if (reservation.Conflict)
                 {
                     return new SubmitTurnResult(409, null, "idempotency_conflict");
@@ -201,6 +210,7 @@ internal sealed class ConversationStore(
                         request.CatalogVersion,
                         history,
                         completedQuestions,
+                        memory,
                         cancellation));
                     queued = true;
                     return new SubmitTurnResult(202, operationId, null);
@@ -211,9 +221,11 @@ internal sealed class ConversationStore(
                     "turn",
                     "completed",
                     correlation,
-                    new TurnResult("Toto je testovací odpověď bez AI.", "ask", "", null),
+                    new TurnResult(opening ? "Tak pojď blíž. Jak ti říkají?" : "Toto je testovací odpověď bez AI.", "ask", "", null),
                     null);
 
+                eveningMemory?.Append(deviceId, memory!.EveningId, operationId,
+                    conversationId, request.Text, ((TurnResult)operation.Result!).Reply);
                 if (!journal.MarkCompleted(operationId))
                 {
                     return new SubmitTurnResult(409, null, "operation_cancelled");
@@ -241,6 +253,7 @@ internal sealed class ConversationStore(
         string catalogVersion,
         IReadOnlyList<DialogExchange> history,
         int completedQuestions,
+        EveningContext? memory,
         CancellationTokenSource cancellation)
     {
         try
@@ -267,7 +280,8 @@ internal sealed class ConversationStore(
                 readyMask,
                 history,
                 completedQuestions < 2 && readyMask != 0,
-                cancellation.Token);
+                cancellation.Token,
+                memory?.Transcript ?? "");
             var actualCost = ResponsesTextDialogBudget.CalculateActualMicroUsd(response);
             lock (gate)
             {
@@ -279,7 +293,9 @@ internal sealed class ConversationStore(
 
                 var now = clock.GetUtcNow();
                 CleanupExpired(now);
-                if (!conversations.TryGetValue(correlation.ConversationId, out var conversation))
+                if (cancellation.IsCancellationRequested
+                    || !conversations.TryGetValue(correlation.ConversationId, out var conversation)
+                    || memory is not null && eveningMemory!.GetStatus(correlation.DeviceId).EveningId != memory.EveningId)
                 {
                     journal.MarkFailed(operationId);
                     return;
@@ -305,6 +321,9 @@ internal sealed class ConversationStore(
                         correlation.Generation,
                         now.AddSeconds(60))
                     : null;
+                eveningMemory?.Append(correlation.DeviceId, memory!.EveningId, operationId,
+                    correlation.ConversationId, visitorText, response.Reply);
+
                 operations.Add(
                     operationId,
                     new TurnOperation(
@@ -682,6 +701,30 @@ internal sealed class ConversationStore(
             }
 
             return result;
+        }
+    }
+
+    public EveningMemoryStatus? GetEveningMemory(string deviceId) => eveningMemory?.GetStatus(deviceId);
+
+    public void ClearEveningMemory(string deviceId, string expectedEveningId)
+    {
+        lock (gate)
+        {
+            // A retry for an old evening must not cancel or erase the next one.
+            if (eveningMemory?.GetStatus(deviceId).EveningId != expectedEveningId)
+            {
+                return;
+            }
+
+            foreach (var conversationId in conversations
+                .Where(pair => pair.Value.DeviceId == deviceId)
+                .Select(pair => pair.Key).ToArray())
+            {
+                journal.EndConversation(deviceId, conversationId, Guid.NewGuid());
+                RemoveConversation(conversationId);
+            }
+
+            eveningMemory.Clear(deviceId, expectedEveningId);
         }
     }
 
