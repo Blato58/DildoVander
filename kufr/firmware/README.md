@@ -61,6 +61,7 @@ src/
     conversation/
       ConversationSession.h/.cpp            čistý model generace textového sezení
       ConversationStartCodec.h/.cpp         omezený JSON startu backend sezení
+      EspIdfConversationStartTransport.h/.cpp  HTTPS start sezení
 tests/
   selection_sequence_test.cpp               test bez hardwaru
   device_control_test.cpp                   test idempotence a restartu
@@ -145,7 +146,11 @@ zapojený do WSS ani backendu a neřídí žádný fyzický výstup.
 `ConversationStartCodec` sestaví přesné JSON tělo pro založení textového
 backend sezení s vypnutým audio/image souhlasem a omezeně parsuje odpověď
 včetně serverových limitů. Idempotency-Key je samostatný UUID vstup pro
-budoucí HTTPS adaptér. Samotné HTTP volání, tahy a pollování ještě chybí.
+HTTPS adaptér. `EspIdfConversationStartTransport` volá pevnou cestu
+`/v1/conversations`, ověřuje certifikát a hostname přes CA bundle, nepovoluje
+redirect ani automatickou autentizaci a vyžaduje odpověď 201 s platným tělem.
+Zatím jej nevolá síťová úloha: chybí událost zahájení rozhovoru, UUID generátor,
+textové tahy a pollování. Žádná odpověď z backendu neřídí fyzické výstupy.
 
 `SerialSelectionPort` je první vstup/výstup pro vývoj bez zapojené elektroniky.
 Příkazy na sériovém monitoru (115200 Bd, ukončení řádku LF nebo CRLF):
