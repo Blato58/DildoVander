@@ -22,13 +22,14 @@ int main() {
   assert(state.Matches(snapshot));
 
   ConversationTextInbox inbox;
-  assert(inbox.Submit("Stary tah", snapshot.version));
+  assert(inbox.Submit("Stary tah", snapshot, state));
 
   assert(!state.Publish(0, 0, 62, "neutral-1"));
   assert(!state.Publish(0, 0, 63, "other"));
   assert(state.Matches(snapshot));
   assert(state.Publish(1, 0, 63, "neutral-1"));
   assert(!state.Matches(snapshot));
+  assert(!inbox.Submit("Pozdni tah", snapshot, state));
   std::string queuedText;
   uint64_t queuedVersion = 0;
   assert(inbox.Take(queuedText, queuedVersion));

@@ -15,7 +15,8 @@ class EspIdfBackendNetwork final {
   EspIdfBackendNetwork(DeviceIdentity& identity,
                        ConversationRuntimeState& runtimeState);
   bool Start(bool nvsInitialized);
-  bool QueueTextTurn(const std::string& text);
+  bool QueueTextTurn(const std::string& text,
+                     const ConversationRuntimeSnapshot& expectedSnapshot);
 
  private:
   static void TaskEntry(void* argument);

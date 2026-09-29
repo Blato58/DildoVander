@@ -41,6 +41,18 @@ jobs:
             tests/device_control_runtime_test.cpp \
             -o "$RUNNER_TEMP/device-control-runtime-test"
           "$RUNNER_TEMP/device-control-runtime-test"
+      - name: Snapshot-bound text inbox test
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++14 -Wall -Wextra -Werror -pthread \
+            src/features/conversation/ConversationSession.cpp \
+            src/features/conversation/ConversationRuntimeState.cpp \
+            src/features/conversation/ConversationTextInbox.cpp \
+            tests/conversation_text_inbox_test.cpp \
+            -o "$RUNNER_TEMP/conversation-text-inbox-test"
+          "$RUNNER_TEMP/conversation-text-inbox-test"
 
   firmware-build:
     runs-on: ubuntu-24.04

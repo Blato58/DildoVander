@@ -45,10 +45,11 @@ EspIdfBackendNetwork::EspIdfBackendNetwork(
     DeviceIdentity& identity, ConversationRuntimeState& runtimeState)
     : identity_(identity), runtimeState_(runtimeState) {}
 
-bool EspIdfBackendNetwork::QueueTextTurn(const std::string& text) {
-  ConversationRuntimeSnapshot snapshot;
-  return online_.load() && runtimeState_.Read(snapshot) &&
-         textInbox_.Submit(text, snapshot.version);
+bool EspIdfBackendNetwork::QueueTextTurn(
+    const std::string& text,
+    const ConversationRuntimeSnapshot& expectedSnapshot) {
+  return online_.load() &&
+         textInbox_.Submit(text, expectedSnapshot, runtimeState_);
 }
 
 bool EspIdfBackendNetwork::Start(bool nvsInitialized) {
