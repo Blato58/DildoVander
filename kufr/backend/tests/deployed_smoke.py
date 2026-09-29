@@ -2,6 +2,7 @@
 
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 from uuid import uuid4
@@ -48,6 +49,8 @@ def call(method, path, *, bearer=None, key=None, body=None):
 
 
 def main():
+    expectation = os.environ.get("DIALOG_EXPECTATION", "fake")
+    check(expectation in {"fake", "responses"}, "invalid_dialog_expectation")
     device_id = os.environ.get("DEVICE_ID")
     credential = os.environ.get("DEV_DEVICE_CREDENTIAL")
     check(bool(device_id and credential), "development_identity_missing")
@@ -81,7 +84,12 @@ def main():
         "clientTurnId": str(uuid4()),
         "bootId": boot_id,
         "generation": 0,
-        "text": "Syntetický test nasazené vývojové instance.",
+        "text": (
+            "Na večírku chci Hůlku 1. Klidně mě lehce popíchni. "
+            "Po výběru potvrdím fyzickým tlačítkem."
+            if expectation == "responses"
+            else "Syntetický test nasazené vývojové instance."
+        ),
         "readyMask": 1,
         "deviceRevision": 0,
         "catalogVersion": "neutral-1",
@@ -96,21 +104,48 @@ def main():
         "turn_idempotency_failed",
     )
 
-    status, operation = call(
-        "GET", f"/v1/operations/{accepted['operationId']}", bearer=token
-    )
-    check(
-        status == 200
-        and operation.get("status") == "completed"
-        and operation.get("result", {}).get("decision") == "ask"
-        and operation["result"].get("proposal") is None,
-        "fake_result_failed",
-    )
+    operation = None
+    for _ in range(260):
+        status, operation = call(
+            "GET", f"/v1/operations/{accepted['operationId']}", bearer=token
+        )
+        check(status == 200, "operation_poll_failed")
+        if operation.get("status") not in {"pending", "running"}:
+            break
+        time.sleep(0.25)
+
+    check(operation is not None and operation.get("status") == "completed", "turn_failed")
+    result = operation.get("result", {})
+    if expectation == "fake":
+        check(
+            result.get("decision") == "ask" and result.get("proposal") is None,
+            "fake_result_failed",
+        )
+    else:
+        check(
+            isinstance(result.get("reply"), str)
+            and bool(result["reply"])
+            and result["reply"] != "Toto je testovací odpověď bez AI."
+            and result.get("decision") in {"ask", "propose", "no_selection"},
+            "responses_result_failed",
+        )
+        proposal = result.get("proposal")
+        check(
+            (result["decision"] in {"ask", "no_selection"} and proposal is None)
+            or (
+                result["decision"] == "propose"
+                and isinstance(proposal, dict)
+                and proposal.get("compartment") == 1
+                and proposal.get("deviceRevision") == turn_body["deviceRevision"]
+                and proposal.get("turnId") == turn_body["clientTurnId"]
+            ),
+            "responses_proposal_failed",
+        )
     status, _ = call(
         "DELETE", f"/v1/conversations/{conversation_id}", bearer=token, key=str(uuid4())
     )
     check(status == 204, "conversation_cleanup_failed")
-    print("deployed_fake_dialogue=ok; token, idempotency, poll and cleanup verified")
+    print(f"deployed_{expectation}_dialogue=ok; token, idempotency, poll and cleanup verified")
 
 
 if __name__ == "__main__":

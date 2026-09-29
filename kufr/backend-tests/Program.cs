@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 await ResponsesTextDialogClientTests.RunAsync();
 ResponsesTextDialogBudgetTests.Run();
+await TextDialogRuntimeTests.RunAsync();
 
 var clock = new AdjustableTimeProvider(new DateTimeOffset(2026, 9, 29, 10, 0, 0, TimeSpan.Zero));
 var databaseDirectory = Path.Combine(Path.GetTempPath(), $"kufr-backend-tests-{Guid.NewGuid():N}");
@@ -519,6 +520,7 @@ var costCorrelation = pendingCorrelation with { ConversationId = costConversatio
 var costRoute = "paid-cost-fixture";
 var costKey = Guid.NewGuid();
 string acceptedCostOperation;
+string runningCostOperation;
 using (var costJournal = new OperationJournal(costConfiguration, costClock))
 {
     var competitors = await Task.WhenAll(
@@ -539,6 +541,11 @@ using (var costJournal = new OperationJournal(costConfiguration, costClock))
         "device-a", costRoute, secondCostKey, "third-body", costCorrelation,
         consumesTurn: false, estimatedCostMicroUsd: 60);
     Require(!secondCost.CostRejected, "unused reservation amount returns to available budget");
+    runningCostOperation = secondCost.OperationId;
+    Require(costJournal.MarkRunning(runningCostOperation),
+        "reserved paid operation enters running state once");
+    Require(!costJournal.MarkRunning(runningCostOperation),
+        "running operation cannot be started a second time");
     var secondCostRetry = costJournal.Reserve(
         "device-a", costRoute, secondCostKey, "third-body", costCorrelation,
         consumesTurn: false, estimatedCostMicroUsd: 60);
@@ -592,6 +599,10 @@ using (var restartedCostJournal = new OperationJournal(costConfiguration, costCl
 {
     Require(restartedCostJournal.GetOperation("device-a", acceptedCostOperation).Operation?.Status == "unknown",
         "paid pending operation remains unknown after restart");
+    Require(restartedCostJournal.GetOperation("device-a", runningCostOperation).Operation?.Status == "unknown",
+        "paid running operation remains unknown after restart");
+    Require(!restartedCostJournal.MarkRunning(runningCostOperation),
+        "unknown operation cannot restart its provider call");
     Require(restartedCostJournal.Reserve(
         "device-a", costRoute, Guid.NewGuid(), "after-restart", costCorrelation,
         consumesTurn: false, estimatedCostMicroUsd: 11).CostRejected,
