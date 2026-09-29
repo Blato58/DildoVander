@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Kufr.Backend.Features.Usage;
 using Microsoft.Data.Sqlite;
 
 namespace Kufr.Backend.Features.Conversations;
@@ -9,10 +10,12 @@ internal sealed class OperationJournal : IDisposable
     private readonly string connectionString;
     private readonly FileStream instanceLock;
     private readonly TimeProvider clock;
+    private readonly CostLimits costLimits;
 
     public OperationJournal(IConfiguration configuration, TimeProvider clock)
     {
         this.clock = clock;
+        costLimits = CostLimits.Read(configuration);
         var databasePath = configuration["Backend:DatabasePath"];
         if (string.IsNullOrWhiteSpace(databasePath))
         {
@@ -69,7 +72,7 @@ internal sealed class OperationJournal : IDisposable
         using var version = connection.CreateCommand();
         version.CommandText = "PRAGMA user_version";
         var schemaVersion = (long)version.ExecuteScalar()!;
-        if (schemaVersion is not 0 and not 1 and not 2 and not 3 and not 4 and not 5)
+        if (schemaVersion is not 0 and not 1 and not 2 and not 3 and not 4 and not 5 and not 6)
         {
             throw new InvalidOperationException("Unsupported backend database schema version.");
         }
@@ -121,11 +124,38 @@ internal sealed class OperationJournal : IDisposable
                 expires_at_ms INTEGER NOT NULL,
                 PRIMARY KEY (device_id, route, key)
             );
+            CREATE TABLE IF NOT EXISTS cost_reservations (
+                operation_id TEXT PRIMARY KEY,
+                device_id TEXT NOT NULL,
+                conversation_id TEXT NOT NULL,
+                day_utc TEXT NOT NULL,
+                month_utc TEXT NOT NULL,
+                reserved_micro_usd INTEGER NOT NULL CHECK (reserved_micro_usd > 0),
+                actual_micro_usd INTEGER CHECK (actual_micro_usd >= 0),
+                status TEXT NOT NULL CHECK (status IN ('reserved', 'settled')),
+                created_at_ms INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS cost_session_usage (
+                conversation_id TEXT PRIMARY KEY,
+                device_id TEXT NOT NULL,
+                charged_micro_usd INTEGER NOT NULL CHECK (charged_micro_usd >= 0),
+                updated_at_ms INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS cost_period_usage (
+                period_kind TEXT NOT NULL CHECK (period_kind IN ('day', 'month')),
+                period_key TEXT NOT NULL,
+                charged_micro_usd INTEGER NOT NULL CHECK (charged_micro_usd >= 0),
+                updated_at_ms INTEGER NOT NULL,
+                PRIMARY KEY (period_kind, period_key)
+            );
             CREATE INDEX IF NOT EXISTS ix_turn_operations_expiry ON turn_operations(expires_at_ms);
             CREATE INDEX IF NOT EXISTS ix_turn_idempotency_expiry ON turn_idempotency(expires_at_ms);
             CREATE INDEX IF NOT EXISTS ix_conversation_turn_usage_expiry ON conversation_turn_usage(expires_at_ms);
             CREATE INDEX IF NOT EXISTS ix_conversation_creates_expiry ON conversation_creates(record_expires_at_ms);
             CREATE INDEX IF NOT EXISTS ix_mutation_idempotency_expiry ON mutation_idempotency(expires_at_ms);
+            CREATE INDEX IF NOT EXISTS ix_cost_reservations_created ON cost_reservations(created_at_ms);
+            CREATE INDEX IF NOT EXISTS ix_cost_session_usage_updated ON cost_session_usage(updated_at_ms);
+            CREATE INDEX IF NOT EXISTS ix_cost_period_usage_updated ON cost_period_usage(updated_at_ms);
             """;
         schema.ExecuteNonQuery();
         if (schemaVersion < 5)
@@ -134,7 +164,7 @@ internal sealed class OperationJournal : IDisposable
             schema.ExecuteNonQuery();
         }
 
-        schema.CommandText = "PRAGMA user_version=5";
+        schema.CommandText = "PRAGMA user_version=6";
         schema.ExecuteNonQuery();
         migration.Commit();
 
@@ -206,7 +236,8 @@ internal sealed class OperationJournal : IDisposable
         string bodyHash,
         TurnCorrelation correlation,
         string kind = "turn",
-        bool consumesTurn = true)
+        bool consumesTurn = true,
+        long estimatedCostMicroUsd = 0)
     {
         using var connection = Open();
         using var transaction = connection.BeginTransaction();
@@ -249,6 +280,19 @@ internal sealed class OperationJournal : IDisposable
 
         var operationId = Guid.NewGuid().ToString("D");
         var expiresAt = clock.GetUtcNow().AddHours(24).ToUnixTimeMilliseconds();
+        if (!CostReservations.TryReserve(
+            connection,
+            transaction,
+            costLimits,
+            clock.GetUtcNow(),
+            operationId,
+            deviceId,
+            correlation.ConversationId,
+            estimatedCostMicroUsd))
+        {
+            transaction.Commit();
+            return new JournalReservation(string.Empty, false, false, false, true);
+        }
 
         if (consumesTurn)
         {
@@ -324,6 +368,20 @@ internal sealed class OperationJournal : IDisposable
             """;
         command.Parameters.AddWithValue("$operation", operationId);
         return command.ExecuteNonQuery() == 1;
+    }
+
+    public bool SettleCost(string operationId, long actualMicroUsd)
+    {
+        using var connection = Open();
+        using var transaction = connection.BeginTransaction();
+        var settled = CostReservations.Settle(
+            connection,
+            transaction,
+            operationId,
+            actualMicroUsd,
+            clock.GetUtcNow());
+        transaction.Commit();
+        return settled;
     }
 
     public MutationResult? FindMutation(string deviceId, string route, Guid key)
@@ -425,6 +483,7 @@ internal sealed class OperationJournal : IDisposable
             """;
         command.Parameters.AddWithValue("$now", clock.GetUtcNow().ToUnixTimeMilliseconds());
         command.ExecuteNonQuery();
+        CostReservations.Purge(connection, transaction, clock.GetUtcNow());
         transaction.Commit();
     }
 
@@ -594,6 +653,11 @@ internal sealed class OperationJournal : IDisposable
     }
 }
 
-internal sealed record JournalReservation(string OperationId, bool Existing, bool Conflict, bool LimitExceeded);
+internal sealed record JournalReservation(
+    string OperationId,
+    bool Existing,
+    bool Conflict,
+    bool LimitExceeded,
+    bool CostRejected = false);
 internal sealed record JournalCreateReservation(ConversationResponse? Response, bool Existing, bool Conflict);
 internal sealed record MutationResult(int Status, bool Existing);
