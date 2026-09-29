@@ -5,16 +5,16 @@ internal static class ResponsesTextDialogBudgetTests
     internal static void Run()
     {
         var response = new TextDialogResponse(
-            "Odpověď", "ask", "", null, ResponsesTextDialogBudget.Model, 621, 102);
+            "Odpověď", "ask", "", null, ResponsesTextDialogBudget.Model, 621, 102, "default");
         var actual = ResponsesTextDialogBudget.CalculateActualMicroUsd(response);
         Require(actual == 2573, "all input is charged at the cache-write rate");
         Require(actual < ResponsesTextDialogBudget.ReservedMicroUsd,
             "measured test case fits the pre-call reservation");
 
         var maximumRequest = response with { InputTokens = 15_200, OutputTokens = 1_200 };
-        Require(ResponsesTextDialogBudget.CalculateActualMicroUsd(maximumRequest)
+        Require(2 * ResponsesTextDialogBudget.CalculateActualMicroUsd(maximumRequest)
             == ResponsesTextDialogBudget.ReservedMicroUsd,
-            "reservation covers the documented output cap and generous input allowance");
+            "reservation covers Fast rates if the provider disregards the requested Standard tier");
         var serializedRequestCap = response with
         {
             InputTokens = ResponsesTextDialogBudget.MaxRequestBytes,
@@ -36,6 +36,18 @@ internal static class ResponsesTextDialogBudgetTests
         Require(ResponsesTextDialogBudget.ReserveForContext(context)
             > ResponsesTextDialogBudget.ReservedMicroUsd,
             "memory increases reservation before provider dispatch");
+
+        foreach (var tier in new string?[] { null, "fast", "priority", "unknown" })
+        {
+            try
+            {
+                ResponsesTextDialogBudget.CalculateActualMicroUsd(response with { ServiceTier = tier });
+                throw new Exception("Unconfirmed service tier was priced at Standard rates.");
+            }
+            catch (TextDialogUnavailableException)
+            {
+            }
+        }
 
         var wrongModel = response with { ReturnedModel = "other-model" };
         try

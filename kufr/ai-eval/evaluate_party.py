@@ -4,10 +4,9 @@ import argparse
 import json
 import os
 import time
-from decimal import ROUND_CEILING
 from pathlib import Path
 
-from evaluate import MODEL_PRICES, build_request, call_openai, parse_response, upper_bound_micro_usd
+from evaluate import MODEL_PRICES, build_request, call_openai, parse_response, upper_bound_micro_usd, estimate_usage_micro_usd
 
 MAX_RUN_MICRO_USD = 1_000_000
 VISITOR_MODEL = "gpt-6.1-sol"
@@ -54,7 +53,7 @@ class Meter:
         self.send = send
         self.calls = []
 
-    def invoke(self, request, model, purpose):
+    def invoke(self, request, model, purpose, validate=None):
         reservation = upper_bound_micro_usd(request, model)
         if (self.estimated_micro_usd + reservation > self.limit
                 or self.session_estimated_micro_usd + reservation > self.session_limit):
@@ -66,19 +65,23 @@ class Meter:
         response = self.send(request, self.api_key)
         usage = response.get("usage", {})
         inputs, outputs = usage.get("input_tokens"), usage.get("output_tokens")
-        if (response.get("model") != model or type(inputs) is not int or type(outputs) is not int
-                or min(inputs, outputs) < 0):
-            raise RuntimeError("Usage/model cannot be priced; retained reservation")
-        input_price, output_price = MODEL_PRICES[model]
-        estimated = int((inputs * input_price + outputs * output_price).to_integral_value(rounding=ROUND_CEILING))
-        self.estimated_micro_usd += estimated - reservation
-        self.session_estimated_micro_usd += estimated - reservation
+        estimated = estimate_usage_micro_usd(response, model)
+        cache_estimate = estimate_usage_micro_usd(response, model, include_cache=True)
+        if validate is not None:
+            validate(response)
+        expected_tier = response.get("service_tier") == "default"
+        if expected_tier:
+            self.estimated_micro_usd += estimated - reservation
+            self.session_estimated_micro_usd += estimated - reservation
         self.calls.append({"model": model, "purpose": purpose,
                            "latencyMs": round((time.perf_counter() - started) * 1000),
                            "inputTokens": inputs, "outputTokens": outputs,
                            "responseId": response.get("id"), "serviceTier": response.get("service_tier"),
                            "providerUsage": usage, "billedCostMicroUsd": None,
+                           "cacheAdjustedEstimateMicroUsd": cache_estimate,
                            "upperCostMicroUsd": estimated})
+        if not expected_tier:
+            raise RuntimeError("Provider returned an unexpected service tier; retained reservation")
         if estimated > reservation:
             raise RuntimeError("Provider usage exceeded reservation; stopping all further calls")
         return response
@@ -86,7 +89,7 @@ class Meter:
 
 def visitor_request(persona, dialogue):
     return {
-        "model": VISITOR_MODEL, "store": False,
+        "model": VISITOR_MODEL, "store": False, "service_tier": "default",
         "reasoning": {"effort": "low"}, "max_output_tokens": 600,
         "instructions": "Jsi syntetický testovací návštěvník, ne kufr. " + persona["facts"]
                         + " Odpověz jen na poslední repliku kufru, nejvýše dvěma větami. "
@@ -123,7 +126,8 @@ def run_dialogue(meter, model, persona):
         request = build_request({"readyMask": 63, "visitorText": visitor}, model,
                                 history, memory_context, opening=index == 0,
                                 require_question=completed_questions < 2)
-        response = meter.invoke(request, model, f"{persona['id']}:suitcase")
+        response = meter.invoke(request, model, f"{persona['id']}:suitcase",
+                                validate=lambda response: parse_response(response, 63))
         result, _ = parse_response(response, 63)
         if result["decision"] == "propose" and completed_questions < 2:
             raise ValueError("Premature proposal")
@@ -137,7 +141,7 @@ def run_dialogue(meter, model, persona):
         completed_questions += 1
         if index < 4:
             visitor = read_visitor(meter.invoke(visitor_request(persona, dialogue), VISITOR_MODEL,
-                                               f"{persona['id']}:visitor"))
+                                               f"{persona['id']}:visitor", validate=read_visitor))
             dialogue.append({"speaker": "visitor", "reply": visitor})
     return {"model": model, "persona": persona["id"], "dialogue": dialogue,
             "terminated": False, "upperCostMicroUsd": meter.session_estimated_micro_usd}
@@ -157,7 +161,7 @@ def main():
     meter = Meter(key, limit=args.budget_micro_usd, session_limit=int(os.environ.get("SESSION_CAP_MICRO_USD") or 500_000))
     report = {"synthetic": True, "requiresHumanStyleReview": True, "actuatorCommandIssued": False,
               "approvedRunCapMicroUsd": meter.limit, "dialogues": [], "completed": False,
-              "costBasis": "Conservative list-price estimate; all input at cache-write rate; not billing",
+              "costBasis": "List-price estimate at returned service tier; all input at cache-write rate; not billing",
               "pricingSource": "https://developers.openai.com/api/docs/pricing",
               "billedCostMicroUsd": None, "billingVerified": False}
     try:

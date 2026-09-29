@@ -35,7 +35,7 @@ Jde o lexikální vybavení, ne neomylný profil člověka ani biometrickou iden
 Dva Petrové vyžadují upřesnění. Jména/opravy musí vycházet z řečeného.
 Obsah paměti se nikdy nepovažuje za instrukce či aktuální dostupnost hůlek.
 Limit základního JSON těla je 14 kB plus JSON-encoded velikost paměti;
-rezervace před voláním je 0,05 USD plus konzervativní cache-write cena
+rezervace před voláním je 0,10 USD plus cache-write cena Fast
 přidaných bajtů. Všechny tři stávající nákladové stropy zůstávají účinné.
 
 `POST /v1/conversations/{id}/opening` přijímá pole textového tahu **bez text**.
@@ -238,7 +238,7 @@ public dialogue** z `main`. GitHub-hosted runner se připojí přes veřejné
 HTTPS se standardním ověřením IP certifikátu, vydá vývojový token a provede
 tři placené syntetické tahy: dvě otázky vytvořené modelem a závěrečný návrh.
 Odpovědi modelu vypíše pro lidské posouzení humoru a návaznosti. Maximální
-rezervace dialogu je 3 × 0,05 USD, tedy pod limitem 0,50 USD/sezení; skutečná
+rezervace dialogu je 3 × 0,10 USD, tedy pod limitem 0,50 USD/sezení; skutečná
 cena se účtuje dle vrácených tokenů. Workflow je pouze ruční a vyžaduje
 aktuální nasazení `responses`. Syntetické testovací texty nejsou tajemství;
 vývojové device credential a token se nevypisují.
@@ -295,3 +295,5 @@ GitHub-hosted job ověří přes veřejné HTTPS stránku, manifest, MIME typy,
 staženou IPA a checksum. Instalaci `itms-services` a spuštění může potvrdit
 jen registrovaný iPhone v Safari; serverový test to nenahrazuje. Soubory
 pod `/ios/` jsou veřejně čitelné, proto IPA nesmí obsahovat tajemství.
+
+Responses požadavky explicitně používají `service_tier: default`. Jiný nebo chybějící vrácený tarif se odmítne a drží rezervaci (včetně rezervy pro 2× sazbu Fast), bez automatického opakování. Potvrzený Standard se vypořádá konzervativně podle tokenů; tato interní částka není účetní údaj z OpenAI. Ochrana tarifu byla přidána po živém eval, který vracel Fast při neuvedeném tarifu.
