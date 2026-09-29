@@ -8,6 +8,16 @@ Zatím popisuje `hello`, `welcome`, `state.get`, `control.acquire/release`,
 `fixtures/valid/` a `fixtures/invalid/` obsahují zprávy pro další adaptéry.
 Schéma je zdroj typů a rozsahů; další typy a OpenAPI backendu přibudou v E2.
 
+`backend-openapi-v1.json` je rozpracovaný HTTP kontrakt E2.6a. Zatím
+pokrývá výměnu servisně provisionovaného device credential za 15minutový
+access token, založení sezení, textový tah a polling jeho operace. Další
+trasy pro přepis, syntézu, audio a úklid budou doplněny před uzavřením E2.
+Device credential a krátkodobý access token jsou oddělená bearer schémata;
+token endpoint nepřijímá access token jako náhradu credential. Sezení,
+operace a výsledky musí backend ověřovat proti identitě device tokenu,
+nikoli pouze podle ID v URL nebo JSON. `Idempotency-Key` je UUID a případná
+kolize se stejným klíčem, ale jiným tělem vrací 409.
+
 Každý přijímač musí před validací schématu odmítnout neplatné UTF-8,
 duplicitní JSON klíče, desetinný/exponenciální zápis celočíselných polí a
 control zprávy nad 2048 bajtů. Samotné JSON Schema
@@ -44,3 +54,8 @@ negativní fixtures včetně duplicitního klíče, chybných typů, hranic, sta
 lease a velikosti zprávy. V produkčních adaptérech se stejná pravidla musí
 ověřit znovu v jejich skutečném parseru; tento test zatím nedokazuje běh
 firmwaru, mobilní aplikace ani síťového simulátoru.
+
+`verify-backend-openapi.mjs` kontroluje reference, trasy, security schémata
+a kladné/chybné HTTP struktury přes AJV. Zatím jde o kontrolu dokumentu,
+nikoli o integrační test skutečného backendu nebo důkaz vynucení scope,
+idempotence, kvót a retence v běžící službě.

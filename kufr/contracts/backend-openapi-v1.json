@@ -1,0 +1,257 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Kufr device backend API",
+    "version": "1.0.0-draft",
+    "description": "E2.6a contract for device authentication, conversation creation, text turns and turn polling. Audio and cleanup routes are pending. This API returns data and never commands physical actuators."
+  },
+  "servers": [{ "url": "https://localhost:7043", "description": "Local development only" }],
+  "security": [{ "DeviceAccess": [] }],
+  "paths": {
+    "/v1/device-access/token": {
+      "post": {
+        "operationId": "issueDeviceToken",
+        "summary": "Exchange a provisioned device credential for a scoped access token",
+        "security": [{ "DeviceCredential": [] }],
+        "responses": {
+          "200": {
+            "description": "Device access token valid for 15 minutes",
+            "headers": { "Cache-Control": { "schema": { "type": "string", "const": "no-store" } } },
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeviceToken" } } }
+          },
+          "401": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/conversations": {
+      "post": {
+        "operationId": "createConversation",
+        "summary": "Create a device-owned conversation",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateConversation" } } }
+        },
+        "responses": {
+          "201": {
+            "description": "Created conversation",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Conversation" } } }
+          },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Problem" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/conversations/{id}/turns": {
+      "post": {
+        "operationId": "submitTextTurn",
+        "summary": "Submit one text turn for asynchronous processing",
+        "parameters": [
+          { "$ref": "#/components/parameters/ConversationId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TextTurn" } } }
+        },
+        "responses": {
+          "202": {
+            "description": "Existing or newly accepted operation; the same idempotency key and body return the same operation",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OperationAccepted" } } }
+          },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Problem" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "413": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/Problem" },
+          "502": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" },
+          "504": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/operations/{id}": {
+      "get": {
+        "operationId": "getTurnOperation",
+        "summary": "Read a device-owned turn operation without starting another provider call",
+        "parameters": [{ "$ref": "#/components/parameters/OperationId" }],
+        "responses": {
+          "200": {
+            "description": "Current operation state; result may expire without a provider replay",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TurnOperation" } } }
+          },
+          "401": { "$ref": "#/components/responses/Problem" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "DeviceCredential": { "type": "http", "scheme": "bearer", "description": "Unique service-provisioned device credential, never placed in a URL or firmware image" },
+      "DeviceAccess": { "type": "http", "scheme": "bearer", "description": "15-minute device-scoped access token" }
+    },
+    "parameters": {
+      "IdempotencyKey": {
+        "name": "Idempotency-Key", "in": "header", "required": true,
+        "description": "UUID bound to device, route and request-body hash; different content with the same key returns 409. Content-free record retained for 24 hours.",
+        "schema": { "type": "string", "format": "uuid" }
+      },
+      "ConversationId": { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1 } },
+      "OperationId": { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1 } }
+    },
+    "responses": {
+      "Problem": {
+        "description": "ProblemDetails with a stable code and trace identifier; no prompt, token or provider secret",
+        "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } } }
+      }
+    },
+    "schemas": {
+      "DeviceToken": {
+        "type": "object", "additionalProperties": false,
+        "required": ["accessToken", "tokenType", "expiresInSeconds", "deviceId"],
+        "properties": {
+          "accessToken": { "type": "string", "minLength": 1 },
+          "tokenType": { "type": "string", "const": "Bearer" },
+          "expiresInSeconds": { "type": "integer", "const": 900 },
+          "deviceId": { "type": "string", "minLength": 1 }
+        }
+      },
+      "CreateConversation": {
+        "type": "object", "additionalProperties": false,
+        "required": ["deviceId", "bootId", "generation", "catalogVersion", "locale", "consent"],
+        "properties": {
+          "deviceId": { "type": "string", "minLength": 1 },
+          "bootId": { "type": "string", "format": "uuid" },
+          "generation": { "type": "integer", "minimum": 0 },
+          "catalogVersion": { "type": "string", "minLength": 1 },
+          "locale": { "type": "string", "const": "cs-CZ" },
+          "consent": { "$ref": "#/components/schemas/Consent" }
+        }
+      },
+      "Consent": {
+        "type": "object", "additionalProperties": false,
+        "required": ["audio", "image"],
+        "properties": { "audio": { "type": "boolean" }, "image": { "type": "boolean" } }
+      },
+      "Conversation": {
+        "type": "object", "additionalProperties": false,
+        "required": ["conversationId", "expiresAt", "limits"],
+        "properties": {
+          "conversationId": { "type": "string", "minLength": 1 },
+          "expiresAt": { "type": "string", "format": "date-time" },
+          "limits": { "$ref": "#/components/schemas/ConversationLimits" }
+        }
+      },
+      "ConversationLimits": {
+        "type": "object", "additionalProperties": false,
+        "required": ["maxTurns", "maxTextCharacters", "idleSeconds", "maxLifetimeSeconds"],
+        "properties": {
+          "maxTurns": { "type": "integer", "const": 10 },
+          "maxTextCharacters": { "type": "integer", "const": 1000 },
+          "idleSeconds": { "type": "integer", "const": 900 },
+          "maxLifetimeSeconds": { "type": "integer", "const": 1800 }
+        }
+      },
+      "TextTurn": {
+        "type": "object", "additionalProperties": false,
+        "required": ["clientTurnId", "bootId", "generation", "text", "readyMask", "deviceRevision", "catalogVersion"],
+        "properties": {
+          "clientTurnId": { "type": "string", "format": "uuid" },
+          "bootId": { "type": "string", "format": "uuid" },
+          "generation": { "type": "integer", "minimum": 0 },
+          "text": { "type": "string", "minLength": 1, "maxLength": 1000 },
+          "readyMask": { "type": "integer", "minimum": 0, "maximum": 63 },
+          "deviceRevision": { "type": "integer", "minimum": 0 },
+          "catalogVersion": { "type": "string", "minLength": 1 }
+        }
+      },
+      "OperationAccepted": {
+        "type": "object", "additionalProperties": false,
+        "required": ["operationId"],
+        "properties": { "operationId": { "type": "string", "minLength": 1 } }
+      },
+      "TurnOperation": {
+        "type": "object", "additionalProperties": false,
+        "required": ["operationId", "kind", "status", "correlation", "result", "error"],
+        "properties": {
+          "operationId": { "type": "string", "minLength": 1 },
+          "kind": { "type": "string", "const": "turn" },
+          "status": { "type": "string", "enum": ["pending", "running", "completed", "failed", "cancelled", "unknown"] },
+          "correlation": { "$ref": "#/components/schemas/TurnCorrelation" },
+          "result": { "oneOf": [{ "$ref": "#/components/schemas/TurnResult" }, { "type": "null" }] },
+          "error": { "oneOf": [{ "$ref": "#/components/schemas/OperationError" }, { "type": "null" }] }
+        },
+        "allOf": [
+          { "if": { "properties": { "status": { "const": "completed" } } }, "then": { "properties": { "result": { "$ref": "#/components/schemas/TurnResult" }, "error": { "type": "null" } } } },
+          { "if": { "properties": { "status": { "enum": ["pending", "running", "cancelled", "unknown"] } } }, "then": { "properties": { "result": { "type": "null" } } } }
+        ]
+      },
+      "TurnCorrelation": {
+        "type": "object", "additionalProperties": false,
+        "required": ["deviceId", "bootId", "conversationId", "clientTurnId", "generation", "deviceRevision"],
+        "properties": {
+          "deviceId": { "type": "string", "minLength": 1 },
+          "bootId": { "type": "string", "format": "uuid" },
+          "conversationId": { "type": "string", "minLength": 1 },
+          "clientTurnId": { "type": "string", "format": "uuid" },
+          "generation": { "type": "integer", "minimum": 0 },
+          "deviceRevision": { "type": "integer", "minimum": 0 }
+        }
+      },
+      "TurnResult": {
+        "type": "object", "additionalProperties": false,
+        "required": ["reply", "decision", "reason", "proposal"],
+        "properties": {
+          "reply": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "decision": { "type": "string", "enum": ["ask", "propose", "no_selection"] },
+          "reason": { "type": "string", "maxLength": 200 },
+          "proposal": { "oneOf": [{ "$ref": "#/components/schemas/Proposal" }, { "type": "null" }] }
+        },
+        "if": { "properties": { "decision": { "const": "propose" } } },
+        "then": { "properties": { "proposal": { "$ref": "#/components/schemas/Proposal" } } },
+        "else": { "properties": { "proposal": { "type": "null" } } }
+      },
+      "Proposal": {
+        "type": "object", "additionalProperties": false,
+        "required": ["proposalId", "conversationId", "turnId", "catalogVersion", "deviceRevision", "compartment", "reason", "bootId", "generation", "expiresAt"],
+        "properties": {
+          "proposalId": { "type": "string", "minLength": 1 },
+          "conversationId": { "type": "string", "minLength": 1 },
+          "turnId": { "type": "string", "minLength": 1 },
+          "catalogVersion": { "type": "string", "minLength": 1 },
+          "deviceRevision": { "type": "integer", "minimum": 0 },
+          "compartment": { "type": "integer", "minimum": 1, "maximum": 6 },
+          "reason": { "type": "string", "maxLength": 200 },
+          "bootId": { "type": "string", "format": "uuid" },
+          "generation": { "type": "integer", "minimum": 0 },
+          "expiresAt": { "type": "string", "format": "date-time", "description": "At most 60 seconds after creation" }
+        }
+      },
+      "OperationError": {
+        "type": "object", "additionalProperties": false,
+        "required": ["code"],
+        "properties": { "code": { "type": "string", "minLength": 1 } }
+      },
+      "Problem": {
+        "type": "object", "additionalProperties": false,
+        "required": ["type", "title", "status", "code", "traceId"],
+        "properties": {
+          "type": { "type": "string" },
+          "title": { "type": "string" },
+          "status": { "type": "integer", "minimum": 400, "maximum": 599 },
+          "detail": { "type": "string" },
+          "code": { "type": "string", "minLength": 1 },
+          "traceId": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}
