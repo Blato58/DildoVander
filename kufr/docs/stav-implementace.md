@@ -76,6 +76,12 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 
 ## Deník změn a ověření
 
+### D73 – 30. 9. 2026 – zřetelná role kufru v prvních tazích
+
+- Po merge [PR #28](https://github.com/Blato58/DildoVander/pull/28) nasazení [36641504963](https://github.com/Blato58/DildoVander/actions/runs/36641504963) prošlo buildem, backendovými testy, HTTP smoke a aktivací režimu `responses`. Veřejný placený tříkolový test [36641729532](https://github.com/Blato58/DildoVander/actions/runs/36641729532) přes HTTPS prošel: AI položila dvě navazující otázky, použila odpovědi v pointě a vybrala dostupnou Jasanovou hůlku Poslední slovo z přihrádky 1. První dvě repliky však neukázaly zřetelně roli Ollivanderova mluvícího kufru.
+- Proto `ai-eval/prompt.txt` výslovně žádá krátké představení kufru v první odpovědi a přirozené kouzelnické detaily v dalších. Po změně znovu prošly `dotnet run --project kufr/backend-tests/BackendTests.csproj` a `python -m unittest discover -s kufr/ai-eval -p 'test_*.py'` (11 testů); testy kontrolují sdílené instrukce. Dřívější živý výsledek nedokazuje účinek nového promptu.
+- Další krok: po merge nasadit upravený prompt v `responses`, zopakovat veřejný tříkolový test, lidsky posoudit tematickou roli a vrátit vývojový backend do výchozího `fake` režimu. Každý tříkolový test rezervuje nejvýše 0,15 USD v limitu 0,50 USD/sezení; skutečný účet určuje provider.
+
 ### D72 – 30. 9. 2026 – nezávisle navržený tematický katalog B5
 
 - Rozsah: nezávislý agent navrhl šest původních českých hůlek pro přihrádky 1–6. `ai-eval/wand-catalog.json` je sdílený zdroj pro backendový embedded katalog a vývojový eval. Obě cesty předávají AI jen položky z `readyMask`; prompt výslovně staví roli mluvícího kouzelného kufru prodejce z Ollivanderova obchodu v tématu Harryho Pottera. Plán §6 a README aktualizují obsahové rozhodnutí. Fyzické sloty, přijetí `catalogVersion` zařízením a skutečný inventář stále čekají na B1/E6.
