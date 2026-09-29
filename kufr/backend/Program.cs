@@ -6,11 +6,13 @@ builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<DeviceAccessStore>();
 builder.Services.AddSingleton<OperationJournal>();
+builder.Services.AddSingleton<TextDialogRunner>();
 builder.Services.AddSingleton<ConversationStore>();
 builder.Services.AddHostedService<RetentionWorker>();
 
 var app = builder.Build();
 app.Services.GetRequiredService<OperationJournal>();
+app.Services.GetRequiredService<TextDialogRunner>();
 
 app.Use(async (context, next) =>
 {

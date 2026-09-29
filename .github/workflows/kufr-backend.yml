@@ -10,6 +10,12 @@ on:
       - kufr/global.json
       - .github/workflows/kufr-backend.yml
   workflow_dispatch:
+    inputs:
+      dialog_mode:
+        description: Text dialogue mode for this deployment
+        type: choice
+        options: [fake, responses]
+        default: fake
 
 permissions:
   contents: read
@@ -63,6 +69,7 @@ jobs:
           SESSION_CAP_MICRO_USD: ${{ secrets.SESSION_CAP_MICRO_USD }}
           DAILY_CAP_MICRO_USD: ${{ secrets.DAILY_CAP_MICRO_USD }}
           MONTHLY_CAP_MICRO_USD: ${{ secrets.MONTHLY_CAP_MICRO_USD }}
+          DIALOG_MODE: ${{ inputs.dialog_mode || 'fake' }}
           RELEASE_SHA: ${{ github.sha }}
           RELEASE_RUN_ID: ${{ github.run_id }}
           RELEASE_ATTEMPT: ${{ github.run_attempt }}
@@ -72,9 +79,14 @@ jobs:
           release_dir="/opt/kufr-backend/releases/${release_id}"
           test -d /opt/kufr-backend/releases
           test -f "$RUNNER_TEMP/kufr-publish/backend"
+          case "$DIALOG_MODE" in
+            fake|responses) ;;
+            *) echo 'Invalid dialog mode' >&2; exit 2 ;;
+          esac
           mkdir -m 0755 -- "$release_dir"
           cp -a -- "$RUNNER_TEMP/kufr-publish/." "$release_dir/"
           chmod 0755 -- "$release_dir/backend"
+          printf '{"Backend":{"Dialog":{"Mode":"%s"}}}\n' "$DIALOG_MODE" > "$release_dir/appsettings.Production.json"
           python3 - <<'PY' | sudo -n /usr/local/sbin/kufr-backend-deploy activate "$release_id"
           import json
           import os
