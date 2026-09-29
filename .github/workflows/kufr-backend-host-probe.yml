@@ -1,0 +1,45 @@
+name: Kufr backend host probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Linux, X64, kufr-backend]
+    timeout-minutes: 3
+    steps:
+      - name: Inspect runner and deployment prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "runner_user=$(id -un)"
+          echo "runner_uid=$(id -u)"
+          if command -v sudo >/dev/null && sudo -n true >/dev/null 2>&1; then
+            echo "unrestricted_passwordless_sudo=yes"
+          else
+            echo "unrestricted_passwordless_sudo=no"
+          fi
+          if test -x /usr/local/sbin/kufr-backend-deploy; then
+            echo "deploy_helper=present"
+          else
+            echo "deploy_helper=missing"
+          fi
+          if test -d /opt/kufr-backend/releases; then
+            echo "releases_directory=present"
+          else
+            echo "releases_directory=missing"
+          fi
+          if systemctl is-active --quiet kufr-backend; then
+            echo "service=active"
+          else
+            echo "service=inactive_or_missing"
+          fi
+          if curl -fsS --max-time 3 -o /dev/null http://127.0.0.1:5080/healthz; then
+            echo "loopback_health=ok"
+          else
+            echo "loopback_health=unavailable"
+          fi
