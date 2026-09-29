@@ -87,7 +87,7 @@ Actions připnout na prověřené revize; build job má běžně jen `contents: 
 
 #### IPA, instalační stránka a způsoby distribuce
 
-Majitel dodal vývojový provisioning profil pro `3QRXV8G5Y3.app.turquoise6409.green2444` s jedním registrovaným zařízením a expirací 25. 12. 2026 a odpovídající Ad Hoc profil se stejným Team/Bundle ID, jedním zařízením a expirací 24. 12. 2026. E3a používá stejné Bundle ID jako původní aplikace, kterou majitel z telefonu odstraní. Majitel potvrdil, že profil obsahuje UDID jeho iPhonu 15 Pro s iOS 26.6.1; skutečná instalace a podpis ještě vyžadují ověření. Simulator build ani vývojově podepsaná IPA nejsou náhradou Ad Hoc instalace [O18].
+Majitel dodal vývojový provisioning profil pro `3QRXV8G5Y3.app.turquoise6409.green2444` s jedním registrovaným zařízením a expirací 25. 12. 2026 a odpovídající Ad Hoc profil se stejným Team/Bundle ID, jedním zařízením a expirací 24. 12. 2026. E3a používá stejné Bundle ID jako původní aplikace, kterou majitel z telefonu odstraní. Majitel potvrdil UDID svého iPhonu 15 Pro s iOS 26.6.1; Ad Hoc podpis prošel v CI a majitel potvrdil instalaci i spuštění přímo na telefonu. Simulator build ani vývojově podepsaná IPA nejsou náhradou této Ad Hoc zkoušky [O18].
 
 | Výstup / klient | Účel a hranice |
 | --- | --- |
@@ -578,7 +578,7 @@ Každá etapa je samostatně reviewovatelná změna a lze ji dělit na menší o
 | E1 – bezpečné jádro | Abort/Stop, safety port, invarianty, časové limity a hostitelské testy nad stávající sekvencí. | Dokument | Každá fáze jde bezpečně přerušit; opožděná smyčka neudrží motor nad limit; nic není závislé na síti. |
 | E2 – smlouvy a simulátor | JSON Schema/OpenAPI, fake clock, UI časová osa, journal a idempotence model. | E1 | Ztracený ACK/duplicitní/pozdní příkaz nezpůsobí druhý výběr; restart vyžaduje zotavení. |
 | E3 – ruční mobil bez HW | Šest přihrádek, potvrzení, Stop, aktuální snapshot, offline UI; bez AI. | E2 | Celá ruční sekvence proti simulátoru včetně všech chyb spojení. |
-| E3a – iOS CI základ | Capacitor iOS projekt/Swift bridge, převzetí Windows→GitHub→macOS workflow, unsigned simulator testy a podepsaná testovací IPA. | E0 identita, E3 | CI běží na připnutém Xcode, tajemství se načítají až pro podpis, keychain se uklidí i při selhání. IPA se nainstaluje/spustí na registrovaném iPhonu; veřejné Pages/Release zatím nejsou nutné. |
+| E3a – iOS CI základ | Capacitor iOS projekt, rozhraní pro pozdější Swift bridge E10, Windows→GitHub→macOS workflow, unsigned simulator testy a podepsaná testovací IPA. | E0 identita, E3 | CI běží na připnutém Xcode, tajemství se načítají až pro podpis, keychain se uklidí i při selhání. IPA se nainstaluje/spustí na registrovaném iPhonu; Release/Pages nejsou nutné. |
 | E4 – runtime a přímá síť | ESP-IDF 6.1/PlatformIO profil, certifikát/NVS, Wi-Fi, HTTPS klient backendu a lokální WSS hello/manual lease. | E2; pro nahrání E0 | Device volá fake backend bez telefonu, TLS/čas/reconnect funguje; později E3 připojí native adaptér. Verze knihoven uzamčené. |
 | E5 – jedna bezpečná přihrádka | RGB, PCA servo, jeden U059, OE/spínaná větev/watchdog, kalibrace. | E0,E1,E4 | Změřený proud, reset bez pohybu, Stop/freeze/I2C timeout vypne pohony; mechanika stabilní bez napájení. |
 | E6 – šest přihrádek | Šest kanálů, maska dostupnosti, ruční reload, limity jasu. | E5 | 100 cyklů/přihrádka, žádný souběh motor/servo, ověřená spotřeba/teplota a ruční ovládání bez WAN. |
@@ -596,8 +596,8 @@ Hardwarová větev je E0→E1/E2→E4→E5→E6. Konverzační větev E2→E7→
 
 | Otázka | Výchozí rozhodnutí, dopad a termín ověření |
 | --- | --- |
-| Jaký konkrétní iPhone a verze iOS? | Majitel potvrdil iPhone 15 Pro s iOS 26.6.1; Windows je vývojové prostředí, Xcode běží vzdáleně. Instalace se ještě ověří přímo na telefonu. |
-| Kde je zdroj již fungujícího workflow a jaký profil používá? | Majitel dodal MAUI workflow z jiné aplikace, vývojový i Ad Hoc profil a odpovídající `.p12`; schválil stejné Bundle ID. E3a má vlastní Capacitor workflow. Oba profily mají Team ID `3QRXV8G5Y3`, Bundle ID `app.turquoise6409.green2444` a jedno zařízení; podpis a instalace se musí ověřit. |
+| Jaký konkrétní iPhone a verze iOS? | Majitel potvrdil iPhone 15 Pro s iOS 26.6.1 a 30. 9. 2026 úspěšnou Ad Hoc instalaci/spuštění; Windows je vývojové prostředí, Xcode běží vzdáleně. |
+| Kde je zdroj již fungujícího workflow a jaký profil používá? | Majitel dodal MAUI workflow z jiné aplikace, vývojový i Ad Hoc profil a odpovídající `.p12`; schválil stejné Bundle ID. E3a má vlastní Capacitor workflow. Oba profily mají Team ID `3QRXV8G5Y3`, Bundle ID `app.turquoise6409.green2444` a jedno zařízení; Ad Hoc podpis prošel CI a instalaci potvrdil majitel. |
 | Jak bude dostupná IPA a používá se Feather, AltStore Classic nebo OTA? | Artifact vždy, publikace volitelná. Feed vyžaduje trvalý dostupný HTTPS download, ne přihlášením chráněný artifact. Zvolený klient a případný přepodpis ověřit fyzickou instalací; PAL není součást návrhu. |
 | Je fyzický dvojklik pro potvrzení návštěvníkem/obsluhou vhodný? | Samostatný kufr je výslovně zvolený. Dvojklik odděluje potvrzení od PTT; ověřit ergonomii. Pokud je tlačítko příliš nejednoznačné, přidat druhé potvrzovací tlačítko (GPIO v A, MCP v B), nikoli nechat volný hlas přímo otevřít západku. |
 | Router/internet na místě, hotspot a izolace klientů? | Vyhrazená LAN s dostupným AP, WAN volitelná. Otestovat konkrétní místo; telefon jako hotspot pouze po zkoušce. |
