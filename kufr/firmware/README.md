@@ -16,7 +16,8 @@ Výchozí sestavení `pio run` používá **ESP-IDF 6.1** v profilu
 Podrobný postup a skutečně provedené kontroly jsou ve
 [stavu implementace](../docs/stav-implementace.md). ESP-IDF profil má
 read-only síťový základ a nyní i interní cestu pro jeden explicitně předaný
-fake textový tah nad atomickým snapshotem stavu. Autorizovaný zdroj události,
+fake textový tah nad atomickým snapshotem stavu. Snapshot vydává vlastník
+`DeviceControlRuntime` pouze po bezpečných přechodech řízení. Autorizovaný zdroj události,
 místní WSS a fyzické výstupy zatím připojené nejsou.
 
 ## Architektura
@@ -41,6 +42,7 @@ src/
       SerialSelectionPort.h/.cpp            vývojové příkazy a výpis požadavků
     device_control/
       DeviceControl.h/.cpp                  hostitelský model ručního příkazu
+      DeviceControlRuntime.h/.cpp           jediný vlastník změn a snapshotu v IDF smyčce
       CommandJournal.h                     port pro zápis před pohybem
       PersistentCommandJournal.h/.cpp      trvalý journal a maska dostupnosti
       JournalStorage.h                     port trvalého úložiště pro testy
@@ -80,6 +82,7 @@ src/
 tests/
   selection_sequence_test.cpp               test bez hardwaru
   device_control_test.cpp                   test idempotence a restartu
+  device_control_runtime_test.cpp           test verzování a invalidace snapshotu
   persistent_command_journal_test.cpp      test trvalého záznamu a selhání zápisu
   device_identity_test.cpp                  test identity a servisní brány
   device_token_session_test.cpp             test tokenu, obnovy a parseru
@@ -131,8 +134,12 @@ záznam společně s novou maskou dostupnosti. Chyba čtení, poškozený zázna
 chyba zápisu drží řízení v bezpečném stavu; prázdná NVS nezačne s dostupnými
 přihrádkami. ESP-IDF profil otevírá NVS adaptér při startu bez automatického
 mazání. Hostitelské testy ověřují restart a selhání zápisu přes paměťový port.
-`DeviceControl` zatím není připojený k živému vstupu ESP-IDF smyčky; skutečný
-NVS běh na desce, síťový parser povelů a servisní USB zápis zbývají.
+`DeviceControlRuntime` nyní běží v ESP-IDF smyčce jako jediný vlastník
+`DeviceControl` a publikuje atomický snapshot až po zotavení a bezpečném
+uzavření journalu. Přijetí výběru, aktivní pohyb, Stop a porucha jej invalidují;
+změny lease, revision a masky publikují novou verzi. Prázdný boot identifikátor
+a nulová kalibrace zatím záměrně nedovolují spustit pohon. Živý vstup příkazů,
+skutečný NVS běh na desce, síťový parser a servisní USB zápis zbývají.
 
 `DeviceIdentity` čte oddělený verzovaný NVS záznam s `deviceId` a 32 bajty
 device credential. Pro HTTP Authorization jej lze vyjádřit 64 malými
@@ -257,6 +264,13 @@ Pokrývá ztracený ACK a opakování, konflikt ID, mezery v pořadí, vytěsně
 cache, chybu zápisu/uzavření journalu, restart po dokončení i přerušeném
 uvolnění, potvrzený reload a jeho trvalou masku, Stop a výpadek ručního lease při aktivním výstupu. Neověřuje NVS ani
 skutečnou síť.
+
+Test vlastníka snapshotu přidává `DeviceControlRuntime.cpp` a
+`ConversationRuntimeState.cpp` k uvedeným čistým zdrojům a spouští
+`tests/device_control_runtime_test.cpp`. Ověřuje dostupnost až po zotavení,
+invalidaci při čekajícím journalu a Stop, novou verzi po výběru a reloadu,
+selhání zápisu a vypršení nečinného ručního lease. Není to test GPIO, NVS ani
+skutečné síťové souběžnosti na ESP32.
 
 Hostitelský test trvalého journalu používá také čistý `DeviceControl` a
 paměťový port úložiště:
