@@ -191,12 +191,16 @@ internal sealed class ConversationStore(
                     activePaidCalls.Add(
                         operationId,
                         new PaidCall(conversationId, cancellation));
+                    var history = conversation.History.ToArray();
+                    var completedQuestions = conversation.CompletedQuestions;
                     _ = Task.Run(() => ProcessPaidTurnAsync(
                         operationId,
                         correlation,
                         request.Text,
                         request.ReadyMask,
                         request.CatalogVersion,
+                        history,
+                        completedQuestions,
                         cancellation));
                     queued = true;
                     return new SubmitTurnResult(202, operationId, null);
@@ -235,6 +239,8 @@ internal sealed class ConversationStore(
         string visitorText,
         int readyMask,
         string catalogVersion,
+        IReadOnlyList<DialogExchange> history,
+        int completedQuestions,
         CancellationTokenSource cancellation)
     {
         try
@@ -259,6 +265,8 @@ internal sealed class ConversationStore(
             var response = await dialogRunner!.GenerateAsync(
                 visitorText,
                 readyMask,
+                history,
+                completedQuestions < 2 && readyMask != 0,
                 cancellation.Token);
             var actualCost = ResponsesTextDialogBudget.CalculateActualMicroUsd(response);
             lock (gate)
@@ -271,7 +279,14 @@ internal sealed class ConversationStore(
 
                 var now = clock.GetUtcNow();
                 CleanupExpired(now);
-                if (!conversations.ContainsKey(correlation.ConversationId))
+                if (!conversations.TryGetValue(correlation.ConversationId, out var conversation))
+                {
+                    journal.MarkFailed(operationId);
+                    return;
+                }
+
+                // A provider proposal before two completed questions cannot reach the device.
+                if (response.Decision == "propose" && conversation.CompletedQuestions < 2)
                 {
                     journal.MarkFailed(operationId);
                     return;
@@ -302,7 +317,30 @@ internal sealed class ConversationStore(
                 if (!journal.MarkCompleted(operationId))
                 {
                     operations.Remove(operationId);
+                    return;
                 }
+
+                if (response.Decision == "ask")
+                {
+                    conversation.CompletedQuestions++;
+                }
+
+                conversation.History.Add(new DialogExchange(
+                    visitorText[..Math.Min(visitorText.Length, 500)],
+                    response.Reply[..Math.Min(response.Reply.Length, 300)]));
+                if (conversation.History.Count > 2)
+                {
+                    conversation.History.RemoveAt(0);
+                }
+            }
+        }
+        catch (TextDialogRequestTooLargeException)
+        {
+            lock (gate)
+            {
+                // Payload validation failed before the provider request was sent.
+                journal.SettleCost(operationId, 0);
+                journal.MarkFailed(operationId);
             }
         }
         catch (Exception)
@@ -677,7 +715,10 @@ internal sealed class ConversationStore(
 
     private void RemoveConversation(string conversationId)
     {
-        conversations.Remove(conversationId);
+        if (conversations.Remove(conversationId, out var conversation))
+        {
+            conversation.History.Clear();
+        }
         foreach (var paidCall in activePaidCalls.Values
             .Where(call => call.ConversationId == conversationId))
         {
@@ -755,6 +796,8 @@ internal sealed class ConversationStore(
         public DateTimeOffset ExpiresAt { get; set; } = expiresAt;
         public DateTimeOffset AbsoluteExpiresAt { get; } = absoluteExpiresAt;
         public int TurnCount { get; set; }
+        public int CompletedQuestions { get; set; }
+        public List<DialogExchange> History { get; } = [];
         public HashSet<Guid> TurnIds { get; } = [];
         public HashSet<Guid> TranscriptionIds { get; } = [];
         public int SpeechCount { get; set; }

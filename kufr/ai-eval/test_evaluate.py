@@ -3,8 +3,10 @@ import unittest
 
 from evaluate import (
     MODEL_PRICES,
+    build_dialogue_requests,
     build_request,
     load_case,
+    load_dialogue_case,
     parse_response,
     upper_bound_micro_usd,
     validate_result,
@@ -78,6 +80,37 @@ class EvalTests(unittest.TestCase):
             "usage": {"input_tokens": 100, "output_tokens": 20},
         }
         self.assertEqual(result, parse_response(response, 63)[0])
+
+    def test_offline_multiturn_fixture_carries_two_answers_into_proposal(self):
+        case = load_dialogue_case("sparkle-chaos")
+        requests = build_dialogue_requests(case, "gpt-6.1-sol")
+        self.assertEqual(3, len(requests))
+        self.assertIn("Na parketu mi spadla koruna.", requests[2]["input"])
+        self.assertIn("Jaký trapas má hůlka zachránit?", requests[2]["input"])
+        self.assertIn("koruna", case["turns"][2]["mockResult"]["reply"].lower())
+        self.assertIn("třpytivý chaos", case["turns"][2]["mockResult"]["reply"].lower())
+        self.assertTrue(all(not request["store"] for request in requests))
+
+    def test_offline_multiturn_rejects_early_proposal(self):
+        case = load_dialogue_case("sparkle-chaos")
+        case["turns"][0]["mockResult"] = {
+            "reply": "Hůlka jedna.",
+            "decision": "propose",
+            "compartment": 1,
+            "reason": "Brzy",
+        }
+        with self.assertRaisesRegex(ValueError, "before two completed questions"):
+            build_dialogue_requests(case, "gpt-6.1-sol")
+
+    def test_offline_empty_inventory_has_no_proposal(self):
+        requests = build_dialogue_requests(load_dialogue_case("no-inventory"), "gpt-6.1-sol")
+        self.assertEqual(1, len(requests))
+
+    def test_offline_political_roast_uses_stated_position(self):
+        case = load_dialogue_case("political-roast")
+        requests = build_dialogue_requests(case, "gpt-6.1-sol")
+        self.assertIn("zrušit pondělky", requests[2]["input"])
+        self.assertIn("třpytem", case["turns"][2]["mockResult"]["reply"])
 
 
 if __name__ == "__main__":
