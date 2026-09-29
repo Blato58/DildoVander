@@ -133,6 +133,20 @@ async function transcribe(path, token, key, fields, wav = makeWav()) {
   return { status: response.status, result: await response.json() };
 }
 
+async function downloadAudio(path, token) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  return {
+    status: response.status,
+    contentType: response.headers.get('content-type'),
+    sampleRate: response.headers.get('x-audio-sample-rate-hz'),
+    channels: response.headers.get('x-audio-channels'),
+    body: response.status === 200 ? Buffer.from(await response.arrayBuffer()) : await response.json()
+  };
+}
+
 startServer();
 try {
   await waitForServer();
@@ -296,6 +310,52 @@ try {
   assert.equal((await transcribe(transcriptionPath, tokenA, randomUUID(),
     { ...transcriptionFields, clientTurnId: randomUUID() }, makeWav(8192))).status, 202);
 
+  const speechPath = `/v1/conversations/${created.result.conversationId}/speech`;
+  const speechBody = { turnId: turn.clientTurnId, outputTarget: 'device' };
+  const speechKey = randomUUID();
+  assert.equal((await call(speechPath, { token: tokenA, key: randomUUID(),
+    body: { ...speechBody, outputTarget: 'both' } })).status, 400);
+  assert.equal((await call(speechPath, { token: tokenB, key: randomUUID(), body: speechBody })).status, 403);
+  assert.equal((await call(speechPath, { token: tokenA, key: randomUUID(),
+    body: { ...speechBody, turnId: randomUUID() } })).status, 404);
+  const oversizedSpeech = await fetch(`${baseUrl}${speechPath}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${tokenA}`,
+      'Idempotency-Key': randomUUID(),
+      'Content-Type': 'application/json'
+    },
+    body: new ReadableStream({
+      start(controller) {
+        controller.enqueue(Buffer.alloc(5000, 120));
+        controller.close();
+      }
+    }),
+    duplex: 'half'
+  });
+  assert.equal(oversizedSpeech.status, 413);
+  const speech = await call(speechPath, { token: tokenA, key: speechKey, body: speechBody });
+  assert.equal(speech.status, 202);
+  assert.equal((await call(speechPath, { token: tokenA, key: speechKey, body: speechBody })).result.operationId,
+    speech.result.operationId);
+  assert.equal((await call(speechPath, { token: tokenA, key: speechKey,
+    body: { ...speechBody, outputTarget: 'phone' } })).status, 409);
+  assert.equal((await call(speechPath, { token: tokenA, key: randomUUID(), body: speechBody })).status, 409);
+  const speechOperationPath = `/v1/operations/${speech.result.operationId}`;
+  const speechOperation = await read(speechOperationPath, tokenA);
+  assert.equal(speechOperation.result.kind, 'speech');
+  assert.equal(speechOperation.result.correlation.clientTurnId, turn.clientTurnId);
+  assert.equal(speechOperation.result.result.outputTarget, 'device');
+  const audioPath = `/v1/audio/${speechOperation.result.result.audioId}`;
+  const downloaded = await downloadAudio(audioPath, tokenA);
+  assert.equal(downloaded.status, 200);
+  assert.equal(downloaded.contentType, 'audio/wav');
+  assert.equal(downloaded.sampleRate, '32000');
+  assert.equal(downloaded.channels, '1');
+  assert.equal(downloaded.body.subarray(0, 4).toString(), 'RIFF');
+  assert.equal((await downloadAudio(audioPath, tokenB)).status, 403);
+  assert.equal((await downloadAudio('/v1/audio/missing', tokenA)).status, 404);
+
   for (let index = 1; index < 9; index++) {
     const next = await call(turnPath, {
       token: tokenA,
@@ -358,6 +418,16 @@ try {
   assert.equal(liveBeforeEnd.status, 202);
   const liveOperationPath = `/v1/operations/${liveBeforeEnd.result.operationId}`;
   assert.equal((await read(liveOperationPath, tokenB)).result.status, 'completed');
+  const liveTurnId = (await read(liveOperationPath, tokenB)).result.correlation.clientTurnId;
+  const speechBeforeEnd = await call(`/v1/conversations/${deviceBConversation}/speech`, {
+    token: tokenB,
+    key: randomUUID(),
+    body: { turnId: liveTurnId, outputTarget: 'phone' }
+  });
+  assert.equal(speechBeforeEnd.status, 202);
+  const speechBeforeEndResult = await read(`/v1/operations/${speechBeforeEnd.result.operationId}`, tokenB);
+  const audioBeforeEndPath = `/v1/audio/${speechBeforeEndResult.result.result.audioId}`;
+  assert.equal((await downloadAudio(audioBeforeEndPath, tokenB)).status, 200);
   const endKey = randomUUID();
   const deviceBConversationPath = `/v1/conversations/${deviceBConversation}`;
   assert.equal(await remove(deviceBConversationPath, tokenA, endKey), 403);
@@ -366,6 +436,7 @@ try {
   const endedOperation = await read(liveOperationPath, tokenB);
   assert.equal(endedOperation.result.status, 'cancelled');
   assert.equal(endedOperation.result.result, null);
+  assert.equal((await downloadAudio(audioBeforeEndPath, tokenB)).status, 404);
   assert.equal((await call(deviceBTurnPath, {
     token: tokenB,
     key: randomUUID(),
@@ -376,7 +447,9 @@ try {
     assert.equal((await call('/v1/device-access/token', { credential: credentialA })).status, 200);
   }
   assert.equal((await call('/v1/device-access/token', { credential: credentialA })).status, 429);
-  assert.doesNotMatch(serverOutput, new RegExp(`${credentialA}|${credentialB}|${tokenA}|${tokenB}`));
+  for (const secret of [credentialA, credentialB, tokenA, tokenB]) {
+    assert.equal(serverOutput.includes(secret), false);
+  }
 
   await stopServer();
   startServer();
@@ -423,6 +496,10 @@ try {
   const lostTranscription = await read(transcriptionOperationPath, newToken);
   assert.equal(lostTranscription.result.kind, 'transcription');
   assert.equal(lostTranscription.result.status, 'failed');
+  const lostSpeech = await read(speechOperationPath, newToken);
+  assert.equal(lostSpeech.result.kind, 'speech');
+  assert.equal(lostSpeech.result.status, 'failed');
+  assert.equal((await downloadAudio(audioPath, newToken)).status, 404);
   assert.equal(lostOperation.result.status, 'failed');
   assert.equal(lostOperation.result.error.code, 'result_expired');
   assert.equal((await call(turnPath, {
@@ -430,7 +507,7 @@ try {
     key: randomUUID(),
     body: { ...turn, clientTurnId: randomUUID() }
   })).status, 404);
-  console.log('Backend HTTP smoke: access, scope, fake turn/transcription, limits and restart passed');
+  console.log('Backend HTTP smoke: access, fake turn/transcription/speech, scope and restart passed');
 } finally {
   await stopServer();
   await rm(databaseDirectory, { recursive: true, force: true });

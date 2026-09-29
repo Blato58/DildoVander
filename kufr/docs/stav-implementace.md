@@ -6,12 +6,12 @@ Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**Aktivní implementační krok:** E7.5b – fake syntéza a výdej audia podle OpenAPI. E7.1–2 založily ASP.NET Core 10 backend a fake dialog; E7.3a–c přidaly SQLite turn/create idempotenci, kvótu a restart; E7.4a–b retenci a explicitní rušení; E7.5a omezený WAV upload a fake přepis (D23–D30). Nákladový rozpočet a placená AI chybí. E2/E3 jsou dokončené v hostitelském/simulátorovém rozsahu. Fyzické nezávislé vypnutí a měření zůstávají kritérii E5.
+**Aktivní implementační krok:** E7.6 – transakční nákladová rezervace a závěrečné integrační ověření E7. E7.1–2 založily ASP.NET Core 10 backend a fake dialog; E7.3a–c přidaly SQLite idempotenci, kvótu a restart; E7.4a–b retenci a rušení; E7.5a–b fake přepis a syntézu se 120s audiem (D23–D31). Placená AI chybí. E2/E3 jsou dokončené v hostitelském/simulátorovém rozsahu. Fyzické nezávislé vypnutí a měření zůstávají kritérii E5.
 
-**Další konkrétní krok: E7.5b – fake syntéza a výdej audia.**
+**Další konkrétní krok: E7.6 – nákladová rezervace a E7 integrace.**
 
-1. Doplnit `POST /v1/conversations/{id}/speech` a `GET /v1/audio/{audioId}` pouze s deterministickým fake WAV, device scope, 120s retencí, konzervativní idempotencí a vazbou na existující ověřený tah. Ověřit chybné ID, souběh, restart, rušení a expiraci.
-2. Připravit nákladovou rezervaci před prvním placeným voláním a integrační testy zbývajících E7 kritérií. E7 neoznačovat za hotové, dokud nejsou splněna všechna kritéria v kapitole 12.
+1. Připravit v `Features/Usage` transakční rezervaci nákladů se stropem před prvním placeným voláním, jasně oddělenou od nulových nákladů fake adaptéru. Ověřit souběh, idempotenci, restart a nevracení rezervace při neznámém výsledku; skutečné ceny/limity vyžadují B4.
+2. Projít zbývající E7 integrační kritéria přístupu, souběhu, restartu, retence a logů. E7 neoznačovat za hotové bez dokladů; E8 placený provider čeká na B4.
 3. Fyzická HW akceptace zůstává v E5 po vstupu B1; nativní iOS E3a čeká na B2/B3. Nezaměnit fake log s NVS ani fake odpověď se skutečnou AI.
 
 Předpokládané dotčené cesty: `kufr/backend/`, související README a tento stav. Krok nevyžaduje fyzickou desku, cloudový klíč ani Apple certifikát. Toto je implementační předání, nikoli příkaz něco nahrát či publikovat.
@@ -36,7 +36,7 @@ Pokud uživatel omezí práci pouze na mobilní aplikaci, neoznačuj závislosti
 | --- | --- | --- |
 | Firmware | Čistá neblokující `SelectionSequence`/`SafetyController` z E1, nezapojený `DeviceControl` s fake clock vstupy, 64 výsledky a `CommandJournal` portem E2.2, čistý `ConversationSession` s generací a stropem 10 tahů E2.8b1. Sériové `select 1..6`, `stop`, `reset`, `status`, `help` zůstává vývojovým vstupem. Hostitelské testy a lokální Arduino/PlatformIO build prošly. | Nezávislý fyzický watchdog/inhibit, skutečný NVS journal/GPIO/síťový detektor lease, provisioning, I2S, propojení dialogu a ovládání. |
 | Mobil | TypeScript/Vite webová obrazovka se šesti přihrádkami, potvrzením, Stop a místním fake režimem; E3.2b adaptér přes E3.2a most proti E2 C++ simulátoru, cílené testy spojení a build. | Capacitor, iOS/Swift projekt a fyzický iPhone test. |
-| Backend/kontrakty/simulátor | E7.1–2 ASP.NET Core 10 s device tokenem, fake sezením/textovým tahem; E7.3a–c SQLite turn/create idempotence, restart a kvóta; E7.4a–b retence a explicitní rušení; E7.5a fake přepis z omezeného WAV (D23–D30). Lokální protokol, C++ simulátor, TLS WSS facade, časová osa, OpenAPI, reload a fake média E2. | Nákladový rozpočet, speech/audio trasy, skutečný AI/audio adaptér dalších etap. |
+| Backend/kontrakty/simulátor | E7.1–2 ASP.NET Core 10 s device tokenem, fake sezením/textovým tahem; E7.3a–c SQLite idempotence, restart a kvóta; E7.4a–b retence a rušení; E7.5a–b fake přepis a 120s výdej audia (D23–D31). Lokální protokol, C++ simulátor, TLS WSS facade, časová osa, OpenAPI, reload a fake média E2. | Nákladová rezervace a závěrečná E7 integrace; skutečný AI/audio adaptér dalších etap. |
 | iOS CI | Majitelem popsaný existující postup Windows → macOS runner → podepsaná IPA. | Skutečný workflow v tomto checkoutu, ověřená identita/profil a běh/instalace. |
 | Hardware | Dodaný obrázek pinů, návrh napájení a předběžné profily A/B. | Revize konkrétní desky, schéma bezpečnostní větve, měření a fyzická akceptace. |
 
@@ -56,7 +56,7 @@ Přesné závislosti a kritéria dokončení jsou v kapitole 12 plánu. Následu
 | E4 – runtime a přímá síť | nezahájeno | Arduino prototyp. | E2; pro nahrání B1. |
 | E5 – jedna bezpečná přihrádka | nezahájeno | Bez ovládání a měření. | E0/E1/E4; B1, fyzická akceptace. |
 | E6 – šest přihrádek | nezahájeno | Bez fyzického ověření. | E5; cykly, proudy, dostupnost/reload. |
-| E7 – backend bez skutečné AI | rozpracováno | E7.1–2 identity, fake sezení/tah; E7.3a–c SQLite idempotence, restart a kvóta; E7.4a–b časovaný cleanup/retence a explicitní rušení; E7.5a omezený WAV upload/fake přepis; HTTP/SQLite testy (D23–D30). | Nákladový rozpočet, speech/audio trasy; integrační testy všech kritérií etapy. |
+| E7 – backend bez skutečné AI | rozpracováno | E7.1–2 identity, fake sezení/tah; E7.3a–c SQLite idempotence, restart a kvóta; E7.4a–b cleanup/retence a rušení; E7.5a–b omezený WAV upload/fake přepis a výdej audia; HTTP/SQLite testy (D23–D31). | Nákladová rezervace a závěrečné integrační ověření všech kritérií etapy. |
 | E8 – skutečný textový dialog | nezahájeno | Bez adaptéru a evaluace. | E2/E7, na desce E4; B4/B5 před placenou akceptací. |
 | E9 – samostatný hlas kufru | nezahájeno | Bez audio cesty. | E4/E5/E8; hardware a hlasová akceptace. |
 | E10 – dokončení mobilní zálohy | nezahájeno | Bez native transportu. | E3/E3a/E4/E8; audio po E9; skutečný iPhone. |
@@ -77,6 +77,13 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 | B5 | Majitel: finální katalog a publikum, rozměry, router a prostředí akce. | Obsahovou/provozní akceptaci E8/E11 a finální mechaniku. | Neutrální testovací katalog a laboratorní/simulované scénáře. |
 
 ## Deník změn a ověření
+
+### D31 – 29. 9. 2026 – E7.5b fake syntéza a krátkodobý WAV
+
+- Rozsah: `POST /v1/conversations/{id}/speech` přijímá pouze UUID již dokončeného textového tahu a `outputTarget=device|phone`, vyžaduje audio souhlas a nepřijímá volný text. Fake operace vygeneruje tichý PCM16 mono 32 kHz WAV, uloží jej pouze do RAM na 120 s a vrátí device-scoped `audioId` pro `GET /v1/audio/{audioId}`. Současně je povolen jeden aktivní výstup; další lze začít po `DELETE` původní speech operace nebo po expiraci audia. Úspěšná syntéza obnovuje 15minutovou idle lhůtu do absolutního 30minutového stropu. Zrušení, ukončení sezení, expirace i periodický worker nulují a odstraní audio buffer; 410 tombstone drží pouze technickou identitu další 24 h. Po restartu se WAV negeneruje znovu.
+- Ověření: `dotnet build kufr/backend/backend.csproj --no-restore` bez varování; `dotnet run --project kufr/backend-tests/BackendTests.csproj` ověřil cílové zařízení, cizí přístup, 120s expiraci/410, opětovnou syntézu po expiraci a rušení, odstranění po ukončení sezení, prodloužení idle lhůty přes původní hranici a úklid workerem bez provozu. `node kufr/backend/tests/smoke.mjs` nad HTTP hostem ověřil chybný turnId/target, cizí scope, idempotenci, souběh, WAV hlavičky/bajty, smazání audia po konci sezení a ztrátu po restartu. Velký chunked JSON požadavek byl odmítnut 413. `node kufr/contracts/verify-backend-openapi.mjs` prošel.
+- Omezení: WAV obsahuje pouze krátké ticho, není to TTS ani důkaz přehrání na zařízení; bez `DELETE` klient čeká na 120s expiraci před dalším výstupem. Audio není v SQLite, po restartu staré audioId vrací 404. Placený provider a jeho nákladové limity chybí.
+- Revize a doručení: čeká na commit a push tohoto ověřeného slice.
 
 ### D30 – 29. 9. 2026 – E7.5a omezený WAV upload a fake přepis
 

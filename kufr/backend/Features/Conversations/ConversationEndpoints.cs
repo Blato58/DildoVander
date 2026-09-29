@@ -12,7 +12,9 @@ internal static class ConversationEndpoints
         endpoints.MapPost("/v1/conversations", CreateConversationAsync);
         endpoints.MapPost("/v1/conversations/{id}/turns", SubmitTurnAsync);
         endpoints.MapPost("/v1/conversations/{id}/transcriptions", SubmitTranscriptionAsync);
+        endpoints.MapPost("/v1/conversations/{id}/speech", SubmitSpeechAsync);
         endpoints.MapGet("/v1/operations/{id}", GetOperation);
+        endpoints.MapGet("/v1/audio/{audioId}", GetAudio);
         endpoints.MapDelete("/v1/operations/{id}", CancelOperationAsync);
         endpoints.MapDelete("/v1/conversations/{id}", EndConversationAsync);
         return endpoints;
@@ -34,14 +36,20 @@ internal static class ConversationEndpoints
             return ApiProblem.Create(context, 400, "invalid_idempotency_key");
         }
 
-        using var buffer = new MemoryStream();
-        await context.Request.Body.CopyToAsync(buffer, context.RequestAborted);
-        if (buffer.Length is 0 or > 4096)
+        byte[]? body;
+        try
+        {
+            body = await ReadSmallBodyAsync(context);
+        }
+        catch (BadHttpRequestException exception) when (exception.StatusCode == 413)
+        {
+            return ApiProblem.Create(context, 413, "request_too_large");
+        }
+
+        if (body is null)
         {
             return ApiProblem.Create(context, 400, "invalid_request");
         }
-
-        var body = buffer.ToArray();
         CreateConversationRequest? request;
         try
         {
@@ -109,14 +117,20 @@ internal static class ConversationEndpoints
             return ApiProblem.Create(context, 400, "invalid_idempotency_key");
         }
 
-        using var buffer = new MemoryStream();
-        await context.Request.Body.CopyToAsync(buffer, context.RequestAborted);
-        if (buffer.Length is 0 or > 4096)
+        byte[]? body;
+        try
+        {
+            body = await ReadSmallBodyAsync(context);
+        }
+        catch (BadHttpRequestException exception) when (exception.StatusCode == 413)
+        {
+            return ApiProblem.Create(context, 413, "request_too_large");
+        }
+
+        if (body is null)
         {
             return ApiProblem.Create(context, 400, "invalid_request");
         }
-
-        var body = buffer.ToArray();
         TextTurnRequest? request;
         try
         {
@@ -181,6 +195,98 @@ internal static class ConversationEndpoints
                 result.Status,
                 result.Status == 403 ? "device_scope_mismatch" : "operation_not_found")
             : Results.Json(result.Operation);
+    }
+
+    private static async Task<IResult> SubmitSpeechAsync(
+        string id,
+        HttpContext context,
+        DeviceAccessStore access,
+        ConversationStore conversations)
+    {
+        var deviceId = DeviceAccessEndpoints.Authenticate(context, access);
+        if (deviceId is null)
+        {
+            return ApiProblem.Create(context, 401, "access_token_required");
+        }
+
+        if (!Guid.TryParseExact(context.Request.Headers["Idempotency-Key"], "D", out var key))
+        {
+            return ApiProblem.Create(context, 400, "invalid_idempotency_key");
+        }
+
+        byte[]? body;
+        try
+        {
+            body = await ReadSmallBodyAsync(context);
+        }
+        catch (BadHttpRequestException exception) when (exception.StatusCode == 413)
+        {
+            return ApiProblem.Create(context, 413, "request_too_large");
+        }
+
+        if (body is null)
+        {
+            return ApiProblem.Create(context, 400, "invalid_request");
+        }
+        SpeechRequest? request;
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            if (!HasExpectedProperties(document.RootElement, ["turnId", "outputTarget"])
+                || !IsUuid(document.RootElement, "turnId"))
+            {
+                return ApiProblem.Create(context, 400, "invalid_request");
+            }
+
+            request = JsonSerializer.Deserialize<SpeechRequest>(
+                body,
+                new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        }
+        catch (JsonException)
+        {
+            return ApiProblem.Create(context, 400, "invalid_request");
+        }
+
+        if (request is null
+            || request.TurnId == Guid.Empty
+            || request.OutputTarget is not ("device" or "phone"))
+        {
+            return ApiProblem.Create(context, 400, "invalid_request");
+        }
+
+        var result = conversations.SubmitSpeech(deviceId, id, key, body, request);
+        return result.OperationId is null
+            ? ApiProblem.Create(context, result.Status, result.ErrorCode ?? "speech_rejected")
+            : Results.Json(new { operationId = result.OperationId }, statusCode: result.Status);
+    }
+
+    private static IResult GetAudio(
+        string audioId,
+        HttpContext context,
+        DeviceAccessStore access,
+        ConversationStore conversations)
+    {
+        var deviceId = DeviceAccessEndpoints.Authenticate(context, access);
+        if (deviceId is null)
+        {
+            return ApiProblem.Create(context, 401, "access_token_required");
+        }
+
+        var result = conversations.GetAudio(deviceId, audioId);
+        if (result.Wav is null)
+        {
+            var code = result.Status switch
+            {
+                403 => "device_scope_mismatch",
+                410 => "audio_expired",
+                _ => "audio_not_found"
+            };
+            return ApiProblem.Create(context, result.Status, code);
+        }
+
+        context.Response.Headers["X-Audio-Sample-Rate-Hz"] = "32000";
+        context.Response.Headers["X-Audio-Channels"] = "1";
+        return Results.File(result.Wav, "audio/wav");
     }
 
     private static async Task<IResult> SubmitTranscriptionAsync(
@@ -310,6 +416,33 @@ internal static class ConversationEndpoints
 
         var prefix = new byte[1];
         return await context.Request.Body.ReadAsync(prefix, context.RequestAborted) == 0;
+    }
+
+    private static async Task<byte[]?> ReadSmallBodyAsync(HttpContext context)
+    {
+        const int maximum = 4096;
+        if (context.Request.ContentLength is 0 or > maximum)
+        {
+            return null;
+        }
+
+        using var content = new MemoryStream();
+        var buffer = new byte[1024];
+        while (true)
+        {
+            var read = await context.Request.Body.ReadAsync(buffer, context.RequestAborted);
+            if (read == 0)
+            {
+                return content.Length == 0 ? null : content.ToArray();
+            }
+
+            if (content.Length + read > maximum)
+            {
+                return null;
+            }
+
+            content.Write(buffer, 0, read);
+        }
     }
 
     private static bool IsInteger(JsonElement root, string name)
