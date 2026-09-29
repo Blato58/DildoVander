@@ -96,6 +96,7 @@ def build_request(case, model, history=(), evening_context="", opening=False, re
         schema["properties"]["decision"]["enum"] = ["ask", "no_selection"]
     return {
         "model": model,
+        "service_tier": "default",
         "store": False,
         "reasoning": {"effort": "low"},
         "max_output_tokens": MAX_OUTPUT_TOKENS,
@@ -146,13 +147,46 @@ def build_dialogue_requests(case, model):
     return requests
 
 
+def estimate_usage_micro_usd(response, model, *, include_cache=False):
+    # Token-based list-price estimate only. Account billing is a separate source.
+    tier = response.get("service_tier")
+    multiplier = {"default": 1, "fast": 2, "priority": 2}.get(tier)
+    usage = response.get("usage", {})
+    inputs, outputs = usage.get("input_tokens"), usage.get("output_tokens")
+    if (response.get("model") != model or multiplier is None
+            or type(inputs) is not int or type(outputs) is not int or min(inputs, outputs) < 0):
+        raise ValueError("Usage/model/service tier cannot be priced")
+    write_price, output_price = MODEL_PRICES[model]
+    if include_cache:
+        details = usage.get("input_tokens_details", {})
+        cached, writes = details.get("cached_tokens"), details.get("cache_write_tokens")
+        if cached is None or writes is None:
+            return None
+        if (type(cached) is not int or type(writes) is not int
+                or min(cached, writes) < 0 or cached + writes > inputs):
+            raise ValueError("Invalid cache token usage")
+        input_price, cached_price = {
+            "gpt-6.1-sol": (Decimal("2"), Decimal("0.10")),
+            "gpt-6-astra": (Decimal("10"), Decimal("1")),
+            "gpt-6-luna": (Decimal("0.10"), Decimal("0.01")),
+        }[model]
+        amount = ((inputs - cached - writes) * input_price + cached * cached_price
+                  + writes * write_price + outputs * output_price)
+    else:
+        amount = inputs * write_price + outputs * output_price
+    return int((amount * multiplier).to_integral_value(rounding="ROUND_CEILING"))
+
+
 def upper_bound_micro_usd(request, model):
+    if request.get("service_tier") != "default":
+        raise ValueError("Evaluation requests must explicitly select the default service tier")
     encoded = json.dumps(request, ensure_ascii=False).encode("utf-8")
     # Deliberately overestimate prompt/schema tokenization and count all input
     # at cache-write pricing. The Platform project hard limit is the backstop.
     input_token_bound = len(encoded) * 2 + 4096
     input_price, output_price = MODEL_PRICES[model]
-    amount = input_token_bound * input_price + MAX_OUTPUT_TOKENS * output_price
+    amount = 2 * (input_token_bound * input_price + MAX_OUTPUT_TOKENS * output_price)
+    # Reserve Fast rates too; stop on a returned tier mismatch without refunding the reserve.
     return int(amount.to_integral_value(rounding="ROUND_CEILING"))
 
 
@@ -242,15 +276,10 @@ def main():
     response = call_openai(request, api_key)
     latency_ms = round((time.perf_counter() - started) * 1000)
     result, usage = parse_response(response, case["readyMask"])
-    input_price, output_price = MODEL_PRICES[args.model]
-    input_tokens = usage.get("input_tokens")
-    output_tokens = usage.get("output_tokens")
-    if type(input_tokens) is not int or type(output_tokens) is not int:
-        raise ValueError("Invalid token usage")
-    estimated_micro_usd = int(
-        (input_tokens * input_price + output_tokens * output_price)
-        .to_integral_value(rounding="ROUND_CEILING")
-    )
+    estimated_micro_usd = estimate_usage_micro_usd(response, args.model)
+    if response.get("service_tier") != "default":
+        raise ValueError("Provider returned an unexpected service tier; stop further calls")
+    input_tokens, output_tokens = usage["input_tokens"], usage["output_tokens"]
     report = {
         "case": case["id"],
         "requestedModel": args.model,
@@ -260,12 +289,13 @@ def main():
         "providerUsage": usage,
         "billingVerified": False,
         "billedCostMicroUsd": None,
-        "costBasis": "Conservative list-price estimate; all input at cache-write rate; not billing",
+        "costBasis": "List-price estimate at returned service tier; all input at cache-write rate; not billing",
         "readyMask": case["readyMask"],
         "latencyMs": latency_ms,
         "result": result,
         "usage": {"inputTokens": input_tokens, "outputTokens": output_tokens},
         "estimatedUpperCostMicroUsd": estimated_micro_usd,
+        "cacheAdjustedEstimateMicroUsd": estimate_usage_micro_usd(response, args.model, include_cache=True),
         "requiresHumanStyleReview": True,
         "actuatorCommandIssued": False,
     }
