@@ -1,20 +1,20 @@
 # Stav implementace AI kufru
 
-Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální firmware build E1.1. Ostatní etapy, hardware, iPhone a CI zůstávají bez runtime akceptace. Hotový návrh není hotová implementace.
+Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální firmware build E1.2. Ostatní etapy, hardware, iPhone a CI zůstávají bez runtime akceptace. Hotový návrh není hotová implementace.
 
 [Implementační plán](implementacni-plan.md) určuje architekturu a akceptaci. [AGENTS.md](../../AGENTS.md) určuje pracovní postup AI. Tento soubor je jediný průběžný záznam postupu; README ho pouze odkazují.
 
 ## Předání další AI
 
-**Aktivní implementační krok:** žádný. E1.1 bylo 29. 9. 2026 převzato a implementováno; rozsah a kontroly jsou v deníku D1. E1 zůstává rozpracované kvůli neověřenému nezávislému vypnutí při zamrzlé smyčce a navazujícím softwarovým scénářům.
+**Aktivní implementační krok:** žádný. E1.2 bylo 29. 9. 2026 implementováno a hostitelsky ověřeno; rozsah a kontroly jsou v deníku D2. E1 je dokončené jako softwarové jádro bez desky. Fyzické nezávislé vypnutí při zamrzlé smyčce a další měření zůstávají kritérii E5.
 
-**Další konkrétní krok: E1.2 – timeout řízení a ztráta ručního řízení v hostitelském modelu.**
+**Další konkrétní krok: E2.1 – sdílené kontrakty a negativní protokolové fixtures.**
 
-1. Navázat na `SafetyController`, `SelectionSequence` a fake port z E1.1. Podle kapitol 8 a 11 plánu zmodelovat ztrátu průchodu řídicí smyčkou, poruchu/Stop a ztrátu ručního lease jako nezávislé vstupy, bez síťové implementace a GPIO.
-2. Hostitelsky ověřit přednost Stop a bezpečné ukončení aktivního motoru/serva při těchto vstupech; nepovažovat fake timeout za důkaz fyzického watchdogu. Rozhodnout podle všech softwarových kritérií kapitoly 12, zda lze E1 uzavřít a navázat E2.
+1. Podle kapitoly 5 plánu založit verzované kontrakty pro `selection.start`, `command.ack`, `selection.result`, snapshot a bezpečnostní povely. Pokrýt přesné typy, rozsahy a zákaz nadbytečných polí, duplicitních klíčů a neplatných čísel.
+2. Přidat pozitivní i chybné sdílené fixtures a ověřovací příkaz. Následující E2 slices doplní fake clock, journal, idempotenci a síťový simulátor. E2 není dokončené samotnými schématy.
 3. Samostatná HW akceptace inhibit/watchdogu, resetu a fyzických limitů zůstává v E5 po vstupu B1.
 
-Předpokládané dotčené cesty: `kufr/firmware/src/features/safety/`, `wand_selection/`, hostitelské testy a firmware README. Krok nevyžaduje fyzickou desku, cloudový klíč ani Apple certifikát. Toto je implementační předání, nikoli příkaz něco nahrát či publikovat.
+Předpokládané dotčené cesty: `kufr/contracts/`, testovací fixtures a související README. Krok nevyžaduje fyzickou desku, cloudový klíč ani Apple certifikát. Toto je implementační předání, nikoli příkaz něco nahrát či publikovat.
 
 Pokud uživatel omezí práci pouze na mobilní aplikaci, neoznačuj závislosti E2 za splněné. Lze připravit samostatnou UI část E3 proti výslovně označenému fake transportu, ale E3 zůstane částečné do integrace se simulátorem/protokolem E2. Rozsah a mezeru zapiš sem.
 
@@ -34,7 +34,7 @@ Pokud uživatel omezí práci pouze na mobilní aplikaci, neoznačuj závislosti
 
 | Část | Co skutečně existuje | Co zatím chybí |
 | --- | --- | --- |
-| Firmware | Čistá neblokující `SelectionSequence`, `SafetyController` s portem pro požadavky na bezpečný výstup, Stop/zotavení a sériové `select 1..6`, `stop`, `reset`, `status`, `help`. Hostitelské testy a lokální Arduino/PlatformIO build E1.1. | Nezávislý fyzický watchdog/inhibit, GPIO, síť, provisioning, I2S, dialog a skutečné ovládání. |
+| Firmware | Čistá neblokující `SelectionSequence`, `SafetyController` s portem pro požadavky na bezpečný výstup, Stop/poruchu/zotavení, hostitelský timeout smyčky a vstup ztráty ručního lease; sériové `select 1..6`, `stop`, `reset`, `status`, `help`. Hostitelské testy a lokální Arduino/PlatformIO build E1.2. | Nezávislý fyzický watchdog/inhibit, GPIO, síťový detektor lease, provisioning, I2S, dialog a skutečné ovládání. |
 | Mobil | Statická obrazovka TypeScript/Vite, build script a lockfile. | Interaktivní ruční řízení, transport, simulátor, Capacitor, iOS/Swift projekt a testy. |
 | Backend/kontrakty/simulátor | Návrh v plánu. | Implementační adresáře, autentizace, fake/AI adaptéry, schémata a integrační testy. |
 | iOS CI | Majitelem popsaný existující postup Windows → macOS runner → podepsaná IPA. | Skutečný workflow v tomto checkoutu, ověřená identita/profil a běh/instalace. |
@@ -49,8 +49,8 @@ Přesné závislosti a kritéria dokončení jsou v kapitole 12 plánu. Následu
 | Etapa | Stav | Dokončený rozsah / důkaz | Zbytek nebo podmínka dalšího kroku |
 | --- | --- | --- | --- |
 | E0 – provozní předpoklady | rozpracováno | Architektonické výchozí předpoklady v plánu; žádná měření. | Vstupy B1–B5 níže; software E1 může začít. |
-| E1 – bezpečné jádro | rozpracováno | E1.1: Stop v každé fázi, safety port, 250/500/5000ms limity, explicitní zotavení; hostitelské testy a firmware build prošly (D1). | E1.2: model timeoutu řízení a výpadku lease/Stop; fyzická reakce watchdogu patří E5 a nebyla měřena. |
-| E2 – smlouvy a simulátor | nezahájeno | Pouze návrh kontraktů. | Navázat na E1; schémata, simulátor a negativní scénáře. |
+| E1 – bezpečné jádro | hotovo | E1.1: Stop v každé fázi, safety port, 250/500/5000ms limity, explicitní zotavení (D1). E1.2: hostitelský timeout průchodu smyčkou, porucha, výpadek ručního lease a přednost Stop; hostitelské testy a firmware build prošly (D2). | Fyzická reakce nezávislého watchdogu patří E5 a nebyla měřena; softwarový model vypíná až při dalším průchodu smyčkou. |
+| E2 – smlouvy a simulátor | nezahájeno | Pouze návrh kontraktů. | E2.1 schémata a fixtures; potom simulátor a negativní scénáře. |
 | E3 – ruční mobil bez HW | nezahájeno | Statická stránka není ruční řízení. | E2; UI, potvrzení/Stop a integrace. |
 | E3a – iOS CI základ | nezahájeno | Jen majitelem popsaný postup. | E3; B2/B3 pro podpis a skutečnou instalaci. |
 | E4 – runtime a přímá síť | nezahájeno | Arduino prototyp. | E2; pro nahrání B1. |
@@ -77,6 +77,15 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 | B5 | Majitel: finální katalog a publikum, rozměry, router a prostředí akce. | Obsahovou/provozní akceptaci E8/E11 a finální mechaniku. | Neutrální testovací katalog a laboratorní/simulované scénáře. |
 
 ## Deník změn a ověření
+
+### D2 – 29. 9. 2026 – E1.2 hostitelský timeout a ztráta řízení
+
+- Převzetí: čistý `main` na `f03a1a8`, E1.1 v kódu odpovídalo deníku D1. Krok E1.2 byl při zahájení zapsán jako aktivní.
+- Rozsah: `firmware/src/features/wand_selection/SelectionSequence.h/.cpp` rozlišuje samostatný a ruční původ výběru, při ztrátě ručního lease zastaví pouze ruční výběr a při mezeře řídicí smyčky 250 ms vyžádá Stop před dalším sériovým povelem. `firmware/src/features/safety/SafetyController.h/.cpp` uchovává poruchu do výslovného zotavení i při souběžném Stop. `src/main.cpp` provádí kontrolu mezery na začátku průchodu; firmware README popisuje hranici hostitelského modelu. Všechny výstupy zůstávají jen požadavky přes port bez GPIO.
+- Hostitelské ověření z `%TEMP%\dildovander-e1-validation-final`: `cmd /c '"C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Auxiliary\Build\vcvars64.bat" >nul && cl /nologo /std:c++14 /W4 /WX /EHsc C:\Development\DildoVander\kufr\firmware\src\features\safety\SafetyController.cpp C:\Development\DildoVander\kufr\firmware\src\features\wand_selection\SelectionSequence.cpp C:\Development\DildoVander\kufr\firmware\tests\selection_sequence_test.cpp /Fe:selection_sequence_test.exe'`, pak `.\selection_sequence_test.exe` — obojí úspěšně. Testy navíc pokryly výpadek lease ve všech fázích, bez vlivu na samostatný výběr, poruchu při aktivním motoru/západce, přednost Stop, zachování příznaku poruchy a timeout smyčky včetně přetečení času.
+- Firmware build z `kufr/firmware`: `& 'C:\Users\vojtech.petrik\.platformio\penv\Scripts\pio.exe' run` — **SUCCESS** na PlatformIO `espressif32@7.1.3`/Arduino; 18 660 B RAM a 270 493 B flash. `git diff --check` bez chyb. Pomocné `.obj` z prvního hostitelského buildu byly odstraněny, zdroje nebyly dotčeny.
+- Revize a doručení: změny jsou připravené pro commit a push tohoto slice; skutečné SHA a výsledek doplnit po doručení. Nenahrávalo se do desky. Softwarová kontrola mezery vypne výstup až při návratu do smyčky; při úplném zamrznutí musí vypnout nezávislý fyzický watchdog/inhibit. To je neověřená podmínka E5/B1, nikoli důkaz E1.2.
+- Předání: softwarová kritéria E1 kapitoly 12 jsou hostitelsky doložena; další je E2.1 podle horní části souboru.
 
 ### D1 – 29. 9. 2026 – E1.1 Stop a bezpečnostní požadavky bez desky
 

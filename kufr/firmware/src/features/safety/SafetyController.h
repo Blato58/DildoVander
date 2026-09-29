@@ -12,8 +12,10 @@ class SafetyController {
 
   void InitializeSafe();
   bool Stop();
+  bool ReportFault();
 
   bool IsStopped() const;
+  bool IsFaulted() const;
   bool NeedsRecovery() const;
 
  private:
@@ -31,6 +33,7 @@ class SafetyController {
     Ready,
     Running,
     Stopped,
+    Fault,
   };
 
   enum class Output : uint8_t {
@@ -42,5 +45,6 @@ class SafetyController {
   SafetyPort& port_;
   State state_ = State::RecoveryRequired;
   Output output_ = Output::Off;
+  bool faultLatched_ = false;
   uint8_t compartment_ = 0;
 };

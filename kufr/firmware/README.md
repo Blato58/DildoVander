@@ -28,7 +28,7 @@ src/
   features/
     safety/
       SafetyPort.h                          požadavky na vypnutí/pohony
-      SafetyController.h/.cpp               stop latch a vzájemné vyloučení výstupů
+      SafetyController.h/.cpp               Stop/porucha a vzájemné vyloučení výstupů
     wand_selection/
       SelectionSequence.h/.cpp              čistá, časovaná posloupnost
       SerialSelectionPort.h/.cpp            vývojové příkazy a výpis požadavků
@@ -47,6 +47,14 @@ Stop vyžádá vypnutí pohonů okamžitě bez čekání na další `Update()` a
 uvolňování se nepokouší vrátit západku. Provozní motorový pulz trvá 150 ms;
 při zpožděném průchodu od 250 ms, uvolňování od 500 ms nebo celé sekvenci od
 5 s jádro zastaví. `SafetyController` brání souběhu motoru a západky.
+Průchod řídicí smyčkou hlídá mezeru 250 ms a při jejím dosažení vyžádá Stop
+před zpracováním dalšího sériového příkazu. Model umí samostatně přijmout
+poruchu a ztrátu ručního lease; ta zastaví jen výběr spuštěný v ručním režimu,
+nikoli samostatný výběr při odpojení pozorovatele. Porucha zůstane odlišená od
+Stop a oba stavy vyžadují kontrolu a výslovné zotavení. Tyto vstupy jsou zatím
+hostitelský model bez síťového detektoru. Software rozpozná zaseknutí smyčky
+až při dalším průchodu; nezávislé vypnutí při úplném zamrznutí musí zajistit
+budoucí hardwarový watchdog a inhibit.
 Časování je zatím výchozí pro prototyp; délku pulzů a polohu serva
 bude třeba doladit podle skutečné mechaniky a měření proudu.
 
@@ -85,7 +93,8 @@ g++ -std=c++11 -Wall -Wextra -Werror src/features/safety/SafetyController.cpp sr
 
 Test pokrývá pořadí a časování kroků, neplatný či souběžný výběr, Stop v každé
 fázi, opakovaný Stop, explicitní zotavení, přetočení časovače, zpožděný průchod
-smyčkou a vzájemné vyloučení výstupů. Nepotřebuje ESP32 ani knihovnu Arduino.
+smyčkou, poruchu, ztrátu ručního lease a vzájemné vyloučení výstupů. Nepotřebuje
+ESP32 ani knihovnu Arduino.
 Na Windows lze použít také Visual Studio Developer Command Prompt a `cl`.
 
 ## Další slices a podmínky zapojení
