@@ -6,19 +6,23 @@
 int main() {
   ConversationTextInbox inbox;
   std::string text;
-  assert(!inbox.Submit(""));
-  assert(!inbox.Submit(" \t\n"));
-  assert(!inbox.Submit(std::string(4001, 'a')));
-  assert(!inbox.Submit("\xc0\xaf"));
-  assert(inbox.Submit("Prvni tah"));
-  assert(!inbox.Submit("Druhy tah"));
-  assert(inbox.Take(text));
+  uint64_t snapshotVersion = 0;
+  assert(!inbox.Submit("", 1));
+  assert(!inbox.Submit(" \t\n", 1));
+  assert(!inbox.Submit(std::string(4001, 'a'), 1));
+  assert(!inbox.Submit("\xc0\xaf", 1));
+  assert(!inbox.Submit("Prvni tah", 0));
+  assert(inbox.Submit("Prvni tah", 1));
+  assert(!inbox.Submit("Druhy tah", 1));
+  assert(inbox.Take(text, snapshotVersion));
   assert(text == "Prvni tah");
-  assert(!inbox.Take(text));
-  assert(inbox.Submit("Po odpojeni zahodit"));
+  assert(snapshotVersion == 1);
+  assert(!inbox.Take(text, snapshotVersion));
+  assert(inbox.Submit("Po odpojeni zahodit", 2));
   inbox.Clear();
-  assert(!inbox.Take(text));
-  assert(inbox.Submit("Novy tah"));
-  assert(inbox.Take(text));
+  assert(!inbox.Take(text, snapshotVersion));
+  assert(inbox.Submit("Novy tah", 3));
+  assert(inbox.Take(text, snapshotVersion));
   assert(text == "Novy tah");
+  assert(snapshotVersion == 3);
 }

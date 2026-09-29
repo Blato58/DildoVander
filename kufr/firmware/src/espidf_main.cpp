@@ -9,6 +9,7 @@
 #include "features/device_control/EspIdfJournalStorage.h"
 #include "features/device_control/PersistentCommandJournal.h"
 #include "features/backend_access/EspIdfBackendNetwork.h"
+#include "features/conversation/ConversationRuntimeState.h"
 #include "features/provisioning/DeviceIdentity.h"
 #include "features/provisioning/EspIdfProvisioningStorage.h"
 #include "features/safety/SafetyController.h"
@@ -68,7 +69,12 @@ extern "C" void app_main() {
   } else if (!identity.IsProvisioned()) {
     ESP_LOGW(LogTag, "Device identity not provisioned; network stays offline");
   }
-  EspIdfBackendNetwork backendNetwork(identity, journal);
+  // With no live control adapter, the journal supplies the only available
+  // state. Later control transitions must publish their coherent snapshot.
+  ConversationRuntimeState runtimeState(
+      journal.IsHealthy() && !journal.HasPending(), journal.ReadyMask(),
+      "neutral-1");
+  EspIdfBackendNetwork backendNetwork(identity, runtimeState);
   if (!backendNetwork.Start(nvsStatus == ESP_OK)) {
     ESP_LOGW(LogTag, "Backend network not configured; stays offline");
   }
