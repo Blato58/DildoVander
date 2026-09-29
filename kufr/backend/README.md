@@ -210,8 +210,30 @@ Environment je omezený na větev `main`; podle potřeby nastav požadované
 schválení. Při změně secrets spusť workflow znovu; běžící služba se sama
 nepřekonfiguruje. Klíč nevkládej do chatu, repozitáře ani mobilní aplikace.
 
-Služba poslouchá pouze `http://127.0.0.1:5080`. Samotná IP adresa bez
-ověřeného certifikátu nestačí pro firmware HTTPS klienta. Veřejnou TLS
-terminaci, DNS/certifikát a firewall je nutné připravit zvlášť; port 5080
-nemá být veřejně otevřený. Pro kontrolu na serveru použij
+Služba poslouchá pouze `http://127.0.0.1:5080`; port 5080 nemá být veřejně
+otevřený. Pro kontrolu na serveru použij
 `curl -fsS http://127.0.0.1:5080/healthz` a `systemctl status kufr-backend`.
+
+### Veřejné HTTPS na IP adrese
+
+Workflow **Kufr backend IP HTTPS** na `main` má ruční režim `stage`, který
+na serverovém runneru připraví přesně commitované soubory z
+`deploy/ip-https/` v soukromém adresáři a vypíše cestu a SHA-256. Skript se
+automaticky nespustí s root právy. Správce ověří hash a spustí jej v root
+shellu jako `sudo bash CESTA/bootstrap-ip-https.sh 2.28.202.220`.
+Předpoklady: běžící loopback backend, volné porty 80/443 a příchozí TCP
+80/443 povolené i ve firewallu poskytovatele. Skript odmítne cizí Nginx site,
+nainstaluje Nginx a Certbot 5.4+ ze snapu, vystaví veřejně důvěryhodný
+krátkodobý certifikát s IP SAN přes HTTP-01 webroot a zapne HTTPS proxy.
+Port 80 slouží obnově certifikátu a jinak přesměrovává na HTTPS. Nginx
+nikdy neposílá provoz přímo na veřejný port backendu.
+
+`kufr-cert-renew.timer` kontroluje obnovu dvakrát denně; deploy hook po
+obnově otestuje a znovu načte Nginx. Bootstrap ověří lokální důvěru TLS,
+IP SAN a zkušební obnovu. Režim workflow `verify` z GitHub runneru ověří
+veřejné `https://IP/healthz`, důvěru IP certifikátu, alespoň 48 hodin
+platnosti a HTTP přesměrování. Stejná kontrola běží denně s repository
+variable `KUFR_BACKEND_PUBLIC_IPV4`. Bez úspěšného veřejného běhu se B4
+nepovažuje za ověřené. Certifikát je krátkodobý, proto je průběžná obnova
+součástí provozu. Při chybě lze zastavit jen Nginx (`systemctl stop nginx`);
+backend zůstane dostupný na loopbacku pro runner/deploy diagnostiku.
