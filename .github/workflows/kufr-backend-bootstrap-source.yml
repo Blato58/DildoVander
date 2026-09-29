@@ -1,0 +1,28 @@
+name: Kufr backend bootstrap source
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stage:
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Linux, X64, kufr-backend]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Stage reviewed bootstrap for the server administrator
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_file=kufr/backend/deploy/bootstrap-ubuntu.sh
+          test -f "$source_file"
+          stage_dir="$(mktemp -d "$HOME/kufr-bootstrap.XXXXXXXX")"
+          stage_file="$stage_dir/bootstrap-ubuntu.sh"
+          install -m 0400 "$source_file" "$stage_file"
+          echo "commit=$GITHUB_SHA"
+          echo "stage_file=$stage_file"
+          sha256sum "$stage_file"
+          echo 'An administrator must verify the hash and run the script manually.'
