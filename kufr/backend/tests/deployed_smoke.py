@@ -64,6 +64,9 @@ def main():
 
     expectation = os.environ.get("DIALOG_EXPECTATION", "fake")
     check(expectation in {"fake", "responses"}, "invalid_dialog_expectation")
+    catalog_version = (
+        "ollivander-private-party-v1" if expectation == "responses" else "neutral-1"
+    )
     device_id = os.environ.get("DEVICE_ID")
     credential = os.environ.get("DEV_DEVICE_CREDENTIAL")
     check(bool(device_id and credential), "development_identity_missing")
@@ -82,7 +85,7 @@ def main():
         "deviceId": device_id,
         "bootId": boot_id,
         "generation": 0,
-        "catalogVersion": "neutral-1",
+        "catalogVersion": catalog_version,
         "locale": "cs-CZ",
         "consent": {"audio": False, "image": False},
     }
@@ -111,7 +114,7 @@ def main():
             "text": visitor_text,
             "readyMask": 1,
             "deviceRevision": 0,
-            "catalogVersion": "neutral-1",
+            "catalogVersion": catalog_version,
         }
         turn_key = str(uuid4())
         status, accepted = call("POST", turn_path, bearer=token, key=turn_key, body=turn_body)

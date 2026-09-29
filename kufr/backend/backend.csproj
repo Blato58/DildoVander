@@ -10,6 +10,7 @@
     <InternalsVisibleTo Include="BackendTests" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
     <EmbeddedResource Include="../ai-eval/prompt.txt" LogicalName="Kufr.Backend.PartyPrompt" />
+    <EmbeddedResource Include="../ai-eval/wand-catalog.json" LogicalName="Kufr.Backend.PartyWandCatalog" />
   </ItemGroup>
 
 </Project>
