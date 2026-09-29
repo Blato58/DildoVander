@@ -21,6 +21,20 @@ server {
     ssl_protocols TLSv1.2 TLSv1.3;
     client_max_body_size 4m;
 
+    location ^~ /ios/ {
+        alias /var/www/kufr-ios/;
+        index index.html;
+        autoindex off;
+        add_header Cache-Control "no-store" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        types {
+            text/html html;
+            text/xml plist;
+            application/octet-stream ipa;
+            text/plain sha256;
+        }
+    }
+
     location / {
         proxy_pass http://127.0.0.1:5080;
         proxy_http_version 1.1;
