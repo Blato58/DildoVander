@@ -18,6 +18,7 @@ idf_component_register(
         "features/conversation/ConversationTextCodec.cpp"
         "features/conversation/EspIdfConversationStartTransport.cpp"
         "features/conversation/EspIdfConversationTextTransport.cpp"
+        "features/conversation/EspIdfTurnPollTransport.cpp"
         "features/conversation/OperationAcceptedCodec.cpp"
         "features/conversation/TurnPollGuard.cpp"
         "features/conversation/TurnOperationCodec.cpp"
