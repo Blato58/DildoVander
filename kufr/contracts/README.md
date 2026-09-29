@@ -78,3 +78,12 @@ a kladné/chybné HTTP struktury přes AJV. WAV byte stream zde není dekódová
 hlavičky, délku a PCM formát musí ověřit backendový upload parser. Jde o kontrolu dokumentu,
 nikoli o integrační test skutečného backendu nebo důkaz vynucení scope,
 idempotence, kvót a retence v běžící službě.
+
+`media-frame-v1.mjs` kóduje a čte binární `KF` rámec z kapitoly 7 plánu.
+`MediaStreamVerifier` hlídá jeden domluvený stream, 0-based pořadí chunků,
+limity 4096 B na payload a 1,92 MB PCM capture / 2 MiB PCM playback /
+512 KiB JPEG na celé médium, 1 s bez pokroku a konečný SHA-256. Při chybě
+stream uzavře bez možnosti pokračovat; neukládá obsah média. Nyní jde o
+čistý hostitelský parser/test, bez WSS media socketu, audio driveru,
+alokací PSRAM či HTTP uploadu. Konec streamu musí přijít až po úplné délce;
+samotný hash není oprávnění k přehrání.
