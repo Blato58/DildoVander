@@ -1,6 +1,6 @@
 # Mobilní ovládání kufru
 
-Současný kód nabízí vývojovou webovou obrazovku E3.1 se šesti přihrádkami, ručním převzetím, potvrzením výběru/založení a Stop nad místním fake stavem. Stránka je výslovně označena jako simulace; nepřipojuje se ke kufru ani k E2 WSS simulátoru. Capacitor a nativní iOS projekt zatím nejsou. Zvolenou architekturu určuje [implementační plán](../docs/implementacni-plan.md), skutečný postup a předání [stav implementace](../docs/stav-implementace.md).
+Současný kód nabízí vývojovou webovou obrazovku se šesti přihrádkami, ručním převzetím, potvrzením výběru/založení a Stop. Přes Vite používá místní fake stav; přes E3.2a vývojový most komunikuje s E2 C++ simulátorem. Oba režimy jsou výslovně označené. Žádný z nich se nepřipojuje k fyzickému kufru. Capacitor a nativní iOS projekt zatím nejsou. Zvolenou architekturu určuje [implementační plán](../docs/implementacni-plan.md), skutečný postup a předání [stav implementace](../docs/stav-implementace.md).
 
 ## Cílová role aplikace
 
@@ -23,13 +23,16 @@ Kontrola sestavení:
 
 ```text
 npm run build
+npm test
 ```
 
-Build provádí `tsc --noEmit && vite build`; neověřuje iOS podpis, LAN ani fyzický kufr. Ve webovém fake režimu lze převzít řízení, potvrdit výběr nebo založení 1–6 a vyzkoušet Stop. Ztráta viditelnosti stránky uvolní fake lease; rozběhnutý výběr skončí jako nejistý a vyžaduje výslovnou simulovanou kontrolu. Stav se neukládá přes reload stránky. Zatím není testovací script ani příkaz pro native build.
+Build provádí `tsc --noEmit && vite build`; test kontroluje nové lease, opakování totožného příkazu, chybějící výsledek a rekonciliaci po odpojení. Ani jedna kontrola neověřuje iOS podpis, LAN nebo fyzický kufr. Ve webovém fake režimu lze převzít řízení, potvrdit výběr nebo založení 1–6 a vyzkoušet Stop. Ztráta viditelnosti stránky uvolní fake lease; rozběhnutý výběr skončí jako nejistý a vyžaduje výslovnou simulovanou kontrolu. Stav se neukládá přes reload stránky.
+
+Pro E2 simulátor nejprve sestavte mobilní web pomocí `npm run build`, spusťte E2 WSS server a pak místní most podle [návodu simulátoru](../simulator/README.md). Stránka na `http://127.0.0.1:5174` vybere simulátor podle odpovědi `/dev-mode`; Vite stránka zůstává na fake adaptéru. Web nevidí bearer token ani certifikát upstreamu. Po ztrátě spojení zablokuje povely a ukáže nedostupný stav; nejasný výsledek předchozího výběru vyžaduje kontrolu mimo UI. Snapshot a ACK simulátoru nejsou důkaz fyzického otevření. Native build zatím nemá příkaz.
 
 ## Etapy a vzdálený iOS build
 
-E3 dodá ruční UI proti simulátoru E2. E3a přidá nativní projekt a CI; E10 dokončí native TLS/discovery a skutečnou mobilní zálohu. Pouhé UI proti fake adaptéru není dokončením E3 ani hardwarovým ověřením.
+E3a přidá nativní projekt a CI; E10 dokončí native TLS/discovery a skutečnou mobilní zálohu. Úspěšné UI proti E2 simulátoru není hardwarovým ani iPhone ověřením.
 
 Majitel popsal fungující postup Windows → GitHub → macOS/Xcode → testy → dočasný keychain s `.p12` a provisioning profilem ze Secrets → podepsaná IPA artifact → volitelný Release/Pages/feed/OTA/ntfy → úklid vždy. **V tomto checkoutu žádné workflow zatím není.** Při E3a převzít jeho skutečný zdroj a zachovat kompatibilní ověřený postup; nevydávat tento popis za dokončené CI.
 
