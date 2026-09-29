@@ -74,7 +74,11 @@ přežijí restart. Po restartu je starý conversationId pouze identitou retry;
 obsah sezení z RAM zmizel a nový rozhovor vyžaduje nový key. Migrace v1/v2→v3
 je dopředná a přidává pouze tabulky/indexy. Nákladový rozpočet placených
 operací zatím chybí.
-Limity placených operací, časovaný cleanup,
-rušení operací a retenci doplní další E7 slices. Backend zatím
+`RetentionWorker` každou minutu smaže expirované paměťové sezení/výsledky,
+granty a 24hodinové technické SQLite záznamy. Sezení trvá nejvýše
+15 minut nečinnosti a 30 minut od vytvoření. Ztracený výsledek se znovu
+nevytváří; polling vrátí `result_expired`. Explicitní rušení operací,
+nákladové limity placených volání a zbývající HTTP trasy doplní další E7
+slices. Backend zatím
 nesmí být použit pro placené tahy nebo veřejný provoz. Stav a další krok
 jsou v `../docs/stav-implementace.md`.

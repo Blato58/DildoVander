@@ -4,6 +4,7 @@ using Kufr.Backend.Features.Access;
 using Kufr.Backend.Features.Conversations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging.Abstractions;
 
 var clock = new AdjustableTimeProvider(new DateTimeOffset(2026, 9, 29, 10, 0, 0, TimeSpan.Zero));
 var databaseDirectory = Path.Combine(Path.GetTempPath(), $"kufr-backend-tests-{Guid.NewGuid():N}");
@@ -29,8 +30,13 @@ var turnBody = Encoding.UTF8.GetBytes("turn-body");
 var turnKey = Guid.NewGuid();
 var accepted = conversations.SubmitTurn("device-a", conversationId, turnKey, turnBody, turn);
 Require(accepted.Status == 202 && accepted.OperationId is not null, "fake turn acceptance");
+Require(conversations.GetOperation("device-a", accepted.OperationId!).Operation?.Status == "completed",
+    "fake result available during live session");
 
 clock.Advance(TimeSpan.FromMinutes(15));
+conversations.SweepExpired();
+Require(conversations.GetOperation("device-a", accepted.OperationId!).Operation?.Status == "failed",
+    "fake result removed at idle expiry");
 var replay = conversations.SubmitTurn("device-a", conversationId, turnKey, turnBody, turn);
 Require(replay.OperationId == accepted.OperationId, "idempotent retry after idle expiry");
 var replacement = conversations.Create("device-a", Guid.NewGuid(), body, request);
@@ -141,6 +147,43 @@ Require(liveTurn.OperationId is not null
 clock.Advance(TimeSpan.FromHours(24));
 Require(restartedStore.GetOperation("device-a", liveTurn.OperationId!).Status == 404,
     "cached fake result expires with journal");
+restartedJournal.PurgeExpired();
+using (var retainedConnection = new SqliteConnection($"Data Source={Path.Combine(databaseDirectory, "journal.sqlite")}"))
+{
+    retainedConnection.Open();
+    foreach (var table in new[]
+    {
+        "turn_operations",
+        "turn_idempotency",
+        "conversation_turn_usage",
+        "conversation_creates"
+    })
+    {
+        using var count = retainedConnection.CreateCommand();
+        count.CommandText = $"SELECT COUNT(*) FROM {table}";
+        Require((long)count.ExecuteScalar()! == 0, $"expired {table} removed");
+    }
+}
+
+var maxLifeRequest = request with { DeviceId = "device-b" };
+var maxLifeSession = restartedStore.Create("device-b", Guid.NewGuid(), body, maxLifeRequest);
+Require(maxLifeSession.Response is not null, "absolute lifetime session created");
+clock.Advance(TimeSpan.FromMinutes(14));
+Require(restartedStore.SubmitTurn(
+    "device-b", maxLifeSession.Response!.ConversationId, Guid.NewGuid(), turnBody,
+    turn with { ClientTurnId = Guid.NewGuid() }).Status == 202,
+    "turn before first idle deadline");
+clock.Advance(TimeSpan.FromMinutes(14));
+Require(restartedStore.SubmitTurn(
+    "device-b", maxLifeSession.Response.ConversationId, Guid.NewGuid(), turnBody,
+    turn with { ClientTurnId = Guid.NewGuid() }).Status == 202,
+    "turn before absolute deadline");
+clock.Advance(TimeSpan.FromMinutes(2));
+restartedStore.SweepExpired();
+Require(restartedStore.SubmitTurn(
+    "device-b", maxLifeSession.Response.ConversationId, Guid.NewGuid(), turnBody,
+    turn with { ClientTurnId = Guid.NewGuid() }).Status == 404,
+    "conversation cannot exceed 30 minutes");
 
 var migrationPath = Path.Combine(databaseDirectory, "legacy-v1.sqlite");
 var legacyOperationId = Guid.NewGuid().ToString("D");
@@ -244,6 +287,49 @@ using (var versionThreeJournal = new OperationJournal(versionTwoConfiguration, c
         "populated v2 quota survives v3 migration");
     Require(versionThreeJournal.ReserveCreate("device-a", Guid.NewGuid(), "hash").Response is not null,
         "v3 create table available after v2 migration");
+}
+
+var workerClock = new AdjustableTimeProvider(new DateTimeOffset(2026, 9, 29, 10, 0, 0, TimeSpan.Zero));
+var workerDatabasePath = Path.Combine(databaseDirectory, "worker.sqlite");
+var workerConfiguration = new ConfigurationBuilder()
+    .AddInMemoryCollection(new Dictionary<string, string?>
+    {
+        ["Backend:DatabasePath"] = workerDatabasePath,
+        ["Backend:RetentionSweepSeconds"] = "1"
+    })
+    .Build();
+using (var workerJournal = new OperationJournal(workerConfiguration, workerClock))
+{
+    var workerStore = new ConversationStore(workerClock, workerJournal);
+    var workerSession = workerStore.Create("device-a", Guid.NewGuid(), body, request);
+    Require(workerSession.Response is not null, "worker fixture session");
+    var workerTurn = workerStore.SubmitTurn(
+        "device-a", workerSession.Response!.ConversationId, Guid.NewGuid(), turnBody,
+        turn with { ClientTurnId = Guid.NewGuid() });
+    Require(workerTurn.Status == 202 && workerStore.CachedOperationCount == 1,
+        "worker fixture cached result");
+    workerClock.Advance(TimeSpan.FromHours(24));
+
+    using var worker = new RetentionWorker(
+        workerClock,
+        new DeviceAccessStore(workerConfiguration, workerClock),
+        workerStore,
+        workerJournal,
+        workerConfiguration,
+        NullLogger<RetentionWorker>.Instance);
+    await worker.StartAsync(CancellationToken.None);
+    for (var attempt = 0; attempt < 30 && workerStore.CachedOperationCount != 0; attempt++)
+    {
+        await Task.Delay(100);
+    }
+    Require(workerStore.CachedOperationCount == 0, "hosted worker clears RAM without traffic");
+    await worker.StopAsync(CancellationToken.None);
+
+    using var workerConnection = new SqliteConnection($"Data Source={workerDatabasePath}");
+    workerConnection.Open();
+    using var count = workerConnection.CreateCommand();
+    count.CommandText = "SELECT COUNT(*) FROM turn_operations";
+    Require((long)count.ExecuteScalar()! == 0, "hosted worker clears SQLite without traffic");
 }
 
 var duplicateConfiguration = new ConfigurationBuilder()

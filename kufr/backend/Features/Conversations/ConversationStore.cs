@@ -8,6 +8,17 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
     private readonly Dictionary<string, ConversationEntry> conversations = new(StringComparer.Ordinal);
     private readonly Dictionary<string, TurnOperation> operations = new(StringComparer.Ordinal);
 
+    internal int CachedOperationCount
+    {
+        get
+        {
+            lock (gate)
+            {
+                return operations.Count;
+            }
+        }
+    }
+
     public CreateResult Create(string deviceId, Guid key, ReadOnlySpan<byte> requestBody, CreateConversationRequest request)
     {
         var now = clock.GetUtcNow();
@@ -155,6 +166,7 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
     {
         lock (gate)
         {
+            CleanupExpired(clock.GetUtcNow());
             var recorded = journal.GetOperation(deviceId, operationId);
             if (recorded.Status != 200)
             {
@@ -172,11 +184,26 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
         }
     }
 
+    public void SweepExpired()
+    {
+        lock (gate)
+        {
+            CleanupExpired(clock.GetUtcNow());
+        }
+    }
+
     private void CleanupExpired(DateTimeOffset now)
     {
         foreach (var key in conversations.Where(pair => pair.Value.ExpiresAt <= now).Select(pair => pair.Key).ToArray())
         {
             conversations.Remove(key);
+            foreach (var operationId in operations
+                .Where(pair => pair.Value.Correlation.ConversationId == key)
+                .Select(pair => pair.Key)
+                .ToArray())
+            {
+                operations.Remove(operationId);
+            }
         }
 
 

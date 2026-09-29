@@ -304,6 +304,23 @@ internal sealed class OperationJournal : IDisposable
         }
     }
 
+    public void PurgeExpired()
+    {
+        using var connection = Open();
+        using var transaction = connection.BeginTransaction();
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            DELETE FROM turn_idempotency WHERE expires_at_ms <= $now;
+            DELETE FROM turn_operations WHERE expires_at_ms <= $now;
+            DELETE FROM conversation_turn_usage WHERE expires_at_ms <= $now;
+            DELETE FROM conversation_creates WHERE record_expires_at_ms <= $now;
+            """;
+        command.Parameters.AddWithValue("$now", clock.GetUtcNow().ToUnixTimeMilliseconds());
+        command.ExecuteNonQuery();
+        transaction.Commit();
+    }
+
     public GetOperationResult GetOperation(string deviceId, string operationId)
     {
         using var connection = Open();

@@ -6,11 +6,11 @@ Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**Aktivní implementační krok:** E7.4 – ukončení, zrušení a časovaná retence. E7.1–2 založily ASP.NET Core 10 backend, fake sezení a typovanou fake operaci. E7.3a–c přidaly SQLite turn/create idempotenci, atomickou kvótu deseti tahů a restart jedné instance (D25–D27). Nákladový rozpočet a placená AI chybí. E2/E3 jsou dokončené v hostitelském/simulátorovém rozsahu. Fyzické nezávislé vypnutí a měření zůstávají kritérii E5.
+**Aktivní implementační krok:** E7.4b – explicitní ukončení sezení a zrušení operace. E7.1–2 založily ASP.NET Core 10 backend a fake dialog; E7.3a–c přidaly SQLite turn/create idempotenci, kvótu a restart; E7.4a přidala časovanou retenci RAM a technických záznamů (D23–D28). Nákladový rozpočet a placená AI chybí. E2/E3 jsou dokončené v hostitelském/simulátorovém rozsahu. Fyzické nezávislé vypnutí a měření zůstávají kritérii E5.
 
-**Další konkrétní krok: E7.4 – cleanup a cancellation.**
+**Další konkrétní krok: E7.4b – DELETE a cancellation.**
 
-1. Přidat `DELETE /v1/conversations/{id}` a `DELETE /v1/operations/{id}` s device scope, idempotency key a konzervativním zrušením. Vyčistit RAM text/výsledky po ukončení a po 15 minutách nečinnosti, absolutně po 30 minutách; průběžně čistit 24h technické záznamy v SQLite. Ověřit řízeným časem, že obsah po timeoutu a restartu není čitelný.
+1. Přidat `DELETE /v1/conversations/{id}` a `DELETE /v1/operations/{id}` s device scope, idempotency key a konzervativním zrušením. Po explicitním ukončení vyčistit RAM výsledky, nepotvrzovat zrušení již účtovatelného volání jako refundaci. Ověřit cizí scope, opakování a restart.
 2. Doplnit zbývající HTTP fake trasy a nákladovou rezervaci před prvním placeným voláním. E7 neoznačovat za hotové, dokud nejsou splněna všechna integrační kritéria v kapitole 12.
 3. Fyzická HW akceptace zůstává v E5 po vstupu B1; nativní iOS E3a čeká na B2/B3. Nezaměnit fake log s NVS ani fake odpověď se skutečnou AI.
 
@@ -36,7 +36,7 @@ Pokud uživatel omezí práci pouze na mobilní aplikaci, neoznačuj závislosti
 | --- | --- | --- |
 | Firmware | Čistá neblokující `SelectionSequence`/`SafetyController` z E1, nezapojený `DeviceControl` s fake clock vstupy, 64 výsledky a `CommandJournal` portem E2.2, čistý `ConversationSession` s generací a stropem 10 tahů E2.8b1. Sériové `select 1..6`, `stop`, `reset`, `status`, `help` zůstává vývojovým vstupem. Hostitelské testy a lokální Arduino/PlatformIO build prošly. | Nezávislý fyzický watchdog/inhibit, skutečný NVS journal/GPIO/síťový detektor lease, provisioning, I2S, propojení dialogu a ovládání. |
 | Mobil | TypeScript/Vite webová obrazovka se šesti přihrádkami, potvrzením, Stop a místním fake režimem; E3.2b adaptér přes E3.2a most proti E2 C++ simulátoru, cílené testy spojení a build. | Capacitor, iOS/Swift projekt a fyzický iPhone test. |
-| Backend/kontrakty/simulátor | E7.1–2 ASP.NET Core 10 s device tokenem, fake sezením/textovým tahem; E7.3a–c SQLite turn/create idempotence, restart a kvóta (D23–D27). Lokální protokol, C++ simulátor, TLS WSS facade, časová osa, OpenAPI, reload a fake média E2. | Nákladový rozpočet, retence, zrušení a zbývající trasy, skutečný AI/audio adaptér dalších etap. |
+| Backend/kontrakty/simulátor | E7.1–2 ASP.NET Core 10 s device tokenem, fake sezením/textovým tahem; E7.3a–c SQLite turn/create idempotence, restart a kvóta; E7.4a retence (D23–D28). Lokální protokol, C++ simulátor, TLS WSS facade, časová osa, OpenAPI, reload a fake média E2. | Nákladový rozpočet, explicitní zrušení a zbývající trasy, skutečný AI/audio adaptér dalších etap. |
 | iOS CI | Majitelem popsaný existující postup Windows → macOS runner → podepsaná IPA. | Skutečný workflow v tomto checkoutu, ověřená identita/profil a běh/instalace. |
 | Hardware | Dodaný obrázek pinů, návrh napájení a předběžné profily A/B. | Revize konkrétní desky, schéma bezpečnostní větve, měření a fyzická akceptace. |
 
@@ -56,7 +56,7 @@ Přesné závislosti a kritéria dokončení jsou v kapitole 12 plánu. Následu
 | E4 – runtime a přímá síť | nezahájeno | Arduino prototyp. | E2; pro nahrání B1. |
 | E5 – jedna bezpečná přihrádka | nezahájeno | Bez ovládání a měření. | E0/E1/E4; B1, fyzická akceptace. |
 | E6 – šest přihrádek | nezahájeno | Bez fyzického ověření. | E5; cykly, proudy, dostupnost/reload. |
-| E7 – backend bez skutečné AI | rozpracováno | E7.1–2 identity, tokeny, fake sezení/tah, scope; E7.3a–c SQLite turn/create 24h idempotence, restart jedné instance a atomická kvóta 10 tahů; HTTP/SQLite testy (D23–D27). | Nákladový rozpočet, cleanup/retence, zrušení/zbývající trasy; integrační testy všech kritérií etapy. |
+| E7 – backend bez skutečné AI | rozpracováno | E7.1–2 identity, fake sezení/tah; E7.3a–c SQLite idempotence, restart a kvóta; E7.4a časovaný cleanup/retence; HTTP/SQLite testy (D23–D28). | Nákladový rozpočet, explicitní zrušení/zbývající trasy; integrační testy všech kritérií etapy. |
 | E8 – skutečný textový dialog | nezahájeno | Bez adaptéru a evaluace. | E2/E7, na desce E4; B4/B5 před placenou akceptací. |
 | E9 – samostatný hlas kufru | nezahájeno | Bez audio cesty. | E4/E5/E8; hardware a hlasová akceptace. |
 | E10 – dokončení mobilní zálohy | nezahájeno | Bez native transportu. | E3/E3a/E4/E8; audio po E9; skutečný iPhone. |
@@ -77,6 +77,13 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 | B5 | Majitel: finální katalog a publikum, rozměry, router a prostředí akce. | Obsahovou/provozní akceptaci E8/E11 a finální mechaniku. | Neutrální testovací katalog a laboratorní/simulované scénáře. |
 
 ## Deník změn a ověření
+
+### D28 – 29. 9. 2026 – E7.4a časovaná retence
+
+- Rozsah: `RetentionWorker` každou minutu spouští cleanup grantů, paměťových sezení/výsledků a 24hodinových technických SQLite záznamů. `ConversationStore` nyní odstraňuje fake výsledek při 15minutovém idle timeoutu a nanejvýš po 30 minutách od vytvoření sezení; polling pak vrací `failed/result_expired` bez opakování fake/provider práce. `GET /v1/operations` také provádí konzervativní kontrolu expirace při čtení. SQLite cleanup běží v transakci; selhání sweep se loguje jen typem chyby, nikoli obsahem požadavku.
+- Ověření: `kufr/backend` `dotnet build backend.csproj` bez varování; `kufr` `dotnet run --project backend-tests/BackendTests.csproj` s řízeným časem ověřil dostupnost výsledku v živém sezení, vymazání po 15 minutách, absolutní strop 30 minut i fyzické smazání všech čtyř technických tabulek po 24 hodinách. Test navíc spustil skutečný `RetentionWorker` s testovacím 1s intervalem, po posunu hodin bez klientského provozu ověřil odstranění RAM výsledku i SQLite záznamu a korektní zastavení služby. `node backend/tests/smoke.mjs` znovu prošel nad HTTP hostem.
+- Omezení: explicitní DELETE/cancellation dosud není; RAM obsahu se po době životnosti odstraní reference, nikoli zaručeně přepíší všechny kopie v .NET heapu. Výsledky fake neobsahují návštěvnický text. Obnova workera po selhání jednotlivého sweep nebyla injekčně testována; kód selhání zaloguje typem a pokračuje. Nákladové limity a zbylé trasy jsou otevřené.
+- Revize a doručení: doplnit po ověřeném commitu a skutečném výsledku push.
 
 ### D27 – 29. 9. 2026 – E7.3c trvalá idempotence založení sezení
 
