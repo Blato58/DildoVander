@@ -1,8 +1,21 @@
 #include <stdint.h>
 
+#include <cerrno>
+#include <fstream>
 #include <iostream>
+#include <iterator>
 #include <sstream>
 #include <string>
+
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#else
+#include <fcntl.h>
+#include <sys/file.h>
+#include <unistd.h>
+#endif
 
 #include "../firmware/src/features/device_control/DeviceControl.h"
 #include "../firmware/src/features/safety/SafetyController.h"
@@ -77,14 +90,67 @@ class BridgePort : public SafetyPort {
   bool latchOn_ = false;
 };
 
+bool ReadEnd(std::istringstream& input);
+
+class JournalLock {
+ public:
+  explicit JournalLock(const std::string& journalPath) {
+    const std::string lockPath = journalPath + ".lock";
+#ifdef _WIN32
+    handle_ = CreateFileA(lockPath.c_str(), GENERIC_READ | GENERIC_WRITE, 0,
+                          nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    owns_ = handle_ != INVALID_HANDLE_VALUE;
+    newlyCreated_ = owns_ && GetLastError() != ERROR_ALREADY_EXISTS;
+#else
+    const bool existed = access(lockPath.c_str(), F_OK) == 0;
+    fileDescriptor_ = open(lockPath.c_str(), O_CREAT | O_RDWR, 0600);
+    owns_ = fileDescriptor_ >= 0 && flock(fileDescriptor_, LOCK_EX | LOCK_NB) == 0;
+    newlyCreated_ = owns_ && !existed;
+#endif
+  }
+
+  ~JournalLock() {
+#ifdef _WIN32
+    if (owns_) {
+      CloseHandle(handle_);
+    }
+#else
+    if (fileDescriptor_ >= 0) {
+      close(fileDescriptor_);
+    }
+#endif
+  }
+
+  bool Owns() const { return owns_; }
+  bool NewlyCreated() const { return newlyCreated_; }
+
+ private:
+#ifdef _WIN32
+  HANDLE handle_ = INVALID_HANDLE_VALUE;
+#else
+  int fileDescriptor_ = -1;
+#endif
+  bool owns_ = false;
+  bool newlyCreated_ = false;
+};
+
 class BridgeJournal : public CommandJournal {
  public:
-  bool HasPending() const override { return pending_; }
-  uint8_t PendingCompartment() const override { return compartment_; }
-  uint8_t ReadyMask() const override { return readyMask_; }
+  BridgeJournal(const std::string& path, bool allowCreate) : path_(path) {
+    Load(allowCreate);
+  }
 
-  bool Begin(const std::string&, uint8_t compartment) override {
-    if (pending_) {
+  bool HasPending() const override { return fault_ || pending_; }
+  uint8_t PendingCompartment() const override { return compartment_; }
+  uint8_t ReadyMask() const override { return fault_ ? 0 : readyMask_; }
+  bool HasFault() const { return fault_; }
+
+  bool Begin(const std::string& commandId, uint8_t compartment) override {
+    if (fault_ || pending_ || compartment < 1 || compartment > 6) {
+      return false;
+    }
+    if (!Append("B " + commandId + " " + std::to_string(compartment) + "\n")) {
+      fault_ = true;
       return false;
     }
     pending_ = true;
@@ -93,7 +159,11 @@ class BridgeJournal : public CommandJournal {
   }
 
   bool Resolve(uint8_t readyMask) override {
-    if (!pending_) {
+    if (fault_ || !pending_ || readyMask > 63) {
+      return false;
+    }
+    if (!Append("R " + std::to_string(readyMask) + "\n")) {
+      fault_ = true;
       return false;
     }
     readyMask_ = readyMask;
@@ -103,6 +173,84 @@ class BridgeJournal : public CommandJournal {
   }
 
  private:
+  bool Append(const std::string& record) {
+    std::ofstream output(path_.c_str(), std::ios::binary | std::ios::app);
+    if (!output) {
+      return false;
+    }
+    output << record;
+    output.flush();
+    return output.good();
+  }
+
+  void Load(bool allowCreate) {
+    errno = 0;
+    std::ifstream input(path_.c_str(), std::ios::binary);
+    if (!input) {
+      if (errno == ENOENT && allowCreate) {
+        fault_ = !Append("I 63\n");
+      } else {
+        fault_ = true;
+      }
+      return;
+    }
+
+    const std::string contents((std::istreambuf_iterator<char>(input)),
+                               std::istreambuf_iterator<char>());
+    if (input.bad()) {
+      fault_ = true;
+      return;
+    }
+
+    size_t cursor = 0;
+    bool initialized = false;
+    while (cursor < contents.size()) {
+      const size_t end = contents.find('\n', cursor);
+      if (end == std::string::npos) {
+        fault_ = true;
+        return;
+      }
+
+      std::istringstream record(contents.substr(cursor, end - cursor));
+      char operation = 0;
+      unsigned int value = 0;
+      record >> operation;
+      if (operation == 'I' && !initialized && cursor == 0) {
+        if (!(record >> value) || value != 63 || !ReadEnd(record)) {
+          fault_ = true;
+          return;
+        }
+        initialized = true;
+      } else if (operation == 'B' && initialized) {
+        std::string commandId;
+        if (pending_ || !(record >> commandId >> value) ||
+            commandId.empty() || value < 1 || value > 6 || !ReadEnd(record)) {
+          fault_ = true;
+          return;
+        }
+        pending_ = true;
+        compartment_ = static_cast<uint8_t>(value);
+      } else if (operation == 'R' && initialized) {
+        if (!pending_ || !(record >> value) || value > 63 || !ReadEnd(record)) {
+          fault_ = true;
+          return;
+        }
+        pending_ = false;
+        compartment_ = 0;
+        readyMask_ = static_cast<uint8_t>(value);
+      } else {
+        fault_ = true;
+        return;
+      }
+      cursor = end + 1;
+    }
+    if (!initialized) {
+      fault_ = true;
+    }
+  }
+
+  std::string path_;
+  bool fault_ = false;
   bool pending_ = false;
   uint8_t compartment_ = 0;
   uint8_t readyMask_ = 63;
@@ -147,18 +295,22 @@ bool ReadEnd(std::istringstream& input) {
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  if (argc != 2 || argv[1][0] == '\0') {
+  if (argc != 3 || argv[1][0] == '\0' || argv[2][0] == '\0') {
     return 2;
   }
 
   const std::string bootId = argv[1];
+  JournalLock journalLock(argv[2]);
+  if (!journalLock.Owns()) {
+    return 3;
+  }
   BridgePort port;
-  BridgeJournal journal;
+  BridgeJournal journal(argv[2], journalLock.NewlyCreated());
   SafetyController safety(port);
   SelectionSequence sequence(safety);
   DeviceControl control("kufr-001", bootId, sequence, journal, 1);
   safety.InitializeSafe();
-  if (!control.RecoverAfterInspection()) {
+  if (!journal.HasPending() && !control.RecoverAfterInspection()) {
     return 1;
   }
 
@@ -167,7 +319,7 @@ int main(int argc, char* argv[]) {
   std::string activeCommandId;
   std::string lastCommandId;
   std::string lastOutcome;
-  std::string phase = "ready";
+  std::string phase = journal.HasPending() ? "recoveryRequired" : "ready";
   uint8_t lastCompartment = 0;
   bool success = false;
   bool duplicate = false;
@@ -279,8 +431,9 @@ int main(int argc, char* argv[]) {
         success = control.Tick(nowMs, step);
         if (success) {
           EmitStep(port, step, phase);
-          if (step.effect == SelectionEffect::Idle ||
-              step.effect == SelectionEffect::Stopped) {
+          if (!activeCommandId.empty() &&
+              (step.effect == SelectionEffect::Idle ||
+               step.effect == SelectionEffect::Stopped)) {
             lastOutcome = step.effect == SelectionEffect::Idle
                               ? "completed" : "outcome_unknown";
             activeCommandId.clear();
@@ -343,6 +496,8 @@ int main(int argc, char* argv[]) {
               << ",\"lastOutcome\":\"" << lastOutcome
               << "\",\"journalPending\":"
               << (journal.HasPending() ? "true" : "false")
+              << ",\"journalFault\":"
+              << (journal.HasFault() ? "true" : "false")
               << "}" << std::endl;
   }
 

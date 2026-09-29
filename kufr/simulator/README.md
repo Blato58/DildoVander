@@ -40,15 +40,23 @@ ověří TLS spojení s důvěryhodným certifikátem, bearer autorizaci, handsh
 lease, retry, Stop, snapshot a odmítnutí chybné zprávy.
 
 `run-server.mjs` vyžaduje také proměnné `KUFR_SIMULATOR_CERT`,
-`KUFR_SIMULATOR_KEY` a `KUFR_SIMULATOR_TOKEN` před spuštěním. Token ani
+`KUFR_SIMULATOR_KEY`, `KUFR_SIMULATOR_TOKEN` a `KUFR_SIMULATOR_JOURNAL`
+(absolutní cesta mimo repozitář) před spuštěním. Token ani
 soukromý klíč nedávejte do repozitáře. Server naslouchá pouze na
 `127.0.0.1:8443`, přijímá jeden autorizovaný control socket, odmítá kompresi
 a zprávy nad 2048 bajtů; token patří do `Authorization: Bearer` při WSS
 handshake. Vstup prochází sdíleným přísným E2 parserem. Certifikát klient
 musí ověřit nebo připnout, test jej používá jako explicitní CA.
 
-Síťový simulátor má journal jen v paměti procesu. Jeho restart dosud
-nezachovává uncertain outcome ani masku dostupnosti; restartový scénář E2.3
-ověřuje pouze znovuvytvoření C++ řadiče nad zachovaným fake journalem.
+Souborový fake journal zachová nedokončený výběr a masku dostupnosti přes
+restart procesu. Pomocný soubor `.lock` brání současnému zápisu dvou procesů
+a označuje již inicializovaný journal. Při neúplném, poškozeném nebo chybějícím
+záznamu u dříve použité cesty uzavře výběr v chybovém
+stavu. Po restartu s neuzavřeným záznamem se kufr simulovaně zotaví až po
+kontrole obsluhou: do konzole `run-server.mjs` zadejte `inspected`.
+Tento souborový log není NVS ani důkaz atomicity či odolnosti proti výpadku
+napájení; používá `flush`, nikoli fyzicky ověřený fsync. Journal ani jeho
+`.lock` soubor nemažte jen kvůli opětovnému otevření přihrádky.
+
 Aktuální WSS facade nepokrývá média, Bonjour ani běh ESP32. Je to vývojový
 simulátor, nikoli produkční server nebo náhrada fyzické akceptace.
