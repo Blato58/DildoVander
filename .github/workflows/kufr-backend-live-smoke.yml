@@ -2,6 +2,12 @@ name: Kufr backend deployed smoke
 
 on:
   workflow_dispatch:
+    inputs:
+      dialog_mode:
+        description: Expected deployed dialogue mode
+        type: choice
+        options: [fake, responses]
+        default: fake
 
 permissions:
   contents: read
@@ -19,7 +25,8 @@ jobs:
     env:
       DEV_DEVICE_CREDENTIAL: ${{ secrets.DEV_DEVICE_CREDENTIAL }}
       DEVICE_ID: ${{ secrets.DEVICE_ID }}
+      DIALOG_EXPECTATION: ${{ inputs.dialog_mode || 'fake' }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Verify deployed fake dialogue through loopback API
+      - name: Verify deployed dialogue through loopback API
         run: python3 kufr/backend/tests/deployed_smoke.py

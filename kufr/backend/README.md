@@ -9,12 +9,22 @@ založení sezení, atomickou rezervaci nejvýše deseti tahů v jednom sezení 
 idempotenci po restartu. E7.4 přidává retenci a explicitní rušení. E7.5a
 přidává omezený WAV upload s deterministickým fake přepisem. E7.5b
 přidává fake syntézu krátkého tichého WAV pro existující textový tah.
-V této verzi nejsou skutečné STT/TTS ani volání placené AI. E8 má samostatný
-`ResponsesTextDialogClient` s vestavěným party promptem, přísným JSON schématem,
-omezením odpovědi a kontrolou dostupné přihrádky; zatím jej endpointy nevolají.
-Před jeho zapojením je nutné dokončit atomickou rezervaci nákladu, asynchronní
-zpracování mimo zámek sezení a bezpečné dokončení/zrušení operace.
+V této verzi nejsou skutečné STT/TTS. Textový tah má výchozí fake režim;
+výslovný režim `responses` používá GPT-6.1 Sol se sdíleným party promptem,
+přísným JSON schématem a kontrolou dostupné přihrádky. Před odesláním do
+OpenAI transakčně rezervuje 0,05 USD, jeden backend spustí nejvýše jedno
+placené volání současně a výsledek dokončí asynchronně. Nejasný výpadek
+ponechá rezervaci a restart volání neopakuje. Zrušený tah nezveřejní pozdní
+výsledek, ale skutečně vrácené tokeny vyúčtuje. Návrh přihrádky vzniká na
+serveru s korelací a expirací 60 sekund.
 Žádná trasa neovládá aktuátory.
+
+`responses` je zatím pouze vývojový režim pro syntetické vstupy přes loopback.
+Vyžaduje `Backend__Dialog__Mode=responses`, `OPENAI_API_KEY`, všechny tři
+kladné limity `Backend__Usage__*CapMicroUsd` a projektový OpenAI hard spend
+limit. Samotná přítomnost klíče režim nepřepíná. Neznámá konfigurace zastaví
+start; výchozí `fake` nevolá OpenAI. Před veřejným provozem chybí veřejné
+HTTPS, skutečná identita zařízení, fyzická akceptace a obsahové hodnocení.
 
 ## Vývojové spuštění
 
@@ -113,15 +123,14 @@ odpověď uvolní rozdíl, vyšší cenu eviduje a zablokuje další placenou pr
 Neznámý výsledek po restartu si rezervaci ponechá. Technický audit se maže po
 7 dnech, denní/měsíční agregáty po 90 dnech. Schválené limity jsou na
 testovacím serveru nakonfigurovány a D61 přidal ověřenou konzervativní sazbu
-pro `gpt-6.1-sol`; endpoint ji ještě nepoužívá, takže se zde placené volání
-nespouští.
+pro `gpt-6.1-sol`; explicitní režim `responses` ji používá. Výchozí režim
+`fake` žádné placené volání nespouští.
 `RetentionWorker` každou minutu smaže expirované paměťové sezení/výsledky,
 granty a 24hodinové technické SQLite záznamy. Sezení trvá nejvýše
 15 minut nečinnosti a 30 minut od vytvoření. Ztracený výsledek se znovu
-nevytváří; polling vrátí `result_expired`. Skutečný placený adaptér, ceny a
-provozní limity doplní E8. Backend zatím
-nesmí být použit pro placené tahy nebo veřejný provoz. Stav a další krok
-jsou v `../docs/stav-implementace.md`.
+nevytváří; polling vrátí `result_expired`. E8 stále vyžaduje širší evaluaci
+a fyzické potvrzení, backend nesmí být použit pro veřejný provoz. Stav a
+další krok jsou v `../docs/stav-implementace.md`.
 
 ## Ubuntu runner a nasazení
 
@@ -145,7 +154,12 @@ Workflow `.github/workflows/kufr-backend.yml` při změnách backendu v `main`
 sestaví a otestuje samostatný `linux-x64` release na GitHub runneru. Ruční
 `workflow_dispatch` z `main` navíc aktivuje artefakt na self-hosted runneru
 se štítky `self-hosted`, `Linux`, `X64` a
-`kufr-backend` v environmentu `backend-production`. Na serveru je nutný
+`kufr-backend` v environmentu `backend-production`.
+Vstup `dialog_mode` při ručním nasazení volí `fake` (výchozí) nebo `responses`;
+volba se uloží do konfigurace daného release a rollback ji vrátí s releasem.
+Režim `responses` používej pouze pro jednorázový vývojový test s připravenými
+limity a následně znovu nasaď `fake`.
+Na serveru je nutný
 jednorázový bootstrap z důvěryhodné kopie repozitáře:
 
 ```bash
@@ -169,16 +183,18 @@ Environment `backend-production` má tyto GitHub Actions secrets:
 | `DEVICE_ID` | Nyní `dev-simulator-1` pro vývoj; před použitím skutečného kufru jej nahradit servisně provisionovaným ID společně s hashem. |
 | `DEVICE_CREDENTIAL_SHA256` | 64 hex znaků SHA-256 credential pro dané ID; nyní odpovídá vývojovému `DEV_DEVICE_CREDENTIAL`. |
 | `DEV_DEVICE_CREDENTIAL` | Jen pro ruční loopback smoke nasazené vývojové instance; odpovídá hashi vývojového `DEVICE_ID`, není provisionovaný v kufru. Před fyzickým nasazením jej nahradit skutečnou identitou a oddělit testovací prostředí. |
-| `OPENAI_API_KEY` | Projektový OpenAI API klíč. Backend jej zatím nepoužívá; zapojení do E8 vyžaduje atomickou rezervaci nákladu a explicitní přepínač režimu. |
+| `OPENAI_API_KEY` | Projektový OpenAI API klíč. Čte jej pouze explicitní režim `responses`; ve výchozím `fake` se OpenAI nevolá. |
 | `SESSION_CAP_MICRO_USD` | Kladný limit v miliontinách USD; spolu s dalšími dvěma limity. |
 | `DAILY_CAP_MICRO_USD` | Kladný denní limit v miliontinách USD. |
 | `MONTHLY_CAP_MICRO_USD` | Kladný měsíční limit v miliontinách USD. |
 
 Po prvním úspěšném nasazení lze ručně spustit workflow **Kufr backend
 deployed smoke** z `main`. S vývojovou identitou v `backend-production`
-ověří přes `127.0.0.1:5080` vydání tokenu, vytvoření fake sezení,
-idempotentní textový tah, výsledek operace a ukončení sezení. Nevypisuje
-credential ani access token. Nevolá OpenAI a nedokazuje veřejné HTTPS ani
+ověří přes `127.0.0.1:5080` vydání tokenu, sezení, idempotentní textový tah,
+výsledek operace a ukončení sezení. Výchozí vstup `dialog_mode=fake` nevolá
+OpenAI; `dialog_mode=responses` provede jeden syntetický placený tah a čeká
+na jeho výsledek. Vstup musí odpovídat právě nasazenému režimu. Test
+nevypisuje credential ani access token a nedokazuje veřejné HTTPS ani
 spojení skutečného kufru.
 
 Všechny hodnoty mohou pro první fake nasazení chybět. Bez dvojice zařízení

@@ -4,11 +4,16 @@ using System.Text;
 
 namespace Kufr.Backend.Features.Conversations;
 
-internal sealed class ConversationStore(TimeProvider clock, OperationJournal journal)
+internal sealed class ConversationStore(
+    TimeProvider clock,
+    OperationJournal journal,
+    TextDialogRunner? dialogRunner = null,
+    ILogger<ConversationStore>? logger = null)
 {
     private readonly Lock gate = new();
     private readonly Dictionary<string, ConversationEntry> conversations = new(StringComparer.Ordinal);
     private readonly Dictionary<string, TurnOperation> operations = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, PaidCall> activePaidCalls = new(StringComparer.Ordinal);
     private readonly Dictionary<string, AudioEntry> audio = new(StringComparer.Ordinal);
     private readonly Dictionary<string, AudioTombstone> expiredAudio = new(StringComparer.Ordinal);
 
@@ -133,53 +138,213 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
                 return new SubmitTurnResult(409, null, "duplicate_turn_id");
             }
 
-            // The fake adapter does not inspect or retain the visitor's text.
-            var correlation = new TurnCorrelation(
-                deviceId,
-                request.BootId,
-                conversationId,
-                request.ClientTurnId,
-                request.Generation,
-                request.DeviceRevision);
-            var reservation = journal.Reserve(deviceId, route, key, bodyHash, correlation);
-            if (reservation.Conflict)
+            var paid = dialogRunner?.Enabled == true;
+            if (paid && !dialogRunner!.TryAcquire())
             {
-                return new SubmitTurnResult(409, null, "idempotency_conflict");
+                return new SubmitTurnResult(503, null, "dialogue_busy");
             }
 
-            if (reservation.LimitExceeded)
+            var queued = false;
+            try
             {
-                return new SubmitTurnResult(429, null, "turn_limit");
-            }
+                // The journal records only a body hash, never the visitor's text.
+                var correlation = new TurnCorrelation(
+                    deviceId,
+                    request.BootId,
+                    conversationId,
+                    request.ClientTurnId,
+                    request.Generation,
+                    request.DeviceRevision);
+                var reservation = journal.Reserve(
+                    deviceId,
+                    route,
+                    key,
+                    bodyHash,
+                    correlation,
+                    estimatedCostMicroUsd: paid ? ResponsesTextDialogBudget.ReservedMicroUsd : 0);
+                if (reservation.Conflict)
+                {
+                    return new SubmitTurnResult(409, null, "idempotency_conflict");
+                }
 
-            if (reservation.Existing)
+                if (reservation.LimitExceeded)
+                {
+                    return new SubmitTurnResult(429, null, "turn_limit");
+                }
+
+                if (reservation.CostRejected)
+                {
+                    return new SubmitTurnResult(429, null, "cost_limit");
+                }
+
+                if (reservation.Existing)
+                {
+                    return new SubmitTurnResult(202, reservation.OperationId, null);
+                }
+
+                var operationId = reservation.OperationId;
+                if (paid)
+                {
+                    RecordAcceptedTurn(conversation, request.ClientTurnId, now);
+                    var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                        dialogRunner!.Stopping);
+                    activePaidCalls.Add(
+                        operationId,
+                        new PaidCall(conversationId, cancellation));
+                    _ = Task.Run(() => ProcessPaidTurnAsync(
+                        operationId,
+                        correlation,
+                        request.Text,
+                        request.ReadyMask,
+                        request.CatalogVersion,
+                        cancellation));
+                    queued = true;
+                    return new SubmitTurnResult(202, operationId, null);
+                }
+
+                var operation = new TurnOperation(
+                    operationId,
+                    "turn",
+                    "completed",
+                    correlation,
+                    new TurnResult("Toto je testovací odpověď bez AI.", "ask", "", null),
+                    null);
+
+                if (!journal.MarkCompleted(operationId))
+                {
+                    return new SubmitTurnResult(409, null, "operation_cancelled");
+                }
+
+                operations.Add(operationId, operation);
+                RecordAcceptedTurn(conversation, request.ClientTurnId, now);
+                return new SubmitTurnResult(202, operationId, null);
+            }
+            finally
             {
-                return new SubmitTurnResult(202, reservation.OperationId, null);
+                if (paid && !queued)
+                {
+                    dialogRunner!.Release();
+                }
             }
-
-            var operationId = reservation.OperationId;
-            var operation = new TurnOperation(
-                operationId,
-                "turn",
-                "completed",
-                correlation,
-                new TurnResult("Toto je testovací odpověď bez AI.", "ask", "", null),
-                null);
-
-            if (!journal.MarkCompleted(operationId))
-            {
-                return new SubmitTurnResult(409, null, "operation_cancelled");
-            }
-
-            operations.Add(operationId, operation);
-            conversation.TurnIds.Add(request.ClientTurnId);
-            conversation.TurnCount++;
-            var idleExpiresAt = now.AddMinutes(15);
-            conversation.ExpiresAt = idleExpiresAt < conversation.AbsoluteExpiresAt
-                ? idleExpiresAt
-                : conversation.AbsoluteExpiresAt;
-            return new SubmitTurnResult(202, operationId, null);
         }
+    }
+
+    private async Task ProcessPaidTurnAsync(
+        string operationId,
+        TurnCorrelation correlation,
+        string visitorText,
+        int readyMask,
+        string catalogVersion,
+        CancellationTokenSource cancellation)
+    {
+        try
+        {
+            lock (gate)
+            {
+                if (cancellation.IsCancellationRequested)
+                {
+                    journal.SettleCost(operationId, 0);
+                    journal.MarkFailed(operationId);
+                    return;
+                }
+
+                if (!journal.MarkRunning(operationId))
+                {
+                    // A cancellation before execution has no provider charge.
+                    journal.SettleCost(operationId, 0);
+                    return;
+                }
+            }
+
+            var response = await dialogRunner!.GenerateAsync(
+                visitorText,
+                readyMask,
+                cancellation.Token);
+            var actualCost = ResponsesTextDialogBudget.CalculateActualMicroUsd(response);
+            lock (gate)
+            {
+                if (!journal.SettleCost(operationId, actualCost))
+                {
+                    journal.MarkFailed(operationId);
+                    return;
+                }
+
+                var now = clock.GetUtcNow();
+                CleanupExpired(now);
+                if (!conversations.ContainsKey(correlation.ConversationId))
+                {
+                    journal.MarkFailed(operationId);
+                    return;
+                }
+
+                object? proposal = response.Compartment is { } compartment
+                    ? new SelectionProposal(
+                        Guid.NewGuid().ToString("D"),
+                        correlation.ConversationId,
+                        correlation.ClientTurnId,
+                        catalogVersion,
+                        correlation.DeviceRevision,
+                        compartment,
+                        response.Reason,
+                        correlation.BootId,
+                        correlation.Generation,
+                        now.AddSeconds(60))
+                    : null;
+                operations.Add(
+                    operationId,
+                    new TurnOperation(
+                        operationId,
+                        "turn",
+                        "completed",
+                        correlation,
+                        new TurnResult(response.Reply, response.Decision, response.Reason, proposal),
+                        null));
+                if (!journal.MarkCompleted(operationId))
+                {
+                    operations.Remove(operationId);
+                }
+            }
+        }
+        catch (Exception)
+        {
+            logger?.LogWarning("Text dialog failed for operation {OperationId}.", operationId);
+            try
+            {
+                lock (gate)
+                {
+                    // An interrupted provider call may still be billed. Keep its
+                    // reservation until the normal audit retention window.
+                    journal.MarkFailed(operationId);
+                }
+            }
+            catch (Exception)
+            {
+                logger?.LogError("Could not record failure for operation {OperationId}.", operationId);
+            }
+        }
+        finally
+        {
+            lock (gate)
+            {
+                activePaidCalls.Remove(operationId);
+            }
+
+            cancellation.Dispose();
+            dialogRunner!.Release();
+        }
+    }
+
+    private static void RecordAcceptedTurn(
+        ConversationEntry conversation,
+        Guid turnId,
+        DateTimeOffset now)
+    {
+        conversation.TurnIds.Add(turnId);
+        conversation.TurnCount++;
+        var idleExpiresAt = now.AddMinutes(15);
+        conversation.ExpiresAt = idleExpiresAt < conversation.AbsoluteExpiresAt
+            ? idleExpiresAt
+            : conversation.AbsoluteExpiresAt;
     }
 
     public SubmitTurnResult SubmitTranscription(
@@ -433,6 +598,11 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
             var result = journal.CancelOperation(deviceId, operationId, key);
             if (result.Status == 204)
             {
+                if (activePaidCalls.TryGetValue(operationId, out var paidCall))
+                {
+                    paidCall.Cancellation.Cancel();
+                }
+
                 operations.Remove(operationId);
                 foreach (var audioId in audio.Where(pair => pair.Value.OperationId == operationId)
                     .Select(pair => pair.Key).ToArray())
@@ -508,6 +678,12 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
     private void RemoveConversation(string conversationId)
     {
         conversations.Remove(conversationId);
+        foreach (var paidCall in activePaidCalls.Values
+            .Where(call => call.ConversationId == conversationId))
+        {
+            paidCall.Cancellation.Cancel();
+        }
+
         foreach (var audioId in audio.Where(pair => pair.Value.ConversationId == conversationId)
             .Select(pair => pair.Key).ToArray())
         {
@@ -616,12 +792,24 @@ internal sealed record TurnCorrelation(
     int Generation,
     int DeviceRevision);
 internal sealed record TurnResult(string Reply, string Decision, string Reason, object? Proposal);
+internal sealed record SelectionProposal(
+    string ProposalId,
+    string ConversationId,
+    Guid TurnId,
+    string CatalogVersion,
+    int DeviceRevision,
+    int Compartment,
+    string Reason,
+    Guid BootId,
+    int Generation,
+    DateTimeOffset ExpiresAt);
 internal sealed record TranscriptionResult(string Transcript, string Source);
 internal sealed record SpeechRequest(Guid TurnId, string OutputTarget);
 internal sealed record SpeechResult(string AudioId, DateTimeOffset ExpiresAt, string OutputTarget);
 internal sealed record AudioReadResult(int Status, byte[]? Wav);
 internal sealed record AudioEntry(string DeviceId, string ConversationId, string OperationId, DateTimeOffset ExpiresAt, byte[] Wav);
 internal sealed record AudioTombstone(string DeviceId, DateTimeOffset RemoveAt);
+internal sealed record PaidCall(string ConversationId, CancellationTokenSource Cancellation);
 internal sealed record TurnOperation(
     string OperationId,
     string Kind,
