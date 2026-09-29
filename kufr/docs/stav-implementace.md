@@ -83,7 +83,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 - Rozsah: dopředná transakční migrace schématu v1→v2 přidává `conversation_turn_usage` a index expirace. `OperationJournal.Reserve` pod okamžitou transakcí kontroluje a rezervuje nejvýše deset tahů pro device/conversation zároveň s pending operací a idempotency key; shodný retry limit znovu nespotřebuje. RAM limit zůstává rychlou předběžnou kontrolou, SQLite je trvalá hranice. Nejsou zde placené výdaje; nákladová rezervace před provider voláním se musí doplnit zvlášť.
 - Ověření: `kufr/backend` `dotnet build backend.csproj` bez varování; `kufr` `dotnet run --project backend-tests/BackendTests.csproj` ověřil devět rezervací a dva paralelní různé klíče na hranici desáté (právě jeden přijat), odmítnutí dalšího, shodný retry na limitu, zachování limitu po novém otevření DB a migraci osazeného v1 schématu na v2 se zachováním operationId a idempotence. `node backend/tests/smoke.mjs` nad skutečným HTTP hostem/SQLite opět prošel včetně paralelních požadavků na hranici deseti tahů.
 - Omezení: založení sezení a jeho souběh jsou stále paměťové; kvóta je počet tahů, nikoli dolarový rozpočet. Cleanup je oportunní, zbytek E7 akceptace zůstává otevřený.
-- Revize a doručení: doplnit po ověřeném commitu a skutečném výsledku push.
+- Revize a doručení: E7.3b je v commitu `4dc6128658279ef7c1c909265414d8c3fc995351`; `./scripts/Push-CurrentBranch.ps1` potvrdil push `main` na `origin/main` v této revizi.
 
 ### D25 – 29. 9. 2026 – E7.3a SQLite journal textového tahu
 
