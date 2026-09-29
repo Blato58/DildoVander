@@ -6,12 +6,12 @@ Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**Aktivní implementační krok:** E7.6 – transakční nákladová rezervace a závěrečné integrační ověření E7. E7.1–2 založily ASP.NET Core 10 backend a fake dialog; E7.3a–c přidaly SQLite idempotenci, kvótu a restart; E7.4a–b retenci a rušení; E7.5a–b fake přepis a syntézu se 120s audiem (D23–D31). Placená AI chybí. E2/E3 jsou dokončené v hostitelském/simulátorovém rozsahu. Fyzické nezávislé vypnutí a měření zůstávají kritérii E5.
+**Aktivní implementační krok:** E4.1 – připravit ESP-IDF runtime/profil a přímý síťový klient bez nahrání do neověřené desky. E7 backend bez skutečné AI je dokončen v lokálním fake rozsahu včetně nákladové rezervace a integračních testů (D23–D32). E2/E3 jsou dokončené v hostitelském/simulátorovém rozsahu. Fyzické nezávislé vypnutí a měření zůstávají kritérii E5; placená AI E8 čeká na B4.
 
-**Další konkrétní krok: E7.6 – nákladová rezervace a E7 integrace.**
+**Další konkrétní krok: E4.1 – softwarový základ ESP-IDF runtime.**
 
-1. Připravit v `Features/Usage` transakční rezervaci nákladů se stropem před prvním placeným voláním, jasně oddělenou od nulových nákladů fake adaptéru. Ověřit souběh, idempotenci, restart a nevracení rezervace při neznámém výsledku; skutečné ceny/limity vyžadují B4.
-2. Projít zbývající E7 integrační kritéria přístupu, souběhu, restartu, retence a logů. E7 neoznačovat za hotové bez dokladů; E8 placený provider čeká na B4.
+1. Ověřit dostupnost přesné ESP-IDF/PlatformIO toolchain kombinace z plánu a převést nejmenší kompilovatelný runtime slice s existujícím čistým bezpečnostním jádrem; bez známé revize desky nic nenahrávat. Zachovat E1/E2 hostitelské testy a sepsat konkrétní migraci/případný nezbytný odklon v plánu před změnou kontraktu.
+2. Navázat provisionováním identity mimo image, Wi-Fi/HTTPS fake backend klientem a lokálním WSS podle E4, pokud softwarové závislosti dovolí. Pro TLS a skutečné GPIO/USB měření platí B1; E8 provider čeká na B4.
 3. Fyzická HW akceptace zůstává v E5 po vstupu B1; nativní iOS E3a čeká na B2/B3. Nezaměnit fake log s NVS ani fake odpověď se skutečnou AI.
 
 Předpokládané dotčené cesty: `kufr/backend/`, související README a tento stav. Krok nevyžaduje fyzickou desku, cloudový klíč ani Apple certifikát. Toto je implementační předání, nikoli příkaz něco nahrát či publikovat.
@@ -36,7 +36,7 @@ Pokud uživatel omezí práci pouze na mobilní aplikaci, neoznačuj závislosti
 | --- | --- | --- |
 | Firmware | Čistá neblokující `SelectionSequence`/`SafetyController` z E1, nezapojený `DeviceControl` s fake clock vstupy, 64 výsledky a `CommandJournal` portem E2.2, čistý `ConversationSession` s generací a stropem 10 tahů E2.8b1. Sériové `select 1..6`, `stop`, `reset`, `status`, `help` zůstává vývojovým vstupem. Hostitelské testy a lokální Arduino/PlatformIO build prošly. | Nezávislý fyzický watchdog/inhibit, skutečný NVS journal/GPIO/síťový detektor lease, provisioning, I2S, propojení dialogu a ovládání. |
 | Mobil | TypeScript/Vite webová obrazovka se šesti přihrádkami, potvrzením, Stop a místním fake režimem; E3.2b adaptér přes E3.2a most proti E2 C++ simulátoru, cílené testy spojení a build. | Capacitor, iOS/Swift projekt a fyzický iPhone test. |
-| Backend/kontrakty/simulátor | E7.1–2 ASP.NET Core 10 s device tokenem, fake sezením/textovým tahem; E7.3a–c SQLite idempotence, restart a kvóta; E7.4a–b retence a rušení; E7.5a–b fake přepis a 120s výdej audia (D23–D31). Lokální protokol, C++ simulátor, TLS WSS facade, časová osa, OpenAPI, reload a fake média E2. | Nákladová rezervace a závěrečná E7 integrace; skutečný AI/audio adaptér dalších etap. |
+| Backend/kontrakty/simulátor | E7.1–2 ASP.NET Core 10 s device tokenem, fake sezením/textovým tahem; E7.3a–c SQLite idempotence, restart a kvóta; E7.4a–b retence a rušení; E7.5a–b fake přepis a 120s audio; E7.6 nákladové stropy a integrační testy (D23–D32). Lokální protokol, C++ simulátor, TLS WSS facade, časová osa, OpenAPI, reload a fake média E2. | Skutečný AI/audio adaptér E8/E9 a jeho B4 provozní konfigurace. |
 | iOS CI | Majitelem popsaný existující postup Windows → macOS runner → podepsaná IPA. | Skutečný workflow v tomto checkoutu, ověřená identita/profil a běh/instalace. |
 | Hardware | Dodaný obrázek pinů, návrh napájení a předběžné profily A/B. | Revize konkrétní desky, schéma bezpečnostní větve, měření a fyzická akceptace. |
 
@@ -53,10 +53,10 @@ Přesné závislosti a kritéria dokončení jsou v kapitole 12 plánu. Následu
 | E2 – smlouvy a simulátor | hotovo | E2.1–4 kontrakty, C++ model, fake journal, parser a WSS; E2.5 časová osa s browser ověřením (D10,D22); E2.6 OpenAPI, E2.7 reload, E2.8 fake text/cancel, E2.9 fake media parser/socket (D3–D18). Ztracený ACK, duplicitní/pozdní příkaz, restart a zotavení kryjí hostitelské testy a WSS scénáře. | Fake není skutečný audio buffer, NVS ani backend; tyto hranice patří E4/E7/E9. |
 | E3 – ruční mobil bez HW | hotovo | E3.1 fake UI (D19), E3.2a ověřený místní most (D20), E3.2b UI adaptér a celý výběr/reload/Stop/odpojení proti C++ simulátoru, cílené testy ztracených zpráv a nového lease (D21). | Jde pouze o webovou/simulátorovou akceptaci E3; nativní iPhone, TLS pinning a fyzický kufr patří E3a/E10/E5. |
 | E3a – iOS CI základ | nezahájeno | Jen majitelem popsaný postup. | E3; B2/B3 pro podpis a skutečnou instalaci. |
-| E4 – runtime a přímá síť | nezahájeno | Arduino prototyp. | E2; pro nahrání B1. |
+| E4 – runtime a přímá síť | rozpracováno | Arduino prototyp; E4.1 softwarový základ se začíná ověřovat po E7. | E2; pro nahrání B1. |
 | E5 – jedna bezpečná přihrádka | nezahájeno | Bez ovládání a měření. | E0/E1/E4; B1, fyzická akceptace. |
 | E6 – šest přihrádek | nezahájeno | Bez fyzického ověření. | E5; cykly, proudy, dostupnost/reload. |
-| E7 – backend bez skutečné AI | rozpracováno | E7.1–2 identity, fake sezení/tah; E7.3a–c SQLite idempotence, restart a kvóta; E7.4a–b cleanup/retence a rušení; E7.5a–b omezený WAV upload/fake přepis a výdej audia; HTTP/SQLite testy (D23–D31). | Nákladová rezervace a závěrečné integrační ověření všech kritérií etapy. |
+| E7 – backend bez skutečné AI | hotovo | E7.1–2 identity/fake dialog; E7.3a–c SQLite idempotence, restart a kvóta; E7.4a–b cleanup/retence a rušení; E7.5a–b WAV fake hlas; E7.6 transakční nákladová rezervace. Lokální HTTP/SQLite testy přístupů, souběhu, restartu, retence a logů prošly (D23–D32). | Skutečné provider ceny/limity/klíče a placená akceptace patří E8/B4; device HTTPS/TLS integrace E4. |
 | E8 – skutečný textový dialog | nezahájeno | Bez adaptéru a evaluace. | E2/E7, na desce E4; B4/B5 před placenou akceptací. |
 | E9 – samostatný hlas kufru | nezahájeno | Bez audio cesty. | E4/E5/E8; hardware a hlasová akceptace. |
 | E10 – dokončení mobilní zálohy | nezahájeno | Bez native transportu. | E3/E3a/E4/E8; audio po E9; skutečný iPhone. |
@@ -77,6 +77,13 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 | B5 | Majitel: finální katalog a publikum, rozměry, router a prostředí akce. | Obsahovou/provozní akceptaci E8/E11 a finální mechaniku. | Neutrální testovací katalog a laboratorní/simulované scénáře. |
 
 ## Deník změn a ověření
+
+### D32 – 29. 9. 2026 – E7.6 nákladová rezervace a E7 integrace
+
+- Rozsah: SQLite schéma v6 přidává `cost_reservations`, sezením omezené čerpání a globální denní/měsíční agregáty v miliontinách USD. `OperationJournal.Reserve` zapisuje odhad ve stejné transakci jako operaci, turn kvótu a idempotency key. Opakovaný key neúčtuje podruhé; strop je fail-closed bez všech tří kladných konfiguračních hodnot. `SettleCost` transakčně vrací nevyužitý rozdíl nebo eviduje nadodhad a blokuje další placenou práci. Neznámé rozběhnuté volání si rezervaci ponechá. Technické cost řádky se čistí po 7 dnech, agregáty po 90 dnech. Fake trasy mají nulový odhad a nevyvolávají placený provider.
+- Ověření: `dotnet build kufr/backend/backend.csproj --no-restore` bez varování; `dotnet run --project kufr/backend-tests/BackendTests.csproj` ověřil paralelní rezervace proti stropům, agregaci napříč zařízeními, retry/kolizi, vyúčtování menší i vyšší ceny, chybějící/částečnou konfiguraci, restart s `unknown` a ponechanou rezervací, osazenou v5→v6 migraci a 7/90denní retenci. `node kufr/backend/tests/smoke.mjs` ověřil reálné HTTP přístupy, souběžný stejný key, limity, všechny fake trasy, restart a nepřítomnost credential/tokenů i testovacího textu v logu. `node kufr/contracts/verify-backend-openapi.mjs` prošel.
+- Omezení: částky v provozu nejsou schválené ani nakonfigurované (B4), proto žádná kladná rezervace v běžném backendu neprojde a provider se nevolá. Testy ověřují lokální loopback HTTP a fake média, nikoli fyzický ESP32, HTTPS deployment či účtování poskytovatele. Nadodhad po skutečném volání může překročit strop již vzniklým nákladem, ale je evidován a další placené požadavky se odmítnou.
+- Revize a doručení: čeká na commit a push tohoto ověřeného slice.
 
 ### D31 – 29. 9. 2026 – E7.5b fake syntéza a krátkodobý WAV
 

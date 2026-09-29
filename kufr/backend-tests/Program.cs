@@ -338,7 +338,7 @@ using (var migratedConnection = new SqliteConnection($"Data Source={migrationPat
     migratedConnection.Open();
     using var version = migratedConnection.CreateCommand();
     version.CommandText = "PRAGMA user_version";
-    Require((long)version.ExecuteScalar()! == 5, "schema migrated from v1 to v5");
+    Require((long)version.ExecuteScalar()! == 6, "schema migrated from v1 to v6");
 }
 
 var versionTwoPath = Path.Combine(databaseDirectory, "legacy-v2.sqlite");
@@ -449,7 +449,162 @@ using (var versionFiveJournal = new OperationJournal(versionFourConfiguration, c
 {
     Require(versionFiveJournal.GetOperation("device-a", versionFourOperationId).Operation is
         { Kind: "turn", Status: "failed" },
-        "populated v4 turn becomes v5 turn with result_expired");
+        "populated v4 turn becomes v6 turn with result_expired");
+}
+
+var versionFivePath = Path.Combine(databaseDirectory, "legacy-v5.sqlite");
+var versionFiveOperationId = Guid.NewGuid().ToString("D");
+using (var versionFiveConnection = new SqliteConnection($"Data Source={versionFivePath}"))
+{
+    versionFiveConnection.Open();
+    using var versionFiveSchema = versionFiveConnection.CreateCommand();
+    versionFiveSchema.CommandText = """
+        CREATE TABLE turn_operations (
+            operation_id TEXT PRIMARY KEY, device_id TEXT NOT NULL,
+            conversation_id TEXT NOT NULL, boot_id TEXT NOT NULL,
+            client_turn_id TEXT NOT NULL, generation INTEGER NOT NULL,
+            device_revision INTEGER NOT NULL, status TEXT NOT NULL,
+            expires_at_ms INTEGER NOT NULL, kind TEXT NOT NULL
+        );
+        INSERT INTO turn_operations
+            (operation_id, device_id, conversation_id, boot_id, client_turn_id,
+             generation, device_revision, status, expires_at_ms, kind)
+        VALUES ($operation, 'device-a', $conversation, $boot, $turn,
+                1, 7, 'completed', $expires, 'transcription');
+        PRAGMA user_version=5;
+        """;
+    versionFiveSchema.Parameters.AddWithValue("$operation", versionFiveOperationId);
+    versionFiveSchema.Parameters.AddWithValue("$conversation", Guid.NewGuid().ToString("D"));
+    versionFiveSchema.Parameters.AddWithValue("$boot", bootId.ToString("D"));
+    versionFiveSchema.Parameters.AddWithValue("$turn", Guid.NewGuid().ToString("D"));
+    versionFiveSchema.Parameters.AddWithValue("$expires", clock.GetUtcNow().AddHours(24).ToUnixTimeMilliseconds());
+    versionFiveSchema.ExecuteNonQuery();
+}
+
+var versionFiveConfiguration = new ConfigurationBuilder()
+    .AddInMemoryCollection(new Dictionary<string, string?> { ["Backend:DatabasePath"] = versionFivePath })
+    .Build();
+using (var versionSixJournal = new OperationJournal(versionFiveConfiguration, clock))
+{
+    Require(versionSixJournal.GetOperation("device-a", versionFiveOperationId).Operation is
+        { Kind: "transcription", Status: "failed" },
+        "populated v5 operation kind survives v6 migration");
+}
+
+Require(journalConfiguration["Backend:Usage:SessionCapMicroUsd"] is null,
+    "fake fixture has no paid usage cap");
+var noBudgetReservation = restartedJournal.Reserve(
+    "device-a", "paid-without-caps", Guid.NewGuid(), "hash",
+    quotaCorrelation with { ConversationId = Guid.NewGuid().ToString("D") },
+    consumesTurn: false,
+    estimatedCostMicroUsd: 1);
+Require(noBudgetReservation.CostRejected, "paid reservation fails closed without approved caps");
+
+var costClock = new AdjustableTimeProvider(new DateTimeOffset(2026, 9, 29, 10, 0, 0, TimeSpan.Zero));
+var costPath = Path.Combine(databaseDirectory, "cost.sqlite");
+var costConfiguration = new ConfigurationBuilder()
+    .AddInMemoryCollection(new Dictionary<string, string?>
+    {
+        ["Backend:DatabasePath"] = costPath,
+        ["Backend:Usage:SessionCapMicroUsd"] = "100",
+        ["Backend:Usage:DailyCapMicroUsd"] = "100",
+        ["Backend:Usage:MonthlyCapMicroUsd"] = "100"
+    })
+    .Build();
+var costConversationId = Guid.NewGuid().ToString("D");
+var costCorrelation = pendingCorrelation with { ConversationId = costConversationId };
+var costRoute = "paid-cost-fixture";
+var costKey = Guid.NewGuid();
+string acceptedCostOperation;
+using (var costJournal = new OperationJournal(costConfiguration, costClock))
+{
+    var competitors = await Task.WhenAll(
+        Task.Run(() => costJournal.Reserve(
+            "device-a", costRoute, costKey, "same-body", costCorrelation,
+            consumesTurn: false, estimatedCostMicroUsd: 60)),
+        Task.Run(() => costJournal.Reserve(
+            "device-a", costRoute, Guid.NewGuid(), "other-body", costCorrelation,
+            consumesTurn: false, estimatedCostMicroUsd: 60)));
+    Require(competitors.Count(value => !value.CostRejected) == 1,
+        "parallel paid reservations respect all caps");
+    acceptedCostOperation = competitors.Single(value => !value.CostRejected).OperationId;
+    Require(costJournal.SettleCost(acceptedCostOperation, 30), "actual charge settles below estimate");
+    Require(costJournal.SettleCost(acceptedCostOperation, 30), "same settlement is idempotent");
+    Require(!costJournal.SettleCost(acceptedCostOperation, 31), "different settlement conflicts");
+    var secondCostKey = Guid.NewGuid();
+    var secondCost = costJournal.Reserve(
+        "device-a", costRoute, secondCostKey, "third-body", costCorrelation,
+        consumesTurn: false, estimatedCostMicroUsd: 60);
+    Require(!secondCost.CostRejected, "unused reservation amount returns to available budget");
+    var secondCostRetry = costJournal.Reserve(
+        "device-a", costRoute, secondCostKey, "third-body", costCorrelation,
+        consumesTurn: false, estimatedCostMicroUsd: 60);
+    Require(secondCostRetry.Existing && secondCostRetry.OperationId == secondCost.OperationId,
+        "paid retry returns one operation without charging again");
+    Require(costJournal.Reserve(
+        "device-a", costRoute, secondCostKey, "changed-body", costCorrelation,
+        consumesTurn: false, estimatedCostMicroUsd: 60).Conflict,
+        "paid key rejects changed body");
+    Require(costJournal.Reserve(
+        "device-a", costRoute, Guid.NewGuid(), "fourth-body", costCorrelation,
+        consumesTurn: false, estimatedCostMicroUsd: 11).CostRejected,
+        "remaining ten micro-USD is enforced");
+
+    var overageCorrelation = costCorrelation with
+    {
+        DeviceId = "device-b",
+        ConversationId = Guid.NewGuid().ToString("D")
+    };
+    Require(costJournal.Reserve(
+        "device-b", costRoute, Guid.NewGuid(), "other-device-over-cap", overageCorrelation,
+        consumesTurn: false, estimatedCostMicroUsd: 11).CostRejected,
+        "daily and monthly caps cover all devices together");
+    var overage = costJournal.Reserve(
+        "device-b", costRoute, Guid.NewGuid(), "overage-body", overageCorrelation,
+        consumesTurn: false, estimatedCostMicroUsd: 10);
+    Require(!overage.CostRejected && costJournal.SettleCost(overage.OperationId, 20),
+        "actual overage remains charged instead of being hidden");
+    Require(costJournal.Reserve(
+        "device-b", costRoute, Guid.NewGuid(), "overage-next", overageCorrelation,
+        consumesTurn: false, estimatedCostMicroUsd: 1).CostRejected,
+        "overage blocks further paid work");
+}
+var partialCostConfiguration = new ConfigurationBuilder()
+    .AddInMemoryCollection(new Dictionary<string, string?>
+    {
+        ["Backend:DatabasePath"] = Path.Combine(databaseDirectory, "partial-cost.sqlite"),
+        ["Backend:Usage:SessionCapMicroUsd"] = "100"
+    })
+    .Build();
+try
+{
+    _ = new OperationJournal(partialCostConfiguration, costClock);
+    throw new Exception("Partial paid usage caps were accepted.");
+}
+catch (InvalidOperationException)
+{
+    // A missing period cap must disable startup rather than silently weaken the budget.
+}
+using (var restartedCostJournal = new OperationJournal(costConfiguration, costClock))
+{
+    Require(restartedCostJournal.GetOperation("device-a", acceptedCostOperation).Operation?.Status == "unknown",
+        "paid pending operation remains unknown after restart");
+    Require(restartedCostJournal.Reserve(
+        "device-a", costRoute, Guid.NewGuid(), "after-restart", costCorrelation,
+        consumesTurn: false, estimatedCostMicroUsd: 11).CostRejected,
+        "unknown operation keeps its reserved budget after restart");
+    costClock.Advance(TimeSpan.FromDays(8));
+    restartedCostJournal.PurgeExpired();
+    using var costConnection = new SqliteConnection($"Data Source={costPath}");
+    costConnection.Open();
+    using var costCount = costConnection.CreateCommand();
+    costCount.CommandText = "SELECT COUNT(*) FROM cost_reservations";
+    Require((long)costCount.ExecuteScalar()! == 0, "seven-day technical cost audit expires");
+    costCount.CommandText = "SELECT COUNT(*) FROM cost_period_usage";
+    Require((long)costCount.ExecuteScalar()! > 0, "daily/monthly aggregate retained after audit expiry");
+    costClock.Advance(TimeSpan.FromDays(91));
+    restartedCostJournal.PurgeExpired();
+    Require((long)costCount.ExecuteScalar()! == 0, "ninety-day aggregate retention expires");
 }
 
 var speechClock = new AdjustableTimeProvider(new DateTimeOffset(2026, 9, 29, 10, 0, 0, TimeSpan.Zero));
@@ -551,7 +706,7 @@ catch (InvalidOperationException)
     // A shared credential must not select a device by configuration order.
 }
 
-Console.WriteLine("Backend clock tests: expiry, restart, quota, fake voice and migrations passed");
+Console.WriteLine("Backend clock tests: expiry, restart, fake voice, cost caps and migrations passed");
 restartedJournal.Dispose();
 SqliteConnection.ClearAllPools();
 Directory.Delete(databaseDirectory, recursive: true);
@@ -575,7 +730,10 @@ static void AssertNoVisitorText(string databasePath, string text)
         "turn_idempotency",
         "conversation_turn_usage",
         "conversation_creates",
-        "mutation_idempotency"
+        "mutation_idempotency",
+        "cost_reservations",
+        "cost_session_usage",
+        "cost_period_usage"
     })
     {
         using var command = connection.CreateCommand();

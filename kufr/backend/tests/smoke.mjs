@@ -227,7 +227,13 @@ try {
     key: randomUUID(),
     body: { ...turn, bootId: randomUUID() }
   })).status, 409);
-  const accepted = await call(turnPath, { token: tokenA, key: turnKey, body: turn });
+  const simultaneous = await Promise.all([
+    call(turnPath, { token: tokenA, key: turnKey, body: turn }),
+    call(turnPath, { token: tokenA, key: turnKey, body: turn })
+  ]);
+  assert.deepEqual(simultaneous.map(value => value.status), [202, 202]);
+  assert.equal(simultaneous[0].result.operationId, simultaneous[1].result.operationId);
+  const accepted = simultaneous[0];
   assert.equal(accepted.status, 202);
   assert.equal((await call(turnPath, {
     token: tokenA,
@@ -450,6 +456,7 @@ try {
   for (const secret of [credentialA, credentialB, tokenA, tokenB]) {
     assert.equal(serverOutput.includes(secret), false);
   }
+  assert.equal(serverOutput.includes(turn.text), false);
 
   await stopServer();
   startServer();

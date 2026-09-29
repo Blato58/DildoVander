@@ -97,12 +97,22 @@ přežijí restart. Po restartu je starý conversationId pouze identitou retry;
 obsah sezení z RAM zmizel a nový rozhovor vyžaduje nový key. Schéma v4 přidává
 `mutation_idempotency` pro DELETE retry. Migrace v1/v2/v3→v4 je dopředná a
 schéma v5 přidává typ operace do technického journalu; osazené v4 řádky jsou
-typ `turn`. Nákladový rozpočet placených
-operací zatím chybí.
+typ `turn`. Schéma v6 přidává technický nákladový journal a agregáty bez
+obsahu. Fake operace rezervují nulu. Budoucí placený adaptér musí v transakci
+vzniku operace rezervovat horní odhad a před voláním odmítnout `CostRejected`.
+Bez všech tří kladných serverových hodnot `Backend__Usage__SessionCapMicroUsd`,
+`Backend__Usage__DailyCapMicroUsd` a `Backend__Usage__MonthlyCapMicroUsd` se
+kladná rezervace odmítne; částečná nebo neplatná konfigurace odmítne start.
+Jednotkou je miliontina USD, limity jsou na sezení a globálně na UTC den/měsíc
+napříč zařízeními. Po odpovědi `SettleCost` zaúčtuje skutečnost; levnější
+odpověď uvolní rozdíl, vyšší cenu eviduje a zablokuje další placenou práci.
+Neznámý výsledek po restartu si rezervaci ponechá. Technický audit se maže po
+7 dnech, denní/měsíční agregáty po 90 dnech. Schválené částky a ceny provideru
+zatím nejsou nakonfigurovány; zde se placené volání nespouští.
 `RetentionWorker` každou minutu smaže expirované paměťové sezení/výsledky,
 granty a 24hodinové technické SQLite záznamy. Sezení trvá nejvýše
 15 minut nečinnosti a 30 minut od vytvoření. Ztracený výsledek se znovu
-nevytváří; polling vrátí `result_expired`. Nákladové limity placených volání
-a zbývající HTTP trasy doplní další E7 slices. Backend zatím
+nevytváří; polling vrátí `result_expired`. Skutečný placený adaptér, ceny a
+provozní limity doplní E8. Backend zatím
 nesmí být použit pro placené tahy nebo veřejný provoz. Stav a další krok
 jsou v `../docs/stav-implementace.md`.
