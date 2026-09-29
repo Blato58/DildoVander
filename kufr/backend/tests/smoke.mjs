@@ -88,6 +88,19 @@ async function read(path, token) {
   return { status: response.status, result: await response.json() };
 }
 
+async function remove(path, token, key, body) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Idempotency-Key': key
+    },
+    body
+  });
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  return response.status;
+}
+
 startServer();
 try {
   await waitForServer();
@@ -219,6 +232,60 @@ try {
   ]);
   assert.deepEqual(competingTurns.map(value => value.status).sort(), [202, 429]);
 
+  const deviceBConversation = parallel.find(value => value.status === 201).result.conversationId;
+  const deviceBTurnPath = `/v1/conversations/${deviceBConversation}/turns`;
+  const deviceBTurn = await call(deviceBTurnPath, {
+    token: tokenB,
+    key: randomUUID(),
+    body: { ...turn, clientTurnId: randomUUID(), bootId: parallelBody.bootId }
+  });
+  assert.equal(deviceBTurn.status, 202);
+  const deviceBOperationPath = `/v1/operations/${deviceBTurn.result.operationId}`;
+  const cancelKey = randomUUID();
+  assert.equal(await remove(deviceBOperationPath, tokenB, randomUUID(), 'unexpected'), 400);
+  const chunkedDelete = await fetch(`${baseUrl}${deviceBOperationPath}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${tokenB}`,
+      'Idempotency-Key': randomUUID()
+    },
+    body: new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('unexpected'));
+        controller.close();
+      }
+    }),
+    duplex: 'half'
+  });
+  assert.equal(chunkedDelete.status, 400);
+  assert.equal(await remove(deviceBOperationPath, tokenA, cancelKey), 403);
+  assert.equal(await remove(deviceBOperationPath, tokenB, cancelKey), 204);
+  const cancelledOperation = await read(deviceBOperationPath, tokenB);
+  assert.equal(cancelledOperation.result.status, 'cancelled');
+  assert.equal(cancelledOperation.result.result, null);
+  assert.equal(await remove(deviceBOperationPath, tokenB, cancelKey), 204);
+  const liveBeforeEnd = await call(deviceBTurnPath, {
+    token: tokenB,
+    key: randomUUID(),
+    body: { ...turn, clientTurnId: randomUUID(), bootId: parallelBody.bootId }
+  });
+  assert.equal(liveBeforeEnd.status, 202);
+  const liveOperationPath = `/v1/operations/${liveBeforeEnd.result.operationId}`;
+  assert.equal((await read(liveOperationPath, tokenB)).result.status, 'completed');
+  const endKey = randomUUID();
+  const deviceBConversationPath = `/v1/conversations/${deviceBConversation}`;
+  assert.equal(await remove(deviceBConversationPath, tokenA, endKey), 403);
+  assert.equal(await remove(deviceBConversationPath, tokenB, endKey), 204);
+  assert.equal(await remove(deviceBConversationPath, tokenB, endKey), 204);
+  const endedOperation = await read(liveOperationPath, tokenB);
+  assert.equal(endedOperation.result.status, 'cancelled');
+  assert.equal(endedOperation.result.result, null);
+  assert.equal((await call(deviceBTurnPath, {
+    token: tokenB,
+    key: randomUUID(),
+    body: { ...turn, clientTurnId: randomUUID() }
+  })).status, 404);
+
   for (let index = 0; index < 15; index++) {
     assert.equal((await call('/v1/device-access/token', { credential: credentialA })).status, 200);
   }
@@ -238,6 +305,8 @@ try {
     body: { ...body, generation: 2 }
   })).status, 409);
   const newTokenB = (await call('/v1/device-access/token', { credential: credentialB })).result.accessToken;
+  assert.equal(await remove(deviceBOperationPath, newTokenB, cancelKey), 204);
+  assert.equal(await remove(deviceBConversationPath, newTokenB, endKey), 204);
   const otherDeviceCreate = await call('/v1/conversations', {
     token: newTokenB,
     key,
@@ -245,6 +314,23 @@ try {
   });
   assert.equal(otherDeviceCreate.status, 201);
   assert.notEqual(otherDeviceCreate.result.conversationId, created.result.conversationId);
+  const raceConversationPath = `/v1/conversations/${otherDeviceCreate.result.conversationId}`;
+  const raceTurnPath = `${raceConversationPath}/turns`;
+  const [raceTurn, raceEnd] = await Promise.all([
+    call(raceTurnPath, {
+      token: newTokenB,
+      key: randomUUID(),
+      body: { ...turn, clientTurnId: randomUUID(), bootId: body.bootId }
+    }),
+    remove(raceConversationPath, newTokenB, randomUUID())
+  ]);
+  assert.equal(raceEnd, 204);
+  assert.ok([202, 404].includes(raceTurn.status));
+  if (raceTurn.status === 202) {
+    const racedOperation = await read(`/v1/operations/${raceTurn.result.operationId}`, newTokenB);
+    assert.equal(racedOperation.result.status, 'cancelled');
+    assert.equal(racedOperation.result.result, null);
+  }
   const lostOperation = await read(operationPath, newToken);
   assert.equal(lostOperation.result.status, 'failed');
   assert.equal(lostOperation.result.error.code, 'result_expired');

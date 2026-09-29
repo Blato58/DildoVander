@@ -150,7 +150,11 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
                 new TurnResult("Toto je testovací odpověď bez AI.", "ask", "", null),
                 null);
 
-            journal.MarkCompleted(operationId);
+            if (!journal.MarkCompleted(operationId))
+            {
+                return new SubmitTurnResult(409, null, "operation_cancelled");
+            }
+
             operations.Add(operationId, operation);
             conversation.TurnIds.Add(request.ClientTurnId);
             conversation.TurnCount++;
@@ -178,9 +182,56 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
                 return recorded;
             }
 
-            return operations.TryGetValue(operationId, out var operation)
+            return recorded.Operation?.Status == "failed"
+                && operations.TryGetValue(operationId, out var operation)
                 ? new GetOperationResult(200, operation)
                 : recorded;
+        }
+    }
+
+    public MutationResult CancelOperation(string deviceId, string operationId, Guid key)
+    {
+        lock (gate)
+        {
+            var result = journal.CancelOperation(deviceId, operationId, key);
+            if (result.Status == 204)
+            {
+                operations.Remove(operationId);
+            }
+
+            return result;
+        }
+    }
+
+    public MutationResult EndConversation(string deviceId, string conversationId, Guid key)
+    {
+        lock (gate)
+        {
+            var route = $"DELETE:/v1/conversations/{conversationId}";
+            var previous = journal.FindMutation(deviceId, route, key);
+            if (previous is not null)
+            {
+                return previous;
+            }
+
+            CleanupExpired(clock.GetUtcNow());
+            if (!conversations.TryGetValue(conversationId, out var conversation))
+            {
+                return new MutationResult(404, false);
+            }
+
+            if (conversation.DeviceId != deviceId)
+            {
+                return new MutationResult(403, false);
+            }
+
+            var result = journal.EndConversation(deviceId, conversationId, key);
+            if (result.Status == 204)
+            {
+                RemoveConversation(conversationId);
+            }
+
+            return result;
         }
     }
 
@@ -196,17 +247,20 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
     {
         foreach (var key in conversations.Where(pair => pair.Value.ExpiresAt <= now).Select(pair => pair.Key).ToArray())
         {
-            conversations.Remove(key);
-            foreach (var operationId in operations
-                .Where(pair => pair.Value.Correlation.ConversationId == key)
-                .Select(pair => pair.Key)
-                .ToArray())
-            {
-                operations.Remove(operationId);
-            }
+            RemoveConversation(key);
         }
+    }
 
-
+    private void RemoveConversation(string conversationId)
+    {
+        conversations.Remove(conversationId);
+        foreach (var operationId in operations
+            .Where(pair => pair.Value.Correlation.ConversationId == conversationId)
+            .Select(pair => pair.Key)
+            .ToArray())
+        {
+            operations.Remove(operationId);
+        }
     }
 
     private sealed class ConversationEntry(
