@@ -1,0 +1,14 @@
+# Managed by kufr IP HTTPS bootstrap.
+server {
+    listen 80 default_server;
+    server_name __PUBLIC_IP__;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/kufr-acme;
+        default_type text/plain;
+    }
+
+    location / {
+        return 503;
+    }
+}
