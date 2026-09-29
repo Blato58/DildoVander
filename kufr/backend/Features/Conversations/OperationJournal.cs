@@ -68,12 +68,14 @@ internal sealed class OperationJournal : IDisposable
         using var version = connection.CreateCommand();
         version.CommandText = "PRAGMA user_version";
         var schemaVersion = (long)version.ExecuteScalar()!;
-        if (schemaVersion is not 0 and not 1)
+        if (schemaVersion is not 0 and not 1 and not 2)
         {
             throw new InvalidOperationException("Unsupported backend database schema version.");
         }
 
+        using var migration = connection.BeginTransaction();
         using var schema = connection.CreateCommand();
+        schema.Transaction = migration;
         schema.CommandText = """
             CREATE TABLE IF NOT EXISTS turn_operations (
                 operation_id TEXT PRIMARY KEY,
@@ -95,11 +97,19 @@ internal sealed class OperationJournal : IDisposable
                 expires_at_ms INTEGER NOT NULL,
                 PRIMARY KEY (device_id, route, key)
             );
+            CREATE TABLE IF NOT EXISTS conversation_turn_usage (
+                conversation_id TEXT PRIMARY KEY,
+                device_id TEXT NOT NULL,
+                reserved_turns INTEGER NOT NULL CHECK (reserved_turns BETWEEN 0 AND 10),
+                expires_at_ms INTEGER NOT NULL
+            );
             CREATE INDEX IF NOT EXISTS ix_turn_operations_expiry ON turn_operations(expires_at_ms);
             CREATE INDEX IF NOT EXISTS ix_turn_idempotency_expiry ON turn_idempotency(expires_at_ms);
-            PRAGMA user_version=1;
+            CREATE INDEX IF NOT EXISTS ix_conversation_turn_usage_expiry ON conversation_turn_usage(expires_at_ms);
+            PRAGMA user_version=2;
             """;
         schema.ExecuteNonQuery();
+        migration.Commit();
 
         // A crash after reservation must never trigger automatic provider replay.
         using var recover = connection.CreateCommand();
@@ -128,6 +138,7 @@ internal sealed class OperationJournal : IDisposable
             cleanup.CommandText = """
                 DELETE FROM turn_idempotency WHERE expires_at_ms <= $now;
                 DELETE FROM turn_operations WHERE expires_at_ms <= $now;
+                DELETE FROM conversation_turn_usage WHERE expires_at_ms <= $now;
                 """;
             cleanup.Parameters.AddWithValue("$now", clock.GetUtcNow().ToUnixTimeMilliseconds());
             cleanup.ExecuteNonQuery();
@@ -140,8 +151,45 @@ internal sealed class OperationJournal : IDisposable
             return existing;
         }
 
+        using (var usage = connection.CreateCommand())
+        {
+            usage.Transaction = transaction;
+            usage.CommandText = """
+                SELECT reserved_turns FROM conversation_turn_usage
+                WHERE conversation_id = $conversation AND device_id = $device
+                """;
+            usage.Parameters.AddWithValue("$conversation", correlation.ConversationId);
+            usage.Parameters.AddWithValue("$device", deviceId);
+            var reservedCount = usage.ExecuteScalar();
+            if (reservedCount is not null && Convert.ToInt32(reservedCount) >= 10)
+            {
+                transaction.Commit();
+                return new JournalReservation(string.Empty, false, false, true);
+            }
+        }
+
         var operationId = Guid.NewGuid().ToString("D");
         var expiresAt = clock.GetUtcNow().AddHours(24).ToUnixTimeMilliseconds();
+
+        using (var usage = connection.CreateCommand())
+        {
+            usage.Transaction = transaction;
+            usage.CommandText = """
+                INSERT INTO conversation_turn_usage
+                    (conversation_id, device_id, reserved_turns, expires_at_ms)
+                VALUES ($conversation, $device, 1, $expires)
+                ON CONFLICT(conversation_id) DO UPDATE SET
+                    reserved_turns = reserved_turns + 1
+                WHERE device_id = excluded.device_id
+                """;
+            usage.Parameters.AddWithValue("$conversation", correlation.ConversationId);
+            usage.Parameters.AddWithValue("$device", deviceId);
+            usage.Parameters.AddWithValue("$expires", expiresAt);
+            if (usage.ExecuteNonQuery() != 1)
+            {
+                throw new InvalidOperationException("Conversation usage has a different owner.");
+            }
+        }
 
         using (var operation = connection.CreateCommand())
         {
@@ -182,7 +230,7 @@ internal sealed class OperationJournal : IDisposable
         }
 
         transaction.Commit();
-        return new JournalReservation(operationId, false, false);
+        return new JournalReservation(operationId, false, false, false);
     }
 
     public void MarkCompleted(string operationId)
@@ -260,7 +308,7 @@ internal sealed class OperationJournal : IDisposable
             return null;
         }
 
-        return new JournalReservation(reader.GetString(1), true, reader.GetString(0) != bodyHash);
+        return new JournalReservation(reader.GetString(1), true, reader.GetString(0) != bodyHash, false);
     }
 
     private SqliteConnection Open()
@@ -271,4 +319,4 @@ internal sealed class OperationJournal : IDisposable
     }
 }
 
-internal sealed record JournalReservation(string OperationId, bool Existing, bool Conflict);
+internal sealed record JournalReservation(string OperationId, bool Existing, bool Conflict, bool LimitExceeded);

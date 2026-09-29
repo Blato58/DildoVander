@@ -114,6 +114,11 @@ internal sealed class ConversationStore(TimeProvider clock, OperationJournal jou
                 return new SubmitTurnResult(409, null, "idempotency_conflict");
             }
 
+            if (reservation.LimitExceeded)
+            {
+                return new SubmitTurnResult(429, null, "turn_limit");
+            }
+
             if (reservation.Existing)
             {
                 return new SubmitTurnResult(202, reservation.OperationId, null);

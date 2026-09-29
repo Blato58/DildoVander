@@ -4,7 +4,8 @@ ASP.NET Core 10 Minimal API pro přímé HTTPS spojení ESP32 s backendem.
 Současné E7.1–2 slices přijímají servisně provisionovaný device credential,
 vydávají 15minutový access token, zakládají nejvýše jedno fake sezení pro zařízení
 a zpracují až deset textových tahů s deterministickou odpovědí `ask`.
-E7.3a přidává SQLite journal pouze pro technická metadata textového tahu.
+E7.3a–b přidávají SQLite journal technických metadat textového tahu a
+atomickou rezervaci nejvýše deseti tahů v jednom sezení.
 V této verzi nejsou STT/TTS ani volání placené AI.
 Žádná trasa neovládá aktuátory.
 
@@ -66,6 +67,9 @@ stejný turn key bez druhého požadavku. Rozběhnutá rezervace přejde na
 `failed/result_expired`. Nové tahy starého sezení nejsou po restartu možné.
 Soubor `journal.sqlite.instance.lock` dovoluje právě jeden běžící backend
 nad databází; druhá instance skončí chybou před recovery.
+Schéma v2 přidává `conversation_turn_usage` a atomicky zapisuje kvótu spolu
+s pending operací a idempotency key. Migrace v1→v2 je dopředná a přidává
+pouze tabulku/index. Nákladový rozpočet placených operací zatím chybí.
 Trvalou idempotenci založení sezení, limity placených operací, časovaný cleanup,
 rušení operací a retenci doplní další E7 slices. Backend zatím
 nesmí být použit pro placené tahy nebo veřejný provoz. Stav a další krok

@@ -6,11 +6,11 @@ Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**Aktivní implementační krok:** E7.3b – atomická rezervace limitu a trvalá idempotence založení sezení. E7.1–2 založily ASP.NET Core 10 backend, fake sezení a typovanou fake operaci. E7.3a doplnila SQLite technický journal pro textové tahy a bezpečný restart jedné instance (D25). SQLite zatím neobsahuje rozpočtovou/kvótovou rezervaci, založení sezení je stále paměťové a placená AI chybí. E2/E3 jsou dokončené v hostitelském/simulátorovém rozsahu. Fyzické nezávislé vypnutí a měření zůstávají kritérii E5.
+**Aktivní implementační krok:** E7.3c – trvalá idempotence založení sezení. E7.1–2 založily ASP.NET Core 10 backend, fake sezení a typovanou fake operaci. E7.3a–b přidaly SQLite turn journal a atomickou kvótu deseti tahů se bezpečným restartem jedné instance (D25–D26). Založení sezení je stále paměťové, nákladový rozpočet a placená AI chybí. E2/E3 jsou dokončené v hostitelském/simulátorovém rozsahu. Fyzické nezávislé vypnutí a měření zůstávají kritérii E5.
 
-**Další konkrétní krok: E7.3b – SQLite rezervace limitu.**
+**Další konkrétní krok: E7.3c – trvalý create retry.**
 
-1. Rozšířit SQLite transakci o rezervaci limitu tahů a později nákladů před provider voláním. Jedna aktivní instance je vynucena `.instance.lock`; otestovat restart a souběh spojení nad stejnou databází. Doplnit trvalou idempotenci založení sezení nebo výslovně odložit do dalšího označeného kroku. Neuložit text návštěvníka.
+1. Zapsat create idempotency key/hash a identitu odpovědi do SQLite. Po restartu se nesmí potichu vytvořit jiné sezení pod stejným klíčem; ztracené paměťové sezení musí zůstat nepoužitelné a nový začátek vyžaduje nový key. Ověřit restart, scope a konflikt jiného těla. Neuložit text návštěvníka.
 2. Následně doplnit cleanup/retenci, zrušení a zbývající HTTP trasy. E7 neoznačovat za hotové, dokud nejsou splněna všechna integrační kritéria v kapitole 12.
 3. Fyzická HW akceptace zůstává v E5 po vstupu B1; nativní iOS E3a čeká na B2/B3. Nezaměnit fake log s NVS ani fake odpověď se skutečnou AI.
 
@@ -36,7 +36,7 @@ Pokud uživatel omezí práci pouze na mobilní aplikaci, neoznačuj závislosti
 | --- | --- | --- |
 | Firmware | Čistá neblokující `SelectionSequence`/`SafetyController` z E1, nezapojený `DeviceControl` s fake clock vstupy, 64 výsledky a `CommandJournal` portem E2.2, čistý `ConversationSession` s generací a stropem 10 tahů E2.8b1. Sériové `select 1..6`, `stop`, `reset`, `status`, `help` zůstává vývojovým vstupem. Hostitelské testy a lokální Arduino/PlatformIO build prošly. | Nezávislý fyzický watchdog/inhibit, skutečný NVS journal/GPIO/síťový detektor lease, provisioning, I2S, propojení dialogu a ovládání. |
 | Mobil | TypeScript/Vite webová obrazovka se šesti přihrádkami, potvrzením, Stop a místním fake režimem; E3.2b adaptér přes E3.2a most proti E2 C++ simulátoru, cílené testy spojení a build. | Capacitor, iOS/Swift projekt a fyzický iPhone test. |
-| Backend/kontrakty/simulátor | E7.1–2 ASP.NET Core 10 s device tokenem, fake sezením/textovým tahem; E7.3a SQLite technický journal turn idempotence a restart (D23–D25). Lokální protokol, C++ simulátor, TLS WSS facade, časová osa, OpenAPI, reload a fake média E2. | SQLite kvóty/náklady a create idempotence, retence, zrušení a zbývající trasy, skutečný AI/audio adaptér dalších etap. |
+| Backend/kontrakty/simulátor | E7.1–2 ASP.NET Core 10 s device tokenem, fake sezením/textovým tahem; E7.3a–b SQLite turn idempotence, restart a kvóta (D23–D26). Lokální protokol, C++ simulátor, TLS WSS facade, časová osa, OpenAPI, reload a fake média E2. | SQLite nákladový rozpočet a create idempotence, retence, zrušení a zbývající trasy, skutečný AI/audio adaptér dalších etap. |
 | iOS CI | Majitelem popsaný existující postup Windows → macOS runner → podepsaná IPA. | Skutečný workflow v tomto checkoutu, ověřená identita/profil a běh/instalace. |
 | Hardware | Dodaný obrázek pinů, návrh napájení a předběžné profily A/B. | Revize konkrétní desky, schéma bezpečnostní větve, měření a fyzická akceptace. |
 
@@ -56,7 +56,7 @@ Přesné závislosti a kritéria dokončení jsou v kapitole 12 plánu. Následu
 | E4 – runtime a přímá síť | nezahájeno | Arduino prototyp. | E2; pro nahrání B1. |
 | E5 – jedna bezpečná přihrádka | nezahájeno | Bez ovládání a měření. | E0/E1/E4; B1, fyzická akceptace. |
 | E6 – šest přihrádek | nezahájeno | Bez fyzického ověření. | E5; cykly, proudy, dostupnost/reload. |
-| E7 – backend bez skutečné AI | rozpracováno | E7.1–2 identity, tokeny, fake sezení/tah, scope; E7.3a SQLite turn journal, 24h idempotence a restart jedné instance; HTTP/SQLite testy (D23–D25). | SQLite rezervace kvót/nákladů, create idempotence, cleanup/retence, zrušení/zbývající trasy; integrační testy všech kritérií etapy. |
+| E7 – backend bez skutečné AI | rozpracováno | E7.1–2 identity, tokeny, fake sezení/tah, scope; E7.3a–b SQLite turn journal, 24h idempotence, restart jedné instance a atomická kvóta 10 tahů; HTTP/SQLite testy (D23–D26). | Nákladový rozpočet, create idempotence, cleanup/retence, zrušení/zbývající trasy; integrační testy všech kritérií etapy. |
 | E8 – skutečný textový dialog | nezahájeno | Bez adaptéru a evaluace. | E2/E7, na desce E4; B4/B5 před placenou akceptací. |
 | E9 – samostatný hlas kufru | nezahájeno | Bez audio cesty. | E4/E5/E8; hardware a hlasová akceptace. |
 | E10 – dokončení mobilní zálohy | nezahájeno | Bez native transportu. | E3/E3a/E4/E8; audio po E9; skutečný iPhone. |
@@ -77,6 +77,13 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 | B5 | Majitel: finální katalog a publikum, rozměry, router a prostředí akce. | Obsahovou/provozní akceptaci E8/E11 a finální mechaniku. | Neutrální testovací katalog a laboratorní/simulované scénáře. |
 
 ## Deník změn a ověření
+
+### D26 – 29. 9. 2026 – E7.3b atomická SQLite kvóta tahů
+
+- Rozsah: dopředná transakční migrace schématu v1→v2 přidává `conversation_turn_usage` a index expirace. `OperationJournal.Reserve` pod okamžitou transakcí kontroluje a rezervuje nejvýše deset tahů pro device/conversation zároveň s pending operací a idempotency key; shodný retry limit znovu nespotřebuje. RAM limit zůstává rychlou předběžnou kontrolou, SQLite je trvalá hranice. Nejsou zde placené výdaje; nákladová rezervace před provider voláním se musí doplnit zvlášť.
+- Ověření: `kufr/backend` `dotnet build backend.csproj` bez varování; `kufr` `dotnet run --project backend-tests/BackendTests.csproj` ověřil devět rezervací a dva paralelní různé klíče na hranici desáté (právě jeden přijat), odmítnutí dalšího, shodný retry na limitu, zachování limitu po novém otevření DB a migraci osazeného v1 schématu na v2 se zachováním operationId a idempotence. `node backend/tests/smoke.mjs` nad skutečným HTTP hostem/SQLite opět prošel včetně paralelních požadavků na hranici deseti tahů.
+- Omezení: založení sezení a jeho souběh jsou stále paměťové; kvóta je počet tahů, nikoli dolarový rozpočet. Cleanup je oportunní, zbytek E7 akceptace zůstává otevřený.
+- Revize a doručení: doplnit po ověřeném commitu a skutečném výsledku push.
 
 ### D25 – 29. 9. 2026 – E7.3a SQLite journal textového tahu
 
