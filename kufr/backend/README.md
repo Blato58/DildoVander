@@ -126,6 +126,13 @@ helperu, stav služby a odpověď lokálního /healthz. Nevypisuje tajemství,
 nevytváří adresáře a nespouští bootstrap. Chybějící releases directory
 znamená, že níže uvedený jednorázový bootstrap ještě neproběhl.
 
+Pokud správce nemá na serveru checkout soukromého repozitáře, ruční workflow
+Kufr backend bootstrap source stáhne aktuální `main` na serverovém runneru,
+uloží `bootstrap-ubuntu.sh` do soukromého adresáře runneru a vypíše absolutní
+cestu i SHA-256. Správce porovná hash v root shellu příkazem `sha256sum CESTA`
+a spustí `sudo bash CESTA github-runner`. Soubor není nutné kopírovat do
+`/root`; workflow skript samo nespouští ani nepoužívá sudo.
+
 
 Workflow `.github/workflows/kufr-backend.yml` při změnách backendu v `main`
 sestaví a otestuje samostatný `linux-x64` release na GitHub runneru. Ruční
