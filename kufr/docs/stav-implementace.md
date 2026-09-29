@@ -76,10 +76,17 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 
 ## Deník změn a ověření
 
+### D65 – 29. 9. 2026 – firmware CI bez fyzické desky
+
+- Rozsah: `.github/workflows/kufr-firmware.yml` přidává PR/push a ruční spuštění pro oba připnuté PlatformIO profily. Na Ubuntu sestaví ESP-IDF i Arduino serial a spustí hostitelský `DeviceControl` i nový snapshot runtime test; joby nemají přístup k podpisovým ani backendovým secrets a nic nenahrávají do desky.
+- Ověření: Python `yaml.BaseLoader` úspěšně načetl workflow a oba joby; `git diff --check` bez chyb. Skutečný GitHub Actions běh zatím neproběhl, jeho výsledek je nutné doplnit po push.
+- Předání: CI chrání build a modelové testy bez hardwaru; B1 a fyzickou akceptaci E4/E5 nenahrazuje. Následuje E4.3d2b jen s autorizovaným místním vstupem a B1 pro skutečné WSS/TLS.
+
 ### D64 – 29. 9. 2026 – vlastník snapshotu v ESP-IDF smyčce
 
 - Rozsah: `DeviceControlRuntime` je jediný volající `DeviceControl` v IDF řídicí smyčce a publikuje `ConversationRuntimeState` po bezpečném zotavení, změně lease, uzavření journalu a reloadu. Při přijatém výběru, probíhající sekvenci, Stop nebo chybě journalu stav invaliduje; generaci zvýší při Stop a ztrátě ručního lease. `DeviceControl::Tick` nově hlídá mezeru smyčky i mezi přijetím a spuštěním výběru. IDF sestavení obsahuje zdroje v CMake a velkou command cache mimo zásobník `app_main`; prázdný boot ID a nulová kalibrace zatím blokují skutečné povely.
-- Ověření z worktree `kufr/firmware`: MSVC hostitelské testy `device_control_runtime_test.cpp` a původní `device_control_test.cpp` s `/std:c++14 /utf-8 /W4 /WX` prošly; nový test byl po doplnění mezery smyčky před spuštěním opakován. První `pio run -e esp32-s3-idf -s` selhal při linkování, protože CMake neobsahoval `DeviceControl.cpp` a `DeviceControlRuntime.cpp`; po doplnění a pak znovu po přesunu command cache mimo stack prošel. `pio run -e esp32-s3-arduino-serial -s` prošel. `git diff --check` bez chyb; doručení zbývá.
+- Ověření z worktree `kufr/firmware`: MSVC hostitelské testy `device_control_runtime_test.cpp` a původní `device_control_test.cpp` s `/std:c++14 /utf-8 /W4 /WX` prošly; nový test byl po doplnění mezery smyčky před spuštěním opakován. První `pio run -e esp32-s3-idf -s` selhal při linkování, protože CMake neobsahoval `DeviceControl.cpp` a `DeviceControlRuntime.cpp`; po doplnění a pak znovu po přesunu command cache mimo stack prošel. `pio run -e esp32-s3-arduino-serial -s` prošel. `git diff --check` bez chyb. Na PR větvi se žádný CI job nespustil; tato etapa nemá firmware workflow.
+- Doručení: commit `d0d99ef` byl ověřeně pushnut přes `./scripts/Push-CurrentBranch.ps1`; [PR #15](https://github.com/Blato58/DildoVander/pull/15) byl sloučen do `main` jako `60cee7b`.
 - Omezení/předání: žádný místní autorizovaný producent textu, WSS, servisní USB brána ani fyzická akceptace; síťový task smí jen číst snapshot a nemá přístup k pohonům. D64 je díl E4.3d2a, další E4.3d2b řeší místní vstup a vazbu na lease. B1 stále blokuje nahrání a ověření na desce.
 
 ### D63 – 29. 9. 2026 – nasazený placený Responses tah a návrat na fake
