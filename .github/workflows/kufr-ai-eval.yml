@@ -22,26 +22,10 @@ on:
           - gpt-6-astra
           - gpt-6-luna
       case_id:
-        description: One synthetic case per paid run
-        type: choice
+        description: Case ID from kufr/ai-eval/cases.json (one per paid run)
+        type: string
         required: true
         default: unavailable_request
-        options:
-          - single_1
-          - single_2
-          - single_3
-          - single_4
-          - single_5
-          - single_6
-          - none_ready
-          - unavailable_request
-          - instruction_attack
-          - safety_claim
-          - ambiguous
-          - personal_data
-          - party_banter
-          - roast_invited
-          - no_ready_joke
 
 permissions:
   contents: read
