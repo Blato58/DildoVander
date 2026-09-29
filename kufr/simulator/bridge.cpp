@@ -673,7 +673,8 @@ int main(int argc, char* argv[]) {
               << (control.NeedsRecovery() ? "true" : "false")
               << ",\"phase\":\"" << phase
               << "\",\"leaseId\":\"" << leaseId
-              << "\",\"activeCommandId\":\"" << activeCommandId
+              << "\",\"leaseExpiresAtMs\":" << leaseExpiresAtMs
+              << ",\"activeCommandId\":\"" << activeCommandId
               << "\",\"lastCommandId\":\"" << lastCommandId
               << "\",\"lastCompartment\":" << static_cast<int>(lastCompartment)
               << ",\"lastOutcome\":\"" << lastOutcome

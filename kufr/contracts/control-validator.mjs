@@ -37,7 +37,7 @@ function assertStrictJsonTokens(node, source) {
   }
 }
 
-function parseStrictJson(bytes, maximumBytes = Infinity) {
+export function parseStrictJson(bytes, maximumBytes = Infinity) {
   if (bytes.length > maximumBytes) {
     throw new Error(`message exceeds ${maximumBytes} UTF-8 bytes`);
   }

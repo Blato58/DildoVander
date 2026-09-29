@@ -1,4 +1,4 @@
-import { timingSafeEqual, randomUUID } from 'node:crypto';
+import { timingSafeEqual, randomBytes, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:https';
@@ -7,6 +7,8 @@ import { performance } from 'node:perf_hooks';
 
 import WebSocket, { WebSocketServer } from 'ws';
 import { validateControlMessage } from '../contracts/control-validator.mjs';
+import { MediaStreamVerifier } from '../contracts/media-frame-v1.mjs';
+import { validateMediaControlMessage } from '../contracts/media-validator.mjs';
 
 const deviceId = 'kufr-001';
 
@@ -100,8 +102,18 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
   const bootId = randomUUID();
   const startedAtMs = performance.now();
   const bridge = new NativeBridge(bridgeExecutable, bootId, journalPath);
-  let current = (await bridge.send('SNAPSHOT', 0)).state;
+  let current;
+  try {
+    current = (await bridge.send('SNAPSHOT', 0)).state;
+  } catch (error) {
+    await bridge.close();
+    throw error;
+  }
   let socket = null;
+  let mediaSocket = null;
+  let mediaTicket = null;
+  let mediaTicketLeaseId = '';
+  let nextMediaStreamId = 1;
   let disconnecting = false;
   let stopGeneration = 0;
   let eventSequence = 0;
@@ -225,6 +237,17 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
     onNativeCommand(operation);
     const result = await bridge.send(operation, ...args);
     current = result.state;
+    if (mediaTicketLeaseId && current.leaseId !== mediaTicketLeaseId) {
+      mediaTicket = null;
+      mediaTicketLeaseId = '';
+    }
+    if (mediaSocket?.readyState === WebSocket.OPEN && mediaSocket.context &&
+        (!current.leaseId || current.leaseId !== mediaSocket.context?.controlLeaseId ||
+         current.conversationGeneration !== mediaSocket.context?.generation ||
+         current.phase !== 'ready' || current.activeCommandId ||
+         current.activeConversationTurnId)) {
+      mediaSocket.close(1008, 'media context expired');
+    }
     for (const event of result.events) {
       onTimeline(event);
       broadcast({ kind: 'timeline', event });
@@ -254,6 +277,7 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
         connection.close(1008, 'wrong device or boot');
         return;
       }
+      mediaSocket?.close(1008, 'stopped');
       await native('STOP', nowMs());
       sendTerminalResult();
       sendSnapshot();
@@ -290,7 +314,17 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
           connection.close(1008, 'controller busy');
           break;
         }
+        mediaTicket = randomBytes(32).toString('hex');
+        mediaTicketLeaseId = leaseId;
         sendSnapshot();
+        send({
+          protocolVersion: 1,
+          type: 'media.authorize',
+          requestMessageId: message.messageId,
+          bootId,
+          controlLeaseId: leaseId,
+          mediaTicket,
+        });
         break;
       }
       case 'control.release':
@@ -488,14 +522,171 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
     }
   });
   const webSockets = new WebSocketServer({ noServer: true, maxPayload: 8192, perMessageDeflate: false });
+  const mediaWebSockets = new WebSocketServer({ noServer: true, maxPayload: 4112, perMessageDeflate: false });
+
+  function acceptMediaSocket(connection) {
+    mediaSocket = connection;
+    let verifier = null;
+    let creditRemaining = 0;
+    let progressTimer = null;
+    const helloTimer = setTimeout(() => connection.close(1008, 'media hello timeout'), 10000);
+
+    function sendMedia(message) {
+      validateMediaControlMessage(Buffer.from(JSON.stringify(message)));
+      connection.send(JSON.stringify(message));
+    }
+
+    function isCurrentContext(context) {
+      return socket?.readyState === WebSocket.OPEN &&
+        current.leaseId === context.controlLeaseId &&
+        nowMs() < current.leaseExpiresAtMs &&
+        current.phase === 'ready' && !current.activeCommandId &&
+        !current.activeConversationTurnId &&
+        current.conversationId === context.conversationId &&
+        current.conversationGeneration === context.generation;
+    }
+
+    function armProgressTimeout() {
+      clearTimeout(progressTimer);
+      progressTimer = setTimeout(() => connection.close(1008, 'media timeout'), 1000);
+    }
+
+    connection.on('message', (bytes, isBinary) => {
+      try {
+        if (isBinary) {
+          if (!verifier || !isCurrentContext(connection.context)) {
+            throw new Error('media context expired');
+          }
+          const payload = verifier.accept(bytes, nowMs());
+          if (payload.length > creditRemaining) {
+            throw new Error('media credit exceeded');
+          }
+          creditRemaining -= payload.length;
+          armProgressTimeout();
+          if (creditRemaining <= 8192) {
+            const grantedBytes = 16384 - creditRemaining;
+            creditRemaining = 16384;
+            sendMedia({
+              protocolVersion: 1,
+              type: 'media.credit',
+              streamId: verifier.streamId,
+              creditBytes: grantedBytes,
+            });
+          }
+          return;
+        }
+
+        const message = validateMediaControlMessage(bytes);
+        if (!verifier) {
+          const suppliedTicket = Buffer.from(message.mediaTicket ?? '');
+          const expectedTicket = Buffer.from(mediaTicket ?? '');
+          const ticketValid = expectedTicket.length === 64 &&
+            suppliedTicket.length === expectedTicket.length &&
+            timingSafeEqual(suppliedTicket, expectedTicket);
+          if (message.type !== 'media.hello' || message.deviceId !== deviceId ||
+              message.bootId !== bootId || !isCurrentContext(message) ||
+              !ticketValid || nextMediaStreamId > 0xffffffff) {
+            throw new Error('media hello rejected');
+          }
+          clearTimeout(helloTimer);
+          connection.context = message;
+          const streamId = nextMediaStreamId;
+          nextMediaStreamId += 1;
+          verifier = new MediaStreamVerifier({
+            kind: 1,
+            streamId,
+            maxBytes: 1920000,
+            startedAtMs: nowMs(),
+          });
+          creditRemaining = 16384;
+          sendMedia({
+            protocolVersion: 1,
+            type: 'media.open',
+            requestMessageId: message.messageId,
+            bootId,
+            conversationId: message.conversationId,
+            generation: message.generation,
+            streamId,
+            direction: 'phoneToDevice',
+            kind: 'pcmCapture',
+            format: 'pcm16le',
+            sampleRateHz: 32000,
+            channels: 1,
+            maxBytes: 1920000,
+            creditBytes: 16384,
+          });
+          armProgressTimeout();
+          return;
+        }
+
+        if (!isCurrentContext(connection.context) ||
+            message.bootId !== bootId ||
+            message.controlLeaseId !== connection.context.controlLeaseId ||
+            message.conversationId !== connection.context.conversationId ||
+            message.generation !== connection.context.generation ||
+            message.streamId !== verifier.streamId) {
+          throw new Error('media context mismatch');
+        }
+        if (message.type === 'media.end') {
+          if (message.totalBytes < 19200 || message.totalBytes % 2 !== 0) {
+            throw new Error('capture duration or sample alignment invalid');
+          }
+          const result = verifier.finish(message, nowMs());
+          sendMedia({
+            protocolVersion: 1,
+            type: 'media.result',
+            requestMessageId: message.messageId,
+            streamId: verifier.streamId,
+            status: 'received',
+            totalBytes: result.totalBytes,
+            errorCode: null,
+            simulated: true,
+          });
+        } else if (message.type === 'media.cancel') {
+          verifier.closed = true;
+          sendMedia({
+            protocolVersion: 1,
+            type: 'media.result',
+            requestMessageId: message.messageId,
+            streamId: verifier.streamId,
+            status: 'cancelled',
+            totalBytes: verifier.receivedBytes,
+            errorCode: null,
+            simulated: true,
+          });
+        } else {
+          throw new Error('unsupported media direction');
+        }
+        clearTimeout(progressTimer);
+        connection.close(1000);
+      } catch {
+        connection.close(1008, 'invalid media');
+      }
+    });
+    connection.on('close', () => {
+      clearTimeout(helloTimer);
+      clearTimeout(progressTimer);
+      if (mediaSocket === connection) {
+        mediaSocket = null;
+      }
+    });
+  }
 
   server.on('upgrade', (request, networkSocket, head) => {
-    if (request.url !== '/v1/control') {
+    if (request.url !== '/v1/control' && request.url !== '/v1/media') {
       networkSocket.end('HTTP/1.1 404 Not Found\r\n\r\n');
       return;
     }
     if (!isBearerToken(request.headers.authorization, token)) {
       networkSocket.end('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      return;
+    }
+    if (request.url === '/v1/media') {
+      if (mediaSocket) {
+        networkSocket.end('HTTP/1.1 409 Conflict\r\n\r\n');
+        return;
+      }
+      mediaWebSockets.handleUpgrade(request, networkSocket, head, acceptMediaSocket);
       return;
     }
     if (socket || disconnecting) {
@@ -575,6 +766,7 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
     });
   } catch (error) {
     webSockets.close();
+    mediaWebSockets.close();
     await bridge.close();
     throw error;
   }
@@ -615,7 +807,9 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
       }
       observers.clear();
       socket?.terminate();
+      mediaSocket?.terminate();
       webSockets.close();
+      mediaWebSockets.close();
       await new Promise((resolve) => server.close(resolve));
       await bridge.close();
     },

@@ -16,6 +16,7 @@
     { "$ref": "#/$defs/conversationCancel" },
     { "$ref": "#/$defs/conversationAck" },
     { "$ref": "#/$defs/conversationResult" },
+    { "$ref": "#/$defs/mediaAuthorize" },
     { "$ref": "#/$defs/commandAck" },
     { "$ref": "#/$defs/selectionResult" },
     { "$ref": "#/$defs/stateSnapshot" },
@@ -317,6 +318,22 @@
         "eventSequence": { "$ref": "#/$defs/safeInteger" },
         "reply": { "type": "string", "minLength": 1, "maxLength": 400 },
         "simulated": { "const": true }
+      }
+    },
+    "mediaAuthorize": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion", "type", "requestMessageId", "bootId",
+        "controlLeaseId", "mediaTicket"
+      ],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "type": { "const": "media.authorize" },
+        "requestMessageId": { "$ref": "#/$defs/uuid" },
+        "bootId": { "$ref": "#/$defs/uuid" },
+        "controlLeaseId": { "$ref": "#/$defs/uuid" },
+        "mediaTicket": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
       }
     },
     "commandAck": {
