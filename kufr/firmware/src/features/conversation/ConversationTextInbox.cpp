@@ -5,8 +5,10 @@
 
 #include "ConversationSession.h"
 
-bool ConversationTextInbox::Submit(const std::string& text) {
-  if (text.size() > 4000 || !IsValidConversationText(text)) {
+bool ConversationTextInbox::Submit(const std::string& text,
+                                   uint64_t snapshotVersion) {
+  if (snapshotVersion == 0 || text.size() > 4000 ||
+      !IsValidConversationText(text)) {
     return false;
   }
   bool hasVisibleContent = false;
@@ -27,16 +29,20 @@ bool ConversationTextInbox::Submit(const std::string& text) {
     return false;
   }
   pendingText_ = text;
+  pendingVersion_ = snapshotVersion;
   return true;
 }
 
-bool ConversationTextInbox::Take(std::string& text) {
+bool ConversationTextInbox::Take(std::string& text,
+                                 uint64_t& snapshotVersion) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (pendingText_.empty()) {
     return false;
   }
   text = std::move(pendingText_);
+  snapshotVersion = pendingVersion_;
   pendingText_.clear();
+  pendingVersion_ = 0;
   return true;
 }
 
@@ -44,4 +50,5 @@ void ConversationTextInbox::Clear() {
   std::lock_guard<std::mutex> lock(mutex_);
   std::fill(pendingText_.begin(), pendingText_.end(), '\0');
   pendingText_.clear();
+  pendingVersion_ = 0;
 }

@@ -16,8 +16,8 @@ Výchozí sestavení `pio run` používá **ESP-IDF 6.1** v profilu
 Podrobný postup a skutečně provedené kontroly jsou ve
 [stavu implementace](../docs/stav-implementace.md). ESP-IDF profil má
 read-only síťový základ a nyní i interní cestu pro jeden explicitně předaný
-fake textový tah. Zdroj události, místní WSS a fyzické výstupy zatím připojené
-nejsou.
+fake textový tah nad atomickým snapshotem stavu. Autorizovaný zdroj události,
+místní WSS a fyzické výstupy zatím připojené nejsou.
 
 ## Architektura
 
@@ -68,6 +68,7 @@ src/
       ConversationTextCodec.h/.cpp          validace a JSON textového tahu
       ConversationUuid.h/.cpp               kanonický UUID v4 formát
       ConversationTextInbox.h/.cpp           jediná explicitní čekající textová událost
+      ConversationRuntimeState.h/.cpp         atomický stav a verze pro síťový tah
       EspIdfConversationStartTransport.h/.cpp  HTTPS start sezení
       EspIdfConversationTextTransport.h/.cpp   HTTPS textový tah
       EspIdfConversationUuid.h/.cpp         UUID z HW RNG po startu Wi-Fi
@@ -84,6 +85,7 @@ tests/
   device_token_session_test.cpp             test tokenu, obnovy a parseru
   network_settings_test.cpp                 test konfigurace, času a reconnectu
   conversation_session_test.cpp             test textu, zrušení a generace
+  conversation_runtime_state_test.cpp       test atomického snapshotu a změny verze
   conversation_start_codec_test.cpp         test HTTP těla a odpovědi startu
   conversation_start_coordinator_test.cpp   test retry a scope startu
   conversation_text_codec_test.cpp          test UTF-8 a JSON textového tahu
@@ -363,9 +365,13 @@ validovaný UTF-8 text, po důvěryhodném čase a tokenu založí nebo znovu po
 fake backend sezení, odešle tah a omezeně polluje výsledek. Pouze shodná
 odpověď typu `ask`/`no_selection` je přijata do read-only diagnostiky;
 neovládá sekvenci ani GPIO. Volání `QueueTextTurn` zatím nemá v runtime
-producenta. Katalog je dočasná verze `neutral-1`, dostupnost čte NVS journal
-a revize/generace jsou 0, protože IDF profil dosud nemá běžící místní řízení.
-Tyto hodnoty je nutné nahradit atomickým snapshotem před připojením WSS.
+producenta. `ConversationRuntimeState` dává síťové úloze jeden uzamčený snapshot
+generace, revize, masky a katalogu; textová schránka uchovává jeho verzi a po
+změně stavu se starý tah zahodí. Inicializace čte dostupnost z NVS journalu,
+katalog je dočasná verze `neutral-1` a revize/generace jsou 0, protože IDF
+profil dosud nemá běžící místní řízení. Budoucí vlastník řízení musí po každé
+změně journalu, revize nebo generace publikovat snapshot a při poruše jej
+zneplatnit. Bez autorizovaného WSS a platného manual lease se text nepřijímá.
 
 ## Další slices a podmínky zapojení
 

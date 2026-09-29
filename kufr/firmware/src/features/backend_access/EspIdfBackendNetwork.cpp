@@ -30,7 +30,6 @@ constexpr uint32_t ConnectionTimeoutMs = 15000;
 constexpr uint32_t TokenCheckPeriodMs = 1000;
 constexpr uint32_t OfflineRetryMs = 30000;
 constexpr uint32_t PollCheckPeriodMs = 100;
-constexpr char NeutralCatalogVersion[] = "neutral-1";
 
 uint64_t MonotonicMs() {
   return static_cast<uint64_t>(esp_timer_get_time() / 1000);
@@ -43,11 +42,13 @@ void WaitMs(uint32_t durationMs) {
 }  // namespace
 
 EspIdfBackendNetwork::EspIdfBackendNetwork(
-    DeviceIdentity& identity, PersistentCommandJournal& journal)
-    : identity_(identity), journal_(journal) {}
+    DeviceIdentity& identity, ConversationRuntimeState& runtimeState)
+    : identity_(identity), runtimeState_(runtimeState) {}
 
 bool EspIdfBackendNetwork::QueueTextTurn(const std::string& text) {
-  return online_.load() && textInbox_.Submit(text);
+  ConversationRuntimeSnapshot snapshot;
+  return online_.load() && runtimeState_.Read(snapshot) &&
+         textInbox_.Submit(text, snapshot.version);
 }
 
 bool EspIdfBackendNetwork::Start(bool nvsInitialized) {
@@ -97,8 +98,6 @@ void EspIdfBackendNetwork::Run() {
   ConversationStartCoordinator coordinator(identity_, tokens, startTransport);
   ConversationStartRequest startRequest;
   startRequest.deviceId = identity_.DeviceId();
-  startRequest.catalogVersion = NeutralCatalogVersion;
-  startRequest.generation = 0;
   ReconnectPolicy reconnect;
   bool sntpStarted = false;
   bool timeSynchronized = false;
@@ -163,8 +162,10 @@ void EspIdfBackendNetwork::Run() {
     }
     online_.store(true);
     std::string text;
-    if (textInbox_.Take(text)) {
-      RunTextTurn(text, tokens, wifi, coordinator, startRequest);
+    uint64_t snapshotVersion = 0;
+    if (textInbox_.Take(text, snapshotVersion)) {
+      RunTextTurn(text, snapshotVersion, tokens, wifi, coordinator,
+                  startRequest);
       std::fill(text.begin(), text.end(), '\0');
       text.clear();
     }
@@ -173,20 +174,25 @@ void EspIdfBackendNetwork::Run() {
 }
 
 void EspIdfBackendNetwork::RunTextTurn(
-    const std::string& text, DeviceTokenSession& tokens,
+    const std::string& text, uint64_t snapshotVersion,
+    DeviceTokenSession& tokens,
     EspIdfWifiStation& wifi,
     ConversationStartCoordinator& coordinator,
     ConversationStartRequest& startRequest) {
-  if (!wifi.HasIp() || !journal_.IsHealthy() || journal_.HasPending() ||
-      bootId_.empty()) {
+  ConversationRuntimeSnapshot snapshot;
+  if (!wifi.HasIp() || !runtimeState_.Read(snapshot) ||
+      snapshot.version != snapshotVersion || bootId_.empty()) {
     ESP_LOGW(LogTag, "Text turn dropped: device state unavailable");
     return;
   }
 
-  // Until local control is connected, this read-only IDF runtime has revision
-  // zero. The journal is its sole source of compartment availability.
-  const uint64_t deviceRevision = 0;
-  const uint8_t readyMask = journal_.ReadyMask();
+  if (startSnapshotVersion_ != snapshot.version) {
+    coordinator.Clear();
+    startRequest.idempotencyKey = GenerateEspIdfConversationUuid();
+    startSnapshotVersion_ = snapshot.version;
+  }
+  startRequest.generation = snapshot.generation;
+  startRequest.catalogVersion = snapshot.catalogVersion;
   EspIdfConversationTextTransport textTransport(settings_.BackendHost());
   EspIdfTurnPollTransport pollTransport(settings_.BackendHost());
   if (!textTransport.IsConfigured() ||
@@ -201,17 +207,20 @@ void EspIdfBackendNetwork::RunTextTurn(
     ESP_LOGW(LogTag, "Text turn: conversation start failed");
     return;
   }
+  if (!runtimeState_.Matches(snapshot)) {
+    return;
+  }
 
   ConversationTextTurnRequest turnRequest;
   turnRequest.conversationId = coordinator.ConversationId();
   turnRequest.clientTurnId = GenerateEspIdfConversationUuid();
   turnRequest.bootId = bootId_;
   turnRequest.idempotencyKey = GenerateEspIdfConversationUuid();
-  turnRequest.catalogVersion = NeutralCatalogVersion;
+  turnRequest.catalogVersion = snapshot.catalogVersion;
   turnRequest.text = text;
-  turnRequest.generation = 0;
-  turnRequest.deviceRevision = deviceRevision;
-  turnRequest.readyMask = readyMask;
+  turnRequest.generation = snapshot.generation;
+  turnRequest.deviceRevision = snapshot.deviceRevision;
+  turnRequest.readyMask = snapshot.readyMask;
   const uint64_t turnStartedAtMs = MonotonicMs();
   ConversationTextHttpResult accepted =
       textTransport.Submit(turnRequest, tokens.AccessToken(turnStartedAtMs));
@@ -238,13 +247,12 @@ void EspIdfBackendNetwork::RunTextTurn(
   expected.conversationId = turnRequest.conversationId;
   expected.clientTurnId = turnRequest.clientTurnId;
   expected.generation = turnRequest.generation;
-  expected.deviceRevision = deviceRevision;
+  expected.deviceRevision = snapshot.deviceRevision;
   TurnPollSchedule schedule;
   schedule.Begin(turnStartedAtMs, MonotonicMs());
   while (wifi.HasIp() && schedule.IsActive()) {
     const uint64_t nowMs = MonotonicMs();
-    if (schedule.IsExpired(nowMs) || !journal_.IsHealthy() ||
-        journal_.HasPending() || journal_.ReadyMask() != readyMask) {
+    if (schedule.IsExpired(nowMs) || !runtimeState_.Matches(snapshot)) {
       break;
     }
     if (!schedule.MarkStarted(nowMs)) {
@@ -252,20 +260,21 @@ void EspIdfBackendNetwork::RunTextTurn(
       continue;
     }
     TurnPollHttpResult result = pollTransport.Poll(
-        accepted.operationId, expected, 0, deviceRevision,
+        accepted.operationId, expected, snapshot.generation,
+        snapshot.deviceRevision,
         tokens.AccessToken(nowMs));
     if (result.statusCode == 401 &&
         tokens.HandleUnauthorized(MonotonicMs())) {
       result = pollTransport.Poll(
-          accepted.operationId, expected, 0, deviceRevision,
+          accepted.operationId, expected, snapshot.generation,
+          snapshot.deviceRevision,
           tokens.AccessToken(MonotonicMs()));
     }
     const uint64_t completedAtMs = MonotonicMs();
     if (result.statusCode == 200 &&
         result.decision == TurnPollDecision::ReplyReady &&
         !schedule.IsExpired(completedAtMs) && wifi.HasIp() &&
-        journal_.IsHealthy() && !journal_.HasPending() &&
-        journal_.ReadyMask() == readyMask) {
+        runtimeState_.Matches(snapshot)) {
       ESP_LOGI(LogTag, "Fake text reply accepted without actuator action");
       std::fill(result.reply.begin(), result.reply.end(), '\0');
       break;

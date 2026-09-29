@@ -163,6 +163,8 @@ Každý kufr má unikátní náhodný 256bitový device credential, provisionova
 
 ESP32 volá níže uvedené HTTP API, nejvýše jeden aktivní tah, drží keep-alive spojení pro malé požadavky. WAV upload/download jde v blocích 4 KiB bez base64 a bez kopie celé nahrávky do TLS bufferu. Backend odpoví 202 + operationId; ESP32 polluje stav. Výsledek musí echoovat `{deviceId, bootId, conversationId, clientTurnId, generation, deviceRevision}`. Nesoulad nebo již zrušená generation se zahodí. Zrušení/ruční převzetí zvýší generation a nečeká na konec cloudu.
 
+Pro E4.3d sdílí vlastník řízení a síťová úloha jeden uzamčený snapshot `{generation,deviceRevision,readyMask,catalogVersion,version}`. Po potvrzeném zápisu journalu a změně řízení jej vlastník publikuje jako celek; při poruše jej zneplatní. Čekající text nese verzi snapshotu a síťová úloha před zahájením i po přijetí výsledku ověří shodu. Změna verze zahodí starý tah a při dalším tahu založí nové backend sezení. Tento mechanismus sám nevytváří autorizovaný místní textový vstup: jeho producent musí projít WSS autentizací a platným ručním lease podle kapitoly 5.
+
 Wi-Fi reconnect 1/2/4/8/16/30 s s jitterem; návrat připojení sám nezahájí rozhovor ani nepřehraje staré potvrzení. Při výpadku zahodit nepotvrzený návrh, ukončit nahrávání a nabídnout místní nouzovou hlášku. Opakovat lze stejný idempotentní API požadavek nebo polling dosud platné operace, nikoli vytvořit nový turn se starou nahrávkou. Po restartu zařízení začíná nové sezení. Pro běžný provoz není nutný MQTT broker, cloudový WebSocket ani mobilní relay.
 
 ### Volitelné místní spojení telefonu
