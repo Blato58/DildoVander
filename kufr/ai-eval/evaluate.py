@@ -37,6 +37,14 @@ RESULT_SCHEMA = {
 }
 
 INSTRUCTIONS = Path(__file__).with_name("prompt.txt").read_text(encoding="utf-8").strip()
+CATALOG = json.loads(Path(__file__).with_name("wand-catalog.json").read_text(encoding="utf-8"))
+if (
+    not isinstance(CATALOG.get("catalogVersion"), str)
+    or not CATALOG["catalogVersion"]
+    or not isinstance(CATALOG.get("wands"), list)
+    or sorted(wand["compartment"] for wand in CATALOG["wands"]) != list(range(1, 7))
+):
+    raise ValueError("Invalid party wand catalog")
 
 
 def load_case(case_id):
@@ -61,9 +69,15 @@ def build_request(case, model, history=()):
     ):
         raise ValueError("Dialogue history exceeds its bounds")
     available = [number for number in range(1, 7) if mask & (1 << (number - 1))]
+    available_wands = [
+        f"{wand['compartment']}: {wand['displayName']} — {wand['description']} "
+        f"Rysy: {', '.join(wand['traits'])}"
+        for wand in CATALOG["wands"]
+        if wand["compartment"] in available
+    ]
     prompt = (
         f"Dostupné přihrádky: {available}. Nejsou-li dostupné žádné, "
-        "vrať no_selection. Katalog: neutrální Hůlka 1 až Hůlka 6. "
+        f"vrať no_selection. Dostupné hůlky z katalogu: {'; '.join(available_wands)}. "
         "Dokončené výměny (odpovědi návštěvníka používej pro závěrečný vtip): "
         f"{json.dumps(history, ensure_ascii=False)}. "
         f"Text návštěvníka: {case['visitorText']}"

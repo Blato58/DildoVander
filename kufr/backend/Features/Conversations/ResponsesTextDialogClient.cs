@@ -46,7 +46,7 @@ internal sealed class ResponsesTextDialogClient(
 
         var input = $"Dostupné přihrádky: [{string.Join(", ", available)}]. "
             + "Nejsou-li dostupné žádné, vrať no_selection. "
-            + "Katalog: neutrální Hůlka 1 až Hůlka 6. "
+            + $"Dostupné hůlky z katalogu: {PartyWandCatalog.AvailableForPrompt(readyMask)}. "
             + "Dokončené výměny (odpovědi návštěvníka používej pro závěrečný vtip): "
             + JsonSerializer.Serialize(history, RequestJsonOptions)
             + ". "

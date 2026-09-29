@@ -41,8 +41,14 @@ internal static class ResponsesTextDialogClientTests
                 "strict structured output");
             Check(root.GetProperty("instructions").GetString()!.Contains("fyzické potvrzení", StringComparison.Ordinal),
                 "shared party prompt embedded");
+            Check(root.GetProperty("instructions").GetString()!.Contains("Ollivanderova obchodu", StringComparison.Ordinal),
+                "shared prompt establishes magical suitcase role");
             Check(root.GetProperty("input").GetString()!.Contains("[5]", StringComparison.Ordinal),
                 "ready mask limits provider input");
+            Check(root.GetProperty("input").GetString()!.Contains("Kaštanová hůlka Kocovina věštců", StringComparison.Ordinal),
+                "available catalog entry is passed to provider");
+            Check(!root.GetProperty("input").GetString()!.Contains("Jasanová hůlka Poslední slovo", StringComparison.Ordinal),
+                "unavailable catalog entry is excluded from provider input");
             Check(root.GetProperty("input").GetString()!.Contains("Vtipný a třpytivý.", StringComparison.Ordinal),
                 "completed visitor answer is passed to provider");
         }

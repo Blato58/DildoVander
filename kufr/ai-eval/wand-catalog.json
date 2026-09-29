@@ -1,0 +1,41 @@
+{
+  "catalogVersion": "ollivander-private-party-v1",
+  "wands": [
+    {
+      "compartment": 1,
+      "displayName": "Jasanová hůlka Poslední slovo",
+      "description": "Štíhlá jasanová hůlka s jantarovou rukojetí pro hosta, který vstoupí nenápadně a stejně skončí uprostřed nejlepší historky večera.",
+      "traits": ["pohotový humor", "tichá jistota", "suchá replika", "pozorovatel"]
+    },
+    {
+      "compartment": 2,
+      "displayName": "Třešňová hůlka Parketový kompas",
+      "description": "Třešňové dřevo s měděnou spirálou; má vrozený cit pro velkolepý návrat na parket, i když majitel před chvílí hledal korunu pod stolem.",
+      "traits": ["teatrální vstup", "tanec", "třpytivý chaos", "odvaha po trapasu"]
+    },
+    {
+      "compartment": 3,
+      "displayName": "Ořechová hůlka Výbor pro špatné nápady",
+      "description": "Tmavý ořech se stříbrným uzlem pro vynalézavé plánovače, jejichž nápady znějí po půlnoci podezřele jako státní politika.",
+      "traits": ["satira", "velké plány", "improvizace", "přátelský roast"]
+    },
+    {
+      "compartment": 4,
+      "displayName": "Březová hůlka Sametové alibi",
+      "description": "Světlá bříza s matně fialovým hrotem; elegantní volba pro člověka, který chce působit záhadně, ale zároveň neztratit skleničku ani vlastní důstojnost.",
+      "traits": ["elegance", "tajemnost", "jemný humor", "klidný styl"]
+    },
+    {
+      "compartment": 5,
+      "displayName": "Kaštanová hůlka Kocovina věštců",
+      "description": "Kaštanové dřevo s drobnou mosaznou hvězdou. Nevěští budoucnost, jen spolehlivě pozná hosta, který už dnes slíbil, že zítra vstane brzy.",
+      "traits": ["ironická moudrost", "noční sova", "sebeironie", "přežití rána"]
+    },
+    {
+      "compartment": 6,
+      "displayName": "Jilmová hůlka Knihovní bouře",
+      "description": "Jilmová hůlka s inkoustově modrým žilkováním pro tiché sběratele fantasy, kteří se tváří jako vedlejší postava a pak ukradnou celou scénu.",
+      "traits": ["fantasy znalec", "sběratel", "klid před bouří", "nenápadná výstřednost"]
+    }
+  ]
+}
