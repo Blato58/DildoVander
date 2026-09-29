@@ -2,9 +2,7 @@
 
 #include <limits>
 
-namespace {
-
-bool IsUuid(const std::string& value) {
+bool IsConversationUuid(const std::string& value) {
   if (value.size() != 36) {
     return false;
   }
@@ -21,6 +19,8 @@ bool IsUuid(const std::string& value) {
   }
   return true;
 }
+
+namespace {
 
 bool IsSafeIdentifier(const std::string& value, size_t maximumLength) {
   if (value.empty() || value.size() > maximumLength) {
@@ -157,7 +157,8 @@ bool BuildConversationStartRequest(const ConversationStartRequest& request,
   body.clear();
   if (!IsSafeIdentifier(request.deviceId, 48) ||
       !IsSafeIdentifier(request.catalogVersion, 128) ||
-      !IsUuid(request.bootId) || !IsUuid(request.idempotencyKey)) {
+      !IsConversationUuid(request.bootId) ||
+      !IsConversationUuid(request.idempotencyKey)) {
     return false;
   }
   body = "{\"deviceId\":\"" + request.deviceId +
@@ -189,7 +190,7 @@ bool ParseConversationStartResponse(const char* data, size_t length,
     if (key == "conversationId") {
       field = 1;
       if (!cursor.ReadString(parsed.conversationId, 64) ||
-          !IsUuid(parsed.conversationId)) {
+          !IsConversationUuid(parsed.conversationId)) {
         return false;
       }
     } else if (key == "expiresAt") {

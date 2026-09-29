@@ -6,6 +6,8 @@
 #include <array>
 #include <string>
 
+bool IsValidConversationText(const std::string& text);
+
 enum class ConversationCommandError : uint8_t {
   None,
   Unauthorized,

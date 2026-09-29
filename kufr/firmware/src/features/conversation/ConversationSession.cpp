@@ -2,9 +2,7 @@
 
 #include <algorithm>
 
-namespace {
-
-bool HasValidTextLength(const std::string& text) {
+bool IsValidConversationText(const std::string& text) {
   size_t characters = 0;
   for (size_t index = 0; index < text.size();) {
     const unsigned char first = static_cast<unsigned char>(text[index]);
@@ -49,8 +47,6 @@ bool HasValidTextLength(const std::string& text) {
   return characters > 0;
 }
 
-}  // namespace
-
 ConversationSession::ConversationSession(const std::string& bootId,
                                          const std::string& conversationId)
     : bootId_(bootId), conversationId_(conversationId) {}
@@ -71,7 +67,7 @@ ConversationCommandReceipt ConversationSession::SubmitText(
     return {ConversationCommandError::WrongGeneration, false};
   }
   if (command.clientTurnId.empty() || command.text.size() > 8192 ||
-      !HasValidTextLength(command.text)) {
+      !IsValidConversationText(command.text)) {
     return {ConversationCommandError::InvalidText, false};
   }
   if (HasActiveTurn()) {

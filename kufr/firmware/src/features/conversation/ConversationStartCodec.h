@@ -18,6 +18,8 @@ struct ConversationStartResponse {
   std::string expiresAt;
 };
 
+bool IsConversationUuid(const std::string& value);
+
 // Text-only start request: audio and image consent remain false.
 bool BuildConversationStartRequest(const ConversationStartRequest& request,
                                    std::string& body);

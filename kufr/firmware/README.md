@@ -63,6 +63,7 @@ src/
       ConversationStartCodec.h/.cpp         omezený JSON startu backend sezení
       ConversationStartCoordinator.h/.cpp   jediné obnovení tokenu při 401
       ConversationStartPort.h               port pro test a HTTPS adaptér
+      ConversationTextCodec.h/.cpp          validace a JSON textového tahu
       EspIdfConversationStartTransport.h/.cpp  HTTPS start sezení
 tests/
   selection_sequence_test.cpp               test bez hardwaru
@@ -74,6 +75,7 @@ tests/
   conversation_session_test.cpp             test textu, zrušení a generace
   conversation_start_codec_test.cpp         test HTTP těla a odpovědi startu
   conversation_start_coordinator_test.cpp   test retry a scope startu
+  conversation_text_codec_test.cpp          test UTF-8 a JSON textového tahu
 ```
 
 První slice řídí výběr jedné ze šesti hůlek. `SelectionSequence` přijímá
@@ -155,6 +157,9 @@ redirect ani automatickou autentizaci a vyžaduje odpověď 201 s platným těle
 `ConversationStartCoordinator` kontroluje device scope a při 401 obnoví token
 právě jednou; druhé volání dostane původní tělo a Idempotency-Key. Po chybě
 musí volající pro opakování ponechat stejné UUID požadavku.
+`ConversationTextCodec` sestaví tělo textového tahu s bezpečným JSON escapingem,
+validací UTF-8/1000 znaků, UUID, masky 0–63 a konečným limitem 4096 bajtů.
+Potvrzení `operationId`, HTTPS POST a poll výsledku zatím chybí.
 Zatím jej nevolá síťová úloha: chybí událost zahájení rozhovoru, UUID generátor,
 textové tahy a pollování. Žádná odpověď z backendu neřídí fyzické výstupy.
 
@@ -271,6 +276,13 @@ Jednorázové obnovení tokenu a opakování založení sezení:
 ```text
 g++ -std=c++14 -Wall -Wextra -Werror src/features/provisioning/DeviceIdentity.cpp src/features/backend_access/DeviceTokenSession.cpp src/features/conversation/ConversationStartCodec.cpp src/features/conversation/ConversationStartCoordinator.cpp tests/conversation_start_coordinator_test.cpp -o <docasna-slozka>/conversation_start_coordinator_test
 <docasna-slozka>/conversation_start_coordinator_test
+```
+
+Omezené JSON tělo textového tahu:
+
+```text
+g++ -std=c++14 -Wall -Wextra -Werror src/features/conversation/ConversationSession.cpp src/features/conversation/ConversationStartCodec.cpp src/features/conversation/ConversationTextCodec.cpp tests/conversation_text_codec_test.cpp -o <docasna-slozka>/conversation_text_codec_test
+<docasna-slozka>/conversation_text_codec_test
 ```
 
 ## Další slices a podmínky zapojení
