@@ -62,6 +62,15 @@ Require(access.VerifyAccessToken(issued!.AccessToken) is null, "token expiry");
 
 var pendingCorrelation = new TurnCorrelation("device-a", bootId, conversationId, Guid.NewGuid(), 1, 7);
 var pending = journal.Reserve("device-a", "/v1/conversations/pending/turns", Guid.NewGuid(), "pending-hash", pendingCorrelation);
+var cancelled = journal.Reserve("device-a", "cancelled", Guid.NewGuid(), "cancel-hash", pendingCorrelation);
+var cancellationKey = Guid.NewGuid();
+Require(journal.CancelOperation("other-device", cancelled.OperationId, cancellationKey).Status == 403,
+    "foreign operation cancellation rejected");
+Require(journal.CancelOperation("device-a", cancelled.OperationId, cancellationKey).Status == 204,
+    "owner can cancel operation");
+Require(!journal.MarkCompleted(cancelled.OperationId), "late completion cannot override cancellation");
+Require(journal.GetOperation("device-a", cancelled.OperationId).Operation?.Status == "cancelled",
+    "cancelled operation remains cancelled");
 var concurrentKey = Guid.NewGuid();
 var concurrentCorrelation = pendingCorrelation with { ClientTurnId = Guid.NewGuid() };
 var concurrentReservations = await Task.WhenAll(
@@ -117,6 +126,8 @@ catch (InvalidOperationException)
 journal.Dispose();
 var restartedJournal = new OperationJournal(journalConfiguration, clock);
 var restartedStore = new ConversationStore(clock, restartedJournal);
+Require(restartedJournal.CancelOperation("device-a", cancelled.OperationId, cancellationKey).Status == 204,
+    "cancellation retry survives restart");
 Require(restartedStore.Create("device-a", key, body, request).Response?.ConversationId == conversationId,
     "create idempotency survives restart");
 Require(restartedStore.Create("device-a", key, Encoding.UTF8.GetBytes("changed-body"), request).Status == 409,
@@ -156,7 +167,8 @@ using (var retainedConnection = new SqliteConnection($"Data Source={Path.Combine
         "turn_operations",
         "turn_idempotency",
         "conversation_turn_usage",
-        "conversation_creates"
+        "conversation_creates",
+        "mutation_idempotency"
     })
     {
         using var count = retainedConnection.CreateCommand();
@@ -251,7 +263,7 @@ using (var migratedConnection = new SqliteConnection($"Data Source={migrationPat
     migratedConnection.Open();
     using var version = migratedConnection.CreateCommand();
     version.CommandText = "PRAGMA user_version";
-    Require((long)version.ExecuteScalar()! == 3, "schema migrated from v1 to v3");
+    Require((long)version.ExecuteScalar()! == 4, "schema migrated from v1 to v4");
 }
 
 var versionTwoPath = Path.Combine(databaseDirectory, "legacy-v2.sqlite");
@@ -279,14 +291,52 @@ using (var versionTwoConnection = new SqliteConnection($"Data Source={versionTwo
 var versionTwoConfiguration = new ConfigurationBuilder()
     .AddInMemoryCollection(new Dictionary<string, string?> { ["Backend:DatabasePath"] = versionTwoPath })
     .Build();
-using (var versionThreeJournal = new OperationJournal(versionTwoConfiguration, clock))
+using (var versionFourJournal = new OperationJournal(versionTwoConfiguration, clock))
 {
-    Require(versionThreeJournal.Reserve(
+    Require(versionFourJournal.Reserve(
         "device-a", "quota", Guid.NewGuid(), "hash",
         quotaCorrelation with { ConversationId = versionTwoConversationId }).LimitExceeded,
-        "populated v2 quota survives v3 migration");
-    Require(versionThreeJournal.ReserveCreate("device-a", Guid.NewGuid(), "hash").Response is not null,
-        "v3 create table available after v2 migration");
+        "populated v2 quota survives v4 migration");
+    Require(versionFourJournal.ReserveCreate("device-a", Guid.NewGuid(), "hash").Response is not null,
+        "create table available after v2 migration");
+}
+
+var versionThreePath = Path.Combine(databaseDirectory, "legacy-v3.sqlite");
+var versionThreeKey = Guid.NewGuid();
+var versionThreeConversationId = Guid.NewGuid().ToString("D");
+using (var versionThreeConnection = new SqliteConnection($"Data Source={versionThreePath}"))
+{
+    versionThreeConnection.Open();
+    using var versionThreeSchema = versionThreeConnection.CreateCommand();
+    versionThreeSchema.CommandText = """
+        CREATE TABLE conversation_creates (
+            device_id TEXT NOT NULL, key TEXT NOT NULL, body_hash TEXT NOT NULL,
+            conversation_id TEXT NOT NULL, response_expires_at_ms INTEGER NOT NULL,
+            record_expires_at_ms INTEGER NOT NULL,
+            PRIMARY KEY (device_id, key)
+        );
+        INSERT INTO conversation_creates
+            (device_id, key, body_hash, conversation_id,
+             response_expires_at_ms, record_expires_at_ms)
+        VALUES ('device-a', $key, 'legacy-hash', $conversation, $expires, $expires);
+        PRAGMA user_version=3;
+        """;
+    versionThreeSchema.Parameters.AddWithValue("$key", versionThreeKey.ToString("D"));
+    versionThreeSchema.Parameters.AddWithValue("$conversation", versionThreeConversationId);
+    versionThreeSchema.Parameters.AddWithValue("$expires", clock.GetUtcNow().AddHours(24).ToUnixTimeMilliseconds());
+    versionThreeSchema.ExecuteNonQuery();
+}
+
+var versionThreeConfiguration = new ConfigurationBuilder()
+    .AddInMemoryCollection(new Dictionary<string, string?> { ["Backend:DatabasePath"] = versionThreePath })
+    .Build();
+using (var versionFourJournal = new OperationJournal(versionThreeConfiguration, clock))
+{
+    Require(versionFourJournal.FindExistingCreate("device-a", versionThreeKey, "legacy-hash")?
+        .Response?.ConversationId == versionThreeConversationId,
+        "populated v3 create survives v4 migration");
+    Require(versionFourJournal.CancelOperation("device-a", "missing", Guid.NewGuid()).Status == 404,
+        "v4 mutation table available after v3 migration");
 }
 
 var workerClock = new AdjustableTimeProvider(new DateTimeOffset(2026, 9, 29, 10, 0, 0, TimeSpan.Zero));
@@ -374,7 +424,8 @@ static void AssertNoVisitorText(string databasePath, string text)
         "turn_operations",
         "turn_idempotency",
         "conversation_turn_usage",
-        "conversation_creates"
+        "conversation_creates",
+        "mutation_idempotency"
     })
     {
         using var command = connection.CreateCommand();

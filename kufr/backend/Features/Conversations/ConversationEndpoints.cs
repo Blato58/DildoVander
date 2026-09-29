@@ -10,6 +10,8 @@ internal static class ConversationEndpoints
         endpoints.MapPost("/v1/conversations", CreateConversationAsync);
         endpoints.MapPost("/v1/conversations/{id}/turns", SubmitTurnAsync);
         endpoints.MapGet("/v1/operations/{id}", GetOperation);
+        endpoints.MapDelete("/v1/operations/{id}", CancelOperationAsync);
+        endpoints.MapDelete("/v1/conversations/{id}", EndConversationAsync);
         return endpoints;
     }
 
@@ -178,11 +180,74 @@ internal static class ConversationEndpoints
             : Results.Json(result.Operation);
     }
 
+    private static async Task<IResult> CancelOperationAsync(
+        string id,
+        HttpContext context,
+        DeviceAccessStore access,
+        ConversationStore conversations)
+    {
+        var deviceId = DeviceAccessEndpoints.Authenticate(context, access);
+        if (deviceId is null)
+        {
+            return ApiProblem.Create(context, 401, "access_token_required");
+        }
+
+        if (!Guid.TryParseExact(context.Request.Headers["Idempotency-Key"], "D", out var key)
+            || !await HasEmptyBodyAsync(context))
+        {
+            return ApiProblem.Create(context, 400, "invalid_request");
+        }
+
+        var result = conversations.CancelOperation(deviceId, id, key);
+        return result.Status == 204
+            ? Results.NoContent()
+            : ApiProblem.Create(context, result.Status, result.Status == 403
+                ? "device_scope_mismatch"
+                : "operation_not_found");
+    }
+
+    private static async Task<IResult> EndConversationAsync(
+        string id,
+        HttpContext context,
+        DeviceAccessStore access,
+        ConversationStore conversations)
+    {
+        var deviceId = DeviceAccessEndpoints.Authenticate(context, access);
+        if (deviceId is null)
+        {
+            return ApiProblem.Create(context, 401, "access_token_required");
+        }
+
+        if (!Guid.TryParseExact(context.Request.Headers["Idempotency-Key"], "D", out var key)
+            || !await HasEmptyBodyAsync(context))
+        {
+            return ApiProblem.Create(context, 400, "invalid_request");
+        }
+
+        var result = conversations.EndConversation(deviceId, id, key);
+        return result.Status == 204
+            ? Results.NoContent()
+            : ApiProblem.Create(context, result.Status, result.Status == 403
+                ? "device_scope_mismatch"
+                : "conversation_not_found");
+    }
+
     private static bool IsUuid(JsonElement root, string name)
     {
         var value = root.GetProperty(name);
         return value.ValueKind == JsonValueKind.String
             && Guid.TryParseExact(value.GetString(), "D", out _);
+    }
+
+    private static async Task<bool> HasEmptyBodyAsync(HttpContext context)
+    {
+        if (context.Request.ContentLength is > 0)
+        {
+            return false;
+        }
+
+        var prefix = new byte[1];
+        return await context.Request.Body.ReadAsync(prefix, context.RequestAborted) == 0;
     }
 
     private static bool IsInteger(JsonElement root, string name)

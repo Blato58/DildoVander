@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Microsoft.Data.Sqlite;
 
 namespace Kufr.Backend.Features.Conversations;
@@ -68,7 +69,7 @@ internal sealed class OperationJournal : IDisposable
         using var version = connection.CreateCommand();
         version.CommandText = "PRAGMA user_version";
         var schemaVersion = (long)version.ExecuteScalar()!;
-        if (schemaVersion is not 0 and not 1 and not 2 and not 3)
+        if (schemaVersion is not 0 and not 1 and not 2 and not 3 and not 4)
         {
             throw new InvalidOperationException("Unsupported backend database schema version.");
         }
@@ -112,11 +113,20 @@ internal sealed class OperationJournal : IDisposable
                 record_expires_at_ms INTEGER NOT NULL,
                 PRIMARY KEY (device_id, key)
             );
+            CREATE TABLE IF NOT EXISTS mutation_idempotency (
+                device_id TEXT NOT NULL,
+                route TEXT NOT NULL,
+                key TEXT NOT NULL,
+                body_hash TEXT NOT NULL,
+                expires_at_ms INTEGER NOT NULL,
+                PRIMARY KEY (device_id, route, key)
+            );
             CREATE INDEX IF NOT EXISTS ix_turn_operations_expiry ON turn_operations(expires_at_ms);
             CREATE INDEX IF NOT EXISTS ix_turn_idempotency_expiry ON turn_idempotency(expires_at_ms);
             CREATE INDEX IF NOT EXISTS ix_conversation_turn_usage_expiry ON conversation_turn_usage(expires_at_ms);
             CREATE INDEX IF NOT EXISTS ix_conversation_creates_expiry ON conversation_creates(record_expires_at_ms);
-            PRAGMA user_version=3;
+            CREATE INDEX IF NOT EXISTS ix_mutation_idempotency_expiry ON mutation_idempotency(expires_at_ms);
+            PRAGMA user_version=4;
             """;
         schema.ExecuteNonQuery();
         migration.Commit();
@@ -292,16 +302,100 @@ internal sealed class OperationJournal : IDisposable
         return new JournalReservation(operationId, false, false, false);
     }
 
-    public void MarkCompleted(string operationId)
+    public bool MarkCompleted(string operationId)
     {
         using var connection = Open();
         using var command = connection.CreateCommand();
-        command.CommandText = "UPDATE turn_operations SET status = 'completed' WHERE operation_id = $operation";
+        command.CommandText = """
+            UPDATE turn_operations SET status = 'completed'
+            WHERE operation_id = $operation AND status IN ('pending', 'running')
+            """;
         command.Parameters.AddWithValue("$operation", operationId);
-        if (command.ExecuteNonQuery() != 1)
+        return command.ExecuteNonQuery() == 1;
+    }
+
+    public MutationResult? FindMutation(string deviceId, string route, Guid key)
+    {
+        using var connection = Open();
+        return FindMutation(connection, null, deviceId, route, key);
+    }
+
+    public MutationResult CancelOperation(string deviceId, string operationId, Guid key)
+    {
+        var route = $"DELETE:/v1/operations/{operationId}";
+        using var connection = Open();
+        using var transaction = connection.BeginTransaction();
+        var previous = FindMutation(connection, transaction, deviceId, route, key);
+        if (previous is not null)
         {
-            throw new InvalidOperationException("Reserved operation was not found.");
+            transaction.Commit();
+            return previous;
         }
+
+        using (var owner = connection.CreateCommand())
+        {
+            owner.Transaction = transaction;
+            owner.CommandText = """
+                SELECT device_id FROM turn_operations
+                WHERE operation_id = $operation AND expires_at_ms > $now
+                """;
+            owner.Parameters.AddWithValue("$operation", operationId);
+            owner.Parameters.AddWithValue("$now", clock.GetUtcNow().ToUnixTimeMilliseconds());
+            var ownerId = owner.ExecuteScalar() as string;
+            if (ownerId is null)
+            {
+                transaction.Commit();
+                return new MutationResult(404, false);
+            }
+
+            if (ownerId != deviceId)
+            {
+                transaction.Commit();
+                return new MutationResult(403, false);
+            }
+        }
+
+        using (var cancel = connection.CreateCommand())
+        {
+            cancel.Transaction = transaction;
+            cancel.CommandText = "UPDATE turn_operations SET status = 'cancelled' WHERE operation_id = $operation";
+            cancel.Parameters.AddWithValue("$operation", operationId);
+            cancel.ExecuteNonQuery();
+        }
+
+        RecordMutation(connection, transaction, deviceId, route, key);
+        transaction.Commit();
+        return new MutationResult(204, false);
+    }
+
+    public MutationResult EndConversation(string deviceId, string conversationId, Guid key)
+    {
+        var route = $"DELETE:/v1/conversations/{conversationId}";
+        using var connection = Open();
+        using var transaction = connection.BeginTransaction();
+        var previous = FindMutation(connection, transaction, deviceId, route, key);
+        if (previous is not null)
+        {
+            transaction.Commit();
+            return previous;
+        }
+
+        using (var cancel = connection.CreateCommand())
+        {
+            cancel.Transaction = transaction;
+            cancel.CommandText = """
+                UPDATE turn_operations SET status = 'cancelled'
+                WHERE device_id = $device AND conversation_id = $conversation
+                  AND status IN ('pending', 'running', 'completed')
+                """;
+            cancel.Parameters.AddWithValue("$device", deviceId);
+            cancel.Parameters.AddWithValue("$conversation", conversationId);
+            cancel.ExecuteNonQuery();
+        }
+
+        RecordMutation(connection, transaction, deviceId, route, key);
+        transaction.Commit();
+        return new MutationResult(204, false);
     }
 
     public void PurgeExpired()
@@ -315,6 +409,7 @@ internal sealed class OperationJournal : IDisposable
             DELETE FROM turn_operations WHERE expires_at_ms <= $now;
             DELETE FROM conversation_turn_usage WHERE expires_at_ms <= $now;
             DELETE FROM conversation_creates WHERE record_expires_at_ms <= $now;
+            DELETE FROM mutation_idempotency WHERE expires_at_ms <= $now;
             """;
         command.Parameters.AddWithValue("$now", clock.GetUtcNow().ToUnixTimeMilliseconds());
         command.ExecuteNonQuery();
@@ -422,6 +517,62 @@ internal sealed class OperationJournal : IDisposable
         return new JournalCreateReservation(response, true, false);
     }
 
+    private MutationResult? FindMutation(
+        SqliteConnection connection,
+        SqliteTransaction? transaction,
+        string deviceId,
+        string route,
+        Guid key)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            SELECT body_hash FROM mutation_idempotency
+            WHERE device_id = $device AND route = $route AND key = $key
+              AND expires_at_ms > $now
+            """;
+        command.Parameters.AddWithValue("$device", deviceId);
+        command.Parameters.AddWithValue("$route", route);
+        command.Parameters.AddWithValue("$key", key.ToString("D"));
+        command.Parameters.AddWithValue("$now", clock.GetUtcNow().ToUnixTimeMilliseconds());
+        var existingHash = command.ExecuteScalar() as string;
+        if (existingHash is null)
+        {
+            return null;
+        }
+
+        return new MutationResult(existingHash == EmptyBodyHash ? 204 : 409, true);
+    }
+
+    private void RecordMutation(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        string deviceId,
+        string route,
+        Guid key)
+    {
+        using var cleanup = connection.CreateCommand();
+        cleanup.Transaction = transaction;
+        cleanup.CommandText = "DELETE FROM mutation_idempotency WHERE expires_at_ms <= $now";
+        cleanup.Parameters.AddWithValue("$now", clock.GetUtcNow().ToUnixTimeMilliseconds());
+        cleanup.ExecuteNonQuery();
+
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            INSERT INTO mutation_idempotency (device_id, route, key, body_hash, expires_at_ms)
+            VALUES ($device, $route, $key, $hash, $expires)
+            """;
+        command.Parameters.AddWithValue("$device", deviceId);
+        command.Parameters.AddWithValue("$route", route);
+        command.Parameters.AddWithValue("$key", key.ToString("D"));
+        command.Parameters.AddWithValue("$hash", EmptyBodyHash);
+        command.Parameters.AddWithValue("$expires", clock.GetUtcNow().AddHours(24).ToUnixTimeMilliseconds());
+        command.ExecuteNonQuery();
+    }
+
+    private static string EmptyBodyHash { get; } = Convert.ToHexString(SHA256.HashData([]));
+
     private SqliteConnection Open()
     {
         var connection = new SqliteConnection(connectionString);
@@ -432,3 +583,4 @@ internal sealed class OperationJournal : IDisposable
 
 internal sealed record JournalReservation(string OperationId, bool Existing, bool Conflict, bool LimitExceeded);
 internal sealed record JournalCreateReservation(ConversationResponse? Response, bool Existing, bool Conflict);
+internal sealed record MutationResult(int Status, bool Existing);

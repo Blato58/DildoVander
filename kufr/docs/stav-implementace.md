@@ -6,12 +6,12 @@ Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**Aktivní implementační krok:** E7.4b – explicitní ukončení sezení a zrušení operace. E7.1–2 založily ASP.NET Core 10 backend a fake dialog; E7.3a–c přidaly SQLite turn/create idempotenci, kvótu a restart; E7.4a přidala časovanou retenci RAM a technických záznamů (D23–D28). Nákladový rozpočet a placená AI chybí. E2/E3 jsou dokončené v hostitelském/simulátorovém rozsahu. Fyzické nezávislé vypnutí a měření zůstávají kritérii E5.
+**Aktivní implementační krok:** E7.5a – fake hlasové trasy podle OpenAPI. E7.1–2 založily ASP.NET Core 10 backend a fake dialog; E7.3a–c přidaly SQLite turn/create idempotenci, kvótu a restart; E7.4a–b retenci a explicitní rušení (D23–D29). Nákladový rozpočet a placená AI chybí. E2/E3 jsou dokončené v hostitelském/simulátorovém rozsahu. Fyzické nezávislé vypnutí a měření zůstávají kritérii E5.
 
-**Další konkrétní krok: E7.4b – DELETE a cancellation.**
+**Další konkrétní krok: E7.5a – fake hlasové trasy.**
 
-1. Přidat `DELETE /v1/conversations/{id}` a `DELETE /v1/operations/{id}` s device scope, idempotency key a konzervativním zrušením. Po explicitním ukončení vyčistit RAM výsledky, nepotvrzovat zrušení již účtovatelného volání jako refundaci. Ověřit cizí scope, opakování a restart.
-2. Doplnit zbývající HTTP fake trasy a nákladovou rezervaci před prvním placeným voláním. E7 neoznačovat za hotové, dokud nejsou splněna všechna integrační kritéria v kapitole 12.
+1. Doplnit `POST /v1/conversations/{id}/transcriptions`, `/speech` a `GET /v1/audio/{audioId}` pouze s deterministickými fake adaptéry, striktními limity médií, device scope, retencí a konzervativní idempotencí. Ověřit chybný formát, restart, zrušení a souběh.
+2. Připravit nákladovou rezervaci před prvním placeným voláním a integrační testy zbývajících E7 kritérií. E7 neoznačovat za hotové, dokud nejsou splněna všechna kritéria v kapitole 12.
 3. Fyzická HW akceptace zůstává v E5 po vstupu B1; nativní iOS E3a čeká na B2/B3. Nezaměnit fake log s NVS ani fake odpověď se skutečnou AI.
 
 Předpokládané dotčené cesty: `kufr/backend/`, související README a tento stav. Krok nevyžaduje fyzickou desku, cloudový klíč ani Apple certifikát. Toto je implementační předání, nikoli příkaz něco nahrát či publikovat.
@@ -36,7 +36,7 @@ Pokud uživatel omezí práci pouze na mobilní aplikaci, neoznačuj závislosti
 | --- | --- | --- |
 | Firmware | Čistá neblokující `SelectionSequence`/`SafetyController` z E1, nezapojený `DeviceControl` s fake clock vstupy, 64 výsledky a `CommandJournal` portem E2.2, čistý `ConversationSession` s generací a stropem 10 tahů E2.8b1. Sériové `select 1..6`, `stop`, `reset`, `status`, `help` zůstává vývojovým vstupem. Hostitelské testy a lokální Arduino/PlatformIO build prošly. | Nezávislý fyzický watchdog/inhibit, skutečný NVS journal/GPIO/síťový detektor lease, provisioning, I2S, propojení dialogu a ovládání. |
 | Mobil | TypeScript/Vite webová obrazovka se šesti přihrádkami, potvrzením, Stop a místním fake režimem; E3.2b adaptér přes E3.2a most proti E2 C++ simulátoru, cílené testy spojení a build. | Capacitor, iOS/Swift projekt a fyzický iPhone test. |
-| Backend/kontrakty/simulátor | E7.1–2 ASP.NET Core 10 s device tokenem, fake sezením/textovým tahem; E7.3a–c SQLite turn/create idempotence, restart a kvóta; E7.4a retence (D23–D28). Lokální protokol, C++ simulátor, TLS WSS facade, časová osa, OpenAPI, reload a fake média E2. | Nákladový rozpočet, explicitní zrušení a zbývající trasy, skutečný AI/audio adaptér dalších etap. |
+| Backend/kontrakty/simulátor | E7.1–2 ASP.NET Core 10 s device tokenem, fake sezením/textovým tahem; E7.3a–c SQLite turn/create idempotence, restart a kvóta; E7.4a–b retence a explicitní rušení (D23–D29). Lokální protokol, C++ simulátor, TLS WSS facade, časová osa, OpenAPI, reload a fake média E2. | Nákladový rozpočet, zbývající hlasové trasy, skutečný AI/audio adaptér dalších etap. |
 | iOS CI | Majitelem popsaný existující postup Windows → macOS runner → podepsaná IPA. | Skutečný workflow v tomto checkoutu, ověřená identita/profil a běh/instalace. |
 | Hardware | Dodaný obrázek pinů, návrh napájení a předběžné profily A/B. | Revize konkrétní desky, schéma bezpečnostní větve, měření a fyzická akceptace. |
 
@@ -56,7 +56,7 @@ Přesné závislosti a kritéria dokončení jsou v kapitole 12 plánu. Následu
 | E4 – runtime a přímá síť | nezahájeno | Arduino prototyp. | E2; pro nahrání B1. |
 | E5 – jedna bezpečná přihrádka | nezahájeno | Bez ovládání a měření. | E0/E1/E4; B1, fyzická akceptace. |
 | E6 – šest přihrádek | nezahájeno | Bez fyzického ověření. | E5; cykly, proudy, dostupnost/reload. |
-| E7 – backend bez skutečné AI | rozpracováno | E7.1–2 identity, fake sezení/tah; E7.3a–c SQLite idempotence, restart a kvóta; E7.4a časovaný cleanup/retence; HTTP/SQLite testy (D23–D28). | Nákladový rozpočet, explicitní zrušení/zbývající trasy; integrační testy všech kritérií etapy. |
+| E7 – backend bez skutečné AI | rozpracováno | E7.1–2 identity, fake sezení/tah; E7.3a–c SQLite idempotence, restart a kvóta; E7.4a–b časovaný cleanup/retence a explicitní rušení; HTTP/SQLite testy (D23–D29). | Nákladový rozpočet, zbývající hlasové trasy; integrační testy všech kritérií etapy. |
 | E8 – skutečný textový dialog | nezahájeno | Bez adaptéru a evaluace. | E2/E7, na desce E4; B4/B5 před placenou akceptací. |
 | E9 – samostatný hlas kufru | nezahájeno | Bez audio cesty. | E4/E5/E8; hardware a hlasová akceptace. |
 | E10 – dokončení mobilní zálohy | nezahájeno | Bez native transportu. | E3/E3a/E4/E8; audio po E9; skutečný iPhone. |
@@ -77,6 +77,13 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 | B5 | Majitel: finální katalog a publikum, rozměry, router a prostředí akce. | Obsahovou/provozní akceptaci E8/E11 a finální mechaniku. | Neutrální testovací katalog a laboratorní/simulované scénáře. |
 
 ## Deník změn a ověření
+
+### D29 – 29. 9. 2026 – E7.4b explicitní rušení
+
+- Rozsah: `DELETE /v1/operations/{id}` a `DELETE /v1/conversations/{id}` vyžadují device access token, UUID `Idempotency-Key` a prázdné tělo; cizí identita je odmítnuta. SQLite schéma v4 přidává 24hodinový záznam úspěšného DELETE pro bezpečný retry po restartu. Zrušení operace potlačí publikaci výsledku v RAM; ukončení sezení odstraní jeho RAM obsah a označí jeho operace jako `cancelled`. Dokončení již zrušené rezervace nesmí přepsat status. Rezervovaný tah se nerefunduje.
+- Ověření: `kufr/backend` `dotnet build backend.csproj` bez varování; z kořene `dotnet run --project kufr/backend-tests/BackendTests.csproj` ověřil vlastnictví, pozdní dokončení, restartový retry, migrace osazených v1/v2/v3 schémat a retenci páté SQLite tabulky. `node kufr/backend/tests/smoke.mjs` prošel nad HTTP hostem: cizí scope, cancellation/end, vymazaný výsledek, opakování po restartu, současný DELETE/tah a odmítnutí běžného i chunked těla DELETE.
+- Omezení: fake tah se dokončuje synchronně, takže souběh skutečného provider volání nebyl ověřen; tento kód konzervativně brání pozdnímu přepsání. SQLite ponechává technické identity do 24 h kvůli idempotenci. Placené volání ani jeho nákladová rezervace zatím neexistují. Hlasové trasy zbývají.
+- Revize a doručení: čeká na commit a push tohoto ověřeného slice.
 
 ### D28 – 29. 9. 2026 – E7.4a časovaná retence
 

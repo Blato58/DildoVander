@@ -1,11 +1,12 @@
 # Backend kufru (E7)
 
 ASP.NET Core 10 Minimal API pro přímé HTTPS spojení ESP32 s backendem.
-Současné E7.1–2 slices přijímají servisně provisionovaný device credential,
+E7.1–2 přijímají servisně provisionovaný device credential,
 vydávají 15minutový access token, zakládají nejvýše jedno fake sezení pro zařízení
 a zpracují až deset textových tahů s deterministickou odpovědí `ask`.
-E7.3a–b přidávají SQLite journal technických metadat textového tahu a
-atomickou rezervaci nejvýše deseti tahů v jednom sezení.
+E7.3a–c přidávají SQLite journal technických metadat textového tahu a
+založení sezení, atomickou rezervaci nejvýše deseti tahů v jednom sezení a
+idempotenci po restartu. E7.4 přidává retenci a explicitní rušení.
 V této verzi nejsou STT/TTS ani volání placené AI.
 Žádná trasa neovládá aktuátory.
 
@@ -56,6 +57,10 @@ vydaný access token, UUID hlavičku `Idempotency-Key` a tělo dle
 `../contracts/backend-openapi-v1.json`. `GET /v1/operations/{id}` vrací
 fake operaci ve stavu `completed` s identitami požadavku, pevnou odpovědí
 `ask` a `proposal:null`. Text návštěvníka se neukládá do operace ani logu.
+`DELETE /v1/operations/{id}` a `DELETE /v1/conversations/{id}` vyžadují stejný
+access token, UUID `Idempotency-Key` a prázdné tělo. Rušení potlačí publikaci
+výsledku v RAM i pozdě dokončeného tahu; již odeslaná placená práce by ale
+nebyla refundována. Úspěšný DELETE key lze po restartu opakovat po dobu 24 h.
 Odpovědi `/v1` mají `Cache-Control: no-store`; chyby používají
 `application/problem+json` se stabilním `code` a `traceId`.
 
@@ -71,14 +76,14 @@ Schéma v2 přidalo `conversation_turn_usage` a atomicky zapisuje kvótu spolu
 s pending operací a idempotency key. Schéma v3 přidává
 `conversation_creates`: create key, hash těla, původní ID odpovědi a expirace
 přežijí restart. Po restartu je starý conversationId pouze identitou retry;
-obsah sezení z RAM zmizel a nový rozhovor vyžaduje nový key. Migrace v1/v2→v3
-je dopředná a přidává pouze tabulky/indexy. Nákladový rozpočet placených
+obsah sezení z RAM zmizel a nový rozhovor vyžaduje nový key. Schéma v4 přidává
+`mutation_idempotency` pro DELETE retry. Migrace v1/v2/v3→v4 je dopředná a
+přidává pouze tabulky/indexy. Nákladový rozpočet placených
 operací zatím chybí.
 `RetentionWorker` každou minutu smaže expirované paměťové sezení/výsledky,
 granty a 24hodinové technické SQLite záznamy. Sezení trvá nejvýše
 15 minut nečinnosti a 30 minut od vytvoření. Ztracený výsledek se znovu
-nevytváří; polling vrátí `result_expired`. Explicitní rušení operací,
-nákladové limity placených volání a zbývající HTTP trasy doplní další E7
-slices. Backend zatím
+nevytváří; polling vrátí `result_expired`. Nákladové limity placených volání
+a zbývající HTTP trasy doplní další E7 slices. Backend zatím
 nesmí být použit pro placené tahy nebo veřejný provoz. Stav a další krok
 jsou v `../docs/stav-implementace.md`.
