@@ -6,7 +6,7 @@ Poslední aktualizace: **29. 9. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**Aktivní implementační krok:** E4.3 – samostatný ESP32 klient backendu. E4.1 ESP-IDF profil a bezpečná smyčka jsou softwarově sestavené (D33); E4.2 má trvalý journal a model identity s NVS adaptéry bez HW/USB akceptace (D34–D35). E4.3a přidává model backend tokenu a HTTPS adaptér (D36), E4.3b servisně čtenou síť, SNTP/časovou bránu a samostatnou úlohu (D37). E4.3c má JSON kodeky, HTTPS adaptéry, obnovu tokenu, korelaci, UUID a časování (D38–D48). D49 připojil interní cestu start/tah/poll; D51 přidal atomický snapshot a vazbu čekajícího textu na jeho verzi. Text stále nemá autorizovaného producenta a revize/generace/katalog jsou dočasné hodnoty read-only IDF profilu. E7 backend bez skutečné AI je dokončen v lokálním fake rozsahu (D23–D32). D52 připravil CI a Ubuntu systemd balení pro fake backend a přehodnotil modely; instalace na server neproběhla. D53 připravil oddělený vývojový AI eval bez zařízení a revidoval volbu dialogových modelů; první syntetický placený běh prošel v GitHub Actions. D54 upravuje charakter pro soukromou party 18+ a rozšiřuje korpus; nový prompt dosud nemá živé měření. E2/E3 jsou dokončené v hostitelském/simulátorovém rozsahu. Fyzické nezávislé vypnutí a měření zůstávají kritérii E5; produkční backendový E8 adaptér a fyzická akceptace stále čekají.
+**Aktivní implementační krok:** E4.3 – samostatný ESP32 klient backendu. E4.1 ESP-IDF profil a bezpečná smyčka jsou softwarově sestavené (D33); E4.2 má trvalý journal a model identity s NVS adaptéry bez HW/USB akceptace (D34–D35). E4.3a přidává model backend tokenu a HTTPS adaptér (D36), E4.3b servisně čtenou síť, SNTP/časovou bránu a samostatnou úlohu (D37). E4.3c má JSON kodeky, HTTPS adaptéry, obnovu tokenu, korelaci, UUID a časování (D38–D48). D49 připojil interní cestu start/tah/poll; D51 přidal atomický snapshot a vazbu čekajícího textu na jeho verzi. Text stále nemá autorizovaného producenta a revize/generace/katalog jsou dočasné hodnoty read-only IDF profilu. E7 backend bez skutečné AI je dokončen v lokálním fake rozsahu (D23–D32). D52 připravil CI a Ubuntu systemd balení pro fake backend a přehodnotil modely; instalace na server neproběhla. D53 připravil oddělený vývojový AI eval bez zařízení a revidoval volbu dialogových modelů; první syntetický placený běh prošel v GitHub Actions. D54 upravil charakter pro soukromou party 18+; živý syntetický roast prošel. D55 prověřuje Ubuntu host po neúspěšné první aktivaci. E2/E3 jsou dokončené v hostitelském/simulátorovém rozsahu. Fyzické nezávislé vypnutí a měření zůstávají kritérii E5; produkční backendový E8 adaptér a fyzická akceptace stále čekají.
 
 **Další konkrétní krok: E4.3d2 – připojit skutečného vlastníka řízení k publikování snapshotu po změně journalu/revize/generace a teprve potom autorizovaný místní vstup textu. E3a web/Xcode/simulator CI je ověřené; podpis a skutečný iPhone čekají na B2/B3, lokální WSS TLS/provisionování na B1.**
 
@@ -55,10 +55,10 @@ Přesné závislosti a kritéria dokončení jsou v kapitole 12 plánu. Následu
 | E5 – jedna bezpečná přihrádka | nezahájeno | Bez ovládání a měření. | E0/E1/E4; B1, fyzická akceptace. |
 | E6 – šest přihrádek | nezahájeno | Bez fyzického ověření. | E5; cykly, proudy, dostupnost/reload. |
 | E7 – backend bez skutečné AI | hotovo | E7.1–2 identity/fake dialog; E7.3a–c SQLite idempotence, restart a kvóta; E7.4a–b cleanup/retence a rušení; E7.5a–b WAV fake hlas; E7.6 transakční nákladová rezervace. Lokální HTTP/SQLite testy přístupů, souběhu, restartu, retence a logů prošly (D23–D32). | Skutečné provider ceny/limity/klíče a placená akceptace patří E8/B4; device HTTPS/TLS integrace E4. |
-| E8 – skutečný textový dialog | rozpracováno | D53–D54: 15 syntetických scénářů, samostatný Responses eval bez Device ID/credential; první placený textový běh D53 prošel bezpečnou validací. Prompt D54 ještě čeká na živý test. | Skutečný backendový adaptér, nejméně 60 českých scénářů, lidské hodnocení, širší placená evaluace a zařízení; B4/B5. |
+| E8 – skutečný textový dialog | rozpracováno | D53–D54: 15 syntetických scénářů, samostatný Responses eval bez Device ID/credential; první placený textový běh D53 prošel bezpečnou validací. Prompt D54 prošel jedním živým syntetickým testem. | Skutečný backendový adaptér, nejméně 60 českých scénářů, lidské hodnocení, širší placená evaluace a zařízení; B4/B5. |
 | E9 – samostatný hlas kufru | nezahájeno | Bez audio cesty. | E4/E5/E8; hardware a hlasová akceptace. |
 | E10 – dokončení mobilní zálohy | nezahájeno | Bez native transportu. | E3/E3a/E4/E8; audio po E9; skutečný iPhone. |
-| E11 – provozní balení | rozpracováno | D52: workflow sestavení a ruční aktivace Ubuntu fake backendu, root-owned helper, systemd unit, lokální health a rollback jsou připravené ve zdroji; runner má štítek, GitHub environment existuje. | Bootstrap, secrets, skutečný CI/deploy běh a HTTPS chybí; plné E11 vyžaduje E6/E8/E9, zálohu E10 a instalační/provozní zkoušku. |
+| E11 – provozní balení | rozpracováno | D52: workflow sestavení a ruční aktivace Ubuntu fake backendu, root-owned helper, systemd unit, lokální health a rollback jsou připravené ve zdroji; runner má štítek, GitHub environment existuje. | CI build/test/publish prošel, první deploy selhal před aktivací na chybějícím /opt/kufr-backend/releases; bootstrap, skutečný systemd běh a HTTPS chybí; plné E11 vyžaduje E6/E8/E9, zálohu E10 a instalační/provozní zkoušku. |
 | E12 – obraz telefonu | odloženo | Volitelné rozšíření po základní verzi. | E8/E11 a potvrzený přínos. |
 | E13 – OV5640 + SD profil B | odloženo | Jen předběžný návrh B. | E0 pro B/E9/E12; nové měření pinů a zátěže. |
 
@@ -76,12 +76,18 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 
 ## Deník změn a ověření
 
+### D55 – 29. 9. 2026 – první pokus o živé nasazení backendu
+
+- Ověření: ruční [Actions běh 36617424363](https://github.com/Blato58/DildoVander/actions/runs/36617424363) na main eaa5ff2 prošel Linux buildem, C# testy, HTTP smoke, 3 konfiguračními Python testy, self-contained publishem a uploadem artefaktu. Deploy job na runneru dildovander-server skončil před kopírováním na kontrole test -d /opt/kufr-backend/releases s exit code 1. Nebyla aktivována žádná služba; health na serveru nebyl ověřen.
+- Rozsah: nový ruční host-probe workflow vypisuje pouze účet runneru, dostupnost neinteraktivního sudo, helperu, release adresáře, systemd služby a loopback health. Nepoužívá secrets ani nic nemění na serveru.
+- Blokace/předání: nejprve zjistit výsledek host probe a provést bootstrap pod skutečným účtem runneru, pokud je k dispozici bezpečná autorizovaná cesta. Potom zopakovat ruční deploy a ověřit systemd/health. Veřejné HTTPS a device identita stále chybí; zatím se netestovalo spojení ESP32.
+
+
 ### D54 – 29. 9. 2026 – party hlas vývojového AI promptu
 
 - Rozsah: prompt.txt odděluje roli, humor a přátelský roast pro soukromou party 18+ od pravidel dostupnosti a fyzického potvrzení. Eval načítá tento prompt ze souboru; tři nové syntetické scénáře pokrývají vyžádané škádlení a prázdný inventář. Workflow nabízí všech 15 případů. Plán v kapitole 6 a eval README popisují tón a hranice.
-- Ověření: python -m unittest discover -s kufr/ai-eval -p test_*.py prošlo 5 testů; JSON korpus a YAML workflow se parsují a všech 15 case ID souhlasí s volbami workflow. git diff --check bez chyb. Živý výstup nového promptu zatím nebyl měřen.
-- Předání: po merge spustit jeden syntetický roast_invited případ s GPT-6.1 Sol a lidsky zhodnotit, zda je roast vtipný, stručný a nemění dostupnost. Pořád nejde o produkční backend, STT/TTS ani HW akceptaci.
-
+- Ověření: python -m unittest discover -s kufr/ai-eval -p test_*.py prošlo 5 testů; JSON korpus a YAML workflow se parsují a všech 15 case ID souhlasí s volbami workflow. git diff --check bez chyb. Po merge eaa5ff2 prošel [živý běh 36617303150](https://github.com/Blato58/DildoVander/actions/runs/36617303150): GPT-6.1 Sol, roast_invited, readyMask=16, propose pouze přihrádku 5 s přátelským rýpnutím do nerozhodnosti; 618/92 tokenů, 4663 ms, konzervativní odhad 2465 mikro USD.
+- Předání: jednorázový roast byl vtipný, stručný a držel dostupnost; rozšířit měřený český korpus a lidské hodnocení. Pořád nejde o produkční backend, STT/TTS ani HW akceptaci.
 
 ### D53 – 29. 9. 2026 – E8 vývojový textový eval bez zařízení
 

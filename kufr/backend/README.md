@@ -119,6 +119,14 @@ jsou v `../docs/stav-implementace.md`.
 
 ## Ubuntu runner a nasazení
 
+Před první aktivací lze z GitHub Actions na větvi main ručně spustit
+workflow Kufr backend host probe. Na self-hosted runneru jen přečte účet
+procesu, dostupnost neinteraktivního sudo, release adresáře, instalačního
+helperu, stav služby a odpověď lokálního /healthz. Nevypisuje tajemství,
+nevytváří adresáře a nespouští bootstrap. Chybějící releases directory
+znamená, že níže uvedený jednorázový bootstrap ještě neproběhl.
+
+
 Workflow `.github/workflows/kufr-backend.yml` při změnách backendu v `main`
 sestaví a otestuje samostatný `linux-x64` release na GitHub runneru. Ruční
 `workflow_dispatch` z `main` navíc aktivuje artefakt na self-hosted runneru
