@@ -8,6 +8,7 @@
 
 #include "features/device_control/EspIdfJournalStorage.h"
 #include "features/device_control/PersistentCommandJournal.h"
+#include "features/backend_access/EspIdfBackendNetwork.h"
 #include "features/provisioning/DeviceIdentity.h"
 #include "features/provisioning/EspIdfProvisioningStorage.h"
 #include "features/safety/SafetyController.h"
@@ -66,6 +67,10 @@ extern "C" void app_main() {
     ESP_LOGE(LogTag, "Device identity unavailable; network stays offline");
   } else if (!identity.IsProvisioned()) {
     ESP_LOGW(LogTag, "Device identity not provisioned; network stays offline");
+  }
+  EspIdfBackendNetwork backendNetwork(identity);
+  if (!backendNetwork.Start(nvsStatus == ESP_OK)) {
+    ESP_LOGW(LogTag, "Backend network not configured; stays offline");
   }
   ESP_LOGI(LogTag, "ESP-IDF control loop started; actuators are unconnected");
 

@@ -51,6 +51,13 @@ src/
       DeviceTokenSession.h/.cpp             obnova access tokenu v RAM
       TokenResponseParser.h/.cpp            omezená odpověď token endpointu
       EspIdfTokenExchangeTransport.h/.cpp   blokující HTTPS výměna tokenu
+      NetworkSettings.h/.cpp                validace Wi-Fi a backend hostu
+      ReconnectPolicy.h/.cpp                1–30s čekání mezi pokusy
+      TrustedTime.h/.cpp                    datum buildu a poslední známý čas
+      EspIdfBackendNetwork.h/.cpp           oddělená síťová úloha
+      EspIdfNetworkSettings.h/.cpp          čtení servisních hodnot z NVS
+      EspIdfWifiStation.h/.cpp              Wi-Fi STA bez zápisu driver NVS
+      EspIdfTrustedTimeStore.h/.cpp         uložený čas v NVS
     conversation/
       ConversationSession.h/.cpp            čistý model generace textového sezení
 tests/
@@ -59,6 +66,7 @@ tests/
   persistent_command_journal_test.cpp      test trvalého záznamu a selhání zápisu
   device_identity_test.cpp                  test identity a servisní brány
   device_token_session_test.cpp             test tokenu, obnovy a parseru
+  network_settings_test.cpp                 test konfigurace, času a reconnectu
   conversation_session_test.cpp             test textu, zrušení a generace
 ```
 
@@ -116,9 +124,15 @@ v RAM a odmítá odpověď s jiným `deviceId`, typem tokenu nebo dobou platnost
 ESP-IDF HTTPS adaptér má pevnou cestu token endpointu, ověřuje server přes CA
 bundle a hostname, nepovoluje redirect a omezuje odpověď na 512 bajtů.
 `TokenResponseParser` přijímá pouze čtyři očekávaná pole a odmítá duplicity.
-Adaptér zatím není připojen k Wi-Fi ani samostatné síťové úloze, takže nebylo
-navázáno žádné skutečné TLS spojení. Backend host přijde až ze servisní
-konfigurace; v image není URL ani credential.
+ESP-IDF nyní spouští samostatnou síťovou úlohu pouze s platnou device identitou
+a kompletní servisní NVS konfigurací v `wand_network` (`ssid`, `password`,
+`backend_host`). Wi-Fi konfigurace zůstává v driveru v RAM. Úloha nejprve
+získá IP, čeká na SNTP a kontroluje čas proti datu buildu i poslednímu
+důvěryhodnému času v NVS. Teprve pak může přes HTTPS vyměnit credential za
+token. Výpadek Wi-Fi vyvolá čekání 1/2/4/8/16/30 s s jitterem; síťová úloha
+nemá přístup k portu pohonů. Servisní zápis s fyzickou bránou zatím chybí,
+takže na prázdné desce síť nezačne. Skutečné Wi-Fi, SNTP ani TLS spojení nebylo
+na desce ověřeno. V image není URL ani credential.
 
 `ConversationSession` je čistý model jednoho textového sezení. Kontroluje
 ruční lease, boot/session/generation, revision a délku UTF-8 textu. V jednom
@@ -141,8 +155,9 @@ help
 `reset` znamená, že obsluha předtím zkontrolovala mechaniku. Sériový adaptér
 vypisuje také požadavky safety portu; skutečné vypnutí nelze z těchto výpisů
 odvodit. Žádný GPIO pin, motor, servo ani LED se
-zatím neinicializuje. Firmware neobsahuje přihlašovací údaje ani síťové
-připojení. Nahrání do desky je až další krok po kontrole konkrétního modulu.
+zatím neinicializuje. Sériový Arduino profil neobsahuje přihlašovací údaje
+ani síťové připojení. Nahrání do desky je až další krok po kontrole konkrétního
+modulu.
 
 ## Sestavení a test
 
@@ -155,8 +170,9 @@ pio run
 Výchozí profil používá PlatformIO `espressif32@7.1.3`, připnutý ESP-IDF 6.1,
 `sdkconfig.defaults` a vlastní kopii 16MB tabulky oddílů. Zatím pouze
 vyžaduje bezpečný výstup, prochází čistým jádrem s monotónním časem a vypisuje
-požadavky do logu. Inicializuje NVS journal a čte identitu bez fyzických
-výstupů; neobsahuje sériové příkazy, GPIO ani běžící Wi-Fi/TLS spojení.
+požadavky do logu. Inicializuje NVS journal, čte identitu a při kompletním
+servisním nastavení spouští síťovou úlohu bez fyzických výstupů. Neobsahuje
+sériové příkazy ani GPIO adaptér pohonů.
 Skutečný výsledek sestavení a mezery akceptace jsou ve stavu implementace.
 Původní sériový prototyp lze sestavit `pio run -e esp32-s3-arduino-serial`.
 
@@ -210,6 +226,13 @@ Stav tokenu a parser omezené HTTP odpovědi:
 ```text
 g++ -std=c++14 -Wall -Wextra -Werror src/features/provisioning/DeviceIdentity.cpp src/features/backend_access/DeviceTokenSession.cpp src/features/backend_access/TokenResponseParser.cpp tests/device_token_session_test.cpp -o <docasna-slozka>/device_token_session_test
 <docasna-slozka>/device_token_session_test
+```
+
+Validace servisní sítě, časové brány a odstupů reconnectu:
+
+```text
+g++ -std=c++14 -Wall -Wextra -Werror src/features/backend_access/BuildDate.cpp src/features/backend_access/NetworkSettings.cpp src/features/backend_access/ReconnectPolicy.cpp src/features/backend_access/TrustedTime.cpp tests/network_settings_test.cpp -o <docasna-slozka>/network_settings_test
+<docasna-slozka>/network_settings_test
 ```
 
 Čistý model textového sezení lze ověřit samostatně:

@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "esp_crt_bundle.h"
+#include "NetworkSettings.h"
 #include "TokenResponseParser.h"
 
 namespace {
@@ -23,7 +24,7 @@ void Wipe(char* data, size_t length) {
 
 EspIdfTokenExchangeTransport::EspIdfTokenExchangeTransport(
     const std::string& backendHost, uint16_t port) {
-  if (!IsValidHost(backendHost) || port == 0) {
+  if (!NetworkSettings::IsValidBackendHost(backendHost) || port == 0) {
     return;
   }
   url_ = "https://" + backendHost;
@@ -89,35 +90,6 @@ TokenExchangeResponse EspIdfTokenExchangeTransport::Exchange(
   }
   Wipe(body.data, sizeof(body.data));
   return response;
-}
-
-bool EspIdfTokenExchangeTransport::IsValidHost(const std::string& host) {
-  if (host.empty() || host.size() > 253 || host.front() == '.' ||
-      host.back() == '.') {
-    return false;
-  }
-
-  size_t labelLength = 0;
-  for (size_t index = 0; index < host.size(); ++index) {
-    const char value = host[index];
-    if (value == '.') {
-      if (labelLength == 0 || labelLength > 63 || host[index - 1] == '-') {
-        return false;
-      }
-      labelLength = 0;
-      continue;
-    }
-    if (!((value >= 'a' && value <= 'z') ||
-          (value >= 'A' && value <= 'Z') ||
-          (value >= '0' && value <= '9') || value == '-')) {
-      return false;
-    }
-    if (labelLength == 0 && value == '-') {
-      return false;
-    }
-    ++labelLength;
-  }
-  return labelLength > 0 && labelLength <= 63 && host.back() != '-';
 }
 
 esp_err_t EspIdfTokenExchangeTransport::OnHttpEvent(
