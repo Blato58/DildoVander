@@ -4,7 +4,10 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "nvs_flash.h"
 
+#include "features/device_control/EspIdfJournalStorage.h"
+#include "features/device_control/PersistentCommandJournal.h"
 #include "features/safety/SafetyController.h"
 #include "features/wand_selection/SelectionSequence.h"
 
@@ -45,6 +48,16 @@ extern "C" void app_main() {
 
   // Safe output request precedes all future provisioning and network work.
   safetyController.InitializeSafe();
+  const esp_err_t nvsStatus = nvs_flash_init();
+  EspIdfJournalStorage journalStorage(nvsStatus == ESP_OK);
+  PersistentCommandJournal journal(journalStorage);
+  if (!journal.IsHealthy()) {
+    safetyController.ReportFault();
+    ESP_LOGE(LogTag, "Journal unavailable; control remains faulted (%d)",
+             static_cast<int>(nvsStatus));
+  } else if (journal.HasPending()) {
+    ESP_LOGW(LogTag, "Pending selection requires inspection before recovery");
+  }
   ESP_LOGI(LogTag, "ESP-IDF control loop started; actuators are unconnected");
 
   while (true) {
