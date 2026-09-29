@@ -1,0 +1,23 @@
+# DildoVander
+
+Jeden repozitář pro dvě samostatné elektronické rekvizity.
+
+| Projekt | Obsah | Priorita |
+| --- | --- | --- |
+| [AI kufr](kufr/README.md) | Výběr ze šesti hůlek, hlas, světla, mechanické uvolnění a mobilní ovládání | **Pracujeme nyní** |
+| [Obludné obludárium](obludarium/README.md) | Samostatná animatronická kniha bez AI | Až po dokončení kufru |
+
+[Seznam elektroniky a odkazy k nákupu](docs/elektronika.md) jsou rozdělené podle priorit. Komediální kufr Dildovander nepotřebuje elektroniku, proto pro něj nyní nevzniká softwarový projekt.
+
+Firmware obou rekvizit jsou oddělené projekty PlatformIO. Mobilní ovládání patří pouze ke kufru. Každá rekvizita má vlastní napájení; společné jsou jen typy montážního materiálu.
+
+## Vývoj AI kufru
+
+Schválený směr: ESP32 samo komunikuje s backendem a vede hlasový rozhovor; iOS aplikace je volitelná ruční/textová záloha. Vyvíjí se na Windows, nativní iOS sestavení a podpis jsou plánované přes macOS GitHub Actions. Dnes existuje sériový firmware prototyp a statický TypeScript/Vite ovladač; backend, síť, AI a iOS balení zatím implementované nejsou.
+
+- [Implementační plán](kufr/docs/implementacni-plan.md) určuje architekturu, kontrakty a akceptační kritéria etap E0–E13 včetně E3a.
+- [Stav implementace a předání práce](kufr/docs/stav-implementace.md) obsahuje dokončené části, důkazy ověření, blokace a nejbližší proveditelný krok.
+- [AGENTS.md](AGENTS.md) určuje postup další AI; [README kufru](kufr/README.md) odkazuje na jednotlivé komponenty a technické podklady.
+
+Pro zahájení další práce stačí: **„Začni implementovat aplikaci podle implementačního plánu.“** Pro navázání: **„Pokračuj v implementaci podle implementačního plánu.“** AI nejprve porovná stav s kódem, pokračuje v nejbližším malém kroku a zapíše ověření i předání. Rozsah lze omezit například na mobilní aplikaci; chybějící hardware neblokuje nezávislou simulaci. Stav se vede v repozitáři, není potřeba dohledávat tento chat.
+

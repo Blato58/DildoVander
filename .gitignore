@@ -1,0 +1,13 @@
+# PlatformIO
+**/.pio/
+
+# Mobile app
+**/node_modules/
+**/dist/
+
+# Editor and OS files
+.vs/
+.vscode/
+.DS_Store
+Thumbs.db
+
