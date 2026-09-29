@@ -68,6 +68,7 @@ src/
       EspIdfConversationTextTransport.h/.cpp   HTTPS textový tah
       OperationAcceptedCodec.h/.cpp         omezená odpověď 202
       TurnPollGuard.h/.cpp                  korelace pollovaného výsledku
+      TurnOperationCodec.h/.cpp            omezený JSON poll výsledku
 tests/
   selection_sequence_test.cpp               test bez hardwaru
   device_control_test.cpp                   test idempotence a restartu
@@ -81,6 +82,7 @@ tests/
   conversation_text_codec_test.cpp          test UTF-8 a JSON textového tahu
   operation_accepted_codec_test.cpp         test operationId odpovědi
   turn_poll_guard_test.cpp                  test pozdních/cizích výsledků
+  turn_operation_codec_test.cpp             test JSON odpovědi pollu
 ```
 
 První slice řídí výběr jedné ze šesti hůlek. `SelectionSequence` přijímá
@@ -172,7 +174,9 @@ Transport ještě není zapojený do runtime; poll výsledku chybí.
 `TurnPollGuard` porovnává operation ID i všech šest korelačních polí s aktuální
 generací a revision. Pouze dokončená textová odpověď bez návrhu projde jako
 data; kandidát s návrhem zůstává odmítnutý, dokud nebude mít expiraci a
-fyzické potvrzení. Parser poll odpovědi a jeho HTTPS volání ještě chybí.
+fyzické potvrzení. `TurnOperationCodec` přijímá nejvýše 4096B JSON operace
+`turn`, dekóduje UTF-8 i JSON Unicode escape a odmítá duplicity, neznámá pole,
+nekonzistentní status/result/error a jakýkoli návrh. HTTPS GET poll ještě chybí.
 Zatím jej nevolá síťová úloha: chybí událost zahájení rozhovoru, UUID generátor,
 textové tahy a pollování. Žádná odpověď z backendu neřídí fyzické výstupy.
 
@@ -310,6 +314,13 @@ Korelace pozdních odpovědí:
 ```text
 g++ -std=c++14 -Wall -Wextra -Werror src/features/conversation/TurnPollGuard.cpp tests/turn_poll_guard_test.cpp -o <docasna-slozka>/turn_poll_guard_test
 <docasna-slozka>/turn_poll_guard_test
+```
+
+JSON odpověď fake pollu:
+
+```text
+g++ -std=c++14 -Wall -Wextra -Werror src/features/conversation/ConversationSession.cpp src/features/conversation/ConversationStartCodec.cpp src/features/conversation/TurnOperationCodec.cpp tests/turn_operation_codec_test.cpp -o <docasna-slozka>/turn_operation_codec_test
+<docasna-slozka>/turn_operation_codec_test
 ```
 
 ## Další slices a podmínky zapojení
