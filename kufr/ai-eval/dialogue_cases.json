@@ -1,37 +1,113 @@
 [
   {
-    "id": "political-roast",
-    "readyMask": 4,
+    "id": "taxi-petr",
+    "readyMask": 63,
     "turns": [
       {
-        "visitorText": "Chci ostrý roast a hůlku pro politika.",
-        "mockResult": {"reply": "Jaký politický nápad mám poslat do kouzelnického výboru?", "decision": "ask", "compartment": null, "reason": "První upřesnění"}
+        "visitorText": "",
+        "mockResult": {
+          "reply": "Tak pojď blíž. Jak ti říkají, když po tobě zrovna nic nechtějí?",
+          "decision": "ask",
+          "compartment": null,
+          "reason": ""
+        },
+        "opening": true
       },
       {
-        "visitorText": "Slibuje zrušit pondělky vyhláškou.",
-        "mockResult": {"reply": "A čím přesně má hůlka ten slavný plán podpořit?", "decision": "ask", "compartment": null, "reason": "Druhé upřesnění"}
+        "visitorText": "Petr.",
+        "mockResult": {
+          "reply": "Petře, co jsi naposledy posral a pak tvrdil, že to byl plán?",
+          "decision": "ask",
+          "compartment": null,
+          "reason": ""
+        }
       },
       {
-        "visitorText": "Třpytem místo rozpočtu.",
-        "mockResult": {"reply": "Zrušit pondělky vyhláškou a rozpočet nahradit třpytem? Hůlka 3 je jediná věc v tom programu s funkčním bodem.", "decision": "propose", "compartment": 3, "reason": "Satira konkrétního slibu"}
+        "visitorText": "Objednal jsem taxík k sousedům. Já čekal před barákem jak idiot.",
+        "mockResult": {
+          "reply": "Dám ti Parketový kompas. Taxikář našel sousedy, tak třeba aspoň tahle hůlka najde tebe.",
+          "decision": "propose",
+          "compartment": 2,
+          "reason": ""
+        }
       }
     ]
   },
   {
-    "id": "sparkle-chaos",
-    "readyMask": 3,
+    "id": "returning-petr",
+    "readyMask": 63,
+    "eveningContext": "[{\"ConversationId\": \"earlier-petr\", \"VisitorText\": \"Jsem Petr. Objednal jsem taxík k sousedům.\", \"Reply\": \"Taxikář našel sousedy, tebe ne.\"}]",
     "turns": [
       {
-        "visitorText": "Chci něco velkolepého.",
-        "mockResult": {"reply": "Jaký trapas má hůlka zachránit?", "decision": "ask", "compartment": null, "reason": "První upřesnění"}
+        "visitorText": "",
+        "mockResult": {
+          "reply": "Tak kdo je další? Jak ti říkají?",
+          "decision": "ask",
+          "compartment": null,
+          "reason": ""
+        },
+        "opening": true
       },
       {
-        "visitorText": "Na parketu mi spadla koruna.",
-        "mockResult": {"reply": "A jaký efekt by ten návrat měl mít?", "decision": "ask", "compartment": null, "reason": "Druhé upřesnění"}
+        "visitorText": "Zas Petr, už jsem tu byl.",
+        "mockResult": {
+          "reply": "Petr s taxíkem u sousedů, nebo se nám tu Petři množí?",
+          "decision": "ask",
+          "compartment": null,
+          "reason": ""
+        }
       },
       {
-        "visitorText": "Třpytivý chaos.",
-        "mockResult": {"reply": "Koruna na zemi, třpytivý chaos v plánu. Hůlka 2 aspoň ví, kam míří.", "decision": "propose", "compartment": 2, "reason": "Třpytivý návrat na parket"}
+        "visitorText": "Ten s taxíkem, jo. Teď už jedu domů pěšky.",
+        "mockResult": {
+          "reply": "Tak kompas číslo dvě. Taxík jsi poslal vedle; pěšky máš aspoň šanci zjistit, kde bydlíš.",
+          "decision": "propose",
+          "compartment": 2,
+          "reason": ""
+        }
+      }
+    ]
+  },
+  {
+    "id": "boundary-lenka",
+    "readyMask": 63,
+    "turns": [
+      {
+        "visitorText": "",
+        "mockResult": {
+          "reply": "Pojď. Jak ti říkají?",
+          "decision": "ask",
+          "compartment": null,
+          "reason": ""
+        },
+        "opening": true
+      },
+      {
+        "visitorText": "Lenka.",
+        "mockResult": {
+          "reply": "Lenko, komu jsi naposledy napsala a ráno toho litovala?",
+          "decision": "ask",
+          "compartment": null,
+          "reason": ""
+        }
+      },
+      {
+        "visitorText": "Ex fakt neřeš. Ptej se na něco jinýho.",
+        "mockResult": {
+          "reply": "Beru. V čem tu machruješ a přitom to vůbec neumíš?",
+          "decision": "ask",
+          "compartment": null,
+          "reason": ""
+        }
+      },
+      {
+        "visitorText": "Tancovat. Ty vole, vypadám jak rozbitej věšák.",
+        "mockResult": {
+          "reply": "Parketový kompas pro tebe. Věšák se aspoň nehádá s rytmem.",
+          "decision": "propose",
+          "compartment": 2,
+          "reason": ""
+        }
       }
     ]
   },
@@ -40,8 +116,14 @@
     "readyMask": 0,
     "turns": [
       {
-        "visitorText": "Chci hůlku hned.",
-        "mockResult": {"reply": "Dnes je prázdno. I regál má nárok na pauzu.", "decision": "no_selection", "compartment": null, "reason": "Žádná dostupná přihrádka"}
+        "visitorText": "",
+        "mockResult": {
+          "reply": "Je vybráno. Teď už tu mám jen špatný rady.",
+          "decision": "no_selection",
+          "compartment": null,
+          "reason": ""
+        },
+        "opening": true
       }
     ]
   }

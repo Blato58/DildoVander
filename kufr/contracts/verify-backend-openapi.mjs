@@ -45,10 +45,13 @@ assert.deepEqual(Object.keys(document.paths).sort(), [
   '/v1/audio/{audioId}',
   '/v1/conversations',
   '/v1/conversations/{id}',
+  '/v1/conversations/{id}/opening',
   '/v1/conversations/{id}/speech',
   '/v1/conversations/{id}/transcriptions',
   '/v1/conversations/{id}/turns',
   '/v1/device-access/token',
+  '/v1/evening-memory',
+  '/v1/evening-memory/{id}',
   '/v1/operations/{id}',
 ]);
 assert.deepEqual(document.paths['/v1/device-access/token'].post.security, [{ DeviceCredential: [] }]);
@@ -83,6 +86,10 @@ const turn = {
   readyMask: 63, deviceRevision: 2, catalogVersion: 'test-1',
 };
 validate('TextTurn', turn, true);
+const { text: omittedOpeningText, ...opening } = turn;
+validate('OpeningTurn', opening, true);
+validate('OpeningTurn', turn, false);
+validate('OpeningTurn', { ...opening, readyMask: 64 }, false);
 validate('TextTurn', { ...turn, text: 'x'.repeat(1001) }, false);
 validate('TextTurn', { ...turn, readyMask: 64 }, false);
 validate('TextTurn', { ...turn, deviceRevision: -1 }, false);

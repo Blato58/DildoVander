@@ -28,6 +28,7 @@ const serverEnvironment = {
     Devices__1__DeviceId: 'device-b',
     Devices__1__CredentialSha256: sha256(credentialB),
     Backend__DatabasePath: join(databaseDirectory, 'journal.sqlite'),
+    Backend__Dialog__Mode: 'fake',
     ASPNETCORE_ENVIRONMENT: 'Production'
 };
 
@@ -529,6 +530,29 @@ try {
     key: randomUUID(),
     body: { ...turn, clientTurnId: randomUUID() }
   })).status, 404);
+  // Evening content survives restart and is separate from short conversation TTL.
+  assert.equal((await read('/v1/evening-memory', 'invalid')).status, 401);
+  const previousEvening = (await read('/v1/evening-memory', newToken)).result;
+  assert.ok(previousEvening.exchangeCount > 0);
+  assert.equal(await remove(`/v1/evening-memory/${previousEvening.eveningId}`, newTokenB, randomUUID()), 204);
+  assert.equal((await read('/v1/evening-memory', newToken)).result.exchangeCount, previousEvening.exchangeCount);
+  assert.equal(await remove(`/v1/evening-memory/${previousEvening.eveningId.toUpperCase()}`, newToken, randomUUID()), 204);
+  const clearedEvening = (await read('/v1/evening-memory', newToken)).result;
+  assert.equal(clearedEvening.exchangeCount, 0);
+  assert.notEqual(clearedEvening.eveningId, previousEvening.eveningId);
+  const greetingSession = await call('/v1/conversations', { token: newToken, key: randomUUID(), body });
+  assert.equal(greetingSession.status, 201);
+  const openingPath = `/v1/conversations/${greetingSession.result.conversationId}/opening`;
+  const { text: ignoredText, ...openingBody } = { ...turn, clientTurnId: randomUUID() };
+  const openingKey = randomUUID();
+  const greeting = await call(openingPath, { token: newToken, key: openingKey, body: openingBody });
+  assert.equal(greeting.status, 202);
+  assert.equal((await read(`/v1/operations/${greeting.result.operationId}`, newToken)).result.result.decision, 'ask');
+  assert.equal((await call(openingPath, { token: newToken, key: openingKey, body: openingBody })).result.operationId, greeting.result.operationId);
+  assert.equal((await call(openingPath, { token: newToken, key: randomUUID(), body: { ...openingBody, clientTurnId: randomUUID() } })).status, 409);
+  assert.equal((await call(openingPath, { token: newToken, key: randomUUID(), body: { ...openingBody, text: 'forbidden' } })).status, 400);
+  assert.equal(await remove(`/v1/evening-memory/${previousEvening.eveningId}`, newToken, randomUUID()), 204);
+  assert.equal((await read('/v1/evening-memory', newToken)).result.exchangeCount, 1);
   console.log('Backend HTTP smoke: access, fake turn/transcription/speech, scope and restart passed');
 } finally {
   await stopServer();
