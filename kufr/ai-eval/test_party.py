@@ -8,9 +8,9 @@ class PartyTests(unittest.TestCase):
     def test_rejected_reservation_never_calls_provider(self):
         calls = []
         meter = Meter("fake", limit=1, send=lambda *args: calls.append(args))
-        request = build_request({"readyMask": 63, "visitorText": ""}, "gpt-6-astra", opening=True)
+        request = build_request({"readyMask": 63, "visitorText": ""}, "gpt-6.1-sol", opening=True)
         with self.assertRaisesRegex(RuntimeError, "cap"):
-            meter.invoke(request, "gpt-6-astra", "test")
+            meter.invoke(request, "gpt-6.1-sol", "test")
         self.assertEqual([], calls)
 
     def test_ambiguous_network_failure_retains_reservation(self):

@@ -10,16 +10,16 @@ idempotenci po restartu. E7.4 přidává retenci a explicitní rušení. E7.5a
 přidává omezený WAV upload s deterministickým fake přepisem. E7.5b
 přidává fake syntézu krátkého tichého WAV pro existující textový tah.
 V této verzi nejsou skutečné STT/TTS. Textový tah má výchozí fake režim;
-výslovný režim `responses` používá GPT-6.1 Sol se sdíleným party promptem,
-šesticí hůlek z `../ai-eval/wand-catalog.json`, přísným JSON schématem a kontrolou dostupné přihrádky. Model dostává jen dostupné položky a hraje mluvící kouzelný kufr Ollivanderova obchodu. Před odesláním do
-OpenAI transakčně rezervuje nejméně 0,10 USD (více podle paměti), jeden backend spustí nejvýše jedno
+výslovný režim `responses` používá konfigurovatelný GPT-6.1 Sol nebo GPT-6 Luna se sdíleným party promptem,
+šesticí hůlek z `../ai-eval/wand-catalog.json`, přísnými schématy nativních funkcí a kontrolou dostupné přihrádky. Model dostává jen dostupné položky a hraje mluvící kouzelný kufr Ollivanderova obchodu. Před odesláním do
+OpenAI transakčně rezervuje nejméně 0,10 USD pro Sol / 0,005 USD pro Luna (více podle paměti), jeden backend spustí nejvýše jedno
 placené volání současně a výsledek dokončí asynchronně. Nejasný výpadek
 ponechá rezervaci a restart volání neopakuje. Zrušený tah nezveřejní pozdní
 výsledek, ale skutečně vrácené tokeny vyúčtuje. Návrh přihrádky vzniká na
 serveru s korelací a expirací 60 sekund.
 Žádná trasa neovládá aktuátory.
-V režimu `responses` vytváří otázky i pointu model. První dva dokončené
-dialogové tahy vyžadují otázku; schema v nich nepovolí návrh přihrádky.
+V režimu `responses` vytváří otázky i pointu model. První čtyři dokončené
+dialogové tahy vyžadují otázku; nabídka funkcí v nich neobsahuje výběr přihrádky.
 Dvě poslední výměny zůstávají v RAM pro aktuální tah. Celé dokončené textové
 výměny se navíc ukládají do `Backend:DatabasePath` + `.evening.sqlite`.
 Tato paměť je oddělená podle zařízení, přežije konec sezení i restart a nemá
@@ -42,7 +42,7 @@ přidaných bajtů. Všechny tři stávající nákladové stropy zůstávají �
 Vytvoří běžnou pollovatelnou turn operaci: kufr promluví první a zeptá se na
 jméno bez představování. Po prvním přijatém tahu se nový opening odmítne;
 retry se stejným klíčem vrací tutéž operaci. Starý `/turns` zůstává kompatibilní.
-Firmware ani mobil zatím novou událost nevolají; samostatný hlas vyžaduje E9.
+Firmware má explicitní vstup opening a ukončení sezení (D75); reálný vstup návštěvníka a samostatný hlas vyžadují dokončení E4/E9.
 
 `GET /v1/evening-memory` vrací pro device token `eveningId`, počty a limity,
 nikoli obsah. Obsluha smaže konkrétní večer pomocí
@@ -59,8 +59,7 @@ kterou zařízení nepřevzalo. Ani dokončený tah není důkazem přehrání z
 Vyžaduje `Backend__Dialog__Mode=responses`, `OPENAI_API_KEY`, všechny tři
 kladné limity `Backend__Usage__*CapMicroUsd` a projektový OpenAI hard spend
 limit. Samotná přítomnost klíče režim nepřepíná. Neznámá konfigurace zastaví
-start; výchozí `fake` nevolá OpenAI. Před veřejným provozem chybí veřejné
-HTTPS, skutečná identita zařízení, fyzická akceptace a obsahové hodnocení.
+start; výchozí `fake` nevolá OpenAI. Veřejné HTTPS je dostupné; skutečná identita zařízení, fyzická akceptace a obsahové hodnocení návštěvníky zůstávají otevřené.
 
 ## Vývojové spuštění
 
@@ -224,24 +223,30 @@ Environment `backend-production` má tyto GitHub Actions secrets:
 | `DAILY_CAP_MICRO_USD` | Kladný denní limit v miliontinách USD. |
 | `MONTHLY_CAP_MICRO_USD` | Kladný měsíční limit v miliontinách USD. |
 
-Po prvním úspěšném nasazení lze ručně spustit workflow **Kufr backend
-deployed smoke** z `main`. S vývojovou identitou v `backend-production`
-ověří přes `127.0.0.1:5080` vydání tokenu, sezení, idempotentní textový tah,
-výsledek operace a ukončení sezení. Výchozí vstup `dialog_mode=fake` nevolá
-OpenAI; `dialog_mode=responses` provede tři syntetické placené tahy a čeká
-na jejich výsledky. Vstup musí odpovídat právě nasazenému režimu. Test
-nevypisuje credential ani access token a nedokazuje veřejné HTTPS ani
-spojení skutečného kufru.
+Po nasazení lze spustit **Kufr backend deployed smoke**: fake režim ověřuje
+technický tah, responses režim pouze opening. **Kufr backend public dialogue**
+ověřuje jeden placený opening, autentizaci, idempotentní retry, poll a ukončení
+přes veřejné HTTPS. Tyto smoke testy nehodnotí humor.
 
-Po zprovoznění IP certifikátu lze ručně spustit workflow **Kufr backend
-public dialogue** z `main`. GitHub-hosted runner se připojí přes veřejné
-HTTPS se standardním ověřením IP certifikátu, vydá vývojový token a provede
-tři placené syntetické tahy: dvě otázky vytvořené modelem a závěrečný návrh.
-Odpovědi modelu vypíše pro lidské posouzení humoru a návaznosti. Maximální
-rezervace dialogu je 3 × 0,10 USD, tedy pod limitem 0,50 USD/sezení; skutečná
-cena se účtuje dle vrácených tokenů. Workflow je pouze ruční a vyžaduje
-aktuální nasazení `responses`. Syntetické testovací texty nejsou tajemství;
-vývojové device credential a token se nevypisují.
+**Kufr backend interactive dialogue** slouží pro skutečné vedení rozhovoru.
+Každý ruční běh vykoná jedinou z akcí `start`, `reply`, `finish`, `status`, `clear`.
+`start` založí sezení a vyvolá opening; artefakt `interactive-dialogue` obsahuje
+veřejný stav a skutečnou repliku. Člověk/agent si ji přečte a až poté zadá další
+`reply` s vráceným `state`, vlastním textem a novým UUID `request_id`. Retry
+původního UUID a stejného vstupu používá stejné idempotentní klíče. Žádný tajný
+credential/token není vstupem ani součástí artefaktu; zůstává v runneru.
+`finish` uvolní sezení, paměť zůstává. `status` ukazuje limity/počty večera;
+`clear` vyžaduje přesné aktuální `expected_evening_id`. Před mazáním ověř, že jde
+výhradně o vlastní testovací data. Pro testování platí schválený souhrnný limit
+1 USD a stávající měsíční limit 10 USD; ceníkový odhad není skutečná fakturace.
+
+Nasazení volí `dialog_model=gpt-6.1-sol|gpt-6-luna`; backend čte
+`Backend__Dialog__Model` a jiný model v responses režimu odmítne. Funkce
+`continue_conversation`, `propose_wand`, `end_conversation` se mapují na stávající
+`ask/propose/no_selection`. Terminální odpověď zůstává pollovatelná, její replay
+nevolá model; nový tah dostane 409 `conversation_finished`, dokud ESP32 neprovede
+DELETE. AI sama vybírá hůlku. Místní autonomní brána ESP32 provede prezentaci
+pevné rekvizity a návrat; nevyžaduje potvrzení obsluhy. Stop a poruchy mají přednost.
 
 Všechny hodnoty mohou pro první fake nasazení chybět. Bez dvojice zařízení
 se nikdo nepřihlásí; bez všech tří nákladových limitů backend odmítne

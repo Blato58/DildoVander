@@ -38,9 +38,11 @@ internal static class ResponsesTextDialogClientTests
             var root = request.RootElement;
             Check(root.GetProperty("service_tier").GetString() == "default", "explicit Standard tier");
             Check(root.GetProperty("store").ValueKind == JsonValueKind.False, "store disabled");
-            Check(root.GetProperty("text").GetProperty("format").GetProperty("strict").GetBoolean(),
-                "strict structured output");
-            Check(root.GetProperty("instructions").GetString()!.Contains("fyzické potvrzení", StringComparison.Ordinal),
+            Check(root.GetProperty("tools").EnumerateArray().All(tool => tool.GetProperty("strict").GetBoolean()),
+                "strict backend functions");
+            Check(root.GetProperty("tool_choice").GetString() == "required"
+                && !root.GetProperty("parallel_tool_calls").GetBoolean(), "exactly one backend action");
+            Check(root.GetProperty("instructions").GetString()!.Contains("AI vybírá autonomně", StringComparison.Ordinal),
                 "shared party prompt embedded");
             Check(root.GetProperty("instructions").GetString()!.Contains("Ollivanderova obchodu", StringComparison.Ordinal),
                 "shared prompt establishes magical suitcase role");
@@ -71,11 +73,9 @@ internal static class ResponsesTextDialogClientTests
         using (var request = JsonDocument.Parse(questionRequest!))
         {
             var root = request.RootElement;
-            var decisions = root.GetProperty("text").GetProperty("format")
-                .GetProperty("schema").GetProperty("properties")
-                .GetProperty("decision").GetProperty("enum");
-            Check(decisions.EnumerateArray().All(item => item.GetString() != "propose"),
-                "early-turn schema excludes proposals");
+            Check(root.GetProperty("tools").EnumerateArray()
+                .All(tool => tool.GetProperty("name").GetString() != "propose_wand"),
+                "early-turn tools exclude proposals");
             Check(root.GetProperty("input").GetString()!.Contains("polož vlastní navazující otázku",
                     StringComparison.Ordinal),
                 "model is asked to generate its own clarification");
@@ -138,12 +138,14 @@ internal static class ResponsesTextDialogClientTests
             await ExpectUnavailableAsync(wrongTier.ToJsonString(), 16, "unconfirmed Standard tier");
         }
         var mixedResponse = JsonNode.Parse(ProviderResponse("propose", 5))!;
-        mixedResponse["output"]![0]!["content"]!.AsArray().Add(new JsonObject
-        {
-            ["type"] = "refusal"
-        });
-        await ExpectUnavailableAsync(mixedResponse.ToJsonString(), 16, "mixed text and refusal");
-
+        mixedResponse["output"]!.AsArray().Add(mixedResponse["output"]![0]!.DeepClone());
+        await ExpectUnavailableAsync(mixedResponse.ToJsonString(), 16, "multiple backend actions");
+        var actuator = JsonNode.Parse(ProviderResponse("propose", 5))!;
+        actuator["output"]![0]!["name"] = "open_latch";
+        await ExpectUnavailableAsync(actuator.ToJsonString(), 16, "actuator function is forbidden");
+        var missingCall = JsonNode.Parse(ProviderResponse("propose", 5))!;
+        missingCall["output"]![0]!.AsObject().Remove("call_id");
+        await ExpectUnavailableAsync(missingCall.ToJsonString(), 16, "function call identity missing");
         var incompleteMessage = JsonNode.Parse(ProviderResponse("propose", 5))!;
         incompleteMessage["output"]![0]!["status"] = "incomplete";
         await ExpectUnavailableAsync(incompleteMessage.ToJsonString(), 16, "incomplete message");
@@ -225,24 +227,27 @@ internal static class ResponsesTextDialogClientTests
         string status = "completed",
         int outputTokens = 102)
     {
-        var result = JsonSerializer.Serialize(new
+        var arguments = new Dictionary<string, object?>
         {
-            reply = "Navrhuji Hůlku 5.",
-            decision,
-            compartment,
-            reason = "Hravá volba"
-        });
+            ["reply"] = "Navrhuji Hůlku 5.", ["reason"] = "Hravá volba"
+        };
+        if (decision == "propose" || compartment is not null)
+        {
+            arguments["compartment"] = compartment;
+        }
         return JsonSerializer.Serialize(new
         {
-            model = "gpt-6.1-sol",
-            service_tier = "default",
-            status,
+            model = "gpt-6.1-sol", service_tier = "default", status,
             output = new[]
             {
                 new
                 {
-                    type = "message",
-                    content = new[] { new { type = "output_text", text = result } }
+                    type = "function_call", call_id = "call_test",
+                    name = decision switch
+                    {
+                        "ask" => "continue_conversation", "propose" => "propose_wand", _ => "end_conversation"
+                    },
+                    arguments = JsonSerializer.Serialize(arguments)
                 }
             },
             usage = new { input_tokens = 621, output_tokens = outputTokens }

@@ -130,6 +130,11 @@ internal sealed class ConversationStore(
                 return new SubmitTurnResult(409, null, "conversation_version_mismatch");
             }
 
+            if (conversation.TerminalReplyPublished)
+            {
+                return new SubmitTurnResult(409, null, "conversation_finished");
+            }
+
             if (opening && (conversation.TurnCount != 0 || request.Text.Length != 0))
             {
                 return new SubmitTurnResult(409, null, "opening_already_started");
@@ -170,7 +175,7 @@ internal sealed class ConversationStore(
                     key,
                     bodyHash,
                     correlation,
-                    estimatedCostMicroUsd: paid ? ResponsesTextDialogBudget.ReserveForContext(memory?.Transcript ?? "") : 0);
+                    estimatedCostMicroUsd: paid ? ResponsesTextDialogBudget.ReserveForContext(memory?.Transcript ?? "", dialogRunner!.Model) : 0);
                 if (reservation.Conflict)
                 {
                     return new SubmitTurnResult(409, null, "idempotency_conflict");
@@ -221,7 +226,7 @@ internal sealed class ConversationStore(
                     "turn",
                     "completed",
                     correlation,
-                    new TurnResult(opening ? "Tak pojď blíž. Jak ti říkají?" : "Toto je testovací odpověď bez AI.", "ask", "", null),
+                    new TurnResult(opening ? "Jak ti říkají?" : "Toto je testovací odpověď bez AI.", "ask", "", null),
                     null);
 
                 eveningMemory?.Append(deviceId, memory!.EveningId, operationId,
@@ -279,10 +284,10 @@ internal sealed class ConversationStore(
                 visitorText,
                 readyMask,
                 history,
-                completedQuestions < 2 && readyMask != 0,
+                completedQuestions < ResponsesTextDialogBudget.MinimumQuestions && readyMask != 0,
                 cancellation.Token,
                 memory?.Transcript ?? "");
-            var actualCost = ResponsesTextDialogBudget.CalculateActualMicroUsd(response);
+            var actualCost = ResponsesTextDialogBudget.CalculateActualMicroUsd(response, dialogRunner.Model);
             lock (gate)
             {
                 if (!journal.SettleCost(operationId, actualCost))
@@ -301,8 +306,8 @@ internal sealed class ConversationStore(
                     return;
                 }
 
-                // A provider proposal before two completed questions cannot reach the device.
-                if (response.Decision == "propose" && conversation.CompletedQuestions < 2)
+                // A provider proposal before the minimum completed questions cannot reach the device.
+                if (response.Decision == "propose" && conversation.CompletedQuestions < ResponsesTextDialogBudget.MinimumQuestions)
                 {
                     journal.MarkFailed(operationId);
                     return;
@@ -344,6 +349,8 @@ internal sealed class ConversationStore(
                     conversation.CompletedQuestions++;
                 }
 
+                // Preserve the final poll result until the device acknowledges closure with DELETE.
+                conversation.TerminalReplyPublished = response.Decision is "propose" or "no_selection";
                 conversation.History.Add(new DialogExchange(
                     visitorText[..Math.Min(visitorText.Length, 500)],
                     response.Reply[..Math.Min(response.Reply.Length, 300)]));
@@ -435,6 +442,11 @@ internal sealed class ConversationStore(
             if (conversation.DeviceId != deviceId)
             {
                 return new SubmitTurnResult(403, null, "device_scope_mismatch");
+            }
+
+            if (conversation.TerminalReplyPublished)
+            {
+                return new SubmitTurnResult(409, null, "conversation_finished");
             }
 
             if (!conversation.AudioConsented)
@@ -840,6 +852,7 @@ internal sealed class ConversationStore(
         public DateTimeOffset AbsoluteExpiresAt { get; } = absoluteExpiresAt;
         public int TurnCount { get; set; }
         public int CompletedQuestions { get; set; }
+        public bool TerminalReplyPublished { get; set; }
         public List<DialogExchange> History { get; } = [];
         public HashSet<Guid> TurnIds { get; } = [];
         public HashSet<Guid> TranscriptionIds { get; } = [];

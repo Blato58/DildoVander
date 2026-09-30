@@ -15,9 +15,9 @@ DIALOGUE_CASES = Path(__file__).with_name("dialogue_cases.json")
 MODEL_PRICES = {
     # USD per million tokens; input uses the higher cache-write rate.
     "gpt-6.1-sol": (Decimal("2.50"), Decimal("10")),
-    "gpt-6-astra": (Decimal("12.50"), Decimal("50")),
     "gpt-6-luna": (Decimal("0.125"), Decimal("0.50")),
 }
+MINIMUM_QUESTIONS = 4
 MAX_OUTPUT_TOKENS = 1200
 MAX_SESSION_MICRO_USD = 500_000
 
@@ -62,6 +62,8 @@ def load_case(case_id):
 
 
 def build_request(case, model, history=(), evening_context="", opening=False, require_question=False):
+    if model not in MODEL_PRICES:
+        raise ValueError("Only Sol and Luna are supported")
     mask = case["readyMask"]
     if len(history) > 2 or any(
         len(exchange["VisitorText"]) > 500 or len(exchange["Reply"]) > 300
@@ -134,10 +136,10 @@ def build_dialogue_requests(case, model):
         opening = turn.get("opening", False)
         requests.append(build_request(request_case, model, history,
                                       case.get("eveningContext", ""), opening,
-                                      completed_questions < 2))
+                                      completed_questions < MINIMUM_QUESTIONS))
         result = validate_result(turn["mockResult"], case["readyMask"])
-        if result["decision"] == "propose" and completed_questions < 2:
-            raise ValueError("Proposal before two completed questions")
+        if result["decision"] == "propose" and completed_questions < MINIMUM_QUESTIONS:
+            raise ValueError("Proposal before four completed questions")
         if result["decision"] == "ask":
             completed_questions += 1
         history = (history + [{
@@ -167,7 +169,6 @@ def estimate_usage_micro_usd(response, model, *, include_cache=False):
             raise ValueError("Invalid cache token usage")
         input_price, cached_price = {
             "gpt-6.1-sol": (Decimal("2"), Decimal("0.10")),
-            "gpt-6-astra": (Decimal("10"), Decimal("1")),
             "gpt-6-luna": (Decimal("0.10"), Decimal("0.01")),
         }[model]
         amount = ((inputs - cached - writes) * input_price + cached * cached_price
