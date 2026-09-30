@@ -52,6 +52,7 @@ src/
     local_control/
       LocalControlSession.h/.cpp            hello a ruční lease jednoho ověřeného socketu
       LocalBearerAuthenticator.h/.cpp       omezená bearer hlavička místního WSS
+      LocalSocketAdmission.h/.cpp           jediný rezervovaný/aktivní control socket
       LocalConversationGateway.h/.cpp        text/cancel brána vlastníka řízení
       LocalConversationNetworkPort.h         síťový port brány
     provisioning/
@@ -197,6 +198,14 @@ a WSS handshake nejsou připojené.
 malými hexadecimálními znaky, dekóduje 32 bajtů a ověří je přes párovací
 otisk. Dočasný binární token po kontrole maže. Jde o budoucí vstup po TLS;
 žádný místní server ani povolení socketu zatím nepřidává.
+
+`LocalSocketAdmission` odděleně drží nanejvýš jeden autentizovaný control
+socket. Rezervace čeká nejvýše 10 s na dokončení WSS handshake; po vypršení
+vrátí identitu spojení, které musí transport zavřít před dalším přijetím.
+Každá rezervace má generaci, takže opožděné zavření starého FD neuvolní nový
+socket se stejným číslem. Zavření rozlišuje rezervovaný a aktivní socket. Tato čistá
+transportní brána nevolá řídicí smyčku. Reálné pre/post-handshake a close
+callbacky ji musí teprve použít; bez TLS identity se server nespouští.
 
 `DeviceTokenSession` je čistý model obnovy backend access tokenu po 12 minutách,
 jeho 15minutové expirace a jediného nového přihlášení po 401. Drží token pouze

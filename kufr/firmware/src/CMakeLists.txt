@@ -37,6 +37,7 @@ idf_component_register(
         "features/local_control/LocalControlSession.cpp"
         "features/local_control/LocalBearerAuthenticator.cpp"
         "features/local_control/LocalConversationGateway.cpp"
+        "features/local_control/LocalSocketAdmission.cpp"
         "features/provisioning/DeviceIdentity.cpp"
         "features/provisioning/EspIdfProvisioningStorage.cpp"
         "features/provisioning/EspIdfLocalPairingStorage.cpp"
