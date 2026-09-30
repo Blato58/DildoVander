@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <ctime>
+#include <utility>
 
 #include "esp_log.h"
 #include "esp_netif_sntp.h"
@@ -62,7 +63,8 @@ EspIdfBackendNetwork::EspIdfBackendNetwork(
     : identity_(identity), runtimeState_(runtimeState) {}
 
 bool EspIdfBackendNetwork::QueueTextTurn(
-    const std::string& text, const std::string& clientTurnId,
+    const std::string& text, const std::string& conversationId,
+    const std::string& clientTurnId,
     const ConversationRuntimeSnapshot& expectedSnapshot) {
   {
     std::lock_guard<std::mutex> lock(presentationMutex_);
@@ -70,15 +72,36 @@ bool EspIdfBackendNetwork::QueueTextTurn(
       return false;
     }
   }
-  return online_.load() && !replyInbox_.HasPending(runtimeState_) &&
-         textInbox_.Submit(text, clientTurnId, expectedSnapshot,
-                           runtimeState_);
+  std::string normalizedId;
+  if (!online_.load() || replyInbox_.HasPending(runtimeState_) ||
+      !NormalizeConversationUuid(conversationId, normalizedId)) {
+    return false;
+  }
+  std::lock_guard<std::mutex> lock(openingMutex_);
+  if (admittedSnapshotVersion_ == expectedSnapshot.version &&
+      !admittedLocalConversationId_.empty() &&
+      admittedLocalConversationId_ != normalizedId) {
+    return false;
+  }
+  if (admittedSnapshotVersion_ != expectedSnapshot.version) {
+    textInbox_.DiscardUnless(conversationId);
+  }
+  if (!textInbox_.Submit(text, conversationId, clientTurnId,
+                         expectedSnapshot, runtimeState_)) {
+    return false;
+  }
+  admittedLocalConversationId_ = normalizedId;
+  admittedSnapshotVersion_ = expectedSnapshot.version;
+  return true;
 }
 
 bool EspIdfBackendNetwork::QueueOpening(
+    const std::string& conversationId,
     const ConversationRuntimeSnapshot& expectedSnapshot) {
+  std::string normalizedId;
   if (!online_.load() || expectedSnapshot.version == 0 ||
-      replyInbox_.HasPending(runtimeState_)) {
+      replyInbox_.HasPending(runtimeState_) ||
+      !NormalizeConversationUuid(conversationId, normalizedId)) {
     return false;
   }
   {
@@ -88,11 +111,16 @@ bool EspIdfBackendNetwork::QueueOpening(
     }
   }
   std::lock_guard<std::mutex> lock(openingMutex_);
-  if (openingPending_ || !runtimeState_.Matches(expectedSnapshot)) {
+  if (openingPending_ || replyInbox_.HasPending(runtimeState_) ||
+      !runtimeState_.Matches(expectedSnapshot)) {
     return false;
   }
   openingSnapshotVersion_ = expectedSnapshot.version;
+  openingConversationId_ = conversationId;
   openingPending_ = true;
+  admittedLocalConversationId_ = normalizedId;
+  admittedSnapshotVersion_ = expectedSnapshot.version;
+  textInbox_.DiscardUnless(conversationId);
   return true;
 }
 
@@ -103,19 +131,22 @@ void EspIdfBackendNetwork::QueueCancel() {
   pendingProposal_.Clear();
   std::lock_guard<std::mutex> lock(openingMutex_);
   openingPending_ = false;
+  openingConversationId_.clear();
 }
 
 bool EspIdfBackendNetwork::TakeReply(
-    std::string& reply, std::string& clientTurnId,
+    std::string& reply, std::string& conversationId,
+    std::string& clientTurnId,
     ConversationRuntimeSnapshot& snapshot, uint64_t& token) {
   if (cancelRequested_.load() ||
-      !replyInbox_.Take(reply, clientTurnId, snapshot, token,
+      !replyInbox_.Take(reply, conversationId, clientTurnId, snapshot, token,
                         runtimeState_)) {
     return false;
   }
   if (cancelRequested_.load()) {
     std::fill(reply.begin(), reply.end(), '\0');
     reply.clear();
+    conversationId.clear();
     clientTurnId.clear();
     return false;
   }
@@ -332,24 +363,31 @@ void EspIdfBackendNetwork::Run() {
       continue;
     }
     bool opening = false;
+    std::string openingConversationId;
     uint64_t openingVersion = 0;
     {
       std::lock_guard<std::mutex> lock(openingMutex_);
       if (openingPending_) {
         opening = true;
+        openingConversationId = std::move(openingConversationId_);
         openingVersion = openingSnapshotVersion_;
         openingPending_ = false;
+        openingConversationId_.clear();
       }
     }
     std::string text;
+    std::string conversationId;
     std::string clientTurnId;
     uint64_t snapshotVersion = 0;
     if (opening) {
-      RunTurn("", "", true, openingVersion, tokens, wifi, coordinator,
+      RunTurn("", openingConversationId, "", true, openingVersion,
+              tokens, wifi, coordinator,
               startRequest);
       lastTurnAtMs = MonotonicMs();
-    } else if (textInbox_.Take(text, clientTurnId, snapshotVersion)) {
-      RunTurn(text, clientTurnId, false, snapshotVersion, tokens, wifi,
+    } else if (textInbox_.Take(
+                   text, conversationId, clientTurnId, snapshotVersion)) {
+      RunTurn(text, conversationId, clientTurnId, false, snapshotVersion,
+              tokens, wifi,
               coordinator, startRequest);
       lastTurnAtMs = MonotonicMs();
       std::fill(text.begin(), text.end(), '\0');
@@ -360,21 +398,28 @@ void EspIdfBackendNetwork::Run() {
 }
 
 void EspIdfBackendNetwork::RunTurn(
-    const std::string& text, const std::string& clientTurnId,
+    const std::string& text, const std::string& conversationId,
+    const std::string& clientTurnId,
     bool opening, uint64_t snapshotVersion,
     DeviceTokenSession& tokens,
     EspIdfWifiStation& wifi,
     ConversationStartCoordinator& coordinator,
     ConversationStartRequest& startRequest) {
   std::string backendClientTurnId;
-  if (!opening &&
-      !NormalizeConversationUuid(clientTurnId, backendClientTurnId)) {
+  std::string normalizedConversationId;
+  if (!NormalizeConversationUuid(conversationId, normalizedConversationId) ||
+      (!opening &&
+       !NormalizeConversationUuid(clientTurnId, backendClientTurnId))) {
     return;
   }
   ConversationRuntimeSnapshot snapshot;
   if (!wifi.HasIp() || !runtimeState_.Read(snapshot) ||
       snapshot.version != snapshotVersion || bootId_.empty()) {
     ESP_LOGW(LogTag, "Text turn dropped: device state unavailable");
+    return;
+  }
+  if (!IsLocalConversationAdmitted(
+          normalizedConversationId, snapshotVersion)) {
     return;
   }
 
@@ -386,6 +431,11 @@ void EspIdfBackendNetwork::RunTurn(
     }
     startRequest.idempotencyKey = GenerateEspIdfConversationUuid();
     startSnapshotVersion_ = snapshot.version;
+  }
+  if (!opening && !activeLocalConversationId_.empty() &&
+      activeLocalConversationId_ != normalizedConversationId) {
+    ESP_LOGW(LogTag, "Text turn dropped: local conversation changed");
+    return;
   }
   if (opening && !coordinator.ConversationId().empty()) {
     EspIdfConversationTextTransport closeTransport(settings_.BackendHost());
@@ -410,6 +460,7 @@ void EspIdfBackendNetwork::RunTurn(
     ESP_LOGW(LogTag, "Text turn: conversation start failed");
     return;
   }
+  activeLocalConversationId_ = normalizedConversationId;
   if (!runtimeState_.Matches(snapshot)) {
     return;
   }
@@ -454,6 +505,7 @@ void EspIdfBackendNetwork::RunTurn(
   if (accepted.statusCode != 202 || accepted.operationId.empty()) {
     if (accepted.statusCode == 404) {
       coordinator.Clear();
+      activeLocalConversationId_.clear();
       startRequest.idempotencyKey = GenerateEspIdfConversationUuid();
     } else {
       CloseConversation(coordinator, textTransport, tokens, startRequest);
@@ -510,10 +562,11 @@ void EspIdfBackendNetwork::RunTurn(
         !cancelRequested_.load() &&
         runtimeState_.Matches(snapshot)) {
       if (result.decision == TurnPollDecision::ProposalReady) {
-        if (!replyInbox_.Store(
+        if (!StoreReplyIfAdmitted(
                 result.reply,
+                conversationId,
                 opening ? turnRequest.clientTurnId : clientTurnId,
-                snapshot, runtimeState_)) {
+                snapshot)) {
           std::fill(result.reply.begin(), result.reply.end(), '\0');
           CloseConversation(coordinator, textTransport, tokens, startRequest);
           break;
@@ -542,10 +595,11 @@ void EspIdfBackendNetwork::RunTurn(
         }
       } else {
         pendingProposal_.Clear();
-        if (!replyInbox_.Store(
+        if (!StoreReplyIfAdmitted(
                 result.reply,
+                conversationId,
                 opening ? turnRequest.clientTurnId : clientTurnId,
-                snapshot, runtimeState_)) {
+                snapshot)) {
           std::fill(result.reply.begin(), result.reply.end(), '\0');
           CloseConversation(coordinator, textTransport, tokens, startRequest);
           break;
@@ -568,6 +622,28 @@ void EspIdfBackendNetwork::RunTurn(
   if (!replyConsumed || noSelection) {
     CloseConversation(coordinator, textTransport, tokens, startRequest);
   }
+}
+
+bool EspIdfBackendNetwork::IsLocalConversationAdmitted(
+    const std::string& normalizedConversationId, uint64_t snapshotVersion) {
+  std::lock_guard<std::mutex> lock(openingMutex_);
+  return admittedSnapshotVersion_ == snapshotVersion &&
+         admittedLocalConversationId_ == normalizedConversationId;
+}
+
+bool EspIdfBackendNetwork::StoreReplyIfAdmitted(
+    const std::string& reply, const std::string& conversationId,
+    const std::string& clientTurnId,
+    const ConversationRuntimeSnapshot& snapshot) {
+  std::string normalizedId;
+  if (!NormalizeConversationUuid(conversationId, normalizedId)) {
+    return false;
+  }
+  std::lock_guard<std::mutex> lock(openingMutex_);
+  return admittedSnapshotVersion_ == snapshot.version &&
+         admittedLocalConversationId_ == normalizedId &&
+         replyInbox_.Store(
+             reply, conversationId, clientTurnId, snapshot, runtimeState_);
 }
 
 bool EspIdfBackendNetwork::CloseConversation(
@@ -597,6 +673,7 @@ bool EspIdfBackendNetwork::CloseConversation(
     }
   }
   coordinator.Clear();
+  activeLocalConversationId_.clear();
   pendingProposal_.Clear();
   {
     std::lock_guard<std::mutex> lock(presentationMutex_);

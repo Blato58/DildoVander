@@ -7,14 +7,16 @@
 #include "ConversationStartCodec.h"
 
 bool ConversationTextInbox::Submit(const std::string& text,
+                                   const std::string& conversationId,
                                    const std::string& clientTurnId,
                                    const ConversationRuntimeSnapshot&
                                        expectedSnapshot,
                                    const ConversationRuntimeState& runtimeState) {
-  std::string normalizedTurnId;
+  std::string normalizedId;
   if (expectedSnapshot.version == 0 || text.size() > 4000 ||
       !IsValidConversationText(text) ||
-      !NormalizeConversationUuid(clientTurnId, normalizedTurnId)) {
+      !NormalizeConversationUuid(conversationId, normalizedId) ||
+      !NormalizeConversationUuid(clientTurnId, normalizedId)) {
     return false;
   }
   bool hasVisibleContent = false;
@@ -37,12 +39,14 @@ bool ConversationTextInbox::Submit(const std::string& text,
     return false;
   }
   pendingText_ = text;
+  pendingConversationId_ = conversationId;
   pendingClientTurnId_ = clientTurnId;
   pendingVersion_ = expectedSnapshot.version;
   return true;
 }
 
 bool ConversationTextInbox::Take(std::string& text,
+                                 std::string& conversationId,
                                  std::string& clientTurnId,
                                  uint64_t& snapshotVersion) {
   std::lock_guard<std::mutex> lock(mutex_);
@@ -50,9 +54,11 @@ bool ConversationTextInbox::Take(std::string& text,
     return false;
   }
   text = std::move(pendingText_);
+  conversationId = std::move(pendingConversationId_);
   clientTurnId = std::move(pendingClientTurnId_);
   snapshotVersion = pendingVersion_;
   pendingText_.clear();
+  pendingConversationId_.clear();
   pendingClientTurnId_.clear();
   pendingVersion_ = 0;
   return true;
@@ -62,6 +68,25 @@ void ConversationTextInbox::Clear() {
   std::lock_guard<std::mutex> lock(mutex_);
   std::fill(pendingText_.begin(), pendingText_.end(), '\0');
   pendingText_.clear();
+  pendingConversationId_.clear();
+  pendingClientTurnId_.clear();
+  pendingVersion_ = 0;
+}
+
+void ConversationTextInbox::DiscardUnless(
+    const std::string& conversationId) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  std::string normalizedExpected;
+  std::string normalizedPending;
+  if (pendingText_.empty() ||
+      (NormalizeConversationUuid(conversationId, normalizedExpected) &&
+       NormalizeConversationUuid(pendingConversationId_, normalizedPending) &&
+       normalizedExpected == normalizedPending)) {
+    return;
+  }
+  std::fill(pendingText_.begin(), pendingText_.end(), '\0');
+  pendingText_.clear();
+  pendingConversationId_.clear();
   pendingClientTurnId_.clear();
   pendingVersion_ = 0;
 }
