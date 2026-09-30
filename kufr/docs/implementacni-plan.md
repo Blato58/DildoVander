@@ -689,3 +689,15 @@ Oficiální dokumentace byla otevřena při přípravě plánu 29. 9. 2026. Odka
 Místní obrázek, produktové označení v nákupním seznamu a předběžné tabulky tohoto plánu zůstávají návrhovými podklady do ověření skutečného kusu.
 
 D97 rozšiřuje `conversation.result` v1 na `simulated:boolean` a reply 1–500 Unicode znaků / nejvýše 2000 UTF-8 bajtů, v souladu s validovaným backendem. Simulátor zachovává true, skutečný backendový výstup má false; false označuje původ odpovědi, nikoli důkaz spuštění placené AI. Textové result zprávy mají stejně jako vstup limit 8192 bajtů kvůli JSON escapování, ostatní control zprávy 2048. Strict klient musí převzít rozšířené schéma/limity. Řídicí vlastník před výstupem kontroluje aktivní sezení/tah, generation a snapshot; dokončení až po přijetí do transportní fronty. Už odeslaný text nelze vzít zpět; cancel/Stop jej odliší novou generation. Předání textu telefonu není dokončení oznamovacího audio portu ani oprávnění k pohybu.
+
+D98 konkretizuje místní HTTPS `POST /v1/pair` pro již servisně provisionovanou
+TLS identitu a jednorázový párovací záznam. Klient připne SPKI z QR a pošle
+`Content-Type: application/json` a objekt `{"protocolVersion":1,"pairingSecret":"lowercase hex"}`
+(secret 16–64 bajtů, tělo do 192 bajtů, žádný query token/Transfer-Encoding).
+Úspěch vrací `{"protocolVersion":1,"token":"64 lowercase hex znaků"}` s no-store.
+WSS používá token v Authorization Bearer; zařízení uloží jen hash. 400 znamená
+formát, 401 nesprávné tajemství nebo nedostupné RNG, 409 již spotřebované párování,
+413/415 velikost/typ, 503 poškozené úložiště. Ztráta úspěšné odpovědi vyžaduje
+fyzický servisní reset. Server nepotřebuje backend token pro párování, vyžaduje
+však aktivní STA pro RNG. Servisní AP, QR/Keychain/native klient a skutečný USB
+zápis po fyzické bráně zůstávají navazující části; žádná identita není v image.

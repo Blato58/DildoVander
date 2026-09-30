@@ -121,3 +121,15 @@ vrací true. Limit reply je 500 Unicode znaků (firmware nejvýše 2000 UTF-8 ba
 stejně jako backend. `conversation.text` i `conversation.result` mají obálku do
 8192 bajtů kvůli escapování; jiné control zprávy zůstávají do 2048. Strict klient
 přebírá nové schéma a limit. Původ backendu neprokazuje placenou AI, TTS ani pohyb.
+
+D98 konkretizuje místní HTTPS `POST /v1/pair` pro již servisně provisionovanou
+TLS identitu a jednorázový párovací záznam. Klient připne SPKI z QR a pošle
+`Content-Type: application/json` a objekt `{"protocolVersion":1,"pairingSecret":"lowercase hex"}`
+(secret 16–64 bajtů, tělo do 192 bajtů, žádný query token/Transfer-Encoding).
+Úspěch vrací `{"protocolVersion":1,"token":"64 lowercase hex znaků"}` s no-store.
+WSS používá token v Authorization Bearer; zařízení uloží jen hash. 400 znamená
+formát, 401 nesprávné tajemství nebo nedostupné RNG, 409 již spotřebované párování,
+413/415 velikost/typ, 503 poškozené úložiště. Ztráta úspěšné odpovědi vyžaduje
+fyzický servisní reset. Server nepotřebuje backend token pro párování, vyžaduje
+však aktivní STA pro RNG. Servisní AP, QR/Keychain/native klient a skutečný USB
+zápis po fyzické bráně zůstávají navazující části; žádná identita není v image.
