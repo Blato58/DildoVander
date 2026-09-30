@@ -212,7 +212,8 @@ autoritativního snapshotu je nevydá. Žádná odpověď z backendu zatím neř
 fyzické výstupy.
 `ConversationReplyInbox` podrží nejvýše jednu validovanou textovou repliku
 svázanou s přesným snapshotem. Síťová úloha ji po úspěšném pollu předá přes
-`TakeReply` s tokenem; nový tah ani autonomní prezentace nezačnou do
+`TakeReply` s původním `clientTurnId` a tokenem; nový tah ani autonomní
+prezentace nezačnou do
 `FinishReply`. Změna snapshotu nebo explicitní zrušení token zneplatní.
 Volající musí `IsReplyCurrent` kontrolovat před výstupem i během něj a při
 zrušení zastavit skutečný výstupní port. Přehrávací/TTS port v IDF smyčce
@@ -405,7 +406,7 @@ g++ -std=c++14 -Wall -Wextra -Werror src/features/conversation/TurnPollSchedule.
 Vstupní schránku textového tahu lze ověřit samostatně:
 
 ```text
-g++ -std=c++14 -Wall -Wextra -Werror -pthread src/features/conversation/ConversationSession.cpp src/features/conversation/ConversationRuntimeState.cpp src/features/conversation/ConversationTextInbox.cpp tests/conversation_text_inbox_test.cpp -o <docasna-slozka>/conversation_text_inbox_test
+g++ -std=c++14 -Wall -Wextra -Werror -pthread src/features/conversation/ConversationSession.cpp src/features/conversation/ConversationStartCodec.cpp src/features/conversation/ConversationRuntimeState.cpp src/features/conversation/ConversationTextInbox.cpp tests/conversation_text_inbox_test.cpp -o <docasna-slozka>/conversation_text_inbox_test
 <docasna-slozka>/conversation_text_inbox_test
 ```
 
@@ -413,6 +414,9 @@ Schránku odpovědi a její vazbu na snapshot ověřuje
 `tests/conversation_reply_inbox_test.cpp` spolu s
 `ConversationSession.cpp`, `ConversationRuntimeState.cpp` a
 `ConversationReplyInbox.cpp`; stejný test spouští firmware CI.
+`tests/conversation_turn_correlation_test.cpp` skládá obě schránky,
+normalizaci UUID, backendovou korelační bránu a model sezení; ověřuje, že
+původní místní ID projde až do předané odpovědi. Také jej spouští firmware CI.
 
 `tests/turn_replay.cpp` je hostitelský CLI průchod skutečným JSON výsledkem
 operace přes parser, korelační bránu, dočasný návrh a fake servo port. Přijímá
@@ -423,7 +427,8 @@ tahu a živého snapshotu, nikoli z vrácené odpovědi. Výstup je simulace bez
 GPIO a pro replay je nutná dosud neexpirovaná operace.
 
 ESP-IDF síťová úloha přijme přes `QueueTextTurn` nejvýše jeden čekající
-validovaný UTF-8 text, po důvěryhodném čase a tokenu založí nebo znovu použije
+validovaný UTF-8 text s UUID `clientTurnId`. Po důvěryhodném čase a tokenu
+založí nebo znovu použije
 backend sezení, odešle tah a omezeně polluje výsledek. `QueueOpening` přijímá
 jen explicitní místní událost a odesílá `/opening` bez textu; reconnect ji
 nevytváří. Po `no_selection`, chybě/timeoutu pollu či 90 sekundách nečinnosti
@@ -431,6 +436,10 @@ nevytváří. Po `no_selection`, chybě/timeoutu pollu či 90 sekundách nečinn
 opakuje s čekáním 1–30 s a nepovolí založit další sezení. Po 204/404 vymaže
 koordinátor a vymění create key. Ověřený
 `propose` uloží jen jako dočasná data dostupná přes `ReadPendingProposal`.
+Textový tah posílá backendu stejné `clientTurnId` jako budoucí místní
+`conversation.text` v kanonickém malém zápisu; opening bez klientského tahu
+dostane nové lokální UUID. Původní zápis ID se vrací budoucímu místnímu
+výstupu a idempotency key zůstává oddělený. Nulové UUID se odmítá.
 Po doběhnutí či poruše cyklu má vlastník řízení zavolat `FinishPresentation`;
 nepřevzatý návrh se po vypršení lokálního deadline uklidí automaticky.
 Volání `QueueTextTurn` a `QueueOpening` zatím nemají v runtime autorizovaného

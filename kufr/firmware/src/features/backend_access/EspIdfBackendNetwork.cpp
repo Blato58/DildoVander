@@ -17,6 +17,7 @@
 #include "ReconnectPolicy.h"
 #include "TrustedTime.h"
 #include "../conversation/ConversationStartCoordinator.h"
+#include "../conversation/ConversationStartCodec.h"
 #include "../conversation/EspIdfConversationStartTransport.h"
 #include "../conversation/EspIdfConversationTextTransport.h"
 #include "../conversation/EspIdfConversationUuid.h"
@@ -61,7 +62,7 @@ EspIdfBackendNetwork::EspIdfBackendNetwork(
     : identity_(identity), runtimeState_(runtimeState) {}
 
 bool EspIdfBackendNetwork::QueueTextTurn(
-    const std::string& text,
+    const std::string& text, const std::string& clientTurnId,
     const ConversationRuntimeSnapshot& expectedSnapshot) {
   {
     std::lock_guard<std::mutex> lock(presentationMutex_);
@@ -70,7 +71,8 @@ bool EspIdfBackendNetwork::QueueTextTurn(
     }
   }
   return online_.load() && !replyInbox_.HasPending(runtimeState_) &&
-         textInbox_.Submit(text, expectedSnapshot, runtimeState_);
+         textInbox_.Submit(text, clientTurnId, expectedSnapshot,
+                           runtimeState_);
 }
 
 bool EspIdfBackendNetwork::QueueOpening(
@@ -104,15 +106,17 @@ void EspIdfBackendNetwork::QueueCancel() {
 }
 
 bool EspIdfBackendNetwork::TakeReply(
-    std::string& reply, ConversationRuntimeSnapshot& snapshot,
-    uint64_t& token) {
+    std::string& reply, std::string& clientTurnId,
+    ConversationRuntimeSnapshot& snapshot, uint64_t& token) {
   if (cancelRequested_.load() ||
-      !replyInbox_.Take(reply, snapshot, token, runtimeState_)) {
+      !replyInbox_.Take(reply, clientTurnId, snapshot, token,
+                        runtimeState_)) {
     return false;
   }
   if (cancelRequested_.load()) {
     std::fill(reply.begin(), reply.end(), '\0');
     reply.clear();
+    clientTurnId.clear();
     return false;
   }
   return true;
@@ -338,14 +342,15 @@ void EspIdfBackendNetwork::Run() {
       }
     }
     std::string text;
+    std::string clientTurnId;
     uint64_t snapshotVersion = 0;
     if (opening) {
-      RunTurn("", true, openingVersion, tokens, wifi, coordinator,
+      RunTurn("", "", true, openingVersion, tokens, wifi, coordinator,
               startRequest);
       lastTurnAtMs = MonotonicMs();
-    } else if (textInbox_.Take(text, snapshotVersion)) {
-      RunTurn(text, false, snapshotVersion, tokens, wifi, coordinator,
-              startRequest);
+    } else if (textInbox_.Take(text, clientTurnId, snapshotVersion)) {
+      RunTurn(text, clientTurnId, false, snapshotVersion, tokens, wifi,
+              coordinator, startRequest);
       lastTurnAtMs = MonotonicMs();
       std::fill(text.begin(), text.end(), '\0');
       text.clear();
@@ -355,11 +360,17 @@ void EspIdfBackendNetwork::Run() {
 }
 
 void EspIdfBackendNetwork::RunTurn(
-    const std::string& text, bool opening, uint64_t snapshotVersion,
+    const std::string& text, const std::string& clientTurnId,
+    bool opening, uint64_t snapshotVersion,
     DeviceTokenSession& tokens,
     EspIdfWifiStation& wifi,
     ConversationStartCoordinator& coordinator,
     ConversationStartRequest& startRequest) {
+  std::string backendClientTurnId;
+  if (!opening &&
+      !NormalizeConversationUuid(clientTurnId, backendClientTurnId)) {
+    return;
+  }
   ConversationRuntimeSnapshot snapshot;
   if (!wifi.HasIp() || !runtimeState_.Read(snapshot) ||
       snapshot.version != snapshotVersion || bootId_.empty()) {
@@ -405,7 +416,9 @@ void EspIdfBackendNetwork::RunTurn(
 
   ConversationTextTurnRequest turnRequest;
   turnRequest.conversationId = coordinator.ConversationId();
-  turnRequest.clientTurnId = GenerateEspIdfConversationUuid();
+  turnRequest.clientTurnId = opening
+      ? GenerateEspIdfConversationUuid()
+      : backendClientTurnId;
   turnRequest.bootId = bootId_;
   turnRequest.idempotencyKey = GenerateEspIdfConversationUuid();
   turnRequest.catalogVersion = snapshot.catalogVersion;
@@ -497,7 +510,10 @@ void EspIdfBackendNetwork::RunTurn(
         !cancelRequested_.load() &&
         runtimeState_.Matches(snapshot)) {
       if (result.decision == TurnPollDecision::ProposalReady) {
-        if (!replyInbox_.Store(result.reply, snapshot, runtimeState_)) {
+        if (!replyInbox_.Store(
+                result.reply,
+                opening ? turnRequest.clientTurnId : clientTurnId,
+                snapshot, runtimeState_)) {
           std::fill(result.reply.begin(), result.reply.end(), '\0');
           CloseConversation(coordinator, textTransport, tokens, startRequest);
           break;
@@ -526,7 +542,10 @@ void EspIdfBackendNetwork::RunTurn(
         }
       } else {
         pendingProposal_.Clear();
-        if (!replyInbox_.Store(result.reply, snapshot, runtimeState_)) {
+        if (!replyInbox_.Store(
+                result.reply,
+                opening ? turnRequest.clientTurnId : clientTurnId,
+                snapshot, runtimeState_)) {
           std::fill(result.reply.begin(), result.reply.end(), '\0');
           CloseConversation(coordinator, textTransport, tokens, startRequest);
           break;

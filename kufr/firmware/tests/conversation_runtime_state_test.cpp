@@ -3,6 +3,12 @@
 #include "../src/features/conversation/ConversationRuntimeState.h"
 #include "../src/features/conversation/ConversationTextInbox.h"
 
+namespace {
+
+constexpr char ClientTurnId[] = "8475532e-92b2-487e-b476-7f98f0030e68";
+
+}  // namespace
+
 int main() {
   ConversationRuntimeState unavailable(false, 63, "neutral-1");
   ConversationRuntimeSnapshot snapshot;
@@ -22,17 +28,19 @@ int main() {
   assert(state.Matches(snapshot));
 
   ConversationTextInbox inbox;
-  assert(inbox.Submit("Stary tah", snapshot, state));
+  assert(inbox.Submit("Stary tah", ClientTurnId, snapshot, state));
 
   assert(!state.Publish(0, 0, 62, "neutral-1"));
   assert(!state.Publish(0, 0, 63, "other"));
   assert(state.Matches(snapshot));
   assert(state.Publish(1, 0, 63, "neutral-1"));
   assert(!state.Matches(snapshot));
-  assert(!inbox.Submit("Pozdni tah", snapshot, state));
+  assert(!inbox.Submit("Pozdni tah", ClientTurnId, snapshot, state));
   std::string queuedText;
+  std::string queuedTurnId;
   uint64_t queuedVersion = 0;
-  assert(inbox.Take(queuedText, queuedVersion));
+  assert(inbox.Take(queuedText, queuedTurnId, queuedVersion));
+  assert(queuedTurnId == ClientTurnId);
   assert(queuedVersion == snapshot.version);
   assert(queuedVersion != 0);
   assert(state.Read(snapshot));

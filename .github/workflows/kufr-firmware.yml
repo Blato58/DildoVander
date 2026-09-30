@@ -50,6 +50,7 @@ jobs:
           set -euo pipefail
           g++ -std=c++14 -Wall -Wextra -Werror -pthread \
             src/features/conversation/ConversationSession.cpp \
+            src/features/conversation/ConversationStartCodec.cpp \
             src/features/conversation/ConversationRuntimeState.cpp \
             src/features/conversation/ConversationTextInbox.cpp \
             tests/conversation_text_inbox_test.cpp \
@@ -62,11 +63,27 @@ jobs:
           set -euo pipefail
           g++ -std=c++14 -Wall -Wextra -Werror -pthread \
             src/features/conversation/ConversationSession.cpp \
+            src/features/conversation/ConversationStartCodec.cpp \
             src/features/conversation/ConversationRuntimeState.cpp \
             src/features/conversation/ConversationReplyInbox.cpp \
             tests/conversation_reply_inbox_test.cpp \
             -o "$RUNNER_TEMP/conversation-reply-inbox-test"
           "$RUNNER_TEMP/conversation-reply-inbox-test"
+      - name: Local turn to backend reply correlation test
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++14 -Wall -Wextra -Werror -pthread \
+            src/features/conversation/ConversationSession.cpp \
+            src/features/conversation/ConversationStartCodec.cpp \
+            src/features/conversation/ConversationRuntimeState.cpp \
+            src/features/conversation/ConversationTextInbox.cpp \
+            src/features/conversation/TurnPollGuard.cpp \
+            src/features/conversation/ConversationReplyInbox.cpp \
+            tests/conversation_turn_correlation_test.cpp \
+            -o "$RUNNER_TEMP/conversation-turn-correlation-test"
+          "$RUNNER_TEMP/conversation-turn-correlation-test"
       - name: Conversation proposal and opening tests
         working-directory: kufr/firmware
         shell: bash
