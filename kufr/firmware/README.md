@@ -219,6 +219,13 @@ Výstup je pouze typovaná zpráva. Autentizace, lease a aktuální snapshot
 se musí ověřit při jejím zpracování vlastníkem řízení; parser žádný povel
 nespouští. Sdílené klientské fixtures ověřuje hostitelský test i CI.
 
+`LocalControlInbox` předává jednu autentizovanou generaci socketu řídicí
+úloze. Má čtyři běžné sloty a oddělené příznaky pro připojení, Stop a
+odpojení. Stop smaže staré povely včetně resetu a neztratí se ani při plné
+frontě či souběžném odpojení. Nové spojení čeká na převzetí odpojení
+vlastníkem; opožděný callback jiného handle se ignoruje. Před přijetím se
+kontroluje device/boot korelace, takže Stop starého bootu frontu nesmaže.
+
 `LocalTlsIdentity` čte samostatný verzovaný záznam `wand_tls/server`:
 8bajtová hlavička `KTL1` a little-endian délky certifikátu/klíče, potom obě
 PEM hodnoty včetně koncového NUL (certifikát nejvýše 2048, EC klíč 1024 bajtů).
