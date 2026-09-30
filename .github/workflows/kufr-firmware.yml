@@ -43,6 +43,20 @@ jobs:
             tests/device_control_runtime_test.cpp \
             -o "$RUNNER_TEMP/device-control-runtime-test"
           "$RUNNER_TEMP/device-control-runtime-test"
+      - name: Local control codec test
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++14 -Wall -Wextra -Werror \
+            src/features/conversation/ConversationSession.cpp \
+            src/features/conversation/ConversationStartCodec.cpp \
+            src/features/local_control/LocalControlCodec.cpp \
+            tests/local_control_codec_test.cpp \
+            -o "$RUNNER_TEMP/local-control-codec-test"
+          "$RUNNER_TEMP/local-control-codec-test" \
+            ../contracts/fixtures/valid/{hello,state-get,control-acquire,control-release,heartbeat,safety-stop,safety-reset,conversation-text,conversation-cancel,selection-start,inventory-confirm-reload}.json \
+            --reject ../contracts/fixtures/invalid/*.json
       - name: Local control session test
         working-directory: kufr/firmware
         shell: bash
