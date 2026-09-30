@@ -210,6 +210,21 @@ socket se stejným číslem. Zavření rozlišuje rezervovaný a aktivní socket
 transportní brána nevolá řídicí smyčku. Reálné pre/post-handshake a close
 callbacky ji musí teprve použít; bez TLS identity se server nespouští.
 
+`LocalTlsIdentity` čte samostatný verzovaný záznam `wand_tls/server`:
+8bajtová hlavička `KTL1` a little-endian délky certifikátu/klíče, potom obě
+PEM hodnoty včetně koncového NUL (certifikát nejvýše 2048, EC klíč 1024 bajtů).
+Omezení ponechává prostor pro náhradu blobu v malé prototypové NVS.
+Rotace zapisuje
+jediný blob až po ověření fyzické servisní brány a odpojené větve pohonů.
+`EspIdfLocalTlsValidator` přes mbedTLS/PSA ověřuje certifikát, privátní klíč
+a jejich shodu; pro QR vrací SHA-256 přes DER SubjectPublicKeyInfo.
+Neplatný záznam či neúspěšný commit zablokuje identitu. Klíč v RAM se při
+zániku vlastníka vymaže. Zatím není servisní zapisovač ani WSS server.
+Selhání zápisu neprokazuje návrat staré identity: servis musí po novém načtení
+ověřit skutečně uložený SPKI otisk a teprve potom vydat/aktualizovat QR.
+NVS prototyp není chráněný proti fyzickému čtení flash; secure boot/eFuse
+zůstávají samostatným rozhodnutím dle plánu. Identitu neukládat do image.
+
 `DeviceTokenSession` je čistý model obnovy backend access tokenu po 12 minutách,
 jeho 15minutové expirace a jediného nového přihlášení po 401. Drží token pouze
 v RAM a odmítá odpověď s jiným `deviceId`, typem tokenu nebo dobou platnosti.

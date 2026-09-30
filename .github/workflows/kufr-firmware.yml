@@ -84,6 +84,16 @@ jobs:
             tests/espidf_pairing_random_test.cpp \
             -o "$RUNNER_TEMP/espidf-pairing-random-test"
           "$RUNNER_TEMP/espidf-pairing-random-test"
+      - name: Local TLS identity test
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++14 -Wall -Wextra -Werror \
+            src/features/provisioning/LocalTlsIdentity.cpp \
+            tests/local_tls_identity_test.cpp \
+            -o "$RUNNER_TEMP/local-tls-identity-test"
+          "$RUNNER_TEMP/local-tls-identity-test"
       - name: Local bearer authorization test
         working-directory: kufr/firmware
         shell: bash
