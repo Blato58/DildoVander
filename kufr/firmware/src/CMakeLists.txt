@@ -38,6 +38,8 @@ idf_component_register(
         "features/local_control/LocalConversationGateway.cpp"
         "features/provisioning/DeviceIdentity.cpp"
         "features/provisioning/EspIdfProvisioningStorage.cpp"
+        "features/provisioning/EspIdfLocalPairingStorage.cpp"
+        "features/provisioning/EspIdfSha256.cpp"
         "features/provisioning/LocalPairingCredential.cpp"
         "features/safety/SafetyController.cpp"
         "features/wand_selection/SelectionSequence.cpp"
