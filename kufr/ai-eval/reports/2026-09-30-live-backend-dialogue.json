@@ -1,0 +1,987 @@
+{
+  "date": "2026-09-30",
+  "kind": "adaptive fictional visitor through deployed HTTPS backend",
+  "invoiceVerified": false,
+  "budgetGuard": {
+    "baselineMicroUsd": 162560,
+    "baselineExplanation": "User reported prior spending below 0.01 USD; conservatively add the later historical run Fast upper bound 0.152560 USD. Not independently verified billing.",
+    "attempts": {
+      "356c5d90-47e0-4859-aaae-34c86f10b80f": {
+        "model": "gpt-6-luna",
+        "reservedMicroUsd": 5000
+      },
+      "9876607a-c6e9-4aa6-a27c-57e4f8dfea67": {
+        "model": "gpt-6-luna",
+        "reservedMicroUsd": 5069
+      },
+      "9d655ab9-df6e-42d1-8d8d-d9bf30704f46": {
+        "model": "gpt-6-luna",
+        "reservedMicroUsd": 5169
+      },
+      "e66a01f6-7b1e-4cf0-8703-357d87388dd7": {
+        "model": "gpt-6-luna",
+        "reservedMicroUsd": 5299
+      },
+      "fee71782-3ef6-4918-a3b6-a7f6690ede02": {
+        "model": "gpt-6-luna",
+        "reservedMicroUsd": 5446
+      },
+      "3d560075-6a9a-4b47-ad62-e0a5f89d63ab": {
+        "model": "gpt-6.1-sol",
+        "reservedMicroUsd": 111760
+      },
+      "0f76181f-ff01-439a-810c-7cf40254da39": {
+        "model": "gpt-6.1-sol",
+        "reservedMicroUsd": 112840
+      },
+      "9cd64aa9-92ec-4559-9e84-52a8be44187a": {
+        "model": "gpt-6.1-sol",
+        "reservedMicroUsd": 114400
+      },
+      "30c74db3-d342-4c73-ba23-f55204bf81e9": {
+        "model": "gpt-6.1-sol",
+        "reservedMicroUsd": 116720
+      },
+      "fcd26cb6-297d-41ee-89ef-9bd0d9650e76": {
+        "model": "gpt-6.1-sol",
+        "reservedMicroUsd": 119005
+      },
+      "95b9dc9c-d60b-42d1-b176-2db0dce55d33": {
+        "model": "gpt-6.1-sol",
+        "reservedMicroUsd": 121540
+      }
+    },
+    "currentModel": "gpt-6.1-sol"
+  },
+  "runs": [
+    {
+      "runId": "36651328722",
+      "workflowUrl": "https://github.com/Blato58/DildoVander/actions/runs/36651328722",
+      "input": {
+        "action": "status",
+        "request_id": "aa50bf9d-a549-4e68-bc2c-935db63dd892"
+      },
+      "report": {
+        "requestId": "aa50bf9d-a549-4e68-bc2c-935db63dd892",
+        "action": "status",
+        "status": "ok",
+        "state": null,
+        "evening": {
+          "eveningId": "a269e5af-b6d0-44a3-9c36-bb85de9b9d2e",
+          "exchangeCount": 0,
+          "contentBytes": 0,
+          "droppedExchangeCount": 0,
+          "maxExchanges": 2000,
+          "maxContentBytes": 2000000
+        }
+      }
+    },
+    {
+      "runId": "36651380067",
+      "workflowUrl": "https://github.com/Blato58/DildoVander/actions/runs/36651380067",
+      "input": {
+        "action": "start",
+        "request_id": "356c5d90-47e0-4859-aaae-34c86f10b80f"
+      },
+      "report": {
+        "requestId": "356c5d90-47e0-4859-aaae-34c86f10b80f",
+        "action": "start",
+        "status": "ok",
+        "state": {
+          "conversationId": "4e18da24-872b-4d9a-a5b0-119d9f2e3948",
+          "bootId": "8054e377-2f50-5f05-a514-5e487bacb972",
+          "generation": 0,
+          "readyMask": 63,
+          "deviceRevision": 0,
+          "catalogVersion": "ollivander-private-party-v1"
+        },
+        "turn": {
+          "operationId": "fe76392e-41f1-4c26-ac16-4cd4699ad9ad",
+          "status": "completed",
+          "correlation": {
+            "deviceId": "dev-simulator-1",
+            "bootId": "8054e377-2f50-5f05-a514-5e487bacb972",
+            "conversationId": "4e18da24-872b-4d9a-a5b0-119d9f2e3948",
+            "clientTurnId": "20442d7e-ae76-5f8e-9ec0-83e8ae40b7df",
+            "generation": 0,
+            "deviceRevision": 0
+          },
+          "reply": "Jak ti mám říkat — jméno, nebo přezdívka?",
+          "decision": "ask",
+          "proposal": null,
+          "operation": {
+            "operationId": "fe76392e-41f1-4c26-ac16-4cd4699ad9ad",
+            "kind": "turn",
+            "status": "completed",
+            "correlation": {
+              "deviceId": "dev-simulator-1",
+              "bootId": "8054e377-2f50-5f05-a514-5e487bacb972",
+              "conversationId": "4e18da24-872b-4d9a-a5b0-119d9f2e3948",
+              "clientTurnId": "20442d7e-ae76-5f8e-9ec0-83e8ae40b7df",
+              "generation": 0,
+              "deviceRevision": 0
+            },
+            "result": {
+              "reply": "Jak ti mám říkat — jméno, nebo přezdívka?",
+              "decision": "ask",
+              "reason": "Opening: stručně zjistit jméno.",
+              "proposal": null
+            },
+            "error": null
+          },
+          "receivedAtUnixSeconds": 1790728778
+        }
+      }
+    },
+    {
+      "runId": "36651442718",
+      "workflowUrl": "https://github.com/Blato58/DildoVander/actions/runs/36651442718",
+      "input": {
+        "action": "reply",
+        "request_id": "9876607a-c6e9-4aa6-a27c-57e4f8dfea67",
+        "state": "{\"conversationId\": \"4e18da24-872b-4d9a-a5b0-119d9f2e3948\", \"bootId\": \"8054e377-2f50-5f05-a514-5e487bacb972\", \"generation\": 0, \"readyMask\": 63, \"deviceRevision\": 0, \"catalogVersion\": \"ollivander-private-party-v1\"}",
+        "text": "Marek. Klidně Marek, přezdívky tady radši nerozjížděj."
+      },
+      "report": {
+        "requestId": "9876607a-c6e9-4aa6-a27c-57e4f8dfea67",
+        "action": "reply",
+        "status": "ok",
+        "state": {
+          "conversationId": "4e18da24-872b-4d9a-a5b0-119d9f2e3948",
+          "bootId": "8054e377-2f50-5f05-a514-5e487bacb972",
+          "generation": 0,
+          "readyMask": 63,
+          "deviceRevision": 0,
+          "catalogVersion": "ollivander-private-party-v1"
+        },
+        "turn": {
+          "operationId": "e5499f01-be02-4b25-af28-61ada2e521b1",
+          "status": "completed",
+          "correlation": {
+            "deviceId": "dev-simulator-1",
+            "bootId": "8054e377-2f50-5f05-a514-5e487bacb972",
+            "conversationId": "4e18da24-872b-4d9a-a5b0-119d9f2e3948",
+            "clientTurnId": "ce385b97-7227-5c55-9f2c-fe1e900b17ad",
+            "generation": 0,
+            "deviceRevision": 0
+          },
+          "reply": "Marek tedy. Jakou největší kravinu jsi kdy vydával za „to mám úplně pod kontrolou“?",
+          "decision": "ask",
+          "proposal": null,
+          "operation": {
+            "operationId": "e5499f01-be02-4b25-af28-61ada2e521b1",
+            "kind": "turn",
+            "status": "completed",
+            "correlation": {
+              "deviceId": "dev-simulator-1",
+              "bootId": "8054e377-2f50-5f05-a514-5e487bacb972",
+              "conversationId": "4e18da24-872b-4d9a-a5b0-119d9f2e3948",
+              "clientTurnId": "ce385b97-7227-5c55-9f2c-fe1e900b17ad",
+              "generation": 0,
+              "deviceRevision": 0
+            },
+            "result": {
+              "reply": "Marek tedy. Jakou největší kravinu jsi kdy vydával za „to mám úplně pod kontrolou“?",
+              "decision": "ask",
+              "reason": "Po jménu navazuju jednou snadno uchopitelnou otázkou a nechávám prostor pro konkrétní historku.",
+              "proposal": null
+            },
+            "error": null
+          },
+          "receivedAtUnixSeconds": 1790728828
+        }
+      }
+    },
+    {
+      "runId": "36651518341",
+      "workflowUrl": "https://github.com/Blato58/DildoVander/actions/runs/36651518341",
+      "input": {
+        "action": "reply",
+        "request_id": "9d655ab9-df6e-42d1-8d8d-d9bf30704f46",
+        "state": "{\"conversationId\": \"4e18da24-872b-4d9a-a5b0-119d9f2e3948\", \"bootId\": \"8054e377-2f50-5f05-a514-5e487bacb972\", \"generation\": 0, \"readyMask\": 63, \"deviceRevision\": 0, \"catalogVersion\": \"ollivander-private-party-v1\"}",
+        "text": "Na svatbě kámoše jsem dělal DJ. Prej mám playlist. A novomanželům jsem na první tanec pustil reklamu na sekačku."
+      },
+      "report": {
+        "requestId": "9d655ab9-df6e-42d1-8d8d-d9bf30704f46",
+        "action": "reply",
+        "status": "ok",
+        "state": {
+          "conversationId": "4e18da24-872b-4d9a-a5b0-119d9f2e3948",
+          "bootId": "8054e377-2f50-5f05-a514-5e487bacb972",
+          "generation": 0,
+          "readyMask": 63,
+          "deviceRevision": 0,
+          "catalogVersion": "ollivander-private-party-v1"
+        },
+        "turn": {
+          "operationId": "e69c66f1-50f7-4849-96da-018a54988c75",
+          "status": "completed",
+          "correlation": {
+            "deviceId": "dev-simulator-1",
+            "bootId": "8054e377-2f50-5f05-a514-5e487bacb972",
+            "conversationId": "4e18da24-872b-4d9a-a5b0-119d9f2e3948",
+            "clientTurnId": "a4227e82-8374-58fd-b9dd-7483ffcac89e",
+            "generation": 0,
+            "deviceRevision": 0
+          },
+          "reply": "Na první tanec sekačka, to je dost specifickej žánr romantiky. Jak ses z toho vymluvil — a kdo první pochopil, že to nebyl plánovanej remix?",
+          "decision": "ask",
+          "proposal": null,
+          "operation": {
+            "operationId": "e69c66f1-50f7-4849-96da-018a54988c75",
+            "kind": "turn",
+            "status": "completed",
+            "correlation": {
+              "deviceId": "dev-simulator-1",
+              "bootId": "8054e377-2f50-5f05-a514-5e487bacb972",
+              "conversationId": "4e18da24-872b-4d9a-a5b0-119d9f2e3948",
+              "clientTurnId": "a4227e82-8374-58fd-b9dd-7483ffcac89e",
+              "generation": 0,
+              "deviceRevision": 0
+            },
+            "result": {
+              "reply": "Na první tanec sekačka, to je dost specifickej žánr romantiky. Jak ses z toho vymluvil — a kdo první pochopil, že to nebyl plánovanej remix?",
+              "decision": "ask",
+              "reason": "Navazuji na konkrétní historku a žádám další detail.",
+              "proposal": null
+            },
+            "error": null
+          },
+          "receivedAtUnixSeconds": 1790728885
+        }
+      }
+    },
+    {
+      "runId": "36651620553",
+      "workflowUrl": "https://github.com/Blato58/DildoVander/actions/runs/36651620553",
+      "input": {
+        "action": "reply",
+        "request_id": "e66a01f6-7b1e-4cf0-8703-357d87388dd7",
+        "state": "{\"conversationId\": \"4e18da24-872b-4d9a-a5b0-119d9f2e3948\", \"bootId\": \"8054e377-2f50-5f05-a514-5e487bacb972\", \"generation\": 0, \"readyMask\": 63, \"deviceRevision\": 0, \"catalogVersion\": \"ollivander-private-party-v1\"}",
+        "text": "Tvrdil jsem, že je to součást písničky. Nevěsta mi ten mobil vyrvala, když se začalo mluvit o sběrným koši."
+      },
+      "report": {
+        "requestId": "e66a01f6-7b1e-4cf0-8703-357d87388dd7",
+        "action": "reply",
+        "status": "ok",
+        "state": {
+          "conversationId": "4e18da24-872b-4d9a-a5b0-119d9f2e3948",
+          "bootId": "8054e377-2f50-5f05-a514-5e487bacb972",
+          "generation": 0,
+          "readyMask": 63,
+          "deviceRevision": 0,
+          "catalogVersion": "ollivander-private-party-v1"
+        },
+        "turn": {
+          "operationId": "49d3d6cb-8e4a-4c2e-8e1d-d5f5066a20a9",
+          "status": "completed",
+          "correlation": {
+            "deviceId": "dev-simulator-1",
+            "bootId": "8054e377-2f50-5f05-a514-5e487bacb972",
+            "conversationId": "4e18da24-872b-4d9a-a5b0-119d9f2e3948",
+            "clientTurnId": "104b14fc-35f5-5976-b82b-4352be2c2887",
+            "generation": 0,
+            "deviceRevision": 0
+          },
+          "reply": "„Součást písničky“ ještě šlo, ale sběrnej koš už byl dost konkrétní text. Kdo se smál první — a co jsi řekl, když ti nevěsta zabavila mobil?",
+          "decision": "ask",
+          "proposal": null,
+          "operation": {
+            "operationId": "49d3d6cb-8e4a-4c2e-8e1d-d5f5066a20a9",
+            "kind": "turn",
+            "status": "completed",
+            "correlation": {
+              "deviceId": "dev-simulator-1",
+              "bootId": "8054e377-2f50-5f05-a514-5e487bacb972",
+              "conversationId": "4e18da24-872b-4d9a-a5b0-119d9f2e3948",
+              "clientTurnId": "104b14fc-35f5-5976-b82b-4352be2c2887",
+              "generation": 0,
+              "deviceRevision": 0
+            },
+            "result": {
+              "reply": "„Součást písničky“ ještě šlo, ale sběrnej koš už byl dost konkrétní text. Kdo se smál první — a co jsi řekl, když ti nevěsta zabavila mobil?",
+              "decision": "ask",
+              "reason": "Navazuji na konkrétní průšvih s reklamou; další otázka nechává prostor pro historku.",
+              "proposal": null
+            },
+            "error": null
+          },
+          "receivedAtUnixSeconds": 1790728960
+        }
+      }
+    },
+    {
+      "runId": "36651754749",
+      "workflowUrl": "https://github.com/Blato58/DildoVander/actions/runs/36651754749",
+      "input": {
+        "action": "reply",
+        "request_id": "fee71782-3ef6-4918-a3b6-a7f6690ede02",
+        "state": "{\"conversationId\": \"4e18da24-872b-4d9a-a5b0-119d9f2e3948\", \"bootId\": \"8054e377-2f50-5f05-a514-5e487bacb972\", \"generation\": 0, \"readyMask\": 63, \"deviceRevision\": 0, \"catalogVersion\": \"ollivander-private-party-v1\"}",
+        "text": "Ženich se smál. Já řekl, že aspoň ušetřili za DJ. Teď mi posílá fotku posekaný zahrady každej víkend, hajzl."
+      },
+      "report": {
+        "requestId": "fee71782-3ef6-4918-a3b6-a7f6690ede02",
+        "action": "reply",
+        "status": "ok",
+        "state": {
+          "conversationId": "4e18da24-872b-4d9a-a5b0-119d9f2e3948",
+          "bootId": "8054e377-2f50-5f05-a514-5e487bacb972",
+          "generation": 0,
+          "readyMask": 63,
+          "deviceRevision": 0,
+          "catalogVersion": "ollivander-private-party-v1"
+        },
+        "turn": {
+          "operationId": "8f18bc81-1b7c-4cad-8560-0b44b0261bfa",
+          "status": "completed",
+          "correlation": {
+            "deviceId": "dev-simulator-1",
+            "bootId": "8054e377-2f50-5f05-a514-5e487bacb972",
+            "conversationId": "4e18da24-872b-4d9a-a5b0-119d9f2e3948",
+            "clientTurnId": "8e40970f-34df-5b13-86a3-69b4a62c3a90",
+            "generation": 0,
+            "deviceRevision": 0
+          },
+          "reply": "Jilmová Knihovní bouře. Sekačka ti vzala první tanec a ženich ti teď každý víkend posílá důkaz, že playlist měl pokračování.",
+          "decision": "propose",
+          "proposal": {
+            "proposalId": "8b3171eb-09ec-41e6-8b65-8bb2646a0d01",
+            "conversationId": "4e18da24-872b-4d9a-a5b0-119d9f2e3948",
+            "turnId": "8e40970f-34df-5b13-86a3-69b4a62c3a90",
+            "catalogVersion": "ollivander-private-party-v1",
+            "deviceRevision": 0,
+            "compartment": 3,
+            "reason": "Marek proměnil svatební DJ průšvih v opakující se sekačkový running gag; sedí mu pohotový humor a improvizace.",
+            "bootId": "8054e377-2f50-5f05-a514-5e487bacb972",
+            "generation": 0,
+            "expiresAt": "2026-09-30T00:45:17.5254413+00:00"
+          },
+          "operation": {
+            "operationId": "8f18bc81-1b7c-4cad-8560-0b44b0261bfa",
+            "kind": "turn",
+            "status": "completed",
+            "correlation": {
+              "deviceId": "dev-simulator-1",
+              "bootId": "8054e377-2f50-5f05-a514-5e487bacb972",
+              "conversationId": "4e18da24-872b-4d9a-a5b0-119d9f2e3948",
+              "clientTurnId": "8e40970f-34df-5b13-86a3-69b4a62c3a90",
+              "generation": 0,
+              "deviceRevision": 0
+            },
+            "result": {
+              "reply": "Jilmová Knihovní bouře. Sekačka ti vzala první tanec a ženich ti teď každý víkend posílá důkaz, že playlist měl pokračování.",
+              "decision": "propose",
+              "reason": "Marek proměnil svatební DJ průšvih v opakující se sekačkový running gag; sedí mu pohotový humor a improvizace.",
+              "proposal": {
+                "proposalId": "8b3171eb-09ec-41e6-8b65-8bb2646a0d01",
+                "conversationId": "4e18da24-872b-4d9a-a5b0-119d9f2e3948",
+                "turnId": "8e40970f-34df-5b13-86a3-69b4a62c3a90",
+                "catalogVersion": "ollivander-private-party-v1",
+                "deviceRevision": 0,
+                "compartment": 3,
+                "reason": "Marek proměnil svatební DJ průšvih v opakující se sekačkový running gag; sedí mu pohotový humor a improvizace.",
+                "bootId": "8054e377-2f50-5f05-a514-5e487bacb972",
+                "generation": 0,
+                "expiresAt": "2026-09-30T00:45:17.5254413+00:00"
+              }
+            },
+            "error": null
+          },
+          "receivedAtUnixSeconds": 1790729061
+        }
+      }
+    },
+    {
+      "runId": "36651932113",
+      "workflowUrl": "https://github.com/Blato58/DildoVander/actions/runs/36651932113",
+      "input": {
+        "action": "start",
+        "request_id": "356c5d90-47e0-4859-aaae-34c86f10b80f"
+      },
+      "report": {
+        "requestId": "356c5d90-47e0-4859-aaae-34c86f10b80f",
+        "action": "start",
+        "status": "ok",
+        "state": {
+          "conversationId": "4e18da24-872b-4d9a-a5b0-119d9f2e3948",
+          "bootId": "8054e377-2f50-5f05-a514-5e487bacb972",
+          "generation": 0,
+          "readyMask": 63,
+          "deviceRevision": 0,
+          "catalogVersion": "ollivander-private-party-v1"
+        },
+        "turn": {
+          "operationId": "fe76392e-41f1-4c26-ac16-4cd4699ad9ad",
+          "status": "completed",
+          "correlation": {
+            "deviceId": "dev-simulator-1",
+            "bootId": "8054e377-2f50-5f05-a514-5e487bacb972",
+            "conversationId": "4e18da24-872b-4d9a-a5b0-119d9f2e3948",
+            "clientTurnId": "20442d7e-ae76-5f8e-9ec0-83e8ae40b7df",
+            "generation": 0,
+            "deviceRevision": 0
+          },
+          "reply": "Jak ti mám říkat — jméno, nebo přezdívka?",
+          "decision": "ask",
+          "proposal": null,
+          "operation": {
+            "operationId": "fe76392e-41f1-4c26-ac16-4cd4699ad9ad",
+            "kind": "turn",
+            "status": "completed",
+            "correlation": {
+              "deviceId": "dev-simulator-1",
+              "bootId": "8054e377-2f50-5f05-a514-5e487bacb972",
+              "conversationId": "4e18da24-872b-4d9a-a5b0-119d9f2e3948",
+              "clientTurnId": "20442d7e-ae76-5f8e-9ec0-83e8ae40b7df",
+              "generation": 0,
+              "deviceRevision": 0
+            },
+            "result": {
+              "reply": "Jak ti mám říkat — jméno, nebo přezdívka?",
+              "decision": "ask",
+              "reason": "Opening: stručně zjistit jméno.",
+              "proposal": null
+            },
+            "error": null
+          },
+          "receivedAtUnixSeconds": 1790729189
+        }
+      }
+    },
+    {
+      "runId": "36652057592",
+      "workflowUrl": "https://github.com/Blato58/DildoVander/actions/runs/36652057592",
+      "input": {
+        "action": "finish",
+        "request_id": "4d6a1a97-a4c5-4ab3-bf06-00d4bc03251d",
+        "state": "{\"conversationId\": \"4e18da24-872b-4d9a-a5b0-119d9f2e3948\", \"bootId\": \"8054e377-2f50-5f05-a514-5e487bacb972\", \"generation\": 0, \"readyMask\": 63, \"deviceRevision\": 0, \"catalogVersion\": \"ollivander-private-party-v1\"}"
+      },
+      "report": {
+        "requestId": "4d6a1a97-a4c5-4ab3-bf06-00d4bc03251d",
+        "action": "finish",
+        "status": "ok",
+        "state": null
+      }
+    },
+    {
+      "runId": "36652923167",
+      "workflowUrl": "https://github.com/Blato58/DildoVander/actions/runs/36652923167",
+      "input": {
+        "action": "status",
+        "request_id": "900e7662-c548-4525-88cb-1fffbe8c1acb"
+      },
+      "report": {
+        "requestId": "900e7662-c548-4525-88cb-1fffbe8c1acb",
+        "action": "status",
+        "status": "ok",
+        "state": null,
+        "evening": {
+          "eveningId": "a269e5af-b6d0-44a3-9c36-bb85de9b9d2e",
+          "exchangeCount": 5,
+          "contentBytes": 1019,
+          "droppedExchangeCount": 0,
+          "maxExchanges": 2000,
+          "maxContentBytes": 2000000
+        }
+      }
+    },
+    {
+      "runId": "36652967864",
+      "workflowUrl": "https://github.com/Blato58/DildoVander/actions/runs/36652967864",
+      "input": {
+        "action": "start",
+        "request_id": "3d560075-6a9a-4b47-ad62-e0a5f89d63ab"
+      },
+      "report": {
+        "requestId": "3d560075-6a9a-4b47-ad62-e0a5f89d63ab",
+        "action": "start",
+        "status": "ok",
+        "state": {
+          "conversationId": "f169ef9a-fb56-4711-9144-3edbed48be0c",
+          "bootId": "8091a656-daa3-5612-820b-d03e620c288a",
+          "generation": 0,
+          "readyMask": 63,
+          "deviceRevision": 0,
+          "catalogVersion": "ollivander-private-party-v1"
+        },
+        "turn": {
+          "operationId": "ba60ff3f-87eb-40ba-9d55-5cf2fe8cf02e",
+          "status": "completed",
+          "correlation": {
+            "deviceId": "dev-simulator-1",
+            "bootId": "8091a656-daa3-5612-820b-d03e620c288a",
+            "conversationId": "f169ef9a-fb56-4711-9144-3edbed48be0c",
+            "clientTurnId": "41ef85bd-8b10-5aa3-9d06-09816e74e461",
+            "generation": 0,
+            "deviceRevision": 0
+          },
+          "reply": "Jak ti mám říkat?",
+          "decision": "ask",
+          "proposal": null,
+          "operation": {
+            "operationId": "ba60ff3f-87eb-40ba-9d55-5cf2fe8cf02e",
+            "kind": "turn",
+            "status": "completed",
+            "correlation": {
+              "deviceId": "dev-simulator-1",
+              "bootId": "8091a656-daa3-5612-820b-d03e620c288a",
+              "conversationId": "f169ef9a-fb56-4711-9144-3edbed48be0c",
+              "clientTurnId": "41ef85bd-8b10-5aa3-9d06-09816e74e461",
+              "generation": 0,
+              "deviceRevision": 0
+            },
+            "result": {
+              "reply": "Jak ti mám říkat?",
+              "decision": "ask",
+              "reason": "",
+              "proposal": null
+            },
+            "error": null
+          },
+          "receivedAtUnixSeconds": 1790730004
+        }
+      }
+    },
+    {
+      "runId": "36653030824",
+      "workflowUrl": "https://github.com/Blato58/DildoVander/actions/runs/36653030824",
+      "input": {
+        "action": "reply",
+        "request_id": "0f76181f-ff01-439a-810c-7cf40254da39",
+        "state": "{\"conversationId\": \"f169ef9a-fb56-4711-9144-3edbed48be0c\", \"bootId\": \"8091a656-daa3-5612-820b-d03e620c288a\", \"generation\": 0, \"readyMask\": 63, \"deviceRevision\": 0, \"catalogVersion\": \"ollivander-private-party-v1\"}",
+        "text": "Zas Marek, byl jsem tu před chvílí."
+      },
+      "report": {
+        "requestId": "0f76181f-ff01-439a-810c-7cf40254da39",
+        "action": "reply",
+        "status": "ok",
+        "state": {
+          "conversationId": "f169ef9a-fb56-4711-9144-3edbed48be0c",
+          "bootId": "8091a656-daa3-5612-820b-d03e620c288a",
+          "generation": 0,
+          "readyMask": 63,
+          "deviceRevision": 0,
+          "catalogVersion": "ollivander-private-party-v1"
+        },
+        "turn": {
+          "operationId": "c9ed9d0b-f175-4820-b081-82b32907f21f",
+          "status": "completed",
+          "correlation": {
+            "deviceId": "dev-simulator-1",
+            "bootId": "8091a656-daa3-5612-820b-d03e620c288a",
+            "conversationId": "f169ef9a-fb56-4711-9144-3edbed48be0c",
+            "clientTurnId": "84370f3c-e547-57c7-a09c-f2ad73e7bca3",
+            "generation": 0,
+            "deviceRevision": 0
+          },
+          "reply": "Ten Marek, co novomanželům k prvnímu tanci pustil sekačku?",
+          "decision": "ask",
+          "proposal": null,
+          "operation": {
+            "operationId": "c9ed9d0b-f175-4820-b081-82b32907f21f",
+            "kind": "turn",
+            "status": "completed",
+            "correlation": {
+              "deviceId": "dev-simulator-1",
+              "bootId": "8091a656-daa3-5612-820b-d03e620c288a",
+              "conversationId": "f169ef9a-fb56-4711-9144-3edbed48be0c",
+              "clientTurnId": "84370f3c-e547-57c7-a09c-f2ad73e7bca3",
+              "generation": 0,
+              "deviceRevision": 0
+            },
+            "result": {
+              "reply": "Ten Marek, co novomanželům k prvnímu tanci pustil sekačku?",
+              "decision": "ask",
+              "reason": "Ověření návratu podle konkrétního detailu předchozího rozhovoru.",
+              "proposal": null
+            },
+            "error": null
+          },
+          "receivedAtUnixSeconds": 1790730047
+        }
+      }
+    },
+    {
+      "runId": "36653099597",
+      "workflowUrl": "https://github.com/Blato58/DildoVander/actions/runs/36653099597",
+      "input": {
+        "action": "reply",
+        "request_id": "9cd64aa9-92ec-4559-9e84-52a8be44187a",
+        "state": "{\"conversationId\": \"f169ef9a-fb56-4711-9144-3edbed48be0c\", \"bootId\": \"8091a656-daa3-5612-820b-d03e620c288a\", \"generation\": 0, \"readyMask\": 63, \"deviceRevision\": 0, \"catalogVersion\": \"ollivander-private-party-v1\"}",
+        "text": "Jo, já. A ženich má za měsíc narozeniny. Chce po mně zase hudbu. Nevím, jestli mi odpustil, nebo mě chce veřejně dorazit."
+      },
+      "report": {
+        "requestId": "9cd64aa9-92ec-4559-9e84-52a8be44187a",
+        "action": "reply",
+        "status": "ok",
+        "state": {
+          "conversationId": "f169ef9a-fb56-4711-9144-3edbed48be0c",
+          "bootId": "8091a656-daa3-5612-820b-d03e620c288a",
+          "generation": 0,
+          "readyMask": 63,
+          "deviceRevision": 0,
+          "catalogVersion": "ollivander-private-party-v1"
+        },
+        "turn": {
+          "operationId": "95dc1cbb-fa69-49b2-809b-4fc4e62b0bea",
+          "status": "completed",
+          "correlation": {
+            "deviceId": "dev-simulator-1",
+            "bootId": "8091a656-daa3-5612-820b-d03e620c288a",
+            "conversationId": "f169ef9a-fb56-4711-9144-3edbed48be0c",
+            "clientTurnId": "64dc3046-4286-5c25-be9c-03346c8be7e6",
+            "generation": 0,
+            "deviceRevision": 0
+          },
+          "reply": "Po těch fotkách zahrady bych odpuštění netipoval. Cos mu na tu nabídku odepsal?",
+          "decision": "ask",
+          "proposal": null,
+          "operation": {
+            "operationId": "95dc1cbb-fa69-49b2-809b-4fc4e62b0bea",
+            "kind": "turn",
+            "status": "completed",
+            "correlation": {
+              "deviceId": "dev-simulator-1",
+              "bootId": "8091a656-daa3-5612-820b-d03e620c288a",
+              "conversationId": "f169ef9a-fb56-4711-9144-3edbed48be0c",
+              "clientTurnId": "64dc3046-4286-5c25-be9c-03346c8be7e6",
+              "generation": 0,
+              "deviceRevision": 0
+            },
+            "result": {
+              "reply": "Po těch fotkách zahrady bych odpuštění netipoval. Cos mu na tu nabídku odepsal?",
+              "decision": "ask",
+              "reason": "",
+              "proposal": null
+            },
+            "error": null
+          },
+          "receivedAtUnixSeconds": 1790730092
+        }
+      }
+    },
+    {
+      "runId": "36653158213",
+      "workflowUrl": "https://github.com/Blato58/DildoVander/actions/runs/36653158213",
+      "input": {
+        "action": "reply",
+        "request_id": "30c74db3-d342-4c73-ba23-f55204bf81e9",
+        "state": "{\"conversationId\": \"f169ef9a-fb56-4711-9144-3edbed48be0c\", \"bootId\": \"8091a656-daa3-5612-820b-d03e620c288a\", \"generation\": 0, \"readyMask\": 63, \"deviceRevision\": 0, \"catalogVersion\": \"ollivander-private-party-v1\"}",
+        "text": "Že tentokrát jedině za prachy. Poslal mi stovku a napsal, že za ty peníze může být i křovinořez."
+      },
+      "report": {
+        "requestId": "30c74db3-d342-4c73-ba23-f55204bf81e9",
+        "action": "reply",
+        "status": "ok",
+        "state": {
+          "conversationId": "f169ef9a-fb56-4711-9144-3edbed48be0c",
+          "bootId": "8091a656-daa3-5612-820b-d03e620c288a",
+          "generation": 0,
+          "readyMask": 63,
+          "deviceRevision": 0,
+          "catalogVersion": "ollivander-private-party-v1"
+        },
+        "turn": {
+          "operationId": "e522923b-b55d-4e6f-9813-aa5b500dec45",
+          "status": "completed",
+          "correlation": {
+            "deviceId": "dev-simulator-1",
+            "bootId": "8091a656-daa3-5612-820b-d03e620c288a",
+            "conversationId": "f169ef9a-fb56-4711-9144-3edbed48be0c",
+            "clientTurnId": "f4a9ef78-d191-5085-aae5-f45eb480bae1",
+            "generation": 0,
+            "deviceRevision": 0
+          },
+          "reply": "Tak sis nechal zaplatit stovku, aby tě mohl celej večer sekat. Co mu tentokrát pustíš jako první?",
+          "decision": "ask",
+          "proposal": null,
+          "operation": {
+            "operationId": "e522923b-b55d-4e6f-9813-aa5b500dec45",
+            "kind": "turn",
+            "status": "completed",
+            "correlation": {
+              "deviceId": "dev-simulator-1",
+              "bootId": "8091a656-daa3-5612-820b-d03e620c288a",
+              "conversationId": "f169ef9a-fb56-4711-9144-3edbed48be0c",
+              "clientTurnId": "f4a9ef78-d191-5085-aae5-f45eb480bae1",
+              "generation": 0,
+              "deviceRevision": 0
+            },
+            "result": {
+              "reply": "Tak sis nechal zaplatit stovku, aby tě mohl celej večer sekat. Co mu tentokrát pustíš jako první?",
+              "decision": "ask",
+              "reason": "",
+              "proposal": null
+            },
+            "error": null
+          },
+          "receivedAtUnixSeconds": 1790730136
+        }
+      }
+    },
+    {
+      "runId": "36653228590",
+      "workflowUrl": "https://github.com/Blato58/DildoVander/actions/runs/36653228590",
+      "input": {
+        "action": "reply",
+        "request_id": "fcd26cb6-297d-41ee-89ef-9bd0d9650e76",
+        "state": "{\"conversationId\": \"f169ef9a-fb56-4711-9144-3edbed48be0c\", \"bootId\": \"8091a656-daa3-5612-820b-d03e620c288a\", \"generation\": 0, \"readyMask\": 63, \"deviceRevision\": 0, \"catalogVersion\": \"ollivander-private-party-v1\"}",
+        "text": "Asi reklamu na rozvodovýho právníka. Ať vidí, že umím i jiný žánry. Ale nevěsta by mě tentokrát asi zabila."
+      },
+      "report": {
+        "requestId": "fcd26cb6-297d-41ee-89ef-9bd0d9650e76",
+        "action": "reply",
+        "status": "ok",
+        "state": {
+          "conversationId": "f169ef9a-fb56-4711-9144-3edbed48be0c",
+          "bootId": "8091a656-daa3-5612-820b-d03e620c288a",
+          "generation": 0,
+          "readyMask": 63,
+          "deviceRevision": 0,
+          "catalogVersion": "ollivander-private-party-v1"
+        },
+        "turn": {
+          "operationId": "528fb42f-0fcd-40dd-8606-cafbd90a983c",
+          "status": "completed",
+          "correlation": {
+            "deviceId": "dev-simulator-1",
+            "bootId": "8091a656-daa3-5612-820b-d03e620c288a",
+            "conversationId": "f169ef9a-fb56-4711-9144-3edbed48be0c",
+            "clientTurnId": "50e5ae39-13f6-5f2f-bd56-5c2b01185ed6",
+            "generation": 0,
+            "deviceRevision": 0
+          },
+          "reply": "Tobě sedí Výbor pro špatné nápady. Za stovku už jim neposekáš zahradu, rovnou rozdělíš majetek.",
+          "decision": "propose",
+          "proposal": {
+            "proposalId": "4fe56905-41c2-475f-847c-21da532a4b2b",
+            "conversationId": "f169ef9a-fb56-4711-9144-3edbed48be0c",
+            "turnId": "50e5ae39-13f6-5f2f-bd56-5c2b01185ed6",
+            "catalogVersion": "ollivander-private-party-v1",
+            "deviceRevision": 0,
+            "compartment": 3,
+            "reason": "Plánuje další reklamní provokaci na oslavě; improvizace a přátelský roast.",
+            "bootId": "8091a656-daa3-5612-820b-d03e620c288a",
+            "generation": 0,
+            "expiresAt": "2026-09-30T01:04:05.0504441+00:00"
+          },
+          "operation": {
+            "operationId": "528fb42f-0fcd-40dd-8606-cafbd90a983c",
+            "kind": "turn",
+            "status": "completed",
+            "correlation": {
+              "deviceId": "dev-simulator-1",
+              "bootId": "8091a656-daa3-5612-820b-d03e620c288a",
+              "conversationId": "f169ef9a-fb56-4711-9144-3edbed48be0c",
+              "clientTurnId": "50e5ae39-13f6-5f2f-bd56-5c2b01185ed6",
+              "generation": 0,
+              "deviceRevision": 0
+            },
+            "result": {
+              "reply": "Tobě sedí Výbor pro špatné nápady. Za stovku už jim neposekáš zahradu, rovnou rozdělíš majetek.",
+              "decision": "propose",
+              "reason": "Plánuje další reklamní provokaci na oslavě; improvizace a přátelský roast.",
+              "proposal": {
+                "proposalId": "4fe56905-41c2-475f-847c-21da532a4b2b",
+                "conversationId": "f169ef9a-fb56-4711-9144-3edbed48be0c",
+                "turnId": "50e5ae39-13f6-5f2f-bd56-5c2b01185ed6",
+                "catalogVersion": "ollivander-private-party-v1",
+                "deviceRevision": 0,
+                "compartment": 3,
+                "reason": "Plánuje další reklamní provokaci na oslavě; improvizace a přátelský roast.",
+                "bootId": "8091a656-daa3-5612-820b-d03e620c288a",
+                "generation": 0,
+                "expiresAt": "2026-09-30T01:04:05.0504441+00:00"
+              }
+            },
+            "error": null
+          },
+          "receivedAtUnixSeconds": 1790730187
+        }
+      }
+    },
+    {
+      "runId": "36653288767",
+      "workflowUrl": "https://github.com/Blato58/DildoVander/actions/runs/36653288767",
+      "input": {
+        "action": "finish",
+        "request_id": "c64b0166-0547-40b7-b4d5-fb5ae17459e9",
+        "state": "{\"conversationId\": \"f169ef9a-fb56-4711-9144-3edbed48be0c\", \"bootId\": \"8091a656-daa3-5612-820b-d03e620c288a\", \"generation\": 0, \"readyMask\": 63, \"deviceRevision\": 0, \"catalogVersion\": \"ollivander-private-party-v1\"}"
+      },
+      "report": {
+        "requestId": "c64b0166-0547-40b7-b4d5-fb5ae17459e9",
+        "action": "finish",
+        "status": "ok",
+        "state": null
+      }
+    },
+    {
+      "runId": "36653361852",
+      "workflowUrl": "https://github.com/Blato58/DildoVander/actions/runs/36653361852",
+      "input": {
+        "action": "start",
+        "request_id": "95b9dc9c-d60b-42d1-b176-2db0dce55d33"
+      },
+      "report": {
+        "requestId": "95b9dc9c-d60b-42d1-b176-2db0dce55d33",
+        "action": "start",
+        "status": "ok",
+        "state": {
+          "conversationId": "91fdbc0f-ae53-4757-97fe-b0f4c4e34e4b",
+          "bootId": "f9d9e780-c50a-51ec-b131-22c26f47544b",
+          "generation": 0,
+          "readyMask": 63,
+          "deviceRevision": 0,
+          "catalogVersion": "ollivander-private-party-v1"
+        },
+        "turn": {
+          "operationId": "8d85596b-7adf-4ad3-9ea4-794a99aa99ba",
+          "status": "completed",
+          "correlation": {
+            "deviceId": "dev-simulator-1",
+            "bootId": "f9d9e780-c50a-51ec-b131-22c26f47544b",
+            "conversationId": "91fdbc0f-ae53-4757-97fe-b0f4c4e34e4b",
+            "clientTurnId": "dfd2d144-4a53-5d0d-baf4-34217f3c03af",
+            "generation": 0,
+            "deviceRevision": 0
+          },
+          "reply": "Jak ti mám říkat?",
+          "decision": "ask",
+          "proposal": null,
+          "operation": {
+            "operationId": "8d85596b-7adf-4ad3-9ea4-794a99aa99ba",
+            "kind": "turn",
+            "status": "completed",
+            "correlation": {
+              "deviceId": "dev-simulator-1",
+              "bootId": "f9d9e780-c50a-51ec-b131-22c26f47544b",
+              "conversationId": "91fdbc0f-ae53-4757-97fe-b0f4c4e34e4b",
+              "clientTurnId": "dfd2d144-4a53-5d0d-baf4-34217f3c03af",
+              "generation": 0,
+              "deviceRevision": 0
+            },
+            "result": {
+              "reply": "Jak ti mám říkat?",
+              "decision": "ask",
+              "reason": "",
+              "proposal": null
+            },
+            "error": null
+          },
+          "receivedAtUnixSeconds": 1790730289
+        }
+      }
+    },
+    {
+      "runId": "36653420740",
+      "workflowUrl": "https://github.com/Blato58/DildoVander/actions/runs/36653420740",
+      "input": {
+        "action": "finish",
+        "request_id": "5477ad42-26c7-4631-abf2-e44f34f1be4f",
+        "state": "{\"conversationId\": \"91fdbc0f-ae53-4757-97fe-b0f4c4e34e4b\", \"bootId\": \"f9d9e780-c50a-51ec-b131-22c26f47544b\", \"generation\": 0, \"readyMask\": 63, \"deviceRevision\": 0, \"catalogVersion\": \"ollivander-private-party-v1\"}"
+      },
+      "report": {
+        "requestId": "5477ad42-26c7-4631-abf2-e44f34f1be4f",
+        "action": "finish",
+        "status": "ok",
+        "state": null
+      }
+    },
+    {
+      "runId": "36653476199",
+      "workflowUrl": "https://github.com/Blato58/DildoVander/actions/runs/36653476199",
+      "input": {
+        "action": "status",
+        "request_id": "bf6f50f8-33da-4daf-ac62-6b11eaf1ce6e"
+      },
+      "report": {
+        "requestId": "bf6f50f8-33da-4daf-ac62-6b11eaf1ce6e",
+        "action": "status",
+        "status": "ok",
+        "state": null,
+        "evening": {
+          "eveningId": "a269e5af-b6d0-44a3-9c36-bb85de9b9d2e",
+          "exchangeCount": 11,
+          "contentBytes": 1811,
+          "droppedExchangeCount": 0,
+          "maxExchanges": 2000,
+          "maxContentBytes": 2000000
+        }
+      }
+    },
+    {
+      "runId": "36653543541",
+      "workflowUrl": "https://github.com/Blato58/DildoVander/actions/runs/36653543541",
+      "input": {
+        "action": "clear",
+        "request_id": "07646afb-dd6c-46b6-9dec-4efa14b71ed7",
+        "expected_evening_id": "a269e5af-b6d0-44a3-9c36-bb85de9b9d2e"
+      },
+      "report": {
+        "requestId": "07646afb-dd6c-46b6-9dec-4efa14b71ed7",
+        "action": "clear",
+        "status": "ok",
+        "state": null,
+        "clearedEveningId": "a269e5af-b6d0-44a3-9c36-bb85de9b9d2e"
+      }
+    },
+    {
+      "runId": "36653597988",
+      "workflowUrl": "https://github.com/Blato58/DildoVander/actions/runs/36653597988",
+      "input": {
+        "action": "status",
+        "request_id": "65ce5443-dd3a-4224-acae-e8dd903b895e"
+      },
+      "report": {
+        "requestId": "65ce5443-dd3a-4224-acae-e8dd903b895e",
+        "action": "status",
+        "status": "ok",
+        "state": null,
+        "evening": {
+          "eveningId": "9c8bd136-25f2-4f35-8d25-7fc0f02d5d44",
+          "exchangeCount": 0,
+          "contentBytes": 0,
+          "droppedExchangeCount": 0,
+          "maxExchanges": 2000,
+          "maxContentBytes": 2000000
+        }
+      }
+    }
+  ],
+  "hostFirmwareReplay": {
+    "luna": [
+      {
+        "case": "received_snapshot",
+        "exitCode": 0,
+        "output": "SIMULATED raise 3\nSIMULATED lower 3\nSIMULATED complete 3\n"
+      },
+      {
+        "case": "expired",
+        "exitCode": 2,
+        "output": "Proposal rejected\n"
+      },
+      {
+        "case": "unavailable",
+        "exitCode": 2,
+        "output": "Proposal rejected\n"
+      }
+    ],
+    "sol": [
+      {
+        "case": "received_snapshot",
+        "exitCode": 0,
+        "output": "SIMULATED raise 3\nSIMULATED lower 3\nSIMULATED complete 3\n"
+      },
+      {
+        "case": "expired",
+        "exitCode": 2,
+        "output": "Proposal rejected\n"
+      },
+      {
+        "case": "unavailable",
+        "exitCode": 2,
+        "output": "Proposal rejected\n"
+      }
+    ]
+  }
+}
