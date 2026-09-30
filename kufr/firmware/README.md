@@ -212,7 +212,7 @@ autoritativního snapshotu je nevydá. Žádná odpověď z backendu zatím neř
 fyzické výstupy.
 `ConversationReplyInbox` podrží nejvýše jednu validovanou textovou repliku
 svázanou s přesným snapshotem. Síťová úloha ji po úspěšném pollu předá přes
-`TakeReply` s původním `clientTurnId` a tokenem; nový tah ani autonomní
+`TakeReply` s původním `conversationId`, `clientTurnId` a tokenem; nový tah ani autonomní
 prezentace nezačnou do
 `FinishReply`. Změna snapshotu nebo explicitní zrušení token zneplatní.
 Volající musí `IsReplyCurrent` kontrolovat před výstupem i během něj a při
@@ -416,7 +416,8 @@ Schránku odpovědi a její vazbu na snapshot ověřuje
 `ConversationReplyInbox.cpp`; stejný test spouští firmware CI.
 `tests/conversation_turn_correlation_test.cpp` skládá obě schránky,
 normalizaci UUID, backendovou korelační bránu a model sezení; ověřuje, že
-původní místní ID projde až do předané odpovědi. Také jej spouští firmware CI.
+původní místní ID tahu i sezení projdou až do předané odpovědi. Také jej
+spouští firmware CI.
 
 `tests/turn_replay.cpp` je hostitelský CLI průchod skutečným JSON výsledkem
 operace přes parser, korelační bránu, dočasný návrh a fake servo port. Přijímá
@@ -427,7 +428,7 @@ tahu a živého snapshotu, nikoli z vrácené odpovědi. Výstup je simulace bez
 GPIO a pro replay je nutná dosud neexpirovaná operace.
 
 ESP-IDF síťová úloha přijme přes `QueueTextTurn` nejvýše jeden čekající
-validovaný UTF-8 text s UUID `clientTurnId`. Po důvěryhodném čase a tokenu
+validovaný UTF-8 text s místním UUID `conversationId` a `clientTurnId`. Po důvěryhodném čase a tokenu
 založí nebo znovu použije
 backend sezení, odešle tah a omezeně polluje výsledek. `QueueOpening` přijímá
 jen explicitní místní událost a odesílá `/opening` bez textu; reconnect ji
@@ -440,6 +441,12 @@ Textový tah posílá backendu stejné `clientTurnId` jako budoucí místní
 `conversation.text` v kanonickém malém zápisu; opening bez klientského tahu
 dostane nové lokální UUID. Původní zápis ID se vrací budoucímu místnímu
 výstupu a idempotency key zůstává oddělený. Nulové UUID se odmítá.
+Místní `conversationId` je odlišné od backendového ID; síťová úloha drží
+vazbu pro jediné aktivní sezení. Nový opening odstraní čekající text jiného
+místního sezení. Tah s jiným ID se odmítne i při neúspěšném backendovém
+startu, dokud nový opening nebo změna snapshotu nevytvoří novou vazbu. Opening
+dostává ID od místního vlastníka rozhovoru; reconnect je nevytváří. Odpověď
+vrací původní místní ID, backendová korelace používá backendové ID.
 Po doběhnutí či poruše cyklu má vlastník řízení zavolat `FinishPresentation`;
 nepřevzatý návrh se po vypršení lokálního deadline uklidí automaticky.
 Volání `QueueTextTurn` a `QueueOpening` zatím nemají v runtime autorizovaného
