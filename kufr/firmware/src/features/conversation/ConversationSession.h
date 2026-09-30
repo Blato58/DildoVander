@@ -69,6 +69,8 @@ class ConversationSession {
   bool CompleteTurn(const std::string& clientTurnId, uint64_t generation);
   void LoseManualLease();
   bool SynchronizeGeneration(uint64_t generation);
+  bool AbortUnqueuedTurn(const std::string& clientTurnId,
+                         uint64_t generation);
 
   uint64_t Generation() const;
   bool HasActiveTurn() const;

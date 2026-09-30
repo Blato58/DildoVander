@@ -63,11 +63,19 @@ int main() {
   assert(snapshotVersion == snapshot.version);
 
   assert(inbox.Submit("Old session", ConversationId, FirstTurnId, snapshot, state));
-  inbox.DiscardUnless(NextConversationId);
+  std::string discardedConversationId;
+  std::string discardedTurnId;
+  uint64_t discardedVersion = 0;
+  assert(inbox.DiscardUnless(
+      NextConversationId, &discardedConversationId,
+      &discardedTurnId, &discardedVersion));
+  assert(discardedConversationId == ConversationId);
+  assert(discardedTurnId == FirstTurnId);
+  assert(discardedVersion == snapshot.version);
   assert(!inbox.Take(text, conversationId, clientTurnId, snapshotVersion));
   assert(inbox.Submit("New session", NextConversationId, SecondTurnId,
                       snapshot, state));
-  inbox.DiscardUnless(NextConversationId);
+  assert(!inbox.DiscardUnless(NextConversationId));
   assert(inbox.Take(text, conversationId, clientTurnId, snapshotVersion));
   assert(conversationId == NextConversationId);
   assert(text == "New session");

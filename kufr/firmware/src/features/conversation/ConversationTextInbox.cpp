@@ -73,8 +73,11 @@ void ConversationTextInbox::Clear() {
   pendingVersion_ = 0;
 }
 
-void ConversationTextInbox::DiscardUnless(
-    const std::string& conversationId) {
+bool ConversationTextInbox::DiscardUnless(
+    const std::string& conversationId,
+    std::string* discardedConversationId,
+    std::string* discardedClientTurnId,
+    uint64_t* discardedSnapshotVersion) {
   std::lock_guard<std::mutex> lock(mutex_);
   std::string normalizedExpected;
   std::string normalizedPending;
@@ -82,11 +85,21 @@ void ConversationTextInbox::DiscardUnless(
       (NormalizeConversationUuid(conversationId, normalizedExpected) &&
        NormalizeConversationUuid(pendingConversationId_, normalizedPending) &&
        normalizedExpected == normalizedPending)) {
-    return;
+    return false;
+  }
+  if (discardedConversationId != nullptr) {
+    *discardedConversationId = pendingConversationId_;
+  }
+  if (discardedClientTurnId != nullptr) {
+    *discardedClientTurnId = pendingClientTurnId_;
+  }
+  if (discardedSnapshotVersion != nullptr) {
+    *discardedSnapshotVersion = pendingVersion_;
   }
   std::fill(pendingText_.begin(), pendingText_.end(), '\0');
   pendingText_.clear();
   pendingConversationId_.clear();
   pendingClientTurnId_.clear();
   pendingVersion_ = 0;
+  return true;
 }

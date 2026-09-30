@@ -82,6 +82,11 @@ bool DeviceControlRuntime::CancelConversation(
   return true;
 }
 
+bool DeviceControlRuntime::OwnsLiveManualLease(
+    const std::string& leaseId, uint64_t nowMs) const {
+  return control_.OwnsLiveManualLease(leaseId, nowMs);
+}
+
 CommandReceipt DeviceControlRuntime::AcceptSelection(
     const SelectionCommand& command, bool authenticated, uint64_t nowMs) {
   const bool hadManualControl = control_.HasManualControl();

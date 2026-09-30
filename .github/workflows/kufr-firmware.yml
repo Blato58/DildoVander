@@ -55,10 +55,12 @@ jobs:
             src/features/device_control/DeviceControlRuntime.cpp \
             src/features/conversation/ConversationSession.cpp \
             src/features/conversation/ConversationRuntimeState.cpp \
+            src/features/conversation/ConversationTurnFailureInbox.cpp \
             src/features/conversation/ConversationStartCodec.cpp \
             src/features/conversation/PendingProposal.cpp \
             src/features/wand_presentation/WandPresentation.cpp \
             src/features/local_control/LocalControlSession.cpp \
+            src/features/local_control/LocalConversationGateway.cpp \
             tests/local_control_session_test.cpp \
             -o "$RUNNER_TEMP/local-control-session-test"
           "$RUNNER_TEMP/local-control-session-test"
