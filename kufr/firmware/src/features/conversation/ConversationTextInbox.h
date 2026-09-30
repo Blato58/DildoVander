@@ -17,7 +17,11 @@ class ConversationTextInbox final {
   bool Take(std::string& text, std::string& conversationId,
             std::string& clientTurnId,
             uint64_t& snapshotVersion);
-  void DiscardUnless(const std::string& conversationId);
+  bool DiscardUnless(
+      const std::string& conversationId,
+      std::string* discardedConversationId = nullptr,
+      std::string* discardedClientTurnId = nullptr,
+      uint64_t* discardedSnapshotVersion = nullptr);
   void Clear();
 
  private:

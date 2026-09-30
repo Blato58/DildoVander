@@ -51,6 +51,8 @@ src/
       EspIdfJournalStorage.h/.cpp           NVS blob v ESP-IDF profilu
     local_control/
       LocalControlSession.h/.cpp            hello a ruční lease jednoho ověřeného socketu
+      LocalConversationGateway.h/.cpp        text/cancel brána vlastníka řízení
+      LocalConversationNetworkPort.h         síťový port brány
     provisioning/
       DeviceIdentity.h/.cpp                 formát identity a servisní brána
       ProvisioningStorage.h                 port úložiště identity
@@ -74,6 +76,7 @@ src/
       ConversationTextCodec.h/.cpp          validace a JSON textového tahu
       ConversationUuid.h/.cpp               kanonický UUID v4 formát
       ConversationTextInbox.h/.cpp           jediná explicitní čekající textová událost
+      ConversationTurnFailureInbox.h/.cpp     terminální chyba přijatého tahu
       ConversationRuntimeState.h/.cpp         atomický stav a verze pro síťový tah
       EspIdfConversationStartTransport.h/.cpp  HTTPS start sezení
       EspIdfConversationTextTransport.h/.cpp   HTTPS opening/text/DELETE
@@ -154,8 +157,9 @@ vlastníka lease, monotónní čas před expirací a očekávanou generation. M�
 vlastník nejprve neměnně ověří `ConversationSession::ValidateCancel`, pak zvýší
 generation v řízení a potvrdí `ConversationSession::Cancel` na stejné řídicí
 úloze. Po Stop nebo ztrátě lease přenese generation do sezení přes
-`SynchronizeGeneration`, čímž zahodí starý textový tah. Živý místní vstup toto
-pořadí zatím nevykonává.
+`SynchronizeGeneration`, čímž zahodí starý textový tah. Hostitelská
+`LocalConversationGateway` toto pořadí vykonává; živý WSS vstup ji zatím
+nevytváří.
 `LocalControlSession` je čistý model jednoho control socketu po jeho budoucí
 TLS/token autentizaci. Na řídicí úloze vyžaduje `hello` verze 1 do 10 s,
 správné device/boot ID a UUID lease. Ruční lease vytváří a obnovuje výhradně
@@ -190,14 +194,21 @@ na desce ověřeno. V image není URL ani credential.
 
 `ConversationSession` je čistý model jednoho textového sezení. Kontroluje
 ruční lease, boot/session/generation, revision a délku UTF-8 textu. Místní
-vlastník nejprve zavolá `ValidateText`; duplicitní přijetí vrátí bez dalšího
-zařazení. Nový tah pak předá do síťové fronty a
-teprve po jejím přijetí zavolá `SubmitText`. Obě volání musí běžet na jediné
-řídicí úloze bez mezilehlé změny sezení; odmítnutí frontou tah nespotřebuje.
-V jednom sezení přijme nejvýše deset jedinečných `clientTurnId`; opakovaný aktivní tah
+`LocalConversationGateway` ověří lease a snapshot; duplicitní tah vrátí bez
+nového síťového požadavku. Nový tah nejprve potvrdí v sezení, pak jej předá
+síťové úloze. Při okamžitém odmítnutí fronty vrátí jen tento dosud
+nezařazený tah a původní ID lze zkusit znovu. Při pozdějším síťovém selhání
+aktivní tah uvolní, ale ID ponechá spotřebované: backend ho mohl přijmout.
+Změna snapshotu zneplatní i uloženou či právě předávanou repliku. Všechna
+volání brány patří jediné řídicí úloze. Zrušení síťové fronty je vázané na
+přijaté ID rozhovoru a verzi snapshotu, takže pozdní událost starého socketu
+nevymaže nový tah. V jednom sezení přijme nejvýše deset
+jedinečných `clientTurnId`; opakovaný aktivní tah
 rozpozná a po dokončení či zrušení již stejné ID znovu nespustí. Zrušení nebo
 ztráta lease zvýší generation a pozdní dokončení se odmítne. Model zatím není
-zapojený do WSS ani backendu a neřídí žádný fyzický výstup.
+zapojený do WSS a neřídí žádný fyzický výstup. `EspIdfBackendNetwork`
+implementuje síťový port brány a předává terminální chybu přes omezenou
+schránku. IDF smyčka bránu zatím nevytváří ani nevolá `PollNetworkFailure`.
 `ConversationStartCodec` sestaví přesné JSON tělo pro založení textového
 backend sezení s vypnutým audio/image souhlasem a omezeně parsuje odpověď
 včetně serverových limitů. Idempotency-Key je samostatný UUID vstup pro
