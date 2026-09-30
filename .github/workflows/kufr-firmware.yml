@@ -55,6 +55,18 @@ jobs:
             tests/conversation_text_inbox_test.cpp \
             -o "$RUNNER_TEMP/conversation-text-inbox-test"
           "$RUNNER_TEMP/conversation-text-inbox-test"
+      - name: Snapshot-bound reply inbox test
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++14 -Wall -Wextra -Werror -pthread \
+            src/features/conversation/ConversationSession.cpp \
+            src/features/conversation/ConversationRuntimeState.cpp \
+            src/features/conversation/ConversationReplyInbox.cpp \
+            tests/conversation_reply_inbox_test.cpp \
+            -o "$RUNNER_TEMP/conversation-reply-inbox-test"
+          "$RUNNER_TEMP/conversation-reply-inbox-test"
       - name: Conversation proposal and opening tests
         working-directory: kufr/firmware
         shell: bash

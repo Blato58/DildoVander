@@ -69,18 +69,19 @@ bool EspIdfBackendNetwork::QueueTextTurn(
       return false;
     }
   }
-  return online_.load() &&
+  return online_.load() && !replyInbox_.HasPending(runtimeState_) &&
          textInbox_.Submit(text, expectedSnapshot, runtimeState_);
 }
 
 bool EspIdfBackendNetwork::QueueOpening(
     const ConversationRuntimeSnapshot& expectedSnapshot) {
-  if (!online_.load() || expectedSnapshot.version == 0) {
+  if (!online_.load() || expectedSnapshot.version == 0 ||
+      replyInbox_.HasPending(runtimeState_)) {
     return false;
   }
   {
     std::lock_guard<std::mutex> lock(presentationMutex_);
-    if (presentationActive_) {
+    if (terminalProposalOutstanding_ || presentationActive_) {
       return false;
     }
   }
@@ -96,9 +97,35 @@ bool EspIdfBackendNetwork::QueueOpening(
 void EspIdfBackendNetwork::QueueCancel() {
   cancelRequested_.store(true);
   textInbox_.Clear();
+  replyInbox_.Clear();
   pendingProposal_.Clear();
   std::lock_guard<std::mutex> lock(openingMutex_);
   openingPending_ = false;
+}
+
+bool EspIdfBackendNetwork::TakeReply(
+    std::string& reply, ConversationRuntimeSnapshot& snapshot,
+    uint64_t& token) {
+  if (cancelRequested_.load() ||
+      !replyInbox_.Take(reply, snapshot, token, runtimeState_)) {
+    return false;
+  }
+  if (cancelRequested_.load()) {
+    std::fill(reply.begin(), reply.end(), '\0');
+    reply.clear();
+    return false;
+  }
+  return true;
+}
+
+bool EspIdfBackendNetwork::IsReplyCurrent(
+    uint64_t token, const ConversationRuntimeSnapshot& snapshot) const {
+  return !cancelRequested_.load() &&
+         replyInbox_.IsCurrent(token, snapshot, runtimeState_);
+}
+
+bool EspIdfBackendNetwork::FinishReply(uint64_t token) {
+  return replyInbox_.Complete(token);
 }
 
 bool EspIdfBackendNetwork::ReadPendingProposal(
@@ -110,6 +137,8 @@ bool EspIdfBackendNetwork::BeginPendingPresentation(
     WandPresentation& presentation, uint64_t nowMs) {
   std::lock_guard<std::mutex> lock(presentationMutex_);
   if (!terminalProposalOutstanding_ || presentationActive_ ||
+      cancelRequested_.load() ||
+      replyInbox_.HasPending(runtimeState_) ||
       !presentation.Start(pendingProposal_, runtimeState_, nowMs)) {
     return false;
   }
@@ -292,6 +321,12 @@ void EspIdfBackendNetwork::Run() {
         continue;
       }
     }
+    // A turn may have been queued while the previous poll was in progress.
+    // Keep it queued until the output owner finishes or cancels that reply.
+    if (replyInbox_.HasPending(runtimeState_)) {
+      WaitMs(TokenCheckPeriodMs);
+      continue;
+    }
     bool opening = false;
     uint64_t openingVersion = 0;
     {
@@ -462,6 +497,11 @@ void EspIdfBackendNetwork::RunTurn(
         !cancelRequested_.load() &&
         runtimeState_.Matches(snapshot)) {
       if (result.decision == TurnPollDecision::ProposalReady) {
+        if (!replyInbox_.Store(result.reply, snapshot, runtimeState_)) {
+          std::fill(result.reply.begin(), result.reply.end(), '\0');
+          CloseConversation(coordinator, textTransport, tokens, startRequest);
+          break;
+        }
         // The guard already checked UTC expiry. Local monotonic TTL is capped
         // independently and the control owner must check the live snapshot.
         const bool stored = pendingProposal_.Store(
@@ -474,12 +514,28 @@ void EspIdfBackendNetwork::RunTurn(
         if (stored) {
           std::lock_guard<std::mutex> lock(presentationMutex_);
           terminalProposalOutstanding_ = true;
+          textInbox_.Clear();
+          {
+            std::lock_guard<std::mutex> openingLock(openingMutex_);
+            openingPending_ = false;
+          }
           ESP_LOGI(LogTag, "Validated proposal held for presentation owner");
         } else {
+          replyInbox_.Clear();
           CloseConversation(coordinator, textTransport, tokens, startRequest);
         }
       } else {
         pendingProposal_.Clear();
+        if (!replyInbox_.Store(result.reply, snapshot, runtimeState_)) {
+          std::fill(result.reply.begin(), result.reply.end(), '\0');
+          CloseConversation(coordinator, textTransport, tokens, startRequest);
+          break;
+        }
+      }
+      if (cancelRequested_.load()) {
+        replyInbox_.Clear();
+        std::fill(result.reply.begin(), result.reply.end(), '\0');
+        break;
       }
       std::fill(result.reply.begin(), result.reply.end(), '\0');
       replyConsumed = true;
