@@ -96,3 +96,5 @@ bool LocalControlSession::MatchesOwnedLease(
   return !disconnected_ && helloComplete_ && !leaseId_.empty() &&
          SameUuid(bootId, bootId_) && SameUuid(leaseId, leaseId_);
 }
+
+const std::string& LocalControlSession::LeaseId() const { return leaseId_; }
