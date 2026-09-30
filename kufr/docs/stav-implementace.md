@@ -88,6 +88,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 
 - Převzetí: IDF `DeviceControl` používal prázdné boot ID, zatímco síťová úloha ho vytvářela nezávisle až po Wi-Fi. `app_main` nyní před startem rádia dočasně zapne interní zdroj entropie ESP-IDF, vygeneruje jedno UUID v4, zdroj vypne a stejné ID předá řízení i backendové úloze. Backend už boot ID nemění po reconnectu; idempotency key dál vzniká až po připojení Wi-Fi. Rozsah: IDF inicializace, konstruktor sítě, CMake závislost, firmware README a tento stav. Není přidána místní WSS služba ani povolen fyzický pohyb; kalibrace zůstává nulová.
 - Ověření 30. 9. z `kufr/firmware`: `pio run -e esp32-s3-idf -s` a `pio run -e esp32-s3-arduino-serial -s` prošly. Hostitelský běh hardwarového RNG ani fyzická deska/B1 nejsou k dispozici; CI bude ověřeno po PR.
+- Doručení: implementační commit `2db29a2a5d07463efb6020c1d85e9504f723ad48`; `./scripts/Push-CurrentBranch.ps1` potvrdil push do `origin/codex/kufr-shared-boot-identity`. CI a PR merge doplnit po jejich skutečném dokončení.
 - Neprovedeno: místní WSS/TLS identita a token, autentizovaný producent, výstup replik a připojení brány do IDF smyčky. Další krok: bezpečné místní tokenové úložiště a WSS handshake po servisním provisioningu; bez B1 zůstane fyzické provisionování a runtime ověření blokováno.
 
 ### D84 – 30. 9. 2026 – E4.4d místní textová brána
