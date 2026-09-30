@@ -10,6 +10,7 @@ using httpd_handle_t = void*;
 using httpd_free_ctx_fn_t = void (*)(void*);
 using httpd_work_fn_t = void (*)(void*);
 constexpr int HTTP_GET = 0;
+constexpr int HTTP_POST = 1;
 
 struct httpd_req_t {
   httpd_handle_t handle = nullptr;
@@ -17,6 +18,7 @@ struct httpd_req_t {
   void* user_ctx = nullptr;
   void* sess_ctx = nullptr;
   httpd_free_ctx_fn_t free_ctx = nullptr;
+  size_t content_len = 0;
 };
 
 struct httpd_uri_t {
@@ -76,6 +78,9 @@ size_t httpd_req_get_hdr_value_len(httpd_req_t*, const char*);
 esp_err_t httpd_req_get_hdr_value_str(httpd_req_t*, const char*, char*, size_t);
 int httpd_req_to_sockfd(httpd_req_t*);
 esp_err_t httpd_resp_set_status(httpd_req_t*, const char*);
+esp_err_t httpd_resp_set_hdr(httpd_req_t*, const char*, const char*);
+esp_err_t httpd_resp_set_type(httpd_req_t*, const char*);
+int httpd_req_recv(httpd_req_t*, char*, size_t);
 esp_err_t httpd_resp_send(httpd_req_t*, const char*, int);
 esp_err_t httpd_ws_recv_frame(httpd_req_t*, httpd_ws_frame_t*, size_t);
 esp_err_t httpd_ws_send_frame(httpd_req_t*, httpd_ws_frame_t*);
