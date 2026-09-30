@@ -17,12 +17,15 @@
 #include "../wand_presentation/WandPresentation.h"
 #include "../provisioning/DeviceIdentity.h"
 
+class EspIdfStationNetwork;
+
 class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
                                   public LocalConversationReplyPort {
  public:
   EspIdfBackendNetwork(DeviceIdentity& identity,
                        ConversationRuntimeState& runtimeState,
-                       const std::string& bootId);
+                       const std::string& bootId,
+                       EspIdfStationNetwork& station);
   bool Start(bool nvsInitialized);
   bool QueueTextTurn(const std::string& text,
                      const std::string& conversationId,
@@ -62,10 +65,10 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
                const std::string& conversationId,
                const std::string& clientTurnId, bool opening,
                uint64_t snapshotVersion,
-                   class DeviceTokenSession& tokens,
-                   class EspIdfWifiStation& wifi,
-                   class ConversationStartCoordinator& coordinator,
-                   struct ConversationStartRequest& startRequest);
+               class DeviceTokenSession& tokens,
+               EspIdfStationNetwork& station,
+               class ConversationStartCoordinator& coordinator,
+               struct ConversationStartRequest& startRequest);
   bool CloseConversation(class ConversationStartCoordinator& coordinator,
                          class EspIdfConversationTextTransport& transport,
                          class DeviceTokenSession& tokens,
@@ -82,7 +85,8 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
 
   DeviceIdentity& identity_;
   ConversationRuntimeState& runtimeState_;
-  NetworkSettings settings_;
+  EspIdfStationNetwork& station_;
+  const NetworkSettings& settings_;
   ConversationTextInbox textInbox_;
   ConversationReplyInbox replyInbox_;
   ConversationTurnFailureInbox failedTurns_;

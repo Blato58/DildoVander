@@ -11,11 +11,9 @@
 
 #include "BuildDate.h"
 #include "DeviceTokenSession.h"
-#include "EspIdfNetworkSettings.h"
+#include "EspIdfStationNetwork.h"
 #include "EspIdfTokenExchangeTransport.h"
 #include "EspIdfTrustedTimeStore.h"
-#include "EspIdfWifiStation.h"
-#include "ReconnectPolicy.h"
 #include "TrustedTime.h"
 #include "../conversation/ConversationStartCoordinator.h"
 #include "../conversation/ConversationStartCodec.h"
@@ -29,7 +27,6 @@
 namespace {
 
 constexpr char LogTag[] = "kufr_network";
-constexpr uint32_t ConnectionTimeoutMs = 15000;
 constexpr uint32_t TokenCheckPeriodMs = 1000;
 constexpr uint32_t OfflineRetryMs = 30000;
 constexpr uint32_t PollCheckPeriodMs = 100;
@@ -88,8 +85,9 @@ void WaitMs(uint32_t durationMs) {
 
 EspIdfBackendNetwork::EspIdfBackendNetwork(
     DeviceIdentity& identity, ConversationRuntimeState& runtimeState,
-    const std::string& bootId)
-    : identity_(identity), runtimeState_(runtimeState), bootId_(bootId) {}
+    const std::string& bootId, EspIdfStationNetwork& station)
+    : identity_(identity), runtimeState_(runtimeState), station_(station),
+      settings_(station.Settings()), bootId_(bootId) {}
 
 bool EspIdfBackendNetwork::QueueTextTurn(
     const std::string& text, const std::string& conversationId,
@@ -260,15 +258,13 @@ bool EspIdfBackendNetwork::FinishPresentation(
 }
 
 bool EspIdfBackendNetwork::Start(bool nvsInitialized) {
-  if (task_ != nullptr || bootId_.empty() || !identity_.IsProvisioned() ||
-      LoadEspIdfNetworkSettings(settings_, nvsInitialized) !=
-          NetworkSettingsLoadResult::Loaded) {
+  if (task_ != nullptr || !nvsInitialized || bootId_.empty() ||
+      !identity_.IsProvisioned() || !settings_.IsConfigured()) {
     return false;
   }
 
   if (xTaskCreate(TaskEntry, "backend_network", 12288, this, 4, &task_) !=
       pdPASS) {
-    settings_.Reset();
     task_ = nullptr;
     return false;
   }
@@ -286,11 +282,7 @@ void EspIdfBackendNetwork::TaskEntry(void* argument) {
 }
 
 void EspIdfBackendNetwork::Run() {
-  EspIdfWifiStation wifi;
-  if (!wifi.Start(settings_)) {
-    ESP_LOGE(LogTag, "Wi-Fi initialization failed; backend offline");
-    return;
-  }
+  EspIdfStationNetwork& station = station_;
 
   EspIdfTrustedTimeStore timeStore(true);
   const uint64_t buildDate = ParseBuildDateUtc(__DATE__);
@@ -307,13 +299,12 @@ void EspIdfBackendNetwork::Run() {
   ConversationStartRequest startRequest;
   startRequest.deviceId = identity_.DeviceId();
   startRequest.bootId = bootId_;
-  ReconnectPolicy reconnect;
   bool sntpStarted = false;
   bool timeSynchronized = false;
   bool revokedLogged = false;
   uint64_t lastTurnAtMs = 0;
   while (true) {
-    if (!wifi.HasIp()) {
+    if (!station.HasIp()) {
       online_.store(false);
       FailQueuedText();
       pendingProposal_.Clear();
@@ -321,14 +312,11 @@ void EspIdfBackendNetwork::Run() {
         std::lock_guard<std::mutex> lock(openingMutex_);
         openingPending_ = false;
       }
-      if (!wifi.ConnectAndWait(ConnectionTimeoutMs)) {
-        WaitMs(reconnect.NextDelayMs(esp_random() % 401));
-        continue;
-      }
-      reconnect.Reset();
-      if (startRequest.idempotencyKey.empty()) {
-        startRequest.idempotencyKey = GenerateEspIdfConversationUuid();
-      }
+      WaitMs(100);
+      continue;
+    }
+    if (startRequest.idempotencyKey.empty()) {
+      startRequest.idempotencyKey = GenerateEspIdfConversationUuid();
       ESP_LOGI(LogTag, "Wi-Fi connected; waiting for trusted time");
     }
 
@@ -343,7 +331,7 @@ void EspIdfBackendNetwork::Run() {
     }
     if (!timeSynchronized) {
       if (esp_netif_sntp_sync_wait(pdMS_TO_TICKS(10000)) != ESP_OK ||
-          !wifi.HasIp()) {
+          !station.HasIp()) {
         online_.store(false);
         FailQueuedText();
         WaitMs(OfflineRetryMs);
@@ -442,13 +430,13 @@ void EspIdfBackendNetwork::Run() {
     uint64_t snapshotVersion = 0;
     if (opening) {
       RunTurn("", openingConversationId, "", true, openingVersion,
-              tokens, wifi, coordinator,
+              tokens, station, coordinator,
               startRequest);
       lastTurnAtMs = MonotonicMs();
     } else if (textInbox_.Take(
                    text, conversationId, clientTurnId, snapshotVersion)) {
       RunTurn(text, conversationId, clientTurnId, false, snapshotVersion,
-              tokens, wifi,
+              tokens, station,
               coordinator, startRequest);
       lastTurnAtMs = MonotonicMs();
       std::fill(text.begin(), text.end(), '\0');
@@ -463,7 +451,7 @@ void EspIdfBackendNetwork::RunTurn(
     const std::string& clientTurnId,
     bool opening, uint64_t snapshotVersion,
     DeviceTokenSession& tokens,
-    EspIdfWifiStation& wifi,
+    EspIdfStationNetwork& station,
     ConversationStartCoordinator& coordinator,
     ConversationStartRequest& startRequest) {
   TurnFailureGuard failureGuard(
@@ -477,7 +465,7 @@ void EspIdfBackendNetwork::RunTurn(
     return;
   }
   ConversationRuntimeSnapshot snapshot;
-  if (!wifi.HasIp() || !runtimeState_.Read(snapshot) ||
+  if (!station.HasIp() || !runtimeState_.Read(snapshot) ||
       snapshot.version != snapshotVersion || bootId_.empty()) {
     ESP_LOGW(LogTag, "Text turn dropped: device state unavailable");
     return;
@@ -557,7 +545,7 @@ void EspIdfBackendNetwork::RunTurn(
         : textTransport.Submit(turnRequest, tokens.AccessToken(MonotonicMs()));
   }
   if ((accepted.statusCode == 0 || accepted.statusCode >= 500) &&
-      wifi.HasIp() && runtimeState_.Matches(snapshot) &&
+      station.HasIp() && runtimeState_.Matches(snapshot) &&
       MonotonicMs() - turnStartedAtMs < TurnPollSchedule::DeadlineMs) {
     // An accepted 202 response may have been lost. Reuse the exact envelope.
     accepted = opening
@@ -590,7 +578,7 @@ void EspIdfBackendNetwork::RunTurn(
   schedule.Begin(turnStartedAtMs, MonotonicMs());
   bool replyConsumed = false;
   bool noSelection = false;
-  while (wifi.HasIp() && schedule.IsActive() &&
+  while (station.HasIp() && schedule.IsActive() &&
          !cancelRequested_.load()) {
     const uint64_t nowMs = MonotonicMs();
     if (schedule.IsExpired(nowMs) || !runtimeState_.Matches(snapshot) ||
@@ -622,7 +610,7 @@ void EspIdfBackendNetwork::RunTurn(
     if (result.statusCode == 200 &&
         (result.decision == TurnPollDecision::ReplyReady ||
          result.decision == TurnPollDecision::ProposalReady) &&
-        !schedule.IsExpired(completedAtMs) && wifi.HasIp() &&
+        !schedule.IsExpired(completedAtMs) && station.HasIp() &&
         !cancelRequested_.load() &&
         runtimeState_.Matches(snapshot)) {
       if (result.decision == TurnPollDecision::ProposalReady) {
