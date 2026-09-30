@@ -26,6 +26,8 @@ class DeviceControlRuntime final {
   bool DisconnectManualControl(SelectionStep& step);
   bool DisconnectManualControl(const std::string& leaseId,
                                SelectionStep& step);
+  bool CancelConversation(const std::string& leaseId,
+                          uint64_t expectedGeneration, uint64_t nowMs);
   CommandReceipt AcceptSelection(const SelectionCommand& command,
                                  bool authenticated, uint64_t nowMs);
   CommandReceipt ConfirmReload(const InventoryReloadCommand& command,

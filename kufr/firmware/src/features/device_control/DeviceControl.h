@@ -120,6 +120,7 @@ class DeviceControl {
   bool HasPendingSelection() const;
   bool HasManualControl() const;
   bool OwnsManualLease(const std::string& leaseId) const;
+  bool OwnsLiveManualLease(const std::string& leaseId, uint64_t nowMs) const;
   bool HasAutonomousPresentation() const;
 
  private:

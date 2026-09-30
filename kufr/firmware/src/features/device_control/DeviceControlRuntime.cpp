@@ -70,6 +70,18 @@ bool DeviceControlRuntime::DisconnectManualControl(
   return true;
 }
 
+bool DeviceControlRuntime::CancelConversation(
+    const std::string& leaseId, uint64_t expectedGeneration,
+    uint64_t nowMs) {
+  if (!control_.OwnsLiveManualLease(leaseId, nowMs) ||
+      expectedGeneration != generation_) {
+    return false;
+  }
+  ++generation_;
+  PublishCurrent();
+  return true;
+}
+
 CommandReceipt DeviceControlRuntime::AcceptSelection(
     const SelectionCommand& command, bool authenticated, uint64_t nowMs) {
   const bool hadManualControl = control_.HasManualControl();
