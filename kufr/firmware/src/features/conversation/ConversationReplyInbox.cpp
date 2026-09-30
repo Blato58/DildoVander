@@ -3,13 +3,16 @@
 #include <algorithm>
 
 #include "ConversationSession.h"
+#include "ConversationStartCodec.h"
 
 bool ConversationReplyInbox::Store(
-    const std::string& reply,
+    const std::string& reply, const std::string& clientTurnId,
     const ConversationRuntimeSnapshot& expectedSnapshot,
     const ConversationRuntimeState& runtimeState) {
+  std::string normalizedTurnId;
   if (expectedSnapshot.version == 0 || reply.size() > 2000 ||
-      !IsValidConversationUtf8(reply, 500, false)) {
+      !IsValidConversationUtf8(reply, 500, false) ||
+      !NormalizeConversationUuid(clientTurnId, normalizedTurnId)) {
     return false;
   }
 
@@ -20,12 +23,14 @@ bool ConversationReplyInbox::Store(
   }
   ++token_;
   pendingReply_ = reply;
+  pendingClientTurnId_ = clientTurnId;
   snapshot_ = expectedSnapshot;
   return true;
 }
 
 bool ConversationReplyInbox::Take(
-    std::string& reply, ConversationRuntimeSnapshot& snapshot,
+    std::string& reply, std::string& clientTurnId,
+    ConversationRuntimeSnapshot& snapshot,
     uint64_t& token,
     const ConversationRuntimeState& runtimeState) {
   std::lock_guard<std::mutex> lock(mutex_);
@@ -37,10 +42,12 @@ bool ConversationReplyInbox::Take(
     return false;
   }
   reply = pendingReply_;
+  clientTurnId = pendingClientTurnId_;
   snapshot = snapshot_;
   token = token_;
   std::fill(pendingReply_.begin(), pendingReply_.end(), '\0');
   pendingReply_.clear();
+  pendingClientTurnId_.clear();
   inFlight_ = true;
   return true;
 }
@@ -81,6 +88,7 @@ void ConversationReplyInbox::Clear() {
 void ConversationReplyInbox::InvalidateLocked() {
   std::fill(pendingReply_.begin(), pendingReply_.end(), '\0');
   pendingReply_.clear();
+  pendingClientTurnId_.clear();
   snapshot_ = {};
   inFlight_ = false;
   token_ = token_ == UINT64_MAX ? 0 : token_ + 1;
