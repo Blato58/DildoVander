@@ -34,7 +34,8 @@ DeviceControl::DeviceControl(const std::string& deviceId,
       calibrationRevision_(calibrationRevision) {}
 
 bool DeviceControl::RecoverAfterInspection() {
-  if (selection_.IsBusy() || HasPendingSelection()) {
+  if (selection_.IsBusy() || HasPendingSelection() ||
+      HasAutonomousPresentation()) {
     return false;
   }
 
@@ -59,7 +60,8 @@ bool DeviceControl::RecoverAfterInspection() {
 
 bool DeviceControl::AcquireManualControl(const std::string& leaseId,
                                           uint64_t nowMs) {
-  if (leaseId.empty() || !manualLeaseId_.empty() || selection_.IsBusy() ||
+  if (leaseId.empty() || !manualLeaseId_.empty() ||
+      HasAutonomousPresentation() || selection_.IsBusy() ||
       selection_.NeedsRecovery() || journal_.HasPending()) {
     return false;
   }
@@ -161,7 +163,8 @@ CommandReceipt DeviceControl::AcceptSelection(const SelectionCommand& command,
     return Reject(command, CommandError::SafetyLatched, true);
   }
 
-  if (HasPendingSelection() || selection_.IsBusy()) {
+  if (HasPendingSelection() || HasAutonomousPresentation() ||
+      selection_.IsBusy()) {
     return Reject(command, CommandError::Busy, true);
   }
 
@@ -249,7 +252,8 @@ CommandReceipt DeviceControl::ConfirmReload(
   if (command.expectedRevision != revision_) {
     return reject(CommandError::StaleRevision);
   }
-  if (HasPendingSelection() || selection_.IsBusy()) {
+  if (HasPendingSelection() || HasAutonomousPresentation() ||
+      selection_.IsBusy()) {
     return reject(CommandError::Busy);
   }
   if (selection_.NeedsRecovery() || journal_.HasPending()) {
@@ -294,6 +298,58 @@ bool DeviceControl::BeginAcceptedSelection(uint64_t nowMs,
   return true;
 }
 
+bool DeviceControl::BeginAutonomousPresentation(
+    const std::string& proposalId, uint8_t compartment,
+    uint64_t expectedRevision) {
+  if (proposalId.empty() || compartment < 1 ||
+      compartment > SelectionSequence::CompartmentCount ||
+      expectedRevision != revision_ || calibrationRevision_ == 0 ||
+      HasManualControl() || HasPendingSelection() ||
+      HasAutonomousPresentation() || selection_.IsBusy() ||
+      selection_.NeedsRecovery() || journal_.HasPending() ||
+      (readyMask_ & (1u << (compartment - 1))) == 0) {
+    return false;
+  }
+
+  // The durable record must exist before a servo port may request motion.
+  if (!journal_.Begin(proposalId, compartment)) {
+    SelectionStep step;
+    selection_.ReportFault(step);
+    return false;
+  }
+  autonomousCompartment_ = compartment;
+  ++revision_;
+  return true;
+}
+
+bool DeviceControl::CompleteAutonomousPresentation(uint8_t compartment) {
+  if (autonomousCompartment_ == 0 ||
+      autonomousCompartment_ != compartment ||
+      selection_.NeedsRecovery() || !journal_.HasPending() ||
+      journal_.PendingCompartment() != compartment) {
+    return false;
+  }
+  // The wand returned to rest, so its availability is retained atomically.
+  if (!journal_.ResolveRestored(compartment)) {
+    FaultAutonomousPresentation();
+    return false;
+  }
+  autonomousCompartment_ = 0;
+  ++revision_;
+  return true;
+}
+
+void DeviceControl::FaultAutonomousPresentation() {
+  if (autonomousCompartment_ == 0) {
+    return;
+  }
+  SelectionStep step;
+  selection_.ReportFault(step);
+  autonomousCompartment_ = 0;
+  ++revision_;
+  // Leave the journal open until physical inspection resolves the outcome.
+}
+
 bool DeviceControl::Tick(uint64_t nowMs, SelectionStep& step) {
   if (!manualLeaseId_.empty() && nowMs >= leaseExpiresAtMs_) {
     return LoseManualControl(step);
@@ -332,6 +388,7 @@ bool DeviceControl::Tick(uint64_t nowMs, SelectionStep& step) {
 
 bool DeviceControl::Stop(SelectionStep& step) {
   const bool newlyStopped = selection_.Stop(step);
+  FaultAutonomousPresentation();
   if (HasPendingSelection()) {
     FinishCurrent(CommandOutcome::OutcomeUnknown);
   }
@@ -353,6 +410,10 @@ bool DeviceControl::HasPendingSelection() const {
 
 bool DeviceControl::HasManualControl() const {
   return !manualLeaseId_.empty();
+}
+
+bool DeviceControl::HasAutonomousPresentation() const {
+  return autonomousCompartment_ != 0;
 }
 
 CommandReceipt DeviceControl::Reject(const SelectionCommand& command,

@@ -107,6 +107,27 @@ void TestPendingRestartAndAtomicResolve() {
   assert(storage.writeCount == 3);
 }
 
+void TestRestoredPresentationKeepsAvailability() {
+  MemoryJournalStorage storage;
+  PersistentCommandJournal journal(storage);
+  assert(journal.PersistReadyMask(0x3f));
+  assert(journal.Begin(FirstCommandId, 3));
+  assert(!journal.ResolveRestored(2));
+  assert(journal.HasPending());
+  assert(journal.ResolveRestored(3));
+  assert(!journal.HasPending());
+  assert(journal.ReadyMask() == 0x3f);
+
+  PersistentCommandJournal restarted(storage);
+  assert(restarted.IsHealthy());
+  assert(!restarted.HasPending());
+  assert(restarted.ReadyMask() == 0x3f);
+  assert(restarted.Begin(SecondCommandId, 3));
+  storage.failWrite = true;
+  assert(!restarted.ResolveRestored(3));
+  assert(restarted.HasPending());
+}
+
 void TestFailedBeginNeverAllowsMotion() {
   MemoryJournalStorage storage;
   PersistentCommandJournal journal(storage);
@@ -244,6 +265,7 @@ void TestPendingRestartRequiresInspectionAndClearsInventory() {
 int main() {
   TestEmptyAndReloadPersistAcrossRestart();
   TestPendingRestartAndAtomicResolve();
+  TestRestoredPresentationKeepsAvailability();
   TestFailedBeginNeverAllowsMotion();
   TestUncertainCommitRemainsFailClosed();
   TestInvalidRecordsAndReadFailureBlockControl();

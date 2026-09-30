@@ -17,7 +17,8 @@ class FakePresentationPort final : public WandPresentationPort {
   bool IsSafeToContinue() const override { return true; }
   bool IsRaised(uint8_t) const override { return raised_; }
   bool IsResting(uint8_t) const override { return resting_; }
-  bool Raise(uint8_t compartment) override {
+  bool Raise(uint8_t compartment, const std::string&,
+             const ConversationRuntimeSnapshot&) override {
     std::cout << "SIMULATED raise " << static_cast<unsigned>(compartment) << '\n';
     resting_ = false;
     raised_ = true;
