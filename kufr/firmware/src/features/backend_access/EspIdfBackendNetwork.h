@@ -13,10 +13,12 @@
 #include "../conversation/ConversationTurnFailureInbox.h"
 #include "../conversation/PendingProposal.h"
 #include "../local_control/LocalConversationNetworkPort.h"
+#include "../local_control/LocalConversationReplyPort.h"
 #include "../wand_presentation/WandPresentation.h"
 #include "../provisioning/DeviceIdentity.h"
 
-class EspIdfBackendNetwork final : public LocalConversationNetworkPort {
+class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
+                                  public LocalConversationReplyPort {
  public:
   EspIdfBackendNetwork(DeviceIdentity& identity,
                        ConversationRuntimeState& runtimeState,
@@ -41,10 +43,10 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort {
   // FinishReply. Stop/cancel must also stop the actual output port.
   bool TakeReply(std::string& reply, std::string& conversationId,
                  std::string& clientTurnId,
-                 ConversationRuntimeSnapshot& snapshot, uint64_t& token);
+                 ConversationRuntimeSnapshot& snapshot, uint64_t& token) override;
   bool IsReplyCurrent(
-      uint64_t token, const ConversationRuntimeSnapshot& snapshot) const;
-  bool FinishReply(uint64_t token);
+      uint64_t token, const ConversationRuntimeSnapshot& snapshot) const override;
+  bool FinishReply(uint64_t token) override;
   bool ReadPendingProposal(TurnProposal& proposal, uint64_t nowMs) const;
   // Control owner calls this after completing the announcement. Network
   // polling never invokes it and cannot directly move an actuator.

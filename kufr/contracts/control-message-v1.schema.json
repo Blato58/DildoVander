@@ -316,8 +316,8 @@
         "clientTurnId": { "$ref": "#/$defs/uuid" },
         "generation": { "$ref": "#/$defs/safeInteger" },
         "eventSequence": { "$ref": "#/$defs/safeInteger" },
-        "reply": { "type": "string", "minLength": 1, "maxLength": 400 },
-        "simulated": { "const": true }
+        "reply": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "simulated": { "type": "boolean" }
       }
     },
     "mediaAuthorize": {

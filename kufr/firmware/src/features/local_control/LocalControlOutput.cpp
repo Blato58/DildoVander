@@ -4,6 +4,7 @@
 #include "../conversation/ConversationStartCodec.h"
 #include "../device_control/PersistentCommandJournal.h"
 #include "../safety/SafetyController.h"
+#include "../../protocol/JsonWriter.h"
 
 namespace {
 
@@ -280,4 +281,28 @@ bool LocalControlOutput::ConversationAck(
       "\",\"duplicate\":" + (receipt.duplicate ? "true" : "false") +
       ",\"errorCode\":" +
       (accepted ? "null" : "\"" + std::string(ErrorName(receipt.error)) + "\"") + "}");
+}
+
+bool LocalControlOutput::ConversationResult(
+    const LocalSocketAdmission::Handle& handle, const std::string& clientTurnId,
+    uint64_t generation, const std::string& reply) {
+  if (!ValidDeviceId(deviceId_) || !IsConversationUuid(bootId_) ||
+      !IsConversationUuid(conversation_.ConversationId()) ||
+      !IsConversationUuid(clientTurnId) ||
+      clientTurnId != conversation_.ActiveTurnId() ||
+      generation != conversation_.Generation() || generation > MaximumInteger ||
+      reply.size() > 2000 || !IsValidConversationUtf8(reply, 500, false) ||
+      !AdvanceEvent()) {
+    return false;
+  }
+  std::string json =
+      "{\"protocolVersion\":1,\"type\":\"conversation.result\",\"bootId\":\"" +
+      bootId_ + "\",\"conversationId\":\"" + conversation_.ConversationId() +
+      "\",\"clientTurnId\":\"" + clientTurnId + "\",\"generation\":" +
+      std::to_string(generation) + ",\"eventSequence\":" +
+      std::to_string(eventSequence_) + ",\"reply\":";
+  AppendJsonString(reply, json);
+  json += ",\"simulated\":false}";
+  // Escaping 500 codepoints can exceed the ordinary 2048-byte envelope.
+  return json.size() <= 8192 && transport_.Send(handle, json);
 }

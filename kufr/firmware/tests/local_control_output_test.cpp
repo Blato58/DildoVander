@@ -206,6 +206,13 @@ void TestCommandAndConversationAcks() {
   assert(fixture.Snapshot(Lease));
   assert(fixture.transport.messages.back().find("Private visitor text") == std::string::npos);
   assert(fixture.transport.messages.back().find(Turn) != std::string::npos);
+  assert(fixture.output.ConversationResult({7, 1}, Turn, 0,
+                                          "Czech \xc4\x8d reply: \"quoted\"\\path\n"));
+  assert(fixture.output.ConversationResult({7, 1}, Turn, 0, std::string(500, '\n')));
+  assert(!fixture.output.ConversationResult({7, 1}, Turn, 0, std::string(501, 'a')));
+  assert(!fixture.output.ConversationResult({7, 1}, Turn, 1, "old generation"));
+  assert(!fixture.output.ConversationResult({7, 1}, Command, 0, "wrong turn"));
+  assert(!fixture.output.ConversationResult({7, 1}, Turn, 0, "\xc0\xaf"));
 }
 
 void TestTerminalResultsAndPhases() {

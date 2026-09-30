@@ -20,6 +20,10 @@ class LocalControlOutputPort {
   virtual bool ConversationAck(const LocalSocketAdmission::Handle& handle,
                                const LocalControlMessage& request,
                                const ConversationCommandReceipt& receipt) = 0;
+  virtual bool ConversationResult(const LocalSocketAdmission::Handle& handle,
+                                  const std::string& clientTurnId,
+                                  uint64_t generation,
+                                  const std::string& reply) = 0;
 };
 
 class LocalControlIdPort {

@@ -115,3 +115,9 @@ HTTP OpenAPI nově popisuje `/v1/conversations/{id}/opening` bez textu,
 používá původní turn operaci a korelaci; nemění WSS control zprávy ani
 oprávnění fyzického pohybu. Starší klienti mohou dál používat `/turns`.
 Skutečný firmware/telefon musí nové operace teprve zapojit.
+
+D97 přidává skutečný `conversation.result` s `simulated:false`; simulátor nadále
+vrací true. Limit reply je 500 Unicode znaků (firmware nejvýše 2000 UTF-8 bajtů),
+stejně jako backend. `conversation.text` i `conversation.result` mají obálku do
+8192 bajtů kvůli escapování; jiné control zprávy zůstávají do 2048. Strict klient
+přebírá nové schéma a limit. Původ backendu neprokazuje placenou AI, TTS ani pohyb.
