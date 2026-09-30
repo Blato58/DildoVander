@@ -20,13 +20,14 @@ class EspIdfBackendNetwork final {
                        ConversationRuntimeState& runtimeState);
   bool Start(bool nvsInitialized);
   bool QueueTextTurn(const std::string& text,
+                     const std::string& clientTurnId,
                      const ConversationRuntimeSnapshot& expectedSnapshot);
   // Called only for a deliberate local start event, never by reconnect.
   bool QueueOpening(const ConversationRuntimeSnapshot& expectedSnapshot);
   void QueueCancel();
   // The caller must check IsReplyCurrent before and during playback, then
   // FinishReply. Stop/cancel must also stop the actual output port.
-  bool TakeReply(std::string& reply,
+  bool TakeReply(std::string& reply, std::string& clientTurnId,
                  ConversationRuntimeSnapshot& snapshot, uint64_t& token);
   bool IsReplyCurrent(
       uint64_t token, const ConversationRuntimeSnapshot& snapshot) const;
@@ -42,8 +43,9 @@ class EspIdfBackendNetwork final {
  private:
   static void TaskEntry(void* argument);
   void Run();
-  void RunTurn(const std::string& text, bool opening,
-                   uint64_t snapshotVersion,
+  void RunTurn(const std::string& text,
+               const std::string& clientTurnId, bool opening,
+               uint64_t snapshotVersion,
                    class DeviceTokenSession& tokens,
                    class EspIdfWifiStation& wifi,
                    class ConversationStartCoordinator& coordinator,

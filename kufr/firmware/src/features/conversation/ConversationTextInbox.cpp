@@ -4,12 +4,17 @@
 #include <utility>
 
 #include "ConversationSession.h"
+#include "ConversationStartCodec.h"
 
 bool ConversationTextInbox::Submit(const std::string& text,
-                                   const ConversationRuntimeSnapshot& expectedSnapshot,
+                                   const std::string& clientTurnId,
+                                   const ConversationRuntimeSnapshot&
+                                       expectedSnapshot,
                                    const ConversationRuntimeState& runtimeState) {
+  std::string normalizedTurnId;
   if (expectedSnapshot.version == 0 || text.size() > 4000 ||
-      !IsValidConversationText(text)) {
+      !IsValidConversationText(text) ||
+      !NormalizeConversationUuid(clientTurnId, normalizedTurnId)) {
     return false;
   }
   bool hasVisibleContent = false;
@@ -32,19 +37,23 @@ bool ConversationTextInbox::Submit(const std::string& text,
     return false;
   }
   pendingText_ = text;
+  pendingClientTurnId_ = clientTurnId;
   pendingVersion_ = expectedSnapshot.version;
   return true;
 }
 
 bool ConversationTextInbox::Take(std::string& text,
+                                 std::string& clientTurnId,
                                  uint64_t& snapshotVersion) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (pendingText_.empty()) {
     return false;
   }
   text = std::move(pendingText_);
+  clientTurnId = std::move(pendingClientTurnId_);
   snapshotVersion = pendingVersion_;
   pendingText_.clear();
+  pendingClientTurnId_.clear();
   pendingVersion_ = 0;
   return true;
 }
@@ -53,5 +62,6 @@ void ConversationTextInbox::Clear() {
   std::lock_guard<std::mutex> lock(mutex_);
   std::fill(pendingText_.begin(), pendingText_.end(), '\0');
   pendingText_.clear();
+  pendingClientTurnId_.clear();
   pendingVersion_ = 0;
 }
