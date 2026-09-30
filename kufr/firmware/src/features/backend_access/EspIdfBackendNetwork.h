@@ -19,7 +19,8 @@
 class EspIdfBackendNetwork final : public LocalConversationNetworkPort {
  public:
   EspIdfBackendNetwork(DeviceIdentity& identity,
-                       ConversationRuntimeState& runtimeState);
+                       ConversationRuntimeState& runtimeState,
+                       const std::string& bootId);
   bool Start(bool nvsInitialized);
   bool QueueTextTurn(const std::string& text,
                      const std::string& conversationId,
