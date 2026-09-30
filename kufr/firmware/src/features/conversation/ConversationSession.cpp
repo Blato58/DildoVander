@@ -116,9 +116,9 @@ ConversationCommandReceipt ConversationSession::SubmitText(
   return {ConversationCommandError::None, false};
 }
 
-ConversationCommandError ConversationSession::Cancel(
+ConversationCommandError ConversationSession::ValidateCancel(
     const std::string& bootId, const std::string& conversationId,
-    uint64_t generation, bool manualLeaseValid) {
+    uint64_t generation, bool manualLeaseValid) const {
   if (!manualLeaseValid) {
     return ConversationCommandError::Unauthorized;
   }
@@ -130,6 +130,18 @@ ConversationCommandError ConversationSession::Cancel(
   }
   if (generation != generation_) {
     return ConversationCommandError::WrongGeneration;
+  }
+
+  return ConversationCommandError::None;
+}
+
+ConversationCommandError ConversationSession::Cancel(
+    const std::string& bootId, const std::string& conversationId,
+    uint64_t generation, bool manualLeaseValid) {
+  const ConversationCommandError error =
+      ValidateCancel(bootId, conversationId, generation, manualLeaseValid);
+  if (error != ConversationCommandError::None) {
+    return error;
   }
 
   ClearSensitiveTurn();
@@ -150,6 +162,17 @@ bool ConversationSession::CompleteTurn(const std::string& clientTurnId,
 void ConversationSession::LoseManualLease() {
   ClearSensitiveTurn();
   ++generation_;
+}
+
+bool ConversationSession::SynchronizeGeneration(uint64_t generation) {
+  if (generation < generation_) {
+    return false;
+  }
+  if (generation > generation_) {
+    ClearSensitiveTurn();
+    generation_ = generation;
+  }
+  return true;
 }
 
 uint64_t ConversationSession::Generation() const { return generation_; }

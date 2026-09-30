@@ -60,11 +60,15 @@ class ConversationSession {
   ConversationCommandReceipt SubmitText(const ConversationTextCommand& command,
                                         bool manualLeaseValid,
                                         uint64_t currentRevision);
+  ConversationCommandError ValidateCancel(
+      const std::string& bootId, const std::string& conversationId,
+      uint64_t generation, bool manualLeaseValid) const;
   ConversationCommandError Cancel(const std::string& bootId,
                                   const std::string& conversationId,
                                   uint64_t generation, bool manualLeaseValid);
   bool CompleteTurn(const std::string& clientTurnId, uint64_t generation);
   void LoseManualLease();
+  bool SynchronizeGeneration(uint64_t generation);
 
   uint64_t Generation() const;
   bool HasActiveTurn() const;

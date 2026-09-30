@@ -97,6 +97,11 @@ bool DeviceControl::OwnsManualLease(const std::string& leaseId) const {
   return !leaseId.empty() && manualLeaseId_ == leaseId;
 }
 
+bool DeviceControl::OwnsLiveManualLease(const std::string& leaseId,
+                                        uint64_t nowMs) const {
+  return OwnsManualLease(leaseId) && nowMs < leaseExpiresAtMs_;
+}
+
 CommandReceipt DeviceControl::AcceptSelection(const SelectionCommand& command,
                                                bool authenticated,
                                                uint64_t nowMs) {

@@ -53,6 +53,7 @@ jobs:
             src/features/wand_selection/SelectionSequence.cpp \
             src/features/device_control/DeviceControl.cpp \
             src/features/device_control/DeviceControlRuntime.cpp \
+            src/features/conversation/ConversationSession.cpp \
             src/features/conversation/ConversationRuntimeState.cpp \
             src/features/conversation/ConversationStartCodec.cpp \
             src/features/conversation/PendingProposal.cpp \

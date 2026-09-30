@@ -1,6 +1,7 @@
 #include <cassert>
 #include <string>
 
+#include "../src/features/conversation/ConversationSession.h"
 #include "../src/features/device_control/DeviceControlRuntime.h"
 #include "../src/features/local_control/LocalControlSession.h"
 #include "../src/features/safety/SafetyController.h"
@@ -133,6 +134,88 @@ void TestExpiredSessionCannotRevokeNextOwner() {
   assert(fixture.runtime.Generation() == 2);
 }
 
+void TestConversationCancelAndStopShareGeneration() {
+  Fixture fixture;
+  LocalControlSession local(fixture.runtime, "kufr-1", BootId, 0);
+  assert(local.Hello(1, "kufr-1", 0));
+  assert(local.Acquire(BootId, LeaseId, 0));
+  ConversationSession conversation(BootId, "conversation-1");
+  ConversationRuntimeSnapshot before;
+  assert(fixture.state.Read(before));
+
+  ConversationTextCommand command;
+  command.bootId = BootId;
+  command.conversationId = "conversation-1";
+  command.clientTurnId = "turn-1";
+  command.generation = before.generation;
+  command.expectedRevision = before.deviceRevision;
+  command.text = "Ahoj";
+  assert(conversation.SubmitText(command, true, before.deviceRevision).error ==
+         ConversationCommandError::None);
+  assert(conversation.ValidateCancel(
+             BootId, command.conversationId, before.generation, true) ==
+         ConversationCommandError::None);
+  assert(!fixture.runtime.CancelConversation(
+      OtherLeaseId, before.generation, 100));
+  assert(!fixture.runtime.CancelConversation(
+      LeaseId, before.generation + 1, 100));
+  assert(!fixture.runtime.CancelConversation(
+      LeaseId, before.generation, 6000));
+  assert(fixture.runtime.CancelConversation(
+      LeaseId, before.generation, 100));
+  assert(conversation.Cancel(
+             BootId, command.conversationId, before.generation, true) ==
+         ConversationCommandError::None);
+  assert(conversation.Generation() == fixture.runtime.Generation());
+  assert(!conversation.CompleteTurn(command.clientTurnId, before.generation));
+  ConversationRuntimeSnapshot afterCancel;
+  assert(fixture.state.Read(afterCancel));
+  assert(afterCancel.generation == conversation.Generation());
+  assert(afterCancel.version > before.version);
+  assert(!fixture.state.Matches(before));
+
+  command.clientTurnId = "turn-2";
+  command.generation = afterCancel.generation;
+  assert(conversation.SubmitText(command, true, afterCancel.deviceRevision).error ==
+         ConversationCommandError::None);
+  SelectionStep step;
+  assert(fixture.runtime.Stop(step));
+  assert(conversation.SynchronizeGeneration(fixture.runtime.Generation()));
+  assert(!conversation.HasActiveTurn());
+  assert(!conversation.CompleteTurn(command.clientTurnId,
+                                    afterCancel.generation));
+  assert(!conversation.SynchronizeGeneration(afterCancel.generation));
+  assert(!fixture.state.Read(afterCancel));
+}
+
+void TestLeaseLossInvalidatesConversationTurn() {
+  Fixture fixture;
+  LocalControlSession local(fixture.runtime, "kufr-1", BootId, 0);
+  assert(local.Hello(1, "kufr-1", 0));
+  assert(local.Acquire(BootId, LeaseId, 0));
+  ConversationSession conversation(BootId, "conversation-1");
+  ConversationRuntimeSnapshot snapshot;
+  assert(fixture.state.Read(snapshot));
+  ConversationTextCommand command;
+  command.bootId = BootId;
+  command.conversationId = "conversation-1";
+  command.clientTurnId = "turn-1";
+  command.generation = snapshot.generation;
+  command.expectedRevision = snapshot.deviceRevision;
+  command.text = "Ahoj";
+  assert(conversation.SubmitText(command, true, snapshot.deviceRevision).error ==
+         ConversationCommandError::None);
+
+  SelectionStep step;
+  assert(local.Release(BootId, LeaseId, step));
+  assert(fixture.runtime.Generation() == snapshot.generation + 1);
+  assert(conversation.SynchronizeGeneration(fixture.runtime.Generation()));
+  assert(!conversation.HasActiveTurn());
+  assert(!conversation.CompleteTurn(command.clientTurnId, snapshot.generation));
+  assert(!fixture.state.Matches(snapshot));
+  assert(conversation.SynchronizeGeneration(fixture.runtime.Generation()));
+}
+
 }  // namespace
 
 int main() {
@@ -140,4 +223,6 @@ int main() {
   TestHelloAndLeaseGuards();
   TestExpiryAndOwnerDisconnect();
   TestExpiredSessionCannotRevokeNextOwner();
+  TestConversationCancelAndStopShareGeneration();
+  TestLeaseLossInvalidatesConversationTurn();
 }

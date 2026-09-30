@@ -148,6 +148,14 @@ uzavření journalu. Přijetí výběru, aktivní pohyb, Stop a porucha jej inva
 změny lease, revision a masky publikují novou verzi. Prázdný boot identifikátor
 a nulová kalibrace zatím záměrně nedovolují spustit pohon. Živý vstup příkazů,
 skutečný NVS běh na desce, síťový parser a servisní USB zápis zbývají.
+Po autorizovaném zrušení textového rozhovoru `CancelConversation` zvýší stejnou
+generation jako ruční Stop nebo ztráta lease a vydá nový snapshot. Kontroluje
+vlastníka lease, monotónní čas před expirací a očekávanou generation. Místní
+vlastník nejprve neměnně ověří `ConversationSession::ValidateCancel`, pak zvýší
+generation v řízení a potvrdí `ConversationSession::Cancel` na stejné řídicí
+úloze. Po Stop nebo ztrátě lease přenese generation do sezení přes
+`SynchronizeGeneration`, čímž zahodí starý textový tah. Živý místní vstup toto
+pořadí zatím nevykonává.
 `LocalControlSession` je čistý model jednoho control socketu po jeho budoucí
 TLS/token autentizaci. Na řídicí úloze vyžaduje `hello` verze 1 do 10 s,
 správné device/boot ID a UUID lease. Ruční lease vytváří a obnovuje výhradně
