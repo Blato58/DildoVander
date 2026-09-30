@@ -99,6 +99,16 @@ bool LocalConversationGateway::CompleteTurn(
   return true;
 }
 
+bool LocalConversationGateway::IsActiveTurn(
+    const std::string& conversationId, const std::string& clientTurnId,
+    const ConversationRuntimeSnapshot& snapshot) {
+  return OnControlTransition() && conversationId == conversation_.ConversationId() &&
+         !activeTurnId_.empty() && clientTurnId == activeTurnId_ &&
+         clientTurnId == conversation_.ActiveTurnId() &&
+         snapshot.generation == conversation_.Generation() &&
+         snapshot.version == activeSnapshotVersion_ && runtimeState_.Matches(snapshot);
+}
+
 bool LocalConversationGateway::PollNetworkFailure() {
   if (!OnControlTransition() || activeTurnId_.empty() ||
       !network_.TakeFailedTurnFor(

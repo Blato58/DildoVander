@@ -10,6 +10,7 @@
 class LocalControlTransport;
 class LocalConversationNetworkPort;
 class ConversationRuntimeState;
+class LocalConversationReplyPort;
 
 // One control-task consumer for a transport already admitted by TLS/bearer.
 // Tick owns Poll + runtime Tick under an urgent-event guard. Do not tick the
@@ -30,6 +31,7 @@ class LocalControlOwner final {
 
   void Poll();
   void Tick();
+  void PumpReply(LocalConversationReplyPort& replies);
   bool CompleteTurn(const std::string& clientTurnId, uint64_t generation);
 
  private:

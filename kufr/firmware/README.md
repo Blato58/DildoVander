@@ -648,3 +648,11 @@ zapojení a energetický limit popisuje
 [`../docs/efekty-a-napajeni.md`](../docs/efekty-a-napajeni.md), kamerové
 omezení [`../docs/kamera.md`](../docs/kamera.md). Před připojením ESP32 je
 nutné změřit 5V výstup měniče; 20 V smí být pouze na vstupu měniče.
+
+`LocalControlOwner::PumpReply` předává nejvýše jednu backendovou repliku na
+průchod. Kontroluje aktuální token/snapshot, aktivní local conversation a turn,
+živý lease a urgentní Stop/close; token uvolní a lokální text vynuluje také při
+odmítnutí. Úspěšné zařazení do WSS fronty dokončí místní textový tah, nikoli audio
+nebo autonomní prezentaci. Výstup nese generation a `simulated:false`; skutečný
+placený AI běh ani fyzický výstup tím nejsou ověřené. Sdílený JsonWriter zachovává
+escaping backendových požadavků a bezpečně zapisuje UTF-8 repliku do JSON.

@@ -29,6 +29,9 @@ class LocalControlOutput final : public LocalControlOutputPort {
   bool ConversationAck(const LocalSocketAdmission::Handle& handle,
                         const LocalControlMessage& request,
                         const ConversationCommandReceipt& receipt) override;
+  bool ConversationResult(const LocalSocketAdmission::Handle& handle,
+                          const std::string& clientTurnId, uint64_t generation,
+                          const std::string& reply) override;
 
  private:
   bool AdvanceEvent();

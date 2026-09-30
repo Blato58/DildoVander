@@ -687,3 +687,5 @@ Oficiální dokumentace byla otevřena při přípravě plánu 29. 9. 2026. Odka
 - **H8:** [Microchip MCP23017 datasheet](https://ww1.microchip.com/downloads/en/DeviceDoc/20001952C.pdf) – expander, resetové vstupy a registr výstupů; ověřit konkrétní breakout a jeho pull rezistory.
 
 Místní obrázek, produktové označení v nákupním seznamu a předběžné tabulky tohoto plánu zůstávají návrhovými podklady do ověření skutečného kusu.
+
+D97 rozšiřuje `conversation.result` v1 na `simulated:boolean` a reply 1–500 Unicode znaků / nejvýše 2000 UTF-8 bajtů, v souladu s validovaným backendem. Simulátor zachovává true, skutečný backendový výstup má false; false označuje původ odpovědi, nikoli důkaz spuštění placené AI. Textové result zprávy mají stejně jako vstup limit 8192 bajtů kvůli JSON escapování, ostatní control zprávy 2048. Strict klient musí převzít rozšířené schéma/limity. Řídicí vlastník před výstupem kontroluje aktivní sezení/tah, generation a snapshot; dokončení až po přijetí do transportní fronty. Už odeslaný text nelze vzít zpět; cancel/Stop jej odliší novou generation. Předání textu telefonu není dokončení oznamovacího audio portu ani oprávnění k pohybu.

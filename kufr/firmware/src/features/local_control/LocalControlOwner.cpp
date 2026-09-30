@@ -4,6 +4,7 @@
 
 #include "LocalControlTransport.h"
 #include "LocalConversationNetworkPort.h"
+#include "LocalConversationReplyPort.h"
 #include "../device_control/DeviceControlRuntime.h"
 
 namespace {
@@ -334,4 +335,42 @@ void LocalControlOwner::Reload(
 bool LocalControlOwner::CompleteTurn(
     const std::string& clientTurnId, uint64_t generation) {
   return gateway_ && gateway_->CompleteTurn(clientTurnId, generation);
+}
+
+void LocalControlOwner::PumpReply(LocalConversationReplyPort& replies) {
+  Poll();
+  std::string reply;
+  std::string conversationId;
+  std::string clientTurnId;
+  ConversationRuntimeSnapshot snapshot;
+  uint64_t token = 0;
+  if (!replies.TakeReply(reply, conversationId, clientTurnId, snapshot, token)) {
+    WipeText(reply);
+    return;
+  }
+  bool current = false;
+  if (session_ && gateway_ && hello_) {
+    inbox_.RunIfCurrent(handle_, [&]() {
+      current = session_->OwnsLiveLease(bootId_, session_->LeaseId(), clock_.NowMs()) &&
+                gateway_->IsActiveTurn(conversationId, clientTurnId, snapshot) &&
+                replies.IsReplyCurrent(token, snapshot);
+    });
+  }
+  // Transport work remains outside the urgent-event guard. Text is data only;
+  // a result already queued before cancel is identified by its old generation.
+  if (current && inbox_.CanProcess(handle_)) {
+    if (!output_.ConversationResult(handle_, clientTurnId, snapshot.generation, reply)) {
+      Close();
+    } else {
+      inbox_.RunIfCurrent(handle_, [&]() {
+        if (replies.IsReplyCurrent(token, snapshot) &&
+            gateway_->IsActiveTurn(conversationId, clientTurnId, snapshot)) {
+          gateway_->CompleteTurn(clientTurnId, snapshot.generation);
+        }
+      });
+      Snapshot(clock_.NowMs());
+    }
+  }
+  replies.FinishReply(token);
+  WipeText(reply);
 }
