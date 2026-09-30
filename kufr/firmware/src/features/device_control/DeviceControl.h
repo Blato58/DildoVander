@@ -119,6 +119,7 @@ class DeviceControl {
   bool NeedsRecovery() const;
   bool HasPendingSelection() const;
   bool HasManualControl() const;
+  bool OwnsManualLease(const std::string& leaseId) const;
   bool HasAutonomousPresentation() const;
 
  private:

@@ -84,10 +84,16 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 
 ## Deník změn a ověření
 
+### D81 – 30. 9. 2026 – E4.4a místní řízení lease
+
+- Převzetí: po D80 lze bez desky ověřit vlastnictví jednoho místního control spojení. Rozsah: čisté C++ pravidlo `hello`/manual lease/heartbeat/odpojení nad existujícím `DeviceControlRuntime`, hostitelský test, firmware CI, README a tento stav. Objekt smí vzniknout až po budoucí autentizaci TLS/WSS; žádný autentizační adaptér ani socket v tomto kroku nepřibývá.
+- Ověření 30. 9. z `kufr/firmware`: MSVC `cl /std:c++14 /EHsc /W4 /WX` a spuštění nového `local_control_session_test` i stávajícího `device_control_runtime_test` prošly. První běh nového testu odhalil očekávanou nutnost fyzického zotavení po expiraci; test nyní ověřuje odmítnutí převzetí před zotavením. Další kontrola odhalila, že pozdní odpojení starého socketu mohlo zrušit lease nového vlastníka; podmíněné uvolnění podle přesného lease ID a dvousession test chybu opravily. `pio run` i `pio run -e esp32-s3-arduino-serial` prošly po opravě. CI a deska zatím neověřeny.
+- Neprovedeno: skutečný WSS handshake a token, napojení na IDF control smyčku, textový producent, deska/B1. Další krok je transportní/autorizační adaptér a bezpečné předání jeho událostí vlastníku řízení.
+
 ### D80 – 30. 9. 2026 – E4.3d2b5 místní ID rozhovoru
 
 - Převzetí: po D79 zůstávalo místní `conversationId` mimo síťovou cestu. Výsledek neměl vazbu na místní sezení a nový opening mohl následovat starý text z fronty. Rozsah: textová a odpovědní schránka, síťové opening/tah předání, hostitelské testy, firmware README a tento stav. JSON/NVS kontrakt se nemění; WSS a autorizovaný producent stále chybí.
-- Ověření 30. 9. z `kufr/firmware`: MSVC `cl /std:c++14 /EHsc /W4 /WX` a spuštění testů textové/odpovědní schránky, runtime stavu a složené korelace prošly po opravě pořadí opening/text. `pio run` a `pio run -e esp32-s3-arduino-serial` prošly; ESP-IDF build byl opakován po přidání brány příjmu. Místní ID validuje UUID a zachová původní zápis pro odpověď. Nový opening zahodí čekající text jiného sezení; brána nepřijme cizí tah ani při neúspěšném backendovém startu. Vzdálený CI běh a deska zatím neověřeny.
+- Ověření 30. 9. z `kufr/firmware`: MSVC `cl /std:c++14 /EHsc /W4 /WX` a spuštění testů textové/odpovědní schránky, runtime stavu a složené korelace prošly po opravě pořadí opening/text. `pio run` a `pio run -e esp32-s3-arduino-serial` prošly; ESP-IDF build byl opakován po přidání brány příjmu. Místní ID validuje UUID a zachová původní zápis pro odpověď. Nový opening zahodí čekající text jiného sezení; brána nepřijme cizí tah ani při neúspěšném backendovém startu. PR #42 prošel `host-tests` i `firmware-build` a byl sloučen jako `fb8fc77c6258625fa7631e3ce093e6931f9d91f8` na `main`. Deska nebyla ověřena.
 - Neprovedeno: runtime autentizace WSS, manual lease a textový producent, fyzická deska/B1 a skutečný audio výstup. Další nezávislý krok: místní autorizační/lease brána a její napojení na text/opening; HW akceptace zůstává oddělená.
 
 ### D79 – 30. 9. 2026 – E4.3d2b4 korelace místního textového tahu
