@@ -1,5 +1,8 @@
 #include <stdint.h>
 
+#include <string>
+
+#include "bootloader_random.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -12,6 +15,7 @@
 #include "features/device_control/PersistentCommandJournal.h"
 #include "features/backend_access/EspIdfBackendNetwork.h"
 #include "features/conversation/ConversationRuntimeState.h"
+#include "features/conversation/EspIdfConversationUuid.h"
 #include "features/provisioning/DeviceIdentity.h"
 #include "features/provisioning/EspIdfProvisioningStorage.h"
 #include "features/safety/SafetyController.h"
@@ -54,6 +58,11 @@ extern "C" void app_main() {
 
   // Safe output request precedes all future provisioning and network work.
   safetyController.InitializeSafe();
+  // RF is not running yet. Temporarily enable the internal entropy source so
+  // control and backend share one unpredictable identity for this boot.
+  bootloader_random_enable();
+  const std::string bootId = GenerateEspIdfConversationUuid();
+  bootloader_random_disable();
   const esp_err_t nvsStatus = nvs_flash_init();
   EspIdfJournalStorage journalStorage(nvsStatus == ESP_OK);
   PersistentCommandJournal journal(journalStorage);
@@ -72,15 +81,15 @@ extern "C" void app_main() {
     ESP_LOGW(LogTag, "Device identity not provisioned; network stays offline");
   }
   // No local control transport or calibrated actuator adapter exists yet.
-  // Empty boot identity and zero calibration keep command execution disabled.
+  // Zero calibration keeps command execution disabled.
   // The command result cache is too large for the ESP-IDF app_main stack.
-  static DeviceControl deviceControl(identity.DeviceId(), "", selectionSequence,
+  static DeviceControl deviceControl(identity.DeviceId(), bootId, selectionSequence,
                                      journal, 0);
   ConversationRuntimeState runtimeState(false, 0, "");
   DeviceControlRuntime controlRuntime(deviceControl, selectionSequence,
                                       runtimeState, "neutral-1");
   controlRuntime.PublishCurrent();
-  EspIdfBackendNetwork backendNetwork(identity, runtimeState);
+  EspIdfBackendNetwork backendNetwork(identity, runtimeState, bootId);
   if (!backendNetwork.Start(nvsStatus == ESP_OK)) {
     ESP_LOGW(LogTag, "Backend network not configured; stays offline");
   }

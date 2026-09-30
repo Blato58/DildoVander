@@ -297,6 +297,9 @@ vyžaduje bezpečný výstup, prochází čistým jádrem s monotónním časem 
 požadavky do logu. Inicializuje NVS journal, čte identitu a při kompletním
 servisním nastavení spouští síťovou úlohu bez fyzických výstupů. Neobsahuje
 sériové příkazy ani GPIO adaptér pohonů.
+Před Wi-Fi krátce zapne interní zdroj entropie, vytvoří jediné `bootId` pro
+`DeviceControl` i backendového klienta a zdroj opět vypne. Stejné ID může
+později dostat místní WSS vrstva; skutečný běh RNG na desce zatím nebyl ověřen.
 Skutečný výsledek sestavení a mezery akceptace jsou ve stavu implementace.
 Původní sériový prototyp lze sestavit `pio run -e esp32-s3-arduino-serial`.
 
