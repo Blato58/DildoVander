@@ -5,10 +5,12 @@ on:
     branches: [main]
     paths:
       - kufr/firmware/**
+      - kufr/contracts/**
       - .github/workflows/kufr-firmware.yml
   pull_request:
     paths:
       - kufr/firmware/**
+      - kufr/contracts/**
       - .github/workflows/kufr-firmware.yml
   workflow_dispatch:
 
@@ -20,6 +22,14 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: kufr/contracts/.nvmrc
+          cache: npm
+          cache-dependency-path: kufr/contracts/package-lock.json
+      - name: Install contract verifier
+        working-directory: kufr/contracts
+        run: npm ci
       - name: Device control tests
         working-directory: kufr/firmware
         shell: bash
@@ -87,6 +97,23 @@ jobs:
           "$RUNNER_TEMP/local-control-server-test" \
             ../contracts/fixtures/valid/hello.json \
             ../contracts/fixtures/valid/safety-stop.json
+      - name: Local control output interop test
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++14 -Wall -Wextra -Werror -pthread \
+            src/features/safety/SafetyController.cpp \
+            src/features/wand_selection/SelectionSequence.cpp \
+            src/features/device_control/DeviceControl.cpp \
+            src/features/device_control/PersistentCommandJournal.cpp \
+            src/features/conversation/ConversationSession.cpp \
+            src/features/conversation/ConversationStartCodec.cpp \
+            src/features/local_control/LocalControlOutput.cpp \
+            tests/local_control_output_test.cpp \
+            -o "$RUNNER_TEMP/local-control-output-test"
+          "$RUNNER_TEMP/local-control-output-test" > "$RUNNER_TEMP/control-output.jsonl"
+          node ../contracts/verify-firmware-output.mjs "$RUNNER_TEMP/control-output.jsonl"
       - name: Local control owner test
         working-directory: kufr/firmware
         shell: bash

@@ -93,12 +93,18 @@ void LocalControlOwner::Poll() {
 
 void LocalControlOwner::Tick() {
   Poll();
-  inbox_.RunIfNoUrgent([this]() {
+  bool produced = false;
+  inbox_.RunIfNoUrgent([this, &produced]() {
     SelectionStep step;
-    if (runtime_.Tick(clock_.NowMs(), step)) {
+    produced = runtime_.Tick(clock_.NowMs(), step);
+    if (produced) {
       steps_.OnStep(step);
     }
   });
+  if (produced && gateway_) {
+    gateway_->OnControlTransition();
+    Snapshot(clock_.NowMs());
+  }
 }
 
 void LocalControlOwner::Connected(const LocalControlEvent& event) {

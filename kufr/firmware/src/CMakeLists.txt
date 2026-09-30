@@ -38,6 +38,7 @@ idf_component_register(
         "features/local_control/LocalControlCodec.cpp"
         "features/local_control/LocalControlInbox.cpp"
         "features/local_control/LocalControlOwner.cpp"
+        "features/local_control/LocalControlOutput.cpp"
         "features/local_control/EspIdfLocalControlServer.cpp"
         "features/local_control/LocalBearerAuthenticator.cpp"
         "features/local_control/LocalConversationGateway.cpp"

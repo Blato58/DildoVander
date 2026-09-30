@@ -214,3 +214,20 @@ bool SelectionSequence::NeedsRecovery() const {
 uint8_t SelectionSequence::SelectedCompartment() const {
   return selectedCompartment_;
 }
+
+SelectionPhase SelectionSequence::CurrentPhase() const {
+  switch (phase_) {
+    case Phase::Idle:
+      return SelectionPhase::Idle;
+    case Phase::Searching:
+      return SelectionPhase::Searching;
+    case Phase::Highlighting:
+      return SelectionPhase::Highlighting;
+    case Phase::Vibrating:
+    case Phase::BetweenPulses:
+      return SelectionPhase::Vibrating;
+    case Phase::Releasing:
+      return SelectionPhase::Releasing;
+  }
+  return SelectionPhase::Idle;
+}
