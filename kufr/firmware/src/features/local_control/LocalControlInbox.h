@@ -33,6 +33,30 @@ class LocalControlInbox final {
               const LocalControlMessage& message);
   void Disconnect(const LocalSocketAdmission::Handle& handle);
   bool Take(LocalControlEvent& event);
+  bool CanProcess(const LocalSocketAdmission::Handle& handle);
+
+  // Bounded, non-reentrant control actions only: no transport/inbox calls.
+  // This linearizes a physical transition against Stop/disconnect admission.
+  template <typename Action>
+  bool RunIfCurrent(const LocalSocketAdmission::Handle& handle,
+                    const Action& action) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!Matches(handle) || stopPending_ || disconnectPending_) {
+      return false;
+    }
+    action();
+    return true;
+  }
+
+  template <typename Action>
+  bool RunIfNoUrgent(const Action& action) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (stopPending_ || disconnectPending_) {
+      return false;
+    }
+    action();
+    return true;
+  }
 
  private:
   bool Matches(const LocalSocketAdmission::Handle& handle) const;

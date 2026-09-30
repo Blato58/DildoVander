@@ -226,6 +226,24 @@ frontě či souběžném odpojení. Nové spojení čeká na převzetí odpojen�
 vlastníkem; opožděný callback jiného handle se ignoruje. Před přijetím se
 kontroluje device/boot korelace, takže Stop starého bootu frontu nesmaže.
 
+`LocalControlOwner` je jediný řídicí konzument inboxu. V každém Poll zpracuje
+nejvýše sedm událostí; hlídá hello do 10 s a aktuální manual lease, při
+odpojení ruší jen vlastněné ruční řízení. Observer odpojení nezastaví
+samostatný kufr. Text/cancel používá `LocalConversationGateway`; výstupní
+port zatím nese typované welcome/snapshot/ACK. `owner.Tick()` spojuje Poll
+a fyzický runtime Tick; při připojeném owneru se runtime nesmí tickovat
+samostatně. Přijetí příkazu, Begin a fyzický Tick jsou krátkou atomickou
+sekcí vůči přijetí Stop/close do inboxu. Po ACK používají čerstvý čas lease.
+Guarded fyzické/step porty musí být omezené a nesmí volat inbox ani
+transport; síťový výstup je vždy mimo guard. Tato softwarová kontrola
+nenahrazuje nezávislé HW vypnutí při zamrznutí úlohy.
+
+Reset vyžaduje živý lease a `LocalControlRecoveryGate` potvrzující inspection;
+samotný síťový povel ji neobchází. Zatím není skutečný gate ani runtime
+composition. `LocalControlIdPort` dodává UUID lease; chybná/prázdná hodnota
+řízení nepřevezme. Host test ověřuje odpojení observeru, expiraci, duplicitní
+text, cancel/chybu výstupu a Stop mezi přijetím journalu a Begin.
+
 `EspIdfLocalControlServer` je serverový adaptér `/v1/control` na HTTPS portu
 443. Start odmítne chybějící TLS identitu nebo nepárovaný credential.
 Přesná bearer hlavička se ověří v pre-handshake callbacku před 101;
