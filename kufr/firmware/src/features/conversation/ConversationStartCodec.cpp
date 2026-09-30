@@ -20,6 +20,39 @@ bool IsConversationUuid(const std::string& value) {
   return true;
 }
 
+bool NormalizeConversationUuid(const std::string& value,
+                               std::string& normalized) {
+  if (value.size() != 36) {
+    normalized.clear();
+    return false;
+  }
+  std::string candidate = value;
+  normalized.clear();
+  bool hasNonZeroDigit = false;
+  for (size_t index = 0; index < candidate.size(); ++index) {
+    char& current = candidate[index];
+    if (index == 8 || index == 13 || index == 18 || index == 23) {
+      if (current != '-') {
+        return false;
+      }
+      continue;
+    }
+    if (current >= 'A' && current <= 'F') {
+      current = static_cast<char>(current - 'A' + 'a');
+    }
+    if (!((current >= '0' && current <= '9') ||
+          (current >= 'a' && current <= 'f'))) {
+      return false;
+    }
+    hasNonZeroDigit = hasNonZeroDigit || current != '0';
+  }
+  if (!hasNonZeroDigit) {
+    return false;
+  }
+  normalized = candidate;
+  return true;
+}
+
 namespace {
 
 bool IsSafeIdentifier(const std::string& value, size_t maximumLength) {

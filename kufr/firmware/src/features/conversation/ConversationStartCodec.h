@@ -19,6 +19,10 @@ struct ConversationStartResponse {
 };
 
 bool IsConversationUuid(const std::string& value);
+// Local control UUIDs are case-insensitive; backend correlation uses lowercase.
+// Rejects the nil UUID, which the backend does not accept as a turn ID.
+bool NormalizeConversationUuid(const std::string& value,
+                               std::string& normalized);
 
 // Text-only start request: audio and image consent remain false.
 bool BuildConversationStartRequest(const ConversationStartRequest& request,
