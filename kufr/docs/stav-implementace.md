@@ -88,6 +88,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 
 - Převzetí: D86 měl pouze fake SHA-256 a paměťové úložiště. ESP-IDF profil nyní sestavuje `EspIdfSha256` přes PSA Crypto a `EspIdfLocalPairingStorage` s vlastním NVS namespace/key `wand_pairing/local`, odděleným od backendového `wand_identity/device`. Neúplný/nečitelný záznam a nedostupná NVS odmítají čtení; zápis přijímá jen přesnou délku záznamu a vyžaduje commit. Rozsah: oba adaptéry, CMake, vyloučení IDF souborů z Arduino profilu, firmware README a tento stav.
 - Ověření 30. 9.: z `kufr/firmware` prošly postupně `pio run -e esp32-s3-idf -s` i `pio run -e esp32-s3-arduino-serial -s`. První souběžný pokus o oba profily narazil na společný `.pio/build` a nepočítá se jako ověření. D86 prošel [CI 36721137045](https://github.com/Blato58/DildoVander/actions/runs/36721137045) v úlohách `host-tests` a `firmware-build` a [PR #48](https://github.com/Blato58/DildoVander/pull/48) je sloučený jako `2f381b3d36b3b87b09697efc04119b71bf6912c9` na `main`.
+- Doručení: implementační commit `c1ba9bc`; `./scripts/Push-CurrentBranch.ps1` potvrdil push větve `codex/kufr-local-pairing-adapters` včetně aktualizovaného `main` na `48bcd2bca80bf76c017bc231ab9f81bf7ec863f8`. PR a CI zatím čekají.
 - Neprovedeno: běh PSA/NVS na desce, fyzický servisní generátor tajemství, hardwarově podmíněný RNG, TLS identita a WSS spojení. Adaptéry samy zatím nepřijímají žádné síťové požadavky.
 
 ### D86 – 30. 9. 2026 – E4.4f místní párovací záznam
