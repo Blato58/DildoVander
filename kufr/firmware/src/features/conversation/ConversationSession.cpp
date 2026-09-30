@@ -198,6 +198,8 @@ const std::string& ConversationSession::ConversationId() const {
   return conversationId_;
 }
 
+const std::string& ConversationSession::ActiveTurnId() const { return clientTurnId_; }
+
 void ConversationSession::ClearSensitiveTurn() {
   std::fill(currentText_.begin(), currentText_.end(), '\0');
   currentText_.clear();

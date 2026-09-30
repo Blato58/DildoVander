@@ -75,6 +75,7 @@ class ConversationSession {
   uint64_t Generation() const;
   bool HasActiveTurn() const;
   const std::string& ConversationId() const;
+  const std::string& ActiveTurnId() const;
 
  private:
   void ClearSensitiveTurn();
