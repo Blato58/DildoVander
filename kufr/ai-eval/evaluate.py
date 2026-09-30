@@ -15,7 +15,6 @@ DIALOGUE_CASES = Path(__file__).with_name("dialogue_cases.json")
 MODEL_PRICES = {
     # USD per million tokens; input uses the higher cache-write rate.
     "gpt-6.1-sol": (Decimal("2.50"), Decimal("10")),
-    "gpt-6-luna": (Decimal("0.125"), Decimal("0.50")),
 }
 MINIMUM_QUESTIONS = 4
 MAX_OUTPUT_TOKENS = 1200
@@ -63,7 +62,7 @@ def load_case(case_id):
 
 def build_request(case, model, history=(), evening_context="", opening=False, require_question=False):
     if model not in MODEL_PRICES:
-        raise ValueError("Only Sol and Luna are supported")
+        raise ValueError("Only Sol is supported")
     mask = case["readyMask"]
     if len(history) > 2 or any(
         len(exchange["VisitorText"]) > 500 or len(exchange["Reply"]) > 300
@@ -169,7 +168,6 @@ def estimate_usage_micro_usd(response, model, *, include_cache=False):
             raise ValueError("Invalid cache token usage")
         input_price, cached_price = {
             "gpt-6.1-sol": (Decimal("2"), Decimal("0.10")),
-            "gpt-6-luna": (Decimal("0.10"), Decimal("0.01")),
         }[model]
         amount = ((inputs - cached - writes) * input_price + cached * cached_price
                   + writes * write_price + outputs * output_price)

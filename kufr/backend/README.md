@@ -10,9 +10,9 @@ idempotenci po restartu. E7.4 přidává retenci a explicitní rušení. E7.5a
 přidává omezený WAV upload s deterministickým fake přepisem. E7.5b
 přidává fake syntézu krátkého tichého WAV pro existující textový tah.
 V této verzi nejsou skutečné STT/TTS. Textový tah má výchozí fake režim;
-výslovný režim `responses` používá konfigurovatelný GPT-6.1 Sol nebo GPT-6 Luna se sdíleným party promptem,
+výslovný režim `responses` používá GPT-6.1 Sol se sdíleným party promptem,
 šesticí hůlek z `../ai-eval/wand-catalog.json`, přísnými schématy nativních funkcí a kontrolou dostupné přihrádky. Model dostává jen dostupné položky a hraje mluvící kouzelný kufr Ollivanderova obchodu. Před odesláním do
-OpenAI transakčně rezervuje nejméně 0,10 USD pro Sol / 0,005 USD pro Luna (více podle paměti), jeden backend spustí nejvýše jedno
+OpenAI transakčně rezervuje nejméně 0,10 USD pro Sol (více podle paměti), jeden backend spustí nejvýše jedno
 placené volání současně a výsledek dokončí asynchronně. Nejasný výpadek
 ponechá rezervaci a restart volání neopakuje. Zrušený tah nezveřejní pozdní
 výsledek, ale skutečně vrácené tokeny vyúčtuje. Návrh přihrádky vzniká na
@@ -240,7 +240,7 @@ credential/token není vstupem ani součástí artefaktu; zůstává v runneru.
 výhradně o vlastní testovací data. Pro testování platí schválený souhrnný limit
 1 USD a stávající měsíční limit 10 USD; ceníkový odhad není skutečná fakturace.
 
-Nasazení volí `dialog_model=gpt-6.1-sol|gpt-6-luna`; backend čte
+Nasazení volí `dialog_model=gpt-6.1-sol`; backend čte
 `Backend__Dialog__Model` a jiný model v responses režimu odmítne. Funkce
 `continue_conversation`, `propose_wand`, `end_conversation` se mapují na stávající
 `ask/propose/no_selection`. Terminální odpověď zůstává pollovatelná, její replay
