@@ -42,6 +42,12 @@ EC P-256/P-384 a RSA s OpenSSL, ověří Keychain a skutečné loopback HTTPS/WS
 včetně odmítnutí jiného pinu, tokenu, redirectu a nepovolených rámců. Test
 používá jednorázové syntetické identity; nepotřebuje kufr ani placený provider.
 
+Přerušené nativní spojení za běhu opakuje připojení s 0,5–8s backoffem a
+jitterem; po welcome zůstane v pozorování. Výslovné odpojení retry zruší.
+Testovací `/tests/native-ui-harness.html` nabízí syntetický bridge pouze přes
+Vite pro kontrolu formuláře a recovery UI. Není v produkčním bundlu a nenahrazuje
+native alert, UIKit lifecycle ani zkoušku oprávnění na iPhonu.
+
 ## Současný lokální webový vývoj
 
 Ve složce `kufr/mobilni-aplikace` použijte Node.js 24.21.0 z `.nvmrc`:
