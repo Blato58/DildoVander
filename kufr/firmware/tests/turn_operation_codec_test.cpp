@@ -57,6 +57,66 @@ int main() {
                           "{\"reply\":\"a\",\"decision\":\"propose\","
                           "\"reason\":\"\",\"proposal\":{}}"),
                 parsed));
+  const std::string proposal =
+      "{\"proposalId\":\"6c37b199-0cce-48ca-9ca9-26cff6710088\","
+      "\"conversationId\":\"9a8dd264-61f7-4339-b677-866798263cb2\","
+      "\"turnId\":\"8475532e-92b2-487e-b476-7f98f0030e68\","
+      "\"catalogVersion\":\"neutral-1\",\"deviceRevision\":4,"
+      "\"compartment\":3,\"reason\":\"fits\","
+      "\"bootId\":\"c85743d5-1b72-41b8-8500-ae3c102b27d6\","
+      "\"generation\":2,\"expiresAt\":\"2030-01-01T00:00:30+00:00\"}";
+  const std::string proposed = Operation(
+      "completed", "{\"reply\":\"Tvoje hulka ceka.\","
+                   "\"decision\":\"propose\",\"reason\":\"fits\","
+                   "\"proposal\":" + proposal + "}");
+  assert(Parse(proposed, parsed));
+  assert(parsed.hasProposal && parsed.proposal.compartment == 3);
+  assert(EvaluateTurnOperationWithProposal(
+      parsed.operationId, parsed.correlation, 2, 4, "neutral-1", 0x3f,
+      1893456000, parsed) == TurnPollDecision::ProposalReady);
+  assert(ProposalRemainingMs(parsed.proposal, 1893456000) == 29000);
+  TurnOperationObservation changed = parsed;
+  changed.proposal.bootId = "c85743d5-1b72-41b8-8500-ae3c102b27d7";
+  assert(EvaluateTurnOperationWithProposal(
+      parsed.operationId, parsed.correlation, 2, 4, "neutral-1", 0x3f,
+      1893456000, changed) == TurnPollDecision::Discard);
+  changed = parsed;
+  ++changed.proposal.generation;
+  assert(EvaluateTurnOperationWithProposal(
+      parsed.operationId, parsed.correlation, 2, 4, "neutral-1", 0x3f,
+      1893456000, changed) == TurnPollDecision::Discard);
+  changed = parsed;
+  ++changed.proposal.deviceRevision;
+  assert(EvaluateTurnOperationWithProposal(
+      parsed.operationId, parsed.correlation, 2, 4, "neutral-1", 0x3f,
+      1893456000, changed) == TurnPollDecision::Discard);
+  changed = parsed;
+  changed.proposal.conversationId = "6c37b199-0cce-48ca-9ca9-26cff6710088";
+  assert(EvaluateTurnOperationWithProposal(
+      parsed.operationId, parsed.correlation, 2, 4, "neutral-1", 0x3f,
+      1893456000, changed) == TurnPollDecision::Discard);
+  assert(EvaluateTurnOperationWithProposal(
+      parsed.operationId, parsed.correlation, 2, 4, "neutral-1", 0x3b,
+      1893456000, parsed) == TurnPollDecision::Discard);
+  assert(EvaluateTurnOperationWithProposal(
+      parsed.operationId, parsed.correlation, 2, 4, "other", 0x3f,
+      1893456000, parsed) == TurnPollDecision::Discard);
+  assert(EvaluateTurnOperationWithProposal(
+      parsed.operationId, parsed.correlation, 2, 4, "neutral-1", 0x3f,
+      1893456030, parsed) == TurnPollDecision::Discard);
+  std::string wrongProposal = proposed;
+  size_t wrongPosition = wrongProposal.find("\"compartment\":3");
+  assert(wrongPosition != std::string::npos);
+  wrongProposal.replace(wrongPosition, 15, "\"compartment\":7");
+  assert(!Parse(wrongProposal, parsed));
+  wrongProposal = proposed;
+  wrongPosition = wrongProposal.find("\"turnId\":\"8475532e");
+  assert(wrongPosition != std::string::npos);
+  wrongProposal.replace(wrongPosition + 10, 1, "9");
+  assert(Parse(wrongProposal, parsed));
+  assert(EvaluateTurnOperationWithProposal(
+      parsed.operationId, parsed.correlation, 2, 4, "neutral-1", 0x3f,
+      1893456000, parsed) == TurnPollDecision::Discard);
   assert(!Parse(Operation("completed",
                           "{\"reply\":\"a\",\"decision\":\"ask\","
                           "\"reason\":\"\",\"proposal\":null,"

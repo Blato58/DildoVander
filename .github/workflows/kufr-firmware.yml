@@ -53,6 +53,50 @@ jobs:
             tests/conversation_text_inbox_test.cpp \
             -o "$RUNNER_TEMP/conversation-text-inbox-test"
           "$RUNNER_TEMP/conversation-text-inbox-test"
+      - name: Conversation proposal and opening tests
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          conversation=(
+            src/features/conversation/ConversationSession.cpp
+            src/features/conversation/ConversationStartCodec.cpp
+          )
+          g++ -std=c++14 -Wall -Wextra -Werror \
+            "${conversation[@]}" \
+            src/features/conversation/TurnPollGuard.cpp \
+            src/features/conversation/TurnOperationCodec.cpp \
+            tests/turn_operation_codec_test.cpp \
+            -o "$RUNNER_TEMP/turn-operation-codec-test"
+          "$RUNNER_TEMP/turn-operation-codec-test"
+          g++ -std=c++14 -Wall -Wextra -Werror \
+            "${conversation[@]}" \
+            src/features/conversation/ConversationTextCodec.cpp \
+            tests/conversation_text_codec_test.cpp \
+            -o "$RUNNER_TEMP/conversation-text-codec-test"
+          "$RUNNER_TEMP/conversation-text-codec-test"
+          g++ -std=c++14 -Wall -Wextra -Werror -pthread \
+            src/features/conversation/ConversationRuntimeState.cpp \
+            src/features/conversation/PendingProposal.cpp \
+            tests/pending_proposal_test.cpp \
+            -o "$RUNNER_TEMP/pending-proposal-test"
+          "$RUNNER_TEMP/pending-proposal-test"
+          g++ -std=c++14 -Wall -Wextra -Werror -pthread \
+            src/features/conversation/ConversationRuntimeState.cpp \
+            src/features/conversation/PendingProposal.cpp \
+            src/features/wand_presentation/WandPresentation.cpp \
+            tests/wand_presentation_test.cpp \
+            -o "$RUNNER_TEMP/wand-presentation-test"
+          "$RUNNER_TEMP/wand-presentation-test"
+          g++ -std=c++14 -Wall -Wextra -Werror -pthread \
+            "${conversation[@]}" \
+            src/features/conversation/ConversationRuntimeState.cpp \
+            src/features/conversation/PendingProposal.cpp \
+            src/features/conversation/TurnPollGuard.cpp \
+            src/features/conversation/TurnOperationCodec.cpp \
+            src/features/wand_presentation/WandPresentation.cpp \
+            tests/turn_replay.cpp \
+            -o "$RUNNER_TEMP/turn-replay"
 
   firmware-build:
     runs-on: ubuntu-24.04

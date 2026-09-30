@@ -6,7 +6,7 @@
       {
         "visitorText": "",
         "mockResult": {
-          "reply": "Tak pojď blíž. Jak ti říkají, když po tobě zrovna nic nechtějí?",
+          "reply": "Jak ti říkají?",
           "decision": "ask",
           "compartment": null,
           "reason": ""
@@ -24,6 +24,24 @@
       },
       {
         "visitorText": "Objednal jsem taxík k sousedům. Já čekal před barákem jak idiot.",
+        "mockResult": {
+          "reply": "A komu jsi vynadal prvnímu?",
+          "decision": "ask",
+          "compartment": null,
+          "reason": ""
+        }
+      },
+      {
+        "visitorText": "Řidičovi, že neumí najít barák.",
+        "mockResult": {
+          "reply": "A když zjistil, že adresu zadals ty?",
+          "decision": "ask",
+          "compartment": null,
+          "reason": ""
+        }
+      },
+      {
+        "visitorText": "Tvrdil jsem, že aplikace přepisuje čísla. Nevěřil mi.",
         "mockResult": {
           "reply": "Dám ti Parketový kompas. Taxikář našel sousedy, tak třeba aspoň tahle hůlka najde tebe.",
           "decision": "propose",
@@ -59,6 +77,24 @@
       },
       {
         "visitorText": "Ten s taxíkem, jo. Teď už jedu domů pěšky.",
+        "mockResult": {
+          "reply": "Adresu už znáš, nebo zas obviníš aplikaci?",
+          "decision": "ask",
+          "compartment": null,
+          "reason": ""
+        }
+      },
+      {
+        "visitorText": "Jdu s Markem, ten to najde.",
+        "mockResult": {
+          "reply": "Ví Marek aspoň, že dneska dělá navigaci?",
+          "decision": "ask",
+          "compartment": null,
+          "reason": ""
+        }
+      },
+      {
+        "visitorText": "Neví. Myslí si, že ho doprovázím já.",
         "mockResult": {
           "reply": "Tak kompas číslo dvě. Taxík jsi poslal vedle; pěšky máš aspoň šanci zjistit, kde bydlíš.",
           "decision": "propose",
@@ -102,6 +138,15 @@
       },
       {
         "visitorText": "Tancovat. Ty vole, vypadám jak rozbitej věšák.",
+        "mockResult": {
+          "reply": "A kdo ti to pořád pouští?",
+          "decision": "ask",
+          "compartment": null,
+          "reason": ""
+        }
+      },
+      {
+        "visitorText": "Petr. Prej dokud tancuju, neobjednám taxík.",
         "mockResult": {
           "reply": "Parketový kompas pro tebe. Věšák se aspoň nehádá s rytmem.",
           "decision": "propose",

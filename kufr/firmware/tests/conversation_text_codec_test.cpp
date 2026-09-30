@@ -30,6 +30,17 @@ int main() {
          "\"generation\":0,\"text\":\"Ahoj\",\"readyMask\":63,"
          "\"deviceRevision\":4,\"catalogVersion\":\"demo-v1\"}");
 
+  request.text.clear();
+  assert(BuildConversationOpeningRequest(request, body));
+  assert(body ==
+         "{\"clientTurnId\":\"8475532e-92b2-487e-b476-7f98f0030e68\","
+         "\"bootId\":\"c85743d5-1b72-41b8-8500-ae3c102b27d6\","
+         "\"generation\":0,\"readyMask\":63,"
+         "\"deviceRevision\":4,\"catalogVersion\":\"demo-v1\"}");
+  request.text = "invented visitor text";
+  assert(!BuildConversationOpeningRequest(request, body));
+  request = Request();
+
   request.text = "Řekni \"ahoj\"\\prosím\n";
   assert(BuildConversationTextTurnRequest(request, body));
   assert(body.find("\\\"ahoj\\\"\\\\prosím\\u000a") !=
