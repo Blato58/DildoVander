@@ -19,6 +19,14 @@ enum class SelectionControlMode : uint8_t {
   Manual,
 };
 
+enum class SelectionPhase : uint8_t {
+  Idle,
+  Searching,
+  Highlighting,
+  Vibrating,
+  Releasing,
+};
+
 struct SelectionStep {
   SelectionStep(SelectionEffect effect = SelectionEffect::Idle,
                 uint8_t compartment = 0)
@@ -47,6 +55,7 @@ class SelectionSequence {
   bool IsBusy() const;
   bool NeedsRecovery() const;
   uint8_t SelectedCompartment() const;
+  SelectionPhase CurrentPhase() const;
 
  private:
   enum class Phase : uint8_t {

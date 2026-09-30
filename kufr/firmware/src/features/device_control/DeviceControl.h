@@ -87,6 +87,13 @@ struct CommandReceipt {
   bool duplicate;
 };
 
+struct LastSelectionResult {
+  std::string commandId;
+  uint8_t compartment = 0;
+  CommandOutcome outcome = CommandOutcome::Rejected;
+  uint64_t revision = 0;
+};
+
 class DeviceControl {
  public:
   static constexpr uint64_t ManualLeaseDurationMs = 6000;
@@ -115,6 +122,9 @@ class DeviceControl {
   bool Stop(SelectionStep& step);
 
   uint64_t Revision() const;
+  uint64_t CalibrationRevision() const;
+  const std::string& PendingCommandId() const;
+  const LastSelectionResult& LastResult() const;
   uint8_t ReadyMask() const;
   bool NeedsRecovery() const;
   bool HasPendingSelection() const;
@@ -156,4 +166,5 @@ class DeviceControl {
   uint8_t pendingCompartment_ = 0;
   bool executionStarted_ = false;
   uint8_t autonomousCompartment_ = 0;
+  LastSelectionResult lastResult_;
 };
