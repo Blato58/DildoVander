@@ -22,7 +22,7 @@ Poslední aktualizace: **30. 9. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 2. Po softwarovém Wi-Fi a tokenovém bootstrappingu připojit HTTPS fake backend konverzaci a lokální WSS podle E4. Skutečné TLS spojení na desce a GPIO/USB měření vyžadují B1; E8 provider čeká na B4.
 3. Fyzická HW akceptace zůstává v E5 po vstupu B1; E3a podpis a první instalace jsou vyřešené D70/B2/B3, native ovládání/TLS patří neověřenému E10. Nezaměnit fake log s NVS ani fake odpověď se skutečnou AI.
 
-Dotčené cesty: `kufr/firmware/`, související README a tento stav. Krok nevyžaduje fyzickou desku, cloudový klíč ani Apple certifikát. Toto je implementační předání, nikoli příkaz něco nahrát či publikovat.
+Dotčené cesty: `kufr/firmware/`, související README a tento stav. Dosavadní softwarové slices nepotřebovaly fyzickou desku ani nový cloudový/Apple klíč. Následující akceptace E4/E5 vyžaduje B1 a bezpečně provisionované zařízení. Toto je implementační předání, nikoli příkaz něco nahrát či publikovat.
 
 ## Jak se eviduje práce
 
@@ -83,6 +83,15 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 | B5 | Katalog šesti původních hůlek a Harry Potter / Ollivander tematickou roli majitel svěřil nezávislému agentovi; zdroj je `ai-eval/wand-catalog.json` (D72). Stále chybí rozměry, router, prostředí akce a živé obsahové hodnocení s hosty. | Provozní akceptaci E8/E11, fyzické mapování hůlek a finální mechaniku. | Sdílený tematický katalog, vývojové a simulované scénáře; skutečné přihrádky až s HW. |
 
 ## Deník změn a ověření
+### D100 – 30. 9. 2026 – audit návaznosti a předání na B1
+
+- Rozsah pokračování: D90–D99 dokončují deset ověřitelných firmware slice od RNG/TLS identity přes přísný parser a prioritní inbox po WSS router/output/reply, jednorázové HTTPS párování a runtime s jediným vlastníkem LAN. Každý vlastní slice má commit/push, kontrolovaný PR a ověřené sloučení po host/firmware CI. Současná práce neuzavírá E4 hardware ani E5/E9/E10.
+- Blokace nejbližšího kroku: B1 dosud nemá revizi PCB a potvrzené flash/PSRAM/USB, schéma/měření watchdogu a bezpečnostní větve, fyzicky měřitelný servisní/inspection vstup a kalibraci jedné přihrádky. Bez nich nelze servisně provisionovat, otestovat skutečný TLS/NVS/RNG/STA a bezpečně připojit fyzický port. Runtime nesmí nahradit tuto mezeru fake Recover/inspection. Majitel 29. 9. potvrdil, že údaje o revizi/paměti/USB nemá.
+- Návaznost podle §12: E5 vyžaduje E0/E1/E4 a měření; E9 vyžaduje E4/E5/E8; native E10 potřebuje E4/E8 a vlastní fyzický iPhone test. V rámci převzaté nejbližší firmware cesty není další krok se splněnými závislostmi; zbývající testování na hostu neuzavře chybějící HW kritéria. Přímý servisní opening/PTT a audio/presentation zůstávají po těchto vstupech.
+- Dokumentace: rozšíření D97 result a D98 pairing je přesunuto z konce referencí do příslušných částí protokolu; D99 runtime do architektury. Handoff a README odpovídají kódu, B2/B3 nepředstírají novou blokaci. 36 místních Markdown odkazů a diff kontrola prošly; u dokumentačního předání se nespouštěly ručně další aplikační buildy. Cizí změny nebyly přidány.
+
+- Doručení D99: commit `f7afaf427605058762d92b98811232a78c5a577b` ověřeně pushnut; [CI 36776068730](https://github.com/Blato58/DildoVander/actions/runs/36776068730) prošlo všemi hostitelskými testy včetně sdílené STA a JSON/schema interoperability, ESP-IDF i Arduino profilem. [PR #63](https://github.com/Blato58/DildoVander/pull/63) sloučen jako `d88dc78ff3206de162af0d692ae7a7ad9d31a824`, ověřen fetch na `origin/main`.
+
 ### D99 – 30. 9. 2026 – E4.4s provisionovaný runtime a nezávislá LAN
 
 - Převzetí: jediný EspIdfStationNetwork vlastní Wi-Fi/netif a retry task, Backend sdílí immutable settings a IP stav; cloudový token/čas/WAN síť neukončí. app_main skládá dlouho žijící TLS/pairing/server/inbox/output/owner, server start až po IP a zdravém provisionování. UUID boot/sezení před RF, lease přes STA RNG, aktuální katalog. Owner Tick/PumpReply jsou jediným řídicím průchodem. Bez fyzického portu zůstává kalibrace 0 a inspection gate false, žádné automatické Recover, GPIO ani fake autonomní ovládání.
