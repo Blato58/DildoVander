@@ -83,6 +83,14 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 | B5 | Katalog šesti původních hůlek a Harry Potter / Ollivander tematickou roli majitel svěřil nezávislému agentovi; zdroj je `ai-eval/wand-catalog.json` (D72). Stále chybí rozměry, router, prostředí akce a živé obsahové hodnocení s hosty. | Provozní akceptaci E8/E11, fyzické mapování hůlek a finální mechaniku. | Sdílený tematický katalog, vývojové a simulované scénáře; skutečné přihrádky až s HW. |
 
 ## Deník změn a ověření
+### D98 – 30. 9. 2026 – E4.4r jednorázové HTTPS párování
+
+- Převzetí: provisionovaný server přijme pairing-ready záznam, registruje POST `/v1/pair` vedle WSS. Přes připnuté TLS přijímá jen application/json, přesný URI, bez Transfer-Encoding a nejvýše 192B tělo; přesný objekt protocolVersion 1 / pairingSecret lowercase hex 16–64B, bez duplicit/unknown polí. Model ověří tajemství, RNG s aktivní STA vydá 256bitový token, NVS uchová pouze hash a zneplatní secret. Response no-store, všechny citlivé lokální buffery se vynulují. Nikdy neřídí pohony. Ztracená odpověď po trvalém spárování potřebuje fyzický servisní reset, nikoli opakované vydání tokenu.
+- Ověření: MSVC `/W4 /WX` skutečného serverového adaptéru se SDK stuby prošlo fragmentované HTTP čtení, secret mismatch, malformed/duplicate/unknown JSON, velikost, Content-Type, query/Transfer-Encoding, chybu čtení/RNG/NVS a ztracenou odpověď, jeden úspěch a odmítnutí replay. Dosavadní WSS/auth/close/reused-FD testy prošly, oba PlatformIO profily prošly. Read-only review bez kritického nálezu; doplněna rezervace citlivých string bufferů před jejich plněním, kontrola response headers a test chyby po částečném HTTP read. Diff kontrola prošla.
+- Neprovedeno: živé TLS/NVS/RNG, fyzické provisionování, service AP, native iPhone pairing; B1 brána zůstává beze změny.
+
+- Doručení D97: commit `c36b095c45482feabf2cbeff7131f3403fd71a93` pushnut; [CI 36773306562](https://github.com/Blato58/DildoVander/actions/runs/36773306562) prošlo host testy a obě firmware sestavení. [PR #61](https://github.com/Blato58/DildoVander/pull/61) sloučen jako `b39685c068d8efa7103b94fd329bf685a61a344e`, ověřen fetch na `origin/main`.
+
 ### D97 – 30. 9. 2026 – E4.4q skutečná backendová replika ve WSS
 
 - Převzetí: samostatný reply port odděluje síťový inbox od řídicího konzumenta. PumpReply na řídicím vlákně kontroluje token, snapshot, místní sezení/tah, generation, lease a urgentní frontu; uvolní každý převzatý token a vynuluje repliku. Výstup zůstává mimo urgentní guard a neřídí pohony; text zařazený před cancel nese starou generation. Backend false / simulátor true a limit 500 znaků / 8192 raw JSON bajtů jsou zdůvodněné rozšíření v1 v plánu a README. Společný JsonWriter zachovává dosavadní escaping.

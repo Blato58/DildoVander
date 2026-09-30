@@ -11,6 +11,7 @@
 #include "LocalControlInbox.h"
 #include "../provisioning/LocalPairingCredential.h"
 #include "../provisioning/LocalTlsIdentity.h"
+#include "../../protocol/JsonCursor.h"
 
 namespace {
 
@@ -43,6 +44,82 @@ esp_err_t Reject(httpd_req_t* request, const char* status) {
   return ESP_FAIL;
 }
 
+struct PairingRequest {
+  PairingRequest() {
+    // Allocate before sensitive bytes are appended so wiped buffers never
+    // leave earlier reallocations containing secret/token fragments.
+    secretHex.reserve(128);
+    response.reserve(128);
+  }
+  ~PairingRequest() {
+    Wipe(body.data(), body.size());
+    Wipe(secretHex);
+    Wipe(reinterpret_cast<char*>(secret.data()), secret.size());
+    Wipe(reinterpret_cast<char*>(token.data()), token.size());
+    Wipe(response);
+  }
+  std::array<char, 192> body{};
+  std::string secretHex;
+  std::array<uint8_t, 64> secret{};
+  std::array<uint8_t, 32> token{};
+  std::string response;
+};
+
+int HexValue(char value) {
+  if (value >= '0' && value <= '9') {
+    return value - '0';
+  }
+  if (value >= 'a' && value <= 'f') {
+    return value - 'a' + 10;
+  }
+  return -1;
+}
+
+bool ParsePairingRequest(PairingRequest& data, size_t length) {
+  kufr_protocol::JsonCursor cursor(data.body.data(), length);
+  bool versionSeen = false;
+  bool secretSeen = false;
+  if (!cursor.Consume('{')) {
+    return false;
+  }
+  do {
+    std::string key;
+    if (!cursor.ReadString(key, 32, true) || !cursor.Consume(':')) {
+      return false;
+    }
+    if (key == "protocolVersion" && !versionSeen) {
+      uint64_t version = 0;
+      if (!cursor.ReadUnsigned(version) || version != 1) {
+        return false;
+      }
+      versionSeen = true;
+    } else if (key == "pairingSecret" && !secretSeen) {
+      if (!cursor.ReadString(data.secretHex, 128, true)) {
+        return false;
+      }
+      secretSeen = true;
+    } else {
+      return false;
+    }
+    if (!cursor.Consume(',')) {
+      break;
+    }
+  } while (true);
+  if (!cursor.Consume('}') || !cursor.AtEnd() || !versionSeen || !secretSeen ||
+      data.secretHex.size() < 32 || data.secretHex.size() % 2 != 0) {
+    return false;
+  }
+  for (size_t index = 0; index < data.secretHex.size(); index += 2) {
+    const int high = HexValue(data.secretHex[index]);
+    const int low = HexValue(data.secretHex[index + 1]);
+    if (high < 0 || low < 0) {
+      return false;
+    }
+    data.secret[index / 2] = static_cast<uint8_t>((high << 4) | low);
+  }
+  return true;
+}
+
 }  // namespace
 
 EspIdfLocalControlServer::EspIdfLocalControlServer(
@@ -56,7 +133,7 @@ EspIdfLocalControlServer::~EspIdfLocalControlServer() { Stop(); }
 bool EspIdfLocalControlServer::Start() {
   if (server_ != nullptr || !identity_.IsHealthy() ||
       !identity_.IsProvisioned() || !credential_.IsHealthy() ||
-      !credential_.IsPaired()) {
+      (!credential_.IsPaired() && !credential_.IsPairingReady())) {
     return false;
   }
   // IDF 6.1's vendor macro omits the deprecated use_secure_element field.
@@ -78,7 +155,7 @@ bool EspIdfLocalControlServer::Start() {
   config.prvtkey_len = identity_.PrivateKeyLength();
   config.tls_handshake_timeout_ms = 5000;
   config.httpd.max_open_sockets = 2;
-  config.httpd.max_uri_handlers = 1;
+  config.httpd.max_uri_handlers = 2;
   config.httpd.lru_purge_enable = false;
   config.httpd.recv_wait_timeout = 1;
   config.httpd.send_wait_timeout = 1;
@@ -101,7 +178,71 @@ bool EspIdfLocalControlServer::Start() {
     Stop();
     return false;
   }
+  httpd_uri_t pairing = {};
+  pairing.uri = "/v1/pair";
+  pairing.method = HTTP_POST;
+  pairing.handler = Pair;
+  pairing.user_ctx = this;
+  if (httpd_register_uri_handler(server_, &pairing) != ESP_OK) {
+    Stop();
+    return false;
+  }
   return true;
+}
+
+esp_err_t EspIdfLocalControlServer::Pair(httpd_req_t* request) {
+  auto* server = static_cast<EspIdfLocalControlServer*>(request->user_ctx);
+  if (httpd_resp_set_hdr(request, "Cache-Control", "no-store") != ESP_OK ||
+      httpd_resp_set_type(request, "application/json") != ESP_OK) {
+    return ESP_FAIL;
+  }
+  if (std::strcmp(request->uri, "/v1/pair") != 0 ||
+      httpd_req_get_hdr_value_len(request, "Transfer-Encoding") != 0) {
+    return Reject(request, "400 Bad Request");
+  }
+  if (!server->credential_.IsHealthy()) {
+    return Reject(request, "503 Service Unavailable");
+  }
+  if (!server->credential_.IsPairingReady()) {
+    return Reject(request, "409 Conflict");
+  }
+  char contentType[17] = {};
+  if (httpd_req_get_hdr_value_len(request, "Content-Type") != 16 ||
+      httpd_req_get_hdr_value_str(request, "Content-Type", contentType,
+                                  sizeof(contentType)) != ESP_OK ||
+      std::strcmp(contentType, "application/json") != 0) {
+    return Reject(request, "415 Unsupported Media Type");
+  }
+  PairingRequest data;
+  if (request->content_len == 0 || request->content_len > data.body.size()) {
+    return Reject(request, "413 Content Too Large");
+  }
+  size_t received = 0;
+  while (received < request->content_len) {
+    const int count = httpd_req_recv(request, data.body.data() + received,
+                                      request->content_len - received);
+    if (count <= 0) {
+      return ESP_FAIL;
+    }
+    received += static_cast<size_t>(count);
+  }
+  if (!ParsePairingRequest(data, received)) {
+    return Reject(request, "400 Bad Request");
+  }
+  if (!server->credential_.Pair(data.secret.data(), data.secretHex.size() / 2,
+                                data.token)) {
+    return Reject(request, server->credential_.IsHealthy()
+                               ? "401 Unauthorized" : "503 Service Unavailable");
+  }
+  constexpr char Hex[] = "0123456789abcdef";
+  data.response = "{\"protocolVersion\":1,\"token\":\"";
+  for (uint8_t byte : data.token) {
+    data.response.push_back(Hex[byte >> 4]);
+    data.response.push_back(Hex[byte & 0x0f]);
+  }
+  data.response += "\"}";
+  return httpd_resp_send(request, data.response.data(),
+                          static_cast<int>(data.response.size()));
 }
 
 void EspIdfLocalControlServer::Stop() {
