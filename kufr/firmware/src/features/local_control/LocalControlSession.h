@@ -22,6 +22,8 @@ class LocalControlSession final {
                uint64_t nowMs);
   bool Heartbeat(const std::string& bootId, const std::string& leaseId,
                  uint64_t nowMs);
+  bool OwnsLiveLease(const std::string& bootId,
+                     const std::string& leaseId, uint64_t nowMs) const;
   bool Release(const std::string& bootId, const std::string& leaseId,
                SelectionStep& step);
   void Disconnect(SelectionStep& step);
