@@ -51,6 +51,7 @@ src/
       EspIdfJournalStorage.h/.cpp           NVS blob v ESP-IDF profilu
     local_control/
       LocalControlSession.h/.cpp            hello a ruční lease jednoho ověřeného socketu
+      LocalBearerAuthenticator.h/.cpp       omezená bearer hlavička místního WSS
       LocalConversationGateway.h/.cpp        text/cancel brána vlastníka řízení
       LocalConversationNetworkPort.h         síťový port brány
     provisioning/
@@ -191,6 +192,11 @@ PSA Crypto a oddělené NVS úložiště `wand_pairing/local`; `wand_identity/de
 pro backendovou identitu tím není sdílené. Adaptéry nejsou zatím spuštěné ani
 ověřené na desce. Hardwarově podmíněný RNG, párovací AP, TLS klíč/certifikát
 a WSS handshake nejsou připojené.
+
+`LocalBearerAuthenticator` přijímá pouze přesnou `Bearer ` hlavičku s 64
+malými hexadecimálními znaky, dekóduje 32 bajtů a ověří je přes párovací
+otisk. Dočasný binární token po kontrole maže. Jde o budoucí vstup po TLS;
+žádný místní server ani povolení socketu zatím nepřidává.
 
 `DeviceTokenSession` je čistý model obnovy backend access tokenu po 12 minutách,
 jeho 15minutové expirace a jediného nového přihlášení po 401. Drží token pouze

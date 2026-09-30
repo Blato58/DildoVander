@@ -164,6 +164,20 @@ try {
     unauthorized.on('error', reject);
   });
 
+  await new Promise((resolve, reject) => {
+    const malformed = new WebSocket(url, {
+      ca: certificate,
+      rejectUnauthorized: true,
+      headers: { Authorization: `Bearer ${'G'.repeat(64)}` },
+    });
+    malformed.on('unexpected-response', (_request, response) => {
+      assert.equal(response.statusCode, 401);
+      response.resume();
+      resolve();
+    });
+    malformed.on('error', reject);
+  });
+
   client = createClient(url, certificate, token);
   await new Promise((resolve, reject) => {
     client.socket.once('open', resolve);
