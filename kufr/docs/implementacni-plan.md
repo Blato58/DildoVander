@@ -701,3 +701,15 @@ formát, 401 nesprávné tajemství nebo nedostupné RNG, 409 již spotřebovan�
 fyzický servisní reset. Server nepotřebuje backend token pro párování, vyžaduje
 však aktivní STA pro RNG. Servisní AP, QR/Keychain/native klient a skutečný USB
 zápis po fyzické bráně zůstávají navazující části; žádná identita není v image.
+
+D99 skládá boot-lifetime runtime v `espidf_main.cpp`. `EspIdfStationNetwork`
+načte nastavení jednou, vlastní STA/netif a v samostatné úloze opakuje připojení.
+Backend na tuto síť pouze odkazuje; porucha identity/času/tokenu/WAN ji nezničí.
+Server se aktivuje po IP a zdravých provisionovaných identitách, zůstává během
+reconnectu a přijímá pouze modelové příkazy. Smyčka volá server.Pump, owner.Tick
+a owner.PumpReply; přímý druhý runtime Tick je odstraněn. Lease ID vzniká přes
+STA-gated RNG, boot a místní conversation UUID před startem RF. Katalog je
+`ollivander-private-party-v1`. Reset gate je false, kalibrace 0 a bezpečný boot
+neobchází recovery; chybí fyzické zotavení, kalibrace, autonomní fyzický port,
+opening/PTT a audio. Další akceptace E4/E5 vyžaduje B1 a živé zařízení. Hostitelské
+stub testy a build neprokazují reconnect/IP změny/TLS/aktuátory na desce.

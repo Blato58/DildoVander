@@ -14,11 +14,13 @@ Výchozí sestavení `pio run` používá **ESP-IDF 6.1** v profilu
 `pio run -e esp32-s3-arduino-serial`. Oba profily byly sestaveny lokálně;
 žádný firmware se zatím nenahrával do desky.
 Podrobný postup a skutečně provedené kontroly jsou ve
-[stavu implementace](../docs/stav-implementace.md). ESP-IDF profil má
-read-only síťový základ a nyní i interní cestu pro jeden explicitně předaný
-fake textový tah nad atomickým snapshotem stavu. Snapshot vydává vlastník
-`DeviceControlRuntime` pouze po bezpečných přechodech řízení. Autorizovaný zdroj události,
-místní WSS a fyzické výstupy zatím připojené nejsou.
+[stavu implementace](../docs/stav-implementace.md). ESP-IDF smyčka spojuje
+provisionované HTTPS párování a autentizovaný WSS vstup s řídicím vlastníkem,
+backendovou textovou frontou a korelovaným výstupem replik. Snapshot vydává
+`DeviceControlRuntime` pouze po bezpečných přechodech. Wi-Fi má vlastní úlohu,
+nezávislou na cloudovém tokenu/čase. Kalibrace zůstává 0, zotavení bez doložené
+fyzické kontroly je zavřené a GPIO/audio porty chybí. Prázdná NVS neposkytuje
+identitu ani párování; živý běh zařízení nebyl ověřen.
 
 ## Architektura
 
@@ -187,28 +189,24 @@ do záznamu ukládá pouze jeho SHA-256 otisk. Po ověření tajemství si vyž�
 nový 256bitový token od portu s hardwarovou entropií, uloží pouze jeho otisk
 a jednorázové tajemství zneplatní. Token se vydá volajícímu právě při párování;
 model ho neukládá. Po restartu porovnává otisky bez předčasného ukončení.
-Poškozený záznam či neúspěšný zápis odmítá. Zatím existuje jen model s
-hostitelskými fake porty. ESP-IDF profil již sestavuje SHA-256 adaptér přes
+Poškozený záznam či neúspěšný zápis odmítá. Model má hostitelské fake testy. ESP-IDF profil již sestavuje SHA-256 adaptér přes
 PSA Crypto a oddělené NVS úložiště `wand_pairing/local`; `wand_identity/device`
-pro backendovou identitu tím není sdílené. Adaptéry nejsou zatím spuštěné ani
+pro backendovou identitu tím není sdílené. Adaptéry jsou nyní sestavené do runtime, dosud nejsou
 ověřené na desce. `EspIdfPairingRandom` nyní sestavuje adaptér pro 32bajtový
 token: Wi-Fi STA musí být připojená před i po `esp_fill_random`, jinak odmítne
 vydání a vymaže výstup. Nepřepíná interní ADC zdroj během RF/audio provozu.
-Párovací AP bude potřebovat vlastní bránu entropie. Párování, TLS klíč/certifikát
-a WSS handshake nejsou připojené.
+Párovací AP bude potřebovat vlastní bránu entropie. Párování, TLS identita a WSS handshake jsou složené v app_main; skutečný běh vyžaduje provisionovanou desku B1.
 
 `LocalBearerAuthenticator` přijímá pouze přesnou `Bearer ` hlavičku s 64
 malými hexadecimálními znaky, dekóduje 32 bajtů a ověří je přes párovací
-otisk. Dočasný binární token po kontrole maže. Jde o budoucí vstup po TLS;
-žádný místní server ani povolení socketu zatím nepřidává.
+otisk. Dočasný binární token po kontrole maže. Ověřuje hlavičku před upgrade HTTPS serveru; telefon bez tokenu nezíská control socket.
 
 `LocalSocketAdmission` odděleně drží nanejvýš jeden autentizovaný control
 socket. Rezervace čeká nejvýše 10 s na dokončení WSS handshake; po vypršení
 vrátí identitu spojení, které musí transport zavřít před dalším přijetím.
 Každá rezervace má generaci, takže opožděné zavření starého FD neuvolní nový
 socket se stejným číslem. Zavření rozlišuje rezervovaný a aktivní socket. Tato čistá
-transportní brána nevolá řídicí smyčku. Reálné pre/post-handshake a close
-callbacky ji musí teprve použít; bez TLS identity se server nespouští.
+transportní brána nevolá řídicí smyčku. Pre/post-handshake a close callbacky serveru ji používají; bez TLS identity se server nespouští.
 
 `LocalControlCodec` parsuje klientské v1 zprávy `hello`, snapshot dotaz,
 lease/heartbeat, text/cancel, Stop/reset, ruční výběr a reload. Používá
@@ -284,7 +282,7 @@ jediný blob až po ověření fyzické servisní brány a odpojené větve poho
 `EspIdfLocalTlsValidator` přes mbedTLS/PSA ověřuje certifikát, privátní klíč
 a jejich shodu; pro QR vrací SHA-256 přes DER SubjectPublicKeyInfo.
 Neplatný záznam či neúspěšný commit zablokuje identitu. Klíč v RAM se při
-zániku vlastníka vymaže. Zatím není servisní zapisovač ani WSS server.
+zániku vlastníka vymaže. Servisní zapisovač chybí; WSS server používá pouze načtenou identitu.
 Selhání zápisu neprokazuje návrat staré identity: servis musí po novém načtení
 ověřit skutečně uložený SPKI otisk a teprve potom vydat/aktualizovat QR.
 NVS prototyp není chráněný proti fyzickému čtení flash; secure boot/eFuse
@@ -296,9 +294,9 @@ v RAM a odmítá odpověď s jiným `deviceId`, typem tokenu nebo dobou platnost
 ESP-IDF HTTPS adaptér má pevnou cestu token endpointu, ověřuje server přes CA
 bundle a hostname, nepovoluje redirect a omezuje odpověď na 512 bajtů.
 `TokenResponseParser` přijímá pouze čtyři očekávaná pole a odmítá duplicity.
-ESP-IDF nyní spouští samostatnou síťovou úlohu pouze s platnou device identitou
-a kompletní servisní NVS konfigurací v `wand_network` (`ssid`, `password`,
-`backend_host`). Wi-Fi konfigurace zůstává v driveru v RAM. Úloha nejprve
+EspIdfStationNetwork spouští jedinou STA úlohu s kompletní servisní NVS konfigurací v `wand_network` (`ssid`, `password`,
+`backend_host`). Wi-Fi konfigurace zůstává v driveru v RAM. Samostatný backend s platnou
+device identitou nejprve
 získá IP, čeká na SNTP a kontroluje čas proti datu buildu i poslednímu
 důvěryhodnému času v NVS. Teprve pak může přes HTTPS vyměnit credential za
 token. Výpadek Wi-Fi vyvolá čekání 1/2/4/8/16/30 s s jitterem; síťová úloha
@@ -412,8 +410,7 @@ požadavky do logu. Inicializuje NVS journal, čte identitu a při kompletním
 servisním nastavení spouští síťovou úlohu bez fyzických výstupů. Neobsahuje
 sériové příkazy ani GPIO adaptér pohonů.
 Před Wi-Fi krátce zapne interní zdroj entropie, vytvoří jediné `bootId` pro
-`DeviceControl` i backendového klienta a zdroj opět vypne. Stejné ID může
-později dostat místní WSS vrstva; skutečný běh RNG na desce zatím nebyl ověřen.
+`DeviceControl` i backendového klienta a zdroj opět vypne. Stejné ID nyní čte místní WSS vrstva; skutečný běh RNG na desce zatím nebyl ověřen.
 Skutečný výsledek sestavení a mezery akceptace jsou ve stavu implementace.
 Původní sériový prototyp lze sestavit `pio run -e esp32-s3-arduino-serial`.
 
@@ -668,3 +665,15 @@ formát, 401 nesprávné tajemství nebo nedostupné RNG, 409 již spotřebovan�
 fyzický servisní reset. Server nepotřebuje backend token pro párování, vyžaduje
 však aktivní STA pro RNG. Servisní AP, QR/Keychain/native klient a skutečný USB
 zápis po fyzické bráně zůstávají navazující části; žádná identita není v image.
+
+D99 skládá boot-lifetime runtime v `espidf_main.cpp`. `EspIdfStationNetwork`
+načte nastavení jednou, vlastní STA/netif a v samostatné úloze opakuje připojení.
+Backend na tuto síť pouze odkazuje; porucha identity/času/tokenu/WAN ji nezničí.
+Server se aktivuje po IP a zdravých provisionovaných identitách, zůstává během
+reconnectu a přijímá pouze modelové příkazy. Smyčka volá server.Pump, owner.Tick
+a owner.PumpReply; přímý druhý runtime Tick je odstraněn. Lease ID vzniká přes
+STA-gated RNG, boot a místní conversation UUID před startem RF. Katalog je
+`ollivander-private-party-v1`. Reset gate je false, kalibrace 0 a bezpečný boot
+neobchází recovery; chybí fyzické zotavení, kalibrace, autonomní fyzický port,
+opening/PTT a audio. Další akceptace E4/E5 vyžaduje B1 a živé zařízení. Hostitelské
+stub testy a build neprokazují reconnect/IP změny/TLS/aktuátory na desce.

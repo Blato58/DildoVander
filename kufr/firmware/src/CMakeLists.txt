@@ -8,6 +8,7 @@ idf_component_register(
         "features/backend_access/EspIdfTokenExchangeTransport.cpp"
         "features/backend_access/EspIdfTrustedTimeStore.cpp"
         "features/backend_access/EspIdfWifiStation.cpp"
+        "features/backend_access/EspIdfStationNetwork.cpp"
         "features/backend_access/NetworkSettings.cpp"
         "features/backend_access/ReconnectPolicy.cpp"
         "features/backend_access/TokenResponseParser.cpp"
