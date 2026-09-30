@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       party_compare:
-        description: Adaptive party conversations comparing Sol and Astra (total cap 1 USD)
+        description: Adaptive party conversations comparing Sol and Luna (total cap 1 USD)
         type: boolean
         default: false
       party_models:
@@ -32,7 +32,6 @@ on:
         default: gpt-6.1-sol
         options:
           - gpt-6.1-sol
-          - gpt-6-astra
           - gpt-6-luna
       case_id:
         description: Case ID from kufr/ai-eval/cases.json (one per paid run)

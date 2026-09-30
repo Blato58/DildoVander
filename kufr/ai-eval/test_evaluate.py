@@ -125,12 +125,12 @@ class EvalTests(unittest.TestCase):
             "reply": "Hůlka jedna.", "decision": "propose",
             "compartment": 1, "reason": "Brzy",
         }
-        with self.assertRaisesRegex(ValueError, "before two completed questions"):
+        with self.assertRaisesRegex(ValueError, "before four completed questions"):
             build_dialogue_requests(case, "gpt-6.1-sol")
 
     def test_boundary_dialogue_can_take_an_extra_turn(self):
         requests = build_dialogue_requests(load_dialogue_case("boundary-lenka"), "gpt-6.1-sol")
-        self.assertEqual(4, len(requests))
+        self.assertEqual(5, len(requests))
         self.assertIn("Ex fakt neřeš", requests[3]["input"])
 
     def test_offline_empty_inventory_has_no_proposal(self):

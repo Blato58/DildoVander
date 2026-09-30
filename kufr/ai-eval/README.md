@@ -3,11 +3,10 @@
 Tento adresář je samostatná E8 příprava. Posílá **syntetické** české
 texty přímo do OpenAI Responses API z GitHub hosted runneru. Nevyžaduje
 ESP32, Device ID, device credential, backend, server ani mobilní aplikaci.
-Nevydává žádný příkaz k pohonu. Skutečný E8 backendový adaptér a hlasové
-testy jsou další práce.
+Nevydává žádný příkaz k pohonu. Backendový E8 adaptér existuje odděleně; hlasové testy zůstávají další prací.
 
 Prompt je v prompt.txt: mluvící kouzelný kufr prodejce z Ollivanderova obchodu ve světě Harryho Pottera pro soukromou party 18+, s ostrým, vtipným roastem. Původní šestice hůlek je v wand-catalog.json; backend i eval předávají modelu jen dostupné položky. Výchozí model je gpt-6.1-sol s nízkým reasoning effort. Stejné scénáře
-lze ručně porovnat s gpt-6-astra a gpt-6-luna. STT a TTS se v tomto
+lze ručně porovnat s gpt-6-luna. STT a TTS se v tomto
 textovém testu nevolají. Model musí vrátit přísné JSON schéma; parser navíc
 kontroluje délky, decision, compartment a aktuální readyMask.
 Neplatný, odmítnutý či neúplný výsledek končí bezpečnou chybou. Kvalitu
@@ -52,9 +51,9 @@ schéma. Paměť ve vývojových scénářích je výhradně fiktivní.
 ## Adaptivní srovnání humoru
 
 Ruční workflow má volbu `party_compare`. Spustí `evaluate_party.py`, který
-porovná Sol a Astra na stejných třech fiktivních osobnostech. Návštěvník
+porovná Sol a Luna na stejných třech fiktivních osobnostech. Návštěvník
 simulovaný modelem Sol odpovídá na **skutečnou poslední otázku**, místo
-předem napsané repliky bez souvislosti. Každý dialog má nejvýše pět replik
+předem napsané repliky bez souvislosti. Každý dialog má nejvýše osm replik
 kufru; hned končí návrhem/no_selection. Další placené volání se předem
 rezervuje; všechny návštěvnické i kufrové modely sdílí celkový strop 1 USD,
 každý rozhovor nejvýše dosavadních 0,50 USD. Vstup `party_models=selected` použije jen vybraný model; `party_budget_micro_usd`
@@ -104,3 +103,10 @@ samostatné limity pro pozdější E8 integraci.
 [Živé syntetické přepisy a pozorování z 30. 9.](reports/2026-09-30-party-dialogue.md)
 
 Backend i eval volají explicitně `service_tier: default`; jiný/chybějící vrácený tarif zastaví běh a ponechá rezervaci. Rezervace kryje i 2× sazbu Fast. Známé vrácené tarify se oceňují podle vlastního ceníku, `cacheAdjustedEstimateMicroUsd` navíc využívá rozpad cache; stále nejde o fakturu. Příliš velký požadavek může být odmítnut ještě před odesláním. Starší reporty před touto opravou tarif nezohledňovaly; jejich částky nelze vydávat za ověřenou útratu ani spolehlivý horní limit.
+
+
+D75: pro živé hodnocení backendu používej ruční workflow **Kufr backend interactive
+dialogue**, viz [backend README](../backend/README.md). Další repliku zadává člověk
+nebo řídící agent až po přečtení skutečné odpovědi. Samostatný eval stále testuje
+obsah přes JSON schema; backend používá nativní function calling a jeho vlastní
+validaci. Staré reporty s Astrou jsou historické, nové běhy ji nepovolují.
