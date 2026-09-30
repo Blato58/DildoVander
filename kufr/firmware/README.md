@@ -58,6 +58,8 @@ src/
       ProvisioningStorage.h                 port úložiště identity
       EspIdfProvisioningStorage.h/.cpp      NVS identita v ESP-IDF profilu
       LocalPairingCredential.h/.cpp         jednorázové párování a otisk místního tokenu
+      EspIdfLocalPairingStorage.h/.cpp       samostatný NVS záznam místního párování
+      EspIdfSha256.h/.cpp                   SHA-256 přes ESP-IDF PSA Crypto
     backend_access/
       DeviceTokenSession.h/.cpp             obnova access tokenu v RAM
       TokenResponseParser.h/.cpp            omezená odpověď token endpointu
@@ -184,8 +186,11 @@ nový 256bitový token od portu s hardwarovou entropií, uloží pouze jeho otis
 a jednorázové tajemství zneplatní. Token se vydá volajícímu právě při párování;
 model ho neukládá. Po restartu porovnává otisky bez předčasného ukončení.
 Poškozený záznam či neúspěšný zápis odmítá. Zatím existuje jen model s
-hostitelskými fake porty; skutečný SHA-256/RNG/NVS adaptér, párovací AP,
-TLS klíč/certifikát a WSS handshake nejsou připojené.
+hostitelskými fake porty. ESP-IDF profil již sestavuje SHA-256 adaptér přes
+PSA Crypto a oddělené NVS úložiště `wand_pairing/local`; `wand_identity/device`
+pro backendovou identitu tím není sdílené. Adaptéry nejsou zatím spuštěné ani
+ověřené na desce. Hardwarově podmíněný RNG, párovací AP, TLS klíč/certifikát
+a WSS handshake nejsou připojené.
 
 `DeviceTokenSession` je čistý model obnovy backend access tokenu po 12 minutách,
 jeho 15minutové expirace a jediného nového přihlášení po 401. Drží token pouze
