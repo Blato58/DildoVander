@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="cs">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test nativního rozhraní kufru</title>
+  </head>
+  <body>
+    <p style="padding:1rem;background:#593b19">TEST NATIVNÍHO ROZHRANÍ · syntetický bridge, bez sítě a kufru</p>
+    <div id="app"></div>
+    <script type="module">
+      // Served by Vite only; never included in the single index.html release.
+      import snapshot from '../../contracts/fixtures/valid/state-snapshot.json';
+      let paired = false;
+      let saved;
+      let listener;
+      let connectionId;
+      window.CapacitorCustomPlatform = { name: 'ios' };
+      window.Capacitor = {
+        PluginHeaders: [{ name: 'KufrDeviceTransport', methods: [
+          ...['savedDevice', 'pair', 'connect', 'send', 'close', 'forget', 'removeListener'].map((name) => ({ name, rtype: 'promise' })),
+          { name: 'addListener', rtype: 'callback' },
+        ] }],
+        nativeCallback(_plugin, method, _options, callback) {
+          if (method === 'addListener') { listener = callback; return Promise.resolve('listener-1'); }
+        },
+        async nativePromise(_plugin, method, options) {
+          if (method === 'removeListener') { listener = null; return; }
+          if (method === 'savedDevice') { return paired ? { paired, ...saved } : { paired }; }
+          if (method === 'pair') { paired = true; saved = { deviceId: options.deviceId, host: options.host }; return saved; }
+          if (method === 'forget') { paired = false; return; }
+          if (method === 'connect') {
+            connectionId = options.connectionId;
+            setTimeout(() => listener?.({ connectionId, state: 'open' }), 0);
+          }
+          if (method === 'close') {
+            if (options.connectionId === connectionId) { listener?.({ connectionId, state: 'closed' }); }
+          }
+          if (method === 'send') {
+            const message = JSON.parse(options.frame);
+            if (message.type === 'hello' || message.type === 'state.get') {
+              // No ready physical state is invented by this UI-only harness.
+              const state = snapshot ? { ...snapshot, deviceId: saved.deviceId, controlMode: 'recovery', controlLeaseId: null,
+                phase: 'recoveryRequired', readyMask: 0, calibrationRevision: 0 } : null;
+              if (state) {
+                listener?.({ connectionId, state: 'frame', frame: JSON.stringify(message.type === 'hello'
+                  ? { protocolVersion: 1, type: 'welcome', requestMessageId: message.messageId, snapshot: state }
+                  : state) });
+              } else { listener?.({ connectionId, state: 'closed' }); }
+            }
+          }
+        },
+      };
+      await import('/src/main.ts');
+    </script>
+  </body>
+</html>
