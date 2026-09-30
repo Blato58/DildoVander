@@ -83,11 +83,16 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 | B5 | Katalog šesti původních hůlek a Harry Potter / Ollivander tematickou roli majitel svěřil nezávislému agentovi; zdroj je `ai-eval/wand-catalog.json` (D72). Stále chybí rozměry, router, prostředí akce a živé obsahové hodnocení s hosty. | Provozní akceptaci E8/E11, fyzické mapování hůlek a finální mechaniku. | Sdílený tematický katalog, vývojové a simulované scénáře; skutečné přihrádky až s HW. |
 
 ## Deník změn a ověření
+### D91 – 30. 9. 2026 – E4.4k oddělená místní TLS identita
+
+- Převzetí: místní server potřebuje unikátní certifikát/privátní klíč mimo image. `LocalTlsIdentity` drží jednu omezenou dvojici PEM a vyžaduje fyzickou servisní bránu pro atomický zápis; `EspIdfLocalTlsStorage` používá oddělený `wand_tls/server`. mbedTLS/PSA validátor ověřuje parse a shodu klíče s certifikátem a odvozuje SHA-256 DER SPKI pro QR. Chyba úložiště či kryptografické kontroly brání použití identity. RAM klíče se při uvolnění maže. Limity 2048/1024 bajtů (certifikát/EC klíč) udržují záznam pod jednou NVS datovou stránkou. Nejasný zápis vyžaduje nové načtení a ověření uloženého SPKI před vydáním QR. Rozsah: model/adaptéry, test/CI, CMake/Arduino filtr, README a stav.
+- Ověření 30. 9.: MSVC `/std:c++14 /EHsc /W4 /WX /utf-8` sestavil a spustil `local_tls_identity_test` (servisní brána, restart, truncation, nadměrná délka, vnitřní NUL, neshoda, nulový pin, chyba čtení/zápisu a nový load po nejasném zápisu). Po revizi limitů postupně znovu prošly `pio run -e esp32-s3-idf -s` i `pio run -e esp32-s3-arduino-serial -s`. Host test navíc ověřil největší 3080bajtový záznam a dvě rotace. YAML parser a `git diff --check` prošly. Hostitelský validátor je fake; skutečná kryptografie/NVS musí projít na desce po B1.
+- Neprovedeno: servisní USB zápis, fyzické zabezpečení flash, TLS handshake a WSS parser/runtime. Prototyp NVS má hranice již přijaté v plánu §9; šifrování a eFuse se tím nezapínají. Další krok: uzavřený TLS/WSS server a fronta autorizovaných událostí do řídicí úlohy.
 ### D90 – 30. 9. 2026 – E4.4j hardwarově podmíněný párovací RNG
 
 - Převzetí: doplnit produkční `PairingRandomPort` pro právě 32 bajtů lokálního tokenu. `EspIdfPairingRandom` dovolí `esp_fill_random` pouze při připojené Wi-Fi STA před i po generování; při výpadku výstup vymaže. Nepřepíná ADC zdroj během RF/audio provozu. Párovací AP bude potřebovat vlastní doloženou bránu aktivní entropie. Rozsah: adaptér, hostitelský test se stuby IDF, CMake/Arduino filtr, CI, README a stav.
 - Ověření 30. 9.: MSVC `/std:c++14 /EHsc /W4 /WX /utf-8` sestavil a spustil `espidf_pairing_random_test` se stuby veřejných IDF API (chybějící spojení, platná délka, výpadek při generování a vymazání). Postupně prošly `pio run -e esp32-s3-idf -s` a `pio run -e esp32-s3-arduino-serial -s`. `git diff --check` čistý. Test stubů dokládá bránu adaptéru, nikoli kvalitu hardwarového RNG. Žádné nahrání do desky ani živé párování.
-- Další krok: provisionovaná TLS identita a autentizovaný WSS transport, poté propojení s řídicí úlohou.
+- Doručení D90: commit `b3795f82694e34ad375a8c092c88250795875a95` ověřeně pushnut. [CI 36755796213](https://github.com/Blato58/DildoVander/actions/runs/36755796213) prošlo hostitelskými testy i oběma firmware buildy; [PR #54](https://github.com/Blato58/DildoVander/pull/54) sloučen jako `e1daface837f80f30c48869bbaa6b83030beb4ed`, ověřen na `origin/main`.
 
 ### D89 – 30. 9. 2026 – E4.4i jediný místní control socket
 
