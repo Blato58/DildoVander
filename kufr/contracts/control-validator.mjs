@@ -66,7 +66,8 @@ const validateSchema = ajv.compile(schema);
 export function validateControlMessage(bytes) {
   const message = parseStrictJson(bytes, maximumConversationTextBytes);
   if (bytes.length > maximumControlMessageBytes &&
-      message.type !== 'conversation.text') {
+      message.type !== 'conversation.text' &&
+      message.type !== 'conversation.result') {
     throw new Error(`message exceeds ${maximumControlMessageBytes} UTF-8 bytes`);
   }
   if (!validateSchema(message)) {

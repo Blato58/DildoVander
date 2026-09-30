@@ -19,6 +19,11 @@ for (const phase of ['searching', 'highlighting', 'vibrating', 'releasing', 'pre
 }
 assert.ok(snapshots.some((state) => state.conversation.activeTurnId));
 assert.ok(messages.some((message) => message.type === 'conversation.ack' && message.clientTurnId === null));
+const replies = messages.filter((message) => message.type === 'conversation.result');
+assert.equal(replies.length, 2);
+assert.ok(replies.every((message) => message.simulated === false));
+assert.equal(replies[0].reply, 'Czech č reply: "quoted"\\path\n');
+assert.equal(replies[1].reply, '\n'.repeat(500));
 const results = messages.filter((message) => message.type === 'selection.result');
 assert.deepEqual(results.map((result) => result.status).sort(), ['completed', 'outcome_unknown']);
 for (const result of results) {
