@@ -10,6 +10,7 @@ class ConversationRuntimeState;
 class DeviceControlRuntime;
 class LocalControlSession;
 class LocalConversationNetworkPort;
+struct ConversationRuntimeSnapshot;
 
 // Called only on the control owner task for one already authenticated socket.
 class LocalConversationGateway final {
@@ -26,6 +27,9 @@ class LocalConversationGateway final {
       const std::string& bootId, const std::string& conversationId,
       const std::string& leaseId, uint64_t generation, uint64_t nowMs);
   bool CompleteTurn(const std::string& clientTurnId, uint64_t generation);
+  bool IsActiveTurn(const std::string& conversationId,
+                    const std::string& clientTurnId,
+                    const ConversationRuntimeSnapshot& snapshot);
   bool PollNetworkFailure();
   bool OnControlTransition();
 

@@ -6,6 +6,7 @@
 #include "../src/features/local_control/LocalControlOwner.h"
 #include "../src/features/local_control/LocalControlTransport.h"
 #include "../src/features/local_control/LocalConversationNetworkPort.h"
+#include "../src/features/local_control/LocalConversationReplyPort.h"
 
 namespace {
 
@@ -128,6 +129,19 @@ class Output final : public LocalControlOutputPort {
     lastConversation = receipt;
     return accept;
   }
+  bool ConversationResult(const LocalSocketAdmission::Handle& handle,
+                          const std::string&, uint64_t,
+                          const std::string&) override {
+    ++results;
+    if (injectStop) {
+      LocalControlMessage stop;
+      stop.kind = LocalControlMessageKind::Stop;
+      stop.deviceId = "kufr-001";
+      stop.bootId = Boot;
+      assert(inbox.Submit(handle, stop));
+    }
+    return accept;
+  }
   LocalControlInbox& inbox;
   bool accept = true;
   bool injectStop = false;
@@ -136,9 +150,42 @@ class Output final : public LocalControlOutputPort {
   int welcomes = 0;
   int snapshots = 0;
   int heartbeats = 0;
+  int results = 0;
   std::string lastLease;
   CommandReceipt lastCommand;
   ConversationCommandReceipt lastConversation;
+};
+
+class Replies final : public LocalConversationReplyPort {
+ public:
+  bool TakeReply(std::string& reply, std::string& conversationId,
+                 std::string& clientTurnId,
+                 ConversationRuntimeSnapshot& outputSnapshot,
+                 uint64_t& token) override {
+    if (!pending) {
+      return false;
+    }
+    pending = false;
+    reply = "Backend reply";
+    conversationId = Conversation;
+    clientTurnId = Turn;
+    outputSnapshot = snapshot;
+    token = 4;
+    return true;
+  }
+  bool IsReplyCurrent(uint64_t token,
+                      const ConversationRuntimeSnapshot&) const override {
+    return current && token == 4;
+  }
+  bool FinishReply(uint64_t token) override {
+    assert(token == 4);
+    ++finished;
+    return true;
+  }
+  ConversationRuntimeSnapshot snapshot;
+  bool pending = true;
+  bool current = true;
+  int finished = 0;
 };
 
 class Ids final : public LocalControlIdPort {
@@ -366,6 +413,59 @@ void TestStopBetweenAckAndBegin() {
   assert(!tick.sequence.IsBusy() && tick.port.vibrations == 0);
 }
 
+void TestReplyDelivery() {
+  Fixture delivered;
+  delivered.Connect();
+  delivered.Submit(LocalControlMessageKind::Acquire);
+  delivered.Submit(LocalControlMessageKind::Text);
+  Replies replies;
+  assert(delivered.state.Read(replies.snapshot));
+  delivered.owner.PumpReply(replies);
+  assert(delivered.output.results == 1 && replies.finished == 1);
+  assert(!delivered.conversation.HasActiveTurn());
+  delivered.owner.PumpReply(replies);
+  assert(delivered.output.results == 1 && replies.finished == 1);
+
+  for (int scenario = 0; scenario < 5; ++scenario) {
+    Fixture dropped;
+    dropped.Connect();
+    dropped.Submit(LocalControlMessageKind::Acquire);
+    dropped.Submit(LocalControlMessageKind::Text);
+    Replies stale;
+    assert(dropped.state.Read(stale.snapshot));
+    if (scenario == 0) {
+      ++stale.snapshot.version;
+    } else if (scenario == 1) {
+      stale.current = false;
+    } else if (scenario == 2) {
+      dropped.inbox.Disconnect(dropped.handle);
+    } else if (scenario == 3) {
+      assert(dropped.inbox.Submit(dropped.handle,
+                                 dropped.Message(LocalControlMessageKind::Stop)));
+    } else {
+      dropped.output.accept = false;
+    }
+    dropped.owner.PumpReply(stale);
+    assert(stale.finished == 1);
+    assert(dropped.output.results == (scenario == 4 ? 1 : 0));
+    if (scenario == 4) {
+      assert(!dropped.conversation.HasActiveTurn());
+      assert(dropped.network.cancels == 1);
+    }
+  }
+  Fixture canceledDuringSend;
+  canceledDuringSend.Connect();
+  canceledDuringSend.Submit(LocalControlMessageKind::Acquire);
+  canceledDuringSend.Submit(LocalControlMessageKind::Text);
+  Replies canceled;
+  assert(canceledDuringSend.state.Read(canceled.snapshot));
+  canceledDuringSend.output.injectStop = true;
+  canceledDuringSend.owner.PumpReply(canceled);
+  assert(canceled.finished == 1 && canceledDuringSend.conversation.HasActiveTurn());
+  canceledDuringSend.owner.Poll();
+  assert(!canceledDuringSend.conversation.HasActiveTurn());
+}
+
 }  // namespace
 
 int main() {
@@ -373,4 +473,5 @@ int main() {
   TestLeaseAndText();
   TestExpiryCancelFailureAndReset();
   TestStopBetweenAckAndBegin();
+  TestReplyDelivery();
 }

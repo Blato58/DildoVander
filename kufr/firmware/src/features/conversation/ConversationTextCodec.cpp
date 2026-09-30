@@ -2,10 +2,11 @@
 
 #include "ConversationSession.h"
 #include "ConversationStartCodec.h"
+#include "../../protocol/JsonWriter.h"
 
 namespace {
 
-constexpr char HexDigits[] = "0123456789abcdef";
+
 
 bool IsValidCatalogVersion(const std::string& version) {
   if (version.empty() || version.size() > 128) {
@@ -31,23 +32,6 @@ bool HasNonWhitespaceText(const std::string& value) {
     }
   }
   return false;
-}
-
-void AppendJsonString(const std::string& value, std::string& output) {
-  output.push_back('"');
-  for (unsigned char current : value) {
-    if (current == '"' || current == '\\') {
-      output.push_back('\\');
-      output.push_back(static_cast<char>(current));
-    } else if (current < 0x20) {
-      output += "\\u00";
-      output.push_back(HexDigits[current >> 4]);
-      output.push_back(HexDigits[current & 0x0f]);
-    } else {
-      output.push_back(static_cast<char>(current));
-    }
-  }
-  output.push_back('"');
 }
 
 }  // namespace
