@@ -81,3 +81,24 @@ bool BuildConversationTextTurnRequest(
   }
   return true;
 }
+
+bool BuildConversationOpeningRequest(
+    const ConversationTextTurnRequest& request, std::string& body) {
+  body.clear();
+  if (!IsConversationUuid(request.conversationId) ||
+      !IsConversationUuid(request.clientTurnId) ||
+      !IsConversationUuid(request.bootId) ||
+      !IsConversationUuid(request.idempotencyKey) ||
+      !IsValidCatalogVersion(request.catalogVersion) ||
+      request.readyMask > 63 || !request.text.empty()) {
+    return false;
+  }
+  body = "{\"clientTurnId\":\"" + request.clientTurnId +
+         "\",\"bootId\":\"" + request.bootId +
+         "\",\"generation\":" + std::to_string(request.generation) +
+         ",\"readyMask\":" + std::to_string(request.readyMask) +
+         ",\"deviceRevision\":" +
+         std::to_string(request.deviceRevision) +
+         ",\"catalogVersion\":\"" + request.catalogVersion + "\"}";
+  return body.size() <= 4096;
+}

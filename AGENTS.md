@@ -26,18 +26,18 @@
 
 ## Přijaté hranice systému
 
-- ESP32-S3 je samostatný klient backendu přes HTTPS a vlastník rozhovoru i fyzické sekvence. Telefon není cloudový prostředník. Backend vrací validovaná data, nikdy přímo neotevírá západku.
+- ESP32-S3 je samostatný klient backendu přes HTTPS a vlastník rozhovoru i fyzické sekvence. Telefon není cloudový prostředník. Backend vrací validovaná data, nikdy přímo nespíná pohony.
 - iOS je první mobilní platforma: TypeScript/Vite + plánovaný Capacitor/Swift, vývoj na Windows, nativní build/test/podpis na macOS GitHub Actions. Popsané existující workflow musí být převzato od majitele; v tomto checkoutu zatím není. Webový režim slouží pro vývoj/simulátor.
-- AI používá oddělené STT → strukturovaný dialog → TTS; PTT/poloduplex, návrh pouze 1–6 nebo žádný. Aktivace vyžaduje fyzické potvrzení, případně explicitní potvrzení spárované obsluhy v ručním režimu. Offline ruční řízení nesmí potřebovat AI ani WAN.
-- Rozdělení vertical slices všech komponent je v kapitole 3 plánu. Backend bude ASP.NET Core se SQLite; dosud neexistuje. Migrace nynějšího Arduino runtime na ESP-IDF patří do E4, neprováděj ji jako vedlejší úklid E1.
+- AI používá oddělené STT → strukturovaný dialog → TTS; PTT/poloduplex, návrh pouze 1–6 nebo žádný. Majitel 30. 9. zvolil autonomní AI výběr bez potvrzení obsluhou. Hůlka zůstává v přihrádce; servo ji vysune a po prezentaci zase zasune. Normální návrat obnovuje dostupnost, Stop/chyba vyžadují zotavení. Místní brána ESP32 ověřuje návrh, snapshot, kalibraci a bezpečný stav; nepředstírá ruční lease. Offline ruční řízení nesmí potřebovat AI ani WAN.
+- Rozdělení vertical slices všech komponent je v kapitole 3 plánu. Backend existuje v `kufr/backend/`: ASP.NET Core se SQLite, Responses Sol/Luna a oddělená trvalá paměť večera. Migrace nynějšího Arduino runtime na ESP-IDF patří do E4, neprováděj ji jako vedlejší úklid E1.
 
 ## Firmware kufru
 
 - Rozvíjej firmware po vertical slices v `src/features/<funkce>/`. Drž rozhodování funkce a její adaptéry pohromadě; `src/main.cpp` skládá funkce a volá je ze smyčky. Časované efekty řiď bez blokujícího `delay()`.
 - `wand_selection/SelectionSequence` je čistá C++ posloupnost pro výběr přihrádky 1–6. Sériový adaptér zatím pouze vypisuje kroky; nevydávej je za ověřené ovládání LED, motorů nebo serv.
 - Pinová mapa dodaná k projektu je v `kufr/docs/pin-mapa-esp32-s3.md`. Rozlišuj popisky obrázku, předběžná přidělení externích pinů A/B v plánu a skutečně změřené zapojení; před nahráním firmwaru ověř revizi desky a vlastnosti flash, PSRAM a USB.
-- Při zapojování fyzických efektů dodrž návrh napájení: změř 5V výstup měniče před připojením ESP32, omez jas RGB zpočátku přibližně na 25 %, spouštěj nejvýše jeden vibrační motor a neudržuj motor zapnutý při uvolňování západky. Skutečné limity potvrď měřením prototypu.
-- Příkazy pro západky přijímej jako explicitní číslo přihrádky 1–6; volný text z AI nesmí přímo řídit aktuátory. Pohony musí mít nezávislou bezpečnostní spínanou větev/watchdog podle plánu. Odpojení pozorovatelského telefonu nesmí zastavit samostatný kufr; ztráta ručního lease musí bezpečně ukončit ruční řízení.
+- Při zapojování fyzických efektů dodrž návrh napájení: změř 5V výstup měniče před připojením ESP32, omez jas RGB zpočátku přibližně na 25 %, spouštěj nejvýše jeden vibrační motor a neudržuj motor zapnutý při pohybu serva. Skutečné limity potvrď měřením prototypu.
+- Příkazy pro prezentaci přijímej jako explicitní číslo přihrádky 1–6; volný text z AI nesmí přímo řídit aktuátory. Pohony musí mít nezávislou bezpečnostní spínanou větev/watchdog podle plánu. Odpojení pozorovatelského telefonu nesmí zastavit samostatný kufr; ztráta ručního lease musí bezpečně ukončit ruční řízení.
 - Přístupové údaje necommituj ani nevkládej do firmware image či mobilního balíčku. Device identita se provisionuje servisně, provider klíč je pouze na backendu; Apple podpisové identity pouze v odděleném CI prostředí.
 
 ## Sestavení a ověření

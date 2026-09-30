@@ -1,6 +1,6 @@
 # AI kufr — hlavní projekt
 
-Aktuální priorita. Cíl: šest hůlek, krátký adresovatelný RGB pásek a vibrační motor pod každou přihrádkou, samostatné uvolňovací západky, mikrofon, reproduktor a tlačítko. **ESP32-S3 komunikuje přímo s backendem; telefon není potřebný pro běžný rozhovor.** AI návrh se před aktivací vždy potvrzuje fyzicky, případně obsluhou ve výslovně převzatém ručním režimu. iOS aplikace je volitelný ruční ovladač a záložní textový/hlasový vstup. Při nedostupné AI/WAN musí zůstat místní ruční volba.
+Aktuální priorita. Cíl: šest hůlek, krátký adresovatelný RGB pásek a vibrační motor pod každou přihrádkou, samostatné servo zdvihy přihrádek, mikrofon, reproduktor a tlačítko. **ESP32-S3 komunikuje přímo s backendem; telefon není potřebný pro běžný rozhovor.** AI sama vybere dostupnou hůlku. Po místním ověření ESP32 ji servo vysune, předvede a zase zasune bez potvrzení obsluhy. Hůlka zůstává jako rekvizita; normální cyklus nepotřebuje ruční reset. Stop nebo chyba vyžadují kontrolu a zotavení. iOS aplikace je volitelný ruční ovladač a záložní textový/hlasový vstup. Při nedostupné AI/WAN musí zůstat místní ruční volba.
 
 Vybraná rekvizita: [sada dvou dřevěných truhel Marketos](https://www.marketos.cz/marketos-truhla-drevena-2-ks-vintage-hneda/). Pro AI kufr je zamýšlená větší truhla; skutečný vnitřní prostor změříme po doručení. Menší truhla patří komediálnímu kufru, který je bez elektroniky.
 
@@ -10,7 +10,7 @@ Vybraná rekvizita: [sada dvou dřevěných truhel Marketos](https://www.marketo
 - [`mobilni-aplikace/`](mobilni-aplikace/) — současný TypeScript/Vite základ; plánované iOS balení Capacitor/Swift, vývoj Windows a vzdálený macOS CI build.
 - [`contracts/`](contracts/) — první JSON Schema lokálního protokolu v1 a sdílené pozitivní/chybné zprávy.
 - [`simulator/`](simulator/) — spustitelná hostitelská časová osa čistého modelu výběru a deterministické scénáře.
-- [`backend/`](backend/) — ASP.NET Core 10 základ E7 s device tokenem, fake sezením a textovým tahem; zatím bez AI/SQLite.
+- [`backend/`](backend/) — ASP.NET Core 10 s device tokenem, SQLite journalem a pamětí večera, fake režimem a Responses dialogem Sol/Luna.
 - [`docs/implementacni-plan.md`](docs/implementacni-plan.md) — rozhodnutí, protokol, bezpečnost, předběžné piny A/B, testování a etapy.
 - [`docs/stav-implementace.md`](docs/stav-implementace.md) — jediný průběžný přehled realizace, ověření, blokací a dalšího kroku.
 - [`docs/kamera.md`](docs/kamera.md) — volitelné rozšíření o obraz; vybraná deska má kamerový konektor.

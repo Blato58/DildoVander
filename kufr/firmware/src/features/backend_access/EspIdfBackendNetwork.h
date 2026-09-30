@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <mutex>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -8,6 +9,8 @@
 #include "NetworkSettings.h"
 #include "../conversation/ConversationRuntimeState.h"
 #include "../conversation/ConversationTextInbox.h"
+#include "../conversation/PendingProposal.h"
+#include "../wand_presentation/WandPresentation.h"
 #include "../provisioning/DeviceIdentity.h"
 
 class EspIdfBackendNetwork final {
@@ -17,22 +20,49 @@ class EspIdfBackendNetwork final {
   bool Start(bool nvsInitialized);
   bool QueueTextTurn(const std::string& text,
                      const ConversationRuntimeSnapshot& expectedSnapshot);
+  // Called only for a deliberate local start event, never by reconnect.
+  bool QueueOpening(const ConversationRuntimeSnapshot& expectedSnapshot);
+  void QueueCancel();
+  bool ReadPendingProposal(TurnProposal& proposal, uint64_t nowMs) const;
+  // Control owner calls this after completing the announcement. Network
+  // polling never invokes it and cannot directly move an actuator.
+  bool BeginPendingPresentation(WandPresentation& presentation,
+                                uint64_t nowMs);
+  // Called by the control owner after Tick reaches Idle or Fault.
+  bool FinishPresentation(const WandPresentation& presentation);
 
  private:
   static void TaskEntry(void* argument);
   void Run();
-  void RunTextTurn(const std::string& text, uint64_t snapshotVersion,
+  void RunTurn(const std::string& text, bool opening,
+                   uint64_t snapshotVersion,
                    class DeviceTokenSession& tokens,
                    class EspIdfWifiStation& wifi,
                    class ConversationStartCoordinator& coordinator,
                    struct ConversationStartRequest& startRequest);
+  bool CloseConversation(class ConversationStartCoordinator& coordinator,
+                         class EspIdfConversationTextTransport& transport,
+                         class DeviceTokenSession& tokens,
+                         struct ConversationStartRequest& startRequest);
 
   DeviceIdentity& identity_;
   ConversationRuntimeState& runtimeState_;
   NetworkSettings settings_;
   ConversationTextInbox textInbox_;
+  PendingProposal pendingProposal_;
+  std::mutex presentationMutex_;
+  bool terminalProposalOutstanding_ = false;
+  bool presentationActive_ = false;
+  std::mutex openingMutex_;
+  bool openingPending_ = false;
+  uint64_t openingSnapshotVersion_ = 0;
   std::atomic<bool> online_{false};
+  std::atomic<bool> cancelRequested_{false};
   std::string bootId_;
   uint64_t startSnapshotVersion_ = 0;
+  bool closePending_ = false;
+  uint64_t closeRetryAtMs_ = 0;
+  uint32_t closeRetryDelayMs_ = 1000;
+  std::string deleteIdempotencyKey_;
   TaskHandle_t task_ = nullptr;
 };

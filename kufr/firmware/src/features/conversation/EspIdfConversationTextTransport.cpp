@@ -59,14 +59,27 @@ bool EspIdfConversationTextTransport::IsConfigured() const {
 
 ConversationTextHttpResult EspIdfConversationTextTransport::Submit(
     const ConversationTextTurnRequest& request, const char* accessToken) {
+  return SubmitDialogue(request, accessToken, false);
+}
+
+ConversationTextHttpResult EspIdfConversationTextTransport::SubmitOpening(
+    const ConversationTextTurnRequest& request, const char* accessToken) {
+  return SubmitDialogue(request, accessToken, true);
+}
+
+ConversationTextHttpResult EspIdfConversationTextTransport::SubmitDialogue(
+    const ConversationTextTurnRequest& request, const char* accessToken,
+    bool opening) {
   ConversationTextHttpResult response;
   std::string body;
   if (!IsConfigured() || !IsSafeAccessToken(accessToken) ||
-      !BuildConversationTextTurnRequest(request, body) ||
+      !(opening ? BuildConversationOpeningRequest(request, body)
+                : BuildConversationTextTurnRequest(request, body)) ||
       !IsConversationUuid(request.conversationId)) {
     return response;
   }
-  const std::string url = baseUrl_ + request.conversationId + "/turns";
+  const std::string url = baseUrl_ + request.conversationId +
+                          (opening ? "/opening" : "/turns");
 
   ResponseBody received;
   esp_http_client_config_t config = {};
@@ -115,6 +128,44 @@ ConversationTextHttpResult EspIdfConversationTextTransport::Submit(
   Wipe(authorization.data(), authorization.size());
   Wipe(received.data, sizeof(received.data));
   return response;
+}
+
+int EspIdfConversationTextTransport::Delete(
+    const std::string& conversationId,
+    const std::string& idempotencyKey,
+    const char* accessToken) {
+  if (!IsConfigured() || !IsConversationUuid(conversationId) ||
+      !IsConversationUuid(idempotencyKey) ||
+      !IsSafeAccessToken(accessToken)) {
+    return 0;
+  }
+  const std::string url = baseUrl_ + conversationId;
+  esp_http_client_config_t config = {};
+  config.url = url.c_str();
+  config.crt_bundle_attach = esp_crt_bundle_attach;
+  config.disable_auto_redirect = true;
+  config.skip_cert_common_name_check = false;
+  config.max_authorization_retries = -1;
+  config.timeout_ms = 5000;
+  esp_http_client_handle_t client = esp_http_client_init(&config);
+  if (client == nullptr) {
+    return 0;
+  }
+  std::array<char, 7 + 256 + 1> authorization{};
+  std::memcpy(authorization.data(), "Bearer ", 7);
+  std::memcpy(authorization.data() + 7, accessToken,
+              std::strlen(accessToken));
+  const bool configured =
+      esp_http_client_set_method(client, HTTP_METHOD_DELETE) == ESP_OK &&
+      esp_http_client_set_header(client, "Authorization",
+                                 authorization.data()) == ESP_OK &&
+      esp_http_client_set_header(client, "Idempotency-Key",
+                                 idempotencyKey.c_str()) == ESP_OK;
+  const esp_err_t result = configured ? esp_http_client_perform(client) : ESP_FAIL;
+  const int status = esp_http_client_get_status_code(client);
+  esp_http_client_cleanup(client);
+  Wipe(authorization.data(), authorization.size());
+  return status == 401 || result == ESP_OK ? status : 0;
 }
 
 esp_err_t EspIdfConversationTextTransport::OnHttpEvent(

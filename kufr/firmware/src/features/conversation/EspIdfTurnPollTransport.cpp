@@ -60,6 +60,8 @@ bool EspIdfTurnPollTransport::IsConfigured() const {
 TurnPollHttpResult EspIdfTurnPollTransport::Poll(
     const std::string& operationId, const TurnCorrelation& expected,
     uint64_t currentGeneration, uint64_t currentDeviceRevision,
+    const std::string& currentCatalogVersion, uint8_t currentReadyMask,
+    uint64_t nowUtcSeconds,
     const char* accessToken) {
   TurnPollHttpResult response;
   if (!IsConfigured() || !IsConversationUuid(operationId) ||
@@ -105,11 +107,17 @@ TurnPollHttpResult EspIdfTurnPollTransport::Poll(
                             observed)) {
       response.statusCode = 0;
     } else {
-      response.decision = EvaluateTurnOperation(
+      response.decision = EvaluateTurnOperationWithProposal(
           operationId, expected, currentGeneration,
-          currentDeviceRevision, observed);
-      if (response.decision == TurnPollDecision::ReplyReady) {
+          currentDeviceRevision, currentCatalogVersion, currentReadyMask,
+          nowUtcSeconds, observed);
+      if (response.decision == TurnPollDecision::ReplyReady ||
+          response.decision == TurnPollDecision::ProposalReady) {
         response.reply = observed.reply;
+        response.noSelection = observed.decision == "no_selection";
+        if (response.decision == TurnPollDecision::ProposalReady) {
+          response.proposal = observed.proposal;
+        }
       }
       std::fill(observed.reply.begin(), observed.reply.end(), '\0');
     }
