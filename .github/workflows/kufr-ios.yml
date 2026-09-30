@@ -5,11 +5,13 @@ on:
     branches: [main]
     paths:
       - kufr/mobilni-aplikace/**
+      - kufr/contracts/**
       - .github/workflows/kufr-ios.yml
   pull_request:
     branches: [main]
     paths:
       - kufr/mobilni-aplikace/**
+      - kufr/contracts/**
       - .github/workflows/kufr-ios.yml
   workflow_dispatch:
     inputs:
@@ -45,6 +47,7 @@ jobs:
           cache: npm
           cache-dependency-path: kufr/mobilni-aplikace/package-lock.json
       - run: npm ci
+      - run: npm ci --prefix ../contracts
       - run: npm test
       - run: npm run build
       - run: bash -n scripts/build-ios-ipa.sh
@@ -68,10 +71,15 @@ jobs:
           cache: npm
           cache-dependency-path: kufr/mobilni-aplikace/package-lock.json
       - run: npm ci
+      - run: npm ci --prefix ../contracts
       - run: npm run build
       - run: npx cap sync ios
       - name: Resolve Swift packages
         run: xcodebuild -resolvePackageDependencies -project ios/App/App.xcodeproj -scheme App
+      - name: Test native pinned LAN transport
+        run: |
+          npm ci --prefix ../simulator
+          bash scripts/test-native-transport.sh
       - name: Build unsigned simulator app
         run: >-
           xcodebuild build
@@ -115,6 +123,7 @@ jobs:
           cache: npm
           cache-dependency-path: kufr/mobilni-aplikace/package-lock.json
       - run: npm ci
+      - run: npm ci --prefix ../contracts
       - run: npm run build
       - run: npx cap sync ios
       - name: Build signed IPA

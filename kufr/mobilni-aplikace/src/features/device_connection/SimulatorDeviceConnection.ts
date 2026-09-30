@@ -1,6 +1,6 @@
 import type { DeviceSnapshot } from './FakeDeviceConnection';
 
-interface SimulatorSnapshot {
+interface ProtocolSnapshot {
   type: 'state.snapshot';
   deviceId: string;
   bootId: string;
@@ -36,10 +36,26 @@ type ActiveCommand = {
   retries: number;
 };
 
-// The development proxy owns the bearer token and the verified upstream TLS socket.
-export class SimulatorDeviceConnection {
-  private socket: WebSocket | null = null;
-  private device: SimulatorSnapshot | null = null;
+export interface ControlSocket {
+  readonly readyState: number;
+  addEventListener(type: string, listener: (event: { data?: unknown }) => void): void;
+  send(frame: string): void;
+  close(): void;
+}
+
+export interface ProtocolConnectionOptions {
+  source: DeviceSnapshot['source'];
+  deviceId: string;
+  createSocket: () => ControlSocket;
+  parseFrame?: (frame: string) => Record<string, unknown>;
+  autoConnect?: boolean;
+}
+
+// One owner of lease, command retry and uncertain-result reconciliation, shared
+// by the development proxy and the native pinned-TLS transport.
+export class ProtocolDeviceConnection {
+  private socket: ControlSocket | null = null;
+  private device: ProtocolSnapshot | null = null;
   private sequence = 0;
   private pendingCommand: PendingCommand | null = null;
   private activeCommand: ActiveCommand | null = null;
@@ -57,6 +73,7 @@ export class SimulatorDeviceConnection {
   private acquirePending = false;
   private releasePending = false;
   private awaitingRevision: number | null = null;
+  private reconnectAttempt = 0;
   private suspended = false;
   private state: DeviceSnapshot = {
     source: 'e2-simulator',
@@ -68,9 +85,15 @@ export class SimulatorDeviceConnection {
     status: 'Připojuji hostitelský simulátor…',
   };
 
-  constructor(private readonly onChange: (snapshot: DeviceSnapshot) => void) {
+  constructor(
+    private readonly onChange: (snapshot: DeviceSnapshot) => void,
+    private readonly options: ProtocolConnectionOptions,
+  ) {
+    this.state.source = options.source;
     this.publish();
-    this.connect();
+    if (options.autoConnect !== false) {
+      this.connect();
+    }
   }
 
   snapshot(): DeviceSnapshot {
@@ -83,10 +106,10 @@ export class SimulatorDeviceConnection {
       window.clearTimeout(this.retryTimer);
       this.retryTimer = null;
     }
-    if (this.socket !== null && this.socket.readyState <= WebSocket.OPEN) {
+    if (this.socket !== null && this.socket.readyState <= 1) {
       return;
     }
-    const socket = new WebSocket(`ws://${window.location.host}/dev/control`);
+    const socket = this.options.createSocket();
     this.socket = socket;
     this.state.phase = 'disconnected';
     this.state.controlMode = 'observer';
@@ -94,10 +117,13 @@ export class SimulatorDeviceConnection {
     this.state.status = 'Připojuji hostitelský simulátor…';
     this.publish();
     socket.addEventListener('open', () => {
-      this.sendRequest('hello', { deviceId: 'kufr-001' });
+      if (this.socket !== socket) { return; }
+      this.sendRequest('hello', { deviceId: this.options.deviceId });
       this.armRequestTimeout('Odpověď simulátoru na připojení nepřišla.');
     });
-    socket.addEventListener('message', (event) => this.receive(event.data));
+    socket.addEventListener('message', (event) => {
+      if (this.socket === socket) { this.receive(event.data); }
+    });
     socket.addEventListener('close', () => {
       if (this.socket === socket) {
         this.rememberUnresolvedCommand();
@@ -120,11 +146,15 @@ export class SimulatorDeviceConnection {
         };
         this.publish();
         if (!this.suspended && !document.hidden) {
-          this.retryTimer = window.setTimeout(() => this.connect(), 1500);
+          const delayMs = this.options.source === 'native-device'
+            ? Math.min(8000, 500 * 2 ** Math.min(this.reconnectAttempt++, 4)) * (0.8 + Math.random() * 0.4)
+            : 1500;
+          this.retryTimer = window.setTimeout(() => this.connect(), delayMs);
         }
       }
     });
     socket.addEventListener('error', () => {
+      if (this.socket !== socket) { return; }
       socket.close();
     });
   }
@@ -285,12 +315,14 @@ export class SimulatorDeviceConnection {
     }
     let message: Record<string, unknown>;
     try {
-      message = JSON.parse(raw) as Record<string, unknown>;
+      message = this.options.parseFrame
+        ? this.options.parseFrame(raw)
+        : JSON.parse(raw) as Record<string, unknown>;
     } catch {
       this.socket?.close();
       return;
     }
-    if (message.protocolVersion !== 1 || typeof message.type !== 'string') {
+    if (message === null || Array.isArray(message) || message.protocolVersion !== 1 || typeof message.type !== 'string') {
       this.socket?.close();
       return;
     }
@@ -301,7 +333,7 @@ export class SimulatorDeviceConnection {
     this.staleTimer = window.setTimeout(() => this.socket?.close(), 3000);
     if (message.type === 'welcome' || message.type === 'state.snapshot') {
       const candidate = message.type === 'welcome' ? message.snapshot : message;
-      if (!this.isSnapshot(candidate)) {
+      if (!this.isSnapshot(candidate) || candidate.deviceId !== this.options.deviceId) {
         this.socket?.close();
         return;
       }
@@ -309,6 +341,7 @@ export class SimulatorDeviceConnection {
       this.applySnapshot(candidate);
       if (message.type === 'welcome' || acquisitionCompleted) {
         this.clearRequestTimeout();
+        this.reconnectAttempt = 0;
       }
     } else if (message.type === 'command.ack') {
       const active = this.activeCommand;
@@ -382,7 +415,7 @@ export class SimulatorDeviceConnection {
     }
   }
 
-  private applySnapshot(snapshot: SimulatorSnapshot): void {
+  private applySnapshot(snapshot: ProtocolSnapshot): void {
     const previousMask = this.device?.readyMask ?? snapshot.readyMask;
     const previousLeaseId = this.device?.controlLeaseId;
     if (this.device && snapshot.bootId !== this.device.bootId) {
@@ -456,7 +489,7 @@ export class SimulatorDeviceConnection {
     this.publish();
   }
 
-  private sendPendingCommand(snapshot: SimulatorSnapshot): void {
+  private sendPendingCommand(snapshot: ProtocolSnapshot): void {
     const pending = this.pendingCommand;
     this.pendingCommand = null;
     const now = performance.now();
@@ -512,11 +545,11 @@ export class SimulatorDeviceConnection {
     this.armCommandRetry();
   }
 
-  private isSnapshot(value: unknown): value is SimulatorSnapshot {
+  private isSnapshot(value: unknown): value is ProtocolSnapshot {
     if (typeof value !== 'object' || value === null) {
       return false;
     }
-    const snapshot = value as Partial<SimulatorSnapshot>;
+    const snapshot = value as Partial<ProtocolSnapshot>;
     return snapshot.type === 'state.snapshot' &&
       typeof snapshot.deviceId === 'string' &&
       typeof snapshot.bootId === 'string' &&
@@ -567,11 +600,16 @@ export class SimulatorDeviceConnection {
   }
 
   private sendEncoded(encoded: string): boolean {
-    if (this.socket?.readyState !== WebSocket.OPEN) {
+    if (this.socket?.readyState !== 1) {
       return false;
     }
-    this.socket.send(encoded);
-    return true;
+    try {
+      this.socket.send(encoded);
+      return true;
+    } catch {
+      this.socket.close();
+      return false;
+    }
   }
 
   private armRequestTimeout(status: string, timeoutMs = 3000): void {
@@ -679,6 +717,30 @@ export class SimulatorDeviceConnection {
   }
 
   private publish(): void {
-    this.onChange({ ...this.state });
+    const snapshot = { ...this.state };
+    if (this.options.source === 'native-device') {
+      // Shared command behavior, with wording that does not claim simulation.
+      snapshot.status = snapshot.status
+        .replaceAll('hostitelský simulátor', 'kufr')
+        .replaceAll('hostitelskému E2 simulátoru', 'kufru')
+        .replaceAll('simulátorem', 'kufrem')
+        .replaceAll('simulátoru', 'kufru')
+        .replaceAll('simulátor', 'kufr')
+        .replaceAll('Simulátor', 'Kufr')
+        .replaceAll('Simulovaná sekvence', 'Povelová sekvence')
+        .replaceAll('Simulovaný výběr', 'Povelový výběr');
+    }
+    this.onChange(snapshot);
+  }
+}
+
+// The development proxy owns bearer credentials and verified upstream TLS.
+export class SimulatorDeviceConnection extends ProtocolDeviceConnection {
+  constructor(onChange: (snapshot: DeviceSnapshot) => void) {
+    super(onChange, {
+      source: 'e2-simulator',
+      deviceId: 'kufr-001',
+      createSocket: () => new WebSocket(`ws://${window.location.host}/dev/control`),
+    });
   }
 }
