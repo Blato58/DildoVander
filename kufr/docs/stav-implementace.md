@@ -88,6 +88,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 
 - Převzetí: při přímém volání `ConversationSession::SubmitText` se ID spotřebovalo před možným odmítnutím síťové fronty. Čistý model nyní nabízí neměnící `ValidateText`; jediný vlastník sezení má nejprve ověřit, pak zařadit a po úspěchu potvrdit původním `SubmitText`. Rozsah: model sezení, hostitelský integrační test se skutečnou `ConversationTextInbox`, firmware README a tento stav. Síťová/WSS produkce se v tomto kroku nepřipojuje.
 - Ověření 30. 9. z `kufr/firmware`: MSVC `cl /std:c++14 /EHsc /W4 /WX /utf-8` sestavil a spustil `conversation_session_test` a `conversation_turn_correlation_test`; druhý test doložil odmítnutí obsazenou frontou, opakovaný pokus bez ztráty ID a původní korelaci odpovědi. Po review doplněn test duplicitního retry po vyzvednutí původního tahu: další tah se nezařadí. `pio run -e esp32-s3-idf -s` i `pio run -e esp32-s3-arduino-serial -s` prošly před doplněním testu. CI a deska/B1 zatím neověřeny.
+- Doručení: implementační commit `84048e3881879e0424349a322e005fe994fbf7fd`; `./scripts/Push-CurrentBranch.ps1` potvrdil push do `origin/codex/kufr-text-admission`. Závěrečný CI a PR merge zapsat po jejich skutečném dokončení.
 - Neprovedeno: jednotná generace mezi `ConversationSession` a `DeviceControlRuntime`, skutečný místní autentizovaný producent, WSS/TLS, fyzické výstupy. Další krok: synchronizace životního cyklu v jediné řídicí úloze; až potom napojení textu a odpovědi.
 
 ### D81 – 30. 9. 2026 – E4.4a místní řízení lease
