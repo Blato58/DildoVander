@@ -33,6 +33,7 @@ idf_component_register(
         "features/device_control/DeviceControl.cpp"
         "features/device_control/DeviceControlRuntime.cpp"
         "features/device_control/PersistentCommandJournal.cpp"
+        "features/local_control/LocalControlSession.cpp"
         "features/provisioning/DeviceIdentity.cpp"
         "features/provisioning/EspIdfProvisioningStorage.cpp"
         "features/safety/SafetyController.cpp"

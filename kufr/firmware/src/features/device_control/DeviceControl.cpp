@@ -93,6 +93,10 @@ bool DeviceControl::DisconnectManualControl(SelectionStep& step) {
   return LoseManualControl(step);
 }
 
+bool DeviceControl::OwnsManualLease(const std::string& leaseId) const {
+  return !leaseId.empty() && manualLeaseId_ == leaseId;
+}
+
 CommandReceipt DeviceControl::AcceptSelection(const SelectionCommand& command,
                                                bool authenticated,
                                                uint64_t nowMs) {

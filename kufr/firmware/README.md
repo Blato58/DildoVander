@@ -49,6 +49,8 @@ src/
       PersistentCommandJournal.h/.cpp      trvalý journal a maska dostupnosti
       JournalStorage.h                     port trvalého úložiště pro testy
       EspIdfJournalStorage.h/.cpp           NVS blob v ESP-IDF profilu
+    local_control/
+      LocalControlSession.h/.cpp            hello a ruční lease jednoho ověřeného socketu
     provisioning/
       DeviceIdentity.h/.cpp                 formát identity a servisní brána
       ProvisioningStorage.h                 port úložiště identity
@@ -146,6 +148,13 @@ uzavření journalu. Přijetí výběru, aktivní pohyb, Stop a porucha jej inva
 změny lease, revision a masky publikují novou verzi. Prázdný boot identifikátor
 a nulová kalibrace zatím záměrně nedovolují spustit pohon. Živý vstup příkazů,
 skutečný NVS běh na desce, síťový parser a servisní USB zápis zbývají.
+`LocalControlSession` je čistý model jednoho control socketu po jeho budoucí
+TLS/token autentizaci. Na řídicí úloze vyžaduje `hello` verze 1 do 10 s,
+správné device/boot ID a UUID lease. Ruční lease vytváří a obnovuje výhradně
+existující `DeviceControlRuntime`. Odpojení pozorovatele nemění samostatný
+režim; odpojení vlastníka ukončí lease a zvýší generation. Po vypršení lease
+je další takeover možný teprve po místním zotavení. Třída sama neověřuje
+token, nepřijímá JSON ani nevystavuje WSS. ESP-IDF smyčka ji zatím nevytváří.
 
 `DeviceIdentity` čte oddělený verzovaný NVS záznam s `deviceId` a 32 bajty
 device credential. Pro HTTP Authorization jej lze vyjádřit 64 malými
@@ -302,6 +311,10 @@ Test vlastníka snapshotu přidává `DeviceControlRuntime.cpp`,
 invalidaci při čekajícím journalu a Stop, novou verzi po výběru a reloadu,
 selhání zápisu a vypršení nečinného ručního lease. Není to test GPIO, NVS ani
 skutečné síťové souběžnosti na ESP32.
+`tests/local_control_session_test.cpp` proti stejnému čistému řídicímu modelu
+ověřuje hello deadline, boot/lease ID, heartbeat, odpojení pozorovatele,
+vypršení vlastníka a zotavení před dalším takeover. Spouští jej firmware CI;
+neověřuje autentizaci TLS/WSS.
 `tests/autonomous_presentation_lifecycle_test.cpp` skládá stejné čisté zdroje
 s `PendingProposal.cpp` a `WandPresentation.cpp` do hostitelského cyklu.
 Ověřuje zápis journalu před zdvihem, invalidaci a obnovení snapshotu,
