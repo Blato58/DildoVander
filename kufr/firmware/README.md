@@ -218,6 +218,12 @@ selhání portu vypne pohony a zablokuje další cyklus do kontroly polohy.
 Rozhraní `WandPresentationPort` vyžaduje kalibraci, bezpečnostní větev,
 journal a publikaci stavu od skutečného adaptéru. Takový adaptér ani senzor
 polohy nyní neexistují; model se v `espidf_main.cpp` nespouští.
+`DeviceControlRuntime` má pro budoucí port autonomní transakci bez ručního
+lease: před zdvihem ověří přesný snapshot a trvale otevře journal, čímž
+zneplatní dostupnost. Potvrzený návrat journal atomicky uzavře se zachovanou
+maskou a zveřejní novou revizi. Stop nebo porucha nechá záznam otevřený k
+fyzické kontrole. Hostitelský fake port ověřuje celý cyklus; není to připojení
+servo výstupu do smyčky ESP32.
 
 `SerialSelectionPort` je první vstup/výstup pro vývoj bez zapojené elektroniky.
 Příkazy na sériovém monitoru (115200 Bd, ukončení řádku LF nebo CRLF):
@@ -281,12 +287,18 @@ cache, chybu zápisu/uzavření journalu, restart po dokončení i přerušeném
 uvolnění, potvrzený reload a jeho trvalou masku, Stop a výpadek ručního lease při aktivním výstupu. Neověřuje NVS ani
 skutečnou síť.
 
-Test vlastníka snapshotu přidává `DeviceControlRuntime.cpp` a
-`ConversationRuntimeState.cpp` k uvedeným čistým zdrojům a spouští
+Test vlastníka snapshotu přidává `DeviceControlRuntime.cpp`,
+`ConversationRuntimeState.cpp`, `PendingProposal.cpp` a
+`WandPresentation.cpp` k uvedeným čistým zdrojům a spouští
 `tests/device_control_runtime_test.cpp`. Ověřuje dostupnost až po zotavení,
 invalidaci při čekajícím journalu a Stop, novou verzi po výběru a reloadu,
 selhání zápisu a vypršení nečinného ručního lease. Není to test GPIO, NVS ani
 skutečné síťové souběžnosti na ESP32.
+`tests/autonomous_presentation_lifecycle_test.cpp` skládá stejné čisté zdroje
+s `PendingProposal.cpp` a `WandPresentation.cpp` do hostitelského cyklu.
+Ověřuje zápis journalu před zdvihem, invalidaci a obnovení snapshotu,
+opakovaný cyklus, Stop, expirovaný/starý návrh a chyby zápisu. Stejný test
+spouští firmware CI; neověřuje polohu ani bezpečnost fyzického serva.
 
 Hostitelský test trvalého journalu používá také čistý `DeviceControl` a
 paměťový port úložiště:

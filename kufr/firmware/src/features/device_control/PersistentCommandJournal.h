@@ -20,6 +20,7 @@ class PersistentCommandJournal final : public CommandJournal {
   uint8_t ReadyMask() const override;
   bool Begin(const std::string& commandId, uint8_t compartment) override;
   bool Resolve(uint8_t readyMask) override;
+  bool ResolveRestored(uint8_t compartment) override;
   bool PersistReadyMask(uint8_t readyMask) override;
 
  private:

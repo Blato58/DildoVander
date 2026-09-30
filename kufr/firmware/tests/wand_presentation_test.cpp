@@ -19,7 +19,8 @@ class FakePort final : public WandPresentationPort {
   bool IsSafeToContinue() const override { return safe; }
   bool IsRaised(uint8_t) const override { return raised; }
   bool IsResting(uint8_t) const override { return resting; }
-  bool Raise(uint8_t) override {
+  bool Raise(uint8_t, const std::string&,
+             const ConversationRuntimeSnapshot&) override {
     ++raises;
     resting = false;
     return true;

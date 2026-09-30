@@ -15,6 +15,9 @@ class CommandJournal {
   virtual bool Begin(const std::string& commandId, uint8_t compartment) = 0;
   // Persist the new availability mask and close the record atomically.
   virtual bool Resolve(uint8_t readyMask) = 0;
+  // Close a presentation only after its prop is confirmed back at rest.
+  // Legacy selection journals fail closed until they support this transition.
+  virtual bool ResolveRestored(uint8_t) { return false; }
   // Persist a confirmed reload without opening or closing a selection record.
   virtual bool PersistReadyMask(uint8_t readyMask) = 0;
 };

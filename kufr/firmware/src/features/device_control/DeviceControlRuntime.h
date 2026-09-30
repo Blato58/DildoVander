@@ -7,6 +7,8 @@
 #include "DeviceControl.h"
 #include "../conversation/ConversationRuntimeState.h"
 
+class WandPresentation;
+
 // Sole control-task entry point for journal/control transitions and the
 // coherent snapshot consumed by the backend network task. The runtime state
 // must start unavailable; only this owner publishes it after safe transitions.
@@ -15,6 +17,8 @@ class DeviceControlRuntime final {
   DeviceControlRuntime(DeviceControl& control, SelectionSequence& selection,
                        ConversationRuntimeState& runtime,
                        const std::string& catalogVersion);
+
+  bool BindPresentation(WandPresentation& presentation);
 
   bool RecoverAfterInspection();
   bool AcquireManualControl(const std::string& leaseId, uint64_t nowMs);
@@ -25,11 +29,17 @@ class DeviceControlRuntime final {
   CommandReceipt ConfirmReload(const InventoryReloadCommand& command,
                                bool authenticated, uint64_t nowMs);
   bool BeginAcceptedSelection(uint64_t nowMs, SelectionStep& step);
+  bool BeginAutonomousPresentation(
+      const std::string& proposalId, uint8_t compartment,
+      const ConversationRuntimeSnapshot& expectedSnapshot);
+  bool CompleteAutonomousPresentation(uint8_t compartment);
+  void FaultAutonomousPresentation();
   bool Tick(uint64_t nowMs, SelectionStep& step);
   bool Stop(SelectionStep& step);
 
   bool PublishCurrent();
   uint64_t Generation() const;
+  bool HasAutonomousPresentation() const;
 
  private:
   void RecordLeaseLoss(bool hadManualControl);
@@ -43,4 +53,5 @@ class DeviceControlRuntime final {
   uint64_t publishedRevision_ = 0;
   uint8_t publishedReadyMask_ = 0;
   bool published_ = false;
+  WandPresentation* presentation_ = nullptr;
 };

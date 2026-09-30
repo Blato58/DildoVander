@@ -18,7 +18,8 @@ class WandPresentationPort {
   virtual bool IsSafeToContinue() const = 0;
   virtual bool IsRaised(uint8_t compartment) const = 0;
   virtual bool IsResting(uint8_t compartment) const = 0;
-  virtual bool Raise(uint8_t compartment) = 0;
+  virtual bool Raise(uint8_t compartment, const std::string& proposalId,
+                     const ConversationRuntimeSnapshot& snapshot) = 0;
   virtual bool Lower(uint8_t compartment) = 0;
   virtual bool Complete(uint8_t compartment) = 0;
   virtual void DisableAndFault() = 0;
