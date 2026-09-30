@@ -14,6 +14,24 @@ constexpr char BackendTurnId[] = "ad64d2ac-d76a-4e5d-9ce7-a0b468f31c85";
 constexpr char LocalConversationId[] = "F1E83B7C-DF66-48DF-B0F8-6C7B215B38B1";
 constexpr char BackendConversationId[] = "b78ea5a1-6c11-426a-9b6a-3293612248d3";
 
+ConversationCommandReceipt AdmitText(
+    ConversationSession& session, ConversationTextInbox& textInbox,
+    const ConversationTextCommand& command,
+    const ConversationRuntimeSnapshot& snapshot,
+    const ConversationRuntimeState& runtime) {
+  const ConversationCommandReceipt validation =
+      session.ValidateText(command, true, snapshot.deviceRevision);
+  if (validation.error != ConversationCommandError::None ||
+      validation.duplicate) {
+    return validation;
+  }
+  if (!textInbox.Submit(command.text, command.conversationId,
+                        command.clientTurnId, snapshot, runtime)) {
+    return {ConversationCommandError::Busy, false};
+  }
+  return session.SubmitText(command, true, snapshot.deviceRevision);
+}
+
 void TestLocalTurnSurvivesBackendCorrelation() {
   ConversationRuntimeState runtime(true, 63, "catalog-1");
   ConversationRuntimeSnapshot snapshot;
@@ -26,13 +44,9 @@ void TestLocalTurnSurvivesBackendCorrelation() {
   command.clientTurnId = LocalTurnId;
   command.expectedRevision = snapshot.deviceRevision;
   command.text = "Which wand?";
-  assert(session.SubmitText(command, true, snapshot.deviceRevision).error ==
-         ConversationCommandError::None);
-
   ConversationTextInbox textInbox;
-  assert(textInbox.Submit(
-      command.text, command.conversationId, command.clientTurnId,
-      snapshot, runtime));
+  assert(AdmitText(session, textInbox, command, snapshot, runtime).error ==
+         ConversationCommandError::None);
   std::string queuedText;
   std::string queuedConversationId;
   std::string queuedTurnId;
@@ -90,8 +104,45 @@ void TestLocalTurnSurvivesBackendCorrelation() {
   assert(replyInbox.Complete(token));
 }
 
+void TestRejectedQueueDoesNotConsumeTurn() {
+  ConversationRuntimeState runtime(true, 63, "catalog-1");
+  ConversationRuntimeSnapshot snapshot;
+  assert(runtime.Read(snapshot));
+
+  ConversationSession session("boot-1", LocalConversationId);
+  ConversationTextCommand command;
+  command.bootId = "boot-1";
+  command.conversationId = LocalConversationId;
+  command.clientTurnId = LocalTurnId;
+  command.expectedRevision = snapshot.deviceRevision;
+  command.text = "Which wand?";
+  ConversationTextInbox textInbox;
+  assert(textInbox.Submit("Earlier turn", LocalConversationId,
+                          BackendTurnId, snapshot, runtime));
+
+  assert(AdmitText(session, textInbox, command, snapshot, runtime).error ==
+         ConversationCommandError::Busy);
+  assert(!session.HasActiveTurn());
+
+  textInbox.Clear();
+  assert(AdmitText(session, textInbox, command, snapshot, runtime).error ==
+         ConversationCommandError::None);
+  assert(session.HasActiveTurn());
+
+  std::string queuedText;
+  std::string queuedConversationId;
+  std::string queuedTurnId;
+  uint64_t snapshotVersion = 0;
+  assert(textInbox.Take(
+      queuedText, queuedConversationId, queuedTurnId, snapshotVersion));
+  assert(AdmitText(session, textInbox, command, snapshot, runtime).duplicate);
+  assert(!textInbox.Take(
+      queuedText, queuedConversationId, queuedTurnId, snapshotVersion));
+}
+
 }  // namespace
 
 int main() {
   TestLocalTurnSurvivesBackendCorrelation();
+  TestRejectedQueueDoesNotConsumeTurn();
 }

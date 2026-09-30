@@ -181,8 +181,12 @@ takže na prázdné desce síť nezačne. Skutečné Wi-Fi, SNTP ani TLS spojen�
 na desce ověřeno. V image není URL ani credential.
 
 `ConversationSession` je čistý model jednoho textového sezení. Kontroluje
-ruční lease, boot/session/generation, revision a délku UTF-8 textu. V jednom
-sezení přijme nejvýše deset jedinečných `clientTurnId`; opakovaný aktivní tah
+ruční lease, boot/session/generation, revision a délku UTF-8 textu. Místní
+vlastník nejprve zavolá `ValidateText`; duplicitní přijetí vrátí bez dalšího
+zařazení. Nový tah pak předá do síťové fronty a
+teprve po jejím přijetí zavolá `SubmitText`. Obě volání musí běžet na jediné
+řídicí úloze bez mezilehlé změny sezení; odmítnutí frontou tah nespotřebuje.
+V jednom sezení přijme nejvýše deset jedinečných `clientTurnId`; opakovaný aktivní tah
 rozpozná a po dokončení či zrušení již stejné ID znovu nespustí. Zrušení nebo
 ztráta lease zvýší generation a pozdní dokončení se odmítne. Model zatím není
 zapojený do WSS ani backendu a neřídí žádný fyzický výstup.
