@@ -9,6 +9,7 @@
 #include "NetworkSettings.h"
 #include "../conversation/ConversationRuntimeState.h"
 #include "../conversation/ConversationTextInbox.h"
+#include "../conversation/ConversationReplyInbox.h"
 #include "../conversation/PendingProposal.h"
 #include "../wand_presentation/WandPresentation.h"
 #include "../provisioning/DeviceIdentity.h"
@@ -23,6 +24,13 @@ class EspIdfBackendNetwork final {
   // Called only for a deliberate local start event, never by reconnect.
   bool QueueOpening(const ConversationRuntimeSnapshot& expectedSnapshot);
   void QueueCancel();
+  // The caller must check IsReplyCurrent before and during playback, then
+  // FinishReply. Stop/cancel must also stop the actual output port.
+  bool TakeReply(std::string& reply,
+                 ConversationRuntimeSnapshot& snapshot, uint64_t& token);
+  bool IsReplyCurrent(
+      uint64_t token, const ConversationRuntimeSnapshot& snapshot) const;
+  bool FinishReply(uint64_t token);
   bool ReadPendingProposal(TurnProposal& proposal, uint64_t nowMs) const;
   // Control owner calls this after completing the announcement. Network
   // polling never invokes it and cannot directly move an actuator.
@@ -49,6 +57,7 @@ class EspIdfBackendNetwork final {
   ConversationRuntimeState& runtimeState_;
   NetworkSettings settings_;
   ConversationTextInbox textInbox_;
+  ConversationReplyInbox replyInbox_;
   PendingProposal pendingProposal_;
   std::mutex presentationMutex_;
   bool terminalProposalOutstanding_ = false;

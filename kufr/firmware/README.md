@@ -210,6 +210,13 @@ odděluje nové sezení a jeho idempotency key od zrušeného sezení.
 `PendingProposal` drží pouze data s lokálním monotónním deadlinem a při změně
 autoritativního snapshotu je nevydá. Žádná odpověď z backendu zatím neřídí
 fyzické výstupy.
+`ConversationReplyInbox` podrží nejvýše jednu validovanou textovou repliku
+svázanou s přesným snapshotem. Síťová úloha ji po úspěšném pollu předá přes
+`TakeReply` s tokenem; nový tah ani autonomní prezentace nezačnou do
+`FinishReply`. Změna snapshotu nebo explicitní zrušení token zneplatní.
+Volající musí `IsReplyCurrent` kontrolovat před výstupem i během něj a při
+zrušení zastavit skutečný výstupní port. Přehrávací/TTS port v IDF smyčce
+zatím neexistuje, takže replika dosud není slyšet ani zobrazena.
 `WandPresentation` je čistý autonomní model pro hůlku, která zůstává v přihrádce.
 Po jednorázovém převzetí validovaného návrhu vyžádá zdvih, čeká na potvrzenou
 horní polohu, ukáže rekvizitu 5 s, vyžádá spuštění a čeká na potvrzenou klidovou
@@ -401,6 +408,11 @@ Vstupní schránku textového tahu lze ověřit samostatně:
 g++ -std=c++14 -Wall -Wextra -Werror -pthread src/features/conversation/ConversationSession.cpp src/features/conversation/ConversationRuntimeState.cpp src/features/conversation/ConversationTextInbox.cpp tests/conversation_text_inbox_test.cpp -o <docasna-slozka>/conversation_text_inbox_test
 <docasna-slozka>/conversation_text_inbox_test
 ```
+
+Schránku odpovědi a její vazbu na snapshot ověřuje
+`tests/conversation_reply_inbox_test.cpp` spolu s
+`ConversationSession.cpp`, `ConversationRuntimeState.cpp` a
+`ConversationReplyInbox.cpp`; stejný test spouští firmware CI.
 
 `tests/turn_replay.cpp` je hostitelský CLI průchod skutečným JSON výsledkem
 operace přes parser, korelační bránu, dočasný návrh a fake servo port. Přijímá
