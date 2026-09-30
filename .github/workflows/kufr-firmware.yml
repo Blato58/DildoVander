@@ -57,6 +57,16 @@ jobs:
           "$RUNNER_TEMP/local-control-codec-test" \
             ../contracts/fixtures/valid/{hello,state-get,control-acquire,control-release,heartbeat,safety-stop,safety-reset,conversation-text,conversation-cancel,selection-start,inventory-confirm-reload}.json \
             --reject ../contracts/fixtures/invalid/*.json
+      - name: Local control inbox test
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++14 -Wall -Wextra -Werror -pthread \
+            src/features/local_control/LocalControlInbox.cpp \
+            tests/local_control_inbox_test.cpp \
+            -o "$RUNNER_TEMP/local-control-inbox-test"
+          "$RUNNER_TEMP/local-control-inbox-test"
       - name: Local control session test
         working-directory: kufr/firmware
         shell: bash
