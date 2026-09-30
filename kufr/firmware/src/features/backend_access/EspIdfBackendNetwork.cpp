@@ -87,8 +87,9 @@ void WaitMs(uint32_t durationMs) {
 }  // namespace
 
 EspIdfBackendNetwork::EspIdfBackendNetwork(
-    DeviceIdentity& identity, ConversationRuntimeState& runtimeState)
-    : identity_(identity), runtimeState_(runtimeState) {}
+    DeviceIdentity& identity, ConversationRuntimeState& runtimeState,
+    const std::string& bootId)
+    : identity_(identity), runtimeState_(runtimeState), bootId_(bootId) {}
 
 bool EspIdfBackendNetwork::QueueTextTurn(
     const std::string& text, const std::string& conversationId,
@@ -259,7 +260,7 @@ bool EspIdfBackendNetwork::FinishPresentation(
 }
 
 bool EspIdfBackendNetwork::Start(bool nvsInitialized) {
-  if (task_ != nullptr || !identity_.IsProvisioned() ||
+  if (task_ != nullptr || bootId_.empty() || !identity_.IsProvisioned() ||
       LoadEspIdfNetworkSettings(settings_, nvsInitialized) !=
           NetworkSettingsLoadResult::Loaded) {
     return false;
@@ -305,6 +306,7 @@ void EspIdfBackendNetwork::Run() {
   ConversationStartCoordinator coordinator(identity_, tokens, startTransport);
   ConversationStartRequest startRequest;
   startRequest.deviceId = identity_.DeviceId();
+  startRequest.bootId = bootId_;
   ReconnectPolicy reconnect;
   bool sntpStarted = false;
   bool timeSynchronized = false;
@@ -324,9 +326,7 @@ void EspIdfBackendNetwork::Run() {
         continue;
       }
       reconnect.Reset();
-      if (bootId_.empty()) {
-        bootId_ = GenerateEspIdfConversationUuid();
-        startRequest.bootId = bootId_;
+      if (startRequest.idempotencyKey.empty()) {
         startRequest.idempotencyKey = GenerateEspIdfConversationUuid();
       }
       ESP_LOGI(LogTag, "Wi-Fi connected; waiting for trusted time");
