@@ -191,7 +191,10 @@ Poškozený záznam či neúspěšný zápis odmítá. Zatím existuje jen model
 hostitelskými fake porty. ESP-IDF profil již sestavuje SHA-256 adaptér přes
 PSA Crypto a oddělené NVS úložiště `wand_pairing/local`; `wand_identity/device`
 pro backendovou identitu tím není sdílené. Adaptéry nejsou zatím spuštěné ani
-ověřené na desce. Hardwarově podmíněný RNG, párovací AP, TLS klíč/certifikát
+ověřené na desce. `EspIdfPairingRandom` nyní sestavuje adaptér pro 32bajtový
+token: Wi-Fi STA musí být připojená před i po `esp_fill_random`, jinak odmítne
+vydání a vymaže výstup. Nepřepíná interní ADC zdroj během RF/audio provozu.
+Párovací AP bude potřebovat vlastní bránu entropie. Párování, TLS klíč/certifikát
 a WSS handshake nejsou připojené.
 
 `LocalBearerAuthenticator` přijímá pouze přesnou `Bearer ` hlavičku s 64

@@ -41,6 +41,7 @@ idf_component_register(
         "features/provisioning/DeviceIdentity.cpp"
         "features/provisioning/EspIdfProvisioningStorage.cpp"
         "features/provisioning/EspIdfLocalPairingStorage.cpp"
+        "features/provisioning/EspIdfPairingRandom.cpp"
         "features/provisioning/EspIdfSha256.cpp"
         "features/provisioning/LocalPairingCredential.cpp"
         "features/safety/SafetyController.cpp"
