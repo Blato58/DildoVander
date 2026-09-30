@@ -19,7 +19,7 @@ on:
       dialog_model:
         description: Text dialogue model
         type: choice
-        options: [gpt-6.1-sol, gpt-6-luna]
+        options: [gpt-6.1-sol]
         default: gpt-6.1-sol
 
 permissions:
@@ -92,7 +92,7 @@ jobs:
             *) echo 'Invalid dialog mode' >&2; exit 2 ;;
           esac
           case "$DIALOG_MODEL" in
-            gpt-6.1-sol|gpt-6-luna) ;;
+            gpt-6.1-sol) ;;
             *) echo 'Invalid dialog model' >&2; exit 2 ;;
           esac
           mkdir -m 0755 -- "$release_dir"

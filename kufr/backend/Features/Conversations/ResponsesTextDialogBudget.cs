@@ -6,7 +6,6 @@ namespace Kufr.Backend.Features.Conversations;
 internal static class ResponsesTextDialogBudget
 {
     internal const string Model = "gpt-6.1-sol";
-    internal const string LunaModel = "gpt-6-luna";
     internal const int MinimumQuestions = 4;
     internal const int MaxRequestBytes = 14_000;
 
@@ -17,7 +16,7 @@ internal static class ResponsesTextDialogBudget
 
     internal static int RequestByteLimit(string context) => MaxRequestBytes + ContextBytes(context);
 
-    internal static bool IsSupportedModel(string model) => model is Model or LunaModel;
+    internal static bool IsSupportedModel(string model) => model == Model;
 
     internal static long ReserveForContext(string context, string model = Model)
     {
@@ -25,8 +24,7 @@ internal static class ResponsesTextDialogBudget
         return model switch
         {
             Model => solReservation,
-            LunaModel => (solReservation + 19) / 20,
-            _ => throw new InvalidOperationException("Only Sol and Luna are supported.")
+            _ => throw new InvalidOperationException("Only Sol is supported.")
         };
     }
 
@@ -52,7 +50,6 @@ internal static class ResponsesTextDialogBudget
         return expectedModel switch
         {
             Model => checked((response.InputTokens * 5L + 1) / 2 + response.OutputTokens * 10L),
-            LunaModel => checked((response.InputTokens + response.OutputTokens * 4L + 7) / 8),
             _ => throw new TextDialogUnavailableException("Provider model cannot be priced.")
         };
     }

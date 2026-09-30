@@ -149,7 +149,7 @@ def run_dialogue(meter, model, persona):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--models", nargs="+", choices=MODEL_PRICES, default=["gpt-6.1-sol", "gpt-6-luna"])
+    parser.add_argument("--models", nargs="+", choices=MODEL_PRICES, default=["gpt-6.1-sol"])
     parser.add_argument("--budget-micro-usd", type=int, default=MAX_RUN_MICRO_USD)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
