@@ -6,13 +6,15 @@
 #include "ConversationStartCodec.h"
 
 bool ConversationReplyInbox::Store(
-    const std::string& reply, const std::string& clientTurnId,
+    const std::string& reply, const std::string& conversationId,
+    const std::string& clientTurnId,
     const ConversationRuntimeSnapshot& expectedSnapshot,
     const ConversationRuntimeState& runtimeState) {
-  std::string normalizedTurnId;
+  std::string normalizedId;
   if (expectedSnapshot.version == 0 || reply.size() > 2000 ||
       !IsValidConversationUtf8(reply, 500, false) ||
-      !NormalizeConversationUuid(clientTurnId, normalizedTurnId)) {
+      !NormalizeConversationUuid(conversationId, normalizedId) ||
+      !NormalizeConversationUuid(clientTurnId, normalizedId)) {
     return false;
   }
 
@@ -23,13 +25,15 @@ bool ConversationReplyInbox::Store(
   }
   ++token_;
   pendingReply_ = reply;
+  pendingConversationId_ = conversationId;
   pendingClientTurnId_ = clientTurnId;
   snapshot_ = expectedSnapshot;
   return true;
 }
 
 bool ConversationReplyInbox::Take(
-    std::string& reply, std::string& clientTurnId,
+    std::string& reply, std::string& conversationId,
+    std::string& clientTurnId,
     ConversationRuntimeSnapshot& snapshot,
     uint64_t& token,
     const ConversationRuntimeState& runtimeState) {
@@ -42,11 +46,13 @@ bool ConversationReplyInbox::Take(
     return false;
   }
   reply = pendingReply_;
+  conversationId = pendingConversationId_;
   clientTurnId = pendingClientTurnId_;
   snapshot = snapshot_;
   token = token_;
   std::fill(pendingReply_.begin(), pendingReply_.end(), '\0');
   pendingReply_.clear();
+  pendingConversationId_.clear();
   pendingClientTurnId_.clear();
   inFlight_ = true;
   return true;
@@ -88,6 +94,7 @@ void ConversationReplyInbox::Clear() {
 void ConversationReplyInbox::InvalidateLocked() {
   std::fill(pendingReply_.begin(), pendingReply_.end(), '\0');
   pendingReply_.clear();
+  pendingConversationId_.clear();
   pendingClientTurnId_.clear();
   snapshot_ = {};
   inFlight_ = false;

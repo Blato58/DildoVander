@@ -20,14 +20,17 @@ class EspIdfBackendNetwork final {
                        ConversationRuntimeState& runtimeState);
   bool Start(bool nvsInitialized);
   bool QueueTextTurn(const std::string& text,
+                     const std::string& conversationId,
                      const std::string& clientTurnId,
                      const ConversationRuntimeSnapshot& expectedSnapshot);
   // Called only for a deliberate local start event, never by reconnect.
-  bool QueueOpening(const ConversationRuntimeSnapshot& expectedSnapshot);
+  bool QueueOpening(const std::string& conversationId,
+                    const ConversationRuntimeSnapshot& expectedSnapshot);
   void QueueCancel();
   // The caller must check IsReplyCurrent before and during playback, then
   // FinishReply. Stop/cancel must also stop the actual output port.
-  bool TakeReply(std::string& reply, std::string& clientTurnId,
+  bool TakeReply(std::string& reply, std::string& conversationId,
+                 std::string& clientTurnId,
                  ConversationRuntimeSnapshot& snapshot, uint64_t& token);
   bool IsReplyCurrent(
       uint64_t token, const ConversationRuntimeSnapshot& snapshot) const;
@@ -44,6 +47,7 @@ class EspIdfBackendNetwork final {
   static void TaskEntry(void* argument);
   void Run();
   void RunTurn(const std::string& text,
+               const std::string& conversationId,
                const std::string& clientTurnId, bool opening,
                uint64_t snapshotVersion,
                    class DeviceTokenSession& tokens,
@@ -54,6 +58,13 @@ class EspIdfBackendNetwork final {
                          class EspIdfConversationTextTransport& transport,
                          class DeviceTokenSession& tokens,
                          struct ConversationStartRequest& startRequest);
+  bool IsLocalConversationAdmitted(
+      const std::string& normalizedConversationId,
+      uint64_t snapshotVersion);
+  bool StoreReplyIfAdmitted(
+      const std::string& reply, const std::string& conversationId,
+      const std::string& clientTurnId,
+      const ConversationRuntimeSnapshot& snapshot);
 
   DeviceIdentity& identity_;
   ConversationRuntimeState& runtimeState_;
@@ -66,10 +77,16 @@ class EspIdfBackendNetwork final {
   bool presentationActive_ = false;
   std::mutex openingMutex_;
   bool openingPending_ = false;
+  std::string openingConversationId_;
   uint64_t openingSnapshotVersion_ = 0;
+  // Admission survives a failed backend start until the device snapshot changes.
+  std::string admittedLocalConversationId_;
+  uint64_t admittedSnapshotVersion_ = 0;
   std::atomic<bool> online_{false};
   std::atomic<bool> cancelRequested_{false};
   std::string bootId_;
+  // Only the network task mutates this binding. Local and backend IDs differ.
+  std::string activeLocalConversationId_;
   uint64_t startSnapshotVersion_ = 0;
   bool closePending_ = false;
   uint64_t closeRetryAtMs_ = 0;

@@ -10,10 +10,12 @@
 // only; taking a reply never starts audio or physical presentation.
 class ConversationReplyInbox final {
  public:
-  bool Store(const std::string& reply, const std::string& clientTurnId,
+  bool Store(const std::string& reply, const std::string& conversationId,
+             const std::string& clientTurnId,
              const ConversationRuntimeSnapshot& expectedSnapshot,
              const ConversationRuntimeState& runtimeState);
-  bool Take(std::string& reply, std::string& clientTurnId,
+  bool Take(std::string& reply, std::string& conversationId,
+            std::string& clientTurnId,
             ConversationRuntimeSnapshot& snapshot,
             uint64_t& token,
             const ConversationRuntimeState& runtimeState);
@@ -29,6 +31,7 @@ class ConversationReplyInbox final {
 
   mutable std::mutex mutex_;
   std::string pendingReply_;
+  std::string pendingConversationId_;
   std::string pendingClientTurnId_;
   ConversationRuntimeSnapshot snapshot_;
   uint64_t token_ = 1;
