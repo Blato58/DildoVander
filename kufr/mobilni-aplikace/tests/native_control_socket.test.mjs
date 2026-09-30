@@ -162,3 +162,25 @@ test('malformed, duplicate, oversized and wrong-device snapshots close native co
     connection.suspend();
   }
 });
+
+test('native reconnect backs off, remains an observer and explicit disconnect cancels retries', async () => {
+  timers.clear();
+  const native = bridge();
+  const connection = new ProtocolDeviceConnection(() => {}, {
+    source: 'native-device', deviceId: fixture.deviceId,
+    createSocket: () => new NativeControlSocket(native),
+  });
+  await settle();
+  for (const baseDelay of [500, 1000, 2000, 4000, 8000, 8000]) {
+    native.emit('closed');
+    assert.equal(connection.snapshot().controlMode, 'observer');
+    const [id, timer] = [...timers.entries()].at(-1);
+    assert.ok(timer.milliseconds >= baseDelay * 0.8 && timer.milliseconds <= baseDelay * 1.2);
+    timers.delete(id);
+    timer.callback();
+    await settle();
+  }
+  native.emit('closed');
+  connection.suspend();
+  assert.equal(timers.size, 0);
+});

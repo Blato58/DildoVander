@@ -73,6 +73,7 @@ export class ProtocolDeviceConnection {
   private acquirePending = false;
   private releasePending = false;
   private awaitingRevision: number | null = null;
+  private reconnectAttempt = 0;
   private suspended = false;
   private state: DeviceSnapshot = {
     source: 'e2-simulator',
@@ -145,7 +146,10 @@ export class ProtocolDeviceConnection {
         };
         this.publish();
         if (!this.suspended && !document.hidden) {
-          this.retryTimer = window.setTimeout(() => this.connect(), 1500);
+          const delayMs = this.options.source === 'native-device'
+            ? Math.min(8000, 500 * 2 ** Math.min(this.reconnectAttempt++, 4)) * (0.8 + Math.random() * 0.4)
+            : 1500;
+          this.retryTimer = window.setTimeout(() => this.connect(), delayMs);
         }
       }
     });
@@ -337,6 +341,7 @@ export class ProtocolDeviceConnection {
       this.applySnapshot(candidate);
       if (message.type === 'welcome' || acquisitionCompleted) {
         this.clearRequestTimeout();
+        this.reconnectAttempt = 0;
       }
     } else if (message.type === 'command.ack') {
       const active = this.activeCommand;

@@ -5,11 +5,13 @@ on:
     branches: [main]
     paths:
       - kufr/mobilni-aplikace/**
+      - kufr/contracts/**
       - .github/workflows/kufr-ios.yml
   pull_request:
     branches: [main]
     paths:
       - kufr/mobilni-aplikace/**
+      - kufr/contracts/**
       - .github/workflows/kufr-ios.yml
   workflow_dispatch:
     inputs:
