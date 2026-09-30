@@ -15,6 +15,7 @@ internal static class TextDialogRuntimeTests
             CheckModeConfiguration(directory);
             await RunSuccessfulTurnAsync(directory);
             await RunMultiTurnDialogueAsync(directory);
+            await RunTerminalReplyAsync(directory);
             await RunPromptCancellationAsync(directory);
             await RunCancelledTurnAsync(directory);
             await RunFailedTurnAsync(directory);
@@ -59,7 +60,18 @@ internal static class TextDialogRuntimeTests
                 ["OPENAI_API_KEY"] = "sk-test-only"
             })
             .Build();
+        enabled["Backend:Dialog:Model"] = ResponsesTextDialogBudget.LunaModel;
         using var configured = new TextDialogRunner(enabled, lifetime);
+        Require(configured.Model == ResponsesTextDialogBudget.LunaModel, "configured Luna model is retained");
+        enabled["Backend:Dialog:Model"] = "gpt-6-astra";
+        try
+        {
+            using var unsupported = new TextDialogRunner(enabled, lifetime);
+            throw new Exception("Disallowed model started.");
+        }
+        catch (InvalidOperationException)
+        {
+        }
         Require(configured.Enabled, "explicit Responses mode accepts key and all caps");
     }
 
@@ -156,7 +168,7 @@ internal static class TextDialogRuntimeTests
             {
                 1 => new TextDialogResponse("Jaký trapas má magie napravit?", "ask", "", null,
                     ResponsesTextDialogBudget.Model, 100, 20, "default"),
-                2 => new TextDialogResponse("Jaký druh magie?", "ask", "", null,
+                2 or 3 or 4 => new TextDialogResponse("Jaký druh magie?", "ask", "", null,
                     ResponsesTextDialogBudget.Model, 200, 20, "default"),
                 _ => new TextDialogResponse("Třpyt a chaos? Hůlka dvě tě zvládne líp než ty svůj plán.",
                     "propose", "Třpyt a chaos", 2,
@@ -170,7 +182,7 @@ internal static class TextDialogRuntimeTests
             new CreateConversationRequest("device-a", boot, 0, "neutral-1", "cs-CZ",
                 new ConversationConsent(false, false)));
         var conversationId = created.Response!.ConversationId;
-        var answers = new[] { "Chci hůlku.", "Třpyt.", "Chaos." };
+        var answers = new[] { "Chci hůlku.", "Třpyt.", "Chaos.", "S kamarády.", "Petr." };
         for (var index = 0; index < answers.Length; index++)
         {
             var request = new TextTurnRequest(Guid.NewGuid(), boot, 0, answers[index], 2, 7,
@@ -180,10 +192,10 @@ internal static class TextDialogRuntimeTests
             Require(accepted.OperationId is not null, "multi-turn request was accepted");
             var operation = await PollAsync(store, runner, accepted.OperationId!, "completed");
             var result = (TurnResult)operation.Result!;
-            if (index < 2)
+            if (index < ResponsesTextDialogBudget.MinimumQuestions)
             {
                 Require(result.Decision == "ask" && result.Proposal is null,
-                    "two completed questions precede any proposal");
+                    "four completed questions precede any proposal");
             }
             else
             {
@@ -192,19 +204,19 @@ internal static class TextDialogRuntimeTests
                     && proposal.ConversationId == conversationId
                     && proposal.TurnId == request.ClientTurnId
                     && proposal.DeviceRevision == request.DeviceRevision,
-                    "third turn may publish a correlated proposal");
+                    "fifth turn may publish a correlated proposal");
             }
         }
 
-        Require(seenHistory.Count == 3
+        Require(seenHistory.Count == 5
             && seenHistory[0].Length == 0
             && seenHistory[1].Length == 1
             && seenHistory[1][0].Reply.Contains("trapas", StringComparison.Ordinal)
             && seenHistory[2].Length == 2
             && seenHistory[2][1].VisitorText == "Třpyt.",
             "provider receives completed question and answer pairs in order");
-        Require(requiredQuestions.SequenceEqual(new[] { true, true, false }),
-            "only first two turns require a model-generated question");
+        Require(requiredQuestions.SequenceEqual(new[] { true, true, true, true, false }),
+            "only first four turns require a model-generated question");
         Require(store.EndConversation("device-a", conversationId, Guid.NewGuid()).Status == 204,
             "ending conversation discards its RAM history");
         var next = store.Create("device-a", Guid.NewGuid(), "next"u8,
@@ -212,6 +224,47 @@ internal static class TextDialogRuntimeTests
                 new ConversationConsent(false, false)));
         Require(next.Status == 201 && next.Response is not null,
             "new conversation starts after old history is cleared");
+    }
+
+    private static async Task RunTerminalReplyAsync(string directory)
+    {
+        var configuration = BuildConfiguration(Path.Combine(directory, "terminal.sqlite"), 500_000);
+        using var journal = new OperationJournal(configuration, TimeProvider.System);
+        using var runner = new TextDialogRunner((_, _, _, _, _) => Task.FromResult(
+            new TextDialogResponse("Tak zatím.", "no_selection", "", null,
+                ResponsesTextDialogBudget.Model, 100, 10, "default")));
+        var store = new ConversationStore(TimeProvider.System, journal, runner);
+        var boot = Guid.NewGuid();
+        var created = store.Create("device-a", Guid.NewGuid(), "create"u8,
+            new CreateConversationRequest("device-a", boot, 0, "neutral-1", "cs-CZ",
+                new ConversationConsent(true, false)));
+        var conversationId = created.Response!.ConversationId;
+        var request = new TextTurnRequest(Guid.NewGuid(), boot, 0, "Končím.", 63, 0, "neutral-1");
+        var transcriptionKey = Guid.NewGuid();
+        var upload = new TranscriptionUpload(Guid.NewGuid(), boot, 0, 0, "audio"u8.ToArray());
+        var transcription = store.SubmitTranscription("device-a", conversationId, transcriptionKey, upload);
+        Require(transcription.Status == 202, "transcription before terminal reply is accepted");
+        var key = Guid.NewGuid();
+        var accepted = store.SubmitTurn("device-a", conversationId, key, "end"u8, request);
+        var result = await PollAsync(store, runner, accepted.OperationId!, "completed");
+        Require(((TurnResult)result.Result!).Decision == "no_selection", "final reply remains pollable");
+        var replay = store.SubmitTurn("device-a", conversationId, key, "end"u8, request);
+        Require(replay.OperationId == accepted.OperationId, "terminal turn can be replayed without another call");
+        var rejected = store.SubmitTurn("device-a", conversationId, Guid.NewGuid(), "late"u8,
+            request with { ClientTurnId = Guid.NewGuid(), Text = "Ještě" });
+        Require(rejected.Status == 409 && rejected.ErrorCode == "conversation_finished",
+            "terminal conversation rejects new provider turns");
+        Require(store.SubmitTranscription("device-a", conversationId, Guid.NewGuid(),
+            upload with { ClientTurnId = Guid.NewGuid() }).ErrorCode == "conversation_finished",
+            "terminal conversation rejects new transcription");
+        Require(store.SubmitTranscription("device-a", conversationId, transcriptionKey, upload).OperationId
+            == transcription.OperationId, "prior transcription retry remains idempotent");
+        Require(store.EndConversation("device-a", conversationId, Guid.NewGuid()).Status == 204,
+            "device closes after consuming final reply");
+        Require(store.Create("device-a", Guid.NewGuid(), "next"u8,
+            new CreateConversationRequest("device-a", boot, 0, "neutral-1", "cs-CZ",
+                new ConversationConsent(true, false))).Status == 201,
+            "abandoned or completed visitor does not occupy next session");
     }
 
     private static async Task RunCancelledTurnAsync(string directory)

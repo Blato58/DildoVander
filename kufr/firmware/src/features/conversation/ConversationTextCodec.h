@@ -19,3 +19,7 @@ struct ConversationTextTurnRequest {
 // Constructs the exact JSON body for POST /v1/conversations/{id}/turns.
 bool BuildConversationTextTurnRequest(
     const ConversationTextTurnRequest& request, std::string& body);
+
+// Opening has the same snapshot identity but intentionally has no visitor text.
+bool BuildConversationOpeningRequest(
+    const ConversationTextTurnRequest& request, std::string& body);

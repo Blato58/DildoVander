@@ -40,6 +40,8 @@ src/
     wand_selection/
       SelectionSequence.h/.cpp              čistá, časovaná posloupnost
       SerialSelectionPort.h/.cpp            vývojové příkazy a výpis požadavků
+    wand_presentation/
+      WandPresentation.h/.cpp               autonomní vyzdvižení, ukázání a návrat rekvizity
     device_control/
       DeviceControl.h/.cpp                  hostitelský model ručního příkazu
       DeviceControlRuntime.h/.cpp           jediný vlastník změn a snapshotu v IDF smyčce
@@ -72,13 +74,14 @@ src/
       ConversationTextInbox.h/.cpp           jediná explicitní čekající textová událost
       ConversationRuntimeState.h/.cpp         atomický stav a verze pro síťový tah
       EspIdfConversationStartTransport.h/.cpp  HTTPS start sezení
-      EspIdfConversationTextTransport.h/.cpp   HTTPS textový tah
+      EspIdfConversationTextTransport.h/.cpp   HTTPS opening/text/DELETE
       EspIdfConversationUuid.h/.cpp         UUID z HW RNG po startu Wi-Fi
       EspIdfTurnPollTransport.h/.cpp       HTTPS GET a korelace výsledku
       OperationAcceptedCodec.h/.cpp         omezená odpověď 202
       TurnPollGuard.h/.cpp                  korelace pollovaného výsledku
       TurnPollSchedule.h/.cpp               intervaly a deadline pollu
       TurnOperationCodec.h/.cpp            omezený JSON poll výsledku
+      PendingProposal.h/.cpp               expirovaný datový návrh pro vlastníka prezentace
 tests/
   selection_sequence_test.cpp               test bez hardwaru
   device_control_test.cpp                   test idempotence a restartu
@@ -95,9 +98,12 @@ tests/
   operation_accepted_codec_test.cpp         test operationId odpovědi
   turn_poll_guard_test.cpp                  test pozdních/cizích výsledků
   turn_operation_codec_test.cpp             test JSON odpovědi pollu
+  pending_proposal_test.cpp                 test expirace a invalidace návrhu
+  wand_presentation_test.cpp                úspěch, Stop, timeout a dvojí návrh
 ```
 
-První slice řídí výběr jedné ze šesti hůlek. `SelectionSequence` přijímá
+Původní E1 prototyp řídí výběr jedné ze šesti hůlek se západkou; nová cílová
+prezentace používá zdvih a spuštění servem. `SelectionSequence` přijímá
 číslo přihrádky 1–6 a čas v milisekundách. Po spuštění vyžaduje výslovné
 zotavení po kontrole obsluhou; po Stop/timeoutu znovu odmítá výběr až do
 zotavení. Postupně vydává kroky hledání,
@@ -186,22 +192,32 @@ validací UTF-8/1000 znaků, UUID, masky 0–63 a konečným limitem 4096 bajtů
 `operationId`. `EspIdfConversationTextTransport` posílá validovaný textový tah
 jen na pevnou HTTPS cestu daného UUID, s CA bundle, kontrolou hostname,
 Authorization a Idempotency-Key. Potvrzení 202 přijme jen s platným ID operace.
-Transport ještě není zapojený do runtime.
+Transport používá síťová úloha pro textový tah i explicitní opening bez
+vymyšleného textu; umí také DELETE při ukončení sezení.
 `TurnPollGuard` porovnává operation ID i všech šest korelačních polí s aktuální
-generací a revision. Pouze dokončená textová odpověď bez návrhu projde jako
-data; kandidát s návrhem zůstává odmítnutý, dokud nebude mít expiraci a
-fyzické potvrzení. `TurnOperationCodec` přijímá nejvýše 4096B JSON operace
+generací a revision. U návrhu kontroluje také ID sezení a tahu, boot,
+generaci, revision, katalog, dostupnou přihrádku a UTC expiraci do 60 s.
+`TurnOperationCodec` přijímá nejvýše 4096B JSON operace
 `turn`, dekóduje UTF-8 i JSON Unicode escape a odmítá duplicity, neznámá pole,
-nekonzistentní status/result/error a jakýkoli návrh. `EspIdfTurnPollTransport`
+nekonzistentní status/result/error a neúplný typovaný návrh. `EspIdfTurnPollTransport`
 čte GET `/v1/operations/{id}` jen přes ověřené HTTPS, omezuje tělo na 4096 B
 a propouští odpověď pouze po `TurnPollGuard` korelaci.
 `TurnPollSchedule` povoluje vždy jediný dotaz, první po 500 ms, další po
 500 ms a od 3 s po 1 s; po 45 s od začátku tahu už další poll nepovolí.
 `ConversationUuid` formátuje 16 náhodných bajtů jako UUID v4;
-`EspIdfConversationUuid` čerpá HW RNG až po startu Wi-Fi. Generátor zatím
-nepoužívá runtime konverzace.
-Zatím jej nevolá síťová úloha: chybí událost zahájení rozhovoru, UUID generátor,
-textové tahy a pollování. Žádná odpověď z backendu neřídí fyzické výstupy.
+`EspIdfConversationUuid` čerpá HW RNG až po startu Wi-Fi. Síťová úloha jím
+odděluje nové sezení a jeho idempotency key od zrušeného sezení.
+`PendingProposal` drží pouze data s lokálním monotónním deadlinem a při změně
+autoritativního snapshotu je nevydá. Žádná odpověď z backendu zatím neřídí
+fyzické výstupy.
+`WandPresentation` je čistý autonomní model pro hůlku, která zůstává v přihrádce.
+Po jednorázovém převzetí validovaného návrhu vyžádá zdvih, čeká na potvrzenou
+horní polohu, ukáže rekvizitu 5 s, vyžádá spuštění a čeká na potvrzenou klidovou
+polohu. Úspěch dovolí další cyklus bez ručního resetu. Stop, timeout nebo
+selhání portu vypne pohony a zablokuje další cyklus do kontroly polohy.
+Rozhraní `WandPresentationPort` vyžaduje kalibraci, bezpečnostní větev,
+journal a publikaci stavu od skutečného adaptéru. Takový adaptér ani senzor
+polohy nyní neexistují; model se v `espidf_main.cpp` nespouští.
 
 `SerialSelectionPort` je první vstup/výstup pro vývoj bez zapojené elektroniky.
 Příkazy na sériovém monitoru (115200 Bd, ukončení řádku LF nebo CRLF):
@@ -349,7 +365,7 @@ g++ -std=c++14 -Wall -Wextra -Werror src/features/conversation/TurnPollGuard.cpp
 JSON odpověď fake pollu:
 
 ```text
-g++ -std=c++14 -Wall -Wextra -Werror src/features/conversation/ConversationSession.cpp src/features/conversation/ConversationStartCodec.cpp src/features/conversation/TurnOperationCodec.cpp tests/turn_operation_codec_test.cpp -o <docasna-slozka>/turn_operation_codec_test
+g++ -std=c++14 -Wall -Wextra -Werror src/features/conversation/ConversationSession.cpp src/features/conversation/ConversationStartCodec.cpp src/features/conversation/TurnPollGuard.cpp src/features/conversation/TurnOperationCodec.cpp tests/turn_operation_codec_test.cpp -o <docasna-slozka>/turn_operation_codec_test
 <docasna-slozka>/turn_operation_codec_test
 ```
 
@@ -374,12 +390,30 @@ g++ -std=c++14 -Wall -Wextra -Werror -pthread src/features/conversation/Conversa
 <docasna-slozka>/conversation_text_inbox_test
 ```
 
+`tests/turn_replay.cpp` je hostitelský CLI průchod skutečným JSON výsledkem
+operace přes parser, korelační bránu, dočasný návrh a fake servo port. Přijímá
+v pořadí `operation.json operationId deviceId bootId conversationId clientTurnId
+generation revision catalogVersion readyMask nowUtcSeconds`; při úspěchu
+vypíše `SIMULATED raise/lower/complete`. Parametry musí pocházet z odeslaného
+tahu a živého snapshotu, nikoli z vrácené odpovědi. Výstup je simulace bez
+GPIO a pro replay je nutná dosud neexpirovaná operace.
+
 ESP-IDF síťová úloha přijme přes `QueueTextTurn` nejvýše jeden čekající
 validovaný UTF-8 text, po důvěryhodném čase a tokenu založí nebo znovu použije
-fake backend sezení, odešle tah a omezeně polluje výsledek. Pouze shodná
-odpověď typu `ask`/`no_selection` je přijata do read-only diagnostiky;
-neovládá sekvenci ani GPIO. Volání `QueueTextTurn` zatím nemá v runtime
-producenta. Volající musí předat přesný snapshot, proti kterému už ověřil
+backend sezení, odešle tah a omezeně polluje výsledek. `QueueOpening` přijímá
+jen explicitní místní událost a odesílá `/opening` bez textu; reconnect ji
+nevytváří. Po `no_selection`, chybě/timeoutu pollu či 90 sekundách nečinnosti
+úloha volá DELETE. Při chybě DELETE drží ID sezení a stejný idempotency key,
+opakuje s čekáním 1–30 s a nepovolí založit další sezení. Po 204/404 vymaže
+koordinátor a vymění create key. Ověřený
+`propose` uloží jen jako dočasná data dostupná přes `ReadPendingProposal`.
+Po doběhnutí či poruše cyklu má vlastník řízení zavolat `FinishPresentation`;
+nepřevzatý návrh se po vypršení lokálního deadline uklidí automaticky.
+Volání `QueueTextTurn` a `QueueOpening` zatím nemají v runtime autorizovaného
+producenta; odpověď zatím nemá TTS/přehrání a návrh nemá kalibrovaný servo
+adaptér. `BeginPendingPresentation` je samostatný vstup vlastníka řízení do
+čistého modelu; síťová úloha jej sama nevolá. `QueueCancel` ruší čekající
+události a vyžádá DELETE. Volající musí předat přesný snapshot, proti kterému už ověřil
 vstup; fronta jej těsně při přijetí znovu porovná a odmítne starou nebo
 nedostupnou verzi. `ConversationRuntimeState` dává síťové úloze jeden uzamčený
 snapshot generace, revize, masky a katalogu; textová schránka uchovává jeho
@@ -398,14 +432,16 @@ runtime a přímé HTTPS/WSS spojení patří E4. E5/E6 teprve připojí jednu
 a potom šest skutečných přihrádek po ověření zapojení a bezpečnostního obvodu.
 
 Cílový firmware vlastní samostatný PTT rozhovor s backendem, návrh AI,
-fyzické potvrzení, audio a bezpečnou sekvenci. Telefon komunikuje místně
+autonomní zdvih/ukázání/spuštění rekvizity, audio a bezpečnou sekvenci.
+Telefon komunikuje místně
 přes WSS jako volitelná záloha; backend neposílá povely k otevření.
 Slices a jejich odpovědnosti jsou v kapitole 3 plánu. Čisté jádro zachovat
 testovatelné bez Arduino/ESP-IDF; síťový callback nesmí přímo spínat GPIO.
 
-Pro skutečné výstupy platí jas zpočátku kolem 25 %, nejvýše jeden motor,
-žádný motor při uvolňování západky a nezávislá vypínaná větev pohonů
-s watchdogem. Při Stop/resetu se nesmí automaticky zavírat západka.
+Pro skutečné výstupy platí jas zpočátku kolem 25 %, nejvýše jeden pohon
+v pohybu a nezávislá vypínaná větev pohonů s watchdogem. Po Stop/resetu
+není poloha rekvizity známá bez kontroly, proto se automaticky nespouští
+další prezentace.
 OV5640 + SD vyžadují pozdější profil B/E13 a nové ověření pinů.
 
 Výše uvedené build/test příkazy se týkají současného prototypu; po migraci

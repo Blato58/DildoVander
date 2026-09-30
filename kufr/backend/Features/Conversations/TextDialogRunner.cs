@@ -21,6 +21,12 @@ internal sealed class TextDialogRunner : IDisposable
             throw new InvalidOperationException("Unsupported backend dialog mode.");
         }
 
+        Model = configuration["Backend:Dialog:Model"] ?? ResponsesTextDialogBudget.Model;
+        if (!ResponsesTextDialogBudget.IsSupportedModel(Model))
+        {
+            throw new InvalidOperationException("Only Sol and Luna are supported.");
+        }
+
         var apiKey = configuration["OPENAI_API_KEY"];
         if (string.IsNullOrWhiteSpace(apiKey)
             || !CostLimits.Read(configuration).Enabled)
@@ -33,7 +39,7 @@ internal sealed class TextDialogRunner : IDisposable
         var client = new ResponsesTextDialogClient(
             httpClient,
             apiKey,
-            ResponsesTextDialogBudget.Model);
+            Model);
         generate = client.GenerateAsync;
         Stopping = lifetime.ApplicationStopping;
     }
@@ -51,6 +57,8 @@ internal sealed class TextDialogRunner : IDisposable
     {
         this.generate = generate;
     }
+
+    public string Model { get; } = ResponsesTextDialogBudget.Model;
 
     public bool Enabled => generate is not null;
 

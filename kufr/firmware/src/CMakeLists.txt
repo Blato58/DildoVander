@@ -24,6 +24,7 @@ idf_component_register(
         "features/conversation/EspIdfConversationUuid.cpp"
         "features/conversation/EspIdfTurnPollTransport.cpp"
         "features/conversation/OperationAcceptedCodec.cpp"
+        "features/conversation/PendingProposal.cpp"
         "features/conversation/TurnPollGuard.cpp"
         "features/conversation/TurnPollSchedule.cpp"
         "features/conversation/TurnOperationCodec.cpp"
@@ -35,6 +36,7 @@ idf_component_register(
         "features/provisioning/EspIdfProvisioningStorage.cpp"
         "features/safety/SafetyController.cpp"
         "features/wand_selection/SelectionSequence.cpp"
+        "features/wand_presentation/WandPresentation.cpp"
     INCLUDE_DIRS "."
     REQUIRES esp_event esp_http_client esp_hw_support esp_netif esp_timer esp_wifi freertos log mbedtls nvs_flash
 )

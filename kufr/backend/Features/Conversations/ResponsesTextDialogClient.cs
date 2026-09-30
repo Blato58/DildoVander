@@ -69,16 +69,9 @@ internal sealed class ResponsesTextDialogClient(
             max_output_tokens = MaxOutputTokens,
             instructions = Instructions,
             input,
-            text = new
-            {
-                format = new
-                {
-                    type = "json_schema",
-                    name = "wand_decision",
-                    strict = true,
-                    schema = ResultSchema(requireQuestion, readyMask)
-                }
-            }
+            tools = BuildTools(requireQuestion, readyMask),
+            tool_choice = "required",
+            parallel_tool_calls = false
         };
 
         var payload = JsonSerializer.Serialize(requestBody, RequestJsonOptions);
@@ -157,86 +150,58 @@ internal sealed class ResponsesTextDialogClient(
         }
 
         string? resultText = null;
+        string? functionName = null;
         foreach (var item in output.EnumerateArray())
         {
-            if (item.ValueKind != JsonValueKind.Object
-                || !item.TryGetProperty("type", out var itemType)
-                || itemType.ValueKind != JsonValueKind.String)
+            if (!TryReadString(item, "type", 1, 40, out var itemType))
             {
                 throw new TextDialogUnavailableException("Provider output item is invalid.");
             }
-
-            if (itemType.GetString() == "reasoning")
+            if (itemType == "reasoning")
             {
                 continue;
             }
-
-            if (itemType.GetString() != "message"
-                || item.TryGetProperty("status", out var messageStatus)
-                    && (messageStatus.ValueKind != JsonValueKind.String
-                        || messageStatus.GetString() != "completed"))
+            if (itemType != "function_call" || resultText is not null
+                || !TryReadString(item, "name", 1, 64, out functionName)
+                || !TryReadString(item, "call_id", 1, 200, out _)
+                || !TryReadString(item, "arguments", 2, 4096, out resultText)
+                || item.TryGetProperty("status", out var callStatus)
+                    && (callStatus.ValueKind != JsonValueKind.String || callStatus.GetString() != "completed"))
             {
-                throw new TextDialogUnavailableException("Provider message is incomplete.");
-            }
-
-            if (!item.TryGetProperty("content", out var content)
-                || content.ValueKind != JsonValueKind.Array)
-            {
-                throw new TextDialogUnavailableException("Provider output is invalid.");
-            }
-
-            foreach (var part in content.EnumerateArray())
-            {
-                if (part.ValueKind != JsonValueKind.Object
-                    || !part.TryGetProperty("type", out var partType)
-                    || partType.ValueKind != JsonValueKind.String)
-                {
-                    throw new TextDialogUnavailableException("Provider output is invalid.");
-                }
-
-                if (partType.GetString() == "refusal")
-                {
-                    throw new TextDialogUnavailableException("Provider refused the request.");
-                }
-
-                if (partType.GetString() != "output_text")
-                {
-                    throw new TextDialogUnavailableException("Provider output content is invalid.");
-                }
-
-                if (resultText is not null || !part.TryGetProperty("text", out var text)
-                    || text.ValueKind != JsonValueKind.String)
-                {
-                    throw new TextDialogUnavailableException("Provider output is ambiguous.");
-                }
-
-                resultText = text.GetString();
+                throw new TextDialogUnavailableException("Provider must request exactly one supported function.");
             }
         }
-
         if (resultText is null)
         {
-            throw new TextDialogUnavailableException("Provider output is missing.");
+            throw new TextDialogUnavailableException("Provider function is missing.");
         }
-
+        var decision = functionName switch
+        {
+            "continue_conversation" => "ask",
+            "propose_wand" => "propose",
+            "end_conversation" => "no_selection",
+            _ => throw new TextDialogUnavailableException("Provider function is not allowed.")
+        };
         using var result = JsonDocument.Parse(resultText);
         var root = result.RootElement;
-        if (root.ValueKind != JsonValueKind.Object || root.EnumerateObject().Count() != 4
+        var needsCompartment = decision == "propose";
+        if (root.ValueKind != JsonValueKind.Object
+            || root.EnumerateObject().Count() != (needsCompartment ? 3 : 2)
             || !TryReadString(root, "reply", 1, 500, out var reply)
-            || !TryReadString(root, "reason", 0, 200, out var reason)
-            || !TryReadString(root, "decision", 1, 20, out var decision)
-            || !root.TryGetProperty("compartment", out var compartmentElement))
+            || !TryReadString(root, "reason", 0, 200, out var reason))
         {
-            throw new TextDialogUnavailableException("Provider result is invalid.");
+            throw new TextDialogUnavailableException("Provider function arguments are invalid.");
         }
-
+        var compartmentElement = needsCompartment && root.TryGetProperty("compartment", out var value)
+            ? value
+            : default;
         int? compartment = null;
         if (compartmentElement.ValueKind == JsonValueKind.Number
             && compartmentElement.TryGetInt32(out var number))
         {
             compartment = number;
         }
-        else if (compartmentElement.ValueKind != JsonValueKind.Null)
+        else if (needsCompartment || compartmentElement.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined))
         {
             throw new TextDialogUnavailableException("Provider compartment is invalid.");
         }
@@ -311,27 +276,66 @@ internal sealed class ResponsesTextDialogClient(
         return reader.ReadToEnd().Trim();
     }
 
-    private static object ResultSchema(bool requireQuestion, int readyMask) => new
+    private static object[] BuildTools(bool requireQuestion, int readyMask)
     {
-        type = "object",
-        additionalProperties = false,
-        properties = new
+        var tools = new List<object>();
+        if (readyMask != 0)
         {
-            reply = new { type = "string" },
-            decision = new
+            tools.Add(BuildTool(
+                "continue_conversation",
+                "Řekni repliku a polož návštěvníkovi další otázku.",
+                false,
+                readyMask));
+            if (!requireQuestion)
             {
-                type = "string",
-                @enum = readyMask == 0
-                    ? new[] { "no_selection" }
-                    : requireQuestion
-                        ? new[] { "ask", "no_selection" }
-                        : new[] { "ask", "propose", "no_selection" }
-            },
-            compartment = new { type = new[] { "integer", "null" }, @enum = new object?[] { 1, 2, 3, 4, 5, 6, null } },
-            reason = new { type = "string" }
-        },
-        required = new[] { "reply", "decision", "compartment", "reason" }
-    };
+                tools.Add(BuildTool(
+                    "propose_wand",
+                    "Vyber dostupnou hůlku; backend ověří výběr a ESP32 autonomně provede bezpečnou prezentaci.",
+                    true,
+                    readyMask));
+            }
+        }
+        tools.Add(BuildTool(
+            "end_conversation",
+            "Ukonči rozhovor bez výběru, například když návštěvník nechce pokračovat.",
+            false,
+            readyMask));
+        return tools.ToArray();
+    }
+
+    private static object BuildTool(string name, string description, bool proposal, int readyMask)
+    {
+        var properties = new Dictionary<string, object>
+        {
+            ["reply"] = new { type = "string" },
+            ["reason"] = new { type = "string" }
+        };
+        if (proposal)
+        {
+            properties["compartment"] = new
+            {
+                type = "integer",
+                @enum = Enumerable.Range(1, 6)
+                    .Where(number => (readyMask & (1 << (number - 1))) != 0)
+                    .ToArray()
+            };
+        }
+        return new
+        {
+            type = "function",
+            name,
+            description,
+            strict = true,
+            parameters = new
+            {
+                type = "object",
+                additionalProperties = false,
+                properties,
+                required = proposal ? new[] { "reply", "reason", "compartment" } : new[] { "reply", "reason" }
+            }
+        };
+    }
+
 }
 
 internal sealed record TextDialogResponse(

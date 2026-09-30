@@ -96,16 +96,9 @@ def main():
     check(status == 201 and created.get("conversationId"), "conversation_create_failed")
     conversation_id = created["conversationId"]
 
-    visitor_turns = (
-        [
-            "Přišel jsem si vybrat hůlku. Klidně mi dej pořádný roast.",
-            "Můj velkolepý plán je zrušit pondělky vyhláškou.",
-            "Jako financování navrhuji proměnit rozpočet v konfety a říkat tomu reforma.",
-        ]
-        if expectation == "responses"
-        else ["Syntetický test nasazené vývojové instance."]
-    )
-    turn_path = f"/v1/conversations/{conversation_id}/turns"
+    # Content quality and adaptive conversation are exercised by interactive_dialogue.py.
+    visitor_turns = [""] if expectation == "responses" else ["Syntetický test nasazené vývojové instance."]
+    turn_path = f"/v1/conversations/{conversation_id}/{'opening' if expectation == 'responses' else 'turns'}"
     for index, visitor_text in enumerate(visitor_turns):
         turn_body = {
             "clientTurnId": str(uuid4()),
@@ -116,6 +109,8 @@ def main():
             "deviceRevision": 0,
             "catalogVersion": catalog_version,
         }
+        if expectation == "responses":
+            del turn_body["text"]
         turn_key = str(uuid4())
         status, accepted = call("POST", turn_path, bearer=token, key=turn_key, body=turn_body)
         check(status == 202 and accepted.get("operationId"), "turn_submit_failed")
@@ -153,19 +148,8 @@ def main():
             and result["reply"] != "Toto je testovací odpověď bez AI.",
             "responses_result_failed",
         )
-        proposal = result.get("proposal")
-        if index < 2:
-            check(result.get("decision") == "ask" and proposal is None,
-                  "responses_question_failed")
-        else:
-            check(
-                result.get("decision") == "propose"
-                and isinstance(proposal, dict)
-                and proposal.get("compartment") == 1
-                and proposal.get("deviceRevision") == turn_body["deviceRevision"]
-                and proposal.get("turnId") == turn_body["clientTurnId"],
-                "responses_proposal_failed",
-            )
+        check(result.get("decision") == "ask" and result.get("proposal") is None,
+              "responses_opening_failed")
         print(f"responses_turn_{index + 1}_reply=" + json.dumps(result["reply"], ensure_ascii=False))
     status, _ = call(
         "DELETE", f"/v1/conversations/{conversation_id}", bearer=token, key=str(uuid4())

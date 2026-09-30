@@ -23,6 +23,11 @@ class EspIdfConversationTextTransport final {
   bool IsConfigured() const;
   ConversationTextHttpResult Submit(const ConversationTextTurnRequest& request,
                                     const char* accessToken);
+  ConversationTextHttpResult SubmitOpening(
+      const ConversationTextTurnRequest& request, const char* accessToken);
+  int Delete(const std::string& conversationId,
+             const std::string& idempotencyKey,
+             const char* accessToken);
 
  private:
   struct ResponseBody {
@@ -33,6 +38,9 @@ class EspIdfConversationTextTransport final {
   };
 
   static esp_err_t OnHttpEvent(esp_http_client_event_t* event);
+  ConversationTextHttpResult SubmitDialogue(
+      const ConversationTextTurnRequest& request, const char* accessToken,
+      bool opening);
 
   std::string baseUrl_;
 };

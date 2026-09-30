@@ -6,7 +6,7 @@ import os
 import time
 from pathlib import Path
 
-from evaluate import MODEL_PRICES, build_request, call_openai, parse_response, upper_bound_micro_usd, estimate_usage_micro_usd
+from evaluate import MODEL_PRICES, MINIMUM_QUESTIONS, build_request, call_openai, parse_response, upper_bound_micro_usd, estimate_usage_micro_usd
 
 MAX_RUN_MICRO_USD = 1_000_000
 VISITOR_MODEL = "gpt-6.1-sol"
@@ -119,17 +119,17 @@ def run_dialogue(meter, model, persona):
     history, dialogue, completed = [], [], []
     visitor = ""
     completed_questions = 0
-    for index in range(5):
+    for index in range(8):
         memory_context = persona["memory"]
         if completed:
             memory_context += json.dumps(completed, ensure_ascii=False)
         request = build_request({"readyMask": 63, "visitorText": visitor}, model,
                                 history, memory_context, opening=index == 0,
-                                require_question=completed_questions < 2)
+                                require_question=completed_questions < MINIMUM_QUESTIONS)
         response = meter.invoke(request, model, f"{persona['id']}:suitcase",
                                 validate=lambda response: parse_response(response, 63))
         result, _ = parse_response(response, 63)
-        if result["decision"] == "propose" and completed_questions < 2:
+        if result["decision"] == "propose" and completed_questions < MINIMUM_QUESTIONS:
             raise ValueError("Premature proposal")
         dialogue.append({"speaker": "kufr", **result})
         completed.append({"ConversationId": persona["id"] + "-current",
@@ -139,7 +139,7 @@ def run_dialogue(meter, model, persona):
             return {"model": model, "persona": persona["id"], "dialogue": dialogue,
                     "terminated": True, "upperCostMicroUsd": meter.session_estimated_micro_usd}
         completed_questions += 1
-        if index < 4:
+        if index < 7:
             visitor = read_visitor(meter.invoke(visitor_request(persona, dialogue), VISITOR_MODEL,
                                                f"{persona['id']}:visitor", validate=read_visitor))
             dialogue.append({"speaker": "visitor", "reply": visitor})
@@ -149,7 +149,7 @@ def run_dialogue(meter, model, persona):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--models", nargs="+", choices=MODEL_PRICES, default=["gpt-6.1-sol", "gpt-6-astra"])
+    parser.add_argument("--models", nargs="+", choices=MODEL_PRICES, default=["gpt-6.1-sol", "gpt-6-luna"])
     parser.add_argument("--budget-micro-usd", type=int, default=MAX_RUN_MICRO_USD)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
