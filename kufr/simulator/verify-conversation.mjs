@@ -67,6 +67,9 @@ try {
     'already_seen_result_unavailable');
   const secondTurnId = randomUUID();
   assert.equal((await textCommand(state, secondTurnId, 'nyní', 530)).state.success, true);
+  // The control loop normally runs every 10 ms; keep its watchdog alive while
+  // the fake conversation waits for a reply.
+  assert.deepEqual((await bridge.send('TICK', 700)).events, []);
   const completed = await bridge.send('TICK', 831);
   assert.equal(completed.state.completedConversationTurnId, secondTurnId);
   assert.equal(completed.state.completedConversationGeneration, 1);

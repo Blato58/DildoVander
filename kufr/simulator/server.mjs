@@ -17,7 +17,11 @@ function isBearerToken(header, expectedToken) {
     return false;
   }
 
-  const supplied = Buffer.from(header.slice(7));
+  const encoded = header.slice(7);
+  if (!/^[0-9a-f]{64}$/.test(encoded)) {
+    return false;
+  }
+  const supplied = Buffer.from(encoded);
   const expected = Buffer.from(expectedToken);
   return supplied.length === expected.length && timingSafeEqual(supplied, expected);
 }
@@ -97,6 +101,9 @@ export class NativeBridge {
 export async function createSimulatorServer({ certificate, privateKey, token, bridgeExecutable, journalPath, port = 0, onTimeline = () => {}, onNativeCommand = () => {} }) {
   if (!certificate || !privateKey || !token || !bridgeExecutable || !journalPath) {
     throw new Error('TLS certificate, private key, test token, native bridge and journal path are required');
+  }
+  if (typeof token !== 'string' || !/^[0-9a-f]{64}$/.test(token)) {
+    throw new Error('Test token must be 64 lowercase hexadecimal characters');
   }
 
   const bootId = randomUUID();

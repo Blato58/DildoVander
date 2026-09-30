@@ -154,7 +154,10 @@ Tabulka je návrh cílových adresářů; vytvářet je postupně s příslušn�
 2. Párovací AP povolit jen držením tlačítka během startu, nejvýše 120 s, s unikátním WPA2 heslem. Výstupy jsou během nastavení blokované. Nepoužívat běžné BOOT tlačítko jako návštěvnické PTT.
 3. Telefon přečte QR a přes nativní TLS adaptér ověří přesně očekávaný veřejný klíč. Self-signed identita není globální výjimka ověřování. Při odlišném klíči spojení odmítnout; mDNS/IP nejsou důvěryhodná identita.
 4. Přes připnuté TLS předat Wi-Fi SSID/heslo a spárovat obsluhu. Firmware ověří tajemství, vydá unikátní náhodný 256bitový lokální bearer token, uloží jen jeho hash a původní tajemství zneplatní. iPhone uloží token do iOS Keychain. Při ztrátě telefonu je obnova pouze fyzickým servisním resetem párování; nový QR/tajemství, žádné vzdálené obejití.
+
 5. Deska přejde do STA režimu routeru, AP zavře. Změna sítě nikdy sama nevyvolá pohyb.
+
+Pro `Authorization: Bearer` místního WSS se 32bajtový token předává jako přesně 64 malých hexadecimálních znaků. Je to textové kódování stejného tokenu, ne další tajemství; hlavička nesmí obsahovat další znaky ani token v URL. Dekodér po ověření vymaže dočasný binární buffer. Nativní klient bude ukládat původní token do Keychain a při handshake jej takto zakóduje.
 
 **Podporovaná cesta zcela bez telefonu:** autorizovaný lokální servisní nástroj na notebooku přes USB nastaví Wi-Fi, backend host, čas, device credential a počáteční katalog/kalibraci. Vyžaduje fyzický servisní režim při startu a odpojenou větev pohonů; pracuje interaktivně bez tajemství v argumentech příkazové řádky, zdrojích či logu. Tento postup platí pro vývoj i produkční uvedení do provozu. Notebook se po nastavení odpojí a na akci není potřebný. Lokální certifikát/QR lze připravit předem pro případ pozdějšího použití záložní aplikace; její spárování není podmínkou cloudu. Pozdější změna Wi-Fi je opět servisní USB nebo spárovaná aplikace.
 
