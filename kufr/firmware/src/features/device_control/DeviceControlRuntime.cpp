@@ -1,5 +1,7 @@
 #include "DeviceControlRuntime.h"
 
+#include "../wand_presentation/WandPresentation.h"
+
 DeviceControlRuntime::DeviceControlRuntime(
     DeviceControl& control, SelectionSequence& selection,
     ConversationRuntimeState& runtime, const std::string& catalogVersion)
@@ -8,8 +10,29 @@ DeviceControlRuntime::DeviceControlRuntime(
       runtime_(runtime),
       catalogVersion_(catalogVersion) {}
 
+bool DeviceControlRuntime::BindPresentation(
+    WandPresentation& presentation) {
+  if (presentation_ != nullptr ||
+      presentation.State() != WandPresentationState::Idle) {
+    return false;
+  }
+  presentation_ = &presentation;
+  return true;
+}
+
 bool DeviceControlRuntime::RecoverAfterInspection() {
+  if (presentation_ != nullptr &&
+      presentation_->State() != WandPresentationState::Idle &&
+      presentation_->State() != WandPresentationState::Fault) {
+    return false;
+  }
   const bool recovered = control_.RecoverAfterInspection();
+  if (recovered && presentation_ != nullptr &&
+      presentation_->State() == WandPresentationState::Fault &&
+      !presentation_->RecoverAfterInspection(true)) {
+    PublishCurrent();
+    return false;
+  }
   PublishCurrent();
   return recovered;
 }
@@ -68,11 +91,51 @@ bool DeviceControlRuntime::BeginAcceptedSelection(uint64_t nowMs,
   return started;
 }
 
+bool DeviceControlRuntime::BeginAutonomousPresentation(
+    const std::string& proposalId, uint8_t compartment,
+    const ConversationRuntimeSnapshot& expectedSnapshot) {
+  if (presentation_ == nullptr ||
+      presentation_->State() != WandPresentationState::Idle ||
+      !runtime_.Matches(expectedSnapshot)) {
+    return false;
+  }
+  const bool started = control_.BeginAutonomousPresentation(
+      proposalId, compartment, expectedSnapshot.deviceRevision);
+  PublishCurrent();
+  return started;
+}
+
+bool DeviceControlRuntime::CompleteAutonomousPresentation(
+    uint8_t compartment) {
+  const bool completed =
+      control_.CompleteAutonomousPresentation(compartment);
+  PublishCurrent();
+  return completed;
+}
+
+void DeviceControlRuntime::FaultAutonomousPresentation() {
+  control_.FaultAutonomousPresentation();
+  PublishCurrent();
+}
+
 bool DeviceControlRuntime::Tick(uint64_t nowMs, SelectionStep& step) {
   const bool hadManualControl = control_.HasManualControl();
   const bool hadPendingSelection = control_.HasPendingSelection();
   // The control tick also expires an idle manual lease and watches loop gaps.
   const bool producedByControl = control_.Tick(nowMs, step);
+  if (control_.HasAutonomousPresentation() && selection_.NeedsRecovery()) {
+    control_.FaultAutonomousPresentation();
+  }
+  if (presentation_ != nullptr) {
+    const WandPresentationState state = presentation_->State();
+    if (selection_.NeedsRecovery() &&
+        state != WandPresentationState::Idle &&
+        state != WandPresentationState::Fault) {
+      presentation_->Stop();
+    } else {
+      presentation_->Tick(nowMs);
+    }
+  }
   const bool producedStep = producedByControl ||
       (!hadPendingSelection &&
        selection_.Update(static_cast<uint32_t>(nowMs), step));
@@ -87,17 +150,26 @@ bool DeviceControlRuntime::Tick(uint64_t nowMs, SelectionStep& step) {
 }
 
 bool DeviceControlRuntime::Stop(SelectionStep& step) {
+  const bool hadActivePresentation =
+      presentation_ != nullptr &&
+      presentation_->State() != WandPresentationState::Idle &&
+      presentation_->State() != WandPresentationState::Fault;
+  if (hadActivePresentation) {
+    presentation_->Stop();
+  }
   const bool stopped = control_.Stop(step);
-  if (stopped) {
+  if (stopped || hadActivePresentation) {
     ++generation_;
   }
   PublishCurrent();
-  return stopped;
+  return stopped || hadActivePresentation;
 }
 
 bool DeviceControlRuntime::PublishCurrent() {
   if (control_.NeedsRecovery() || control_.HasPendingSelection() ||
-      selection_.IsBusy()) {
+      control_.HasAutonomousPresentation() || selection_.IsBusy() ||
+      (presentation_ != nullptr &&
+       presentation_->State() != WandPresentationState::Idle)) {
     if (published_) {
       runtime_.Invalidate();
       published_ = false;
@@ -126,6 +198,10 @@ bool DeviceControlRuntime::PublishCurrent() {
 }
 
 uint64_t DeviceControlRuntime::Generation() const { return generation_; }
+
+bool DeviceControlRuntime::HasAutonomousPresentation() const {
+  return control_.HasAutonomousPresentation();
+}
 
 void DeviceControlRuntime::RecordLeaseLoss(bool hadManualControl) {
   if (hadManualControl && !control_.HasManualControl()) {
