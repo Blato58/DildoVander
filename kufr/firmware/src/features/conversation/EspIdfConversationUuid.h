@@ -2,5 +2,6 @@
 
 #include <string>
 
-// Call only after Wi-Fi starts, so the ESP-IDF hardware RNG has external entropy.
+// Caller must provide an active hardware entropy source: Wi-Fi or the
+// temporarily enabled bootloader RNG source during early startup.
 std::string GenerateEspIdfConversationUuid();
