@@ -15,11 +15,16 @@
 namespace {
 
 httpd_uri_t endpoint{};
+httpd_uri_t pairingEndpoint{};
 httpd_ssl_config_t configuration{};
 std::string authorization;
 std::string extensions;
 std::string status;
 std::string incoming;
+std::string contentType = "application/json";
+std::string transferEncoding;
+std::string responseBody;
+size_t readOffset = 0;
 httpd_ws_type_t incomingType = HTTPD_WS_TYPE_TEXT;
 bool finalFrame = true;
 bool failQueue = false;
@@ -27,6 +32,9 @@ bool failSend = false;
 bool failStart = false;
 bool failRegister = false;
 bool failReceive = false;
+bool failResponse = false;
+bool failHeader = false;
+bool failPartialReceive = false;
 int64_t nowUs = 1000;
 int currentSocket = 7;
 int sends = 0;
@@ -62,7 +70,8 @@ class Storage final : public ProvisioningStorage, public LocalPairingStorage {
   ProvisioningReadResult Read(uint8_t*, size_t, size_t&) override {
     return ProvisioningReadResult::Missing;
   }
-  bool Write(const uint8_t*, size_t) override { return true; }
+  bool Write(const uint8_t*, size_t) override { return !failWrite; }
+  bool failWrite = false;
 };
 
 class Hasher final : public Sha256Port {
@@ -80,9 +89,13 @@ class Hasher final : public Sha256Port {
 class Random final : public PairingRandomPort {
  public:
   bool Fill(uint8_t* output, size_t length) override {
+    if (fail) {
+      return false;
+    }
     std::memset(output, 0x1a, length);
     return true;
   }
+  bool fail = false;
 };
 
 class Validator final : public LocalTlsValidator {
@@ -140,17 +153,31 @@ esp_err_t httpd_ssl_stop(httpd_handle_t) {
   return ESP_OK;
 }
 esp_err_t httpd_register_uri_handler(httpd_handle_t, const httpd_uri_t* uri) {
-  endpoint = *uri;
+  if (uri->method == HTTP_GET) {
+    endpoint = *uri;
+  } else {
+    pairingEndpoint = *uri;
+  }
   return failRegister ? ESP_FAIL : ESP_OK;
 }
 size_t httpd_req_get_hdr_value_len(httpd_req_t*, const char* name) {
-  return std::strcmp(name, "Authorization") == 0 ? authorization.size()
-                                                    : extensions.size();
+  if (std::strcmp(name, "Authorization") == 0) {
+    return authorization.size();
+  }
+  if (std::strcmp(name, "Content-Type") == 0) {
+    return contentType.size();
+  }
+  if (std::strcmp(name, "Transfer-Encoding") == 0) {
+    return transferEncoding.size();
+  }
+  return extensions.size();
 }
-esp_err_t httpd_req_get_hdr_value_str(httpd_req_t*, const char*, char* output,
+esp_err_t httpd_req_get_hdr_value_str(httpd_req_t*, const char* name, char* output,
                                       size_t capacity) {
-  assert(capacity > authorization.size());
-  std::memcpy(output, authorization.c_str(), authorization.size() + 1);
+  const auto& value = std::strcmp(name, "Content-Type") == 0
+                          ? contentType : authorization;
+  assert(capacity > value.size());
+  std::memcpy(output, value.c_str(), value.size() + 1);
   return ESP_OK;
 }
 int httpd_req_to_sockfd(httpd_req_t*) { return currentSocket; }
@@ -158,7 +185,30 @@ esp_err_t httpd_resp_set_status(httpd_req_t*, const char* value) {
   status = value;
   return ESP_OK;
 }
-esp_err_t httpd_resp_send(httpd_req_t*, const char*, int) { return ESP_OK; }
+esp_err_t httpd_resp_send(httpd_req_t*, const char* bytes, int length) {
+  responseBody.assign(bytes, static_cast<size_t>(length));
+  return failResponse ? ESP_FAIL : ESP_OK;
+}
+esp_err_t httpd_resp_set_hdr(httpd_req_t*, const char* name, const char* value) {
+  assert(std::strcmp(name, "Cache-Control") == 0 && std::strcmp(value, "no-store") == 0);
+  return failHeader ? ESP_FAIL : ESP_OK;
+}
+esp_err_t httpd_resp_set_type(httpd_req_t*, const char* value) {
+  assert(std::strcmp(value, "application/json") == 0);
+  return ESP_OK;
+}
+int httpd_req_recv(httpd_req_t*, char* bytes, size_t maximum) {
+  if (failReceive || (failPartialReceive && readOffset >= 6) ||
+      readOffset == incoming.size()) {
+    return -1;
+  }
+  const size_t remaining = incoming.size() - readOffset;
+  const size_t count = remaining < maximum ? remaining : maximum;
+  const size_t fragment = count < 3 ? count : 3;
+  std::memcpy(bytes, incoming.data() + readOffset, fragment);
+  readOffset += fragment;
+  return static_cast<int>(fragment);
+}
 esp_err_t httpd_ws_recv_frame(httpd_req_t*, httpd_ws_frame_t* frame,
                               size_t maximum) {
   if (failReceive) {
@@ -227,9 +277,7 @@ int main(int argc, char** argv) {
   assert(!server.Start());
   std::array<uint8_t, 16> secret{};
   secret.fill(0x73);
-  std::array<uint8_t, 32> token{};
   assert(credential.ProvisionPairingSecret(secret.data(), secret.size(), gate));
-  assert(credential.Pair(secret.data(), secret.size(), token));
   authorization = "Bearer " + std::string(64, '0');
   for (size_t index = 7; index < authorization.size(); index += 2) {
     authorization[index] = '1';
@@ -249,7 +297,56 @@ int main(int argc, char** argv) {
   assert(configuration.prvtkey_pem == identity.PrivateKey());
   assert(!configuration.httpd.lru_purge_enable);
   assert(configuration.httpd.max_open_sockets == 2);
+  assert(configuration.httpd.max_uri_handlers == 2);
   assert(endpoint.is_websocket && endpoint.handle_ws_control_frames);
+  auto pairRequest = Request();
+  pairRequest.uri = pairingEndpoint.uri;
+  pairRequest.user_ctx = pairingEndpoint.user_ctx;
+  const std::string validBody =
+      "{\"protocolVersion\":1,\"pairingSecret\":\"" + std::string(32, '7') + "\"}";
+  std::string actualBody = validBody;
+  for (size_t index = actualBody.find(':', actualBody.find("pairingSecret")) + 2;
+       index + 1 < actualBody.size() - 2; index += 2) {
+    actualBody[index + 1] = '3';
+  }
+  auto callPair = [&](const std::string& body) {
+    incoming = body;
+    readOffset = 0;
+    pairRequest.content_len = body.size();
+    return pairingEndpoint.handler(&pairRequest);
+  };
+  assert(callPair(validBody) == ESP_FAIL && status == "401 Unauthorized");
+  assert(credential.IsPairingReady());
+  for (const std::string& body : {
+           std::string("{}"), actualBody + "x",
+           std::string("{\"protocolVersion\":1.0,\"pairingSecret\":\"00\"}"),
+           std::string("{\"protocolVersion\":1,\"protocolVersion\":1}"),
+           std::string("{\"protocolVersion\":1,\"unknown\":0}"),
+           std::string("{\"protocolVersion\":1,\"pairingSecret\":\"GG\"}")}) {
+    assert(callPair(body) == ESP_FAIL && status == "400 Bad Request");
+  }
+  assert(callPair(std::string(193, 'x')) == ESP_FAIL && status == "413 Content Too Large");
+  contentType = "text/plain";
+  assert(callPair(actualBody) == ESP_FAIL && status == "415 Unsupported Media Type");
+  contentType = "application/json";
+  transferEncoding = "chunked";
+  assert(callPair(actualBody) == ESP_FAIL && status == "400 Bad Request");
+  transferEncoding.clear();
+  pairRequest.uri = "/v1/pair?secret=forbidden";
+  assert(callPair(actualBody) == ESP_FAIL && status == "400 Bad Request");
+  pairRequest.uri = pairingEndpoint.uri;
+  failReceive = true;
+  assert(callPair(actualBody) == ESP_FAIL && credential.IsPairingReady());
+  failReceive = false;
+  failPartialReceive = true;
+  assert(callPair(actualBody) == ESP_FAIL && readOffset == 6 && credential.IsPairingReady());
+  failPartialReceive = false;
+  failHeader = true;
+  assert(callPair(actualBody) == ESP_FAIL && readOffset == 0 && credential.IsPairingReady());
+  failHeader = false;
+  assert(callPair(actualBody) == ESP_OK && credential.IsPaired());
+  assert(responseBody == "{\"protocolVersion\":1,\"token\":\"" + authorization.substr(7) + "\"}");
+  assert(callPair(actualBody) == ESP_FAIL && status == "409 Conflict");
   auto rejected = Request();
   const std::string validAuthorization = authorization;
   authorization.clear();
@@ -362,5 +459,23 @@ int main(int argc, char** argv) {
   Drop(closing);
   server.Stop();
   assert(server.Start());
+  server.Stop();
+
+  assert(credential.ProvisionPairingSecret(secret.data(), secret.size(), gate));
+  assert(server.Start());
+  random.fail = true;
+  assert(callPair(actualBody) == ESP_FAIL && credential.IsPairingReady());
+  random.fail = false;
+  failResponse = true;
+  assert(callPair(actualBody) == ESP_FAIL && credential.IsPaired());
+  failResponse = false;
+  assert(callPair(actualBody) == ESP_FAIL && status == "409 Conflict");
+  server.Stop();
+  assert(credential.ProvisionPairingSecret(secret.data(), secret.size(), gate));
+  assert(server.Start());
+  storage.failWrite = true;
+  assert(callPair(actualBody) == ESP_FAIL && status == "503 Service Unavailable");
+  assert(!credential.IsHealthy() && !credential.IsPaired());
+  assert(callPair(actualBody) == ESP_FAIL && status == "503 Service Unavailable");
   server.Stop();
 }

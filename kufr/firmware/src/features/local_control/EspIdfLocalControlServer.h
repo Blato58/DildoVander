@@ -47,6 +47,7 @@ class EspIdfLocalControlServer final : public LocalControlTransport {
   static esp_err_t BeforeUpgrade(httpd_req_t* request);
   static esp_err_t AfterUpgrade(httpd_req_t* request);
   static esp_err_t Receive(httpd_req_t* request);
+  static esp_err_t Pair(httpd_req_t* request);
   static void FreeSession(void* context);
   static void Work(void* context);
   bool MatchesSession(const LocalSocketAdmission::Handle& handle) const;
