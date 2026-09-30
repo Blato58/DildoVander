@@ -210,6 +210,15 @@ socket se stejným číslem. Zavření rozlišuje rezervovaný a aktivní socket
 transportní brána nevolá řídicí smyčku. Reálné pre/post-handshake a close
 callbacky ji musí teprve použít; bez TLS identity se server nespouští.
 
+`LocalControlCodec` parsuje klientské v1 zprávy `hello`, snapshot dotaz,
+lease/heartbeat, text/cancel, Stop/reset, ruční výběr a reload. Používá
+stejný omezený `JsonCursor` jako parser backendového pollu. Kontroluje přesná
+povinná pole, duplicity včetně escaped klíčů, UTF-8, bezpečná celá čísla,
+UUID a payload; běžné zprávy mají limit 2048 B, text 8192 B / 1000 znaků.
+Výstup je pouze typovaná zpráva. Autentizace, lease a aktuální snapshot
+se musí ověřit při jejím zpracování vlastníkem řízení; parser žádný povel
+nespouští. Sdílené klientské fixtures ověřuje hostitelský test i CI.
+
 `LocalTlsIdentity` čte samostatný verzovaný záznam `wand_tls/server`:
 8bajtová hlavička `KTL1` a little-endian délky certifikátu/klíče, potom obě
 PEM hodnoty včetně koncového NUL (certifikát nejvýše 2048, EC klíč 1024 bajtů).
