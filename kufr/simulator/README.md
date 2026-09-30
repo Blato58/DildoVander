@@ -40,7 +40,8 @@ ověří TLS spojení s důvěryhodným certifikátem, bearer autorizaci, handsh
 lease, retry, Stop, snapshot a odmítnutí chybné zprávy.
 
 `run-server.mjs` vyžaduje také proměnné `KUFR_SIMULATOR_CERT`,
-`KUFR_SIMULATOR_KEY`, `KUFR_SIMULATOR_TOKEN` a `KUFR_SIMULATOR_JOURNAL`
+`KUFR_SIMULATOR_KEY`, `KUFR_SIMULATOR_TOKEN` (64 malých hexadecimálních znaků)
+a `KUFR_SIMULATOR_JOURNAL`
 (absolutní cesta mimo repozitář) před spuštěním. Token ani
 soukromý klíč nedávejte do repozitáře. Server naslouchá pouze na
 `127.0.0.1:8443`, přijímá jeden autorizovaný control socket, odmítá kompresi
