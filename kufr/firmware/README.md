@@ -57,6 +57,7 @@ src/
       DeviceIdentity.h/.cpp                 formát identity a servisní brána
       ProvisioningStorage.h                 port úložiště identity
       EspIdfProvisioningStorage.h/.cpp      NVS identita v ESP-IDF profilu
+      LocalPairingCredential.h/.cpp         jednorázové párování a otisk místního tokenu
     backend_access/
       DeviceTokenSession.h/.cpp             obnova access tokenu v RAM
       TokenResponseParser.h/.cpp            omezená odpověď token endpointu
@@ -148,8 +149,8 @@ mazání. Hostitelské testy ověřují restart a selhání zápisu přes pamě�
 `DeviceControlRuntime` nyní běží v ESP-IDF smyčce jako jediný vlastník
 `DeviceControl` a publikuje atomický snapshot až po zotavení a bezpečném
 uzavření journalu. Přijetí výběru, aktivní pohyb, Stop a porucha jej invalidují;
-změny lease, revision a masky publikují novou verzi. Prázdný boot identifikátor
-a nulová kalibrace zatím záměrně nedovolují spustit pohon. Živý vstup příkazů,
+změny lease, revision a masky publikují novou verzi. Sdílené boot ID již vzniká
+při startu, nulová kalibrace zatím záměrně nedovoluje spustit pohon. Živý vstup příkazů,
 skutečný NVS běh na desce, síťový parser a servisní USB zápis zbývají.
 Po autorizovaném zrušení textového rozhovoru `CancelConversation` zvýší stejnou
 generation jako ruční Stop nebo ztráta lease a vydá nový snapshot. Kontroluje
@@ -175,6 +176,16 @@ Případný zápis vyžaduje v modelu současně aktivní fyzický servisní re�
 odpojenou větev pohonů. ESP-IDF smyčka zatím identitu pouze čte a oznamuje
 stav bez její hodnoty. Skutečné USB servisní rozhraní, ověření fyzické brány,
 náhodné generování credential mimo image a běžící TLS spojení zbývají.
+
+`LocalPairingCredential` je oddělený čistý model pro místní telefonní token.
+Servisně přijme nejméně 16bajtové jednorázové tajemství jen při fyzické bráně;
+do záznamu ukládá pouze jeho SHA-256 otisk. Po ověření tajemství si vyžádá
+nový 256bitový token od portu s hardwarovou entropií, uloží pouze jeho otisk
+a jednorázové tajemství zneplatní. Token se vydá volajícímu právě při párování;
+model ho neukládá. Po restartu porovnává otisky bez předčasného ukončení.
+Poškozený záznam či neúspěšný zápis odmítá. Zatím existuje jen model s
+hostitelskými fake porty; skutečný SHA-256/RNG/NVS adaptér, párovací AP,
+TLS klíč/certifikát a WSS handshake nejsou připojené.
 
 `DeviceTokenSession` je čistý model obnovy backend access tokenu po 12 minutách,
 jeho 15minutové expirace a jediného nového přihlášení po 401. Drží token pouze
