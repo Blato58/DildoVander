@@ -281,13 +281,25 @@ internal sealed class ResponsesTextDialogClient(
         var tools = new List<object>();
         if (readyMask != 0)
         {
-            tools.Add(BuildTool("continue_conversation", "Řekni repliku a polož návštěvníkovi další otázku.", false, readyMask));
+            tools.Add(BuildTool(
+                "continue_conversation",
+                "Řekni repliku a polož návštěvníkovi další otázku.",
+                false,
+                readyMask));
             if (!requireQuestion)
             {
-                tools.Add(BuildTool("propose_wand", "Navrhni dostupnou hůlku; backend ověří návrh pro ESP32, nic neotevře.", true, readyMask));
+                tools.Add(BuildTool(
+                    "propose_wand",
+                    "Vyber dostupnou hůlku; backend ověří výběr a ESP32 autonomně provede bezpečnou prezentaci.",
+                    true,
+                    readyMask));
             }
         }
-        tools.Add(BuildTool("end_conversation", "Ukonči rozhovor bez výběru, například když návštěvník nechce pokračovat.", false, readyMask));
+        tools.Add(BuildTool(
+            "end_conversation",
+            "Ukonči rozhovor bez výběru, například když návštěvník nechce pokračovat.",
+            false,
+            readyMask));
         return tools.ToArray();
     }
 

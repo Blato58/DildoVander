@@ -8,9 +8,9 @@ bezpečnostního obvodu a pohonů se zapisuje do [stavu implementace](stav-imple
 
 Pod každou ze šesti hůlek bude přibližně 20cm úsek adresovatelného 5V RGB pásku WS2812B (30 LED/m, tedy asi šest LED). Šest fyzicky oddělených úseků zapojíme datově za sebou; v programu bude mít každá přihrádka vlastní rozsah pixelů. Pro svícení jednotlivých přihrádek tak stačí jedna datová linka. Napájení +5 V a GND povedeme rozvodem s odpovídajícím průřezem, nikoli přes tenké datové propojky. Přesnou délku potvrdíme po změření kufru.
 
-Pod každou přihrádkou počítáme s vlastním malým vibračním modulem. Při výběru se rozvibruje pouze vybraná hůlka nebo její lehce oddělená vložka; poté servo uvolní západku. Prototyp jedné přihrádky ověří, zda modul vyvolá viditelný pohyb bez rozechvění celého kufru. Samotné servo zůstává určeno pro západku, aby se mechanismus třesení a uvolnění navzájem nerušil.
+Pod každou přihrádkou počítáme s vlastním malým vibračním modulem. Při výběru se rozvibruje pouze vybraná hůlka nebo její lehce oddělená vložka; poté servo vysune přihrádku vzhůru. Prototyp jedné přihrádky ověří, zda modul vyvolá viditelný pohyb bez rozechvění celého kufru. Rozhodnutí majitele 30. 9.: hůlka zůstává jako rekvizita. Servo po prezentaci vrátí přihrádku do spodní polohy, aby další návštěvník nepotřeboval ruční reset. Zdvih, pulzy, mechanické dorazy a schopnost držet polohu bez proudu se musí ověřit na prototypu. Při Stop/poruše se automatický návrat nespouští.
 
-Zamýšlená sekvence: krátké postupné světelné hledání → barva na vybrané přihrádce → tři pulzy vibrace → uvolnění západky servem → klidové světlo. Motor a servo se při výběru nesmějí překrývat; aktivní je nejvýše jeden motor. Současný firmware tyto kroky pouze vypisuje na sériový port.
+Zamýšlená sekvence: krátké postupné světelné hledání → barva na vybrané přihrádce → tři pulzy vibrace → zdvih servem → prezentace → návrat dolů → klidové světlo. Motor a servo se při výběru nesmějí překrývat; aktivní je nejvýše jeden motor. Starší ruční sekvence pouze vypisuje kroky na sériový port. Nový autonomní model má simulovaný port a hostitelské testy; fyzický adaptér a měření dosud chybí.
 
 ## Napájení
 

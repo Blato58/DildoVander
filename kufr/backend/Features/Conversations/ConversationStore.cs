@@ -175,7 +175,9 @@ internal sealed class ConversationStore(
                     key,
                     bodyHash,
                     correlation,
-                    estimatedCostMicroUsd: paid ? ResponsesTextDialogBudget.ReserveForContext(memory?.Transcript ?? "", dialogRunner!.Model) : 0);
+                    estimatedCostMicroUsd: paid
+                        ? ResponsesTextDialogBudget.ReserveForContext(memory?.Transcript ?? "", dialogRunner!.Model)
+                        : 0);
                 if (reservation.Conflict)
                 {
                     return new SubmitTurnResult(409, null, "idempotency_conflict");

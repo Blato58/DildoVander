@@ -12,6 +12,8 @@ struct TurnPollHttpResult {
   int statusCode = 0;
   TurnPollDecision decision = TurnPollDecision::Discard;
   std::string reply;
+  TurnProposal proposal;
+  bool noSelection = false;
 };
 
 // Blocking HTTPS GET. Call only from the backend network task.
@@ -25,6 +27,9 @@ class EspIdfTurnPollTransport final {
                           const TurnCorrelation& expected,
                           uint64_t currentGeneration,
                           uint64_t currentDeviceRevision,
+                          const std::string& currentCatalogVersion,
+                          uint8_t currentReadyMask,
+                          uint64_t nowUtcSeconds,
                           const char* accessToken);
 
  private:

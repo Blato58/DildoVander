@@ -22,6 +22,7 @@
 #include "../conversation/EspIdfConversationUuid.h"
 #include "../conversation/EspIdfTurnPollTransport.h"
 #include "../conversation/TurnPollSchedule.h"
+#include "../conversation/TurnPollGuard.h"
 
 namespace {
 
@@ -30,9 +31,23 @@ constexpr uint32_t ConnectionTimeoutMs = 15000;
 constexpr uint32_t TokenCheckPeriodMs = 1000;
 constexpr uint32_t OfflineRetryMs = 30000;
 constexpr uint32_t PollCheckPeriodMs = 100;
+constexpr uint64_t ConversationIdleMs = 90000;
 
 uint64_t MonotonicMs() {
   return static_cast<uint64_t>(esp_timer_get_time() / 1000);
+}
+
+uint64_t ConservativeUtcSeconds(uint64_t trustedUtcAtStart,
+                                 uint64_t monotonicAtStartMs,
+                                 uint64_t nowMs) {
+  const std::time_t wallTime = std::time(nullptr);
+  if (wallTime <= 0 || nowMs < monotonicAtStartMs) {
+    return UINT64_MAX;
+  }
+  // A backward wall-clock adjustment must not extend a proposal's lifetime.
+  const uint64_t monotonicLowerBound =
+      trustedUtcAtStart + (nowMs - monotonicAtStartMs) / 1000;
+  return std::max(static_cast<uint64_t>(wallTime), monotonicLowerBound);
 }
 
 void WaitMs(uint32_t durationMs) {
@@ -48,8 +63,74 @@ EspIdfBackendNetwork::EspIdfBackendNetwork(
 bool EspIdfBackendNetwork::QueueTextTurn(
     const std::string& text,
     const ConversationRuntimeSnapshot& expectedSnapshot) {
+  {
+    std::lock_guard<std::mutex> lock(presentationMutex_);
+    if (terminalProposalOutstanding_) {
+      return false;
+    }
+  }
   return online_.load() &&
          textInbox_.Submit(text, expectedSnapshot, runtimeState_);
+}
+
+bool EspIdfBackendNetwork::QueueOpening(
+    const ConversationRuntimeSnapshot& expectedSnapshot) {
+  if (!online_.load() || expectedSnapshot.version == 0) {
+    return false;
+  }
+  {
+    std::lock_guard<std::mutex> lock(presentationMutex_);
+    if (presentationActive_) {
+      return false;
+    }
+  }
+  std::lock_guard<std::mutex> lock(openingMutex_);
+  if (openingPending_ || !runtimeState_.Matches(expectedSnapshot)) {
+    return false;
+  }
+  openingSnapshotVersion_ = expectedSnapshot.version;
+  openingPending_ = true;
+  return true;
+}
+
+void EspIdfBackendNetwork::QueueCancel() {
+  cancelRequested_.store(true);
+  textInbox_.Clear();
+  pendingProposal_.Clear();
+  std::lock_guard<std::mutex> lock(openingMutex_);
+  openingPending_ = false;
+}
+
+bool EspIdfBackendNetwork::ReadPendingProposal(
+    TurnProposal& proposal, uint64_t nowMs) const {
+  return pendingProposal_.Read(proposal, runtimeState_, nowMs);
+}
+
+bool EspIdfBackendNetwork::BeginPendingPresentation(
+    WandPresentation& presentation, uint64_t nowMs) {
+  std::lock_guard<std::mutex> lock(presentationMutex_);
+  if (!terminalProposalOutstanding_ || presentationActive_ ||
+      !presentation.Start(pendingProposal_, runtimeState_, nowMs)) {
+    return false;
+  }
+  presentationActive_ = true;
+  return true;
+}
+
+bool EspIdfBackendNetwork::FinishPresentation(
+    const WandPresentation& presentation) {
+  {
+    std::lock_guard<std::mutex> lock(presentationMutex_);
+    if (!presentationActive_ ||
+        (presentation.State() != WandPresentationState::Idle &&
+         presentation.State() != WandPresentationState::Fault)) {
+      return false;
+    }
+    presentationActive_ = false;
+    terminalProposalOutstanding_ = false;
+  }
+  QueueCancel();
+  return true;
 }
 
 bool EspIdfBackendNetwork::Start(bool nvsInitialized) {
@@ -103,10 +184,16 @@ void EspIdfBackendNetwork::Run() {
   bool sntpStarted = false;
   bool timeSynchronized = false;
   bool revokedLogged = false;
+  uint64_t lastTurnAtMs = 0;
   while (true) {
     if (!wifi.HasIp()) {
       online_.store(false);
       textInbox_.Clear();
+      pendingProposal_.Clear();
+      {
+        std::lock_guard<std::mutex> lock(openingMutex_);
+        openingPending_ = false;
+      }
       if (!wifi.ConnectAndWait(ConnectionTimeoutMs)) {
         WaitMs(reconnect.NextDelayMs(esp_random() % 401));
         continue;
@@ -162,11 +249,69 @@ void EspIdfBackendNetwork::Run() {
       continue;
     }
     online_.store(true);
+    EspIdfConversationTextTransport sessionTransport(settings_.BackendHost());
+    if (cancelRequested_.exchange(false)) {
+      CloseConversation(coordinator, sessionTransport, tokens, startRequest);
+      lastTurnAtMs = 0;
+    }
+    if (closePending_) {
+      if (MonotonicMs() >= closeRetryAtMs_) {
+        CloseConversation(coordinator, sessionTransport, tokens, startRequest);
+      }
+      if (closePending_) {
+        WaitMs(TokenCheckPeriodMs);
+        continue;
+      }
+    }
+    bool proposalExpired = false;
+    {
+      std::lock_guard<std::mutex> lock(presentationMutex_);
+      TurnProposal candidate;
+      proposalExpired = terminalProposalOutstanding_ &&
+                        !presentationActive_ &&
+                        !pendingProposal_.Read(candidate, runtimeState_,
+                                               MonotonicMs());
+    }
+    if (proposalExpired) {
+      CloseConversation(coordinator, sessionTransport, tokens, startRequest);
+      WaitMs(TokenCheckPeriodMs);
+      continue;
+    }
+    bool presentationActive = false;
+    {
+      std::lock_guard<std::mutex> lock(presentationMutex_);
+      presentationActive = presentationActive_;
+    }
+    if (!presentationActive && !coordinator.ConversationId().empty() &&
+        lastTurnAtMs != 0 &&
+        MonotonicMs() - lastTurnAtMs >= ConversationIdleMs) {
+      CloseConversation(coordinator, sessionTransport, tokens, startRequest);
+      lastTurnAtMs = 0;
+      if (closePending_) {
+        WaitMs(TokenCheckPeriodMs);
+        continue;
+      }
+    }
+    bool opening = false;
+    uint64_t openingVersion = 0;
+    {
+      std::lock_guard<std::mutex> lock(openingMutex_);
+      if (openingPending_) {
+        opening = true;
+        openingVersion = openingSnapshotVersion_;
+        openingPending_ = false;
+      }
+    }
     std::string text;
     uint64_t snapshotVersion = 0;
-    if (textInbox_.Take(text, snapshotVersion)) {
-      RunTextTurn(text, snapshotVersion, tokens, wifi, coordinator,
-                  startRequest);
+    if (opening) {
+      RunTurn("", true, openingVersion, tokens, wifi, coordinator,
+              startRequest);
+      lastTurnAtMs = MonotonicMs();
+    } else if (textInbox_.Take(text, snapshotVersion)) {
+      RunTurn(text, false, snapshotVersion, tokens, wifi, coordinator,
+              startRequest);
+      lastTurnAtMs = MonotonicMs();
       std::fill(text.begin(), text.end(), '\0');
       text.clear();
     }
@@ -174,8 +319,8 @@ void EspIdfBackendNetwork::Run() {
   }
 }
 
-void EspIdfBackendNetwork::RunTextTurn(
-    const std::string& text, uint64_t snapshotVersion,
+void EspIdfBackendNetwork::RunTurn(
+    const std::string& text, bool opening, uint64_t snapshotVersion,
     DeviceTokenSession& tokens,
     EspIdfWifiStation& wifi,
     ConversationStartCoordinator& coordinator,
@@ -188,9 +333,20 @@ void EspIdfBackendNetwork::RunTextTurn(
   }
 
   if (startSnapshotVersion_ != snapshot.version) {
-    coordinator.Clear();
+    EspIdfConversationTextTransport closeTransport(settings_.BackendHost());
+    if (!CloseConversation(coordinator, closeTransport, tokens,
+                           startRequest)) {
+      return;
+    }
     startRequest.idempotencyKey = GenerateEspIdfConversationUuid();
     startSnapshotVersion_ = snapshot.version;
+  }
+  if (opening && !coordinator.ConversationId().empty()) {
+    EspIdfConversationTextTransport closeTransport(settings_.BackendHost());
+    if (!CloseConversation(coordinator, closeTransport, tokens,
+                           startRequest)) {
+      return;
+    }
   }
   startRequest.generation = snapshot.generation;
   startRequest.catalogVersion = snapshot.catalogVersion;
@@ -223,12 +379,27 @@ void EspIdfBackendNetwork::RunTextTurn(
   turnRequest.deviceRevision = snapshot.deviceRevision;
   turnRequest.readyMask = snapshot.readyMask;
   const uint64_t turnStartedAtMs = MonotonicMs();
-  ConversationTextHttpResult accepted =
-      textTransport.Submit(turnRequest, tokens.AccessToken(turnStartedAtMs));
+  const std::time_t trustedUtcAtStart = std::time(nullptr);
+  if (trustedUtcAtStart <= 0) {
+    CloseConversation(coordinator, textTransport, tokens, startRequest);
+    return;
+  }
+  ConversationTextHttpResult accepted = opening
+      ? textTransport.SubmitOpening(turnRequest, tokens.AccessToken(turnStartedAtMs))
+      : textTransport.Submit(turnRequest, tokens.AccessToken(turnStartedAtMs));
   if (accepted.statusCode == 401 &&
       tokens.HandleUnauthorized(MonotonicMs())) {
-    accepted = textTransport.Submit(
-        turnRequest, tokens.AccessToken(MonotonicMs()));
+    accepted = opening
+        ? textTransport.SubmitOpening(turnRequest, tokens.AccessToken(MonotonicMs()))
+        : textTransport.Submit(turnRequest, tokens.AccessToken(MonotonicMs()));
+  }
+  if ((accepted.statusCode == 0 || accepted.statusCode >= 500) &&
+      wifi.HasIp() && runtimeState_.Matches(snapshot) &&
+      MonotonicMs() - turnStartedAtMs < TurnPollSchedule::DeadlineMs) {
+    // An accepted 202 response may have been lost. Reuse the exact envelope.
+    accepted = opening
+        ? textTransport.SubmitOpening(turnRequest, tokens.AccessToken(MonotonicMs()))
+        : textTransport.Submit(turnRequest, tokens.AccessToken(MonotonicMs()));
   }
   std::fill(turnRequest.text.begin(), turnRequest.text.end(), '\0');
   turnRequest.text.clear();
@@ -236,6 +407,8 @@ void EspIdfBackendNetwork::RunTextTurn(
     if (accepted.statusCode == 404) {
       coordinator.Clear();
       startRequest.idempotencyKey = GenerateEspIdfConversationUuid();
+    } else {
+      CloseConversation(coordinator, textTransport, tokens, startRequest);
     }
     ESP_LOGW(LogTag, "Text turn: submission failed (%d)",
              accepted.statusCode);
@@ -251,9 +424,13 @@ void EspIdfBackendNetwork::RunTextTurn(
   expected.deviceRevision = snapshot.deviceRevision;
   TurnPollSchedule schedule;
   schedule.Begin(turnStartedAtMs, MonotonicMs());
-  while (wifi.HasIp() && schedule.IsActive()) {
+  bool replyConsumed = false;
+  bool noSelection = false;
+  while (wifi.HasIp() && schedule.IsActive() &&
+         !cancelRequested_.load()) {
     const uint64_t nowMs = MonotonicMs();
-    if (schedule.IsExpired(nowMs) || !runtimeState_.Matches(snapshot)) {
+    if (schedule.IsExpired(nowMs) || !runtimeState_.Matches(snapshot) ||
+        cancelRequested_.load()) {
       break;
     }
     if (!schedule.MarkStarted(nowMs)) {
@@ -262,26 +439,98 @@ void EspIdfBackendNetwork::RunTextTurn(
     }
     TurnPollHttpResult result = pollTransport.Poll(
         accepted.operationId, expected, snapshot.generation,
-        snapshot.deviceRevision,
+        snapshot.deviceRevision, snapshot.catalogVersion,
+        snapshot.readyMask,
+        ConservativeUtcSeconds(static_cast<uint64_t>(trustedUtcAtStart),
+                               turnStartedAtMs, nowMs),
         tokens.AccessToken(nowMs));
     if (result.statusCode == 401 &&
         tokens.HandleUnauthorized(MonotonicMs())) {
       result = pollTransport.Poll(
           accepted.operationId, expected, snapshot.generation,
-          snapshot.deviceRevision,
+          snapshot.deviceRevision, snapshot.catalogVersion,
+          snapshot.readyMask,
+          ConservativeUtcSeconds(static_cast<uint64_t>(trustedUtcAtStart),
+                                 turnStartedAtMs, MonotonicMs()),
           tokens.AccessToken(MonotonicMs()));
     }
     const uint64_t completedAtMs = MonotonicMs();
     if (result.statusCode == 200 &&
-        result.decision == TurnPollDecision::ReplyReady &&
+        (result.decision == TurnPollDecision::ReplyReady ||
+         result.decision == TurnPollDecision::ProposalReady) &&
         !schedule.IsExpired(completedAtMs) && wifi.HasIp() &&
+        !cancelRequested_.load() &&
         runtimeState_.Matches(snapshot)) {
-      ESP_LOGI(LogTag, "Fake text reply accepted without actuator action");
+      if (result.decision == TurnPollDecision::ProposalReady) {
+        // The guard already checked UTC expiry. Local monotonic TTL is capped
+        // independently and the control owner must check the live snapshot.
+        const bool stored = pendingProposal_.Store(
+            result.proposal, snapshot, runtimeState_, completedAtMs,
+            ProposalRemainingMs(
+                result.proposal,
+                ConservativeUtcSeconds(
+                    static_cast<uint64_t>(trustedUtcAtStart),
+                    turnStartedAtMs, completedAtMs)));
+        if (stored) {
+          std::lock_guard<std::mutex> lock(presentationMutex_);
+          terminalProposalOutstanding_ = true;
+          ESP_LOGI(LogTag, "Validated proposal held for presentation owner");
+        } else {
+          CloseConversation(coordinator, textTransport, tokens, startRequest);
+        }
+      } else {
+        pendingProposal_.Clear();
+      }
       std::fill(result.reply.begin(), result.reply.end(), '\0');
+      replyConsumed = true;
+      noSelection = result.noSelection;
       break;
     }
     const bool stillPending = result.statusCode == 200 &&
                               result.decision == TurnPollDecision::Wait;
     schedule.MarkCompleted(completedAtMs, stillPending);
   }
+  if (!replyConsumed || noSelection) {
+    CloseConversation(coordinator, textTransport, tokens, startRequest);
+  }
+}
+
+bool EspIdfBackendNetwork::CloseConversation(
+    ConversationStartCoordinator& coordinator,
+    EspIdfConversationTextTransport& transport,
+    DeviceTokenSession& tokens,
+    ConversationStartRequest& startRequest) {
+  if (!coordinator.ConversationId().empty()) {
+    const uint64_t nowMs = MonotonicMs();
+    if (deleteIdempotencyKey_.empty()) {
+      deleteIdempotencyKey_ = GenerateEspIdfConversationUuid();
+    }
+    int status = transport.Delete(coordinator.ConversationId(),
+                                  deleteIdempotencyKey_,
+                                  tokens.AccessToken(nowMs));
+    if (status == 401 && tokens.HandleUnauthorized(MonotonicMs())) {
+      status = transport.Delete(coordinator.ConversationId(),
+                                deleteIdempotencyKey_,
+                                tokens.AccessToken(MonotonicMs()));
+    }
+    ESP_LOGI(LogTag, "Conversation cleanup status %d", status);
+    if (status != 204 && status != 404) {
+      closePending_ = true;
+      closeRetryAtMs_ = nowMs + closeRetryDelayMs_;
+      closeRetryDelayMs_ = std::min<uint32_t>(closeRetryDelayMs_ * 2, 30000);
+      return false;
+    }
+  }
+  coordinator.Clear();
+  pendingProposal_.Clear();
+  {
+    std::lock_guard<std::mutex> lock(presentationMutex_);
+    terminalProposalOutstanding_ = false;
+  }
+  startRequest.idempotencyKey = GenerateEspIdfConversationUuid();
+  deleteIdempotencyKey_.clear();
+  closePending_ = false;
+  closeRetryAtMs_ = 0;
+  closeRetryDelayMs_ = 1000;
+  return true;
 }

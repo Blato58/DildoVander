@@ -184,7 +184,7 @@ def submit_and_poll(client, token, state, request_id, device_id, *, opening, tex
             return {"operationId": operation_id, "status": operation_status,
                     "correlation": correlation, "reply": result["reply"],
                     "decision": result.get("decision"), "proposal": result.get("proposal"),
-                    "operation": operation}
+                    "operation": operation, "receivedAtUnixSeconds": int(time.time())}
         if attempt + 1 < POLL_ATTEMPTS:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
