@@ -28,18 +28,19 @@ int main() {
   assert(state.Matches(snapshot));
 
   ConversationTextInbox inbox;
-  assert(inbox.Submit("Stary tah", ClientTurnId, snapshot, state));
+  assert(inbox.Submit("Stary tah", ClientTurnId, ClientTurnId, snapshot, state));
 
   assert(!state.Publish(0, 0, 62, "neutral-1"));
   assert(!state.Publish(0, 0, 63, "other"));
   assert(state.Matches(snapshot));
   assert(state.Publish(1, 0, 63, "neutral-1"));
   assert(!state.Matches(snapshot));
-  assert(!inbox.Submit("Pozdni tah", ClientTurnId, snapshot, state));
+  assert(!inbox.Submit("Pozdni tah", ClientTurnId, ClientTurnId, snapshot, state));
   std::string queuedText;
+  std::string queuedConversationId;
   std::string queuedTurnId;
   uint64_t queuedVersion = 0;
-  assert(inbox.Take(queuedText, queuedTurnId, queuedVersion));
+  assert(inbox.Take(queuedText, queuedConversationId, queuedTurnId, queuedVersion));
   assert(queuedTurnId == ClientTurnId);
   assert(queuedVersion == snapshot.version);
   assert(queuedVersion != 0);
