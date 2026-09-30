@@ -1,6 +1,6 @@
 # Stav implementace AI kufru
 
-Poslední aktualizace: **30. 9. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální Arduino i ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a E3a. Ad Hoc podpis a serverová publikace IPA/manifestu prošly CI a veřejným HTTPS testem; majitel potvrdil instalaci a spuštění na iPhonu 15 Pro (D70). Hardware, native WSS/TLS a aktualizace IPA na telefonu zatím nemají runtime akceptaci. Hotový návrh není hotová implementace.
+Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální Arduino i ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a E3a. Ad Hoc podpis a serverová publikace IPA/manifestu prošly CI a veřejným HTTPS testem; majitel potvrdil instalaci a spuštění na iPhonu 15 Pro (D70). Hardware, native WSS/TLS a aktualizace IPA na telefonu zatím nemají runtime akceptaci. Hotový návrh není hotová implementace.
 
 [Implementační plán](implementacni-plan.md) určuje architekturu a akceptaci. [AGENTS.md](../../AGENTS.md) určuje pracovní postup AI. Tento soubor je jediný průběžný záznam postupu; README ho pouze odkazují.
 
@@ -83,6 +83,11 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 | B5 | Katalog šesti původních hůlek a Harry Potter / Ollivander tematickou roli majitel svěřil nezávislému agentovi; zdroj je `ai-eval/wand-catalog.json` (D72). Stále chybí rozměry, router, prostředí akce a živé obsahové hodnocení s hosty. | Provozní akceptaci E8/E11, fyzické mapování hůlek a finální mechaniku. | Sdílený tematický katalog, vývojové a simulované scénáře; skutečné přihrádky až s HW. |
 
 ## Deník změn a ověření
+### D101 – 1. 10. 2026 – E10.1 nativní místní transport (rozpracováno)
+
+- Převzetí: E4 má softwarový TLS/WSS/pairing runtime D99 a E8 textový backend D75; chybějící B1 blokuje jejich fyzickou akceptaci, nikoli přípravu Swift transportu podle §12. Implementovat ruční připojení podle device ID, adresy a SPKI z vnitřního QR, nativní párování a Keychain, WSS a stávající ruční protokol. Bez audio, podpisu/publikace nové IPA a bez nahrání firmware.
+- Místní ověření 1. 10.: Node 24.21.0, reprodukovatelné npm ci mobilu/kontraktů (0 vulnerabilities), mobilní testy 9/9, TypeScript/Vite build, cap sync ios, kontrakty 22 valid / 39 invalid + OpenAPI/media prošly. První nový integrační test použil již aktivní lease ze sdílené fixture; po změně výchozího welcome na observer prošel. Bash syntax, YAML/plist parser prošly. Native macOS test/build a CI zatím čekají; B1, živý iPhone/TLS a mechanika zůstávají otevřené. Dosavadní výsledky D70/D99 mají původní datum a rozsah.
+
 ### D100 – 30. 9. 2026 – audit návaznosti a předání na B1
 
 - Rozsah pokračování: D90–D99 dokončují deset ověřitelných firmware slice od RNG/TLS identity přes přísný parser a prioritní inbox po WSS router/output/reply, jednorázové HTTPS párování a runtime s jediným vlastníkem LAN. Každý vlastní slice má commit/push, kontrolovaný PR a ověřené sloučení po host/firmware CI. Současná práce neuzavírá E4 hardware ani E5/E9/E10.

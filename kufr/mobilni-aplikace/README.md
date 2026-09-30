@@ -1,6 +1,6 @@
 # Mobilní ovládání kufru
 
-Současný kód nabízí vývojovou webovou obrazovku se šesti přihrádkami, ručním převzetím, potvrzením výběru/založení a Stop. Přes Vite používá místní fake stav; přes E3.2a vývojový most komunikuje s E2 C++ simulátorem. Oba režimy jsou výslovně označené. Žádný z nich se nepřipojuje k fyzickému kufru. Capacitor 8 a zdrojový iOS projekt nyní balí stejnou obrazovku; nativní transport kufru zatím neexistuje. Zvolenou architekturu určuje [implementační plán](../docs/implementacni-plan.md), skutečný postup a předání [stav implementace](../docs/stav-implementace.md).
+Současný kód nabízí obrazovku se šesti přihrádkami, ručním převzetím, potvrzením výběru/založení a Stop. Přes Vite používá místní fake stav; přes E3.2a vývojový most komunikuje s E2 C++ simulátorem. Oba vývojové režimy jsou výslovně označené. E10.1 přidává nativní iOS párování a přímý místní WSS transport se SPKI pinem a Keychain; jeho fyzická akceptace ještě neproběhla. Zvolenou architekturu určuje [implementační plán](../docs/implementacni-plan.md), skutečný postup a předání [stav implementace](../docs/stav-implementace.md).
 
 ## Cílová role aplikace
 
@@ -8,7 +8,39 @@ První platforma je **iOS/iPhone**: zachovat TypeScript/Vite UI a doplnit Capaci
 
 ESP32 samo komunikuje s backendem; aplikace není cloudový prostředník a nemá AI provider klíč. Místní WSS nabízí ruční výběr 1–6, potvrzení/Stop, snapshot, opravu AI návrhu, text a případně telefonní mikrofon přes stejné device sezení. Offline ovládání musí fungovat bez WAN. Připojení je nejprve pozorovatelské; explicitní převzetí vytvoří ruční lease. Odchod do pozadí nebo ztráta lease zastaví ruční řízení, odpojení pozorovatele neovlivní samostatný kufr.
 
-Nativní adaptér bude vlastnit TLS pin, Bonjour discovery, oprávnění LAN/audio a Keychain. UI nesmí přímo časovat motory ani přijímat AI text jako povel. Konkrétní slices a kontrakty jsou v kapitolách 3–5 plánu.
+Nativní adaptér vlastní TLS pin, oprávnění LAN a Keychain. E10.1 používá ručně zadanou adresu a údaje z vnitřního QR; Bonjour discovery, text a audio jsou navazující slices. UI nesmí přímo časovat motory ani přijímat AI text jako povel. Konkrétní slices a kontrakty jsou v kapitolách 3–5 plánu.
+
+## Nativní připojení E10.1
+
+Na iOS se vývojový fake automaticky nezapne. Zadejte adresu bez schématu/portu,
+device ID a SHA-256 **DER SubjectPublicKeyInfo** z vnitřního QR (64 malých hex
+znaků; není to otisk celého certifikátu). Jednorázové párovací tajemství zadáte
+v zabezpečeném nativním dialogu. HTTPS `POST /v1/pair` připíná tento klíč;
+bearer token se uloží pouze do nesynchronizovaného Keychain
+`WhenUnlockedThisDeviceOnly`. JavaScript ho nečte a nemá cloudové přístupy.
+Lokální pin je autoritou pouze pro toto oddělené spojení v LAN, včetně
+self-signed certifikátu; nejde o změnu cloudového PKI. Redirect se odmítá.
+Nejsou povolené ATS výjimky a logování Capacitor bridge je vypnuté.
+
+Tlačítko Připojit otevírá pozorování přes `wss://<adresa>:443/v1/control`.
+Teprve explicitní převzetí získá ruční lease. Stejný protokolový řadič jako
+simulátor hlídá snapshot, čas, retry a nejistý výsledek; nativní zprávy navíc
+procházejí úplným sdíleným v1 schématem a strict JSON parserem. Token není v URL.
+Události nesou UUID spojení, takže opožděné callbacky neovládnou nové spojení.
+Odchod do pozadí nebo uzamčení uzavře nativní socket; návrat vyžaduje nové
+explicitní připojení. Odpojení ručního vlastníka řeší také firmware.
+
+Zapomenutí má nativní potvrzení: původní token nelze z kufru znovu získat,
+nové párování vyžaduje fyzickou servisní obnovu. Totéž platí při ztrátě úspěšné
+párovací odpovědi nebo selhání Keychain zápisu po spotřebování tajemství.
+Neověřená/prázdná NVS nebo kalibrace 0 na desce se z telefonu neobchází.
+Živý ESP32, LAN permission, Keychain po aktualizaci a uspání iPhonu zůstávají
+samostatnou akceptací B1/E10; nové IPA se tímto slice nepodepisuje/nepublikuje.
+
+macOS CI navíc spouští `bash scripts/test-native-transport.sh`: porovná SPKI
+EC P-256/P-384 a RSA s OpenSSL, ověří Keychain a skutečné loopback HTTPS/WSS
+včetně odmítnutí jiného pinu, tokenu, redirectu a nepovolených rámců. Test
+používá jednorázové syntetické identity; nepotřebuje kufr ani placený provider.
 
 ## Současný lokální webový vývoj
 
@@ -16,6 +48,7 @@ Ve složce `kufr/mobilni-aplikace` použijte Node.js 24.21.0 z `.nvmrc`:
 
 ```text
 npm ci
+npm ci --prefix ../contracts
 npm run dev
 ```
 
@@ -36,6 +69,7 @@ E3a má zdrojový projekt `ios/App/App.xcodeproj`, sdílené scheme `App` a [CI 
 
 ```text
 npm ci
+npm ci --prefix ../contracts
 npm run build
 npx cap sync ios
 ```
