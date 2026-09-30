@@ -9,15 +9,24 @@ LocalSocketAdmission::LocalSocketAdmission(
 bool LocalSocketAdmission::Reserve(int socket, const char* authorization,
                                    size_t length, uint64_t nowMs,
                                    Handle& handle) {
+  return TryReserve(socket, authorization, length, nowMs, handle) ==
+         ReserveResult::Accepted;
+}
+
+LocalSocketAdmission::ReserveResult LocalSocketAdmission::TryReserve(
+    int socket, const char* authorization, size_t length, uint64_t nowMs,
+    Handle& handle) {
   handle = {};
   if (socket < 0) {
-    return false;
+    return ReserveResult::Unauthorized;
   }
 
   std::lock_guard<std::mutex> lock(mutex_);
-  if (state_ != State::Empty || nextGeneration_ == 0 ||
-      !authenticator_.Authenticate(authorization, length)) {
-    return false;
+  if (!authenticator_.Authenticate(authorization, length)) {
+    return ReserveResult::Unauthorized;
+  }
+  if (state_ != State::Empty || nextGeneration_ == 0) {
+    return ReserveResult::Busy;
   }
 
   state_ = State::Reserved;
@@ -25,7 +34,7 @@ bool LocalSocketAdmission::Reserve(int socket, const char* authorization,
   generation_ = nextGeneration_++;
   reservedAtMs_ = nowMs;
   handle = {socket_, generation_};
-  return true;
+  return ReserveResult::Accepted;
 }
 
 bool LocalSocketAdmission::Confirm(const Handle& handle, uint64_t nowMs) {

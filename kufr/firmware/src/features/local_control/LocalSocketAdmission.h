@@ -24,10 +24,18 @@ class LocalSocketAdmission final {
     Active,
   };
 
+  enum class ReserveResult {
+    Accepted,
+    Unauthorized,
+    Busy,
+  };
+
   explicit LocalSocketAdmission(LocalBearerAuthenticator& authenticator);
 
   bool Reserve(int socket, const char* authorization, size_t length,
                uint64_t nowMs, Handle& handle);
+  ReserveResult TryReserve(int socket, const char* authorization, size_t length,
+                           uint64_t nowMs, Handle& handle);
   bool Confirm(const Handle& handle, uint64_t nowMs);
   bool IsActive(const Handle& handle) const;
   ReleaseResult Release(const Handle& handle);
