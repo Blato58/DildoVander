@@ -212,6 +212,8 @@ Ukázka fyzického příkazu po výslovném potvrzení obsluhou:
 
 `selectionSource` je auditní enum `manual | operatorConfirmedAi | operatorCorrectedAi | buttonConfirmedAi`; není autorizace. Síťový fyzický povel vyžaduje lokální token/ruční lease. Tento enum a lease patří staré ruční cestě. Samostatný režim má oddělenou autonomní bránu pro jednorázové proposalId, bootId, generation a revision, bez vytvoření falešného ručního lease. **Adaptér pohonů** nepřijímá prompt, kostým, text odpovědi, libovolné GPIO, úhel serva, jas nad limitem ani délku motorového pulzu. Conversation slice samozřejmě text/backend data přijímá, ale může předat jen validovaný číselný návrh místní autonomní bráně. Číslo 1–6 bezpečnostní řadič zkontroluje nezávisle na backendu i aplikaci.
 
+Autonomní prezentace před zdvihem trvale zapíše `proposalId` a přihrádku do journalu a zneplatní publikovaný snapshot. Po potvrzeném návratu do klidové polohy uzavře záznam atomicky se zachovanou maskou dostupnosti; ruční výběr naopak při dokončení příslušný bit masky maže. Po Stop, poruše nebo restartu s otevřeným záznamem se poloha považuje za neznámou, vyžaduje fyzickou kontrolu a návratovou cestu nelze použít automaticky. Vlastník řídicí smyčky volá Stop portu prezentace okamžitě a nedovolí publikovat dostupnost, dokud jeho stav není znovu klidový.
+
 Přijetí a dokončení jsou různé zprávy:
 
 ```json

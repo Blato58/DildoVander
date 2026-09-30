@@ -74,6 +74,18 @@ bool PersistentCommandJournal::Resolve(uint8_t readyMask) {
   return Persist(next);
 }
 
+bool PersistentCommandJournal::ResolveRestored(uint8_t compartment) {
+  if (!healthy_ || state_.pendingCompartment == 0 ||
+      state_.pendingCompartment != compartment ||
+      (state_.readyMask & (1u << (compartment - 1))) == 0) {
+    return false;
+  }
+
+  State next;
+  next.readyMask = state_.readyMask;
+  return Persist(next);
+}
+
 bool PersistentCommandJournal::PersistReadyMask(uint8_t readyMask) {
   if (HasPending() || readyMask > AllCompartmentsMask) {
     return false;

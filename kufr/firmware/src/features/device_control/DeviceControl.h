@@ -106,6 +106,11 @@ class DeviceControl {
   CommandReceipt ConfirmReload(const InventoryReloadCommand& command,
                                bool authenticated, uint64_t nowMs);
   bool BeginAcceptedSelection(uint64_t nowMs, SelectionStep& step);
+  bool BeginAutonomousPresentation(const std::string& proposalId,
+                                   uint8_t compartment,
+                                   uint64_t expectedRevision);
+  bool CompleteAutonomousPresentation(uint8_t compartment);
+  void FaultAutonomousPresentation();
   bool Tick(uint64_t nowMs, SelectionStep& step);
   bool Stop(SelectionStep& step);
 
@@ -114,6 +119,7 @@ class DeviceControl {
   bool NeedsRecovery() const;
   bool HasPendingSelection() const;
   bool HasManualControl() const;
+  bool HasAutonomousPresentation() const;
 
  private:
   struct CachedResult {
@@ -147,4 +153,5 @@ class DeviceControl {
   std::string pendingCommandId_;
   uint8_t pendingCompartment_ = 0;
   bool executionStarted_ = false;
+  uint8_t autonomousCompartment_ = 0;
 };

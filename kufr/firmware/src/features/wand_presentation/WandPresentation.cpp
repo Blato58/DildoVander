@@ -44,7 +44,7 @@ bool WandPresentation::Start(
   lastProposalId_ = proposal.proposalId;
   compartment_ = proposal.compartment;
   phaseStartedAtMs_ = nowMs;
-  if (!port_.Raise(compartment_)) {
+  if (!port_.Raise(compartment_, proposal.proposalId, snapshot)) {
     Fault();
     return false;
   }
