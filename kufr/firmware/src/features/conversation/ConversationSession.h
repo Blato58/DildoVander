@@ -53,6 +53,10 @@ class ConversationSession {
   ConversationSession(const std::string& bootId,
                       const std::string& conversationId);
 
+  // A duplicate receipt must be returned without enqueuing another turn.
+  ConversationCommandReceipt ValidateText(
+      const ConversationTextCommand& command, bool manualLeaseValid,
+      uint64_t currentRevision) const;
   ConversationCommandReceipt SubmitText(const ConversationTextCommand& command,
                                         bool manualLeaseValid,
                                         uint64_t currentRevision);

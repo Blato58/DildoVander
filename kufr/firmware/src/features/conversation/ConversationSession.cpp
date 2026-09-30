@@ -57,9 +57,9 @@ ConversationSession::ConversationSession(const std::string& bootId,
                                          const std::string& conversationId)
     : bootId_(bootId), conversationId_(conversationId) {}
 
-ConversationCommandReceipt ConversationSession::SubmitText(
+ConversationCommandReceipt ConversationSession::ValidateText(
     const ConversationTextCommand& command, bool manualLeaseValid,
-    uint64_t currentRevision) {
+    uint64_t currentRevision) const {
   if (!manualLeaseValid) {
     return {ConversationCommandError::Unauthorized, false};
   }
@@ -95,6 +95,18 @@ ConversationCommandReceipt ConversationSession::SubmitText(
   }
   if (command.expectedRevision != currentRevision) {
     return {ConversationCommandError::StaleRevision, false};
+  }
+
+  return {ConversationCommandError::None, false};
+}
+
+ConversationCommandReceipt ConversationSession::SubmitText(
+    const ConversationTextCommand& command, bool manualLeaseValid,
+    uint64_t currentRevision) {
+  const ConversationCommandReceipt receipt =
+      ValidateText(command, manualLeaseValid, currentRevision);
+  if (receipt.error != ConversationCommandError::None || receipt.duplicate) {
+    return receipt;
   }
 
   clientTurnId_ = command.clientTurnId;
