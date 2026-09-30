@@ -60,17 +60,20 @@ internal static class TextDialogRuntimeTests
                 ["OPENAI_API_KEY"] = "sk-test-only"
             })
             .Build();
-        enabled["Backend:Dialog:Model"] = ResponsesTextDialogBudget.LunaModel;
+        enabled["Backend:Dialog:Model"] = ResponsesTextDialogBudget.Model;
         using var configured = new TextDialogRunner(enabled, lifetime);
-        Require(configured.Model == ResponsesTextDialogBudget.LunaModel, "configured Luna model is retained");
-        enabled["Backend:Dialog:Model"] = "gpt-6-astra";
-        try
+        Require(configured.Model == ResponsesTextDialogBudget.Model, "configured Sol model is retained");
+        foreach (var unsupportedModel in new[] { "gpt-6-astra", "gpt-6-luna" })
         {
-            using var unsupported = new TextDialogRunner(enabled, lifetime);
-            throw new Exception("Disallowed model started.");
-        }
-        catch (InvalidOperationException)
-        {
+            enabled["Backend:Dialog:Model"] = unsupportedModel;
+            try
+            {
+                using var unsupported = new TextDialogRunner(enabled, lifetime);
+                throw new Exception("Disallowed model started.");
+            }
+            catch (InvalidOperationException)
+            {
+            }
         }
         Require(configured.Enabled, "explicit Responses mode accepts key and all caps");
     }

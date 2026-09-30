@@ -6,13 +6,13 @@ Poslední aktualizace: **30. 9. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**Aktivní D75 (30. 9., rozpracováno):** Sol/Luna, čtyři až sedm navazujících otázek, nativní backendové funkce, skutečný adaptivní rozhovor přes nasazené API a firmware opening/ukončení při opuštění. Nové zadání: AI vybírá bez obsluhy, servo vysune a zase zasune pevnou rekvizitu; normální cyklus obnoví dostupnost. Nejde o oprávnění nahrát firmware do neověřené desky. Vlastnictví: integrátor backend/eval/dokumentace, firmware pracovník pouze firmware/CI, pomocník pouze interaktivní testovací klient/CI. Backendový commit je `74d32b7`; lokální softwarové testy prošly. Firmware commit, CI a živý rozhovor se dokončují.
+**Aktivní D76 (30. 9.):** majitel po slabém živém humoru Luny volí pouze Sol. D75 je sloučeno v PR #35 (`c3d2c53`), nasazeno a skutečný adaptivní rozhovor dokončen. Následuje Sol-only nasazení, ověření paměti přes restart a nový adaptivní rozhovor v původním rozpočtu 1 USD. Fyzické ovládání ještě není přijato.
 
 **Předchozí obsahový požadavek majitele 30. 9.:** D74 přidává hovorový party dialog, opening a trvalou paměť večera na backendu; syntetické placené srovnání je schváleno do 1 USD. Integrace nových API do firmware/telefonu ani nasazení nejsou součástí dosavadního ověření.
 
 **Aktivní implementační krok:** E4.3 – samostatný ESP32 klient backendu, současně E8 backendový textový dialog pro testování bez HW. E4.1 ESP-IDF profil a bezpečná smyčka jsou softwarově sestavené (D33); E4.2 má trvalý journal a model identity s NVS adaptéry bez HW/USB akceptace (D34–D35). E4.3a přidává model backend tokenu a HTTPS adaptér (D36), E4.3b servisně čtenou síť, SNTP/časovou bránu a samostatnou úlohu (D37). E4.3c má JSON kodeky, HTTPS adaptéry, obnovu tokenu, korelaci, UUID a časování (D38–D48). D49 připojil interní cestu start/tah/poll; D51 přidal atomický snapshot a vazbu čekajícího textu na jeho verzi. D64 zapojil `DeviceControlRuntime` jako vlastníka snapshotu v IDF smyčce; D65 ověřil hostitelské testy a oba firmware profily v CI. Místní textový vstup stále nemá autorizovaného producenta. E7 backend bez skutečné AI je dokončen a běží na Ubuntu přes loopback; autentizovaný fake tah prošel na nasazené službě (D59). D53 připravil oddělený vývojový AI eval bez zařízení; D54 upravil party charakter. D57 rozšířil korpus na 60 českých a dvě jazykové odbočky a další živý případ prošel. D60 přidal Responses klienta, D61 cenu, D62 jej připojil za výslovný přepínač a rezervaci; D63 ověřil jeden placený syntetický tah na nasazeném backendu a vrátil službu do fake režimu. E2/E3 jsou dokončené v hostitelském/simulátorovém rozsahu. Fyzické nezávislé vypnutí a měření zůstávají kritérii E5; produkční E8 provoz a fyzická akceptace stále čekají.
 
-**Další konkrétní krok D75:** dokončit PR/CI, nasadit Luna responses a vést skutečný adaptivní textový rozhovor přes veřejné API. Skutečný návrh přehrát přes hostitelský firmware parser a autonomní model. Poté připojit autorizovaný místní opening/text vstup, výstup replik a kalibrovaný port prezentace v ESP32; bez B1 žádné GPIO/nahrání do desky. Stávající ruční mobilní cesta zůstává samostatná, nová autonomní cesta nepotřebuje lease ani potvrzení obsluhy.
+**Další konkrétní krok D76:** nasadit Sol a ověřit paměť jména/příběhu z D75 přes restart, vést adaptivní rozhovor a uzavřít testovací sezení. Poté připojit autorizovaný místní opening/text vstup, výstup replik a kalibrovaný port prezentace v ESP32; bez B1 žádné GPIO/nahrání do desky. Autonomní cesta nepotřebuje lease ani potvrzení obsluhy.
 
 1. Formát a NVS čtení identity jsou v softwaru. Pro skutečný servisní zápis doplnit USB nástroj až s ověřenou fyzickou servisní bránou a odpojenou větví pohonů (B1). Credential musí vzniknout mimo image a zůstat mimo argumenty/logy. Bez známé revize desky nic nenahrávat. Journal ani identita nemají ověřený běh na desce.
 2. Po softwarovém Wi-Fi a tokenovém bootstrappingu připojit HTTPS fake backend konverzaci a lokální WSS podle E4. Skutečné TLS spojení na desce a GPIO/USB měření vyžadují B1; E8 provider čeká na B4.
@@ -79,6 +79,14 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 | B5 | Katalog šesti původních hůlek a Harry Potter / Ollivander tematickou roli majitel svěřil nezávislému agentovi; zdroj je `ai-eval/wand-catalog.json` (D72). Stále chybí rozměry, router, prostředí akce a živé obsahové hodnocení s hosty. | Provozní akceptaci E8/E11, fyzické mapování hůlek a finální mechaniku. | Sdílený tematický katalog, vývojové a simulované scénáře; skutečné přihrádky až s HW. |
 
 ## Deník změn a ověření
+
+### D76 – 30. 9. 2026 – pouze Sol a oprava opakujících se otázek
+
+- Majitel zvolil pouze Sol po živém testu Luny. Backend i ruční workflow odmítají jiné dialogové modely; eval používá Sol. Prompt zakazuje mechanické potvrzování jména, znovu položené zodpovězené otázky a dva dotazy v jedné replice.
+- D75: PR #35 sloučeno do `main` jako `c3d2c535ba00356f7710e432201745495b8d5832`; firmware CI a offline eval prošly. Nasazení 36651086166 prošlo. Pět skutečných Luna tahů přes veřejné API skončilo návrhem přihrádky 3; replay stejného opening vrátil tutéž operaci, DELETE sezení prošel (36652057592). Návštěvníkovy odpovědi vznikaly až po přečtení skutečné AI repliky.
+- Hodnocení: Luna držela svatební historku, ale opakovala zodpovězený dotaz na výmluvu, pokládala dva dotazy najednou a místo pointy komentovala příběh. To není splněná akceptace přirozeného humoru.
+- Skutečný backendový návrh prošel hostitelským parserem/guardem a simulovaným raise/lower/complete pro přihrádku 3. Expirovaný návrh a readyMask=0 byly odmítnuty bez simulovaného pohybu. Replay používá zachycený čas příjmu; není důkaz ESP32 sítě ani fyzického serva.
+- Ověření změny: Python eval 20 testů a Release backend testovací program prošly; Luna a Astra jsou výslovně odmítnuty. Živý Sol a restart paměti jsou dalším krokem. Nákladové rezervace/odhady nejsou skutečně vyúčtované částky OpenAI; původní limit testů 1 USD a měsíční 10 USD se nemění.
 
 ### D75 – 30. 9. 2026 – autonomní pevná rekvizita, backendové funkce a živý dialog – probíhá ověření
 
