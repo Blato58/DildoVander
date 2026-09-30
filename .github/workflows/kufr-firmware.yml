@@ -85,6 +85,18 @@ jobs:
             tests/local_bearer_authenticator_test.cpp \
             -o "$RUNNER_TEMP/local-bearer-authorization-test"
           "$RUNNER_TEMP/local-bearer-authorization-test"
+      - name: Local socket admission test
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++14 -Wall -Wextra -Werror -pthread \
+            src/features/provisioning/LocalPairingCredential.cpp \
+            src/features/local_control/LocalBearerAuthenticator.cpp \
+            src/features/local_control/LocalSocketAdmission.cpp \
+            tests/local_socket_admission_test.cpp \
+            -o "$RUNNER_TEMP/local-socket-admission-test"
+          "$RUNNER_TEMP/local-socket-admission-test"
       - name: Snapshot-bound text inbox test
         working-directory: kufr/firmware
         shell: bash
