@@ -36,6 +36,7 @@ idf_component_register(
         "features/device_control/PersistentCommandJournal.cpp"
         "features/local_control/LocalControlSession.cpp"
         "features/local_control/LocalControlCodec.cpp"
+        "features/local_control/LocalControlInbox.cpp"
         "features/local_control/LocalBearerAuthenticator.cpp"
         "features/local_control/LocalConversationGateway.cpp"
         "features/local_control/LocalSocketAdmission.cpp"
