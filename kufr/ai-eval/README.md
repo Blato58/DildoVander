@@ -6,7 +6,7 @@ ESP32, Device ID, device credential, backend, server ani mobilní aplikaci.
 Nevydává žádný příkaz k pohonu. Backendový E8 adaptér existuje odděleně; hlasové testy zůstávají další prací.
 
 Prompt je v prompt.txt: mluvící kouzelný kufr prodejce z Ollivanderova obchodu ve světě Harryho Pottera pro soukromou party 18+, s ostrým, vtipným roastem. Původní šestice hůlek je v wand-catalog.json; backend i eval předávají modelu jen dostupné položky. Výchozí model je gpt-6.1-sol s nízkým reasoning effort. Stejné scénáře
-lze ručně porovnat s gpt-6-luna. STT a TTS se v tomto
+nyní používají pouze Sol. STT a TTS se v tomto
 textovém testu nevolají. Model musí vrátit přísné JSON schéma; parser navíc
 kontroluje délky, decision, compartment a aktuální readyMask.
 Neplatný, odmítnutý či neúplný výsledek končí bezpečnou chybou. Kvalitu
@@ -51,7 +51,7 @@ schéma. Paměť ve vývojových scénářích je výhradně fiktivní.
 ## Adaptivní srovnání humoru
 
 Ruční workflow má volbu `party_compare`. Spustí `evaluate_party.py`, který
-porovná Sol a Luna na stejných třech fiktivních osobnostech. Návštěvník
+testuje Sol na stejných třech fiktivních osobnostech. Návštěvník
 simulovaný modelem Sol odpovídá na **skutečnou poslední otázku**, místo
 předem napsané repliky bez souvislosti. Každý dialog má nejvýše osm replik
 kufru; hned končí návrhem/no_selection. Další placené volání se předem

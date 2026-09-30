@@ -24,7 +24,7 @@ internal sealed class TextDialogRunner : IDisposable
         Model = configuration["Backend:Dialog:Model"] ?? ResponsesTextDialogBudget.Model;
         if (!ResponsesTextDialogBudget.IsSupportedModel(Model))
         {
-            throw new InvalidOperationException("Only Sol and Luna are supported.");
+            throw new InvalidOperationException("Only Sol is supported.");
         }
 
         var apiKey = configuration["OPENAI_API_KEY"];

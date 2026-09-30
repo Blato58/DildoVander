@@ -49,21 +49,8 @@ internal static class ResponsesTextDialogBudgetTests
             }
         }
 
-        var luna = response with { ReturnedModel = ResponsesTextDialogBudget.LunaModel };
-        Require(ResponsesTextDialogBudget.CalculateActualMicroUsd(luna, ResponsesTextDialogBudget.LunaModel) == 129,
-            "Luna estimate rounds upward in micro USD");
-        Require(ResponsesTextDialogBudget.ReserveForContext(context, ResponsesTextDialogBudget.LunaModel)
-            >= 2 * ResponsesTextDialogBudget.CalculateActualMicroUsd(
-                luna with { InputTokens = ResponsesTextDialogBudget.RequestByteLimit(context), OutputTokens = 1200 },
-                ResponsesTextDialogBudget.LunaModel), "Luna reservation covers bounded request at twice Standard");
-        try
-        {
-            ResponsesTextDialogBudget.CalculateActualMicroUsd(luna);
-            throw new Exception("Luna response accepted for Sol request.");
-        }
-        catch (TextDialogUnavailableException)
-        {
-        }
+        Require(ResponsesTextDialogBudget.IsSupportedModel(ResponsesTextDialogBudget.Model), "Sol is supported");
+        Require(!ResponsesTextDialogBudget.IsSupportedModel("gpt-6-luna"), "Luna is disabled after live evaluation");
 
         var wrongModel = response with { ReturnedModel = "other-model" };
         try
