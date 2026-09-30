@@ -64,6 +64,16 @@ jobs:
             tests/local_control_session_test.cpp \
             -o "$RUNNER_TEMP/local-control-session-test"
           "$RUNNER_TEMP/local-control-session-test"
+      - name: Local pairing credential test
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++14 -Wall -Wextra -Werror \
+            src/features/provisioning/LocalPairingCredential.cpp \
+            tests/local_pairing_credential_test.cpp \
+            -o "$RUNNER_TEMP/local-pairing-credential-test"
+          "$RUNNER_TEMP/local-pairing-credential-test"
       - name: Snapshot-bound text inbox test
         working-directory: kufr/firmware
         shell: bash
