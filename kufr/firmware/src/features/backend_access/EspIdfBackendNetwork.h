@@ -10,11 +10,13 @@
 #include "../conversation/ConversationRuntimeState.h"
 #include "../conversation/ConversationTextInbox.h"
 #include "../conversation/ConversationReplyInbox.h"
+#include "../conversation/ConversationTurnFailureInbox.h"
 #include "../conversation/PendingProposal.h"
+#include "../local_control/LocalConversationNetworkPort.h"
 #include "../wand_presentation/WandPresentation.h"
 #include "../provisioning/DeviceIdentity.h"
 
-class EspIdfBackendNetwork final {
+class EspIdfBackendNetwork final : public LocalConversationNetworkPort {
  public:
   EspIdfBackendNetwork(DeviceIdentity& identity,
                        ConversationRuntimeState& runtimeState);
@@ -22,11 +24,18 @@ class EspIdfBackendNetwork final {
   bool QueueTextTurn(const std::string& text,
                      const std::string& conversationId,
                      const std::string& clientTurnId,
-                     const ConversationRuntimeSnapshot& expectedSnapshot);
+                     const ConversationRuntimeSnapshot& expectedSnapshot) override;
   // Called only for a deliberate local start event, never by reconnect.
   bool QueueOpening(const std::string& conversationId,
                     const ConversationRuntimeSnapshot& expectedSnapshot);
   void QueueCancel();
+  bool QueueCancelFor(
+      const std::string& conversationId,
+      uint64_t snapshotVersion) override;
+  bool TakeFailedTurnFor(
+      const std::string& conversationId,
+      const std::string& clientTurnId,
+      uint64_t snapshotVersion) override;
   // The caller must check IsReplyCurrent before and during playback, then
   // FinishReply. Stop/cancel must also stop the actual output port.
   bool TakeReply(std::string& reply, std::string& conversationId,
@@ -65,12 +74,15 @@ class EspIdfBackendNetwork final {
       const std::string& reply, const std::string& conversationId,
       const std::string& clientTurnId,
       const ConversationRuntimeSnapshot& snapshot);
+  void FailQueuedText();
+  void DiscardTextUnless(const std::string& conversationId);
 
   DeviceIdentity& identity_;
   ConversationRuntimeState& runtimeState_;
   NetworkSettings settings_;
   ConversationTextInbox textInbox_;
   ConversationReplyInbox replyInbox_;
+  ConversationTurnFailureInbox failedTurns_;
   PendingProposal pendingProposal_;
   std::mutex presentationMutex_;
   bool terminalProposalOutstanding_ = false;

@@ -61,6 +61,13 @@ bool LocalControlSession::Heartbeat(
   return true;
 }
 
+bool LocalControlSession::OwnsLiveLease(
+    const std::string& bootId, const std::string& leaseId,
+    uint64_t nowMs) const {
+  return MatchesOwnedLease(bootId, leaseId) &&
+         runtime_.OwnsLiveManualLease(leaseId_, nowMs);
+}
+
 bool LocalControlSession::Release(
     const std::string& bootId, const std::string& leaseId,
     SelectionStep& step) {

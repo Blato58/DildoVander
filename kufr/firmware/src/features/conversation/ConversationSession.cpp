@@ -175,6 +175,19 @@ bool ConversationSession::SynchronizeGeneration(uint64_t generation) {
   return true;
 }
 
+bool ConversationSession::AbortUnqueuedTurn(
+    const std::string& clientTurnId, uint64_t generation) {
+  if (!HasActiveTurn() || generation != generation_ ||
+      clientTurnId != clientTurnId_ || usedTurnCount_ == 0 ||
+      usedTurnIds_[usedTurnCount_ - 1] != clientTurnId) {
+    return false;
+  }
+  ClearSensitiveTurn();
+  usedTurnIds_[usedTurnCount_ - 1].clear();
+  --usedTurnCount_;
+  return true;
+}
+
 uint64_t ConversationSession::Generation() const { return generation_; }
 
 bool ConversationSession::HasActiveTurn() const {
