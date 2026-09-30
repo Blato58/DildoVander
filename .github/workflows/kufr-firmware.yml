@@ -43,6 +43,24 @@ jobs:
             tests/device_control_runtime_test.cpp \
             -o "$RUNNER_TEMP/device-control-runtime-test"
           "$RUNNER_TEMP/device-control-runtime-test"
+      - name: Local control session test
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++14 -Wall -Wextra -Werror \
+            src/features/safety/SafetyController.cpp \
+            src/features/wand_selection/SelectionSequence.cpp \
+            src/features/device_control/DeviceControl.cpp \
+            src/features/device_control/DeviceControlRuntime.cpp \
+            src/features/conversation/ConversationRuntimeState.cpp \
+            src/features/conversation/ConversationStartCodec.cpp \
+            src/features/conversation/PendingProposal.cpp \
+            src/features/wand_presentation/WandPresentation.cpp \
+            src/features/local_control/LocalControlSession.cpp \
+            tests/local_control_session_test.cpp \
+            -o "$RUNNER_TEMP/local-control-session-test"
+          "$RUNNER_TEMP/local-control-session-test"
       - name: Snapshot-bound text inbox test
         working-directory: kufr/firmware
         shell: bash

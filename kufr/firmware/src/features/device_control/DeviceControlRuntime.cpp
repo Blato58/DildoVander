@@ -61,6 +61,15 @@ bool DeviceControlRuntime::DisconnectManualControl(SelectionStep& step) {
   return stopped;
 }
 
+bool DeviceControlRuntime::DisconnectManualControl(
+    const std::string& leaseId, SelectionStep& step) {
+  if (!control_.OwnsManualLease(leaseId)) {
+    return false;
+  }
+  DisconnectManualControl(step);
+  return true;
+}
+
 CommandReceipt DeviceControlRuntime::AcceptSelection(
     const SelectionCommand& command, bool authenticated, uint64_t nowMs) {
   const bool hadManualControl = control_.HasManualControl();
