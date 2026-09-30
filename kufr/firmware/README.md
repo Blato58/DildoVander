@@ -226,6 +226,25 @@ frontě či souběžném odpojení. Nové spojení čeká na převzetí odpojen�
 vlastníkem; opožděný callback jiného handle se ignoruje. Před přijetím se
 kontroluje device/boot korelace, takže Stop starého bootu frontu nesmaže.
 
+`EspIdfLocalControlServer` je serverový adaptér `/v1/control` na HTTPS portu
+443. Start odmítne chybějící TLS identitu nebo nepárovaný credential.
+Přesná bearer hlavička se ověří v pre-handshake callbacku před 101;
+post-handshake teprve potvrdí socket a oznámí připojení. Query a žádost
+o WS extensions se odmítají. Přijímá jen celé textové rámce do 8192 B;
+parser nadále omezuje netextové povely na 2048 B. PING/PONG/CLOSE jsou
+omezené na 125 B a aplikace je sama spotřebuje. Zahlcení nebo neplatný
+rámec uzavře spojení, nikdy nečeká na volné místo v řídicí frontě.
+
+Výstup má čtyři sloty a samostatný close; `httpd_queue_work` odesílá jen
+v HTTPD úloze, kde se znovu kontroluje generace socketu. Close provádí
+`shutdown` po stejné kontrole; HTTPS pak vlastní zrušení TLS a socketu.
+Vlastník volá `Pump()` pro opakování při zahlcení SDK work queue. Start,
+Stop a provisioning musí probíhat sériově; identita musí žít po celou
+dobu serveru a během provozu se nesmí měnit. Wi-Fi/netif spravuje síťový
+vlastník. Adaptér zatím není spuštěný v `app_main`, nepřidává servisní
+bránu ani neprokazuje běh TLS/WSS na desce. Čerstvý SDK config potřebuje
+HTTPS, WS a pre/post callback volby ze `sdkconfig.defaults`.
+
 `LocalTlsIdentity` čte samostatný verzovaný záznam `wand_tls/server`:
 8bajtová hlavička `KTL1` a little-endian délky certifikátu/klíče, potom obě
 PEM hodnoty včetně koncového NUL (certifikát nejvýše 2048, EC klíč 1024 bajtů).

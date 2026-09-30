@@ -67,6 +67,26 @@ jobs:
             tests/local_control_inbox_test.cpp \
             -o "$RUNNER_TEMP/local-control-inbox-test"
           "$RUNNER_TEMP/local-control-inbox-test"
+      - name: Local WSS server adapter test
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++14 -Wall -Wextra -Werror -pthread -I tests/server_stubs \
+            src/features/local_control/EspIdfLocalControlServer.cpp \
+            src/features/local_control/LocalControlCodec.cpp \
+            src/features/local_control/LocalControlInbox.cpp \
+            src/features/local_control/LocalSocketAdmission.cpp \
+            src/features/local_control/LocalBearerAuthenticator.cpp \
+            src/features/provisioning/LocalTlsIdentity.cpp \
+            src/features/provisioning/LocalPairingCredential.cpp \
+            src/features/conversation/ConversationSession.cpp \
+            src/features/conversation/ConversationStartCodec.cpp \
+            tests/local_control_server_test.cpp \
+            -o "$RUNNER_TEMP/local-control-server-test"
+          "$RUNNER_TEMP/local-control-server-test" \
+            ../contracts/fixtures/valid/hello.json \
+            ../contracts/fixtures/valid/safety-stop.json
       - name: Local control session test
         working-directory: kufr/firmware
         shell: bash
