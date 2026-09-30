@@ -244,6 +244,18 @@ composition. `LocalControlIdPort` dodává UUID lease; chybná/prázdná hodnota
 řízení nepřevezme. Host test ověřuje odpojení observeru, expiraci, duplicitní
 text, cancel/chybu výstupu a Stop mezi přijetím journalu a Begin.
 
+`LocalControlOutput` serializuje aktuální control/journal/safety/selection/
+conversation gettery na welcome, snapshot, heartbeat a ACK. Kalibrace 0
+není ready, mikrofon je unavailable, neznámý důvod safety fault se
+nevydává za vymyšlený fault code. Selhání journalu se projeví faultem
+journal_failed a readyMask 0. Aktivní autonomní cyklus má phase presenting.
+Terminální manuální výsledek vzniká v DeviceControl při FinishCurrent,
+nese tehdejší revision a fyzické ověření unavailable. Výstup ho odešle
+jednou a následné snapshoty uchovají jeho event watermark. Step/terminal
+změna vyvolá snapshot i mimo pravidelný 1Hz interval. Skutečné C++ JSON
+bajty ověřuje `contracts/verify-firmware-output.mjs` stejným strict parserem
+a schématem jako mobil/simulátor; test není důkazem HW sekvence.
+
 `EspIdfLocalControlServer` je serverový adaptér `/v1/control` na HTTPS portu
 443. Start odmítne chybějící TLS identitu nebo nepárovaný credential.
 Přesná bearer hlavička se ověří v pre-handshake callbacku před 101;

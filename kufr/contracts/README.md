@@ -9,6 +9,14 @@ Zatím popisuje `hello`, `welcome`, `state.get`, `control.acquire/release`,
 `fixtures/valid/` a `fixtures/invalid/` obsahují zprávy pro další adaptéry.
 Schéma je zdroj typů a rozsahů; další mediální typy přibudou v E2.
 
+`state.snapshot.phase: presenting` označuje skutečně aktivní autonomní
+cyklus pevné hůlky (vysunutí, prezentace a návrat). Jde o rozšíření enumu
+v1 po přijetí autonomie; strict klienti musí aktualizovat své schéma.
+Mobilní simulátor čte phase jako string a jakoukoli ne-ready fázi mapuje
+na probíhající sekvenci. Kalibrace 0 nesmí být vydávána za ready, mikrofon
+bez I2S je unavailable a terminální výsledky mají physicalVerification
+unavailable. Předání snapshotu není fyzická akceptace.
+
 `backend-openapi-v1.json` je HTTP kontrakt E2.6. Pokrývá výměnu servisně
 provisionovaného device credential za 15minutový access token, založení
 sezení, textový tah, WAV přepis, syntézu, polling/rušení operace, stažení

@@ -396,16 +396,30 @@ bool DeviceControl::Tick(uint64_t nowMs, SelectionStep& step) {
 }
 
 bool DeviceControl::Stop(SelectionStep& step) {
+  const uint64_t previousRevision = revision_;
   const bool newlyStopped = selection_.Stop(step);
   FaultAutonomousPresentation();
   if (HasPendingSelection()) {
     FinishCurrent(CommandOutcome::OutcomeUnknown);
+  }
+  if (newlyStopped && revision_ == previousRevision) {
+    ++revision_;
   }
 
   return newlyStopped;
 }
 
 uint64_t DeviceControl::Revision() const { return revision_; }
+
+uint64_t DeviceControl::CalibrationRevision() const {
+  return calibrationRevision_;
+}
+
+const std::string& DeviceControl::PendingCommandId() const {
+  return pendingCommandId_;
+}
+
+const LastSelectionResult& DeviceControl::LastResult() const { return lastResult_; }
 
 uint8_t DeviceControl::ReadyMask() const { return readyMask_; }
 
@@ -493,6 +507,11 @@ CommandOutcome DeviceControl::FinishCurrent(CommandOutcome outcome) {
   if (result != nullptr) {
     result->receipt.outcome = outcome;
   }
+
+  lastResult_.commandId = pendingCommandId_;
+  lastResult_.compartment = pendingCompartment_;
+  lastResult_.outcome = outcome;
+  lastResult_.revision = revision_ + 1;
 
   pendingCommandId_.clear();
   pendingCompartment_ = 0;
