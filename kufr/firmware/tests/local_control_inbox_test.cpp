@@ -1,4 +1,7 @@
 #include <cassert>
+#include <chrono>
+#include <future>
+#include <thread>
 
 #include "../src/features/local_control/LocalControlInbox.h"
 
@@ -51,4 +54,28 @@ int main() {
   assert(inbox.Take(event) && event.kind == LocalControlEventKind::Disconnected);
   assert(!inbox.Take(event));
   assert(event.message.text.empty());
+
+  LocalControlInbox guarded("kufr-001", "boot");
+  assert(guarded.Open(first, 0));
+  std::promise<void> attempting;
+  std::promise<void> admitted;
+  auto attemptingFuture = attempting.get_future();
+  auto admittedFuture = admitted.get_future();
+  std::thread producer;
+  bool began = false;
+  assert(guarded.RunIfCurrent(first, [&]() {
+    producer = std::thread([&]() {
+      attempting.set_value();
+      assert(guarded.Submit(first, stop));
+      admitted.set_value();
+    });
+    attemptingFuture.wait();
+    assert(admittedFuture.wait_for(std::chrono::milliseconds(20)) ==
+           std::future_status::timeout);
+    began = true;
+  }));
+  producer.join();
+  assert(began);
+  assert(!guarded.RunIfCurrent(first, [&]() { assert(false); }));
+  assert(!guarded.RunIfNoUrgent([&]() { assert(false); }));
 }

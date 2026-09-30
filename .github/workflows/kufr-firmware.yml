@@ -87,6 +87,28 @@ jobs:
           "$RUNNER_TEMP/local-control-server-test" \
             ../contracts/fixtures/valid/hello.json \
             ../contracts/fixtures/valid/safety-stop.json
+      - name: Local control owner test
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++14 -Wall -Wextra -Werror -pthread \
+            src/features/safety/SafetyController.cpp \
+            src/features/wand_selection/SelectionSequence.cpp \
+            src/features/device_control/DeviceControl.cpp \
+            src/features/device_control/DeviceControlRuntime.cpp \
+            src/features/conversation/ConversationSession.cpp \
+            src/features/conversation/ConversationStartCodec.cpp \
+            src/features/conversation/ConversationRuntimeState.cpp \
+            src/features/conversation/PendingProposal.cpp \
+            src/features/wand_presentation/WandPresentation.cpp \
+            src/features/local_control/LocalControlSession.cpp \
+            src/features/local_control/LocalConversationGateway.cpp \
+            src/features/local_control/LocalControlInbox.cpp \
+            src/features/local_control/LocalControlOwner.cpp \
+            tests/local_control_owner_test.cpp \
+            -o "$RUNNER_TEMP/local-control-owner-test"
+          "$RUNNER_TEMP/local-control-owner-test"
       - name: Local control session test
         working-directory: kufr/firmware
         shell: bash

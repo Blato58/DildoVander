@@ -27,6 +27,7 @@ class LocalControlSession final {
   bool Release(const std::string& bootId, const std::string& leaseId,
                SelectionStep& step);
   void Disconnect(SelectionStep& step);
+  const std::string& LeaseId() const;
 
  private:
   bool MatchesOwnedLease(const std::string& bootId,

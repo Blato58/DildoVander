@@ -106,6 +106,12 @@ bool LocalControlInbox::Matches(
          handle.generation == handle_.generation;
 }
 
+bool LocalControlInbox::CanProcess(
+    const LocalSocketAdmission::Handle& handle) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return Matches(handle) && !stopPending_ && !disconnectPending_;
+}
+
 void LocalControlInbox::ClearQueue() {
   for (LocalControlMessage& message : queue_) {
     WipeText(message.text);
