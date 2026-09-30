@@ -74,6 +74,16 @@ jobs:
             tests/local_pairing_credential_test.cpp \
             -o "$RUNNER_TEMP/local-pairing-credential-test"
           "$RUNNER_TEMP/local-pairing-credential-test"
+      - name: Radio-gated pairing random adapter test
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++14 -Wall -Wextra -Werror -Itests/idf_stubs \
+            src/features/provisioning/EspIdfPairingRandom.cpp \
+            tests/espidf_pairing_random_test.cpp \
+            -o "$RUNNER_TEMP/espidf-pairing-random-test"
+          "$RUNNER_TEMP/espidf-pairing-random-test"
       - name: Local bearer authorization test
         working-directory: kufr/firmware
         shell: bash
