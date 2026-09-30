@@ -1,5 +1,10 @@
 # Sdílené kontrakty kufru
 
+`control-validator-core.mjs` je společný strict JSON/schema validátor pro
+Node i nativní mobilní adaptér. Node wrapper `control-validator.mjs` načítá
+stejné schéma ze souboru; mobil jej importuje do Vite balíčku. Duplicity,
+necelé numerické tokeny a délkové limity se kontrolují v obou prostředích.
+
 `control-message-v1.schema.json` je rozpracovaný lokální WSS protokol verze 1
 podle kapitoly 5 [implementačního plánu](../docs/implementacni-plan.md).
 Zatím popisuje `hello`, `welcome`, `state.get`, `control.acquire/release`,
