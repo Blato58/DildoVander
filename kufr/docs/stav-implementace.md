@@ -88,6 +88,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 
 - Převzetí: telefonní WSS handshake potřebuje převést textový `Authorization` na 256bitový token bez volného formátu. Plán nyní určuje přesně 64 malých hexadecimálních znaků. Čistý `LocalBearerAuthenticator` přijímá pouze úplnou `Bearer ` hlavičku, dekóduje token do krátkodobého bufferu, ověří ho přes D86 a buffer vymaže. Simulátor přijímá stejný tvar tokenu. Rozsah: plán, parser, hostitelský test/CI, firmware README/CMake, simulátor a tento stav. Zatím se nevolá z firmwarového socketu.
 - Ověření 30. 9.: MSVC `cl /std:c++14 /EHsc /W4 /WX /utf-8` sestavil a spustil `local_bearer_authenticator_test` (správný token, změněný token, neúplná/dlouhá hlavička, prefix a nepovolený hex). Z `kufr/firmware` postupně prošly `pio run -e esp32-s3-idf -s` a `pio run -e esp32-s3-arduino-serial -s`. Sestavený C++ bridge a `npm test` v `kufr/simulator` prošly včetně WSS TLS/auth/media scénářů. Původní test konverzace při skoku fake času 500→831 ms spouštěl 250ms watchdog; vložený průchod řídicí smyčkou v 700 ms odpovídá provoznímu 10ms ticku. YAML firmware workflow se načetl; CI zatím čeká.
+- Doručení: implementační commit `b5ba251`; `./scripts/Push-CurrentBranch.ps1` potvrdil push do `origin/codex/kufr-local-bearer-auth` včetně aktualizovaného `main` na `26b5e6bf65e74a3b6dbd34ac9ada9da6c765f2a7`. PR a CI zatím čekají.
 - Neprovedeno: skutečný TLS/WSS handshake, limit jednoho klienta, service AP, fyzická brána a běh na desce.
 
 ### D87 – 30. 9. 2026 – E4.4g ESP-IDF místní párovací adaptéry
