@@ -88,6 +88,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 
 - Převzetí: `ConversationSession` a `DeviceControlRuntime` dosud měly oddělené čítače. Přidána neměnící kontrola zrušení, podmíněné zvýšení generation vlastníkem řízení pouze s platným ručním lease a monotónní synchronizace sezení po Stop/ztrátě lease. Rozsah: čisté C++ modely, hostitelský test, firmware CI, README a tento stav. Skutečná WSS událost ani odpovědní port se zatím nezapojuje.
 - Ověření 30. 9. z `kufr/firmware`: MSVC `cl /std:c++14 /EHsc /W4 /WX /utf-8` sestavil a spustil rozšířený `local_control_session_test` a stávající `conversation_session_test`. Nové scénáře kryjí zrušení, Stop, uvolnění lease, pozdní výsledek a odmítnutí expirovaného lease přesně na hranici 6000 ms před Tick. `pio run -e esp32-s3-idf -s` i `pio run -e esp32-s3-arduino-serial -s` prošly po poslední úpravě. `git diff --check` prošel; CI a deska/B1 zatím neověřeny.
+- Doručení: implementační commit `9eb9e52928f449aa23d97ad4e4a10924a65d344f`; `./scripts/Push-CurrentBranch.ps1` potvrdil push do `origin/codex/kufr-conversation-generation`. Závěrečný CI a PR merge zapsat po jejich skutečném dokončení.
 - Neprovedeno: živý autentizovaný vstup, automatické předání lifecycle událostí mezi úlohami, deska/B1 a WSS/TLS. Další krok: jediná řídicí brána pro text/cancel/reply s explicitním vlastníkem lease a síťovým portem.
 
 ### D82 – 30. 9. 2026 – E4.4b dvoufázové přijetí textu
