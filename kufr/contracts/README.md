@@ -30,7 +30,7 @@ kolize se stejným klíčem, ale jiným tělem vrací 409.
 
 Každý přijímač musí před validací schématu odmítnout neplatné UTF-8,
 duplicitní JSON klíče, desetinný/exponenciální zápis celočíselných polí a
-control zprávy nad 2048 bajtů, s výjimkou `conversation.text` do 8192 bajtů
+control zprávy nad 2048 bajtů, s výjimkou `conversation.text` a `conversation.result` do 8192 bajtů
 a 1000 znaků textu. Samotné JSON Schema
 tyto vlastnosti syrové zprávy neověří. Validace schématu nenahrazuje ověření
 TLS identity, tokenu, `bootId`, ručního lease, monotónního času, revision,
