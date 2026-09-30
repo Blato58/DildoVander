@@ -53,6 +53,18 @@ jobs:
             tests/device_control_runtime_test.cpp \
             -o "$RUNNER_TEMP/device-control-runtime-test"
           "$RUNNER_TEMP/device-control-runtime-test"
+      - name: Shared STA network lifecycle
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++14 -Wall -Wextra -Werror -I tests/station_stubs \
+            src/features/backend_access/EspIdfStationNetwork.cpp \
+            src/features/backend_access/NetworkSettings.cpp \
+            src/features/backend_access/ReconnectPolicy.cpp \
+            tests/espidf_station_network_test.cpp \
+            -o "$RUNNER_TEMP/station-network-test"
+          "$RUNNER_TEMP/station-network-test"
       - name: Local control codec test
         working-directory: kufr/firmware
         shell: bash
