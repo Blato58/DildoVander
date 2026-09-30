@@ -110,3 +110,8 @@ dialogue**, viz [backend README](../backend/README.md). Další repliku zadává
 nebo řídící agent až po přečtení skutečné odpovědi. Samostatný eval stále testuje
 obsah přes JSON schema; backend používá nativní function calling a jeho vlastní
 validaci. Staré reporty s Astrou jsou historické, nové běhy ji nepovolují.
+
+Živý adaptivní backendový test 30. 9., přepisy Luna/Sol, paměť přes restart,
+cleanup a skutečný návrh přehrávaný hostitelským firmwarem:
+[ověřovací report](reports/2026-09-30-live-backend-dialogue.md).
+Po tomto testu je jediným povoleným dialogovým modelem Sol.
