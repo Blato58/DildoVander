@@ -146,6 +146,18 @@ Tabulka je návrh cílových adresářů; vytvářet je postupně s příslušn�
 
 `main.cpp` zůstane skládáním. V IDF plánovat smyčku řízení s cílem průchodu do 10 ms; síť, TLS, audio a SD mají oddělené úlohy a omezené fronty. Do sekvence vstupuje jen jedna řídicí úloha; callback socketu ani HTTP odpověď nesmí přímo přepnout GPIO. `esp_http_client_perform` může blokovat volající task, proto patří do síťové úlohy [O13]. Sdílené I2C obsluhuje jeden koordinovaný adaptér s timeoutem; bezpečnostní vypnutí se sběrnicí nekomunikuje.
 
+D99 skládá boot-lifetime runtime v `espidf_main.cpp`. `EspIdfStationNetwork`
+načte nastavení jednou, vlastní STA/netif a v samostatné úloze opakuje připojení.
+Backend na tuto síť pouze odkazuje; porucha identity/času/tokenu/WAN ji nezničí.
+Server se aktivuje po IP a zdravých provisionovaných identitách, zůstává během
+reconnectu a přijímá pouze modelové příkazy. Smyčka volá server.Pump, owner.Tick
+a owner.PumpReply; přímý druhý runtime Tick je odstraněn. Lease ID vzniká přes
+STA-gated RNG, boot a místní conversation UUID před startem RF. Katalog je
+`ollivander-private-party-v1`. Reset gate je false, kalibrace 0 a bezpečný boot
+neobchází recovery; chybí fyzické zotavení, kalibrace, autonomní fyzický port,
+opening/PTT a audio. Další akceptace E4/E5 vyžaduje B1 a živé zařízení. Hostitelské
+stub testy a build neprokazují reconnect/IP změny/TLS/aktuátory na desce.
+
 ## 4. Připojení, párování a identita
 
 ### První nastavení
@@ -158,6 +170,18 @@ Tabulka je návrh cílových adresářů; vytvářet je postupně s příslušn�
 5. Deska přejde do STA režimu routeru, AP zavře. Změna sítě nikdy sama nevyvolá pohyb.
 
 Pro `Authorization: Bearer` místního WSS se 32bajtový token předává jako přesně 64 malých hexadecimálních znaků. Je to textové kódování stejného tokenu, ne další tajemství; hlavička nesmí obsahovat další znaky ani token v URL. Dekodér po ověření vymaže dočasný binární buffer. Nativní klient bude ukládat původní token do Keychain a při handshake jej takto zakóduje.
+
+D98 konkretizuje místní HTTPS `POST /v1/pair` pro již servisně provisionovanou
+TLS identitu a jednorázový párovací záznam. Klient připne SPKI z QR a pošle
+`Content-Type: application/json` a objekt `{"protocolVersion":1,"pairingSecret":"lowercase hex"}`
+(secret 16–64 bajtů, tělo do 192 bajtů, žádný query token/Transfer-Encoding).
+Úspěch vrací `{"protocolVersion":1,"token":"64 lowercase hex znaků"}` s no-store.
+WSS používá token v Authorization Bearer; zařízení uloží jen hash. 400 znamená
+formát, 401 nesprávné tajemství nebo nedostupné RNG, 409 již spotřebované párování,
+413/415 velikost/typ, 503 poškozené úložiště. Ztráta úspěšné odpovědi vyžaduje
+fyzický servisní reset. Server nepotřebuje backend token pro párování, vyžaduje
+však aktivní STA pro RNG. Servisní AP, QR/Keychain/native klient a skutečný USB
+zápis po fyzické bráně zůstávají navazující části; žádná identita není v image.
 
 **Podporovaná cesta zcela bez telefonu:** autorizovaný lokální servisní nástroj na notebooku přes USB nastaví Wi-Fi, backend host, čas, device credential a počáteční katalog/kalibraci. Vyžaduje fyzický servisní režim při startu a odpojenou větev pohonů; pracuje interaktivně bez tajemství v argumentech příkazové řádky, zdrojích či logu. Tento postup platí pro vývoj i produkční uvedení do provozu. Notebook se po nastavení odpojí a na akci není potřebný. Lokální certifikát/QR lze připravit předem pro případ pozdějšího použití záložní aplikace; její spárování není podmínkou cloudu. Pozdější změna Wi-Fi je opět servisní USB nebo spárovaná aplikace.
 
@@ -193,7 +217,7 @@ JSON UTF-8, názvy camelCase, explicitní `protocolVersion: 1`; JSON control zpr
 
 Pro přijatou autonomní prezentaci pevné hůlky snapshot používá phase `presenting` po celý aktivní cyklus vysunutí/prezentace/návratu. Nevydává ho za ready ani za starou jednorázovou latch sekvenci. Je to rozšíření enumu v1; strict klient před reálným připojením musí převzít aktualizované schéma. Nynější mobilní simulátor má string phase a každou ne-ready provozní fázi mapuje na running. `calibrationRevision: 0` vyžaduje ne-ready stav, neexistující mikrofon `unavailable`; výsledek softwarové sekvence stále nese `physicalVerification: unavailable`.
 
-Výjimka velikosti pouze pro `conversation.text` a textový pohled sezení: nejvýše 8192 bajtů, text stále nejvýše 1000 znaků; validovat limit bajtů i znaků kvůli češtině v UTF-8. Dekorativní zvýraznění kandidáta během dialogu samo nemění fyzickou revision; změna dostupnosti, kalibrace, režimu řízení nebo skutečná sekvence ano. Každá běžná mutace z telefonu vyžaduje explicitní manual lease; výjimky jsou autorizované safety.stop a samotná žádost control.acquire při bezpečném klidu. Pozorovatel jinak smí jen číst. Obsluha přepne na manual také před textovým nebo telefonním hlasovým vstupem.
+Výjimka velikosti pro `conversation.text` a `conversation.result`: nejvýše 8192 bajtů, vstup stále nejvýše 1000 znaků a reply nejvýše 500 znaků; validovat limit bajtů i znaků kvůli češtině v UTF-8. Dekorativní zvýraznění kandidáta během dialogu samo nemění fyzickou revision; změna dostupnosti, kalibrace, režimu řízení nebo skutečná sekvence ano. Každá běžná mutace z telefonu vyžaduje explicitní manual lease; výjimky jsou autorizované safety.stop a samotná žádost control.acquire při bezpečném klidu. Pozorovatel jinak smí jen číst. Obsluha přepne na manual také před textovým nebo telefonním hlasovým vstupem.
 
 Ovladač uchovává odhad monotónního času desky z handshake/heartbeat a RTT. Fyzický povel nesmí odeslat při vzorku starším než 3 s nebo RTT nad 500 ms. `issuedAtDeviceMs` musí při přijetí ležet nejvýše 500 ms v budoucnosti a s `maxAgeMs` nejvýše 2000 ms nesmí být prošlý. TTL nezačíná až přijetím opožděného paketu. UTC je jen pro backend/audit; firmware fyzické povely nepodmiňuje NTP.
 
@@ -288,6 +312,8 @@ Snapshot lokálního protokolu v1 nyní vyžaduje `conversation:{conversationId,
 Pravidla retry/lease výše platí pro síťové ruční povely. Místní tlačítkové potvrzení má stejnou bránu validace, NVS journal a jedinou sekvenci; nepotřebuje síťové ACK ani cloudový souhlas k dokončení. Platná autentizovaná obálka s očekávaným sequence spotřebuje pořadové číslo i při obchodním odmítnutí (například busy), výsledek se zapamatuje. Neautorizovaná/rozbitá obálka číslo nespotřebuje. Read-only state.get a safety.stop mají vlastní messageId bez navazování na číselnou řadu výběrů, aby mezera nemohla zablokovat zotavení nebo Stop.
 
 Chybové kódy minimálně: `invalid_message`, `unsupported_version`, `unauthorized`, `controller_busy`, `wrong_boot`, `lease_expired`, `expired`, `stale_revision`, `sequence_gap`, `id_conflict`, `busy`, `compartment_unavailable`, `not_calibrated`, `safety_latched`, `i2c_timeout`, `journal_failed`, `outcome_unknown`.
+
+D97 rozšiřuje `conversation.result` v1 na `simulated:boolean` a reply 1–500 Unicode znaků / nejvýše 2000 UTF-8 bajtů, v souladu s validovaným backendem. Simulátor zachovává true, skutečný backendový výstup má false; false označuje původ odpovědi, nikoli důkaz spuštění placené AI. Textové result zprávy mají stejně jako vstup limit 8192 bajtů kvůli JSON escapování, ostatní control zprávy 2048. Strict klient musí převzít rozšířené schéma/limity. Řídicí vlastník před výstupem kontroluje aktivní sezení/tah, generation a snapshot; dokončení až po přijetí do transportní fronty. Už odeslaný text nelze vzít zpět; cancel/Stop jej odliší novou generation. Předání textu telefonu není dokončení oznamovacího audio portu ani oprávnění k pohybu.
 
 ## 6. Backend, AI a bezpečný převod na hůlku
 
@@ -687,29 +713,3 @@ Oficiální dokumentace byla otevřena při přípravě plánu 29. 9. 2026. Odka
 - **H8:** [Microchip MCP23017 datasheet](https://ww1.microchip.com/downloads/en/DeviceDoc/20001952C.pdf) – expander, resetové vstupy a registr výstupů; ověřit konkrétní breakout a jeho pull rezistory.
 
 Místní obrázek, produktové označení v nákupním seznamu a předběžné tabulky tohoto plánu zůstávají návrhovými podklady do ověření skutečného kusu.
-
-D97 rozšiřuje `conversation.result` v1 na `simulated:boolean` a reply 1–500 Unicode znaků / nejvýše 2000 UTF-8 bajtů, v souladu s validovaným backendem. Simulátor zachovává true, skutečný backendový výstup má false; false označuje původ odpovědi, nikoli důkaz spuštění placené AI. Textové result zprávy mají stejně jako vstup limit 8192 bajtů kvůli JSON escapování, ostatní control zprávy 2048. Strict klient musí převzít rozšířené schéma/limity. Řídicí vlastník před výstupem kontroluje aktivní sezení/tah, generation a snapshot; dokončení až po přijetí do transportní fronty. Už odeslaný text nelze vzít zpět; cancel/Stop jej odliší novou generation. Předání textu telefonu není dokončení oznamovacího audio portu ani oprávnění k pohybu.
-
-D98 konkretizuje místní HTTPS `POST /v1/pair` pro již servisně provisionovanou
-TLS identitu a jednorázový párovací záznam. Klient připne SPKI z QR a pošle
-`Content-Type: application/json` a objekt `{"protocolVersion":1,"pairingSecret":"lowercase hex"}`
-(secret 16–64 bajtů, tělo do 192 bajtů, žádný query token/Transfer-Encoding).
-Úspěch vrací `{"protocolVersion":1,"token":"64 lowercase hex znaků"}` s no-store.
-WSS používá token v Authorization Bearer; zařízení uloží jen hash. 400 znamená
-formát, 401 nesprávné tajemství nebo nedostupné RNG, 409 již spotřebované párování,
-413/415 velikost/typ, 503 poškozené úložiště. Ztráta úspěšné odpovědi vyžaduje
-fyzický servisní reset. Server nepotřebuje backend token pro párování, vyžaduje
-však aktivní STA pro RNG. Servisní AP, QR/Keychain/native klient a skutečný USB
-zápis po fyzické bráně zůstávají navazující části; žádná identita není v image.
-
-D99 skládá boot-lifetime runtime v `espidf_main.cpp`. `EspIdfStationNetwork`
-načte nastavení jednou, vlastní STA/netif a v samostatné úloze opakuje připojení.
-Backend na tuto síť pouze odkazuje; porucha identity/času/tokenu/WAN ji nezničí.
-Server se aktivuje po IP a zdravých provisionovaných identitách, zůstává během
-reconnectu a přijímá pouze modelové příkazy. Smyčka volá server.Pump, owner.Tick
-a owner.PumpReply; přímý druhý runtime Tick je odstraněn. Lease ID vzniká přes
-STA-gated RNG, boot a místní conversation UUID před startem RF. Katalog je
-`ollivander-private-party-v1`. Reset gate je false, kalibrace 0 a bezpečný boot
-neobchází recovery; chybí fyzické zotavení, kalibrace, autonomní fyzický port,
-opening/PTT a audio. Další akceptace E4/E5 vyžaduje B1 a živé zařízení. Hostitelské
-stub testy a build neprokazují reconnect/IP změny/TLS/aktuátory na desce.
