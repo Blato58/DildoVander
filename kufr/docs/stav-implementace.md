@@ -25,8 +25,11 @@ backend runtime testy, no-build publish a HTTP smoke nad publikovanou DLL,
 skutečný balíček/rozbalení self-contained outputu; 19 mobilních testů a Vite/TS
 build, všechny kontrakty, 3 deploy + 9 client + 4 IPA publish + 20 offline AI
 Python testů; shell syntax, lokální dokumentační odkazy a whitespace prošly.
-CI výsledky, push a merge této změny jsou evidované v navazujícím PR
-`codex/build-once-workflows`; při převzetí ověř jeho aktuální stav a Actions.
+Commit `332fd4d9c8e12e4f53743042f37c4a79d30b1735` byl předán přes Git Data API
+a scoped fetch potvrdil remote shodu. HTTPS git push vracel 401; zdejší Linux
+nemá spustitelný PowerShell push skript. CI výsledky a merge jsou evidované
+v [PR #75](https://github.com/Blato58/DildoVander/pull/75); při převzetí ověř
+jeho aktuální stav a Actions.
 Skutečné nasazení, Apple podpis, publikace IPA, placená AI a HW flash nejsou
 součástí tohoto kroku. Repo nastavení API vrátilo 403 integration permission,
 rulesets navíc vyžadují Pro pro privátní repo. Připravené konkrétní JSON +
@@ -34,7 +37,7 @@ admin apply skript nejsou důkazem aktivní ochrany větve.
 Další krok: majitel/admin zpřístupní repo administraci a podporovaný tarif,
 potom aplikuje připravená pravidla; nasazení použije run ID úspěšného CI.
 
-**D110 – interaktivní hlasový Debug připraven pro macOS CI a předání.**
+**D110 – interaktivní hlasový Debug nasazen, podepsaná IPA build 37 publikovaná.**
 Majitel žádá menší prodlevu, volbu hlasu a celý výběr s vlastními odpověďmi;
 výslovně potvrdil hlas i psaný text. Implementována virtuální maska 0–63,
 celý přechodný přepis a validovaný návrh bez pohybových povelů, volby hlasu
@@ -57,17 +60,42 @@ Read-only review vedlo k opravě souběžného cleanup, stejného klíče při r
 retry, expirace návrhu po TTS, okamžitého mazání JS obsahu při pozadí a
 odmítnutí starých status/mikrofonních callbacků. Swift harness pokrývá celý
 výběr/STT/korelaci/expiraci a skutečný omezený loopback chunk/redirect/cancel;
-Node fixture lokálně ověřena. Windows nemá Swift/Xcode, jejich CI probíhá
-a výsledek zatím není doložen. První macOS běh Swift klient zkompiloval;
-harness selhal na dekódování binárního WAV jako UTF-8 ve fixture. Test je
-opraven tolerovaným čtením hlaviček a kontrolou přesných WAV bajtů, opakované
-CI čeká. Druhý běh odhalil další fixture neshodu: upload vracel 200 místo
-kontraktního 202. Fixture opravena, produkční kontrola zůstává striktní.
-UI nyní skrývá prázdné měření před prvním tahem. Diff bez whitespace chyb,
-tajemství nepřidána.
-Další krok: dokončit ověření, commit/push/PR/merge, navázat aktualizací backendu
-a podepsané IPA pro již autorizovaný telefonní test. Skutečná kvalita/latence
-a mikrofon iPhone zatím neověřeny, fyzický ESP/I2S zůstává závislý na B1.
+Node fixture lokálně ověřena. Dvě chyby testovacích fixture (binární WAV jako
+UTF-8 a 200 místo upload 202) opraveny při zachování striktního klienta.
+UI skrývá prázdné měření před prvním tahem. Diff bez whitespace chyb,
+tajemství nepřidána. Poslední head `e72316f3f8b5b25627d40303a01fb400fb2af7c6`
+prošel [backend CI 36863902681](https://github.com/Blato58/DildoVander/actions/runs/36863902681),
+[iOS CI 36863902326](https://github.com/Blato58/DildoVander/actions/runs/36863902326)
+a [firmware CI 36863902366](https://github.com/Blato58/DildoVander/actions/runs/36863902366).
+macOS ověřilo Swift/loopback harness, Xcode build a spuštění simulátoru;
+firmware Arduino/ESP-IDF a host testy prošly. Všechny push ověřeny,
+[PR #74](https://github.com/Blato58/DildoVander/pull/74) sloučen 1. 10. do
+`09edc403368cbf297bf3c50f9f32371ccdb91386`, merge ověřen scoped fetch/fast-forward.
+[Deploy 36864816231](https://github.com/Blato58/DildoVander/actions/runs/36864816231)
+a [Ad Hoc 36864820809](https://github.com/Blato58/DildoVander/actions/runs/36864820809)
+spuštěny z téhož merge. Deploy prošel loopback health a veřejným admin/no-op
+smoke bez provider volání. Nezávislé lokální HTTPS čtení potvrdilo
+`responses/openai`, oba providery dostupné, 0 aktivních sezení,
+`until_restart`, správný katalog a 32k PCM16 WAV. Credential zůstává
+stejný, chráněný lokální soubor ani backend secret se neměnily.
+Ad Hoc prošel všemi joby: web/Swift/Xcode/simulátor, archive/export/podpis,
+publikace a externí ověření IPA/manifestu/checksum. `/ios/` v in-app Browser
+i lokálním HTTPS nabízí verzi 1.0/**build 37**, release `36864820809-1`,
+stejné Bundle ID `app.turquoise6409.green2444`, HTTP `no-store`.
+Nezávislé stažení ověřilo MIME a SHA-256
+`1b25e1077ecc55ca5768fd4d8ce1756dc0eec8109ef8a7d03737a5874c2b60c6`.
+Inspekce skutečné veřejné IPA potvrdila build/Bundle ID, microphone usage
+permission, všechny čtyři nové nativní metody i interaktivní JS/Cedar;
+testovací native-ui-harness není v balíčku. Starší build 30 zůstává verzovaný
+pro návrat, hlavní stránka odkazuje na build 37. Žádné tajemství nebylo měněno
+ani přidáno do aplikace. Záznam předání je samostatný dokumentační commit.
+Další krok: majitel v Safari aktualizuje build 37, znovu nastaví nativní
+`debug-server-admin` přístup a obnoví režimy. V nové sekci zkušebního rozhovoru
+ověří vlastní text/mikrofon, český Cedar/Marin/Onyx/Coral a čas dialogu/TTS/
+stažení na skutečném iPhonu. Server zůstává `responses/openai`; spuštění
+AI rozhovoru může čerpat limit. Placené provider volání z agentních testů
+neproběhlo; kvalita/latence a permission skutečného telefonu se ještě
+nepotvrdily. Fyzický ESP/I2S zůstává závislý na B1, firmware se nenahrával.
 
 **D109 – serverové režimy nasazené a aktuální IPA publikovaná.**
 Majitel žádá ovládání serveru v Debug a opravu staré aplikace na `/ios/`.
