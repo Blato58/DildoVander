@@ -13,7 +13,7 @@ struct NativeDebugTests {
         let wav = makeWav()
         assert(DebugBackendClient.validWav(wav))
         assert(!DebugBackendClient.validWav(Data()))
-        var malformed = wav; malformed[24] = 0
+        var malformed = wav; malformed[25] = 0
         assert(!DebugBackendClient.validWav(malformed))
         assert(!DebugBackendClient.validWav(wav + Data([0])))
         let peer = Peer(wav: wav)
