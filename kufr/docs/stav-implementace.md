@@ -27,7 +27,7 @@ GitHub Kufr server logs umožňuje totéž bez lokálního tokenu, přes existuj
 serverový secret a jednodenní artefakt; žádné provider volání.
 Rozsah: backend Features/Diagnostics, middleware/API/Realtime/operace/testy;
 OpenAPI/verifier; DebugBackendClient/plugin/Panel/ServerLogs a native/browser
-harness; deploy/read workflow a Codex Python klient/testy/návod; plán/README.
+harness; deploy/read workflow a Codex Python klient/testy/návod; AGENTS/plán/README.
 Lokálně prošly locked restore .NET 10.0.303 linux-x64, Release build bez
 warnings/errors, kompletní backend testy včetně persist/TTL/cap/filtrů a
 oddělení oprávnění, HTTP smoke včetně restartu/sanitizace/query/trace.
