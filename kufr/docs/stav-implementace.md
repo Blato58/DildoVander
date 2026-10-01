@@ -6,6 +6,95 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D119 – Realtime hlas přímo na ESP a nastavení v Ovládání; všechny provider cesty přes SDK.**
+Majitel 1. 10. požaduje přidat Realtime do firmware, nastavovat hlasový režim
+v Ovládání aplikace a převést všechna volání OpenAI na SDK. Rozsah a výjimka
+z ručního lease pro samostatné hlasové příkazy jsou odůvodněné v plánu D119.
+ESP-IDF nyní drží autentizovaný backend NDJSON stream a pořadové PCM POSTy;
+telefon neposílá audio ani provider klíč. Server VAD obnovuje poslech po
+potvrzeném dohrání, lokální Stop okamžitě umlčí zesilovač. Odpověď/návrh
+projde existující korelací, snapshotem, maskou a TTL do PendingProposal;
+volný text ani audio přímo nespínají pohony. Provoz je omezený délkou,
+počtem tahů, velikostí audio/eventů a existujícími serverovými cost caps.
+
+Audio adaptér používá standardní I2S 32 kHz, ICS43434 a MAX98357A s
+průběžným polyphase FIR převodem 32 ↔ 24 kHz a počáteční hlasitostí 25 %. Zapne se
+jen s externě servisně ověřeným profilem A (`wand_audio/profile_a_ok=1`),
+bez kamery/SD. Bez tohoto ověření UI hlásí nedostupné audio. Profil B,
+PTT, echo cancellation a hardwarová akceptace se tímto nedoplňují.
+Ovládání nabízí Vypnutý/Realtime, Marin/Cedar/Coral, Použít, Spustit a
+Zastavit. Stav/nastavení potvrzuje ESP přes `voice.ack` a snapshot, nejsou
+optimistické; start vyžaduje samostatný ready stav a aktuální revizi.
+Odpojení pozorovatele samostatný rozhovor nezastavuje, ruční převzetí a Stop
+ano. Nejasné požadavky se po reconnectu nepřehrávají; volba platí do rebootu.
+
+Responses, kompatibilní TTS/STT a Python eval nově používají připnuté
+oficiální SDK; Realtime už SDK používal. BoundedSdkTransport omezuje odpověď
+před SDK bufferingem, zachovává pevný endpoint/no redirects, timeout,
+validaci a serverové rozpočty. Retry je explicitně nula; test 429 ověřuje
+jeden provider pokus pro každou cestu. STT protokolový overload zachovává
+`languages[]=cs`. Python live eval instaluje openai 3.22.1; offline testy
+zůstávají bez klíče a síťových volání.
+
+Změněné soubory: firmware `features/voice_turn`, backend_access,
+local_control, conversation start, JsonCursor, IDF composition/CMake a
+hostitelské testy/stubs; mobil `LocalVoiceClient`, `VoicePanel`, connection,
+main/style a test loader; JSON schema/fixtures; backend OpenAi transport,
+ResponsesTextDialogClient, OpenAiSpeechClient, OpenAiTranscriptionClient,
+TextDialogRunner a provider testy; Python eval/requirements/test_sdk,
+workflow, README, AGENTS a plán/stav.
+
+Lokálně prošly všechny firmware host testy včetně striktního NDJSON,
+resamplingu, úvodu a dvou navazujících mic tahů, pořadí uploadu, drain/ACK,
+Stop, cost_limit a chyb. Regresní test zadrží mikrofonní blok předchozího
+poslechu až do začátku dalšího: input epoch jej zahodí a nedovolí
+přeznačit na nové Input-Id. Samostatný test audio driveru ověřil servisní
+bránu profilu A, drain, Stop při DMA zápisu a odmítnutí pozdního audio
+bloku až do explicitního Begin nového sezení (oprava nalezeného závodu).
+52 skutečně emitovaných firmware zpráv prošlo
+sdíleným schématem. Oba PlatformIO profily prošly: ESP-IDF RAM 66 032 B,
+flash 1 202 041 B; Arduino serial RAM 18 660 B, flash 286 589 B (nezahrnuje
+běhový heap/stack). Backend HTTP smoke a testy providerů, Realtime, journalu, fake voice,
+rozpočtů, expirace a migrací prošly. Mobilní build a 24 testů, kontrakty
+25 validních/41 nevalidních zpráv a 21 offline Python eval testů prošly.
+Chromium na 390 px ověřil konfiguraci/start/stop, zachování rozpracované
+volby při heartbeat, uzamčení aktivního rozhovoru, viditelný cost_limit a
+zakázání hlasu ve fake režimu, bez JS chyb a horizontálního přesahu.
+
+Git předání: implementační commit `229904b5852a9b8755dac0758341fa6501c2269e`
+byl pushnut přes autorizovaný Push-CurrentBranch.ps1; shoda remote větve
+`feat/esp-realtime-voice-sdk` byla ověřena. Helper vyžaduje uložený účet;
+zdejší session credential byla přihlášena jen do dočasného izolovaného
+GH_CONFIG_DIR a účet Blato58 ověřen, ostatní GitHub účty se nemění.
+[PR #85](https://github.com/Blato58/DildoVander/pull/85) je bez konfliktů a
+čeká na povinné CI včetně Swift/Xcode/iOS Simulatoru; lokálně zde Xcode není.
+Finální původní head `938f9cc8f7dd2b0d54bed9389983ebedfaf9dd1c` byl
+ověřeně pushnut a CI 36923066577 prošlo všechny povinné kontroly včetně
+Swift/Xcode/spuštění iOS Simulatoru a obou firmware profilů. Během CI se
+do main sloučila oprava iPhone startu z PR #84 (`0d97dea`); obě změny jsou
+zachované. Společná verze `5e73e21` byla ověřeně pushnuta a CI 36924319856 prošlo
+všechny povinné kontroly. Závěrečná ochrana input epoch dále brání přenosu
+rozpracovaného mic bloku do následujícího poslechu. Nový regresní test
+prokazatelně selže na původním transportu a projde s opravou; ESP-IDF build
+prošel znovu. Povinné CI ověřuje poslední head tohoto PR.
+CI 36925265141 poté ověřilo všechny povinné kontroly headu `54d5f9f`,
+včetně regrese input epoch. Mezitím se do main sloučila diagnostika z PR
+#86 (`0330ce7`); zachovaná další merge integrací, tento slice nově D119.
+Po další integraci lokálně znovu prošly backend testy včetně ServerLogTests,
+HTTP smoke, mobilní build/24 testů, kontrakty a browser panel hlasu.
+CI ověřuje společnou finální verzi. Aktuální výsledek kontrol a sloučení
+je doložený přímo v PR.
+Tento krok nenasazuje backend, nevydává IPA, nenahrává firmware a nevolá
+placené OpenAI. Skutečný mikrofon/reproduktor, paměťové/časové rezervy při
+TLS, Stop během audia a 100 tahů na desce ani ovládání na iPhonu nebyly
+ověřené. B1/fyzická bezpečnost, kalibrace a HW část E9 zůstávají otevřené.
+Další konkrétní krok: po zeleném CI servisně ověřit profil A a bezpečný B1
+stav, samostatně autorizovat flash/nasazení a měřit opakovaný rozhovor,
+Stop, Wi-Fi výpadek, návrat k poslechu a reálnou češtinu na desce.
+
+
+
+
 **D118 – nasazeno: serverové logy, iOS zobrazení a čtecí integrace Codex.**
 Zadání majitele: logování serveru, API přístup, log v iOS a společný debug
 nasazeného prostředí s Codexem. Backend přidává oddělenou SQLite logovou DB,

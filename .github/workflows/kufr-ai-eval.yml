@@ -65,6 +65,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Install pinned OpenAI SDK
+        run: python3 -m pip install -r kufr/ai-eval/requirements.txt
       - name: Evaluate one synthetic turn
         if: ${{ !inputs.party_compare }}
         run: python3 kufr/ai-eval/evaluate.py --model "$MODEL" --case "$CASE_ID" --output "$RUNNER_TEMP/evaluation.json"

@@ -1,3 +1,4 @@
+#include "../voice_turn/LocalVoicePort.h"
 #include "LocalControlOutput.h"
 #include "LocalControlCapabilities.h"
 
@@ -76,8 +77,8 @@ LocalControlOutput::LocalControlOutput(
     const std::string& deviceId, const std::string& bootId, DeviceControl& control,
     PersistentCommandJournal& journal, SafetyController& safety,
     SelectionSequence& selection, ConversationSession& conversation,
-    LocalControlTransport& transport)
-    : deviceId_(deviceId), bootId_(bootId), control_(control), journal_(journal),
+    LocalControlTransport& transport, LocalVoicePort* voice)
+    : voice_(voice), deviceId_(deviceId), bootId_(bootId), control_(control), journal_(journal),
       safety_(safety), selection_(selection), conversation_(conversation),
       transport_(transport) {}
 
@@ -181,6 +182,9 @@ bool LocalControlOutput::BuildSnapshot(
       return false;
     }
   }
+  const LocalVoiceStatus voiceStatus = voice_ ? voice_->VoiceStatus() : LocalVoiceStatus{};
+  const char* microphone = !voiceStatus.available ? "unavailable" : voiceStatus.phase == "listening" ? "recording" :
+      voiceStatus.phase == "speaking" ? "playing" : "idle";
   json = "{\"protocolVersion\":1,\"type\":\"state.snapshot\",\"deviceId\":\"" +
       deviceId_ + "\",\"bootId\":\"" + bootId_ +
       "\",\"deviceUptimeMs\":" + std::to_string(nowMs) +
@@ -193,12 +197,13 @@ bool LocalControlOutput::BuildSnapshot(
       ",\"readyMask\":" + std::to_string(journal_.IsHealthy() ? control_.ReadyMask() : 0) +
       ",\"calibrationRevision\":" + std::to_string(control_.CalibrationRevision()) +
       ",\"faults\":" + (journal_.IsHealthy() ? "[]" : "[\"journal_failed\"]") +
-      ",\"microphoneState\":\"unavailable\",\"capabilities\":" +
+      ",\"microphoneState\":\"" + microphone + "\",\"capabilities\":" +
       LocalControlCapabilities::Json +
       ",\"lastResult\":" + lastResult +
       ",\"conversation\":{\"conversationId\":\"" + conversation_.ConversationId() +
       "\",\"generation\":" + std::to_string(conversation_.Generation()) +
-      ",\"activeTurnId\":" + NullableUuid(conversation_.ActiveTurnId()) + "}}";
+      ",\"activeTurnId\":" + NullableUuid(conversation_.ActiveTurnId()) + "}" +
+      (voice_ ? ",\"voice\":" + VoiceStatusJson(voiceStatus) : "") + "}";
   return true;
 }
 
@@ -307,4 +312,12 @@ bool LocalControlOutput::ConversationResult(
   json += ",\"simulated\":false}";
   // Escaping 500 codepoints can exceed the ordinary 2048-byte envelope.
   return json.size() <= 8192 && transport_.Send(handle, json);
+}
+
+bool LocalControlOutput::VoiceAck(const LocalSocketAdmission::Handle& handle,
+                                 const LocalControlMessage& request, bool accepted) {
+  if (!IsConversationUuid(request.messageId) || !AdvanceEvent()) return false;
+  return Send(handle, "{\"protocolVersion\":1,\"type\":\"voice.ack\",\"bootId\":\"" + bootId_ +
+      "\",\"requestMessageId\":\"" + request.messageId + "\",\"accepted\":" +
+      (accepted ? "true" : "false") + ",\"voice\":" + VoiceStatusJson(voice_ ? voice_->VoiceStatus() : LocalVoiceStatus{}) + "}");
 }

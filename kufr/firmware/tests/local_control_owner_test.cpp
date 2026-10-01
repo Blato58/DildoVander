@@ -1,6 +1,7 @@
 #include <cassert>
 #include <algorithm>
 #include <vector>
+#include "../src/features/voice_turn/LocalVoicePort.h"
 
 #include "../src/features/device_control/DeviceControlRuntime.h"
 #include "../src/features/local_control/LocalControlOwner.h"
@@ -95,6 +96,10 @@ class Clock final : public LocalControlClockPort {
 class Output final : public LocalControlOutputPort {
  public:
   Output(LocalControlInbox& inbox, Clock& clock) : inbox(inbox), clock(clock) {}
+  bool VoiceAck(const LocalSocketAdmission::Handle&, const LocalControlMessage&, bool admitted) override {
+    lastVoiceAccepted = admitted; return accept;
+  }
+  bool lastVoiceAccepted = false;
   bool Welcome(const LocalSocketAdmission::Handle&, const std::string&,
                 uint64_t) override { ++welcomes; return accept; }
   bool Snapshot(const LocalSocketAdmission::Handle&, const std::string& lease,
@@ -206,6 +211,20 @@ class Steps final : public LocalControlStepPort {
   std::vector<SelectionEffect> effects;
 };
 
+class Voice final : public LocalVoicePort {
+ public:
+  LocalVoiceStatus VoiceStatus() const override { return {}; }
+  bool ConfigureVoice(const std::string& mode, const std::string& chosen) override {
+    ++configured; return mode == "realtime" && chosen == "cedar";
+  }
+  bool StartVoice(const std::string&, const ConversationRuntimeSnapshot& snapshot) override {
+    ++started; lastRevision = snapshot.deviceRevision; return true;
+  }
+  void StopVoice() override { ++stopped; }
+  int configured = 0, started = 0, stopped = 0;
+  uint64_t lastRevision = 0;
+};
+
 struct Fixture {
   Fixture()
       : safety(port), sequence(safety),
@@ -214,7 +233,7 @@ struct Fixture {
         conversation(Boot, Conversation), inbox("kufr-001", Boot),
         transport(inbox), output(inbox, clock),
         owner("kufr-001", Boot, runtime, state, conversation, network,
-              inbox, transport, output, ids, recovery, steps, clock) {
+              inbox, transport, output, ids, recovery, steps, clock, &voice) {
     safety.InitializeSafe();
     assert(runtime.RecoverAfterInspection());
   }
@@ -268,6 +287,7 @@ struct Fixture {
   Ids ids;
   Recovery recovery;
   Steps steps;
+  Voice voice;
   LocalControlOwner owner;
   LocalSocketAdmission::Handle handle{7, 1};
 };
@@ -466,9 +486,40 @@ void TestReplyDelivery() {
   assert(!canceledDuringSend.conversation.HasActiveTurn());
 }
 
+void TestStandaloneVoice() {
+  Fixture fixture;
+  fixture.Connect();
+  auto configure = fixture.Message(LocalControlMessageKind::VoiceConfigure);
+  configure.voiceMode = "realtime"; configure.voice = "cedar";
+  assert(fixture.inbox.Submit(fixture.handle, configure)); fixture.Poll(100);
+  assert(fixture.output.lastVoiceAccepted && fixture.voice.configured == 1);
+  auto start = fixture.Message(LocalControlMessageKind::VoiceStart);
+  ++start.expectedRevision;
+  assert(fixture.inbox.Submit(fixture.handle, start)); fixture.Poll(100);
+  assert(!fixture.output.lastVoiceAccepted && fixture.voice.started == 0);
+  fixture.Submit(LocalControlMessageKind::VoiceStart);
+  assert(fixture.output.lastVoiceAccepted && fixture.voice.started == 1);
+  assert(fixture.voice.lastRevision == fixture.control.Revision());
+  // Losing a pure observer does not cancel the autonomous voice session.
+  fixture.inbox.Disconnect(fixture.handle); fixture.Poll(100);
+  assert(fixture.voice.stopped == 0);
+  fixture.handle = {8, 2}; fixture.Connect();
+  fixture.Submit(LocalControlMessageKind::Acquire);
+  assert(fixture.voice.stopped == 1);
+  fixture.Submit(LocalControlMessageKind::VoiceStart);
+  assert(!fixture.output.lastVoiceAccepted && fixture.voice.started == 1);
+  fixture.Submit(LocalControlMessageKind::VoiceStop);
+  assert(fixture.voice.stopped == 2);
+  fixture.Submit(LocalControlMessageKind::Stop);
+  assert(fixture.voice.stopped == 3);
+  fixture.Submit(LocalControlMessageKind::VoiceStart);
+  assert(!fixture.output.lastVoiceAccepted && fixture.voice.started == 1);
+}
+
 }  // namespace
 
 int main() {
+  TestStandaloneVoice();
   TestHelloAndObserver();
   TestLeaseAndText();
   TestExpiryCancelFailureAndReset();

@@ -2,6 +2,7 @@
 
 #include "LocalControlOutputPort.h"
 
+class LocalVoicePort;
 class DeviceControl;
 class PersistentCommandJournal;
 class SafetyController;
@@ -15,8 +16,10 @@ class LocalControlOutput final : public LocalControlOutputPort {
                      DeviceControl& control, PersistentCommandJournal& journal,
                      SafetyController& safety, SelectionSequence& selection,
                      ConversationSession& conversation,
-                     LocalControlTransport& transport);
+                     LocalControlTransport& transport, LocalVoicePort* voice = nullptr);
 
+  bool VoiceAck(const LocalSocketAdmission::Handle& handle,
+                const LocalControlMessage& request, bool accepted) override;
   bool Welcome(const LocalSocketAdmission::Handle& handle,
                 const std::string& requestId, uint64_t nowMs) override;
   bool Snapshot(const LocalSocketAdmission::Handle& handle,
@@ -43,6 +46,7 @@ class LocalControlOutput final : public LocalControlOutputPort {
   void RememberResult();
   const char* Phase(bool liveLease) const;
 
+  LocalVoicePort* voice_;
   std::string deviceId_;
   std::string bootId_;
   DeviceControl& control_;

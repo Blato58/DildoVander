@@ -1,6 +1,9 @@
 idf_component_register(
     SRCS
         "espidf_main.cpp"
+        "features/voice_turn/EspIdfVoiceAudio.cpp"
+        "features/voice_turn/EspIdfRealtimeTransport.cpp"
+        "features/voice_turn/RealtimeEventCodec.cpp"
         "features/backend_access/BuildDate.cpp"
         "features/backend_access/DeviceTokenSession.cpp"
         "features/backend_access/EspIdfBackendNetwork.cpp"
@@ -62,5 +65,5 @@ idf_component_register(
         "features/wand_selection/SelectionSequence.cpp"
         "features/wand_presentation/WandPresentation.cpp"
     INCLUDE_DIRS "."
-    REQUIRES bootloader_support esp_event esp_http_client esp_http_server esp_https_server esp_hw_support esp_netif esp_timer esp_wifi freertos log mbedtls mdns nvs_flash
+    REQUIRES esp_driver_i2s esp_driver_gpio bootloader_support esp_event esp_http_client esp_http_server esp_https_server esp_hw_support esp_netif esp_timer esp_wifi freertos log mbedtls mdns nvs_flash
 )

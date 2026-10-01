@@ -3,6 +3,10 @@
   "$id": "urn:kufr:control-message:v1",
   "title": "Kufr local control messages v1",
   "oneOf": [
+    { "$ref": "#/$defs/voiceConfigure" },
+    { "$ref": "#/$defs/voiceStart" },
+    { "$ref": "#/$defs/voiceStop" },
+    { "$ref": "#/$defs/voiceAck" },
     { "$ref": "#/$defs/hello" },
     { "$ref": "#/$defs/welcome" },
     { "$ref": "#/$defs/stateGet" },
@@ -24,6 +28,191 @@
     { "$ref": "#/$defs/safetyReset" }
   ],
   "$defs": {
+    "voiceConfigure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "type",
+        "messageId",
+        "deviceId",
+        "bootId",
+        "mode",
+        "voice"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "type": {
+          "const": "voice.configure"
+        },
+        "messageId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "deviceId": {
+          "$ref": "#/$defs/deviceId"
+        },
+        "bootId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "mode": {
+          "enum": [
+            "off",
+            "realtime"
+          ]
+        },
+        "voice": {
+          "enum": [
+            "cedar",
+            "marin",
+            "coral"
+          ]
+        }
+      }
+    },
+    "voiceStart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "type",
+        "messageId",
+        "deviceId",
+        "bootId",
+        "expectedRevision"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "type": {
+          "const": "voice.start"
+        },
+        "messageId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "deviceId": {
+          "$ref": "#/$defs/deviceId"
+        },
+        "bootId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "expectedRevision": {
+          "$ref": "#/$defs/safeInteger"
+        }
+      }
+    },
+    "voiceStop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "type",
+        "messageId",
+        "deviceId",
+        "bootId"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "type": {
+          "const": "voice.stop"
+        },
+        "messageId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "deviceId": {
+          "$ref": "#/$defs/deviceId"
+        },
+        "bootId": {
+          "$ref": "#/$defs/uuid"
+        }
+      }
+    },
+    "voiceStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "available",
+        "mode",
+        "voice",
+        "phase",
+        "error"
+      ],
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "mode": {
+          "enum": [
+            "off",
+            "realtime"
+          ]
+        },
+        "voice": {
+          "enum": [
+            "cedar",
+            "marin",
+            "coral"
+          ]
+        },
+        "phase": {
+          "enum": [
+            "unavailable",
+            "idle",
+            "starting",
+            "listening",
+            "thinking",
+            "speaking",
+            "stopping",
+            "completed",
+            "failed"
+          ]
+        },
+        "error": {
+          "enum": [
+            null,
+            "ai_unavailable",
+            "audio_failed",
+            "cost_limit"
+          ]
+        }
+      }
+    },
+    "voiceAck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "type",
+        "bootId",
+        "requestMessageId",
+        "accepted",
+        "voice"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "type": {
+          "const": "voice.ack"
+        },
+        "bootId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "requestMessageId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "accepted": {
+          "type": "boolean"
+        },
+        "voice": {
+          "$ref": "#/$defs/voiceStatus"
+        }
+      }
+    },
     "uuid": { "type": "string", "format": "uuid", "maxLength": 36 },
     "deviceId": {
       "type": "string",
@@ -420,6 +609,7 @@
         "conversation"
       ],
       "properties": {
+        "voice": { "$ref": "#/$defs/voiceStatus" },
         "protocolVersion": { "const": 1 },
         "type": { "const": "state.snapshot" },
         "deviceId": { "$ref": "#/$defs/deviceId" },
