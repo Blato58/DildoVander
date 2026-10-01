@@ -12,6 +12,10 @@ Nativní adaptér vlastní TLS pin, oprávnění LAN a Keychain. E10.1 použív�
 
 ## Debug D108/D109/D110/D112
 
+Aktuální [Safari instalace](https://2.28.202.220/ios/) nabízí verzi 1.0,
+build **1000.0.2** (publikace 1. 10. 2026). První uložení credentialu v této
+verzi je potřeba zopakovat, protože předchozí verze ho držela jen v RAM.
+
 Samostatný podpisový workflow čísluje nové IPA `1000.x.y` (vyšší než původní
 build 37); stejné Bundle ID a tým umožňují aktualizaci s uloženým profilem.
 

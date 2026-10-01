@@ -6,6 +6,18 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**Aktuální předání 1. 10.: D112 nasazeno, IPA 1.0 / build 1000.0.2 publikovaná.**
+Debug nabízí pojmenovaný nový večer i návrat ke staré paměti a ukládá profil
+do odděleného Keychain. Výchozí URL/ID jsou `https://2.28.202.220/` /
+`debug-server-admin`. V nové verzi credential jednou znovu uložit: starší
+RAM-only verze ho neměla na disku. Public [instalace](https://2.28.202.220/ios/)
+a skutečná IPA ověřeny; původní serverové eveningId i dvě výměny zachovány.
+Společný výsledek zahrnuje D111 CI a D113 závislosti. PR #78/#79 sloučené,
+všechny push ověřeny; CI, deploy, podpis i publikace prošly. Další konkrétní
+krok: majitel aktualizuje registrovaný iPhone, uloží Debug profil a ověří
+jeho zachování při pozadí/relaunch/další aktualizaci, reálný hlas a večery.
+Bez telefonu nelze tuto akceptaci doložit; fyzický runtime dál blokuje B1.
+
 **D113 – oprava dependency PR #77, web a macOS ověřeny.**
 TypeScript 7 odstranil staré compiler API a zpřísnil side-effect importy.
 Testovací loadery nyní používají Node transform, `src/vite-env.d.ts` dodává
@@ -31,7 +43,7 @@ byl pouze mezi novými záznamy stavu, dependency oprava proto používá D113.
 Další krok: ověřit CI společného výsledku s PR #78 a merge PR #77.
 Žádné nasazení, podpis IPA ani HW akceptace.
 
-**D112 – rozpracovaná správa večerů a trvalý Debug přístup.**
+**D112 – správa večerů a trvalý Debug přístup nasazeny.**
 Zadání majitele: vytvořit pojmenovaný večer, přepínat aktivní večer bez ztráty
 starých rozhovorů a zachovat credential při aktualizaci aplikace. Výchozí
 URL `https://2.28.202.220/`, potvrzená identita `debug-server-admin`.
@@ -52,7 +64,7 @@ Unicode názvů. Regresní testy pokrývají migraci obsahu/počtů, restart rep
 CAS, izolaci archivů/zařízení, late append, legacy clear a limity.
 Swift testy nově ověřují skutečný Keychain mezi procesy a aktualizaci/smazání
 testovacího profilu, bezpečné ponechání credentialu a evening retry/GET.
-Na Windows nejsou Swift/Xcode; toto ověření čeká na macOS CI.
+Na Windows nejsou Swift/Xcode; macOS CI ověřilo nový harness i Xcode/simulator.
 Změněné soubory: konverzační úložiště/endpoints/PaidCall a backend testy/smoke,
 OpenAPI/verifier, DebugBackendClient/KufrDebugPlugin, DebugPanel/Journal/style,
 native Swift a UI harness, jejich skript a plán/README/stav.
@@ -63,7 +75,8 @@ vyřešen zachováním obou záznamů. Backend runtime/HTTP smoke nad společný
 výsledkem znovu prošel; lokální restore změnu RID lockfiles nezahrnuje.
 Nový podpisový workflow má vlastní counter, proto používá explicitní build
 `1000.x.y` vyšší než starý 37; Bundle ID/tým zůstávají stejné. Build skript
-validuje čtyři/dva/dva číselné komponenty. CI, nasazení a IPA ještě probíhají.
+validuje čtyři/dva/dva číselné komponenty. Finální build je `1000.0.2`;
+první podpisový běh skončil ve verifieru, a proto spotřeboval counter 1.
 Aktualizace na fyzickém iPhonu a Keychain po ní vyžadují akceptaci majitele.
 Head `3da0cb39562aeb06afa7f1335f4807f9a06ce92e` prošel kompletní
 [CI 36869900104](https://github.com/Blato58/DildoVander/actions/runs/36869900104),
@@ -73,7 +86,30 @@ Deploy `36871071929` a signing `36871077770` skončily před produkcí chybou
 403 při `GET /pulls/78`: nový promotion verifier neměl `pull-requests: read`.
 Backend ani IPA se nezměnily. Oprava přidává pouze read permission do callee
 i tří caller workflows a test tohoto skutečného permission kontraktu.
-Po zeleném CI/merge opravy následuje promotion aktuálního ověřeného tree.
+Read-only review opravy bez nálezů; všech 29 promotion testů prošlo.
+PR #77 mezitím přidal TS7/Vite8/Capacitor 8.5.2: změny zachované merge
+`9324c85123f84f2bf6b49605643c71586c67cdf6`, konflikt pouze v záznamu stavu.
+Na přesném Node 24.21.0 znovu npm ci (0 audit nálezů), 19 testů, TS7/Vite8
+build a browser create/switch večerů bez console chyb; shell syntax a lokální
+Markdown odkazy prošly. Head `9324c85` prošel kompletní
+[CI 36872465088](https://github.com/Blato58/DildoVander/actions/runs/36872465088).
+[PR #79](https://github.com/Blato58/DildoVander/pull/79) sloučen do
+`f859231b16376ea34d6a2674eabcbefa85d7171d`, scoped fetch/fast-forward ověřen.
+Z tohoto tree byly promovány ověřené backend/web artefakty:
+[deploy 36873170903](https://github.com/Blato58/DildoVander/actions/runs/36873170903),
+[Ad Hoc podpis 36873176086](https://github.com/Blato58/DildoVander/actions/runs/36873176086)
+a [publikace 36873500918](https://github.com/Blato58/DildoVander/actions/runs/36873500918)
+prošly včetně veřejného HTTPS ověření. Public GET evening-memory/evenings
+potvrdil původní ID `c169fe72-78c3-4b42-9bc0-74b78c380eb4`, dvě výměny,
+0 vytěsnění a jeden pojmenovaný původní večer. Produkční večery neměněny.
+Dialog `responses` / hlas `openai` zachovány, žádné placené provider volání.
+Public IPA 887639 B, v1.0/build1000.0.2, manifest release `36873500918-1`,
+SHA-256 `0904b6a09a1bc1bf6a1ba4d4f1b14abd80037e96db79031cf85cb9f6e5ec84f1`.
+Skutečný ZIP/Info.plist/native binary/web bundle potvrzují stejný Bundle ID/tým,
+Keychain a všechny nové evening/forget metody; UI harness není v IPA.
+Page/IPA no-store, checksum shodný; in-app Browser ukazuje sestavení1000.0.2
+a správný neměnný Safari manifest, bez console chyb. Akceptace aktualizace
+na fyzickém iPhonu, lock/unlock a skutečné persistence zůstává u majitele.
 
 **D111 – CI/CD build jednou a oddělená promotion artefaktů.**
 Rozsah: každé PR do main spouští společné CI pro backend, firmware, iOS/web
