@@ -486,7 +486,7 @@ automaticky nemaže. Bez nasazení backendu s D106/D108 a testovací identity ne
 živý AI test dostupný. Tato cesta nedokazuje audio kufru, GPIO ani fyzickou E10
 akceptaci; mikrofon a STT test nejsou součástí D108.
 
-**Provozní diagnostika D117 (zadání majitele 1. 10.):** server ukládá omezený
+**Provozní diagnostika D118 (zadání majitele 1. 10.):** server ukládá omezený
 technický log do samostatné SQLite vedle journalu, výchozí historie 24 h/5000
 událostí. Je to doplněk technického auditu podle §9, nemění jeho retenční
 požadavky ani paměť večera. Zapisuje jen čas, pevný event/code, route template,

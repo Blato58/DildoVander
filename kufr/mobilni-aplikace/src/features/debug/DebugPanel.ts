@@ -428,12 +428,24 @@ export class DebugPanel {
       realtime_unavailable: 'Realtime hlas není na serveru dostupný. Obnovte stav serveru.',
       microphone_unavailable: 'Povolte mikrofon aplikaci v Nastavení iPhonu.',
       realtime_live_audio_overflow: 'Spojení nestíhá posílat zvuk. Zkuste rozhovor znovu na stabilnějším připojení.',
+      realtime_live_audio_start_failed: 'iPhone nemohl spustit mikrofon a reproduktor. Ukončete rozhovor a zkuste jej znovu.',
+      realtime_live_audio_interrupted: 'iOS přerušil zvuk nebo změnil mikrofon či reproduktor. Spusťte rozhovor znovu.',
+      realtime_live_audio_conversion_failed: 'Nepodařilo se převést zvuk mikrofonu. Spusťte rozhovor znovu.',
+      realtime_live_audio_failed: 'Nepodařilo se odeslat zvuk mikrofonu serveru. Ověřte připojení a spusťte rozhovor znovu.',
+      realtime_live_protocol_failed: 'Server poslal neplatnou nebo neúplnou Realtime odpověď. Spusťte rozhovor znovu.',
+      realtime_live_http_failed: 'Server odmítl hlasové spojení. Ověřte stav serveru a přístup.',
+      realtime_live_connection_failed: 'Hlasové spojení se serverem se přerušilo. Ověřte připojení a spusťte rozhovor znovu.',
+      realtime_live_connection_timeout: 'Server včas neodpověděl. Ověřte připojení a spusťte rozhovor znovu.',
+      realtime_live_tls_failed: 'iPhone nemohl ověřit zabezpečené spojení se serverem. Ověřte datum telefonu a HTTPS adresu.',
+      realtime_live_response_too_large: 'Hlasová odpověď překročila povolenou velikost. Spusťte rozhovor znovu.',
       realtime_cleanup_failed: 'Server nepotvrdil ukončení rozhovoru. Zkuste znovu Ukončit rozhovor.',
     };
     const error = this.element.querySelector<HTMLParagraphElement>('[data-conversation-error]')!;
     error.hidden = !this.voice.errorCode;
-    error.textContent = this.voice.errorCode
-      ? errors[this.voice.errorCode] ?? 'Hlasové spojení se přerušilo. Ukončete rozhovor a spusťte jej znovu.' : '';
+    const errorCode = this.voice.errorCode;
+    const technicalCode = errorCode && /^[a-z][a-z0-9_]{0,63}$/.test(errorCode) ? ` (${errorCode})` : '';
+    error.textContent = errorCode
+      ? (errors[errorCode] ?? 'Hlasové spojení se přerušilo. Ukončete rozhovor a spusťte jej znovu.') + technicalCode : '';
     this.element.querySelector('[data-conversation-selection]')!.textContent = selected == null
       ? ''
       : `Simulovaný návrh: přihrádka ${selected}. Žádný pohon se nespustil.`;

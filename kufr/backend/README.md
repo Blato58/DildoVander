@@ -485,7 +485,7 @@ Responses požadavky explicitně používají `service_tier: default`. Jiný neb
 
 Úplný postup a omezení opakovaného použití artefaktů jsou v [CI/CD návodu](../../docs/ci-cd.md).
 
-## Serverové logy a společný debug D117
+## Serverové logy a společný debug D118
 
 Backend ukládá technické události do oddělené SQLite, výchozí historie 24 h
 a 5000 záznamů. `GET /v1/admin/logs` a `/v1/admin/logs/status` používají
