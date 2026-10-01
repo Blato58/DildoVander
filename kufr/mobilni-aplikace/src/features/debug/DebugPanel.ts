@@ -427,7 +427,7 @@ export class DebugPanel {
       dialogue_busy: 'Server právě zpracovává jiný rozhovor. Zkuste to za chvíli.',
       realtime_unavailable: 'Realtime hlas není na serveru dostupný. Obnovte stav serveru.',
       microphone_unavailable: 'Povolte mikrofon aplikaci v Nastavení iPhonu.',
-      realtime_live_audio_overflow: 'Spojení nestíhá posílat zvuk. Zkuste rozhovor znovu na stabilnějším připojení.',
+      realtime_live_audio_overflow: 'Odesílání mikrofonu se zpozdilo a zaplnilo zvukovou frontu. Zkuste rozhovor znovu; příčinou může být aplikace nebo odezva serveru i při stabilním připojení.',
       realtime_live_audio_start_failed: 'iPhone nemohl spustit mikrofon a reproduktor. Ukončete rozhovor a zkuste jej znovu.',
       realtime_live_audio_interrupted: 'iOS přerušil zvuk nebo změnil mikrofon či reproduktor. Spusťte rozhovor znovu.',
       realtime_live_audio_conversion_failed: 'Nepodařilo se převést zvuk mikrofonu. Spusťte rozhovor znovu.',
