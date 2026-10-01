@@ -6,10 +6,12 @@ import AVFoundation
 public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate, AVSpeechSynthesizerDelegate {
     public let identifier = "KufrDebugPlugin"
     public let jsName = "KufrDebug"
-    public let pluginMethods: [CAPPluginMethod] = ["status", "configure", "inspectBackend", "inspectServer", "changeServerModes", "runOpeningSpeech", "startConversation", "answerConversation", "startRecording", "finishRecording", "speakSystem", "stop", "shareLog"].map {
+    public let pluginMethods: [CAPPluginMethod] = ["status", "configure", "forgetProfile", "inspectEvenings", "createEvening", "activateEvening", "inspectBackend", "inspectServer", "changeServerModes", "runOpeningSpeech", "startConversation", "answerConversation", "startRecording", "finishRecording", "speakSystem", "stop", "shareLog"].map {
         CAPPluginMethod(name: $0, returnType: CAPPluginReturnPromise)
     }
     private var profile: DebugBackendProfile?
+    private let profileKeychain = DebugBackendKeychain()
+    private var evenings: DebugEveningList?
     private var task: Task<Void, Never>?
     private var player: AVAudioPlayer?
     private let synthesizer = AVSpeechSynthesizer()
@@ -38,6 +40,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
                 self.profile = nil
                 self.mode = "unknown"
                 self.serverModes = nil
+                self.evenings = nil
                 self.configurationAlert?.textFields?.forEach { $0.text = "" }
                 self.configurationAlert?.dismiss(animated: false)
                 self.configurationCall?.reject("Nastavení přerušeno.", "cancelled")
@@ -63,10 +66,12 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
 
     @objc func status(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
+            self.restoreProfile()
             call.resolve(["configured": self.profile != nil, "running": self.task != nil || self.player != nil || self.synthesizer.isSpeaking || self.microphone != nil || self.cleanupTask != nil,
                           "phase": self.phase, "mode": self.mode,
                           "session": self.dialogSession != nil, "recording": self.microphone != nil,
                           "transcript": self.transcript, "selected": (self.selected as Any?) ?? NSNull(), "timings": self.timings,
+                          "evenings": (self.evenings?.bridgeValue as Any?) ?? NSNull(),
                           "server": (self.serverModes?.bridgeValue as Any?) ?? NSNull()])
         }
     }
@@ -76,12 +81,23 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
             guard self.canStart(), self.configurationCall == nil, let controller = self.bridge?.viewController else {
                 call.reject("Nastavení není dostupné.", "busy"); return
             }
+            self.restoreProfile()
+            let saved = self.profile
             self.configurationCall = call
             let alert = UIAlertController(title: "Serverový / testovací přístup", message:
-                "Zadejte HTTPS adresu a credential správce s ID debug-server-admin, nebo samostatnou debug- testovací identitu. Údaje zůstanou jen v nativní paměti do přechodu do pozadí.", preferredStyle: .alert)
-            alert.addTextField { $0.placeholder = "https://backend.example.cz"; $0.keyboardType = .URL; $0.autocapitalizationType = .none; $0.autocorrectionType = .no }
-            alert.addTextField { $0.placeholder = "debug-server-admin"; $0.autocapitalizationType = .none; $0.autocorrectionType = .no }
-            alert.addTextField { $0.placeholder = "Backend device credential"; $0.isSecureTextEntry = true; $0.autocapitalizationType = .none; $0.autocorrectionType = .no }
+                "Přístup se uloží do Keychain tohoto iPhonu a zachová při aktualizaci aplikace. Credential se nikdy nezobrazí ve webu ani logu. Prázdné pole ponechá uložený credential pouze pro stejnou adresu a identitu.", preferredStyle: .alert)
+            alert.addTextField {
+                $0.text = saved?.baseURL.absoluteString ?? DebugProfileDraft.defaultAddress
+                $0.keyboardType = .URL; $0.autocapitalizationType = .none; $0.autocorrectionType = .no
+            }
+            alert.addTextField {
+                $0.text = saved?.deviceId ?? DebugProfileDraft.defaultDeviceId
+                $0.autocapitalizationType = .none; $0.autocorrectionType = .no
+            }
+            alert.addTextField {
+                $0.placeholder = saved == nil ? "Backend device credential" : "Uložený credential · prázdné = ponechat"
+                $0.isSecureTextEntry = true; $0.autocapitalizationType = .none; $0.autocorrectionType = .no
+            }
             alert.addAction(UIAlertAction(title: "Zrušit", style: .cancel) { _ in
                 self.configurationAlert?.textFields?.forEach { $0.text = "" }
                 self.configurationCall = nil; call.reject("Nastavení zrušeno.", "cancelled")
@@ -89,12 +105,14 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
             alert.addAction(UIAlertAction(title: "Nastavit", style: .default) { [weak alert] _ in
                 self.configurationCall = nil
                 do {
-                    self.profile = try DebugBackendProfile(address: alert?.textFields?[0].text ?? "",
-                        deviceId: alert?.textFields?[1].text ?? "", credential: alert?.textFields?[2].text ?? "")
-                    self.mode = "unknown"; self.serverModes = nil; self.phase = "idle"; call.resolve()
+                    let updated = try DebugProfileDraft.resolve(address: alert?.textFields?[0].text ?? "",
+                        deviceId: alert?.textFields?[1].text ?? "", credential: alert?.textFields?[2].text ?? "", saved: saved)
+                    try self.profileKeychain.write(updated)
+                    self.profile = updated
+                    self.mode = "unknown"; self.serverModes = nil; self.evenings = nil; self.phase = "idle"; call.resolve()
                 } catch {
-                    self.profile = nil; self.mode = "unknown"; self.serverModes = nil; self.phase = "failed"
-                    call.reject("Vyžaduje HTTPS, debug- device ID a platný credential.", "invalid_profile")
+                    self.phase = "failed"
+                    call.reject("Přístup nebyl uložen. Ověřte HTTPS, debug- identitu a credential; při změně adresy nebo identity zadejte credential znovu.", "invalid_profile")
                 }
                 alert?.textFields?.forEach { $0.text = "" }
             })
@@ -103,9 +121,56 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
         }
     }
 
+    private func restoreProfile() {
+        guard profile == nil, UIApplication.shared.applicationState == .active,
+              UIApplication.shared.isProtectedDataAvailable else { return }
+        do { profile = try profileKeychain.read() }
+        catch { phase = "failed" }
+    }
+
+    @objc func forgetProfile(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard self.canStart() else { call.reject("Nejprve ukončete probíhající test.", "busy"); return }
+            do {
+                try self.profileKeychain.remove()
+                self.profile = nil; self.mode = "unknown"; self.serverModes = nil; self.evenings = nil
+                self.transcript = []; self.selected = nil; self.timings = [:]; self.phase = "idle"
+                call.resolve()
+            } catch { call.reject("Uložený přístup nebyl smazán.", "profile_remove_failed") }
+        }
+    }
+
     @objc func inspectBackend(_ call: CAPPluginCall) { start(call, expectedMode: nil) }
     @objc func inspectServer(_ call: CAPPluginCall) { serverAction(call, change: false) }
     @objc func changeServerModes(_ call: CAPPluginCall) { serverAction(call, change: true) }
+    @objc func inspectEvenings(_ call: CAPPluginCall) { eveningAction(call, action: "list") }
+    @objc func createEvening(_ call: CAPPluginCall) { eveningAction(call, action: "create") }
+    @objc func activateEvening(_ call: CAPPluginCall) { eveningAction(call, action: "activate") }
+
+    private func eveningAction(_ call: CAPPluginCall, action: String) {
+        DispatchQueue.main.async {
+            self.restoreProfile()
+            guard self.canStart(), let profile = self.profile else { call.reject("Nejprve nastavte přístup a ukončete rozhovor.", "unavailable"); return }
+            self.generation += 1
+            let generation = self.generation
+            self.evenings = nil; self.phase = "checking"
+            self.task = Task { @MainActor in
+                do {
+                    let list = try await DebugBackendClient().eveningList(profile, action: action,
+                        name: call.getString("name"), eveningId: call.getString("eveningId"), expectedEveningId: call.getString("expectedEveningId"))
+                    try self.requireCurrent(generation)
+                    self.evenings = list; self.task = nil; self.phase = "idle"
+                    if action != "list" { self.transcript = []; self.selected = nil; self.timings = [:] }
+                    call.resolve()
+                } catch {
+                    if self.generation == generation {
+                        self.evenings = nil; self.task = nil; self.phase = error is CancellationError ? "cancelled" : "failed"
+                    }
+                    call.reject("Večer nebyl ověřen nebo změněn. Obnovte seznam; běžící rozhovor nebo souběžná změna přepnutí zablokuje.", "evening_failed")
+                }
+            }
+        }
+    }
 
     @objc func startConversation(_ call: CAPPluginCall) {
         DispatchQueue.main.async {

@@ -6,6 +6,40 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D112 – rozpracovaná správa večerů a trvalý Debug přístup.**
+Zadání majitele: vytvořit pojmenovaný večer, přepínat aktivní večer bez ztráty
+starých rozhovorů a zachovat credential při aktualizaci aplikace. Výchozí
+URL `https://2.28.202.220/`, potvrzená identita `debug-server-admin`.
+Implementace používá samostatný nesynchronizovaný iOS Keychain; JS ani log
+credential nečtou. Prázdné pole může zachovat uložený credential jen pro
+stejný server a identitu. Explicitní zapomenutí maže jen Debug profil.
+Backend migruje stávající paměť do katalogu večerů s aktivním ukazatelem,
+device izolací, CAS a trvalou idempotencí; změny jsou odmítnuté během sezení
+nebo doznívajícího provideru. Native klient po mutaci obnovuje skutečný stav.
+Lokálně prošel .NET build/test (0 warnings/errors), HTTP smoke, všechny
+kontrakty, mobilních 19 testů a TypeScript/Vite build. In-app Browser ověřil
+nový večer, návrat k 42 původním výměnám, souběžný konflikt/obnovu, blokování
+během rozhovoru, zapomenutí profilu, bezpečný text HTML názvu a log bez názvu.
+Rozložení 390/1280 px bez horizontálního přesahu a console chyb.
+Read-only review opravil busy guard podle vlastníka PaidCall (i po expiraci
+journalu), omezení idempotence 24 h/1024 a native limit 256 KiB pro 100×80
+Unicode názvů. Regresní testy pokrývají migraci obsahu/počtů, restart replay,
+CAS, izolaci archivů/zařízení, late append, legacy clear a limity.
+Swift testy nově ověřují skutečný Keychain mezi procesy a aktualizaci/smazání
+testovacího profilu, bezpečné ponechání credentialu a evening retry/GET.
+Na Windows nejsou Swift/Xcode; toto ověření čeká na macOS CI.
+Změněné soubory: konverzační úložiště/endpoints/PaidCall a backend testy/smoke,
+OpenAPI/verifier, DebugBackendClient/KufrDebugPlugin, DebugPanel/Journal/style,
+native Swift a UI harness, jejich skript a plán/README/stav.
+První commit `abf94d65af815d3b8bd4d83a563e1b0371b751ad` push ověřen;
+[PR #78](https://github.com/Blato58/DildoVander/pull/78). Souběžná main změna
+CI/CD (D111, PR #75/#76) zachována merge `83c7206`; konflikt pouze ve stavu
+vyřešen zachováním obou záznamů. Backend runtime/HTTP smoke nad společným
+výsledkem znovu prošel; lokální restore změnu RID lockfiles nezahrnuje.
+Nový podpisový workflow má vlastní counter, proto používá explicitní build
+`1000.x.y` vyšší než starý 37; Bundle ID/tým zůstávají stejné. Build skript
+validuje čtyři/dva/dva číselné komponenty. CI, nasazení a IPA ještě probíhají.
+Aktualizace na fyzickém iPhonu a Keychain po ní vyžadují akceptaci majitele.
 **D111 – CI/CD build jednou a oddělená promotion artefaktů.**
 Rozsah: každé PR do main spouští společné CI pro backend, firmware, iOS/web
 a offline AI; stabilní `CI required`, zrušení zastaralých PR běhů, timeouty.

@@ -2,6 +2,12 @@
 set -euo pipefail
 umask 077
 
+build_number="${IOS_BUILD_NUMBER:-${GITHUB_RUN_NUMBER:-1}}"
+if [[ ! "$build_number" =~ ^[1-9][0-9]{0,3}(\.[0-9]{1,2}){0,2}$ ]]; then
+  echo 'Invalid numeric iOS build version.' >&2
+  exit 2
+fi
+
 : "${RUNNER_TEMP:?RUNNER_TEMP is required}"
 : "${IOS_BUNDLE_ID:?IOS_BUNDLE_ID is required}"
 : "${IOS_TEAM_ID:?IOS_TEAM_ID is required}"
@@ -167,7 +173,7 @@ xcodebuild archive \
   PROVISIONING_PROFILE_SPECIFIER="${profile_uuid}" \
   DEVELOPMENT_TEAM="${IOS_TEAM_ID}" \
   PRODUCT_BUNDLE_IDENTIFIER="${IOS_BUNDLE_ID}" \
-  CURRENT_PROJECT_VERSION="${GITHUB_RUN_NUMBER:-1}"
+  CURRENT_PROJECT_VERSION="${build_number}"
 
 xcodebuild -exportArchive \
   -archivePath "${work_dir}/App.xcarchive" \
