@@ -40,9 +40,13 @@ Nové čtení logů workflow 36931829723 selhalo před prvním krokem runneru:
 GitHub annotation uvádí neúspěšné platby nebo nutnost zvýšit spending limit.
 Poslední úspěšný snapshot 36928995676 je z 21:29 UTC a předchází screenshotu,
 proto nepotvrzuje konkrétní příčinu incidentu. Stejná blokace brání novému
-macOS/Xcode CI. Změna zůstává k review ve větvi
-`fix/ios-realtime-upload-overflow`; finální commit/push/PR se doplní po
-git předání. Další krok: obnovit GitHub Actions, nechat projít povinné CI,
+macOS/Xcode CI. Implementační commit
+`3fdcf6ac9261ab1edc2ddf63780d17eea09427bd` byl pushnut do větve
+`fix/ios-realtime-upload-overflow`, shoda vzdáleného SHA ověřena.
+Push-CurrentBranch.ps1 byl spuštěn, ale nemá uložený OAuth token účtu;
+session API potvrdilo Blato58 a push proběhl přes scoped gh credential
+helper bez změny ostatních účtů. [Draft PR #90](https://github.com/Blato58/DildoVander/pull/90)
+je bez konfliktů a čeká na nativní ověření. Další krok: obnovit GitHub Actions, nechat projít povinné CI,
 poté zvlášť autorizovat podpis/publikaci IPA a ověřit skutečný iPhone/5G
 rozhovor. Bez placeného AI testu, backend deploymentu nebo nové IPA.
 
