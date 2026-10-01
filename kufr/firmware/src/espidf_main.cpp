@@ -149,6 +149,7 @@ extern "C" void app_main() {
   static EspIdfStationNetwork station;
   const bool stationStarted = station.Start(nvsStatus == ESP_OK);
   static EspIdfBackendNetwork backendNetwork(identity, runtimeState, bootId, station);
+  backendNetwork.InitializeVoice(nvsStatus == ESP_OK);
   if (!stationStarted || !backendNetwork.Start(nvsStatus == ESP_OK)) {
     ESP_LOGW(LogTag, "Backend network not configured; stays offline");
   }
@@ -159,14 +160,14 @@ extern "C" void app_main() {
   static EspIdfLocalServiceAdvertisement advertisement(station, hasher);
   static LocalControlOutput output(
       identity.DeviceId(), bootId, deviceControl, journal, safetyController,
-      selectionSequence, conversation, server);
+      selectionSequence, conversation, server, &backendNetwork);
   static RuntimeClock clock;
   static RuntimeLeaseIds leaseIds(random);
   static UnverifiedInspection inspection;
   static LoggingSteps steps;
   static LocalControlOwner owner(
       identity.DeviceId(), bootId, controlRuntime, runtimeState, conversation,
-      backendNetwork, inbox, server, output, leaseIds, inspection, steps, clock);
+      backendNetwork, inbox, server, output, leaseIds, inspection, steps, clock, &backendNetwork);
   bool serverStarted = false;
   uint64_t retryServerAtMs = 0;
   bool advertisementStarted = false;

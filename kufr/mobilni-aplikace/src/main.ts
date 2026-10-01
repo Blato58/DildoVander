@@ -1,4 +1,5 @@
 import './style.css';
+import { VoicePanel } from './features/voice_control/VoicePanel';
 import { Capacitor } from '@capacitor/core';
 import { NativeDeviceConnection, nativeBridge, type SavedNativeDevice } from './features/device_connection/NativeDeviceConnection';
 import {
@@ -53,6 +54,8 @@ controlPanel.setAttribute('role', 'tabpanel');
 controlPanel.setAttribute('aria-labelledby', 'tab-control');
 app.before(controlPanel);
 controlPanel.append(app, conversationPanel);
+const voicePanel = new VoicePanel(() => connection instanceof NativeDeviceConnection ? connection : null);
+conversationPanel.before(voicePanel.element);
 const debugPanel = new DebugPanel(nativeMode, () => {
   pendingAction = null;
   connection?.stop();
@@ -127,6 +130,7 @@ function render(snapshot: DeviceSnapshot): void {
   currentSnapshot = snapshot;
   debugPanel.update(snapshot);
   renderConversation(snapshot);
+  voicePanel.update(snapshot);
   const canControl = snapshot.controlMode === 'manual' && snapshot.phase === 'ready' &&
     !snapshot.busy && !snapshot.conversation?.pending;
   const modeText = snapshot.controlMode === 'manual' ? 'Ruční režim' : 'Pozorování';

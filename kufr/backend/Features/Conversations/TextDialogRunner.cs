@@ -36,7 +36,7 @@ internal sealed class TextDialogRunner : IDisposable
                 "Responses mode requires an API key and all three positive usage caps.");
         }
 
-        httpClient = new HttpClient();
+        httpClient = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false });
         var client = new ResponsesTextDialogClient(
             httpClient,
             apiKey,

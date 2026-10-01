@@ -8,6 +8,8 @@ export async function loadDeviceModule(name) {
     // Transform mode also emits constructor parameter properties used by the clients.
     let compiled = stripTypeScriptTypes(source, { mode: 'transform' });
     if (moduleName === 'SimulatorDeviceConnection') {
+      const voice = await compile('LocalVoiceClient');
+      compiled = compiled.replace(/(['"])\.\/LocalVoiceClient\1/g, JSON.stringify(voice));
       const conversation = await compile('LocalConversationClient');
       compiled = compiled.replace(/(['"])\.\/LocalConversationClient\1/g, JSON.stringify(conversation));
     }

@@ -1,8 +1,14 @@
 using System.Diagnostics;
-using System.Net.Http.Headers;
+using System.ClientModel;
+using System.ClientModel.Primitives;
+using OpenAI;
+using OpenAI.Audio;
+using Kufr.Backend.Features.OpenAi;
 using System.Security.Cryptography;
 using System.Text;
 
+// Experimental surface of the pinned official SDK.
+#pragma warning disable OPENAI001
 namespace Kufr.Backend.Features.Speech;
 
 internal sealed class OpenAiSpeechClient(
@@ -11,7 +17,6 @@ internal sealed class OpenAiSpeechClient(
     ILogger<OpenAiSpeechClient>? logger = null)
 {
     internal const string Model = "gpt-4o-mini-tts-2025-12-15";
-    private static readonly Uri Endpoint = new("https://api.openai.com/v1/audio/speech");
 
     public Task<byte[]> GenerateAsync(string reply, CancellationToken cancellationToken) =>
         GenerateAsync(reply, SpeechOptions.Default, cancellationToken);
@@ -31,31 +36,24 @@ internal sealed class OpenAiSpeechClient(
             throw new ArgumentException("Speech options are invalid.");
         }
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, Endpoint)
+        using var bounded = BoundedSdkTransport.Create(httpClient, PcmSpeechAudio.MaxProviderBytes,
+            ["audio/pcm", "application/octet-stream"]);
+        var client = new AudioClient(Model, new ApiKeyCredential(apiKey), new OpenAIClientOptions
         {
-            Content = JsonContent.Create(new
+            Transport = BoundedSdkTransport.Pipeline(bounded),
+            RetryPolicy = new ClientRetryPolicy(0)
+        });
+        var providerTimer = Stopwatch.StartNew();
+        var response = await client.GenerateSpeechAsync(reply, new GeneratedSpeechVoice(options.Voice),
+            new SpeechGenerationOptions
             {
-                model = Model,
-                voice = options.Voice,
-                speed = options.Speed,
-                input = reply,
-                response_format = "pcm",
-                instructions = "Mluv česky svižně, přirozeně a srozumitelně jako sebevědomý kouzelný kufr. "
+                SpeedRatio = (float)options.Speed,
+                ResponseFormat = GeneratedSpeechFormat.Pcm,
+                Instructions = "Mluv česky svižně, přirozeně a srozumitelně jako sebevědomý kouzelný kufr. "
                     + "Hravý, lehce ironický tón, plynulé tempo bez dlouhých umělých pauz. Přečti přesně vstupní text, "
                     + "nepřidávej vlastní slova ani zvuky."
-            })
-        };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-        var providerTimer = Stopwatch.StartNew();
-        using var response = await httpClient.SendAsync(
-            request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        response.EnsureSuccessStatusCode();
-        if (response.Content.Headers.ContentType?.MediaType is not ("audio/pcm" or "application/octet-stream"))
-        {
-            throw new InvalidDataException("Unexpected speech content type.");
-        }
-
-        var pcm = await ReadPcmAsync(response.Content, cancellationToken);
+            }, cancellationToken);
+        var pcm = response.Value.ToArray();
         providerTimer.Stop();
         try
         {
@@ -76,34 +74,6 @@ internal sealed class OpenAiSpeechClient(
         }
     }
 
-    private static async Task<byte[]> ReadPcmAsync(HttpContent content, CancellationToken cancellationToken)
-    {
-        if (content.Headers.ContentLength is > PcmSpeechAudio.MaxProviderBytes)
-        {
-            throw new InvalidDataException("Speech exceeds its duration limit.");
-        }
-
-        var buffer = new byte[PcmSpeechAudio.MaxProviderBytes + 1];
-        try
-        {
-            await using var stream = await content.ReadAsStreamAsync(cancellationToken);
-            var used = 0;
-            while (used < buffer.Length)
-            {
-                var count = await stream.ReadAsync(buffer.AsMemory(used), cancellationToken);
-                if (count == 0)
-                {
-                    return buffer.AsSpan(0, used).ToArray();
-                }
-
-                used += count;
-            }
-
-            throw new InvalidDataException("Speech exceeds its duration limit.");
-        }
-        finally
-        {
-            CryptographicOperations.ZeroMemory(buffer);
-        }
-    }
 }
+
+#pragma warning restore OPENAI001

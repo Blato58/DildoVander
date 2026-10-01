@@ -239,6 +239,42 @@ Wi-Fi reconnect 1/2/4/8/16/30 s s jitterem; návrat připojení sám nezahájí 
 - Druhý socket `/v1/media` je pouze pro záložní média telefonu, váže se na tentýž token, boot a případný ruční lease. Nezískává právo řídit zařízení. Jeho zaplnění nesmí zastavit heartbeat nebo Stop na control socketu.
 - Opakované spojení: prodlevy 0,5 / 1 / 2 / 4 / 8 s, dále 8 s, jitter ±20 %. Po návratu vždy nový handshake a úplný snapshot. Nepřehrávat frontu povelů ani audio. Změněný `bootId` znamená restart a nutnost ručního zotavení.
 
+### D119 – samostatný Realtime hlas ESP a nastavení v Ovládání
+
+Majitel 1. 10. 2026 výslovně rozšiřuje D114/D116 na firmware ESP a žádá
+všechna OpenAI volání přes SDK. ESP používá existující autentizovaný
+`realtime-live` backendový kontrakt; telefon posílá pouze lokální nastavení
+nebo explicitní start/stop a není audio/cloud prostředníkem. Textové a
+kompatibilní STT/TTS adaptéry používají oficiální .NET SDK 2.14.0;
+syntetický eval oficiální Python SDK 3.22.1. Automatické placené retry je 0;
+rezervace, časové/velikostní limity, validace funkcí a paměť večera zůstávají.
+
+Nové lokální zprávy `voice.configure` (`mode=off|realtime`,
+`voice=cedar|marin|coral`), `voice.start` (`expectedRevision`) a `voice.stop`
+mají v1 device/boot/messageId obálku a vlastní `voice.ack`. Jsou explicitní
+výjimkou z manual lease pro spárovaného pozorovatele: konfigurace je jen
+nastavení audia, start vyžaduje bezpečný samostatný snapshot bez manual
+vlastníka, stop vypíná audio. Nenahrazují fyzický příkaz ani zotavení.
+Nastavení platí v RAM do restartu, výchozí režim je off. Snapshot přidává
+volitelný `voice` objekt, takže stávající simulátor bez audia je kompatibilní.
+Start je jednorázový, přijetí není důkaz spojení s AI. Odpojení pozorovatele
+samostatný rozhovor neruší; safety.stop a změna snapshotu jej ruší.
+
+I2S adaptér je pouze pro servisně ověřený profil A (kamera/SD odpojené):
+BCLK4/WS5/DIN6/DOUT7/mute16, levý mikrofonní slot, stereo 32bit/32 kHz.
+NVS `wand_audio/profile_a_ok=1` je explicitní potvrzení zapojení; bez něj
+se GPIO audia neinicializují. Průběžný FIR mění 32↔24 kHz se zachovanou
+fází; mikrofon používá 400ms omezenou frontu, pořadové bloky a 30s limit.
+Plná fronta/chyba přeruší rozhovor. Zesilovač začíná na 25 % amplitudy,
+během poslechu je mute a po skutečném DMA drain se odešle `played`.
+Síť/capture/upload mají vlastní úlohy; řídicí smyčka dál zpracovává Stop.
+Validovaný návrh přebírá existující PendingProposal s maskou, korelací a TTL,
+přímé spínání pohonů z provider streamu neexistuje.
+
+Profil B/expander, fyzický vstup PTT/start bez telefonu, nouzové audio,
+100 tahů na HW bez úniku RAM a fyzická akceptace B1/E9 zůstávají otevřené.
+D119 je implementovaný hlasový adaptér a lokální ovládání, nikoli uzavření E9.
+
 ## 5. Datové kontrakty a spolehlivost povelů
 
 ### Společná pravidla
