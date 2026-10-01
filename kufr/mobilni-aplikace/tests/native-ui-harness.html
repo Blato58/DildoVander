@@ -9,6 +9,7 @@
     <p style="padding:1rem;background:#593b19">TEST NATIVNÍHO ROZHRANÍ · syntetický bridge, bez sítě a kufru</p>
     <button type="button" data-harness-answer>Simulovat průběžnou hlasovou odpověď</button>
     <button type="button" data-harness-error>Simulovat nákladový limit</button>
+    <button type="button" data-harness-audio-error>Simulovat přerušení audia při startu</button>
     <div id="app"></div>
     <script type="module">
       // Served by Vite only; never included in the single index.html release.
@@ -54,6 +55,12 @@
         debugStatus.handsFree = false;
         debugStatus.phase = 'failed';
         debugStatus.errorCode = 'cost_limit';
+      });
+      document.querySelector('[data-harness-audio-error]').addEventListener('click', () => {
+        debugStatus.running = false;
+        debugStatus.handsFree = false;
+        debugStatus.phase = 'failed';
+        debugStatus.errorCode = 'realtime_live_audio_interrupted';
       });
       let serverState = { revision: 'test-revision', dialogMode: 'fake', voiceMode: 'fake',
         dialogAvailable: true, voiceAvailable: true, activeConversations: 0, lifetime: 'until_restart' };
