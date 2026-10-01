@@ -238,4 +238,3 @@ uint64_t SpeechRemainingMs(const std::string& operationId,
   }
   return (expiry - nowUtcSeconds - 1) * 1000;
 }
-
