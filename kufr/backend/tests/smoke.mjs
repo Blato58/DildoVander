@@ -321,6 +321,24 @@ try {
     catalogVersion: body.catalogVersion
   };
   const turnPath = `/v1/conversations/${created.result.conversationId}/turns`;
+  const realtimeBody = { ...virtualBody, catalogVersion: 'ollivander-private-party-v1' };
+  const realtimeSession = await call('/v1/conversations', { token: virtualToken, key: randomUUID(), body: realtimeBody });
+  assert.equal(realtimeSession.status, 201);
+  const realtimePath = `/v1/conversations/${realtimeSession.result.conversationId}/realtime-turns`;
+  const realtime = { ...turn, bootId: realtimeBody.bootId, catalogVersion: realtimeBody.catalogVersion,
+    text: '', opening: true, wav: null, voice: 'marin', speed: 1 };
+  assert.equal((await call(realtimePath, { key: randomUUID(), body: realtime })).status, 401);
+  assert.equal((await call(realtimePath, { token: tokenB, key: randomUUID(), body: realtime })).status, 403);
+  assert.equal((await call(realtimePath, { token: virtualToken, key: randomUUID(), body: { ...realtime, extra: true } })).status, 400);
+  assert.equal((await call(realtimePath, { token: virtualToken, key: randomUUID(), body: realtime })).result.code, 'realtime_unavailable');
+  // A valid recording exceeds the ordinary 4096-byte JSON cap and reaches
+  // conversation admission, without making a paid provider call in fake mode.
+  assert.equal((await call(realtimePath, { token: virtualToken, key: randomUUID(),
+    body: { ...realtime, opening: false, wav: makeWav(19200).toString('base64') } })).result.code,
+    'opening_required_or_already_started');
+  assert.equal((await call(realtimePath, { token: virtualToken, key: randomUUID(),
+    body: { ...realtime, opening: false, wav: 'a'.repeat(2600001) } })).status, 413);
+  assert.equal(await remove(`/v1/conversations/${realtimeSession.result.conversationId}`, virtualToken, randomUUID()), 204);
   const turnKey = randomUUID();
   assert.equal((await call(turnPath, {
     token: tokenB,
