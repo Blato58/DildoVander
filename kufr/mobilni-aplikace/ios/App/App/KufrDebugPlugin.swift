@@ -37,16 +37,19 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
         observeAudioInterruptions()
         for name in [UIApplication.didEnterBackgroundNotification, UIApplication.protectedDataWillBecomeUnavailableNotification] {
             observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                guard let self = self else { return }
-                self.stopWork()
-                self.profile = nil
-                self.mode = "unknown"
-                self.serverModes = nil
-                self.evenings = nil
-                self.configurationAlert?.textFields?.forEach { $0.text = "" }
-                self.configurationAlert?.dismiss(animated: false)
-                self.configurationCall?.reject("Nastavení přerušeno.", "cancelled")
-                self.configurationCall = nil
+                // NotificationCenter's main queue is not a Swift actor annotation.
+                DispatchQueue.main.async {
+                    guard let self = self else { return }
+                    self.stopWork()
+                    self.profile = nil
+                    self.mode = "unknown"
+                    self.serverModes = nil
+                    self.evenings = nil
+                    self.configurationAlert?.textFields?.forEach { $0.text = "" }
+                    self.configurationAlert?.dismiss(animated: false)
+                    self.configurationCall?.reject("Nastavení přerušeno.", "cancelled")
+                    self.configurationCall = nil
+                }
             })
         }
     }
@@ -55,7 +58,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
         observers.append(NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] notification in
             if let type = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? NSNumber,
                type.uintValue == AVAudioSession.InterruptionType.began.rawValue {
-                self?.stopWork()
+                DispatchQueue.main.async { self?.stopWork() }
             }
         })
     }
@@ -363,7 +366,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
         if realtimePlayer == nil { phase = result.terminal ? "completed" : "awaiting" }
     }
 
-    private func failDialog() {
+    @MainActor private func failDialog() {
         task = nil; dialogSession = nil; realtimeSession = nil; player?.stop(); player = nil
         realtimePlayer?.stop(); realtimePlayer = nil
         phase = "failed"; deactivateAudio()
@@ -552,7 +555,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
             !synthesizer.isSpeaking && configurationCall == nil && microphone == nil && cleanupTask == nil
     }
 
-    private func stopWork() {
+    @MainActor private func stopWork() {
         generation += 1
         let stoppedTask = task
         task?.cancel(); task = nil
