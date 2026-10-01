@@ -1,158 +1,51 @@
-name: Kufr backend
+name: Build Kufr backend
 
 on:
-  pull_request:
-    paths:
-      - kufr/backend/**
-      - kufr/backend-tests/**
-      - kufr/ai-eval/prompt.txt
-      - kufr/global.json
-      - .github/workflows/kufr-backend.yml
-  push:
-    branches: [main]
-    paths:
-      - kufr/backend/**
-      - kufr/backend-tests/**
-      - kufr/ai-eval/prompt.txt
-      - kufr/global.json
-      - .github/workflows/kufr-backend.yml
-  workflow_dispatch:
-    inputs:
-      dialog_mode:
-        description: Text dialogue mode for this deployment
-        type: choice
-        options: [fake, responses]
-        default: fake
-      dialog_model:
-        description: Text dialogue model
-        type: choice
-        options: [gpt-6.1-sol]
-        default: gpt-6.1-sol
-      voice_mode:
-        description: Voice provider mode for this deployment
-        type: choice
-        options: [fake, openai]
-        default: fake
+  workflow_call:
 
 permissions:
   contents: read
 
-concurrency:
-  group: kufr-backend-${{ github.event_name == 'pull_request' && github.ref || 'production' }}
-  cancel-in-progress: false
-
 jobs:
   build:
-    if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: true
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: kufr/global.json
-      - name: Restore and build
-        run: dotnet build kufr/backend/backend.csproj
+          cache: true
+          cache-dependency-path: |
+            kufr/backend/packages.lock.json
+            kufr/backend-tests/packages.lock.json
+      - name: Restore test and self-contained runtime dependencies
+        run: dotnet restore kufr/backend-tests/BackendTests.csproj -r linux-x64 -p:SelfContained=true --locked-mode
+      - name: Build backend and tests once in Release
+        run: dotnet build kufr/backend-tests/BackendTests.csproj -c Release -r linux-x64 -p:SelfContained=true --no-restore
       - name: Backend tests
-        run: dotnet run --project kufr/backend-tests/BackendTests.csproj
+        run: dotnet run --project kufr/backend-tests/BackendTests.csproj -c Release -r linux-x64 --no-build --no-restore
+      - name: Publish self-contained Ubuntu binary
+        run: dotnet publish kufr/backend/backend.csproj -c Release -r linux-x64 --self-contained true --no-build --no-restore -o "$RUNNER_TEMP/kufr-publish"
       - name: HTTP smoke tests
+        env:
+          KUFR_BACKEND_DLL: ${{ runner.temp }}/kufr-publish/backend.dll
         run: node kufr/backend/tests/smoke.mjs
       - name: Interactive client offline tests
         run: python3 -m unittest discover -s kufr/backend/tests -p 'test_*.py'
       - name: Deployment configuration tests
         run: python3 -m unittest discover -s kufr/backend/deploy -p 'test_*.py'
-      - name: Publish self-contained Ubuntu binary
-        run: dotnet publish kufr/backend/backend.csproj -c Release -r linux-x64 --self-contained true -o "$RUNNER_TEMP/kufr-publish"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - name: Package backend with build provenance
+        run: python3 scripts/ci/package.py pack "$RUNNER_TEMP/kufr-publish" "$RUNNER_TEMP/backend-package"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: kufr-backend-linux-x64
-          path: ${{ runner.temp }}/kufr-publish/
+          name: backend-publish
+          path: ${{ runner.temp }}/backend-package/
           if-no-files-found: error
-          retention-days: 1
-
-  deploy:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
-    needs: build
-    runs-on: [self-hosted, Linux, X64, kufr-backend]
-    environment: backend-production
-    steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: kufr-backend-linux-x64
-          path: ${{ runner.temp }}/kufr-publish
-      - name: Activate on server
-        shell: bash
-        env:
-          DEVICE_ID: ${{ secrets.DEVICE_ID }}
-          DEVICE_CREDENTIAL_SHA256: ${{ secrets.DEVICE_CREDENTIAL_SHA256 }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          SESSION_CAP_MICRO_USD: ${{ secrets.SESSION_CAP_MICRO_USD }}
-          DAILY_CAP_MICRO_USD: ${{ secrets.DAILY_CAP_MICRO_USD }}
-          MONTHLY_CAP_MICRO_USD: ${{ secrets.MONTHLY_CAP_MICRO_USD }}
-          DIALOG_MODE: ${{ inputs.dialog_mode || 'fake' }}
-          DIALOG_MODEL: ${{ inputs.dialog_model || 'gpt-6.1-sol' }}
-          VOICE_MODE: ${{ inputs.voice_mode || 'fake' }}
-          ADMIN_CREDENTIAL: ${{ secrets.ADMIN_CREDENTIAL }}
-          PUBLIC_IPV4: ${{ vars.KUFR_BACKEND_PUBLIC_IPV4 }}
-          RELEASE_SHA: ${{ github.sha }}
-          RELEASE_RUN_ID: ${{ github.run_id }}
-          RELEASE_ATTEMPT: ${{ github.run_attempt }}
-        run: |
-          set -euo pipefail
-          release_id="${RELEASE_SHA}-${RELEASE_RUN_ID}-${RELEASE_ATTEMPT}"
-          release_dir="/opt/kufr-backend/releases/${release_id}"
-          test -d /opt/kufr-backend/releases
-          test -f "$RUNNER_TEMP/kufr-publish/backend"
-          case "$DIALOG_MODE" in
-            fake|responses) ;;
-            *) echo 'Invalid dialog mode' >&2; exit 2 ;;
-          esac
-          case "$DIALOG_MODEL" in
-            gpt-6.1-sol) ;;
-            *) echo 'Invalid dialog model' >&2; exit 2 ;;
-          esac
-          mkdir -m 0755 -- "$release_dir"
-          cp -a -- "$RUNNER_TEMP/kufr-publish/." "$release_dir/"
-          chmod 0755 -- "$release_dir/backend"
-          export RELEASE_DIR="$release_dir"
-          python3 - <<'PY'
-          import hashlib
-          import json
-          import os
-          from pathlib import Path
-
-          voice = os.environ['VOICE_MODE']
-          if voice not in ('fake', 'openai'):
-              raise SystemExit('Invalid voice mode')
-          credential = os.environ['ADMIN_CREDENTIAL']
-          if len(credential) < 32 or len(credential) > 256 or not all(32 < ord(c) < 127 for c in credential):
-              raise SystemExit('A separate strong admin credential is required')
-          admin_hash = hashlib.sha256(credential.encode()).hexdigest()
-          if admin_hash.lower() == os.environ['DEVICE_CREDENTIAL_SHA256'].lower():
-              raise SystemExit('Admin and device credentials must be separate')
-          config = {'Backend': {
-              'Dialog': {'Mode': os.environ['DIALOG_MODE'], 'Model': os.environ['DIALOG_MODEL']},
-              'Voice': {'Mode': voice}, 'Admin': {'CredentialSha256': admin_hash},
-          }}
-          (Path(os.environ['RELEASE_DIR']) / 'appsettings.Production.json').write_text(json.dumps(config) + '\n')
-          PY
-          python3 - <<'PY' | sudo -n /usr/local/sbin/kufr-backend-deploy activate "$release_id"
-          import json
-          import os
-
-          print(json.dumps({
-              "deviceId": os.environ["DEVICE_ID"],
-              "credentialSha256": os.environ["DEVICE_CREDENTIAL_SHA256"],
-              "openAiApiKey": os.environ["OPENAI_API_KEY"],
-              "caps": {
-                  "session": os.environ["SESSION_CAP_MICRO_USD"],
-                  "daily": os.environ["DAILY_CAP_MICRO_USD"],
-                  "monthly": os.environ["MONTHLY_CAP_MICRO_USD"],
-              },
-          }))
-          PY
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Verify public server mode control without provider calls
-        env:
-          ADMIN_CREDENTIAL: ${{ secrets.ADMIN_CREDENTIAL }}
-          PUBLIC_IPV4: ${{ vars.KUFR_BACKEND_PUBLIC_IPV4 }}
-        run: python3 kufr/backend/tests/server_mode_smoke.py
+          retention-days: 14
+          overwrite: true

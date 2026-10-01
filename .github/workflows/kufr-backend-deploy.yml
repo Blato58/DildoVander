@@ -1,0 +1,141 @@
+name: Deploy Kufr backend
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: Successful CI run ID with the merged/current main tree
+        type: string
+        required: true
+      dialog_mode:
+        description: Text dialogue mode for this deployment
+        type: choice
+        options: [fake, responses]
+        default: fake
+      dialog_model:
+        description: Text dialogue model
+        type: choice
+        options: [gpt-6.1-sol]
+        default: gpt-6.1-sol
+      voice_mode:
+        description: Voice provider mode for this deployment
+        type: choice
+        options: [fake, openai]
+        default: fake
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: kufr-backend-production
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/reuse-build.yml
+    with:
+      build_run_id: ${{ inputs.build_run_id }}
+      workflow: ci.yml
+      artifact: backend-publish
+
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: verify
+    timeout-minutes: 10
+    runs-on: [self-hosted, Linux, X64, kufr-backend]
+    environment: backend-production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.verify.outputs.main_sha }}
+          persist-credentials: false
+      - name: Reject a deployment queued before main changed
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          EXPECTED_SHA: ${{ needs.verify.outputs.main_sha }}
+        with:
+          script: await require('./scripts/ci/verify-build.cjs').checkMain({ github, context }, process.env.EXPECTED_SHA)
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: verified-backend-publish
+          path: ${{ runner.temp }}/backend-package
+      - name: Unpack verified backend payload
+        run: python3 scripts/ci/package.py unpack "$RUNNER_TEMP/backend-package" "$RUNNER_TEMP/kufr-publish-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+      - name: Activate on server
+        shell: bash
+        env:
+          DEVICE_ID: ${{ secrets.DEVICE_ID }}
+          DEVICE_CREDENTIAL_SHA256: ${{ secrets.DEVICE_CREDENTIAL_SHA256 }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SESSION_CAP_MICRO_USD: ${{ secrets.SESSION_CAP_MICRO_USD }}
+          DAILY_CAP_MICRO_USD: ${{ secrets.DAILY_CAP_MICRO_USD }}
+          MONTHLY_CAP_MICRO_USD: ${{ secrets.MONTHLY_CAP_MICRO_USD }}
+          DIALOG_MODE: ${{ inputs.dialog_mode || 'fake' }}
+          DIALOG_MODEL: ${{ inputs.dialog_model || 'gpt-6.1-sol' }}
+          VOICE_MODE: ${{ inputs.voice_mode || 'fake' }}
+          ADMIN_CREDENTIAL: ${{ secrets.ADMIN_CREDENTIAL }}
+          PUBLIC_IPV4: ${{ vars.KUFR_BACKEND_PUBLIC_IPV4 }}
+          RELEASE_SHA: ${{ needs.verify.outputs.source_sha }}
+          RELEASE_RUN_ID: ${{ github.run_id }}
+          RELEASE_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          release_id="${RELEASE_SHA}-${RELEASE_RUN_ID}-${RELEASE_ATTEMPT}"
+          release_dir="/opt/kufr-backend/releases/${release_id}"
+          test -d /opt/kufr-backend/releases
+          test -f "$RUNNER_TEMP/kufr-publish-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/backend"
+          case "$DIALOG_MODE" in
+            fake|responses) ;;
+            *) echo 'Invalid dialog mode' >&2; exit 2 ;;
+          esac
+          case "$DIALOG_MODEL" in
+            gpt-6.1-sol) ;;
+            *) echo 'Invalid dialog model' >&2; exit 2 ;;
+          esac
+          mkdir -m 0755 -- "$release_dir"
+          cp -a -- "$RUNNER_TEMP/kufr-publish-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/." "$release_dir/"
+          chmod 0755 -- "$release_dir/backend"
+          export RELEASE_DIR="$release_dir"
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          voice = os.environ['VOICE_MODE']
+          if voice not in ('fake', 'openai'):
+              raise SystemExit('Invalid voice mode')
+          credential = os.environ['ADMIN_CREDENTIAL']
+          if len(credential) < 32 or len(credential) > 256 or not all(32 < ord(c) < 127 for c in credential):
+              raise SystemExit('A separate strong admin credential is required')
+          admin_hash = hashlib.sha256(credential.encode()).hexdigest()
+          if admin_hash.lower() == os.environ['DEVICE_CREDENTIAL_SHA256'].lower():
+              raise SystemExit('Admin and device credentials must be separate')
+          config = {'Backend': {
+              'Dialog': {'Mode': os.environ['DIALOG_MODE'], 'Model': os.environ['DIALOG_MODEL']},
+              'Voice': {'Mode': voice}, 'Admin': {'CredentialSha256': admin_hash},
+          }}
+          (Path(os.environ['RELEASE_DIR']) / 'appsettings.Production.json').write_text(json.dumps(config) + '\n')
+          PY
+          python3 - <<'PY' | sudo -n /usr/local/sbin/kufr-backend-deploy activate "$release_id"
+          import json
+          import os
+
+          print(json.dumps({
+              "deviceId": os.environ["DEVICE_ID"],
+              "credentialSha256": os.environ["DEVICE_CREDENTIAL_SHA256"],
+              "openAiApiKey": os.environ["OPENAI_API_KEY"],
+              "caps": {
+                  "session": os.environ["SESSION_CAP_MICRO_USD"],
+                  "daily": os.environ["DAILY_CAP_MICRO_USD"],
+                  "monthly": os.environ["MONTHLY_CAP_MICRO_USD"],
+              },
+          }))
+          PY
+      - name: Verify public server mode control without provider calls
+        env:
+          ADMIN_CREDENTIAL: ${{ secrets.ADMIN_CREDENTIAL }}
+          PUBLIC_IPV4: ${{ vars.KUFR_BACKEND_PUBLIC_IPV4 }}
+        run: python3 kufr/backend/tests/server_mode_smoke.py
