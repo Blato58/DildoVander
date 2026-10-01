@@ -216,7 +216,7 @@ struct NativeDebugTests {
         try await Task.sleep(nanoseconds: 100_000_000)
         hanging.cancel()
         do { _ = try await hanging.value; fatalError("Cancelled HTTP request completed") }
-        catch { }
+        catch is CancellationError { }
     }
 
     static func makeWav() -> Data {

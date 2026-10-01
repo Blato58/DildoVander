@@ -29,7 +29,7 @@ const server = createServer((request, response) => {
       response.end('followed');
       break;
     case '/hang':
-      request.on('close', () => response.destroy());
+      // Leave the response open until URLSession cancels the socket.
       break;
     default:
       response.writeHead(404);
