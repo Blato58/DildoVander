@@ -10,6 +10,47 @@ ESP32 samo komunikuje s backendem; aplikace není cloudový prostředník a nem�
 
 Nativní adaptér vlastní TLS pin, oprávnění LAN a Keychain. E10.1 používá ručně zadané údaje z vnitřního QR; E10.2 přidává text/cancel/result a E10.3 Bonjour hledání i ruční změnu adresy. Audio navazuje po E9. UI nesmí přímo časovat motory ani přijímat AI text jako povel. Konkrétní slices a kontrakty jsou v kapitolách 3–5 plánu.
 
+## Debug D108
+
+Záložka **Debug** je dostupná vedle Ovládání. Ukazuje zdroj spojení, skutečnou
+fázi přijatého snapshotu, masku, revizi, eventSequence, boot ID, uptime vzorku,
+poslední zprávu a naměřené heartbeat RTT. Při odpojení telemetrie zmizí;
+web fake a hostitelský simulátor jsou označené. Pouhé zobrazení nepřebírá lease.
+Stop zůstává dostupný také v Debug. Log má nejvýše 200 událostí, filtr,
+pozastavení zobrazení (sběr pokračuje), smazání a JSON export; na iOS se otevře
+nativní sdílení textu JSON. Zaznamenává pouze stavové metadata a pevné kódy akcí,
+nikoli syrové rámce, rozhovory, credential, párovací tajemství ani audio.
+Není to sériový log firmware.
+
+Hlasové testy fungují v nativní iOS aplikaci:
+
+1. **Test reproduktoru telefonu** použije český systémový hlas bez sítě.
+2. **Nastavit testovací backend** otevře nativní secure dialog: HTTPS kořenová
+   adresa, předem registrované samostatné device ID `debug-*` a jeho backend
+   credential. Lokální WSS bearer se nikdy nepoužívá. Credential se neukládá
+   do Keychain/JS/disku; po pozadí nebo uzamčení je nutné nastavení zopakovat.
+3. **Ověřit backend** vymění credential za access token a čte
+   `GET /v1/diagnostics`, bez volání AI. Starší nasazený backend bez D108 vrací
+   chybu; musí se nejprve aktualizovat. Žádný deployment není součástí D108.
+4. **Test AI hlasu** se zpřístupní pouze pro `voiceMode=openai`. Použije stávající
+   sezení/opening/speech/poll/audio API, consent audio, readyMask 0 a výstup
+   `phone`. Backend zachovává svůj AI limit a trvalou paměť testovacího večera.
+   **Test fake audio toku** pro režim fake přehraje tiché WAV; dialog může mít
+   samostatně zapnuté Responses. Oba testy mohou čerpat serverové limity.
+5. **Zastavit hlas**, pozadí, uzamčení nebo audio přerušení zruší práci a playback.
+   Opožděná odpověď nesmí začít hrát. Aplikace uklízí jen své získané sezení,
+   nesmaže večerní paměť ani nepřebere cizí aktivní sezení. Create a cleanup mají
+   jedno opakování se stejným klíčem; při nevyřešené ztrátě odpovědi/úklidu
+   může být další test odmítnut 409 až do expirace.
+
+WAV je omezen na 30 s, PCM16 mono 32 kHz, standardní 44B hlavičku a žije pouze
+v RAM. HTTPS používá systémové PKI, nepovoluje redirect ani ATS výjimku.
+JavaScript spouští akce a čte jen režim/fázi; nečte credential ani audio.
+Tento test nepřehrává přes ESP32/I2S a neověřuje B1 ani nativní iPhone akceptaci.
+Mikrofon/STT patří dalšímu slice. `bash scripts/test-native-debug.sh` na macOS
+ověřuje profil, režim, korelaci, formát/limity WAV, zrušení, retry a cleanup
+pomocí injektovaného syntetického HTTP adaptéru, bez placeného provideru.
+
 ## Nativní připojení E10.1
 
 Na iOS se vývojový fake automaticky nezapne. Zadejte adresu bez schématu/portu,

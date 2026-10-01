@@ -140,6 +140,24 @@ function acquire(connection, socket, leaseId = randomUUID(), eventSequence = 2) 
   return leaseId;
 }
 
+test('debug telemetry reflects accepted samples, reboot and disconnect without exposing a lease', () => {
+  const { connection, socket } = startConnection();
+  const initial = connection.snapshot().diagnostics;
+  assert.equal(initial.bootId, bootId);
+  assert.equal(initial.eventSequence, 1);
+  assert.equal(initial.deviceUptimeMs, now);
+  assert.equal(initial.devicePhase, 'ready');
+  assert(!('controlLeaseId' in initial));
+  const changedBootId = randomUUID();
+  socket.message(snapshot({ bootId: changedBootId, deviceUptimeMs: 100, eventSequence: 0, phase: 'recoveryRequired' }));
+  assert.equal(connection.snapshot().diagnostics.bootId, changedBootId);
+  assert.equal(connection.snapshot().diagnostics.deviceUptimeMs, 100);
+  assert.equal(connection.snapshot().diagnostics.devicePhase, 'recoveryRequired');
+  socket.close();
+  assert.equal(connection.snapshot().diagnostics, undefined);
+  connection.suspend();
+});
+
 function preflight(connection, socket, compartment, kind = 'select') {
   assert.equal(kind === 'select'
     ? connection.select(compartment)

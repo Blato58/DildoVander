@@ -13,6 +13,15 @@ export interface DeviceSnapshot {
   revision?: number;
   status: string;
   conversation?: LocalConversationState;
+  diagnostics?: {
+    bootId: string;
+    devicePhase: string;
+    eventSequence: number;
+    deviceUptimeMs: number;
+    receivedAtMs: number;
+    roundTripMs: number | null;
+    faultCount: number;
+  };
 }
 
 const manualLeaseDurationMs = 6000;

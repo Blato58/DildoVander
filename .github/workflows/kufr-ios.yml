@@ -80,6 +80,8 @@ jobs:
         run: |
           npm ci --prefix ../simulator
           bash scripts/test-native-transport.sh
+      - name: Test native debug backend client
+        run: bash scripts/test-native-debug.sh
       - name: Build unsigned simulator app
         run: >-
           xcodebuild build

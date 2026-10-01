@@ -29,6 +29,7 @@ const serverEnvironment = {
     Devices__1__CredentialSha256: sha256(credentialB),
     Backend__DatabasePath: join(databaseDirectory, 'journal.sqlite'),
     Backend__Dialog__Mode: 'fake',
+    Backend__Voice__Mode: 'fake',
     ASPNETCORE_ENVIRONMENT: 'Production'
 };
 
@@ -176,6 +177,12 @@ try {
   const key = randomUUID();
   const tokenA = issuedA.result.accessToken;
   const tokenB = issuedB.result.accessToken;
+  assert.equal((await read('/v1/diagnostics')).status, 401);
+  assert.equal((await read('/v1/diagnostics', credentialA)).status, 401);
+  assert.deepEqual((await read('/v1/diagnostics', tokenA)).result, {
+    voiceMode: 'fake', dialogMode: 'fake', catalogVersion: 'ollivander-private-party-v1',
+    audioFormat: 'pcm16-mono-32000-wav',
+  });
   assert.equal((await call('/v1/conversations', {
     token: tokenA,
     key: randomUUID(),

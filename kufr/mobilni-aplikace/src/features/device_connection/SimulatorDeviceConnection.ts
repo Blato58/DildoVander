@@ -427,6 +427,7 @@ export class ProtocolDeviceConnection {
         this.lastDeviceSampleAt = performance.now();
         this.lastDeviceUptimeMs = message.deviceUptimeMs;
         this.requests.delete(String(message.requestMessageId));
+        this.publish();
         if (message.revision !== this.device.revision &&
             typeof message.revision === 'number') {
           this.refreshRevision(message.revision);
@@ -442,6 +443,8 @@ export class ProtocolDeviceConnection {
     const previousMask = this.device?.readyMask ?? snapshot.readyMask;
     const previousLeaseId = this.device?.controlLeaseId;
     if (this.device && snapshot.bootId !== this.device.bootId) {
+      this.lastDeviceUptimeMs = 0;
+      this.roundTripMs = Number.POSITIVE_INFINITY;
       this.pendingCommand = null;
       this.clearCommand();
       this.sequence = 0;
@@ -747,6 +750,15 @@ export class ProtocolDeviceConnection {
   private viewSnapshot(): DeviceSnapshot {
     const snapshot = {
       ...this.state,
+      diagnostics: this.device === null ? undefined : {
+        bootId: this.device.bootId,
+        devicePhase: this.device.phase,
+        eventSequence: this.device.eventSequence,
+        deviceUptimeMs: Math.max(this.device.deviceUptimeMs, this.lastDeviceUptimeMs),
+        receivedAtMs: this.lastMessageAt,
+        roundTripMs: Number.isFinite(this.roundTripMs) ? Math.round(this.roundTripMs) : null,
+        faultCount: this.device.faults.length,
+      },
       conversation: this.conversation.snapshot(
         this.state.controlMode === 'manual' && this.state.phase === 'ready' && !this.state.busy,
       ),

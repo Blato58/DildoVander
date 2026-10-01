@@ -8,6 +8,28 @@
   "servers": [{ "url": "https://localhost:7043", "description": "Local development only" }],
   "security": [{ "DeviceAccess": [] }],
   "paths": {
+    "/v1/diagnostics": {
+      "get": {
+        "operationId": "getBackendDiagnostics",
+        "summary": "Read configured provider modes without invoking AI",
+        "responses": {
+          "200": {
+            "description": "Authenticated metadata only; no secrets or conversation content",
+            "content": { "application/json": { "schema": {
+              "type": "object", "additionalProperties": false,
+              "required": ["voiceMode", "dialogMode", "catalogVersion", "audioFormat"],
+              "properties": {
+                "voiceMode": { "enum": ["fake", "openai"] },
+                "dialogMode": { "enum": ["fake", "responses"] },
+                "catalogVersion": { "type": "string" },
+                "audioFormat": { "const": "pcm16-mono-32000-wav" }
+              }
+            } } }
+          },
+          "401": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
     "/v1/device-access/token": {
       "post": {
         "operationId": "issueDeviceToken",
