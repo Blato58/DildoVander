@@ -6,6 +6,18 @@ const path = require('node:path');
 const { resolve, verify, checkMain } = require('./verify-build.cjs');
 const sha = letter => letter.repeat(40);
 
+test('promotion callers and reusable verifier can read the merged PR provenance', () => {
+  // Mocked REST tests cannot detect a missing real GITHUB_TOKEN permission.
+  // A caller must allow the permission requested by its reusable workflow.
+  for (const workflow of ['reuse-build.yml', 'kufr-backend-deploy.yml',
+                         'kufr-ios-sign.yml', 'kufr-ios-deploy.yml']) {
+    const source = fs.readFileSync(path.resolve(__dirname, '../../.github/workflows', workflow), 'utf8');
+    const permissions = source.match(/^permissions:\r?\n((?:  [^\n]*\n)+)/m)?.[1];
+    assert.match(permissions ?? '', /^  pull-requests: read\s*$/m, workflow);
+    assert.doesNotMatch(permissions ?? '', /pull-requests: write/, workflow);
+  }
+});
+
 function fixture() {
   const run = { id: 123, workflow_id: 7, repository: { full_name: 'owner/repo' },
     status: 'completed', conclusion: 'success', event: 'pull_request', run_attempt: 2, head_sha: sha('a') };
