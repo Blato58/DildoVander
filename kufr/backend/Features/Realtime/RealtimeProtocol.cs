@@ -24,7 +24,9 @@ internal sealed record RealtimeTurnContext(
     RealtimeTurnRequest Request,
     bool RequireQuestion,
     string EveningContext,
-    IReadOnlyList<DialogExchange> History);
+    IReadOnlyList<DialogExchange> History,
+    bool LiveAudio = false,
+    int OutputTokenLimit = RealtimeProtocol.MaxOutputTokens);
 
 internal sealed record RealtimeReply(
     string VisitorText,
@@ -49,7 +51,24 @@ internal static class RealtimeProtocol
     };
     private static readonly string Instructions = ReadInstructions();
 
-    internal static bool IsValid(RealtimeTurnRequest request) =>
+    internal static RealtimeTurnRequest? ReadRequest(byte[] body)
+    {
+        using var document = JsonDocument.Parse(body);
+        var expected = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "clientTurnId", "bootId", "generation", "readyMask", "deviceRevision",
+            "catalogVersion", "opening", "text", "wav", "voice", "speed"
+        };
+        if (document.RootElement.ValueKind != JsonValueKind.Object
+            || document.RootElement.EnumerateObject().Any(property => !expected.Remove(property.Name))
+            || expected.Count != 0)
+        {
+            return null;
+        }
+        return JsonSerializer.Deserialize<RealtimeTurnRequest>(body, JsonOptions);
+    }
+
+    internal static bool IsValid(RealtimeTurnRequest request, bool handsFree = false) =>
         request.ClientTurnId != Guid.Empty
         && request.BootId != Guid.Empty
         && request.Generation >= 0
@@ -62,6 +81,8 @@ internal static class RealtimeProtocol
         && request.Speed is >= 0.8 and <= 1.2
         && (request.Opening
             ? request.Text.Length == 0 && request.Wav is null
+            : handsFree
+                ? request.Text.Length == 0 && request.Wav is null
             : request.Wav is null
                 ? !string.IsNullOrWhiteSpace(request.Text)
                 : request.Text.Length == 0 && request.Wav.Length is > 0 and <= 2_561_000);
@@ -71,15 +92,29 @@ internal static class RealtimeProtocol
         var input = new RealtimeConversationSessionInputAudioOptions
         {
             AudioFormat = new RealtimePcmAudioFormat { Rate = 24000 },
-            AudioTranscriptionOptions = turn.Request.Wav is null
+            AudioTranscriptionOptions = turn.Request.Wav is null && !turn.LiveAudio
                 ? null
                 : new RealtimeAudioTranscriptionOptions { Model = "gpt-4o-transcribe", Language = "cs" }
         };
-        // A null CLR property is omitted by the SDK. PTT must explicitly
-        // replace the provider's default VAD with JSON null.
+        if (turn.LiveAudio)
+        {
+            input.TurnDetection = new RealtimeServerVadTurnDetection
+            {
+                DetectionThreshold = 0.5f,
+                PrefixPadding = TimeSpan.FromMilliseconds(300),
+                SilenceDuration = TimeSpan.FromMilliseconds(650),
+                CreateResponseEnabled = false,
+                InterruptResponseEnabled = false
+            };
+        }
+        else
+        {
+            // A null CLR property is omitted by the SDK; explicit JSON null
+            // prevents automatic provider responses outside a reserved turn.
 #pragma warning disable SCME0001
-        input.Patch.SetNull("$.turn_detection"u8);
+            input.Patch.SetNull("$.turn_detection"u8);
 #pragma warning restore SCME0001
+        }
         var options = new RealtimeConversationSessionOptions
         {
             Instructions = Instructions + "\nServerová pravidla tohoto tahu: "
@@ -91,7 +126,7 @@ internal static class RealtimeProtocol
                         ? "Polož jednu otázku. Výběr není povolený."
                         : "Můžeš pokračovat otázkou nebo vybrat přes propose_wand.")
                 + (turn.Request.Opening ? " Návštěvník zatím nic neřekl; zjisti jméno." : ""),
-            MaxOutputTokenCount = MaxOutputTokens,
+            MaxOutputTokenCount = turn.OutputTokenLimit,
             Truncation = RealtimeDefaultTruncation.Disabled,
             AudioOptions = new RealtimeConversationSessionAudioOptions
             {
@@ -138,8 +173,10 @@ internal static class RealtimeProtocol
         // is bounded by serialized UTF-8 bytes; audio input costs 1 token/100 ms.
         // Include framing/tool output headroom and retain a separate STT estimate.
         // The second response can also bill the first response's audio as input.
-        return checked(2L * ((textBytes + 4096) * 4L + (640 + MaxOutputTokens) * 32L + MaxOutputTokens * 64L)
-            + (turn.Request.Wav is null ? 0 : 10_000));
+        return checked(2L * ((textBytes + 4096) * 4L
+            + (640 + turn.OutputTokenLimit) * 32L
+            + turn.OutputTokenLimit * 64L)
+            + (turn.Request.Wav is null && !turn.LiveAudio ? 0 : 10_000));
     }
 
     internal static long ResponseCost(RealtimeResponseUsage? usage)

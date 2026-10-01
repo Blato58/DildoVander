@@ -7,11 +7,14 @@ interface VoiceStatus {
   running: boolean;
   session?: boolean;
   recording?: boolean;
+  handsFree?: boolean;
+  errorCode?: string | null;
   transcript?: Array<{ role: 'kufr' | 'visitor'; text: string }>;
   selected?: number | null;
   timings?: { dialogMs?: number; speechMs?: number; downloadMs?: number; firstAudioMs?: number; totalMs: number };
   phase: 'idle' | 'checking' | 'opening' | 'awaiting' | 'turn' | 'transcription'
-    | 'recording' | 'speech' | 'download' | 'playing' | 'completed' | 'cancelled' | 'failed';
+    | 'recording' | 'listening' | 'thinking' | 'waiting_listening'
+    | 'speech' | 'download' | 'playing' | 'completed' | 'cancelled' | 'failed';
   mode: 'unknown' | 'fake' | 'openai';
   server?: ServerModes | null;
   evenings?: EveningList | null;
@@ -42,7 +45,7 @@ interface DebugBridge {
   runOpeningSpeech(options: { expectedMode: 'fake' | 'openai' }): Promise<void>;
   startConversation(options: {
     expectedMode: 'fake' | 'openai'; readyMask: number;
-    voice: 'cedar' | 'marin' | 'onyx' | 'coral'; speed: number; engine: 'realtime' | 'chained';
+    voice: 'cedar' | 'marin' | 'onyx' | 'coral'; speed: number; engine: 'realtime' | 'realtime-ptt' | 'chained';
   }): Promise<void>;
   answerConversation(options: { text: string }): Promise<void>;
   startRecording(): Promise<void>;
@@ -56,6 +59,8 @@ const phases: Record<VoiceStatus['phase'], string> = {
   idle: 'Připraveno', checking: 'Ověřuji backend', opening: 'Čekám na úvodní repliku',
   awaiting: 'Čekám na vaši odpověď', turn: 'Připravuji odpověď',
   transcription: 'Přepisuji nahrávku', recording: 'Nahrávám odpověď',
+  listening: 'Poslouchám. Můžete mluvit', thinking: 'Připravuji odpověď',
+  waiting_listening: 'Zapínám další poslech',
   speech: 'Generuji hlas', download: 'Stahuji audio', playing: 'Přehrávám na telefonu', completed: 'Dokončeno',
   cancelled: 'Zastaveno', failed: 'Akce selhala; ověřte přístup, server a jeho AI limity',
 };
@@ -142,7 +147,9 @@ export class DebugPanel {
         </fieldset>
         <div class="debug-conversation-options">
           <label>Tok <select data-conversation-engine aria-label="Tok AI rozhovoru">
-            <option value="realtime" selected>Realtime · průběžné audio</option><option value="chained">Řetězený · kompatibilní</option></select></label>
+            <option value="realtime" selected>Realtime · bez tlačítek</option>
+            <option value="realtime-ptt">Realtime · ruční nahrávání</option>
+            <option value="chained">Řetězený · kompatibilní</option></select></label>
           <label>Hlas <select data-conversation-voice aria-label="Hlas zkušebního rozhovoru">
             <option value="cedar" selected>Cedar</option><option value="marin">Marin</option>
             <option value="onyx">Onyx</option><option value="coral">Coral</option></select></label>
@@ -156,17 +163,19 @@ export class DebugPanel {
           <button type="button" class="stop" data-debug="conversation-stop">Ukončit a smazat rozhovor</button>
         </div>
         <p data-conversation-status role="status"></p>
+        <p data-conversation-error role="alert" hidden></p>
         <ol class="debug-transcript" data-conversation-transcript aria-label="Přepis zkušebního rozhovoru"></ol>
-        <label class="debug-answer-label" for="debug-answer">Vaše odpověď</label>
+        <div data-answer-controls><label class="debug-answer-label" for="debug-answer">Vaše odpověď</label>
         <textarea id="debug-answer" data-conversation-answer maxlength="1000" rows="3"
           placeholder="Napište vlastní odpověď"></textarea>
         <div class="actions">
           <button type="button" class="primary" data-debug="conversation-send">Odeslat odpověď</button>
           <button type="button" data-debug="conversation-record">Začít nahrávat odpověď</button>
         </div>
-        <p class="footnote">Povolte mikrofon a nahrajte odpověď, nejvýše 30 sekund.
-          Zvuk se odešle až po dokončení nahrávání. V Realtime začne odpověď hrát průběžně.
-          Hlas vyžaduje AI režim serveru. Rozhovor se může uložit do paměti vybraného večera.</p>
+        </div>
+        <p class="footnote">V Realtime stačí spustit rozhovor a povolit mikrofon. Mluvte, když aplikace poslouchá;
+          konec odpovědi pozná automaticky a po replice kufru sama pokračuje v poslechu.
+          Zastavit jej můžete kdykoli. Hlas se průběžně posílá serveru a přepis může zůstat v paměti vybraného večera.</p>
         <p data-conversation-selection></p>
         <p data-conversation-timings class="footnote"></p>
       </section>
@@ -328,6 +337,19 @@ export class DebugPanel {
     }
 
     const selected = this.voice.selected;
+    const errors: Record<string, string> = {
+      cost_limit: 'Rozhovor dosáhl AI limitu serveru. Ukončete jej a zkontrolujte nastavený rozpočet.',
+      turn_limit: 'Rozhovor dosáhl maximálního počtu odpovědí. Spusťte nový rozhovor.',
+      dialogue_busy: 'Server právě zpracovává jiný rozhovor. Zkuste to za chvíli.',
+      realtime_unavailable: 'Realtime hlas není na serveru dostupný. Obnovte stav serveru.',
+      microphone_unavailable: 'Povolte mikrofon aplikaci v Nastavení iPhonu.',
+      realtime_live_audio_overflow: 'Spojení nestíhá posílat zvuk. Zkuste rozhovor znovu na stabilnějším připojení.',
+      realtime_cleanup_failed: 'Server nepotvrdil ukončení rozhovoru. Zkuste znovu Ukončit rozhovor.',
+    };
+    const error = this.element.querySelector<HTMLParagraphElement>('[data-conversation-error]')!;
+    error.hidden = !this.voice.errorCode;
+    error.textContent = this.voice.errorCode
+      ? errors[this.voice.errorCode] ?? 'Hlasové spojení se přerušilo. Ukončete rozhovor a spusťte jej znovu.' : '';
     this.element.querySelector('[data-conversation-selection]')!.textContent = selected == null
       ? ''
       : `Simulovaný návrh: přihrádka ${selected}. Žádný pohon se nespustil.`;
@@ -408,7 +430,9 @@ export class DebugPanel {
     engine.disabled = busy || session;
     const conversationVoice = this.element.querySelector<HTMLSelectElement>('[data-conversation-voice]')!;
     const onyx = conversationVoice.querySelector<HTMLOptionElement>('option[value="onyx"]')!;
-    onyx.disabled = engine.value === 'realtime';
+    onyx.disabled = engine.value !== 'chained';
+    this.element.querySelector<HTMLElement>('[data-answer-controls]')!.hidden = this.voice.handsFree === true
+      || engine.value === 'realtime' && server?.dialogMode === 'responses';
     if (onyx.disabled && conversationVoice.value === 'onyx') { conversationVoice.value = 'cedar'; }
     const awaiting = session && this.voice.configured && !busy
       && !this.voice.recording && this.voice.phase === 'awaiting';
@@ -520,7 +544,7 @@ export class DebugPanel {
         const voice = this.element.querySelector<HTMLSelectElement>('[data-conversation-voice]')!.value as
           'cedar' | 'marin' | 'onyx' | 'coral';
         const speed = Number(this.element.querySelector<HTMLSelectElement>('[data-conversation-speed]')!.value);
-        const engine = this.element.querySelector<HTMLSelectElement>('[data-conversation-engine]')!.value as 'realtime' | 'chained';
+        const engine = this.element.querySelector<HTMLSelectElement>('[data-conversation-engine]')!.value as 'realtime' | 'realtime-ptt' | 'chained';
         await bridge.startConversation({
           expectedMode: action === 'conversation-ai' ? 'openai' : 'fake',
           readyMask, voice, speed, engine: action === 'conversation-ai' ? engine : 'chained',

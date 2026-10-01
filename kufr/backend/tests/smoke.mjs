@@ -70,11 +70,12 @@ async function waitForServer() {
   throw new Error(`Backend did not start: ${serverOutput}`);
 }
 
-async function call(path, { credential, token, key, body } = {}) {
+async function call(path, { credential, token, key, body, closeConnection = false } = {}) {
   const headers = {};
   if (credential || token) headers.Authorization = `Bearer ${credential ?? token}`;
   if (key) headers['Idempotency-Key'] = key;
   if (body) headers['Content-Type'] = 'application/json';
+  if (closeConnection) headers.Connection = 'close';
   const response = await fetch(`${baseUrl}${path}`, {
     method: 'POST',
     headers,
@@ -331,13 +332,22 @@ try {
   assert.equal((await call(realtimePath, { token: tokenB, key: randomUUID(), body: realtime })).status, 403);
   assert.equal((await call(realtimePath, { token: virtualToken, key: randomUUID(), body: { ...realtime, extra: true } })).status, 400);
   assert.equal((await call(realtimePath, { token: virtualToken, key: randomUUID(), body: realtime })).result.code, 'realtime_unavailable');
+  const livePath = `/v1/conversations/${realtimeSession.result.conversationId}/realtime-live`;
+  assert.equal((await call(livePath, { key: randomUUID(), body: realtime })).status, 401);
+  assert.equal((await call(livePath, { token: tokenB, key: randomUUID(), body: realtime })).status, 403);
+  assert.equal((await call(livePath, { token: virtualToken, key: randomUUID(), body: { ...realtime, extra: true } })).status, 400);
+  assert.equal((await call(livePath, { token: virtualToken, key: randomUUID(), body: realtime })).result.code, 'realtime_unavailable');
+  const missingStream = `${livePath}/${randomUUID()}`;
+  assert.equal((await call(`${missingStream}/played`, { body: { operationId: randomUUID() } })).status, 401);
+  assert.equal((await call(`${missingStream}/played`, { token: virtualToken, body: { operationId: randomUUID() } })).status, 404);
+  assert.equal((await call(`${missingStream}/audio`, { token: virtualToken, body: {} })).status, 404);
   // A valid recording exceeds the ordinary 4096-byte JSON cap and reaches
   // conversation admission, without making a paid provider call in fake mode.
   assert.equal((await call(realtimePath, { token: virtualToken, key: randomUUID(),
     body: { ...realtime, opening: false, wav: makeWav(19200).toString('base64') } })).result.code,
     'opening_required_or_already_started');
   assert.equal((await call(realtimePath, { token: virtualToken, key: randomUUID(),
-    body: { ...realtime, opening: false, wav: 'a'.repeat(2600001) } })).status, 413);
+    closeConnection: true, body: { ...realtime, opening: false, wav: 'a'.repeat(2600001) } })).status, 413);
   assert.equal(await remove(`/v1/conversations/${realtimeSession.result.conversationId}`, virtualToken, randomUUID()), 204);
   const turnKey = randomUUID();
   assert.equal((await call(turnPath, {

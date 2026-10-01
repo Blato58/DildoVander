@@ -18,6 +18,7 @@ internal sealed partial class ConversationStore(
     private readonly Dictionary<string, ConversationEntry> conversations = new(StringComparer.Ordinal);
     private readonly Dictionary<string, TurnOperation> operations = new(StringComparer.Ordinal);
     private readonly Dictionary<string, PaidCall> activePaidCalls = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, CancellationTokenSource> realtimeLifetimes = new(StringComparer.Ordinal);
     private readonly Dictionary<string, AudioEntry> audio = new(StringComparer.Ordinal);
     private readonly Dictionary<string, AudioTombstone> expiredAudio = new(StringComparer.Ordinal);
 
@@ -935,6 +936,10 @@ internal sealed partial class ConversationStore(
 
     private void RemoveConversation(string conversationId)
     {
+        if (realtimeLifetimes.Remove(conversationId, out var realtime))
+        {
+            realtime.Cancel();
+        }
         if (conversations.Remove(conversationId, out var conversation))
         {
             conversation.History.Clear();

@@ -298,6 +298,8 @@ final class DebugRealtimeStream: NSObject, URLSessionDataDelegate, @unchecked Se
     private var continuation: AsyncThrowingStream<DebugRealtimeEvent, Error>.Continuation?
     private var session: URLSession?
     private var finished = false
+    private var errorStatus: Int?
+    private var errorBody = Data()
 
     init(request: URLRequest, expectedCorrelation: [String: Any]) {
         self.request = request
@@ -340,8 +342,17 @@ final class DebugRealtimeStream: NSObject, URLSessionDataDelegate, @unchecked Se
             completionHandler(.cancel)
             return
         }
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200,
-              http.mimeType == "application/x-ndjson" else {
+        guard let http = response as? HTTPURLResponse else {
+            completionHandler(.cancel)
+            finish(throwing: DebugBackendError.invalidResponse)
+            return
+        }
+        if http.statusCode != 200 {
+            stateLock.lock(); errorStatus = http.statusCode; stateLock.unlock()
+            completionHandler(.allow)
+            return
+        }
+        guard http.mimeType == "application/x-ndjson" else {
             completionHandler(.cancel)
             finish(throwing: DebugBackendError.invalidResponse)
             return
@@ -352,6 +363,12 @@ final class DebugRealtimeStream: NSObject, URLSessionDataDelegate, @unchecked Se
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
         stateLock.lock()
         let active = !finished
+        if active && errorStatus != nil {
+            if errorBody.count + data.count <= 4096 {
+                errorBody.append(data); stateLock.unlock(); return
+            }
+            stateLock.unlock(); finish(throwing: DebugBackendError.tooLarge); return
+        }
         stateLock.unlock()
         guard active else { return }
         do {
@@ -379,6 +396,14 @@ final class DebugRealtimeStream: NSObject, URLSessionDataDelegate, @unchecked Se
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         if let error { finish(throwing: error); return }
+        stateLock.lock()
+        let status = errorStatus
+        let body = errorBody
+        stateLock.unlock()
+        if let status {
+            finish(throwing: DebugBackendClient.realtimeError(data: body, status: status))
+            return
+        }
         do {
             framerLock.lock()
             do {
