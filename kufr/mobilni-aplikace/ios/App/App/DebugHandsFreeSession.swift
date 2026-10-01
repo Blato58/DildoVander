@@ -95,14 +95,33 @@ final class DebugHandsFreeSession {
         } catch {
             inputGate(false)
             if !closed {
-                if case DebugBackendError.serverCode(let code) = error {
-                    failure(code)
-                } else {
-                    failure("realtime_live_failed")
-                }
+                failure(Self.failureCode(for: error))
             }
             throw error
         }
+    }
+
+    nonisolated static func failureCode(for error: Error) -> String {
+        if let backend = error as? DebugBackendError {
+            switch backend {
+            case .serverCode(let code): return code
+            case .invalidResponse: return "realtime_live_protocol_failed"
+            case .httpStatus: return "realtime_live_http_failed"
+            case .tooLarge: return "realtime_live_response_too_large"
+            case .timeout: return "realtime_live_connection_timeout"
+            default: return "realtime_live_failed"
+            }
+        }
+        if let network = error as? URLError {
+            switch network.code {
+            case .timedOut: return "realtime_live_connection_timeout"
+            case .secureConnectionFailed, .serverCertificateUntrusted, .serverCertificateHasBadDate,
+                 .serverCertificateHasUnknownRoot, .serverCertificateNotYetValid:
+                return "realtime_live_tls_failed"
+            default: return "realtime_live_connection_failed"
+            }
+        }
+        return "realtime_live_failed"
     }
 
     // Audio owns its strictly increasing per-input sequence; this method only
@@ -320,11 +339,16 @@ private final class DebugHandsFreeLiveStream: NSObject, URLSessionDataDelegate {
             finish(DebugBackendError.invalidResponse)
             return
         }
-        guard response.statusCode == 200, response.mimeType == "application/x-ndjson" else {
+        guard response.statusCode == 200 else {
             lock.lock()
             responseStatus = response.statusCode
             lock.unlock()
             completionHandler(.allow)
+            return
+        }
+        guard response.mimeType == "application/x-ndjson" else {
+            completionHandler(.cancel)
+            finish(DebugBackendError.invalidResponse)
             return
         }
         completionHandler(.allow)
