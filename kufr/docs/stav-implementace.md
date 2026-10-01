@@ -6,6 +6,22 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D112 – oprava dependency PR #77, lokálně ověřeno, čeká macOS CI.**
+TypeScript 7 odstranil staré compiler API a zpřísnil side-effect importy.
+Testovací loadery nyní používají Node transform, `src/vite-env.d.ts` dodává
+Vite deklarace pro CSS. `cap sync ios` vygeneroval Swift manifest 8.5.2.
+Novou zranitelnou závislost CLI `xcode -> uuid 7` nahrazuje cílené override
+na CommonJS kompatibilní uuid 11.1.1; npm lockfile vznikl přes npm.
+Soubory: mobilní package/lock, dva testovací loadery, Vite deklarace,
+generovaný Swift manifest a mobilní README; původní PR aktualizuje i `ws`.
+Lokálně: npm ci, 19 mobilních testů, TS7/Vite8 build, všechny kontrakty,
+MSVC C++14 bridge build a kompletní simulator npm test včetně TLS/WSS/media
+prošly. xcode parse/write a generování UUID prošly, npm audit má 0 nálezů.
+Lokální runtime Node 25.9.0; přesný Node 24.21.0 a Xcode ověří CI.
+Nativní Package.resolved zatím čeká na výstup skutečného macOS resolveru.
+Další krok: push oprav do PR #77, převzít generovaný Swift lockfile,
+ověřit finální CI a merge. Žádné nasazení, podpis IPA ani HW akceptace.
+
 **D111 – CI/CD build jednou a oddělená promotion artefaktů.**
 Rozsah: každé PR do main spouští společné CI pro backend, firmware, iOS/web
 a offline AI; stabilní `CI required`, zrušení zastaralých PR běhů, timeouty.
