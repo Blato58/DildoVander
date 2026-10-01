@@ -50,12 +50,20 @@ assert.deepEqual(Object.keys(document.paths).sort(), [
   '/v1/conversations/{id}/transcriptions',
   '/v1/conversations/{id}/turns',
   '/v1/device-access/token',
+  '/v1/diagnostics',
   '/v1/evening-memory',
   '/v1/evening-memory/{id}',
   '/v1/operations/{id}',
 ]);
 assert.deepEqual(document.paths['/v1/device-access/token'].post.security, [{ DeviceCredential: [] }]);
 assert.deepEqual(document.security, [{ DeviceAccess: [] }]);
+const diagnosticSchema = document.paths['/v1/diagnostics'].get.responses['200'].content['application/json'].schema;
+const validateDiagnostics = ajv.compile(diagnosticSchema);
+const diagnostics = { voiceMode: 'fake', dialogMode: 'fake', catalogVersion: 'test-1', audioFormat: 'pcm16-mono-32000-wav' };
+assert(validateDiagnostics(diagnostics));
+assert(validateDiagnostics({ ...diagnostics, voiceMode: 'openai', dialogMode: 'responses' }));
+assert(!validateDiagnostics({ ...diagnostics, credential: 'secret' }));
+assert(!validateDiagnostics({ ...diagnostics, voiceMode: 'unknown' }));
 assert.equal(document.paths['/v1/conversations/{id}/transcriptions'].post.requestBody.content['multipart/form-data'].encoding.wav.contentType, 'audio/wav');
 assert.ok(document.paths['/v1/audio/{audioId}'].get.responses['200'].content['audio/wav']);
 assert.equal(document.paths['/v1/audio/{audioId}'].get.responses['200'].headers['Cache-Control'].schema.const, 'no-store');

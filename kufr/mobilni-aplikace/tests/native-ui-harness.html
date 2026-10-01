@@ -15,16 +15,29 @@
       let saved;
       let listener;
       let connectionId;
+      let debugStatus = { configured: false, running: false, phase: 'idle', mode: 'unknown' };
       window.CapacitorCustomPlatform = { name: 'ios' };
       window.Capacitor = {
         PluginHeaders: [{ name: 'KufrDeviceTransport', methods: [
           ...['savedDevice', 'discover', 'setAddress', 'pair', 'connect', 'send', 'close', 'forget', 'removeListener'].map((name) => ({ name, rtype: 'promise' })),
           { name: 'addListener', rtype: 'callback' },
-        ] }],
+        ] }, { name: 'KufrDebug', methods: ['status', 'configure', 'inspectBackend', 'runOpeningSpeech', 'speakSystem', 'stop', 'shareLog'].map((name) => ({ name, rtype: 'promise' })) }],
         nativeCallback(_plugin, method, _options, callback) {
           if (method === 'addListener') { listener = callback; return Promise.resolve('listener-1'); }
         },
         async nativePromise(_plugin, method, options) {
+          if (_plugin === 'KufrDebug') {
+            if (method === 'status') { return { ...debugStatus }; }
+            if (method === 'configure') { debugStatus.configured = true; debugStatus.mode = 'unknown'; return; }
+            if (method === 'inspectBackend') { debugStatus.mode = 'fake'; return; }
+            if (method === 'speakSystem' || method === 'runOpeningSpeech') {
+              debugStatus.running = true; debugStatus.phase = 'playing';
+              setTimeout(() => { if (debugStatus.phase === 'playing') { debugStatus.running = false; debugStatus.phase = 'completed'; } }, 1500);
+              return;
+            }
+            if (method === 'stop') { debugStatus.running = false; debugStatus.phase = 'cancelled'; return; }
+            if (method === 'shareLog') { return; }
+          }
           if (method === 'removeListener') { listener = null; return; }
           if (method === 'savedDevice') { return paired ? { paired, ...saved } : { paired }; }
           if (method === 'discover') {

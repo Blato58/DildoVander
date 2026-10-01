@@ -6,6 +6,16 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D108 – iOS Debug implementován, lokální kontroly prošly; nativní CI čeká.**
+Záložka nabízí pozorování přijatých ESP snapshotů, omezený redigovaný log a
+nativní hlasový test na telefonu. Diagnostický backend test je oddělen od
+místního ovládání a neuděluje lease ani neposílá pohybové povely. Lokální testy
+a syntetické UI nejsou iPhone/ESP akceptace. B1 neblokuje tuto softwarovou
+přípravu; nový backend ani IPA se tímto zadáním nenasazují. Pro živý AI test
+zbývá nasadit D106/D108, provisionovat samostatnou `debug-*` identitu a explicitně
+zapnout hlasový provider s limity. Další krok: macOS CI, opravit případné chyby,
+zkontrolovat a sloučit PR; následná fyzická akceptace a vydání IPA jsou oddělené.
+
 **D106/D107 – AI hlas připraven v backendu a samostatné firmware softwarové cestě.** Majitel
 upřesnil, že kufr musí mít připravené mluvení. Závěr D105 byl příliš široký:
 B1 blokuje fyzický port/akceptaci, nikoli backendové STT/TTS adaptéry a hostitelské
@@ -109,6 +119,15 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 | B5 | Katalog šesti původních hůlek a Harry Potter / Ollivander tematickou roli majitel svěřil nezávislému agentovi; zdroj je `ai-eval/wand-catalog.json` (D72). Stále chybí rozměry, router, prostředí akce a živé obsahové hodnocení s hosty. | Provozní akceptaci E8/E11, fyzické mapování hůlek a finální mechaniku. | Sdílený tematický katalog, vývojové a simulované scénáře; skutečné přihrádky až s HW. |
 
 ## Deník změn a ověření
+### D108 – 1. 10. 2026 – iOS Debug a izolované hlasové testy
+
+- Rozsah: mobilní Ovládání/Debug tab, read-only snapshot telemetrie, uptime/boot/revision/eventSequence/RTT/fault count, Stop, RAM log 200 událostí s filtrem/pause/clear/export. Swift plugin vlastní zabezpečený dialog, dočasný backend credential, HTTPS bez redirectů, opening/speech/poll/WAV/AVAudioPlayer a systémový hlas. Backend doplňuje autentizovaný metadata endpoint a OpenAPI. Změny patří `mobilni-aplikace/src/features/debug/`, mobilnímu vstupu/stylům/adaptérům/testům, dvěma Swift zdrojům/Xcode registraci, nativnímu CI a dotčeným backend/contract/docs souborům; firmware se nemění.
+- Ověření na Windows: mobil pod Node 24.21.0 `npm test` (19/19) a `npm run build` — úspěšně. `dotnet build backend/backend.csproj --no-restore` z `kufr` — bez warningů/chyb. `node backend/tests/smoke.mjs` pod Node 24.21.0 — úspěšně, včetně 401 bez access tokenu/za credential a safe fake diagnostiky. `npm test` v `contracts` pod Node 24.21.0 — strict fixtures, OpenAPI/security a média prošly. První buildy odhalily DOM iterátor a chybně umístěné telemetry pole, contract verifier potřeboval přidat novou cestu; po opravách všechny uvedené kontroly prošly. `git diff --check` bez chyb.
+- Browser: in-app Browser proti Vite 127.0.0.1:5174 a nativnímu syntetickému harnessu. Ověřeno přepnutí tabů, mobilní 390px layout bez vodorovného overflow, párování/connect recovery fixture a skutečná pole snapshotu, profil/metadata/fake voice větev, zakázané AI tlačítko pro fake, pause/filtr/clear a klávesnicové přepnutí. Syntetický bridge neprovádí žádný síťový/AI test. Desktop kontrola a screenshot pokračují; macOS Swift harness/Xcode/iOS Simulator se ověří v PR CI.
+- Read-only review opravilo ztracenou create odpověď, identické JSON bytes při retry, persistentní chybu cleanup a cancellation během create. Nativní harness navíc testuje profil, korelaci, WAV/MIME/size, fake/OpenAI mismatch, cleanup, retry a skutečně zrušený Task; na Windows nelze spustit Swift/macOS.
+- Neprovedeno: placená AI, nasazení backendu, podpis/publikace IPA, živé iPhone audio/alert/lifecycle, ESP nebo I2S/GPIO. Tiché fake WAV nesmí být vydáváno za AI TTS. Nový debug profil vyžaduje předem provisionované samostatné zařízení `debug-*`; místní WSS token se nepoužívá. Credential/audio nevstupují do JS/logu, rozhovor může zůstat v paměti testovacího večera. Backend zůstává v dosavadním deploymentu, nová metadata route/hlas tam tímto nejsou aktivovány.
+- Doručení: dosud místní změny na `codex/kufr-ios-debug`; commit/push/PR/CI se zapíší podle skutečného výsledku.
+
 ### D107 – 1. 10. 2026 – firmware příprava výstupu AI hlasu
 
 - `SpeechOperationCodec` sestaví existující request ze skutečného turn ID;
