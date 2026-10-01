@@ -6,61 +6,91 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**Migrace GitHub Actions na vlastní runner – Linux ověřen, macOS blokováno billingem 1. 10. 2026.**
-Majitel požaduje všechny joby na svém serveru, kromě macOS. Všechny Linux
-joby v `.github/workflows/` nyní používají existující štítky
-`[self-hosted, Linux, X64, kufr-backend]`; iOS Simulator a IPA signing
-zůstávají na `macos-15`. Node setup doplněn do repository/backend kontrol;
-.NET SDK používá zapisovatelný runner tool cache. Realtime live test nově
-kontroluje předinstalovaný espeak-ng, nepředpokládá neomezené sudo.
-Host probe doplněn o build nástroje a venv. Plán, CI/CD, SECURITY a backend/
-AI README popisují společný runner, předpoklady a omezení veřejného testu
-z téhož serveru. Původ/provenance a main-only nasazení se nemění.
-Read-only probe [36926403741](https://github.com/Blato58/DildoVander/actions/runs/36926403741)
-ověřil online `dildovander-server`, Ubuntu 26.04, Python, omezené sudo,
-aktivní backend a loopback health. Runners API vrací 403; skutečný job
-potvrdil správný runner i štítky. Lokálně prošel audit 22 serverových a
-2 macOS jobů, 29 provenance/promotion testů, 6 archive testů, lokální odkazy
-a whitespace; actionlint 1.7.12 prošel. Commit `2ff2ada` byl pushnut a
-remote shoda ověřena, [PR #88](https://github.com/Blato58/DildoVander/pull/88).
-PowerShell helper byl spuštěn, ale zde není spustitelný; scoped gh git
-credential helper provedl push po ověření účtu Blato58. Souběžná změna
-D119 z main je zachovaná merge integrací. Nový OpenAI SDK live eval
-používá venv místo zápisu do systémového Pythonu. Integrační commit
-`c8b62ce888490f652c42d5d879a018a9bd22d9c5` je ověřeně pushnutý.
-[CI 36926992141](https://github.com/Blato58/DildoVander/actions/runs/36926992141)
-ověřilo na `dildovander-server` repository checks, backend build/testy/
-publish/HTTP smoke, web build/testy a offline AI. macOS Swift/native testy,
-Xcode build a spuštění iOS Simulatoru prošly na hosted Macu.
-IP HTTPS lint také prošel. Dva firmware joby selhaly na předpokladech
-serveru: `g++: command not found` a chybějící ensurepip/Python 3.14 venv.
-CI required proto správně selhalo. Runner nemá neomezené sudo; majitel
-byl požádán o jednorázovou instalaci `build-essential python3-venv espeak-ng`
-správcem serveru. PR #88 zůstává otevřené a nesloučené. Dokumentační
-záznam blokace má skip-ci, aby neopakoval známé chyby před přípravou serveru.
-Další krok: po instalaci spustit CI nad aktuálním headem PR a po zeleném
-výsledku sloučit; poté z main ověřit rozšířený host probe a read-only HTTPS.
-Majitel instalaci systémových závislostí potvrdil. Aktuální main včetně
-D118/D119 předání a diagnostického workflow je zachovaný další merge
-integrací `5984347565110b3da191a875a438db2a5f7aecb1`; push a remote shoda ověřené.
-[CI 36930988401](https://github.com/Blato58/DildoVander/actions/runs/36930988401)
-prošlo na `dildovander-server`: repository checks, web build/testy, offline
-AI, firmware host testy, oba ESP-IDF/Arduino buildy a upload artefaktu,
-backend build/testy/publish/HTTP smoke. Python 3.14 venv i PlatformIO 6.2.0
-nyní fungují. IP HTTPS lint 36930987942 také prošel.
-macOS job neměl přidělený runner a nespustil žádný krok: GitHub oznámil
-„recent account payments have failed or your spending limit needs to be
-increased“. CI required proto správně selhalo pouze kvůli macOS.
-macOS workflow a aplikační zdroje jsou stejné jako při úspěšném původním
-macOS ověření 36926992141; nové main změny se týkaly dokumentace a Linux
-log workflow. Majitel byl požádán o kontrolu GitHub Billing & plans.
-PR #88 zůstává otevřené; migrace není v main. Tento dokumentační záznam
-má skip-ci, aby neopakoval buildy před vyřešením účtu. Další krok:
-po odblokování hosted Actions spustit finální CI nad aktuálním PR headem,
-zkontrolovat případné nové main změny, sloučit a ověřit rozšířený host probe
-plus read-only HTTPS na main. Produkční aktivace se při migraci nespouští.
-Žádné nasazení, podpis IPA, publikace, placené AI volání ani flash nebyly
-součástí migrace.
+**Migrace GitHub Actions na vlastní serverový runner (1. 10. 2026).**
+Majitel požaduje všechny joby na svém serveru, kromě macOS. Všech 22 Linux
+jobů používá `[self-hosted, Linux, X64, kufr-backend]`, tedy
+`dildovander-server`; iOS Simulator a IPA signing zůstávají na `macos-15`.
+Node setup doplněn do repository/backend kontrol; .NET SDK používá
+zapisovatelný runner tool cache. PlatformIO i OpenAI SDK live eval běží
+ve vlastním venv. Realtime test kontroluje předinstalovaný espeak-ng,
+nepředpokládá neomezené sudo. Host probe ověřuje build nástroje a venv.
+Plán, CI/CD, SECURITY a backend/AI README popisují společný dlouhodobý
+runner a omezení veřejného HTTPS testu z téhož serveru. Main-only podmínky,
+permissions, dependency graf, timeouty a provenance zůstávají zachované.
+
+Lokálně prošel audit runnerů, actionlint 1.7.12, 29 provenance/promotion
++ 6 archive testů, dokumentační odkazy a whitespace. Probe 36926403741
+potvrdil online Ubuntu 26.04 runner a aktivní backend. První CI
+36926992141 odhalilo chybějící g++/venv; správce doplnil
+`build-essential python3-venv espeak-ng`. CI 36930988401 pak na serveru
+ověřilo repository, web, offline AI, všechny firmware host testy, oba
+ESP-IDF/Arduino buildy s artefaktem a backend build/testy/publish/HTTP smoke.
+Mac v tomto běhu GitHub odmítl před prvním krokem kvůli billing limitu;
+majitel následně potvrdil opravu účtu. Původní macOS CI 36926992141 prošlo,
+finální společná verze nyní zachovává také D120 opravu iPhone uploadu z main.
+
+Implementační commit `2ff2ada` a následné integrace byly ověřeně pushnuté.
+PowerShell helper byl spuštěn, ale není zde spustitelný; scoped gh git
+credential helper provedl push po ověření účtu Blato58. Finální CI head,
+výsledek všech Linux/macOS kontrol, sloučení a read-only ověření runneru/
+veřejného HTTPS jsou evidované v [PR #88](https://github.com/Blato58/DildoVander/pull/88).
+Produkční aktivace, podpis/publikace nové IPA, placené AI ani flash nejsou
+součástí migrace; stávající akceptační mezery D120 a HW zůstávají zachované.
+
+**D120 – oprava iPhone audio uploadu ověřena také na macOS/Xcode.**
+Majitel sdílí `realtime_live_audio_overflow` a stabilní připojení. Nalezený
+defekt: iOS vytvářelo a rušilo URLSession pro každý PCM POST (nejvýše 200 ms
+audia), přitom mělo jen 1 s frontu a při průběžném drainu posílalo i menší
+bloky. Chyba sama nedokazuje nestabilní připojení.
+
+`DebugHandsFreeSession.swift` nyní drží jedno ephemeral HTTP sezení pro
+PCM a playback ACK, zachovává zákaz redirectu a timeout. Stop ruší aktivní
+požadavky; normální close nechá doběhnout už potvrzené /played HTTP 204.
+`DebugHandsFreeAudio.swift` skládá přesné 9600B/200ms dávky, zachovává
+48000B limit a pořadí bez paralelních PCM POSTů. Input epoch zahazuje
+pozdní převod předchozího poslechu. `DebugPanel.ts` vysvětluje skutečné
+zaplnění fronty místo automatického připsání chyby spojení. README,
+native handsfree peer a `scripts/test-native-debug.sh` doplňuje nový
+`tests/native_handsfree/upload_regression.swift`.
+
+Lokálně prošly TypeScript/Vite build a všech 24 mobilních testů (Node
+24.19.0/npm 11.9.0; CI používá připnutou verzi), bash/Node syntax a
+`git diff --check`. Swift 6.1.2 pro Linux z dočasného toolchainu zkompiloval
+skutečné deklarace upload bufferu a HTTP helperu s `-swift-version 5
+-warnings-as-errors`; nový loopback test prošel dávky/PCM pořadí při 50ms
+capture a 150ms HTTP odezvě (první odpověď 550 ms), kapacitu/overflow,
+input epoch, jedno TCP spojení pro 10 POSTů, zákaz redirectu a graceful
+finish/cancel. Izolovaná baseline s původním per-frame URLSession otevřela
+10 spojení a prokazatelně selhala na reuse assertion. Původní multi-turn
+loopback test také prošel s dočasnou Linux adaptací importů a bez Keychain
+a AVAudioConverter testu; jeho převodník/iPhone audio tím není ověřený.
+Linux FoundationNetworking upozorňovalo na již existující Sendable mutable
+state v live-stream delegátovi; nativní macOS kompilace nyní prošla.
+
+Nové čtení logů workflow 36931829723 selhalo před prvním krokem runneru:
+GitHub annotation uvádí neúspěšné platby nebo nutnost zvýšit spending limit.
+Poslední úspěšný snapshot 36928995676 je z 21:29 UTC a předchází screenshotu,
+proto nepotvrzoval konkrétní příčinu incidentu. Majitel následně opravil
+billing. Opakovaný CI běh 36932961956 (attempt 2, head `980301a`)
+prošel všemi povinnými kontrolami: macOS Swift harness včetně nového upload
+testu, Xcode 26.3 simulator build a spuštění aplikace, web/kontrakty,
+backend a oba firmware profily/host testy. Placený AI job zůstal vypnutý.
+Nové serverové čtení 36936002408 a filtrované 36936100858 proběhlo úspěšně:
+responses/openai dostupné, 0 aktivních rozhovorů, žádné droppedWrites ani
+truncated. U rozhovoru v 21:47 UTC byl úvod dokončen a poslech otevřen,
+poté telefon ukončil stream (499); žádná provider chyba v dané korelaci.
+To odpovídá lokálnímu overflow, ale samo neměří upload RTT ani neprokazuje
+celou příčinu screenshotu. Implementační commit
+`3fdcf6ac9261ab1edc2ddf63780d17eea09427bd` byl pushnut do větve
+`fix/ios-realtime-upload-overflow`, shoda vzdáleného SHA ověřena.
+Push-CurrentBranch.ps1 byl spuštěn, ale nemá uložený OAuth token účtu;
+session API potvrdilo Blato58 a push proběhl přes scoped gh credential
+helper bez změny ostatních účtů. [PR #90](https://github.com/Blato58/DildoVander/pull/90)
+eviduje finální head, povinné CI a výsledek sloučení. Tento zápis aktualizuje
+původní blokaci; povinné CI následně ověří i tento dokumentační head.
+Další krok: připravit podepsaný Ad Hoc artifact z ověřené main verze,
+publikovat jej až v autorizovaném rozsahu a ověřit skutečný iPhone/5G
+rozhovor. Bez placeného AI testu, backend deploymentu nebo flash do desky.
 
 **D119 – Realtime hlas přímo na ESP a nastavení v Ovládání; všechny provider cesty přes SDK.**
 Majitel 1. 10. požaduje přidat Realtime do firmware, nastavovat hlasový režim
