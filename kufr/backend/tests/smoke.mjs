@@ -38,7 +38,7 @@ const serverEnvironment = {
 let serverOutput = '';
 let server;
 function startServer() {
-  server = spawn('dotnet', ['bin/Debug/net10.0/backend.dll', '--urls', baseUrl], {
+  server = spawn('dotnet', [process.env.KUFR_BACKEND_DLL || 'bin/Debug/net10.0/backend.dll', '--urls', baseUrl], {
     cwd: new URL('..', import.meta.url),
     env: serverEnvironment,
     windowsHide: true,

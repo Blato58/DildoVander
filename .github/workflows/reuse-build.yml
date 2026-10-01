@@ -1,0 +1,87 @@
+name: Verify reusable build
+
+on:
+  workflow_call:
+    inputs:
+      build_run_id:
+        type: string
+        required: true
+      workflow:
+        type: string
+        required: true
+      artifact:
+        type: string
+        required: true
+      signing_kind:
+        type: string
+        default: ''
+    outputs:
+      source_sha:
+        value: ${{ jobs.verify.outputs.source_sha }}
+      main_sha:
+        value: ${{ jobs.verify.outputs.main_sha }}
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      source_sha: ${{ steps.verify.outputs.source_sha }}
+      main_sha: ${{ steps.verify.outputs.main_sha }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Resolve a successful run and its immutable artifact
+        id: resolve
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          BUILD_RUN_ID: ${{ inputs.build_run_id }}
+          BUILD_WORKFLOW: ${{ inputs.workflow }}
+          BUILD_ARTIFACT: ${{ inputs.artifact }}
+        with:
+          script: |
+            await require('./scripts/ci/verify-build.cjs').resolve({ github, context, core }, {
+              runId: process.env.BUILD_RUN_ID,
+              workflow: process.env.BUILD_WORKFLOW,
+              artifact: process.env.BUILD_ARTIFACT,
+            });
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ steps.resolve.outputs.artifact_id }}
+          merge-multiple: true
+          run-id: ${{ steps.resolve.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/build-package
+      - name: Verify merged PR provenance and exact main tree
+        id: verify
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          BUILD_RUN_ID: ${{ inputs.build_run_id }}
+          BUILD_WORKFLOW: ${{ inputs.workflow }}
+          SIGNING_KIND: ${{ inputs.signing_kind }}
+        with:
+          script: |
+            await require('./scripts/ci/verify-build.cjs').verify({ github, context, core }, {
+              manifestPath: `${process.env.RUNNER_TEMP}/build-package/build-manifest.json`,
+              runId: process.env.BUILD_RUN_ID,
+              workflow: process.env.BUILD_WORKFLOW,
+              signingKind: process.env.SIGNING_KIND,
+            });
+      - name: Validate archive checksum and safe extraction on a hosted runner
+        run: python3 scripts/ci/package.py unpack "$RUNNER_TEMP/build-package" "$RUNNER_TEMP/validated-payload"
+      - name: Transfer the verified package to the deployment job
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: verified-${{ inputs.artifact }}
+          path: |
+            ${{ runner.temp }}/build-package/build-manifest.json
+            ${{ runner.temp }}/build-package/payload.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true

@@ -24,10 +24,13 @@ permissions:
 
 jobs:
   lint:
+    timeout-minutes: 5
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Check bootstrap scripts and required files
         shell: bash
         run: |
@@ -44,6 +47,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Stage reviewed root bootstrap
         shell: bash
         run: |
