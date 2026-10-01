@@ -26,7 +26,8 @@ struct LocalDeviceIdentity: Codable {
     }
 
     static func validDeviceId(_ deviceId: String) -> Bool {
-        deviceId.range(of: "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+        // Match the shared control v1 schema before consuming the pairing secret.
+        deviceId.range(of: "^[a-z][a-z0-9-]{0,63}$",
                        options: .regularExpression) != nil
     }
 

@@ -93,6 +93,8 @@ int main() {
   EspIdfLocalServiceAdvertisement advertisement(station, hash);
   assert(!advertisement.Start("") && !advertisement.Start("bad/id"));
   assert(!advertisement.Start(std::string(65, 'a')));
+  assert(!advertisement.Start("Kufr-001") && !advertisement.Start("kufr_001") &&
+         !advertisement.Start("1kufr"));
   hash.fail = true;
   assert(!advertisement.Start("kufr-001"));
   hash.fail = false;

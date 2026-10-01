@@ -16,6 +16,10 @@ let directory = CommandLine.arguments[1]
 let port = Int(CommandLine.arguments[2])!
 let discoveryTxt = ["deviceId": "test-kufr", "protocol": "1",
                     "capabilities": "manualControl,inventoryReload,conversationText"]
+check(LocalDeviceIdentity.validDeviceId("kufr-001"), "Shared v1 device ID")
+for invalidId in ["Kufr-001", "kufr_001", "1kufr", "kufr.local", String(repeating: "a", count: 65)] {
+    check(!LocalDeviceIdentity.validDeviceId(invalidId), "Reject identity outside control v1 before pairing")
+}
 let discoveryCandidate = LocalDiscoveredDevice.parse(txt: discoveryTxt, host: "kufr-test.local.", port: 443)
 check(discoveryCandidate?.host == "kufr-test.local", "Normalize Bonjour hostname")
 check(discoveryCandidate?.capabilities.count == 3, "Bounded public capabilities")

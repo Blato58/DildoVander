@@ -7,13 +7,12 @@
 
 namespace {
 bool ValidDeviceId(const std::string& value) {
-  if (value.empty() || value.size() > 64) {
+  if (value.empty() || value.size() > 64 || value.front() < 'a' || value.front() > 'z') {
     return false;
   }
   for (char character : value) {
     if (!((character >= 'a' && character <= 'z') ||
-          (character >= 'A' && character <= 'Z') ||
-          (character >= '0' && character <= '9') || character == '-' || character == '_')) {
+          (character >= '0' && character <= '9') || character == '-')) {
       return false;
     }
   }
