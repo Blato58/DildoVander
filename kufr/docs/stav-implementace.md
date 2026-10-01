@@ -6,6 +6,46 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D120 – oprava iPhone audio uploadu připravena; macOS CI blokují platby/limit GitHub.**
+Majitel sdílí `realtime_live_audio_overflow` a stabilní připojení. Nalezený
+defekt: iOS vytvářelo a rušilo URLSession pro každý PCM POST (nejvýše 200 ms
+audia), přitom mělo jen 1 s frontu a při průběžném drainu posílalo i menší
+bloky. Chyba sama nedokazuje nestabilní připojení.
+
+`DebugHandsFreeSession.swift` nyní drží jedno ephemeral HTTP sezení pro
+PCM a playback ACK, zachovává zákaz redirectu a timeout. Stop ruší aktivní
+požadavky; normální close nechá doběhnout už potvrzené /played HTTP 204.
+`DebugHandsFreeAudio.swift` skládá přesné 9600B/200ms dávky, zachovává
+48000B limit a pořadí bez paralelních PCM POSTů. Input epoch zahazuje
+pozdní převod předchozího poslechu. `DebugPanel.ts` vysvětluje skutečné
+zaplnění fronty místo automatického připsání chyby spojení. README,
+native handsfree peer a `scripts/test-native-debug.sh` doplňuje nový
+`tests/native_handsfree/upload_regression.swift`.
+
+Lokálně prošly TypeScript/Vite build a všech 24 mobilních testů (Node
+24.19.0/npm 11.9.0; CI používá připnutou verzi), bash/Node syntax a
+`git diff --check`. Swift 6.1.2 pro Linux z dočasného toolchainu zkompiloval
+skutečné deklarace upload bufferu a HTTP helperu s `-swift-version 5
+-warnings-as-errors`; nový loopback test prošel dávky/PCM pořadí při 50ms
+capture a 150ms HTTP odezvě (první odpověď 550 ms), kapacitu/overflow,
+input epoch, jedno TCP spojení pro 10 POSTů, zákaz redirectu a graceful
+finish/cancel. Izolovaná baseline s původním per-frame URLSession otevřela
+10 spojení a prokazatelně selhala na reuse assertion. Původní multi-turn
+loopback test také prošel s dočasnou Linux adaptací importů a bez Keychain
+a AVAudioConverter testu; jeho převodník/iPhone audio tím není ověřený.
+Linux FoundationNetworking upozorňuje na již existující Sendable mutable
+state v live-stream delegátovi; macOS kompilace celé aplikace ještě chybí.
+
+Nové čtení logů workflow 36931829723 selhalo před prvním krokem runneru:
+GitHub annotation uvádí neúspěšné platby nebo nutnost zvýšit spending limit.
+Poslední úspěšný snapshot 36928995676 je z 21:29 UTC a předchází screenshotu,
+proto nepotvrzuje konkrétní příčinu incidentu. Stejná blokace brání novému
+macOS/Xcode CI. Změna zůstává k review ve větvi
+`fix/ios-realtime-upload-overflow`; finální commit/push/PR se doplní po
+git předání. Další krok: obnovit GitHub Actions, nechat projít povinné CI,
+poté zvlášť autorizovat podpis/publikaci IPA a ověřit skutečný iPhone/5G
+rozhovor. Bez placeného AI testu, backend deploymentu nebo nové IPA.
+
 **D119 – Realtime hlas přímo na ESP a nastavení v Ovládání; všechny provider cesty přes SDK.**
 Majitel 1. 10. požaduje přidat Realtime do firmware, nastavovat hlasový režim
 v Ovládání aplikace a převést všechna volání OpenAI na SDK. Rozsah a výjimka
