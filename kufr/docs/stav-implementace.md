@@ -18,6 +18,10 @@ commit `9863b20caaaf4d72d286c2cf8c07b03d0af4830f`, merge `1f172a4ff0546dc86a380c
 push byl ověřen a cílová větev načtena scoped fetch/fast-forward. Server se nenasazoval.
 D107 přidává striktní speech operaci, bezpečný caller buffer a HTTPS adaptér
 s hostitelsky ověřeným řetězcem validovaná replika → speech → poll → WAV → release.
+D107 je po zeleném [CI 36845545981](https://github.com/Blato58/DildoVander/actions/runs/36845545981)
+a [PR #71](https://github.com/Blato58/DildoVander/pull/71) v `main`:
+head `bc48fb3514c5095214affa95a736d06e73a607a4`, merge `430af8d48b174677fe9aae4ecb340fd4effe5857`.
+Host testy i ESP-IDF/Arduino build prošly; merge byl ověřen scoped fetch/fast-forward.
 Není zapojen do současného textového runtime ani I2S; skutečný capture/playback,
 consent vstup a paměť vyžadují B1. Samostatný firmware STT upload a mobilní audio
 zůstávají dalšími softwarovými částmi E9/E10, nevydávat celý projekt za blokovaný B1.
@@ -142,6 +146,11 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
   přes `scripts/Push-CurrentBranch.ps1`; script ověřil shodu vzdáleného head.
   Při závěrečné staged kontrole byla odstraněna nadbytečná EOF prázdná řádka
   nového kodeku; `git diff --check` byl po opravě zopakován.
+- Předání 1.10.: finální head `bc48fb3514c5095214affa95a736d06e73a607a4` byl
+  ověřen push scriptem. [CI 36845545981](https://github.com/Blato58/DildoVander/actions/runs/36845545981)
+  prošlo: host-tests 41s, oba firmware profily 6m3s.
+  [PR #71](https://github.com/Blato58/DildoVander/pull/71) byl bez konfliktu sloučen
+  jako `430af8d48b174677fe9aae4ecb340fd4effe5857`; scoped fetch/fast-forward ověřil `main`.
 
 ### D106 – 1. 10. 2026 – backendová příprava skutečného AI hlasu
 
