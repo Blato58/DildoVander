@@ -6,7 +6,7 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**Migrace GitHub Actions na vlastní runner – rozpracováno 1. 10. 2026.**
+**Migrace GitHub Actions na vlastní runner – připraveno, blokováno nástroji serveru 1. 10. 2026.**
 Majitel požaduje všechny joby na svém serveru, kromě macOS. Všechny Linux
 joby v `.github/workflows/` nyní používají existující štítky
 `[self-hosted, Linux, X64, kufr-backend]`; iOS Simulator a IPA signing
@@ -26,9 +26,22 @@ remote shoda ověřena, [PR #88](https://github.com/Blato58/DildoVander/pull/88)
 PowerShell helper byl spuštěn, ale zde není spustitelný; scoped gh git
 credential helper provedl push po ověření účtu Blato58. Souběžná změna
 D119 z main je zachovaná merge integrací. Nový OpenAI SDK live eval
-používá venv místo zápisu do systémového Pythonu. Další krok: plné CI
-na serverovém runneru a merge. Žádné nasazení, podpis IPA,
-publikace, placené AI volání ani flash nejsou součástí migrace.
+používá venv místo zápisu do systémového Pythonu. Integrační commit
+`c8b62ce888490f652c42d5d879a018a9bd22d9c5` je ověřeně pushnutý.
+[CI 36926992141](https://github.com/Blato58/DildoVander/actions/runs/36926992141)
+ověřilo na `dildovander-server` repository checks, backend build/testy/
+publish/HTTP smoke, web build/testy a offline AI. macOS Swift/native testy,
+Xcode build a spuštění iOS Simulatoru prošly na hosted Macu.
+IP HTTPS lint také prošel. Dva firmware joby selhaly na předpokladech
+serveru: `g++: command not found` a chybějící ensurepip/Python 3.14 venv.
+CI required proto správně selhalo. Runner nemá neomezené sudo; majitel
+byl požádán o jednorázovou instalaci `build-essential python3-venv espeak-ng`
+správcem serveru. PR #88 zůstává otevřené a nesloučené. Dokumentační
+záznam blokace má skip-ci, aby neopakoval známé chyby před přípravou serveru.
+Další krok: po instalaci spustit CI nad aktuálním headem PR a po zeleném
+výsledku sloučit; poté z main ověřit rozšířený host probe a read-only HTTPS.
+Žádné nasazení, podpis IPA, publikace, placené AI volání ani flash nebyly
+součástí migrace.
 
 **D119 – Realtime hlas přímo na ESP a nastavení v Ovládání; všechny provider cesty přes SDK.**
 Majitel 1. 10. požaduje přidat Realtime do firmware, nastavovat hlasový režim
