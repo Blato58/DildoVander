@@ -442,7 +442,9 @@ final class InteractivePeer {
             operations[audio] = ["audio": audio]
         } else if multipart {
             let contentType = request.value(forHTTPHeaderField: "Content-Type") ?? ""
-            let upload = String(data: request.httpBody!, encoding: .utf8) ?? ""
+            // Multipart headers are UTF-8, but the WAV part is arbitrary binary.
+            let upload = String(decoding: request.httpBody!, as: UTF8.self)
+            assert(request.httpBody!.range(of: wav) != nil, "Multipart preserves exact WAV bytes")
             assert(contentType.hasPrefix("multipart/form-data; boundary="))
             assert(upload.contains("name=\"wav\"; filename=\"answer.wav\"") &&
                    upload.contains("Content-Type: audio/wav") && upload.contains("RIFF"))
