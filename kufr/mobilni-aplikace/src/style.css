@@ -46,6 +46,7 @@ body { margin: 0; min-height: 100vh; }
 .debug-conversation textarea { width: 100%; min-width: 0; padding: .65rem; font: inherit; resize: vertical; color: #fff; background: #343d48; border: 1px solid #83909d; border-radius: .4rem; }
 .debug-conversation textarea:focus-visible { outline: 3px solid #f8bd68; }
 .debug-conversation [data-conversation-selection] { font-weight: 700; color: #f8bd68; }
+.debug-conversation [data-conversation-error] { overflow-wrap: anywhere; }
 .debug-card select { max-width: 100%; font: inherit; padding: .65rem; color: #fff; background: #424b56; border: 1px solid #83909d; border-radius: .4rem; }
 .debug-card select:focus-visible { outline: 3px solid #f8bd68; }
 .debug-card input[type="text"] { width: 100%; min-width: 0; margin: .4rem 0 .75rem; padding: .65rem; font: inherit; color: #fff; background: #343d48; border: 1px solid #83909d; border-radius: .4rem; }

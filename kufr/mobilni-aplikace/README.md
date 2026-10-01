@@ -1,6 +1,6 @@
 # Mobilní ovládání kufru
 
-## Hlas kufru v Ovládání (D117)
+## Hlas kufru v Ovládání (D118)
 
 Sekce **Hlas kufru** nastavuje režim Vypnutý / Realtime a hlas
 Marin/Cedar/Coral na spárovaném ESP. **Použít nastavení hlasu** čeká na
@@ -55,8 +55,11 @@ Po 650 ms ticha odpoví kufr, během jeho řeči je vstup zavřený a po skuteč
 dohrání se automaticky otevře další poslech. Telefon začne přehrávat první
 bloky před dokončením odpovědi. Spouští se jeden rozhovor, nejvýše 8 min/10
 tahů; Stop, pozadí, zamčení nebo audio přerušení ukončí mikrofon i provider.
-Bez přerušování právě mluvícího kufru. Problém včetně nákladového limitu
-má viditelnou hlášku. **Realtime · tlačítka** a **Řetězený** umožňují text
+Bez přerušování právě mluvícího kufru. Vlastní přepnutí audio session při
+startu nepřerušuje rozhovor; skutečná změna mikrofonu/reproduktoru jej
+bezpečně ukončí. Prázdný výstup při rozběhu převodníku není chyba.
+Problém včetně nákladového limitu má viditelnou hlášku a technický kód
+pro předání při diagnostice. **Realtime · tlačítka** a **Řetězený** umožňují text
 nebo nahrávání nejvýše 30 s do RAM. Fake STT vrací syntetický přepis;
 skutečná vlastní hlasová odpověď potřebuje OpenAI režim hlasu.
 Volba Řetězený zachovává původní Sol/fake tok; Realtime nepodporuje hlas

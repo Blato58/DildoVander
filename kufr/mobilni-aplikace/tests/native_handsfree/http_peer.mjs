@@ -21,6 +21,18 @@ function answer(input, operation, terminal) {
     result: { reply: `reply-${uploads}`, decision: terminal ? 'no_selection' : 'ask', reason: '', proposal: null } });
 }
 const server = createServer((request, response) => {
+  if (request.url.startsWith('/failure/')) {
+    if (request.method === 'DELETE') { response.writeHead(204).end(); return; }
+    request.resume();
+    if (request.url.startsWith('/failure/problem/')) {
+      response.writeHead(503, { 'Content-Type': 'application/problem+json' }).end(JSON.stringify({ code: 'realtime_unavailable' }));
+    } else if (request.url.startsWith('/failure/mime/')) {
+      response.writeHead(200, { 'Content-Type': 'text/html' }).end('<html>proxy response</html>');
+    } else {
+      response.writeHead(200, { 'Content-Type': 'application/x-ndjson' }).end(`${JSON.stringify({ type: 'session', streamId: ids.stream, audioFormat: 'pcm16-mono-24000' })}\n`);
+    }
+    return;
+  }
   if (request.method === 'POST' && request.url === `/v1/conversations/${ids.conversation}/realtime-live`) {
     const chunks = [];
     request.on('data', chunk => chunks.push(chunk));

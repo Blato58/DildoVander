@@ -1,4 +1,5 @@
 import Foundation
+import AVFoundation
 
 @main
 struct NativeHandsFreeTests {
@@ -31,6 +32,69 @@ struct NativeHandsFreeTests {
         let (data, _) = try await URLSession.shared.data(from: baseURL.appendingPathComponent("test/metrics"))
         let metrics = try JSONSerialization.jsonObject(with: data) as! [String: Int]
         assert(metrics["played"] == 3 && metrics["uploads"] == 2 && metrics["cleanup"] == 1)
+        try testMicrophoneConversion()
+        testAudioRouteChanges()
+        for (path, expectedCode) in [
+            ("problem", "realtime_unavailable"),
+            ("mime", "realtime_live_protocol_failed"),
+            ("eof", "realtime_live_protocol_failed")
+        ] {
+            try await testStartupFailure(baseURL: baseURL.appendingPathComponent("failure/\(path)"), expectedCode: expectedCode)
+        }
+        assert(DebugHandsFreeSession.failureCode(for: URLError(.timedOut)) == "realtime_live_connection_timeout")
+        assert(DebugHandsFreeSession.failureCode(for: URLError(.networkConnectionLost)) == "realtime_live_connection_failed")
+        assert(DebugHandsFreeSession.failureCode(for: URLError(.serverCertificateUntrusted)) == "realtime_live_tls_failed")
         print("Hands-free native multi-turn, VAD gate, early acknowledgement and cleanup passed.")
+        print("Hands-free audio startup, route changes, 48kHz conversion and early HTTP failures passed.")
+    }
+
+    static func testAudioRouteChanges() {
+        // Our own category/speaker notifications must not stop a started call.
+        for change in [DebugHandsFreeAudioPolicy.RouteChange.category, .speakerOverride, .configuration] {
+            assert(!DebugHandsFreeAudioPolicy.shouldStop(change: change, configurationMatches: true))
+            assert(DebugHandsFreeAudioPolicy.shouldStop(change: change, configurationMatches: false))
+        }
+        assert(DebugHandsFreeAudioPolicy.shouldStop(change: .device, configurationMatches: true))
+        assert(DebugHandsFreeAudioPolicy.shouldStop(change: .device, configurationMatches: false))
+    }
+
+    static func testMicrophoneConversion() throws {
+        for (sampleRate, channels) in [(48_000.0, AVAudioChannelCount(1)), (48_000.0, 2), (44_100.0, 1)] {
+            let sourceFormat = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: channels)!
+            let converter = try DebugHandsFreePCMConverter(sourceFormat: sourceFormat)
+            let buffer = AVAudioPCMBuffer(pcmFormat: sourceFormat, frameCapacity: 2_400)!
+            let empty = try converter.convert(buffer)
+            assert(empty == nil)
+            var output = Data()
+            // Tiny first buffers exercise converter priming without treating empty
+            // output as a fatal microphone error; then continue the same converter.
+            for frames in [1, 1, 1, 2_400, 2_400] {
+                buffer.frameLength = AVAudioFrameCount(frames)
+                for channelIndex in 0..<Int(channels) {
+                    let channel = buffer.floatChannelData![channelIndex]
+                    for index in 0..<frames { channel[index] = 0.25 }
+                }
+                if let pcm = try converter.convert(buffer) { output.append(pcm) }
+            }
+            assert(!output.isEmpty && output.count % 2 == 0 && output.count <= 6_000)
+            assert(output.contains { $0 != 0 })
+        }
+    }
+
+    @MainActor static func testStartupFailure(baseURL: URL, expectedCode: String) async throws {
+        let profile = DebugBackendProfile(baseURL: baseURL, deviceId: "debug-test", credential: "test")
+        var failure: String?
+        let session = DebugHandsFreeSession(client: DebugBackendClient(), profile: profile, token: "access",
+            conversation: "00000000-0000-4000-8000-000000000002", boot: "00000000-0000-4000-8000-000000000001",
+            readyMask: 63, voice: "cedar", speed: 1, phase: { _ in }, visitor: { _ in }, reply: { _ in },
+            audio: { _ in fatalError("Unexpected audio before startup failure") }, listening: { _ in },
+            inputGate: { _ in }, failure: { failure = $0 })
+        do {
+            try await session.run()
+            fatalError("Startup failure was not surfaced")
+        } catch {
+            assert(failure == expectedCode)
+        }
+        try await session.close()
     }
 }

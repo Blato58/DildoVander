@@ -1,6 +1,6 @@
 # Backend kufru (E7)
 
-## OpenAI SDK (D117)
+## OpenAI SDK (D118)
 
 Všechny provider operace používají oficiální .NET SDK **2.14.0**:
 Responses přes `ResponsesClient`, kompatibilní STT/TTS přes `AudioClient`

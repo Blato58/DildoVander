@@ -1,6 +1,6 @@
 # Vývojový test dialogu AI bez kufru
 
-## Provider SDK (D117)
+## Provider SDK (D118)
 
 Živé syntetické testy vyžadují `python3 -m pip install -r requirements.txt`
 (oficiální `openai==3.22.1`). `call_openai` používá Responses SDK, streaming
