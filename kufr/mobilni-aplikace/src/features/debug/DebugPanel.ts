@@ -206,7 +206,9 @@ export class DebugPanel {
     if (!this.native) { return; }
     if (action === 'voice-stop') {
       await bridge.stop().catch(() => undefined);
-      this.journal.record('voice_stopped'); await this.refreshVoiceAsync(); this.renderLog(); return;
+      this.journal.record('voice_stopped'); await this.refreshVoiceAsync();
+      if (!this.paused) { this.renderLog(); }
+      return;
     }
     if (this.pending) { return; }
     const errorText = this.element.querySelector<HTMLElement>('[data-voice-error]')!;
@@ -236,7 +238,7 @@ export class DebugPanel {
     } finally {
       this.pending = false;
       await this.refreshVoiceAsync();
-      this.renderLog();
+      if (!this.paused) { this.renderLog(); }
     }
   }
 }
