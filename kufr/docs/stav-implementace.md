@@ -46,12 +46,14 @@ workflow, README, AGENTS a plán/stav.
 
 Lokálně prošly všechny firmware host testy včetně striktního NDJSON,
 resamplingu, úvodu a dvou navazujících mic tahů, pořadí uploadu, drain/ACK,
-Stop, cost_limit a chyb. Samostatný test audio driveru ověřil servisní
+Stop, cost_limit a chyb. Regresní test zadrží mikrofonní blok předchozího
+poslechu až do začátku dalšího: input epoch jej zahodí a nedovolí
+přeznačit na nové Input-Id. Samostatný test audio driveru ověřil servisní
 bránu profilu A, drain, Stop při DMA zápisu a odmítnutí pozdního audio
 bloku až do explicitního Begin nového sezení (oprava nalezeného závodu).
 52 skutečně emitovaných firmware zpráv prošlo
 sdíleným schématem. Oba PlatformIO profily prošly: ESP-IDF RAM 66 032 B,
-flash 1 201 985 B; Arduino serial RAM 18 660 B, flash 286 589 B (nezahrnuje
+flash 1 202 041 B; Arduino serial RAM 18 660 B, flash 286 589 B (nezahrnuje
 běhový heap/stack). Backend HTTP smoke a testy providerů, Realtime, journalu, fake voice,
 rozpočtů, expirace a migrací prošly. Mobilní build a 22 testů, kontrakty
 25 validních/41 nevalidních zpráv a 21 offline Python eval testů prošly.
@@ -70,7 +72,11 @@ Finální původní head `938f9cc8f7dd2b0d54bed9389983ebedfaf9dd1c` byl
 ověřeně pushnut a CI 36923066577 prošlo všechny povinné kontroly včetně
 Swift/Xcode/spuštění iOS Simulatoru a obou firmware profilů. Během CI se
 do main sloučila oprava iPhone startu z PR #84 (`0d97dea`); obě změny jsou
-zachované, tento slice nově D118. Společná verze znovu projde povinným CI.
+zachované, tento slice nově D118. Společná verze `5e73e21` byla ověřeně pushnuta a CI 36924319856 prošlo
+všechny povinné kontroly. Závěrečná ochrana input epoch dále brání přenosu
+rozpracovaného mic bloku do následujícího poslechu. Nový regresní test
+prokazatelně selže na původním transportu a projde s opravou; ESP-IDF build
+prošel znovu. Povinné CI ověřuje poslední head tohoto PR.
 Aktuální výsledek kontrol a sloučení je doložený přímo v PR.
 Tento krok nenasazuje backend, nevydává IPA, nenahrává firmware a nevolá
 placené OpenAI. Skutečný mikrofon/reproduktor, paměťové/časové rezervy při

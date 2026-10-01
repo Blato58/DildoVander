@@ -34,6 +34,7 @@ class EspIdfRealtimeTransport final {
   TurnCorrelation expected_;
   std::mutex inputMutex_;
   std::atomic<bool> stop_{false}, uploading_{false}, uploadDone_{true}, failed_{false};
+  std::atomic<uint32_t> inputEpoch_{0};
   bool sessionSeen_ = false, terminal_ = false, closed_ = false;
   unsigned sequence_ = 0, turns_ = 0;
   size_t audioBytes_ = 0, inputBytes_ = 0;

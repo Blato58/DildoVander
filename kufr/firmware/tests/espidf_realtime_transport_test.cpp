@@ -24,12 +24,22 @@ const std::string Operation = "3d6104de-98c6-40b5-b10d-4f5675a63c51";
 std::string stream;
 std::atomic<int> uploads{0}, played{0}, drains{0};
 std::atomic<bool> listening{false};
-bool wrongMime = false, rejectAck = false;
+bool wrongMime = false, rejectAck = false, delayedInput = false;
+std::atomic<bool> heldInput{false}, releaseInput{false};
+std::atomic<unsigned> inputCalls{0}, listenStarts{0};
 class Audio : public VoiceAudioPort {
  public:
   bool Available() const override { return true; }
-  void Listen(bool enabled) override { listening.store(enabled); }
+  void Listen(bool enabled) override {
+    listening.store(enabled);
+    if (enabled && ++listenStarts == 2) releaseInput.store(true);
+  }
   bool TakeInput(std::vector<uint8_t>& pcm) override {
+    if (delayedInput && ++inputCalls == 2) {
+      heldInput.store(true); // Already captured in the old listening period.
+      while (!releaseInput.load()) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      pcm.assign(960, 0x55); return true;
+    }
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
     pcm.assign(listening.load() ? 960 : 0, 0); return true;
   }
@@ -56,7 +66,10 @@ std::string Input(const std::string& turn) {
       "{\"type\":\"speech_started\",\"inputId\":\"" + turn + "\"}\n" +
       "{\"type\":\"speech_stopped\",\"inputId\":\"" + turn + "\"}\n";
 }
-void Reset() { uploads = played = drains = 0; wrongMime = rejectAck = false; listening = false; }
+void Reset() {
+  uploads = played = drains = 0; wrongMime = rejectAck = delayedInput = false; listening = false;
+  heldInput = releaseInput = false; inputCalls = listenStarts = 0;
+}
 }
 int64_t esp_timer_get_time() {
   return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -83,6 +96,7 @@ int64_t esp_http_client_fetch_headers(esp_http_client_handle_t client) {
     assert(IsConversationUuid(client->headers["Idempotency-Key"]));
   } else if (client->url.find("/audio") != std::string::npos) {
     assert(client->body.size() > 0 && client->body.size() <= 9600);
+    assert(client->body.front() != 0x55); // Never relabel an old captured block.
     assert(client->headers["Content-Type"] == "application/octet-stream");
     assert(IsConversationUuid(client->headers["Input-Id"]));
     assert(client->headers.count("Input-Sequence") == 1);
@@ -104,6 +118,11 @@ int esp_http_client_read(esp_http_client_handle_t client, char* data, int capaci
     for (int i = 0; i < 1000 && uploads.load() < played.load(); ++i)
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     assert(uploads.load() >= played.load());
+  }
+  if (delayedInput && listenStarts == 1 && uploads >= 1) {
+    for (int i = 0; i < 1000 && !heldInput.load(); ++i)
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    assert(heldInput.load());
   }
   const size_t count = std::min<size_t>(std::min(capacity, 7), stream.size() - client->offset);
   std::memcpy(data, stream.data() + client->offset, count); client->offset += count;
@@ -131,6 +150,11 @@ int main() {
   int completed = 0;
   assert(transport.Run("{}", Boot, opening, snapshot, [&](const TurnOperationObservation&) { ++completed; return true; }));
   assert(completed == 3 && played == 3 && uploads >= 2 && audio.blocks == 3);
+  Reset(); delayedInput = true;
+  Audio delayedAudio;
+  EspIdfRealtimeTransport boundary("example.test", "testtoken", delayedAudio, [] { return true; }, [](const char*) {});
+  assert(boundary.Run("{}", Boot, opening, snapshot, [](const TurnOperationObservation&) { return true; }));
+  assert(heldInput && releaseInput && played == 3 && uploads >= 2);
   for (int scenario = 0; scenario < 4; ++scenario) {
     Reset(); Audio failingAudio;
     stream = session + Reply(Turn, true) + "{\"type\":\"closed\",\"reason\":\"conversation_terminal\"}\n";
@@ -146,5 +170,5 @@ int main() {
     if (scenario == 3) assert(played == 0 && failingAudio.blocks == 0);
     assert(!listening.load());
   }
-  std::cout << "ESP realtime stream, two microphone replies, ordered upload, drain/ACK, Stop and failures passed\n";
+  std::cout << "ESP realtime stream, two microphone replies, ordered upload, stale input discard, drain/ACK, Stop and failures passed\n";
 }
