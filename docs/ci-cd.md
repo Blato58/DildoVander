@@ -1,0 +1,99 @@
+# CI/CD: build jednou, nasazení z artefaktu
+
+Každé PR do `main` spustí [CI](../.github/workflows/ci.yml). Workflow nemá
+path filtr: backend, firmware, mobilní web, iOS Simulator a offline AI testy
+musí projít i po změně společné konfigurace. Jediná kontrola pro ochranu větve
+je **CI required**. Nový commit do stejného PR zruší zastaralé CI; rozběhnuté
+nasazení se neruší. Merge do `main` nevyvolá druhý build.
+
+| Workflow | Účel | Výstup / vstup |
+| --- | --- | --- |
+| `ci.yml` | PR build a testy; ruční obnovovací build na `main` | `backend-publish`, `web-dist`, `firmware` |
+| `kufr-backend-deploy.yml` | Aktivace backendu bez restore/build | `build_run_id` úspěšného CI |
+| `kufr-ios-sign.yml` | Samostatný podepsaný device build; převzetí webu z CI | CI `build_run_id`, `signing_kind`; výstup `signed-ipa` |
+| `kufr-ios-deploy.yml` | Publikace existující Ad Hoc IPA bez Xcode/npm | `build_run_id` podepsaného IPA buildu |
+
+Artefakty patří konkrétnímu běhu a API vybírá jejich neměnné ID. Retry úspěšného
+jobu nahradí jeho balíček; retry pouze neúspěšných jobů může použít výstup
+dřívějšího úspěšného pokusu stejného běhu. Celý běh musí být úspěšný.
+ID běhu je číslo za
+`/actions/runs/` v URL Actions. Každý balíček má `payload.tar.gz` a
+`build-manifest.json`: repozitář, ID/pokus běhu, source/head/base SHA, zdrojový
+Git tree, PR a SHA-256 payloadu. Tar zachovává executable bit backendu a firmware
+výstupy. Artefakty z buildu se uchovávají **14 dní**, ověřovací kopie **1 den**.
+
+## Běžné nasazení
+
+1. Aktualizuj PR z `main`, vyčkej na zelené **CI required** a sluč PR.
+2. V Actions vyber **Deploy Kufr backend**, větev `main` a ID CI tohoto PR.
+   Zvol `dialog_mode`, `dialog_model`, `voice_mode` stejně jako dříve.
+3. Pro IPA spusť **Build signed Kufr IPA** na `main` s týmž CI ID a zvoleným
+   podpisem. **Deploy Kufr IPA** následně dostane ID úspěšného **IPA buildu**;
+   veřejná instalace vyžaduje `ad_hoc`.
+
+Deployment nejdřív na GitHub-hosted runneru ověří přes API očekávaný workflow,
+celkově úspěšný běh, platný pokus stejného běhu a neexpirovaný artefakt. PR musí být sloučené
+do `main` ze stejného repozitáře. API Git commitů ověří původ build merge commitu
+z konkrétního base/head a **shodu celého Git tree s aktuálním `main`**. Squash
+nebo merge mění commit SHA, proto nestačí porovnat SHA commitu. Checksum a
+rozbalení odmítnou poškození, traversal, symlinky, hardlinky a speciální soubory.
+Teprve ověřený balíček přejde na produkční runner; ten ještě kontroluje, zda
+se `main` během čekání nezměnil. Prostředí a secrets zůstávají oddělené.
+
+Pokud `main` mezitím změnilo obsah nebo artefakt expiroval, deployment skončí
+s vysvětlením. Spusť ručně **CI** na `main` a použij jeho nový run ID. Deployment
+sám nikdy nepřekládá a nevytváří náhradní build. Přísná shoda celého stromu může
+vyžadovat obnovovací CI i po změně dokumentace; chrání proti nasazení jiné verze.
+Rollback již uloženého release je nadále správcovská operace podle backend README.
+
+Simulator a fyzický iPhone vyžadují různé Xcode cíle a podpis. PR proto dělá
+nepodepsaný simulator build; explicitní podpisový workflow sestaví device IPA
+jednou, použije již hotový web z CI a uplatní Apple profil. Publikace ani její
+opakování už nebuildí. Soukromé klíče a samostatné podpisové soubory se neukládají do artefaktů;
+IPA obsahuje profil nutný pro instalaci podepsané aplikace.
+
+## Optimalizace a standardy
+
+- .NET restore používá lockfiles a NuGet cache, backend a testy se sestaví
+  společně v Release pro `linux-x64`; test/run/publish používají `--no-build`.
+- Vite/TypeScript se sestaví jednou na Linuxu. Mac simulator i podpisový build
+  převezmou hotový web. npm cache zahrnuje všechny dotčené lockfiles.
+- PlatformIO Core i platforma jsou připnuté; cache ukládá toolchainy a pip,
+  nikoli znovupoužité firmware binárky. Oba firmware profily mají artefakt pro
+  pozdější servisní flash bez dalšího buildu; CI samo do desky nenahrává.
+- Každý job má timeout. Actions jsou připnuté na commit SHA, checkout neponechává
+  credentials, běžné CI má jen `contents: read`; čtení cizího Actions běhu pouze
+  promotion/sign/deploy. PR nikdy nevstoupí na produkční self-hosted runner.
+- Workflow syntax ověřuje připnutý actionlint s checksumem; testy ověřují
+  původ/promotion i integritu archivu. `CODEOWNERS`, PR šablona, `CONTRIBUTING`,
+  `SECURITY`, EditorConfig a Git attributes sjednocují předání a formátování.
+- Dependabot dělá týdenní seskupené Actions/npm/NuGet aktualizace. Placené AI
+  eval i skutečná publikace/nasazení zůstávají explicitní ruční operace.
+
+## Nastavení GitHubu a skutečné blokace
+
+Požadovaná nastavení jsou v
+[repository-settings.json](../.github/repository-settings.json) a
+[main-ruleset.json](../.github/main-ruleset.json): squash merge, mazání větví,
+PR před merge, aktuální base a **CI required**, vyřešené review komentáře, zákaz
+mazání/force push `main`. Sólo vlastník nemusí získávat review sám od sebe;
+CODEOWNERS review není povinné. Pro tým lze přidat jedno povinné schválení.
+
+Kontrola 1. 10. 2026: GitHub rulesets API vrátilo `403 Upgrade to GitHub Pro or
+make this repository public to enable this feature`. Změna běžných repo voleb
+vrátila `403 Resource not accessible by integration`. Tato pravidla tedy **nejsou
+aktivovaná**. Repozitář zůstává privátní; tarif ani přístupová práva se nemění.
+Majitel s repo admin oprávněním a podporovaným tarifem může použít:
+
+```bash
+# Nejdřív zobrazí konkrétní konfiguraci bez změn:
+bash scripts/ci/apply-repository-settings.sh
+# Aplikuje běžné volby a vytvoří/aktualizuje pouze pojmenovaný main ruleset:
+bash scripts/ci/apply-repository-settings.sh --apply
+```
+
+Skript je opakovatelný, nedotýká se jiných rulesets a při chybě API skončí.
+Běžné volby může admin nastavit i bez Pro, pravidlo větve vyžaduje uvedený tarif.
+CI gate lze do té doby používat jako kontrolu před merge, GitHub jej ale
+nevynucuje. Podpisové prostředí `ios-signing` a `backend-production` mají mít
+povoleny deploymenty pouze z `main`; přístup k jejich správě nebyl dostupný.

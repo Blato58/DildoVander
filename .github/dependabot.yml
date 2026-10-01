@@ -1,0 +1,29 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ['*']
+    open-pull-requests-limit: 3
+  - package-ecosystem: nuget
+    directory: /kufr/backend
+    schedule:
+      interval: weekly
+    groups:
+      backend:
+        patterns: ['*']
+    open-pull-requests-limit: 3
+  - package-ecosystem: npm
+    directories:
+      - /kufr/mobilni-aplikace
+      - /kufr/contracts
+      - /kufr/simulator
+    schedule:
+      interval: weekly
+    groups:
+      npm:
+        patterns: ['*']
+    open-pull-requests-limit: 3

@@ -1,18 +1,7 @@
-name: Kufr firmware
+name: Build Kufr firmware
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - kufr/firmware/**
-      - kufr/contracts/**
-      - .github/workflows/kufr-firmware.yml
-  pull_request:
-    paths:
-      - kufr/firmware/**
-      - kufr/contracts/**
-      - .github/workflows/kufr-firmware.yml
-  workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -20,8 +9,11 @@ permissions:
 jobs:
   host-tests:
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: kufr/contracts/.nvmrc
@@ -370,8 +362,18 @@ jobs:
 
   firmware-build:
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.platformio/packages
+            ~/.platformio/platforms
+            ~/.cache/pip
+          key: pio-${{ runner.os }}-6.2.0-${{ hashFiles('kufr/firmware/platformio.ini', 'kufr/firmware/dependencies.lock.md') }}
       - name: Install pinned PlatformIO Core
         shell: bash
         run: |
@@ -386,3 +388,20 @@ jobs:
         shell: bash
         run: |
           "$RUNNER_TEMP/platformio-venv/bin/pio" run -d kufr/firmware -e esp32-s3-arduino-serial -s
+      - name: Bundle flashable firmware outputs without device credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          for profile in esp32-s3-idf esp32-s3-arduino-serial; do
+            mkdir -p "$RUNNER_TEMP/firmware/$profile"
+            cp kufr/firmware/.pio/build/"$profile"/*.bin "$RUNNER_TEMP/firmware/$profile/"
+            cp kufr/firmware/.pio/build/"$profile"/firmware.elf "$RUNNER_TEMP/firmware/$profile/"
+          done
+          python3 scripts/ci/package.py pack "$RUNNER_TEMP/firmware" "$RUNNER_TEMP/firmware-package"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: firmware
+          path: ${{ runner.temp }}/firmware-package/
+          if-no-files-found: error
+          retention-days: 14
+          overwrite: true

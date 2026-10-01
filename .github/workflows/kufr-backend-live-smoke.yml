@@ -28,5 +28,7 @@ jobs:
       DIALOG_EXPECTATION: ${{ inputs.dialog_mode || 'fake' }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Verify deployed dialogue through loopback API
         run: python3 kufr/backend/tests/deployed_smoke.py
