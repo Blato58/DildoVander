@@ -1,6 +1,6 @@
 # Backend kufru (E7)
 
-D114/D115 přidávají přímý Realtime hlas přes oficiální OpenAI .NET SDK 2.14.0,
+D114/D116 přidávají přímý Realtime hlas přes oficiální OpenAI .NET SDK 2.14.0,
 model `gpt-realtime-1.5`. Textový Sol i dosavadní fake/STT/Sol/TTS zůstávají.
 `POST /v1/conversations/{id}/realtime-turns` vyžaduje device token, UUID
 idempotency key, audio souhlas a režimy `responses` / `openai`.
@@ -8,7 +8,7 @@ OpenAI klíč zůstává na backendu. SDK obsluhuje typované příkazy a událo
 omezený transport odmítá redirect a WebSocket zprávu nad 256 KiB.
 Realtime SDK API je experimental, proto je verze připnutá a serializace
 PTT ověřená testem. Backend připojení používá GA API bez beta hlavičky.
-Výchozí iOS Debug používá D115, jedno provider spojení pro celý rozhovor:
+Výchozí iOS Debug používá D116, jedno provider spojení pro celý rozhovor:
 `POST /v1/conversations/{id}/realtime-live` přijímá opening JSON do 4096 B
 a vrací dlouhý NDJSON stream. `session` obsahuje `streamId`, `listening`
 nové `inputId`. Telefon průběžně posílá PCM16 mono 24 kHz přes
@@ -72,7 +72,7 @@ se mezi tahy odstraní a backend vloží aktuální omezenou paměť/history.
 Před nasazením ověřit
 skutečné stropy a odsouhlasený rozpočet, nezvyšovat je automaticky.
 Lokální testy nedokládají latenci ani kvalitu placeného hlasu.
-Autorizovanou syntetickou zkoušku D115 spouští `kufr-backend-realtime-live.yml`:
+Autorizovanou syntetickou zkoušku D116 spouští `kufr-backend-realtime-live.yml`:
 jeden rozhovor s českou offline syntetickou řečí, nejvýše čtyři odpovědi,
 session cap musí být kladný a nejvýše 1 USD. Report měří první audio,
 celý tah a konzervativní náklad, ukončí sezení a obnoví předchozí večer.

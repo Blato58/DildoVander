@@ -1,6 +1,6 @@
 # Implementační plán AI kufru
 
-> **Změna zadání 1. 10. 2026 (D115): hlas bez opakovaného mačkání.**
+> **Změna zadání 1. 10. 2026 (D116): hlas bez opakovaného mačkání.**
 > Po instalaci D114 majitel žádá automatické střídání poslechu a řeči;
 > druhá odpověď v PTT navíc zůstává bez výsledku. Výchozí iOS Debug drží
 > jeden provider Realtime WebSocket po celý rozhovor. Telefon odesílá
@@ -70,7 +70,7 @@ První provozní verze tedy pracuje samostatně **z hlediska telefonu**, nikoli 
 | Backend | **ASP.NET Core 10 LTS**, jeden proces, Minimal APIs a vertical slices, SQLite pro přístupy, limity a technický audit. Linux kontejner na jedné malé VM v EU. | Provoz VM a aktualizace. TypeScript backend by sdílel jazyk klienta, ale zde převažuje jednoduchý .NET provoz a testování. Serverless přidává cold start a limity běhu/úložiště. Při více instancích přejít na PostgreSQL a sdílenou idempotenci/kvóty. |
 | Vlastník řízení | **ESP32 iniciuje HTTPS spojení s backendem a orchestruje rozhovor.** Backend vrací data, nemá endpoint ani push kanál pro otevírání. Autonomní přijetí a sekvenci vlastní firmware. Mobil je místní záloha. | Vyžaduje device identitu, TLS, správu paměti a nový conversation slice ve firmware. Pro S3 N16R8 je omezený PTT přenos realistický; nutné potvrdit heap/DMA/PSRAM zátěžovým testem. Telefonní most je záložní architektonická varianta jen při nevyhovujících měřeních. |
 | AI | Responses Sol pro text; Realtime 1.5 pro přímý hlas. Validované funkce určují návrh. Bez agentního frameworku, RAG nebo nástrojů řídících zařízení. | Internet, rozpočet a variabilní latence. První Realtime slice je iOS Debug; samostatný ESP32 hlas vyžaduje E9. |
-| Hlas | iOS Debug: **průběžný Realtime poslech se server VAD**, mikrofon se zavírá během přehrávání. PTT a STT → Sol → TTS jsou zálohy. | D115 drží jedno provider spojení a automaticky pokračuje po dohrání. Přerušování řeči a samostatný ESP32 hlas vyžadují další práci E9. Latenci/kvalitu změřit po nasazení; místní bezpečnost výběru zůstává v ESP32. |
+| Hlas | iOS Debug: **průběžný Realtime poslech se server VAD**, mikrofon se zavírá během přehrávání. PTT a STT → Sol → TTS jsou zálohy. | D116 drží jedno provider spojení a automaticky pokračuje po dohrání. Přerušování řeči a samostatný ESP32 hlas vyžadují další práci E9. Latenci/kvalitu změřit po nasazení; místní bezpečnost výběru zůstává v ESP32. |
 | Firmware runtime | Pro síťovou etapu přejít na **ESP-IDF 6.1 přes stávající PlatformIO 7.1.3**, zachovat čisté C++ jádro a vertical slices. | Malá migrace `main.cpp` a sériového adaptéru. Důvodem je konfigurovatelný oficiální WSS server, I2S, watchdog a NVS; manifest platformy rozlišuje Arduino 2.0.17 a ESP-IDF 6.1. Nemíchat návody nového IDF s existujícím Arduino runtime. K Arduinu se vrátit jen při doloženém jednodušším a udržovaném řešení všech těchto potřeb. |
 | Kamera | Nejprve žádná; první obrazový experiment kamerou telefonu. Kufrovou OV5640 + MicroSD dodat až jako samostatný profil. | GPIO a výkon jsou těsné. Obraz je jen volitelný popis kostýmu, nikdy identita člověka či povel aktuátoru. |
 

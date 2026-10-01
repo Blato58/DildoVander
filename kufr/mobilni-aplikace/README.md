@@ -220,6 +220,12 @@ experimentální API. Deklarace `vite/client` pokrývají import CSS a assetů.
 
 Pro E2 simulátor nejprve sestavte mobilní web pomocí `npm run build`, spusťte E2 WSS server a pak místní most podle [návodu simulátoru](../simulator/README.md). Stránka na `http://127.0.0.1:5174` vybere simulátor podle odpovědi `/dev-mode`; Vite stránka zůstává na fake adaptéru. Web nevidí bearer token ani certifikát upstreamu. Po ztrátě spojení zablokuje povely a ukáže nedostupný stav; nejasný výsledek předchozího výběru vyžaduje kontrolu mimo UI. Snapshot a ACK simulátoru nejsou důkaz fyzického otevření.
 
+Horní přepínače Ovládání/Debug respektují iOS safe area. Viewport má
+`viewport-fit=cover`; sticky lišta přidává `safe-area-inset-top` k hornímu
+odsazení a boční insets k minimálním okrajům. Hodnoty dodává WebKit podle
+zařízení a orientace, takže výřez nepřekrývá taby ani po scrollování.
+Ve webovém režimu s nulovými insets zůstává původní odsazení.
+
 ## Etapy a vzdálený iOS build
 
 E3a má zdrojový projekt `ios/App/App.xcodeproj`, sdílené scheme `App` a [CI workflow](../../.github/workflows/kufr-ios.yml). Capacitor `@capacitor/core`, CLI a iOS jsou připnuté na 8.5.2. Po změně webu lze na Macu synchronizovat balíček příkazy:
