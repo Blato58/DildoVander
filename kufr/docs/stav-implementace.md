@@ -6,6 +6,8 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**Kontrola pokračování 1. 10. (D105):** majitel znovu potvrdil, že podklady B1 nemá. Porovnání živého runtime a nezávislý průchod zbývajících mobilních/backendových etap nenalezly další krok se splněnými závislostmi. Další krok zůstává B1; firmware README bylo opraveno podle již složeného WSS runtime.
+
 **Předání 1. 10.: nezávislé E10.1–3 a E4.4t dokončené v softwarovém rozsahu, další krok B1.** Nativní transport/TLS/Keychain ([PR #65](https://github.com/Blato58/DildoVander/pull/65), merge `5f54104b783c8cf2fc7e1885276322d535681f7b`), text/cancel/result ([PR #66](https://github.com/Blato58/DildoVander/pull/66), merge `ed7ea0212a9f345f78da32caf51abf6e1a57dc9c`) a firmware/nativní Bonjour ([PR #67](https://github.com/Blato58/DildoVander/pull/67), merge `6315857414e2c6030e991f3ddda43aa21ceee28a`) jsou po příslušných zelených CI sloučené a ověřené scoped fetch/fast-forward na `main`. E10 fyzická akceptace, servisní provisioning/QR a audio zůstávají otevřené; firmware nadále odmítá zotavení bez B1.
 
 **D75/D76 ověřeny v softwarovém rozsahu:** nativní AI funkce, trvalá paměť, pouze Sol, skutečný adaptivní rozhovor přes nasazený backend a hostitelský replay jeho návrhu. [Přepis a důkazy](../ai-eval/reports/2026-09-30-live-backend-dialogue.md). Server běží v `responses` s `gpt-6.1-sol`; testovací sezení uzavřena a syntetický večer vymazán. Fyzická integrace ESP32 a samostatný hlas zůstávají otevřené.
@@ -87,6 +89,13 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 | B5 | Katalog šesti původních hůlek a Harry Potter / Ollivander tematickou roli majitel svěřil nezávislému agentovi; zdroj je `ai-eval/wand-catalog.json` (D72). Stále chybí rozměry, router, prostředí akce a živé obsahové hodnocení s hosty. | Provozní akceptaci E8/E11, fyzické mapování hůlek a finální mechaniku. | Sdílený tematický katalog, vývojové a simulované scénáře; skutečné přihrádky až s HW. |
 
 ## Deník změn a ověření
+### D105 – 1. 10. 2026 – ověřená blokace pokračování bez B1
+
+- Převzetí: čistý `main` na `5b4ce39`; scoped `git fetch origin main` a `git rev-list --left-right --count HEAD...origin/main` potvrdily `0 0`. Plán, stav a skutečný runtime byly znovu porovnány. Majitel v tomto pokračování výslovně potvrdil, že podklady B1 zatím nemá.
+- Evidence: `espidf_main.cpp` skládá provisionovaný TLS/WSS server, owner a backendovou síť, ale `UnverifiedInspection::InspectionAllowsRecovery()` vrací false, kalibrace zůstává 0 a safety port pouze loguje bez GPIO. Nezávislý read-only průchod mobilu/backendu potvrdil existující native transport/text/Bonjour a fake audio API. Servisní USB/AP a konkrétní QR envelope čekají na fyzickou bránu; E5/E6, E9 a telefonní audio mají nesplněné závislosti. E12/E13 zůstávají odložené. Nový proveditelný implementační slice podle plánu nebyl nalezen.
+- Rozsah změn: firmware README opravuje zastaralé tvrzení o chybějícím WSS parseru/session/gateway a upřesňuje, že owner bránu vytváří při převzetí autentizovaného spojení, před hello/welcome. Tento zápis zachovává historická ověření D101–D104 a jejich rozsah. Kód, kontrakty a konfigurace se nemění.
+- Ověření a předání: PowerShell kontrola obou změněných Markdown souborů ověřila 17 místních odkazů a vyvážené code fences; inventura všech 15 etap se shoduje s plánem. `git diff --check` prošlo a diff obsahuje pouze tento stav a firmware README. Aplikační buildy/testy se při dokumentační změně neopakují. Neprovedeno: HW/iPhone akceptace, placený AI test, podpis/publikace IPA, deployment ani firmware flash. Další krok zůstává doložená B1, potom fyzicky střežené provisionování a E4/E5 na jedné přihrádce.
+
 ### D104 – 1. 10. 2026 – předání dokončených nezávislých slices na B1
 
 - D101–D103 jsou doručené na `main`, nikoli pouze místní návrhy: native transport/párování/Keychain, device-owned text/cancel/result a firmware/nativní Bonjour s ručním adresním fallbackem. D103 finální commity `043fd729087ca0c47a3fb2fe99468572183625ac`, `5e212ca4310f0a70ae60386d6a3892e3c7e99bb0`, `a9a34427eb8f0407f96176096bc1492872cf813c` a `e0be0dad1ca8925b7dfe318112228f286f00821e` byly ověřeně pushnuty projektovým skriptem. [PR #67](https://github.com/Blato58/DildoVander/pull/67) bez konfliktů/diff mimo scope sloučen jako `6315857414e2c6030e991f3ddda43aa21ceee28a`; scoped fetch a fast-forward lokální main tento merge ověřily.
