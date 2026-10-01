@@ -6,6 +6,7 @@ import {
   type DeviceSnapshot,
 } from './features/device_connection/FakeDeviceConnection';
 import { SimulatorDeviceConnection } from './features/device_connection/SimulatorDeviceConnection';
+import { DebugPanel } from './features/debug/DebugPanel';
 
 type PendingAction = {
   kind: 'select' | 'reload';
@@ -46,6 +47,45 @@ conversationPanel.innerHTML = `
   <p role="status"></p>
   <div class="conversation-reply" hidden><strong></strong><p></p></div>`;
 app.after(conversationPanel);
+const controlPanel = document.createElement('div');
+controlPanel.id = 'control-panel';
+controlPanel.setAttribute('role', 'tabpanel');
+controlPanel.setAttribute('aria-labelledby', 'tab-control');
+app.before(controlPanel);
+controlPanel.append(app, conversationPanel);
+const debugPanel = new DebugPanel(nativeMode, () => {
+  pendingAction = null;
+  connection?.stop();
+});
+controlPanel.after(debugPanel.element);
+const tabs = document.createElement('nav');
+tabs.className = 'app-tabs';
+tabs.setAttribute('aria-label', 'Sekce aplikace');
+tabs.innerHTML = `<div role="tablist" aria-label="Sekce aplikace">
+  <button type="button" role="tab" id="tab-control" aria-controls="control-panel" aria-selected="true">Ovládání</button>
+  <button type="button" role="tab" id="tab-debug" aria-controls="debug-panel" aria-selected="false" tabindex="-1">Debug</button></div>`;
+controlPanel.before(tabs);
+function selectTab(debug: boolean): void {
+  controlPanel.hidden = debug;
+  debugPanel.show(debug);
+  for (const button of Array.from(tabs.querySelectorAll<HTMLButtonElement>('[role="tab"]'))) {
+    const selected = (button.id === 'tab-debug') === debug;
+    button.setAttribute('aria-selected', String(selected));
+    button.tabIndex = selected ? 0 : -1;
+  }
+}
+tabs.addEventListener('click', (event) => {
+  const button = (event.target as HTMLElement).closest('[role="tab"]');
+  if (button) { selectTab(button.id === 'tab-debug'); }
+});
+tabs.addEventListener('keydown', (event) => {
+  if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+    event.preventDefault();
+    const debug = event.key === 'End' || (event.key !== 'Home' && controlPanel.hidden === false);
+    selectTab(debug);
+    tabs.querySelector<HTMLButtonElement>('[aria-selected="true"]')!.focus();
+  }
+});
 const conversationForm = conversationPanel.querySelector<HTMLFormElement>('form')!;
 const visitorText = conversationPanel.querySelector<HTMLTextAreaElement>('textarea')!;
 const sendTextButton = conversationPanel.querySelector<HTMLButtonElement>('[type="submit"]')!;
@@ -85,6 +125,7 @@ function render(snapshot: DeviceSnapshot): void {
     pendingAction = null;
   }
   currentSnapshot = snapshot;
+  debugPanel.update(snapshot);
   renderConversation(snapshot);
   const canControl = snapshot.controlMode === 'manual' && snapshot.phase === 'ready' &&
     !snapshot.busy && !snapshot.conversation?.pending;

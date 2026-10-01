@@ -7,6 +7,22 @@
 
 * { box-sizing: border-box; }
 body { margin: 0; min-height: 100vh; }
+[hidden] { display: none !important; }
+.app-tabs { position: sticky; top: 0; z-index: 5; background: #242a33; border-bottom: 1px solid #45505a; padding: .75rem max(1.25rem, calc((100vw - 68rem) / 2)); }
+.app-tabs [role="tablist"] { display: flex; gap: .75rem; }
+.app-tabs [aria-selected="true"] { background: #f8bd68; color: #182027; }
+.debug-panel { max-width: 68rem; margin: auto; padding: 1.5rem 1.25rem 3rem; }
+.debug-heading { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.debug-heading h1 { margin-bottom: .25rem; }
+.debug-card { margin-top: 1.25rem; padding: 1.25rem; background: #252b34; border: 1px solid #4b5866; border-radius: .55rem; }
+.debug-card p { line-height: 1.5; }
+.debug-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.debug-metrics dt { font-size: .85rem; color: #bfc7cd; }
+.debug-metrics dd { margin: .3rem 0 0; overflow-wrap: anywhere; }
+.debug-log { padding: 0; list-style: none; max-height: 24rem; overflow: auto; border: 1px solid #45505a; }
+.debug-log li { padding: .75rem; border-bottom: 1px solid #45505a; font: .8rem/1.5 ui-monospace, monospace; overflow-wrap: anywhere; }
+.debug-card select { font: inherit; padding: .65rem; color: #fff; background: #424b56; border: 1px solid #83909d; border-radius: .4rem; }
+.debug-card select:focus-visible { outline: 3px solid #f8bd68; }
 button { font: inherit; cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .45; }
 button:focus-visible { outline: 3px solid #f8bd68; outline-offset: 3px; }
@@ -63,6 +79,9 @@ button.stop:hover:not(:disabled) { background: #b93b42; }
 .footnote { color: #bfc7cd; font-size: .85rem; margin-top: 2rem; }
 
 @media (max-width: 650px) {
+  .debug-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .debug-heading { align-items: flex-start; }
+  .debug-card .actions > button { width: 100%; }
   .overview { grid-template-columns: 1fr 1fr; }
   .overview > div:last-child { grid-column: 1 / -1; }
   .compartments { grid-template-columns: 1fr; }

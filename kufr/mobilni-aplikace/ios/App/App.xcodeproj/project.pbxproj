@@ -20,6 +20,8 @@
 		AE1000000000000000000103 /* KufrDeviceTransportPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE1000000000000000000003 /* KufrDeviceTransportPlugin.swift */; };
 		AE1000000000000000000104 /* KufrBridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE1000000000000000000004 /* KufrBridgeViewController.swift */; };
 		AE1000000000000000000105 /* LocalDeviceDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE1000000000000000000005 /* LocalDeviceDiscovery.swift */; };
+		AE1000000000000000000106 /* DebugBackendClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE1000000000000000000006 /* DebugBackendClient.swift */; };
+		AE1000000000000000000107 /* KufrDebugPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE1000000000000000000007 /* KufrDebugPlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -38,6 +40,8 @@
 		AE1000000000000000000003 /* KufrDeviceTransportPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KufrDeviceTransportPlugin.swift; sourceTree = "<group>"; };
 		AE1000000000000000000004 /* KufrBridgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KufrBridgeViewController.swift; sourceTree = "<group>"; };
 		AE1000000000000000000005 /* LocalDeviceDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDeviceDiscovery.swift; sourceTree = "<group>"; };
+		AE1000000000000000000006 /* DebugBackendClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugBackendClient.swift; sourceTree = "<group>"; };
+		AE1000000000000000000007 /* KufrDebugPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KufrDebugPlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -79,6 +83,8 @@
 				AE1000000000000000000002 /* LocalDeviceTransport.swift */,
 				AE1000000000000000000001 /* LocalDeviceIdentity.swift */,
 				AE1000000000000000000005 /* LocalDeviceDiscovery.swift */,
+				AE1000000000000000000006 /* DebugBackendClient.swift */,
+				AE1000000000000000000007 /* KufrDebugPlugin.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -176,6 +182,8 @@
 				AE1000000000000000000102 /* LocalDeviceTransport.swift in Sources */,
 				AE1000000000000000000101 /* LocalDeviceIdentity.swift in Sources */,
 				AE1000000000000000000105 /* LocalDeviceDiscovery.swift in Sources */,
+				AE1000000000000000000106 /* DebugBackendClient.swift in Sources */,
+				AE1000000000000000000107 /* KufrDebugPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -399,6 +399,21 @@ nezávislého softwaru; kritéria dokončení E9 se nesnižují.
 
 ### Průběh samostatného hlasového tahu
 
+**Diagnostická výjimka D108 (zadání majitele 1. 10.):** iOS Debug může nezávisle
+testovat backendový opening → speech → WAV → reproduktor telefonu. Nejde o běžný
+cloudový prostředník ESP: používá samostatnou provisionovanou identitu `debug-*`,
+masku dostupnosti 0 a žádné místní řídicí povely/lease. Credential zadá obsluha
+v zabezpečeném nativním dialogu; není v JS, IPA ani logu a nastavení se při pozadí
+zneplatní. HTTPS zachovává systémové PKI a odmítá redirecty. Nové autentizované
+`GET /v1/diagnostics` pouze čte provider režimy/katalog/audio formát, nic negeneruje.
+Test výslovně odlišuje systémový hlas, fake tiché WAV a skutečné OpenAI TTS,
+používá stávající limity/operace a uklízí jen vlastní sezení. Ztracená create
+odpověď a DELETE se opakují nejvýše jednou se stejným klíčem a tělem; nevyřešená
+nejistota vyžaduje expiraci testovacího sezení. Paměť testovacího večera se
+automaticky nemaže. Bez nasazení backendu s D106/D108 a testovací identity není
+živý AI test dostupný. Tato cesta nedokazuje audio kufru, GPIO ani fyzickou E10
+akceptaci; mikrofon a STT test nejsou součástí D108.
+
 1. Po fyzické kontrole a aktivaci samostatného režimu kufr přehraje informaci o cloudovém zpracování a nabídne PTT. Teprve vědomý stisk začne nahrávat; firmware vytvoří sezení backendu a drží jeho identifikátory. Žádný telefonní lease se nevyžaduje.
 2. Nahrává právě jeden zdroj: mikrofon kufru **nebo** telefonu. PTT se uvolněním ukončí; automatický strop 30 s, minimálně 300 ms. Nahrávání má zřetelnou indikaci na kufru i telefonu, samotné podsvícení tlačítka napájené napevno ji nenahrazuje.
 3. ESP32 sestaví WAV v PSRAM a odešle jej přímo backendu. V samostatném režimu automaticky po přepisu pokračuje textovým tahem; špatnému porozumění lze oponovat další replikou. V asistovaném režimu telefon přepis ukáže a pošle opravený text přes ESP32. Přepis nikdy není příkaz fyzického ovládání.
