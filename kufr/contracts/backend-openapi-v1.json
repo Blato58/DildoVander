@@ -8,6 +8,40 @@
   "servers": [{ "url": "https://localhost:7043", "description": "Local development only" }],
   "security": [{ "DeviceAccess": [] }],
   "paths": {
+    "/v1/admin/modes": {
+      "get": {
+        "operationId": "readServerModes",
+        "summary": "Read global runtime modes and provider availability without provider calls",
+        "security": [{ "ServerAdmin": [] }],
+        "responses": {
+          "200": {
+            "description": "Confirmed state; modes last until restart, then deployment configuration applies",
+            "headers": { "Cache-Control": { "schema": { "type": "string", "const": "no-store" } } },
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ServerModes" } } }
+          },
+          "401": { "$ref": "#/components/responses/Problem" }
+        }
+      },
+      "put": {
+        "operationId": "changeServerModes",
+        "summary": "Change global modes using an observed revision when no conversation or provider call is active",
+        "security": [{ "ServerAdmin": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ServerModeChange" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Confirmed state or no-op; no provider call is made",
+            "headers": { "Cache-Control": { "schema": { "type": "string", "const": "no-store" } } },
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ServerModes" } } }
+          },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Problem" },
+          "409": { "$ref": "#/components/responses/Problem", "description": "mode_revision_mismatch, conversations_active or provider_unavailable; refresh before another change" }
+        }
+      }
+    },
     "/v1/diagnostics": {
       "get": {
         "operationId": "getBackendDiagnostics",
@@ -345,6 +379,10 @@
 },
   "components": {
     "securitySchemes": {
+      "ServerAdmin": {
+        "type": "http", "scheme": "bearer",
+        "description": "Separate server admin credential; neither ESP device credentials nor access tokens grant this authority"
+      },
       "DeviceCredential": { "type": "http", "scheme": "bearer", "description": "Unique service-provisioned device credential, never placed in a URL or firmware image" },
       "DeviceAccess": { "type": "http", "scheme": "bearer", "description": "15-minute device-scoped access token" }
     },
@@ -368,6 +406,28 @@
       }
     },
     "schemas": {
+      "ServerModeChange": {
+        "type": "object",
+        "required": ["expectedRevision", "dialogMode", "voiceMode"],
+        "properties": {
+          "expectedRevision": { "type": "string", "format": "uuid" },
+          "dialogMode": { "enum": ["fake", "responses"] },
+          "voiceMode": { "enum": ["fake", "openai"] }
+        }
+      },
+      "ServerModes": {
+        "type": "object", "additionalProperties": false,
+        "required": ["revision", "dialogMode", "voiceMode", "dialogAvailable", "voiceAvailable", "activeConversations", "lifetime"],
+        "properties": {
+          "revision": { "type": "string", "format": "uuid" },
+          "dialogMode": { "enum": ["fake", "responses"] },
+          "voiceMode": { "enum": ["fake", "openai"] },
+          "dialogAvailable": { "type": "boolean" },
+          "voiceAvailable": { "type": "boolean" },
+          "activeConversations": { "type": "integer", "minimum": 0 },
+          "lifetime": { "const": "until_restart" }
+        }
+      },
       "DeviceToken": {
         "type": "object", "additionalProperties": false,
         "required": ["accessToken", "tokenType", "expiresInSeconds", "deviceId"],

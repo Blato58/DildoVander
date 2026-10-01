@@ -6,6 +6,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 4096);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<DeviceAccessStore>();
+builder.Services.AddSingleton<ServerAdminAccess>();
 builder.Services.AddSingleton<OperationJournal>();
 builder.Services.AddSingleton<TextDialogRunner>();
 builder.Services.AddSingleton<VoiceProviderRunner>();
@@ -30,18 +31,20 @@ app.Use(async (context, next) =>
 
 app.MapDeviceAccess();
 app.MapConversations();
+app.MapServerModes();
 app.MapGet("/v1/diagnostics", (HttpContext context, DeviceAccessStore access,
-    VoiceProviderRunner voice, TextDialogRunner dialog) =>
+    ConversationStore conversations) =>
 {
     if (DeviceAccessEndpoints.Authenticate(context, access) is null)
     {
         return ApiProblem.Create(context, 401, "access_token_required");
     }
 
+    var modes = conversations.ReadServerModes();
     return Results.Ok(new
     {
-        voiceMode = voice.Enabled ? "openai" : "fake",
-        dialogMode = dialog.Enabled ? "responses" : "fake",
+        voiceMode = modes.VoiceMode,
+        dialogMode = modes.DialogMode,
         catalogVersion = PartyWandCatalog.Version,
         audioFormat = "pcm16-mono-32000-wav"
     });

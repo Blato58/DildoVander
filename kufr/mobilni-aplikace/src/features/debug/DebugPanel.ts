@@ -7,11 +7,23 @@ interface VoiceStatus {
   running: boolean;
   phase: 'idle' | 'checking' | 'opening' | 'speech' | 'playing' | 'completed' | 'cancelled' | 'failed';
   mode: 'unknown' | 'fake' | 'openai';
+  server?: ServerModes | null;
+}
+interface ServerModes {
+  revision: string;
+  dialogMode: 'fake' | 'responses';
+  voiceMode: 'fake' | 'openai';
+  dialogAvailable: boolean;
+  voiceAvailable: boolean;
+  activeConversations: number;
+  lifetime: 'until_restart';
 }
 interface DebugBridge {
   status(): Promise<VoiceStatus>;
   configure(): Promise<void>;
   inspectBackend(): Promise<void>;
+  inspectServer(): Promise<void>;
+  changeServerModes(options: { expectedRevision: string; dialogMode: string; voiceMode: string }): Promise<void>;
   runOpeningSpeech(options: { expectedMode: 'fake' | 'openai' }): Promise<void>;
   speakSystem(): Promise<void>;
   stop(): Promise<void>;
@@ -21,7 +33,7 @@ const bridge = registerPlugin<DebugBridge>('KufrDebug');
 const phases: Record<VoiceStatus['phase'], string> = {
   idle: 'Připraveno', checking: 'Ověřuji backend', opening: 'Čekám na úvodní repliku',
   speech: 'Generuji hlas', playing: 'Přehrávám na telefonu', completed: 'Dokončeno',
-  cancelled: 'Zastaveno', failed: 'Test selhal; ověřte přístup, server a jeho AI limity',
+  cancelled: 'Zastaveno', failed: 'Akce selhala; ověřte přístup, server a jeho AI limity',
 };
 
 export class DebugPanel {
@@ -32,6 +44,7 @@ export class DebugPanel {
   private visible = false;
   private category: DebugCategory | 'all' = 'all';
   private pending = false;
+  private serverRevision?: string;
   private voice: VoiceStatus = { configured: false, running: false, phase: 'idle', mode: 'unknown' };
 
   constructor(private readonly native: boolean, private readonly stopDevice: () => void) {
@@ -44,23 +57,38 @@ export class DebugPanel {
       <div class="debug-heading"><div><span class="eyebrow">SERVIS A TESTOVÁNÍ</span><h1>Debug</h1></div>
         <button type="button" class="stop" data-debug="esp-stop" disabled>Stop kufru</button></div>
       <p>Záložka sleduje existující spojení. Pro pozorování není nutné převzít řízení.</p>
+      <p data-voice-error role="alert" hidden></p>
       <section class="debug-card" aria-labelledby="esp-heading"><h2 id="esp-heading">Běh ESP</h2>
         <p data-source></p><dl class="debug-metrics"></dl>
         <p data-freshness></p>
         <p class="footnote">Údaje pocházejí z přijatých snapshotů. GPIO, napájení ani fyzický pohyb z nich nelze ověřit.</p></section>
+      <section class="debug-card" aria-labelledby="server-heading"><h2 id="server-heading">Server</h2>
+        <p>Změna platí pro celý backend do restartu. Režim lze změnit mezi rozhovory.
+          AI režim může čerpat serverový limit až při spuštění testu nebo rozhovoru.</p>
+        <div class="actions">
+          <button type="button" data-debug="configure">Nastavit serverový / testovací přístup</button>
+          <button type="button" data-debug="server-inspect">Obnovit stav serveru</button>
+          <label>Dialog <select aria-label="Režim dialogu" data-server="dialog">
+            <option value="fake">Fake</option><option value="responses">AI · Sol</option></select></label>
+          <label>Hlas <select aria-label="Režim hlasu" data-server="voice">
+            <option value="fake">Fake · tiché WAV</option><option value="openai">AI · STT / TTS</option></select></label>
+          <button type="button" class="primary" data-debug="server-apply">Použít režimy serveru</button>
+        </div>
+        <p data-server-status role="status"></p>
+        <p class="footnote">Správa vyžaduje samostatný credential správce a testovací ID debug-server-admin.
+          Běžný přístup kufru nestačí. Po restartu platí režimy nasazení; obnovte stav.</p></section>
       <section class="debug-card" aria-labelledby="voice-heading"><h2 id="voice-heading">Hlas</h2>
         <p>AI test přehraje úvodní repliku na telefonu. Neovládá pohony ani reproduktor kufru.
           Vyžaduje samostatné testovací device ID a credential backendu; místní párovací token sem nepatří.
           Replika se může uložit do paměti testovacího večera a test může čerpat serverový AI limit.</p>
         <div class="actions">
           <button type="button" data-debug="system">Test reproduktoru telefonu</button>
-          <button type="button" data-debug="configure">Nastavit testovací backend</button>
           <button type="button" data-debug="inspect">Ověřit backend</button>
           <button type="button" class="primary" data-debug="ai">Test AI hlasu</button>
           <button type="button" data-debug="fake">Test fake audio toku</button>
           <button type="button" data-debug="voice-stop">Zastavit hlas</button>
         </div>
-        <p data-voice-status role="status"></p><p data-voice-error role="alert" hidden></p>
+        <p data-voice-status role="status"></p>
         <p class="footnote">Systémový hlas telefonu není AI TTS. Fake backend vrací tiché testovací WAV.
           Nastavení backendu žije jen v nativní paměti do pozadí nebo ukončení aplikace.</p></section>
       <section class="debug-card" aria-labelledby="log-heading"><h2 id="log-heading">Log aplikace</h2>
@@ -78,7 +106,7 @@ export class DebugPanel {
       const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-debug]');
       if (button && !button.disabled) { void this.actionAsync(button.dataset.debug!); }
     });
-    this.element.querySelector('select')!.addEventListener('change', (event) => {
+    this.element.querySelector('[aria-label="Filtr logu"]')!.addEventListener('change', (event) => {
       this.category = (event.target as HTMLSelectElement).value as DebugCategory | 'all';
       this.renderLog();
     });
@@ -156,16 +184,38 @@ export class DebugPanel {
   }
 
   private renderVoice(): void {
-    for (const name of ['system', 'configure', 'inspect', 'ai', 'fake']) {
+    for (const name of ['system', 'configure', 'inspect', 'ai', 'fake', 'server-inspect', 'server-apply']) {
       this.button(name).disabled = !this.native || this.pending || this.voice.running;
     }
     this.button('inspect').disabled ||= !this.voice.configured;
     this.button('ai').disabled ||= !this.voice.configured || this.voice.mode !== 'openai';
     this.button('fake').disabled ||= !this.voice.configured || this.voice.mode !== 'fake';
+    this.button('fake').disabled ||= this.voice.server?.dialogMode === 'responses';
+    this.renderServer();
     this.button('voice-stop').disabled = !this.native || (!this.pending && !this.voice.running);
     this.element.querySelector('[data-voice-status]')!.textContent = !this.native
       ? 'Hlasové testy jsou dostupné v nativní iOS aplikaci.'
       : `${phases[this.voice.phase] ?? phases.failed} · backend ${this.voice.mode === 'openai' ? 'AI TTS' : this.voice.mode === 'fake' ? 'FAKE' : 'neověřený'}${!this.voice.configured ? ' · přístup není nastaven' : ''}`;
+  }
+
+  private renderServer(): void {
+    const server = this.voice.server;
+    const busy = !this.native || !this.voice.configured || this.pending || this.voice.running;
+    const dialog = this.element.querySelector<HTMLSelectElement>('[data-server="dialog"]')!;
+    const voice = this.element.querySelector<HTMLSelectElement>('[data-server="voice"]')!;
+    if (server?.revision !== this.serverRevision) {
+      dialog.value = server?.dialogMode ?? 'fake';
+      voice.value = server?.voiceMode ?? 'fake';
+      this.serverRevision = server?.revision;
+    }
+    dialog.options[1].disabled = !server?.dialogAvailable;
+    voice.options[1].disabled = !server?.voiceAvailable;
+    dialog.disabled = voice.disabled = busy || !server || server.activeConversations > 0;
+    this.button('server-inspect').disabled ||= !this.voice.configured;
+    this.button('server-apply').disabled ||= !server || server.activeConversations > 0;
+    this.element.querySelector('[data-server-status]')!.textContent = server
+      ? `Poslední ověřený stav: dialog ${server.dialogMode === 'responses' ? 'AI · Sol' : 'FAKE'}, hlas ${server.voiceMode === 'openai' ? 'AI · STT / TTS' : 'FAKE'}. Aktivní rozhovory: ${server.activeConversations}.`
+      : this.native ? 'Nastavte přístup správce a obnovte stav serveru.' : 'Správa serveru je dostupná v nativní iOS aplikaci.';
   }
 
   private button(name: string): HTMLButtonElement {
@@ -217,6 +267,15 @@ export class DebugPanel {
     let code: DebugCode | null = 'voice_started';
     try {
       if (action === 'configure') { await bridge.configure(); code = 'profile_changed'; }
+      else if (action === 'server-inspect') { await bridge.inspectServer(); code = 'backend_checked'; }
+      else if (action === 'server-apply') {
+        const server = this.voice.server;
+        if (!server) { return; }
+        const dialogMode = this.element.querySelector<HTMLSelectElement>('[data-server="dialog"]')!.value;
+        const voiceMode = this.element.querySelector<HTMLSelectElement>('[data-server="voice"]')!.value;
+        await bridge.changeServerModes({ expectedRevision: server.revision, dialogMode, voiceMode });
+        code = 'server_modes_changed';
+      }
       else if (action === 'inspect') { await bridge.inspectBackend(); code = 'backend_checked'; }
       else if (action === 'system') { await bridge.speakSystem(); }
       else if (action === 'ai' || action === 'fake') {
@@ -232,7 +291,9 @@ export class DebugPanel {
         this.journal.record('voice_stopped');
       } else {
         this.journal.record('voice_failed');
-        errorText.textContent = 'Akce nebyla dokončena. Ověřte HTTPS adresu, testovací debug- identitu, credential a režim serveru. Backend musí podporovat /v1/diagnostics. Po neúspěšném úklidu nebo ztracené odpovědi může být nutné počkat na expiraci testovacího sezení.';
+        errorText.textContent = action.startsWith('server-')
+          ? 'Změna nebo ověření serveru nebyly potvrzeny. Obnovte stav serveru. Zkontrolujte credential správce; probíhající rozhovor nebo změna z jiného telefonu přepnutí zablokují.'
+          : 'Akce nebyla dokončena. Ověřte HTTPS adresu, testovací debug- identitu, credential a režim serveru. Backend musí podporovat /v1/diagnostics. Po neúspěšném úklidu nebo ztracené odpovědi může být nutné počkat na expiraci testovacího sezení.';
         errorText.hidden = false;
       }
     } finally {

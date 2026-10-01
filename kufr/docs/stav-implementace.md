@@ -6,6 +6,31 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D109 – serverové režimy a aktualizace instalační IPA (rozpracováno).**
+Majitel žádá ovládání serveru v Debug a opravu staré aplikace na `/ios/`.
+Veřejná stránka nabízela release `36636991415-1`, verzi 1.0/build 10; HTTP
+`no-store` je funkční, novější unsigned CI samo nepodepisuje/nepublikuje IPA.
+Rozsah: samostatné admin hash oprávnění a oddělená `debug-server-admin` identita,
+`GET/PUT /v1/admin/modes`, dialog fake/Sol a hlas fake/STT-TTS, revize a odmítnutí
+změny za živého sezení/doznívajícího provideru, runtime platnost do restartu.
+Native profil drží credential jen v RAM, změna nemá místní řídicí povely.
+Fake test ověřuje oba režimy také po create a při neshodě uklidí vlastní sezení
+bez opening/provideru. Kontrakt a README rozšířeny, serverový workflow odvozuje
+hash ze samostatného environment secretu a veřejný smoke pouze čte/no-op,
+bez přepínání produkčních režimů nebo provider volání. Credential správce je
+provisionovaný mimo repo v `backend-production`, lokální kopie má ACL vlastníka.
+Lokálně: .NET build bez varování, backend runtime testy včetně správy/auth,
+HTTP smoke s 401/no-op/revision/capability testy, 19 mobilních testů a Vite/TS
+build prošly. Python deploy a iOS publikační testy prošly. Nové Swift testy a
+Xcode čekají na macOS CI. Kontrakty prošly; in-app Browser ověřil fake/AI
+přepnutí přes syntetický bridge, gating hlasu, konflikt/obnovení, samostatný
+filtr logu a rozložení 390/1280 px bez horizontálního přesahu a console chyb.
+Nejde o skutečný server ani iPhone. Roslyn test impact kvůli chybějící
+solution vrací `ambiguous_solution`; cílené příkazy vycházejí ze skutečných
+projektů. Další krok: dokončit kontrakty/UI, commit/push/PR/CI/merge, ruční
+backend deploy a Ad Hoc build/publish, veřejná kontrola verze a manifestu.
+Nový backend/IPA ještě nejsou publikované; iPhone/ESP akceptace se netvrdí.
+
 **D108 – iOS Debug sloučen do main po zeleném CI.**
 Záložka nabízí pozorování přijatých ESP snapshotů, omezený redigovaný log a
 nativní hlasový test na telefonu. Diagnostický backend test je oddělen od

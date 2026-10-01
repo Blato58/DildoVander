@@ -23,6 +23,22 @@ struct DebugBackendProfile {
     }
 }
 
+struct DebugServerModes: Codable {
+    let revision: String
+    let dialogMode: String
+    let voiceMode: String
+    let dialogAvailable: Bool
+    let voiceAvailable: Bool
+    let activeConversations: Int
+    let lifetime: String
+
+    var bridgeValue: [String: Any] {
+        ["revision": revision, "dialogMode": dialogMode, "voiceMode": voiceMode,
+         "dialogAvailable": dialogAvailable, "voiceAvailable": voiceAvailable,
+         "activeConversations": activeConversations, "lifetime": lifetime]
+    }
+}
+
 // Default PKI trust is retained. Redirects must never forward a device bearer.
 final class DebugNoRedirects: NSObject, URLSessionTaskDelegate {
     func urlSession(_ session: URLSession, task: URLSessionTask,
@@ -73,12 +89,38 @@ final class DebugBackendClient {
         return try await metadata(profile, token: token)
     }
 
+    func serverModes(_ profile: DebugBackendProfile, expectedRevision: String? = nil,
+                     dialogMode: String? = nil, voiceMode: String? = nil) async throws -> DebugServerModes {
+        var body: [String: Any]?
+        if let revision = expectedRevision {
+            guard UUID(uuidString: revision) != nil,
+                  let dialog = dialogMode, ["fake", "responses"].contains(dialog),
+                  let voice = voiceMode, ["fake", "openai"].contains(voice) else {
+                throw DebugBackendError.wrongMode
+            }
+            body = ["expectedRevision": revision, "dialogMode": dialog, "voiceMode": voice]
+        }
+        let value = try await json(profile, path: "v1/admin/modes", token: profile.credential,
+                                   method: body == nil ? "GET" : "PUT", body: body)
+        let data = try JSONSerialization.data(withJSONObject: value)
+        let modes = try JSONDecoder().decode(DebugServerModes.self, from: data)
+        guard UUID(uuidString: modes.revision) != nil,
+              ["fake", "responses"].contains(modes.dialogMode),
+              ["fake", "openai"].contains(modes.voiceMode),
+              modes.activeConversations >= 0, modes.lifetime == "until_restart",
+              (modes.dialogMode != "responses" || modes.dialogAvailable),
+              (modes.voiceMode != "openai" || modes.voiceAvailable) else {
+            throw DebugBackendError.invalidResponse
+        }
+        return modes
+    }
+
     func run(_ profile: DebugBackendProfile, expectedMode: String,
              phase: (String) -> Void) async throws -> Data {
         guard ["fake", "openai"].contains(expectedMode) else { throw DebugBackendError.wrongMode }
         phase("checking")
         let token = try await accessToken(profile)
-        guard try await metadata(profile, token: token) == expectedMode else { throw DebugBackendError.wrongMode }
+        guard try await metadata(profile, token: token, expectedMode: expectedMode) == expectedMode else { throw DebugBackendError.wrongMode }
         let bootId = UUID().uuidString.lowercased()
         let turnId = UUID().uuidString.lowercased()
         var conversationId: String?
@@ -91,6 +133,9 @@ final class DebugBackendClient {
             ])
             let conversation = try uuid(created, "conversationId")
             conversationId = conversation
+            // Create freezes server modes until cleanup. Recheck after it to
+            // close the race between the first inspection and admission.
+            guard try await metadata(profile, token: token, expectedMode: expectedMode) == expectedMode else { throw DebugBackendError.wrongMode }
             let correlation: [String: Any] = [
                 "deviceId": profile.deviceId, "bootId": bootId, "conversationId": conversation,
                 "clientTurnId": turnId, "generation": 0, "deviceRevision": 0
@@ -137,8 +182,11 @@ final class DebugBackendClient {
         return token
     }
 
-    private func metadata(_ profile: DebugBackendProfile, token: String) async throws -> String {
+    private func metadata(_ profile: DebugBackendProfile, token: String, expectedMode: String? = nil) async throws -> String {
         let result = try await json(profile, path: "v1/diagnostics", token: token)
+        if expectedMode == "fake" && result["dialogMode"] as? String != "fake" {
+            throw DebugBackendError.wrongMode
+        }
         guard let mode = result["voiceMode"] as? String, ["fake", "openai"].contains(mode),
               result["catalogVersion"] as? String == "ollivander-private-party-v1",
               result["audioFormat"] as? String == "pcm16-mono-32000-wav" else {
