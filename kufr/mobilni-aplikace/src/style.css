@@ -21,6 +21,20 @@ body { margin: 0; min-height: 100vh; }
 .debug-metrics dd { margin: .3rem 0 0; overflow-wrap: anywhere; }
 .debug-log { padding: 0; list-style: none; max-height: 24rem; overflow: auto; border: 1px solid #45505a; }
 .debug-log li { padding: .75rem; border-bottom: 1px solid #45505a; font: .8rem/1.5 ui-monospace, monospace; overflow-wrap: anywhere; }
+.debug-conversation fieldset { border: 1px solid #63717e; border-radius: .4rem; margin: 1rem 0; }
+.debug-ready-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .5rem; }
+.debug-ready-grid label { display: flex; align-items: center; gap: .4rem; min-height: 2.5rem; }
+.debug-ready-grid input { width: 1.2rem; height: 1.2rem; }
+.debug-conversation-options { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1rem 0; }
+.debug-conversation-options label { display: grid; gap: .35rem; min-width: 9rem; }
+.debug-transcript { padding: .5rem; list-style: none; min-height: 4rem; max-height: 24rem; overflow: auto; border: 1px solid #45505a; border-radius: .4rem; }
+.debug-transcript li { padding: .65rem .75rem; border-bottom: 1px solid #45505a; }
+.debug-transcript li:last-child { border-bottom: 0; }
+.debug-transcript p { margin: .3rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.debug-answer-label { display: block; margin-bottom: .4rem; }
+.debug-conversation textarea { width: 100%; min-width: 0; padding: .65rem; font: inherit; resize: vertical; color: #fff; background: #343d48; border: 1px solid #83909d; border-radius: .4rem; }
+.debug-conversation textarea:focus-visible { outline: 3px solid #f8bd68; }
+.debug-conversation [data-conversation-selection] { font-weight: 700; color: #f8bd68; }
 .debug-card select { font: inherit; padding: .65rem; color: #fff; background: #424b56; border: 1px solid #83909d; border-radius: .4rem; }
 .debug-card select:focus-visible { outline: 3px solid #f8bd68; }
 button { font: inherit; cursor: pointer; }
@@ -80,6 +94,7 @@ button.stop:hover:not(:disabled) { background: #b93b42; }
 
 @media (max-width: 650px) {
   .debug-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .debug-ready-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .debug-heading { align-items: flex-start; }
   .debug-card .actions > button { width: 100%; }
   .overview { grid-template-columns: 1fr 1fr; }

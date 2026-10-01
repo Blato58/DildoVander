@@ -6,6 +6,35 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D110 – interaktivní hlasový Debug připraven pro macOS CI a předání.**
+Majitel žádá menší prodlevu, volbu hlasu a celý výběr s vlastními odpověďmi;
+výslovně potvrdil hlas i psaný text. Implementována virtuální maska 0–63,
+celý přechodný přepis a validovaný návrh bez pohybových povelů, volby hlasu
+cedar/marin/onyx/coral a tempa, nativní dvoukrokové nahrávání do RAM s 30s
+limitem a STT uploadem. Stop/pozadí/interruption ruší nahrávku i vlastní
+sezení. Fake admin dialog projde čtyřmi otázkami a vybere dostupnou přihrádku;
+fake STT zůstává syntetický. Native příjem WAV je omezený po blocích mimo
+MainActor, přehrávání předchází audio cleanup RTT. Měří se dialog/TTS/stažení;
+nejde o streaming před dokončením provideru ani důkaz rychlosti na iPhonu.
+Změněné soubory: speech/provider/konverzační backend a testy/HTTP smoke,
+OpenAPI/verifier, DebugBackendClient.swift/KufrDebugPlugin.swift/Info.plist,
+DebugPanel.ts/style.css/native UI harness a plán/README/stav.
+Backend runtime testy, HTTP smoke a všechny kontrakty prošly bez provider
+volání. Mobilní testy (19) a TypeScript/Vite build prošly. In-app Browser
+prošel celým fake výběrem s textem a syntetickým mikrofonem, volbou hlasu/tempa,
+vypnutou přihrádkou, návrhem, mazáním přepisu a samostatným log filtrem;
+uživatelský text včetně HTML se vykreslí jako text a není v logu.
+Rozložení 390/1280 px bez horizontálního přesahu/console chyb.
+Read-only review vedlo k opravě souběžného cleanup, stejného klíče při release
+retry, expirace návrhu po TTS, okamžitého mazání JS obsahu při pozadí a
+odmítnutí starých status/mikrofonních callbacků. Swift harness pokrývá celý
+výběr/STT/korelaci/expiraci a skutečný omezený loopback chunk/redirect/cancel;
+Node fixture lokálně ověřena. Windows nemá Swift/Xcode, jejich CI probíhá
+a výsledek zatím není doložen. Diff bez whitespace chyb, tajemství nepřidána.
+Další krok: dokončit ověření, commit/push/PR/merge, navázat aktualizací backendu
+a podepsané IPA pro již autorizovaný telefonní test. Skutečná kvalita/latence
+a mikrofon iPhone zatím neověřeny, fyzický ESP/I2S zůstává závislý na B1.
+
 **D109 – serverové režimy nasazené a aktuální IPA publikovaná.**
 Majitel žádá ovládání serveru v Debug a opravu staré aplikace na `/ios/`.
 Veřejná stránka nabízela release `36636991415-1`, verzi 1.0/build 10; HTTP

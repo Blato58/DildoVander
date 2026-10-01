@@ -503,7 +503,9 @@
         "required": ["turnId", "outputTarget"],
         "properties": {
           "turnId": { "type": "string", "minLength": 1 },
-          "outputTarget": { "type": "string", "enum": ["device", "phone"] }
+          "outputTarget": { "type": "string", "enum": ["device", "phone"] },
+          "voice": { "type": "string", "enum": ["cedar", "marin", "onyx", "coral"], "default": "marin" },
+          "speed": { "type": "number", "minimum": 0.85, "maximum": 1.25, "default": 1.0 }
         }
       },
       "OperationAccepted": {

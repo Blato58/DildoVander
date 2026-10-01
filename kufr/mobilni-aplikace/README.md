@@ -10,7 +10,25 @@ ESP32 samo komunikuje s backendem; aplikace není cloudový prostředník a nem�
 
 Nativní adaptér vlastní TLS pin, oprávnění LAN a Keychain. E10.1 používá ručně zadané údaje z vnitřního QR; E10.2 přidává text/cancel/result a E10.3 Bonjour hledání i ruční změnu adresy. Audio navazuje po E9. UI nesmí přímo časovat motory ani přijímat AI text jako povel. Konkrétní slices a kontrakty jsou v kapitolách 3–5 plánu.
 
-## Debug D108/D109
+## Debug D108/D109/D110
+
+**Zkušební rozhovor a výběr hůlky** drží samostatné virtuální sezení.
+Nastavte dostupné přihrádky (výchozí všech šest), hlas Cedar/Marin/Onyx/Coral
+a tempo, obnovte režimy serveru a spusťte AI nebo fake rozhovor. Odpovídejte
+textem nebo tlačítky Začít nahrávat / Dokončit nahrávání a odeslat. Mikrofon
+vyžaduje povolení iOS, nahrává nejvýše 30 s do RAM; Stop či pozadí zvuk zahodí.
+Fake STT vrací syntetický přepis; skutečná vlastní hlasová odpověď potřebuje
+OpenAI režim hlasu. Celý přepis je přechodný a nepatří do logu. Backend může
+text zachovat v paměti testovacího večera; Ukončit a smazat rozhovor maže pouze
+přepis telefonu a ukončuje sezení, nikoli paměť večera na serveru.
+
+Po čtyřech otázkách fake `debug-server-admin` navrhne dostupnou hůlku;
+AI Sol ji vybírá z odpovědí. Maska i návrh jsou simulované a nespouští pohon.
+Časy posledního tahu rozlišují dialog, TTS a stažení. WAV se přijímá po blocích,
+přehrává se před úklidem serverové audio operace. Skutečné TTS stále čeká na
+celý provider výstup. Výběr hlasu a tempo platí pro interaktivní rozhovor;
+původní úvodní test zachovává marin/1.0. Kvalitu, latenci a permission dialog
+musí potvrdit registrovaný iPhone; syntetický browser bridge je nenahrazuje.
 
 Záložka **Debug** je dostupná vedle Ovládání. Ukazuje zdroj spojení, skutečnou
 fázi přijatého snapshotu, masku, revizi, eventSequence, boot ID, uptime vzorku,
