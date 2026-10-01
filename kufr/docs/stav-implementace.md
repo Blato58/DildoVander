@@ -95,7 +95,7 @@ Stop, Wi-Fi výpadek, návrat k poslechu a reálnou češtinu na desce.
 
 
 
-**D118 – serverové logy, iOS zobrazení a čtecí integrace Codex.**
+**D118 – nasazeno: serverové logy, iOS zobrazení a čtecí integrace Codex.**
 Zadání majitele: logování serveru, API přístup, log v iOS a společný debug
 nasazeného prostředí s Codexem. Backend přidává oddělenou SQLite logovou DB,
 výchozí historii 24 h/5000 událostí, kurzor/filtry/retention gap a počty
@@ -140,11 +140,28 @@ runtime GH_TOKEN. API ověřilo účet Blato58; scoped gh git credential helper
 provedl push bez změny účtu nebo uložení tajemství. Finální macOS/CI/merge
 výsledek je evidovaný v PR. Review doplnilo rušení logového HTTP i při
 otevření konfigurace a zapomenutí nativního profilu.
-Nasazení backendu, podpis/publikace IPA a fyzický iPhone se v tomto kroku
-zatím neprovedly; backend D116 a IPA 1000.0.5 (D117) zůstávají dle záznamu níže.
-Další krok: dokončit macOS CI a merge D118, potom samostatně nasadit ověřené
-backend/web artefakty a publikovat IPA; vyzkoušet Log serveru během rozhovoru
-na iPhonu a čtení skutečné diagnostiky přes nový workflow.
+Finální CI 36924528705 prošlo celé včetně Swift/Xcode/iOS Simulatoru a obou
+firmware profilů. PR #86 sloučen do main `0330ce7b7514897304b91588056eefba0608a278`;
+shoda tree s ověřeným head `18fd319c23dd7dd1dd985488652a34529757cc85` doložena.
+Deploy 36925672662, Ad Hoc podpis 36925679081 a publikace 36926024016 prošly.
+Nasazení zachovává responses/gpt-6.1-sol a openai; nepouští placený test.
+[Služba a Safari instalace](https://2.28.202.220/ios/) nabízejí iOS 1.0/build
+1000.0.6 (sign run_number 6); externí runner ověřil HTTPS stránku/manifest/IPA.
+Živé čtení workflow 36926028955 úspěšně ověřilo log API a režimy přes veřejné
+HTTPS s credentialem z runneru, včetně typované projekce. V tomto cloudovém
+prostředí je stažení Actions artefaktů blokované (Blob 403) a přímý curl na IP
+odmítl hostname certifikátu proxy; TLS se neoslabuje. Autorizované Actions
+log API funguje. Následná úprava proto přidává stejný validovaný technický
+JSON do konzole workflow mezi KUFR_LOG_SNAPSHOT_BEGIN/END, aby Codex mohl
+číst logy i v této relaci bez stažení artefaktu. Artefakt žije 1 den, konzole
+má retenci Actions logů nastavenou v GitHub repozitáři. Token ani obsah
+rozhovoru se do obou cest nevkládá. Ověření konzole a finální merge předání
+jsou evidované v následném PR této úpravy; instalovaný backend/iOS se kvůli
+čtecímu workflow znovu nepřekládá ani nenasazuje.
+Další krok: aktualizovat iPhone a vyzkoušet Log serveru během rozhovoru,
+filtr/obnovování/sdílení a Stop/pozadí. Fyzický iPhone zde není dostupný;
+B1/fyzické pohony zůstávají otevřené. Přímé MCP je volitelné po nastavení
+reader tokenu v procesu Codex; GitHub čtení využije existující admin secret.
 
 **D117 – oprava startu Realtime, IPA 1000.0.5 publikovaná.**
 Majitel u 1000.0.4 doložil chybu hned po Začít AI rozhovor; oranžová tečka
