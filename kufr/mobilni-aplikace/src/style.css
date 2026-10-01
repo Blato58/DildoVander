@@ -16,6 +16,13 @@ input:focus-visible { outline: 3px solid #f8bd68; outline-offset: 3px; }
 .connection-settings label { display: grid; gap: .35rem; }
 .connection-settings input { width: 100%; min-width: 0; padding: .65rem; font: inherit; }
 .connection-settings form[hidden] { display: none; }
+.conversation-panel { max-width: 68rem; margin: auto; padding: 1.5rem 1.25rem; }
+.conversation-panel[hidden], .conversation-reply[hidden] { display: none; }
+.conversation-panel form { display: grid; gap: .75rem; }
+.conversation-panel textarea { width: 100%; min-width: 0; padding: .65rem; font: inherit; resize: vertical; }
+.conversation-panel textarea:focus-visible { outline: 3px solid #f8bd68; outline-offset: 3px; }
+.conversation-reply { padding: 1rem; border: 1px solid #f8bd68; border-radius: .4rem; }
+.conversation-reply p { white-space: pre-wrap; overflow-wrap: anywhere; }
 
 header {
   padding: 2rem max(1.25rem, calc((100vw - 68rem) / 2));
