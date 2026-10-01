@@ -11,6 +11,7 @@ struct ConversationStartRequest {
   std::string idempotencyKey;
   std::string catalogVersion;
   uint64_t generation = 0;
+  bool audioConsent = false;
 };
 
 struct ConversationStartResponse {
@@ -24,7 +25,7 @@ bool IsConversationUuid(const std::string& value);
 bool NormalizeConversationUuid(const std::string& value,
                                std::string& normalized);
 
-// Text-only start request: audio and image consent remain false.
+// Audio consent is explicit for an operator-started voice session; image stays false.
 bool BuildConversationStartRequest(const ConversationStartRequest& request,
                                    std::string& body);
 bool ParseConversationStartResponse(const char* data, size_t length,

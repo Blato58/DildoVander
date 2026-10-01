@@ -19,6 +19,9 @@ enum class LocalControlMessageKind : uint8_t {
   Reset,
   Selection,
   Reload,
+  VoiceConfigure,
+  VoiceStart,
+  VoiceStop,
 };
 
 struct LocalControlMessage {
@@ -31,6 +34,8 @@ struct LocalControlMessage {
   std::string clientTurnId;
   std::string text;
   std::string commandId;
+  std::string voiceMode;
+  std::string voice;
   uint64_t generation = 0;
   uint64_t expectedRevision = 0;
   uint64_t sequence = 0;
