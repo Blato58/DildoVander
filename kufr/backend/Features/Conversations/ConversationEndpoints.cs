@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using Kufr.Backend.Features.Access;
+using Kufr.Backend.Features.Speech;
 using Microsoft.AspNetCore.Http.Features;
 
 namespace Kufr.Backend.Features.Conversations;
@@ -251,8 +252,15 @@ internal static class ConversationEndpoints
         try
         {
             using var document = JsonDocument.Parse(body);
-            if (!HasExpectedProperties(document.RootElement, ["turnId", "outputTarget"])
-                || !IsUuid(document.RootElement, "turnId"))
+            if (!HasRequiredAndOptionalProperties(
+                    document.RootElement,
+                    ["turnId", "outputTarget"],
+                    ["voice", "speed"])
+                || !IsUuid(document.RootElement, "turnId")
+                || document.RootElement.TryGetProperty("voice", out var voice)
+                    && voice.ValueKind != JsonValueKind.String
+                || document.RootElement.TryGetProperty("speed", out var speed)
+                    && (speed.ValueKind != JsonValueKind.Number || !speed.TryGetDouble(out _)))
             {
                 return ApiProblem.Create(context, 400, "invalid_request");
             }
@@ -268,7 +276,8 @@ internal static class ConversationEndpoints
 
         if (request is null
             || request.TurnId == Guid.Empty
-            || request.OutputTarget is not ("device" or "phone"))
+            || request.OutputTarget is not ("device" or "phone")
+            || !SpeechOptions.IsValid(request.Voice, request.Speed))
         {
             return ApiProblem.Create(context, 400, "invalid_request");
         }
@@ -521,5 +530,29 @@ internal static class ConversationEndpoints
         }
 
         return seen.Count == expected.Length;
+    }
+
+    private static bool HasRequiredAndOptionalProperties(
+        JsonElement element,
+        string[] required,
+        string[] optional)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            return false;
+        }
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var property in element.EnumerateObject())
+        {
+            if ((!required.Contains(property.Name, StringComparer.Ordinal)
+                    && !optional.Contains(property.Name, StringComparer.Ordinal))
+                || !seen.Add(property.Name))
+            {
+                return false;
+            }
+        }
+
+        return required.All(seen.Contains);
     }
 }
