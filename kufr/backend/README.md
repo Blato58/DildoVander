@@ -38,7 +38,8 @@ dialogové tahy vyžadují otázku; nabídka funkcí v nich neobsahuje výběr p
 Dvě poslední výměny zůstávají v RAM pro aktuální tah. Celé dokončené textové
 výměny se navíc ukládají do `Backend:DatabasePath` + `.evening.sqlite`.
 Tato paměť je oddělená podle zařízení, přežije konec sezení i restart a nemá
-časovou expiraci. Po 2000 výměnách nebo 2 MB UTF-8 textu vytěsňuje nejstarší
+časovou expiraci. D112 odděluje pojmenované večery s aktivním ukazatelem;
+migrace zachová původní ID a obsah. Po 2000 výměnách nebo 2 MB UTF-8 textu v jednom večeru vytěsňuje nejstarší
 výměny; status uvádí počet vytěsnění. Žádné audio ani fotografie neukládá.
 Soubor má být ve stejném soukromém adresáři služby jako journal, ale vynechaný
 z technických záloh. SQLite používá secure_delete a rollback journal; smazání
@@ -59,10 +60,22 @@ jméno bez představování. Po prvním přijatém tahu se nový opening odmítn
 retry se stejným klíčem vrací tutéž operaci. Starý `/turns` zůstává kompatibilní.
 Firmware má explicitní vstup opening a ukončení sezení (D75); reálný vstup návštěvníka a samostatný hlas vyžadují dokončení E4/E9.
 
+`GET /v1/evenings` vrací aktivní ID a metadata uložených večerů, žádné repliky.
+`POST /v1/evenings` s `{name,expectedEveningId}` založí a aktivuje prázdný
+večer. `PUT /v1/evenings/{id}/active` s `{expectedEveningId}` přepne paměť.
+Obě mutace vyžadují UUID `Idempotency-Key` a token daného zařízení. Nejvýše
+100 večerů, název 1–80 Unicode znaků bez řídicích znaků. Živý rozhovor nebo
+doznívající provider stejného zařízení vrací 409, stejně jako stará CAS revize.
+Idempotence v SQLite vydrží restart, platí 24 h a má limit 1024 neexpirovaných
+záznamů na zařízení; překročení vrací 429. Replay vrátí původní snapshot,
+neobnoví starý aktivní ukazatel; klient poté načte aktuální GET stav.
+Nový večer zachová archiv a kontext se nikdy nemíchá mezi večery/zařízeními.
+
 `GET /v1/evening-memory` vrací pro device token `eveningId`, počty a limity,
 nikoli obsah. Obsluha smaže konkrétní večer pomocí
 `DELETE /v1/evening-memory/{eveningId}`, prázdného těla a UUID `Idempotency-Key`.
 Smazání také ukončí aktivní sezení; zrušená pozdní odpověď nesmí nic obnovit.
+Maže pouze aktivní večer a vytvoří nový prázdný; ostatní archivy zůstávají.
 Stará/cizí ID vrací neškodné 204; nemohou smazat nový večer nebo jiné zařízení.
 Samotné `DELETE /v1/conversations/{id}` paměť večera nemaže. UI tlačítko a
 lokální autorizovaná cesta ze spárovaného telefonu jsou ještě integrace E10.

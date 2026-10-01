@@ -3,7 +3,47 @@ import Foundation
 @main
 struct NativeDebugTests {
     @MainActor static func main() async throws {
+        if let service = ProcessInfo.processInfo.environment["KUFR_DEBUG_KEYCHAIN_SERVICE"],
+           let command = CommandLine.arguments.dropFirst().first {
+            let keychain = DebugBackendKeychain(service: service)
+            switch command {
+            case "--profile-write":
+                try keychain.write(DebugBackendProfile(address: DebugProfileDraft.defaultAddress,
+                    deviceId: DebugProfileDraft.defaultDeviceId, credential: "synthetic-persistent-secret"))
+            case "--profile-read":
+                let restored = try keychain.read()
+                assert(restored?.baseURL.absoluteString == DebugProfileDraft.defaultAddress)
+                assert(restored?.deviceId == "debug-server-admin")
+                assert(restored?.credential == "synthetic-persistent-secret")
+                try keychain.write(DebugBackendProfile(address: DebugProfileDraft.defaultAddress,
+                    deviceId: DebugProfileDraft.defaultDeviceId, credential: "synthetic-updated-secret"))
+                let updated = try DebugBackendKeychain(service: service).read()
+                assert(updated?.credential == "synthetic-updated-secret")
+            case "--profile-remove":
+                try keychain.remove()
+                let removed = try keychain.read()
+                assert(removed == nil)
+            default: fatalError("Unknown profile test command")
+            }
+            return
+        }
         let profile = try DebugBackendProfile(address: "https://debug.example.test", deviceId: "debug-test", credential: "test-secret")
+        let retained = try DebugProfileDraft.resolve(address: "https://DEBUG.example.test:443/",
+            deviceId: "debug-test", credential: "", saved: profile)
+        assert(retained.credential == "test-secret")
+        for (address, identity) in [("https://other.example.test", "debug-test"),
+                                    ("https://debug.example.test", "debug-other"),
+                                    ("https://debug.example.test:444", "debug-test"),
+                                    ("https://debug.example.test/path", "debug-test"),
+                                    ("https://user@debug.example.test", "debug-test")] {
+            do { _ = try DebugProfileDraft.resolve(address: address, deviceId: identity, credential: "", saved: profile)
+                fatalError("Credential forwarded to a changed destination") }
+            catch DebugBackendError.invalidProfile { }
+        }
+        do { _ = try DebugProfileDraft.resolve(address: DebugProfileDraft.defaultAddress,
+            deviceId: DebugProfileDraft.defaultDeviceId, credential: "", saved: nil)
+            fatalError("Empty initial credential accepted") }
+        catch DebugBackendError.invalidProfile { }
         for address in ["http://debug.example.test", "https://secret@debug.example.test", "https://debug.example.test/path", "https://debug.example.test?token=secret"] {
             do { _ = try DebugBackendProfile(address: address, deviceId: "debug-test", credential: "secret"); fatalError("Invalid profile accepted") }
             catch DebugBackendError.invalidProfile { }
@@ -92,8 +132,39 @@ struct NativeDebugTests {
         assert(createBlocked.cleaned && createBlocked.createAttempts == 2)
         assert(!createBlocked.paths.contains(where: { $0.hasSuffix("/opening") }))
         try await testInteractiveSessions(profile: profile, wav: wav)
+        try await testEvenings(profile: profile)
         try await testHTTPTransport()
         print("Native debug profile, mode, correlation, WAV, cancellation and cleanup tests passed")
+    }
+
+    @MainActor static func testEvenings(profile: DebugBackendProfile) async throws {
+        let peer = EveningPeer()
+        let client = DebugBackendClient(http: peer.request)
+        let original = try await client.eveningList(profile)
+        assert(original.evenings[0].exchangeCount == 42)
+        let created = try await client.eveningList(profile, action: "create", name: "Friday",
+            expectedEveningId: peer.first)
+        assert(created.activeEveningId == peer.second && created.evenings[0].exchangeCount == 42)
+        let restored = try await client.eveningList(profile, action: "activate", eveningId: peer.first,
+            expectedEveningId: peer.second)
+        assert(restored.activeEveningId == peer.first)
+
+        let lost = EveningPeer(failure: "lost")
+        let afterReplay = try await DebugBackendClient(http: lost.request).eveningList(profile,
+            action: "create", name: "Friday", expectedEveningId: lost.first)
+        assert(lost.attempts == 2 && afterReplay.activeEveningId == lost.first,
+               "Ambiguous retry uses the same key and then reads the authoritative pointer")
+        let maximum = EveningPeer(failure: "maximum")
+        let maximumList = try await DebugBackendClient(http: maximum.request).eveningList(profile)
+        assert(maximumList.evenings.count == 100 && maximum.payloadBytes > 65_536)
+        for failure in ["conflict", "invalid-active", "duplicate"] {
+            let bad = EveningPeer(failure: failure)
+            do { _ = try await DebugBackendClient(http: bad.request).eveningList(profile,
+                action: failure == "conflict" ? "create" : "list", name: "Friday", expectedEveningId: bad.first)
+                fatalError("Invalid evening response accepted") }
+            catch { }
+            assert(failure != "conflict" || bad.attempts == 1, "HTTP conflicts must not retry")
+        }
     }
 
     @MainActor static func testInteractiveSessions(profile: DebugBackendProfile, wav: Data) async throws {
@@ -233,6 +304,71 @@ struct NativeDebugTests {
 }
 
 @MainActor
+final class EveningPeer {
+    let first = UUID().uuidString.lowercased()
+    let second = UUID().uuidString.lowercased()
+    let failure: String
+    var active = ""
+    var created = false
+    var attempts = 0
+    var key: String?
+    var body: Data?
+    var payloadBytes = 0
+    init(failure: String = "") { self.failure = failure; active = first }
+
+    func request(_ request: URLRequest, _ limit: Int) async throws -> (Data, HTTPURLResponse) {
+        let path = request.url!.path
+        let isToken = path.hasSuffix("/token")
+        assert(request.value(forHTTPHeaderField: "Authorization") == (isToken ? "Bearer test-secret" : "Bearer access"))
+        var status = 200
+        var result: [String: Any]
+        if isToken {
+            result = ["deviceId": "debug-test", "accessToken": "access"]
+        } else {
+            if request.httpMethod != "GET" {
+                attempts += 1
+                let fields = try JSONSerialization.jsonObject(with: request.httpBody!) as! [String: Any]
+                assert(fields["expectedEveningId"] as? String == (created ? second : first))
+                let requestKey = request.value(forHTTPHeaderField: "Idempotency-Key")!
+                assert(UUID(uuidString: requestKey) != nil)
+                if attempts == 1 { key = requestKey; body = request.httpBody }
+                if failure == "lost" {
+                    assert(key == requestKey && body == request.httpBody)
+                    if attempts == 1 { throw URLError(.networkConnectionLost) }
+                    // Another client has activated the previous evening since
+                    // this mutation committed; its replay still returns second.
+                    created = true
+                    active = first
+                } else if failure == "conflict" { status = 409 }
+                else if request.httpMethod == "POST" { created = true; active = second; status = 201 }
+                else { assert(path == "/v1/evenings/\(first)/active"); active = first }
+            } else { assert(path == "/v1/evenings") }
+            func item(_ id: String, _ name: String, _ count: Int) -> [String: Any] {
+                ["eveningId": id, "name": name, "createdAt": "2026-10-01T18:00:00Z",
+                 "exchangeCount": count, "droppedCount": 0]
+            }
+            var evenings = [item(first, "Original", 42)]
+            if created { evenings.append(item(second, "Friday", 0)) }
+            if failure == "duplicate" { evenings.append(item(first, "Duplicate", 0)) }
+            if failure == "maximum" {
+                evenings = [item(first, String(repeating: "😀", count: 80), 42)]
+                for _ in 1..<100 { evenings.append(item(UUID().uuidString.lowercased(), String(repeating: "😀", count: 80), 0)) }
+            }
+            result = ["activeEveningId": failure == "invalid-active" ? UUID().uuidString.lowercased()
+                : failure == "lost" && request.httpMethod != "GET" ? second : active, "evenings": evenings]
+        }
+        var data = try JSONSerialization.data(withJSONObject: result)
+        if failure == "maximum" && !isToken {
+            // Match ASP.NET's default escaped supplementary Unicode encoder.
+            data = Data(String(data: data, encoding: .utf8)!.replacingOccurrences(of: "😀", with: "\\uD83D\\uDE00").utf8)
+            payloadBytes = data.count
+        }
+        guard data.count <= limit else { throw DebugBackendError.tooLarge }
+        return (data, HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil,
+            headerFields: ["Content-Type": "application/json"])!)
+    }
+}
+
 final class Peer {
     let wav: Data
     let failure: String

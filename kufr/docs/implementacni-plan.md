@@ -399,6 +399,27 @@ nezávislého softwaru; kritéria dokončení E9 se nesnižují.
 
 ### Průběh samostatného hlasového tahu
 
+**Večery a uložený přístup D112 (zadání majitele 1. 10.):** iOS Debug nabízí
+pojmenovaný nový večer a přepnutí aktivního večera pro vlastní debug identitu.
+Nový večer je prázdný, předchozí zůstává uložený. Existující SQLite ID, text
+a počty migrace zachová transakčně. Kontext i limity 2000 výměn / 2 MB platí
+pro konkrétní večer; nejvýše 100 večerů na zařízení, název 1–80 Unicode znaků
+bez řídicích znaků. GET `/v1/evenings` vrací pouze metadata a aktivní ID.
+POST `/v1/evenings` a PUT `/v1/evenings/{id}/active` vyžadují device token,
+UUID Idempotency-Key a očekávané aktivní ID; CAS/busy konflikt vrací 409.
+Živé sezení nebo doznívající provider daného zařízení změnu blokuje.
+Trvalá idempotence platí 24 h, nejvýše 1024 neexpirovaných změn na zařízení;
+replay nesmí znovu aktivovat starý ukazatel. Native po mutaci čte nový stav.
+Legacy DELETE maže jen aktuální večer, ostatní archivy zachová.
+Credential a poslední URL/ID vlastní samostatný nesynchronizovaný Keychain
+`WhenUnlockedThisDeviceOnly`, oddělený od ESP párování; stabilní Bundle ID/tým
+zachová přístup aktualizace. Pozadí maže RAM a ruší test, odemčení profil obnoví.
+Výchozí URL `https://2.28.202.220/`, ID `debug-server-admin`. Secure pole zůstává
+prázdné; ponechat credential lze jen pro stejný host/port a ID. Změna cíle
+vyžaduje nový credential. Explicitní zapomenutí maže jen Debug profil.
+Starší RAM-only verze nemá co migrovat: první uložení musí udělat obsluha.
+Uložení mezi procesy a macOS CI nejsou důkazem aktualizace fyzického iPhonu.
+
 **Interaktivní diagnostika D110 (zadání majitele 1. 10.):** výjimka D108/D109
 zahrnuje celý virtuální rozhovor s textovými a mikrofonními odpověďmi telefonu.
 Obsluha před začátkem nastaví simulovanou masku 0–63, výchozí 63; během sezení
@@ -423,8 +444,9 @@ kvalita/latence, mikrofon iPhone a fyzické I2S zůstávají samostatnou akcepta
 testovat backendový opening → speech → WAV → reproduktor telefonu. Nejde o běžný
 cloudový prostředník ESP: používá samostatnou provisionovanou identitu `debug-*`,
 masku dostupnosti 0 a žádné místní řídicí povely/lease. Credential zadá obsluha
-v zabezpečeném nativním dialogu; není v JS, IPA ani logu a nastavení se při pozadí
-zneplatní. HTTPS zachovává systémové PKI a odmítá redirecty. Nové autentizované
+v zabezpečeném nativním dialogu; není v JS, IPA ani logu. D112 nahrazuje původní
+RAM-only profil uložením do odděleného Keychain; pozadí stále ruší práci.
+HTTPS zachovává systémové PKI a odmítá redirecty. Nové autentizované
 `GET /v1/diagnostics` pouze čte provider režimy/katalog/audio formát, nic negeneruje.
 Test výslovně odlišuje systémový hlas, fake tiché WAV a skutečné OpenAI TTS,
 používá stávající limity/operace a uklízí jen vlastní sezení. Ztracená create
@@ -440,7 +462,8 @@ režim dialogu fake/Responses Sol a hlasu fake/OpenAI STT-TTS přes nové
 určuje samostatný credential správce s hash konfigurací na serveru; credential
 ESP, místní párování ani běžný access token nestačí. Tento credential zároveň
 provisionuje jen oddělenou `debug-server-admin` testovací identitu. Native profil
-zachovává hranice D108 (RAM, PKI, bez redirectu/tajemství v JS a IPA).
+zachovává hranice D108 (PKI, bez redirectu/tajemství v JS a IPA); uložení profilu
+do Keychain mění výslovné zadání D112.
 Změna vyžaduje aktuální revizi a žádný živý rozhovor/doznívající provider;
 create a přepnutí sdílejí zámek. Platí do restartu, pak rozhoduje explicitní
 konfigurace nasazení. Přepnutí samo nic negeneruje. Fake hlasový test musí ověřit

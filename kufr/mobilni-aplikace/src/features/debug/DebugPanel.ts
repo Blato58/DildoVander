@@ -14,6 +14,11 @@ interface VoiceStatus {
     | 'recording' | 'speech' | 'download' | 'playing' | 'completed' | 'cancelled' | 'failed';
   mode: 'unknown' | 'fake' | 'openai';
   server?: ServerModes | null;
+  evenings?: EveningList | null;
+}
+interface EveningList {
+  activeEveningId: string;
+  evenings: Array<{ eveningId: string; name: string; createdAt: string; exchangeCount: number; droppedCount: number }>;
 }
 interface ServerModes {
   revision: string;
@@ -27,6 +32,10 @@ interface ServerModes {
 interface DebugBridge {
   status(): Promise<VoiceStatus>;
   configure(): Promise<void>;
+  forgetProfile(): Promise<void>;
+  inspectEvenings(): Promise<void>;
+  createEvening(options: { name: string; expectedEveningId: string }): Promise<void>;
+  activateEvening(options: { eveningId: string; expectedEveningId: string }): Promise<void>;
   inspectBackend(): Promise<void>;
   inspectServer(): Promise<void>;
   changeServerModes(options: { expectedRevision: string; dialogMode: string; voiceMode: string }): Promise<void>;
@@ -60,6 +69,7 @@ export class DebugPanel {
   private category: DebugCategory | 'all' = 'all';
   private pending = false;
   private serverRevision?: string;
+  private eveningRevision?: string;
   private statusSequence = 0;
   private voice: VoiceStatus = { configured: false, running: false, phase: 'idle', mode: 'unknown' };
 
@@ -83,6 +93,7 @@ export class DebugPanel {
           AI režim může čerpat serverový limit až při spuštění testu nebo rozhovoru.</p>
         <div class="actions">
           <button type="button" data-debug="configure">Nastavit serverový / testovací přístup</button>
+          <button type="button" data-debug="forget-profile">Zapomenout uložený přístup</button>
           <button type="button" data-debug="server-inspect">Obnovit stav serveru</button>
           <label>Dialog <select aria-label="Režim dialogu" data-server="dialog">
             <option value="fake">Fake</option><option value="responses">AI · Sol</option></select></label>
@@ -93,6 +104,19 @@ export class DebugPanel {
         <p data-server-status role="status"></p>
         <p class="footnote">Správa vyžaduje samostatný credential správce a testovací ID debug-server-admin.
           Běžný přístup kufru nestačí. Po restartu platí režimy nasazení; obnovte stav.</p></section>
+      <section class="debug-card" aria-labelledby="evening-heading"><h2 id="evening-heading">Večery a paměť rozhovorů</h2>
+        <p>Nový večer začne s prázdnou pamětí. Přepnutím obnovíte paměť vybraného večera;
+          předchozí večery zůstanou uložené. Změny jsou dostupné mezi rozhovory.</p>
+        <div class="actions"><button type="button" data-debug="evenings-inspect">Obnovit seznam večerů</button></div>
+        <p data-evening-status role="status"></p>
+        <label>Uložený večer <select data-evening-selection aria-label="Uložený večer"></select></label>
+        <div class="actions"><button type="button" data-debug="evening-activate">Přepnout aktivní večer</button></div>
+        <label>Jméno nového večera <input type="text" data-evening-name aria-label="Jméno nového večera"
+          maxlength="160" placeholder="Například páteční oslava" autocomplete="off"></label>
+        <div class="actions"><button type="button" class="primary" data-debug="evening-create">Založit a aktivovat nový večer</button></div>
+        <p class="footnote">Seznam patří nastavené testovací identitě. Obsah rozhovorů se zde nestahuje
+          a založení ani přepnutí samo nevolá AI.</p>
+      </section>
       <section class="debug-card" aria-labelledby="voice-heading"><h2 id="voice-heading">Hlas</h2>
         <p>AI test přehraje úvodní repliku na telefonu. Neovládá pohony ani reproduktor kufru.
           Vyžaduje samostatné testovací device ID a credential backendu; místní párovací token sem nepatří.
@@ -106,7 +130,7 @@ export class DebugPanel {
         </div>
         <p data-voice-status role="status"></p>
         <p class="footnote">Systémový hlas telefonu není AI TTS. Fake backend vrací tiché testovací WAV.
-          Nastavení backendu žije jen v nativní paměti do pozadí nebo ukončení aplikace.</p></section>
+          Přístup se ukládá do Keychain iPhonu a zachová při aktualizaci. Do webu ani logu se credential nepředává.</p></section>
       <section class="debug-card debug-conversation" aria-labelledby="debug-conversation-heading">
         <h2 id="debug-conversation-heading">Zkušební rozhovor a výběr hůlky</h2>
         <p>Rozhovor běží na telefonu pod servisní identitou. Dostupnost přihrádek je pouze simulovaná;
@@ -167,6 +191,8 @@ export class DebugPanel {
     this.element.querySelector('[data-conversation-answer]')!.addEventListener('input', () => {
       this.renderConversationControls();
     });
+    this.element.querySelector('[data-evening-name]')!.addEventListener('input', () => this.renderEveningControls());
+    this.element.querySelector('[data-evening-selection]')!.addEventListener('change', () => this.renderEveningControls());
     window.setInterval(() => {
       if (this.visible && !document.hidden) {
         this.renderDevice();
@@ -179,7 +205,7 @@ export class DebugPanel {
         this.journal.record('background');
         this.element.querySelector<HTMLTextAreaElement>('[data-conversation-answer]')!.value = '';
         this.voice = { ...this.voice, transcript: [], selected: null, timings: undefined,
-          session: false, recording: false, phase: 'cancelled' };
+          session: false, recording: false, evenings: null, phase: 'cancelled' };
         this.renderVoice();
         if (this.native) { void bridge.stop().catch(() => undefined); }
       } else if (this.native) {
@@ -248,14 +274,16 @@ export class DebugPanel {
   }
 
   private renderVoice(): void {
-    for (const name of ['system', 'configure', 'inspect', 'ai', 'fake', 'server-inspect', 'server-apply']) {
+    for (const name of ['system', 'configure', 'forget-profile', 'inspect', 'ai', 'fake', 'server-inspect', 'server-apply']) {
       this.button(name).disabled = !this.native || this.pending || this.voice.running || this.voice.session === true;
     }
     this.button('inspect').disabled ||= !this.voice.configured;
+    this.button('forget-profile').disabled ||= !this.voice.configured;
     this.button('ai').disabled ||= !this.voice.configured || this.voice.mode !== 'openai';
     this.button('fake').disabled ||= !this.voice.configured || this.voice.mode !== 'fake';
     this.button('fake').disabled ||= this.voice.server?.dialogMode === 'responses';
     this.renderServer();
+    this.renderEvenings();
     this.button('voice-stop').disabled = !this.native || (!this.pending && !this.voice.running);
     this.element.querySelector('[data-voice-status]')!.textContent = !this.native
       ? 'Hlasové testy jsou dostupné v nativní iOS aplikaci.'
@@ -316,6 +344,42 @@ export class DebugPanel {
             ? 'Rozhovor skončil bez návrhu hůlky.'
           : 'Připravte simulovanou dostupnost a spusťte rozhovor.';
     this.renderConversationControls();
+  }
+
+  private renderEvenings(): void {
+    const list = this.voice.evenings;
+    const selection = this.element.querySelector<HTMLSelectElement>('[data-evening-selection]')!;
+    const previous = selection.value;
+    const activeChanged = this.eveningRevision !== list?.activeEveningId;
+    selection.replaceChildren();
+    for (const evening of list?.evenings ?? []) {
+      const option = document.createElement('option');
+      option.value = evening.eveningId;
+      option.textContent = `${evening.name} · ${new Date(evening.createdAt).toLocaleDateString('cs-CZ')} · ${evening.exchangeCount} výměn${evening.eveningId === list?.activeEveningId ? ' · aktivní' : ''}`;
+      selection.append(option);
+    }
+    selection.value = activeChanged ? list?.activeEveningId ?? '' : previous;
+    if (!selection.value && list) { selection.value = list.activeEveningId; }
+    this.eveningRevision = list?.activeEveningId;
+    const active = list?.evenings.find(evening => evening.eveningId === list.activeEveningId);
+    this.element.querySelector('[data-evening-status]')!.textContent = !this.native
+      ? 'Správa večerů je dostupná v nativní iOS aplikaci.'
+      : active ? `Aktivní večer: ${active.name} · ${active.exchangeCount} uložených výměn.`
+        : 'Obnovte seznam večerů pro nastavenou identitu.';
+    this.renderEveningControls();
+  }
+
+  private renderEveningControls(): void {
+    const busy = !this.native || !this.voice.configured || this.pending || this.voice.running || this.voice.session === true;
+    const list = this.voice.evenings;
+    const name = this.element.querySelector<HTMLInputElement>('[data-evening-name]')!;
+    const selection = this.element.querySelector<HTMLSelectElement>('[data-evening-selection]')!;
+    name.disabled = busy;
+    selection.disabled = busy || !list;
+    this.button('evenings-inspect').disabled = busy;
+    this.button('evening-create').disabled = busy || !list || list.evenings.length >= 100
+      || !name.value.trim() || [...name.value.trim()].length > 80;
+    this.button('evening-activate').disabled = busy || !list || !selection.value || selection.value === list.activeEveningId;
   }
 
   private renderConversationControls(): void {
@@ -403,6 +467,26 @@ export class DebugPanel {
     let code: DebugCode | null = 'voice_started';
     try {
       if (action === 'configure') { await bridge.configure(); code = 'profile_changed'; }
+      else if (action === 'forget-profile') {
+        await bridge.forgetProfile(); code = 'profile_forgotten';
+        this.element.querySelector<HTMLTextAreaElement>('[data-conversation-answer]')!.value = '';
+      }
+      else if (action === 'evenings-inspect') { await bridge.inspectEvenings(); code = 'evenings_checked'; }
+      else if (action === 'evening-create' || action === 'evening-activate') {
+        const list = this.voice.evenings;
+        if (!list) { return; }
+        if (action === 'evening-create') {
+          const name = this.element.querySelector<HTMLInputElement>('[data-evening-name]')!;
+          if (!name.value.trim() || [...name.value].length > 80) { return; }
+          await bridge.createEvening({ name: name.value.trim(), expectedEveningId: list.activeEveningId });
+          name.value = '';
+        } else {
+          const eveningId = this.element.querySelector<HTMLSelectElement>('[data-evening-selection]')!.value;
+          await bridge.activateEvening({ eveningId, expectedEveningId: list.activeEveningId });
+        }
+        this.element.querySelector<HTMLTextAreaElement>('[data-conversation-answer]')!.value = '';
+        code = 'evening_changed';
+      }
       else if (action === 'server-inspect') { await bridge.inspectServer(); code = 'backend_checked'; }
       else if (action === 'server-apply') {
         const server = this.voice.server;
@@ -454,7 +538,9 @@ export class DebugPanel {
         this.journal.record('voice_stopped');
       } else {
         this.journal.record('voice_failed');
-        errorText.textContent = action.startsWith('server-')
+        errorText.textContent = action.startsWith('evening')
+          ? 'Večer nebyl ověřen nebo změněn. Obnovte seznam a ověřte přístup. Probíhající rozhovor nebo souběžná změna přepnutí zablokují.'
+          : action.startsWith('server-')
           ? 'Změna nebo ověření serveru nebyly potvrzeny. Obnovte stav serveru. Zkontrolujte credential správce; probíhající rozhovor nebo změna z jiného telefonu přepnutí zablokují.'
           : 'Akce nebyla dokončena. Ověřte HTTPS adresu, testovací debug- identitu, credential a režim serveru. Backend musí podporovat /v1/diagnostics. Po neúspěšném úklidu nebo ztracené odpovědi může být nutné počkat na expiraci testovacího sezení.';
         errorText.hidden = false;

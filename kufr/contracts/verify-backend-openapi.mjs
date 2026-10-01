@@ -54,6 +54,8 @@ assert.deepEqual(Object.keys(document.paths).sort(), [
   '/v1/diagnostics',
   '/v1/evening-memory',
   '/v1/evening-memory/{id}',
+  '/v1/evenings',
+  '/v1/evenings/{id}/active',
   '/v1/operations/{id}',
 ]);
 assert.deepEqual(document.paths['/v1/device-access/token'].post.security, [{ DeviceCredential: [] }]);
@@ -82,13 +84,24 @@ for (const [path, operations] of Object.entries(document.paths)) {
   for (const [method, operation] of Object.entries(operations)) {
     assert.ok(operation.operationId, `missing operationId on ${path}`);
     assert.ok(operation.responses, `missing responses on ${path}`);
-    if ((method === 'post' || method === 'delete') && path !== '/v1/device-access/token') {
+    if ((method === 'post' || method === 'put' || method === 'delete')
+      && path !== '/v1/device-access/token' && path !== '/v1/admin/modes') {
       assert.ok(operation.parameters?.some((parameter) => parameter.$ref === '#/components/parameters/IdempotencyKey'), `missing idempotency on ${path}`);
     }
   }
 }
 
 const bootId = 'c85743d5-1b72-41b8-8500-ae3c102b27d6';
+const eveningId = '4fda8bb7-147d-4fc3-b064-3d663e13ad15';
+const evening = { eveningId, name: 'Původní večer', createdAt: '2026-10-01T10:00:00Z',
+  exchangeCount: 3, droppedCount: 1 };
+validate('EveningsList', { activeEveningId: eveningId, evenings: [evening] }, true);
+validate('EveningsList', { activeEveningId: eveningId, evenings: [{ ...evening, transcript: 'secret' }] }, false);
+validate('CreateEvening', { name: 'Nový večer', expectedEveningId: eveningId }, true);
+validate('CreateEvening', { name: 'x'.repeat(81), expectedEveningId: eveningId }, false);
+validate('CreateEvening', { name: 'Nový večer', expectedEveningId: eveningId, secret: 'x' }, false);
+validate('ActivateEvening', { expectedEveningId: eveningId }, true);
+validate('ActivateEvening', { expectedEveningId: 'stale' }, false);
 const clientTurnId = '523ef590-ce4d-4901-91b3-79de1bfe7e35';
 const conversation = {
   deviceId: 'kufr-001', bootId, generation: 1, catalogVersion: 'test-1',

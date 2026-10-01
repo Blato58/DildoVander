@@ -45,6 +45,11 @@
       }
       let serverState = { revision: 'test-revision', dialogMode: 'fake', voiceMode: 'fake',
         dialogAvailable: true, voiceAvailable: true, activeConversations: 0, lifetime: 'until_restart' };
+      const originalEveningId = '00000000-0000-4000-8000-000000000001';
+      let eveningState = { activeEveningId: originalEveningId, evenings: [{
+        eveningId: originalEveningId, name: 'Původní večer', createdAt: '2026-10-01T18:00:00Z',
+        exchangeCount: 42, droppedCount: 0,
+      }] };
       window.CapacitorCustomPlatform = { name: 'ios' };
       window.Capacitor = {
         PluginHeaders: [{ name: 'KufrDeviceTransport', methods: [
@@ -52,7 +57,8 @@
           { name: 'addListener', rtype: 'callback' },
         ] }, { name: 'KufrDebug', methods: ['status', 'configure', 'inspectBackend', 'inspectServer', 'changeServerModes',
           'runOpeningSpeech', 'startConversation', 'answerConversation', 'startRecording', 'finishRecording',
-          'speakSystem', 'stop', 'shareLog'].map((name) => ({ name, rtype: 'promise' })) }],
+          'speakSystem', 'stop', 'shareLog', 'forgetProfile', 'inspectEvenings', 'createEvening',
+          'activateEvening'].map((name) => ({ name, rtype: 'promise' })) }],
         nativeCallback(_plugin, method, _options, callback) {
           if (method === 'addListener') { listener = callback; return Promise.resolve('listener-1'); }
         },
@@ -60,6 +66,31 @@
           if (_plugin === 'KufrDebug') {
             if (method === 'status') { return { ...debugStatus }; }
             if (method === 'configure') { debugStatus.configured = true; debugStatus.mode = 'unknown'; return; }
+            if (method === 'forgetProfile') {
+              debugStatus.configured = false; debugStatus.mode = 'unknown'; debugStatus.evenings = null;
+              debugStatus.server = null; debugStatus.transcript = []; debugStatus.selected = null;
+              debugStatus.timings = null; return;
+            }
+            if (['inspectEvenings', 'createEvening', 'activateEvening'].includes(method)) {
+              if (!debugStatus.configured || debugStatus.session || debugStatus.running) { throw new Error('Busy'); }
+              if (method !== 'inspectEvenings') {
+                if (options.expectedEveningId !== eveningState.activeEveningId ||
+                    new URLSearchParams(location.search).has('eveningConflict')) {
+                  debugStatus.evenings = null; throw new Error('Synthetic evening conflict');
+                }
+                if (method === 'createEvening') {
+                  const eveningId = crypto.randomUUID();
+                  eveningState.evenings.push({ eveningId, name: options.name, createdAt: new Date().toISOString(),
+                    exchangeCount: 0, droppedCount: 0 });
+                  eveningState.activeEveningId = eveningId;
+                } else {
+                  if (!eveningState.evenings.some(item => item.eveningId === options.eveningId)) { throw new Error('Not found'); }
+                  eveningState.activeEveningId = options.eveningId;
+                }
+                debugStatus.transcript = []; debugStatus.selected = null; debugStatus.timings = null;
+              }
+              debugStatus.evenings = structuredClone(eveningState); return;
+            }
             if (method === 'inspectBackend') { debugStatus.mode = 'fake'; return; }
             if (method === 'inspectServer') { debugStatus.server = { ...serverState }; debugStatus.mode = serverState.voiceMode; return; }
             if (method === 'changeServerModes') {

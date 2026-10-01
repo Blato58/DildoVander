@@ -216,7 +216,7 @@ internal sealed partial class ConversationStore(
                         dialogRunner!.Stopping);
                     activePaidCalls.Add(
                         operationId,
-                        new PaidCall(conversationId, cancellation));
+                        new PaidCall(deviceId, conversationId, cancellation));
                     var history = conversation.History.ToArray();
                     var completedQuestions = conversation.CompletedQuestions;
                     _ = Task.Run(() => ProcessPaidTurnAsync(
@@ -815,6 +815,74 @@ internal sealed partial class ConversationStore(
 
     public EveningMemoryStatus? GetEveningMemory(string deviceId) => eveningMemory?.GetStatus(deviceId);
 
+    public EveningsList? ListEvenings(string deviceId) => eveningMemory?.List(deviceId);
+
+    public EveningMutationResult CreateEvening(
+        string deviceId,
+        Guid key,
+        ReadOnlySpan<byte> requestBody,
+        string expectedEveningId,
+        string name)
+    {
+        const string route = "/v1/evenings";
+        var bodyHash = Convert.ToHexString(SHA256.HashData(requestBody));
+        lock (gate)
+        {
+            CleanupExpired(clock.GetUtcNow());
+            var replay = eveningMemory!.FindMutation(deviceId, key, route, bodyHash);
+            if (replay is not null)
+            {
+                return replay;
+            }
+
+            if (HasLiveEveningWork(deviceId))
+            {
+                return new(409, null, "evening_busy");
+            }
+
+            return eveningMemory.Create(deviceId, key, route, bodyHash, expectedEveningId, name);
+        }
+    }
+
+    public EveningMutationResult ActivateEvening(
+        string deviceId,
+        Guid key,
+        ReadOnlySpan<byte> requestBody,
+        string targetEveningId,
+        string expectedEveningId)
+    {
+        var route = $"/v1/evenings/{targetEveningId}/active";
+        var bodyHash = Convert.ToHexString(SHA256.HashData(requestBody));
+        lock (gate)
+        {
+            CleanupExpired(clock.GetUtcNow());
+            var replay = eveningMemory!.FindMutation(deviceId, key, route, bodyHash);
+            if (replay is not null)
+            {
+                return replay;
+            }
+
+            if (!eveningMemory.Contains(deviceId, targetEveningId))
+            {
+                return new(404, null, "evening_not_found");
+            }
+
+            if (HasLiveEveningWork(deviceId))
+            {
+                return new(409, null, "evening_busy");
+            }
+
+            return eveningMemory.Activate(
+                deviceId, key, route, bodyHash, targetEveningId, expectedEveningId);
+        }
+    }
+
+    private bool HasLiveEveningWork(string deviceId)
+    {
+        return conversations.Values.Any(conversation => conversation.DeviceId == deviceId)
+            || activePaidCalls.Values.Any(call => call.DeviceId == deviceId);
+    }
+
     public void ClearEveningMemory(string deviceId, string expectedEveningId)
     {
         lock (gate)
@@ -1009,7 +1077,7 @@ internal sealed record SpeechResult(string AudioId, DateTimeOffset ExpiresAt, st
 internal sealed record AudioReadResult(int Status, byte[]? Wav);
 internal sealed record AudioEntry(string DeviceId, string ConversationId, string OperationId, DateTimeOffset ExpiresAt, byte[] Wav);
 internal sealed record AudioTombstone(string DeviceId, DateTimeOffset RemoveAt);
-internal sealed record PaidCall(string ConversationId, CancellationTokenSource Cancellation);
+internal sealed record PaidCall(string DeviceId, string ConversationId, CancellationTokenSource Cancellation);
 internal sealed record TurnOperation(
     string OperationId,
     string Kind,
