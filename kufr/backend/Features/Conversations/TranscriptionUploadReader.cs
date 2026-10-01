@@ -160,7 +160,7 @@ internal static class TranscriptionUploadReader
         }
     }
 
-    private static int ValidateWav(ReadOnlySpan<byte> content)
+    internal static int ValidateWav(ReadOnlySpan<byte> content)
     {
         if (content.Length < 44
             || !content[..4].SequenceEqual("RIFF"u8)

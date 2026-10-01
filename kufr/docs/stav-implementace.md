@@ -6,7 +6,16 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**Kontrola pokračování 1. 10. (D105):** majitel znovu potvrdil, že podklady B1 nemá. Porovnání živého runtime a nezávislý průchod zbývajících mobilních/backendových etap nenalezly další krok se splněnými závislostmi. Další krok zůstává B1; firmware README bylo opraveno podle již složeného WSS runtime.
+**D106 – backend AI hlasu ověřen lokálně 1. 10.; další software E9 pokračuje.** Majitel
+upřesnil, že kufr musí mít připravené mluvení. Závěr D105 byl příliš široký:
+B1 blokuje fyzický port/akceptaci, nikoli backendové STT/TTS adaptéry a hostitelské
+audio ověření. Dokončený rozsah: explicitně zapínané provider adaptéry za existujícími
+audio API, asynchronní polling/cancel/idempotence, nákladová rezervace, normalizace
+PCM16 mono 32 kHz a testy bez skutečného OpenAI volání. Podrobné oddělení je v §7 plánu.
+Další konkrétní krok: firmware korelované speech operace a omezený audio port,
+poté hostitelské propojení poloduplexního hlasového toku. B1 blokuje fyzický výstup.
+
+**Historická kontrola D105, opravená D106:** majitel znovu potvrdil, že podklady B1 nemá. Původní závěr o úplné blokaci byl příliš široký; firmware README bylo opraveno podle již složeného WSS runtime, nezávislá hlasová příprava ale může pokračovat.
 
 **Předání 1. 10.: nezávislé E10.1–3 a E4.4t dokončené v softwarovém rozsahu, další krok B1.** Nativní transport/TLS/Keychain ([PR #65](https://github.com/Blato58/DildoVander/pull/65), merge `5f54104b783c8cf2fc7e1885276322d535681f7b`), text/cancel/result ([PR #66](https://github.com/Blato58/DildoVander/pull/66), merge `ed7ea0212a9f345f78da32caf51abf6e1a57dc9c`) a firmware/nativní Bonjour ([PR #67](https://github.com/Blato58/DildoVander/pull/67), merge `6315857414e2c6030e991f3ddda43aa21ceee28a`) jsou po příslušných zelených CI sloučené a ověřené scoped fetch/fast-forward na `main`. E10 fyzická akceptace, servisní provisioning/QR a audio zůstávají otevřené; firmware nadále odmítá zotavení bez B1.
 
@@ -48,7 +57,7 @@ Dotčené cesty: `kufr/firmware/`, související README a tento stav. Dosavadní
 | --- | --- | --- |
 | Firmware | ESP-IDF složený runtime D99: jeden STA vlastník, provisionované HTTPS pairing/TLS/WSS, řídicí router, journal/safety snapshot, textový input a korelované backendové repliky. Autonomní model D77 a porty jsou hostitelsky testované. Arduino sériový profil zůstává vývojový. | B1, fyzické service/inspection/kalibrace, GPIO/watchdog, živý ESP32 NVS/TLS/STA a I2S. |
 | Mobil | Web fake / C++ simulator UI; Capacitor 8.4.3 a E10.1 Swift SPKI/Keychain/pairing/WSS. Text/cancel/result (D102) a NWBrowser discovery/adresní fallback (D103). macOS transport/Bonjour test, Xcode a iOS Simulator prošly. | Čtení QR/servisní provisioning, audio po E9 a živý iPhone/LAN acceptance. |
-| Backend/kontrakty/simulátor | E7 SQLite/idempotence/retence/kvóty; E8 Responses Sol s trvalou oddělenou pamětí večera, nasazený textový rozhovor D75. Strict v1 schéma, C++/WSS simulator, OpenAPI a fake media E2. | Skutečný STT/TTS/audio E9, zařízení a lidská/provozní akceptace. |
+| Backend/kontrakty/simulátor | E7 SQLite/idempotence/retence/kvóty; E8 Responses Sol s trvalou oddělenou pamětí večera, nasazený textový rozhovor D75. D106: explicitní STT/TTS s omezenými asynchronními operacemi a WAV převodem. Strict v1 schéma, C++/WSS simulator, OpenAPI a fake media E2. | Firmware audio tok, živá hlasová evaluace, zařízení a lidská/provozní akceptace. |
 | iOS CI | Capacitor web/Xcode/simulator CI; D70 podepsaná Ad Hoc IPA a HTTPS manifest, majitelem potvrzený start na iPhonu 15 Pro. D101 unsigned nativní build/test. | Nová native IPA a její LAN/TLS/Keychain/lifecycle iPhone zkouška; aktualizace/rollback. |
 | Hardware | Dodaný obrázek pinů, návrh napájení a předběžné profily A/B. | Revize konkrétní desky, schéma bezpečnostní větve, měření a fyzická akceptace. |
 
@@ -70,7 +79,7 @@ Přesné závislosti a kritéria dokončení jsou v kapitole 12 plánu. Následu
 | E6 – šest přihrádek | nezahájeno | Bez fyzického ověření. | E5; cykly, proudy, dostupnost/reload. |
 | E7 – backend bez skutečné AI | hotovo | E7.1–2 identity/fake dialog; E7.3a–c SQLite idempotence, restart a kvóta; E7.4a–b cleanup/retence a rušení; E7.5a–b WAV fake hlas; E7.6 transakční nákladová rezervace. Lokální HTTP/SQLite testy přístupů, souběhu, restartu, retence a logů prošly (D23–D32). | Skutečné provider ceny/limity/klíče a placená akceptace patří E8/B4; device HTTPS/TLS integrace E4. |
 | E8 – skutečný textový dialog | rozpracováno | D53–D54: samostatný Responses eval a party prompt. D57: 60 českých případů a dvě jazykové odbočky. D60–D62: backendový Responses klient, cena a asynchronní napojení za výslovný přepínač a rezervaci. D63: jeden nasazený syntetický placený tah. D66: modelový vícekolový dialog s omezenou RAM historií. D68: tři skutečné placené tahy přes veřejné HTTPS, dvě AI otázky a návrh s navázáním na odpovědi. D72: původní šestičlenný katalog a tematický kufr Ollivanderova obchodu, backend/eval filtrování dle readyMask ověřeno offline. D73: nové téma včetně prvního představení kufru prošlo veřejným tříkolovým testem; server vrácen do fake režimu. | Širší lidské hodnocení, produkční region/retence, zařízení a fyzické potvrzení; B1/B5. |
-| E9 – samostatný hlas kufru | nezahájeno | Bez audio cesty. | E4/E5/E8; hardware a hlasová akceptace. |
+| E9 – samostatný hlas kufru | rozpracováno | E9.1a/D106: explicitní OpenAI STT/TTS, asynchronní operace, nákladové rezervace, omezené WAV a převod 24→32 kHz; lokální fake-provider/HTTP testy. | Firmware hlasový tok, capture/playback porty, živá česká evaluace; fyzický PTT/I2S a akceptace E4/E5/E8/B1. |
 | E10 – dokončení mobilní zálohy | rozpracováno | E10.1: Swift párování, Keychain, SPKI pinning a WSS; sdílený ruční řadič, strict schema a pozorování po připojení. E10.2: device-owned text/cancel/result; E10.3: bounded Bonjour a adresní fallback. macOS loopback TLS/WSS/Bonjour, Xcode a iOS Simulator prošly (D101–D103). | Čtení QR/servisní provisioning, audio po E9 a skutečná iPhone/LAN/TLS akceptace s provisionovaným ESP32. |
 | E11 – provozní balení | rozpracováno | D52–D59: Ubuntu backend, systemd a rollback. D67: veřejné IP HTTPS, Nginx, obnovovací timer a externí TLS/health sonda. D70: `/ios/` statická stránka, Ad Hoc IPA/manifest s externí kontrolou podpisu, MIME, hashe a HTTPS. | Reálná obnova certifikátu po expiraci, instalace na iPhone a zařízení; plné E11 vyžaduje E6/E8/E9, zálohu E10 a provozní zkoušku. |
 | E12 – obraz telefonu | odloženo | Volitelné rozšíření po základní verzi. | E8/E11 a potvrzený přínos. |
@@ -89,6 +98,34 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 | B5 | Katalog šesti původních hůlek a Harry Potter / Ollivander tematickou roli majitel svěřil nezávislému agentovi; zdroj je `ai-eval/wand-catalog.json` (D72). Stále chybí rozměry, router, prostředí akce a živé obsahové hodnocení s hosty. | Provozní akceptaci E8/E11, fyzické mapování hůlek a finální mechaniku. | Sdílený tematický katalog, vývojové a simulované scénáře; skutečné přihrádky až s HW. |
 
 ## Deník změn a ověření
+### D106 – 1. 10. 2026 – backendová příprava skutečného AI hlasu
+
+- Majitel požádal o připravený hlas kufru. §7 plánu nyní výslovně odděluje
+  nezávislé softwarové E9 od fyzické akceptace; závěr D105 byl opraven.
+- `backend/Features/VoiceTurns/`, `Speech/` a částečný `ConversationVoiceOperations`
+  přidávají STT `gpt-transcribe` a TTS `gpt-4o-mini-tts-2025-12-15`/`marin`.
+  `Backend:Voice:Mode=openai` vyžaduje klíč a kladné limity, výchozí fake zůstává.
+  `Program.cs` ověřuje konfiguraci při startu. Existující trasy/SQLite schéma se nemění.
+- STT/TTS mají 15s deadline, pouze jeden placený dialog/audio call, stejné
+  idempotence/cancel/consent/device kontroly. Vlastní upload a odmítnuté audio se
+  nulují. TTS generuje pouze uloženou repliku; filtrovaný PCM24→32kHz převod
+  zachovává délku a potlačuje spektrální obraz. WAV nad30s se celý odmítne.
+  Rezervace 0,01/0,05 USD zůstávají bez skutečného billing údaje konzervativně
+  započtené; nejsou ověřenou skutečnou cenou. Neodeslaná práce se vypořádá nulou.
+- `backend-tests/VoiceProviderTests.cs` ověřuje konfiguraci, provider HTTP formáty,
+  frekvenci/délku převodu, neplatné/velké výsledky, replay, kopii uploadu, souběh,
+  cost/consent, TTL/nulování, cancel/end/shutdown a pozdní výsledky po deadline.
+  Backend CI nově validuje i PR, deploy zůstává pouze ruční z main.
+- Ověření 1.10. v `kufr/`: `dotnet build backend/backend.csproj --no-restore`
+  prošel bez warning/error; `dotnet run --project backend-tests/BackendTests.csproj --no-restore`
+  prošel. Z kořene `node kufr/backend/tests/smoke.mjs` prošel;
+  `python -m unittest discover -s kufr/backend/deploy -p 'test_*.py'` 3/3 a
+  obdobný příkaz pro `kufr/backend/tests` 9/9 prošly. Počáteční compile/config/test
+  chyby a změna existujícího busy kódu byly opraveny před úspěšným během.
+- Neproběhlo živé placené OpenAI volání, poslech českého hlasu, cloud deploy
+  ani hardware test. Firmware audio přenos a skutečný PTT/I2S ještě nejsou součástí D106.
+  Další krok je nezávislá firmware audio příprava, nikoli uzavření E9.
+
 ### D105 – 1. 10. 2026 – ověřená blokace pokračování bez B1
 
 - Převzetí: čistý `main` na `5b4ce39`; scoped `git fetch origin main` a `git rev-list --left-right --count HEAD...origin/main` potvrdily `0 0`. Plán, stav a skutečný runtime byly znovu porovnány. Majitel v tomto pokračování výslovně potvrdil, že podklady B1 zatím nemá.
