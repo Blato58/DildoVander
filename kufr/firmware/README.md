@@ -380,6 +380,42 @@ Volající musí `IsReplyCurrent` kontrolovat před výstupem i během něj a p�
 zrušení zastavit skutečný výstupní port. Přehrávací/TTS port v IDF smyčce
 zatím neexistuje. `PumpReply` předává korelovaný text na místní WSS,
 mobilní klient jej zobrazí; z kufru replika zatím slyšet není.
+
+E9.1b (D107) připravuje samostatnou softwarovou výstupní cestu.
+`SpeechOperationCodec` přijímá pouze striktní `kind:speech`, původní korelaci
+tahu, `outputTarget:device`, platné `audioId` a UTC expiraci nejvýše 120 s.
+`SpeechOutputCoordinator` z validované dokončené turn operace sestaví požadavek,
+polluje se společným 45s deadlinem od původního začátku tahu a stáhne celý zvuk.
+Opakování ztraceného přijetí používá přesně tentýž idempotency key/body.
+Chyba, zrušení nebo změna snapshotu buffer vymaže. Po downloadu uvolní vzdálené
+audio operací DELETE; při ztrátě cleanup odpovědi zůstává serverová TTL pojistka.
+
+`EspIdfSpeechTransport` je blokující adaptér pouze pro síťový task: POST speech,
+GET operation/audio a DELETE release, vždy CA bundle/hostname, bez redirect
+a auth retry. Ověřuje `audio/wav`, deklarovanou délku, 32kHz/mono hlavičky,
+čas a snapshot i během downloadu. `SpeechAudioBuffer` používá callerem dodanou
+ověřenou paměť, s limitem 1 920 044 B; sám velkou alokaci neprovádí.
+Celý canonical PCM16 WAV ověří před prvními PCM vzorky. Budoucí playback
+vlastník čte jen omezené bloky a při Stop/expiraci zastaví také svůj DMA výstup.
+
+Tyto třídy jsou sestavené a hostitelsky testované, ale nejsou připojené do
+současného `RunTurn`/`espidf_main.cpp`. Současný textový start má stále audio
+souhlas false. Navazující runtime musí mít skutečný consent/capture/playback
+port a ověřenou PSRAM; jejich fyzický vstup a I2S piny závisejí na B1/E5.
+Tento build neprokazuje, že kufr mluví. Backend provider příprava je v
+`../backend/README.md`; firmware STT upload a fyzické PTT ještě nejsou hotové.
+
+Hostitelské testy (stejné příkazy používá firmware CI, výstup mimo repozitář):
+
+```text
+g++ -std=c++14 -Wall -Wextra -Werror -pthread src/features/conversation/SpeechAudioBuffer.cpp src/features/conversation/SpeechOperationCodec.cpp src/features/conversation/TurnPollGuard.cpp src/features/conversation/ConversationRuntimeState.cpp src/features/conversation/ConversationStartCodec.cpp tests/speech_audio_buffer_test.cpp -o <docasna-slozka>/speech-audio-test
+g++ -std=c++14 -Wall -Wextra -Werror -pthread -I tests/speech_stubs src/features/conversation/EspIdfSpeechTransport.cpp src/features/conversation/SpeechAudioBuffer.cpp src/features/conversation/SpeechOperationCodec.cpp src/features/conversation/OperationAcceptedCodec.cpp src/features/conversation/TurnPollGuard.cpp src/features/conversation/ConversationRuntimeState.cpp src/features/conversation/ConversationStartCodec.cpp src/features/backend_access/NetworkSettings.cpp tests/espidf_speech_transport_test.cpp -o <docasna-slozka>/speech-transport-test
+g++ -std=c++14 -Wall -Wextra -Werror -pthread src/features/conversation/SpeechOutputCoordinator.cpp src/features/conversation/SpeechAudioBuffer.cpp src/features/conversation/SpeechOperationCodec.cpp src/features/conversation/TurnPollGuard.cpp src/features/conversation/TurnPollSchedule.cpp src/features/conversation/ConversationRuntimeState.cpp src/features/conversation/ConversationStartCodec.cpp tests/speech_output_coordinator_test.cpp -o <docasna-slozka>/speech-output-test
+```
+
+Každý vzniklý executable spusť. Na Windows byly stejné zdroje přeloženy
+pomocí Visual Studio Build Tools `cl /std:c++14 /EHsc /W4 /WX` a spuštěny.
+
 `WandPresentation` je čistý autonomní model pro hůlku, která zůstává v přihrádce.
 Po jednorázovém převzetí validovaného návrhu vyžádá zdvih, čeká na potvrzenou
 horní polohu, ukáže rekvizitu 5 s, vyžádá spuštění a čeká na potvrzenou klidovou
