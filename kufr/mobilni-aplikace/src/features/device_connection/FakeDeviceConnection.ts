@@ -1,3 +1,5 @@
+import type { LocalConversationState } from './LocalConversationClient';
+
 export type ControlMode = 'observer' | 'manual';
 export type DevicePhase = 'ready' | 'running' | 'stopped' | 'disconnected';
 
@@ -149,5 +151,3 @@ export class FakeDeviceConnection {
     this.onChange({ ...this.state });
   }
 }
-import type { LocalConversationState } from './LocalConversationClient';
-
