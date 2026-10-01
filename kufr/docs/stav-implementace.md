@@ -28,7 +28,8 @@ Lokálně prošly kompletní backend testy v Release včetně SDK serializace,
 audia před response.done, tool/mask/otázkové brány, resamplingu, journalu,
 nízkého capu, chyby paměťového zápisu a Stop. HTTP smoke a všechny kontrakty
 prošly; mobilních 19 testů, TypeScript/Vite build a 20 Python eval testů také.
-Locked restore linux-x64/self-contained prošel. In-app Browser ověřil
+Locked restore linux-x64/self-contained s explicitním RuntimeIdentifier
+prošel. In-app Browser ověřil
 Realtime jako výchozí, kompatibilní hlasy, ovládání a 390px rozložení bez
 horizontálního přesahu/console chyb. Swift/Xcode na Windows není dostupné;
 nový parser/rušení/cleanup harness a iOS sestavení ověřuje povinné macOS CI.
@@ -37,6 +38,10 @@ přes Push-CurrentBranch.ps1, přesná remote shoda ověřena.
 [PR #80](https://github.com/Blato58/DildoVander/pull/80) obsahuje povinné
 kontroly backendu, webu, Swift harness a Xcode/simulátoru; aktuální výsledek
 kontrol a sloučení je v PR. Tento záznam se nepoužívá jako HW/iPhone akceptace.
+První CI 36886840203 odhalilo hostitelské win-x64 v lockfiles a chybějící
+Realtime source v původním Swift test buildu. Lockfiles regenerované přes
+NuGet s explicitním linux-x64 RuntimeIdentifier; oba Swift harness buildy
+nyní zahrnují DebugRealtimeSession. macOS ověření pokračuje v PR.
 Read-only review opravil immutable model, 32KiB audio bloky, playback drain,
 cleanup retry, souběh streamu a pořadí paměť/journal. Oddělené SQLite soubory
 nejsou společná atomická transakce: chyba journalu po úspěšné paměti může
