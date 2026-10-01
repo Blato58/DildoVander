@@ -388,6 +388,15 @@ Operace je před placeným voláním transakčně zapsána do SQLite včetně re
 
 ## 7. Text, hlas, média a offline režimy
 
+**Upřesnění pokračování 1. 10. 2026 (D106):** majitel požaduje připravit AI hlas
+ještě bez fyzické desky. E9 se proto implementuje po nezávislých softwarových
+částech: backendové STT/TTS adaptéry a jejich omezené asynchronní operace lze
+ověřit proti syntetickému HTTP provideru po E7/E8. Příprava nevyžaduje E5.
+Následují firmwareové upload/download a poloduplexní model s fake audio porty.
+Skutečný I2S/PTT/reproduktor, fyzická prezentace a akceptace celé E9 nadále
+vyžadují E4/E5/B1. Původní závislost celé etapy není zákazem přípravy jejího
+nezávislého softwaru; kritéria dokončení E9 se nesnižují.
+
 ### Průběh samostatného hlasového tahu
 
 1. Po fyzické kontrole a aktivaci samostatného režimu kufr přehraje informaci o cloudovém zpracování a nabídne PTT. Teprve vědomý stisk začne nahrávat; firmware vytvoří sezení backendu a drží jeho identifikátory. Žádný telefonní lease se nevyžaduje.

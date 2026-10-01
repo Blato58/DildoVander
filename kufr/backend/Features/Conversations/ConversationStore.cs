@@ -1,15 +1,17 @@
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
+using Kufr.Backend.Features.VoiceTurns;
 
 namespace Kufr.Backend.Features.Conversations;
 
-internal sealed class ConversationStore(
+internal sealed partial class ConversationStore(
     TimeProvider clock,
     OperationJournal journal,
     TextDialogRunner? dialogRunner = null,
     ILogger<ConversationStore>? logger = null,
-    EveningMemoryStore? eveningMemory = null)
+    EveningMemoryStore? eveningMemory = null,
+    VoiceProviderRunner? voiceRunner = null)
 {
     private readonly Lock gate = new();
     private readonly Dictionary<string, ConversationEntry> conversations = new(StringComparer.Ordinal);
@@ -151,6 +153,13 @@ internal sealed class ConversationStore(
             }
 
             var paid = dialogRunner?.Enabled == true;
+            if ((paid && activePaidCalls.Count != 0) || HasActiveCall(conversationId))
+            {
+                return paid
+                    ? new SubmitTurnResult(503, null, "dialogue_busy")
+                    : new SubmitTurnResult(409, null, "operation_active");
+            }
+
             if (paid && !dialogRunner!.TryAcquire())
             {
                 return new SubmitTurnResult(503, null, "dialogue_busy");
@@ -478,6 +487,18 @@ internal sealed class ConversationStore(
                 upload.ClientTurnId,
                 upload.Generation,
                 upload.DeviceRevision);
+            if (voiceRunner?.Enabled == true)
+            {
+                return QueueVoiceCall(
+                    deviceId, route, key, bodyHash, correlation,
+                    VoiceOperationKind.Transcription, upload.Wav, null, null);
+            }
+
+            if (HasActiveCall(conversationId))
+            {
+                return new SubmitTurnResult(409, null, "operation_active");
+            }
+
             var reservation = journal.Reserve(
                 deviceId,
                 route,
@@ -571,6 +592,18 @@ internal sealed class ConversationStore(
             if (source is null)
             {
                 return new SubmitTurnResult(404, null, "turn_not_found");
+            }
+
+            if (voiceRunner?.Enabled == true)
+            {
+                return QueueVoiceCall(
+                    deviceId, route, key, bodyHash, source.Correlation,
+                    VoiceOperationKind.Speech, null, ((TurnResult)source.Result!).Reply, request.OutputTarget);
+            }
+
+            if (HasActiveCall(conversationId))
+            {
+                return new SubmitTurnResult(409, null, "operation_active");
             }
 
             var reservation = journal.Reserve(
