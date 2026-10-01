@@ -13,10 +13,14 @@ internal sealed class EveningMemoryStore
     internal const int MaxExchanges = 2000;
     internal const int MaxContentBytes = 2_000_000;
     internal const int MaxContextCharacters = 16_000;
+    internal const int MaxEvenings = 100;
+    internal const int MaxMutationsPerDevice = 1024;
+    internal static readonly TimeSpan MutationRetention = TimeSpan.FromHours(24);
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
+    private static readonly JsonSerializerOptions MutationJsonOptions = new(JsonSerializerDefaults.Web);
     private readonly string connectionString;
     private readonly Lock gate = new();
 
@@ -33,7 +37,9 @@ internal sealed class EveningMemoryStore
             Pooling = false
         }.ToString();
         using var connection = Open();
+        using var migration = connection.BeginTransaction();
         using var command = connection.CreateCommand();
+        command.Transaction = migration;
         command.CommandText = """
             CREATE TABLE IF NOT EXISTS evenings (
                 device_id TEXT PRIMARY KEY, evening_id TEXT NOT NULL,
@@ -44,8 +50,43 @@ internal sealed class EveningMemoryStore
                 operation_id TEXT NOT NULL UNIQUE, conversation_id TEXT NOT NULL,
                 visitor_text TEXT NOT NULL, reply TEXT NOT NULL, content_bytes INTEGER NOT NULL);
             CREATE INDEX IF NOT EXISTS exchanges_device ON exchanges(device_id, sequence);
+            CREATE INDEX IF NOT EXISTS exchanges_device_evening ON exchanges(device_id, evening_id, sequence);
+            CREATE TABLE IF NOT EXISTS evening_catalog (
+                device_id TEXT NOT NULL, evening_id TEXT NOT NULL,
+                name TEXT NOT NULL, created_at_ms INTEGER NOT NULL,
+                dropped_count INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (device_id, evening_id));
+            CREATE TABLE IF NOT EXISTS evening_mutations (
+                device_id TEXT NOT NULL, key TEXT NOT NULL,
+                route TEXT NOT NULL, body_hash TEXT NOT NULL,
+                status_code INTEGER NOT NULL, response_json TEXT NOT NULL,
+                created_at_ms INTEGER NOT NULL,
+                PRIMARY KEY (device_id, key));
             """;
         command.ExecuteNonQuery();
+        command.CommandText = """
+            INSERT OR IGNORE INTO evening_catalog
+                (device_id, evening_id, name, created_at_ms, dropped_count)
+            SELECT device_id, evening_id, 'Původní večer', $now, dropped_count FROM evenings;
+            PRAGMA user_version=1;
+            """;
+        command.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        command.ExecuteNonQuery();
+        migration.Commit();
+    }
+
+    internal static bool IsValidName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return false;
+        }
+
+        var runes = name.EnumerateRunes().ToArray();
+        return runes.Length is >= 1 and <= 80
+            && runes.All(rune => Rune.GetUnicodeCategory(rune) is not
+                (UnicodeCategory.Control or UnicodeCategory.Format
+                    or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator));
     }
 
     public EveningMemoryStatus GetStatus(string deviceId)
@@ -55,6 +96,164 @@ internal sealed class EveningMemoryStore
             using var connection = Open();
             EnsureEvening(connection, deviceId);
             return ReadStatus(connection, deviceId);
+        }
+    }
+
+    public EveningsList List(string deviceId)
+    {
+        lock (gate)
+        {
+            using var connection = Open();
+            EnsureEvening(connection, deviceId);
+            return ReadList(connection, null, deviceId);
+        }
+    }
+
+    public bool Contains(string deviceId, string eveningId)
+    {
+        lock (gate)
+        {
+            using var connection = Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT 1 FROM evening_catalog WHERE device_id = $device AND evening_id = $evening;
+                """;
+            command.Parameters.AddWithValue("$device", deviceId);
+            command.Parameters.AddWithValue("$evening", eveningId);
+            return command.ExecuteScalar() is not null;
+        }
+    }
+
+    public EveningMutationResult? FindMutation(string deviceId, Guid key, string route, string bodyHash)
+    {
+        lock (gate)
+        {
+            using var connection = Open();
+            return ReadMutation(connection, null, deviceId, key, route, bodyHash);
+        }
+    }
+
+    public EveningMutationResult Create(
+        string deviceId,
+        Guid key,
+        string route,
+        string bodyHash,
+        string expectedEveningId,
+        string name)
+    {
+        if (!IsValidName(name))
+        {
+            return new(400, null, "invalid_request");
+        }
+
+        lock (gate)
+        {
+            using var connection = Open();
+            EnsureEvening(connection, deviceId);
+            using var transaction = connection.BeginTransaction();
+            var replay = ReadMutation(connection, transaction, deviceId, key, route, bodyHash);
+            if (replay is not null)
+            {
+                return replay;
+            }
+
+            PruneExpiredMutations(connection, transaction, deviceId);
+
+            if (ReadActiveEvening(connection, transaction, deviceId) != expectedEveningId)
+            {
+                return new(409, null, "evening_conflict");
+            }
+
+            using var count = connection.CreateCommand();
+            count.Transaction = transaction;
+            count.CommandText = "SELECT COUNT(*) FROM evening_catalog WHERE device_id = $device";
+            count.Parameters.AddWithValue("$device", deviceId);
+            if ((long)count.ExecuteScalar()! >= MaxEvenings)
+            {
+                return new(429, null, "evening_limit");
+            }
+
+            if (!HasMutationCapacity(connection, transaction, deviceId))
+            {
+                return new(429, null, "evening_mutation_limit");
+            }
+
+            var next = Guid.NewGuid().ToString("D");
+            using var insert = connection.CreateCommand();
+            insert.Transaction = transaction;
+            insert.CommandText = """
+                INSERT INTO evening_catalog(device_id, evening_id, name, created_at_ms)
+                VALUES ($device, $evening, $name, $now);
+                UPDATE evenings SET evening_id = $evening, dropped_count = 0 WHERE device_id = $device;
+                """;
+            insert.Parameters.AddWithValue("$device", deviceId);
+            insert.Parameters.AddWithValue("$evening", next);
+            insert.Parameters.AddWithValue("$name", name);
+            insert.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+            insert.ExecuteNonQuery();
+            var response = ReadList(connection, transaction, deviceId);
+            WriteMutation(connection, transaction, deviceId, key, route, bodyHash, 201, response);
+            transaction.Commit();
+            return new(201, response, null);
+        }
+    }
+
+    public EveningMutationResult Activate(
+        string deviceId,
+        Guid key,
+        string route,
+        string bodyHash,
+        string targetEveningId,
+        string expectedEveningId)
+    {
+        lock (gate)
+        {
+            using var connection = Open();
+            EnsureEvening(connection, deviceId);
+            using var transaction = connection.BeginTransaction();
+            var replay = ReadMutation(connection, transaction, deviceId, key, route, bodyHash);
+            if (replay is not null)
+            {
+                return replay;
+            }
+
+            PruneExpiredMutations(connection, transaction, deviceId);
+
+            using var target = connection.CreateCommand();
+            target.Transaction = transaction;
+            target.CommandText = "SELECT 1 FROM evening_catalog WHERE device_id = $device AND evening_id = $evening";
+            target.Parameters.AddWithValue("$device", deviceId);
+            target.Parameters.AddWithValue("$evening", targetEveningId);
+            if (target.ExecuteScalar() is null)
+            {
+                return new(404, null, "evening_not_found");
+            }
+
+            if (ReadActiveEvening(connection, transaction, deviceId) != expectedEveningId)
+            {
+                return new(409, null, "evening_conflict");
+            }
+
+            if (!HasMutationCapacity(connection, transaction, deviceId))
+            {
+                return new(429, null, "evening_mutation_limit");
+            }
+
+            using var update = connection.CreateCommand();
+            update.Transaction = transaction;
+            update.CommandText = """
+                UPDATE evenings SET evening_id = $evening,
+                    dropped_count = (SELECT dropped_count FROM evening_catalog
+                        WHERE device_id = $device AND evening_id = $evening)
+                WHERE device_id = $device;
+                """;
+            update.Parameters.AddWithValue("$device", deviceId);
+            update.Parameters.AddWithValue("$evening", targetEveningId);
+            update.ExecuteNonQuery();
+            var response = ReadList(connection, transaction, deviceId);
+            WriteMutation(connection, transaction, deviceId, key, route, bodyHash, 200, response);
+            transaction.Commit();
+            return new(200, response, null);
         }
     }
 
@@ -68,9 +267,10 @@ internal sealed class EveningMemoryStore
             using var command = connection.CreateCommand();
             command.CommandText = """
                 SELECT sequence, conversation_id, visitor_text, reply FROM exchanges
-                WHERE device_id = $device ORDER BY sequence;
+                WHERE device_id = $device AND evening_id = $evening ORDER BY sequence;
                 """;
             command.Parameters.AddWithValue("$device", deviceId);
+            command.Parameters.AddWithValue("$evening", status.EveningId);
             using var reader = command.ExecuteReader();
             var rows = new List<MemoryExchange>();
             while (reader.Read())
@@ -152,19 +352,26 @@ internal sealed class EveningMemoryStore
                         SELECT sequence FROM (
                             SELECT sequence, ROW_NUMBER() OVER (ORDER BY sequence DESC) AS row_number,
                                 SUM(content_bytes) OVER (ORDER BY sequence DESC) AS running_bytes
-                            FROM exchanges WHERE device_id = $device
+                            FROM exchanges WHERE device_id = $device AND evening_id = $evening
                         ) WHERE row_number > $maxRows OR running_bytes > $maxBytes
                     );
                     """;
                 trim.Parameters.AddWithValue("$device", deviceId);
+                trim.Parameters.AddWithValue("$evening", eveningId);
                 trim.Parameters.AddWithValue("$maxRows", MaxExchanges);
                 trim.Parameters.AddWithValue("$maxBytes", MaxContentBytes);
                 var dropped = trim.ExecuteNonQuery();
                 using var update = connection.CreateCommand();
                 update.Transaction = transaction;
-                update.CommandText = "UPDATE evenings SET dropped_count = dropped_count + $count WHERE device_id = $device";
+                update.CommandText = """
+                    UPDATE evening_catalog SET dropped_count = dropped_count + $count
+                    WHERE device_id = $device AND evening_id = $evening;
+                    UPDATE evenings SET dropped_count = dropped_count + $count
+                    WHERE device_id = $device AND evening_id = $evening;
+                    """;
                 update.Parameters.AddWithValue("$count", dropped);
                 update.Parameters.AddWithValue("$device", deviceId);
+                update.Parameters.AddWithValue("$evening", eveningId);
                 update.ExecuteNonQuery();
             }
 
@@ -186,16 +393,25 @@ internal sealed class EveningMemoryStore
                 UPDATE evenings SET evening_id = $next, dropped_count = 0
                 WHERE device_id = $device AND evening_id = $expected;
                 """;
+            var nextEveningId = Guid.NewGuid().ToString("D");
             command.Parameters.AddWithValue("$device", deviceId);
             command.Parameters.AddWithValue("$expected", expectedEveningId);
-            command.Parameters.AddWithValue("$next", Guid.NewGuid().ToString("D"));
+            command.Parameters.AddWithValue("$next", nextEveningId);
             var changed = command.ExecuteNonQuery() == 1;
             if (changed)
             {
                 using var delete = connection.CreateCommand();
                 delete.Transaction = transaction;
-                delete.CommandText = "DELETE FROM exchanges WHERE device_id = $device";
+                delete.CommandText = """
+                    DELETE FROM exchanges WHERE device_id = $device AND evening_id = $expected;
+                    DELETE FROM evening_catalog WHERE device_id = $device AND evening_id = $expected;
+                    INSERT INTO evening_catalog(device_id, evening_id, name, created_at_ms)
+                    VALUES ($device, $next, 'Nový večer', $now);
+                    """;
                 delete.Parameters.AddWithValue("$device", deviceId);
+                delete.Parameters.AddWithValue("$expected", expectedEveningId);
+                delete.Parameters.AddWithValue("$next", nextEveningId);
+                delete.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
                 delete.ExecuteNonQuery();
             }
 
@@ -216,26 +432,175 @@ internal sealed class EveningMemoryStore
 
     private static void EnsureEvening(SqliteConnection connection, string deviceId)
     {
+        using var transaction = connection.BeginTransaction();
         using var command = connection.CreateCommand();
-        command.CommandText = "INSERT OR IGNORE INTO evenings(device_id, evening_id) VALUES ($device, $id)";
+        command.Transaction = transaction;
+        command.CommandText = """
+            INSERT OR IGNORE INTO evenings(device_id, evening_id) VALUES ($device, $id);
+            INSERT OR IGNORE INTO evening_catalog(device_id, evening_id, name, created_at_ms, dropped_count)
+            SELECT device_id, evening_id, 'Večer 1', $now, dropped_count
+            FROM evenings WHERE device_id = $device;
+            """;
         command.Parameters.AddWithValue("$device", deviceId);
         command.Parameters.AddWithValue("$id", Guid.NewGuid().ToString("D"));
+        command.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
         command.ExecuteNonQuery();
+        transaction.Commit();
     }
 
     private static EveningMemoryStatus ReadStatus(SqliteConnection connection, string deviceId)
     {
         using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT evening_id, dropped_count,
-                (SELECT COUNT(*) FROM exchanges WHERE device_id = $device),
-                (SELECT COALESCE(SUM(content_bytes), 0) FROM exchanges WHERE device_id = $device)
-            FROM evenings WHERE device_id = $device;
+            SELECT active.evening_id, catalog.dropped_count,
+                (SELECT COUNT(*) FROM exchanges WHERE device_id = $device AND evening_id = active.evening_id),
+                (SELECT COALESCE(SUM(content_bytes), 0) FROM exchanges
+                    WHERE device_id = $device AND evening_id = active.evening_id)
+            FROM evenings AS active
+            JOIN evening_catalog AS catalog
+                ON catalog.device_id = active.device_id AND catalog.evening_id = active.evening_id
+            WHERE active.device_id = $device;
             """;
         command.Parameters.AddWithValue("$device", deviceId);
         using var reader = command.ExecuteReader();
         reader.Read();
         return new(reader.GetString(0), reader.GetInt32(2), reader.GetInt32(3), reader.GetInt32(1), MaxExchanges, MaxContentBytes);
+    }
+
+    private static string ReadActiveEvening(
+        SqliteConnection connection,
+        SqliteTransaction? transaction,
+        string deviceId)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT evening_id FROM evenings WHERE device_id = $device";
+        command.Parameters.AddWithValue("$device", deviceId);
+        return (string)command.ExecuteScalar()!;
+    }
+
+    private static EveningsList ReadList(
+        SqliteConnection connection,
+        SqliteTransaction? transaction,
+        string deviceId)
+    {
+        var active = ReadActiveEvening(connection, transaction, deviceId);
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            SELECT catalog.evening_id, catalog.name, catalog.created_at_ms,
+                (SELECT COUNT(*) FROM exchanges AS exchange
+                    WHERE exchange.device_id = catalog.device_id
+                      AND exchange.evening_id = catalog.evening_id),
+                catalog.dropped_count
+            FROM evening_catalog AS catalog
+            WHERE catalog.device_id = $device
+            ORDER BY catalog.created_at_ms, catalog.evening_id LIMIT $limit;
+            """;
+        command.Parameters.AddWithValue("$device", deviceId);
+        command.Parameters.AddWithValue("$limit", MaxEvenings);
+        using var reader = command.ExecuteReader();
+        var evenings = new List<EveningSummary>();
+        while (reader.Read())
+        {
+            evenings.Add(new(
+                reader.GetString(0),
+                reader.GetString(1),
+                DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(2)),
+                reader.GetInt32(3),
+                reader.GetInt32(4)));
+        }
+
+        return new(active, evenings);
+    }
+
+    private static EveningMutationResult? ReadMutation(
+        SqliteConnection connection,
+        SqliteTransaction? transaction,
+        string deviceId,
+        Guid key,
+        string route,
+        string bodyHash)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            SELECT route, body_hash, status_code, response_json FROM evening_mutations
+            WHERE device_id = $device AND key = $key AND created_at_ms > $cutoff;
+            """;
+        command.Parameters.AddWithValue("$device", deviceId);
+        command.Parameters.AddWithValue("$key", key.ToString("D"));
+        command.Parameters.AddWithValue(
+            "$cutoff", DateTimeOffset.UtcNow.Subtract(MutationRetention).ToUnixTimeMilliseconds());
+        using var reader = command.ExecuteReader();
+        if (!reader.Read())
+        {
+            return null;
+        }
+
+        if (reader.GetString(0) != route || reader.GetString(1) != bodyHash)
+        {
+            return new(409, null, "idempotency_conflict");
+        }
+
+        var response = JsonSerializer.Deserialize<EveningsList>(reader.GetString(3), MutationJsonOptions)
+            ?? throw new InvalidDataException("Persisted evening mutation is invalid.");
+        return new(reader.GetInt32(2), response, null);
+    }
+
+    private static void PruneExpiredMutations(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        string deviceId)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            DELETE FROM evening_mutations WHERE device_id = $device AND created_at_ms <= $cutoff;
+            """;
+        command.Parameters.AddWithValue("$device", deviceId);
+        command.Parameters.AddWithValue(
+            "$cutoff", DateTimeOffset.UtcNow.Subtract(MutationRetention).ToUnixTimeMilliseconds());
+        command.ExecuteNonQuery();
+    }
+
+    private static bool HasMutationCapacity(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        string deviceId)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT COUNT(*) FROM evening_mutations WHERE device_id = $device";
+        command.Parameters.AddWithValue("$device", deviceId);
+        return (long)command.ExecuteScalar()! < MaxMutationsPerDevice;
+    }
+
+    private static void WriteMutation(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        string deviceId,
+        Guid key,
+        string route,
+        string bodyHash,
+        int status,
+        EveningsList response)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            INSERT INTO evening_mutations
+                (device_id, key, route, body_hash, status_code, response_json, created_at_ms)
+            VALUES ($device, $key, $route, $hash, $status, $response, $now);
+            """;
+        command.Parameters.AddWithValue("$device", deviceId);
+        command.Parameters.AddWithValue("$key", key.ToString("D"));
+        command.Parameters.AddWithValue("$route", route);
+        command.Parameters.AddWithValue("$hash", bodyHash);
+        command.Parameters.AddWithValue("$status", status);
+        command.Parameters.AddWithValue("$response", JsonSerializer.Serialize(response, MutationJsonOptions));
+        command.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        command.ExecuteNonQuery();
     }
 
     private static HashSet<string> Words(string text)
@@ -253,4 +618,12 @@ internal sealed class EveningMemoryStore
 internal sealed record EveningContext(string EveningId, string Transcript);
 internal sealed record EveningMemoryStatus(string EveningId, int ExchangeCount, int ContentBytes,
     int DroppedExchangeCount, int MaxExchanges, int MaxContentBytes);
+internal sealed record EveningSummary(
+    string EveningId,
+    string Name,
+    DateTimeOffset CreatedAt,
+    int ExchangeCount,
+    int DroppedCount);
+internal sealed record EveningsList(string ActiveEveningId, List<EveningSummary> Evenings);
+internal sealed record EveningMutationResult(int Status, EveningsList? Response, string? ErrorCode);
 internal sealed record MemoryExchange(long Sequence, string ConversationId, string VisitorText, string Reply);
