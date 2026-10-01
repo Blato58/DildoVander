@@ -1,7 +1,7 @@
 import type { DeviceSnapshot } from '../device_connection/FakeDeviceConnection';
 
 export type DebugCategory = 'device' | 'voice' | 'app';
-export type DebugCode = 'snapshot' | 'voice_started' | 'voice_finished' | 'voice_failed' | 'voice_stopped' | 'profile_changed' | 'backend_checked' | 'background';
+export type DebugCode = 'snapshot' | 'voice_started' | 'voice_finished' | 'voice_failed' | 'voice_stopped' | 'profile_changed' | 'backend_checked' | 'server_modes_changed' | 'background';
 export interface DebugEntry {
   sequence: number;
   time: string;

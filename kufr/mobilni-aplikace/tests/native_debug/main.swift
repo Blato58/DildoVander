@@ -20,6 +20,16 @@ struct NativeDebugTests {
         let client = DebugBackendClient(http: peer.request)
         let inspectedMode = try await client.inspect(profile)
         assert(inspectedMode == "fake")
+        let server = try await client.serverModes(profile)
+        assert(server.dialogMode == "fake" && server.voiceAvailable)
+        let changed = try await client.serverModes(profile, expectedRevision: server.revision,
+                                                    dialogMode: "responses", voiceMode: "openai")
+        assert(changed.dialogMode == "responses" && changed.voiceMode == "openai")
+        for failure in ["admin-denied", "admin-conflict", "admin-invalid"] {
+            let bad = Peer(wav: wav, failure: failure)
+            do { _ = try await DebugBackendClient(http: bad.request).serverModes(profile); fatalError("Invalid admin response accepted") }
+            catch { }
+        }
         let audio = try await client.run(profile, expectedMode: "fake", phase: { _ in })
         assert(audio == wav && peer.cleaned && peer.mask == 0)
         assert(peer.paths.allSatisfy { !$0.contains("secret") })
@@ -27,6 +37,13 @@ struct NativeDebugTests {
         do { _ = try await DebugBackendClient(http: mismatch.request).run(profile, expectedMode: "openai", phase: { _ in }); fatalError("Mode mismatch accepted") }
         catch DebugBackendError.wrongMode { }
         assert(!mismatch.paths.contains("/v1/conversations"))
+        for failure in ["mode-race", "paid-dialog-fake-voice"] {
+            let bad = Peer(wav: wav, failure: failure)
+            do { _ = try await DebugBackendClient(http: bad.request).run(profile, expectedMode: "fake", phase: { _ in }); fatalError("Paid fake test accepted") }
+            catch DebugBackendError.wrongMode { }
+            assert(!bad.paths.contains(where: { $0.hasSuffix("/opening") }))
+            assert(failure != "mode-race" || bad.cleaned)
+        }
         for failure in ["mime", "correlation", "oversize", "cancel"] {
             let bad = Peer(wav: wav, failure: failure)
             do { _ = try await DebugBackendClient(http: bad.request).run(profile, expectedMode: "fake", phase: { _ in }); fatalError("Failure accepted") }
@@ -102,6 +119,7 @@ final class Peer {
     var createKey: String?
     var createBody: Data?
     var deleteAttempts = 0
+    let modeRevision = UUID().uuidString.lowercased()
     var deleteKey: String?
     let conversation = UUID().uuidString.lowercased()
     let opening = UUID().uuidString.lowercased()
@@ -113,14 +131,26 @@ final class Peer {
         let path = request.url!.path
         paths.append(path)
         assert(request.url!.scheme == "https")
-        assert(request.value(forHTTPHeaderField: "Authorization") == (path.hasSuffix("/token") ? "Bearer test-secret" : "Bearer access"))
+        assert(request.value(forHTTPHeaderField: "Authorization") == (path.hasSuffix("/token") || path == "/v1/admin/modes" ? "Bearer test-secret" : "Bearer access"))
         let body = try request.httpBody.map { try JSONSerialization.jsonObject(with: $0) as! [String: Any] } ?? [:]
         var result: [String: Any] = [:]
         var mime = "application/json"
         var status = 200
         var data: Data?
         if path == "/v1/device-access/token" { result = ["deviceId": "debug-test", "accessToken": "access"] }
-        else if path == "/v1/diagnostics" { result = ["voiceMode": "fake", "catalogVersion": "ollivander-private-party-v1", "audioFormat": "pcm16-mono-32000-wav"] }
+        else if path == "/v1/diagnostics" {
+            result = ["voiceMode": failure == "mode-race" && createAttempts > 0 ? "openai" : "fake",
+                      "dialogMode": failure == "paid-dialog-fake-voice" ? "responses" : "fake",
+                      "catalogVersion": "ollivander-private-party-v1", "audioFormat": "pcm16-mono-32000-wav"]
+        }
+        else if path == "/v1/admin/modes" {
+            if request.httpMethod == "PUT" { assert(body["expectedRevision"] as? String == modeRevision) }
+            if failure == "admin-denied" { status = 401 }
+            if failure == "admin-conflict" { status = 409 }
+            result = ["revision": modeRevision, "dialogMode": body["dialogMode"] ?? "fake",
+                      "voiceMode": body["voiceMode"] ?? "fake", "dialogAvailable": true, "voiceAvailable": true,
+                      "activeConversations": 0, "lifetime": failure == "admin-invalid" ? "unexpected" : "until_restart"]
+        }
         else if path == "/v1/conversations" {
             createAttempts += 1
             if failure == "blocked-create" {
