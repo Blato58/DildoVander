@@ -2,18 +2,11 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
-import ts from 'typescript';
+import { loadDeviceModule } from './load-test-module.mjs';
 import { validateControlMessage } from '../../contracts/control-validator.mjs';
 
-const load = async (file) => {
-  const source = await readFile(new URL(file, import.meta.url), 'utf8');
-  const compiled = ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
-  }).outputText;
-  return import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
-};
-const { NativeControlSocket } = await load('../src/features/device_connection/NativeControlSocket.ts');
-const { ProtocolDeviceConnection } = await load('../src/features/device_connection/SimulatorDeviceConnection.ts');
+const { NativeControlSocket } = await loadDeviceModule('NativeControlSocket');
+const { ProtocolDeviceConnection } = await loadDeviceModule('SimulatorDeviceConnection');
 Object.defineProperty(globalThis, 'crypto', { value: { randomUUID }, configurable: true });
 globalThis.document = { hidden: false };
 let now = 0;

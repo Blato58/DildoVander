@@ -8,7 +8,7 @@ První platforma je **iOS/iPhone**: zachovat TypeScript/Vite UI a doplnit Capaci
 
 ESP32 samo komunikuje s backendem; aplikace není cloudový prostředník a nemá AI provider klíč. Místní WSS nabízí ruční výběr 1–6, potvrzení/Stop, snapshot, opravu AI návrhu, text a případně telefonní mikrofon přes stejné device sezení. Offline ovládání musí fungovat bez WAN. Připojení je nejprve pozorovatelské; explicitní převzetí vytvoří ruční lease. Odchod do pozadí nebo ztráta lease zastaví ruční řízení, odpojení pozorovatele neovlivní samostatný kufr.
 
-Nativní adaptér vlastní TLS pin, oprávnění LAN a Keychain. E10.1 používá ručně zadanou adresu a údaje z vnitřního QR; Bonjour discovery, text a audio jsou navazující slices. UI nesmí přímo časovat motory ani přijímat AI text jako povel. Konkrétní slices a kontrakty jsou v kapitolách 3–5 plánu.
+Nativní adaptér vlastní TLS pin, oprávnění LAN a Keychain. E10.1 používá ručně zadanou adresu a údaje z vnitřního QR; E10.2 přidává text/cancel/result; Bonjour a audio jsou navazující slices. UI nesmí přímo časovat motory ani přijímat AI text jako povel. Konkrétní slices a kontrakty jsou v kapitolách 3–5 plánu.
 
 ## Nativní připojení E10.1
 
@@ -48,6 +48,23 @@ Testovací `/tests/native-ui-harness.html` nabízí syntetický bridge pouze př
 Vite pro kontrolu formuláře a recovery UI. Není v produkčním bundlu a nenahrazuje
 native alert, UIKit lifecycle ani zkoušku oprávnění na iPhonu.
 
+## Textový vstup E10.2
+
+Ruční vlastník může při čerstvém ready snapshotu s capability `conversationText`
+poslat jednu odpověď (1–1000 Unicode znaků, zpráva do 8192 UTF-8 bajtů) nebo
+zrušit aktivní tah. Telefon posílá device/boot/lease/session/generation/revision
+kontext pouze kufru; backend volá ESP32. UI před odesláním uvádí cloudové
+zpracování a trvalou paměť večera. Text se neukládá do telefonu, logů ani
+odložené fronty. Vývojový simulátor má výslovně pevnou simulovanou repliku.
+
+Reply musí odpovídat přijatému clientTurnId a aktuální generation/bootu, mít
+novější eventSequence a projít nativním v1 parserem. Vykresluje se jako text,
+nikdy HTML ani číslo aktuátoru. Cancel ihned skryje starý výsledek a čeká na
+ACK a autoritativní snapshot nové generation. Stop, revision/lease/boot změna,
+pozadí a odpojení obsah zneplatní. ACK timeout je 3 s, čekání na reply 45 s;
+nejasný výsledek obnoví spojení bez opakování textu. Během tahu nejde potvrdit
+ruční výběr přihrádky; Stop zůstává dostupný. Telefonní audio zůstává po E9.
+
 ## Současný lokální webový vývoj
 
 Ve složce `kufr/mobilni-aplikace` použijte Node.js 24.21.0 z `.nvmrc`:
@@ -82,5 +99,5 @@ npx cap sync ios
 
 Na Windows lze tyto příkazy použít pro kontrolu zdrojů, Xcode build a iOS Simulator však provádí macOS CI. Push/PR spouští `web` a nepodepsaný `ios-simulator` job. Ruční `workflow_dispatch` s `sign_ipa=true` na `main` spouští po jejich úspěchu podpisový job v environmentu `ios-signing`. Volba `signing_kind=development` vytvoří pouze 14denní Actions artifact. Volba `signing_kind=ad_hoc` použije distribuční profil a po úspěchu publikuje instalační stránku na `https://2.28.202.220/ios/`. Do environmentu patří secrets `IOS_BUILD_CERTIFICATE_BASE64`, `IOS_PROVISION_PROFILE_BASE64`, `IOS_DISTRIBUTION_CERTIFICATE_BASE64`, `IOS_DISTRIBUTION_PROFILE_BASE64`, `IOS_P12_PASSWORD` a `IOS_KEYCHAIN_PASSWORD`. Současné dvě `.p12` podle majitele používají stejné heslo; CI jej neukládá do artifactu. Certifikáty a profily jsou Base64 celého souboru; žádný ze souborů ani hesel nepatří do repozitáře. Environment může mít vlastní schvalovací pravidla.
 
-Nativní identita má Bundle ID `app.turquoise6409.green2444` a Team ID `3QRXV8G5Y3`. Majitel potvrdil iPhone 15 Pro s iOS 26.6.1 a jeho UDID v dodaném profilu. Vývojový profil expiruje 25. 12. 2026; Ad Hoc profil pro stejný tým, Bundle ID a jedno zařízení expiruje 24. 12. 2026. CI kontroluje shodu identity, platnost a certifikát, exportuje IPA a ověřuje její podpis a embedded profil. Při chybě importu `.p12` zkusí OpenSSL čtení a kompatibilní přebalení. Publikační job kontroluje SHA-256, Bundle ID a metadata IPA, vytvoří manifest a z externího runneru znovu stáhne stejné soubory přes HTTPS. [Ad Hoc běh 36636991415](https://github.com/Blato58/DildoVander/actions/runs/36636991415) prošel všemi joby a majitel 30. 9. 2026 potvrdil úspěšnou instalaci a spuštění na iPhonu. Stabilní identita je důležitá pro aktualizaci a Keychain. E10 teprve doplní native TLS/discovery/Keychain; aktualizace přes Safari a tyto funkce nejsou ještě ověřené. GitHub Release, Pages, feed a ntfy zde nejsou zapnuté.
+Nativní identita má Bundle ID `app.turquoise6409.green2444` a Team ID `3QRXV8G5Y3`. Majitel potvrdil iPhone 15 Pro s iOS 26.6.1 a jeho UDID v dodaném profilu. Vývojový profil expiruje 25. 12. 2026; Ad Hoc profil pro stejný tým, Bundle ID a jedno zařízení expiruje 24. 12. 2026. CI kontroluje shodu identity, platnost a certifikát, exportuje IPA a ověřuje její podpis a embedded profil. Při chybě importu `.p12` zkusí OpenSSL čtení a kompatibilní přebalení. Publikační job kontroluje SHA-256, Bundle ID a metadata IPA, vytvoří manifest a z externího runneru znovu stáhne stejné soubory přes HTTPS. [Ad Hoc běh 36636991415](https://github.com/Blato58/DildoVander/actions/runs/36636991415) prošel všemi joby a majitel 30. 9. 2026 potvrdil úspěšnou instalaci a spuštění na iPhonu. Stabilní identita je důležitá pro aktualizaci a Keychain. E10.1 doplňuje native TLS/Keychain; Bonjour je navazující krok a fyzický běh těchto funkcí ani aktualizace přes Safari zatím nejsou ověřené. GitHub Release, Pages, feed a ntfy zde nejsou zapnuté.
 

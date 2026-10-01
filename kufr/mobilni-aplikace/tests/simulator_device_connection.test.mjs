@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
-import ts from 'typescript';
+import { loadDeviceModule } from './load-test-module.mjs';
 
 let now = 0;
 let nextTimer = 1;
@@ -93,16 +92,7 @@ function advance(milliseconds) {
   now = target;
 }
 
-const source = await readFile(
-  new URL('../src/features/device_connection/SimulatorDeviceConnection.ts', import.meta.url),
-  'utf8',
-);
-const compiled = ts.transpileModule(source, {
-  compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
-}).outputText;
-const { SimulatorDeviceConnection } = await import(
-  `data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`
-);
+const { SimulatorDeviceConnection } = await loadDeviceModule('SimulatorDeviceConnection');
 
 const bootId = randomUUID();
 const deviceId = 'kufr-001';
@@ -139,10 +129,10 @@ function startConnection() {
   return { connection, socket };
 }
 
-function acquire(connection, socket, leaseId = randomUUID()) {
+function acquire(connection, socket, leaseId = randomUUID(), eventSequence = 2) {
   assert.equal(connection.acquire(), true);
   socket.message(snapshot({
-    eventSequence: 2,
+    eventSequence,
     controlMode: 'manual',
     controlLeaseId: leaseId,
   }));
@@ -195,7 +185,7 @@ test('new lease starts a fresh sequence and a command retries unchanged', () => 
   connection.release();
   socket.message(snapshot({ eventSequence: 4, revision: 2, readyMask: 62 }));
   const nextLease = randomUUID();
-  acquire(connection, socket, nextLease);
+  acquire(connection, socket, nextLease, 5);
   socket.message(snapshot({
     eventSequence: 5,
     revision: 2,

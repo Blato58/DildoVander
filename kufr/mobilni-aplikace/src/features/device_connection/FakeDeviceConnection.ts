@@ -10,6 +10,7 @@ export interface DeviceSnapshot {
   busy: boolean;
   revision?: number;
   status: string;
+  conversation?: LocalConversationState;
 }
 
 const manualLeaseDurationMs = 6000;
@@ -148,3 +149,5 @@ export class FakeDeviceConnection {
     this.onChange({ ...this.state });
   }
 }
+import type { LocalConversationState } from './LocalConversationClient';
+
