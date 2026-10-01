@@ -65,6 +65,15 @@ Nový podpisový workflow má vlastní counter, proto používá explicitní bui
 `1000.x.y` vyšší než starý 37; Bundle ID/tým zůstávají stejné. Build skript
 validuje čtyři/dva/dva číselné komponenty. CI, nasazení a IPA ještě probíhají.
 Aktualizace na fyzickém iPhonu a Keychain po ní vyžadují akceptaci majitele.
+Head `3da0cb39562aeb06afa7f1335f4807f9a06ce92e` prošel kompletní
+[CI 36869900104](https://github.com/Blato58/DildoVander/actions/runs/36869900104),
+včetně Swift Keychain/večerů, Xcode/simulatoru a firmware. PR #78 sloučen
+do `1e20b54a2a7ba57d37b93fc09d38ac2d826e7407`; scoped fetch/fast-forward ověřen.
+Deploy `36871071929` a signing `36871077770` skončily před produkcí chybou
+403 při `GET /pulls/78`: nový promotion verifier neměl `pull-requests: read`.
+Backend ani IPA se nezměnily. Oprava přidává pouze read permission do callee
+i tří caller workflows a test tohoto skutečného permission kontraktu.
+Po zeleném CI/merge opravy následuje promotion aktuálního ověřeného tree.
 
 **D111 – CI/CD build jednou a oddělená promotion artefaktů.**
 Rozsah: každé PR do main spouští společné CI pro backend, firmware, iOS/web

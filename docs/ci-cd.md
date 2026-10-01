@@ -63,7 +63,9 @@ IPA obsahuje profil nutný pro instalaci podepsané aplikace.
   pozdější servisní flash bez dalšího buildu; CI samo do desky nenahrává.
 - Každý job má timeout. Actions jsou připnuté na commit SHA, checkout neponechává
   credentials, běžné CI má jen `contents: read`; čtení cizího Actions běhu pouze
-  promotion/sign/deploy. PR nikdy nevstoupí na produkční self-hosted runner.
+  promotion/sign/deploy. Promotion verifier i jeho callers potřebují
+  `pull-requests: read` pro důkaz sloučeného PR; žádné PR write oprávnění.
+  PR nikdy nevstoupí na produkční self-hosted runner.
 - Workflow syntax ověřuje připnutý actionlint s checksumem; testy ověřují
   původ/promotion i integritu archivu. `CODEOWNERS`, PR šablona, `CONTRIBUTING`,
   `SECURITY`, EditorConfig a Git attributes sjednocují předání a formátování.
