@@ -6,7 +6,7 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**D117 – serverové logy, iOS zobrazení a čtecí integrace Codex.**
+**D118 – serverové logy, iOS zobrazení a čtecí integrace Codex.**
 Zadání majitele: logování serveru, API přístup, log v iOS a společný debug
 nasazeného prostředí s Codexem. Backend přidává oddělenou SQLite logovou DB,
 výchozí historii 24 h/5000 událostí, kurzor/filtry/retention gap a počty
@@ -38,8 +38,12 @@ filtr/dedup, obnovování během rozhovoru, zapomenutí profilu, HTTP denial se
 zastavením obnovování a 390px rozložení bez přesahu/console chyb.
 Browser odhalil kolizi společné CSS třídy logových seznamů; aplikační log
 nově vybírá svůj vlastní seznam a serverový log zůstává oddělený.
-Swift/Xcode se ověří v macOS CI;
-v tomto Linux prostředí nejsou dostupné. Žádné placené AI volání.
+CI 36923732710 již ověřilo Swift/nativní harness i Xcode/spuštění
+simulátoru, backend a web. Před merge se do main sloučila souběžná D117
+oprava iPhone Realtime audio startu (PR #84, 0d97dea). Zachovaná merge
+integrací; konflikt pouze v tomto záznamu vyřešen ponecháním obou změn.
+Logy mají nyní číslo D118. Společnou verzi znovu ověřuje povinné CI.
+Žádné placené AI volání.
 Implementační commit `3446dd3beb9e5164e10f9d16189f7bfab2d1175e` byl pushnut,
 remote shoda ověřena; [PR #86](https://github.com/Blato58/DildoVander/pull/86).
 Push-CurrentBranch.ps1 byl spuštěn, ale gh auth token --user zde nepodporuje
@@ -49,9 +53,37 @@ výsledek je evidovaný v PR. Review doplnilo rušení logového HTTP i při
 otevření konfigurace a zapomenutí nativního profilu.
 Nasazení backendu, podpis/publikace IPA a fyzický iPhone se v tomto kroku
 zatím neprovedly; produkční D116/1000.0.4 a B1 zůstávají dle záznamu níže.
-Další krok: dokončit macOS CI a merge D117, potom samostatně nasadit ověřené
+Další krok: dokončit macOS CI a merge D118, potom samostatně nasadit ověřené
 backend/web artefakty a publikovat IPA; vyzkoušet Log serveru během rozhovoru
 na iPhonu a čtení skutečné diagnostiky přes nový workflow.
+
+**D117 – oprava okamžitého ukončení Realtime na iPhonu, připraveno k CI.**
+Majitel u 1000.0.4 doložil chybu hned po Začít AI rozhovor; oranžová tečka
+mikrofonu se objeví, první replika nezazní. Zdrojový průchod našel dvě
+možné startovací chyby: každá audio route notifikace rušila rozhovor včetně
+vlastního přepnutí playAndRecord a převodník považoval prázdný výstup při
+rozběhu resamplingu za chybu. Nativní klient nyní ignoruje vlastní
+category/override/configuration oznámení jen při shodě kategorie, režimu,
+route a vstupního formátu; skutečné změny zařízení dál bezpečně zastaví.
+Tap používá outputFormat vstupního uzlu a zavřený vstup se nepřevádí.
+Stavový PCM převodník připouští nulový výstup bez ztráty dalšího vstupu.
+Debug rozlišuje audio/HTTP/protokol/TLS/timeout chyby a ukazuje bezpečný
+technický kód; neposílá surový text chyb, credential ani URL.
+Soubory: DebugHandsFreeAudio/Session, KufrDebugPlugin, DebugPanel,
+nativní peer/harness a testovací skript, testovací UI, README a tento stav.
+Lokálně prošly TypeScript/Vite build, všech 19 mobilních testů, Node
+syntax peeru, 16 lokálních dokumentačních odkazů a git diff --check.
+In-app Browser ověřil konkrétní audio hlášku/kód, Stop a obnovený poslech
+po novém startu přes syntetický bridge. Technický kód se zalomí i na telefonu.
+Nový macOS test používá skutečný AVAudioConverter 44,1/48kHz (mono/stereo)
+-> PCM16/24kHz, krátké/počáteční buffery,
+route policy a časné HTTP/protokol chyby vedle původních tří tahů.
+Nativní kompilaci/test a Xcode/simulátor ověří CI; Windows je nespouští.
+Backend veřejné healthz vrací 200; NDJSON startup shoda prošla read-only
+kontrolou. Nový placený AI test se nespouští. Přesnou příčinu na telefonu
+potvrdí až nová IPA a opakovaný start; B1/fyzické pohony se nemění.
+Další krok: zelené CI, merge, autorizovaný podpis/publikace opravené IPA
+a fyzická kontrola začátku i více hlasových odpovědí na iPhonu.
 
 **D116 – nasazeno: průběžný poslech bez tlačítek a oprava dalších odpovědí.**
 Majitel po instalaci D114 hlásí druhou odpověď bez výsledku: po dokončení

@@ -302,7 +302,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
             Task { @MainActor in
                 guard let self = self, self.generation == generation, let session = self.handsFreeSession else { return }
                 do { try await session.played(operationId: operation) }
-                catch { self.lastError = "realtime_playback_mismatch"; self.stopWork(); self.phase = "failed" }
+                catch { self.lastError = DebugHandsFreeSession.failureCode(for: error); self.stopWork(); self.phase = "failed" }
             }
         }, failure: { [weak self] code in
             guard let self = self, self.generation == generation else { return }
@@ -335,7 +335,8 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
             try requireCurrent(generation)
             handsFreeSession = session
             handsFreeAudio = audio
-            try audio.start()
+            do { try audio.start() }
+            catch { throw DebugBackendError.serverCode("realtime_live_audio_start_failed") }
             // Starting resolves immediately. The ongoing native task and
             // status polling own listening, generation and playback phases.
             call.resolve()
@@ -356,8 +357,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
                 return
             }
             if self.generation == generation {
-                if case DebugBackendError.serverCode(let code) = error { lastError = code }
-                if lastError == nil { lastError = "realtime_live_failed" }
+                if lastError == nil { lastError = DebugHandsFreeSession.failureCode(for: error) }
                 handsFreeSession = nil; handsFreeAudio = nil; task = nil; phase = "failed"
             }
         }

@@ -1,6 +1,6 @@
 # Debugování nasazeného serveru s Codexem
 
-Backend D117 poskytuje technické logy bez přepisů rozhovorů, audia, promptů,
+Backend D118 poskytuje technické logy bez přepisů rozhovorů, audia, promptů,
 credentialů a syrových HTTP/provider odpovědí. Čtení nevolá AI. Každý HTTP
 požadavek dostane serverem vytvořené `X-Request-Id`; stejné ID je v problému
 `traceId`, logu i iOS Debug. Operace mají vlastní `operationId`. Realtime
@@ -9,7 +9,7 @@ HTTP 200 streamu. Úspěšné GET/poll a PCM uploady se nezapisují.
 
 ## Codex v tomto repozitáři přes GitHub
 
-Po nasazení D117 lze použít existující GitHub oprávnění bez lokálního
+Po nasazení D118 lze použít existující GitHub oprávnění bez lokálního
 serverového tokenu. Workflow používá secrets z `backend-production`,
 čte veřejné HTTPS a uloží pouze typovanou diagnostiku do jednodenního artefaktu.
 Pokud existuje `LOG_READER_CREDENTIAL`, používá jej; jinak existující
