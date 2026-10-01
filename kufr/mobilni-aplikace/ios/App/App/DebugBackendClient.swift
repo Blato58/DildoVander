@@ -547,7 +547,7 @@ final class DebugBackendClient {
         throw DebugBackendError.timeout
     }
 
-    fileprivate func cleanup(_ profile: DebugBackendProfile, token: String, conversation: String) async throws {
+    func cleanup(_ profile: DebugBackendProfile, token: String, conversation: String) async throws {
         // An unstructured task performs cleanup even when the caller was cancelled.
         // Only the conversation ID acquired by this run may be deleted.
         try await Task { @MainActor in

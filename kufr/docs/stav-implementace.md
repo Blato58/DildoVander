@@ -42,6 +42,9 @@ První CI 36886840203 odhalilo hostitelské win-x64 v lockfiles a chybějící
 Realtime source v původním Swift test buildu. Lockfiles regenerované přes
 NuGet s explicitním linux-x64 RuntimeIdentifier; oba Swift harness buildy
 nyní zahrnují DebugRealtimeSession. macOS ověření pokračuje v PR.
+Linux backend v CI 36887687842 kompletně prošel. Další macOS compile odhalil
+fileprivate u sdíleného cleanup; metoda je nově internal pro oba nativní
+klienty, bez změny síťového kontraktu nebo chování mazání.
 Read-only review opravil immutable model, 32KiB audio bloky, playback drain,
 cleanup retry, souběh streamu a pořadí paměť/journal. Oddělené SQLite soubory
 nejsou společná atomická transakce: chyba journalu po úspěšné paměti může
