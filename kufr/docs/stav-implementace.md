@@ -31,7 +31,14 @@ Na Windows nejsou Swift/Xcode; toto ověření čeká na macOS CI.
 Změněné soubory: konverzační úložiště/endpoints/PaidCall a backend testy/smoke,
 OpenAPI/verifier, DebugBackendClient/KufrDebugPlugin, DebugPanel/Journal/style,
 native Swift a UI harness, jejich skript a plán/README/stav.
-Commit/push, CI, nasazení a podepsaná IPA ještě probíhají.
+První commit `abf94d65af815d3b8bd4d83a563e1b0371b751ad` push ověřen;
+[PR #78](https://github.com/Blato58/DildoVander/pull/78). Souběžná main změna
+CI/CD (D111, PR #75/#76) zachována merge `83c7206`; konflikt pouze ve stavu
+vyřešen zachováním obou záznamů. Backend runtime/HTTP smoke nad společným
+výsledkem znovu prošel; lokální restore změnu RID lockfiles nezahrnuje.
+Nový podpisový workflow má vlastní counter, proto používá explicitní build
+`1000.x.y` vyšší než starý 37; Bundle ID/tým zůstávají stejné. Build skript
+validuje čtyři/dva/dva číselné komponenty. CI, nasazení a IPA ještě probíhají.
 Aktualizace na fyzickém iPhonu a Keychain po ní vyžadují akceptaci majitele.
 **D111 – CI/CD build jednou a oddělená promotion artefaktů.**
 Rozsah: každé PR do main spouští společné CI pro backend, firmware, iOS/web

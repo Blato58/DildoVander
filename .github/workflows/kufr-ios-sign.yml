@@ -93,6 +93,9 @@ jobs:
               ;;
             *) echo 'Invalid signing kind' >&2; exit 2 ;;
           esac
+          # This workflow has its own counter. Start above legacy build 37,
+          # using Apple's four/two/two-digit numeric version components.
+          export IOS_BUILD_NUMBER="$((1000 + GITHUB_RUN_NUMBER / 10000)).$((GITHUB_RUN_NUMBER / 100 % 100)).$((GITHUB_RUN_NUMBER % 100))"
           bash scripts/build-ios-ipa.sh
       - name: Package signed IPA with provenance
         working-directory: .
