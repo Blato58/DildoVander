@@ -10,6 +10,7 @@ import { join } from 'node:path';
 const credentialA = randomBytes(32).toString('base64');
 const credentialB = randomBytes(32).toString('base64');
 const adminCredential = randomBytes(32).toString('base64');
+const logCredential = randomBytes(32).toString('base64');
 const sha256 = value => createHash('sha256').update(value).digest('hex');
 const port = await new Promise((resolve, reject) => {
   const server = createServer();
@@ -32,6 +33,7 @@ const serverEnvironment = {
     Backend__Dialog__Mode: 'fake',
     Backend__Voice__Mode: 'fake',
     Backend__Admin__CredentialSha256: sha256(adminCredential),
+    Backend__Logs__CredentialSha256: sha256(logCredential),
     ASPNETCORE_ENVIRONMENT: 'Production'
 };
 
@@ -194,6 +196,30 @@ try {
   const key = randomUUID();
   const tokenA = issuedA.result.accessToken;
   const tokenB = issuedB.result.accessToken;
+  for (const token of [undefined, credentialA, tokenA]) {
+    assert.equal((await read('/v1/admin/logs', token)).status, 401);
+    assert.equal((await read('/v1/admin/logs/status', token)).status, 401);
+  }
+  assert.equal((await read('/v1/admin/modes', logCredential)).status, 401);
+  assert.equal((await call('/v1/device-access/token', { credential: logCredential })).status, 401);
+  assert.equal((await read('/v1/admin/logs/status', logCredential)).status, 200);
+  for (const query of ['limit=201', 'after=-1', 'level=debug', 'traceId=private-secret', 'limit=1&limit=2', 'token=private-secret']) {
+    assert.equal((await read(`/v1/admin/logs?${query}`, logCredential)).status, 400);
+  }
+  const failed = await fetch(`${baseUrl}/v1/private-secret?text=private-query-secret`, { method: 'POST' });
+  const requestId = failed.headers.get('x-request-id');
+  assert.match(requestId, /^[0-9a-f-]{36}$/);
+  const tracePage = (await read(`/v1/admin/logs?traceId=${requestId}`, logCredential)).result;
+  assert.equal(tracePage.entries.length, 1);
+  assert.equal(tracePage.entries[0].route, '(unmatched)');
+  assert.equal(tracePage.entries[0].status, 404);
+  const firstLogPage = (await read('/v1/admin/logs?limit=2', adminCredential)).result;
+  assert.equal(firstLogPage.entries.length, 2);
+  assert.equal(firstLogPage.hasMore, false);
+  assert.ok(firstLogPage.entries[0].id < firstLogPage.entries[1].id);
+  const quietPage = (await read(`/v1/admin/logs?after=${firstLogPage.nextCursor}`, logCredential)).result;
+  assert.equal(quietPage.entries.length, 0, 'successful log reads do not create log traffic');
+
   assert.equal((await read('/v1/admin/modes')).status, 401);
   assert.equal((await read('/v1/admin/modes', credentialA)).status, 401);
   assert.equal((await read('/v1/admin/modes', tokenA)).status, 401);
@@ -610,10 +636,19 @@ try {
   }
   assert.equal(serverOutput.includes(turn.text), false);
 
+  const beforeRestartLogs = (await read('/v1/admin/logs', logCredential)).result;
+  const encodedLogs = JSON.stringify(beforeRestartLogs);
+  for (const secret of [credentialA, credentialB, adminCredential, logCredential, tokenA, tokenB,
+      turn.text, 'private-query-secret', 'private-secret']) {
+    assert.equal(encodedLogs.includes(secret), false, 'sensitive content absent from server log');
+  }
   await stopServer();
   startServer();
   await waitForServer();
   assert.equal((await call('/v1/conversations', { token: tokenA, key, body })).status, 401);
+  const afterRestartLogs = (await read(`/v1/admin/logs?after=${beforeRestartLogs.nextCursor}`, logCredential)).result;
+  assert.equal(afterRestartLogs.storeId, beforeRestartLogs.storeId);
+  assert.ok(afterRestartLogs.entries.some(entry => entry.eventCode === 'server_started'));
   const newToken = (await call('/v1/device-access/token', { credential: credentialA })).result.accessToken;
   const createReplay = await call('/v1/conversations', { token: newToken, key, body });
   assert.equal(createReplay.result.conversationId, created.result.conversationId);
