@@ -15,6 +15,9 @@ internal static class ConversationEndpoints
         endpoints.MapPost("/v1/conversations/{id}/opening", SubmitOpeningAsync);
         endpoints.MapGet("/v1/evening-memory", GetEveningMemory);
         endpoints.MapDelete("/v1/evening-memory/{id}", ClearEveningMemoryAsync);
+        endpoints.MapGet("/v1/evenings", GetEvenings);
+        endpoints.MapPost("/v1/evenings", CreateEveningAsync);
+        endpoints.MapPut("/v1/evenings/{id}/active", ActivateEveningAsync);
         endpoints.MapPost("/v1/conversations/{id}/transcriptions", SubmitTranscriptionAsync);
         endpoints.MapPost("/v1/conversations/{id}/speech", SubmitSpeechAsync);
         endpoints.MapGet("/v1/operations/{id}", GetOperation);
@@ -438,6 +441,145 @@ internal static class ConversationEndpoints
         }
 
         return Results.Ok(conversations.GetEveningMemory(deviceId));
+    }
+
+    private static IResult GetEvenings(
+        HttpContext context,
+        DeviceAccessStore access,
+        ConversationStore conversations)
+    {
+        var deviceId = DeviceAccessEndpoints.Authenticate(context, access);
+        return deviceId is null
+            ? ApiProblem.Create(context, 401, "access_token_required")
+            : Results.Ok(conversations.ListEvenings(deviceId));
+    }
+
+    private static async Task<IResult> CreateEveningAsync(
+        HttpContext context,
+        DeviceAccessStore access,
+        ConversationStore conversations)
+    {
+        var deviceId = DeviceAccessEndpoints.Authenticate(context, access);
+        if (deviceId is null)
+        {
+            return ApiProblem.Create(context, 401, "access_token_required");
+        }
+
+        if (!Guid.TryParseExact(context.Request.Headers["Idempotency-Key"], "D", out var key))
+        {
+            return ApiProblem.Create(context, 400, "invalid_idempotency_key");
+        }
+
+        byte[]? body;
+        try
+        {
+            body = await ReadSmallBodyAsync(context);
+        }
+        catch (BadHttpRequestException exception) when (exception.StatusCode == 413)
+        {
+            return ApiProblem.Create(context, 413, "request_too_large");
+        }
+
+        if (body is null)
+        {
+            return ApiProblem.Create(context, 400, "invalid_request");
+        }
+
+        string? name;
+        Guid expected;
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            var root = document.RootElement;
+            if (!HasExpectedProperties(root, ["name", "expectedEveningId"])
+                || root.GetProperty("name").ValueKind != JsonValueKind.String
+                || !IsUuid(root, "expectedEveningId"))
+            {
+                return ApiProblem.Create(context, 400, "invalid_request");
+            }
+
+            name = root.GetProperty("name").GetString();
+            expected = Guid.ParseExact(root.GetProperty("expectedEveningId").GetString()!, "D");
+        }
+        catch (JsonException)
+        {
+            return ApiProblem.Create(context, 400, "invalid_request");
+        }
+
+        if (!EveningMemoryStore.IsValidName(name))
+        {
+            return ApiProblem.Create(context, 400, "invalid_request");
+        }
+
+        var result = conversations.CreateEvening(deviceId, key, body, expected.ToString("D"), name!);
+        return EveningMutationResponse(context, result);
+    }
+
+    private static async Task<IResult> ActivateEveningAsync(
+        string id,
+        HttpContext context,
+        DeviceAccessStore access,
+        ConversationStore conversations)
+    {
+        var deviceId = DeviceAccessEndpoints.Authenticate(context, access);
+        if (deviceId is null)
+        {
+            return ApiProblem.Create(context, 401, "access_token_required");
+        }
+
+        if (!Guid.TryParseExact(context.Request.Headers["Idempotency-Key"], "D", out var key))
+        {
+            return ApiProblem.Create(context, 400, "invalid_idempotency_key");
+        }
+
+        if (!Guid.TryParseExact(id, "D", out var target))
+        {
+            return ApiProblem.Create(context, 400, "invalid_request");
+        }
+
+        byte[]? body;
+        try
+        {
+            body = await ReadSmallBodyAsync(context);
+        }
+        catch (BadHttpRequestException exception) when (exception.StatusCode == 413)
+        {
+            return ApiProblem.Create(context, 413, "request_too_large");
+        }
+
+        if (body is null)
+        {
+            return ApiProblem.Create(context, 400, "invalid_request");
+        }
+
+        Guid expected;
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            if (!HasExpectedProperties(document.RootElement, ["expectedEveningId"])
+                || !IsUuid(document.RootElement, "expectedEveningId"))
+            {
+                return ApiProblem.Create(context, 400, "invalid_request");
+            }
+
+            expected = Guid.ParseExact(
+                document.RootElement.GetProperty("expectedEveningId").GetString()!, "D");
+        }
+        catch (JsonException)
+        {
+            return ApiProblem.Create(context, 400, "invalid_request");
+        }
+
+        var result = conversations.ActivateEvening(
+            deviceId, key, body, target.ToString("D"), expected.ToString("D"));
+        return EveningMutationResponse(context, result);
+    }
+
+    private static IResult EveningMutationResponse(HttpContext context, EveningMutationResult result)
+    {
+        return result.Response is null
+            ? ApiProblem.Create(context, result.Status, result.ErrorCode ?? "evening_rejected")
+            : Results.Json(result.Response, statusCode: result.Status);
     }
 
     private static async Task<IResult> ClearEveningMemoryAsync(string id, HttpContext context,

@@ -10,7 +10,14 @@ ESP32 samo komunikuje s backendem; aplikace není cloudový prostředník a nem�
 
 Nativní adaptér vlastní TLS pin, oprávnění LAN a Keychain. E10.1 používá ručně zadané údaje z vnitřního QR; E10.2 přidává text/cancel/result a E10.3 Bonjour hledání i ruční změnu adresy. Audio navazuje po E9. UI nesmí přímo časovat motory ani přijímat AI text jako povel. Konkrétní slices a kontrakty jsou v kapitolách 3–5 plánu.
 
-## Debug D108/D109/D110
+## Debug D108/D109/D110/D111
+
+Sekce **Večery a paměť rozhovorů** načte pojmenované večery samostatné debug
+identity. **Založit a aktivovat nový večer** začne s prázdnou pamětí a zachová
+staré rozhovory. Vyberte uložený večer a stiskněte **Přepnout aktivní večer**
+pro návrat k jeho paměti. Seznam obsahuje jen názvy, datum a počty výměn.
+Přepínání je možné mezi rozhovory; při souběžné změně obnovte seznam.
+Platí nejvýše 100 večerů, název 1–80 Unicode znaků. Samotná správa nevolá AI.
 
 **Zkušební rozhovor a výběr hůlky** drží samostatné virtuální sezení.
 Nastavte dostupné přihrádky (výchozí všech šest), hlas Cedar/Marin/Onyx/Coral
@@ -56,8 +63,13 @@ Hlasové testy fungují v nativní iOS aplikaci:
 1. **Test reproduktoru telefonu** použije český systémový hlas bez sítě.
 2. **Nastavit serverový / testovací přístup** otevře nativní secure dialog: HTTPS kořenová
    adresa, předem registrované samostatné device ID `debug-*` a jeho backend
-   credential. Lokální WSS bearer se nikdy nepoužívá. Credential se neukládá
-   do Keychain/JS/disku; po pozadí nebo uzamčení je nutné nastavení zopakovat.
+   credential. Výchozí URL je `https://2.28.202.220/` a ID `debug-server-admin`.
+   Lokální WSS bearer se nikdy nepoužívá. D111 ukládá profil do samostatného
+   nesynchronizovaného Keychain přístupného při odemčení; stejná podpisová
+   identita ho zachová při aktualizaci. V nové verzi credential jednou uložte:
+   starší verze držela přístup jen v RAM. Dialog předvyplní poslední URL/ID;
+   prázdný credential zachová uložený jen pro stejný server a identitu.
+   **Zapomenout uložený přístup** smaže Debug profil, nikoli ESP párování.
 3. **Ověřit backend** vymění credential za access token a čte
    `GET /v1/diagnostics`, bez volání AI. Starší nasazený backend bez D108 vrací
    chybu; musí se nejprve aktualizovat. Nasazení a novou IPA D109 eviduje stav
@@ -78,9 +90,10 @@ WAV je omezen na 30 s, PCM16 mono 32 kHz, standardní 44B hlavičku a žije pouz
 v RAM. HTTPS používá systémové PKI, nepovoluje redirect ani ATS výjimku.
 JavaScript spouští akce a čte jen režim/fázi; nečte credential ani audio.
 Tento test nepřehrává přes ESP32/I2S a neověřuje B1 ani nativní iPhone akceptaci.
-Mikrofon/STT patří dalšímu slice. `bash scripts/test-native-debug.sh` na macOS
-ověřuje profil, režim, korelaci, formát/limity WAV, zrušení, retry a cleanup
-pomocí injektovaného syntetického HTTP adaptéru, bez placeného provideru.
+`bash scripts/test-native-debug.sh` na macOS ověřuje Keychain mezi procesy,
+bezpečné ponechání credentialu, režim, celý výběr/STT, večery a retry,
+korelaci, WAV, zrušení a cleanup bez placeného provideru. Syntetický HTTP
+adaptér doplňuje skutečný loopback test omezeného příjmu a redirect/cancel.
 
 ## Nativní připojení E10.1
 

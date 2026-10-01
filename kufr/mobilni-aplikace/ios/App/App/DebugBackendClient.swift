@@ -1,4 +1,5 @@
 import Foundation
+import Security
 
 enum DebugBackendError: Error { case invalidProfile, invalidResponse, httpStatus, tooLarge, wrongMode, timeout }
 
@@ -23,6 +24,74 @@ struct DebugBackendProfile {
     }
 }
 
+// Separate service from the local ESP pairing credential. Stable app signing
+// identity keeps this item available across updates; no iCloud synchronization.
+final class DebugBackendKeychain {
+    private struct StoredProfile: Codable {
+        let address: String
+        let deviceId: String
+        let credential: String
+    }
+    private let service: String
+    init(service: String = "app.turquoise6409.green2444.kufr.debug") { self.service = service }
+
+    private var query: [String: Any] {
+        [kSecClass as String: kSecClassGenericPassword,
+         kSecAttrService as String: service, kSecAttrAccount as String: "backend-profile",
+         kSecAttrSynchronizable as String: false]
+    }
+
+    func read() throws -> DebugBackendProfile? {
+        var request = query
+        request[kSecReturnData as String] = true
+        request[kSecMatchLimit as String] = kSecMatchLimitOne
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(request as CFDictionary, &result)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess, let data = result as? Data, data.count <= 2048,
+              let stored = try? JSONDecoder().decode(StoredProfile.self, from: data) else {
+            throw DebugBackendError.invalidProfile
+        }
+        return try DebugBackendProfile(address: stored.address, deviceId: stored.deviceId, credential: stored.credential)
+    }
+
+    func write(_ profile: DebugBackendProfile) throws {
+        let data = try JSONEncoder().encode(StoredProfile(address: profile.baseURL.absoluteString,
+            deviceId: profile.deviceId, credential: profile.credential))
+        let attributes: [String: Any] = [kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly]
+        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        if status == errSecItemNotFound {
+            var insertion = query
+            attributes.forEach { insertion[$0.key] = $0.value }
+            guard SecItemAdd(insertion as CFDictionary, nil) == errSecSuccess else { throw DebugBackendError.invalidProfile }
+        } else if status != errSecSuccess { throw DebugBackendError.invalidProfile }
+    }
+
+    func remove() throws {
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else { throw DebugBackendError.invalidProfile }
+    }
+}
+
+enum DebugProfileDraft {
+    static let defaultAddress = "https://2.28.202.220/"
+    static let defaultDeviceId = "debug-server-admin"
+
+    static func resolve(address: String, deviceId: String, credential: String,
+                        saved: DebugBackendProfile?) throws -> DebugBackendProfile {
+        if !credential.isEmpty { return try DebugBackendProfile(address: address, deviceId: deviceId, credential: credential) }
+        // A blank field may retain a credential only for the identical server
+        // and device. Editing the destination must never forward it silently.
+        guard let saved = saved, deviceId == saved.deviceId,
+              let destination = URL(string: address), destination.scheme == "https",
+              destination.user == nil, destination.password == nil, destination.query == nil, destination.fragment == nil,
+              ["", "/"].contains(destination.path), destination.host?.lowercased() == saved.baseURL.host?.lowercased(),
+              (destination.port ?? 443) == (saved.baseURL.port ?? 443) else { throw DebugBackendError.invalidProfile }
+        return try DebugBackendProfile(address: address, deviceId: deviceId, credential: saved.credential)
+    }
+}
+
 struct DebugServerModes: Codable {
     let revision: String
     let dialogMode: String
@@ -36,6 +105,41 @@ struct DebugServerModes: Codable {
         ["revision": revision, "dialogMode": dialogMode, "voiceMode": voiceMode,
          "dialogAvailable": dialogAvailable, "voiceAvailable": voiceAvailable,
          "activeConversations": activeConversations, "lifetime": lifetime]
+    }
+}
+
+struct DebugEvening: Codable {
+    let eveningId: String
+    let name: String
+    let createdAt: String
+    let exchangeCount: Int
+    let droppedCount: Int
+    var bridgeValue: [String: Any] {
+        ["eveningId": eveningId, "name": name, "createdAt": createdAt,
+         "exchangeCount": exchangeCount, "droppedCount": droppedCount]
+    }
+}
+
+struct DebugEveningList: Codable {
+    let activeEveningId: String
+    let evenings: [DebugEvening]
+    var bridgeValue: [String: Any] {
+        ["activeEveningId": activeEveningId, "evenings": evenings.map { $0.bridgeValue }]
+    }
+
+    func validate() throws {
+        guard UUID(uuidString: activeEveningId) != nil, (1...100).contains(evenings.count),
+              Set(evenings.map { $0.eveningId.lowercased() }).count == evenings.count,
+              evenings.contains(where: { $0.eveningId == activeEveningId }) else { throw DebugBackendError.invalidResponse }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        for evening in evenings {
+            guard UUID(uuidString: evening.eveningId) != nil, !evening.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  evening.name.unicodeScalars.count <= 80, !evening.name.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }),
+                  evening.createdAt.utf8.count <= 64,
+                  (formatter.date(from: evening.createdAt) ?? ISO8601DateFormatter().date(from: evening.createdAt)) != nil,
+                  (0...2000).contains(evening.exchangeCount), evening.droppedCount >= 0 else { throw DebugBackendError.invalidResponse }
+        }
     }
 }
 
@@ -240,6 +344,53 @@ final class DebugBackendClient {
         return try await metadata(profile, token: token)
     }
 
+    func eveningList(_ profile: DebugBackendProfile, action: String = "list", name: String? = nil,
+                     eveningId: String? = nil, expectedEveningId: String? = nil) async throws -> DebugEveningList {
+        guard ["list", "create", "activate"].contains(action) else { throw DebugBackendError.invalidResponse }
+        var path = "v1/evenings"
+        var body: [String: Any]?
+        var method = "GET"
+        if action != "list" {
+            guard let expected = expectedEveningId, UUID(uuidString: expected) != nil else { throw DebugBackendError.invalidResponse }
+            body = ["expectedEveningId": expected]
+            if action == "create" {
+                guard let name = name, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                      name.unicodeScalars.count <= 80,
+                      !name.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else { throw DebugBackendError.invalidResponse }
+                body?["name"] = name
+                method = "POST"
+            } else {
+                guard let id = eveningId, UUID(uuidString: id) != nil else { throw DebugBackendError.invalidResponse }
+                path += "/\(id.lowercased())/active"
+                method = "PUT"
+            }
+        }
+        let token = try await accessToken(profile)
+        if let body = body {
+            let key = UUID().uuidString.lowercased()
+            for attempt in 0..<2 {
+                do {
+                    let result = try await json(profile, path: path, token: token, method: method, body: body,
+                                                idempotencyKey: key, limit: 262_144)
+                    let mutation = try JSONDecoder().decode(DebugEveningList.self, from: JSONSerialization.data(withJSONObject: result))
+                    try mutation.validate()
+                    break
+                } catch {
+                    try Task.checkCancellation()
+                    if case DebugBackendError.httpStatus = error { throw error }
+                    if attempt == 1 { throw error }
+                }
+            }
+        }
+        // A same-key replay may carry an older snapshot after another phone's
+        // switch. Always show the authoritative current pointer after mutation.
+        // Up to 100 names of 80 Unicode scalars, including JSON-escaped emoji.
+        let current = try await json(profile, path: "v1/evenings", token: token, limit: 262_144)
+        let result = try JSONDecoder().decode(DebugEveningList.self, from: JSONSerialization.data(withJSONObject: current))
+        try result.validate()
+        return result
+    }
+
     func serverModes(_ profile: DebugBackendProfile, expectedRevision: String? = nil,
                      dialogMode: String? = nil, voiceMode: String? = nil) async throws -> DebugServerModes {
         var body: [String: Any]?
@@ -387,14 +538,15 @@ final class DebugBackendClient {
 
     fileprivate func json(_ profile: DebugBackendProfile, path: String, token: String,
                       method: String = "GET", body: [String: Any]? = nil,
-                      idempotencyKey: String? = nil, recoverCancelledCreate: Bool = true) async throws -> [String: Any] {
+                      idempotencyKey: String? = nil, recoverCancelledCreate: Bool = true,
+                      limit: Int = 16_384) async throws -> [String: Any] {
         let key = idempotencyKey ?? UUID().uuidString.lowercased()
         // Recover an ambiguously accepted create with the same key and body.
         // Never overwrite/delete a conflicting session belonging to another run.
         for attempt in 0..<2 {
             do {
                 let (data, response) = try await request(profile, path: path, token: token,
-                    method: method, body: body, limit: 16_384, key: key)
+                    method: method, body: body, limit: limit, key: key)
                 guard response.mimeType == "application/json",
                       let value = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                     throw DebugBackendError.invalidResponse
