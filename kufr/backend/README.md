@@ -8,6 +8,10 @@ OpenAI klíč zůstává na backendu. SDK obsluhuje typované příkazy a událo
 omezený transport odmítá redirect a WebSocket zprávu nad 256 KiB.
 Realtime SDK API je experimental, proto je verze připnutá a serializace
 PTT ověřená testem. Backend připojení používá GA API bez beta hlavičky.
+Při změně NuGet závislostí na Windows regeneruj CI lockfiles přes
+`dotnet restore kufr/backend-tests/BackendTests.csproj -r linux-x64 -p:RuntimeIdentifier=linux-x64 -p:SelfContained=true --force-evaluate`
+z kořene. Explicitní singular `RuntimeIdentifier` zabrání přidání hostitelského
+win-x64; povinné linuxové CI pak používá locked restore bez změny lockfile.
 
 Vstup obsahuje korelaci textového tahu, `opening`, `text`, `wav`, `voice`
 (`cedar`, `marin`, `coral`) a `speed` 0.8–1.2. Opening má prázdný text a
