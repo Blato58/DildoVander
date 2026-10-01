@@ -11,6 +11,7 @@ class EspIdfStationNetwork final {
  public:
   bool Start(bool nvsInitialized);
   bool HasIp() const;
+  uint32_t IpGeneration() const;
   const NetworkSettings& Settings() const;
 
  private:

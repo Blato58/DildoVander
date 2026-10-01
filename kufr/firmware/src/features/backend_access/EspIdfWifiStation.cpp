@@ -31,7 +31,7 @@ EspIdfWifiStation::~EspIdfWifiStation() {
                                           wifiHandler_);
   }
   if (ipHandler_ != nullptr) {
-    esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP,
+    esp_event_handler_instance_unregister(IP_EVENT, ESP_EVENT_ANY_ID,
                                           ipHandler_);
   }
   if (wifiInitialized_) {
@@ -77,7 +77,7 @@ bool EspIdfWifiStation::Start(const NetworkSettings& settings) {
           WIFI_EVENT, ESP_EVENT_ANY_ID, OnEvent, this,
           &wifiHandler_) != ESP_OK ||
       esp_event_handler_instance_register(
-          IP_EVENT, IP_EVENT_STA_GOT_IP, OnEvent, this,
+          IP_EVENT, ESP_EVENT_ANY_ID, OnEvent, this,
           &ipHandler_) != ESP_OK ||
       esp_wifi_set_storage(WIFI_STORAGE_RAM) != ESP_OK ||
       esp_wifi_set_mode(WIFI_MODE_STA) != ESP_OK) {
@@ -122,6 +122,8 @@ bool EspIdfWifiStation::HasIp() const {
          (xEventGroupGetBits(events_) & GotIpBit) != 0;
 }
 
+uint32_t EspIdfWifiStation::IpGeneration() const { return ipGeneration_.load(); }
+
 void EspIdfWifiStation::OnEvent(void* argument,
                                 esp_event_base_t eventBase, int32_t eventId,
                                 void*) {
@@ -131,7 +133,12 @@ void EspIdfWifiStation::OnEvent(void* argument,
   } else if (eventBase == WIFI_EVENT &&
              eventId == WIFI_EVENT_STA_DISCONNECTED) {
     xEventGroupClearBits(station->events_, GotIpBit);
+    station->ipGeneration_.fetch_add(1);
   } else if (eventBase == IP_EVENT && eventId == IP_EVENT_STA_GOT_IP) {
+    station->ipGeneration_.fetch_add(1);
     xEventGroupSetBits(station->events_, GotIpBit);
+  } else if (eventBase == IP_EVENT && eventId == IP_EVENT_STA_LOST_IP) {
+    xEventGroupClearBits(station->events_, GotIpBit);
+    station->ipGeneration_.fetch_add(1);
   }
 }

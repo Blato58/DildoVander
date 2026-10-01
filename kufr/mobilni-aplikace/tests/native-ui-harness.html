@@ -18,7 +18,7 @@
       window.CapacitorCustomPlatform = { name: 'ios' };
       window.Capacitor = {
         PluginHeaders: [{ name: 'KufrDeviceTransport', methods: [
-          ...['savedDevice', 'pair', 'connect', 'send', 'close', 'forget', 'removeListener'].map((name) => ({ name, rtype: 'promise' })),
+          ...['savedDevice', 'discover', 'setAddress', 'pair', 'connect', 'send', 'close', 'forget', 'removeListener'].map((name) => ({ name, rtype: 'promise' })),
           { name: 'addListener', rtype: 'callback' },
         ] }],
         nativeCallback(_plugin, method, _options, callback) {
@@ -27,6 +27,13 @@
         async nativePromise(_plugin, method, options) {
           if (method === 'removeListener') { listener = null; return; }
           if (method === 'savedDevice') { return paired ? { paired, ...saved } : { paired }; }
+          if (method === 'discover') {
+            const scenario = new URLSearchParams(location.search).get('discovery');
+            return { failed: scenario === 'denied', devices: scenario ? [] : [
+              { deviceId: saved?.deviceId ?? 'test-kufr', host: 'kufr-test.local', capabilities: ['manualControl', 'conversationText'] },
+            ] };
+          }
+          if (method === 'setAddress') { saved.host = options.host; return; }
           if (method === 'pair') { paired = true; saved = { deviceId: options.deviceId, host: options.host }; return saved; }
           if (method === 'forget') { paired = false; return; }
           if (method === 'connect') {

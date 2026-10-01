@@ -1,4 +1,5 @@
 #include "LocalControlOutput.h"
+#include "LocalControlCapabilities.h"
 
 #include "LocalControlTransport.h"
 #include "../conversation/ConversationStartCodec.h"
@@ -192,7 +193,8 @@ bool LocalControlOutput::BuildSnapshot(
       ",\"readyMask\":" + std::to_string(journal_.IsHealthy() ? control_.ReadyMask() : 0) +
       ",\"calibrationRevision\":" + std::to_string(control_.CalibrationRevision()) +
       ",\"faults\":" + (journal_.IsHealthy() ? "[]" : "[\"journal_failed\"]") +
-      ",\"microphoneState\":\"unavailable\",\"capabilities\":[\"manualControl\",\"inventoryReload\",\"conversationText\"]" +
+      ",\"microphoneState\":\"unavailable\",\"capabilities\":" +
+      LocalControlCapabilities::Json +
       ",\"lastResult\":" + lastResult +
       ",\"conversation\":{\"conversationId\":\"" + conversation_.ConversationId() +
       "\",\"generation\":" + std::to_string(conversation_.Generation()) +

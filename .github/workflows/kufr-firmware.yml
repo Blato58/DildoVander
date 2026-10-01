@@ -65,6 +65,21 @@ jobs:
             tests/espidf_station_network_test.cpp \
             -o "$RUNNER_TEMP/station-network-test"
           "$RUNNER_TEMP/station-network-test"
+      - name: Local service discovery lifecycle
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++14 -Wall -Wextra -Werror -I tests/wifi_stubs -I tests/station_stubs \
+            src/features/backend_access/EspIdfWifiStation.cpp \
+            src/features/backend_access/NetworkSettings.cpp \
+            tests/espidf_wifi_station_test.cpp -o "$RUNNER_TEMP/wifi-station-test"
+          "$RUNNER_TEMP/wifi-station-test"
+          g++ -std=c++14 -Wall -Wextra -Werror -I tests/discovery_stubs -I tests/station_stubs \
+            src/features/local_control/EspIdfLocalServiceAdvertisement.cpp \
+            src/features/backend_access/NetworkSettings.cpp \
+            tests/espidf_local_service_advertisement_test.cpp -o "$RUNNER_TEMP/local-discovery-test"
+          "$RUNNER_TEMP/local-discovery-test"
       - name: Local control codec test
         working-directory: kufr/firmware
         shell: bash
