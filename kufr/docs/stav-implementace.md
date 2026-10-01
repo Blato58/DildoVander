@@ -27,6 +27,13 @@ závod pozdního audio bloku při VAD stop/novém poslechu; koncové bloky se
 zahazují i při druhém zavření vstupu. In-app Browser ověřil výchozí režim,
 dvě navazující syntetické odpovědi bez nahrávacího tlačítka, viditelný
 cost_limit, Stop a opětovné spuštění. macOS Swift/Xcode ověří povinné CI.
+Implementační commit `292b677ab9e210f69bd12e279c7a521716480d36` a integrace
+main `5352d4d15a1be15372ce292ba1d8628ea6dde27f` byly ověřeně pushnuté.
+[PR #82](https://github.com/Blato58/DildoVander/pull/82) zachovává D115 opravu
+safe area z PR #81. První CI 36905453842 prošlo backend testy, web, kontrakty
+a offline eval; Swift odhalil actor izolaci čistého parseru chyb, opraveno
+explicitním nonisolated. Linux HTTP negativní test narazil na EPIPE při
+znovupoužití spojení po nadlimitním těle; tento požadavek nyní spojení zavře.
 Další konkrétní krok: ověřit/složit PR, automaticky sloučit po zeleném CI,
 nasadit backend a publikovat novou podepsanou IPA. Majitel toto předání
 a živou zkoušku do 1 USD již schválil. B1 a fyzická iPhone akceptace trvají.

@@ -354,7 +354,7 @@ final class DebugBackendClient {
         }
     }
 
-    static func realtimeError(data: Data, status: Int) -> DebugBackendError {
+    nonisolated static func realtimeError(data: Data, status: Int) -> DebugBackendError {
         let allowed = ["cost_limit", "turn_limit", "dialogue_busy", "realtime_unavailable",
             "access_token_required", "audio_consent_required", "device_scope_mismatch",
             "conversation_not_found", "conversation_finished", "conversation_version_mismatch",
