@@ -2,6 +2,7 @@
 **/.pio/
 /kufr/firmware/sdkconfig.esp32-s3-idf
 /kufr/firmware/sdkconfig.esp32-s3-idf.old
+/kufr/firmware/managed_components/
 
 # Mobile app
 **/node_modules/

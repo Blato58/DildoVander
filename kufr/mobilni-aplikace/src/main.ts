@@ -293,11 +293,19 @@ async function initializeNativeAsync(): Promise<void> {
   settings.innerHTML = `
     <h2>Připojení ke kufru</h2>
     <p>Údaje opište z QR uvnitř kufru. Tajemství zadáte až v nativním dialogu.</p>
+    <button type="button" data-native="discover">Hledat kufr v síti (5 s)</button>
+    <p>Telefon a kufr musí být ve stejné místní síti. Nalezené údaje jsou jen vodítko;
+      identitu ověřuje otisk z QR. Bez nálezu zadejte IP nebo nastavte DHCP rezervaci v routeru.</p>
+    <div data-discovery-results></div>
     <form>
       <label>Adresa v místní síti<input name="host" autocomplete="off" autocapitalize="none" required maxlength="253" placeholder="192.168.1.50"></label>
-      <label>Device ID<input name="deviceId" autocomplete="off" autocapitalize="none" required maxlength="64"></label>
+      <label>Device ID<input name="deviceId" autocomplete="off" autocapitalize="none" required pattern="[a-z]([a-z0-9]|-){0,63}" maxlength="64"></label>
       <label>Otisk SPKI (SHA-256, malé hex znaky)<input name="spkiSha256" autocomplete="off" autocapitalize="none" required pattern="[0-9a-f]{64}" minlength="64" maxlength="64"></label>
       <button type="submit">Spárovat kufr</button>
+    </form>
+    <form data-address hidden>
+      <label>Nová IP nebo DNS adresa uloženého kufru<input name="address" autocomplete="off" autocapitalize="none" required maxlength="253"></label>
+      <button type="submit">Použít adresu</button>
     </form>
     <div class="actions">
       <button type="button" data-native="connect" disabled>Připojit uložený kufr</button>
@@ -307,6 +315,10 @@ async function initializeNativeAsync(): Promise<void> {
     <p role="status"></p>`;
   app!.before(settings);
   const form = settings.querySelector<HTMLFormElement>('form')!;
+  const addressForm = settings.querySelector<HTMLFormElement>('[data-address]')!;
+  const addressInput = addressForm.querySelector<HTMLInputElement>('input')!;
+  const discoverButton = settings.querySelector<HTMLButtonElement>('[data-native="discover"]')!;
+  const discoveryResults = settings.querySelector<HTMLElement>('[data-discovery-results]')!;
   const status = settings.querySelector<HTMLElement>('[role="status"]')!;
   const connectButton = settings.querySelector<HTMLButtonElement>('[data-native="connect"]')!;
   const disconnectButton = settings.querySelector<HTMLButtonElement>('[data-native="disconnect"]')!;
@@ -317,9 +329,14 @@ async function initializeNativeAsync(): Promise<void> {
   });
   unavailable('Kufr je odpojený. Nejprve zkontrolujte nebo vytvořte párování.');
   let paired = false;
+  let savedDeviceId: string | undefined;
   let busy = false;
   const update = () => {
     form.hidden = paired;
+    addressForm.hidden = !paired;
+    discoverButton.disabled = busy;
+    addressForm.querySelector<HTMLButtonElement>('button')!.disabled = busy;
+    discoveryResults.querySelectorAll<HTMLButtonElement>('button').forEach((button) => { button.disabled = busy; });
     connectButton.disabled = busy || !paired;
     disconnectButton.disabled = busy || !paired;
     forgetButton.disabled = busy || !paired;
@@ -327,6 +344,9 @@ async function initializeNativeAsync(): Promise<void> {
   };
   const applySavedDevice = (saved: SavedNativeDevice) => {
     paired = saved.paired && typeof saved.deviceId === 'string' && typeof saved.host === 'string';
+    savedDeviceId = paired ? saved.deviceId : undefined;
+    addressInput.value = paired ? saved.host! : '';
+    discoveryResults.replaceChildren();
     connection?.release();
     if (connection instanceof NativeDeviceConnection) { connection.suspend(); }
     connection = paired ? new NativeDeviceConnection(render, saved.deviceId!) : null;
@@ -356,6 +376,46 @@ async function initializeNativeAsync(): Promise<void> {
       });
       form.reset();
       applySavedDevice(await nativeBridge.savedDevice());
+    });
+  });
+  const changeAddressAsync = async (host: string) => {
+    connection?.release();
+    if (connection instanceof NativeDeviceConnection) { connection.suspend(); }
+    await nativeBridge.setAddress({ host });
+    applySavedDevice(await nativeBridge.savedDevice());
+  };
+  addressForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (addressForm.reportValidity()) {
+      void performAsync(() => changeAddressAsync(addressInput.value));
+    }
+  });
+  discoverButton.addEventListener('click', () => {
+    void performAsync(async () => {
+      discoveryResults.replaceChildren();
+      status.textContent = 'Hledám kufr v místní síti, nejvýše 5 sekund…';
+      const result = await nativeBridge.discover();
+      const devices = result.devices.filter((device) => !paired || device.deviceId === savedDeviceId);
+      status.textContent = result.failed
+        ? 'Místní hledání není dostupné. Povolte aplikaci místní síť v Nastavení, ověřte Wi-Fi nebo zadejte IP.'
+        : devices.length === 0
+          ? 'Za 5 sekund nebyl nalezen odpovídající kufr. Zadejte IP nebo nastavte DHCP rezervaci v routeru.'
+          : 'Nalezené adresy nejsou ověřená identita. Vyberte adresu; připojení potom spustíte výslovně.';
+      for (const device of devices) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = `${device.deviceId} · ${device.host}`;
+        button.addEventListener('click', () => {
+          if (paired) {
+            void performAsync(() => changeAddressAsync(device.host));
+          } else {
+            form.querySelector<HTMLInputElement>('[name="host"]')!.value = device.host;
+            form.querySelector<HTMLInputElement>('[name="deviceId"]')!.value = device.deviceId;
+            status.textContent = 'Adresa je vyplněná. Device ID a otisk ověřte podle QR uvnitř kufru.';
+          }
+        });
+        discoveryResults.append(button);
+      }
     });
   });
   connectButton.addEventListener('click', () => {
