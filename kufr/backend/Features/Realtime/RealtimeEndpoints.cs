@@ -53,19 +53,7 @@ internal static class RealtimeEndpoints
                 throw new InvalidDataException();
             }
             body = await ReadBodyAsync(context.Request, context.RequestAborted);
-            using var document = JsonDocument.Parse(body);
-            var expected = new HashSet<string>(StringComparer.Ordinal)
-            {
-                "clientTurnId", "bootId", "generation", "readyMask", "deviceRevision",
-                "catalogVersion", "opening", "text", "wav", "voice", "speed"
-            };
-            if (document.RootElement.ValueKind != JsonValueKind.Object
-                || document.RootElement.EnumerateObject().Any(property => !expected.Remove(property.Name))
-                || expected.Count != 0)
-            {
-                throw new InvalidDataException();
-            }
-            var request = JsonSerializer.Deserialize<RealtimeTurnRequest>(body, RealtimeProtocol.JsonOptions);
+            var request = RealtimeProtocol.ReadRequest(body);
             if (request is null || !RealtimeProtocol.IsValid(request))
             {
                 throw new InvalidDataException();

@@ -6,6 +6,38 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D116 – rozpracováno: průběžný poslech bez tlačítek a oprava dalších odpovědí.**
+Majitel po instalaci D114 hlásí druhou odpověď bez výsledku: po dokončení
+nahrávání se pouze deaktivuje tlačítko. Žádá skutečný průběžný rozhovor.
+Backend drží jedno provider SDK spojení, VAD rozpozná konec řeči a každý
+nový tah rezervuje před příjmem audia. Telefon používá jeden NDJSON stream,
+krátké pořadové PCM POSTy a automaticky obnoví mikrofon po dohrání.
+Pozdní vstupní blok se zahodí, nezačne nový tah ani nezastaví rozhovor.
+Stop funguje i během čekání na dohrání, chyby/cost_limit jsou viditelné.
+Rozpočet zůstává: kratší rezervace/context mohou zapadnout do stávajícího
+capu; podrobný prompt a uložená paměť se nemažou. PTT/řetězená záloha zůstává.
+Rozsah: Features/Realtime, ConversationStore/RealtimeTurns a backend testy;
+DebugHandsFreeSession/Audio, plugin/klient/DebugPanel, Swift harness a Xcode;
+OpenAPI/verifier, README/plán a omezený živý Python test/workflow.
+Lokálně prošly backend testy úvodu a dvou hlasových odpovědí na jednom
+socketu, pořadí vstupních bloků, dohrání a nízký cap/Stop. TypeScript/Vite
+build, 19 mobilních testů, všechny kontrakty a 12 Python klientských testů
+prošly. Finální HTTP smoke také prošel. Read-only review odhalil a opravil
+závod pozdního audio bloku při VAD stop/novém poslechu; koncové bloky se
+zahazují i při druhém zavření vstupu. In-app Browser ověřil výchozí režim,
+dvě navazující syntetické odpovědi bez nahrávacího tlačítka, viditelný
+cost_limit, Stop a opětovné spuštění. macOS Swift/Xcode ověří povinné CI.
+Implementační commit `292b677ab9e210f69bd12e279c7a521716480d36` a integrace
+main `5352d4d15a1be15372ce292ba1d8628ea6dde27f` byly ověřeně pushnuté.
+[PR #82](https://github.com/Blato58/DildoVander/pull/82) zachovává D115 opravu
+safe area z PR #81. První CI 36905453842 prošlo backend testy, web, kontrakty
+a offline eval; Swift odhalil actor izolaci čistého parseru chyb, opraveno
+explicitním nonisolated. Linux HTTP negativní test narazil na EPIPE při
+znovupoužití spojení po nadlimitním těle; tento požadavek nyní spojení zavře.
+Další konkrétní krok: ověřit/složit PR, automaticky sloučit po zeleném CI,
+nasadit backend a publikovat novou podepsanou IPA. Majitel toto předání
+a živou zkoušku do 1 USD již schválil. B1 a fyzická iPhone akceptace trvají.
+
 **D115 – oprava horních tabů pod výřezem iPhonu.**
 Majitel hlásí překrytí tabů kamerou/senzory a obtížné klepnutí.
 `index.html` zapíná `viewport-fit=cover`; `src/style.css` přidává
@@ -24,7 +56,7 @@ Podpis a publikace nové IPA nejsou součástí tohoto kroku.
 Další krok: po zeleném CI a merge připravit novou IPA v autorizovaném
 publikačním kroku a ověřit Ovládání/Debug na iPhonu včetně scrollu/otočení.
 
-**D114 – implementováno: Realtime hlas přes oficiální SDK a podrobný party prompt.**
+**D114 – nasazeno: Realtime hlas přes oficiální SDK a podrobný party prompt.**
 Majitel doložil 9,8 s dialog + 2,3 s TTS a výslovně schválil Realtime pro
 hlas místo dosavadní Sol-only hlasové cesty. Textový Sol zůstává. Požaduje
 podrobný popis humoru/jazyka; prompt se nezkracuje kvůli latenci.
@@ -71,13 +103,15 @@ Read-only review opravil immutable model, 32KiB audio bloky, playback drain,
 cleanup retry, souběh streamu a pořadí paměť/journal. Oddělené SQLite soubory
 nejsou společná atomická transakce: chyba journalu po úspěšné paměti může
 ponechat výměnu v paměti při ohlášeném neúspěchu. Viz backend README.
-Nasazení, podpis/publikace nové IPA, placená evaluace a fyzická akceptace
-nebyly provedeny. Skutečná latence/humor nejsou doložené offline testy.
-Další konkrétní krok: po zeleném PR CI a sloučení schválit nasazení a novou
-IPA; ověřit skutečné nákladové stropy (0,20 USD nestačí pro Realtime rezervaci),
-potom s novým oprávněním/rozpočtem ověřit živý hlas a iPhone. B1 trvá.
+PR #80 byl sloučen do main `3be859cacac0345799ff003e1dfc78c12b295295`;
+finální CI 36889244970 prošlo včetně Swift/Xcode/simulátoru. Autorizované
+nasazení backendu 36892004497, podpis 36892009408 a veřejná publikace
+36892712624 prošly. Veřejná `/ios/` nabízí build 1000.0.3; majitel jej
+nainstaloval. Placená evaluace zatím neproběhla, schválený strop je 1 USD.
+Skutečná latence/humor nejsou doložené offline testy. Hlásená iPhone
+chyba a automatický poslech pokračují v D116; B1 trvá.
 
-**Poslední nasazení 1. 10.: D112, IPA 1.0 / build 1000.0.2 publikovaná.**
+**Předchozí nasazení 1. 10.: D112, IPA 1.0 / build 1000.0.2 publikovaná.**
 Debug nabízí pojmenovaný nový večer i návrat ke staré paměti a ukládá profil
 do odděleného Keychain. Výchozí URL/ID jsou `https://2.28.202.220/` /
 `debug-server-admin`. V nové verzi credential jednou znovu uložit: starší

@@ -1,12 +1,25 @@
 import Foundation
 import Security
 
-enum DebugBackendError: Error { case invalidProfile, invalidResponse, httpStatus, tooLarge, wrongMode, timeout }
+enum DebugBackendError: Error {
+    case invalidProfile, invalidResponse, httpStatus, tooLarge, wrongMode, timeout
+    case serverCode(String)
+}
 
 struct DebugBackendProfile {
     let baseURL: URL
     let deviceId: String
     let credential: String
+
+#if !os(iOS)
+    // Foundation-only macOS harness uses a synthetic loopback HTTP peer.
+    init(baseURL: URL, deviceId: String, credential: String) {
+        precondition(baseURL.scheme == "http" && baseURL.host == "127.0.0.1")
+        self.baseURL = baseURL
+        self.deviceId = deviceId
+        self.credential = credential
+    }
+#endif
 
     init(address: String, deviceId: String, credential: String) throws {
         guard let url = URL(string: address), let host = url.host, !host.isEmpty,
@@ -335,6 +348,54 @@ final class DebugBackendClient {
             }
             return DebugRealtimeSession(client: self, profile: profile, token: token, conversation: conversation,
                                         boot: boot, readyMask: readyMask, voice: voice, speed: speed)
+        } catch {
+            try? await cleanup(profile, token: token, conversation: conversation)
+            throw error
+        }
+    }
+
+    nonisolated static func realtimeError(data: Data, status: Int) -> DebugBackendError {
+        let allowed = ["cost_limit", "turn_limit", "dialogue_busy", "realtime_unavailable",
+            "access_token_required", "audio_consent_required", "device_scope_mismatch",
+            "conversation_not_found", "conversation_finished", "conversation_version_mismatch",
+            "realtime_stream_not_replayable", "invalid_request", "request_too_large",
+            "ai_unavailable", "operation_cancelled", "invalid_audio_frame", "realtime_input_mismatch",
+            "realtime_session_not_found", "realtime_playback_mismatch"]
+        if data.count <= 4096,
+           let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let code = value["code"] as? String, allowed.contains(code) {
+            return .serverCode(code)
+        }
+        return status == 429 ? .serverCode("cost_limit") : .httpStatus
+    }
+
+    @MainActor func openHandsFreeSession(_ profile: DebugBackendProfile, readyMask: Int,
+        voice: String, speed: Double, phase: @escaping DebugHandsFreeSession.Phase,
+        visitor: @escaping DebugHandsFreeSession.Visitor, reply: @escaping DebugHandsFreeSession.Reply,
+        audio: @escaping DebugHandsFreeSession.Audio, listening: @escaping DebugHandsFreeSession.Listening,
+        inputGate: @escaping DebugHandsFreeSession.InputGate, failure: @escaping DebugHandsFreeSession.Failure)
+        async throws -> DebugHandsFreeSession {
+        guard (0...63).contains(readyMask), ["cedar", "marin", "coral"].contains(voice),
+              speed.isFinite, (0.8...1.2).contains(speed) else { throw DebugBackendError.invalidResponse }
+        let token = try await accessToken(profile)
+        guard try await metadata(profile, token: token, expectedMode: "openai", requireDialog: true) == "openai" else {
+            throw DebugBackendError.wrongMode
+        }
+        let boot = UUID().uuidString.lowercased()
+        let created = try await json(profile, path: "v1/conversations", token: token, method: "POST", body: [
+            "deviceId": profile.deviceId, "bootId": boot, "generation": 0,
+            "catalogVersion": "ollivander-private-party-v1", "locale": "cs-CZ",
+            "consent": ["audio": true, "image": false]
+        ])
+        let conversation = try uuid(created, "conversationId")
+        do {
+            guard try await metadata(profile, token: token, expectedMode: "openai", requireDialog: true) == "openai" else {
+                throw DebugBackendError.wrongMode
+            }
+            try Task.checkCancellation()
+            return DebugHandsFreeSession(client: self, profile: profile, token: token, conversation: conversation,
+                boot: boot, readyMask: readyMask, voice: voice, speed: speed, phase: phase, visitor: visitor,
+                reply: reply, audio: audio, listening: listening, inputGate: inputGate, failure: failure)
         } catch {
             try? await cleanup(profile, token: token, conversation: conversation)
             throw error

@@ -13,7 +13,7 @@ Nativní adaptér vlastní TLS pin, oprávnění LAN a Keychain. E10.1 použív�
 ## Debug D108/D109/D110/D112 a Realtime
 
 Aktuální [Safari instalace](https://2.28.202.220/ios/) nabízí verzi 1.0,
-build **1000.0.2** (publikace 1. 10. 2026). První uložení credentialu v této
+build **1000.0.3** (publikace 1. 10. 2026, D114). První uložení credentialu v této
 verzi je potřeba zopakovat, protože předchozí verze ho držela jen v RAM.
 
 Samostatný podpisový workflow čísluje nové IPA `1000.x.y` (vyšší než původní
@@ -29,12 +29,17 @@ Platí nejvýše 100 večerů, název 1–80 Unicode znaků. Samotná správa ne
 **Zkušební rozhovor a výběr hůlky** drží samostatné virtuální sezení.
 Nastavte dostupné přihrádky (výchozí všech šest), hlas Cedar/Marin/Onyx/Coral
 a tempo, obnovte režimy serveru a spusťte AI nebo fake rozhovor. Odpovídejte
-textem nebo tlačítky Začít nahrávat / Dokončit nahrávání a odeslat. Mikrofon
-vyžaduje povolení iOS, nahrává nejvýše 30 s do RAM; Stop či pozadí zvuk zahodí.
-Fake STT vrací syntetický přepis; skutečná vlastní hlasová odpověď potřebuje
-OpenAI režim hlasu. AI rozhovor standardně používá **Realtime**: jeden tah
-streamuje PCM16 mono 24 kHz a telefon začne přehrávat první bloky před dokončením
-odpovědi. Volba Řetězený zachovává původní Sol/fake tok; Realtime nepodporuje hlas
+ve výchozím **Realtime · bez tlačítek** prostě nahlas: mikrofon vyžaduje
+povolení iOS a během poslechu průběžně odesílá PCM16 mono 24 kHz backendu.
+Po 650 ms ticha odpoví kufr, během jeho řeči je vstup zavřený a po skutečném
+dohrání se automaticky otevře další poslech. Telefon začne přehrávat první
+bloky před dokončením odpovědi. Spouští se jeden rozhovor, nejvýše 8 min/10
+tahů; Stop, pozadí, zamčení nebo audio přerušení ukončí mikrofon i provider.
+Bez přerušování právě mluvícího kufru. Problém včetně nákladového limitu
+má viditelnou hlášku. **Realtime · tlačítka** a **Řetězený** umožňují text
+nebo nahrávání nejvýše 30 s do RAM. Fake STT vrací syntetický přepis;
+skutečná vlastní hlasová odpověď potřebuje OpenAI režim hlasu.
+Volba Řetězený zachovává původní Sol/fake tok; Realtime nepodporuje hlas
 Onyx. V Debug se ukazují zvlášť čas do prvního audia a celkový čas tahu. Celý přepis je přechodný a nepatří do logu. Backend může
 text zachovat v paměti testovacího večera; Ukončit a smazat rozhovor maže pouze
 přepis telefonu a ukončuje sezení, nikoli paměť večera na serveru.
@@ -106,6 +111,10 @@ korelaci, WAV, zrušení a cleanup bez placeného provideru. Syntetický HTTP
 adaptér doplňuje skutečný loopback test omezeného příjmu a redirect/cancel.
 Stejný harness ověřuje NDJSON Realtime parser s prvním PCM blokem před `completed`,
 chybnou korelací a limitem dekódovaného audio bloku.
+Hands-free loopback harness ověřuje úvod a dvě hlasové odpovědi v jednom
+streamu, obnovení vstupu, konec a cleanup. Záměrně pošle další `listening`
+před HTTP odpovědí `/played`. AVAudioEngine a skutečný mikrofon musí
+ověřit Xcode/iPhone; Foundation harness je nenahrazuje.
 
 ## Nativní připojení E10.1
 
