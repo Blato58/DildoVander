@@ -1,61 +1,52 @@
-name: Kufr iOS
+name: Build Kufr iOS
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - kufr/mobilni-aplikace/**
-      - kufr/contracts/**
-      - .github/workflows/kufr-ios.yml
-  pull_request:
-    branches: [main]
-    paths:
-      - kufr/mobilni-aplikace/**
-      - kufr/contracts/**
-      - .github/workflows/kufr-ios.yml
-  workflow_dispatch:
-    inputs:
-      sign_ipa:
-        description: Build a development-signed IPA for the registered iPhone
-        type: boolean
-        required: true
-        default: false
-      signing_kind:
-        description: Development artifact or Ad Hoc Safari installation
-        type: choice
-        options: [development, ad_hoc]
-        default: development
+  workflow_call:
 
 permissions:
   contents: read
 
-concurrency:
-  group: kufr-ios-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
   web:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: kufr/mobilni-aplikace
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: kufr/mobilni-aplikace/.nvmrc
           cache: npm
-          cache-dependency-path: kufr/mobilni-aplikace/package-lock.json
+          cache-dependency-path: |
+            kufr/mobilni-aplikace/package-lock.json
+            kufr/contracts/package-lock.json
+            kufr/simulator/package-lock.json
       - run: npm ci
       - run: npm ci --prefix ../contracts
+      - run: npm test --prefix ../contracts
       - run: npm test
       - run: npm run build
       - run: bash -n scripts/build-ios-ipa.sh
       - run: python3 -m unittest discover -s scripts -p 'test_publish_*.py'
+      - name: Package web build with provenance
+        working-directory: .
+        run: python3 scripts/ci/package.py pack kufr/mobilni-aplikace/dist "$RUNNER_TEMP/web-package"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: web-dist
+          path: ${{ runner.temp }}/web-package/
+          if-no-files-found: error
+          retention-days: 14
+          overwrite: true
 
   ios-simulator:
     needs: web
     runs-on: macos-15
+    timeout-minutes: 25
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
     defaults:
@@ -63,16 +54,27 @@ jobs:
         working-directory: kufr/mobilni-aplikace
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Check Xcode
         run: test "$(xcodebuild -version | head -n 1)" = "Xcode 26.3"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: kufr/mobilni-aplikace/.nvmrc
           cache: npm
-          cache-dependency-path: kufr/mobilni-aplikace/package-lock.json
+          cache-dependency-path: |
+            kufr/mobilni-aplikace/package-lock.json
+            kufr/contracts/package-lock.json
+            kufr/simulator/package-lock.json
       - run: npm ci
       - run: npm ci --prefix ../contracts
-      - run: npm run build
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: web-dist
+          path: ${{ runner.temp }}/web-package
+      - name: Reuse tested web build
+        working-directory: .
+        run: python3 scripts/ci/package.py unpack "$RUNNER_TEMP/web-package" kufr/mobilni-aplikace/dist
       - run: npx cap sync ios
       - name: Resolve Swift packages
         run: xcodebuild -resolvePackageDependencies -project ios/App/App.xcodeproj -scheme App
@@ -106,122 +108,4 @@ jobs:
           path: kufr/mobilni-aplikace/ios/App/**/Package.resolved
           if-no-files-found: error
           retention-days: 14
-
-  signed-ipa:
-    if: github.event_name == 'workflow_dispatch' && inputs.sign_ipa && github.ref == 'refs/heads/main'
-    needs: ios-simulator
-    runs-on: macos-15
-    environment: ios-signing
-    env:
-      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
-    defaults:
-      run:
-        working-directory: kufr/mobilni-aplikace
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version-file: kufr/mobilni-aplikace/.nvmrc
-          cache: npm
-          cache-dependency-path: kufr/mobilni-aplikace/package-lock.json
-      - run: npm ci
-      - run: npm ci --prefix ../contracts
-      - run: npm run build
-      - run: npx cap sync ios
-      - name: Build signed IPA
-        env:
-          IOS_BUNDLE_ID: app.turquoise6409.green2444
-          IOS_TEAM_ID: 3QRXV8G5Y3
-          IOS_SIGNING_KIND: ${{ inputs.signing_kind || 'development' }}
-          IOS_DEVELOPMENT_CERTIFICATE_BASE64: ${{ secrets.IOS_BUILD_CERTIFICATE_BASE64 }}
-          IOS_DEVELOPMENT_PROFILE_BASE64: ${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}
-          IOS_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
-          IOS_DISTRIBUTION_PROFILE_BASE64: ${{ secrets.IOS_DISTRIBUTION_PROFILE_BASE64 }}
-          IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
-          IOS_KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
-        run: |
-          set -euo pipefail
-          case "$IOS_SIGNING_KIND" in
-            development)
-              export IOS_BUILD_CERTIFICATE_BASE64="$IOS_DEVELOPMENT_CERTIFICATE_BASE64"
-              export IOS_PROVISION_PROFILE_BASE64="$IOS_DEVELOPMENT_PROFILE_BASE64"
-              ;;
-            ad_hoc)
-              export IOS_BUILD_CERTIFICATE_BASE64="$IOS_DISTRIBUTION_CERTIFICATE_BASE64"
-              export IOS_PROVISION_PROFILE_BASE64="$IOS_DISTRIBUTION_PROFILE_BASE64"
-              ;;
-            *) echo 'Invalid signing kind' >&2; exit 2 ;;
-          esac
-          bash scripts/build-ios-ipa.sh
-      - name: Save signed IPA and checksum
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: kufr-ios-signed-ipa
-          path: kufr/mobilni-aplikace/dist/ipa/*
-          if-no-files-found: error
-          retention-days: 14
-
-  publish-ios:
-    if: github.event_name == 'workflow_dispatch' && inputs.sign_ipa && inputs.signing_kind == 'ad_hoc' && github.ref == 'refs/heads/main'
-    needs: signed-ipa
-    runs-on: [self-hosted, Linux, X64, kufr-backend]
-    outputs:
-      release_id: ${{ steps.publish.outputs.release_id }}
-    env:
-      PUBLIC_IPV4: ${{ vars.KUFR_BACKEND_PUBLIC_IPV4 }}
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: kufr-ios-signed-ipa
-          path: ${{ runner.temp }}/kufr-ipa
-      - name: Publish signed IPA and Safari manifest
-        id: publish
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -d /var/www/kufr-ios
-          mapfile -t ipa_files < <(find "$RUNNER_TEMP/kufr-ipa" -maxdepth 1 -type f -name '*.ipa' -print)
-          test "${#ipa_files[@]}" -eq 1
-          checksum="${ipa_files[0]}.sha256"
-          test -f "$checksum"
-          release_id="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          python3 kufr/mobilni-aplikace/scripts/publish-ios-install.py \
-            --ipa "${ipa_files[0]}" --checksum "$checksum" \
-            --site-dir /var/www/kufr-ios --public-ip "$PUBLIC_IPV4" \
-            --release-id "$release_id" --bundle-id app.turquoise6409.green2444
-          echo "release_id=$release_id" >> "$GITHUB_OUTPUT"
-
-  verify-ios-page:
-    needs: publish-ios
-    runs-on: ubuntu-24.04
-    env:
-      PUBLIC_IPV4: ${{ vars.KUFR_BACKEND_PUBLIC_IPV4 }}
-      RELEASE_ID: ${{ needs.publish-ios.outputs.release_id }}
-    steps:
-      - name: Verify Safari page, manifest and IPA from outside server
-        shell: bash
-        run: |
-          set -euo pipefail
-          base="https://$PUBLIC_IPV4/ios"
-          release="$base/releases/$RELEASE_ID"
-          curl --fail --silent --show-error --max-time 15 "$base/" -o "$RUNNER_TEMP/index.html"
-          grep -q 'itms-services://?action=download-manifest' "$RUNNER_TEMP/index.html"
-          curl --fail --silent --show-error --max-time 15 "$release/manifest.plist" -o "$RUNNER_TEMP/manifest.plist"
-          python3 - "$RUNNER_TEMP/manifest.plist" "$release/kufr.ipa" <<'PY'
-          import plistlib
-          import sys
-
-          with open(sys.argv[1], 'rb') as source:
-              item = plistlib.load(source)['items'][0]
-          if item['assets'][0]['url'] != sys.argv[2]:
-              raise SystemExit('The manifest does not point at the published IPA')
-          if item['metadata']['bundle-identifier'] != 'app.turquoise6409.green2444':
-              raise SystemExit('The manifest Bundle ID is wrong')
-          PY
-          curl --fail --silent --show-error --max-time 90 "$release/kufr.ipa" -o "$RUNNER_TEMP/kufr.ipa"
-          curl --fail --silent --show-error --max-time 15 "$release/kufr.ipa.sha256" -o "$RUNNER_TEMP/kufr.ipa.sha256"
-          (cd "$RUNNER_TEMP" && sha256sum -c kufr.ipa.sha256)
-          curl --fail --silent --show-error --head "$release/manifest.plist" | grep -iq '^content-type: text/xml'
-          curl --fail --silent --show-error --head "$release/kufr.ipa" | grep -iq '^content-type: application/octet-stream'
-          echo "Safari install files verified at $base/"
+          overwrite: true

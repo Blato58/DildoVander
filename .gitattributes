@@ -1,0 +1,17 @@
+* text=auto
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.py text eol=lf
+*.cjs text eol=lf
+*.mjs text eol=lf
+*.md text eol=lf
+*.ps1 text eol=lf
+*.png binary
+*.jpg binary
+*.ico binary
+*.bin binary
+*.elf binary
+*.ipa binary
+*.p12 binary
+*.mobileprovision binary

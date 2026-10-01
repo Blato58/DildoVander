@@ -1,0 +1,105 @@
+name: Deploy Kufr IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: Successful Ad Hoc signed IPA build run ID for current main
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: kufr-backend-production
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/reuse-build.yml
+    with:
+      build_run_id: ${{ inputs.build_run_id }}
+      workflow: kufr-ios-sign.yml
+      artifact: signed-ipa
+      signing_kind: ad_hoc
+
+  publish-ios:
+    if: github.ref == 'refs/heads/main'
+    needs: verify
+    timeout-minutes: 10
+    runs-on: [self-hosted, Linux, X64, kufr-backend]
+    outputs:
+      release_id: ${{ steps.publish.outputs.release_id }}
+    env:
+      PUBLIC_IPV4: ${{ vars.KUFR_BACKEND_PUBLIC_IPV4 }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.verify.outputs.main_sha }}
+          persist-credentials: false
+      - name: Reject a publication queued before main changed
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          EXPECTED_SHA: ${{ needs.verify.outputs.main_sha }}
+        with:
+          script: await require('./scripts/ci/verify-build.cjs').checkMain({ github, context }, process.env.EXPECTED_SHA)
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: verified-signed-ipa
+          path: ${{ runner.temp }}/ipa-package
+      - name: Unpack verified IPA
+        run: python3 scripts/ci/package.py unpack "$RUNNER_TEMP/ipa-package" "$RUNNER_TEMP/kufr-ipa-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+      - name: Publish signed IPA and Safari manifest
+        id: publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d /var/www/kufr-ios
+          mapfile -t ipa_files < <(find "$RUNNER_TEMP/kufr-ipa-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" -maxdepth 1 -type f -name '*.ipa' -print)
+          test "${#ipa_files[@]}" -eq 1
+          checksum="${ipa_files[0]}.sha256"
+          test -f "$checksum"
+          release_id="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          python3 kufr/mobilni-aplikace/scripts/publish-ios-install.py \
+            --ipa "${ipa_files[0]}" --checksum "$checksum" \
+            --site-dir /var/www/kufr-ios --public-ip "$PUBLIC_IPV4" \
+            --release-id "$release_id" --bundle-id app.turquoise6409.green2444
+          echo "release_id=$release_id" >> "$GITHUB_OUTPUT"
+
+  verify-ios-page:
+    needs: publish-ios
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      PUBLIC_IPV4: ${{ vars.KUFR_BACKEND_PUBLIC_IPV4 }}
+      RELEASE_ID: ${{ needs.publish-ios.outputs.release_id }}
+    steps:
+      - name: Verify Safari page, manifest and IPA from outside server
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://$PUBLIC_IPV4/ios"
+          release="$base/releases/$RELEASE_ID"
+          curl --fail --silent --show-error --max-time 15 "$base/" -o "$RUNNER_TEMP/index.html"
+          grep -q 'itms-services://?action=download-manifest' "$RUNNER_TEMP/index.html"
+          curl --fail --silent --show-error --max-time 15 "$release/manifest.plist" -o "$RUNNER_TEMP/manifest.plist"
+          python3 - "$RUNNER_TEMP/manifest.plist" "$release/kufr.ipa" <<'PY'
+          import plistlib
+          import sys
+
+          with open(sys.argv[1], 'rb') as source:
+              item = plistlib.load(source)['items'][0]
+          if item['assets'][0]['url'] != sys.argv[2]:
+              raise SystemExit('The manifest does not point at the published IPA')
+          if item['metadata']['bundle-identifier'] != 'app.turquoise6409.green2444':
+              raise SystemExit('The manifest Bundle ID is wrong')
+          PY
+          curl --fail --silent --show-error --max-time 90 "$release/kufr.ipa" -o "$RUNNER_TEMP/kufr.ipa"
+          curl --fail --silent --show-error --max-time 15 "$release/kufr.ipa.sha256" -o "$RUNNER_TEMP/kufr.ipa.sha256"
+          (cd "$RUNNER_TEMP" && sha256sum -c kufr.ipa.sha256)
+          curl --fail --silent --show-error --head "$release/manifest.plist" | grep -iq '^content-type: text/xml'
+          curl --fail --silent --show-error --head "$release/kufr.ipa" | grep -iq '^content-type: application/octet-stream'
+          echo "Safari install files verified at $base/"

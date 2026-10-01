@@ -192,7 +192,17 @@ npm run build
 npx cap sync ios
 ```
 
-Na Windows lze tyto příkazy použít pro kontrolu zdrojů, Xcode build a iOS Simulator však provádí macOS CI. Push/PR spouští `web` a nepodepsaný `ios-simulator` job. Ruční `workflow_dispatch` s `sign_ipa=true` na `main` spouští po jejich úspěchu podpisový job v environmentu `ios-signing`. Volba `signing_kind=development` vytvoří pouze 14denní Actions artifact. Volba `signing_kind=ad_hoc` použije distribuční profil a po úspěchu publikuje instalační stránku na `https://2.28.202.220/ios/`. Do environmentu patří secrets `IOS_BUILD_CERTIFICATE_BASE64`, `IOS_PROVISION_PROFILE_BASE64`, `IOS_DISTRIBUTION_CERTIFICATE_BASE64`, `IOS_DISTRIBUTION_PROFILE_BASE64`, `IOS_P12_PASSWORD` a `IOS_KEYCHAIN_PASSWORD`. Současné dvě `.p12` podle majitele používají stejné heslo; CI jej neukládá do artifactu. Certifikáty a profily jsou Base64 celého souboru; žádný ze souborů ani hesel nepatří do repozitáře. Environment může mít vlastní schvalovací pravidla.
+Na Windows lze tyto příkazy použít pro kontrolu zdrojů; Xcode build a iOS Simulator
+provádí macOS CI. Každé PR spouští přes `ci.yml` web a nepodepsaný simulator.
+Web se buildí jednou a macOS převezme jeho artefakt. Po merge ruční workflow
+**Build signed Kufr IPA** (`kufr-ios-sign.yml`) na `main` dostane `build_run_id`
+úspěšného CI a sestaví podepsaný device cíl v environmentu `ios-signing`.
+Volba `signing_kind=development` vytvoří 14denní artefakt; `ad_hoc` použije
+distribuční profil. Samostatné **Deploy Kufr IPA** (`kufr-ios-deploy.yml`) dostane
+ID úspěšného podepsaného buildu a publikuje instalační stránku na
+`https://2.28.202.220/ios/` bez dalšího buildu. Oba kroky ověřují shodu zdrojového
+stromu s aktuálním `main`; [CI/CD návod](../../docs/ci-cd.md) popisuje obnovovací build.
+ Do environmentu patří secrets `IOS_BUILD_CERTIFICATE_BASE64`, `IOS_PROVISION_PROFILE_BASE64`, `IOS_DISTRIBUTION_CERTIFICATE_BASE64`, `IOS_DISTRIBUTION_PROFILE_BASE64`, `IOS_P12_PASSWORD` a `IOS_KEYCHAIN_PASSWORD`. Současné dvě `.p12` podle majitele používají stejné heslo; CI jej neukládá do artifactu. Certifikáty a profily jsou Base64 celého souboru; žádný ze souborů ani hesel nepatří do repozitáře. Environment může mít vlastní schvalovací pravidla.
 
 Nativní identita má Bundle ID `app.turquoise6409.green2444` a Team ID `3QRXV8G5Y3`. Majitel potvrdil iPhone 15 Pro s iOS 26.6.1 a jeho UDID v dodaném profilu. Vývojový profil expiruje 25. 12. 2026; Ad Hoc profil pro stejný tým, Bundle ID a jedno zařízení expiruje 24. 12. 2026. CI kontroluje shodu identity, platnost a certifikát, exportuje IPA a ověřuje její podpis a embedded profil. Při chybě importu `.p12` zkusí OpenSSL čtení a kompatibilní přebalení. Publikační job kontroluje SHA-256, Bundle ID a metadata IPA, vytvoří manifest a z externího runneru znovu stáhne stejné soubory přes HTTPS. [Ad Hoc běh 36636991415](https://github.com/Blato58/DildoVander/actions/runs/36636991415) prošel všemi joby a majitel 30. 9. 2026 potvrdil úspěšnou instalaci a spuštění na iPhonu. Stabilní identita je důležitá pro aktualizaci a Keychain. E10.1–3 doplňují native TLS/Keychain, text a Bonjour a fyzický běh těchto funkcí ani aktualizace přes Safari zatím nejsou ověřené. GitHub Release, Pages, feed a ntfy zde nejsou zapnuté.
 
