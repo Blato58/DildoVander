@@ -6,6 +6,34 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D111 – CI/CD build jednou a oddělená promotion artefaktů.**
+Rozsah: každé PR do main spouští společné CI pro backend, firmware, iOS/web
+a offline AI; stabilní `CI required`, zrušení zastaralých PR běhů, timeouty.
+Backend Release/RID build sdílí testy i self-contained publish přes no-build,
+NuGet lockfiles/cache; web artefakt přebírá macOS i podpisový workflow.
+Ruční backend deploy a samostatná IPA publikace nepřekládají. API ověřuje
+úspěšný workflow, původ PR/merge stromu a shodu celého tree s aktuálním main;
+checksum a bezpečné rozbalení před self-hosted runnerem. Sign IPA je explicitní
+samostatný device build (simulator nelze nahradit), nikoli součást deploy.
+Firmware toolchain cache a verzované binární výstupy pro oba profily.
+Soubory: `.github/workflows/`, `scripts/ci/`, NuGet props/lockfiles,
+smoke výběr publikované DLL, CONTRIBUTING/SECURITY/CODEOWNERS/PR šablona,
+Dependabot, EditorConfig/Git attributes a `docs/ci-cd.md` + komponentové README.
+Lokální ověření: actionlint 1.7.12 všech workflows, 28 Node promotion testů,
+6 Python archive testů, .NET 10.0.303 locked restore/Release build bez varování,
+backend runtime testy, no-build publish a HTTP smoke nad publikovanou DLL,
+skutečný balíček/rozbalení self-contained outputu; 19 mobilních testů a Vite/TS
+build, všechny kontrakty, 3 deploy + 9 client + 4 IPA publish + 20 offline AI
+Python testů; shell syntax, lokální dokumentační odkazy a whitespace prošly.
+CI výsledky, push a merge této změny jsou evidované v navazujícím PR
+`codex/build-once-workflows`; při převzetí ověř jeho aktuální stav a Actions.
+Skutečné nasazení, Apple podpis, publikace IPA, placená AI a HW flash nejsou
+součástí tohoto kroku. Repo nastavení API vrátilo 403 integration permission,
+rulesets navíc vyžadují Pro pro privátní repo. Připravené konkrétní JSON +
+admin apply skript nejsou důkazem aktivní ochrany větve.
+Další krok: majitel/admin zpřístupní repo administraci a podporovaný tarif,
+potom aplikuje připravená pravidla; nasazení použije run ID úspěšného CI.
+
 **D110 – interaktivní hlasový Debug připraven pro macOS CI a předání.**
 Majitel žádá menší prodlevu, volbu hlasu a celý výběr s vlastními odpověďmi;
 výslovně potvrdil hlas i psaný text. Implementována virtuální maska 0–63,

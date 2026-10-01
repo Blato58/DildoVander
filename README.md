@@ -28,3 +28,10 @@ Pro zahájení další práce stačí: **„Začni implementovat aplikaci podle 
 - Budoucí backend: .NET 10 SDK. Nativní iOS build/test potřebuje Xcode na macOS runneru; na Windows se Xcode neinstaluje.
 - Po každém dokončeném implementačním slice se provede commit a push podle [AGENTS.md](AGENTS.md). Pro repozitář se dvěma přihlášenými účty GitHub používá push skript `scripts/Push-CurrentBranch.ps1`.
 
+
+## CI a standardy repozitáře
+
+Každé PR prochází společným build/test CI. Nasazení přebírá ověřené artefakty
+bez nového buildu; postup, cache a dostupnost ochrany větve popisuje
+[CI/CD návod](docs/ci-cd.md). Pravidla předání jsou v [CONTRIBUTING.md](CONTRIBUTING.md)
+a hlášení zranitelností v [SECURITY.md](SECURITY.md).
