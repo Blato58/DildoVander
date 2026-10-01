@@ -166,24 +166,26 @@ mazání. Hostitelské testy ověřují restart a selhání zápisu přes pamě�
 `DeviceControl` a publikuje atomický snapshot až po zotavení a bezpečném
 uzavření journalu. Přijetí výběru, aktivní pohyb, Stop a porucha jej invalidují;
 změny lease, revision a masky publikují novou verzi. Sdílené boot ID již vzniká
-při startu, nulová kalibrace zatím záměrně nedovoluje spustit pohon. Živý vstup příkazů,
-skutečný NVS běh na desce, síťový parser a servisní USB zápis zbývají.
+při startu, nulová kalibrace zatím záměrně nedovoluje spustit pohon.
+Autentizovaný WSS vstup a přísný parser jsou zapojené přes `LocalControlOwner`.
+Skutečný NVS/WSS běh na desce a servisní USB zápis zbývají.
 Po autorizovaném zrušení textového rozhovoru `CancelConversation` zvýší stejnou
 generation jako ruční Stop nebo ztráta lease a vydá nový snapshot. Kontroluje
 vlastníka lease, monotónní čas před expirací a očekávanou generation. Místní
 vlastník nejprve neměnně ověří `ConversationSession::ValidateCancel`, pak zvýší
 generation v řízení a potvrdí `ConversationSession::Cancel` na stejné řídicí
 úloze. Po Stop nebo ztrátě lease přenese generation do sezení přes
-`SynchronizeGeneration`, čímž zahodí starý textový tah. Hostitelská
-`LocalConversationGateway` toto pořadí vykonává; živý WSS vstup ji zatím
-nevytváří.
-`LocalControlSession` je čistý model jednoho control socketu po jeho budoucí
+`SynchronizeGeneration`, čímž zahodí starý textový tah.
+`LocalConversationGateway` toto pořadí vykonává; `LocalControlOwner` ji
+vytváří pro autentizované WSS spojení spolu s `LocalControlSession`.
+`LocalControlSession` je čistý model jednoho control socketu po jeho
 TLS/token autentizaci. Na řídicí úloze vyžaduje `hello` verze 1 do 10 s,
 správné device/boot ID a UUID lease. Ruční lease vytváří a obnovuje výhradně
 existující `DeviceControlRuntime`. Odpojení pozorovatele nemění samostatný
 režim; odpojení vlastníka ukončí lease a zvýší generation. Po vypršení lease
 je další takeover možný teprve po místním zotavení. Třída sama neověřuje
-token, nepřijímá JSON ani nevystavuje WSS. ESP-IDF smyčka ji zatím nevytváří.
+token, nepřijímá JSON ani nevystavuje WSS. ESP-IDF smyčka ji používá přes
+`LocalControlOwner`; skutečná TLS/token akceptace na desce zbývá.
 
 `DeviceIdentity` čte oddělený verzovaný NVS záznam s `deviceId` a 32 bajty
 device credential. Pro HTTP Authorization jej lze vyjádřit 64 malými
@@ -334,7 +336,8 @@ ztráta lease zvýší generation a pozdní dokončení se odmítne. Model je
 zapojený do autentizovaného WSS přes `LocalControlOwner`; fyzické výstupy
 neřídí. `EspIdfBackendNetwork`
 implementuje síťový port brány a předává terminální chybu přes omezenou
-schránku. Owner bránu vytváří po welcome a volá `PollNetworkFailure` v Tick.
+schránku. Owner bránu vytváří při převzetí autentizovaného spojení; text
+povolí až po hello/welcome a platném ručním lease. V Tick volá `PollNetworkFailure`.
 `ConversationStartCodec` sestaví přesné JSON tělo pro založení textového
 backend sezení s vypnutým audio/image souhlasem a omezeně parsuje odpověď
 včetně serverových limitů. Idempotency-Key je samostatný UUID vstup pro
@@ -602,9 +605,9 @@ nevytváří. Po `no_selection`, chybě/timeoutu pollu či 90 sekundách nečinn
 opakuje s čekáním 1–30 s a nepovolí založit další sezení. Po 204/404 vymaže
 koordinátor a vymění create key. Ověřený
 `propose` uloží jen jako dočasná data dostupná přes `ReadPendingProposal`.
-Textový tah posílá backendu stejné `clientTurnId` jako budoucí místní
+Textový tah posílá backendu stejné `clientTurnId` jako místní
 `conversation.text` v kanonickém malém zápisu; opening bez klientského tahu
-dostane nové lokální UUID. Původní zápis ID se vrací budoucímu místnímu
+dostane nové lokální UUID. Původní zápis ID se vrací místnímu
 výstupu a idempotency key zůstává oddělený. Nulové UUID se odmítá.
 Místní `conversationId` je odlišné od backendového ID; síťová úloha drží
 vazbu pro jediné aktivní sezení. Nový opening odstraní čekající text jiného
