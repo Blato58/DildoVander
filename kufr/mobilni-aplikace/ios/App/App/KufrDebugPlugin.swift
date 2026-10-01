@@ -120,6 +120,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
             guard self.canStart(), self.configurationCall == nil, let controller = self.bridge?.viewController else {
                 call.reject("Nastavení není dostupné.", "busy"); return
             }
+            self.logTask?.cancel()
             self.restoreProfile()
             let saved = self.profile
             self.configurationCall = call
@@ -172,6 +173,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
             guard self.canStart() else { call.reject("Nejprve ukončete probíhající test.", "busy"); return }
             do {
                 try self.profileKeychain.remove()
+                self.logTask?.cancel()
                 self.profile = nil; self.mode = "unknown"; self.serverModes = nil; self.evenings = nil
                 self.transcript = []; self.selected = nil; self.timings = [:]; self.phase = "idle"
                 call.resolve()

@@ -40,7 +40,13 @@ Browser odhalil kolizi společné CSS třídy logových seznamů; aplikační lo
 nově vybírá svůj vlastní seznam a serverový log zůstává oddělený.
 Swift/Xcode se ověří v macOS CI;
 v tomto Linux prostředí nejsou dostupné. Žádné placené AI volání.
-Commit/push/PR/CI/merge jsou doplněné po ověření předání.
+Implementační commit `3446dd3beb9e5164e10f9d16189f7bfab2d1175e` byl pushnut,
+remote shoda ověřena; [PR #86](https://github.com/Blato58/DildoVander/pull/86).
+Push-CurrentBranch.ps1 byl spuštěn, ale gh auth token --user zde nepodporuje
+runtime GH_TOKEN. API ověřilo účet Blato58; scoped gh git credential helper
+provedl push bez změny účtu nebo uložení tajemství. Finální macOS/CI/merge
+výsledek je evidovaný v PR. Review doplnilo rušení logového HTTP i při
+otevření konfigurace a zapomenutí nativního profilu.
 Nasazení backendu, podpis/publikace IPA a fyzický iPhone se v tomto kroku
 zatím neprovedly; produkční D116/1000.0.4 a B1 zůstávají dle záznamu níže.
 Další krok: dokončit macOS CI a merge D117, potom samostatně nasadit ověřené
