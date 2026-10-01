@@ -141,12 +141,12 @@ provedl push bez změny účtu nebo uložení tajemství. Finální macOS/CI/mer
 výsledek je evidovaný v PR. Review doplnilo rušení logového HTTP i při
 otevření konfigurace a zapomenutí nativního profilu.
 Nasazení backendu, podpis/publikace IPA a fyzický iPhone se v tomto kroku
-zatím neprovedly; produkční D116/1000.0.4 a B1 zůstávají dle záznamu níže.
+zatím neprovedly; backend D116 a IPA 1000.0.5 (D117) zůstávají dle záznamu níže.
 Další krok: dokončit macOS CI a merge D118, potom samostatně nasadit ověřené
 backend/web artefakty a publikovat IPA; vyzkoušet Log serveru během rozhovoru
 na iPhonu a čtení skutečné diagnostiky přes nový workflow.
 
-**D117 – oprava okamžitého ukončení Realtime na iPhonu, připraveno k CI.**
+**D117 – oprava startu Realtime, IPA 1000.0.5 publikovaná.**
 Majitel u 1000.0.4 doložil chybu hned po Začít AI rozhovor; oranžová tečka
 mikrofonu se objeví, první replika nezazní. Zdrojový průchod našel dvě
 možné startovací chyby: každá audio route notifikace rušila rozhovor včetně
@@ -167,12 +167,28 @@ po novém startu přes syntetický bridge. Technický kód se zalomí i na telef
 Nový macOS test používá skutečný AVAudioConverter 44,1/48kHz (mono/stereo)
 -> PCM16/24kHz, krátké/počáteční buffery,
 route policy a časné HTTP/protokol chyby vedle původních tří tahů.
-Nativní kompilaci/test a Xcode/simulátor ověří CI; Windows je nespouští.
+Finální CI 36922914322 prošlo všechny povinné kontroly včetně nativního
+testu, Xcode sestavení a spuštění iOS Simulatoru. Read-only review vedlo
+k explicitnímu příznaku audio lifecycle: opožděné callbacky po vlastním
+Stop se ignorují, ale systémové zastavení enginu nepohltí skutečné přerušení.
+Commity `d8de06fa716ba381b8f24250f22c1c473187ec88`,
+`2dd0e7fb659dc2f151446ca06636b017a92f4182` a finální CI head
+`1b1e3abd796861bea583c92da68d129fbadc8f52` byly ověřeně pushnuté.
+[PR #84](https://github.com/Blato58/DildoVander/pull/84) byl sloučen do
+main `0d97dea991dbadb27fa8f286fd2c98638227f81c`; shoda tree s CI head ověřena.
+Ad Hoc podpis 36924073561 a publikace 36924312823 prošly; instalační
+stránka i skutečná veřejná IPA uvádějí 1.0 / **1000.0.5**. Bundle ID
+`app.turquoise6409.green2444`, 964677 B, Cache-Control no-store,
+SHA-256 `5708765040138869f0bd6a9f32bf6d510bda06d671e5f62eb32690d16daca4d7`.
+Zdroj publikované aplikace je uvedené main 0d97dea; následné předání
+mění pouze dokumentaci. Backend kód se neměnil, běží nasazení D116.
 Backend veřejné healthz vrací 200; NDJSON startup shoda prošla read-only
 kontrolou. Nový placený AI test se nespouští. Přesnou příčinu na telefonu
 potvrdí až nová IPA a opakovaný start; B1/fyzické pohony se nemění.
-Další krok: zelené CI, merge, autorizovaný podpis/publikace opravené IPA
-a fyzická kontrola začátku i více hlasových odpovědí na iPhonu.
+Další krok: majitel aktualizuje na 1000.0.5 a ověří první repliku,
+automatický poslech po více odpovědích a Stop/pozadí. Pokud start dál
+selže, předá konkrétní technický kód z nové hlášky. Tato fyzická kontrola
+ani skutečný iOS notification callback nejsou doložené simulátorem.
 
 **D116 – nasazeno: průběžný poslech bez tlačítek a oprava dalších odpovědí.**
 Majitel po instalaci D114 hlásí druhou odpověď bez výsledku: po dokončení
