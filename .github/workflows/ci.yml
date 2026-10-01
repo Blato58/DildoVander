@@ -21,6 +21,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
+          fetch-depth: 2
       - name: Install pinned workflow validator
         run: |
           curl --fail --silent --show-error --location --retry 3 \
@@ -36,7 +37,7 @@ jobs:
       - name: Test artifact integrity and safe extraction
         run: python3 -m unittest discover -s scripts/ci -p 'test_*.py'
       - name: Check whitespace
-        run: git show --format= --check HEAD
+        run: git diff --check HEAD^ HEAD
 
   backend:
     uses: ./.github/workflows/kufr-backend.yml
