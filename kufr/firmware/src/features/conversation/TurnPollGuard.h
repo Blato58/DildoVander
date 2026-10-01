@@ -75,5 +75,6 @@ TurnPollDecision EvaluateTurnOperationWithProposal(
     const TurnOperationObservation& observed);
 
 // Conservative monotonic TTL; subtracts one UTC second for clock granularity.
+bool ParseConversationUtcExpiry(const std::string& value, uint64_t& seconds);
 uint64_t ProposalRemainingMs(const TurnProposal& proposal,
                              uint64_t nowUtcSeconds);
