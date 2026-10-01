@@ -35,7 +35,7 @@ concurrency:
 jobs:
   dialogue:
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, X64, kufr-backend]
     timeout-minutes: 2
     environment: backend-production
     env:

@@ -6,6 +6,37 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**Migrace GitHub Actions na vlastní serverový runner (1. 10. 2026).**
+Majitel požaduje všechny joby na svém serveru, kromě macOS. Všech 22 Linux
+jobů používá `[self-hosted, Linux, X64, kufr-backend]`, tedy
+`dildovander-server`; iOS Simulator a IPA signing zůstávají na `macos-15`.
+Node setup doplněn do repository/backend kontrol; .NET SDK používá
+zapisovatelný runner tool cache. PlatformIO i OpenAI SDK live eval běží
+ve vlastním venv. Realtime test kontroluje předinstalovaný espeak-ng,
+nepředpokládá neomezené sudo. Host probe ověřuje build nástroje a venv.
+Plán, CI/CD, SECURITY a backend/AI README popisují společný dlouhodobý
+runner a omezení veřejného HTTPS testu z téhož serveru. Main-only podmínky,
+permissions, dependency graf, timeouty a provenance zůstávají zachované.
+
+Lokálně prošel audit runnerů, actionlint 1.7.12, 29 provenance/promotion
++ 6 archive testů, dokumentační odkazy a whitespace. Probe 36926403741
+potvrdil online Ubuntu 26.04 runner a aktivní backend. První CI
+36926992141 odhalilo chybějící g++/venv; správce doplnil
+`build-essential python3-venv espeak-ng`. CI 36930988401 pak na serveru
+ověřilo repository, web, offline AI, všechny firmware host testy, oba
+ESP-IDF/Arduino buildy s artefaktem a backend build/testy/publish/HTTP smoke.
+Mac v tomto běhu GitHub odmítl před prvním krokem kvůli billing limitu;
+majitel následně potvrdil opravu účtu. Původní macOS CI 36926992141 prošlo,
+finální společná verze nyní zachovává také D120 opravu iPhone uploadu z main.
+
+Implementační commit `2ff2ada` a následné integrace byly ověřeně pushnuté.
+PowerShell helper byl spuštěn, ale není zde spustitelný; scoped gh git
+credential helper provedl push po ověření účtu Blato58. Finální CI head,
+výsledek všech Linux/macOS kontrol, sloučení a read-only ověření runneru/
+veřejného HTTPS jsou evidované v [PR #88](https://github.com/Blato58/DildoVander/pull/88).
+Produkční aktivace, podpis/publikace nové IPA, placené AI ani flash nejsou
+součástí migrace; stávající akceptační mezery D120 a HW zůstávají zachované.
+
 **D120 – oprava iPhone audio uploadu ověřena také na macOS/Xcode.**
 Majitel sdílí `realtime_live_audio_overflow` a stabilní připojení. Nalezený
 defekt: iOS vytvářelo a rušilo URLSession pro každý PCM POST (nejvýše 200 ms
