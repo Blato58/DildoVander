@@ -6,7 +6,60 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**Aktuální předání 1. 10.: D112 nasazeno, IPA 1.0 / build 1000.0.2 publikovaná.**
+**D114 – implementováno: Realtime hlas přes oficiální SDK a podrobný party prompt.**
+Majitel doložil 9,8 s dialog + 2,3 s TTS a výslovně schválil Realtime pro
+hlas místo dosavadní Sol-only hlasové cesty. Textový Sol zůstává. Požaduje
+podrobný popis humoru/jazyka; prompt se nezkracuje kvůli latenci.
+Backend používá OpenAI .NET SDK 2.14.0 a `gpt-realtime-1.5`, vlastní provider
+WebSocket; iOS přijímá autentizovaný HTTPS NDJSON a přehrává PCM průběžně.
+PTT/poloduplex, explicitní VAD null, model slyší audio přímo; souběžný přepis
+slouží trvalé paměti. Funkce vybírá až po minimálně čtyřech otázkách, backend
+kontroluje masku/korelaci/expiraci. Debug návrh nikdy nespouští pohon.
+SDK stream i vstup/výstup jsou omezené, deadline 45 s. Stop/disconnect ruší
+provider; journal brání placenému replay a sdílí existující limity/slot.
+Prompt popisuje obecnou češtinu, konkrétní narážky, osobní otázky, callbacky,
+tempo a příklady dobré/slabé repliky. Nový hlas je výchozí AI tok Debugu;
+fake a kompatibilní STT/Sol/TTS jsou dostupné. UI měří první audio i celý tah.
+Soubory: backend Features/Realtime, ConversationRealtimeTurns a zapojení,
+NuGet reference/lockfiles, RealtimeTests a HTTP smoke; OpenAPI/verifier;
+DebugRealtimeSession, DebugBackendClient, KufrDebugPlugin, DebugPanel,
+nativní harness/Xcode projekt; prompt a plán/README/stav.
+Lokálně prošly kompletní backend testy v Release včetně SDK serializace,
+audia před response.done, tool/mask/otázkové brány, resamplingu, journalu,
+nízkého capu, chyby paměťového zápisu a Stop. HTTP smoke a všechny kontrakty
+prošly; mobilních 19 testů, TypeScript/Vite build a 20 Python eval testů také.
+Locked restore linux-x64/self-contained s explicitním RuntimeIdentifier
+prošel. In-app Browser ověřil
+Realtime jako výchozí, kompatibilní hlasy, ovládání a 390px rozložení bez
+horizontálního přesahu/console chyb. Swift/Xcode na Windows není dostupné;
+nový parser/rušení/cleanup harness a iOS sestavení ověřuje povinné macOS CI.
+Implementační commit `10ce2af240531bc6a3faaa8d735e973c74499104` byl pushnut
+přes Push-CurrentBranch.ps1, přesná remote shoda ověřena.
+[PR #80](https://github.com/Blato58/DildoVander/pull/80) obsahuje povinné
+kontroly backendu, webu, Swift harness a Xcode/simulátoru; aktuální výsledek
+kontrol a sloučení je v PR. Tento záznam se nepoužívá jako HW/iPhone akceptace.
+První CI 36886840203 odhalilo hostitelské win-x64 v lockfiles a chybějící
+Realtime source v původním Swift test buildu. Lockfiles regenerované přes
+NuGet s explicitním linux-x64 RuntimeIdentifier; oba Swift harness buildy
+nyní zahrnují DebugRealtimeSession. macOS ověření pokračuje v PR.
+Linux backend v CI 36887687842 kompletně prošel. Další macOS compile odhalil
+fileprivate u sdíleného cleanup; metoda je nově internal pro oba nativní
+klienty, bez změny síťového kontraktu nebo chování mazání.
+CI 36888412422 prošlo oba nativní harness včetně Realtime. Xcode ještě
+vyžaduje explicitní MainActor u failDialog/stopWork; notification callbacks
+nově přecházejí přes hlavní DispatchQueue, ostatní callsites již běží na ní
+nebo v MainActor Task. Kompletní iOS build/spuštění se dál ověřují v PR.
+Read-only review opravil immutable model, 32KiB audio bloky, playback drain,
+cleanup retry, souběh streamu a pořadí paměť/journal. Oddělené SQLite soubory
+nejsou společná atomická transakce: chyba journalu po úspěšné paměti může
+ponechat výměnu v paměti při ohlášeném neúspěchu. Viz backend README.
+Nasazení, podpis/publikace nové IPA, placená evaluace a fyzická akceptace
+nebyly provedeny. Skutečná latence/humor nejsou doložené offline testy.
+Další konkrétní krok: po zeleném PR CI a sloučení schválit nasazení a novou
+IPA; ověřit skutečné nákladové stropy (0,20 USD nestačí pro Realtime rezervaci),
+potom s novým oprávněním/rozpočtem ověřit živý hlas a iPhone. B1 trvá.
+
+**Poslední nasazení 1. 10.: D112, IPA 1.0 / build 1000.0.2 publikovaná.**
 Debug nabízí pojmenovaný nový večer i návrat ke staré paměti a ukládá profil
 do odděleného Keychain. Výchozí URL/ID jsou `https://2.28.202.220/` /
 `debug-server-admin`. V nové verzi credential jednou znovu uložit: starší

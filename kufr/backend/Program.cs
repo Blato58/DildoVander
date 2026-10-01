@@ -1,6 +1,7 @@
 using Kufr.Backend.Features.Access;
 using Kufr.Backend.Features.Conversations;
 using Kufr.Backend.Features.VoiceTurns;
+using Kufr.Backend.Features.Realtime;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 4096);
@@ -10,6 +11,7 @@ builder.Services.AddSingleton<ServerAdminAccess>();
 builder.Services.AddSingleton<OperationJournal>();
 builder.Services.AddSingleton<TextDialogRunner>();
 builder.Services.AddSingleton<VoiceProviderRunner>();
+builder.Services.AddSingleton<OpenAiRealtimeClient>();
 builder.Services.AddSingleton<EveningMemoryStore>();
 builder.Services.AddSingleton<ConversationStore>();
 builder.Services.AddHostedService<RetentionWorker>();
@@ -31,6 +33,7 @@ app.Use(async (context, next) =>
 
 app.MapDeviceAccess();
 app.MapConversations();
+app.MapRealtimeTurns();
 app.MapServerModes();
 app.MapGet("/v1/diagnostics", (HttpContext context, DeviceAccessStore access,
     ConversationStore conversations) =>

@@ -1,5 +1,19 @@
 # Implementační plán AI kufru
 
+> **Změna zadání 1. 10. 2026 (D114): Realtime hlas.** Majitel doložil
+> dialog 9,8 s + TTS 2,3 s a výslovně schválil GPT-live/Realtime místo
+> sekvenční hlasové cesty. První software slice používá `gpt-realtime-1.5`
+> přes oficiální OpenAI .NET SDK 2.14.0 na backendu a průběžný HTTPS NDJSON
+> výstup do nativního iOS Debugu. PTT/poloduplex zůstává, VAD je vypnuté.
+> Model přímo slyší audio; paralelní přepis ukládá backendová paměť večera.
+> Prompt je záměrně podrobnější, se specifickými pravidly humoru a řeči.
+> Textový Sol a oddělená STT/Sol/TTS cesta zůstávají kompatibilní.
+> Realtime návrh 1–6 vyžaduje validovanou funkci a stávající korelaci,
+> masku/expiraci; Debug nesmí spustit pohon. Backend stream nepotvrzuje
+> ESP32 audio, HW ani iPhone akceptaci. Ty dál vyžadují E9/E10 a B1.
+> Nové streamové rozhraní a rezervace jsou v OpenAPI/backend README;
+> migrace nasazení vyžaduje ověření skutečných capů a novou IPA.
+
 > **Změna zadání 30. 9. 2026 (D75): autonomní prezentace pevné rekvizity.** Majitel výslovně nahradil západku zdvihacím servem. Hůlka zůstává v přihrádce. AI sama vybere dostupnou přihrádku; běžný rozhovor nepotřebuje potvrzení obsluhou ani fyzickým tlačítkem. ESP32 ověří korelaci, expiraci, snapshot a místní bezpečný stav, provede omezenou sekvenci vysunout–předvést–zasunout a po úspěšném návratu obnoví dostupnost. Stop, porucha, reset či neznámá poloha dostupnost neobnovují. Vyžadují místní zotavení. Následující starší popisy západky, ručního reloadu a tlačítkového potvrzení popisují původní implementaci/manuální režim; nejsou podmínkou nové autonomní cesty. Ta nesmí předstírat ruční lease. Fyzické GPIO a kalibrace zůstávají podmíněné ověřením desky a bezpečnostní větve v E5.
 
 Backend používá nativní Responses function calling: `continue_conversation`, `propose_wand`, `end_conversation`, strict schémata, jediná funkce na tah. Název `propose_wand` zachovává existující drátový kontrakt návrhu, který nová autonomní brána přijímá bez obsluhy. Model nikdy nedostává GPIO, úhly, výkon či libovolné časování. Framework typu Semantic Kernel by tuto hranici neposílil; tři úzké funkce mapujeme přímo do stávajícího backendu. Ukončovací replika musí zůstat dostupná pro poll; firmware až po převzetí ukončí sezení DELETE a obnoví klíč dalšího startu. Totéž provede při opuštění rozhovoru nebo timeoutu. Paměť večera se koncem sezení nemaže.
@@ -40,8 +54,8 @@ První provozní verze tedy pracuje samostatně **z hlediska telefonu**, nikoli 
 | Síť na akci | Vyhrazený malý router/AP, 2,4 GHz pro ESP32, telefon ve stejné LAN, bez izolace klientů. WAN z Ethernetu nebo LTE. | Další zařízení, energie a případný nákup mimo současný košík. Hotspot řídicího telefonu lze použít po testu konkrétního telefonu; není výchozí provozní předpoklad. |
 | Backend | **ASP.NET Core 10 LTS**, jeden proces, Minimal APIs a vertical slices, SQLite pro přístupy, limity a technický audit. Linux kontejner na jedné malé VM v EU. | Provoz VM a aktualizace. TypeScript backend by sdílel jazyk klienta, ale zde převažuje jednoduchý .NET provoz a testování. Serverless přidává cold start a limity běhu/úložiště. Při více instancích přejít na PostgreSQL a sdílenou idempotenci/kvóty. |
 | Vlastník řízení | **ESP32 iniciuje HTTPS spojení s backendem a orchestruje rozhovor.** Backend vrací data, nemá endpoint ani push kanál pro otevírání. Autonomní přijetí a sekvenci vlastní firmware. Mobil je místní záloha. | Vyžaduje device identitu, TLS, správu paměti a nový conversation slice ve firmware. Pro S3 N16R8 je omezený PTT přenos realistický; nutné potvrdit heap/DMA/PSRAM zátěžovým testem. Telefonní most je záložní architektonická varianta jen při nevyhovujících měřeních. |
-| AI | Cloudové Responses API, strukturovaný textový výsledek, oddělené STT a TTS. Bez agentního frameworku, RAG, vyhledávání nebo nástrojů řídících zařízení. | Internet a variabilní latence. Lokální LLM na ESP32 pro tuto konverzaci nedává realistický výkon/paměť. Lokální AI na notebooku znamená další počítač; dává smysl při povinném provozu zcela bez cloudu. |
-| Hlas | **PTT a poloduplexní dialog**: STT → textová odpověď/návrh → TTS. | Méně přirozené přerušování a několik síťových kroků. Realtime/WebRTC zvolit teprve při změřené potřebě nižší latence, rozpočtu a zvládnuté ozvěně. Potvrzení hůlky zůstane i potom mimo hlasový model. |
+| AI | Responses Sol pro text; Realtime 1.5 pro přímý hlas. Validované funkce určují návrh. Bez agentního frameworku, RAG nebo nástrojů řídících zařízení. | Internet, rozpočet a variabilní latence. První Realtime slice je iOS Debug; samostatný ESP32 hlas vyžaduje E9. |
+| Hlas | **PTT a poloduplexní dialog**: Realtime stream, kompatibilní STT → Sol → TTS jako záloha. | Realtime backend vrací zvuk průběžně a kontroluje strukturovaný výběr. VAD ani duplexní přerušování první slice nepoužívá. Latenci/kvalitu změřit po nasazení; místní bezpečnost výběru zůstává v ESP32. |
 | Firmware runtime | Pro síťovou etapu přejít na **ESP-IDF 6.1 přes stávající PlatformIO 7.1.3**, zachovat čisté C++ jádro a vertical slices. | Malá migrace `main.cpp` a sériového adaptéru. Důvodem je konfigurovatelný oficiální WSS server, I2S, watchdog a NVS; manifest platformy rozlišuje Arduino 2.0.17 a ESP-IDF 6.1. Nemíchat návody nového IDF s existujícím Arduino runtime. K Arduinu se vrátit jen při doloženém jednodušším a udržovaném řešení všech těchto potřeb. |
 | Kamera | Nejprve žádná; první obrazový experiment kamerou telefonu. Kufrovou OV5640 + MicroSD dodat až jako samostatný profil. | GPIO a výkon jsou těsné. Obraz je jen volitelný popis kostýmu, nikdy identita člověka či povel aktuátoru. |
 
@@ -130,6 +144,7 @@ Tabulka je návrh cílových adresářů; vytvářet je postupně s příslušn�
 | `backend/Features/Access/` | Registrace zařízení, vydání krátkého access tokenu za device credential, odvolání a izolace každého kufru. |
 | `backend/Features/Conversations/` | Start/ukončení sezení, textové tahy, sestavení promptu, Responses adaptér a omezená historie. |
 | `backend/Features/VoiceTurns/` | Validace WAV, STT adaptér, převzetí přepisu; neotevírá hůlky. |
+| `backend/Features/Realtime/` | Oficiální OpenAI SDK, přímý hlasový tah, PCM/NDJSON stream a validace funkcí; backend drží provider klíč a WebSocket. |
 | `backend/Features/SelectionProposals/` | Katalog, pravidla dostupnosti, interpretace strukturovaného návrhu a jeho expirace. |
 | `backend/Features/Speech/` | TTS pouze pro již schválenou odpověď, audio metadata a krátkodobý obsah. |
 | `backend/Features/Usage/` | Transakční rezervace nákladů, kvóty, technické metriky a idempotence placených operací. |
@@ -767,7 +782,7 @@ Oficiální dokumentace byla otevřena při přípravě plánu 29. 9. 2026. Odka
 - **O7:** [GPT-4o mini TTS](https://developers.openai.com/api/docs/models/gpt-4o-mini-tts) – snapshot TTS.
 - **O8:** [Speech to text](https://developers.openai.com/api/docs/guides/speech-to-text), [GPT-Transcribe](https://developers.openai.com/api/docs/models/gpt-transcribe) – současné doporučení a upload audio API.
 - **O9:** [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs) – Responses `text.format`, strict schema a refusal.
-- **O10:** [Text to speech](https://developers.openai.com/api/docs/guides/text-to-speech) – PCM formát, jazyky a syntetický hlas; [Realtime](https://developers.openai.com/api/docs/guides/realtime) – posuzovaná alternativa pro průběžný hlas.
+- **O10:** [Text to speech](https://developers.openai.com/api/docs/guides/text-to-speech) – PCM formát, jazyky a syntetický hlas; [Realtime](https://developers.openai.com/api/docs/guides/realtime) – přímý průběžný hlas D114; [oficiální .NET SDK](https://github.com/openai/openai-dotnet) – použitý klient.
 - **O11:** [OpenAI data controls](https://developers.openai.com/api/docs/guides/your-data) – aplikační stav, monitoring, ZDR a regionální podmínky.
 - **O12:** [OpenAI API pricing](https://developers.openai.com/api/docs/pricing) – sazby použité v příkladu, nikoli garantovaný účet.
 - **O13:** [ESP-IDF HTTP/S client](https://docs.espressif.com/projects/esp-idf/en/stable/esp32s3/api-reference/protocols/esp_http_client.html) – přímá komunikace ESP32, ověření CA/hostname, streaming a keep-alive.
