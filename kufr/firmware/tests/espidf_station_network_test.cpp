@@ -34,6 +34,7 @@ bool EspIdfWifiStation::Start(const NetworkSettings& settings) {
   return !failWifi;
 }
 bool EspIdfWifiStation::HasIp() const { return ip; }
+uint32_t EspIdfWifiStation::IpGeneration() const { return 7; }
 bool EspIdfWifiStation::ConnectAndWait(uint32_t timeoutMs) {
   assert(timeoutMs == 15000);
   ++connects;
@@ -88,6 +89,7 @@ int main() {
   assert(live.Start(true));
   assert(!live.Start(true));
   assert(!live.HasIp());
+  assert(live.IpGeneration() == 0);
   try {
     task(argument);
     assert(false);
@@ -96,4 +98,5 @@ int main() {
   assert(starts == 2 && connects == 4);
   assert((delays == std::vector<uint32_t>{800, 1600, 100, 800}));
   assert(!live.HasIp() && live.Settings().IsConfigured());
+  assert(live.IpGeneration() == 7);
 }

@@ -34,6 +34,10 @@ bool EspIdfStationNetwork::HasIp() const {
 
 const NetworkSettings& EspIdfStationNetwork::Settings() const { return settings_; }
 
+uint32_t EspIdfStationNetwork::IpGeneration() const {
+  return initialized_.load() ? wifi_.IpGeneration() : 0;
+}
+
 void EspIdfStationNetwork::TaskEntry(void* context) {
   auto* network = static_cast<EspIdfStationNetwork*>(context);
   network->Run();

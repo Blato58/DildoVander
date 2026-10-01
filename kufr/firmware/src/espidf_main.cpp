@@ -20,6 +20,7 @@
 #include "features/conversation/ConversationUuid.h"
 #include "features/conversation/EspIdfConversationUuid.h"
 #include "features/local_control/EspIdfLocalControlServer.h"
+#include "features/local_control/EspIdfLocalServiceAdvertisement.h"
 #include "features/local_control/LocalBearerAuthenticator.h"
 #include "features/local_control/LocalControlOutput.h"
 #include "features/local_control/LocalControlOwner.h"
@@ -155,6 +156,7 @@ extern "C" void app_main() {
   static LocalSocketAdmission admission(authenticator);
   static LocalControlInbox inbox(identity.DeviceId(), bootId);
   static EspIdfLocalControlServer server(tlsIdentity, pairing, admission, inbox);
+  static EspIdfLocalServiceAdvertisement advertisement(station, hasher);
   static LocalControlOutput output(
       identity.DeviceId(), bootId, deviceControl, journal, safetyController,
       selectionSequence, conversation, server);
@@ -167,6 +169,8 @@ extern "C" void app_main() {
       backendNetwork, inbox, server, output, leaseIds, inspection, steps, clock);
   bool serverStarted = false;
   uint64_t retryServerAtMs = 0;
+  bool advertisementStarted = false;
+  uint64_t retryAdvertisementAtMs = 0;
   ESP_LOGI(LogTag, "ESP-IDF control loop started; actuators are unconnected");
 
   while (true) {
@@ -183,6 +187,10 @@ extern "C" void app_main() {
       if (serverStarted) {
         ESP_LOGI(LogTag, "Provisioned local TLS control started; hardware stays gated");
       }
+    }
+    if (serverStarted && !advertisementStarted && nowMs >= retryAdvertisementAtMs) {
+      advertisementStarted = advertisement.Start(identity.DeviceId());
+      retryAdvertisementAtMs = nowMs + 5000;
     }
     server.Pump();
     owner.Tick();

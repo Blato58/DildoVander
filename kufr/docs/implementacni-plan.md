@@ -180,7 +180,7 @@ WSS používá token v Authorization Bearer; zařízení uloží jen hash. 400 z
 formát, 401 nesprávné tajemství nebo nedostupné RNG, 409 již spotřebované párování,
 413/415 velikost/typ, 503 poškozené úložiště. Ztráta úspěšné odpovědi vyžaduje
 fyzický servisní reset. Server nepotřebuje backend token pro párování, vyžaduje
-však aktivní STA pro RNG. Servisní AP, QR/Keychain/native klient a skutečný USB
+však aktivní STA pro RNG. Servisní AP, čtení QR kamerou a skutečný USB
 zápis po fyzické bráně zůstávají navazující části; žádná identita není v image.
 
 **Podporovaná cesta zcela bez telefonu:** autorizovaný lokální servisní nástroj na notebooku přes USB nastaví Wi-Fi, backend host, čas, device credential a počáteční katalog/kalibraci. Vyžaduje fyzický servisní režim při startu a odpojenou větev pohonů; pracuje interaktivně bez tajemství v argumentech příkazové řádky, zdrojích či logu. Tento postup platí pro vývoj i produkční uvedení do provozu. Notebook se po nastavení odpojí a na akci není potřebný. Lokální certifikát/QR lze připravit předem pro případ pozdějšího použití záložní aplikace; její spárování není podmínkou cloudu. Pozdější změna Wi-Fi je opět servisní USB nebo spárovaná aplikace.
@@ -201,7 +201,7 @@ Wi-Fi reconnect 1/2/4/8/16/30 s s jitterem; návrat připojení sám nezahájí 
 
 ### Volitelné místní spojení telefonu
 
-- Discovery `_kufr._tcp.local`, TCP port 443; TXT jen `deviceId`, protokol a capabilities. Po 5 s bez nálezu nabídnout zadání IP nebo DHCP rezervaci routeru. Cloud nikdy neskáče do nalezené LAN adresy.
+- Discovery `_kufr._tcp.local`, TCP port 443; TXT přesně `deviceId`, `protocol=1` a `capabilities` (CSV názvů ze snapshotu, bez tajemství, tokenu a TLS pinu). Po 5 s bez nálezu nabídnout zadání IP nebo DHCP rezervaci routeru, také pro již spárovanou identitu. Výběr adresy sám nepřipojuje; uložený pin/token se nemění a adresní hint se trvale uloží až po úspěšném připnutém autentizovaném WSS. Cloud nikdy neskáče do nalezené LAN adresy. ESP-IDF 6.1 používá pro tuto plánovanou funkci oficiální komponentu `espressif/mdns` 1.11.3 přes manifest/lock; inzerce běží jen s IP a spuštěným provisionovaným TLS serverem, mimo safety/cloud úlohu. [Dokumentace komponenty](https://docs.espressif.com/projects/esp-protocols/mdns/docs/latest/en/index.html).
 - `wss://<adresa>/v1/control`: token v `Authorization` hlavičce nativního handshake, nikdy v URL. Limit jeden telefon; další dostane `controller_busy`. Připojení samo je pozorovatelské, nezastavuje samostatný provoz. `control.acquire` při klidu přepne explicitně na ruční režim a zneplatní čekající AI návrh; během pohybu nejprve Stop. Automatický takeover není dovolen.
 - Po TLS/auth do 10 s proběhne `hello` → `welcome` s verzí protokolu, `bootId`, stavem, `deviceUptimeMs`, kalibrační revizí, `readyMask`, `revision` a capabilities. `controlLeaseId` je null, dokud telefon explicitně nepřevezme ruční řízení. Nekompatibilní major verze = pouze obrazovka chyby, žádné povely.
 - Pro verzi 1 nese `hello` `{protocolVersion, type, messageId, deviceId}`; `welcome` vrací `{protocolVersion, type, requestMessageId, snapshot}`. Vnořený `state.snapshot` je úplný atomický stav včetně `bootId`, uptime, revision, kalibrace, masky a capabilities. `state.get` a `control.acquire` nesou `messageId`, `deviceId` a `bootId`; `control.release` a `heartbeat` přidávají `controlLeaseId`. `heartbeat.ack` vrací `requestMessageId`, `bootId`, uptime, revision a lease. Přesné typy/rozsahy jsou ve sdíleném JSON Schema. Bearer token zůstává pouze v TLS handshake hlavičce, ne v JSON těle.

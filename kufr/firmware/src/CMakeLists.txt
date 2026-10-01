@@ -41,6 +41,7 @@ idf_component_register(
         "features/local_control/LocalControlOwner.cpp"
         "features/local_control/LocalControlOutput.cpp"
         "features/local_control/EspIdfLocalControlServer.cpp"
+        "features/local_control/EspIdfLocalServiceAdvertisement.cpp"
         "features/local_control/LocalBearerAuthenticator.cpp"
         "features/local_control/LocalConversationGateway.cpp"
         "features/local_control/LocalSocketAdmission.cpp"
@@ -57,5 +58,5 @@ idf_component_register(
         "features/wand_selection/SelectionSequence.cpp"
         "features/wand_presentation/WandPresentation.cpp"
     INCLUDE_DIRS "."
-    REQUIRES bootloader_support esp_event esp_http_client esp_http_server esp_https_server esp_hw_support esp_netif esp_timer esp_wifi freertos log mbedtls nvs_flash
+    REQUIRES bootloader_support esp_event esp_http_client esp_http_server esp_https_server esp_hw_support esp_netif esp_timer esp_wifi freertos log mbedtls mdns nvs_flash
 )
