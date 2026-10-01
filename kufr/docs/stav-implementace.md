@@ -6,6 +6,31 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D113 – oprava dependency PR #77, web a macOS ověřeny.**
+TypeScript 7 odstranil staré compiler API a zpřísnil side-effect importy.
+Testovací loadery nyní používají Node transform, `src/vite-env.d.ts` dodává
+Vite deklarace pro CSS. `cap sync ios` vygeneroval Swift manifest 8.5.2.
+Novou zranitelnou závislost CLI `xcode -> uuid 7` nahrazuje cílené override
+na CommonJS kompatibilní uuid 11.1.1; npm lockfile vznikl přes npm.
+Soubory: mobilní package/lock, dva testovací loadery, Vite deklarace,
+generovaný Swift manifest/lockfile a mobilní README; původní PR aktualizuje i `ws`.
+Lokálně: npm ci, 19 mobilních testů, TS7/Vite8 build, všechny kontrakty,
+MSVC C++14 bridge build a kompletní simulator npm test včetně TLS/WSS/media
+prošly. xcode parse/write a generování UUID prošly, npm audit má 0 nálezů.
+Lokální runtime Node 25.9.0; všech 19 testů prošlo také na přesném 24.21.0.
+In-app Browser nad Vite8 produkčním buildem ověřil Ovládání/Debug,
+převzetí, potvrzení výběru a Stop bez console chyb.
+Commit `efe1cd51a726a97350be498d06868d3b294555a3` byl pushnut přes
+Push-CurrentBranch.ps1 a remote shoda ověřena. V CI 36869848988 prošel web,
+nativní Swift harness, Xcode build i spuštění simulátoru. Package.resolved
+8.5.2 pochází z artefaktu `kufr-swift-package-resolved` tohoto macOS běhu.
+CI 36870350469 celého commitu `35a150e254d575c1d839c24ec8b5bc94749994dd`
+prošlo včetně firmware, backendu a iOS; Swift lockfile je shodný s resolverem.
+Souběžně se sloučil PR #78. Jeho kód a původní D112 jsou zachované; konflikt
+byl pouze mezi novými záznamy stavu, dependency oprava proto používá D113.
+Další krok: ověřit CI společného výsledku s PR #78 a merge PR #77.
+Žádné nasazení, podpis IPA ani HW akceptace.
+
 **D112 – rozpracovaná správa večerů a trvalý Debug přístup.**
 Zadání majitele: vytvořit pojmenovaný večer, přepínat aktivní večer bez ztráty
 starých rozhovorů a zachovat credential při aktualizaci aplikace. Výchozí
@@ -49,6 +74,7 @@ Deploy `36871071929` a signing `36871077770` skončily před produkcí chybou
 Backend ani IPA se nezměnily. Oprava přidává pouze read permission do callee
 i tří caller workflows a test tohoto skutečného permission kontraktu.
 Po zeleném CI/merge opravy následuje promotion aktuálního ověřeného tree.
+
 **D111 – CI/CD build jednou a oddělená promotion artefaktů.**
 Rozsah: každé PR do main spouští společné CI pro backend, firmware, iOS/web
 a offline AI; stabilní `CI required`, zrušení zastaralých PR běhů, timeouty.
