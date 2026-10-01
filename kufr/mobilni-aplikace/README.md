@@ -12,6 +12,9 @@ Nativní adaptér vlastní TLS pin, oprávnění LAN a Keychain. E10.1 použív�
 
 ## Debug D108/D109/D110/D112
 
+Samostatný podpisový workflow čísluje nové IPA `1000.x.y` (vyšší než původní
+build 37); stejné Bundle ID a tým umožňují aktualizaci s uloženým profilem.
+
 Sekce **Večery a paměť rozhovorů** načte pojmenované večery samostatné debug
 identity. **Založit a aktivovat nový večer** začne s prázdnou pamětí a zachová
 staré rozhovory. Vyberte uložený večer a stiskněte **Přepnout aktivní večer**
