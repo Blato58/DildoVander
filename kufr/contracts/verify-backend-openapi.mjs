@@ -47,6 +47,7 @@ assert.deepEqual(Object.keys(document.paths).sort(), [
   '/v1/conversations',
   '/v1/conversations/{id}',
   '/v1/conversations/{id}/opening',
+  '/v1/conversations/{id}/realtime-turns',
   '/v1/conversations/{id}/speech',
   '/v1/conversations/{id}/transcriptions',
   '/v1/conversations/{id}/turns',
@@ -148,6 +149,23 @@ const operation = {
 validate('TurnOperation', operation, true);
 validate('TurnOperation', { ...operation, status: 'completed', result: null }, false);
 const result = { reply: 'Navrhuji další otázku.', decision: 'ask', reason: '', proposal: null };
+const realtime = { clientTurnId: operation.correlation.clientTurnId, bootId: operation.correlation.bootId,
+  generation: 0, readyMask: 63, deviceRevision: 0, catalogVersion: 'ollivander-private-party-v1',
+  opening: true, text: '', wav: null, voice: 'marin', speed: 1 };
+validate('RealtimeTurn', realtime, true);
+validate('RealtimeTurn', { ...realtime, text: 'Petr' }, false);
+validate('RealtimeTurn', { ...realtime, opening: false, text: 'Petr' }, true);
+validate('RealtimeTurn', { ...realtime, opening: false, wav: 'UklGRg==' }, true);
+validate('RealtimeTurn', { ...realtime, opening: false, text: 'Petr', wav: 'UklGRg==' }, false);
+validate('RealtimeTurn', { ...realtime, voice: 'onyx' }, false);
+validate('RealtimeTurn', { ...realtime, speed: 1.21 }, false);
+validate('RealtimeEvent', { type: 'started', operationId: 'op-1', correlation: operation.correlation,
+  audioFormat: 'pcm16-mono-24000' }, true);
+validate('RealtimeEvent', { type: 'audio', delta: Buffer.alloc(32768).toString('base64') }, true);
+validate('RealtimeEvent', { type: 'audio', delta: Buffer.alloc(49152).toString('base64') }, false);
+validate('RealtimeEvent', { type: 'completed', operationId: 'op-1', correlation: operation.correlation, result }, true);
+validate('RealtimeEvent', { type: 'failed', code: 'ai_unavailable' }, true);
+validate('RealtimeEvent', { type: 'failed', code: 'provider secret message' }, false);
 validate('TurnOperation', { ...operation, status: 'completed', result }, true);
 validate('Operation', { ...operation, status: 'failed', error: { code: 'provider_unavailable' } }, true);
 validate('Operation', { ...operation, status: 'failed' }, false);

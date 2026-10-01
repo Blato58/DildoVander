@@ -163,6 +163,39 @@
         }
       }
     },
+    "/v1/conversations/{id}/realtime-turns": {
+      "post": {
+        "operationId": "streamRealtimeTurn",
+        "summary": "Stream a bounded PTT voice turn through the authenticated backend",
+        "description": "Requires responses/openai modes and audio consent. JSON body up to 2600000 bytes; input WAV is PCM16 mono 32 kHz, 100 ms to 30 s. The provider receives resampled 24 kHz PCM. NDJSON starts with started, then audio/visitor events, then exactly one completed/failed event. Each line is below 64 KiB; output PCM is at most 1440000 bytes. No replay of paid sound; retry returns 409. Audio is provisional; only completed carries an accepted proposal. Stop, disconnect or the 45 s deadline cancels generation.",
+        "parameters": [
+          { "$ref": "#/components/parameters/ConversationId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RealtimeTurn" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Newline-delimited JSON events; each event conforms to RealtimeEvent",
+            "headers": {
+              "Cache-Control": { "schema": { "type": "string", "const": "no-store" } },
+              "X-Accel-Buffering": { "schema": { "type": "string", "const": "no" } }
+            },
+            "content": { "application/x-ndjson": { "schema": { "$ref": "#/components/schemas/RealtimeEvent" } } }
+          },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Problem" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "409": { "$ref": "#/components/responses/Problem", "description": "Includes realtime_unavailable and realtime_stream_not_replayable" },
+          "413": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
     "/v1/conversations/{id}/speech": {
       "post": {
         "operationId": "submitSpeech",
@@ -517,6 +550,68 @@
           "idleSeconds": { "type": "integer", "const": 900 },
           "maxLifetimeSeconds": { "type": "integer", "const": 1800 }
         }
+      },
+      "RealtimeTurn": {
+        "type": "object", "additionalProperties": false,
+        "required": ["clientTurnId", "bootId", "generation", "readyMask", "deviceRevision", "catalogVersion", "opening", "text", "wav", "voice", "speed"],
+        "properties": {
+          "clientTurnId": { "type": "string", "format": "uuid" },
+          "bootId": { "type": "string", "format": "uuid" },
+          "generation": { "type": "integer", "minimum": 0 },
+          "readyMask": { "type": "integer", "minimum": 0, "maximum": 63 },
+          "deviceRevision": { "type": "integer", "minimum": 0 },
+          "catalogVersion": { "const": "ollivander-private-party-v1" },
+          "opening": { "type": "boolean" },
+          "text": { "type": "string", "maxLength": 1000 },
+          "wav": { "type": ["string", "null"], "minLength": 1, "maxLength": 2561000 },
+          "voice": { "enum": ["cedar", "marin", "coral"] },
+          "speed": { "type": "number", "minimum": 0.8, "maximum": 1.2 }
+        },
+        "oneOf": [
+          { "properties": { "opening": { "const": true }, "text": { "const": "" }, "wav": { "type": "null" } } },
+          { "properties": { "opening": { "const": false }, "text": { "type": "string", "minLength": 1 }, "wav": { "type": "null" } } },
+          { "properties": { "opening": { "const": false }, "text": { "const": "" }, "wav": { "type": "string" } } }
+        ]
+      },
+      "RealtimeEvent": {
+        "oneOf": [
+          {
+            "type": "object", "additionalProperties": false,
+            "required": ["type", "operationId", "correlation", "audioFormat"],
+            "properties": {
+              "type": { "const": "started" }, "operationId": { "type": "string", "minLength": 1 },
+              "correlation": { "$ref": "#/components/schemas/TurnCorrelation" },
+              "audioFormat": { "const": "pcm16-mono-24000" }
+            }
+          },
+          {
+            "type": "object", "additionalProperties": false,
+            "required": ["type", "delta"],
+            "properties": {
+              "type": { "const": "audio" },
+              "delta": { "type": "string", "minLength": 4, "maxLength": 43692, "pattern": "^[A-Za-z0-9+/]+={0,2}$" }
+            }
+          },
+          {
+            "type": "object", "additionalProperties": false,
+            "required": ["type", "text"],
+            "properties": { "type": { "const": "visitor" }, "text": { "type": "string", "maxLength": 1000 } }
+          },
+          {
+            "type": "object", "additionalProperties": false,
+            "required": ["type", "operationId", "correlation", "result"],
+            "properties": {
+              "type": { "const": "completed" }, "operationId": { "type": "string", "minLength": 1 },
+              "correlation": { "$ref": "#/components/schemas/TurnCorrelation" },
+              "result": { "$ref": "#/components/schemas/TurnResult" }
+            }
+          },
+          {
+            "type": "object", "additionalProperties": false,
+            "required": ["type", "code"],
+            "properties": { "type": { "const": "failed" }, "code": { "enum": ["ai_unavailable", "operation_cancelled"] } }
+          }
+        ]
       },
       "TextTurn": {
         "type": "object", "additionalProperties": false,

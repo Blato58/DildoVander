@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 
+await RealtimeTests.RunAsync();
 await ResponsesTextDialogClientTests.RunAsync();
 ResponsesTextDialogBudgetTests.Run();
 await TextDialogRuntimeTests.RunAsync();

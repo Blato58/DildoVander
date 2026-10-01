@@ -312,6 +312,35 @@ final class DebugBackendClient {
         }
     }
 
+    func openRealtimeSession(_ profile: DebugBackendProfile, readyMask: Int,
+                             voice: String, speed: Double) async throws -> DebugRealtimeSession {
+        guard (0...63).contains(readyMask), ["cedar", "marin", "coral"].contains(voice),
+              speed.isFinite, (0.8...1.2).contains(speed) else {
+            throw DebugBackendError.invalidResponse
+        }
+        let token = try await accessToken(profile)
+        guard try await metadata(profile, token: token, expectedMode: "openai", requireDialog: true) == "openai" else {
+            throw DebugBackendError.wrongMode
+        }
+        let boot = UUID().uuidString.lowercased()
+        let created = try await json(profile, path: "v1/conversations", token: token, method: "POST", body: [
+            "deviceId": profile.deviceId, "bootId": boot, "generation": 0,
+            "catalogVersion": "ollivander-private-party-v1", "locale": "cs-CZ",
+            "consent": ["audio": true, "image": false]
+        ])
+        let conversation = try uuid(created, "conversationId")
+        do {
+            guard try await metadata(profile, token: token, expectedMode: "openai", requireDialog: true) == "openai" else {
+                throw DebugBackendError.wrongMode
+            }
+            return DebugRealtimeSession(client: self, profile: profile, token: token, conversation: conversation,
+                                        boot: boot, readyMask: readyMask, voice: voice, speed: speed)
+        } catch {
+            try? await cleanup(profile, token: token, conversation: conversation)
+            throw error
+        }
+    }
+
     fileprivate func upload(_ profile: DebugBackendProfile, token: String, path: String,
                             fields: [String: String], wav: Data) async throws -> [String: Any] {
         guard Self.validWav(wav) else { throw DebugBackendError.invalidResponse }
@@ -518,7 +547,7 @@ final class DebugBackendClient {
         throw DebugBackendError.timeout
     }
 
-    fileprivate func cleanup(_ profile: DebugBackendProfile, token: String, conversation: String) async throws {
+    func cleanup(_ profile: DebugBackendProfile, token: String, conversation: String) async throws {
         // An unstructured task performs cleanup even when the caller was cancelled.
         // Only the conversation ID acquired by this run may be deleted.
         try await Task { @MainActor in
@@ -534,6 +563,12 @@ final class DebugBackendClient {
                 }
             }
         }.value
+    }
+
+    func cancelOperation(_ profile: DebugBackendProfile, token: String, operation: String) async throws {
+        let (_, response) = try await request(profile, path: "v1/operations/\(operation)", token: token,
+                                              method: "DELETE", body: nil, limit: 4096)
+        guard response.statusCode == 204 else { throw DebugBackendError.invalidResponse }
     }
 
     fileprivate func json(_ profile: DebugBackendProfile, path: String, token: String,

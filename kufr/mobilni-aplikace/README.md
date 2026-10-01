@@ -10,7 +10,7 @@ ESP32 samo komunikuje s backendem; aplikace není cloudový prostředník a nem�
 
 Nativní adaptér vlastní TLS pin, oprávnění LAN a Keychain. E10.1 používá ručně zadané údaje z vnitřního QR; E10.2 přidává text/cancel/result a E10.3 Bonjour hledání i ruční změnu adresy. Audio navazuje po E9. UI nesmí přímo časovat motory ani přijímat AI text jako povel. Konkrétní slices a kontrakty jsou v kapitolách 3–5 plánu.
 
-## Debug D108/D109/D110/D112
+## Debug D108/D109/D110/D112 a Realtime
 
 Aktuální [Safari instalace](https://2.28.202.220/ios/) nabízí verzi 1.0,
 build **1000.0.2** (publikace 1. 10. 2026). První uložení credentialu v této
@@ -32,12 +32,15 @@ a tempo, obnovte režimy serveru a spusťte AI nebo fake rozhovor. Odpovídejte
 textem nebo tlačítky Začít nahrávat / Dokončit nahrávání a odeslat. Mikrofon
 vyžaduje povolení iOS, nahrává nejvýše 30 s do RAM; Stop či pozadí zvuk zahodí.
 Fake STT vrací syntetický přepis; skutečná vlastní hlasová odpověď potřebuje
-OpenAI režim hlasu. Celý přepis je přechodný a nepatří do logu. Backend může
+OpenAI režim hlasu. AI rozhovor standardně používá **Realtime**: jeden tah
+streamuje PCM16 mono 24 kHz a telefon začne přehrávat první bloky před dokončením
+odpovědi. Volba Řetězený zachovává původní Sol/fake tok; Realtime nepodporuje hlas
+Onyx. V Debug se ukazují zvlášť čas do prvního audia a celkový čas tahu. Celý přepis je přechodný a nepatří do logu. Backend může
 text zachovat v paměti testovacího večera; Ukončit a smazat rozhovor maže pouze
 přepis telefonu a ukončuje sezení, nikoli paměť večera na serveru.
 
 Po čtyřech otázkách fake `debug-server-admin` navrhne dostupnou hůlku;
-AI Sol ji vybírá z odpovědí. Maska i návrh jsou simulované a nespouští pohon.
+AI ji vybírá z odpovědí. Maska i návrh jsou simulované a nespouští pohon.
 Časy posledního tahu rozlišují dialog, TTS a stažení. WAV se přijímá po blocích,
 přehrává se před úklidem serverové audio operace. Skutečné TTS stále čeká na
 celý provider výstup. Výběr hlasu a tempo platí pro interaktivní rozhovor;
@@ -93,7 +96,7 @@ Hlasové testy fungují v nativní iOS aplikaci:
    jedno opakování se stejným klíčem; při nevyřešené ztrátě odpovědi/úklidu
    může být další test odmítnut 409 až do expirace.
 
-WAV je omezen na 30 s, PCM16 mono 32 kHz, standardní 44B hlavičku a žije pouze
+Vstupní WAV je omezen na 30 s, PCM16 mono 32 kHz, standardní 44B hlavičku a žije pouze
 v RAM. HTTPS používá systémové PKI, nepovoluje redirect ani ATS výjimku.
 JavaScript spouští akce a čte jen režim/fázi; nečte credential ani audio.
 Tento test nepřehrává přes ESP32/I2S a neověřuje B1 ani nativní iPhone akceptaci.
@@ -101,6 +104,8 @@ Tento test nepřehrává přes ESP32/I2S a neověřuje B1 ani nativní iPhone ak
 bezpečné ponechání credentialu, režim, celý výběr/STT, večery a retry,
 korelaci, WAV, zrušení a cleanup bez placeného provideru. Syntetický HTTP
 adaptér doplňuje skutečný loopback test omezeného příjmu a redirect/cancel.
+Stejný harness ověřuje NDJSON Realtime parser s prvním PCM blokem před `completed`,
+chybnou korelací a limitem dekódovaného audio bloku.
 
 ## Nativní připojení E10.1
 
@@ -236,4 +241,3 @@ stromu s aktuálním `main`; [CI/CD návod](../../docs/ci-cd.md) popisuje obnovo
  Do environmentu patří secrets `IOS_BUILD_CERTIFICATE_BASE64`, `IOS_PROVISION_PROFILE_BASE64`, `IOS_DISTRIBUTION_CERTIFICATE_BASE64`, `IOS_DISTRIBUTION_PROFILE_BASE64`, `IOS_P12_PASSWORD` a `IOS_KEYCHAIN_PASSWORD`. Současné dvě `.p12` podle majitele používají stejné heslo; CI jej neukládá do artifactu. Certifikáty a profily jsou Base64 celého souboru; žádný ze souborů ani hesel nepatří do repozitáře. Environment může mít vlastní schvalovací pravidla.
 
 Nativní identita má Bundle ID `app.turquoise6409.green2444` a Team ID `3QRXV8G5Y3`. Majitel potvrdil iPhone 15 Pro s iOS 26.6.1 a jeho UDID v dodaném profilu. Vývojový profil expiruje 25. 12. 2026; Ad Hoc profil pro stejný tým, Bundle ID a jedno zařízení expiruje 24. 12. 2026. CI kontroluje shodu identity, platnost a certifikát, exportuje IPA a ověřuje její podpis a embedded profil. Při chybě importu `.p12` zkusí OpenSSL čtení a kompatibilní přebalení. Publikační job kontroluje SHA-256, Bundle ID a metadata IPA, vytvoří manifest a z externího runneru znovu stáhne stejné soubory přes HTTPS. [Ad Hoc běh 36636991415](https://github.com/Blato58/DildoVander/actions/runs/36636991415) prošel všemi joby a majitel 30. 9. 2026 potvrdil úspěšnou instalaci a spuštění na iPhonu. Stabilní identita je důležitá pro aktualizaci a Keychain. E10.1–3 doplňují native TLS/Keychain, text a Bonjour a fyzický běh těchto funkcí ani aktualizace přes Safari zatím nejsou ověřené. GitHub Release, Pages, feed a ntfy zde nejsou zapnuté.
-

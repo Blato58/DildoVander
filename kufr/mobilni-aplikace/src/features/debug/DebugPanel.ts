@@ -9,7 +9,7 @@ interface VoiceStatus {
   recording?: boolean;
   transcript?: Array<{ role: 'kufr' | 'visitor'; text: string }>;
   selected?: number | null;
-  timings?: { dialogMs: number; speechMs: number; downloadMs: number; totalMs: number };
+  timings?: { dialogMs?: number; speechMs?: number; downloadMs?: number; firstAudioMs?: number; totalMs: number };
   phase: 'idle' | 'checking' | 'opening' | 'awaiting' | 'turn' | 'transcription'
     | 'recording' | 'speech' | 'download' | 'playing' | 'completed' | 'cancelled' | 'failed';
   mode: 'unknown' | 'fake' | 'openai';
@@ -42,7 +42,7 @@ interface DebugBridge {
   runOpeningSpeech(options: { expectedMode: 'fake' | 'openai' }): Promise<void>;
   startConversation(options: {
     expectedMode: 'fake' | 'openai'; readyMask: number;
-    voice: 'cedar' | 'marin' | 'onyx' | 'coral'; speed: number;
+    voice: 'cedar' | 'marin' | 'onyx' | 'coral'; speed: number; engine: 'realtime' | 'chained';
   }): Promise<void>;
   answerConversation(options: { text: string }): Promise<void>;
   startRecording(): Promise<void>;
@@ -141,6 +141,8 @@ export class DebugPanel {
           </div>
         </fieldset>
         <div class="debug-conversation-options">
+          <label>Tok <select data-conversation-engine aria-label="Tok AI rozhovoru">
+            <option value="realtime" selected>Realtime · průběžné audio</option><option value="chained">Řetězený · kompatibilní</option></select></label>
           <label>Hlas <select data-conversation-voice aria-label="Hlas zkušebního rozhovoru">
             <option value="cedar" selected>Cedar</option><option value="marin">Marin</option>
             <option value="onyx">Onyx</option><option value="coral">Coral</option></select></label>
@@ -162,10 +164,9 @@ export class DebugPanel {
           <button type="button" class="primary" data-debug="conversation-send">Odeslat odpověď</button>
           <button type="button" data-debug="conversation-record">Začít nahrávat odpověď</button>
         </div>
-        <p class="footnote">Mikrofon potřebuje povolení iOS. Nahrává nejvýše 30 sekund do paměti;
-          až stisknutí Dokončit nahrávání a odeslat pošle zvuk serveru k přepisu.
-          Fake STT vrací syntetický přepis. Skutečné hlasové odpovědi vyžadují AI režim hlasu.
-          Přepis se nezapisuje do logu aplikace; AI rozhovor může zůstat v paměti testovacího večera na backendu.</p>
+        <p class="footnote">Povolte mikrofon a nahrajte odpověď, nejvýše 30 sekund.
+          Zvuk se odešle až po dokončení nahrávání. V Realtime začne odpověď hrát průběžně.
+          Hlas vyžaduje AI režim serveru. Rozhovor se může uložit do paměti vybraného večera.</p>
         <p data-conversation-selection></p>
         <p data-conversation-timings class="footnote"></p>
       </section>
@@ -191,6 +192,7 @@ export class DebugPanel {
     this.element.querySelector('[data-conversation-answer]')!.addEventListener('input', () => {
       this.renderConversationControls();
     });
+    this.element.querySelector('[data-conversation-engine]')!.addEventListener('change', () => this.renderConversationControls());
     this.element.querySelector('[data-evening-name]')!.addEventListener('input', () => this.renderEveningControls());
     this.element.querySelector('[data-evening-selection]')!.addEventListener('change', () => this.renderEveningControls());
     window.setInterval(() => {
@@ -330,9 +332,12 @@ export class DebugPanel {
       ? ''
       : `Simulovaný návrh: přihrádka ${selected}. Žádný pohon se nespustil.`;
     const timings = this.voice.timings;
-    this.element.querySelector('[data-conversation-timings]')!.textContent = timings
-      && [timings.dialogMs, timings.speechMs, timings.downloadMs, timings.totalMs].every(Number.isFinite)
-      ? `Poslední tah: dialog ${Math.round(timings.dialogMs)} ms · hlas ${Math.round(timings.speechMs)} ms · stažení ${Math.round(timings.downloadMs)} ms · celkem ${Math.round(timings.totalMs)} ms.`
+    this.element.querySelector('[data-conversation-timings]')!.textContent = timings && Number.isFinite(timings.totalMs)
+      ? Number.isFinite(timings.firstAudioMs)
+        ? `Realtime tah: první audio ${Math.round(timings.firstAudioMs!)} ms · celkem ${Math.round(timings.totalMs)} ms.`
+        : [timings.dialogMs, timings.speechMs, timings.downloadMs].every(Number.isFinite)
+          ? `Poslední tah: dialog ${Math.round(timings.dialogMs!)} ms · hlas ${Math.round(timings.speechMs!)} ms · stažení ${Math.round(timings.downloadMs!)} ms · celkem ${Math.round(timings.totalMs)} ms.`
+          : ''
       : '';
     this.element.querySelector('[data-conversation-status]')!.textContent = !this.native
       ? 'Zkušební rozhovor je dostupný v nativní iOS aplikaci.'
@@ -399,6 +404,12 @@ export class DebugPanel {
     });
     this.element.querySelector<HTMLSelectElement>('[data-conversation-voice]')!.disabled = busy || session;
     this.element.querySelector<HTMLSelectElement>('[data-conversation-speed]')!.disabled = busy || session;
+    const engine = this.element.querySelector<HTMLSelectElement>('[data-conversation-engine]')!;
+    engine.disabled = busy || session;
+    const conversationVoice = this.element.querySelector<HTMLSelectElement>('[data-conversation-voice]')!;
+    const onyx = conversationVoice.querySelector<HTMLOptionElement>('option[value="onyx"]')!;
+    onyx.disabled = engine.value === 'realtime';
+    if (onyx.disabled && conversationVoice.value === 'onyx') { conversationVoice.value = 'cedar'; }
     const awaiting = session && this.voice.configured && !busy
       && !this.voice.recording && this.voice.phase === 'awaiting';
     const answer = this.element.querySelector<HTMLTextAreaElement>('[data-conversation-answer]')!;
@@ -509,9 +520,10 @@ export class DebugPanel {
         const voice = this.element.querySelector<HTMLSelectElement>('[data-conversation-voice]')!.value as
           'cedar' | 'marin' | 'onyx' | 'coral';
         const speed = Number(this.element.querySelector<HTMLSelectElement>('[data-conversation-speed]')!.value);
+        const engine = this.element.querySelector<HTMLSelectElement>('[data-conversation-engine]')!.value as 'realtime' | 'chained';
         await bridge.startConversation({
           expectedMode: action === 'conversation-ai' ? 'openai' : 'fake',
-          readyMask, voice, speed,
+          readyMask, voice, speed, engine: action === 'conversation-ai' ? engine : 'chained',
         });
       }
       else if (action === 'conversation-send') {
