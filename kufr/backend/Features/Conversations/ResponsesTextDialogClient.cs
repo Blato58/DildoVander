@@ -1,8 +1,13 @@
-using System.Net.Http.Headers;
+using System.ClientModel;
+using System.ClientModel.Primitives;
+using OpenAI.Responses;
+using Kufr.Backend.Features.OpenAi;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
+// Experimental surface of the pinned official SDK.
+#pragma warning disable OPENAI001
 namespace Kufr.Backend.Features.Conversations;
 
 internal sealed class ResponsesTextDialogClient(
@@ -18,7 +23,6 @@ internal sealed class ResponsesTextDialogClient(
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
     private static readonly TimeSpan DefaultRequestTimeout = TimeSpan.FromSeconds(45);
-    private static readonly Uri Endpoint = new("https://api.openai.com/v1/responses");
     private static readonly string Instructions = ReadInstructions();
 
     public async Task<TextDialogResponse> GenerateAsync(
@@ -80,49 +84,32 @@ internal sealed class ResponsesTextDialogClient(
             throw new TextDialogRequestTooLargeException();
         }
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, Endpoint)
-        {
-            Content = new StringContent(payload, Encoding.UTF8, "application/json")
-        };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(requestTimeout ?? DefaultRequestTimeout);
-        using var response = await httpClient.SendAsync(
-            request,
-            HttpCompletionOption.ResponseHeadersRead,
-            deadline.Token);
-        if (!response.IsSuccessStatusCode)
+        using var bounded = BoundedSdkTransport.Create(httpClient, MaxResponseBytes);
+        var client = new ResponsesClient(new ApiKeyCredential(apiKey), new ResponsesClientOptions
         {
-            throw new TextDialogUnavailableException($"Provider HTTP {(int)response.StatusCode}.");
+            Transport = BoundedSdkTransport.Pipeline(bounded),
+            RetryPolicy = new ClientRetryPolicy(0)
+        });
+        // The SDK protocol overload preserves strict tool schemas and pricing
+        // fields; our parser still rejects ambiguous or unpriced output.
+        using var content = BinaryContent.Create(BinaryData.FromString(payload));
+        BinaryData body;
+        try
+        {
+            var response = await client.CreateResponseAsync(content,
+                new RequestOptions { CancellationToken = deadline.Token });
+            body = response.GetRawResponse().Content;
         }
-
-        if (response.Content.Headers.ContentLength > MaxResponseBytes)
+        catch (InvalidDataException)
         {
-            throw new TextDialogUnavailableException("Provider response is too large.");
-        }
-
-        await using var stream = await response.Content.ReadAsStreamAsync(deadline.Token);
-        var buffer = new byte[MaxResponseBytes + 1];
-        var count = 0;
-        while (count < buffer.Length)
-        {
-            var read = await stream.ReadAsync(buffer.AsMemory(count), deadline.Token);
-            if (read == 0)
-            {
-                break;
-            }
-
-            count += read;
-        }
-
-        if (count > MaxResponseBytes)
-        {
-            throw new TextDialogUnavailableException("Provider response is too large.");
+            throw new TextDialogUnavailableException("Provider response is unavailable.");
         }
 
         try
         {
-            using var document = JsonDocument.Parse(buffer.AsMemory(0, count));
+            using var document = JsonDocument.Parse(body.ToMemory());
             var result = ParseResponse(document.RootElement, readyMask);
             if (requireQuestion && result.Decision == "propose")
             {
@@ -353,3 +340,5 @@ internal sealed record DialogExchange(string VisitorText, string Reply);
 internal sealed class TextDialogUnavailableException(string message) : Exception(message);
 
 internal sealed class TextDialogRequestTooLargeException() : Exception("Dialogue request exceeds its reserved size.");
+
+#pragma warning restore OPENAI001

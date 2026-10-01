@@ -1,5 +1,18 @@
 # Backend kufru (E7)
 
+## OpenAI SDK (D117)
+
+Všechny provider operace používají oficiální .NET SDK **2.14.0**:
+Responses přes `ResponsesClient`, kompatibilní STT/TTS přes `AudioClient`
+a Realtime přes `RealtimeSessionClient`. SDK protocol overload zachovává
+přísná tool schémata i `languages[]` GPT-Transcribe (typed options připnuté
+verze mají jen starší `language`). SDK transport omezuje příjem před
+bufferováním (Responses 64 KiB, STT 16 KiB, PCM dosavadních 30 s),
+produkční HTTP klienti odmítají redirect a retry policy je **0**.
+Rezervace zůstávají před voláním; nejasný výsledek se placeně neopakuje.
+ESP nyní používá existující `realtime-live` API se stejnými device tokeny,
+VAD, pořadím vstupních bloků, dohráním a kontrolou návrhů jako telefonní Debug.
+
 D114/D116 přidávají přímý Realtime hlas přes oficiální OpenAI .NET SDK 2.14.0,
 model `gpt-realtime-1.5`. Textový Sol i dosavadní fake/STT/Sol/TTS zůstávají.
 `POST /v1/conversations/{id}/realtime-turns` vyžaduje device token, UUID

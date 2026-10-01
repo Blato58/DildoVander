@@ -56,6 +56,27 @@ jobs:
             src/features/conversation/ConversationStartCodec.cpp \
             tests/speech_output_coordinator_test.cpp -o "$RUNNER_TEMP/speech-output-test"
           "$RUNNER_TEMP/speech-output-test"
+      - name: Standalone realtime voice and ordered PCM transport
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          common=(
+            src/features/voice_turn/RealtimeEventCodec.cpp
+            src/features/conversation/TurnOperationCodec.cpp
+            src/features/conversation/TurnPollGuard.cpp
+            src/features/conversation/ConversationSession.cpp
+            src/features/conversation/ConversationStartCodec.cpp
+          )
+          g++ -std=c++14 -Wall -Wextra -Werror "${common[@]}" \
+            src/features/local_control/LocalControlCodec.cpp \
+            tests/realtime_voice_test.cpp -o "$RUNNER_TEMP/realtime-voice-test"
+          "$RUNNER_TEMP/realtime-voice-test"
+          g++ -std=c++14 -Wall -Wextra -Werror -pthread -I tests/realtime_stubs \
+            "${common[@]}" src/features/voice_turn/EspIdfRealtimeTransport.cpp \
+            src/features/backend_access/NetworkSettings.cpp \
+            tests/espidf_realtime_transport_test.cpp -o "$RUNNER_TEMP/realtime-transport-test"
+          "$RUNNER_TEMP/realtime-transport-test"
       - name: Device control tests
         working-directory: kufr/firmware
         shell: bash
@@ -118,7 +139,7 @@ jobs:
             tests/local_control_codec_test.cpp \
             -o "$RUNNER_TEMP/local-control-codec-test"
           "$RUNNER_TEMP/local-control-codec-test" \
-            ../contracts/fixtures/valid/{hello,state-get,control-acquire,control-release,heartbeat,safety-stop,safety-reset,conversation-text,conversation-cancel,selection-start,inventory-confirm-reload}.json \
+            ../contracts/fixtures/valid/{hello,state-get,control-acquire,control-release,heartbeat,safety-stop,safety-reset,conversation-text,conversation-cancel,selection-start,inventory-confirm-reload,voice-configure,voice-start,voice-stop}.json \
             --reject ../contracts/fixtures/invalid/*.json
       - name: Local control inbox test
         working-directory: kufr/firmware

@@ -198,7 +198,8 @@ bool BuildConversationStartRequest(const ConversationStartRequest& request,
          "\",\"bootId\":\"" + request.bootId +
          "\",\"generation\":" + std::to_string(request.generation) +
          ",\"catalogVersion\":\"" + request.catalogVersion +
-         "\",\"locale\":\"cs-CZ\",\"consent\":{\"audio\":false,\"image\":false}}";
+         "\",\"locale\":\"cs-CZ\",\"consent\":{\"audio\":" +
+         (request.audioConsent ? "true" : "false") + ",\"image\":false}}";
   return body.size() <= 4096;
 }
 

@@ -61,6 +61,7 @@ input:focus-visible { outline: 3px solid #f8bd68; outline-offset: 3px; }
 .conversation-panel { max-width: 68rem; margin: auto; padding: 1.5rem 1.25rem; }
 .conversation-panel[hidden], .conversation-reply[hidden] { display: none; }
 .conversation-panel form { display: grid; gap: .75rem; }
+.conversation-panel select { width: 100%; min-width: 0; margin-top: .35rem; padding: .65rem; font: inherit; color: #fff; background: #252b34; border: 1px solid #83909d; border-radius: .4rem; }
 .conversation-panel textarea { width: 100%; min-width: 0; padding: .65rem; font: inherit; resize: vertical; }
 .conversation-panel textarea:focus-visible { outline: 3px solid #f8bd68; outline-offset: 3px; }
 .conversation-reply { padding: 1rem; border: 1px solid #f8bd68; border-radius: .4rem; }

@@ -1,5 +1,38 @@
 # Firmware AI kufru
 
+## Realtime hlas ESP (D117)
+
+V Ovládání spárované aplikace nastavte **Realtime** a hlas Marin/Cedar/Coral,
+uvolněte ruční řízení a zvolte **Spustit hlas na kufru**. Kufr potřebuje
+bezpečný aktuální snapshot, provisionovaný backend, síť a aktivní
+Responses/OpenAI režimy serveru. Mikrofon a reproduktor patří ESP; po úvodu
+server VAD zavře vstup po tichu a po dohrání se poslech obnoví. Telefon může
+zůstat pouhým pozorovatelem nebo se odpojit. **Zastavit hlas** vypne audio;
+**Stop kufru** vypne také hlas a zachová povinné zotavení pohonů.
+
+Audio je vypnuté do servisního potvrzení **ověřeného profilu A**: NVS
+namespace `wand_audio`, u8 `profile_a_ok=1`. Je to potvrzení revize/zapojení,
+ne běžná volba aplikace. Před provisionováním ověřte GPIO4/5/6/7/16 podle
+plánu, levou volbu ICS43434, MAX98357A shutdown a nepřítomnost kamery/SD.
+Bez tohoto údaje se audio piny nenastavují a UI uvádí nedostupné audio.
+Profil B s MCP23017 nemá tento adaptér. Hlasový režim/hlas jsou v RAM,
+po restartu se vrací `off`/`marin`; reconnect nikdy sám nespouští rozhovor.
+
+I2S má 32kHz/32bit stereo sloty a průběžný FIR pro 24kHz PCM Realtime.
+Fronta RX má 20×20ms rámců; přetečení ukončí sezení. Vstup i výstup mají
+30s limit na tah, nejvýše 10 tahů/8 min. Upload nese `Input-Id` a
+`Input-Sequence`; audio se po neurčitém výsledku neopakuje. Výstup se hraje
+průběžně a ACK `played` následuje až po vyprázdnění DMA. Safety owner běží
+samostatně, mute při Stop je chráněné proti souběžnému unmute z playbacku.
+Po dokončení je návrh jen v existující místní bráně PendingProposal.
+
+Hostitelské kontroly nové cesty jsou `realtime_voice_test.cpp`,
+`espidf_realtime_transport_test.cpp` a hlasové scénáře v
+`local_control_owner_test.cpp`; jejich přesné g++ příkazy jsou v
+[firmware CI](../../.github/workflows/kufr-firmware.yml). Fake audio/HTTP
+ověřují úvod, dva vstupy, drain/ACK, Stop a chyby bez placeného provideru.
+Build/test nejsou důkaz mikrofonu, reproduktoru, DMA časování ani pohonů.
+
 Samostatný projekt PlatformIO pro ESP32-S3 N16R8 (16 MB flash, 8 MB PSRAM).
 Volba `esp32-s3-devkitc-1` je zatím základ pro sestavení. [Dodaná pinová
 mapa](../docs/pin-mapa-esp32-s3.md) ukazuje funkce konektoru kamery, MicroSD,
