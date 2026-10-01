@@ -6,7 +6,7 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**D116 – rozpracováno: průběžný poslech bez tlačítek a oprava dalších odpovědí.**
+**D116 – nasazeno: průběžný poslech bez tlačítek a oprava dalších odpovědí.**
 Majitel po instalaci D114 hlásí druhou odpověď bez výsledku: po dokončení
 nahrávání se pouze deaktivuje tlačítko. Žádá skutečný průběžný rozhovor.
 Backend drží jedno provider SDK spojení, VAD rozpozná konec řeči a každý
@@ -34,9 +34,29 @@ safe area z PR #81. První CI 36905453842 prošlo backend testy, web, kontrakty
 a offline eval; Swift odhalil actor izolaci čistého parseru chyb, opraveno
 explicitním nonisolated. Linux HTTP negativní test narazil na EPIPE při
 znovupoužití spojení po nadlimitním těle; tento požadavek nyní spojení zavře.
-Další konkrétní krok: ověřit/složit PR, automaticky sloučit po zeleném CI,
-nasadit backend a publikovat novou podepsanou IPA. Majitel toto předání
-a živou zkoušku do 1 USD již schválil. B1 a fyzická iPhone akceptace trvají.
+Finální CI 36906081419 prošlo všechny povinné kontroly včetně nativního
+hands-free harness (úvod/dvě odpovědi, VAD gate, časný ACK a cleanup),
+Xcode build/spuštění iOS Simulatoru a obou firmware profilů. PR #82 je
+sloučen do main `7581623ef8f843d00244684110a8ce07f2d3ff9c`; shoda tree
+se schváleným CI head `c28e4fcbf5ca1f1661e3922748a634400b9ae6d5` ověřena.
+Deploy 36907319409, Ad Hoc podpis 36907325300 a veřejná publikace
+36907700654 prošly. [Safari instalace](https://2.28.202.220/ios/) nabízí
+1.0 / build **1000.0.4**, včetně D115 safe area. Veřejný manifest a IPA
+jsou ověřené: Bundle ID `app.turquoise6409.green2444`, 960750 B, no-store,
+SHA-256 `35e2c5b695e8e9036e20b0710222710596ca3fe74d3fbd533f44d212096e7c0e`.
+Autorizovaná živá zkouška 36907705482 prošla jedno kontinuální spojení,
+úvod a čtyři české syntetické hlasové odpovědi až k validovanému návrhu.
+První audio po server VAD stop: 739/697/667 ms pro běžné otázky, 1533 ms
+pro konečný výběr; úvod od HTTP startu 2764 ms. VAD před tím čeká 650 ms
+ticha. Generování běžných tahů celkem 1594–2012 ms; skutečné dohrání
+na iPhonu tento syntetický test nesimuluje. Report uvádí konzervativní
+náklad **0,198108 USD**, session cap 0,50 USD; schválený strop 1 USD
+nebyl překročen. Jde o odhad backendu, nikoli účetní výpis OpenAI.
+Sezení bylo ukončené a předchozí večer obnovený, uživatelská paměť se nemaže.
+Další konkrétní krok: majitel aktualizuje iPhone na 1000.0.4 a ověří mikrofon,
+automatický návrat k poslechu po několika odpovědích, Stop/pozadí a safe area.
+Syntetická zkouška obsahuje nepřesnosti STT; skutečnou češtinu, poslech
+humoru a audio route potvrdí telefon. B1/fyzické pohony zůstávají blokované.
 
 **D115 – oprava horních tabů pod výřezem iPhonu.**
 Majitel hlásí překrytí tabů kamerou/senzory a obtížné klepnutí.
