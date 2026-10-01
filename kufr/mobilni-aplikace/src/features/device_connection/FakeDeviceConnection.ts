@@ -1,3 +1,5 @@
+import type { LocalConversationState } from './LocalConversationClient';
+
 export type ControlMode = 'observer' | 'manual';
 export type DevicePhase = 'ready' | 'running' | 'stopped' | 'disconnected';
 
@@ -10,6 +12,7 @@ export interface DeviceSnapshot {
   busy: boolean;
   revision?: number;
   status: string;
+  conversation?: LocalConversationState;
 }
 
 const manualLeaseDurationMs = 6000;
