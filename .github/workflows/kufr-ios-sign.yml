@@ -1,0 +1,118 @@
+name: Build signed Kufr IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: Successful CI run ID for current main
+        type: string
+        required: true
+      signing_kind:
+        description: Development artifact or Ad Hoc Safari installation
+        type: choice
+        options: [development, ad_hoc]
+        default: development
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: kufr-ios-signing
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/reuse-build.yml
+    with:
+      build_run_id: ${{ inputs.build_run_id }}
+      workflow: ci.yml
+      artifact: web-dist
+
+  signed-ipa:
+    if: github.ref == 'refs/heads/main'
+    needs: verify
+    timeout-minutes: 25
+    runs-on: macos-15
+    environment: ios-signing
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    defaults:
+      run:
+        working-directory: kufr/mobilni-aplikace
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.verify.outputs.main_sha }}
+          persist-credentials: false
+      - name: Reject a signing build queued before main changed
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          EXPECTED_SHA: ${{ needs.verify.outputs.main_sha }}
+        with:
+          script: await require('./scripts/ci/verify-build.cjs').checkMain({ github, context }, process.env.EXPECTED_SHA)
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: kufr/mobilni-aplikace/.nvmrc
+          cache: npm
+          cache-dependency-path: |
+            kufr/mobilni-aplikace/package-lock.json
+            kufr/contracts/package-lock.json
+      - run: npm ci
+      - run: npm ci --prefix ../contracts
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: verified-web-dist
+          path: ${{ runner.temp }}/web-package
+      - name: Reuse tested web build
+        working-directory: .
+        run: python3 scripts/ci/package.py unpack "$RUNNER_TEMP/web-package" kufr/mobilni-aplikace/dist
+      - run: npx cap sync ios
+      - name: Build signed IPA
+        env:
+          IOS_BUNDLE_ID: app.turquoise6409.green2444
+          IOS_TEAM_ID: 3QRXV8G5Y3
+          IOS_SIGNING_KIND: ${{ inputs.signing_kind || 'development' }}
+          IOS_DEVELOPMENT_CERTIFICATE_BASE64: ${{ secrets.IOS_BUILD_CERTIFICATE_BASE64 }}
+          IOS_DEVELOPMENT_PROFILE_BASE64: ${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}
+          IOS_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+          IOS_DISTRIBUTION_PROFILE_BASE64: ${{ secrets.IOS_DISTRIBUTION_PROFILE_BASE64 }}
+          IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
+          IOS_KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          case "$IOS_SIGNING_KIND" in
+            development)
+              export IOS_BUILD_CERTIFICATE_BASE64="$IOS_DEVELOPMENT_CERTIFICATE_BASE64"
+              export IOS_PROVISION_PROFILE_BASE64="$IOS_DEVELOPMENT_PROFILE_BASE64"
+              ;;
+            ad_hoc)
+              export IOS_BUILD_CERTIFICATE_BASE64="$IOS_DISTRIBUTION_CERTIFICATE_BASE64"
+              export IOS_PROVISION_PROFILE_BASE64="$IOS_DISTRIBUTION_PROFILE_BASE64"
+              ;;
+            *) echo 'Invalid signing kind' >&2; exit 2 ;;
+          esac
+          bash scripts/build-ios-ipa.sh
+      - name: Package signed IPA with provenance
+        working-directory: .
+        env:
+          SIGNING_KIND: ${{ inputs.signing_kind }}
+        run: |
+          python3 scripts/ci/package.py pack kufr/mobilni-aplikace/dist/ipa "$RUNNER_TEMP/ipa-package"
+          python3 - <<'PYCODE'
+          import json, os
+          from pathlib import Path
+          path = Path(os.environ['RUNNER_TEMP']) / 'ipa-package/build-manifest.json'
+          manifest = json.loads(path.read_text())
+          manifest['signing_kind'] = os.environ['SIGNING_KIND']
+          path.write_text(json.dumps(manifest, indent=2) + '\n')
+          PYCODE
+      - name: Save signed IPA and checksum
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: signed-ipa
+          path: ${{ runner.temp }}/ipa-package/
+          if-no-files-found: error
+          retention-days: 14
+          overwrite: true

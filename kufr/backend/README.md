@@ -38,7 +38,7 @@ dialogové tahy vyžadují otázku; nabídka funkcí v nich neobsahuje výběr p
 Dvě poslední výměny zůstávají v RAM pro aktuální tah. Celé dokončené textové
 výměny se navíc ukládají do `Backend:DatabasePath` + `.evening.sqlite`.
 Tato paměť je oddělená podle zařízení, přežije konec sezení i restart a nemá
-časovou expiraci. D111 odděluje pojmenované večery s aktivním ukazatelem;
+časovou expiraci. D112 odděluje pojmenované večery s aktivním ukazatelem;
 migrace zachová původní ID a obsah. Po 2000 výměnách nebo 2 MB UTF-8 textu v jednom večeru vytěsňuje nejstarší
 výměny; status uvádí počet vytěsnění. Žádné audio ani fotografie neukládá.
 Soubor má být ve stejném soukromém adresáři služby jako journal, ale vynechaný
@@ -281,9 +281,10 @@ a spustí `sudo bash CESTA/bootstrap-ubuntu.sh github-runner`. Soubory není nut
 `/root`; workflow skript samo nespouští ani nepoužívá sudo.
 
 
-Workflow `.github/workflows/kufr-backend.yml` při změnách backendu v PR i `main`
-sestaví a otestuje samostatný `linux-x64` release na GitHub runneru. Ruční
-`workflow_dispatch` z `main` navíc aktivuje artefakt na self-hosted runneru
+Workflow `.github/workflows/kufr-backend.yml` volané z `ci.yml` sestaví a otestuje
+samostatný `linux-x64` release při každém PR. Merge již nebuildí. Ruční
+`kufr-backend-deploy.yml` z `main` se vstupem `build_run_id` ověří původ a shodu
+stromu PR artefaktu s `main`, pak jej aktivuje bez překladu na self-hosted runneru
 se štítky `self-hosted`, `Linux`, `X64` a
 `kufr-backend` v environmentu `backend-production`.
 Vstup `dialog_mode` při ručním nasazení volí `fake` (výchozí) nebo `responses`;
@@ -389,7 +390,8 @@ konfigurace vrátí předchozí site. Adresář `/var/www/kufr-ios` vlastní
 serverový runner, který smí publikovat pouze statické soubory. Přístup k
 backendovým secrets ani k portu 5080 stránka nemá.
 
-Po úspěšném Ad Hoc podpisu workflow **Kufr iOS** nahraje do tohoto adresáře
+Po úspěšném Ad Hoc podpisu **Build signed Kufr IPA** samostatné workflow
+**Deploy Kufr IPA** se vstupem ID podepsaného buildu nahraje do tohoto adresáře
 verzovanou IPA, `manifest.plist`, SHA-256 a instalační stránku. Změna
 hlavní stránky proběhne atomicky až po uložení celé verze. Samostatný
 GitHub-hosted job ověří přes veřejné HTTPS stránku, manifest, MIME typy,
@@ -398,3 +400,5 @@ jen registrovaný iPhone v Safari; serverový test to nenahrazuje. Soubory
 pod `/ios/` jsou veřejně čitelné, proto IPA nesmí obsahovat tajemství.
 
 Responses požadavky explicitně používají `service_tier: default`. Jiný nebo chybějící vrácený tarif se odmítne a drží rezervaci (včetně rezervy pro 2× sazbu Fast), bez automatického opakování. Potvrzený Standard se vypořádá konzervativně podle tokenů; tato interní částka není účetní údaj z OpenAI. Ochrana tarifu byla přidána po živém eval, který vracel Fast při neuvedeném tarifu.
+
+Úplný postup a omezení opakovaného použití artefaktů jsou v [CI/CD návodu](../../docs/ci-cd.md).

@@ -1,18 +1,7 @@
-name: Kufr firmware
+name: Build Kufr firmware
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - kufr/firmware/**
-      - kufr/contracts/**
-      - .github/workflows/kufr-firmware.yml
-  pull_request:
-    paths:
-      - kufr/firmware/**
-      - kufr/contracts/**
-      - .github/workflows/kufr-firmware.yml
-  workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -20,9 +9,12 @@ permissions:
 jobs:
   host-tests:
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: kufr/contracts/.nvmrc
           cache: npm
@@ -370,8 +362,18 @@ jobs:
 
   firmware-build:
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.platformio/packages
+            ~/.platformio/platforms
+            ~/.cache/pip
+          key: pio-${{ runner.os }}-6.2.0-${{ hashFiles('kufr/firmware/platformio.ini', 'kufr/firmware/dependencies.lock.md') }}
       - name: Install pinned PlatformIO Core
         shell: bash
         run: |
@@ -386,3 +388,20 @@ jobs:
         shell: bash
         run: |
           "$RUNNER_TEMP/platformio-venv/bin/pio" run -d kufr/firmware -e esp32-s3-arduino-serial -s
+      - name: Bundle flashable firmware outputs without device credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          for profile in esp32-s3-idf esp32-s3-arduino-serial; do
+            mkdir -p "$RUNNER_TEMP/firmware/$profile"
+            cp kufr/firmware/.pio/build/"$profile"/*.bin "$RUNNER_TEMP/firmware/$profile/"
+            cp kufr/firmware/.pio/build/"$profile"/firmware.elf "$RUNNER_TEMP/firmware/$profile/"
+          done
+          python3 scripts/ci/package.py pack "$RUNNER_TEMP/firmware" "$RUNNER_TEMP/firmware-package"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: firmware
+          path: ${{ runner.temp }}/firmware-package/
+          if-no-files-found: error
+          retention-days: 14
+          overwrite: true

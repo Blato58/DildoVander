@@ -399,7 +399,7 @@ nezávislého softwaru; kritéria dokončení E9 se nesnižují.
 
 ### Průběh samostatného hlasového tahu
 
-**Večery a uložený přístup D111 (zadání majitele 1. 10.):** iOS Debug nabízí
+**Večery a uložený přístup D112 (zadání majitele 1. 10.):** iOS Debug nabízí
 pojmenovaný nový večer a přepnutí aktivního večera pro vlastní debug identitu.
 Nový večer je prázdný, předchozí zůstává uložený. Existující SQLite ID, text
 a počty migrace zachová transakčně. Kontext i limity 2000 výměn / 2 MB platí
@@ -444,7 +444,7 @@ kvalita/latence, mikrofon iPhone a fyzické I2S zůstávají samostatnou akcepta
 testovat backendový opening → speech → WAV → reproduktor telefonu. Nejde o běžný
 cloudový prostředník ESP: používá samostatnou provisionovanou identitu `debug-*`,
 masku dostupnosti 0 a žádné místní řídicí povely/lease. Credential zadá obsluha
-v zabezpečeném nativním dialogu; není v JS, IPA ani logu. D111 nahrazuje původní
+v zabezpečeném nativním dialogu; není v JS, IPA ani logu. D112 nahrazuje původní
 RAM-only profil uložením do odděleného Keychain; pozadí stále ruší práci.
 HTTPS zachovává systémové PKI a odmítá redirecty. Nové autentizované
 `GET /v1/diagnostics` pouze čte provider režimy/katalog/audio formát, nic negeneruje.
@@ -463,7 +463,7 @@ určuje samostatný credential správce s hash konfigurací na serveru; credenti
 ESP, místní párování ani běžný access token nestačí. Tento credential zároveň
 provisionuje jen oddělenou `debug-server-admin` testovací identitu. Native profil
 zachovává hranice D108 (PKI, bez redirectu/tajemství v JS a IPA); uložení profilu
-do Keychain mění výslovné zadání D111.
+do Keychain mění výslovné zadání D112.
 Změna vyžaduje aktuální revizi a žádný živý rozhovor/doznívající provider;
 create a přepnutí sdílejí zámek. Platí do restartu, pak rozhoduje explicitní
 konfigurace nasazení. Přepnutí samo nic negeneruje. Fake hlasový test musí ověřit
