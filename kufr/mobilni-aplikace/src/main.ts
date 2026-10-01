@@ -27,6 +27,50 @@ const simulatorMode = modeResponse?.ok &&
   modeResponse.headers.get('content-type')?.includes('application/json') &&
   (await modeResponse.json() as { simulator?: boolean }).simulator === true;
 
+// Keep the draft outside the snapshot-rendered controls so heartbeat never
+// destroys focus or partially typed text. Content stays only in page memory.
+const conversationPanel = document.createElement('section');
+conversationPanel.className = 'conversation-panel';
+conversationPanel.setAttribute('aria-label', 'Textový rozhovor přes kufr');
+conversationPanel.innerHTML = `
+  <h2>Textový rozhovor</h2>
+  <p class="conversation-explanation"></p>
+  <form>
+    <label for="visitor-text">Vaše odpověď</label>
+    <textarea id="visitor-text" name="text" rows="3" maxlength="2000" autocomplete="off" required></textarea>
+    <div class="actions">
+      <button type="submit" class="primary" disabled>Odeslat text kufru</button>
+      <button type="button" data-conversation="cancel" disabled>Zrušit tah</button>
+    </div>
+  </form>
+  <p role="status"></p>
+  <div class="conversation-reply" hidden><strong></strong><p></p></div>`;
+app.after(conversationPanel);
+const conversationForm = conversationPanel.querySelector<HTMLFormElement>('form')!;
+const visitorText = conversationPanel.querySelector<HTMLTextAreaElement>('textarea')!;
+const sendTextButton = conversationPanel.querySelector<HTMLButtonElement>('[type="submit"]')!;
+const cancelTurnButton = conversationPanel.querySelector<HTMLButtonElement>('[data-conversation="cancel"]')!;
+
+function renderConversation(snapshot: DeviceSnapshot): void {
+  conversationPanel.hidden = snapshot.source === 'local-fake';
+  conversationPanel.querySelector<HTMLElement>('.conversation-explanation')!.textContent =
+    snapshot.source === 'native-device'
+      ? 'Kufr předá text své cloudové AI službě. Textové výměny uchovává paměť večera na backendu, dokud ji obsluha výslovně nesmaže nebo se nevytěsní nejstarší obsah. Telefon se připojuje jen ke kufru.'
+      : 'Simulátor vrací pevnou repliku. Text neopouští místní vývojové prostředí; žádná skutečná AI není připojena.';
+  const conversation = snapshot.conversation;
+  visitorText.disabled = conversation?.canSubmit !== true;
+  sendTextButton.disabled = conversation?.canSubmit !== true;
+  cancelTurnButton.disabled = conversation?.canCancel !== true;
+  if (snapshot.phase === 'disconnected' || snapshot.phase === 'stopped' || snapshot.controlMode !== 'manual') {
+    visitorText.value = '';
+  }
+  conversationPanel.querySelector<HTMLElement>('[role="status"]')!.textContent = conversation?.status ?? '';
+  const reply = conversationPanel.querySelector<HTMLElement>('.conversation-reply')!;
+  reply.hidden = conversation?.reply == null;
+  reply.querySelector<HTMLElement>('strong')!.textContent = conversation?.simulated ? 'SIMULOVANÁ ODPOVĚĎ' : 'Odpověď kufru';
+  reply.querySelector<HTMLElement>('p')!.textContent = conversation?.reply ?? '';
+}
+
 function escapeText(value: string): string {
   return value.replace(/[&<>"']/g, (character) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -41,8 +85,9 @@ function render(snapshot: DeviceSnapshot): void {
     pendingAction = null;
   }
   currentSnapshot = snapshot;
+  renderConversation(snapshot);
   const canControl = snapshot.controlMode === 'manual' && snapshot.phase === 'ready' &&
-    !snapshot.busy;
+    !snapshot.busy && !snapshot.conversation?.pending;
   const modeText = snapshot.controlMode === 'manual' ? 'Ruční režim' : 'Pozorování';
   const phaseText = snapshot.phase === 'running'
     ? snapshot.activeCompartment === null
@@ -137,6 +182,22 @@ if (nativeMode) {
     ? new SimulatorDeviceConnection(render)
     : new FakeDeviceConnection(render);
 }
+
+conversationForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  if (sendTextButton.disabled || !(connection instanceof SimulatorDeviceConnection || connection instanceof NativeDeviceConnection)) {
+    return;
+  }
+  if (connection.submitText(visitorText.value)) {
+    visitorText.value = '';
+  }
+});
+cancelTurnButton.addEventListener('click', () => {
+  if (connection instanceof SimulatorDeviceConnection || connection instanceof NativeDeviceConnection) {
+    visitorText.value = '';
+    connection.cancelConversation();
+  }
+});
 
 app.addEventListener('click', (event) => {
   const target = event.target;

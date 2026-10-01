@@ -1,6 +1,7 @@
 import type { DeviceSnapshot } from './FakeDeviceConnection';
+import { LocalConversationClient, type ConversationDeviceState } from './LocalConversationClient';
 
-interface ProtocolSnapshot {
+interface ProtocolSnapshot extends ConversationDeviceState {
   type: 'state.snapshot';
   deviceId: string;
   bootId: string;
@@ -54,6 +55,11 @@ export interface ProtocolConnectionOptions {
 // One owner of lease, command retry and uncertain-result reconciliation, shared
 // by the development proxy and the native pinned-TLS transport.
 export class ProtocolDeviceConnection {
+  private readonly conversation = new LocalConversationClient(
+    (message) => this.send(message),
+    () => this.publish(),
+    () => this.socket?.close(),
+  );
   private socket: ControlSocket | null = null;
   private device: ProtocolSnapshot | null = null;
   private sequence = 0;
@@ -97,7 +103,15 @@ export class ProtocolDeviceConnection {
   }
 
   snapshot(): DeviceSnapshot {
-    return { ...this.state };
+    return this.viewSnapshot();
+  }
+
+  submitText(text: string): boolean {
+    return this.viewSnapshot().conversation?.canSubmit === true && this.conversation.submit(text);
+  }
+
+  cancelConversation(): boolean {
+    return this.conversation.cancel();
   }
 
   connect(): void {
@@ -135,6 +149,7 @@ export class ProtocolDeviceConnection {
         this.releasePending = false;
         this.awaitingRevision = null;
         this.requests.clear();
+        this.conversation.invalidate();
         this.clearTimers();
         this.state = {
           ...this.state,
@@ -209,6 +224,7 @@ export class ProtocolDeviceConnection {
   }
 
   release(): void {
+    this.conversation.invalidate();
     this.pendingCommand = null;
     this.rememberUnresolvedCommand();
     this.clearCommand();
@@ -230,6 +246,7 @@ export class ProtocolDeviceConnection {
   }
 
   suspend(): void {
+    this.conversation.invalidate();
     this.suspended = true;
     this.pendingCommand = null;
     this.rememberUnresolvedCommand();
@@ -253,6 +270,7 @@ export class ProtocolDeviceConnection {
     if (!this.device) {
       return;
     }
+    this.conversation.invalidate('Stop zneplatnil rozhovor; opožděná odpověď se nezobrazí.');
     this.pendingCommand = null;
     this.rememberUnresolvedCommand();
     this.clearCommand();
@@ -270,7 +288,7 @@ export class ProtocolDeviceConnection {
   private prepareCommand(kind: PendingCommand['kind'], compartment: number): boolean {
     if (!this.device?.controlLeaseId || this.pendingCommand !== null ||
         this.activeCommand !== null || this.state.busy ||
-        this.state.phase !== 'ready' || !Number.isInteger(compartment) ||
+        this.state.phase !== 'ready' || this.conversation.snapshot().pending || !Number.isInteger(compartment) ||
         compartment < 1 || compartment > 6) {
       return false;
     }
@@ -343,6 +361,8 @@ export class ProtocolDeviceConnection {
         this.clearRequestTimeout();
         this.reconnectAttempt = 0;
       }
+    } else if (message.type === 'conversation.ack' || message.type === 'conversation.result') {
+      this.conversation.receive(message);
     } else if (message.type === 'command.ack') {
       const active = this.activeCommand;
       if (!active || message.commandId !== active.id ||
@@ -416,6 +436,9 @@ export class ProtocolDeviceConnection {
   }
 
   private applySnapshot(snapshot: ProtocolSnapshot): void {
+    if (this.device?.bootId === snapshot.bootId && snapshot.eventSequence < this.device.eventSequence) {
+      return;
+    }
     const previousMask = this.device?.readyMask ?? snapshot.readyMask;
     const previousLeaseId = this.device?.controlLeaseId;
     if (this.device && snapshot.bootId !== this.device.bootId) {
@@ -486,6 +509,7 @@ export class ProtocolDeviceConnection {
             ? 'Ruční lease na simulátoru je aktivní.'
             : 'Připojeno k hostitelskému E2 simulátoru v režimu pozorování.',
     };
+    this.conversation.update(snapshot);
     this.publish();
   }
 
@@ -717,7 +741,16 @@ export class ProtocolDeviceConnection {
   }
 
   private publish(): void {
-    const snapshot = { ...this.state };
+    this.onChange(this.viewSnapshot());
+  }
+
+  private viewSnapshot(): DeviceSnapshot {
+    const snapshot = {
+      ...this.state,
+      conversation: this.conversation.snapshot(
+        this.state.controlMode === 'manual' && this.state.phase === 'ready' && !this.state.busy,
+      ),
+    };
     if (this.options.source === 'native-device') {
       // Shared command behavior, with wording that does not claim simulation.
       snapshot.status = snapshot.status
@@ -730,7 +763,7 @@ export class ProtocolDeviceConnection {
         .replaceAll('Simulovaná sekvence', 'Povelová sekvence')
         .replaceAll('Simulovaný výběr', 'Povelový výběr');
     }
-    this.onChange(snapshot);
+    return snapshot;
   }
 }
 
