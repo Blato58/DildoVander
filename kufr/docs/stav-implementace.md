@@ -6,6 +6,57 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D118 – serverové logy, iOS zobrazení a čtecí integrace Codex.**
+Zadání majitele: logování serveru, API přístup, log v iOS a společný debug
+nasazeného prostředí s Codexem. Backend přidává oddělenou SQLite logovou DB,
+výchozí historii 24 h/5000 událostí, kurzor/filtry/retention gap a počty
+neúspěšných zápisů. Každý HTTP požadavek má serverové UUID X-Request-Id;
+log používá route template, status/duration, pevný event/code a ID operace/
+rozhovoru. Realtime zaznamenává fáze/chyby i uvnitř HTTP 200 streamu.
+Úspěšné GET/poll/PCM jsou vynechané. Žádná těla/query, text, audio, credential,
+prompty nebo exception message. ILogger adaptér přijímá jen známé bezpečné
+události ConversationStore. Logovací selhání nesmí zrušit živý audio tok.
+GET /v1/admin/logs a /status vyžadují admin nebo oddělený reader token;
+reader nezískává správu, device token ani AI. Deploy volitelně přijme
+LOG_READER_CREDENTIAL z backend-production a ukládá pouze SHA-256.
+iOS Debug čte logy nezávisle na rozhovoru, filtruje, obnovuje po 2 s a sdílí
+JSON. Drží 200 událostí, ošetřuje reset profilu/DB, staré výsledky a pozadí;
+credential zůstává v Keychain. Codex stdio MCP má read_server_logs/status,
+HTTPS PKI, žádné redirecty, omezenou odpověď a projekci typovaných metadat.
+GitHub Kufr server logs umožňuje totéž bez lokálního tokenu, přes existující
+serverový secret a jednodenní artefakt; žádné provider volání.
+Rozsah: backend Features/Diagnostics, middleware/API/Realtime/operace/testy;
+OpenAPI/verifier; DebugBackendClient/plugin/Panel/ServerLogs a native/browser
+harness; deploy/read workflow a Codex Python klient/testy/návod; AGENTS/plán/README.
+Lokálně prošly locked restore .NET 10.0.303 linux-x64, Release build bez
+warnings/errors, kompletní backend testy včetně persist/TTL/cap/filtrů a
+oddělení oprávnění, HTTP smoke včetně restartu/sanitizace/query/trace.
+Mobilní TypeScript/Vite build a 21 testů, všechny kontrakty, 15 Python testů
+(včetně skutečného HTTPS MCP peeru, redirect/denial/oversize/stdio/snapshot),
+a actionlint 1.7.12 všech workflow prošly. Playwright Chromium ověřil
+filtr/dedup, obnovování během rozhovoru, zapomenutí profilu, HTTP denial se
+zastavením obnovování a 390px rozložení bez přesahu/console chyb.
+Browser odhalil kolizi společné CSS třídy logových seznamů; aplikační log
+nově vybírá svůj vlastní seznam a serverový log zůstává oddělený.
+CI 36923732710 již ověřilo Swift/nativní harness i Xcode/spuštění
+simulátoru, backend a web. Před merge se do main sloučila souběžná D117
+oprava iPhone Realtime audio startu (PR #84, 0d97dea). Zachovaná merge
+integrací; konflikt pouze v tomto záznamu vyřešen ponecháním obou změn.
+Logy mají nyní číslo D118. Společnou verzi znovu ověřuje povinné CI.
+Žádné placené AI volání.
+Implementační commit `3446dd3beb9e5164e10f9d16189f7bfab2d1175e` byl pushnut,
+remote shoda ověřena; [PR #86](https://github.com/Blato58/DildoVander/pull/86).
+Push-CurrentBranch.ps1 byl spuštěn, ale gh auth token --user zde nepodporuje
+runtime GH_TOKEN. API ověřilo účet Blato58; scoped gh git credential helper
+provedl push bez změny účtu nebo uložení tajemství. Finální macOS/CI/merge
+výsledek je evidovaný v PR. Review doplnilo rušení logového HTTP i při
+otevření konfigurace a zapomenutí nativního profilu.
+Nasazení backendu, podpis/publikace IPA a fyzický iPhone se v tomto kroku
+zatím neprovedly; produkční D116/1000.0.4 a B1 zůstávají dle záznamu níže.
+Další krok: dokončit macOS CI a merge D118, potom samostatně nasadit ověřené
+backend/web artefakty a publikovat IPA; vyzkoušet Log serveru během rozhovoru
+na iPhonu a čtení skutečné diagnostiky přes nový workflow.
+
 **D117 – oprava okamžitého ukončení Realtime na iPhonu, připraveno k CI.**
 Majitel u 1000.0.4 doložil chybu hned po Začít AI rozhovor; oranžová tečka
 mikrofonu se objeví, první replika nezazní. Zdrojový průchod našel dvě

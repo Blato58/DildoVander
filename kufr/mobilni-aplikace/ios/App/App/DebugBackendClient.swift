@@ -121,6 +121,62 @@ struct DebugServerModes: Codable {
     }
 }
 
+struct DebugServerLogEntry: Codable {
+    let id: Int64
+    let timestamp: String
+    let level: String
+    let eventCode: String
+    let traceId: String?
+    let route: String?
+    let method: String?
+    let status: Int?
+    let durationMs: Double?
+    let operationId: String?
+    let conversationId: String?
+    let code: String?
+}
+
+struct DebugServerLogPage: Codable {
+    let storeId: String
+    let oldestCursor: Int64
+    let latestCursor: Int64
+    let nextCursor: Int64
+    let hasMore: Bool
+    let truncated: Bool
+    let droppedWrites: Int64
+    let entries: [DebugServerLogEntry]
+
+    func validate() throws {
+        guard UUID(uuidString: storeId) != nil, oldestCursor >= 0, latestCursor >= oldestCursor,
+              nextCursor >= 0, nextCursor <= latestCursor, latestCursor <= 9_007_199_254_740_991,
+              droppedWrites >= 0, entries.count <= 200,
+              Set(entries.map { $0.id }).count == entries.count,
+              entries.map({ $0.id }) == entries.map({ $0.id }).sorted(),
+              (!hasMore || !entries.isEmpty && nextCursor == entries.last?.id) else { throw DebugBackendError.invalidResponse }
+        let date = ISO8601DateFormatter()
+        date.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        for entry in entries {
+            guard entry.id >= oldestCursor, entry.id <= nextCursor,
+                  entry.timestamp.utf8.count <= 64, date.date(from: entry.timestamp) != nil,
+                  ["info", "warning", "error"].contains(entry.level),
+                  entry.eventCode.range(of: "^[a-z_]{1,64}$", options: .regularExpression) != nil,
+                  [entry.traceId, entry.operationId, entry.conversationId].allSatisfy({ $0 == nil || UUID(uuidString: $0!) != nil }),
+                  entry.route == nil || entry.route!.utf8.count <= 200,
+                  entry.method == nil || ["GET", "POST", "PUT", "DELETE", "OPTIONS", "OTHER"].contains(entry.method!),
+                  entry.status == nil || (100...599).contains(entry.status!),
+                  entry.durationMs == nil || entry.durationMs!.isFinite && entry.durationMs! >= 0,
+                  entry.code == nil || entry.code!.range(of: "^[a-z_]{1,80}$", options: .regularExpression) != nil
+            else { throw DebugBackendError.invalidResponse }
+        }
+    }
+
+    var bridgeValue: [String: Any] {
+        // Re-encode only the typed, validated metadata, excluding extra fields
+        // from a future/malformed server response.
+        (try? JSONSerialization.jsonObject(with: JSONEncoder().encode(self))) as? [String: Any] ?? [:]
+    }
+}
+
 struct DebugEvening: Codable {
     let eveningId: String
     let name: String
@@ -481,6 +537,19 @@ final class DebugBackendClient {
         return result
     }
 
+    func serverLogs(_ profile: DebugBackendProfile, after: Int64? = nil, level: String = "info") async throws -> DebugServerLogPage {
+        guard ["info", "warning", "error"].contains(level), after == nil || after! >= 0 && after! <= 9_007_199_254_740_991
+        else { throw DebugBackendError.invalidResponse }
+        var query = [URLQueryItem(name: "limit", value: "200"), URLQueryItem(name: "level", value: level)]
+        if let after = after { query.append(URLQueryItem(name: "after", value: String(after))) }
+        let (data, response) = try await request(profile, path: "v1/admin/logs", token: profile.credential,
+            method: "GET", body: nil, limit: 262_144, queryItems: query)
+        guard response.mimeType == "application/json" else { throw DebugBackendError.invalidResponse }
+        let page = try JSONDecoder().decode(DebugServerLogPage.self, from: data)
+        try page.validate()
+        return page
+    }
+
     func serverModes(_ profile: DebugBackendProfile, expectedRevision: String? = nil,
                      dialogMode: String? = nil, voiceMode: String? = nil) async throws -> DebugServerModes {
         var body: [String: Any]?
@@ -673,9 +742,12 @@ final class DebugBackendClient {
     }
 
     fileprivate func request(_ profile: DebugBackendProfile, path: String, token: String,
-                         method: String, body: [String: Any]?, limit: Int, key: String? = nil) async throws -> (Data, HTTPURLResponse) {
+                         method: String, body: [String: Any]?, limit: Int, key: String? = nil,
+                         queryItems: [URLQueryItem]? = nil) async throws -> (Data, HTTPURLResponse) {
         try Task.checkCancellation()
-        var request = URLRequest(url: profile.baseURL.appendingPathComponent(path))
+        var components = URLComponents(url: profile.baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
+        components.queryItems = queryItems
+        var request = URLRequest(url: components.url!)
         request.httpMethod = method
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         if method != "GET" { request.setValue(key ?? UUID().uuidString.lowercased(), forHTTPHeaderField: "Idempotency-Key") }
