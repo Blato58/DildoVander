@@ -18,8 +18,9 @@ eval neověřuje její zvuk, latenci ani humor. Ty potřebují samostatný
 živý test s povoleným rozpočtem a poslech na telefonu.
 
 Tento adresář je samostatná E8 příprava. Posílá **syntetické** české
-texty přímo do OpenAI Responses API z GitHub hosted runneru. Nevyžaduje
-ESP32, Device ID, device credential, backend, server ani mobilní aplikaci.
+texty přímo do OpenAI Responses API ze serverového GitHub Actions runneru
+`[self-hosted, Linux, X64, kufr-backend]`. Nevyžaduje
+ESP32, Device ID, device credential, běžící backend ani mobilní aplikaci.
 Nevydává žádný příkaz k pohonu. Backendový E8 adaptér existuje odděleně; hlasové testy zůstávají další prací.
 
 Prompt je v prompt.txt: mluvící kouzelný kufr prodejce z Ollivanderova obchodu ve světě Harryho Pottera pro soukromou party 18+, s ostrým, vtipným roastem. Původní šestice hůlek je v wand-catalog.json; backend i eval předávají modelu jen dostupné položky. Výchozí model je gpt-6.1-sol s nízkým reasoning effort. Stejné scénáře
