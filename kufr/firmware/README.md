@@ -22,6 +22,16 @@ nezávislou na cloudovém tokenu/čase. Kalibrace zůstává 0, zotavení bez do
 fyzické kontroly je zavřené a GPIO/audio porty chybí. Prázdná NVS neposkytuje
 identitu ani párování; živý běh zařízení nebyl ověřen.
 
+E4.4t přidává inzerci `_kufr._tcp.local:443` až po spuštění provisionovaného
+TLS serveru a získání IP. TXT obsahuje jen `deviceId`, `protocol=1` a CSV
+capabilities stejné jako WSS snapshot. Samostatná discovery úloha obnoví
+inzerci při změně IP epoch; nevolá mDNS ze safety Tick ani cloudové úlohy.
+Oficiální `espressif/mdns` je připnutá na 1.11.3 v `src/idf_component.yml`
+a vygenerovaném `dependencies.lock`; `managed_components/` je lokální výstup.
+Host testy pokrývají ztrátu IP, reconnect mezi dvěma vzorky a selhání SDK.
+Skutečný multicast/LAN a servisní AP provisioning stále vyžadují navazující
+práci a fyzickou akceptaci; inzerce sama neobchází kalibraci ani inspection.
+
 ## Architektura
 
 Firmware roste po vertical slices. Každá funkce drží své rozhodování a své

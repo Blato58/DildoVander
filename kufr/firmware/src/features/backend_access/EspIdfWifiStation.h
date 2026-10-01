@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <atomic>
 
 #include "esp_event.h"
 #include "esp_netif.h"
@@ -19,6 +20,7 @@ class EspIdfWifiStation final {
   bool Start(const NetworkSettings& settings);
   bool ConnectAndWait(uint32_t timeoutMs);
   bool HasIp() const;
+  uint32_t IpGeneration() const;
 
  private:
   static void OnEvent(void* argument, esp_event_base_t eventBase,
@@ -33,4 +35,5 @@ class EspIdfWifiStation final {
   bool ownsEventLoop_ = false;
   bool wifiInitialized_ = false;
   bool wifiStarted_ = false;
+  std::atomic<uint32_t> ipGeneration_{0};
 };

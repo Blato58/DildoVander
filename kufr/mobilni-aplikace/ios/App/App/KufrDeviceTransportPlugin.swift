@@ -8,6 +8,8 @@ public class KufrDeviceTransportPlugin: CAPPlugin, CAPBridgedPlugin {
     public let jsName = "KufrDeviceTransport"
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "savedDevice", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "discover", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setAddress", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "pair", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "connect", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "send", returnType: CAPPluginReturnPromise),
@@ -18,6 +20,8 @@ public class KufrDeviceTransportPlugin: CAPPlugin, CAPBridgedPlugin {
     private var transport: LocalDeviceTransport?
     private var connectionId: String?
     private var pairingCall: CAPPluginCall?
+    private var discovery: LocalDeviceDiscovery?
+    private var selectedHost: String?
     private var lifecycleObservers: [NSObjectProtocol] = []
 
     public override func load() {
@@ -27,6 +31,7 @@ public class KufrDeviceTransportPlugin: CAPPlugin, CAPBridgedPlugin {
                 forName: name, object: nil, queue: .main
             ) { [weak self] _ in
                 self?.transport?.close()
+                self?.discovery?.cancel()
             })
         }
     }
@@ -39,7 +44,8 @@ public class KufrDeviceTransportPlugin: CAPPlugin, CAPBridgedPlugin {
         DispatchQueue.main.async {
             do {
                 if let identity = try self.keychain.read() {
-                    call.resolve(["paired": true, "deviceId": identity.deviceId, "host": identity.host])
+                    call.resolve(["paired": true, "deviceId": identity.deviceId,
+                                  "host": self.selectedHost ?? identity.host])
                 } else {
                     call.resolve(["paired": false])
                 }
@@ -50,9 +56,50 @@ public class KufrDeviceTransportPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
+    @objc func discover(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard self.discovery == nil, self.pairingCall == nil,
+                  UIApplication.shared.applicationState == .active else {
+                call.reject("Hledání nyní není dostupné.", "discovery_unavailable")
+                return
+            }
+            let discovery = LocalDeviceDiscovery()
+            self.discovery = discovery
+            discovery.start { [weak self] devices, failed in
+                self?.discovery = nil
+                call.resolve(["failed": failed, "devices": devices.map {
+                    ["deviceId": $0.deviceId, "host": $0.host, "capabilities": $0.capabilities] as [String: Any]
+                }])
+            }
+        }
+    }
+
+    @objc func setAddress(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard self.pairingCall == nil, self.discovery == nil,
+                  UIApplication.shared.applicationState == .active,
+                  let host = call.getString("host"), LocalDeviceIdentity.validHost(host) else {
+                call.reject("Zadejte místní IP nebo DNS jméno bez portu.", "invalid_address")
+                return
+            }
+            do {
+                guard try self.keychain.read() != nil else {
+                    call.reject("Nejprve spárujte kufr.", "not_paired")
+                    return
+                }
+                self.transport?.close()
+                // Keep the hint in RAM until a pinned, authenticated connection succeeds.
+                self.selectedHost = host
+                call.resolve()
+            } catch {
+                call.reject("Párování nelze přečíst. Odemkněte telefon.", "credential_unavailable")
+            }
+        }
+    }
+
     @objc func pair(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
-            guard self.pairingCall == nil, self.transport == nil,
+            guard self.pairingCall == nil, self.transport == nil, self.discovery == nil,
                   UIApplication.shared.applicationState == .active,
                   let viewController = self.bridge?.viewController,
                   viewController.presentedViewController == nil,
@@ -124,7 +171,7 @@ public class KufrDeviceTransportPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func connect(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
-            guard self.transport == nil, self.pairingCall == nil,
+            guard self.transport == nil, self.pairingCall == nil, self.discovery == nil,
                   UIApplication.shared.applicationState == .active,
                   let id = call.getString("connectionId"), UUID(uuidString: id) != nil else {
                 call.reject("Spojení nyní není dostupné.", "connection_unavailable")
@@ -135,11 +182,22 @@ public class KufrDeviceTransportPlugin: CAPPlugin, CAPBridgedPlugin {
                     call.reject("Nejprve spárujte kufr.", "not_paired")
                     return
                 }
-                let transport = LocalDeviceTransport(host: identity.host, pin: identity.spkiSha256)
+                let host = self.selectedHost ?? identity.host
+                let transport = LocalDeviceTransport(host: host, pin: identity.spkiSha256)
                 self.transport = transport
                 self.connectionId = id
-                transport.onOpen = { [weak self] in
+                transport.onOpen = { [weak self, weak transport] in
                     guard let self, self.connectionId == id else { return }
+                    do {
+                        if host != identity.host {
+                            try self.keychain.write(LocalDeviceIdentity(deviceId: identity.deviceId, host: host,
+                                spkiSha256: identity.spkiSha256, token: identity.token))
+                        }
+                        self.selectedHost = nil
+                    } catch {
+                        transport?.close()
+                        return
+                    }
                     self.notifyListeners("transport", data: ["connectionId": id, "state": "open"])
                 }
                 transport.onFrame = { [weak self] frame in
@@ -185,7 +243,7 @@ public class KufrDeviceTransportPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func forget(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
-            guard self.pairingCall == nil,
+            guard self.pairingCall == nil, self.discovery == nil,
                   UIApplication.shared.applicationState == .active,
                   let viewController = self.bridge?.viewController,
                   viewController.presentedViewController == nil else {
@@ -200,7 +258,7 @@ public class KufrDeviceTransportPlugin: CAPPlugin, CAPBridgedPlugin {
             })
             prompt.addAction(UIAlertAction(title: "Zapomenout", style: .destructive) { _ in
                 self.transport?.close()
-                do { try self.keychain.remove(); call.resolve() }
+                do { try self.keychain.remove(); self.selectedHost = nil; call.resolve() }
                 catch { call.reject("Párování nelze odstranit.", "credential_write_failed") }
             })
             viewController.present(prompt, animated: true)
