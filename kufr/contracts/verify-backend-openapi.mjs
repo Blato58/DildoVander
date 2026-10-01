@@ -118,6 +118,9 @@ validate('TranscriptionUpload', upload, true);
 validate('TranscriptionUpload', { ...upload, deviceRevision: -1 }, false);
 validate('TranscriptionUpload', { ...upload, text: 'not part of this request' }, false);
 validate('SpeechRequest', { turnId: 'turn-1', outputTarget: 'device' }, true);
+validate('SpeechRequest', { turnId: 'turn-1', outputTarget: 'phone', voice: 'cedar', speed: 1.15 }, true);
+validate('SpeechRequest', { turnId: 'turn-1', outputTarget: 'phone', voice: 'other' }, false);
+validate('SpeechRequest', { turnId: 'turn-1', outputTarget: 'phone', speed: 1.3 }, false);
 validate('SpeechRequest', { turnId: 'turn-1', outputTarget: 'both' }, false);
 validate('SpeechRequest', { turnId: 'turn-1', outputTarget: 'phone', text: 'inject this' }, false);
 

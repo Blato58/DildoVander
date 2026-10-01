@@ -31,7 +31,8 @@ internal sealed partial class ConversationStore
         VoiceOperationKind kind,
         byte[]? inputWav,
         string? reply,
-        string? outputTarget)
+        string? outputTarget,
+        SpeechOptions speechOptions = default)
     {
         if (kind == VoiceOperationKind.Transcription
             && (inputWav is null || inputWav.Length > 1_920_512
@@ -103,7 +104,8 @@ internal sealed partial class ConversationStore
                 : conversation.AbsoluteExpiresAt;
             var workerInput = ownedInput;
             _ = Task.Run(() => ProcessVoiceCallAsync(
-                reservation.OperationId, correlation, kind, workerInput, reply, outputTarget, cancellation));
+                reservation.OperationId, correlation, kind, workerInput, reply,
+                outputTarget, speechOptions, cancellation));
             queued = true;
             return new SubmitTurnResult(202, reservation.OperationId, null);
         }
@@ -128,6 +130,7 @@ internal sealed partial class ConversationStore
         byte[]? inputWav,
         string? reply,
         string? outputTarget,
+        SpeechOptions speechOptions,
         CancellationTokenSource cancellation)
     {
         byte[]? generatedWav = null;
@@ -154,7 +157,7 @@ internal sealed partial class ConversationStore
             }
             else
             {
-                generatedWav = await voiceRunner!.SpeakAsync(reply!, cancellation.Token);
+                generatedWav = await voiceRunner!.SpeakAsync(reply!, speechOptions, cancellation.Token);
                 if (generatedWav.Length > PcmSpeechAudio.MaxWavBytes
                     || TranscriptionUploadReader.ValidateWav(generatedWav) != 200)
                 {

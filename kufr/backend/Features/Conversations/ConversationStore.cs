@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
+using Kufr.Backend.Features.Speech;
 using Kufr.Backend.Features.VoiceTurns;
 
 namespace Kufr.Backend.Features.Conversations;
@@ -232,16 +233,21 @@ internal sealed partial class ConversationStore(
                     return new SubmitTurnResult(202, operationId, null);
                 }
 
+                var turnResult = deviceId == "debug-server-admin"
+                    ? BuildAdminFakeTurn(conversation, request, conversationId, opening, now)
+                    : new TurnResult(
+                        opening ? "Jak ti říkají?" : "Toto je testovací odpověď bez AI.",
+                        "ask", "", null);
                 var operation = new TurnOperation(
                     operationId,
                     "turn",
                     "completed",
                     correlation,
-                    new TurnResult(opening ? "Jak ti říkají?" : "Toto je testovací odpověď bez AI.", "ask", "", null),
+                    turnResult,
                     null);
 
                 eveningMemory?.Append(deviceId, memory!.EveningId, operationId,
-                    conversationId, request.Text, ((TurnResult)operation.Result!).Reply);
+                    conversationId, request.Text, turnResult.Reply);
                 if (!journal.MarkCompleted(operationId))
                 {
                     return new SubmitTurnResult(409, null, "operation_cancelled");
@@ -249,6 +255,16 @@ internal sealed partial class ConversationStore(
 
                 operations.Add(operationId, operation);
                 RecordAcceptedTurn(conversation, request.ClientTurnId, now);
+                if (deviceId == "debug-server-admin")
+                {
+                    if (turnResult.Decision == "ask")
+                    {
+                        conversation.CompletedQuestions++;
+                    }
+
+                    conversation.TerminalReplyPublished = turnResult.Decision is "propose" or "no_selection";
+                }
+
                 return new SubmitTurnResult(202, operationId, null);
             }
             finally
@@ -259,6 +275,51 @@ internal sealed partial class ConversationStore(
                 }
             }
         }
+    }
+
+    private static TurnResult BuildAdminFakeTurn(
+        ConversationEntry conversation,
+        TextTurnRequest request,
+        string conversationId,
+        bool opening,
+        DateTimeOffset now)
+    {
+        if (request.ReadyMask == 0)
+        {
+            return new TurnResult(
+                "Dnes nemám připravenou žádnou hůlku. Zkusíme to, až budou přihrádky připravené.",
+                "no_selection", "Žádná přihrádka není dostupná.", null);
+        }
+
+        string[] questions =
+        [
+            "Jak ti říkají?",
+            "Co tě v poslední době opravdu bavilo?",
+            "Kdy ses naposledy odvážil zkusit něco nového?",
+            "Co na tobě tvoji blízcí nejvíc oceňují?"
+        ];
+        if (conversation.CompletedQuestions < ResponsesTextDialogBudget.MinimumQuestions)
+        {
+            var question = questions[conversation.CompletedQuestions];
+            var reply = opening || string.IsNullOrWhiteSpace(request.Text)
+                ? question
+                : $"To si zapamatuju. {question}";
+            return new TurnResult(reply, "ask", "", null);
+        }
+
+        var available = Enumerable.Range(1, 6)
+            .Where(compartment => (request.ReadyMask & (1 << (compartment - 1))) != 0)
+            .ToArray();
+        var answerHash = SHA256.HashData(Encoding.UTF8.GetBytes(request.Text));
+        var compartment = available[answerHash[0] % available.Length];
+        const string reason = "Tahle hůlka ladí s odpověďmi našeho zkušebního rozhovoru.";
+        var proposal = new SelectionProposal(
+            Guid.NewGuid().ToString("D"), conversationId, request.ClientTurnId,
+            request.CatalogVersion, request.DeviceRevision, compartment, reason,
+            request.BootId, request.Generation, now.AddSeconds(60));
+        return new TurnResult(
+            $"Rozhodnuto. Navrhuji hůlku z přihrádky {compartment}.",
+            "propose", reason, proposal);
     }
 
     private async Task ProcessPaidTurnAsync(
@@ -598,7 +659,8 @@ internal sealed partial class ConversationStore(
             {
                 return QueueVoiceCall(
                     deviceId, route, key, bodyHash, source.Correlation,
-                    VoiceOperationKind.Speech, null, ((TurnResult)source.Result!).Reply, request.OutputTarget);
+                    VoiceOperationKind.Speech, null, ((TurnResult)source.Result!).Reply,
+                    request.OutputTarget, SpeechOptions.Resolve(request.Voice, request.Speed));
             }
 
             if (HasActiveCall(conversationId))
@@ -938,7 +1000,11 @@ internal sealed record SelectionProposal(
     int Generation,
     DateTimeOffset ExpiresAt);
 internal sealed record TranscriptionResult(string Transcript, string Source);
-internal sealed record SpeechRequest(Guid TurnId, string OutputTarget);
+internal sealed record SpeechRequest(
+    Guid TurnId,
+    string OutputTarget,
+    string? Voice = null,
+    double? Speed = null);
 internal sealed record SpeechResult(string AudioId, DateTimeOffset ExpiresAt, string OutputTarget);
 internal sealed record AudioReadResult(int Status, byte[]? Wav);
 internal sealed record AudioEntry(string DeviceId, string ConversationId, string OperationId, DateTimeOffset ExpiresAt, byte[] Wav);

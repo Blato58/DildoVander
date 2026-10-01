@@ -49,40 +49,191 @@ final class DebugNoRedirects: NSObject, URLSessionTaskDelegate {
     }
 }
 
+// URLSession feeds bounded chunks on its delegate queue. Per-byte iteration
+// on MainActor can stall both playback preparation and the debug status UI.
+final class DebugHTTPTransport: NSObject, URLSessionDataDelegate, @unchecked Sendable {
+    private let lock = NSLock()
+    private var calls: [Int: DebugHTTPCall] = [:]
+    private var session: URLSession!
+    override init() {
+        super.init()
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.httpCookieStorage = nil
+        configuration.urlCache = nil
+        configuration.timeoutIntervalForRequest = 15
+        configuration.timeoutIntervalForResource = 60
+        session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+    }
+
+    func request(_ request: URLRequest, limit: Int) async throws -> (Data, HTTPURLResponse) {
+        let call = DebugHTTPCall(limit: limit)
+        return try await withTaskCancellationHandler(operation: {
+            try await withCheckedThrowingContinuation { continuation in
+                let task = session.dataTask(with: request)
+                lock.lock(); calls[task.taskIdentifier] = call; lock.unlock()
+                call.start(task, continuation: continuation)
+            }
+        }, onCancel: { call.fail(CancellationError()) })
+    }
+
+    func invalidate() { session.invalidateAndCancel() }
+
+    private func call(_ task: URLSessionTask) -> DebugHTTPCall? {
+        lock.lock(); defer { lock.unlock() }
+        return calls[task.taskIdentifier]
+    }
+
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
+                    completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+        guard let call = call(dataTask), let response = response as? HTTPURLResponse,
+              call.accept(response) else { completionHandler(.cancel); return }
+        completionHandler(.allow)
+    }
+
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        call(dataTask)?.append(data)
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        lock.lock(); let call = calls.removeValue(forKey: task.taskIdentifier); lock.unlock()
+        if let error = error { call?.fail(error) } else { call?.complete() }
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
+        completionHandler(nil)
+    }
+}
+
+private final class DebugHTTPCall: @unchecked Sendable {
+    private let lock = NSLock()
+    private let limit: Int
+    private var finished = false
+    private var task: URLSessionDataTask?
+    private var continuation: CheckedContinuation<(Data, HTTPURLResponse), Error>?
+    private var response: HTTPURLResponse?
+    private var data = Data()
+    init(limit: Int) { self.limit = limit }
+
+    func start(_ task: URLSessionDataTask, continuation: CheckedContinuation<(Data, HTTPURLResponse), Error>) {
+        lock.lock()
+        if finished {
+            lock.unlock(); task.cancel(); continuation.resume(throwing: CancellationError()); return
+        }
+        self.task = task; self.continuation = continuation
+        lock.unlock(); task.resume()
+    }
+
+    func accept(_ response: HTTPURLResponse) -> Bool {
+        if response.expectedContentLength > Int64(limit) { fail(DebugBackendError.tooLarge); return false }
+        lock.lock(); defer { lock.unlock() }
+        guard !finished else { return false }
+        self.response = response; return true
+    }
+
+    func append(_ chunk: Data) {
+        lock.lock()
+        guard !finished else { lock.unlock(); return }
+        if chunk.count > limit - data.count {
+            lock.unlock(); fail(DebugBackendError.tooLarge); return
+        }
+        data.append(chunk); lock.unlock()
+    }
+
+    func fail(_ error: Error) { finish(.failure(error)) }
+    func complete() {
+        lock.lock()
+        let result: Result<(Data, HTTPURLResponse), Error> = response.map { .success((data, $0)) }
+            ?? .failure(DebugBackendError.invalidResponse)
+        lock.unlock(); finish(result)
+    }
+    private func finish(_ result: Result<(Data, HTTPURLResponse), Error>) {
+        lock.lock()
+        guard !finished else { lock.unlock(); return }
+        finished = true
+        let continuation = self.continuation; self.continuation = nil
+        let task = self.task; self.task = nil
+        data.removeAll(keepingCapacity: false)
+        lock.unlock()
+        if case .failure = result { task?.cancel() }
+        continuation?.resume(with: result)
+    }
+}
+
 @MainActor
 final class DebugBackendClient {
     typealias HTTP = (URLRequest, Int) async throws -> (Data, HTTPURLResponse)
     private let http: HTTP
-    private let session: URLSession?
+    private let transport: DebugHTTPTransport?
 
     init(http: HTTP? = nil) {
         if let http = http {
             self.http = http
-            session = nil
+            transport = nil
         } else {
-            let configuration = URLSessionConfiguration.ephemeral
-            configuration.httpCookieStorage = nil
-            configuration.urlCache = nil
-            configuration.timeoutIntervalForRequest = 15
-            configuration.timeoutIntervalForResource = 20
-            let session = URLSession(configuration: configuration)
-            self.session = session
-            self.http = { request, limit in
-                let (bytes, response) = try await session.bytes(for: request, delegate: DebugNoRedirects())
-                guard let response = response as? HTTPURLResponse else { throw DebugBackendError.invalidResponse }
-                guard response.expectedContentLength <= Int64(limit) else { throw DebugBackendError.tooLarge }
-                var data = Data()
-                for try await byte in bytes {
-                    if data.count >= limit { throw DebugBackendError.tooLarge }
-                    data.append(byte)
-                }
-                try Task.checkCancellation()
-                return (data, response)
-            }
+            let transport = DebugHTTPTransport()
+            self.transport = transport
+            self.http = { request, limit in try await transport.request(request, limit: limit) }
         }
     }
 
-    deinit { session?.invalidateAndCancel() }
+    deinit { transport?.invalidate() }
+
+    func openSession(_ profile: DebugBackendProfile, expectedMode: String, readyMask: Int,
+                     voice: String, speed: Double) async throws -> DebugDialogSession {
+        guard ["fake", "openai"].contains(expectedMode), (0...63).contains(readyMask),
+              ["cedar", "marin", "onyx", "coral"].contains(voice), speed.isFinite,
+              (0.85...1.25).contains(speed) else { throw DebugBackendError.invalidResponse }
+        let token = try await accessToken(profile)
+        guard try await metadata(profile, token: token, expectedMode: expectedMode, requireDialog: true) == expectedMode else {
+            throw DebugBackendError.wrongMode
+        }
+        let boot = UUID().uuidString.lowercased()
+        let created = try await json(profile, path: "v1/conversations", token: token, method: "POST", body: [
+            "deviceId": profile.deviceId, "bootId": boot, "generation": 0,
+            "catalogVersion": "ollivander-private-party-v1", "locale": "cs-CZ",
+            "consent": ["audio": true, "image": false]
+        ])
+        let conversation = try uuid(created, "conversationId")
+        do {
+            guard try await metadata(profile, token: token, expectedMode: expectedMode, requireDialog: true) == expectedMode else {
+                throw DebugBackendError.wrongMode
+            }
+            try Task.checkCancellation()
+            return DebugDialogSession(client: self, profile: profile, token: token, conversation: conversation,
+                                      boot: boot, readyMask: readyMask, voice: voice, speed: speed)
+        } catch {
+            try? await cleanup(profile, token: token, conversation: conversation)
+            throw error
+        }
+    }
+
+    fileprivate func upload(_ profile: DebugBackendProfile, token: String, path: String,
+                            fields: [String: String], wav: Data) async throws -> [String: Any] {
+        guard Self.validWav(wav) else { throw DebugBackendError.invalidResponse }
+        let boundary = UUID().uuidString.lowercased()
+        var body = Data()
+        for name in fields.keys.sorted() {
+            body.append(Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"\(name)\"\r\n\r\n\(fields[name]!)\r\n".utf8))
+        }
+        body.append(Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"wav\"; filename=\"answer.wav\"\r\nContent-Type: audio/wav\r\n\r\n".utf8))
+        body.append(wav)
+        body.append(Data("\r\n--\(boundary)--\r\n".utf8))
+        var request = URLRequest(url: profile.baseURL.appendingPathComponent(path))
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(boundary, forHTTPHeaderField: "Idempotency-Key")
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body
+        try Task.checkCancellation()
+        let (data, response) = try await http(request, 16_384)
+        try Task.checkCancellation()
+        guard data.count <= 16_384, response.statusCode == 202, response.mimeType == "application/json",
+              let value = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw DebugBackendError.invalidResponse
+        }
+        return value
+    }
 
     func inspect(_ profile: DebugBackendProfile) async throws -> String {
         let token = try await accessToken(profile)
@@ -172,7 +323,7 @@ final class DebugBackendClient {
         }
     }
 
-    private func accessToken(_ profile: DebugBackendProfile) async throws -> String {
+    fileprivate func accessToken(_ profile: DebugBackendProfile) async throws -> String {
         let result = try await json(profile, path: "v1/device-access/token", token: profile.credential, method: "POST")
         guard result["deviceId"] as? String == profile.deviceId,
               let token = result["accessToken"] as? String, !token.isEmpty, token.utf8.count <= 256,
@@ -182,9 +333,13 @@ final class DebugBackendClient {
         return token
     }
 
-    private func metadata(_ profile: DebugBackendProfile, token: String, expectedMode: String? = nil) async throws -> String {
+    fileprivate func metadata(_ profile: DebugBackendProfile, token: String, expectedMode: String? = nil,
+                              requireDialog: Bool = false) async throws -> String {
         let result = try await json(profile, path: "v1/diagnostics", token: token)
         if expectedMode == "fake" && result["dialogMode"] as? String != "fake" {
+            throw DebugBackendError.wrongMode
+        }
+        if requireDialog && expectedMode == "openai" && result["dialogMode"] as? String != "responses" {
             throw DebugBackendError.wrongMode
         }
         guard let mode = result["voiceMode"] as? String, ["fake", "openai"].contains(mode),
@@ -195,9 +350,9 @@ final class DebugBackendClient {
         return mode
     }
 
-    private func poll(_ profile: DebugBackendProfile, token: String, id: String, kind: String,
+    fileprivate func poll(_ profile: DebugBackendProfile, token: String, id: String, kind: String,
                       correlation: [String: Any]) async throws -> [String: Any] {
-        let deadline = Date().addingTimeInterval(25)
+        let deadline = Date().addingTimeInterval(55)
         while Date() < deadline {
             try Task.checkCancellation()
             let operation = try await json(profile, path: "v1/operations/\(id)", token: token)
@@ -212,7 +367,7 @@ final class DebugBackendClient {
         throw DebugBackendError.timeout
     }
 
-    private func cleanup(_ profile: DebugBackendProfile, token: String, conversation: String) async throws {
+    fileprivate func cleanup(_ profile: DebugBackendProfile, token: String, conversation: String) async throws {
         // An unstructured task performs cleanup even when the caller was cancelled.
         // Only the conversation ID acquired by this run may be deleted.
         try await Task { @MainActor in
@@ -230,7 +385,7 @@ final class DebugBackendClient {
         }.value
     }
 
-    private func json(_ profile: DebugBackendProfile, path: String, token: String,
+    fileprivate func json(_ profile: DebugBackendProfile, path: String, token: String,
                       method: String = "GET", body: [String: Any]? = nil,
                       idempotencyKey: String? = nil, recoverCancelledCreate: Bool = true) async throws -> [String: Any] {
         let key = idempotencyKey ?? UUID().uuidString.lowercased()
@@ -269,7 +424,7 @@ final class DebugBackendClient {
         throw DebugBackendError.invalidResponse
     }
 
-    private func request(_ profile: DebugBackendProfile, path: String, token: String,
+    fileprivate func request(_ profile: DebugBackendProfile, path: String, token: String,
                          method: String, body: [String: Any]?, limit: Int, key: String? = nil) async throws -> (Data, HTTPURLResponse) {
         try Task.checkCancellation()
         var request = URLRequest(url: profile.baseURL.appendingPathComponent(path))
@@ -287,7 +442,7 @@ final class DebugBackendClient {
         return (data, response)
     }
 
-    private func uuid(_ object: [String: Any], _ key: String) throws -> String {
+    fileprivate func uuid(_ object: [String: Any], _ key: String) throws -> String {
         guard let value = object[key] as? String, let parsed = UUID(uuidString: value),
               parsed.uuidString.lowercased() == value.lowercased() else { throw DebugBackendError.invalidResponse }
         return value.lowercased()
@@ -305,5 +460,157 @@ final class DebugBackendClient {
             number(22, 2) == 1 && number(24, 4) == 32_000 && number(28, 4) == 64_000 &&
             number(32, 2) == 2 && number(34, 2) == 16 && number(40, 4) == UInt32(data.count - 44) &&
             (data.count - 44) % 2 == 0
+    }
+}
+
+struct DebugDialogReply {
+    let text: String
+    let wav: Data
+    let selected: Int?
+    let terminal: Bool
+    let timings: [String: Double]
+}
+
+// A virtual session owns only its conversation and downloaded speech operation.
+// It never submits a physical command or a real ESP snapshot.
+@MainActor
+final class DebugDialogSession {
+    private let client: DebugBackendClient
+    private let profile: DebugBackendProfile
+    private let token: String
+    private let conversation: String
+    private let boot: String
+    private let readyMask: Int
+    private let voice: String
+    private let speed: Double
+    private var speechOperation: String?
+    private var closed = false
+    private var closing: Task<Void, Error>?
+    private var terminal = false
+    private var turns = 0
+
+    init(client: DebugBackendClient, profile: DebugBackendProfile, token: String, conversation: String,
+         boot: String, readyMask: Int, voice: String, speed: Double) {
+        self.client = client; self.profile = profile; self.token = token; self.conversation = conversation
+        self.boot = boot; self.readyMask = readyMask; self.voice = voice; self.speed = speed
+    }
+
+    private func correlation(_ turn: String) -> [String: Any] {
+        ["deviceId": profile.deviceId, "bootId": boot, "conversationId": conversation,
+         "clientTurnId": turn, "generation": 0, "deviceRevision": 0]
+    }
+
+    func advance(_ text: String?, phase: (String) -> Void, reply: (String) -> Void) async throws -> DebugDialogReply {
+        guard !closed, !terminal, turns < 10, speechOperation == nil,
+              (turns == 0) == (text == nil) else { throw DebugBackendError.invalidResponse }
+        if let text = text {
+            guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  text.unicodeScalars.count <= 1000 else { throw DebugBackendError.invalidResponse }
+        }
+        let start = ProcessInfo.processInfo.systemUptime
+        let turn = UUID().uuidString.lowercased()
+        var body: [String: Any] = ["clientTurnId": turn, "bootId": boot, "generation": 0,
+            "readyMask": readyMask, "deviceRevision": 0, "catalogVersion": "ollivander-private-party-v1"]
+        if let text = text { body["text"] = text }
+        phase(text == nil ? "opening" : "turn")
+        let accepted = try await client.json(profile, path: "v1/conversations/\(conversation)/\(text == nil ? "opening" : "turns")",
+                                             token: token, method: "POST", body: body)
+        let result = try await client.poll(profile, token: token, id: client.uuid(accepted, "operationId"),
+                                           kind: "turn", correlation: correlation(turn))
+        guard let response = result["reply"] as? String, !response.isEmpty, response.unicodeScalars.count <= 500,
+              let decision = result["decision"] as? String, ["ask", "propose", "no_selection"].contains(decision) else {
+            throw DebugBackendError.invalidResponse
+        }
+        var selected: Int?
+        var selectionExpiry: Date?
+        if decision == "propose" {
+            guard let proposal = result["proposal"] as? [String: Any],
+                  proposal["conversationId"] as? String == conversation,
+                  proposal["turnId"] as? String == turn,
+                  proposal["bootId"] as? String == boot,
+                  proposal["catalogVersion"] as? String == "ollivander-private-party-v1",
+                  let revision = proposal["deviceRevision"] as? NSNumber, revision == 0,
+                  let generation = proposal["generation"] as? NSNumber, generation == 0,
+                  let number = proposal["compartment"] as? NSNumber,
+                  number.doubleValue == Double(number.intValue), (1...6).contains(number.intValue),
+                  readyMask & (1 << (number.intValue - 1)) != 0,
+                  let expiry = proposal["expiresAt"] as? String,
+                  let parsedExpiry = Self.date(expiry), parsedExpiry > Date(),
+                  parsedExpiry < Date().addingTimeInterval(65) else {
+                throw DebugBackendError.invalidResponse
+            }
+            _ = try client.uuid(proposal, "proposalId")
+            selected = number.intValue
+            selectionExpiry = parsedExpiry
+        } else if !(result["proposal"] == nil || result["proposal"] is NSNull) {
+            throw DebugBackendError.invalidResponse
+        }
+        let dialogEnd = ProcessInfo.processInfo.systemUptime
+        reply(response)
+        phase("speech")
+        let speech = try await client.json(profile, path: "v1/conversations/\(conversation)/speech", token: token,
+            method: "POST", body: ["turnId": turn, "outputTarget": "phone", "voice": voice, "speed": speed])
+        let operation = try client.uuid(speech, "operationId")
+        speechOperation = operation
+        let audio = try await client.poll(profile, token: token, id: operation, kind: "speech", correlation: correlation(turn))
+        guard audio["outputTarget"] as? String == "phone" else { throw DebugBackendError.invalidResponse }
+        let speechEnd = ProcessInfo.processInfo.systemUptime
+        phase("download")
+        let (wav, http) = try await client.request(profile, path: "v1/audio/\(client.uuid(audio, "audioId"))", token: token,
+                                                  method: "GET", body: nil, limit: 1_920_044)
+        guard http.mimeType == "audio/wav", DebugBackendClient.validWav(wav) else { throw DebugBackendError.invalidResponse }
+        if let selectionExpiry = selectionExpiry, selectionExpiry <= Date() { throw DebugBackendError.invalidResponse }
+        let end = ProcessInfo.processInfo.systemUptime
+        terminal = decision != "ask"; turns += 1
+        return DebugDialogReply(text: response, wav: wav, selected: selected, terminal: terminal, timings: [
+            "dialogMs": (dialogEnd - start) * 1000, "speechMs": (speechEnd - dialogEnd) * 1000,
+            "downloadMs": (end - speechEnd) * 1000, "totalMs": (end - start) * 1000])
+    }
+
+    func releaseSpeech() async throws {
+        guard let operation = speechOperation else { return }
+        let key = UUID().uuidString.lowercased()
+        for attempt in 0..<2 {
+            do {
+                let (_, response) = try await client.request(profile, path: "v1/operations/\(operation)", token: token,
+                                                              method: "DELETE", body: nil, limit: 4096, key: key)
+                guard response.statusCode == 204 else { throw DebugBackendError.invalidResponse }
+                speechOperation = nil
+                return
+            } catch {
+                try Task.checkCancellation()
+                if attempt == 1 { throw error }
+            }
+        }
+    }
+
+    func transcribe(_ wav: Data) async throws -> String {
+        guard !closed, !terminal, turns > 0, speechOperation == nil else { throw DebugBackendError.invalidResponse }
+        let turn = UUID().uuidString.lowercased()
+        let accepted = try await client.upload(profile, token: token, path: "v1/conversations/\(conversation)/transcriptions",
+            fields: ["clientTurnId": turn, "bootId": boot, "generation": "0", "deviceRevision": "0"], wav: wav)
+        let result = try await client.poll(profile, token: token, id: client.uuid(accepted, "operationId"),
+                                           kind: "transcription", correlation: correlation(turn))
+        guard let text = result["transcript"] as? String, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              text.unicodeScalars.count <= 1000 else { throw DebugBackendError.invalidResponse }
+        return text
+    }
+
+    func close() async throws {
+        guard !closed else { return }
+        if let closing = closing { try await closing.value; return }
+        let closing = Task { @MainActor in
+            try await client.cleanup(profile, token: token, conversation: conversation)
+            closed = true; speechOperation = nil
+        }
+        self.closing = closing
+        do { try await closing.value }
+        catch { self.closing = nil; throw error }
+    }
+
+    private static func date(_ value: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.date(from: value) ?? ISO8601DateFormatter().date(from: value)
     }
 }

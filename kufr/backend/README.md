@@ -1,5 +1,19 @@
 # Backend kufru (E7)
 
+D110 rozšiřuje `POST /v1/conversations/{id}/speech` o volitelné `voice`
+(`cedar`, `marin`, `onyx`, `coral`) a konečné `speed` 0.85–1.25. Chybějící
+hodnoty zachovají marin/1.0. Jiná pole/hlasy a neplatná rychlost se odmítají;
+idempotence zahrnuje zvolené hodnoty. Pevný model, souhlas, nákladové rezervace,
+32kHz PCM16 a jeden aktivní audio výstup zůstávají. Log měří provider a PCM
+konverzi bez textu návštěvníka.
+
+Výhradně fake dialog virtuální identity `debug-server-admin` položí čtyři
+otázky a navrhne jednu přihrádku z masky; maska 0 vede k `no_selection`.
+Je to neplacená diagnostická simulace pro iOS D110, nikoli skutečný snapshot
+nebo fyzické ovládání. Běžné fake identity ani Responses Sol se nemění.
+Fake přepis nahrávky zůstává syntetický. Odeslání vlastní hlasové odpovědi
+k opravdovému STT vyžaduje explicitní `voice_mode=openai` a může čerpat limit.
+
 ASP.NET Core 10 Minimal API pro přímé HTTPS spojení ESP32 s backendem.
 E7.1–2 přijímají servisně provisionovaný device credential,
 vydávají 15minutový access token, zakládají nejvýše jedno fake sezení pro zařízení

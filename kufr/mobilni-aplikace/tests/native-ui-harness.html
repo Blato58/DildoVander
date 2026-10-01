@@ -15,7 +15,34 @@
       let saved;
       let listener;
       let connectionId;
-      let debugStatus = { configured: false, running: false, phase: 'idle', mode: 'unknown' };
+      let debugStatus = { configured: false, running: false, session: false, recording: false,
+        phase: 'idle', mode: 'unknown', transcript: [], selected: null, timings: null };
+      let simulatedMask = 63;
+      let askedQuestions = 0;
+      const questions = [
+        'Jak ti říkají?', 'Co tě v poslední době opravdu bavilo?',
+        'Kdy ses naposledy odvážil zkusit něco nového?',
+        'Co na tobě tvoji blízcí nejvíc oceňují?',
+      ];
+      function simulateAnswer(text) {
+        if (!debugStatus.session || debugStatus.recording || !text.trim()) {
+          throw new Error('No answer expected');
+        }
+        debugStatus.transcript.push({ role: 'visitor', text });
+        if (askedQuestions < questions.length) {
+          debugStatus.transcript.push({ role: 'kufr', text: questions[askedQuestions++] });
+          debugStatus.phase = 'awaiting';
+        } else {
+          const available = Array.from({ length: 6 }, (_, index) => index + 1)
+            .filter(number => simulatedMask & (1 << (number - 1)));
+          debugStatus.selected = available[(text.length + askedQuestions) % available.length];
+          debugStatus.transcript.push({ role: 'kufr',
+            text: `Navrhuji hůlku z přihrádky ${debugStatus.selected}.` });
+          debugStatus.session = false;
+          debugStatus.phase = 'completed';
+        }
+        debugStatus.timings = { dialogMs: 45, speechMs: 80, downloadMs: 12, totalMs: 137 };
+      }
       let serverState = { revision: 'test-revision', dialogMode: 'fake', voiceMode: 'fake',
         dialogAvailable: true, voiceAvailable: true, activeConversations: 0, lifetime: 'until_restart' };
       window.CapacitorCustomPlatform = { name: 'ios' };
@@ -23,7 +50,9 @@
         PluginHeaders: [{ name: 'KufrDeviceTransport', methods: [
           ...['savedDevice', 'discover', 'setAddress', 'pair', 'connect', 'send', 'close', 'forget', 'removeListener'].map((name) => ({ name, rtype: 'promise' })),
           { name: 'addListener', rtype: 'callback' },
-        ] }, { name: 'KufrDebug', methods: ['status', 'configure', 'inspectBackend', 'inspectServer', 'changeServerModes', 'runOpeningSpeech', 'speakSystem', 'stop', 'shareLog'].map((name) => ({ name, rtype: 'promise' })) }],
+        ] }, { name: 'KufrDebug', methods: ['status', 'configure', 'inspectBackend', 'inspectServer', 'changeServerModes',
+          'runOpeningSpeech', 'startConversation', 'answerConversation', 'startRecording', 'finishRecording',
+          'speakSystem', 'stop', 'shareLog'].map((name) => ({ name, rtype: 'promise' })) }],
         nativeCallback(_plugin, method, _options, callback) {
           if (method === 'addListener') { listener = callback; return Promise.resolve('listener-1'); }
         },
@@ -43,7 +72,34 @@
               setTimeout(() => { if (debugStatus.phase === 'playing') { debugStatus.running = false; debugStatus.phase = 'completed'; } }, 1500);
               return;
             }
-            if (method === 'stop') { debugStatus.running = false; debugStatus.phase = 'cancelled'; return; }
+            if (method === 'startConversation') {
+              if (debugStatus.session) { throw new Error('Session active'); }
+              simulatedMask = options.readyMask;
+              askedQuestions = simulatedMask ? 1 : 0;
+              debugStatus.session = simulatedMask !== 0;
+              debugStatus.recording = false;
+              debugStatus.selected = null;
+              debugStatus.transcript = [{ role: 'kufr', text: simulatedMask
+                ? questions[0] : 'Dnes nemám připravenou žádnou hůlku.' }];
+              debugStatus.timings = { dialogMs: 40, speechMs: 80, downloadMs: 10, totalMs: 130 };
+              debugStatus.phase = simulatedMask ? 'awaiting' : 'completed';
+              return;
+            }
+            if (method === 'answerConversation') { simulateAnswer(options.text); return; }
+            if (method === 'startRecording') {
+              if (!debugStatus.session || debugStatus.phase !== 'awaiting') { throw new Error('No recording turn'); }
+              debugStatus.recording = true; debugStatus.phase = 'recording'; return;
+            }
+            if (method === 'finishRecording') {
+              if (!debugStatus.recording) { throw new Error('No recording'); }
+              debugStatus.recording = false; debugStatus.phase = 'awaiting';
+              simulateAnswer('Moje odpověď nahraná mikrofonem'); return;
+            }
+            if (method === 'stop') {
+              debugStatus.running = false; debugStatus.session = false; debugStatus.recording = false;
+              debugStatus.transcript = []; debugStatus.selected = null; debugStatus.timings = null;
+              debugStatus.phase = 'cancelled'; return;
+            }
             if (method === 'shareLog') { return; }
           }
           if (method === 'removeListener') { listener = null; return; }
