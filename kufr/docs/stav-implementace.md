@@ -6,7 +6,7 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**D120 – oprava iPhone audio uploadu připravena; macOS CI blokují platby/limit GitHub.**
+**D120 – oprava iPhone audio uploadu ověřena také na macOS/Xcode.**
 Majitel sdílí `realtime_live_audio_overflow` a stabilní připojení. Nalezený
 defekt: iOS vytvářelo a rušilo URLSession pro každý PCM POST (nejvýše 200 ms
 audia), přitom mělo jen 1 s frontu a při průběžném drainu posílalo i menší
@@ -33,22 +33,33 @@ finish/cancel. Izolovaná baseline s původním per-frame URLSession otevřela
 10 spojení a prokazatelně selhala na reuse assertion. Původní multi-turn
 loopback test také prošel s dočasnou Linux adaptací importů a bez Keychain
 a AVAudioConverter testu; jeho převodník/iPhone audio tím není ověřený.
-Linux FoundationNetworking upozorňuje na již existující Sendable mutable
-state v live-stream delegátovi; macOS kompilace celé aplikace ještě chybí.
+Linux FoundationNetworking upozorňovalo na již existující Sendable mutable
+state v live-stream delegátovi; nativní macOS kompilace nyní prošla.
 
 Nové čtení logů workflow 36931829723 selhalo před prvním krokem runneru:
 GitHub annotation uvádí neúspěšné platby nebo nutnost zvýšit spending limit.
 Poslední úspěšný snapshot 36928995676 je z 21:29 UTC a předchází screenshotu,
-proto nepotvrzuje konkrétní příčinu incidentu. Stejná blokace brání novému
-macOS/Xcode CI. Implementační commit
+proto nepotvrzoval konkrétní příčinu incidentu. Majitel následně opravil
+billing. Opakovaný CI běh 36932961956 (attempt 2, head `980301a`)
+prošel všemi povinnými kontrolami: macOS Swift harness včetně nového upload
+testu, Xcode 26.3 simulator build a spuštění aplikace, web/kontrakty,
+backend a oba firmware profily/host testy. Placený AI job zůstal vypnutý.
+Nové serverové čtení 36936002408 a filtrované 36936100858 proběhlo úspěšně:
+responses/openai dostupné, 0 aktivních rozhovorů, žádné droppedWrites ani
+truncated. U rozhovoru v 21:47 UTC byl úvod dokončen a poslech otevřen,
+poté telefon ukončil stream (499); žádná provider chyba v dané korelaci.
+To odpovídá lokálnímu overflow, ale samo neměří upload RTT ani neprokazuje
+celou příčinu screenshotu. Implementační commit
 `3fdcf6ac9261ab1edc2ddf63780d17eea09427bd` byl pushnut do větve
 `fix/ios-realtime-upload-overflow`, shoda vzdáleného SHA ověřena.
 Push-CurrentBranch.ps1 byl spuštěn, ale nemá uložený OAuth token účtu;
 session API potvrdilo Blato58 a push proběhl přes scoped gh credential
-helper bez změny ostatních účtů. [Draft PR #90](https://github.com/Blato58/DildoVander/pull/90)
-je bez konfliktů a čeká na nativní ověření. Další krok: obnovit GitHub Actions, nechat projít povinné CI,
-poté zvlášť autorizovat podpis/publikaci IPA a ověřit skutečný iPhone/5G
-rozhovor. Bez placeného AI testu, backend deploymentu nebo nové IPA.
+helper bez změny ostatních účtů. [PR #90](https://github.com/Blato58/DildoVander/pull/90)
+eviduje finální head, povinné CI a výsledek sloučení. Tento zápis aktualizuje
+původní blokaci; povinné CI následně ověří i tento dokumentační head.
+Další krok: připravit podepsaný Ad Hoc artifact z ověřené main verze,
+publikovat jej až v autorizovaném rozsahu a ověřit skutečný iPhone/5G
+rozhovor. Bez placeného AI testu, backend deploymentu nebo flash do desky.
 
 **D119 – Realtime hlas přímo na ESP a nastavení v Ovládání; všechny provider cesty přes SDK.**
 Majitel 1. 10. požaduje přidat Realtime do firmware, nastavovat hlasový režim
