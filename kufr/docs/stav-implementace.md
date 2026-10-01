@@ -45,6 +45,10 @@ nyní zahrnují DebugRealtimeSession. macOS ověření pokračuje v PR.
 Linux backend v CI 36887687842 kompletně prošel. Další macOS compile odhalil
 fileprivate u sdíleného cleanup; metoda je nově internal pro oba nativní
 klienty, bez změny síťového kontraktu nebo chování mazání.
+CI 36888412422 prošlo oba nativní harness včetně Realtime. Xcode ještě
+vyžaduje explicitní MainActor u failDialog/stopWork; notification callbacks
+nově přecházejí přes hlavní DispatchQueue, ostatní callsites již běží na ní
+nebo v MainActor Task. Kompletní iOS build/spuštění se dál ověřují v PR.
 Read-only review opravil immutable model, 32KiB audio bloky, playback drain,
 cleanup retry, souběh streamu a pořadí paměť/journal. Oddělené SQLite soubory
 nejsou společná atomická transakce: chyba journalu po úspěšné paměti může
