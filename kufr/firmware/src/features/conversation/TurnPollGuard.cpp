@@ -1,8 +1,6 @@
 #include "TurnPollGuard.h"
 
-namespace {
-
-bool ParseUtcExpiry(const std::string& value, uint64_t& seconds) {
+bool ParseConversationUtcExpiry(const std::string& value, uint64_t& seconds) {
   // DateTimeOffset from the backend uses UTC with optional fractional seconds.
   if (value.size() < 20 || value.size() > 35 || value[4] != '-' ||
       value[7] != '-' || value[10] != 'T' || value[13] != ':' ||
@@ -70,8 +68,6 @@ bool ParseUtcExpiry(const std::string& value, uint64_t& seconds) {
             minute * 60 + second;
   return true;
 }
-
-}  // namespace
 
 TurnPollDecision EvaluateTurnOperation(
     const std::string& expectedOperationId,
@@ -153,7 +149,7 @@ TurnPollDecision EvaluateTurnOperationWithProposal(
       proposal.catalogVersion != currentCatalogVersion ||
       proposal.compartment < 1 || proposal.compartment > 6 ||
       (currentReadyMask & (1u << (proposal.compartment - 1))) == 0 ||
-      !ParseUtcExpiry(proposal.expiresAt, expiry) ||
+      !ParseConversationUtcExpiry(proposal.expiresAt, expiry) ||
       expiry <= nowUtcSeconds || expiry - nowUtcSeconds <= 1 ||
       expiry - nowUtcSeconds > 60) {
     return TurnPollDecision::Discard;
@@ -164,7 +160,7 @@ TurnPollDecision EvaluateTurnOperationWithProposal(
 uint64_t ProposalRemainingMs(const TurnProposal& proposal,
                              uint64_t nowUtcSeconds) {
   uint64_t expiry = 0;
-  if (!ParseUtcExpiry(proposal.expiresAt, expiry) ||
+  if (!ParseConversationUtcExpiry(proposal.expiresAt, expiry) ||
       expiry <= nowUtcSeconds || expiry - nowUtcSeconds <= 1 ||
       expiry - nowUtcSeconds > 60) {
     return 0;

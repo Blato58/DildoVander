@@ -30,6 +30,40 @@ jobs:
       - name: Install contract verifier
         working-directory: kufr/contracts
         run: npm ci
+      - name: Correlated speech audio buffer
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++14 -Wall -Wextra -Werror -pthread \
+            src/features/conversation/SpeechAudioBuffer.cpp \
+            src/features/conversation/SpeechOperationCodec.cpp \
+            src/features/conversation/TurnPollGuard.cpp \
+            src/features/conversation/ConversationRuntimeState.cpp \
+            src/features/conversation/ConversationStartCodec.cpp \
+            tests/speech_audio_buffer_test.cpp -o "$RUNNER_TEMP/speech-audio-test"
+          "$RUNNER_TEMP/speech-audio-test"
+          g++ -std=c++14 -Wall -Wextra -Werror -pthread -I tests/speech_stubs \
+            src/features/conversation/EspIdfSpeechTransport.cpp \
+            src/features/conversation/SpeechAudioBuffer.cpp \
+            src/features/conversation/SpeechOperationCodec.cpp \
+            src/features/conversation/OperationAcceptedCodec.cpp \
+            src/features/conversation/TurnPollGuard.cpp \
+            src/features/conversation/ConversationRuntimeState.cpp \
+            src/features/conversation/ConversationStartCodec.cpp \
+            src/features/backend_access/NetworkSettings.cpp \
+            tests/espidf_speech_transport_test.cpp -o "$RUNNER_TEMP/speech-transport-test"
+          "$RUNNER_TEMP/speech-transport-test"
+          g++ -std=c++14 -Wall -Wextra -Werror -pthread \
+            src/features/conversation/SpeechOutputCoordinator.cpp \
+            src/features/conversation/SpeechAudioBuffer.cpp \
+            src/features/conversation/SpeechOperationCodec.cpp \
+            src/features/conversation/TurnPollGuard.cpp \
+            src/features/conversation/TurnPollSchedule.cpp \
+            src/features/conversation/ConversationRuntimeState.cpp \
+            src/features/conversation/ConversationStartCodec.cpp \
+            tests/speech_output_coordinator_test.cpp -o "$RUNNER_TEMP/speech-output-test"
+          "$RUNNER_TEMP/speech-output-test"
       - name: Device control tests
         working-directory: kufr/firmware
         shell: bash
