@@ -6,6 +6,34 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D117 – oprava okamžitého ukončení Realtime na iPhonu, připraveno k CI.**
+Majitel u 1000.0.4 doložil chybu hned po Začít AI rozhovor; oranžová tečka
+mikrofonu se objeví, první replika nezazní. Zdrojový průchod našel dvě
+možné startovací chyby: každá audio route notifikace rušila rozhovor včetně
+vlastního přepnutí playAndRecord a převodník považoval prázdný výstup při
+rozběhu resamplingu za chybu. Nativní klient nyní ignoruje vlastní
+category/override/configuration oznámení jen při shodě kategorie, režimu,
+route a vstupního formátu; skutečné změny zařízení dál bezpečně zastaví.
+Tap používá outputFormat vstupního uzlu a zavřený vstup se nepřevádí.
+Stavový PCM převodník připouští nulový výstup bez ztráty dalšího vstupu.
+Debug rozlišuje audio/HTTP/protokol/TLS/timeout chyby a ukazuje bezpečný
+technický kód; neposílá surový text chyb, credential ani URL.
+Soubory: DebugHandsFreeAudio/Session, KufrDebugPlugin, DebugPanel,
+nativní peer/harness a testovací skript, testovací UI, README a tento stav.
+Lokálně prošly TypeScript/Vite build, všech 19 mobilních testů, Node
+syntax peeru, 16 lokálních dokumentačních odkazů a git diff --check.
+In-app Browser ověřil konkrétní audio hlášku/kód, Stop a obnovený poslech
+po novém startu přes syntetický bridge. Technický kód se zalomí i na telefonu.
+Nový macOS test používá skutečný AVAudioConverter 44,1/48kHz (mono/stereo)
+-> PCM16/24kHz, krátké/počáteční buffery,
+route policy a časné HTTP/protokol chyby vedle původních tří tahů.
+Nativní kompilaci/test a Xcode/simulátor ověří CI; Windows je nespouští.
+Backend veřejné healthz vrací 200; NDJSON startup shoda prošla read-only
+kontrolou. Nový placený AI test se nespouští. Přesnou příčinu na telefonu
+potvrdí až nová IPA a opakovaný start; B1/fyzické pohony se nemění.
+Další krok: zelené CI, merge, autorizovaný podpis/publikace opravené IPA
+a fyzická kontrola začátku i více hlasových odpovědí na iPhonu.
+
 **D116 – nasazeno: průběžný poslech bez tlačítek a oprava dalších odpovědí.**
 Majitel po instalaci D114 hlásí druhou odpověď bez výsledku: po dokončení
 nahrávání se pouze deaktivuje tlačítko. Žádá skutečný průběžný rozhovor.
