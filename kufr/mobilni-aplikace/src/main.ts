@@ -299,7 +299,7 @@ async function initializeNativeAsync(): Promise<void> {
     <div data-discovery-results></div>
     <form>
       <label>Adresa v místní síti<input name="host" autocomplete="off" autocapitalize="none" required maxlength="253" placeholder="192.168.1.50"></label>
-      <label>Device ID<input name="deviceId" autocomplete="off" autocapitalize="none" required maxlength="64"></label>
+      <label>Device ID<input name="deviceId" autocomplete="off" autocapitalize="none" required pattern="[a-z]([a-z0-9]|-){0,63}" maxlength="64"></label>
       <label>Otisk SPKI (SHA-256, malé hex znaky)<input name="spkiSha256" autocomplete="off" autocapitalize="none" required pattern="[0-9a-f]{64}" minlength="64" maxlength="64"></label>
       <button type="submit">Spárovat kufr</button>
     </form>
