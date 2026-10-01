@@ -179,11 +179,16 @@ npm test
 
 Build provádí `tsc --noEmit && vite build`; test kontroluje nové lease, opakování totožného příkazu, chybějící výsledek a rekonciliaci po odpojení. Ani jedna kontrola neověřuje iOS podpis, LAN nebo fyzický kufr. Ve webovém fake režimu lze převzít řízení, potvrdit výběr nebo založení 1–6 a vyzkoušet Stop. Ztráta viditelnosti stránky uvolní fake lease; rozběhnutý výběr skončí jako nejistý a vyžaduje výslovnou simulovanou kontrolu. Stav se neukládá přes reload stránky.
 
+TypeScript 7 poskytuje CLI pro typovou kontrolu; testovací moduly převádí
+Node.js `stripTypeScriptTypes` v režimu `transform`, který podporuje také
+parametrové vlastnosti konstruktorů. Node zatím vypisuje upozornění na
+experimentální API. Deklarace `vite/client` pokrývají import CSS a assetů.
+
 Pro E2 simulátor nejprve sestavte mobilní web pomocí `npm run build`, spusťte E2 WSS server a pak místní most podle [návodu simulátoru](../simulator/README.md). Stránka na `http://127.0.0.1:5174` vybere simulátor podle odpovědi `/dev-mode`; Vite stránka zůstává na fake adaptéru. Web nevidí bearer token ani certifikát upstreamu. Po ztrátě spojení zablokuje povely a ukáže nedostupný stav; nejasný výsledek předchozího výběru vyžaduje kontrolu mimo UI. Snapshot a ACK simulátoru nejsou důkaz fyzického otevření.
 
 ## Etapy a vzdálený iOS build
 
-E3a má zdrojový projekt `ios/App/App.xcodeproj`, sdílené scheme `App` a [CI workflow](../../.github/workflows/kufr-ios.yml). Capacitor `@capacitor/core`, CLI a iOS jsou připnuté na 8.4.3. Po změně webu lze na Macu synchronizovat balíček příkazy:
+E3a má zdrojový projekt `ios/App/App.xcodeproj`, sdílené scheme `App` a [CI workflow](../../.github/workflows/kufr-ios.yml). Capacitor `@capacitor/core`, CLI a iOS jsou připnuté na 8.5.2. Po změně webu lze na Macu synchronizovat balíček příkazy:
 
 ```text
 npm ci
@@ -191,6 +196,12 @@ npm ci --prefix ../contracts
 npm run build
 npx cap sync ios
 ```
+
+CLI používá `xcode`, jehož závislost `uuid` je přes cílené npm override
+připnutá na 11.1.1 kvůli GHSA-w5hq-g745-h8pq. Tato verze zachovává CommonJS
+API `v4`, které parser projektu používá; uuid 12 už CommonJS neposkytuje.
+Swift `Package.swift` generuje `cap sync ios`; `Package.resolved` pochází
+ze skutečného `xcodebuild -resolvePackageDependencies` na macOS.
 
 Na Windows lze tyto příkazy použít pro kontrolu zdrojů; Xcode build a iOS Simulator
 provádí macOS CI. Každé PR spouští přes `ci.yml` web a nepodepsaný simulator.
