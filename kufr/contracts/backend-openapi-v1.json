@@ -452,6 +452,193 @@
           }
         }
       }
+    },
+    "/v1/conversations/{id}/realtime-live": {
+      "post": {
+        "operationId": "streamRealtimeConversation",
+        "summary": "Stream a bounded hands-free conversation with automatic voice activity detection",
+        "description": "A fresh conversation and opening=true are required. JSON start is at most 4096 bytes. One provider connection stays open for at most 8 minutes and 10 turns, with a 45 second turn deadline. The server reserves each turn before accepting input; VAD uses 650 ms silence without automatic provider responses. NDJSON session carries streamId; listening carries a new inputId. Upload ordered PCM16 mono 24 kHz to audio. speech_stopped closes input, started/audio/visitor/completed follow. After playback, acknowledge the exact operationId at played within 35 seconds; only then is the next turn reserved. Audio is provisional and completed carries the validated result and conservative cost. Heartbeats occur every 10 seconds. DELETE conversation, stream disconnect or background cancels all work. No paid stream/audio replay, no direct actuation. PTT clients keep realtime-turns.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConversationId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RealtimeLiveStart"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "NDJSON RealtimeLiveEvent lines below 64 KiB; at most 20 MB per stream",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Accel-Buffering": {
+                "schema": {
+                  "type": "string",
+                  "const": "no"
+                }
+              }
+            },
+            "content": {
+              "application/x-ndjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/RealtimeLiveEvent"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem",
+            "description": "Includes realtime_unavailable and realtime_stream_not_replayable"
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/v1/conversations/{id}/realtime-live/{streamId}/audio": {
+      "post": {
+        "operationId": "appendRealtimeInput",
+        "summary": "Append one ordered microphone frame",
+        "description": "PCM16 mono 24 kHz, 2 to 9600 even bytes, at most 1440000 bytes per turn. Input-Sequence starts at zero. One upload in flight; never retry ambiguous delivery. Frames for the just-ended inputId are acknowledged and discarded. The stream, conversation and authenticated device must match.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConversationId"
+          },
+          {
+            "$ref": "#/components/parameters/RealtimeStreamId"
+          },
+          {
+            "name": "Input-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Input-Sequence",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary",
+                "minLength": 2,
+                "maxLength": 9600
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Frame accepted once or discarded after VAD stop"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/v1/conversations/{id}/realtime-live/{streamId}/played": {
+      "post": {
+        "operationId": "acknowledgeRealtimePlayback",
+        "summary": "Acknowledge actual completion of native audio playback",
+        "description": "A body of at most 512 bytes identifies the exact completed operation. Duplicate acknowledgements are harmless. The next listening event can arrive before this HTTP response, so clients must reset their input state before sending.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConversationId"
+          },
+          {
+            "$ref": "#/components/parameters/RealtimeStreamId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RealtimePlayback"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Playback acknowledged; next turn can be reserved"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
     }
 },
   "components": {
@@ -470,7 +657,24 @@
         "schema": { "type": "string", "format": "uuid" }
       },
       "ConversationId": { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1 } },
-      "OperationId": { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1 } }
+      "OperationId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "RealtimeStreamId": {
+        "name": "streamId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
     },
     "responses": {
       "AcceptedOperation": {
@@ -897,6 +1101,304 @@
             "minimum": 0
           }
         }
+      },
+      "RealtimeLiveStart": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "clientTurnId",
+          "bootId",
+          "generation",
+          "readyMask",
+          "deviceRevision",
+          "catalogVersion",
+          "opening",
+          "text",
+          "wav",
+          "voice",
+          "speed"
+        ],
+        "properties": {
+          "clientTurnId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bootId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "generation": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "readyMask": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 63
+          },
+          "deviceRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "catalogVersion": {
+            "const": "ollivander-private-party-v1"
+          },
+          "opening": {
+            "const": true
+          },
+          "text": {
+            "const": ""
+          },
+          "wav": {
+            "type": "null"
+          },
+          "voice": {
+            "enum": [
+              "cedar",
+              "marin",
+              "coral"
+            ]
+          },
+          "speed": {
+            "type": "number",
+            "minimum": 0.8,
+            "maximum": 1.2
+          }
+        }
+      },
+      "RealtimePlayback": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "operationId"
+        ],
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "RealtimeLiveEvent": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "operationId",
+              "correlation"
+            ],
+            "properties": {
+              "type": {
+                "const": "started"
+              },
+              "operationId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "correlation": {
+                "$ref": "#/components/schemas/TurnCorrelation"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "delta"
+            ],
+            "properties": {
+              "type": {
+                "const": "audio"
+              },
+              "delta": {
+                "type": "string",
+                "minLength": 4,
+                "maxLength": 43692,
+                "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "text"
+            ],
+            "properties": {
+              "type": {
+                "const": "visitor"
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 1000
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "operationId",
+              "correlation",
+              "result",
+              "costMicroUsd"
+            ],
+            "properties": {
+              "type": {
+                "const": "completed"
+              },
+              "operationId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "correlation": {
+                "$ref": "#/components/schemas/TurnCorrelation"
+              },
+              "result": {
+                "$ref": "#/components/schemas/TurnResult"
+              },
+              "costMicroUsd": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "code"
+            ],
+            "properties": {
+              "type": {
+                "const": "failed"
+              },
+              "code": {
+                "enum": [
+                  "ai_unavailable",
+                  "operation_cancelled",
+                  "cost_limit",
+                  "turn_limit",
+                  "dialogue_busy",
+                  "realtime_unavailable",
+                  "conversation_not_found",
+                  "conversation_finished",
+                  "conversation_version_mismatch",
+                  "duplicate_turn_id",
+                  "opening_required_or_already_started",
+                  "audio_consent_required",
+                  "device_scope_mismatch"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "streamId",
+              "audioFormat"
+            ],
+            "properties": {
+              "type": {
+                "const": "session"
+              },
+              "streamId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "audioFormat": {
+                "const": "pcm16-mono-24000"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "inputId"
+            ],
+            "properties": {
+              "type": {
+                "const": "listening"
+              },
+              "inputId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "inputId"
+            ],
+            "properties": {
+              "type": {
+                "const": "speech_started"
+              },
+              "inputId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "inputId"
+            ],
+            "properties": {
+              "type": {
+                "const": "speech_stopped"
+              },
+              "inputId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "heartbeat"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "reason"
+            ],
+            "properties": {
+              "type": {
+                "const": "closed"
+              },
+              "reason": {
+                "const": "conversation_terminal"
+              }
+            }
+          }
+        ]
       }
   }
   }

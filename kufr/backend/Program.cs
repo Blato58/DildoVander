@@ -12,6 +12,7 @@ builder.Services.AddSingleton<OperationJournal>();
 builder.Services.AddSingleton<TextDialogRunner>();
 builder.Services.AddSingleton<VoiceProviderRunner>();
 builder.Services.AddSingleton<OpenAiRealtimeClient>();
+builder.Services.AddSingleton<RealtimeLiveRegistry>();
 builder.Services.AddSingleton<EveningMemoryStore>();
 builder.Services.AddSingleton<ConversationStore>();
 builder.Services.AddHostedService<RetentionWorker>();
@@ -34,6 +35,7 @@ app.Use(async (context, next) =>
 app.MapDeviceAccess();
 app.MapConversations();
 app.MapRealtimeTurns();
+app.MapRealtimeLive();
 app.MapServerModes();
 app.MapGet("/v1/diagnostics", (HttpContext context, DeviceAccessStore access,
     ConversationStore conversations) =>
