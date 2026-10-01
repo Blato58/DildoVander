@@ -113,15 +113,13 @@ internal static class VoiceProviderTests
                 return Response(Tone(24_000, 800, 24_000), "application/octet-stream");
             }
 
-            var multipart = (MultipartFormDataContent)request.Content!;
-            var parts = multipart.ToArray();
-            Require(parts.Length == 4 && await parts[0].ReadAsStringAsync(cancellation) == "gpt-transcribe",
-                "recorded audio uses GPT-Transcribe");
-            Require(parts[2].Headers.ContentDisposition!.Name!.Trim('"') == "languages[]"
-                && await parts[2].ReadAsStringAsync(cancellation) == "cs", "Czech language array is encoded in multipart");
-            Require(parts[3].Headers.ContentType!.MediaType == "audio/wav"
-                && (await parts[3].ReadAsByteArrayAsync(cancellation)).AsSpan(0, 4).SequenceEqual("RIFF"u8),
-                "provider receives a WAV file without identity or history");
+            var upload = await request.Content!.ReadAsStringAsync(cancellation);
+            Require(request.Content.Headers.ContentType!.MediaType == "multipart/form-data"
+                && upload.Contains("name=model\r\n\r\ngpt-transcribe")
+                && upload.Contains("name=\"languages[]\"\r\n\r\ncs"),
+                "SDK multipart preserves GPT-Transcribe and Czech languages[]");
+            Require(upload.Contains("Content-Type: audio/wav") && upload.Contains("RIFF"),
+                "provider receives WAV without identity or history");
             return Response(Encoding.UTF8.GetBytes("{\"text\":\"Jmenuju se Marek.\",\"languages\":[]}"), "application/json");
         }));
         var output = await new OpenAiSpeechClient(http, "test-only").GenerateAsync("Ahoj, kouzelníku!", default);
@@ -155,6 +153,21 @@ internal static class VoiceProviderTests
                 Task.FromResult(Response(Encoding.UTF8.GetBytes(body), "application/json"))));
             await RejectAsync(() => new OpenAiTranscriptionClient(http, "test-only").TranscribeAsync(DeviceWav(), default));
         }
+
+        var unavailableCalls = 0;
+        using (var unavailableHttp = new HttpClient(new Handler((_, _) =>
+        {
+            unavailableCalls++;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.TooManyRequests)
+            {
+                Content = new StringContent("provider-private-error")
+            });
+        })))
+        {
+            await RejectAsync(() => new OpenAiSpeechClient(unavailableHttp, "test-only").GenerateAsync("Ahoj", default));
+            await RejectAsync(() => new OpenAiTranscriptionClient(unavailableHttp, "test-only").TranscribeAsync(DeviceWav(), default));
+        }
+        Require(unavailableCalls == 2, "SDK does not retry failed speech or transcription requests");
 
         using var cancelled = new CancellationTokenSource();
         cancelled.Cancel();

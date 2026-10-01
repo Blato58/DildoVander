@@ -5,8 +5,6 @@ import json
 import os
 import sys
 import time
-import urllib.error
-import urllib.request
 from decimal import Decimal
 from pathlib import Path
 
@@ -235,24 +233,21 @@ def parse_response(response, ready_mask):
 
 
 def call_openai(request, api_key):
-    payload = json.dumps(request, ensure_ascii=False).encode("utf-8")
-    http_request = urllib.request.Request(
-        "https://api.openai.com/v1/responses",
-        data=payload,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
+    # Lazy import keeps the offline corpus tests device/key/dependency free.
+    from openai import OpenAI, APIError
+
     try:
-        with urllib.request.urlopen(http_request, timeout=45) as response:
-            body = response.read(65_537)
-    except urllib.error.HTTPError as error:
-        raise RuntimeError(f"OpenAI HTTP {error.code}") from None
-    if len(body) > 65_536:
-        raise RuntimeError("OpenAI response exceeds local size limit")
-    return json.loads(body)
+        with OpenAI(api_key=api_key, max_retries=0, timeout=45.0) as client:
+            with client.responses.with_streaming_response.create(**request) as response:
+                body = bytearray()
+                for chunk in response.iter_bytes(chunk_size=8192):
+                    if len(body) + len(chunk) > 65_536:
+                        raise RuntimeError("OpenAI response exceeds local size limit")
+                    body.extend(chunk)
+                return json.loads(body)
+    except APIError as error:
+        # SDK errors can include visitor text or credentials. Log only status.
+        raise RuntimeError(f"OpenAI request failed (HTTP {getattr(error, 'status_code', None)})") from None
 
 
 def main():

@@ -7,6 +7,8 @@
 class LocalControlOutputPort {
  public:
   virtual ~LocalControlOutputPort() = default;
+  virtual bool VoiceAck(const LocalSocketAdmission::Handle&,
+                        const LocalControlMessage&, bool) { return false; }
   virtual bool Welcome(const LocalSocketAdmission::Handle& handle,
                        const std::string& requestId, uint64_t nowMs) = 0;
   virtual bool Snapshot(const LocalSocketAdmission::Handle& handle,

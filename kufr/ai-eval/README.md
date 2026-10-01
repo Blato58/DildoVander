@@ -1,5 +1,13 @@
 # Vývojový test dialogu AI bez kufru
 
+## Provider SDK (D119)
+
+Živé syntetické testy vyžadují `python3 -m pip install -r requirements.txt`
+(oficiální `openai==3.22.1`). `call_openai` používá Responses SDK, streaming
+HTTP příjem do 64 KiB, timeout 45 s a `max_retries=0`. Rezervace/tarifní
+kontroly zůstávají. Offline unittest testy importují SDK až v provider
+funkci a nevykonávají placené volání. CI instaluje SDK jen v live jobu.
+
 D114 rozšiřuje sdílený `prompt.txt`: podrobná pravidla mluvené češtiny,
 suché osobní pointy, práce s konkrétním detailem a dřívější historkou,
 dobré/špatné příklady, jedna navazující otázka a přesný závěr s hůlkou.

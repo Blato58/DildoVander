@@ -1,6 +1,7 @@
 #include "LocalControlOwner.h"
 
 #include <new>
+#include "../voice_turn/LocalVoicePort.h"
 
 #include "LocalControlTransport.h"
 #include "LocalConversationNetworkPort.h"
@@ -26,8 +27,8 @@ LocalControlOwner::LocalControlOwner(
     LocalControlInbox& inbox, LocalControlTransport& transport,
     LocalControlOutputPort& output, LocalControlIdPort& ids,
     LocalControlRecoveryGate& recovery, LocalControlStepPort& steps,
-    LocalControlClockPort& clock)
-    : deviceId_(deviceId), bootId_(bootId), runtime_(runtime),
+    LocalControlClockPort& clock, LocalVoicePort* voice)
+    : voice_(voice), deviceId_(deviceId), bootId_(bootId), runtime_(runtime),
       runtimeState_(runtimeState), conversation_(conversation), network_(network),
       inbox_(inbox), transport_(transport), output_(output), ids_(ids),
       recovery_(recovery), steps_(steps), clock_(clock) {}
@@ -49,6 +50,7 @@ void LocalControlOwner::Poll() {
       switch (event.kind) {
         case LocalControlEventKind::Stop: {
           SelectionStep step;
+          if (voice_) voice_->StopVoice();
           runtime_.Stop(step);
           steps_.OnStep(step);
           if (gateway_) {
@@ -192,6 +194,7 @@ void LocalControlOwner::Handle(
       Snapshot(nowMs);
       return;
     case LocalControlMessageKind::Acquire:
+      if (voice_) voice_->StopVoice();
       accepted = session_->Acquire(bootId_, ids_.NewLeaseId(), nowMs);
       break;
     case LocalControlMessageKind::Release: {
@@ -207,6 +210,21 @@ void LocalControlOwner::Handle(
       if (accepted) {
         accepted = output_.Heartbeat(handle_, message, nowMs);
       }
+      break;
+    case LocalControlMessageKind::VoiceConfigure:
+      accepted = output_.VoiceAck(handle_, message, voice_ && voice_->ConfigureVoice(message.voiceMode, message.voice));
+      break;
+    case LocalControlMessageKind::VoiceStart: {
+      ConversationRuntimeSnapshot snapshot;
+      const bool ready = voice_ && session_->LeaseId().empty() && runtimeState_.Read(snapshot) &&
+                         snapshot.deviceRevision == message.expectedRevision;
+      const bool started = ready && voice_->StartVoice(message.messageId, snapshot);
+      accepted = output_.VoiceAck(handle_, message, started);
+      break;
+    }
+    case LocalControlMessageKind::VoiceStop:
+      if (voice_) voice_->StopVoice();
+      accepted = output_.VoiceAck(handle_, message, voice_ != nullptr);
       break;
     case LocalControlMessageKind::Text: {
       ConversationTextCommand command;
