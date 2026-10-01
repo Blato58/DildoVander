@@ -6,6 +6,24 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**Migrace GitHub Actions na vlastní runner – rozpracováno 1. 10. 2026.**
+Majitel požaduje všechny joby na svém serveru, kromě macOS. Všechny Linux
+joby v `.github/workflows/` nyní používají existující štítky
+`[self-hosted, Linux, X64, kufr-backend]`; iOS Simulator a IPA signing
+zůstávají na `macos-15`. Node setup doplněn do repository/backend kontrol;
+.NET SDK používá zapisovatelný runner tool cache. Realtime live test nově
+kontroluje předinstalovaný espeak-ng, nepředpokládá neomezené sudo.
+Host probe doplněn o build nástroje a venv. Plán, CI/CD, SECURITY a backend/
+AI README popisují společný runner, předpoklady a omezení veřejného testu
+z téhož serveru. Původ/provenance a main-only nasazení se nemění.
+Read-only probe [36926403741](https://github.com/Blato58/DildoVander/actions/runs/36926403741)
+ověřil online `dildovander-server`, Ubuntu 26.04, Python, omezené sudo,
+aktivní backend a loopback health. Runners API vrací 403; skutečný job
+potvrdil správný runner i štítky. Lokálně prošel audit 22 serverových a
+2 macOS jobů, 29 provenance/promotion testů, 6 archive testů, lokální odkazy
+a whitespace. Další krok: actionlint, PR a ověření buildů na vlastním runneru. Žádné nasazení, podpis IPA,
+publikace, placené AI volání ani flash nejsou součástí migrace.
+
 **D118 – serverové logy, iOS zobrazení a čtecí integrace Codex.**
 Zadání majitele: logování serveru, API přístup, log v iOS a společný debug
 nasazeného prostředí s Codexem. Backend přidává oddělenou SQLite logovou DB,
