@@ -1,4 +1,4 @@
-// Called by pinned actions/github-script on a GitHub-hosted runner, before secrets.
+// Called by pinned actions/github-script in a separate verification job, before deployment secrets.
 const fs = require('node:fs');
 
 async function resolve({ github, context, core }, { runId, workflow, artifact }) {

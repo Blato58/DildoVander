@@ -2,7 +2,11 @@
 
 Credentials, provider klíče a Apple podpisové identity patří do oddělených
 GitHub Environments nebo servisního provisioningu. PR CI nemá produkční ani
-podpisové secrets a nepoužívá produkční self-hosted runner.
+podpisové environment secrets. Na výslovné zadání majitele Linux PR CI
+sdílí serverový self-hosted runner s nasazením; spouští se jen důvěryhodná
+PR. Dlouhodobý účet runneru není izolovaný jednorázový stroj. Systémová
+služba a její konfigurace nadále používají odděleného uživatele a omezený
+aktivační helper; viz [CI/CD návod](docs/ci-cd.md).
 
 Při nalezení zranitelnosti kontaktuj majitele repozitáře `@Blato58` neveřejným
 kanálem. Je-li dostupné GitHub private vulnerability reporting, použij jej.

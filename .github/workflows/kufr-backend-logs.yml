@@ -24,7 +24,7 @@ permissions:
 jobs:
   read:
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, X64, kufr-backend]
     environment: backend-production
     timeout-minutes: 3
     steps:

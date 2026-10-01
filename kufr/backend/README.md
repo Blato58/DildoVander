@@ -364,7 +364,9 @@ a spustí `sudo bash CESTA/bootstrap-ubuntu.sh github-runner`. Soubory není nut
 
 
 Workflow `.github/workflows/kufr-backend.yml` volané z `ci.yml` sestaví a otestuje
-samostatný `linux-x64` release při každém PR. Merge již nebuildí. Ruční
+samostatný `linux-x64` release při každém PR na serverovém runneru
+`[self-hosted, Linux, X64, kufr-backend]`. Node a .NET SDK instalují
+setup actions do zapisovatelných cest účtu runneru. Merge již nebuildí. Ruční
 `kufr-backend-deploy.yml` z `main` se vstupem `build_run_id` ověří původ a shodu
 stromu PR artefaktu s `main`, pak jej aktivuje bez překladu na self-hosted runneru
 se štítky `self-hosted`, `Linux`, `X64` a
@@ -476,9 +478,10 @@ Po úspěšném Ad Hoc podpisu **Build signed Kufr IPA** samostatné workflow
 **Deploy Kufr IPA** se vstupem ID podepsaného buildu nahraje do tohoto adresáře
 verzovanou IPA, `manifest.plist`, SHA-256 a instalační stránku. Změna
 hlavní stránky proběhne atomicky až po uložení celé verze. Samostatný
-GitHub-hosted job ověří přes veřejné HTTPS stránku, manifest, MIME typy,
+job na témže serverovém runneru ověří přes veřejné HTTPS stránku, manifest, MIME typy,
 staženou IPA a checksum. Instalaci `itms-services` a spuštění může potvrdit
-jen registrovaný iPhone v Safari; serverový test to nenahrazuje. Soubory
+jen registrovaný iPhone v Safari; serverový test to nenahrazuje a neprokazuje
+dostupnost z jiné sítě. Soubory
 pod `/ios/` jsou veřejně čitelné, proto IPA nesmí obsahovat tajemství.
 
 Responses požadavky explicitně používají `service_tier: default`. Jiný nebo chybějící vrácený tarif se odmítne a drží rezervaci (včetně rezervy pro 2× sazbu Fast), bez automatického opakování. Potvrzený Standard se vypořádá konzervativně podle tokenů; tato interní částka není účetní údaj z OpenAI. Ochrana tarifu byla přidána po živém eval, který vracel Fast při neuvedeném tarifu.

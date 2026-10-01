@@ -6,6 +6,36 @@ musí projít i po změně společné konfigurace. Jediná kontrola pro ochranu 
 je **CI required**. Nový commit do stejného PR zruší zastaralé CI; rozběhnuté
 nasazení se neruší. Merge do `main` nevyvolá druhý build.
 
+## Runnery
+
+Majitel 1. 10. 2026 požádal přesun všech Linux jobů na svůj server.
+Všechny používají `[self-hosted, Linux, X64, kufr-backend]`, tedy stávající
+runner `dildovander-server`. Pouze iOS Simulator a podpis IPA zůstávají
+na GitHub-hosted `macos-15` s Xcode 26.3. Platí to i pro PR kontroly,
+ověření artefaktů, veřejné HTTPS kontroly, diagnostiku a ruční AI testy.
+Jeden registrovaný serverový runner provádí vždy jen jeden job; ostatní
+čekají ve frontě. Závislosti mezi joby zůstávají zachované.
+
+Server potřebuje Git, curl, tar, OpenSSL, C++ toolchain a Python s venv.
+Správce jednorázově zajistí systémové závislosti:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y --no-install-recommends git curl ca-certificates tar openssl build-essential python3 python3-venv espeak-ng
+```
+
+`espeak-ng` potřebuje jen explicitní živá Realtime zkouška. Workflow
+balíčky neinstaluje přes sudo. Node 24.21.0 instalují připnuté setup-node
+actions podle `.nvmrc`; .NET SDK určuje `kufr/global.json` a setup-dotnet
+jej ukládá do zapisovatelného `${{ runner.tool_cache }}/dotnet`.
+PlatformIO se instaluje do venv v `RUNNER_TEMP`. Rozšířený ruční
+**Kufr backend host probe** zkontroluje dostupnost nástrojů a Python venv.
+
+PR CI nyní sdílí server s nasazením. GitHub environment secrets stále
+dostávají jen explicitní main-only joby, ale dlouhodobý runner neposkytuje
+izolaci jednorázového GitHub-hosted stroje. Spouštěj zde pouze důvěryhodná PR;
+účet runneru má mít pouze existující omezené sudo pro aktivační helper.
+
 | Workflow | Účel | Výstup / vstup |
 | --- | --- | --- |
 | `ci.yml` | PR build a testy; ruční obnovovací build na `main` | `backend-publish`, `web-dist`, `firmware` |
@@ -31,13 +61,13 @@ výstupy. Artefakty z buildu se uchovávají **14 dní**, ověřovací kopie **1
    podpisem. **Deploy Kufr IPA** následně dostane ID úspěšného **IPA buildu**;
    veřejná instalace vyžaduje `ad_hoc`.
 
-Deployment nejdřív na GitHub-hosted runneru ověří přes API očekávaný workflow,
+Deployment nejdřív v samostatném jobu na serverovém runneru ověří přes API očekávaný workflow,
 celkově úspěšný běh, platný pokus stejného běhu a neexpirovaný artefakt. PR musí být sloučené
 do `main` ze stejného repozitáře. API Git commitů ověří původ build merge commitu
 z konkrétního base/head a **shodu celého Git tree s aktuálním `main`**. Squash
 nebo merge mění commit SHA, proto nestačí porovnat SHA commitu. Checksum a
 rozbalení odmítnou poškození, traversal, symlinky, hardlinky a speciální soubory.
-Teprve ověřený balíček přejde na produkční runner; ten ještě kontroluje, zda
+Teprve ověřený balíček přejde do produkčního jobu; ten ještě kontroluje, zda
 se `main` během čekání nezměnil. Prostředí a secrets zůstávají oddělené.
 
 Pokud `main` mezitím změnilo obsah nebo artefakt expiroval, deployment skončí
@@ -65,7 +95,8 @@ IPA obsahuje profil nutný pro instalaci podepsané aplikace.
   credentials, běžné CI má jen `contents: read`; čtení cizího Actions běhu pouze
   promotion/sign/deploy. Promotion verifier i jeho callers potřebují
   `pull-requests: read` pro důkaz sloučeného PR; žádné PR write oprávnění.
-  PR nikdy nevstoupí na produkční self-hosted runner.
+  PR CI běží na serverovém runneru bez produkčních environment secrets;
+  main-only podmínky nasazení, podpisu a placených testů zůstávají zachované.
 - Workflow syntax ověřuje připnutý actionlint s checksumem; testy ověřují
   původ/promotion i integritu archivu. `CODEOWNERS`, PR šablona, `CONTRIBUTING`,
   `SECURITY`, EditorConfig a Git attributes sjednocují předání a formátování.

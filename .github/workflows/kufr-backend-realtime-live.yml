@@ -19,15 +19,19 @@ concurrency:
 jobs:
   live:
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, X64, kufr-backend]
     environment: backend-production
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install offline synthetic Czech speech
-        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends espeak-ng
+      - name: Check offline synthetic Czech speech prerequisite
+        run: |
+          command -v espeak-ng >/dev/null || {
+            echo 'Install espeak-ng once on the server as an administrator (see docs/ci-cd.md).'
+            exit 1
+          }
       - name: Test one bounded hands-free conversation
         env:
           PUBLIC_IPV4: ${{ vars.KUFR_BACKEND_PUBLIC_IPV4 }}
