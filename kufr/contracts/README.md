@@ -1,5 +1,16 @@
 # Sdílené kontrakty kufru
 
+## Hlas ESP v lokálním control v1 (D117)
+
+`voice.configure` nese běžnou device/boot/messageId obálku a
+`mode=off|realtime`, `voice=cedar|marin|coral`. `voice.start` přidává
+`expectedRevision`; `voice.stop` jen společnou obálku. `voice.ack` vrací
+requestMessageId, bootId, accepted a aktuální voice status.
+Spárovaný pozorovatel smí tyto explicitní audio akce; start navíc vyžaduje
+bezpečný standalone snapshot. Žádný z příkazů přímo neovládá pohon.
+Volitelný `state.snapshot.voice` obsahuje available/mode/voice/phase/error;
+nepřítomnost znamená nepodporovanou audio cestu, nikoli implicitní Realtime.
+
 `control-validator-core.mjs` je společný strict JSON/schema validátor pro
 Node i nativní mobilní adaptér. Node wrapper `control-validator.mjs` načítá
 stejné schéma ze souboru; mobil jej importuje do Vite balíčku. Duplicity,

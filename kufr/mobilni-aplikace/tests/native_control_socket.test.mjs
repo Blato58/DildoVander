@@ -177,3 +177,43 @@ test('native reconnect backs off, remains an observer and explicit disconnect ca
   connection.suspend();
   assert.equal(timers.size, 0);
 });
+
+test('native voice settings and start use schema-validated device confirmation without a lease', async () => {
+  const native = bridge();
+  const connection = new ProtocolDeviceConnection(() => {}, {
+    source: 'native-device', deviceId: fixture.deviceId,
+    createSocket: () => new NativeControlSocket(native),
+    parseFrame: frame => validateControlMessage(new TextEncoder().encode(frame)),
+  });
+  await settle();
+  native.emit('open');
+  await settle();
+  const hello = JSON.parse(native.sent.at(-1).frame);
+  const voice = { available: true, mode: 'off', voice: 'marin', phase: 'idle', error: null };
+  native.emit('frame', JSON.stringify({ protocolVersion: 1, type: 'welcome', requestMessageId: hello.messageId,
+    snapshot: { ...fixture, controlMode: 'standalone', controlLeaseId: null, activeCommandId: null, voice },
+  }));
+  assert.equal(connection.configureVoice('realtime', 'cedar'), true);
+  await settle();
+  const configure = validateControlMessage(new TextEncoder().encode(native.sent.at(-1).frame));
+  assert.equal(configure.type, 'voice.configure');
+  assert.equal(connection.snapshot().voice.mode, 'off');
+  native.emit('frame', JSON.stringify({ protocolVersion: 1, type: 'voice.ack', bootId: fixture.bootId,
+    requestMessageId: configure.messageId, accepted: true, voice: { ...voice, mode: 'realtime', voice: 'cedar' },
+  }));
+  assert.equal(connection.snapshot().voice.canStart, true);
+  assert.equal(connection.startVoice(), true);
+  await settle();
+  const start = validateControlMessage(new TextEncoder().encode(native.sent.at(-1).frame));
+  assert.equal(start.type, 'voice.start');
+  assert.equal(start.expectedRevision, fixture.revision);
+  assert.equal('controlLeaseId' in start, false);
+  native.emit('frame', JSON.stringify({ protocolVersion: 1, type: 'voice.ack', bootId: fixture.bootId,
+    requestMessageId: start.messageId, accepted: true, voice: { ...voice, mode: 'realtime', voice: 'cedar', phase: 'listening' },
+  }));
+  assert.equal(connection.snapshot().voice.canStop, true);
+  assert.equal(connection.stopVoice(), true);
+  await settle();
+  assert.equal(validateControlMessage(new TextEncoder().encode(native.sent.at(-1).frame)).type, 'voice.stop');
+  connection.suspend();
+});

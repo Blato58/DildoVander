@@ -6,6 +6,68 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D117 – Realtime hlas přímo na ESP a nastavení v Ovládání; všechny provider cesty přes SDK.**
+Majitel 1. 10. požaduje přidat Realtime do firmware, nastavovat hlasový režim
+v Ovládání aplikace a převést všechna volání OpenAI na SDK. Rozsah a výjimka
+z ručního lease pro samostatné hlasové příkazy jsou odůvodněné v plánu D117.
+ESP-IDF nyní drží autentizovaný backend NDJSON stream a pořadové PCM POSTy;
+telefon neposílá audio ani provider klíč. Server VAD obnovuje poslech po
+potvrzeném dohrání, lokální Stop okamžitě umlčí zesilovač. Odpověď/návrh
+projde existující korelací, snapshotem, maskou a TTL do PendingProposal;
+volný text ani audio přímo nespínají pohony. Provoz je omezený délkou,
+počtem tahů, velikostí audio/eventů a existujícími serverovými cost caps.
+
+Audio adaptér používá standardní I2S 32 kHz, ICS43434 a MAX98357A s
+průběžným polyphase FIR převodem 32 ↔ 24 kHz a počáteční hlasitostí 25 %. Zapne se
+jen s externě servisně ověřeným profilem A (`wand_audio/profile_a_ok=1`),
+bez kamery/SD. Bez tohoto ověření UI hlásí nedostupné audio. Profil B,
+PTT, echo cancellation a hardwarová akceptace se tímto nedoplňují.
+Ovládání nabízí Vypnutý/Realtime, Marin/Cedar/Coral, Použít, Spustit a
+Zastavit. Stav/nastavení potvrzuje ESP přes `voice.ack` a snapshot, nejsou
+optimistické; start vyžaduje samostatný ready stav a aktuální revizi.
+Odpojení pozorovatele samostatný rozhovor nezastavuje, ruční převzetí a Stop
+ano. Nejasné požadavky se po reconnectu nepřehrávají; volba platí do rebootu.
+
+Responses, kompatibilní TTS/STT a Python eval nově používají připnuté
+oficiální SDK; Realtime už SDK používal. BoundedSdkTransport omezuje odpověď
+před SDK bufferingem, zachovává pevný endpoint/no redirects, timeout,
+validaci a serverové rozpočty. Retry je explicitně nula; test 429 ověřuje
+jeden provider pokus pro každou cestu. STT protokolový overload zachovává
+`languages[]=cs`. Python live eval instaluje openai 3.22.1; offline testy
+zůstávají bez klíče a síťových volání.
+
+Změněné soubory: firmware `features/voice_turn`, backend_access,
+local_control, conversation start, JsonCursor, IDF composition/CMake a
+hostitelské testy/stubs; mobil `LocalVoiceClient`, `VoicePanel`, connection,
+main/style a test loader; JSON schema/fixtures; backend OpenAi transport,
+ResponsesTextDialogClient, OpenAiSpeechClient, OpenAiTranscriptionClient,
+TextDialogRunner a provider testy; Python eval/requirements/test_sdk,
+workflow, README, AGENTS a plán/stav.
+
+Lokálně prošly všechny firmware host testy včetně striktního NDJSON,
+resamplingu, úvodu a dvou navazujících mic tahů, pořadí uploadu, drain/ACK,
+Stop, cost_limit a chyb. 52 skutečně emitovaných firmware zpráv prošlo
+sdíleným schématem. Oba PlatformIO profily prošly: ESP-IDF RAM 66 032 B,
+flash 1 201 881 B; Arduino serial RAM 18 660 B, flash 286 589 B (nezahrnuje
+běhový heap/stack). Backend HTTP smoke a testy providerů, Realtime, journalu, fake voice,
+rozpočtů, expirace a migrací prošly. Mobilní build a 22 testů, kontrakty
+25 validních/41 nevalidních zpráv a 21 offline Python eval testů prošly.
+Chromium na 390 px ověřil konfiguraci/start/stop, zachování rozpracované
+volby při heartbeat, uzamčení aktivního rozhovoru, viditelný cost_limit a
+zakázání hlasu ve fake režimu, bez JS chyb a horizontálního přesahu.
+
+Git předání: implementace je připravená k commitu a push přes autorizovaný
+Push-CurrentBranch.ps1; konkrétní výsledek bude doplněn po ověření remote.
+Povinné CI ověří i Swift/Xcode/iOS Simulator; lokálně zde Xcode není.
+Tento krok nenasazuje backend, nevydává IPA, nenahrává firmware a nevolá
+placené OpenAI. Skutečný mikrofon/reproduktor, paměťové/časové rezervy při
+TLS, Stop během audia a 100 tahů na desce ani ovládání na iPhonu nebyly
+ověřené. B1/fyzická bezpečnost, kalibrace a HW část E9 zůstávají otevřené.
+Další konkrétní krok: po zeleném CI servisně ověřit profil A a bezpečný B1
+stav, samostatně autorizovat flash/nasazení a měřit opakovaný rozhovor,
+Stop, Wi-Fi výpadek, návrat k poslechu a reálnou češtinu na desce.
+
+
 **D116 – nasazeno: průběžný poslech bez tlačítek a oprava dalších odpovědí.**
 Majitel po instalaci D114 hlásí druhou odpověď bez výsledku: po dokončení
 nahrávání se pouze deaktivuje tlačítko. Žádá skutečný průběžný rozhovor.

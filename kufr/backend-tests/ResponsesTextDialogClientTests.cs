@@ -152,6 +152,30 @@ internal static class ResponsesTextDialogClientTests
 
         await ExpectUnavailableAsync(new string('x', 65_537), 16, "oversized body");
 
+        var unavailableCalls = 0;
+        using (var unavailableHttp = new HttpClient(new StubHandler((_, _) =>
+        {
+            unavailableCalls++;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.TooManyRequests)
+            {
+                Content = new StringContent("provider-private-error")
+            });
+        })))
+        {
+            try
+            {
+                await new ResponsesTextDialogClient(unavailableHttp, "test-key", "gpt-6.1-sol")
+                    .GenerateAsync("Ahoj", 16, [], false, CancellationToken.None);
+                throw new Exception("Provider failure accepted.");
+            }
+            catch (TextDialogUnavailableException error)
+            {
+                Check(!error.ToString().Contains("provider-private-error"), "provider errors stay private");
+            }
+        }
+        Check(unavailableCalls == 1, "SDK must not retry a paid request");
+
+
         using var neverSentHttp = new HttpClient(new StubHandler((_, _) =>
             throw new Exception("Oversized request reached the provider.")));
         var boundedClient = new ResponsesTextDialogClient(neverSentHttp, "test-key", "gpt-6.1-sol");

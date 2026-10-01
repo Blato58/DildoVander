@@ -30,8 +30,15 @@ for (const result of results) {
   assert.equal(result.physicalVerification, 'unavailable');
   assert.equal(result.requiresReload, true);
 }
+const voiceAcks = messages.filter(message => message.type === 'voice.ack');
+assert.equal(voiceAcks.length, 2);
+assert.ok(voiceAcks.some(message => message.accepted && message.voice.voice === 'cedar'));
+assert.ok(voiceAcks.some(message => !message.accepted && message.voice.error === 'cost_limit'));
+assert.ok(snapshots.some(snapshot => snapshot.voice?.phase === 'listening'));
 for (const snapshot of snapshots) {
-  assert.equal(snapshot.microphoneState, 'unavailable');
+  assert.equal(snapshot.microphoneState, snapshot.voice?.available
+    ? snapshot.voice.phase === 'listening' ? 'recording' : snapshot.voice.phase === 'speaking' ? 'playing' : 'idle'
+    : 'unavailable');
   if (snapshot.lastResult) {
     assert.ok(snapshot.lastResult.eventSequence <= snapshot.eventSequence);
     assert.ok(snapshot.lastResult.revision <= snapshot.revision);

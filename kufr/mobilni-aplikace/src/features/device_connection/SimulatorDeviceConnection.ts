@@ -1,8 +1,10 @@
+import { LocalVoiceClient, type VoiceSettings } from './LocalVoiceClient';
 import type { DeviceSnapshot } from './FakeDeviceConnection';
 import { LocalConversationClient, type ConversationDeviceState } from './LocalConversationClient';
 
 interface ProtocolSnapshot extends ConversationDeviceState {
   type: 'state.snapshot';
+  voice?: VoiceSettings;
   deviceId: string;
   bootId: string;
   deviceUptimeMs: number;
@@ -55,6 +57,9 @@ export interface ProtocolConnectionOptions {
 // One owner of lease, command retry and uncertain-result reconciliation, shared
 // by the development proxy and the native pinned-TLS transport.
 export class ProtocolDeviceConnection {
+  private readonly voice = new LocalVoiceClient(
+    (message) => this.send(message), () => this.publish(), () => this.socket?.close(),
+  );
   private readonly conversation = new LocalConversationClient(
     (message) => this.send(message),
     () => this.publish(),
@@ -110,6 +115,12 @@ export class ProtocolDeviceConnection {
     return this.viewSnapshot().conversation?.canSubmit === true && this.conversation.submit(text);
   }
 
+  configureVoice(mode: VoiceSettings['mode'], voice: VoiceSettings['voice']): boolean {
+    return this.voice.configure(mode, voice);
+  }
+  startVoice(): boolean { return this.voice.start(); }
+  stopVoice(): boolean { return this.voice.stop(); }
+
   cancelConversation(): boolean {
     return this.conversation.cancel();
   }
@@ -149,6 +160,7 @@ export class ProtocolDeviceConnection {
         this.releasePending = false;
         this.awaitingRevision = null;
         this.requests.clear();
+        this.voice.invalidate();
         this.conversation.invalidate();
         this.clearTimers();
         this.state = {
@@ -361,6 +373,8 @@ export class ProtocolDeviceConnection {
         this.clearRequestTimeout();
         this.reconnectAttempt = 0;
       }
+    } else if (message.type === 'voice.ack') {
+      this.voice.receive(message);
     } else if (message.type === 'conversation.ack' || message.type === 'conversation.result') {
       this.conversation.receive(message);
     } else if (message.type === 'command.ack') {
@@ -512,6 +526,7 @@ export class ProtocolDeviceConnection {
             ? 'Ruční lease na simulátoru je aktivní.'
             : 'Připojeno k hostitelskému E2 simulátoru v režimu pozorování.',
     };
+    this.voice.update(snapshot);
     this.conversation.update(snapshot);
     this.publish();
   }
@@ -759,6 +774,7 @@ export class ProtocolDeviceConnection {
         roundTripMs: Number.isFinite(this.roundTripMs) ? Math.round(this.roundTripMs) : null,
         faultCount: this.device.faults.length,
       },
+      voice: this.voice.state(),
       conversation: this.conversation.snapshot(
         this.state.controlMode === 'manual' && this.state.phase === 'ready' && !this.state.busy,
       ),

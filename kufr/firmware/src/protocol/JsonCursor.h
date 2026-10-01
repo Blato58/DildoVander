@@ -4,6 +4,8 @@
 #include <stdint.h>
 
 #include <limits>
+#include <algorithm>
+#include <vector>
 #include <string>
 
 namespace kufr_protocol {
@@ -141,6 +143,35 @@ class JsonCursor {
       }
     }
     return false;
+  }
+
+  // Capture a bounded object while checking duplicate keys and scalar syntax.
+  // Used for nested backend correlation/result objects before their typed parser.
+  bool ReadObjectJson(std::string& json, size_t maximumBytes, unsigned depth = 0) {
+    SkipWhitespace();
+    const size_t start = position_;
+    if (depth >= 4 || !Consume('{')) return false;
+    std::vector<std::string> keys;
+    if (!NextIs('}')) {
+      do {
+        std::string key, value;
+        uint64_t number = 0;
+        if (!ReadString(key, 64) || !Consume(':') || keys.size() >= 16 ||
+            std::find(keys.begin(), keys.end(), key) != keys.end()) return false;
+        keys.push_back(key);
+        if (NextIs('{')) {
+          if (!ReadObjectJson(value, maximumBytes, depth + 1)) return false;
+        } else if (NextIs('"')) {
+          if (!ReadString(value, maximumBytes)) return false;
+        } else if (NextIs('n')) {
+          if (!ReadNull()) return false;
+        } else if (!ReadUnsigned(number)) return false;
+        if (position_ - start > maximumBytes) return false;
+      } while (Consume(','));
+    }
+    if (!Consume('}') || position_ - start > maximumBytes) return false;
+    json.assign(data_ + start, position_ - start);
+    return true;
   }
 
  private:
