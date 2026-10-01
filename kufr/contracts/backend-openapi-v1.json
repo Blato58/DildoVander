@@ -8,6 +8,137 @@
   "servers": [{ "url": "https://localhost:7043", "description": "Local development only" }],
   "security": [{ "DeviceAccess": [] }],
   "paths": {
+    "/v1/admin/logs": {
+      "get": {
+        "operationId": "readServerLogs",
+        "summary": "Latest tail or ascending cursor pages of bounded metadata; no conversation content",
+        "security": [
+          {
+            "ServerAdmin": []
+          },
+          {
+            "LogReader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 200
+            }
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "info",
+                "warning",
+                "error"
+              ],
+              "default": "info"
+            }
+          },
+          {
+            "name": "traceId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "operationId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Technical metadata only, no AI calls; no-store.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerLogPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/v1/admin/logs/status": {
+      "get": {
+        "operationId": "readLogServerStatus",
+        "summary": "Read server modes and active count with a read-only log credential",
+        "security": [
+          {
+            "ServerAdmin": []
+          },
+          {
+            "LogReader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Technical metadata only, no AI calls; no-store.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerModes"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/v1/admin/modes": {
       "get": {
         "operationId": "readServerModes",
@@ -643,6 +774,11 @@
 },
   "components": {
     "securitySchemes": {
+      "LogReader": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Separate read-only credential; no device token, AI invocation or mutations"
+      },
       "ServerAdmin": {
         "type": "http", "scheme": "bearer",
         "description": "Separate server admin credential; neither ESP device credentials nor access tokens grant this authority"
@@ -687,6 +823,160 @@
       }
     },
     "schemas": {
+      "ServerLogEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "timestamp",
+          "level",
+          "eventCode",
+          "traceId",
+          "operationId",
+          "conversationId",
+          "route",
+          "method",
+          "status",
+          "durationMs",
+          "code"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "level": {
+            "enum": [
+              "info",
+              "warning",
+              "error"
+            ]
+          },
+          "eventCode": {
+            "type": "string",
+            "pattern": "^[a-z_]{1,64}$"
+          },
+          "traceId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "operationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "conversationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "route": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          },
+          "method": {
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "DELETE",
+              "OPTIONS",
+              "OTHER",
+              null
+            ]
+          },
+          "status": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 100,
+            "maximum": 599
+          },
+          "durationMs": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[a-z_]{1,80}$"
+          }
+        }
+      },
+      "ServerLogPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "storeId",
+          "oldestCursor",
+          "latestCursor",
+          "nextCursor",
+          "droppedWrites",
+          "hasMore",
+          "truncated",
+          "entries"
+        ],
+        "properties": {
+          "storeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "oldestCursor": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "latestCursor": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "nextCursor": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "droppedWrites": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "entries": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/components/schemas/ServerLogEntry"
+            }
+          }
+        }
+      },
       "ServerModeChange": {
         "type": "object",
         "required": ["expectedRevision", "dialogMode", "voiceMode"],

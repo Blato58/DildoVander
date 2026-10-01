@@ -70,12 +70,22 @@
         ] }, { name: 'KufrDebug', methods: ['status', 'configure', 'inspectBackend', 'inspectServer', 'changeServerModes',
           'runOpeningSpeech', 'startConversation', 'answerConversation', 'startRecording', 'finishRecording',
           'speakSystem', 'stop', 'shareLog', 'forgetProfile', 'inspectEvenings', 'createEvening',
-          'activateEvening'].map((name) => ({ name, rtype: 'promise' })) }],
+          'activateEvening', 'readServerLogs'].map((name) => ({ name, rtype: 'promise' })) }],
         nativeCallback(_plugin, method, _options, callback) {
           if (method === 'addListener') { listener = callback; return Promise.resolve('listener-1'); }
         },
         async nativePromise(_plugin, method, options) {
           if (_plugin === 'KufrDebug') {
+            if (method === 'readServerLogs') {
+              if (!debugStatus.configured || new URLSearchParams(location.search).has('logsDenied')) { throw new Error('Synthetic denial'); }
+              const entries = [{ id: 1, timestamp: new Date().toISOString(), level: 'info', eventCode: 'server_started' },
+                { id: 2, timestamp: new Date().toISOString(), level: 'warning', eventCode: 'realtime_failed', code: 'cost_limit',
+                  traceId: '00000000-0000-4000-8000-000000000010', operationId: '00000000-0000-4000-8000-000000000011' }];
+              return { storeId: '00000000-0000-4000-8000-000000000012', oldestCursor: 1, latestCursor: 2,
+                nextCursor: 2, hasMore: false, truncated: false, droppedWrites: 0,
+                entries: entries.filter(entry => (!options.after || entry.id > options.after)
+                  && (options.level === 'info' || entry.level === 'warning' && options.level === 'warning')) };
+            }
             if (method === 'status') { return { ...debugStatus }; }
             if (method === 'configure') { debugStatus.configured = true; debugStatus.mode = 'unknown'; return; }
             if (method === 'forgetProfile') {

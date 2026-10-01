@@ -194,6 +194,7 @@ internal static class ConversationEndpoints
         }
 
         var result = conversations.SubmitTurn(deviceId, id, key, body, request, opening);
+        context.Items["diagnosticOperationId"] = result.OperationId;
         return result.OperationId is null
             ? ApiProblem.Create(context, result.Status, result.ErrorCode ?? "turn_rejected")
             : Results.Json(new { operationId = result.OperationId }, statusCode: result.Status);
@@ -286,6 +287,7 @@ internal static class ConversationEndpoints
         }
 
         var result = conversations.SubmitSpeech(deviceId, id, key, body, request);
+        context.Items["diagnosticOperationId"] = result.OperationId;
         return result.OperationId is null
             ? ApiProblem.Create(context, result.Status, result.ErrorCode ?? "speech_rejected")
             : Results.Json(new { operationId = result.OperationId }, statusCode: result.Status);
@@ -369,6 +371,7 @@ internal static class ConversationEndpoints
         try
         {
             var result = conversations.SubmitTranscription(deviceId, id, key, read.Upload);
+            context.Items["diagnosticOperationId"] = result.OperationId;
             return result.OperationId is null
                 ? ApiProblem.Create(context, result.Status, result.ErrorCode ?? "transcription_rejected")
                 : Results.Json(new { operationId = result.OperationId }, statusCode: result.Status);
