@@ -6,7 +6,7 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**D115 – rozpracováno: průběžný poslech bez tlačítek a oprava dalších odpovědí.**
+**D116 – rozpracováno: průběžný poslech bez tlačítek a oprava dalších odpovědí.**
 Majitel po instalaci D114 hlásí druhou odpověď bez výsledku: po dokončení
 nahrávání se pouze deaktivuje tlačítko. Žádá skutečný průběžný rozhovor.
 Backend drží jedno provider SDK spojení, VAD rozpozná konec řeči a každý
@@ -30,6 +30,24 @@ cost_limit, Stop a opětovné spuštění. macOS Swift/Xcode ověří povinné C
 Další konkrétní krok: ověřit/složit PR, automaticky sloučit po zeleném CI,
 nasadit backend a publikovat novou podepsanou IPA. Majitel toto předání
 a živou zkoušku do 1 USD již schválil. B1 a fyzická iPhone akceptace trvají.
+
+**D115 – oprava horních tabů pod výřezem iPhonu.**
+Majitel hlásí překrytí tabů kamerou/senzory a obtížné klepnutí.
+`index.html` zapíná `viewport-fit=cover`; `src/style.css` přidává
+systémový `safe-area-inset-top` do paddingu sticky lišty a respektuje
+levý/pravý inset v landscape. Horní inset zůstává součástí lišty i při
+scrollování; nulový inset zachovává webové odsazení a stávající výšku tlačítek.
+Mobilní README popisuje chování. Kontrakty, backend a firmware se nemění.
+Kontrola zdrojů ověřila společnou lištu obou tabů, sticky top 0, viewport
+a zachování minimálních okrajů; whitespace a odkazy změny jsou v pořádku.
+Zdejší prostředí poskytuje GitHub API bez lokálního shellu/PowerShellu;
+změna je předána přes Git Data API na větvi `fix/ios-tabs-safe-area`.
+Webové testy/build a Swift/Xcode/simulator ověřuje povinné CI tohoto PR;
+aktuální výsledek a merge jsou evidované v PR. Nativní vizuální/tap kontrola
+na iPhonu, scroll a obě landscape orientace zde nebyly provedeny.
+Podpis a publikace nové IPA nejsou součástí tohoto kroku.
+Další krok: po zeleném CI a merge připravit novou IPA v autorizovaném
+publikačním kroku a ověřit Ovládání/Debug na iPhonu včetně scrollu/otočení.
 
 **D114 – nasazeno: Realtime hlas přes oficiální SDK a podrobný party prompt.**
 Majitel doložil 9,8 s dialog + 2,3 s TTS a výslovně schválil Realtime pro
@@ -84,7 +102,7 @@ nasazení backendu 36892004497, podpis 36892009408 a veřejná publikace
 36892712624 prošly. Veřejná `/ios/` nabízí build 1000.0.3; majitel jej
 nainstaloval. Placená evaluace zatím neproběhla, schválený strop je 1 USD.
 Skutečná latence/humor nejsou doložené offline testy. Hlásená iPhone
-chyba a automatický poslech pokračují v D115; B1 trvá.
+chyba a automatický poslech pokračují v D116; B1 trvá.
 
 **Předchozí nasazení 1. 10.: D112, IPA 1.0 / build 1000.0.2 publikovaná.**
 Debug nabízí pojmenovaný nový večer i návrat ke staré paměti a ukládá profil

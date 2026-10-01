@@ -8,7 +8,18 @@
 * { box-sizing: border-box; }
 body { margin: 0; min-height: 100vh; }
 [hidden] { display: none !important; }
-.app-tabs { position: sticky; top: 0; z-index: 5; background: #242a33; border-bottom: 1px solid #45505a; padding: .75rem max(1.25rem, calc((100vw - 68rem) / 2)); }
+.app-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #242a33;
+  border-bottom: 1px solid #45505a;
+  /* Keep tabs below the iPhone cutout, including while scrolling. */
+  padding: calc(.75rem + env(safe-area-inset-top, 0px))
+    max(1.25rem, calc((100vw - 68rem) / 2), env(safe-area-inset-right, 0px))
+    .75rem
+    max(1.25rem, calc((100vw - 68rem) / 2), env(safe-area-inset-left, 0px));
+}
 .app-tabs [role="tablist"] { display: flex; gap: .75rem; }
 .app-tabs [aria-selected="true"] { background: #f8bd68; color: #182027; }
 .debug-panel { max-width: 68rem; margin: auto; padding: 1.5rem 1.25rem 3rem; }
