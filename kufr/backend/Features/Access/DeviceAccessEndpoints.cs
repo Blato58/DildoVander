@@ -54,6 +54,7 @@ internal static class ApiProblem
 {
     public static IResult Create(HttpContext context, int status, string code)
     {
+        context.Items["diagnosticCode"] = code;
         return Results.Json(
             new
             {
