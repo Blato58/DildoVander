@@ -19,10 +19,15 @@ Pokud existuje `LOG_READER_CREDENTIAL`, používá jej; jinak existující
 gh workflow run kufr-backend-logs.yml --ref main -f level=warning
 gh run list --workflow kufr-backend-logs.yml --limit 1
 gh run watch ID_BEHU --exit-status
+gh run view ID_BEHU --log
 gh run download ID_BEHU -n kufr-server-logs -D /tmp/kufr-diagnostics
 ```
 
 Výsledek je `kufr-server-logs.json`: režimy serveru a stránka logů.
+Stejný typovaný JSON je v konzoli mezi `KUFR_LOG_SNAPSHOT_BEGIN/END`.
+Codex tak může číst diagnostiku přes Actions log API i při blokovaném stažení
+artefaktů. Artefakt má životnost jeden den; konzole má retenci logů nastavenou
+v repozitáři GitHub. Obě cesty obsahují jen validovaná technická metadata.
 Pro konkrétní chybu přidejte `-f trace_id=UUID` nebo `-f operation_id=UUID`.
 Pro navazující stránku použijte `-f after=NEXT_CURSOR`. Běh workflow nezískává
 serverové tajemství pro Codex, nemění režim a nespouští rozhovor. Prostředí
