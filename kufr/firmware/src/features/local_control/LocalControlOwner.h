@@ -7,6 +7,7 @@
 #include "LocalControlSession.h"
 #include "LocalConversationGateway.h"
 
+class LocalVoicePort;
 class LocalControlTransport;
 class LocalConversationNetworkPort;
 class ConversationRuntimeState;
@@ -26,7 +27,8 @@ class LocalControlOwner final {
                     LocalControlInbox& inbox, LocalControlTransport& transport,
                     LocalControlOutputPort& output, LocalControlIdPort& ids,
                     LocalControlRecoveryGate& recovery,
-                    LocalControlStepPort& steps, LocalControlClockPort& clock);
+                    LocalControlStepPort& steps, LocalControlClockPort& clock,
+                    LocalVoicePort* voice = nullptr);
   ~LocalControlOwner();
 
   void Poll();
@@ -44,6 +46,7 @@ class LocalControlOwner final {
   void Snapshot(uint64_t nowMs);
   bool SameHandle(const LocalSocketAdmission::Handle& handle) const;
 
+  LocalVoicePort* voice_;
   std::string deviceId_;
   std::string bootId_;
   DeviceControlRuntime& runtime_;

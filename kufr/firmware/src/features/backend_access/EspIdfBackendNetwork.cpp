@@ -10,6 +10,7 @@
 #include "esp_timer.h"
 
 #include "BuildDate.h"
+#include "../voice_turn/EspIdfRealtimeTransport.h"
 #include "DeviceTokenSession.h"
 #include "EspIdfStationNetwork.h"
 #include "EspIdfTokenExchangeTransport.h"
@@ -94,7 +95,7 @@ bool EspIdfBackendNetwork::QueueTextTurn(
     const std::string& clientTurnId,
     const ConversationRuntimeSnapshot& expectedSnapshot) {
   std::string normalizedId;
-  if (!online_.load() || cancelRequested_.load() ||
+  if (voiceBusy_.load() || !online_.load() || cancelRequested_.load() ||
       replyInbox_.HasPending(runtimeState_) ||
       !NormalizeConversationUuid(conversationId, normalizedId)) {
     return false;
@@ -128,7 +129,7 @@ bool EspIdfBackendNetwork::QueueOpening(
     const std::string& conversationId,
     const ConversationRuntimeSnapshot& expectedSnapshot) {
   std::string normalizedId;
-  if (!online_.load() || cancelRequested_.load() ||
+  if (voiceBusy_.load() || !online_.load() || cancelRequested_.load() ||
       expectedSnapshot.version == 0 ||
       replyInbox_.HasPending(runtimeState_) ||
       !NormalizeConversationUuid(conversationId, normalizedId)) {
@@ -139,7 +140,7 @@ bool EspIdfBackendNetwork::QueueOpening(
     return false;
   }
   std::lock_guard<std::mutex> lock(openingMutex_);
-  if (!online_.load() || cancelRequested_.load() || openingPending_ ||
+  if (voiceBusy_.load() || !online_.load() || cancelRequested_.load() || openingPending_ ||
       replyInbox_.HasPending(runtimeState_) ||
       !runtimeState_.Matches(expectedSnapshot)) {
     return false;
@@ -154,6 +155,7 @@ bool EspIdfBackendNetwork::QueueOpening(
 }
 
 void EspIdfBackendNetwork::QueueCancel() {
+  StopVoice();
   cancelRequested_.store(true);
   textInbox_.Clear();
   replyInbox_.Clear();
@@ -263,7 +265,7 @@ bool EspIdfBackendNetwork::Start(bool nvsInitialized) {
     return false;
   }
 
-  if (xTaskCreate(TaskEntry, "backend_network", 12288, this, 4, &task_) !=
+  if (xTaskCreate(TaskEntry, "backend_network", 16384, this, 4, &task_) !=
       pdPASS) {
     task_ = nullptr;
     return false;
@@ -305,6 +307,7 @@ void EspIdfBackendNetwork::Run() {
   uint64_t lastTurnAtMs = 0;
   while (true) {
     if (!station.HasIp()) {
+      StopVoice();
       online_.store(false);
       FailQueuedText();
       pendingProposal_.Clear();
@@ -411,6 +414,11 @@ void EspIdfBackendNetwork::Run() {
       WaitMs(TokenCheckPeriodMs);
       continue;
     }
+    if (voicePending_.exchange(false)) {
+      RunVoice(tokens, coordinator, startRequest);
+      lastTurnAtMs = MonotonicMs();
+      continue;
+    }
     bool opening = false;
     std::string openingConversationId;
     uint64_t openingVersion = 0;
@@ -496,6 +504,7 @@ void EspIdfBackendNetwork::RunTurn(
       return;
     }
   }
+  startRequest.audioConsent = false;
   startRequest.generation = snapshot.generation;
   startRequest.catalogVersion = snapshot.catalogVersion;
   EspIdfConversationTextTransport textTransport(settings_.BackendHost());
@@ -768,4 +777,137 @@ bool EspIdfBackendNetwork::CloseConversation(
   closeRetryAtMs_ = 0;
   closeRetryDelayMs_ = 1000;
   return true;
+}
+
+bool EspIdfBackendNetwork::InitializeVoice(bool nvsInitialized) {
+  const bool available = voiceAudio_.Initialize(nvsInitialized);
+  std::lock_guard<std::mutex> lock(voiceMutex_);
+  voiceStatus_.available = available;
+  voiceStatus_.phase = available ? "idle" : "unavailable";
+  return available;
+}
+
+LocalVoiceStatus EspIdfBackendNetwork::VoiceStatus() const {
+  std::lock_guard<std::mutex> lock(voiceMutex_);
+  return voiceStatus_;
+}
+
+bool EspIdfBackendNetwork::ConfigureVoice(const std::string& mode, const std::string& voice) {
+  if ((mode != "off" && mode != "realtime") ||
+      (voice != "cedar" && voice != "marin" && voice != "coral")) return false;
+  std::lock_guard<std::mutex> lock(voiceMutex_);
+  if (voiceBusy_.load() || (mode == "realtime" && !voiceStatus_.available)) return false;
+  voiceStatus_.mode = mode;
+  voiceStatus_.voice = voice;
+  voiceStatus_.error.clear();
+  voiceStatus_.phase = voiceStatus_.available ? "idle" : "unavailable";
+  return true;
+}
+
+bool EspIdfBackendNetwork::StartVoice(const std::string& requestId,
+                                     const ConversationRuntimeSnapshot& snapshot) {
+  if (!online_.load() || cancelRequested_.load() || !IsConversationUuid(requestId) ||
+      !runtimeState_.Matches(snapshot) || replyInbox_.HasPending(runtimeState_)) return false;
+  std::lock_guard<std::mutex> presentationLock(presentationMutex_);
+  std::lock_guard<std::mutex> openingLock(openingMutex_);
+  std::lock_guard<std::mutex> voiceLock(voiceMutex_);
+  if (terminalProposalOutstanding_ || presentationActive_ || openingPending_ || voiceBusy_.load() ||
+      requestId == lastVoiceRequestId_ || voiceStatus_.mode != "realtime" || !voiceStatus_.available) return false;
+  voiceSnapshot_ = snapshot;
+  voiceRequestId_ = lastVoiceRequestId_ = requestId;
+  voiceStatus_.phase = "starting";
+  voiceStatus_.error.clear();
+  voiceStartEpoch_ = voiceEpoch_.fetch_add(1) + 1;
+  voiceQueuedAtMs_ = MonotonicMs();
+  voiceBusy_.store(true);
+  voicePending_.store(true);
+  return true;
+}
+
+void EspIdfBackendNetwork::StopVoice() {
+  voiceEpoch_.fetch_add(1);
+  const bool pending = voicePending_.exchange(false);
+  if (pending) voiceBusy_.store(false);
+  voiceAudio_.Stop();
+  std::lock_guard<std::mutex> lock(voiceMutex_);
+  if (voiceBusy_.load()) voiceStatus_.phase = "stopping";
+  if (!voiceBusy_.load()) voiceStatus_.phase = voiceStatus_.available ? "idle" : "unavailable";
+}
+
+void EspIdfBackendNetwork::SetVoicePhase(const char* phase) {
+  std::lock_guard<std::mutex> lock(voiceMutex_);
+  voiceStatus_.phase = phase;
+}
+
+void EspIdfBackendNetwork::RunVoice(DeviceTokenSession& tokens,
+                                    ConversationStartCoordinator& coordinator,
+                                    ConversationStartRequest& startRequest) {
+  ConversationRuntimeSnapshot snapshot;
+  std::string requestId, voice;
+  uint64_t epoch = 0, queuedAtMs = 0;
+  {
+    std::lock_guard<std::mutex> lock(voiceMutex_);
+    snapshot = voiceSnapshot_; requestId = voiceRequestId_; voice = voiceStatus_.voice;
+    epoch = voiceStartEpoch_; queuedAtMs = voiceQueuedAtMs_;
+  }
+  const auto current = [this, snapshot, epoch]() {
+    return voiceEpoch_.load() == epoch && !cancelRequested_.load() &&
+           station_.HasIp() && runtimeState_.Matches(snapshot);
+  };
+  voiceAudio_.Begin();
+  EspIdfConversationTextTransport cleanup(settings_.BackendHost());
+  bool succeeded = false;
+  TurnOperationObservation final;
+  std::string error = "ai_unavailable";
+  if (MonotonicMs() - queuedAtMs <= 5000 && current() && CloseConversation(coordinator, cleanup, tokens, startRequest)) {
+    startRequest.audioConsent = true;
+    startRequest.generation = snapshot.generation;
+    startRequest.catalogVersion = snapshot.catalogVersion;
+    startRequest.idempotencyKey = requestId;
+    const auto started = coordinator.Start(startRequest, MonotonicMs());
+    if ((started == ConversationStartOutcome::Started || started == ConversationStartOutcome::AlreadyStarted) && current()) {
+      TurnCorrelation correlation;
+      correlation.deviceId = identity_.DeviceId();
+      correlation.bootId = bootId_;
+      correlation.conversationId = coordinator.ConversationId();
+      correlation.clientTurnId = GenerateEspIdfConversationUuid();
+      correlation.generation = snapshot.generation;
+      correlation.deviceRevision = snapshot.deviceRevision;
+      const std::string body = "{\"clientTurnId\":\"" + correlation.clientTurnId +
+          "\",\"bootId\":\"" + bootId_ + "\",\"generation\":" + std::to_string(snapshot.generation) +
+          ",\"readyMask\":" + std::to_string(snapshot.readyMask) +
+          ",\"deviceRevision\":" + std::to_string(snapshot.deviceRevision) +
+          ",\"catalogVersion\":\"" + snapshot.catalogVersion +
+          "\",\"opening\":true,\"text\":\"\",\"wav\":null,\"voice\":\"" + voice + "\",\"speed\":1}";
+      const char* token = tokens.AccessToken(MonotonicMs());
+      EspIdfRealtimeTransport transport(settings_.BackendHost(), token ? token : "", voiceAudio_,
+          current, [this](const char* phase) { SetVoicePhase(phase); });
+      succeeded = transport.Run(body, GenerateEspIdfConversationUuid(), correlation, snapshot,
+          [&final, &current](const TurnOperationObservation& operation) {
+            if (!current()) return false;
+            final = operation; return true;
+          });
+      if (!transport.Error().empty()) error = transport.Error();
+    }
+  }
+  voiceAudio_.Stop();
+  bool proposalStored = false;
+  if (succeeded && current() && final.hasProposal) {
+    const auto utc = std::time(nullptr);
+    const uint64_t remaining = utc > 0 ? ProposalRemainingMs(final.proposal, static_cast<uint64_t>(utc)) : 0;
+    proposalStored = remaining && pendingProposal_.Store(final.proposal, snapshot, runtimeState_, MonotonicMs(), remaining);
+    if (proposalStored) {
+      std::lock_guard<std::mutex> lock(presentationMutex_);
+      terminalProposalOutstanding_ = true;
+    }
+  }
+  if (!proposalStored) CloseConversation(coordinator, cleanup, tokens, startRequest);
+  startRequest.audioConsent = false;
+  {
+    std::lock_guard<std::mutex> lock(voiceMutex_);
+    voiceStatus_.phase = succeeded && current() ? "completed" : voiceEpoch_.load() != epoch ? "idle" : "failed";
+    voiceStatus_.error = voiceStatus_.phase == "failed" ? error : "";
+    voiceBusy_.store(false);
+  }
+  std::fill(final.reply.begin(), final.reply.end(), '\0');
 }

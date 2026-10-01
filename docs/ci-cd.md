@@ -28,7 +28,8 @@ sudo apt-get install -y --no-install-recommends git curl ca-certificates tar ope
 balíčky neinstaluje přes sudo. Node 24.21.0 instalují připnuté setup-node
 actions podle `.nvmrc`; .NET SDK určuje `kufr/global.json` a setup-dotnet
 jej ukládá do zapisovatelného `${{ runner.tool_cache }}/dotnet`.
-PlatformIO se instaluje do venv v `RUNNER_TEMP`. Rozšířený ruční
+PlatformIO a OpenAI SDK ručního eval se instalují do vlastních venv
+v `RUNNER_TEMP`, bez změny systémového Pythonu. Rozšířený ruční
 **Kufr backend host probe** zkontroluje dostupnost nástrojů a Python venv.
 
 PR CI nyní sdílí server s nasazením. GitHub environment secrets stále

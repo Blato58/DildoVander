@@ -7,6 +7,7 @@
 #include "../src/features/device_control/PersistentCommandJournal.h"
 #include "../src/features/local_control/LocalControlOutput.h"
 #include "../src/features/local_control/LocalControlTransport.h"
+#include "../src/features/voice_turn/LocalVoicePort.h"
 
 namespace {
 
@@ -70,13 +71,22 @@ class Transport final : public LocalControlTransport {
   std::vector<std::string> messages;
 };
 
+class Voice final : public LocalVoicePort {
+ public:
+  LocalVoiceStatus VoiceStatus() const override { return status; }
+  bool ConfigureVoice(const std::string&, const std::string&) override { return false; }
+  bool StartVoice(const std::string&, const ConversationRuntimeSnapshot&) override { return false; }
+  void StopVoice() override {}
+  LocalVoiceStatus status;
+};
+
 struct Fixture {
   Fixture(uint64_t calibration = 1, bool populated = true, bool fault = false)
       : storage(populated, fault), journal(storage), safety(port), sequence(safety),
         control("kufr-001", Boot, sequence, journal, calibration),
         conversation(Boot, Conversation),
         output("kufr-001", Boot, control, journal, safety, sequence,
-               conversation, transport) {
+               conversation, transport, &voice) {
     safety.InitializeSafe();
   }
   bool Snapshot(const std::string& lease = "", uint64_t nowMs = 100) {
@@ -115,6 +125,7 @@ struct Fixture {
   DeviceControl control;
   ConversationSession conversation;
   Transport transport;
+  Voice voice;
   LocalControlOutput output;
 };
 
@@ -215,6 +226,25 @@ void TestCommandAndConversationAcks() {
   assert(!fixture.output.ConversationResult({7, 1}, Turn, 0, "\xc0\xaf"));
 }
 
+void TestVoiceWireStatus() {
+  Fixture fixture;
+  fixture.voice.status.available = true;
+  fixture.voice.status.mode = "realtime";
+  fixture.voice.status.voice = "cedar";
+  fixture.voice.status.phase = "listening";
+  assert(fixture.Snapshot());
+  assert(fixture.transport.messages.back().find("\"microphoneState\":\"recording\"") != std::string::npos);
+  LocalControlMessage request;
+  request.messageId = Command;
+  assert(fixture.output.VoiceAck({7, 1}, request, true));
+  assert(fixture.transport.messages.back().find("\"accepted\":true") != std::string::npos);
+  fixture.voice.status.phase = "failed";
+  fixture.voice.status.error = "cost_limit";
+  assert(fixture.output.VoiceAck({7, 1}, request, false));
+  assert(fixture.transport.messages.back().find("cost_limit") != std::string::npos);
+  assert(!fixture.output.VoiceAck({7, 1}, LocalControlMessage{}, true));
+}
+
 void TestTerminalResultsAndPhases() {
   Fixture fixture;
   fixture.Acquire();
@@ -259,4 +289,5 @@ int main() {
   TestAcceptanceAndIdleStop();
   TestCommandAndConversationAcks();
   TestTerminalResultsAndPhases();
+  TestVoiceWireStatus();
 }
