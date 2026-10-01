@@ -81,6 +81,7 @@ final class DebugHandsFreeAudio {
     nonisolated(unsafe) private let lock = NSLock()
     private var converter: DebugHandsFreePCMConverter?
     private var activeRoute: [String] = []
+    private var audioActive = false
     private var tapInstalled = false
     private var playerAttached = false
     // These fields are shared only with the real-time input-tap callback and
@@ -133,6 +134,7 @@ final class DebugHandsFreeAudio {
             throw error
         }
         player.play()
+        audioActive = true
         activeRoute = routeIdentifiers(audioSession.currentRoute)
         observeAudioSession()
     }
@@ -189,6 +191,7 @@ final class DebugHandsFreeAudio {
     }
 
     func stop() {
+        audioActive = false
         lock.lock()
         generation = UUID()
         inputEnabled = false
@@ -318,7 +321,7 @@ final class DebugHandsFreeAudio {
     }
 
     private func routeChanged(reason: UInt?) {
-        guard engine.isRunning else { return }
+        guard audioActive else { return }
         let change: DebugHandsFreeAudioPolicy.RouteChange
         switch reason.flatMap(AVAudioSession.RouteChangeReason.init(rawValue:)) {
         case .categoryChange: change = .category
@@ -327,7 +330,8 @@ final class DebugHandsFreeAudio {
         default: change = .device
         }
         let session = AVAudioSession.sharedInstance()
-        let configurationMatches = session.category == .playAndRecord
+        let configurationMatches = engine.isRunning
+            && session.category == .playAndRecord
             && session.mode == .voiceChat
             && routeIdentifiers(session.currentRoute) == activeRoute
             && converter?.sourceFormat == engine.inputNode.outputFormat(forBus: 0)
@@ -339,18 +343,20 @@ final class DebugHandsFreeAudio {
     }
 
     private func audioFailure() {
-        guard engine.isRunning else { return }
+        // iOS may stop the engine before notifying us. Only our own stop()
+        // marks the lifecycle inactive, so genuine interruptions still clean up.
+        guard audioActive else { return }
         stop()
         failure("realtime_live_audio_interrupted")
     }
 
     private func audioQueueOverflowed() {
-        guard engine.isRunning else { return }
+        guard audioActive else { return }
         failure("realtime_live_audio_overflow")
     }
 
     private func audioConversionFailed() {
-        guard engine.isRunning else { return }
+        guard audioActive else { return }
         lock.lock()
         let acceptingInput = inputEnabled
         lock.unlock()
