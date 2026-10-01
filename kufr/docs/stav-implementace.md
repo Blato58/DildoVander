@@ -32,6 +32,11 @@ Locked restore linux-x64/self-contained prošel. In-app Browser ověřil
 Realtime jako výchozí, kompatibilní hlasy, ovládání a 390px rozložení bez
 horizontálního přesahu/console chyb. Swift/Xcode na Windows není dostupné;
 nový parser/rušení/cleanup harness a iOS sestavení ověřuje povinné macOS CI.
+Implementační commit `10ce2af240531bc6a3faaa8d735e973c74499104` byl pushnut
+přes Push-CurrentBranch.ps1, přesná remote shoda ověřena.
+[PR #80](https://github.com/Blato58/DildoVander/pull/80) obsahuje povinné
+kontroly backendu, webu, Swift harness a Xcode/simulátoru; aktuální výsledek
+kontrol a sloučení je v PR. Tento záznam se nepoužívá jako HW/iPhone akceptace.
 Read-only review opravil immutable model, 32KiB audio bloky, playback drain,
 cleanup retry, souběh streamu a pořadí paměť/journal. Oddělené SQLite soubory
 nejsou společná atomická transakce: chyba journalu po úspěšné paměti může
