@@ -23,6 +23,8 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
     private var configurationCall: CAPPluginCall?
     private weak var configurationAlert: UIAlertController?
     private var dialogSession: DebugDialogSession?
+    private var realtimeSession: DebugRealtimeSession?
+    private var realtimePlayer: DebugPCMPlayer?
     private var transcript: [[String: String]] = []
     private var selected: Int?
     private var timings: [String: Double] = [:]
@@ -67,9 +69,9 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
     @objc func status(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             self.restoreProfile()
-            call.resolve(["configured": self.profile != nil, "running": self.task != nil || self.player != nil || self.synthesizer.isSpeaking || self.microphone != nil || self.cleanupTask != nil,
+            call.resolve(["configured": self.profile != nil, "running": self.task != nil || self.player != nil || self.realtimePlayer != nil || self.synthesizer.isSpeaking || self.microphone != nil || self.cleanupTask != nil,
                           "phase": self.phase, "mode": self.mode,
-                          "session": self.dialogSession != nil, "recording": self.microphone != nil,
+                          "session": self.dialogSession != nil || self.realtimeSession != nil, "recording": self.microphone != nil,
                           "transcript": self.transcript, "selected": (self.selected as Any?) ?? NSNull(), "timings": self.timings,
                           "evenings": (self.evenings?.bridgeValue as Any?) ?? NSNull(),
                           "server": (self.serverModes?.bridgeValue as Any?) ?? NSNull()])
@@ -180,19 +182,53 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
             self.transcript = []; self.selected = nil; self.timings = [:]; self.phase = "checking"
             self.task = Task { @MainActor in
                 var owned: DebugDialogSession?
+                var realtimeOwned: DebugRealtimeSession?
                 do {
-                    let session = try await DebugBackendClient().openSession(profile,
-                        expectedMode: call.getString("expectedMode") ?? "", readyMask: call.getInt("readyMask") ?? -1,
-                        voice: call.getString("voice") ?? "cedar", speed: call.getDouble("speed") ?? 1.1)
-                    owned = session
-                    try self.requireCurrent(generation)
-                    self.dialogSession = session
                     self.mode = call.getString("expectedMode") ?? "unknown"
-                    try await self.dialogTurn(session, text: nil, generation: generation)
-                    if self.generation == generation { self.task = nil }
+                    let engine = call.getString("engine") ?? "chained"
+                    if engine == "realtime" {
+                        guard self.mode == "openai" else { throw DebugBackendError.wrongMode }
+                        let session = try await DebugBackendClient().openRealtimeSession(profile,
+                            readyMask: call.getInt("readyMask") ?? -1, voice: call.getString("voice") ?? "cedar",
+                            speed: call.getDouble("speed") ?? 1.1)
+                        realtimeOwned = session
+                        try self.requireCurrent(generation)
+                        self.realtimeSession = session
+                        try await self.realtimeTurn(session, text: nil, wav: nil, generation: generation)
+                    } else {
+                        let session = try await DebugBackendClient().openSession(profile,
+                            expectedMode: self.mode, readyMask: call.getInt("readyMask") ?? -1,
+                            voice: call.getString("voice") ?? "cedar", speed: call.getDouble("speed") ?? 1.1)
+                        owned = session
+                        try self.requireCurrent(generation)
+                        self.dialogSession = session
+                        try await self.dialogTurn(session, text: nil, generation: generation)
+                    }
+                    if self.generation == generation {
+                        self.task = nil
+                        if realtimeOwned != nil && self.realtimePlayer == nil {
+                            self.phase = self.realtimeSession == nil ? "completed" : "awaiting"
+                        }
+                    }
                     call.resolve()
                 } catch {
                     if let owned = owned { try? await owned.close() }
+                    if let realtimeOwned = realtimeOwned {
+                        await realtimeOwned.cancel()
+                        do {
+                            try await realtimeOwned.close()
+                        } catch {
+                            // Keep the only owned session reference so Stop can
+                            // retry its cleanup instead of silently orphaning it.
+                            if self.generation == generation {
+                                self.task = nil
+                                self.realtimePlayer?.stop(); self.realtimePlayer = nil
+                                self.phase = "failed"
+                            }
+                            call.reject("Realtime úklid nebyl potvrzen. Zastavte test a zkuste jej znovu.", "realtime_cleanup_failed")
+                            return
+                        }
+                    }
                     if self.generation == generation { self.failDialog() }
                     call.reject("Rozhovor nebyl dokončen. Ověřte přístup, režim a limity serveru.", "dialog_failed")
                 }
@@ -202,11 +238,12 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
 
     @objc func answerConversation(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
-            guard self.canAnswer(), let session = self.dialogSession, let text = call.getString("text"),
+            guard self.canAnswer(), (self.dialogSession != nil || self.realtimeSession != nil), let text = call.getString("text"),
                   !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, text.unicodeScalars.count <= 1000 else {
                 call.reject("Počkejte na otázku a zadejte odpověď do 1000 znaků.", "unavailable"); return
             }
-            self.submitAnswer(call, session: session, text: text, wav: nil)
+            if let session = self.dialogSession { self.submitAnswer(call, session: session, text: text, wav: nil) }
+            else if let session = self.realtimeSession { self.submitRealtimeAnswer(call, session: session, text: text, wav: nil) }
         }
     }
 
@@ -228,6 +265,37 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
                 try? await session.close()
                 if self.generation == generation { self.failDialog() }
                 call.reject("Odpověď nebyla dokončena. Rozhovor byl ukončen.", "dialog_failed")
+            }
+        }
+    }
+
+    private func submitRealtimeAnswer(_ call: CAPPluginCall, session: DebugRealtimeSession, text: String?, wav: Data?) {
+        let generation = self.generation
+        self.task = Task { @MainActor in
+            do {
+                try await self.realtimeTurn(session, text: text, wav: wav, generation: generation)
+                if self.generation == generation {
+                    self.task = nil
+                    if self.realtimePlayer == nil {
+                        self.phase = self.realtimeSession == nil ? "completed" : "awaiting"
+                    }
+                }
+                call.resolve()
+            } catch {
+                await session.cancel()
+                do {
+                    try await session.close()
+                } catch {
+                    if self.generation == generation {
+                        self.task = nil
+                        self.realtimePlayer?.stop(); self.realtimePlayer = nil
+                        self.phase = "failed"
+                    }
+                    call.reject("Realtime úklid nebyl potvrzen. Zastavte test a zkuste jej znovu.", "realtime_cleanup_failed")
+                    return
+                }
+                if self.generation == generation { self.failDialog() }
+                call.reject("Realtime odpověď nebyla dokončena. Rozhovor byl ukončen.", "realtime_failed")
             }
         }
     }
@@ -262,8 +330,42 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
         if self.player == nil { phase = result.terminal ? "completed" : "awaiting" }
     }
 
+    @MainActor private func realtimeTurn(_ session: DebugRealtimeSession, text: String?, wav: Data?, generation: Int) async throws {
+        if let text = text {
+            transcript.append(["role": "visitor", "text": text])
+        }
+        let player = DebugPCMPlayer { [weak self] in
+            guard let self = self, self.generation == generation else { return }
+            self.realtimePlayer = nil
+            if self.realtimeSession == nil { self.phase = "completed" }
+            else if self.task == nil { self.phase = "awaiting" }
+            self.deactivateAudio()
+        }
+        realtimePlayer = player
+        let result = try await session.advance(text: text, wav: wav, phase: { value in
+            if self.generation == generation { self.phase = value }
+        }, visitor: { value in
+            if self.generation == generation { self.transcript.append(["role": "visitor", "text": value]) }
+        }, audio: { pcm in
+            guard self.generation == generation else { throw CancellationError() }
+            try player.append(pcm)
+        })
+        player.finish()
+        try requireCurrent(generation)
+        transcript.append(["role": "kufr", "text": result.text])
+        selected = result.selected
+        timings = result.timings
+        if result.terminal {
+            try await session.close()
+            try requireCurrent(generation)
+            realtimeSession = nil
+        }
+        if realtimePlayer == nil { phase = result.terminal ? "completed" : "awaiting" }
+    }
+
     private func failDialog() {
-        task = nil; dialogSession = nil; player?.stop(); player = nil
+        task = nil; dialogSession = nil; realtimeSession = nil; player?.stop(); player = nil
+        realtimePlayer?.stop(); realtimePlayer = nil
         phase = "failed"; deactivateAudio()
     }
 
@@ -311,7 +413,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
     @objc func finishRecording(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             guard UIApplication.shared.applicationState == .active, self.task == nil,
-                  let microphone = self.microphone, let session = self.dialogSession else {
+                  let microphone = self.microphone, (self.dialogSession != nil || self.realtimeSession != nil) else {
                 call.reject("Nahrávání není aktivní.", "unavailable"); return
             }
             self.recordingTimer?.invalidate(); self.recordingTimer = nil
@@ -319,7 +421,8 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
             do {
                 let wav = try microphone.finish()
                 self.deactivateAudio()
-                self.submitAnswer(call, session: session, text: nil, wav: wav)
+                if let session = self.dialogSession { self.submitAnswer(call, session: session, text: nil, wav: wav) }
+                else if let session = self.realtimeSession { self.submitRealtimeAnswer(call, session: session, text: nil, wav: wav) }
             } catch {
                 microphone.cancel(); self.phase = "awaiting"; self.deactivateAudio()
                 call.reject("Nahrávka je prázdná nebo neplatná.", "recording_invalid")
@@ -441,11 +544,11 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
     }
 
     private func canStart() -> Bool {
-        canAnswer() && dialogSession == nil
+        canAnswer() && dialogSession == nil && realtimeSession == nil
     }
 
     private func canAnswer() -> Bool {
-        UIApplication.shared.applicationState == .active && task == nil && player == nil &&
+        UIApplication.shared.applicationState == .active && task == nil && player == nil && realtimePlayer == nil &&
             !synthesizer.isSpeaking && configurationCall == nil && microphone == nil && cleanupTask == nil
     }
 
@@ -457,8 +560,11 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
         microphone?.cancel(); microphone = nil
         transcript = []; selected = nil; timings = [:]
         let session = dialogSession
+        let realtime = realtimeSession
         dialogSession = nil
-        if cleanupTask == nil && (session != nil || stoppedTask != nil) {
+        realtimeSession = nil
+        realtimePlayer?.stop(); realtimePlayer = nil
+        if cleanupTask == nil && (session != nil || realtime != nil || stoppedTask != nil) {
             cleanupTask = Task { @MainActor in
                 // A cancelled create can still be recovering its owned ID.
                 // Do not admit another test until that recovery has finished.
@@ -466,6 +572,16 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
                 if let session = session {
                     do { try await session.close() }
                     catch { self.phase = "failed" }
+                }
+                if let realtime = realtime {
+                    await realtime.cancel()
+                    do { try await realtime.close() }
+                    catch {
+                        // Keep ownership after a failed DELETE so another Stop
+                        // can retry cleanup with the same conversation identity.
+                        self.realtimeSession = realtime
+                        self.phase = "failed"
+                    }
                 }
                 self.cleanupTask = nil
             }

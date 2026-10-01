@@ -22,6 +22,7 @@
 		AE1000000000000000000105 /* LocalDeviceDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE1000000000000000000005 /* LocalDeviceDiscovery.swift */; };
 		AE1000000000000000000106 /* DebugBackendClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE1000000000000000000006 /* DebugBackendClient.swift */; };
 		AE1000000000000000000107 /* KufrDebugPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE1000000000000000000007 /* KufrDebugPlugin.swift */; };
+		AE1000000000000000000108 /* DebugRealtimeSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE1000000000000000000008 /* DebugRealtimeSession.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -42,6 +43,7 @@
 		AE1000000000000000000005 /* LocalDeviceDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDeviceDiscovery.swift; sourceTree = "<group>"; };
 		AE1000000000000000000006 /* DebugBackendClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugBackendClient.swift; sourceTree = "<group>"; };
 		AE1000000000000000000007 /* KufrDebugPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KufrDebugPlugin.swift; sourceTree = "<group>"; };
+		AE1000000000000000000008 /* DebugRealtimeSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugRealtimeSession.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -85,6 +87,7 @@
 				AE1000000000000000000005 /* LocalDeviceDiscovery.swift */,
 				AE1000000000000000000006 /* DebugBackendClient.swift */,
 				AE1000000000000000000007 /* KufrDebugPlugin.swift */,
+				AE1000000000000000000008 /* DebugRealtimeSession.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -184,6 +187,7 @@
 				AE1000000000000000000105 /* LocalDeviceDiscovery.swift in Sources */,
 				AE1000000000000000000106 /* DebugBackendClient.swift in Sources */,
 				AE1000000000000000000107 /* KufrDebugPlugin.swift in Sources */,
+				AE1000000000000000000108 /* DebugRealtimeSession.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

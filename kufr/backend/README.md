@@ -1,5 +1,53 @@
 # Backend kufru (E7)
 
+D114 přidává přímý Realtime hlas přes oficiální OpenAI .NET SDK 2.14.0,
+model `gpt-realtime-1.5`. Textový Sol i dosavadní fake/STT/Sol/TTS zůstávají.
+`POST /v1/conversations/{id}/realtime-turns` vyžaduje device token, UUID
+idempotency key, audio souhlas a režimy `responses` / `openai`.
+OpenAI klíč zůstává na backendu. SDK obsluhuje typované příkazy a události;
+omezený transport odmítá redirect a WebSocket zprávu nad 256 KiB.
+Realtime SDK API je experimental, proto je verze připnutá a serializace
+PTT ověřená testem. Backend připojení používá GA API bez beta hlavičky.
+
+Vstup obsahuje korelaci textového tahu, `opening`, `text`, `wav`, `voice`
+(`cedar`, `marin`, `coral`) a `speed` 0.8–1.2. Opening má prázdný text a
+`wav:null`; další tah má právě text nebo base64 PCM16 mono 32kHz WAV
+(100 ms až 30 s). JSON tělo nejvýše 2 600 000 B. Backend provede filtrovaný
+převod na 24 kHz, vypne VAD a po PTT explicitně commitne audio.
+Model slyší nahrávku přímo; souběžný český přepis slouží paměti večera,
+není předřazeným krokem pro vygenerování odpovědi.
+
+Odpověď je HTTPS `application/x-ndjson`: `started` s operation ID/korelací,
+`audio` s base64 PCM16 mono 24 kHz po blocích do 32 KiB, volitelný `visitor`,
+a `completed` s běžným `TurnResult` nebo technický `failed`. Každý blok se
+hned flushne; `X-Accel-Buffering:no` vypíná proxy buffering. Nejvýše 30 s
+výstupního zvuku, deadline 45 s včetně přepisu. Stop, odpojení a restart
+ruší provider socket. Dokončený výsledek lze číst přes stávající operaci;
+stream ani placené audio se neopakují (retry vrací 409).
+
+Otázky zazní průběžně; jejich zvuk je před dokončením provizorní. Výběr
+vyžaduje funkci `propose_wand`, backendovou kontrolu otázkové brány/masky,
+potom druhou krátkou hlasovou odpověď. Teprve `completed` obsahuje návrh.
+Debug stream nikdy nespouští pohon. Po úspěšném dokončení se uloží skutečný
+přepis a replika do aktivního večera; Stop nepřipojí pozdní obsah.
+Paměť a nákladový journal mají oddělené SQLite soubory. Pokud po zápisu
+paměti selže dokončení journalu, tah se ohlásí jako neúspěšný, ale výměna
+může zůstat v paměti. Toto není atomická transakce přes obě databáze.
+
+Realtime sdílí placený slot a session/day/month limity. Rezervace pokrývá
+nejvýše dvě odpovědi po 1024 tokenech, serializovaný prompt/paměť, audio
+vstup i případné audio první odpovědi v druhém vstupu; navíc 0,01 USD pro
+souběžný přepis. Usage se vypořádá při konzervativních sazbách 4 USD/1M
+textového vstupu, 32 USD/1M audio vstupu a 64 USD/1M výstupu. Chybějící
+usage drží rezervaci. Delší prompt/paměť zvyšují potřebnou rezervaci;
+cap 0,20 USD na sezení nestačí ani pro první tah. Před nasazením ověřit
+skutečné stropy a odsouhlasený rozpočet, nezvyšovat je automaticky.
+Lokální testy nedokládají latenci ani kvalitu placeného hlasu.
+
+Kontrakt je v [OpenAPI](../contracts/backend-openapi-v1.json).
+Nasazení backendu a nová podepsaná IPA jsou samostatné předání; stará
+aplikace ani starý server se pouhou úpravou zdrojového kódu nezmění.
+
 D110 rozšiřuje `POST /v1/conversations/{id}/speech` o volitelné `voice`
 (`cedar`, `marin`, `onyx`, `coral`) a konečné `speed` 0.85–1.25. Chybějící
 hodnoty zachovají marin/1.0. Jiná pole/hlasy a neplatná rychlost se odmítají;
