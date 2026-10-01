@@ -87,7 +87,8 @@ internal sealed partial class ConversationStore
             // a separate bounded copy and wipes it after the provider is done.
             ownedInput = inputWav?.ToArray();
             var cancellation = CancellationTokenSource.CreateLinkedTokenSource(voiceRunner.Stopping);
-            activePaidCalls.Add(reservation.OperationId, new PaidCall(correlation.ConversationId, cancellation));
+            activePaidCalls.Add(reservation.OperationId,
+                new PaidCall(correlation.DeviceId, correlation.ConversationId, cancellation));
             var conversation = conversations[correlation.ConversationId];
             if (kind == VoiceOperationKind.Transcription)
             {

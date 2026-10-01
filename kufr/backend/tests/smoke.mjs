@@ -93,6 +93,20 @@ async function read(path, token) {
   return { status: response.status, result: await response.json() };
 }
 
+async function activateEvening(path, token, key, body) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Idempotency-Key': key,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  return { status: response.status, result: await response.json() };
+}
+
 async function remove(path, token, key, body) {
   const response = await fetch(`${baseUrl}${path}`, {
     method: 'DELETE',
@@ -634,6 +648,49 @@ try {
   const clearedEvening = (await read('/v1/evening-memory', newToken)).result;
   assert.equal(clearedEvening.exchangeCount, 0);
   assert.notEqual(clearedEvening.eveningId, previousEvening.eveningId);
+  const listBefore = await read('/v1/evenings', newToken);
+  assert.equal(listBefore.status, 200);
+  assert.equal(listBefore.result.activeEveningId, clearedEvening.eveningId);
+  assert.equal(listBefore.result.evenings.length, 1);
+  assert.equal(JSON.stringify(listBefore.result).includes(turn.text), false);
+  const eveningName = 'Další večer 🎉';
+  const eveningBody = { name: eveningName, expectedEveningId: clearedEvening.eveningId };
+  const eveningKey = randomUUID();
+  assert.equal((await call('/v1/evenings', { token: newToken, key: randomUUID(),
+    body: { ...eveningBody, extra: 'forbidden' } })).status, 400);
+  const duplicateName = await fetch(`${baseUrl}/v1/evenings`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${newToken}`, 'Idempotency-Key': randomUUID(),
+      'Content-Type': 'application/json' },
+    body: `{"name":"First","name":"Second","expectedEveningId":"${clearedEvening.eveningId}"}`
+  });
+  assert.equal(duplicateName.status, 400);
+  assert.equal((await call('/v1/evenings', { token: newToken, key: randomUUID(),
+    body: { ...eveningBody, name: 'bad\nname' } })).status, 400);
+  assert.equal((await call('/v1/evenings', { token: newToken, key: randomUUID(),
+    body: { ...eveningBody, name: '🎉'.repeat(81) } })).status, 400);
+  const newEvening = await call('/v1/evenings', { token: newToken, key: eveningKey, body: eveningBody });
+  assert.equal(newEvening.status, 201);
+  const namedEveningId = newEvening.result.activeEveningId;
+  assert.equal(newEvening.result.evenings.length, 2);
+  assert.equal(newEvening.result.evenings.find(item => item.eveningId === namedEveningId).name, eveningName);
+  assert.equal((await call('/v1/evenings', { token: newToken, key: eveningKey,
+    body: { ...eveningBody, name: 'Changed' } })).status, 409);
+  assert.equal((await call('/v1/evenings', { token: newToken, key: randomUUID(),
+    body: eveningBody })).result.code, 'evening_conflict');
+  assert.equal((await activateEvening(`/v1/evenings/${namedEveningId}/active`, newTokenB,
+    randomUUID(), { expectedEveningId: (await read('/v1/evenings', newTokenB)).result.activeEveningId })).status, 404);
+  const switchKey = randomUUID();
+  const switchBody = { expectedEveningId: namedEveningId };
+  const switched = await activateEvening(`/v1/evenings/${clearedEvening.eveningId}/active`,
+    newToken, switchKey, switchBody);
+  assert.equal(switched.status, 200);
+  assert.equal(switched.result.activeEveningId, clearedEvening.eveningId);
+  assert.deepEqual((await call('/v1/evenings', { token: newToken, key: eveningKey,
+    body: eveningBody })).result, newEvening.result);
+  assert.equal((await read('/v1/evenings', newToken)).result.activeEveningId, clearedEvening.eveningId);
+  assert.deepEqual((await activateEvening(`/v1/evenings/${clearedEvening.eveningId}/active`,
+    newToken, switchKey, switchBody)).result, switched.result);
   const greetingSession = await call('/v1/conversations', { token: newToken, key: randomUUID(), body });
   assert.equal(greetingSession.status, 201);
   const openingPath = `/v1/conversations/${greetingSession.result.conversationId}/opening`;
@@ -647,7 +704,7 @@ try {
   assert.equal((await call(openingPath, { token: newToken, key: randomUUID(), body: { ...openingBody, text: 'forbidden' } })).status, 400);
   assert.equal(await remove(`/v1/evening-memory/${previousEvening.eveningId}`, newToken, randomUUID()), 204);
   assert.equal((await read('/v1/evening-memory', newToken)).result.exchangeCount, 1);
-  console.log('Backend HTTP smoke: access, fake turn/transcription/speech, scope and restart passed');
+  console.log('Backend HTTP smoke: access, fake voice, named evenings, scope and restart passed');
 } finally {
   await stopServer();
   await rm(databaseDirectory, { recursive: true, force: true });
