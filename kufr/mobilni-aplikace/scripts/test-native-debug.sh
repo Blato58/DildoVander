@@ -50,3 +50,7 @@ swiftc -swift-version 5 -warnings-as-errors -parse-as-library \
   ios/App/App/DebugBackendClient.swift ios/App/App/DebugRealtimeSession.swift ios/App/App/DebugHandsFreeSession.swift ios/App/App/DebugHandsFreeAudio.swift tests/native_handsfree/main.swift \
   -o "$test_directory/native-handsfree-tests"
 KUFR_DEBUG_HTTP_PEER="$(cat "$test_directory/handsfree-address")" "$test_directory/native-handsfree-tests"
+swiftc -swift-version 5 -warnings-as-errors -parse-as-library \
+  ios/App/App/DebugBackendClient.swift ios/App/App/DebugRealtimeSession.swift ios/App/App/DebugHandsFreeSession.swift ios/App/App/DebugHandsFreeAudio.swift tests/native_handsfree/upload_regression.swift \
+  -o "$test_directory/native-handsfree-upload-tests"
+KUFR_DEBUG_HTTP_PEER="$(cat "$test_directory/handsfree-address")" "$test_directory/native-handsfree-upload-tests"

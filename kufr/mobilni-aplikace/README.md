@@ -51,6 +51,11 @@ Nastavte dostupné přihrádky (výchozí všech šest), hlas Cedar/Marin/Onyx/C
 a tempo, obnovte režimy serveru a spusťte AI nebo fake rozhovor. Odpovídejte
 ve výchozím **Realtime · bez tlačítek** prostě nahlas: mikrofon vyžaduje
 povolení iOS a během poslechu průběžně odesílá PCM16 mono 24 kHz backendu.
+Upload používá jedno síťové sezení pro celý rozhovor a přesné 200ms dávky;
+hardwarové mikrofonní bloky se průběžně skládají bez změny pořadí. Fronta
+zůstává omezená na 1 s. Kód `realtime_live_audio_overflow` označuje zaplnění
+této fronty, sám nedokazuje nestabilní připojení. Pozdní blok z předchozího
+poslechu se zahodí a neoznačí jako další odpověď.
 Po 650 ms ticha odpoví kufr, během jeho řeči je vstup zavřený a po skutečném
 dohrání se automaticky otevře další poslech. Telefon začne přehrávat první
 bloky před dokončením odpovědi. Spouští se jeden rozhovor, nejvýše 8 min/10
@@ -138,6 +143,10 @@ Hands-free loopback harness ověřuje úvod a dvě hlasové odpovědi v jednom
 streamu, obnovení vstupu, konec a cleanup. Záměrně pošle další `listening`
 před HTTP odpovědí `/played`. AVAudioEngine a skutečný mikrofon musí
 ověřit Xcode/iPhone; Foundation harness je nenahrazuje.
+Samostatný upload harness navíc zachytává 50ms bloky při zpožděných HTTP
+odpovědích, ověřuje skutečné 200ms PCM dávky/pořadí a opětovné použití
+jednoho TCP spojení. Pokrývá limit fronty, pozdní conversion po změně
+poslechu, odmítnutí redirectu a zrušení rozpracovaného požadavku.
 
 ## Nativní připojení E10.1
 
