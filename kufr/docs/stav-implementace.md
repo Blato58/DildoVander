@@ -46,9 +46,12 @@ workflow, README, AGENTS a plán/stav.
 
 Lokálně prošly všechny firmware host testy včetně striktního NDJSON,
 resamplingu, úvodu a dvou navazujících mic tahů, pořadí uploadu, drain/ACK,
-Stop, cost_limit a chyb. 52 skutečně emitovaných firmware zpráv prošlo
+Stop, cost_limit a chyb. Samostatný test audio driveru ověřil servisní
+bránu profilu A, drain, Stop při DMA zápisu a odmítnutí pozdního audio
+bloku až do explicitního Begin nového sezení (oprava nalezeného závodu).
+52 skutečně emitovaných firmware zpráv prošlo
 sdíleným schématem. Oba PlatformIO profily prošly: ESP-IDF RAM 66 032 B,
-flash 1 201 881 B; Arduino serial RAM 18 660 B, flash 286 589 B (nezahrnuje
+flash 1 201 985 B; Arduino serial RAM 18 660 B, flash 286 589 B (nezahrnuje
 běhový heap/stack). Backend HTTP smoke a testy providerů, Realtime, journalu, fake voice,
 rozpočtů, expirace a migrací prošly. Mobilní build a 22 testů, kontrakty
 25 validních/41 nevalidních zpráv a 21 offline Python eval testů prošly.

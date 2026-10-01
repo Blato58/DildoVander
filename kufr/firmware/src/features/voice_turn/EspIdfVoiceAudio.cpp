@@ -47,6 +47,7 @@ void EspIdfVoiceAudio::Begin() {
   failed_.store(false);
   if (input_) xQueueReset(input_);
   outputRate_.Reset();
+  active_.store(true);
 }
 
 void EspIdfVoiceAudio::Listen(bool enabled) {
@@ -58,12 +59,15 @@ void EspIdfVoiceAudio::Listen(bool enabled) {
     failed_.store(false);
     playing_.store(false);
     outputRate_.Reset();
-    listening_.store(true);
+    portENTER_CRITICAL(&muteGate_);
+    listening_.store(active_.load());
+    portEXIT_CRITICAL(&muteGate_);
   }
 }
 
 void EspIdfVoiceAudio::Stop() {
   portENTER_CRITICAL(&muteGate_);
+  active_.store(false);
   listening_.store(false);
   playing_.store(false);
   epoch_.fetch_add(1);
@@ -87,12 +91,19 @@ bool EspIdfVoiceAudio::TakeInput(std::vector<uint8_t>& pcm) {
 
 bool EspIdfVoiceAudio::Play(const std::vector<uint8_t>& pcm) {
   if (!available_ || pcm.empty() || pcm.size() % 2 || pcm.size() > 32768) return false;
-  if (!playing_.exchange(true)) outputRate_.Reset();
+  // Stop is sticky until Begin. A block admitted just before cancellation must
+  // not reopen the speaker after the control task has already muted it.
+  portENTER_CRITICAL(&muteGate_);
+  const bool active = active_.load();
+  const uint32_t epoch = epoch_.load();
+  const bool first = active && !playing_.exchange(true);
   listening_.store(false);
+  portEXIT_CRITICAL(&muteGate_);
+  if (!active) return false;
+  if (first) outputRate_.Reset();
   std::vector<int16_t> samples;
   samples.reserve(684);
   std::array<int32_t, 1368> slots{};
-  const uint32_t epoch = epoch_.load();
   for (size_t offset = 0; offset < pcm.size(); offset += 1024) {
     if (!playing_.load() || epoch_.load() != epoch) return false;
     samples.clear();

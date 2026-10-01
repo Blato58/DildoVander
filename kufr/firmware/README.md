@@ -766,3 +766,5 @@ STA-gated RNG, boot a místní conversation UUID před startem RF. Katalog je
 neobchází recovery; chybí fyzické zotavení, kalibrace, autonomní fyzický port,
 opening/PTT a audio. Další akceptace E4/E5 vyžaduje B1 a živé zařízení. Hostitelské
 stub testy a build neprokazují reconnect/IP změny/TLS/aktuátory na desce.
+
+D117 audio driver test dále ověřuje, že Stop zůstává účinný pro celé sezení: pozdní PCM blok ani Listen po Stop znovu nezapne zesilovač. Nové sezení vyžaduje explicitní Begin a aktuální runtime snapshot.

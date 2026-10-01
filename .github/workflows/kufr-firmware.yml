@@ -77,6 +77,10 @@ jobs:
             src/features/backend_access/NetworkSettings.cpp \
             tests/espidf_realtime_transport_test.cpp -o "$RUNNER_TEMP/realtime-transport-test"
           "$RUNNER_TEMP/realtime-transport-test"
+          g++ -std=c++14 -Wall -Wextra -Werror -pthread -I tests/audio_stubs \
+            src/features/voice_turn/EspIdfVoiceAudio.cpp tests/espidf_voice_audio_test.cpp \
+            -o "$RUNNER_TEMP/voice-audio-test"
+          "$RUNNER_TEMP/voice-audio-test"
       - name: Device control tests
         working-directory: kufr/firmware
         shell: bash
