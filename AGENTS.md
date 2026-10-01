@@ -28,7 +28,7 @@
 
 - ESP32-S3 je samostatný klient backendu přes HTTPS a vlastník rozhovoru i fyzické sekvence. Telefon není cloudový prostředník. Backend vrací validovaná data, nikdy přímo nespíná pohony.
 - iOS je první mobilní platforma: TypeScript/Vite + plánovaný Capacitor/Swift, vývoj na Windows, nativní build/test/podpis na macOS GitHub Actions. Popsané existující workflow musí být převzato od majitele; v tomto checkoutu zatím není. Webový režim slouží pro vývoj/simulátor.
-- AI používá oddělené STT → strukturovaný dialog → TTS; PTT/poloduplex, návrh pouze 1–6 nebo žádný. Majitel 30. 9. zvolil autonomní AI výběr bez potvrzení obsluhou. Hůlka zůstává v přihrádce; servo ji vysune a po prezentaci zase zasune. Normální návrat obnovuje dostupnost, Stop/chyba vyžadují zotavení. Místní brána ESP32 ověřuje návrh, snapshot, kalibraci a bezpečný stav; nepředstírá ruční lease. Offline ruční řízení nesmí potřebovat AI ani WAN.
+- Hlas používá Realtime přes backend a oficiální OpenAI SDK (server VAD, poloduplex); text a kompatibilní STT → strukturovaný dialog → TTS zůstávají přes SDK. Návrh je pouze 1–6 nebo žádný. Majitel 30. 9. zvolil autonomní AI výběr bez potvrzení obsluhou. Hůlka zůstává v přihrádce; servo ji vysune a po prezentaci zase zasune. Normální návrat obnovuje dostupnost, Stop/chyba vyžadují zotavení. Místní brána ESP32 ověřuje návrh, snapshot, kalibraci a bezpečný stav; nepředstírá ruční lease. Offline ruční řízení nesmí potřebovat AI ani WAN.
 - Rozdělení vertical slices všech komponent je v kapitole 3 plánu. Backend existuje v `kufr/backend/`: ASP.NET Core se SQLite, Responses Sol a oddělená trvalá paměť večera. Migrace nynějšího Arduino runtime na ESP-IDF patří do E4, neprováděj ji jako vedlejší úklid E1.
 
 ## Firmware kufru

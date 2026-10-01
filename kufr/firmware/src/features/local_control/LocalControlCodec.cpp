@@ -28,6 +28,8 @@ enum Field : uint32_t {
   MaxAge = 1U << 14,
   Payload = 1U << 15,
   Inspection = 1U << 16,
+  VoiceMode = 1U << 17,
+  Voice = 1U << 18,
 };
 
 bool ReadSafeInteger(JsonCursor& cursor, uint64_t& value) {
@@ -73,6 +75,12 @@ bool ReadKind(JsonCursor& cursor, LocalControlMessageKind& kind) {
     kind = LocalControlMessageKind::Text;
   } else if (type == "conversation.cancel") {
     kind = LocalControlMessageKind::Cancel;
+  } else if (type == "voice.configure") {
+    kind = LocalControlMessageKind::VoiceConfigure;
+  } else if (type == "voice.start") {
+    kind = LocalControlMessageKind::VoiceStart;
+  } else if (type == "voice.stop") {
+    kind = LocalControlMessageKind::VoiceStop;
   } else if (type == "safety.stop") {
     kind = LocalControlMessageKind::Stop;
   } else if (type == "safety.reset") {
@@ -169,6 +177,12 @@ uint32_t ExpectedFields(LocalControlMessageKind kind) {
       return Manual | ConversationId | Generation;
     case LocalControlMessageKind::Reset:
       return Manual | Inspection;
+    case LocalControlMessageKind::VoiceConfigure:
+      return Common | VoiceMode | Voice;
+    case LocalControlMessageKind::VoiceStart:
+      return Common | Revision;
+    case LocalControlMessageKind::VoiceStop:
+      return Common;
     case LocalControlMessageKind::Selection:
     case LocalControlMessageKind::Reload:
       return Physical;
@@ -240,6 +254,12 @@ bool Parse(JsonCursor& cursor, LocalControlMessage& message, size_t length) {
     } else if (key == "payload") {
       field = Payload;
       valid = ReadPayload(cursor, message, payloadFields);
+    } else if (key == "mode") {
+      field = VoiceMode;
+      valid = cursor.ReadString(message.voiceMode, 16, true) && (message.voiceMode == "off" || message.voiceMode == "realtime");
+    } else if (key == "voice") {
+      field = Voice;
+      valid = cursor.ReadString(message.voice, 16, true) && (message.voice == "cedar" || message.voice == "marin" || message.voice == "coral");
     } else if (key == "inspectionConfirmed") {
       field = Inspection;
       valid = cursor.ReadTrue();

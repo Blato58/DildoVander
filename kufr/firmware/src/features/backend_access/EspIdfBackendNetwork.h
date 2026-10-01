@@ -2,6 +2,8 @@
 
 #include <atomic>
 #include <mutex>
+#include "../voice_turn/LocalVoicePort.h"
+#include "../voice_turn/EspIdfVoiceAudio.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -20,12 +22,19 @@
 class EspIdfStationNetwork;
 
 class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
-                                  public LocalConversationReplyPort {
+                                  public LocalConversationReplyPort,
+                                  public LocalVoicePort {
  public:
   EspIdfBackendNetwork(DeviceIdentity& identity,
                        ConversationRuntimeState& runtimeState,
                        const std::string& bootId,
                        EspIdfStationNetwork& station);
+  bool InitializeVoice(bool nvsInitialized);
+  LocalVoiceStatus VoiceStatus() const override;
+  bool ConfigureVoice(const std::string& mode, const std::string& voice) override;
+  bool StartVoice(const std::string& requestId,
+                  const ConversationRuntimeSnapshot& snapshot) override;
+  void StopVoice() override;
   bool Start(bool nvsInitialized);
   bool QueueTextTurn(const std::string& text,
                      const std::string& conversationId,
@@ -82,6 +91,19 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
       const ConversationRuntimeSnapshot& snapshot);
   void FailQueuedText();
   void DiscardTextUnless(const std::string& conversationId);
+
+  void RunVoice(class DeviceTokenSession& tokens,
+                 class ConversationStartCoordinator& coordinator,
+                 struct ConversationStartRequest& startRequest);
+  void SetVoicePhase(const char* phase);
+  EspIdfVoiceAudio voiceAudio_;
+  mutable std::mutex voiceMutex_;
+  LocalVoiceStatus voiceStatus_;
+  ConversationRuntimeSnapshot voiceSnapshot_;
+  uint64_t voiceStartEpoch_ = 0, voiceQueuedAtMs_ = 0;
+  std::string voiceRequestId_, lastVoiceRequestId_;
+  std::atomic<bool> voiceBusy_{false}, voicePending_{false};
+  std::atomic<uint64_t> voiceEpoch_{0};
 
   DeviceIdentity& identity_;
   ConversationRuntimeState& runtimeState_;

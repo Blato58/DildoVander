@@ -1,0 +1,9 @@
+{
+  "protocolVersion": 1,
+  "messageId": "fcfaaf2b-7825-4b9e-a229-e7d8e642f705",
+  "deviceId": "kufr-001",
+  "bootId": "c85743d5-1b72-41b8-8500-ae3c102b27d6",
+  "type": "voice.configure",
+  "mode": "realtime",
+  "voice": "cedar"
+}

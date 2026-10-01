@@ -1,5 +1,23 @@
 # Mobilní ovládání kufru
 
+## Hlas kufru v Ovládání (D119)
+
+Sekce **Hlas kufru** nastavuje režim Vypnutý / Realtime a hlas
+Marin/Cedar/Coral na spárovaném ESP. **Použít nastavení hlasu** čeká na
+potvrzení konkrétního požadavku a bootu; heartbeat nepřepisuje rozpracovanou
+volbu. Nastavení platí do restartu kufru. Pro **Spustit hlas na kufru**
+uvolněte manual řízení a počkejte na bezpečný ready snapshot.
+Spuštění uděluje audio consent tohoto rozhovoru; backend ukládá přepis do
+paměti večera. **Zastavit hlas** a **Stop kufru** jsou odlišné akce.
+
+Kufr používá vlastní mikrofon/reproduktor a backend; telefon nepřenáší
+PCM ani provider klíč. Odpojení pozorovatele neukončí samostatný hlas.
+UI ukazuje poslech, přípravu, řeč, dokončení i nákladový/audio/AI limit.
+Start/configure se automaticky neopakují po ztracené ACK nebo reconnect.
+Bez ověřeného audio profilu na ESP je Realtime nedostupné; webový fake a
+stávající hostitelský simulátor to výslovně označují. Nejde o přenesení
+samostatného telefonního testovacího rozhovoru z Debugu.
+
 Současný kód nabízí obrazovku se šesti přihrádkami, ručním převzetím, potvrzením výběru/založení a Stop. Přes Vite používá místní fake stav; přes E3.2a vývojový most komunikuje s E2 C++ simulátorem. Oba vývojové režimy jsou výslovně označené. E10.1 přidává nativní iOS párování a přímý místní WSS transport se SPKI pinem a Keychain; jeho fyzická akceptace ještě neproběhla. Zvolenou architekturu určuje [implementační plán](../docs/implementacni-plan.md), skutečný postup a předání [stav implementace](../docs/stav-implementace.md).
 
 ## Cílová role aplikace
