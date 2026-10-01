@@ -6,10 +6,10 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**D118 – Realtime hlas přímo na ESP a nastavení v Ovládání; všechny provider cesty přes SDK.**
+**D119 – Realtime hlas přímo na ESP a nastavení v Ovládání; všechny provider cesty přes SDK.**
 Majitel 1. 10. požaduje přidat Realtime do firmware, nastavovat hlasový režim
 v Ovládání aplikace a převést všechna volání OpenAI na SDK. Rozsah a výjimka
-z ručního lease pro samostatné hlasové příkazy jsou odůvodněné v plánu D118.
+z ručního lease pro samostatné hlasové příkazy jsou odůvodněné v plánu D119.
 ESP-IDF nyní drží autentizovaný backend NDJSON stream a pořadové PCM POSTy;
 telefon neposílá audio ani provider klíč. Server VAD obnovuje poslech po
 potvrzeném dohrání, lokální Stop okamžitě umlčí zesilovač. Odpověď/návrh
@@ -55,7 +55,7 @@ bloku až do explicitního Begin nového sezení (oprava nalezeného závodu).
 sdíleným schématem. Oba PlatformIO profily prošly: ESP-IDF RAM 66 032 B,
 flash 1 202 041 B; Arduino serial RAM 18 660 B, flash 286 589 B (nezahrnuje
 běhový heap/stack). Backend HTTP smoke a testy providerů, Realtime, journalu, fake voice,
-rozpočtů, expirace a migrací prošly. Mobilní build a 22 testů, kontrakty
+rozpočtů, expirace a migrací prošly. Mobilní build a 24 testů, kontrakty
 25 validních/41 nevalidních zpráv a 21 offline Python eval testů prošly.
 Chromium na 390 px ověřil konfiguraci/start/stop, zachování rozpracované
 volby při heartbeat, uzamčení aktivního rozhovoru, viditelný cost_limit a
@@ -72,12 +72,18 @@ Finální původní head `938f9cc8f7dd2b0d54bed9389983ebedfaf9dd1c` byl
 ověřeně pushnut a CI 36923066577 prošlo všechny povinné kontroly včetně
 Swift/Xcode/spuštění iOS Simulatoru a obou firmware profilů. Během CI se
 do main sloučila oprava iPhone startu z PR #84 (`0d97dea`); obě změny jsou
-zachované, tento slice nově D118. Společná verze `5e73e21` byla ověřeně pushnuta a CI 36924319856 prošlo
+zachované. Společná verze `5e73e21` byla ověřeně pushnuta a CI 36924319856 prošlo
 všechny povinné kontroly. Závěrečná ochrana input epoch dále brání přenosu
 rozpracovaného mic bloku do následujícího poslechu. Nový regresní test
 prokazatelně selže na původním transportu a projde s opravou; ESP-IDF build
 prošel znovu. Povinné CI ověřuje poslední head tohoto PR.
-Aktuální výsledek kontrol a sloučení je doložený přímo v PR.
+CI 36925265141 poté ověřilo všechny povinné kontroly headu `54d5f9f`,
+včetně regrese input epoch. Mezitím se do main sloučila diagnostika z PR
+#86 (`0330ce7`); zachovaná další merge integrací, tento slice nově D119.
+Po další integraci lokálně znovu prošly backend testy včetně ServerLogTests,
+HTTP smoke, mobilní build/24 testů, kontrakty a browser panel hlasu.
+CI ověřuje společnou finální verzi. Aktuální výsledek kontrol a sloučení
+je doložený přímo v PR.
 Tento krok nenasazuje backend, nevydává IPA, nenahrává firmware a nevolá
 placené OpenAI. Skutečný mikrofon/reproduktor, paměťové/časové rezervy při
 TLS, Stop během audia a 100 tahů na desce ani ovládání na iPhonu nebyly
@@ -87,6 +93,58 @@ stav, samostatně autorizovat flash/nasazení a měřit opakovaný rozhovor,
 Stop, Wi-Fi výpadek, návrat k poslechu a reálnou češtinu na desce.
 
 
+
+
+**D118 – serverové logy, iOS zobrazení a čtecí integrace Codex.**
+Zadání majitele: logování serveru, API přístup, log v iOS a společný debug
+nasazeného prostředí s Codexem. Backend přidává oddělenou SQLite logovou DB,
+výchozí historii 24 h/5000 událostí, kurzor/filtry/retention gap a počty
+neúspěšných zápisů. Každý HTTP požadavek má serverové UUID X-Request-Id;
+log používá route template, status/duration, pevný event/code a ID operace/
+rozhovoru. Realtime zaznamenává fáze/chyby i uvnitř HTTP 200 streamu.
+Úspěšné GET/poll/PCM jsou vynechané. Žádná těla/query, text, audio, credential,
+prompty nebo exception message. ILogger adaptér přijímá jen známé bezpečné
+události ConversationStore. Logovací selhání nesmí zrušit živý audio tok.
+GET /v1/admin/logs a /status vyžadují admin nebo oddělený reader token;
+reader nezískává správu, device token ani AI. Deploy volitelně přijme
+LOG_READER_CREDENTIAL z backend-production a ukládá pouze SHA-256.
+iOS Debug čte logy nezávisle na rozhovoru, filtruje, obnovuje po 2 s a sdílí
+JSON. Drží 200 událostí, ošetřuje reset profilu/DB, staré výsledky a pozadí;
+credential zůstává v Keychain. Codex stdio MCP má read_server_logs/status,
+HTTPS PKI, žádné redirecty, omezenou odpověď a projekci typovaných metadat.
+GitHub Kufr server logs umožňuje totéž bez lokálního tokenu, přes existující
+serverový secret a jednodenní artefakt; žádné provider volání.
+Rozsah: backend Features/Diagnostics, middleware/API/Realtime/operace/testy;
+OpenAPI/verifier; DebugBackendClient/plugin/Panel/ServerLogs a native/browser
+harness; deploy/read workflow a Codex Python klient/testy/návod; AGENTS/plán/README.
+Lokálně prošly locked restore .NET 10.0.303 linux-x64, Release build bez
+warnings/errors, kompletní backend testy včetně persist/TTL/cap/filtrů a
+oddělení oprávnění, HTTP smoke včetně restartu/sanitizace/query/trace.
+Mobilní TypeScript/Vite build a 21 testů, všechny kontrakty, 15 Python testů
+(včetně skutečného HTTPS MCP peeru, redirect/denial/oversize/stdio/snapshot),
+a actionlint 1.7.12 všech workflow prošly. Playwright Chromium ověřil
+filtr/dedup, obnovování během rozhovoru, zapomenutí profilu, HTTP denial se
+zastavením obnovování a 390px rozložení bez přesahu/console chyb.
+Browser odhalil kolizi společné CSS třídy logových seznamů; aplikační log
+nově vybírá svůj vlastní seznam a serverový log zůstává oddělený.
+CI 36923732710 již ověřilo Swift/nativní harness i Xcode/spuštění
+simulátoru, backend a web. Před merge se do main sloučila souběžná D117
+oprava iPhone Realtime audio startu (PR #84, 0d97dea). Zachovaná merge
+integrací; konflikt pouze v tomto záznamu vyřešen ponecháním obou změn.
+Logy mají nyní číslo D118. Společnou verzi znovu ověřuje povinné CI.
+Žádné placené AI volání.
+Implementační commit `3446dd3beb9e5164e10f9d16189f7bfab2d1175e` byl pushnut,
+remote shoda ověřena; [PR #86](https://github.com/Blato58/DildoVander/pull/86).
+Push-CurrentBranch.ps1 byl spuštěn, ale gh auth token --user zde nepodporuje
+runtime GH_TOKEN. API ověřilo účet Blato58; scoped gh git credential helper
+provedl push bez změny účtu nebo uložení tajemství. Finální macOS/CI/merge
+výsledek je evidovaný v PR. Review doplnilo rušení logového HTTP i při
+otevření konfigurace a zapomenutí nativního profilu.
+Nasazení backendu, podpis/publikace IPA a fyzický iPhone se v tomto kroku
+zatím neprovedly; produkční D116/1000.0.4 a B1 zůstávají dle záznamu níže.
+Další krok: dokončit macOS CI a merge D118, potom samostatně nasadit ověřené
+backend/web artefakty a publikovat IPA; vyzkoušet Log serveru během rozhovoru
+na iPhonu a čtení skutečné diagnostiky přes nový workflow.
 
 **D117 – oprava okamžitého ukončení Realtime na iPhonu, připraveno k CI.**
 Majitel u 1000.0.4 doložil chybu hned po Začít AI rozhovor; oranžová tečka

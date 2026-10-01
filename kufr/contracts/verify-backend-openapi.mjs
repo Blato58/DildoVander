@@ -42,6 +42,8 @@ function walk(value) {
 assert.equal(document.openapi, '3.1.0');
 walk(document);
 assert.deepEqual(Object.keys(document.paths).sort(), [
+  '/v1/admin/logs',
+  '/v1/admin/logs/status',
   '/v1/admin/modes',
   '/v1/audio/{audioId}',
   '/v1/conversations',
@@ -197,3 +199,14 @@ validate('Problem', { type: 'about:blank', title: 'Conflict', status: 409, code:
 validate('Problem', { type: 'about:blank', title: 'Conflict', status: 409, code: 'idempotency_conflict', traceId: 'trace-1', prompt: 'secret' }, false);
 
 console.log('Backend OpenAPI E2.6: paths, security, references and request/result boundaries passed');
+
+assert.deepEqual(document.paths['/v1/admin/logs'].get.security, [{ ServerAdmin: [] }, { LogReader: [] }]);
+const logEntry = { id: 1, timestamp: '2026-10-01T12:00:00Z', level: 'warning', eventCode: 'realtime_failed',
+  traceId: bootId, route: null, method: null, status: null, durationMs: null,
+  operationId: null, conversationId: null, code: 'cost_limit' };
+const logPage = { storeId: bootId, oldestCursor: 1, latestCursor: 1, nextCursor: 1,
+  hasMore: false, truncated: false, droppedWrites: 0, entries: [logEntry] };
+validate('ServerLogPage', logPage, true);
+validate('ServerLogEntry', { ...logEntry, text: 'private' }, false);
+validate('ServerLogEntry', { ...logEntry, code: 'private content' }, false);
+validate('ServerLogPage', { ...logPage, entries: Array(201).fill(logEntry) }, false);

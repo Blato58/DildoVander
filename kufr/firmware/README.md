@@ -1,6 +1,6 @@
 # Firmware AI kufru
 
-## Realtime hlas ESP (D118)
+## Realtime hlas ESP (D119)
 
 V Ovládání spárované aplikace nastavte **Realtime** a hlas Marin/Cedar/Coral,
 uvolněte ruční řízení a zvolte **Spustit hlas na kufru**. Kufr potřebuje
@@ -767,4 +767,4 @@ neobchází recovery; chybí fyzické zotavení, kalibrace, autonomní fyzický 
 opening/PTT a audio. Další akceptace E4/E5 vyžaduje B1 a živé zařízení. Hostitelské
 stub testy a build neprokazují reconnect/IP změny/TLS/aktuátory na desce.
 
-D118 audio driver test dále ověřuje, že Stop zůstává účinný pro celé sezení: pozdní PCM blok ani Listen po Stop znovu nezapne zesilovač. Nové sezení vyžaduje explicitní Begin a aktuální runtime snapshot.
+D119 audio driver test dále ověřuje, že Stop zůstává účinný pro celé sezení: pozdní PCM blok ani Listen po Stop znovu nezapne zesilovač. Nové sezení vyžaduje explicitní Begin a aktuální runtime snapshot.

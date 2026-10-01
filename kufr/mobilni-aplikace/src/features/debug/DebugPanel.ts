@@ -1,6 +1,7 @@
 import { registerPlugin } from '@capacitor/core';
 import type { DeviceSnapshot } from '../device_connection/FakeDeviceConnection';
 import { DebugJournal, type DebugCategory, type DebugCode } from './DebugJournal';
+import { ServerLogBuffer, type ServerLogPage } from './ServerLogs';
 
 interface VoiceStatus {
   configured: boolean;
@@ -33,6 +34,7 @@ interface ServerModes {
   lifetime: 'until_restart';
 }
 interface DebugBridge {
+  readServerLogs(options: { after?: number; level: string }): Promise<ServerLogPage>;
   status(): Promise<VoiceStatus>;
   configure(): Promise<void>;
   forgetProfile(): Promise<void>;
@@ -76,6 +78,11 @@ export class DebugPanel {
   private serverRevision?: string;
   private eveningRevision?: string;
   private statusSequence = 0;
+  private readonly serverLogs = new ServerLogBuffer();
+  private logsPending = false;
+  private logsSequence = 0;
+  private logsMessage = 'Nastavte přístup správce a načtěte logy serveru.';
+  private renderedLogs?: ServerLogBuffer['entries'];
   private voice: VoiceStatus = { configured: false, running: false, phase: 'idle', mode: 'unknown' };
 
   constructor(private readonly native: boolean, private readonly stopDevice: () => void) {
@@ -109,6 +116,18 @@ export class DebugPanel {
         <p data-server-status role="status"></p>
         <p class="footnote">Správa vyžaduje samostatný credential správce a testovací ID debug-server-admin.
           Běžný přístup kufru nestačí. Po restartu platí režimy nasazení; obnovte stav.</p></section>
+      <section class="debug-card" aria-labelledby="server-log-heading"><h2 id="server-log-heading">Log serveru</h2>
+        <p>Technické události serveru za posledních 24 hodin, nejvýše 5000 záznamů.
+          Zobrazení obsahuje posledních 200 událostí vybraného filtru.</p>
+        <div class="actions"><label>Úroveň <select data-server-log-level aria-label="Úroveň serverového logu">
+          <option value="info">Všechny</option><option value="warning">Varování a chyby</option><option value="error">Chyby</option></select></label>
+          <button type="button" data-debug="logs-refresh">Načíst nové logy</button>
+          <button type="button" data-debug="logs-export">Sdílet serverový log JSON</button></div>
+        <label><input type="checkbox" data-server-log-live> Automaticky obnovovat každé 2 sekundy</label>
+        <p data-server-log-status role="status"></p>
+        <ol class="debug-log" data-server-log-list aria-label="Události serveru"></ol>
+        <p class="footnote">ID požadavku nebo operace lze sdílet s Codexem pro dohledání chyby.
+          Logy neobsahují přístupové údaje, text rozhovoru ani audio.</p></section>
       <section class="debug-card" aria-labelledby="evening-heading"><h2 id="evening-heading">Večery a paměť rozhovorů</h2>
         <p>Nový večer začne s prázdnou pamětí. Přepnutím obnovíte paměť vybraného večera;
           předchozí večery zůstanou uložené. Změny jsou dostupné mezi rozhovory.</p>
@@ -204,6 +223,15 @@ export class DebugPanel {
     this.element.querySelector('[data-conversation-engine]')!.addEventListener('change', () => this.renderConversationControls());
     this.element.querySelector('[data-evening-name]')!.addEventListener('input', () => this.renderEveningControls());
     this.element.querySelector('[data-evening-selection]')!.addEventListener('change', () => this.renderEveningControls());
+    this.element.querySelector('[data-server-log-level]')!.addEventListener('change', () => {
+      this.clearServerLogs();
+      void this.refreshServerLogs();
+    });
+    window.setInterval(() => {
+      if (this.visible && !document.hidden && this.element.querySelector<HTMLInputElement>('[data-server-log-live]')!.checked) {
+        void this.refreshServerLogs();
+      }
+    }, 2000);
     window.setInterval(() => {
       if (this.visible && !document.hidden) {
         this.renderDevice();
@@ -212,6 +240,7 @@ export class DebugPanel {
     }, 500);
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
+        this.clearServerLogs();
         this.statusSequence += 1;
         this.journal.record('background');
         this.element.querySelector<HTMLTextAreaElement>('[data-conversation-answer]')!.value = '';
@@ -274,7 +303,7 @@ export class DebugPanel {
 
   private renderLog(): void {
     const entries = this.journal.read(this.category);
-    const list = this.element.querySelector('.debug-log')!;
+    const list = this.element.querySelector('[aria-label="Diagnostické události"]')!;
     list.replaceChildren();
     for (const entry of entries.reverse()) {
       const row = document.createElement('li');
@@ -285,6 +314,7 @@ export class DebugPanel {
   }
 
   private renderVoice(): void {
+    this.renderServerLogs();
     for (const name of ['system', 'configure', 'forget-profile', 'inspect', 'ai', 'fake', 'server-inspect', 'server-apply']) {
       this.button(name).disabled = !this.native || this.pending || this.voice.running || this.voice.session === true;
     }
@@ -321,6 +351,60 @@ export class DebugPanel {
     this.element.querySelector('[data-server-status]')!.textContent = server
       ? `Poslední ověřený stav: dialog ${server.dialogMode === 'responses' ? 'AI · Sol' : 'FAKE'}, hlas ${server.voiceMode === 'openai' ? 'AI · STT / TTS' : 'FAKE'}. Aktivní rozhovory: ${server.activeConversations}.`
       : this.native ? 'Nastavte přístup správce a obnovte stav serveru.' : 'Správa serveru je dostupná v nativní iOS aplikaci.';
+  }
+
+  private clearServerLogs(): void {
+    this.logsSequence += 1;
+    this.serverLogs.clear();
+    this.logsMessage = 'Načtěte logy serveru pro aktuální přístup a filtr.';
+    this.renderServerLogs();
+  }
+
+  private renderServerLogs(): void {
+    this.button('logs-refresh').disabled = !this.native || !this.voice.configured || this.logsPending;
+    this.button('logs-export').disabled = !this.native || this.serverLogs.entries.length === 0;
+    this.element.querySelector<HTMLInputElement>('[data-server-log-live]')!.disabled = !this.native || !this.voice.configured;
+    this.element.querySelector('[data-server-log-status]')!.textContent = !this.native
+      ? 'Serverové logy jsou dostupné v nativní iOS aplikaci.'
+      : `${this.logsMessage}${this.logsPending ? ' · načítám' : ''}${this.serverLogs.gap ? ' · část historie již byla odstraněna' : ''}${this.serverLogs.hasMore ? ' · čekají další události, obnovte log' : ''}${this.serverLogs.droppedWrites ? ` · nezapsané události: ${this.serverLogs.droppedWrites}` : ''}`;
+    if (this.renderedLogs === this.serverLogs.entries) { return; }
+    this.renderedLogs = this.serverLogs.entries;
+    const list = this.element.querySelector('[data-server-log-list]')!;
+    list.replaceChildren();
+    for (const entry of [...this.serverLogs.entries].reverse()) {
+      const row = document.createElement('li');
+      row.textContent = `${entry.timestamp.slice(11, 23)} UTC · ${entry.level} · ${entry.eventCode}`
+        + (entry.method ? ` · ${entry.method} ${entry.route ?? ''}` : '')
+        + (entry.status ? ` · HTTP ${entry.status}` : '')
+        + (entry.durationMs != null ? ` · ${entry.durationMs} ms` : '')
+        + (entry.code ? ` · ${entry.code}` : '')
+        + (entry.traceId ? ` · request=${entry.traceId}` : '')
+        + (entry.operationId ? ` · operation=${entry.operationId}` : '')
+        + (entry.conversationId ? ` · conversation=${entry.conversationId}` : '');
+      list.append(row);
+    }
+  }
+
+  private async refreshServerLogs(): Promise<void> {
+    if (!this.native || !this.voice.configured || this.logsPending || document.hidden) { return; }
+    const sequence = this.logsSequence;
+    const level = this.element.querySelector<HTMLSelectElement>('[data-server-log-level]')!.value;
+    this.logsPending = true; this.renderServerLogs();
+    try {
+      let page = await bridge.readServerLogs({ after: this.serverLogs.cursor, level });
+      if (sequence !== this.logsSequence || document.hidden) { return; }
+      if (!this.serverLogs.accept(page)) {
+        page = await bridge.readServerLogs({ level });
+        if (sequence !== this.logsSequence || document.hidden) { return; }
+        this.serverLogs.accept(page);
+      }
+      this.logsMessage = `${this.serverLogs.entries.length} událostí · obnoveno ${new Date().toLocaleTimeString('cs-CZ')}`;
+    } catch {
+      if (sequence === this.logsSequence) {
+        this.logsMessage = 'Logy se nepodařilo načíst. Ověřte credential správce a verzi serveru. Zobrazené události jsou poslední načtené.';
+        this.element.querySelector<HTMLInputElement>('[data-server-log-live]')!.checked = false;
+      }
+    } finally { this.logsPending = false; this.renderServerLogs(); }
   }
 
   private renderConversation(): void {
@@ -479,6 +563,15 @@ export class DebugPanel {
   }
 
   private async actionAsync(action: string): Promise<void> {
+    if (action === 'logs-refresh') { await this.refreshServerLogs(); return; }
+    if (action === 'logs-export') {
+      await bridge.shareLog({ json: JSON.stringify({ source: 'server', storeId: this.serverLogs.storeId,
+        entries: this.serverLogs.entries }, null, 2) }).catch(() => {
+        this.logsMessage = 'Sdílení logu se nepodařilo.'; this.renderServerLogs();
+      });
+      return;
+    }
+    if (action === 'configure' || action === 'forget-profile') { this.clearServerLogs(); }
     if (action === 'esp-stop') { this.stopDevice(); return; }
     if (action === 'pause') {
       this.paused = !this.paused;

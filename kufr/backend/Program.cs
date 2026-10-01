@@ -2,12 +2,16 @@ using Kufr.Backend.Features.Access;
 using Kufr.Backend.Features.Conversations;
 using Kufr.Backend.Features.VoiceTurns;
 using Kufr.Backend.Features.Realtime;
+using Kufr.Backend.Features.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 4096);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<DeviceAccessStore>();
 builder.Services.AddSingleton<ServerAdminAccess>();
+builder.Services.AddSingleton<LogReadAccess>();
+builder.Services.AddSingleton<ServerLogStore>();
+builder.Services.AddSingleton<ILoggerProvider, ServerLogProvider>();
 builder.Services.AddSingleton<OperationJournal>();
 builder.Services.AddSingleton<TextDialogRunner>();
 builder.Services.AddSingleton<VoiceProviderRunner>();
@@ -21,6 +25,12 @@ var app = builder.Build();
 app.Services.GetRequiredService<OperationJournal>();
 app.Services.GetRequiredService<TextDialogRunner>();
 app.Services.GetRequiredService<VoiceProviderRunner>();
+var logs = app.Services.GetRequiredService<ServerLogStore>();
+app.Services.GetRequiredService<LogReadAccess>();
+logs.Write("info", "server_started");
+app.Lifetime.ApplicationStopping.Register(() => logs.Write("info", "server_stopping"));
+
+app.Use((context, next) => ServerLogEvents.RequestAsync(context, next, logs));
 
 app.Use(async (context, next) =>
 {
@@ -37,6 +47,7 @@ app.MapConversations();
 app.MapRealtimeTurns();
 app.MapRealtimeLive();
 app.MapServerModes();
+app.MapServerLogs();
 app.MapGet("/v1/diagnostics", (HttpContext context, DeviceAccessStore access,
     ConversationStore conversations) =>
 {
