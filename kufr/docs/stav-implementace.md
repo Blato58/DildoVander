@@ -6,6 +6,24 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D115 – oprava horních tabů pod výřezem iPhonu.**
+Majitel hlásí překrytí tabů kamerou/senzory a obtížné klepnutí.
+`index.html` zapíná `viewport-fit=cover`; `src/style.css` přidává
+systémový `safe-area-inset-top` do paddingu sticky lišty a respektuje
+levý/pravý inset v landscape. Horní inset zůstává součástí lišty i při
+scrollování; nulový inset zachovává webové odsazení a stávající výšku tlačítek.
+Mobilní README popisuje chování. Kontrakty, backend a firmware se nemění.
+Kontrola zdrojů ověřila společnou lištu obou tabů, sticky top 0, viewport
+a zachování minimálních okrajů; whitespace a odkazy změny jsou v pořádku.
+Zdejší prostředí poskytuje GitHub API bez lokálního shellu/PowerShellu;
+změna je předána přes Git Data API na větvi `fix/ios-tabs-safe-area`.
+Webové testy/build a Swift/Xcode/simulator ověřuje povinné CI tohoto PR;
+aktuální výsledek a merge jsou evidované v PR. Nativní vizuální/tap kontrola
+na iPhonu, scroll a obě landscape orientace zde nebyly provedeny.
+Podpis a publikace nové IPA nejsou součástí tohoto kroku.
+Další krok: po zeleném CI a merge připravit novou IPA v autorizovaném
+publikačním kroku a ověřit Ovládání/Debug na iPhonu včetně scrollu/otočení.
+
 **D114 – implementováno: Realtime hlas přes oficiální SDK a podrobný party prompt.**
 Majitel doložil 9,8 s dialog + 2,3 s TTS a výslovně schválil Realtime pro
 hlas místo dosavadní Sol-only hlasové cesty. Textový Sol zůstává. Požaduje
