@@ -33,7 +33,10 @@ Node fixture lokálně ověřena. Windows nemá Swift/Xcode, jejich CI probíhá
 a výsledek zatím není doložen. První macOS běh Swift klient zkompiloval;
 harness selhal na dekódování binárního WAV jako UTF-8 ve fixture. Test je
 opraven tolerovaným čtením hlaviček a kontrolou přesných WAV bajtů, opakované
-CI čeká. Diff bez whitespace chyb, tajemství nepřidána.
+CI čeká. Druhý běh odhalil další fixture neshodu: upload vracel 200 místo
+kontraktního 202. Fixture opravena, produkční kontrola zůstává striktní.
+UI nyní skrývá prázdné měření před prvním tahem. Diff bez whitespace chyb,
+tajemství nepřidána.
 Další krok: dokončit ověření, commit/push/PR/merge, navázat aktualizací backendu
 a podepsané IPA pro již autorizovaný telefonní test. Skutečná kvalita/latence
 a mikrofon iPhone zatím neověřeny, fyzický ESP/I2S zůstává závislý na B1.
