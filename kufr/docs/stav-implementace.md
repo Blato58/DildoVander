@@ -56,9 +56,14 @@ Chromium na 390 px ověřil konfiguraci/start/stop, zachování rozpracované
 volby při heartbeat, uzamčení aktivního rozhovoru, viditelný cost_limit a
 zakázání hlasu ve fake režimu, bez JS chyb a horizontálního přesahu.
 
-Git předání: implementace je připravená k commitu a push přes autorizovaný
-Push-CurrentBranch.ps1; konkrétní výsledek bude doplněn po ověření remote.
-Povinné CI ověří i Swift/Xcode/iOS Simulator; lokálně zde Xcode není.
+Git předání: implementační commit `229904b5852a9b8755dac0758341fa6501c2269e`
+byl pushnut přes autorizovaný Push-CurrentBranch.ps1; shoda remote větve
+`feat/esp-realtime-voice-sdk` byla ověřena. Helper vyžaduje uložený účet;
+zdejší session credential byla přihlášena jen do dočasného izolovaného
+GH_CONFIG_DIR a účet Blato58 ověřen, ostatní GitHub účty se nemění.
+[PR #85](https://github.com/Blato58/DildoVander/pull/85) je bez konfliktů a
+čeká na povinné CI včetně Swift/Xcode/iOS Simulatoru; lokálně zde Xcode není.
+Aktuální výsledek kontrol a sloučení je doložený přímo v PR.
 Tento krok nenasazuje backend, nevydává IPA, nenahrává firmware a nevolá
 placené OpenAI. Skutečný mikrofon/reproduktor, paměťové/časové rezervy při
 TLS, Stop během audia a 100 tahů na desce ani ovládání na iPhonu nebyly
