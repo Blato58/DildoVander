@@ -462,6 +462,7 @@ final class InteractivePeer {
             operations[operation] = makeOperation(id: operation, kind: "transcription", turn: turn,
                                                   result: ["transcript": "Moje vlastní mluvená odpověď", "source": "deviceMicrophone"])
             result = ["operationId": operation]
+            status = 202
         } else if path.hasPrefix("/v1/operations/") {
             pollStarted = true
             if failure == "blocked-turn" { try await Task.sleep(nanoseconds: 60_000_000_000) }

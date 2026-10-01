@@ -303,6 +303,7 @@ export class DebugPanel {
       : `Simulovaný návrh: přihrádka ${selected}. Žádný pohon se nespustil.`;
     const timings = this.voice.timings;
     this.element.querySelector('[data-conversation-timings]')!.textContent = timings
+      && [timings.dialogMs, timings.speechMs, timings.downloadMs, timings.totalMs].every(Number.isFinite)
       ? `Poslední tah: dialog ${Math.round(timings.dialogMs)} ms · hlas ${Math.round(timings.speechMs)} ms · stažení ${Math.round(timings.downloadMs)} ms · celkem ${Math.round(timings.totalMs)} ms.`
       : '';
     this.element.querySelector('[data-conversation-status]')!.textContent = !this.native
