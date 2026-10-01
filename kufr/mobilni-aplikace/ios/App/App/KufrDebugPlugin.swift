@@ -6,10 +6,11 @@ import AVFoundation
 public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate, AVSpeechSynthesizerDelegate {
     public let identifier = "KufrDebugPlugin"
     public let jsName = "KufrDebug"
-    public let pluginMethods: [CAPPluginMethod] = ["status", "configure", "forgetProfile", "inspectEvenings", "createEvening", "activateEvening", "inspectBackend", "inspectServer", "changeServerModes", "runOpeningSpeech", "startConversation", "answerConversation", "startRecording", "finishRecording", "speakSystem", "stop", "shareLog"].map {
+    public let pluginMethods: [CAPPluginMethod] = ["status", "configure", "forgetProfile", "inspectEvenings", "createEvening", "activateEvening", "inspectBackend", "inspectServer", "changeServerModes", "runOpeningSpeech", "startConversation", "answerConversation", "startRecording", "finishRecording", "speakSystem", "stop", "shareLog", "readServerLogs"].map {
         CAPPluginMethod(name: $0, returnType: CAPPluginReturnPromise)
     }
     private var profile: DebugBackendProfile?
+    private var logTask: Task<Void, Never>?
     private let profileKeychain = DebugBackendKeychain()
     private var evenings: DebugEveningList?
     private var task: Task<Void, Never>?
@@ -67,6 +68,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
     }
 
     deinit {
+        logTask?.cancel()
         task?.cancel()
         player?.stop()
         observers.forEach { NotificationCenter.default.removeObserver($0) }
@@ -86,11 +88,39 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
         }
     }
 
+    @objc func readServerLogs(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            self.restoreProfile()
+            guard self.logTask == nil, self.configurationCall == nil, let profile = self.profile,
+                  UIApplication.shared.applicationState == .active else {
+                call.reject("Nastavte přístup správce serveru.", "logs_unavailable"); return
+            }
+            let after = call.getDouble("after")
+            guard after == nil || after!.isFinite && after! >= 0 && after! <= 9_007_199_254_740_991 && after!.rounded() == after!
+            else { call.reject("Neplatný kurzor logu.", "invalid_cursor"); return }
+            let level = call.getString("level") ?? "info"
+            self.logTask = Task { @MainActor in
+                defer { self.logTask = nil }
+                do {
+                    let page = try await DebugBackendClient().serverLogs(profile, after: after.map { Int64($0) }, level: level)
+                    try Task.checkCancellation()
+                    guard UIApplication.shared.applicationState == .active,
+                          self.profile?.baseURL == profile.baseURL, self.profile?.deviceId == profile.deviceId,
+                          self.profile?.credential == profile.credential else { throw CancellationError() }
+                    call.resolve(page.bridgeValue)
+                } catch {
+                    call.reject("Logy nelze načíst. Ověřte přístup správce a verzi serveru.", "logs_failed")
+                }
+            }
+        }
+    }
+
     @objc func configure(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             guard self.canStart(), self.configurationCall == nil, let controller = self.bridge?.viewController else {
                 call.reject("Nastavení není dostupné.", "busy"); return
             }
+            self.logTask?.cancel()
             self.restoreProfile()
             let saved = self.profile
             self.configurationCall = call
@@ -143,6 +173,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
             guard self.canStart() else { call.reject("Nejprve ukončete probíhající test.", "busy"); return }
             do {
                 try self.profileKeychain.remove()
+                self.logTask?.cancel()
                 self.profile = nil; self.mode = "unknown"; self.serverModes = nil; self.evenings = nil
                 self.transcript = []; self.selected = nil; self.timings = [:]; self.phase = "idle"
                 call.resolve()
@@ -626,7 +657,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
     @objc func shareLog(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             guard UIApplication.shared.applicationState == .active,
-                  let json = call.getString("json"), json.utf8.count <= 131_072,
+                  let json = call.getString("json"), json.utf8.count <= 262_144,
                   let data = json.data(using: .utf8),
                   (try? JSONSerialization.jsonObject(with: data)) != nil,
                   let controller = self.bridge?.viewController,
@@ -651,6 +682,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
     }
 
     @MainActor private func stopWork() {
+        logTask?.cancel()
         generation += 1
         let stoppedTask = task
         task?.cancel(); task = nil

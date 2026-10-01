@@ -1,3 +1,4 @@
+using Kufr.Backend.Features.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -311,6 +312,7 @@ internal static class RealtimeLiveEndpoints
         await writes.WaitAsync(token);
         try
         {
+            ServerLogEvents.Stream(context, item);
             await context.Response.WriteAsync(JsonSerializer.Serialize(item, RealtimeProtocol.JsonOptions) + "\n", Encoding.UTF8, token);
             await context.Response.Body.FlushAsync(token);
         }

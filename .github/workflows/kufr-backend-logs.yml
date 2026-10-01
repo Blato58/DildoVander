@@ -1,0 +1,55 @@
+name: Kufr server logs
+
+on:
+  workflow_dispatch:
+    inputs:
+      after:
+        description: Optional nextCursor from a previous snapshot; empty reads the latest events
+        type: string
+      level:
+        description: Minimum severity
+        type: choice
+        options: [info, warning, error]
+        default: info
+      trace_id:
+        description: Optional request UUID shown in the iOS log
+        type: string
+      operation_id:
+        description: Optional operation UUID shown in the iOS log
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  read:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: backend-production
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Read deployed diagnostics without AI calls
+        env:
+          KUFR_LOG_TOKEN: ${{ secrets.LOG_READER_CREDENTIAL || secrets.ADMIN_CREDENTIAL }}
+          PUBLIC_IPV4: ${{ vars.KUFR_BACKEND_PUBLIC_IPV4 }}
+          LOG_AFTER: ${{ inputs.after }}
+          LOG_LEVEL: ${{ inputs.level }}
+          LOG_TRACE: ${{ inputs.trace_id }}
+          LOG_OPERATION: ${{ inputs.operation_id }}
+        run: |
+          set -euo pipefail
+          export KUFR_BACKEND_URL="https://${PUBLIC_IPV4}/"
+          arguments=(--snapshot "$RUNNER_TEMP/kufr-server-logs.json" --level "$LOG_LEVEL")
+          if [[ -n "$LOG_AFTER" ]]; then arguments+=(--after "$LOG_AFTER"); fi
+          if [[ -n "$LOG_TRACE" ]]; then arguments+=(--trace-id "$LOG_TRACE"); fi
+          if [[ -n "$LOG_OPERATION" ]]; then arguments+=(--operation-id "$LOG_OPERATION"); fi
+          python3 kufr/backend/codex/server_logs_mcp.py "${arguments[@]}"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: kufr-server-logs
+          path: ${{ runner.temp }}/kufr-server-logs.json
+          if-no-files-found: error
+          retention-days: 1

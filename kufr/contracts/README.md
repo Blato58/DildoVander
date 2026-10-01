@@ -1,6 +1,6 @@
 # Sdílené kontrakty kufru
 
-## Hlas ESP v lokálním control v1 (D118)
+## Hlas ESP v lokálním control v1 (D119)
 
 `voice.configure` nese běžnou device/boot/messageId obálku a
 `mode=off|realtime`, `voice=cedar|marin|coral`. `voice.start` přidává

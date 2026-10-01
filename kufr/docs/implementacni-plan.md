@@ -239,7 +239,7 @@ Wi-Fi reconnect 1/2/4/8/16/30 s s jitterem; návrat připojení sám nezahájí 
 - Druhý socket `/v1/media` je pouze pro záložní média telefonu, váže se na tentýž token, boot a případný ruční lease. Nezískává právo řídit zařízení. Jeho zaplnění nesmí zastavit heartbeat nebo Stop na control socketu.
 - Opakované spojení: prodlevy 0,5 / 1 / 2 / 4 / 8 s, dále 8 s, jitter ±20 %. Po návratu vždy nový handshake a úplný snapshot. Nepřehrávat frontu povelů ani audio. Změněný `bootId` znamená restart a nutnost ručního zotavení.
 
-### D118 – samostatný Realtime hlas ESP a nastavení v Ovládání
+### D119 – samostatný Realtime hlas ESP a nastavení v Ovládání
 
 Majitel 1. 10. 2026 výslovně rozšiřuje D114/D116 na firmware ESP a žádá
 všechna OpenAI volání přes SDK. ESP používá existující autentizovaný
@@ -273,7 +273,7 @@ přímé spínání pohonů z provider streamu neexistuje.
 
 Profil B/expander, fyzický vstup PTT/start bez telefonu, nouzové audio,
 100 tahů na HW bez úniku RAM a fyzická akceptace B1/E9 zůstávají otevřené.
-D118 je implementovaný hlasový adaptér a lokální ovládání, nikoli uzavření E9.
+D119 je implementovaný hlasový adaptér a lokální ovládání, nikoli uzavření E9.
 
 ## 5. Datové kontrakty a spolehlivost povelů
 
@@ -521,6 +521,23 @@ nejistota vyžaduje expiraci testovacího sezení. Paměť testovacího večera 
 automaticky nemaže. Bez nasazení backendu s D106/D108 a testovací identity není
 živý AI test dostupný. Tato cesta nedokazuje audio kufru, GPIO ani fyzickou E10
 akceptaci; mikrofon a STT test nejsou součástí D108.
+
+**Provozní diagnostika D118 (zadání majitele 1. 10.):** server ukládá omezený
+technický log do samostatné SQLite vedle journalu, výchozí historie 24 h/5000
+událostí. Je to doplněk technického auditu podle §9, nemění jeho retenční
+požadavky ani paměť večera. Zapisuje jen čas, pevný event/code, route template,
+HTTP status/duration a serverové UUID požadavku/operace/rozhovoru; žádná těla,
+query, credential, text/audio, prompty ani exception message. Úspěšný polling
+GET/PCM se nezapisuje, Realtime fáze a chyby ano i uvnitř HTTP 200 streamu.
+`GET /v1/admin/logs` nabízí tail, vzestupné kurzorové stránky, filtr úrovně a
+UUID; `GET /v1/admin/logs/status` režimy/počty bez AI. Obě cesty vyžadují
+admin credential nebo samostatný čtecí credential. Ten nezískává device token,
+správu režimů ani rozhovor. Native Debug čte logy přes stejný Keychain/PKI
+profil nezávisle na hlasovém toku; JS dostává jen typovaná metadata. Codex
+používá stdio MCP s environment tokenem nebo GitHub read workflow se serverovým
+secretem a jednodenním diagnostickým artefaktem. Žádná z těchto cest nevolá AI.
+Změna logové DB invaliduje namespace kurzoru, restart historie zachová.
+Nasazení/backend a podpis/publikace nové IPA zůstávají samostatné kroky.
 
 **Servisní správa D109 (zadání majitele 1. 10.):** iOS Debug smí přepnout globální
 režim dialogu fake/Responses Sol a hlasu fake/OpenAI STT-TTS přes nové
