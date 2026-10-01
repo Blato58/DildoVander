@@ -37,7 +37,23 @@ veřejného HTTPS jsou evidované v [PR #88](https://github.com/Blato58/DildoVan
 Produkční aktivace, podpis/publikace nové IPA, placené AI ani flash nejsou
 součástí migrace; stávající akceptační mezery D120 a HW zůstávají zachované.
 
-**D120 – oprava iPhone audio uploadu ověřena také na macOS/Xcode.**
+**D120 – oprava iPhone audio uploadu publikována v IPA 1000.0.8.**
+Majitel výslovně schválil publikaci po úspěšné kontrole a podpisu.
+PR #90 je sloučen jako `ceb40fbc06d566d116e62180d576a4e092cf968e`;
+finální CI 36936917112 ověřilo head `83a2e15`. Původní podepsaný build
+1000.0.7 (36937398196) nebyl publikován: mezitím se do main sloučila
+migrace runnerů z PR #88. Nový Ad Hoc podpis 36940005506 použil úspěšné
+CI 36937790022 a aktuální main `cc2941ee5a52356553c891a376b6fec06e3c41ff`;
+provenance, striktní podpis i upload artefaktu prošly.
+Publikace 36940186009 prošla všemi třemi joby. [Safari instalace](https://2.28.202.220/ios/)
+nabízí 1.0 / **1000.0.8**, release `36940186009-1`. Serverový runner přes
+veřejné HTTPS ověřil stránku, manifest, Bundle ID, download IPA, SHA-256
+a MIME typy. Není to nezávislá kontrola z jiné sítě. Přímá kontrola z tohoto
+cloudového workspace narazila na proxy certifikát s cizím hostname;
+TLS ověřování nebylo vypnuté. Majitel musí potvrdit aktualizaci a hlasový
+rozhovor na skutečném iPhonu/5G. Backend nebyl nasazen ani restartován,
+neproběhl flash desky ani placený AI test.
+
 Majitel sdílí `realtime_live_audio_overflow` a stabilní připojení. Nalezený
 defekt: iOS vytvářelo a rušilo URLSession pro každý PCM POST (nejvýše 200 ms
 audia), přitom mělo jen 1 s frontu a při průběžném drainu posílalo i menší
@@ -88,9 +104,9 @@ session API potvrdilo Blato58 a push proběhl přes scoped gh credential
 helper bez změny ostatních účtů. [PR #90](https://github.com/Blato58/DildoVander/pull/90)
 eviduje finální head, povinné CI a výsledek sloučení. Tento zápis aktualizuje
 původní blokaci; povinné CI následně ověří i tento dokumentační head.
-Další krok: připravit podepsaný Ad Hoc artifact z ověřené main verze,
-publikovat jej až v autorizovaném rozsahu a ověřit skutečný iPhone/5G
-rozhovor. Bez placeného AI testu, backend deploymentu nebo flash do desky.
+Další krok: majitel nainstaluje 1000.0.8 a ověří úvod, alespoň dvě vlastní
+hlasové odpovědi, automatické obnovení poslechu a Stop na skutečném
+iPhonu/5G. Při další chybě dohledat aktuální trace/operation v logu.
 
 **D119 – Realtime hlas přímo na ESP a nastavení v Ovládání; všechny provider cesty přes SDK.**
 Majitel 1. 10. požaduje přidat Realtime do firmware, nastavovat hlasový režim
