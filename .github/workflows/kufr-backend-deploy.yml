@@ -77,6 +77,7 @@ jobs:
           DIALOG_MODEL: ${{ inputs.dialog_model || 'gpt-6.1-sol' }}
           VOICE_MODE: ${{ inputs.voice_mode || 'fake' }}
           ADMIN_CREDENTIAL: ${{ secrets.ADMIN_CREDENTIAL }}
+          LOG_READER_CREDENTIAL: ${{ secrets.LOG_READER_CREDENTIAL }}
           PUBLIC_IPV4: ${{ vars.KUFR_BACKEND_PUBLIC_IPV4 }}
           RELEASE_SHA: ${{ needs.verify.outputs.source_sha }}
           RELEASE_RUN_ID: ${{ github.run_id }}
@@ -118,6 +119,14 @@ jobs:
               'Dialog': {'Mode': os.environ['DIALOG_MODE'], 'Model': os.environ['DIALOG_MODEL']},
               'Voice': {'Mode': voice}, 'Admin': {'CredentialSha256': admin_hash},
           }}
+          reader = os.environ.get('LOG_READER_CREDENTIAL', '')
+          if reader:
+              if not 32 <= len(reader) <= 256 or not all(32 < ord(c) < 127 for c in reader):
+                  raise SystemExit('A strong log reader credential is required')
+              reader_hash = hashlib.sha256(reader.encode()).hexdigest()
+              if reader_hash in (admin_hash.lower(), os.environ['DEVICE_CREDENTIAL_SHA256'].lower()):
+                  raise SystemExit('Log reader credential must be separate')
+              config['Backend']['Logs'] = {'CredentialSha256': reader_hash}
           (Path(os.environ['RELEASE_DIR']) / 'appsettings.Production.json').write_text(json.dumps(config) + '\n')
           PY
           python3 - <<'PY' | sudo -n /usr/local/sbin/kufr-backend-deploy activate "$release_id"
