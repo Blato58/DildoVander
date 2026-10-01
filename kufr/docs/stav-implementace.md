@@ -30,7 +30,10 @@ retry, expirace návrhu po TTS, okamžitého mazání JS obsahu při pozadí a
 odmítnutí starých status/mikrofonních callbacků. Swift harness pokrývá celý
 výběr/STT/korelaci/expiraci a skutečný omezený loopback chunk/redirect/cancel;
 Node fixture lokálně ověřena. Windows nemá Swift/Xcode, jejich CI probíhá
-a výsledek zatím není doložen. Diff bez whitespace chyb, tajemství nepřidána.
+a výsledek zatím není doložen. První macOS běh Swift klient zkompiloval;
+harness selhal na dekódování binárního WAV jako UTF-8 ve fixture. Test je
+opraven tolerovaným čtením hlaviček a kontrolou přesných WAV bajtů, opakované
+CI čeká. Diff bez whitespace chyb, tajemství nepřidána.
 Další krok: dokončit ověření, commit/push/PR/merge, navázat aktualizací backendu
 a podepsané IPA pro již autorizovaný telefonní test. Skutečná kvalita/latence
 a mikrofon iPhone zatím neověřeny, fyzický ESP/I2S zůstává závislý na B1.
