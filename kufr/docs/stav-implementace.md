@@ -6,7 +6,7 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**Migrace GitHub Actions na vlastní runner – systémové závislosti doplněné, finální CI 1. 10. 2026.**
+**Migrace GitHub Actions na vlastní runner – Linux ověřen, macOS blokováno billingem 1. 10. 2026.**
 Majitel požaduje všechny joby na svém serveru, kromě macOS. Všechny Linux
 joby v `.github/workflows/` nyní používají existující štítky
 `[self-hosted, Linux, X64, kufr-backend]`; iOS Simulator a IPA signing
@@ -42,7 +42,23 @@ Další krok: po instalaci spustit CI nad aktuálním headem PR a po zeleném
 výsledku sloučit; poté z main ověřit rozšířený host probe a read-only HTTPS.
 Majitel instalaci systémových závislostí potvrdil. Aktuální main včetně
 D118/D119 předání a diagnostického workflow je zachovaný další merge
-integrací; plné CI nad aktuálním PR headem ověřuje připravený server.
+integrací `5984347565110b3da191a875a438db2a5f7aecb1`; push a remote shoda ověřené.
+[CI 36930988401](https://github.com/Blato58/DildoVander/actions/runs/36930988401)
+prošlo na `dildovander-server`: repository checks, web build/testy, offline
+AI, firmware host testy, oba ESP-IDF/Arduino buildy a upload artefaktu,
+backend build/testy/publish/HTTP smoke. Python 3.14 venv i PlatformIO 6.2.0
+nyní fungují. IP HTTPS lint 36930987942 také prošel.
+macOS job neměl přidělený runner a nespustil žádný krok: GitHub oznámil
+„recent account payments have failed or your spending limit needs to be
+increased“. CI required proto správně selhalo pouze kvůli macOS.
+macOS workflow a aplikační zdroje jsou stejné jako při úspěšném původním
+macOS ověření 36926992141; nové main změny se týkaly dokumentace a Linux
+log workflow. Majitel byl požádán o kontrolu GitHub Billing & plans.
+PR #88 zůstává otevřené; migrace není v main. Tento dokumentační záznam
+má skip-ci, aby neopakoval buildy před vyřešením účtu. Další krok:
+po odblokování hosted Actions spustit finální CI nad aktuálním PR headem,
+zkontrolovat případné nové main změny, sloučit a ověřit rozšířený host probe
+plus read-only HTTPS na main. Produkční aktivace se při migraci nespouští.
 Žádné nasazení, podpis IPA, publikace, placené AI volání ani flash nebyly
 součástí migrace.
 
