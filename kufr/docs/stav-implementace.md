@@ -6,21 +6,26 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**D112 – oprava dependency PR #77, lokálně ověřeno, čeká macOS CI.**
+**D112 – oprava dependency PR #77, web a macOS ověřeny.**
 TypeScript 7 odstranil staré compiler API a zpřísnil side-effect importy.
 Testovací loadery nyní používají Node transform, `src/vite-env.d.ts` dodává
 Vite deklarace pro CSS. `cap sync ios` vygeneroval Swift manifest 8.5.2.
 Novou zranitelnou závislost CLI `xcode -> uuid 7` nahrazuje cílené override
 na CommonJS kompatibilní uuid 11.1.1; npm lockfile vznikl přes npm.
 Soubory: mobilní package/lock, dva testovací loadery, Vite deklarace,
-generovaný Swift manifest a mobilní README; původní PR aktualizuje i `ws`.
+generovaný Swift manifest/lockfile a mobilní README; původní PR aktualizuje i `ws`.
 Lokálně: npm ci, 19 mobilních testů, TS7/Vite8 build, všechny kontrakty,
 MSVC C++14 bridge build a kompletní simulator npm test včetně TLS/WSS/media
 prošly. xcode parse/write a generování UUID prošly, npm audit má 0 nálezů.
-Lokální runtime Node 25.9.0; přesný Node 24.21.0 a Xcode ověří CI.
-Nativní Package.resolved zatím čeká na výstup skutečného macOS resolveru.
-Další krok: push oprav do PR #77, převzít generovaný Swift lockfile,
-ověřit finální CI a merge. Žádné nasazení, podpis IPA ani HW akceptace.
+Lokální runtime Node 25.9.0; všech 19 testů prošlo také na přesném 24.21.0.
+In-app Browser nad Vite8 produkčním buildem ověřil Ovládání/Debug,
+převzetí, potvrzení výběru a Stop bez console chyb.
+Commit `efe1cd51a726a97350be498d06868d3b294555a3` byl pushnut přes
+Push-CurrentBranch.ps1 a remote shoda ověřena. V CI 36869848988 prošel web,
+nativní Swift harness, Xcode build i spuštění simulátoru. Package.resolved
+8.5.2 pochází z artefaktu `kufr-swift-package-resolved` tohoto macOS běhu.
+Další krok: ověřit finální CI aktualizovaného lockfile a merge PR #77.
+Žádné nasazení, podpis IPA ani HW akceptace.
 
 **D111 – CI/CD build jednou a oddělená promotion artefaktů.**
 Rozsah: každé PR do main spouští společné CI pro backend, firmware, iOS/web
