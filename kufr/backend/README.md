@@ -93,7 +93,8 @@ opening → speech → telefon použít samostatné provisionované zařízení 
 Registrace a hash credential používají stávající `Devices` konfiguraci;
 provider klíč zůstává pouze na serveru. Testy mají stejné kvóty a paměť večera
 jako ostatní sezení a žádné zvláštní právo převzít aktivní sezení. Příprava kódu
-neznamená nasazení tohoto endpointu ani aktivaci `Backend__Voice__Mode=openai`.
+neznamená jeho nasazení. Aktuální nasazení D109, provider režimy a ověření
+eviduje [stav implementace](../docs/stav-implementace.md).
 
 SDK je připnuté v `../global.json`; .NET 10 ASP.NET Core runtime je nutný.
 Pro běh nastav `Backend__DatabasePath` na absolutní cestu k místnímu
