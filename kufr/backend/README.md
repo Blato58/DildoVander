@@ -9,7 +9,8 @@ založení sezení, atomickou rezervaci nejvýše deseti tahů v jednom sezení 
 idempotenci po restartu. E7.4 přidává retenci a explicitní rušení. E7.5a
 přidává omezený WAV upload s deterministickým fake přepisem. E7.5b
 přidává fake syntézu krátkého tichého WAV pro existující textový tah.
-V této verzi nejsou skutečné STT/TTS. Textový tah má výchozí fake režim;
+D106 přidává volitelné skutečné STT/TTS adaptéry za explicitní přepínač.
+Textový tah má výchozí fake režim;
 výslovný režim `responses` používá GPT-6.1 Sol se sdíleným party promptem,
 šesticí hůlek z `../ai-eval/wand-catalog.json`, přísnými schématy nativních funkcí a kontrolou dostupné přihrádky. Model dostává jen dostupné položky a hraje mluvící kouzelný kufr Ollivanderova obchodu. Před odesláním do
 OpenAI transakčně rezervuje nejméně 0,10 USD pro Sol (více podle paměti), jeden backend spustí nejvýše jedno
@@ -116,20 +117,56 @@ nebyla refundována. Úspěšný DELETE key lze po restartu opakovat po dobu 24 
 `consent.audio=true` multipart s `clientTurnId`, `bootId`, `generation`,
 `deviceRevision` a `wav` (`audio/wav`). WAV musí být PCM16 mono 32 kHz,
 nejvýše 30 sekund / 1 920 000 bajtů vzorků; celý požadavek má strop 2 MB.
-Backend vrací pevný testovací přepis se zdrojem `deviceMicrophone` bez STT.
+Ve výchozím `fake` režimu backend vrací pevný testovací přepis se zdrojem
+`deviceMicrophone`; `openai` použije skutečný STT adaptér popsaný níže.
 Nahrávka ani přepis se nezapisují do SQLite; operace je device-scoped a po
 restartu se její ztracený RAM výsledek neobnoví.
 `POST /v1/conversations/{id}/speech` bere pouze UUID předchozího
 `clientTurnId` a `outputTarget` (`device` nebo `phone`), nikdy klientský text.
-Vyžaduje audio souhlas, nejvýše deset fake syntéz v jednom sezení a právě jeden
+Vyžaduje audio souhlas, nejvýše deset syntéz v jednom sezení a právě jeden
 aktivní výstup. Výsledek operace nese `audioId`; autentizované
-`GET /v1/audio/{audioId}` vrací tichý testovací PCM16 mono 32 kHz WAV s
+`GET /v1/audio/{audioId}` vrací PCM16 mono 32 kHz WAV (ve fake režimu ticho) s
 metadaty a `no-store`. Obsah zůstává jen v RAM nejvýše 120 sekund; po expiraci
 vrací vlastník `410`, cizí zařízení `403`. Po přehrání klient použije
 `DELETE /v1/operations/{id}` k uvolnění aktivního výstupu; jinak jej uvolní
 120sekundová expirace. Ukončení sezení také audio odstraní.
 Odpovědi `/v1` mají `Cache-Control: no-store`; chyby používají
 `application/problem+json` se stabilním `code` a `traceId`.
+
+## Hlasové adaptéry E9.1
+
+`Backend__Voice__Mode=openai` zapne nezávisle na textovém dialogu
+STT `gpt-transcribe` (český vstup) a TTS `gpt-4o-mini-tts-2025-12-15`,
+hlas `marin` s českými instrukcemi. Vyžaduje `OPENAI_API_KEY` a všechny tři
+kladné nákladové limity uvedené níže. Výchozí `fake` nevolá poskytovatele;
+neznámý režim nebo chybějící předpoklad zastaví start. TTS čte pouze uloženou
+validovanou repliku dokončeného dialogu, nikoli libovolný klientský text.
+
+Trasy a schéma v1 se nemění. Hlasové operace vrací `202` a pollují se stejně
+jako dialog. Jeden backend dovolí nejvýše jedno placené volání současně
+napříč dialogem, STT a TTS. Každé audio volání má 15sekundový deadline;
+nejasný výpadek se neopakuje. Zrušení, konec sezení, shutdown nebo pozdní
+odpověď nesmějí publikovat výsledek. Worker vlastní samostatnou omezenou
+kopii uploadu, kterou po dokončení vynuluje. Nahrávky ani generované audio
+se neukládají do SQLite; přepis v RAM lze následně předat textovému dialogu.
+
+Poskytovatel vrací [PCM 24 kHz, mono, signed 16-bit little-endian](https://developers.openai.com/api/docs/guides/text-to-speech).
+Backend provede skutečný filtrovaný převod na 32 kHz a vytvoří WAV;
+nepřeznačuje pouze hlavičku. Přijme nejvýše 30 sekund zvuku. Delší výsledek
+odmítne celý bez částečného přehrávání; i platná 500znaková replika může tento
+limit překročit a již odeslané volání může být účtované. Délku a český projev
+je nutné změřit při autorizované živé hlasové evaluaci.
+
+Před dispatch rezervuje STT 0,01 USD a TTS 0,05 USD. Jde o konzervativní
+vývojové odhady, nikoli ověřené skutečné účty nebo zaručený cenový strop
+poskytovatele. Bez spolehlivého billing údaje zůstávají rezervace započtené
+i po úspěchu či chybě; neodeslaná práce se vypořádá nulou. Projektový hard
+spend limit zůstává nutný. Testy používají falešný HTTP provider a syntetické
+PCM, ověřují spektrum/délku převodu, kontrakty, rušení, TTL a nákladové
+rezervace. Neprokazují reálný český hlas ani reproduktor ESP32.
+
+Tento krok nemění konfiguraci běžícího serveru ani nasazovací helper.
+Fyzické PTT/I2S a firmware audio tok jsou navazující části E9.
 
 Sezení, tokeny a fake obsah výsledku jsou jen v paměti jedné instance.
 SQLite drží hash těla, idempotency key, identifikátory, status a 24hodinovou
@@ -185,7 +222,7 @@ a spustí `sudo bash CESTA/bootstrap-ubuntu.sh github-runner`. Soubory není nut
 `/root`; workflow skript samo nespouští ani nepoužívá sudo.
 
 
-Workflow `.github/workflows/kufr-backend.yml` při změnách backendu v `main`
+Workflow `.github/workflows/kufr-backend.yml` při změnách backendu v PR i `main`
 sestaví a otestuje samostatný `linux-x64` release na GitHub runneru. Ruční
 `workflow_dispatch` z `main` navíc aktivuje artefakt na self-hosted runneru
 se štítky `self-hosted`, `Linux`, `X64` a
