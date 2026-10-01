@@ -202,6 +202,59 @@ try {
   assert.equal((await changeModes({ ...modeBody, voiceMode: 'openai' })).result.code, 'provider_unavailable');
   const adminToken = await call('/v1/device-access/token', { credential: adminCredential });
   assert.equal(adminToken.result.deviceId, 'debug-server-admin');
+  const virtualDevice = adminToken.result.deviceId;
+  const virtualToken = adminToken.result.accessToken;
+  const virtualBody = { ...body, deviceId: virtualDevice };
+  const virtualSession = await call('/v1/conversations', {
+    token: virtualToken, key: randomUUID(), body: virtualBody,
+  });
+  assert.equal(virtualSession.status, 201);
+  const virtualId = virtualSession.result.conversationId;
+  const virtualTurn = {
+    clientTurnId: randomUUID(), bootId: virtualBody.bootId, generation: 1,
+    readyMask: 0b101010, deviceRevision: 4, catalogVersion: virtualBody.catalogVersion,
+  };
+  const virtualOpening = await call(`/v1/conversations/${virtualId}/opening`, {
+    token: virtualToken, key: randomUUID(), body: virtualTurn,
+  });
+  assert.equal(virtualOpening.status, 202);
+  let virtualResult = (await read(`/v1/operations/${virtualOpening.result.operationId}`, virtualToken)).result.result;
+  assert.equal(virtualResult.decision, 'ask');
+  for (const answer of ['Jsem Eva', 'Ráda kreslím', 'Zkusila jsem tanec']) {
+    const next = await call(`/v1/conversations/${virtualId}/turns`, {
+      token: virtualToken, key: randomUUID(),
+      body: { ...virtualTurn, clientTurnId: randomUUID(), text: answer },
+    });
+    assert.equal(next.status, 202);
+    virtualResult = (await read(`/v1/operations/${next.result.operationId}`, virtualToken)).result.result;
+    assert.equal(virtualResult.decision, 'ask');
+  }
+  const virtualProposal = await call(`/v1/conversations/${virtualId}/turns`, {
+    token: virtualToken, key: randomUUID(),
+    body: { ...virtualTurn, clientTurnId: randomUUID(), text: 'Přátelé říkají, že jsem zvědavá' },
+  });
+  assert.equal(virtualProposal.status, 202);
+  virtualResult = (await read(`/v1/operations/${virtualProposal.result.operationId}`, virtualToken)).result.result;
+  assert.equal(virtualResult.decision, 'propose');
+  assert.ok([2, 4, 6].includes(virtualResult.proposal.compartment));
+  assert.equal((await call(`/v1/conversations/${virtualId}/turns`, {
+    token: virtualToken, key: randomUUID(),
+    body: { ...virtualTurn, clientTurnId: randomUUID(), text: 'Ještě něco' },
+  })).status, 409);
+  assert.equal(await remove(`/v1/conversations/${virtualId}`, virtualToken, randomUUID()), 204);
+  const emptySession = await call('/v1/conversations', {
+    token: virtualToken, key: randomUUID(), body: virtualBody,
+  });
+  assert.equal(emptySession.status, 201);
+  const emptyOpening = await call(`/v1/conversations/${emptySession.result.conversationId}/opening`, {
+    token: virtualToken, key: randomUUID(),
+    body: { ...virtualTurn, clientTurnId: randomUUID(), readyMask: 0 },
+  });
+  assert.equal(emptyOpening.status, 202);
+  assert.equal((await read(`/v1/operations/${emptyOpening.result.operationId}`, virtualToken)).result.result.decision,
+    'no_selection');
+  assert.equal(await remove(
+    `/v1/conversations/${emptySession.result.conversationId}`, virtualToken, randomUUID()), 204);
   assert.equal((await read('/v1/admin/modes', adminToken.result.accessToken)).status, 401);
   assert.equal((await read('/v1/diagnostics')).status, 401);
   assert.equal((await read('/v1/diagnostics', credentialA)).status, 401);
@@ -370,6 +423,13 @@ try {
   const speechKey = randomUUID();
   assert.equal((await call(speechPath, { token: tokenA, key: randomUUID(),
     body: { ...speechBody, outputTarget: 'both' } })).status, 400);
+  for (const invalidOptions of [
+    { voice: 'alloy' }, { speed: 0.84 }, { speed: 1.26 },
+    { speed: null }, { voice: null }, { unknown: true },
+  ]) {
+    assert.equal((await call(speechPath, { token: tokenA, key: randomUUID(),
+      body: { ...speechBody, ...invalidOptions } })).status, 400);
+  }
   assert.equal((await call(speechPath, { token: tokenB, key: randomUUID(), body: speechBody })).status, 403);
   assert.equal((await call(speechPath, { token: tokenA, key: randomUUID(),
     body: { ...speechBody, turnId: randomUUID() } })).status, 404);
@@ -389,12 +449,13 @@ try {
     duplex: 'half'
   });
   assert.equal(oversizedSpeech.status, 413);
-  const speech = await call(speechPath, { token: tokenA, key: speechKey, body: speechBody });
+  const selectedSpeechBody = { ...speechBody, voice: 'cedar', speed: 1.15 };
+  const speech = await call(speechPath, { token: tokenA, key: speechKey, body: selectedSpeechBody });
   assert.equal(speech.status, 202);
-  assert.equal((await call(speechPath, { token: tokenA, key: speechKey, body: speechBody })).result.operationId,
+  assert.equal((await call(speechPath, { token: tokenA, key: speechKey, body: selectedSpeechBody })).result.operationId,
     speech.result.operationId);
   assert.equal((await call(speechPath, { token: tokenA, key: speechKey,
-    body: { ...speechBody, outputTarget: 'phone' } })).status, 409);
+    body: { ...selectedSpeechBody, speed: 1.2 } })).status, 409);
   assert.equal((await call(speechPath, { token: tokenA, key: randomUUID(), body: speechBody })).status, 409);
   const speechOperationPath = `/v1/operations/${speech.result.operationId}`;
   const speechOperation = await read(speechOperationPath, tokenA);

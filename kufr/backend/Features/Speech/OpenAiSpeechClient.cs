@@ -1,20 +1,34 @@
+using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 
 namespace Kufr.Backend.Features.Speech;
 
-internal sealed class OpenAiSpeechClient(HttpClient httpClient, string apiKey)
+internal sealed class OpenAiSpeechClient(
+    HttpClient httpClient,
+    string apiKey,
+    ILogger<OpenAiSpeechClient>? logger = null)
 {
     internal const string Model = "gpt-4o-mini-tts-2025-12-15";
-    internal const string Voice = "marin";
     private static readonly Uri Endpoint = new("https://api.openai.com/v1/audio/speech");
 
-    public async Task<byte[]> GenerateAsync(string reply, CancellationToken cancellationToken)
+    public Task<byte[]> GenerateAsync(string reply, CancellationToken cancellationToken) =>
+        GenerateAsync(reply, SpeechOptions.Default, cancellationToken);
+
+    public async Task<byte[]> GenerateAsync(
+        string reply,
+        SpeechOptions options,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(reply) || reply.EnumerateRunes().Count() > 500)
         {
             throw new ArgumentException("Speech requires a validated short reply.");
+        }
+
+        if (options.Voice is null || !SpeechOptions.IsValid(options.Voice, options.Speed))
+        {
+            throw new ArgumentException("Speech options are invalid.");
         }
 
         using var request = new HttpRequestMessage(HttpMethod.Post, Endpoint)
@@ -22,15 +36,17 @@ internal sealed class OpenAiSpeechClient(HttpClient httpClient, string apiKey)
             Content = JsonContent.Create(new
             {
                 model = Model,
-                voice = Voice,
+                voice = options.Voice,
+                speed = options.Speed,
                 input = reply,
                 response_format = "pcm",
-                instructions = "Mluv česky, přirozeně a srozumitelně jako sebevědomý kouzelný kufr. "
-                    + "Hravý, lehce ironický tón; krátké pauzy u pointy. Přečti přesně vstupní text, "
+                instructions = "Mluv česky svižně, přirozeně a srozumitelně jako sebevědomý kouzelný kufr. "
+                    + "Hravý, lehce ironický tón, plynulé tempo bez dlouhých umělých pauz. Přečti přesně vstupní text, "
                     + "nepřidávej vlastní slova ani zvuky."
             })
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        var providerTimer = Stopwatch.StartNew();
         using var response = await httpClient.SendAsync(
             request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
@@ -40,10 +56,19 @@ internal sealed class OpenAiSpeechClient(HttpClient httpClient, string apiKey)
         }
 
         var pcm = await ReadPcmAsync(response.Content, cancellationToken);
+        providerTimer.Stop();
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return PcmSpeechAudio.ToDeviceWav(pcm);
+            var conversionTimer = Stopwatch.StartNew();
+            var wav = PcmSpeechAudio.ToDeviceWav(pcm);
+            conversionTimer.Stop();
+            logger?.LogInformation(
+                "Speech completed: providerMs={ProviderMs}, conversionMs={ConversionMs}, outputBytes={OutputBytes}.",
+                providerTimer.ElapsedMilliseconds,
+                conversionTimer.ElapsedMilliseconds,
+                wav.Length);
+            return wav;
         }
         finally
         {

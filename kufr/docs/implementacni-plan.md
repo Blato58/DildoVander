@@ -399,6 +399,26 @@ nezávislého softwaru; kritéria dokončení E9 se nesnižují.
 
 ### Průběh samostatného hlasového tahu
 
+**Interaktivní diagnostika D110 (zadání majitele 1. 10.):** výjimka D108/D109
+zahrnuje celý virtuální rozhovor s textovými a mikrofonními odpověďmi telefonu.
+Obsluha před začátkem nastaví simulovanou masku 0–63, výchozí 63; během sezení
+se nemění. Nejde o fyzický snapshot. Native klient ověřuje korelaci tahu i návrhu,
+platnost a dostupnost přihrádky, zobrazuje návrh a nikdy neposílá pohybový povel.
+Pouze fake dialog identity `debug-server-admin` provede čtyři otázky a simulovaný
+výběr; ostatní fake identity zachovávají dosavadní chování. Sol zůstává skutečným
+dialogovým modelem. Fake STT vrací označený syntetický přepis.
+Mikrofon po povolení iOS pořizuje nejvýše 30 s PCM16 mono 32 kHz do RAM;
+odeslání je výslovná akce. Stop, pozadí a audio interruption nahrávku zahodí,
+uklidí vlastní backendové sezení a zneplatní pozdní výsledky. Přepis se zobrazí
+jen přechodně, log neobsahuje návštěvnický text. Backendová paměť večera se
+ukončením sezení nemaže. Volby speech `voice=cedar|marin|onyx|coral` a konečná
+`speed=0.85–1.25` jsou volitelné; starší klient má marin/1.0. Debug nabízí
+cedar/1.1. Provider model i nákladové rezervace zůstávají pevné.
+Native HTTP přijímá WAV omezeně po blocích mimo hlavní vlákno a přehrávání
+začíná před úklidem audio operace. Měření zvlášť uvádí dialog, TTS a stažení;
+nejde o streamování přehrávání před dokončením provideru. Skutečná česká
+kvalita/latence, mikrofon iPhone a fyzické I2S zůstávají samostatnou akceptací.
+
 **Diagnostická výjimka D108 (zadání majitele 1. 10.):** iOS Debug může nezávisle
 testovat backendový opening → speech → WAV → reproduktor telefonu. Nejde o běžný
 cloudový prostředník ESP: používá samostatnou provisionovanou identitu `debug-*`,

@@ -101,10 +101,15 @@ internal static class VoiceProviderTests
                 using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellation));
                 Require(body.RootElement.GetProperty("model").GetString() == OpenAiSpeechClient.Model,
                     "speech uses the pinned model");
-                Require(body.RootElement.GetProperty("voice").GetString() == "marin"
+                var expectedVoice = calls == 1 ? "marin" : "cedar";
+                var expectedSpeed = calls == 1 ? 1.0 : 1.15;
+                Require(body.RootElement.GetProperty("voice").GetString() == expectedVoice
+                    && body.RootElement.GetProperty("speed").GetDouble() == expectedSpeed
                     && body.RootElement.GetProperty("response_format").GetString() == "pcm"
                     && body.RootElement.GetProperty("input").GetString() == "Ahoj, kouzelníku!",
                     "speech uses the chosen voice and exactly the validated text");
+                Require(body.RootElement.GetProperty("instructions").GetString()!.Contains("bez dlouhých umělých pauz"),
+                    "server owns brisk Czech speech instructions");
                 return Response(Tone(24_000, 800, 24_000), "application/octet-stream");
             }
 
@@ -121,9 +126,12 @@ internal static class VoiceProviderTests
         }));
         var output = await new OpenAiSpeechClient(http, "test-only").GenerateAsync("Ahoj, kouzelníku!", default);
         Require(output.Length == 64_044, "actual PCM response is converted to device WAV");
+        output = await new OpenAiSpeechClient(http, "test-only").GenerateAsync(
+            "Ahoj, kouzelníku!", new SpeechOptions("cedar", 1.15), default);
+        Require(output.Length == 64_044, "selected voice and speed preserve the WAV contract");
         var text = await new OpenAiTranscriptionClient(http, "test-only")
             .TranscribeAsync(DeviceWav(), default);
-        Require(text == "Jmenuju se Marek." && calls == 2, "transcript is parsed without rewriting it");
+        Require(text == "Jmenuju se Marek." && calls == 3, "transcript is parsed without rewriting it");
     }
 
     private static async Task CheckRejectedProviderResponsesAsync()
@@ -215,24 +223,32 @@ internal static class VoiceProviderTests
     {
         var output = DeviceWav();
         string? spoken = null;
+        SpeechOptions? chosenOptions = null;
         using var runner = new VoiceProviderRunner((_, _) => Task.FromResult("ahoj"),
-            (reply, _) =>
+            (reply, options, _) =>
             {
                 spoken = reply;
+                chosenOptions = options;
                 return Task.FromResult(output);
             });
         using var fixture = new Fixture(directory, "speech", runner);
         var turn = fixture.Turn();
         fixture.Store.SubmitTurn("device-a", fixture.Id, Guid.NewGuid(), "turn"u8, turn);
         var key = Guid.NewGuid();
+        var selectedSpeech = new SpeechRequest(turn.ClientTurnId, "device", "cedar", 1.15);
         var accepted = fixture.Store.SubmitSpeech("device-a", fixture.Id, key, "speech"u8,
-            new SpeechRequest(turn.ClientTurnId, "device"));
+            selectedSpeech);
         var operation = await PollAsync(fixture.Store, accepted.OperationId!, "completed");
         var result = (SpeechResult)operation.Result!;
         Require(fixture.Store.SubmitSpeech("device-a", fixture.Id, key, "speech"u8,
-            new SpeechRequest(turn.ClientTurnId, "device")).OperationId == accepted.OperationId,
+            selectedSpeech).OperationId == accepted.OperationId,
             "speech replay returns the same audio without another charge");
+        Require(fixture.Store.SubmitSpeech("device-a", fixture.Id, key, "changed-speech"u8,
+            selectedSpeech with { Speed = 1.2 }).ErrorCode == "idempotency_conflict",
+            "changed speech options cannot reuse the idempotency key");
         Require(spoken == "Toto je testovací odpověď bez AI.", "TTS receives only the stored validated reply");
+        Require(chosenOptions is { Voice: "cedar", Speed: 1.15 },
+            "selected speech options reach the provider");
         Require(fixture.Store.GetAudio("other", result.AudioId).Status == 403, "other device cannot read speech");
         Require(fixture.Store.GetAudio("device-a", result.AudioId).Wav!.SequenceEqual(output), "WAV is downloadable");
         Require(fixture.Store.SubmitSpeech("device-a", fixture.Id, Guid.NewGuid(), "speech-2"u8,
@@ -335,7 +351,8 @@ internal static class VoiceProviderTests
             Response(new byte[PcmSpeechAudio.MaxProviderBytes + 2], "audio/pcm"))));
         using var oversizedRunner = new VoiceProviderRunner(
             (_, _) => Task.FromResult("ahoj"),
-            new OpenAiSpeechClient(http, "test-only").GenerateAsync);
+            (reply, cancellationToken) =>
+                new OpenAiSpeechClient(http, "test-only").GenerateAsync(reply, cancellationToken));
         using var oversized = new Fixture(directory, "oversized-tts", oversizedRunner);
         turn = oversized.Turn();
         oversized.Store.SubmitTurn("device-a", oversized.Id, Guid.NewGuid(), "turn"u8, turn);
