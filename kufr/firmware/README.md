@@ -247,8 +247,9 @@ transport; síťový výstup je vždy mimo guard. Tato softwarová kontrola
 nenahrazuje nezávislé HW vypnutí při zamrznutí úlohy.
 
 Reset vyžaduje živý lease a `LocalControlRecoveryGate` potvrzující inspection;
-samotný síťový povel ji neobchází. Zatím není skutečný gate ani runtime
-composition. `LocalControlIdPort` dodává UUID lease; chybná/prázdná hodnota
+samotný síťový povel ji neobchází. Runtime už skládá owner/server/output,
+ale fyzický gate stále chybí: `UnverifiedInspection` zotavení odmítá.
+`LocalControlIdPort` dodává UUID lease; chybná/prázdná hodnota
 řízení nepřevezme. Host test ověřuje odpojení observeru, expiraci, duplicitní
 text, cancel/chybu výstupu a Stop mezi přijetím journalu a Begin.
 
@@ -265,7 +266,8 @@ bajty ověřuje `contracts/verify-firmware-output.mjs` stejným strict parserem
 a schématem jako mobil/simulátor; test není důkazem HW sekvence.
 
 `EspIdfLocalControlServer` je serverový adaptér `/v1/control` na HTTPS portu
-443. Start odmítne chybějící TLS identitu nebo nepárovaný credential.
+443. Start odmítne chybějící TLS identitu, poškozený credential nebo
+chybějící párovací záznam; připravené jednorázové párování umožní `/v1/pair`.
 Přesná bearer hlavička se ověří v pre-handshake callbacku před 101;
 post-handshake teprve potvrdí socket a oznámí připojení. Query a žádost
 o WS extensions se odmítají. Přijímá jen celé textové rámce do 8192 B;
@@ -279,8 +281,9 @@ v HTTPD úloze, kde se znovu kontroluje generace socketu. Close provádí
 Vlastník volá `Pump()` pro opakování při zahlcení SDK work queue. Start,
 Stop a provisioning musí probíhat sériově; identita musí žít po celou
 dobu serveru a během provozu se nesmí měnit. Wi-Fi/netif spravuje síťový
-vlastník. Adaptér zatím není spuštěný v `app_main`, nepřidává servisní
-bránu ani neprokazuje běh TLS/WSS na desce. Čerstvý SDK config potřebuje
+vlastník. Adaptér je složený v `app_main` a startuje pouze s provisionovanou
+identitou; fyzická servisní brána ani běh TLS/WSS na desce nejsou ověřené.
+Čerstvý SDK config potřebuje
 HTTPS, WS a pre/post callback volby ze `sdkconfig.defaults`.
 
 `LocalTlsIdentity` čte samostatný verzovaný záznam `wand_tls/server`:
@@ -327,10 +330,11 @@ přijaté ID rozhovoru a verzi snapshotu, takže pozdní událost starého socke
 nevymaže nový tah. V jednom sezení přijme nejvýše deset
 jedinečných `clientTurnId`; opakovaný aktivní tah
 rozpozná a po dokončení či zrušení již stejné ID znovu nespustí. Zrušení nebo
-ztráta lease zvýší generation a pozdní dokončení se odmítne. Model zatím není
-zapojený do WSS a neřídí žádný fyzický výstup. `EspIdfBackendNetwork`
+ztráta lease zvýší generation a pozdní dokončení se odmítne. Model je
+zapojený do autentizovaného WSS přes `LocalControlOwner`; fyzické výstupy
+neřídí. `EspIdfBackendNetwork`
 implementuje síťový port brány a předává terminální chybu přes omezenou
-schránku. IDF smyčka bránu zatím nevytváří ani nevolá `PollNetworkFailure`.
+schránku. Owner bránu vytváří po welcome a volá `PollNetworkFailure` v Tick.
 `ConversationStartCodec` sestaví přesné JSON tělo pro založení textového
 backend sezení s vypnutým audio/image souhlasem a omezeně parsuje odpověď
 včetně serverových limitů. Idempotency-Key je samostatný UUID vstup pro
@@ -371,7 +375,8 @@ prezentace nezačnou do
 `FinishReply`. Změna snapshotu nebo explicitní zrušení token zneplatní.
 Volající musí `IsReplyCurrent` kontrolovat před výstupem i během něj a při
 zrušení zastavit skutečný výstupní port. Přehrávací/TTS port v IDF smyčce
-zatím neexistuje, takže replika dosud není slyšet ani zobrazena.
+zatím neexistuje. `PumpReply` předává korelovaný text na místní WSS,
+mobilní klient jej zobrazí; z kufru replika zatím slyšet není.
 `WandPresentation` je čistý autonomní model pro hůlku, která zůstává v přihrádce.
 Po jednorázovém převzetí validovaného návrhu vyžádá zdvih, čeká na potvrzenou
 horní polohu, ukáže rekvizitu 5 s, vyžádá spuštění a čeká na potvrzenou klidovou
@@ -609,19 +614,20 @@ dostává ID od místního vlastníka rozhovoru; reconnect je nevytváří. Odpo
 vrací původní místní ID, backendová korelace používá backendové ID.
 Po doběhnutí či poruše cyklu má vlastník řízení zavolat `FinishPresentation`;
 nepřevzatý návrh se po vypršení lokálního deadline uklidí automaticky.
-Volání `QueueTextTurn` a `QueueOpening` zatím nemají v runtime autorizovaného
-producenta; odpověď zatím nemá TTS/přehrání a návrh nemá kalibrovaný servo
+`QueueTextTurn` má autorizovaného WSS producenta přes owner/bránu;
+`QueueOpening` zatím nemá fyzického PTT producenta. Odpověď nemá TTS/přehrání
+a návrh nemá kalibrovaný servo
 adaptér. `BeginPendingPresentation` je samostatný vstup vlastníka řízení do
 čistého modelu; síťová úloha jej sama nevolá. `QueueCancel` ruší čekající
 události a vyžádá DELETE. Volající musí předat přesný snapshot, proti kterému už ověřil
 vstup; fronta jej těsně při přijetí znovu porovná a odmítne starou nebo
 nedostupnou verzi. `ConversationRuntimeState` dává síťové úloze jeden uzamčený
 snapshot generace, revize, masky a katalogu; textová schránka uchovává jeho
-verzi a po pozdější změně stavu se starý tah zahodí. Inicializace čte dostupnost z NVS journalu,
-katalog je dočasná verze `neutral-1` a revize/generace jsou 0, protože IDF
-profil dosud nemá běžící místní řízení. Budoucí vlastník řízení musí po každé
-změně journalu, revize nebo generace publikovat snapshot a při poruše jej
-zneplatnit. Bez autorizovaného WSS a platného manual lease se text nepřijímá.
+verzi a po pozdější změně stavu se starý tah zahodí. Inicializace čte dostupnost
+z NVS journalu, katalog je `ollivander-private-party-v1`. `DeviceControlRuntime`
+po bezpečném přechodu publikuje celý snapshot a při poruše jej zneplatní.
+Kalibrace 0 a chybějící inspection drží skutečný runtime ne-ready.
+Bez autorizovaného WSS a platného manual lease se text nepřijímá.
 
 ## Další slices a podmínky zapojení
 
@@ -673,7 +679,8 @@ WSS používá token v Authorization Bearer; zařízení uloží jen hash. 400 z
 formát, 401 nesprávné tajemství nebo nedostupné RNG, 409 již spotřebované párování,
 413/415 velikost/typ, 503 poškozené úložiště. Ztráta úspěšné odpovědi vyžaduje
 fyzický servisní reset. Server nepotřebuje backend token pro párování, vyžaduje
-však aktivní STA pro RNG. Servisní AP, QR/Keychain/native klient a skutečný USB
+však aktivní STA pro RNG. Native Keychain/pairing/WSS klient je v E10.1–3;
+servisní AP, čtení QR kamerou a skutečný USB
 zápis po fyzické bráně zůstávají navazující části; žádná identita není v image.
 
 D99 skládá boot-lifetime runtime v `espidf_main.cpp`. `EspIdfStationNetwork`

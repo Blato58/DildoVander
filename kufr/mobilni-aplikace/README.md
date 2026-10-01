@@ -65,7 +65,8 @@ UI při nedostupné LAN vysvětluje povolení v Nastavení; router může použ�
 rezervaci. Plist obsahuje pouze skutečně používanou Bonjour službu.
 
 macOS harness ověřuje public TXT/host/port parser, odmítnutí pin/token polí,
-jednorázový cancel a pětisekundovou deadline. Neprokazuje multicast mezi
+jednorázový cancel, pětisekundovou deadline a skutečné NWBrowser/NetService
+vyhledání lokálního syntetického inzerátu na macOS. Neprokazuje multicast mezi
 skutečným ESP32 a iPhonem ani systémový dialog LAN. Čtení QR kamerou a
 servisní AP/Wi-Fi provisioning zatím nejsou implementované; párovací formulář
 je ruční a fyzické provisionování zůstává podmíněné B1.
