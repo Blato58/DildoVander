@@ -10,7 +10,7 @@ ESP32 samo komunikuje s backendem; aplikace není cloudový prostředník a nem�
 
 Nativní adaptér vlastní TLS pin, oprávnění LAN a Keychain. E10.1 používá ručně zadané údaje z vnitřního QR; E10.2 přidává text/cancel/result a E10.3 Bonjour hledání i ruční změnu adresy. Audio navazuje po E9. UI nesmí přímo časovat motory ani přijímat AI text jako povel. Konkrétní slices a kontrakty jsou v kapitolách 3–5 plánu.
 
-## Debug D108
+## Debug D108/D109
 
 Záložka **Debug** je dostupná vedle Ovládání. Ukazuje zdroj spojení, skutečnou
 fázi přijatého snapshotu, masku, revizi, eventSequence, boot ID, uptime vzorku,
@@ -42,7 +42,8 @@ Hlasové testy fungují v nativní iOS aplikaci:
    do Keychain/JS/disku; po pozadí nebo uzamčení je nutné nastavení zopakovat.
 3. **Ověřit backend** vymění credential za access token a čte
    `GET /v1/diagnostics`, bez volání AI. Starší nasazený backend bez D108 vrací
-   chybu; musí se nejprve aktualizovat. Žádný deployment není součástí D108.
+   chybu; musí se nejprve aktualizovat. Nasazení a novou IPA D109 eviduje stav
+   implementace; podpis/publicace se automaticky nespouštějí každým push.
 4. **Test AI hlasu** se zpřístupní pouze pro `voiceMode=openai`. Použije stávající
    sezení/opening/speech/poll/audio API, consent audio, readyMask 0 a výstup
    `phone`. Backend zachovává svůj AI limit a trvalou paměť testovacího večera.

@@ -6,7 +6,7 @@ Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**D109 – serverové režimy a aktualizace instalační IPA (rozpracováno).**
+**D109 – serverové režimy nasazené a aktuální IPA publikovaná.**
 Majitel žádá ovládání serveru v Debug a opravu staré aplikace na `/ios/`.
 Veřejná stránka nabízela release `36636991415-1`, verzi 1.0/build 10; HTTP
 `no-store` je funkční, novější unsigned CI samo nepodepisuje/nepublikuje IPA.
@@ -19,17 +19,45 @@ bez opening/provideru. Kontrakt a README rozšířeny, serverový workflow odvoz
 hash ze samostatného environment secretu a veřejný smoke pouze čte/no-op,
 bez přepínání produkčních režimů nebo provider volání. Credential správce je
 provisionovaný mimo repo v `backend-production`, lokální kopie má ACL vlastníka.
+Změněné soubory: backend `ServerAdminAccess.cs`, `DeviceAccessStore.cs`,
+`ConversationServerModes.cs`, `ServerModeEndpoints.cs`, oba provider runnery,
+`Program.cs`, backend/unit/HTTP/public smoke testy, `kufr-backend.yml`, backend
+OpenAPI a jeho verifier, nativní `DebugBackendClient.swift`/`KufrDebugPlugin.swift`,
+`DebugPanel.ts`/`DebugJournal.ts`, native harness/Swift testy a plán/README/stav.
 Lokálně: .NET build bez varování, backend runtime testy včetně správy/auth,
 HTTP smoke s 401/no-op/revision/capability testy, 19 mobilních testů a Vite/TS
 build prošly. Python deploy a iOS publikační testy prošly. Nové Swift testy a
-Xcode čekají na macOS CI. Kontrakty prošly; in-app Browser ověřil fake/AI
+Xcode prošly na macOS CI. Kontrakty prošly; in-app Browser ověřil fake/AI
 přepnutí přes syntetický bridge, gating hlasu, konflikt/obnovení, samostatný
 filtr logu a rozložení 390/1280 px bez horizontálního přesahu a console chyb.
 Nejde o skutečný server ani iPhone. Roslyn test impact kvůli chybějící
 solution vrací `ambiguous_solution`; cílené příkazy vycházejí ze skutečných
-projektů. Další krok: dokončit kontrakty/UI, commit/push/PR/CI/merge, ruční
-backend deploy a Ad Hoc build/publish, veřejná kontrola verze a manifestu.
-Nový backend/IPA ještě nejsou publikované; iPhone/ESP akceptace se netvrdí.
+projektů.
+Předání: commit `d6de8cb154ed8609e124258d1f477006c5b2bf36` pushnut a ověřen,
+[PR #73](https://github.com/Blato58/DildoVander/pull/73) sloučen po zeleném
+[backend CI 36856939562](https://github.com/Blato58/DildoVander/actions/runs/36856939562),
+[iOS CI 36856939581](https://github.com/Blato58/DildoVander/actions/runs/36856939581)
+a [firmware CI 36856939621](https://github.com/Blato58/DildoVander/actions/runs/36856939621).
+Merge `7dfa10bbf7d556e71172838a8463fc68c328c8d1` ověřen scoped fetch/fast-forward.
+[Deploy 36857643096](https://github.com/Blato58/DildoVander/actions/runs/36857643096)
+aktivoval právě tento commit s `dialog_mode=responses`, `voice_mode=openai`;
+loopback health a veřejný admin/no-op/revision/diagnostics smoke prošly.
+Lokální nezávislé HTTPS GET potvrdilo `responses/openai`, oba providery
+konfigurované, 0 aktivních rozhovorů, `until_restart`, 401 bez credentialu
+a `Cache-Control: no-store`. Neproběhlo žádné skutečné provider volání.
+[Ad Hoc běh 36857646275](https://github.com/Blato58/DildoVander/actions/runs/36857646275)
+ze stejného commitu prošel web/Swift/Xcode/simulator, archive/export/podpis,
+publikací a nezávislým veřejným stažením IPA/checksum/MIME. `/ios/` a manifest
+ověřeny také lokálně a v in-app Browser: verze 1.0/**build 30**, release
+`36857646275-1`, stejné Bundle ID `app.turquoise6409.green2444`.
+SHA-256 IPA: `80e213095971c0c9823f0e3d2ded49890e3e82eaa4cc5363951ef73d3aa72e61`.
+Starý build 10 zůstává ve verzovaném adresáři pro návrat; kořenová stránka už
+odkazuje na build 30. Není potřeba mazat aplikaci ani měnit podpisovou identitu.
+Další krok: majitel na registrovaném iPhonu v Safari aktualizuje build 30,
+v Debug nastaví HTTPS backend, `debug-server-admin` a svůj chráněný credential,
+ověří režimy a hlas na telefonu. Tato skutečná iPhone/AI/audio akceptace ještě
+neproběhla; konfigurace a syntetické testy ji nenahrazují. Fyzický ESP/I2S/GPIO
+runtime nadále čeká na B1, neprovádělo se nahrání do desky.
 
 **D108 – iOS Debug sloučen do main po zeleném CI.**
 Záložka nabízí pozorování přijatých ESP snapshotů, omezený redigovaný log a
