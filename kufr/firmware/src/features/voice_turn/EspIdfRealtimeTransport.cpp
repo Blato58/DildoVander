@@ -91,10 +91,11 @@ void EspIdfRealtimeTransport::Upload() {
   std::vector<uint8_t> pcm;
   while (Current()) {
     if (!uploading_.load()) { vTaskDelay(pdMS_TO_TICKS(10)); continue; }
+    const uint32_t inputEpoch = inputEpoch_.load();
     if (!audio_.TakeInput(pcm)) { failed_.store(true); break; }
     if (pcm.empty()) continue;
     std::lock_guard<std::mutex> lock(inputMutex_);
-    if (uploading_.load() && Current()) {
+    if (uploading_.load() && inputEpoch_.load() == inputEpoch && Current()) {
       const std::string path = "/v1/conversations/" + conversationId_ + "/realtime-live/" + streamId_ + "/audio";
       inputBytes_ += pcm.size();
       if (inputBytes_ > 1440000 || Post(path, pcm.data(), pcm.size(), "application/octet-stream", inputId_, sequence_++) != 204)
@@ -187,13 +188,15 @@ bool EspIdfRealtimeTransport::Event(const RealtimeEvent& event,
     std::lock_guard<std::mutex> lock(inputMutex_);
     expected_.clientTurnId = event.inputId;
     inputId_ = event.inputId; sequence_ = 0; inputBytes_ = 0;
+    inputEpoch_.fetch_add(1);
     lastTurnAtMs_ = NowMs();
     audio_.Listen(true); uploading_.store(true); phase_("listening"); return true;
   }
   if (event.type == "speech_started") return uploading_.load() && event.inputId == inputId_;
   if (event.type == "speech_stopped") {
     if (!uploading_.load() || event.inputId != inputId_) return false;
-    uploading_.store(false); audio_.Listen(false); phase_("thinking"); return true;
+    uploading_.store(false); inputEpoch_.fetch_add(1);
+    audio_.Listen(false); phase_("thinking"); return true;
   }
   if (event.type == "started") {
     if (terminal_ || !operationId_.empty() || uploading_.load() || ++turns_ > 10) return false;
