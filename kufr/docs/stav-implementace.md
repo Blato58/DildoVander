@@ -138,6 +138,10 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
   `RunTurn` zůstává textový s audio consent false; nové třídy se do něj
   automaticky nepřipojují. Další runtime binding musí mít skutečný playback
   a consent port; STT upload je samostatná připravitelná část. E9 není hotovo.
+- Implementační commit `09145cff006bec084bb0a8a2a145c91d91dda5ad` byl pushnut
+  přes `scripts/Push-CurrentBranch.ps1`; script ověřil shodu vzdáleného head.
+  Při závěrečné staged kontrole byla odstraněna nadbytečná EOF prázdná řádka
+  nového kodeku; `git diff --check` byl po opravě zopakován.
 
 ### D106 – 1. 10. 2026 – backendová příprava skutečného AI hlasu
 
