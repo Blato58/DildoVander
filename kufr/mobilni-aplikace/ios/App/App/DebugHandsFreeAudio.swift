@@ -1,6 +1,57 @@
 import AVFoundation
 import Foundation
 
+// Called under the audio tap's lock. Batch by PCM duration rather than by
+// hardware buffer size: 9,600 bytes are exactly 200 ms of mono PCM16/24 kHz.
+struct DebugHandsFreeUploadBuffer {
+    struct Frame {
+        let inputId: String
+        let sequence: Int
+        let data: Data
+    }
+
+    static let chunkBytes = 9_600
+    static let capacityBytes = 48_000
+    private(set) var inputId: String?
+    private(set) var epoch = UUID()
+    private var pcm = Data()
+    private var sequence = 0
+    var isReady: Bool { inputId != nil && pcm.count >= Self.chunkBytes }
+
+    mutating func begin(inputId: String) {
+        stop()
+        self.inputId = inputId
+        sequence = 0
+    }
+
+    mutating func stop() {
+        epoch = UUID()
+        inputId = nil
+        pcm.removeAll(keepingCapacity: true)
+    }
+
+    // A conversion that crossed a VAD gate belongs to the previous input.
+    // Discard it without reporting overflow or relabelling it as new speech.
+    mutating func append(_ data: Data, epoch: UUID) -> Bool {
+        guard epoch == self.epoch, inputId != nil else { return true }
+        guard pcm.count + data.count <= Self.capacityBytes else {
+            stop()
+            return false
+        }
+        pcm.append(data)
+        return true
+    }
+
+    mutating func next() -> Frame? {
+        guard isReady, let inputId else { return nil }
+        let data = Data(pcm.prefix(Self.chunkBytes))
+        pcm.removeFirst(Self.chunkBytes)
+        let frame = Frame(inputId: inputId, sequence: sequence, data: data)
+        sequence += 1
+        return frame
+    }
+}
+
 enum DebugHandsFreeAudioPolicy {
     enum RouteChange {
         case category, speakerOverride, configuration, device
@@ -86,10 +137,7 @@ final class DebugHandsFreeAudio {
     private var playerAttached = false
     // These fields are shared only with the real-time input-tap callback and
     // are always read or written while holding lock.
-    nonisolated(unsafe) private var queuedFrames: [(inputId: String, sequence: Int, data: Data)] = []
-    nonisolated(unsafe) private var queuedBytes = 0
-    nonisolated(unsafe) private var currentInputId: String?
-    nonisolated(unsafe) private var nextSequence = 0
+    nonisolated(unsafe) private var uploadBuffer = DebugHandsFreeUploadBuffer()
     nonisolated(unsafe) private var inputEnabled = false
     private var drainTask: Task<Void, Never>?
     private var queuedPlayback = 0
@@ -141,10 +189,7 @@ final class DebugHandsFreeAudio {
 
     func beginListening(inputId: String) {
         lock.lock()
-        queuedFrames.removeAll(keepingCapacity: true)
-        queuedBytes = 0
-        currentInputId = inputId
-        nextSequence = 0
+        uploadBuffer.begin(inputId: inputId)
         inputEnabled = queuedPlayback == 0 && awaitingDrainOperation == nil
         let shouldDrain = inputEnabled
         lock.unlock()
@@ -154,8 +199,7 @@ final class DebugHandsFreeAudio {
     func stopUploading() {
         lock.lock()
         inputEnabled = false
-        queuedFrames.removeAll(keepingCapacity: true)
-        queuedBytes = 0
+        uploadBuffer.stop()
         lock.unlock()
     }
 
@@ -195,8 +239,7 @@ final class DebugHandsFreeAudio {
         lock.lock()
         generation = UUID()
         inputEnabled = false
-        queuedFrames.removeAll(keepingCapacity: false)
-        queuedBytes = 0
+        uploadBuffer.stop()
         awaitingDrainOperation = nil
         queuedPlayback = 0
         lock.unlock()
@@ -218,42 +261,29 @@ final class DebugHandsFreeAudio {
     private nonisolated func capture(_ source: AVAudioPCMBuffer, converter: DebugHandsFreePCMConverter) {
         lock.lock()
         let acceptingInput = inputEnabled
+        let epoch = uploadBuffer.epoch
         lock.unlock()
         guard acceptingInput else { return }
         do {
             guard let data = try converter.convert(source) else { return }
-            enqueueCaptured(data)
+            enqueueCaptured(data, epoch: epoch)
         } catch {
             DispatchQueue.main.async { [weak self] in self?.audioConversionFailed() }
         }
     }
 
-    private nonisolated func enqueueCaptured(_ data: Data) {
+    private nonisolated func enqueueCaptured(_ data: Data, epoch: UUID) {
         lock.lock()
         defer { lock.unlock() }
-        guard inputEnabled, let inputId = currentInputId else { return }
-        guard queuedBytes + data.count <= 48_000 else {
+        guard inputEnabled else { return }
+        guard uploadBuffer.append(data, epoch: epoch) else {
             inputEnabled = false
-            queuedFrames.removeAll(keepingCapacity: true)
-            queuedBytes = 0
             DispatchQueue.main.async { [weak self] in self?.audioQueueOverflowed() }
             return
         }
-        var offset = 0
-        while offset < data.count {
-            let length = min(9_600, data.count - offset)
-            guard queuedBytes + length <= 48_000 else {
-                inputEnabled = false
-                queuedFrames.removeAll(keepingCapacity: true)
-                queuedBytes = 0
-                DispatchQueue.main.async { [weak self] in self?.audioQueueOverflowed() }
-                return
-            }
-            queuedFrames.append((inputId, 0, data.subdata(in: offset..<(offset + length))))
-            queuedBytes += length
-            offset += length
+        if uploadBuffer.isReady {
+            DispatchQueue.main.async { [weak self] in self?.scheduleDrain() }
         }
-        DispatchQueue.main.async { [weak self] in self?.scheduleDrain() }
     }
 
     private func scheduleDrain() {
@@ -263,24 +293,13 @@ final class DebugHandsFreeAudio {
 
     private func drainFrames() async {
         defer { drainTask = nil }
-        try? await Task.sleep(nanoseconds: 150_000_000)
         while true {
             guard !Task.isCancelled else { return }
             lock.lock()
-            guard inputEnabled, !queuedFrames.isEmpty else { lock.unlock(); return }
-            let first = queuedFrames.removeFirst()
-            var data = first.data
-            while let next = queuedFrames.first, next.inputId == first.inputId,
-                  data.count + next.data.count <= 9_600 {
-                queuedFrames.removeFirst()
-                data.append(next.data)
-            }
-            queuedBytes -= data.count
-            let sequence = nextSequence
-            nextSequence += 1
+            guard inputEnabled, let frame = uploadBuffer.next() else { lock.unlock(); return }
             lock.unlock()
             do {
-                try await upload(first.inputId, sequence, data)
+                try await upload(frame.inputId, frame.sequence, frame.data)
             } catch {
                 stopUploading()
                 let code = DebugHandsFreeSession.failureCode(for: error)
