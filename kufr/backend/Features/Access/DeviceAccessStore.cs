@@ -10,10 +10,12 @@ internal sealed class DeviceAccessStore
     private readonly ConcurrentDictionary<string, AccessGrant> grants = new(StringComparer.Ordinal);
     private readonly Lock grantGate = new();
     private readonly TimeProvider clock;
+    private readonly ServerAdminAccess adminAccess;
 
     public DeviceAccessStore(IConfiguration configuration, TimeProvider clock)
     {
         this.clock = clock;
+        adminAccess = new ServerAdminAccess(configuration);
 
         foreach (var section in configuration.GetSection("Devices").GetChildren())
         {
@@ -45,12 +47,23 @@ internal sealed class DeviceAccessStore
                 throw new InvalidOperationException("Duplicate provisioned device credential hash.");
             }
 
+            if (deviceId == ServerAdminAccess.DebugDeviceId
+                || adminAccess.MatchesHash(hash))
+            {
+                throw new InvalidOperationException("Server admin identity must be separate from devices.");
+            }
+
             devices.Add(new ProvisionedDevice(deviceId, hash));
         }
     }
 
     public string? VerifyCredential(string credential)
     {
+        if (adminAccess.Verify(credential))
+        {
+            return ServerAdminAccess.DebugDeviceId;
+        }
+
         var candidateHash = SHA256.HashData(Encoding.UTF8.GetBytes(credential));
         string? deviceId = null;
 

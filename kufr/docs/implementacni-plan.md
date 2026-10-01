@@ -414,6 +414,21 @@ automaticky nemaže. Bez nasazení backendu s D106/D108 a testovací identity ne
 živý AI test dostupný. Tato cesta nedokazuje audio kufru, GPIO ani fyzickou E10
 akceptaci; mikrofon a STT test nejsou součástí D108.
 
+**Servisní správa D109 (zadání majitele 1. 10.):** iOS Debug smí přepnout globální
+režim dialogu fake/Responses Sol a hlasu fake/OpenAI STT-TTS přes nové
+`GET/PUT /v1/admin/modes`. Jde o správu backendu, nikoli aktuátorů. Oprávnění
+určuje samostatný credential správce s hash konfigurací na serveru; credential
+ESP, místní párování ani běžný access token nestačí. Tento credential zároveň
+provisionuje jen oddělenou `debug-server-admin` testovací identitu. Native profil
+zachovává hranice D108 (RAM, PKI, bez redirectu/tajemství v JS a IPA).
+Změna vyžaduje aktuální revizi a žádný živý rozhovor/doznívající provider;
+create a přepnutí sdílejí zámek. Platí do restartu, pak rozhoduje explicitní
+konfigurace nasazení. Přepnutí samo nic negeneruje. Fake hlasový test musí ověřit
+fake dialog i hlas po získání sezení, aby souběžná změna nikdy nezpůsobila
+placené volání. Zadání zahrnuje nové serverové nasazení a Ad Hoc publikaci
+aktuální IPA na stávající instalační stránku; neprokazuje instalaci na iPhone
+ani fyzický hlas/pohyb kufru.
+
 1. Po fyzické kontrole a aktivaci samostatného režimu kufr přehraje informaci o cloudovém zpracování a nabídne PTT. Teprve vědomý stisk začne nahrávat; firmware vytvoří sezení backendu a drží jeho identifikátory. Žádný telefonní lease se nevyžaduje.
 2. Nahrává právě jeden zdroj: mikrofon kufru **nebo** telefonu. PTT se uvolněním ukončí; automatický strop 30 s, minimálně 300 ms. Nahrávání má zřetelnou indikaci na kufru i telefonu, samotné podsvícení tlačítka napájené napevno ji nenahrazuje.
 3. ESP32 sestaví WAV v PSRAM a odešle jej přímo backendu. V samostatném režimu automaticky po přepisu pokračuje textovým tahem; špatnému porozumění lze oponovat další replikou. V asistovaném režimu telefon přepis ukáže a pošle opravený text přes ESP32. Přepis nikdy není příkaz fyzického ovládání.

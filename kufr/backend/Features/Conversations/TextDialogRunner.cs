@@ -7,16 +7,12 @@ internal sealed class TextDialogRunner : IDisposable
     private readonly Func<string, int, IReadOnlyList<DialogExchange>, bool, CancellationToken, string, Task<TextDialogResponse>>? generate;
     private readonly SemaphoreSlim slot = new(1, 1);
     private readonly HttpClient? httpClient;
+    private volatile bool enabled = true;
 
     public TextDialogRunner(IConfiguration configuration, IHostApplicationLifetime lifetime)
     {
         var mode = configuration["Backend:Dialog:Mode"] ?? "fake";
-        if (mode == "fake")
-        {
-            return;
-        }
-
-        if (mode != "responses")
+        if (mode is not ("fake" or "responses"))
         {
             throw new InvalidOperationException("Unsupported backend dialog mode.");
         }
@@ -31,6 +27,11 @@ internal sealed class TextDialogRunner : IDisposable
         if (string.IsNullOrWhiteSpace(apiKey)
             || !CostLimits.Read(configuration).Enabled)
         {
+            if (mode == "fake")
+            {
+                return;
+            }
+
             throw new InvalidOperationException(
                 "Responses mode requires an API key and all three positive usage caps.");
         }
@@ -41,6 +42,7 @@ internal sealed class TextDialogRunner : IDisposable
             apiKey,
             Model);
         generate = client.GenerateAsync;
+        enabled = mode == "responses";
         Stopping = lifetime.ApplicationStopping;
     }
 
@@ -60,7 +62,9 @@ internal sealed class TextDialogRunner : IDisposable
 
     public string Model { get; } = ResponsesTextDialogBudget.Model;
 
-    public bool Enabled => generate is not null;
+    public bool Available => generate is not null;
+    public bool Enabled => Available && enabled;
+    internal void SetEnabled(bool value) => enabled = value;
 
     public CancellationToken Stopping { get; }
 

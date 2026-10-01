@@ -28,6 +28,11 @@ on:
         type: choice
         options: [gpt-6.1-sol]
         default: gpt-6.1-sol
+      voice_mode:
+        description: Voice provider mode for this deployment
+        type: choice
+        options: [fake, openai]
+        default: fake
 
 permissions:
   contents: read
@@ -85,6 +90,9 @@ jobs:
           MONTHLY_CAP_MICRO_USD: ${{ secrets.MONTHLY_CAP_MICRO_USD }}
           DIALOG_MODE: ${{ inputs.dialog_mode || 'fake' }}
           DIALOG_MODEL: ${{ inputs.dialog_model || 'gpt-6.1-sol' }}
+          VOICE_MODE: ${{ inputs.voice_mode || 'fake' }}
+          ADMIN_CREDENTIAL: ${{ secrets.ADMIN_CREDENTIAL }}
+          PUBLIC_IPV4: ${{ vars.KUFR_BACKEND_PUBLIC_IPV4 }}
           RELEASE_SHA: ${{ github.sha }}
           RELEASE_RUN_ID: ${{ github.run_id }}
           RELEASE_ATTEMPT: ${{ github.run_attempt }}
@@ -105,7 +113,28 @@ jobs:
           mkdir -m 0755 -- "$release_dir"
           cp -a -- "$RUNNER_TEMP/kufr-publish/." "$release_dir/"
           chmod 0755 -- "$release_dir/backend"
-          printf '{"Backend":{"Dialog":{"Mode":"%s","Model":"%s"}}}\n' "$DIALOG_MODE" "$DIALOG_MODEL" > "$release_dir/appsettings.Production.json"
+          export RELEASE_DIR="$release_dir"
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          voice = os.environ['VOICE_MODE']
+          if voice not in ('fake', 'openai'):
+              raise SystemExit('Invalid voice mode')
+          credential = os.environ['ADMIN_CREDENTIAL']
+          if len(credential) < 32 or len(credential) > 256 or not all(32 < ord(c) < 127 for c in credential):
+              raise SystemExit('A separate strong admin credential is required')
+          admin_hash = hashlib.sha256(credential.encode()).hexdigest()
+          if admin_hash.lower() == os.environ['DEVICE_CREDENTIAL_SHA256'].lower():
+              raise SystemExit('Admin and device credentials must be separate')
+          config = {'Backend': {
+              'Dialog': {'Mode': os.environ['DIALOG_MODE'], 'Model': os.environ['DIALOG_MODEL']},
+              'Voice': {'Mode': voice}, 'Admin': {'CredentialSha256': admin_hash},
+          }}
+          (Path(os.environ['RELEASE_DIR']) / 'appsettings.Production.json').write_text(json.dumps(config) + '\n')
+          PY
           python3 - <<'PY' | sudo -n /usr/local/sbin/kufr-backend-deploy activate "$release_id"
           import json
           import os
@@ -121,3 +150,9 @@ jobs:
               },
           }))
           PY
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Verify public server mode control without provider calls
+        env:
+          ADMIN_CREDENTIAL: ${{ secrets.ADMIN_CREDENTIAL }}
+          PUBLIC_IPV4: ${{ vars.KUFR_BACKEND_PUBLIC_IPV4 }}
+        run: python3 kufr/backend/tests/server_mode_smoke.py

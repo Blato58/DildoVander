@@ -15,24 +15,31 @@ internal sealed class VoiceProviderRunner : IDisposable
     private readonly SemaphoreSlim slot = new(1, 1);
     private readonly HttpClient? httpClient;
     private readonly TimeSpan timeout = TimeSpan.FromSeconds(15);
+    private volatile bool enabled = true;
 
     public VoiceProviderRunner(IConfiguration configuration, IHostApplicationLifetime lifetime)
     {
         var mode = configuration["Backend:Voice:Mode"] ?? "fake";
-        if (mode == "fake")
+        if (mode is not ("fake" or "openai"))
         {
-            return;
+            throw new InvalidOperationException("Unsupported backend voice mode.");
         }
 
         var apiKey = configuration["OPENAI_API_KEY"];
-        if (mode != "openai" || string.IsNullOrWhiteSpace(apiKey) || !CostLimits.Read(configuration).Enabled)
+        if (string.IsNullOrWhiteSpace(apiKey) || !CostLimits.Read(configuration).Enabled)
         {
+            if (mode == "fake")
+            {
+                return;
+            }
+
             throw new InvalidOperationException("OpenAI voice requires an explicit mode, key and all positive usage caps.");
         }
 
         httpClient = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false });
         transcribe = new OpenAiTranscriptionClient(httpClient, apiKey).TranscribeAsync;
         speak = new OpenAiSpeechClient(httpClient, apiKey).GenerateAsync;
+        enabled = mode == "openai";
         Stopping = lifetime.ApplicationStopping;
     }
 
@@ -48,7 +55,9 @@ internal sealed class VoiceProviderRunner : IDisposable
         this.timeout = timeout ?? TimeSpan.FromSeconds(15);
     }
 
-    public bool Enabled => transcribe is not null && speak is not null;
+    public bool Available => transcribe is not null && speak is not null;
+    public bool Enabled => Available && enabled;
+    internal void SetEnabled(bool value) => enabled = value;
     public CancellationToken Stopping { get; }
     public bool TryAcquire() => Enabled && slot.Wait(0);
     public void Release() => slot.Release();

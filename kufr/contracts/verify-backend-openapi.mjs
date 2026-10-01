@@ -42,6 +42,7 @@ function walk(value) {
 assert.equal(document.openapi, '3.1.0');
 walk(document);
 assert.deepEqual(Object.keys(document.paths).sort(), [
+  '/v1/admin/modes',
   '/v1/audio/{audioId}',
   '/v1/conversations',
   '/v1/conversations/{id}',
@@ -57,6 +58,15 @@ assert.deepEqual(Object.keys(document.paths).sort(), [
 ]);
 assert.deepEqual(document.paths['/v1/device-access/token'].post.security, [{ DeviceCredential: [] }]);
 assert.deepEqual(document.security, [{ DeviceAccess: [] }]);
+assert.deepEqual(document.paths['/v1/admin/modes'].get.security, [{ ServerAdmin: [] }]);
+assert.deepEqual(document.paths['/v1/admin/modes'].put.security, [{ ServerAdmin: [] }]);
+const serverModes = { revision: '00000000-0000-4000-8000-000000000001', dialogMode: 'fake', voiceMode: 'fake',
+  dialogAvailable: true, voiceAvailable: true, activeConversations: 0, lifetime: 'until_restart' };
+validate('ServerModes', serverModes, true);
+validate('ServerModes', { ...serverModes, voiceMode: 'unknown' }, false);
+validate('ServerModes', { ...serverModes, credential: 'secret' }, false);
+validate('ServerModeChange', { expectedRevision: serverModes.revision, dialogMode: 'responses', voiceMode: 'openai' }, true);
+validate('ServerModeChange', { expectedRevision: 'stale', dialogMode: 'responses', voiceMode: 'openai' }, false);
 const diagnosticSchema = document.paths['/v1/diagnostics'].get.responses['200'].content['application/json'].schema;
 const validateDiagnostics = ajv.compile(diagnosticSchema);
 const diagnostics = { voiceMode: 'fake', dialogMode: 'fake', catalogVersion: 'test-1', audioFormat: 'pcm16-mono-32000-wav' };

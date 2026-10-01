@@ -22,10 +22,21 @@ nativní sdílení textu JSON. Zaznamenává pouze stavové metadata a pevné k�
 nikoli syrové rámce, rozhovory, credential, párovací tajemství ani audio.
 Není to sériový log firmware.
 
+Sekce **Server** (D109) používá stejný nativní profil se samostatným credential
+správce a ID `debug-server-admin`. **Obnovit stav serveru** čte autorizované
+`GET /v1/admin/modes`; volby Dialog Fake / AI Sol a Hlas Fake / AI STT-TTS
+se odešlou tlačítkem **Použít režimy serveru**. Změna platí pro celý backend
+do jeho restartu, kdy se obnoví konfigurace nasazení. Během rozhovoru je změna
+odmítnuta; zastavte/ukončete jeho vlastní sezení a znovu obnovte stav.
+Revize brání přepsání změny z jiného telefonu. Při ztrátě odpovědi se režim
+nepředpokládá a je nutné ho obnovit. Nedostupný provider nelze zapnout.
+Běžný device credential ani access token nesmí spravovat server. Samotné
+přepnutí nespouští AI a neovládá žádný pohon. Web nabízí pouze označený harness.
+
 Hlasové testy fungují v nativní iOS aplikaci:
 
 1. **Test reproduktoru telefonu** použije český systémový hlas bez sítě.
-2. **Nastavit testovací backend** otevře nativní secure dialog: HTTPS kořenová
+2. **Nastavit serverový / testovací přístup** otevře nativní secure dialog: HTTPS kořenová
    adresa, předem registrované samostatné device ID `debug-*` a jeho backend
    credential. Lokální WSS bearer se nikdy nepoužívá. Credential se neukládá
    do Keychain/JS/disku; po pozadí nebo uzamčení je nutné nastavení zopakovat.
@@ -35,8 +46,9 @@ Hlasové testy fungují v nativní iOS aplikaci:
 4. **Test AI hlasu** se zpřístupní pouze pro `voiceMode=openai`. Použije stávající
    sezení/opening/speech/poll/audio API, consent audio, readyMask 0 a výstup
    `phone`. Backend zachovává svůj AI limit a trvalou paměť testovacího večera.
-   **Test fake audio toku** pro režim fake přehraje tiché WAV; dialog může mít
-   samostatně zapnuté Responses. Oba testy mohou čerpat serverové limity.
+   **Test fake audio toku** vyžaduje fake dialog i hlas a přehraje tiché WAV bez
+   volání provideru. Režimy se ověří před create i po něm, kdy už jsou pro
+   existující rozhovor neměnné. AI test může čerpat serverové limity.
 5. **Zastavit hlas**, pozadí, uzamčení nebo audio přerušení zruší práci a playback.
    Opožděná odpověď nesmí začít hrát. Aplikace uklízí jen své získané sezení,
    nesmaže večerní paměť ani nepřebere cizí aktivní sezení. Create a cleanup mají
