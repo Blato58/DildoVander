@@ -64,6 +64,15 @@ start; výchozí `fake` nevolá OpenAI. Veřejné HTTPS je dostupné; skutečná
 
 ## Vývojové spuštění
 
+D108 přidává autentizované `GET /v1/diagnostics` s provider režimy, aktuálním
+katalogem a audio formátem. Endpoint používá device access token, `no-store`,
+nevrací žádné tajemství/obsah paměti a sám nevolá AI. iOS Debug může pro test
+opening → speech → telefon použít samostatné provisionované zařízení `debug-*`.
+Registrace a hash credential používají stávající `Devices` konfiguraci;
+provider klíč zůstává pouze na serveru. Testy mají stejné kvóty a paměť večera
+jako ostatní sezení a žádné zvláštní právo převzít aktivní sezení. Příprava kódu
+neznamená nasazení tohoto endpointu ani aktivaci `Backend__Voice__Mode=openai`.
+
 SDK je připnuté v `../global.json`; .NET 10 ASP.NET Core runtime je nutný.
 Pro běh nastav `Backend__DatabasePath` na absolutní cestu k místnímu
 SQLite souboru mimo git (adresář musí existovat). Na Windows PowerShell:

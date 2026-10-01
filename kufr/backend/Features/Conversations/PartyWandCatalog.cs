@@ -5,6 +5,7 @@ namespace Kufr.Backend.Features.Conversations;
 internal static class PartyWandCatalog
 {
     private static readonly CatalogData Catalog = Load();
+    internal static string Version => Catalog.CatalogVersion;
 
     internal static string AvailableForPrompt(int readyMask)
     {

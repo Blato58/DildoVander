@@ -27,6 +27,9 @@ provisionovaného device credential za 15minutový access token, založení
 sezení, textový tah, WAV přepis, syntézu, polling/rušení operace, stažení
 krátkodobého WAV a ukončení sezení. Pozdější kostýmní snímek do v1 první
 verze nepatří.
+Autentizované `GET /v1/diagnostics` (D108) vrací pouze skutečně nakonfigurovaný
+režim dialogu a hlasu, verzi katalogu a WAV formát. Nevolá AI, nevrací obsah
+paměti ani přístupová tajemství a zachovává `Cache-Control: no-store`.
 Device credential a krátkodobý access token jsou oddělená bearer schémata;
 token endpoint nepřijímá access token jako náhradu credential. Sezení,
 operace a výsledky musí backend ověřovat proti identitě device tokenu,
