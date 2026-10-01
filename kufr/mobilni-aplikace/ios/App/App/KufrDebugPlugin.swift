@@ -29,6 +29,9 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
     private var selected: Int?
     private var timings: [String: Double] = [:]
     private var microphone: DebugMicrophone?
+    private var handsFreeSession: DebugHandsFreeSession?
+    private var handsFreeAudio: DebugHandsFreeAudio?
+    private var lastError: String?
     private var recordingTimer: Timer?
     private var cleanupTask: Task<Void, Never>?
 
@@ -74,7 +77,9 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
             self.restoreProfile()
             call.resolve(["configured": self.profile != nil, "running": self.task != nil || self.player != nil || self.realtimePlayer != nil || self.synthesizer.isSpeaking || self.microphone != nil || self.cleanupTask != nil,
                           "phase": self.phase, "mode": self.mode,
-                          "session": self.dialogSession != nil || self.realtimeSession != nil, "recording": self.microphone != nil,
+                          "session": self.dialogSession != nil || self.realtimeSession != nil || self.handsFreeSession != nil,
+                          "recording": self.microphone != nil, "handsFree": self.handsFreeSession != nil,
+                          "errorCode": (self.lastError as Any?) ?? NSNull(),
                           "transcript": self.transcript, "selected": (self.selected as Any?) ?? NSNull(), "timings": self.timings,
                           "evenings": (self.evenings?.bridgeValue as Any?) ?? NSNull(),
                           "server": (self.serverModes?.bridgeValue as Any?) ?? NSNull()])
@@ -183,6 +188,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
             self.generation += 1
             let generation = self.generation
             self.transcript = []; self.selected = nil; self.timings = [:]; self.phase = "checking"
+            self.lastError = nil
             self.task = Task { @MainActor in
                 var owned: DebugDialogSession?
                 var realtimeOwned: DebugRealtimeSession?
@@ -190,6 +196,10 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
                     self.mode = call.getString("expectedMode") ?? "unknown"
                     let engine = call.getString("engine") ?? "chained"
                     if engine == "realtime" {
+                        guard self.mode == "openai" else { throw DebugBackendError.wrongMode }
+                        try await self.runHandsFree(call, profile: profile, generation: generation)
+                        return
+                    } else if engine == "realtime-ptt" {
                         guard self.mode == "openai" else { throw DebugBackendError.wrongMode }
                         let session = try await DebugBackendClient().openRealtimeSession(profile,
                             readyMask: call.getInt("readyMask") ?? -1, voice: call.getString("voice") ?? "cedar",
@@ -232,9 +242,92 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
                             return
                         }
                     }
-                    if self.generation == generation { self.failDialog() }
+                    if self.generation == generation {
+                        if case DebugBackendError.serverCode(let code) = error { self.lastError = code }
+                        self.failDialog()
+                    }
                     call.reject("Rozhovor nebyl dokončen. Ověřte přístup, režim a limity serveru.", "dialog_failed")
                 }
+            }
+        }
+    }
+
+    @MainActor private func runHandsFree(_ call: CAPPluginCall, profile: DebugBackendProfile, generation: Int) async throws {
+        let permitted: Bool
+        if #available(iOS 17.0, *) { permitted = await AVAudioApplication.requestRecordPermission() }
+        else {
+            permitted = await withCheckedContinuation { continuation in
+                AVAudioSession.sharedInstance().requestRecordPermission { continuation.resume(returning: $0) }
+            }
+        }
+        try requireCurrent(generation)
+        guard permitted else { throw DebugBackendError.serverCode("microphone_unavailable") }
+        let audio = DebugHandsFreeAudio(upload: { [weak self] input, sequence, pcm in
+            guard let self = self, self.generation == generation, let session = self.handsFreeSession else {
+                throw CancellationError()
+            }
+            try await session.upload(inputId: input, sequence: sequence, pcm: pcm)
+        }, playbackDrained: { [weak self] operation in
+            Task { @MainActor in
+                guard let self = self, self.generation == generation, let session = self.handsFreeSession else { return }
+                do { try await session.played(operationId: operation) }
+                catch { self.lastError = "realtime_playback_mismatch"; self.stopWork(); self.phase = "failed" }
+            }
+        }, failure: { [weak self] code in
+            guard let self = self, self.generation == generation else { return }
+            self.lastError = code; self.stopWork(); self.phase = "failed"
+        })
+        let session = try await DebugBackendClient().openHandsFreeSession(profile,
+            readyMask: call.getInt("readyMask") ?? -1, voice: call.getString("voice") ?? "cedar",
+            speed: call.getDouble("speed") ?? 1.1,
+            phase: { [weak self] value in if self?.generation == generation { self?.phase = value } },
+            visitor: { [weak self] value in
+                if self?.generation == generation { self?.transcript.append(["role": "visitor", "text": value]) }
+            },
+            reply: { [weak self] value in
+                guard let self = self, self.generation == generation else { return }
+                self.transcript.append(["role": "kufr", "text": value.text])
+                self.selected = value.selected; self.timings = value.timings
+                audio.finishPlayback(operationId: value.operationId)
+            },
+            audio: { [weak self] pcm in
+                guard self?.generation == generation else { throw CancellationError() }
+                try audio.appendPlayback(pcm)
+            },
+            listening: { [weak self] input in
+                if self?.generation == generation { audio.beginListening(inputId: input) }
+            },
+            inputGate: { enabled in if !enabled { audio.stopUploading() } },
+            failure: { [weak self] code in if self?.generation == generation { self?.lastError = code } })
+        var resolved = false
+        do {
+            try requireCurrent(generation)
+            handsFreeSession = session
+            handsFreeAudio = audio
+            try audio.start()
+            // Starting resolves immediately. The ongoing native task and
+            // status polling own listening, generation and playback phases.
+            call.resolve()
+            resolved = true
+            try await session.run()
+            try await session.close()
+            if self.generation == generation {
+                audio.stop(); handsFreeAudio = nil; handsFreeSession = nil
+                task = nil; phase = "completed"
+            }
+        } catch {
+            if !resolved { call.reject("Mikrofon nebo Realtime rozhovor není dostupný.", "microphone_unavailable") }
+            audio.stop()
+            await session.stop()
+            do { try await session.close() }
+            catch {
+                if self.generation == generation { task = nil; phase = "failed"; lastError = "realtime_cleanup_failed" }
+                return
+            }
+            if self.generation == generation {
+                if case DebugBackendError.serverCode(let code) = error { lastError = code }
+                if lastError == nil { lastError = "realtime_live_failed" }
+                handsFreeSession = nil; handsFreeAudio = nil; task = nil; phase = "failed"
             }
         }
     }
@@ -285,6 +378,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
                 }
                 call.resolve()
             } catch {
+                if case DebugBackendError.serverCode(let code) = error, self.generation == generation { self.lastError = code }
                 await session.cancel()
                 do {
                     try await session.close()
@@ -421,6 +515,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
             }
             self.recordingTimer?.invalidate(); self.recordingTimer = nil
             self.microphone = nil
+            self.phase = self.realtimeSession == nil ? "transcription" : "turn"
             do {
                 let wav = try microphone.finish()
                 self.deactivateAudio()
@@ -547,12 +642,12 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
     }
 
     private func canStart() -> Bool {
-        canAnswer() && dialogSession == nil && realtimeSession == nil
+        canAnswer() && dialogSession == nil && realtimeSession == nil && handsFreeSession == nil
     }
 
     private func canAnswer() -> Bool {
         UIApplication.shared.applicationState == .active && task == nil && player == nil && realtimePlayer == nil &&
-            !synthesizer.isSpeaking && configurationCall == nil && microphone == nil && cleanupTask == nil
+            !synthesizer.isSpeaking && configurationCall == nil && microphone == nil && cleanupTask == nil && handsFreeSession == nil
     }
 
     @MainActor private func stopWork() {
@@ -564,10 +659,12 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
         transcript = []; selected = nil; timings = [:]
         let session = dialogSession
         let realtime = realtimeSession
+        let handsFree = handsFreeSession
+        handsFreeAudio?.stop(); handsFreeAudio = nil; handsFreeSession = nil
         dialogSession = nil
         realtimeSession = nil
         realtimePlayer?.stop(); realtimePlayer = nil
-        if cleanupTask == nil && (session != nil || realtime != nil || stoppedTask != nil) {
+        if cleanupTask == nil && (session != nil || realtime != nil || handsFree != nil || stoppedTask != nil) {
             cleanupTask = Task { @MainActor in
                 // A cancelled create can still be recovering its owned ID.
                 // Do not admit another test until that recovery has finished.
@@ -585,6 +682,11 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
                         self.realtimeSession = realtime
                         self.phase = "failed"
                     }
+                }
+                if let handsFree = handsFree {
+                    await handsFree.stop()
+                    do { try await handsFree.close() }
+                    catch { self.handsFreeSession = handsFree; self.phase = "failed"; self.lastError = "realtime_cleanup_failed" }
                 }
                 self.cleanupTask = nil
             }

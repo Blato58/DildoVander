@@ -1,10 +1,29 @@
 using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using Kufr.Backend.Features.Realtime;
 
 namespace Kufr.Backend.Features.Conversations;
 
 internal sealed partial class ConversationStore
 {
+    internal bool RegisterRealtimeLifetime(RealtimeCall call, CancellationTokenSource lifetime)
+    {
+        lock (gate)
+        {
+            return IsRealtimeTurnCurrent(call)
+                && realtimeLifetimes.TryAdd(call.Correlation.ConversationId, lifetime);
+        }
+    }
+
+    internal void ReleaseRealtimeLifetime(string conversation)
+    {
+        lock (gate)
+        {
+            realtimeLifetimes.Remove(conversation);
+        }
+    }
+
     internal RealtimeAdmission BeginRealtimeTurn(
         string deviceId,
         string conversationId,
@@ -13,9 +32,10 @@ internal sealed partial class ConversationStore
         RealtimeTurnRequest request,
         bool providerAvailable,
         CancellationToken disconnected,
-        CancellationToken stopping)
+        CancellationToken stopping,
+        bool handsFree = false)
     {
-        if (!RealtimeProtocol.IsValid(request))
+        if (!RealtimeProtocol.IsValid(request, handsFree))
         {
             return new(400, "invalid_request", null);
         }
@@ -79,11 +99,33 @@ internal sealed partial class ConversationStore
                 request,
                 conversation.CompletedQuestions < ResponsesTextDialogBudget.MinimumQuestions,
                 memory?.Transcript ?? "",
-                conversation.History.ToArray());
+                conversation.History.ToArray(),
+                LiveAudio: handsFree && !request.Opening,
+                OutputTokenLimit: handsFree ? 768 : RealtimeProtocol.MaxOutputTokens);
             var correlation = new TurnCorrelation(deviceId, request.BootId, conversationId,
                 request.ClientTurnId, request.Generation, request.DeviceRevision);
             var reservation = journal.Reserve(deviceId, route, key, bodyHash, correlation,
                 estimatedCostMicroUsd: RealtimeProtocol.ReservationMicroUsd(turn));
+            if (reservation.CostRejected)
+            {
+                // Reserve a shorter spoken reply before discarding useful
+                // memory. This changes only provider context, never storage
+                // or the configured session/day/month spending caps.
+                foreach (var memoryBytes in new[] { int.MaxValue, 8192, 4096 })
+                {
+                    turn = turn with
+                    {
+                        OutputTokenLimit = 512,
+                        EveningContext = BoundRealtimeMemory(memory?.Transcript ?? "", memoryBytes)
+                    };
+                    reservation = journal.Reserve(deviceId, route, key, bodyHash, correlation,
+                        estimatedCostMicroUsd: RealtimeProtocol.ReservationMicroUsd(turn));
+                    if (!reservation.CostRejected)
+                    {
+                        break;
+                    }
+                }
+            }
             if (reservation.Conflict || reservation.Existing)
             {
                 return new(409, "realtime_stream_not_replayable", null);
@@ -99,6 +141,37 @@ internal sealed partial class ConversationStore
             RecordAcceptedTurn(conversation, request.ClientTurnId, now);
             return new(200, null, call);
         }
+    }
+
+    private static string BoundRealtimeMemory(string memory, int maximumBytes)
+    {
+        if (Encoding.UTF8.GetByteCount(memory) <= maximumBytes)
+        {
+            return memory;
+        }
+        using var document = JsonDocument.Parse(memory);
+        var rows = document.RootElement.EnumerateArray()
+            .Select((value, index) => (Value: value, Index: index))
+            .ToArray();
+        var retained = new List<(JsonElement Value, int Index)>();
+        var used = 2;
+        // Keep each retained speaker's introduction, then as many subsequent
+        // exchanges as fit. Prefer recent conversations without cutting JSON.
+        foreach (var conversation in rows.GroupBy(row => row.Value.GetProperty("ConversationId").GetString()).Reverse())
+        {
+            foreach (var row in conversation)
+            {
+                var bytes = Encoding.UTF8.GetByteCount(row.Value.GetRawText()) + 1;
+                if (used + bytes > maximumBytes)
+                {
+                    break;
+                }
+                retained.Add(row);
+                used += bytes;
+            }
+        }
+        return JsonSerializer.Serialize(retained.OrderBy(row => row.Index).Select(row => row.Value),
+            RealtimeProtocol.JsonOptions);
     }
 
     internal bool StartRealtimeTurn(RealtimeCall call)

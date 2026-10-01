@@ -47,6 +47,9 @@ assert.deepEqual(Object.keys(document.paths).sort(), [
   '/v1/conversations',
   '/v1/conversations/{id}',
   '/v1/conversations/{id}/opening',
+  '/v1/conversations/{id}/realtime-live',
+  '/v1/conversations/{id}/realtime-live/{streamId}/audio',
+  '/v1/conversations/{id}/realtime-live/{streamId}/played',
   '/v1/conversations/{id}/realtime-turns',
   '/v1/conversations/{id}/speech',
   '/v1/conversations/{id}/transcriptions',
@@ -86,7 +89,8 @@ for (const [path, operations] of Object.entries(document.paths)) {
     assert.ok(operation.operationId, `missing operationId on ${path}`);
     assert.ok(operation.responses, `missing responses on ${path}`);
     if ((method === 'post' || method === 'put' || method === 'delete')
-      && path !== '/v1/device-access/token' && path !== '/v1/admin/modes') {
+      && path !== '/v1/device-access/token' && path !== '/v1/admin/modes'
+      && !path.endsWith('/{streamId}/audio') && !path.endsWith('/{streamId}/played')) {
       assert.ok(operation.parameters?.some((parameter) => parameter.$ref === '#/components/parameters/IdempotencyKey'), `missing idempotency on ${path}`);
     }
   }
@@ -159,6 +163,19 @@ validate('RealtimeTurn', { ...realtime, opening: false, wav: 'UklGRg==' }, true)
 validate('RealtimeTurn', { ...realtime, opening: false, text: 'Petr', wav: 'UklGRg==' }, false);
 validate('RealtimeTurn', { ...realtime, voice: 'onyx' }, false);
 validate('RealtimeTurn', { ...realtime, speed: 1.21 }, false);
+validate('RealtimeLiveStart', realtime, true);
+validate('RealtimeLiveStart', { ...realtime, opening: false, text: 'Petr' }, false);
+validate('RealtimeLiveStart', { ...realtime, accessToken: 'secret' }, false);
+validate('RealtimePlayback', { operationId: bootId }, true);
+validate('RealtimePlayback', { operationId: 'other-operation' }, false);
+validate('RealtimeLiveEvent', { type: 'session', streamId: bootId, audioFormat: 'pcm16-mono-24000' }, true);
+validate('RealtimeLiveEvent', { type: 'listening', inputId: clientTurnId }, true);
+validate('RealtimeLiveEvent', { type: 'speech_stopped', inputId: clientTurnId }, true);
+validate('RealtimeLiveEvent', { type: 'heartbeat' }, true);
+validate('RealtimeLiveEvent', { type: 'completed', operationId: 'op-1', correlation: operation.correlation,
+  result, costMicroUsd: 12345 }, true);
+validate('RealtimeLiveEvent', { type: 'failed', code: 'cost_limit' }, true);
+validate('RealtimeLiveEvent', { type: 'failed', code: 'provider secret message' }, false);
 validate('RealtimeEvent', { type: 'started', operationId: 'op-1', correlation: operation.correlation,
   audioFormat: 'pcm16-mono-24000' }, true);
 validate('RealtimeEvent', { type: 'audio', delta: Buffer.alloc(32768).toString('base64') }, true);

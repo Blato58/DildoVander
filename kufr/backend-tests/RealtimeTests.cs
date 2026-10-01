@@ -17,9 +17,102 @@ internal static class RealtimeTests
     {
         VerifyResampling();
         await VerifyProgressiveAudioAsync();
+        await VerifyPersistentVoiceAsync();
         await VerifyToolValidationAsync();
         VerifyAdmissionAndMemory();
+        VerifyHandsFreeBudgetAndStop();
         Console.WriteLine("Realtime stream, selection, resampling and journal tests passed.");
+    }
+
+    private static async Task VerifyPersistentVoiceAsync()
+    {
+        var request = Request();
+        string Speech(string type, string item) => JsonSerializer.Serialize(new
+        {
+            type, item_id = item, audio_start_ms = 0, audio_end_ms = 1000
+        });
+        string Transcript(string item, string text) => JsonSerializer.Serialize(new
+        {
+            type = "conversation.item.input_audio_transcription.completed", item_id = item, transcript = text
+        });
+        using var socket = new ScriptSocket([
+            Created(), Updated(), ResponseCreated(), Audio(new byte[4800]), Done("Jak ti říkají?"),
+            Updated(), Speech("input_audio_buffer.speech_started", "visitor-1"),
+            Speech("input_audio_buffer.speech_stopped", "visitor-1"),
+            Speech("input_audio_buffer.committed", "visitor-1"), Transcript("visitor-1", "Petr."),
+            ResponseCreated("response-2"), Audio(new byte[4800], "response-2"),
+            Done("Petře, kdo tě nejlíp zná?", id: "response-2"),
+            Updated(), Speech("input_audio_buffer.speech_started", "visitor-2"),
+            Speech("input_audio_buffer.speech_stopped", "visitor-2"),
+            Speech("input_audio_buffer.committed", "visitor-2"), Transcript("visitor-2", "Moje žena."),
+            ResponseCreated("response-3"), Audio(new byte[4800], "response-3"),
+            Done("Takže doma máš i tiskovou mluvčí. Co na tebe práskne?", id: "response-3")
+        ]);
+        var connections = 0;
+        using var provider = new OpenAiRealtimeClient(_ =>
+        {
+            connections++;
+            return Task.FromResult<WebSocket>(socket);
+        });
+        await using var connection = await provider.ConnectAsync(CancellationToken.None);
+        await connection.GenerateTurnAsync(new(request, true, "", []), null,
+            (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask, CancellationToken.None);
+        var inputs = 0;
+        var stopped = 0;
+        for (var turn = 0; turn < 2; turn++)
+        {
+            var live = new RealtimeTurnContext(request with { Opening = false, ClientTurnId = Guid.NewGuid() },
+                true, "", [], LiveAudio: true, OutputTokenLimit: 768);
+            var reply = await connection.GenerateTurnAsync(live, null,
+                (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask, CancellationToken.None,
+                async token =>
+                {
+                    inputs++;
+                    await connection.SendAudioAsync(new byte[9600], token);
+                },
+                (type, _) =>
+                {
+                    if (type == "speech_stopped")
+                    {
+                        stopped++;
+                    }
+                    return Task.CompletedTask;
+                });
+            Require(reply.Decision == "ask" && reply.VisitorText.Length > 0,
+                "successive VAD turns retain the real parallel visitor transcript");
+        }
+        Require(connections == 1 && inputs == 2 && stopped == 2,
+            "opening and two spoken answers use one provider connection with automatic VAD boundaries");
+        Require(socket.Sent.Count(value => value.Contains("input_audio_buffer.append", StringComparison.Ordinal)) == 2
+            && socket.Sent.Any(value => value.Contains("\"create_response\":false", StringComparison.Ordinal)),
+            "streaming input cannot trigger unreserved automatic responses");
+        Require(socket.Sent.Any(value => value.Contains("conversation.item.delete", StringComparison.Ordinal)),
+            "previous audio items are removed before reconstructing bounded memory for the next turn");
+
+        using var cancellation = new CancellationTokenSource();
+        using var liveSession = new RealtimeLiveSession("device-a", "conversation-a", connection, cancellation);
+        using var turnCancellation = new CancellationTokenSource();
+        var context = new RealtimeTurnContext(request with { Opening = false }, true, "", [], LiveAudio: true);
+        var call = new RealtimeCall(Guid.NewGuid().ToString("D"),
+            new("device-a", request.BootId, "conversation-a", request.ClientTurnId, 0, 0), context, null, turnCancellation);
+        liveSession.Listen(call);
+        Require(!await liveSession.UploadAsync(request.ClientTurnId, 1, new byte[100], default),
+            "out-of-order audio is rejected before sending to the provider");
+        Require(await liveSession.UploadAsync(request.ClientTurnId, 0, new byte[100], default),
+            "first audio is sent once with the correct turn sequence");
+        liveSession.StopListening();
+        Require(await liveSession.UploadAsync(request.ClientTurnId, 1, new byte[100], default),
+            "a frame in flight at VAD stop is acknowledged and discarded");
+        liveSession.StopListening();
+        liveSession.Listen(call with { Context = context with
+        {
+            Request = context.Request with { ClientTurnId = Guid.NewGuid() }
+        } });
+        Require(await liveSession.UploadAsync(request.ClientTurnId, 2, new byte[100], default),
+            "an old frame is discarded even after a repeated stop and the next listening event");
+        var played = liveSession.PreparePlayback(call.OperationId);
+        Require(!liveSession.Played("other") && !played.IsCompleted && liveSession.Played(call.OperationId),
+            "microphone continuation waits for playback of the exact completed operation");
     }
 
     private static void VerifyResampling()
@@ -220,6 +313,61 @@ internal static class RealtimeTests
             store.ReleaseRealtimeTurn(next, true, false);
             Require(memory.GetStatus("device-a").ExchangeCount == 1 && store.ActiveProviderCallCount == 0,
                 "cancelled turn adds no memory and releases the slot");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(directory, true);
+        }
+    }
+
+    private static void VerifyHandsFreeBudgetAndStop()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "kufr-realtime-live-" + Guid.NewGuid());
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Backend:DatabasePath"] = Path.Combine(directory, "journal.sqlite"),
+                ["Backend:Usage:SessionCapMicroUsd"] = "500000",
+                ["Backend:Usage:DailyCapMicroUsd"] = "10000000",
+                ["Backend:Usage:MonthlyCapMicroUsd"] = "10000000"
+            }).Build();
+            using var journal = new OperationJournal(configuration, TimeProvider.System);
+            using var dialog = new TextDialogRunner((_, _, _, _, _) => throw new Exception("Legacy Sol must not run."));
+            using var voice = new VoiceProviderRunner((_, _) => throw new Exception("Legacy STT must not run."),
+                (_, _) => throw new Exception("Legacy TTS must not run."));
+            var memory = new EveningMemoryStore(configuration, journal);
+            var store = new ConversationStore(TimeProvider.System, journal, dialog, eveningMemory: memory, voiceRunner: voice);
+            var request = Request();
+            var conversation = store.Create("device-a", Guid.NewGuid(), "create"u8,
+                new("device-a", request.BootId, 0, PartyWandCatalog.Version, "cs-CZ", new(true, false))).Response!.ConversationId;
+            var evening = memory.GetStatus("device-a").EveningId;
+            for (var index = 0; index < 16; index++)
+            {
+                Require(memory.Append("device-a", evening, Guid.NewGuid().ToString("D"), "previous-conversation",
+                    new string('ř', 1000), new string('č', 500)), "populate durable memory before voice admission");
+            }
+            var before = memory.GetStatus("device-a");
+            var call = store.BeginRealtimeTurn("device-a", conversation, Guid.NewGuid(),
+                JsonSerializer.SerializeToUtf8Bytes(request), request, true, default, default, handsFree: true).Call;
+            Require(call is not null && call.Context.OutputTokenLimit == 512
+                && RealtimeProtocol.ReservationMicroUsd(call.Context) <= 500000,
+                "large memory can use a shorter voice reservation within the existing session cap");
+            Require(memory.GetStatus("device-a") == before,
+                "trimming provider context cannot delete stored evening memory");
+            using var lifetime = new CancellationTokenSource();
+            Require(store.RegisterRealtimeLifetime(call!, lifetime) && store.StartRealtimeTurn(call!),
+                "the continuous conversation owns a cancellable lifetime");
+            Require(store.CompleteRealtimeTurn(call!, new("", "Jak ti říkají?", "ask", "", null, 1000)) is not null,
+                "opening completes before the playback acknowledgement");
+            store.ReleaseRealtimeTurn(call!, true, true);
+            Require(store.ActiveProviderCallCount == 0 && !lifetime.IsCancellationRequested,
+                "playback gap releases the paid slot but retains the live lifetime");
+            store.EndConversation("device-a", conversation, Guid.NewGuid());
+            Require(lifetime.IsCancellationRequested,
+                "Stop cancels the provider even while waiting for playback with no active paid call");
         }
         finally
         {

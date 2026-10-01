@@ -1,5 +1,20 @@
 # Implementační plán AI kufru
 
+> **Změna zadání 1. 10. 2026 (D115): hlas bez opakovaného mačkání.**
+> Po instalaci D114 majitel žádá automatické střídání poslechu a řeči;
+> druhá odpověď v PTT navíc zůstává bez výsledku. Výchozí iOS Debug drží
+> jeden provider Realtime WebSocket po celý rozhovor. Telefon odesílá
+> průběžné PCM16/24kHz bloky přes autentizované HTTPS a přijímá jeden
+> dlouhý NDJSON stream. Server VAD ukončí odpověď po 650 ms ticha;
+> backend před každým poslechem rezervuje náklad a sám spustí odpověď.
+> Mikrofon se během řeči kufru zavře a po potvrzeném dohrání znovu otevře.
+> Tento slice nepřidává přerušování řeči. PTT a řetězený tok jsou zálohy.
+> Stop, pozadí, zamčení a odpojení ruší celé sezení včetně čekání na dohrání.
+> Prompt zůstává podrobný; rezervace může zkrátit odpověď/context bez mazání
+> paměti nebo zvýšení stropů. Chyby mají viditelný technický důvod.
+> Majitel již schválil backend, novou IPA a živou zkoušku do 1 USD.
+> Průběžný hlas je diagnostický tok telefonu, bezpečnost ESP32/B1 se nemění.
+
 > **Změna zadání 1. 10. 2026 (D114): Realtime hlas.** Majitel doložil
 > dialog 9,8 s + TTS 2,3 s a výslovně schválil GPT-live/Realtime místo
 > sekvenční hlasové cesty. První software slice používá `gpt-realtime-1.5`
@@ -55,7 +70,7 @@ První provozní verze tedy pracuje samostatně **z hlediska telefonu**, nikoli 
 | Backend | **ASP.NET Core 10 LTS**, jeden proces, Minimal APIs a vertical slices, SQLite pro přístupy, limity a technický audit. Linux kontejner na jedné malé VM v EU. | Provoz VM a aktualizace. TypeScript backend by sdílel jazyk klienta, ale zde převažuje jednoduchý .NET provoz a testování. Serverless přidává cold start a limity běhu/úložiště. Při více instancích přejít na PostgreSQL a sdílenou idempotenci/kvóty. |
 | Vlastník řízení | **ESP32 iniciuje HTTPS spojení s backendem a orchestruje rozhovor.** Backend vrací data, nemá endpoint ani push kanál pro otevírání. Autonomní přijetí a sekvenci vlastní firmware. Mobil je místní záloha. | Vyžaduje device identitu, TLS, správu paměti a nový conversation slice ve firmware. Pro S3 N16R8 je omezený PTT přenos realistický; nutné potvrdit heap/DMA/PSRAM zátěžovým testem. Telefonní most je záložní architektonická varianta jen při nevyhovujících měřeních. |
 | AI | Responses Sol pro text; Realtime 1.5 pro přímý hlas. Validované funkce určují návrh. Bez agentního frameworku, RAG nebo nástrojů řídících zařízení. | Internet, rozpočet a variabilní latence. První Realtime slice je iOS Debug; samostatný ESP32 hlas vyžaduje E9. |
-| Hlas | **PTT a poloduplexní dialog**: Realtime stream, kompatibilní STT → Sol → TTS jako záloha. | Realtime backend vrací zvuk průběžně a kontroluje strukturovaný výběr. VAD ani duplexní přerušování první slice nepoužívá. Latenci/kvalitu změřit po nasazení; místní bezpečnost výběru zůstává v ESP32. |
+| Hlas | iOS Debug: **průběžný Realtime poslech se server VAD**, mikrofon se zavírá během přehrávání. PTT a STT → Sol → TTS jsou zálohy. | D115 drží jedno provider spojení a automaticky pokračuje po dohrání. Přerušování řeči a samostatný ESP32 hlas vyžadují další práci E9. Latenci/kvalitu změřit po nasazení; místní bezpečnost výběru zůstává v ESP32. |
 | Firmware runtime | Pro síťovou etapu přejít na **ESP-IDF 6.1 přes stávající PlatformIO 7.1.3**, zachovat čisté C++ jádro a vertical slices. | Malá migrace `main.cpp` a sériového adaptéru. Důvodem je konfigurovatelný oficiální WSS server, I2S, watchdog a NVS; manifest platformy rozlišuje Arduino 2.0.17 a ESP-IDF 6.1. Nemíchat návody nového IDF s existujícím Arduino runtime. K Arduinu se vrátit jen při doloženém jednodušším a udržovaném řešení všech těchto potřeb. |
 | Kamera | Nejprve žádná; první obrazový experiment kamerou telefonu. Kufrovou OV5640 + MicroSD dodat až jako samostatný profil. | GPIO a výkon jsou těsné. Obraz je jen volitelný popis kostýmu, nikdy identita člověka či povel aktuátoru. |
 
@@ -144,7 +159,7 @@ Tabulka je návrh cílových adresářů; vytvářet je postupně s příslušn�
 | `backend/Features/Access/` | Registrace zařízení, vydání krátkého access tokenu za device credential, odvolání a izolace každého kufru. |
 | `backend/Features/Conversations/` | Start/ukončení sezení, textové tahy, sestavení promptu, Responses adaptér a omezená historie. |
 | `backend/Features/VoiceTurns/` | Validace WAV, STT adaptér, převzetí přepisu; neotevírá hůlky. |
-| `backend/Features/Realtime/` | Oficiální OpenAI SDK, přímý hlasový tah, PCM/NDJSON stream a validace funkcí; backend drží provider klíč a WebSocket. |
+| `backend/Features/Realtime/` | Oficiální OpenAI SDK, průběžný hlas se server VAD, PTT záloha, PCM/NDJSON transport a validace funkcí; backend drží provider klíč a jedno WebSocket spojení po celý rozhovor. |
 | `backend/Features/SelectionProposals/` | Katalog, pravidla dostupnosti, interpretace strukturovaného návrhu a jeho expirace. |
 | `backend/Features/Speech/` | TTS pouze pro již schválenou odpověď, audio metadata a krátkodobý obsah. |
 | `backend/Features/Usage/` | Transakční rezervace nákladů, kvóty, technické metriky a idempotence placených operací. |

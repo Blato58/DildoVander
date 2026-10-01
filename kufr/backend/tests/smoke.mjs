@@ -331,6 +331,15 @@ try {
   assert.equal((await call(realtimePath, { token: tokenB, key: randomUUID(), body: realtime })).status, 403);
   assert.equal((await call(realtimePath, { token: virtualToken, key: randomUUID(), body: { ...realtime, extra: true } })).status, 400);
   assert.equal((await call(realtimePath, { token: virtualToken, key: randomUUID(), body: realtime })).result.code, 'realtime_unavailable');
+  const livePath = `/v1/conversations/${realtimeSession.result.conversationId}/realtime-live`;
+  assert.equal((await call(livePath, { key: randomUUID(), body: realtime })).status, 401);
+  assert.equal((await call(livePath, { token: tokenB, key: randomUUID(), body: realtime })).status, 403);
+  assert.equal((await call(livePath, { token: virtualToken, key: randomUUID(), body: { ...realtime, extra: true } })).status, 400);
+  assert.equal((await call(livePath, { token: virtualToken, key: randomUUID(), body: realtime })).result.code, 'realtime_unavailable');
+  const missingStream = `${livePath}/${randomUUID()}`;
+  assert.equal((await call(`${missingStream}/played`, { body: { operationId: randomUUID() } })).status, 401);
+  assert.equal((await call(`${missingStream}/played`, { token: virtualToken, body: { operationId: randomUUID() } })).status, 404);
+  assert.equal((await call(`${missingStream}/audio`, { token: virtualToken, body: {} })).status, 404);
   // A valid recording exceeds the ordinary 4096-byte JSON cap and reaches
   // conversation admission, without making a paid provider call in fake mode.
   assert.equal((await call(realtimePath, { token: virtualToken, key: randomUUID(),

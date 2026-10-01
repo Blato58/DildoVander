@@ -1,6 +1,6 @@
 # Backend kufru (E7)
 
-D114 přidává přímý Realtime hlas přes oficiální OpenAI .NET SDK 2.14.0,
+D114/D115 přidávají přímý Realtime hlas přes oficiální OpenAI .NET SDK 2.14.0,
 model `gpt-realtime-1.5`. Textový Sol i dosavadní fake/STT/Sol/TTS zůstávají.
 `POST /v1/conversations/{id}/realtime-turns` vyžaduje device token, UUID
 idempotency key, audio souhlas a režimy `responses` / `openai`.
@@ -8,6 +8,26 @@ OpenAI klíč zůstává na backendu. SDK obsluhuje typované příkazy a událo
 omezený transport odmítá redirect a WebSocket zprávu nad 256 KiB.
 Realtime SDK API je experimental, proto je verze připnutá a serializace
 PTT ověřená testem. Backend připojení používá GA API bez beta hlavičky.
+Výchozí iOS Debug používá D115, jedno provider spojení pro celý rozhovor:
+`POST /v1/conversations/{id}/realtime-live` přijímá opening JSON do 4096 B
+a vrací dlouhý NDJSON stream. `session` obsahuje `streamId`, `listening`
+nové `inputId`. Telefon průběžně posílá PCM16 mono 24 kHz přes
+`POST /v1/conversations/{id}/realtime-live/{streamId}/audio`, nejvýše
+9600 B v jednom požadavku, přesné hlavičky `Input-Id` a `Input-Sequence`
+od nuly. Jeden upload v letu, žádný placený replay. Pozdní blok právě
+ukončeného vstupu se zahodí s 204, nesmí ukončit další poslech.
+Server VAD používá 650 ms ticha/300 ms prefix/threshold 0.5. Automatické
+provider odpovědi jsou vypnuté: každý tah nejprve rezervuje backend.
+`speech_stopped` zavře mikrofon, následují `started`, `audio`, `visitor`,
+`completed` s výsledkem a konzervativním `costMicroUsd`. Telefon potvrdí
+skutečné dohrání na `/played` s přesným `operationId` do 35 s; potom
+se rezervuje a otevře další poslech. Událost `listening` smí předběhnout
+HTTP odpověď potvrzení. Jedno sezení nejvýše 8 min/10 tahů, heartbeat 10 s,
+tah včetně poslechu 45 s, vstup/výstup nejvýše 30 s. DELETE rozhovoru,
+disconnect nebo ukončení služby ruší socket i v mezeře čekání na dohrání.
+Tento automatický poloduplex neumožňuje přerušit mluvící kufr.
+NDJSON a malé binární HTTPS požadavky fungují přes stávající proxy;
+veřejný WebSocket upgrade není potřebný. Starý `/realtime-turns` je PTT záloha.
 Při změně NuGet závislostí na Windows regeneruj CI lockfiles přes
 `dotnet restore kufr/backend-tests/BackendTests.csproj -r linux-x64 -p:RuntimeIdentifier=linux-x64 -p:SelfContained=true --force-evaluate`
 z kořene. Explicitní singular `RuntimeIdentifier` zabrání přidání hostitelského
@@ -39,14 +59,24 @@ paměti selže dokončení journalu, tah se ohlásí jako neúspěšný, ale vý
 může zůstat v paměti. Toto není atomická transakce přes obě databáze.
 
 Realtime sdílí placený slot a session/day/month limity. Rezervace pokrývá
-nejvýše dvě odpovědi po 1024 tokenech, serializovaný prompt/paměť, audio
+nejvýše dvě odpovědi (PTT 1024, průběžný hlas 768 tokenů), serializovaný prompt/paměť, audio
 vstup i případné audio první odpovědi v druhém vstupu; navíc 0,01 USD pro
 souběžný přepis. Usage se vypořádá při konzervativních sazbách 4 USD/1M
 textového vstupu, 32 USD/1M audio vstupu a 64 USD/1M výstupu. Chybějící
 usage drží rezervaci. Delší prompt/paměť zvyšují potřebnou rezervaci;
-cap 0,20 USD na sezení nestačí ani pro první tah. Před nasazením ověřit
+cap 0,20 USD na sezení nestačí ani pro první tah. Když rezervace nezapadne,
+backend nejprve sníží hlasový limit na 512 tokenů, potom omezí provider
+context na 8/4 KiB celých výměn se zachovaným úvodem každého mluvčího.
+Uložená paměť ani podrobný prompt se nemažou. Staré provider audio/context
+se mezi tahy odstraní a backend vloží aktuální omezenou paměť/history.
+Před nasazením ověřit
 skutečné stropy a odsouhlasený rozpočet, nezvyšovat je automaticky.
 Lokální testy nedokládají latenci ani kvalitu placeného hlasu.
+Autorizovanou syntetickou zkoušku D115 spouští `kufr-backend-realtime-live.yml`:
+jeden rozhovor s českou offline syntetickou řečí, nejvýše čtyři odpovědi,
+session cap musí být kladný a nejvýše 1 USD. Report měří první audio,
+celý tah a konzervativní náklad, ukončí sezení a obnoví předchozí večer.
+Není to poslech na skutečném iPhonu ani účtenka OpenAI.
 
 Kontrakt je v [OpenAPI](../contracts/backend-openapi-v1.json).
 Nasazení backendu a nová podepsaná IPA jsou samostatné předání; stará
