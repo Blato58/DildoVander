@@ -21,8 +21,11 @@ technický kód; neposílá surový text chyb, credential ani URL.
 Soubory: DebugHandsFreeAudio/Session, KufrDebugPlugin, DebugPanel,
 nativní peer/harness a testovací skript, testovací UI, README a tento stav.
 Lokálně prošly TypeScript/Vite build, všech 19 mobilních testů, Node
-syntax peeru a git diff --check. Nový macOS test používá skutečný
-AVAudioConverter 48kHz -> PCM16/24kHz, krátké/počáteční buffery,
+syntax peeru, 16 lokálních dokumentačních odkazů a git diff --check.
+In-app Browser ověřil konkrétní audio hlášku/kód, Stop a obnovený poslech
+po novém startu přes syntetický bridge. Technický kód se zalomí i na telefonu.
+Nový macOS test používá skutečný AVAudioConverter 44,1/48kHz (mono/stereo)
+-> PCM16/24kHz, krátké/počáteční buffery,
 route policy a časné HTTP/protokol chyby vedle původních tří tahů.
 Nativní kompilaci/test a Xcode/simulátor ověří CI; Windows je nespouští.
 Backend veřejné healthz vrací 200; NDJSON startup shoda prošla read-only
