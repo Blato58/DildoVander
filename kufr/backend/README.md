@@ -484,3 +484,17 @@ pod `/ios/` jsou veřejně čitelné, proto IPA nesmí obsahovat tajemství.
 Responses požadavky explicitně používají `service_tier: default`. Jiný nebo chybějící vrácený tarif se odmítne a drží rezervaci (včetně rezervy pro 2× sazbu Fast), bez automatického opakování. Potvrzený Standard se vypořádá konzervativně podle tokenů; tato interní částka není účetní údaj z OpenAI. Ochrana tarifu byla přidána po živém eval, který vracel Fast při neuvedeném tarifu.
 
 Úplný postup a omezení opakovaného použití artefaktů jsou v [CI/CD návodu](../../docs/ci-cd.md).
+
+## Serverové logy a společný debug D118
+
+Backend ukládá technické události do oddělené SQLite, výchozí historie 24 h
+a 5000 záznamů. `GET /v1/admin/logs` a `/v1/admin/logs/status` používají
+credential správce nebo samostatný reader token; device access nestačí.
+Každý požadavek vrací `X-Request-Id`, Realtime zapisuje i fáze/chyby uvnitř
+streamu. Úspěšné GET a audio uploady se vynechávají. Bez textů/audio/tajemství.
+
+[Codex integrace a API](codex/README.md) popisují kurzory, filtry, úložiště,
+MCP, společný postup s iOS a GitHub workflow **Kufr server logs**. Pro přímé
+MCP lze v `backend-production` přidat volitelný secret `LOG_READER_CREDENTIAL`;
+deploy uloží jeho hash. Bez něj funguje iOS/admin a GitHub čtení přes existující
+admin secret. Čtení neprovádí provider volání ani změny serveru.

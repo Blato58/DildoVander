@@ -133,8 +133,47 @@ struct NativeDebugTests {
         assert(!createBlocked.paths.contains(where: { $0.hasSuffix("/opening") }))
         try await testInteractiveSessions(profile: profile, wav: wav)
         try await testEvenings(profile: profile)
+        try await testServerLogs(profile: profile)
         try await testHTTPTransport()
         print("Native debug profile, mode, correlation, WAV, cancellation and cleanup tests passed")
+    }
+
+    @MainActor static func testServerLogs(profile: DebugBackendProfile) async throws {
+        let store = UUID().uuidString.lowercased()
+        let entry: [String: Any] = ["id": 7, "timestamp": "2026-10-01T12:00:00.1234567+00:00",
+            "level": "warning", "eventCode": "realtime_failed", "code": "cost_limit",
+            "traceId": UUID().uuidString.lowercased(), "privateExtra": "excluded"]
+        let page: [String: Any] = ["storeId": store, "oldestCursor": 1, "latestCursor": 7,
+            "nextCursor": 7, "hasMore": false, "truncated": false, "droppedWrites": 0, "entries": [entry]]
+        let client = DebugBackendClient(http: { request, limit in
+            assert(request.httpMethod == "GET" && request.url?.path == "/v1/admin/logs")
+            assert(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-secret")
+            assert(request.url?.query == "limit=200&level=warning&after=6")
+            assert(limit == 262_144)
+            return (try JSONSerialization.data(withJSONObject: page), HTTPURLResponse(url: request.url!, statusCode: 200,
+                httpVersion: nil, headerFields: ["Content-Type": "application/json"])!)
+        })
+        let received = try await client.serverLogs(profile, after: 6, level: "warning")
+        assert(received.nextCursor == 7 && received.entries.count == 1)
+        let projected = try JSONSerialization.data(withJSONObject: received.bridgeValue)
+        assert(!String(data: projected, encoding: .utf8)!.contains("excluded"))
+        for failure in ["denied", "oversize", "order", "cursor", "level", "identity", "mime"] {
+            var invalid = page
+            if failure == "order" { invalid["entries"] = [entry, entry] }
+            if failure == "cursor" { invalid["nextCursor"] = 0 }
+            if failure == "level" { invalid["entries"] = [entry.merging(["level": "private-text"]) { _, new in new }] }
+            if failure == "identity" { invalid["storeId"] = "private-secret" }
+            let payload = try JSONSerialization.data(withJSONObject: invalid)
+            let bad = DebugBackendClient(http: { request, limit in
+                (failure == "oversize" ? Data(repeating: 0, count: limit + 1) : payload,
+                 HTTPURLResponse(url: request.url!, statusCode: failure == "denied" ? 401 : 200,
+                    httpVersion: nil, headerFields: ["Content-Type": failure == "mime" ? "text/html" : "application/json"])!)
+            })
+            do { _ = try await bad.serverLogs(profile); fatalError("Invalid log response accepted") }
+            catch { }
+        }
+        do { _ = try await client.serverLogs(profile, after: -1); fatalError("Negative cursor accepted") }
+        catch DebugBackendError.invalidResponse { }
     }
 
     @MainActor static func testEvenings(profile: DebugBackendProfile) async throws {
