@@ -9,6 +9,7 @@ import { join } from 'node:path';
 
 const credentialA = randomBytes(32).toString('base64');
 const credentialB = randomBytes(32).toString('base64');
+const adminCredential = randomBytes(32).toString('base64');
 const sha256 = value => createHash('sha256').update(value).digest('hex');
 const port = await new Promise((resolve, reject) => {
   const server = createServer();
@@ -30,6 +31,7 @@ const serverEnvironment = {
     Backend__DatabasePath: join(databaseDirectory, 'journal.sqlite'),
     Backend__Dialog__Mode: 'fake',
     Backend__Voice__Mode: 'fake',
+    Backend__Admin__CredentialSha256: sha256(adminCredential),
     ASPNETCORE_ENVIRONMENT: 'Production'
 };
 
@@ -177,6 +179,30 @@ try {
   const key = randomUUID();
   const tokenA = issuedA.result.accessToken;
   const tokenB = issuedB.result.accessToken;
+  assert.equal((await read('/v1/admin/modes')).status, 401);
+  assert.equal((await read('/v1/admin/modes', credentialA)).status, 401);
+  assert.equal((await read('/v1/admin/modes', tokenA)).status, 401);
+  const modes = (await read('/v1/admin/modes', adminCredential)).result;
+  assert.equal(modes.lifetime, 'until_restart');
+  assert.equal(modes.dialogMode, 'fake');
+  assert.equal(modes.activeConversations, 0);
+  const changeModes = async (body, credential = adminCredential) => {
+    const response = await fetch(`${baseUrl}/v1/admin/modes`, {
+      method: 'PUT', headers: { Authorization: `Bearer ${credential}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    return { status: response.status, result: await response.json() };
+  };
+  const modeBody = { expectedRevision: modes.revision, dialogMode: 'fake', voiceMode: 'fake' };
+  assert.equal((await changeModes(modeBody, tokenA)).status, 401);
+  assert.equal((await changeModes(modeBody)).status, 200);
+  assert.equal((await changeModes({ ...modeBody, dialogMode: 'unsupported' })).status, 400);
+  assert.equal((await changeModes({ ...modeBody, expectedRevision: randomUUID() })).status, 409);
+  assert.equal((await changeModes({ ...modeBody, voiceMode: 'openai' })).result.code, 'provider_unavailable');
+  const adminToken = await call('/v1/device-access/token', { credential: adminCredential });
+  assert.equal(adminToken.result.deviceId, 'debug-server-admin');
+  assert.equal((await read('/v1/admin/modes', adminToken.result.accessToken)).status, 401);
   assert.equal((await read('/v1/diagnostics')).status, 401);
   assert.equal((await read('/v1/diagnostics', credentialA)).status, 401);
   assert.deepEqual((await read('/v1/diagnostics', tokenA)).result, {

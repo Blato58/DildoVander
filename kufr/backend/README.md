@@ -64,6 +64,28 @@ start; výchozí `fake` nevolá OpenAI. Veřejné HTTPS je dostupné; skutečná
 
 ## Vývojové spuštění
 
+D109 přidává `GET/PUT /v1/admin/modes` za samostatným raw bearer credential
+správce. Server zná jen `Backend:Admin:CredentialSha256`; přístup se nikdy
+neodvozuje z device access tokenu. Hash ani rezervované ID `debug-server-admin`
+nesmí kolidovat s `Devices` (start se odmítne). Credential správce se může
+vyměnit za běžný token této oddělené testovací identity, nikdy identity ESP.
+GET vrací revizi, dialog/hlas režimy, dostupnost providerů, počet živých sezení
+a `lifetime=until_restart`. PUT přijímá `expectedRevision`, `dialogMode`
+(`fake/responses`) a `voiceMode` (`fake/openai`). Vrací potvrzený stav; chybná
+revize, živý rozhovor/doznívající provider či nedostupný provider vrací 409.
+Změna a create sdílejí zámek a nikdy nerozdělí probíhající rozhovor mezi režimy.
+Stejný stav je povolený no-op. Režimy nejsou trvalé; po restartu platí konfigurace
+nasazení a nová revize. Přepnutí nemění model Sol, credential, limity ani paměť
+večera a samo nevolá OpenAI. Ve fake režimu mohou být klienti připraveni, ale
+žádný provider se nepoužije.
+
+Ruční deploy očekává silný samostatný secret `ADMIN_CREDENTIAL` v environmentu
+`backend-production`. Workflow odvodí hash do konfigurace release; provider
+klíč stále zapisuje stávající root helper. Parametr `voice_mode` doplňuje
+dosavadní `dialog_mode`. Veřejný `server_mode_smoke.py` ověřuje admin auth,
+izolovaný debug token, no-op PUT, stale revizi a diagnostics přes běžné PKI;
+nemění produkční režimy ani nevytváří rozhovor/placené provider volání.
+
 D108 přidává autentizované `GET /v1/diagnostics` s provider režimy, aktuálním
 katalogem a audio formátem. Endpoint používá device access token, `no-store`,
 nevrací žádné tajemství/obsah paměti a sám nevolá AI. iOS Debug může pro test
