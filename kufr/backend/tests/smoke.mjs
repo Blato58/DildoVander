@@ -70,11 +70,12 @@ async function waitForServer() {
   throw new Error(`Backend did not start: ${serverOutput}`);
 }
 
-async function call(path, { credential, token, key, body } = {}) {
+async function call(path, { credential, token, key, body, closeConnection = false } = {}) {
   const headers = {};
   if (credential || token) headers.Authorization = `Bearer ${credential ?? token}`;
   if (key) headers['Idempotency-Key'] = key;
   if (body) headers['Content-Type'] = 'application/json';
+  if (closeConnection) headers.Connection = 'close';
   const response = await fetch(`${baseUrl}${path}`, {
     method: 'POST',
     headers,
@@ -346,7 +347,7 @@ try {
     body: { ...realtime, opening: false, wav: makeWav(19200).toString('base64') } })).result.code,
     'opening_required_or_already_started');
   assert.equal((await call(realtimePath, { token: virtualToken, key: randomUUID(),
-    body: { ...realtime, opening: false, wav: 'a'.repeat(2600001) } })).status, 413);
+    closeConnection: true, body: { ...realtime, opening: false, wav: 'a'.repeat(2600001) } })).status, 413);
   assert.equal(await remove(`/v1/conversations/${realtimeSession.result.conversationId}`, virtualToken, randomUUID()), 204);
   const turnKey = randomUUID();
   assert.equal((await call(turnPath, {
