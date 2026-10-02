@@ -1,7 +1,7 @@
 # CI/CD: build jednou, nasazení z artefaktu
 
 Každé PR do `main` spustí [CI](../.github/workflows/ci.yml). Workflow nemá
-path filtr: backend, firmware, mobilní web, iOS Simulator a offline AI testy
+path filtr: backend, firmware, mobilní web a offline AI testy
 musí projít i po změně společné konfigurace. Jediná kontrola pro ochranu větve
 je **CI required**. Nový commit do stejného PR zruší zastaralé CI; rozběhnuté
 nasazení se neruší. Merge do `main` nevyvolá druhý build.
@@ -10,9 +10,11 @@ nasazení se neruší. Merge do `main` nevyvolá druhý build.
 
 Majitel 1. 10. 2026 požádal přesun všech Linux jobů na svůj server.
 Všechny používají `[self-hosted, Linux, X64, kufr-backend]`, tedy stávající
-runner `dildovander-server`. Pouze iOS Simulator a podpis IPA zůstávají
-na GitHub-hosted `macos-15` s Xcode 26.3. Platí to i pro PR kontroly,
-ověření artefaktů, veřejné HTTPS kontroly, diagnostiku a ruční AI testy.
+runner `dildovander-server`. Pouze ruční podepsaný Ad Hoc IPA build
+a jeho nativní testy běží na GitHub-hosted `macos-15` s Xcode 26.3.
+Linux runner obsluhuje i PR kontroly, ověření artefaktů, veřejné HTTPS
+kontroly, diagnostiku a ruční AI testy. PR ani obnovovací CI nespouští
+Xcode nebo iOS Simulator.
 Jeden registrovaný serverový runner provádí vždy jen jeden job; ostatní
 čekají ve frontě. Závislosti mezi joby zůstávají zachované.
 
@@ -41,7 +43,7 @@ izolaci jednorázového GitHub-hosted stroje. Spouštěj zde pouze důvěryhodn�
 | --- | --- | --- |
 | `ci.yml` | PR build a testy; ruční obnovovací build na `main` | `backend-publish`, `web-dist`, `firmware` |
 | `kufr-backend-deploy.yml` | Aktivace backendu bez restore/build | `build_run_id` úspěšného CI |
-| `kufr-ios-sign.yml` | Samostatný podepsaný device build; převzetí webu z CI | CI `build_run_id`, `signing_kind`; výstup `signed-ipa` |
+| `kufr-ios-sign.yml` | Samostatný podepsaný device build; převzetí webu z CI | CI `build_run_id`; výstup Ad Hoc `signed-ipa` |
 | `kufr-ios-deploy.yml` | Publikace existující Ad Hoc IPA bez Xcode/npm | `build_run_id` podepsaného IPA buildu |
 
 Artefakty patří konkrétnímu běhu a API vybírá jejich neměnné ID. Retry úspěšného
@@ -58,8 +60,9 @@ výstupy. Artefakty z buildu se uchovávají **14 dní**, ověřovací kopie **1
 1. Aktualizuj PR z `main`, vyčkej na zelené **CI required** a sluč PR.
 2. V Actions vyber **Deploy Kufr backend**, větev `main` a ID CI tohoto PR.
    Zvol `dialog_mode`, `dialog_model`, `voice_mode` stejně jako dříve.
-3. Pro IPA spusť **Build signed Kufr IPA** na `main` s týmž CI ID a zvoleným
-   podpisem. **Deploy Kufr IPA** následně dostane ID úspěšného **IPA buildu**;
+3. Pro publikaci aplikace spusť ručně **Build signed Kufr IPA** na `main`
+   s týmž CI ID; workflow používá výhradně Ad Hoc distribuční podpis.
+   **Deploy Kufr IPA** následně dostane ID úspěšného **IPA buildu**;
    veřejná instalace vyžaduje `ad_hoc`.
 
 Deployment nejdřív v samostatném jobu na serverovém runneru ověří přes API očekávaný workflow,
@@ -77,9 +80,10 @@ sám nikdy nepřekládá a nevytváří náhradní build. Přísná shoda celéh
 vyžadovat obnovovací CI i po změně dokumentace; chrání proti nasazení jiné verze.
 Rollback již uloženého release je nadále správcovská operace podle backend README.
 
-Simulator a fyzický iPhone vyžadují různé Xcode cíle a podpis. PR proto dělá
-nepodepsaný simulator build; explicitní podpisový workflow sestaví device IPA
-jednou, použije již hotový web z CI a uplatní Apple profil. Publikace ani její
+Nativní iOS build se spouští pouze ručně pro podepsanou aplikaci určenou
+k nasazení. Podpisový workflow nejdřív ověří připnutý Xcode a nativní
+transport/debug testy, potom sestaví device IPA jednou, použije již hotový
+web z CI a uplatní Ad Hoc Apple profil. Publikace ani její
 opakování už nebuildí. Soukromé klíče a samostatné podpisové soubory se neukládají do artefaktů;
 IPA obsahuje profil nutný pro instalaci podepsané aplikace.
 
@@ -87,8 +91,8 @@ IPA obsahuje profil nutný pro instalaci podepsané aplikace.
 
 - .NET restore používá lockfiles a NuGet cache, backend a testy se sestaví
   společně v Release pro `linux-x64`; test/run/publish používají `--no-build`.
-- Vite/TypeScript se sestaví jednou na Linuxu. Mac simulator i podpisový build
-  převezmou hotový web. npm cache zahrnuje všechny dotčené lockfiles.
+- Vite/TypeScript se sestaví jednou na Linuxu v `kufr-web.yml`. Ruční
+  podpisový build převezme hotový web. npm cache zahrnuje všechny dotčené lockfiles.
 - PlatformIO Core i platforma jsou připnuté; cache ukládá toolchainy a pip,
   nikoli znovupoužité firmware binárky. Oba firmware profily mají artefakt pro
   pozdější servisní flash bez dalšího buildu; CI samo do desky nenahrává.
