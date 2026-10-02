@@ -154,7 +154,10 @@ final class DebugHandsFreeAudio {
     func start() throws {
         guard !engine.isRunning else { return }
         let audioSession = AVAudioSession.sharedInstance()
-        try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker])
+        // This is half duplex: capture is gated during model playback. The
+        // telephony voiceChat mode can attenuate speaker output, and we do
+        // not enable voice processing on this engine. Use normal speaker audio.
+        try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker])
         try audioSession.setActive(true)
 
         guard let outputFormat = AVAudioFormat(standardFormatWithSampleRate: 24_000, channels: 1) else {
@@ -351,7 +354,7 @@ final class DebugHandsFreeAudio {
         let session = AVAudioSession.sharedInstance()
         let configurationMatches = engine.isRunning
             && session.category == .playAndRecord
-            && session.mode == .voiceChat
+            && session.mode == .default
             && routeIdentifiers(session.currentRoute) == activeRoute
             && converter?.sourceFormat == engine.inputNode.outputFormat(forBus: 0)
         // Starting our own playAndRecord session posts route notifications too.

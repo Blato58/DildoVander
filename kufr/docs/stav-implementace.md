@@ -1,10 +1,23 @@
 # Stav implementace AI kufru
 
-Poslední aktualizace: **1. 10. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální Arduino i ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a E3a. Ad Hoc podpis a serverová publikace IPA/manifestu prošly CI a veřejným HTTPS testem; majitel potvrdil instalaci a spuštění na iPhonu 15 Pro (D70). Hardware, native WSS/TLS a aktualizace IPA na telefonu zatím nemají runtime akceptaci. Hotový návrh není hotová implementace.
+Poslední aktualizace: **2. 10. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální Arduino i ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a E3a. Ad Hoc podpis a serverová publikace IPA/manifestu prošly CI a veřejným HTTPS testem; majitel potvrdil instalaci a spuštění na iPhonu 15 Pro (D70). Hardware, native WSS/TLS a aktualizace IPA na telefonu zatím nemají runtime akceptaci. Hotový návrh není hotová implementace.
 
 [Implementační plán](implementacni-plan.md) určuje architekturu a akceptaci. [AGENTS.md](../../AGENTS.md) určuje pracovní postup AI. Tento soubor je jediný průběžný záznam postupu; README ho pouze odkazují.
 
 ## Předání další AI
+
+**D121 – oprava režimu tichého Realtime hlasu na iPhonu (2. 10. 2026).**
+Majitel hlásí příliš tichý hlas v aplikaci. Hands-free přehrávač používá
+`playAndRecord/voiceChat`, přestože jde o poloduplex a engine nezapíná
+voice processing. Telefonní režim může zeslabovat reproduktor. Oprava
+v `DebugHandsFreeAudio.swift` přepíná session i kontrolu route na `.default`
+a zachovává `.defaultToSpeaker`, vstupní bránu během řeči a detekci přerušení.
+Mobilní README popisuje režim a nastavení hlasitosti během přehrávání.
+Lokálně prošel TypeScript/Vite build, všech 24 mobilních testů a whitespace.
+Linux nemá AVFoundation/Xcode; nativní kompilaci a existující route/converter
+testy ověří macOS CI v PR. Git předání a výsledek CI budou doplněny níže.
+Skutečnou hlasitost musí potvrdit iPhone; podpis a publikace nové IPA nejsou
+součástí tohoto slice. Instalace zatím nabízí předchozí build 1000.0.8.
 
 **Migrace GitHub Actions na vlastní serverový runner (1. 10. 2026).**
 Majitel požaduje všechny joby na svém serveru, kromě macOS. Všech 22 Linux
