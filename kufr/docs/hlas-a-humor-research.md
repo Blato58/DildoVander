@@ -146,7 +146,7 @@ přes oficiální .NET SDK. Nejde o změnu modelových vah ani fine-tuning.
 
 Po nasazení stejné verze backendu, aplikace a firmware:
 
-1. V telefonu otevři **Debug → režim → GPT-Live + Sol**. Vyber hlas
+1. V telefonu otevři **Debug → Tok → GPT-Live + Sol**. Vyber hlas
    Marin, Cedar nebo Coral a spusť rozhovor. GPT-Live používá rychlost 1×.
    Hlas i mikrofon běží současně přes Apple voice processing. Debug
    nepředává návrh do fyzického kufru.

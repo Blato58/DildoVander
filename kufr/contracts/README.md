@@ -1,15 +1,23 @@
 # Sdílené kontrakty kufru
 
-## Hlas ESP v lokálním control v1 (D119)
+## Hlas ESP v lokálním control v1 (D119, D128)
 
 `voice.configure` nese běžnou device/boot/messageId obálku a
-`mode=off|realtime`, `voice=cedar|marin|coral`. `voice.start` přidává
+`mode=off|realtime|gpt-live`, `voice=cedar|marin|coral`. `voice.start` přidává
 `expectedRevision`; `voice.stop` jen společnou obálku. `voice.ack` vrací
 requestMessageId, bootId, accepted a aktuální voice status.
 Spárovaný pozorovatel smí tyto explicitní audio akce; start navíc vyžaduje
 bezpečný standalone snapshot. Žádný z příkazů přímo neovládá pohon.
 Volitelný `state.snapshot.voice` obsahuje available/mode/voice/phase/error;
 nepřítomnost znamená nepodporovanou audio cestu, nikoli implicitní Realtime.
+
+D128 přidává `POST /v1/conversations/{id}/gpt-live` a navazující `/audio`
+a `/played` cesty v backend OpenAPI. Live start vyžaduje opening a rychlost
+1×. Jediný průběžný vstup běží současně s výstupem; `pause` odděluje
+přehrávané segmenty, zatímco `completed` nese teprve finální validovaný
+výsledek a souhrnný cenový odhad. Schéma `GptLiveEvent` popisuje nové
+události; Realtime zůstává oddělený režim. Starší klient musí před novou
+volbou aktualizovat strict schéma.
 
 `control-validator-core.mjs` je společný strict JSON/schema validátor pro
 Node i nativní mobilní adaptér. Node wrapper `control-validator.mjs` načítá
