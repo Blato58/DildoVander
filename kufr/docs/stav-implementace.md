@@ -6,6 +6,59 @@ Poslední aktualizace: **2. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D126 – 2. 10. 2026 – parametrický 3D tiskový prototyp mechaniky kufru.**
+Majitel požádal o modely krabiček, šesti přihrádek a nadzvednutí celé
+přihrádky včetně usazení vibrací a elektroniky. Upřesnil kufr
+450 × 310 × 200 mm a hůlky nejvýše 200 mm; vnitřní rozměry, průměr
+hůlek a tiskárna dosud nejsou potvrzené. `kufr/mechanika/` obsahuje
+CadQuery 2.7.0 zdroj, pracovní JSON parametry, offline náhled a kontrolu
+skutečných STL. Rozteč modulů je 48 mm, vložky 240 × 28 mm, dělené
+na tři 80mm segmenty. Servo klika s válečkem v příčné drážce a dvěma
+vodicími tyčemi navrhuje zdvih 28,28 mm. Krabičky/rastry, police,
+držák powerbanky, panel ovladačů, U059 klece a lůžko WS2812B vycházejí
+z nákupního seznamu; většina obálek a montážních bodů jsou odhady.
+Volitelný router má samostatnou krabičku, není osazen v kufrové sestavě.
+Firmware, kontrakty a zapojení se nemění.
+
+Lokální generace vytvořila 45 druhů jednoobjemových validních BREP
+dílů, STL/STEP jednotlivých dílů i dvou sestav, CSV kusovník,
+PNG, samostatné HTML a ZIP. Výstupy jsou ignorované v Git; zdroj
+a návod jsou verzované. Kontrola 11 poloh vedení a rotující kliky
+odhalila průnik kliky s okrajem servo držáku; po otevření čela držáku
+prošla. Kontrola obálky sestavy v pracovním prostoru kufru a všech
+dílů v předpokládané tiskové obálce 220 × 220 × 250 mm prošla.
+Samostatné ověření 45 skutečných STL prošlo: každá hrana má dva
+sousední trojúhelníky, kladný orientovaný objem a shodu s BREP do 2 %.
+Navazující kontrola všech pohyblivých dílů proti sobě i proti pracovním
+obálkám LED/U059 zachytila kolize spojovacích pásků s klecí a followerem.
+Klec byla přesunuta do prvního segmentu, spodní podpěry pod spoje,
+úchyty followeru mimo spoj a sedla dostala volný průchod RGB. Finální
+generace 45 dílů prošla všemi uvedenými kontrolami včetně těchto průniků.
+Chromium/Playwright ověřil vykreslení HTML, změnu obrazu zdvihem,
+horní hodnotu 28,3 mm a pohled shora bez JS chyb. Proběhla také
+kontrola Python syntaxe, lokálních dokumentačních odkazů a whitespace.
+
+**Není dokončená E5/E6 ani potvrzené fyzické vejití do truhly.**
+Klika je zpětně pohánitelná a prototyp nemá ověřené pasivní zachycení
+při odpojení energie; požadavek plánu na stabilitu bez proudu zůstává
+otevřený. Nejsou ověřené nosnost, kabelové smyčky, tepelný provoz,
+montáž továrních dílů ani izolace vibrací vůči sousedním přihrádkám.
+Další mechanický krok: změřit vnitřek/víko kufru, průměr hůlek,
+servo/U059/PCB/konektory a powerbanku, upravit pracovní obálky,
+vytisknout měrku a jeden modul, doplnit pasivní podporu a ručně
+ověřit celý pohyb. Elektrické blokace a další aplikační kroky z D124/D125
+zůstávají platné. Implementační commit
+`d6b70ca6a0b84276b6a9f31beb857a7092143560` byl ověřeně pushnutý
+do `origin/feat/printable-case-mechanics`; remote SHA se shoduje.
+Předepsaný `./scripts/Push-CurrentBranch.ps1` byl spuštěn, ale není
+spustitelný (permission denied) a PowerShell zde chybí. Push provedl
+scoped gh credential helper pod ověřeným účtem Blato58.
+[PR #98](https://github.com/Blato58/DildoVander/pull/98) předává zdroj
+a dokumentaci. Před merge musí projít `CI required` pro aktuální head;
+skutečný výsledek je dohledatelný v PR. Geometrický test CI ani merge
+nenahrazuje. ZIP navíc prošel kontrolou integrity, aktuálnosti zdrojů
+a úplnosti 45 STL / 45 STEP, dvou sestav, návodu, náhledů a kusovníku.
+
 **D125 – 2. 10. 2026 – iOS build pouze ručně pro podepsané nasazení.**
 Majitel požádal odstranit iOS build z každého PR a ponechat jej pouze ručně
 pro podepsanou aplikaci určenou k nasazení. `ci.yml` nyní používá webový
