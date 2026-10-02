@@ -6,6 +6,57 @@ Poslední aktualizace: **2. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D123 – 2. 10. 2026 – první aplikační flash a začátek sestavování.**
+Majitel výslovně požádal začít sestavovat ESP a nahrát firmware; všechny
+komponenty má zabalené, zatím nejsou propojené. Po znovupřipojení pouze
+USB-UART COM7 byl znovu ověřen MAC `68:ee:8f:4b:60:48` a čtením flash
+potvrzená prázdná oblast NVS `0x9000..0xdfff` (20 480 B, vše FF).
+Čtecí audit startupu potvrdil, že prázdná NVS nezapne síť ani audio GPIO;
+kalibrace 0 a neověřená inspection stále zakazují zotavení/pohyby.
+
+Bez změny zdrojového kódu byl sestaven a nahrán současný aplikační profil
+`esp32-s3-idf` ze source commitu `f23853e3ce310b572dd81b9cdc54bdbafeb874b6`.
+První Windows build narazil na interní pád GCC v nepoužívaném SDK LCD
+driveru. Opakování `pio run -e esp32-s3-idf -j 2` prošlo: RAM 66 032 B,
+flash 1 202 041 B. `pio run -e esp32-s3-idf -j 2 --target upload --upload-port COM7`
+prošlo; esptool ověřil hash všech zapisovaných obrazů. Nový aplikační
+`firmware.bin` má SHA-256
+`065f6aba2edcc3c90e29cbcb62e80ba13e6704d74baca6b9eb095f20301374af`.
+Původní plná factory záloha a diagnostické obrazy z D122 zůstávají uložené.
+Nové obrazy/ELF, build/retry/upload logy, NVS readback a dva boot logy
+jsou v podsložce `application-first-boot` místní složky uvedené v D122;
+`manifest.json` obsahuje source commit, hash souborů a výsledek bootů.
+
+Oba řízené EN/RTS restarty s 30 s UART capture prošly: bootloader 16 MB,
+8 MB Octal PSRAM/80 MHz a SDK memory test OK; požadavek vypnout pohony
+(`no GPIO adapter`), neprovisionovaná identita, nenastavená síť a start
+ESP-IDF control loop. Žádný neočekávaný restart, panic, brownout, watchdog
+ani journal chyba v obou záznamech. To potvrzuje pouze základní offline
+aplikační boot. Neprokazuje elektrický inhibit/watchdog, servo/motor/LED
+adaptér, zvuk, Wi-Fi/TLS/WSS, provisioning ani mechanickou akceptaci.
+Není nastaveno `profile_a_ok`, síť, identita ani jakýkoli credential.
+
+Majitel potvrdil, že nemá multimetr. Modely jsou podle
+[nákupního seznamu](../../docs/nakupni-seznam-kufr.md): PCA9685 Drátek 1686,
+PD trigger 232511 a XY3606 180391 s pevným výstupem 5 V. Bez měření
+výstupu zůstávají PD trigger/měnič a výkonové větve odpojené; tím není
+blokované sestavování logiky napájené pouze USB.
+Další krok: při odpojeném USB připravit čtyři logické propoje ESP32/PCA9685
+podle profilu A: 3V3/VCC, GND/GND, GPIO1/SDA, GPIO14/SCL. Servo V+, OE
+a všechny výstupy zatím nezapojovat. Nákupní seznam obsahuje Dupont M-F;
+pro dvě osazené samčí lišty jsou potřeba F-F nebo správně pájené propoje.
+Majitel potvrdil, že nemá F-F propojky ani páječku. První logické zapojení
+čeká na čtyři F-F propojky; původní M-F nákupní položka tuto dvojici
+osazených lišt přímo nepropojí. Firmware dosud nemá PCA GPIO/I2C adaptér a toto je
+návrh dalšího kroku, nikoli provedený I2C test. B1 zůstává otevřené pro
+bezpečnostní větev a periferie; bezpečnostní obvod není v původním košíku.
+Tento krok pouze zaznamenává skutečný flash/boot; nové zdrojové změny
+firmware ani placené AI/serverové nasazení nejsou jeho součástí.
+Dokumentace prošla kontrolou lokálních odkazů a `git diff --check`.
+Commit `426b5ee05eed5a751d47e23b55057392f94ab766` byl úspěšně pushnutý
+přes `scripts/Push-CurrentBranch.ps1` do `docs/esp-application-first-boot`.
+PR vyžaduje zelené `CI required` před sloučením podle CONTRIBUTING.
+
 **D122 – 2. 10. 2026 – první USB flash a paměťový test doručené desky.**
 Majitel dodal fotografie ESP32-S3 N16R8 a výslovně schválil minimální
 diagnostický firmware a jeho nahrání. Připojený USB-UART má COM7,
