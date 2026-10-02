@@ -27,6 +27,7 @@ final class DebugHandsFreeSession {
     private let listening: Listening
     private let inputGate: InputGate
     private let failure: Failure
+    private let requests = DebugHandsFreeRequest()
     private var stream: DebugHandsFreeLiveStream?
     private var streamId: String?
     private var currentInputId: String?
@@ -139,7 +140,7 @@ final class DebugHandsFreeSession {
         request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
         request.setValue(inputId, forHTTPHeaderField: "Input-Id")
         request.setValue(String(sequence), forHTTPHeaderField: "Input-Sequence")
-        let (data, response) = try await DebugHandsFreeRequest.perform(request, limit: 4096, timeout: 10)
+        let (data, response) = try await requests.perform(request, limit: 4096)
         guard data.isEmpty, response.statusCode == 204 else { throw DebugBackendError.invalidResponse }
     }
 
@@ -154,13 +155,14 @@ final class DebugHandsFreeSession {
         request.httpBody = try JSONSerialization.data(withJSONObject: ["operationId": operationId], options: [.sortedKeys])
         awaitingPlayedOperation = nil
         phase("waiting_listening")
-        let (data, response) = try await DebugHandsFreeRequest.perform(request, limit: 4096, timeout: 10)
+        let (data, response) = try await requests.perform(request, limit: 4096)
         guard data.isEmpty, response.statusCode == 204 else { throw DebugBackendError.invalidResponse }
     }
 
     func stop() async {
         inputGate(false)
         stream?.cancel()
+        requests.cancel()
         if let operation = currentOperationId {
             try? await client.cancelOperation(profile, token: token, operation: operation)
         }
@@ -172,6 +174,9 @@ final class DebugHandsFreeSession {
         stream?.cancel()
         try await client.cleanup(profile, token: token, conversation: conversation)
         closed = true
+        // Let an already acknowledged /played response finish: the server can
+        // deliver closed/listening on the live stream before its HTTP 204.
+        requests.finish()
     }
 
     private func handle(_ event: DebugHandsFreeEvent) throws {
@@ -479,16 +484,28 @@ private final class DebugHandsFreeLiveStream: NSObject, URLSessionDataDelegate {
     }
 }
 
-private enum DebugHandsFreeRequest {
-    static func perform(_ request: URLRequest, limit: Int, timeout: TimeInterval) async throws -> (Data, HTTPURLResponse) {
+// One connection pool per conversation, shared by serial PCM uploads and
+// playback acknowledgements. Recreating it per 200 ms frame forces repeated
+// TCP/TLS setup and can fill the microphone queue on a healthy connection.
+final class DebugHandsFreeRequest {
+    private let session: URLSession
+
+    init(timeout: TimeInterval = 10) {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.httpCookieStorage = nil
         configuration.urlCache = nil
         configuration.timeoutIntervalForRequest = timeout
         configuration.timeoutIntervalForResource = timeout
-        let session = URLSession(configuration: configuration, delegate: DebugHandsFreeNoRedirects(), delegateQueue: nil)
+        session = URLSession(configuration: configuration, delegate: DebugHandsFreeNoRedirects(), delegateQueue: nil)
+    }
+
+    deinit { session.invalidateAndCancel() }
+
+    func cancel() { session.invalidateAndCancel() }
+    func finish() { session.finishTasksAndInvalidate() }
+
+    func perform(_ request: URLRequest, limit: Int) async throws -> (Data, HTTPURLResponse) {
         let (data, response) = try await session.data(for: request)
-        session.invalidateAndCancel()
         guard data.count <= limit, let http = response as? HTTPURLResponse else { throw DebugBackendError.tooLarge }
         return (data, http)
     }

@@ -24,7 +24,7 @@ permissions:
 jobs:
   read:
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, X64, kufr-backend]
     environment: backend-production
     timeout-minutes: 3
     steps:
@@ -47,6 +47,16 @@ jobs:
           if [[ -n "$LOG_TRACE" ]]; then arguments+=(--trace-id "$LOG_TRACE"); fi
           if [[ -n "$LOG_OPERATION" ]]; then arguments+=(--operation-id "$LOG_OPERATION"); fi
           python3 kufr/backend/codex/server_logs_mcp.py "${arguments[@]}"
+          # The client already projects only validated technical fields. Also
+          # expose this snapshot through the authenticated Actions log API for
+          # Codex environments that cannot download Azure-hosted artifacts.
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          print('KUFR_LOG_SNAPSHOT_BEGIN')
+          print((Path(os.environ['RUNNER_TEMP']) / 'kufr-server-logs.json').read_text())
+          print('KUFR_LOG_SNAPSHOT_END')
+          PY
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: kufr-server-logs

@@ -1,6 +1,6 @@
 # Firmware AI kufru
 
-## První USB test doručené desky (D120)
+## První USB test doručené desky (D122)
 
 Samostatný [diagnostický projekt](diagnostics/board-memory/README.md) ověřuje
 boot, kapacitu flash a PSRAM a čtení/zápis 7 MiB PSRAM na ESP32-S3 N16R8.
@@ -56,7 +56,7 @@ Výchozí sestavení `pio run` používá **ESP-IDF 6.1** v profilu
 `esp32-s3-idf`. Původní sériový Arduino prototyp je dostupný samostatně přes
 `pio run -e esp32-s3-arduino-serial`. Oba profily byly sestaveny lokálně;
 aplikační firmware se zatím nenahrával do desky. Samostatné první USB
-ověření doručené desky vede D120.
+ověření doručené desky vede D122.
 Podrobný postup a skutečně provedené kontroly jsou ve
 [stavu implementace](../docs/stav-implementace.md). ESP-IDF smyčka spojuje
 provisionované HTTPS párování a autentizovaný WSS vstup s řídicím vlastníkem,

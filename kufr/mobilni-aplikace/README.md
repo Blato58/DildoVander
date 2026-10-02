@@ -31,7 +31,10 @@ Nativní adaptér vlastní TLS pin, oprávnění LAN a Keychain. E10.1 použív�
 ## Debug D108/D109/D110/D112 a Realtime
 
 Aktuální [Safari instalace](https://2.28.202.220/ios/) nabízí verzi 1.0,
-build **1000.0.5** (publikace 1. 10. 2026, D117: oprava startu Realtime audia).
+build **1000.0.9** (publikace 2. 10. 2026, D121: běžný zvukový režim pro
+hlasitější Realtime reproduktor; obsahuje také D120 reuse audio upload
+spojení a 200ms dávkování). Veřejný manifest a IPA prošly HTTPS/checksum
+kontrolou na serverovém runneru; hlasitost a rozhovor na iPhonu zbývá ověřit.
 První uložení credentialu po přechodu z RAM-only verze
 je potřeba zopakovat. Profil uložený od 1000.0.2 se dál načítá ze stejného
 Keychain; skutečnou aktualizaci a její zachování ověří registrovaný iPhone.
@@ -51,9 +54,17 @@ Nastavte dostupné přihrádky (výchozí všech šest), hlas Cedar/Marin/Onyx/C
 a tempo, obnovte režimy serveru a spusťte AI nebo fake rozhovor. Odpovídejte
 ve výchozím **Realtime · bez tlačítek** prostě nahlas: mikrofon vyžaduje
 povolení iOS a během poslechu průběžně odesílá PCM16 mono 24 kHz backendu.
+Upload používá jedno síťové sezení pro celý rozhovor a přesné 200ms dávky;
+hardwarové mikrofonní bloky se průběžně skládají bez změny pořadí. Fronta
+zůstává omezená na 1 s. Kód `realtime_live_audio_overflow` označuje zaplnění
+této fronty, sám nedokazuje nestabilní připojení. Pozdní blok z předchozího
+poslechu se zahodí a neoznačí jako další odpověď.
 Po 650 ms ticha odpoví kufr, během jeho řeči je vstup zavřený a po skutečném
 dohrání se automaticky otevře další poslech. Telefon začne přehrávat první
-bloky před dokončením odpovědi. Spouští se jeden rozhovor, nejvýše 8 min/10
+bloky před dokončením odpovědi. Hands-free audio používá běžný režim iOS
+s výchozím výstupem do reproduktoru; telefonní režim `voiceChat` mohl výstup
+zeslabovat. Hlasitost nastavujte bočními tlačítky při přehrávání odpovědi.
+Spouští se jeden rozhovor, nejvýše 8 min/10
 tahů; Stop, pozadí, zamčení nebo audio přerušení ukončí mikrofon i provider.
 Bez přerušování právě mluvícího kufru. Vlastní přepnutí audio session při
 startu nepřerušuje rozhovor; skutečná změna mikrofonu/reproduktoru jej
@@ -138,6 +149,10 @@ Hands-free loopback harness ověřuje úvod a dvě hlasové odpovědi v jednom
 streamu, obnovení vstupu, konec a cleanup. Záměrně pošle další `listening`
 před HTTP odpovědí `/played`. AVAudioEngine a skutečný mikrofon musí
 ověřit Xcode/iPhone; Foundation harness je nenahrazuje.
+Samostatný upload harness navíc zachytává 50ms bloky při zpožděných HTTP
+odpovědích, ověřuje skutečné 200ms PCM dávky/pořadí a opětovné použití
+jednoho TCP spojení. Pokrývá limit fronty, pozdní conversion po změně
+poslechu, odmítnutí redirectu a zrušení rozpracovaného požadavku.
 
 ## Nativní připojení E10.1
 
