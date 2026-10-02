@@ -6,6 +6,44 @@ Poslední aktualizace: **2. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D125 – 2. 10. 2026 – iOS build pouze ručně pro podepsané nasazení.**
+Majitel požádal odstranit iOS build z každého PR a ponechat jej pouze ručně
+pro podepsanou aplikaci určenou k nasazení. `ci.yml` nyní používá webový
+`kufr-web.yml`; mobilní/kontraktové testy, TypeScript/Vite build a artefakt
+`web-dist` zůstávají povinné v `CI required`. Původní `kufr-ios.yml`
+a unsigned simulator build/spuštění byly odstraněny.
+`kufr-ios-sign.yml` je nadále pouze ruční a main-only, ale používá výhradně
+Ad Hoc distribuční identitu. Přebírá ověřený web z CI, kontroluje Xcode 26.3
+a provádí přesunuté nativní transport/debug testy před podepsaným device
+buildem. Vývojová podpisová volba byla odstraněna. Ruční
+`kufr-ios-deploy.yml` nadále publikuje existující ověřenou Ad Hoc IPA bez
+nového buildu. Plán, mobilní README a CI/CD návod odpovídají tomuto postupu.
+Lokální ověření prošlo: actionlint 1.7.12 s ověřeným checksumem nad všemi
+workflow; 29 Node testů `scripts/ci/verify-build.test.cjs`; 6 Python testů
+archivů v `scripts/ci`; průchod grafu všech pěti PR workflow bez macOS,
+Xcode/simctl/cap sync ios a kontrola ručního main-only Ad Hoc sign/deploy
+včetně správných secret/manifest vazeb. Lokální odkazy všech čtyř změněných
+dokumentů a `git diff --check` prošly. Implementační commit
+`ae1c24f2d75ae28fe91e2dbbf5bbe3150eb6da15` je pushnutý na
+`origin/ci/manual-ios-deployment`; remote SHA bylo ověřeno. Předepsaný
+`./scripts/Push-CurrentBranch.ps1` byl spuštěn, ale není zde spustitelný
+(permission denied) a `pwsh` chybí. Push provedl scoped gh credential
+helper pod ověřeným účtem Blato58. Dokumentační commit
+`b477b4bae1c429c779b8a7afe570f842e879ff19` je také ověřeně pushnutý.
+[PR #97](https://github.com/Blato58/DildoVander/pull/97) obsahuje finální
+změnu a CI. První běh `37019862812` pro tuto revizi ověřil repository,
+backend, firmware host testy, mobilní web a offline AI bez macOS;
+firmware build ještě běžel. Tento navazující dokumentační commit mění
+číslování na D125 kvůli již otevřenému D124 v PR #96. Před merge musí
+projít `CI required` pro aktuální head; výsledek a merge jsou dohledatelné
+v PR. Nativní runtime ověření se přesouvá až k ručně požadovanému vydání.
+Při integraci main `003fc307538d9086576557dd76c000c09a12dae4` (PR #96)
+byl zachován celý D124 i jeho diagnostické zdroje/workflow; tento D125
+zůstává samostatný. Po merge main musí projít CI pro nový head.
+Nativní build/podpis ani skutečná publikace nejsou součástí této změny.
+Další krok: při požadavku na vydání aplikace ručně podepsat IPA z úspěšného
+CI aktuálního main a následně spustit samostatnou publikaci.
+
 **D124 – 2. 10. 2026 – USB test logiky PCA9685 a návrat aplikace.**
 Majitel již má F-F propojky a hlásí hotové čtyřvodičové propojení podle
 profilu A: ESP3V3/PCA VCC, GND/GND, GPIO1/SDA, GPIO14/SCL. Fotografie ani

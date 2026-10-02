@@ -46,15 +46,15 @@ jobs:
     uses: ./.github/workflows/kufr-backend.yml
   firmware:
     uses: ./.github/workflows/kufr-firmware.yml
-  ios:
-    uses: ./.github/workflows/kufr-ios.yml
+  web:
+    uses: ./.github/workflows/kufr-web.yml
   ai-eval:
     uses: ./.github/workflows/kufr-ai-eval.yml
 
   required:
     name: CI required
     if: always()
-    needs: [repository, backend, firmware, ios, ai-eval]
+    needs: [repository, backend, firmware, web, ai-eval]
     runs-on: [self-hosted, Linux, X64, kufr-backend]
     timeout-minutes: 2
     env:
