@@ -52,6 +52,10 @@ návrh dalšího kroku, nikoli provedený I2C test. B1 zůstává otevřené pro
 bezpečnostní větev a periferie; bezpečnostní obvod není v původním košíku.
 Tento krok pouze zaznamenává skutečný flash/boot; nové zdrojové změny
 firmware ani placené AI/serverové nasazení nejsou jeho součástí.
+Dokumentace prošla kontrolou lokálních odkazů a `git diff --check`.
+Commit `426b5ee05eed5a751d47e23b55057392f94ab766` byl úspěšně pushnutý
+přes `scripts/Push-CurrentBranch.ps1` do `docs/esp-application-first-boot`.
+PR vyžaduje zelené `CI required` před sloučením podle CONTRIBUTING.
 
 **D122 – 2. 10. 2026 – první USB flash a paměťový test doručené desky.**
 Majitel dodal fotografie ESP32-S3 N16R8 a výslovně schválil minimální
