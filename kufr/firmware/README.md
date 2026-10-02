@@ -1,5 +1,15 @@
 # Firmware AI kufru
 
+## První test logiky PCA9685
+
+Samostatný [PCA9685 logic diagnostic](diagnostics/pca9685-logic/README.md)
+kontroluje pouze ACK na 0x40 a stabilní čtení MODE1/MODE2 přes GPIO1/14.
+Používá USB-UART a čtyři logické propoje s VCC 3V3; servo V+, OE, pohony
+a externí napájení musí zůstat odpojené. Nevytváří PWM ani nemění hodnoty
+registrů. Nahrání vyžaduje autorizaci a po testu se obnoví aplikační obraz.
+Skutečný výsledek a hranice akceptace vede D124 ve
+[stavu implementace](../docs/stav-implementace.md).
+
 ## První aplikační boot na desce (D123)
 
 Současný `esp32-s3-idf` byl 2. 10. 2026 nahrán přes USB-UART na doručený
