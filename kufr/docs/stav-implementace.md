@@ -52,6 +52,14 @@ servisní vstup a profil A; teprve s těmito podklady povolit periferie,
 provisioning a další flash aplikačního firmware. Diagnostika může zůstat
 na desce, externí komponenty zatím nepřipojovat.
 
+Git předání D120: implementační commit
+`21c07cc33b4de1cc53f593e72b7485f2314c109a` byl přes
+`scripts/Push-CurrentBranch.ps1` pushnut na
+`origin/feat/board-memory-diagnostic`; remote shoda byla ověřena.
+Následující dokumentační commit zaznamenává toto doručení a odstraňuje
+koncové prázdné řádky nových konfiguračních souborů nalezené při staged
+whitespace kontrole. Finální PR vyžaduje zelené CI před autorizovaným merge.
+
 **D119 – Realtime hlas přímo na ESP a nastavení v Ovládání; všechny provider cesty přes SDK.**
 Majitel 1. 10. požaduje přidat Realtime do firmware, nastavovat hlasový režim
 v Ovládání aplikace a převést všechna volání OpenAI na SDK. Rozsah a výjimka
