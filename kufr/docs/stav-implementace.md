@@ -45,8 +45,15 @@ Další krok: po CI a merge nasadit backend a vydat novou iOS aplikaci /
 flashnout odpovídající firmware v samostatně autorizovaném kroku; pak
 provést ruční porovnání podle [návodu](hlas-a-humor-research.md#d128-testovaci-gpt-live-rezim).
 V tomto slice nebyl spuštěn deploy, placený test, podpis IPA ani flash.
-Změny jsou připravené pro navazující commit a aktualizaci PR #99; výsledek
-push/CI se doplní po ověření finální revize.
+Implementační commit `9df9888` je ověřeně pushnutý na
+`origin/fix/natural-openings-carlin-humor` (remote SHA shodné). Předepsaný
+PowerShell push skript byl spuštěn, ale není spustitelný a `pwsh` chybí;
+push provedl scoped gh credential helper pod ověřeným účtem Blato58.
+[PR #99](https://github.com/Blato58/DildoVander/pull/99) zahrnuje D127 i D128.
+Prošla také kontrola změněných Markdown odkazů, 29 CI provenance testů,
+syntax Node fake peeru a whitespace. Výsledek CI a merge musí odpovídat
+finálnímu head PR a je dohledatelný přímo v PR; nativní iOS/živý hlas tím
+nejsou ověřené.
 
 
 **D127 – 2. 10. 2026 – přirozený opening, CARLIN a rešerše hlasových agentů.**
