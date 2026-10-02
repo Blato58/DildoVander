@@ -40,6 +40,9 @@ se sestavily. Nativní Swift fake peer byl rozšířen o GPT-Live; tento Linux
 nemá Swift/Xcode, takže nativní kompilace a běh čekají na ruční iOS build.
 Živá dostupnost GPT-Live pro účet, čeština, humor, ozvěna iPhone/ESP a
 časování závěru nebyly offline ověřeny. Není hotová HW akceptace.
+Finální kontrola doplnila spojování sousedních přepisových fragmentů
+a předávání skutečně vyslovených replik včetně první otázky do Solu;
+příslušný wire test ověřuje i dělení slova mezi dvěma událostmi.
 
 Další krok: po CI a merge nasadit backend a vydat novou iOS aplikaci /
 flashnout odpovídající firmware v samostatně autorizovaném kroku; pak

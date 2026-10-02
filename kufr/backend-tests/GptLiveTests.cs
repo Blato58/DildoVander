@@ -32,6 +32,8 @@ internal static class GptLiveTests
             calls++;
             Check(text == "Odpověď " + calls && mask == 63 && question == (calls < 4),
                 "delegations use current transcript and retain the four-question gate");
+            Check(history.Count > 0 && history[^1].Reply == (calls == 1 ? "Ahoj, co odkládáš?" : "Skutečně vyslovená replika"),
+                "Sol follows the actual spoken question, including the opening");
             return Task.FromResult(new TextDialogResponse("Replika " + calls,
                 calls == 4 ? "propose" : "ask", "", calls == 4 ? 2 : null,
                 ResponsesTextDialogBudget.Model, 100, 10, "default"));
@@ -135,7 +137,8 @@ internal static class GptLiveTests
                     }
                     break;
                 case "session.commentary.append":
-                    Emit(new { type = "session.output_transcript.delta", delta = "Skutečně vyslovená replika" });
+                    Emit(new { type = "session.output_transcript.delta", delta = "Skutečně vyslo" });
+                    Emit(new { type = "session.output_transcript.delta", delta = "vená replika" });
                     Emit(new { type = "session.output_audio.delta", delta = Convert.ToBase64String(new byte[] { 0, 32, 0, 32 }) });
                     if (answer < 4) NextAnswer();
                     else if (interruptFinal) Emit(new { type = "session.input_transcript.delta", delta = "Oprava, jinak." });
