@@ -15,7 +15,12 @@ a zachovává `.defaultToSpeaker`, vstupní bránu během řeči a detekci přer
 Mobilní README popisuje režim a nastavení hlasitosti během přehrávání.
 Lokálně prošel TypeScript/Vite build, všech 24 mobilních testů a whitespace.
 Linux nemá AVFoundation/Xcode; nativní kompilaci a existující route/converter
-testy ověří macOS CI v PR. Git předání a výsledek CI budou doplněny níže.
+testy ověří macOS CI v [PR #92](https://github.com/Blato58/DildoVander/pull/92).
+Implementační commit `8132191f22ada535fab8bd157a86febd85cfc272` je pushnutý
+do `fix/iphone-realtime-speaker-volume`; remote SHA bylo ověřeno. Předepsaný
+PowerShell helper byl spuštěn, ale zde není spustitelný a `pwsh` chybí;
+push provedl scoped gh credential helper po ověření účtu Blato58.
+CI se nyní spouští; výsledek a merge budou doloženy v PR před sloučením.
 Skutečnou hlasitost musí potvrdit iPhone; podpis a publikace nové IPA nejsou
 součástí tohoto slice. Instalace zatím nabízí předchozí build 1000.0.8.
 
