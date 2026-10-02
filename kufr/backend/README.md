@@ -71,7 +71,7 @@ Paměť a nákladový journal mají oddělené SQLite soubory. Pokud po zápisu
 paměti selže dokončení journalu, tah se ohlásí jako neúspěšný, ale výměna
 může zůstat v paměti. Toto není atomická transakce přes obě databáze.
 
-Realtime sdílí placený slot a session/day/month limity. Rezervace pokrývá
+Realtime sdílí placený slot a limit 3 USD/session. Rezervace pokrývá
 nejvýše dvě odpovědi (PTT 1024, průběžný hlas 768 tokenů), serializovaný prompt/paměť, audio
 vstup i případné audio první odpovědi v druhém vstupu; navíc 0,01 USD pro
 souběžný přepis. Usage se vypořádá při konzervativních sazbách 4 USD/1M
@@ -150,8 +150,8 @@ rezervace před voláním je 0,10 USD plus cache-write cena Fast
 přidaných bajtů. Všechny tři stávající nákladové stropy zůstávají účinné.
 
 `POST /v1/conversations/{id}/opening` přijímá pole textového tahu **bez text**.
-Vytvoří běžnou pollovatelnou turn operaci: kufr promluví první a zeptá se na
-jméno bez představování. Po prvním přijatém tahu se nový opening odmítne;
+Vytvoří běžnou pollovatelnou turn operaci: kufr promluví první, krátce osloví
+hosta a položí jednu otázku podle serverového námětu. Jméno není povinný úvod. Po prvním přijatém tahu se nový opening odmítne;
 retry se stejným klíčem vrací tutéž operaci. Starý `/turns` zůstává kompatibilní.
 Firmware má explicitní vstup opening a ukončení sezení (D75); reálný vstup návštěvníka a samostatný hlas vyžadují dokončení E4/E9.
 
@@ -340,11 +340,10 @@ schéma v5 přidává typ operace do technického journalu; osazené v4 řádky 
 typ `turn`. Schéma v6 přidává technický nákladový journal a agregáty bez
 obsahu. Fake operace rezervují nulu. Budoucí placený adaptér musí v transakci
 vzniku operace rezervovat horní odhad a před voláním odmítnout `CostRejected`.
-Bez všech tří kladných serverových hodnot `Backend__Usage__SessionCapMicroUsd`,
-`Backend__Usage__DailyCapMicroUsd` a `Backend__Usage__MonthlyCapMicroUsd` se
-kladná rezervace odmítne; částečná nebo neplatná konfigurace odmítne start.
-Jednotkou je miliontina USD, limity jsou na sezení a globálně na UTC den/měsíc
-napříč zařízeními. Po odpovědi `SettleCost` zaúčtuje skutečnost; levnější
+Od D128 je výchozí session limit `Backend__Usage__SessionCapMicroUsd=3000000`.
+Nasazení jej nastavuje explicitně; lze konfigurovat nižší kladný limit do 3 USD.
+Denní a měsíční nastavení se ignorují, agregáty zůstávají pro audit.
+Celkový rozpočet určuje hlavní limit OpenAI projektu. Po odpovědi `SettleCost` zaúčtuje skutečnost; levnější
 odpověď uvolní rozdíl, vyšší cenu eviduje a zablokuje další placenou práci.
 Neznámý výsledek po restartu si rezervaci ponechá. Technický audit se maže po
 7 dnech, denní/měsíční agregáty po 90 dnech. Schválené limity jsou na
@@ -413,9 +412,9 @@ Environment `backend-production` má tyto GitHub Actions secrets:
 | `DEVICE_CREDENTIAL_SHA256` | 64 hex znaků SHA-256 credential pro dané ID; nyní odpovídá vývojovému `DEV_DEVICE_CREDENTIAL`. |
 | `DEV_DEVICE_CREDENTIAL` | Jen pro ruční loopback smoke nasazené vývojové instance; odpovídá hashi vývojového `DEVICE_ID`, není provisionovaný v kufru. Před fyzickým nasazením jej nahradit skutečnou identitou a oddělit testovací prostředí. |
 | `OPENAI_API_KEY` | Projektový OpenAI API klíč. Čte jej pouze explicitní režim `responses`; ve výchozím `fake` se OpenAI nevolá. |
-| `SESSION_CAP_MICRO_USD` | Kladný limit v miliontinách USD; spolu s dalšími dvěma limity. |
-| `DAILY_CAP_MICRO_USD` | Kladný denní limit v miliontinách USD. |
-| `MONTHLY_CAP_MICRO_USD` | Kladný měsíční limit v miliontinách USD. |
+| `SESSION_CAP_MICRO_USD` | Deployment nastavuje `3000000` (3 USD/session); stejný výchozí limit při chybějícím nastavení. |
+| `DAILY_CAP_MICRO_USD` | Zastaralé, ignoruje se. Denní součty zůstávají auditní. |
+| `MONTHLY_CAP_MICRO_USD` | Zastaralé, ignoruje se. Celkový rozpočet spravuje OpenAI. |
 
 Po nasazení lze spustit **Kufr backend deployed smoke**: fake režim ověřuje
 technický tah, responses režim pouze opening. **Kufr backend public dialogue**
@@ -431,8 +430,7 @@ původního UUID a stejného vstupu používá stejné idempotentní klíče. Ž
 credential/token není vstupem ani součástí artefaktu; zůstává v runneru.
 `finish` uvolní sezení, paměť zůstává. `status` ukazuje limity/počty večera;
 `clear` vyžaduje přesné aktuální `expected_evening_id`. Před mazáním ověř, že jde
-výhradně o vlastní testovací data. Pro testování platí schválený souhrnný limit
-1 USD a stávající měsíční limit 10 USD; ceníkový odhad není skutečná fakturace.
+výhradně o vlastní testovací data. Pro testování platí 3 USD na session, bez dalšího aplikačního periodického limitu; ceníkový odhad není skutečná fakturace.
 
 Nasazení volí `dialog_model=gpt-6.1-sol`; backend čte
 `Backend__Dialog__Model` a jiný model v responses režimu odmítne. Funkce
@@ -443,8 +441,8 @@ DELETE. AI sama vybírá hůlku. Místní autonomní brána ESP32 provede prezen
 pevné rekvizity a návrat; nevyžaduje potvrzení obsluhy. Stop a poruchy mají přednost.
 
 Všechny hodnoty mohou pro první fake nasazení chybět. Bez dvojice zařízení
-se nikdo nepřihlásí; bez všech tří nákladových limitů backend odmítne
-budoucí placené rezervace. Částečná dvojice nebo trojice nasazení zastaví.
+se nikdo nepřihlásí; chybějící session limit použije výchozí 3 USD.
+Částečná dvojice device identity nebo neplatný session limit nasazení zastaví.
 Environment je omezený na větev `main`; podle potřeby nastav požadované
 schválení. Při změně secrets spusť workflow znovu; běžící služba se sama
 nepřekonfiguruje. Klíč nevkládej do chatu, repozitáře ani mobilní aplikace.
@@ -514,3 +512,42 @@ MCP, společný postup s iOS a GitHub workflow **Kufr server logs**. Pro přím�
 MCP lze v `backend-production` přidat volitelný secret `LOG_READER_CREDENTIAL`;
 deploy uloží jeho hash. Bez něj funguje iOS/admin a GitHub čtení přes existující
 admin secret. Čtení neprovádí provider volání ani změny serveru.
+
+## D127: nový rozhovor a kvalita humoru
+
+Textový i Realtime opening neodesílají archiv večera ani historii starých
+výměn. Paměť se nemaže a vrací se do kontextu dalších tahů.
+`ConversationOpening` střídá šest námětů v rámci procesu (po restartu nová
+počáteční pozice); nejde o šest hotových hlášek. Realtime uloží námět jednou
+do kontextu tahu, takže rezervace a její případné zkrácení nemění zadání.
+Sdílený prompt používá principy CARLIN, jednu otázku a jeden doložený detail.
+[Rešerše](../docs/hlas-a-humor-research.md) rozlišuje nynější Realtime, GPT‑Live
+a další hlasové cesty a obsahuje kritéria českého poslechového testu.
+Offline testy neověřují vtipnost. Tento slice neprovádí migraci, nasazení
+ani placené volání a nemění fyzické řízení, API nebo limity.
+
+## D128: GPT-Live + Sol
+
+`POST /v1/conversations/{id}/gpt-live` otevírá testovací průběžný hlasový
+režim. Sdílí autentizaci, audio consent, Stop, snapshot a validaci návrhu
+s Realtime, ale používá samostatný provider Live protokol. PCM16/24 kHz
+se posílá na `/gpt-live/{streamId}/audio`; po finálním dohrání klient
+potvrdí `/played`. Rychlost je vždy 1×, hlasy Marin/Cedar/Coral.
+
+Frontend `gpt-live-1` deleguje odpovědi do Solu přes Responses SDK;
+frontend sám nesmí vydat fyzický návrh. Opening nemá starý archiv.
+Kontext dalších delegací dostává paměť a poslední výměny. Před rezervací
+se použije společný 3 USD/session limit. GPT-Live rezervuje celé 3 USD,
+po řádném `session.closed` přepočítá kumulativní délku (0,05 USD/min,
+po sekundách) a všechny Sol odpovědi. Při nejistém ukončení drží rezervaci;
+nejde o tvrzení o skutečně vyúčtované ceně. Sezení trvá nejvýše 180 s.
+Žádný retry placeného requestu; denní a měsíční limit se neuplatňuje.
+
+Pinned .NET SDK 2.14.0 Live API neposkytuje, proto `Features/GptLive`
+izoluje omezený WebSocket adaptér podle oficiálního schématu. Událost
+`pause` vzniká po 900 ms bez řeči ve výstupním PCM a slouží segmentaci
+přehrávání; není provider `audio.done`. Ukončení závěrečné repliky je
+heuristika určená k živému ověření. Výběr se zveřejní teprve po potvrzeném
+uzavření a finální usage. Oprava návštěvníka před uzavřením ruší závěr.
+
+[Rešerše, omezení a postup porovnání](../docs/hlas-a-humor-research.md#d128-testovaci-gpt-live-rezim).

@@ -33,7 +33,7 @@ internal sealed class TextDialogRunner : IDisposable
             }
 
             throw new InvalidOperationException(
-                "Responses mode requires an API key and all three positive usage caps.");
+                "Responses mode requires an API key and a positive session usage cap.");
         }
 
         httpClient = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false });

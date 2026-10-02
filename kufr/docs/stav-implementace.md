@@ -6,6 +6,96 @@ Poslední aktualizace: **2. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D128 – 2. 10. 2026 – GPT-Live + Sol v aplikaci/firmware, 3 USD/session.**
+Majitel navázal na D127 požadavkem na samostatně přepínatelný GPT-Live pro
+vlastní porovnání a společný limit 3 USD na každou session. Backend nyní
+má izolovaný Live WebSocket adaptér, Responses Sol delegace, omezené
+PCM/transkripty, rušení zastaralého výsledku, potvrzené uzavření a výpočet
+délka + Sol. Pinned .NET SDK 2.14.0 Live nemá; zdůvodněná výjimka je
+zapsaná v plánu/AGENTS. Wire schéma porovnáno s oficiální dokumentací a
+Python SDK 3.22.1. Neproběhl fine-tuning ani živá provider evaluace.
+
+Mobilní Debug nabízí GPT-Live + Sol a používá Apple voice processing pro
+současné přehrávání/snímání. Hlas kufru přepíná `mode:gpt-live` přes
+local control, ESP používá samostatné `/gpt-live` routy. Na ESP se během
+řeči posílá ticho, protože AEC není ověřené. Původní Realtime zůstává.
+Změna režimu vyžaduje neaktivní hovor. Autonomní návrh prochází původní
+bránou. Live nehlásí audio-done: 900ms výstupní pauza je heuristika,
+nikoli důkaz kompletně vyslovené repliky. Timeout je 180 s. Oprava před
+finalizací ruší závěr; pozdní upload se po session.close nepošle provideru.
+
+Backend i AI eval používají 3 USD/session, deployment přepisuje starý
+session secret hodnotou 3000000. Denní/měsíční nastavení se ignorují;
+auditní součty zůstávají. Party eval nemá výchozí souhrnný run cap,
+každý profil má vlastní 3 USD. Nadřazený limit zůstává v OpenAI.
+Při nejasném ukončení zůstává rezervace, nikoli tvrzení o skutečné útratě.
+
+Lokálně prošly kompletní backendové testy v .NET 10 (nově Live wire,
+delegace, čtyři otázky, finální usage, přerušení závěru, Stop a pozdní
+upload), 23 Python eval testů, 15 backendových Python testů a 3 deploy
+testy. Prošly kontrakty, 25 mobilních Node testů a TypeScript/Vite build.
+Host C++ hlasové testy ověřily oba endpointy, průběžný vstup, pause/drain,
+ACK, Stop a původní Realtime. Oba PlatformIO profily ESP-IDF a Arduino
+se sestavily. Nativní Swift fake peer byl rozšířen o GPT-Live; tento Linux
+nemá Swift/Xcode, takže nativní kompilace a běh čekají na ruční iOS build.
+Živá dostupnost GPT-Live pro účet, čeština, humor, ozvěna iPhone/ESP a
+časování závěru nebyly offline ověřeny. Není hotová HW akceptace.
+Finální kontrola doplnila spojování sousedních přepisových fragmentů
+a předávání skutečně vyslovených replik včetně první otázky do Solu;
+příslušný wire test ověřuje i dělení slova mezi dvěma událostmi.
+Tato kontrola je v commitu `ad01e11`, také ověřeně pushnutém. README
+kontraktů popisuje nové režimy i Live routy.
+
+Další krok: po CI a merge nasadit backend a vydat novou iOS aplikaci /
+flashnout odpovídající firmware v samostatně autorizovaném kroku; pak
+provést ruční porovnání podle [návodu](hlas-a-humor-research.md#d128-testovaci-gpt-live-rezim).
+V tomto slice nebyl spuštěn deploy, placený test, podpis IPA ani flash.
+Implementační commit `9df9888` je ověřeně pushnutý na
+`origin/fix/natural-openings-carlin-humor` (remote SHA shodné). Předepsaný
+PowerShell push skript byl spuštěn, ale není spustitelný a `pwsh` chybí;
+push provedl scoped gh credential helper pod ověřeným účtem Blato58.
+[PR #99](https://github.com/Blato58/DildoVander/pull/99) zahrnuje D127 i D128.
+Prošla také kontrola změněných Markdown odkazů, 29 CI provenance testů,
+syntax Node fake peeru a whitespace. Výsledek CI a merge musí odpovídat
+finálnímu head PR a je dohledatelný přímo v PR; nativní iOS/živý hlas tím
+nejsou ověřené.
+
+
+**D127 – 2. 10. 2026 – přirozený opening, CARLIN a rešerše hlasových agentů.**
+Majitel požádal o skutečně vtipnější AI, opravu předstíraného pokračování
+rozhovoru a stále stejné první otázky; prioritou je kvalita. Přečten článek
+Greg Robisona a oficiální dokumentace OpenAI (včetně GPT‑Live), ElevenAgents
+a LiveKit. [Rešerše](hlas-a-humor-research.md) obsahuje doporučení, omezení
+a plán slepého českého poslechu. Aktuální Realtime již je hlasový agent;
+GPT‑Live + Sol je doporučený kandidát srovnání, nikoli provedená migrace.
+
+`ConversationOpening.cs` střídá šest námětů v procesu backendu. Textový
+a Realtime opening neodesílají paměť ani historii novému neidentifikovanému
+hostovi; další tahy zachovávají dosavadní recall. Archiv se nemaže. Realtime
+námět drží po celý tah včetně přepočtu rezervace. `prompt.txt` odstranil
+povinné jméno, rozlišuje představení role od předchozí konverzace a adaptuje
+CARLIN (různé úhly, doložený detail, jedna krátká pointa). Příklady již
+nepředvádějí dvě otázky v rozporu s pravidlem. Python eval sdílí izolaci
+opening, nikoli procesovou rotaci C#. Plán a README byly synchronizovány.
+
+Lokálně prošel celý `dotnet run --project kufr/backend-tests/BackendTests.csproj
+--no-restore` v připraveném .NET 10 prostředí: včetně nových kontrol skutečného
+Realtime opening payloadu bez user zprávy, izolace textového opening, návratu
+paměti v dalším tahu, šesti různých námětů a stability při rezervaci. Prošlo
+22 Python offline eval testů, kontrola lokálních odkazů pěti dotčených
+dokumentů a `git diff --check`. Nebyl použit provider klíč
+ani spuštěn placený test, nasazení či změna firmware/telefonu. Kvalita
+humoru, českého hlasu a latence není offline testy potvrzená; další krok je
+živé slepé srovnání podle rešerše v explicitně stanoveném rozpočtu.
+Implementační commit `2aadd7fefb3a8c9e9c6b8e98715dfb3fc66af982` je ověřeně
+pushnutý na `origin/fix/natural-openings-carlin-humor` (remote SHA shodné).
+Předepsaný `./scripts/Push-CurrentBranch.ps1` byl spuštěn, ale není spustitelný
+(permission denied); PowerShell zde chybí. Push provedl scoped gh credential
+helper s ověřeným účtem Blato58. [PR #99](https://github.com/Blato58/DildoVander/pull/99)
+obsahuje zdroj i rešerši; CI pro aktuální head je podmínkou merge, nikoli
+důkazem živé kvality. Výsledek CI/merge je dohledatelný v PR.
+
+
 **D126 – 2. 10. 2026 – parametrický 3D tiskový prototyp mechaniky kufru.**
 Majitel požádal o modely krabiček, šesti přihrádek a nadzvednutí celé
 přihrádky včetně usazení vibrací a elektroniky. Upřesnil kufr

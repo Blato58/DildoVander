@@ -8,7 +8,12 @@ using OpenAI.Realtime;
 namespace Kufr.Backend.Features.Realtime;
 
 #pragma warning disable OPENAI002
-internal sealed class OpenAiRealtimeConnection : IAsyncDisposable
+internal interface IStreamingAudioInput
+{
+    Task SendAudioAsync(byte[] pcm, CancellationToken token);
+}
+
+internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAudioInput
 {
     private readonly WebSocket socket;
     private readonly BackendRealtimeSession session;
@@ -24,7 +29,7 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable
         events = session.ReceiveUpdatesAsync(token).GetAsyncEnumerator(token);
     }
 
-    internal Task SendAudioAsync(byte[] pcm, CancellationToken token) =>
+    public Task SendAudioAsync(byte[] pcm, CancellationToken token) =>
         session.SendInputAudioAsync(BinaryData.FromBytes(pcm), token);
     internal async Task<RealtimeReply> GenerateTurnAsync(
         RealtimeTurnContext turn,
@@ -65,7 +70,7 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable
         {
             throw new InvalidDataException("Realtime configuration was not accepted.");
         }
-        if (turn.EveningContext.Length != 0 || turn.History.Count != 0)
+        if (!turn.Request.Opening && (turn.EveningContext.Length != 0 || turn.History.Count != 0))
         {
             await session.AddItemAsync(
                 RealtimeItem.CreateUserMessageItem(RealtimeProtocol.ContextData(turn)),

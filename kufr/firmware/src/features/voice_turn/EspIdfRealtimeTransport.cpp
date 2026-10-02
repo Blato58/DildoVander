@@ -51,8 +51,9 @@ bool Open(Client& client, const std::string& url, const std::string& token, int 
 
 EspIdfRealtimeTransport::EspIdfRealtimeTransport(
     const std::string& host, const std::string& token, VoiceAudioPort& audio,
-    std::function<bool()> current, std::function<void(const char*)> phase)
+    std::function<bool()> current, std::function<void(const char*)> phase, bool gptLive)
     : token_(token), audio_(audio), current_(std::move(current)), phase_(std::move(phase)) {
+  gptLive_ = gptLive; endpoint_ = gptLive ? "gpt-live" : "realtime-live";
   if (NetworkSettings::IsValidBackendHost(host) && !token.empty() && token.size() <= 256 &&
       token.find_first_not_of("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=") == std::string::npos)
     root_ = "https://" + host;
@@ -61,7 +62,7 @@ EspIdfRealtimeTransport::~EspIdfRealtimeTransport() { Wipe(token_); }
 
 bool EspIdfRealtimeTransport::Current() const {
   return !stop_.load() && !failed_.load() && !audio_.Failed() && current_() &&
-      NowMs() - startedAtMs_ < 480000 && NowMs() - lastTurnAtMs_ < 80000;
+      NowMs() - startedAtMs_ < 480000 && NowMs() - lastTurnAtMs_ < (gptLive_ ? 190000 : 80000);
 }
 
 int EspIdfRealtimeTransport::Post(const std::string& path, const void* data, size_t size,
@@ -96,9 +97,9 @@ void EspIdfRealtimeTransport::Upload() {
     if (pcm.empty()) continue;
     std::lock_guard<std::mutex> lock(inputMutex_);
     if (uploading_.load() && inputEpoch_.load() == inputEpoch && Current()) {
-      const std::string path = "/v1/conversations/" + conversationId_ + "/realtime-live/" + streamId_ + "/audio";
+      const std::string path = "/v1/conversations/" + conversationId_ + "/" + endpoint_ + "/" + streamId_ + "/audio";
       inputBytes_ += pcm.size();
-      if (inputBytes_ > 1440000 || Post(path, pcm.data(), pcm.size(), "application/octet-stream", inputId_, sequence_++) != 204)
+      if (inputBytes_ > (gptLive_ ? 8640000u : 1440000u) || Post(path, pcm.data(), pcm.size(), "application/octet-stream", inputId_, sequence_++) != 204)
         failed_.store(true);
     }
     std::fill(pcm.begin(), pcm.end(), 0);
@@ -116,7 +117,7 @@ bool EspIdfRealtimeTransport::Run(const std::string& body, const std::string& ke
   startedAtMs_.store(NowMs());
   lastTurnAtMs_.store(NowMs());
   Client client;
-  const std::string url = root_ + "/v1/conversations/" + conversationId_ + "/realtime-live";
+  const std::string url = root_ + "/v1/conversations/" + conversationId_ + "/" + endpoint_;
   if (!Open(client, url, token_, 5000) ||
       esp_http_client_set_header(client.value, "Content-Type", "application/json") != ESP_OK ||
       esp_http_client_set_header(client.value, "Idempotency-Key", key.c_str()) != ESP_OK ||
@@ -184,7 +185,7 @@ bool EspIdfRealtimeTransport::Event(const RealtimeEvent& event,
   }
   if (!sessionSeen_) return false;
   if (event.type == "listening") {
-    if (terminal_ || !operationId_.empty() || uploading_.load()) return false;
+    if (terminal_ || (!gptLive_ && !operationId_.empty()) || uploading_.load()) return false;
     std::lock_guard<std::mutex> lock(inputMutex_);
     expected_.clientTurnId = event.inputId;
     inputId_ = event.inputId; sequence_ = 0; inputBytes_ = 0;
@@ -213,13 +214,21 @@ bool EspIdfRealtimeTransport::Event(const RealtimeEvent& event,
     const bool decoded = mbedtls_base64_decode(pcm.data(), pcm.size(), &size,
         reinterpret_cast<const unsigned char*>(event.delta.data()), event.delta.size()) == 0;
     audioBytes_ += size;
-    if (!decoded || !size || size % 2 || audioBytes_ > 1440000) {
+    if (!decoded || !size || size % 2 || audioBytes_ > (gptLive_ ? 9120000u : 1440000u)) {
       std::fill(pcm.begin(), pcm.end(), 0); return false;
     }
-    pcm.resize(size); phase_("speaking");
+    pcm.resize(size); segmentPlaying_ = true; phase_("speaking");
     const bool played = Current() && audio_.Play(pcm);
     std::fill(pcm.begin(), pcm.end(), 0);
     return played;
+  }
+  if (event.type == "pause") {
+    if (!gptLive_ || operationId_.empty()) return false;
+    if (segmentPlaying_) {
+      if (!audio_.Drain() || !Current()) return false;
+      segmentPlaying_ = false;
+    }
+    phase_("listening"); return true;
   }
   if (event.type == "completed") {
     if (operationId_.empty() || event.operationId != operationId_ || audioBytes_ == 0 || !Current()) return false;
@@ -228,9 +237,10 @@ bool EspIdfRealtimeTransport::Event(const RealtimeEvent& event,
     const auto decision = EvaluateTurnOperationWithProposal(operationId_, expected_, snapshot.generation,
         snapshot.deviceRevision, snapshot.catalogVersion, snapshot.readyMask, static_cast<uint64_t>(utc), event.operation);
     if (decision != TurnPollDecision::ReplyReady && decision != TurnPollDecision::ProposalReady) return false;
-    if (!audio_.Drain() || !Current() || !completed(event.operation)) return false;
+    if ((!gptLive_ || segmentPlaying_) && !audio_.Drain()) return false;
+    if (!Current() || !completed(event.operation)) return false;
     const std::string body = "{\"operationId\":\"" + operationId_ + "\"}";
-    const std::string path = "/v1/conversations/" + conversationId_ + "/realtime-live/" + streamId_ + "/played";
+    const std::string path = "/v1/conversations/" + conversationId_ + "/" + endpoint_ + "/" + streamId_ + "/played";
     if (Post(path, body.data(), body.size(), "application/json") != 204) return false;
     terminal_ = event.operation.decision != "ask" || turns_ == 10;
     operationId_.clear(); phase_(terminal_ ? "completed" : "thinking"); return true;

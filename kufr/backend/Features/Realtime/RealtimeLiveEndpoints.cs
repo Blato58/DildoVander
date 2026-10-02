@@ -15,6 +15,8 @@ internal static class RealtimeLiveEndpoints
         routes.MapPost("/v1/conversations/{id}/realtime-live", RunAsync);
         routes.MapPost("/v1/conversations/{id}/realtime-live/{streamId:guid}/audio", UploadAsync);
         routes.MapPost("/v1/conversations/{id}/realtime-live/{streamId:guid}/played", PlayedAsync);
+        routes.MapPost("/v1/conversations/{id}/gpt-live/{streamId:guid}/audio", UploadAsync);
+        routes.MapPost("/v1/conversations/{id}/gpt-live/{streamId:guid}/played", PlayedAsync);
         return routes;
     }
 

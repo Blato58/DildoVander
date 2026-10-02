@@ -584,6 +584,193 @@
         }
       }
     },
+    "/v1/conversations/{id}/gpt-live": {
+      "post": {
+        "operationId": "streamGptLiveConversation",
+        "summary": "GPT-Live + Sol continuous voice test",
+        "description": "Fresh session with gpt-live-1 client delegation to the existing Sol backend. Reserve 3 USD for the entire session before connecting; maximum 180 seconds. speed must be 1. Continuous input uses one inputId and sequence for the entire session, including while output plays. Events: session, started, listening, audio/visitor/pause/heartbeat, speech_stopped, completed, closed. pause is output PCM segmentation, not provider audio-done. completed follows validated final backend selection and session.closed with final cumulative duration usage. Caller confirms playback before closed. Stop/disconnect cancels all work. No replay; uncertain final usage retains reservation.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConversationId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GptLiveStart"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Continuous NDJSON GptLiveEvent; at most 20 MB, individual lines below 64 KiB.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Accel-Buffering": {
+                "schema": {
+                  "type": "string",
+                  "const": "no"
+                }
+              }
+            },
+            "content": {
+              "application/x-ndjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/GptLiveEvent"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem",
+            "description": "Includes realtime_unavailable and realtime_stream_not_replayable"
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/v1/conversations/{id}/gpt-live/{streamId}/audio": {
+      "post": {
+        "operationId": "appendGptLiveInput",
+        "summary": "Append one ordered microphone frame",
+        "description": "PCM16 mono 24 kHz, 2 to 9600 even bytes, at most 1440000 bytes per turn. Input-Sequence starts at zero. One upload in flight; never retry ambiguous delivery. Frames for the just-ended inputId are acknowledged and discarded. The stream, conversation and authenticated device must match.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConversationId"
+          },
+          {
+            "$ref": "#/components/parameters/RealtimeStreamId"
+          },
+          {
+            "name": "Input-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Input-Sequence",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary",
+                "minLength": 2,
+                "maxLength": 9600
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Frame accepted once or discarded after VAD stop"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/v1/conversations/{id}/gpt-live/{streamId}/played": {
+      "post": {
+        "operationId": "acknowledgeGptLivePlayback",
+        "summary": "Acknowledge actual completion of native audio playback",
+        "description": "A body of at most 512 bytes identifies the exact completed operation. Duplicate acknowledgements are harmless. The next listening event can arrive before this HTTP response, so clients must reset their input state before sending.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConversationId"
+          },
+          {
+            "$ref": "#/components/parameters/RealtimeStreamId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RealtimePlayback"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Playback acknowledged; next turn can be reserved"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/v1/conversations/{id}/realtime-live": {
       "post": {
         "operationId": "streamRealtimeConversation",
@@ -1391,6 +1578,87 @@
             "minimum": 0
           }
         }
+      },
+      "GptLiveStart": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "clientTurnId",
+          "bootId",
+          "generation",
+          "readyMask",
+          "deviceRevision",
+          "catalogVersion",
+          "opening",
+          "text",
+          "wav",
+          "voice",
+          "speed"
+        ],
+        "properties": {
+          "clientTurnId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bootId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "generation": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "readyMask": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 63
+          },
+          "deviceRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "catalogVersion": {
+            "const": "ollivander-private-party-v1"
+          },
+          "opening": {
+            "const": true
+          },
+          "text": {
+            "const": ""
+          },
+          "wav": {
+            "type": "null"
+          },
+          "voice": {
+            "enum": [
+              "cedar",
+              "marin",
+              "coral"
+            ]
+          },
+          "speed": {
+            "const": 1
+          }
+        }
+      },
+      "GptLiveEvent": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/RealtimeLiveEvent"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "pause"
+              }
+            }
+          }
+        ]
       },
       "RealtimeLiveStart": {
         "type": "object",

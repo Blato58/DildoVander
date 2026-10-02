@@ -5,32 +5,21 @@ namespace Kufr.Backend.Features.Usage;
 
 internal sealed record CostLimits(long SessionMicroUsd, long DailyMicroUsd, long MonthlyMicroUsd)
 {
-    public bool Enabled => SessionMicroUsd > 0 && DailyMicroUsd > 0 && MonthlyMicroUsd > 0;
+    public const long DefaultSessionMicroUsd = 3_000_000;
+    public bool Enabled => SessionMicroUsd > 0;
 
     public static CostLimits Read(IConfiguration configuration)
     {
-        var raw = new[]
-        {
-            configuration["Backend:Usage:SessionCapMicroUsd"],
-            configuration["Backend:Usage:DailyCapMicroUsd"],
-            configuration["Backend:Usage:MonthlyCapMicroUsd"]
-        };
-        if (raw.All(string.IsNullOrWhiteSpace))
-        {
-            return new CostLimits(0, 0, 0);
-        }
-
-        if (raw.Any(value => !long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed)
-            || parsed <= 0))
-        {
-            throw new InvalidOperationException("All positive backend usage caps must be configured together.");
-        }
-
-        return new CostLimits(
-            long.Parse(raw[0]!, CultureInfo.InvariantCulture),
-            long.Parse(raw[1]!, CultureInfo.InvariantCulture),
-            long.Parse(raw[2]!, CultureInfo.InvariantCulture));
+        var raw = configuration["Backend:Usage:SessionCapMicroUsd"];
+        if (string.IsNullOrWhiteSpace(raw)) return new(DefaultSessionMicroUsd, 0, 0);
+        if (!long.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out var cap)
+            || cap <= 0 || cap > DefaultSessionMicroUsd)
+            throw new InvalidOperationException("Session cap must be positive and at most 3 USD.");
+        // Daily/monthly totals remain auditable; the OpenAI project owns the
+        // global spending limit. Legacy period-cap settings are ignored.
+        return new(cap, 0, 0);
     }
+
 }
 
 internal static class CostReservations
@@ -62,17 +51,7 @@ internal static class CostReservations
             transaction,
             "SELECT charged_micro_usd FROM cost_session_usage WHERE conversation_id = $key",
             conversationId);
-        var dailyUsage = ReadUsage(connection, transaction, """
-            SELECT charged_micro_usd FROM cost_period_usage
-            WHERE period_kind = 'day' AND period_key = $key
-            """, day);
-        var monthlyUsage = ReadUsage(connection, transaction, """
-            SELECT charged_micro_usd FROM cost_period_usage
-            WHERE period_kind = 'month' AND period_key = $key
-            """, month);
-        if (Exceeds(sessionUsage, estimatedMicroUsd, limits.SessionMicroUsd)
-            || Exceeds(dailyUsage, estimatedMicroUsd, limits.DailyMicroUsd)
-            || Exceeds(monthlyUsage, estimatedMicroUsd, limits.MonthlyMicroUsd))
+        if (Exceeds(sessionUsage, estimatedMicroUsd, limits.SessionMicroUsd))
         {
             return false;
         }

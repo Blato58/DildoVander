@@ -47,7 +47,7 @@ interface DebugBridge {
   runOpeningSpeech(options: { expectedMode: 'fake' | 'openai' }): Promise<void>;
   startConversation(options: {
     expectedMode: 'fake' | 'openai'; readyMask: number;
-    voice: 'cedar' | 'marin' | 'onyx' | 'coral'; speed: number; engine: 'realtime' | 'realtime-ptt' | 'chained';
+    voice: 'cedar' | 'marin' | 'onyx' | 'coral'; speed: number; engine: 'realtime' | 'gpt-live' | 'realtime-ptt' | 'chained';
   }): Promise<void>;
   answerConversation(options: { text: string }): Promise<void>;
   startRecording(): Promise<void>;
@@ -167,6 +167,7 @@ export class DebugPanel {
         <div class="debug-conversation-options">
           <label>Tok <select data-conversation-engine aria-label="Tok AI rozhovoru">
             <option value="realtime" selected>Realtime · bez tlačítek</option>
+            <option value="gpt-live">GPT-Live + Sol · test kvality</option>
             <option value="realtime-ptt">Realtime · ruční nahrávání</option>
             <option value="chained">Řetězený · kompatibilní</option></select></label>
           <label>Hlas <select data-conversation-voice aria-label="Hlas zkušebního rozhovoru">
@@ -192,8 +193,8 @@ export class DebugPanel {
           <button type="button" data-debug="conversation-record">Začít nahrávat odpověď</button>
         </div>
         </div>
-        <p class="footnote">V Realtime stačí spustit rozhovor a povolit mikrofon. Mluvte, když aplikace poslouchá;
-          konec odpovědi pozná automaticky a po replice kufru sama pokračuje v poslechu.
+        <p class="footnote">V Realtime a GPT-Live stačí spustit rozhovor a povolit mikrofon. Realtime poslouchá mezi replikami;
+          GPT-Live poslouchá i během odpovědi. Limit je 3 USD na rozhovor.
           Zastavit jej můžete kdykoli. Hlas se průběžně posílá serveru a přepis může zůstat v paměti vybraného večera.</p>
         <p data-conversation-selection></p>
         <p data-conversation-timings class="footnote"></p>
@@ -524,11 +525,14 @@ export class DebugPanel {
     this.element.querySelector<HTMLSelectElement>('[data-conversation-speed]')!.disabled = busy || session;
     const engine = this.element.querySelector<HTMLSelectElement>('[data-conversation-engine]')!;
     engine.disabled = busy || session;
+    const speedSelect = this.element.querySelector<HTMLSelectElement>('[data-conversation-speed]')!;
+    speedSelect.disabled = busy || session || engine.value === 'gpt-live';
+    if (engine.value === 'gpt-live') speedSelect.value = '1';
     const conversationVoice = this.element.querySelector<HTMLSelectElement>('[data-conversation-voice]')!;
     const onyx = conversationVoice.querySelector<HTMLOptionElement>('option[value="onyx"]')!;
     onyx.disabled = engine.value !== 'chained';
     this.element.querySelector<HTMLElement>('[data-answer-controls]')!.hidden = this.voice.handsFree === true
-      || engine.value === 'realtime' && server?.dialogMode === 'responses';
+      || ['realtime', 'gpt-live'].includes(engine.value) && server?.dialogMode === 'responses';
     if (onyx.disabled && conversationVoice.value === 'onyx') { conversationVoice.value = 'cedar'; }
     const awaiting = session && this.voice.configured && !busy
       && !this.voice.recording && this.voice.phase === 'awaiting';
@@ -649,7 +653,7 @@ export class DebugPanel {
         const voice = this.element.querySelector<HTMLSelectElement>('[data-conversation-voice]')!.value as
           'cedar' | 'marin' | 'onyx' | 'coral';
         const speed = Number(this.element.querySelector<HTMLSelectElement>('[data-conversation-speed]')!.value);
-        const engine = this.element.querySelector<HTMLSelectElement>('[data-conversation-engine]')!.value as 'realtime' | 'realtime-ptt' | 'chained';
+        const engine = this.element.querySelector<HTMLSelectElement>('[data-conversation-engine]')!.value as 'realtime' | 'gpt-live' | 'realtime-ptt' | 'chained';
         await bridge.startConversation({
           expectedMode: action === 'conversation-ai' ? 'openai' : 'fake',
           readyMask, voice, speed, engine: action === 'conversation-ai' ? engine : 'chained',
