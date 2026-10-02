@@ -11,7 +11,7 @@ class EspIdfRealtimeTransport final {
   EspIdfRealtimeTransport(const std::string& host, const std::string& token,
                           VoiceAudioPort& audio,
                           std::function<bool()> current,
-                          std::function<void(const char*)> phase);
+                          std::function<void(const char*)> phase, bool gptLive = false);
   ~EspIdfRealtimeTransport();
   bool Run(const std::string& body, const std::string& key,
            const TurnCorrelation& opening,
@@ -27,6 +27,8 @@ class EspIdfRealtimeTransport final {
   int Post(const std::string& path, const void* data, size_t size,
            const char* contentType, const std::string& inputId = "", unsigned sequence = 0);
   bool Current() const;
+  bool gptLive_ = false, segmentPlaying_ = false;
+  std::string endpoint_ = "realtime-live";
   std::string root_, token_, conversationId_, streamId_, inputId_, operationId_, error_;
   VoiceAudioPort& audio_;
   std::function<bool()> current_;

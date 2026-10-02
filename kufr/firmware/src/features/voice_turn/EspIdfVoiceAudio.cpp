@@ -97,7 +97,7 @@ bool EspIdfVoiceAudio::Play(const std::vector<uint8_t>& pcm) {
   const bool active = active_.load();
   const uint32_t epoch = epoch_.load();
   const bool first = active && !playing_.exchange(true);
-  listening_.store(false);
+  if (!continuous_.load()) listening_.store(false);
   portEXIT_CRITICAL(&muteGate_);
   if (!active) return false;
   if (first) outputRate_.Reset();
@@ -174,6 +174,9 @@ void EspIdfVoiceAudio::Capture() {
       frame.pcm[i * 2] = static_cast<uint8_t>(samples[i]);
       frame.pcm[i * 2 + 1] = static_cast<uint8_t>(static_cast<uint16_t>(samples[i]) >> 8);
     }
+    // ESP hardware has no verified AEC: keep the Live timeline moving with
+    // silence while its speaker plays. Phone GPT-Live uses voice processing.
+    if (continuous_.load() && playing_.load()) std::memset(frame.pcm, 0, frame.bytes);
     if (xQueueSend(input_, &frame, 0) != pdTRUE) { failed_.store(true); Stop(); }
     std::memset(&frame, 0, sizeof(frame));
     std::fill(samples.begin(), samples.end(), 0);

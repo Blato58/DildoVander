@@ -32,6 +32,7 @@ struct NativeHandsFreeTests {
         let (data, _) = try await URLSession.shared.data(from: baseURL.appendingPathComponent("test/metrics"))
         let metrics = try JSONSerialization.jsonObject(with: data) as! [String: Int]
         assert(metrics["played"] == 3 && metrics["uploads"] == 2 && metrics["cleanup"] == 1)
+        try await testGptLive(client: client, profile: profile)
         try testMicrophoneConversion()
         testAudioRouteChanges()
         for (path, expectedCode) in [
@@ -46,6 +47,29 @@ struct NativeHandsFreeTests {
         assert(DebugHandsFreeSession.failureCode(for: URLError(.serverCertificateUntrusted)) == "realtime_live_tls_failed")
         print("Hands-free native multi-turn, VAD gate, early acknowledgement and cleanup passed.")
         print("Hands-free audio startup, route changes, 48kHz conversion and early HTTP failures passed.")
+    }
+
+    @MainActor static func testGptLive(client: DebugBackendClient, profile: DebugBackendProfile) async throws {
+        var gate = false
+        var audioBlocks = 0
+        var session: DebugHandsFreeSession!
+        session = DebugHandsFreeSession(client: client, profile: profile, token: "access",
+            conversation: "00000000-0000-4000-8000-000000000002", boot: "00000000-0000-4000-8000-000000000001",
+            readyMask: 63, voice: "cedar", speed: 1, gptLive: true,
+            phase: { _ in }, visitor: { _ in }, reply: { reply in
+                assert(reply.terminal && reply.text == "Live závěr")
+                Task { try? await session.played(operationId: reply.operationId) }
+            }, audio: { _ in
+                assert(gate) // Live playback must preserve continuous microphone capture.
+                audioBlocks += 1
+            }, listening: { input in
+                Task { try? await session.upload(inputId: input, sequence: 0, pcm: Data([0, 0, 1, 0])) }
+            }, inputGate: { gate = $0 }, failure: { fatalError("Unexpected Live failure: \($0)") })
+        let timeout = Task { try await Task.sleep(nanoseconds: 10_000_000_000); fatalError("Live timeout") }
+        try await session.run()
+        timeout.cancel()
+        try await session.close()
+        assert(audioBlocks == 2 && !gate)
     }
 
     static func testAudioRouteChanges() {

@@ -5,6 +5,29 @@ from evaluate_party import Meter, read_visitor
 
 
 class PartyTests(unittest.TestCase):
+    def test_opening_does_not_treat_archive_as_visitor(self):
+        history = [{"VisitorText": "Old guest", "Reply": "Old reply"}]
+        case = {"readyMask": 63, "visitorText": ""}
+        opening = build_request(case, "gpt-6.1-sol", history, "Private archive", opening=True)
+        self.assertNotIn("Private archive", opening["input"])
+        self.assertNotIn("Old guest", opening["input"])
+        self.assertIn("NOVÝ ROZHOVOR", opening["input"])
+        follow_up = build_request({**case, "visitorText": "Jsem Petr"},
+                                  "gpt-6.1-sol", history, "Private archive")
+        self.assertIn("Private archive", follow_up["input"])
+        self.assertIn("Old guest", follow_up["input"])
+
+    def test_default_budget_is_three_usd_per_session_only(self):
+        calls = []
+        meter = Meter("fake", send=lambda *args: calls.append(args))
+        self.assertIsNone(meter.limit)
+        self.assertEqual(3_000_000, meter.session_limit)
+        meter.session_estimated_micro_usd = 3_000_000
+        request = build_request({"readyMask": 63, "visitorText": "Petr"}, "gpt-6.1-sol")
+        with self.assertRaisesRegex(RuntimeError, "cap"):
+            meter.invoke(request, "gpt-6.1-sol", "test")
+        self.assertEqual([], calls)
+
     def test_rejected_reservation_never_calls_provider(self):
         calls = []
         meter = Meter("fake", limit=1, send=lambda *args: calls.append(args))

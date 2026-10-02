@@ -11,6 +11,7 @@
 class EspIdfVoiceAudio final : public VoiceAudioPort {
  public:
   bool Initialize(bool nvsInitialized);
+  void Continuous(bool enabled) { continuous_.store(enabled); }
   void Begin() override;
   bool Available() const override { return available_; }
   void Listen(bool enabled) override;
@@ -25,6 +26,7 @@ class EspIdfVoiceAudio final : public VoiceAudioPort {
   struct Frame { uint32_t epoch; uint16_t bytes; uint8_t pcm[960]; };
   i2s_chan_handle_t tx_ = nullptr, rx_ = nullptr;
   QueueHandle_t input_ = nullptr;
+  std::atomic<bool> continuous_{false};
   std::atomic<bool> active_{false}, listening_{false}, failed_{false}, playing_{false};
   std::atomic<uint32_t> epoch_{0};
   bool available_ = false;

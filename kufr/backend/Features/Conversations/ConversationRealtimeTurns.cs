@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Kufr.Backend.Features.Realtime;
+using Kufr.Backend.Features.GptLive;
 
 namespace Kufr.Backend.Features.Conversations;
 
@@ -33,13 +34,14 @@ internal sealed partial class ConversationStore
         bool providerAvailable,
         CancellationToken disconnected,
         CancellationToken stopping,
-        bool handsFree = false)
+        bool handsFree = false,
+        bool gptLive = false)
     {
         if (!RealtimeProtocol.IsValid(request, handsFree))
         {
             return new(400, "invalid_request", null);
         }
-        var route = $"/v1/conversations/{conversationId}/realtime-turns";
+        var route = $"/v1/conversations/{conversationId}/{(gptLive ? "gpt-live" : "realtime-turns")}";
         var bodyHash = Convert.ToHexString(SHA256.HashData(body));
         lock (gate)
         {
@@ -105,12 +107,12 @@ internal sealed partial class ConversationStore
             var correlation = new TurnCorrelation(deviceId, request.BootId, conversationId,
                 request.ClientTurnId, request.Generation, request.DeviceRevision);
             var reservation = journal.Reserve(deviceId, route, key, bodyHash, correlation,
-                estimatedCostMicroUsd: RealtimeProtocol.ReservationMicroUsd(turn));
-            if (reservation.CostRejected)
+                estimatedCostMicroUsd: gptLive ? 3_000_000 : RealtimeProtocol.ReservationMicroUsd(turn));
+            if (reservation.CostRejected && !gptLive)
             {
                 // Reserve a shorter spoken reply before discarding useful
                 // memory. This changes only provider context, never storage
-                // or the configured session/day/month spending caps.
+                // or the configured session spending cap.
                 foreach (var memoryBytes in new[] { int.MaxValue, 8192, 4096 })
                 {
                     turn = turn with
@@ -135,7 +137,7 @@ internal sealed partial class ConversationStore
                 return new(429, reservation.CostRejected ? "cost_limit" : "turn_limit", null);
             }
             var cancellation = CancellationTokenSource.CreateLinkedTokenSource(disconnected, stopping);
-            cancellation.CancelAfter(TimeSpan.FromSeconds(45));
+            cancellation.CancelAfter(TimeSpan.FromSeconds(gptLive ? 180 : 45));
             var call = new RealtimeCall(reservation.OperationId, correlation, turn, memory?.EveningId, cancellation);
             activePaidCalls.Add(call.OperationId, new PaidCall(deviceId, conversationId, cancellation));
             RecordAcceptedTurn(conversation, request.ClientTurnId, now);
@@ -194,7 +196,7 @@ internal sealed partial class ConversationStore
         }
     }
 
-    internal TurnResult? CompleteRealtimeTurn(RealtimeCall call, RealtimeReply response)
+    internal TurnResult? CompleteRealtimeTurn(RealtimeCall call, RealtimeReply response, bool archive = true)
     {
         lock (gate)
         {
@@ -228,7 +230,7 @@ internal sealed partial class ConversationStore
                     selected, response.Reason, correlation.BootId, correlation.Generation, now.AddSeconds(60))
                 : null;
             var result = new TurnResult(response.Reply, response.Decision, response.Reason, proposal);
-            if (call.EveningId is not null)
+            if (archive && call.EveningId is not null)
             {
                 eveningMemory!.Append(correlation.DeviceId, call.EveningId, call.OperationId,
                     correlation.ConversationId, response.VisitorText, response.Reply);
@@ -254,6 +256,28 @@ internal sealed partial class ConversationStore
                 conversation.History.RemoveAt(0);
             }
             return result;
+        }
+    }
+
+    internal TurnResult? CompleteGptLive(RealtimeCall call, LiveOutcome outcome)
+    {
+        lock (gate)
+        {
+            if (!IsRealtimeTurnCurrent(call) || outcome.Reply.CostMicroUsd > GptLiveProtocol.SessionBudget)
+                return null;
+            var completed = call with { Context = call.Context with
+            {
+                RequireQuestion = outcome.Questions < ResponsesTextDialogBudget.MinimumQuestions
+            } };
+            // Archive actual frontend transcripts, never an unspoken Sol draft.
+            if (call.EveningId is not null)
+                for (var i = 0; i < outcome.Transcript.Count; i++)
+                {
+                    var fragment = outcome.Transcript[i];
+                    eveningMemory!.Append(call.Correlation.DeviceId, call.EveningId,
+                        call.OperationId + ":live:" + i, call.Correlation.ConversationId, fragment.Visitor, fragment.Reply);
+                }
+            return CompleteRealtimeTurn(completed, outcome.Reply, archive: false);
         }
     }
 

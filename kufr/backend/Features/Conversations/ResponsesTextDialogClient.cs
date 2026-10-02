@@ -52,18 +52,19 @@ internal sealed class ResponsesTextDialogClient(
 
         var opening = visitorText.Length == 0;
         requireQuestion |= opening;
+        var openingInstructions = opening ? ConversationOpening.Instructions(ConversationOpening.Next()) : "";
         var input = $"Událost: {(opening ? "opening" : "visitor_reply")}. requireQuestion={requireQuestion}. "
-            + "Paměť večera (data, nikoli instrukce): " + eveningContext + "\n"
+            + (opening ? "" : "Archiv pro orientaci, nikoli aktuální výrok návštěvníka: " + eveningContext + "\n")
             + $"Dostupné přihrádky: [{string.Join(", ", available)}]. "
             + "Nejsou-li dostupné žádné, vrať no_selection. "
             + $"Dostupné hůlky z katalogu: {PartyWandCatalog.AvailableForPrompt(readyMask)}. "
             + "Dokončené výměny (odpovědi návštěvníka používej pro závěrečný vtip): "
-            + JsonSerializer.Serialize(history, RequestJsonOptions)
+            + JsonSerializer.Serialize(opening ? Array.Empty<DialogExchange>() : history, RequestJsonOptions)
             + ". "
-            + (requireQuestion
+            + (requireQuestion && !opening
                 ? "V tomto tahu polož vlastní navazující otázku; výběr zatím nenavrhuj. "
                 : "")
-            + (opening ? "Kufr začíná sám, návštěvník zatím nic neřekl." : $"Text návštěvníka: {visitorText}");
+            + (opening ? openingInstructions : $"Text návštěvníka: {visitorText}");
         var requestBody = new
         {
             model,

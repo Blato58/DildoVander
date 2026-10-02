@@ -34,10 +34,8 @@ Neplatný, odmítnutý či neúplný výsledek končí bezpečnou chybou. Kvalit
 
 1. Založ samostatný projekt například kufr-dev a projektový API klíč.
    Vytvářet Agent Builder agenta pro tento úzký dialog není potřeba.
-2. V projektu otevři Limits → Spend → Edit spend limit, nastav měsíční
-   limit **10 USD** a zapni **Enforce a hard limit**. Upozornění můžeš
-   nastavit například na 8 USD. Hard limit se neprosazuje okamžitě, takže
-   může být mírně překročen.
+2. Celkový rozpočet nastav přímo v OpenAI projektu. D128 používá místně
+   3 USD/session a neurčuje další denní ani měsíční strop.
 3. API klíč vlož do GitHub repozitáře
    Blato58/DildoVander → Settings → Environments → backend-production →
    Environment secrets pod názvem OPENAI_API_KEY. Neposílej jej do chatu
@@ -73,9 +71,10 @@ testuje Sol na stejných třech fiktivních osobnostech. Návštěvník
 simulovaný modelem Sol odpovídá na **skutečnou poslední otázku**, místo
 předem napsané repliky bez souvislosti. Každý dialog má nejvýše osm replik
 kufru; hned končí návrhem/no_selection. Další placené volání se předem
-rezervuje; všechny návštěvnické i kufrové modely sdílí celkový strop 1 USD,
-každý rozhovor nejvýše dosavadních 0,50 USD. Vstup `party_models=selected` použije jen vybraný model; `party_budget_micro_usd`
-snižuje strop na zbývající schválený rozpočet mezi iteracemi.
+rezervuje; všechny návštěvnické i kufrové modely sdílí limit 3 USD pro
+jednotlivý rozhovor. Další profil dostává vlastní session rozpočet.
+Vstup `party_models=selected` použije jen vybraný model. CLI volba
+`--budget-micro-usd` může výslovně omezit celý běh, ve workflow se nepoužívá.
 Síťový výpadek se neopakuje
 ani nepovažuje za bezplatný. Ruční běh je placený; běžné PR CI pouze offline.
 
@@ -97,7 +96,7 @@ může produkovat umělou řeč, takže finální akceptace patří skutečné o
   Compaction je alternativa pro dlouhý provider kontext, nikoli náhrada
   archivu s mazáním a pravidly přiřazení lidí. V tomto slice se nevolá.
 - Klíč pouze v serverovém/GitHub secret store, samostatný projekt s potvrzeným
-  hard limitem. Zachovat 10 USD/měsíc, aplikační rezervace a měření latence.
+  hlavním limitem. Zachovat 3 USD/session, rezervace a měření latence.
 - Prompt a výběr kontextu nejsou trénování modelu. Fine-tuning, agentní
   framework ani vector store nemají bez měřeného přínosu smysl přidávat.
 
@@ -112,11 +111,10 @@ neukládá do projektu. Při časovém limitu se POST neopakuje automaticky,
 protože už mohl být účtován.
 
 Skript před voláním používá konzervativní odhad maximální ceny jednoho
-tahu a odmítne odhad nad 0,50 USD. Skutečné tokeny a horní ceníkový odhad
+tahu a odmítne odhad nad 3 USD. Skutečné tokeny a horní ceníkový odhad
 zapíše do výsledku. Tato ochrana není průběžný měsíční účet ani přesná
-faktura; celý účet chrání projektový hard spend limit. Backendové
-SESSION_CAP_MICRO_USD=500000 a MONTHLY_CAP_MICRO_USD=10000000 jsou
-samostatné limity pro pozdější E8 integraci.
+faktura; celý účet chrání projektový hard spend limit. Backend i eval používají `SESSION_CAP_MICRO_USD=3000000`; staré
+denní/měsíční konfigurace už backend nevynucuje.
 
 [Živé syntetické přepisy a pozorování z 30. 9.](reports/2026-09-30-party-dialogue.md)
 
@@ -133,3 +131,11 @@ validaci. Staré reporty s Astrou jsou historické, nové běhy ji nepovolují.
 cleanup a skutečný návrh přehrávaný hostitelským firmwarem:
 [ověřovací report](reports/2026-09-30-live-backend-dialogue.md).
 Po tomto testu je jediným povoleným dialogovým modelem Sol.
+
+D127 odstraňuje povinný dotaz na jméno a v opening vynechává archiv/historii.
+Prompt přebírá principy CARLIN; nejde o fine-tuning ani doložené zlepšení
+humoru bez živého poslechu. Python eval nemodeluje procesovou rotaci šesti
+serverových námětů v C#; její transport a stabilitu ověřují backend testy.
+[Rešerše a plán hodnocení](../docs/hlas-a-humor-research.md) popisují porovnání
+Realtime/GPT‑Live, slepý poslech a scénáře nových rozhovorů. Starší fixtures
+s odpovědí „Petr“ po každém opening nejsou důkaz adaptivní kvality.

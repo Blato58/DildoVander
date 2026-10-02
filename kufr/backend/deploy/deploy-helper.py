@@ -58,15 +58,10 @@ def make_environment(payload):
     if api_key:
         lines.append(f"OPENAI_API_KEY={api_key}")
 
-    cap_names = ("session", "daily", "monthly")
-    if any(caps.get(name, "") for name in cap_names):
-        if not all(caps.get(name, "") for name in cap_names):
-            raise ValueError("All three cost caps are required together")
-        for name in cap_names:
-            value = caps[name]
-            if not isinstance(value, str) or not re.fullmatch(r"[1-9][0-9]{0,11}", value):
-                raise ValueError(f"Invalid {name} cost cap")
-            lines.append(f"Backend__Usage__{name.capitalize()}CapMicroUsd={value}")
+    value = caps.get("session") or "3000000"
+    if not isinstance(value, str) or not re.fullmatch(r"[1-9][0-9]{0,6}", value) or int(value) > 3_000_000:
+        raise ValueError("Invalid session cost cap")
+    lines.append(f"Backend__Usage__SessionCapMicroUsd={value}")
     return ("\n".join(lines) + "\n").encode("ascii")
 
 

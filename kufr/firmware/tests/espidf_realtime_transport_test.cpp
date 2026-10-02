@@ -24,7 +24,7 @@ const std::string Operation = "3d6104de-98c6-40b5-b10d-4f5675a63c51";
 std::string stream;
 std::atomic<int> uploads{0}, played{0}, drains{0};
 std::atomic<bool> listening{false};
-bool wrongMime = false, rejectAck = false, delayedInput = false;
+bool wrongMime = false, rejectAck = false, delayedInput = false, gptLive = false;
 std::atomic<bool> heldInput{false}, releaseInput{false};
 std::atomic<unsigned> inputCalls{0}, listenStarts{0};
 class Audio : public VoiceAudioPort {
@@ -43,7 +43,7 @@ class Audio : public VoiceAudioPort {
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
     pcm.assign(listening.load() ? 960 : 0, 0); return true;
   }
-  bool Play(const std::vector<uint8_t>& pcm) override { assert(!listening.load()); assert(pcm.size() == 6); ++blocks; return true; }
+  bool Play(const std::vector<uint8_t>& pcm) override { assert(gptLive || !listening.load()); assert(pcm.size() == 6); ++blocks; return true; }
   bool Drain() override { ++drains; return true; }
   void Stop() override { listening.store(false); }
   bool Failed() const override { return false; }
@@ -67,7 +67,7 @@ std::string Input(const std::string& turn) {
       "{\"type\":\"speech_stopped\",\"inputId\":\"" + turn + "\"}\n";
 }
 void Reset() {
-  uploads = played = drains = 0; wrongMime = rejectAck = delayedInput = false; listening = false;
+  uploads = played = drains = 0; wrongMime = rejectAck = delayedInput = gptLive = false; listening = false;
   heldInput = releaseInput = false; inputCalls = listenStarts = 0;
 }
 }
@@ -80,7 +80,9 @@ esp_http_client_handle_t esp_http_client_init(const esp_http_client_config_t* co
   assert(config->crt_bundle_attach != nullptr);
   auto* client = new SpeechStubClient;
   client->config = *config; client->url = config->url;
-  client->live = client->url.size() >= 13 && client->url.substr(client->url.size() - 13) == "realtime-live";
+  const std::string endpoint = gptLive ? "gpt-live" : "realtime-live";
+  assert(client->url.find("/" + endpoint) != std::string::npos);
+  client->live = client->url.size() >= endpoint.size() && client->url.substr(client->url.size() - endpoint.size()) == endpoint;
   return client;
 }
 esp_err_t esp_http_client_set_header(esp_http_client_handle_t client, const char* key, const char* value) { client->headers[key] = value; return ESP_OK; }
@@ -155,6 +157,20 @@ int main() {
   EspIdfRealtimeTransport boundary("example.test", "testtoken", delayedAudio, [] { return true; }, [](const char*) {});
   assert(boundary.Run("{}", Boot, opening, snapshot, [](const TurnOperationObservation&) { return true; }));
   assert(heldInput && releaseInput && played == 3 && uploads >= 2);
+  Reset(); gptLive = true;
+  const std::string liveReply = Reply(Turn, true);
+  const auto audioStart = liveReply.find("{\"type\":\"audio\"");
+  const auto completionStart = liveReply.find("{\"type\":\"completed\"");
+  stream = session + liveReply.substr(0, audioStart) +
+      "{\"type\":\"listening\",\"inputId\":\"" + Turn + "\"}\n" +
+      liveReply.substr(audioStart, completionStart - audioStart) +
+      "{\"type\":\"pause\"}\n" +
+      "{\"type\":\"speech_stopped\",\"inputId\":\"" + Turn + "\"}\n" +
+      liveReply.substr(completionStart) + "{\"type\":\"closed\",\"reason\":\"conversation_terminal\"}\n";
+  Audio liveAudio;
+  EspIdfRealtimeTransport live("example.test", "testtoken", liveAudio, [] { return true; }, [](const char*) {}, true);
+  assert(live.Run("{}", Boot, opening, snapshot, [](const TurnOperationObservation&) { return true; }));
+  assert(played == 1 && drains == 1 && liveAudio.blocks == 1 && !listening);
   for (int scenario = 0; scenario < 4; ++scenario) {
     Reset(); Audio failingAudio;
     stream = session + Reply(Turn, true) + "{\"type\":\"closed\",\"reason\":\"conversation_terminal\"}\n";

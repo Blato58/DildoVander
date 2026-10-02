@@ -46,3 +46,19 @@ test('manual/recovery/unavailable and cost limit stay visible without enabling s
   assert.equal(client.configure('off', 'onyx'), false);
   client.invalidate();
 });
+
+test('GPT-Live requires firmware acknowledgment and cannot switch an active session', () => {
+  const sent = [];
+  const client = new LocalVoiceClient(m => { sent.push(m); return true; }, () => {}, () => {});
+  client.update(context);
+  assert.equal(client.configure('gpt-live', 'marin'), true);
+  assert.equal(sent[0].mode, 'gpt-live');
+  assert.equal(client.state().canStart, false);
+  client.receive({ type: 'voice.ack', bootId: context.bootId, requestMessageId: sent[0].messageId,
+    accepted: true, voice: { ...settings, mode: 'gpt-live' } });
+  assert.equal(client.state().canStart, true);
+  client.update({ ...context, voice: { ...settings, mode: 'gpt-live', phase: 'listening' } });
+  assert.equal(client.configure('realtime', 'cedar'), false);
+  assert.equal(client.state().canStop, true);
+  client.invalidate();
+});

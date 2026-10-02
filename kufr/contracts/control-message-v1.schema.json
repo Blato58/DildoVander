@@ -59,7 +59,8 @@
         "mode": {
           "enum": [
             "off",
-            "realtime"
+            "realtime",
+            "gpt-live"
           ]
         },
         "voice": {
@@ -148,7 +149,8 @@
         "mode": {
           "enum": [
             "off",
-            "realtime"
+            "realtime",
+            "gpt-live"
           ]
         },
         "voice": {

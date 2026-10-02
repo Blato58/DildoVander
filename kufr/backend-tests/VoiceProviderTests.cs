@@ -77,14 +77,15 @@ internal static class VoiceProviderTests
         configuration["Backend:Voice:Mode"] = "openai";
         Reject<InvalidOperationException>(() => new VoiceProviderRunner(configuration, new Lifetime()));
         configuration["OPENAI_API_KEY"] = "test-only";
-        Reject<InvalidOperationException>(() => new VoiceProviderRunner(configuration, new Lifetime()));
+        using var defaultBudget = new VoiceProviderRunner(configuration, new Lifetime());
+        Require(defaultBudget.Enabled, "provider key uses the approved default 3 USD session cap");
         foreach (var cap in new[] { "Session", "Daily", "Monthly" })
         {
             configuration[$"Backend:Usage:{cap}CapMicroUsd"] = "1000000";
         }
 
         using var real = new VoiceProviderRunner(configuration, new Lifetime());
-        Require(real.Enabled, "explicit audio mode requires key and all caps");
+        Require(real.Enabled, "explicit audio mode requires key and a session cap");
         configuration["Backend:Voice:Mode"] = "realtime";
         Reject<InvalidOperationException>(() => new VoiceProviderRunner(configuration, new Lifetime()));
     }

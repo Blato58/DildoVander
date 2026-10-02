@@ -8,7 +8,7 @@ from pathlib import Path
 
 from evaluate import MODEL_PRICES, MINIMUM_QUESTIONS, build_request, call_openai, parse_response, upper_bound_micro_usd, estimate_usage_micro_usd
 
-MAX_RUN_MICRO_USD = 1_000_000
+MAX_SESSION_MICRO_USD = 3_000_000
 VISITOR_MODEL = "gpt-6.1-sol"
 PERSONAS = [
     {
@@ -44,10 +44,10 @@ PERSONAS = [
 
 
 class Meter:
-    def __init__(self, api_key, limit=MAX_RUN_MICRO_USD, session_limit=500_000, send=call_openai):
+    def __init__(self, api_key, limit=None, session_limit=3_000_000, send=call_openai):
         self.api_key = api_key
-        self.limit = min(limit, MAX_RUN_MICRO_USD)
-        self.session_limit = min(session_limit, 500_000)
+        self.limit = limit
+        self.session_limit = min(session_limit, 3_000_000)
         self.estimated_micro_usd = 0
         self.session_estimated_micro_usd = 0
         self.send = send
@@ -55,7 +55,7 @@ class Meter:
 
     def invoke(self, request, model, purpose, validate=None):
         reservation = upper_bound_micro_usd(request, model)
-        if (self.estimated_micro_usd + reservation > self.limit
+        if (self.limit is not None and self.estimated_micro_usd + reservation > self.limit
                 or self.session_estimated_micro_usd + reservation > self.session_limit):
             raise RuntimeError("Conservative reservation would exceed the approved run/session cap")
         # Retain the reservation on network/parse failure; never retry a POST.
@@ -150,15 +150,15 @@ def run_dialogue(meter, model, persona):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--models", nargs="+", choices=MODEL_PRICES, default=["gpt-6.1-sol"])
-    parser.add_argument("--budget-micro-usd", type=int, default=MAX_RUN_MICRO_USD)
+    parser.add_argument("--budget-micro-usd", type=int, default=None)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     key = os.environ.get("OPENAI_API_KEY")
     if not key:
         raise ValueError("OPENAI_API_KEY is missing")
-    if not 0 < args.budget_micro_usd <= MAX_RUN_MICRO_USD:
-        raise ValueError("Run budget must be positive and no more than 1 USD")
-    meter = Meter(key, limit=args.budget_micro_usd, session_limit=int(os.environ.get("SESSION_CAP_MICRO_USD") or 500_000))
+    if args.budget_micro_usd is not None and args.budget_micro_usd <= 0:
+        raise ValueError("Optional run budget must be positive")
+    meter = Meter(key, limit=args.budget_micro_usd, session_limit=int(os.environ.get("SESSION_CAP_MICRO_USD") or 3_000_000))
     report = {"synthetic": True, "requiresHumanStyleReview": True, "actuatorCommandIssued": False,
               "approvedRunCapMicroUsd": meter.limit, "dialogues": [], "completed": False,
               "costBasis": "List-price estimate at returned service tier; all input at cache-write rate; not billing",
