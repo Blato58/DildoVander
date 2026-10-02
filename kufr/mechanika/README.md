@@ -64,6 +64,7 @@ rastr a M3 sloupky; netvrdí shodu s nezměřenými otvory konkrétních PCB.
 | 6× WS2812B úsek asi 200 mm | Svislé lůžko na vnitřní bočnici vložky | Šířka 10 mm je odhad; změřit IP65 silikon, LED a vývody. |
 | ESP32-S3 N16R8 | `controller_box` + rastr | Přístup k oběma USB, EN/BOOT, kamerovému konektoru; anténa daleko od kovu a zdroje. |
 | PCA9685 | `pca9685_box` + rastr | Rezerva pro konektory šesti serv a šesti vibračních signálů; rozměry změřit. |
+| Pixel Shifter 6066 a rezistor 330 Ω | `controller_box` + rastr, odděleně od antény | Změřit PCB a konektory; držák nepředepisuje nezměřené montážní otvory. |
 | PD trigger, XY3606, pojistka, vypínač, svorky, kondenzátory | `power_box` + rastr | Dva oddělené držáky/desky, 20V úsek izolovat. Větrání ověřit měřením. |
 | Watchdog, load switch, enable logika | `safety_box` + rastr | Rezervovaná krabička; konkrétní bezpečnostní díly ještě nejsou vybrané. |
 | MAX98357A | `audio_box` + rastr | Změřit PCB, konektory a větrání. |
@@ -121,8 +122,9 @@ vodiče se nesmějí dotknout kliky/drážky. `cable_clip` patří na pevný rá
    posuv musí jít bez zadírání. Krytky přilepit/zajistit až po rozebrání
    a kontrole, nenahrazují servisně odnímatelný pevný doraz.
 6. Namontovat dva `lower_rest_pillar`; při spodní poloze nese vložku rám.
-   Dva `wand_saddle` jsou na koncích hůlky, upevnit krátkými šrouby/lepidlem
-   po zkoušce. Hůlku zajistit dvěma pružnými pásky nebo čirými smyčkami;
+   Dva `wand_saddle` jsou na koncích hůlky, vlepit po zkoušce. Boční výřez
+   sedel nechává průchod RGB pásku a silikonového krytu. Hůlku zajistit
+   dvěma pružnými pásky nebo čirými smyčkami;
    nesmí při zdvihu vypadnout. Univerzální sedla nejsou kopie nepravidelné rukojeti.
 7. U059 upevnit do cage pásky. Klec přišroubovat přes čtyři montážní body
    pod vložkou; výška 21 mm vyžaduje dlouhé šrouby přibližně M3×30,
@@ -172,7 +174,8 @@ export, obálka tiskárny, obálka sestavy v pracovním prostoru kufru a průnik
 pohyblivé vložky a kliky s pevnými tištěnými díly a vodicími tyčemi v
 **11 polohách**. Skutečné exportované STL navíc procházejí samostatnou
 kontrolou uzavřených hran, kladného orientovaného objemu a shody objemu
-s CAD do 2 % při použité triangulaci.
+s CAD do 2 % při použité triangulaci. Pohyblivé tištěné díly a pracovní
+obálky RGB/U059 se kontrolují také vzájemně.
 Kontrola nezahrnuje pevnost, nepřetržitou dráhu mezi vzorky, všechny vzájemné
 průniky, tovární díly, šrouby, kabely, anténu, teplotu ani pasivní stabilitu.
 Náhledový posuv neotáčí servo/kliku; slouží jen k zobrazení pohybu vložky.

@@ -65,7 +65,7 @@ def build(p):
     L, W, B = p["tray_length_mm"], p["tray_width_mm"], p["base_width_mm"]
     S = L / 3
     rod_x, rod_y = 0, L / 2 - 12
-    vib_y = -L/6
+    vib_y = -L/3
     rod_r = p["rod_diameter_mm"] / 2
     low = p["tray_floor_low_mm"]
     radius, axis_z = p["crank_radius_mm"], p["servo_axis_height_mm"]
@@ -81,6 +81,7 @@ def build(p):
               range(math.ceil(p["angle_low_deg"]), math.floor(p["angle_high_deg"]) + 1)]
     ymin, ymax = min(pin_ys) - 3, max(pin_ys) + 3
     outer_y0, outer_y1 = ymin - 9, ymax + 9
+    follower_mount_y = [outer_y0+3, min(outer_y1-3, S/2-19)]
 
     def add(name, shape, at=(0, 0, 0), color="#6b8ca9", group="lift", rotation=None):
         parts.setdefault(name, shape)
@@ -117,9 +118,9 @@ def build(p):
         if i == 1:
             tray = tray.cut(block(8, 8, 20, (-W / 2, -S / 2 + 4, 4)))
             # Follower attaches to floor with two accessible through bolts.
-            for fy in [outer_y0 + 3, outer_y1 - 3]:
+            for fy in follower_mount_y:
                 tray = tray.fuse(block(12, 6, 4, (17, fy, 0)))
-            tray = holes_z(tray, [(12, outer_y0 + 3), (12, outer_y1 - 3)], 3.3, depth=6)
+            tray = holes_z(tray, [(12, fy) for fy in follower_mount_y], 3.3, depth=6)
         else:
             for sign in [1]:
                 x, local_y = rod_x, (-rod_y if i == 0 else rod_y) - center_y
@@ -158,7 +159,7 @@ def build(p):
     slot = slot.fuse(cylinder(4.3, 10, (14, ymin, 0), (1, 0, 0)),
                      cylinder(4.3, 10, (14, ymax, 0), (1, 0, 0)))
     follower = follower.cut(slot)
-    for y in [outer_y0+3, outer_y1-3]:
+    for y in follower_mount_y:
         follower = follower.fuse(block(8, 6, offset-9, (19, y, 9)))
         follower = follower.fuse(block(12, 6, 4, (17, y, offset-4)))
         follower = follower.cut(cylinder(1.65, 6, (12, y, offset-5)))
@@ -202,16 +203,20 @@ def build(p):
     purchased.append(dict(name="U059 envelope (unmeasured)",
                           shape=block(vx, vy, vz, (0, vib_y, low-18)), color="#374451", group="lift"))
 
-    saddle = block(28, 12, 15)
+    saddle = block(W-4.8, 12, 15)
     saddle = saddle.cut(cylinder(p["wand_max_diameter_mm"]/2, 14,
                                   (0, -7, 16), (0, 1, 0)))
-    saddle = holes_z(saddle, [(-11, 0), (11, 0)], 2.5, depth=18)
+    # LED strip and silicone cover pass behind each saddle, along the left wall.
+    saddle = saddle.cut(block(8, 14, 13, (-W/2+1.8, 0, 0)))
     for y in [-L/2+35, L/2-35]:
         add("wand_saddle", saddle.clean(), (0, y, low+4), "#bb9862")
+    purchased.append(dict(name="LED strip envelope (unmeasured)",
+                          shape=block(3.2,200,p["led_strip_width_mm"],(-W/2+4,0,low+5)),
+                          color="#acd485",group="lift"))
     # Lower support feet prevent tray load reaching the crank at rest.
-    foot = block(12, 12, low-4)
+    foot = block(12, 12, low-7)
     foot = holes_z(foot, [(0, 0)], 3.3, depth=low)
-    for y in [-rod_y+18, rod_y-18]:
+    for y in [-S/2, S/2]:
         add("lower_rest_pillar", foot, (0, y, 4), "#4e6578")
     collar = cylinder(5, 4).cut(cylinder(rod_r+0.15, 6, (0, 0, -1)))
     for x in [rod_x]:
@@ -354,6 +359,15 @@ def main():
             if overlap > 0.01:
                 collisions.append(dict(angle_deg=angle,moving="crank",fixed=fixed["name"],volume_mm3=overlap))
     report["checks"]["guide_and_crank_travel_11_samples"] = "PASS" if not collisions else collisions
+    moving_solids = [i for i in lift_items if i["name"] in moving_names]
+    moving_solids += [i for i in purchased if i["name"] in
+                     {"U059 envelope (unmeasured)", "LED strip envelope (unmeasured)"}]
+    for index, item in enumerate(moving_solids):
+        for other in moving_solids[index+1:]:
+            overlap=item["shape"].intersect(other["shape"]).Volume()
+            if overlap > .01:
+                collisions.append(dict(moving=item["name"],fixed=other["name"],volume_mm3=overlap))
+    report["checks"]["moving_assembly_led_and_motor_fit"] = "PASS" if not collisions else collisions
     report["checks"]["provisional_case_envelope"] = "PASS (internal dimensions not confirmed)"
     (out/"verification.json").write_text(json.dumps(report, indent=2, ensure_ascii=False)+"\n", encoding="utf-8")
     if collisions:

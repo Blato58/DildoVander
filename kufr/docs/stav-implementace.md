@@ -29,6 +29,11 @@ prošla. Kontrola obálky sestavy v pracovním prostoru kufru a všech
 dílů v předpokládané tiskové obálce 220 × 220 × 250 mm prošla.
 Samostatné ověření 45 skutečných STL prošlo: každá hrana má dva
 sousední trojúhelníky, kladný orientovaný objem a shodu s BREP do 2 %.
+Navazující kontrola všech pohyblivých dílů proti sobě i proti pracovním
+obálkám LED/U059 zachytila kolize spojovacích pásků s klecí a followerem.
+Klec byla přesunuta do prvního segmentu, spodní podpěry pod spoje,
+úchyty followeru mimo spoj a sedla dostala volný průchod RGB. Finální
+generace 45 dílů prošla všemi uvedenými kontrolami včetně těchto průniků.
 Chromium/Playwright ověřil vykreslení HTML, změnu obrazu zdvihem,
 horní hodnotu 28,3 mm a pohled shora bez JS chyb. Proběhla také
 kontrola Python syntaxe, lokálních dokumentačních odkazů a whitespace.
