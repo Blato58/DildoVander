@@ -60,7 +60,10 @@ této fronty, sám nedokazuje nestabilní připojení. Pozdní blok z předchoz�
 poslechu se zahodí a neoznačí jako další odpověď.
 Po 650 ms ticha odpoví kufr, během jeho řeči je vstup zavřený a po skutečném
 dohrání se automaticky otevře další poslech. Telefon začne přehrávat první
-bloky před dokončením odpovědi. Spouští se jeden rozhovor, nejvýše 8 min/10
+bloky před dokončením odpovědi. Hands-free audio používá běžný režim iOS
+s výchozím výstupem do reproduktoru; telefonní režim `voiceChat` mohl výstup
+zeslabovat. Hlasitost nastavujte bočními tlačítky při přehrávání odpovědi.
+Spouští se jeden rozhovor, nejvýše 8 min/10
 tahů; Stop, pozadí, zamčení nebo audio přerušení ukončí mikrofon i provider.
 Bez přerušování právě mluvícího kufru. Vlastní přepnutí audio session při
 startu nepřerušuje rozhovor; skutečná změna mikrofonu/reproduktoru jej
