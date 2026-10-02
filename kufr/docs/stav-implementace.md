@@ -6,6 +6,65 @@ Poslední aktualizace: **2. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D122 – 2. 10. 2026 – první USB flash a paměťový test doručené desky.**
+Majitel dodal fotografie ESP32-S3 N16R8 a výslovně schválil minimální
+diagnostický firmware a jeho nahrání. Připojený USB-UART má COM7,
+VID 1A86/PID 55D3. Čtecí ROM dotazy potvrdily ESP32-S3 revizi čipu v0.2,
+8 MB embedded PSRAM, 16 MB Quad flash a 3,3 V flash; secure boot a flash
+encryption jsou vypnuté. Revize čipu není revize PCB. Zadání je pouze
+USB diagnostika paměti a bootu, bez externích periferií či pohonů.
+Samostatný projekt `firmware/diagnostics/board-memory` byl sestaven,
+nahrán a ověřen na této fyzické desce. Obsahuje pouze paměťový test a
+UART log; neobsahuje aplikaci kufru ani provisioning či externí periférie.
+Změny zahrnují jeho CMake/PlatformIO/config/src/README, firmware README,
+pinový podklad, tento stav a samostatný build krok ve firmware CI.
+
+Před prvním zápisem byla čtením ROM/stub uložena celá původní flash
+(16 777 216 B), bez erase-all a bez zápisu eFuse. Záloha a logy jsou mimo
+Git v `C:\Users\vojtech.petrik\AppData\Local\DildoVander\board-diagnostics\68ee8f4b6048\2026-10-02\`.
+`factory-flash-16mb.bin` má SHA-256
+`d73b6dd5a15e469a30629798664fb6e9e5c0ee30ef2679d75858d97a72b6fb15`.
+Složka obsahuje i `manifest.json`, build/upload log, `boot-1.log` až
+`boot-3.log` a kopie diagnostických obrazů/ELF. Diagnostický `firmware.bin`
+má SHA-256 `ef803c0b834ba45c31fab953364297a776ead34329ae6009398b3a6fac4e9f47`.
+
+Ověření: PlatformIO Core 6.2.0, espressif32 7.1.3 / ESP-IDF 6.1.0,
+`pio run` v diagnostickém projektu – SUCCESS, RAM 15 820 B,
+flash 161 325 B; první konfigurace potřebovala zahrnout syntetický
+`__pio_env` komponent PlatformIO. `pio run --target upload --upload-port COM7`
+– SUCCESS, esptool ověřil hash bootloaderu, partition table a aplikace.
+Bezprostředně před zápisem byl znovu ověřen MAC `68:ee:8f:4b:60:48`.
+Tři řízené EN/RTS restarty, každý s 35 s UART záznamem, všechny PASS:
+16 777 216 B flash, 8 388 608 B PSRAM, Octal PSRAM 80 MHz,
+SDK startup memory test OK, všechny čtyři adresně závislé XOR vzory
+nad 7 340 032 B, heap integrity PASS a pět heartbeatů bez neočekávaného
+resetu, panic, brownoutu nebo watchdog chyby. Interní volný heap
+393 852 B a externí 8 386 308 B zůstaly během heartbeatů stabilní.
+Kontrola lokálních README odkazů, YAML parsování a `git diff --check`
+prošly. Nezávislá čtecí revize nenašla blokující chybu; PASS neznamená
+hustý test celých 8 MiB (SDK boot test vzorkuje po 32 B), dlouhodobý/tepelný
+test, endurance flash ani přímé ověření nativního USB-OTG.
+
+B1 zůstává otevřené pro bezpečnostní větev, zapojení, kalibraci a fyzické
+efekty; dnešní souhlas platí pro tento diagnostický obraz.
+Další konkrétní krok: určit a změřit externí napájení, inhibit/watchdog,
+servisní vstup a profil A; teprve s těmito podklady povolit periferie,
+provisioning a další flash aplikačního firmware. Diagnostika může zůstat
+na desce, externí komponenty zatím nepřipojovat.
+
+Git předání D122: implementační commit
+`21c07cc33b4de1cc53f593e72b7485f2314c109a` byl přes
+`scripts/Push-CurrentBranch.ps1` pushnut na
+`origin/feat/board-memory-diagnostic`; remote shoda byla ověřena.
+Následující dokumentační commit zaznamenává toto doručení a odstraňuje
+koncové prázdné řádky nových konfiguračních souborů nalezené při staged
+whitespace kontrole; jeho `6048887240bce83f89dec341b5632b79786a31c3`
+byl také ověřeně pushnut. Při integraci aktuálního main `e1da30a` byly
+zachovány iPhone opravy/publikace a serverové CI runnery. Tento záznam
+byl přejmenován na D122, aby zůstal zachovaný existující D120/D121.
+[PR #94](https://github.com/Blato58/DildoVander/pull/94) eviduje finální head,
+CI a autorizované sloučení; před merge musí projít povinné kontroly.
+
 **D121 – oprava režimu tichého Realtime hlasu na iPhonu (2. 10. 2026).**
 Majitel hlásí příliš tichý hlas v aplikaci. Hands-free přehrávač používal
 `playAndRecord/voiceChat`, přestože jde o poloduplex a engine nezapíná
@@ -829,7 +888,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 
 | ID | Chybějící vstup a kdo ho dodá | Co blokuje | Co může pokračovat |
 | --- | --- | --- | --- |
-| B1 | Majitel/stavitel: revize PCB, měření USB/LED/paměti, mechanika a schéma/měření watchdogu a napájení; pro servisní USB zápis také měřitelný vstup servisního režimu a stav odpojené větve pohonů. Dne 29. 9. majitel potvrdil, že údaje o revizi desky, flash, PSRAM a USB zatím nemá. | Nahrání do neověřené desky, skutečné servisní provisionování, E5/E6 a HW akceptaci E9/E13. | Hostitelské testy, protokol, simulátor, SW build. |
+| B1 | **Částečně ověřeno D122:** doručený N16R8, USB-UART COM7, ESP32-S3 chip v0.2, 16 MB Quad flash/3,3 V a 8 MB Octal PSRAM/80 MHz; autorizovaná USB-only diagnostika prošla tři restarty a 7 MiB pattern test. Stále chybí revize PCB/schéma, nativní USB/LED, externí napájení, bezpečnostní větev/watchdog, mechanika, servisní vstup a kalibrace. | Flash aplikačního firmware a provisioning s periferiemi, E5/E6 a HW akceptaci E9/E13. | USB-only diagnostika v doloženém rozsahu D122, hostitelské testy, protokol, simulátor, SW build. |
 | B2 | **Vyřešeno pro Ad Hoc export:** environment `ios-signing` obsahuje distribuční `.p12` a profil pro Team `3QRXV8G5Y3`, Bundle `app.turquoise6409.green2444`, jedno zařízení, `get-task-allow=false`, expiraci 24. 12. 2026. Stejné `IOS_P12_PASSWORD` OpenSSL přečetl; [běh 36636991415](https://github.com/Blato58/DildoVander/actions/runs/36636991415) importoval přebalenou identitu, ověřil shodu certifikátu s profilem, archiv, podpis a embedded profil IPA. | Podpis již neblokuje E3a; obnovit certifikát/profil před expirací. | iPhone akceptace B3 a další software. |
 | B3 | **Vyřešeno pro první instalaci E3a:** majitel potvrdil iPhone 15 Pro s iOS 26.6.1 a správné UDID v profilu. Stránka [https://2.28.202.220/ios/](https://2.28.202.220/ios/) veřejně vrací podepsanou verzi, `itms-services`, manifest a IPA; D70 ověřil externí HTTPS download a majitel 30. 9. potvrdil instalaci i spuštění. | LAN/Keychain a ovládání E10, aktualizace/rollback E11 stále vyžadují samostatnou zkoušku. | E4.3d2b a další software může pokračovat bez telefonu. |
 | B4 | Majitel dodal Ubuntu server s veřejnou IP `2.28.202.220` a runnerem `dildovander-server`; backend běží na loopback. OPENAI_API_KEY je v GitHub environmentu; D63 ověřil jeden placený Responses tah na loopback API. D67 root bootstrap vydal platný IP SAN certifikát, zapnul Nginx a obnovovací timer; externí [sonda 36633620137](https://github.com/Blato58/DildoVander/actions/runs/36633620137) ověřila veřejnou TLS důvěru, health, platnost a HTTP přesměrování. Pro skutečné zařízení zbývá jeho Device ID/credential, region/retence a fyzická TLS akceptace. GitHub environment má limity 0,50 USD/sezení a 10 USD/měsíc; majitel 29. 9. potvrdil projektový hard spend limit 10 USD v OpenAI. | Reálné ESP32/TLS spojení a produkční podmínky AI dat. | Veřejné HTTPS nyní funguje pro syntetické testy bez HW; loopback backend, CI a E8 eval korpus. |
