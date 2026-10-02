@@ -1,0 +1,44 @@
+name: Check Kufr mobile web
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    runs-on: [self-hosted, Linux, X64, kufr-backend]
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: kufr/mobilni-aplikace
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: kufr/mobilni-aplikace/.nvmrc
+          cache: npm
+          cache-dependency-path: |
+            kufr/mobilni-aplikace/package-lock.json
+            kufr/contracts/package-lock.json
+            kufr/simulator/package-lock.json
+      - run: npm ci
+      - run: npm ci --prefix ../contracts
+      - run: npm test --prefix ../contracts
+      - run: npm test
+      - run: npm run build
+      - run: bash -n scripts/build-ios-ipa.sh
+      - run: python3 -m unittest discover -s scripts -p 'test_publish_*.py'
+      - name: Package web build with provenance
+        working-directory: .
+        run: python3 scripts/ci/package.py pack kufr/mobilni-aplikace/dist "$RUNNER_TEMP/web-package"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: web-dist
+          path: ${{ runner.temp }}/web-package/
+          if-no-files-found: error
+          retention-days: 14
+          overwrite: true
