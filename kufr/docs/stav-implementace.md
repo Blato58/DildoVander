@@ -36,7 +36,11 @@ To není nezávislá kontrola z jiné sítě ani měření hlasitosti iPhonu.
 Další krok: majitel aktualizuje aplikaci, ověří hlasitost Realtime odpovědi
 a alespoň dvě výměny v režimu bez tlačítek; během řeči ji může nastavit
 bočními tlačítky. Backend ani firmware nebyly nasazeny a neproběhl placený AI
-test. Git předání dokumentace bude evidováno v navazujícím PR.
+test. Dokumentační commit `282c6c2845650c14114acfd88da191d1bf298e29`
+byl pushnut do `docs/realtime-volume-release` a remote SHA bylo ověřeno.
+Lokální Markdown odkazy a whitespace prošly. PowerShell helper zde stále
+není spustitelný; scoped gh helper provedl push po ověření účtu Blato58.
+Finální CI a sloučení dokumentace bude evidováno v navazujícím PR.
 
 **Migrace GitHub Actions na vlastní serverový runner (1. 10. 2026).**
 Majitel požaduje všechny joby na svém serveru, kromě macOS. Všech 22 Linux
