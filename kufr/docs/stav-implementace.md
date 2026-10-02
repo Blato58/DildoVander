@@ -42,9 +42,17 @@ Další mechanický krok: změřit vnitřek/víko kufru, průměr hůlek,
 servo/U059/PCB/konektory a powerbanku, upravit pracovní obálky,
 vytisknout měrku a jeden modul, doplnit pasivní podporu a ručně
 ověřit celý pohyb. Elektrické blokace a další aplikační kroky z D124/D125
-zůstávají platné. Git předání tohoto slice je dohledatelné v PR
-`feat/printable-case-mechanics`; výsledek push/CI/merge se ověřuje
-samostatně a geometrický test jej nenahrazuje.
+zůstávají platné. Implementační commit
+`d6b70ca6a0b84276b6a9f31beb857a7092143560` byl ověřeně pushnutý
+do `origin/feat/printable-case-mechanics`; remote SHA se shoduje.
+Předepsaný `./scripts/Push-CurrentBranch.ps1` byl spuštěn, ale není
+spustitelný (permission denied) a PowerShell zde chybí. Push provedl
+scoped gh credential helper pod ověřeným účtem Blato58.
+[PR #98](https://github.com/Blato58/DildoVander/pull/98) předává zdroj
+a dokumentaci. Před merge musí projít `CI required` pro aktuální head;
+skutečný výsledek je dohledatelný v PR. Geometrický test CI ani merge
+nenahrazuje. ZIP navíc prošel kontrolou integrity, aktuálnosti zdrojů
+a úplnosti 45 STL / 45 STEP, dvou sestav, návodu, náhledů a kusovníku.
 
 **D125 – 2. 10. 2026 – iOS build pouze ručně pro podepsané nasazení.**
 Majitel požádal odstranit iOS build z každého PR a ponechat jej pouze ručně
