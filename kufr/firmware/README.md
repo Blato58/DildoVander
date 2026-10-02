@@ -1,5 +1,15 @@
 # Firmware AI kufru
 
+## První aplikační boot na desce (D123)
+
+Současný `esp32-s3-idf` byl 2. 10. 2026 nahrán přes USB-UART na doručený
+N16R8 a prošel dva 30s boot záznamy. Prázdná NVS ponechává síť/identitu
+nenastavenou a audio profil A vypnutý; control loop běží offline.
+Pohony mají stále pouze logging port, kalibraci 0 a zavřenou inspection
+bránu. B1 tak není uzavřené a tento boot nepovoluje zapojit pohony.
+Zdrojový commit, hash obrazu, logy a další krok sestavování jsou v
+[D123 stavu implementace](../docs/stav-implementace.md).
+
 ## První USB test doručené desky (D122)
 
 Samostatný [diagnostický projekt](diagnostics/board-memory/README.md) ověřuje
@@ -55,16 +65,17 @@ oddílů dává ze 16 MB flash každému ze dvou OTA slotů 6,25 MiB pro aplikac
 Výchozí sestavení `pio run` používá **ESP-IDF 6.1** v profilu
 `esp32-s3-idf`. Původní sériový Arduino prototyp je dostupný samostatně přes
 `pio run -e esp32-s3-arduino-serial`. Oba profily byly sestaveny lokálně;
-aplikační firmware se zatím nenahrával do desky. Samostatné první USB
-ověření doručené desky vede D122.
+samostatné paměťové USB ověření vede D122 a první offline aplikační
+flash/boot D123. Síť a skutečné periferie tím nejsou ověřené.
 Podrobný postup a skutečně provedené kontroly jsou ve
 [stavu implementace](../docs/stav-implementace.md). ESP-IDF smyčka spojuje
 provisionované HTTPS párování a autentizovaný WSS vstup s řídicím vlastníkem,
 backendovou textovou frontou a korelovaným výstupem replik. Snapshot vydává
 `DeviceControlRuntime` pouze po bezpečných přechodech. Wi-Fi má vlastní úlohu,
 nezávislou na cloudovém tokenu/čase. Kalibrace zůstává 0, zotavení bez doložené
-fyzické kontroly je zavřené a GPIO/audio porty chybí. Prázdná NVS neposkytuje
-identitu ani párování; živý běh zařízení nebyl ověřen.
+fyzické kontroly je zavřené a fyzický GPIO port pohonů chybí. Audio port
+vyžaduje ověřený profil A. Prázdná NVS neposkytuje identitu ani párování;
+D123 ověřilo základní offline boot, síť/párování a periferie zbývají.
 
 E4.4t přidává inzerci `_kufr._tcp.local:443` až po spuštění provisionovaného
 TLS serveru a získání IP. TXT obsahuje jen `deviceId`, `protocol=1` a CSV

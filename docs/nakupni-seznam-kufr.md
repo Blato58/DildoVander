@@ -37,6 +37,16 @@ Montážní materiál z téhož obchodu:
 
 **Montážní materiál: přibližně 326 Kč. Drátek celkem: přibližně 1 530 Kč.** Přesné konektory a upevnění se mohou po sestavení mechaniky ještě změnit.
 
+**Doplnění po doručení (2. 10. 2026):** ESP32 má osazené samčí lišty;
+pro přímé propojení s osazenými samčími I2C piny PCA9685 jsou potřeba
+alespoň čtyři Dupont F-F (samice-samice) propojky, například z
+[JustPi F-F 20 cm, 40 ks](https://botland.cz/spojovaci-vodice-samice-samice/19620-sada-propojovacich-kabelu-justpi-samice-samice-20cm-40ks-5903351243032.html).
+Výše uvedené M-F je
+přímo nenahradí. Tato chybějící položka není zahrnutá ve starších součtech.
+Majitel nemá páječku ani multimetr: USB napájená logika může začít po
+doplnění F-F, ale externí výstup XY3606 se před připojením elektroniky
+musí změřit. XY3606 má pevný 5V výstup, nikoli nastavovací trimr.
+
 ## 2. Botland — zvuk, RGB pásek a vibrace
 
 | Položka | Množství | Cena celkem | Odkaz |
