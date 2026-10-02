@@ -43,6 +43,8 @@ nemá Swift/Xcode, takže nativní kompilace a běh čekají na ruční iOS buil
 Finální kontrola doplnila spojování sousedních přepisových fragmentů
 a předávání skutečně vyslovených replik včetně první otázky do Solu;
 příslušný wire test ověřuje i dělení slova mezi dvěma událostmi.
+Tato kontrola je v commitu `ad01e11`, také ověřeně pushnutém. README
+kontraktů popisuje nové režimy i Live routy.
 
 Další krok: po CI a merge nasadit backend a vydat novou iOS aplikaci /
 flashnout odpovídající firmware v samostatně autorizovaném kroku; pak
