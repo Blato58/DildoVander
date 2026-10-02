@@ -32,7 +32,13 @@ dokumentů a `git diff --check`. Nebyl použit provider klíč
 ani spuštěn placený test, nasazení či změna firmware/telefonu. Kvalita
 humoru, českého hlasu a latence není offline testy potvrzená; další krok je
 živé slepé srovnání podle rešerše v explicitně stanoveném rozpočtu.
-Git předání a CI: doplnit po dokončení ověřeného commitu a push.
+Implementační commit `2aadd7fefb3a8c9e9c6b8e98715dfb3fc66af982` je ověřeně
+pushnutý na `origin/fix/natural-openings-carlin-humor` (remote SHA shodné).
+Předepsaný `./scripts/Push-CurrentBranch.ps1` byl spuštěn, ale není spustitelný
+(permission denied); PowerShell zde chybí. Push provedl scoped gh credential
+helper s ověřeným účtem Blato58. [PR #99](https://github.com/Blato58/DildoVander/pull/99)
+obsahuje zdroj i rešerši; CI pro aktuální head je podmínkou merge, nikoli
+důkazem živé kvality. Výsledek CI/merge je dohledatelný v PR.
 
 
 **D126 – 2. 10. 2026 – parametrický 3D tiskový prototyp mechaniky kufru.**
