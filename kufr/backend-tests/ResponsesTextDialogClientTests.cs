@@ -87,12 +87,28 @@ internal static class ResponsesTextDialogClientTests
             var input = document.RootElement.GetProperty("input").GetString()!;
             Check(input.Contains("Událost: opening", StringComparison.Ordinal), "explicit opening event");
             Check(!input.Contains("Text návštěvníka:", StringComparison.Ordinal), "no fabricated visitor text");
-            Check(input.Contains("Petr a taxik", StringComparison.Ordinal), "evening memory reaches provider");
+            Check(!input.Contains("Petr a taxik", StringComparison.Ordinal), "opening excludes another visitor's memory");
+            Check(!input.Contains("old reply", StringComparison.Ordinal), "opening cannot resume supplied history");
+            Check(input.Contains("NOVÝ ROZHOVOR", StringComparison.Ordinal), "opening has explicit fresh-conversation instructions");
             return JsonResponse(ProviderResponse("ask", null));
         })))
         {
             var openingClient = new ResponsesTextDialogClient(openingHttp, "test-key", "gpt-6.1-sol");
-            await openingClient.GenerateAsync("", 63, [], true, CancellationToken.None, "Petr a taxik");
+            await openingClient.GenerateAsync("", 63, [new("Petr a taxik", "old reply")], true,
+                CancellationToken.None, "Petr a taxik");
+        }
+
+        using (var followUpHttp = new HttpClient(new StubHandler(async (request, token) =>
+        {
+            using var document = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(token));
+            var input = document.RootElement.GetProperty("input").GetString()!;
+            Check(input.Contains("Petr a taxik", StringComparison.Ordinal), "follow-up retains evening recall");
+            Check(!input.Contains("NOVÝ ROZHOVOR", StringComparison.Ordinal), "follow-up cannot restart opening");
+            return JsonResponse(ProviderResponse("ask", null));
+        })))
+        {
+            await new ResponsesTextDialogClient(followUpHttp, "test-key", "gpt-6.1-sol")
+                .GenerateAsync("Jsem Petr.", 63, [], true, CancellationToken.None, "Petr a taxik");
         }
 
         using (var earlyHttp = new HttpClient(new StubHandler((_, _) =>

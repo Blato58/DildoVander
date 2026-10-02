@@ -16,12 +16,38 @@ internal static class RealtimeTests
     internal static async Task RunAsync()
     {
         VerifyResampling();
+        VerifyOpeningContext();
         await VerifyProgressiveAudioAsync();
         await VerifyPersistentVoiceAsync();
         await VerifyToolValidationAsync();
         VerifyAdmissionAndMemory();
         VerifyHandsFreeBudgetAndStop();
         Console.WriteLine("Realtime stream, selection, resampling and journal tests passed.");
+    }
+
+    private static void VerifyOpeningContext()
+    {
+        var openings = Enumerable.Range(0, 6)
+            .Select(_ => new RealtimeTurnContext(Request(), true, "previous visitor", [new("old guest", "old reply")]))
+            .ToArray();
+        Require(openings.Select(turn => turn.OpeningDirection).Distinct().Count() == 6,
+            "six successive openings rotate intentions instead of always asking for a name");
+        foreach (var turn in openings)
+        {
+            Require(RealtimeProtocol.ContextData(turn) == "", "opening has no supplied visitor archive");
+            Require(RealtimeProtocol.SessionOptions(turn).Instructions
+                == RealtimeProtocol.SessionOptions(turn with { OutputTokenLimit = 512 }).Instructions,
+                "reservation fallback cannot change the opening intention");
+            Require(RealtimeProtocol.ReservationMicroUsd(turn)
+                == RealtimeProtocol.ReservationMicroUsd(turn with { EveningContext = "", History = [] }),
+                "opening does not reserve for an archive it will not send");
+        }
+        var followUp = new RealtimeTurnContext(Request() with { Opening = false, Text = "Jsem Petr." },
+            true, "previous visitor", [new("current guest", "current reply")]);
+        Require(RealtimeProtocol.ContextData(followUp).Contains("previous visitor")
+            && RealtimeProtocol.ContextData(followUp).Contains("current reply")
+            && !RealtimeProtocol.SessionOptions(followUp).Instructions.Contains("NOVÝ ROZHOVOR"),
+            "follow-up keeps recall and history without fresh-opening directions");
     }
 
     private static async Task VerifyPersistentVoiceAsync()
@@ -139,7 +165,7 @@ internal static class RealtimeTests
             pauseAt: 4, released.Task);
         using var provider = new OpenAiRealtimeClient(_ => Task.FromResult<WebSocket>(socket));
         var request = Request();
-        var pending = provider.GenerateAsync(new(request, true, "", []), null,
+        var pending = provider.GenerateAsync(new(request, true, "old visitor secret", [new("old guest", "old reply")]), null,
             (pcm, _) =>
             {
                 Require(pcm.Length == 4800, "PCM arrives with expected samples");
@@ -152,6 +178,9 @@ internal static class RealtimeTests
         var result = await pending;
         Require(result.Reply == "Jak ti říkají?" && result.Decision == "ask" && result.VisitorText == "",
             "opening stores actual answer and no invented visitor");
+        Require(!socket.Sent.Any(value => value.Contains("conversation.item.create", StringComparison.Ordinal)
+            || value.Contains("old visitor secret", StringComparison.Ordinal)),
+            "opening wire payload has no archive or fabricated user message");
         Require(socket.Sent.Any(value => value.Contains("\"turn_detection\":null", StringComparison.Ordinal)),
             "PTT does not wait for a VAD timeout");
         using var update = JsonDocument.Parse(socket.Sent[0]);
@@ -352,9 +381,9 @@ internal static class RealtimeTests
             var before = memory.GetStatus("device-a");
             var call = store.BeginRealtimeTurn("device-a", conversation, Guid.NewGuid(),
                 JsonSerializer.SerializeToUtf8Bytes(request), request, true, default, default, handsFree: true).Call;
-            Require(call is not null && call.Context.OutputTokenLimit == 512
+            Require(call is not null
                 && RealtimeProtocol.ReservationMicroUsd(call.Context) <= 500000,
-                "large memory can use a shorter voice reservation within the existing session cap");
+                "opening fits the session cap without sending large unrelated memory");
             Require(memory.GetStatus("device-a") == before,
                 "trimming provider context cannot delete stored evening memory");
             using var lifetime = new CancellationTokenSource();
