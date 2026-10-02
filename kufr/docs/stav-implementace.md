@@ -6,7 +6,7 @@ Poslední aktualizace: **2. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**D124 – 2. 10. 2026 – iOS build pouze ručně pro podepsané nasazení.**
+**D125 – 2. 10. 2026 – iOS build pouze ručně pro podepsané nasazení.**
 Majitel požádal odstranit iOS build z každého PR a ponechat jej pouze ručně
 pro podepsanou aplikaci určenou k nasazení. `ci.yml` nyní používá webový
 `kufr-web.yml`; mobilní/kontraktové testy, TypeScript/Vite build a artefakt
@@ -28,8 +28,15 @@ dokumentů a `git diff --check` prošly. Implementační commit
 `origin/ci/manual-ios-deployment`; remote SHA bylo ověřeno. Předepsaný
 `./scripts/Push-CurrentBranch.ps1` byl spuštěn, ale není zde spustitelný
 (permission denied) a `pwsh` chybí. Push provedl scoped gh credential
-helper pod ověřeným účtem Blato58. PR a vzdálené CI následují; merge
-vyžaduje zelené `CI required`.
+helper pod ověřeným účtem Blato58. Dokumentační commit
+`b477b4bae1c429c779b8a7afe570f842e879ff19` je také ověřeně pushnutý.
+[PR #97](https://github.com/Blato58/DildoVander/pull/97) obsahuje finální
+změnu a CI. První běh `37019862812` pro tuto revizi ověřil repository,
+backend, firmware host testy, mobilní web a offline AI bez macOS;
+firmware build ještě běžel. Tento navazující dokumentační commit mění
+číslování na D125 kvůli již otevřenému D124 v PR #96. Před merge musí
+projít `CI required` pro aktuální head; výsledek a merge jsou dohledatelné
+v PR. Nativní runtime ověření se přesouvá až k ručně požadovanému vydání.
 Nativní build/podpis ani skutečná publikace nejsou součástí této změny.
 Další krok: při požadavku na vydání aplikace ručně podepsat IPA z úspěšného
 CI aktuálního main a následně spustit samostatnou publikaci.
