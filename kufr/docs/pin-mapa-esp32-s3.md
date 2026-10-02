@@ -14,6 +14,18 @@ Výsledky měření a blokace se evidují ve [stavu implementace](stav-implement
 
 ![Pinová mapa desky ESP32-S3](pin-map-esp32-s3.png)
 
+## Doručený kus – první USB ověření 2. 10. 2026 (D122)
+
+Fotografie majitele ukazují potisk N16R8, kamerový konektor a MicroSD;
+spodní strana rozlišuje konektory `USB-UART` a `USB-OTG`. Připojený
+USB-UART (VID 1A86/PID 55D3, COM7) umožnil ROM čtení, první autorizovaný
+diagnostický flash a tři úspěšné EN/RTS restarty. Potvrzeno: ESP32-S3
+revize čipu v0.2, 16 MB Quad flash/3,3 V a 8 MB Octal PSRAM na 80 MHz.
+SDK startup test a čtení/zápis čtyř vzorů nad 7 MiB prošly; nejde o
+hustý test všech 8 MiB. Revize PCB, elektrické vedení a funkce externích
+GPIO, USB-OTG, LED, kamery a SD tím nejsou ověřené. Doklady a zbylé B1
+podmínky jsou v [D122 stavu implementace](stav-implementace.md).
+
 ## Vazby vyznačené na obrázku
 
 | Funkce | GPIO a signály |
