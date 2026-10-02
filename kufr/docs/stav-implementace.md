@@ -23,7 +23,13 @@ workflow; 29 Node testů `scripts/ci/verify-build.test.cjs`; 6 Python testů
 archivů v `scripts/ci`; průchod grafu všech pěti PR workflow bez macOS,
 Xcode/simctl/cap sync ios a kontrola ručního main-only Ad Hoc sign/deploy
 včetně správných secret/manifest vazeb. Lokální odkazy všech čtyř změněných
-dokumentů a `git diff --check` prošly. Git předání a vzdálené CI následují.
+dokumentů a `git diff --check` prošly. Implementační commit
+`ae1c24f2d75ae28fe91e2dbbf5bbe3150eb6da15` je pushnutý na
+`origin/ci/manual-ios-deployment`; remote SHA bylo ověřeno. Předepsaný
+`./scripts/Push-CurrentBranch.ps1` byl spuštěn, ale není zde spustitelný
+(permission denied) a `pwsh` chybí. Push provedl scoped gh credential
+helper pod ověřeným účtem Blato58. PR a vzdálené CI následují; merge
+vyžaduje zelené `CI required`.
 Nativní build/podpis ani skutečná publikace nejsou součástí této změny.
 Další krok: při požadavku na vydání aplikace ručně podepsat IPA z úspěšného
 CI aktuálního main a následně spustit samostatnou publikaci.
