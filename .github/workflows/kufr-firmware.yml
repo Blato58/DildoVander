@@ -398,7 +398,7 @@ jobs:
             ~/.platformio/packages
             ~/.platformio/platforms
             ~/.cache/pip
-          key: pio-${{ runner.os }}-6.2.0-${{ hashFiles('kufr/firmware/platformio.ini', 'kufr/firmware/dependencies.lock.md', 'kufr/firmware/diagnostics/board-memory/platformio.ini') }}
+          key: pio-${{ runner.os }}-6.2.0-${{ hashFiles('kufr/firmware/platformio.ini', 'kufr/firmware/dependencies.lock.md', 'kufr/firmware/diagnostics/board-memory/platformio.ini', 'kufr/firmware/diagnostics/pca9685-logic/platformio.ini') }}
       - name: Install pinned PlatformIO Core
         shell: bash
         run: |
@@ -417,6 +417,10 @@ jobs:
         shell: bash
         run: |
           "$RUNNER_TEMP/platformio-venv/bin/pio" run -d kufr/firmware/diagnostics/board-memory -s
+      - name: Build PCA9685 logic diagnostic
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/platformio-venv/bin/pio" run -d kufr/firmware/diagnostics/pca9685-logic -s
       - name: Bundle flashable firmware outputs without device credentials
         shell: bash
         run: |
