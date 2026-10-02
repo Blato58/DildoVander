@@ -47,6 +47,9 @@ PCA logické propoje mohou zůstat osazené; serva, motory a napájení V+
 zatím nezapojovat. Ještě chybí měřená bezpečnostní větev a kalibrace;
 test nedokazuje OE/PWM, napájecí rezervu ani ovládání pohonů. B1 zůstává
 otevřené a produkční aplikace dosud nemá PCA aktuátorový adaptér.
+Commit `16d879ab4ad045d9e56aeebd8eba0ae8e3bba41b` prošel push přes
+`scripts/Push-CurrentBranch.ps1` do `feat/pca9685-logic-diagnostic`.
+Před merge musí PR projít `CI required` podle CONTRIBUTING.
 
 **D123 – 2. 10. 2026 – první aplikační flash a začátek sestavování.**
 Majitel výslovně požádal začít sestavovat ESP a nahrát firmware; všechny
