@@ -29,7 +29,7 @@ permissions:
 jobs:
   verify:
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, X64, kufr-backend]
     timeout-minutes: 5
     outputs:
       source_sha: ${{ steps.verify.outputs.source_sha }}
@@ -74,7 +74,7 @@ jobs:
               workflow: process.env.BUILD_WORKFLOW,
               signingKind: process.env.SIGNING_KIND,
             });
-      - name: Validate archive checksum and safe extraction on a hosted runner
+      - name: Validate archive checksum and safe extraction
         run: python3 scripts/ci/package.py unpack "$RUNNER_TEMP/build-package" "$RUNNER_TEMP/validated-payload"
       - name: Transfer the verified package to the deployment job
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

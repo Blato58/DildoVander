@@ -6,7 +6,7 @@ Poslední aktualizace: **2. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**D120 – 2. 10. 2026 – první USB flash a paměťový test doručené desky.**
+**D122 – 2. 10. 2026 – první USB flash a paměťový test doručené desky.**
 Majitel dodal fotografie ESP32-S3 N16R8 a výslovně schválil minimální
 diagnostický firmware a jeho nahrání. Připojený USB-UART má COM7,
 VID 1A86/PID 55D3. Čtecí ROM dotazy potvrdily ESP32-S3 revizi čipu v0.2,
@@ -52,13 +52,156 @@ servisní vstup a profil A; teprve s těmito podklady povolit periferie,
 provisioning a další flash aplikačního firmware. Diagnostika může zůstat
 na desce, externí komponenty zatím nepřipojovat.
 
-Git předání D120: implementační commit
+Git předání D122: implementační commit
 `21c07cc33b4de1cc53f593e72b7485f2314c109a` byl přes
 `scripts/Push-CurrentBranch.ps1` pushnut na
 `origin/feat/board-memory-diagnostic`; remote shoda byla ověřena.
 Následující dokumentační commit zaznamenává toto doručení a odstraňuje
 koncové prázdné řádky nových konfiguračních souborů nalezené při staged
-whitespace kontrole. Finální PR vyžaduje zelené CI před autorizovaným merge.
+whitespace kontrole; jeho `6048887240bce83f89dec341b5632b79786a31c3`
+byl také ověřeně pushnut. Při integraci aktuálního main `e1da30a` byly
+zachovány iPhone opravy/publikace a serverové CI runnery. Tento záznam
+byl přejmenován na D122, aby zůstal zachovaný existující D120/D121.
+[PR #94](https://github.com/Blato58/DildoVander/pull/94) eviduje finální head,
+CI a autorizované sloučení; před merge musí projít povinné kontroly.
+
+**D121 – oprava režimu tichého Realtime hlasu na iPhonu (2. 10. 2026).**
+Majitel hlásí příliš tichý hlas v aplikaci. Hands-free přehrávač používal
+`playAndRecord/voiceChat`, přestože jde o poloduplex a engine nezapíná
+voice processing. Telefonní režim může zeslabovat reproduktor. Oprava
+v `DebugHandsFreeAudio.swift` přepíná session i kontrolu route na `.default`
+a zachovává `.defaultToSpeaker`, vstupní bránu během řeči a detekci přerušení.
+Mobilní README popisuje režim a nastavení hlasitosti během přehrávání.
+Lokálně prošel TypeScript/Vite build, všech 24 mobilních testů a whitespace.
+CI `36944228707` na head `9cfbfa1` prošlo: macOS nativní route/converter/upload
+testy, Xcode iOS Simulator build a spuštění aplikace i všechny povinné
+serverové kontroly. [PR #92](https://github.com/Blato58/DildoVander/pull/92)
+je sloučen jako `e9de404d7043ea09602e3d4ca9bb557363efde35`; změna je ověřena
+na main. Skutečnou hlasitost musí potvrdit iPhone.
+Implementační commit `8132191f22ada535fab8bd157a86febd85cfc272` je pushnutý
+do `fix/iphone-realtime-speaker-volume`; remote SHA bylo ověřeno. Předepsaný
+PowerShell helper byl spuštěn, ale zde není spustitelný a `pwsh` chybí;
+push provedl scoped gh credential helper po ověření účtu Blato58.
+Majitel následně výslovně schválil podpis a publikaci aktualizace. Ad Hoc
+podpis [36946442779](https://github.com/Blato58/DildoVander/actions/runs/36946442779)
+prošel nad main `e9de404` a ověřeným CI výše; nový build je **1000.0.9**.
+Publikace [36946600253](https://github.com/Blato58/DildoVander/actions/runs/36946600253)
+prošla všemi třemi joby. [Safari instalace](https://2.28.202.220/ios/)
+nabízí verzi 1.0 / **1000.0.9**, release `36946600253-1`.
+Serverový runner ověřil přes veřejné HTTPS stránku, manifest, Bundle ID,
+stažení IPA, SHA-256 a MIME typy. Přímé čtení z cloudového workspace opět
+narazilo na proxy certifikát pro cizí hostname; TLS ověřování zůstalo zapnuté.
+To není nezávislá kontrola z jiné sítě ani měření hlasitosti iPhonu.
+Další krok: majitel aktualizuje aplikaci, ověří hlasitost Realtime odpovědi
+a alespoň dvě výměny v režimu bez tlačítek; během řeči ji může nastavit
+bočními tlačítky. Backend ani firmware nebyly nasazeny a neproběhl placený AI
+test. Dokumentační commit `282c6c2845650c14114acfd88da191d1bf298e29`
+byl pushnut do `docs/realtime-volume-release` a remote SHA bylo ověřeno.
+Lokální Markdown odkazy a whitespace prošly. PowerShell helper zde stále
+není spustitelný; scoped gh helper provedl push po ověření účtu Blato58.
+Finální CI a sloučení dokumentace bude evidováno v navazujícím PR.
+
+**Migrace GitHub Actions na vlastní serverový runner (1. 10. 2026).**
+Majitel požaduje všechny joby na svém serveru, kromě macOS. Všech 22 Linux
+jobů používá `[self-hosted, Linux, X64, kufr-backend]`, tedy
+`dildovander-server`; iOS Simulator a IPA signing zůstávají na `macos-15`.
+Node setup doplněn do repository/backend kontrol; .NET SDK používá
+zapisovatelný runner tool cache. PlatformIO i OpenAI SDK live eval běží
+ve vlastním venv. Realtime test kontroluje předinstalovaný espeak-ng,
+nepředpokládá neomezené sudo. Host probe ověřuje build nástroje a venv.
+Plán, CI/CD, SECURITY a backend/AI README popisují společný dlouhodobý
+runner a omezení veřejného HTTPS testu z téhož serveru. Main-only podmínky,
+permissions, dependency graf, timeouty a provenance zůstávají zachované.
+
+Lokálně prošel audit runnerů, actionlint 1.7.12, 29 provenance/promotion
++ 6 archive testů, dokumentační odkazy a whitespace. Probe 36926403741
+potvrdil online Ubuntu 26.04 runner a aktivní backend. První CI
+36926992141 odhalilo chybějící g++/venv; správce doplnil
+`build-essential python3-venv espeak-ng`. CI 36930988401 pak na serveru
+ověřilo repository, web, offline AI, všechny firmware host testy, oba
+ESP-IDF/Arduino buildy s artefaktem a backend build/testy/publish/HTTP smoke.
+Mac v tomto běhu GitHub odmítl před prvním krokem kvůli billing limitu;
+majitel následně potvrdil opravu účtu. Původní macOS CI 36926992141 prošlo,
+finální společná verze nyní zachovává také D120 opravu iPhone uploadu z main.
+
+Implementační commit `2ff2ada` a následné integrace byly ověřeně pushnuté.
+PowerShell helper byl spuštěn, ale není zde spustitelný; scoped gh git
+credential helper provedl push po ověření účtu Blato58. Finální CI head,
+výsledek všech Linux/macOS kontrol, sloučení a read-only ověření runneru/
+veřejného HTTPS jsou evidované v [PR #88](https://github.com/Blato58/DildoVander/pull/88).
+Produkční aktivace, podpis/publikace nové IPA, placené AI ani flash nejsou
+součástí migrace; stávající akceptační mezery D120 a HW zůstávají zachované.
+
+**D120 – oprava iPhone audio uploadu publikována v IPA 1000.0.8.**
+Majitel výslovně schválil publikaci po úspěšné kontrole a podpisu.
+PR #90 je sloučen jako `ceb40fbc06d566d116e62180d576a4e092cf968e`;
+finální CI 36936917112 ověřilo head `83a2e15`. Původní podepsaný build
+1000.0.7 (36937398196) nebyl publikován: mezitím se do main sloučila
+migrace runnerů z PR #88. Nový Ad Hoc podpis 36940005506 použil úspěšné
+CI 36937790022 a aktuální main `cc2941ee5a52356553c891a376b6fec06e3c41ff`;
+provenance, striktní podpis i upload artefaktu prošly.
+Publikace 36940186009 prošla všemi třemi joby. [Safari instalace](https://2.28.202.220/ios/)
+nabízí 1.0 / **1000.0.8**, release `36940186009-1`. Serverový runner přes
+veřejné HTTPS ověřil stránku, manifest, Bundle ID, download IPA, SHA-256
+a MIME typy. Není to nezávislá kontrola z jiné sítě. Přímá kontrola z tohoto
+cloudového workspace narazila na proxy certifikát s cizím hostname;
+TLS ověřování nebylo vypnuté. Majitel musí potvrdit aktualizaci a hlasový
+rozhovor na skutečném iPhonu/5G. Backend nebyl nasazen ani restartován,
+neproběhl flash desky ani placený AI test.
+
+Majitel sdílí `realtime_live_audio_overflow` a stabilní připojení. Nalezený
+defekt: iOS vytvářelo a rušilo URLSession pro každý PCM POST (nejvýše 200 ms
+audia), přitom mělo jen 1 s frontu a při průběžném drainu posílalo i menší
+bloky. Chyba sama nedokazuje nestabilní připojení.
+
+`DebugHandsFreeSession.swift` nyní drží jedno ephemeral HTTP sezení pro
+PCM a playback ACK, zachovává zákaz redirectu a timeout. Stop ruší aktivní
+požadavky; normální close nechá doběhnout už potvrzené /played HTTP 204.
+`DebugHandsFreeAudio.swift` skládá přesné 9600B/200ms dávky, zachovává
+48000B limit a pořadí bez paralelních PCM POSTů. Input epoch zahazuje
+pozdní převod předchozího poslechu. `DebugPanel.ts` vysvětluje skutečné
+zaplnění fronty místo automatického připsání chyby spojení. README,
+native handsfree peer a `scripts/test-native-debug.sh` doplňuje nový
+`tests/native_handsfree/upload_regression.swift`.
+
+Lokálně prošly TypeScript/Vite build a všech 24 mobilních testů (Node
+24.19.0/npm 11.9.0; CI používá připnutou verzi), bash/Node syntax a
+`git diff --check`. Swift 6.1.2 pro Linux z dočasného toolchainu zkompiloval
+skutečné deklarace upload bufferu a HTTP helperu s `-swift-version 5
+-warnings-as-errors`; nový loopback test prošel dávky/PCM pořadí při 50ms
+capture a 150ms HTTP odezvě (první odpověď 550 ms), kapacitu/overflow,
+input epoch, jedno TCP spojení pro 10 POSTů, zákaz redirectu a graceful
+finish/cancel. Izolovaná baseline s původním per-frame URLSession otevřela
+10 spojení a prokazatelně selhala na reuse assertion. Původní multi-turn
+loopback test také prošel s dočasnou Linux adaptací importů a bez Keychain
+a AVAudioConverter testu; jeho převodník/iPhone audio tím není ověřený.
+Linux FoundationNetworking upozorňovalo na již existující Sendable mutable
+state v live-stream delegátovi; nativní macOS kompilace nyní prošla.
+
+Nové čtení logů workflow 36931829723 selhalo před prvním krokem runneru:
+GitHub annotation uvádí neúspěšné platby nebo nutnost zvýšit spending limit.
+Poslední úspěšný snapshot 36928995676 je z 21:29 UTC a předchází screenshotu,
+proto nepotvrzoval konkrétní příčinu incidentu. Majitel následně opravil
+billing. Opakovaný CI běh 36932961956 (attempt 2, head `980301a`)
+prošel všemi povinnými kontrolami: macOS Swift harness včetně nového upload
+testu, Xcode 26.3 simulator build a spuštění aplikace, web/kontrakty,
+backend a oba firmware profily/host testy. Placený AI job zůstal vypnutý.
+Nové serverové čtení 36936002408 a filtrované 36936100858 proběhlo úspěšně:
+responses/openai dostupné, 0 aktivních rozhovorů, žádné droppedWrites ani
+truncated. U rozhovoru v 21:47 UTC byl úvod dokončen a poslech otevřen,
+poté telefon ukončil stream (499); žádná provider chyba v dané korelaci.
+To odpovídá lokálnímu overflow, ale samo neměří upload RTT ani neprokazuje
+celou příčinu screenshotu. Implementační commit
+`3fdcf6ac9261ab1edc2ddf63780d17eea09427bd` byl pushnut do větve
+`fix/ios-realtime-upload-overflow`, shoda vzdáleného SHA ověřena.
+Push-CurrentBranch.ps1 byl spuštěn, ale nemá uložený OAuth token účtu;
+session API potvrdilo Blato58 a push proběhl přes scoped gh credential
+helper bez změny ostatních účtů. [PR #90](https://github.com/Blato58/DildoVander/pull/90)
+eviduje finální head, povinné CI a výsledek sloučení. Tento zápis aktualizuje
+původní blokaci; povinné CI následně ověří i tento dokumentační head.
+Další krok: majitel nainstaluje 1000.0.8 a ověří úvod, alespoň dvě vlastní
+hlasové odpovědi, automatické obnovení poslechu a Stop na skutečném
+iPhonu/5G. Při další chybě dohledat aktuální trace/operation v logu.
 
 **D119 – Realtime hlas přímo na ESP a nastavení v Ovládání; všechny provider cesty přes SDK.**
 Majitel 1. 10. požaduje přidat Realtime do firmware, nastavovat hlasový režim
@@ -149,7 +292,7 @@ Stop, Wi-Fi výpadek, návrat k poslechu a reálnou češtinu na desce.
 
 
 
-**D118 – serverové logy, iOS zobrazení a čtecí integrace Codex.**
+**D118 – nasazeno: serverové logy, iOS zobrazení a čtecí integrace Codex.**
 Zadání majitele: logování serveru, API přístup, log v iOS a společný debug
 nasazeného prostředí s Codexem. Backend přidává oddělenou SQLite logovou DB,
 výchozí historii 24 h/5000 událostí, kurzor/filtry/retention gap a počty
@@ -194,11 +337,28 @@ runtime GH_TOKEN. API ověřilo účet Blato58; scoped gh git credential helper
 provedl push bez změny účtu nebo uložení tajemství. Finální macOS/CI/merge
 výsledek je evidovaný v PR. Review doplnilo rušení logového HTTP i při
 otevření konfigurace a zapomenutí nativního profilu.
-Nasazení backendu, podpis/publikace IPA a fyzický iPhone se v tomto kroku
-zatím neprovedly; backend D116 a IPA 1000.0.5 (D117) zůstávají dle záznamu níže.
-Další krok: dokončit macOS CI a merge D118, potom samostatně nasadit ověřené
-backend/web artefakty a publikovat IPA; vyzkoušet Log serveru během rozhovoru
-na iPhonu a čtení skutečné diagnostiky přes nový workflow.
+Finální CI 36924528705 prošlo celé včetně Swift/Xcode/iOS Simulatoru a obou
+firmware profilů. PR #86 sloučen do main `0330ce7b7514897304b91588056eefba0608a278`;
+shoda tree s ověřeným head `18fd319c23dd7dd1dd985488652a34529757cc85` doložena.
+Deploy 36925672662, Ad Hoc podpis 36925679081 a publikace 36926024016 prošly.
+Nasazení zachovává responses/gpt-6.1-sol a openai; nepouští placený test.
+[Služba a Safari instalace](https://2.28.202.220/ios/) nabízejí iOS 1.0/build
+1000.0.6 (sign run_number 6); externí runner ověřil HTTPS stránku/manifest/IPA.
+Živé čtení workflow 36926028955 úspěšně ověřilo log API a režimy přes veřejné
+HTTPS s credentialem z runneru, včetně typované projekce. V tomto cloudovém
+prostředí je stažení Actions artefaktů blokované (Blob 403) a přímý curl na IP
+odmítl hostname certifikátu proxy; TLS se neoslabuje. Autorizované Actions
+log API funguje. Následná úprava proto přidává stejný validovaný technický
+JSON do konzole workflow mezi KUFR_LOG_SNAPSHOT_BEGIN/END, aby Codex mohl
+číst logy i v této relaci bez stažení artefaktu. Artefakt žije 1 den, konzole
+má retenci Actions logů nastavenou v GitHub repozitáři. Token ani obsah
+rozhovoru se do obou cest nevkládá. Ověření konzole a finální merge předání
+jsou evidované v následném PR této úpravy; instalovaný backend/iOS se kvůli
+čtecímu workflow znovu nepřekládá ani nenasazuje.
+Další krok: aktualizovat iPhone a vyzkoušet Log serveru během rozhovoru,
+filtr/obnovování/sdílení a Stop/pozadí. Fyzický iPhone zde není dostupný;
+B1/fyzické pohony zůstávají otevřené. Přímé MCP je volitelné po nastavení
+reader tokenu v procesu Codex; GitHub čtení využije existující admin secret.
 
 **D117 – oprava startu Realtime, IPA 1000.0.5 publikovaná.**
 Majitel u 1000.0.4 doložil chybu hned po Začít AI rozhovor; oranžová tečka
@@ -728,7 +888,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 
 | ID | Chybějící vstup a kdo ho dodá | Co blokuje | Co může pokračovat |
 | --- | --- | --- | --- |
-| B1 | **Částečně ověřeno D120:** doručený N16R8, USB-UART COM7, ESP32-S3 chip v0.2, 16 MB Quad flash/3,3 V a 8 MB Octal PSRAM/80 MHz; autorizovaná USB-only diagnostika prošla tři restarty a 7 MiB pattern test. Stále chybí revize PCB/schéma, nativní USB/LED, externí napájení, bezpečnostní větev/watchdog, mechanika, servisní vstup a kalibrace. | Flash aplikačního firmware a provisioning s periferiemi, E5/E6 a HW akceptaci E9/E13. | USB-only diagnostika v doloženém rozsahu D120, hostitelské testy, protokol, simulátor, SW build. |
+| B1 | **Částečně ověřeno D122:** doručený N16R8, USB-UART COM7, ESP32-S3 chip v0.2, 16 MB Quad flash/3,3 V a 8 MB Octal PSRAM/80 MHz; autorizovaná USB-only diagnostika prošla tři restarty a 7 MiB pattern test. Stále chybí revize PCB/schéma, nativní USB/LED, externí napájení, bezpečnostní větev/watchdog, mechanika, servisní vstup a kalibrace. | Flash aplikačního firmware a provisioning s periferiemi, E5/E6 a HW akceptaci E9/E13. | USB-only diagnostika v doloženém rozsahu D122, hostitelské testy, protokol, simulátor, SW build. |
 | B2 | **Vyřešeno pro Ad Hoc export:** environment `ios-signing` obsahuje distribuční `.p12` a profil pro Team `3QRXV8G5Y3`, Bundle `app.turquoise6409.green2444`, jedno zařízení, `get-task-allow=false`, expiraci 24. 12. 2026. Stejné `IOS_P12_PASSWORD` OpenSSL přečetl; [běh 36636991415](https://github.com/Blato58/DildoVander/actions/runs/36636991415) importoval přebalenou identitu, ověřil shodu certifikátu s profilem, archiv, podpis a embedded profil IPA. | Podpis již neblokuje E3a; obnovit certifikát/profil před expirací. | iPhone akceptace B3 a další software. |
 | B3 | **Vyřešeno pro první instalaci E3a:** majitel potvrdil iPhone 15 Pro s iOS 26.6.1 a správné UDID v profilu. Stránka [https://2.28.202.220/ios/](https://2.28.202.220/ios/) veřejně vrací podepsanou verzi, `itms-services`, manifest a IPA; D70 ověřil externí HTTPS download a majitel 30. 9. potvrdil instalaci i spuštění. | LAN/Keychain a ovládání E10, aktualizace/rollback E11 stále vyžadují samostatnou zkoušku. | E4.3d2b a další software může pokračovat bez telefonu. |
 | B4 | Majitel dodal Ubuntu server s veřejnou IP `2.28.202.220` a runnerem `dildovander-server`; backend běží na loopback. OPENAI_API_KEY je v GitHub environmentu; D63 ověřil jeden placený Responses tah na loopback API. D67 root bootstrap vydal platný IP SAN certifikát, zapnul Nginx a obnovovací timer; externí [sonda 36633620137](https://github.com/Blato58/DildoVander/actions/runs/36633620137) ověřila veřejnou TLS důvěru, health, platnost a HTTP přesměrování. Pro skutečné zařízení zbývá jeho Device ID/credential, region/retence a fyzická TLS akceptace. GitHub environment má limity 0,50 USD/sezení a 10 USD/měsíc; majitel 29. 9. potvrdil projektový hard spend limit 10 USD v OpenAI. | Reálné ESP32/TLS spojení a produkční podmínky AI dat. | Veřejné HTTPS nyní funguje pro syntetické testy bez HW; loopback backend, CI a E8 eval korpus. |

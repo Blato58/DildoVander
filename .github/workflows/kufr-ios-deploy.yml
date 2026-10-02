@@ -72,13 +72,13 @@ jobs:
 
   verify-ios-page:
     needs: publish-ios
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, X64, kufr-backend]
     timeout-minutes: 5
     env:
       PUBLIC_IPV4: ${{ vars.KUFR_BACKEND_PUBLIC_IPV4 }}
       RELEASE_ID: ${{ needs.publish-ios.outputs.release_id }}
     steps:
-      - name: Verify Safari page, manifest and IPA from outside server
+      - name: Verify Safari page, manifest and IPA over public HTTPS
         shell: bash
         run: |
           set -euo pipefail

@@ -45,13 +45,19 @@ jobs:
           fi
           . /etc/os-release
           echo "host_os=${ID}-${VERSION_ID}"
-          for package in nginx certbot python3 snap; do
+          for package in nginx certbot python3 snap git curl tar g++ make node dotnet espeak-ng; do
             if command -v "$package" >/dev/null 2>&1; then
               echo "$package=$(command -v "$package")"
             else
               echo "$package=missing"
             fi
           done
+          python3 --version
+          if python3 -m venv "$RUNNER_TEMP/probe-venv"; then
+            echo 'python_venv=available'
+          else
+            echo 'python_venv=missing; install python3-venv as an administrator'
+          fi
           for service in nginx apache2 caddy certbot.timer snap.certbot.renew.timer; do
             if systemctl is-active --quiet "$service"; then
               echo "$service=active"

@@ -26,7 +26,7 @@ jobs:
   lint:
     timeout-minutes: 5
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, X64, kufr-backend]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -66,7 +66,7 @@ jobs:
 
   verify:
     if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.mode == 'verify')
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, X64, kufr-backend]
     timeout-minutes: 5
     env:
       PUBLIC_IPV4: ${{ inputs.public_ipv4 || vars.KUFR_BACKEND_PUBLIC_IPV4 }}
