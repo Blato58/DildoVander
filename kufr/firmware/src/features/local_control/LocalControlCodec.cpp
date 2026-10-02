@@ -256,7 +256,7 @@ bool Parse(JsonCursor& cursor, LocalControlMessage& message, size_t length) {
       valid = ReadPayload(cursor, message, payloadFields);
     } else if (key == "mode") {
       field = VoiceMode;
-      valid = cursor.ReadString(message.voiceMode, 16, true) && (message.voiceMode == "off" || message.voiceMode == "realtime");
+      valid = cursor.ReadString(message.voiceMode, 16, true) && (message.voiceMode == "off" || message.voiceMode == "realtime" || message.voiceMode == "gpt-live");
     } else if (key == "voice") {
       field = Voice;
       valid = cursor.ReadString(message.voice, 16, true) && (message.voice == "cedar" || message.voice == "marin" || message.voice == "coral");

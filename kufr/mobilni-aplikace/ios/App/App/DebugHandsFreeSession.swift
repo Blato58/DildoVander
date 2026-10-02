@@ -20,6 +20,8 @@ final class DebugHandsFreeSession {
     private let readyMask: Int
     private let voice: String
     private let speed: Double
+    private let gptLive: Bool
+    private var endpoint: String { gptLive ? "gpt-live" : "realtime-live" }
     private let phase: Phase
     private let visitor: Visitor
     private let reply: Reply
@@ -37,10 +39,11 @@ final class DebugHandsFreeSession {
     private var turnStartedAt: Date?
     private var firstAudioAt: Date?
     private var terminalReceived = false
+    private var finalReplyReceived = false
     private var closed = false
 
     init(client: DebugBackendClient, profile: DebugBackendProfile, token: String, conversation: String,
-         boot: String, readyMask: Int, voice: String, speed: Double, phase: @escaping Phase,
+         boot: String, readyMask: Int, voice: String, speed: Double, gptLive: Bool = false, phase: @escaping Phase,
          visitor: @escaping Visitor, reply: @escaping Reply, audio: @escaping Audio, listening: @escaping Listening,
          inputGate: @escaping InputGate, failure: @escaping Failure) {
         self.client = client
@@ -51,6 +54,7 @@ final class DebugHandsFreeSession {
         self.readyMask = readyMask
         self.voice = voice
         self.speed = speed
+        self.gptLive = gptLive
         self.phase = phase
         self.visitor = visitor
         self.reply = reply
@@ -62,7 +66,7 @@ final class DebugHandsFreeSession {
 
     func run() async throws {
         guard !closed, stream == nil, (0...63).contains(readyMask),
-              ["cedar", "marin", "coral"].contains(voice), speed.isFinite, (0.8...1.2).contains(speed) else {
+              ["cedar", "marin", "coral"].contains(voice), speed.isFinite, (0.8...1.2).contains(speed), !gptLive || speed == 1 else {
             throw DebugBackendError.invalidResponse
         }
         let openingId = UUID().uuidString.lowercased()
@@ -74,14 +78,14 @@ final class DebugHandsFreeSession {
             "text": "", "wav": NSNull(), "voice": voice, "speed": speed
         ]
         let data = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])
-        var request = URLRequest(url: profile.baseURL.appendingPathComponent("v1/conversations/\(conversation)/realtime-live"))
+        var request = URLRequest(url: profile.baseURL.appendingPathComponent("v1/conversations/\(conversation)/\(endpoint)"))
         request.httpMethod = "POST"
         request.httpBody = data
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue(UUID().uuidString.lowercased(), forHTTPHeaderField: "Idempotency-Key")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/x-ndjson", forHTTPHeaderField: "Accept")
-        let live = DebugHandsFreeLiveStream(request: request)
+        let live = DebugHandsFreeLiveStream(request: request, gptLive: gptLive)
         stream = live
         phase("opening")
         defer {
@@ -133,7 +137,7 @@ final class DebugHandsFreeSession {
             throw DebugBackendError.invalidResponse
         }
         var request = URLRequest(url: profile.baseURL.appendingPathComponent(
-            "v1/conversations/\(conversation)/realtime-live/\(streamId)/audio"))
+            "v1/conversations/\(conversation)/\(endpoint)/\(streamId)/audio"))
         request.httpMethod = "POST"
         request.httpBody = pcm
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -148,7 +152,7 @@ final class DebugHandsFreeSession {
     func played(operationId: String) async throws {
         guard !closed, let streamId, operationId == awaitingPlayedOperation else { throw DebugBackendError.invalidResponse }
         var request = URLRequest(url: profile.baseURL.appendingPathComponent(
-            "v1/conversations/\(conversation)/realtime-live/\(streamId)/played"))
+            "v1/conversations/\(conversation)/\(endpoint)/\(streamId)/played"))
         request.httpMethod = "POST"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -185,14 +189,14 @@ final class DebugHandsFreeSession {
             guard streamId == nil else { throw DebugBackendError.invalidResponse }
             streamId = id
         case .started(let operation, let correlation):
-            guard correlation == expectedCorrelation(clientTurnId: currentInputId ?? "") else { throw DebugBackendError.invalidResponse }
+            guard currentOperationId == nil, correlation == expectedCorrelation(clientTurnId: currentInputId ?? "") else { throw DebugBackendError.invalidResponse }
             currentOperationId = operation
             inputGate(false)
             phase("thinking")
         case .audio(let pcm):
             guard currentOperationId != nil else { throw DebugBackendError.invalidResponse }
             if firstAudioAt == nil { firstAudioAt = Date() }
-            inputGate(false)
+            if !gptLive { inputGate(false) }
             phase("playing")
             try audio(pcm)
         case .visitor(let text): visitor(text)
@@ -200,7 +204,9 @@ final class DebugHandsFreeSession {
             guard operation == currentOperationId, correlation == expectedCorrelation(clientTurnId: currentInputId ?? ""), cost > 0 else {
                 throw DebugBackendError.invalidResponse
             }
+            inputGate(false)
             let parsed = try validate(result)
+            finalReplyReceived = parsed.terminal
             awaitingPlayedOperation = operation
             currentOperationId = nil
             let now = Date()
@@ -216,8 +222,7 @@ final class DebugHandsFreeSession {
             guard awaitingPlayedOperation == nil, UUID(uuidString: input) != nil else { throw DebugBackendError.invalidResponse }
             previousInputId = currentInputId
             currentInputId = input
-            turnStartedAt = nil
-            firstAudioAt = nil
+            if !gptLive { turnStartedAt = nil; firstAudioAt = nil }
             listening(input)
             inputGate(true)
             phase("listening")
@@ -228,10 +233,13 @@ final class DebugHandsFreeSession {
             guard input == currentInputId else { throw DebugBackendError.invalidResponse }
             inputGate(false)
             phase("thinking")
-            turnStartedAt = Date()
-            firstAudioAt = nil
+            if !gptLive { turnStartedAt = Date(); firstAudioAt = nil }
         case .heartbeat: break
+        case .pause:
+            guard gptLive else { throw DebugBackendError.invalidResponse }
+            phase("listening")
         case .closed:
+            guard !gptLive || finalReplyReceived else { throw DebugBackendError.invalidResponse }
             terminalReceived = true
             inputGate(false)
             phase("completed")
@@ -291,12 +299,14 @@ private enum DebugHandsFreeEvent {
     case speechStarted(String)
     case speechStopped(String)
     case heartbeat
+    case pause
     case closed
     case failed(String)
 }
 
 private final class DebugHandsFreeLiveStream: NSObject, URLSessionDataDelegate {
     private let request: URLRequest
+    private let gptLive: Bool
     private let lock = NSLock()
     private var continuation: AsyncThrowingStream<DebugHandsFreeEvent, Error>.Continuation?
     private var session: URLSession?
@@ -308,7 +318,8 @@ private final class DebugHandsFreeLiveStream: NSObject, URLSessionDataDelegate {
     private var responseBody = Data()
     private var finished = false
 
-    init(request: URLRequest) {
+    init(request: URLRequest, gptLive: Bool = false) {
+        self.gptLive = gptLive
         self.request = request
     }
 
@@ -423,7 +434,7 @@ private final class DebugHandsFreeLiveStream: NSObject, URLSessionDataDelegate {
             guard let encoded = object["delta"] as? String, encoded.utf8.count <= 65_536,
                   let pcm = Data(base64Encoded: encoded), !pcm.isEmpty, pcm.count <= 49_152, pcm.count % 2 == 0 else { throw DebugBackendError.invalidResponse }
             turnPcm += pcm.count
-            guard turnPcm <= 1_440_000 else { throw DebugBackendError.tooLarge }
+            guard turnPcm <= (gptLive ? 9_120_000 : 1_440_000) else { throw DebugBackendError.tooLarge }
             return .audio(pcm)
         case "visitor":
             guard let text = object["text"] as? String, text.unicodeScalars.count <= 1000 else { throw DebugBackendError.invalidResponse }
@@ -437,6 +448,9 @@ private final class DebugHandsFreeLiveStream: NSObject, URLSessionDataDelegate {
         case "speech_started": guard let id = uuid(object, "inputId") else { throw DebugBackendError.invalidResponse }; return .speechStarted(id)
         case "speech_stopped": guard let id = uuid(object, "inputId") else { throw DebugBackendError.invalidResponse }; return .speechStopped(id)
         case "heartbeat": return .heartbeat
+        case "pause":
+            guard gptLive, object.count == 1 else { throw DebugBackendError.invalidResponse }
+            return .pause
         case "closed": guard object["reason"] as? String == "conversation_terminal" else { throw DebugBackendError.invalidResponse }; return .closed
         case "failed":
             guard let code = object["code"] as? String, [

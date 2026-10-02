@@ -6,6 +6,49 @@ Poslední aktualizace: **2. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D128 – 2. 10. 2026 – GPT-Live + Sol v aplikaci/firmware, 3 USD/session.**
+Majitel navázal na D127 požadavkem na samostatně přepínatelný GPT-Live pro
+vlastní porovnání a společný limit 3 USD na každou session. Backend nyní
+má izolovaný Live WebSocket adaptér, Responses Sol delegace, omezené
+PCM/transkripty, rušení zastaralého výsledku, potvrzené uzavření a výpočet
+délka + Sol. Pinned .NET SDK 2.14.0 Live nemá; zdůvodněná výjimka je
+zapsaná v plánu/AGENTS. Wire schéma porovnáno s oficiální dokumentací a
+Python SDK 3.22.1. Neproběhl fine-tuning ani živá provider evaluace.
+
+Mobilní Debug nabízí GPT-Live + Sol a používá Apple voice processing pro
+současné přehrávání/snímání. Hlas kufru přepíná `mode:gpt-live` přes
+local control, ESP používá samostatné `/gpt-live` routy. Na ESP se během
+řeči posílá ticho, protože AEC není ověřené. Původní Realtime zůstává.
+Změna režimu vyžaduje neaktivní hovor. Autonomní návrh prochází původní
+bránou. Live nehlásí audio-done: 900ms výstupní pauza je heuristika,
+nikoli důkaz kompletně vyslovené repliky. Timeout je 180 s. Oprava před
+finalizací ruší závěr; pozdní upload se po session.close nepošle provideru.
+
+Backend i AI eval používají 3 USD/session, deployment přepisuje starý
+session secret hodnotou 3000000. Denní/měsíční nastavení se ignorují;
+auditní součty zůstávají. Party eval nemá výchozí souhrnný run cap,
+každý profil má vlastní 3 USD. Nadřazený limit zůstává v OpenAI.
+Při nejasném ukončení zůstává rezervace, nikoli tvrzení o skutečné útratě.
+
+Lokálně prošly kompletní backendové testy v .NET 10 (nově Live wire,
+delegace, čtyři otázky, finální usage, přerušení závěru, Stop a pozdní
+upload), 23 Python eval testů, 15 backendových Python testů a 3 deploy
+testy. Prošly kontrakty, 25 mobilních Node testů a TypeScript/Vite build.
+Host C++ hlasové testy ověřily oba endpointy, průběžný vstup, pause/drain,
+ACK, Stop a původní Realtime. Oba PlatformIO profily ESP-IDF a Arduino
+se sestavily. Nativní Swift fake peer byl rozšířen o GPT-Live; tento Linux
+nemá Swift/Xcode, takže nativní kompilace a běh čekají na ruční iOS build.
+Živá dostupnost GPT-Live pro účet, čeština, humor, ozvěna iPhone/ESP a
+časování závěru nebyly offline ověřeny. Není hotová HW akceptace.
+
+Další krok: po CI a merge nasadit backend a vydat novou iOS aplikaci /
+flashnout odpovídající firmware v samostatně autorizovaném kroku; pak
+provést ruční porovnání podle [návodu](hlas-a-humor-research.md#d128-testovaci-gpt-live-rezim).
+V tomto slice nebyl spuštěn deploy, placený test, podpis IPA ani flash.
+Změny jsou připravené pro navazující commit a aktualizaci PR #99; výsledek
+push/CI se doplní po ověření finální revize.
+
+
 **D127 – 2. 10. 2026 – přirozený opening, CARLIN a rešerše hlasových agentů.**
 Majitel požádal o skutečně vtipnější AI, opravu předstíraného pokračování
 rozhovoru a stále stejné první otázky; prioritou je kvalita. Přečten článek

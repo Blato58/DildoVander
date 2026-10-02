@@ -800,3 +800,16 @@ opening/PTT a audio. Další akceptace E4/E5 vyžaduje B1 a živé zařízení. 
 stub testy a build neprokazují reconnect/IP změny/TLS/aktuátory na desce.
 
 D119 audio driver test dále ověřuje, že Stop zůstává účinný pro celé sezení: pozdní PCM blok ani Listen po Stop znovu nezapne zesilovač. Nové sezení vyžaduje explicitní Begin a aktuální runtime snapshot.
+
+## D128: volitelný GPT-Live
+
+`voice.configure` přijímá `off`, `realtime` a `gpt-live`; volbu a hlas lze
+měnit z aplikace před spuštěním, platí do restartu. GPT-Live používá stejné
+samostatné HTTPS připojení ESP k backendu, nové `/gpt-live` routy a jediný
+kontinuální vstup s pořadím PCM bloků. Cena hlasu a Sol delegací má společný
+strop 3 USD/session. Backend i firmware musí být D128 nebo novější.
+ESP při přehrávání posílá ticho místo mikrofonu, protože AEC není ověřené.
+Pauza výstupu způsobí drain reproduktoru a obnovení mikrofonu. Finální
+návrh prochází původní snapshot/kalibrační/bezpečnostní bránou; Stop platí
+pro oba režimy. Hardware nebyl touto změnou flashnut ani akceptován.
+[Rešerše a testovací postup](../docs/hlas-a-humor-research.md#d128-testovaci-gpt-live-rezim).

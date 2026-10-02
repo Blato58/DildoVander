@@ -48,6 +48,9 @@ assert.deepEqual(Object.keys(document.paths).sort(), [
   '/v1/audio/{audioId}',
   '/v1/conversations',
   '/v1/conversations/{id}',
+  '/v1/conversations/{id}/gpt-live',
+  '/v1/conversations/{id}/gpt-live/{streamId}/audio',
+  '/v1/conversations/{id}/gpt-live/{streamId}/played',
   '/v1/conversations/{id}/opening',
   '/v1/conversations/{id}/realtime-live',
   '/v1/conversations/{id}/realtime-live/{streamId}/audio',
@@ -210,3 +213,8 @@ validate('ServerLogPage', logPage, true);
 validate('ServerLogEntry', { ...logEntry, text: 'private' }, false);
 validate('ServerLogEntry', { ...logEntry, code: 'private content' }, false);
 validate('ServerLogPage', { ...logPage, entries: Array(201).fill(logEntry) }, false);
+
+validate('GptLiveStart', { ...realtime, speed: 1 }, true);
+validate('GptLiveStart', { ...realtime, speed: 1.1 }, false);
+validate('GptLiveEvent', { type: 'pause' }, true);
+validate('GptLiveEvent', { type: 'pause', extra: true }, false);

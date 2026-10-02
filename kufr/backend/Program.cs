@@ -1,3 +1,4 @@
+using Kufr.Backend.Features.GptLive;
 using Kufr.Backend.Features.Access;
 using Kufr.Backend.Features.Conversations;
 using Kufr.Backend.Features.VoiceTurns;
@@ -16,6 +17,7 @@ builder.Services.AddSingleton<OperationJournal>();
 builder.Services.AddSingleton<TextDialogRunner>();
 builder.Services.AddSingleton<VoiceProviderRunner>();
 builder.Services.AddSingleton<OpenAiRealtimeClient>();
+builder.Services.AddSingleton<GptLiveClient>();
 builder.Services.AddSingleton<RealtimeLiveRegistry>();
 builder.Services.AddSingleton<EveningMemoryStore>();
 builder.Services.AddSingleton<ConversationStore>();
@@ -46,6 +48,7 @@ app.MapDeviceAccess();
 app.MapConversations();
 app.MapRealtimeTurns();
 app.MapRealtimeLive();
+app.MapGptLive();
 app.MapServerModes();
 app.MapServerLogs();
 app.MapGet("/v1/diagnostics", (HttpContext context, DeviceAccessStore access,

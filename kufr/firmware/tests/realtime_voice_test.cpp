@@ -49,6 +49,11 @@ int main() {
   std::string json = "{" + common + ",\"type\":\"voice.configure\",\"mode\":\"realtime\",\"voice\":\"cedar\"}";
   assert(ParseLocalControlMessage(json.data(), json.size(), message));
   assert(message.kind == LocalControlMessageKind::VoiceConfigure && message.voice == "cedar");
+  json = "{" + common + ",\"type\":\"voice.configure\",\"mode\":\"gpt-live\",\"voice\":\"marin\"}";
+  assert(ParseLocalControlMessage(json.data(), json.size(), message));
+  assert(message.voiceMode == "gpt-live");
+  assert(ParseRealtimeEvent("{\"type\":\"pause\"}", event));
+  assert(!ParseRealtimeEvent("{\"type\":\"pause\",\"operationId\":\"bad\"}", event));
   json = "{" + common + ",\"type\":\"voice.start\",\"expectedRevision\":37}";
   assert(ParseLocalControlMessage(json.data(), json.size(), message));
   assert(message.kind == LocalControlMessageKind::VoiceStart && message.expectedRevision == 37);

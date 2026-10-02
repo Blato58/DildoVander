@@ -226,7 +226,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
                 do {
                     self.mode = call.getString("expectedMode") ?? "unknown"
                     let engine = call.getString("engine") ?? "chained"
-                    if engine == "realtime" {
+                    if engine == "realtime" || engine == "gpt-live" {
                         guard self.mode == "openai" else { throw DebugBackendError.wrongMode }
                         try await self.runHandsFree(call, profile: profile, generation: generation)
                         return
@@ -293,7 +293,8 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
         }
         try requireCurrent(generation)
         guard permitted else { throw DebugBackendError.serverCode("microphone_unavailable") }
-        let audio = DebugHandsFreeAudio(upload: { [weak self] input, sequence, pcm in
+        let gptLive = call.getString("engine") == "gpt-live"
+        let audio = DebugHandsFreeAudio(fullDuplex: gptLive, upload: { [weak self] input, sequence, pcm in
             guard let self = self, self.generation == generation, let session = self.handsFreeSession else {
                 throw CancellationError()
             }
@@ -310,7 +311,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
         })
         let session = try await DebugBackendClient().openHandsFreeSession(profile,
             readyMask: call.getInt("readyMask") ?? -1, voice: call.getString("voice") ?? "cedar",
-            speed: call.getDouble("speed") ?? 1.1,
+            speed: gptLive ? 1 : (call.getDouble("speed") ?? 1.1), gptLive: gptLive,
             phase: { [weak self] value in if self?.generation == generation { self?.phase = value } },
             visitor: { [weak self] value in
                 if self?.generation == generation { self?.transcript.append(["role": "visitor", "text": value]) }
