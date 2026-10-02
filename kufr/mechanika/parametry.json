@@ -1,0 +1,94 @@
+{
+  "status": "PROTOTYP - kufr 450 x 310 x 200 mm od majitele; vnitrni rozmery a komponenty nezmerene",
+  "printer_bed_mm": [
+    220,
+    220,
+    250
+  ],
+  "case_inside_mm": [
+    310,
+    450,
+    200
+  ],
+  "wand_max_length_mm": 200,
+  "wand_max_diameter_mm": 16,
+  "tray_length_mm": 240,
+  "tray_width_mm": 28,
+  "segment_count": 3,
+  "compartment_count": 6,
+  "compartment_pitch_mm": 48,
+  "base_width_mm": 46,
+  "rod_diameter_mm": 4,
+  "rod_running_clearance_mm": 0.5,
+  "rod_length_mm": 120,
+  "crank_radius_mm": 20,
+  "angle_low_deg": -45,
+  "angle_high_deg": 45,
+  "servo_axis_height_mm": 42,
+  "tray_floor_low_mm": 68,
+  "servo_body_xyz_mm": [
+    27,
+    23,
+    13
+  ],
+  "vibration_body_xyz_mm": [
+    32,
+    24,
+    14
+  ],
+  "led_strip_width_mm": 10,
+  "electronics_bay_width_mm": 310,
+  "boxes": {
+    "controller": [
+      105,
+      80,
+      36
+    ],
+    "pca9685": [
+      100,
+      72,
+      36
+    ],
+    "power": [
+      154,
+      94,
+      42
+    ],
+    "safety": [
+      108,
+      76,
+      36
+    ],
+    "audio": [
+      70,
+      52,
+      28
+    ],
+    "microphone": [
+      44,
+      32,
+      20
+    ],
+    "speaker": [
+      122,
+      67,
+      32
+    ],
+    "router_optional": [
+      125,
+      90,
+      40
+    ]
+  },
+  "powerbank_body_xyz_mm": [
+    155,
+    70,
+    28
+  ],
+  "speaker_body_xyz_mm": [
+    100,
+    45,
+    21
+  ],
+  "case_dimensions_confirmed_internal": false
+}
