@@ -35,7 +35,6 @@ internal sealed class GptLiveDialogue(GptLiveConnection connection, TextDialogRu
         var elapsed = Stopwatch.StartNew();
         var input = new StringBuilder();
         var archive = new List<LiveTranscript>();
-        var history = new List<DialogExchange>();
         var delegations = new HashSet<string>(StringComparer.Ordinal);
         Task<TextDialogResponse>? pending = null;
         Task<JsonDocument>? receive = null;
@@ -83,9 +82,6 @@ internal sealed class GptLiveDialogue(GptLiveConnection connection, TextDialogRu
                     }
                     if (result.Decision == "ask") questions++;
                     else { terminal = result; terminalAt = elapsed.Elapsed; }
-                    history.Add(new(pendingInput[..Math.Min(pendingInput.Length, 500)],
-                        result.Reply[..Math.Min(result.Reply.Length, 300)]));
-                    if (history.Count > 2) history.RemoveAt(0);
                     input.Clear();
                     await connection.SendAsync(new { type = "session.commentary.append", delegation_id = pendingId,
                         content = result.Reply }, token);
@@ -145,13 +141,12 @@ internal sealed class GptLiveDialogue(GptLiveConnection connection, TextDialogRu
                                     await connection.SendAsync(new { type = "session.instructions.append", delegation_id = (string?)null,
                                         content = "Návštěvník doplnil odpověď. Předchozí závěr už neplatí; deleguj aktuální opravu backendu." }, token);
                                 }
-                                archive.Add(new(fragment, ""));
+                                AddTranscript(archive, true, fragment);
                                 await visitor(fragment, token);
                             }
                             else
                             {
-                                for (var i = 0; i < fragment.Length; i += 500)
-                                    archive.Add(new("", fragment.Substring(i, Math.Min(500, fragment.Length - i))));
+                                AddTranscript(archive, false, fragment);
                                 if (terminal is not null) terminalTranscript = true;
                             }
                             break;
@@ -171,7 +166,7 @@ internal sealed class GptLiveDialogue(GptLiveConnection connection, TextDialogRu
                             if (modelCost + reservation + GptLiveProtocol.VoiceReservation > GptLiveProtocol.SessionBudget)
                                 throw new InvalidDataException("Live session budget exhausted.");
                             pendingId = id; pendingVersion = version; pendingInput = input.ToString();
-                            pending = dialog.GenerateAsync(pendingInput, turn.Request.ReadyMask, history,
+                            pending = dialog.GenerateAsync(pendingInput, turn.Request.ReadyMask, SpokenHistory(archive),
                                 questions < ResponsesTextDialogBudget.MinimumQuestions, backendWork.Token, turn.EveningContext);
                             break;
                         case "session.usage.updated":
@@ -224,4 +219,42 @@ internal sealed class GptLiveDialogue(GptLiveConnection connection, TextDialogRu
             }, TaskContinuationOptions.ExecuteSynchronously);
         }
     }
+
+    private static void AddTranscript(List<LiveTranscript> archive, bool visitor, string fragment)
+    {
+        // Provider deltas can divide a word. Coalesce adjacent same-speaker
+        // fragments before persistence/recall, retaining the store's row bounds.
+        var maximum = visitor ? 1000 : 500;
+        while (fragment.Length > 0)
+        {
+            var last = archive.Count > 0 ? archive[^1] : null;
+            var sameSpeaker = last is not null && (visitor ? last.Reply.Length == 0 : last.Visitor.Length == 0);
+            var existing = sameSpeaker ? (visitor ? last!.Visitor : last!.Reply) : "";
+            if (!sameSpeaker || existing.Length == maximum)
+            {
+                archive.Add(new("", ""));
+                existing = "";
+            }
+            var count = Math.Min(maximum - existing.Length, fragment.Length);
+            var joined = existing + fragment[..count];
+            archive[^1] = visitor ? new(joined, "") : new("", joined);
+            fragment = fragment[count..];
+        }
+    }
+
+    private static IReadOnlyList<DialogExchange> SpokenHistory(IReadOnlyList<LiveTranscript> archive)
+    {
+        var history = new List<DialogExchange>();
+        var visitor = "";
+        foreach (var item in archive)
+        {
+            if (item.Visitor.Length > 0) visitor = item.Visitor;
+            if (item.Reply.Length == 0) continue;
+            history.Add(new(visitor[..Math.Min(visitor.Length, 500)], item.Reply[..Math.Min(item.Reply.Length, 300)]));
+            if (history.Count > 2) history.RemoveAt(0);
+            visitor = "";
+        }
+        return history;
+    }
+
 }
