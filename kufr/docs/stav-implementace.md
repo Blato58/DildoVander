@@ -7,22 +7,36 @@ Poslední aktualizace: **2. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 ## Předání další AI
 
 **D121 – oprava režimu tichého Realtime hlasu na iPhonu (2. 10. 2026).**
-Majitel hlásí příliš tichý hlas v aplikaci. Hands-free přehrávač používá
+Majitel hlásí příliš tichý hlas v aplikaci. Hands-free přehrávač používal
 `playAndRecord/voiceChat`, přestože jde o poloduplex a engine nezapíná
 voice processing. Telefonní režim může zeslabovat reproduktor. Oprava
 v `DebugHandsFreeAudio.swift` přepíná session i kontrolu route na `.default`
 a zachovává `.defaultToSpeaker`, vstupní bránu během řeči a detekci přerušení.
 Mobilní README popisuje režim a nastavení hlasitosti během přehrávání.
 Lokálně prošel TypeScript/Vite build, všech 24 mobilních testů a whitespace.
-Linux nemá AVFoundation/Xcode; nativní kompilaci a existující route/converter
-testy ověří macOS CI v [PR #92](https://github.com/Blato58/DildoVander/pull/92).
+CI `36944228707` na head `9cfbfa1` prošlo: macOS nativní route/converter/upload
+testy, Xcode iOS Simulator build a spuštění aplikace i všechny povinné
+serverové kontroly. [PR #92](https://github.com/Blato58/DildoVander/pull/92)
+je sloučen jako `e9de404d7043ea09602e3d4ca9bb557363efde35`; změna je ověřena
+na main. Skutečnou hlasitost musí potvrdit iPhone.
 Implementační commit `8132191f22ada535fab8bd157a86febd85cfc272` je pushnutý
 do `fix/iphone-realtime-speaker-volume`; remote SHA bylo ověřeno. Předepsaný
 PowerShell helper byl spuštěn, ale zde není spustitelný a `pwsh` chybí;
 push provedl scoped gh credential helper po ověření účtu Blato58.
-CI se nyní spouští; výsledek a merge budou doloženy v PR před sloučením.
-Skutečnou hlasitost musí potvrdit iPhone; podpis a publikace nové IPA nejsou
-součástí tohoto slice. Instalace zatím nabízí předchozí build 1000.0.8.
+Majitel následně výslovně schválil podpis a publikaci aktualizace. Ad Hoc
+podpis [36946442779](https://github.com/Blato58/DildoVander/actions/runs/36946442779)
+prošel nad main `e9de404` a ověřeným CI výše; nový build je **1000.0.9**.
+Publikace [36946600253](https://github.com/Blato58/DildoVander/actions/runs/36946600253)
+prošla všemi třemi joby. [Safari instalace](https://2.28.202.220/ios/)
+nabízí verzi 1.0 / **1000.0.9**, release `36946600253-1`.
+Serverový runner ověřil přes veřejné HTTPS stránku, manifest, Bundle ID,
+stažení IPA, SHA-256 a MIME typy. Přímé čtení z cloudového workspace opět
+narazilo na proxy certifikát pro cizí hostname; TLS ověřování zůstalo zapnuté.
+To není nezávislá kontrola z jiné sítě ani měření hlasitosti iPhonu.
+Další krok: majitel aktualizuje aplikaci, ověří hlasitost Realtime odpovědi
+a alespoň dvě výměny v režimu bez tlačítek; během řeči ji může nastavit
+bočními tlačítky. Backend ani firmware nebyly nasazeny a neproběhl placený AI
+test. Git předání dokumentace bude evidováno v navazujícím PR.
 
 **Migrace GitHub Actions na vlastní serverový runner (1. 10. 2026).**
 Majitel požaduje všechny joby na svém serveru, kromě macOS. Všech 22 Linux
