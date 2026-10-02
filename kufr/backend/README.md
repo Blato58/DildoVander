@@ -150,8 +150,8 @@ rezervace před voláním je 0,10 USD plus cache-write cena Fast
 přidaných bajtů. Všechny tři stávající nákladové stropy zůstávají účinné.
 
 `POST /v1/conversations/{id}/opening` přijímá pole textového tahu **bez text**.
-Vytvoří běžnou pollovatelnou turn operaci: kufr promluví první a zeptá se na
-jméno bez představování. Po prvním přijatém tahu se nový opening odmítne;
+Vytvoří běžnou pollovatelnou turn operaci: kufr promluví první, krátce osloví
+hosta a položí jednu otázku podle serverového námětu. Jméno není povinný úvod. Po prvním přijatém tahu se nový opening odmítne;
 retry se stejným klíčem vrací tutéž operaci. Starý `/turns` zůstává kompatibilní.
 Firmware má explicitní vstup opening a ukončení sezení (D75); reálný vstup návštěvníka a samostatný hlas vyžadují dokončení E4/E9.
 
@@ -514,3 +514,16 @@ MCP, společný postup s iOS a GitHub workflow **Kufr server logs**. Pro přím�
 MCP lze v `backend-production` přidat volitelný secret `LOG_READER_CREDENTIAL`;
 deploy uloží jeho hash. Bez něj funguje iOS/admin a GitHub čtení přes existující
 admin secret. Čtení neprovádí provider volání ani změny serveru.
+
+## D127: nový rozhovor a kvalita humoru
+
+Textový i Realtime opening neodesílají archiv večera ani historii starých
+výměn. Paměť se nemaže a vrací se do kontextu dalších tahů.
+`ConversationOpening` střídá šest námětů v rámci procesu (po restartu nová
+počáteční pozice); nejde o šest hotových hlášek. Realtime uloží námět jednou
+do kontextu tahu, takže rezervace a její případné zkrácení nemění zadání.
+Sdílený prompt používá principy CARLIN, jednu otázku a jeden doložený detail.
+[Rešerše](../docs/hlas-a-humor-research.md) rozlišuje nynější Realtime, GPT‑Live
+a další hlasové cesty a obsahuje kritéria českého poslechového testu.
+Offline testy neověřují vtipnost. Tento slice neprovádí migraci, nasazení
+ani placené volání a nemění fyzické řízení, API nebo limity.

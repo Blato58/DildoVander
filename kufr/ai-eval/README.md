@@ -133,3 +133,11 @@ validaci. Staré reporty s Astrou jsou historické, nové běhy ji nepovolují.
 cleanup a skutečný návrh přehrávaný hostitelským firmwarem:
 [ověřovací report](reports/2026-09-30-live-backend-dialogue.md).
 Po tomto testu je jediným povoleným dialogovým modelem Sol.
+
+D127 odstraňuje povinný dotaz na jméno a v opening vynechává archiv/historii.
+Prompt přebírá principy CARLIN; nejde o fine-tuning ani doložené zlepšení
+humoru bez živého poslechu. Python eval nemodeluje procesovou rotaci šesti
+serverových námětů v C#; její transport a stabilitu ověřují backend testy.
+[Rešerše a plán hodnocení](../docs/hlas-a-humor-research.md) popisují porovnání
+Realtime/GPT‑Live, slepý poslech a scénáře nových rozhovorů. Starší fixtures
+s odpovědí „Petr“ po každém opening nejsou důkaz adaptivní kvality.

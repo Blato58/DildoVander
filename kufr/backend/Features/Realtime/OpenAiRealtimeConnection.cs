@@ -65,7 +65,7 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable
         {
             throw new InvalidDataException("Realtime configuration was not accepted.");
         }
-        if (turn.EveningContext.Length != 0 || turn.History.Count != 0)
+        if (!turn.Request.Opening && (turn.EveningContext.Length != 0 || turn.History.Count != 0))
         {
             await session.AddItemAsync(
                 RealtimeItem.CreateUserMessageItem(RealtimeProtocol.ContextData(turn)),

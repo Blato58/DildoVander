@@ -6,6 +6,35 @@ Poslední aktualizace: **2. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D127 – 2. 10. 2026 – přirozený opening, CARLIN a rešerše hlasových agentů.**
+Majitel požádal o skutečně vtipnější AI, opravu předstíraného pokračování
+rozhovoru a stále stejné první otázky; prioritou je kvalita. Přečten článek
+Greg Robisona a oficiální dokumentace OpenAI (včetně GPT‑Live), ElevenAgents
+a LiveKit. [Rešerše](hlas-a-humor-research.md) obsahuje doporučení, omezení
+a plán slepého českého poslechu. Aktuální Realtime již je hlasový agent;
+GPT‑Live + Sol je doporučený kandidát srovnání, nikoli provedená migrace.
+
+`ConversationOpening.cs` střídá šest námětů v procesu backendu. Textový
+a Realtime opening neodesílají paměť ani historii novému neidentifikovanému
+hostovi; další tahy zachovávají dosavadní recall. Archiv se nemaže. Realtime
+námět drží po celý tah včetně přepočtu rezervace. `prompt.txt` odstranil
+povinné jméno, rozlišuje představení role od předchozí konverzace a adaptuje
+CARLIN (různé úhly, doložený detail, jedna krátká pointa). Příklady již
+nepředvádějí dvě otázky v rozporu s pravidlem. Python eval sdílí izolaci
+opening, nikoli procesovou rotaci C#. Plán a README byly synchronizovány.
+
+Lokálně prošel celý `dotnet run --project kufr/backend-tests/BackendTests.csproj
+--no-restore` v připraveném .NET 10 prostředí: včetně nových kontrol skutečného
+Realtime opening payloadu bez user zprávy, izolace textového opening, návratu
+paměti v dalším tahu, šesti různých námětů a stability při rezervaci. Prošlo
+22 Python offline eval testů, kontrola lokálních odkazů pěti dotčených
+dokumentů a `git diff --check`. Nebyl použit provider klíč
+ani spuštěn placený test, nasazení či změna firmware/telefonu. Kvalita
+humoru, českého hlasu a latence není offline testy potvrzená; další krok je
+živé slepé srovnání podle rešerše v explicitně stanoveném rozpočtu.
+Git předání a CI: doplnit po dokončení ověřeného commitu a push.
+
+
 **D126 – 2. 10. 2026 – parametrický 3D tiskový prototyp mechaniky kufru.**
 Majitel požádal o modely krabiček, šesti přihrádek a nadzvednutí celé
 přihrádky včetně usazení vibrací a elektroniky. Upřesnil kufr
