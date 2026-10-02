@@ -82,10 +82,7 @@ def read_stream(response, events):
 
 def run():
     cap = int(os.environ["SESSION_CAP_MICRO_USD"])
-    check(0 < cap <= 1_000_000, "approved_budget_guard")
-    check(int(os.environ["DAILY_CAP_MICRO_USD"]) > 0
-          and int(os.environ["MONTHLY_CAP_MICRO_USD"]) > 0, "usage_caps_required")
-    check(os.environ["APPROVED_BUDGET_USD"] == "1", "approved_budget_guard")
+    check(0 < cap <= 3_000_000, "approved_budget_guard")
     report = {"kind": "synthetic_hands_free", "maximumSessionUsd": cap / 1_000_000,
               "model": "gpt-realtime-1.5", "turns": [], "completed": False}
     output = Path(os.environ.get("REPORT_PATH", "realtime-live-report.json"))

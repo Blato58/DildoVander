@@ -11,7 +11,8 @@ uvažování a podporuje současný poslech a řeč. Zda bude v češtině zába
 musí rozhodnout poslech a slepé porovnání; dokumentace to nedokazuje.
 Samotné přidání Agents SDK, LiveKit nebo názvu „agent“ humor nezlepší.
 
-Tento slice nemění poskytovatele, protokol telefonu/ESP ani cenové limity.
+Původní D127 opravil kontext a humor; navazující D128 níže přidává
+přepínatelný GPT-Live a nové session limity.
 Vlastní fine-tuning neproběhl: mění se konverzační logika a instrukce modelu.
 
 ## Zjištěné příčiny
@@ -68,7 +69,7 @@ tentýž model, který vtip vytvořil.
 | Varianta | Přínos pro tento projekt | Omezení a rozhodnutí |
 | --- | --- | --- |
 | Současný Realtime | Model slyší audio přímo, mluví a volá validované funkce v jedné session. Existuje .NET integrace, paměť a rezervace. | Aplikace je poloduplexní. Opravit úvod a prompt nyní; použít jako základ srovnání. |
-| GPT‑Live + Sol | Full duplex; oddělený backend může tvořit kvalitnější pointu, zatímco hlasová vrstva řeší rozhovor. | Nový životní cyklus delegací, zrušení zastaralých výsledků a řízení přehrávání. Hlas účtovaný podle délky + samostatný backend vyžaduje nový výpočet rezervací. Kandidát dalšího prototypu. |
+| GPT‑Live + Sol | Full duplex; oddělený backend může tvořit kvalitnější pointu, zatímco hlasová vrstva řeší rozhovor. | Nový životní cyklus delegací, zrušení zastaralých výsledků a řízení přehrávání. Hlas účtovaný podle délky + samostatný backend vyžaduje nový výpočet rezervací. Od D128 volitelný testovací režim. |
 | STT → Sol → TTS | Úplná kontrola nad textem a možnost porovnat několik point před přehráním. Již existující záloha. | Sekvenční čekání a ztráta části neverbálního kontextu. Není důvod ji bez poslechu vyhlásit vítězem. |
 | ElevenAgents | Volitelný LLM, hlasová syntéza a vlastní řízení střídání řeči. | Přínos české výslovnosti a komediálního podání zde nezměřen; další služba a integrace. Kandidát, pokud český hlas zůstane slabinou. |
 | LiveKit Agents | Orchestrace, WebRTC, detekce konce řeči a integrace různých modelů. | Framework, nikoli model humoru; další server a transport pro současné HTTPS klienty. Teď není nutný. |
@@ -132,3 +133,41 @@ nepovažovat za adaptivní test nové konverzace.
 
 Dokumentace dokládá schopnosti rozhraní, nikoli naměřenou českou kvalitu
 nebo dostupnost konkrétního nového produktu pro náš provider účet.
+
+## D128: testovaci GPT-Live rezim
+
+Na navazující zadání majitele je implementován **GPT-Live + Sol** jako
+samostatná volba, bez nahrazení Realtime. Používá Live API
+`wss://api.openai.com/v1/live/sessions`, `session.start`, kontinuální
+24kHz PCM, vnořený `delegation.id/target`, backend commentary a potvrzené
+`session.closed`. Wire schéma bylo porovnáno s oficiální dokumentací a
+OpenAI Python SDK 3.22.1; .NET SDK 2.14.0 Live dosud nemá. Sol zůstává
+přes oficiální .NET SDK. Nejde o změnu modelových vah ani fine-tuning.
+
+Po nasazení stejné verze backendu, aplikace a firmware:
+
+1. V telefonu otevři **Debug → režim → GPT-Live + Sol**. Vyber hlas
+   Marin, Cedar nebo Coral a spusť rozhovor. GPT-Live používá rychlost 1×.
+   Hlas i mikrofon běží současně přes Apple voice processing. Debug
+   nepředává návrh do fyzického kufru.
+2. Pro samostatný kufr otevři **Hlas kufru → Hlasový režim → GPT-Live + Sol**,
+   použij nastavení, uvolni ruční řízení a spusť hlas na kufru.
+   Nastavení se přenese jako `voice.configure mode:gpt-live`; platí do restartu.
+3. Nový režim vybírej mezi sezeními. Pro srovnání stejným přepínačem vrať
+   Realtime a použij stejné situace a hlas. Poznamenej českou výslovnost,
+   latenci, konkrétnost pointy, opakování a reakce na přerušení.
+4. Každé sezení má 3 USD rozpočet společný pro hlas a všechny delegace;
+   celkový rozpočet zůstává v OpenAI. AI eval má také 3 USD na rozhovor,
+   bez výchozího souhrnného limitu celé sady.
+
+Omezení prototypu: ESP nemá ověřené AEC, proto během přehrávání posílá
+časově souvislé ticho a začne poslouchat po dohrání segmentu. Na telefonu
+je zapnuté AEC, ale skutečná kvalita a hlasitost vyžadují iPhone test.
+Live WebSocket nemá událost dokončeného audio tahu; 900ms práh ve výstupním
+PCM je heuristika pauzy, včetně závěrečné repliky. Dlouhá vnitřní pauza
+může ukončit repliku předčasně. Výběr se publikuje až po `session.closed`,
+které potvrzuje konec relace a usage, nikoli sémantickou úplnost řeči.
+Sezení má technický timeout 180 s, nejvýše 10 delegací; Stop zavře spojení.
+Oprava hosta během rozpracovaného výsledku zabrání použití starého výběru.
+Nejasně ukončené placené volání drží rezervaci, nepočítá se jako zdarma.
+Živá kvalita a reálné zařízení nebyly tímto offline ověřením potvrzené.

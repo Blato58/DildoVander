@@ -36,7 +36,7 @@ internal sealed class VoiceProviderRunner : IDisposable
                 return;
             }
 
-            throw new InvalidOperationException("OpenAI voice requires an explicit mode, key and all positive usage caps.");
+            throw new InvalidOperationException("OpenAI voice requires an explicit mode, key and a positive session usage cap.");
         }
 
         httpClient = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false });

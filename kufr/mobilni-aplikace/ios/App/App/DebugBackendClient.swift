@@ -426,7 +426,7 @@ final class DebugBackendClient {
     }
 
     @MainActor func openHandsFreeSession(_ profile: DebugBackendProfile, readyMask: Int,
-        voice: String, speed: Double, phase: @escaping DebugHandsFreeSession.Phase,
+        voice: String, speed: Double, gptLive: Bool = false, phase: @escaping DebugHandsFreeSession.Phase,
         visitor: @escaping DebugHandsFreeSession.Visitor, reply: @escaping DebugHandsFreeSession.Reply,
         audio: @escaping DebugHandsFreeSession.Audio, listening: @escaping DebugHandsFreeSession.Listening,
         inputGate: @escaping DebugHandsFreeSession.InputGate, failure: @escaping DebugHandsFreeSession.Failure)
@@ -450,7 +450,7 @@ final class DebugBackendClient {
             }
             try Task.checkCancellation()
             return DebugHandsFreeSession(client: self, profile: profile, token: token, conversation: conversation,
-                boot: boot, readyMask: readyMask, voice: voice, speed: speed, phase: phase, visitor: visitor,
+                boot: boot, readyMask: readyMask, voice: voice, speed: speed, gptLive: gptLive, phase: phase, visitor: visitor,
                 reply: reply, audio: audio, listening: listening, inputGate: inputGate, failure: failure)
         } catch {
             try? await cleanup(profile, token: token, conversation: conversation)

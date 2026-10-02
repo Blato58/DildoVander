@@ -124,6 +124,7 @@ final class DebugHandsFreeAudio {
     typealias PlaybackDrained = (String) -> Void
     typealias Failure = (String) -> Void
 
+    private let fullDuplex: Bool
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
     private let upload: Upload
@@ -145,7 +146,8 @@ final class DebugHandsFreeAudio {
     private var generation = UUID()
     private var observers: [NSObjectProtocol] = []
 
-    init(upload: @escaping Upload, playbackDrained: @escaping PlaybackDrained, failure: @escaping Failure) {
+    init(fullDuplex: Bool = false, upload: @escaping Upload, playbackDrained: @escaping PlaybackDrained, failure: @escaping Failure) {
+        self.fullDuplex = fullDuplex
         self.upload = upload
         self.playbackDrained = playbackDrained
         self.failure = failure
@@ -154,22 +156,23 @@ final class DebugHandsFreeAudio {
     func start() throws {
         guard !engine.isRunning else { return }
         let audioSession = AVAudioSession.sharedInstance()
-        // This is half duplex: capture is gated during model playback. The
-        // telephony voiceChat mode can attenuate speaker output, and we do
-        // not enable voice processing on this engine. Use normal speaker audio.
-        try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker])
+        // Realtime uses half duplex with normal speaker audio. GPT-Live
+        // keeps capture running and enables Apple voice processing for echo
+        // cancellation; its speaker level still requires device acceptance.
+        try audioSession.setCategory(.playAndRecord, mode: fullDuplex ? .voiceChat : .default, options: [.defaultToSpeaker])
         try audioSession.setActive(true)
 
         guard let outputFormat = AVAudioFormat(standardFormatWithSampleRate: 24_000, channels: 1) else {
             throw DebugBackendError.serverCode("realtime_live_audio_start_failed")
         }
+        let input = engine.inputNode
+        if fullDuplex { try input.setVoiceProcessingEnabled(true) }
         if !playerAttached {
             engine.attach(player)
             engine.connect(player, to: engine.mainMixerNode, format: outputFormat)
             playerAttached = true
         }
 
-        let input = engine.inputNode
         let source = input.outputFormat(forBus: 0)
         let converter = try DebugHandsFreePCMConverter(sourceFormat: source)
         self.converter = converter
@@ -193,7 +196,7 @@ final class DebugHandsFreeAudio {
     func beginListening(inputId: String) {
         lock.lock()
         uploadBuffer.begin(inputId: inputId)
-        inputEnabled = queuedPlayback == 0 && awaitingDrainOperation == nil
+        inputEnabled = fullDuplex || (queuedPlayback == 0 && awaitingDrainOperation == nil)
         let shouldDrain = inputEnabled
         lock.unlock()
         if shouldDrain { scheduleDrain() }
@@ -208,7 +211,7 @@ final class DebugHandsFreeAudio {
 
     func appendPlayback(_ pcm: Data) throws {
         guard pcm.count > 0, pcm.count <= 49_152, pcm.count % 2 == 0 else { throw DebugBackendError.invalidResponse }
-        stopUploading()
+        if !fullDuplex { stopUploading() }
         let frames = pcm.count / MemoryLayout<Int16>.size
         guard let format = AVAudioFormat(standardFormatWithSampleRate: 24_000, channels: 1),
               let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames)),
@@ -354,7 +357,7 @@ final class DebugHandsFreeAudio {
         let session = AVAudioSession.sharedInstance()
         let configurationMatches = engine.isRunning
             && session.category == .playAndRecord
-            && session.mode == .default
+            && session.mode == (fullDuplex ? .voiceChat : .default)
             && routeIdentifiers(session.currentRoute) == activeRoute
             && converter?.sourceFormat == engine.inputNode.outputFormat(forBus: 0)
         // Starting our own playAndRecord session posts route notifications too.

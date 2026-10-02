@@ -70,9 +70,7 @@ jobs:
           DEVICE_ID: ${{ secrets.DEVICE_ID }}
           DEVICE_CREDENTIAL_SHA256: ${{ secrets.DEVICE_CREDENTIAL_SHA256 }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          SESSION_CAP_MICRO_USD: ${{ secrets.SESSION_CAP_MICRO_USD }}
-          DAILY_CAP_MICRO_USD: ${{ secrets.DAILY_CAP_MICRO_USD }}
-          MONTHLY_CAP_MICRO_USD: ${{ secrets.MONTHLY_CAP_MICRO_USD }}
+          SESSION_CAP_MICRO_USD: '3000000'
           DIALOG_MODE: ${{ inputs.dialog_mode || 'fake' }}
           DIALOG_MODEL: ${{ inputs.dialog_model || 'gpt-6.1-sol' }}
           VOICE_MODE: ${{ inputs.voice_mode || 'fake' }}
@@ -139,8 +137,6 @@ jobs:
               "openAiApiKey": os.environ["OPENAI_API_KEY"],
               "caps": {
                   "session": os.environ["SESSION_CAP_MICRO_USD"],
-                  "daily": os.environ["DAILY_CAP_MICRO_USD"],
-                  "monthly": os.environ["MONTHLY_CAP_MICRO_USD"],
               },
           }))
           PY

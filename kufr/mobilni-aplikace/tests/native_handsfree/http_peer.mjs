@@ -11,6 +11,7 @@ const ids = {
   operation2: '00000000-0000-4000-8000-000000000012',
 };
 let stream; let played = 0; let uploads = 0; let cleanup = 0;
+let livePlayed = 0; let liveUploads = 0;
 let regressionUploads = 0; let redirected = 0;
 const regressionSockets = new Set();
 function correlation(clientTurnId) { return { deviceId: 'debug-test', bootId: ids.boot, conversationId: ids.conversation, clientTurnId, generation: 0, deviceRevision: 0 }; }
@@ -55,6 +56,37 @@ const server = createServer((request, response) => {
     }
     return;
   }
+  if (request.method === 'POST' && request.url === `/v1/conversations/${ids.conversation}/gpt-live`) {
+    const chunks = []; request.on('data', chunk => chunks.push(chunk));
+    request.on('end', () => {
+      const start = JSON.parse(Buffer.concat(chunks).toString());
+      if (start.speed !== 1) throw new Error('Live must use native speed');
+      ids.opening = start.clientTurnId;
+      stream = response; response.writeHead(200, { 'Content-Type': 'application/x-ndjson' });
+      event({ type: 'session', streamId: ids.stream, audioFormat: 'pcm16-mono-24000' });
+      event({ type: 'started', operationId: ids.operation0, correlation: correlation(ids.opening) });
+      event({ type: 'listening', inputId: ids.opening });
+      event({ type: 'audio', delta: Buffer.from([0, 0, 1, 0]).toString('base64') });
+      event({ type: 'pause' });
+    }); return;
+  }
+  if (request.method === 'POST' && request.url.includes('/gpt-live/') && request.url.endsWith('/audio')) {
+    request.resume(); request.on('end', () => {
+      if (request.headers['input-id'] !== ids.opening || request.headers['input-sequence'] !== '0') throw new Error('Invalid Live input');
+      liveUploads++;
+      event({ type: 'visitor', text: 'Live odpověď' });
+      event({ type: 'audio', delta: Buffer.from([0, 0, 1, 0]).toString('base64') });
+      event({ type: 'pause' });
+      event({ type: 'speech_stopped', inputId: ids.opening });
+      event({ type: 'completed', operationId: ids.operation0, correlation: correlation(ids.opening), costMicroUsd: 50000,
+        result: { reply: 'Live závěr', decision: 'no_selection', reason: '', proposal: null } });
+      response.writeHead(204).end();
+    }); return;
+  }
+  if (request.method === 'POST' && request.url.includes('/gpt-live/') && request.url.endsWith('/played')) {
+    livePlayed++;
+    event({ type: 'closed', reason: 'conversation_terminal' }); stream.end(); response.writeHead(204).end(); return;
+  }
   if (request.method === 'POST' && request.url === `/v1/conversations/${ids.conversation}/realtime-live`) {
     const chunks = [];
     request.on('data', chunk => chunks.push(chunk));
@@ -83,10 +115,10 @@ const server = createServer((request, response) => {
   if (request.method === 'DELETE' && request.url === `/v1/conversations/${ids.conversation}`) { cleanup += 1; response.writeHead(204).end(); return; }
   if (request.method === 'GET' && request.url === '/test/metrics') {
     response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({
-      played, uploads, cleanup, regressionUploads, regressionSockets: regressionSockets.size, redirected,
+      played, uploads, cleanup, livePlayed, liveUploads, regressionUploads, regressionSockets: regressionSockets.size, redirected,
     })); return;
   }
   response.writeHead(404).end();
 });
 server.listen(0, '127.0.0.1', () => writeFileSync(addressFile, `http://127.0.0.1:${server.address().port}`));
-process.on('exit', () => { if (played !== 3 || uploads !== 2 || cleanup !== 1) process.exitCode = 1; });
+process.on('exit', () => { if (played !== 3 || uploads !== 2 || cleanup !== 2 || livePlayed !== 1 || liveUploads !== 1) process.exitCode = 1; });

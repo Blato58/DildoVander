@@ -7,6 +7,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 
 await RealtimeTests.RunAsync();
+await GptLiveTests.RunAsync();
 await ResponsesTextDialogClientTests.RunAsync();
 ResponsesTextDialogBudgetTests.Run();
 await TextDialogRuntimeTests.RunAsync();
@@ -507,7 +508,7 @@ var noBudgetReservation = restartedJournal.Reserve(
     quotaCorrelation with { ConversationId = Guid.NewGuid().ToString("D") },
     consumesTurn: false,
     estimatedCostMicroUsd: 1);
-Require(noBudgetReservation.CostRejected, "paid reservation fails closed without approved caps");
+Require(!noBudgetReservation.CostRejected, "default approved session cap allows a reservation");
 
 var costClock = new AdjustableTimeProvider(new DateTimeOffset(2026, 9, 29, 10, 0, 0, TimeSpan.Zero));
 var costPath = Path.Combine(databaseDirectory, "cost.sqlite");
@@ -570,14 +571,14 @@ using (var costJournal = new OperationJournal(costConfiguration, costClock))
         DeviceId = "device-b",
         ConversationId = Guid.NewGuid().ToString("D")
     };
-    Require(costJournal.Reserve(
+    Require(!costJournal.Reserve(
         "device-b", costRoute, Guid.NewGuid(), "other-device-over-cap", overageCorrelation,
         consumesTurn: false, estimatedCostMicroUsd: 11).CostRejected,
-        "daily and monthly caps cover all devices together");
+        "period totals do not block an independent session");
     var overage = costJournal.Reserve(
         "device-b", costRoute, Guid.NewGuid(), "overage-body", overageCorrelation,
         consumesTurn: false, estimatedCostMicroUsd: 10);
-    Require(!overage.CostRejected && costJournal.SettleCost(overage.OperationId, 20),
+    Require(!overage.CostRejected && costJournal.SettleCost(overage.OperationId, 120),
         "actual overage remains charged instead of being hidden");
     Require(costJournal.Reserve(
         "device-b", costRoute, Guid.NewGuid(), "overage-next", overageCorrelation,
@@ -591,14 +592,12 @@ var partialCostConfiguration = new ConfigurationBuilder()
         ["Backend:Usage:SessionCapMicroUsd"] = "100"
     })
     .Build();
-try
+using (var sessionOnlyJournal = new OperationJournal(partialCostConfiguration, costClock))
 {
-    _ = new OperationJournal(partialCostConfiguration, costClock);
-    throw new Exception("Partial paid usage caps were accepted.");
-}
-catch (InvalidOperationException)
-{
-    // A missing period cap must disable startup rather than silently weaken the budget.
+    Require(!sessionOnlyJournal.Reserve("device-c", costRoute, Guid.NewGuid(), "session-only", costCorrelation with
+        { DeviceId = "device-c", ConversationId = Guid.NewGuid().ToString("D") },
+        consumesTurn: false, estimatedCostMicroUsd: 100).CostRejected,
+        "session-only configuration needs no period caps");
 }
 using (var restartedCostJournal = new OperationJournal(costConfiguration, costClock))
 {

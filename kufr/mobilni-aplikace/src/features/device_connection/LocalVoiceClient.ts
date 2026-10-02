@@ -1,6 +1,6 @@
 export interface VoiceSettings {
   available: boolean;
-  mode: 'off' | 'realtime';
+  mode: 'off' | 'realtime' | 'gpt-live';
   voice: 'cedar' | 'marin' | 'coral';
   phase: 'unavailable' | 'idle' | 'starting' | 'listening' | 'thinking' | 'speaking' | 'stopping' | 'completed' | 'failed';
   error: 'ai_unavailable' | 'audio_failed' | 'cost_limit' | null;
@@ -53,7 +53,7 @@ export class LocalVoiceClient {
       : voice.error === 'ai_unavailable' ? 'AI není dostupná. Ověřte síť a režimy serveru.' : '';
     return { ...voice, pending: changing,
       canConfigure: connected && !changing && !active(voice.phase),
-      canStart: connected && !changing && voice.available && voice.mode === 'realtime' && !active(voice.phase)
+      canStart: connected && !changing && voice.available && voice.mode !== 'off' && !active(voice.phase)
         && this.context?.controlMode === 'standalone' && this.context?.phase === 'ready'
         && this.context?.activeCommandId === null,
       canStop: connected && (active(voice.phase) || changing),
@@ -61,8 +61,8 @@ export class LocalVoiceClient {
     };
   }
   configure(mode: VoiceSettings['mode'], voice: VoiceSettings['voice']): boolean {
-    if (!this.state().canConfigure || !['off', 'realtime'].includes(mode) ||
-      !['cedar', 'marin', 'coral'].includes(voice) || mode === 'realtime' && !this.state().available) return false;
+    if (!this.state().canConfigure || !['off', 'realtime', 'gpt-live'].includes(mode) ||
+      !['cedar', 'marin', 'coral'].includes(voice) || mode !== 'off' && !this.state().available) return false;
     return this.request('voice.configure', { mode, voice });
   }
   start(): boolean {

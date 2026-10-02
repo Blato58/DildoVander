@@ -22,7 +22,8 @@ internal sealed class RealtimeLiveSession : IDisposable
 {
     private readonly Lock gate = new();
     private readonly SemaphoreSlim uploads = new(1);
-    private readonly OpenAiRealtimeConnection provider;
+    private readonly IStreamingAudioInput provider;
+    private readonly bool continuous;
     private readonly CancellationTokenSource lifetime;
     private RealtimeCall? input;
     private Guid? endedInput;
@@ -33,11 +34,12 @@ internal sealed class RealtimeLiveSession : IDisposable
     private TaskCompletionSource? playback;
 
     internal RealtimeLiveSession(string device, string conversation,
-        OpenAiRealtimeConnection provider, CancellationTokenSource lifetime)
+        IStreamingAudioInput provider, CancellationTokenSource lifetime, bool continuous = false)
     {
         DeviceId = device;
         ConversationId = conversation;
         this.provider = provider;
+        this.continuous = continuous;
         this.lifetime = lifetime;
     }
 
@@ -115,7 +117,7 @@ internal sealed class RealtimeLiveSession : IDisposable
                     return false;
                 }
                 bytes = checked(bytes + pcm.Length);
-                if (bytes > RealtimeProtocol.MaxAudioBytes)
+                if (bytes > (continuous ? 24_000 * 2 * 180 : RealtimeProtocol.MaxAudioBytes))
                 {
                     lifetime.Cancel();
                     return false;

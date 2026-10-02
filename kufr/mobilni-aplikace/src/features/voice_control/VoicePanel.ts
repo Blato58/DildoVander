@@ -12,10 +12,10 @@ export class VoicePanel {
     this.element.setAttribute('aria-label', 'Hlasové ovládání kufru');
     this.element.innerHTML = `
       <h2>Hlas kufru</h2>
-      <p>Kufr poslouchá svým mikrofonem a odpovídá reproduktorem. Realtime používá AI a serverové limity.
+      <p>Kufr poslouchá svým mikrofonem a odpovídá reproduktorem. Hlasové režimy používají AI a serverové limity.
          Spuštěním souhlasíte se zpracováním audia; přepis uchovává paměť večera. Nastavení platí do restartu kufru.</p>
       <form>
-        <label>Hlasový režim<select name="mode"><option value="off">Vypnutý</option><option value="realtime">Realtime · průběžný rozhovor</option></select></label>
+        <label>Hlasový režim<select name="mode"><option value="off">Vypnutý</option><option value="realtime">Realtime · průběžný rozhovor</option><option value="gpt-live">GPT-Live + Sol · test kvality</option></select></label>
         <label>Hlas<select name="voice"><option value="marin">Marin</option><option value="cedar">Cedar</option><option value="coral">Coral</option></select></label>
         <button type="submit" disabled>Použít nastavení hlasu</button>
       </form>
@@ -33,7 +33,7 @@ export class VoicePanel {
     this.form.addEventListener('submit', (event) => {
       event.preventDefault();
       if (this.form.querySelector<HTMLButtonElement>('button')!.disabled) return;
-      if (connection()?.configureVoice(this.mode.value as 'off' | 'realtime', this.voice.value as 'cedar' | 'marin' | 'coral'))
+      if (connection()?.configureVoice(this.mode.value as 'off' | 'realtime' | 'gpt-live', this.voice.value as 'cedar' | 'marin' | 'coral'))
         this.draftChanged = false;
     });
     this.element.querySelector('[data-voice="start"]')!.addEventListener('click', () => connection()?.startVoice());
@@ -45,6 +45,7 @@ export class VoicePanel {
     const configure = native && voice?.canConfigure === true;
     this.mode.disabled = this.voice.disabled = !configure;
     this.mode.querySelector<HTMLOptionElement>('[value="realtime"]')!.disabled = !voice?.available;
+    this.mode.querySelector<HTMLOptionElement>('[value="gpt-live"]')!.disabled = !voice?.available;
     this.form.querySelector<HTMLButtonElement>('button')!.disabled = !configure;
     this.element.querySelector<HTMLButtonElement>('[data-voice="start"]')!.disabled = !native || voice?.canStart !== true || snapshot.busy;
     this.element.querySelector<HTMLButtonElement>('[data-voice="stop"]')!.disabled = !native || voice?.canStop !== true;

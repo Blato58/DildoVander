@@ -793,10 +793,10 @@ LocalVoiceStatus EspIdfBackendNetwork::VoiceStatus() const {
 }
 
 bool EspIdfBackendNetwork::ConfigureVoice(const std::string& mode, const std::string& voice) {
-  if ((mode != "off" && mode != "realtime") ||
+  if ((mode != "off" && mode != "realtime" && mode != "gpt-live") ||
       (voice != "cedar" && voice != "marin" && voice != "coral")) return false;
   std::lock_guard<std::mutex> lock(voiceMutex_);
-  if (voiceBusy_.load() || (mode == "realtime" && !voiceStatus_.available)) return false;
+  if (voiceBusy_.load() || (mode != "off" && !voiceStatus_.available)) return false;
   voiceStatus_.mode = mode;
   voiceStatus_.voice = voice;
   voiceStatus_.error.clear();
@@ -812,7 +812,7 @@ bool EspIdfBackendNetwork::StartVoice(const std::string& requestId,
   std::lock_guard<std::mutex> openingLock(openingMutex_);
   std::lock_guard<std::mutex> voiceLock(voiceMutex_);
   if (terminalProposalOutstanding_ || presentationActive_ || openingPending_ || voiceBusy_.load() ||
-      requestId == lastVoiceRequestId_ || voiceStatus_.mode != "realtime" || !voiceStatus_.available) return false;
+      requestId == lastVoiceRequestId_ || voiceStatus_.mode == "off" || !voiceStatus_.available) return false;
   voiceSnapshot_ = snapshot;
   voiceRequestId_ = lastVoiceRequestId_ = requestId;
   voiceStatus_.phase = "starting";
@@ -843,17 +843,18 @@ void EspIdfBackendNetwork::RunVoice(DeviceTokenSession& tokens,
                                     ConversationStartCoordinator& coordinator,
                                     ConversationStartRequest& startRequest) {
   ConversationRuntimeSnapshot snapshot;
-  std::string requestId, voice;
+  std::string requestId, voice, mode;
   uint64_t epoch = 0, queuedAtMs = 0;
   {
     std::lock_guard<std::mutex> lock(voiceMutex_);
-    snapshot = voiceSnapshot_; requestId = voiceRequestId_; voice = voiceStatus_.voice;
+    snapshot = voiceSnapshot_; requestId = voiceRequestId_; voice = voiceStatus_.voice; mode = voiceStatus_.mode;
     epoch = voiceStartEpoch_; queuedAtMs = voiceQueuedAtMs_;
   }
   const auto current = [this, snapshot, epoch]() {
     return voiceEpoch_.load() == epoch && !cancelRequested_.load() &&
            station_.HasIp() && runtimeState_.Matches(snapshot);
   };
+  voiceAudio_.Continuous(mode == "gpt-live");
   voiceAudio_.Begin();
   EspIdfConversationTextTransport cleanup(settings_.BackendHost());
   bool succeeded = false;
@@ -881,7 +882,7 @@ void EspIdfBackendNetwork::RunVoice(DeviceTokenSession& tokens,
           "\",\"opening\":true,\"text\":\"\",\"wav\":null,\"voice\":\"" + voice + "\",\"speed\":1}";
       const char* token = tokens.AccessToken(MonotonicMs());
       EspIdfRealtimeTransport transport(settings_.BackendHost(), token ? token : "", voiceAudio_,
-          current, [this](const char* phase) { SetVoicePhase(phase); });
+          current, [this](const char* phase) { SetVoicePhase(phase); }, mode == "gpt-live");
       succeeded = transport.Run(body, GenerateEspIdfConversationUuid(), correlation, snapshot,
           [&final, &current](const TurnOperationObservation& operation) {
             if (!current()) return false;

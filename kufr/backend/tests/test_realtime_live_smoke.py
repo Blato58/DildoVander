@@ -9,7 +9,7 @@ import realtime_live_smoke as live
 
 class LiveSmokeSafetyTests(unittest.TestCase):
     def test_invalid_budget_stops_before_token_exchange(self):
-        for cap in ("0", "1000001"):
+        for cap in ("0", "3000001"):
             with self.subTest(cap=cap), patch.dict(live.os.environ, {
                 "SESSION_CAP_MICRO_USD": cap,
                 "DAILY_CAP_MICRO_USD": "10000000",

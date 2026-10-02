@@ -17,6 +17,17 @@ class PartyTests(unittest.TestCase):
         self.assertIn("Private archive", follow_up["input"])
         self.assertIn("Old guest", follow_up["input"])
 
+    def test_default_budget_is_three_usd_per_session_only(self):
+        calls = []
+        meter = Meter("fake", send=lambda *args: calls.append(args))
+        self.assertIsNone(meter.limit)
+        self.assertEqual(3_000_000, meter.session_limit)
+        meter.session_estimated_micro_usd = 3_000_000
+        request = build_request({"readyMask": 63, "visitorText": "Petr"}, "gpt-6.1-sol")
+        with self.assertRaisesRegex(RuntimeError, "cap"):
+            meter.invoke(request, "gpt-6.1-sol", "test")
+        self.assertEqual([], calls)
+
     def test_rejected_reservation_never_calls_provider(self):
         calls = []
         meter = Meter("fake", limit=1, send=lambda *args: calls.append(args))

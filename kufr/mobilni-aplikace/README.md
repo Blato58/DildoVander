@@ -312,3 +312,15 @@ operace a rozhovoru. UUID nebo JSON lze sdílet pro
 [společný debug s Codexem](../backend/codex/README.md). Native credential zůstává
 v Keychain; JS nikdy nedostává token, těla požadavků, audio ani provider chyby.
 Webový vývoj funkci označuje jako nativní; syntetický UI harness ji simuluje.
+
+## D128: porovnání GPT-Live + Sol
+
+Debug nabízí vedle Realtime a řetězeného hlasu **GPT-Live + Sol**.
+Používá mikrofon a reproduktor telefonu s Apple voice processing; rychlost
+je 1×. Režim přepínej před zahájením nového rozhovoru. **Hlas kufru** má
+stejnou novou volbu a posílá `voice.configure mode:gpt-live` přímo do ESP.
+Nastavení kufru je do restartu; během probíhajícího hovoru ho nelze měnit.
+Každé sezení má 3 USD limit, celkový rozpočet řídí OpenAI.
+Nová funkce vyžaduje nasazený D128 backend a novou aplikaci/firmware;
+webový build sám neověřuje nativní iPhone audio.
+[Postup a omezení testování](../docs/hlas-a-humor-research.md#d128-testovaci-gpt-live-rezim).

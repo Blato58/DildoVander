@@ -41,7 +41,7 @@ bool ParseRealtimeEvent(const std::string& line, RealtimeEvent& event) {
   else if (event.type == "completed") expected = 1 | 16 | 32 | 256 | 512;
   else if (event.type == "failed") expected = 1 | 1024;
   else if (event.type == "closed") expected = 1 | 2048;
-  else if (event.type == "heartbeat") expected = 1;
+  else if ((event.type == "heartbeat" || event.type == "pause")) expected = 1;
   if (expected == 0 || seen != expected) return false;
   if (event.type == "started" || event.type == "completed") {
     if (result.empty()) result = "{\"reply\":\"pending\",\"decision\":\"ask\",\"reason\":\"\",\"proposal\":null}";
