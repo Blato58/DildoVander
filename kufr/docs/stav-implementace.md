@@ -6,6 +6,51 @@ Poslední aktualizace: **2. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D124 – 2. 10. 2026 – USB test logiky PCA9685 a návrat aplikace.**
+Majitel již má F-F propojky a hlásí hotové čtyřvodičové propojení podle
+profilu A: ESP3V3/PCA VCC, GND/GND, GPIO1/SDA, GPIO14/SCL. Fotografie ani
+měření tohoto propojení zatím nejsou dodané; není to nezávislá inspekce.
+USB-UART COM7 znovu odpovídá, ROM ověřil MAC `68:ee:8f:4b:60:48`.
+V rámci dříve autorizovaného sestavování/flash vznikl samostatný
+`firmware/diagnostics/pca9685-logic`: pouze probe 0x40 a pět čtení MODE1/2,
+GPIO1/14, 100 kHz; žádné hodnoty registrů/PWM/OE, NVS ani síť se nezapisují.
+V+, pohony, OE a externí napájení zůstávají odpojené. Čtecí review ověřilo
+pointer/repeated-START/read podle NXP a skutečného ESP-IDF 6.1 driveru;
+nenalezlo blokující chybu. Kód neověřuje unikátní identitu čipu a PASS
+znamená jen ACK a stabilní čtení, nikoli shodu resetových hodnot.
+
+`pio run -d kufr/firmware/diagnostics/pca9685-logic -j 2` prošlo za 137,21 s
+(RAM 14 652 B, flash 174 629 B); upload přes COM7 prošel a esptool ověřil
+zapsané obrazy. Diagnostický `firmware.bin` má SHA-256
+`114d99192a3e453831bed309e86f63f7ba937094a5a08729372e46b66fffd23e`.
+Oba EN/RTS restarty s 20s UART záznamem prošly: ACK 0x40, všech pět
+vzorků MODE1=0x11 / MODE2=0x04 (celkem deset), RESULT PASS a heartbeat,
+bez panic/brownout či nečekaného restartu. Hodnoty odpovídají resetovým
+defaultům NXP; test však nebyl úplné odpojení napájení ani osciloskopické
+měření. Potvrzuje pouze komunikaci připojeného modulu na GPIO1/14/100 kHz.
+
+Pak byl znovu nahrán aplikační profil D123; hash `firmware.bin` zůstává
+`065f6aba2edcc3c90e29cbcb62e80ba13e6704d74baca6b9eb095f20301374af`.
+Restored app prošla 30s boot záznam: PSRAM test OK, offline control loop,
+neprovisionovaná identita/síť, bez restartu. NVS 0x9000/0x5000 se před
+diagnostikou a po návratu shoduje SHA-256; diagnostika ji nezměnila.
+Obrazy/ELF, build/upload/restore logy, dva logic boot logy, restored app
+log a NVS readbacky jsou v `pca9685-logic` místní složky z D122.
+`manifest.json` obsahuje parametry testu a hashe důkazů; binární soubory
+nejsou v Git. Změny: samostatný projekt, firmware README, tento stav a
+nový build krok/cache vstup v firmware CI. YAML, lokální odkazy a
+`git diff --check` prošly. Firmware aplikace zůstává beze změny.
+
+Další fyzický krok: opatřit/půjčit multimetr a změřit 5V výstup XY3606
+před připojením elektroniky. Majitel dosud nemá multimetr ani páječku.
+PCA logické propoje mohou zůstat osazené; serva, motory a napájení V+
+zatím nezapojovat. Ještě chybí měřená bezpečnostní větev a kalibrace;
+test nedokazuje OE/PWM, napájecí rezervu ani ovládání pohonů. B1 zůstává
+otevřené a produkční aplikace dosud nemá PCA aktuátorový adaptér.
+Commit `16d879ab4ad045d9e56aeebd8eba0ae8e3bba41b` prošel push přes
+`scripts/Push-CurrentBranch.ps1` do `feat/pca9685-logic-diagnostic`.
+Před merge musí PR projít `CI required` podle CONTRIBUTING.
+
 **D123 – 2. 10. 2026 – první aplikační flash a začátek sestavování.**
 Majitel výslovně požádal začít sestavovat ESP a nahrát firmware; všechny
 komponenty má zabalené, zatím nejsou propojené. Po znovupřipojení pouze
