@@ -14,7 +14,8 @@ def make_case_layout(p, parts, lift, purchased, mechanics):
     from model import block, cylinder, holes_z
     items = []
     movable = {"tray_1", "tray_2", "tray_3", "tray_splice", "lift_follower",
-               "vibration_cage", "wand_saddle", "U059 envelope (unmeasured)"}
+               "vibration_cage", "wand_saddle", "U059 envelope (unmeasured)",
+               "LED strip envelope (unmeasured)"}
     for index in range(6):
         dx = (index-2.5)*p["compartment_pitch_mm"]
         for source in lift+purchased:
