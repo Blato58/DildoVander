@@ -6,6 +6,28 @@ Poslední aktualizace: **2. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D124 – 2. 10. 2026 – iOS build pouze ručně pro podepsané nasazení.**
+Majitel požádal odstranit iOS build z každého PR a ponechat jej pouze ručně
+pro podepsanou aplikaci určenou k nasazení. `ci.yml` nyní používá webový
+`kufr-web.yml`; mobilní/kontraktové testy, TypeScript/Vite build a artefakt
+`web-dist` zůstávají povinné v `CI required`. Původní `kufr-ios.yml`
+a unsigned simulator build/spuštění byly odstraněny.
+`kufr-ios-sign.yml` je nadále pouze ruční a main-only, ale používá výhradně
+Ad Hoc distribuční identitu. Přebírá ověřený web z CI, kontroluje Xcode 26.3
+a provádí přesunuté nativní transport/debug testy před podepsaným device
+buildem. Vývojová podpisová volba byla odstraněna. Ruční
+`kufr-ios-deploy.yml` nadále publikuje existující ověřenou Ad Hoc IPA bez
+nového buildu. Plán, mobilní README a CI/CD návod odpovídají tomuto postupu.
+Lokální ověření prošlo: actionlint 1.7.12 s ověřeným checksumem nad všemi
+workflow; 29 Node testů `scripts/ci/verify-build.test.cjs`; 6 Python testů
+archivů v `scripts/ci`; průchod grafu všech pěti PR workflow bez macOS,
+Xcode/simctl/cap sync ios a kontrola ručního main-only Ad Hoc sign/deploy
+včetně správných secret/manifest vazeb. Lokální odkazy všech čtyř změněných
+dokumentů a `git diff --check` prošly. Git předání a vzdálené CI následují.
+Nativní build/podpis ani skutečná publikace nejsou součástí této změny.
+Další krok: při požadavku na vydání aplikace ručně podepsat IPA z úspěšného
+CI aktuálního main a následně spustit samostatnou publikaci.
+
 **D123 – 2. 10. 2026 – první aplikační flash a začátek sestavování.**
 Majitel výslovně požádal začít sestavovat ESP a nahrát firmware; všechny
 komponenty má zabalené, zatím nejsou propojené. Po znovupřipojení pouze
