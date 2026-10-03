@@ -558,7 +558,12 @@ izoluje omezený WebSocket adaptér podle oficiálního schématu. Událost
 `pause` vzniká po 900 ms bez řeči ve výstupním PCM a slouží segmentaci
 přehrávání; není provider `audio.done`. Ukončení závěrečné repliky je
 heuristika určená k živému ověření. Výběr se zveřejní teprve po potvrzeném
-uzavření a finální usage. Oprava návštěvníka před uzavřením ruší závěr.
+uzavření a finální usage. Oprava návštěvníka před uzavřením ruší závěr. D137 podrží hotový Sol výsledek
+do 650 ms od posledního input fragmentu, aby nepředběhl doplňovanou odpověď;
+nejde o skutečné provider VAD. Při závěru pošle `speech_stopped` ještě před
+`session.close` a čekáním na usage. Pozdní mikrofonní uploady se zahodí s 204.
+Live během řeči i delegace mlčí. Jakmile jsou podklady a brána dovolí výběr,
+rovnou přidělí hůlku bez potvrzovací otázky.
 
 [Rešerše, omezení a postup porovnání](../docs/hlas-a-humor-research.md#d128-testovaci-gpt-live-rezim).
 
