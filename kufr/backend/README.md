@@ -542,6 +542,9 @@ po řádném `session.closed` přepočítá kumulativní délku (0,05 USD/min,
 po sekundách) a všechny Sol odpovědi. Při nejistém ukončení drží rezervaci;
 nejde o tvrzení o skutečně vyúčtované ceně. Sezení trvá nejvýše 180 s.
 Žádný retry placeného requestu; denní a měsíční limit se neuplatňuje.
+Deploy payload kvůli staršímu root-owned helperu nadále posílá i `daily`
+a `monthly` jako kompatibilitní položky. D128 backend jejich hodnoty
+ignoruje; neobnovují periodické limity. Nový helper je do prostředí nepíše.
 
 Pinned .NET SDK 2.14.0 Live API neposkytuje, proto `Features/GptLive`
 izoluje omezený WebSocket adaptér podle oficiálního schématu. Událost
