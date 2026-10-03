@@ -43,7 +43,7 @@ internal sealed record RealtimeReply(
 #pragma warning disable OPENAI002
 internal static class RealtimeProtocol
 {
-    internal const string Model = "gpt-realtime-1.5";
+    internal const string Model = "gpt-realtime-2.1";
     internal const int MaxOutputTokens = 1024;
     internal const int MaxAudioBytes = 24_000 * 2 * 30;
     // Leave room for the JSON envelope under the client's 64 KiB line cap.
@@ -152,6 +152,11 @@ internal static class RealtimeProtocol
                 : RealtimeDefaultToolChoice.Auto
         };
         options.OutputModalities.Add(RealtimeOutputModality.Audio);
+        // The pinned SDK predates Realtime 2.1 reasoning. Its supported JSON
+        // patch surface preserves the GA setting without replacing SDK transport.
+#pragma warning disable SCME0001
+        options.Patch.Set("$.reasoning.effort"u8, "low");
+#pragma warning restore SCME0001
         foreach (var tool in Tools(turn))
         {
             options.Tools.Add(tool);

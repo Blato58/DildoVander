@@ -30,7 +30,7 @@ internal sealed class GptLiveDialogue(GptLiveConnection connection, TextDialogRu
         connection.AudioReady();
         await connection.SendAsync(new { type = "session.instructions.append", delegation_id = (string?)null,
             content = turn.Request.ReadyMask == 0
-                ? "Žádná hůlka není dostupná. Počkej mlčky na závěrečnou repliku backendu, otázku nepokládej."
+                ? "Žádná hůlka není dostupná. Úvodní otázku nepokládej; promluv až po dodání závěrečné repliky."
                 : "Začni teď pozdravem a první otázkou podle úvodního námětu." }, token);
         var elapsed = Stopwatch.StartNew();
         var input = new StringBuilder();
@@ -39,11 +39,13 @@ internal sealed class GptLiveDialogue(GptLiveConnection connection, TextDialogRu
         Task<TextDialogResponse>? pending = null;
         Task<JsonDocument>? receive = null;
         string? pendingId = null;
+        string? deferredId = null;
         var pendingInput = "";
         var version = 0;
         var pendingVersion = 0;
         var questions = 1; // the independent fresh-opening question
         var modelCost = 0L;
+        var backendCalls = 0;
         var lastUsage = 0.0;
         TextDialogResponse? terminal = null;
         var terminalAt = TimeSpan.Zero;
@@ -56,8 +58,21 @@ internal sealed class GptLiveDialogue(GptLiveConnection connection, TextDialogRu
         var bytes = 0;
         var transcriptCharacters = 0;
         using var backendWork = CancellationTokenSource.CreateLinkedTokenSource(token);
+        void StartBackend(string? id)
+        {
+            var reservation = ResponsesTextDialogBudget.ReserveForContext(turn.EveningContext);
+            if (++backendCalls > 10
+                || modelCost + reservation + GptLiveProtocol.VoiceReservation > GptLiveProtocol.SessionBudget)
+                throw new InvalidDataException("Live session budget exhausted.");
+            pendingId = id;
+            deferredId = null;
+            pendingVersion = version;
+            pendingInput = input.ToString();
+            pending = dialog.GenerateAsync(pendingInput, turn.Request.ReadyMask, SpokenHistory(archive),
+                questions < ResponsesTextDialogBudget.MinimumQuestions, backendWork.Token, turn.EveningContext);
+        }
         if (turn.Request.ReadyMask == 0)
-            pending = dialog.GenerateAsync("", 0, [], true, backendWork.Token);
+            StartBackend(null);
         try
         {
             while (true)
@@ -76,18 +91,22 @@ internal sealed class GptLiveDialogue(GptLiveConnection connection, TextDialogRu
                     modelCost = checked(modelCost + ResponsesTextDialogBudget.CalculateActualMicroUsd(result));
                     if (version != pendingVersion)
                     {
-                        await connection.SendAsync(new { type = "session.thinking.append", delegation_id = pendingId,
-                            content = "Návštěvník mezitím doplnil nebo opravil odpověď. Starý výsledek nepoužívej; deleguj aktuální odpověď znovu." }, token);
+                        // Recompute the changed input ourselves. Depending on another
+                        // model delegation here can leave the call waiting forever.
+                        StartBackend(deferredId ?? pendingId);
                         continue;
                     }
                     if (result.Decision == "ask") questions++;
                     else { terminal = result; terminalAt = elapsed.Elapsed; }
                     input.Clear();
-                    await connection.SendAsync(new { type = "session.commentary.append", delegation_id = pendingId,
-                        content = result.Reply }, token);
+                    deferredId = null;
                     if (terminal is not null)
                         await connection.SendAsync(new { type = "session.instructions.append", delegation_id = pendingId,
-                            content = "Vyslov právě dodanou závěrečnou repliku a pak už mlč; rozhovor končí." }, token);
+                            content = "Následující dodaná replika je závěrečná. Vyslov ji a pak už mlč; rozhovor končí." }, token);
+                    // Appended instructions may interrupt speech: steer before
+                    // delivering the commentary, never immediately after it.
+                    await connection.SendAsync(new { type = "session.commentary.append", delegation_id = pendingId,
+                        content = result.Reply }, token);
                     continue;
                 }
                 if (winner == receive)
@@ -139,10 +158,16 @@ internal sealed class GptLiveDialogue(GptLiveConnection connection, TextDialogRu
                                     terminal = null; terminalSpeech = terminalTranscript = false;
                                     if (closing) throw new InvalidDataException("Live selection interrupted during close.");
                                     await connection.SendAsync(new { type = "session.instructions.append", delegation_id = (string?)null,
-                                        content = "Návštěvník doplnil odpověď. Předchozí závěr už neplatí; deleguj aktuální opravu backendu." }, token);
+                                        content = "Návštěvník doplnil odpověď. Předchozí závěr už neplatí; backend připravuje novou repliku. Poslouchej bez další otázky." }, token);
+                                    deferredId = pendingId;
                                 }
                                 AddTranscript(archive, true, fragment);
                                 await visitor(fragment, token);
+                                // A delegation can precede its transcript on the
+                                // wire. Retain it until text arrives rather than
+                                // asking the voice model to try again.
+                                if (pending is null && deferredId is not null && !string.IsNullOrWhiteSpace(input.ToString()))
+                                    StartBackend(deferredId);
                             }
                             else
                             {
@@ -156,18 +181,16 @@ internal sealed class GptLiveDialogue(GptLiveConnection connection, TextDialogRu
                             if (GptLiveProtocol.RequiredString(delegation, "target", 20) != "client"
                                 || !delegations.Add(id) || delegations.Count > 10)
                                 throw new InvalidDataException("Invalid Live delegation.");
-                            if (closing || terminal is not null || pending is not null || string.IsNullOrWhiteSpace(input.ToString()))
+                            if (closing || terminal is not null) break;
+                            if (pending is not null)
                             {
-                                await connection.SendAsync(new { type = "session.thinking.append", delegation_id = id,
-                                    content = "Další práci nyní nespouštěj; počkej na odpověď návštěvníka nebo již běžící výsledek." }, token);
+                                // A duplicate at the same revision creates neither
+                                // a paid call nor a spoken waiting notification.
+                                if (version != pendingVersion) deferredId = id;
                                 break;
                             }
-                            var reservation = ResponsesTextDialogBudget.ReserveForContext(turn.EveningContext);
-                            if (modelCost + reservation + GptLiveProtocol.VoiceReservation > GptLiveProtocol.SessionBudget)
-                                throw new InvalidDataException("Live session budget exhausted.");
-                            pendingId = id; pendingVersion = version; pendingInput = input.ToString();
-                            pending = dialog.GenerateAsync(pendingInput, turn.Request.ReadyMask, SpokenHistory(archive),
-                                questions < ResponsesTextDialogBudget.MinimumQuestions, backendWork.Token, turn.EveningContext);
+                            if (string.IsNullOrWhiteSpace(input.ToString())) deferredId = id;
+                            else StartBackend(id);
                             break;
                         case "session.usage.updated":
                         case "session.closed":

@@ -6,6 +6,50 @@ Poslední aktualizace: **3. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D135 – 3. 10. 2026 – Realtime 2.1 a ostrý Ollivanderův kufr.**
+Majitel žádá důkladnou rešerši před změnami, odstranění opakovaného čekání,
+výrazné urážky a otázky při prodeji hůlky; následně upozornil na Realtime
+2/2.1. [Rešerše D135](hlas-a-humor-research.md#d135-ostrý-prodavač-oprava-čekání-a-realtime-21)
+obsahuje primární zdroje, příčiny v kódu a hranice důkazů. Read-only
+snapshot [37152729168](https://github.com/Blato58/DildoVander/actions/runs/37152729168)
+potvrzuje dva klientsky zrušené GPT-Live hovory; log neobsahuje jejich řeč.
+
+`RealtimeProtocol` nyní používá `gpt-realtime-2.1` s low reasoning přes
+JSON patch oficiálního SDK 2.14.0; wire serializace je regresně ověřená.
+Konzervativní výstupní sazba 64 USD/1M pokrývá textové reasoning tokeny
+24 USD/1M, limit 3 USD/session zůstává. Mobilní a ESP kontrakt se nemění.
+`GptLiveDialogue` podrží delegaci před přepisem, po doplnění během Solu
+sám zpracuje aktuální text a potlačí duplicitní práci stejné revize.
+Zastaralý výsledek se započítá, neposune otázky a nesmí se vyslovit.
+Oprava závěru pokračuje bez nové delegace, pokyn k závěru předchází
+commentary. Deset backendových volání zahrnuje i přepočty nového vstupu;
+nejde o retry neúspěšných placených requestů. GPT-Live zůstává gpt-live-1.
+
+Sdílený `ai-eval/prompt.txt`, Live instrukce a `ConversationOpening`
+vedou jedovatého, povýšeného prodavače hůlek s ostrým roastem jako
+výchozím stylem, krátkými replikami a jednou navazující otázkou.
+Šest opening námětů patří k použití hůlky a skutečnému chování hosta.
+Prompt respektuje odmítnutí a konec hry; katalog se nepřepisuje.
+Python eval opening, modelový údaj live harnessu, README a plán odpovídají.
+
+Ověřeno lokálně: SDK 10.0.303, NuGet locked restore pro linux-x64,
+Release build (0 warning/error), celá offline BackendTests sada včetně
+nových scénářů pořadí, doplnění bez další delegace, duplicity, účtování,
+opravy závěru a wire low reasoning. HTTP fake smoke prošel; Python AI eval
+23 testů a backend tools 16 testů prošly. Whitespace a 35 místních odkazů
+změněné dokumentace bez chyb. Provider účet, český humor/latence,
+iPhone poslech ani ESP hardware nejsou tímto ověřené. Placený test,
+cloudové nasazení, nová IPA ani flash nebyly provedeny.
+Git předání: implementační commit `2ad0365` je pushnutý a shoda remote
+ověřená. Předepsaný PowerShell skript skončil permission denied; pwsh
+chybí, proto byl použit scoped gh credential helper pro účet Blato58.
+[PR #112](https://github.com/Blato58/DildoVander/pull/112) obsahuje tento
+slice a navazující záznam předání; výsledek povinného CI a merge je
+ověřitelný přímo v PR. Zdrojová větev je `codex/realtime-21-roast-flow`.
+Další krok: po nasazení ověřit Realtime 2.1 na účtu a skutečný rozhovor
+na stávající IPA 1000.0.14, včetně nuly čekacích výplní, návaznosti,
+ostrosti a reakce na opravu/odmítnutí; podle akceptace v rešerši D135.
+
 **D134 – 3. 10. 2026 – oprava startu skutečného přehrávání.**
 Majitel v 1000.0.13 doložil reproduktor, hlasitost 100 %, přijatých 10,0 s
 PCM a 0,0 s potvrzeného výstupu při fungujícím přepisu mikrofonu. D133 tedy
