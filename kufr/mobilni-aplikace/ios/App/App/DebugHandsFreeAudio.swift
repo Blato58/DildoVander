@@ -17,6 +17,9 @@ struct DebugHandsFreeUploadBuffer {
     private var pcm = Data()
     private var sequence = 0
     var isReady: Bool { inputId != nil && pcm.count >= Self.chunkBytes }
+    // Main-queue faults must belong to the capture epoch that raised them.
+    // A terminal input gate or a new listening turn invalidates queued faults.
+    func isCurrent(epoch: UUID) -> Bool { self.epoch == epoch }
 
     mutating func begin(inputId: String) {
         stop()
@@ -470,7 +473,8 @@ final class DebugHandsFreeAudio {
         guard inputEnabled else { return }
         guard uploadBuffer.append(data, epoch: epoch) else {
             inputEnabled = false
-            DispatchQueue.main.async { [weak self] in self?.audioQueueOverflowed() }
+            let failureEpoch = uploadBuffer.epoch
+            DispatchQueue.main.async { [weak self] in self?.audioQueueOverflowed(epoch: failureEpoch) }
             return
         }
         if uploadBuffer.isReady {
@@ -576,8 +580,12 @@ final class DebugHandsFreeAudio {
         failure(code)
     }
 
-    private func audioQueueOverflowed() {
+    private func audioQueueOverflowed(epoch: UUID) {
         guard audioActive else { return }
+        lock.lock()
+        let current = uploadBuffer.isCurrent(epoch: epoch)
+        lock.unlock()
+        guard current else { return }
         failure("realtime_live_audio_overflow")
     }
 

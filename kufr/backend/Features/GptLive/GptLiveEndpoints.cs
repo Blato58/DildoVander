@@ -82,12 +82,20 @@ internal static class GptLiveEndpoints
             live.Listen(call);
             await Write(new { type = "listening", inputId = request.ClientTurnId }, lifetime.Token);
             heartbeat = Heartbeat(Write, lifetime);
+            var inputStopped = false;
             var outcome = await new GptLiveDialogue(connection, dialog).RunAsync(call.Context,
                 (pcm, token) => Write(new { type = "audio", delta = Convert.ToBase64String(pcm) }, token),
                 (text, token) => Write(new { type = "visitor", text }, token),
-                token => Write(new { type = "pause" }, token), call.Cancellation.Token);
+                token => Write(new { type = "pause" }, token), call.Cancellation.Token,
+                async token =>
+                {
+                    live.StopListening();
+                    await Write(new { type = "speech_stopped", inputId = request.ClientTurnId }, token);
+                    inputStopped = true;
+                });
             await live.StopListeningAsync(lifetime.Token);
-            await Write(new { type = "speech_stopped", inputId = request.ClientTurnId }, lifetime.Token);
+            if (!inputStopped)
+                await Write(new { type = "speech_stopped", inputId = request.ClientTurnId }, lifetime.Token);
             var result = conversations.CompleteGptLive(call, outcome) ?? throw new InvalidDataException();
             completed = true;
             var played = live.PreparePlayback(call.OperationId);
