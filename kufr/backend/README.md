@@ -554,3 +554,14 @@ heuristika určená k živému ověření. Výběr se zveřejní teprve po potvr
 uzavření a finální usage. Oprava návštěvníka před uzavřením ruší závěr.
 
 [Rešerše, omezení a postup porovnání](../docs/hlas-a-humor-research.md#d128-testovaci-gpt-live-rezim).
+
+### Omezená diagnostika GPT-Live
+
+Ruční workflow [kufr-gpt-live-smoke.yml](../../.github/workflows/kufr-gpt-live-smoke.yml)
+na `main` spustí `dotnet run --project kufr/backend-tests/BackendTests.csproj -c Release -- --gpt-live-smoke`
+z kořene repozitáře. Vyžaduje serverový `OPENAI_API_KEY`. Jde o placený
+provider test: jeden hovor, syntetické ticho 20 s, absolutní deadline 35 s,
+bez Solu (přibližně do 0,03 USD). Běžné testy jej nespouštějí. Výstup jsou
+jen počty událostí, audia/přepisu a finální usage, nikdy obsah řeči. Úspěch
+vyžaduje potvrzení pokynu, neprázdný hlas i přepis a finální usage. Test
+ověřuje poskytovatele a transport, nikoli reproduktor iPhonu.

@@ -4,6 +4,8 @@ using System.Text.Json;
 using Kufr.Backend.Features.Access;
 using Kufr.Backend.Features.Diagnostics;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
@@ -77,6 +79,30 @@ internal static class ServerLogTests
             Require(streamed.Entries.Single().EventCode == "realtime_failed" && streamed.Entries[0].Code == "cost_limit",
                 "failure inside HTTP 200 stream is recorded with correlation");
             Require(!JsonSerializer.Serialize(streamed).Contains("private"), "stream content excluded");
+            foreach (var engine in new[] { "realtime-live", "gpt-live" })
+            {
+                var before = logs.Read(null, 200, "info", null, null).NextCursor;
+                var upload = new DefaultHttpContext();
+                upload.Request.Method = "POST";
+                upload.SetEndpoint(new RouteEndpoint(_ => Task.CompletedTask,
+                    RoutePatternFactory.Parse($"/v1/conversations/{{id}}/{engine}/{{streamId:guid}}/audio"),
+                    0, EndpointMetadataCollection.Empty, "audio upload"));
+                ServerLogEvents.RequestAsync(upload, context =>
+                {
+                    context.Response.StatusCode = 204;
+                    return Task.CompletedTask;
+                }, logs).GetAwaiter().GetResult();
+                Require(logs.Read(before, 200, "info", null, null).Entries.Count == 0,
+                    "successful constrained PCM route must not flood diagnostics");
+                ServerLogEvents.RequestAsync(upload, context =>
+                {
+                    context.Response.StatusCode = 409;
+                    return Task.CompletedTask;
+                }, logs).GetAwaiter().GetResult();
+                var failedUpload = logs.Read(before, 200, "info", null, null).Entries.Single();
+                Require(failedUpload.Status == 409 && failedUpload.Route!.EndsWith("/{streamId}/audio"),
+                    "failed PCM uploads retain a readable normalized route");
+            }
             clock.Advance(TimeSpan.FromHours(25));
             Require(logs.Read(null, 200, "info", null, null).Entries.Count == 0, "time retention on read without new writes");
             logs.Write("info", "server_started");
