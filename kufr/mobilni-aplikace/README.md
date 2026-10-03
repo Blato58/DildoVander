@@ -31,8 +31,8 @@ Nativní adaptér vlastní TLS pin, oprávnění LAN a Keychain. E10.1 použív�
 ## Debug D108/D109/D110/D112 a Realtime
 
 Aktuální [Safari instalace](https://2.28.202.220/ios/) nabízí verzi 1.0,
-build **1000.0.13** ([publikace 3. 10. 2026](https://github.com/Blato58/DildoVander/actions/runs/37118113098),
-D133: reproduktor při vestavěném výstupu a viditelná hlasitost/průchod audia; nadále
+build **1000.0.14** ([publikace 3. 10. 2026](https://github.com/Blato58/DildoVander/actions/runs/37120810300),
+D134: obnovení přehrávače a ověření průchodu audia před AI streamem; nadále
 GPT-Live + Sol, přirozenější úvod a 3 USD/session).
 Nativní testy, Ad Hoc podpis a veřejná kontrola manifestu/IPA/SHA-256
 prošly. Skutečná aktualizace a poslech na iPhonu zbývá ověřit.

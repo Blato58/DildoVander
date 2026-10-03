@@ -28,8 +28,23 @@ processing ani fyzický reproduktor. Lokálně prošlo všech 25 mobilních
 testů, TypeScript/Vite a whitespace. Read-only snapshot 37119460245
 potvrzuje dokončení Realtime odpovědi v 11:19:45 UTC a GPT-Live start
 11:19:50 s klientským zrušením 11:20:14; žádná serverová chyba AI.
-Nativní render test zatím nelze na Linuxu spustit; navazuje CI, macOS test,
-podpis a publikace iOS. Backend/limity se nemění.
+Commit `1142e18` je pushnutý scoped gh helperem po pokusu o předepsaný
+PowerShell skript (permission denied; `pwsh` chybí).
+[PR #110](https://github.com/Blato58/DildoVander/pull/110) je sloučený po
+zeleném [CI 37119954641](https://github.com/Blato58/DildoVander/actions/runs/37119954641)
+do main `fdc01d5`; shoda obsahu ověřená.
+
+[Podpis 37120536523](https://github.com/Blato58/DildoVander/actions/runs/37120536523)
+prošel všemi nativními testy včetně skutečného offline renderování produkčního
+grafu po třech startech, Xcode device archivem a Ad Hoc exportem
+**1.0 / 1000.0.14**.
+[Publikace 37120810300](https://github.com/Blato58/DildoVander/actions/runs/37120810300)
+zveřejnila IPA na [Safari instalaci](https://2.28.202.220/ios/); všechny tři
+joby včetně veřejného HTTPS, manifestu, Bundle ID, MIME a SHA-256 prošly.
+Backend a limit 3 USD/session se nemění; další placený AI test nebyl spuštěn.
+Další krok: aktualizovat iPhone na 1000.0.14 a ověřit slyšitelný úvod i
+odpověď GPT-Live. Při přetrvávající chybě zaznamenat nový kód nebo hodnoty
+řádku Zvuk. Fyzická slyšitelnost tímto buildem ještě není potvrzená.
 
 **D133 – 3. 10. 2026 – slyšitelnost GPT-Live na iPhonu.**
 Majitel potvrzuje přepis mikrofonu i přechod na „Přehrávám“, ale neslyší
