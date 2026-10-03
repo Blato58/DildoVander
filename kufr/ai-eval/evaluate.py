@@ -92,7 +92,7 @@ def build_request(case, model, history=(), evening_context="", opening=False, re
         "Dokončené výměny (odpovědi návštěvníka používej pro závěrečný vtip): "
         f"{json.dumps(history, ensure_ascii=False)}. "
         + ("NOVÝ ROZHOVOR: příchozí ještě nic neřekl a jeho totožnost neznáš. "
-           "Krátce ho oslov a polož jednu snadnou otázku; jméno není povinný první krok. "
+           "Drze ho oslov jako zákazníka obchodu s hůlkami a polož jednu snadnou otázku k použití hůlky; jméno není povinný první krok. "
            "Nereaguj na archiv ani technická pravidla."
            if opening else f"Text návštěvníka: {case['visitorText']}")
     )

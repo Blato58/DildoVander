@@ -34,6 +34,10 @@ internal static class RealtimeTests
             "six successive openings rotate intentions instead of always asking for a name");
         foreach (var turn in openings)
         {
+            using var options = JsonDocument.Parse(ModelReaderWriter.Write(RealtimeProtocol.SessionOptions(turn)).ToMemory());
+            Require(RealtimeProtocol.Model == "gpt-realtime-2.1"
+                && options.RootElement.GetProperty("reasoning").GetProperty("effort").GetString() == "low",
+                "Realtime 2.1 uses low reasoning through the official SDK wire serializer");
             Require(RealtimeProtocol.ContextData(turn) == "", "opening has no supplied visitor archive");
             Require(RealtimeProtocol.SessionOptions(turn).Instructions
                 == RealtimeProtocol.SessionOptions(turn with { OutputTokenLimit = 512 }).Instructions,

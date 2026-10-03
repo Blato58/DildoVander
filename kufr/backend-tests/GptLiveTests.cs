@@ -62,6 +62,9 @@ internal static class GptLiveTests
             && start.RootElement.GetProperty("session").GetProperty("input").GetArrayLength() == 0
             && !socket.Sent[0].Contains("private old archive"), "fresh Live opening has no fabricated visitor or archive");
         Check(socket.Sent.Any(s => s.Contains("session.close")), "finalization requests explicit provider close");
+        var finalCommentary = socket.Sent.FindLastIndex(s => s.Contains("session.commentary.append"));
+        Check(!socket.Sent.Skip(finalCommentary + 1).Any(s => s.Contains("session.instructions.append")),
+            "a terminal instruction cannot interrupt commentary that just started speaking");
         var sentBeforeLateInput = socket.Sent.Count;
         await connection.SendAudioAsync(new byte[960], deadline.Token);
         Check(socket.Sent.Count == sentBeforeLateInput, "late microphone input never follows provider close");
@@ -72,8 +75,9 @@ internal static class GptLiveTests
         using var interruptedDialog = new TextDialogRunner((text, mask, history, question, _) =>
         {
             interruptedCalls++;
-            return Task.FromResult(new TextDialogResponse("Závěr", interruptedCalls < 4 ? "ask" : "propose",
-                "", interruptedCalls < 4 ? null : 2, ResponsesTextDialogBudget.Model, 100, 10, "default"));
+            if (interruptedCalls == 5) Check(text == "Oprava, jinak.", "terminal correction reaches Sol without another delegation");
+            return Task.FromResult(new TextDialogResponse("Závěr", interruptedCalls == 4 ? "propose" : "ask",
+                "", interruptedCalls == 4 ? 2 : null, ResponsesTextDialogBudget.Model, 100, 10, "default"));
         });
         using var interruptedDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         try
@@ -86,6 +90,10 @@ internal static class GptLiveTests
         catch (OperationCanceledException) { }
         Check(!interruptedSocket.Sent.Any(s => s.Contains("session.close")),
             "visitor correction invalidates terminal selection before close");
+        Check(interruptedCalls == 5, "terminal correction is processed automatically");
+
+        await VerifyDelegationOrderingAsync(turn);
+        await VerifyChangedInputAsync(turn);
 
         using var stalled = new LiveSocket(stall: true);
         await using var stalledConnection = new GptLiveConnection(stalled);
@@ -100,15 +108,76 @@ internal static class GptLiveTests
         Console.WriteLine("GPT-Live wire, delegation, duration, opening and cancellation tests passed.");
     }
 
+    private static async Task VerifyDelegationOrderingAsync(RealtimeTurnContext turn)
+    {
+        using var socket = new LiveSocket(delegationFirst: true);
+        await using var connection = new GptLiveConnection(socket);
+        var calls = 0;
+        using var dialog = new TextDialogRunner((text, mask, history, question, _) =>
+        {
+            calls++;
+            Check(text == "Odpověď " + calls, "early delegation is retained until its transcript arrives");
+            return Task.FromResult(new TextDialogResponse("Replika", calls == 4 ? "propose" : "ask",
+                "", calls == 4 ? 2 : null, ResponsesTextDialogBudget.Model, 100, 10, "default"));
+        });
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var outcome = await new GptLiveDialogue(connection, dialog).RunAsync(turn,
+            (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask, _ => Task.CompletedTask, deadline.Token);
+        Check(calls == 4 && outcome.Reply.Compartment == 2, "delegation-before-transcript finishes without model retry");
+        Check(!socket.Sent.Any(s => s.Contains("session.thinking.append")), "ordering recovery sends no waiting notices");
+    }
+
+    private static async Task VerifyChangedInputAsync(RealtimeTurnContext turn)
+    {
+        using var socket = new LiveSocket();
+        await using var connection = new GptLiveConnection(socket);
+        var oldResult = new TaskCompletionSource<TextDialogResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var inputs = new List<string>();
+        var sawCorrection = false;
+        using var dialog = new TextDialogRunner((text, mask, history, question, _) =>
+        {
+            inputs.Add(text);
+            if (inputs.Count == 1)
+            {
+                socket.EmitDelegation("duplicate-same-revision");
+                socket.EmitInput(" a oprava"); // no new delegation for this corrected revision
+                return oldResult.Task;
+            }
+            Check(inputs.Count != 2 || text == "Odpověď 1 a oprava", "latest accumulated transcript replaces stale input");
+            Check(question == (text != "Odpověď 4"), "stale work does not advance the question gate");
+            return Task.FromResult(new TextDialogResponse("Aktuální replika", text == "Odpověď 4" ? "propose" : "ask",
+                "", text == "Odpověď 4" ? 2 : null, ResponsesTextDialogBudget.Model, 100, 10, "default"));
+        });
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var outcome = await new GptLiveDialogue(connection, dialog).RunAsync(turn,
+            (_, _) => Task.CompletedTask,
+            (fragment, _) =>
+            {
+                if (fragment == " a oprava")
+                {
+                    sawCorrection = true;
+                    oldResult.SetResult(new("ZASTARALÝ VÝBĚR", "propose", "", 6,
+                        ResponsesTextDialogBudget.Model, 100, 10, "default"));
+                }
+                return Task.CompletedTask;
+            }, _ => Task.CompletedTask, deadline.Token);
+        Check(sawCorrection && inputs.Count == 5 && outcome.Questions == 4 && outcome.Reply.Compartment == 2,
+            "corrected work resumes automatically and duplicate work is suppressed");
+        Check(outcome.Reply.CostMicroUsd == 51_750, "discarded result remains charged exactly once");
+        Check(!socket.Sent.Any(s => s.Contains("ZASTARALÝ") || s.Contains("session.thinking.append")),
+            "stale choice and waiting notices never reach the voice model");
+    }
+
     private static void Check(bool condition, string reason)
     {
         if (!condition) throw new Exception(reason);
     }
 
-    private sealed class LiveSocket(bool stall = false, bool interruptFinal = false) : WebSocket
+    private sealed class LiveSocket(bool stall = false, bool interruptFinal = false, bool delegationFirst = false) : WebSocket
     {
         private readonly Channel<byte[]> events = Channel.CreateUnbounded<byte[]>();
         private int answer;
+        private bool interrupted;
         internal List<string> Sent { get; } = [];
         public override WebSocketCloseStatus? CloseStatus => null;
         public override string? CloseStatusDescription => null;
@@ -119,11 +188,14 @@ internal static class GptLiveTests
         public override Task CloseAsync(WebSocketCloseStatus status, string? description, CancellationToken token) => Task.CompletedTask;
         public override Task CloseOutputAsync(WebSocketCloseStatus status, string? description, CancellationToken token) => Task.CompletedTask;
         private void Emit(object value) => events.Writer.TryWrite(JsonSerializer.SerializeToUtf8Bytes(value));
+        internal void EmitInput(string text) => Emit(new { type = "session.input_transcript.delta", delta = text });
+        internal void EmitDelegation(string id) => Emit(new { type = "session.delegation.created", delegation = new { id, target = "client" } });
         private void NextAnswer()
         {
             answer++;
-            Emit(new { type = "session.input_transcript.delta", delta = "Odpověď " + answer, start_ms = answer * 1000, end_ms = answer * 1000 + 500 });
-            Emit(new { type = "session.delegation.created", delegation = new { id = "task-" + answer, target = "client" } });
+            if (delegationFirst) EmitDelegation("task-" + answer);
+            EmitInput("Odpověď " + answer);
+            if (!delegationFirst) EmitDelegation("task-" + answer);
         }
         public override Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType type, bool complete, CancellationToken token)
         {
@@ -148,7 +220,11 @@ internal static class GptLiveTests
                     Emit(new { type = "session.output_transcript.delta", delta = "vená replika" });
                     Emit(new { type = "session.output_audio.delta", delta = Convert.ToBase64String(new byte[] { 0, 32, 0, 32 }) });
                     if (answer < 4) NextAnswer();
-                    else if (interruptFinal) Emit(new { type = "session.input_transcript.delta", delta = "Oprava, jinak." });
+                    else if (interruptFinal && !interrupted)
+                    {
+                        interrupted = true;
+                        EmitInput("Oprava, jinak.");
+                    }
                     break;
                 case "session.close": Emit(new { type = "session.closed", usage = new { seconds = 60 }, reason = "close_requested" }); break;
             }
