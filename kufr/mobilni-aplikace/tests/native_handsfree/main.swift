@@ -34,6 +34,8 @@ struct NativeHandsFreeTests {
         assert(metrics["played"] == 3 && metrics["uploads"] == 2 && metrics["cleanup"] == 1)
         try await testGptLive(client: client, profile: profile)
         try testPlaybackConversion()
+        try testPlaybackRendering()
+        testPlaybackProgress()
         try testMicrophoneConversion()
         testAudioRouteChanges()
         testEngineStartup()
@@ -62,6 +64,63 @@ struct NativeHandsFreeTests {
             do { _ = try DebugHandsFreePlayback.buffer(from: invalid); fatalError("Invalid playback buffer accepted") }
             catch DebugBackendError.invalidResponse { }
         }
+    }
+
+    static func testPlaybackRendering() throws {
+        // Render the production graph through AVAudioEngine, including a restart
+        // while the player is still active. This detects disconnected output and
+        // stale scheduling clocks; it does not simulate iOS voice-processing I/O.
+        let engine = AVAudioEngine()
+        let player = AVAudioPlayerNode()
+        let output = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 2)!
+        try engine.enableManualRenderingMode(.offline, format: output, maximumFrameCount: 1_024)
+        defer { player.stop(); engine.stop() }
+        var pcm = Data()
+        for index in 0..<4_800 {
+            let sample = Int16(sin(Double(index) * 2 * .pi * 440 / 24_000) * 16_000)
+            let bits = UInt16(bitPattern: sample)
+            pcm.append(UInt8(bits & 255)); pcm.append(UInt8(bits >> 8))
+        }
+        for _ in 0..<3 {
+            engine.stop()
+            try DebugHandsFreePlayback.prepare(engine: engine, player: player)
+            assert(!player.isPlaying)
+            try engine.start()
+            let source = try DebugHandsFreePlayback.buffer(from: pcm)
+            DebugHandsFreePlayback.schedule(source, player: player) { _ in }
+            let rendered = AVAudioPCMBuffer(pcmFormat: output, frameCapacity: 1_024)!
+            var energy = [Double](repeating: 0, count: 2)
+            var frames = 0
+            for _ in 0..<80 where frames < 16_384 {
+                switch try engine.renderOffline(1_024, to: rendered) {
+                case .success:
+                    for channel in 0..<2 {
+                        let samples = rendered.floatChannelData![channel]
+                        for index in 0..<Int(rendered.frameLength) { energy[channel] += abs(Double(samples[index])) }
+                    }
+                    frames += Int(rendered.frameLength)
+                case .cannotDoInCurrentContext: Thread.sleep(forTimeInterval: 0.001); continue
+                default: fatalError("Offline playback did not render")
+                }
+            }
+            assert(frames >= 16_384 && energy.allSatisfy { $0 > 100 }, "PCM must reach both output channels after every restart")
+        }
+        print("Hands-free production graph rendered PCM after three engine starts.")
+    }
+
+    static func testPlaybackProgress() {
+        var queue = DebugHandsFreePlaybackProgress()
+        assert(!queue.stalled(now: 100))
+        queue.enqueue(now: 100)
+        queue.enqueue(now: 102)
+        assert(queue.stalled(now: 102.5), "Incoming audio cannot hide absent playback completions")
+        queue.complete(now: 102.6)
+        assert(!queue.stalled(now: 104))
+        assert(queue.stalled(now: 105.1))
+        queue.complete(now: 105.2)
+        assert(queue.pending == 0 && !queue.stalled(now: 200))
+        queue.enqueue(now: 200)
+        assert(!queue.stalled(now: 201), "New playback gets its own deadline")
     }
 
     @MainActor static func testGptLive(client: DebugBackendClient, profile: DebugBackendProfile) async throws {
@@ -113,32 +172,45 @@ struct NativeHandsFreeTests {
         // during its asynchronous configuration notification. Recover before
         // admitting the provider stream; old microphone buffers do not count.
         var startup = DebugHandsFreeAudioStartup(now: 10)
-        assert(startup.poll(now: 10, engineRunning: true, lastCaptureAt: nil) == .wait)
+        assert(startup.poll(now: 10, engineRunning: true, lastCaptureAt: nil, playbackReady: true) == .wait)
         startup.configurationChanged(now: 10.01)
-        assert(startup.poll(now: 10.02, engineRunning: false, lastCaptureAt: 10.01) == .restart)
-        assert(startup.poll(now: 10.03, engineRunning: true, lastCaptureAt: 10.01) == .wait)
-        assert(startup.poll(now: 10.08, engineRunning: true, lastCaptureAt: 10.07) == .wait)
-        assert(startup.poll(now: 10.46, engineRunning: true, lastCaptureAt: 10.45) == .ready)
+        assert(startup.poll(now: 10.02, engineRunning: false, lastCaptureAt: 10.01, playbackReady: true) == .restart)
+        assert(startup.poll(now: 10.03, engineRunning: true, lastCaptureAt: 10.01, playbackReady: true) == .wait)
+        assert(startup.poll(now: 10.08, engineRunning: true, lastCaptureAt: 10.07, playbackReady: true) == .wait)
+        assert(startup.poll(now: 10.46, engineRunning: true, lastCaptureAt: 10.45, playbackReady: true) == .ready)
 
         // A new configuration invalidates readiness, even while isRunning
         // stays true. A frozen tap must never admit a voice session.
         var quiet = DebugHandsFreeAudioStartup(now: 0)
-        assert(quiet.poll(now: 0.01, engineRunning: true, lastCaptureAt: 0.005) == .wait)
+        assert(quiet.poll(now: 0.01, engineRunning: true, lastCaptureAt: 0.005, playbackReady: true) == .wait)
         quiet.configurationChanged(now: 0.1)
-        assert(quiet.poll(now: 0.2, engineRunning: true, lastCaptureAt: 0.005) == .wait)
-        assert(quiet.poll(now: 0.3, engineRunning: true, lastCaptureAt: 0.29) == .wait)
-        assert(quiet.poll(now: 0.6, engineRunning: true, lastCaptureAt: 0.29) == .wait)
-        assert(quiet.poll(now: 3, engineRunning: true, lastCaptureAt: nil) == .fail)
+        assert(quiet.poll(now: 0.2, engineRunning: true, lastCaptureAt: 0.005, playbackReady: true) == .wait)
+        assert(quiet.poll(now: 0.3, engineRunning: true, lastCaptureAt: 0.29, playbackReady: true) == .wait)
+        assert(quiet.poll(now: 0.6, engineRunning: true, lastCaptureAt: 0.29, playbackReady: true) == .wait)
+        assert(quiet.poll(now: 3, engineRunning: true, lastCaptureAt: nil, playbackReady: true) == .fail)
+
+        // A live microphone and running engine are insufficient when the
+        // player's queued buffers never reach the output (iPhone regression).
+        var silentOutput = DebugHandsFreeAudioStartup(now: 0)
+        assert(silentOutput.poll(now: 0.4, engineRunning: true, lastCaptureAt: 0.39, playbackReady: false) == .wait)
+        assert(silentOutput.poll(now: 0.76, engineRunning: true, lastCaptureAt: 0.75, playbackReady: false) == .restart)
+        assert(silentOutput.poll(now: 0.99, engineRunning: true, lastCaptureAt: 0.98, playbackReady: true) == .wait)
+        assert(silentOutput.poll(now: 1.31, engineRunning: true, lastCaptureAt: 1.30, playbackReady: true) == .ready)
+        var neverPlays = DebugHandsFreeAudioStartup(now: 0)
+        for time in [0.76, 1.52, 2.28] {
+            assert(neverPlays.poll(now: time, engineRunning: true, lastCaptureAt: time - 0.01, playbackReady: false) == .restart)
+        }
+        assert(neverPlays.poll(now: 3, engineRunning: true, lastCaptureAt: 2.99, playbackReady: false) == .fail)
 
         var broken = DebugHandsFreeAudioStartup(now: 0)
         for now in [0.01, 0.02, 0.03] {
-            assert(broken.poll(now: now, engineRunning: false, lastCaptureAt: nil) == .restart)
+            assert(broken.poll(now: now, engineRunning: false, lastCaptureAt: nil, playbackReady: true) == .restart)
         }
-        assert(broken.poll(now: 0.04, engineRunning: false, lastCaptureAt: nil) == .fail)
+        assert(broken.poll(now: 0.04, engineRunning: false, lastCaptureAt: nil, playbackReady: true) == .fail)
         // Notifications cannot extend the absolute startup deadline.
         var noisy = DebugHandsFreeAudioStartup(now: 0)
         noisy.configurationChanged(now: 2.99)
-        assert(noisy.poll(now: 3, engineRunning: false, lastCaptureAt: nil) == .fail)
+        assert(noisy.poll(now: 3, engineRunning: false, lastCaptureAt: nil, playbackReady: true) == .fail)
     }
 
     static func testMicrophoneConversion() throws {
