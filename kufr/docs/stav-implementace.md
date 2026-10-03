@@ -6,6 +6,25 @@ Poslední aktualizace: **3. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D133 – 3. 10. 2026 – slyšitelnost GPT-Live na iPhonu.**
+Majitel potvrzuje přepis mikrofonu i přechod na „Přehrávám“, ale neslyší
+zvuk. Tento stav se nastavuje až po přijetí PCM z backendu; problém nelze
+přisoudit chybějící odpovědi modelu. Při startupu nyní aplikace přepne
+vestavěné telefonní sluchátko na reproduktor, pokud je voice-processing
+setup vybral. Externí výstup respektuje. Aktuální výstup, systémovou
+hlasitost a délku přijatých bufferů/potvrzeného renderování ukazuje Debug;
+při hlasitosti pod 5 % přímo radí boční tlačítko během hovoru. Potvrzení
+renderování nedokazuje slyšitelnost fyzického reproduktoru.
+
+PCM16 dekodér je sdílený s nativním testem, před plněním nastavuje platný
+počet rámců a čte little-endian bajty bez předpokladu zarovnání `Data`.
+Test kontroluje nulu, obě polarity, krajní amplitudy, mono/24 kHz a vadné
+buffery. Přehrávání kontroluje běžící engine. Lokálně prošlo 25 mobilních
+testů, TypeScript/Vite a whitespace; nativní test vyžaduje macOS podpisový
+workflow. Příčina konkrétního ticha (hlasitost/cesta/renderování) ještě není
+fyzicky potvrzená. Další krok: CI, nativní ověření, publikace IPA a zkouška
+na iPhonu s viditelnými údaji zvuku. Serverové limity zůstávají 3 USD/session.
+
 **D132 – 3. 10. 2026 – diagnostika chybějící odpovědi GPT-Live.**
 PR #106 (`8d29d01`) je pushnutý a sloučený do `ac16277` po zeleném CI
 37116295704; obsah main ověřen. Info snapshot 37116861155 už úspěšně čte
