@@ -24,6 +24,16 @@ STATUS = {'revision': PAGE['storeId'], 'dialogMode': 'fake', 'voiceMode': 'fake'
 
 
 class MCPTests(unittest.TestCase):
+    def test_constrained_audio_route_from_deployed_server(self):
+        route = '/v1/conversations/{id}/gpt-live/{streamId:guid}/audio'
+        page = {**PAGE, 'entries': [{**PAGE['entries'][0], 'route': route, 'status': 204}]}
+        projected = mcp.project('/v1/admin/logs', page)
+        self.assertEqual(projected['entries'][0]['route'], route)
+        self.assertNotIn('private-secret', json.dumps(projected))
+        for invalid in [route + '?token=secret', route + '\nsecret']:
+            with self.assertRaises(mcp.DiagnosticError):
+                mcp.project('/v1/admin/logs', {**page, 'entries': [{**page['entries'][0], 'route': invalid}]})
+
     def test_protocol_and_argument_isolation(self):
         message = lambda method, params={}: {'jsonrpc': '2.0', 'id': 1, 'method': method, 'params': params}
         self.assertIn('capabilities', mcp.dispatch(message('initialize'))['result'])
