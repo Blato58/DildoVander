@@ -31,10 +31,10 @@ Nativní adaptér vlastní TLS pin, oprávnění LAN a Keychain. E10.1 použív�
 ## Debug D108/D109/D110/D112 a Realtime
 
 Aktuální [Safari instalace](https://2.28.202.220/ios/) nabízí verzi 1.0,
-build **1000.0.9** (publikace 2. 10. 2026, D121: běžný zvukový režim pro
-hlasitější Realtime reproduktor; obsahuje také D120 reuse audio upload
-spojení a 200ms dávkování). Veřejný manifest a IPA prošly HTTPS/checksum
-kontrolou na serverovém runneru; hlasitost a rozhovor na iPhonu zbývá ověřit.
+build **1000.0.10** ([publikace 3. 10. 2026](https://github.com/Blato58/DildoVander/actions/runs/37110367270),
+D128/D129: volitelný GPT-Live + Sol, přirozenější úvod a 3 USD/session).
+Nativní testy, Ad Hoc podpis a veřejná kontrola manifestu/IPA/SHA-256
+prošly. Skutečná aktualizace a poslech na iPhonu zbývá ověřit.
 První uložení credentialu po přechodu z RAM-only verze
 je potřeba zopakovat. Profil uložený od 1000.0.2 se dál načítá ze stejného
 Keychain; skutečnou aktualizaci a její zachování ověří registrovaný iPhone.
