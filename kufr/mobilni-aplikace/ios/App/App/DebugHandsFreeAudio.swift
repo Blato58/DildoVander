@@ -308,13 +308,13 @@ final class DebugHandsFreeAudio {
         try engine.start()
         let probe = try DebugHandsFreePlayback.buffer(from: Data(repeating: 0, count: 9_600))
         let attempt = probeGeneration
-        let frames = AVAudioFramePosition(probe.frameLength)
         DebugHandsFreePlayback.schedule(probe, player: player) { [weak self] _ in
             Task { @MainActor in
                 guard let self, self.audioActive, self.probeGeneration == attempt,
                       self.engine.isRunning, self.player.isPlaying,
                       let rendered = self.player.lastRenderTime,
-                      let position = self.player.playerTime(forNodeTime: rendered), position.sampleTime >= frames
+                      let position = self.player.playerTime(forNodeTime: rendered),
+                      position.isSampleTimeValid, position.sampleTime > 0
                 else { return }
                 self.playbackReady = true
             }
