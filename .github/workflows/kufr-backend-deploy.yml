@@ -137,6 +137,10 @@ jobs:
               "openAiApiKey": os.environ["OPENAI_API_KEY"],
               "caps": {
                   "session": os.environ["SESSION_CAP_MICRO_USD"],
+                  # Compatibility with the root-owned helper installed before D128.
+                  # Current backend ignores period caps; these are wire placeholders.
+                  "daily": os.environ["SESSION_CAP_MICRO_USD"],
+                  "monthly": os.environ["SESSION_CAP_MICRO_USD"],
               },
           }))
           PY

@@ -1,10 +1,32 @@
 # Stav implementace AI kufru
 
-Poslední aktualizace: **2. 10. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální Arduino i ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a E3a. Ad Hoc podpis a serverová publikace IPA/manifestu prošly CI a veřejným HTTPS testem; majitel potvrdil instalaci a spuštění na iPhonu 15 Pro (D70). Hardware, native WSS/TLS a aktualizace IPA na telefonu zatím nemají runtime akceptaci. Hotový návrh není hotová implementace.
+Poslední aktualizace: **3. 10. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální Arduino i ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a E3a. Ad Hoc podpis a serverová publikace IPA/manifestu prošly CI a veřejným HTTPS testem; majitel potvrdil instalaci a spuštění na iPhonu 15 Pro (D70). Hardware, native WSS/TLS a aktualizace IPA na telefonu zatím nemají runtime akceptaci. Hotový návrh není hotová implementace.
 
 [Implementační plán](implementacni-plan.md) určuje architekturu a akceptaci. [AGENTS.md](../../AGENTS.md) určuje pracovní postup AI. Tento soubor je jediný průběžný záznam postupu; README ho pouze odkazují.
 
 ## Předání další AI
+
+**D129 – 3. 10. 2026 – autorizované nasazení D128 a kompatibilita helperu.**
+Majitel výslovně požádal „nasaď“. Zdroj je sloučený PR #99 / main
+`a447be0`, úspěšné CI `37067443145`. Backend deploy `37110204278`
+ověřil artefakt, ale starší root-owned helper odmítl nový payload:
+`All three cost caps are required together`. Chyba nastala před změnou
+prostředí/symlinku/restartem; původní backend zůstal zachovaný.
+Workflow proto předává také `daily/monthly` kompatibilitní hodnoty.
+D128 backend je ignoruje, hlavní limit zůstává OpenAI a session 3 USD.
+Nový test ověřuje, že ani staré periodické hodnoty 1 microUSD neobnoví
+aplikační globální stropy. Backend README popisuje migraci bez požadavku
+na další root oprávnění nebo změnu nainstalovaného helperu.
+
+Podepsaný iOS build `37110205151` z původního ověřeného main prošel,
+včetně nativních WSS/debug/GPT-Live testů, device buildu a Ad Hoc podpisu.
+Publikace existující ověřené IPA byla spuštěná samostatným workflow.
+Výsledek publikace a opakovaného backend nasazení bude doložen v Actions.
+ESP32 není připojené přes USB k tomuto cloud prostředí, firmware není
+flashnutý. Kód/artefakt s novým režimem je připravený, runtime HW akceptace
+zůstává otevřená. Oprava nasazení nemění nativní aplikaci ani firmware. Lokálně prošel
+celý backend test suite (.NET 10), tři deploy-helper testy a whitespace.
+
 
 **D128 – 2. 10. 2026 – GPT-Live + Sol v aplikaci/firmware, 3 USD/session.**
 Majitel navázal na D127 požadavkem na samostatně přepínatelný GPT-Live pro
