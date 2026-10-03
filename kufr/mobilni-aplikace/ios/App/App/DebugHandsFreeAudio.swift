@@ -53,15 +53,15 @@ struct DebugHandsFreeUploadBuffer {
 }
 
 enum DebugHandsFreeAudioPolicy {
-    enum RouteChange {
-        case category, speakerOverride, configuration, device
-    }
-
-    static func shouldStop(change: RouteChange, configurationMatches: Bool) -> Bool {
-        switch change {
-        case .category, .speakerOverride, .configuration:
+    // AVAudioSession.RouteChangeReason raw values. Keep the notification
+    // mapping testable on macOS as well as the device. Availability is not
+    // evidence that our active input/output changed: voice-processing setup
+    // can publish a new-device notification for the already selected route.
+    static func shouldStop(reason: UInt?, configurationMatches: Bool) -> Bool {
+        switch reason {
+        case 0, 1, 3, 4, 6, 8: // unknown, new device, category, override, wake, configuration
             return !configurationMatches
-        case .device:
+        default: // old device unavailable (2), no suitable route (7), missing/future reason
             return true
         }
     }
@@ -116,8 +116,8 @@ final class DebugHandsFreePCMConverter {
 
 #if os(iOS)
 // One duplex engine remains active for the entire hands-free conversation.
-// The tap is deliberately gated while model audio is queued, so it cannot
-// upload the phone speaker as a visitor response.
+// Realtime gates the tap during playback. GPT-Live keeps it running with
+// Apple voice processing for acoustic echo cancellation.
 @MainActor
 final class DebugHandsFreeAudio {
     typealias Upload = (String, Int, Data) async throws -> Void
@@ -330,14 +330,14 @@ final class DebugHandsFreeAudio {
         observers.append(center.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] notification in
             guard let type = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? NSNumber,
                   type.uintValue == AVAudioSession.InterruptionType.began.rawValue else { return }
-            DispatchQueue.main.async { self?.audioFailure() }
+            DispatchQueue.main.async { self?.audioFailure(code: "realtime_live_audio_interrupted") }
         })
         observers.append(center.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { [weak self] notification in
             let reason = (notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? NSNumber)?.uintValue
             DispatchQueue.main.async { self?.routeChanged(reason: reason) }
         })
         observers.append(center.addObserver(forName: AVAudioSession.mediaServicesWereResetNotification, object: nil, queue: .main) { [weak self] _ in
-            DispatchQueue.main.async { self?.audioFailure() }
+            DispatchQueue.main.async { self?.audioFailure(code: "realtime_live_audio_services_reset") }
         })
     }
 
@@ -347,32 +347,32 @@ final class DebugHandsFreeAudio {
 
     private func routeChanged(reason: UInt?) {
         guard audioActive else { return }
-        let change: DebugHandsFreeAudioPolicy.RouteChange
-        switch reason.flatMap(AVAudioSession.RouteChangeReason.init(rawValue:)) {
-        case .categoryChange: change = .category
-        case .override: change = .speakerOverride
-        case .routeConfigurationChange: change = .configuration
-        default: change = .device
-        }
         let session = AVAudioSession.sharedInstance()
-        let configurationMatches = engine.isRunning
-            && session.category == .playAndRecord
+        let routeMatches = routeIdentifiers(session.currentRoute) == activeRoute
+        let sessionMatches = session.category == .playAndRecord
             && session.mode == (fullDuplex ? .voiceChat : .default)
-            && routeIdentifiers(session.currentRoute) == activeRoute
-            && converter?.sourceFormat == engine.inputNode.outputFormat(forBus: 0)
-        // Starting our own playAndRecord session posts route notifications too.
-        // Only tolerate those when the active route and capture format agree.
-        if DebugHandsFreeAudioPolicy.shouldStop(change: change, configurationMatches: configurationMatches) {
-            audioFailure()
+        let formatMatches = converter?.sourceFormat == engine.inputNode.outputFormat(forBus: 0)
+        let configurationMatches = engine.isRunning && sessionMatches && routeMatches && formatMatches
+        // Inspect the current graph, not the route that existed when a queued
+        // startup notification was posted. Never ignore a lost device or an
+        // unusable engine, even if its last reported route is still identical.
+        if DebugHandsFreeAudioPolicy.shouldStop(reason: reason, configurationMatches: configurationMatches) {
+            let code: String
+            if !routeMatches || reason == 2 || reason == 7 { code = "realtime_live_audio_route_changed" }
+            else if !sessionMatches { code = "realtime_live_audio_session_changed" }
+            else if !formatMatches { code = "realtime_live_audio_format_changed" }
+            else if !engine.isRunning { code = "realtime_live_audio_engine_stopped" }
+            else { code = "realtime_live_audio_route_unknown" }
+            audioFailure(code: code)
         }
     }
 
-    private func audioFailure() {
+    private func audioFailure(code: String) {
         // iOS may stop the engine before notifying us. Only our own stop()
         // marks the lifecycle inactive, so genuine interruptions still clean up.
         guard audioActive else { return }
         stop()
-        failure("realtime_live_audio_interrupted")
+        failure(code)
     }
 
     private func audioQueueOverflowed() {

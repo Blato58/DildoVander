@@ -6,6 +6,35 @@ Poslední aktualizace: **3. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D130 – 3. 10. 2026 – oprava okamžitého ukončení GPT-Live na iOS (rozpracované).**
+Majitel po publikaci D129 doložil screenshot `realtime_live_audio_interrupted`
+a potvrdil chybu hned před první replikou. Read-only
+[diagnostika 37112031423](https://github.com/Blato58/DildoVander/actions/runs/37112031423)
+ukazuje dva zrušené `/gpt-live` požadavky v 09:00:28 a 09:00:39 UTC
+(11:00 Praha), HTTP 499 `operation_cancelled`. Logy neobsahují důvod
+nativní změny zvuku; samotný screenshot nedokazuje konkrétní iOS reason.
+
+V `DebugHandsFreeAudio.swift` všechny route reasons mimo category/override/
+configuration dosud vždy ukončily hovor. Zejména `newDeviceAvailable`
+neznamená změnu aktivní cesty a může doprovázet inicializaci voice processing.
+Oprava porovnává i pro availability/wake/unknown oznámení běžící engine,
+aktivní vstup/výstup, kategorii, režim a PCM formát. Shodná konfigurace
+pokračuje; změna, ztráta zařízení, chybějící/neznámý reason nebo nevhodná
+cesta zastavují. Skutečná interruption a reset služeb zůstávají fatální.
+Žádné časové okno ignorování ani automatický opakovaný placený rozhovor.
+`DebugPanel.ts` rozlišuje technické kódy přerušení, cesty, režimu, formátu,
+zastaveného enginu a resetu služby pro případné další fyzické ověření.
+Nativní harness pokrývá sekvenci startup oznámení, změněnou konfiguraci
+a disconnect/reconnect se zdánlivě stejnou aktuální cestou.
+
+Lokálně prošlo 25 mobilních Node testů, TypeScript/Vite build a
+`git diff --check`. Doručení probíhá. Linux nemá Swift/Xcode; nativní regresní testy
+a iOS kompilaci musí provést autorizovaný podpisový workflow. Nutné znovu
+spustit GPT-Live na skutečném iPhonu; konkrétní příčina původní notifikace
+ani akustické chování nejsou vzdáleně změřené. Backend/firmware se nemění.
+Další krok: lokální mobilní kontroly, CI/merge a publikace opravené IPA.
+
+
 **D129 – 3. 10. 2026 – autorizované nasazení D128 a kompatibilita helperu.**
 Majitel výslovně požádal „nasaď“. Zdroj je sloučený PR #99 / main
 `a447be0`, úspěšné CI `37067443145`. Backend deploy `37110204278`
