@@ -336,9 +336,12 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
             try requireCurrent(generation)
             handsFreeSession = session
             handsFreeAudio = audio
-            do { try audio.start() }
+            do { try await audio.start() }
+            catch let error as DebugBackendError { throw error }
+            catch is CancellationError { throw CancellationError() }
             catch { throw DebugBackendError.serverCode("realtime_live_audio_start_failed") }
-            // Starting resolves immediately. The ongoing native task and
+            try requireCurrent(generation)
+            // Resolve after the microphone is ready. The ongoing native task and
             // status polling own listening, generation and playback phases.
             call.resolve()
             resolved = true
