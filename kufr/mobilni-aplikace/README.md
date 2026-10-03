@@ -67,8 +67,11 @@ zeslabovat. Hlasitost nastavujte bočními tlačítky při přehrávání odpov�
 Spouští se jeden rozhovor, nejvýše 8 min/10
 tahů; Stop, pozadí, zamčení nebo audio přerušení ukončí mikrofon i provider.
 Bez přerušování právě mluvícího kufru. Vlastní přepnutí audio session při
-startu nepřerušuje rozhovor; skutečná změna mikrofonu/reproduktoru jej
-bezpečně ukončí. Prázdný výstup při rozběhu převodníku není chyba.
+startu nepřerušuje rozhovor, pokud běžící engine, aktivní cesta a formát
+zůstávají stejné. To platí i pro oznámení nově dostupného zařízení při
+startu GPT-Live. Odpojení zařízení nebo skutečná změna konfigurace hovor
+bezpečně ukončí. Debug rozlišuje kódy změny cesty, režimu, PCM formátu,
+zastaveného enginu, přerušení a resetu zvukové služby. Prázdný výstup při rozběhu převodníku není chyba.
 Problém včetně nákladového limitu má viditelnou hlášku a technický kód
 pro předání při diagnostice. **Realtime · tlačítka** a **Řetězený** umožňují text
 nebo nahrávání nejvýše 30 s do RAM. Fake STT vrací syntetický přepis;

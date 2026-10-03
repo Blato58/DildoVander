@@ -73,13 +73,24 @@ struct NativeHandsFreeTests {
     }
 
     static func testAudioRouteChanges() {
-        // Our own category/speaker notifications must not stop a started call.
-        for change in [DebugHandsFreeAudioPolicy.RouteChange.category, .speakerOverride, .configuration] {
-            assert(!DebugHandsFreeAudioPolicy.shouldStop(change: change, configurationMatches: true))
-            assert(DebugHandsFreeAudioPolicy.shouldStop(change: change, configurationMatches: false))
+        // GPT-Live startup can enqueue newDeviceAvailable (1) followed by
+        // categoryChange (3) and routeConfigurationChange (8). All three
+        // must preserve a healthy graph on the already selected microphone.
+        for reason in [UInt(1), 3, 8, 1] {
+            assert(!DebugHandsFreeAudioPolicy.shouldStop(reason: reason, configurationMatches: true))
         }
-        assert(DebugHandsFreeAudioPolicy.shouldStop(change: .device, configurationMatches: true))
-        assert(DebugHandsFreeAudioPolicy.shouldStop(change: .device, configurationMatches: false))
+        // Adding another available device is harmless only if the actual
+        // route, format, category, mode AND running engine remain unchanged.
+        for reason in [UInt(0), 1, 3, 4, 6, 8] {
+            assert(!DebugHandsFreeAudioPolicy.shouldStop(reason: reason, configurationMatches: true))
+            assert(DebugHandsFreeAudioPolicy.shouldStop(reason: reason, configurationMatches: false))
+        }
+        // Unplugging an active device still stops the call, including a
+        // queued disconnect/reconnect whose current route looks unchanged.
+        for reason in [UInt?](arrayLiteral: 2, 7, nil, 999) {
+            assert(DebugHandsFreeAudioPolicy.shouldStop(reason: reason, configurationMatches: true))
+            assert(DebugHandsFreeAudioPolicy.shouldStop(reason: reason, configurationMatches: false))
+        }
     }
 
     static func testMicrophoneConversion() throws {
