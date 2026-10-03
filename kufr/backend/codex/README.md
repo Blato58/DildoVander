@@ -98,3 +98,8 @@ v `/var/lib/kufr-backend`. Historie nejvýše 24 h a 5000 událostí, ořez při
 zápisu/čtení; `Backend__Logs__Capacity` dovoluje 200–20000. SQLite znovu používá
 stránky po promazání. Jde o provozní diagnostiku, oddělenou od journalu,
 paměti večerů a technického auditu stanoveného plánem.
+
+Reader přijímá i ASP.NET route constraints (například `{streamId:guid}`)
+ze starších nasazení. Nový server tento constraint normalizuje před
+potlačením úspěšných audio uploadů; chyby uploadu zůstávají viditelné.
+GPT-Live zapisuje technické stream stavy stejným filtrem jako Realtime.

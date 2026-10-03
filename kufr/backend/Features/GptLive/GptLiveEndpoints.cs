@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Kufr.Backend.Features.Access;
 using Kufr.Backend.Features.Conversations;
+using Kufr.Backend.Features.Diagnostics;
 using Kufr.Backend.Features.Realtime;
 
 namespace Kufr.Backend.Features.GptLive;
@@ -36,6 +37,7 @@ internal static class GptLiveEndpoints
             await writes.WaitAsync(token);
             try
             {
+                ServerLogEvents.Stream(context, item);
                 await context.Response.WriteAsync(JsonSerializer.Serialize(item, RealtimeProtocol.JsonOptions) + "\n", token);
                 await context.Response.Body.FlushAsync(token);
             }
