@@ -20,10 +20,28 @@ PCM16 dekodér je sdílený s nativním testem, před plněním nastavuje platn�
 počet rámců a čte little-endian bajty bez předpokladu zarovnání `Data`.
 Test kontroluje nulu, obě polarity, krajní amplitudy, mono/24 kHz a vadné
 buffery. Přehrávání kontroluje běžící engine. Lokálně prošlo 25 mobilních
-testů, TypeScript/Vite a whitespace; nativní test vyžaduje macOS podpisový
-workflow. Příčina konkrétního ticha (hlasitost/cesta/renderování) ještě není
-fyzicky potvrzená. Další krok: CI, nativní ověření, publikace IPA a zkouška
-na iPhonu s viditelnými údaji zvuku. Serverové limity zůstávají 3 USD/session.
+testů, TypeScript/Vite a whitespace. Commit `c78ff69` je pushnutý scoped gh
+helperem po pokusu o předepsaný PowerShell skript (permission denied;
+`pwsh` chybí). [PR #108](https://github.com/Blato58/DildoVander/pull/108)
+je sloučený po zeleném [CI 37117230606](https://github.com/Blato58/DildoVander/actions/runs/37117230606)
+do main `dcc79ab`; shoda obsahu ověřená.
+
+[Podpis 37117990047](https://github.com/Blato58/DildoVander/actions/runs/37117990047)
+prošel nativními testy včetně nového PCM dekodéru, Xcode 26.3 device archive
+a Ad Hoc exportem **1.0 / 1000.0.13**.
+[Publikace 37118113098](https://github.com/Blato58/DildoVander/actions/runs/37118113098)
+zveřejnila IPA na [Safari instalaci](https://2.28.202.220/ios/); všechny tři
+joby včetně veřejného HTTPS, manifestu, Bundle ID, MIME a SHA-256 prošly.
+[Backend deploy 37117991383](https://github.com/Blato58/DildoVander/actions/runs/37117991383)
+aktivoval release `1a3e72e1ac6df0fec44c2e48e6b1676bdc203966-37117991383-1`
+včetně D132 diagnostiky. Loopback health a veřejné ověření autentizace,
+režimů/konfliktu revize i logů prošlo; konfigurace responses/Sol + openai
+má 3 USD/session. Do fyzického ESP se nenahrávalo.
+
+Příčina konkrétního ticha (hlasitost/cesta/renderování) ještě není fyzicky
+potvrzená. Další krok: aktualizace iPhonu na 1000.0.13, poslech GPT-Live a
+při přetrvávajícím tichu údaje z nového řádku Zvuk. Nativní test ani callback
+přehrávače nejsou důkazem slyšitelnosti na zařízení.
 
 **D132 – 3. 10. 2026 – diagnostika chybějící odpovědi GPT-Live.**
 PR #106 (`8d29d01`) je pushnutý a sloučený do `ac16277` po zeleném CI
@@ -48,9 +66,17 @@ produkční transport/prompt s průběžným syntetickým tichem a úvodním pok
 Nevolá Sol, běží nejvýše 35 s (přibližně do 0,03 USD); vypisuje pouze počty
 událostí, bajtů, znaků a finální délku. Spadá do majitelem schválených
 3 USD/session. Běžné CI zůstává offline. Lokální backend test suite a čtyři
-Python testy diagnostiky prošly; live test zatím nespuštěn. Další krok:
-po CI spustit jediný omezený live test, podle výsledku opravit a nasadit
-hlasový tok. Diagnostika sama není opravou slyšitelné odpovědi.
+Python testy diagnostiky prošly. Oprava runneru `2239171` prošla
+[CI 37116948134](https://github.com/Blato58/DildoVander/actions/runs/37116948134)
+a [PR #107](https://github.com/Blato58/DildoVander/pull/107) je sloučený do
+`09f7351`; shoda obsahu ověřená. Následný skutečný
+[test 37117504470](https://github.com/Blato58/DildoVander/actions/runs/37117504470)
+**prošel**: 100 vstupních bloků, 189 výstupních audio událostí, 904 320 B PCM,
+z toho 297 600 B v blocích s řečí (~6,2 s), 22 fragmentů/111 znaků přepisu.
+Pokyn byl potvrzený, session řádně finalizovaná, usage 19 s (~0,015834 USD),
+bez chyby a bez volání Solu. Obsah řeči nebyl vypsaný ani uložený.
+Poskytovatel tedy úvod vytváří; výstup telefonu řeší D133. Diagnostika sama
+není důkazem slyšitelnosti na iPhonu.
 
 **D131 – 3. 10. 2026 – stabilizace iOS zvukového enginu před AI hovorem.**
 Majitel v nové IPA 1000.0.11 doložil `realtime_live_audio_engine_stopped`.
