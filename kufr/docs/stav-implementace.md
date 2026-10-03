@@ -18,14 +18,39 @@ Nový test ověřuje, že ani staré periodické hodnoty 1 microUSD neobnoví
 aplikační globální stropy. Backend README popisuje migraci bez požadavku
 na další root oprávnění nebo změnu nainstalovaného helperu.
 
-Podepsaný iOS build `37110205151` z původního ověřeného main prošel,
-včetně nativních WSS/debug/GPT-Live testů, device buildu a Ad Hoc podpisu.
-Publikace existující ověřené IPA byla spuštěná samostatným workflow.
-Výsledek publikace a opakovaného backend nasazení bude doložen v Actions.
+Oprava je v commitu `622eba7`, ověřeně pushnutém scoped gh helperem
+pod Blato58 po neúspěšném spuštění předepsaného PowerShell skriptu
+(permission denied, `pwsh` v Linuxu chybí). Lokálně prošel celý backend
+suite (.NET 10), tři deploy-helper testy a příjem kompatibilního payloadu
+helperem před D128. [CI 37110422816](https://github.com/Blato58/DildoVander/actions/runs/37110422816)
+prošlo všemi povinnými kontrolami; [PR #100](https://github.com/Blato58/DildoVander/pull/100)
+je sloučené do main `e2d3f4c`, shoda obsahu s testovanou větví ověřená.
+
+**Nasazení dokončené:** [backend 37111017936](https://github.com/Blato58/DildoVander/actions/runs/37111017936)
+aktivoval release `40e84a0c499b55635ea4e9114eb1fc0836ccbd95-37111017936-1`.
+Prošel loopback health check i veřejná HTTPS kontrola autentizace,
+režimů a diagnostiky, bez placených provider volání. Read-only
+[diagnostika 37111115513](https://github.com/Blato58/DildoVander/actions/runs/37111115513)
+ověřuje běžící server po aktivaci. Session konfigurace je 3000000 microUSD;
+legacy denní/měsíční hodnoty se podle D128 ignorují.
+
+Podepsaný [iOS build 37110205151](https://github.com/Blato58/DildoVander/actions/runs/37110205151)
+z main `a447be0` prošel nativními WSS/debug/GPT-Live testy, device buildem,
+Ad Hoc podpisem a kontrolou exportované IPA. [Publikace 37110367270](https://github.com/Blato58/DildoVander/actions/runs/37110367270)
+zveřejnila **1.0 / 1000.0.10** na [Safari instalaci](https://2.28.202.220/ios/).
+Veřejný manifest ukazuje na release `37110367270-1`; workflow ověřilo
+Bundle ID, stažení IPA a SHA-256 přes HTTPS. Přímý curl z tohoto cloud
+prostředí narazil na nesoulad TLS jména na proxy; ověření TLS nebylo vypnuté.
+Úspěšné veřejné HTTPS ověření pochází z publikačního runneru. Oprava
+backend deploy workflow nemění iOS ani firmware, proto není potřeba
+druhý podpis stejné aplikace. Fyzická instalace na iPhonu a poslech
+českého GPT-Live ještě nejsou potvrzené.
+
 ESP32 není připojené přes USB k tomuto cloud prostředí, firmware není
-flashnutý. Kód/artefakt s novým režimem je připravený, runtime HW akceptace
-zůstává otevřená. Oprava nasazení nemění nativní aplikaci ani firmware. Lokálně prošel
-celý backend test suite (.NET 10), tři deploy-helper testy a whitespace.
+flashnutý. Ověřený artefakt nového režimu je v CI; runtime HW akceptace
+zůstává otevřená. Další krok pro majitele: aktualizovat aplikaci přes
+Safari, zvolit **Debug → Tok → GPT-Live + Sol** a porovnat kvalitu hlasu.
+Firmware se nahraje až v prostředí s přístupem ke konkrétní desce.
 
 
 **D128 – 2. 10. 2026 – GPT-Live + Sol v aplikaci/firmware, 3 USD/session.**
