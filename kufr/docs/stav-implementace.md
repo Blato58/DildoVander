@@ -41,13 +41,20 @@ korekce závěru a input gate před close, Python eval 23/backend tools 16/
 deploy 3 testy, web build a 25 web testů. HTTP fake smoke prošel na
 opakování; první pokus neměl dotnet v PATH, další narazil na transportní
 EPIPE (Node 24.19.0), opakovaný běh beze změny prošel. Povinné CI ověří
-pinned runtime samostatně. Whitespace bez chyby. Swift/AVFoundation není
+pinned runtime samostatně. Whitespace a 30 místních dokumentačních odkazů bez chyby. Swift/AVFoundation není
 v Linux workspace, nativní regrese/build zatím neproběhly; důkaz doplní
 ruční podepsaný iOS build. Placený provider test ani fyzický poslech
 oprav nebyly spuštěny. Výsledek buildů, publikace a poslechu nesmí být
 odvozený z offline testů. Další krok: zelené CI/merge, nativní podepsaný
 build, ověřené předání backendu a případně nové IPA, potom delší odpověď,
 oprava, výběr bez ano/ne a dohrání závěru na telefonu.
+
+Git předání: implementační commit `bd03dbf` je pushnutý a shoda remote
+ověřená. PowerShell push helper v Linuxu skončil permission denied;
+použit scoped gh credential helper pro účet Blato58.
+[PR #114](https://github.com/Blato58/DildoVander/pull/114) obsahuje tento
+slice a záznam předání; CI/merge se kontrolují v PR, zdrojová větev
+`codex/live-audio-selection-fix`.
 
 **D136 – 3. 10. 2026 – ověřené nasazení Realtime 2.1 a ostrého kufru.**
 Majitel v tomto chatu výslovně schválil „Nasadit backend“. Implementace
