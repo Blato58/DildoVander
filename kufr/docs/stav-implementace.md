@@ -40,6 +40,12 @@ opravy závěru a wire low reasoning. HTTP fake smoke prošel; Python AI eval
 změněné dokumentace bez chyb. Provider účet, český humor/latence,
 iPhone poslech ani ESP hardware nejsou tímto ověřené. Placený test,
 cloudové nasazení, nová IPA ani flash nebyly provedeny.
+Git předání: implementační commit `2ad0365` je pushnutý a shoda remote
+ověřená. Předepsaný PowerShell skript skončil permission denied; pwsh
+chybí, proto byl použit scoped gh credential helper pro účet Blato58.
+[PR #112](https://github.com/Blato58/DildoVander/pull/112) obsahuje tento
+slice a navazující záznam předání; výsledek povinného CI a merge je
+ověřitelný přímo v PR. Zdrojová větev je `codex/realtime-21-roast-flow`.
 Další krok: po nasazení ověřit Realtime 2.1 na účtu a skutečný rozhovor
 na stávající IPA 1000.0.14, včetně nuly čekacích výplní, návaznosti,
 ostrosti a reakce na opravu/odmítnutí; podle akceptace v rešerši D135.
