@@ -14,7 +14,7 @@ ESP nyní používá existující `realtime-live` API se stejnými device tokeny
 VAD, pořadím vstupních bloků, dohráním a kontrolou návrhů jako telefonní Debug.
 
 D114/D116 přidávají přímý Realtime hlas přes oficiální OpenAI .NET SDK 2.14.0,
-model `gpt-realtime-1.5`. Textový Sol i dosavadní fake/STT/Sol/TTS zůstávají.
+model `gpt-realtime-2.1` s `reasoning.effort=low` od D135. Textový Sol i dosavadní fake/STT/Sol/TTS zůstávají.
 `POST /v1/conversations/{id}/realtime-turns` vyžaduje device token, UUID
 idempotency key, audio souhlas a režimy `responses` / `openai`.
 OpenAI klíč zůstává na backendu. SDK obsluhuje typované příkazy a události;
@@ -536,6 +536,13 @@ potvrdí `/played`. Rychlost je vždy 1×, hlasy Marin/Cedar/Coral.
 
 Frontend `gpt-live-1` deleguje odpovědi do Solu přes Responses SDK;
 frontend sám nesmí vydat fyzický návrh. Opening nemá starý archiv.
+Od D135 je kufr ostrý prodavač hůlek; otázky navazují na použití hůlky
+a konkrétní chování zákazníka. Delegace doručená před přepisem se podrží.
+Doplnění během Solu automaticky spustí zpracování nejnovějšího vstupu
+po dokončení starého; starý výsledek se započítá, ale nevysloví.
+Stejná revize nespustí duplicitní práci ani pokyn k čekání. Limit deseti
+backendových volání zahrnuje i přepočty opraveného textu. Nejde o retry
+nejasného či selhaného placeného volání. GPT-Live zůstává `gpt-live-1`.
 Kontext dalších delegací dostává paměť a poslední výměny. Před rezervací
 se použije společný 3 USD/session limit. GPT-Live rezervuje celé 3 USD,
 po řádném `session.closed` přepočítá kumulativní délku (0,05 USD/min,

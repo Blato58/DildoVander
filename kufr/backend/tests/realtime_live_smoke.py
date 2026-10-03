@@ -84,7 +84,7 @@ def run():
     cap = int(os.environ["SESSION_CAP_MICRO_USD"])
     check(0 < cap <= 3_000_000, "approved_budget_guard")
     report = {"kind": "synthetic_hands_free", "maximumSessionUsd": cap / 1_000_000,
-              "model": "gpt-realtime-1.5", "turns": [], "completed": False}
+              "model": "gpt-realtime-2.1", "turns": [], "completed": False}
     output = Path(os.environ.get("REPORT_PATH", "realtime-live-report.json"))
     client = ApiClient(validate_base_url(os.environ["PUBLIC_IPV4"]))
     token = issue_token(client, os.environ["DEV_DEVICE_CREDENTIAL"], os.environ["DEVICE_ID"])
