@@ -6,7 +6,7 @@ Poslední aktualizace: **3. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**D130 – 3. 10. 2026 – oprava okamžitého ukončení GPT-Live na iOS (rozpracované).**
+**D130 – 3. 10. 2026 – oprava kontroly zvuku při startu GPT-Live na iOS.**
 Majitel po publikaci D129 doložil screenshot `realtime_live_audio_interrupted`
 a potvrdil chybu hned před první replikou. Read-only
 [diagnostika 37112031423](https://github.com/Blato58/DildoVander/actions/runs/37112031423)
@@ -27,12 +27,27 @@ zastaveného enginu a resetu služby pro případné další fyzické ověření
 Nativní harness pokrývá sekvenci startup oznámení, změněnou konfiguraci
 a disconnect/reconnect se zdánlivě stejnou aktuální cestou.
 
-Lokálně prošlo 25 mobilních Node testů, TypeScript/Vite build a
-`git diff --check`. Doručení probíhá. Linux nemá Swift/Xcode; nativní regresní testy
-a iOS kompilaci musí provést autorizovaný podpisový workflow. Nutné znovu
-spustit GPT-Live na skutečném iPhonu; konkrétní příčina původní notifikace
-ani akustické chování nejsou vzdáleně změřené. Backend/firmware se nemění.
-Další krok: lokální mobilní kontroly, CI/merge a publikace opravené IPA.
+Lokálně prošlo 25 mobilních Node testů, TypeScript/Vite build,
+`git diff --check` a odkazy změněné dokumentace. Commit `5e75d66`
+je ověřeně pushnutý scoped gh helperem po neúspěšném spuštění předepsaného
+PowerShell skriptu (permission denied; `pwsh` chybí).
+[PR #102](https://github.com/Blato58/DildoVander/pull/102) prošlo všemi
+kontrolami [CI 37112283414](https://github.com/Blato58/DildoVander/actions/runs/37112283414)
+a je sloučené do main `254ee80`; shoda testovaného obsahu ověřená.
+
+[Podpis 37112846628](https://github.com/Blato58/DildoVander/actions/runs/37112846628)
+z main `254ee80` úspěšně spustil nativní WSS/debug/GPT-Live regresní testy,
+nové route-notification scénáře, resampling 48/44,1 kHz, PCM batching,
+rušení a úklid. Prošel Xcode 26.3 device archive, Ad Hoc export a validace
+IPA **1.0 / 1000.0.11**. [Publikace 37112965017](https://github.com/Blato58/DildoVander/actions/runs/37112965017)
+úspěšně zveřejnila release `37112965017-1` na
+[Safari instalaci](https://2.28.202.220/ios/). Veřejná HTTPS kontrola
+potvrdila manifest, Bundle ID, stažení IPA, SHA-256 a MIME typy.
+
+Nutné aktualizovat aplikaci přes Safari a znovu spustit GPT-Live na iPhonu.
+Nativní testy nepotvrzují konkrétní původní iOS reason ani odstranění chyby
+na fyzickém telefonu; přesnější kódy rozliší případný další problém.
+Backend s 3 USD/session z D129 zůstává nasazený, firmware se nemění.
 
 
 **D129 – 3. 10. 2026 – autorizované nasazení D128 a kompatibilita helperu.**
