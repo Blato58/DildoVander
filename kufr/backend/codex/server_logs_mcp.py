@@ -115,7 +115,7 @@ def project(path, value):
             if entry.get(key) is not None and not identity(entry[key]):
                 fail()
         route, code, method = entry.get('route'), entry.get('code'), entry.get('method')
-        if (route is not None and (not isinstance(route, str) or len(route) > 200 or not re.fullmatch(r'[A-Za-z0-9/{}_.() -]+', route))
+        if (route is not None and (not isinstance(route, str) or len(route) > 200 or not re.fullmatch(r'[A-Za-z0-9/{}_.(): -]+', route))
                 or code is not None and (not isinstance(code, str) or not re.fullmatch(r'[a-z_]{1,80}', code))
                 or method is not None and method not in ('GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'OTHER')
                 or entry.get('status') is not None and not integer(entry['status'], 100, 599)

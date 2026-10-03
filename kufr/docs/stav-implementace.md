@@ -6,6 +6,25 @@ Poslední aktualizace: **3. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D132 – 3. 10. 2026 – diagnostika chybějící odpovědi GPT-Live.**
+Majitel po D131 potvrzuje přepis vlastní řeči, ale neslyší úvod ani odpověď.
+Vstup tedy funguje; výstup poskytovatele a přehrávání je třeba rozlišit.
+Read-only warning snapshot 37115452795 zachytil GPT-Live HTTP 499 po
+31,6 s (10:01:53 UTC); sám o sobě nedokazuje příčinu ticha. Info snapshot
+37115120659 selhal na validaci route s `{streamId:guid}`. Reader nyní
+přijímá dvojtečku a server normalizuje constraint před filtrováním úspěšných
+uploadů. GPT-Live zapisuje stejné technické stream stavy jako Realtime,
+bez audia či přepisů. Regrese pokrývají constraint, tiché 204 a viditelné 409.
+
+Samostatný ručně spouštěný workflow `kufr-gpt-live-smoke.yml` používá
+produkční transport/prompt s průběžným syntetickým tichem a úvodním pokynem.
+Nevolá Sol, běží nejvýše 35 s (přibližně do 0,03 USD); vypisuje pouze počty
+událostí, bajtů, znaků a finální délku. Spadá do majitelem schválených
+3 USD/session. Běžné CI zůstává offline. Lokální backend test suite a čtyři
+Python testy diagnostiky prošly; live test zatím nespuštěn. Další krok:
+po CI spustit jediný omezený live test, podle výsledku opravit a nasadit
+hlasový tok. Diagnostika sama není opravou slyšitelné odpovědi.
+
 **D131 – 3. 10. 2026 – stabilizace iOS zvukového enginu před AI hovorem.**
 Majitel v nové IPA 1000.0.11 doložil `realtime_live_audio_engine_stopped`.
 D130 tedy neodstranilo fyzickou chybu; nový kód rozlišil zastavený engine

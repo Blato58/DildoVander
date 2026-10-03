@@ -6,6 +6,13 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 
+// Paid provider diagnostic is explicit and never part of normal offline CI.
+if (args is ["--gpt-live-smoke"])
+{
+    Environment.ExitCode = await GptLiveSmoke.RunAsync();
+    return;
+}
+
 await RealtimeTests.RunAsync();
 await GptLiveTests.RunAsync();
 await ResponsesTextDialogClientTests.RunAsync();

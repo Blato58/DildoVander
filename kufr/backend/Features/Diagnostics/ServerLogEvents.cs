@@ -45,7 +45,9 @@ internal static class ServerLogEvents
             operationId: operation, conversationId: Conversation(context), code: code);
     }
 
-    private static string Route(HttpContext context) => (context.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText ?? "(unmatched)";
+    private static string Route(HttpContext context) =>
+        ((context.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText ?? "(unmatched)")
+            .Replace("{streamId:guid}", "{streamId}", StringComparison.Ordinal);
     private static string Method(HttpContext context) => context.Request.Method is "GET" or "POST" or "PUT" or "DELETE" or "OPTIONS"
         ? context.Request.Method : "OTHER";
     private static string? Identity(HttpContext context) => Guid.TryParse(context.Request.RouteValues["id"]?.ToString(), out var id) ? id.ToString() : null;
