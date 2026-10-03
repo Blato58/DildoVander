@@ -1,8 +1,104 @@
 # Kvalita hlasu a humoru kufru
 
-Rešerše a implementační rozhodnutí, 2. 10. 2026 (D127).
+Rešerše a implementační rozhodnutí, 2.–3. 10. 2026 (D127–D135).
 
-## Doporučení
+## D135: ostrý prodavač, oprava čekání a Realtime 2.1
+
+### Podklady před změnou
+
+Majitel 3. 10. žádá výrazně urážlivý, vtipný kufr prodávající hůlky
+v Ollivanderově obchodě a upozorňuje na opakované vybízení k čekání.
+Před úpravou byly přečteny prompty, opening rotace, Live delegace,
+Realtime protokol, validace funkcí, rozpočet, stávající testy a aktuální
+primární dokumentace uvedená níže. Následný dotaz majitele na Realtime
+2/2.1 rozšířil rešerši o obě modelové karty a ceník.
+
+Read-only [serverový snapshot 37152729168](https://github.com/Blato58/DildoVander/actions/runs/37152729168)
+potvrzuje režimy responses/openai a dvě GPT-Live session dne 3. 10.
+ve 22:40 pražského času. Obě skončily klientským zrušením (499), druhá
+po 94,5 s. Log neobsahuje audio ani přepisy, takže nedokazuje konkrétní
+hlášku „počkej“ ani časování delegací. Následující příčiny jsou doložené
+kódem a regresními scénáři, nikoli přepisem tohoto hovoru.
+
+### Zjištění a rozhodnutí
+
+1. **Delegace bez přepisu se ztrácela.** Live událost delegace neobsahuje
+   výrok hosta; přepis přichází samostatně. Dosavadní kód prázdnou delegaci
+   zahodil a poslal pokyn k čekání. Nový kód ji podrží pro doručení textu.
+2. **Doplnění během Solu mohlo zastavit postup.** Každý input fragment
+   mění verzi. Neaktuální výsledek se správně zahodil, ale další výpočet
+   závisel na další delegaci modelu. Nově jej aplikace po dokončení staré
+   práce zahájí sama nad aktuálním přepisem. Stará práce se účtuje,
+   nepostupuje počítadlo otázek a nesmí zveřejnit hůlku. Počet výpočtů
+   včetně opravených vstupů má samostatný limit deset. Jde o změněný
+   vstup po úspěšném volání, nikoli retry selhaného requestu.
+3. **Pokyny podporovaly čekání.** Frontend musel každou odpověď delegovat,
+   nesměl navazovat a dostával další čekací zprávy. Prompt nyní zakazuje
+   mluvené provozní výplně a nabízí nejvýše jednu situační narážku během
+   delegace; další otázka patří až k výsledku. Duplicitní práce ve stejné
+   verzi nevytváří výpočet ani čekací upozornění. Oprava už vysloveného
+   závěru také pokračuje automaticky. Instructions mohou přerušit řeč,
+   proto pokyn k závěru předchází commentary a nenásleduje po něm.
+4. **Osobnost odporovala zadání.** D127 preferoval civilního kámoše,
+   minimum kouzelnické atmosféry a opatrnou ostrost. D135 nastavuje
+   ostrý roast jako výchozí styl, drzého odborníka na hůlky, krátké repliky
+   a výrazné české ukázky. Vulgarita je prostředek pointy, ne její náhrada.
+   Šest opening námětů nyní zjišťuje použití hůlky, odkládanou povinnost,
+   vlastní zlozvyk, průšvih, reakci na nepovedené kouzlo nebo machrování.
+   Další otázka navazuje na odpověď; nejde o kvíz z Harryho Pottera.
+5. **Kouzelnická autenticita je motiv, nikoli přepis katalogu.** Rowlingové
+   poznámky o dřevech popisují individuální preference hůlek a vzájemné
+   učení člověka a hůlky. Poznámky o jádrech rozlišují jednorožce, draka
+   a fénixe a upozorňují na souhru dřeva, jádra a majitele. To inspiruje
+   komedii o posouzení zákazníka; šest místních party rekvizit nedostává
+   nová jádra ani nepravdivý kanonický původ. Povýšená urážlivost kufru
+   je naše komediální adaptace, nikoli doložená osobnost Garricka.
+6. **Realtime přechází na 2.1 s low reasoning.** Modelová karta 2.1
+   uvádí proti 2 lepší rozpoznávání alfanumerických údajů, hluku, ticha
+   a přerušení. 2 i 2.1 mají text input/output 4/24 USD za milion tokenů
+   a audio input/output 32/64 USD; 1.5 má text output 16 USD.
+   Dosavadní účtování všech output tokenů sazbou 64 USD je konzervativní
+   i pro reasoning. Max output a 3 USD/session zůstávají. Pinned SDK
+   2.14.0 zachovává transport a serializuje reasoning přes podporovaný
+   JSON patch. Není nutná změna mobilního/ESP wire kontraktu.
+   Samotná modelová karta neprokazuje dostupnost na našem účtu ani
+   lepší české vtipy. GPT-Live zůstává samostatný model gpt-live-1.
+
+### Primární zdroje ověřené 3. 10. 2026
+
+- [OpenAI: GPT-Live prompting](https://developers.openai.com/api/docs/guides/live-prompting):
+  oddělená osobnost, backchannel/interruption/delegation policy, neopakovat
+  delegaci stejné práce, ukázky a reprezentativní rozhovory.
+- [OpenAI: Live delegation](https://developers.openai.com/api/docs/guides/live-delegation):
+  oddělený přepis a delegace, vlastnictví kontextu, aktualizace změněného
+  požadavku; commentary je určeno k řeči, thinking pro kontext.
+  Ani backend completion ani append acknowledgment nejsou dohrané audio.
+- [OpenAI: Realtime prompting](https://developers.openai.com/api/docs/guides/voice-prompting):
+  jasná role a krátké oddíly, konkrétní příklady a minimum protichůdných
+  pravidel; Realtime 2 doporučuje začít low a záměrně řídit preambles.
+- [Realtime 2](https://developers.openai.com/api/docs/models/gpt-realtime-2),
+  [Realtime 2.1](https://developers.openai.com/api/docs/models/gpt-realtime-2.1)
+  a [ceník](https://developers.openai.com/api/docs/pricing): schopnosti a
+  veřejné sazby, nikoli změřená kvalita na našem zařízení.
+- [J. K. Rowling: Wand Woods](https://www.harrypotter.com/writing-by-jk-rowling/wand-woods)
+  a [Wand Cores](https://www.harrypotter.com/writing-by-jk-rowling/wand-cores):
+  původní poznámky o individuálním párování a souhře materiálů s majitelem.
+
+### Co musí ověřit poslech
+
+Offline testy ověřují změněné řízení, SDK wire nastavení a bezpečný výběr,
+ne smích ani odstranění všech mluvených výplní. Při následném živém testu
+srovnat stejné situace na 1.5 a 2.1: ochotný roast, jen jméno, „nevím“,
+krátká odpověď, delší historka, doplnění při práci, přerušení, hluk,
+„to neřeš“ a „stačí“. Zapsat první užitečné přehrané audio, p50/p95,
+počet mluvených čekacích výplní (cíl nula), návaznost otázek a lidské
+hodnocení point. Volba materiálu ke skutečně vybrané hůlce musí sedět.
+Zachovat rozpočet a oddělit dostupnost modelu na účtu od úspěchu testu.
+Nasazení ani placený poslech nejsou součástí tohoto offline ověření.
+
+## D127: původní rešerše a doporučení
+
+### Doporučení
 
 Nejdřív opravit kontext a vedení hovoru v existujícím Realtime agentovi.
 Pro další kvalitativní srovnání doporučuji **GPT‑Live + samostatný Sol backend**
@@ -15,7 +111,7 @@ Původní D127 opravil kontext a humor; navazující D128 níže přidává
 přepínatelný GPT-Live a nové session limity.
 Vlastní fine-tuning neproběhl: mění se konverzační logika a instrukce modelu.
 
-## Zjištěné příčiny
+### Zjištěné příčiny
 
 - Sdílený prompt přikazoval začít jménem; Realtime přidával další „zjisti
   jméno“. Obecné „pokaždé nemusíš začít stejně“ tomu odporovalo.
@@ -40,7 +136,7 @@ výsledných vět modelu. Restart rotaci resetuje. Realtime uchovává vybraný
 námět v kontextu tahu, takže výpočet rezervace a její zkrácení jej nezmění.
 Idempotentní operace nadále nevyvolá nový placený pokus.
 
-## Co přebíráme z CARLIN
+### Co přebíráme z CARLIN
 
 [Greg Robison: The CARLIN Method](https://gregrobison.medium.com/the-carlin-method-teaching-ai-how-to-be-genuinely-funny-2bd5e45deaf2)
 z 21. 11. 2024 popisuje sběr podkladů, hledání rozporů, více kandidátních
@@ -64,7 +160,7 @@ pointy v textovém backendu; nezavádět automaticky několik modelových kol
 před každým hlasovým pozdravem. Kvalitu musí hodnotit lidé, nikoli pouze
 tentýž model, který vtip vytvořil.
 
-## Srovnání hlasových cest
+### Srovnání hlasových cest
 
 | Varianta | Přínos pro tento projekt | Omezení a rozhodnutí |
 | --- | --- | --- |
@@ -86,7 +182,7 @@ Současný server VAD s 650 ms ticha může přerušit přemýšlejícího hosta
 semantic VAD stojí za samostatný test v české řeči a hluku, nikoli za
 neověřenou změnu současně s promptem.
 
-## Jak rozhodnout podle kvality
+### Jak rozhodnout podle kvality
 
 Offline testy dokazují sestavení požadavků, izolaci opening, zachování
 paměti pro další tah a validaci výběru. Nedokazují, že se člověk zasměje.
@@ -120,7 +216,7 @@ procesovou rotaci C# ani zvuk. Pro akceptaci rotace použít skutečný backend
 pro hlas). Předem nahrané odpovědi určené pro starý povinný dotaz na jméno
 nepovažovat za adaptivní test nové konverzace.
 
-## Zdroje ověřené při rešerši
+### Zdroje ověřené při rešerši
 
 - [OpenAI: Voice agents](https://developers.openai.com/api/docs/guides/voice-agents) — tři architektury a metodika hlasového hodnocení.
 - [GPT‑Live](https://developers.openai.com/api/docs/guides/live) — full duplex, lifecycle a účtování délky session.

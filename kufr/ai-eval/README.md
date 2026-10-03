@@ -13,7 +13,7 @@ suché osobní pointy, práce s konkrétním detailem a dřívější historkou,
 dobré/špatné příklady, jedna navazující otázka a přesný závěr s hůlkou.
 Delší prompt je záměrný; hlasovou latenci řeší přímý Realtime stream.
 Textový eval nadále používá Sol. Hlasová cesta backendu nově používá
-`gpt-realtime-1.5` po výslovném rozhodnutí majitele 1. 10.; tento textový
+`gpt-realtime-2.1` s nízkým reasoning od D135 (dříve 1.5); tento textový
 eval neověřuje její zvuk, latenci ani humor. Ty potřebují samostatný
 živý test s povoleným rozpočtem a poslech na telefonu.
 
