@@ -7,6 +7,56 @@ Poslední aktualizace: **3. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 ## Předání další AI
 
 
+**D138 – 3. 10. 2026 – nasazené opravy Live a ověřená IPA 1000.0.15.**
+[PR #114](https://github.com/Blato58/DildoVander/pull/114) prošel povinným
+[CI 37155888501](https://github.com/Blato58/DildoVander/actions/runs/37155888501)
+a je sloučen squash commitem `1dfb544`; shoda jeho stromu se zdrojem PR
+`d76fa05` je ověřená (`4d9e6fa6c1a01e541dec6b53b6721ac5c0a0ea3d`).
+Backend pokračující opravy byl nasazen podle dosavadního souhlasu majitele.
+[Deploy 37156501136](https://github.com/Blato58/DildoVander/actions/runs/37156501136)
+ověřil původ CI artefaktu, přesný main strom, checksum i bezpečné rozbalení
+a aktivoval `ea95ad24f9cb60da3cc604afae2ffbb6be88e81f-37156501136-1`.
+Loopback health a veřejné HTTPS kontroly autentizace, no-op konfigurace,
+revizního konfliktu a diagnostiky prošly bez AI volání či změny režimů.
+Read-only [snapshot 37156597395](https://github.com/Blato58/DildoVander/actions/runs/37156597395)
+z 21:54 UTC potvrzuje responses/openai, dostupné adaptéry, 0 aktivních
+rozhovorů a 0 droppedWrites. Varování 401/409 při této aktivaci patří
+k negativním deployment kontrolám, nikoli novému selhání hlasu.
+
+Podepsaný [iOS build 37156500324](https://github.com/Blato58/DildoVander/actions/runs/37156500324)
+prošel na macOS/Xcode 26.3: nativní LAN/backend transport, multi-turn/VAD,
+renderování produkčního grafu po třech startech, upload batching/backlog,
+nová regrese overflow epochy, cancellation a skutečný podepsaný iOS archive.
+Výsledná Ad Hoc IPA má verzi **1000.0.15**, stejný Bundle ID
+`app.turquoise6409.green2444` a artefakt `11285888055`. Ověřeny ZIP digest,
+payload hash přes produkční safe unpack, source SHA/tree main, IPA checksum,
+Info.plist verze/Bundle ID a přítomnost podpisu. IPA SHA-256:
+`202d856552f27346099d3976df72420436ff43d0a72d8546ef4eba9def3d241b`.
+Přímé cloud stažení Actions blobu vrátilo Forbidden; autorizovaný GitHub
+connector artefakt stáhl a poskytl ověřitelný ZIP. Nejde o bypass TLS.
+
+**Publikace IPA zatím neproběhla.** Majiteli je předložená konkrétní
+ověřená 1000.0.15 k odsouhlasení; současná instalační stránka zůstává
+na 1000.0.14. Při souhlasu použít `kufr-ios-deploy.yml` na main s
+`build_run_id=37156500324` a ověřit veřejnou instalační stránku/manifest/
+checksum. Dokud se IPA nepublikuje, neslučovat tento následný dokumentační
+zápis do main: podpisový artefakt vyžaduje přesný současný main strom.
+Po publikaci (nebo výslovném ponechání staré verze) dokončit doc PR/CI/merge.
+Zdrojová aplikace/IPA jsou připravené, instalace a poslech nových oprav na
+iPhonu nejsou provedené. Nativní fake testy ani podpis nedokazují absenci
+všech skutečných přerušení/backlogu nebo českou vtipnost. Placený provider
+test nebyl spuštěn. Další krok: publikace podle odpovědi majitele a poslech
+ve stávajícím Realtime/GPT-Live Debug; delší odpověď se zaváháním, oprava,
+bez žádosti o souhlas s hůlkou a celý dohraný výběr.
+
+
+Následný zápis D138 se ukládá do větve
+`codex/record-live-terminal-deployment`; commit/push dokumentace neaktivuje
+backend ani IPA. Dokončení PR čeká na vyřešení již položené otázky
+publikace kvůli zachování přesného main stromu podepsaného artefaktu.
+PowerShell helper v tomto Linuxu nelze spustit, používá se již ověřený
+scoped gh credential helper. Místní odkazy a whitespace jsou ověřené.
+
 **D137 – 3. 10. 2026 – dokončení Live, ochrana overflow a sprostší autonomní výběr.**
 Majitel po poslechu potvrzuje lepší Live/Realtime, ale hlásí jednorázové
 přerušení bez výběru a overflow po mluveném závěru. Žádá přímé přidělení
