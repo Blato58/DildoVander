@@ -127,7 +127,7 @@ internal static class RealtimeProtocol
                     ? "Žádná hůlka není dostupná; zavolej end_conversation."
                     : turn.RequireQuestion
                         ? "Polož jednu otázku. Výběr není povolený."
-                        : "Můžeš pokračovat otázkou nebo vybrat přes propose_wand.")
+                        : "Jakmile máš podklady, rovnou vyber přes propose_wand. Nežádej souhlas s hůlkou; další otázka jen pro chybějící podklad.")
                 + (turn.Request.Opening ? " " + ConversationOpening.Instructions(turn.OpeningDirection) : ""),
             MaxOutputTokenCount = turn.OutputTokenLimit,
             Truncation = RealtimeDefaultTruncation.Disabled,
@@ -218,7 +218,7 @@ internal static class RealtimeProtocol
         {
             tools.Add(new RealtimeFunctionTool("propose_wand")
             {
-                FunctionDescription = "Po rozhovoru vyber dostupnou hůlku. Oznam ji až po potvrzení backendu.",
+                FunctionDescription = "Jakmile máš podklady, rovnou vyber dostupnou hůlku bez otázky na souhlas návštěvníka. Oznam ji až po úspěšném výsledku funkce.",
                 FunctionParameters = BinaryData.FromString(JsonSerializer.Serialize(new
                 {
                     type = "object",

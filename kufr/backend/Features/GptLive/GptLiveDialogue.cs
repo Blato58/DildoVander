@@ -18,7 +18,8 @@ internal sealed class GptLiveDialogue(GptLiveConnection connection, TextDialogRu
         Func<byte[], CancellationToken, Task> audio,
         Func<string, CancellationToken, Task> visitor,
         Func<CancellationToken, Task> pause,
-        CancellationToken token)
+        CancellationToken token,
+        Func<CancellationToken, Task>? stopInput = null)
     {
         await connection.SendAsync(GptLiveProtocol.Start(turn), token);
         using (var first = await connection.ReceiveAsync(token))
@@ -43,6 +44,7 @@ internal sealed class GptLiveDialogue(GptLiveConnection connection, TextDialogRu
         var pendingInput = "";
         var version = 0;
         var pendingVersion = 0;
+        var lastInput = TimeSpan.Zero;
         var questions = 1; // the independent fresh-opening question
         var modelCost = 0L;
         var backendCalls = 0;
@@ -82,7 +84,11 @@ internal sealed class GptLiveDialogue(GptLiveConnection connection, TextDialogRu
                 // This timer detects output PCM silence for playback segmentation,
                 // not a completed conversational turn. Only session.closed finalizes.
                 var tick = Task.Delay(50, token);
-                var winner = pending is null ? await Task.WhenAny(receive, tick)
+                // A fast Sol completion can overtake the rest of a spoken
+                // answer. Read deltas before delivering or recomputing it.
+                // This transcript gap is a heuristic, not provider VAD.
+                var inputSettled = elapsed.Elapsed - lastInput >= TimeSpan.FromMilliseconds(650);
+                var winner = pending is null || !inputSettled ? await Task.WhenAny(receive, tick)
                     : await Task.WhenAny(receive, pending, tick);
                 if (pending is not null && winner == pending)
                 {
@@ -151,6 +157,7 @@ internal sealed class GptLiveDialogue(GptLiveConnection connection, TextDialogRu
                             {
                                 if (input.Length + fragment.Length > 1000) throw new InvalidDataException("Live answer too long.");
                                 input.Append(fragment); version++;
+                                lastInput = elapsed.Elapsed;
                                 if (terminal is not null)
                                 {
                                     // A correction before finalization invalidates the pending
@@ -220,6 +227,9 @@ internal sealed class GptLiveDialogue(GptLiveConnection connection, TextDialogRu
                     await pause(token);
                     if (terminal is not null && terminalSpeech && terminalTranscript && !closing)
                     {
+                        // Shut the microphone gate before waiting for final
+                        // usage; discard late uploads instead of queuing them.
+                        if (stopInput is not null) await stopInput(token);
                         await connection.CloseAsync(token);
                         closing = true; closeAt = elapsed.Elapsed;
                     }

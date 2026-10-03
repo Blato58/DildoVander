@@ -47,10 +47,17 @@ internal static class GptLiveTests
         });
         var audio = 0;
         var pauses = 0;
+        var inputStopped = false;
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var outcome = await new GptLiveDialogue(connection, dialog).RunAsync(turn,
             (pcm, _) => { audio += pcm.Length; return Task.CompletedTask; },
-            (_, _) => Task.CompletedTask, _ => { pauses++; return Task.CompletedTask; }, deadline.Token);
+            (_, _) => Task.CompletedTask, _ => { pauses++; return Task.CompletedTask; }, deadline.Token,
+            _ =>
+            {
+                Check(!socket.Sent.Any(s => s.Contains("session.close")), "input gate closes before provider usage wait");
+                inputStopped = true;
+                return Task.CompletedTask;
+            });
         Check(calls == 4 && outcome.Questions == 4 && outcome.Reply.Compartment == 2,
             "terminal delegated selection survives finalized voice session");
         Check(outcome.Reply.CostMicroUsd == 51_400,
@@ -62,6 +69,7 @@ internal static class GptLiveTests
             && start.RootElement.GetProperty("session").GetProperty("input").GetArrayLength() == 0
             && !socket.Sent[0].Contains("private old archive"), "fresh Live opening has no fabricated visitor or archive");
         Check(socket.Sent.Any(s => s.Contains("session.close")), "finalization requests explicit provider close");
+        Check(inputStopped, "terminal microphone is stopped before provider close");
         var finalCommentary = socket.Sent.FindLastIndex(s => s.Contains("session.commentary.append"));
         Check(!socket.Sent.Skip(finalCommentary + 1).Any(s => s.Contains("session.instructions.append")),
             "a terminal instruction cannot interrupt commentary that just started speaking");
@@ -79,7 +87,7 @@ internal static class GptLiveTests
             return Task.FromResult(new TextDialogResponse("Závěr", interruptedCalls == 4 ? "propose" : "ask",
                 "", interruptedCalls == 4 ? 2 : null, ResponsesTextDialogBudget.Model, 100, 10, "default"));
         });
-        using var interruptedDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        using var interruptedDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(6));
         try
         {
             await new GptLiveDialogue(interruptedConnection, interruptedDialog).RunAsync(turn,
@@ -94,6 +102,7 @@ internal static class GptLiveTests
 
         await VerifyDelegationOrderingAsync(turn);
         await VerifyChangedInputAsync(turn);
+        await VerifyFastReplyDuringSpeechAsync(turn);
 
         using var stalled = new LiveSocket(stall: true);
         await using var stalledConnection = new GptLiveConnection(stalled);
@@ -168,12 +177,34 @@ internal static class GptLiveTests
             "stale choice and waiting notices never reach the voice model");
     }
 
+    private static async Task VerifyFastReplyDuringSpeechAsync(RealtimeTurnContext turn)
+    {
+        using var socket = new LiveSocket(splitAnswer: true);
+        await using var connection = new GptLiveConnection(socket);
+        var calls = 0;
+        using var dialog = new TextDialogRunner((text, mask, history, question, _) =>
+        {
+            calls++;
+            var partial = text == "Odpověď ";
+            return Task.FromResult(new TextDialogResponse(partial ? "PŘEDČASNÁ REPLIKA" : "Celá odpověď",
+                !partial && text == "Odpověď 4" ? "propose" : "ask", "",
+                !partial && text == "Odpověď 4" ? 2 : null,
+                ResponsesTextDialogBudget.Model, 100, 10, "default"));
+        });
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(9));
+        var outcome = await new GptLiveDialogue(connection, dialog).RunAsync(turn,
+            (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask, _ => Task.CompletedTask, deadline.Token);
+        Check(calls == 8 && outcome.Reply.Compartment == 2 && outcome.Questions == 4,
+            "fast replies wait for delayed speech fragments without advancing the question gate");
+        Check(!socket.Sent.Any(s => s.Contains("PŘEDČASNÁ")), "partial-answer reply never interrupts continuing speech");
+    }
+
     private static void Check(bool condition, string reason)
     {
         if (!condition) throw new Exception(reason);
     }
 
-    private sealed class LiveSocket(bool stall = false, bool interruptFinal = false, bool delegationFirst = false) : WebSocket
+    private sealed class LiveSocket(bool stall = false, bool interruptFinal = false, bool delegationFirst = false, bool splitAnswer = false) : WebSocket
     {
         private readonly Channel<byte[]> events = Channel.CreateUnbounded<byte[]>();
         private int answer;
@@ -194,8 +225,13 @@ internal static class GptLiveTests
         {
             answer++;
             if (delegationFirst) EmitDelegation("task-" + answer);
-            EmitInput("Odpověď " + answer);
+            EmitInput("Odpověď " + (splitAnswer ? "" : answer));
             if (!delegationFirst) EmitDelegation("task-" + answer);
+            if (splitAnswer)
+            {
+                var suffix = answer.ToString();
+                _ = Task.Run(async () => { await Task.Delay(350); EmitInput(suffix); });
+            }
         }
         public override Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType type, bool complete, CancellationToken token)
         {

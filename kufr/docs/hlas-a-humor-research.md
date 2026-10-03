@@ -2,6 +2,44 @@
 
 Rešerše a implementační rozhodnutí, 2.–3. 10. 2026 (D127–D135).
 
+## D137: zpětná vazba po poslechu – přerušování a dokončení
+
+Majitel 3. 10. potvrzuje lepší Live i Realtime, ale jednou Live přerušil
+odpověď a nevybral; v jiném závěru zazněl výběr a aplikace hlásila
+`realtime_live_audio_overflow`. Žádá autonomní přidělení bez otázky na
+souhlas a ještě sprostší/drzejší tón.
+
+Read-only [snapshot 37155213446](https://github.com/Blato58/DildoVander/actions/runs/37155213446)
+z 21:28 UTC obsahuje Live start 21:20:45 a klientské zrušení HTTP 499
+v 21:22:12, bez `completed`. `droppedWrites=0`, `truncated=false`.
+Log neobsahuje přepis, PCM, stav iOS fronty ani latenci jednotlivých
+úspěšných uploadů; nedokazuje přesnou příčinu overflow. V kódu se potvrzuje:
+
+- Hotový Sol mohl odeslat commentary hned po delegaci, než dorazil další
+  fragment stejné odpovědi. Nově se výsledek publikuje/přepočítá až po
+  650 ms bez input fragmentu. Přidaná latence je nejvýše tato stabilizační
+  mezera po posledním fragmentu; pomalejší Sol ji už obvykle překryje.
+  Přepisová mezera není důkaz konce řeči. Oficiální [Live prompting](https://developers.openai.com/api/docs/guides/live-prompting)
+  rozlišuje backchannel a přebírání tahu: u kufru nyní zakazujeme všechny
+  narážky během delegace, krátké pauzy ani zaváhání nejsou pozvánka k řeči.
+- Mikrofonní gate se zavíral až po potvrzeném `session.closed`. Nově po
+  závěrečném výstupním tichu pošle `speech_stopped` před žádostí close.
+  Final usage a validace návrhu stále předcházejí zveřejnění výběru.
+- Overflow notifikace z audio tapu neměla identitu vstupu; na hlavní
+  frontě mohla dorazit po zavření input gate a zrušit probíhající závěr.
+  Nově má epochu a po Stop/novém poslechu se ignoruje. Skutečný aktuální
+  backlog pořád selže; 1s fronta a jeden upload v letu zůstávají.
+- Sdílený prompt i Live a Realtime instrukce výslovně zakazují žádost
+  o souhlas s hůlkou. Sprostota patří k běžnému tónu a příklady jsou
+  ostřejší; pointa vychází z řečeného. Odmítnutí hry/tématu platí dál.
+
+Regrese musí prověřit rychlý Sol mezi fragmenty vzdálenými 350 ms,
+přepočet s účtováním zastaralé práce, korekci závěru a gate před close.
+Nativní test kontroluje epochu opravdové overflow a její neplatnost po
+zavření gate/novém vstupu. Poslech musí ověřit delší odpověď se zaváháním,
+opravou, hlukem, výběr bez ano/ne a dohraný závěr. Bez telefonu nelze
+prohlásit všechna přerušení ani všechny zdroje backlogu za odstraněné.
+
 ## D135: ostrý prodavač, oprava čekání a Realtime 2.1
 
 ### Podklady před změnou

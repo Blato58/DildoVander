@@ -6,6 +6,49 @@ Poslední aktualizace: **3. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+
+**D137 – 3. 10. 2026 – dokončení Live, ochrana overflow a sprostší autonomní výběr.**
+Majitel po poslechu potvrzuje lepší Live/Realtime, ale hlásí jednorázové
+přerušení bez výběru a overflow po mluveném závěru. Žádá přímé přidělení
+hůlky bez potvrzovací otázky a drzejší/sprostší tón. Read-only
+[snapshot 37155213446](https://github.com/Blato58/DildoVander/actions/runs/37155213446)
+potvrzuje poslední Live hovor zrušený klientem (HTTP 499 po 87,6 s),
+bez completed; obsah řeči ani zdroj iOS backlogu log neobsahuje.
+[Rešerše D137](hlas-a-humor-research.md#d137-zpětná-vazba-po-poslechu--přerušování-a-dokončení)
+odlišuje nalezené slabiny řízení od nedoložené přesné příčiny konkrétního
+hlášení.
+
+`GptLiveDialogue` podrží hotový Sol výsledek do 650 ms od posledního
+input fragmentu, včetně přepočtu zastaralého výsledku; jde o heuristiku,
+ne provider VAD. `GptLiveEndpoints` zavře gate a pošle `speech_stopped`
+před close/čekáním na final usage, pozdní uploady potvrzuje bez přehrání.
+Final usage a validace návrhu stále předcházejí completed; korekce hosta
+před zavřením může závěr zrušit. Live během řeči i delegace mlčí.
+Prompt a Live/Realtime instrukce žádají sprostý tón a autonomní přidělení
+bez souhlasu hosta. Otázková brána, dostupnost, respekt k odmítnutí a
+3 USD/session zůstávají.
+
+Nativní `DebugHandsFreeAudio` nově koreluje main-queue overflow notifikaci
+s epochou vstupu. Po zavření gate nebo novém poslechu stará notifikace
+nesmí zrušit závěr/další vstup. Skutečný backlog stále selže, 1s fronta
+ani jeden upload v letu se nezvětšují. Regrese v upload_regression.swift
+ověřuje aktuální fault i zneplatnění po stop/novém begin. Tato ochrana
+vyžaduje novou IPA, backendové opravy fungují se stávající 1000.0.14.
+
+Lokálně prošly SDK 10.0.303 Release build (0 warning/error), celá C# sada
+včetně rychlého Solu mezi 350ms fragmenty, účtování zastaralého výsledku,
+korekce závěru a input gate před close, Python eval 23/backend tools 16/
+deploy 3 testy, web build a 25 web testů. HTTP fake smoke prošel na
+opakování; první pokus neměl dotnet v PATH, další narazil na transportní
+EPIPE (Node 24.19.0), opakovaný běh beze změny prošel. Povinné CI ověří
+pinned runtime samostatně. Whitespace bez chyby. Swift/AVFoundation není
+v Linux workspace, nativní regrese/build zatím neproběhly; důkaz doplní
+ruční podepsaný iOS build. Placený provider test ani fyzický poslech
+oprav nebyly spuštěny. Výsledek buildů, publikace a poslechu nesmí být
+odvozený z offline testů. Další krok: zelené CI/merge, nativní podepsaný
+build, ověřené předání backendu a případně nové IPA, potom delší odpověď,
+oprava, výběr bez ano/ne a dohrání závěru na telefonu.
+
 **D136 – 3. 10. 2026 – ověřené nasazení Realtime 2.1 a ostrého kufru.**
 Majitel v tomto chatu výslovně schválil „Nasadit backend“. Implementace
 [PR #112](https://github.com/Blato58/DildoVander/pull/112) je sloučená do

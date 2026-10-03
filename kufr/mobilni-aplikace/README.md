@@ -59,7 +59,12 @@ Upload používá jedno síťové sezení pro celý rozhovor a přesné 200ms d�
 hardwarové mikrofonní bloky se průběžně skládají bez změny pořadí. Fronta
 zůstává omezená na 1 s. Kód `realtime_live_audio_overflow` označuje zaplnění
 této fronty, sám nedokazuje nestabilní připojení. Pozdní blok z předchozího
-poslechu se zahodí a neoznačí jako další odpověď.
+poslechu se zahodí a neoznačí jako další odpověď. D137 navíc přiřazuje
+asynchronní overflow chybu k epoše vstupu: po zavření mikrofonu nebo novém
+poslechu stará notifikace nesmí ukončit závěr ani další rozhovor. Aktuální
+nezvládnutý backlog stále končí chybou; limit ani pořadí audia se nemění.
+Tato nativní ochrana vyžaduje novou IPA. Backendové dřívější zavření
+mikrofonu na závěru GPT-Live funguje i se stávající aplikací.
 Po 650 ms ticha odpoví kufr, během jeho řeči je vstup zavřený a po skutečném
 dohrání se automaticky otevře další poslech. Telefon začne přehrávat první
 bloky před dokončením odpovědi. Hands-free audio používá běžný režim iOS

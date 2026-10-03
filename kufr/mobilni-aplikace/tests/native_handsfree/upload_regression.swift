@@ -49,7 +49,12 @@ struct NativeHandsFreeUploadTests {
         assert(buffer.append(Data(repeating: 0, count: 48_000), epoch: buffer.epoch))
         assert(!buffer.append(Data([0, 0]), epoch: buffer.epoch))
         assert(buffer.next() == nil && buffer.inputId == nil)
+        let faultEpoch = buffer.epoch
+        assert(buffer.isCurrent(epoch: faultEpoch)) // Real current backlog still fails.
+        buffer.stop() // A terminal event wins the race with a queued main-actor fault.
+        assert(!buffer.isCurrent(epoch: faultEpoch))
         buffer.begin(inputId: "recovered")
+        assert(!buffer.isCurrent(epoch: faultEpoch)) // Must not stop the next visitor.
         assert(buffer.append(Data(repeating: 0, count: 9_600), epoch: buffer.epoch))
         assert(buffer.next()?.sequence == 0)
     }
