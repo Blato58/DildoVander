@@ -342,3 +342,11 @@ audia, nikoli ověřenou slyšitelnost. Hlasitost zvyšte bočním tlačítkem b
 hovoru; hlasový režim může mít jinou úroveň než běžná média. Při startupu
 aplikace převádí vestavěné sluchátko na reproduktor a respektuje externí
 výstup. Žádné audio se kvůli těmto údajům neukládá.
+
+D134 ověřuje před otevřením AI streamu také skutečný průchod tichého 200ms
+bufferu přehrávačem. Při startu/restartu obnoví výstupní spojení v aktuálním
+formátu a resetuje clock přehrávače. Vstup s běžícím enginem sám o sobě
+nestačí. Za hovoru ukončí frontu bez potvrzeného přehrávání po 2,5 s kódem
+`realtime_live_audio_output_stalled`; příchozí audio tento timeout neoddaluje.
+Test grafu používá macOS offline render, takže fyzický poslech na iOS je
+stále samostatná akceptace.

@@ -438,6 +438,7 @@ export class DebugPanel {
       realtime_live_audio_session_changed: 'iOS změnil režim zvuku během rozhovoru. Spusťte rozhovor znovu.',
       realtime_live_audio_format_changed: 'iOS změnil formát mikrofonu. Spusťte rozhovor znovu.',
       realtime_live_audio_engine_stopped: 'iOS zastavil zvukový vstup nebo výstup. Spusťte rozhovor znovu.',
+      realtime_live_audio_output_stalled: 'Přehrávač iOS nepředává zvuk reproduktoru. Rozhovor byl zastaven; spusťte jej znovu.',
       realtime_live_audio_start_unstable: 'Zvukový vstup se nepodařilo stabilně spustit. Spusťte rozhovor znovu.',
       realtime_live_audio_route_unknown: 'iOS ohlásil nerozpoznanou změnu zvuku. Spusťte rozhovor znovu.',
       realtime_live_audio_services_reset: 'iOS restartoval zvukovou službu. Spusťte rozhovor znovu.',

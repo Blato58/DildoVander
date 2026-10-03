@@ -69,7 +69,7 @@ enum DebugHandsFreeAudioPolicy {
 
 // AVAudioEngine can stop asynchronously while voice processing establishes
 // its hardware graph. Do not open the provider stream until real microphone
-// callbacks and a running engine have remained healthy for 300 ms.
+// callbacks, completed output probe and a running engine are healthy for 300 ms.
 struct DebugHandsFreeAudioStartup {
     enum Action { case wait, restart, ready, fail }
     private let deadline: TimeInterval
@@ -87,15 +87,15 @@ struct DebugHandsFreeAudioStartup {
         healthySince = nil
     }
 
-    mutating func poll(now: TimeInterval, engineRunning: Bool, lastCaptureAt: TimeInterval?) -> Action {
+    mutating func poll(now: TimeInterval, engineRunning: Bool, lastCaptureAt: TimeInterval?, playbackReady: Bool) -> Action {
         guard now < deadline else { return .fail }
-        guard engineRunning else {
+        if !engineRunning || (!playbackReady && now - attemptStartedAt >= 0.75) {
             configurationChanged(now: now)
             guard restarts < 3 else { return .fail }
             restarts += 1
             return .restart
         }
-        guard let capture = lastCaptureAt, capture > attemptStartedAt, now - capture < 0.2 else {
+        guard playbackReady, let capture = lastCaptureAt, capture > attemptStartedAt, now - capture < 0.2 else {
             healthySince = nil
             return .wait
         }
@@ -103,6 +103,22 @@ struct DebugHandsFreeAudioStartup {
         if healthySince == nil { healthySince = now }
         return .wait
     }
+}
+
+// Continued network arrivals must not hide a stalled speaker queue.
+struct DebugHandsFreePlaybackProgress {
+    private(set) var pending = 0
+    private var lastProgress: TimeInterval = 0
+    mutating func enqueue(now: TimeInterval) {
+        if pending == 0 { lastProgress = now }
+        pending += 1
+    }
+    mutating func complete(now: TimeInterval) {
+        guard pending > 0 else { return }
+        pending -= 1
+        lastProgress = now
+    }
+    func stalled(now: TimeInterval) -> Bool { pending > 0 && now - lastProgress >= 2.5 }
 }
 
 // AVAudioConverter can legitimately return no output while collecting enough
@@ -154,6 +170,33 @@ final class DebugHandsFreePCMConverter {
 
 // Shared with native tests: initialize the valid frame range before filling it.
 enum DebugHandsFreePlayback {
+    // Rebuild only while stopped and before any provider audio is queued.
+    // Reset the player's clock after engine configuration changes and explicitly
+    // connect the mixer to the current hardware (or offline renderer) format.
+    static func prepare(engine: AVAudioEngine, player: AVAudioPlayerNode) throws {
+        guard !engine.isRunning else { throw DebugBackendError.invalidResponse }
+        if player.engine == nil { engine.attach(player) }
+        player.stop()
+        let output = engine.outputNode
+        let outputFormat = output.outputFormat(forBus: 0)
+        guard outputFormat.sampleRate > 0, outputFormat.channelCount > 0,
+              let pcmFormat = AVAudioFormat(standardFormatWithSampleRate: 24_000, channels: 1)
+        else { throw DebugBackendError.serverCode("realtime_live_audio_start_failed") }
+        let mixer = engine.mainMixerNode
+        engine.disconnectNodeOutput(player)
+        engine.disconnectNodeOutput(mixer)
+        engine.connect(player, to: mixer, fromBus: 0, toBus: 0, format: pcmFormat)
+        engine.connect(mixer, to: output, format: outputFormat)
+        engine.prepare()
+    }
+
+    static func schedule(_ buffer: AVAudioPCMBuffer, player: AVAudioPlayerNode,
+                         completion: @escaping @Sendable (AVAudioPlayerNodeCompletionCallbackType) -> Void) {
+        // Start with a scheduled buffer, never an empty player during engine warmup.
+        player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack, completionHandler: completion)
+        if !player.isPlaying { player.play() }
+    }
+
     static func buffer(from pcm: Data) throws -> AVAudioPCMBuffer {
         guard !pcm.isEmpty, pcm.count <= 49_152, pcm.count % 2 == 0,
               let format = AVAudioFormat(standardFormatWithSampleRate: 24_000, channels: 1),
@@ -194,7 +237,9 @@ final class DebugHandsFreeAudio {
     private var audioActive = false
     private var startup: DebugHandsFreeAudioStartup?
     private var tapInstalled = false
-    private var playerAttached = false
+    private var probeGeneration = UUID()
+    private var playbackReady = false
+    private var playbackWatchdog: Task<Void, Never>?
     // These fields are shared only with the real-time input-tap callback and
     // are always read or written while holding lock.
     nonisolated(unsafe) private var uploadBuffer = DebugHandsFreeUploadBuffer()
@@ -203,7 +248,7 @@ final class DebugHandsFreeAudio {
     private var drainTask: Task<Void, Never>?
     private var receivedFrames = 0
     private var renderedFrames = 0
-    private var queuedPlayback = 0
+    private var playbackProgress = DebugHandsFreePlaybackProgress()
     private var awaitingDrainOperation: String?
     private var generation = UUID()
     private var observers: [NSObjectProtocol] = []
@@ -224,9 +269,6 @@ final class DebugHandsFreeAudio {
         try audioSession.setCategory(.playAndRecord, mode: fullDuplex ? .voiceChat : .default, options: [.defaultToSpeaker])
         try audioSession.setActive(true)
 
-        guard let outputFormat = AVAudioFormat(standardFormatWithSampleRate: 24_000, channels: 1) else {
-            throw DebugBackendError.serverCode("realtime_live_audio_start_failed")
-        }
         let input = engine.inputNode
         if fullDuplex { try input.setVoiceProcessingEnabled(true) }
         // Voice-processing setup can select the built-in receiver. This is a
@@ -234,11 +276,6 @@ final class DebugHandsFreeAudio {
         // for the phone's own route before recording the stable configuration.
         if audioSession.currentRoute.outputs.contains(where: { $0.portType == .builtInReceiver }) {
             try audioSession.overrideOutputAudioPort(.speaker)
-        }
-        if !playerAttached {
-            engine.attach(player)
-            engine.connect(player, to: engine.mainMixerNode, format: outputFormat)
-            playerAttached = true
         }
 
         let source = input.outputFormat(forBus: 0)
@@ -253,12 +290,47 @@ final class DebugHandsFreeAudio {
         startup = DebugHandsFreeAudioStartup(now: ProcessInfo.processInfo.systemUptime)
         observeAudioSession()
         do {
-            try engine.start()
-            player.play()
+            try startPlaybackAttempt()
             try await finishStartup()
+            startPlaybackWatchdog()
         } catch {
             stop()
             throw error
+        }
+    }
+
+    private func startPlaybackAttempt() throws {
+        // stop() may invoke old completion handlers: invalidate them first.
+        probeGeneration = UUID()
+        playbackReady = false
+        engine.stop()
+        try DebugHandsFreePlayback.prepare(engine: engine, player: player)
+        try engine.start()
+        let probe = try DebugHandsFreePlayback.buffer(from: Data(repeating: 0, count: 9_600))
+        let attempt = probeGeneration
+        DebugHandsFreePlayback.schedule(probe, player: player) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.audioActive, self.probeGeneration == attempt,
+                      self.engine.isRunning, self.player.isPlaying,
+                      let rendered = self.player.lastRenderTime,
+                      let position = self.player.playerTime(forNodeTime: rendered),
+                      position.isSampleTimeValid, position.sampleTime > 0
+                else { return }
+                self.playbackReady = true
+            }
+        }
+    }
+
+    private func startPlaybackWatchdog() {
+        playbackWatchdog = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                do { try await Task.sleep(nanoseconds: 100_000_000) } catch { return }
+                guard let self, self.audioActive else { return }
+                if self.playbackProgress.stalled(now: ProcessInfo.processInfo.systemUptime) {
+                    self.audioFailure(code: "realtime_live_audio_output_stalled")
+                    return
+                }
+            }
         }
     }
 
@@ -273,7 +345,8 @@ final class DebugHandsFreeAudio {
             try Task.checkCancellation()
             if let code = configurationFailure() { throw DebugBackendError.serverCode(code) }
             let action = startup?.poll(now: ProcessInfo.processInfo.systemUptime,
-                                       engineRunning: engine.isRunning, lastCaptureAt: latestCaptureTime())
+                                       engineRunning: engine.isRunning, lastCaptureAt: latestCaptureTime(),
+                                       playbackReady: playbackReady)
             switch action {
             case .ready:
                 startup = nil
@@ -281,12 +354,11 @@ final class DebugHandsFreeAudio {
             case .restart:
                 // No provider audio has been requested or scheduled yet.
                 // Same route/format are enforced by notification handlers.
-                try engine.start()
-                player.play()
+                try startPlaybackAttempt()
             case .wait:
                 break
             default:
-                throw DebugBackendError.serverCode("realtime_live_audio_start_unstable")
+                throw DebugBackendError.serverCode(playbackReady ? "realtime_live_audio_start_unstable" : "realtime_live_audio_output_stalled")
             }
             try await Task.sleep(nanoseconds: 20_000_000)
         }
@@ -296,7 +368,7 @@ final class DebugHandsFreeAudio {
     func beginListening(inputId: String) {
         lock.lock()
         uploadBuffer.begin(inputId: inputId)
-        inputEnabled = fullDuplex || (queuedPlayback == 0 && awaitingDrainOperation == nil)
+        inputEnabled = fullDuplex || (playbackProgress.pending == 0 && awaitingDrainOperation == nil)
         let shouldDrain = inputEnabled
         lock.unlock()
         if shouldDrain { scheduleDrain() }
@@ -318,13 +390,12 @@ final class DebugHandsFreeAudio {
         if !fullDuplex { stopUploading() }
         receivedFrames += frames
         lock.lock()
-        queuedPlayback += 1
+        playbackProgress.enqueue(now: ProcessInfo.processInfo.systemUptime)
         let callbackGeneration = generation
         lock.unlock()
-        player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
+        DebugHandsFreePlayback.schedule(buffer, player: player) { [weak self] _ in
             Task { @MainActor in self?.playedBack(callbackGeneration, frames: frames) }
         }
-        if !player.isPlaying { player.play() }
     }
 
     var outputStatus: [String: Any] {
@@ -342,7 +413,7 @@ final class DebugHandsFreeAudio {
     func finishPlayback(operationId: String) {
         lock.lock()
         awaitingDrainOperation = operationId
-        let shouldNotify = queuedPlayback == 0
+        let shouldNotify = playbackProgress.pending == 0
         if shouldNotify { awaitingDrainOperation = nil }
         lock.unlock()
         if shouldNotify { playbackDrained(operationId) }
@@ -351,13 +422,17 @@ final class DebugHandsFreeAudio {
     func stop() {
         audioActive = false
         startup = nil
+        probeGeneration = UUID()
+        playbackReady = false
+        playbackWatchdog?.cancel()
+        playbackWatchdog = nil
         lock.lock()
         lastCaptureAt = nil
         generation = UUID()
         inputEnabled = false
         uploadBuffer.stop()
         awaitingDrainOperation = nil
-        queuedPlayback = 0
+        playbackProgress = DebugHandsFreePlaybackProgress()
         lock.unlock()
         drainTask?.cancel()
         drainTask = nil
@@ -428,10 +503,10 @@ final class DebugHandsFreeAudio {
 
     private func playedBack(_ callbackGeneration: UUID, frames: Int) {
         lock.lock()
-        guard callbackGeneration == generation, queuedPlayback > 0 else { lock.unlock(); return }
+        guard callbackGeneration == generation, playbackProgress.pending > 0 else { lock.unlock(); return }
         renderedFrames += frames
-        queuedPlayback -= 1
-        let operation = queuedPlayback == 0 ? awaitingDrainOperation : nil
+        playbackProgress.complete(now: ProcessInfo.processInfo.systemUptime)
+        let operation = playbackProgress.pending == 0 ? awaitingDrainOperation : nil
         if operation != nil { awaitingDrainOperation = nil }
         lock.unlock()
         if let operation { playbackDrained(operation) }
