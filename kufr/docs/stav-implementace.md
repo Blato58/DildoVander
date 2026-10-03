@@ -7,6 +7,14 @@ Poslední aktualizace: **3. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 ## Předání další AI
 
 **D132 – 3. 10. 2026 – diagnostika chybějící odpovědi GPT-Live.**
+PR #106 (`8d29d01`) je pushnutý a sloučený do `ac16277` po zeleném CI
+37116295704; obsah main ověřen. Info snapshot 37116861155 už úspěšně čte
+nasazené logy. Ruční test 37116859928 skončil ještě před AI voláním na
+právech setup-dotnet; workflow nově používá `runner.tool_cache` a stejný
+`global.json` jako funkční backend CI. Majitel dále potvrzuje stav
+„Přehrávám“ bez zvuku: mobil přijímá PCM; hlasitost/výstup iPhonu vyžadují
+ověření. Není to důkaz nedostupnosti poskytovatele.
+
 Majitel po D131 potvrzuje přepis vlastní řeči, ale neslyší úvod ani odpověď.
 Vstup tedy funguje; výstup poskytovatele a přehrávání je třeba rozlišit.
 Read-only warning snapshot 37115452795 zachytil GPT-Live HTTP 499 po
