@@ -82,6 +82,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
                           "session": self.dialogSession != nil || self.realtimeSession != nil || self.handsFreeSession != nil,
                           "recording": self.microphone != nil, "handsFree": self.handsFreeSession != nil,
                           "errorCode": (self.lastError as Any?) ?? NSNull(),
+                          "audioOutput": (self.handsFreeAudio?.outputStatus as Any?) ?? NSNull(),
                           "transcript": self.transcript, "selected": (self.selected as Any?) ?? NSNull(), "timings": self.timings,
                           "evenings": (self.evenings?.bridgeValue as Any?) ?? NSNull(),
                           "server": (self.serverModes?.bridgeValue as Any?) ?? NSNull()])
