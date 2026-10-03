@@ -67,6 +67,44 @@ enum DebugHandsFreeAudioPolicy {
     }
 }
 
+// AVAudioEngine can stop asynchronously while voice processing establishes
+// its hardware graph. Do not open the provider stream until real microphone
+// callbacks and a running engine have remained healthy for 300 ms.
+struct DebugHandsFreeAudioStartup {
+    enum Action { case wait, restart, ready, fail }
+    private let deadline: TimeInterval
+    private var attemptStartedAt: TimeInterval
+    private var healthySince: TimeInterval?
+    private var restarts = 0
+
+    init(now: TimeInterval) {
+        deadline = now + 3
+        attemptStartedAt = now
+    }
+
+    mutating func configurationChanged(now: TimeInterval) {
+        attemptStartedAt = now
+        healthySince = nil
+    }
+
+    mutating func poll(now: TimeInterval, engineRunning: Bool, lastCaptureAt: TimeInterval?) -> Action {
+        guard now < deadline else { return .fail }
+        guard engineRunning else {
+            configurationChanged(now: now)
+            guard restarts < 3 else { return .fail }
+            restarts += 1
+            return .restart
+        }
+        guard let capture = lastCaptureAt, capture > attemptStartedAt, now - capture < 0.2 else {
+            healthySince = nil
+            return .wait
+        }
+        if let healthySince, now - healthySince >= 0.3 { return .ready }
+        if healthySince == nil { healthySince = now }
+        return .wait
+    }
+}
+
 // AVAudioConverter can legitimately return no output while collecting enough
 // input for resampling. Keep its state between microphone buffers.
 final class DebugHandsFreePCMConverter {
@@ -134,12 +172,14 @@ final class DebugHandsFreeAudio {
     private var converter: DebugHandsFreePCMConverter?
     private var activeRoute: [String] = []
     private var audioActive = false
+    private var startup: DebugHandsFreeAudioStartup?
     private var tapInstalled = false
     private var playerAttached = false
     // These fields are shared only with the real-time input-tap callback and
     // are always read or written while holding lock.
     nonisolated(unsafe) private var uploadBuffer = DebugHandsFreeUploadBuffer()
     nonisolated(unsafe) private var inputEnabled = false
+    nonisolated(unsafe) private var lastCaptureAt: TimeInterval?
     private var drainTask: Task<Void, Never>?
     private var queuedPlayback = 0
     private var awaitingDrainOperation: String?
@@ -153,7 +193,7 @@ final class DebugHandsFreeAudio {
         self.failure = failure
     }
 
-    func start() throws {
+    func start() async throws {
         guard !engine.isRunning else { return }
         let audioSession = AVAudioSession.sharedInstance()
         // Realtime uses half duplex with normal speaker audio. GPT-Live
@@ -180,17 +220,49 @@ final class DebugHandsFreeAudio {
             self?.capture(buffer, converter: converter)
         }
         tapInstalled = true
-        do {
-            try engine.start()
-        } catch {
-            input.removeTap(onBus: 0)
-            tapInstalled = false
-            throw error
-        }
-        player.play()
         audioActive = true
         activeRoute = routeIdentifiers(audioSession.currentRoute)
+        startup = DebugHandsFreeAudioStartup(now: ProcessInfo.processInfo.systemUptime)
         observeAudioSession()
+        do {
+            try engine.start()
+            player.play()
+            try await finishStartup()
+        } catch {
+            stop()
+            throw error
+        }
+    }
+
+    private func latestCaptureTime() -> TimeInterval? {
+        lock.lock()
+        defer { lock.unlock() }
+        return lastCaptureAt
+    }
+
+    private func finishStartup() async throws {
+        while audioActive {
+            try Task.checkCancellation()
+            if let code = configurationFailure() { throw DebugBackendError.serverCode(code) }
+            let action = startup?.poll(now: ProcessInfo.processInfo.systemUptime,
+                                       engineRunning: engine.isRunning, lastCaptureAt: latestCaptureTime())
+            switch action {
+            case .ready:
+                startup = nil
+                return
+            case .restart:
+                // No provider audio has been requested or scheduled yet.
+                // Same route/format are enforced by notification handlers.
+                try engine.start()
+                player.play()
+            case .wait:
+                break
+            default:
+                throw DebugBackendError.serverCode("realtime_live_audio_start_unstable")
+            }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        throw CancellationError()
     }
 
     func beginListening(inputId: String) {
@@ -242,7 +314,9 @@ final class DebugHandsFreeAudio {
 
     func stop() {
         audioActive = false
+        startup = nil
         lock.lock()
+        lastCaptureAt = nil
         generation = UUID()
         inputEnabled = false
         uploadBuffer.stop()
@@ -266,6 +340,7 @@ final class DebugHandsFreeAudio {
 
     private nonisolated func capture(_ source: AVAudioPCMBuffer, converter: DebugHandsFreePCMConverter) {
         lock.lock()
+        if source.frameLength > 0 { lastCaptureAt = ProcessInfo.processInfo.systemUptime }
         let acceptingInput = inputEnabled
         let epoch = uploadBuffer.epoch
         lock.unlock()
@@ -339,6 +414,10 @@ final class DebugHandsFreeAudio {
         observers.append(center.addObserver(forName: AVAudioSession.mediaServicesWereResetNotification, object: nil, queue: .main) { [weak self] _ in
             DispatchQueue.main.async { self?.audioFailure(code: "realtime_live_audio_services_reset") }
         })
+        observers.append(center.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main) { [weak self] _ in
+            // Leave the notification callback before touching the engine.
+            DispatchQueue.main.async { self?.routeChanged(reason: 8) }
+        })
     }
 
     private func routeIdentifiers(_ route: AVAudioSessionRouteDescription) -> [String] {
@@ -347,24 +426,34 @@ final class DebugHandsFreeAudio {
 
     private func routeChanged(reason: UInt?) {
         guard audioActive else { return }
-        let session = AVAudioSession.sharedInstance()
-        let routeMatches = routeIdentifiers(session.currentRoute) == activeRoute
-        let sessionMatches = session.category == .playAndRecord
-            && session.mode == (fullDuplex ? .voiceChat : .default)
-        let formatMatches = converter?.sourceFormat == engine.inputNode.outputFormat(forBus: 0)
-        let configurationMatches = engine.isRunning && sessionMatches && routeMatches && formatMatches
+        let graphFailure = configurationFailure()
+        let configurationMatches = (engine.isRunning || startup != nil) && graphFailure == nil
+        if startup != nil {
+            startup?.configurationChanged(now: ProcessInfo.processInfo.systemUptime)
+        }
         // Inspect the current graph, not the route that existed when a queued
         // startup notification was posted. Never ignore a lost device or an
-        // unusable engine, even if its last reported route is still identical.
+        // unusable graph, even if its last reported route is still identical.
+        // Only startup may restart a stopped engine, before provider audio.
         if DebugHandsFreeAudioPolicy.shouldStop(reason: reason, configurationMatches: configurationMatches) {
             let code: String
-            if !routeMatches || reason == 2 || reason == 7 { code = "realtime_live_audio_route_changed" }
-            else if !sessionMatches { code = "realtime_live_audio_session_changed" }
-            else if !formatMatches { code = "realtime_live_audio_format_changed" }
+            if reason == 2 || reason == 7 { code = "realtime_live_audio_route_changed" }
+            else if let graphFailure { code = graphFailure }
             else if !engine.isRunning { code = "realtime_live_audio_engine_stopped" }
             else { code = "realtime_live_audio_route_unknown" }
             audioFailure(code: code)
         }
+    }
+
+    private func configurationFailure() -> String? {
+        let session = AVAudioSession.sharedInstance()
+        if routeIdentifiers(session.currentRoute) != activeRoute { return "realtime_live_audio_route_changed" }
+        if session.category != .playAndRecord || session.mode != (fullDuplex ? .voiceChat : .default)
+            || (fullDuplex && !engine.inputNode.isVoiceProcessingEnabled) {
+            return "realtime_live_audio_session_changed"
+        }
+        if converter?.sourceFormat != engine.inputNode.outputFormat(forBus: 0) { return "realtime_live_audio_format_changed" }
+        return nil
     }
 
     private func audioFailure(code: String) {
