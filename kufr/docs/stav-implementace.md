@@ -6,6 +6,31 @@ Poslední aktualizace: **3. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D134 – 3. 10. 2026 – oprava startu skutečného přehrávání.**
+Majitel v 1000.0.13 doložil reproduktor, hlasitost 100 %, přijatých 10,0 s
+PCM a 0,0 s potvrzeného výstupu při fungujícím přepisu mikrofonu. D133 tedy
+slyšitelnost neopravil. Start doposud spouštěl prázdný player před ustálením
+enginu a jeho clock při restartu neresetoval; readiness ověřovala jen vstup.
+D134 obnovuje zastavenou cestu player → mixer → output v aktuálním výstupním
+formátu, resetuje player a spouští jej až po naplánování bufferu. Před
+placeným streamem vyžaduje dokončení 200ms tichého bufferu i posun player
+sample time. Probe starého restartu/Stop se ignoruje; stejné původní
+3 s / nejvýše tři restartovací pokusy platí i pro nefunkční výstup.
+
+Za běhu se chybějící dokončení bufferů déle než 2,5 s mění na konkrétní
+`realtime_live_audio_output_stalled` a úklid hovoru. Nové příchozí PCM
+nesmějí tuto lhůtu odsouvat. Restart se provádí jen před provider streamem,
+nikoli nad již naplánovanou řečí. Zachovává se AEC a full duplex GPT-Live.
+Nativní regrese renderuje produkční graf do stereo 48 kHz ve třech startech,
+ověřuje neprázdný výstup obou kanálů, mikrofon bez výstupu, bounded retry a
+frontu bez dokončovacích callbacků. Mac offline render nepokrývá iOS voice
+processing ani fyzický reproduktor. Lokálně prošlo všech 25 mobilních
+testů, TypeScript/Vite a whitespace. Read-only snapshot 37119460245
+potvrzuje dokončení Realtime odpovědi v 11:19:45 UTC a GPT-Live start
+11:19:50 s klientským zrušením 11:20:14; žádná serverová chyba AI.
+Nativní render test zatím nelze na Linuxu spustit; navazuje CI, macOS test,
+podpis a publikace iOS. Backend/limity se nemění.
+
 **D133 – 3. 10. 2026 – slyšitelnost GPT-Live na iPhonu.**
 Majitel potvrzuje přepis mikrofonu i přechod na „Přehrávám“, ale neslyší
 zvuk. Tento stav se nastavuje až po přijetí PCM z backendu; problém nelze
