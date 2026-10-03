@@ -6,6 +6,38 @@ Poslední aktualizace: **3. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D131 – 3. 10. 2026 – stabilizace iOS zvukového enginu před AI hovorem (rozpracované).**
+Majitel v nové IPA 1000.0.11 doložil `realtime_live_audio_engine_stopped`.
+D130 tedy neodstranilo fyzickou chybu; nový kód rozlišil zastavený engine
+při shodné cestě, kategorii, režimu i vstupním formátu. Read-only
+[diagnostika 37113745650](https://github.com/Blato58/DildoVander/actions/runs/37113745650)
+potvrzuje dva klientem zrušené GPT-Live požadavky v 09:37:55/09:38:03 UTC,
+HTTP 499 po 201/70 ms. Backend běží v responses/openai, žádný aktivní hovor.
+Apple u [AVAudioEngineConfigurationChangeNotification](https://developer.apple.com/documentation/avfaudio/avaudioengineconfigurationchangenotification)
+popisuje automatické zastavení a odinicializování enginu při konfiguraci
+I/O; aplikace odpovídá za nové spuštění a případnou opravu formátů.
+
+`DebugHandsFreeAudio.start` nově čeká na skutečné mikrofonní buffery a
+300 ms zdravého běžícího enginu, před `session.run` a placeným hlasovým
+streamem. Počáteční zastavení obnoví nejvýše třikrát do absolutního limitu
+3 s, pouze při shodné cestě/režimu/formátu a zapnutém AEC pro GPT-Live.
+Oznámení nesmějí prodlužovat deadline. Starý buffer před restartem ani
+zaseknutý tap nesmí potvrdit připravenost. Engine-configuration observer
+přesouvá obsluhu z callbacku do main queue. Po dokončení startu se zastavení
+nerecoveruje, aby se neztrácelo naplánované audio. Skutečné odpojení, hovor,
+změna formátu, reset médií, Stop/pozadí a cancellation dále ukončují práci.
+`KufrDebugPlugin` po čekání znovu kontroluje generation; stavové kódy
+zůstávají zachované. Nový kód označuje nestabilní/nedokončený start.
+
+Nativní regresní scénáře modelují úspěšný synchronní start následovaný
+zastavením, omezený restart a nová živá data, reset připravenosti při změně,
+zastaralý buffer, chybějící tap, opakované zastavení a nepřekročitelný deadline.
+Lokálně prošlo 25 mobilních testů, TypeScript/Vite build a whitespace.
+Nativní testy čekají na macOS podpisový workflow, CI a publikace probíhají;
+fyzický test majitele zůstává nutný.
+Backend ani firmware se nemění, původní autorizace nasazení trvá.
+
+
 **D130 – 3. 10. 2026 – oprava kontroly zvuku při startu GPT-Live na iOS.**
 Majitel po publikaci D129 doložil screenshot `realtime_live_audio_interrupted`
 a potvrdil chybu hned před první replikou. Read-only

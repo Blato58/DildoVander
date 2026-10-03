@@ -35,6 +35,7 @@ struct NativeHandsFreeTests {
         try await testGptLive(client: client, profile: profile)
         try testMicrophoneConversion()
         testAudioRouteChanges()
+        testEngineStartup()
         for (path, expectedCode) in [
             ("problem", "realtime_unavailable"),
             ("mime", "realtime_live_protocol_failed"),
@@ -91,6 +92,39 @@ struct NativeHandsFreeTests {
             assert(DebugHandsFreeAudioPolicy.shouldStop(reason: reason, configurationMatches: true))
             assert(DebugHandsFreeAudioPolicy.shouldStop(reason: reason, configurationMatches: false))
         }
+    }
+
+    static func testEngineStartup() {
+        // The first start succeeds synchronously, then iOS stops the engine
+        // during its asynchronous configuration notification. Recover before
+        // admitting the provider stream; old microphone buffers do not count.
+        var startup = DebugHandsFreeAudioStartup(now: 10)
+        assert(startup.poll(now: 10, engineRunning: true, lastCaptureAt: nil) == .wait)
+        startup.configurationChanged(now: 10.01)
+        assert(startup.poll(now: 10.02, engineRunning: false, lastCaptureAt: 10.01) == .restart)
+        assert(startup.poll(now: 10.03, engineRunning: true, lastCaptureAt: 10.01) == .wait)
+        assert(startup.poll(now: 10.08, engineRunning: true, lastCaptureAt: 10.07) == .wait)
+        assert(startup.poll(now: 10.46, engineRunning: true, lastCaptureAt: 10.45) == .ready)
+
+        // A new configuration invalidates readiness, even while isRunning
+        // stays true. A frozen tap must never admit a voice session.
+        var quiet = DebugHandsFreeAudioStartup(now: 0)
+        assert(quiet.poll(now: 0.01, engineRunning: true, lastCaptureAt: 0.005) == .wait)
+        quiet.configurationChanged(now: 0.1)
+        assert(quiet.poll(now: 0.2, engineRunning: true, lastCaptureAt: 0.005) == .wait)
+        assert(quiet.poll(now: 0.3, engineRunning: true, lastCaptureAt: 0.29) == .wait)
+        assert(quiet.poll(now: 0.6, engineRunning: true, lastCaptureAt: 0.29) == .wait)
+        assert(quiet.poll(now: 3, engineRunning: true, lastCaptureAt: nil) == .fail)
+
+        var broken = DebugHandsFreeAudioStartup(now: 0)
+        for now in [0.01, 0.02, 0.03] {
+            assert(broken.poll(now: now, engineRunning: false, lastCaptureAt: nil) == .restart)
+        }
+        assert(broken.poll(now: 0.04, engineRunning: false, lastCaptureAt: nil) == .fail)
+        // Notifications cannot extend the absolute startup deadline.
+        var noisy = DebugHandsFreeAudioStartup(now: 0)
+        noisy.configurationChanged(now: 2.99)
+        assert(noisy.poll(now: 3, engineRunning: false, lastCaptureAt: nil) == .fail)
     }
 
     static func testMicrophoneConversion() throws {

@@ -70,7 +70,11 @@ tahů; Stop, pozadí, zamčení nebo audio přerušení ukončí mikrofon i prov
 Bez přerušování právě mluvícího kufru. Vlastní přepnutí audio session při
 startu nepřerušuje rozhovor, pokud běžící engine, aktivní cesta a formát
 zůstávají stejné. To platí i pro oznámení nově dostupného zařízení při
-startu GPT-Live. Odpojení zařízení nebo skutečná změna konfigurace hovor
+startu GPT-Live. Před otevřením AI streamu aplikace čeká na živé mikrofonní
+buffery a 300 ms stabilního běhu. Engine zastavený během počáteční
+konfigurace obnoví nejvýše třikrát do 3 s při nezměněné zvukové cestě.
+Po zahájení hovoru se zastavený engine automaticky neobnovuje.
+Odpojení zařízení nebo skutečná změna konfigurace hovor
 bezpečně ukončí. Debug rozlišuje kódy změny cesty, režimu, PCM formátu,
 zastaveného enginu, přerušení a resetu zvukové služby. Prázdný výstup při rozběhu převodníku není chyba.
 Problém včetně nákladového limitu má viditelnou hlášku a technický kód
