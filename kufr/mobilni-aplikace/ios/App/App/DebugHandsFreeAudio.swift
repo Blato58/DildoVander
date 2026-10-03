@@ -152,6 +152,26 @@ final class DebugHandsFreePCMConverter {
     }
 }
 
+// Shared with native tests: initialize the valid frame range before filling it.
+enum DebugHandsFreePlayback {
+    static func buffer(from pcm: Data) throws -> AVAudioPCMBuffer {
+        guard !pcm.isEmpty, pcm.count <= 49_152, pcm.count % 2 == 0,
+              let format = AVAudioFormat(standardFormatWithSampleRate: 24_000, channels: 1),
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(pcm.count / 2))
+        else { throw DebugBackendError.invalidResponse }
+        buffer.frameLength = buffer.frameCapacity
+        guard let channel = buffer.floatChannelData?[0] else { throw DebugBackendError.invalidResponse }
+        // Decode bytes explicitly; Data does not promise Int16 alignment.
+        pcm.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) in
+            for index in 0..<Int(buffer.frameLength) {
+                let bits = UInt16(bytes[index * 2]) | UInt16(bytes[index * 2 + 1]) << 8
+                channel[index] = Float(Int16(bitPattern: bits)) / 32768.0
+            }
+        }
+        return buffer
+    }
+}
+
 #if os(iOS)
 // One duplex engine remains active for the entire hands-free conversation.
 // Realtime gates the tap during playback. GPT-Live keeps it running with
@@ -181,6 +201,8 @@ final class DebugHandsFreeAudio {
     nonisolated(unsafe) private var inputEnabled = false
     nonisolated(unsafe) private var lastCaptureAt: TimeInterval?
     private var drainTask: Task<Void, Never>?
+    private var receivedFrames = 0
+    private var renderedFrames = 0
     private var queuedPlayback = 0
     private var awaitingDrainOperation: String?
     private var generation = UUID()
@@ -207,6 +229,12 @@ final class DebugHandsFreeAudio {
         }
         let input = engine.inputNode
         if fullDuplex { try input.setVoiceProcessingEnabled(true) }
+        // Voice-processing setup can select the built-in receiver. This is a
+        // hands-free conversation; retain external outputs but use the loudspeaker
+        // for the phone's own route before recording the stable configuration.
+        if audioSession.currentRoute.outputs.contains(where: { $0.portType == .builtInReceiver }) {
+            try audioSession.overrideOutputAudioPort(.speaker)
+        }
         if !playerAttached {
             engine.attach(player)
             engine.connect(player, to: engine.mainMixerNode, format: outputFormat)
@@ -282,25 +310,33 @@ final class DebugHandsFreeAudio {
     }
 
     func appendPlayback(_ pcm: Data) throws {
-        guard pcm.count > 0, pcm.count <= 49_152, pcm.count % 2 == 0 else { throw DebugBackendError.invalidResponse }
-        if !fullDuplex { stopUploading() }
-        let frames = pcm.count / MemoryLayout<Int16>.size
-        guard let format = AVAudioFormat(standardFormatWithSampleRate: 24_000, channels: 1),
-              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames)),
-              let channel = buffer.floatChannelData?[0] else { throw DebugBackendError.invalidResponse }
-        pcm.withUnsafeBytes { source in
-            let samples = source.bindMemory(to: Int16.self)
-            for index in 0..<frames { channel[index] = Float(Int16(littleEndian: samples[index])) / 32768.0 }
+        guard audioActive, engine.isRunning else {
+            throw DebugBackendError.serverCode("realtime_live_audio_engine_stopped")
         }
-        buffer.frameLength = AVAudioFrameCount(frames)
+        let buffer = try DebugHandsFreePlayback.buffer(from: pcm)
+        let frames = Int(buffer.frameLength)
+        if !fullDuplex { stopUploading() }
+        receivedFrames += frames
         lock.lock()
         queuedPlayback += 1
         let callbackGeneration = generation
         lock.unlock()
         player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
-            Task { @MainActor in self?.playedBack(callbackGeneration) }
+            Task { @MainActor in self?.playedBack(callbackGeneration, frames: frames) }
         }
         if !player.isPlaying { player.play() }
+    }
+
+    var outputStatus: [String: Any] {
+        let session = AVAudioSession.sharedInstance()
+        let ports = session.currentRoute.outputs.map { $0.portType }
+        let route = ports.contains(.builtInSpeaker) ? "speaker"
+            : ports.contains(.builtInReceiver) ? "receiver"
+            : ports.isEmpty ? "none" : "external"
+        return ["route": route, "volume": Double(session.outputVolume),
+                "receivedSeconds": Double(receivedFrames) / 24_000,
+                "renderedSeconds": Double(renderedFrames) / 24_000,
+                "engineRunning": engine.isRunning]
     }
 
     func finishPlayback(operationId: String) {
@@ -390,9 +426,10 @@ final class DebugHandsFreeAudio {
         }
     }
 
-    private func playedBack(_ callbackGeneration: UUID) {
+    private func playedBack(_ callbackGeneration: UUID, frames: Int) {
         lock.lock()
         guard callbackGeneration == generation, queuedPlayback > 0 else { lock.unlock(); return }
+        renderedFrames += frames
         queuedPlayback -= 1
         let operation = queuedPlayback == 0 ? awaitingDrainOperation : nil
         if operation != nil { awaitingDrainOperation = nil }

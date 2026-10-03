@@ -10,6 +10,8 @@ interface VoiceStatus {
   recording?: boolean;
   handsFree?: boolean;
   errorCode?: string | null;
+  audioOutput?: { route: 'speaker' | 'receiver' | 'external' | 'none'; volume: number;
+    receivedSeconds: number; renderedSeconds: number; engineRunning: boolean } | null;
   transcript?: Array<{ role: 'kufr' | 'visitor'; text: string }>;
   selected?: number | null;
   timings?: { dialogMs?: number; speechMs?: number; downloadMs?: number; firstAudioMs?: number; totalMs: number };
@@ -184,6 +186,7 @@ export class DebugPanel {
         </div>
         <p data-conversation-status role="status"></p>
         <p data-conversation-error role="alert" hidden></p>
+        <p data-conversation-audio class="footnote" hidden></p>
         <ol class="debug-transcript" data-conversation-transcript aria-label="Přepis zkušebního rozhovoru"></ol>
         <div data-answer-controls><label class="debug-answer-label" for="debug-answer">Vaše odpověď</label>
         <textarea id="debug-answer" data-conversation-answer maxlength="1000" rows="3"
@@ -457,6 +460,15 @@ export class DebugPanel {
     this.element.querySelector('[data-conversation-selection]')!.textContent = selected == null
       ? ''
       : `Simulovaný návrh: přihrádka ${selected}. Žádný pohon se nespustil.`;
+    const output = this.voice.audioOutput;
+    const audioStatus = this.element.querySelector<HTMLParagraphElement>('[data-conversation-audio]')!;
+    audioStatus.hidden = !output;
+    const routes = { speaker: 'reproduktor', receiver: 'telefonní sluchátko', external: 'externí výstup', none: 'žádný výstup' };
+    audioStatus.textContent = output
+      ? `Zvuk: ${routes[output.route] ?? 'neznámý výstup'} · hlasitost ${Math.round(output.volume * 100)} %. `
+        + `Přijato ${output.receivedSeconds.toFixed(1)} s, předáno výstupu ${output.renderedSeconds.toFixed(1)} s.`
+        + (output.volume < 0.05 ? ' Zvyšte hlasitost bočním tlačítkem během rozhovoru.' : '')
+      : '';
     const timings = this.voice.timings;
     this.element.querySelector('[data-conversation-timings]')!.textContent = timings && Number.isFinite(timings.totalMs)
       ? Number.isFinite(timings.firstAudioMs)

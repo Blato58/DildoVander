@@ -33,6 +33,7 @@ struct NativeHandsFreeTests {
         let metrics = try JSONSerialization.jsonObject(with: data) as! [String: Int]
         assert(metrics["played"] == 3 && metrics["uploads"] == 2 && metrics["cleanup"] == 1)
         try await testGptLive(client: client, profile: profile)
+        try testPlaybackConversion()
         try testMicrophoneConversion()
         testAudioRouteChanges()
         testEngineStartup()
@@ -48,6 +49,19 @@ struct NativeHandsFreeTests {
         assert(DebugHandsFreeSession.failureCode(for: URLError(.serverCertificateUntrusted)) == "realtime_live_tls_failed")
         print("Hands-free native multi-turn, VAD gate, early acknowledgement and cleanup passed.")
         print("Hands-free audio startup, route changes, 48kHz conversion and early HTTP failures passed.")
+    }
+
+    static func testPlaybackConversion() throws {
+        let buffer = try DebugHandsFreePlayback.buffer(from: Data([0, 0, 0xff, 0x7f, 0, 0x80, 0, 0x40, 0, 0xc0]))
+        assert(buffer.format.sampleRate == 24_000 && buffer.format.channelCount == 1)
+        assert(buffer.frameLength == 5)
+        let samples = buffer.floatChannelData![0]
+        assert(samples[0] == 0 && samples[1] == Float(32767) / 32768)
+        assert(samples[2] == -1 && samples[3] == 0.5 && samples[4] == -0.5)
+        for invalid in [Data(), Data([1]), Data(repeating: 0, count: 49_154)] {
+            do { _ = try DebugHandsFreePlayback.buffer(from: invalid); fatalError("Invalid playback buffer accepted") }
+            catch DebugBackendError.invalidResponse { }
+        }
     }
 
     @MainActor static func testGptLive(client: DebugBackendClient, profile: DebugBackendProfile) async throws {

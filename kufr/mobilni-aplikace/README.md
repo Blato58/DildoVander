@@ -332,3 +332,13 @@ Každé sezení má 3 USD limit, celkový rozpočet řídí OpenAI.
 Nová funkce vyžaduje nasazený D128 backend a novou aplikaci/firmware;
 webový build sám neověřuje nativní iPhone audio.
 [Postup a omezení testování](../docs/hlas-a-humor-research.md#d128-testovaci-gpt-live-rezim).
+
+### Zvuk při hands-free testu
+
+Debug při hovoru ukazuje výstup (reproduktor, telefonní sluchátko nebo
+externí zařízení), aktuální systémovou hlasitost a délku přijatého audia
+oproti bufferům potvrzeným přehrávačem. „Přehrávám“ samotné znamená příjem
+audia, nikoli ověřenou slyšitelnost. Hlasitost zvyšte bočním tlačítkem během
+hovoru; hlasový režim může mít jinou úroveň než běžná média. Při startupu
+aplikace převádí vestavěné sluchátko na reproduktor a respektuje externí
+výstup. Žádné audio se kvůli těmto údajům neukládá.
