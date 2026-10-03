@@ -6,7 +6,7 @@ Poslední aktualizace: **3. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**D131 – 3. 10. 2026 – stabilizace iOS zvukového enginu před AI hovorem (rozpracované).**
+**D131 – 3. 10. 2026 – stabilizace iOS zvukového enginu před AI hovorem.**
 Majitel v nové IPA 1000.0.11 doložil `realtime_live_audio_engine_stopped`.
 D130 tedy neodstranilo fyzickou chybu; nový kód rozlišil zastavený engine
 při shodné cestě, kategorii, režimu i vstupním formátu. Read-only
@@ -32,10 +32,26 @@ zůstávají zachované. Nový kód označuje nestabilní/nedokončený start.
 Nativní regresní scénáře modelují úspěšný synchronní start následovaný
 zastavením, omezený restart a nová živá data, reset připravenosti při změně,
 zastaralý buffer, chybějící tap, opakované zastavení a nepřekročitelný deadline.
-Lokálně prošlo 25 mobilních testů, TypeScript/Vite build a whitespace.
-Nativní testy čekají na macOS podpisový workflow, CI a publikace probíhají;
-fyzický test majitele zůstává nutný.
-Backend ani firmware se nemění, původní autorizace nasazení trvá.
+Lokálně prošlo 25 mobilních testů, TypeScript/Vite build, whitespace a
+místní odkazy změněných Markdown souborů. Commit `94679e7` je pushnutý
+scoped gh helperem po pokusu o předepsaný PowerShell skript (permission
+denied; `pwsh` chybí). [PR #104](https://github.com/Blato58/DildoVander/pull/104)
+je sloučený po úspěšném [CI 37114100057](https://github.com/Blato58/DildoVander/actions/runs/37114100057)
+do main `95ee64c`; shoda obsahu ověřená.
+
+[Podpis 37114615069](https://github.com/Blato58/DildoVander/actions/runs/37114615069)
+prošel nativními WSS/debug/hands-free testy včetně nových scénářů zastavení
+enginu a stabilizace, PCM převodu/fronty, rušení a úklidu. Xcode 26.3
+úspěšně vytvořil device archive a ověřený Ad Hoc export **1.0 / 1000.0.12**.
+[Publikace 37114734105](https://github.com/Blato58/DildoVander/actions/runs/37114734105)
+úspěšně zveřejnila release `37114734105-1` na
+[Safari instalaci](https://2.28.202.220/ios/). Kontrola veřejného HTTPS
+ověřila manifest, Bundle ID, stažení IPA, SHA-256 i MIME typy.
+
+Fyzické zopakování GPT-Live na iPhonu je stále nutné. Testy stavu a device
+build nejsou důkazem zvukového chování konkrétního iOS zařízení. Backend
+s 3 USD/session i firmware zůstávají beze změny; nový build obnovuje pouze
+start lokálního zvuku, nezakládá opakované placené AI hovory.
 
 
 **D130 – 3. 10. 2026 – oprava kontroly zvuku při startu GPT-Live na iOS.**
