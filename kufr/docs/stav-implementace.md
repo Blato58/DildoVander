@@ -6,6 +6,38 @@ Poslední aktualizace: **3. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D136 – 3. 10. 2026 – ověřené nasazení Realtime 2.1 a ostrého kufru.**
+Majitel v tomto chatu výslovně schválil „Nasadit backend“. Implementace
+[PR #112](https://github.com/Blato58/DildoVander/pull/112) je sloučená do
+main `348cc16` po zeleném [CI 37153635698](https://github.com/Blato58/DildoVander/actions/runs/37153635698);
+shoda zdrojového stromu main s ověřenými změnami byla potvrzena.
+[Nasazení 37154360458](https://github.com/Blato58/DildoVander/actions/runs/37154360458)
+převzalo tento artefakt bez nového buildu, ověřilo původ PR, přesný main
+strom, checksum i bezpečné rozbalení a aktivovalo release
+`e4e936b9627eff687bab5c7a67f524938d1f0482-37154360458-1`.
+Source SHA je CI merge commit; jeho strom odpovídá squash main commitu.
+Oba deployment joby prošly. Aktivační helper potvrdil loopback health;
+veřejný HTTPS test ověřil admin autentizaci, zákaz admin přístupu device
+tokenem, revizní konflikt a diagnostiku, bez změny režimů či AI volání.
+
+Read-only [snapshot 37154448427](https://github.com/Blato58/DildoVander/actions/runs/37154448427)
+z 23:15 pražského času potvrzuje responses/openai, dostupné adaptéry,
+0 aktivních rozhovorů a 0 droppedWrites. Dialog je gpt-6.1-sol, přímý
+hlas v této verzi gpt-realtime-2.1/low; GPT-Live je gpt-live-1 s opraveným
+řízením a novým tónem. Limit zůstává 3 USD/session. Přímý curl z cloud
+workspace neověřil IP HTTPS (vrácené jméno certifikátu openai.com);
+TLS kontrola nebyla vypnuta. Veřejné HTTPS je doložené úspěšným testem
+na serverovém runneru, nikoli tímto curl pokusem.
+
+Nová IPA ani firmware flash nejsou pro backendovou změnu potřeba;
+stávající iPhone IPA 1000.0.14 používá nasazený backend. Placený provider
+test nebyl spuštěn. Dostupnost Realtime 2.1 na provider účtu, česká
+vtipnost/latence a fyzický poslech nejsou doložené pouhým health checkem.
+Další krok: ve stávající aplikaci Debug → Tok → Realtime vyzkoušet nový
+rozhovor a poslech; GPT-Live + Sol samostatně porovnat. Akceptace čekacích
+výplní, návaznosti, ostrosti a oprav je v rešerši D135. Tento zápis mění
+jen dokumentaci o už dokončeném nasazení; backend se znovu nenasazuje.
+
 **D135 – 3. 10. 2026 – Realtime 2.1 a ostrý Ollivanderův kufr.**
 Majitel žádá důkladnou rešerši před změnami, odstranění opakovaného čekání,
 výrazné urážky a otázky při prodeji hůlky; následně upozornil na Realtime
