@@ -31,8 +31,9 @@ Nativní adaptér vlastní TLS pin, oprávnění LAN a Keychain. E10.1 použív�
 ## Debug D108/D109/D110/D112 a Realtime
 
 Aktuální [Safari instalace](https://2.28.202.220/ios/) nabízí verzi 1.0,
-build **1000.0.10** ([publikace 3. 10. 2026](https://github.com/Blato58/DildoVander/actions/runs/37110367270),
-D128/D129: volitelný GPT-Live + Sol, přirozenější úvod a 3 USD/session).
+build **1000.0.11** ([publikace 3. 10. 2026](https://github.com/Blato58/DildoVander/actions/runs/37112965017),
+D130: oprava kontroly zvukových oznámení při startu GPT-Live; nadále
+GPT-Live + Sol, přirozenější úvod a 3 USD/session).
 Nativní testy, Ad Hoc podpis a veřejná kontrola manifestu/IPA/SHA-256
 prošly. Skutečná aktualizace a poslech na iPhonu zbývá ověřit.
 První uložení credentialu po přechodu z RAM-only verze
