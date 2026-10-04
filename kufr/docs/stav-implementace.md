@@ -27,8 +27,11 @@ Prošly i dosavadní limity požadavků, rozpočet a regrese dokončení Live.
 Placené volání, poslech, iPhone a HW se neověřovaly. Nová IPA není potřeba.
 Změny README, plánu a rešerše popisují současnou skladbu promptu.
 
-Doručení: připraveno na větvi `codex/realtime-21-medium`; commit/push,
-povinné CI, merge a nasazení backendu se ověří v navazujícím kroku.
+Doručení: implementace `db4d8af1171ad94c27ea0c13ff1b16f5f4a7cbfa`
+na větvi `codex/realtime-21-medium` je pushnutá; `ls-remote` potvrdil SHA.
+Povinný PowerShell helper na Linuxu skončil permission denied (pwsh chybí);
+push proběhl s repo-scoped `gh auth git-credential` bez změny globálního účtu.
+Povinné CI, merge a nasazení backendu se ověří v navazujícím kroku.
 Dosavadní souhlas s backend deploymentem platí i pro pokračující úpravy.
 Další krok: po zeleném CI nasadit jeho artefakt na server; pak poslechem
 ověřit medium latenci, otázky, ostrost a automatický závěr.
