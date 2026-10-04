@@ -2,6 +2,22 @@
 
 Rešerše a implementační rozhodnutí, 2.–3. 10. 2026 (D127–D135).
 
+## D141: otázky bez scénáře a prostor pro vyprávění
+
+Majitel po poslechu hlásí opakování frází a otázek. Žádá odstranit příklady,
+nechat AI tvořit vlastní repliky a pokládat otevřené otázky bez dvojice
+předvolených odpovědí. V dosavadních instrukcích byly hotové dialogy,
+slovník nadávek/přezdívek, nabídka dvou možností při nejistotě a serverový
+cyklus šesti námětů, z nichž jeden přímo vyžadoval binární volbu.
+
+D141 odstraňuje ukázky, slovní vzory i cyklus témat. AI volí vlastní úvod,
+otázky a pointy podle konkrétních odpovědí. Společné instrukce nyní vyžadují
+otevřené otázky, prostor pro hostovo vyprávění, jednoduché otevřené navázání
+při nejistotě a variaci oslovení, formulace a pointy. Interní náhodný
+identifikátor úvodu nepřidává téma ani příběh a nevyslovuje se. Nezaručuje
+sám o sobě různost odpovědí; tu ověří až poslech více nových rozhovorů.
+Zůstává společná persona, autonomní výběr bez souhlasu a Realtime 2.1 medium.
+
 ## D140: společný prompt podle Live a medium pro Realtime
 
 Majitel 4. 10. žádá zachovat Realtime 2.1, zvýšit jeho effort na medium
