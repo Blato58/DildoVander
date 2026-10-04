@@ -1,10 +1,41 @@
 # Stav implementace AI kufru
 
-Poslední aktualizace: **3. 10. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální Arduino i ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a E3a. Ad Hoc podpis a serverová publikace IPA/manifestu prošly CI a veřejným HTTPS testem; majitel potvrdil instalaci a spuštění na iPhonu 15 Pro (D70). Hardware, native WSS/TLS a aktualizace IPA na telefonu zatím nemají runtime akceptaci. Hotový návrh není hotová implementace.
+Poslední aktualizace: **4. 10. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální Arduino i ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a E3a. Ad Hoc podpis a serverová publikace IPA/manifestu prošly CI a veřejným HTTPS testem; majitel potvrdil instalaci a spuštění na iPhonu 15 Pro (D70). Hardware, native WSS/TLS a aktualizace IPA na telefonu zatím nemají runtime akceptaci. Hotový návrh není hotová implementace.
 
 [Implementační plán](implementacni-plan.md) určuje architekturu a akceptaci. [AGENTS.md](../../AGENTS.md) určuje pracovní postup AI. Tento soubor je jediný průběžný záznam postupu; README ho pouze odkazují.
 
 ## Předání další AI
+
+
+**D139 – 4. 10. 2026 – publikovaná IPA 1000.0.15.**
+Majitel výslovně schválil „Publikuj“. Workflow `kufr-ios-deploy.yml`
+[Nasazení 37189756640](https://github.com/Blato58/DildoVander/actions/runs/37189756640)
+na main `1dfb544` publikovalo již podepsaný a ověřený artefakt
+[37156500324](https://github.com/Blato58/DildoVander/actions/runs/37156500324).
+Nevznikl nový build. Verify, publish-ios a verify-ios-page prošly:
+původ podpisového artefaktu, přesný main strom, checksum a safe unpack;
+potom veřejné HTTPS instalační stránky, manifestu, Bundle ID, odkazu na
+IPA, SHA-256 a MIME typů. Release ID je `37189756640-1`.
+[Instalační stránka](https://2.28.202.220/ios/) nyní nabízí **1000.0.15**;
+manifest a IPA jsou v `/ios/releases/37189756640-1/`.
+Checksum je shodný s D138:
+`202d856552f27346099d3976df72420436ff43d0a72d8546ef4eba9def3d241b`.
+
+Backend z D138 už běží s opravou načasování Live, gate před provider close,
+přímým přidělením hůlky bez potvrzovací otázky a ostřejším tónem. Publikace
+IPA přidává nativní ochranu proti opožděné overflow notifikaci až po
+aktualizaci aplikace na telefonu. Backend se v tomto kroku znovu nenasazuje;
+firmware se neflashuje. Uživatel může otevřít stránku v Safari a aktualizovat
+aplikaci. Instalace 1000.0.15 a skutečný poslech těchto oprav nejsou tímto
+publikačním HTTPS testem doložené; placený provider test nebyl spuštěn.
+
+Po úspěšné publikaci je bezpečné dokončit dokumentační PR nad větví
+`codex/record-live-terminal-deployment`; mění pouze tento stavový záznam,
+nevyžaduje další podpis ani deployment. Ověření tohoto zápisu: místní odkazy,
+konzistence nového předání s historickým D138 a whitespace; povinné CI a
+merge se ověří v navazujícím PR. Další krok: majitel aktualizuje aplikaci
+a ověří delší odpověď se zaváháním/opravou, automatické přidělení bez ano/ne
+a úplný závěr bez overflow. Živé pozorování odlišit od úspěšného build/testu.
 
 
 **D138 – 3. 10. 2026 – nasazené opravy Live a ověřená IPA 1000.0.15.**
@@ -35,27 +66,15 @@ Info.plist verze/Bundle ID a přítomnost podpisu. IPA SHA-256:
 Přímé cloud stažení Actions blobu vrátilo Forbidden; autorizovaný GitHub
 connector artefakt stáhl a poskytl ověřitelný ZIP. Nejde o bypass TLS.
 
-**Publikace IPA zatím neproběhla.** Majiteli je předložená konkrétní
-ověřená 1000.0.15 k odsouhlasení; současná instalační stránka zůstává
-na 1000.0.14. Při souhlasu použít `kufr-ios-deploy.yml` na main s
-`build_run_id=37156500324` a ověřit veřejnou instalační stránku/manifest/
-checksum. Dokud se IPA nepublikuje, neslučovat tento následný dokumentační
-zápis do main: podpisový artefakt vyžaduje přesný současný main strom.
-Po publikaci (nebo výslovném ponechání staré verze) dokončit doc PR/CI/merge.
-Zdrojová aplikace/IPA jsou připravené, instalace a poslech nových oprav na
-iPhonu nejsou provedené. Nativní fake testy ani podpis nedokazují absenci
-všech skutečných přerušení/backlogu nebo českou vtipnost. Placený provider
-test nebyl spuštěn. Další krok: publikace podle odpovědi majitele a poslech
-ve stávajícím Realtime/GPT-Live Debug; delší odpověď se zaváháním, oprava,
-bez žádosti o souhlas s hůlkou a celý dohraný výběr.
-
-
-Následný zápis D138 se ukládá do větve
-`codex/record-live-terminal-deployment`; commit/push dokumentace neaktivuje
-backend ani IPA. Dokončení PR čeká na vyřešení již položené otázky
-publikace kvůli zachování přesného main stromu podepsaného artefaktu.
-PowerShell helper v tomto Linuxu nelze spustit, používá se již ověřený
-scoped gh credential helper. Místní odkazy a whitespace jsou ověřené.
+Na předání D138 publikace IPA ještě neproběhla; majiteli byla předložená
+ověřená 1000.0.15. Zápis byl commitnutý jako `c0ee054` a pushnutý do větve
+`codex/record-live-terminal-deployment`. Jeho merge se odložil kvůli
+zachování přesného main stromu podepsaného artefaktu. Majitel 4. 10.
+schválil „Publikuj“; dokončená publikace a navazující předání jsou v D139.
+Nativní fake testy ani podpis nedokazují absenci všech skutečných
+přerušení/backlogu nebo českou vtipnost; poslech oprav na iPhonu zůstává
+nedoložený. Placený provider test nebyl spuštěn. PowerShell helper v tomto
+Linuxu nelze spustit, používá se již ověřený scoped gh credential helper.
 
 **D137 – 3. 10. 2026 – dokončení Live, ochrana overflow a sprostší autonomní výběr.**
 Majitel po poslechu potvrzuje lepší Live/Realtime, ale hlásí jednorázové
