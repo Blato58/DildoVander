@@ -30,8 +30,11 @@ eval: 24 testů OK. Upraven dosavadní opening test pro samostatné interní
 identifikátory místo cyklu témat. Žádný placený provider test/poslech ani HW.
 Identifikátor a prompt samy nezaručují vtipnost či různost generovaných replik.
 
-Doručení: větev `codex/open-dialogue-without-examples`, commit/push,
-povinné CI a merge se ověří po lokální kontrole. Dosavadní souhlas
+Doručení: implementace `6c948f3` na větvi
+`codex/open-dialogue-without-examples` je pushnutá; `ls-remote` potvrdil SHA.
+Povinný PowerShell helper na Linuxu skončil permission denied; použit
+repo-scoped `gh auth git-credential` bez změny globálního účtu.
+Povinné CI a merge se ověří v navazujícím PR. Dosavadní souhlas
 s backend nasazením platí; změna nevyžaduje novou IPA.
 Další krok: nasadit ověřený artefakt a poslechem ověřit více nových úvodů,
 navazující otevřené otázky a delší vlastní odpověď hosta.
