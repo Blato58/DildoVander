@@ -34,10 +34,26 @@ Doručení: implementace `6c948f3` na větvi
 `codex/open-dialogue-without-examples` je pushnutá; `ls-remote` potvrdil SHA.
 Povinný PowerShell helper na Linuxu skončil permission denied; použit
 repo-scoped `gh auth git-credential` bez změny globálního účtu.
-Povinné CI a merge se ověří v navazujícím PR. Dosavadní souhlas
-s backend nasazením platí; změna nevyžaduje novou IPA.
-Další krok: nasadit ověřený artefakt a poslechem ověřit více nových úvodů,
-navazující otevřené otázky a delší vlastní odpověď hosta.
+[PR #118](https://github.com/Blato58/DildoVander/pull/118) prošel povinným
+[CI 37225594462](https://github.com/Blato58/DildoVander/actions/runs/37225594462)
+a je sloučen squash commitem `477dc883a7f16646558eb1925c574627b021999c`.
+Shoda main stromu se zdrojem PR `d5b1dcc` je ověřená
+(`27853d1f40bd3884b0b16dd21b79e594c3831dac`).
+Dosavadní souhlas s backend nasazením byl použit pro pokračující úpravu.
+[Deploy 37226198653](https://github.com/Blato58/DildoVander/actions/runs/37226198653)
+ověřil původ CI artefaktu, přesný main strom, checksum a safe unpack;
+aktivoval `fa134b501dc6e437b3d488186132444267a16a85-37226198653-1`.
+Loopback health a veřejné HTTPS kontroly admin autentizace, no-op režimů,
+revizního konfliktu a diagnostiky prošly bez AI volání či změny režimů.
+Nová IPA není potřeba. Neproběhl placený provider test, poslech ani HW akce.
+
+Navazující dokumentace je na větvi `codex/record-d141-deployment`;
+po ověření místních odkazů a whitespace se dokončí její PR.
+Další krok: majitel v nových rozhovorech poslechem ověří vlastní různorodé
+úvody, navazující otevřené otázky a delší odpověď bez podsouvání možností.
+Rozmanitost a vtipnost AI odpovědí nejsou offline kontrolou prokázané.
+IPA 1000.0.15 z D139 zůstává publikovaná.
+
 
 
 **D140 – 4. 10. 2026 – Realtime 2.1 medium a společný prompt podle GPT Live.**
