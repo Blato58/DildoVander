@@ -28,7 +28,7 @@ internal sealed record RealtimeTurnContext(
     bool LiveAudio = false,
     int OutputTokenLimit = RealtimeProtocol.MaxOutputTokens)
 {
-    internal string OpeningDirection { get; init; } = Request.Opening ? ConversationOpening.Next() : "";
+    internal string OpeningVariation { get; init; } = Request.Opening ? ConversationOpening.Next() : "";
 }
 
 internal sealed record RealtimeReply(
@@ -128,7 +128,7 @@ internal static class RealtimeProtocol
                     : turn.RequireQuestion
                         ? "Polož jednu otázku. Výběr není povolený."
                         : "Jakmile máš podklady, rovnou vyber přes propose_wand. Nežádej souhlas s hůlkou; další otázka jen pro chybějící podklad.")
-                + (turn.Request.Opening ? " " + ConversationOpening.Instructions(turn.OpeningDirection) : ""),
+                + (turn.Request.Opening ? " " + ConversationOpening.Instructions(turn.OpeningVariation) : ""),
             MaxOutputTokenCount = turn.OutputTokenLimit,
             Truncation = RealtimeDefaultTruncation.Disabled,
             AudioOptions = new RealtimeConversationSessionAudioOptions

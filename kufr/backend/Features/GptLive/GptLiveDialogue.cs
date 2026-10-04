@@ -32,7 +32,7 @@ internal sealed class GptLiveDialogue(GptLiveConnection connection, TextDialogRu
         await connection.SendAsync(new { type = "session.instructions.append", delegation_id = (string?)null,
             content = turn.Request.ReadyMask == 0
                 ? "Žádná hůlka není dostupná. Úvodní otázku nepokládej; promluv až po dodání závěrečné repliky."
-                : "Začni teď pozdravem a první otázkou podle úvodního námětu." }, token);
+                : "Začni teď vlastním krátkým oslovením a první otevřenou otázkou podle pravidel nového rozhovoru." }, token);
         var elapsed = Stopwatch.StartNew();
         var input = new StringBuilder();
         var archive = new List<LiveTranscript>();

@@ -7,6 +7,39 @@ Poslední aktualizace: **4. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 ## Předání další AI
 
 
+**D141 – 4. 10. 2026 – otevřené otázky a vlastní repliky bez ukázek.**
+Majitel po poslechu žádá méně opakování, odstranit příklady a dát hostovi
+prostor rozmluvit se otevřenými otázkami. Převzat společný prompt z D140.
+`voice-persona.txt` odstraňuje ukázkové dialogy, vzorové nadávky/přezdívky
+a pokyn k nabídce dvou odpovědí. AI tvoří sama, navazuje otevřenou otázkou,
+nerecykluje otázku v jiném slovosledu, oslovení ani hotovou pointu. Délka
+kufrovy repliky není pokyn ke zkrácení hostova vyprávění; při nejistotě
+zjednoduší otevřenou otázku, ne nabídku možností.
+
+`ConversationOpening` odstraňuje pevný cyklus šesti námětů včetně binární
+volby. Téma a formulaci vytváří model; server přidává jen nevyslovovaný
+identifikátor úvodu, jednou na opening, zachovaný při rezervaci/fallback.
+Interní pole je `OpeningVariation`; Live zahajovací pokyn i Python opening
+žádají vlastní otevřenou otázku. README, plán a rešerše jsou aktualizované.
+Realtime zůstává 2.1/medium, Sol low; autonomní výběr bez souhlasu pokračuje.
+
+Ověření: .NET 10.0.303 Release build a kompletní offline backend testy
+prošly bez warning/error, včetně shared prompt requestů, fresh opening,
+fallback invariance, rozpočtů a Live completion/cancellation. Python offline
+eval: 24 testů OK. Upraven dosavadní opening test pro samostatné interní
+identifikátory místo cyklu témat. Žádný placený provider test/poslech ani HW.
+Identifikátor a prompt samy nezaručují vtipnost či různost generovaných replik.
+
+Doručení: implementace `6c948f3` na větvi
+`codex/open-dialogue-without-examples` je pushnutá; `ls-remote` potvrdil SHA.
+Povinný PowerShell helper na Linuxu skončil permission denied; použit
+repo-scoped `gh auth git-credential` bez změny globálního účtu.
+Povinné CI a merge se ověří v navazujícím PR. Dosavadní souhlas
+s backend nasazením platí; změna nevyžaduje novou IPA.
+Další krok: nasadit ověřený artefakt a poslechem ověřit více nových úvodů,
+navazující otevřené otázky a delší vlastní odpověď hosta.
+
+
 **D140 – 4. 10. 2026 – Realtime 2.1 medium a společný prompt podle GPT Live.**
 Majitel žádá zachovat model 2.1, zvýšit effort na medium a sjednotit prompty
 podle GPT Live. `voice-persona.txt` obsahuje společnou Live roli, sprostý
