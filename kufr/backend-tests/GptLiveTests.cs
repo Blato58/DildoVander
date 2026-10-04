@@ -31,6 +31,16 @@ internal static class GptLiveTests
         var request = new RealtimeTurnRequest(Guid.NewGuid(), Guid.NewGuid(), 0, 63, 0,
             PartyWandCatalog.Version, true, "", null, "marin", 1);
         var turn = new RealtimeTurnContext(request, true, "private old archive", []);
+        using (var session = JsonDocument.Parse(JsonSerializer.Serialize(GptLiveProtocol.Start(turn))))
+        {
+            var instructions = session.RootElement.GetProperty("session").GetProperty("instructions").GetString()!;
+            Check(instructions.StartsWith(PartyDialoguePrompt.VoicePersona + "\n\n", StringComparison.Ordinal)
+                && instructions.Contains("Backchannel policy:") && instructions.Contains("Interruption policy:"),
+                "Live shares the Czech voice persona and silence/interruption rules");
+            Check(instructions.Contains("Delegation policy:") && instructions.Contains("Hůlku nikdy nevybírej sám")
+                && !instructions.Contains("propose_wand"),
+                "Live delegates selection without inheriting the decision model's tool instructions");
+        }
         using var socket = new LiveSocket();
         await using var connection = new GptLiveConnection(socket);
         var calls = 0;

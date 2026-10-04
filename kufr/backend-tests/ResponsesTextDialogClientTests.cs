@@ -36,6 +36,8 @@ internal static class ResponsesTextDialogClientTests
         using (var request = JsonDocument.Parse(capturedRequest!))
         {
             var root = request.RootElement;
+            Check(root.GetProperty("instructions").GetString() == PartyDialoguePrompt.DecisionInstructions,
+                "Sol receives the same Live persona and selection instructions as Realtime");
             Check(root.GetProperty("service_tier").GetString() == "default", "explicit Standard tier");
             Check(root.GetProperty("store").ValueKind == JsonValueKind.False, "store disabled");
             Check(root.GetProperty("tools").EnumerateArray().All(tool => tool.GetProperty("strict").GetBoolean()),

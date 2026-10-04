@@ -52,7 +52,7 @@ internal static class RealtimeProtocol
     {
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
-    private static readonly string Instructions = ReadInstructions();
+    private static readonly string Instructions = PartyDialoguePrompt.DecisionInstructions;
 
     internal static RealtimeTurnRequest? ReadRequest(byte[] body)
     {
@@ -155,7 +155,7 @@ internal static class RealtimeProtocol
         // The pinned SDK predates Realtime 2.1 reasoning. Its supported JSON
         // patch surface preserves the GA setting without replacing SDK transport.
 #pragma warning disable SCME0001
-        options.Patch.Set("$.reasoning.effort"u8, "low");
+        options.Patch.Set("$.reasoning.effort"u8, "medium");
 #pragma warning restore SCME0001
         foreach (var tool in Tools(turn))
         {
@@ -250,14 +250,6 @@ internal static class RealtimeProtocol
             }, JsonOptions))
         });
         return tools.ToArray();
-    }
-
-    private static string ReadInstructions()
-    {
-        using var stream = typeof(RealtimeProtocol).Assembly.GetManifestResourceStream("Kufr.Backend.PartyPrompt")
-            ?? throw new InvalidOperationException("Embedded party prompt is missing.");
-        using var reader = new StreamReader(stream, Encoding.UTF8);
-        return reader.ReadToEnd();
     }
 }
 #pragma warning restore OPENAI002

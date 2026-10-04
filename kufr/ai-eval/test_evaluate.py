@@ -39,6 +39,16 @@ class EvalTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "tier"):
                 estimate_usage_micro_usd(response, "gpt-6.1-sol")
 
+    def test_shared_voice_persona_precedes_decision_tools(self):
+        from pathlib import Path
+        persona = Path(__file__).with_name("voice-persona.txt").read_text(encoding="utf-8").strip()
+        request = build_request({"readyMask": 63, "visitorText": "Chci hůlku."}, "gpt-6.1-sol")
+        instructions = request["instructions"]
+        self.assertTrue(instructions.startswith(persona + "\n\n"))
+        self.assertIn("Backchannel policy:", instructions)
+        self.assertNotIn("propose_wand", persona)
+        self.assertIn("propose_wand", instructions[len(persona):])
+
     def test_catalog_has_six_fixed_compartments_and_filters_unavailable_wands(self):
         self.assertEqual("ollivander-private-party-v1", CATALOG["catalogVersion"])
         self.assertEqual(list(range(1, 7)),

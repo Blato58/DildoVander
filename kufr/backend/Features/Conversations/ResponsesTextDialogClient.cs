@@ -23,7 +23,7 @@ internal sealed class ResponsesTextDialogClient(
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
     private static readonly TimeSpan DefaultRequestTimeout = TimeSpan.FromSeconds(45);
-    private static readonly string Instructions = ReadInstructions();
+    private static readonly string Instructions = PartyDialoguePrompt.DecisionInstructions;
 
     public async Task<TextDialogResponse> GenerateAsync(
         string visitorText,
@@ -253,15 +253,6 @@ internal sealed class ResponsesTextDialogClient(
             && element.ValueKind == JsonValueKind.Number
             && element.TryGetInt32(out value)
             && value >= 0;
-    }
-
-    private static string ReadInstructions()
-    {
-        using var stream = typeof(ResponsesTextDialogClient).Assembly
-            .GetManifestResourceStream("Kufr.Backend.PartyPrompt")
-            ?? throw new InvalidOperationException("Embedded party prompt is missing.");
-        using var reader = new StreamReader(stream, Encoding.UTF8);
-        return reader.ReadToEnd().Trim();
     }
 
     private static object[] BuildTools(bool requireQuestion, int readyMask)

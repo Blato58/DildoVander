@@ -14,7 +14,7 @@ ESP nyní používá existující `realtime-live` API se stejnými device tokeny
 VAD, pořadím vstupních bloků, dohráním a kontrolou návrhů jako telefonní Debug.
 
 D114/D116 přidávají přímý Realtime hlas přes oficiální OpenAI .NET SDK 2.14.0,
-model `gpt-realtime-2.1` s `reasoning.effort=low` od D135. Textový Sol i dosavadní fake/STT/Sol/TTS zůstávají.
+model `gpt-realtime-2.1` od D135, s `reasoning.effort=medium` od D140 na přání majitele. Textový Sol i dosavadní fake/STT/Sol/TTS zůstávají.
 `POST /v1/conversations/{id}/realtime-turns` vyžaduje device token, UUID
 idempotency key, audio souhlas a režimy `responses` / `openai`.
 OpenAI klíč zůstává na backendu. SDK obsluhuje typované příkazy a události;
@@ -577,3 +577,10 @@ bez Solu (přibližně do 0,03 USD). Běžné testy jej nespouštějí. Výstup 
 jen počty událostí, audia/přepisu a finální usage, nikdy obsah řeči. Úspěch
 vyžaduje potvrzení pokynu, neprázdný hlas i přepis a finální usage. Test
 ověřuje poskytovatele a transport, nikoli reproduktor iPhonu.
+
+## D140: společná persona podle GPT Live
+
+D140 sjednocuje personu a pravidla hlasového rozhovoru podle GPT Live v
+`../ai-eval/voice-persona.txt`: stejný roast, otázky, ticho při práci backendu,
+přerušení a oznámení výběru bez souhlasu. Sol i Realtime přidávají
+`prompt.txt` s funkcemi; Live pouze vlastní pokyny k delegaci na Sol.
