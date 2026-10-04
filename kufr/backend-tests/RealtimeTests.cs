@@ -30,8 +30,8 @@ internal static class RealtimeTests
         var openings = Enumerable.Range(0, 6)
             .Select(_ => new RealtimeTurnContext(Request(), true, "previous visitor", [new("old guest", "old reply")]))
             .ToArray();
-        Require(openings.Select(turn => turn.OpeningDirection).Distinct().Count() == 6,
-            "six successive openings rotate intentions instead of always asking for a name");
+        Require(openings.Select(turn => turn.OpeningVariation).Distinct().Count() == 6,
+            "successive openings receive distinct variation identifiers without a canned topic cycle");
         foreach (var turn in openings)
         {
             using var options = JsonDocument.Parse(ModelReaderWriter.Write(RealtimeProtocol.SessionOptions(turn)).ToMemory());

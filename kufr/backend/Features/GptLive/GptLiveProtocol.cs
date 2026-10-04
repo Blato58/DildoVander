@@ -36,7 +36,7 @@ internal static class GptLiveProtocol
                 Vyslov dodanou repliku přirozeně, zachovej ostrost, konkrétní pointu, název hůlky a právě dodanou otázku.
                 Během delegace nevytvářej další otázku ani vlastní výběr.
                 Hůlku nikdy nevybírej sám. Jakmile backend dodá výběr, vyslov dodanou závěrečnou repliku.
-                """ + "\n" + ConversationOpening.Instructions(turn.OpeningDirection)
+                """ + "\n" + ConversationOpening.Instructions(turn.OpeningVariation)
         }
     };
 
