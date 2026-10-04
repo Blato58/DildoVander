@@ -31,10 +31,28 @@ Doručení: implementace `db4d8af1171ad94c27ea0c13ff1b16f5f4a7cbfa`
 na větvi `codex/realtime-21-medium` je pushnutá; `ls-remote` potvrdil SHA.
 Povinný PowerShell helper na Linuxu skončil permission denied (pwsh chybí);
 push proběhl s repo-scoped `gh auth git-credential` bez změny globálního účtu.
-Povinné CI, merge a nasazení backendu se ověří v navazujícím kroku.
-Dosavadní souhlas s backend deploymentem platí i pro pokračující úpravy.
-Další krok: po zeleném CI nasadit jeho artefakt na server; pak poslechem
-ověřit medium latenci, otázky, ostrost a automatický závěr.
+[PR #116](https://github.com/Blato58/DildoVander/pull/116) prošel povinným
+[CI 37222949669](https://github.com/Blato58/DildoVander/actions/runs/37222949669)
+a je sloučen squash commitem `7237a0570da38c00313e183a4caa7b4f3b74dcc3`.
+Shoda main stromu se zdrojem PR `8dc896a` je ověřená
+(`d287e8eae5a97f58b378b1f96e69c0e9df356fb0`).
+Dosavadní souhlas s backend deploymentem byl použit pro pokračující úpravy.
+[Deploy 37223612673](https://github.com/Blato58/DildoVander/actions/runs/37223612673)
+ověřil původ CI artefaktu, přesný main strom, checksum a safe unpack;
+aktivoval `d3f3e656cb06e44339b2b66eea48f4ab7608338d-37223612673-1`.
+Loopback health a veřejné HTTPS kontroly admin autentizace, no-op režimů,
+revizního konfliktu a diagnostiky prošly bez AI volání či změny režimů.
+Read-only [snapshot 37223690510](https://github.com/Blato58/DildoVander/actions/runs/37223690510)
+z 18:15:09 UTC potvrzuje responses/openai, dostupné adaptéry,
+0 aktivních rozhovorů, `droppedWrites=0`, `truncated=false`.
+Tři varování po aktivaci (401/401/409) odpovídají negativním deployment
+kontrolám; snapshot neověřuje poslech ani latenci hlasu.
+
+Tento navazující zápis je pouze dokumentace na větvi
+`codex/record-d140-deployment`; nový deploy ani podpis není potřeba.
+Další krok: majitel poslechem ověří medium latenci, navazující otázky,
+ostrost a automatický závěr. IPA 1000.0.15 z D139 zůstává publikovaná.
+
 
 
 **D139 – 4. 10. 2026 – publikovaná IPA 1000.0.15.**
