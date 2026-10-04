@@ -139,3 +139,7 @@ serverových námětů v C#; její transport a stabilitu ověřují backend test
 [Rešerše a plán hodnocení](../docs/hlas-a-humor-research.md) popisují porovnání
 Realtime/GPT‑Live, slepý poslech a scénáře nových rozhovorů. Starší fixtures
 s odpovědí „Petr“ po každém opening nejsou důkaz adaptivní kvality.
+
+D141 odstraňuje hotové ukázky ze společné persony. AI vytváří vlastní
+otázky a pointy; otázky jsou otevřené a nechávají hosta vyprávět, bez
+nabídky dvou odpovědí. Totéž platí pro opening evaluátoru.
