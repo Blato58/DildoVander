@@ -33,7 +33,10 @@ RESULT_SCHEMA = {
     "required": ["reply", "decision", "compartment", "reason"],
 }
 
-INSTRUCTIONS = Path(__file__).with_name("prompt.txt").read_text(encoding="utf-8").strip()
+INSTRUCTIONS = "\n\n".join(
+    Path(__file__).with_name(name).read_text(encoding="utf-8").strip()
+    for name in ("voice-persona.txt", "prompt.txt")
+)
 CATALOG = json.loads(Path(__file__).with_name("wand-catalog.json").read_text(encoding="utf-8"))
 if (
     not isinstance(CATALOG.get("catalogVersion"), str)

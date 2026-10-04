@@ -2,6 +2,24 @@
 
 Rešerše a implementační rozhodnutí, 2.–3. 10. 2026 (D127–D135).
 
+## D140: společný prompt podle Live a medium pro Realtime
+
+Majitel 4. 10. žádá zachovat Realtime 2.1, zvýšit jeho effort na medium
+a sjednotit prompty podle GPT Live. Oficiální
+[Realtime prompting](https://developers.openai.com/api/docs/guides/realtime-prompting)
+a [modelová karta 2.1](https://developers.openai.com/api/docs/models/gpt-realtime-2.1)
+uvádějí medium jako podporovanou hodnotu; vyšší effort může přidat latenci
+a spotřebu výstupních tokenů. Rozpočet 3 USD a rezervace zůstávají vynucené.
+
+Základem `voice-persona.txt` je dosavadní Live role, sprostý konkrétní roast,
+backchannel silence a interruption policy. Společná jsou i navazující otázky,
+ukázky, hranice hry, paměť a závěr bez potvrzovací otázky. Realtime už nedostává
+výjimku pro hlášku při práci funkce. Podle
+[Live prompting](https://developers.openai.com/api/docs/guides/live-prompting)
+Live nadále dostává zvláštní delegation policy; výběrové funkce patří pouze
+Sol/Realtime (`prompt.txt`). Offline testy ověřují instrukce skutečných
+provider requestů, ne slyšitelný humor či latenci. Sol zůstává na low.
+
 ## D137: zpětná vazba po poslechu – přerušování a dokončení
 
 Majitel 3. 10. potvrzuje lepší Live i Realtime, ale jednou Live přerušil
