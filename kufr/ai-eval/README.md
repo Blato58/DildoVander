@@ -23,7 +23,7 @@ texty přímo do OpenAI Responses API ze serverového GitHub Actions runneru
 ESP32, Device ID, device credential, běžící backend ani mobilní aplikaci.
 Nevydává žádný příkaz k pohonu. Backendový E8 adaptér existuje odděleně; hlasové testy zůstávají další prací.
 
-Prompt je v prompt.txt: mluvící kouzelný kufr prodejce z Ollivanderova obchodu ve světě Harryho Pottera pro soukromou party 18+, s ostrým, vtipným roastem. Původní šestice hůlek je v wand-catalog.json; backend i eval předávají modelu jen dostupné položky. Výchozí model je gpt-6.1-sol s nízkým reasoning effort. Stejné scénáře
+Od D140 je společná persona podle GPT Live v `voice-persona.txt`; `prompt.txt` přidává pravidla rozhodovacích funkcí pro Sol/Realtime. Backend i evaluátor skládají stejné instrukce. Persona: mluvící kouzelný kufr prodejce z Ollivanderova obchodu ve světě Harryho Pottera pro soukromou party 18+, s ostrým, vtipným roastem. Původní šestice hůlek je v wand-catalog.json; backend i eval předávají modelu jen dostupné položky. Výchozí model je gpt-6.1-sol s nízkým reasoning effort. Stejné scénáře
 nyní používají pouze Sol. STT a TTS se v tomto
 textovém testu nevolají. Model musí vrátit přísné JSON schéma; parser navíc
 kontroluje délky, decision, compartment a aktuální readyMask.

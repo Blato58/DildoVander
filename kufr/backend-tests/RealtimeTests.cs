@@ -36,9 +36,12 @@ internal static class RealtimeTests
         {
             using var options = JsonDocument.Parse(ModelReaderWriter.Write(RealtimeProtocol.SessionOptions(turn)).ToMemory());
             Require(RealtimeProtocol.Model == "gpt-realtime-2.1"
-                && options.RootElement.GetProperty("reasoning").GetProperty("effort").GetString() == "low",
-                "Realtime 2.1 uses low reasoning through the official SDK wire serializer");
+                && options.RootElement.GetProperty("reasoning").GetProperty("effort").GetString() == "medium",
+                "Realtime 2.1 uses medium reasoning through the official SDK wire serializer");
             Require(RealtimeProtocol.ContextData(turn) == "", "opening has no supplied visitor archive");
+            Require(options.RootElement.GetProperty("instructions").GetString()!
+                .StartsWith(PartyDialoguePrompt.DecisionInstructions, StringComparison.Ordinal),
+                "Realtime receives the shared Live voice persona and its own selection tools");
             Require(RealtimeProtocol.SessionOptions(turn).Instructions
                 == RealtimeProtocol.SessionOptions(turn with { OutputTokenLimit = 512 }).Instructions,
                 "reservation fallback cannot change the opening intention");
