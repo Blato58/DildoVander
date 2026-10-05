@@ -44,14 +44,23 @@ lockfile, mobilní Vite/TypeScript build a 25 mobilních testů prošly.
 Python backend offline 16 testů a AI eval 24 testů OK.
 Playwright Chromium: iPhone viewport 393×852, syntetický native harness,
 přepnutí personality, zákaz přepnutí během hovoru a fake výběr po dvou
-odpovědích prošly. Harness není skutečný iOS bridge ani poslech.
+odpovědích i odmítnuté změně při konfliktu prošly. Harness není skutečný
+iOS bridge ani poslech. Kontrola 46 místních dokumentačních odkazů a
+whitespace prošla; původní persona i prompt funkcí nemají diff.
 
 Neprovedeno: Swift/Xcode (Linux nemá Apple SDK), podpis nové IPA, deployment,
 placený provider test, poslech a fyzický kufr. Současná publikovaná IPA
 1000.0.15 a nasazený D141 backend tímto lokálním slice nejsou aktualizované.
-Další krok: CI/merge tohoto slice; potom samostatně vyžádaný signed iOS build
-s native testy, ověřené předání backendu a IPA a poslech obou personalit.
-Git předání a výsledek CI budou doplněny po ověření.
+Doručení: implementační commit `ba1554b875e1a1e6041aef328061b42c88e75934`
+je pushnutý na `codex/personality-inventory`; `ls-remote` potvrdil shodu SHA.
+Povinný PowerShell helper na Linuxu skončil permission denied (pwsh není
+nainstalované); push použil repo-scoped `gh auth git-credential` pro Blato58
+bez změny globálního účtu. Slice je v
+[PR #120](https://github.com/Blato58/DildoVander/pull/120); povinné CI a merge
+se ověřují v tomto PR před předáním. Tento navazující commit doplňuje jen
+záznam skutečného push/PR a lokálních kontrol.
+Další produktový krok: samostatně vyžádaný signed iOS build s native testy,
+ověřené předání backendu a IPA a poslech obou personalit.
 
 
 **D141 – 4. 10. 2026 – otevřené otázky a vlastní repliky bez ukázek.**
