@@ -103,7 +103,8 @@ idempotence zahrnuje zvolené hodnoty. Pevný model, souhlas, nákladové rezerv
 konverzi bez textu návštěvníka.
 
 Výhradně fake dialog virtuální identity `debug-server-admin` položí čtyři
-otázky a navrhne jednu přihrádku z masky; maska 0 vede k `no_selection`.
+otázky pro původní personalitu, dvě pro `ollivander-trunk`, pak navrhne jednu
+přihrádku z masky; maska 0 vede k `no_selection`.
 Je to neplacená diagnostická simulace pro iOS D110, nikoli skutečný snapshot
 nebo fyzické ovládání. Běžné fake identity ani Responses Sol se nemění.
 Fake přepis nahrávky zůstává syntetický. Odeslání vlastní hlasové odpovědi
@@ -128,7 +129,7 @@ ponechá rezervaci a restart volání neopakuje. Zrušený tah nezveřejní pozd
 výsledek, ale skutečně vrácené tokeny vyúčtuje. Návrh přihrádky vzniká na
 serveru s korelací a expirací 60 sekund.
 Žádná trasa neovládá aktuátory.
-V režimu `responses` vytváří otázky i pointu model. První čtyři dokončené
+V režimu `responses` vytváří otázky i pointu model. U výchozí personality první čtyři dokončené
 dialogové tahy vyžadují otázku; nabídka funkcí v nich neobsahuje výběr přihrádky.
 Dvě poslední výměny zůstávají v RAM pro aktuální tah. Celé dokončené textové
 výměny se navíc ukládají do `Backend:DatabasePath` + `.evening.sqlite`.
@@ -145,7 +146,8 @@ rozhovor, starší rozhovory podle shody slov ve jméně/odpovědi a nedávný k
 Jde o lexikální vybavení, ne neomylný profil člověka ani biometrickou identitu.
 Dva Petrové vyžadují upřesnění. Jména/opravy musí vycházet z řečeného.
 Obsah paměti se nikdy nepovažuje za instrukce či aktuální dostupnost hůlek.
-Limit základního JSON těla je 14 kB plus JSON-encoded velikost paměti;
+Limit základního JSON těla je 14 kB plus JSON-encoded velikost paměti
+a přírůstek velikosti zvolené personality;
 rezervace před voláním je 0,10 USD plus cache-write cena Fast
 přidaných bajtů. Všechny tři stávající nákladové stropy zůstávají účinné.
 
@@ -585,3 +587,22 @@ D140 sjednocuje personu a pravidla hlasového rozhovoru podle GPT Live v
 `../ai-eval/voice-persona.txt`: stejný roast, otázky, ticho při práci backendu,
 přerušení a oznámení výběru bez souhlasu. Sol i Realtime přidávají
 `prompt.txt` s funkcemi; Live pouze vlastní pokyny k delegaci na Sol.
+
+
+## D142: trvalý inventář personalit
+
+`GET /v1/admin/modes` vrací navíc `personalityId`, `personalityLifetime=persistent`
+a metadata `personalities` (ID, název, popis, SHA-256 promptu). `PUT` přijímá
+volitelné `personalityId`: vynechání/null zachová aktivní volbu, neznámé ID
+vrací `400 invalid_personality`. Změna sdílí revizi a bránu neaktivních
+rozhovorů/dobíhajících provider volání s režimy. Zápis personality je trvalý
+v journalu (`server_settings`, migrace schema 6 → 7); režimy dál platí do
+restartu. Výchozí zůstává `party-original`.
+
+Každý nový rozhovor má neměnnou personalitu. Sol, Realtime i GPT-Live
+používají jediný vybraný zdroj; text `ollivander-trunk-persona.txt` je embedded
+beze změn. Jeho obvyklé dvě odpovědi a povolený dřívější výběr nepřebírají
+původní povinné čtyři otázky ani požadavek na otevřenou otázku. Pro delší
+prompt se limit requestu a rezervace zvýší o serializovaný UTF-8 přírůstek;
+3 USD/session, katalog a validace návrhu zůstávají.
+[Inventář a iOS debug test](../ai-eval/personalities.md).

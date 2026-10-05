@@ -87,6 +87,24 @@ internal static class GptLiveTests
         await connection.SendAudioAsync(new byte[960], deadline.Token);
         Check(socket.Sent.Count == sentBeforeLateInput, "late microphone input never follows provider close");
 
+        using var shortSocket = new LiveSocket(answers: 2);
+        await using var shortConnection = new GptLiveConnection(shortSocket);
+        var shortCalls = 0;
+        using var shortDialog = new TextDialogRunner((text, mask, history, question, token, memory, personality) =>
+        {
+            shortCalls++;
+            Check(personality == PersonalityCatalog.OllivanderId && !question,
+                "Live delegates the selected personality and permits early selection");
+            return Task.FromResult(new TextDialogResponse("Krátká replika", shortCalls == 2 ? "propose" : "ask",
+                "", shortCalls == 2 ? 2 : null, ResponsesTextDialogBudget.Model, 100, 10, "default"));
+        });
+        using var shortDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var shortOutcome = await new GptLiveDialogue(shortConnection, shortDialog).RunAsync(
+            turn with { PersonalityId = PersonalityCatalog.OllivanderId }, (_, _) => Task.CompletedTask,
+            (_, _) => Task.CompletedTask, _ => Task.CompletedTask, shortDeadline.Token);
+        Check(shortCalls == 2 && shortOutcome.Questions == 2 && shortOutcome.Reply.Compartment == 2,
+            "new Live personality completes selection after two answers instead of the original four");
+
         using var interruptedSocket = new LiveSocket(interruptFinal: true);
         await using var interruptedConnection = new GptLiveConnection(interruptedSocket);
         var interruptedCalls = 0;
@@ -214,7 +232,7 @@ internal static class GptLiveTests
         if (!condition) throw new Exception(reason);
     }
 
-    private sealed class LiveSocket(bool stall = false, bool interruptFinal = false, bool delegationFirst = false, bool splitAnswer = false) : WebSocket
+    private sealed class LiveSocket(bool stall = false, bool interruptFinal = false, bool delegationFirst = false, bool splitAnswer = false, int answers = 4) : WebSocket
     {
         private readonly Channel<byte[]> events = Channel.CreateUnbounded<byte[]>();
         private int answer;
@@ -265,7 +283,7 @@ internal static class GptLiveTests
                     Emit(new { type = "session.output_transcript.delta", delta = "Skutečně vyslo" });
                     Emit(new { type = "session.output_transcript.delta", delta = "vená replika" });
                     Emit(new { type = "session.output_audio.delta", delta = Convert.ToBase64String(new byte[] { 0, 32, 0, 32 }) });
-                    if (answer < 4) NextAnswer();
+                    if (answer < answers) NextAnswer();
                     else if (interruptFinal && !interrupted)
                     {
                         interrupted = true;

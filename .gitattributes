@@ -6,6 +6,7 @@
 *.cjs text eol=lf
 *.mjs text eol=lf
 *.md text eol=lf
+kufr/ai-eval/ollivander-trunk-persona.txt text eol=lf
 *.ps1 text eol=lf
 *.png binary
 *.jpg binary

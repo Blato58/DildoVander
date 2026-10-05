@@ -4,7 +4,7 @@ namespace Kufr.Backend.Features.Conversations;
 
 internal sealed class TextDialogRunner : IDisposable
 {
-    private readonly Func<string, int, IReadOnlyList<DialogExchange>, bool, CancellationToken, string, Task<TextDialogResponse>>? generate;
+    private readonly Func<string, int, IReadOnlyList<DialogExchange>, bool, CancellationToken, string, string, Task<TextDialogResponse>>? generate;
     private readonly SemaphoreSlim slot = new(1, 1);
     private readonly HttpClient? httpClient;
     private volatile bool enabled = true;
@@ -50,12 +50,18 @@ internal sealed class TextDialogRunner : IDisposable
         Func<string, int, IReadOnlyList<DialogExchange>, bool, CancellationToken, Task<TextDialogResponse>> generate,
         CancellationToken stopping = default)
     {
-        this.generate = (text, mask, history, question, token, _) => generate(text, mask, history, question, token);
+        this.generate = (text, mask, history, question, token, _, _) => generate(text, mask, history, question, token);
         Stopping = stopping;
     }
 
     internal TextDialogRunner(
         Func<string, int, IReadOnlyList<DialogExchange>, bool, CancellationToken, string, Task<TextDialogResponse>> generate)
+    {
+        this.generate = (text, mask, history, question, token, context, _) => generate(text, mask, history, question, token, context);
+    }
+
+    internal TextDialogRunner(
+        Func<string, int, IReadOnlyList<DialogExchange>, bool, CancellationToken, string, string, Task<TextDialogResponse>> generate)
     {
         this.generate = generate;
     }
@@ -76,9 +82,10 @@ internal sealed class TextDialogRunner : IDisposable
         IReadOnlyList<DialogExchange> history,
         bool requireQuestion,
         CancellationToken cancellationToken,
-        string eveningContext = "")
+        string eveningContext = "",
+        string personalityId = PersonalityCatalog.DefaultId)
     {
-        return generate!(text, readyMask, history, requireQuestion, cancellationToken, eveningContext);
+        return generate!(text, readyMask, history, requireQuestion, cancellationToken, eveningContext, personalityId);
     }
 
     public void Release() => slot.Release();

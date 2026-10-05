@@ -99,11 +99,12 @@ internal sealed partial class ConversationStore
             var memory = eveningMemory?.ReadContext(deviceId, conversationId, request.Text);
             var turn = new RealtimeTurnContext(
                 request,
-                conversation.CompletedQuestions < ResponsesTextDialogBudget.MinimumQuestions,
+                conversation.CompletedQuestions < PersonalityCatalog.MinimumQuestions(conversation.PersonalityId),
                 memory?.Transcript ?? "",
                 conversation.History.ToArray(),
                 LiveAudio: handsFree && !request.Opening,
-                OutputTokenLimit: handsFree ? 768 : RealtimeProtocol.MaxOutputTokens);
+                OutputTokenLimit: handsFree ? 768 : RealtimeProtocol.MaxOutputTokens)
+            { PersonalityId = conversation.PersonalityId };
             var correlation = new TurnCorrelation(deviceId, request.BootId, conversationId,
                 request.ClientTurnId, request.Generation, request.DeviceRevision);
             var reservation = journal.Reserve(deviceId, route, key, bodyHash, correlation,
@@ -267,7 +268,7 @@ internal sealed partial class ConversationStore
                 return null;
             var completed = call with { Context = call.Context with
             {
-                RequireQuestion = outcome.Questions < ResponsesTextDialogBudget.MinimumQuestions
+                RequireQuestion = outcome.Questions < PersonalityCatalog.MinimumQuestions(call.Context.PersonalityId)
             } };
             // Archive actual frontend transcripts, never an unspoken Sol draft.
             if (call.EveningId is not null)

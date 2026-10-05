@@ -27,7 +27,7 @@ internal static class GptLiveProtocol
             input = Array.Empty<object>(),
             audio = new { format = new { type = "audio/pcm", rate = 24000 }, output = new { voice = turn.Request.Voice } },
             delegation = new { type = "client" },
-            instructions = PartyDialoguePrompt.VoicePersona + "\n\n" + """
+            instructions = PersonalityCatalog.Persona(turn.PersonalityId) + "\n\n" + """
                 Delegation policy:
                 Backend tools: Backend připravuje další roast s otázkou a ověřuje výběr dostupné hůlky nebo konec hry.
                 Delegate to the backend when: Host dokončí novou odpověď na otázku, opraví ji nebo žádá skončit.
@@ -36,7 +36,7 @@ internal static class GptLiveProtocol
                 Vyslov dodanou repliku přirozeně, zachovej ostrost, konkrétní pointu, název hůlky a právě dodanou otázku.
                 Během delegace nevytvářej další otázku ani vlastní výběr.
                 Hůlku nikdy nevybírej sám. Jakmile backend dodá výběr, vyslov dodanou závěrečnou repliku.
-                """ + "\n" + ConversationOpening.Instructions(turn.OpeningVariation)
+                """ + "\n" + PersonalityCatalog.OpeningInstructions(turn.PersonalityId, turn.OpeningVariation)
         }
     };
 
