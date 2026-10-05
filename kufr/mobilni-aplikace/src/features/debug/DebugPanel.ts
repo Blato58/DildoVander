@@ -34,6 +34,9 @@ interface ServerModes {
   voiceAvailable: boolean;
   activeConversations: number;
   lifetime: 'until_restart';
+  personalityId?: string;
+  personalityLifetime?: 'persistent';
+  personalities?: Array<{ id: string; name: string; description: string; promptSha256: string }>;
 }
 interface DebugBridge {
   readServerLogs(options: { after?: number; level: string }): Promise<ServerLogPage>;
@@ -45,7 +48,7 @@ interface DebugBridge {
   activateEvening(options: { eveningId: string; expectedEveningId: string }): Promise<void>;
   inspectBackend(): Promise<void>;
   inspectServer(): Promise<void>;
-  changeServerModes(options: { expectedRevision: string; dialogMode: string; voiceMode: string }): Promise<void>;
+  changeServerModes(options: { expectedRevision: string; dialogMode: string; voiceMode: string; personalityId?: string }): Promise<void>;
   runOpeningSpeech(options: { expectedMode: 'fake' | 'openai' }): Promise<void>;
   startConversation(options: {
     expectedMode: 'fake' | 'openai'; readyMask: number;
@@ -103,7 +106,8 @@ export class DebugPanel {
         <p data-freshness></p>
         <p class="footnote">Údaje pocházejí z přijatých snapshotů. GPIO, napájení ani fyzický pohyb z nich nelze ověřit.</p></section>
       <section class="debug-card" aria-labelledby="server-heading"><h2 id="server-heading">Server</h2>
-        <p>Změna platí pro celý backend do restartu. Režim lze změnit mezi rozhovory.
+        <p>Nastavení platí pro celý backend. Personalita se ukládá i přes restart; režimy do restartu.
+          Změny lze použít mezi rozhovory.
           AI režim může čerpat serverový limit až při spuštění testu nebo rozhovoru.</p>
         <div class="actions">
           <button type="button" data-debug="configure">Nastavit serverový / testovací přístup</button>
@@ -113,8 +117,11 @@ export class DebugPanel {
             <option value="fake">Fake</option><option value="responses">AI · Sol</option></select></label>
           <label>Hlas <select aria-label="Režim hlasu" data-server="voice">
             <option value="fake">Fake · tiché WAV</option><option value="openai">AI · STT / TTS</option></select></label>
-          <button type="button" class="primary" data-debug="server-apply">Použít režimy serveru</button>
+          <label>Personalita <select aria-label="Personalita kufru" data-server="personality">
+            <option value="">Nejprve obnovte stav serveru</option></select></label>
+          <button type="button" class="primary" data-debug="server-apply">Použít nastavení serveru</button>
         </div>
+        <p data-personality-description></p>
         <p data-server-status role="status"></p>
         <p class="footnote">Správa vyžaduje samostatný credential správce a testovací ID debug-server-admin.
           Běžný přístup kufru nestačí. Po restartu platí režimy nasazení; obnovte stav.</p></section>
@@ -161,6 +168,7 @@ export class DebugPanel {
         <h2 id="debug-conversation-heading">Zkušební rozhovor a výběr hůlky</h2>
         <p>Rozhovor běží na telefonu pod servisní identitou. Dostupnost přihrádek je pouze simulovaná;
           návrh hůlky nespouští pohon kufru. AI režim může čerpat serverový limit.</p>
+        <p data-conversation-personality>Personalitu zvolte a použijte v nastavení serveru výše.</p>
         <fieldset data-conversation-availability><legend>Simulované dostupné přihrádky</legend>
           <div class="debug-ready-grid">
             ${Array.from({ length: 6 }, (_, index) => `<label><input type="checkbox" data-ready="${index + 1}" checked> ${index + 1}</label>`).join('')}
@@ -180,8 +188,8 @@ export class DebugPanel {
             <option value="1.1" selected>1,1×</option><option value="1.2">1,2×</option></select></label>
         </div>
         <div class="actions">
-          <button type="button" class="primary" data-debug="conversation-ai">Začít AI rozhovor</button>
-          <button type="button" data-debug="conversation-fake">Začít fake rozhovor</button>
+          <button type="button" class="primary" data-debug="conversation-ai">Otestovat personalitu · AI</button>
+          <button type="button" data-debug="conversation-fake">Otestovat personalitu · fake</button>
           <button type="button" class="stop" data-debug="conversation-stop">Ukončit a smazat rozhovor</button>
         </div>
         <p data-conversation-status role="status"></p>
@@ -213,6 +221,9 @@ export class DebugPanel {
           <button type="button" data-debug="export">Exportovat log JSON</button></div>
         <p data-log-count></p><ol class="debug-log" aria-label="Diagnostické události"></ol>
       </section>`;
+    this.element.addEventListener('change', event => {
+      if ((event.target as HTMLElement).matches('[data-server="personality"]')) this.renderPersonality();
+    });
     this.element.addEventListener('click', (event) => {
       const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-debug]');
       if (button && !button.disabled) { void this.actionAsync(button.dataset.debug!); }
@@ -342,11 +353,26 @@ export class DebugPanel {
       || this.voice.running || this.voice.session === true;
     const dialog = this.element.querySelector<HTMLSelectElement>('[data-server="dialog"]')!;
     const voice = this.element.querySelector<HTMLSelectElement>('[data-server="voice"]')!;
+    const personality = this.element.querySelector<HTMLSelectElement>('[data-server="personality"]')!;
     if (server?.revision !== this.serverRevision) {
       dialog.value = server?.dialogMode ?? 'fake';
       voice.value = server?.voiceMode ?? 'fake';
+      personality.replaceChildren();
+      for (const item of server?.personalities ?? []) {
+        const option = document.createElement('option');
+        option.value = item.id; option.textContent = item.name;
+        personality.append(option);
+      }
+      if (!personality.options.length) {
+        const option = document.createElement('option'); option.value = '';
+        option.textContent = server ? 'Server vyžaduje aktualizaci pro personality' : 'Nejprve obnovte stav serveru';
+        personality.append(option);
+      }
+      personality.value = server?.personalityId ?? '';
       this.serverRevision = server?.revision;
     }
+    personality.disabled = busy || !server?.personalities?.length || server.activeConversations > 0;
+    this.renderPersonality();
     dialog.options[1].disabled = !server?.dialogAvailable;
     voice.options[1].disabled = !server?.voiceAvailable;
     dialog.disabled = voice.disabled = busy || !server || server.activeConversations > 0;
@@ -355,6 +381,17 @@ export class DebugPanel {
     this.element.querySelector('[data-server-status]')!.textContent = server
       ? `Poslední ověřený stav: dialog ${server.dialogMode === 'responses' ? 'AI · Sol' : 'FAKE'}, hlas ${server.voiceMode === 'openai' ? 'AI · STT / TTS' : 'FAKE'}. Aktivní rozhovory: ${server.activeConversations}.`
       : this.native ? 'Nastavte přístup správce a obnovte stav serveru.' : 'Správa serveru je dostupná v nativní iOS aplikaci.';
+  }
+
+  private renderPersonality(): void {
+    const server = this.voice.server;
+    const selected = this.element.querySelector<HTMLSelectElement>('[data-server="personality"]')!.value;
+    this.element.querySelector('[data-personality-description]')!.textContent =
+      server?.personalities?.find(item => item.id === selected)?.description ?? '';
+    const active = server?.personalities?.find(item => item.id === server.personalityId);
+    this.element.querySelector('[data-conversation-personality]')!.textContent = active
+      ? `Test používá aktivní personalitu: ${active.name}. Změnu nejprve použijte v nastavení serveru. Fake ověřuje průchod a délku rozhovoru; tón ověří AI test.`
+      : 'Personalitu zvolte a použijte v nastavení serveru výše.';
   }
 
   private clearServerLogs(): void {
@@ -657,7 +694,8 @@ export class DebugPanel {
         if (!server) { return; }
         const dialogMode = this.element.querySelector<HTMLSelectElement>('[data-server="dialog"]')!.value;
         const voiceMode = this.element.querySelector<HTMLSelectElement>('[data-server="voice"]')!.value;
-        await bridge.changeServerModes({ expectedRevision: server.revision, dialogMode, voiceMode });
+        const personalityId = this.element.querySelector<HTMLSelectElement>('[data-server="personality"]')!.value || undefined;
+        await bridge.changeServerModes({ expectedRevision: server.revision, dialogMode, voiceMode, personalityId });
         code = 'server_modes_changed';
       }
       else if (action === 'inspect') { await bridge.inspectBackend(); code = 'backend_checked'; }

@@ -142,11 +142,11 @@
     "/v1/admin/modes": {
       "get": {
         "operationId": "readServerModes",
-        "summary": "Read global runtime modes and provider availability without provider calls",
+        "summary": "Read global modes, personality inventory and provider availability without provider calls",
         "security": [{ "ServerAdmin": [] }],
         "responses": {
           "200": {
-            "description": "Confirmed state; modes last until restart, then deployment configuration applies",
+            "description": "Confirmed state; modes last until restart; personality selection persists in SQLite",
             "headers": { "Cache-Control": { "schema": { "type": "string", "const": "no-store" } } },
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ServerModes" } } }
           },
@@ -155,7 +155,7 @@
       },
       "put": {
         "operationId": "changeServerModes",
-        "summary": "Change global modes using an observed revision when no conversation or provider call is active",
+        "summary": "Change modes and optional personality using an observed revision when idle",
         "security": [{ "ServerAdmin": [] }],
         "requestBody": {
           "required": true,
@@ -1170,12 +1170,23 @@
         "properties": {
           "expectedRevision": { "type": "string", "format": "uuid" },
           "dialogMode": { "enum": ["fake", "responses"] },
-          "voiceMode": { "enum": ["fake", "openai"] }
+          "voiceMode": { "enum": ["fake", "openai"] },
+          "personalityId": { "type": ["string", "null"], "pattern": "^[a-z0-9-]{1,64}$", "description": "Omitted or null retains the current selection; unknown ID returns invalid_personality" }
+        }
+      },
+      "PersonalityInfo": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "name", "description", "promptSha256"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "description": { "type": "string", "minLength": 1, "maxLength": 300 },
+          "promptSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
         }
       },
       "ServerModes": {
         "type": "object", "additionalProperties": false,
-        "required": ["revision", "dialogMode", "voiceMode", "dialogAvailable", "voiceAvailable", "activeConversations", "lifetime"],
+        "required": ["revision", "dialogMode", "voiceMode", "dialogAvailable", "voiceAvailable", "activeConversations", "lifetime", "personalityId", "personalities", "personalityLifetime"],
         "properties": {
           "revision": { "type": "string", "format": "uuid" },
           "dialogMode": { "enum": ["fake", "responses"] },
@@ -1183,6 +1194,9 @@
           "dialogAvailable": { "type": "boolean" },
           "voiceAvailable": { "type": "boolean" },
           "activeConversations": { "type": "integer", "minimum": 0 },
+          "personalityId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "personalities": { "type": "array", "minItems": 1, "maxItems": 32, "items": { "$ref": "#/components/schemas/PersonalityInfo" } },
+          "personalityLifetime": { "const": "persistent" },
           "lifetime": { "const": "until_restart" }
         }
       },

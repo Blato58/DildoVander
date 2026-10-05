@@ -326,6 +326,24 @@ operace a rozhovoru. UUID nebo JSON lze sdílet pro
 v Keychain; JS nikdy nedostává token, těla požadavků, audio ani provider chyby.
 Webový vývoj funkci označuje jako nativní; syntetický UI harness ji simuluje.
 
+## D142: inventář personalit a debug test
+
+**Debug → Server → Personalita → Použít nastavení serveru** přepíná mezi
+původním party kufrem a Ollivanderovým kouzelným kufrem. Volba platí pro
+celý backend včetně samostatného ESP a ukládá se i přes restart. Přepíná
+se mezi rozhovory s existujícím admin přístupem; změna sama AI nevolá.
+Seznam, popis a kontrolní hash promptu dodává server. Starší backend
+vyžaduje aktualizaci; starší aplikace při změně režimů volbu zachová.
+
+**Zkušební rozhovor → Otestovat personalitu · AI / fake** ukazuje aktivní
+jméno a používá stávající hlasový tok. Změnu personality nejprve použijte
+v nastavení serveru. Fake test má pro nový kufr dvě otázky a pro původní
+čtyři; neověřuje humor ani nesyntetizuje skutečný hlas. AI používá stejný
+vybraný prompt v Solu, Realtime i GPT-Live a dosavadní nákladové limity.
+[Inventář, přesné zdroje a postup](../ai-eval/personalities.md).
+K použití na telefonu je nutná nová IPA a backend s D142; webový harness
+ani offline provider testy nejsou fyzický poslech.
+
 ## D128: porovnání GPT-Live + Sol
 
 Debug nabízí vedle Realtime a řetězeného hlasu **GPT-Live + Sol**.

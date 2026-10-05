@@ -36,7 +36,7 @@ internal static class ServerModeEndpoints
     }
 }
 
-internal sealed record ServerModeChange(string ExpectedRevision, string DialogMode, string VoiceMode);
+internal sealed record ServerModeChange(string ExpectedRevision, string DialogMode, string VoiceMode, string? PersonalityId = null);
 internal sealed record ServerModes(
     string Revision,
     string DialogMode,
@@ -44,5 +44,8 @@ internal sealed record ServerModes(
     bool DialogAvailable,
     bool VoiceAvailable,
     int ActiveConversations,
+    string PersonalityId,
+    IReadOnlyList<PersonalityInfo> Personalities,
+    string PersonalityLifetime = "persistent",
     string Lifetime = "until_restart");
 internal sealed record ServerModeResult(int Status, ServerModes? State, string? Error);

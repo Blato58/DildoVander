@@ -105,6 +105,16 @@ enum DebugProfileDraft {
     }
 }
 
+struct DebugPersonality: Codable {
+    let id: String
+    let name: String
+    let description: String
+    let promptSha256: String
+    var bridgeValue: [String: Any] {
+        ["id": id, "name": name, "description": description, "promptSha256": promptSha256]
+    }
+}
+
 struct DebugServerModes: Codable {
     let revision: String
     let dialogMode: String
@@ -113,11 +123,17 @@ struct DebugServerModes: Codable {
     let voiceAvailable: Bool
     let activeConversations: Int
     let lifetime: String
+    let personalityId: String?
+    let personalities: [DebugPersonality]?
+    let personalityLifetime: String?
 
     var bridgeValue: [String: Any] {
         ["revision": revision, "dialogMode": dialogMode, "voiceMode": voiceMode,
          "dialogAvailable": dialogAvailable, "voiceAvailable": voiceAvailable,
-         "activeConversations": activeConversations, "lifetime": lifetime]
+         "activeConversations": activeConversations, "lifetime": lifetime,
+         "personalityId": personalityId as Any? ?? NSNull(),
+         "personalities": personalities?.map { $0.bridgeValue } as Any? ?? NSNull(),
+         "personalityLifetime": personalityLifetime as Any? ?? NSNull()]
     }
 }
 
@@ -551,7 +567,8 @@ final class DebugBackendClient {
     }
 
     func serverModes(_ profile: DebugBackendProfile, expectedRevision: String? = nil,
-                     dialogMode: String? = nil, voiceMode: String? = nil) async throws -> DebugServerModes {
+                     dialogMode: String? = nil, voiceMode: String? = nil,
+                     personalityId: String? = nil) async throws -> DebugServerModes {
         var body: [String: Any]?
         if let revision = expectedRevision {
             guard UUID(uuidString: revision) != nil,
@@ -560,6 +577,12 @@ final class DebugBackendClient {
                 throw DebugBackendError.wrongMode
             }
             body = ["expectedRevision": revision, "dialogMode": dialog, "voiceMode": voice]
+            if let id = personalityId {
+                guard id.range(of: "^[a-z0-9-]{1,64}$", options: .regularExpression) != nil else {
+                    throw DebugBackendError.wrongMode
+                }
+                body?["personalityId"] = id
+            }
         }
         let value = try await json(profile, path: "v1/admin/modes", token: profile.credential,
                                    method: body == nil ? "GET" : "PUT", body: body)
@@ -572,6 +595,19 @@ final class DebugBackendClient {
               (modes.dialogMode != "responses" || modes.dialogAvailable),
               (modes.voiceMode != "openai" || modes.voiceAvailable) else {
             throw DebugBackendError.invalidResponse
+        }
+        if modes.personalityId != nil || modes.personalities != nil || modes.personalityLifetime != nil {
+            guard let id = modes.personalityId, let inventory = modes.personalities,
+                  modes.personalityLifetime == "persistent", (1...32).contains(inventory.count),
+                  Set(inventory.map { $0.id }).count == inventory.count,
+                  inventory.contains(where: { $0.id == id }),
+                  inventory.allSatisfy({ item in
+                      item.id.range(of: "^[a-z0-9-]{1,64}$", options: .regularExpression) != nil
+                      && (1...100).contains(item.name.unicodeScalars.count)
+                      && (1...300).contains(item.description.unicodeScalars.count)
+                      && !(item.name + item.description).unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) })
+                      && item.promptSha256.range(of: "^[a-f0-9]{64}$", options: .regularExpression) != nil
+                  }) else { throw DebugBackendError.invalidResponse }
         }
         return modes
     }

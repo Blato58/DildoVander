@@ -28,6 +28,7 @@ internal sealed record RealtimeTurnContext(
     bool LiveAudio = false,
     int OutputTokenLimit = RealtimeProtocol.MaxOutputTokens)
 {
+    internal string PersonalityId { get; init; } = PersonalityCatalog.DefaultId;
     internal string OpeningVariation { get; init; } = Request.Opening ? ConversationOpening.Next() : "";
 }
 
@@ -52,7 +53,6 @@ internal static class RealtimeProtocol
     {
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
-    private static readonly string Instructions = PartyDialoguePrompt.DecisionInstructions;
 
     internal static RealtimeTurnRequest? ReadRequest(byte[] body)
     {
@@ -120,7 +120,7 @@ internal static class RealtimeProtocol
         }
         var options = new RealtimeConversationSessionOptions
         {
-            Instructions = Instructions + "\nServerová pravidla tohoto tahu: "
+            Instructions = PersonalityCatalog.DecisionInstructions(turn.PersonalityId) + "\nServerová pravidla tohoto tahu: "
                 + $"opening={turn.Request.Opening}; requireQuestion={turn.RequireQuestion}; "
                 + $"Dostupné hůlky: {PartyWandCatalog.AvailableForPrompt(turn.Request.ReadyMask)}. "
                 + (turn.Request.ReadyMask == 0
@@ -128,7 +128,7 @@ internal static class RealtimeProtocol
                     : turn.RequireQuestion
                         ? "Polož jednu otázku. Výběr není povolený."
                         : "Jakmile máš podklady, rovnou vyber přes propose_wand. Nežádej souhlas s hůlkou; další otázka jen pro chybějící podklad.")
-                + (turn.Request.Opening ? " " + ConversationOpening.Instructions(turn.OpeningVariation) : ""),
+                + (turn.Request.Opening ? " " + PersonalityCatalog.OpeningInstructions(turn.PersonalityId, turn.OpeningVariation) : ""),
             MaxOutputTokenCount = turn.OutputTokenLimit,
             Truncation = RealtimeDefaultTruncation.Disabled,
             AudioOptions = new RealtimeConversationSessionAudioOptions

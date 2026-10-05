@@ -15,6 +15,7 @@ if (args is ["--gpt-live-smoke"])
 
 await RealtimeTests.RunAsync();
 await GptLiveTests.RunAsync();
+await PersonalityTests.RunAsync();
 await ResponsesTextDialogClientTests.RunAsync();
 ResponsesTextDialogBudgetTests.Run();
 await TextDialogRuntimeTests.RunAsync();
@@ -355,7 +356,7 @@ using (var migratedConnection = new SqliteConnection($"Data Source={migrationPat
     migratedConnection.Open();
     using var version = migratedConnection.CreateCommand();
     version.CommandText = "PRAGMA user_version";
-    Require((long)version.ExecuteScalar()! == 6, "schema migrated from v1 to v6");
+    Require((long)version.ExecuteScalar()! == 7, "schema migrated from v1 to v7");
 }
 
 var versionTwoPath = Path.Combine(databaseDirectory, "legacy-v2.sqlite");

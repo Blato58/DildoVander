@@ -578,7 +578,8 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
                 do {
                     let modes = try await DebugBackendClient().serverModes(profile,
                         expectedRevision: change ? revision : nil,
-                        dialogMode: call.getString("dialogMode"), voiceMode: call.getString("voiceMode"))
+                        dialogMode: call.getString("dialogMode"), voiceMode: call.getString("voiceMode"),
+                        personalityId: call.getString("personalityId"))
                     try Task.checkCancellation()
                     guard self.generation == generation, UIApplication.shared.applicationState == .active else { throw CancellationError() }
                     self.serverModes = modes; self.mode = modes.voiceMode

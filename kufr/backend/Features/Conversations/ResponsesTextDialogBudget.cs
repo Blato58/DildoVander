@@ -14,13 +14,14 @@ internal static class ResponsesTextDialogBudget
     // twice that amount so an unexpected Fast response can retain its full cost.
     internal const long ReservedMicroUsd = 100_000;
 
-    internal static int RequestByteLimit(string context) => MaxRequestBytes + ContextBytes(context);
+    internal static int RequestByteLimit(string context, string personalityId = PersonalityCatalog.DefaultId) =>
+        MaxRequestBytes + ContextBytes(context) + PersonalityCatalog.ExtraRequestBytes(personalityId);
 
     internal static bool IsSupportedModel(string model) => model == Model;
 
-    internal static long ReserveForContext(string context, string model = Model)
+    internal static long ReserveForContext(string context, string model = Model, string personalityId = PersonalityCatalog.DefaultId)
     {
-        var solReservation = checked(ReservedMicroUsd + ContextBytes(context) * 5L);
+        var solReservation = checked(ReservedMicroUsd + (ContextBytes(context) + PersonalityCatalog.ExtraRequestBytes(personalityId)) * 5L);
         return model switch
         {
             Model => solReservation,

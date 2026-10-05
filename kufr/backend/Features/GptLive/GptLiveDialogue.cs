@@ -32,7 +32,9 @@ internal sealed class GptLiveDialogue(GptLiveConnection connection, TextDialogRu
         await connection.SendAsync(new { type = "session.instructions.append", delegation_id = (string?)null,
             content = turn.Request.ReadyMask == 0
                 ? "Žádná hůlka není dostupná. Úvodní otázku nepokládej; promluv až po dodání závěrečné repliky."
-                : "Začni teď vlastním krátkým oslovením a první otevřenou otázkou podle pravidel nového rozhovoru." }, token);
+                : turn.PersonalityId == PersonalityCatalog.DefaultId
+                    ? "Začni teď vlastním krátkým oslovením a první otevřenou otázkou podle pravidel nového rozhovoru."
+                    : "Začni teď krátkým přivítáním, rýpnutím a jednou otázkou podle zvolené personality." }, token);
         var elapsed = Stopwatch.StartNew();
         var input = new StringBuilder();
         var archive = new List<LiveTranscript>();
@@ -62,7 +64,7 @@ internal sealed class GptLiveDialogue(GptLiveConnection connection, TextDialogRu
         using var backendWork = CancellationTokenSource.CreateLinkedTokenSource(token);
         void StartBackend(string? id)
         {
-            var reservation = ResponsesTextDialogBudget.ReserveForContext(turn.EveningContext);
+            var reservation = ResponsesTextDialogBudget.ReserveForContext(turn.EveningContext, personalityId: turn.PersonalityId);
             if (++backendCalls > 10
                 || modelCost + reservation + GptLiveProtocol.VoiceReservation > GptLiveProtocol.SessionBudget)
                 throw new InvalidDataException("Live session budget exhausted.");
@@ -71,7 +73,7 @@ internal sealed class GptLiveDialogue(GptLiveConnection connection, TextDialogRu
             pendingVersion = version;
             pendingInput = input.ToString();
             pending = dialog.GenerateAsync(pendingInput, turn.Request.ReadyMask, SpokenHistory(archive),
-                questions < ResponsesTextDialogBudget.MinimumQuestions, backendWork.Token, turn.EveningContext);
+                questions < PersonalityCatalog.MinimumQuestions(turn.PersonalityId), backendWork.Token, turn.EveningContext, turn.PersonalityId);
         }
         if (turn.Request.ReadyMask == 0)
             StartBackend(null);
