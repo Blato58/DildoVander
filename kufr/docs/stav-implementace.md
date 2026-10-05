@@ -1,10 +1,57 @@
 # Stav implementace AI kufru
 
-Poslední aktualizace: **4. 10. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální Arduino i ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a E3a. Ad Hoc podpis a serverová publikace IPA/manifestu prošly CI a veřejným HTTPS testem; majitel potvrdil instalaci a spuštění na iPhonu 15 Pro (D70). Hardware, native WSS/TLS a aktualizace IPA na telefonu zatím nemají runtime akceptaci. Hotový návrh není hotová implementace.
+Poslední aktualizace: **5. 10. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální Arduino i ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a E3a. Ad Hoc podpis a serverová publikace IPA/manifestu prošly CI a veřejným HTTPS testem; majitel potvrdil instalaci a spuštění na iPhonu 15 Pro (D70). Hardware, native WSS/TLS a aktualizace IPA na telefonu zatím nemají runtime akceptaci. Hotový návrh není hotová implementace.
 
 [Implementační plán](implementacni-plan.md) určuje architekturu a akceptaci. [AGENTS.md](../../AGENTS.md) určuje pracovní postup AI. Tento soubor je jediný průběžný záznam postupu; README ho pouze odkazují.
 
 ## Předání další AI
+
+**D142 – 5. 10. 2026 – inventář personalit, trvalá volba a iOS Debug test.**
+Majitel žádá přepínatelné personality a zachování přesného druhého promptu.
+`party-original` zůstává výchozí a `voice-persona.txt` se nemění. Nový
+`ollivander-trunk-persona.txt` obsahuje celé zadání v UTF-8 včetně příkladů,
+vulgarit a `TICH0`; embedded bajty hlídá test SHA-256
+`99a72891209ef2bf5ad5a0120a7998c5a08bf46317f38812fb1d3816a5c3099d`.
+Inventář a návod je v [personalities.md](../ai-eval/personalities.md).
+
+`PersonalityCatalog` poskytuje ID/jména/popisy/hashy přes admin modes.
+Volba je globální pro nový rozhovor ESP i telefonu a zmrazí se při create;
+SQLite `server_settings` (schema 7) zachová volbu přes restart. Přepíná
+se s admin credential a aktuální revizí pouze bez aktivního rozhovoru či
+provider volání. Vynechané ID u původního klienta zachová aktivní volbu.
+Sol, Realtime i GPT-Live dostávají jediný vybraný prompt. Nový kufr dovolí
+výběr už od první odpovědi, obvykle po dvou podle svého promptu; nepřebírá
+čtyřotázkovou bránu ani požadavek na otevřené otázky původní personality.
+Delší prompt má spočtený přírůstek request limitu/nákladové rezervace;
+3 USD/session, katalog a brána fyzické prezentace jsou beze změn.
+
+iOS native bridge validuje metadata inventáře a předává volbu serveru.
+Debug → Server nabízí Personalita a Použít nastavení serveru. Zkušební
+rozhovor ukazuje aktivní jméno a nabízí Otestovat personalitu · AI / fake.
+Fake má pro novou personalitu dvě otázky, pro původní čtyři; tiché WAV a
+syntetická odpověď neověřují charakter. Starší server označí potřebu
+aktualizace a přepnutí není dostupné. Swift fake testy rozšiřují validaci
+ID, duplicity, checksumu a neúplného inventáře; běh vyžaduje macOS.
+
+Ověřeno lokálně: .NET SDK 10.0.303 locked restore linux-x64, Release build
+bez warning/error a celá offline BackendTests sada včetně nového přesného
+promptu, skutečného SDK requestu, rezervace, restartu SQLite, změny revize,
+blokování aktivního hovoru, early selection a dvouodpověďového Live toku.
+HTTP smoke s autentizací admin modes, inventářem, změnou, stale revizí,
+aktivním rozhovorem a dosavadním restartem prošel. Contracts: 25 valid/
+41 invalid control fixtures, OpenAPI a media kontroly prošly. npm ci podle
+lockfile, mobilní Vite/TypeScript build a 25 mobilních testů prošly.
+Python backend offline 16 testů a AI eval 24 testů OK.
+Playwright Chromium: iPhone viewport 393×852, syntetický native harness,
+přepnutí personality, zákaz přepnutí během hovoru a fake výběr po dvou
+odpovědích prošly. Harness není skutečný iOS bridge ani poslech.
+
+Neprovedeno: Swift/Xcode (Linux nemá Apple SDK), podpis nové IPA, deployment,
+placený provider test, poslech a fyzický kufr. Současná publikovaná IPA
+1000.0.15 a nasazený D141 backend tímto lokálním slice nejsou aktualizované.
+Další krok: CI/merge tohoto slice; potom samostatně vyžádaný signed iOS build
+s native testy, ověřené předání backendu a IPA a poslech obou personalit.
+Git předání a výsledek CI budou doplněny po ověření.
 
 
 **D141 – 4. 10. 2026 – otevřené otázky a vlastní repliky bez ukázek.**

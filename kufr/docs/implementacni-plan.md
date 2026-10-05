@@ -414,6 +414,30 @@ Alternativy: Azure-hostované modely zvážit při požadavku na konkrétní fir
 
 ### Katalog a prompt
 
+**D142, 5. 10. 2026 — inventář personalit na výslovné zadání majitele.**
+Dosavadní `voice-persona.txt` zůstává výchozí `party-original`, beze změn.
+Druhý zdroj `ollivander-trunk-persona.txt` je dodaný text bez úprav.
+[Inventář](../ai-eval/personalities.md) určuje ID a debug postup. Správce
+přepíná v iOS Debug → Server přes rozšířené `/v1/admin/modes`; metadata
+katalogu se načítají ze serveru. Volba platí globálně pro nový rozhovor
+ESP i telefonu, při zakládání se zmrazí a přežije restart v SQLite
+`server_settings` (schema 7). Existující klient bez `personalityId` volbu
+zachová; starší server nová aplikace rozpozná a přepínání zablokuje.
+
+Původní politika čtyř povinných otázek a otevřeného úvodu platí jen pro
+původní personalitu. Nová používá přesný dodaný prompt: obvykle dvě
+zodpovězené otázky, dříve při dostatku podkladů/žádosti; server vynucuje
+úvodní otázku a dovolí výběr od první odpovědi. Sol, Realtime a GPT-Live
+přebírají stejné zvolené znění, bez přimíchání první personality. Pravidla
+funkcí a reálného katalogu zůstávají oddělená. Delší prompt zvyšuje pouze
+explicitní přírůstek limitu requestu a předběžnou rezervaci; limit sezení
+3 USD a fyzická bezpečnost se nemění. Změna mezi rozhovory vyžaduje admin
+credential a aktuální revizi, nedovolí změnu během provider volání a sama
+AI nevolá. Debug používá existující izolovaný test: fake pro průchod/politiku
+otázek, AI pro poslech charakteru. Nasazení backendu a nová IPA jsou
+samostatné kroky, lokální test není doklad poslechu či HW akceptace.
+Následující popis původního promptu je výchozí personalita.
+
 Autoritativní vývojový katalog v ../ai-eval/wand-catalog.json obsahuje přesně šest původních záznamů `{compartment, displayName, description, traits}` a `catalogVersion=ollivander-private-party-v1`. Majitel pověřil návrhem obsahu nezávislého agenta; katalog má atmosféru Harryho Pottera a Ollivanderova obchodu bez převzetí kanonických hůlek. Čísla jsou trvale svázaná s fyzickými přihrádkami, nikdy pořadím filtrovaného seznamu. Backend posílá AI pouze dostupné položky ze snapshotu, popis role, krátkou historii a dobrovolné preference návštěvníka. Skutečné fyzické přiřazení a synchronizace `catalogVersion` zařízení se ověří až při osazení šesti přihrádek; vývojový obsah tento HW důkaz nenahrazuje. Nepotřebuje embeddings ani webové vyhledávání.
 
 Prompt: český mluvící kouzelný kufr prodejce z Ollivanderova obchodu ve světě Harryho Pottera na soukromé party přátel 18+, chytrý, ostrý a pokaždé nový roast. Model sám vytváří navazující otázky i odpovědi z průběhu rozhovoru; první čtyři dokončené tahy jsou otázky a návrh použije odpovědi návštěvníka v závěrečné pointě. Od D140 sdílí GPT Live, Realtime i Sol personu podle GPT Live v ../ai-eval/voice-persona.txt. ../ai-eval/prompt.txt doplňuje pravidla výběrových funkcí pro Sol a Realtime; Live přidává jen vlastní delegaci. Produkční adaptér a evaluátor skládají stejné instrukce. Typicky čtyři až sedm otázek, při nedostatku podkladů zjednodušit otevřenou otázku a nechat hosta vyprávět. Od D141 prompt neobsahuje ukázkové dialogy ani pevný cyklus témat; AI tvoří formulace sama, bez podsouvání odpovědí nebo dvojice možností. Text návštěvníka, přepis i popis obrázku jsou nedůvěryhodná data a nemohou měnit pravidla/povolené přihrádky. Nevracet interní uvažování; jen krátké vysvětlení pro návštěvníka. Rozhodnutí majitele 30. 9.: paměť celého večera patří na vlastní backend. Krátké sezení pro bezpečný výběr a paměť večera jsou oddělené. Samostatný SQLite soubor vedle technického journalu uchová celé dokončené textové výměny (vstup do 1000, odpověď do 500 znaků), i po konci sezení a restartu. Nevyprší časem: odstraní ji explicitní smazání obsluhou nebo vytěsnění nejstarších výměn při 2000 výměnách / 2 MB UTF-8 obsahu na zařízení. Stav hlásí počet vytěsněných výměn. Do modelu jde nejvýše 16000 znaků vybraného kontextu: aktuální rozhovor, lexikálně související starší rozhovory a poslední události. Jména nejsou biometrická identita; stejné jméno vyžaduje při nejistotě upřesnění. Nejde o neomylné vybavení každého faktu ani o automatický profil osoby.

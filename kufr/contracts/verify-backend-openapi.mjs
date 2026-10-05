@@ -72,8 +72,12 @@ assert.deepEqual(document.security, [{ DeviceAccess: [] }]);
 assert.deepEqual(document.paths['/v1/admin/modes'].get.security, [{ ServerAdmin: [] }]);
 assert.deepEqual(document.paths['/v1/admin/modes'].put.security, [{ ServerAdmin: [] }]);
 const serverModes = { revision: '00000000-0000-4000-8000-000000000001', dialogMode: 'fake', voiceMode: 'fake',
-  dialogAvailable: true, voiceAvailable: true, activeConversations: 0, lifetime: 'until_restart' };
+  dialogAvailable: true, voiceAvailable: true, activeConversations: 0, lifetime: 'until_restart', personalityId: 'party-original', personalityLifetime: 'persistent',
+  personalities: [{ id: 'party-original', name: 'Původní party kufr', description: 'Původní personalita', promptSha256: 'a'.repeat(64) }] };
 validate('ServerModes', serverModes, true);
+validate('ServerModes', { ...serverModes, personalityLifetime: 'until_restart' }, false);
+validate('PersonalityInfo', { ...serverModes.personalities[0], promptSha256: 'bad' }, false);
+validate('ServerModeChange', { expectedRevision: serverModes.revision, dialogMode: 'fake', voiceMode: 'fake', personalityId: 'ollivander-trunk' }, true);
 validate('ServerModes', { ...serverModes, voiceMode: 'unknown' }, false);
 validate('ServerModes', { ...serverModes, credential: 'secret' }, false);
 validate('ServerModeChange', { expectedRevision: serverModes.revision, dialogMode: 'responses', voiceMode: 'openai' }, true);

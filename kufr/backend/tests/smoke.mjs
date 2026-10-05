@@ -227,6 +227,11 @@ try {
   assert.equal(modes.lifetime, 'until_restart');
   assert.equal(modes.dialogMode, 'fake');
   assert.equal(modes.activeConversations, 0);
+  assert.equal(modes.personalityId, 'party-original');
+  assert.equal(modes.personalityLifetime, 'persistent');
+  assert.deepEqual(modes.personalities.map(item => item.id), ['party-original', 'ollivander-trunk']);
+  assert.ok(modes.personalities.every(item => /^[a-f0-9]{64}$/.test(item.promptSha256)));
+  assert.equal(modes.personalities[1].promptSha256, '99a72891209ef2bf5ad5a0120a7998c5a08bf46317f38812fb1d3816a5c3099d');
   const changeModes = async (body, credential = adminCredential) => {
     const response = await fetch(`${baseUrl}/v1/admin/modes`, {
       method: 'PUT', headers: { Authorization: `Bearer ${credential}`, 'Content-Type': 'application/json' },
@@ -241,6 +246,14 @@ try {
   assert.equal((await changeModes({ ...modeBody, dialogMode: 'unsupported' })).status, 400);
   assert.equal((await changeModes({ ...modeBody, expectedRevision: randomUUID() })).status, 409);
   assert.equal((await changeModes({ ...modeBody, voiceMode: 'openai' })).result.code, 'provider_unavailable');
+  assert.equal((await changeModes({ ...modeBody, personalityId: 'unknown' })).result.code, 'invalid_personality');
+  assert.equal((await changeModes({ ...modeBody, personalityId: 'ollivander-trunk' }, tokenA)).status, 401);
+  const selectedPersonality = await changeModes({ ...modeBody, personalityId: 'ollivander-trunk' });
+  assert.equal(selectedPersonality.status, 200);
+  assert.equal(selectedPersonality.result.personalityId, 'ollivander-trunk');
+  assert.equal((await changeModes(modeBody)).status, 409, 'personality changes share the mode revision');
+  const restoredPersonality = await changeModes({ ...modeBody, expectedRevision: selectedPersonality.result.revision, personalityId: 'party-original' });
+  assert.equal(restoredPersonality.status, 200);
   const adminToken = await call('/v1/device-access/token', { credential: adminCredential });
   assert.equal(adminToken.result.deviceId, 'debug-server-admin');
   const virtualDevice = adminToken.result.deviceId;
@@ -251,6 +264,8 @@ try {
   });
   assert.equal(virtualSession.status, 201);
   const virtualId = virtualSession.result.conversationId;
+  assert.equal((await changeModes({ ...modeBody, expectedRevision: restoredPersonality.result.revision,
+    personalityId: 'ollivander-trunk' })).result.code, 'conversations_active');
   const virtualTurn = {
     clientTurnId: randomUUID(), bootId: virtualBody.bootId, generation: 1,
     readyMask: 0b101010, deviceRevision: 4, catalogVersion: virtualBody.catalogVersion,

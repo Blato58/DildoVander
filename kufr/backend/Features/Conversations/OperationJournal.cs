@@ -5,7 +5,7 @@ using Microsoft.Data.Sqlite;
 namespace Kufr.Backend.Features.Conversations;
 
 // This journal stores only technical identities and body hashes, never visitor text.
-internal sealed class OperationJournal : IDisposable
+internal sealed partial class OperationJournal : IDisposable
 {
     private readonly string connectionString;
     private readonly FileStream instanceLock;
@@ -72,7 +72,7 @@ internal sealed class OperationJournal : IDisposable
         using var version = connection.CreateCommand();
         version.CommandText = "PRAGMA user_version";
         var schemaVersion = (long)version.ExecuteScalar()!;
-        if (schemaVersion is not 0 and not 1 and not 2 and not 3 and not 4 and not 5 and not 6)
+        if (schemaVersion is not 0 and not 1 and not 2 and not 3 and not 4 and not 5 and not 6 and not 7)
         {
             throw new InvalidOperationException("Unsupported backend database schema version.");
         }
@@ -81,6 +81,10 @@ internal sealed class OperationJournal : IDisposable
         using var schema = connection.CreateCommand();
         schema.Transaction = migration;
         schema.CommandText = """
+            CREATE TABLE IF NOT EXISTS server_settings (
+                name TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS turn_operations (
                 operation_id TEXT PRIMARY KEY,
                 device_id TEXT NOT NULL,
@@ -164,7 +168,7 @@ internal sealed class OperationJournal : IDisposable
             schema.ExecuteNonQuery();
         }
 
-        schema.CommandText = "PRAGMA user_version=6";
+        schema.CommandText = "PRAGMA user_version=7";
         schema.ExecuteNonQuery();
         migration.Commit();
 
