@@ -3,6 +3,7 @@ namespace Kufr.Backend.Features.Conversations;
 internal sealed partial class ConversationStore
 {
     private string modeRevision = Guid.NewGuid().ToString();
+    private string personalityId = journal.ReadPersonality();
 
     public ServerModes ReadServerModes()
     {
@@ -23,6 +24,9 @@ internal sealed partial class ConversationStore
             {
                 return new(400, null, "invalid_mode");
             }
+            var requestedPersonality = request.PersonalityId ?? personalityId;
+            if (!PersonalityCatalog.Contains(requestedPersonality))
+                return new(400, null, "invalid_personality");
 
             if (request.ExpectedRevision != modeRevision)
             {
@@ -30,7 +34,8 @@ internal sealed partial class ConversationStore
             }
 
             var current = ServerModesSnapshot();
-            if (request.DialogMode == current.DialogMode && request.VoiceMode == current.VoiceMode)
+            if (request.DialogMode == current.DialogMode && request.VoiceMode == current.VoiceMode
+                && requestedPersonality == personalityId)
             {
                 return new(200, current, null);
             }
@@ -48,6 +53,9 @@ internal sealed partial class ConversationStore
                 return new(409, null, "provider_unavailable");
             }
 
+            // Commit persistence before publishing the in-memory configuration.
+            if (requestedPersonality != personalityId) journal.WritePersonality(requestedPersonality);
+            personalityId = requestedPersonality;
             dialogRunner?.SetEnabled(request.DialogMode == "responses");
             voiceRunner?.SetEnabled(request.VoiceMode == "openai");
             modeRevision = Guid.NewGuid().ToString();
@@ -61,5 +69,7 @@ internal sealed partial class ConversationStore
         voiceRunner?.Enabled == true ? "openai" : "fake",
         dialogRunner?.Available == true,
         voiceRunner?.Available == true,
-        conversations.Count);
+        conversations.Count,
+        personalityId,
+        PersonalityCatalog.Inventory);
 }

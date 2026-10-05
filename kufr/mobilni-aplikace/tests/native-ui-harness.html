@@ -32,7 +32,7 @@
           throw new Error('No answer expected');
         }
         debugStatus.transcript.push({ role: 'visitor', text });
-        if (askedQuestions < questions.length) {
+        if (askedQuestions < (serverState.personalityId === 'ollivander-trunk' ? 2 : questions.length)) {
           debugStatus.transcript.push({ role: 'kufr', text: questions[askedQuestions++] });
           debugStatus.phase = debugStatus.handsFree ? 'listening' : 'awaiting';
         } else {
@@ -63,7 +63,10 @@
         debugStatus.errorCode = 'realtime_live_audio_interrupted';
       });
       let serverState = { revision: 'test-revision', dialogMode: 'fake', voiceMode: 'fake',
-        dialogAvailable: true, voiceAvailable: true, activeConversations: 0, lifetime: 'until_restart' };
+        dialogAvailable: true, voiceAvailable: true, activeConversations: 0, lifetime: 'until_restart', personalityId: 'party-original',
+        personalityLifetime: 'persistent', personalities: [
+          { id: 'party-original', name: 'Původní party kufr', description: 'Původní personalita; 4–7 otázek.', promptSha256: 'a'.repeat(64) },
+          { id: 'ollivander-trunk', name: 'Ollivanderův kouzelný kufr', description: 'Dodaná personalita; obvykle 2 odpovědi.', promptSha256: 'b'.repeat(64) }] };
       const originalEveningId = '00000000-0000-4000-8000-000000000001';
       let eveningState = { activeEveningId: originalEveningId, evenings: [{
         eveningId: originalEveningId, name: 'Původní večer', createdAt: '2026-10-01T18:00:00Z',
@@ -124,7 +127,7 @@
             if (method === 'inspectServer') { debugStatus.server = { ...serverState }; debugStatus.mode = serverState.voiceMode; return; }
             if (method === 'changeServerModes') {
               if (new URLSearchParams(location.search).has('serverConflict')) { debugStatus.server = null; throw new Error('synthetic conflict'); }
-              serverState = { ...serverState, revision: serverState.revision + '-next', dialogMode: options.dialogMode, voiceMode: options.voiceMode };
+              serverState = { ...serverState, revision: serverState.revision + '-next', dialogMode: options.dialogMode, voiceMode: options.voiceMode, personalityId: options.personalityId ?? serverState.personalityId };
               debugStatus.server = { ...serverState }; debugStatus.mode = serverState.voiceMode; return;
             }
             if (method === 'speakSystem' || method === 'runOpeningSpeech') {

@@ -61,11 +61,11 @@ struct NativeDebugTests {
         let inspectedMode = try await client.inspect(profile)
         assert(inspectedMode == "fake")
         let server = try await client.serverModes(profile)
-        assert(server.dialogMode == "fake" && server.voiceAvailable)
+        assert(server.dialogMode == "fake" && server.voiceAvailable && server.personalities?.count == 2)
         let changed = try await client.serverModes(profile, expectedRevision: server.revision,
-                                                    dialogMode: "responses", voiceMode: "openai")
-        assert(changed.dialogMode == "responses" && changed.voiceMode == "openai")
-        for failure in ["admin-denied", "admin-conflict", "admin-invalid"] {
+                                                    dialogMode: "responses", voiceMode: "openai", personalityId: "ollivander-trunk")
+        assert(changed.dialogMode == "responses" && changed.voiceMode == "openai" && changed.personalityId == "ollivander-trunk")
+        for failure in ["admin-denied", "admin-conflict", "admin-invalid", "personality-unknown", "personality-duplicate", "personality-hash", "personality-partial"] {
             let bad = Peer(wav: wav, failure: failure)
             do { _ = try await DebugBackendClient(http: bad.request).serverModes(profile); fatalError("Invalid admin response accepted") }
             catch { }
@@ -444,12 +444,24 @@ final class Peer {
                       "catalogVersion": "ollivander-private-party-v1", "audioFormat": "pcm16-mono-32000-wav"]
         }
         else if path == "/v1/admin/modes" {
-            if request.httpMethod == "PUT" { assert(body["expectedRevision"] as? String == modeRevision) }
+            if request.httpMethod == "PUT" {
+                assert(body["expectedRevision"] as? String == modeRevision)
+                assert(body["personalityId"] as? String == "ollivander-trunk")
+            }
             if failure == "admin-denied" { status = 401 }
             if failure == "admin-conflict" { status = 409 }
             result = ["revision": modeRevision, "dialogMode": body["dialogMode"] ?? "fake",
                       "voiceMode": body["voiceMode"] ?? "fake", "dialogAvailable": true, "voiceAvailable": true,
-                      "activeConversations": 0, "lifetime": failure == "admin-invalid" ? "unexpected" : "until_restart"]
+                      "activeConversations": 0, "lifetime": failure == "admin-invalid" ? "unexpected" : "until_restart",
+                      "personalityId": failure == "personality-unknown" ? "missing" : body["personalityId"] ?? "party-original",
+                      "personalityLifetime": "persistent", "personalities": [
+                        ["id": "party-original", "name": "Původní party kufr", "description": "4–7 otázek",
+                         "promptSha256": String(repeating: "a", count: 64)],
+                        ["id": failure == "personality-duplicate" ? "party-original" : "ollivander-trunk",
+                         "name": "Ollivanderův kouzelný kufr", "description": "2 odpovědi",
+                         "promptSha256": failure == "personality-hash" ? "invalid" : String(repeating: "b", count: 64)]
+                      ]]
+            if failure == "personality-partial" { result.removeValue(forKey: "personalities") }
         }
         else if path == "/v1/conversations" {
             createAttempts += 1

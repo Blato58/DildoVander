@@ -87,6 +87,7 @@ internal sealed partial class ConversationStore(
                     request.Generation,
                     request.CatalogVersion,
                     request.Consent.Audio,
+                    personalityId,
                     response.ExpiresAt,
                     now.AddMinutes(30)));
             return new CreateResult(201, response);
@@ -187,7 +188,7 @@ internal sealed partial class ConversationStore(
                     bodyHash,
                     correlation,
                     estimatedCostMicroUsd: paid
-                        ? ResponsesTextDialogBudget.ReserveForContext(memory?.Transcript ?? "", dialogRunner!.Model)
+                        ? ResponsesTextDialogBudget.ReserveForContext(memory?.Transcript ?? "", dialogRunner!.Model, conversation.PersonalityId)
                         : 0);
                 if (reservation.Conflict)
                 {
@@ -228,6 +229,7 @@ internal sealed partial class ConversationStore(
                         request.CatalogVersion,
                         history,
                         completedQuestions,
+                        conversation.PersonalityId,
                         memory,
                         cancellation));
                     queued = true;
@@ -299,7 +301,7 @@ internal sealed partial class ConversationStore(
             "Kdy ses naposledy odvážil zkusit něco nového?",
             "Co na tobě tvoji blízcí nejvíc oceňují?"
         ];
-        if (conversation.CompletedQuestions < ResponsesTextDialogBudget.MinimumQuestions)
+        if (conversation.CompletedQuestions < PersonalityCatalog.FakeQuestions(conversation.PersonalityId))
         {
             var question = questions[conversation.CompletedQuestions];
             var reply = opening || string.IsNullOrWhiteSpace(request.Text)
@@ -331,6 +333,7 @@ internal sealed partial class ConversationStore(
         string catalogVersion,
         IReadOnlyList<DialogExchange> history,
         int completedQuestions,
+        string selectedPersonalityId,
         EveningContext? memory,
         CancellationTokenSource cancellation)
     {
@@ -357,9 +360,10 @@ internal sealed partial class ConversationStore(
                 visitorText,
                 readyMask,
                 history,
-                completedQuestions < ResponsesTextDialogBudget.MinimumQuestions && readyMask != 0,
+                completedQuestions < PersonalityCatalog.MinimumQuestions(selectedPersonalityId) && readyMask != 0,
                 cancellation.Token,
-                memory?.Transcript ?? "");
+                memory?.Transcript ?? "",
+                selectedPersonalityId);
             var actualCost = ResponsesTextDialogBudget.CalculateActualMicroUsd(response, dialogRunner.Model);
             lock (gate)
             {
@@ -380,7 +384,7 @@ internal sealed partial class ConversationStore(
                 }
 
                 // A provider proposal before the minimum completed questions cannot reach the device.
-                if (response.Decision == "propose" && conversation.CompletedQuestions < ResponsesTextDialogBudget.MinimumQuestions)
+                if (response.Decision == "propose" && conversation.CompletedQuestions < PersonalityCatalog.MinimumQuestions(conversation.PersonalityId))
                 {
                     journal.MarkFailed(operationId);
                     return;
@@ -1010,6 +1014,7 @@ internal sealed partial class ConversationStore(
         int generation,
         string catalogVersion,
         bool audioConsented,
+        string selectedPersonalityId,
         DateTimeOffset expiresAt,
         DateTimeOffset absoluteExpiresAt)
     {
@@ -1018,6 +1023,7 @@ internal sealed partial class ConversationStore(
         public int Generation { get; } = generation;
         public string CatalogVersion { get; } = catalogVersion;
         public bool AudioConsented { get; } = audioConsented;
+        public string PersonalityId { get; } = selectedPersonalityId;
         public DateTimeOffset ExpiresAt { get; set; } = expiresAt;
         public DateTimeOffset AbsoluteExpiresAt { get; } = absoluteExpiresAt;
         public int TurnCount { get; set; }

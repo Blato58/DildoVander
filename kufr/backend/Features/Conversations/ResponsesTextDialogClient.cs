@@ -23,7 +23,6 @@ internal sealed class ResponsesTextDialogClient(
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
     private static readonly TimeSpan DefaultRequestTimeout = TimeSpan.FromSeconds(45);
-    private static readonly string Instructions = PartyDialoguePrompt.DecisionInstructions;
 
     public async Task<TextDialogResponse> GenerateAsync(
         string visitorText,
@@ -31,7 +30,8 @@ internal sealed class ResponsesTextDialogClient(
         IReadOnlyList<DialogExchange> history,
         bool requireQuestion,
         CancellationToken cancellationToken,
-        string eveningContext = "")
+        string eveningContext = "",
+        string personalityId = PersonalityCatalog.DefaultId)
     {
         if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(model)
             || visitorText is not { Length: <= 1000 }
@@ -52,7 +52,7 @@ internal sealed class ResponsesTextDialogClient(
 
         var opening = visitorText.Length == 0;
         requireQuestion |= opening;
-        var openingInstructions = opening ? ConversationOpening.Instructions(ConversationOpening.Next()) : "";
+        var openingInstructions = opening ? PersonalityCatalog.OpeningInstructions(personalityId, ConversationOpening.Next()) : "";
         var input = $"Událost: {(opening ? "opening" : "visitor_reply")}. requireQuestion={requireQuestion}. "
             + (opening ? "" : "Archiv pro orientaci, nikoli aktuální výrok návštěvníka: " + eveningContext + "\n")
             + $"Dostupné přihrádky: [{string.Join(", ", available)}]. "
@@ -72,7 +72,7 @@ internal sealed class ResponsesTextDialogClient(
             service_tier = "default",
             reasoning = new { effort = "low" },
             max_output_tokens = MaxOutputTokens,
-            instructions = Instructions,
+            instructions = PersonalityCatalog.DecisionInstructions(personalityId),
             input,
             tools = BuildTools(requireQuestion, readyMask),
             tool_choice = "required",
@@ -80,7 +80,7 @@ internal sealed class ResponsesTextDialogClient(
         };
 
         var payload = JsonSerializer.Serialize(requestBody, RequestJsonOptions);
-        if (Encoding.UTF8.GetByteCount(payload) > ResponsesTextDialogBudget.RequestByteLimit(eveningContext))
+        if (Encoding.UTF8.GetByteCount(payload) > ResponsesTextDialogBudget.RequestByteLimit(eveningContext, personalityId))
         {
             throw new TextDialogRequestTooLargeException();
         }
