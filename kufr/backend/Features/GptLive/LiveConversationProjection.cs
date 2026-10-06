@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 namespace Kufr.Backend.Features.GptLive;
 
 internal sealed record LiveTranscriptSegment(string Reference, string Speaker, string Text, long StartMs, long EndMs, string? EventId);
-internal enum LiveRequestIntent { Selection, Memory, Remember, Forget, Alternative, CancelConversation, StopSpeech, Repeat, Technical, Thanks }
+internal enum LiveRequestIntent { Selection, Memory, Remember, Forget, Alternative, CancelConversation, StopSpeech, Repeat, Technical, Thanks, Acknowledge }
 internal sealed record LiveBackendTask(string DelegationId, Guid TaskId, string ConversationId, string? GuestId,
     string SessionGeneration, long DecisionRevision, int AvailabilityRevision, string State, string? OperationId, long OffsetMs);
 
@@ -37,7 +37,10 @@ internal sealed class LiveConversationProjection(GptLiveOptions options)
     internal int AnswerCandidates => questionAnswers.Count;
     internal bool UnansweredDiagnosticCandidate => questionReference is not null && !questionAnswers.ContainsKey(questionReference);
     internal string Fingerprint => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
-        string.Join("\n", answers.Skip(authoritativeFrom).Select(e => e.Reference + ":" + e.Text)))));
+        string.Join("\n", answers.Skip(authoritativeFrom)
+            .Where(e => Classify(e.Text) is not (LiveRequestIntent.Thanks or LiveRequestIntent.Acknowledge
+                or LiveRequestIntent.Repeat or LiveRequestIntent.Technical or LiveRequestIntent.StopSpeech))
+            .Select(e => e.Reference + ":" + e.Text)))));
     internal LiveRequestIntent Intent => Classify(LatestInput);
     internal bool DirectSelection => Regex.IsMatch(LatestInput, @"(?i)(prostě|rovnou|hned|nějakou|libovolnou).{0,35}(vyber|zvol)|(?:vyber|zvol).{0,35}(prostě|rovnou|nějakou|libovolnou)");
 
@@ -62,7 +65,7 @@ internal sealed class LiveConversationProjection(GptLiveOptions options)
             if (newAnswer)
             {
                 currentInputReference = "answer-" + answers.Count;
-                if (Classify(text) is not (LiveRequestIntent.Thanks or LiveRequestIntent.Repeat or LiveRequestIntent.Technical or LiveRequestIntent.StopSpeech)) Revision++;
+                if (Classify(text) is not (LiveRequestIntent.Thanks or LiveRequestIntent.Acknowledge or LiveRequestIntent.Repeat or LiveRequestIntent.Technical or LiveRequestIntent.StopSpeech)) Revision++;
                 answers.Add(new(currentInputReference, "")); correctionOffset = -1; inputOutputGeneration = outputGeneration;
             }
             var old = answers[^1];
@@ -125,7 +128,6 @@ internal sealed class LiveConversationProjection(GptLiveOptions options)
         && !Regex.IsMatch(text, @"(?i)(zopak|neslyš|nerozum|souhlas|potvr|odmít|nelíb|proč.{0,20}hůlk)");
     internal static LiveRequestIntent Classify(string text)
     {
-        if (Regex.IsMatch(text.Trim(), @"(?i)^(díky|děkuji|děkuj[ui]|dík)([.!\s]|$)")) return LiveRequestIntent.Thanks;
         if (Regex.IsMatch(text, @"(?i)(zruš.{0,30}(výběr|operaci|rozhovor|hru)|nechci.{0,20}(hůlku|hrát)|ukonči|končím|nevybírej)")
             || Regex.IsMatch(text.Trim(), @"(?i)^(stačí|dost|konec)[.!]?$")) return LiveRequestIntent.CancelConversation;
         if (Regex.IsMatch(text, @"(?i)(drž hubu|přestaň mluvit|buď zticha)")) return LiveRequestIntent.StopSpeech;
@@ -133,6 +135,11 @@ internal sealed class LiveConversationProjection(GptLiveOptions options)
         if (Regex.IsMatch(text.Trim(), @"(?i)^(zapomeň|smaž).{0,60}(paměť|vzpomín|všechno|vše o mně|údaj)")) return LiveRequestIntent.Forget;
         if (Regex.IsMatch(text, @"(?i)(pamatuješ|vzpomín|minule|dřívější)")) return LiveRequestIntent.Memory;
         if (Regex.IsMatch(text, @"(?i)(jinou hůlku|alternativ|nelíbí.{0,30}hůlk|odmítám.{0,30}hůlk)")) return LiveRequestIntent.Alternative;
+        if (Regex.IsMatch(text.Trim(), @"(?i)^(díky|děkuji|děkuj[ui]|dík)(?:\s+(?:moc|pěkně|za hůlku|za výběr))?[.!\s]*$")) return LiveRequestIntent.Thanks;
+        if (Regex.IsMatch(text.Trim(), @"(?i)^(?:(?:ano|jo|tak jo|dobře|jasně|ok|okay|super|souhlasím|beru ji|to beru|sedí|konečně)[,.!\s]*)?(?:(?:tak\s+)?(?:ukaž|předveď|dej|vysuň)\s+(?:ji|mi ji)[.!\s]*)$"))
+            return LiveRequestIntent.Acknowledge;
+        if (Regex.IsMatch(text.Trim(), @"(?i)^(ano|jo|tak jo|dobře|jasně|ok|okay|super|souhlasím|beru ji|to beru|sedí|konečně)[.!\s]*$"))
+            return LiveRequestIntent.Acknowledge;
         if (Regex.IsMatch(text, @"(?i)^(cože|zopakuj|neslyšel|nerozuměl)")) return LiveRequestIntent.Repeat;
         if (Regex.IsMatch(text, @"(?i)^(jak funguje|kolik stojí|jaký model|jaké api)")) return LiveRequestIntent.Technical;
         return LiveRequestIntent.Selection;

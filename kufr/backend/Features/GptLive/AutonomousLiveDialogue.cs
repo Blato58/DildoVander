@@ -42,11 +42,13 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         Func<string, CancellationToken, Task> visitor, Func<CancellationToken, Task> pause,
         Func<LivePlaybackRequest, CancellationToken, Task<LivePlaybackConfirmation>> playback,
         Func<(int ReadyMask, int Revision, bool Current)> availability, Func<CancellationToken, Task> stopInput,
-        CancellationToken token, MemoryAccess? memoryAccess = null, Action<double, WandDecisionStatus>? decisionTiming = null)
+        CancellationToken token, MemoryAccess? memoryAccess = null, Action<double, WandDecisionStatus>? decisionTiming = null,
+        Action<string>? terminalState = null)
     {
         var turn = call.Context;
         var snapshot = turn.LivePrompt ?? throw new InvalidOperationException("Missing frozen Live prompt.");
         var options = snapshot.Options;
+        var inputActivity = new LiveInputActivity(clock, options.SpeechAmplitudeThreshold);
         var projection = new LiveConversationProjection(options);
         var deliveredMemory = new HashSet<string>(turn.LiveMemoryReferences, StringComparer.Ordinal);
         var tracker = new LiveCommandTracker(connection);
@@ -57,6 +59,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                 || started.RootElement.GetProperty("session").GetProperty("model").GetString() != GptLiveProtocol.Model
                 || GptLiveProtocol.RequiredString(started.RootElement, "client_event_id", 128) != startId)
                 throw new InvalidDataException("Live startup correlation failed.");
+        connection.ObserveInput(inputActivity.Observe);
         connection.AudioReady();
         await tracker.AppendAsync("instructions", availability().ReadyMask == 0
             ? "Nová interakce. Žádná fyzická hůlka není dostupná. Oznam tento stav krátce vlastními slovy, bez otázky a bez vymyšleného kusu."
@@ -74,6 +77,9 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         Task<JsonDocument>? receive = null;
         WandDecisionInput? workInput = null;
         string? workFingerprint = null;
+        WandDecisionResult? readyResult = null;
+        LiveBackendTask? readyTask = null;
+        string? readyFingerprint = null;
         TimeSpan workStartedAt = default;
         string? resultCommand = null;
         bool resultAccepted = false;
@@ -90,12 +96,14 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         var paidCalls = 0;
         long cost = 0, reserved = 0;
         double seconds = 0;
-        long observedVersion = 0;
         var alternativeCount = 0;
         int? excluded = null;
         var speechBlocked = false;
+        var terminalInputPending = false;
+        var announcementPrompted = false;
         Task<LivePlaybackConfirmation>? player = null;
         LivePlaybackRequest? playerRequest = null;
+        string? reportedState = null;
         using var workLifetime = CancellationTokenSource.CreateLinkedTokenSource(token);
         using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(50), clock);
         Task<bool>? tick = null;
@@ -103,15 +111,25 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         string Key() => projection.Fingerprint + ":" + availability().Revision + ":" + availability().ReadyMask + ":" + excluded;
         bool Valid(WandDecisionResult result) => availability() is { Current: true } a && result.AvailabilityRevision == a.Revision
             && (result.Compartment is null || (a.ReadyMask & (1 << (result.Compartment.Value - 1))) != 0);
+        void Report(string state)
+        {
+            if (reportedState == state) return;
+            reportedState = state; terminalState?.Invoke(state);
+        }
         async Task Deliver(WandDecisionResult result, string? delegation)
         {
             if (!Valid(result)) return;
+            waiting = null;
             var text = ResultContext(result);
             if (result.Status != WandDecisionStatus.NeedsInformation)
             {
                 terminal = result; terminalAt = Elapsed(); terminalSegment = projection.Segments.Count;
                 terminalSpeech = resultAccepted = false; player = null; playerRequest = null;
+                terminalInputPending = false;
+                announcementPrompted = false;
+                Report("result_ready");
                 await tracker.AppendAsync("instructions", "Následuje platný terminální výsledek. Oznam jej vlastními slovy; nevytvářej další diagnostickou otázku. "
+                    + "Název hůlky vyslov jako její potvrzený štítek; nic nepřejmenovávej. "
                     + "Návrh dosud nepotvrzuje fyzický pohyb ani prezentaci. Po krátkém zakončení dej prostor případné opravě.", delegation, token);
             }
             resultCommand = await tracker.AppendAsync("commentary", text, delegation, token);
@@ -121,7 +139,6 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
             var state = availability();
             if (!state.Current) throw new OperationCanceledException(token);
             var key = Key();
-            if (equivalent.TryGetValue(key, out var cached)) { waiting = null; await Deliver(cached, task.DelegationId); return; }
             if (projection.Intent is LiveRequestIntent.Memory or LiveRequestIntent.Remember or LiveRequestIntent.Forget
                 && memory is not null && memoryAccess is not null)
             {
@@ -131,13 +148,15 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                     : memory.ChangePersonalMemoryAsync(memoryAccess, projection.Intent, new("input:" + projection.Revision, projection.LatestInput), token);
                 waiting = null; tasks[task.DelegationId] = task with { State = "retrieving_memory" }; return;
             }
-            if (projection.Intent is LiveRequestIntent.StopSpeech or LiveRequestIntent.Repeat or LiveRequestIntent.Technical or LiveRequestIntent.Thanks)
+            if (projection.Intent is LiveRequestIntent.StopSpeech or LiveRequestIntent.Repeat or LiveRequestIntent.Technical or LiveRequestIntent.Thanks or LiveRequestIntent.Acknowledge)
             { waiting = null; tasks[task.DelegationId] = task with { State = "no_backend_work" }; return; }
             if (projection.Intent == LiveRequestIntent.CancelConversation)
             {
                 waiting = null;
                 await Deliver(new(WandDecisionStatus.Cancelled, null, [], "", projection.Revision, state.Revision), task.DelegationId); return;
             }
+            if (equivalent.TryGetValue(key, out var cached))
+            { waiting = null; await Deliver(cached with { DecisionRevision = projection.Revision }, task.DelegationId); return; }
             if (projection.Intent == LiveRequestIntent.Alternative)
             {
                 if (++alternativeCount > 1) { waiting = null; await Deliver(new(WandDecisionStatus.Cancelled, null, [], "", projection.Revision, state.Revision), task.DelegationId); return; }
@@ -154,7 +173,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
             reserved = decisions.Reservation(workInput);
             if (++paidCalls > 10 || cost + reserved + GptLiveProtocol.VoiceReservation > GptLiveProtocol.SessionBudget)
                 throw new InvalidDataException("Live decision budget exhausted.");
-            workFingerprint = key; observedVersion = projection.ContentVersion;
+            workFingerprint = key;
             workStartedAt = Elapsed();
             tasks[task.DelegationId] = task with { State = "running", DecisionRevision = projection.Revision, AvailabilityRevision = state.Revision };
             waiting = null;
@@ -197,7 +216,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                             foreach (var part in SplitVisitor(fragment)) await visitor(part, token);
                             if (projection.Intent == LiveRequestIntent.CancelConversation)
                             {
-                                var pendingTask = tasks.Values.LastOrDefault(t => t.State == "running");
+                                var pendingTask = tasks.Values.LastOrDefault(t => t.State is "running" or "awaiting_input_quiet");
                                 if (work is not null)
                                 {
                                     // Cancel is not physical rollback. An ambiguous
@@ -207,6 +226,8 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                                     work = null;
                                     if (pendingTask is not null) tasks[pendingTask.DelegationId] = pendingTask with { State = "cancelled" };
                                 }
+                                if (readyTask is not null) tasks[readyTask.DelegationId] = readyTask with { State = "cancelled" };
+                                readyResult = null; readyTask = null; readyFingerprint = null;
                                 waiting = null; player = null; playerRequest = null; speechBlocked = false;
                                 await Deliver(new(WandDecisionStatus.Cancelled, null, [], "", projection.Revision,
                                     availability().Revision, OperationState: "proposal_cancelled"), pendingTask?.DelegationId);
@@ -218,14 +239,14 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                                 await tracker.AppendAsync("instructions", "Host chce přestat mluvit. Dej mu prostor a mlč; nevytvářej další otázku. Tento požadavek sám nepotvrzuje zrušení ani dokončení fyzické operace.", null, token);
                             }
                             else if (projection.Intent is not (LiveRequestIntent.Repeat or LiveRequestIntent.Thanks)) speechBlocked = false;
-                            if (terminal is not null && projection.Intent is not (LiveRequestIntent.StopSpeech or LiveRequestIntent.Repeat or LiveRequestIntent.Thanks))
+                            if (terminal is not null)
                             {
-                                excluded = projection.Intent == LiveRequestIntent.Alternative ? terminal.Compartment : excluded;
-                                terminal = null; player = null; playerRequest = null;
+                                // Input fragments may split even "Dobře". Stop a
+                                // pending publication now, but wait for both PCM
+                                // quiet and stable text before classifying a new
+                                // request or interrupting the guest with context.
+                                terminalInputPending = true; player = null; playerRequest = null;
                                 if (closing) throw new InvalidDataException("Terminal speech was interrupted during close.");
-                                await tracker.AppendAsync("instructions", "Host dodal novou informaci. Předchozí závěr už není platný; neopakuj jej. Poslouchej, další otázka není automaticky potřeba.", null, token);
-                                var last = tasks.Values.LastOrDefault();
-                                if (last is not null) { waiting = last with { State = "awaiting_context" }; waitingSince = Elapsed(); }
                             }
                             break;
                         case "session.output_transcript.delta": projection.Append(value, false); lastOutput = Elapsed(); break;
@@ -257,7 +278,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                             var task = new LiveBackendTask(id, Guid.NewGuid(), call.Correlation.ConversationId, memoryAccess?.Guest?.GuestId,
                                 call.SessionGeneration, projection.Revision, availability().Revision, "awaiting_context", call.OperationId, offsetMs);
                             tasks.Add(id, task);
-                            if (tasks.Values.Any(t => t.DelegationId != id && t.State is "running" or "retrieving_memory"
+                            if (tasks.Values.Any(t => t.DelegationId != id && t.State is "running" or "retrieving_memory" or "awaiting_input_quiet"
                                 && t.DecisionRevision == projection.Revision && t.AvailabilityRevision == availability().Revision))
                             { tasks[id] = task with { State = "equivalent_running" }; break; }
                             if (terminal is null && !closing && waiting is null) { waiting = task; waitingSince = Elapsed(); }
@@ -292,15 +313,18 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                     var result = await work!; work = null; cost = checked(cost + result.CostMicroUsd);
                     decisionTiming?.Invoke((Elapsed() - workStartedAt).TotalMilliseconds, result.Status);
                     var task = tasks.Values.LastOrDefault(t => t.State == "running")!;
-                    if (observedVersion != projection.ContentVersion || workFingerprint != Key() || !Valid(result))
+                    if (workFingerprint != Key() || !Valid(result))
                     {
                         tasks[task.DelegationId] = task with { State = "stale" };
                         waiting = task with { State = "awaiting_context" }; waitingSince = Elapsed();
                     }
                     else
                     {
-                        equivalent[workFingerprint!] = result; tasks[task.DelegationId] = task with { State = "completed" };
-                        if (!speechBlocked) await Deliver(result, task.DelegationId);
+                        // A guest can resume talking while the model is working,
+                        // before its next transcript arrives. Hold the result
+                        // instead of forcing commentary over their live audio.
+                        readyResult = result; readyTask = task; readyFingerprint = workFingerprint;
+                        tasks[task.DelegationId] = task with { State = "awaiting_input_quiet" };
                     }
                 }
                 if (winner == memoryWork)
@@ -339,20 +363,69 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                     if (playerRequest is not null && terminal is not null && confirmation.Drained
                         && confirmation.PlaybackId == playerRequest.PlaybackId && confirmation.PcmBytes == sentBytes
                         && playerRequest.DecisionRevision == projection.Revision && Valid(terminal) && resultAccepted
+                        && !terminalInputPending
+                        && inputActivity.QuietFor(options.InputQuietMs)
                         && Elapsed() - lastSpeech >= TimeSpan.FromMilliseconds(options.TerminalQuietMs))
                     {
+                        Report("closing");
                         await stopInput(token); closeId = Guid.NewGuid().ToString("N"); await connection.CloseAsync(token, closeId); closing = true; closeAt = Elapsed();
                     }
                 }
                 if (winner == tick) { await tick!; tick = null; }
-                if (waiting is not null && work is null && memoryWork is null)
+                if (readyResult is not null)
+                {
+                    if (!inputActivity.QuietFor(options.InputQuietMs)) Report("result_input_active");
+                    else if (Elapsed() - changedAt >= TimeSpan.FromMilliseconds(options.DelegationContextWaitMs))
+                    {
+                        var task = readyTask!;
+                        if (readyFingerprint != Key() || !Valid(readyResult))
+                        {
+                            tasks[task.DelegationId] = task with { State = "stale" };
+                            waiting = task with { State = "awaiting_context" }; waitingSince = Elapsed();
+                        }
+                        else
+                        {
+                            readyResult = readyResult with { DecisionRevision = projection.Revision };
+                            equivalent[readyFingerprint!] = readyResult;
+                            tasks[task.DelegationId] = task with { State = "completed" };
+                            if (!speechBlocked) await Deliver(readyResult, task.DelegationId);
+                        }
+                        readyResult = null; readyTask = null; readyFingerprint = null;
+                    }
+                }
+                if (terminal is not null && terminalInputPending && !closing && inputActivity.QuietFor(options.InputQuietMs)
+                    && Elapsed() - changedAt >= TimeSpan.FromMilliseconds(options.DelegationContextWaitMs))
+                {
+                    terminalInputPending = false;
+                    if (projection.Intent is LiveRequestIntent.Repeat or LiveRequestIntent.Thanks or LiveRequestIntent.Acknowledge)
+                    {
+                        // An acknowledgment is not new selection evidence. A
+                        // split first fragment may have advanced the projection
+                        // revision; rebind the unchanged, validated decision.
+                        terminal = terminal with { DecisionRevision = projection.Revision };
+                        terminalAt = Elapsed();
+                    }
+                    else
+                    {
+                        excluded = projection.Intent == LiveRequestIntent.Alternative ? terminal.Compartment : excluded;
+                        terminal = null; player = null; playerRequest = null;
+                        Report("input_changed");
+                        await tracker.AppendAsync("instructions", "Host dodal nové zadání. Předchozí závěr už není platný; neopakuj jej. Další otázka není automaticky potřeba.", null, token);
+                        var last = tasks.Values.LastOrDefault();
+                        if (last is not null) { waiting = last with { State = "awaiting_context" }; waitingSince = Elapsed(); }
+                    }
+                }
+                if (waiting is not null && work is null && readyResult is null && memoryWork is null)
                 {
                     var relevant = !string.IsNullOrWhiteSpace(projection.LatestInput)
                         && (!projection.UnansweredDiagnosticCandidate || projection.Intent != LiveRequestIntent.Selection)
                         && projection.Segments.Any(s => s.Speaker == "user" && s.StartMs <= waiting.OffsetMs + 2_000 && s.EndMs >= waiting.OffsetMs - 10_000);
-                    if (relevant && Elapsed() - changedAt >= TimeSpan.FromMilliseconds(options.DelegationContextWaitMs))
+                    if (relevant && !inputActivity.QuietFor(options.InputQuietMs)) Report("input_active");
+                    if (relevant && inputActivity.QuietFor(options.InputQuietMs)
+                        && Elapsed() - changedAt >= TimeSpan.FromMilliseconds(options.DelegationContextWaitMs))
                         await StartWork(waiting);
-                    else if (Elapsed() - waitingSince >= TimeSpan.FromMilliseconds(options.DelegationTimeoutMs))
+                    else if (!relevant && inputActivity.QuietFor(options.InputQuietMs)
+                        && Elapsed() - waitingSince >= TimeSpan.FromMilliseconds(options.DelegationTimeoutMs))
                     {
                         tasks[waiting.DelegationId] = waiting with { State = "context_missing" };
                         await tracker.AppendAsync("instructions", "K delegaci chybí spolehlivý přepis odpovědi. Pokud je potřeba výběr, nech krátce zopakovat chybějící část; nic nehádej.", waiting.DelegationId, token);
@@ -368,21 +441,46 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                     var last = tasks.Values.LastOrDefault();
                     if (last is not null) { waiting = last with { State = "awaiting_context" }; waitingSince = Elapsed(); }
                 }
-                if (terminal is not null && !closing && player is null && resultAccepted && terminalSpeech
+                if (terminal is { Status: WandDecisionStatus.ValidProposal } && !closing && !terminalInputPending
+                    && !announcementPrompted && resultAccepted && terminalSpeech && !TerminalMentionsResult()
+                    && !LiveTerminalSpeech.Unfinished(ActualTerminal())
+                    && inputActivity.QuietFor(options.InputQuietMs)
+                    && Elapsed() - lastSpeech >= TimeSpan.FromMilliseconds(Math.Max(2500, options.TerminalQuietMs))
+                    && Elapsed() - lastOutput >= TimeSpan.FromMilliseconds(Math.Max(2500, options.TerminalQuietMs)))
+                {
+                    // One focused repair avoids an entire timeout when Live
+                    // omitted or confused the catalog title. Require new spoken
+                    // audio and its local drain; the instruction itself is not
+                    // completion evidence and does not create another decision.
+                    announcementPrompted = true; terminalSpeech = false; terminalSegment = projection.Segments.Count;
+                    var name = PartyWandCatalog.Available(availability().ReadyMask).Single(w => w.Compartment == terminal.Compartment).DisplayName;
+                    Report("announcement_repair");
+                    await tracker.AppendAsync("instructions", "Dokonči verdikt jednou krátkou větou vlastními slovy. Vyslov jen potvrzený název hůlky: "
+                        + name + ". Nežádej souhlas a nepokládej další otázku. Fyzická prezentace zatím není potvrzená.", null, token);
+                }
+                if (terminal is not null && !closing && !terminalInputPending && player is null && resultAccepted && terminalSpeech
                     && ActualTerminal().Length > 0 && TerminalMentionsResult()
+                    && inputActivity.QuietFor(options.InputQuietMs)
                     && Elapsed() - lastSpeech >= TimeSpan.FromMilliseconds(options.TerminalQuietMs)
                     && Elapsed() - lastOutput >= TimeSpan.FromMilliseconds(options.TerminalQuietMs))
                 {
                     playerRequest = new(Guid.NewGuid(), sentBytes, projection.Revision);
+                    Report("awaiting_playback");
                     player = playback(playerRequest, token); // reader stays active during local drain/ACK
                 }
+                if (terminal is not null && !closing && player is null)
+                    Report(terminalInputPending ? "input_pending" : !resultAccepted ? "awaiting_result_ack" : !terminalSpeech ? "awaiting_speech"
+                        : !TerminalMentionsResult() ? "awaiting_announcement"
+                        : !inputActivity.QuietFor(options.InputQuietMs) ? "input_active" : "output_active");
                 if (closing && Elapsed() - closeAt > TimeSpan.FromSeconds(5)
-                    || terminal is not null && !closing && Elapsed() - terminalAt > TimeSpan.FromSeconds(options.TerminalTimeoutSeconds))
+                    || terminal is not null && !closing && !terminalInputPending && inputActivity.QuietFor(options.InputQuietMs)
+                        && Elapsed() - terminalAt > TimeSpan.FromSeconds(options.TerminalTimeoutSeconds))
                     throw new InvalidDataException("Live playback/finalization unverified.");
             }
         }
         finally
         {
+            connection.ObserveInput(null);
             workLifetime.Cancel();
             if (work is not null) { try { await work; } catch (Exception) { } }
             if (receive is not null) _ = receive.ContinueWith(t => { if (t.IsCompletedSuccessfully) t.Result.Dispose(); else _ = t.Exception; }, TaskContinuationOptions.ExecuteSynchronously);
@@ -390,11 +488,9 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         string ActualTerminal() => string.Concat(projection.Segments.Skip(terminalSegment).Where(s => s.Speaker == "assistant").Select(s => s.Text)).Trim();
         bool TerminalMentionsResult()
         {
-            var spoken = ActualTerminal();
-            if (!spoken.EndsWith('.') && !spoken.EndsWith('!')) return false;
-            return terminal!.Status != WandDecisionStatus.ValidProposal
-                || PartyWandCatalog.Available(availability().ReadyMask).Any(w => w.Compartment == terminal.Compartment
-                    && spoken.Contains(w.DisplayName, StringComparison.OrdinalIgnoreCase));
+            return LiveTerminalSpeech.Ready(ActualTerminal(),
+                terminal!.Status == WandDecisionStatus.ValidProposal ? terminal.Compartment : null,
+                PartyWandCatalog.Available(63));
         }
     }
 
