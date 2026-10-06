@@ -6,6 +6,51 @@ Poslední aktualizace: **6. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D150 – 6. 10. 2026 – automatický verdikt bez potvrzovací otázky připravený.**
+Majitel sdílel iPhone Debug screenshot: návrh přihrádky 4 už byl
+zveřejněný jako simulace, závěr ale skončil otázkou „Je to trefa, nebo
+budeš fňukat?“. Požaduje prostě vybrat bez konfirmace. Práce navazuje
+na `main=029f45003df9f44822a1e0f80f028eb037f04a27`, záznam nasazení
+D149 v [PR #129](https://github.com/Blato58/DildoVander/pull/129), jehož
+[CI 37541442322](https://github.com/Blato58/DildoVander/actions/runs/37541442322)
+prošel všechny povinné kontroly. Merge a aktualizovaný checkout byly ověřené.
+
+Read-only [log 37541737240](https://github.com/Blato58/DildoVander/actions/runs/37541737240)
+potvrzuje skutečný průchod D149 v rozhovoru
+`bc0f73b8-f0cc-4e66-8d56-0d4486edc267`: validproposal za 2389,1 ms,
+`awaiting_playback` v 22:35:53 UTC, HTTP `/playback` 204, `closing`,
+completed a HTTP 200. Celý rozhovor trval 62,775 s; nejedná se o dobu
+samotného rozhodnutí. Snapshot neměl truncated ani droppedWrites.
+Screenshot dokládá návrh pro simulátor, nikoli skutečný pohyb serva.
+Číslo iOS buildu se z něj nedá určit; D146 publikovaný build je 1000.0.16.
+
+Příčinou otázky je neúplná instrukce k závěru: Ollivanderova Live
+adaptace a terminální pokyn zakazovaly jen další diagnostickou otázku.
+`LivePromptSnapshot` v3, samostatná Live adaptace a instrukce v
+`AutonomousLiveDialogue` před oznámením i opravou nyní vyžadují celý
+verdikt oznamovacími větami, také závěrečné rýpnutí či callback.
+Nežádají hodnocení, souhlas ani odpověď a po závěru mlčí. Platný návrh
+se dál publikuje automaticky bez hostova potvrzení; dobrovolná
+podstatná oprava dál zneplatní starý výsledek. Původní zdrojové persony
+a jejich hash, počet otázek, model, paměť, kontrakty, audio/drain
+a fyzická brána se nemění. Žádná nová podmínka na otazník neblokuje
+publikování nebo nevynucuje další modelové volání.
+
+Lokální ověření 6. 10. bez nového placeného hovoru a bez HW:
+
+| Kontrola | Skutečný výsledek |
+| --- | --- |
+| Release backend-tests, SDK 10.0.303, `--no-restore -r linux-x64 -p:SelfContained=true` | 0 warnings / 0 errors |
+| existující `--autonomous-memory` skupiny | frozen prompts/policy, dlouhý český vstup, delegace, opravy, playback/native wire a hybrid memory passed |
+| terminální instrukce | 427 UTF-8 bytes; kompletní obsah se vejde do konzervativního append limitu 468 bytes |
+| Markdown a whitespace | 53 lokálních cílů včetně stavu OK; `git diff --check` OK |
+
+Plán, research, provozní návod a backend README popisují výsledné
+chování. Commit/push/CI/merge/nasazení se doplní až podle skutečného
+výsledku. Produkce má zatím D149; dalším krokem je aktivace stejné
+AutonomousActor/Luna/cloud konfigurace a nový skutečný rozhovor.
+Poslech v3 a fyzická akceptace nejsou tímto slice prokázané.
+
 **D149 – 6. 10. 2026 – oprava nedokončeného Live výběru a předčasné řeči nasazená.**
 Majitel během skutečného testu D148 potvrdil lepší/rychlejší rozhovor,
 ale hůlka se nikdy neprovede a kufr jej nenechá domluvit. Práce navazuje

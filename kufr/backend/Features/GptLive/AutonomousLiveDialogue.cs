@@ -128,9 +128,10 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                 terminalInputPending = false;
                 announcementPrompted = false;
                 Report("result_ready");
-                await tracker.AppendAsync("instructions", "Následuje platný terminální výsledek. Oznam jej vlastními slovy; nevytvářej další diagnostickou otázku. "
+                await tracker.AppendAsync("instructions", "Následuje platný terminální výsledek. Oznam jej vlastními slovy pouze oznamovacími větami. "
                     + "Název hůlky vyslov jako její potvrzený štítek; nic nepřejmenovávej. "
-                    + "Návrh dosud nepotvrzuje fyzický pohyb ani prezentaci. Po krátkém zakončení dej prostor případné opravě.", delegation, token);
+                    + "Výběr proběhne automaticky bez souhlasu hosta. Nepokládej žádnou otázku, ani potvrzovací nebo řečnickou; nevybízej k hodnocení či odpovědi. "
+                    + "Po krátkém rýpnutí či callbacku mlč. Návrh dosud nepotvrzuje fyzický pohyb ani prezentaci.", delegation, token);
             }
             resultCommand = await tracker.AppendAsync("commentary", text, delegation, token);
         }
@@ -456,7 +457,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                     var name = PartyWandCatalog.Available(availability().ReadyMask).Single(w => w.Compartment == terminal.Compartment).DisplayName;
                     Report("announcement_repair");
                     await tracker.AppendAsync("instructions", "Dokonči verdikt jednou krátkou větou vlastními slovy. Vyslov jen potvrzený název hůlky: "
-                        + name + ". Nežádej souhlas a nepokládej další otázku. Fyzická prezentace zatím není potvrzená.", null, token);
+                        + name + ". Použij oznamovací větu a pak mlč. Nežádej souhlas a nepokládej žádnou otázku, ani řečnickou. Fyzická prezentace zatím není potvrzená.", null, token);
                 }
                 if (terminal is not null && !closing && !terminalInputPending && player is null && resultAccepted && terminalSpeech
                     && ActualTerminal().Length > 0 && TerminalMentionsResult()

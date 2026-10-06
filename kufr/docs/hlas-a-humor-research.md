@@ -2,6 +2,23 @@
 
 Rešerše a implementační rozhodnutí, 2.–3. 10. 2026 (D127–D135).
 
+## D150: závěrečné rýpnutí jako oznámení
+
+Majitel sdílel iPhone Debug screenshot: simulovaný návrh přihrádky 4
+už byl zveřejněn, ale závěr zněl „Je to trefa, nebo budeš fňukat?“.
+Read-only log 37541737240 doložil validproposal za 2389,1 ms,
+`awaiting_playback`, HTTP `/playback` 204, `closing` a completed
+v 22:35:53 UTC. Celý HTTP rozhovor trval 62,775 s; není to doba
+samotného výběrového modelu. Screenshot a log neprokazují pohyb serva.
+
+Ollivanderova adaptace a pokyn k dodání výsledku dosud zakazovaly
+jen další diagnostickou otázku. D150 výslovně vyžaduje celý verdikt
+oznamovacími větami a po rýpnutí mlčení. Stejná instrukce je společná
+oběma autonomním postavám a zopakuje se těsně před oznámením či jeho
+opravou. Publikování návrhu už lidské potvrzení nevyžaduje; otázka byla
+vada řeči. Kontrola přednesu se proto neblokuje novou podmínkou na
+otazník. Offline test nenahrazuje poslech nového skutečného závěru.
+
 ## D149: nespoléhat na interpunkci ani přepisovou mezeru
 
 Majitel po nasazení D148 potvrdil lepší a rychlejší rozhovor, ale žádné
