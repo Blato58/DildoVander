@@ -2,6 +2,34 @@
 
 Rešerše a implementační rozhodnutí, 2.–3. 10. 2026 (D127–D135).
 
+## D148: kratší delegace výběru a aktivace vektorového indexu
+
+Majitel 6. 10. žádá zapnout Vector Stores a zkrátit prodlevu hůlky,
+dovoluje jiný model/architekturu. D145 produkce zůstala v legacy režimu,
+kde Sol tvoří každou repliku; D146 IPA už podporuje autonomní checkpoint.
+Autonomní Live proto převezme rozhovor, otázky i přednes závěru. Na backend
+se deleguje jen úzký faktický výběr ze šesti katalogových kandidátů.
+
+Oficiální [Live delegation](https://developers.openai.com/api/docs/guides/live-delegation)
+potvrzuje, že client event obsahuje metadata a nikoli název/argumenty
+funkce. Přímá interpretace volné mluvené volby by ztratila strukturovanou
+bránu, proto výběr zůstává validovanou funkcí `decide_wand`.
+Dokumentace doporučuje pro takové backendové úlohy Lunu a
+[GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna)
+podporuje strict function calling s `reasoning=none`. D148 přidává
+samostatnou volbu této Luny, 512 výstupních tokenů a ceny Standard
+cache-write $0.125/M vstup / $0.50/M výstup. Humor není jejím úkolem;
+neúspěšný starší test Luny jako celé komediální postavy se tím neanuluje.
+
+Pauza po úplném verdiktu může být 1500 místo výchozích 4000 ms,
+ale návrh stále vyžaduje aktuální revizi, dostupnost a místní drain/ACK.
+Cloud indexing využije existující stores; osobní dlouhodobá paměť
+zůstává odděleně povolená. Konfigurace je v
+[provozním návodu](autonomous-live-memory.md#github-actions-na-produkčním-runneru).
+Jde o odůvodněnou optimalizaci, nikoli změřený důkaz lepšího českého
+rozhovoru. Nové technické měření delegace a následující skutečné použití
+umožní ověřit latenci i správnost.
+
 ## D141: otázky bez scénáře a prostor pro vyprávění
 
 Majitel po poslechu hlásí opakování frází a otázek. Žádá odstranit příklady,

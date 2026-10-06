@@ -390,6 +390,10 @@ volba se uloží do konfigurace daného release a rollback ji vrátí s releasem
 Od D144 lze zadat také `live_actor_mode=LegacyBackendScripted|AutonomousActor`,
 `hybrid_memory=false|true` a `cloud_indexing=false|true`. Výchozí hodnoty
 zůstávají legacy/false/false; osobní dlouhodobá paměť zůstává vypnutá.
+Od D148 lze nezávisle zvolit `live_decision_model=gpt-6-luna` pro úzký
+autonomní výběr (`none`, 512 tokenů), zatímco text/legacy používají Sol.
+`live_terminal_quiet_ms=1500` zkrátí pauzu po úplném verdiktu o 2,5 s
+proti výchozím 4000; místní playback checkpoint zůstává povinný.
 Explicitní workflow `kufr-memory-provision.yml` nabízí `dry-run`, `verify`
 a `create`, používá stejný ověřený backendový CLI a trvale uloží ID mimo
 checkout. Nevkládá paměť hostů a nepotřebuje širší root práva. Deployment
@@ -541,7 +545,8 @@ ani placené volání a nemění fyzické řízení, API nebo limity.
 ## D143: autonomní GPT-Live a hybridní paměť
 
 Nová opt-in větev `Backend:GptLive:ActorMode=AutonomousActor` nechává Live
-vytvářet běžné repliky a závěr. `WandDecisionService` se stávajícím Solem
+vytvářet běžné repliky a závěr. `WandDecisionService` se samostatně zvoleným
+`Backend:GptLive:DecisionModel` (Sol nebo od D148 Luna)
 vrací pouze validované katalogové údaje a důvody svázané s odpověďmi.
 Výchozí `LegacyBackendScripted` i Sol/Realtime fallbacky zůstávají.
 Katalog a mobilní přepínání se nemění; Ollivander má samostatnou Live
@@ -563,6 +568,12 @@ přes `/playback` až po místním drain. Cloudový append ACK, ticho a
 `session.closed` samy nepublikují mechanický návrh. ESP gate zůstává;
 serverový klíč není v klientovi. Lokální testy nezastupují placený poslech,
 fyzickou akceptaci ani produkční aktivaci.
+
+Od D148 diagnostika vrací skutečný rozhodovací model, terminal quiet a
+tři paměťové přepínače. Technický `live_decision_completed` měří dobu
+faktické delegace bez textů; samotná celková délka Live session latenci
+výběru nedokazuje. Produkční stav aktivace je veden v D148 ve stavu
+implementace.
 
 ## D128: GPT-Live + Sol (legacy větev)
 

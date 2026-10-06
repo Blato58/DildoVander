@@ -157,6 +157,12 @@ internal static class HybridMemoryTests
         Check(service.Status.ConfigurationStatus == "verified", "explicit store verification");
         var motif = setup.Store.WriteMemory(setup.Access, new(Guid.NewGuid().ToString("D"), MemoryScope.EveningMotif, MemoryKind.TopicUsed,
             AnonymousMotifs.FromTranscript("chaos"), "output:0-400"))!;
+        var pending = await service.StartupContextAsync(setup.Access, CancellationToken.None);
+        Check(pending.Text.Contains(motif.Text) && pending.References.Contains(motif.MemoryId + ":1")
+            && handler.Uploads == 0 && !pending.Text.Contains("rád plánuje"),
+            "pending cloud indexing retains recent local anonymous motifs without unpermitted personal history");
+        var foreignEvening = await service.StartupContextAsync(setup.Access with { EveningId = Guid.NewGuid().ToString("D") }, CancellationToken.None);
+        Check(foreignEvening.Text.Length == 0, "local startup fallback preserves evening isolation");
         var job = setup.Store.ClaimMemoryJob()!;
         Check(job is { Action: "index", Attempts: 1 } && setup.Store.ClaimMemoryJob() is null, "durable lease prevents duplicate worker");
         await worker.ProcessAsync(job, CancellationToken.None); setup.Store.FinishMemoryJob(job);

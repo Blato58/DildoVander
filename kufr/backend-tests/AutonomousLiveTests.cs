@@ -25,6 +25,7 @@ internal static class AutonomousLiveTests
         Check(LivePromptSnapshot.Create(PersonalityCatalog.OllivanderId, overrideOptions).Instructions.Contains("otázek: 3; nejvýše 4")
             && overrideOptions.Policy(PersonalityCatalog.OllivanderId).MaximumAnswers == 4, "one documented admin-policy priority");
         VerifyProjection(options);
+        VerifyDecisionModels();
         using var noModel = new WandDecisionService((_, _) => throw new Exception("Unnecessary model call"));
         var input = new WandDecisionInput(2, 0, 7, [new("a", "nevím")], olli.Policy, 2, false);
         Check((await noModel.DecideAsync(input, CancellationToken.None)).Status == WandDecisionStatus.NoAvailableWand, "empty ReadyMask is deterministic");
@@ -54,6 +55,63 @@ internal static class AutonomousLiveTests
         await VerifyMissingContext(options);
         await VerifyPlaybackRegistry();
         Console.WriteLine("Autonomous Live: frozen prompts/policy, timed long Czech input, delegation ordering/duplicates, stale correction, actual playback and native wire passed.");
+    }
+
+    private static void VerifyDecisionModels()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Backend:GptLive:DecisionModel"] = WandDecisionBudget.Luna
+        }).Build();
+        using var service = new WandDecisionService(configuration);
+        Check(service.Model == WandDecisionBudget.Luna && GptLiveOptions.Read(configuration).DecisionModel == service.Model,
+            "Luna is isolated to the Live factual decision");
+        Check(!ResponsesTextDialogBudget.IsSupportedModel(service.Model), "Luna does not re-enable the legacy comedian");
+        var input = new WandDecisionInput(2, 16, 7, [new("a", "Improvizuji každý den.")], new(2, 3, true), 2, false);
+        using var request = JsonDocument.Parse(WandDecisionService.BuildRequest(input, service.Model));
+        Check(request.RootElement.GetProperty("model").GetString() == service.Model
+            && request.RootElement.GetProperty("reasoning").GetProperty("effort").GetString() == "none"
+            && request.RootElement.GetProperty("max_output_tokens").GetInt32() == 512,
+            "focused non-reasoning Luna request avoids the legacy monologue");
+        var candidates = request.RootElement.GetProperty("input").GetString()!;
+        Check(candidates.Contains("Kaštanová hůlka") && !candidates.Contains("Jasanová hůlka"), "sparse physical candidate mask is preserved");
+        Check(WandDecisionBudget.Price(service.Model, "default", 14000, 512, service.Model) == 2006
+            && WandDecisionBudget.Price(service.Model, "default", 1, 0, service.Model) == 1
+            && service.Reservation(input) > 2006, "cache-write rates, micro-dollar rounding and conservative reservation");
+        Check(WandDecisionBudget.Price(ResponsesTextDialogBudget.Model, "default", 14000, 1200, ResponsesTextDialogBudget.Model)
+            == ResponsesTextDialogBudget.CalculateUsageMicroUsd(ResponsesTextDialogBudget.Model, "default", 14000, 1200),
+            "Sol pricing compatibility");
+        var reasons = new[] { new DecisionReason("a", "Improvizuji", "Host popsal improvizaci.") };
+        using var response = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            status = "completed", model = service.Model, service_tier = "default",
+            output = new[] { new { type = "function_call", name = "decide_wand", arguments = JsonSerializer.Serialize(new
+            { status = "valid_proposal", compartment = 5, reasons, missingInformation = "" }, RealtimeProtocol.JsonOptions) } },
+            usage = new { input_tokens = 14000, output_tokens = 512 }
+        }));
+        var result = WandDecisionService.Parse(response.RootElement, input, service.Model);
+        Check(result.Compartment == 5 && result.CostMicroUsd == 2006 && result.AvailabilityRevision == 7,
+            "Luna function result remains grounded and correlated");
+        foreach (var invalid in new[] { input with { ReadyMask = 1 }, input with { ExcludeCompartment = 5 },
+            input with { Evidence = [new("a", "Plánuji vše.")] },
+            input with { Policy = new(4, 7, false), AnswerCandidates = 2 } })
+        {
+            try { WandDecisionService.Parse(response.RootElement, invalid, service.Model); throw new Exception("Unsafe Luna decision accepted"); }
+            catch (InvalidDataException) { }
+        }
+        foreach (var (model, tier, count) in new[] { ("gpt-6.1-sol", "default", 1), (service.Model, "priority", 1), (service.Model, "default", -1) })
+        {
+            try { WandDecisionBudget.Price(model, tier, count, 1, service.Model); throw new Exception("Unknown usage accepted"); }
+            catch (TextDialogUnavailableException) { }
+        }
+        try { WandDecisionService.Parse(response.RootElement, input); throw new Exception("Unexpected model accepted"); }
+        catch (TextDialogUnavailableException) { }
+        foreach (var model in new[] { "gpt-6-astra", "arbitrary-model" })
+        {
+            var invalid = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Backend:GptLive:DecisionModel"] = model }).Build();
+            try { GptLiveOptions.Read(invalid); throw new Exception("Unsupported decision model accepted"); }
+            catch (InvalidOperationException) { }
+        }
     }
 
     private static void VerifyProjection(GptLiveOptions options)
