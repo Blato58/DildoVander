@@ -6,6 +6,59 @@ Poslední aktualizace: **6. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D146 – 6. 10. 2026 – aktuální Ad Hoc iOS aplikace publikovaná.**
+Na navazující výslovné „Nasaď i iOS aplikaci“ byl produkční záznam D145
+commit `5e4cd4ba30569fa0409ae657ab25ca99c4c08a35` po kompletním zeleném
+[CI 37428677428](https://github.com/Blato58/DildoVander/actions/runs/37428677428)
+sloučen v [PR #123](https://github.com/Blato58/DildoVander/pull/123) jako
+`ebbf9e7e40f80eeacfe7f820e44e9e3a18261b14`. Git tree obou revizí
+`2052dfc774545c624084d274f175dc6d801ca5ec` je shodný; placené AI live
+zůstalo skipped. Publikace neobsahuje změnu modelu, osobnosti či backendového
+produkčního režimu. Historické „neprovedeno“ D145 je stav před tímto pokynem.
+
+Skutečně provedené příkazy z kořene repozitáře:
+
+| Příkaz | Skutečný výsledek |
+| --- | --- |
+| `python3 -m unittest discover -s kufr/mobilni-aplikace/scripts -p 'test_publish_*.py'` | 4/4 publikační testy OK |
+| `gh workflow run kufr-ios-sign.yml --repo Blato58/DildoVander --ref main -f build_run_id=37428677428` | [37429759564](https://github.com/Blato58/DildoVander/actions/runs/37429759564), success, macos-15 arm64, připnutý Xcode 26.3, reuse ověřeného webu, nativní harness, archiv/export a Ad Hoc podpis |
+| `gh workflow run kufr-ios-deploy.yml --repo Blato58/DildoVander --ref main -f build_run_id=37429759564` | [37429982348](https://github.com/Blato58/DildoVander/actions/runs/37429982348), všechny tři joby success, atomická publikace a veřejné HTTPS ověření manifestu, Bundle ID, MIME a stažené IPA/SHA-256 |
+
+Podpisový job skutečně spustil `bash scripts/test-native-transport.sh`
+a `bash scripts/test-native-debug.sh` v `kufr/mobilni-aplikace`, včetně
+Swift kompilace s warnings-as-errors. Prošly discovery/SPKI/Keychain/pinned
+HTTPS/autentizovaný WSS, debug profile/mode/correlation/WAV/cancellation,
+Realtime a hands-free multi-turn/VAD/cleanup, převod 48 kHz, offline render
+produkčního audio grafu, startup/route changes a bounded upload/backlog.
+Nový autonomní fixture prošel full-duplex capture, explicitním místním
+drain/checkpointem a idempotentním opakováním ztraceného ACK. Všechny HTTP
+peers jsou lokální deterministické testy, žádný placený model. Archiv,
+export, codesign --verify a shoda embedded profilu prošly samostatně.
+
+Na [instalační stránce](https://2.28.202.220/ios/) je **verze 1.0,
+build 1000.0.16**, release `37429982348-1`, Team `3QRXV8G5Y3`, Bundle ID
+`app.turquoise6409.green2444`. Předchozí release zůstává uložený.
+IPA má 1004811 B, SHA-256
+`36a75fcce3ba57e8b32ca66768429cf04024ddf36069d7c04c379daac5dd94e8`.
+Původ podepsaného artefaktu, payload hash, tento checksum, skutečný
+Info.plist/version/build/Bundle ID i přítomnost microphone usage description
+byly navíc ověřené lokálně ze staženého artefaktu. CLI download do workspace
+selhal 403 na dočasném blob redirectu; GitHub connector stáhl stejný
+immutable artifact ID `11396725775` a ověření jeho bajtů uspělo. Samostatné
+HTTPS ověření publikace proběhlo z produkčního runneru s platným TLS;
+workspace proxy omezení D145 se tím nezaměňuje za iPhone akceptaci.
+Lokální kontrola dokumentačního diffu ověřila 44 relativních Markdown
+odkazů a `git diff --check` bez chyby; zdrojový kód se v D146 nemění.
+
+Backend zůstává v D145 release: `LegacyBackendScripted`, hybrid memory=true,
+cloud indexing=false a long-term personal=false. Nová IPA již má D143
+playback checkpoint, starší ESP firmware bez něj nebyl aktualizován.
+Neprovedeno: instalace/aktualizace této IPA na iPhonu, živý full-duplex/AEC
+či poslechové A/B, placená AI, skutečná indexace/search/delete hostů,
+firmware flash a fyzická prezentace. Další krok je instalovat v Safari
+na registrovaném iPhonu, ověřit audio a lifecycle podle D143 A/B scénářů;
+autonomní serverový režim zapnout podle kompatibility aktivních klientů.
+
 **D145 – 6. 10. 2026 – skutečný production deployment a OpenAI provisioning.**
 Na výslovné „Nasaď a udělej provisioning“ byl D144 commit
 `76b7a842edba9b490b0354fca6a917232e4c70e3` pushnutý a

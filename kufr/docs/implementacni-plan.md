@@ -1,5 +1,15 @@
 # Implementační plán AI kufru
 
+> **D145–D146, 6. 10. 2026: skutečné nasazení a provisioning.**
+> D143 backend je v produkci, dvě OpenAI stores byly vytvořené a ověřené;
+> žádná data hostů nebyla exportovaná. Aktuální Ad Hoc IPA 1.0/1000.0.16
+> je podepsaná a publikovaná po macOS nativních testech a HTTPS kontrole.
+> Server zůstává LegacyBackendScripted, hybrid memory=true, cloud indexing
+> a long-term personal=false. Instalace této IPA, poslech a hardware nejsou
+> tímto akceptované; [D145–D146](stav-implementace.md#předání-další-ai)
+> uvádí skutečné běhy, konfiguraci a zbývající ověření. Architektura níže
+> se samotnou publikací nemění.
+
 > **D143, 6. 10. 2026: opt-in autonomní GPT-Live a hybridní paměť.**
 > `Backend:GptLive:ActorMode=AutonomousActor` odděluje hlasového herce od
 > faktického výběru stávajícím Solem. Pozdrav, roast, otázka a běžná reakce
