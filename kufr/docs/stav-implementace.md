@@ -32,7 +32,11 @@ měření nebyly provedené. E0/E5/B1 zůstávají neuzavřené; další krok je
 ověření revize kamery a skutečné pinové mapy, montáž jedné přihrádky a
 proudové/resetové/Stop/watchdog zkoušky podle návrhu napájení. Mechanické
 rozměry a držáky nejsou doložené, případná úprava prototypu může změnit
-kusovník. Git předání tohoto záznamu bude ověřeno po dokumentační kontrole.
+kusovník. Dokumentační commit `9a13366b51e3acdd8b260eb07f4a7d2fee4b669c`
+byl pushnutý na `origin/work`; `ls-remote` potvrdilo shodný hash. Povinný
+PowerShell helper na Linuxu skončil 126 (Permission denied); repo-scoped
+`gh auth git-credential` fallback s dostupnou identitou Blato58 uspěl.
+Globální GitHub účet nebyl přepnutý.
 
 
 **D146 – 6. 10. 2026 – aktuální Ad Hoc iOS aplikace publikovaná.**
