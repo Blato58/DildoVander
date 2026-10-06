@@ -22,7 +22,7 @@ a `Kufr.Backend.PartyPrompt` → `ai-eval/prompt.txt`. Nemají změněný obsah.
 Nový `Kufr.Backend.OllivanderLivePersona` čte samostatný celý
 [`ollivander-trunk-live-persona.txt`](../ai-eval/ollivander-trunk-live-persona.txt).
 `LivePromptSnapshot` přidá jednu společnou důvěryhodnou provozní politiku,
-verzi `autonomous-live-v2` (od D149) a SHA-256 sestavených instrukcí. Tento hash
+verzi `autonomous-live-v3` (od D150) a SHA-256 sestavených instrukcí. Tento hash
 nenahrazuje zdrojový `PromptSha256`. Při vytvoření rozhovoru se zmrazí
 personalityId, prompt, verze, režim a výsledná politika. Administrace
 stále odmítá změnu postavy při aktivním hovoru. Sol/text, Realtime/PTT,
@@ -49,6 +49,12 @@ v aktuálních podkladech; oprava konzervativně vyřadí starší konfliktní
 kandidátní podklady. Humor není důkaz vlastnosti hosta ani katalogu.
 
 Live samostatně přivítá, reaguje, roastuje, ptá se a oznámí výsledek.
+Ověřený výběr se publikuje automaticky bez souhlasu hosta. Od D150
+společná politika, Ollivanderova Live adaptace i bezprostřední pokyn k
+verdiktu vyžadují pouze oznamovací věty, včetně závěrečného rýpnutí.
+Verdikt končí mlčením, bez potvrzovací, diagnostické i řečnické otázky
+nebo výzvy k hodnocení. Dobrovolná podstatná oprava hosta dál zneplatní
+starý návrh; není povinnou podmínkou výběru.
 Obyčejná replika nevolá `TextDialogRunner`, další přepisování výsledku
 modelem ani STT → text → TTS. Delegace používá skutečné `delegation.id`,
 `target=client`, `offset_ms`; událost neobsahuje function name/arguments
