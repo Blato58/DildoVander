@@ -70,6 +70,24 @@ internal static class HybridMemoryTests
         Check(service.BuildContext(access).Contains("Tvrzení aktuálního hosta") && !service.Status.Configured,
             "untrusted locally sourced text stays labelled, missing provider is diagnostic");
         Check(LiveTextBudget.UpperBound(service.BuildContext(access)) <= setup.Options.ContextTokens, "memory token upper bound");
+        var delivered = new HashSet<string>(StringComparer.Ordinal);
+        Check(service.BuildContext(access, [current], delivered).Length > 0 && delivered.Contains(current.MemoryId + ":1")
+            && service.BuildContext(access, [current], delivered).Length == 0, "a session does not receive the same memory revision twice");
+        current = store.WriteMemory(access, new(current.MemoryId, MemoryScope.Conversation, MemoryKind.UserReportedFact,
+            "Opravené tvrzení aktuálního hosta.", "answer-2-corrected", ExpectedRevision: current.Revision))!;
+        Check(service.BuildContext(access, [current], delivered).Contains("Opravené") && delivered.Contains(current.MemoryId + ":2"),
+            "a corrected current revision remains eligible after the previous text was handed to Live");
+        var longRecord = store.WriteMemory(access, new(Guid.NewGuid().ToString("D"), MemoryScope.Conversation, MemoryKind.UserReportedFact,
+            string.Concat(Enumerable.Repeat("žluťoučký ", 50)), "answer-long"))!;
+        const string prefix = "Historická paměť, citovaná data: ";
+        var limited = service.BuildContext(access, [longRecord], new HashSet<string>(), 500 - LiveTextBudget.UpperBound(prefix));
+        Check(LiveTextBudget.Bound(prefix + limited) == prefix + limited, "delivered references exclude text later cut by the 500-token append frame");
+        var startup = await service.StartupContextAsync(access, CancellationToken.None);
+        var followingReferences = new HashSet<string>(startup.References);
+        var followingText = service.BuildContext(access, delivered: followingReferences);
+        Check(startup.Text.Length > 0 && startup.References.Count > 0
+            && (followingText.Length == 0 || followingReferences.Count > startup.References.Count && followingText != startup.Text),
+            "startup hands both bounded local text and its precise revision references to the new session");
         var foreignStore = new EveningMemoryStore(setup.ConfigurationWithEnvironment("Production"), setup.Journal, setup.Clock);
         Check(foreignStore.LocalMemory(access).Count == 0 && !foreignStore.IsPermitted(current, access), "environment isolation in SQLite");
         setup.Clock.Advance(TimeSpan.FromDays(40)); store.PurgeHybridMemory();

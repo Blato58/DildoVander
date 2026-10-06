@@ -46,6 +46,8 @@ Implementované soubory a chování:
   rehydratované/revalidované v SQLite. Worker má bounded concurrency, timeout,
   retry/jitter/Retry-After, restartovatelný outbox a kontrolu nejasného uploadu.
   Výpadek znamená memory_unavailable + oprávněný lokální kontext, nula memory_not_found.
+  Session lokálně sleduje skutečně předaná ID/revize včetně startup contextu;
+  opakované dohledání je znovu nevloží, opravenou novější revizi připustí.
 - Admin/CLI provisioning, revizované permission/record mutace, diagnostika bez
   osobního textu/klíčů a bezpečné vzory. Hlasové zapamatování vyžaduje ověřeného
   hosta/povolení, zapomenutí smaže jen vlastní osobní data a ukončí kontaminovaný

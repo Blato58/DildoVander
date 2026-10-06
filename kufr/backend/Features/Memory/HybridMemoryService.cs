@@ -9,6 +9,7 @@ using Kufr.Backend.Features.GptLive;
 namespace Kufr.Backend.Features.Memory;
 
 internal sealed record MemoryRetrieval(string Status, IReadOnlyList<MemoryRecord> Records);
+internal sealed record LiveMemoryContext(string Text, IReadOnlyList<string> References);
 
 internal sealed class HybridMemoryService(EveningMemoryStore store, OpenAiVectorMemoryProvider provider,
     HybridMemoryOptions options, TimeProvider clock)
@@ -169,14 +170,18 @@ internal sealed class HybridMemoryService(EveningMemoryStore store, OpenAiVector
         { degraded = true; return new("memory_unavailable", local); }
     }
     internal void ClearCache() => cache.Clear();
-    internal string BuildContext(MemoryAccess access, IEnumerable<MemoryRecord>? retrieved = null)
+    internal string BuildContext(MemoryAccess access, IEnumerable<MemoryRecord>? retrieved = null, ISet<string>? delivered = null,
+        int? tokenBudget = null)
     {
+        var limit = Math.Min(options.ContextTokens, tokenBudget ?? options.ContextTokens);
         var rows = store.LocalMemory(access, MemoryScope.Conversation)
             .Concat(retrieved ?? store.LocalMemory(access)).DistinctBy(r => (r.MemoryId, r.Revision))
             .Where(r => store.CurrentMemory(r.MemoryId) is { } current && current.Revision == r.Revision && store.IsPermitted(current, access));
         var selected = new List<string>(); var used = 32;
         foreach (var row in rows)
         {
+            var reference = row.MemoryId + ":" + row.Revision;
+            if (delivered?.Contains(reference) == true) continue;
             var label = row.Kind switch
             {
                 MemoryKind.TopicUsed => "Anonymní motiv proti opakování",
@@ -186,23 +191,24 @@ internal sealed class HybridMemoryService(EveningMemoryStore store, OpenAiVector
                 _ => "Dřívější potvrzený aplikační výsledek"
             };
             // JSON quoting prevents data from forging the framing delimiter.
-            if (options.ContextTokens - used <= 130) break;
-            var text = label + ": " + JsonSerializer.Serialize(LiveTextBudget.Bound(row.Text, options.ContextTokens - used - 100), Realtime.RealtimeProtocol.JsonOptions) + ".";
+            if (limit - used <= 130) break;
+            var text = label + ": " + JsonSerializer.Serialize(LiveTextBudget.Bound(row.Text, limit - used - 100), Realtime.RealtimeProtocol.JsonOptions) + ".";
             var size = LiveTextBudget.UpperBound(text);
-            if (used + size > options.ContextTokens) continue;
-            selected.Add(text); used += size;
+            if (used + size > limit) continue;
+            selected.Add(text); used += size; delivered?.Add(reference);
         }
         return string.Join("\n", selected);
     }
-    internal async Task<string> StartupContextAsync(MemoryAccess access, CancellationToken token)
+    internal async Task<LiveMemoryContext> StartupContextAsync(MemoryAccess access, CancellationToken token)
     {
-        if (!options.Enabled) return "";
+        if (!options.Enabled) return new("", []);
         var records = new List<MemoryRecord>();
         // Lookup happens only at a meaningful boundary, never before every reply.
         if (access.Guest is { IdentityVerified: true, LongTermAllowed: true })
             records.AddRange((await RetrieveAsync(access, MemoryScope.Personal, "Předchozí potvrzený výběr a dobrovolně uložené preference hosta.", token)).Records);
         records.AddRange((await RetrieveAsync(access, MemoryScope.EveningMotif, "Nedávno použité abstraktní motivy vtipů a témata, kterým se vyhnout.", token)).Records);
-        return BuildContext(access, records);
+        var delivered = new HashSet<string>(StringComparer.Ordinal);
+        return new(BuildContext(access, records, delivered), delivered.ToArray());
     }
 }
 

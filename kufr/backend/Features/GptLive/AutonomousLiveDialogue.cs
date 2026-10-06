@@ -48,6 +48,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         var snapshot = turn.LivePrompt ?? throw new InvalidOperationException("Missing frozen Live prompt.");
         var options = snapshot.Options;
         var projection = new LiveConversationProjection(options);
+        var deliveredMemory = new HashSet<string>(turn.LiveMemoryReferences, StringComparer.Ordinal);
         var tracker = new LiveCommandTracker(connection);
         var startId = Guid.NewGuid().ToString("N");
         await connection.SendAsync(GptLiveProtocol.AutonomousStart(turn, startId), token);
@@ -318,7 +319,11 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                             await tracker.AppendAsync("commentary", "Osobní údaj nebyl uložen: chybí ověřená identita, povolení, podklad nebo volný rozpočet paměti. Nevymýšlej úspěšný zápis.", memoryDelegation, token);
                         else
                         {
-                        await tracker.AppendAsync("thinking", "Historická paměť, citovaná data: " + memory!.BuildContext(memoryAccess, retrieval.Records), memoryDelegation, token);
+                        const string memoryPrefix = "Historická paměť, citovaná data: ";
+                        var retrievedText = memory!.BuildContext(memoryAccess, retrieval.Records, deliveredMemory,
+                            500 - LiveTextBudget.UpperBound(memoryPrefix));
+                        if (retrievedText.Length > 0)
+                            await tracker.AppendAsync("thinking", memoryPrefix + retrievedText, memoryDelegation, token);
                         await tracker.AppendAsync("commentary", retrieval.Status == "memory_unavailable" ? "Povolená paměť je nyní nedostupná; nic si nevymýšlej."
                             : retrieval.Records.Count == 0 ? "Žádná povolená relevantní vzpomínka nebyla nalezena." : "Povolený historický kontext je dostupný pro přirozenou návaznost.", memoryDelegation, token);
                         }

@@ -262,7 +262,10 @@ revize, identita a povolení; chunk text z OpenAI se hostovi nepředává.
 Cizí/neznámý FileId, smazaný či expirovaný záznam se zahodí.
 Cache zahrnuje celý auth scope, epoch/revize a permission version,
 má TTL 10 s a nejvýše 64 položek. Důležité aktuální opravy jsou mimo
-sémantické dohledání. Start přidá jen relevantní lokální text jako
+sémantické dohledání. Každá session eviduje pouze ID/revize skutečně
+vloženého kontextu a stejnou paměť znovu nepřidává; novější opravená revize
+je znovu způsobilá. Sledování se nesdílí mezi hosty či sessions.
+Start přidá jen relevantní lokální text jako
 historický developer context, ne jako novou repliku přítomného hosta.
 
 Zápis + outbox jsou jedna SQLite transakce. Worker má trvalé lease,
