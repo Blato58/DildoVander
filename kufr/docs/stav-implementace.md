@@ -49,6 +49,9 @@ HTTPS ověření publikace proběhlo z produkčního runneru s platným TLS;
 workspace proxy omezení D145 se tím nezaměňuje za iPhone akceptaci.
 Lokální kontrola dokumentačního diffu ověřila 44 relativních Markdown
 odkazů a `git diff --check` bez chyby; zdrojový kód se v D146 nemění.
+První dokumentační commit `1612eea30b3864e3c9dd93e0908e259a55dae2c6`
+byl pushnutý. Povinný PowerShell helper na Linuxu skončil 126; repo-scoped
+`gh auth git-credential` fallback uspěl bez změny globálního účtu.
 
 Backend zůstává v D145 release: `LegacyBackendScripted`, hybrid memory=true,
 cloud indexing=false a long-term personal=false. Nová IPA již má D143
