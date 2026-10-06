@@ -52,8 +52,9 @@ na konkrétní osazené desce elektricky volné nebo vhodné pro libovolnou zát
 
 ## Omezení pro návrh
 
-- Kamera je nyní volitelná, ale její konektor podle obrázku sdílí 14 GPIO.
-  Každé použití těchto pinů pro jinou funkci musí počítat s budoucí kamerou.
+- Kamera je od nákupního auditu 6. 10. 2026 zahrnutá do objednávky pro profil B;
+  její konektor podle obrázku sdílí 14 GPIO. Funkce ještě není implementovaná
+  ani ověřená. Externí zapojení musí počítat s těmito rezervovanými piny.
 - MicroSD používá GPIO38–40; použití slotu a JTAG na GPIO39/40 se musí
   posoudit společně.
 - U ESP32-S3 jsou GPIO0, GPIO3, GPIO45 a GPIO46 strapping piny. GPIO19/20
