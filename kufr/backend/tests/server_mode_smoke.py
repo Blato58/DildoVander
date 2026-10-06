@@ -1,4 +1,4 @@
-"""Explicit deployment check: mode control only, no conversations/provider calls."""
+"""Explicit deployment checks; optional store verification, no conversations."""
 import json
 import ipaddress
 import os
@@ -48,7 +48,22 @@ def main():
     status, metadata = call(bearer=token['accessToken'], path='/v1/diagnostics')
     assert status == 200
     assert (metadata['dialogMode'], metadata['voiceMode']) == (current['dialogMode'], current['voiceMode'])
-    print('Public admin authentication, no-op mode mutation, revision conflict and diagnostics verified; no provider calls or mode changes.')
+    expected_actor = os.environ.get('EXPECTED_LIVE_ACTOR_MODE')
+    if expected_actor:
+        assert metadata['liveActorMode'] == expected_actor
+        assert call(path='/v1/admin/memory')[0] == 401
+        assert call(bearer=token['accessToken'], path='/v1/admin/memory')[0] == 401
+        status, memory = call(bearer=credential, path='/v1/admin/memory')
+        assert status == 200 and memory['provider'] == 'openai_vector_store'
+        configured = os.environ['EXPECTED_MEMORY_CONFIGURED'] == 'true'
+        assert memory['configured'] == configured
+        if configured:
+            # Explicit deployment/provisioning verification: two store GETs,
+            # no LLM, upload, search, conversation or personal data export.
+            status, memory = call('POST', bearer=credential, path='/v1/admin/memory/verify')
+            assert status == 200 and memory['lastVerifiedAt'] and not memory['degraded']
+        print('Live actor, private memory diagnostics and provisioned stores verified; no guest export.')
+    print('Public admin authentication, no-op mode mutation, revision conflict and diagnostics verified; no dialogue generation or mode changes.')
 
 
 if __name__ == '__main__':
