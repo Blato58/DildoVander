@@ -6,7 +6,7 @@ Poslední aktualizace: **6. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**D150 – 6. 10. 2026 – automatický verdikt bez potvrzovací otázky připravený.**
+**D150 – 6. 10. 2026 – automatický verdikt bez potvrzovací otázky nasazený.**
 Majitel sdílel iPhone Debug screenshot: návrh přihrádky 4 už byl
 zveřejněný jako simulace, závěr ale skončil otázkou „Je to trefa, nebo
 budeš fňukat?“. Požaduje prostě vybrat bez konfirmace. Práce navazuje
@@ -46,10 +46,50 @@ Lokální ověření 6. 10. bez nového placeného hovoru a bez HW:
 | Markdown a whitespace | 53 lokálních cílů včetně stavu OK; `git diff --check` OK |
 
 Plán, research, provozní návod a backend README popisují výsledné
-chování. Commit/push/CI/merge/nasazení se doplní až podle skutečného
-výsledku. Produkce má zatím D149; dalším krokem je aktivace stejné
-AutonomousActor/Luna/cloud konfigurace a nový skutečný rozhovor.
-Poslech v3 a fyzická akceptace nejsou tímto slice prokázané.
+chování. Commit `1ee5fd151aa739be83380a730dd945aab005f825` byl pushnutý
+na `codex/live-declarative-verdict`; `ls-remote` potvrdilo stejnou SHA.
+Povinný PowerShell helper skončil na Linuxu 126; repo-scoped
+`gh auth git-credential` fallback uspěl bez změny globálního účtu.
+[CI 37542611420](https://github.com/Blato58/DildoVander/actions/runs/37542611420)
+prošel celý: repository, backend včetně kompletních C# skupin a HTTP
+smoke, web, firmware host, čtyři firmware profily, offline AI a CI required;
+placený AI live skipped. Dočasné HTTP 401 přerušilo CLI watch, nikoli CI.
+Připojený GitHub potvrdil všechny joby a po kontrole konfliktů/headu
+sloučil [PR #130](https://github.com/Blato58/DildoVander/pull/130) squash
+jako `9486b084988f2de35b9e32537d3d00d9604a8e6c`.
+GitHub API potvrdilo stejný tree source/main
+`d02877753e9d66d686355072ed87676b34cee2f9`; po obnově CLI přístupu také
+`gh run view` potvrdilo success a skutečný `git fetch origin main` uspěl.
+
+Spuštěná aktivace ze sloučeného main:
+
+```sh
+gh workflow run kufr-backend-deploy.yml --repo Blato58/DildoVander --ref main \
+  -f build_run_id=37542611420 -f dialog_mode=responses -f dialog_model=gpt-6.1-sol \
+  -f voice_mode=openai -f live_actor_mode=AutonomousActor -f live_decision_model=gpt-6-luna \
+  -f live_terminal_quiet_ms=1500 -f hybrid_memory=true -f cloud_indexing=true
+```
+
+První pokus ještě vrátil HTTP 401 a nic neaktivoval; po obnově přístupu
+[deployment 37544055582](https://github.com/Blato58/DildoVander/actions/runs/37544055582)
+skončil success ve verify i deploy. Kontrola provenance a aktuálního
+main prošla; v 23:01:12 UTC se aktivoval release
+`53b8a6351bbd46db537aa3816b7661b4a9263755-37544055582-1` a loopback
+health check passed. Metadata GET ověřil přístup k `gpt-6-luna` bez
+inference. Veřejný HTTPS a skutečný actor/model/quiet/memory/cloud/personal
+i přístup/scope obou provisionovaných stores prošly:
+
+```json
+{"cloudIndexingEnabled":true,"liveActorMode":"AutonomousActor","liveDecisionModel":"gpt-6-luna","liveTerminalQuietMs":1500,"longTermPersonalEnabled":false,"memoryEnabled":true}
+```
+
+Ověření také prošlo admin auth, no-op mode mutation a revision conflict;
+neprovedlo nový hlasový/Responses hovor, změnu personality ani export
+hosta. Další stores se nevytvářely. Nové instrukce jsou snapshotované
+při založení rozhovoru: stačí spustit nový GPT-Live hovor, nový iOS build
+tato serverová změna nevyžaduje. Poslech nového verdiktu v3 a fyzická
+akceptace nejsou tímto slice prokázané. Dalším krokem je skutečný
+rozhovor a nezávislé ověření pohybu na HW, mimo Debug simulátor.
 
 **D149 – 6. 10. 2026 – oprava nedokončeného Live výběru a předčasné řeči nasazená.**
 Majitel během skutečného testu D148 potvrdil lepší/rychlejší rozhovor,
