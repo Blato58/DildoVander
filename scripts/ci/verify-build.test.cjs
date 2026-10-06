@@ -10,6 +10,7 @@ test('promotion callers and reusable verifier can read the merged PR provenance'
   // Mocked REST tests cannot detect a missing real GITHUB_TOKEN permission.
   // A caller must allow the permission requested by its reusable workflow.
   for (const workflow of ['reuse-build.yml', 'kufr-backend-deploy.yml',
+                         'kufr-memory-provision.yml',
                          'kufr-ios-sign.yml', 'kufr-ios-deploy.yml']) {
     const source = fs.readFileSync(path.resolve(__dirname, '../../.github/workflows', workflow), 'utf8');
     const permissions = source.match(/^permissions:\r?\n((?:  [^\n]*\n)+)/m)?.[1];

@@ -43,6 +43,7 @@ izolaci jednorázového GitHub-hosted stroje. Spouštěj zde pouze důvěryhodn�
 | --- | --- | --- |
 | `ci.yml` | PR build a testy; ruční obnovovací build na `main` | `backend-publish`, `web-dist`, `firmware` |
 | `kufr-backend-deploy.yml` | Aktivace backendu bez restore/build | `build_run_id` úspěšného CI |
+| `kufr-memory-provision.yml` | Explicitní CLI dry-run / verify / create OpenAI stores, bez exportu hostů | CI `build_run_id`; trvalá provisioning ID runneru |
 | `kufr-ios-sign.yml` | Samostatný podepsaný device build; převzetí webu z CI | CI `build_run_id`; výstup Ad Hoc `signed-ipa` |
 | `kufr-ios-deploy.yml` | Publikace existující Ad Hoc IPA bez Xcode/npm | `build_run_id` podepsaného IPA buildu |
 
@@ -60,6 +61,10 @@ výstupy. Artefakty z buildu se uchovávají **14 dní**, ověřovací kopie **1
 1. Aktualizuj PR z `main`, vyčkej na zelené **CI required** a sluč PR.
 2. V Actions vyber **Deploy Kufr backend**, větev `main` a ID CI tohoto PR.
    Zvol `dialog_mode`, `dialog_model`, `voice_mode` stejně jako dříve.
+   Volitelné `live_actor_mode`, `hybrid_memory`, `cloud_indexing` mají bezpečné
+   výchozí hodnoty legacy/false/false. Pro hybridní paměť nejdříve spusť
+   explicitní provisioning workflow; [provozní návod](../kufr/docs/autonomous-live-memory.md#github-actions-na-produkčním-runneru)
+   popisuje původ stores a kompatibilitu nativních klientů.
 3. Pro publikaci aplikace spusť ručně **Build signed Kufr IPA** na `main`
    s týmž CI ID; workflow používá výhradně Ad Hoc distribuční podpis.
    **Deploy Kufr IPA** následně dostane ID úspěšného **IPA buildu**;
