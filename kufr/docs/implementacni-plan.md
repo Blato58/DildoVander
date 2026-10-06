@@ -717,9 +717,22 @@ Výchozí síťové limity: TLS/connect 10 s; STT 15 s; dialog 12 s; TTS 15 s; c
 
 V ručním režimu výpadek řídicího telefonu sekvenci zruší. V samostatném režimu výpadek WAN neovlivní již místně přijatou, lokálně běžící sekvenci; nepotvrzený návrh se zruší. Stop, watchdog a porucha hardwaru zastavují oba režimy. Při přerušení během pohybu vypnout elektrický pohon, ale **nepokoušet se automaticky vrátit servo**; bez snímače je mechanický stav neznámý. Zvolená přihrádka zůstane nepřipravená. Odpojení proudu nedokazuje návrat přihrádky do spodní polohy. Mechanika musí být stabilní bez napájení a nesmí vyžadovat trvalé držení servem; to je podmínka prototypu.
 
-Firmware musí mít samostatně testovaný `Abort` a bezpečný výstup, nikoli čekat na další běžný krok stávající sekvence. Motorový pulz má provozní limit 150 ms a tvrdý softwarový strop 250 ms, servo okno maximálně 500 ms do následné kalibrace, celá sekvence 5 s. Pozdní smyčka při aktivním motoru znamená vypnutí, nikoli další prodloužení pulzu. Maximálně jeden motor a jedno servo; v navržené sekvenci **nikdy současně**. Celkové limity nesmí měnit AI nebo běžný klient.
+Firmware musí mít samostatně testovaný `Abort` a bezpečný výstup, nikoli čekat na další běžný krok stávající sekvence. Motorový pulz má provozní limit 150 ms a tvrdý softwarový strop 250 ms, servo okno maximálně 500 ms do následné kalibrace, celá sekvence 5 s. Pozdní smyčka při aktivním motoru znamená vypnutí, nikoli další prodloužení pulzu. Maximálně jeden motor NEBO jedno servo, nikdy současně; nejvýše jeden 20cm LED úsek může svítit i během pohybu. Celkové limity nesmí měnit AI nebo běžný klient.
 
 ### Elektrické safe state
+
+**Nákupní audit 6. 10. 2026:** majitel upřesnil nejvýše jeden 20cm LED
+úsek a jedno servo NEBO jednu vibraci; LED a pohon se smějí překrývat.
+Konkrétní prototyp nyní používá koupený 3A PD trigger na 20 V, jediný
+Joy-IT 5 V / 5 A, MCP23017 a kandidátní inhibit Pololu 2801 (GOOD) +
+CD4093BE na 3,3 V + Pololu 2814 (ON). Koupené tlačítko zůstává PTT,
+koupená kolébka je hlavní vypínač; nová kolébka fyzicky přerušuje pouze
+pohony. Stav servisní kolébky se snímá děličem 15 kΩ / 22 kΩ před MOSFETem,
+ne druhým kontaktem třípinové kolébky. Detail, výchozí stavy, proudové
+odhady a povinné měření jsou v [návrhu napájení](efekty-a-napajeni.md);
+kusovník v [nové objednávce](../../docs/objednavka-doplneni-kufru-2026-10-06.md).
+Výběr dílů neuzavírá E0/E5/B1. Kamera je zahrnutá do nákupu pro profil B,
+její softwarová etapa a ověření GPIO2/48 zůstávají samostatné.
 
 PCA9685 `OE` má externí pull-up na 3,3 V a aktivní inhibit = HIGH. Nakonfigurovat neinvertované výstupy a `OUTNE=00`, aby při inhibit byly logické výstupy LOW; motorové DIN mají vlastní pull-down. Při inicializaci a resetu nejprve všechny kanály FULL_OFF, potom adresy/režim/prescaler, teprve pak lze uvolnit inhibit. Levný PCA modul může mít OE pull-down: předem změřit a vybrat/upravit modul tak, aby start vždy zůstal vypnutý. Zdrojové údaje PCA jsou v [H4].
 
@@ -808,7 +821,7 @@ Přímé řízení všech šesti motorů je možné, pokud je konektor kamery pr
 | PTT kontakt | GPIO8 | Proti GND, externí pull-up 3,3 V, debounce 30 ms. LED tlačítka řešit podle napětí skutečného modulu. |
 | Mute/SD zesilovače | GPIO16 | Pull-down = mute při bootu; nastavení kanálu/SD podle skutečného breakout modulu. |
 | Watchdog heartbeat | GPIO17 | Nezávislé softwarové hrany po validním průchodu řídicí úlohou každých 50 ms; výstup watchdogu přímo vstupuje do bezpečnostní logiky. |
-| Snímání PHYSICAL_ENABLE | GPIO18 | Pomocný kontakt vypínače do 3,3V logiky, externí pull-down; fyzická větev bezpečnostního obvodu funguje nezávisle na čtení GPIO. |
+| Snímání PHYSICAL_ENABLE | GPIO18 | Napětí za servisní kolébkou před MOSFETem přes dělič 15 kΩ / 22 kΩ do 3,3V logiky; fyzická větev bezpečnostního obvodu funguje nezávisle na čtení GPIO. |
 | Serva přihrádek 1–6 | PCA kanály 0–5 | Přihrádka n → kanál n−1. 50 Hz; individuálně kalibrované mikrosekundy pulzu, žádný univerzální úhel. |
 | Motory přihrádek 1–6 | PCA kanály 6–11 | Přihrádka n → kanál n+5; jen FULL_ON/FULL_OFF, nejvýše jeden zapnutý. |
 | Rezerva | PCA12–15, GPIO9–13/15 a 38–42 | Konektor kamery/SD musí zůstat neosazený nebo elektricky prověřený. Nezavádět jejich použití potají. |
@@ -831,10 +844,10 @@ Pro tuto rozšířenou variantu doporučuji PCA motory + **MCP23017 pro pomalé 
 | DOUT → MAX98357A DIN | GPIO47 | Rozšíření přesouvá bezpečnostní request na GPIO2. |
 | RGB data | GPIO48 | Rozbočit **GPIO před onboard WS2812** do Pixel Shifteru; onboard LED zrcadlí první pixel. Nejde o její DOUT a neposouvá to indexy externích 36 LED. Ověřit elektrickou zátěž/topologii. |
 | Bezpečnostní RUN_REQUEST | GPIO2 | Již označený „LED ON“: změřit LED zapojení, polaritu a proud/pull rezistory. LED může odrážet stav povolení pohonů; není nezávislou stavovou LED. Bez prokázaného bezpečného boot stavu tuto variantu nepoužít. |
-| PTT | MCP GPA0 | Kontakt na GND, externí 10 kΩ na 3,3 V; polling 10 ms, debounce 30 ms. INT pin není nutný. |
+| PTT | MCP GPA0 | Kontakt na GND, externí 15 kΩ na 3,3 V; polling 10 ms, debounce 30 ms. INT pin není nutný. |
 | MAX98357A SD/mute | MCP GPA1 | Externí pull-down pro boot; I2C chyba vyvolá zastavení audia, bezpečnost motorů na MCP nezávisí. |
 | Watchdog heartbeat | MCP GPA2 | Externí pull-down, softwarové hrany každých 50 ms; jejich ztráta do 250 ms vypne bezpečnostní logiku. Přímé RUN_REQUEST ani OE nevedou přes expander. |
-| Snímání PHYSICAL_ENABLE | MCP GPA3 | Pomocný kontakt vypínače, externí pull-down; výpadek I2C znamená neznámý stav a zakázané servisní potvrzení. Fyzické odpojení pohonů nezávisí na MCP. |
+| Snímání PHYSICAL_ENABLE | MCP GPA3 | Napětí za servisní kolébkou před MOSFETem přes dělič 15 kΩ / 22 kΩ; výpadek I2C znamená neznámý stav a zakázané servisní potvrzení. Fyzické odpojení pohonů nezávisí na MCP. |
 | Serva / motory | PCA0–5 / PCA6–11 | Stejná přihrádková vazba jako A. PCA12–15 a zbytek MCP rezerva. |
 | USB / UART / paměti / straps | Beze změny podle rezervací | Dva fyzické USB-C konektory nejsou dva libovolné páry USB GPIO. |
 
@@ -926,12 +939,12 @@ Hardwarová větev je E0→E1/E2→E4→E5→E6. Konverzační větev E2→E7→
 | Router/internet na místě, hotspot a izolace klientů? | Vyhrazená LAN s dostupným AP, WAN volitelná. Otestovat konkrétní místo; telefon jako hotspot pouze po zkoušce. |
 | Jaká je doručená deska a zapojení LED2/48/USB/SD? | Neznámé; schéma a měření jsou blokátor elektrického zapojení, zejména varianty B. |
 | Jsou 3,3V výstupy PCA pro U059 skutečně dostatečné? | Předpoklad podle digitálního modulu, potvrdit na kusu. Při nevyhovění vhodný buffer/driver, nikoli 5V do ESP32. |
-| Jaký inhibit/watchdog/load switch a proudové limity? | Samostatná větev pohonů fail-off. Konkrétní součástky a zapojení určit a změřit před E5; bez toho jen nezatížený laboratorní prototyp. |
+| Jaký inhibit/watchdog/load switch a proudové limity? | Samostatná větev pohonů fail-off. Kandidát 6. 10.: Pololu 2801 + CD4093BE + Pololu 2814, viz návrh napájení. Zapojení a proudové limity změřit před E5; bez toho jen nezatížený laboratorní prototyp. |
 | Servo model, pulzy, zdvih a senzory? | Zvolen zdvih a automatický návrat; konkrétní mechanika a kalibrace jsou otevřené. Bez snímačů jen povelově ověřený stav. Po Stop/chybě žádný automatický návrat. |
 | Názvy/osobnosti šesti hůlek a cílové publikum? | Party katalog šesti rekvizit; majitel v D135 výslovně žádá ostrý, urážlivý humor a drzého prodavače z Ollivanderova obchodu pro dospělé. Otázky patří k výběru hůlky, respektují odmítnutí tématu a ukončení hry. Kvalita vyžaduje lidský poslech. |
 | Dostupnost/vracení hůlek? | Rozhodnuto majitelem 30. 9.: hůlka zůstává. Úspěšný normální návrat obnoví dostupnost, porucha/Stop vyžadují zotavení. |
 | Potřebujeme kameru i SD zároveň? | Ne pro základ. SD jen assety, kamera jednotlivé snímky; potvrdit užitek před E13 a teprve pak měnit kabeláž. |
-| Hlasitost a srozumitelnost v reálném hluku? | Jeden reproduktor 8 Ω s MAX98357A, PTT; český eval a měření v prostředí před E10/E11. |
+| Hlasitost a srozumitelnost v reálném hluku? | Dva reproduktory 8 Ω, každý vlastní MAX98357A, společný hlas a PTT; český eval a měření v prostředí před E10/E11. |
 | Kdo platí a spravuje cloud, jaká retence/region je přípustný? | Jeden správce, explicitní limity a informování návštěvníků. Přesné účetní/datové podmínky a dostupnost modelů před placeným testem. |
 | Rozměry kufru, kabely, teplota a výdrž powerbanky? | Z dokumentace neurčeno. Ověřit mechanickým prototypem a zátěžovým měřením; nepočítat výdrž pouze z nominální kapacity. |
 
