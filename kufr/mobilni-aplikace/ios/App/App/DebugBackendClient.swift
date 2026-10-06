@@ -445,7 +445,8 @@ final class DebugBackendClient {
         voice: String, speed: Double, gptLive: Bool = false, phase: @escaping DebugHandsFreeSession.Phase,
         visitor: @escaping DebugHandsFreeSession.Visitor, reply: @escaping DebugHandsFreeSession.Reply,
         audio: @escaping DebugHandsFreeSession.Audio, listening: @escaping DebugHandsFreeSession.Listening,
-        inputGate: @escaping DebugHandsFreeSession.InputGate, failure: @escaping DebugHandsFreeSession.Failure)
+        inputGate: @escaping DebugHandsFreeSession.InputGate, failure: @escaping DebugHandsFreeSession.Failure,
+        checkpoint: @escaping DebugHandsFreeSession.Checkpoint = { _ in })
         async throws -> DebugHandsFreeSession {
         guard (0...63).contains(readyMask), ["cedar", "marin", "coral"].contains(voice),
               speed.isFinite, (0.8...1.2).contains(speed) else { throw DebugBackendError.invalidResponse }
@@ -467,7 +468,7 @@ final class DebugBackendClient {
             try Task.checkCancellation()
             return DebugHandsFreeSession(client: self, profile: profile, token: token, conversation: conversation,
                 boot: boot, readyMask: readyMask, voice: voice, speed: speed, gptLive: gptLive, phase: phase, visitor: visitor,
-                reply: reply, audio: audio, listening: listening, inputGate: inputGate, failure: failure)
+                reply: reply, audio: audio, listening: listening, inputGate: inputGate, failure: failure, checkpoint: checkpoint)
         } catch {
             try? await cleanup(profile, token: token, conversation: conversation)
             throw error

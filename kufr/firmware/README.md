@@ -1,5 +1,22 @@
 # Firmware AI kufru
 
+## Autonomní Live: místní přehrání (D143)
+
+Nová serverová opt-in větev posílá `playback_checkpoint` s UUID, přesným
+počtem přijatých PCM bajtů a revizí rozhodnutí. ESP potvrdí `/playback`
+až po místním I2S/DMA drain; retry stejného ACK nespouští prezentaci.
+Reader/server dál přijímá Live, cloudové potvrzení není hotová řeč.
+Výsledný návrh dál prochází původní PendingProposal bránou a snapshotem.
+`completed` ani `session.closed` neznamenají fyzický návrat hůlky.
+
+ESP bez ověřeného AEC zůstává poloduplex: během přehrávání zachovává
+průběžnou 24kHz vstupní časovou osu nulovými PCM bloky, mikrofonní gate
+se otevírá až po lokálním drain. Ztracený backendový ACK běžný poslech
+neuzamkne, neověřený závěr však nevytvoří návrh. Hlasové přerušení během
+gate nemůže zajistit prompt. Úrovně, clipping, echo, latence a fyzická
+sekvence vyžadují skutečná měření; host testy/build nejsou AEC akceptace.
+[Kontrakt, heuristiky a A/B návod](../docs/autonomous-live-memory.md).
+
 ## První test logiky PCA9685
 
 Samostatný [PCA9685 logic diagnostic](diagnostics/pca9685-logic/README.md)

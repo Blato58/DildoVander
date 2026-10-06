@@ -10,6 +10,14 @@ nadpisu `KDYŽ JE TICH0`. Její SHA-256 je
 `99a72891209ef2bf5ad5a0120a7998c5a08bf46317f38812fb1d3816a5c3099d`;
 backendový test hlídá přesné bajty embedded zdroje. Původní soubor se nemění.
 
+D143 používá pro autonomní Live samostatnou
+[Ollivander adaptaci](ollivander-trunk-live-persona.txt). Původní persona
+a její `PromptSha256` se tím nemění. Party používá vlastní identitu
+a konverzační politiku; nepřebírá Ollivanderův dvouodpověďový rytmus.
+Výsledné Live instrukce mají zvlášť verzi/hash a zmrazí se při create.
+Legacy Live, Sol a Realtime zůstávají na dosavadních zdrojích.
+[Aktivace a A/B](../docs/autonomous-live-memory.md) jsou opt-in.
+
 ## Přepnutí a test v iOS
 
 1. V **Debug → Server** nastavte existující přístup správce a obnovte stav.

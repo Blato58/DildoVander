@@ -1,5 +1,21 @@
 # Implementační plán AI kufru
 
+> **D143, 6. 10. 2026: opt-in autonomní GPT-Live a hybridní paměť.**
+> `Backend:GptLive:ActorMode=AutonomousActor` odděluje hlasového herce od
+> faktického výběru stávajícím Solem. Pozdrav, roast, otázka a běžná reakce
+> nepotřebují backendový dialogový model. Výchozí `LegacyBackendScripted`,
+> Sol/text a Realtime zůstávají porovnávací a kompatibilní větve.
+> `ollivander-trunk` má dedikovanou Live adaptaci 2/3 odpovědi, party vlastní
+> politiku 4–7; původní zdroje/hashy, katalog a uložená volba zůstávají.
+> SQLite v EveningMemoryStore je autorita, skutečný OpenAI Vector Store
+> odvozený index se dvěma scopes, trvalým outboxem a revalidací každého hitu.
+> Cloudová a osobní paměť jsou výchozí vypnuté. Playback checkpoint vyžaduje
+> skutečný místní drain, nikoli cloudový ACK; mechaniku dál vlastní ESP32.
+> Toto upřesnění platí pro novou větev, starší popisy níže zachycují své
+> původní režimy. [Konfigurace, provisioning, retence, rollback a A/B](autonomous-live-memory.md).
+> Produkční aktivace, cloudové prostředky, placený poslech a HW jsou
+> samostatná ověření; implementace je bez nich nezávisle testovatelná.
+
 > **D128, 2. 10. 2026: volitelný GPT-Live + Sol a 3 USD/session.**
 > Na výslovné zadání majitele přibývá přepínač `gpt-live` ve firmware/local
 > control a mobilním Debug. Samostatné `/gpt-live` session používá `gpt-live-1`,
@@ -414,6 +430,33 @@ Alternativy: Azure-hostované modely zvážit při požadavku na konkrétní fir
 
 ### Katalog a prompt
 
+**D143 — autonomní Live varianta.** Katalog z D142 zůstává jediným zdrojem
+ID/jmen/zdrojových SHA. Samostatný `ollivander-trunk-live-persona.txt` je
+adaptace pouze pro tuto personalitu; party používá vlastní identitu bez
+starého povinného serverového psaní replik. Při create se zmrazí také
+`LivePromptSnapshot` s verzí a odvozeným hashem; provozní změna jej nevymění.
+Výslovné `Backend:GptLive:ConversationPolicy` má jednotnou přednost před
+výchozí politikou v promptu i rozhodování. Otázkové kandidáty jsou časovaná
+aplikační projekce, nikoli přesný sémantický důkaz či počet delegací.
+`WandDecisionService` přijímá skutečné validní kandidáty, opravy a reference
+odpovědí. Vrací faktický návrh/needs_information/no_available, revize a
+důvody bez `Reply`; Live jej formulací sdělí samo. Prázdná dostupnost není
+modelové volání. Potvrzení přehrání, znovu ověřený snapshot a platná revize
+jsou podmínkou návrhu pro zařízení; fyzická akceptace zůstává místní.
+
+Hybridní paměť rozšiřuje EveningMemoryStore nedestruktivním schema 2.
+Rozsahy Conversation, EveningMotif a Personal se nesměšují. Legacy data
+nemají ověřenou identitu/původ a neexportují se automaticky. Osobní paměť
+vyžaduje serverem ověřenou vazbu a dlouhodobé povolení, export samostatné
+povolení. Revizovaný zápis + outbox jsou jedna transakce; oprava/mazání
+vytvoří okamžitý místní tombstone, cloudový úklid odstraní asociaci i vlastní
+Files soubor. Přímé REST search používá serverové `filters`, pak SQLite
+revalidaci FileId/revize/oprávnění. Index nemění dostupnost či mechaniku.
+Provisioning je explicitní CLI dry-run / execute, nikdy vytváření stores
+při startu. Context budget je výchozí 500 konzervativních tokenů vybrané
+paměti; nejsou zvýšené dosavadní konverzační limity ani změněný model.
+Podrobnosti a připravené akceptace jsou v [D143 provozním návodu](autonomous-live-memory.md).
+
 **D142, 5. 10. 2026 — inventář personalit na výslovné zadání majitele.**
 Dosavadní `voice-persona.txt` zůstává výchozí `party-original`, beze změn.
 Druhý zdroj `ollivander-trunk-persona.txt` je dodaný text bez úprav.
@@ -688,6 +731,18 @@ Minimální první prototyp může ověřit OE a ruční odpojení pohonů; pro 
 - OTA v první verzi vypnuté. Později pouze podepsaný image, servisní režim, inhibit pohonů a rollback; existence dvou slotů v tabulce oddílů není hotové bezpečné OTA.
 
 ### Soukromí
+
+**D143, pouze autonomní Live/hybridní větev:** textová paměť se rozšiřuje
+o explicitně oddělené scopes a časovanou historii v témže EveningMemoryStore.
+Osobní dlouhodobá paměť a export do OpenAI jsou výchozí vypnuté a vyžadují
+ověřenou serverovou identitu a samostatná povolení. Anonymní večerní motivy
+neobsahují osobní příběhy. Nové záznamy/přepisy mají scope retenci a revizované
+mazání přes trvalý outbox včetně Files souboru. SQLite tombstone brání použití
+okamžitě, vzdálený úklid má vlastní potvrzení/backlog. Běžící kontaminovaná
+session po admin opravě/smazání končí; nová začne jen z platných dat.
+Přesné limity a datové podmínky jsou v [D143 návodu](autonomous-live-memory.md).
+Dosavadní archiv večerů a jeho explicitní mazání zůstávají kompatibilní;
+následující původní retence jej popisuje, nikoli novou cloudovou osobní paměť.
 
 Před rozhovorem zřetelně sdělit, že hlas/text zpracovává cloud a hlas odpovědi je syntetický. Textový a ruční režim bez nahrávání jsou rovnocenné možnosti. Kamera má oddělený souhlas pro jednotlivý snímek a náhled; žádné trvalé sledování, identifikace osoby, věk/pohlaví z obličeje nebo skrytý archiv.
 

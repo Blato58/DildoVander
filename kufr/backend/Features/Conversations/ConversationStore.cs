@@ -3,6 +3,8 @@ using System.Security.Cryptography;
 using System.Text;
 using Kufr.Backend.Features.Speech;
 using Kufr.Backend.Features.VoiceTurns;
+using Kufr.Backend.Features.GptLive;
+using Kufr.Backend.Features.Memory;
 
 namespace Kufr.Backend.Features.Conversations;
 
@@ -12,7 +14,8 @@ internal sealed partial class ConversationStore(
     TextDialogRunner? dialogRunner = null,
     ILogger<ConversationStore>? logger = null,
     EveningMemoryStore? eveningMemory = null,
-    VoiceProviderRunner? voiceRunner = null)
+    VoiceProviderRunner? voiceRunner = null,
+    GptLiveOptions? liveOptions = null)
 {
     private readonly Lock gate = new();
     private readonly Dictionary<string, ConversationEntry> conversations = new(StringComparer.Ordinal);
@@ -89,7 +92,7 @@ internal sealed partial class ConversationStore(
                     request.Consent.Audio,
                     personalityId,
                     response.ExpiresAt,
-                    now.AddMinutes(30)));
+                    now.AddMinutes(30)) { LivePrompt = LivePromptSnapshot.Create(personalityId, liveOptions ?? new()) });
             return new CreateResult(201, response);
         }
     }
@@ -1024,6 +1027,10 @@ internal sealed partial class ConversationStore(
         public string CatalogVersion { get; } = catalogVersion;
         public bool AudioConsented { get; } = audioConsented;
         public string PersonalityId { get; } = selectedPersonalityId;
+        public LivePromptSnapshot LivePrompt { get; init; } = LivePromptSnapshot.Create(selectedPersonalityId, new());
+        public string LiveGeneration { get; } = Guid.NewGuid().ToString("D");
+        public int? LiveReadyMask { get; set; }
+        public int? LiveAvailabilityRevision { get; set; }
         public DateTimeOffset ExpiresAt { get; set; } = expiresAt;
         public DateTimeOffset AbsoluteExpiresAt { get; } = absoluteExpiresAt;
         public int TurnCount { get; set; }

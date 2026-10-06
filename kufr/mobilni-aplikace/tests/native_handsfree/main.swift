@@ -33,6 +33,7 @@ struct NativeHandsFreeTests {
         let metrics = try JSONSerialization.jsonObject(with: data) as! [String: Int]
         assert(metrics["played"] == 3 && metrics["uploads"] == 2 && metrics["cleanup"] == 1)
         try await testGptLive(client: client, profile: profile)
+        try await testAutonomousCheckpoint(client: client, profile: profile)
         try testPlaybackConversion()
         try testPlaybackRendering()
         testPlaybackProgress()
@@ -165,6 +166,46 @@ struct NativeHandsFreeTests {
             assert(DebugHandsFreeAudioPolicy.shouldStop(reason: reason, configurationMatches: true))
             assert(DebugHandsFreeAudioPolicy.shouldStop(reason: reason, configurationMatches: false))
         }
+    }
+
+    @MainActor static func testAutonomousCheckpoint(client: DebugBackendClient, profile: DebugBackendProfile) async throws {
+        let actorProfile = DebugBackendProfile(baseURL: profile.baseURL.appendingPathComponent("actor"),
+            deviceId: profile.deviceId, credential: profile.credential)
+        var gate = false
+        var audioBlocks = 0
+        var checkpoints = 0
+        var replies = 0
+        var session: DebugHandsFreeSession!
+        session = DebugHandsFreeSession(client: client, profile: actorProfile, token: "access",
+            conversation: "00000000-0000-4000-8000-000000000002", boot: "00000000-0000-4000-8000-000000000001",
+            readyMask: 63, voice: "cedar", speed: 1, gptLive: true,
+            phase: { _ in }, visitor: { _ in }, reply: { reply in
+                assert(checkpoints == 1 && reply.terminal && reply.text == "Actor závěr")
+                replies += 1
+                Task { try? await session.played(operationId: reply.operationId) }
+            }, audio: { _ in assert(gate); audioBlocks += 1 }, listening: { input in
+                Task { try? await session.upload(inputId: input, sequence: 0, pcm: Data([0, 0, 1, 0])) }
+            }, inputGate: { gate = $0 }, failure: { fatalError("Unexpected actor failure: \($0)") }, checkpoint: { id in
+                assert(gate && audioBlocks == 2 && replies == 0)
+                checkpoints += 1
+                Task {
+                    // A checkpoint request is not player completion. The fake
+                    // player reports drain explicitly after this read boundary.
+                    let (data, _) = try await URLSession.shared.data(from: profile.baseURL.appendingPathComponent("test/metrics"))
+                    let metrics = try JSONSerialization.jsonObject(with: data) as! [String: Int]
+                    assert(metrics["actorCheckpoints"] == 0)
+                    try await session.played(operationId: id)
+                }
+            })
+        let timeout = Task { try await Task.sleep(nanoseconds: 10_000_000_000); fatalError("Actor checkpoint timeout") }
+        try await session.run()
+        timeout.cancel()
+        try await session.close()
+        let (data, _) = try await URLSession.shared.data(from: profile.baseURL.appendingPathComponent("test/metrics"))
+        let metrics = try JSONSerialization.jsonObject(with: data) as! [String: Int]
+        assert(audioBlocks == 2 && checkpoints == 1 && replies == 1 && !gate)
+        assert(metrics["actorCheckpoints"] == 2 && metrics["livePlayed"] == 2)
+        print("Autonomous native full-duplex checkpoint, explicit local drain and lost-ACK retry passed.")
     }
 
     static func testEngineStartup() {

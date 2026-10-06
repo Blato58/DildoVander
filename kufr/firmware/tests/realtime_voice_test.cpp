@@ -54,6 +54,10 @@ int main() {
   assert(message.voiceMode == "gpt-live");
   assert(ParseRealtimeEvent("{\"type\":\"pause\"}", event));
   assert(!ParseRealtimeEvent("{\"type\":\"pause\",\"operationId\":\"bad\"}", event));
+  assert(ParseRealtimeEvent("{\"type\":\"playback_checkpoint\",\"playbackId\":\"c85743d5-1b72-41b8-8500-ae3c102b27d6\",\"pcmBytes\":48000,\"decisionRevision\":2}", event));
+  assert(event.pcmBytes == 48000 && event.decisionRevision == 2);
+  assert(!ParseRealtimeEvent("{\"type\":\"playback_checkpoint\",\"playbackId\":\"bad\",\"pcmBytes\":48000,\"decisionRevision\":2}", event));
+  assert(!ParseRealtimeEvent("{\"type\":\"playback_checkpoint\",\"playbackId\":\"c85743d5-1b72-41b8-8500-ae3c102b27d6\",\"pcmBytes\":3,\"decisionRevision\":2}", event));
   json = "{" + common + ",\"type\":\"voice.start\",\"expectedRevision\":37}";
   assert(ParseLocalControlMessage(json.data(), json.size(), message));
   assert(message.kind == LocalControlMessageKind::VoiceStart && message.expectedRevision == 37);

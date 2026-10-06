@@ -1,5 +1,20 @@
 # Mobilní ovládání kufru
 
+## Autonomní Live a playback checkpoint (D143)
+
+Katalog a výběr personality dál načítá dosavadní Debug → Server. Novou
+autonomní větev aktivuje backendová konfigurace, nikoli nový seznam
+postav v telefonu. Swift Live transport přijme `playback_checkpoint`,
+ověří přesný počet PCM bajtů a potvrdí jej až po skutečném
+`dataPlayedBack` drain. Reader při tom dál běží a GPT-Live zachovává
+současný capture/playback s původním Apple voice processing. Starý
+klient bez checkpointu patří k legacy režimu. Nový nativní fixture
+obsahuje explicitní drain i ztracený ACK; jeho běh vyžaduje macOS.
+
+[D143 návod](../docs/autonomous-live-memory.md) rozlišuje konfiguraci,
+lokální testy a dosud neprovedený poslech/iPhone/HW. Tato změna sama
+nepublikuje novou IPA, nepřepíná server a nedokládá změřené AEC.
+
 ## Hlas kufru v Ovládání (D119)
 
 Sekce **Hlas kufru** nastavuje režim Vypnutý / Realtime a hlas

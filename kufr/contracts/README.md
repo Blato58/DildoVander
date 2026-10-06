@@ -1,5 +1,23 @@
 # Sdílené kontrakty kufru
 
+## Autonomní Live a paměť (D143)
+
+Opt-in actor větev rozšiřuje `GptLiveEvent` o `playback_checkpoint`
+(`playbackId`, `pcmBytes`, `decisionRevision`). Autentizované
+`POST .../gpt-live/{streamId}/playback` potvrzuje jen odpovídající místní
+drain. Stejné potvrzení je idempotentní; změněné/stale se odmítne.
+`/availability` ověřuje device, boot, generation a monotónní snapshot.
+Tyto endpointy nevystavují provider klíč ani pohybové příkazy.
+Starý klient zůstává na výchozím legacy režimu.
+
+Admin-only `/v1/admin/memory` a související verify/guest/records cesty
+jsou v OpenAPI s přesnými revizovanými těly. Diagnostika vrací režim,
+personalityId, provider/degraded/backlog a poslední ověření; bez textů
+hostů a klíčů. Identity/souhlasy a `filters` sestavuje server. SQLite
+revalidace platí i pro cizí či smazaný FileId vrácený providerem.
+[Provozní návod](../docs/autonomous-live-memory.md) obsahuje aktivaci,
+rollback, provisioning, retenci a omezení audio heuristik.
+
 ## Hlas ESP v lokálním control v1 (D119, D128)
 
 `voice.configure` nese běžnou device/boot/messageId obálku a

@@ -2,6 +2,13 @@
 
 Aktuální priorita. Cíl: šest hůlek, krátký adresovatelný RGB pásek a vibrační motor pod každou přihrádkou, samostatné servo zdvihy přihrádek, mikrofon, reproduktor a tlačítko. **ESP32-S3 komunikuje přímo s backendem; telefon není potřebný pro běžný rozhovor.** AI sama vybere dostupnou hůlku. Po místním ověření ESP32 ji servo vysune, předvede a zase zasune bez potvrzení obsluhy. Hůlka zůstává jako rekvizita; normální cyklus nepotřebuje ruční reset. Stop nebo chyba vyžadují kontrolu a zotavení. iOS aplikace je volitelný ruční ovladač a záložní textový/hlasový vstup. Při nedostupné AI/WAN musí zůstat místní ruční volba.
 
+D143 přidává opt-in **autonomní GPT-Live a hybridní paměť**: Live tvoří
+vlastní řeč, backend ověřuje skutečný výběr, SQLite vlastní revizovanou
+paměť a OpenAI Vector Store její povolený odvozený index. Výchozí režim
+i katalog personalit zůstávají. [Aktivace, rollback, stores a retence](docs/autonomous-live-memory.md)
+jsou připravené; skutečný cloud, poslech a mechanika vyžadují samostatné
+ověření podle [stavu implementace](docs/stav-implementace.md).
+
 Vybraná rekvizita: [sada dvou dřevěných truhel Marketos](https://www.marketos.cz/marketos-truhla-drevena-2-ks-vintage-hneda/). Pro AI kufr je zamýšlená větší truhla; skutečný vnitřní prostor změříme po doručení. Menší truhla patří komediálnímu kufru, který je bez elektroniky.
 
 ## Složky
