@@ -1,0 +1,73 @@
+name: Provision Kufr memory stores
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: Successful CI run ID with the merged/current main tree
+        type: string
+        required: true
+      action:
+        description: Dry-run, verify existing stores, or explicitly create missing stores
+        type: choice
+        options: [dry-run, verify, create]
+        default: dry-run
+      personal_store_id:
+        description: Optional existing personal store ID (never an API key)
+        type: string
+      motif_store_id:
+        description: Optional existing anonymous motif store ID (never an API key)
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
+concurrency:
+  group: kufr-backend-production
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/reuse-build.yml
+    with:
+      build_run_id: ${{ inputs.build_run_id }}
+      workflow: ci.yml
+      artifact: backend-publish
+
+  provision:
+    if: github.ref == 'refs/heads/main'
+    needs: verify
+    runs-on: [self-hosted, Linux, X64, kufr-backend]
+    environment: backend-production
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.verify.outputs.main_sha }}
+          persist-credentials: false
+      - name: Reject provisioning queued before main changed
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          EXPECTED_SHA: ${{ needs.verify.outputs.main_sha }}
+        with:
+          script: await require('./scripts/ci/verify-build.cjs').checkMain({ github, context }, process.env.EXPECTED_SHA)
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: verified-backend-publish
+          path: ${{ runner.temp }}/memory-package
+      - name: Unpack verified CLI
+        run: python3 scripts/ci/package.py unpack "$RUNNER_TEMP/memory-package" "$RUNNER_TEMP/memory-cli-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+      - name: Explicit provisioning without guest export or service interruption
+        env:
+          OPENAI_API_KEY: ${{ inputs.action != 'dry-run' && secrets.OPENAI_API_KEY || '' }}
+          PROVISION_ACTION: ${{ inputs.action }}
+          PERSONAL_STORE: ${{ inputs.personal_store_id || vars.KUFR_MEMORY_PERSONAL_STORE_ID }}
+          MOTIF_STORE: ${{ inputs.motif_store_id || vars.KUFR_MEMORY_MOTIF_STORE_ID }}
+        run: |
+          python3 kufr/backend/deploy/memory_provision.py \
+            --backend "$RUNNER_TEMP/memory-cli-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/backend" \
+            --action "$PROVISION_ACTION" \
+            --personal-store-id "$PERSONAL_STORE" --motif-store-id "$MOTIF_STORE"

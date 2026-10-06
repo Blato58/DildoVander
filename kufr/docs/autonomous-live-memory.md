@@ -191,6 +191,64 @@ vynucují izolaci. Chybějící konfigurace nevytváří stores při startu.
 Provisioning nevkládá vzpomínky. Cloudovou indexaci aktivuje zvláštní
 konfigurace po ověření, nikoli CLI vytvoření resource.
 
+### GitHub Actions na produkčním runneru
+
+Workflow `kufr-memory-provision.yml` ověří úspěšný CI artifact a shodu
+s aktuálním sloučeným `main`, poté spustí stejné backendové CLI. Nevyžaduje
+širší sudo ani přístup do databáze běžící služby. Jeho trvalý journal
+`${GITHUB_WORKSPACE}/../.kufr-memory-provisioning-production/journal.sqlite`
+obsahuje pouze technická provisioning ID, nikoli paměť hostů. Adresář má
+0700 a soubory 0600, leží mimo checkout i RUNNER_TEMP a musí se zálohovat
+s konfigurací runneru. První vytvořené ID zůstává uložené i při chybě
+druhého kroku. Přesun na jiný runner vyžaduje přenos tohoto journalu nebo
+výslovné zadání existujících IDs; jeho ztráta není pokyn vytvořit nové stores.
+Namespace je `kufr:Production`; jiná instalace nesmí sdílet tento journal.
+
+```sh
+# CI_RUN_ID nahradit úspěšným CI během pro aktuální sloučený main.
+gh workflow run kufr-memory-provision.yml --ref main \
+  -f build_run_id=CI_RUN_ID -f action=dry-run
+gh workflow run kufr-memory-provision.yml --ref main \
+  -f build_run_id=CI_RUN_ID -f action=create
+# Opakované ověření existujících stores, bez vytváření:
+gh workflow run kufr-memory-provision.yml --ref main \
+  -f build_run_id=CI_RUN_ID -f action=verify
+```
+
+Existující stores lze poprvé zadat přes `personal_store_id` a
+`motif_store_id`; alternativně environment variables GitHub Actions
+`KUFR_MEMORY_PERSONAL_STORE_ID` a `KUFR_MEMORY_MOTIF_STORE_ID`.
+Konflikt s trvale uloženými ID se odmítne, nepřesměruje existující index.
+API klíč je pouze secret `OPENAI_API_KEY` environmentu `backend-production`;
+dry-run jej CLI ani nepředá. Žádný režim provisioning workflow nenahrává
+soubory hostů. Při nejasném výsledku prvního POST a chybějícím ID ověřit
+OpenAI resources správcem; POST automaticky neopakovat naslepo.
+
+Deployment čte tyto dvě nastavení do `appsettings.Production.json`
+konkrétního release. Parametry `live_actor_mode` (výchozí
+`LegacyBackendScripted`), `hybrid_memory` a `cloud_indexing` (oba false)
+mapuje na `Backend:GptLive:ActorMode`, `Backend:Memory:Enabled` a
+`Backend:Memory:CloudIndexingEnabled`. `LongTermPersonalEnabled` zůstává
+false. Zapnutí hybridní paměti vyžaduje obě provisionovaná IDs; cloud
+navíc zapnutou paměť. Režimy/modely/3 USD session cap se nemění automaticky.
+
+```sh
+gh workflow run kufr-backend-deploy.yml --ref main \
+  -f build_run_id=CI_RUN_ID -f dialog_mode=responses \
+  -f dialog_model=gpt-6.1-sol -f voice_mode=openai \
+  -f live_actor_mode=AutonomousActor -f hybrid_memory=true -f cloud_indexing=false
+```
+
+Autonomní režim vyžaduje klienty s `playback_checkpoint`; starší publikovaná
+IPA/firmware tuto podmínku nesplňují. Před jejich aktualizací nasadit
+`live_actor_mode=LegacyBackendScripted`. Rollback chování stejným aktuálním
+artifactem: `LegacyBackendScripted`, `hybrid_memory=false`,
+`cloud_indexing=false`. ID stores zůstávají; rollback prostředky nemaže.
+Root-owned helper při neúspěšném health checku vrací předchozí release.
+Po aktivaci se ověří veřejné HTTPS, admin/device oddělení, skutečný actor
+a paměťový provider; pokud jsou stores nakonfigurované, dvěma GET ověří
+jejich přístup a scope. Nejde o placený hlasový či poslechový test.
+
 ## Paměť, povolení a administrace
 
 Schema 2 rozšiřuje existující `.evening.sqlite`, původní večery a výměny

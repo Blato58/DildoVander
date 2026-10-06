@@ -6,6 +6,36 @@ Poslední aktualizace: **6. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D144 – 6. 10. 2026 – příprava autorizovaného deploymentu a provisioning.**
+Majitel po sloučení D143 v PR #121 výslovně zadal „Nasaď a udělej
+provisioning“. Audit produkce přes host probe
+[37425364754](https://github.com/Blato58/DildoVander/actions/runs/37425364754)
+a read-only diagnostiku
+[37425368125](https://github.com/Blato58/DildoVander/actions/runs/37425368125)
+potvrdil funkční health, responses/openai, dostupné providers a 0 rozhovorů.
+Runner má pouze úzké sudo pro activate, nikoli právo zastavit službu
+a spustit CLI nad její soukromou DB. Přístup ke GitHub environment variables
+přes aktuální integrační token vrací 403; klíče se nevyžadují v chatu.
+
+`kufr-memory-provision.yml` proto explicitně spouští skutečné D143 CLI
+z ověřeného CI artifactu a uchová technická ID v privátním trvalém journalu
+runneru mimo checkout/temp. Databáze paměti hostů zůstává ve službě.
+`memory_provision.py` ověřuje umístění/oprávnění/IDs, odmítne konflikt a
+neúplný úspěch; dry-run nepředá klíč, žádný režim neexportuje záznamy.
+Deployment přebírá ID a explicitní actor/memory/cloud parametry do release;
+kontrola po deploy ověří skutečný actor/provider a případně přístup do
+stores bez hlasového modelu či osobních dat. Sudo není rozšířeno.
+
+Lokální kontroly skutečně proběhly: deployment Python 11/11 (8 nových),
+provenance Node 29/29, backend Python 16/16, actionlint 1.7.12 nad všemi
+workflow a git diff --check OK. Skutečný backend apphost přes wrapper
+`GITHUB_WORKSPACE=/tmp/kufr-provision-local/checkout DOTNET_ROOT=/tmp/dildovander-dotnet
+python3 kufr/backend/deploy/memory_provision.py --backend
+/workspace/DildoVander/kufr/backend/bin/Release/net10.0/backend --action dry-run`
+vrátil Production, dvě create_requested, networkRequests=0 a exports=0.
+Tento záznam je před provedením deploymentu; cloud/produkční výsledky
+budou doplněny podle skutečných běhů po povinném CI a sloučení.
+
 **D143 – 6. 10. 2026 – autonomní GPT-Live a hybridní paměť.**
 Audit začal na čistém `work`, HEAD `302ac63` (sloučený D142), remote
 Blato58/DildoVander. Změny jsou pouze v kufru, větev

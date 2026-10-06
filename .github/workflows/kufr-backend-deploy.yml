@@ -22,6 +22,19 @@ on:
         type: choice
         options: [fake, openai]
         default: fake
+      live_actor_mode:
+        description: Live actor (AutonomousActor requires updated native clients)
+        type: choice
+        options: [LegacyBackendScripted, AutonomousActor]
+        default: LegacyBackendScripted
+      hybrid_memory:
+        description: Enable local hybrid memory (requires provisioned stores)
+        type: boolean
+        default: false
+      cloud_indexing:
+        description: Enable cloud indexing; personal memory stays disabled
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -65,6 +78,7 @@ jobs:
       - name: Unpack verified backend payload
         run: python3 scripts/ci/package.py unpack "$RUNNER_TEMP/backend-package" "$RUNNER_TEMP/kufr-publish-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
       - name: Activate on server
+        id: activate
         shell: bash
         env:
           DEVICE_ID: ${{ secrets.DEVICE_ID }}
@@ -74,6 +88,11 @@ jobs:
           DIALOG_MODE: ${{ inputs.dialog_mode || 'fake' }}
           DIALOG_MODEL: ${{ inputs.dialog_model || 'gpt-6.1-sol' }}
           VOICE_MODE: ${{ inputs.voice_mode || 'fake' }}
+          LIVE_ACTOR_MODE: ${{ inputs.live_actor_mode }}
+          HYBRID_MEMORY: ${{ inputs.hybrid_memory }}
+          CLOUD_INDEXING: ${{ inputs.cloud_indexing }}
+          PERSONAL_STORE: ${{ vars.KUFR_MEMORY_PERSONAL_STORE_ID }}
+          MOTIF_STORE: ${{ vars.KUFR_MEMORY_MOTIF_STORE_ID }}
           ADMIN_CREDENTIAL: ${{ secrets.ADMIN_CREDENTIAL }}
           LOG_READER_CREDENTIAL: ${{ secrets.LOG_READER_CREDENTIAL }}
           PUBLIC_IPV4: ${{ vars.KUFR_BACKEND_PUBLIC_IPV4 }}
@@ -102,7 +121,11 @@ jobs:
           import hashlib
           import json
           import os
+          import sys
           from pathlib import Path
+
+          sys.path.insert(0, 'kufr/backend/deploy')
+          from memory_provision import provisioning_directory, resolve_stores
 
           voice = os.environ['VOICE_MODE']
           if voice not in ('fake', 'openai'):
@@ -117,6 +140,28 @@ jobs:
               'Dialog': {'Mode': os.environ['DIALOG_MODE'], 'Model': os.environ['DIALOG_MODEL']},
               'Voice': {'Mode': voice}, 'Admin': {'CredentialSha256': admin_hash},
           }}
+          actor = os.environ['LIVE_ACTOR_MODE']
+          if actor not in ('LegacyBackendScripted', 'AutonomousActor'):
+              raise SystemExit('Invalid Live actor mode')
+          def flag(name):
+              value = os.environ[name]
+              if value not in ('true', 'false'):
+                  raise SystemExit('Invalid memory flag')
+              return value == 'true'
+          memory = flag('HYBRID_MEMORY')
+          cloud = flag('CLOUD_INDEXING')
+          stores = resolve_stores(provisioning_directory(), os.environ['PERSONAL_STORE'], os.environ['MOTIF_STORE'])
+          if cloud and not memory or memory and not all(stores.values()):
+              raise SystemExit('Hybrid memory requires both provisioned stores; cloud requires memory')
+          config['Backend']['GptLive'] = {'ActorMode': actor}
+          config['Backend']['Memory'] = {
+              'Enabled': memory, 'CloudIndexingEnabled': cloud,
+              'LongTermPersonalEnabled': False, 'AppNamespace': 'kufr', 'Environment': 'Production',
+              'PersonalStoreId': stores['personal'], 'MotifStoreId': stores['motifs'],
+          }
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              configured = all(stores.values()) and bool(os.environ['OPENAI_API_KEY'])
+              output.write('memory_configured=' + str(configured).lower() + '\n')
           reader = os.environ.get('LOG_READER_CREDENTIAL', '')
           if reader:
               if not 32 <= len(reader) <= 256 or not all(32 < ord(c) < 127 for c in reader):
@@ -144,8 +189,10 @@ jobs:
               },
           }))
           PY
-      - name: Verify public server mode control without provider calls
+      - name: Verify public modes and memory stores without dialogue generation
         env:
           ADMIN_CREDENTIAL: ${{ secrets.ADMIN_CREDENTIAL }}
           PUBLIC_IPV4: ${{ vars.KUFR_BACKEND_PUBLIC_IPV4 }}
+          EXPECTED_LIVE_ACTOR_MODE: ${{ inputs.live_actor_mode }}
+          EXPECTED_MEMORY_CONFIGURED: ${{ steps.activate.outputs.memory_configured }}
         run: python3 kufr/backend/tests/server_mode_smoke.py
