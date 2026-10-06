@@ -32,17 +32,21 @@ internal sealed class GptLiveConnection(WebSocket socket) : IStreamingAudioInput
 {
     private readonly SemaphoreSlim writes = new(1, 1);
     private bool closing;
+    private long inputPcmBytes;
+    internal long InputPcmBytes => Interlocked.Read(ref inputPcmBytes);
     private readonly TaskCompletionSource ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal void AudioReady() => ready.TrySetResult();
     public async Task SendAudioAsync(byte[] pcm, CancellationToken token)
     {
         await ready.Task.WaitAsync(token);
-        await SendAsync(new { type = "session.input_audio.append", audio = Convert.ToBase64String(pcm) }, token, audio: true);
+        await SendAsync(new { type = "session.input_audio.append", audio = Convert.ToBase64String(pcm) }, token, audio: true, audioBytes: pcm.Length);
     }
 
-    internal Task CloseAsync(CancellationToken token) => SendAsync(new { type = "session.close" }, token, close: true);
+    internal Task CloseAsync(CancellationToken token, string? eventId = null) => eventId is null
+        ? SendAsync(new { type = "session.close" }, token, close: true)
+        : SendAsync(new { type = "session.close", event_id = eventId }, token, close: true);
 
-    internal async Task SendAsync(object value, CancellationToken token, bool audio = false, bool close = false)
+    internal async Task SendAsync(object value, CancellationToken token, bool audio = false, bool close = false, int audioBytes = 0)
     {
         var bytes = JsonSerializer.SerializeToUtf8Bytes(value, RealtimeProtocol.JsonOptions);
         if (bytes.Length > 65_536) throw new InvalidDataException("Live command too large.");
@@ -54,6 +58,7 @@ internal sealed class GptLiveConnection(WebSocket socket) : IStreamingAudioInput
             if (audio && closing) return;
             if (close) closing = true;
             await socket.SendAsync(bytes, WebSocketMessageType.Text, true, token);
+            if (audio) Interlocked.Add(ref inputPcmBytes, audioBytes);
         }
         finally { CryptographicOperations.ZeroMemory(bytes); writes.Release(); }
     }

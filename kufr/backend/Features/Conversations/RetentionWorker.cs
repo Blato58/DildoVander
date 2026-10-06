@@ -8,7 +8,9 @@ internal sealed class RetentionWorker(
     ConversationStore conversations,
     OperationJournal journal,
     IConfiguration configuration,
-    ILogger<RetentionWorker> logger) : BackgroundService
+    ILogger<RetentionWorker> logger,
+    EveningMemoryStore? memory = null,
+    Memory.HybridMemoryService? hybridMemory = null) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -26,6 +28,8 @@ internal sealed class RetentionWorker(
                 access.PurgeExpired();
                 conversations.SweepExpired();
                 journal.PurgeExpired();
+                memory?.PurgeHybridMemory();
+                hybridMemory?.ClearCache();
             }
             catch (Exception exception)
             {

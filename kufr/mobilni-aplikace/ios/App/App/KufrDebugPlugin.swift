@@ -331,7 +331,10 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
                 if self?.generation == generation { audio.beginListening(inputId: input) }
             },
             inputGate: { enabled in if !enabled { audio.stopUploading() } },
-            failure: { [weak self] code in if self?.generation == generation { self?.lastError = code } })
+            failure: { [weak self] code in if self?.generation == generation { self?.lastError = code } },
+            checkpoint: { [weak self] id in
+                if self?.generation == generation { audio.finishPlayback(operationId: id) }
+            })
         var resolved = false
         do {
             try requireCurrent(generation)

@@ -9,9 +9,11 @@ const ids = {
   input2: '00000000-0000-4000-8000-000000000006', stream: '00000000-0000-4000-8000-000000000007',
   operation0: '00000000-0000-4000-8000-000000000010', operation1: '00000000-0000-4000-8000-000000000011',
   operation2: '00000000-0000-4000-8000-000000000012',
+  checkpoint: '00000000-0000-4000-8000-000000000020',
 };
 let stream; let played = 0; let uploads = 0; let cleanup = 0;
 let livePlayed = 0; let liveUploads = 0;
+let actorActive = false; let actorCheckpoints = 0;
 let regressionUploads = 0; let redirected = 0;
 const regressionSockets = new Set();
 function correlation(clientTurnId) { return { deviceId: 'debug-test', bootId: ids.boot, conversationId: ids.conversation, clientTurnId, generation: 0, deviceRevision: 0 }; }
@@ -24,6 +26,8 @@ function answer(input, operation, terminal) {
     result: { reply: `reply-${uploads}`, decision: terminal ? 'no_selection' : 'ask', reason: '', proposal: null } });
 }
 const server = createServer((request, response) => {
+  const actor = request.url.startsWith('/actor/');
+  if (actor) request.url = request.url.slice('/actor'.length);
   if (request.url === '/test/upload') {
     const chunks = [];
     request.on('data', chunk => chunks.push(chunk));
@@ -61,6 +65,7 @@ const server = createServer((request, response) => {
     request.on('end', () => {
       const start = JSON.parse(Buffer.concat(chunks).toString());
       if (start.speed !== 1) throw new Error('Live must use native speed');
+      actorActive = actor;
       ids.opening = start.clientTurnId;
       stream = response; response.writeHead(200, { 'Content-Type': 'application/x-ndjson' });
       event({ type: 'session', streamId: ids.stream, audioFormat: 'pcm16-mono-24000' });
@@ -77,9 +82,28 @@ const server = createServer((request, response) => {
       event({ type: 'visitor', text: 'Live odpověď' });
       event({ type: 'audio', delta: Buffer.from([0, 0, 1, 0]).toString('base64') });
       event({ type: 'pause' });
+      if (actorActive) {
+        event({ type: 'playback_checkpoint', playbackId: ids.checkpoint, pcmBytes: 8, decisionRevision: 2 });
+      } else {
+        event({ type: 'speech_stopped', inputId: ids.opening });
+        event({ type: 'completed', operationId: ids.operation0, correlation: correlation(ids.opening), costMicroUsd: 50000,
+          result: { reply: 'Live závěr', decision: 'no_selection', reason: '', proposal: null } });
+      }
+      response.writeHead(204).end();
+    }); return;
+  }
+  if (request.method === 'POST' && request.url.includes('/gpt-live/') && request.url.endsWith('/playback')) {
+    const chunks = []; request.on('data', chunk => chunks.push(chunk));
+    request.on('end', () => {
+      const body = JSON.parse(Buffer.concat(chunks).toString());
+      if (!actor || request.headers.authorization !== 'Bearer access' || Object.keys(body).length !== 3
+          || body.playbackId !== ids.checkpoint || body.pcmBytes !== 8 || body.drained !== true) throw new Error('Invalid checkpoint ACK');
+      actorCheckpoints++;
+      if (actorCheckpoints === 1) { request.socket.destroy(); return; } // accepted ACK, lost response
+      if (actorCheckpoints !== 2) throw new Error('Checkpoint replay was not bounded');
       event({ type: 'speech_stopped', inputId: ids.opening });
       event({ type: 'completed', operationId: ids.operation0, correlation: correlation(ids.opening), costMicroUsd: 50000,
-        result: { reply: 'Live závěr', decision: 'no_selection', reason: '', proposal: null } });
+        result: { reply: 'Actor závěr', decision: 'no_selection', reason: '', proposal: null } });
       response.writeHead(204).end();
     }); return;
   }
@@ -115,10 +139,10 @@ const server = createServer((request, response) => {
   if (request.method === 'DELETE' && request.url === `/v1/conversations/${ids.conversation}`) { cleanup += 1; response.writeHead(204).end(); return; }
   if (request.method === 'GET' && request.url === '/test/metrics') {
     response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({
-      played, uploads, cleanup, livePlayed, liveUploads, regressionUploads, regressionSockets: regressionSockets.size, redirected,
+      played, uploads, cleanup, livePlayed, liveUploads, actorCheckpoints, regressionUploads, regressionSockets: regressionSockets.size, redirected,
     })); return;
   }
   response.writeHead(404).end();
 });
 server.listen(0, '127.0.0.1', () => writeFileSync(addressFile, `http://127.0.0.1:${server.address().port}`));
-process.on('exit', () => { if (played !== 3 || uploads !== 2 || cleanup !== 2 || livePlayed !== 1 || liveUploads !== 1) process.exitCode = 1; });
+process.on('exit', () => { if (played !== 3 || uploads !== 2 || cleanup !== 3 || livePlayed !== 2 || liveUploads !== 2 || actorCheckpoints !== 2) process.exitCode = 1; });

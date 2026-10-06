@@ -40,6 +40,20 @@ internal static class GptLiveProtocol
         }
     };
 
+    internal static object AutonomousStart(RealtimeTurnContext turn, string eventId)
+    {
+        var snapshot = turn.LivePrompt ?? throw new InvalidOperationException("Live personality snapshot missing.");
+        if (snapshot.Options.Mode != LiveActorMode.AutonomousActor || LiveTextBudget.UpperBound(snapshot.Instructions) > 16_384
+            || turn.LiveInput.Count > 128 || LiveTextBudget.UpperBound(JsonSerializer.Serialize(turn.LiveInput)) > 8_192)
+            throw new InvalidOperationException("Live startup context exceeds its verified contract.");
+        return new { type = "session.start", event_id = eventId, session = new
+        {
+            model = Model, store = false, input = turn.LiveInput, instructions = snapshot.Instructions,
+            audio = new { format = new { type = "audio/pcm", rate = 24000 }, output = new { voice = turn.Request.Voice } },
+            delegation = new { type = "client" }
+        } };
+    }
+
     internal static string RequiredString(JsonElement value, string name, int maximum)
     {
         if (!value.TryGetProperty(name, out var field) || field.ValueKind != JsonValueKind.String

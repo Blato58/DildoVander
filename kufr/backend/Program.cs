@@ -4,8 +4,10 @@ using Kufr.Backend.Features.Conversations;
 using Kufr.Backend.Features.VoiceTurns;
 using Kufr.Backend.Features.Realtime;
 using Kufr.Backend.Features.Diagnostics;
+using Kufr.Backend.Features.Memory;
 
-var builder = WebApplication.CreateBuilder(args);
+var provisioning = args.Contains("--memory-provision");
+var builder = WebApplication.CreateBuilder(args.Where(a => a is not ("--memory-provision" or "--execute" or "--create")).ToArray());
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 4096);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<DeviceAccessStore>();
@@ -20,10 +22,24 @@ builder.Services.AddSingleton<OpenAiRealtimeClient>();
 builder.Services.AddSingleton<GptLiveClient>();
 builder.Services.AddSingleton<RealtimeLiveRegistry>();
 builder.Services.AddSingleton<EveningMemoryStore>();
+builder.Services.AddSingleton(GptLiveOptions.Read(builder.Configuration));
+builder.Services.AddSingleton(sp => HybridMemoryOptions.Read(builder.Configuration, sp.GetRequiredService<OperationJournal>()));
+builder.Services.AddSingleton<WandDecisionService>();
+builder.Services.AddSingleton<OpenAiVectorMemoryProvider>();
+builder.Services.AddSingleton<HybridMemoryService>();
+builder.Services.AddHostedService<MemoryIndexWorker>();
 builder.Services.AddSingleton<ConversationStore>();
 builder.Services.AddHostedService<RetentionWorker>();
 
 var app = builder.Build();
+if (provisioning)
+{
+    using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+    Environment.ExitCode = await MemoryProvisioning.RunAsync(builder.Configuration,
+        app.Services.GetRequiredService<OperationJournal>(), args, timeout.Token);
+    await app.DisposeAsync();
+    return;
+}
 app.Services.GetRequiredService<OperationJournal>();
 app.Services.GetRequiredService<TextDialogRunner>();
 app.Services.GetRequiredService<VoiceProviderRunner>();
@@ -49,10 +65,11 @@ app.MapConversations();
 app.MapRealtimeTurns();
 app.MapRealtimeLive();
 app.MapGptLive();
+app.MapMemoryAdministration();
 app.MapServerModes();
 app.MapServerLogs();
 app.MapGet("/v1/diagnostics", (HttpContext context, DeviceAccessStore access,
-    ConversationStore conversations) =>
+    ConversationStore conversations, GptLiveOptions live, HybridMemoryService memory) =>
 {
     if (DeviceAccessEndpoints.Authenticate(context, access) is null)
     {
@@ -65,7 +82,9 @@ app.MapGet("/v1/diagnostics", (HttpContext context, DeviceAccessStore access,
         voiceMode = modes.VoiceMode,
         dialogMode = modes.DialogMode,
         catalogVersion = PartyWandCatalog.Version,
-        audioFormat = "pcm16-mono-32000-wav"
+        audioFormat = "pcm16-mono-32000-wav",
+        liveActorMode = live.Mode.ToString(), personalityId = modes.PersonalityId,
+        memoryProvider = memory.Status
     });
 });
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));

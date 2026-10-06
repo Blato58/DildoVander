@@ -11,6 +11,7 @@ final class DebugHandsFreeSession {
     typealias Listening = (String) -> Void
     typealias InputGate = (Bool) -> Void
     typealias Failure = (String) -> Void
+    typealias Checkpoint = (String) -> Void
 
     private let client: DebugBackendClient
     private let profile: DebugBackendProfile
@@ -29,6 +30,9 @@ final class DebugHandsFreeSession {
     private let listening: Listening
     private let inputGate: InputGate
     private let failure: Failure
+    private let checkpoint: Checkpoint
+    private var checkpointBytes: [String: Int] = [:]
+    private var receivedPcmBytes = 0
     private let requests = DebugHandsFreeRequest()
     private var stream: DebugHandsFreeLiveStream?
     private var streamId: String?
@@ -45,7 +49,7 @@ final class DebugHandsFreeSession {
     init(client: DebugBackendClient, profile: DebugBackendProfile, token: String, conversation: String,
          boot: String, readyMask: Int, voice: String, speed: Double, gptLive: Bool = false, phase: @escaping Phase,
          visitor: @escaping Visitor, reply: @escaping Reply, audio: @escaping Audio, listening: @escaping Listening,
-         inputGate: @escaping InputGate, failure: @escaping Failure) {
+         inputGate: @escaping InputGate, failure: @escaping Failure, checkpoint: @escaping Checkpoint = { _ in }) {
         self.client = client
         self.profile = profile
         self.token = token
@@ -62,6 +66,7 @@ final class DebugHandsFreeSession {
         self.listening = listening
         self.inputGate = inputGate
         self.failure = failure
+        self.checkpoint = checkpoint
     }
 
     func run() async throws {
@@ -150,6 +155,36 @@ final class DebugHandsFreeSession {
 
     // Called exactly once after all dataPlayedBack callbacks for an operation.
     func played(operationId: String) async throws {
+        if let bytes = checkpointBytes[operationId] {
+            guard !closed, gptLive, let streamId else { throw DebugBackendError.invalidResponse }
+            var request = URLRequest(url: profile.baseURL.appendingPathComponent(
+                "v1/conversations/\(conversation)/gpt-live/\(streamId)/playback"))
+            request.httpMethod = "POST"
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONSerialization.data(withJSONObject:
+                ["playbackId": operationId, "pcmBytes": bytes, "drained": true], options: [.sortedKeys])
+            // This ACK is idempotent and does not authorize a physical action.
+            // A lost HTTP response may safely retry the same checkpoint.
+            for _ in 0..<2 {
+                do {
+                    let (data, response) = try await requests.perform(request, limit: 4096)
+                    if response.statusCode == 409 {
+                        // Speech or a correction can invalidate this checkpoint
+                        // while the local player drains. Wait for current data.
+                        checkpointBytes.removeValue(forKey: operationId)
+                        return
+                    }
+                    guard data.isEmpty, response.statusCode == 204 else { throw DebugBackendError.invalidResponse }
+                    checkpointBytes.removeValue(forKey: operationId)
+                    return
+                } catch { if !(error is URLError) { throw error } }
+            }
+            // A lost ACK does not stop capture. The server still requires a
+            // verified current checkpoint and will time out without a proposal.
+            checkpointBytes.removeValue(forKey: operationId)
+            return
+        }
         guard !closed, let streamId, operationId == awaitingPlayedOperation else { throw DebugBackendError.invalidResponse }
         var request = URLRequest(url: profile.baseURL.appendingPathComponent(
             "v1/conversations/\(conversation)/\(endpoint)/\(streamId)/played"))
@@ -194,6 +229,7 @@ final class DebugHandsFreeSession {
             inputGate(false)
             phase("thinking")
         case .audio(let pcm):
+            receivedPcmBytes += pcm.count
             guard currentOperationId != nil else { throw DebugBackendError.invalidResponse }
             if firstAudioAt == nil { firstAudioAt = Date() }
             if !gptLive { inputGate(false) }
@@ -238,6 +274,12 @@ final class DebugHandsFreeSession {
         case .pause:
             guard gptLive else { throw DebugBackendError.invalidResponse }
             phase("listening")
+        case .checkpoint(let id, let bytes, _):
+            guard gptLive, bytes == receivedPcmBytes else { throw DebugBackendError.invalidResponse }
+            if checkpointBytes[id] == nil {
+                checkpointBytes[id] = bytes
+                checkpoint(id) // schedule local drain; keep the stream reader active
+            }
         case .closed:
             guard !gptLive || finalReplyReceived else { throw DebugBackendError.invalidResponse }
             terminalReceived = true
@@ -300,6 +342,7 @@ private enum DebugHandsFreeEvent {
     case speechStopped(String)
     case heartbeat
     case pause
+    case checkpoint(String, Int, Int)
     case closed
     case failed(String)
 }
@@ -451,6 +494,15 @@ private final class DebugHandsFreeLiveStream: NSObject, URLSessionDataDelegate {
         case "pause":
             guard gptLive, object.count == 1 else { throw DebugBackendError.invalidResponse }
             return .pause
+        case "playback_checkpoint":
+            guard gptLive, object.count == 4, let id = uuid(object, "playbackId"),
+                  let bytes = object["pcmBytes"] as? NSNumber, bytes.intValue > 0,
+                  CFGetTypeID(bytes) != CFBooleanGetTypeID(),
+                  bytes.doubleValue == Double(bytes.intValue), bytes.intValue == turnPcm,
+                  let revision = object["decisionRevision"] as? NSNumber, revision.intValue >= 0,
+                  CFGetTypeID(revision) != CFBooleanGetTypeID(), revision.doubleValue <= 9_007_199_254_740_991,
+                  revision.doubleValue == Double(revision.intValue) else { throw DebugBackendError.invalidResponse }
+            return .checkpoint(id, bytes.intValue, revision.intValue)
         case "closed": guard object["reason"] as? String == "conversation_terminal" else { throw DebugBackendError.invalidResponse }; return .closed
         case "failed":
             guard let code = object["code"] as? String, [

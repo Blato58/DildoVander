@@ -8,7 +8,7 @@ using Microsoft.Data.Sqlite;
 namespace Kufr.Backend.Features.Conversations;
 
 // Content lives separately from the technical journal and its retention/backups.
-internal sealed class EveningMemoryStore
+internal sealed partial class EveningMemoryStore
 {
     internal const int MaxExchanges = 2000;
     internal const int MaxContentBytes = 2_000_000;
@@ -23,11 +23,15 @@ internal sealed class EveningMemoryStore
     private static readonly JsonSerializerOptions MutationJsonOptions = new(JsonSerializerDefaults.Web);
     private readonly string connectionString;
     private readonly Lock gate = new();
+    private readonly Memory.HybridMemoryOptions memoryOptions;
+    private readonly TimeProvider memoryClock;
 
-    public EveningMemoryStore(IConfiguration configuration, OperationJournal journal)
+    public EveningMemoryStore(IConfiguration configuration, OperationJournal journal, TimeProvider? clock = null)
     {
         // Resolving the journal first acquires the single-backend instance lock.
         _ = journal;
+        memoryOptions = Memory.HybridMemoryOptions.Read(configuration, journal);
+        memoryClock = clock ?? TimeProvider.System;
         var databasePath = configuration["Backend:DatabasePath"]
             ?? throw new InvalidOperationException("Backend:DatabasePath must be configured.");
         connectionString = new SqliteConnectionStringBuilder
@@ -68,10 +72,10 @@ internal sealed class EveningMemoryStore
             INSERT OR IGNORE INTO evening_catalog
                 (device_id, evening_id, name, created_at_ms, dropped_count)
             SELECT device_id, evening_id, 'Původní večer', $now, dropped_count FROM evenings;
-            PRAGMA user_version=1;
             """;
         command.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
         command.ExecuteNonQuery();
+        MigrateHybridMemory(connection, migration);
         migration.Commit();
     }
 
@@ -400,6 +404,7 @@ internal sealed class EveningMemoryStore
             var changed = command.ExecuteNonQuery() == 1;
             if (changed)
             {
+                InvalidateEveningMemory(connection, transaction, deviceId, expectedEveningId);
                 using var delete = connection.CreateCommand();
                 delete.Transaction = transaction;
                 delete.CommandText = """

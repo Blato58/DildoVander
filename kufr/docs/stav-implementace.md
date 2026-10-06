@@ -1,10 +1,109 @@
 # Stav implementace AI kufru
 
-Poslední aktualizace: **5. 10. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální Arduino i ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a E3a. Ad Hoc podpis a serverová publikace IPA/manifestu prošly CI a veřejným HTTPS testem; majitel potvrdil instalaci a spuštění na iPhonu 15 Pro (D70). Hardware, native WSS/TLS a aktualizace IPA na telefonu zatím nemají runtime akceptaci. Hotový návrh není hotová implementace.
+Poslední aktualizace: **6. 10. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální Arduino i ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a E3a. Ad Hoc podpis a serverová publikace IPA/manifestu prošly CI a veřejným HTTPS testem; majitel potvrdil instalaci a spuštění na iPhonu 15 Pro (D70). Hardware, native WSS/TLS a aktualizace IPA na telefonu zatím nemají runtime akceptaci. Hotový návrh není hotová implementace.
 
 [Implementační plán](implementacni-plan.md) určuje architekturu a akceptaci. [AGENTS.md](../../AGENTS.md) určuje pracovní postup AI. Tento soubor je jediný průběžný záznam postupu; README ho pouze odkazují.
 
 ## Předání další AI
+
+**D143 – 6. 10. 2026 – autonomní GPT-Live a hybridní paměť.**
+Audit začal na čistém `work`, HEAD `302ac63` (sloučený D142), remote
+Blato58/DildoVander. Změny jsou pouze v kufru, větev
+`codex/autonomous-live-hybrid-memory`. AGENTS, plán/stav, skutečné zdroje
+a dotčené README byly ověřené. D128 delegoval každou odpověď TextDialogRunner,
+posílal hotový Reply, session.input byl prázdný a legacy odpověď měla 1000 znaků.
+Nová explicitní větev odděluje Live herce od faktického rozhodování Solem;
+legacy kód a Sol/Realtime fallbacky zůstávají kompatibilní.
+
+Implementované soubory a chování:
+
+- `GptLiveOptions`, `LivePromptSnapshot`, PersonalityCatalog a embedded
+  `ollivander-trunk-live-persona.txt`: dedikovaná Live adaptace 2/3 odpovědi
+  s dřívějším výběrem; party vlastní 4–7. Původní VoicePersona, OllivanderPersona
+  a PartyPrompt nemají obsahový diff; ID/jména/zdrojové hashe, uložená volba
+  a mobilní přepínání zůstávají. Při create se zmrazí také režim/verze/hash/politika.
+- `WandDecisionService`: stejný Sol/SDK/rozpočty, skutečné katalogové kandidáty,
+  přesné citace/references, stav/missing information a revize bez monologu Reply.
+  Nulová dostupnost/nesplněná party politika nevolá model. Běžnou řeč tvoří Live.
+- `AutonomousLiveDialogue`, časovaná projekce a `LiveTextBudget`: delegace před
+  přepisem čeká omezeně, duplicita je idempotentní, oprava zneplatní starou revizi,
+  pozdní výsledek se zahodí a nejasný placený požadavek ponechá rezervaci.
+  Dlouhá čeština/fragmenty neukončí hovor; vstup/výstup jsou oddělené. Otázkové
+  kandidáty jsou aplikační odhad, nikoli přesné sémantické měření.
+- `GptLiveEndpoints`, ConversationAutonomousLive a registry: autentizované
+  `/playback` a `/availability`, přesný PCM checkpoint/místní drain, průběžný
+  reader a korelované close/closed. Návrh pro zařízení znovu kontroluje aktuální
+  revizi/snapshot. Append ACK, ticho a closed neznamenají přednes či pohyb.
+  PCM pause/terminal quiet jsou konfigurované heuristiky.
+- EveningMemoryStore/HybridMemoryStore schema 2: scopes/identity/consent,
+  revize/tombstones, oddělené časované přepisy, persistentní outbox/lease/mapování,
+  kvóty a retence. Nedestruktivní migrace naplněné původní DB zachová texty,
+  večery i konfliktní historii; legacy/unverified se nepřiřadí osobě/neexportuje.
+  Zápis+outbox a invalidace jsou transakční; epoch blokuje pozdní zápisy/shrnutí.
+- `OpenAiVectorMemoryProvider` je skutečný REST adaptér store verify/create,
+  Files upload, attach/attributes/poll, direct search s **filters**, asociace
+  DELETE i vlastní Files DELETE. `HybridMemoryService` vrací jen známé FileId
+  rehydratované/revalidované v SQLite. Worker má bounded concurrency, timeout,
+  retry/jitter/Retry-After, restartovatelný outbox a kontrolu nejasného uploadu.
+  Výpadek znamená memory_unavailable + oprávněný lokální kontext, nula memory_not_found.
+- Admin/CLI provisioning, revizované permission/record mutace, diagnostika bez
+  osobního textu/klíčů a bezpečné vzory. Hlasové zapamatování vyžaduje ověřeného
+  hosta/povolení, zapomenutí smaže jen vlastní osobní data a ukončí kontaminovaný
+  kontext. ConfirmedSelection nevzniká automaticky z návrhu/ACK/closed.
+- Firmware/Swift checkpoint: ESP zachovává gate/zero PCM během speaker playback
+  a I2S/DMA drain, telefon full duplex. Kontrakty a fixture testy zahrnují stale,
+  duplicate/lost ACK. PendingProposal, OperationJournal, místní vysunutí–předvedení–
+  zasunutí a zotavení po Stop zůstávají. Žádný modelový text neřídí pohony.
+
+Výchozí režim je **LegacyBackendScripted, paměť/cloud/personal false,
+prázdná store ID**. Žádná produkční aktivace ani vytvoření/export nebyly
+provedené. [Úplný návod](autonomous-live-memory.md) obsahuje skutečné
+konfigurační klíče/limity, aktivaci/rollback, připravené provisioning příkazy,
+admin těla, retenci/mazání a poslechové A/B scénáře. Oficiální Live/session
+schema/REST retrieval/Files/datové podmínky byly čtené 5. 10. SDK 2.14.0
+nemá potřebný Live ani direct search s attributes; izolované adaptéry
+používají ověřený wire kontrakt. Žádný upgrade závislostí/runtime.
+`store:false` nevypíná Files/Vector Store persistence a není příslib ZDR.
+
+Skutečně provedené lokální kontroly (5.–6. 10. 2026, bez placené integrace):
+
+| Příkaz (z kořene, není-li uvedeno jinak) | Výsledek |
+| --- | --- |
+| `/tmp/dildovander-dotnet/dotnet restore kufr/backend-tests/BackendTests.csproj --locked-mode --runtime linux-x64` | SDK 10.0.303, uzamčené závislosti OK |
+| `/tmp/dildovander-dotnet/dotnet build kufr/backend-tests/BackendTests.csproj -c Release --no-restore` | backend + testy, 0 warning / 0 error |
+| `/tmp/dildovander-dotnet/dotnet run --project kufr/backend-tests/BackendTests.csproj -c Release --no-restore` | celá offline sada OK; legacy/Sol/Realtime, personality, journal, cost/clock a nové testy |
+| stejný `dotnet run … -- --autonomous-memory` | nová deterministická HTTP/WebSocket/SQLite sada OK, včetně naplněné legacy DB a restartu |
+| `PATH=/tmp/dildovander-dotnet:$PATH KUFR_BACKEND_DLL=bin/Release/net10.0/backend.dll node kufr/backend/tests/smoke.mjs` | auth, diagnostika/memory, missing config/required JSON, fake/večery/restart OK; ambient OpenAI klíč v harnessu vypnutý |
+| `npm ci` + `npm test` v `kufr/contracts` | 25 valid / 41 invalid control fixtures, OpenAPI/media OK |
+| `npm ci` + `npm test` + `npm run build` v `kufr/mobilni-aplikace` | 25/25, TypeScript/Vite OK |
+| `python3 -m unittest discover -s kufr/backend/tests -p 'test_*.py'` | 16/16 OK |
+| `python3 -m unittest discover -s kufr/ai-eval -p 'test_*.py'` | 24/24 OK |
+| Přesné hostitelské C++14 voice/presentation příkazy v [návodu](autonomous-live-memory.md#akceptace-a-poslechové-ab-scénáře), shodné source/flags s `.github/workflows/kufr-firmware.yml` | realtime_voice, espidf_realtime_transport, espidf_voice_audio, autonomous_presentation_lifecycle OK; drain/ACK/gate/Stop/návrat |
+| `/tmp/kufr-platformio-env/bin/pio run` v `kufr/firmware` | PlatformIO 6.2.0, původní platform 7.1.3/ESP-IDF 6.1, SUCCESS; RAM 66032 B, flash 1203641 B |
+| `Backend__DatabasePath=/tmp/kufr-memory-provision-dryrun.sqlite ASPNETCORE_ENVIRONMENT=Development /tmp/dildovander-dotnet/dotnet run --project kufr/backend/backend.csproj -c Release --no-build --no-launch-profile -- --memory-provision --create` | dry-run OK, networkRequests=0, exports=0; první pokus bez DatabasePath správně odmítl neúplnou konfiguraci |
+| `node --check kufr/mobilni-aplikace/tests/native_handsfree/http_peer.mjs` a `git diff --check` | syntax/whitespace OK; 16 nových lokálních dokumentačních odkazů existuje |
+
+Nový provider je testovaný skutečnou třídou s fixture HTTP, nikoli fake
+produkčním úspěchem. Testy zahrnují identity/scopes/souhlas, malicious chunk/
+unknown FileId, stale revize/cache, upload-delete race, lease/restart,
+failed/in-progress index, 429/timeout/výpadek, obě DELETE a neobnovení tombstone.
+Audio fixture testuje dlouhou nedokončenou dramatickou pauzu, pokračování,
+skutečný přepis proti faktickému výsledku, přerušení a opožděný místní drain.
+
+Neprovedeno: cloudový `--execute`, skutečný OpenAI provider test/export
+osobních dat, český poslech A/B, AEC/echo/clipping/latence měření, skutečný
+speaker/servo/hůlka, Swift/Xcode/macOS testy (Linux nemá Apple SDK), podpis
+IPA, flash desky a deployment/aktivace produkce. Nový `native_handsfree`
+Swift fixture je připravený pro explicitní drain/lost ACK/full duplex;
+syntax kontrola HTTP peeru není nativní běh. Historické E9/E10 a HW/iPhone
+akceptace se tím neuzavírají.
+
+Git předání: lokální ověření dokončeno; commit/push/PR a povinné CI se
+ověřují po této aktualizaci, skutečný výsledek se doplní samostatně.
+Další konkrétní krok: po zvláštním oprávnění ověřit native macOS testy,
+testovací stores/klíč a A/B na obou personalitách. Měřit odděleně hlasovou
+kvalitu/latenci, modelová/paměťová volání/objem a playback/fyzický stav.
+Produkci nepřepínat jen kvůli zeleným unit testům.
 
 **D142 – 5. 10. 2026 – inventář personalit, trvalá volba a iOS Debug test.**
 Majitel žádá přepínatelné personality a zachování přesného druhého promptu.
