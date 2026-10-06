@@ -1,5 +1,10 @@
 # Nákup elektroniky pro AI kufr: dva obchody
 
+> **Aktualizace 6. 10. 2026:** Pro AI kufr objednávat pouze podle
+> [nového seznamu chybějících dílů](objednavka-doplneni-kufru-2026-10-06.md).
+> Zohledňuje faktury, kameru, jeden aktivní LED úsek a jeden pohon,
+> kolébkové vypínače a konkrétní návrh watchdogu. Níže je historický podklad.
+
 Ověřeno 28. 9. 2026. Jde o elektroniku **pouze pro kufr**. Powerbanku kupuje majitel samostatně a v cenách níže není. Ceny a dostupnost se mohou změnit; před odesláním objednávky zkontrolovat košíky a odečíst již pořízené díly. Stav dosavadních nákupů není potvrzen. Ostatní díly kostýmu, mechanika přihrádek a doprava nejsou zahrnuty.
 
 Tato kombinace zachovává ESP32-S3 připravené na kameru, I²S mikrofon a reproduktor, šest barevně ovladatelných RGB úseků, šest polohovacích serv a šest vibračních modulů. Vše uvedené lze objednat u **Drátku a Botlandu**. Mikrofon ICS43434 nahrazuje dříve navržený INMP441; při psaní firmwaru nastavíme jeho I²S kanál a formát.

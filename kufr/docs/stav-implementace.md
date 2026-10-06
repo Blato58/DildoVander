@@ -6,6 +6,35 @@ Poslední aktualizace: **6. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D147 – 6. 10. 2026 – audit chybějící elektroniky a samostatná objednávka.**
+Na pokyn majitele byly odečteny doložené faktury a vytvořena
+[objednávka ve dvou obchodech](../../docs/objednavka-doplneni-kufru-2026-10-06.md),
+přibližně 1 999 Kč základ / 2 921 Kč s Grove, LED konektory a SD/čtečkou,
+bez dopravy. Koupené momentové tlačítko je začátek rozhovoru/PTT,
+koupená kolébka hlavní vypínač; přidána pouze druhá kolébka pohonů.
+Návrh respektuje jeden LED úsek a jedno servo NEBO jednu vibraci,
+s možným souběhem LED a pohonu. Koupený 3A PD trigger a 60W kabel se
+znovu využijí; nový pevný 5V/5A měnič napájí celé zařízení.
+
+Doplněny MCP23017 pro profil B, kamera ze sady stejné řady, druhý mono
+zesilovač a dva správné PH2 konektory, kabeláž, svorky a kandidátní
+nezávislý inhibit Pololu 2801 (GOOD) + CD4093BE + Pololu 2814 (ON).
+Třípinová kolébka nemá pomocný kontakt: stav napětí snímá dělič
+15 kΩ / 22 kΩ. Upřesněn slabší výstup CD4093, nutnost ověření PCA OE,
+časování heartbeat, zpětného napájení, proudu a vybití kondenzátorů.
+Dokumentace zapojení byla sjednocena s plánem, pinovou mapou a kamerou;
+historické nákupní soubory a README odkazují novou objednávku.
+
+Ověření: dostupnost a parametry vybraných produktových nabídek,
+počty a cenové součty, 78 relativních odkazů v devíti dotčených Markdown souborech,
+`git diff --check` a rozsah pouze dokumentace. Firmware/build ani HW
+měření nebyly provedené. E0/E5/B1 zůstávají neuzavřené; další krok je
+ověření revize kamery a skutečné pinové mapy, montáž jedné přihrádky a
+proudové/resetové/Stop/watchdog zkoušky podle návrhu napájení. Mechanické
+rozměry a držáky nejsou doložené, případná úprava prototypu může změnit
+kusovník. Git předání tohoto záznamu bude ověřeno po dokumentační kontrole.
+
+
 **D146 – 6. 10. 2026 – aktuální Ad Hoc iOS aplikace publikovaná.**
 Na navazující výslovné „Nasaď i iOS aplikaci“ byl produkční záznam D145
 commit `5e4cd4ba30569fa0409ae657ab25ca99c4c08a35` po kompletním zeleném

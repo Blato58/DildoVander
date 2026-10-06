@@ -1,5 +1,10 @@
 # Elektronika k objednání
 
+> **Aktualizace 6. 10. 2026:** Pro AI kufr objednávat pouze podle
+> [nového seznamu chybějících dílů](objednavka-doplneni-kufru-2026-10-06.md).
+> Zohledňuje faktury, kameru, jeden aktivní LED úsek a jeden pohon,
+> kolébkové vypínače a konkrétní návrh watchdogu. Níže je historický podklad.
+
 Stav návrhu k 28. 9. 2026. Ceny jsou orientační z průzkumu a mohou se změnit; před platbou zkontrolovat variantu, sklad a cenu a odečíst již pořízené díly. Prioritu v rozpočtu 10 000 Kč má **AI kufr**. Powerbanku si majitel pořídí samostatně, proto není v nákupních součtech. Součet není cena celého kostýmu a nezahrnuje dopravu, kufry, knihu, hůlky ani mechanické díly. Překročení celkového rozpočtu vyžaduje schválení majitele.
 
 ## 1. AI kufr — koupit jako první
