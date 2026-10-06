@@ -251,6 +251,13 @@ jejich přístup a scope. Nejde o placený hlasový či poslechový test.
 
 ## Paměť, povolení a administrace
 
+Provozní záznam 6. 10. 2026: oba stores jsou vytvořené/ověřené a backend
+nasazený s `LegacyBackendScripted`, lokální pamětí true, cloud indexací
+a dlouhodobou osobní pamětí false. Konkrétní resource IDs, release,
+příkazy a výsledky jsou ve [stavu D145](stav-implementace.md). Provisioning
+neexportoval žádné vzpomínky; nativní klientské a poslechové ověření
+autonomní varianty stále čeká na provedení.
+
 Schema 2 rozšiřuje existující `.evening.sqlite`, původní večery a výměny
 zachová. Staré výměny mají jednorázovou projekci `LegacyUnverified`, bez
 povoleného použití a exportu. Nepřidělují se lidem podle jmen. Nové

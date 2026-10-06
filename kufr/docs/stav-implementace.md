@@ -6,6 +6,58 @@ Poslední aktualizace: **6. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D145 – 6. 10. 2026 – skutečný production deployment a OpenAI provisioning.**
+Na výslovné „Nasaď a udělej provisioning“ byl D144 commit
+`76b7a842edba9b490b0354fca6a917232e4c70e3` pushnutý a
+[PR #122](https://github.com/Blato58/DildoVander/pull/122) sloučen squash
+jako `f5b561a3477a626608f8f58027010ae5529d258b`.
+[CI 37426330173](https://github.com/Blato58/DildoVander/actions/runs/37426330173)
+prošlo celé: repository, backend, web, offline AI, firmware profily,
+host tests a CI required. Placené AI live bylo skipped. Push helper na
+Linuxu skončil 126, repo-scoped gh credential fallback uspěl. Přechodné
+401 při čtení přes CLI byly znovu ověřeny konektorem/REST; konečný
+výsledek CI, merge i jednotlivých provozních jobů je success.
+
+Skutečně provedené provozní příkazy (všechny workflow z `main`, repo
+Blato58/DildoVander, žádná klíčová hodnota v argumentech/artefaktech):
+
+| Příkaz | Skutečný výsledek |
+| --- | --- |
+| `gh workflow run kufr-memory-provision.yml --ref main -f build_run_id=37426330173 -f action=dry-run` | [37427702693](https://github.com/Blato58/DildoVander/actions/runs/37427702693), success, Production, obě create_requested, networkRequests=0, exports=0 |
+| stejný příkaz s `-f action=create` | [37427817392](https://github.com/Blato58/DildoVander/actions/runs/37427817392), success, obě skutečné OpenAI resources vytvořené a GET ověřené, exportedRecords=0 |
+| `gh workflow run kufr-backend-deploy.yml --ref main -f build_run_id=37426330173 -f dialog_mode=responses -f dialog_model=gpt-6.1-sol -f voice_mode=openai -f live_actor_mode=LegacyBackendScripted -f hybrid_memory=true -f cloud_indexing=false` | [37428033995](https://github.com/Blato58/DildoVander/actions/runs/37428033995), success; přijat ověřený artifact, root-owned helper aktivoval release, lokální health i veřejná auth/diagnostika/stores ověřené |
+
+Release je `15a0dbec9bf87d7a4f7090a5df74750fc5a47aca-37428033995-1`
+(source SHA testovaného merge tree); aktuální `main` měl při nasazení
+identický tree, jiný squash SHA. Provisioning vytvořil osobní
+`vs_6ac49e8f5a5c81918bee9d00c8c194d3` a anonymní
+`vs_6ac49e90bdc081919e9dd2ee34e14436` v namespace `kufr:Production`.
+ID jsou v trvalém privátním provisioning journalu runneru a v konfiguraci
+release; žádný store se netvoří při startu služby. Post-deploy smoke
+ověřil skutečný `LegacyBackendScripted`, memory provider configured=true,
+ověřené stores/lastVerifiedAt a degraded=false, oddělení admin/device
+oprávnění a původní responses/openai bez generování dialogu.
+Následná read-only [diagnostika 37428248292](https://github.com/Blato58/DildoVander/actions/runs/37428248292)
+je success; její skutečný technický snapshot je v Actions logu.
+
+Aktivní `Backend:Memory:Enabled=true`, `CloudIndexingEnabled=false`,
+`LongTermPersonalEnabled=false`; žádné soubory hostů nebyly uploadované.
+Autonomní režim zůstává vypnutý kvůli kompatibilitě starší publikované
+IPA/firmware bez playback checkpointu; aktivace vyžaduje aktualizované
+klienty podle [návodu](autonomous-live-memory.md#github-actions-na-produkčním-runneru).
+Personality se tímto deploymentem nepřepíná. Migrace EveningMemoryStore
+je nedestruktivní; původní archivy nejsou automaticky cloudová osobní paměť.
+
+Veřejný HTTPS smoke na produkčním runneru prošel s ověřeným TLS.
+Nezávislé `curl --fail --silent --show-error --max-time 15
+https://2.28.202.220/healthz` z tohoto workspace selhalo 60: cesta přes
+workspace proxy předložila certifikát se subject openai.com místo IP.
+TLS ověřování nebylo vypnuto; toto není doložená externí klientská
+akceptace. Neprovedeno: živá Files indexace/search/delete na hostech,
+placená voice/model evaluace, poslech A/B, nativní macOS/iPhone test,
+nová IPA publikace, firmware flash nebo fyzická prezentace. Cloudové
+create/verify je skutečné; původní HW/hlasové mezery tím nejsou uzavřené.
+
 **D144 – 6. 10. 2026 – příprava autorizovaného deploymentu a provisioning.**
 Majitel po sloučení D143 v PR #121 výslovně zadal „Nasaď a udělej
 provisioning“. Audit produkce přes host probe
