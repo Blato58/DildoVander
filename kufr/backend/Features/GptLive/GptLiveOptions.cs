@@ -10,6 +10,7 @@ internal sealed record LiveConversationPolicy(int UsualAnswers, int MaximumAnswe
 internal sealed record GptLiveOptions
 {
     internal LiveActorMode Mode { get; init; } = LiveActorMode.LegacyBackendScripted;
+    internal string DecisionModel { get; init; } = ResponsesTextDialogBudget.Model;
     internal bool AdultLanguage { get; init; } = true;
     internal int TranscriptCharacterLimit { get; init; } = 128_000;
     internal int DecisionContextBytes { get; init; } = 8_000;
@@ -36,6 +37,7 @@ internal sealed record GptLiveOptions
         var options = new GptLiveOptions
         {
             Mode = parsed,
+            DecisionModel = section["DecisionModel"] ?? ResponsesTextDialogBudget.Model,
             AdultLanguage = section.GetValue("AdultLanguage", true),
             TranscriptCharacterLimit = section.GetValue("TranscriptCharacterLimit", 128_000),
             DecisionContextBytes = section.GetValue("DecisionContextBytes", 8_000),
@@ -48,7 +50,8 @@ internal sealed record GptLiveOptions
             UsualAnswersOverride = section.GetValue<int?>("ConversationPolicy:UsualAnswers"),
             MaximumAnswersOverride = section.GetValue<int?>("ConversationPolicy:MaximumAnswers")
         };
-        if (options.TranscriptCharacterLimit is < 16_000 or > 256_000
+        if (!WandDecisionBudget.Supports(options.DecisionModel)
+            || options.TranscriptCharacterLimit is < 16_000 or > 256_000
             || options.DecisionContextBytes is < 2_000 or > 8_000
             || options.DelegationContextWaitMs is < 0 or > 2_000
             || options.DelegationTimeoutMs is < 2_000 or > 20_000

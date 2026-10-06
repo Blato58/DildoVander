@@ -84,6 +84,9 @@ app.MapGet("/v1/diagnostics", (HttpContext context, DeviceAccessStore access,
         catalogVersion = PartyWandCatalog.Version,
         audioFormat = "pcm16-mono-32000-wav",
         liveActorMode = live.Mode.ToString(), personalityId = modes.PersonalityId,
+        liveDecisionModel = live.DecisionModel, liveTerminalQuietMs = live.TerminalQuietMs,
+        memoryEnabled = memory.Options.Enabled, cloudIndexingEnabled = memory.Options.CloudIndexingEnabled,
+        longTermPersonalEnabled = memory.Options.LongTermPersonalEnabled,
         memoryProvider = memory.Status
     });
 });

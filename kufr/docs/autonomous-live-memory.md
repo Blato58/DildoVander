@@ -1,7 +1,10 @@
 # Autonomní GPT-Live a hybridní paměť (D143)
 
-Implementace je opt-in. Běžnou řeč tvoří `gpt-live-1`; Sol rozhoduje pouze
-o skutečných kandidátech. SQLite v `EveningMemoryStore` je zdroj pravdy,
+Implementace je opt-in. Běžnou řeč tvoří `gpt-live-1`; samostatný model
+rozhoduje pouze o skutečných kandidátech. Od D148 lze pro tuto úzkou úlohu
+zvolit rychlou `gpt-6-luna` s `reasoning=none`, 512 výstupními tokeny a
+vlastní cenovou kontrolou. Původní `gpt-6.1-sol` zůstává výchozí i možnost
+rollbacku. SQLite v `EveningMemoryStore` je zdroj pravdy,
 OpenAI Vector Store je odvozený index. Výchozí konfigurace zachovává
 `LegacyBackendScripted` a vypnutou hybridní/cloudovou/osobní paměť.
 Nasazení, aktivace, placená zkouška, export skutečných hostů a fyzická
@@ -36,8 +39,8 @@ sémantickým měřením**. Neodvozuje otázky od počtu delegací, paketů
 ani samotných otazníků. Opakování neslyšeného a pokračování téže
 odpovědi nejsou další diagnostická odpověď.
 
-`WandDecisionService` používá stávající `gpt-6.1-sol`, oficiální .NET SDK
-2.14.0 a vlastní strukturovanou funkci `decide_wand`. Není spojena
+`WandDecisionService` používá nezávislou volbu `Backend:GptLive:DecisionModel`,
+oficiální .NET SDK 2.14.0 a vlastní strukturovanou funkci `decide_wand`. Není spojena
 s legacy `Reply`. Výsledek má stav, platnou přihrádku 1–6 nebo null,
 reference a přesné citace odpovědí, krátké důvody, chybějící informaci,
 revizi vstupu, snapshot dostupnosti a stav nepublikovaného návrhu.
@@ -101,6 +104,7 @@ hodnoty, prázdné store ID a žádný klíč.
 | Klíč pod `Backend:GptLive` | Výchozí hodnota / validace |
 | --- | --- |
 | `ActorMode` | `LegacyBackendScripted` nebo `AutonomousActor`; přesná velikost písmen |
+| `DecisionModel` | `gpt-6.1-sol` (výchozí) nebo `gpt-6-luna`; jen faktický autonomní výběr |
 | `AdultLanguage` | `true`; false vypne vulgarity/sexuální narážky |
 | `ConversationPolicy:UsualAnswers` | nezadané → Ollivander 2 / party 4; 1–7 |
 | `ConversationPolicy:MaximumAnswers` | nezadané → Ollivander 3 / party 7; 1–8 a ≥ usual |
@@ -232,6 +236,36 @@ mapuje na `Backend:GptLive:ActorMode`, `Backend:Memory:Enabled` a
 false. Zapnutí hybridní paměti vyžaduje obě provisionovaná IDs; cloud
 navíc zapnutou paměť. Režimy/modely/3 USD session cap se nemění automaticky.
 
+Od D148 `live_decision_model` volí nezávisle `gpt-6.1-sol` (výchozí)
+nebo `gpt-6-luna`. `live_terminal_quiet_ms` má výchozí 4000 a v tomto
+workflow rozsah 900–10000 (výchozí OutputPauseMs=900); 1500 zkracuje
+čekání po kompletní závěrečné řeči o 2,5 s. Konec stále vyžaduje celý
+název hůlky, ukončenou větu, klid audia i přepisu a místní drain/ACK.
+Nové věcné sdělení hosta před close závěr zneplatní.
+Vzor aktivace již provisionovaných stores s aktualizovanou IPA D146:
+
+```sh
+gh workflow run kufr-backend-deploy.yml --ref main \
+  -f build_run_id=CI_RUN_ID -f dialog_mode=responses \
+  -f dialog_model=gpt-6.1-sol -f voice_mode=openai \
+  -f live_actor_mode=AutonomousActor -f live_decision_model=gpt-6-luna \
+  -f live_terminal_quiet_ms=1500 -f hybrid_memory=true -f cloud_indexing=true
+```
+
+Textový a legacy model zůstává Sol. Volba v existující aplikaci má
+historický název **GPT-Live + Sol**; autonomní serverový režim použije
+nastavený rozhodovací model. `GET /v1/diagnostics` nyní vrací
+`liveDecisionModel`, `liveTerminalQuietMs`, `memoryEnabled`,
+`cloudIndexingEnabled` a `longTermPersonalEnabled`. Post-deploy kontrola
+ověří skutečné hodnoty i stores, bez generování rozhovoru.
+Před aktivací workflow ověří přístup vybraného modelu přes OpenAI Models
+GET, bez placené inference; chybějící přístup zastaví nasazení ještě
+před restartem služby. Metadata sama nepotvrzují kvalitu výběru.
+Log `live_decision_completed` měří v `durationMs` lokální uložení kontextu,
+frontu a rozhodovací API, s operationId/traceId a stavem; neobsahuje text
+hosta, audio ani prompt. Pro skutečnou latenci hlasu a správnost výběru
+je stále potřebný poslech při použití.
+
 ```sh
 gh workflow run kufr-backend-deploy.yml --ref main \
   -f build_run_id=CI_RUN_ID -f dialog_mode=responses \
@@ -239,8 +273,8 @@ gh workflow run kufr-backend-deploy.yml --ref main \
   -f live_actor_mode=AutonomousActor -f hybrid_memory=true -f cloud_indexing=false
 ```
 
-Autonomní režim vyžaduje klienty s `playback_checkpoint`; starší publikovaná
-IPA/firmware tuto podmínku nesplňují. Před jejich aktualizací nasadit
+Autonomní režim vyžaduje klienty s `playback_checkpoint`; IPA publikovaná
+v D146 jej má, starší IPA/firmware tuto podmínku nesplňují. Před jejich aktualizací nasadit
 `live_actor_mode=LegacyBackendScripted`. Rollback chování stejným aktuálním
 artifactem: `LegacyBackendScripted`, `hybrid_memory=false`,
 `cloud_indexing=false`. ID stores zůstávají; rollback prostředky nemaže.

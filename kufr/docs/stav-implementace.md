@@ -6,6 +6,53 @@ Poslední aktualizace: **6. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D148 – 6. 10. 2026 – kratší GPT-Live výběr; aktivace Vector Stores připravená.**
+Majitel zadal zapnutí vektorové paměti a zkrácení čekání; dovolil změnu
+modelu/architektury. Čistý checkout `work`, HEAD `db1e77e`, remote
+Blato58/DildoVander. D145–D146 mají provisionované stores, ale aktivní
+legacy Live a cloud indexing=false; publikovaná IPA D146 umí checkpoint.
+Read-only [logy 37530785394](https://github.com/Blato58/DildoVander/actions/runs/37530785394)
+potvrdily responses/openai a 0 aktivních rozhovorů. Poslední Live HTTP
+session trvala 82,7 s; logy neměří délku samotného rozhodnutí, proto to
+není důkaz latence výběru. Ověřeny oficiální Live/delegation a GPT-6 Luna
+dokumenty: client delegace nemá argumenty funkce; doporučená Luna má
+Responses/function calling a reasoning=none. Live proto vede řeč sám,
+samostatný `DecisionModel=gpt-6-luna` řeší jen faktický výběr; výchozí
+Sol a textová cesta mají původní cenovou kontrolu. Luna má 512 výstupních
+tokenů, rezervaci 10000 µUSD a konzervativní cache-write cenu; chybné
+model/tier/usage/citace/dostupnost se odmítají. SDK a funkce `decide_wand`
+zůstávají. Nový model nevrací hotovou repliku.
+
+Workflow přidává samostatný model a terminal quiet (900–10000 ms,
+výchozí 4000). Před aktivací ověří přístup k modelu přes read-only
+OpenAI Models GET bez inference. Post-deploy porovná skutečný actor,
+model, quiet, enabled/cloud/personal a ověří oba stores. Diagnostika a
+OpenAPI mají nové volitelné technické údaje; `live_decision_completed`
+měří lokální zápis/frontu/API a ukládá jen dobu, korelaci a stav.
+Plán, provozní návod, research a backend README zdůvodňují oddělení Luny
+od humoru a kompatibilitu checkpointu. Cílem nasazení je AutonomousActor,
+Luna, quiet=1500, hybrid/cloud=true a personal=false.
+
+Lokální ověření 6. 10. (bez placené AI, hardware a změn klientů):
+
+| Kontrola | Skutečný výsledek |
+| --- | --- |
+| SDK 10.0.303 restore `BackendTests.csproj --locked-mode --runtime linux-x64` | uzamčené závislosti OK |
+| Release build backend-tests `--no-restore` | 0 warnings / 0 errors |
+| Release backend-tests `dotnet run --no-build --no-restore` | všechny skupiny OK; Luna usage/citace/sparse mask/excluded kandidát/party brána, duplicitní delegace, oprava, přerušení, playback, memory, logy a retence |
+| `KUFR_BACKEND_DLL=…/linux-x64/backend.dll node kufr/backend/tests/smoke.mjs` | autentizace, fake voice, evenings/scope/restart a diagnostika OK |
+| backend Python | 16 stávajících + 4 nové deployment testy OK; GET metadata bez inference a odmítnutí neaktivních/chybných settings přes existující stores |
+| deployment Python | 11/11 OK |
+| provenance Node | 29/29 OK |
+| contracts `npm ci && npm test` | OpenAPI, 25 validních / 41 neplatných control, media frame/control OK |
+| actionlint 1.7.12 / lokální Markdown / `git diff --check` | všechny workflow OK; SHA validatoru ověřeno; 53 lokálních cílů bez chyby; whitespace OK |
+
+Aktivace produkce se provede až z úspěšného CI a sloučeného stromu;
+výsledek a release budou doplněny podle skutečných běhů. Placená
+inference, poslechové A/B, instalace IPA na konkrétním telefonu,
+indexace skutečných hostů, firmware flash a fyzická prezentace
+nebyly provedené. Tyto mezery nejsou uzavřené lokálními fixtures.
+
 **D147 – 6. 10. 2026 – audit chybějící elektroniky a samostatná objednávka.**
 Na pokyn majitele byly odečteny doložené faktury a vytvořena
 [objednávka ve dvou obchodech](../../docs/objednavka-doplneni-kufru-2026-10-06.md),

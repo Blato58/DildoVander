@@ -20,24 +20,23 @@ internal sealed record WandDecisionResult(WandDecisionStatus Status, int? Compar
     int AvailabilityRevision, long CostMicroUsd = 0, string OperationState = "proposal_only");
 
 // Independent from the legacy comedian. A result is facts and evidence, never a
-// spoken script. The existing Sol model, SDK, no-retry and pricing checks stay.
+// spoken script. Only this narrow task can use Luna; text/legacy stay on Sol.
 internal sealed class WandDecisionService : IDisposable
 {
     private readonly HttpClient? http;
     private readonly string? key;
     private readonly Func<WandDecisionInput, CancellationToken, Task<WandDecisionResult>>? fixture;
     private readonly SemaphoreSlim slot = new(1, 1);
+    internal string Model { get; } = ResponsesTextDialogBudget.Model;
     internal WandDecisionService(Func<WandDecisionInput, CancellationToken, Task<WandDecisionResult>> fixture) => this.fixture = fixture;
     public WandDecisionService(IConfiguration configuration)
     {
+        Model = GptLiveOptions.Read(configuration).DecisionModel;
         key = configuration["OPENAI_API_KEY"];
         if (!string.IsNullOrWhiteSpace(key)) http = new(new HttpClientHandler { AllowAutoRedirect = false });
-        if ((configuration["Backend:Dialog:Model"] ?? ResponsesTextDialogBudget.Model) != ResponsesTextDialogBudget.Model)
-            throw new InvalidOperationException("Only the current Sol decision model is supported.");
     }
     internal bool Available => fixture is not null || http is not null;
-    internal static long Reservation(WandDecisionInput input) => ResponsesTextDialogBudget.ReservedMicroUsd
-        + Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(input)) * 5L;
+    internal long Reservation(WandDecisionInput input) => WandDecisionBudget.Reservation(input, Model);
 
     internal async Task<WandDecisionResult> DecideAsync(WandDecisionInput input, CancellationToken token)
     {
@@ -57,7 +56,7 @@ internal sealed class WandDecisionService : IDisposable
             if (http is null) throw new InvalidOperationException("Decision provider unavailable.");
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
             deadline.CancelAfter(TimeSpan.FromSeconds(45));
-            var body = BuildRequest(input);
+            var body = BuildRequest(input, Model);
             using var bounded = BoundedSdkTransport.Create(http, 65_536, ["application/json"]);
             var client = new ResponsesClient(new ApiKeyCredential(key!), new ResponsesClientOptions
             {
@@ -66,13 +65,14 @@ internal sealed class WandDecisionService : IDisposable
             using var content = BinaryContent.Create(BinaryData.FromString(body));
             var response = await client.CreateResponseAsync(content, new RequestOptions { CancellationToken = deadline.Token });
             using var document = JsonDocument.Parse(response.GetRawResponse().Content.ToMemory());
-            return Parse(document.RootElement, input);
+            return Parse(document.RootElement, input, Model);
         }
         finally { slot.Release(); }
     }
 
-    internal static string BuildRequest(WandDecisionInput input)
+    internal static string BuildRequest(WandDecisionInput input, string model = ResponsesTextDialogBudget.Model)
     {
+        if (!WandDecisionBudget.Supports(model)) throw new InvalidOperationException("Unsupported Live decision model.");
         foreach (var total in new[] { 8_000, 6_000, 4_000, 2_000 })
         {
             var perAnswer = Math.Max(64, total / Math.Max(1, input.Evidence.Count));
@@ -85,12 +85,12 @@ internal sealed class WandDecisionService : IDisposable
                         : LiveTextBudget.Bound(e.Text, perAnswer)
                 }).ToArray()
             };
-            var payload = RenderRequest(bounded);
+            var payload = RenderRequest(bounded, model);
             if (Encoding.UTF8.GetByteCount(payload) <= ResponsesTextDialogBudget.MaxRequestBytes) return payload;
         }
         throw new TextDialogRequestTooLargeException();
     }
-    private static string RenderRequest(WandDecisionInput input)
+    private static string RenderRequest(WandDecisionInput input, string model)
     {
         var reasonSchema = new
         {
@@ -100,8 +100,9 @@ internal sealed class WandDecisionService : IDisposable
         };
         var payload = JsonSerializer.Serialize(new
         {
-            model = ResponsesTextDialogBudget.Model, store = false, service_tier = "default",
-            reasoning = new { effort = "low" }, max_output_tokens = 1200,
+            model, store = false, service_tier = "default",
+            reasoning = new { effort = model == WandDecisionBudget.Luna ? "none" : "low" },
+            max_output_tokens = WandDecisionBudget.OutputTokens(model),
             instructions = """
                 Jsi faktická rozhodovací služba výběru hůlky, nikoli komediální postava. Nepiš mluvenou repliku ani roast.
                 Rozhoduj pouze ze seznamu validních kandidátů. Přihrádka je skutečný identifikátor 1–6, nikoli pořadí seznamu.
@@ -136,7 +137,7 @@ internal sealed class WandDecisionService : IDisposable
         return payload;
     }
 
-    internal static WandDecisionResult Parse(JsonElement root, WandDecisionInput input)
+    internal static WandDecisionResult Parse(JsonElement root, WandDecisionInput input, string model = ResponsesTextDialogBudget.Model)
     {
         if (root.GetProperty("status").GetString() != "completed") throw new InvalidDataException("Incomplete decision.");
         var outputs = root.GetProperty("output").EnumerateArray().Where(o => o.GetProperty("type").GetString() == "function_call").ToArray();
@@ -164,8 +165,8 @@ internal sealed class WandDecisionService : IDisposable
         }
         var reasons = JsonSerializer.Deserialize<DecisionReason[]>(reasonValues, Realtime.RealtimeProtocol.JsonOptions)!;
         var usage = root.GetProperty("usage");
-        var cost = ResponsesTextDialogBudget.CalculateUsageMicroUsd(root.GetProperty("model").GetString()!,
-            root.GetProperty("service_tier").GetString(), usage.GetProperty("input_tokens").GetInt32(), usage.GetProperty("output_tokens").GetInt32());
+        var cost = WandDecisionBudget.Price(root.GetProperty("model").GetString()!,
+            root.GetProperty("service_tier").GetString(), usage.GetProperty("input_tokens").GetInt32(), usage.GetProperty("output_tokens").GetInt32(), model);
         return Validate(new(status, a.GetProperty("compartment").ValueKind == JsonValueKind.Null ? null : a.GetProperty("compartment").GetInt32(),
             reasons, a.GetProperty("missingInformation").GetString()!, input.Revision, input.AvailabilityRevision, cost), input);
     }
