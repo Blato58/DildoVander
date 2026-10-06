@@ -453,7 +453,10 @@ vytvoří okamžitý místní tombstone, cloudový úklid odstraní asociaci i v
 Files soubor. Přímé REST search používá serverové `filters`, pak SQLite
 revalidaci FileId/revize/oprávnění. Index nemění dostupnost či mechaniku.
 Provisioning je explicitní CLI dry-run / execute, nikdy vytváření stores
-při startu. Context budget je výchozí 500 konzervativních tokenů vybrané
+při startu. D144 používá toto CLI také v ručním production workflow nad
+trvalým provisioning journalem runneru; neobchází soukromou paměťovou DB
+služby ani nevkládá hosty. Deployment převezme ověřená ID do release
+konfigurace bez rozšíření sudo. Context budget je výchozí 500 konzervativních tokenů vybrané
 paměti; nejsou zvýšené dosavadní konverzační limity ani změněný model.
 Podrobnosti a připravené akceptace jsou v [D143 provozním návodu](autonomous-live-memory.md).
 

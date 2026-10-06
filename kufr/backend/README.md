@@ -387,6 +387,15 @@ se štítky `self-hosted`, `Linux`, `X64` a
 `kufr-backend` v environmentu `backend-production`.
 Vstup `dialog_mode` při ručním nasazení volí `fake` (výchozí) nebo `responses`;
 volba se uloží do konfigurace daného release a rollback ji vrátí s releasem.
+Od D144 lze zadat také `live_actor_mode=LegacyBackendScripted|AutonomousActor`,
+`hybrid_memory=false|true` a `cloud_indexing=false|true`. Výchozí hodnoty
+zůstávají legacy/false/false; osobní dlouhodobá paměť zůstává vypnutá.
+Explicitní workflow `kufr-memory-provision.yml` nabízí `dry-run`, `verify`
+a `create`, používá stejný ověřený backendový CLI a trvale uloží ID mimo
+checkout. Nevkládá paměť hostů a nepotřebuje širší root práva. Deployment
+přebírá IDs z tohoto provisioning journalu do konfigurace release.
+Příkazy, existující store IDs, zálohování konfigurace a rollback jsou
+v [provozním návodu](../docs/autonomous-live-memory.md#github-actions-na-produkčním-runneru).
 Režim `responses` používej pouze pro jednorázový vývojový test s připravenými
 limity a následně znovu nasaď `fake`.
 Na serveru je nutný
