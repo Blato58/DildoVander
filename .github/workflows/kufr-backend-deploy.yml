@@ -27,6 +27,15 @@ on:
         type: choice
         options: [LegacyBackendScripted, AutonomousActor]
         default: LegacyBackendScripted
+      live_decision_model:
+        description: Factual autonomous Live selection (text/legacy remains Sol)
+        type: choice
+        options: [gpt-6.1-sol, gpt-6-luna]
+        default: gpt-6.1-sol
+      live_terminal_quiet_ms:
+        description: Quiet time after the complete spoken verdict before native playback checkpoint
+        type: string
+        default: '4000'
       hybrid_memory:
         description: Enable local hybrid memory (requires provisioned stores)
         type: boolean
@@ -77,6 +86,13 @@ jobs:
           path: ${{ runner.temp }}/backend-package
       - name: Unpack verified backend payload
         run: python3 scripts/ci/package.py unpack "$RUNNER_TEMP/backend-package" "$RUNNER_TEMP/kufr-publish-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+      - name: Verify autonomous decision model access without inference
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LIVE_ACTOR_MODE: ${{ inputs.live_actor_mode }}
+          LIVE_DECISION_MODEL: ${{ inputs.live_decision_model }}
+          PYTHONPATH: kufr/backend/tests
+        run: python3 -c 'import server_mode_smoke; server_mode_smoke.verify_decision_model()'
       - name: Activate on server
         id: activate
         shell: bash
@@ -89,6 +105,8 @@ jobs:
           DIALOG_MODEL: ${{ inputs.dialog_model || 'gpt-6.1-sol' }}
           VOICE_MODE: ${{ inputs.voice_mode || 'fake' }}
           LIVE_ACTOR_MODE: ${{ inputs.live_actor_mode }}
+          LIVE_DECISION_MODEL: ${{ inputs.live_decision_model }}
+          LIVE_TERMINAL_QUIET_MS: ${{ inputs.live_terminal_quiet_ms }}
           HYBRID_MEMORY: ${{ inputs.hybrid_memory }}
           CLOUD_INDEXING: ${{ inputs.cloud_indexing }}
           PERSONAL_STORE: ${{ vars.KUFR_MEMORY_PERSONAL_STORE_ID }}
@@ -153,7 +171,14 @@ jobs:
           stores = resolve_stores(provisioning_directory(), os.environ['PERSONAL_STORE'], os.environ['MOTIF_STORE'])
           if cloud and not memory or memory and not all(stores.values()):
               raise SystemExit('Hybrid memory requires both provisioned stores; cloud requires memory')
-          config['Backend']['GptLive'] = {'ActorMode': actor}
+          decision = os.environ['LIVE_DECISION_MODEL']
+          if decision not in ('gpt-6.1-sol', 'gpt-6-luna'):
+              raise SystemExit('Invalid Live decision model')
+          quiet_text = os.environ['LIVE_TERMINAL_QUIET_MS']
+          if not quiet_text.isascii() or not quiet_text.isdigit() or not 900 <= int(quiet_text) <= 10000:
+              raise SystemExit('Invalid Live terminal quiet time')
+          config['Backend']['GptLive'] = {'ActorMode': actor, 'DecisionModel': decision,
+              'TerminalQuietMs': int(quiet_text)}
           config['Backend']['Memory'] = {
               'Enabled': memory, 'CloudIndexingEnabled': cloud,
               'LongTermPersonalEnabled': False, 'AppNamespace': 'kufr', 'Environment': 'Production',
@@ -194,5 +219,9 @@ jobs:
           ADMIN_CREDENTIAL: ${{ secrets.ADMIN_CREDENTIAL }}
           PUBLIC_IPV4: ${{ vars.KUFR_BACKEND_PUBLIC_IPV4 }}
           EXPECTED_LIVE_ACTOR_MODE: ${{ inputs.live_actor_mode }}
+          EXPECTED_LIVE_DECISION_MODEL: ${{ inputs.live_decision_model }}
+          EXPECTED_LIVE_TERMINAL_QUIET_MS: ${{ inputs.live_terminal_quiet_ms }}
+          EXPECTED_HYBRID_MEMORY: ${{ inputs.hybrid_memory }}
+          EXPECTED_CLOUD_INDEXING: ${{ inputs.cloud_indexing }}
           EXPECTED_MEMORY_CONFIGURED: ${{ steps.activate.outputs.memory_configured }}
         run: python3 kufr/backend/tests/server_mode_smoke.py

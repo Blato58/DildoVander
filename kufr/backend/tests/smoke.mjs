@@ -324,6 +324,8 @@ try {
     voiceMode: 'fake', dialogMode: 'fake', catalogVersion: 'ollivander-private-party-v1',
     audioFormat: 'pcm16-mono-32000-wav',
     liveActorMode: 'LegacyBackendScripted', personalityId: 'party-original',
+    liveDecisionModel: 'gpt-6.1-sol', liveTerminalQuietMs: 4000,
+    memoryEnabled: false, cloudIndexingEnabled: false, longTermPersonalEnabled: false,
     memoryProvider: { provider: 'openai_vector_store', configured: false, degraded: false,
       configurationStatus: 'disabled', lastVerifiedAt: null, pending: 0, failed: 0, deleting: 0 },
   });

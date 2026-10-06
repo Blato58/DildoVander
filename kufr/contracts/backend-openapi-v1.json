@@ -216,6 +216,23 @@
                         "AutonomousActor"
                       ]
                     },
+                    "liveDecisionModel": {
+                      "enum": ["gpt-6.1-sol", "gpt-6-luna"]
+                    },
+                    "liveTerminalQuietMs": {
+                      "type": "integer",
+                      "minimum": 500,
+                      "maximum": 10000
+                    },
+                    "memoryEnabled": {
+                      "type": "boolean"
+                    },
+                    "cloudIndexingEnabled": {
+                      "type": "boolean"
+                    },
+                    "longTermPersonalEnabled": {
+                      "type": "boolean"
+                    },
                     "personalityId": {
                       "enum": [
                         "party-original",

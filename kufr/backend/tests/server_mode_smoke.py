@@ -7,6 +7,26 @@ import urllib.error
 import urllib.request
 
 
+def verify_decision_model():
+    if os.environ['LIVE_ACTOR_MODE'] != 'AutonomousActor':
+        return
+    model = os.environ['LIVE_DECISION_MODEL']
+    key = os.environ.get('OPENAI_API_KEY')
+    if model not in ('gpt-6.1-sol', 'gpt-6-luna') or not key:
+        raise ValueError('Configured autonomous decision model and provider credential required')
+    class NoRedirects(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, request, fp, code, message, headers, url):
+            return None
+    opener = urllib.request.build_opener(NoRedirects())
+    request = urllib.request.Request('https://api.openai.com/v1/models/' + model,
+                                     headers={'Authorization': 'Bearer ' + key})
+    with opener.open(request, timeout=15) as response:
+        payload = response.read(32769)
+        assert response.status == 200 and len(payload) <= 32768
+        assert json.loads(payload)['id'] == model
+    print('Autonomous Live decision model access verified: ' + model + '; no inference.')
+
+
 def main():
     base = 'https://' + str(ipaddress.IPv4Address(os.environ['PUBLIC_IPV4']))
     credential = os.environ['ADMIN_CREDENTIAL']
@@ -51,6 +71,15 @@ def main():
     expected_actor = os.environ.get('EXPECTED_LIVE_ACTOR_MODE')
     if expected_actor:
         assert metadata['liveActorMode'] == expected_actor
+        for variable, field, convert in (
+            ('EXPECTED_LIVE_DECISION_MODEL', 'liveDecisionModel', str),
+            ('EXPECTED_LIVE_TERMINAL_QUIET_MS', 'liveTerminalQuietMs', int),
+            ('EXPECTED_HYBRID_MEMORY', 'memoryEnabled', lambda v: v == 'true'),
+            ('EXPECTED_CLOUD_INDEXING', 'cloudIndexingEnabled', lambda v: v == 'true'),
+        ):
+            if os.environ.get(variable):
+                assert metadata[field] == convert(os.environ[variable]), field
+        assert not metadata['longTermPersonalEnabled']
         assert call(path='/v1/admin/memory')[0] == 401
         assert call(bearer=token['accessToken'], path='/v1/admin/memory')[0] == 401
         status, memory = call(bearer=credential, path='/v1/admin/memory')
@@ -62,6 +91,9 @@ def main():
             # no LLM, upload, search, conversation or personal data export.
             status, memory = call('POST', bearer=credential, path='/v1/admin/memory/verify')
             assert status == 200 and memory['lastVerifiedAt'] and not memory['degraded']
+        print(json.dumps({field: metadata[field] for field in (
+            'liveActorMode', 'liveDecisionModel', 'liveTerminalQuietMs', 'memoryEnabled',
+            'cloudIndexingEnabled', 'longTermPersonalEnabled')}, sort_keys=True))
         print('Live actor, private memory diagnostics and provisioned stores verified; no guest export.')
     print('Public admin authentication, no-op mode mutation, revision conflict and diagnostics verified; no dialogue generation or mode changes.')
 
