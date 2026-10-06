@@ -42,7 +42,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         Func<string, CancellationToken, Task> visitor, Func<CancellationToken, Task> pause,
         Func<LivePlaybackRequest, CancellationToken, Task<LivePlaybackConfirmation>> playback,
         Func<(int ReadyMask, int Revision, bool Current)> availability, Func<CancellationToken, Task> stopInput,
-        CancellationToken token, MemoryAccess? memoryAccess = null)
+        CancellationToken token, MemoryAccess? memoryAccess = null, Action<double, WandDecisionStatus>? decisionTiming = null)
     {
         var turn = call.Context;
         var snapshot = turn.LivePrompt ?? throw new InvalidOperationException("Missing frozen Live prompt.");
@@ -74,6 +74,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         Task<JsonDocument>? receive = null;
         WandDecisionInput? workInput = null;
         string? workFingerprint = null;
+        TimeSpan workStartedAt = default;
         string? resultCommand = null;
         bool resultAccepted = false;
         WandDecisionResult? terminal = null;
@@ -150,10 +151,11 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
             }
             workInput = new(projection.Revision, state.ReadyMask, state.Revision, projection.Evidence(), snapshot.Policy,
                 projection.AnswerCandidates, projection.DirectSelection, excluded, turn.EveningContext);
-            reserved = WandDecisionService.Reservation(workInput);
+            reserved = decisions.Reservation(workInput);
             if (++paidCalls > 10 || cost + reserved + GptLiveProtocol.VoiceReservation > GptLiveProtocol.SessionBudget)
                 throw new InvalidDataException("Live decision budget exhausted.");
             workFingerprint = key; observedVersion = projection.ContentVersion;
+            workStartedAt = Elapsed();
             tasks[task.DelegationId] = task with { State = "running", DecisionRevision = projection.Revision, AvailabilityRevision = state.Revision };
             waiting = null;
             var capturedInput = workInput;
@@ -288,6 +290,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                 if (winner == work)
                 {
                     var result = await work!; work = null; cost = checked(cost + result.CostMicroUsd);
+                    decisionTiming?.Invoke((Elapsed() - workStartedAt).TotalMilliseconds, result.Status);
                     var task = tasks.Values.LastOrDefault(t => t.State == "running")!;
                     if (observedVersion != projection.ContentVersion || workFingerprint != Key() || !Valid(result))
                     {

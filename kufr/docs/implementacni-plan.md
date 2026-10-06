@@ -1,5 +1,19 @@
 # Implementační plán AI kufru
 
+> **D148, 6. 10. 2026: aktivace Vector Stores a kratší čekání na Live výběr.**
+> Majitel výslovně požaduje aktivaci vektorové paměti a dovoluje jiný model
+> nebo architekturu kvůli prodlevě výběru. Live vede rozhovor i závěr sám
+> v `AutonomousActor`; úzká faktická delegace má samostatný
+> `Backend:GptLive:DecisionModel` (`gpt-6-luna` nebo původní `gpt-6.1-sol`).
+> Luna řeší pouze strukturovaný výběr ze skutečného katalogu, nikoli humor.
+> Live client delegation nemá function arguments, takže pouhá vyslovená
+> hůlka nemůže nahradit validovaný návrh pro zařízení. Zachovávají se přesné
+> citace, revize, rozpočet, dostupnost a místní playback checkpoint.
+> Aktivace používá existující stores, cloud indexing a aktualizované nativní
+> klienty D146. Osobní paměť dál vyžaduje samostatné povolení/identitu.
+> Nejde o migraci SDK, DB, firmware ani zdrojových personalit. Skutečný
+> výsledek nasazení a ověření patří do stavu implementace D148.
+
 > **D145–D146, 6. 10. 2026: skutečné nasazení a provisioning.**
 > D143 backend je v produkci, dvě OpenAI stores byly vytvořené a ověřené;
 > žádná data hostů nebyla exportovaná. Aktuální Ad Hoc IPA 1.0/1000.0.16
