@@ -6,11 +6,11 @@ Poslední aktualizace: **6. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**D148 – 6. 10. 2026 – kratší GPT-Live výběr; aktivace Vector Stores připravená.**
+**D148 – 6. 10. 2026 – autonomní GPT-Live a cloudový vektorový index aktivní.**
 Majitel zadal zapnutí vektorové paměti a zkrácení čekání; dovolil změnu
 modelu/architektury. Čistý checkout `work`, HEAD `db1e77e`, remote
-Blato58/DildoVander. D145–D146 mají provisionované stores, ale aktivní
-legacy Live a cloud indexing=false; publikovaná IPA D146 umí checkpoint.
+Blato58/DildoVander. Při převzetí měla produkce D145–D146 provisionované
+stores, legacy Live a cloud indexing=false; publikovaná IPA D146 umí checkpoint.
 Read-only [logy 37530785394](https://github.com/Blato58/DildoVander/actions/runs/37530785394)
 potvrdily responses/openai a 0 aktivních rozhovorů. Poslední Live HTTP
 session trvala 82,7 s; logy neměří délku samotného rozhodnutí, proto to
@@ -34,7 +34,7 @@ vynechal známé čerstvé motivy. Startup proto připojí také platné lokáln
 EveningMotif se stejnou izolací/rozpočtem/deduplikací; fixtures ověřují
 pending index, správná ID/revize a oddělení večera i osobní historie.
 Plán, provozní návod, research a backend README zdůvodňují oddělení Luny
-od humoru a kompatibilitu checkpointu. Cílem nasazení je AutonomousActor,
+od humoru a kompatibilitu checkpointu. Ověřené produkční nastavení je AutonomousActor,
 Luna, quiet=1500, hybrid/cloud=true a personal=false.
 
 Lokální ověření 6. 10. (bez placené AI, hardware a změn klientů):
@@ -51,11 +51,47 @@ Lokální ověření 6. 10. (bez placené AI, hardware a změn klientů):
 | contracts `npm ci && npm test` | OpenAPI, 25 validních / 41 neplatných control, media frame/control OK |
 | actionlint 1.7.12 / lokální Markdown / `git diff --check` | všechny workflow OK; SHA validatoru ověřeno; 53 lokálních cílů bez chyby; whitespace OK |
 
-Aktivace produkce se provede až z úspěšného CI a sloučeného stromu;
-výsledek a release budou doplněny podle skutečných běhů. Placená
-inference, poslechové A/B, instalace IPA na konkrétním telefonu,
-indexace skutečných hostů, firmware flash a fyzická prezentace
-nebyly provedené. Tyto mezery nejsou uzavřené lokálními fixtures.
+Implementační head `d8e3b4427b3ca82d51b5922edf8aaf205da1bacb` prošel
+celým [CI 37532989739](https://github.com/Blato58/DildoVander/actions/runs/37532989739):
+repository, backend, web, firmware host tests a všechny čtyři firmware
+profily, offline AI i CI required success; placené AI live skipped.
+[PR #126](https://github.com/Blato58/DildoVander/pull/126) byl sloučen
+squash jako `95384b83c319daf20367e0c9427ad62c6e5b2393`.
+Lokální fetch ověřil shodný tree headu i sloučeného main
+`c8932b609d30cd02fc0e2de46bc3c47a8261f5b0`.
+
+Skutečně provedený produkční příkaz z kořene repozitáře:
+
+```sh
+gh workflow run kufr-backend-deploy.yml --repo Blato58/DildoVander --ref main \
+  -f build_run_id=37532989739 -f dialog_mode=responses -f dialog_model=gpt-6.1-sol \
+  -f voice_mode=openai -f live_actor_mode=AutonomousActor -f live_decision_model=gpt-6-luna \
+  -f live_terminal_quiet_ms=1500 -f hybrid_memory=true -f cloud_indexing=true
+```
+
+[Deployment 37534581909](https://github.com/Blato58/DildoVander/actions/runs/37534581909)
+skončil success v obou jobech. Prověřil CI provenance a aktuální main,
+skutečný OpenAI Models GET pro Lunu, aktivaci release
+`4ed7d6a986d645fadd4fd464bb5593e27e22970d-37534581909-1`, loopback health,
+veřejný HTTPS, oddělení admin/device tokenu, no-op mode mutation,
+revision conflict a skutečný přístup/scope obou existujících stores.
+Nevytvořil nové stores. Produkční diagnostika skutečně vrátila:
+
+```json
+{"cloudIndexingEnabled":true,"liveActorMode":"AutonomousActor","liveDecisionModel":"gpt-6-luna","liveTerminalQuietMs":1500,"longTermPersonalEnabled":false,"memoryEnabled":true}
+```
+
+Indexace anonymních EveningMotif je nyní aktivní; osobní paměť nadále
+vyžaduje vlastní globální nastavení, ověřenou identitu a povolení.
+Žádný hlasový/Responses model nebyl v provozním ověření volán. Poslechové
+A/B, skutečná indexace/search/delete hostů, instalace IPA na konkrétním
+telefonu, firmware flash a fyzická prezentace nebyly provedené. Nový
+technický log změří skutečnou delegaci při dalším použití; známá změna
+quiet=4000→1500 sama není měřením celkové latence rozhovoru.
+Pro autonomní režim použít aktuální IPA D146 build **1000.0.16** z
+[instalační stránky](https://2.28.202.220/ios/); starší klient bez
+checkpointu nepoužívat. Další krok je reálný rozhovor/poslech a kontrola
+`live_decision_completed`, správné hůlky a životního cyklu; HW B1 zůstává otevřené.
 První implementační commit `2710d49b2ae565f705e2c352f70f41bec3bfd706`
 byl pushnutý a `ls-remote` potvrdilo shodu. Povinný PowerShell helper
 na Linuxu skončil 126; repo-scoped `gh auth git-credential` fallback
