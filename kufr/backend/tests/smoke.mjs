@@ -25,6 +25,12 @@ const baseUrl = `http://127.0.0.1:${port}`;
 const databaseDirectory = await mkdtemp(join(tmpdir(), 'kufr-backend-smoke-'));
 const serverEnvironment = {
     ...process.env,
+    OPENAI_API_KEY: '', // offline smoke never uses an ambient provider credential
+    Backend__Memory__Enabled: 'false',
+    Backend__Memory__CloudIndexingEnabled: 'false',
+    Backend__Memory__LongTermPersonalEnabled: 'false',
+    Backend__Memory__PersonalStoreId: '',
+    Backend__Memory__MotifStoreId: '',
     Devices__0__DeviceId: 'device-a',
     Devices__0__CredentialSha256: sha256(credentialA),
     Devices__1__DeviceId: 'device-b',
@@ -317,7 +323,16 @@ try {
   assert.deepEqual((await read('/v1/diagnostics', tokenA)).result, {
     voiceMode: 'fake', dialogMode: 'fake', catalogVersion: 'ollivander-private-party-v1',
     audioFormat: 'pcm16-mono-32000-wav',
+    liveActorMode: 'LegacyBackendScripted', personalityId: 'party-original',
+    memoryProvider: { provider: 'openai_vector_store', configured: false, degraded: false,
+      configurationStatus: 'disabled', lastVerifiedAt: null, pending: 0, failed: 0, deleting: 0 },
   });
+  assert.equal((await read('/v1/admin/memory', tokenA)).status, 401);
+  assert.equal((await read('/v1/admin/memory', logCredential)).status, 401);
+  assert.equal((await read('/v1/admin/memory', adminCredential)).result.configurationStatus, 'disabled');
+  assert.equal((await call('/v1/admin/memory/verify', { token: adminCredential })).status, 503);
+  assert.equal((await activateEvening('/v1/admin/memory/guest', adminCredential, randomUUID(), {})).status, 400);
+  assert.equal((await activateEvening(`/v1/admin/memory/records/${randomUUID()}`, adminCredential, randomUUID(), {})).status, 400);
   assert.equal((await call('/v1/conversations', {
     token: tokenA,
     key: randomUUID(),

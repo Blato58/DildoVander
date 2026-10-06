@@ -228,6 +228,7 @@ bool EspIdfRealtimeTransport::Event(const RealtimeEvent& event,
       if (!audio_.Drain() || !Current()) return false;
       segmentPlaying_ = false;
     }
+    audio_.Listen(uploading_.load());
     phase_("listening"); return true;
   }
   if (event.type == "completed") {
@@ -244,6 +245,21 @@ bool EspIdfRealtimeTransport::Event(const RealtimeEvent& event,
     if (Post(path, body.data(), body.size(), "application/json") != 204) return false;
     terminal_ = event.operation.decision != "ask" || turns_ == 10;
     operationId_.clear(); phase_(terminal_ ? "completed" : "thinking"); return true;
+  }
+  if (event.type == "playback_checkpoint") {
+    if (!gptLive_ || operationId_.empty() || event.pcmBytes != audioBytes_ || !Current()) return false;
+    if (segmentPlaying_) {
+      if (!audio_.Drain() || !Current()) return false;
+      segmentPlaying_ = false;
+    }
+    // Drain confirms the local DMA tail, not a physical presentation. Keep the
+    // safe microphone gate until Drain; ordinary pause never authorizes a servo.
+    const std::string body = "{\"playbackId\":\"" + event.playbackId + "\",\"pcmBytes\":" +
+        std::to_string(event.pcmBytes) + ",\"drained\":true}";
+    const std::string path = "/v1/conversations/" + conversationId_ + "/gpt-live/" + streamId_ + "/playback";
+    if (Post(path, body.data(), body.size(), "application/json") != 204)
+      (void)Post(path, body.data(), body.size(), "application/json"); // same idempotent ACK, no operation replay
+    phase_("listening"); return Current();
   }
   if (event.type == "closed") {
     if (!terminal_ || !operationId_.empty()) return false;

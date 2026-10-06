@@ -34,12 +34,16 @@ internal static class ResponsesTextDialogBudget
         : Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(context));
 
     internal static long CalculateActualMicroUsd(TextDialogResponse response, string expectedModel = Model)
+        => CalculateUsageMicroUsd(response.ReturnedModel, response.ServiceTier, response.InputTokens, response.OutputTokens, expectedModel);
+
+    internal static long CalculateUsageMicroUsd(string returnedModel, string? serviceTier, int inputTokens, int outputTokens,
+        string expectedModel = Model)
     {
         if (!IsSupportedModel(expectedModel)
-            || response.ReturnedModel != expectedModel
-            || response.ServiceTier != "default"
-            || response.InputTokens < 0
-            || response.OutputTokens < 0)
+            || returnedModel != expectedModel
+            || serviceTier != "default"
+            || inputTokens < 0
+            || outputTokens < 0)
         {
             throw new TextDialogUnavailableException("Provider usage cannot be priced.");
         }
@@ -50,7 +54,7 @@ internal static class ResponsesTextDialogBudget
         // conservative even when the provider reports cached input tokens.
         return expectedModel switch
         {
-            Model => checked((response.InputTokens * 5L + 1) / 2 + response.OutputTokens * 10L),
+            Model => checked((inputTokens * 5L + 1) / 2 + outputTokens * 10L),
             _ => throw new TextDialogUnavailableException("Provider model cannot be priced.")
         };
     }

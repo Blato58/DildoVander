@@ -29,6 +29,9 @@ internal sealed record RealtimeTurnContext(
     int OutputTokenLimit = RealtimeProtocol.MaxOutputTokens)
 {
     internal string PersonalityId { get; init; } = PersonalityCatalog.DefaultId;
+    internal GptLive.LivePromptSnapshot? LivePrompt { get; init; }
+    internal IReadOnlyList<object> LiveInput { get; init; } = [];
+    internal IReadOnlyList<string> LiveMemoryReferences { get; init; } = [];
     internal string OpeningVariation { get; init; } = Request.Opening ? ConversationOpening.Next() : "";
 }
 
