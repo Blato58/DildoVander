@@ -207,6 +207,9 @@ internal sealed class HybridMemoryService(EveningMemoryStore store, OpenAiVector
         if (access.Guest is { IdentityVerified: true, LongTermAllowed: true })
             records.AddRange((await RetrieveAsync(access, MemoryScope.Personal, "Předchozí potvrzený výběr a dobrovolně uložené preference hosta.", token)).Records);
         records.AddRange((await RetrieveAsync(access, MemoryScope.EveningMotif, "Nedávno použité abstraktní motivy vtipů a témata, kterým se vyhnout.", token)).Records);
+        // Indexing is asynchronous. Recent permitted motifs are already known
+        // locally and must not disappear while Files attachment is still pending.
+        records.AddRange(store.LocalMemory(access, MemoryScope.EveningMotif));
         var delivered = new HashSet<string>(StringComparer.Ordinal);
         return new(BuildContext(access, records, delivered), delivered.ToArray());
     }
