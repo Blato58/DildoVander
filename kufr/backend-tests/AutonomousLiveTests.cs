@@ -25,6 +25,7 @@ internal static class AutonomousLiveTests
         Check(LivePromptSnapshot.Create(PersonalityCatalog.OllivanderId, overrideOptions).Instructions.Contains("otázek: 3; nejvýše 4")
             && overrideOptions.Policy(PersonalityCatalog.OllivanderId).MaximumAnswers == 4, "one documented admin-policy priority");
         VerifyProjection(options);
+        VerifySpeechGuards(options);
         VerifyDecisionModels();
         using var noModel = new WandDecisionService((_, _) => throw new Exception("Unnecessary model call"));
         var input = new WandDecisionInput(2, 0, 7, [new("a", "nevím")], olli.Policy, 2, false);
@@ -52,6 +53,9 @@ internal static class AutonomousLiveTests
         await VerifyConversation(options, correction: false);
         await VerifyConversation(options, correction: true);
         await VerifyConversation(options, correction: false, interrupt: true);
+        await VerifyConversation(options with { DelegationTimeoutMs = 2000, DelegationContextWaitMs = 350 }, correction: false,
+            naturalVerdict: true, visitorStillSpeaking: true, acknowledge: true, resumeDuringDecision: true);
+        await VerifyConversation(options, correction: false, naturalVerdict: true, repairVerdict: true);
         await VerifyMissingContext(options);
         await VerifyPlaybackRegistry();
         Console.WriteLine("Autonomous Live: frozen prompts/policy, timed long Czech input, delegation ordering/duplicates, stale correction, actual playback and native wire passed.");
@@ -141,7 +145,44 @@ internal static class AutonomousLiveTests
         Check(LiveTextBudget.UpperBound(bounded) <= 500 && !bounded.Contains('\uFFFD'), "Czech and surrogate pairs respect conservative 500-token append bound");
     }
 
-    private static async Task VerifyConversation(GptLiveOptions options, bool correction, bool interrupt = false)
+    private static void VerifySpeechGuards(GptLiveOptions options)
+    {
+        using var clock = new ManualClock();
+        var activity = new LiveInputActivity(clock, options.SpeechAmplitudeThreshold);
+        var click = new byte[4096]; click[1] = 32;
+        activity.Observe(click);
+        Check(activity.QuietFor(options.InputQuietMs), "a single PCM click is not a speech turn");
+        activity.Observe(new byte[] { 0, 32, 0, 32 });
+        clock.Advance(1100); activity.Observe(new byte[4096]);
+        Check(!activity.QuietFor(options.InputQuietMs), "brief breathing pause remains part of the guest turn");
+        clock.Advance(100);
+        Check(activity.QuietFor(options.InputQuietMs), "sustained input quiet eventually releases the turn");
+        var catalog = PartyWandCatalog.Available(63);
+        foreach (var (compartment, spoken) in new[]
+        {
+            (1, "Pro tebe vybírám Poslední slovo"),
+            (2, "Vybírám třešňovou hůlku Parketový kompas"),
+            (3, "Počítej s Výborem pro špatné nápady"),
+            (4, "Budeš se Sametovým alibi"),
+            (5, "S Kocovinou věštců to zvládneš"),
+            (6, "S Knihovní bouří to půjde")
+        })
+            Check(LiveTerminalSpeech.Ready(spoken, compartment, catalog), "Czech catalog title identifies the selected item without punctuation");
+        Check(!LiveTerminalSpeech.Ready("Poslední slovo —", 1, catalog)
+            && !LiveTerminalSpeech.Ready("Poslední slovo...", 1, catalog), "explicitly unfinished verdict keeps listening");
+        Check(!LiveTerminalSpeech.Ready("Knihovní bouře.", 1, catalog)
+            && !LiveTerminalSpeech.Ready("Poslední slovník.", 1, catalog)
+            && !LiveTerminalSpeech.Ready("Poslední slovo a Knihovní bouře.", 1, catalog), "wrong, invented and ambiguous catalog titles cannot publish a selection");
+        Check(LiveConversationProjection.Classify("Dobře, ukaž ji.") == LiveRequestIntent.Acknowledge
+            && LiveConversationProjection.Classify("Díky moc!") == LiveRequestIntent.Thanks
+            && LiveConversationProjection.Classify("Díky, ale chci jinou hůlku.") == LiveRequestIntent.Alternative
+            && LiveConversationProjection.Classify("Dobře, ale raději všechno plánuji.") == LiveRequestIntent.Selection,
+            "acknowledgment is distinct from a correction or alternative");
+    }
+
+    private static async Task VerifyConversation(GptLiveOptions options, bool correction, bool interrupt = false,
+        bool naturalVerdict = false, bool visitorStillSpeaking = false, bool acknowledge = false,
+        bool resumeDuringDecision = false, bool repairVerdict = false)
     {
         using var clock = new ManualClock();
         using var socket = new SocketFixture();
@@ -152,10 +193,11 @@ internal static class AutonomousLiveTests
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var correctionSeen = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var first = new TaskCompletionSource<WandDecisionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        WandDecisionInput? capturedInput = null;
         using var decisions = new WandDecisionService((i, _) =>
         {
             calls++; entered.TrySetResult();
-            if (correction && calls == 1) return first.Task;
+            if ((correction || resumeDuringDecision) && calls == 1) { capturedInput = i; return first.Task; }
             var evidence = i.Evidence.Last();
             Check(!correction || evidence.Text.Contains("improvizuji"), "corrected input reaches decision service");
             return Task.FromResult(Proposal(i, correction ? 2 : 1));
@@ -165,18 +207,21 @@ internal static class AutonomousLiveTests
         var playerDone = new TaskCompletionSource<LivePlaybackConfirmation>(TaskCreationOptions.RunContinuationsAsynchronously);
         var consumed = Channel.CreateUnbounded<string>();
         var audioConsumed = Channel.CreateUnbounded<int>();
+        var states = Channel.CreateUnbounded<string>();
         var pcmBytes = 0;
         var run = new AutonomousLiveDialogue(connection, decisions, clock).RunAsync(call,
             (bytes, _) => { pcmBytes += bytes.Length; audioConsumed.Writer.TryWrite(bytes.Length); return Task.CompletedTask; },
             (text, _) => { consumed.Writer.TryWrite(text); if (text.Contains("improvizuji")) correctionSeen.TrySetResult(); return Task.CompletedTask; },
             _ => Task.CompletedTask,
             (r, _) => { playerRequests.Writer.TryWrite(r); return playerDone.Task; },
-            () => (63, 7, true), _ => Task.CompletedTask, lifetime.Token);
+            () => (63, 7, true), _ => Task.CompletedTask, lifetime.Token,
+            terminalState: state => states.Writer.TryWrite(state));
         await socket.Command("session.instructions.append", lifetime.Token);
         socket.Transcript(false, "Co děláš, když se plán rozpadne?", 0, 1000);
         socket.Transcript(true, "Plánuji všechno.", 1100, 2000);
         await consumed.Reader.ReadAsync(lifetime.Token);
         Check(calls == 0, "ordinary greeting/question/reaction needs no backend model");
+        if (visitorStillSpeaking) await connection.SendAudioAsync(new byte[] { 0, 32, 0, 32 }, lifetime.Token);
         if (!correction)
         {
             socket.Transcript(false, "Jak zvládáš chaos?", 2100, 2300);
@@ -186,9 +231,31 @@ internal static class AutonomousLiveTests
         }
         socket.Delegate("d-one", 2500); socket.Delegate("d-one", 2500); // normal duplicate
         clock.Advance(50);
+        if (visitorStillSpeaking)
+        {
+            while (await states.Reader.ReadAsync(lifetime.Token) != "input_active") { }
+            Check(calls == 0, "a transcript gap cannot dispatch work over active guest audio");
+            for (var part = 0; part < 6; part++)
+            {
+                clock.Advance(500);
+                await connection.SendAudioAsync(new byte[] { 0, 32, 0, 32 }, lifetime.Token);
+                socket.Transcript(true, " Ještě pokračuji.", 2700 + part * 40, 2730 + part * 40);
+                await consumed.Reader.ReadAsync(lifetime.Token);
+                Check(calls == 0, "a long guest answer is not mistaken for missing delegation context");
+            }
+            clock.Advance(1300);
+        }
         var enteredOrFailed = await Task.WhenAny(entered.Task, run).WaitAsync(lifetime.Token);
         if (enteredOrFailed == run) await run;
         await entered.Task.WaitAsync(lifetime.Token);
+        if (resumeDuringDecision)
+        {
+            await connection.SendAudioAsync(new byte[] { 0, 32, 0, 32 }, lifetime.Token);
+            first.SetResult(Proposal(capturedInput!, 1));
+            while (await states.Reader.ReadAsync(lifetime.Token) != "result_input_active") { }
+            Check(!socket.Sent.Any(s => s.Contains("session.commentary.append")), "a ready decision cannot interrupt resumed guest speech before a transcript arrives");
+            clock.Advance(1300);
+        }
         if (correction)
         {
             socket.Transcript(true, " Oprava, improvizuji.", 2100, 2500);
@@ -198,25 +265,54 @@ internal static class AutonomousLiveTests
         var result = await socket.Command("session.commentary.append", lifetime.Token);
         Check(calls == (correction ? 2 : 1) && !result.Contains("ZASTARALÝ"), "duplicate/late stale work is not published or replayed");
         var name = PartyWandCatalog.Available(63).Single(w => w.Compartment == (correction ? 2 : 1)).DisplayName;
+        if (naturalVerdict) name = "Poslední slovo";
         socket.Transcript(false, name + " —", 3000, 4000);
         socket.Audio();
         await audioConsumed.Reader.ReadAsync(lifetime.Token);
         clock.Advance(6000);
         Check(!playerRequests.Reader.TryRead(out _), "long dramatic pause inside unfinished verdict does not finalize playback");
-        socket.Transcript(false, " sedí k tvé odpovědi. Tak už nezdržuj.", 5000, 6000); socket.Audio();
+        socket.Transcript(false, repairVerdict ? " nebo Knihovní bouře, už nezdržuj." : naturalVerdict
+            ? " sedí k tvé odpovědi, tak už nezdržuj" : " sedí k tvé odpovědi. Tak už nezdržuj.", 5000, 6000); socket.Audio();
         await audioConsumed.Reader.ReadAsync(lifetime.Token);
+        if (repairVerdict)
+        {
+            clock.Advance(3000);
+            var repair = await socket.Command("session.instructions.append", lifetime.Token);
+            Check(repair.Contains("Dokonči verdikt") && repair.Contains("Poslední slovo")
+                && !playerRequests.Reader.TryRead(out _), "an ambiguous announcement receives one focused repair before any playback publication");
+            socket.Transcript(false, "Jasanová hůlka Poslední slovo, tak už nezdržuj", 7000, 8000); socket.Audio();
+            await audioConsumed.Reader.ReadAsync(lifetime.Token);
+        }
+        if (acknowledge)
+        {
+            await connection.SendAudioAsync(new byte[] { 0, 32, 0, 32 }, lifetime.Token);
+            socket.Transcript(true, "Do", 6100, 6200);
+            await consumed.Reader.ReadAsync(lifetime.Token);
+            for (var frame = 0; frame < 72; frame++)
+            {
+                clock.Advance(500);
+                await connection.SendAudioAsync(new byte[] { 0, 32, 0, 32 }, lifetime.Token);
+            }
+            Check(!socket.Sent.Any(s => s.Contains("session.close")), "continued guest speech suspends the terminal timeout and publication");
+            await connection.SendAudioAsync(new byte[] { 0, 32, 0, 32 }, lifetime.Token);
+            socket.Transcript(true, "bře, ukaž ji.", 6200, 6400);
+            await consumed.Reader.ReadAsync(lifetime.Token);
+        }
         socket.Emit(new { type = "session.usage.updated", usage = new { seconds = 12 } });
         // A provider context ACK has already arrived; only local drain may allow close.
         clock.Advance(1500);
         var checkpoint = await playerRequests.Reader.ReadAsync(lifetime.Token);
         Check(!socket.Sent.Any(s => s.Contains("session.close")), "append ACK and silence are not playback-done");
-        Check(checkpoint.PcmBytes == pcmBytes && pcmBytes == 8, "checkpoint covers actual transported PCM");
+        Check(checkpoint.PcmBytes == pcmBytes && pcmBytes == (repairVerdict ? 12 : 8), "checkpoint covers actual transported PCM including a repaired announcement");
         if (interrupt)
         {
+            await connection.SendAudioAsync(new byte[] { 0, 32, 0, 32 }, lifetime.Token);
+            playerDone.SetResult(new(checkpoint.PlaybackId, checkpoint.PcmBytes, true));
+            while (await states.Reader.ReadAsync(lifetime.Token) != "input_active") { }
+            Check(!socket.Sent.Any(s => s.Contains("session.close")), "guest speech blocks a drained checkpoint before its transcript arrives");
             socket.Transcript(true, "Přestaň mluvit", 6100, 6500);
             await consumed.Reader.ReadAsync(lifetime.Token);
             await socket.Command("session.instructions.append", lifetime.Token);
-            playerDone.SetResult(new(checkpoint.PlaybackId, checkpoint.PcmBytes, true));
             lifetime.Cancel();
             try { await run; throw new Exception("Interrupted verdict accepted"); } catch (OperationCanceledException) { }
             Check(!socket.Sent.Any(s => s.Contains("session.close")), "late local drain cannot finalize an interrupted verdict"); return;
@@ -225,6 +321,8 @@ internal static class AutonomousLiveTests
         var outcome = await run.WaitAsync(lifetime.Token);
         Check(outcome.Autonomous && outcome.PlaybackVerified && outcome.Decision!.Compartment == (correction ? 2 : 1)
             && outcome.Reply.Reply.Contains("nezdržuj") && outcome.Segments.Any(s => s.Speaker == "user" && s.StartMs == 1100), "actual spoken transcript and timed raw user speech retained separately");
+        Check(calls == (correction ? 2 : 1) && outcome.Decision!.DecisionRevision == outcome.DecisionRevision,
+            "a split acknowledgment preserves the valid decision and its publication revision without another model call");
         Check(!socket.Sent.Any(s => s.Contains("response.create") || s.Contains("Replika ")), "native Live voice, no scripted response command");
         using var start = JsonDocument.Parse(socket.Sent.First());
         Check(start.RootElement.GetProperty("session").GetProperty("store").GetBoolean() == false

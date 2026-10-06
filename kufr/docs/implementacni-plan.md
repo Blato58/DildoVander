@@ -1,5 +1,20 @@
 # Implementační plán AI kufru
 
+> **D149, 6. 10. 2026: dokončení Live výběru a prostor pro řeč hosta.**
+> Reálný test D148 potvrdil rychlejší rozhovor, ale tři validní návrhy
+> skončily bez playback ACK a bez publikování. Přepis nezaručuje spolehlivou
+> závěrečnou interpunkci ani přesně nominativní katalogový název. D149
+> identifikuje jedinečný titul ze stejného katalogu i v českém skloňování;
+> výslovně nedokončený fragment a nejednoznačné jméno nepustí. Jedna krátká
+> oprava oznámení vyžaduje nový skutečný přednes a lokální drain.
+> Samostatná PCM RMS aktivita a `InputQuietMs=1200` chrání rozvíjenou
+> odpověď, vrácený backendový výsledek i publikování. Stabilní přijetí či
+> poděkování nemění výběrové podklady; oprava/alternativa jej zneplatní.
+> Aktualizovaný neměnný prompt `autonomous-live-v2` výslovně předává hostovi
+> celý tah. Model, index, session rozpočet a fyzická ESP brána zůstávají.
+> Jde o heuristiky nad skutečným audiem/přepisem; poslech a HW akceptace
+> vyžadují reálné ověření. `live_terminal_state` ukáže místo případné blokace.
+
 > **D148, 6. 10. 2026: aktivace Vector Stores a kratší čekání na Live výběr.**
 > Majitel výslovně požaduje aktivaci vektorové paměti a dovoluje jiný model
 > nebo architekturu kvůli prodlevě výběru. Live vede rozhovor i závěr sám

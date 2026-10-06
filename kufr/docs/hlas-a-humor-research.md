@@ -2,6 +2,32 @@
 
 Rešerše a implementační rozhodnutí, 2.–3. 10. 2026 (D127–D135).
 
+## D149: nespoléhat na interpunkci ani přepisovou mezeru
+
+Majitel po nasazení D148 potvrdil lepší a rychlejší rozhovor, ale žádné
+provedení hůlky a předčasné přebírání slova. Read-only produkční logy
+37536098927 ukázaly tři validní návrhy (1,473–2,656 s na delegaci), žádné
+HTTP `/playback` ani completed a následné selhání; jiný rozhovor skončil
+bez zaznamenaného rozhodnutí. Log neobsahuje přepis a sám nerozlišuje přesnou textovou
+podmínku blokace. Původní kontrola ale vyžadovala celý nominativní název
+a poslední tečku/vykřičník a invalidovala výsledek při každém běžném
+input fragmentu. Český přirozený závěr ani rozdělené „dobře“ to nezaručí.
+
+Oficiální [Live conversations](https://developers.openai.com/api/docs/guides/live-conversations#transcript-deltas)
+výslovně nemá input-turn-completed ani output-audio-done, přepisy jsou
+nerovnoměrné fragmenty. [Live prompting](https://developers.openai.com/api/docs/guides/live-prompting)
+doporučuje hlavičky Backchannel/Interruption policy a poslouchání při
+myšlenkové pauze. Realtime VAD nastavení není podporované pole Live
+session; D149 přidává společnou explicitní politiku a samostatné RMS
+pozorování mikrofonu. Výsledek rozhodnutí čeká na klid a opětovné
+ověření podkladů, místo přerušení rozvíjené odpovědi.
+
+Jedinečný název se ověřuje vůči stejnému katalogu, připouští skloňování
+a kratší titul bez dřeva. Nejednoznačný dokončený závěr se smí jednou
+krátce opravit bez dalšího rozhodovacího modelu. Nová řeč, snapshot,
+revize a lokální PCM/drain zůstávají podmínkami publikování. Heuristika
+nenahrazuje poslech ani důkaz fyzického vysunutí.
+
 ## D148: kratší delegace výběru a aktivace vektorového indexu
 
 Majitel 6. 10. žádá zapnout Vector Stores a zkrátit prodlevu hůlky,

@@ -22,7 +22,7 @@ a `Kufr.Backend.PartyPrompt` → `ai-eval/prompt.txt`. Nemají změněný obsah.
 Nový `Kufr.Backend.OllivanderLivePersona` čte samostatný celý
 [`ollivander-trunk-live-persona.txt`](../ai-eval/ollivander-trunk-live-persona.txt).
 `LivePromptSnapshot` přidá jednu společnou důvěryhodnou provozní politiku,
-verzi `autonomous-live-v1` a SHA-256 sestavených instrukcí. Tento hash
+verzi `autonomous-live-v2` (od D149) a SHA-256 sestavených instrukcí. Tento hash
 nenahrazuje zdrojový `PromptSha256`. Při vytvoření rozhovoru se zmrazí
 personalityId, prompt, verze, režim a výsledná politika. Administrace
 stále odmítá změnu postavy při aktivním hovoru. Sol/text, Realtime/PTT,
@@ -111,6 +111,7 @@ hodnoty, prázdné store ID a žádný klíč.
 | `TranscriptCharacterLimit` | 128000; 16000–256000, archiv se omezí bez ukončení audia |
 | `DecisionContextBytes` | 8000; 2000–8000; všechny důležité odpovědi v rozpočtu |
 | `DelegationContextWaitMs` | 350; 0–2000, pouze debounce revize po delegaci |
+| `InputQuietMs` | 1200; 500–3000, RMS ticho mikrofonu před backendovou řečí a publikováním |
 | `DelegationTimeoutMs` | 8000; 2000–20000, zotavení chybějícího kontextu |
 | `OutputPauseMs` | 900; 500–3000, odhad hranice PCM segmentu |
 | `TerminalQuietMs` | 4000; ≥ OutputPauseMs a ≤ 10000, heuristika závěru |
@@ -415,7 +416,13 @@ jsou pouze aplikační pokyny. Žádná tajemství. Audio append nemá ACK.
 `pause` je heuristika segmentu; callback jen zapíše událost a server
 dál čte Live. Nečeká na přehrávač v readeru. Terminální heuristika
 vyžaduje aktuální výsledek, odpovídající skutečný výstupní přepis,
-zakoňčenou větu, přijetí výsledku, PCM a konfigurované ticho. Potom
+přijetí výsledku, PCM a konfigurované ticho. D149 nevyžaduje poslední
+tečku ani celý nominativní název: jedinečný titul z katalogu rozpozná i
+v českém skloňování a normalizuje mezery/diakritiku. Nedokončené zakončení
+(pomlčka, čárka, dvojtečka či výpustka), jiná nebo dvě hůlky nepustí.
+Při dokončeném, ale nejasném oznámení po ≥2,5 s výstupního klidu a
+ověřeném vstupním klidu jednou vyžádá krátké zopakování platného názvu. Oprava sama nic
+nepublikuje; nový skutečný přednes a jeho drain jsou znovu povinné. Potom
 odešle `playback_checkpoint {playbackId,pcmBytes,decisionRevision}`.
 Nativní přehrávač potvrdí až skutečnou lokální drain hranici přes
 `POST .../gpt-live/{streamId}/playback {playbackId,pcmBytes,drained:true}`.
@@ -426,6 +433,23 @@ publikování validovaného návrhu. Cloudový ACK, ticho, poslední packet
 či samotný closed nepředstavují hotový přednes nebo fyzickou akci.
 Heuristika není měřený konec celé budoucí řeči; A/B test musí zahrnout
 dramatické pauzy a ověřit vhodné nastavení pro konkrétní hlas.
+
+Mikrofonní PCM se posuzuje zvlášť od přepisových paketů: RMS aktivita
+blokuje spuštění práce, dodání hotového výsledku do řeči i uzavření
+checkpointu do `InputQuietMs` klidu. Během dlouhého příběhu neběží
+zotavení „chybí přepis“ jen proto, že vypršel delegation timeout;
+pokračování hosta pozastaví také terminální timeout. Nový input fragment
+pozastaví publikování okamžitě; podstatné změny se vyhodnotí až nad
+stabilním přepisem a klidem mikrofonu. Čisté „dobře, ukaž ji“, opakování či
+poděkování zachovají ověřený návrh a novou revizi. Nové preference,
+alternativa a zrušení jej zneplatní. Poděkování obsahující změnu není
+potvrzení. Samotné přijetí není další diagnostická odpověď.
+
+`live_terminal_state` zapisuje pouze korelaci a technické `code`, například
+`result_input_active`, `input_pending`, `awaiting_announcement`,
+`announcement_repair`, `awaiting_playback` a `closing`. Přepis ani audio
+do technického logu nepatří. Při dalším selhání porovnat tento stav,
+`live_decision_completed` a HTTP `/playback`/finální completed podle traceId.
 
 `/availability` přijímá device token a přesný bootId/generation, mask
 a monotónní deviceRevision. Nový snapshot zneplatní výsledek;

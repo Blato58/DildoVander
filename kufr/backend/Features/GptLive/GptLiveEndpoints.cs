@@ -116,7 +116,10 @@ internal static class GptLiveEndpoints
                     }, () => conversations.LiveAvailability(call), StopInput, call.Cancellation.Token, memoryAccess,
                     (ms, status) => context.RequestServices.GetService<ServerLogStore>()?.Write("info", "live_decision_completed",
                         context.TraceIdentifier, "/v1/conversations/{id}/gpt-live", "POST", durationMs: Math.Round(ms, 1),
-                        operationId: call.OperationId, conversationId: id, code: status.ToString().ToLowerInvariant()))
+                        operationId: call.OperationId, conversationId: id, code: status.ToString().ToLowerInvariant()),
+                    state => context.RequestServices.GetService<ServerLogStore>()?.Write("info", "live_terminal_state",
+                        context.TraceIdentifier, "/v1/conversations/{id}/gpt-live", "POST",
+                        operationId: call.OperationId, conversationId: id, code: state))
                 : await new GptLiveDialogue(connection, dialog).RunAsync(call.Context,
                 (pcm, token) => Write(new { type = "audio", delta = Convert.ToBase64String(pcm) }, token),
                 (text, token) => Write(new { type = "visitor", text }, token),
