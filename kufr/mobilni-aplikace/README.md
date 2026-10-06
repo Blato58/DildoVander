@@ -359,6 +359,25 @@ vybraný prompt v Solu, Realtime i GPT-Live a dosavadní nákladové limity.
 K použití na telefonu je nutná nová IPA a backend s D142; webový harness
 ani offline provider testy nejsou fyzický poslech.
 
+## D146: publikovaná aktualizace
+
+Od 6. 10. 2026 je na [instalační stránce](https://2.28.202.220/ios/)
+Ad Hoc **1.0 / build 1000.0.16** pro dosavadní registrovaný iPhone.
+[Podpis 37429759564](https://github.com/Blato58/DildoVander/actions/runs/37429759564)
+ověřil Xcode 26.3, nativní transport/debug/audio testy a podpis;
+[publikace 37429982348](https://github.com/Blato58/DildoVander/actions/runs/37429982348)
+ověřila manifest, MIME a checksum stažené IPA přes HTTPS.
+Aktualizaci spusťte v Safari; instalace této verze a živý poslech ještě
+nejsou ověřené. Stávající Bundle ID zachovává identitu aplikace a Keychain.
+
+Tato verze umí D143 `playback_checkpoint`: potvrzuje přesný PCM drain
+po skutečných `dataPlayedBack` callbacks, idempotentně opakuje ztracený ACK
+a při poslechu i řeči zachovává full duplex. Nativní fixture je zelený;
+neprokazuje fyzickou slyšitelnost nebo změřené AEC na iPhonu. Backend po
+D145 stále používá `LegacyBackendScripted`; autonomní Live adaptace se
+zapíná serverovou konfigurací, nikoli samotnou instalací nové IPA.
+[Konfigurace a A/B postup](../docs/autonomous-live-memory.md).
+
 ## D128: porovnání GPT-Live + Sol
 
 Debug nabízí vedle Realtime a řetězeného hlasu **GPT-Live + Sol**.
