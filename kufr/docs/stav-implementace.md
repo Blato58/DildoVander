@@ -6,7 +6,7 @@ Poslední aktualizace: **6. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**D149 – 6. 10. 2026 – oprava nedokončeného Live výběru a předčasné řeči připravená.**
+**D149 – 6. 10. 2026 – oprava nedokončeného Live výběru a předčasné řeči nasazená.**
 Majitel během skutečného testu D148 potvrdil lepší/rychlejší rozhovor,
 ale hůlka se nikdy neprovede a kufr jej nenechá domluvit. Práce navazuje
 na `main=f71a7e3dc0facdb9157cb2d967116803f25a5249` (D148 záznam,
@@ -44,18 +44,53 @@ Ověření 6. 10. bez nového placeného provider hovoru a bez HW:
 | --- | --- |
 | Release backend-tests, SDK 10.0.303, `--no-restore -r linux-x64 -p:SelfContained=true` | 0 warnings / 0 errors; stejné uzamčené závislosti z D148 |
 | kompletní C# backend-tests `--no-build --no-restore` | všechny skupiny OK; všech šest českých titulů, nesprávná/nejednoznačná hůlka, chybějící interpunkce, nový přednes po opravě, dělené přijetí bez dalšího modelu, dlouhá řeč nad timeoutem, návrat do řeči během rozhodnutí a během drain před přepisem |
-| HTTP smoke | první běh EPIPE; opakovaný kompletní průchod access/fake voice/večery/scope/restart passed; CI musí doložit další průchod |
+| HTTP smoke | první lokální běh EPIPE; opakovaný kompletní průchod access/fake voice/večery/scope/restart passed; následný CI backend také success |
 | backend/deploy Python | 20/20 + 11/11 passed |
 | lokální Markdown / `git diff --check` | 53 lokálních cílů bez chyby; whitespace OK |
 
 Plán, research, provozní návod a backend README popisují příčiny,
-heuristiky a diagnostiku. CI, commit/push/merge a nasazení této opravy
-budou doplněny podle skutečných výsledků; aktuální produkce má ještě D148.
+heuristiky a diagnostiku. Commit
+`116e90436ef9a4ccf35adff6ffe0dc2a41f85ff5` byl pushnutý na
+`codex/live-selection-turn-taking`; `ls-remote` potvrdilo shodu SHA.
+Povinný PowerShell helper na Linuxu skončil 126; bezpečný repo-scoped
+`gh auth git-credential` fallback uspěl bez změny globálního účtu.
+[CI 37539528111](https://github.com/Blato58/DildoVander/actions/runs/37539528111)
+prošel celý: repository, backend včetně HTTP smoke, web, firmware host,
+všechny čtyři firmware profily, offline AI a CI required; placený AI live
+skipped. [PR #128](https://github.com/Blato58/DildoVander/pull/128)
+se po zelených kontrolách a ověření konfliktů sloučil squash jako
+`20a7e6a3a917c0604d0056476769306428c75605`. Fetch ověřil stejný tree
+headu a main `7ee6b5a87f31b757c6b2d772c707b2092de60efa`.
+
+Skutečná aktivace ze sloučeného main:
+
+```sh
+gh workflow run kufr-backend-deploy.yml --repo Blato58/DildoVander --ref main \
+  -f build_run_id=37539528111 -f dialog_mode=responses -f dialog_model=gpt-6.1-sol \
+  -f voice_mode=openai -f live_actor_mode=AutonomousActor -f live_decision_model=gpt-6-luna \
+  -f live_terminal_quiet_ms=1500 -f hybrid_memory=true -f cloud_indexing=true
+```
+
+[Deployment 37540866008](https://github.com/Blato58/DildoVander/actions/runs/37540866008)
+skončil success v verify i deploy. Ověřil provenance/shodný main,
+metadata GET dostupnosti Luny, bezpečné rozbalení a aktivoval release
+`34ba374db630e761c0546fabb971046ba267e6b7-37540866008-1`.
+Loopback i veřejný HTTPS, admin auth/no-op/revision conflict a skutečný
+přístup/scope obou provisionovaných stores prošly. Produkční diagnostika:
+
+```json
+{"cloudIndexingEnabled":true,"liveActorMode":"AutonomousActor","liveDecisionModel":"gpt-6-luna","liveTerminalQuietMs":1500,"longTermPersonalEnabled":false,"memoryEnabled":true}
+```
+
+Nevytvářely se další stores a deployment nespustil nový hlasový/Responses
+hovor ani export hosta. Nový backend obsahuje `InputQuietMs=1200` jako
+konfigurační výchozí hodnotu. Pro nové instrukce založit nový rozhovor;
+version/SHA snapshot se během běžícího rozhovoru nevyměňuje.
 Verze testovaného klienta nebyla zatím sdělená; pro checkpoint je nutný
 alespoň publikovaný iOS D146 build **1000.0.16**. Poslech opravy a skutečné
-provedení hůlky/HW B1 nejsou doložené. Další krok je úspěšné CI a aktivace
-stejné AutonomousActor/Luna/cloud konfigurace, potom nový rozhovor a
-korelovaná kontrola `live_terminal_state`, `/playback` a completed.
+provedení hůlky/HW B1 nejsou doložené. Další krok je nový skutečný rozhovor
+a korelovaná kontrola `live_terminal_state`, `/playback` a completed;
+konverzační/technické fixtures nenahrazují fyzickou akceptaci.
 
 **D148 – 6. 10. 2026 – autonomní GPT-Live a cloudový vektorový index aktivní.**
 Majitel zadal zapnutí vektorové paměti a zkrácení čekání; dovolil změnu
