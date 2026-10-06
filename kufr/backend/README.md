@@ -551,6 +551,10 @@ vrací pouze validované katalogové údaje a důvody svázané s odpověďmi.
 Výchozí `LegacyBackendScripted` i Sol/Realtime fallbacky zůstávají.
 Katalog a mobilní přepínání se nemění; Ollivander má samostatnou Live
 adaptaci, zdrojové persony/hashy zůstávají původní.
+Od D150 (`autonomous-live-v3`) ověřený verdikt obsahuje pouze oznamovací
+věty a krátké rýpnutí či callback, potom Live mlčí. Nežádá souhlas ani
+hodnocení a nepřidává řečnickou otázku. Publikování návrhu je automatické;
+dobrovolná podstatná oprava hosta dál podléhá stávající validaci.
 
 EveningMemoryStore má nedestruktivní hybridní schema: aktuální rozhovor,
 anonymní motivy a zvlášť povolenou osobní paměť. Skutečný OpenAI REST
