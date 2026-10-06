@@ -98,8 +98,14 @@ Swift fixture je připravený pro explicitní drain/lost ACK/full duplex;
 syntax kontrola HTTP peeru není nativní běh. Historické E9/E10 a HW/iPhone
 akceptace se tím neuzavírají.
 
-Git předání: lokální ověření dokončeno; commit/push/PR a povinné CI se
-ověřují po této aktualizaci, skutečný výsledek se doplní samostatně.
+Git předání: implementační commit `bc18b346ff04a039af103c5e114a58c5ceb64679`
+je pushnutý na `codex/autonomous-live-hybrid-memory`; `ls-remote` potvrdil
+shodu SHA. Povinný `./scripts/Push-CurrentBranch.ps1` skončil na Linuxu
+permission denied (pwsh není dostupné), push použil repo-scoped
+`gh auth git-credential` s ověřeným účtem Blato58 bez změny globálního účtu.
+Změny jsou v [PR #121](https://github.com/Blato58/DildoVander/pull/121);
+výsledky povinných CI a stav sloučení jsou dohledatelné v tomto PR.
+Tento navazující dokumentační commit zaznamenává skutečné doručení kódu.
 Další konkrétní krok: po zvláštním oprávnění ověřit native macOS testy,
 testovací stores/klíč a A/B na obou personalitách. Měřit odděleně hlasovou
 kvalitu/latenci, modelová/paměťová volání/objem a playback/fyzický stav.
