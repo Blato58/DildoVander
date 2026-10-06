@@ -575,6 +575,15 @@ faktické delegace bez textů; samotná celková délka Live session latenci
 výběru nedokazuje. Produkční stav aktivace je veden v D148 ve stavu
 implementace.
 
+Od D149 čeká backendová řeč i publikování na mikrofonní RMS klid
+`Backend:GptLive:InputQuietMs` (výchozí 1200 ms). Běžné přijetí hůlky
+neruší validní výběr; rozhodnutí počká i na pokračování hosta během
+výpočtu. Závěr rozpoznává jedinečný katalogový titul v českém skloňování
+bez povinné tečky; nejasné oznámení může jednou krátce opravit, vždy s
+novým přednesem a skutečným playback ACK. `live_terminal_state` ukazuje
+technický stav dokončení bez obsahu rozhovoru. Poslechová akceptace
+zůstává samostatná.
+
 ## D128: GPT-Live + Sol (legacy větev)
 
 `POST /v1/conversations/{id}/gpt-live` otevírá testovací průběžný hlasový

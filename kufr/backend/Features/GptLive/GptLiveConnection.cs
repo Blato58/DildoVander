@@ -33,12 +33,15 @@ internal sealed class GptLiveConnection(WebSocket socket) : IStreamingAudioInput
     private readonly SemaphoreSlim writes = new(1, 1);
     private bool closing;
     private long inputPcmBytes;
+    private Action<byte[]>? inputObserver;
     internal long InputPcmBytes => Interlocked.Read(ref inputPcmBytes);
+    internal void ObserveInput(Action<byte[]>? observer) => Volatile.Write(ref inputObserver, observer);
     private readonly TaskCompletionSource ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal void AudioReady() => ready.TrySetResult();
     public async Task SendAudioAsync(byte[] pcm, CancellationToken token)
     {
         await ready.Task.WaitAsync(token);
+        Volatile.Read(ref inputObserver)?.Invoke(pcm);
         await SendAsync(new { type = "session.input_audio.append", audio = Convert.ToBase64String(pcm) }, token, audio: true, audioBytes: pcm.Length);
     }
 

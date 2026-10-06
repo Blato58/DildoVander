@@ -6,6 +6,57 @@ Poslední aktualizace: **6. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D149 – 6. 10. 2026 – oprava nedokončeného Live výběru a předčasné řeči připravená.**
+Majitel během skutečného testu D148 potvrdil lepší/rychlejší rozhovor,
+ale hůlka se nikdy neprovede a kufr jej nenechá domluvit. Práce navazuje
+na `main=f71a7e3dc0facdb9157cb2d967116803f25a5249` (D148 záznam,
+[PR #127](https://github.com/Blato58/DildoVander/pull/127), CI 37535613761 success).
+Read-only [logy 37536098927](https://github.com/Blato58/DildoVander/actions/runs/37536098927)
+ukázaly tři validproposal v rozhovoru `53fdafc7-8de9-4c15-a949-4860eff20dc5`,
+trvání delegace 2655,6 / 1473,3 / 1878,0 ms, žádný `/playback` ani completed,
+poté ai_unavailable. Jiný rozhovor skončil 499 bez zaznamenaného
+rozhodnutí. Snapshot v 21:51:38 UTC měl 0 aktivních rozhovorů a žádné
+droppedWrites/truncated. Technický log neobsahuje přepis; sám neurčí
+konkrétní blokující slovo. Kód ale vyžadoval celý nominativní název
+a poslední tečku/vykřičník a invalidoval návrh při obyčejném input fragmentu.
+
+`LiveTerminalSpeech` identifikuje jedinečný titul ze stejného katalogu,
+normalizuje diakritiku/mezery a omezeně české koncovky. Nepouští jiný,
+vymyšlený či nejednoznačný titul ani výslovně nedokončenou pomlčku/výpustku.
+Nejasný dokončený závěr po klidu může jednou krátce opravit; nový skutečný
+přednes a drain jsou povinné. `LiveInputActivity` sleduje RMS mikrofonu
+a `InputQuietMs=1200`, odděleně od output quiet=1500. Blokuje předčasnou
+práci, dodání hotového modelového výsledku i uzavření přehrání; vrácený
+výsledek se před dodáním znovu validuje. Dlouhé pokračování hosta
+nevyvolá zotavení chybějícího kontextu ani terminální timeout.
+Input fragment nejprve pozastaví publikování. Stabilní čisté přijetí,
+poděkování či opakování nevytvoří nové výběrové podklady/modelové volání;
+nová preference/alternativa/zrušení návrh zneplatní. Dělené „Do“ + „bře,
+ukaž ji“ zachová platný návrh s aktuální konverzační revizí. Společné
+Backchannel/Interruption instrukce v `autonomous-live-v2` předávají hostovi
+celý tah a žádají backendové ověření před oznámením konkrétní hůlky.
+`live_terminal_state` zapisuje technickou fázi bez přepisů/audia/klíčů.
+Kontrakty klienta a místní validace fyzického návrhu se zachovávají.
+
+Ověření 6. 10. bez nového placeného provider hovoru a bez HW:
+
+| Kontrola | Skutečný výsledek |
+| --- | --- |
+| Release backend-tests, SDK 10.0.303, `--no-restore -r linux-x64 -p:SelfContained=true` | 0 warnings / 0 errors; stejné uzamčené závislosti z D148 |
+| kompletní C# backend-tests `--no-build --no-restore` | všechny skupiny OK; všech šest českých titulů, nesprávná/nejednoznačná hůlka, chybějící interpunkce, nový přednes po opravě, dělené přijetí bez dalšího modelu, dlouhá řeč nad timeoutem, návrat do řeči během rozhodnutí a během drain před přepisem |
+| HTTP smoke | první běh EPIPE; opakovaný kompletní průchod access/fake voice/večery/scope/restart passed; CI musí doložit další průchod |
+| backend/deploy Python | 20/20 + 11/11 passed |
+| lokální Markdown / `git diff --check` | 53 lokálních cílů bez chyby; whitespace OK |
+
+Plán, research, provozní návod a backend README popisují příčiny,
+heuristiky a diagnostiku. CI, commit/push/merge a nasazení této opravy
+budou doplněny podle skutečných výsledků; aktuální produkce má ještě D148.
+Verze testovaného klienta nebyla zatím sdělená; pro checkpoint je nutný
+alespoň publikovaný iOS D146 build **1000.0.16**. Poslech opravy a skutečné
+provedení hůlky/HW B1 nejsou doložené. Další krok je úspěšné CI a aktivace
+stejné AutonomousActor/Luna/cloud konfigurace, potom nový rozhovor a
+korelovaná kontrola `live_terminal_state`, `/playback` a completed.
+
 **D148 – 6. 10. 2026 – autonomní GPT-Live a cloudový vektorový index aktivní.**
 Majitel zadal zapnutí vektorové paměti a zkrácení čekání; dovolil změnu
 modelu/architektury. Čistý checkout `work`, HEAD `db1e77e`, remote
