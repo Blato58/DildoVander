@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Kufr.Backend.Features.Realtime;
 using Kufr.Backend.Features.GptLive;
+using Kufr.Backend.Features.Memory;
 
 namespace Kufr.Backend.Features.Conversations;
 
@@ -96,7 +97,10 @@ internal sealed partial class ConversationStore
             {
                 return new(503, "dialogue_busy", null);
             }
-            var memory = eveningMemory?.ReadContext(deviceId, conversationId, request.Text);
+            var autonomous = gptLive && conversation.LivePrompt.Options.Mode == LiveActorMode.AutonomousActor;
+            var memory = autonomous
+                ? eveningMemory is null ? null : new EveningContext(eveningMemory.GetStatus(deviceId).EveningId, "")
+                : eveningMemory?.ReadContext(deviceId, conversationId, request.Text);
             var turn = new RealtimeTurnContext(
                 request,
                 conversation.CompletedQuestions < PersonalityCatalog.MinimumQuestions(conversation.PersonalityId),
@@ -104,7 +108,12 @@ internal sealed partial class ConversationStore
                 conversation.History.ToArray(),
                 LiveAudio: handsFree && !request.Opening,
                 OutputTokenLimit: handsFree ? 768 : RealtimeProtocol.MaxOutputTokens)
-            { PersonalityId = conversation.PersonalityId };
+            { PersonalityId = conversation.PersonalityId, LivePrompt = conversation.LivePrompt };
+            if (gptLive)
+            {
+                conversation.LiveReadyMask = request.ReadyMask;
+                conversation.LiveAvailabilityRevision = request.DeviceRevision;
+            }
             var correlation = new TurnCorrelation(deviceId, request.BootId, conversationId,
                 request.ClientTurnId, request.Generation, request.DeviceRevision);
             var reservation = journal.Reserve(deviceId, route, key, bodyHash, correlation,
@@ -139,7 +148,8 @@ internal sealed partial class ConversationStore
             }
             var cancellation = CancellationTokenSource.CreateLinkedTokenSource(disconnected, stopping);
             cancellation.CancelAfter(TimeSpan.FromSeconds(gptLive ? 180 : 45));
-            var call = new RealtimeCall(reservation.OperationId, correlation, turn, memory?.EveningId, cancellation);
+            var call = new RealtimeCall(reservation.OperationId, correlation, turn, memory?.EveningId, cancellation)
+                { SessionGeneration = conversation.LiveGeneration };
             activePaidCalls.Add(call.OperationId, new PaidCall(deviceId, conversationId, cancellation));
             RecordAcceptedTurn(conversation, request.ClientTurnId, now);
             return new(200, null, call);
@@ -266,6 +276,8 @@ internal sealed partial class ConversationStore
         {
             if (!IsRealtimeTurnCurrent(call) || outcome.Reply.CostMicroUsd > GptLiveProtocol.SessionBudget)
                 return null;
+            if (outcome.Autonomous)
+                return CompleteAutonomousLive(call, outcome);
             var completed = call with { Context = call.Context with
             {
                 RequireQuestion = outcome.Questions < PersonalityCatalog.MinimumQuestions(call.Context.PersonalityId)
@@ -306,4 +318,7 @@ internal sealed record RealtimeCall(
     TurnCorrelation Correlation,
     RealtimeTurnContext Context,
     string? EveningId,
-    CancellationTokenSource Cancellation);
+    CancellationTokenSource Cancellation)
+{
+    internal string SessionGeneration { get; init; } = Guid.NewGuid().ToString("D");
+}

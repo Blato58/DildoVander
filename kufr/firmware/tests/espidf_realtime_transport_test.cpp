@@ -23,6 +23,8 @@ const std::string Turn = "8475532e-92b2-487e-b476-7f98f0030e68";
 const std::string Operation = "3d6104de-98c6-40b5-b10d-4f5675a63c51";
 std::string stream;
 std::atomic<int> uploads{0}, played{0}, drains{0};
+std::atomic<int> checkpoints{0};
+bool loseCheckpointAck = false;
 std::atomic<bool> listening{false};
 bool wrongMime = false, rejectAck = false, delayedInput = false, gptLive = false;
 std::atomic<bool> heldInput{false}, releaseInput{false};
@@ -68,6 +70,7 @@ std::string Input(const std::string& turn) {
 }
 void Reset() {
   uploads = played = drains = 0; wrongMime = rejectAck = delayedInput = gptLive = false; listening = false;
+  checkpoints = 0; loseCheckpointAck = false;
   heldInput = releaseInput = false; inputCalls = listenStarts = 0;
 }
 }
@@ -103,6 +106,10 @@ int64_t esp_http_client_fetch_headers(esp_http_client_handle_t client) {
     assert(IsConversationUuid(client->headers["Input-Id"]));
     assert(client->headers.count("Input-Sequence") == 1);
     ++uploads;
+  } else if (client->url.find("/playback") != std::string::npos) {
+    assert(gptLive && drains > 0);
+    assert(client->body == "{\"playbackId\":\"" + Boot + "\",\"pcmBytes\":6,\"drained\":true}");
+    ++checkpoints;
   } else {
     assert(client->url.find("/played") != std::string::npos);
     assert(drains.load() > played.load()); // ACK follows the hardware drain.
@@ -111,7 +118,10 @@ int64_t esp_http_client_fetch_headers(esp_http_client_handle_t client) {
   }
   return 0;
 }
-int esp_http_client_get_status_code(esp_http_client_handle_t client) { return client->live ? 200 : rejectAck && client->url.find("/played") != std::string::npos ? 409 : 204; }
+int esp_http_client_get_status_code(esp_http_client_handle_t client) {
+  if (loseCheckpointAck && client->url.find("/playback") != std::string::npos && checkpoints == 1) return 503;
+  return client->live ? 200 : rejectAck && client->url.find("/played") != std::string::npos ? 409 : 204;
+}
 esp_err_t esp_http_client_set_timeout_ms(esp_http_client_handle_t, int) { return ESP_OK; }
 int esp_http_client_read(esp_http_client_handle_t client, char* data, int capacity) {
   // Feed arbitrary 7-byte fragments, but give the upload task a turn after
@@ -171,6 +181,15 @@ int main() {
   EspIdfRealtimeTransport live("example.test", "testtoken", liveAudio, [] { return true; }, [](const char*) {}, true);
   assert(live.Run("{}", Boot, opening, snapshot, [](const TurnOperationObservation&) { return true; }));
   assert(played == 1 && drains == 1 && liveAudio.blocks == 1 && !listening);
+  const auto stopOffset = stream.find("{\"type\":\"speech_stopped\"");
+  stream.insert(stopOffset, "{\"type\":\"playback_checkpoint\",\"playbackId\":\"" + Boot + "\",\"pcmBytes\":6,\"decisionRevision\":2}\n");
+  for (const bool lostAck : {false, true}) {
+    Reset(); gptLive = true; loseCheckpointAck = lostAck;
+    Audio autonomousAudio;
+    EspIdfRealtimeTransport autonomous("example.test", "testtoken", autonomousAudio, [] { return true; }, [](const char*) {}, true);
+    assert(autonomous.Run("{}", Boot, opening, snapshot, [](const TurnOperationObservation&) { return true; }));
+    assert(checkpoints == (lostAck ? 2 : 1) && drains == 1 && played == 1 && !listening);
+  }
   for (int scenario = 0; scenario < 4; ++scenario) {
     Reset(); Audio failingAudio;
     stream = session + Reply(Turn, true) + "{\"type\":\"closed\",\"reason\":\"conversation_terminal\"}\n";

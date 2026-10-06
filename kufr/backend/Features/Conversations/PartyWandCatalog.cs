@@ -6,6 +6,8 @@ internal static class PartyWandCatalog
 {
     private static readonly CatalogData Catalog = Load();
     internal static string Version => Catalog.CatalogVersion;
+    internal static IReadOnlyList<WandEntry> Available(int readyMask) => Catalog.Wands
+        .Where(w => (readyMask & (1 << (w.Compartment - 1))) != 0).ToArray();
 
     internal static string AvailableForPrompt(int readyMask)
     {
@@ -43,7 +45,7 @@ internal static class PartyWandCatalog
 
     private sealed record CatalogData(string CatalogVersion, WandEntry[] Wands);
 
-    private sealed record WandEntry(
+    internal sealed record WandEntry(
         int Compartment,
         string DisplayName,
         string Description,

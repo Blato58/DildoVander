@@ -529,7 +529,33 @@ a další hlasové cesty a obsahuje kritéria českého poslechového testu.
 Offline testy neověřují vtipnost. Tento slice neprovádí migraci, nasazení
 ani placené volání a nemění fyzické řízení, API nebo limity.
 
-## D128: GPT-Live + Sol
+## D143: autonomní GPT-Live a hybridní paměť
+
+Nová opt-in větev `Backend:GptLive:ActorMode=AutonomousActor` nechává Live
+vytvářet běžné repliky a závěr. `WandDecisionService` se stávajícím Solem
+vrací pouze validované katalogové údaje a důvody svázané s odpověďmi.
+Výchozí `LegacyBackendScripted` i Sol/Realtime fallbacky zůstávají.
+Katalog a mobilní přepínání se nemění; Ollivander má samostatnou Live
+adaptaci, zdrojové persony/hashy zůstávají původní.
+
+EveningMemoryStore má nedestruktivní hybridní schema: aktuální rozhovor,
+anonymní motivy a zvlášť povolenou osobní paměť. Skutečný OpenAI REST
+provider používá dva stores, Files upload, attach/poll/search s `filters`
+a mazání asociace i vlastního souboru. Každý hit ověřuje zpět v SQLite;
+outbox a tombstones přežijí restart. Vzor má všechny paměťové přepínače
+vypnuté, prázdná store ID a žádný klíč. Provisioning `--memory-provision`
+je výchozí dry-run, provedení vyžaduje `--execute`; `--create` pouze
+výslovně vytvoří chybějící stores v servisním okně.
+
+[Úplný návod](../docs/autonomous-live-memory.md) obsahuje přesné klíče,
+admin API, provisioning příkazy, identitu/souhlas, retenci, rollback a
+poslechové scénáře. Autonomní nativní klient potvrzuje `playback_checkpoint`
+přes `/playback` až po místním drain. Cloudový append ACK, ticho a
+`session.closed` samy nepublikují mechanický návrh. ESP gate zůstává;
+serverový klíč není v klientovi. Lokální testy nezastupují placený poslech,
+fyzickou akceptaci ani produkční aktivaci.
+
+## D128: GPT-Live + Sol (legacy větev)
 
 `POST /v1/conversations/{id}/gpt-live` otevírá testovací průběžný hlasový
 režim. Sdílí autentizaci, audio consent, Stop, snapshot a validaci návrhu

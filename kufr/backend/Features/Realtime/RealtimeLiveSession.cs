@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Kufr.Backend.Features.Conversations;
+using Kufr.Backend.Features.GptLive;
 
 namespace Kufr.Backend.Features.Realtime;
 
@@ -32,6 +33,9 @@ internal sealed class RealtimeLiveSession : IDisposable
     private int bytes;
     private string? playbackOperation;
     private TaskCompletionSource? playback;
+    private LivePlaybackRequest? checkpoint;
+    private TaskCompletionSource<LivePlaybackConfirmation>? checkpointDone;
+    private readonly Dictionary<Guid, int> acknowledgedCheckpoints = [];
 
     internal RealtimeLiveSession(string device, string conversation,
         IStreamingAudioInput provider, CancellationTokenSource lifetime, bool continuous = false)
@@ -159,6 +163,27 @@ internal sealed class RealtimeLiveSession : IDisposable
         {
             return playbackOperation == operation && playback is not null
                 && (playback.TrySetResult() || playback.Task.IsCompletedSuccessfully);
+        }
+    }
+
+    internal Task<LivePlaybackConfirmation> PrepareCheckpoint(LivePlaybackRequest request)
+    {
+        lock (gate)
+        {
+            if (checkpoint is not null) checkpointDone?.TrySetResult(new(checkpoint.PlaybackId, checkpoint.PcmBytes, false));
+            checkpoint = request;
+            checkpointDone = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            return checkpointDone.Task;
+        }
+    }
+    internal bool ConfirmCheckpoint(Guid id, int pcmBytes, bool drained)
+    {
+        lock (gate)
+        {
+            if (acknowledgedCheckpoints.TryGetValue(id, out var acknowledgedBytes)) return acknowledgedBytes == pcmBytes && drained;
+            if (checkpoint is null || checkpoint.PlaybackId != id || checkpoint.PcmBytes != pcmBytes || !drained || checkpointDone is null) return false;
+            acknowledgedCheckpoints.Add(id, pcmBytes);
+            return checkpointDone.TrySetResult(new(id, pcmBytes, true)) || checkpointDone.Task.IsCompletedSuccessfully;
         }
     }
 

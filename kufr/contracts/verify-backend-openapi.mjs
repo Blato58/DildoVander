@@ -45,12 +45,18 @@ assert.deepEqual(Object.keys(document.paths).sort(), [
   '/v1/admin/logs',
   '/v1/admin/logs/status',
   '/v1/admin/modes',
+  '/v1/admin/memory',
+  '/v1/admin/memory/guest',
+  '/v1/admin/memory/records/{id}',
+  '/v1/admin/memory/verify',
   '/v1/audio/{audioId}',
   '/v1/conversations',
   '/v1/conversations/{id}',
   '/v1/conversations/{id}/gpt-live',
   '/v1/conversations/{id}/gpt-live/{streamId}/audio',
   '/v1/conversations/{id}/gpt-live/{streamId}/played',
+  '/v1/conversations/{id}/gpt-live/{streamId}/playback',
+  '/v1/conversations/{id}/gpt-live/{streamId}/availability',
   '/v1/conversations/{id}/opening',
   '/v1/conversations/{id}/realtime-live',
   '/v1/conversations/{id}/realtime-live/{streamId}/audio',
@@ -66,7 +72,7 @@ assert.deepEqual(Object.keys(document.paths).sort(), [
   '/v1/evenings',
   '/v1/evenings/{id}/active',
   '/v1/operations/{id}',
-]);
+].sort());
 assert.deepEqual(document.paths['/v1/device-access/token'].post.security, [{ DeviceCredential: [] }]);
 assert.deepEqual(document.security, [{ DeviceAccess: [] }]);
 assert.deepEqual(document.paths['/v1/admin/modes'].get.security, [{ ServerAdmin: [] }]);
@@ -83,7 +89,7 @@ validate('ServerModes', { ...serverModes, credential: 'secret' }, false);
 validate('ServerModeChange', { expectedRevision: serverModes.revision, dialogMode: 'responses', voiceMode: 'openai' }, true);
 validate('ServerModeChange', { expectedRevision: 'stale', dialogMode: 'responses', voiceMode: 'openai' }, false);
 const diagnosticSchema = document.paths['/v1/diagnostics'].get.responses['200'].content['application/json'].schema;
-const validateDiagnostics = ajv.compile(diagnosticSchema);
+const validateDiagnostics = ajv.compile(JSON.parse(JSON.stringify(diagnosticSchema).replaceAll('#/components/schemas/', 'https://kufr.local/schemas/')));
 const diagnostics = { voiceMode: 'fake', dialogMode: 'fake', catalogVersion: 'test-1', audioFormat: 'pcm16-mono-32000-wav' };
 assert(validateDiagnostics(diagnostics));
 assert(validateDiagnostics({ ...diagnostics, voiceMode: 'openai', dialogMode: 'responses' }));
@@ -98,8 +104,9 @@ for (const [path, operations] of Object.entries(document.paths)) {
     assert.ok(operation.operationId, `missing operationId on ${path}`);
     assert.ok(operation.responses, `missing responses on ${path}`);
     if ((method === 'post' || method === 'put' || method === 'delete')
-      && path !== '/v1/device-access/token' && path !== '/v1/admin/modes'
-      && !path.endsWith('/{streamId}/audio') && !path.endsWith('/{streamId}/played')) {
+      && path !== '/v1/device-access/token' && path !== '/v1/admin/modes' && !path.startsWith('/v1/admin/memory')
+      && !path.endsWith('/{streamId}/audio') && !path.endsWith('/{streamId}/played')
+      && !path.endsWith('/{streamId}/playback') && !path.endsWith('/{streamId}/availability')) {
       assert.ok(operation.parameters?.some((parameter) => parameter.$ref === '#/components/parameters/IdempotencyKey'), `missing idempotency on ${path}`);
     }
   }
@@ -222,3 +229,9 @@ validate('GptLiveStart', { ...realtime, speed: 1 }, true);
 validate('GptLiveStart', { ...realtime, speed: 1.1 }, false);
 validate('GptLiveEvent', { type: 'pause' }, true);
 validate('GptLiveEvent', { type: 'pause', extra: true }, false);
+validate('GptLiveEvent', { type: 'playback_checkpoint', playbackId: bootId, pcmBytes: 48000, decisionRevision: 2 }, true);
+validate('GptLiveEvent', { type: 'playback_checkpoint', playbackId: bootId, pcmBytes: 3, decisionRevision: 2 }, false);
+validate('LivePlaybackCheckpoint', { playbackId: bootId, pcmBytes: 48000, drained: true }, true);
+validate('LivePlaybackCheckpoint', { playbackId: bootId, pcmBytes: 48000, drained: false }, false);
+assert.deepEqual(document.paths['/v1/admin/memory'].get.security, [{ ServerAdmin: [] }]);
+assert.deepEqual(document.paths['/v1/admin/memory/guest'].put.security, [{ ServerAdmin: [] }]);

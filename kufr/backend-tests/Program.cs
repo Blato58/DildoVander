@@ -12,10 +12,18 @@ if (args is ["--gpt-live-smoke"])
     Environment.ExitCode = await GptLiveSmoke.RunAsync();
     return;
 }
+if (args is ["--autonomous-memory"])
+{
+    await AutonomousLiveTests.RunAsync();
+    await HybridMemoryTests.RunAsync();
+    return;
+}
 
 await RealtimeTests.RunAsync();
 await GptLiveTests.RunAsync();
 await PersonalityTests.RunAsync();
+await AutonomousLiveTests.RunAsync();
+await HybridMemoryTests.RunAsync();
 await ResponsesTextDialogClientTests.RunAsync();
 ResponsesTextDialogBudgetTests.Run();
 await TextDialogRuntimeTests.RunAsync();
