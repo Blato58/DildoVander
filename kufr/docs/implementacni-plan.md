@@ -1,5 +1,13 @@
 # Implementační plán AI kufru
 
+> **D150, 6. 10. 2026: automatický verdikt bez potvrzovací otázky.**
+> Reálný iPhone Debug test D149 už zveřejnil návrh přihrádky 4; závěr
+> přesto obsahoval otázku na hodnocení. Live politika v3 a pokyn k
+> oznámení vyžadují celý verdikt pouze oznamovacími větami, také roast
+> nebo callback. Po závěru mlčí. Výběr nečeká na souhlas ani odpověď;
+> stávající validace dostupnosti, dobrovolné opravy, přednes a drain
+> se zachovávají. Bez změny kontraktu, klientů či fyzické brány.
+>
 > **D149, 6. 10. 2026: dokončení Live výběru a prostor pro řeč hosta.**
 > Reálný test D148 potvrdil rychlejší rozhovor, ale tři validní návrhy
 > skončily bez playback ACK a bez publikování. Přepis nezaručuje spolehlivou
