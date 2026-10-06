@@ -366,6 +366,9 @@ vloženého kontextu a stejnou paměť znovu nepřidává; novější opravená 
 je znovu způsobilá. Sledování se nesdílí mezi hosty či sessions.
 Start přidá jen relevantní lokální text jako
 historický developer context, ne jako novou repliku přítomného hosta.
+Od D148 startup připojí i platné lokální anonymní motivy daného večera,
+aby čerstvý motiv nezmizel z kontextu během asynchronní indexace. Stejné
+ID/revize se deduplikují; původní filtr scope/večera a tokenový limit platí.
 
 Zápis + outbox jsou jedna SQLite transakce. Worker má trvalé lease,
 bounded concurrency, deadline, CancellationToken, jitter/backoff,

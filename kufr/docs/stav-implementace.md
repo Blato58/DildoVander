@@ -29,6 +29,10 @@ OpenAI Models GET bez inference. Post-deploy porovná skutečný actor,
 model, quiet, enabled/cloud/personal a ověří oba stores. Diagnostika a
 OpenAPI mají nové volitelné technické údaje; `live_decision_completed`
 měří lokální zápis/frontu/API a ukládá jen dobu, korelaci a stav.
+Kontrola aktivace odhalila, že prázdný cloud hit při dosud běžící indexaci
+vynechal známé čerstvé motivy. Startup proto připojí také platné lokální
+EveningMotif se stejnou izolací/rozpočtem/deduplikací; fixtures ověřují
+pending index, správná ID/revize a oddělení večera i osobní historie.
 Plán, provozní návod, research a backend README zdůvodňují oddělení Luny
 od humoru a kompatibilitu checkpointu. Cílem nasazení je AutonomousActor,
 Luna, quiet=1500, hybrid/cloud=true a personal=false.
@@ -52,6 +56,13 @@ výsledek a release budou doplněny podle skutečných běhů. Placená
 inference, poslechové A/B, instalace IPA na konkrétním telefonu,
 indexace skutečných hostů, firmware flash a fyzická prezentace
 nebyly provedené. Tyto mezery nejsou uzavřené lokálními fixtures.
+První implementační commit `2710d49b2ae565f705e2c352f70f41bec3bfd706`
+byl pushnutý a `ls-remote` potvrdilo shodu. Povinný PowerShell helper
+na Linuxu skončil 126; repo-scoped `gh auth git-credential` fallback
+uspěl s identitou Blato58 bez přepnutí globálního účtu. Změna je v
+[PR #126](https://github.com/Blato58/DildoVander/pull/126); oprava pending
+motifů se před nasazením ověřila znovu Release buildem (0/0) a všemi
+backendovými skupinami včetně hybrid memory.
 
 **D147 – 6. 10. 2026 – audit chybějící elektroniky a samostatná objednávka.**
 Na pokyn majitele byly odečteny doložené faktury a vytvořena
