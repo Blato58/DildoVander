@@ -6,7 +6,7 @@ Poslední aktualizace: **7. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**D151 – 7. 10. 2026 – Live časová metadata, výstupní hranice a diagnostika pádů ověřené lokálně.**
+**D151 – 7. 10. 2026 – Live časová metadata, výstupní hranice a diagnostika pádů nasazené.**
 Majitel hlásí občasný `ai_unavailable` a sdílí screenshot s fragmenty
 hostova přepisu. Slice navazuje na `main=6f81a430c7d069c4d5adddf5691cefa1cc30793d`
 ([PR #131](https://github.com/Blato58/DildoVander/pull/131), CI 37544355140 success),
@@ -50,10 +50,50 @@ Lokální ověření 7. 10. bez placené inference, iPhone nebo HW:
 Backend README, provozní návod, Codex diagnostika a plán popisují hranice
 a interpretaci nových záznamů. Model Luna, Vector Stores, oprávnění,
 automatický výběr bez konfirmace, klientské kontrakty a fyzická brána
-se nemění; nevzniká placený replay nejasného requestu. Další krok:
-ověřit diff/Markdown, push, všechny CI kontroly, merge a autorizované
-nasazení. Teprve skutečný výsledek aktivace patří do následného záznamu;
-lokální test neprokazuje odstranění obou historických chyb ani HW akceptaci.
+se nemění; nevzniká placený replay nejasného requestu.
+
+Commit `bc07964941a8414f49561024f715aeba24bd3ad6` byl pushnutý na
+`codex/live-intermittent-failure`; `ls-remote` potvrdilo stejnou SHA.
+Povinný PowerShell helper skončil na Linuxu 126; repo-scoped
+`gh auth git-credential` fallback uspěl bez změny globálního účtu.
+[CI 37601258099](https://github.com/Blato58/DildoVander/actions/runs/37601258099)
+prošel všechny povinné kontroly: repository, backend včetně C# a HTTP
+smoke, web, firmware host/build, offline AI a CI required. Placený
+AI live skipped. Po kontrole diffu, konfliktů a aktuálního headu byl
+[PR #132](https://github.com/Blato58/DildoVander/pull/132) sloučen squash
+v 09:41:38 UTC jako `e0d21e81bb730887741786ee29a84fe0cbf27951`.
+Fetch i shodný source/main tree `1faf24dcf9fcd9a29798ef5849ff5adf79dad8b8`
+byly ověřené; checkout byl čistý.
+
+Autorizované nasazení ze sloučeného main:
+
+```sh
+gh workflow run kufr-backend-deploy.yml --repo Blato58/DildoVander --ref main \
+  -f build_run_id=37601258099 -f dialog_mode=responses -f dialog_model=gpt-6.1-sol \
+  -f voice_mode=openai -f live_actor_mode=AutonomousActor -f live_decision_model=gpt-6-luna \
+  -f live_terminal_quiet_ms=1500 -f hybrid_memory=true -f cloud_indexing=true
+```
+
+[Deployment 37602422528](https://github.com/Blato58/DildoVander/actions/runs/37602422528)
+skončil success ve verify i deploy. Provenance a aktuální main prošly.
+V 09:42:56 UTC se aktivoval release
+`8ddfe652d840f96ff7ed42b4d5698fbb725517ca-37602422528-1`; loopback health
+check passed. Models GET ověřil přístup Luny bez inference. Veřejný
+HTTPS, admin auth/no-op/revision conflict, skutečné actor/model/quiet
+a paměťové nastavení i scope/přístup obou stores prošly bez exportu hosta:
+
+```json
+{"cloudIndexingEnabled":true,"liveActorMode":"AutonomousActor","liveDecisionModel":"gpt-6-luna","liveTerminalQuietMs":1500,"longTermPersonalEnabled":false,"memoryEnabled":true}
+```
+
+Navazující read-only [log 37602604160](https://github.com/Blato58/DildoVander/actions/runs/37602604160)
+v 09:43:57 UTC potvrdil Responses/OpenAI available, activeConversations=0,
+stejný store a cursor 4850, hasMore/truncated=false, droppedWrites=0.
+Neobsahoval nový Live rozhovor po aktivaci. Nový iOS build tato serverová
+změna nevyžaduje. Odstranění obou historických pádů, skutečný poslech
+a HW akceptace nejsou tímto ověřené. Další konkrétní krok: při opakování
+chyby dohledat `live_failure_detail` a decision timing podle stejné
+operace, už bez hádání z veřejného `ai_unavailable`.
 
 **D150 – 6. 10. 2026 – automatický verdikt bez potvrzovací otázky nasazený.**
 Majitel sdílel iPhone Debug screenshot: návrh přihrádky 4 už byl
