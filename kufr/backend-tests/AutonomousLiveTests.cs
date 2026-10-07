@@ -25,6 +25,7 @@ internal static class AutonomousLiveTests
         Check(LivePromptSnapshot.Create(PersonalityCatalog.OllivanderId, overrideOptions).Instructions.Contains("otázek: 3; nejvýše 4")
             && overrideOptions.Policy(PersonalityCatalog.OllivanderId).MaximumAnswers == 4, "one documented admin-policy priority");
         VerifyProjection(options);
+        VerifyTimeline(options);
         VerifySpeechGuards(options);
         VerifyDecisionModels();
         using var noModel = new WandDecisionService((_, _) => throw new Exception("Unnecessary model call"));
@@ -50,15 +51,17 @@ internal static class AutonomousLiveTests
             try { await tooManyQuestions.DecideAsync(i, CancellationToken.None); throw new Exception("Endless diagnostic question"); }
             catch (InvalidDataException) { }
         }
-        await VerifyConversation(options, correction: false);
+        await VerifyConversation(options, correction: false, fractionalTimeline: true);
         await VerifyConversation(options, correction: true);
         await VerifyConversation(options, correction: false, interrupt: true);
         await VerifyConversation(options with { DelegationTimeoutMs = 2000, DelegationContextWaitMs = 350 }, correction: false,
             naturalVerdict: true, visitorStillSpeaking: true, acknowledge: true, resumeDuringDecision: true);
         await VerifyConversation(options, correction: false, naturalVerdict: true, repairVerdict: true);
         await VerifyMissingContext(options);
+        await VerifyDecisionFailure(options);
+        await VerifyProviderFailure(options);
         await VerifyPlaybackRegistry();
-        Console.WriteLine("Autonomous Live: frozen prompts/policy, timed long Czech input, delegation ordering/duplicates, stale correction, actual playback and native wire passed.");
+        Console.WriteLine("Autonomous Live: frozen prompts/policy, numeric timelines, timed long Czech input, delegation ordering/duplicates, stale correction, playback, failure diagnostics and native wire passed.");
     }
 
     private static void VerifyDecisionModels()
@@ -145,6 +148,33 @@ internal static class AutonomousLiveTests
         Check(LiveTextBudget.UpperBound(bounded) <= 500 && !bounded.Contains('\uFFFD'), "Czech and surrogate pairs respect conservative 500-token append bound");
     }
 
+    private static void VerifyTimeline(GptLiveOptions options)
+    {
+        var projection = new LiveConversationProjection(options);
+        using (var question = JsonDocument.Parse("""{"delta":"Jak řešíš chaos?","start_ms":0.0,"end_ms":1000.25}"""))
+            projection.Append(question.RootElement, false);
+        using (var first = JsonDocument.Parse("""{"delta":"Nev","start_ms":1100.0,"end_ms":1200.25}"""))
+            projection.Append(first.RootElement, true);
+        using (var second = JsonDocument.Parse("""{"delta":"ím.","start_ms":1200.25,"end_ms":1400.5}"""))
+            projection.Append(second.RootElement, true);
+        Check(projection.LatestInput == "Nevím." && projection.AnswerCandidates == 1
+            && projection.Segments[1].StartMs == 1100 && projection.Segments[1].EndMs == 1200.25
+            && projection.Segments[2].EndMs == 1400.5, "decimal numeric notation retains timing and split-word answer semantics");
+        foreach (var time in new[] { "-0.1", "200000.1", "1e400", "\"1100\"", "null" })
+        {
+            using var invalid = JsonDocument.Parse("{\"delta\":\"text\",\"start_ms\":" + time + ",\"end_ms\":200000}");
+            try { projection.Append(invalid.RootElement, true); throw new Exception("Invalid timeline accepted"); }
+            catch (InvalidDataException error) { Check(LiveFailureDiagnostics.Code(error) == "live_event_timing_invalid", "invalid timestamp has a safe diagnostic"); }
+        }
+        foreach (var invalid in new[] { """{"delta":"text","end_ms":1000}""", """{"delta":"text","start_ms":1000.5,"end_ms":1000.25}""" })
+        {
+            using var document = JsonDocument.Parse(invalid);
+            try { projection.Append(document.RootElement, true); throw new Exception("Missing/inverted timeline accepted"); }
+            catch (InvalidDataException) { }
+        }
+        Check(projection.Segments.Count == 3 && projection.LatestInput == "Nevím.", "rejected metadata cannot mutate conversation evidence");
+    }
+
     private static void VerifySpeechGuards(GptLiveOptions options)
     {
         using var clock = new ManualClock();
@@ -182,7 +212,7 @@ internal static class AutonomousLiveTests
 
     private static async Task VerifyConversation(GptLiveOptions options, bool correction, bool interrupt = false,
         bool naturalVerdict = false, bool visitorStillSpeaking = false, bool acknowledge = false,
-        bool resumeDuringDecision = false, bool repairVerdict = false)
+        bool resumeDuringDecision = false, bool repairVerdict = false, bool fractionalTimeline = false)
     {
         using var clock = new ManualClock();
         using var socket = new SocketFixture();
@@ -218,18 +248,18 @@ internal static class AutonomousLiveTests
             terminalState: state => states.Writer.TryWrite(state));
         await socket.Command("session.instructions.append", lifetime.Token);
         socket.Transcript(false, "Co děláš, když se plán rozpadne?", 0, 1000);
-        socket.Transcript(true, "Plánuji všechno.", 1100, 2000);
+        socket.Transcript(true, "Plánuji všechno.", fractionalTimeline ? 1100.25 : 1100, fractionalTimeline ? 2000.5 : 2000);
         await consumed.Reader.ReadAsync(lifetime.Token);
         Check(calls == 0, "ordinary greeting/question/reaction needs no backend model");
         if (visitorStillSpeaking) await connection.SendAudioAsync(new byte[] { 0, 32, 0, 32 }, lifetime.Token);
         if (!correction)
         {
             socket.Transcript(false, "Jak zvládáš chaos?", 2100, 2300);
-            socket.Delegate("d-one", 2500); // newer answer is not transcribed yet
+            socket.Delegate("d-one", fractionalTimeline ? 2500.75 : 2500); // newer answer is not transcribed yet
             socket.Transcript(true, "Nevím.", 2400, 2600);
             await consumed.Reader.ReadAsync(lifetime.Token);
         }
-        socket.Delegate("d-one", 2500); socket.Delegate("d-one", 2500); // normal duplicate
+        socket.Delegate("d-one", fractionalTimeline ? 2500.75 : 2500); socket.Delegate("d-one", 2500); // normal duplicate
         clock.Advance(50);
         if (visitorStillSpeaking)
         {
@@ -320,7 +350,7 @@ internal static class AutonomousLiveTests
         playerDone.SetResult(new(checkpoint.PlaybackId, checkpoint.PcmBytes, true));
         var outcome = await run.WaitAsync(lifetime.Token);
         Check(outcome.Autonomous && outcome.PlaybackVerified && outcome.Decision!.Compartment == (correction ? 2 : 1)
-            && outcome.Reply.Reply.Contains("nezdržuj") && outcome.Segments.Any(s => s.Speaker == "user" && s.StartMs == 1100), "actual spoken transcript and timed raw user speech retained separately");
+            && outcome.Reply.Reply.Contains("nezdržuj") && outcome.Segments.Any(s => s.Speaker == "user" && s.StartMs == (fractionalTimeline ? 1100.25 : 1100)), "actual spoken transcript and timed raw user speech retained separately");
         Check(calls == (correction ? 2 : 1) && outcome.Decision!.DecisionRevision == outcome.DecisionRevision,
             "a split acknowledgment preserves the valid decision and its publication revision without another model call");
         Check(!socket.Sent.Any(s => s.Contains("response.create") || s.Contains("Replika ")), "native Live voice, no scripted response command");
@@ -344,6 +374,75 @@ internal static class AutonomousLiveTests
         lifetime.Cancel();
         try { await run; } catch (OperationCanceledException) { }
         Check(!socket.Sent.Any(s => s.Contains("session.commentary.append") || s.Contains("session.close")), "delegation without transcript does not invent a task answer");
+    }
+
+    private static async Task VerifyDecisionFailure(GptLiveOptions options)
+    {
+        using var clock = new ManualClock(); using var socket = new SocketFixture();
+        socket.BeforeDelivery = () => clock.Advance(50);
+        await using var connection = new GptLiveConnection(socket);
+        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var calls = 0;
+        using var decisions = new WandDecisionService((_, _) =>
+        {
+            Interlocked.Increment(ref calls);
+            return Task.FromException<WandDecisionResult>(new InvalidDataException("Incomplete decision."));
+        });
+        var timings = new List<(double Ms, WandDecisionStatus Status)>();
+        var phases = new List<string>();
+        var run = new AutonomousLiveDialogue(connection, decisions, clock).RunAsync(Call(options, lifetime),
+            (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask, _ => Task.CompletedTask,
+            (_, _) => throw new Exception("Failed decision must not request playback"),
+            () => (63, 7, true), _ => Task.CompletedTask, lifetime.Token,
+            decisionTiming: (ms, status) => timings.Add((ms, status)), terminalState: phases.Add);
+        await socket.Command("session.instructions.append", lifetime.Token);
+        socket.Transcript(false, "Co uděláš, když se plán rozpadne?", 0, 1000);
+        socket.Transcript(true, "Prostě mi nějakou vyber.", 1100, 2000);
+        socket.Delegate("failing-decision", 2000);
+        try { await run.WaitAsync(lifetime.Token); throw new Exception("Failed decision accepted"); }
+        catch (InvalidDataException error)
+        {
+            Check(LiveFailureDiagnostics.Code(error) == "decision_incomplete", "decision failure is distinct from voice/socket failure");
+        }
+        Check(calls == 1 && timings.Count == 1 && timings[0].Status == WandDecisionStatus.Error && timings[0].Ms >= 0
+            && phases.Contains("decision_running"), "failed work records its start, timing and failure without a paid replay");
+        Check(!socket.Sent.Any(s => s.Contains("session.commentary.append") || s.Contains("session.close")),
+            "a failed decision never publishes a catalog proposal");
+    }
+
+    private static async Task VerifyProviderFailure(GptLiveOptions options)
+    {
+        foreach (var (code, type, expected) in new[]
+        {
+            ("unknown_parameter", "invalid_request_error", "provider_unknown_parameter"),
+            ("rate_limit_exceeded", "rate_limit_error", "provider_capacity"),
+            ("arbitrary user/private data", "server_error", "provider_server_error"),
+            ("arbitrary user/private data", "arbitrary private type", "provider_error_unknown")
+        })
+        {
+            using var document = JsonDocument.Parse(JsonSerializer.Serialize(new { error = new
+                { code, type, message = "Private user text, token and provider body", param = "Private parameter" } }));
+            var error = LiveProviderFailure.Read(document.RootElement);
+            Check(LiveFailureDiagnostics.Code(error) == expected && !error.ToString().Contains("Private"),
+                "provider-controlled text is excluded from fixed technical failure categories");
+        }
+        Check(LiveFailureDiagnostics.Code(new WebSocketException()) == "live_socket_failed"
+            && LiveFailureDiagnostics.Code(new InvalidDataException("arbitrary private data")) == "live_data_invalid",
+            "transport and unknown local validation stay distinct without raw messages");
+        using var clock = new ManualClock(); using var socket = new SocketFixture();
+        await using var connection = new GptLiveConnection(socket);
+        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var decisions = new WandDecisionService((_, _) => throw new Exception("Provider failure must not trigger a paid decision"));
+        var run = new AutonomousLiveDialogue(connection, decisions, clock).RunAsync(Call(options, lifetime),
+            (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask, _ => Task.CompletedTask,
+            (_, _) => throw new Exception("Provider failure must not request playback"),
+            () => (63, 7, true), _ => Task.CompletedTask, lifetime.Token);
+        await socket.Command("session.instructions.append", lifetime.Token);
+        socket.Emit(new { type = "error", error = new { code = "server_error", type = "server_error", message = "Private provider content" } });
+        try { await run.WaitAsync(lifetime.Token); throw new Exception("Provider error ignored"); }
+        catch (LiveProviderFailure error) { Check(LiveFailureDiagnostics.Code(error) == "provider_server_error", "wire error reaches the endpoint with a safe cause"); }
+        Check(!socket.Sent.Any(s => s.Contains("session.commentary.append") || s.Contains("session.close")),
+            "provider failure cannot invent successful completion");
     }
 
     private static WandDecisionResult Proposal(WandDecisionInput i, int compartment)
@@ -389,8 +488,8 @@ internal static class AutonomousLiveTests
         public override Task CloseAsync(WebSocketCloseStatus s, string? d, CancellationToken t) => Task.CompletedTask;
         public override Task CloseOutputAsync(WebSocketCloseStatus s, string? d, CancellationToken t) => Task.CompletedTask;
         internal void Emit(object item) => events.Writer.TryWrite(JsonSerializer.SerializeToUtf8Bytes(item));
-        internal void Transcript(bool input, string text, int start, int end) => Emit(new { type = input ? "session.input_transcript.delta" : "session.output_transcript.delta", delta = text, start_ms = start, end_ms = end, event_id = Guid.NewGuid().ToString("N") });
-        internal void Delegate(string id, int ms) => Emit(new { type = "session.delegation.created", delegation = new { id, target = "client" }, offset_ms = ms });
+        internal void Transcript(bool input, string text, double start, double end) => Emit(new { type = input ? "session.input_transcript.delta" : "session.output_transcript.delta", delta = text, start_ms = start, end_ms = end, event_id = Guid.NewGuid().ToString("N") });
+        internal void Delegate(string id, double ms) => Emit(new { type = "session.delegation.created", delegation = new { id, target = "client" }, offset_ms = ms });
         internal void Audio() => Emit(new { type = "session.output_audio.delta", delta = Convert.ToBase64String(new byte[] { 0, 32, 0, 32 }) });
         internal async Task<string> Command(string type, CancellationToken token)
         { while (true) { var text = await commands.Reader.ReadAsync(token); using var doc = JsonDocument.Parse(text); if (doc.RootElement.GetProperty("type").GetString() == type) return text; } }

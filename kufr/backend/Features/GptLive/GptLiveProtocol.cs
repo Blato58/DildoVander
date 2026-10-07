@@ -62,6 +62,14 @@ internal static class GptLiveProtocol
         return text;
     }
 
+    internal static double Milliseconds(JsonElement value, string name)
+    {
+        if (!value.TryGetProperty(name, out var field) || field.ValueKind != JsonValueKind.Number
+            || !field.TryGetDouble(out var time) || !double.IsFinite(time) || time is < 0 or > 200_000)
+            throw new InvalidDataException("Invalid Live timeline value.");
+        return time;
+    }
+
     internal static bool HasSpeech(ReadOnlySpan<byte> pcm)
     {
         for (var i = 0; i + 1 < pcm.Length; i += 2)

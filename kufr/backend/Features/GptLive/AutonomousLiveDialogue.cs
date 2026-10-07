@@ -178,6 +178,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
             workStartedAt = Elapsed();
             tasks[task.DelegationId] = task with { State = "running", DecisionRevision = projection.Revision, AvailabilityRevision = state.Revision };
             waiting = null;
+            Report("decision_running");
             var capturedInput = workInput;
             var capturedSegments = projection.Segments.ToArray();
             var capturedEpoch = memory?.StoreEpoch ?? 0;
@@ -272,8 +273,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                         case "session.delegation.created":
                             var d = value.GetProperty("delegation"); var id = GptLiveProtocol.RequiredString(d, "id", 200);
                             if (GptLiveProtocol.RequiredString(d, "target", 20) != "client") throw new InvalidDataException("Invalid delegation target.");
-                            var offsetMs = value.GetProperty("offset_ms").GetInt64();
-                            if (offsetMs is < 0 or > 200_000) throw new InvalidDataException("Invalid delegation offset.");
+                            var offsetMs = GptLiveProtocol.Milliseconds(value, "offset_ms");
                             if (tasks.ContainsKey(id)) break; // ordinary duplicate is idempotent
                             if (tasks.Count >= 64) throw new InvalidDataException("Delegation limit.");
                             var task = new LiveBackendTask(id, Guid.NewGuid(), call.Correlation.ConversationId, memoryAccess?.Guest?.GuestId,
@@ -302,7 +302,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                             }
                             break;
                         case "info": break;
-                        case "error": throw new InvalidDataException("Live rejected a correlated command.");
+                        case "error": throw LiveProviderFailure.Read(value);
                         default: throw new InvalidDataException("Unsupported Live event.");
                     }
                     // Always drain queued events before publishing a result. A
@@ -311,7 +311,15 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                 }
                 if (winner == work)
                 {
-                    var result = await work!; work = null; cost = checked(cost + result.CostMicroUsd);
+                    WandDecisionResult result;
+                    try { result = await work!; }
+                    catch
+                    {
+                        decisionTiming?.Invoke((Elapsed() - workStartedAt).TotalMilliseconds, WandDecisionStatus.Error);
+                        throw;
+                    }
+                    finally { work = null; }
+                    cost = checked(cost + result.CostMicroUsd);
                     decisionTiming?.Invoke((Elapsed() - workStartedAt).TotalMilliseconds, result.Status);
                     var task = tasks.Values.LastOrDefault(t => t.State == "running")!;
                     if (workFingerprint != Key() || !Valid(result))

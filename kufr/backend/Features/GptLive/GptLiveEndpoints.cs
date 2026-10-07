@@ -138,6 +138,10 @@ internal static class GptLiveEndpoints
         }
         catch (Exception error) when (error is not OutOfMemoryException)
         {
+            if (call is not null)
+                context.RequestServices.GetService<ServerLogStore>()?.Write(error is OperationCanceledException ? "info" : "warning",
+                    "live_failure_detail", context.TraceIdentifier, "/v1/conversations/{id}/gpt-live", "POST",
+                    operationId: call.OperationId, conversationId: id, code: LiveFailureDiagnostics.Code(error));
             var code = error is OperationCanceledException ? "operation_cancelled"
                 : call is null && error is (JsonException or InvalidDataException) ? "invalid_request" : "ai_unavailable";
             if (!context.Response.HasStarted)

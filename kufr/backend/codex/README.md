@@ -103,3 +103,17 @@ Reader přijímá i ASP.NET route constraints (například `{streamId:guid}`)
 ze starších nasazení. Nový server tento constraint normalizuje před
 potlačením úspěšných audio uploadů; chyby uploadu zůstávají viditelné.
 GPT-Live zapisuje technické stream stavy stejným filtrem jako Realtime.
+
+Od D151 přidává `live_failure_detail` s operationId/conversationId/traceId
+a pevnou kategorií v `code`. Například `provider_server_error` a
+`provider_capacity` pocházejí z Live error události, `live_socket_failed`
+z transportu, `decision_invalid_evidence` či `decision_incomplete` z
+rozhodovací validace, `decision_provider_capacity` ze SDK HTTP 429 a
+`live_event_timing_invalid` z časových metadat. Neznámá chyba má obecnou
+kategorii; libovolný provider code/type/message ani text výjimky se
+nezapisují. Klientský veřejný kód `ai_unavailable` se nemění.
+`live_terminal_state/decision_running` zachytí start práce a
+`live_decision_completed/error` její čas při výjimce. Porovnejte vše
+v rámci stejné operace; chybějící completed ve starších logách nedokazuje,
+že se rozhodovací model vůbec nespustil. Tyto kategorie nejsou automatický
+retry ani důkaz konkrétní příčiny historického pádu.
