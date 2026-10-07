@@ -1,10 +1,59 @@
 # Stav implementace AI kufru
 
-Poslední aktualizace: **6. 10. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální Arduino i ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a E3a. Ad Hoc podpis a serverová publikace IPA/manifestu prošly CI a veřejným HTTPS testem; majitel potvrdil instalaci a spuštění na iPhonu 15 Pro (D70). Hardware, native WSS/TLS a aktualizace IPA na telefonu zatím nemají runtime akceptaci. Hotový návrh není hotová implementace.
+Poslední aktualizace: **7. 10. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální Arduino i ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a E3a. Ad Hoc podpis a serverová publikace IPA/manifestu prošly CI a veřejným HTTPS testem; majitel potvrdil instalaci a spuštění na iPhonu 15 Pro (D70). Hardware, native WSS/TLS a aktualizace IPA na telefonu zatím nemají runtime akceptaci. Hotový návrh není hotová implementace.
 
 [Implementační plán](implementacni-plan.md) určuje architekturu a akceptaci. [AGENTS.md](../../AGENTS.md) určuje pracovní postup AI. Tento soubor je jediný průběžný záznam postupu; README ho pouze odkazují.
 
 ## Předání další AI
+
+**D151 – 7. 10. 2026 – Live časová metadata, výstupní hranice a diagnostika pádů ověřené lokálně.**
+Majitel hlásí občasný `ai_unavailable` a sdílí screenshot s fragmenty
+hostova přepisu. Slice navazuje na `main=6f81a430c7d069c4d5adddf5691cefa1cc30793d`
+([PR #131](https://github.com/Blato58/DildoVander/pull/131), CI 37544355140 success),
+záznam skutečného nasazení D150. Bez cizích lokálních změn.
+
+Read-only [log 37597966641](https://github.com/Blato58/DildoVander/actions/runs/37597966641)
+zachytil 7. 10. dvě chyby během hovoru: operace
+`4d93a54f-5a41-4b18-9cd7-5c410865327f` v 08:57:05 UTC po 125,924 s a
+`b2017813-efd1-46cd-b3fc-cdb5788f9d5c` v 09:01:59 UTC po 66,455 s.
+Obě mají HTTP 200 stream s `realtime_failed/ai_unavailable`; staré logy
+neobsahují výjimku ani úspěšné decision/terminal události. Chybějící
+completed nedokazuje, že rozhodovací request nezačal. Mezi nimi dva
+jiné skutečné hovory dokončily validproposal za 2661,2/2096,4 ms,
+lokální `/playback` 204 a completed. Nejde tedy o doloženou globální
+nedostupnost. Store `5d9d36ab-ec60-4106-9034-7c8c0f34c678`, cursor 4837,
+hasMore/truncated=false a droppedWrites=0. Konkrétní příčina obou
+historických pádů zůstává neprokázaná.
+
+Nalezené hranice: `GetInt64` odmítal i číselně platný desetinný JSON
+zápis časových metadat; rozhodovací schema nevyjadřovalo dosavadní
+omezení délek citace/faktu a počtu důvodů. `GptLiveProtocol` a
+`LiveConversationProjection` nyní přijímají konečné číslo 0–200000 ms,
+uchovají přesnost a dál odmítají neplatné/obrácené časy před změnou
+podkladů. SQLite archiv zvládá přesné hodnoty bez migrace.
+`WandDecisionService` zadává podporované string patterns a maxItems,
+plus stejné stručné limity v instrukci; grounding a validace zůstávají.
+`LiveFailureDiagnostics` a endpoint zapisují jen aplikací definovanou
+kategorii `live_failure_detail`, nikdy text výjimky, provider body či
+libovolný code/type/message. `AutonomousLiveDialogue` zaznamená
+`decision_running` a timing/error také při výjimce práce.
+
+Lokální ověření 7. 10. bez placené inference, iPhone nebo HW:
+
+| Kontrola | Skutečný výsledek |
+| --- | --- |
+| Release backend-tests, SDK 10.0.303, linux-x64/self-contained | 0 warnings / 0 errors |
+| cílené AutonomousLive + HybridMemory | passed; včetně validního číselného zápisu, chybných metadat, selhání práce/provideru a ochrany obsahu |
+| kompletní C# backend-tests | všechny skupiny passed; včetně skutečné SQLite persistence desetinných časů a idempotence |
+| dokumentace a whitespace | 54 lokálních Markdown cílů OK; `git diff --check` OK |
+
+Backend README, provozní návod, Codex diagnostika a plán popisují hranice
+a interpretaci nových záznamů. Model Luna, Vector Stores, oprávnění,
+automatický výběr bez konfirmace, klientské kontrakty a fyzická brána
+se nemění; nevzniká placený replay nejasného requestu. Další krok:
+ověřit diff/Markdown, push, všechny CI kontroly, merge a autorizované
+nasazení. Teprve skutečný výsledek aktivace patří do následného záznamu;
+lokální test neprokazuje odstranění obou historických chyb ani HW akceptaci.
 
 **D150 – 6. 10. 2026 – automatický verdikt bez potvrzovací otázky nasazený.**
 Majitel sdílel iPhone Debug screenshot: návrh přihrádky 4 už byl

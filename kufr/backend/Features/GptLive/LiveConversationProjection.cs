@@ -5,10 +5,10 @@ using System.Text.RegularExpressions;
 
 namespace Kufr.Backend.Features.GptLive;
 
-internal sealed record LiveTranscriptSegment(string Reference, string Speaker, string Text, long StartMs, long EndMs, string? EventId);
+internal sealed record LiveTranscriptSegment(string Reference, string Speaker, string Text, double StartMs, double EndMs, string? EventId);
 internal enum LiveRequestIntent { Selection, Memory, Remember, Forget, Alternative, CancelConversation, StopSpeech, Repeat, Technical, Thanks, Acknowledge }
 internal sealed record LiveBackendTask(string DelegationId, Guid TaskId, string ConversationId, string? GuestId,
-    string SessionGeneration, long DecisionRevision, int AvailabilityRevision, string State, string? OperationId, long OffsetMs);
+    string SessionGeneration, long DecisionRevision, int AvailabilityRevision, string State, string? OperationId, double OffsetMs);
 
 internal sealed class LiveConversationProjection(GptLiveOptions options)
 {
@@ -19,7 +19,7 @@ internal sealed class LiveConversationProjection(GptLiveOptions options)
     private string? currentInputReference;
     private string? questionReference;
     private string? currentOutputReference;
-    private long latestQuestionEnd = -1;
+    private double latestQuestionEnd = -1;
     private int characters;
     private int outputAnswerCount = -1;
     private string outputTurn = "";
@@ -27,8 +27,8 @@ internal sealed class LiveConversationProjection(GptLiveOptions options)
     private int correctionOffset = -1;
     private int outputGeneration;
     private int inputOutputGeneration = -1;
-    private long lastInputEnd = -1;
-    private long lastOutputEnd = -1;
+    private double lastInputEnd = -1;
+    private double lastOutputEnd = -1;
     internal long Revision { get; private set; }
     internal long ContentVersion { get; private set; }
     internal bool HasCorrection { get; private set; }
@@ -47,8 +47,8 @@ internal sealed class LiveConversationProjection(GptLiveOptions options)
     internal bool Append(JsonElement value, bool input)
     {
         var text = GptLiveProtocol.RequiredString(value, "delta", options.TranscriptCharacterLimit);
-        var start = value.GetProperty("start_ms").GetInt64(); var end = value.GetProperty("end_ms").GetInt64();
-        if (start < 0 || end < start || end > 200_000) throw new InvalidDataException("Invalid transcript time.");
+        var start = GptLiveProtocol.Milliseconds(value, "start_ms"); var end = GptLiveProtocol.Milliseconds(value, "end_ms");
+        if (end < start) throw new InvalidDataException("Invalid transcript time.");
         var eventId = value.TryGetProperty("event_id", out var eid) ? eid.GetString() : null;
         if (eventId is not null && !eventIds.Add(eventId)) return false;
         // A bounded session archive is independent from the smaller decision
@@ -97,7 +97,7 @@ internal sealed class LiveConversationProjection(GptLiveOptions options)
         lastOutputEnd = Math.Max(lastOutputEnd, end);
         if (currentOutputReference is null || outputAnswerCount != answers.Count && start >= lastInputEnd)
         {
-            currentOutputReference = "question-candidate-" + start;
+            currentOutputReference = "question-candidate-" + start.ToString(System.Globalization.CultureInfo.InvariantCulture);
             outputAnswerCount = answers.Count; outputTurn = ""; outputGeneration++;
         }
         outputTurn = LiveTextBudget.Bound(outputTurn + text, options.DecisionContextBytes);
