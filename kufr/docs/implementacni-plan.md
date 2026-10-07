@@ -1,5 +1,16 @@
 # Implementační plán AI kufru
 
+> **D151, 7. 10. 2026: hranice Live událostí a diagnostika přerušení.**
+> Dva skutečné hovory skončily `ai_unavailable`, jiné dva výběr dokončily.
+> Dosavadní log nezachoval výjimku; konkrétní příčinu těchto pádů nelze
+> zpětně určit. Časová metadata přijímají konečné JSON číslo v mezích
+> 0–200000 ms včetně desetinného zápisu a uchovávají přesnost i v SQLite.
+> Strukturovaný rozhodovací požadavek zadává stejné délky citací/faktů
+> a počet důvodů jako dosavadní validace. Nejasný výsledek dál nepustí.
+> Technický `live_failure_detail` rozlišuje pevné kategorie bez provider
+> zpráv, přepisů či credentialů; log zachytí také začátek a chybu delegace.
+> Bez změny modelu, paměťových oprávnění, kontraktu a fyzické brány.
+
 > **D150, 6. 10. 2026: automatický verdikt bez potvrzovací otázky.**
 > Reálný iPhone Debug test D149 už zveřejnil návrh přihrádky 4; závěr
 > přesto obsahoval otázku na hodnocení. Live politika v3 a pokyn k

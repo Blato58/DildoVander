@@ -270,7 +270,8 @@ GET, bez placené inference; chybějící přístup zastaví nasazení ještě
 před restartem služby. Metadata sama nepotvrzují kvalitu výběru.
 Log `live_decision_completed` měří v `durationMs` lokální uložení kontextu,
 frontu a rozhodovací API, s operationId/traceId a stavem; neobsahuje text
-hosta, audio ani prompt. Pro skutečnou latenci hlasu a správnost výběru
+hosta, audio ani prompt. Od D151 zachytí i stav `error` při výjimce a
+`live_terminal_state/decision_running` začátek práce. Pro skutečnou latenci hlasu a správnost výběru
 je stále potřebný poslech při použití.
 
 ```sh
@@ -456,6 +457,19 @@ potvrzení. Samotné přijetí není další diagnostická odpověď.
 `announcement_repair`, `awaiting_playback` a `closing`. Přepis ani audio
 do technického logu nepatří. Při dalším selhání porovnat tento stav,
 `live_decision_completed` a HTTP `/playback`/finální completed podle traceId.
+
+Od D151 `live_failure_detail` přidává pevnou technickou příčinu bez
+zprávy výjimky nebo provider obsahu; [Codex diagnostika](../backend/codex/README.md)
+popisuje kategorie. Časy `start_ms`/`end_ms`/`offset_ms` přijímají konečné
+JSON číslo v rozsahu 0–200000 ms, také desetinný zápis; obrácené časy
+jsou neplatné. Přesnost se zachová v časované projekci a stávajícím SQLite
+archivu bez migrace. Strict decision schema používá podporované string
+`pattern` a array `maxItems`: citace 1–100, fakt 1–160, chybějící informace
+0–200 znaků a nejvýše dva důvody. Dosavadní kontrola přesných podkladů
+platí i po schema omezení. Reference: [Live API](https://developers.openai.com/api/reference/resources/live)
+a [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs).
+Tyto opravy neprokazují konkrétní příčinu historických chyb, které log
+uložil pouze jako `ai_unavailable`; neprovádějí placené opakování requestu.
 
 `/availability` přijímá device token a přesný bootId/generation, mask
 a monotónní deviceRevision. Nový snapshot zneplatní výsledek;
