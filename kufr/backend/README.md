@@ -588,6 +588,17 @@ novým přednesem a skutečným playback ACK. `live_terminal_state` ukazuje
 technický stav dokončení bez obsahu rozhovoru. Poslechová akceptace
 zůstává samostatná.
 
+Od D151 přijímá autonomní Live konečné číselné časy přepisů/delegací
+v mezích 0–200000 ms i v desetinném zápisu. Přesné časování se zachová
+v projekci a SQLite; záporné, chybějící či obrácené časy dál odmítne.
+Rozhodovací schema omezuje citaci na 100 znaků, fakt na 160, chybějící
+informaci na 200 a důvody na dva, stejně jako stávající validace.
+`live_failure_detail` zaznamená pevnou kategorii příčiny `ai_unavailable`
+bez syrové výjimky či provider zprávy. `decision_running` a stav `error`
+v `live_decision_completed` zpřístupní také neúspěšnou delegaci.
+[Diagnostika](codex/README.md) uvádí interpretaci; původní dva pády
+bez tohoto záznamu nemají zpětně doloženou příčinu.
+
 ## D128: GPT-Live + Sol (legacy větev)
 
 `POST /v1/conversations/{id}/gpt-live` otevírá testovací průběžný hlasový

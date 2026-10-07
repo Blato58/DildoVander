@@ -15,6 +15,7 @@ internal static class HybridMemoryTests
         VerifyExistingEveningMigration();
         using var setup = new Setup();
         var store = setup.Store; var access = setup.Access;
+        VerifyTimelinePersistence(setup);
         var id = Guid.NewGuid().ToString("D");
         Check(store.WriteMemory(access, new(id, MemoryScope.Personal, MemoryKind.UserReportedFact, "Host uvádí, že rád plánuje.", "answer-1")) is null,
             "anonymous conversation is not a verified guest");
@@ -94,6 +95,26 @@ internal static class HybridMemoryTests
         Check(store.LocalMemory(access).Count == 0 && store.CurrentMemory(current.MemoryId) is { IsActive: false, Text: "" }, "scope retention removes content immediately");
         await VerifyFailures(setup);
         Console.WriteLine("Hybrid memory: identity/scopes/revisions/consent, durable outbox, OpenAI REST fixtures, deletion and retention passed.");
+    }
+
+    private static void VerifyTimelinePersistence(Setup setup)
+    {
+        var segments = new LiveTranscriptSegment[]
+        {
+            new("segment-0", "assistant", "Jak řešíš chaos?", 0, 1000.25, "event-0"),
+            new("segment-1", "user", "Improvizuji.", 1100.5, 1400.75, "event-1")
+        };
+        setup.Store.AppendTimedTranscripts(setup.Access, "numeric-timeline", segments);
+        setup.Store.AppendTimedTranscripts(setup.Access, "numeric-timeline", segments);
+        using var database = new SqliteConnection($"Data Source={setup.Configuration["Backend:DatabasePath"]}.evening.sqlite;Pooling=False");
+        database.Open();
+        using var command = database.CreateCommand();
+        command.CommandText = "SELECT speaker,start_ms,end_ms FROM live_transcripts WHERE session_generation='numeric-timeline' ORDER BY start_ms";
+        using var reader = command.ExecuteReader();
+        Check(reader.Read() && reader.GetString(0) == "assistant" && reader.GetDouble(1) == 0 && reader.GetDouble(2) == 1000.25,
+            "existing SQLite transcript archive retains numeric output timing without a migration");
+        Check(reader.Read() && reader.GetString(0) == "user" && reader.GetDouble(1) == 1100.5 && reader.GetDouble(2) == 1400.75
+            && !reader.Read(), "fractional input timing persists and duplicate snapshots stay idempotent");
     }
 
     private static void VerifyExistingEveningMigration()
