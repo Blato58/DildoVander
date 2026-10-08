@@ -52,7 +52,10 @@ FPC/konektory, akustika, teplota, zatížené servo a zadržení při výpadku.
 Třecí M4 čep vyžaduje zkoušku i dlouhodobého tečení PETG ve všech polohách;
 E5/E6/B1 zůstávají otevřené. Další krok: měrky, jedna přihrádka a ruční
 zkouška s reálnou hůlkou, potom skutečné usazení elektroniky/kabelů.
-Git předání je připravené; commit a výsledek push se doplní po provedení.
+Implementační commit `1d61ce7bebbaca5ed54533a7ba2bf99d8ad71729` je na
+`codex/printable-case-final-electronics`. Povinný
+`scripts/Push-CurrentBranch.ps1` uspěl přes účet Blato58; read-back remote
+ref potvrdil stejnou SHA. Tento následný záznam uchovává skutečné předání.
 
 **D153 – 8. 10. 2026 – revize minimální objednávky, dokumentace ověřená.**
 Majitel hlásí nedostupný CD4093BE a žádá ponechat jen skutečně potřebné
