@@ -1,9 +1,11 @@
 # Nákup elektroniky pro AI kufr: dva obchody
 
-> **Aktualizace 6. 10. 2026:** Pro AI kufr objednávat pouze podle
+> **Aktualizace 8. 10. 2026:** Pro AI kufr objednávat pouze podle
 > [nového seznamu chybějících dílů](objednavka-doplneni-kufru-2026-10-06.md).
 > Zohledňuje faktury, kameru, jeden aktivní LED úsek a jeden pohon,
-> kolébkové vypínače a konkrétní návrh watchdogu. Níže je historický podklad.
+> kolébkové vypínače a odklad automatického watchdogu jen pro laboratorní
+> prototyp pod dohledem. Volitelné doplňky nejsou v základním košíku.
+> Níže je historický podklad.
 
 Ověřeno 28. 9. 2026. Jde o elektroniku **pouze pro kufr**. Powerbanku kupuje majitel samostatně a v cenách níže není. Ceny a dostupnost se mohou změnit; před odesláním objednávky zkontrolovat košíky a odečíst již pořízené díly. Stav dosavadních nákupů není potvrzen. Ostatní díly kostýmu, mechanika přihrádek a doprava nejsou zahrnuty.
 
