@@ -48,6 +48,12 @@ Konfigurace byla uložená a znovu publikovaná; UI potvrdilo
 credentialy ani end-to-end čtení z nové cloudové VM.
 Přímá cloudová SSH identita zatím není provisionovaná; Windows agent
 cloud nepřebírá. Bez ní se používá GitHub diagnostika.
+Provozní návod a záznam byly commitnuté jako
+`6d7946c890b13272f6abed40365ee323121d01d9` na `codex/vps-cloud-operations`.
+Povinný `scripts/Push-CurrentBranch.ps1` uspěl přes účet Blato58;
+read-back remote ref potvrdil shodnou SHA. Tento následný záznam uchovává
+skutečný výsledek předání, bez změny aplikačního kódu.
+
 Další konkrétní krok pro přímý cloudový SSH přístup je samostatné
 provisionování identity a TCP oprávnění; nyní nevznikly nové credentialy.
 Placená inference, iPhone/HW akceptace a nové nasazení aplikace neproběhly.
