@@ -1,0 +1,15 @@
+material,one_compartment,all_six,note
+M3x12 DIN965 countersunk screw,4,24,Tray splice; head diameter <=6 mm; install flush before LED
+M3x12 socket screw,6,36,Base splice and hinge foot; verify washers and nut stack
+M3x16 socket screw,2,12,Lower rest external mounting foot
+M3x16 socket screw,2,12,Base floor pads; recessed heads below floor
+M3x25 socket screw,2,12,Servo external mounting ears and base; measure actual stack
+M3x30 socket screw,4,24,U059 cage and tray; choose length after print
+M3x14 linkage bolt,2,12,Link pivots with 3mm spacer and ordinary 2.4mm M3 nut; no extra washer; head on outer X side
+Ordinary M3 nut max 2.4mm thick,2,12,Link pivots only; removable thread locking outside plastic; nylon locknut does not fit this stack
+M4x40 hinge bolt,1,6,Rear hinge with spacers washers spring washer and locknut
+M3 nut and washer,22,132,Approximate mechanism allowance; electronics additional
+M4 locknut and spring washer,1,6,Adjust friction; physical retention test required
+Elastic wand strap,2,12,Keep decorative wand fixed without crushing ornament
+Small cable tie,4,24,Servo and U059 retention; verify connector access
+Foam or silicone pad,2,12,Wand saddles and friction/contact isolation
