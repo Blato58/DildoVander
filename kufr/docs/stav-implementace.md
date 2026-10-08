@@ -1,10 +1,62 @@
 # Stav implementace AI kufru
 
-Poslední aktualizace: **7. 10. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální Arduino i ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a E3a. Ad Hoc podpis a serverová publikace IPA/manifestu prošly CI a veřejným HTTPS testem; majitel potvrdil instalaci a spuštění na iPhonu 15 Pro (D70). Hardware, native WSS/TLS a aktualizace IPA na telefonu zatím nemají runtime akceptaci. Hotový návrh není hotová implementace.
+Poslední aktualizace: **8. 10. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální Arduino i ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a E3a. Ad Hoc podpis a serverová publikace IPA/manifestu prošly CI a veřejným HTTPS testem; majitel potvrdil instalaci a spuštění na iPhonu 15 Pro (D70). Hardware, native WSS/TLS a aktualizace IPA na telefonu zatím nemají runtime akceptaci. Hotový návrh není hotová implementace.
 
 [Implementační plán](implementacni-plan.md) určuje architekturu a akceptaci. [AGENTS.md](../../AGENTS.md) určuje pracovní postup AI. Tento soubor je jediný průběžný záznam postupu; README ho pouze odkazují.
 
 ## Předání další AI
+
+**D152 – 8. 10. 2026 – SSH, VPS a uložené cloudové prostředí aktualizované.**
+Majitel autorizoval Windows SSH přes alias `vps-dildovander` / `root`,
+prohlídku služeb a logů i změny serverového prostředí; výslovně požaduje
+také aktualizaci uloženého Codex cloudového prostředí DildoVander.
+Rozsah je provozní konfigurace a trvalý návod, bez nového aplikačního chování.
+`AGENTS.md` a `backend/codex/README.md` nyní určují SSH postup, zdrojové
+vlastnictví, pipeline, ochranu credentialů a cloudový fallback.
+
+Výchozí čistý checkout `00aba500d10e8c40b865f042bf91baac64a7f93b` byl
+35 commitů za `origin/main`; bezpečný fast-forward jej aktualizoval na
+`9d5ef15071773c45186f9fa6ea2012f3206b19a6`. VPS používá release
+`8ddfe652d840f96ff7ed42b4d5698fbb725517ca-37602422528-1` z úspěšného
+deploy běhu D151. Build source tree odpovídá squash `e0d21e8` a backend
+subtree aktuálního main je shodný; různé commit SHA nejsou drift aplikace.
+Služby backend, nginx a GitHub runner jsou active/running, loopback
+`GET /healthz` vrací `{"status":"ok"}`. Systemd unit odpovídá zdroji.
+
+Skutečný drift byl starší instalovaný aktivační helper:
+SHA-256 `79d627f2b63b4485593e0d326820e46b92d0e0bb965b638a1ed5dda059aaa31f`.
+Současný helper byl připraven přes úspěšný
+[bootstrap source běh 37720823840](https://github.com/Blato58/DildoVander/actions/runs/37720823840)
+z `9d5ef15`, porovnán se zdrojem a atomicky instalován jako root/root 0755.
+Nový hash je `c55965ee5fcc4b3e6cf2880c311a65a52d2fa1224551cfba2a0b50a6667fed13`.
+Soukromá záloha je
+`/var/backups/kufr-backend/20261008T030507Z/kufr-backend-deploy.before.py`.
+Ověření před/po potvrdilo shodný service PID/restart stav, environment
+fingerprint, aktivní release a identitu SQLite souborů; health zůstal OK.
+Helper nebyl spuštěn s `activate`, serverové credentialy ani stávající
+limity se nepřepisovaly. Budoucí aktivace už použije současné pravidlo
+session cap nejvýše 3 USD a bez periodických capů podle aktuálního zdroje.
+
+Lokální ověření: všechny 3 existující `test_deploy_helper.py` testy
+passed na Pythonu 3.14.4, syntax compile, 27 lokálních Markdown cílů
+ve třech změněných dokumentech a `git diff --check` passed.
+Uložené cloudové prostředí DildoVander zachovává dosavadní install script,
+vývojové instrukce, síťovou politiku i private scope. Start skill doplňuje
+produkční postup a environment obsahuje netajný `KUFR_BACKEND_URL`.
+Konfigurace byla uložená a znovu publikovaná; UI potvrdilo
+`Environment published` / `Published`. Publikace neověřuje nové SSH
+credentialy ani end-to-end čtení z nové cloudové VM.
+Přímá cloudová SSH identita zatím není provisionovaná; Windows agent
+cloud nepřebírá. Bez ní se používá GitHub diagnostika.
+Provozní návod a záznam byly commitnuté jako
+`6d7946c890b13272f6abed40365ee323121d01d9` na `codex/vps-cloud-operations`.
+Povinný `scripts/Push-CurrentBranch.ps1` uspěl přes účet Blato58;
+read-back remote ref potvrdil shodnou SHA. Tento následný záznam uchovává
+skutečný výsledek předání, bez změny aplikačního kódu.
+
+Další konkrétní krok pro přímý cloudový SSH přístup je samostatné
+provisionování identity a TCP oprávnění; nyní nevznikly nové credentialy.
+Placená inference, iPhone/HW akceptace a nové nasazení aplikace neproběhly.
 
 **D151 – 7. 10. 2026 – Live časová metadata, výstupní hranice a diagnostika pádů nasazené.**
 Majitel hlásí občasný `ai_unavailable` a sdílí screenshot s fragmenty

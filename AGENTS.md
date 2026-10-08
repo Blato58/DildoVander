@@ -49,6 +49,13 @@
 - Po změně kódu ověř nejmenší dotčený projekt a relevantní testy. Pokud chybí hardware pro ověření skutečného efektu, uveď tuto mezeru ve výsledku.
 - Při změně pouze dokumentace ověř lokální odkazy, konzistenci etap a rozsah změn; nespouštěj nesouvisející buildy. Do stavu zapisuj pouze skutečně provedené kontroly, u staršího výsledku zachovej datum a rozsah.
 
+## SSH a produkční prostředí
+
+- Majitel 8. 10. 2026 autorizoval SSH pro prohlídku VPS, nasazených souborů, služeb a logů, řešení nasazení a změny prostředí v rozsahu zadaného úkolu. Na Windows použij existující konfiguraci `ssh vps-dildovander`, uživatele `root` a Windows OpenSSH agent; nekopíruj ani nevypisuj privátní klíče.
+- Nejdříve prohlédni konfiguraci nasazení v repozitáři, potom zjisti skutečný release, adresáře a běžící služby na serveru podle [provozního návodu](kufr/backend/codex/README.md). Aplikační kód měň v checkoutu, ověř relevantní testy před nasazením a přednostně použij existující pipeline. Rozdíly mezi zdrojem a nasazením zaznamenej; build merge SHA se může lišit od squash commitu, proto ověř Git tree.
+- Před změnou serverové konfigurace zachovej soukromou zálohu a ověř službu i health po změně. Při běžném debugování zachovej credentialy, limity a data; obsah environment souborů ani paměti návštěvníků nevypisuj.
+- Cloudový task nepřebírá Windows SSH agent ani lokální alias. Přímé SSH vyžaduje samostatně provisionovanou identitu, důvěryhodný host key a povolené TCP spojení. Pokud tento přístup chybí, použij existující GitHub diagnostiku; nevypínej ověřování host key ani síťovou politiku. Sdílený setup cloudového prostředí upravuj v jeho uložené konfiguraci, aby změnu převzaly nové tasky.
+
 ## Debug nasazeného serveru s majitelem
 
 - Při hledání serverové nebo iOS hlasové chyby použij technické logy podle [Codex diagnostiky](kufr/backend/codex/README.md). Pokud je připojené MCP, nástroje `read_server_logs` a `read_server_status` pouze čtou. Jinak lze po nasazení D118 spustit GitHub workflow `kufr-backend-logs.yml` na `main` a číst typovaný JSON mezi `KUFR_LOG_SNAPSHOT_BEGIN/END` přes `gh run view ID --log` nebo stáhnout artefakt `kufr-server-logs`; serverový credential zůstává v runneru. Běžný device token k logům neopravňuje.
