@@ -7,6 +7,67 @@ požadavek dostane serverem vytvořené `X-Request-Id`; stejné ID je v problém
 zapisuje started/completed/listening/speech_stopped/failed/closed i uvnitř
 HTTP 200 streamu. Úspěšné GET/poll a PCM uploady se nezapisují.
 
+## Lokální SSH a cloudové prostředí
+
+Majitel autorizoval přístup na VPS přes existující Windows OpenSSH agent:
+
+```powershell
+ssh -o BatchMode=yes -o ConnectTimeout=15 vps-dildovander
+```
+
+Alias používá vzdáleného uživatele `root`; ověřený hostname je
+`dildovander-server`. Přístup umožňuje číst nasazené soubory, služby a logy,
+řešit nasazení a upravit prostředí podle zadání. Aplikační změny vznikají
+v lokálním zdrojovém checkoutu a před nasazením procházejí relevantními testy.
+
+Ověřená mapa nasazení (8. 10. 2026; před každou změnou znovu zkontrolovat):
+
+| Položka | Umístění / služba |
+| --- | --- |
+| Aktivní release | `/opt/kufr-backend/current`, symlink do `/opt/kufr-backend/releases` |
+| Backend | `kufr-backend.service`, účet `kufr-backend`, loopback port 5080 |
+| Veřejná proxy | `nginx.service` |
+| Runtime konfigurace | `/etc/kufr-backend/backend.env`; soukromý soubor root / kufr-backend, mode 0640 |
+| Aktivační helper | `/usr/local/sbin/kufr-backend-deploy`; root / root, mode 0755 |
+| Trvalá data | `/var/lib/kufr-backend`; journal, diagnostika a oddělená paměť večerů |
+| GitHub runner | `actions.runner.Blato58-DildoVander.dildovander-server.service`, `/opt/actions-runner` |
+
+Pro první kontrolu stačí čtení bez backendového credentialu nebo AI volání:
+
+```powershell
+ssh vps-dildovander 'systemctl show kufr-backend.service -p ActiveState -p SubState -p MainPID -p WorkingDirectory'
+ssh vps-dildovander 'readlink -f /opt/kufr-backend/current'
+ssh vps-dildovander 'curl --fail --silent --show-error --max-time 10 http://127.0.0.1:5080/healthz'
+```
+
+Porovnej release se zdrojem i s proveniencí příslušného Actions běhu.
+Release ID obsahuje zdrojový build merge SHA, číslo deploy běhu a pokus;
+squash `main` může mít jiné SHA se stejným Git tree. Samotná nerovnost
+commitů nedokazuje rozdíl aplikace. Instalované helpery a systemd unit
+porovnej pomocí SHA-256 se skutečnými zdrojovými soubory.
+
+Nasazení používá [existující workflow](../../../.github/workflows/kufr-backend-deploy.yml)
+s `build_run_id` úspěšného CI a ověřením aktuálního `main`.
+[Bootstrap source workflow](../../../.github/workflows/kufr-backend-bootstrap-source.yml)
+umí na runneru připravit důvěryhodné instalační soubory a jejich hashe.
+Při opravě samotného helperu zálohuj jeho dosavadní verzi a instaluj pouze
+ověřený helper; jeho instalace nevyžaduje `activate`, přepsání environmentu
+ani restart backendu. Celý bootstrap navíc zapisuje unit a sudoers.
+Před serverovou změnou zachovej soukromou zálohu; potom ověř hash, vlastníka,
+práva, aktuální release a health. Credentialy, stávající limity a databáze
+zachovej, pokud jejich změna není součástí úkolu. Nevypisuj environment
+soubory, privátní SSH klíče, paměť hostů ani syrové provider odpovědi.
+
+Uložené prostředí **DildoVander** v Codex Cloud má samostatný install script
+a start skill. Provozní pravidla musí být také v tomto start skillu;
+změnu uložit a znovu publikovat pro nové tasky. Lokální Windows agent ani
+SSH alias se do cloudové VM nepřenášejí. Přímé cloudové SSH vyžaduje vlastní
+provisionovanou identitu, důvěryhodný host key a podporované TCP oprávnění.
+Bez nich použij níže popsanou GitHub diagnostiku s autorizovaným účtem.
+Nevytvářej novou autentizaci ani nepřenášej osobní privátní klíč jen kvůli
+setupu. `KUFR_BACKEND_URL` je netajná URL pro diagnostiku; samotná URL
+neposkytuje reader credential ani oprávnění k SSH.
+
 ## Codex v tomto repozitáři přes GitHub
 
 Po nasazení D118 lze použít existující GitHub oprávnění bez lokálního
