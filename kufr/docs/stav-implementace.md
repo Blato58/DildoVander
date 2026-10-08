@@ -35,6 +35,11 @@ závadu. Nové ceny/sklady všech položek, firmware build a fyzické měření
 nebyly ověřované. Další krok: montážní trasy, konkrétní mute rozhraní,
 revize kamery a měření jedné přihrádky; watchdog doplnit před konečnou
 akceptací pohonů podle původního plánu.
+Dokumentační slice je v commitu `bb51ec127b1eac063ca0918d7a2d4ecdc67f3809`
+na `codex/trim-kufr-purchase-list`. Povinný
+`scripts/Push-CurrentBranch.ps1` uspěl přes účet Blato58 a read-back
+remote ref potvrdil shodnou SHA. Tento následný záznam eviduje výsledek
+push; CI/merge se ověří při předání PR, fyzická akceptace tím nevzniká.
 
 **D152 – 8. 10. 2026 – SSH, VPS a uložené cloudové prostředí aktualizované.**
 Majitel autorizoval Windows SSH přes alias `vps-dildovander` / `root`,
