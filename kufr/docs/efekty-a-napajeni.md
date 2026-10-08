@@ -1,10 +1,18 @@
 # Efekty, zapojení a napájení kufru
 
-Aktualizováno 6. 10. 2026 podle faktur a rozhodnutí majitele. Nákupní zdroj
+Aktualizováno 8. 10. 2026; základ návrhu z 6. 10. vychází z faktur. Nákupní zdroj
 pravdy je [samostatná objednávka](../../docs/objednavka-doplneni-kufru-2026-10-06.md).
 Architektura a akceptace zůstávají v kapitolách 8 a 10
 [implementačního plánu](implementacni-plan.md). Níže je konkrétní návrh pro
 montáž prototypu; elektrické měření ani zapojení firmware dosud neproběhlo.
+
+**Revize nákupu 8. 10.:** pro základní hlas stačí jeden již koupený
+DFR0954 a jeden reproduktor. Druhý kanál, Grove/JST-SM adaptéry a SD/čtečka
+jsou volitelné. Kamera a MCP zůstávají v objednávce podle rozhodnutí 6. 10.
+Celá kandidátní větev Pololu 2801 + CD4093BE + Pololu 2814 se odkládá pro
+nezatížené laboratorní pokusy pod dohledem. Níže uvedené schéma zachovává
+**cílové automatické odpojení**, není schématem k jeho obejití. Ruční
+vytažení napájení neprokazuje Stop při zamrznutí; E0/E5/B1 se neuzavírají.
 
 ## Provozní limity a mechanika
 
@@ -148,12 +156,18 @@ Obnovení heartbeat samo neobnoví sekvenci: firmware musí držet fault latch.
   Pixel Shifter a 330 Ω na začátku řetězce. JST-SM konektor na vstupu
   úseku dovolí servisní odpojení; výstupní data vést zvlášť do dalšího.
   Odkrýt IP65 u pájení, zaizolovat spoje, ověřit šipky a polaritu.
-- **Audio:** oba DFR0954 sdílejí BCLK/WS/DIN, pro jednoduchý společný hlas
+- **Audio:** základ tvoří jeden DFR0954 a jeden 8Ω reproduktor; při
+  volitelném doplnění druhého oba DFR0954 sdílejí BCLK/WS/DIN, pro společný hlas
   zachovat shodné kanálové nastavení. Každý má vlastní 8Ω reproduktor přes
   PH2.0 kabel. Jejich SPK+ / SPK− nikdy neparalelizovat a SPK− není GND.
   Reproduktory 5 W jsou zatížitelnost, MAX98357A při 8 Ω dodá přibližně
   1,8 W na kanál. Mute/SD obou ověřit podle konkrétního modulu a nastavit
-  fail-muted boot; mikrofon ICS43434 napájet 3,3 V.
+  fail-muted boot; mikrofon ICS43434 napájet 3,3 V. [Schéma výrobce](https://dfimg.dfrobot.com/wiki/20560/DFR0954_max98357a-i2s_schematics_1.0.pdf)
+  ukazuje pull-up SD k VCC, zatímco [wiki](https://wiki.dfrobot.com/dfr0954/)
+  popisuje jinou hodnotu odporu. Při 5V napájení nepřipojovat SD přímo
+  k 3,3V MCP/GPIO bez ověření konkrétního kusu a vhodného rozhraní;
+  obecný 100kΩ pull-down nezaručuje mute. Toto rozhraní ještě nemá
+  potvrzený kusovník a není vyřešené zjednodušením objednávky.
 - **Kamera/SD:** OV5640 ze sady stejné řady, revizi/FPC ověřit před montáží.
   Karta 32 GB FAT32 pro lokální assety, ne archiv rozhovorů. Předběžný
   [profil B a piny](pin-mapa-esp32-s3.md) vyžadují ověření GPIO2/48 a SD.
