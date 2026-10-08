@@ -1,186 +1,159 @@
-# Tisknutelná mechanika AI kufru – prototyp
+# Tisknutelná konstrukce kufru – revize 8. 10. 2026
 
-CAD návrh pro **nadzvednutí celé přihrádky**, šest hůlek do **200 mm** a kufr
-**450 × 310 × 200 mm**, podle zadání majitele 2. 10. 2026. Je to vyrobitelná
-sada geometrických dílů pro první mechanický prototyp; skutečné usazení,
-nosnost a stabilita bez proudu dosud nejsou ověřené. Firmware se tím nemění.
+Šest pevných rekvizit, dva reproduktory a společný držák ESP32-S3 s kamerou.
+Fotografie majitele uvádí hůlku **19–20 cm**. Model počítá s délkou 200 mm,
+dříkem do 16 mm a ozdobnou hlavicí do **40 mm**. Průměry jsou rezervy podle
+fotografie, **ne změřené rozměry**. Hlavice má širší přední část lůžka;
+není třeba tisknout kopii ornamentu.
 
-**Nejprve vytisknout měrku a jednu přihrádku.** Před tiskem celého kompletu
-změřit vnitřek kufru, prostor pod víkem, průměr/nepravidelnou rukojeť hůlek,
-doručené servo, U059, PCB, konektory a powerbanku. U rozměrů kufru zatím není
-potvrzeno, zda jde o vnitřní prostor. Průměr hůlky **16 mm** a tisková plocha
-**220 × 220 mm** jsou pracovní předpoklady, nikoli údaje od majitele.
+Pracovní vnitřní prostor je **310 × 450 × 200 mm (X × Y × Z)**.
+Majitel dříve uvedl kufr 450 × 310 × 200 mm; vnitřní rozměr, výstelka,
+panty a prostor pod víkem stále nejsou potvrzené. Nejdříve vytiskni měrky
+a jednu přihrádku. Hotový CAD nedokazuje usazení do skutečné truhly ani
+bezpečný pohyb pod zatížením.
 
-## Co dostaneš
+## Soubory pro tisk a stavbu
 
-- Jednotlivé **STL v milimetrech**, každý soubor obsahuje jeden pevný díl.
-- Jednotlivé **STEP**, sestavu jedné přihrádky a sestavu všech šesti.
-- `nahled.png` a samostatný offline `nahled.html` s otáčením a ukázkou zdvihu.
-- `tiskovy-kusovnik.csv`, `verification.json` a celý balík ZIP.
-- Editovatelný parametrický zdroj `model.py`, `preview.py`, `parametry.json`.
+Po regeneraci jsou v `output/`:
 
-Generované výstupy jsou v `output/`, nejsou verzované. ZIP obsahuje návod,
-parametry, zdroj, STL, STEP, náhledy a ověření. Zdroj se uchovává také v repozitáři.
+- `kufr-mechanika-prototyp.zip`: kompletní STL, STEP, návod, parametry a zdroj.
+- `stl/`: každý soubor je jeden pevný díl, jednotky mm.
+- `single-compartment.step` a `case-assembly.step`: přesná sestava.
+- `nahled.html`: offline otočný náhled, posuvník skutečně otáčí lůžko, páku i táhlo.
+- `nahled.png` a `rozlozeni.png`: celkový model, detail a plán rozmístění.
+- `tiskovy-kusovnik.csv`: počty pro celý kufr; `prvni-prihradka.csv`: první modul.
+- `montazni-material.csv`: výchozí šrouby a další netištěný materiál.
+- `verification.json` a `stl-verification.json`: výsledky konkrétního exportu.
 
-## Rozvržení
+Výstupy jsou lokální a ignorované Gitem. Trvalý zdroj je `model.py`,
+`electronics.py`, `preview.py` a `parametry.json`; stejný zdroj je uvnitř ZIP.
 
-Osa X je šířka kufru **310 mm**, Y délka **450 mm**, Z výška **200 mm**.
-Šest modulů má rozteč **48 mm**, délku **240 mm** a přihrádku širokou
-**28 mm**; délková rezerva pro 200mm hůlku je 20 mm na každém konci.
-Mechanické moduly zaberou přibližně **288 × 240 mm**. Pod nimi je servo
-a vibrační jednotka. Vzadu jsou dva servisní sloupce na samostatných policích.
-Model kontroluje vejití do zadaného obálkového prostoru, nikoli skutečnou
-truhlu Marketos, panty, výstelku či kování. Do rozměrů je nutné započítat
-montážní vůli a odlehčení kabelů. Náhled obsahuje pracovní obálky hůlek,
-serva, U059 a powerbanky, nikoli přesné tovární modely.
+## Jednoduchý mechanismus
 
-Zvolená přihrádka se zvedne přibližně **28,3 mm**. Pro první kus není třeba
-tisknout velkou společnou vanu: každá základna i přihrádka má tři 80mm úseky,
-spojené šroubovanými pásky. Dvě kovové tyče na koncích vedou vložku vzhůru.
-Klika serva s válečkem je zachycená v příčné drážce pod vložkou. Horní poloha
-je kinematický návrh; pulzy konkrétního serva se musí individuálně kalibrovat.
+Hůlka leží v otevřeném lůžku a zůstává zajištěná dvěma pružnými pásky.
+**Zadní konec lůžka se otáčí na jednom M4 čepu.** Servo přes původní páku,
+tištěný adaptér a krátké táhlo nadzvedne přední konec. Při návratu stejné
+táhlo vrací lůžko dolů. Nejsou potřeba dlouhé vodicí tyče, ložiska ani ozubené
+rozvody. Pro každé servo se musí fyzicky ověřit osa, původní páka a pulzy.
 
-**Klika je zpětně pohánitelná.** Bez nezávislého mechanického zajištění může
-zvednutá vložka po odpojení proudu klesnout. Návrh proto zatím **nesplňuje
-požadavek plánu na stabilitu bez napájení** a není hotová provozní mechanika.
-Spodní podpěrné sloupky nesou vložku v klidové poloze. Před poháněným
-předváděním je třeba doplnit a ověřit pasivní zachycení/protiváhu a chování
-ve všech polohách včetně Stop, ne pouze v horním a spodním bodě. Váleček,
-horní krytky a převody serva nejsou bezpečnostní zámek. U první zkoušky
-vložku přidržet a posouvat ručně s odpojeným pohonem.
+Při výchozích parametrech: lůžko 240 mm, dvě 120mm poloviny, šířka dříku
+28 mm, přední 70mm část široká 46 mm. Rozteč šesti modulů je 48 mm.
+Přední hrana se zvedne **30,7 mm**, sklon lůžka je **7,74°**; táhlo má
+osovou délku **33,91 mm**. To jsou geometrické výsledky, nikoli naměřený
+zdvih serva. Hlavice směřuje k návštěvníkovi, tenký konec k zadnímu čepu.
 
-## Usazení elektroniky podle nákupního seznamu
+Spodní poloha dosedá na tištěnou podpěru. Čep používá seřiditelné tření:
+M4 šroub, podložky, pružnou podložku a pojistnou matici. Tištěné 1mm
+`hinge_spacer` určují mezeru; po zkoušce lze použít stejně tlusté třecí
+podložky vhodného materiálu. **Zadržení při výpadku proudu není ověřené.**
+Tření, tečení PETG a moment serva se musí zkoušet v celém rozsahu; pokud
+nedrží zatížené lůžko bez proudu, je třeba změnit zajištění. Není dovoleno
+považovat servo převodovku nebo utaženou matici za ověřený bezpečnostní zámek.
+Po Stop/chybě žádný automatický návrat; podmínky E5 a bezpečnostní větve
+zůstávají v [implementačním plánu](../docs/implementacni-plan.md).
 
-Zdroj dílů: [nákupní seznam](../../docs/nakupni-seznam-kufr.md) a
-[efekty/napájení](../docs/efekty-a-napajeni.md). Rozměry krabiček jsou vnější;
-stěny mají 2,4 mm, dno 3 mm, vnitřní rohové sloupky zabírají další prostor.
-Vývody a kabely musí mít vlastní rezervu. Montážní desky používají univerzální
-rastr a M3 sloupky; netvrdí shodu s nezměřenými otvory konkrétních PCB.
+## Rozmístění elektroniky
 
-| Součást | Usazení | Co je doložené / co změřit |
-| --- | --- | --- |
-| 6× 180° 9g servo | `servo_strap_cradle`, pásky + `crank_horn_adapter` na původní páce | Typ z košíku; tělo a osa jsou odhad. Rozteč otvorů páky upravit podle kusu. |
-| 6× M5Stack U059 N20 | `vibration_cage` pod pohyblivou vložkou | Odhad obálky 32 × 24 × 14 mm. Pásky nesmějí škrtit motor ani konektor. |
-| 6× WS2812B úsek asi 200 mm | Svislé lůžko na vnitřní bočnici vložky | Šířka 10 mm je odhad; změřit IP65 silikon, LED a vývody. |
-| ESP32-S3 N16R8 | `controller_box` + rastr | Přístup k oběma USB, EN/BOOT, kamerovému konektoru; anténa daleko od kovu a zdroje. |
-| PCA9685 | `pca9685_box` + rastr | Rezerva pro konektory šesti serv a šesti vibračních signálů; rozměry změřit. |
-| Pixel Shifter 6066 a rezistor 330 Ω | `controller_box` + rastr, odděleně od antény | Změřit PCB a konektory; držák nepředepisuje nezměřené montážní otvory. |
-| PD trigger, XY3606, pojistka, vypínač, svorky, kondenzátory | `power_box` + rastr | Dva oddělené držáky/desky, 20V úsek izolovat. Větrání ověřit měřením. |
-| Watchdog, load switch, enable logika | `safety_box` + rastr | Rezervovaná krabička; konkrétní bezpečnostní díly ještě nejsou vybrané. |
-| MAX98357A | `audio_box` + rastr | Změřit PCB, konektory a větrání. |
-| ICS43434 | `microphone_box`, víko s akustickým otvorem | Otvor 6 mm je pracovní; kapsli nasměrovat do něj, upevnit samostatně a oddělit pěnou od vibrací. |
-| Waveshare reproduktor | `speaker_box` + mřížka | Obálka **100 × 45 × 21 mm** z košíku. Montážní otvory a akustická vhodnost nejsou ověřené. Zatím jeden kus. |
-| Powerbanka | `powerbank_strap_cradle` + dva pásky | Pracovní obálka **155 × 70 × 28 mm**; majitel dosud model nespecifikoval. |
-| PTT, hlavní vypínač, PHYSICAL_ENABLE | `control_panel` | PTT otvor 12,4 mm, dvě obdélníková okna 20 × 13 mm. Okna upravit podle skutečných spínačů. |
-| Router/AP | `router_optional_box` + rastr | Volitelný držák mimo osazenou sestavu; konkrétní router chybí. Musí dostat místo/napájení po změření, nebo zůstat mimo kufr. |
-| Budoucí OV5640 / MCP23017 | Volné místo u ESP / v `safety_box` | Kamera je volitelná. Optická montáž a expander nejsou bez vybraného kusu dokončené. |
+Návštěvník stojí před kufrem (**Y−**). Otevřené police a držáky stojí vlastními
+nohami na dně, netíží kryty PCB. Zadní část začíná za přihrádkami; pod levou
+policí je rozvod, na ní powerbanka, na pravé PCA a dva zesilovače.
 
-Perforované desky slouží pro malé modulové PCB nebo univerzální DPS, včetně
-plánovaných 50 × 70 mm desek tam, kde vyjde rozměr. Pod PCB použít nejméně
-5mm distanční sloupky, izolující podložky a spojovací materiál odpovídající
-otvorům. Čtyři skutečné otvory desky nemusí sedět do rastru: vyvrtat/upravit
-montážní desku, nebo upevnit vhodnými pásky bez tlaku na součástky. Reproduktor
-a mikrofon vyžadují vlastní upevnění/pěnové těsnění; univerzální ventilované
-krabičky jsou montážní obálky, nikoli změřené akustické ozvučnice.
+| Součást | Umístění a uchycení |
+| --- | --- |
+| UGREEN PB720 / 25188 | Otevřená kolébka vlevo vzadu, dva pásky, tlačítko a porty přístupné. |
+| 2× Waveshare 14595, 8 Ω / 5 W | Dvě samostatné tištěné podpěry vzadu vlevo/vpravo, čela k návštěvníkovi. Obálka jednoho kusu 100 × 45 × 21 mm; otvory a příruby nezměřené. |
+| ESP32-S3 + OV5640 | Jedna horní zadní platforma; výměnný držák kamery míří přibližně 20° vzhůru. ESP leží přímo za kamerou, USB a FPC jsou přístupné. |
+| ICS43434 | Přední prostřední výškově posuvný držák, akustický port k návštěvníkovi. Oddělit PCB tenkou pěnou; port nezakrýt. |
+| PCA9685 | Pravá univerzální deska se štěrbinami, místo pro kabely ke všem šesti servům a U059. |
+| 2× zesilovač DFR0954 / MAX98357A | Dvě malé desky na pravé polici. Historický seznam potvrzuje jeden koupený zesilovač; druhý musí být pro dva samostatné reproduktory potvrzený/osazený. |
+| Joy-IT SBC-Buck5V5A, PD trigger, pojistka a svorky | Spodní servisní deska pod powerbankou. Výška komponent včetně kabelů musí odpovídat volnému prostoru; nejsou to změřené tovární modely. |
+| MCP23017, Pixel Shifter a drobná logika | Zadní univerzální servisní deska. Zachovat elektrické oddělení a přístup ke konektorům. |
+| PTT, hlavní vypínač, PHYSICAL_ENABLE | Odnímatelný přední boční panel; otvory jsou pracovní a musí se porovnat s doručenými prvky. Dřevěný kufr se modelem neřeže. |
+| 6× U059 a 6× 20cm RGB | U059 v kleci pod lůžkem, RGB na jeho dně pod rekvizitou. Vést pružnou smyčku mimo čep, páku a táhlo. |
 
-Police jsou nesené **M4 kovovými sloupky / závitovými tyčemi s maticemi**,
-ne víčky krabiček. Krabičky upevnit nezávisle do polic přes montážní otvory
-nebo pásky. Výšky levých polic 0/50/105/150 mm, pravých 0/50/95 mm.
-Horní reproduktor končí asi ve 189 mm: zadaná výška 200 mm nechává malou
-rezervu. Zmenšení vnitřního prostoru víkem znamená nutnou změnu rozvržení.
-V univerzálních krabičkách nejsou modelované tovární PCB ani kabely; jejich
-reálné vejití je samostatná zkouška.
+UGREEN má podle [výrobce](https://eu.ugreen.com/en-fi/products/25188)
+139 × 80 × 26,5 mm; [zvolená nabídka Alza](https://www.alza.cz/ugreen-20000mah-pd-100w-power-bank-d8021597.htm)
+uvádí 139 × 80,8 × 26,7 mm. Model používá větší obálku a navíc boční vůli
+1,2 mm. U kladného Y konce powerbanky zbývá jen 15,5 mm k nominální stěně:
+ověřit skutečný konektor, použít vhodný úhlový kabel nebo kolébku posunout.
+100 W je maximální výkon powerbanky, nikoli limit nebo záruka 5V rozvodu kufru.
+Elektrický návrh se řídí [napájením](../docs/efekty-a-napajeni.md).
 
-Vibrace se přenášejí pevně do vložky přes cage. Dvě vodicí tyče však část
-vibrací přenesou i do rámu. Není dokázáno, že se bude třást pouze vybraná
-hůlka; jeden prototyp musí ověřit účinek a případně doplnit pružné uložení.
-LED i U059 cestují s přihrádkou: nechat nejméně **40 mm volného zdvihu
-kabelové smyčky**, zajistit konce a ručně projet celý rozsah. Konektory ani
-vodiče se nesmějí dotknout kliky/drážky. `cable_clip` patří na pevný rám.
+Kamera a ESP jsou na společném držáku, plánované oblasti konektorů jsou
+asi 23 mm od sebe. **Délka/orientace originálního FPC není známá**:
+tento údaj není potvrzení jeho vejití. Použít originální spárovaný FPC,
+bez náhodného prodlužování, a upravit polohu desky podle skutečných konektorů.
+Sklon kamery změnit podle výšky stolu a návštěvníka. Kufr nemá změřené víko
+ani zorné pole; kamera potřebuje volný výhled přes lůžka a nezakryté víko.
+Podrobnosti varianty kamery jsou v [dokumentaci](../docs/kamera.md).
 
-## Tisk a montáž jedné přihrádky
+Mikrofon je přibližně 32 cm od obou reproduktorů. Jeho držák se musí
+nastavit nad skutečný přední lem; rozestup sám nezaručuje potlačení ozvěny.
+Reproduktory jsou na otevřených podpěrách, ne v navržených akustických
+ozvučnicích. Poslech, vibrace a mikrofon vyzkoušet v sestaveném kufru.
 
-1. Tisknout `fit_coupon`: první řada otvorů je M3, druhá řada od X− do X+
-   má průměry **4,1 / 4,3 / 4,5 / 4,7 / 4,9 mm**. Podle skutečné 4mm tyče
-   vybrat běžnou vůli; otvory případně vystružit. Tiskárna ani materiál dosud
-   nebyly potvrzené. Model ověřuje jen obálku 220 × 220 × 250 mm.
-2. PETG jako pracovní materiál, tryska 0,4 mm, vrstvy 0,2 mm, nejméně
-   4 obvody. Kliku, follower a spoje lokálně zesílit; výplň 35–50 % je
-   výchozí nastavení, nikoli výpočet únosnosti. PLA u měniče nedoporučujeme.
-3. Základny a vložky tisknout plochým dnem na podložce. Vložky mají pod
-   vodicími pouzdry a montážními výstupky převisy: podpěry jen pod mosty,
-   ne uvnitř otvorů. Follower položit boční plochou k podložce, kliku
-   rovnou stranou, váleček osou svisle, krabičky a klec otevřené nahoru.
-   STL jsou automaticky posunuté nad Z=0, **nejsou automaticky optimálně
-   natočené pro slicer**. U servo držáku podpěry podle orientace.
-4. Spojit `base_1..3` dvěma `base_splice`, `tray_1..3` dvěma `tray_splice`.
-   Použít M3 šrouby, matice a podložky. Krátké spoje cca M3×12, skutečnou
-   délku ověřit podle matic, podložek a dostupného místa. Nepočítat se
-   závitem přímo ve vrstveném plastu. Vruty do truhly navrhnout podle tloušťky dřeva.
-5. Osadit **dvě hladké kovové 4mm tyče délky 120 mm**, spodní lůžka,
-   posuvná pouzdra a horní krytky. Tyče vzájemně rovnoběžně; pomalý ruční
-   posuv musí jít bez zadírání. Krytky přilepit/zajistit až po rozebrání
-   a kontrole, nenahrazují servisně odnímatelný pevný doraz.
-6. Namontovat dva `lower_rest_pillar`; při spodní poloze nese vložku rám.
-   Dva `wand_saddle` jsou na koncích hůlky, vlepit po zkoušce. Boční výřez
-   sedel nechává průchod RGB pásku a silikonového krytu. Hůlku zajistit
-   dvěma pružnými pásky nebo čirými smyčkami;
-   nesmí při zdvihu vypadnout. Univerzální sedla nejsou kopie nepravidelné rukojeti.
-7. U059 upevnit do cage pásky. Klec přišroubovat přes čtyři montážní body
-   pod vložkou; výška 21 mm vyžaduje dlouhé šrouby přibližně M3×30,
-   nepřešroubovat do motoru. Osadit jeden RGB úsek na vnitřní bočnici.
-8. Servo uchytit pásky v jeho cradle. **Použít původní servo páku**,
-   nikoli tištěné drážkování. Adaptér má pracovní otvory M2,2 ve vzdálenosti
-   6 a 12 mm; před tiskem přizpůsobit páce. Váleček na M3 šroubu/hladkém
-   osazení nechat volně otáčet, ne sevřený maticí. Drážka 8,6 mm počítá
-   s válečkem 8 mm. Šroub musí bezpečně zachytit váleček v ose X.
-9. S odpojeným napájením ověřit zdvih, krajní vůle, všechny šrouby a kabely.
-   Teprve po doplnění pasivní podpory a bezpečnostní elektrické větve
-   vyzkoušet samostatné nezatížené servo, pak jeden zatížený modul.
-   Neočekávat, že 9g servo zvládne libovolnou hmotnost celé přihrádky.
+## Nejprve jeden modul
 
-Při radiusu kliky 20 mm vyžaduje 100g zvedaná hmotnost ideálně až cca
-**0,20 kg·cm** momentu; tření, rázy, páka a rezerva jej zvyšují. Hmotnost
-výtisku + hůlky + U059 + pásku + kabelů **změřit** a porovnat s reálným
-momentem serva při použitém napětí. Tento odhad nenahrazuje zátěžovou zkoušku.
+1. Změř vnitřek kufru, hlavici a dřík hůlky. Vytiskni `fit_coupon` pro M3/M4
+   a `head_fit_gauge`: otevřené výřezy zleva 32 / 36 / 40 / 44 mm.
+2. Vytiskni díly podle `prvni-prihradka.csv`. Výchozí materiál PETG,
+   tryska 0,4 mm, vrstva 0,2 mm, 4 obvody, 35–50 % výplně. Pevnost je
+   třeba ověřit; samotné nastavení sliceru ji nezaručuje.
+3. Dvě základny spoj jedním `base_splice`, dvě poloviny lůžka jedním
+   `tray_splice`. **Lůžko používá čtyři M3 zápustné šrouby DIN 965 s hlavou
+   nejvýše Ø6 mm**, zarovnané s podlahou. Osadit před LED páskem; běžné
+   válcové hlavy by zasahovaly do něj. Spodní matice musí zůstat přístupné.
+4. `base_floor_pad` patří pod konce základny; spodní vybrání schová hlavy
+   šroubů a nechá prostor pod spojkou. Upevnění ke dnu kufru vol podle
+   skutečné tloušťky a materiálu, nenaslepo dlouhými vruty.
+5. Namontuj `hinge_support`, M4 čep, dva 1mm mezikroužky a zadní část lůžka.
+   `lower_rest` je pod širokým předním koncem. Vyzkoušej ruční vyklopení.
+6. Servo vlož do `servo_strap_cradle`, zajisti pásky a přišroubuj přes
+   **vnější montážní uši**. Tištěný adaptér se šroubuje k původní páce;
+   rozteč M2 otvorů 6/12 mm je pracovní a musí odpovídat doručené páce.
+7. Táhlo má dva M3 čepy a na obou `link_spacer_3mm`. Hlavy čepových
+   šroubů jsou na vnější straně táhla; vnitřní matice potřebují prostor
+   mimo tělo serva. Výchozí délka M3×14, delší závit nesmí zasáhnout servo.
+   Zde použij **běžnou M3 matici tloušťky nejvýše 2,4 mm**, bez další
+   podložky v této osové sestavě; vyšší samojistná matice se nevejde.
+   Nastav volný pohyb a závit zajisti rozebíratelným prostředkem vhodným
+   pro kovové spojení, který se nedostane na plast. Matice nesmí sevřít
+   táhlo. Ověř celý ruční rozsah se servem odpojeným.
+8. U059 uchyť do klece pod lůžkem, sedla připevni po zkoušce pěnou/lepidlem
+   nebo vhodným páskem. Založ hůlku, zadrž ji dvěma pružnými smyčkami.
+   Kabely zajisti na obou koncích; první smyčka alespoň 40 mm je odhad,
+   skutečný posuv/ohyb zkontroluj v celém rozsahu.
+9. Zvaž celou pohyblivou část a proveď ruční i zatíženou zkoušku bez proudu
+   ve spodní, mezilehlých i horní poloze. Teprve po ověření mechanického
+   držení a elektrické bezpečnostní větve patří na řadu poháněný test.
 
-Pro šest modulů: 6 serv, 6 U059, 12 vodicích tyčí, 12 podpěr, 12 sedel,
-6 klik, 6 followerů, 6 válečků, 18 základnových a 18 vložkových segmentů.
-Úplný tiskový kusovník je CSV; běžné šrouby, matice, podložky, pásky,
-stahovací kabelové smyčky a M4 distanční sloupky jsou další materiál,
-ne tištěné díly. Volitelný router má v CSV počet 0.
+Tištěné lůžko a základny lze položit plochým dnem; zadní závěs a otvory
+potřebují lokální podpěry. Adaptér a táhlo tiskni širokou boční plochou,
+mezery/spacery osou otvoru vzhůru. Police a horní platformu orientuj deskou
+dolů, podpěry pod montážními patkami/PCB podložkami; věže reproduktorů
+a mikrofonu nejlépe na zadní ploše. STL jsou posunuté nad Z=0, **ne automaticky
+natočené pro tisk**. Náhled ukazuje montážní orientaci.
 
-## Regenerace a ověření
+## Regenerace a kontroly
 
-Python 3.11+ a prostředí s CadQuery:
+V `kufr/mechanika/`, Python 3.11+:
 
-```sh
-python -m venv .venv
-# Linux/macOS: .venv/bin/python; Windows: .venv\Scripts\python.exe
-.venv/bin/python -m pip install -r requirements.txt
-.venv/bin/python model.py
-.venv/bin/python verify_exports.py
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m unittest test_model -v
+.\.venv\Scripts\python.exe model.py
+.\.venv\Scripts\python.exe verify_exports.py
 ```
 
-`parametry.json` dovoluje změnit délku/šířku vložky, průměr hůlky, rozteč,
-tyče, zdvih, krabičky a pracovní obálky součástek. **Rozvržení zadních
-sloupců a způsob držení serva jsou konkrétní pro tento prototyp**:
-výrazně jiné rozměry vyžadují změnu `preview.py`/držáku, nejen JSON.
-Generátor odmítá známé nepřípustné kombinace. Není univerzální automatický
-návrh jakékoliv truhly a jakéhokoliv serva.
+Kontroly: uzavření táhla ve 101 polohách, jeho zpětný návrat, 21 vzorků
+průniků pohyblivých dílů i vybraných obálek šroubů/součástek, oddělení
+elektroniky od pohybu, jediný validní solid každého výtisku, obálka
+220 × 220 × 250 mm, nominální prostor kufru v klidu i po zdvihu a skutečné
+STL s uzavřenými hranami, kladným objemem a shodou s CAD do 2 %.
 
-Ověření: validita BREP a jediný solid každého dílu, kladný objem, STL/STEP
-export, obálka tiskárny, obálka sestavy v pracovním prostoru kufru a průniky
-pohyblivé vložky a kliky s pevnými tištěnými díly a vodicími tyčemi v
-**11 polohách**. Skutečné exportované STL navíc procházejí samostatnou
-kontrolou uzavřených hran, kladného orientovaného objemu a shody objemu
-s CAD do 2 % při použité triangulaci. Pohyblivé tištěné díly a pracovní
-obálky RGB/U059 se kontrolují také vzájemně.
-Kontrola nezahrnuje pevnost, nepřetržitou dráhu mezi vzorky, všechny vzájemné
-průniky, tovární díly, šrouby, kabely, anténu, teplotu ani pasivní stabilitu.
-Náhledový posuv neotáčí servo/kliku; slouží jen k zobrazení pohybu vložky.
-
-Napájení, watchdog, PHYSICAL_ENABLE, zákaz souběhu motoru a serva a reakce
-na Stop se řídí existujícím [implementačním plánem](../docs/implementacni-plan.md).
-Krabička `safety_box` bezpečnostní obvod nenahrazuje. Hotový CAD ani export
-STL neznamená dokončenou hardwarovou etapu E5/E6.
+Tyto kontroly nezahrnují všechny šrouby, kabely, nejmenší ohyb FPC,
+pevnost, teplotu, nepřetržitou dráhu mezi vzorky, akustiku, ani zadržení
+při výpadku proudu. Podmínky HW akceptace se nemění. Rozvržení desek a
+držáků je konkrétní; změna JSON není automatický návrh libovolné elektroniky.
+Při jiné hlavici/servu/PCB uprav držák a znovu proveď celý export a zkoušku.
