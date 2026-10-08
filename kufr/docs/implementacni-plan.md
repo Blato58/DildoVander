@@ -765,6 +765,22 @@ Výchozí síťové limity: TLS/connect 10 s; STT 15 s; dialog 12 s; TTS 15 s; c
 
 V ručním režimu výpadek řídicího telefonu sekvenci zruší. V samostatném režimu výpadek WAN neovlivní již místně přijatou, lokálně běžící sekvenci; nepotvrzený návrh se zruší. Stop, watchdog a porucha hardwaru zastavují oba režimy. Při přerušení během pohybu vypnout elektrický pohon, ale **nepokoušet se automaticky vrátit servo**; bez snímače je mechanický stav neznámý. Zvolená přihrádka zůstane nepřipravená. Odpojení proudu nedokazuje návrat přihrádky do spodní polohy. Mechanika musí být stabilní bez napájení a nesmí vyžadovat trvalé držení servem; to je podmínka prototypu.
 
+**Mechanická revize D154 (8. 10. 2026):** fotografie majitele uvádí hůlku
+19–20 cm, powerbanka je UGREEN PB720 / 25188 a osazují se dva reproduktory.
+Pro snadnější tisk/montáž nahrazuje CAD původní souběžný zdvih na dvou
+tyčích vyklápěným lůžkem na zadním M4 čepu, s původní servo pákou a jedním
+tištěným táhlem. Přední konec se geometricky nadzvedne asi 31 mm; rekvizita
+zůstává zajištěná v lůžku a normální návrat je řízený stejným servem.
+Fyzický kontrakt vysunutí/prezentace/návratu se nemění, firmware nepřebírá
+nové pulzy bez kalibrace. Pasivní zadržení se navrhuje třecím čepem, ale
+není ověřené; výpadek v jakékoli poloze a tečení plastu zůstávají součástí
+E5/B1. Společný zadní držák kamery a ESP zachovává krátký originální FPC,
+mikrofon je vpředu mimo reproduktory. Šířka ornamentu, skutečný vnitřek
+kufru, FPC a konkrétní elektronika se musí změřit. Původní CAD/export D126
+zůstává historickou evidencí; montážní návod a nový zdroj jsou
+v [mechanice](../mechanika/README.md). Žádné kritérium HW akceptace se tím
+neuzavírá.
+
 Firmware musí mít samostatně testovaný `Abort` a bezpečný výstup, nikoli čekat na další běžný krok stávající sekvence. Motorový pulz má provozní limit 150 ms a tvrdý softwarový strop 250 ms, servo okno maximálně 500 ms do následné kalibrace, celá sekvence 5 s. Pozdní smyčka při aktivním motoru znamená vypnutí, nikoli další prodloužení pulzu. Maximálně jeden motor NEBO jedno servo, nikdy současně; nejvýše jeden 20cm LED úsek může svítit i během pohybu. Celkové limity nesmí měnit AI nebo běžný klient.
 
 ### Elektrické safe state

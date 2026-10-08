@@ -6,6 +6,57 @@ Poslední aktualizace: **8. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D154 – 8. 10. 2026 – tiskový CAD a exporty pro upřesněnou elektroniku ověřené.**
+Fotografie majitele uvádí hůlku 19–20 cm; model počítá s 200 mm a pracovní
+rezervou 40 mm pro ozdobnou hlavici. Powerbanka UGREEN PB720 / 25188 má
+otevřenou kolébku pro konzervativní obálku 139 × 80,8 × 26,7 mm a vůli;
+výrobce uvádí 139 × 80 × 26,5 mm. Dva reproduktory Waveshare mají dvě
+samostatné podpěry směřující dopředu. Kamera a ESP sdílejí horní zadní
+držák, plánované oblasti konektorů jsou 22,85 mm od sebe, kamera je
+nakloněná 20° vzhůru. Přední mikrofon má výškový posuv a vzdálenost
+asi 318 mm od obou reproduktorů. Délka FPC není potvrzená.
+
+Původní třísegmentové lůžko s tyčemi nahrazuje dvoudílné lůžko na zadním
+M4 čepu, původní servo páka, tištěný adaptér a jedno táhlo. Geometrický
+zdvih přední hrany je 30,722 mm při sklonu 7,744°, osová délka táhla
+33,907 mm. Jedna tisknutelná sada má 33 různých dílů. Nový `electronics.py`
+drží otevřené police, prostor pro rozvod/měnič pod powerbankou, PCA,
+dvě rezervovaná místa zesilovačů, kameru/ESP, mikrofon a odnímatelný panel.
+Univerzální desky nejsou tvrzení shody s nezměřenými PCB. Aktuální seznam
+eviduje jeden koupený zesilovač; druhé osazení se musí potvrdit.
+
+Zdroj: `model.py`, `electronics.py`, `preview.py`, `parametry.json`,
+`test_model.py`, `montazni-material.csv`, nový montážní README a rozhodnutí
+v plánu. Lokální `kufr/mechanika/output/` obsahuje STL/STEP, obě sestavy,
+offline HTML, PNG, dvě tisková CSV, ověření a kompletní ZIP; výstupy jsou
+ignorované, jejich zdroj se předává Gitem. Firmware, nákup, napájení,
+server a aplikace se v tomto kroku neměnily.
+
+Ověření: `.venv/Scripts/python.exe -m unittest test_model -v` **9 passed**;
+`model.py` úspěšně vyexportoval **33 validních jednotlivých solidů**;
+`verify_exports.py` potvrdil **33 uzavřených STL**, kladné objemy a shodu
+s CAD do 2 %. Kontrola všech dvojic ve 21 polohách zahrnuje vybrané hlavy,
+matice a celé M3×14 čepy; uzavření/návrat táhla testované ve 101 polohách.
+Elektronika prošla samostatnou kontrolou průniků a **62 obálek hlav šroubů**.
+Tisková obálka 220 × 220 × 250 mm a nominální prostor kufru v klidu/i po
+zdvihu prošly. Ověřeno 42 lokálních Markdown odkazů, kusovníkové počty,
+CRC ZIP a shoda zabaleného zdroje. Nezávislá revize našla a ověřila opravy
+upevnění u LED, serva, podpěr a mikrofonu/kamery; nezůstal doložený nález.
+In-app Browser na `http://127.0.0.1:8766/nahled.html`, 1280 × 720:
+posuvník na 100 zobrazil 30,7 mm / 7,7°, horní/prostorový pohled i skrytí
+elektroniky fungovaly; console warning/error seznam prázdný. Náhled uložen
+do `output/browser-nahled.png`. `git diff --check` prošel.
+
+Neprovedeno: fyzický tisk, změřené vnitřní rozměry kufru, šířka hlavice,
+FPC/konektory, akustika, teplota, zatížené servo a zadržení při výpadku.
+Třecí M4 čep vyžaduje zkoušku i dlouhodobého tečení PETG ve všech polohách;
+E5/E6/B1 zůstávají otevřené. Další krok: měrky, jedna přihrádka a ruční
+zkouška s reálnou hůlkou, potom skutečné usazení elektroniky/kabelů.
+Implementační commit `1d61ce7bebbaca5ed54533a7ba2bf99d8ad71729` je na
+`codex/printable-case-final-electronics`. Povinný
+`scripts/Push-CurrentBranch.ps1` uspěl přes účet Blato58; read-back remote
+ref potvrdil stejnou SHA. Tento následný záznam uchovává skutečné předání.
+
 **D153 – 8. 10. 2026 – revize minimální objednávky, dokumentace ověřená.**
 Majitel hlásí nedostupný CD4093BE a žádá ponechat jen skutečně potřebné
 díly. [Objednávka](../../docs/objednavka-doplneni-kufru-2026-10-06.md)
