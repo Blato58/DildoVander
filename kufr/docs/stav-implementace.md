@@ -6,6 +6,36 @@ Poslední aktualizace: **8. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D153 – 8. 10. 2026 – revize minimální objednávky, dokumentace ověřená.**
+Majitel hlásí nedostupný CD4093BE a žádá ponechat jen skutečně potřebné
+díly. [Objednávka](../../docs/objednavka-doplneni-kufru-2026-10-06.md)
+má nyní základ pro jeden již koupený zesilovač/reproduktor, pájené
+kabely a kameru + MCP podle rozhodnutí 6. 10. Druhý zesilovač/PH2 kabel,
+Grove/JST-SM adaptéry a SD/čtečka jsou volitelné. Rezistory sníženy na
+100kΩ ×10, 15kΩ ×5, 22kΩ ×5. Servisní kolébka, snímání a výchozí stavy
+zůstávají potřebné. Zdroj lze vynechat jen při vlastním vhodném 20V PD.
+Součty z orientačních cen 6. 10.: Botland 764/377 Kč, Drátek 765 Kč,
+celkem 1 529/1 142 Kč bez dopravy; úspora 470 Kč vůči starému základu
+nebo 1 392 Kč proti objednávce se všemi doplňky.
+
+Celá kandidátní větev 2801 + CD4093BE + 2814 a její 100nF kondenzátory
+je odložená pouze pro nezatížený laboratorní prototyp pod dohledem.
+Ruční odpojení není doklad watchdogu; E0/E5/B1 zůstávají otevřené.
+Plán a napájení zachovávají cílový inhibit a akceptaci. Zároveň je
+výslovně otevřené rozhraní SD/mute DFR0954 (pull-up k 5V VCC proti
+3,3V logice); zmenšený košík není kompletní instalační kusovník.
+Změněna jen objednávka, úvod historického seznamu a dokumenty napájení,
+plánu, kamery a stavu. Firmware, zapojování, nákup ani nasazení neproběhly.
+
+Ověření: primární dokumentace TI/Pololu/DFRobot a cílené nabídky,
+kontrola součtů a vyřazení odložených položek ze základních tabulek,
+51 lokálních Markdown cílů v šesti dokumentech a `git diff --check`.
+Nezávislý read-only HW audit a kontrola kombinovaného diffu nenašly
+závadu. Nové ceny/sklady všech položek, firmware build a fyzické měření
+nebyly ověřované. Další krok: montážní trasy, konkrétní mute rozhraní,
+revize kamery a měření jedné přihrádky; watchdog doplnit před konečnou
+akceptací pohonů podle původního plánu.
+
 **D152 – 8. 10. 2026 – SSH, VPS a uložené cloudové prostředí aktualizované.**
 Majitel autorizoval Windows SSH přes alias `vps-dildovander` / `root`,
 prohlídku služeb a logů i změny serverového prostředí; výslovně požaduje

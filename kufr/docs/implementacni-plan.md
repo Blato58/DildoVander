@@ -782,6 +782,15 @@ kusovník v [nové objednávce](../../docs/objednavka-doplneni-kufru-2026-10-06.
 Výběr dílů neuzavírá E0/E5/B1. Kamera je zahrnutá do nákupu pro profil B,
 její softwarová etapa a ověření GPIO2/48 zůstávají samostatné.
 
+**Revize košíku 8. 10. 2026:** majitel žádá minimum a hlásí nedostupný
+CD4093BE. Druhý zesilovač/reproduktor, odpojitelné adaptéry a SD/čtečka
+jsou volitelné. Kandidátní automatické odpojení 2801 + CD4093BE + 2814
+se celé odkládá jen pro nezatížený laboratorní prototyp pod dohledem;
+níže uvedený safe state, watchdog pro provoz s publikem a kritéria E5
+zůstávají platná. Servisní kolébka, její snímání, OE a výchozí odpory
+zůstávají potřebné. Nynější objednávka není kompletní instalační kusovník,
+mimo jiné zbývá ověřit 5V pull-up SD/mute DFR0954 a rozhraní k 3,3V logice.
+
 PCA9685 `OE` má externí pull-up na 3,3 V a aktivní inhibit = HIGH. Nakonfigurovat neinvertované výstupy a `OUTNE=00`, aby při inhibit byly logické výstupy LOW; motorové DIN mají vlastní pull-down. Při inicializaci a resetu nejprve všechny kanály FULL_OFF, potom adresy/režim/prescaler, teprve pak lze uvolnit inhibit. Levný PCA modul může mít OE pull-down: předem změřit a vybrat/upravit modul tak, aby start vždy zůstal vypnutý. Zdrojové údaje PCA jsou v [H4].
 
 Samotné odstranění servo PWM negarantuje vypnutí motoru uvnitř každého serva. Doporučuji proto společnou **spínanou 5V větev pouze pohonů** (serva + vibrační moduly), dimenzovanou podle rozběhového proudu, ovládanou bezpečnostním obvodem. Logika je `ACTUATOR_EN = RUN_REQUEST AND WATCHDOG_OK AND PHYSICAL_ENABLE`, `OE = NOT ACTUATOR_EN`. RUN_REQUEST má externí pull-down; reset nebo jeho stažení vypíná přímo. Samostatný heartbeat pro watchdog vede v A z GPIO17 a v B z MCP GPA2; jde o softwarově přepínané GPIO po úspěšném průchodu řídicí úlohou, ne o autonomní PWM. V B se při zamrzlé I2C heartbeat zastaví, přímý RUN_REQUEST na GPIO2 zůstává nezávislou cestou vypnutí. MCP má 3,3V pull-down a resetové vstupy [H8]. Watchdog se musí nejprve prokázat pulzy při RUN_REQUEST=0; až potom lze povolit pohony. Při zapnutí připravit nulové výstupy před napájením a ověřit chování skutečných serv. Napájení LED, audia, PCA/MCP logiky a MCU zůstává oddělené od této spínané větve; signály nesmějí zpětně napájet odpojené pohony.
