@@ -45,6 +45,11 @@ prošlo 19 Inspect testů a 6 testů balení. V checkoutu platí všech 22
 lokálních Markdown odkazů; v ZIPu pouze odkaz README na samotný ZIP
 nemá cíl (archiv se do sebe záměrně nebalí). Referenční podklady jsou přiložené.
 
+Implementační commit `381e06388f38cf8c18f4a9091aab65fdeb7799c4` byl
+10. 10. 2026 odeslán přes `scripts/Push-CurrentBranch.ps1` na
+`origin/codex/wooden-case-insert-f2`; skript ověřil shodu vzdáleného SHA.
+Tento záznam ještě nepotvrzuje dokončení PR CI ani merge.
+
 Fyzická výroba, nalepení kotev, zkouška přepravy, kalibrace a nahrání
 firmware neproběhly. Neuzavřené jsou skutečné hůlky/pouzdra, servopáka,
 konektory, kamera/FPC, víko, ohyby kabelů, soudržnost dřeva/lepidla,
