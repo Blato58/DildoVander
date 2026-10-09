@@ -37,6 +37,7 @@ export class ProvisioningClient {
   private pending = false;
   private visible = false;
   private poll: Promise<void> | undefined;
+  private queued = false;
   constructor(
     private readonly bridge: ProvisioningBridge,
     private readonly update: (status: ProvisioningStatus | null, message: string, busy: boolean) => void,
@@ -50,7 +51,7 @@ export class ProvisioningClient {
 
   async connect(name: string): Promise<void> {
     const requestedGeneration = this.generation;
-    if (this.poll) await this.poll;
+    if (this.poll && !await this.waitForPoll(requestedGeneration)) return;
     if (requestedGeneration !== this.generation) return;
     if (this.pending) return;
     const generation = ++this.generation;
@@ -77,7 +78,7 @@ export class ProvisioningClient {
     const requestedGeneration = this.generation;
     // A tap during a background refresh waits for the BLE slot instead of
     // being dropped or starting a concurrent native request.
-    if (this.poll) await this.poll;
+    if (this.poll && !await this.waitForPoll(requestedGeneration)) return;
     if (requestedGeneration !== this.generation) return;
     if (!this.connected || this.pending) return;
     const generation = this.generation;
@@ -104,6 +105,7 @@ export class ProvisioningClient {
     this.cancelPoll();
     this.pending = false;
     this.poll = undefined;
+    this.queued = false;
     this.connected = false;
     this.update(null, 'BLE odpojeno. Samostatný kufr pokračuje bez telefonu.', false);
     await this.bridge.disconnect().catch(() => undefined);
@@ -112,6 +114,18 @@ export class ProvisioningClient {
   private cancelPoll(): void {
     if (this.timer !== undefined) clearTimeout(this.timer);
     this.timer = undefined;
+  }
+
+  private async waitForPoll(generation: number): Promise<boolean> {
+    if (this.queued) return false;
+    this.queued = true;
+    // Reserve one user action and disable further taps while its BLE slot waits.
+    // Background polling alone still leaves the screen unchanged.
+    this.update(null, 'Čekám na dokončení obnovy stavu kufru…', true);
+    await this.poll;
+    if (generation !== this.generation) return false;
+    this.queued = false;
+    return true;
   }
 
   private schedulePoll(): void {
@@ -127,7 +141,7 @@ export class ProvisioningClient {
     this.pending = true;
     try {
       const status = await this.bridge.status();
-      if (generation === this.generation) this.update(status, '', false);
+      if (generation === this.generation) this.update(status, '', this.queued);
     } catch (error) {
       if (generation === this.generation) {
         this.connected = false;

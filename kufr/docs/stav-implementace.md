@@ -50,6 +50,12 @@ regresí a required gate; backend/firmware/AI byly správně přeskočené.
 GitHub review pro `2c5fcc9` dokončilo bez nálezů; bezprostřední recheck
 odhalil nový dokumentační PR153. Jeho záznam rozměrů byl zachován; před merge
 se znovu načtou reviews i inline vlákna a ověří finální CI.
+Review pro `13355f3` následně našlo P2: dva současně čekající tapy neměly
+rezervaci prvního požadavku. Oprava rezervuje jeden slot a UI označí busy hned
+po uživatelském tapu; samotný polling dál busy nezobrazuje. Refresh zachová
+busy do zahájení/ukončení akce a disconnect rezervaci zruší. Nová regrese
+ověřuje tento interval, druhý tap a následný reconnect; finální lokální
+`npm test` **37/37** a `npm run build` prošly.
 Nová IPA se tímto nepublikuje.
 
 **9. 10. 2026 – doručený kufr: potvrzené rozměry a způsob prezentace.**

@@ -91,10 +91,11 @@ test('background refresh stays quiet and a tap waits for its BLE slot', async (c
   assert.equal(updates.length, beforePoll, 'polling must not disable controls');
   const mutation = client.perform(async () => { mutations++; return status; });
   assert.equal(mutations, 0, 'native requests remain serial');
+  assert.equal(updates.at(-1)[2], true, 'first tap reserves the slot and disables more taps');
   finishPoll(status);
   await mutation;
   assert.equal(mutations, 1, 'tap is not discarded');
-  assert.equal(updates[beforePoll][2], false);
+  assert.equal(updates.at(-1)[2], false);
   await client.disconnect();
 });
 
@@ -136,5 +137,38 @@ test('selecting another suitcase during a refresh waits rather than losing the t
   finishPoll(status);
   await connecting;
   assert.deepEqual(connections, ['KUFR_123456', 'KUFR_654321']);
+  await client.disconnect();
+});
+
+test('the first queued tap keeps controls busy until completion and disconnect clears its reservation', async (context) => {
+  context.mock.timers.enable({ apis: ['setTimeout'] });
+  let finishPoll;
+  let finishAction;
+  const updates = [];
+  let actions = 0;
+  const client = new ProvisioningClient({
+    connect: async () => status,
+    status: () => new Promise(resolve => { finishPoll = resolve; }),
+    disconnect: async () => {},
+  }, (...event) => updates.push(event));
+  client.show(true);
+  await client.connect('KUFR_123456');
+  context.mock.timers.tick(1000);
+  const beforeTap = updates.length;
+  const first = client.perform(async () => { actions++; return new Promise(resolve => { finishAction = resolve; }); });
+  await client.perform(async () => { actions++; return status; });
+  finishPoll(status);
+  await flush();
+  assert.equal(actions, 1);
+  assert.ok(updates.slice(beforeTap).every(event => event[2]), 'no re-enable between poll and queued action');
+  finishAction(status);
+  await first;
+  assert.equal(updates.at(-1)[2], false);
+  context.mock.timers.tick(1000);
+  const stale = client.connect('KUFR_654321');
+  await client.disconnect();
+  await client.connect('KUFR_112233');
+  finishPoll(status);
+  await stale;
   await client.disconnect();
 });
