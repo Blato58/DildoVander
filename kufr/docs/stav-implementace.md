@@ -51,6 +51,17 @@ prošly na izolovaném Linuxu GCC15.2; nezávislé review opravy bez nálezu.
 Firmware CI a nativní macOS podpis/publikace mají samostatnou akceptaci;
 další run musí ověřit celý opravený host suite.
 
+CI37889009222 již prošlo celým firmware host suite. HTTP smoke znovu
+odhalilo přenosovou race starého eager oversized realtime uploadu na Node24:
+izolovaná reprodukce nad shodným publikovaným backendem přesně určila
+`realtime-turns`, 2600261 B a EPIPE při zápisu po časném odmítnutí.
+Smoke nyní testuje declared-size image/realtime 413 přes Content-Length a
+Expect100-continue; nepovolí upload po odmítnutí, kontroluje úplný JSON,
+no-store a image HTTP1 close. Skutečné streamed-overflow testy zůstaly.
+Přesný full HTTP smoke na Node24.21.0 prošel třikrát po sobě na izolovaném
+Linuxu; nové testovací změny prošly nezávislým review. Aplikační kód ani
+limity se touto opravou neměnily. Finální CI čeká další předání.
+
 Git předání: implementační commit `c2ab3cf`, synchronizace dokumentačního
 `main` jako `ade0e32`, scoped push helper ověřil remote; PR144 je otevřený.
 CI37885094519 prošlo web/repository/.NET build+celý runner, ale odhalilo GCC
