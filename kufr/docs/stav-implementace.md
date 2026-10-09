@@ -6,6 +6,27 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**9. 10. 2026 – rozměry nakoupených součástek: dokumentační rešerše.**
+Na žádost majitele je připravený [přehled všech 32 položek potvrzeného
+inventáře](../mechanika/rozmery-nakoupenych-soucastek.md), navíc objednané
+kamery a vybrané powerbanky. Katalogové údaje byly ověřené na konkrétních
+stránkách výrobců/prodejců a oddělené od půdorysů PCB, délek kabelů a
+podmíněné shody variant. Rozměry svorek Degson a celé obálky PTT nebyly
+publikované; přesná kamera není identifikovaná. U U059 je rozpor výrobce
+32×24×8 mm proti prodejci 48×24×12 mm, proto se držák nesmí navrhnout
+bez měření doručeného kusu. PCA, mikrofon a zesilovače nemají úplnou
+katalogovou výšku; další montážní rozteče a kabelové obálky jsou vypsané
+k měření majitelem. Nové kolébky vyžadují potvrzení katalogové varianty.
+
+Změněné soubory: nový přehled rozměrů, odkazy v README mechaniky,
+záznamu doručeného kufru a potvrzené objednávce; tento stav. README také
+opraveno na již potvrzené dva zesilovače. Ověření: kontrola inventáře,
+zdrojových URL, lokálních odkazů a `git diff --check`. Neprováděly se
+aplikační buildy, placené AI testy, CAD export ani fyzická měření.
+CAD a parametry jsou beze změny, HW kritéria zůstávají otevřená.
+Další krok: doplnit chybějící měření a podle nich upravit rozložení
+do potvrzené spodní části kufru, následně ověřit obálky/pohyb před tiskem.
+
 **9. 10. 2026 – doručený kufr: potvrzené rozměry a způsob prezentace.**
 Majitel v konverzaci k pěti fotografiím potvrdil vnitřní rozměry:
 šířka 17″ = 431,8 mm, délka 10,5″ = 266,7 mm a výška spodní části
