@@ -56,6 +56,7 @@ class HardwareSafetyPort final : public SafetyPort {
   void LowerProp(uint8_t compartment) override {
     if (!effects_.Move(compartment, false)) effects_.Fault();
   }
+  uint32_t MotionTimeoutMs(uint8_t n) const override { return effects_.MotionTimeoutMs(n); }
   bool PropRaised(uint8_t compartment) const override { return effects_.IsRaised(compartment); }
   bool PropResting(uint8_t compartment) const override { return effects_.IsResting(compartment); }
  private:
@@ -91,7 +92,6 @@ class PhysicalInspection final : public LocalControlRecoveryGate {
   explicit PhysicalInspection(PhysicalEffects& effects) : effects_(effects) {}
   bool InspectionAllowsRecovery() const override {
     if (!effects_.Healthy() || !effects_.ButtonPressed()) return false;
-    for (uint8_t n = 1; n <= 6; ++n) if (!effects_.IsResting(n)) return false;
     return true;
   }
  private:
@@ -142,8 +142,8 @@ extern "C" void app_main() {
   std::array<ServoCalibration, 6> calibration{};
   uint64_t calibrationRevision = 0;
   const bool calibrated = hardwareStarted && hardware.LoadCalibration(calibration, calibrationRevision) &&
-                          effects.Configure(calibration, calibrationRevision, hardware.InhibitVerified());
-  if (!calibrated) ESP_LOGW(LogTag, "Hardware wiring/inhibit/endpoints/calibration unverified; motion remains inhibited");
+                          effects.Configure(calibration, calibrationRevision);
+  if (!calibrated) ESP_LOGW(LogTag, "Hardware wiring/calibration unverified; motion stays disabled");
   static EspIdfJournalStorage journalStorage(nvsStatus == ESP_OK);
   static PersistentCommandJournal journal(journalStorage);
   static EspIdfProvisioningStorage identityStorage(nvsStatus == ESP_OK);

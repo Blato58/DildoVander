@@ -26,6 +26,7 @@ class SafetyController {
   bool StartVibration();
   bool ReleaseLatch();
   bool LowerProp();
+  uint32_t MotionTimeoutMs() const { return port_.MotionTimeoutMs(compartment_); }
   bool PropRaised() const { return port_.PropRaised(compartment_); }
   bool PropResting() const { return port_.PropResting(compartment_); }
   void DisableActuators();

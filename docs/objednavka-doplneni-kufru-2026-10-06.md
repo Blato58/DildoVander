@@ -14,13 +14,13 @@ s jednotkou ani měření nelze tvrdit, že dorazilo původně navržených 5/2 
 
 Powerbanka **UGREEN 20000mAh PD 100W (PB720 / 25188)** je zvolená
 v předchozím zadání; oba nové nákupní snímky její koupi nedokládají.
-Použije se s už potvrzeným PD triggerem nastaveným na 20 V a tímto 5V
+Použije se s už potvrzeným PD triggerem nastaveným na 12 V a tímto 5V
 měničem. Akyga není nutná při použití vhodné zvolené powerbanky.
 
 Provozní limity: nejvýše jeden 20cm úsek WS2812B a jedno servo NEBO
-jedna vibrace. Světlo může svítit s pohonem. Automatický watchdog/load
-switch zůstává odložený pro nezatížený laboratorní prototyp pod dohledem;
-nákup ani software neuzavírají E5/B1.
+jedna vibrace. Světlo může svítit s pohonem. PCA OE řídí GPIO2 přímo;
+napájení pohonů odpojuje zelená servisní kolébka. Poloha serv se odvozuje
+z kalibrovaných pulzů a času, fyzické měření E5/B1 ještě neproběhlo.
 
 ## 1. Botland – dosud nepotvrzené
 
@@ -40,7 +40,7 @@ Měnič, MCP a reproduktorové PH2 kabely už znovu neobjednávat.
 **Zbývající doloženě nepotvrzené položky: orientačně 500 Kč**
 (479 + 21 Kč, bez dopravy), používáme-li zvolenou powerbanku.
 Ceny pocházejí z 6. 10., nebyly nově ověřené. Délky koupených kabelů,
-mute rozhraní, ochranná větev a montážní materiál se musí ověřit zvlášť;
+I2S audio, OE/resetové stavy a montážní materiál se musí ověřit zvlášť;
 500 Kč není úplný rozpočet finálně akceptovaného systému.
 
 Kamera ze sady není libovolný modul se stejným senzorem: před připojením
@@ -65,30 +65,6 @@ svorek nedávat tenké Dupont vodiče: Degson je určený od 0,2 mm². Pro LED
 nepoužívat tlakové klipsy bez ověření rozteče a silikonového krytu IP65;
 vybrané konektory se jednou připájí a zaizolují.
 
-### Odložené automatické vypnutí pohonů
-
-CD4093BE sám proud pohonů nespíná: obsahuje čtyři NAND hradla
-([TI](https://www.ti.com/product/CD4093B)). V návrhu skládá povolení
-z běhu firmware, watchdogu a servisní kolébky a ovládá PCA OE i silový
-spínač. Proto se z aktuálního košíku odkládá **celá trojice**, nejen čip:
-
-| Teď neobjednávat | Původní množství | Orientační cena | Role v úplném návrhu |
-| --- | ---: | ---: | --- |
-| [Pololu 2801 RC Switch](https://botland.cz/radiove-moduly/3733-rc-prepinac-s-digitalnim-vystupem-pololu-2801-5904422383398.html) | 1 ks | 120 Kč | Sledování heartbeat; podle [výrobce](https://www.pololu.com/docs/0J60/all) ztráta aktivity po 130 ms |
-| [Pololu 2814 MOSFET Slide Switch MP](https://botland.cz/elektronicke-a-digitalni-spinace/5119-velky-posuvny-spinac-mosfet-mp-45-40v-8a-s-ochranou-proti-zpetnemu-proudu-pololu-2814-5903351244893.html) | 1 ks | 107 Kč | Automatické odpojení 5V napájení pohonů |
-| [CD4093BE](https://botland.cz/logicke-obvody/17147-logic-cd4093be-4xnand-se-schmittovou-spousti-5ks-5904422327019.html) | původně balení 5 ks | 49 Kč | Logika povolení; majitel hlásí nedostupnost, nepředepisujeme náhradu bez kontroly úrovní |
-| [100 nF / 50 V](https://dratek.cz/arduino-platforma/7829-kondenzator-100nf-50v.html) | původně 10 ks | 10 Kč | Blokování pomocné logiky; pro samotný CD4093 stačí jeden přímo u napájení |
-
-Ruční vypnutí hlavní kolébkou nebo vytažení USB-C zastaví přívod energie,
-ale až po zásahu člověka. Při zamrznutí ESP32 může samostatná PCA9685 dál
-vydávat poslední nastavené impulzy; tepelný jistič při běžném proudu
-nezasáhne. Vytažení kabelu také nezaručuje bezpečnou polohu mechaniky.
-Odklad tedy umožňuje pokračovat v laboratorním ověřování, **neuzavírá E5/B1
-a nemění požadavek nezávislého watchdogu pro provoz s publikem**.
-Tento seznam není schéma pro obejití inhibit ve firmware. Levná druhá
-kolébka a snímání jejího stavu zůstávají pro servis; automatický Stop
-při zamrznutí nenahrazují.
-
 ## 4. Už koupené – znovu neobjednávat
 
 | Díly | Doložené množství | Použití |
@@ -102,13 +78,13 @@ při zamrznutí nenahrazují.
 | Adafruit ICS43434 | 1 | Mikrofon, napájení 3,3 V |
 | DFRobot DFR0954 | **2 celkem** | Původní 1 + nově potvrzený 1; jeden zesilovač pro každý reproduktor |
 | Waveshare 14595, 8 Ω / 5 W | 1 pár / **2 kusy** | Oba osadit, nezávislé SPK výstupy |
-| USB-C PD modul s přepínačem, Drátek 1782992576 | 1 | 20 V, max. 3 A; pro nový návrh vyhovuje |
+| USB-C PD modul s přepínačem, Drátek 1782992576 | 1 | 12 V, max. 3 A; pro nový návrh vyhovuje |
 | USB-C → USB-C 60 W / 3 A | 1 | Zdroj → PD modul; nový 5A kabel netřeba |
 | USB-A → USB-C datový kabel | 1 | 5V USB-A zásuvka → USB-UART ESP32 |
 | Bíle podsvícené momentové tlačítko | 1 | **Zahájení rozhovoru / PTT**, nikoli hlavní napájení |
 | Červeně podsvícená kolébka | **2 celkem** | Původní 1 + nově potvrzený 1; hlavní vypínač, druhý rezerva |
 | Zeleně podsvícená kolébka | 1 | Nově potvrzená; servisní vypínač pohonů |
-| Tepelný vratný jistič 5 A | 1 | Hlavní 5V přívod; není watchdog ani okamžité elektronické proudové omezení |
+| Tepelný vratný jistič 5 A | 1 | Hlavní 5V přívod; není okamžité elektronické proudové omezení |
 | Rezistory 330 Ω | 10 | RGB data, pomocné sériové odpory |
 | Kondenzátory 470 µF / 50 V | 10 | Dvojice paralelně u LED, pohonů a elektroniky |
 | Dupont M-F 20 cm, 40 vodičů | 2 balení | Signály; nejsou náhrada F-F |
@@ -127,8 +103,7 @@ při zamrznutí nenahrazují.
 | Degson 5pin rychlosvorka | 10 | Nově potvrzené; všech 5 pozic tvoří jeden elektrický uzel |
 
 Neobjednávat Pololu D24V90F5, 100W zdroj, Adafruit 5807 ani hlavní tlačítkový
-vypínač Pololu 2813 z dřívějšího návrhu. Pololu **2814** měl jinou roli:
-automatické odpojení pohonů, nyní je spolu s watchdogem odložený.
+vypínač Pololu 2813 z dřívějšího návrhu.
 Další momentové tlačítko není
 pro nynější ovládání potřeba.
 
@@ -145,8 +120,7 @@ pro nynější ovládání potřeba.
 - Zajistit existující 2,4GHz Wi-Fi s internetem (router/hotspot pro kufr).
   Nový router se automaticky nekupuje; není nutný pro místní offline řízení.
 - Kamera vyžaduje profil B a ověření GPIO2/48, ne jen zasunutí modulu.
-  Ovládání hardwaru a watchdogu ještě není implementované/změřené.
-- Nynější košík není kompletní kusovník automaticky chráněných pohonů.
-  Zbývá ověřit montážní rozměry, proudy, OE, resetové stavy a audio mute
-  rozhraní podle technického dokumentu; případné doplnění dílů určit ze
+  Adaptéry efektů/audio jsou implementované, kamerový driver E13 a fyzická měření ještě zbývají.
+- Před zapojením zbývá ověřit montážní rozměry, proudy, OE, resetové stavy a audio
+  propojení podle technického dokumentu; případné doplnění dílů určit ze
   skutečného schématu a měření, ne z úspěšného nákupu.

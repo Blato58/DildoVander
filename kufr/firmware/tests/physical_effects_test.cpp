@@ -5,13 +5,13 @@
 
 class FakeIo final : public PhysicalIo {
  public:
-  PhysicalInputs inputs{true, true, false, 63, 0};
+  PhysicalInputs inputs{false};
   bool run = false, fail = false;
-  int servoWrites = 0, vibrationWrites = 0, clears = 0, heartbeats = 0;
+  int servoWrites = 0, vibrationWrites = 0, clears = 0;
   uint8_t channel = 0;
   uint16_t pulse = 0;
   std::array<uint8_t, 108> pixels{};
-  void RunRequest(bool enabled) override { run = enabled; }
+  void EnableOutputs(bool enabled) override { run = enabled; }
   bool FullOff() override { assert(!run); ++clears; return !fail; }
   bool Servo(uint8_t selected, uint16_t us) override {
     assert(!run); channel = selected; pulse = us; ++servoWrites; return !fail;
@@ -21,7 +21,6 @@ class FakeIo final : public PhysicalIo {
   }
   bool Lights(const std::array<uint8_t, 108>& frame) override { pixels = frame; return !fail; }
   bool ReadInputs(PhysicalInputs& value) override { value = inputs; return !fail; }
-  void Heartbeat(uint64_t) override { ++heartbeats; }
 };
 
 class Journal final : public CommandJournal {
@@ -51,6 +50,7 @@ class SafetyAdapter final : public SafetyPort {
   void StartVibration(uint8_t n) override { if (!effects_.StartVibration(n)) effects_.Fault(); }
   void ReleaseLatch(uint8_t n) override { if (!effects_.Move(n, true)) effects_.Fault(); }
   void LowerProp(uint8_t n) override { if (!effects_.Move(n, false)) effects_.Fault(); }
+  uint32_t MotionTimeoutMs(uint8_t n) const override { return effects_.MotionTimeoutMs(n); }
   bool PropRaised(uint8_t n) const override { return effects_.IsRaised(n); }
   bool PropResting(uint8_t n) const override { return effects_.IsResting(n); }
  private:
@@ -70,9 +70,9 @@ struct Fixture {
   PhysicalPresentation adapter{effects, runtime};
   WandPresentation presentation{adapter};
   std::array<ServoCalibration, 6> calibration{};
-  Fixture() {
-    calibration.fill({1100, 1900, 500});
-    assert(effects.Configure(calibration, 1, true));
+  explicit Fixture(uint16_t travelMs = 500) {
+    calibration.fill({1100, 1900, travelMs});
+    assert(effects.Configure(calibration, 1));
     effects.Tick(0); effects.Tick(30);
     assert(effects.RecoverAfterInspection());
     assert(runtime.BindPresentation(presentation));
@@ -98,12 +98,7 @@ struct Fixture {
     adapter.Tick(now);
     return presentation.Start(pending, state, now);
   }
-  void Feedback() {
-    if (!io.run || io.pulse == 0) return;
-    const uint8_t bit = static_cast<uint8_t>(1u << io.channel);
-    if (io.pulse == 1900) { io.inputs.restingMask &= ~bit; io.inputs.raisedMask |= bit; }
-    else { io.inputs.raisedMask &= ~bit; io.inputs.restingMask |= bit; }
-  }
+
 };
 
 void LimitsAndFaults() {
@@ -122,28 +117,21 @@ void LimitsAndFaults() {
   assert(!f.io.run && f.effects.Healthy());
   assert(f.effects.Move(2, true) && f.io.channel == 1 && f.io.pulse == 1900);
   for (uint64_t t = 190; t <= 680; t += 10) f.effects.Tick(t);
-  assert(!f.io.run && !f.effects.Healthy()); // No endpoint; no timed success.
+  assert(!f.io.run && f.effects.IsRaised(2)); // Commanded position after calibrated travel.
+  f.effects.Fault();
   assert(f.effects.RecoverAfterInspection());
   assert(f.effects.StartVibration(1));
   f.effects.Tick(930); // A 250ms owner stall faults before the next output.
   assert(!f.effects.Healthy() && !f.io.run);
   f.effects.Tick(940);
   assert(f.effects.RecoverAfterInspection());
-  f.io.inputs.enabled = false;
-  f.effects.Tick(950);
-  assert(!f.effects.Healthy() && !f.effects.RecoverAfterInspection());
-  f.io.inputs.enabled = true;
-  f.io.inputs.raisedMask = 1; // Contradictory contacts fail closed.
-  f.effects.Tick(960);
-  assert(!f.effects.Healthy());
-  f.io.inputs.raisedMask = 0;
   f.io.fail = true;
   f.effects.Tick(970);
   assert(!f.io.run && !f.effects.Healthy());
 
   Fixture invalid;
-  invalid.calibration[0].travelMs = 501;
-  assert(!invalid.effects.Configure(invalid.calibration, 2, true));
+  invalid.calibration[0].travelMs = 3001;
+  assert(!invalid.effects.Configure(invalid.calibration, 2));
   assert(invalid.effects.CalibrationRevision() == 0 && !invalid.io.run);
 }
 
@@ -152,7 +140,6 @@ void AutonomousCycle() {
   assert(f.Start("proposal-1"));
   assert(f.journal.pending && f.io.servoWrites == 0 && f.io.vibrationWrites == 0);
   for (uint64_t t = 40; t < 9500; t += 10) {
-    f.Feedback();
     f.Tick(t);
   }
   assert(f.presentation.State() == WandPresentationState::Idle);
@@ -163,14 +150,15 @@ void AutonomousCycle() {
   assert(!f.Start("proposal-1", 9500)); // A replay cannot move again.
 
   Fixture failed;
-  assert(failed.Start("blocked"));
-  for (uint64_t t = 40; t < 3500; t += 10) failed.Tick(t); // No servo feedback.
+  assert(failed.Start("owner-stall"));
+  for (uint64_t t = 40; t < 2000; t += 10) failed.Tick(t);
+  failed.Tick(2250);
   assert(failed.presentation.State() == WandPresentationState::Fault);
   assert(failed.journal.pending && failed.journal.restores == 0 && !failed.io.run);
 
   Fixture stop;
   assert(stop.Start("stop"));
-  for (uint64_t t = 40; t < 2030; t += 10) { stop.Feedback(); stop.Tick(t); }
+  for (uint64_t t = 40; t < 2030; t += 10) { stop.Tick(t); }
   SelectionStep step;
   stop.runtime.Stop(step);
   const int writes = stop.io.servoWrites;
@@ -197,7 +185,7 @@ void ManualCycle() {
   assert(f.runtime.BeginAcceptedSelection(30, step));
   for (uint64_t t = 40; t < 9500; t += 10) {
     assert(f.runtime.RenewManualLease("lease", t));
-    f.Feedback(); f.Tick(t);
+    f.Tick(t);
   }
   assert(!f.sequence.IsBusy() && !f.journal.pending && f.journal.restores == 1);
   assert(f.control.ReadyMask() == 63 && f.io.servoWrites == 2 && f.io.vibrationWrites == 3);
@@ -205,7 +193,7 @@ void ManualCycle() {
 
 void InterruptedReturn() {
   // Cover both new manual phases: holding a raised prop and returning it.
-  for (uint64_t lostAt : {uint64_t{2500}, uint64_t{7050}}) {
+  for (uint64_t lostAt : {uint64_t{2500}, uint64_t{7500}}) {
     Fixture f;
     assert(f.runtime.AcquireManualControl("lease", 30));
     SelectionCommand command;
@@ -218,8 +206,6 @@ void InterruptedReturn() {
     assert(f.runtime.BeginAcceptedSelection(30, step));
     for (uint64_t t = 40; t <= lostAt; t += 10) {
       assert(f.runtime.RenewManualLease("lease", t));
-      // Confirm raise only; keep the lower move pending at the second cut.
-      if (f.io.pulse == 1900) f.Feedback();
       f.Tick(t);
     }
     const int writes = f.io.servoWrites;
@@ -233,7 +219,6 @@ void InterruptedReturn() {
   Fixture f;
   assert(f.Start("return-journal-failure"));
   for (uint64_t t = 40; t < 9500; t += 10) {
-    f.Feedback();
     if (f.io.servoWrites == 2) f.journal.fail = true;
     f.Tick(t);
   }
@@ -241,7 +226,28 @@ void InterruptedReturn() {
   assert(f.presentation.State() == WandPresentationState::Fault);
 }
 
+void LongerCalibratedTravel() {
+  Fixture f(1500);
+  assert(f.effects.MotionTimeoutMs(3) == 1750);
+  assert(f.Start("longer-than-500ms"));
+  for (uint64_t t = 40; t < 15000; t += 10) f.Tick(t);
+  assert(f.presentation.State() == WandPresentationState::Idle);
+  assert(f.journal.restores == 1 && f.io.servoWrites == 2 && !f.io.run);
+
+  Fixture manual(1500);
+  SelectionStep initial;
+  assert(manual.sequence.Start(2, 30, SelectionControlMode::Manual, initial));
+  for (uint64_t t = 40; t < 15000; t += 10) {
+    manual.effects.Tick(t);
+    SelectionStep step;
+    manual.sequence.ObserveControlLoopPass(t, step);
+    manual.sequence.Update(t, step);
+  }
+  assert(!manual.sequence.IsBusy() && !manual.sequence.NeedsRecovery());
+  assert(manual.io.servoWrites == 2 && manual.effects.IsResting(2));
+}
+
 int main() {
-  LimitsAndFaults(); AutonomousCycle(); ManualCycle(); InterruptedReturn();
-  std::cout << "Physical limits, feedback, journal, autonomous/manual return and Stop passed\n";
+  LimitsAndFaults(); AutonomousCycle(); ManualCycle(); InterruptedReturn(); LongerCalibratedTravel();
+  std::cout << "Physical limits, calibrated commanded travel, journal, autonomous/manual return and Stop passed\n";
 }

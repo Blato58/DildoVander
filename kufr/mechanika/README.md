@@ -66,7 +66,7 @@ policí je rozvod, na ní powerbanka, na pravé PCA a dva zesilovače.
 | ICS43434 | Přední prostřední výškově posuvný držák, akustický port k návštěvníkovi. Oddělit PCB tenkou pěnou; port nezakrýt. |
 | PCA9685 | Pravá univerzální deska se štěrbinami, místo pro kabely ke všem šesti servům a U059. |
 | 2× zesilovač DFR0954 / MAX98357A | Dvě malé desky na pravé polici. Historický seznam potvrzuje jeden koupený zesilovač; druhý musí být pro dva samostatné reproduktory potvrzený/osazený. |
-| Joy-IT SBC-Buck5V5A, PD trigger, pojistka a svorky | Spodní servisní deska pod powerbankou. Výška komponent včetně kabelů musí odpovídat volnému prostoru; nejsou to změřené tovární modely. |
+| Joy-IT SBC-Buck02, PD trigger, pojistka a svorky | Spodní servisní deska pod powerbankou. Výška komponent včetně kabelů musí odpovídat volnému prostoru; nejsou to změřené tovární modely. |
 | MCP23017, Pixel Shifter a drobná logika | Zadní univerzální servisní deska. Zachovat elektrické oddělení a přístup ke konektorům. |
 | PTT, hlavní vypínač, PHYSICAL_ENABLE | Odnímatelný přední boční panel; otvory jsou pracovní a musí se porovnat s doručenými prvky. Dřevěný kufr se modelem neřeže. |
 | 6× U059 a 6× 20cm RGB | U059 v kleci pod lůžkem, RGB na jeho dně pod rekvizitou. Vést pružnou smyčku mimo čep, páku a táhlo. |

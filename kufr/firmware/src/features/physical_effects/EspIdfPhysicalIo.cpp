@@ -3,28 +3,22 @@
 #include <cstring>
 #include "driver/gpio.h"
 #include "esp_rom_sys.h"
-#include "esp_timer.h"
 #include "nvs.h"
 
 namespace {
-constexpr gpio_num_t RunPin = static_cast<gpio_num_t>(KufrBoard::ProfileB.run);
-// This effects profile deliberately leaves SD unmounted. GPIO38 is GOOD input.
-constexpr gpio_num_t GoodPin = static_cast<gpio_num_t>(KufrBoard::WatchdogGood);
+constexpr gpio_num_t OePin = static_cast<gpio_num_t>(KufrBoard::ProfileB.oe);
 constexpr int IoTimeoutMs = 10;
-bool Flag(nvs_handle_t handle, const char* key) {
-  uint8_t value = 0;
-  return nvs_get_u8(handle, key, &value) == ESP_OK && value == 1;
-}
+
 }
 
 bool EspIdfPhysicalIo::Fail() {
   failed_.store(true);
-  if (profileVerified_) gpio_set_level(RunPin, 0);
+  if (profileVerified_) gpio_set_level(OePin, 1);
   return false;
 }
 
-void EspIdfPhysicalIo::RunRequest(bool enabled) {
-  if (profileVerified_) gpio_set_level(RunPin, enabled && Available() && inhibitVerified_);
+void EspIdfPhysicalIo::EnableOutputs(bool enabled) {
+  if (profileVerified_) gpio_set_level(OePin, enabled && Available() ? 0 : 1);
 }
 
 bool EspIdfPhysicalIo::Write(i2c_master_dev_handle_t device, uint8_t reg,
@@ -44,14 +38,13 @@ bool EspIdfPhysicalIo::Read(i2c_master_dev_handle_t device, uint8_t reg,
 bool EspIdfPhysicalIo::Initialize(bool nvsReady) {
   nvs_handle_t handle;
   if (!nvsReady || nvs_open("wand_hw", NVS_READONLY, &handle) != ESP_OK) return false;
-  profileSelected_ = Flag(handle, "profile_b_ok");
-  profileVerified_ = profileSelected_ && Flag(handle, "mute_ok");
-  inhibitVerified_ = Flag(handle, "inhibit_ok") && Flag(handle, "positions_ok");
+  uint8_t verified = 0;
+  profileSelected_ = nvs_get_u8(handle, "profile_b_ok", &verified) == ESP_OK;
+  profileVerified_ = profileSelected_ && verified == 1;
   nvs_close(handle);
   if (!profileVerified_) return false;
-  gpio_set_level(RunPin, 0);
-  if (gpio_set_direction(RunPin, GPIO_MODE_OUTPUT) != ESP_OK ||
-      gpio_set_direction(GoodPin, GPIO_MODE_INPUT) != ESP_OK) return Fail();
+  gpio_set_level(OePin, 1);
+  if (gpio_set_direction(OePin, GPIO_MODE_OUTPUT) != ESP_OK) return Fail();
   mutex_ = xSemaphoreCreateMutex();
   if (!mutex_) return Fail();
   i2c_master_bus_config_t busConfig{};
@@ -69,14 +62,14 @@ bool EspIdfPhysicalIo::Initialize(bool nvsReady) {
   device.device_address = KufrBoard::McpAddress;
   if (i2c_master_bus_add_device(bus_, &device, &mcp_) != ESP_OK) return Fail();
   // BANK=0 is the reset state; no other owner may reconfigure this expander.
-  const uint8_t zero = 0, directions[] = {0xf9, 0xff}, pulls[] = {0xf1, 0xff};
+  const uint8_t zero = 0, directions[] = {0xff, 0xff}, pulls[] = {0x01, 0x00};
   if (!Write(mcp_, 0x0a, &zero, 1) || !Write(mcp_, 0x14, &zero, 1) ||
       !Write(mcp_, 0x0c, pulls, 2) || !Write(mcp_, 0x00, directions, 2)) return Fail();
   // Sleep while changing prescaler; 25MHz / (4096 * 122) ~= 50Hz.
   const uint8_t sleep = 0x30, mode2 = 0x04, prescale = 121, wake = 0x20;
   if (!Write(pca_, 0x00, &sleep, 1) || !Write(pca_, 0x01, &mode2, 1) ||
       !Write(pca_, 0xfe, &prescale, 1) || !FullOff() || !Write(pca_, 0x00, &wake, 1)) return Fail();
-  esp_rom_delay_us(500);  // Oscillator startup, once, while inhibited.
+  esp_rom_delay_us(500);  // Oscillator startup, once, with OE disabled.
   rmt_tx_channel_config_t rgbConfig{};
   rgbConfig.gpio_num = GPIO_NUM_48;
   rgbConfig.clk_src = RMT_CLK_SRC_DEFAULT;
@@ -88,8 +81,7 @@ bool EspIdfPhysicalIo::Initialize(bool nvsReady) {
       rmt_new_copy_encoder(&copy, &encoder_) != ESP_OK || rmt_enable(rgb_) != ESP_OK) return Fail();
   available_ = true;
   std::array<uint8_t, 108> dark{};
-  if (!Lights(dark) || xTaskCreate(PulseTask, "hw_heartbeat", 3072, this, 6, &pulseTask_) != pdPASS)
-    return Fail();
+  if (!Lights(dark)) return Fail();
   return true;
 }
 
@@ -115,7 +107,7 @@ bool EspIdfPhysicalIo::LoadCalibration(std::array<ServoCalibration, 6>& calibrat
 bool EspIdfPhysicalIo::FullOff() {
   if (!pca_) return !failed_.load();
   // Clear per-channel FULL_ON as well as ALL_LED override. Future writes must
-  // not resurrect a latched motor. RUN_REQUEST is already LOW on every caller.
+  // not resurrect a latched motor. OE is already HIGH on every caller.
   if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(20)) != pdTRUE) return Fail();
   uint8_t channels[64]{};
   for (unsigned i = 0; i < 16; ++i) channels[i * 4 + 3] = 0x10;
@@ -162,17 +154,6 @@ bool EspIdfPhysicalIo::Lights(const std::array<uint8_t, 108>& grb) {
           rmt_tx_wait_all_done(rgb_, 10) == ESP_OK) || Fail();
 }
 
-bool EspIdfPhysicalIo::McpOutput(uint8_t pin, bool enabled) {
-  if (!Available() || (pin != 1 && pin != 2)) return false;
-  if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(20)) != pdTRUE) return Fail();
-  const uint8_t next = enabled ? output_ | (1u << pin) : output_ & ~(1u << pin);
-  const bool result = Write(mcp_, 0x14, &next, 1);
-  if (result) output_ = next;
-  xSemaphoreGive(mutex_);
-  return result;
-}
-bool EspIdfPhysicalIo::SetAudioEnabled(bool enabled) { return McpOutput(1, enabled); }
-
 bool EspIdfPhysicalIo::ReadInputs(PhysicalInputs& inputs) {
   if (!Available()) return false;
   uint8_t gpio[2]{};
@@ -181,43 +162,6 @@ bool EspIdfPhysicalIo::ReadInputs(PhysicalInputs& inputs) {
   xSemaphoreGive(mutex_);
   if (!result) return false;
   const uint16_t levels = static_cast<uint16_t>(gpio[0] | gpio[1] << 8);
-  inputs.enabled = (levels & 8) != 0;
   inputs.button = (levels & 1) == 0;
-  inputs.watchdogGood = gpio_get_level(GoodPin) != 0;
-  inputs.raisedMask = static_cast<uint8_t>((~levels >> 4) & 63);
-  inputs.restingMask = static_cast<uint8_t>((~levels >> 10) & 63);
   return true;
-}
-
-void EspIdfPhysicalIo::Heartbeat(uint64_t nowMs) {
-  if (!Available() || !inhibitVerified_ || !pulseTask_) return;
-  requestedAt_.store(nowMs);
-  xTaskNotifyGive(pulseTask_);  // One collapsed request, never a replay queue.
-}
-void EspIdfPhysicalIo::PulseTask(void* context) {
-  auto& self = *static_cast<EspIdfPhysicalIo*>(context);
-  while (true) {
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    const uint64_t nowMs = static_cast<uint64_t>(esp_timer_get_time() / 1000);
-    if (nowMs < self.requestedAt_.load() || nowMs - self.requestedAt_.load() > 20) {
-      self.Fail(); continue;
-    }
-    if (!self.Available()) continue;
-    if (xSemaphoreTake(self.mutex_, pdMS_TO_TICKS(20)) != pdTRUE) { self.Fail(); continue; }
-    // Hold the shared bus for the complete single pulse. A 64-byte PCA clear
-    // or audio mute write must not stretch its HIGH interval past 2.5ms.
-    const uint64_t admittedMs = static_cast<uint64_t>(esp_timer_get_time() / 1000);
-    if (admittedMs < self.requestedAt_.load() || admittedMs - self.requestedAt_.load() > 20) {
-      xSemaphoreGive(self.mutex_); self.Fail(); continue;
-    }
-    uint8_t next = self.output_ | 4;
-    const bool high = self.Write(self.mcp_, 0x14, &next, 1);
-    const int64_t started = esp_timer_get_time();
-    if (high) esp_rom_delay_us(1000);
-    next = self.output_ & ~4;
-    const bool low = self.Write(self.mcp_, 0x14, &next, 1);
-    const bool timely = esp_timer_get_time() - started <= 2500;
-    xSemaphoreGive(self.mutex_);
-    if (!high || !low || !timely) self.Fail();
-  }
 }

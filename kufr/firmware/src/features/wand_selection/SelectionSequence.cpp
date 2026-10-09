@@ -56,7 +56,7 @@ bool SelectionSequence::Update(uint32_t nowMs, SelectionStep& step) {
   }
 
   // Unsigned subtraction keeps short delays correct across millis() wraparound.
-  if (nowMs - sequenceStartedAtMs_ >= (returnsProp_ ? 10000 : SequenceHardLimitMs)) {
+  if (nowMs - sequenceStartedAtMs_ >= (returnsProp_ ? 15000 : SequenceHardLimitMs)) {
     Stop(step);
     return true;
   }
@@ -145,7 +145,7 @@ bool SelectionSequence::Update(uint32_t nowMs, SelectionStep& step) {
           step = {SelectionEffect::Highlight, selectedCompartment_};
           return true;
         }
-        if (elapsedMs >= LatchHardLimitMs) { Stop(step); return true; }
+        if (elapsedMs >= safety_.MotionTimeoutMs()) { Stop(step); return true; }
         return false;
       }
       if (elapsedMs >= LatchHardLimitMs) {
@@ -182,7 +182,7 @@ bool SelectionSequence::Update(uint32_t nowMs, SelectionStep& step) {
         step = {SelectionEffect::Idle, 0};
         return true;
       }
-      if (elapsedMs >= LatchHardLimitMs) { Stop(step); return true; }
+      if (elapsedMs >= safety_.MotionTimeoutMs()) { Stop(step); return true; }
       return false;
   }
 

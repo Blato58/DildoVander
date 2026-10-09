@@ -145,7 +145,7 @@ Přečtené místní podklady:
 - `kufr/mobilni-aplikace/README.md`, `package.json`, relevantní uzamčené závislosti v `package-lock.json`, `tsconfig.json`, `index.html`, `src/main.ts` a `src/style.css`.
 - `docs/elektronika.md` kvůli konkrétním periferiím a rozpočtu; `.gitignore` kvůli hranicím zdrojových a generovaných souborů.
 
-Firmware je PlatformIO `espressif32@7.1.3`, Arduino, předběžný profil `esp32-s3-devkitc-1`, QIO flash / OPI PSRAM, 16 MB / 8 MB. Profil není důkazem skutečné paměti. `SelectionSequence` je čisté C++: hledání 6 × 100 ms, zvýraznění 400 ms, tři pulzy motoru 150 ms s mezerami 150 ms, uvolnění 400 ms, celkem přibližně 2,3 s. Odmítá souběh a čísla mimo 1–6, zvládá přetečení času a při pozdním volání provede nejvýše jeden krok. **Nemá abort, watchdog ani skutečné výstupy.** Sériový adaptér jen tiskne, zpracuje nejvýše 32 bajtů za průchod, přijímá `select 1..6`, `status`, `help`.
+Firmware je PlatformIO `espressif32@7.1.3`, Arduino, předběžný profil `esp32-s3-devkitc-1`, QIO flash / OPI PSRAM, 16 MB / 8 MB. Profil není důkazem skutečné paměti. `SelectionSequence` je čisté C++: hledání 6 × 100 ms, zvýraznění 400 ms, tři pulzy motoru 150 ms s mezerami 150 ms, uvolnění 400 ms, celkem přibližně 2,3 s. Odmítá souběh a čísla mimo 1–6, zvládá přetečení času a při pozdním volání provede nejvýše jeden krok. **Tento historický sériový prototyp nemá skutečné výstupy.** Sériový adaptér jen tiskne, zpracuje nejvýše 32 bajtů za průchod, přijímá `select 1..6`, `status`, `help`.
 
 Mobilní aplikace je jedna statická obrazovka ve vanilla TypeScriptu. Lockfile obsahuje TypeScript 5.9.3 a Vite 7.3.6; Vite deklaruje Node `^20.19.0 || >=22.12.0`. Neexistuje backend, síťový protokol, párování, PWA offline cache, audio ani AI integrace. Pro tento dokument nebyly spouštěny buildy, instalace ani hardware.
 
@@ -166,7 +166,7 @@ První provozní verze tedy pracuje samostatně **z hlediska telefonu**, nikoli 
 | Vlastník řízení | **ESP32 iniciuje HTTPS spojení s backendem a orchestruje rozhovor.** Backend vrací data, nemá endpoint ani push kanál pro otevírání. Autonomní přijetí a sekvenci vlastní firmware. Mobil je místní záloha. | Vyžaduje device identitu, TLS, správu paměti a nový conversation slice ve firmware. Pro S3 N16R8 je omezený PTT přenos realistický; nutné potvrdit heap/DMA/PSRAM zátěžovým testem. Telefonní most je záložní architektonická varianta jen při nevyhovujících měřeních. |
 | AI | Responses Sol pro text; Realtime 2.1 pro přímý hlas od D135, reasoning **medium** od D140 na přání majitele. Validované funkce určují návrh. Bez agentního frameworku, RAG nebo nástrojů řídících zařízení. | D135 vychází z primárních zdrojů: 2.1 zlepšuje hluk, ticho a přerušení; skutečná česká kvalita/latence vyžaduje poslech. D140 mění pouze Realtime effort; medium může zvýšit latenci a usage. SDK a wire kontrakt klientů zůstávají, JSON patch přidává reasoning. Konzervativní sazba výstupu 64 USD/1M pokrývá i textové reasoning tokeny 24 USD/1M; rozpočet 3 USD/session zůstává. |
 | Hlas | iOS Debug: **průběžný Realtime poslech se server VAD**, mikrofon se zavírá během přehrávání. PTT a STT → Sol → TTS jsou zálohy. | D116 drží jedno provider spojení a automaticky pokračuje po dohrání. Přerušování řeči a samostatný ESP32 hlas vyžadují další práci E9. Latenci/kvalitu změřit po nasazení; místní bezpečnost výběru zůstává v ESP32. |
-| Firmware runtime | Pro síťovou etapu přejít na **ESP-IDF 6.1 přes stávající PlatformIO 7.1.3**, zachovat čisté C++ jádro a vertical slices. | Malá migrace `main.cpp` a sériového adaptéru. Důvodem je konfigurovatelný oficiální WSS server, I2S, watchdog a NVS; manifest platformy rozlišuje Arduino 2.0.17 a ESP-IDF 6.1. Nemíchat návody nového IDF s existujícím Arduino runtime. K Arduinu se vrátit jen při doloženém jednodušším a udržovaném řešení všech těchto potřeb. |
+| Firmware runtime | Pro síťovou etapu přejít na **ESP-IDF 6.1 přes stávající PlatformIO 7.1.3**, zachovat čisté C++ jádro a vertical slices. | Malá migrace `main.cpp` a sériového adaptéru. Důvodem je konfigurovatelný oficiální WSS server, I2S a NVS; manifest platformy rozlišuje Arduino 2.0.17 a ESP-IDF 6.1. Nemíchat návody nového IDF s existujícím Arduino runtime. K Arduinu se vrátit jen při doloženém jednodušším a udržovaném řešení všech těchto potřeb. |
 | Kamera | Nejprve žádná; první obrazový experiment kamerou telefonu. Kufrovou OV5640 + MicroSD dodat až jako samostatný profil. | GPIO a výkon jsou těsné. Obraz je jen volitelný popis kostýmu, nikdy identita člověka či povel aktuátoru. |
 
 Capacitor 8 podporuje iOS 15+ a vyžaduje Xcode 26.0+; jeho CLI vyžaduje Node 22+ [O1]. Pro tento projekt připnout Node alespoň 22.12 kvůli existujícímu Vite a konkrétní otestované verze Capacitor balíčků. iOS přístup do LAN vyžaduje vlastní popis oprávnění a deklaraci používané Bonjour služby; odmítnutí musí mít vlastní stav UI [O2]. .NET 10 má uvedenou podporu do 14. 11. 2028 [O3]. Podpora WSS je doložena příkladem Espressif, nikoli dosavadním sestavením tohoto projektu [O4]. Přesné package verze a konfiguraci zvolených runtime uzamknout v příslušné implementační etapě; plán žádné balíčky neinstaluje.
@@ -262,7 +262,7 @@ Tabulka je návrh cílových adresářů; vytvářet je postupně s příslušn�
 | `firmware/src/features/wand_selection/` | Stávající sekvence, abort, hardwarový port RGB/PCA/motorů, kalibrace přihrádek. |
 | `firmware/src/features/device_control/` | Ověření klienta, příkazy, idempotence, revision, snapshot, výhradní vlastník řízení. |
 | `firmware/src/features/conversation/` | Samostatný orchestrátor: fyzické PTT, HTTPS klient backendu, session/turn/generation, návrh, autonomní přijetí a ukončení opuštěného sezení. Text a média telefonu jsou alternativní vstupy do stejného sezení. |
-| `firmware/src/features/safety/` | Jediný vlastník povolení pohonů, stop latch, watchdog, reakce na reset a chyby sběrnice. |
+| `firmware/src/features/safety/` | Jediný vlastník povolení pohonů, stop latch, softwarové timeouty, reakce na reset a chyby sběrnice. |
 | `firmware/src/features/voice_turn/` | I2S, DMA, PTT, zesilovač, omezené buffery, lokální nouzové audio. |
 | `firmware/src/features/provisioning/` | Fyzické párovací okno, Wi-Fi/NVS, identita desky a revize konfigurace. |
 | `firmware/src/features/costume_snapshot/` | Kamera a jeden JPEG; samostatná volitelná capability. |
@@ -466,7 +466,7 @@ Snapshot lokálního protokolu v1 nyní vyžaduje `conversation:{conversationId,
 - Firmware zpracuje příkaz atomicky v jednom vlastníkovi stavu: ověřit auth/boot/lease → rozpoznat duplicitu → validovat nový příkaz → zaznamenat přijetí → ACK → výstupy. Stejné ID s jiným obsahem = `id_conflict`. Duplicita vrací uložený stav, nespustí sekvenci znovu.
 - Za lease vede firmware rostoucí `sequence` a high-water mark; opakování starého čísla se nikdy nestane novým povelem ani po vytěsnění cache. Uchovat posledních 64 výsledků v RAM. Starý příkaz mimo cache vrátí `already_seen_result_unavailable`; nový příkaz s vynechaným pořadím se odmítne `sequence_gap`, klient načte snapshot. Čítač se přiděluje v jediném odesílacím místě.
 - Před prvním fyzickým výstupem zapsat malý NVS journal `{commandId, compartment, inProgress}`; při úspěchu jej uzavřít. Selhání zápisu = žádný pohyb. Při bootu s neuzavřeným záznamem `RecoveryRequired`. Neukládat heartbeat ani každý pulz do flash.
-- Přijetí není dokončení. Celkový limit sekvence 5 s; při překročení watchdog zastaví výstupy. Telefon po 6 s bez terminální události žádá `state.get`, automaticky neposílá nový výběr.
+- Přijetí není dokončení. Celkový limit fyzické prezentace 15 s (historický sériový prototyp 5 s); při překročení řídicí úloha zastaví výstupy. Telefon po 16 s bez terminální události žádá `state.get`, automaticky neposílá nový výběr.
 - Po přerušení spojení nelze z timeoutu dovodit, zda se západka uvolnila. UI drží `OutcomeUnknown`, vyžádá snapshot a nabídne kontrolu obsluhou. **Žádný retry fyzického příkazu přes nový lease nebo boot.** Ruční nový pokus až po kontrole a explicitním zotavení, s novým ID.
 - Fronta výběrů má kapacitu nula při běžící sekvenci: druhý požadavek = `busy`, nikoli odložené otevření. Stop předbíhá média i běžné příkazy; při přeplnění control fronty bezpečně zastavit a zavřít session.
 
@@ -744,7 +744,7 @@ MicroSD ukládá pouze předem připravené nouzové hlášky a technické asset
 | TTS selže | Bez telefonu přehrát lokální chybovou hlášku. Platný návrh lze nabídnout pouze s úspěšně přehratelným lokálním oznámením jeho čísla; pokud ani to nefunguje, autonomní prezentaci zablokovat. Telefon může zobrazit text/číslo a umožnit explicitní ruční výběr. |
 | Telefon chybí / pozorovatel se odpojí | Samostatný kufr pokračuje beze změny, pokud má Wi-Fi/backend. Odpojení telefonu není porucha autonomního řízení. |
 | Telefon skončí během ručního ovládání | Po stop/disconnect nebo vypršení ručního lease vypnout výstupy a vyžádat kontrolu. Po návratu snapshot, neobnovovat výběr; návrat do samostatného režimu pouze explicitně. |
-| Wi-Fi/LAN chybí | Rozpracovaný nepotvrzený AI návrh zrušit, přejít na lokální offline menu. Již místně přijatou samostatnou sekvenci dokončit pod místním watchdogem; není závislá na cloudu. |
+| Wi-Fi/LAN chybí | Rozpracovaný nepotvrzený AI návrh zrušit, přejít na lokální offline menu. Již místně přijatou samostatnou sekvenci dokončit pod místním řízením a časovými limity; není závislá na cloudu. |
 | Router chybí | Fyzicky aktivovaný servisní SoftAP a pouze místní ruční režim; jinak mechanické ruční ovládání podle konstrukce. |
 
 Výchozí síťové limity: TLS/connect 10 s; STT 15 s; dialog 12 s; TTS 15 s; celý tah po puštění PTT max. 45 s. UI ukazuje fázi a po 8 s nabídne text/ruční režim. Cíl měření na akci: medián odpovědi do 5 s a p95 do 10 s po konci řeči; nejde o garantované SLA služby. Backend opakuje nejvýše jednou explicitní 429/503 s `Retry-After`, pokud se vejde do společného deadline. Nejasný síťový timeout po odeslání placeného POST automaticky neopakuje; může již být účtovaný. Klient opakuje pouze svou idempotentní operaci/polling. Po třech selháních poskytovatele otevřít circuit breaker na 60 s, potom jeden zkušební požadavek.
@@ -755,15 +755,15 @@ Výchozí síťové limity: TLS/connect 10 s; STT 15 s; dialog 12 s; TTS 15 s; c
 
 | Stav | Povolený přechod / akce |
 | --- | --- |
-| `BootSafe` | GPIO/OE do inhibit ještě před sítí, motory/servo napájení off, žádné automatické hledání polohy. Kontrola NVS, kalibrace, sběrnice. |
+| `BootSafe` | OE HIGH ještě před sítí, signály motorů/serv vypnuté, žádné automatické hledání polohy. Kontrola NVS, kalibrace, sběrnice. |
 | `RecoveryRequired` | Po každém zapnutí kontrola mechaniky obsluhou; neuzavřený journal zvýrazní neznámý předchozí výsledek. Samostatný reset + potvrzení připravenosti. |
 | `Ready` | Self-test, kalibrace, alespoň jedna dostupná přihrádka a explicitní režim. V manual platný lease, ve standalone místní povolení a validovaný aktuální AI návrh. Lze přijmout právě jeden výběr. |
 | Autonomní zdvih → prezentace → návrat | Přechody řídí čistá časovaná sekvence. Pohyby jsou omezené kalibrací; současně běží nejvýše jeden pohon. Starší `SelectionSequence` zůstává ruční vývojovou cestou. |
 | `Completed` | Po úspěšném normálním návratu odpojit výstupy a obnovit dostupnost pevné rekvizity; emitovat výsledek. Bez snímačů jde o dokončený povel, nikoli změřenou polohu. |
 | `Stopped` | Stop, ztráta řízení nebo timeout. Pohony ihned deaktivovat, výsledek `aborted`/`outcome_unknown`. Vyžaduje kontrolu obsluhou. |
-| `Fault` | I2C, watchdog, kalibrace/journal, brownout. Bez automatického resetování chyby a bez automatického pokračování. |
+| `Fault` | I2C, časové limity, kalibrace/journal, brownout. Bez automatického resetování chyby a bez automatického pokračování. |
 
-V ručním režimu výpadek řídicího telefonu sekvenci zruší. V samostatném režimu výpadek WAN neovlivní již místně přijatou, lokálně běžící sekvenci; nepotvrzený návrh se zruší. Stop, watchdog a porucha hardwaru zastavují oba režimy. Při přerušení během pohybu vypnout elektrický pohon, ale **nepokoušet se automaticky vrátit servo**; bez snímače je mechanický stav neznámý. Zvolená přihrádka zůstane nepřipravená. Odpojení proudu nedokazuje návrat přihrádky do spodní polohy. Mechanika musí být stabilní bez napájení a nesmí vyžadovat trvalé držení servem; to je podmínka prototypu.
+V ručním režimu výpadek řídicího telefonu sekvenci zruší. V samostatném režimu výpadek WAN neovlivní již místně přijatou, lokálně běžící sekvenci; nepotvrzený návrh se zruší. Stop a porucha hardwaru zastavují oba režimy. Při přerušení během pohybu vypnout elektrický pohon, ale **nepokoušet se automaticky vrátit servo**; bez snímače je mechanický stav neznámý. Zvolená přihrádka zůstane nepřipravená. Odpojení proudu nedokazuje návrat přihrádky do spodní polohy. Mechanika musí být stabilní bez napájení a nesmí vyžadovat trvalé držení servem; to je podmínka prototypu.
 
 **Mechanická revize D154 (8. 10. 2026):** fotografie majitele uvádí hůlku
 19–20 cm, powerbanka je UGREEN PB720 / 25188 a osazují se dva reproduktory.
@@ -781,37 +781,27 @@ zůstává historickou evidencí; montážní návod a nový zdroj jsou
 v [mechanice](../mechanika/README.md). Žádné kritérium HW akceptace se tím
 neuzavírá.
 
-Firmware musí mít samostatně testovaný `Abort` a bezpečný výstup, nikoli čekat na další běžný krok stávající sekvence. Motorový pulz má provozní limit 150 ms a tvrdý softwarový strop 250 ms, servo okno maximálně 500 ms do následné kalibrace, celá sekvence 5 s. Pozdní smyčka při aktivním motoru znamená vypnutí, nikoli další prodloužení pulzu. Maximálně jeden motor NEBO jedno servo, nikdy současně; nejvýše jeden 20cm LED úsek může svítit i během pohybu. Celkové limity nesmí měnit AI nebo běžný klient.
+Firmware musí mít samostatně testovaný `Abort` a bezpečný výstup, nikoli čekat na další běžný krok stávající sekvence. Motorový pulz má provozní limit 150 ms a tvrdý softwarový strop 250 ms, servo okno dle kalibrace 20–3000 ms + 250ms softwarová rezerva, fyzická prezentace do 15 s (sériový prototyp 5 s). Pozdní smyčka při aktivním motoru znamená vypnutí, nikoli další prodloužení pulzu. Maximálně jeden motor NEBO jedno servo, nikdy současně; nejvýše jeden 20cm LED úsek může svítit i během pohybu. Celkové limity nesmí měnit AI nebo běžný klient.
 
-### Elektrické safe state
+### Elektrické výchozí stavy
 
-**Nákupní audit 6. 10. 2026:** majitel upřesnil nejvýše jeden 20cm LED
-úsek a jedno servo NEBO jednu vibraci; LED a pohon se smějí překrývat.
-Konkrétní prototyp nyní používá koupený 3A PD trigger na 20 V, jediný
-Joy-IT 5 V / 5 A, MCP23017 a kandidátní inhibit Pololu 2801 (GOOD) +
-CD4093BE na 3,3 V + Pololu 2814 (ON). Koupené tlačítko zůstává PTT,
-koupená kolébka je hlavní vypínač; nová kolébka fyzicky přerušuje pouze
-pohony. Stav servisní kolébky se snímá děličem 15 kΩ / 22 kΩ před MOSFETem,
-ne druhým kontaktem třípinové kolébky. Detail, výchozí stavy, proudové
-odhady a povinné měření jsou v [návrhu napájení](efekty-a-napajeni.md);
-kusovník v [nové objednávce](../../docs/objednavka-doplneni-kufru-2026-10-06.md).
-Výběr dílů neuzavírá E0/E5/B1. Kamera je zahrnutá do nákupu pro profil B,
-její softwarová etapa a ověření GPIO2/48 zůstávají samostatné.
+**Rozhodnutí majitele 9. 10. 2026:** sestava používá pouze koupené díly.
+GPIO2 řídí přímo PCA OE; zelená kolébka ručně odpojuje 5V napájení serv
+a U059. Stav kolébky se nesnímá, MCP GPA3 je volný.
+PCA OE má pull-up kolem 10 kΩ (ze zásoby 2×22 kΩ paralelně) na 3,3 V a `OUTNE=00`: HIGH znamená výstupy LOW.
+Případný osazený pull-down OE upravit a změřit resetový stav GPIO2/LED.
+Před změnou kanálů nebo při Stop/I2C chybě nejdřív nastavit OE HIGH,
+potom FULL_OFF všech kanálů. Jedno servo nebo vibrace, jeden LED úsek.
+OE nezajišťuje odpojení 5V napájení; to provede servisní kolébka.
+Softwarový limit smyčky se uplatní při návratu do řídicí úlohy.
 
-**Revize košíku 8. 10. 2026:** majitel žádá minimum a hlásí nedostupný
-CD4093BE. Druhý zesilovač/reproduktor, odpojitelné adaptéry a SD/čtečka
-jsou volitelné. Kandidátní automatické odpojení 2801 + CD4093BE + 2814
-se celé odkládá jen pro nezatížený laboratorní prototyp pod dohledem;
-níže uvedený safe state, watchdog pro provoz s publikem a kritéria E5
-zůstávají platná. Servisní kolébka, její snímání, OE a výchozí odpory
-zůstávají potřebné. Nynější objednávka není kompletní instalační kusovník,
-mimo jiné zbývá ověřit 5V pull-up SD/mute DFR0954 a rozhraní k 3,3V logice.
-
-PCA9685 `OE` má externí pull-up na 3,3 V a aktivní inhibit = HIGH. Nakonfigurovat neinvertované výstupy a `OUTNE=00`, aby při inhibit byly logické výstupy LOW; motorové DIN mají vlastní pull-down. Při inicializaci a resetu nejprve všechny kanály FULL_OFF, potom adresy/režim/prescaler, teprve pak lze uvolnit inhibit. Levný PCA modul může mít OE pull-down: předem změřit a vybrat/upravit modul tak, aby start vždy zůstal vypnutý. Zdrojové údaje PCA jsou v [H4].
-
-Samotné odstranění servo PWM negarantuje vypnutí motoru uvnitř každého serva. Doporučuji proto společnou **spínanou 5V větev pouze pohonů** (serva + vibrační moduly), dimenzovanou podle rozběhového proudu, ovládanou bezpečnostním obvodem. Logika je `ACTUATOR_EN = RUN_REQUEST AND WATCHDOG_OK AND PHYSICAL_ENABLE`, `OE = NOT ACTUATOR_EN`. RUN_REQUEST má externí pull-down; reset nebo jeho stažení vypíná přímo. Samostatný heartbeat pro watchdog vede v A z GPIO17 a v B z MCP GPA2; jde o softwarově přepínané GPIO po úspěšném průchodu řídicí úlohou, ne o autonomní PWM. V B se při zamrzlé I2C heartbeat zastaví, přímý RUN_REQUEST na GPIO2 zůstává nezávislou cestou vypnutí. MCP má 3,3V pull-down a resetové vstupy [H8]. Watchdog se musí nejprve prokázat pulzy při RUN_REQUEST=0; až potom lze povolit pohony. Při zapnutí připravit nulové výstupy před napájením a ověřit chování skutečných serv. Napájení LED, audia, PCA/MCP logiky a MCU zůstává oddělené od této spínané větve; signály nesmějí zpětně napájet odpojené pohony.
-
-Minimální první prototyp může ověřit OE a ruční odpojení pohonů; pro provoz s publikem je podmínkou nezávislý hardwarový watchdog/inhibit a dosažitelný mechanický vypínač pohonů. Watchdog s hranovým obnovováním do 250 ms musí zachytit zatuhnutí i GPIO uvízlé HIGH; nesmí ho krmit autonomní PWM periferie. Přesné zapojení watchdogu/load switch je součást ověřovací etapy elektroniky, před ní se nepovolí veřejný provoz. I2C timeout 20 ms vyvolá inhibit přímo, bez dalšího pokusu o zápis přes vadnou sběrnici. PTT přes expander není nezávislé nouzové vypnutí.
+Serva nemají návratový kanál. Dokončení zdvihu/návratu je konec individuálně
+kalibrovaného časového okna, ne měřená poloha. Po přerušení žádný automatický
+návrat: nejdřív ruční kontrola mechanismu, potom místní zotavení tlačítkem.
+[Zapojení](zapojeni-potvrzeneho-hardwaru.md) a
+[napájení](efekty-a-napajeni.md) určují detaily; fyzické proudy, teplota,
+resetové stavy a pulzy se stále musí změřit. Výsledky mají
+`physicalVerification: unavailable`, dokud neexistuje fyzický důkaz.
 
 ### Stavy rozhovoru a UI
 
@@ -827,7 +817,7 @@ Minimální první prototyp může ověřit OE a ruční odpojení pohonů; pro 
 - Privátní device klíč, Wi-Fi a tokeny v NVS, ne v univerzálním image. Pro prototyp nepředstírat odolnost proti fyzickému čtení flash. Šifrování flash, secure boot a eFuse navrhnout při finalizaci servisního režimu; jejich nevratné zapnutí vyžaduje samostatné schválení a zálohu servisních postupů.
 - Cloud validuje velikosti, concurrency a tenant/device scope, CORS povoluje jen konkrétní vývojové originy. Lokální server omezí počet klientů, handshake a rámců; mDNS je pouze discovery. Logovat stabilní kódy chyb a korelační ID, ne Authorization hlavičky.
 - Obraz od AI, text i názvy vykreslovat jako text, ne přes neověřené `innerHTML`. Nedovolit vzdálené URL pro TTS/obrázky ani backendové fetch z adres dodaných klientem; omezit SSRF a nechtěné výdaje.
-- OTA v první verzi vypnuté. Později pouze podepsaný image, servisní režim, inhibit pohonů a rollback; existence dvou slotů v tabulce oddílů není hotové bezpečné OTA.
+- OTA v první verzi vypnuté. Později pouze podepsaný image, servisní režim, vypnuté výstupy pohonů a rollback; existence dvou slotů v tabulce oddílů není hotové bezpečné OTA.
 
 ### Soukromí
 
@@ -863,26 +853,23 @@ Pro jednu malou VM/doménu počítat plánovací rezervu přibližně 5–15 EUR
 
 ## 10. Předběžné piny, periferie a napájení
 
-**D155 – 9. 10. 2026: implementovaný B-effects-no-SD.** Potvrzené nákupy
-obsahují MCP, měnič, druhý DFR0954 a montážní materiál. Fyzické adaptéry
-PCA/RMT/MCP, audio B a návrat rekvizity jsou nyní v kódu. Pro skutečné
-potvrzení polohy devítigramových serv doplňuje konkrétní varianta 12
-krajních kontaktů na MCP4–15. GPIO38 čte GOOD watchdogu: SD se nepoužívá.
-Je to explicitní odvozený profil od B níže, nikoli tvrzení souběhu SD
-s touto kabeláží. Nové kontakty, nezávislý inhibit a měření nejsou nákupem
-ani softwarem doložené. NVS vyžaduje ověřené piny/mute/inhibit/polohy,
-individuální kalibraci a místní zotavení. Komerční servo bez zpětného
-kanálu nedovoluje nahradit potvrzený návrat pouhým timeoutem.
+**D156 – 9. 10. 2026: implementovaný B-effects pouze s koupenými díly.**
+PCA/RMT/MCP, audio B a návrat serv jsou v kódu. GPIO2 přímo ovládá OE,
+MCP GPA0 tlačítko, GPA1–7 a GPB0–7 jsou volné. Zesilovače SD/GAIN
+zůstávají ve výchozím mono zapojení, mute/hlasitost řídí PCM/I2S. GPIO38–40 zůstávají pro SD, kamerové piny se nepoužívají
+pro efekty. NVS vyžaduje `profile_b_ok` a individuální kalibrace;
+po bootu místní ruční kontrolu a zotavení. Doba pohybu potvrzuje pouze
+programově zadanou polohu, není snímačem polohy.
 [Konkrétní zapojení a servis](zapojeni-potvrzeneho-hardwaru.md).
 
-Autonomní i nové fyzické ruční řízení drží journal až do potvrzeného
+Autonomní i nové fyzické ruční řízení drží journal až do dokončeného časovaného
 návratu a potom obnoví dostupnost. Pětisekundová ukázka probíhá bez
-impulzů/příkonu pohonů; celá ruční prezentace má strop 10 s, každé servo
-okno nadále nejvýše 500 ms a motorový pulz 150 ms (tvrdě 250 ms).
+impulzů; klidový příkon serv se musí změřit; celá ruční prezentace má strop 15 s, každé servo
+okno je individuální 20–3000 ms s 250ms softwarovou rezervou a motorový pulz 150 ms (tvrdě 250 ms).
 Historické 5s/400ms limity níže zůstávají v kompatibilním sériovém
 prototypu západky, nikoli v implementované prezentaci. Změna brání tomu,
 aby se nový návrat ukončil před pětisekundovou ukázkou; žádná mez se nedá
-měnit AI ani běžným síťovým příkazem. HW kritéria E5/E6/B1 se nemění.
+měnit AI ani běžným síťovým příkazem. E5/E6/B1 vyžadují fyzické měření přímého OE, napájení, kalibrace a mechaniky podle nového zadání.
 
 ### Co skutečně plyne z podkladů
 
@@ -908,25 +895,24 @@ Přímé řízení všech šesti motorů je možné, pokud je konektor kamery pr
 | --- | --- | --- |
 | I2C SDA / SCL | GPIO1 / GPIO14 | PCA9685 adresa 0x40, logika/pull-upy 3,3 V. Začít 100 kHz. |
 | RGB data | GPIO21 | Přes Pixel Shifter 3,3 → 5 V a 330 Ω do šesti úseků, celkem asi 36 LED. |
-| Bezpečnostní RUN_REQUEST | GPIO47 | Do watchdog/inhibit obvodu, jeho výstup řídí OE a spínanou větev pohonů. Externí pull-down na request; ztráta běhu = off. |
+| PCA OE | GPIO47 | Historický návrh A: přímé OE, HIGH vypíná signály; pull-up kolem 10 kΩ na 3,3 V. Fyzické efekty jsou implementované v B. |
 | I2S BCLK / WS | GPIO4 / GPIO5 | Společné pro mikrofon a zesilovač; blokuje kameru. |
 | Mikrofon SD → ESP DIN | GPIO6 | ICS43434 napájen 3,3 V; kanál L/R pevně nastavit. |
 | ESP DOUT → zesilovač DIN | GPIO7 | MAX98357A, reproduktor mezi jeho výstupy, ne na GND. |
 | PTT kontakt | GPIO8 | Proti GND, externí pull-up 3,3 V, debounce 30 ms. LED tlačítka řešit podle napětí skutečného modulu. |
 | Mute/SD zesilovače | GPIO16 | Pull-down = mute při bootu; nastavení kanálu/SD podle skutečného breakout modulu. |
-| Watchdog heartbeat | GPIO17 | Nezávislé softwarové hrany po validním průchodu řídicí úlohou každých 50 ms; výstup watchdogu přímo vstupuje do bezpečnostní logiky. |
-| Snímání PHYSICAL_ENABLE | GPIO18 | Napětí za servisní kolébkou před MOSFETem přes dělič 15 kΩ / 22 kΩ do 3,3V logiky; fyzická větev bezpečnostního obvodu funguje nezávisle na čtení GPIO. |
+| Snímání PHYSICAL_ENABLE | GPIO18 | Napětí za servisní kolébkou za zelenou kolébkou přes dělič 15 kΩ / 22 kΩ do 3,3V logiky; kolébka přímo odpojuje napájení pohonů. |
 | Serva přihrádek 1–6 | PCA kanály 0–5 | Přihrádka n → kanál n−1. 50 Hz; individuálně kalibrované mikrosekundy pulzu, žádný univerzální úhel. |
 | Motory přihrádek 1–6 | PCA kanály 6–11 | Přihrádka n → kanál n+5; jen FULL_ON/FULL_OFF, nejvýše jeden zapnutý. |
 | Rezerva | PCA12–15, GPIO9–13/15 a 38–42 | Konektor kamery/SD musí zůstat neosazený nebo elektricky prověřený. Nezavádět jejich použití potají. |
 
-**Přímá alternativa A:** U059 DIN1–DIN6 = GPIO9,10,11,12,13,15, každá větev s pull-down a společným bezpečnostním odpojením pohonů. PCA pak řídí pouze serva. Funguje bez kamery, ale vyžaduje šest GPIO a změnu kabeláže při rozšíření. Volit jen pokud PCA výstupy/moduly neprojdou ověřením logických úrovní nebo bude potřeba nezávislé rychlé PWM vibrací.
+**Přímá alternativa A:** U059 DIN1–DIN6 = GPIO9,10,11,12,13,15, každá větev s pull-down a zelenou kolébkou pro napájení pohonů. PCA pak řídí pouze serva. Funguje bez kamery, ale vyžaduje šest GPIO a změnu kabeláže při rozšíření. Volit jen pokud PCA výstupy/moduly neprojdou ověřením logických úrovní nebo bude potřeba nezávislé rychlé PWM vibrací.
 
 ### Varianta B: kamera OV5640 + MicroSD + úplné audio
 
-Po zachování kamery, SD, pamětí, UART, USB a strapping pinů zbývá na obrázku jen **GPIO1,14,21,41,42,47** bez další označené vazby. Audio potřebuje čtyři piny i při poloduplexu, I2C dva; nezbývá RGB, tlačítko ani přímý bezpečnostní výstup. Plné přímé zapojení všech požadavků tedy nevychází. Poloduplex dovoluje časové střídání audia, ne spojení mikrofonního SD s DIN zesilovače do jediné datové linky.
+Po zachování kamery, SD, pamětí, UART, USB a strapping pinů zbývá na obrázku jen **GPIO1,14,21,41,42,47** bez další označené vazby. Audio potřebuje čtyři piny i při poloduplexu, I2C dva; nezbývá RGB, tlačítko ani přímý OE výstup. Plné přímé zapojení všech požadavků tedy nevychází. Poloduplex dovoluje časové střídání audia, ne spojení mikrofonního SD s DIN zesilovače do jediné datové linky.
 
-Pro tuto rozšířenou variantu doporučuji PCA motory + **MCP23017 pro pomalé pomocné I/O**, vědomé sdílení RGB48 a ověřené použití LED pinu GPIO2 pro bezpečnostní request. Toto je podmíněná, ale konkrétní jednodesková varianta; neprojde-li kontrola GPIO2/48, přejít na druhý řadič podle tabulky alternativ, nikoli na strapping/PSRAM piny.
+Pro tuto rozšířenou variantu doporučuji PCA motory + **MCP23017 pro pomalé pomocné I/O**, vědomé sdílení RGB48 a ověřené použití LED pinu GPIO2 pro OE výstup. Toto je podmíněná, ale konkrétní jednodesková varianta; nejdřív ověřit GPIO2/48 a skutečnou kabeláž; strapping/PSRAM piny nepřidělovat.
 
 | Externí funkce | Přidělení B | Kolize / podmínka |
 | --- | --- | --- |
@@ -935,35 +921,23 @@ Pro tuto rozšířenou variantu doporučuji PCA motory + **MCP23017 pro pomalé 
 | I2C SDA / SCL | GPIO1 / GPIO14 | PCA0x40 + MCP23017 0x20 (A0–A2 GND), jedna koordinovaná sběrnice, pull-upy 3,3 V. |
 | I2S BCLK / WS | GPIO21 / GPIO41 | Společné audio hodiny, GPIO41 nelze současně externí JTAG. |
 | Mikrofon SD → DIN | GPIO42 | Konflikt s externím JTAG řešen USB laděním. |
-| DOUT → MAX98357A DIN | GPIO47 | Rozšíření přesouvá bezpečnostní request na GPIO2. |
+| DOUT → MAX98357A DIN | GPIO47 | Rozšíření přesouvá OE výstup na GPIO2. |
 | RGB data | GPIO48 | Rozbočit **GPIO před onboard WS2812** do Pixel Shifteru; onboard LED zrcadlí první pixel. Nejde o její DOUT a neposouvá to indexy externích 36 LED. Ověřit elektrickou zátěž/topologii. |
-| Bezpečnostní RUN_REQUEST | GPIO2 | Již označený „LED ON“: změřit LED zapojení, polaritu a proud/pull rezistory. LED může odrážet stav povolení pohonů; není nezávislou stavovou LED. Bez prokázaného bezpečného boot stavu tuto variantu nepoužít. |
+| PCA OE | GPIO2 | Již označený „LED ON“: změřit LED zapojení, polaritu a proud/pull rezistory. HIGH vypíná PCA signály, pull-up kolem 10 kΩ na 3,3 V; LED může odrážet stav OE; není nezávislou stavovou LED. Bez prokázaného bezpečného boot stavu tuto variantu nepoužít. |
 | PTT | MCP GPA0 | Kontakt na GND, externí 15 kΩ na 3,3 V; polling 10 ms, debounce 30 ms. INT pin není nutný. |
-| MAX98357A SD/mute | MCP GPA1 | Externí pull-down pro boot; I2C chyba vyvolá zastavení audia, bezpečnost motorů na MCP nezávisí. |
-| Watchdog heartbeat | MCP GPA2 | Externí pull-down, softwarové hrany každých 50 ms; jejich ztráta do 250 ms vypne bezpečnostní logiku. Přímé RUN_REQUEST ani OE nevedou přes expander. |
-| Snímání PHYSICAL_ENABLE | MCP GPA3 | Napětí za servisní kolébkou před MOSFETem přes dělič 15 kΩ / 22 kΩ; výpadek I2C znamená neznámý stav a zakázané servisní potvrzení. Fyzické odpojení pohonů nezávisí na MCP. |
+| Volné MCP | GPA1–GPA7 / GPB0–GPB7 | Nezapojené vstupy; žádné snímání kolébky ani hardwarový mute. |
 | Serva / motory | PCA0–5 / PCA6–11 | Stejná přihrádková vazba jako A. PCA12–15 a zbytek MCP rezerva. |
 | USB / UART / paměti / straps | Beze změny podle rezervací | Dva fyzické USB-C konektory nejsou dva libovolné páry USB GPIO. |
 
-Pro A a B budou dva explicitní board profily s compile-time kontrolou duplicit a povolených sdílení. Fyzická přestavba A → B přesouvá audio/RGB/request/tlačítko; **není to jen připojení kamery**. Před zapnutím porovnat profil, kabelové štítky a kalibraci. Chybný profil se musí zjistit servisní kontrolou; software sám neumí spolehlivě rozpoznat veškerou kabeláž.
-
-| Možnost při nedostatku pinů | Posouzení |
-| --- | --- |
-| PCA volné kanály + MCP + GPIO2/48 | Doporučeno B po kontrole desky. Málo nových součástek, společný inhibit PCA. Onboard LED ztrácejí samostatnou funkci. |
-| Sdílet kamerovou SCCB4/5 s I2C PCA/MCP | Může uvolnit dva GPIO, ale vyžaduje ověření napětí, adres, pull-upů a jednotného vlastnictví driveru sběrnice. Není zvoleno; neprohlašovat SCCB za bezpodmínečně zaměnitelné sdílené I2C. |
-| Posuvný registr / samotný MCP pro motory | Šetří piny, ale latched výstup může zůstat aktivní při zamrznutí komunikace. Potřebuje vlastní přímý inhibit; PCM/WS2812 časování nelze přenést přes pomalý GPIO expander. |
-| Druhý řadič efektů | Doporučená záloha, pokud GPIO2/48 nebo bezpečnost neprojde. Další deska ESP32-S3 s vlastním watchdogem, PCA a RGB; hlavní kamerová deska používá GPIO1/14 jako I2C master k řadiči 0x30 a čtyři zbývající GPIO pro audio. Druhý řadič vlastní celou sekvenci a timeout heartbeat, nedostává jednotlivé pulzy. |
-| Kamera na druhé desce / telefonu | Nejmenší riziko pro základní efekty; telefonní fotografie putuje lokálně do ESP32, druhá kamerová deska by měla samostatně autorizovaný upload svázaný se sezením. Zvolit, pokud kvalita obrazu/umístění neobhájí zásah do funkčního kufru; nejde o nutnou součást samostatného hlasu. |
-
-Fallback řadič efektů musí být zvolen před výrobou kabeláže a jeho konkrétní pinová mapa závisí na **teprve zvolené druhé desce**; není povolené domýšlet její revizi. Rozhraní I2C 0x30: délka + verze + commandId + explicitní přihrádka + CRC, stav/ACK dostupné čtením, žádné automatické opakování pohybu po restartu. Bez heartbeat do 250 ms lokálně vypne pohony. Tato alternativa je větší implementační větev, ne nutná součást doporučené varianty B.
+Pro A a B budou dva explicitní board profily s compile-time kontrolou duplicit a povolených sdílení. Fyzická přestavba A → B přesouvá audio/RGB/OE/tlačítko; **není to jen připojení kamery**. Před zapnutím porovnat profil, kabelové štítky a kalibraci. Chybný profil se musí zjistit servisní kontrolou; software sám neumí spolehlivě rozpoznat veškerou kabeláž.
 
 ### PCA, audio a napájení
 
 PCA9685 má společnou frekvenci PWM; pro serva 50 Hz proto není vhodné používat jiné duty PWM na motorech. Bity FULL_ON/FULL_OFF poskytují prosté zapnuto/vypnuto [H4], což pro tři vibrační pulzy stačí. OFF má přednost; při přepnutí explicitně odstranit protichůdný bit. U059 obsahuje vlastní MOSFET a digitální DIN [H5]. Napájet ho z pohonové větve, ověřit přijetí 3,3V DIN a skutečný špičkový odběr. Holý motor vyžaduje samostatný tranzistor/driver a ochranu indukční zátěže; na PCA/GPIO nepatří.
 
-I2S zvolit standard Philips, 32kHz/32bit sloty, bez externího MCLK. Sdílené hodiny při full-duplex konfiguraci periférie vyžadují shodný formát RX/TX [H3], i když aplikace střídá poslech a mluvení. ICS43434 používá 24bitová data v rámci 64 hodinových taktů; při 32 kHz je BCLK 2,048 MHz. MAX98357A podporuje 32kHz, ale ne 24 kHz, proto je převzorkování důležité. Před zastavením hodin stáhnout SD/mute, aby nevznikal nedefinovaný audio výstup [H7]. Kamera na S3 není automaticky stejný I2S kamerový režim jako na původním ESP32; používat driver pro S3 a ověřit DMA/PSRAM souběh [H6]. Kamera jeden JPEG, max. 640 × 480, jeden framebuffer, mimo audio/efekty; SD bez ukládání snímků. Je-li nedostatek DMA paměti, kamera se odmítne, nevytěsní bezpečnostní úlohu.
+I2S zvolit standard Philips, 32kHz/32bit sloty, bez externího MCLK. Sdílené hodiny při full-duplex konfiguraci periférie vyžadují shodný formát RX/TX [H3], i když aplikace střídá poslech a mluvení. ICS43434 používá 24bitová data v rámci 64 hodinových taktů; při 32 kHz je BCLK 2,048 MHz. MAX98357A podporuje 32kHz, ale ne 24 kHz, proto je převzorkování důležité. Ve zvoleném B-effects zůstávají SD původní, ticho vytváří PCM a auto-clear DMA; při bootu/restartu není garantované. Historický ověřený A používá GPIO16 mute [H7]. Kamera na S3 není automaticky stejný I2S kamerový režim jako na původním ESP32; používat driver pro S3 a ověřit DMA/PSRAM souběh [H6]. Kamera jeden JPEG, max. 640 × 480, jeden framebuffer, mimo audio/efekty; SD bez ukládání snímků. Je-li nedostatek DMA paměti, kamera se odmítne, nevytěsní bezpečnostní úlohu.
 
-Napájení zachovat podle [návrhu napájení](efekty-a-napajeni.md): PD20V jen do vstupu měniče, před připojením MCU změřit 5 V. Návrhový trvalý rozpočet 4 A pro deklarovaný 5A měnič, startovní jas WS2812 nejvýše přibližně 25 %, asi 36 LED. Neodvozovat dostupný proud pro pohony pouze z procent jasu. Změřit souběh desky/Wi-Fi/kamery/audia a přechodové špičky pohonů; při nedostatečné rezervě snížit jas/hlasitost nebo změnit napájení. Napájení serv +5V oddělit od 3,3V logiky PCA, všechny země propojit, rozvod hvězdicově, 2×470 µF u LED a další 2×470 µF u pohonů podle původního návrhu. Ověřit pojistku, vodiče, teplotu měniče a konektory; software není náhrada proudové ochrany.
+Napájení zachovat podle [návrhu napájení](efekty-a-napajeni.md): PD12V z UGREEN C1 jen do vstupu Joy-IT SBC-Buck02, před připojením MCU změřit 5 V. Návrhový trvalý rozpočet 4 A pro deklarovaný 5A měnič, startovní jas WS2812 nejvýše přibližně 25 %, asi 36 LED. Neodvozovat dostupný proud pro pohony pouze z procent jasu. Změřit souběh desky/Wi-Fi/kamery/audia a přechodové špičky pohonů; při nedostatečné rezervě snížit jas/hlasitost nebo změnit napájení. Napájení serv +5V oddělit od 3,3V logiky PCA, všechny země propojit, rozvod hvězdicově, 2×470 µF u LED a další 2×470 µF u pohonů podle původního návrhu. Ověřit pojistku, vodiče, teplotu měniče a konektory; software není náhrada proudové ochrany.
 
 Při současném USB ladění a externím napájení ověřit ochranu proti zpětnému napájení konkrétní desky. Nepřipojovat dva 5V zdroje proti sobě bez doloženého power-path řešení. Powerbanka může při nízkém odběru vypnout; řešit měřením a volbou zdroje, ne umělým trvalým zapnutím motoru.
 
@@ -975,7 +949,7 @@ Zaznamenat fotografie obou stran, přesné označení modulu/PCB, dostupné sch�
 
 ### Simulátor
 
-Hostitelský C++ proces znovu používá `SelectionSequence` a budoucí parser/řadič/safety/conversation logiku. Simuluje PTT a potvrzení, jako device HTTPS klient volá lokální backend bez telefonu. Výstupní port vytváří časovou osu LED, motorů, servo PWM a inhibit; čas lze řídit deterministicky bez čekání. WSS facade napodobí stejný handshake a kontrakty jako ESP32, obsahuje testovací identitu a oddělený certifikát. UI ukazuje šest přihrádek a viditelné „SIMULACE“; nesmí vypadat jako připojený fyzický kufr.
+Hostitelský C++ proces znovu používá `SelectionSequence` a budoucí parser/řadič/safety/conversation logiku. Simuluje PTT a potvrzení, jako device HTTPS klient volá lokální backend bez telefonu. Výstupní port vytváří časovou osu LED, motorů, servo PWM a OE; čas lze řídit deterministicky bez čekání. WSS facade napodobí stejný handshake a kontrakty jako ESP32, obsahuje testovací identitu a oddělený certifikát. UI ukazuje šest přihrádek a viditelné „SIMULACE“; nesmí vypadat jako připojený fyzický kufr.
 
 Hostitelský simulátor může pro vývojové webové UI vystavit samostatný pouze čtecí HTTPS proud nad stejnými událostmi C++ modelu. Prohlížeč v běžném WebSocket API neumí přidat `Authorization` hlavičku nativního WSS handshake; token proto webové UI posílá v HTTPS hlavičce, nikdy v URL. Tento proud není kontrakt telefonu ani firmware a nemění jediné řídicí WSS spojení.
 
@@ -1010,7 +984,7 @@ Každá etapa je samostatně reviewovatelná změna a lze ji dělit na menší o
 | E3 – ruční mobil bez HW | Šest přihrádek, potvrzení, Stop, aktuální snapshot, offline UI; bez AI. | E2 | Celá ruční sekvence proti simulátoru včetně všech chyb spojení. |
 | E3a – iOS CI základ | Capacitor iOS projekt, rozhraní pro pozdější Swift bridge E10, webové PR CI a ruční Windows→GitHub→macOS workflow s nativními testy a podepsanou Ad Hoc IPA. | E0 identita, E3 | CI běží na připnutém Xcode, tajemství se načítají až pro podpis, keychain se uklidí i při selhání. IPA se nainstaluje/spustí na registrovaném iPhonu; Release/Pages nejsou nutné. |
 | E4 – runtime a přímá síť | ESP-IDF 6.1/PlatformIO profil, certifikát/NVS, Wi-Fi, HTTPS klient backendu a lokální WSS hello/manual lease. | E2; pro nahrání E0 | Device volá fake backend bez telefonu, TLS/čas/reconnect funguje; později E3 připojí native adaptér. Verze knihoven uzamčené. |
-| E5 – jedna bezpečná přihrádka | RGB, PCA servo, jeden U059, OE/spínaná větev/watchdog, kalibrace. | E0,E1,E4 | Změřený proud, reset bez pohybu, Stop/freeze/I2C timeout vypne pohony; mechanika stabilní bez napájení. |
+| E5 – jedna bezpečná přihrádka | RGB, PCA servo, jeden U059, přímé OE/servisní kolébka, kalibrace. | E0,E1,E4 | Změřený proud, reset bez pohybu, Stop/I2C timeout vypne signály, kolébka odpojí napájení; mechanika stabilní bez napájení. |
 | E6 – šest přihrádek | Šest kanálů, maska dostupnosti, automatický návrat pevné rekvizity, servisní zotavení, limity jasu. | E5 | 100 cyklů/přihrádka, žádný souběh motor/servo, ověřená spotřeba/teplota a ruční ovládání bez WAN. |
 | E7 – backend bez skutečné AI | ASP.NET, device tokeny, SQLite limity/idempotence, fake conversation, cleanup. | E2 | Integrační testy přístupů, souběhu, restartu a retence zelené; logy neobsahují citlivé údaje. |
 | E8 – skutečný textový dialog | Responses adaptér, firmware conversation slice, prompt/katalog, autonomní brána a simulovaná prezentace; telefonní text/oprava jako druhý vstup. | E2,E7; na desce E4; klíč správce | Eval splní kritéria, neplatný nebo zastaralý návrh nikdy nevolá výstupy, rozpočet se měří/vynucuje. Funguje v device simulátoru bez aplikace. |
@@ -1033,7 +1007,6 @@ Hardwarová větev je E0→E1/E2→E4→E5→E6. Konverzační větev E2→E7→
 | Router/internet na místě, hotspot a izolace klientů? | Vyhrazená LAN s dostupným AP, WAN volitelná. Otestovat konkrétní místo; telefon jako hotspot pouze po zkoušce. |
 | Jaká je doručená deska a zapojení LED2/48/USB/SD? | Neznámé; schéma a měření jsou blokátor elektrického zapojení, zejména varianty B. |
 | Jsou 3,3V výstupy PCA pro U059 skutečně dostatečné? | Předpoklad podle digitálního modulu, potvrdit na kusu. Při nevyhovění vhodný buffer/driver, nikoli 5V do ESP32. |
-| Jaký inhibit/watchdog/load switch a proudové limity? | Samostatná větev pohonů fail-off. Kandidát 6. 10.: Pololu 2801 + CD4093BE + Pololu 2814, viz návrh napájení. Zapojení a proudové limity změřit před E5; bez toho jen nezatížený laboratorní prototyp. |
 | Servo model, pulzy, zdvih a senzory? | Zvolen zdvih a automatický návrat; konkrétní mechanika a kalibrace jsou otevřené. Bez snímačů jen povelově ověřený stav. Po Stop/chybě žádný automatický návrat. |
 | Názvy/osobnosti šesti hůlek a cílové publikum? | Party katalog šesti rekvizit; majitel v D135 výslovně žádá ostrý, urážlivý humor a drzého prodavače z Ollivanderova obchodu pro dospělé. Otázky patří k výběru hůlky, respektují odmítnutí tématu a ukončení hry. Kvalita vyžaduje lidský poslech. |
 | Dostupnost/vracení hůlek? | Rozhodnuto majitelem 30. 9.: hůlka zůstává. Úspěšný normální návrat obnoví dostupnost, porucha/Stop vyžadují zotavení. |

@@ -9,7 +9,7 @@ extern "C" void app_main() {
   if (nvs_flash_init() != ESP_OK) { ESP_LOGE("hw_service", "NVS unavailable; no erase attempted"); return; }
   nvs_handle_t handle;
   if (nvs_open("wand_hw", NVS_READWRITE, &handle) != ESP_OK) return;
-  const char* flags[] = {"profile_b_ok", "mute_ok", "inhibit_ok", "positions_ok"};
+  const char* flags[] = {"profile_b_ok"};
   bool ok = true;
   // First persist a closed gate. An interrupted update cannot retain an old
   // permission while installing new calibration or wiring flags.
@@ -21,7 +21,7 @@ extern "C" void app_main() {
          nvs_commit(handle) == ESP_OK;
   }
   if (ok) {
-    for (unsigned i = 0; i < 4; ++i) ok = nvs_set_u8(handle, flags[i], ServiceFlags[i]) == ESP_OK && ok;
+    for (unsigned i = 0; i < 1; ++i) ok = nvs_set_u8(handle, flags[i], ServiceFlags[i]) == ESP_OK && ok;
     ok = nvs_commit(handle) == ESP_OK && ok;
   }
   if (!ok) {

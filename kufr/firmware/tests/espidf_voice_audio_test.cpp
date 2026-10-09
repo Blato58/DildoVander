@@ -6,11 +6,11 @@
 #include "nvs.h"
 namespace {
 bool verified=false, profileB=false;
-int mute=0, writes=0;
+int mute=0, writes=0, gpioWrites=0;
 std::function<void()> writing;
 }
 int gpio_set_direction(int pin,int mode) { assert(pin==16 && mode==GPIO_MODE_OUTPUT); return 0; }
-int gpio_set_level(int pin,int level) { assert(pin==16); mute=level; return 0; }
+int gpio_set_level(int pin,int level) { assert(pin==16); ++gpioWrites; mute=level; return 0; }
 int nvs_open(const char* space,int,nvs_handle_t* handle) { assert(std::strcmp(space,"wand_audio")==0); *handle=1; return ESP_OK; }
 int nvs_get_u8(nvs_handle_t,const char* key,uint8_t* value) { assert(std::strcmp(key,"profile_a_ok")==0); *value=verified; return ESP_OK; }
 void nvs_close(nvs_handle_t) {}
@@ -29,15 +29,10 @@ int i2s_channel_read(i2s_chan_handle_t,void*,size_t,size_t*,unsigned) { return E
 int i2s_channel_write(i2s_chan_handle_t,const void*,size_t size,size_t* used,unsigned) {
  ++writes; *used=size; if(writing)writing(); return ESP_OK;
 }
-class ExpanderAudio final : public AudioBoardPort {
+class SoftwareAudioBoard final : public AudioBoardPort {
  public:
-  bool ready = false, fail = false;
+  bool ready = false;
   bool AudioReady() const override { return ready; }
-  bool EnableAmplifiers(bool enabled) override {
-    if (fail) return false;
-    mute = enabled ? 1 : 0;
-    return true;
-  }
 };
 int main() {
  EspIdfVoiceAudio audio;
@@ -53,14 +48,16 @@ int main() {
  assert(!audio.Play(pcm)); assert(mute==0); assert(!audio.Drain());
  writing={}; assert(!audio.Play(pcm)); // Late blocks never reopen this session.
  audio.Begin(); assert(audio.Play(pcm)); assert(audio.Drain()); assert(mute==0);
+ const int legacyGpioWrites = gpioWrites;
  profileB=true;
- ExpanderAudio expander;
+ SoftwareAudioBoard expander;
  EspIdfVoiceAudio audioB;
  assert(!audioB.Initialize(true, &expander)); // Never falls back onto camera pins.
  expander.ready=true;
- assert(audioB.Initialize(true, &expander)); assert(mute==0);
- audioB.Begin(); assert(audioB.Play(pcm)); assert(mute==1);
- audioB.Stop(); assert(mute==0 && !audioB.Play(pcm));
- audioB.Begin(); expander.fail=true; assert(!audioB.Play(pcm) && audioB.Failed());
+ assert(audioB.Initialize(true, &expander)); const int hardwareMute = mute;
+ audioB.Begin(); assert(audioB.Play(pcm)); assert(mute==hardwareMute);
+ audioB.Stop(); assert(mute==hardwareMute && !audioB.Play(pcm));
+ audioB.Begin(); expander.ready=false; assert(!audioB.Play(pcm) && audioB.Failed());
+ assert(gpioWrites == legacyGpioWrites); // Factory SD stays untouched throughout B.
  std::cout<<"ESP audio profile, sticky Stop, interrupted DMA and restart passed\n";
 }
