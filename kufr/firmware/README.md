@@ -1,5 +1,24 @@
 # Firmware AI kufru
 
+## Aktuální předání D163
+
+[PR159](https://github.com/Blato58/DildoVander/pull/159) opravil odmítnutí
+nabídky WebSocket extensions před upgradem. Server nabídku přijme bez výběru
+extension; bearer autentizace, TLS pin a limity rámců zůstávají.
+[CI 37928528451](https://github.com/Blato58/DildoVander/actions/runs/37928528451)
+prošlo a [publikace 37929155208](https://github.com/Blato58/DildoVander/actions/runs/37929155208)
+zveřejnila development OTA **0.1.160**: buildId
+`9d067195927db3774ff5a6f84c739f48bd8298de`, 1743728 B, SHA-256
+`f02029d55ed02281492fee8a3f24e3bd7634b6ad254193ef3f20f554c52cb192`.
+Veřejný podpis, hash a embedded verze byly ověřené. Aktuální iOS je **1.0 / build 1000.0.21**,
+[podpis 37929159117](https://github.com/Blato58/DildoVander/actions/runs/37929159117)
+a [publikace 37929535139](https://github.com/Blato58/DildoVander/actions/runs/37929535139);
+veřejný manifest, IPA a checksum byly ověřené. Přesný rozsah ověření vede
+[stav implementace](../docs/stav-implementace.md#předání-další-ai).
+Instalace/boot této OTA a stabilní WSS na fyzické sestavě zatím nejsou potvrzené.
+Majitel před opravou hlásil funkční scan/párování a přerušované Ovládání
+na stejné Wi-Fi; oprava zdroje tuto fyzickou akceptaci nenahrazuje.
+
 ## Wi-Fi discovery a první BLE párování (D161)
 
 Zdravá prázdná lokální TLS identity při startu získá vlastní EC P-256 klíč
@@ -14,7 +33,7 @@ SHA-256 a token do nativního iOS Keychain. Existující QR či token nezmění.
 Ztracený token se nevydává znovu; obnova/rotace zůstává fyzickým servisem.
 Tato změna neprokazuje LAN TLS/Bonjour ani Keychain po aktualizaci na iPhonu.
 
-D162 publikovalo development OTA **0.1.157** s D161. CI workflow nyní
+Historické předání D162 publikovalo development OTA **0.1.157** s D161. CI workflow nyní
 automaticky odvozuje verzi z baseline policy `0.1.1+ci` a svého run_number;
 nový běh ji zvýší bez version-bump commitu. Root verifier ji odvodí nezávisle
 před podpisem; rerun/publikace stejného artefaktu má stejnou verzi. Lokální

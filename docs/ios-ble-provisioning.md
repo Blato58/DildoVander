@@ -3,6 +3,19 @@
 The existing Capacitor app is extended; its **Síť kufru** tab uses a native
 CoreBluetooth/ESPProvision 3.2.0 plugin. Safari/Web Bluetooth is not used.
 
+**Current handoff: D163.** Development OTA **0.1.160** is
+[published](https://github.com/Blato58/DildoVander/actions/runs/37929155208), with
+public signature, hash and embedded version verified. iOS **1.0 / build 1000.0.21**
+passed [native tests and signing 37929159117](https://github.com/Blato58/DildoVander/actions/runs/37929159117)
+and [Safari publication 37929535139](https://github.com/Blato58/DildoVander/actions/runs/37929535139).
+The [installation page](https://2.28.202.220/ios/), manifest, public IPA and checksum
+were verified for this build. The firmware accepts WebSocket extension
+offers without negotiating extensions; native errors are sanitized and reconnect
+is bounded. The Apple harness observed extension offers in four actual requests.
+The owner's same-Wi-Fi report still requires physical retesting: scan/pairing
+worked, then Ovládání disconnected repeatedly. Current receipts and acceptance
+remain in [implementation status](../kufr/docs/stav-implementace.md#předání-další-ai).
+
 1. Initially install firmware and run the separate USB
    [network service](../kufr/firmware/diagnostics/network-service/README.md)
    with actuators disconnected. Provision the device's random PoP and identity;
@@ -45,13 +58,14 @@ iCloud synchronization. SDK logging is disabled. Session buffers are released;
 no claim is made about guaranteed zeroing of Swift/OS/SDK copies. Diagnostics
 whitelist public fields; submitted/saved passwords are never returned.
 
-LAN discovery requires more than BLE Wi-Fi setup: the suitcase must also have
-its local TLS identity and local pairing provisioned. Firmware advertises
-`_kufr._tcp` only after its authenticated local TLS server starts. The USB
-network-service provisioning tool does not install these local TLS/pairing
-records. An empty LAN scan on such a device cannot be fixed by entering its IP.
-Use the same LAN with local-network permission and provision the local identity
-through the separate service process before expecting WSS discovery/pairing.
+LAN discovery requires more than BLE Wi-Fi setup. Since D161, healthy empty
+local TLS storage is initialized at boot with a unique EC identity. Firmware
+advertises `_kufr._tcp` after its TLS server starts, even before first local pairing.
+Once PoP-authenticated BLE connects, **Spárovat ovládání přes Wi-Fi** issues the
+first local token and transfers the address/pin/token only to native Keychain.
+Existing or corrupt records are not replaced automatically; recovery remains a
+physical service operation. Use the same LAN and allow local-network access.
+Discovery or an address alone does not authenticate the subsequent pinned WSS.
 
 Protocol: service `b97a7f10-70e8-4b98-9dcc-40d66395c821`; characteristics
 `b97aff50-…` (`proto-ver`), `b97aff51-…` (`prov-session`), `b97aff54-…`
@@ -67,7 +81,7 @@ project. Use the existing `kufr-ios-sign.yml` workflow with a verified web CI ru
 it resolves the pinned Swift package, runs native tests and signs the app.
 Xcode or a signed archive does not establish physical BLE/hotspot acceptance.
 
-Current verified delivery: iOS1.0/build1000.0.20 at
+Historical D162 delivery: iOS1.0/build1000.0.20 at
 [Safari installation](https://2.28.202.220/ios/), signed/native run
 [37923948887](https://github.com/Blato58/DildoVander/actions/runs/37923948887)
 and public manifest/IPA/checksum verification
