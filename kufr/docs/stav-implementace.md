@@ -49,6 +49,15 @@ remote SHA ověřeno pomocí `scripts/Push-CurrentBranch.ps1`.
 [PR #169](https://github.com/Blato58/DildoVander/pull/169) obsahuje tento
 slice; dokončení merge podléhá poslední kontrole reviews/inline komentářů
 a stavu CI. Vygenerované exporty jsou lokální, reprodukovatelné a v ZIPu.
+GitHub Codex review následně zachytil P2 rozpor v `efekty-a-napajeni.md`:
+starší pokyn požadoval JST-SM u LED a dodatečný Grove adaptér. Dokument
+je sjednocen s F1: LED mají označené pájené výkonové/datové spoje,
+servis po odpojení zdroje a ověření vybití vyžaduje odpájení vlastní
+větve; U059 zachovává původní Grove na straně modulu. Ověření opravy:
+`python -m unittest -q test_harness` 28 PASS, regresní kontrola LED/Grove
+montážního kontraktu a nových místních odkazů PASS. Zdrojové hashe CAD
+a skutečný ZIP se nemění; jejich kontrola znovu PASS. Oprava je pouze
+v tomto provozním podkladu a záznamu stavu, žádný aplikační build neběžel.
 
 **9. 10. 2026 – F1 prohlížeč: Inspect, barvy a kabelové vazby.**
 `kufr/mechanika/final/exports/viewer.html` byl regenerován z aktuálních
