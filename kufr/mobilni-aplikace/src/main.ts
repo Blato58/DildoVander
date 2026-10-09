@@ -321,7 +321,9 @@ window.setInterval(() => {
   }
 }, 2000);
 
+let controlConnectGeneration = 0;
 document.addEventListener('visibilitychange', () => {
+  ++controlConnectGeneration;
   if (document.hidden) {
     pendingAction = null;
     connection?.release();
@@ -334,6 +336,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 window.addEventListener('pagehide', () => {
+  ++controlConnectGeneration;
   connection?.release();
   if ((connection instanceof SimulatorDeviceConnection || connection instanceof NativeDeviceConnection)) {
     connection.suspend();
@@ -398,6 +401,7 @@ async function initializeNativeAsync(): Promise<void> {
     form.querySelector<HTMLButtonElement>('button')!.disabled = busy;
   };
   const applySavedDevice = (saved: SavedNativeDevice) => {
+    ++controlConnectGeneration;
     paired = saved.paired && typeof saved.deviceId === 'string' && typeof saved.host === 'string';
     savedDeviceId = paired ? saved.deviceId : undefined;
     addressInput.value = paired ? saved.host! : '';
@@ -435,6 +439,7 @@ async function initializeNativeAsync(): Promise<void> {
     });
   });
   const changeAddressAsync = async (host: string) => {
+    ++controlConnectGeneration;
     connection?.release();
     if (connection instanceof NativeDeviceConnection) { connection.suspend(); }
     await nativeBridge.setAddress({ host });
@@ -479,13 +484,31 @@ async function initializeNativeAsync(): Promise<void> {
     });
   });
   connectButton.addEventListener('click', () => {
-    if (!document.hidden && connection instanceof NativeDeviceConnection) { connection.connect(); }
+    if (document.hidden) return;
+    const generation = controlConnectGeneration;
+    const current = () => !document.hidden && generation === controlConnectGeneration;
+    void performAsync(async () => {
+      await provisioningPanel.refreshLocalAddress();
+      if (!current()) return;
+      const saved = await nativeBridge.savedDevice();
+      if (!current()) return;
+      if (!saved.paired || saved.deviceId !== savedDeviceId || typeof saved.host !== 'string') {
+        applySavedDevice(saved);
+        return;
+      }
+      // Preserve unresolved-command state across a reconnect to the same device.
+      addressInput.value = saved.host;
+      status.textContent = `Uložený kufr ${saved.deviceId} · ${saved.host}.`;
+      if (connection instanceof NativeDeviceConnection) { connection.connect(); }
+    });
   });
   disconnectButton.addEventListener('click', () => {
+    ++controlConnectGeneration;
     connection?.release();
     if (connection instanceof NativeDeviceConnection) { connection.suspend(); }
   });
   forgetButton.addEventListener('click', () => {
+    ++controlConnectGeneration;
     void performAsync(async () => {
       await nativeBridge.forget();
       applySavedDevice(await nativeBridge.savedDevice());

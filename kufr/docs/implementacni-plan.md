@@ -4,7 +4,8 @@
 > Hostname na iPhonu timeoutuje; ručně zadaná aktuální IP vrací validní snapshot
 > a servisní stav. Rozšíření status v1 o volitelné `n.ip` předává pouze aktuální
 > STA IPv4. Nativní RAM hint je svázaný s autentizovanou BLE session a device ID,
-> má platnost 60 sekund a mizí při odpojení/offline. Ruční adresa má přednost.
+> má platnost 60 sekund a mizí při odpojení/offline. Explicitní Connect obnoví
+> status živé BLE session před použitím adresy. Ruční adresa má přednost.
 > Token a SPKI pin zůstávají v Keychain; nová adresa se tam zapíše až po
 > připnutém autentizovaném WSS připojení. Bonjour failure se nezamlčuje.
 > Fyzická kalibrace a servisní gates se nemění; jde o směrování připojení.

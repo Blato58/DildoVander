@@ -14,9 +14,16 @@ platnost, odmítá stale update/disconnect a změnu ID, staré provisioning ID s
 umožní Wi-Fi provisioning. Ruční adresa má přednost; pin/token a hardwarové gates
 zůstávají. Keychain route write je stále pouze v onOpen po připnutém auth WSS.
 Discovery zachová Bonjour failed a zvlášť oznámí dostupnost BLE adresy.
+Explicitní Control connect nejprve obnoví status živé BLE session i při skrytém
+panelu a následně znovu načte savedDevice; odpadá 60s stale-host timing gap.
+Stejný device ID zachová connection instance a unresolved-command gate. Lifecycle
+číslo zruší starý tap při background/pagehide, změně identity/adresy a disconnect/
+forget; návrat do foreground starý async connect neobnoví. Dva followup review P2
+nálezy byly opraveny a regresní testy provádějí skutečný main tap handler s fake
+native adaptéry na obou async hranicích.
 
 Ověřeno: dvě MSVC station suites (worker /std:c++14 /W4 /WX), pět parent host
-suites pairing/TLS/BLE/discovery/WSS, 43 mobile tests, npm run build a
+suites pairing/TLS/BLE/discovery/WSS, 46 mobile tests, npm run build a
 pio run -e esp32-s3-idf -s, vše exit0. Native helper/status regressions jsou
 připravené pro existující macOS workflow; Windows je nespustil. Nezávislé native
 review odhalilo a následně ověřilo opravený legacy ID regression; kombinované
