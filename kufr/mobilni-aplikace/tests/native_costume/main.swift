@@ -194,7 +194,10 @@ struct NativeCostumeTests {
             assert(Set(keys.map { $0["key"]! }).count == 1)
             assert(Set(keys.map { $0["conversation"]! }).count == 1)
             assert(state["tokenRequests"] as? Int == (mode.contains("refresh-failed") ? 3 : 2))
-            let renewed = keys.firstIndex { $0["token"]!.contains("-renewed-") }!
+            // The device name itself includes "-renewed-" in one scenario.
+            // Match the peer's exact renewed token, not a substring of the name.
+            let renewedToken = "access-\(device)-renewed-\(state["tokenRequests"] as! Int)"
+            let renewed = keys.firstIndex { $0["token"] == renewedToken }!
             assert(keys[renewed...].allSatisfy { $0["token"] == keys[renewed]["token"] })
             let events = state["events"] as! [String]
             assert(events.contains("expired-token") && events.contains("renew"))

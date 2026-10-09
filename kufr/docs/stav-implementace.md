@@ -30,7 +30,7 @@ OTA trust bez NVS erase. SDMMC1-bit asset driver zachovává GPIO38–40,
 vyžaduje servisně ověřené zapojení a nepovoluje format/write/erase.
 Kamera, GPT-Live, personálity, hlas i B-effects zůstaly zachované.
 
-Dosavadní CI: commit `9a3395f`, run **37892885423**, všechny kontroly úspěšné:
+Aktuální implementační CI: commit `bf429ad`, run **37895236311**, všechny kontroly úspěšné:
 firmware host suite, main ESP-IDF build a čtyři diagnostické buildy,
 backend, web a repository checks. Zahrnuje celý .NET executable runner,
 HTTP smoke, 20 client Python a 12 deploy Python testů. Lokálně prošly mobil
@@ -74,8 +74,8 @@ nejnovější rollbacky zůstaly. Soukromý konfigurační archiv a inventura ma
 root-only mód 0600 ve stejné záloze. Releases klesly z 3,2 GB na 340 MB;
 root disk má 15 GB volných z 38 GB (21 GB použito, 59 %). Systém má 2 GB
 swap pro oba runnery. Backend healthz, iOS HTTPS,
-nginx a oba runner services jsou zdravé. Nasazený backend/iOS release
-zůstává původní: **PR144 není sloučený**, nové změny nejsou nasazené.
+nginx a oba runner services jsou zdravé. Backend a development OTA už jsou
+nasazené podle dokladů níže; iOS publikace stále čeká na native fixture opravu.
 
 P1 root signing helper byl opraven: nezávisle čte GitHub successful CI,
 merged PR/current main tree, serverový ZIP digest a bounded ZIP/TAR;
@@ -111,10 +111,45 @@ absolutní 5min deadline a nečerpá pozdější offline recovery. ESPProvision3
 typ callbacku byl ověřen proti skutečné resolved SDK revizi. MSVC adapter
 regrese i skutečné Linux GCC15.2 C++14 -Wall/-Wextra/-Werror OTA adapter a
 BLE/real cJSON binárky prošly. Nezávislé finální source review je čisté.
-Před merge/publikací musí projít nové CI a PR review po posledním push.
+Finální Codex review na `bf429ad` dokončeno bez major issues; všech deset
+nálezových vláken je vyřešených a před merge byly znovu načteny všechny reviews,
+inline komentáře i stav Codex. CI **37895236311** je kompletně zelené.
 Git předání začalo `c2ab3cf`, zahrnuje synchronizaci `main`
-`ade0e32` a dosavadní `9a3395f`; scoped push byl ověřen, PR144 zůstává otevřený.
-Merge, ověření cílového tree a finální publikace jsou stále neprovedené.
+`ade0e32` a `bf429ad`; scoped push byl ověřen. [PR144](https://github.com/Blato58/DildoVander/pull/144)
+byl squash sloučen jako `8218ba058641fe4b886642821ce4afaaad7e27c9`.
+Main tree `b72d2a501e8379f989160f6843910574fe4703cd` odpovídá testované větvi.
+CI synthetic source `d932ec15ea005c3a10001874645fea5062ab54b5` má stejný tree;
+rozdíl SHA po squash není rozdíl zdroje.
+
+[Backend deploy37896345546](https://github.com/Blato58/DildoVander/actions/runs/37896345546)
+uspěl v attempt2. První attempt bezpečně skončil před aktivací kvůli prázdným
+runner provisioning metadatům. Dva existující store IDs byly obnoveny z active
+release config do sdíleného private journal600/dir700; žádná guest data nebyla
+kopírována ani žádný store vytvořen. Soukromá metadata záloha je pod
+`/root/kufr-maintenance/d158-ota-provenance/`. Current je
+`/opt/kufr-backend/releases/d932ec15ea005c3a10001874645fea5062ab54b5-37896345546-2`.
+Loopback healthz, služby a public mode/store smoke prošly bez inference.
+Zachovány Responses/Sol, OpenAI voice, AutonomousActor/Luna, quiet1500ms,
+hybrid memory/cloud indexing true a long-term personal false.
+
+[Development OTA37896352363](https://github.com/Blato58/DildoVander/actions/runs/37896352363)
+uspělo včetně skutečného root GitHub verifieru a atomické publikace. Manifest
+je `/v1/firmware/manifests/development.json`, verze0.1.0, buildId výše uvedený
+synthetic source. Image má **1732304 B**, SHA-256
+`cf31728845fd24ecbfca999d193bda047e2bbdd537b514de2747f5328bf50048`.
+Parent stáhl manifest/image přes public HTTPS s běžnou TLS kontrolou, ověřil
+přesné bajty/hash a OpenSSL signature proti provisionovanému development public
+key. Jde o development release bez skutečného ESP downloadu/bootu.
+
+[iOS sign37896349106](https://github.com/Blato58/DildoVander/actions/runs/37896349106)
+prošlo provenance, package resolution, native LAN, Debug/realtime a hands-free
+testy; skončilo na existující costume fixture assertion. Scenario device name
+obsahuje `-renewed-`, což chybně označilo původní token za renewed. Source fix
+používá přesný očekávaný token a zachovává kontrolu všech následujících DELETE;
+nezávislé source review potvrdilo deterministic fixture defect, nikoli product
+token-retention bug. Na větvi `codex/event-software-completion-receipt` je oprava
+a upřesnění NVS/OTA docs; nové CI, macOS regression, Ad Hoc archive/podpis a
+publikace nového IPA ještě čekají na další předání.
 
 Žádné fyzické BLE/hotspot/SD/audio/servo, NVS power-loss ani OTA rollback
 měření nebylo provedeno. Produkční stable signer musí být servisně
