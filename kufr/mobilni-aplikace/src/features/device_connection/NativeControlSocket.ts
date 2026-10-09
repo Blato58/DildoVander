@@ -12,7 +12,7 @@ const failureCodes = new Set(['invalid_identity', 'certificate_mismatch', 'autho
   'connection_timeout', 'protocol_error', 'connection_lost']);
 
 export interface NativeTransportBridge {
-  connect(options: { connectionId: string }): Promise<void>;
+  connect(options: { connectionId: string; host?: string; deviceId?: string }): Promise<void>;
   send(options: { connectionId: string; frame: string }): Promise<void>;
   close(options: { connectionId: string }): Promise<void>;
   addListener(
@@ -29,7 +29,12 @@ export class NativeControlSocket implements ControlSocket {
   private readonly listeners = new Map<string, Array<(event: { data?: unknown; failureCode?: string }) => void>>();
   private listener: { remove(): Promise<void> } | null = null;
 
-  constructor(private readonly bridge: NativeTransportBridge) {
+  private readonly route?: { host: string; deviceId: string };
+
+  constructor(private readonly bridge: NativeTransportBridge, route?: { host: string; deviceId: string }) {
+    // Copy before listener registration yields: later BLE/route changes must
+    // not redirect this connection attempt to a different saved hostname.
+    this.route = route ? { host: route.host, deviceId: route.deviceId } : undefined;
     void this.startAsync();
   }
 
@@ -53,7 +58,7 @@ export class NativeControlSocket implements ControlSocket {
         return;
       }
       this.listener = listener;
-      await this.bridge.connect({ connectionId: this.connectionId });
+      await this.bridge.connect({ connectionId: this.connectionId, ...this.route });
       if (this.readyState === 3) {
         await this.bridge.close({ connectionId: this.connectionId });
       }

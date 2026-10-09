@@ -199,7 +199,12 @@ public class KufrDeviceTransportPlugin: CAPPlugin, CAPBridgedPlugin {
                     call.reject("Nejprve spárujte kufr.", "not_paired")
                     return
                 }
-                let host = LocalDeviceAddressHints.selectedHost(manual: self.selectedHost, identity: identity)
+                guard let host = LocalDeviceAddressHints.connectionHost(manual: self.selectedHost,
+                    identity: identity, capturedHost: call.options["host"],
+                    capturedDeviceId: call.options["deviceId"]) else {
+                    call.reject("Adresa nebo uložený kufr se změnily. Připojte jej znovu.", "invalid_identity")
+                    return
+                }
                 let transport = LocalDeviceTransport(host: host, pin: identity.spkiSha256)
                 self.transport = transport
                 self.connectionId = id

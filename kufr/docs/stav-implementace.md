@@ -24,10 +24,15 @@ native adaptéry na obou async hranicích. GitHub review následně odhalilo P2
 silent skip při jiné pending BLE akci: refresh nyní vrací úspěch/neúspěch,
 pending/skipped/failed/stale refresh blokuje WSS tap. Plně odpojené BLE stále
 povolí uloženou/ruční LAN route. Dvě regrese pokrývají pending connection/action
-a main handler abort bez čtení staré adresy.
+a main handler abort bez čtení staré adresy. Další GitHub P2 odhalilo BLE loss
+mezi savedDevice a async socket bridge: veřejný host/deviceId snapshot se nyní
+kopíruje při vytvoření socketu před listener await a cestuje s pokusem. Native
+connect odmítá partial/invalid/mismatched target, stále znovu čte pin/token z
+Keychain a route zapisuje pouze po auth onOpen. Regrese ověřuje listener delay,
+mutaci původní route a native snapshot po BLE end.
 
 Ověřeno: dvě MSVC station suites (worker /std:c++14 /W4 /WX), pět parent host
-suites pairing/TLS/BLE/discovery/WSS, 48 mobile tests, npm run build a
+suites pairing/TLS/BLE/discovery/WSS, 49 mobile tests, npm run build a
 pio run -e esp32-s3-idf -s, vše exit0. Native helper/status regressions jsou
 připravené pro existující macOS workflow; Windows je nespustil. Nezávislé native
 review odhalilo a následně ověřilo opravený legacy ID regression; kombinované

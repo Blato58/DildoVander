@@ -6,6 +6,9 @@
 > STA IPv4. Nativní RAM hint je svázaný s autentizovanou BLE session a device ID,
 > má platnost 60 sekund a mizí při odpojení/offline. Explicitní Connect obnoví
 > status živé BLE session před použitím adresy. Ruční adresa má přednost.
+> Veřejný snapshot host/deviceId se váže na konkrétní socket ještě před async
+> listener registrací; nativní connect odmítne partial/invalid/mismatched target.
+> Odpojení BLE během předání proto nezmění zvolenou route na starý hostname.
 > Token a SPKI pin zůstávají v Keychain; nová adresa se tam zapíše až po
 > připnutém autentizovaném WSS připojení. Bonjour failure se nezamlčuje.
 > Fyzická kalibrace a servisní gates se nemění; jde o směrování připojení.

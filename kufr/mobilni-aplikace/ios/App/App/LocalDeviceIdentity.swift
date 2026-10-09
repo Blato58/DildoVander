@@ -182,6 +182,17 @@ enum LocalDeviceAddressHints {
         return address
     }
 
+    static func connectionHost(manual: String?, identity: LocalDeviceIdentity,
+                               capturedHost: Any?, capturedDeviceId: Any?) -> String? {
+        precondition(Thread.isMainThread)
+        if capturedHost == nil && capturedDeviceId == nil {
+            return selectedHost(manual: manual, identity: identity)
+        }
+        guard let host = capturedHost as? String, LocalDeviceIdentity.validHost(host),
+              let deviceId = capturedDeviceId as? String, deviceId == identity.deviceId else { return nil }
+        return host
+    }
+
     static func selectedHost(manual: String?, identity: LocalDeviceIdentity) -> String {
         manual ?? host(deviceId: identity.deviceId) ?? identity.host
     }

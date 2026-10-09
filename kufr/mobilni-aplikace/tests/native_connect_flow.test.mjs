@@ -15,7 +15,7 @@ const install = new Function('context', `with (context) { ${handler} }`);
 class NativeDeviceConnection {
   uncertainCommand = 'selection-in-flight';
   connects = 0;
-  connect() { this.connects++; }
+  connect(host) { this.connects++; this.host = host; }
 }
 function setup() {
   let tap;
@@ -40,6 +40,7 @@ test('explicit connect refreshes the route and preserves same-device uncertain-c
   assert.equal(flow.context.connection, flow.connection);
   assert.equal(flow.connection.uncertainCommand, 'selection-in-flight');
   assert.equal(flow.connection.connects, 1);
+  assert.equal(flow.connection.host, '192.168.0.62');
   assert.equal(flow.context.addressInput.value, '192.168.0.62');
 });
 
