@@ -110,6 +110,11 @@ struct BleStatusBridge {
       return "pairing_unavailable";
     }
     if (!bridge.pairing.IsHealthy()) { return "pairing_storage_unavailable"; }
+    // Backend provisioning historically accepts IDs outside control-v1. Do
+    // not consume enrollment that the native control client cannot validate.
+    if (!EspIdfLocalServiceAdvertisement::SupportsLocalControl(bridge.identity.DeviceId())) {
+      return "pairing_requires_service";
+    }
     if (bridge.pairing.IsPaired()) { return "already_paired"; }
     if (bridge.pairing.IsPairingReady()) { return "pairing_requires_service"; }
     if (!bridge.station.HasIp()) { return "network_not_ready"; }

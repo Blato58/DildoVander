@@ -21,6 +21,7 @@ class EspIdfLocalServiceAdvertisement final {
   bool Start(const std::string& deviceId);
   // Same deterministic hostname is used in authenticated BLE enrollment.
   static std::string Hostname(const std::string& deviceId, Sha256Port& hasher);
+  static bool SupportsLocalControl(const std::string& deviceId);
 
  private:
   static void TaskEntry(void* context);
