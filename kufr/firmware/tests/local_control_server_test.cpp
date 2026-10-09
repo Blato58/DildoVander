@@ -362,8 +362,15 @@ int main(int argc, char** argv) {
   rejected.uri = "/v1/control?token=forbidden";
   assert(endpoint.ws_pre_handshake_cb(&rejected) == ESP_FAIL);
   rejected.uri = endpoint.uri;
-  extensions = "permessage-deflate";
-  assert(endpoint.ws_pre_handshake_cb(&rejected) == ESP_FAIL);
+  extensions = "permessage-deflate; client_max_window_bits";
+  assert(endpoint.ws_pre_handshake_cb(&rejected) == ESP_OK);
+  Drop(rejected);
+  // Declining compression must not bypass the bearer admission gate.
+  authorization[7] = 'z';
+  auto unauthorizedOffer = Request();
+  assert(endpoint.ws_pre_handshake_cb(&unauthorizedOffer) == ESP_FAIL);
+  assert(status == "401 Unauthorized" && unauthorizedOffer.sess_ctx == nullptr);
+  authorization = validAuthorization;
   extensions.clear();
   auto expired = Request();
   assert(endpoint.ws_pre_handshake_cb(&expired) == ESP_OK);
