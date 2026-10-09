@@ -40,6 +40,8 @@ firmware, web nebo offline AI eval z úplného diffu PR; sdílené kontrakty,
 simulátor a balení spustí jejich skutečné spotřebitele. Nesouvisející joby
 se vynechají a závěrečná kontrola odmítne chybný/neočekávaně vynechaný
 vybraný projekt. Ruční CI nabízí výběr projektu pro obnovu artefaktu.
+AI eval volaný z CI zůstává offline také při ruční obnově; placený job
+se smí spustit pouze přímým dispatch vyhrazeného AI eval workflow.
 PR obsahující změny kódu se při dalším commitu vyhodnocuje jako celek,
 takže dokumentační commit do takového PR stále ověřuje jeho kód.
 CI návod, CONTRIBUTING a README tomu odpovídají; neaktivní šablona rulesetu
