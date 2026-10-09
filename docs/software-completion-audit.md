@@ -5,7 +5,52 @@ mobile companion, contracts, simulator, offline AI evaluation, service tools
 and deployment workflows. `obludarium/` remains an independent Arduino Nano
 starter project, outside the suitcase implementation scope.
 
-**Current handoff: D165.** Forgetting the iPhone's local
+**Current handoff: D166.**
+
+The owner entered `192.168.0.59` manually and saw the service-state UI, which
+requires a valid snapshot: that evidence confirms authenticated pinned WSS through
+IP. Hostname timeout was observed; the exact iPhone DNS/multicast cause is unproven.
+D166 exposes optional current STA IPv4 `n.ip` only through secured BLE. Offline or
+generation changes omit it; at the 512-byte limit only this optional hint is dropped.
+The native RAM hint is bound to session/device ID for 60 seconds. Connect refreshes
+a live BLE session even with its panel hidden; pending/skipped/failed/stale refresh
+aborts the attempt. A failed refresh clears logical BLE state so a later tap can
+use the saved/manual route. Manual address takes precedence. Host/device ID are
+captured before listener await; native validation accepts both valid matching
+fields or both absent. The same Keychain pin/token authenticate WSS; route is saved
+only after authenticated onOpen. Uncertain-command and hardware gates remain intact.
+
+[PR165](https://github.com/Blato58/DildoVander/pull/165) merged as
+`b22f478ffcba03bf052b8073a9ed4fd1a53be47b`, from source
+`e4d215cfe10b2d293c74cdf9e581efc974ae80a4`.
+[CI 37945851773](https://github.com/Blato58/DildoVander/actions/runs/37945851773), run number 167,
+passed; CI/main share tree `dc21879478bd6f691b67b3c8934e2d731f8e0f6f`.
+[OTA publication 37946520625](https://github.com/Blato58/DildoVander/actions/runs/37946520625)
+published **0.1.168**, buildId `a228b02f1a1881065470680c26081f8ca8884f6a`, 1745456 B,
+SHA-256 `a83069da0bf9af357bbf8613f85eedb1455e838ced225f5f7c7f08a55d9ddc31`.
+Public HTTPS, ECDSA signature, hash and embedded version were verified; N16R8
+image/partition checks passed.
+[iOS signing 37946514768](https://github.com/Blato58/DildoVander/actions/runs/37946514768)
+passed all three native harnesses (pinned LAN/Keychain/WSS/captured route, native
+Debug backend and secured BLE whitelist), Xcode archive and Ad Hoc export.
+The signed IPA has verified Bundle ID `app.turquoise6409.green2444` and version
+**1.0 / build 1000.0.23**.
+[Safari publication 37947083377](https://github.com/Blato58/DildoVander/actions/runs/37947083377)
+passed all jobs. The public [installation page](https://2.28.202.220/ios/)
+and manifest confirm **1000.0.23**; public IPA and checksum match the signed artifact.
+The application-only **0.1.168** write to COM7 at `0x10000` passed hash verification;
+NVS, otadata and the partition table were preserved. Normal RTS boot confirmed
+**0.1.168**, control-loop startup and the local TLS server; a PC BLE scan found
+`KUFR_4B6048` with the expected service UUID. The current delivered combination is
+**0.1.168 / 1000.0.23**. D165 **0.1.162 / 1000.0.22** remains historical. Exact receipts remain in
+[implementation status](../kufr/docs/stav-implementace.md#předání-další-ai).
+The owner answered **“Connection worked”** to the exact test request to update
+to **1000.0.23**, use secured BLE with the saved pairing and connect without
+typing an IP. This confirms automatic D166 connection in that trial. Next:
+physical calibration, sustained WSS, Keychain retention after restart/update and
+negative DHCP/network/lifecycle cases. Full physical acceptance remains pending.
+
+**Historical D165 handoff.** Forgetting the iPhone's local
 Keychain profile left the ESP paired, so subsequent first-use BLE pairing returned
 `already_paired`. D165 adds a native confirmation before authenticated
 Security1/PoP `recover-local` with exact `confirm:true`. Healthy Paired records alone
@@ -198,7 +243,10 @@ historical evidence. D164 adds the explicitly recorded USB recovery, boot,
 PC BLE scan and owner-confirmed iPhone connection above. That connection predates
 forgetting. D165 subsequently adds owner-confirmed re-pairing and a valid-device
 service-state UI after using the direct IP; hostname discovery/connection still fail.
-Long-running WSS, post-update Keychain, OTA-negative and full-event acceptance remain pending.
+D166 implements the secured BLE IPv4 route; the owner confirmed automatic iPhone
+connection in the instructed update/BLE/address-free trial. Long-running WSS,
+restart/post-update Keychain, negative DHCP/network, OTA-negative and full-event
+acceptance remain pending.
 
 Software tests cannot establish actual CoreBluetooth/radio coexistence, iPhone
 hotspot behavior, power-loss rollback, NVS physical security, measured servo

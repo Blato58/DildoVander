@@ -1,6 +1,49 @@
 # Připravenost na akci a provozní checklist
 
-**Aktuální předání: D165.** Majitel zapomněl místní párování
+**Aktuální předání: D166.**
+
+Majitel zadal ručně `192.168.0.59` a obdržel servisní stav, který UI ukazuje
+až po validním snapshotu: tento důkaz potvrzuje autentizované pinned WSS přes IP.
+Hostname timeout byl pozorovaný; konkrétní příčina DNS/multicast na iPhonu není doložená.
+D166 předává aktuální STA IPv4 jako volitelné `n.ip` pouze přes zabezpečené BLE;
+offline/změna generace ho vynechá a při 512 B limitu se vynechá jen tento hint.
+Nativní RAM hint je vázaný na session/device ID a platí 60 s. Connect obnoví status
+živé BLE session i ve skrytém panelu; pending/skipped/failed/stale refresh pokus
+zastaví. Failed refresh vymaže logické BLE spojení, takže další tap může použít
+uloženou/ruční route. Ruční adresa má přednost. Host/device ID se zachytí před
+async listener await; nativní validace přijme oba platné odpovídající údaje nebo
+oba chybějící. Keychain pin/token zůstávají stejné a route se uloží až po auth onOpen.
+Nejisté povely ani hardware gates se touto změnou neobcházejí.
+
+[PR165](https://github.com/Blato58/DildoVander/pull/165) se sloučilo jako
+`b22f478ffcba03bf052b8073a9ed4fd1a53be47b` ze source
+`e4d215cfe10b2d293c74cdf9e581efc974ae80a4`.
+[CI 37945851773](https://github.com/Blato58/DildoVander/actions/runs/37945851773), run number 167,
+prošlo; shodný tree CI/main je `dc21879478bd6f691b67b3c8934e2d731f8e0f6f`.
+[OTA publikace 37946520625](https://github.com/Blato58/DildoVander/actions/runs/37946520625)
+zveřejnila **0.1.168**; veřejné HTTPS, ECDSA podpis, hash a embedded verze byly ověřené.
+[iOS podpis 37946514768](https://github.com/Blato58/DildoVander/actions/runs/37946514768)
+prošel všemi třemi native harnessy (pinned LAN/Keychain/WSS/captured route,
+native Debug backend a secured BLE whitelist), Xcode archive a Ad Hoc export.
+Podepsaná IPA má ověřené Bundle ID `app.turquoise6409.green2444` a verzi
+**1.0 / build 1000.0.23**.
+[Safari publikace 37947083377](https://github.com/Blato58/DildoVander/actions/runs/37947083377)
+prošla všemi joby. Veřejná [instalační stránka](https://2.28.202.220/ios/)
+a manifest potvrzují **1000.0.23**; veřejná IPA a checksum odpovídají podepsanému artefaktu.
+Application-only zápis **0.1.168** na COM7 do `0x10000` prošel hash kontrolou;
+NVS, otadata a partition table zůstaly zachované. Normální RTS boot potvrdil
+**0.1.168**, start control loop a místního TLS serveru; PC BLE scan našel
+`KUFR_4B6048` s očekávaným service UUID. Aktuální dodaná sestava je
+**0.1.168 / 1000.0.23**. D165 **0.1.162 / 1000.0.22** zůstává historické.
+Přesné dodání vede
+[stav implementace](../kufr/docs/stav-implementace.md#předání-další-ai).
+Majitel na přesný dotaz k aktualizaci **1000.0.23**, zabezpečenému BLE
+s uloženým párováním a připojení bez psaní IP odpověděl **„Connection worked“**.
+To potvrzuje automatické připojení D166 v této zkoušce. Další krok: fyzická
+kalibrace, dlouhodobé WSS, Keychain po restartu/aktualizaci a negativní DHCP/
+síťové/lifecycle scénáře. Úplná fyzická akceptace zůstává otevřená.
+
+**Historické předání D165.** Majitel zapomněl místní párování
 na iPhonu; ESP zachovalo token hash a další BLE párování končilo `already_paired`.
 D165 přidává nativní potvrzení **Obnovit párování kufru?** a až po něm přesný
 `recover-local` s `confirm:true` přes Security1/PoP. Obnovit lze pouze zdravý
@@ -155,7 +198,7 @@ Jejich skutečné výsledky, verze a běhy zapisuje
 | Obě sítě nefungují | V autentizovaném BLE okně opravit profil nebo použít **Test**. Po minutě offline se jednou za boot otevírá další pětiminutové recovery okno. Pokud vypršelo, provést vědomý power cycle až po bezpečném ukončení aktivity; nesmazat NVS. Offline ruční bezpečnostní řízení nepotřebuje AI/WAN. |
 | Nové heslo nefunguje | Zkontrolovat konečný `connection_failed`/`storage_failed`. Chybné heslo zachová předchozí profil. Storage failure zachová starý stav RAM a jednou zkusí obnovit uložený blob i původní spojení; trvalá chyba NVS může zmařit obnovu. Po zotavení ověřit skutečný uložený profil, případně použít kontrolovaný USB servis. Neopakovat naslepo více změn během čekající operace. |
 | Wi-Fi je připojená, backend ne | Ověřit internet na telefonu a přečíst stav/technické logy. Prověřit UTC čas, identitu a skutečně nasazenou verzi. Nevypínat TLS; provider klíč nepatří do telefonu ani ESP. |
-| Zapomenuté místní párování / `already_paired` | S firmware/aplikací D165 se připojit přes ověřené PoP BLE, použít **Spárovat ovládání přes Wi-Fi** a potvrdit **Obnovit párování kufru?**. Kufr musí být nečinný a ostatní ovladače odpojené. Zrušení nic nemění; obnova zneplatní starý token a nemění TLS/Wi-Fi. Chybu `busy` řešit ukončením vlastních spojení/aktivity, nikoli smazáním NVS nebo automatickým opakováním. Firmware **0.1.162** je publikovaný a jeho boot ověřený; iOS **1000.0.22** je publikované. Fyzická zkouška obnovy D165 zatím čeká. |
+| Zapomenuté místní párování / `already_paired` | S firmware/aplikací D165 se připojit přes ověřené PoP BLE, použít **Spárovat ovládání přes Wi-Fi** a potvrdit **Obnovit párování kufru?**. Kufr musí být nečinný a ostatní ovladače odpojené. Zrušení nic nemění; obnova zneplatní starý token a nemění TLS/Wi-Fi. Chybu `busy` řešit ukončením vlastních spojení/aktivity, nikoli smazáním NVS nebo automatickým opakováním. Firmware **0.1.162** je publikovaný a jeho boot ověřený; iOS **1000.0.22** je publikované. Majitel následně potvrdil opakované párování; automatické LAN připojení a jeho úplnou fyzickou akceptaci řeší D166. |
 | Telefon nebo BLE se odpojil | Samostatný kufr pokračuje; pozorovatelské odpojení samo nezastavuje rozhovor. Ztráta ručního lease má vlastní bezpečné ukončení. Nové připojení neobnovuje automaticky starý hlasový tah ani fyzický povel. |
 | OTA hlásí selhání | Uchovat verzi/chybový kód, ověřit síť a OTA veřejnou důvěru. Neplatný podpis/hash/target neopravovat vypnutím kontrol. Starý běžící slot zůstává při neúspěšném downloadu použitelný; nová opravená verze je potřeba po odmítnuté boot validaci stejné verze. |
 | OTA po rebootu neprojde zdravím | Nový obraz vyžaduje souvislé 5 s pasivního zdraví a sítě do 120 s; během validace nepovoluje interakce. Ověřit návrat staré verze a credentialů. Bez platného fallback slotu použít přijatý USB recovery postup se zálohou. Skutečný rollback musí být před akcí fyzicky otestovaný. |
@@ -174,7 +217,7 @@ neprokazuje runtime. H = kontrola skutečné desky přes USB/UART a korelované
 serverové logy. M = výsledek
 na telefonu potvrzený majitelem. NE = neprovedeno v uvedeném prostředí.**
 D159 doplňuje pouze výslovně uvedené historické výsledky skutečné desky a telefonu;
-nelze je přenést na D165 bez nové zkoušky. Aktuální publikace a hlášené LAN odpojování
+nelze je přenést na D166 bez nové zkoušky. Aktuální publikace a hlášené LAN odpojování
 jsou uvedené nahoře. Host adaptér OTA
 simuluje HTTP, flash a kryptografické odpovědi; skutečný podpis balíčku ověřují
 samostatné release/backend testy. BLE host stub potvrzuje zapojení Security1,
@@ -238,13 +281,13 @@ a aktuální CI/publikační výsledky patří do stavu implementace.
 ## Připravenost subsystémů a vnější podmínky
 
 Řádky s D158/D159 zachovávají historickou akceptaci příslušných verzí;
-aktuální předání je D165 podle odkazu nahoře.
+aktuální předání je D166 podle odkazu nahoře.
 
 | Subsystém | Stav při tomto zápisu | Co ještě brání úplné akceptaci |
 | --- | --- | --- |
 | BLE provisioning a hotspot/fallback firmware | IMPLEMENTED — PARTIALLY HARDWARE VERIFIED | D159 USB servis/NVS a majitelem potvrzený PoP handshake/domácí Wi-Fi prošly. Zbývá wrong-PoP, hotspot/failover, radio coexistence a úplné reconnect zkoušky. |
 | iOS Síť kufru | IMPLEMENTED — PARTIALLY HARDWARE VERIFIED | Web 32 testů/build, skutečné native testy/Xcode archive/Ad Hoc export i public IPA prošly; majitel použil aplikaci pro BLE/domácí Wi-Fi. Hotspot/error/recovery scénáře zbývají. |
-| Lokální LAN ovládání | NOT ACCEPTED | Majitel potvrdil vyhledání a párování, ale LAN spojení se opakovaně odpojovalo. D163 přidalo opravu WS extension offers a omezení reconnect; D164 potvrdilo USB obnovu, boot **0.1.161**, BLE scan z PC a start TLS serveru. Majitel následně potvrdil připojení iPhonu před zapomenutím. D165 přidává explicitní obnovu; firmware **0.1.162** je publikovaný a boot ověřený. iOS **1000.0.22** je publikované; majitel potvrdil opakované párování a po zadání IP UI ukazuje device service state. Hostname discovery/connection, dlouhodobé WSS a Keychain po aktualizaci stále zbývají. |
+| Lokální LAN ovládání | IMPLEMENTED — PARTIALLY HARDWARE VERIFIED | D165 majitel potvrdil opakované párování; servisní UI po ruční `192.168.0.59` dokládá validní pinned/auth WSS snapshot. Hostname timeout byl pozorovaný, přesná iPhone DNS/multicast příčina není doložená. D166 přidává session/ID-bound BLE IPv4 a chráněný refresh/captured route; CI/native harnessy, OTA publikace, iOS archive/export, Safari dodání, app-only USB zápis/boot **0.1.168** a PC BLE scan prošly. Majitel na přesný D166 test aktualizace/BLE/připojení bez IP odpověděl „Connection worked“. Dlouhodobé WSS, Keychain po restartu/aktualizaci a DHCP/negativní síťové scénáře zbývají. |
 | OTA firmware | IMPLEMENTED — PARTIALLY HARDWARE VERIFIED | D159 prošlo skutečnou podepsanou OTA0.1.0→0.1.1, VALID boot, credential retention a další reset/reconnect. Zbývají negativní image/signature, přerušení/power-loss a rollback. |
 | Release distribuce a VPS | READY v ověřeném development/server rozsahu | Root GitHub verifier, signed OTA/backend/iOS pipelines a public HTTPS bajty/hash/signature prošly; D159 také skutečně přijalo development OTA na ESP. Stable autorita má samostatný provisioning. |
 | Produkční stable autorita | BLOCKED pro nasazení bez správné důvěry | Provisionovat příslušný produkční podpisový klíč mimo repo a shodný veřejný trust na zařízení; development klíč není automaticky produkční oprávnění. |
