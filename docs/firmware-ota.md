@@ -47,7 +47,9 @@ Service NVS namespace `wand_ota`:
 
 Checks start after connectivity and safe idle, initially after30s. Periodic checks
 use the configured interval; failures back off30s..32min. No update request may
-disable normal suitcase functionality. A manually requested install waits idle.
+disable normal functionality merely by checking. A requested install waits idle,
+then deliberately enters maintenance until completion/reboot; Stop and status
+remain available while new interactions are blocked.
 
 GET `/v1/firmware/manifests/{channel}.json` returns
 `{schemaVersion:1,payload:<base64 exact JSON bytes>,signature:<base64 DER ECDSA signature>}`.
