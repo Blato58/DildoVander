@@ -6,7 +6,7 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**9. 10. 2026 – zrychlení firmware CI (rozpracováno).** Převzaté soubory:
+**9. 10. 2026 – zrychlení firmware CI.** Převzaté soubory:
 `.github/workflows/kufr-firmware.yml`, nové `kufr/firmware/ci/` a firmware
 README. Živá kontrola potvrdila VPS s 1 CPU, 1909 MiB RAM, 2 GiB swap
 a dvěma aktivními runnery s odděleným `HOME`; backend health je `ok`.
@@ -28,7 +28,19 @@ testů, 6 CI-routing testů, `actionlint` 1.7.12 a whitespace prošly.
 Nezávislé review je po opravách bez otevřeného nálezu.
 Před Git předáním začleněný `origin/main` `d4862ff` (nové OTA/BLE/SD
 software slices); jejich kontroly a USB network diagnostika zůstávají
-v upraveném workflow. Plný Linux CI na tomto stromu teprve následuje.
+v upraveném workflow. Implementační commit `703792186bcb1e4fda7e1683fdce0baeec4158ba`
+byl odeslaný přes `Push-CurrentBranch.ps1`; remote SHA je ověřená.
+PR [146](https://github.com/Blato58/DildoVander/pull/146) má první plný
+[CI 37897760345](https://github.com/Blato58/DildoVander/actions/runs/37897760345)
+úspěšný: Linux host tests, pět cache regresí, repository checks, ESP-IDF,
+OTA version check, managed cJSON BLE test a všechny čtyři diagnostiky
+i `CI required`. Firmware job `113712989981` na `dildovander-server`
+trval 530 s (8m50s), z toho příprava Core 9 s, hlavní build 251 s a
+diagnostiky 59/58/66/71 s. První běh vytvořil 374 MiB cache; pruning
+nemusel nic mazat. Stažený artefakt prošel SHA-256 a bezpečným unpackem
+`scripts/ci/package.py`; firmware OTA verze `0.1.0` je ověřená.
+GitHub Codex review implementace dokončilo bez inline nálezů.
+Další běh ověří teplou cache; procentuální zrychlení se zatím netvrdí.
 Nevzniká nová VPS objednávka, provider inference, deploy ani HW flash.
 
 **D158 – 9. 10. 2026 – plný audit, nativní BLE, hotspot-first Wi-Fi, OTA a SD.**
