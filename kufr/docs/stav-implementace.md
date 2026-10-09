@@ -130,6 +130,11 @@ Nezávislé source review opravilo také sousední zastaralou E9 blokaci runtime
 Realtime/GPT-Live PCM/I2S cesta existuje, starší oddělený STT upload ji
 neblokuje. Finální review změněného rozsahu nemá nález; všech27 místních
 odkazů v tomto stavu a whitespace prošly. Kód ani firmware image se neměnily.
+Navazující GitHub review požadovalo shodný D159 acceptance rozsah také v mobilním
+README. To nyní rozlišuje potvrzené BLE/PoP/domácí Wi-Fi/status od neověřeného
+hotspotu, LAN, audio a telefonních OTA tlačítek.
+Tento dvoudokumentový doplněk prošel nezávislým review, 27+12 místními
+odkazy a whitespace kontrolou; nebyla přidaná další HW či hlasová akceptace.
 
 **9. 10. 2026 – zrychlení firmware CI.** Převzaté soubory:
 `.github/workflows/kufr-firmware.yml`, nové `kufr/firmware/ci/` a firmware
