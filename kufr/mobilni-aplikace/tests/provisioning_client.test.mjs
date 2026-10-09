@@ -246,3 +246,29 @@ test('pairing tap during a quiet poll reserves one action and waits for its BLE 
   assert.equal(refreshed, 1);
   await client.disconnect();
 });
+
+
+test('control connect refreshes a live BLE route after a long hidden-panel dwell without restarting polling', async (context) => {
+  context.mock.timers.enable({ apis: ['setTimeout'] });
+  let reads = 0;
+  const updates = [];
+  const current = { ...status, network: { ...status.network, ipv4: '192.168.0.62' } };
+  const client = new ProvisioningClient({ connect: async () => status,
+    status: async () => { reads++; return current; }, disconnect: async () => {} },
+    (...event) => updates.push(event));
+  client.show(true);
+  await client.connect('KUFR_123456');
+  client.show(false);
+  context.mock.timers.tick(70000);
+  await flush();
+  assert.equal(reads, 0);
+  await client.refreshLocalAddress();
+  assert.equal(reads, 1);
+  assert.equal(updates.at(-1)[0].network.ipv4, '192.168.0.62');
+  context.mock.timers.tick(70000);
+  await flush();
+  assert.equal(reads, 1);
+  await client.disconnect();
+  await client.refreshLocalAddress();
+  assert.equal(reads, 1);
+});

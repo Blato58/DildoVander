@@ -105,6 +105,12 @@ export class ProvisioningClient {
     }
   }
 
+  async refreshLocalAddress(): Promise<void> {
+    // The control tab stops periodic BLE polling. Refresh on the explicit
+    // connect tap so a still-live secured session can provide a current route.
+    await this.perform(() => this.bridge.status());
+  }
+
   async disconnect(): Promise<void> {
     ++this.generation;
     this.cancelPoll();
