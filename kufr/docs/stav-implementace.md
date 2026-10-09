@@ -76,8 +76,8 @@ statické RAM, 1 342 745 B flash. Servisní generator/build prošel (14 800 B
 RAM / 171 053 B flash), tři hostitelské MSVC `/std:c++14 /W4 /WX` foto/HTTP/driver
 testy a dosavadní start codec prošly, servisní Python sada 4/4. Konfigurace
 PlatformIO potvrzuje jen ESP-IDF; workflow YAML se parsuje. Závěrečné
-nezávislé review oprav nehlásí otevřené nálezy. Git/CI předání a native
-macOS výsledek budou doplněné podle skutečnosti.
+nezávislé review oprav nehlásí otevřené nálezy. Git/CI předání je doložené
+níže; native macOS kontrola je v tomto tasku vynechaná na pokyn majitele.
 Implementační commit `0c18faf56f39620186338f460158d48ab41b7829` vznikl po
 ověření, `Push-CurrentBranch.ps1` uspěl a read-back remote potvrdil stejnou SHA.
 PR [142](https://github.com/Blato58/DildoVander/pull/142) je otevřený.
@@ -110,13 +110,26 @@ po posledním push a před každým merge; nevztahuje se jen na tuto větev.
 CI `37878589564` před těmito review opravami prošlo všechny vybrané
 projekty. Stažený firmware balíček prošel SHA-256 ověřením a obsahuje
 jen `esp32-s3-idf/` (bootloader, firmware, partition, OTA data a ELF).
-Linux CI nových oprav, merge a nativní macOS ověření se doplní podle výsledku.
+Opravy a trvalé pravidlo jsou v commitu `ab28dd05bb0872c79217561e5270eda64e2d3064`;
+`Push-CurrentBranch.ps1` uspěl a ověřil stejnou remote SHA. Finální
+[CI 37880643165](https://github.com/Blato58/DildoVander/actions/runs/37880643165)
+prošlo backend, web, offline AI eval, Linux hostitelské firmware testy,
+ESP-IDF a všechny servisní diagnostiky, repository checks a CI required.
+Placený live eval byl správně vynechaný. Po posledním push a těsně před
+merge byla znovu načtená všechna reviews, inline vlákna i Codex summary;
+pět opravených Codex vláken je resolved, review nebylo rozpracované.
+PR 142 je sloučený jako `6cb130d542e2eb2d0ff41a6cde05c7f47adbdc30`;
+fetch cíle potvrdil Git tree `1d8710572af596e28ff94e2e954d4a8e7d5ec74a`,
+shodný s otestovanou verzí `ab28dd0`.
+Majitel poté výslovně zadal „skip ios ci“. Nativní `kufr-ios-sign.yml`
+se nespustil; nové Swift regrese, UIKit kompilace, podpis a iPhone runtime
+nejsou tímto předáním ověřené. Web/mobile Node testy nejsou native CI.
 Neprovedeno: placená inference, cloudové nasazení, publikace IPA ani flash.
 E12/E13 nejsou celé hotové: kamera ještě není doručená; revize/FPC/piny,
 napájení/proud/souběh, skutečný obraz/latence, iPhone kamera/pozadí a SD
-zůstávají samostatnými akceptacemi. Další konkrétní krok: po software CI
-ověřit nativní build, po doručení kamery servisně změřit a povolit profil;
-provider evaluace a fyzický flash vyžadují svou původní autorizaci.
+zůstávají samostatnými akceptacemi. Další konkrétní krok: po doručení kamery
+servisně změřit a povolit profil. Nativní ověření navázat až po novém pokynu
+majitele; provider evaluace a fyzický flash vyžadují svou původní autorizaci.
 
 **9. 10. 2026 – synchronizace PR před CI.** Převzatý slice přidává
 API-only workflow `pr-sync.yml` a `scripts/ci/pr-freshness.cjs`: při PR
