@@ -1,5 +1,20 @@
 # Implementační plán AI kufru
 
+> **D163, 9. 10. 2026: místní WSS po BLE párování.**
+> Server přijímá nabídku WebSocket extensions bez jejího výběru; přesná bearer
+> autentizace, TLS pin a limity rámců zůstávají. Čtyři Apple WSS požadavky v
+> macOS harnessu nabídku obsahovaly. Mobil vrací bezpečný failureCode,
+> zastaví trvalé chyby a omezuje ostatní reconnect; nejisté povely nereplayuje.
+> Development OTA **0.1.160** je [publikovaná](https://github.com/Blato58/DildoVander/actions/runs/37929155208)
+> s ověřeným podpisem/hashem/embedded verzí. iOS **1.0 / build 1000.0.21** prošlo
+> [native harnessy a podpisem](https://github.com/Blato58/DildoVander/actions/runs/37929159117);
+> [Safari publikace 37929535139](https://github.com/Blato58/DildoVander/actions/runs/37929535139)
+> prošla; veřejný manifest, IPA a checksum byly ověřené. Přesné předání vede
+> [stav implementace](stav-implementace.md#předání-další-ai). Majitel před opravou
+> potvrdil scan/párování, ale Ovládání na stejné Wi-Fi opakovaně selhávalo.
+> Instalace nových verzí a stabilní fyzické WSS zůstávají nesplněnou akceptací;
+> tato oprava nemění hranice systému ani uzavření E10.
+
 > **D160, 9. 10. 2026: uchování BLE PoP na žádost majitele.**
 > Po úspěšném Security1 ověření ukládá iOS PoP nativně do odděleného
 > Keychain pro konkrétní BLE název kufru, WhenUnlockedThisDeviceOnly,
@@ -105,7 +120,7 @@
 > tímto akceptované; [D145–D146](stav-implementace.md#předání-další-ai)
 > uvádí skutečné běhy, konfiguraci a zbývající ověření. Architektura níže
 > se samotnou publikací nemění. Jde o historický doklad D145–D146;
-> aktuální publikace D162 je 1.0/1000.0.20 podle stavu implementace;
+> D162/1.0/1000.0.20 je také historická publikace; aktuální předání D163 vede stav implementace;
 > D158/1000.0.19 zůstává historický doklad fyzického BLE ověření D159.
 
 > **D143, 6. 10. 2026: opt-in autonomní GPT-Live a hybridní paměť.**

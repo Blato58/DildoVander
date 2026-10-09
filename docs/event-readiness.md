@@ -1,13 +1,26 @@
 # Připravenost na akci a provozní checklist
 
-**Aktuální publikace: D162.** Rozhodující záznam je v
+**Aktuální předání: D163.** [CI 37928528451](https://github.com/Blato58/DildoVander/actions/runs/37928528451)
+prošlo; development OTA **0.1.160** je [publikovaná 37929155208](https://github.com/Blato58/DildoVander/actions/runs/37929155208)
+s ověřeným veřejným podpisem, hashem a embedded verzí.
+iOS **1.0 / build 1000.0.21** prošlo [native testy a podpisem 37929159117](https://github.com/Blato58/DildoVander/actions/runs/37929159117)
+a [Safari publikací 37929535139](https://github.com/Blato58/DildoVander/actions/runs/37929535139);
+instalační stránka, manifest, veřejná IPA a checksum byly ověřené.
+Server přijímá nabídku WS extensions
+bez jejího výběru; čtyři skutečné Apple WSS požadavky v harnessu ji obsahovaly.
+Mobil vypisuje bezpečný failureCode a omezuje reconnect. Instalace nových obrazů
+a stabilní LAN provoz na fyzické sestavě zbývají podle
+[stavu implementace](../kufr/docs/stav-implementace.md#předání-další-ai).
+
+**Historická publikace D162.** Rozhodující záznam je v
 [předání ve stavu implementace](../kufr/docs/stav-implementace.md#předání-další-ai):
 development OTA **0.1.157**, [publikace37923929435](https://github.com/Blato58/DildoVander/actions/runs/37923929435),
 a iOS **1.0 / build1000.0.20**, [podpis37923948887](https://github.com/Blato58/DildoVander/actions/runs/37923948887)
 a [publikace37924314161](https://github.com/Blato58/DildoVander/actions/runs/37924314161).
 Publikace sama nepotvrzuje instalaci ani fyzickou akceptaci těchto verzí.
 Majitel následně hlásí funkční vyhledání a párování, ale LAN spojení se opakovaně
-odpojuje. Příčina se vyšetřuje; stabilní LAN ovládání zatím není přijaté.
+odpojuje. D163 opravuje zdrojovou nekompatibilitu, ale stabilní LAN ovládání
+na sestavě zatím není přijaté.
 
 Stav k 9. 10. 2026: software obsahuje BLE konfiguraci, hotspot/fallback, OTA
 a volitelné SD assety. Lokální testy potvrzují dílčí softwarové chování;
@@ -103,7 +116,7 @@ neprokazuje runtime. H = kontrola skutečné desky přes USB/UART a korelované
 serverové logy. M = výsledek
 na telefonu potvrzený majitelem. NE = neprovedeno v uvedeném prostředí.**
 D159 doplňuje pouze výslovně uvedené historické výsledky skutečné desky a telefonu;
-nelze je přenést na D162 bez nové zkoušky. Aktuální publikace a hlášené LAN odpojování
+nelze je přenést na D163 bez nové zkoušky. Aktuální publikace a hlášené LAN odpojování
 jsou uvedené nahoře. Host adaptér OTA
 simuluje HTTP, flash a kryptografické odpovědi; skutečný podpis balíčku ověřují
 samostatné release/backend testy. BLE host stub potvrzuje zapojení Security1,
@@ -167,13 +180,13 @@ a aktuální CI/publikační výsledky patří do stavu implementace.
 ## Připravenost subsystémů a vnější podmínky
 
 Řádky s D158/D159 zachovávají historickou akceptaci příslušných verzí;
-aktuální publikace je D162 podle odkazu nahoře.
+aktuální předání je D163 podle odkazu nahoře.
 
 | Subsystém | Stav při tomto zápisu | Co ještě brání úplné akceptaci |
 | --- | --- | --- |
 | BLE provisioning a hotspot/fallback firmware | IMPLEMENTED — PARTIALLY HARDWARE VERIFIED | D159 USB servis/NVS a majitelem potvrzený PoP handshake/domácí Wi-Fi prošly. Zbývá wrong-PoP, hotspot/failover, radio coexistence a úplné reconnect zkoušky. |
 | iOS Síť kufru | IMPLEMENTED — PARTIALLY HARDWARE VERIFIED | Web 32 testů/build, skutečné native testy/Xcode archive/Ad Hoc export i public IPA prošly; majitel použil aplikaci pro BLE/domácí Wi-Fi. Hotspot/error/recovery scénáře zbývají. |
-| Lokální LAN ovládání | NOT ACCEPTED | Aktuální hlášení majitele: vyhledání a párování fungují, LAN spojení se však opakovaně odpojuje. Příčina a stabilní provoz se dále ověřují. |
+| Lokální LAN ovládání | NOT ACCEPTED | Majitel potvrdil vyhledání a párování, ale LAN spojení se opakovaně odpojovalo. D163 přidává opravu WS extension offers a omezení reconnect; fyzický stabilní provoz nové verze zbývá. |
 | OTA firmware | IMPLEMENTED — PARTIALLY HARDWARE VERIFIED | D159 prošlo skutečnou podepsanou OTA0.1.0→0.1.1, VALID boot, credential retention a další reset/reconnect. Zbývají negativní image/signature, přerušení/power-loss a rollback. |
 | Release distribuce a VPS | READY v ověřeném development/server rozsahu | Root GitHub verifier, signed OTA/backend/iOS pipelines a public HTTPS bajty/hash/signature prošly; D159 také skutečně přijalo development OTA na ESP. Stable autorita má samostatný provisioning. |
 | Produkční stable autorita | BLOCKED pro nasazení bez správné důvěry | Provisionovat příslušný produkční podpisový klíč mimo repo a shodný veřejný trust na zařízení; development klíč není automaticky produkční oprávnění. |
