@@ -152,6 +152,16 @@ bool LocalPairingCredential::InitializeFromAuthenticatedBle(
   return IssueToken(issuedToken);
 }
 
+bool LocalPairingCredential::RotateFromAuthenticatedBle(
+    std::array<uint8_t, TokenSize>& issuedToken) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  issuedToken.fill(0);
+  if (!healthy_ || state_ != State::Paired) {
+    return false;
+  }
+  return IssueToken(issuedToken);
+}
+
 bool LocalPairingCredential::IssueToken(std::array<uint8_t, TokenSize>& issuedToken) {
   if (!random_.Fill(issuedToken.data(), issuedToken.size()) || IsZero(issuedToken)) {
     issuedToken.fill(0);
@@ -160,7 +170,9 @@ bool LocalPairingCredential::IssueToken(std::array<uint8_t, TokenSize>& issuedTo
   std::array<uint8_t, DigestSize> tokenDigest{};
   WipeArray<DigestSize> wipeTokenDigest(tokenDigest);
   if (!hasher_.Hash(issuedToken.data(), issuedToken.size(), tokenDigest) ||
-      IsZero(tokenDigest)) {
+      IsZero(tokenDigest) ||
+      (state_ == State::Paired && SameDigest(tokenDigest, tokenDigest_))) {
+    // A stuck/repeating entropy source must not pretend to revoke the old token.
     issuedToken.fill(0);
     return false;
   }

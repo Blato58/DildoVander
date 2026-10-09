@@ -116,6 +116,23 @@ check(!LocalDeviceEnrollment.begin(), "Serialize QR and BLE before token consump
 LocalDeviceEnrollment.end()
 check(LocalDeviceEnrollment.begin(), "Release native enrollment")
 LocalDeviceEnrollment.end()
+for code in ["already_paired", "busy", "pairing_failed", "invalid_request"] {
+    let response = try JSONSerialization.data(withJSONObject: ["v": 1, "ok": false, "error": code])
+    check(LocalBlePairingCodec.error(response) == code, "Allowlisted BLE recovery error")
+}
+let unknownError = try JSONSerialization.data(withJSONObject: ["v": 1, "ok": false, "error": "secret value"])
+check(LocalBlePairingCodec.error(unknownError) == "pairing_failed", "Never expose firmware error text")
+let malformedRecoveryResponses: [[String: Any]] = [
+    ["v": true, "ok": false, "error": "already_paired"],
+    ["v": 1, "ok": 0, "error": "already_paired"],
+    ["v": 1, "ok": true, "error": "already_paired"],
+    ["v": 1, "ok": false, "error": "already_paired", "token": "secret"]
+]
+for malformed in malformedRecoveryResponses {
+    let response = try JSONSerialization.data(withJSONObject: malformed)
+    check(LocalBlePairingCodec.error(response) == nil, "Malformed response cannot trigger recovery")
+}
+check(LocalBlePairingCodec.error(Data(repeating: 32, count: 513)) == nil, "Bound recovery errors")
 let bleIdentity = LocalBlePairingCodec.decode(bleData, expectedDeviceId: "test-kufr")!
 check(bleIdentity.host == "kufr-test.local", "Decode native BLE pairing identity")
 check(LocalBlePairingCodec.decode(bleData, expectedDeviceId: "other-kufr") == nil, "BLE device binding")

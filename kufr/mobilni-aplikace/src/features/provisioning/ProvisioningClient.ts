@@ -202,15 +202,15 @@ export function errorMessage(error: unknown): string {
     disconnected: 'BLE bylo odpojeno. Vyhledejte kufr a znovu jej ověřte; uložená Wi-Fi zůstává v kufru.',
     timeout: 'Kufr neodpověděl včas. Výsledek změny může být nejistý; znovu se připojte a ověřte stav.',
     invalid_response: 'Kufr vrátil neplatnou nebo nekompatibilní diagnostiku.',
-    busy: 'Jiná BLE akce právě probíhá.',
-    already_paired: 'Párování už existuje. Použijte uložený kufr; nové párování vyžaduje servisní obnovu.',
+    busy: 'Kufr nebo BLE je zaneprázdněné. Odpojte ostatní ovladače a počkejte, až bude kufr nečinný.',
+    already_paired: 'Telefon už má uložený kufr. Použijte jej, nebo nejprve zapomeňte párování.',
     pairing_unavailable: 'Místní párování není připravené. Ověřte firmware a Wi-Fi kufru.',
     network_not_ready: 'Kufr nemá místní Wi-Fi adresu. Nejprve nastavte síť a ověřte její připojení.',
     pairing_requires_service: 'Kufr má dřívější servisní párování. Použijte jeho QR nebo fyzickou servisní obnovu.',
     pairing_storage_unavailable: 'Úložiště párování kufru není dostupné. Je nutná servisní kontrola.',
-    pairing_failed: 'Párování nebylo potvrzené. Obnovte stav; při spotřebovaném tokenu je nutná servisní obnova.',
+    pairing_failed: 'Párování nebylo potvrzené. Znovu připojte BLE a potvrďte obnovu; ověřte aktuální firmware kufru.',
     credential_unavailable: 'Keychain není dostupný. Odemkněte iPhone a zkuste akci znovu.',
-    local_credential_write_failed: 'Token se nepodařilo uložit do Keychain. Párování může být spotřebované; je nutná servisní obnova kufru.',
+    local_credential_write_failed: 'Token se nepodařilo uložit do Keychain. Odemkněte telefon, znovu připojte BLE a potvrďte obnovu párování.',
   };
   return messages[code] ?? 'Požadavek selhal. Obnovte stav nebo znovu vyhledejte kufr.';
 }

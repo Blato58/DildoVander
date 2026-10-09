@@ -179,35 +179,76 @@ public class KufrProvisioningPlugin: CAPPlugin, CAPBridgedPlugin, ESPDeviceConne
             } catch { self.fail("credential_unavailable"); return }
             guard LocalDeviceEnrollment.begin() else { self.fail("busy"); return }
             self.localEnrollmentPending = true
-            let epoch = self.epoch
-            let data = Data("{\"v\":1,\"command\":\"pair-local\"}".utf8)
-            device.sendData(path: "kufr-control", data: data) { data, error in
-                DispatchQueue.main.async {
-                    guard self.epoch == epoch, self.pending === call else { return }
-                    guard error == nil, let data else { self.close(code: "disconnected"); return }
-                    guard data.count <= 512,
-                          let response = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                          response["v"] as? Int == 1, let ok = response["ok"] as? Bool else {
-                        self.close(code: "invalid_response"); return
+            self.requestLocalPairing(call, deviceId: deviceId, recovering: false)
+        }
+    }
+
+    private func requestLocalPairing(_ call: CAPPluginCall, deviceId: String, recovering: Bool) {
+        guard let device, secure(device), connectedDeviceId == deviceId else {
+            close(code: "disconnected"); return
+        }
+        // A confirmation must not replace an item written by another entry point.
+        do {
+            guard try localKeychain.read() == nil else { fail("already_paired"); return }
+        } catch { fail("credential_unavailable"); return }
+        armTimeout(seconds: 15)
+        let epoch = self.epoch
+        let payload: [String: Any] = recovering
+            ? ["v": 1, "command": "recover-local", "confirm": true]
+            : ["v": 1, "command": "pair-local"]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload) else {
+            fail("pairing_failed"); return
+        }
+        device.sendData(path: "kufr-control", data: data) { data, error in
+            DispatchQueue.main.async {
+                guard self.epoch == epoch, self.pending === call else { return }
+                guard error == nil, let data else { self.close(code: "disconnected"); return }
+                if let code = LocalBlePairingCodec.error(data) {
+                    if code == "already_paired" && !recovering {
+                        self.confirmLocalRecovery(call, deviceId: deviceId)
+                    } else {
+                        self.fail(code)
                     }
-                    guard ok else {
-                        // Only known codes cross the bridge, never firmware/SDK text.
-                        let code = response["error"] as? String ?? ""
-                        self.fail(["already_paired", "pairing_unavailable", "busy", "network_not_ready",
-                                   "pairing_requires_service", "pairing_storage_unavailable"].contains(code) ? code : "pairing_failed")
-                        return
-                    }
-                    guard let identity = LocalBlePairingCodec.decode(data, expectedDeviceId: deviceId) else {
-                        self.close(code: "invalid_response"); return
-                    }
-                    do {
-                        try self.localKeychain.insert(identity)
-                        // Raw BLE token/pin stay native. JS receives public identity only.
-                        self.finish(["deviceId": identity.deviceId, "host": identity.host])
-                    } catch { self.fail("local_credential_write_failed") }
+                    return
                 }
+                guard let identity = LocalBlePairingCodec.decode(data, expectedDeviceId: deviceId) else {
+                    self.close(code: "invalid_response"); return
+                }
+                do {
+                    try self.localKeychain.insert(identity)
+                    // Raw BLE token/pin stay native. JS receives public identity only.
+                    self.finish(["deviceId": identity.deviceId, "host": identity.host])
+                } catch { self.fail("local_credential_write_failed") }
             }
         }
+    }
+
+    private func confirmLocalRecovery(_ call: CAPPluginCall, deviceId: String) {
+        guard let viewController = bridge?.viewController,
+              viewController.presentedViewController == nil,
+              UIApplication.shared.applicationState == .active else {
+            fail("provisioning_unavailable"); return
+        }
+        armTimeout(seconds: 120)
+        let epoch = self.epoch
+        let prompt = UIAlertController(title: "Obnovit párování kufru?",
+            message: "Kufr je už spárovaný, ale telefon nemá uložený přístup. " +
+                "Obnova zneplatní původní přístup a uloží nový do tohoto telefonu. " +
+                "Kufr musí být nečinný a ostatní ovladače odpojené.", preferredStyle: .alert)
+        prompt.addAction(UIAlertAction(title: "Zrušit", style: .cancel) { _ in
+            guard self.epoch == epoch, self.pending === call else { return }
+            self.fail("cancelled")
+        })
+        prompt.addAction(UIAlertAction(title: "Obnovit párování", style: .destructive) { _ in
+            guard self.epoch == epoch, self.pending === call else { return }
+            self.prompt = nil
+            guard UIApplication.shared.applicationState == .active else {
+                self.close(code: "disconnected"); return
+            }
+            self.requestLocalPairing(call, deviceId: deviceId, recovering: true)
+        })
+        self.prompt = prompt
+        viewController.present(prompt, animated: true)
     }
 
     @objc func configure(_ call: CAPPluginCall) {
@@ -296,14 +337,19 @@ public class KufrProvisioningPlugin: CAPPlugin, CAPBridgedPlugin, ESPDeviceConne
               viewController.presentedViewController == nil else { call.reject("BLE není dostupné na pozadí.", "provisioning_unavailable"); return false }
         epoch = UUID()
         pending = call
+        armTimeout(seconds: seconds)
+        return true
+    }
+
+    private func armTimeout(seconds: Double) {
+        timeout?.cancel()
         let epoch = self.epoch
         let timeout = DispatchWorkItem { [weak self] in
-            guard let self, self.epoch == epoch else { return }
+            guard let self, self.epoch == epoch, self.pending != nil else { return }
             self.close(code: "timeout")
         }
         self.timeout = timeout
         DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: timeout)
-        return true
     }
 
     private func profile(_ call: CAPPluginCall) -> String? {

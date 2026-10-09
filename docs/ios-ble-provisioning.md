@@ -54,7 +54,14 @@ remain in [implementation status](../kufr/docs/stav-implementace.md#předání-d
    ACK means queued acceptance; final network status is a separate result.
 7. Configure an optional regular Wi-Fi fallback in the same way. Deletion has
    an explicit native confirmation; it deletes only the selected network profile.
-8. **Test** reconnects the selected saved profile under the idle gate.
+8. For Wi-Fi control, tap **Spárovat ovládání přes Wi-Fi** after connecting BLE.
+   If you forgot the local pairing, D165 asks **Obnovit párování kufru?**.
+   Confirm to invalidate the old access and store the new token in native Keychain;
+   cancel leaves the ESP unchanged. The kufr must be idle with other controllers
+   disconnected. The request uses the same authenticated PoP session; it cannot
+   replace a pending service QR or corrupt credential. If the response is lost,
+   reconnect BLE and confirm recovery again; it is never retried automatically.
+9. **Test** reconnects the selected saved profile under the idle gate.
    **Check update**, **Install** and automatic-install policy manage signed OTA.
 
 The same iPhone may supply the hotspot and configure BLE; it does not join its
