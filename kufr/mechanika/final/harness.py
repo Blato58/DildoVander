@@ -1,4 +1,4 @@
-"""F1 assembly harness: electrical topology and estimated orthogonal cable routes.
+"""F2 assembly harness: preserved topology and parameter-based physical routes.
 
 No CAD dependency. Coordinates are routing anchors, never measured connector pins.
 Power fanouts are insulated copper wire joints, not PCB current-carrying tracks.
@@ -13,6 +13,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
+PARAMS = json.loads((ROOT / "parameters.json").read_text(encoding="utf-8"))
 NETS = {"degson_1": "MAIN5", "degson_2": "DRIVE5", "degson_3": "GND"}
 NET_ALIASES = {"PD_RETURN": "GND"}
 TERMINAL_ALIASES = {"buck:IN-": "buck:GND", "buck:OUT-": "buck:GND"}
@@ -42,32 +43,130 @@ FANOUTS = {
     "F_LOGIC-": {"net": "GND", "loads": ["mcp23017:GND", "microphone:GND"]},
     "F_LOGIC3": {"net": "LOGIC3", "loads": ["pca9685:VCC", "mcp23017:VIN", "microphone:3V3"]},
 }
-ANCHORS = {
-    "powerbank": (32, 107, 84), "pd_trigger": (49, 79, 29),
-    "buck": (40, 80, 100), "breaker": (39, 84, 74),
-    "red_main": (22, 40.5, 80), "green_drives": (56, 40.5, 80),
-    "white_ptt": (38, 19, 82), "degson_1": (191.5, 195, 31),
-    "degson_2": (243.5, 195, 31), "degson_3": (291.5, 195, 31),
-    "pca9685": (209, 20, 23), "mcp23017": (139, 19, 19),
-    "pixel_shifter": (275, 17, 19), "esp32": (411, 50, 86),
-    "esp_usb_supply": (390, 97, 85), "microphone": (301, 11, 83),
-    "amplifier_left": (51, 111, 89), "amplifier_right": (389, 120, 81),
-    "speaker_left": (39, 100, 40), "speaker_right": (403, 100, 40),
-    "perfboard_1": (395, 210, 22), "perfboard_2": (395, 210, 62),
-    "F_LED+": (86, 212, 45), "F_LED-": (97, 212, 45),
-    "F_AUDIO+": (235, 212, 45), "F_AUDIO_PANEL-": (246, 212, 45),
-    "F_PANEL+": (86, 212, 45), "F_U123+": (164, 212, 45),
-    "F_U456+": (260, 212, 45), "F_U-": (275, 212, 45),
-    "F_LOGIC-": (365, 27, 38), "F_LOGIC3": (355, 27, 38),
+# Pin positions are deliberately provisional: board envelopes are known, header
+# orientation is not measured. Every terminal has its own anchor and evidence.
+M = PARAMS["mechanism"]
+FRAME_TOP = PARAMS["frame"]["origin"][2] + PARAMS["frame"]["size"][2]
+REST_TRAY_Z = M["origin_z"] + M["cam_z"] + M["cam_low_radius"] + M["follower_drop"]
+CORRIDORS = {
+    "power": {"y": M["origin_y"] + M["length"] - 9, "z": FRAME_TOP + 28},
+    "signal": {"y": M["origin_y"] + M["length"] - 9, "z": FRAME_TOP + 24},
 }
-for _index in range(1, 7):
-    _x = 77 + 48 * (_index - 1)
-    ANCHORS[f"servo_{_index}"] = (_x + 14, 145, 45)
-    ANCHORS[f"u059_{_index}"] = (_x + 23, 65, 66)
-    ANCHORS[f"led_{_index}"] = (_x + 47, 58, 70)
-for _index, _point in enumerate(((45, 111, 52), (58, 111, 52), (174, 55, 17),
-                               (187, 55, 17), (235, 218, 15), (246, 218, 15)), 1):
-    ANCHORS[f"capacitor_{_index}"] = _point
+ANCHORS = {name: tuple(row["origin"]) for name, row in PARAMS["components"].items()}
+ANCHORS.update({name: tuple(point) for name, point in PARAMS["panel"].items()})
+# Supply is a passive socket on the fixed rear carrier, never on the powerbank.
+_esp = PARAMS["components"]["esp32"]
+ANCHORS["esp_usb_supply"] = (_esp["origin"][0] - 17, _esp["origin"][1], _esp["origin"][2] + 13)
+for name, offset in {
+    "F_LED+": (10, 6, 18), "F_LED-": (10, 10, 18),
+    "F_AUDIO+": (16, 6, 18), "F_AUDIO_PANEL-": (16, 10, 18),
+    "F_PANEL+": (22, 6, 18), "F_U123+": (10, 6, 18),
+    "F_U456+": (16, 6, 18), "F_U-": (10, 10, 18),
+    "F_LOGIC-": (0, -5, -5), "F_LOGIC3": (5, -5, -5),
+}.items():
+    parent = "esp32" if name.startswith("F_LOGIC") else "degson_2" if name.startswith("F_U") else "degson_1"
+    if name in ("F_LED-", "F_U-", "F_AUDIO_PANEL-"):
+        parent = "degson_3"
+    if not name.startswith("F_LOGIC"):
+        row = PARAMS["components"][parent]
+        joint_y = row["origin"][1] + {"F_LED+":3,"F_LED-":3,"F_AUDIO+":9,
+            "F_AUDIO_PANEL-":9,"F_PANEL+":15,"F_U123+":3,"F_U456+":10,"F_U-":16}[name]
+        ANCHORS[name] = (365, joint_y, row["origin"][2]+20)
+    else:
+        ANCHORS[name] = tuple(a+b for a,b in zip(ANCHORS[parent], offset))
+for index in range(1, M["count"] + 1):
+    x = M["origin_x"] + M["pitch"] * (index - 1)
+    ANCHORS[f"servo_{index}"] = (x + 14, M["origin_y"] + 128.5, M["origin_z"] + 36)
+    ANCHORS[f"u059_{index}"] = (x + 23, M["origin_y"] + 48, REST_TRAY_Z - 6)
+    ANCHORS[f"led_{index}"] = (x + 46.5, M["origin_y"] + 6, REST_TRAY_Z - 2)
+for index, point in enumerate(PARAMS["capacitors"], 1):
+    ANCHORS[f"capacitor_{index}"] = tuple(point)
+
+# Exact pin names match the existing electrical profile. Offsets express an
+# assembly anchor on the corresponding envelope, not a measured header layout.
+PIN_OFFSETS = {
+    "esp32": {"3V3": (2, -2, 8), "GPIO1": (5, -2, 8), "GPIO14": (8, -2, 8),
+              "GPIO2": (11, -2, 8), "GPIO48": (14, -2, 8), "GPIO21": (17, -2, 8),
+              "GPIO41": (20, -2, 8), "GPIO42": (23, -2, 8), "GPIO47": (26, -2, 8),
+              "USB-UART": (0, 6.5, 14), "OV5640": (28.5, 6.5, 28)},
+    "powerbank": {"C1": (13.25, 0, 28)},
+    "pd_trigger": {"USB-C": (7, 0, 5.5), "OUT+": (9, 28, 6), "OUT-": (12, 28, 6)},
+    "buck": {"IN+": (5, -2, 8), "GND": (23, -2, 8), "OUT+": (41, -2, 8)},
+    "breaker": {"IN": (6, -2, 6.5), "OUT": (39, -2, 6.5)},
+    "pca9685": {"V+": (5, -2.5, 4), "power_GND": (9, -2.5, 4), "GND": (9, -2.5, 4),
+                "VCC": (13, -2, 8), "SDA": (17, -2, 8), "SCL": (21, -2, 8), "OE": (25, -2, 8)},
+    "mcp23017": {"VIN": (2, -2, 8), "GND": (5, -2, 8), "SDA": (8, -2, 8),
+                 "SCL": (11, -2, 8), "GPA0": (14, -2, 8),
+                 "A0": (30, -2, 8), "A1": (33, -2, 8), "A2": (36, -2, 8)},
+    "pixel_shifter": {"5V": (3, 18, 4), "GND": (7, 18, 4), "IN": (11, 18, 4),
+                      "OUT_330R": (19, 18, 4)},
+    "microphone": {"3V3": (1, 2, 15.5), "GND": (3.5, 2, 15.5), "SCK": (6, 2, 15.5),
+                   "WS": (8.5, 2, 15.5), "SD": (11, 2, 15.5), "L/R": (13.5, 2, 15.5)},
+    "esp_usb_supply": {"5V": (0, 0, 0), "GND": (3, 0, 0), "USB-A": (6, 0, 0)},
+    "camera": {"FPC": (12, 6, 0)},
+}
+for side in ("left", "right"):
+    PIN_OFFSETS[f"amplifier_{side}"] = {pin: ((2+i*2.5,21.3,4) if side=="left" else (23,2+i*2,4)) for i,pin in
+        enumerate(("VIN", "GND", "BCLK", "LRC", "DIN", "SPK+", "SPK-"))}
+    PIN_OFFSETS[f"speaker_{side}"] = ({"SPK+":(40,100,6.5),"SPK-":(43,100,6.5)} if side=="left" else
+                                     {"SPK+":(43,96,7),"SPK-":(43,99,7)})
+for name in ("red_main", "green_drives"):
+    PIN_OFFSETS[name] = {"IN": (-5, 0, 0), "OUT": (0, 0, 0), "LED-GND": (5, 0, 0)}
+PIN_OFFSETS["white_ptt"] = {"CONTACT": (-4, 0, 0), "CONTACT_GND": (-1, 0, 0),
+                            "LED+": (2, 0, 0), "LED-": (5, 0, 0)}
+for block in NETS:
+    PIN_OFFSETS[block] = {str(port): (3 + 7*(port-1), -2, 8) for port in range(1,6)}
+for index in range(12):
+    PIN_OFFSETS["pca9685"][f"CH{index}"] = (3+index*5, -2, 20)
+for index in range(1,7):
+    PIN_OFFSETS[f"servo_{index}"] = {"+": (-2, 0, 0), "-": (0, 0, 0), "S": (2, 0, 0)}
+    PIN_OFFSETS[f"u059_{index}"] = {"red": (-2, 0, 0), "black": (0, 0, 0), "yellow": (2, 0, 0)}
+    PIN_OFFSETS[f"led_{index}"] = {"+5V": (0, 0, -2), "GND": (0, 0, 0),
+                                     "DIN": (0, 0, 2), "DOUT": (0, 200, 2)}
+    PIN_OFFSETS[f"capacitor_{index}"] = {"+": (-2, 0, 0), "-": (2, 0, 0)}
+PIN_OFFSETS["perfboard_1"] = {"SDA": (10, 3, 5), "SCL": (20, 3, 5)}
+PIN_OFFSETS["perfboard_2"] = {"BCLK": (10, 3, 5), "WS": (20, 3, 5), "DIN": (30, 3, 5)}
+for name in FANOUTS:
+    PIN_OFFSETS[name] = {"joint": (0,0,0)}
+
+
+def canonical_endpoint(endpoint):
+    return endpoint + ":joint" if endpoint in FANOUTS else endpoint
+
+
+def endpoint_anchor(endpoint):
+    endpoint = TERMINAL_ALIASES.get(endpoint, canonical_endpoint(endpoint))
+    component, pin = endpoint.split(":", 1)
+    return tuple(round(a+b, 3) for a,b in zip(ANCHORS[component], PIN_OFFSETS[component][pin]))
+
+
+def endpoint_registry():
+    result = {}
+    for component, pins in PIN_OFFSETS.items():
+        for pin in pins:
+            endpoint = f"{component}:{pin}"
+            result[endpoint] = {"component": component, "pin": pin,
+                "point": list(endpoint_anchor(endpoint)), "position_status": "provisional envelope-relative anchor; verify actual pin/plug direction",
+                "physical_terminal": TERMINAL_ALIASES.get(endpoint, endpoint)}
+    for alias, terminal in TERMINAL_ALIASES.items():
+        result[alias] = dict(result[terminal], pin=alias.split(":",1)[1], physical_terminal=terminal)
+    return result
+
+
+USB_PARK_POINT = (24.6,103,FRAME_TOP+31)
+USB_COIL = {**deepcopy(PARAMS["usb_coil"]), "bend_radius_mm": PARAMS["usb_coil"]["minimum_bend_radius"],
+            "status": "provisional vertical YZ coil beside bank; three continuous spiral turns OD<=4.5mm; independently strapped, dry-fit required"}
+SUPPLY_CONNECTOR = {"id": "esp_usb_supply", "type": "passive USB-A female breakout or pigtail",
+    "quantity": 1, "rating": "at least 3A / 5V", "procurement": "ADD; not confirmed in stock",
+    "supply": "regulated MAIN5 only via F_AUDIO+-03 and F_AUDIO_PANEL--03",
+    "termination": "VBUS +5V, GND only; D+/D- unconnected and insulated; mount on fixed rear carrier",
+    "backfeed": "disconnect USB-A before attaching a PC to USB-UART until protection is measured"}
+CAMERA_FPC = {"id": "CAMERA-FPC", "from": "esp32:OV5640", "to": "camera:FPC",
+    "net": "CAMERA", "bundle": "CAMERA-FPC", "points": [list(endpoint_anchor("esp32:OV5640")),
+        [endpoint_anchor("esp32:OV5640")[0], endpoint_anchor("esp32:OV5640")[1], endpoint_anchor("camera:FPC")[2]],
+        list(endpoint_anchor("camera:FPC"))],
+    "status": "logical adjacency only; delivered camera connector, FPC type/length/bend limits unconfirmed",
+    "gpio": "4 SIOD; 5 SIOC; 6 VSYNC; 7 HREF; 8 Y4; 9 Y3; 10 Y5; 11 Y2; 12 Y6; 13 PCLK; 15 XCLK; 16 Y9; 17 Y8; 18 Y7"}
 
 PASSIVES = {
     "OE": "two purchased 22k resistors in parallel from PCA OE to 3V3, local insulated splice",
@@ -80,12 +179,13 @@ PASSIVES = {
 
 SERVICE_MM = 40
 TERMINATION_MM = 20
-LIFT_MM = 16
+LIFT_MM = M["lift"]
 MOTION_MM = 2 * LIFT_MM + 32
 MISSING_ACCEPTANCE = [
-    "ESP USB-UART power adapter: purchased USB-A socket is not confirmed; keep ESP power branch unconnected until a suitable existing adapter is verified.",
-    "Dry-fit actual plug directions, stock cable quantities, solder joint insulation, wire bends, moving loops and closed-case clearance.",
-    "Measure voltage, current, capacitor discharge, OE/reset states and complete individual actuator calibration.",
+    "ADD one passive USB-A female adapter/breakout or pigtail >=3A; verify polarity/backfeed before connection.",
+    "Dry-fit actual plug directions, stock cable quantities, insulation, finite conductor envelopes, bends and moving loops.",
+    "Measure voltage, current, capacitor discharge, OE/reset states and individual actuator calibration.",
+    "Camera FPC connector/type/length remains pending delivered variant; do not substitute loose GPIO wires.",
 ]
 
 
@@ -98,87 +198,200 @@ def _moving_end_count(start, end):
                for endpoint in (start, end))
 
 
+def loop_reserve(index):
+    x = M["origin_x"] + M["pitch"] * (index - 1)
+    return {"id": f"moving_loop_{index}", "origin": [x+17, M["origin_y"]+52, FRAME_TOP+24],
+            "size": [24,26,24], "lift_mm": M["lift"],
+            "status": "swept cable reserve; unverified elastic geometry and bend radius"}
+
+
 def _endpoint_path(endpoint, corridor):
-    """From nominal endpoint outward to its fixed shared corridor."""
+    """Terminal -> independent flex loop if needed -> frame routing corridor."""
     part = _component(endpoint)
-    a = ANCHORS[part]
-    y, z = (212, 45) if corridor == "power" else (27, 38)
+    a = endpoint_anchor(endpoint)
+    lane = CORRIDORS["signal" if corridor == "signal" else "power"]
+    y,z = lane["y"],lane["z"]
+    left_x = M["origin_x"]-.8
+    left_back = M["origin_x"]-1.5
+    def left_lane(prefix):
+        last=prefix[-1]
+        return prefix+[(left_x,last[1],z),(left_x,122,z),
+                       (left_back,122,z),(left_back,y,z)]
+    if part in ("buck","breaker"):
+        return left_lane([a,(a[0],60,a[2]),(left_x,60,a[2])])
+    if part=="pd_trigger" and endpoint.endswith(("OUT+","OUT-")):
+        return [a,(a[0],a[1]+2,a[2]),(left_back,a[1]+2,a[2]),(left_back,a[1]+2,z),(left_back,y,z)]
+    if part.startswith("degson_"):
+        exterior_x = 365
+        front_y = PARAMS["components"]["degson_1"]["origin"][1]-5
+        return [a,(a[0],a[1]-3,a[2]),(exterior_x,a[1]-3,a[2]),
+                (exterior_x,front_y,a[2]),(exterior_x,front_y,z),(exterior_x,y,z)]
+    if part.startswith("F_") and not part.startswith("F_LOGIC"):
+        front_y = PARAMS["components"]["degson_1"]["origin"][1]-5
+        return [a,(a[0],front_y,a[2]),(a[0],front_y,z),(a[0],y,z)]
+    if part.startswith("perfboard_"):
+        front_y = PARAMS["components"]["perfboard_1"]["origin"][1]-4
+        return [a,(a[0],front_y,a[2]),(365,front_y,a[2]),(365,front_y,z),(365,y,z)]
+    if part in ("red_main","green_drives","white_ptt"):
+        escape_z = a[2]-5
+        return left_lane([a,(a[0],a[1],escape_z),(left_x,a[1],escape_z)])
+    if part.startswith("amplifier_"):
+        exit_x = M["origin_x"]+1 if part.endswith("left") else 411
+        if part.endswith("left"):
+            return left_lane([a,(left_x,a[1],a[2])])
+        return [a,(exit_x,a[1],a[2]),(exit_x,a[1],z),(exit_x,y,z)]
+    if part.startswith("speaker_"):
+        exit_y = PARAMS["components"][part]["origin"][1] + PARAMS["components"][part]["size"][1]+3
+        exit_x = M["origin_x"]+1 if part.endswith("left") else 410
+        if part.endswith("left"):
+            return left_lane([a,(a[0],exit_y,a[2]),(left_x,exit_y,a[2])])
+        return [a,(a[0],exit_y,a[2]),(exit_x,exit_y,a[2]),(exit_x,exit_y,z),(exit_x,y,z)]
+    if part.startswith("capacitor_"):
+        prefix=[a,(a[0],a[1],a[2]-1.5),(a[0],a[1]-7,a[2]-1.5)]
+        if a[0]<M["origin_x"]:
+            return left_lane(prefix+[(a[0],96,a[2]-1.5),(left_x,96,a[2]-1.5)])
+        index=int(part.split("_")[-1])
+        module=int((a[0]-M["origin_x"])/M["pitch"])
+        escape_x=M["origin_x"]+module*M["pitch"]+46.65
+        return prefix+[(a[0],a[1]-8.5,a[2]-1.5),(a[0],a[1]-8.5,44),
+                       (escape_x,a[1]-8.5,44),(escape_x,y,44),(escape_x,y,z)]
     if part.startswith(("u059_", "led_")):
         index = int(part.split("_")[-1])
-        origin_x = 77 + 48 * (index - 1)
-        loop_x, outer_x = origin_x + 29, origin_x + 44
-        points = [a, (a[0], a[1], 59), (a[0], 99, 59),
-                  (loop_x, 99, 59), (loop_x, 99, 45)]
-        if corridor == "power":
-            return points + [(outer_x, 99, 45), (outer_x, y, z)]
-        return points + [(loop_x, 99, z), (loop_x, y, z)]
-    if part in ("esp32", "amplifier_right", "esp_usb_supply"):
-        # Descend through the shelf slot, then leave its leg rows via the front.
-        return [a, (380, a[1], a[2]), (380, 50, a[2]), (376, 50, a[2]),
-                (376, 50, 38), (380, 50, 38), (380, 27, 38), (365, 27, 38),
-                (365, 27, z), (365, y, z)]
+        x = M["origin_x"] + M["pitch"]*(index-1)
+        loop_x,loop_y = x+29, M["origin_y"]+73
+        exit_y = a[1]+5 if part.startswith("u059_") or endpoint.endswith(":DOUT") else a[1]-5
+        if endpoint.endswith(":DOUT"):
+            exit_y=a[1]+3
+            return [a,(a[0],exit_y,a[2]),(a[0],exit_y,FRAME_TOP+60.5),
+                    (loop_x,exit_y,FRAME_TOP+60.5),(loop_x,loop_y,FRAME_TOP+60.5),
+                    (loop_x,loop_y,FRAME_TOP+47),(loop_x,loop_y,FRAME_TOP+33),
+                    (x+46.65,loop_y,FRAME_TOP+33),(x+46.65,y,FRAME_TOP+33),(x+46.65,y,z)]
+        return [a,(a[0],exit_y,a[2]), (a[0],exit_y,FRAME_TOP+47), (a[0],loop_y,FRAME_TOP+47),
+                (loop_x,loop_y,FRAME_TOP+47), (loop_x,loop_y,FRAME_TOP+33),
+                (x+46.65,loop_y,FRAME_TOP+33), (x+46.65,y,FRAME_TOP+33), (x+46.65,y,z)]
     if part.startswith("servo_"):
-        origin_x = 77 + 48 * (int(part.split("_")[-1]) - 1)
-        return [a, (a[0], a[1], 55), (origin_x + 26, a[1], 55),
-                (origin_x + 26, 30, 55), (origin_x + 26, 30, z),
-                (origin_x + 26, 27, z)]
-    if part == "amplifier_left":
-        return [a, (65, a[1], a[2]), (65, 93, a[2]), (65, 93, z),
-                (60, 93, z), (60, y, z)]
-    if part in ("buck", "breaker"):
-        return [a, (a[0], 93, a[2]), (65, 93, a[2]), (65, 93, z),
-                (60, 93, z), (60, y, z)]
-    if part in ("red_main", "green_drives", "white_ptt"):
-        return [a, (a[0], 62, a[2]), (a[0], 62, 84), (65, 62, 84),
-                (65, 93, 84), (65, 93, z), (60, 93, z), (60, y, z)]
-    if corridor == "power" and part in ("pca9685", "pixel_shifter", "mcp23017", "microphone", "F_LOGIC-"):
-        return [a, (a[0], a[1], 38), (a[0], 27, 38), (365, 27, 38),
-                (365, 27, z), (365, y, z)]
-    route_x = 60 if corridor == "power" and a[0] < 71 else a[0]
-    return [a, (a[0], a[1], z), (route_x, a[1], z), (route_x, y, z)]
+        x = M["origin_x"]+M["pitch"]*(int(part.split("_")[-1])-1)
+        return [a,(a[0],M["origin_y"]+147,a[2]),(x+46.65,M["origin_y"]+147,a[2]),
+                (x+46.65,M["origin_y"]+147,44),(x+46.65,y,44),(x+46.65,y,z)]
+    # Rear boards approach from the back side of the modules. The only long
+    # front/rear crossings run in the right fixed service corridor.
+    rear_y = y
+    right_x = M["origin_x"] + M["pitch"]*M["count"] + 2
+    if part in ("esp32", "esp_usb_supply", "pca9685", "mcp23017", "F_LOGIC-", "F_LOGIC3"):
+        escape_y = PARAMS["components"][part]["origin"][1]-3.5 if part in PARAMS["components"] else a[1]-3.5
+        points = [a,(a[0],escape_y,a[2]),(a[0],escape_y,z),(a[0],rear_y,z)]
+        return points + [(points[-1][0],y,z)]
+    if a[0] < M["origin_x"]:
+        # Exit shelves alongside their right edge without crossing bank volume.
+        return left_lane([a,(M["origin_x"]-.8,a[1],a[2])])
+    if part == "microphone":
+        front_y=M["origin_y"]-5.5
+        right_x=PARAMS["frame"]["origin"][0]+PARAMS["frame"]["size"][0]-4.9
+        escape_x=PARAMS["components"]["microphone"]["origin"][0]-3
+        return [a,(escape_x,a[1],a[2]),(escape_x,a[1],56),(escape_x,front_y,56),
+                (right_x,front_y,56),(right_x,151,56),(right_x,151,z),(right_x,y,z)]
+    return [a, (a[0],a[1],z), (a[0],y,z)]
 
 
-def _service_path(endpoint):
-    """Local source/load tails terminating on the applicable shelf passage."""
-    part = _component(endpoint)
-    a = ANCHORS[part]
-    if part == "speaker_left":
-        return [a, (60, a[1], a[2]), (60, 93, a[2]), (65, 93, a[2])]
-    if part == "amplifier_left":
-        return [a, (65, a[1], a[2]), (65, 93, a[2])]
-    if part in ("buck", "breaker"):
-        return [a, (a[0], 93, a[2]), (65, 93, a[2])]
-    if part == "pd_trigger":
-        return [a, (60, a[1], a[2]), (60, 93, a[2]), (65, 93, a[2])]
-    if part in ("red_main", "green_drives", "white_ptt"):
-        return [a, (a[0], 62, a[2]), (a[0], 62, 84), (65, 62, 84), (65, 93, 84)]
-    if part == "powerbank":
-        return [a, (a[0], 99, 84), (65, 99, 84), (65, 93, 84)]
-    if part in ("esp32", "amplifier_right", "esp_usb_supply", "speaker_right"):
-        return [a, (380, a[1], a[2]), (380, 50, a[2]), (376, 50, a[2])]
-    return None
+def _helical_coil_turns():
+    """Continuous three-turn spiral with separate finite cable cross-sections.
+
+    X advances 4.2mm and the rounded YZ loop grows 3.25mm per revolution.
+    Together these provide over5.1mm turn separation inside the existing coil.
+    """
+    x0=USB_COIL["origin"][0]+2.65
+    cy=USB_COIL["origin"][1]+40
+    cz=USB_COIL["origin"][2]+32.5
+    radius=20.1
+    half_straight=6.9
+    base=[(cy-half_straight-radius,cz,-1,0)]
+    def arc(y,z,first,last):
+        for angle in range(first+10,last+1,10):
+            radians=math.radians(angle)
+            ny,nz=math.cos(radians),math.sin(radians)
+            base.append((y+radius*ny,z+radius*nz,ny,nz))
+    arc(cy-half_straight,cz,180,270)
+    base.append((cy+half_straight,cz-radius,0,-1))
+    arc(cy+half_straight,cz,270,360)
+    arc(cy+half_straight,cz,0,90)
+    base.append((cy-half_straight,cz+radius,0,1))
+    arc(cy-half_straight,cz,90,180)
+    cumulative=[0]
+    for a,b in zip(base,base[1:]):
+        cumulative.append(cumulative[-1]+math.dist(a[:2],b[:2]))
+    perimeter=cumulative[-1]
+    result=[]
+    for turn in range(3):
+        for index,(y,z,ny,nz) in enumerate(base):
+            if turn and index==0:
+                continue
+            phase=turn+cumulative[index]/perimeter
+            growth=3.25*phase
+            result.append([round(x0+4.2*phase,5),round(y+ny*growth,5),round(z+nz*growth,5)])
+    return result
 
 
 def _route(start, end, corridor):
-    if corridor == "local":
-        a, b = ANCHORS[_component(start)], ANCHORS[_component(end)]
-        start_path, end_path = _service_path(start), _service_path(end)
-        if _component(end) in ("capacitor_3", "capacitor_4"):
-            points = [a, (a[0], 35, a[2]), (b[0], 35, a[2]),
-                      (b[0], b[1], a[2]), b]
-        elif start_path and end_path and start_path[-1][:2] == end_path[-1][:2]:
-            points = start_path + list(reversed(end_path))
+    # Local circuits retain their own pins rather than collapsing to centres.
+    if start == "powerbank:C1":
+        a,b = endpoint_anchor(start),endpoint_anchor(end)
+        x,y,z = USB_COIL["origin"]
+        # Three continuous rounded spiral turns grow radially while X advances.
+        # Separate entry/exit tails and service/end allowance fit the 1m cable.
+        side_x=M["origin_x"]-2.4
+        coil_side_x=USB_COIL["origin"][0]+USB_COIL["size"][0]+3.35
+        coil=_helical_coil_turns()
+        entry,exit=coil[0],coil[-1]
+        points=[a,(a[0],a[1]-20,a[2]),(a[0],a[1]-20,42),
+                (a[0],a[1]-17.35,42),(side_x,a[1]-17.35,42),
+                (side_x,y,42),(coil_side_x,y,42),(coil_side_x,y+40,42),(entry[0],y+40,42),
+                (entry[0],y+40,entry[2])] + coil
+        points += [(exit[0],y-2,exit[2]),(side_x,y-2,exit[2]),(side_x,y-2,86),
+                   (side_x,b[1]-1.85,86),(side_x,b[1]-1.85,b[2]),
+                   (side_x,b[1]-20,b[2]),(b[0],b[1]-20,b[2]),b]
+        return [list(point) for point in points]
+    elif start == "esp_usb_supply:USB-A":
+        a,b = endpoint_anchor(start),endpoint_anchor(end)
+        points = [a,(b[0]-20,a[1],a[2]),(b[0]-20,a[1],b[2]),
+                  (b[0]-20,b[1],b[2]),b]
+    elif corridor == "local":
+        a,b = endpoint_anchor(start),endpoint_anchor(end)
+        if _component(start) == _component(end):
+            offset=1 if _component(start)=="microphone" else 3
+            points = [a,(a[0],a[1]-offset,a[2]),(b[0],a[1]-offset,a[2]),(b[0],a[1]-offset,b[2]),b]
         else:
-            points = [a, (a[0], b[1], a[2]), (b[0], b[1], a[2]), b]
+            points = _endpoint_path(start,"power") + list(reversed(_endpoint_path(end,"power")))
     else:
-        points = _endpoint_path(start, corridor) + list(reversed(_endpoint_path(end, corridor)))
-    return [list(point) for i, point in enumerate(points) if i == 0 or point != points[i - 1]]
+        points = _endpoint_path(start,corridor) + list(reversed(_endpoint_path(end,corridor)))
+    # Join corridor tails orthogonally even if their Z values differ.
+    clean = []
+    for point in points:
+        if clean:
+            previous = clean[-1]
+            for axis in range(3):
+                if previous[axis] != point[axis]:
+                    next_point = list(previous)
+                    next_point[axis] = point[axis]
+                    clean.append(tuple(next_point))
+                    previous = clean[-1]
+        else:
+            clean.append(tuple(point))
+    if start != "powerbank:C1":
+        # Shared approach paths can contain an exact retrace. Remove that
+        # retrace rather than carrying extra metres around the same corridor.
+        unique=[]
+        for point in clean:
+            if point in unique:
+                unique=unique[:unique.index(point)+1]
+            else:
+                unique.append(point)
+        clean=unique
+    return [list(point) for point in clean]
 
 
 def route_length(points):
-    """Manhattan length of staging anchors; includes no implicit bend proof."""
-    return sum(sum(abs(a - b) for a, b in zip(start, end))
-               for start, end in zip(points, points[1:]))
+    """Physical chord length; sampled coil bends are included, no hidden slack."""
+    return sum(math.dist(start,end) for start,end in zip(points,points[1:]))
 
 
 def _wire(identifier, start, end, net, area=0.5, corridor="power", native=0,
@@ -188,10 +401,44 @@ def _wire(identifier, start, end, net, area=0.5, corridor="power", native=0,
     moving = moving_count > 0
     motion_mm = MOTION_MM * moving_count
     required = math.ceil((route_length(points) + SERVICE_MM + TERMINATION_MM + motion_mm) / 10) * 10
+    signal_conductor = net not in ("GND","PD_RETURN","MAIN5","DRIVE5","LOGIC3","PD12","BUCK5","USB5") and not net.startswith("SPK_")
+    if signal_conductor:
+        area = 0.14
+    diameter = 1.2 if signal_conductor else 2.7 if area == 1.5 else 2.1 if area == 0.5 else 4.5 if identifier.startswith("USB") else 2.1
+    color = "black" if net in ("GND", "PD_RETURN") else "red" if net in ("MAIN5", "DRIVE5", "PD12", "BUCK5", "USB5") else "blue labelled at both ends"
+    if ":yellow" in end:
+        color = "yellow native; blue extension labelled DIN"
+    if start.startswith("pca9685:") and end.startswith("servo_"):
+        color = {"+": "red native", "-": "brown/black native", "S": "orange native"}[end.split(":")[1]]
+    moving_endpoints = [{"endpoint": canonical_endpoint(endpoint),
+                         "component": _component(endpoint),
+                         "loop": loop_reserve(int(_component(endpoint).split("_")[-1])),
+                         "fixed_point": [M["origin_x"] + M["pitch"]*(int(_component(endpoint).split("_")[-1])-1) + 29,
+                                         M["origin_y"]+73, FRAME_TOP+33],
+                         "moving_point": list(endpoint_anchor(endpoint)),
+                         "axis": [0,0,1], "lift_mm": LIFT_MM}
+                        for endpoint in (start,end) if _component(endpoint).startswith(("led_", "u059_"))]
+    bundle = "USB-PD" if identifier == "USB-PD" else "USB-ESP" if identifier == "USB-ESP" else "PD12" if net in ("PD12", "PD_RETURN") else "I2S" if net in ("WS", "BCLK", "DIN", "MIC_SD") else "I2C" if net in ("SDA", "SCL") else f"TRAY-{int(_component(end).split('_')[-1])}" if moving_endpoints else "SERVO" if end.startswith("servo_") else net
     return {
         "id": identifier, "from": start, "to": end, "net": net,
         "kind": "ground" if net in ("GND", "PD_RETURN") else "power" if net in ("MAIN5", "DRIVE5", "LOGIC3", "PD12", "BUCK5", "USB5") else "signal",
         "area_mm2": area, "points": points, "route_mm": round(route_length(points), 1),
+        "bundle": bundle, "colour": color, "outer_diameter_mm": diameter,
+        "diameter_status": "CYH0.5 catalog; signal/Dupont OD1.2 design assumption; 1.5/USB/native provisional; dry-fit gate",
+        "spec": "intact stocked USB cable" if identifier.startswith("USB") else f"flexible copper {area or 0.5}mm2; native terminal ends retained",
+        "from_termination": terminal_termination(start), "to_termination": terminal_termination(end),
+        "moving_endpoints": moving_endpoints,
+        "transport_points": _transport_pd(points) if identifier == "USB-PD" else None,
+        "transport_from": "usb_park_clip:unplugged_C" if identifier == "USB-PD" else None,
+        "transport_connection": "disconnected; powerbank removed; insulated USB plug clipped" if identifier == "USB-PD" else "unchanged fixed wiring",
+        "coil_reserve": USB_COIL if identifier == "USB-PD" else None,
+        "curve_sampling_degrees": 10 if identifier == "USB-PD" else None,
+        "coil_turns": 3 if identifier == "USB-PD" else None,
+        "coil_pitch_x_mm": 4.2 if identifier == "USB-PD" else None,
+        "coil_radial_growth_mm_per_turn": 3.25 if identifier == "USB-PD" else None,
+        "excess_stock_mm": max(0, (stock or native) - required),
+        "bend_radius_mm": PARAMS["clearances"]["wire_min_bend_radius"],
+        "bend_status": "polyline corners are routing anchors; fillet and dry-fit required, not a proven cable curve",
         "service_mm": SERVICE_MM, "termination_mm": TERMINATION_MM,
         "motion_mm": motion_mm, "lift_mm": LIFT_MM if moving else 0,
         "native_lead_mm": native, "stock_mm": stock,
@@ -204,6 +451,34 @@ def _wire(identifier, start, end, net, area=0.5, corridor="power", native=0,
     }
 
 
+def terminal_termination(endpoint):
+    component = _component(endpoint)
+    if endpoint in FANOUTS:
+        return "insulated copper solder fanout; stagger joints and add fixed tie"
+    if component.startswith("degson_"):
+        return "one 1.5mm2 conductor in labelled lever port; verify strip length on delivered block"
+    if component.startswith("servo_"):
+        return "native 3-pin servo plug retained; extension splice outside moving span"
+    if component.startswith("u059_"):
+        return "native Grove plug retained; inline splice outside flexing span; white NC separately insulated"
+    if component.startswith("led_"):
+        return "solder to labelled strip pad; seal IP65 cut; strain relief before moving span"
+    if component.startswith("speaker_") or ":SPK" in endpoint:
+        return "existing PH2 speaker pair; polarity confirmed against terminal label"
+    if endpoint.endswith((":USB-A", ":USB-C", ":USB-UART", ":C1")):
+        return "intact purchased USB plug into labelled socket; no stripped USB conductors"
+    if component in ("buck", "breaker", "red_main", "green_drives", "white_ptt"):
+        return "labelled physical terminal; matching solder/clamp termination after delivered terminal inspection"
+    return "existing signal header/Dupont or local insulated solder joint; no chained Dupont power trunk"
+
+
+def _transport_pd(points):
+    # Replace the detached source tail; the coil and PD end remain fixed.
+    park = list(USB_PARK_POINT)
+    join = points[2]
+    return [park, [park[0],join[1],park[2]], [join[0],join[1],park[2]], join] + deepcopy(points[3:])
+
+
 def _make_harnesses():
     wires = [
         _wire("USB-PD", "powerbank:C1", "pd_trigger:USB-C", "PD12", None, "local", stock=1000,
@@ -212,9 +487,9 @@ def _make_harnesses():
         _wire("P12-", "pd_trigger:OUT-", "buck:IN-", "PD_RETURN", 1.5, "local"),
         _wire("P5-FUSE", "buck:OUT+", "breaker:IN", "BUCK5", 1.5, "local"),
         _wire("P5-MAIN", "breaker:OUT", "red_main:IN", "BUCK5", 1.5, "local"),
-        _wire("USB-ESP", "esp_usb_supply:USB-A", "esp32:USB-UART", "USB5", None, "local", stock=1000,
-              construction="intact purchased USB-A/USB-C cable; adapter unconfirmed",
-              note="Do not energize until adapter exists and polarity/backfeed are verified."),
+        _wire("USB-ESP", "esp_usb_supply:USB-A", "esp32:USB-UART", "USB5", None, "local", stock=300,
+              construction="ADD intact USB-A/USB-C 300mm >=3A cable; existing 1m A/C stays outside active assembly",
+              note="ADD passive USB-A female supply socket; MAIN5/GND only; verify polarity/backfeed."),
     ]
     for block, ports in TERMINALS.items():
         for port, endpoint in ports.items():
@@ -287,7 +562,193 @@ def _make_harnesses():
     return tuple(wires)
 
 
-HARNESSES = _make_harnesses()
+def _orthogonal(points):
+    result=[]
+    for point in points:
+        point=list(point)
+        if not result:
+            result.append(point)
+            continue
+        previous=result[-1]
+        for axis in range(3):
+            if previous[axis]!=point[axis]:
+                previous=previous.copy()
+                previous[axis]=point[axis]
+                result.append(previous)
+    return result
+
+
+def _remove_packing_return_jogs(wire, points):
+    """Shorten packing transfers that return into their own finite conductor.
+
+    Only orthogonal near-return pairs are joined. Pin endpoints and the fixed
+    flex ties are preserved; subsequent BREP auditing checks every new join.
+    """
+    protected=[row["fixed_point"] for row in wire["moving_endpoints"]]
+    separation=wire["outer_diameter_mm"]+.6
+    for _ in range(20):
+        cumulative=[0]
+        for a,b in zip(points,points[1:]):
+            cumulative.append(cumulative[-1]+math.dist(a,b))
+        replacement=None
+        for i,(a,b) in enumerate(zip(points,points[1:])):
+            for j in range(i+2,len(points)-1):
+                if cumulative[j]-cumulative[i+1]<2*separation:
+                    continue
+                if any(point in protected for point in points[i+1:j+1]):
+                    continue
+                c,d=points[j:j+2]
+                first,second=[],[]
+                for axis in range(3):
+                    low1,high1=sorted((a[axis],b[axis]))
+                    low2,high2=sorted((c[axis],d[axis]))
+                    if high1<low2:
+                        p,q=high1,low2
+                    elif high2<low1:
+                        p,q=low1,high2
+                    else:
+                        p=q=(max(low1,low2)+min(high1,high2))/2
+                    first.append(p)
+                    second.append(q)
+                if math.dist(first,second)+1e-5<separation:
+                    replacement=points[:i+1]+_orthogonal([first,second])+points[j+1:]
+                    break
+            if replacement is not None:
+                break
+        if replacement is None:
+            return points
+        points=[point for index,point in enumerate(replacement) if not index or point!=replacement[index-1]]
+    raise ValueError(f"Unresolved packing return jog: {wire['id']}")
+
+
+def _pack_corridors(wires):
+    """Give each overlapping rear conductor a physical cross-section slot.
+
+    Only the declared rear cable windows and fixed left approach are packed.
+    Pin escapes and the six independent movement loops remain unchanged.
+    BREP verification still decides whether these candidate routes fit.
+    """
+    # Each tray's seven physical conductors occupy separate vertical slots,
+    # including their fixed ties. Servo leads use the lower part of that lane.
+    for module in range(1,M["count"]+1):
+        x=M["origin_x"]+(module-1)*M["pitch"]
+        members=[(wire,row) for wire in wires for row in wire["moving_endpoints"]
+                 if int(row["component"].split("_")[-1])==module]
+        level=FRAME_TOP+24.3
+        previous=0
+        for wire,row in sorted(members,key=lambda pair:(-pair[0]["outer_diameter_mm"],pair[0]["id"])):
+            diameter=wire["outer_diameter_mm"]
+            level+=(previous+diameter)/2+.1
+            previous=diameter
+            for point in wire["points"]:
+                if point[2]==FRAME_TOP+33 and x+28.9<=point[0]<=x+46.8 and point[1]>=M["origin_y"]+73:
+                    point[2]=round(level,3)
+            row["fixed_point"][2]=round(level,3)
+            wire.setdefault("local_corridor_slots",[]).append({"module":module,"z":round(level,3),
+                       "physical_diameter_mm":diameter,"part":"moving branch"})
+        level=FRAME_TOP+18.3
+        previous=0
+        servos=[wire for wire in wires if wire["to"].startswith(f"servo_{module}:")]
+        for wire in sorted(servos,key=lambda row:(-row["outer_diameter_mm"],row["id"])):
+            diameter=wire["outer_diameter_mm"]
+            level+=(previous+diameter)/2+.1
+            previous=diameter
+            for point in wire["points"]:
+                if point[0]==x+46.65 and point[2]==44:
+                    point[2]=round(level,3)
+            wire.setdefault("local_corridor_slots",[]).append({"module":module,"z":round(level,3),
+                        "physical_diameter_mm":diameter,"part":"fixed servo branch"})
+    rear_y=M["origin_y"]+M["length"]-9
+    left_front=M["origin_x"]-.8
+    left_back=M["origin_x"]-1.5
+    left_wires=[wire for wire in wires if not wire["id"].startswith("USB") and
+                any(point[0] in (left_front,left_back) for point in wire["points"])]
+    level=23
+    previous_diameter=0
+    for wire in sorted(left_wires,key=lambda row:(-row["outer_diameter_mm"],row["id"])):
+        diameter=wire["outer_diameter_mm"]
+        level+=(previous_diameter+diameter)/2+.15
+        previous_diameter=diameter
+        wire["left_corridor_z"]=round(level,3)
+        for point in wire["points"]:
+            if point[0] in (left_front,left_back) and point[2] in (36,40):
+                point[2]=round(level,3)
+    if level+previous_diameter/2>106:
+        raise ValueError("Left bundle does not fit its available height")
+    candidates=[]
+    for wire in wires:
+        spans=[(min(a[0],b[0]),max(a[0],b[0])) for a,b in zip(wire["points"],wire["points"][1:])
+               if a[1]==b[1]==rear_y and abs(a[0]-b[0])>20]
+        if spans:
+            candidates.append((wire,min(a for a,b in spans)-7,max(b for a,b in spans)+7))
+    slots=[(round(M["origin_y"]+200.4+column*.4,3),round(z+row*.4,3))
+           for z in (25.7,53.7) for row in range(40) for column in range(28)]
+    allocated=[]
+    for wire,minimum,maximum in sorted(candidates,key=lambda row:(-row[0]["outer_diameter_mm"],-(row[2]-row[1]),row[0]["id"])):
+        diameter=wire["outer_diameter_mm"]
+        selected=None
+        for y,z in slots:
+            # Rear guide sleeves end at Y(origin+199); LED strips at Y+206.
+            if z>66 and y<M["origin_y"]+208:
+                continue
+            if diameter>2.1 and ((z>51 and y<M["origin_y"]+202) or (z<45 and y>M["origin_y"]+210)):
+                continue
+            if all(max(minimum,other_min)>=min(maximum,other_max) or
+                   math.hypot(y-other_y,z-other_z)>=(diameter+other_diameter)/2+.1
+                   for other_min,other_max,other_y,other_z,other_diameter in allocated):
+                selected=(y,z)
+                break
+        if selected is None:
+            raise ValueError(f"Rear cable windows have no physical slot for {wire['id']}")
+        new_y,new_z=selected
+        allocated.append((minimum,maximum,new_y,new_z,diameter))
+        wire["rear_corridor_slot"]={"y":new_y,"z":new_z,"physical_diameter_mm":diameter}
+        wire["rear_corridor_slot"]["x_span"]=[minimum,maximum]
+        original=deepcopy(wire["points"])
+        # The right board stack changes level at its clear front edge, before
+        # entering the rear column window, never through a perfboard shelf.
+        for point in original:
+            if point[0]>=365 and point[2] in (36,40) and 118<=point[1]<=rear_y:
+                point[2]=new_z
+        adjusted=[original[0]]
+        for start,end in zip(original,original[1:]):
+            if start[1]==end[1]==rear_y and abs(start[0]-end[0])>20:
+                def transfer_x(point):
+                    for index in range(M["count"]):
+                        x=M["origin_x"]+M["pitch"]*index
+                        if x+43.5<point[0]<x+49.5:
+                            return x+41
+                    return point[0]
+                sx,ex=transfer_x(start),transfer_x(end)
+                adjusted += [[sx,rear_y,start[2]],[sx,new_y,start[2]],[sx,new_y,new_z],
+                             [ex,new_y,new_z],[ex,new_y,end[2]],[ex,rear_y,end[2]],end]
+            else:
+                adjusted.append(end)
+        wire["points"]=_orthogonal(adjusted)
+    for wire in wires:
+        points=deepcopy(wire["points"]) if wire["id"]=="USB-PD" else _orthogonal(wire["points"])
+        if not wire["id"].startswith("USB"):
+            points=_remove_packing_return_jogs(wire,points)
+        protected=[row["fixed_point"] for row in wire["moving_endpoints"]]
+        clean=[]
+        for point in points:
+            if len(clean)>1 and clean[-1] not in protected:
+                a,b=clean[-2],clean[-1]
+                changed=[i for i in range(3) if a[i]!=b[i]]
+                if len(changed)==1 and all(b[i]==point[i] for i in range(3) if i!=changed[0]) and (not wire["id"].startswith("USB") or (b[changed[0]]-a[changed[0]])*(point[changed[0]]-b[changed[0]])>=0):
+                    clean[-1]=point
+                    continue
+            clean.append(point)
+        wire["points"]=clean
+        wire["route_mm"]=round(route_length(wire["points"]),1)
+        required=math.ceil((route_length(wire["points"])+wire["service_mm"]+
+                           wire["termination_mm"]+wire["motion_mm"])/10)*10
+        wire["estimated_total_mm"]=required
+        wire["estimated_cut_mm"]=max(0,required-(wire["stock_mm"] or wire["native_lead_mm"]))
+    return wires
+
+
+HARNESSES = _pack_corridors(_make_harnesses())
 
 
 def _physical_loads(endpoint, trail=(), visited=()):
@@ -313,12 +774,12 @@ def _terminal_connections():
             continue
         for endpoint, trail in _physical_loads(wire["to"]):
             target = _component(endpoint)
-            note = "Assigned F1 assembly branch; actual terminals and physical fit require verification."
+            note = "Assigned F2 assembly branch; actual terminals and physical fit require verification."
             if trail:
                 note += " Through insulated soldered wire fanout; no power through perfboard."
             if target == "esp_usb_supply":
                 target = "esp32"
-                note += " USB-UART power route via unconfirmed USB supply adapter; remains an acceptance gap."
+                note += " USB-UART power route via ADD passive USB-A female >=3A supply socket; procurement and backfeed remain unconfirmed."
             path = " / ".join((wire["id"],) + trail)
             edges.append({"from": _component(wire["from"]), "to": target,
                           "label": f'{path}: {wire["net"]}', "kind": wire["kind"], "note": note})
@@ -329,13 +790,17 @@ CONNECTIONS = _terminal_connections()
 CONNECTIONS += tuple({"from": "degson_3" if polarity == "-" else "pca9685" if index in (3, 4) else "degson_1",
                       "to": f"capacitor_{index}", "label": f'C{index}{polarity}: {"GND" if polarity == "-" else "DRIVE5" if index in (3, 4) else "MAIN5"}',
                       "kind": "ground" if polarity == "-" else "power",
-                      "note": "Assigned F1 assembly branch through insulated wire fanout; not physically verified; capacitor polarity must be checked."}
+                      "note": "Assigned F2 assembly branch through insulated wire fanout; not physically verified; capacitor polarity must be checked."}
                      for index in range(1, 7) for polarity in ("+", "-"))
 
 
 def routes():
-    return [{"id": wire["id"], "points": deepcopy(wire["points"]), "kind": wire["kind"],
-             "purpose": f'{wire["from"]} -> {wire["to"]} / {wire["net"]}'} for wire in HARNESSES]
+    result = deepcopy(list(HARNESSES))
+    for wire in result:
+        wire["from"] = canonical_endpoint(wire["from"])
+        wire["to"] = canonical_endpoint(wire["to"])
+        wire["purpose"] = f'{wire["from"]} -> {wire["to"]} / {wire["net"]}'
+    return result
 
 
 def validate(wires=None, terminals=None):
@@ -360,6 +825,17 @@ def validate(wires=None, terminals=None):
                     errors.append(f"{wire['id']}: wrong net or thin wire at Degson")
     for wire in wires:
         endpoints = f'{wire["from"]} {wire["to"]}'
+        for endpoint, point in ((wire["from"], wire["points"][0]), (wire["to"], wire["points"][-1])):
+            try:
+                if list(endpoint_anchor(endpoint)) != point:
+                    errors.append(f"{wire['id']}: route endpoint does not match terminal registry")
+            except (KeyError, ValueError):
+                errors.append(f"{wire['id']}: unknown component or pin {endpoint}")
+        if not wire.get("bundle") or not wire.get("colour") or wire.get("outer_diameter_mm", 0) <= 0:
+            errors.append(f"{wire['id']}: physical wire specification missing")
+        if wire["id"] == "USB-PD" and (not wire.get("transport_points") or
+                                       wire["transport_points"][0] != list(USB_PARK_POINT)):
+            errors.append("USB-PD: removed bank requires a disconnected parked transport route")
         if "SPK" in endpoints and wire["net"] == "GND":
             errors.append(f"{wire['id']}: speaker output grounded")
         if ":white" in endpoints or ":NC" in endpoints:
@@ -395,14 +871,17 @@ def export(out):
     out = Path(out)
     result = validate()
     out.mkdir(parents=True, exist_ok=True)
-    payload = {"revision": "F1", "units": "mm", "net_assignments": NETS,
+    payload = {"revision": PARAMS["revision"], "units": "mm", "net_assignments": NETS,
                "net_aliases": NET_ALIASES, "terminal_aliases": TERMINAL_ALIASES,
                "buck_ground_joint": BUCK_GROUND_JOINT,
                "terminal_numbers": "logical labels only; no measured connector orientation",
                "terminals": TERMINALS, "fanouts": FANOUTS, "passives": PASSIVES, "harnesses": HARNESSES,
+               "endpoint_registry": endpoint_registry(), "supply_connector": SUPPLY_CONNECTOR,
+               "camera_fpc": CAMERA_FPC, "usb_coil": USB_COIL,
                "missing_acceptance": MISSING_ACCEPTANCE, "validation": result}
     (out / "cable-plan.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    fields = ["id", "net", "from", "to", "area_mm2", "route_mm", "service_mm", "termination_mm",
+    fields = ["id", "net", "bundle", "from", "to", "area_mm2", "colour", "outer_diameter_mm",
+              "from_termination", "to_termination", "route_mm", "service_mm", "termination_mm",
               "motion_mm", "native_lead_mm", "stock_mm", "estimated_total_mm", "estimated_cut_mm",
               "label_from", "label_to", "construction", "status", "note"]
     with (out / "cable-cut-list.csv").open("w", encoding="utf-8-sig", newline="") as stream:

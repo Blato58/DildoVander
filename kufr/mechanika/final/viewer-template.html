@@ -2,48 +2,97 @@
 <html lang="cs">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>F1 — nový kouzelný kufr</title>
+<title>F2 — vložka do dřevěného kouzelného kufru</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#efebe4;color:#28212f;font:15px system-ui;height:100vh;display:flex;flex-direction:column;overflow:hidden}
-header{flex:none;padding:12px 18px;border-bottom:1px solid #ccc4bc;display:flex;gap:12px;align-items:center;flex-wrap:wrap}h1{font-size:22px;margin:0}small{color:#655c68}
-#scene{position:relative;flex:1;min-height:100px;overflow:hidden}canvas{display:block;width:100%;height:100%;touch-action:none}footer{flex:none;padding:10px 18px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-label{display:inline-flex;align-items:center;gap:7px}button{background:#382742;color:white;border:0;border-radius:5px;padding:9px 13px;cursor:pointer}button[aria-pressed=true]{background:#98621e;outline:2px solid #d6a84f}input[type=range]{width:130px}.note{font-size:12px;max-width:460px}
-#overlay,#names{position:absolute;inset:0;pointer-events:none}#overlay{width:100%;height:100%;overflow:hidden}.object-name{position:absolute;font:11px ui-monospace,monospace;background:#fffdf3e8;border:1px solid #b7ab97;border-radius:3px;padding:2px 4px;white-space:nowrap;color:#28212f}
-#inspect-hint{position:absolute;left:12px;top:10px;padding:7px 10px;background:#fffdf3ed;border-radius:5px;max-width:calc(100% - 24px);font-size:12px;pointer-events:none}
-#inspector{position:absolute;right:12px;top:12px;width:340px;max-width:calc(100% - 24px);max-height:calc(100% - 24px);overflow:auto;padding:16px;background:#fffdf7f5;box-shadow:0 3px 24px #28212f30;border:1px solid #c7baa5;border-radius:8px;font-size:13px}
-#inspector{overflow-wrap:anywhere}#inspector h2{font-size:18px;margin:12px 0 3px}#inspector p{line-height:1.5}#mesh-id{font-family:ui-monospace,monospace;color:#655c68}#details{padding-left:18px;line-height:1.5}#connections{padding-left:18px;line-height:1.5}#connections li{margin:6px 0}#connections small{display:block}
-.panel-toolbar{display:flex;justify-content:space-between;gap:8px}.panel-toolbar button{padding:5px 9px}select{max-width:100%;width:100%;margin:8px 0}#color{width:48px;height:32px}#storage-status{display:block;margin-top:8px}#wire-note{border-top:1px solid #d9d0c1;padding-top:10px}#empty-connections{color:#655c68}
-[hidden]{display:none!important}@media(max-width:600px){header{gap:7px;padding:8px;font-size:12px}h1{font-size:18px}header button{padding:7px}header small{display:none}footer{padding:7px;font-size:12px}footer .note{display:none}#inspector{width:290px;padding:12px}.object-name{font-size:10px}}
+*{box-sizing:border-box}body{margin:0;background:#eee5d6;color:#34251e;font:14px system-ui;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header,footer{flex:none;padding:9px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#eee5d6}
+header{border-bottom:2px solid #b69755}h1{font-size:21px;margin:0}h2{font-size:17px;margin:10px 0}small{color:#685244}
+label{display:inline-flex;align-items:center;gap:6px}button{background:#682e3d;color:#fff8e9;border:1px solid #825143;border-radius:4px;padding:7px 10px;cursor:pointer}
+button:disabled{opacity:.45;cursor:default}button[aria-pressed=true]{background:#986d29}button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid #d39c35;outline-offset:2px}
+select{max-width:100%;padding:5px;background:#fff9ee;color:#34251e;border:1px solid #bfa480}input[type=range]{width:110px}.note{font-size:11px;max-width:510px}
+#workspace{display:flex;flex:1;min-height:100px}#sidebar{width:275px;overflow:auto;padding:12px;border-right:1px solid #bfa480;background:#f4eadb;font-size:12px}
+#sidebar>details{margin:8px 0;border-top:1px solid #d4c0a0;padding-top:7px}summary{cursor:pointer;font-weight:600}#sidebar label{margin:3px 0}#sidebar p{overflow-wrap:anywhere}
+#sidebar select{display:block;width:100%;margin:4px 0 8px}#tree details{margin:5px 0}#tree button{display:block;padding:3px 6px;margin:3px 0 3px 14px;font-size:11px;background:#806553;border-color:#aa9074}
+#wire-details{white-space:pre-line;overflow-wrap:anywhere;line-height:1.4;max-height:140px;overflow:auto}#assembly-check{font-weight:600;color:#682e3d}#assembly-panel p{line-height:1.5}#assembly-panel{border-top:2px solid #b69755;padding-top:8px}#assembly-materials,#assembly-parts{white-space:pre-line;overflow-wrap:anywhere}#assembly-controls{position:sticky;bottom:0;display:flex;gap:5px;flex-wrap:wrap;padding:8px 0;background:#f4eadb;border-top:1px solid #bfa480}#transport-panel ol{padding-left:20px;line-height:1.5}#transport-panel li{margin:5px 0;overflow-wrap:anywhere}
+#scene{position:relative;flex:1;min-width:0;overflow:hidden}canvas{display:block;width:100%;height:100%;touch-action:none;user-select:none}
+#overlay,#names,#orientation{position:absolute;inset:0;pointer-events:none}#overlay{width:100%;height:100%;overflow:hidden}#orientation .object-name{background:#eee5d6df;font:10px system-ui;color:#682e3d}
+.object-name{position:absolute;font:10px ui-monospace,monospace;background:#fff9eee8;border:1px solid #b7a07f;border-radius:3px;padding:2px 4px;white-space:nowrap;color:#34251e}
+#inspect-hint{position:absolute;left:12px;top:10px;padding:7px 10px;background:#fff9eeed;border-radius:5px;max-width:calc(100% - 24px);font-size:12px;pointer-events:none}
+#inspector{position:absolute;right:12px;top:12px;width:330px;max-width:calc(100% - 24px);max-height:calc(100% - 24px);overflow:auto;padding:14px;background:#fff9eef5;box-shadow:0 3px 24px #34251e30;border:1px solid #bfa480;border-radius:6px;font-size:12px;overflow-wrap:anywhere}
+#inspector select{width:100%;margin:7px 0}#inspector p{line-height:1.5}#mesh-id{font:11px ui-monospace,monospace;color:#685244}
+#details,#connections{padding-left:18px;line-height:1.5}#connections li{margin:6px 0}#connections small{display:block}.panel-toolbar{display:flex;justify-content:space-between;gap:5px;flex-wrap:wrap}
+.panel-toolbar button{padding:5px 7px;font-size:11px}#color{width:48px;height:30px}#storage-status{display:block;margin-top:7px}#wire-note{border-top:1px solid #d4c0a0;padding-top:9px}
+#effect-status,#mode-note{line-height:1.4}#effect-phase{font-weight:600;color:#682e3d}#effect-stop{background:#a23732}#service-reset{margin-top:6px}
+[hidden]{display:none!important}
+@media(max-width:700px){h1{font-size:17px}header{padding:6px;gap:6px}header small{display:none}#sidebar{width:190px;padding:8px}footer{padding:6px;font-size:11px}footer .note{display:none}#inspector{width:260px;padding:10px}.object-name{font-size:9px}}
+@media(max-width:450px){#sidebar{width:145px;font-size:11px}#sidebar button{font-size:10px;padding:5px}header button{padding:5px;font-size:11px}input[type=range]{width:80px}}
 </style>
 <header>
-  <div><h1>F1 · Kouzelný kufr</h1><small>Skutečná geometrie CAD • mm • návrh pro fyzický prototyp</small></div>
-  <button id="open">Prezentace</button><button id="service">Servis</button><button id="closed">Zavřený kufr</button>
-  <label><input id="cover" type="checkbox" checked>Kryty</label><label><input id="case" type="checkbox" checked>Korpus</label>
-  <label><input id="beds" type="checkbox" checked>Lůžka</label><label><input id="hardware" type="checkbox" checked>Elektronika</label>
-  <button id="inspect" aria-pressed="false">Inspect</button>
+  <div><h1>F2 · Vložka do dřevěného kufru</h1><small>Skutečná geometrie CAD · mm · dřevo / vínový samet / mosaz</small></div>
+  <button id="open">Provoz</button><button id="service">Servis</button><button id="closed">Přeprava</button>
+  <button id="inspect" aria-pressed="false">Inspect / Shift</button>
+  <button id="view-top">Shora</button><button id="view-front">Zepředu</button><button id="view-side">Z boku</button><button id="view-overview">Přehled</button><button id="view-reset">Reset pohledu</button>
 </header>
-<main id="scene">
-  <canvas id="view" aria-label="3D model kufru. Inspect lze ovládat tlačítkem a výběrem objektu v panelu."></canvas>
-  <svg id="overlay" aria-hidden="true"></svg><div id="names" aria-hidden="true"></div>
-  <div id="inspect-hint" role="status" hidden></div>
-  <aside id="inspector" aria-label="Informace o objektu" hidden>
-    <div class="panel-toolbar"><strong>Inspect</strong><button id="unpin">Zrušit výběr</button><button id="close-inspect" aria-label="Zavřít inspektor">✕</button></div>
-    <label for="object">Objekt</label><select id="object"><option value="">Vyberte objekt…</option></select>
-    <div id="object-details" hidden>
-      <h2 id="object-title"></h2><div id="mesh-id"></div><p id="description"></p><ul id="details"></ul>
-      <label for="color">Barva objektu</label> <input id="color" type="color"> <button id="reset-color">Původní barva</button>
-      <small id="storage-status" role="status"></small>
-      <p id="wire-note">Spojnice představují elektrické vazby mezi součástkami, nikoli změřené trasy nebo délky kabelů. Červená: napájení · modrá: signál · šedá: GND. Přerušovaný konec označuje skrytý díl.</p>
-      <strong>Kabelové propojení</strong><ul id="connections"></ul><p id="empty-connections" hidden></p>
-      <details><summary>Zdrojové podklady</summary><p id="evidence"></p></details>
-    </div>
+<main id="workspace">
+  <aside id="sidebar" aria-label="Sestava a ovládání">
+    <label for="mode">Režim sestavy</label>
+    <select id="mode"><option value="operation">Provoz</option><option value="service">Servis</option><option value="transport">Přeprava</option><option value="assembly">Montáž krok za krokem</option></select>
+    <p id="mode-note">Náhled není potvrzení skutečné polohy ani fyzická přejímka.</p>
+    <p id="envelope-note"></p>
+    <section id="transport-panel" hidden aria-label="Přeprava a opětovné uvedení do provozu">
+      <h2>Příprava k přepravě</h2><ol id="transport-instructions"></ol>
+      <h2>Opětovné uvedení do provozu</h2><ol id="recommission-instructions"></ol>
+    </section>
+    <details><summary>Zobrazení vrstev a strom dílů</summary>
+      <label><input id="cover" type="checkbox" checked>Kryty</label><label><input id="case" type="checkbox" checked>Korpus</label>
+      <label><input id="beds" type="checkbox" checked>Lůžka</label><label><input id="hardware" type="checkbox" checked>Elektronika</label>
+      <label><input id="wands" type="checkbox" checked>Hůlky</label><label><input id="bank" type="checkbox" checked>Powerbanka</label>
+      <label><input id="textile" type="checkbox" checked>Snímatelný textil</label><label><input id="wires" type="checkbox">Skutečné trasy kabelů</label>
+      <label><input id="dimensions" type="checkbox">Rozměry</label>
+      <label for="case-opacity">Průhlednost korpusu (jen zobrazení)</label><input id="case-opacity" type="range" min="0.1" max="1" step="0.1" value="1">
+      <button id="show-all">Obnovit vrstvy / izolaci</button><div id="tree"></div>
+    </details>
+    <details open><summary>Kabel / pin / svazek / síť</summary>
+      <label for="wire-scope">Rozsah výběru</label><select id="wire-scope"><option value="branch">Větev — konkrétní vodič</option><option value="bundle">Celý svazek</option><option value="net">Celá elektrická síť</option></select>
+      <label for="wire">Vodič</label><select id="wire"><option value="">Vyberte vodič…</option></select>
+      <label for="endpoint">Konkrétní pin</label><select id="endpoint"><option value="">Vyberte pin…</option></select>
+      <p id="wire-details">Shift na dílu zvýrazní jeho skutečné vodiče. Výběry jsou dostupné také klávesnicí.</p>
+    </details>
+    <section id="assembly-panel" hidden aria-live="polite">
+      <h2 id="assembly-title"></h2><p id="assembly-text"></p><p id="assembly-parts"></p><p id="assembly-materials"></p><p id="assembly-depends"></p><p id="assembly-check"></p>
+      <div id="assembly-controls"><button id="assembly-prev">Zpět</button><button id="assembly-next">Další</button><button id="assembly-restart">Restart montáže</button></div>
+    </section>
+    <details open><summary>Sdílená prezentace hůlky</summary>
+      <button id="play-main">Hlavní výběr</button><button id="play-short">Krátké opakování</button><button id="effect-stop">Stop</button>
+      <label><input id="audio-preview" type="checkbox">Lokální poslech tónů</label>
+      <p id="effect-phase" aria-live="polite"></p><p id="effect-status" role="status">Časování zdvihu je ilustrační do kalibrace. Světlo vychází pouze ze šesti skutečných LED skupin. Zvuk je lokální syntéza, žádná cloudová služba.</p>
+      <button id="service-reset" disabled>Servisní reset po ruční kontrole</button>
+    </details>
   </aside>
+  <section id="scene" aria-label="3D model">
+    <canvas id="view" aria-label="3D model kufru. Shift nebo Inspect odkrývá vodiče. Každý díl lze vybrat ve stromu a seznamu."></canvas>
+    <svg id="overlay" aria-hidden="true"></svg><div id="names" aria-hidden="true"></div><div id="orientation" aria-hidden="true"></div><div id="inspect-hint" role="status" hidden></div>
+    <aside id="inspector" aria-label="Informace o objektu" hidden>
+      <div class="panel-toolbar"><strong>Inspect</strong><button id="unpin">Zrušit výběr</button><button id="close-inspect" aria-label="Zavřít inspektor">✕</button></div>
+      <label for="object">Objekt (včetně skrytých)</label><select id="object"><option value="">Vyberte objekt…</option></select>
+      <div class="panel-toolbar"><button id="hide-object">Skrýt</button><button id="isolate-object">Izolovat</button><button id="zoom-object">Přiblížit</button></div>
+      <div id="object-details" hidden>
+        <h2 id="object-title"></h2><div id="mesh-id"></div><p id="description"></p><ul id="details"></ul>
+        <label for="color">Barva objektu</label> <input id="color" type="color"> <button id="reset-color">Původní barva</button>
+        <small id="storage-status" role="status"></small>
+        <p id="wire-note">Lomené čáry jsou skutečné návrhové trasy z kabelového plánu. Červená: napájení · modrá: signál · šedá: GND. Souřadnice pinů nejsou změřené; deformace pohyblivé smyčky je aproximace. Skrytí dílu nemaže jeho zapojení.</p>
+        <strong>Kabelové propojení</strong><ul id="connections"></ul><p id="empty-connections" hidden></p>
+        <details><summary>Zdrojové podklady</summary><p id="evidence"></p></details>
+      </div>
+    </aside>
+  </section>
 </main>
 <footer>
   <label>Víko <input id="lid" type="range" min="0" max="105" value="105"><output id="lidvalue">105°</output></label>
-  <label>Lůžko 3 <input id="lift" type="range" min="0" max="160" value="0"><output id="liftvalue">0 mm</output></label>
+  <label for="tray">Přihrádka</label><select id="tray"></select>
+  <label>Zdvih <input id="lift" type="range" min="0" max="160" value="0"><output id="liftvalue">0 mm</output></label>
   <small>Tažení: otáčení · kolečko: zoom · Shift: inspect · klik: připnout · Esc: zavřít</small>
-  <span class="note">Model neprokazuje sílu serv, únosnost ani teplotu. Kamera a rozměry hůlky obsahují označené předpoklady. Transportní popruhy jsou v samostatném STEP a PNG.</span>
+  <span class="note">Model neprokazuje moment serva, vypnutí jeho držení, lepený spoj, zavření skutečného víka ani bezpečnost přepravy. Rozměry hůlek, kamery a pinů vyžadují fyzickou kontrolu.</span>
 </footer>
 <script>const model=__MODEL_DATA__;
 __VIEWER_SCRIPT__

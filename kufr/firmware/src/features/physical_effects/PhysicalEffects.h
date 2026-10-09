@@ -38,6 +38,7 @@ class PhysicalEffects final {
   void Fault();
   bool RecoverAfterInspection();
   bool Highlight(uint8_t compartment, uint8_t red, uint8_t green, uint8_t blue);
+  bool Illuminate(uint8_t mask, uint8_t red, uint8_t green, uint8_t blue);
   bool StartVibration(uint8_t compartment);
   bool Move(uint8_t compartment, bool raise);
   bool Healthy() const { return configured_ && !fault_; }

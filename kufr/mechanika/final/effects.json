@@ -1,0 +1,475 @@
+{
+  "revision": "F2",
+  "count": 6,
+  "leds_per_compartment": 6,
+  "max_brightness": 64,
+  "main": [
+    {
+      "phase": "Probuzení",
+      "duration_ms": 600,
+      "target": "all",
+      "light": [
+        60,
+        12,
+        90
+      ],
+      "vibration": false,
+      "motion": null,
+      "audio": "local_tone",
+      "tone_hz": 220,
+      "stage": "prepare"
+    },
+    {
+      "phase": "Hledání 1",
+      "duration_ms": 120,
+      "target": 1,
+      "light": [
+        90,
+        30,
+        220
+      ],
+      "vibration": false,
+      "motion": null,
+      "audio": "local_tone",
+      "tone_hz": 385,
+      "stage": "prepare"
+    },
+    {
+      "phase": "Hledání 2",
+      "duration_ms": 120,
+      "target": 2,
+      "light": [
+        90,
+        30,
+        220
+      ],
+      "vibration": false,
+      "motion": null,
+      "audio": "local_tone",
+      "tone_hz": 440,
+      "stage": "prepare"
+    },
+    {
+      "phase": "Hledání 3",
+      "duration_ms": 120,
+      "target": 3,
+      "light": [
+        90,
+        30,
+        220
+      ],
+      "vibration": false,
+      "motion": null,
+      "audio": "local_tone",
+      "tone_hz": 495,
+      "stage": "prepare"
+    },
+    {
+      "phase": "Hledání 4",
+      "duration_ms": 120,
+      "target": 4,
+      "light": [
+        90,
+        30,
+        220
+      ],
+      "vibration": false,
+      "motion": null,
+      "audio": "local_tone",
+      "tone_hz": 550,
+      "stage": "prepare"
+    },
+    {
+      "phase": "Hledání 5",
+      "duration_ms": 120,
+      "target": 5,
+      "light": [
+        90,
+        30,
+        220
+      ],
+      "vibration": false,
+      "motion": null,
+      "audio": "local_tone",
+      "tone_hz": 605,
+      "stage": "prepare"
+    },
+    {
+      "phase": "Hledání 6",
+      "duration_ms": 120,
+      "target": 6,
+      "light": [
+        90,
+        30,
+        220
+      ],
+      "vibration": false,
+      "motion": null,
+      "audio": "local_tone",
+      "tone_hz": 660,
+      "stage": "prepare"
+    },
+    {
+      "phase": "Náznak vpravo",
+      "duration_ms": 300,
+      "target": "next",
+      "light": [
+        20,
+        40,
+        170
+      ],
+      "vibration": false,
+      "motion": null,
+      "audio": "local_tone",
+      "tone_hz": 392,
+      "stage": "prepare"
+    },
+    {
+      "phase": "Náznak vlevo",
+      "duration_ms": 300,
+      "target": "previous",
+      "light": [
+        120,
+        20,
+        170
+      ],
+      "vibration": false,
+      "motion": null,
+      "audio": "local_tone",
+      "tone_hz": 349,
+      "stage": "prepare"
+    },
+    {
+      "phase": "Volba",
+      "duration_ms": 500,
+      "target": "selected",
+      "light": [
+        255,
+        140,
+        20
+      ],
+      "vibration": false,
+      "motion": null,
+      "audio": "local_tone",
+      "tone_hz": 523,
+      "stage": "prepare"
+    },
+    {
+      "phase": "Úder 1",
+      "duration_ms": 150,
+      "target": "selected",
+      "light": [
+        255,
+        170,
+        30
+      ],
+      "vibration": true,
+      "motion": null,
+      "audio": "local_tone",
+      "tone_hz": 110,
+      "stage": "prepare"
+    },
+    {
+      "phase": "Pauza 1",
+      "duration_ms": 150,
+      "target": "selected",
+      "light": [
+        30,
+        10,
+        0
+      ],
+      "vibration": false,
+      "motion": null,
+      "audio": null,
+      "tone_hz": 0,
+      "stage": "prepare"
+    },
+    {
+      "phase": "Úder 2",
+      "duration_ms": 150,
+      "target": "selected",
+      "light": [
+        255,
+        170,
+        30
+      ],
+      "vibration": true,
+      "motion": null,
+      "audio": "local_tone",
+      "tone_hz": 110,
+      "stage": "prepare"
+    },
+    {
+      "phase": "Pauza 2",
+      "duration_ms": 150,
+      "target": "selected",
+      "light": [
+        30,
+        10,
+        0
+      ],
+      "vibration": false,
+      "motion": null,
+      "audio": null,
+      "tone_hz": 0,
+      "stage": "prepare"
+    },
+    {
+      "phase": "Úder 3",
+      "duration_ms": 150,
+      "target": "selected",
+      "light": [
+        255,
+        170,
+        30
+      ],
+      "vibration": true,
+      "motion": null,
+      "audio": "local_tone",
+      "tone_hz": 110,
+      "stage": "prepare"
+    },
+    {
+      "phase": "Pauza 3",
+      "duration_ms": 150,
+      "target": "selected",
+      "light": [
+        30,
+        10,
+        0
+      ],
+      "vibration": false,
+      "motion": null,
+      "audio": null,
+      "tone_hz": 0,
+      "stage": "prepare"
+    },
+    {
+      "phase": "Ticho před odhalením",
+      "duration_ms": 200,
+      "target": "selected",
+      "light": [
+        0,
+        0,
+        0
+      ],
+      "vibration": false,
+      "motion": null,
+      "audio": null,
+      "tone_hz": 0,
+      "stage": "prepare"
+    },
+    {
+      "phase": "Odhalení",
+      "duration_ms": 1000,
+      "target": "selected",
+      "light": [
+        255,
+        220,
+        110
+      ],
+      "vibration": false,
+      "motion": "raise",
+      "audio": "local_tone",
+      "tone_hz": 880,
+      "stage": "raise"
+    },
+    {
+      "phase": "Hůlka čeká",
+      "duration_ms": 5000,
+      "target": "selected",
+      "light": [
+        255,
+        170,
+        30
+      ],
+      "vibration": false,
+      "motion": null,
+      "audio": null,
+      "stage": "show"
+    },
+    {
+      "phase": "Návrat",
+      "duration_ms": 1000,
+      "target": "selected",
+      "light": [
+        80,
+        30,
+        10
+      ],
+      "vibration": false,
+      "motion": "lower",
+      "audio": null,
+      "stage": "lower"
+    },
+    {
+      "phase": "Klid — PWM vypnuto",
+      "duration_ms": 250,
+      "target": "selected",
+      "light": [
+        0,
+        0,
+        0
+      ],
+      "vibration": false,
+      "motion": null,
+      "audio": null,
+      "stage": "rest"
+    }
+  ],
+  "short": [
+    {
+      "phase": "Opakovaná volba",
+      "duration_ms": 400,
+      "target": "selected",
+      "light": [
+        255,
+        170,
+        30
+      ],
+      "vibration": false,
+      "motion": null,
+      "audio": "local_tone",
+      "tone_hz": 523,
+      "stage": "prepare"
+    },
+    {
+      "phase": "Úder",
+      "duration_ms": 150,
+      "target": "selected",
+      "light": [
+        255,
+        170,
+        30
+      ],
+      "vibration": true,
+      "motion": null,
+      "audio": "local_tone",
+      "tone_hz": 110,
+      "stage": "prepare"
+    },
+    {
+      "phase": "Pauza",
+      "duration_ms": 150,
+      "target": "selected",
+      "light": [
+        0,
+        0,
+        0
+      ],
+      "vibration": false,
+      "motion": null,
+      "audio": null,
+      "tone_hz": 0,
+      "stage": "prepare"
+    },
+    {
+      "phase": "Odhalení",
+      "duration_ms": 1000,
+      "target": "selected",
+      "light": [
+        255,
+        220,
+        110
+      ],
+      "vibration": false,
+      "motion": "raise",
+      "audio": "local_tone",
+      "tone_hz": 880,
+      "stage": "raise"
+    },
+    {
+      "phase": "Hůlka čeká",
+      "duration_ms": 5000,
+      "target": "selected",
+      "light": [
+        255,
+        170,
+        30
+      ],
+      "vibration": false,
+      "motion": null,
+      "audio": null,
+      "stage": "show"
+    },
+    {
+      "phase": "Návrat",
+      "duration_ms": 1000,
+      "target": "selected",
+      "light": [
+        80,
+        30,
+        10
+      ],
+      "vibration": false,
+      "motion": "lower",
+      "audio": null,
+      "stage": "lower"
+    },
+    {
+      "phase": "Klid — PWM vypnuto",
+      "duration_ms": 250,
+      "target": "selected",
+      "light": [
+        0,
+        0,
+        0
+      ],
+      "vibration": false,
+      "motion": null,
+      "audio": null,
+      "stage": "rest"
+    }
+  ],
+  "show_ms": 5000,
+  "reveal_tone_hz": 880,
+  "calibrated": false,
+  "illustrative_travel_ms": 1000,
+  "audio_status": "local synthesized tones via the verified existing I2S path; unavailable or busy audio is skipped, no cloud call",
+  "stop": "Disable outputs, freeze unknown intermediate position, inspect manually before recovery; never infer lowered",
+  "transport": "Manual confirmation of six released ties required; no lock or wand-removal sensor",
+  "channels": [
+    {
+      "compartment": 1,
+      "servo": 0,
+      "vibration": 6,
+      "led_first": 0,
+      "led_count": 6
+    },
+    {
+      "compartment": 2,
+      "servo": 1,
+      "vibration": 7,
+      "led_first": 6,
+      "led_count": 6
+    },
+    {
+      "compartment": 3,
+      "servo": 2,
+      "vibration": 8,
+      "led_first": 12,
+      "led_count": 6
+    },
+    {
+      "compartment": 4,
+      "servo": 3,
+      "vibration": 9,
+      "led_first": 18,
+      "led_count": 6
+    },
+    {
+      "compartment": 5,
+      "servo": 4,
+      "vibration": 10,
+      "led_first": 24,
+      "led_count": 6
+    },
+    {
+      "compartment": 6,
+      "servo": 5,
+      "vibration": 11,
+      "led_first": 30,
+      "led_count": 6
+    }
+  ]
+}

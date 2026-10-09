@@ -219,13 +219,21 @@ Profil **B-effects** zachovává kamerové GPIO i SD38–40. GPIO2 přímo
 řídí PCA OE (HIGH vypnuto); napájení pohonů odpojuje zelená kolébka.
 [Konkrétní zapojení a oživení](../docs/zapojeni-potvrzeneho-hardwaru.md).
 
-`PhysicalEffects` vynucuje jeden úsek / jeden pohon, jas do 64/255,
+`PhysicalEffects` vynucuje nejvýše jeden pohon, jas každého RGB kanálu do 64/255,
 150ms vibraci, individuální servo pulzy a časové okno 20–3000 ms podle kalibrace + 250ms softwarovou rezervu.
 Bez dalších polohových snímačů představují `IsRaised` / `IsResting`
 **programově zadanou polohu po uplynutí kalibrovaného pohybu**.
 Zablokované servo nepoznají; výstupní `physicalVerification` zůstává
 `unavailable`. `PhysicalPresentation` spojuje journal s hledáním,
 třemi vibracemi, zdvihem, 5s ukázkou a časovaným návratem.
+F2 načítá generované časování z `PresentationScore.h`; autoritou je
+[`effects.json`](../mechanika/final/effects.json). První autonomní výběr
+má přípravu 3520 ms, další úspěšné výběry krátkou 700 ms; skutečné jízdy
+používají kalibraci. Podrobnosti [choreografie](../mechanika/final/EFEKTY.md).
+Světlo může osvětlit více skupin, vibrace a servo se nepřekrývají.
+Volitelné lokální tóny používají existující I2S B, ustupují hlasu a
+nevolají AI. Stop ukončí nové tóny, již přijatý krátký DMA blok může
+odtéct. Firmware nebyl v rámci CAD změny nahrán do desky.
 Fyzický ruční režim má stejný návrat přes `SelectionSequence(..., true)`.
 Normální naprogramovaný návrat obnoví dostupnost až po úspěšném trvalém
 zápisu. Stop, I/O chyba či prodleva smyčky 250 ms vyžadují místní kontrolu,

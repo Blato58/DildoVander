@@ -1,171 +1,83 @@
-# Předání F1 – 9. 10. 2026
+# Předání F2 — 10. 10. 2026
 
-## Optimalizace rozložení a kabeláže
+F2 je vložka do skutečného dřevěného kufru. Nahrazuje nový tištěný
+korpus F1, původní plstěnou brzdu a stará či nedostatečně upevněná servisní rozhraní.
+Zachovává šest přihrádek, potvrzený inventář a elektrické zapojení.
 
-Navazující zadání přesouvá PD trigger a měnič z pravé zadní zóny k bance
-a kolébkám vlevo. Levý servisní stolek je v Z76; měnič leží nahoře v Z81,
-jistič na izolované spodní straně v Z61, PD modul pod ním. Levý reproduktor
-je snížen o 4 mm. Větrání se přesouvá nad měnič do levého bankového krytu;
-pravý zadní kryt má plnou plochu. Držák banky a cesta vyjmutí zůstávají.
-Pinové přiřazení, firmware a mechanismus zdvihu se tím nemění.
+## Rozhodnutí
 
-Tři pracovní Degson mají sítě MAIN5, DRIVE5, GND, tabulku portů a izolované
-měděné odbočky. Univerzální PCB nesou pouze signály a nízkoproudou logiku.
-Dvojice kondenzátorů mají konkrétní větve LED, PCA V+ a audio/elektronika.
-Pohyblivé smyčky mají rezervu 24 × 26 × 24 mm před vačkou; zadní výkonová
-trasa má rezervu 14 × 10 mm. [KABELAZ.md](KABELAZ.md) popisuje sestavení
-na stole, označení obou konců, délkové rezervy a skutečné servisní odpojení.
-LED nemají nekoupené JST-SM páry; jejich výkonová odbočka je pájená.
+- Bezpečný kvádr 400 × 240 × 170 mm podle majitele, klidová zástavba pod 114,3 mm.
+- Čtyři tištěné panely a dvě Al lišty; čtyři lepené Al kotvy k holému dřevu.
+- Zdvih 16 mm zachycenou vačkou, skutečné dolní podpěry, šest ručních pásků.
+- Elektronika má tvarové dorazy, pásky a vlastní nosiče. Hůlky, banka
+  a textil nejsou součástí nosné cesty. Kufr se nevrtá ani neřeže.
+- ESP/kamera vzadu uprostřed, mikrofon vpředu uprostřed, reproduktory po stranách.
+- 135 samostatně identifikovaných vodičů se společnými daty pro výkres/viewer.
+- Montáž má 15 kumulativních kroků; provoz/servis/přeprava jsou explicitní stavy.
+- Hlavní i krátká choreografie pochází z jednoho souboru pro firmware a náhled.
 
-Změněné zdroje: `layout.py`, `inspect_data.py`, `build.py`, `verify.py`,
-`drawings.py`, `preview.py`, `artifacts.py`, `Regenerate.ps1`, nový
-`harness.py` a jeho testy, montážní podklady a ověřený snapshot zapojení.
-Vznikají také `cable-plan.json`, `cable-cut-list.csv` a `cable-layout.svg/png`,
-zahrnuté do výrobního ZIPu. Autoritou aktuální geometrické kontroly je
-`exports/verification.json` se shodnými zdrojovými SHA-256; předání se
-zapisuje do globálního stavu až po skutečném dokončení regenerace.
-Kontrola zahrnuje pohybovou obálku reprezentativního modulu 2 při všech
-81 vzorcích zdvihu a všech šest obálek proti kompletní klidové sestavě.
-Čistý model nepotvrzuje ohyb vodičů, pájení, proudy, teplotu či montáž.
+## Ověřování a důkazy
 
-Přípravu kabelového plánu a nezávislé review provedli oddělení agenti;
-integraci a ověření vlastní rodič. Žádný nákup, upload firmware, serverové
-nasazení ani placený test neprobíhá. Další fyzický krok: suchá montáž
-levého stolku, kabelů a jednoho osazeného lůžka, potom elektrická přejímka
-a zatížený pohyb podle původních kritérií. USB napájecí zakončení ESP,
-svorky a skutečné délky kabelové zásoby zůstávají kontrolami montáže.
+Autoritou geometrického výsledku je `exports/verification.json`, který
+obsahuje přesné SHA-256 zdrojů, počty dílů a provedených kontrol. Úspěšný
+status je výhradně `PASS_CAD_NOT_PHYSICAL_ACCEPTANCE`. Balicí skript
+nepřijme starší ověření, změněné zdroje ani chybějící aktuální soubory.
+Počet typů STL, počet výtisků a tiskové rozměry jsou v `exports/print-bom.csv`.
+Samotné vygenerování vieweru či ZIPu není fyzická přejímka.
 
-## Doplnění prohlížeče: Inspect
+Samostatná kontrola firmware 10. 10. 2026: cílový ESP-IDF build prošel,
+RAM 91 644 B, flash 1 746 349 B. Hostitelský test fyzických efektů prošel.
+Nezávislá kontrola kódu ověřila Stop, časování, souběh hlasu a akcentů;
+velký lokální PCM buffer byl přesunut mimo zásobník. Objektový kód
+`PumpCue` má zásobníkový rámec 96 B proti původním 5 216 B. Se zásobníkovým
+rámcem `Capture` je součet 6 384 B před dalšími voláními.
+Skutečnou rezervu zásobníku a fungování I2S potvrdí až deska.
 
-Navazující softwarový slice přidává inspektor viditelné geometrie při
-držení Shiftu, názvy dílů nad prázdnou plochou, připnutí karty a volbu barvy
-s místním trvalým uložením. Kabelové vazby používají potvrzené zapojení;
-rozměry a neznámé údaje vycházejí z rozměrového Markdown podkladu.
-Tištěná geometrie ani elektrické zapojení se nemění.
+Kontrola zdrojové geometrie: 32 typů STL / 47 výtisků, platná
+jednotlivá tělesa a tisková plocha 220 × 220 mm. Montáž pokrývá 589 dílů
+ve scéně a všech 135 vodičů; počty spojovacího materiálu odpovídají CSV.
+Rozsah celé regenerace zahrnuje tři celé sestavy, 102 poloh mechanismů
+se sousedy, 36 poloh víka, 37 kroků vyjmutí banky a 24 dráh nástroje.
+Kabelový audit ověřuje plné obálky vodičů včetně rohů: klid s kryty,
+zavřenou přepravu a každou přihrádku v polohách 0/80/160°.
+Kontrola navíc požaduje oddělení vzdálených úseků téhož vodiče,
+zaplnění 102 zadních vedení a šesti lokálních pruhů, stabilní otisk
+zdrojů a úplný výstup. Výsledek regenerace, počty skutečných porovnání
+a aktuální otisky potvrzuje výhradně uvedený JSON.
 
-Zdroje: `viewer-template.html`, nový `viewer.js` a `inspect_data.py`,
-`preview.py`, `build.py`, `Regenerate.ps1`, nové testy a ověřená kopie
-podkladů v `reference/inspect-sources.json`. Popisy jsou přiřazené všem
-219 objektům; náhled obsahuje 92 dokumentovaných logických vazeb.
-Přesné konektory,
-kabelové délky a síťové přiřazení konkrétních ID svorek nejsou domyšlené.
+Při CAD review byly opraveny retenční hlavy/matice vodítek, sdílení
+konektorových obálek, skutečné šestihranné kapsy matic a kontrola kontaktu
+s materiálem dolních podpěr. Kontrola neuzavírá níže uvedené fyzické body.
 
-Ověření 9. 10. 2026: `node --check viewer.js`, 20/20 testů metadat a
-balení, `preview.py --viewer-only` a tentýž generátor v izolované kopii
-zdrojů bez externích Markdown souborů prošly. Browser přes localhost
-v oknech 611 × 764 a 1280 × 900: skutečný výběr PCA, Shift nad prázdnou
-plochou, propojení, výběr seznamem, zdvih 16 mm, skryté vrstvy a obnovení
-barvy po zavření/znovuotevření stránky; konzole bez chyb. Přímý test
-`file://` odmítla bezpečnostní politika nástroje. Nezávislé review opravilo
-chybějící podklady ve vybaleném balíčku a popisy výstelky/kování;
-finální review nemá otevřený nález. Doručení uvádí globální stav.
-GitHub review PR168 následně odhalilo přepis připnuté karty při pohybu
-kurzoru. Karta i úprava barvy nyní patří připnutému objektu až do
-výslovného zrušení/nového kliku; zvýraznění pod kurzorem a názvy nad
-prázdnou plochou zůstávají funkční. Dva Node regresní testy skutečných
-handlerů (`node --test test_viewer.cjs`) a browser přechod od PCA přes
-plochu do karty/změny barvy prošly. Testovací GPU není důkaz renderování;
-browser ověření používá skutečný WebGL. Nezávislé review opravy prošlo.
-Další PR review doplnilo oddělení souběžných napájecích, signálových a
-zemních spojů do samostatných křivek, včetně shodných promítnutých středů.
-Třetí Node regresní test prošel pro dvou- i čtyřvazbový svazek.
-`Regenerate.ps1` nyní před CAD/balením spouští kontrolu syntaxe JS i
-Node testy. Skutečný skript byl ověřen v izolované fixture:
-správné JS pokračuje do navazujících testovacích kroků, chybná syntaxe
-i selhávající Node test každý zastaví práci před Python/CAD. Toto
-ověření řídicího skriptu není novým geometrickým ověřením balíčku.
-Další review odstranilo pomalé rozmísťování názvů při každém pohybu myši:
-layout se znovu používá a první rozmístění hledá volné úseky mřížky.
-Prošly 4/4 Node regrese, včetně 232 objektů, přepočtu při změně pohledu,
-vrstev, panelu a animace, zachování uzlů při pohybu a změně barvy.
-Browser na 1280 × 900 zobrazil 232 názvů bez vzájemných průniků. Ve stejné
-automatizované sekvenci pohybu nad prázdnou plochou klesl kumulativní JS
-čas z 3869 na 71 ms; první rozmístění z 320 na 11 ms (CDP Performance,
-jeden lokální běh, nikoli obecná garance výkonu). Konzole bez chyb.
-Majitel následně upřesnil chování připnutí: při Shiftu se všechny názvy
-nezobrazují, pokud je výběr připnutý; kliknutí do prázdna jej zruší.
-Regresní test ověřuje oba přechody. Druhé upřesnění majitele: připnutí
-samo nezapíná trvalý Inspect. Puštění Shiftu jej vypne, ale karta a vazby
-zůstanou a tažením lze otáčet. Prázdný klik bez Shiftu výběr zruší,
-tažení jej zachová. Aktuálně prošlo 5/5 Node testů těchto přechodů.
-Finální regenerované HTML prošlo také skutečným browser Shift-klikem
-na PCA, puštěním Shiftu, otočením bez ztráty pinu a prázdným klikem
-se Shiftem i bez něj; karta a propojení odpovídají výběru, konzole bez chyb.
-Poslední upřesnění majitele odstranilo všech 13 rezervních objektů
-(`spare_*`) z payloadu prohlížeče. Náhled ani seznam Inspect je neobsahují;
-zůstává 219 objektů a 92 vazeb. Změna je omezená na prohlížeč.
-Regenerované HTML i browser ověřily 219 objektů, žádné rezervní ID
-v geometrii/seznamu/popiscích a všech 92 vazeb bez chybějících konců.
-Další PR nález vyžaduje kontrolu změněného zapojení: ověřený hash
-`REVIEWED_WIRING_SHA256` nyní brání přepsání provenance i generování
-vazeb z jiného dokumentu, včetně validního změněného ZIP snapshotu.
-Prošlo 23/23 testů metadat/balení; změna rozměrů zůstává nezávislá.
-V tomto slice se regeneruje pouze
-`exports/viewer.html`; starší geometrické reporty a celý ZIP tím nejsou
-znovu ověřené. Další krok: používat Inspect při prohlídce; fyzická
-akceptace prvního mechanismu zůstává podle původního předání níže.
+Logika prohlížeče na `http://127.0.0.1:8915/viewer.html` byla ověřena:
+15 kroků vpřed, krok zpět, restart, všech šest ručních zdvihů 16 mm,
+volba vodiče D2-2, síť DRIVE5, pin CH0, svazek I2C, Stop a servisní reset.
+Přehrána celá hlavní sekvence pozice 1 a krátké sekvence pozic 2–6,
+vždy návrat do klidu. Ověřen viewport 390 × 844 i běžný panel, bez chyb
+konzole; 16 regresních testů vieweru prošlo. Skutečný Shift klik byl
+ověřen na degson_2:2 (D2-2), servo_1:S (S1-S) a esp32:GPIO1 (I2C),
+včetně šesti zvýrazněných vodičů sběrnice při zvětšení displeje 125 %.
+Nepřipnutá karta již nezachytává klik určený vodiči.
+Přepnutí do přepravy ukazuje
+pět kroků přípravy a čtyři kroky opětovného uvedení do provozu.
+Finální geometrie a kabeláž se po dokončení generují znovu; přesné
+integrační kontroly a Git předání se zapisují do hlavního stavu projektu.
 
-## Původní mechanické předání
+## Dosud nesplněné fyzické podmínky
 
-Aktuální mechanický návrh je v `kufr/mechanika/final/`. Následný požadavek
-majitele na úklid odstranil z verzovaných souborů předchozí generátory,
-modely a návody; potvrzené rozměrové podklady zůstaly zachované.
-Elektrické zapojení, aplikace, firmware a nasazení se tímto návrhem nemění.
-Globální stav ani tento záznam netvrdí, že je kufr fyzicky hotový.
+| Podmínka | Další konkrétní krok |
+| --- | --- |
+| Skutečný kufr/víko/konektory | Změřit a nasucho vložit měrku a rám, ověřit celý chod víka |
+| Hůlky a případná pouzdra | Změřit maximum, potvrdit 6 pozic nebo upravit na 5 |
+| Kamera/FPC a svorky | Potvrdit doručené rozměry, vývody a manipulační prostor |
+| Servo a páka | Ověřit polohu osy, náboj, rozteč páky a dodaný středový šroubek na jednom modulu |
+| Dřevo/lepidlo/nosné spoje | Vytvrzení a zátěžová přejímka podle MONTÁŽ.md |
+| Servo dole bez držení | Změřit proud a reakci po FULL_OFF a porovnat je s odpojeným V+ |
+| Zdvih | Zatížené cykly, kalibrace, proud a oteplení prvního a následně všech modulů |
+| Kabely | Reálné poloměry, svorkování, polarita, pohyblivé rezervy a vyjmutí banky |
+| Přeprava | Zkouška prázdné aretované sestavy při nesení a jízdě |
 
-Dokončené zdroje: nový šestidílný korpus a šestidílné prázdné víko,
-šest drážkových zdvihů s brzdou, montážní zóny pro potvrzený hardware,
-otevřená kapsa banky, čtyři kryty se clonami a skrytými kolébkami,
-kabelové a konektorové rezervy, servisní a transportní uspořádání.
-Původní tisknutelné tvary ani kloubové mechanismy nebyly importovány.
-Návrh, implementaci, review zdrojů a validaci dělal jediný agent.
-
-Kontrolovatelný výsledek: parametrické Python/JSON zdroje, 29 typů STL
-(44 výtisků s měrkou), STEP díly a pět sestav, skutečné rendery, samostatný
-WebGL prohlížeč, dva SVG výkresy, kusovníky, návod a balíček ZIP.
-
-Autoritou provedených kontrol je aktuální `exports/verification.json`
-a shoda jeho zdrojových SHA-256. `Regenerate.ps1` balení zastaví při selhání.
-Kontroly zahrnují validitu jediného pevného tělesa každého výtisku,
-orientaci/podložku včetně brimu, zpětné načtení STEP, objem a topologii STL,
-tři sestavy, 81 materiálových poloh mechanismu, 36 poloh víka, 37 kroků
-vyjmutí banky, rezervy konektorů a kolize s montážními maticemi.
-Nejde o spojitý důkaz všech poloh ani simulaci pružného kabelového svazku.
-
-Při review byly řešeny skutečné nálezy: průniky stolkových noh s rámy,
-servisní prostor USB, podhled do elektroniky, kontakt bočních krytů
-s kováními, retence stolků a přístup k hlavám/maticím, pozice náhradních
-PCB vůči šroubům a pozitivně řízený návrat proti přibrzdění. Opravy jsou
-součástí nového výsledku; staré exporty odstraněných dílů generátor uklízí
-jen podle vlastního předchozího manifestu.
-
-Review PR167 navíc odhalilo možnost přibalit starší obrázky, sestavy nebo
-reporty ponechané v exportním adresáři. Balení proto používá výslovný seznam
-aktuálních artefaktů a ověřených zdrojů; chybějící aktuální soubor je chyba.
-Manifest musí obsahovat přesně pět současných sestav. Regresní test vytvoří
-staré exporty a ověří skutečný ZIP bez nich. Místní ad hoc doklady a staré
-náhledy se do výrobního balíčku nepřebírají pouhým procházením adresáře.
-
-Finální kontrola zahrnuje také hlavu, pouzdro a matici válečku, zapuštěné
-matice servopáky a obě sousední přihrádky při všech 81 kontrolovaných polohách.
-Kontakt matice se sousedním LED páskem byl odstraněn přesunem LED na pravou
-hranu lůžka. Tisková síť vačky byla opravena nahrazením drobných hran
-hladkými přechody a skutečnými kruhovými klidovými úseky.
-
-Neprovedeno: tisk, osazení, měření serva a brzdy, reálné přenášení, testy
-lepení/sametu, teploty/proudy, akustika, skutečné zorné pole/FPC kamery.
-Polohy osy a otvorů konkrétní servopáky, tloušťka IP65, rozměry svorek
-a detail konektorů nejsou vydávány za změřené. Fyzická kritéria E5/E6/B1/E13
-zůstávají otevřená; žádný firmware se nekalibroval ani nenahrával.
-
-Další fyzický krok: měrka, jeden modul s hůlkou do návrhových 150 g,
-pasivní držení po vypnutí ve všech polohách a zatížený návrat. Pokud nelze
-současně splnit tření brzdy a sílu serva, neprohlašovat konstrukci za
-akceptovanou a neopakovat ji šestkrát; upravit mechanismus podle měření.
-
-Majitel následně výslovně požádal o úklid nepoužívaného CAD, push a merge;
-tím nahradil předchozí omezení na lokální předání. Návrh byl původně uložen
-v commitu `14ff82a`. Výsledek předání přes PR a aktuální kontroly zaznamenává
-[globální stav](../../docs/stav-implementace.md). Generované exporty zůstávají
-lokální a reprodukovatelné. Nákup, cloudové nasazení ani hardwarový zásah
-nejsou součástí tohoto předání.
+Žádná položka této tabulky nebyla splněna renderem, testem ani buildem.
+Bez fyzické přejímky se nepoužívá označení připraveno k výrobě/provozu.
+Není přidaná nová funkční elektronika. Nic nebylo nakoupeno, firmware
+nebyl nahrán do desky, neběžel placený AI test ani serverové nasazení.

@@ -376,6 +376,7 @@ extern "C" void app_main() {
   const bool stationStarted = station.Start(nvsStatus == ESP_OK);
   static EspIdfBackendNetwork backendNetwork(identity, runtimeState, bootId, station);
   backendNetwork.InitializeVoice(nvsStatus == ESP_OK, hardware.ProfileSelected() ? &hardware : nullptr);
+  presentationPort.BindAudio(backendNetwork.PresentationAudio());
   backendNetwork.InitializeCamera(nvsStatus == ESP_OK, hardware.Available());
   if (!stationStarted || !backendNetwork.Start(nvsStatus == ESP_OK)) {
     ESP_LOGW(LogTag, "Backend network not configured; stays offline");

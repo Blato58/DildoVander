@@ -67,8 +67,15 @@ bool PhysicalEffects::RecoverAfterInspection() {
 
 bool PhysicalEffects::Highlight(uint8_t compartment, uint8_t red, uint8_t green, uint8_t blue) {
   if (compartment > 6) return false;
+  return Illuminate(compartment ? static_cast<uint8_t>(1u << (compartment - 1)) : 0,
+                    red, green, blue);
+}
+
+bool PhysicalEffects::Illuminate(uint8_t mask, uint8_t red, uint8_t green, uint8_t blue) {
+  if (mask > 63) return false;
   std::array<uint8_t, 108> pixels{};
-  if (compartment) {
+  for (uint8_t compartment = 1; compartment <= 6; ++compartment) {
+    if (!(mask & (1u << (compartment - 1)))) continue;
     const unsigned start = (compartment - 1) * 18;
     for (unsigned i = start; i < start + 18; i += 3) {
       pixels[i] = static_cast<uint8_t>(green * KufrBoard::InitialBrightness / 255);

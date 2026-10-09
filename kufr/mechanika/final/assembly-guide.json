@@ -1,0 +1,733 @@
+{
+  "revision": "F2",
+  "steps": [
+    {
+      "id": "fit",
+      "title": "Ověření podkladů a zkušební výtisk",
+      "parts": [],
+      "wires": [],
+      "instruction": "Vytisknout měrku. Změřit skutečné hůlky s pouzdrem, konektory a osu serva. Nasucho vložit papírový obrys 400 × 240 mm nad 5mm výztuhu. Nepoužít měřítko STL pro opravu rozměrů.",
+      "check": "Zapsané rozměry odpovídají parametrům; tisková vůle funguje; víko se nedotýká obálky.",
+      "materials": [
+        {
+          "id": "PETG",
+          "quantity": 1
+        }
+      ],
+      "tools": [
+        "posuvné měřítko",
+        "pravítko",
+        "3D tiskárna"
+      ],
+      "camera": "overview",
+      "depends": [],
+      "partSummary": "1 × tisková měrka; 1 × půdorysná šablona"
+    },
+    {
+      "id": "anchors",
+      "title": "Čtyři kotvy na holé dřevo",
+      "parts": [
+        "bonded_angle*",
+        "wood_bond*"
+      ],
+      "wires": [],
+      "instruction": "Odstranit lak jen ve čtyřech plochách 50 × 40 mm. Připravit úhelníky, smíchat epoxid 1:1, ustavit podle rámu bez jeho přilepení. Fixovat 10 h, při 20 °C nechat 24 h vytvrdnout. Podrobnosti a zkouška v MONTÁŽ.md.",
+      "check": "Žádné vrtání kufru; kotevní rovina Z8, otvory X27/404,8 a Y30/243 mm. Nepokračovat při odlupování dřeva.",
+      "materials": [
+        {
+          "id": "ANGLE40",
+          "quantity": 4
+        },
+        {
+          "id": "EPOXY",
+          "quantity": 1
+        }
+      ],
+      "tools": [
+        "pilník",
+        "brusný papír",
+        "svěrky",
+        "rukavice"
+      ],
+      "camera": "side",
+      "depends": [
+        "fit"
+      ],
+      "partSummary": "4 × hliníková kotva; 4 × lepená plocha"
+    },
+    {
+      "id": "frame",
+      "title": "Rám sestavit mimo kufr",
+      "parts": [
+        "frame_panel*",
+        "frame_seam*",
+        "front_crossrail",
+        "rear_crossrail"
+      ],
+      "wires": [],
+      "instruction": "Spojit čtyři panely s hliníkovými lištami. Vložit matice všech později nepřístupných spojů odspodu. Konce svislých ramen lišt upravit podle CAD, odjehlit.",
+      "check": "Rám leží rovně; žádná hlava nebo matice se neopírá o 5mm výztuhu. Svěrné šrouby nepromáčknou PETG.",
+      "materials": [
+        {
+          "id": "RAIL20",
+          "quantity": 2
+        },
+        {
+          "id": "M3x6",
+          "quantity": 8
+        },
+        {
+          "id": "NUT3",
+          "quantity": 8
+        }
+      ],
+      "tools": [
+        "pilka na kov",
+        "pilník",
+        "vrtačka",
+        "imbus"
+      ],
+      "camera": "top",
+      "depends": [
+        "anchors"
+      ],
+      "partSummary": "4 × rámový panel; 2 × kovová výztuha; 8 × přeplátovaný spoj"
+    },
+    {
+      "id": "carriers",
+      "title": "Přišroubovat prázdné nosiče",
+      "parts": [
+        "carrier_*",
+        "left_service_carrier",
+        "right_service_carrier",
+        "camera_angle",
+        "bank_holder",
+        "switch_shelf",
+        "usb_park_clip",
+        "capacitor_holder*",
+        "usb_coil_cradle",
+        "mic_mount*",
+        "camera_mount*",
+        "usb_clip*"
+      ],
+      "wires": [],
+      "instruction": "Před osazením elektroniky namontovat nosiče i jejich spodní spoje. Osadit kotvy kabelů a otevřené pásky. Powerbankový držák nepřenáší sílu do sousedních dílů.",
+      "check": "Každý nosič drží samostatně; šrouby nekolidují s PCB, kabely mají průchody.",
+      "materials": [
+        {
+          "id": "M3x8",
+          "quantity": 44
+        },
+        {
+          "id": "M3CSK8",
+          "quantity": 4
+        },
+        {
+          "id": "M3x6",
+          "quantity": 1
+        },
+        {
+          "id": "NUT3",
+          "quantity": 49
+        }
+      ],
+      "tools": [
+        "imbus",
+        "pinzeta",
+        "stranové kleště"
+      ],
+      "camera": "top",
+      "depends": [
+        "frame"
+      ],
+      "partSummary": "Sada pevných nosičů dle tiskového seznamu; každý 1 ×; držáky kondenzátorů 3–6 po 1 ×"
+    },
+    {
+      "id": "mechanisms",
+      "title": "Sestavit šest zdvihů",
+      "parts": [
+        "base_*",
+        "tray_*",
+        "cam_*",
+        "servo_*",
+        "stock_horn*",
+        "roller_*",
+        "follower_*",
+        "coupler_*",
+        "guide_*",
+        "module_*",
+        "servo_tie*"
+      ],
+      "wires": [],
+      "instruction": "Každý modul sestavit na stole: základna, zajištěné vodicí šrouby, servo, páka s vačkou, lůžko a zachycená kladka. Vyzkoušet celý zdvih ručně bez napájení. Teprve potom přišroubovat čtyřmi M3 k rámu.",
+      "check": "Každé lůžko dosedá na dolní podpěry; kladka se otáčí volně, vedení se nekříží. Šest sousedů se pohybuje nezávisle.",
+      "materials": [
+        {
+          "id": "M3x10",
+          "quantity": 24
+        },
+        {
+          "id": "GUIDE4",
+          "quantity": 12
+        },
+        {
+          "id": "FOLLOWER3",
+          "quantity": 6
+        },
+        {
+          "id": "COUPLER2",
+          "quantity": 12
+        },
+        {
+          "id": "NUT3",
+          "quantity": 24
+        },
+        {
+          "id": "GUIDE_NUT",
+          "quantity": 12
+        },
+        {
+          "id": "GUIDE_WASHER",
+          "quantity": 12
+        },
+        {
+          "id": "ROLLER",
+          "quantity": 6
+        },
+        {
+          "id": "SLEEVE",
+          "quantity": 6
+        },
+        {
+          "id": "SPACER",
+          "quantity": 6
+        },
+        {
+          "id": "SERVO_CENTRE",
+          "quantity": 6
+        },
+        {
+          "id": "TIE25",
+          "quantity": 12
+        }
+      ],
+      "tools": [
+        "imbus",
+        "klíč 5,5 a 7 mm"
+      ],
+      "camera": "side",
+      "depends": [
+        "carriers"
+      ],
+      "partSummary": "6 × základna, lůžko, vačka, servo a kladka; 12 × vodítko; 24 × spoj modulu"
+    },
+    {
+      "id": "install",
+      "title": "Vložit a přišroubovat celou vložku",
+      "parts": [
+        "anchor_*"
+      ],
+      "wires": [],
+      "instruction": "Po přejímce kotev vložit sestavený rám a upevnit čtyřmi M4 ke kotvám. Zkoušet bez elektronického napájení; nepřitahovat křivý rám silou.",
+      "check": "Nadzvednutí, posunutí a naklopení brání všechny čtyři kovové spoje, nikoli víko nebo powerbanka.",
+      "materials": [
+        {
+          "id": "M4x12",
+          "quantity": 4
+        },
+        {
+          "id": "NUT4",
+          "quantity": 4
+        }
+      ],
+      "tools": [
+        "imbus",
+        "klíč 7 mm"
+      ],
+      "camera": "overview",
+      "depends": [
+        "mechanisms"
+      ],
+      "partSummary": "1 × hotová vložka; 4 × kotevní spoj"
+    },
+    {
+      "id": "electronics",
+      "title": "Osadit pevnou elektroniku",
+      "parts": [
+        "esp32",
+        "camera",
+        "microphone",
+        "pca9685",
+        "mcp23017",
+        "pixel_shifter",
+        "speaker_left",
+        "speaker_right",
+        "amplifier_left",
+        "amplifier_right",
+        "breaker",
+        "buck",
+        "pd_trigger",
+        "perfboard_1",
+        "perfboard_2",
+        "degson_1",
+        "degson_2",
+        "degson_3",
+        "red_main",
+        "green_drives",
+        "white_ptt",
+        "capacitor_*",
+        "component_tie_esp32*",
+        "component_tie_camera*",
+        "component_tie_microphone*",
+        "component_tie_pca9685*",
+        "component_tie_mcp23017*",
+        "component_tie_pixel_shifter*",
+        "component_tie_speaker*",
+        "component_tie_amplifier*",
+        "component_tie_breaker*",
+        "component_tie_buck*",
+        "component_tie_pd_trigger*",
+        "component_tie_perfboard*",
+        "component_tie_degson*",
+        "capacitor_tie*"
+      ],
+      "wires": [],
+      "instruction": "Desky posadit do dorazů a přidržet dvěma pásky. Pásky nesmějí zatěžovat konektory, membrány ani drobné součástky. Kamera a Degson jsou do ověření dodaného provedení pouze prostorové obálky.",
+      "check": "Žádný díl nevypadne při opatrném otočení odpojené vložky; pájecí strany jsou izolované.",
+      "materials": [
+        {
+          "id": "TIE25",
+          "quantity": 36
+        }
+      ],
+      "tools": [
+        "stranové kleště",
+        "pinzeta"
+      ],
+      "camera": "top",
+      "depends": [
+        "install"
+      ],
+      "partSummary": "1 × ESP, kamera, mikrofon, PCA, MCP, Pixel, měnič, PD, jistič a PTT; 2 × zesilovač, reproduktor a univerzální PCB; 3 × svorka; 2 × kolébka; 6 × kondenzátor"
+    },
+    {
+      "id": "moving",
+      "title": "Pohyblivé moduly a odlehčení tahu",
+      "parts": [
+        "u059_*",
+        "led_*",
+        "u059_tie*",
+        "led_tie*",
+        "cable_anchor*",
+        "cable_tie*"
+      ],
+      "wires": [],
+      "instruction": "U059 zajistit k lůžku, nalepit a mechanicky přichytit šest úseků LED. Každému pohyblivému konci ponechat vlastní smyčku, žádné pájené spoje v ohybu.",
+      "check": "Ručně celý zdvih 0–160° u všech šesti pozic: kabel nic netáhne, nedře ani nezvedá klidové lůžko.",
+      "materials": [
+        {
+          "id": "LED_TAPE",
+          "quantity": 1
+        },
+        {
+          "id": "TIE25",
+          "quantity": 24
+        }
+      ],
+      "tools": [
+        "pájka",
+        "smršťovací bužírka",
+        "kleště"
+      ],
+      "camera": "side",
+      "depends": [
+        "electronics"
+      ],
+      "partSummary": "6 × U059; 6 × úsek LED po 200 mm; samostatné pohyblivé rezervy"
+    },
+    {
+      "id": "power",
+      "title": "Napájecí svazky bez powerbanky",
+      "parts": [
+        "usb_coil_wrap*"
+      ],
+      "wires": [
+        "USB-PD",
+        "P12+",
+        "P12-",
+        "P5-FUSE",
+        "P5-MAIN",
+        "USB-ESP",
+        "D1-1",
+        "D1-2",
+        "D1-3",
+        "D1-4",
+        "D1-5",
+        "D2-1",
+        "D2-2",
+        "D2-3",
+        "D2-4",
+        "D3-1",
+        "D3-2",
+        "D3-3",
+        "D3-4",
+        "D3-5",
+        "F_LED+-01",
+        "F_LED+-02",
+        "F_LED+-03",
+        "F_LED+-04",
+        "F_LED+-05",
+        "F_LED+-06",
+        "F_LED+-07",
+        "F_AUDIO+-01",
+        "F_AUDIO+-02",
+        "F_AUDIO+-03",
+        "F_PANEL+-01",
+        "F_U123+-01",
+        "F_U123+-02",
+        "F_U123+-03",
+        "F_U456+-01",
+        "F_U456+-02",
+        "F_U456+-03",
+        "F_LED--01",
+        "F_LED--02",
+        "F_LED--03",
+        "F_LED--04",
+        "F_LED--05",
+        "F_LED--06",
+        "F_LED--07",
+        "F_U--01",
+        "F_U--02",
+        "F_U--03",
+        "F_U--04",
+        "F_U--05",
+        "F_U--06",
+        "F_AUDIO_PANEL--01",
+        "F_AUDIO_PANEL--02",
+        "F_AUDIO_PANEL--03",
+        "F_AUDIO_PANEL--04",
+        "F_AUDIO_PANEL--05",
+        "F_AUDIO_PANEL--06",
+        "F_AUDIO_PANEL--07",
+        "F_LOGIC--01",
+        "F_LOGIC--02",
+        "F_LOGIC3-01",
+        "F_LOGIC3-02",
+        "F_LOGIC3-03",
+        "L3-FEED",
+        "C1+",
+        "C1-",
+        "C2+",
+        "C2-",
+        "C3+",
+        "C3-",
+        "C4+",
+        "C4-",
+        "C5+",
+        "C5-",
+        "C6+",
+        "C6-",
+        "MCP-A0",
+        "MCP-A1",
+        "MCP-A2",
+        "MIC-LR",
+        "S1-+",
+        "S1--",
+        "S2-+",
+        "S2--",
+        "S3-+",
+        "S3--",
+        "S4-+",
+        "S4--",
+        "S5-+",
+        "S5--",
+        "S6-+",
+        "S6--",
+        "PTT-GND"
+      ],
+      "instruction": "Zapojovat podle štítků obou konců z řezného seznamu. MAIN5, DRIVE5 a GND rozlišit; do každého Degson portu jen jeden vodič. Kondenzátory polarizované. Parkovat odpojené USB. USB cívku zajistit dvěma pásky bez stlačení kabelu; poloměr ohybu nejméně 20 mm.",
+      "check": "Měřením vyloučit zkrat, ověřit kolébky a spojitou GND. Žádné napětí před dokončením kontroly.",
+      "materials": [
+        {
+          "id": "WIRE",
+          "quantity": 1
+        },
+        {
+          "id": "USB_SOCKET",
+          "quantity": 1
+        },
+        {
+          "id": "USB300",
+          "quantity": 1
+        },
+        {
+          "id": "LABELS",
+          "quantity": 184
+        },
+        {
+          "id": "COIL_TIE",
+          "quantity": 2
+        }
+      ],
+      "tools": [
+        "multimetr",
+        "pájka",
+        "odizolovací kleště"
+      ],
+      "camera": "top",
+      "depends": [
+        "moving"
+      ],
+      "partSummary": "Napájecí a zemní vodiče: každý uvedený ID 1 ×; 1 × USB zásuvka; 1 × krátký USB kabel"
+    },
+    {
+      "id": "signals",
+      "title": "Signály a ovladače",
+      "parts": [],
+      "wires": [
+        "S1-S",
+        "U1-DIN",
+        "S2-S",
+        "U2-DIN",
+        "S3-S",
+        "U3-DIN",
+        "S4-S",
+        "U4-DIN",
+        "S5-S",
+        "U5-DIN",
+        "S6-S",
+        "U6-DIN",
+        "SIG-SDA-IN",
+        "SIG-SDA-pca9685",
+        "SIG-SDA-mcp23017",
+        "SIG-SCL-IN",
+        "SIG-SCL-pca9685",
+        "SIG-SCL-mcp23017",
+        "SIG-BCLK-IN",
+        "SIG-BCLK-microphone",
+        "SIG-BCLK-amplifier_left",
+        "SIG-BCLK-amplifier_right",
+        "SIG-WS-IN",
+        "SIG-WS-microphone",
+        "SIG-WS-amplifier_left",
+        "SIG-WS-amplifier_right",
+        "SIG-DIN-IN",
+        "SIG-DIN-amplifier_left",
+        "SIG-DIN-amplifier_right",
+        "SIG-OE",
+        "SIG-RGB",
+        "SIG-MIC",
+        "SIG-PTT",
+        "RGB-1",
+        "RGB-2",
+        "RGB-3",
+        "RGB-4",
+        "RGB-5",
+        "RGB-6",
+        "SPK-left-+",
+        "SPK-left--",
+        "SPK-right-+",
+        "SPK-right--"
+      ],
+      "instruction": "Osadit I2C, I2S, OE, PTT, RGB a kanály PCA dle ID. Spoje označit na obou koncích. Kamera/FPC až po potvrzení dodaného modulu; neimprovizovat pinout.",
+      "check": "Všechny vodiče mají vlastní ID; kanály serv0–5, U0596–11 a 36LED odpovídají zapojení.",
+      "materials": [
+        {
+          "id": "WIRE",
+          "quantity": 1
+        },
+        {
+          "id": "LABELS",
+          "quantity": 86
+        }
+      ],
+      "tools": [
+        "multimetr",
+        "pájka",
+        "štítky"
+      ],
+      "camera": "top",
+      "depends": [
+        "power"
+      ],
+      "partSummary": "Signální vodiče: každý uvedený ID 1 ×; odpory podle potvrzeného zapojení"
+    },
+    {
+      "id": "coldtest",
+      "title": "Kontrola bez napájení",
+      "parts": [],
+      "wires": [],
+      "instruction": "Provést úplný ruční pohyb, odpojení konektorů, sejmutí krytů a vyjmutí banky. Použít šest přepravních pásků a ověřit zajištění bez hůlek a textilu; před dalším krokem všechny pásky vyjmout.",
+      "check": "Nic volně nevisí; žádná součást se neopírá o odnímatelný obsah. Zkouška spojů a přepravy je zaznamenaná.",
+      "materials": [
+        {
+          "id": "BED_WRAP",
+          "quantity": 6
+        }
+      ],
+      "tools": [
+        "pravítko",
+        "multimetr"
+      ],
+      "camera": "overview",
+      "depends": [
+        "signals"
+      ],
+      "partSummary": "6 × přepravní pásek pro zkušební zajištění, potom vyjmout"
+    },
+    {
+      "id": "powered",
+      "title": "Omezená zkouška a kalibrace",
+      "parts": [
+        "powerbank",
+        "component_tie_powerbank*"
+      ],
+      "wires": [],
+      "instruction": "Odjistit všech šest přepravních pásků. Vložit banku do samostatného držáku, zajistit dvěma pásky a připojit USB. Mimo návštěvníky změřit měnič 5 V, poté jeden LED úsek, jeden motor a servo bez spojení s vačkou. Kalibrovat pulzy, připojit mechanismus a změřit proud i chování po FULL_OFF. Testovat hlavní, krátkou sekvenci a Stop. Firmware se tímto krokem sám nenahrává.",
+      "check": "Nejvýše jeden motor, nikdy současně se servem. Dole nesmí servo aktivně držet. Neúspěch znamená blokaci provozu.",
+      "materials": [
+        {
+          "id": "BANK_WRAP",
+          "quantity": 2
+        }
+      ],
+      "tools": [
+        "multimetr s měřením proudu",
+        "servisní ovladač"
+      ],
+      "camera": "overview",
+      "depends": [
+        "coldtest"
+      ],
+      "partSummary": "1 × powerbanka a 2 × její pásek; zkoušet postupně po jednom LED úseku, motoru a servu"
+    },
+    {
+      "id": "soft",
+      "title": "Měkké podložení a odnímatelný textil",
+      "parts": [
+        "soft_liner*",
+        "lid_lining"
+      ],
+      "wires": [],
+      "instruction": "Pod hůlky vložit 1,2mm měkké podložení a 0,8mm textil s pevně založenými kraji. Nezakrýt LED, mikrofon, reproduktory, chlazení ani štítky aretace.",
+      "check": "Textil nelze zachytit vačkou nebo vedením; jeho sejmutí neuvolní žádný konstrukční díl.",
+      "materials": [
+        {
+          "id": "TEXTILE",
+          "quantity": 1
+        },
+        {
+          "id": "FOAM",
+          "quantity": 1
+        }
+      ],
+      "tools": [
+        "nůžky",
+        "jehla nebo šicí stroj"
+      ],
+      "camera": "top",
+      "depends": [
+        "powered"
+      ],
+      "partSummary": "6 × měkká vložka lůžka; 1 × snímatelná výstelka víka"
+    },
+    {
+      "id": "covers",
+      "title": "Přišroubovat servisní kryty",
+      "parts": [
+        "bank_cover",
+        "control_cover",
+        "right_front_cover",
+        "right_back_cover",
+        "cover_*"
+      ],
+      "wires": [],
+      "instruction": "Namontovat čtyři kryty na jejich vlastní držáky. Bankový kryt zůstává snadno odnímatelný. Větrací a akustické otvory ponechat volné.",
+      "check": "Kryty nevyztužují rám; přístup ke kolébkám a USB parkování zůstává možný.",
+      "materials": [
+        {
+          "id": "M3x10",
+          "quantity": 8
+        },
+        {
+          "id": "NUT3",
+          "quantity": 8
+        }
+      ],
+      "tools": [
+        "imbus"
+      ],
+      "camera": "top",
+      "depends": [
+        "soft"
+      ],
+      "partSummary": "4 × servisní kryt; 8 × upevnění krytu"
+    },
+    {
+      "id": "operation",
+      "title": "Provozní sestava",
+      "parts": [
+        "wand_*"
+      ],
+      "wires": [],
+      "instruction": "Po úspěšné přejímce vložit hůlky. Ověřit zajištění banky, USB a všech šest ODJIŠTĚNÝCH přepravních pozic. Hůlka zůstává při prezentaci v lůžku.",
+      "check": "Před zavřením vše dole a napájení vypnuté. Běžná přeprava je podporována bez banky a hůlek, se šesti pásky.",
+      "materials": [],
+      "tools": [
+        "ruční kontrola"
+      ],
+      "camera": "overview",
+      "depends": [
+        "covers"
+      ],
+      "partSummary": "Až 6 × hůlka; ostatní části již namontované"
+    }
+  ],
+  "materialCatalog": {
+    "PETG": "PETG — zkušební měrka",
+    "ANGLE40": "Al úhelník 40 × 40 × 3, délka 50 mm",
+    "EPOXY": "Bison Epoxy Metal 24 ml",
+    "RAIL20": "Al lišta L20 × 20 × 3, délka 400 mm",
+    "M3x6": "M3 × 6 zápustný šroub",
+    "NUT3": "M3 matice",
+    "M3x10": "M3 × 10 nízká hlava",
+    "GUIDE4": "M4 × 100 vodicí šroub, hladký dřík",
+    "FOLLOWER3": "M3 × 12 čep s maticí a podložkou",
+    "COUPLER2": "M2 × 10 spoj vačky",
+    "M4x12": "M4 × 12 nízká hlava",
+    "NUT4": "M4 matice",
+    "TIE25": "pásek šířky 2,5 mm",
+    "LED_TAPE": "tenká oboustranná páska pro LED",
+    "WIRE": "sada označených vodičů dle řezného seznamu",
+    "USB_SOCKET": "pasivní USB-A zásuvka 3 A",
+    "USB300": "USB-A/C 300 mm, nejméně 3 A",
+    "BED_WRAP": "přepravní pásek 8 × 250 mm",
+    "TEXTILE": "snímatelný samet 0,8 mm",
+    "FOAM": "měkká vložka 1,2 mm",
+    "COVER3": "M3 spoj krytu přístupný shora",
+    "BANK_WRAP": "uvolnitelný pásek banky",
+    "GUIDE_NUT": "M4 DIN934 matice vodítka, výška 3,2 mm",
+    "GUIDE_WASHER": "M4 podložka Ø9/4,3 × 0,8 mm",
+    "ROLLER": "PA6 kladka Ø6/4,2 × 3 mm",
+    "SLEEVE": "mosazné pouzdro Ø4/3,2 × 4,5 mm",
+    "SPACER": "PA6 distanční kroužek Ø6/4,2 × 1,1 mm",
+    "SERVO_CENTRE": "původní středový šroubek konkrétního serva",
+    "LABELS": "štítek s ID vodiče",
+    "M3x8": "M3 × 8 nízká půlkulatá hlava",
+    "M3CSK8": "M3 × 8 zápustná hlava",
+    "COIL_TIE": "pásek USB cívky 3,6 × 250 mm"
+  },
+  "transport": [
+    "Vypnout obě kolébky a odpojit powerbanku.",
+    "Vyjmout powerbanku a všechny hůlky; textil může zůstat nebo sejmout.",
+    "Ručně zkontrolovat šest lůžek dole a zajistit každé výrazným 8mm páskem. Netlačit vačkou do dorazu.",
+    "Zaparkovat odpojený USB konektor v klipu, zkontrolovat uchycení ostatních kabelů.",
+    "Zavřít bez tlaku víka a zkontrolovat původní kování. Kufr v autě zajistit proti posunu."
+  ],
+  "recommission": [
+    "Otevřít kufr a zkontrolovat kotvy, spoje i kabely po přepravě.",
+    "Odstranit všech šest přepravních pásků; elektronika to neumí potvrdit.",
+    "Ručně ověřit volný pohyb a vložit hůlky; zasunout a dvěma pásky zajistit banku.",
+    "Připojit USB a zapnout napájení. Potvrdit zotavení až po kontrole poloh a zkusit jednu krátkou sekvenci."
+  ]
+}

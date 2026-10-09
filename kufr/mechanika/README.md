@@ -1,27 +1,17 @@
 # Mechanika kouzelného kufru
 
-Jediný aktivní návrh je **[F1 v `final/`](final/README.md)**: nový tištěný
-korpus a prázdné otevírací víko, šest servem ovládaných lůžek, skrytá
-elektronika a čtyři odnímatelné servisní kryty. Návrh má 29 typů STL,
-44 výtisků včetně měrky a je rozdělený pro podložku 220 × 220 mm.
-Pro přenášení se vyjmou hůlky a powerbanka; ostatní osazení zůstává zajištěné.
+Aktivní návrh je [F2 — vložka do skutečného dřevěného kufru](final/README.md).
+Plášť zůstává původní, bez nových otvorů. Šest zdvihů a elektronika jsou
+připevněné k vlastnímu rámu; powerbanka, hůlky a textil jsou odnímatelné.
 
-- [Návrh, exporty a regenerace](final/README.md)
-- [Montáž, tisk a fyzická přejímka](final/MONTÁŽ.md)
-- [Původ rozměrů a předpoklady](final/PODKLADY.md)
-- [Stav ověření](final/STAV.md)
-- [Potvrzené rozměry zakoupených součástek](rozmery-nakoupenych-soucastek.md)
-- [Měření původního dřevěného kufru](rozmery-doruceneho-kufru.md)
-- [Závazné elektrické zapojení](../docs/zapojeni-potvrzeneho-hardwaru.md)
+- [Návrhová specifikace](final/SPECIFIKACE.md)
+- [Montáž, materiál a přejímka](final/MONTÁŽ.md)
+- [Potvrzené rozměry kufru](rozmery-doruceneho-kufru.md)
+- [Inventář elektroniky](rozmery-nakoupenych-soucastek.md)
+- [Kabeláž](final/KABELAZ.md)
+- [Stav a hranice ověření](final/STAV.md)
 
-F1 používá potvrzený vnitřní prostor 431,8 × 266,7 × 114,3 mm jako rozměrový
-podklad pro nový korpus. Není vložkou do původního dřevěného kufru.
-Rozměrové podklady a fotografie zůstávají zachované. Předchozí generátory,
-modely a jejich montážní návody byly nahrazeny; jejich zdroje lze dohledat
-v historii Gitu. Pro výrobu používat pouze exporty z `final/exports/`.
-
-Exporty se generují lokálně a nejsou verzované. Gitem se předává parametrický
-zdroj, fotografie, dokumentace a příkaz `final/Regenerate.ps1`; ten vytvoří
-STL, STEP, náhledy, kusovníky, ověřovací report a ZIP se shodnými zdroji.
-Geometrické kontroly neprokazují fyzickou únosnost, moment serv ani zadržení
-při výpadku napájení. Prvním výrobním krokem je měrka a jeden zatížený modul.
+STL, STEP, obrázky, viewer a balíček se reprodukovatelně generují příkazem
+`final/Regenerate.ps1`. Jediný aktivní výstup je `final/exports/` s revizíF2.
+Staré F1 skořepiny nejsou díly tohoto návrhu. Před celým tiskem vytisknout
+měrku a jeden modul. Fyzická přepravní akceptace zůstává otevřená.

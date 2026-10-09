@@ -27,11 +27,18 @@ Příčná výztuha na dně má podle majitele tloušťku **5 mm**. Další úda
 o výztuze nejsou podmínkou rozvržení kufru. Při zkoušce sestavy ověřit
 lokální vůle u stěn, pantů a zavírání a prostor pro kabely a pohyb přihrádek.
 
-Aktuální [návrh F1](final/README.md) používá potvrzený vnitřní prostor
-jako podklad pro nový tištěný korpus. Jeho 4mm stěny a 30mm víko jsou
-konstrukční volby, nikoli změřené rozměry tohoto dřevěného kufru.
-F1 není vložkou do dřevěné skořepiny a nekopíruje její příčnou výztuhu.
-Fyzické osazení a pohyb pod zatížením musí být ověřené na prototypu.
+## Doplnění majitele pro návrh F2
+
+Výrobce uvádí vnější **450 ×310 ×200mm**. Majitel potvrdil, že se dovnitř
+s rezervou vejde kvádr **400×240×170mm**; tento rozměr je bezpečná zóna
+pro kontrolu vkládané konstrukce. Není to nové měření tlouštěk stěn či
+přesné dráhy pantů. V modelu je bezpečná zóna centrovaná v XY; skutečné
+usazení se ověří suchou montáží. Nadále respektovat spodní hloubku114,3.
+
+Aktuální [návrh F2](final/README.md) modeluje skutečný dřevěný kufr a
+samostatnou vložku. Plášť ani víko se netisknou a nevrtají. Rozdělení
+vnější/vnitřní obálky na jednotlivé tloušťky a XY příčné výztuhy zůstává
+výslovně parametrickým odhadem; její výška5mm je potvrzená.
 
 Architekturu a akceptaci určuje [implementační plán](../docs/implementacni-plan.md),
 postup vede [stav implementace](../docs/stav-implementace.md).

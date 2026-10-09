@@ -1,8 +1,7 @@
 """Original positive-return grooved cam. No legacy geometry imports.
 
-Two circular dwells carry static loads; an adjustable felt guide brake retains
-intermediate positions. Positive groove capture also drives the return against
-that brake. Brake force and available servo torque require physical acceptance.
+Two circular dwells and lower hard stops carry static loads. Intermediate power
+loss requires manual inspection/support; no friction brake or descent claim.
 """
 from __future__ import annotations
 
@@ -73,6 +72,26 @@ def cam_wire(offset=0.0, x=0.0):
     return cq.Wire.assembleEdges(edges)
 
 
+def retaining_ties(kind):
+    ties=[]
+    if kind=="servo":
+        for x in (7,21):
+            outer=box(2.5,28.8,18.25,(x-1.25,103.5,24))
+            inner=box(4,27.8,17.25,(x-2,104,24.5))
+            ties.append(outer.cut(inner))
+    elif kind=="u059":
+        for y in (30,43):
+            outer=box(35.5,2.5,9,(6,y-1.25,-10.5))
+            inner=box(34.5,4,8,(6.5,y-2,-10))
+            ties.append(outer.cut(inner))
+    else:
+        for y in (30,182):
+            outer=box(7,2.5,14,(41.5,y-1.25,-10.5))
+            inner=box(6,4,13,(42,y-2,-10))
+            ties.append(outer.cut(inner))
+    return ties
+
+
 @lru_cache
 def cam():
     shape = cq.Solid.extrudeLinear(cam_wire(M["groove_width"]/2+3),[],(M["cam_thickness"],0,0))
@@ -104,7 +123,7 @@ def base():
     for x, y in GUIDES:
         pieces.append(box(8, 10, M["guide_height"]-4, (x-4, y-5, 4)))
         # Broad roots below the lowest travel of the follower sleeves.
-        pieces.append(box(14, 20, 25, (x-7, y-10, 4)))
+        pieces.append(box(14,16 if y==191 else 20,25,(x-7,y-10,4)))
     # Anti-rotation servo cradle. The known body is 27 X / 22 Y / 11.5 Z.
     # The body-to-shaft offset remains a mounting/calibration assumption.
     pieces.append(box(27.3, 27.6, 26.0, (0.2, 104.2, 4)))
@@ -112,8 +131,17 @@ def base():
     pieces.append(box(27.3, 2.5, 15.5, (0.2, 129.5, 29)))
     # Raised edge ribs stiffen the thin floor without intersecting the cam.
     pieces.extend([box(3, length, 4, (0, 0, 4)), box(3, length, 4, (width-3, 0, 4))])
+    # Sleeve bottoms bear directly on these broad feet at the lower dwell.
+    stop_z = M["cam_z"]+M["cam_low_radius"]+M["follower_drop"]-M["sleeve_length"]
+    for x,y in GUIDES:
+        for xx in (x-7,x+4.5):
+            pieces.append(box(2.5,14 if y==191 else 16,stop_z-4,(xx,y-8,4)))
     result = fuse(pieces)
-    holes = [hole_z(x, y, 4.5) for x, y in MOUNT_HOLES + GUIDES]
+    holes = [hole_z(x,y,3.4) for x,y in MOUNT_HOLES]
+    holes += [hole_z(x,y,6.2,z=4,height=2.5) for x,y in MOUNT_HOLES]
+    # Vertical driver shafts fit with the neighbouring module still bolted.
+    holes += [hole_z(x,y,12,z=6,height=35) for x,y in MOUNT_HOLES]
+    holes += [hole_z(x,y,4.5) for x,y in GUIDES]
     # Two releasable 2.5 mm cable ties retain the servo against the hard cradle.
     for x in (7, 21):
         holes.append(box(3, 31, 3, (x-1.5, 103, 24)))
@@ -121,6 +149,26 @@ def base():
     holes += [box(3, 18, 10, (x, 58, -1)) for x in (4, 39)]
     # Shallow open pocket clears the enlarged cam rim; 2.5 mm of floor remains.
     holes.append(box(10.5,70,2,(29,77,2.5)))
+    # Independent light capacitor carriers bolt to the frame through clearance
+    # passages. No capacitor depends on another module's mounting screws.
+    for gx,gy,_ in PARAMS["capacitors"]:
+        index=int((gx-M["origin_x"])/M["pitch"])
+        if 0<=index<M["count"]:
+            xx=gx-M["origin_x"]-index*M["pitch"]
+            yy=gy-M["origin_y"]
+            if 0<xx<width and 0<yy<length:
+                holes.append(hole_z(xx,yy,7.2,z=-1,height=6))
+                holes.append(hole_z(xx,yy,12.2,z=3.9,height=4.3))
+    holes += retaining_ties("servo")
+    # Real rear-face wire opening; three finite native leads clear the cradle.
+    holes.append(box(8,4,5,(10,129,34)))
+    # Capacitor feedthroughs clear the base rib as well as their own holders.
+    for gx,gy,gz in PARAMS["capacitors"][2:]:
+        index=int((gx-M["origin_x"])/M["pitch"])
+        xx=gx-M["origin_x"]-index*M["pitch"]
+        yy=gy-M["origin_y"]
+        for lead in (-2,2):
+            holes.append(box(3.4,11.7,4.9,(xx+lead-1.7,yy-10,gz-M["origin_z"]-3.2)))
     return cut(result, holes)
 
 
@@ -134,9 +182,10 @@ def tray():
         pieces.append(box(14, sleeve_y, M["sleeve_length"], (x-7, y-sleeve_y/2, -M["sleeve_length"])))
         c = M["guide_clearance"]
         holes.append(box(8+2*c, 10+2*c, 32, (x-4-c, y-5-c, -25)))
-    # Split front sleeve and transverse screw set the felt brake preload.
-    holes.append(box(0.8,24,22,(7.6,75,-22)))
-    holes.append(cylinder(1.7,18,(-1,78.5,-11),(1,0,0)))
+    # Positive head/side retention stays outside the padded wand envelope.
+    pieces.extend([box(2,M["length"],6,(1,0,3)),
+                   box(2,M["length"],6,(43,0,3)),
+                   box(40,3,6,(3,0,3))])
     # Four-mm lug leaves room for a washer, ordinary M3 nut and screw tip.
     pieces.append(box(4,12,23,(40,106,-23)))
     holes.append(cylinder(1.7,6,(39,112,-M["follower_drop"]),(1,0,0)))
@@ -147,12 +196,14 @@ def tray():
     for x in (5, 38):
         pieces.append(box(2.0, 26, 11, (x, 24, -11)))
     pieces.append(box(35, 2, 11, (5, 22, -11)))
+    pieces.append(box(2,26,11,(40,24,-11)))
     result = fuse(pieces)
     # The spine is interrupted at the actual U059 body and at its wire exit.
     result = result.cut(box(33, 39, 12, (7, 23, -12))).clean()
     for y in (16, 64, 167):
         holes.extend(strap_slots(23, y, 37, width=8, z=-12, height=17))
     holes.extend(strap_slots(23, 38, 37, width=12, z=-12, height=17))
+    holes += retaining_ties("u059")+retaining_ties("led")
     return cut(result, holes)
 
 
@@ -180,7 +231,7 @@ def module(index=0, angle=0, with_wand=True):
               Item(f"tray_{index+1}", tray().translate((0,0,tray_z)), "moving", "tray"),
               Item(f"cam_{index+1}", cam().rotate((0,0,0),(1,0,0),angle).translate((M["cam_x"],M["cam_y"],M["cam_z"])), "moving", "metal"),
               Item(f"servo_{index+1}", box(27,22,11.5,(0.5,106.5,30.25)), "hardware", "black", "22 x 11.5 x 27 catalog; shaft offset provisional"),
-              Item(f"stock_horn_{index+1}", fuse([box(2,35,6,(0.2,-17.5,-3)),cylinder(4.5,2,(0.2,0,0),(1,0,0))]).rotate((0,0,0),(1,0,0),angle).translate((29,112,36)), "moving_hw", "white", "35 mm double horn; width/hub/thickness are mounting allowances, not measured"),
+              Item(f"stock_horn_{index+1}", cut(fuse([box(2,35,6,(0.2,-17.5,-3)),cylinder(4.5,2,(0.2,0,0),(1,0,0))]),[cylinder(1.2,4,(-1,sign*M["horn_fastener_radius"],0),(1,0,0)) for sign in (-1,1)]).rotate((0,0,0),(1,0,0),angle).translate((29,112,36)), "moving_hw", "white", "35 mm double horn; width/hub/thickness and slotted fastener location pending measured fit"),
               Item(f"u059_{index+1}", box(32,24,8,(7.5,24,tray_z-10)), "moving_hw", "pcb", "32 x 24 x 8 catalog"),
               Item(f"led_{index+1}", box(3,200,10,(45,6,tray_z-7)), "moving_hw", "light", "10 x 200; thickness 3 provisional"),
               Item(f"roller_{index+1}", cylinder(M["roller_diameter"]/2,3,(35.7,112,M["cam_z"]+radius),(1,0,0)).cut(cylinder(2.1,3,(35.7,112,M["cam_z"]+radius),(1,0,0))), "moving_hw", "white", "6 mm OD / 4.2 ID x 3 nylon roller on brass sleeve"),
@@ -200,6 +251,21 @@ def module(index=0, angle=0, with_wand=True):
     if with_wand:
         shapes.append(Item(f"wand_{index+1}", wand().translate((0,0,tray_z+3+W["fabric"]+W["foam"])), "wand", "wand", W["dimensions_status"]))
     for x, y in GUIDES:
-        shapes.append(Item(f"guide_bolt_{index+1}_{int(y)}", cylinder(2,90,(x,y,0)), "fastener", "metal"))
-        shapes.append(Item(f"guide_washer_{index+1}_{int(y)}", cylinder(6,1.5,(x,y,83)).cut(cylinder(2.3,3,(x,y,82))), "fastener", "metal"))
+        shapes.append(Item(f"guide_bolt_{index+1}_{int(y)}", cylinder(2,100,(x,y,-4)), "fastener", "metal","M4x100 DIN931; 86 mm smooth shank covers complete bearing travel, availability/dry fit pending"))
+        shapes.append(Item(f"guide_head_{index+1}_{int(y)}",cylinder(3.85,2.8,(x,y,-6.8)),"hardware","metal","M4 DIN931 AF7 head allowance OD7.7 H2.8; actual corner fit pending"))
+        shapes.append(Item(f"guide_washer_{index+1}_{int(y)}", cylinder(4.5,.8,(x,y,83)).cut(cylinder(2.3,3,(x,y,82))), "hardware", "metal","M4 DIN125 9 mm OD washer; guide retention above full lift"))
+        shapes.append(Item(f"guide_nut_{index+1}_{int(y)}",cylinder(4,3.2,(x,y,83.8)).cut(cylinder(2,4,(x,y,83.5))),"hardware","metal","M4 DIN934 H3.2 + low-strength threadlocker; tighten without sleeve preload"))
+    liner=fuse([box(38,W["head_length"],W["foam"]+W["fabric"],(4,6,tray_z+3)),
+                box(16,W["length"]-W["head_length"],W["foam"]+W["fabric"],(15,6+W["head_length"],tray_z+3))])
+    if with_wand:
+        liner=cut(liner,[t.translate((0,0,tray_z)) for t in retaining_ties("led")])
+        shapes.append(Item(f"soft_liner_{index+1}",liner,"moving_hw","cover","Removable 1.2 mm foam + 0.8 mm textile; relieved around LED ties"))
+    for j,(x,y) in enumerate(MOUNT_HOLES):
+        shapes += [Item(f"module_m3_{index+1}_{j+1}",cylinder(1.5,10,(x,y,-4)),"fastener","metal","M3 x10; independent module mount"),
+                   Item(f"module_head_{index+1}_{j+1}",cylinder(2.85,2,(x,y,4)),"hardware","metal"),
+                   Item(f"module_nut_{index+1}_{j+1}",cylinder(3.2,2.4,(x,y,-6.4)).cut(cylinder(1.5,3,(x,y,-6.5))),"hardware","metal")]
+    for kind in ("servo","u059","led"):
+        for j,tie in enumerate(retaining_ties(kind)):
+            shapes.append(Item(f"{kind}_tie_{j+1}_{index+1}",tie if kind=="servo" else tie.translate((0,0,tray_z)),
+                               "hardware" if kind=="servo" else "moving_hw","black","2.5 mm tie captured through physical cradle/bed slots"))
     return [Item(i.name, i.shape.translate(location), i.group, i.color, i.source, i.allowance) for i in shapes]
