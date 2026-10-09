@@ -334,3 +334,22 @@ test('native camera consent crosses the strict schema only for an explicit start
   assert.equal(connection.snapshot().voice.error, null);
   connection.suspend();
 });
+
+
+test('route is captured before listener registration and remains bound after BLE hint changes', async () => {
+  const native = bridge();
+  let finishListener;
+  native.addListener = () => new Promise(resolve => { finishListener = resolve; });
+  const route = { host: '192.168.0.62', deviceId: 'kufr-1' };
+  const socket = new NativeControlSocket(native, route);
+  // Model BLE loss/new route while registration is pending. The old identity
+  // hostname must not replace the route captured for this attempt.
+  route.host = 'kufr-old.local';
+  route.deviceId = 'kufr-2';
+  finishListener({ remove: async () => { native.removed++; } });
+  await settle();
+  assert.equal(native.connected[0].host, '192.168.0.62');
+  assert.equal(native.connected[0].deviceId, 'kufr-1');
+  assert.deepEqual(Object.keys(native.connected[0]).sort(), ['connectionId', 'deviceId', 'host']);
+  socket.close();
+});

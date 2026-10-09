@@ -84,6 +84,10 @@ export class ProvisioningPanel {
     this.client.show(visible);
   }
 
+  async refreshLocalAddress(): Promise<boolean> {
+    return this.client.refreshLocalAddress();
+  }
+
   private profile(): NetworkProfile {
     return this.element.querySelector<HTMLSelectElement>('[data-profile]')!.value as NetworkProfile;
   }

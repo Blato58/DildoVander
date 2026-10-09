@@ -1,5 +1,16 @@
 # Mobilní ovládání kufru
 
+> D166: secured BLE status can include current STA IPv4 (`n.ip`). The iOS native
+> layer uses it for the paired device for up to 60 seconds while that BLE session
+> remains connected. The explicit Control connect tap refreshes the live BLE
+> status first, even while its panel is hidden. Manual address selection takes precedence. The stored token
+> and certificate pin still authenticate WSS; the route is saved in Keychain only
+> after authenticated connection succeeds. Offline/missing/invalid IP and BLE
+> disconnect clear the hint. Bonjour failure remains visible; BLE can supply an
+> address independently. Each socket captures the selected host/device ID before
+> asynchronous listener registration; BLE loss cannot switch that attempt to an
+> older hostname. Hardware service/calibration gates remain unchanged.
+
 ## Aktuální předání D165
 
 Po **Zapomenout párování** iPhone smazal místní profil, ESP ale zachovalo token

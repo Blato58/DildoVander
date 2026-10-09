@@ -8,6 +8,7 @@ export type ProvisioningStatus = {
   firmwareVersion: string;
   network: {
     phase: string;
+    ipv4?: string;
     activeProfile: string;
     lastSuccessfulProfile: string;
     result: string;
@@ -102,6 +103,32 @@ export class ProvisioningClient {
         this.schedulePoll();
       }
     }
+  }
+
+  async refreshLocalAddress(): Promise<boolean> {
+    // A fully disconnected BLE client can use the persisted/manual LAN route.
+    // An in-flight connection/action must not pretend it refreshed that route.
+    if (!this.connected && !this.pending) return true;
+    const generation = this.generation;
+    let refreshed = false;
+    await this.perform(async () => {
+      try {
+        const status = await this.bridge.status();
+        refreshed = true;
+        return status;
+      } catch (error) {
+        // Native BLE loss may occur while its panel is hidden and not polling.
+        // Clear only this session's stale state so the next explicit tap can
+        // use its saved/manual LAN route instead of repeating dead BLE requests.
+        if (generation === this.generation) {
+          this.connected = false;
+          this.lastStatus = null;
+          this.cancelPoll();
+        }
+        throw error;
+      }
+    });
+    return refreshed && generation === this.generation;
   }
 
   async disconnect(): Promise<void> {

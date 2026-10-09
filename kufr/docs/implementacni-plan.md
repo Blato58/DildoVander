@@ -1,5 +1,18 @@
 # Implementační plán AI kufru
 
+> **D166, 9. 10. 2026: automatická LAN adresa ze zabezpečeného BLE.**
+> Hostname na iPhonu timeoutuje; ručně zadaná aktuální IP vrací validní snapshot
+> a servisní stav. Rozšíření status v1 o volitelné `n.ip` předává pouze aktuální
+> STA IPv4. Nativní RAM hint je svázaný s autentizovanou BLE session a device ID,
+> má platnost 60 sekund a mizí při odpojení/offline. Explicitní Connect obnoví
+> status živé BLE session před použitím adresy. Ruční adresa má přednost.
+> Veřejný snapshot host/deviceId se váže na konkrétní socket ještě před async
+> listener registrací; nativní connect odmítne partial/invalid/mismatched target.
+> Odpojení BLE během předání proto nezmění zvolenou route na starý hostname.
+> Token a SPKI pin zůstávají v Keychain; nová adresa se tam zapíše až po
+> připnutém autentizovaném WSS připojení. Bonjour failure se nezamlčuje.
+> Fyzická kalibrace a servisní gates se nemění; jde o směrování připojení.
+
 > **D165, 9. 10. 2026: obnova ztraceného místního párování přes BLE.**
 > Majitel po Zapomenout párování nemůže znovu párovat: Keychain token byl smazán,
 > ale ESP drží jeho hash a první `pair-local` správně odmítne `already_paired`.

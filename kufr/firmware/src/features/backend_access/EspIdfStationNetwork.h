@@ -28,6 +28,7 @@ class EspIdfStationNetwork final {
   bool Start(bool nvsInitialized);
   bool HasIp() const;
   uint32_t IpGeneration() const;
+  std::string CurrentIpv4() const;
   const NetworkSettings& Settings() const;
   void SetChangeGate(NetworkChangeGate gate);
   bool Configure(NetworkProfile profile, const char* ssid, const char* password);

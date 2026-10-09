@@ -6,6 +6,43 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D166 – převzato 9. 10. 2026: automatická IPv4 ze Security1 BLE.**
+Majitel potvrdil hostname timeout, ale přímá IP 192.168.0.59 vrací servisní
+stav po validním snapshotu. Volitelné n.ip je nyní implementované s IP generation/HasIp recheck a 512B
+fallbackem, který vynechá pouze optional IP. Nativní session/ID hint má 60s
+platnost, odmítá stale update/disconnect a změnu ID, staré provisioning ID stále
+umožní Wi-Fi provisioning. Ruční adresa má přednost; pin/token a hardwarové gates
+zůstávají. Keychain route write je stále pouze v onOpen po připnutém auth WSS.
+Discovery zachová Bonjour failed a zvlášť oznámí dostupnost BLE adresy.
+Explicitní Control connect nejprve obnoví status živé BLE session i při skrytém
+panelu a následně znovu načte savedDevice; odpadá 60s stale-host timing gap.
+Stejný device ID zachová connection instance a unresolved-command gate. Lifecycle
+číslo zruší starý tap při background/pagehide, změně identity/adresy a disconnect/
+forget; návrat do foreground starý async connect neobnoví. Dva followup review P2
+nálezy byly opraveny a regresní testy provádějí skutečný main tap handler s fake
+native adaptéry na obou async hranicích. GitHub review následně odhalilo P2
+silent skip při jiné pending BLE akci: refresh nyní vrací úspěch/neúspěch,
+pending/skipped/failed/stale refresh blokuje WSS tap. Plně odpojené BLE stále
+povolí uloženou/ruční LAN route. Dvě regrese pokrývají pending connection/action
+a main handler abort bez čtení staré adresy. Další GitHub P2 odhalilo BLE loss
+mezi savedDevice a async socket bridge: veřejný host/deviceId snapshot se nyní
+kopíruje při vytvoření socketu před listener await a cestuje s pokusem. Native
+connect odmítá partial/invalid/mismatched target, stále znovu čte pin/token z
+Keychain a route zapisuje pouze po auth onOpen. Regrese ověřuje listener delay,
+mutaci původní route a native snapshot po BLE end. GitHub P2 stale BLE state
+po ztrátě session ve skrytém panelu je opravené: failed refresh pro aktuální
+generaci vymaže logical connected/lastStatus a polling; další explicitní tap
+může použít uloženou/ruční route bez opakování mrtvé BLE session. Regrese ověřuje
+první odmítnutý refresh, druhý uložený-route tap a žádné obnovené polling requesty.
+
+Ověřeno: dvě MSVC station suites (worker /std:c++14 /W4 /WX), pět parent host
+suites pairing/TLS/BLE/discovery/WSS, 50 mobile tests, npm run build a
+pio run -e esp32-s3-idf -s, vše exit0. Native helper/status regressions jsou
+připravené pro existující macOS workflow; Windows je nespustil. Nezávislé native
+review odhalilo a následně ověřilo opravený legacy ID regression; kombinované
+firmware/native nezávislé review prošlo bez zbývajících findings. CI, native build, publikace a USB D166 dosud neprovedeny.
+D165 níže je historická doložená dodávka.
+
 **D165 – 9. 10. 2026 – obnova opakovaného párování po Zapomenout párování.**
 Majitel po úspěšném D164 připojení zapomněl párování a nové BLE párování vracelo
 already_paired. Native forget maže pouze Keychain; firmware ponechá hash.

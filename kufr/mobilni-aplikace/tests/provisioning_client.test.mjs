@@ -246,3 +246,72 @@ test('pairing tap during a quiet poll reserves one action and waits for its BLE 
   assert.equal(refreshed, 1);
   await client.disconnect();
 });
+
+
+test('control connect refreshes a live BLE route after a long hidden-panel dwell without restarting polling', async (context) => {
+  context.mock.timers.enable({ apis: ['setTimeout'] });
+  let reads = 0;
+  const updates = [];
+  const current = { ...status, network: { ...status.network, ipv4: '192.168.0.62' } };
+  const client = new ProvisioningClient({ connect: async () => status,
+    status: async () => { reads++; return current; }, disconnect: async () => {} },
+    (...event) => updates.push(event));
+  client.show(true);
+  await client.connect('KUFR_123456');
+  client.show(false);
+  context.mock.timers.tick(70000);
+  await flush();
+  assert.equal(reads, 0);
+  await client.refreshLocalAddress();
+  assert.equal(reads, 1);
+  assert.equal(updates.at(-1)[0].network.ipv4, '192.168.0.62');
+  context.mock.timers.tick(70000);
+  await flush();
+  assert.equal(reads, 1);
+  await client.disconnect();
+  await client.refreshLocalAddress();
+  assert.equal(reads, 1);
+});
+
+
+test('route refresh reports pending BLE connection/action instead of silently using a stale host', async () => {
+  let finishConnect;
+  let finishAction;
+  let reads = 0;
+  const client = new ProvisioningClient({ connect: () => new Promise(resolve => { finishConnect = resolve; }),
+    status: async () => { reads++; return status; }, disconnect: async () => {} }, () => {});
+  const connecting = client.connect('KUFR_123456');
+  assert.equal(await client.refreshLocalAddress(), false);
+  assert.equal(reads, 0);
+  finishConnect(status);
+  await connecting;
+  const action = client.perform(() => new Promise(resolve => { finishAction = resolve; }));
+  assert.equal(await client.refreshLocalAddress(), false);
+  assert.equal(reads, 0);
+  finishAction(status);
+  await action;
+  assert.equal(await client.refreshLocalAddress(), true);
+  assert.equal(reads, 1);
+  await client.disconnect();
+  assert.equal(await client.refreshLocalAddress(), true);
+  assert.equal(reads, 1);
+});
+
+
+test('hidden-panel native BLE loss clears stale client state and allows the next saved-route tap', async (context) => {
+  context.mock.timers.enable({ apis: ['setTimeout'] });
+  let reads = 0;
+  const client = new ProvisioningClient({ connect: async () => status,
+    status: async () => { reads++; throw { code: 'disconnected' }; }, disconnect: async () => {} }, () => {});
+  client.show(true);
+  await client.connect('KUFR_123456');
+  client.show(false);
+  assert.equal(await client.refreshLocalAddress(), false);
+  assert.equal(reads, 1);
+  assert.equal(await client.refreshLocalAddress(), true);
+  assert.equal(reads, 1);
+  client.show(true);
+  context.mock.timers.tick(5000);
+  await flush();
+  assert.equal(reads, 1);
+});
