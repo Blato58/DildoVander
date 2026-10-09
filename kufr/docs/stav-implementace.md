@@ -39,8 +39,19 @@ trval 530 s (8m50s), z toho příprava Core 9 s, hlavní build 251 s a
 diagnostiky 59/58/66/71 s. První běh vytvořil 374 MiB cache; pruning
 nemusel nic mazat. Stažený artefakt prošel SHA-256 a bezpečným unpackem
 `scripts/ci/package.py`; firmware OTA verze `0.1.0` je ověřená.
-GitHub Codex review implementace dokončilo bez inline nálezů.
-Další běh ověří teplou cache; procentuální zrychlení se zatím netvrdí.
+Po začlenění iOS-only `main` přes PR sync prošel celý
+[CI 37899404378](https://github.com/Blato58/DildoVander/actions/runs/37899404378)
+na `028df36` se shodným firmware Git tree. Job na `dildovander-server-2`
+trval 362 s (6m02s) s částečně teplou cache. Hlavní build klesl
+z 267 s v předchozím běhu stejného runneru na 141 s a příprava z 10 s na 1 s;
+některé diagnostiky ještě plnily cache. Předchozí běh přerušil PR sync.
+Následné GitHub Codex review našlo dvě P2: namespace bez identity toolchainu
+a nezapočítané přerušené cache zápisy. Oprava zavádí fingerprint build pinů,
+lockfilů, metadat balíčků a compiler/linker/archive binárek; přes všechny
+namespaces platí společný 1 GiB a dočasné zápisy mladší jedné hodiny jsou
+chráněné. Deset lokálních regresí prošlo. Nový namespace začíná studený,
+staré objekty bez zaznamenaného fingerprintu se nepřejmenovávají.
+Finální Linux CI a dokončení review před merge ještě čekají.
 Nevzniká nová VPS objednávka, provider inference, deploy ani HW flash.
 
 **D158 – 9. 10. 2026 – plný audit, nativní BLE, hotspot-first Wi-Fi, OTA a SD.**

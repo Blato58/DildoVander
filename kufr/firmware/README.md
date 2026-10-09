@@ -609,13 +609,18 @@ celého toolchain archivu z Actions cache při každém buildu se nepoužívá.
 
 `PLATFORMIO_BUILD_CACHE_DIR` uchovává obsahově adresované SCons objekty
 mimo checkout; změna zdroje, hlaviček nebo compile flags mění jejich
-signaturu. Checkout stále čistí `.pio`, tedy CMake konfigurace i výsledný
+signaturu. Namespace `objects-v2-<hash>` navíc závisí na build pinech,
+lockfilech, metadatech nainstalovaných balíčků a obsahu compiler/linker/archive
+nástrojů; výměna toolchainu nepřebírá staré objekty. Checkout stále čistí
+`.pio`, tedy CMake konfigurace i výsledný
 balíček vznikají z aktuálního stromu. CI post-script `ci/build_cache.py`
 vždy překládá objekty s build datem pro TLS a ESP-IDF app/bootloader
-metadata. Před i po jobu se nejstarší cache objekty ořezávají na 1 GiB
-na runner; první build na daném runneru cache teprve naplní.
-Pro studený build lze při nečinném runneru odstranit pouze jeho
-`~/.cache/kufr-firmware-ci/objects-v1/`; příští CI jej znovu vytvoří.
+metadata. Před i po jobu se nejstarší cache objekty ořezávají na souhrnný
+1 GiB na runner přes všechny namespaces, včetně původního `objects-v1`.
+Přerušené dočasné zápisy se počítají do limitu a po hodině se odstraní;
+mladší zápisy zůstanou chráněné. První build v novém namespace cache naplní.
+Pro studený build lze při nečinném runneru odstranit pouze jeho aktuální
+`~/.cache/kufr-firmware-ci/objects-v2-<hash>/`; příští CI jej znovu vytvoří.
 Tento cache limit nesouvisí s odstraněnými peněžními AI limity.
 
 Ve složce `kufr/firmware`:
