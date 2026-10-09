@@ -14,6 +14,14 @@ bez odpájení R1, softwarový mute a individuální dobu serv místo pevné
 500ms meze. Toto rozhodnutí **nahrazuje D155 a starší požadavky na tyto
 doplňky**; neobjednávat je a neimplementovat jejich podporu.
 
+Majitel následně potvrdil stávající ESP32-S3 s konektorem OV5640
+(Drátek 232701) a samostatně objednanou kameru; zatím má pouze konektor,
+modul čeká na doručení. Objednávka, kamera a kabelový plán tuto informaci
+zohledňují. Druhá ESP deska/sada se ze zbývajícího nákupu odstranila,
+starý součet 500 Kč se ruší. Kamerový driver E13 nadále zbývá.
+Toto následné upřesnění mění pouze dokumentaci; ověřeno 39 lokálních
+Markdown odkazů v pěti dotčených dokumentech a `git diff --check`.
+
 Aktuální [zapojení](zapojeni-potvrzeneho-hardwaru.md): GPIO2 přímo PCA OE,
 HIGH vypnuto, pull-up kolem 10 kΩ (dva koupené 22kΩ paralelně = 11 kΩ).
 Zelená kolébka přímo odpojuje 5V pohony, zem společná. Stav kolébky se
