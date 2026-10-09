@@ -6,7 +6,7 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**9. 10. 2026 – F1 a úklid předchozího CAD; předání přes PR připravováno.**
+**9. 10. 2026 – F1 a úklid předchozího CAD; zdroje ověřené a pushnuté.**
 Jediným aktivním návrhem je [F1](../mechanika/final/README.md), vytvořený
 od základu v commitu `14ff82a`: nový tištěný korpus a prázdné víko,
 šest servem ovládaných lůžek se zdvihem 16 mm, skryté osazení, čtyři
@@ -26,7 +26,18 @@ Po úklidu opakované CAD ověření prošlo: 29 STL/STEP, tři sestavy,
 vyjmutí banky bez detekovaných kolizí. Všech 104 místních odkazů v devíti
 dokumentech existuje; šest testů výběru CI projektů a 55 Node testů prošlo.
 Širší Python sada má na Windows 16/17: jediný neúspěch je existující kontrola
-Unix oprávnění 0755 při extrakci souboru; úplnou sadu ověří Linux CI.
+Unix oprávnění 0755 při extrakci souboru. Úplná sada následně prošla na Linuxu
+v [CI 37957861517](https://github.com/Blato58/DildoVander/actions/runs/37957861517)
+včetně Node testů, actionlint a povinného CI souhrnu. Aplikační buildy byly
+správně vynechané. Celý příkaz `final/Regenerate.ps1` dokončil také rendery,
+výkresy a ZIP CRC; report/manifest odpovídají zdrojovým SHA-256. Regenerovaný
+HTML prohlížeč je bajtově shodný s již ověřeným browser výsledkem.
+
+Cleanup commit `b06ea867bb96d691deeeae9eaede5c3c94ff364c` byl odeslán přes
+`scripts/Push-CurrentBranch.ps1`; read-back ověřil shodnou vzdálenou SHA.
+Předání a výsledek merge/review vede [PR167](https://github.com/Blato58/DildoVander/pull/167).
+Jeho automatické review v okamžiku tohoto záznamu ještě běží; merge vyžaduje
+jeho dokončení, kontrolu všech připomínek po posledním push a finální CI.
 Tisk, osazení, moment serva, tření brzdy, proudy/teploty, akustika, FPC
 kamery a skutečné přenášení zůstávají neověřené. [Montážní návod](../mechanika/final/MONTÁŽ.md)
 vyžaduje nejprve měrku a jeden zatížený modul. E5/E6/B1/E13 se neuzavírají.
