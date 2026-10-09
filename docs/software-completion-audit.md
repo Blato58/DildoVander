@@ -12,7 +12,7 @@ deployment and physical acceptance.
 
 The software is merged and delivered: complete firmware/backend/web CI,
 macOS native suites and signed Ad Hoc archive/export passed. Backend,
-development OTA0.1.0 and iOS1.0/build1000.0.19 are published with verified
+development OTA0.1.1 and iOS1.0/build1000.0.19 are published with verified
 HTTPS readback. Exact commits, hashes and workflow receipts are in the status.
 Production stable signing and full physical event acceptance remain separate
 requirements. D159 subsequently installed the verified CI image on the physical
@@ -20,10 +20,12 @@ ESP32-S3, provisioned its identity/PoP/development OTA trust and verified NVS
 readback plus backend authentication from the service computer. The owner
 confirmed native BLE connection and home Wi-Fi reconnection after reset. Physical
 testing exposed an SDK6.1 empty-body token setup bug; firmware0.1.1 removes the
-failing call and adds a reproduced adapter regression. The corrected image's
-physical backend check is pending;
-hotspot transitions, physical OTA update/rollback and loaded peripherals remain
-unverified. No paid inference was performed.
+failing call and adds a reproduced adapter regression. The board automatically
+installed the signed0.1.1 update in ota_1, confirmed its boot VALID and retained
+all nine provisioned identity/PoP/network/OTA keys. Real ESP token POST200 passed
+both after OTA and another reset; the owner confirmed connected Wi-Fi/backend
+on the iPhone. Hotspot transitions, OTA power-loss/negative verification/rollback
+and loaded peripherals remain unverified. No paid inference was performed.
 
 ## Functional inventory and prioritized findings
 
@@ -33,8 +35,8 @@ unverified. No paid inference was performed.
 | Wi-Fi, `features/backend_access/EspIdfStationNetwork.*` | One USB-configured network; no phone credential replacement or fallback | P0 | Added persistent hotspot/fallback profiles, timeout/backoff, tested replacement, rollback to old credentials, idle reservation | Host station/profile tests; D159 owner-confirmed home Wi-Fi plus physical NVS readback; hotspot/failover pending |
 | BLE, `features/network_provisioning/` | No BLE provisioning/runtime | P0 | Official ESP-IDF protocomm Security1, per-device 128-bit PoP, bounded advertising windows, encrypted custom endpoint, compact 512-byte wire | Host adapter/real cJSON tests and firmware build; D159 owner-confirmed physical discovery/authorized handshake; wrong-PoP test pending |
 | iOS, `mobilni-aplikace/ios/App/App/KufrProvisioningPlugin.swift` | Existing Capacitor app had LAN pairing and Debug, no native BLE | P0 | Extended existing app with official ESPProvision 3.2.0/CoreBluetooth, native secret entry, discovery, status, replacement/delete/test/OTA controls | Web tests/build/browser passed; full Swift/Xcode and physical acceptance recorded separately |
-| Backend identity, `features/provisioning/DeviceIdentity.*`, `backend_access/EspIdfTokenExchangeTransport.cpp` | Factory identity needs service initialization; physical test found SDK6.1 rejects empty post-field setup before token request | P0 | Preserved identity/token boundary; D159 provisioned the board and removes the failing empty-body call in0.1.1 | USB/NVS, additive backend registration and service-PC HTTPS exchange passed. Token regression reproduces old failure/new pass; physical fixed-image token check pending |
-| OTA, `features/firmware_update/` | Dual slots existed, no updater or rollback acceptance flow | P0 | Signed manifest, strict hardware/channel/version/size, certificate-validated HTTPS, inactive-slot writes, exact SHA, scheduled idle restart, bounded boot health and rollback | Pure/adapter tests, real release-signature verification, firmware build; power-loss/rollback hardware tests pending |
+| Backend identity, `features/provisioning/DeviceIdentity.*`, `backend_access/EspIdfTokenExchangeTransport.cpp` | Factory identity needs service initialization; physical test found SDK6.1 rejects empty post-field setup before token request | P0 | Preserved identity/token boundary; D159 provisioned the board and removes the failing empty-body call in0.1.1 | USB/NVS, additive backend registration and service-PC HTTPS exchange passed. Token regression reproduces old failure/new pass; actual ESP POST200 and owner-confirmed backend passed after OTA and another reset |
+| OTA, `features/firmware_update/` | Dual slots existed, no updater or rollback acceptance flow | P0 | Signed manifest, strict hardware/channel/version/size, certificate-validated HTTPS, inactive-slot writes, exact SHA, scheduled idle restart, bounded boot health and rollback | Pure/adapter tests, public signature/image verification and actual0.1.0→0.1.1 OTA/VALID boot/NVS retention passed; power-loss/negative verification/rollback hardware tests pending |
 | OTA distribution, `backend/Features/Firmware/FirmwareReleases.cs` | No firmware release endpoint/pipeline | P0 | Read-only signed manifests/artifacts in existing backend, per-channel trust, bounded concurrency; root-owned signing/publication helper and provenance reuse workflow | Backend tests and packaging tests; live deployment evidence appended in status |
 | HTTP photo rejection, `CostumeImageEndpoints.cs` | Linux smoke exposed an existing oversized-body rejection that could advertise a socket Kestrel then closes | P2 | Explicit HTTP/1 Connection: close on unread/overflow 413; preserves body limits and HTTP/2 semantics | Added declared/chunked/HTTP2 regression and repeated HTTP oversized/next-request test |
 | GPT-Live, `backend/Features/GptLive/` | Implemented autonomous actor and isolated official wire adapter; fake mode intentional | P0 | Preserved GPT-Live responsibilities, Sol decisions, playback checkpoint, cancellation, tool validation | Existing offline runner passes; no new paid inference or human conversational acceptance |
