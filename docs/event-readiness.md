@@ -5,9 +5,12 @@ a volitelné SD assety. Lokální testy potvrzují dílčí softwarové chován�
 **připravenost celé fyzické sestavy na akci ještě není doložená**.
 Nová fyzická ESP/iPhone akceptace v této úloze neproběhla. Skutečný macOS15/
 Xcode26.3 package resolver CI37887830815 prošel; nativní build/podpis má
-samostatné ověření. Finální lokální společný `pio run` prošel, binary má 1732080 B
-z 6553600 B slotu a skutečný OpenSSL podpis/verify prošel. Vzdálené CI,
-VPS publikace a podepsaný iOS build jsou v procesu předání.
+samostatné ověření. Plný CI37895236311 prošel včetně hlavního ESP-IDF a čtyř
+servisních buildů. Development OTA0.1.0 (1732304 B z 6553600 B slotu) a backend
+jsou nasazené; public HTTPS bajty/hash a skutečný podpis byly ověřeny.
+macOS15/Xcode26.3 run37899385679 prošel všemi native testy, archive, export,
+Ad Hoc podpisem i profile kontrolou. iOS1.0/build1000.0.19 je zveřejněn přes
+run37899776001 s ověřeným public HTTPS manifestem/IPA/SHA-256.
 Jejich skutečné výsledky, verze a běhy zapisuje
 [stav implementace](../kufr/docs/stav-implementace.md); plánovaný běh není úspěch.
 
@@ -93,7 +96,7 @@ a aktuální CI/publikační výsledky patří do stavu implementace.
 | # | Požadovaný scénář | Aktuálně doložená softwarová část | Zbývající ESP/iPhone/native nebo provozní kontrola |
 | --- | --- | --- | --- |
 | 1 | Tovární zařízení může zahájit provisioning | S: bez PoP zůstává BLE zavřené; servisní generátor validuje počáteční konfiguraci. | NE: první instalace/USB servis a následné BLE okno na nové desce. Bez PoP není bezpečný tovární handshake dostupný. |
-| 2 | iOS objeví zařízení | K: native CoreBluetooth/ESPProvision discovery, UUID a UI; web simulace není rádio. | NE: Xcode sestavení a fyzický scan iPhonu. |
+| 2 | iOS objeví zařízení | K: native CoreBluetooth/ESPProvision discovery, UUID a UI; skutečný Xcode archive prošel. | NE: fyzický scan iPhonu; archive ani web simulace nejsou rádio. |
 | 3 | iOS naváže autorizované BLE spojení | S/K: host konfigurace povinného PoP/Security1, nativní SDK integrace. | NE: skutečný handshake mezi iPhonem a ESP. |
 | 4 | Chybná autorizace je odmítnuta | S: chybějící PoP zakazuje službu; K: management je za Security1. | NE: špatný PoP proti skutečnému šifrovanému handshake. |
 | 5 | Hotspot credentialy se přenesou bezpečně | S: bounded codec/endpoint a whitelist diagnostiky; K: native secure dialog a Security1. | NE: radio handshake, přenos a ověření nepřítomnosti citlivých údajů v nativních logách. |
@@ -137,7 +140,7 @@ a aktuální CI/publikační výsledky patří do stavu implementace.
 | 43 | Audio funguje na zvoleném hardwaru | S: I2S/PCM transport/drain a half-duplex testy; K: zachované B-effects piny. | NE: oba DFR0954/reproduktory, mikrofon, clipping, echo, latence a resetové ticho. |
 | 44 | Kamera a SD jsou ověřené v dostupném rozsahu | S: costume photo/camera fake adapter, SD flat-path/bounds/read-only/cleanup. | NE: OV5640/FPC, fotografie, SD karta/pullupy a souběh s audiem. |
 | 45 | Servo/LED/ostatní efekty dál fungují | S: existing physical/sequence safety testy, pin kontrakt zachován. | NE: pulzy, dorazy, PCA/MCP/U059/WS2812B, proud a skutečný mechanický návrat. |
-| 46 | Existující deployment workflow zůstává kompatibilní | S/K: lokální backend/web/release helper/provenance kontroly; zachované CI/signing cesty. | NE při tomto zápisu: finální firmware CI, VPS publish/readback a macOS signing workflow. Výsledky doplnit ze skutečných běhů. |
+| 46 | Existující deployment workflow zůstává kompatibilní | K/S: plné CI `37895236311`, backend deploy `37896345546` attempt 2, development OTA publish `37896352363`, macOS native testy/archive/export `37899385679` a iOS publish `37899776001` prošly; veřejné manifesty, artefakty a checksumy byly načteny a ověřeny. | NE: fyzická ESP/iPhone akceptace. Stable podpisová autorita a individuální device trust zůstávají blokované do skutečného provisioningu. |
 | 47 | Celý systém se zotaví z dočasných chyb | S: dílčí síť/OTA/session/journal/fault recovery testy. | NE: souvislá zkouška celé sestavy v místě akce, výpadky a návraty bez nebezpečného pohybu. |
 
 ## Připravenost subsystémů a vnější podmínky
@@ -145,11 +148,11 @@ a aktuální CI/publikační výsledky patří do stavu implementace.
 | Subsystém | Stav při tomto zápisu | Co ještě brání úplné akceptaci |
 | --- | --- | --- |
 | BLE provisioning a hotspot/fallback firmware | IMPLEMENTED — NOT HARDWARE VERIFIED | ESP/iPhone handshake, radio coexistence, skutečné NVS a reconnect zkoušky. |
-| iOS Síť kufru | PARTIALLY READY | Web 32 testů/build prošel; dokončit macOS/Xcode testy, podpis, instalaci a fyzické BLE/hotspot scénáře. |
+| iOS Síť kufru | IMPLEMENTED — NOT HARDWARE VERIFIED | Web 32 testů/build, skutečné native testy/Xcode archive/Ad Hoc export i public IPA prošly; instalace a fyzické BLE/hotspot scénáře zbývají. |
 | OTA firmware | IMPLEMENTED — NOT HARDWARE VERIFIED | První USB instalace rollback-capable bootloaderu, skutečný digest/signature/power-loss/rollback na ESP. |
-| Release distribuce a VPS | PARTIALLY READY | Lokální testy/package verifikace; vzdálený publisher, CI provenance, živé HTTPS readback a konkrétní trust na ESP ještě musí mít vlastní důkaz. |
+| Release distribuce a VPS | READY v ověřeném development/server rozsahu | Root GitHub verifier, signed OTA/backend/iOS pipelines a public HTTPS bajty/hash/signature prošly; stable autorita a trust/OTA na ESP mají samostatné blokace. |
 | Produkční stable autorita | BLOCKED pro nasazení bez správné důvěry | Provisionovat příslušný produkční podpisový klíč mimo repo a shodný veřejný trust na zařízení; development klíč není automaticky produkční oprávnění. |
-| Backend/GPT-Live/katalog | PARTIALLY READY | Lokální runner prošel; čerstvá nasazená verze, případný placený test a lidská konverzační akceptace jsou oddělené kontroly. |
+| Backend/GPT-Live/katalog | PARTIALLY READY | Plný runner i čerstvé nasazení/health/modes/store metadata kontroly prošly; nebyla volána nová placená inference ani provedena lidská konverzační akceptace celé sestavy. |
 | Fyzické efekty a audio | IMPLEMENTED — NOT HARDWARE VERIFIED | Měřené zapojení/napájení/kalibrace a souběžný provoz na celé sestavě. |
 | Volitelná kamera a SD | IMPLEMENTED — NOT HARDWARE VERIFIED | Skutečná periferie, měření, souběh a teprve poté servisní flags. |
 | Telemetrie PB720 | NOT IMPLEMENTED | Není ověřený hardware/API kontrakt; dobu provozu potvrdit měřením. |
