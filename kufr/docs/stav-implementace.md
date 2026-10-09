@@ -37,8 +37,12 @@ geometrické zkoušky, fyzické měření, firmware, iPhone ani nasazení se
 v tomto prohlížečovém slice znovu neprováděly. Další krok zůstává
 fyzická akceptace jednoho F1 mechanismu podle místního STAV.
 
-Doručení: připraveno na větvi `codex/f1-inspect`; commit/push a
-výsledek PR se doplní po skutečném ověření vzdálené větve.
+Doručení: implementační commit `5c6a19faa34dfb728c4c6d2430dbb1c03a61e88e`,
+`Push-CurrentBranch.ps1` potvrdil shodný vzdálený HEAD na `codex/f1-inspect`.
+Předání a vzdálené kontroly jsou v
+[PR168](https://github.com/Blato58/DildoVander/pull/168).
+Existující nevázané `.codex/` soubory nebyly přidány ani upraveny;
+při push byla pouze procesně potlačena jejich kontrola jako untracked.
 
 **9. 10. 2026 – F1 a úklid předchozího CAD; zdroje ověřené a pushnuté.**
 Jediným aktivním návrhem je [F1](../mechanika/final/README.md), vytvořený
