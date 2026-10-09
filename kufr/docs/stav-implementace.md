@@ -19,7 +19,8 @@ rerun/publikace stejného artefaktu ji zachovají.
 
 Root-owned resolver/verifier/publisher byly instalované z tohoto checkoutu
 se shodnými SHA-256, root644/644/755. Předchozí helpery mají soukromou
-zálohu v `/root/kufr-release-3bf8102-37923289582/backup`; klíče, environment
+zálohu v `/root/kufr-release-3bf8102-37923289582/backup`; privátní klíče nebyly
+zobrazené, kopírované ani měněné (signer je běžně používá). Environment
 a návštěvnická data nebyly čtené ani měněné. Backend zůstal active a
 veřejný `/healthz` vrátil ok před i po publikaci; aplikace backendu nebyla
 přenasazená, D161 její kód nemění.
@@ -48,7 +49,7 @@ Nesouvisející lokální `.codex/environments/environment.toml` zůstal zachova
 **9. 10. 2026 – nasazení D161 (BLE/Wi-Fi pairing), převzato.**
 Majitel výslovně požádal `deploy`. PR155 je sloučený jako `f0f10b6`;
 finální CI37920004873 a Codex review07963d1 prošly, relevantní P1 je
-opravený a vlákno uzavřené. Veřejný development OTA manifest stále nabízí
+opravený a vlákno uzavřené. Veřejný development OTA manifest při převzetí nabízel
 0.1.1; updater přijímá pouze vyšší verzi. Majitel doplnil, že má workflow
 verzi zvyšovat samo při každém běhu. D162 proto používá immutable policy
 `0.1.1+ci`: baseline + autoritativní CI run_number, s 16bit carry a odmítnutím
