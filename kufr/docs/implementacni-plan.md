@@ -105,7 +105,8 @@
 > tímto akceptované; [D145–D146](stav-implementace.md#předání-další-ai)
 > uvádí skutečné běhy, konfiguraci a zbývající ověření. Architektura níže
 > se samotnou publikací nemění. Jde o historický doklad D145–D146;
-> aktuální publikace D158 je 1.0/1000.0.19 podle stavu implementace.
+> aktuální publikace D162 je 1.0/1000.0.20 podle stavu implementace;
+> D158/1000.0.19 zůstává historický doklad fyzického BLE ověření D159.
 
 > **D143, 6. 10. 2026: opt-in autonomní GPT-Live a hybridní paměť.**
 > `Backend:GptLive:ActorMode=AutonomousActor` odděluje hlasového herce od

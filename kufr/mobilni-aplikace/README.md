@@ -130,8 +130,13 @@ Nativní adaptér vlastní TLS pin, oprávnění LAN a Keychain. E10.1 použív�
 ## Debug D108/D109/D110/D112 a Realtime
 
 Aktuální [Safari instalace](https://2.28.202.220/ios/) nabízí verzi 1.0,
-build **1000.0.19** ([podpis 9. 10. 2026](https://github.com/Blato58/DildoVander/actions/runs/37899385679),
-[publikace](https://github.com/Blato58/DildoVander/actions/runs/37899776001)).
+build **1000.0.20** ([podpis 9. 10. 2026](https://github.com/Blato58/DildoVander/actions/runs/37923948887),
+[publikace](https://github.com/Blato58/DildoVander/actions/runs/37924314161)).
+D161 přidává tlačítko Wi-Fi párování přes ověřené BLE a nativní Keychain;
+nativní harnessy prošly v podpisovém workflow. Odpovídající development
+OTA firmware je0.1.157. Majitel po publikaci potvrdil scan a párování;
+na stejné Wi-Fi v Ovládání selhává LAN spojení a opakuje připojování.
+Přesné instalované verze nejsou doložené; WSS a Keychain retention zůstávají otevřené.
 D158 přidává nativní bezpečný BLE provisioning/hotspot/fallback a OTA ovládání;
 GPT-Live a stávající hlas zůstávají zachované. Nativní testy, skutečný Xcode
 archive/export, Ad Hoc podpis a veřejná kontrola manifestu/IPA/SHA-256 prošly.
@@ -452,7 +457,7 @@ ani offline provider testy nejsou fyzický poslech.
 Dne 6. 10. 2026 byla na [instalační stránce](https://2.28.202.220/ios/)
 publikována Ad Hoc **1.0 / build 1000.0.16** pro dosavadní registrovaný iPhone.
 Tento oddíl zachycuje tehdejší verzi a serverovou konfiguraci D146;
-aktuální publikovaná verze je **1.0 / build 1000.0.19** podle přehledu výše.
+aktuální publikovaná verze je **1.0 / build 1000.0.20** podle přehledu výše.
 [Podpis 37429759564](https://github.com/Blato58/DildoVander/actions/runs/37429759564)
 ověřil Xcode 26.3, nativní transport/debug/audio testy a podpis;
 [publikace 37429982348](https://github.com/Blato58/DildoVander/actions/runs/37429982348)

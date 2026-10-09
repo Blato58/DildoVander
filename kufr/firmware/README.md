@@ -14,6 +14,14 @@ SHA-256 a token do nativního iOS Keychain. Existující QR či token nezmění.
 Ztracený token se nevydává znovu; obnova/rotace zůstává fyzickým servisem.
 Tato změna neprokazuje LAN TLS/Bonjour ani Keychain po aktualizaci na iPhonu.
 
+D162 publikovalo development OTA **0.1.157** s D161. CI workflow nyní
+automaticky odvozuje verzi z baseline policy `0.1.1+ci` a svého run_number;
+nový běh ji zvýší bez version-bump commitu. Root verifier ji odvodí nezávisle
+před podpisem; rerun/publikace stejného artefaktu má stejnou verzi. Lokální
+build má nepublikovatelnou baseline. Podrobnosti a příkazy jsou v
+[OTA návodu](../../docs/firmware-ota.md). Veřejné HTTPS, podpis a image byly
+ověřené; instalace/boot této verze na ESP zatím potvrzené nejsou.
+
 D159 opravuje skutečnou HTTPS výměnu device tokenu na ESP-IDF 6.1: bodyless
 POST používá výchozí prázdné tělo klienta a automatický `Content-Length: 0`.
 Volání `set_post_field("", 0)` bez Content-Type vracelo v tomto SDK
