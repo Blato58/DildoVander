@@ -1,6 +1,36 @@
 # Firmware AI kufru
 
-## Aktuální předání D163
+## Aktuální předání D164
+
+[PR161](https://github.com/Blato58/DildoVander/pull/161), merge
+`12efd65fa40d12cda2c6041e7590b10c600d772c`, opravil main stack overflow
+při načtení existující TLS identity: main task má 16 KiB místo 3584 B.
+[CI 37931935316](https://github.com/Blato58/DildoVander/actions/runs/37931935316)
+prošlo; run number 160 odvodilo development OTA **0.1.161**.
+[Publikace 37933188173](https://github.com/Blato58/DildoVander/actions/runs/37933188173)
+prošla: buildId `56413430197b8becdcaa03c19658a2f24dbf5360`, 1743920 B,
+SHA-256 `119c799fc6b31b96be891f9b5356483714d6e8ae14eb09748604f8deb5871c52`.
+Přesné veřejné ověření a předání vede
+[stav implementace](../docs/stav-implementace.md#předání-další-ai).
+
+Majitel výslovně povolil USB obnovu COM7 s vypnutým napájením pohonů.
+Na skutečné ESP32-S3 rev. 0.2 / N16R8 byl ověřen zápis pouze aplikace
+na `0x10000`; partition table odpovídala obrazu. Soukromá záloha partition/NVS/
+otadata má ACL pouze pro vlastníka; flasher NVS nesmazal ani nepřepsal.
+Po úmyslném normálním RTS restartu log potvrdil **0.1.161**, main stack
+16384 B / minimum remaining 12556 B, spuštění control loop, BLE advertising
+a místního TLS serveru přibližně za 19 s. Aktivní BLE scan na PC našel
+`KUFR_4B6048` s očekávaným service UUID; před obnovou se kvůli overflow
+verze **0.1.157** BLE nespustilo. Jde o USB obnovu a boot, nikoli novou OTA akceptaci.
+
+iOS zůstává **1.0 / build 1000.0.21** z
+[podpisu 37929159117](https://github.com/Blato58/DildoVander/actions/runs/37929159117)
+a [Safari publikace 37929535139](https://github.com/Blato58/DildoVander/actions/runs/37929535139).
+V D164 nebylo znovu podepsané ani publikované. Majitel potvrdil nové připojení
+v Ovládání na stejné Wi-Fi: „yes I am connected“. Dlouhodobé pinned WSS
+a Keychain po aktualizaci zůstávají otevřené.
+
+## Historické předání D163
 
 [PR159](https://github.com/Blato58/DildoVander/pull/159) opravil odmítnutí
 nabídky WebSocket extensions před upgradem. Server nabídku přijme bez výběru
@@ -10,12 +40,12 @@ prošlo a [publikace 37929155208](https://github.com/Blato58/DildoVander/actions
 zveřejnila development OTA **0.1.160**: buildId
 `9d067195927db3774ff5a6f84c739f48bd8298de`, 1743728 B, SHA-256
 `f02029d55ed02281492fee8a3f24e3bd7634b6ad254193ef3f20f554c52cb192`.
-Veřejný podpis, hash a embedded verze byly ověřené. Aktuální iOS je **1.0 / build 1000.0.21**,
+Veřejný podpis, hash a embedded verze byly ověřené. Tehdejší iOS bylo **1.0 / build 1000.0.21**,
 [podpis 37929159117](https://github.com/Blato58/DildoVander/actions/runs/37929159117)
 a [publikace 37929535139](https://github.com/Blato58/DildoVander/actions/runs/37929535139);
 veřejný manifest, IPA a checksum byly ověřené. Přesný rozsah ověření vede
 [stav implementace](../docs/stav-implementace.md#předání-další-ai).
-Instalace/boot této OTA a stabilní WSS na fyzické sestavě zatím nejsou potvrzené.
+Při předání D163 nebyly instalace/boot této OTA ani stabilní WSS na fyzické sestavě potvrzené.
 Majitel před opravou hlásil funkční scan/párování a přerušované Ovládání
 na stejné Wi-Fi; oprava zdroje tuto fyzickou akceptaci nenahrazuje.
 
@@ -31,9 +61,10 @@ Main task má 16 KiB stack i při opětovném načtení uložené TLS identity;
 první generování má samostatný worker. Malý starý generovaný sdkconfig
 odmítne compile-time guard. Po změně sdkconfig.defaults regenerujte SDK
 konfiguraci; startup log uvádí configured/minimum remaining bytes.
-D164 z COM7 doložilo main stack overflow verze0.1.157 před BLE startem.
-Build s větším stackem musí na desce potvrdit margin a stabilní restart
-se zachovanou identitou; samotná kompilace to neprokazuje.
+D164 z COM7 doložilo main stack overflow verze **0.1.157** před BLE startem.
+USB obnova na **0.1.161** a normální RTS restart následně potvrdily
+16384 B configured / 12556 B minimum remaining a spuštění BLE i TLS serveru.
+Majitel následně potvrdil připojení iPhonu; dlouhodobý provoz stále zbývá.
 `pair-local` na Security1/PoP ověřeném BLE vydá první místní token jen při
 prázdném pairing záznamu, uloží jeho hash a vrátí ID, `.local` host, SPKI
 SHA-256 a token do nativního iOS Keychain. Existující QR či token nezmění.
@@ -46,7 +77,7 @@ nový běh ji zvýší bez version-bump commitu. Root verifier ji odvodí nezáv
 před podpisem; rerun/publikace stejného artefaktu má stejnou verzi. Lokální
 build má nepublikovatelnou baseline. Podrobnosti a příkazy jsou v
 [OTA návodu](../../docs/firmware-ota.md). Veřejné HTTPS, podpis a image byly
-ověřené; instalace/boot této verze na ESP zatím potvrzené nejsou.
+ověřené; D164 později na COM7 doložilo boot **0.1.157** ukončený main stack overflow před BLE startem.
 
 D159 opravuje skutečnou HTTPS výměnu device tokenu na ESP-IDF 6.1: bodyless
 POST používá výchozí prázdné tělo klienta a automatický `Content-Length: 0`.

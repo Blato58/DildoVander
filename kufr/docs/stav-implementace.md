@@ -6,7 +6,7 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**D164 – 9. 10. 2026 – převzatá oprava boot loop na skutečném COM7.**
+**D164 – 9. 10. 2026 – opravený startup a fyzická obnova COM7 na0.1.161.**
 Majitel nedokáže ESP najít ani přes BLE a autorizoval debug přes COM7/PC Bluetooth.
 Windows potvrzuje CH343 USB UART COM7 a funkční Intel Bluetooth adaptér.
 Pasivní 115200 čtení bez resetu zachytilo opakovaný boot verze **0.1.157**,
@@ -29,11 +29,46 @@ TLS/pairing/PoP/Wi-Fi NVS, Keychain a hardware gates se nemění.
 Lokální `pio run -d kufr/firmware -e esp32-s3-idf -s` prošel; generated
 sdkconfig.h potvrzuje16384 B a canary1. `git diff --check` a nezávislé
 review prošly. UART ROM probe potvrdil ESP32-S3 rev0.2, flash16MB a PSRAM8MB.
-CI, publikace a fyzická obnova zůstávají otevřené; nahrání do desky
-vyžaduje samostatné oprávnění podle AGENTS.md. Nebyl proveden flash/erase.
-Další krok: ověřit build a schválený obraz, zachovat NVS/partition layout,
-po autorizovaném app-only uploadu měřit startup margin, BLE a WSS/restart.
-**D163 – 9. 10. 2026 – oprava místního připojení po BLE párování.**
+[PR161](https://github.com/Blato58/DildoVander/pull/161) je sloučený jako
+`12efd65fa40d12cda2c6041e7590b10c600d772c`; zdrojový commit
+`5286d6dc04b2e66cf364c4a09de73f469f49c3b0` byl pushnutý repo helperem.
+[CI37931935316](https://github.com/Blato58/DildoVander/actions/runs/37931935316)
+prošlo včetně host testů a všech firmware profilů. Codex review dokončené bez
+findings; reviews a inline byly po posledním push a těsně před merge znovu
+načtené. Tree `fda951953e72906ab5b1a5747094c44773459050` odpovídá main i obrazu.
+[OTA37933188173](https://github.com/Blato58/DildoVander/actions/runs/37933188173)
+publikovala development **0.1.161**, buildId
+`56413430197b8becdcaa03c19658a2f24dbf5360`, 1743920 B, SHA-256
+`119c799fc6b31b96be891f9b5356483714d6e8ae14eb09748604f8deb5871c52`.
+Nezávislé veřejné HTTPS stažení ověřilo ECDSA podpis, hash a embedded version;
+veřejný obraz se shoduje s obrazem skutečně nahraným přes USB.
+
+Majitel výslovně schválil „Flash COM7; actuator power is off“.
+Soukromá záloha partition/NVS/otadata má owner-only ACL mimo repo.
+Před zápisem byl ověřen shodný partition layout a skutečná revize desky.
+Esptool zapsal jen aplikaci na **0x10000**, ověřil hash a resetoval desku;
+NVS, otadata, partition table a bootloader nebyly přepsané ani vymazané.
+Normal boot s UART capture potvrzuje **0.1.161**, control loop, main stack
+**16384 B / minimum zbývajících12556 B**, BLE advertising a místní TLS server
+(start v18.918 s). Původní startup stack overflow se při tomto bootu neopakoval.
+PC aktivní BLE scan našel **KUFR_4B6048** se service UUID očekávaným iOS.
+Windows Bonjour objevil `_kufr._tcp`, host
+`kufr-820259579315c0916bbcc62999aa243a.local.` na443 a protocol1.
+LAN TLS WebSocket probe s extension offer bez credentialu vrátil očekávané
+**401 Unauthorized**; tento diagnostický probe neověřoval pin certifikátu ani
+nezakládal autentizované spojení. BLE scan neprovedl GATT pairing.
+
+Backend zůstal active/healthz ok, aplikace backendu nebyla přenasazená.
+Aktuální iOS zůstává **1.0 /1000.0.21** z D163; D164 ho znovu nepodepisovalo
+ani nepublikovalo. Zachování NVS doloží dostupné BLE/uložená Wi-Fi/TLS;
+Majitel následně odpověděl na výzvu k Síť kufru / Připojit uložený kufr
+v Ovládání na iOS1000.0.21: **„yes I am connected“**. Nové připojení telefonu
+je tím potvrzené; délka stabilního provozu ani Keychain po aktualizaci
+z této odpovědi nevyplývají.
+Další krok: ověřit dlouhodobé WSS, relaunch/aktualizaci aplikace a Keychain persistence.
+HW/E10 a skutečné pohony zůstávají otevřené; publikace ani PC probe je neuzavírají.
+
+**D163 – historické předání 9. 10. 2026 – oprava místního připojení po BLE párování.**
 Majitel potvrdil scan a párování; na stejné Wi-Fi v Ovládání hlásí
 „Spojení se kufrem bylo přerušeno“ a opakované připojování. Přesné instalované
 verze nejsou doložené. Zdroj odmítal každou nabídku WebSocket extensions
