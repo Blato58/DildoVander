@@ -1,5 +1,14 @@
 # Implementační plán AI kufru
 
+> **D160, 9. 10. 2026: uchování BLE PoP na žádost majitele.**
+> Po úspěšném Security1 ověření ukládá iOS PoP nativně do odděleného
+> Keychain pro konkrétní BLE název kufru, WhenUnlockedThisDeviceOnly,
+> bez synchronizace. Wi-Fi hesla se v telefonu neukládají. Nové ověření
+> nabídne použití uloženého PoP nebo zadání nového; uložený údaj se mění
+> až po úspěšném ověření. Dosavadní uživatelé jej uloží prvním novým
+> úspěšným spojením. BLE provisioning sítě nenahrazuje provisioning
+> místní TLS identity a párování nutných pro LAN/WSS discovery.
+
 > **D158, 9. 10. 2026: BLE síťové nastavení, hotspot a podepsané OTA.**
 > Výslovné zadání majitele rozšiřuje mobilní aplikaci o nativní CoreBluetooth
 > přes oficiální ESPProvision 3.2.0 a ESP-IDF protocomm Security1 s unikátním

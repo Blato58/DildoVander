@@ -73,3 +73,68 @@ test('unexpected native errors never echo SDK messages or secrets', () => {
   assert.doesNotMatch(errorMessage({ code: 'new_sdk_error', message: 'password=abc' }), /password|abc/);
   assert.match(errorMessage({ code: 'authentication_failed' }), /PoP/);
 });
+
+test('background refresh stays quiet and a tap waits for its BLE slot', async (context) => {
+  context.mock.timers.enable({ apis: ['setTimeout'] });
+  let finishPoll;
+  let mutations = 0;
+  const updates = [];
+  const client = new ProvisioningClient({
+    connect: async () => status,
+    status: () => new Promise(resolve => { finishPoll = resolve; }),
+    disconnect: async () => {},
+  }, (...event) => updates.push(event));
+  client.show(true);
+  await client.connect('KUFR_123456');
+  const beforePoll = updates.length;
+  context.mock.timers.tick(1000);
+  assert.equal(updates.length, beforePoll, 'polling must not disable controls');
+  const mutation = client.perform(async () => { mutations++; return status; });
+  assert.equal(mutations, 0, 'native requests remain serial');
+  finishPoll(status);
+  await mutation;
+  assert.equal(mutations, 1, 'tap is not discarded');
+  assert.equal(updates[beforePoll][2], false);
+  await client.disconnect();
+});
+
+test('a tap waiting on an old poll cannot mutate a reconnected suitcase', async (context) => {
+  context.mock.timers.enable({ apis: ['setTimeout'] });
+  let finishPoll;
+  let mutations = 0;
+  const client = new ProvisioningClient({
+    connect: async () => status,
+    status: () => new Promise(resolve => { finishPoll = resolve; }),
+    disconnect: async () => {},
+  }, () => {});
+  client.show(true);
+  await client.connect('KUFR_123456');
+  context.mock.timers.tick(1000);
+  const mutation = client.perform(async () => { mutations++; return status; });
+  await client.disconnect();
+  await client.connect('KUFR_654321');
+  finishPoll(status);
+  await mutation;
+  assert.equal(mutations, 0);
+  await client.disconnect();
+});
+
+test('selecting another suitcase during a refresh waits rather than losing the tap', async (context) => {
+  context.mock.timers.enable({ apis: ['setTimeout'] });
+  let finishPoll;
+  const connections = [];
+  const client = new ProvisioningClient({
+    connect: async ({ name }) => { connections.push(name); return status; },
+    status: () => new Promise(resolve => { finishPoll = resolve; }),
+    disconnect: async () => {},
+  }, () => {});
+  client.show(true);
+  await client.connect('KUFR_123456');
+  context.mock.timers.tick(1000);
+  const connecting = client.connect('KUFR_654321');
+  assert.equal(connections.length, 1);
+  finishPoll(status);
+  await connecting;
+  assert.deepEqual(connections, ['KUFR_123456', 'KUFR_654321']);
+  await client.disconnect();
+});
