@@ -141,6 +141,52 @@ enum LocalBlePairingCodec {
     }
 }
 
+// A route hint is never an identity: WSS still uses the stored token and SPKI pin.
+// Only the secured BLE plugin writes this main-queue, session-bound cache.
+enum LocalDeviceAddressHints {
+    private static var session: UUID?
+    private static var deviceId: String?
+    private static var address: String?
+    private static var receivedAt = Date.distantPast
+
+    static func begin(session: UUID) {
+        precondition(Thread.isMainThread)
+        self.session = session
+        deviceId = nil
+        address = nil
+    }
+
+    static func update(session: UUID, deviceId: String, address: String?, now: Date = Date()) -> Bool {
+        precondition(Thread.isMainThread)
+        guard self.session == session,
+              self.deviceId == nil || self.deviceId == deviceId else { return false }
+        self.deviceId = deviceId
+        self.address = LocalDeviceIdentity.validDeviceId(deviceId)
+            ? address.flatMap { ProvisioningStatusCodec.validIpv4($0) ? $0 : nil } : nil
+        receivedAt = now
+        return true
+    }
+
+    static func end(session: UUID) {
+        precondition(Thread.isMainThread)
+        guard self.session == session else { return }
+        self.session = nil
+        deviceId = nil
+        address = nil
+    }
+
+    static func host(deviceId: String, now: Date = Date()) -> String? {
+        precondition(Thread.isMainThread)
+        let age = now.timeIntervalSince(receivedAt)
+        guard session != nil, self.deviceId == deviceId, age >= 0, age <= 60 else { return nil }
+        return address
+    }
+
+    static func selectedHost(manual: String?, identity: LocalDeviceIdentity) -> String {
+        manual ?? host(deviceId: identity.deviceId) ?? identity.host
+    }
+}
+
 // Both native enrollment entry points run on the main queue. Reserve before
 // asking either device to consume a token, not only before Keychain insertion.
 enum LocalDeviceEnrollment {

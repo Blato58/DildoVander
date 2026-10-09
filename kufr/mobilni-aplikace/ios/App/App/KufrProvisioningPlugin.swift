@@ -32,6 +32,7 @@ public class KufrProvisioningPlugin: CAPPlugin, CAPBridgedPlugin, ESPDeviceConne
     private var connectionStarted = false
     private let proofKeychain = ProvisioningProofKeychain()
     private var connectedDeviceId: String?
+    private var addressSession: UUID?
     private let localKeychain = LocalDeviceKeychain()
     private var localEnrollmentPending = false
 
@@ -85,6 +86,9 @@ public class KufrProvisioningPlugin: CAPPlugin, CAPBridgedPlugin, ESPDeviceConne
             guard self.begin(call, seconds: 120) else { return }
             self.releaseDevice()
             self.device = selected
+            let session = UUID()
+            self.addressSession = session
+            LocalDeviceAddressHints.begin(session: session)
             // An unreadable item must not prevent entering a corrected proof.
             let savedProof = try? self.proofKeychain.read(deviceName: name)
             self.presentProofPrompt(selected: selected, call: call, savedProof: savedProof)
@@ -128,9 +132,11 @@ public class KufrProvisioningPlugin: CAPPlugin, CAPBridgedPlugin, ESPDeviceConne
             guard self.epoch == epoch else { return }
             guard pop.range(of: "^[a-f0-9]{32}$", options: .regularExpression) != nil else { self.close(code: "authentication_failed"); return }
             selected.proofOfPossession = pop
+            let addressSession = self.addressSession
             let observer = ProvisioningBLEObserver { [weak self, weak selected] in
                 DispatchQueue.main.async {
-                    guard let self, let selected, self.device === selected else { return }
+                    guard let self, let selected, self.device === selected,
+                          self.addressSession == addressSession else { return }
                     self.close(code: "disconnected")
                 }
             }
@@ -173,7 +179,7 @@ public class KufrProvisioningPlugin: CAPPlugin, CAPBridgedPlugin, ESPDeviceConne
             do {
                 if let saved = try self.localKeychain.read() {
                     guard saved.deviceId == deviceId else { self.fail("already_paired"); return }
-                    self.finish(["deviceId": saved.deviceId, "host": saved.host])
+                    self.finish(["deviceId": saved.deviceId, "host": LocalDeviceAddressHints.selectedHost(manual: nil, identity: saved)])
                     return
                 }
             } catch { self.fail("credential_unavailable"); return }
@@ -217,7 +223,7 @@ public class KufrProvisioningPlugin: CAPPlugin, CAPBridgedPlugin, ESPDeviceConne
                 do {
                     try self.localKeychain.insert(identity)
                     // Raw BLE token/pin stay native. JS receives public identity only.
-                    self.finish(["deviceId": identity.deviceId, "host": identity.host])
+                    self.finish(["deviceId": identity.deviceId, "host": LocalDeviceAddressHints.selectedHost(manual: nil, identity: identity)])
                 } catch { self.fail("local_credential_write_failed") }
             }
         }
@@ -372,7 +378,18 @@ public class KufrProvisioningPlugin: CAPPlugin, CAPBridgedPlugin, ESPDeviceConne
                     self.close(code: error == nil ? "invalid_response" : "disconnected")
                     return
                 }
-                self.connectedDeviceId = result["deviceId"] as? String
+                guard self.device === device, self.secure(device),
+                      let deviceId = result["deviceId"] as? String,
+                      self.connectedDeviceId == nil || self.connectedDeviceId == deviceId,
+                      let session = self.addressSession else {
+                    self.close(code: "invalid_response"); return
+                }
+                let network = result["network"] as? [String: Any]
+                guard LocalDeviceAddressHints.update(session: session, deviceId: deviceId,
+                                                     address: network?["ipv4"] as? String) else {
+                    self.close(code: "invalid_response"); return
+                }
+                self.connectedDeviceId = deviceId
                 self.finish(result)
             }
         }
@@ -420,6 +437,8 @@ public class KufrProvisioningPlugin: CAPPlugin, CAPBridgedPlugin, ESPDeviceConne
         connectionStarted = false
         device = nil
         connectedDeviceId = nil
+        if let session = addressSession { LocalDeviceAddressHints.end(session: session) }
+        addressSession = nil
         bleObserver = nil
         old?.bleDelegate = nil
         old?.delegate = nil

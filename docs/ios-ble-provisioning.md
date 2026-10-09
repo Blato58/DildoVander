@@ -1,5 +1,13 @@
 # iPhone BLE provisioning
 
+> D166: secured BLE status can include current STA IPv4 (`n.ip`). The iOS native
+> layer uses it for the paired device for up to 60 seconds while that BLE session
+> remains connected. Manual address selection takes precedence. The stored token
+> and certificate pin still authenticate WSS; the route is saved in Keychain only
+> after authenticated connection succeeds. Offline/missing/invalid IP and BLE
+> disconnect clear the hint. Bonjour failure remains visible; BLE can supply an
+> address independently. Hardware service/calibration gates remain unchanged.
+
 The existing Capacitor app is extended; its **Síť kufru** tab uses a native
 CoreBluetooth/ESPProvision 3.2.0 plugin. Safari/Web Bluetooth is not used.
 

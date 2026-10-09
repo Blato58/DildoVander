@@ -25,7 +25,7 @@ for name in ec256 ec384 rsa; do
 done
 swiftc -swift-version 5 -warnings-as-errors \
   ios/App/App/LocalDeviceIdentity.swift ios/App/App/LocalDeviceTransport.swift \
-  ios/App/App/LocalDeviceDiscovery.swift \
+  ios/App/App/LocalDeviceDiscovery.swift ios/App/App/ProvisioningStatusCodec.swift \
   tests/native_transport/main.swift -o "$test_directory/native-tests"
 node scripts/native-test-server.mjs "$test_directory" 49443 > "$test_directory/server.log" 2>&1 &
 server_pid="$!"
