@@ -63,6 +63,15 @@ a zůstal zachovaný; při push byl pouze v procesu helperu potlačen jeho
 untracked status. Po rebasi pět C++ sad i `pio run -s` znovu prošly.
 Před merge zbývá ověřit finální CI a znovu načíst GitHub reviews/inline vlákna.
 
+GitHub review155 našlo P1: starší provisionované backend ID může mít
+underscore/velká písmena; společný hostname helper odmítal takové ID i pro
+první TLS vytvoření. Hashování pro TLS nyní vyžaduje jen neprázdné ID do
+64 B, takže generuje bezpečný DNS label i pro `kufr_1`, `Kufr-001`, `1kufr`.
+Existující control-v1 gramatika se nerozšiřuje: tyto starší identity vyžadují
+servisní migraci pro iOS/LAN ovládání. Explicitní brána před BLE vydáním
+tokenu je odmítne bez spotřebování pairing záznamu. Regrese ověřuje obě
+hranice; nejde o prohlášení podpory staršího ID v control kontraktu.
+
 **9. 10. 2026 – rozměry nakoupených součástek: dokumentační rešerše.**
 Na žádost majitele je připravený [přehled všech 32 položek potvrzeného
 inventáře](../mechanika/rozmery-nakoupenych-soucastek.md), navíc objednané

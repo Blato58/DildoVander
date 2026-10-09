@@ -25,7 +25,7 @@ EspIdfLocalServiceAdvertisement::EspIdfLocalServiceAdvertisement(
     : station_(station), hasher_(hasher) {}
 
 bool EspIdfLocalServiceAdvertisement::Start(const std::string& deviceId) {
-  if (task_ != nullptr || !ValidDeviceId(deviceId)) {
+  if (task_ != nullptr || !SupportsLocalControl(deviceId)) {
     return false;
   }
   hostname_ = Hostname(deviceId, hasher_);
@@ -38,9 +38,16 @@ bool EspIdfLocalServiceAdvertisement::Start(const std::string& deviceId) {
   return true;
 }
 
+bool EspIdfLocalServiceAdvertisement::SupportsLocalControl(const std::string& deviceId) {
+  return ValidDeviceId(deviceId);
+}
+
 std::string EspIdfLocalServiceAdvertisement::Hostname(
     const std::string& deviceId, Sha256Port& hasher) {
-  if (!ValidDeviceId(deviceId)) { return ""; }
+  // This also names boot-generated TLS identities. Provisioned backend IDs
+  // predate the narrower control-v1 grammar (e.g. kufr_1). Only the digest is
+  // used in DNS/certificates; protocol validation stays at advertisement Start.
+  if (deviceId.empty() || deviceId.size() > DeviceIdentity::MaximumDeviceIdLength) { return ""; }
   std::array<uint8_t, 32> digest{};
   if (!hasher.Hash(reinterpret_cast<const uint8_t*>(deviceId.data()), deviceId.size(), digest)) {
     return "";
