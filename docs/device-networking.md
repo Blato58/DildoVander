@@ -8,7 +8,8 @@ Priority is hotspot, then configured fallback. Each connection attempt waits
 15 seconds for DHCP; failures use existing exponential backoff/jitter. Fallback
 is chosen after a failed preferred attempt. While on fallback, a preferred-network
 probe is limited to once per minute and admitted only during safe idle. A failed
-probe restores fallback. This is a bounded reconnect probe, not aggressive
+probe restores fallback. Successful explicit fallback configure/test and rollback
+start a fresh 60-second interval before the next preferred probe. This is a bounded reconnect probe, not aggressive
 continuous scanning; it temporarily interrupts an idle fallback connection.
 
 The owner reserves idle before changing the network. New manual leases, text,
@@ -34,8 +35,9 @@ power-cycle deliberately. The suitcase retains its configuration and offline
 manual safety rules. A changed cellular/WAN state can leave Wi-Fi connected while
 backend connectivity is false; inspect both statuses.
 
-Service initialization sets backend host, trusted time and device identity using
-the existing service boundaries. TLS validates hostname/certificate through the
+Service initialization sets backend host and device identity using the existing
+service boundaries. The runtime establishes trusted time after connectivity.
+TLS validates hostname/certificate through the
 CA bundle; wrong time or rejected identity stays offline, never `insecure`.
 Provider credentials exist only on the backend. [BLE instructions](ios-ble-provisioning.md)
 and [OTA instructions](firmware-ota.md) describe independent trust material.
