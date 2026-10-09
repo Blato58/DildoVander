@@ -32,6 +32,13 @@ PCB vůči šroubům a pozitivně řízený návrat proti přibrzdění. Opravy 
 součástí nového výsledku; staré exporty odstraněných dílů generátor uklízí
 jen podle vlastního předchozího manifestu.
 
+Review PR167 navíc odhalilo možnost přibalit starší obrázky, sestavy nebo
+reporty ponechané v exportním adresáři. Balení proto používá výslovný seznam
+aktuálních artefaktů a ověřených zdrojů; chybějící aktuální soubor je chyba.
+Manifest musí obsahovat přesně pět současných sestav. Regresní test vytvoří
+staré exporty a ověří skutečný ZIP bez nich. Místní ad hoc doklady a staré
+náhledy se do výrobního balíčku nepřebírají pouhým procházením adresáře.
+
 Finální kontrola zahrnuje také hlavu, pouzdro a matici válečku, zapuštěné
 matice servopáky a obě sousední přihrádky při všech 81 kontrolovaných polohách.
 Kontakt matice se sousedním LED páskem byl odstraněn přesunem LED na pravou

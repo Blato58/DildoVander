@@ -36,8 +36,12 @@ HTML prohlížeč je bajtově shodný s již ověřeným browser výsledkem.
 Cleanup commit `b06ea867bb96d691deeeae9eaede5c3c94ff364c` byl odeslán přes
 `scripts/Push-CurrentBranch.ps1`; read-back ověřil shodnou vzdálenou SHA.
 Předání a výsledek merge/review vede [PR167](https://github.com/Blato58/DildoVander/pull/167).
-Jeho automatické review v okamžiku tohoto záznamu ještě běží; merge vyžaduje
-jeho dokončení, kontrolu všech připomínek po posledním push a finální CI.
+Automatické review dokončené 9. 10. v 16:21 UTC odhalilo jeden P2 nález:
+ZIP mohl obsahovat staré výstupy. Balení nyní používá výslovný seznam
+aktuálních souborů a přesný inventář pěti sestav. Čtyři regresní testy
+včetně skutečného ZIP se záměrně ponechanými starými soubory prošly.
+Geometrie se opravou nemění; plná regenerace po opravě byla spuštěna.
+Před merge znovu načíst připomínky a ověřit CI posledního push.
 Tisk, osazení, moment serva, tření brzdy, proudy/teploty, akustika, FPC
 kamery a skutečné přenášení zůstávají neověřené. [Montážní návod](../mechanika/final/MONTÁŽ.md)
 vyžaduje nejprve měrku a jeden zatížený modul. E5/E6/B1/E13 se neuzavírají.

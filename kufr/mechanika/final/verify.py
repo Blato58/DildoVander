@@ -16,6 +16,7 @@ from check_fit import scene,collisions,overlaps
 import chassis
 import mechanism as mech
 import layout
+from artifacts import export_names
 
 
 def stl_check(path,reference):
@@ -62,6 +63,7 @@ def export_checks():
     manifest=json.loads((OUT/"manifest.json").read_text(encoding="utf-8"))
     # Added documentation/preview tools may change the source manifest: regenerate first.
     assert manifest["sources"]==source_hashes(),"Stale source manifest; run build.py again"
+    export_names(manifest)  # Require exactly the current assembly names, never an old manifest.
     results=[]
     for p in all_parts():
         s=print_position(p.shape,p.rotation)
