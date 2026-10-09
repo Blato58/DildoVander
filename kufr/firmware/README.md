@@ -1,5 +1,19 @@
 # Firmware AI kufru
 
+## Wi-Fi discovery a první BLE párování (D161)
+
+Zdravá prázdná lokální TLS identity při startu získá vlastní EC P-256 klíč
+a self-signed certifikát uložený atomicky v NVS. Existující či poškozená
+identity se automaticky nepřepisuje. Po Wi-Fi připojení spustí místní TLS
+server a Bonjour `_kufr._tcp:443` i před prvním spárováním; WSS řízení
+dál vyžaduje bearer token. Veřejné TXT nenese pin ani token.
+
+`pair-local` na Security1/PoP ověřeném BLE vydá první místní token jen při
+prázdném pairing záznamu, uloží jeho hash a vrátí ID, `.local` host, SPKI
+SHA-256 a token do nativního iOS Keychain. Existující QR či token nezmění.
+Ztracený token se nevydává znovu; obnova/rotace zůstává fyzickým servisem.
+Tato změna neprokazuje LAN TLS/Bonjour ani Keychain po aktualizaci na iPhonu.
+
 D159 opravuje skutečnou HTTPS výměnu device tokenu na ESP-IDF 6.1: bodyless
 POST používá výchozí prázdné tělo klienta a automatický `Content-Length: 0`.
 Volání `set_post_field("", 0)` bez Content-Type vracelo v tomto SDK

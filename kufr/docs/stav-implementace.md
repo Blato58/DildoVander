@@ -35,6 +35,72 @@ Nezávislé review vedlo k odstranění zbylých podmínek pro rozvržení u
 servo adaptéru, jističe a PH2 kabelu. Před sloučením se znovu načte
 GitHub review a dostupné CI podle AGENTS.md.
 
+**D161 – 9. 10. 2026 – Wi-Fi discovery a párování přes ověřené BLE.**
+Majitel požaduje nalezení ESP z iOS přes Wi-Fi a tlačítko, které po připojení
+ověřeného BLE spáruje místní ovládání bez dalšího opisování a uchová přístup
+v Keychain. Aktuální firmware spouští Bonjour jen se servisně provisionovanou
+lokální TLS identitou; D159 má lokální TLS/pairing prázdné, takže tato brána
+brání discovery. Rozsah: první vytvoření vlastní TLS identity na ESP,
+první autentizované BLE vydání lokálního tokenu, nativní Keychain a UI.
+Stávající identity/párování, PoP a fyzická obnova zůstávají zachované.
+Firmware vytváří pouze chybějící lokální EC P-256 TLS identitu při startu
+v oddělené 16KiB úloze a ukládá ji do NVS. Bonjour běží po připojení Wi-Fi
+a startu TLS serveru i před párováním. Nový `pair-local` na ověřeném
+Security1 vydá první token pouze pro chybějící pairing záznam. Mutex
+serializuje vydání/ověření; NVS drží jen hash. QR, spárované a poškozené
+záznamy se nepřepisují. Host je stejný deterministický `.local` název jako
+Bonjour. Žádný token/pin není v TXT ani běžné diagnostice.
+
+V Síť kufru je tlačítko **Spárovat ovládání přes Wi-Fi**. Nativní plugin
+ověří ID proti BLE stavu, pin/token vloží atomicky bez přepsání do stávajícího
+Keychain profilu a do webu vrátí jen veřejné ID/adresu. Ovládání obnoví
+uložený kufr; připojení je explicitní a začíná pozorováním. Společná nativní
+rezervace brání souběžnému QR/BLE spotřebování dvou tokenů. Ztracená
+odpověď ani selhání zápisu se neopakují; může být nutná servisní obnova.
+
+Ověření před integrací: Node 24.21.0 `npm test` v mobilní aplikaci **35/35**, `npm run build`
+prošel; první běh odhalil chybějící contracts `ajv`, po `npm ci --prefix
+kufr/contracts` prošel. In-app Browser ověřil syntetický BLE discovery,
+enable tlačítka po spojení, párování bez polí, obnovu uloženého ovládání
+a chybový stav. Layout kontrolován i na 393 × 852; žádné console warning/error
+v těchto scénářích. Syntetický bridge nemá skutečný Keychain/Bluetooth.
+
+Po začlenění aktuálního `main` (D160 PoP/quiet polling a PR154 dokumentace)
+prošlo **41/41** mobilních testů a TypeScript/Vite build; přidaný test
+ověřuje pairing tap během pollu, jedinou rezervaci a zachování generace.
+Pět hostitelských C++ sad bylo znovu sestaveno MSVC `/std:c++14 /W4 /WX`
+a spuštěno: pairing (včetně souběžného jediného vydání), TLS identity,
+BLE endpoint/limit/oddělená odpověď, Bonjour adapter a lokální TLS server
+(prázdné párování nezíská bearer přístup). Firmware `pio run` a finální
+`pio run -s` prošly. Nezávislé source review ověřilo protocomm Security1
+auth/decrypt před callbackem, synchronizaci a nativní bridge bez otevřeného
+materiálního nálezu; testy nepředstavují skutečnou desku.
+
+Nativní harness doplněn o BLE decoder, vazbu ID, chybné/oversized odpovědi,
+nepřepsání Keychain a rezervaci QR/BLE. Windows nemá Swift/Xcode: tento
+harness, nativní plugin a persistenci po aktualizaci zatím neověřil macOS
+ani iPhone. Nový firmware ani IPA nebyly nasazené. Další konkrétní krok:
+po vyžádaném podepsaném buildu a firmware publikaci ověřit na ESP/iPhonu
+Bonjour, párování přes BLE, pinned WSS, restart ESP, relaunch/aktualizaci
+aplikace a odmítnutí cizího pinu/tokenu. HW/E10 akceptace se neuzavírá.
+
+Git předání: integrovaný implementační commit
+`d571f7a726b67d0b7e3a2ba2dca03a25feafe26e` byl ověřeně pushnutý helperem
+na `codex/ble-wifi-pairing`; [PR155](https://github.com/Blato58/DildoVander/pull/155).
+Lokální necommitovaný `.codex/environments/environment.toml` je nesouvisející
+a zůstal zachovaný; při push byl pouze v procesu helperu potlačen jeho
+untracked status. Po rebasi pět C++ sad i `pio run -s` znovu prošly.
+Před merge zbývá ověřit finální CI a znovu načíst GitHub reviews/inline vlákna.
+
+GitHub review155 našlo P1: starší provisionované backend ID může mít
+underscore/velká písmena; společný hostname helper odmítal takové ID i pro
+první TLS vytvoření. Hashování pro TLS nyní vyžaduje jen neprázdné ID do
+64 B, takže generuje bezpečný DNS label i pro `kufr_1`, `Kufr-001`, `1kufr`.
+Existující control-v1 gramatika se nerozšiřuje: tyto starší identity vyžadují
+servisní migraci pro iOS/LAN ovládání. Explicitní brána před BLE vydáním
+tokenu je odmítne bez spotřebování pairing záznamu. Regrese ověřuje obě
+hranice; nejde o prohlášení podpory staršího ID v control kontraktu.
+
 **9. 10. 2026 – rozměry nakoupených součástek: dokumentační rešerše.**
 Historie PR154; požadavky na další měření níže byly nahrazené následným
 upřesněním majitele výše a nejsou aktuálními blokacemi rozvržení.

@@ -132,8 +132,7 @@ EspIdfLocalControlServer::~EspIdfLocalControlServer() { Stop(); }
 
 bool EspIdfLocalControlServer::Start() {
   if (server_ != nullptr || !identity_.IsHealthy() ||
-      !identity_.IsProvisioned() || !credential_.IsHealthy() ||
-      (!credential_.IsPaired() && !credential_.IsPairingReady())) {
+      !identity_.IsProvisioned() || !credential_.IsHealthy()) {
     return false;
   }
   // IDF 6.1's vendor macro omits the deprecated use_secure_element field.

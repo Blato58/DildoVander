@@ -62,7 +62,8 @@ const debugPanel = new DebugPanel(nativeMode, () => {
   connection?.stop();
 });
 controlPanel.after(debugPanel.element);
-const provisioningPanel = new ProvisioningPanel(nativeMode);
+let refreshNativePairing: (() => Promise<void>) | undefined;
+const provisioningPanel = new ProvisioningPanel(nativeMode, async () => { await refreshNativePairing?.(); });
 debugPanel.element.after(provisioningPanel.element);
 const tabs = document.createElement('nav');
 tabs.className = 'app-tabs';
@@ -345,7 +346,8 @@ async function initializeNativeAsync(): Promise<void> {
   settings.setAttribute('aria-label', 'Párování a místní připojení');
   settings.innerHTML = `
     <h2>Připojení ke kufru</h2>
-    <p>Údaje opište z QR uvnitř kufru. Tajemství zadáte až v nativním dialogu.</p>
+    <p>Pro párování bez opisování otevřete Síť kufru, ověřte BLE a zvolte Spárovat ovládání přes Wi-Fi.
+      Níže zůstává ruční párování podle servisního QR.</p>
     <button type="button" data-native="discover">Hledat kufr v síti (5 s)</button>
     <p>Telefon a kufr musí být ve stejné místní síti. Nalezené údaje jsou jen vodítko;
       identitu ověřuje otisk z QR. Bez nálezu zadejte IP nebo nastavte DHCP rezervaci v routeru.</p>
@@ -408,6 +410,7 @@ async function initializeNativeAsync(): Promise<void> {
     unavailable('Kufr je odpojený. Připojte jej výslovně tlačítkem.');
     update();
   };
+  refreshNativePairing = async () => { applySavedDevice(await nativeBridge.savedDevice()); };
   try { applySavedDevice(await nativeBridge.savedDevice()); }
   catch { status.textContent = 'Párování nelze přečíst. Odemkněte telefon; falešné ovládání se nezapne.'; }
   const performAsync = async (action: () => Promise<void>) => {

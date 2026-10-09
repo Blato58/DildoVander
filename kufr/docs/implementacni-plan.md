@@ -336,6 +336,26 @@ stub testy a build neprokazují reconnect/IP změny/TLS/aktuátory na desce.
 
 ### První nastavení
 
+**D161 – rozhodnutí majitele 9. 10. 2026:** po ověřeném BLE spojení má
+iPhone spárovat místní Wi-Fi ovládání jedním tlačítkem bez opisování adresy,
+otisku nebo dalšího tajemství. Jedinečný servisní PoP a Security1 zůstávají
+autoritou BLE; samotné nalezení zařízení nestačí. U zdravé, dosud prázdné
+lokální TLS identity firmware při startu vygeneruje samostatný EC klíč a
+self-signed certifikát a atomicky je uloží. Existující i poškozené záznamy
+se automaticky nepřepisují. Rotace a obnova zůstávají fyzickým servisem.
+TLS server a Bonjour mohou běžet před prvním párováním; řízení dál vyžaduje token.
+
+Šifrovaný `kufr-control` přijímá `{"v":1,"command":"pair-local"}`.
+Úspěšná odpověď do 512 B je přesně
+`{v:1,ok:true,id,host,spkiSha256,token}`; pin a token jsou 64 malých hex znaků.
+Firmware povolí pouze první vydání při chybějícím pairing záznamu,
+uloží jen hash tokenu a odmítne existující QR/párování. Nativní klient
+ověří ID proti ověřenému BLE stavu a vloží profil do nesynchronizovaného
+Keychain `WhenUnlockedThisDeviceOnly`, bez přepsání dřívějšího profilu.
+Do JavaScriptu vrátí jen ID/adresu. Stejný pin ověřuje následné HTTPS/WSS.
+Nejistý příkaz se neopakuje; ztráta odpovědi nebo Keychain zápisu po vydání
+tokenu vyžaduje servisní obnovu. Níže uvedený QR postup zůstává servisní alternativou.
+
 1. Při servisním uvedení do provozu vygenerovat pro každou desku samostatný TLS klíč/certifikát, `deviceId` a náhodné párovací tajemství alespoň 128 bitů. Generování/provisioning je budoucí lokální servisní krok, ne obsah firmware image. QR uvnitř kufru obsahuje `deviceId`, SHA-256 otisk veřejného klíče, jednorázové tajemství a údaje servisního AP. Privátní klíč neopouští servisní úložiště desky.
 2. Párovací AP povolit jen držením tlačítka během startu, nejvýše 120 s, s unikátním WPA2 heslem. Výstupy jsou během nastavení blokované. Nepoužívat běžné BOOT tlačítko jako návštěvnické PTT.
 3. Telefon přečte QR a přes nativní TLS adaptér ověří přesně očekávaný veřejný klíč. Self-signed identita není globální výjimka ověřování. Při odlišném klíči spojení odmítnout; mDNS/IP nejsou důvěryhodná identita.

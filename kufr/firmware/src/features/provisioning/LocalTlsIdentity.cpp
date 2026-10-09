@@ -96,8 +96,31 @@ bool LocalTlsIdentity::Provision(
     const uint8_t* privateKey, size_t privateKeyLength,
     const ServiceGate& gate) {
   if (!healthy_ || !gate.ServiceModeActive() ||
-      !gate.ActuatorSupplyDisconnected() ||
-      !IsBoundedPem(certificate, certificateLength,
+      !gate.ActuatorSupplyDisconnected()) {
+    return false;
+  }
+  return Store(certificate, certificateLength, privateKey, privateKeyLength);
+}
+
+bool LocalTlsIdentity::InitializeIfMissing(LocalTlsGenerator& generator) {
+  if (!healthy_) {
+    return false;
+  }
+  if (IsProvisioned()) {
+    return true;
+  }
+  std::vector<uint8_t> certificate;
+  std::vector<uint8_t> privateKey;
+  const bool initialized = generator.Generate(certificate, privateKey) &&
+      Store(certificate.data(), certificate.size(), privateKey.data(), privateKey.size());
+  Wipe(certificate);
+  Wipe(privateKey);
+  return initialized;
+}
+
+bool LocalTlsIdentity::Store(const uint8_t* certificate, size_t certificateLength,
+                             const uint8_t* privateKey, size_t privateKeyLength) {
+  if (!IsBoundedPem(certificate, certificateLength,
                     MaximumCertificatePemSize) ||
       !IsBoundedPem(privateKey, privateKeyLength, MaximumPrivateKeyPemSize)) {
     return false;

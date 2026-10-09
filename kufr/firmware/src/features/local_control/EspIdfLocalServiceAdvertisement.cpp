@@ -25,26 +25,41 @@ EspIdfLocalServiceAdvertisement::EspIdfLocalServiceAdvertisement(
     : station_(station), hasher_(hasher) {}
 
 bool EspIdfLocalServiceAdvertisement::Start(const std::string& deviceId) {
-  if (task_ != nullptr || !ValidDeviceId(deviceId)) {
+  if (task_ != nullptr || !SupportsLocalControl(deviceId)) {
     return false;
   }
-  std::array<uint8_t, 32> digest{};
-  if (!hasher_.Hash(reinterpret_cast<const uint8_t*>(deviceId.data()), deviceId.size(), digest)) {
-    return false;
-  }
+  hostname_ = Hostname(deviceId, hasher_);
+  if (hostname_.empty()) { return false; }
   deviceId_ = deviceId;
-  hostname_ = "kufr-";
-  constexpr char Hex[] = "0123456789abcdef";
-  // Public device ID hash gives a bounded DNS label even for 64-byte IDs.
-  for (size_t index = 0; index < 16; ++index) {
-    hostname_ += Hex[digest[index] >> 4];
-    hostname_ += Hex[digest[index] & 15];
-  }
   if (xTaskCreate(TaskEntry, "local_discovery", 4096, this, 3, &task_) != pdPASS) {
     task_ = nullptr;
     return false;
   }
   return true;
+}
+
+bool EspIdfLocalServiceAdvertisement::SupportsLocalControl(const std::string& deviceId) {
+  return ValidDeviceId(deviceId);
+}
+
+std::string EspIdfLocalServiceAdvertisement::Hostname(
+    const std::string& deviceId, Sha256Port& hasher) {
+  // This also names boot-generated TLS identities. Provisioned backend IDs
+  // predate the narrower control-v1 grammar (e.g. kufr_1). Only the digest is
+  // used in DNS/certificates; protocol validation stays at advertisement Start.
+  if (deviceId.empty() || deviceId.size() > DeviceIdentity::MaximumDeviceIdLength) { return ""; }
+  std::array<uint8_t, 32> digest{};
+  if (!hasher.Hash(reinterpret_cast<const uint8_t*>(deviceId.data()), deviceId.size(), digest)) {
+    return "";
+  }
+  std::string hostname = "kufr-";
+  constexpr char Hex[] = "0123456789abcdef";
+  // Public device ID hash gives a bounded DNS label even for 64-byte IDs.
+  for (size_t index = 0; index < 16; ++index) {
+    hostname += Hex[digest[index] >> 4];
+    hostname += Hex[digest[index] & 15];
+  }
+  return hostname;
 }
 
 void EspIdfLocalServiceAdvertisement::TaskEntry(void* context) {

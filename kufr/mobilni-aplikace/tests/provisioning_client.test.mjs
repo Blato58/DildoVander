@@ -172,3 +172,77 @@ test('the first queued tap keeps controls busy until completion and disconnect c
   await stale;
   await client.disconnect();
 });
+
+test('one-button pairing serializes polling and refreshes saved controls', async (context) => {
+  context.mock.timers.enable({ apis: ['setTimeout'] });
+  let polls = 0;
+  let pairs = 0;
+  let refreshed = 0;
+  let complete;
+  const updates = [];
+  const client = new ProvisioningClient({ connect: async () => status, status: async () => { polls++; return status; },
+    pairLocal: () => { pairs++; return new Promise(resolve => { complete = resolve; }); }, disconnect: async () => {} },
+  (...event) => updates.push(event));
+  client.show(true);
+  await client.connect('KUFR_123456');
+  const pairing = client.pairLocal(async () => { refreshed++; });
+  await client.pairLocal(async () => { refreshed++; });
+  context.mock.timers.tick(5000); await flush();
+  assert.equal(polls, 0);
+  assert.equal(pairs, 1);
+  complete({ deviceId: 'kufr-1', host: 'kufr.local' });
+  await pairing;
+  assert.equal(refreshed, 1);
+  assert.equal(updates.at(-1)[0], status);
+  assert.match(updates.at(-1)[1], /Keychain/);
+  context.mock.timers.tick(1000); await flush();
+  assert.equal(polls, 1);
+});
+
+test('late BLE pairing after disconnect cannot refresh a different device', async () => {
+  let complete;
+  let refreshed = 0;
+  const client = new ProvisioningClient({ connect: async () => status,
+    pairLocal: () => new Promise(resolve => { complete = resolve; }), disconnect: async () => {} }, () => {});
+  await client.connect('KUFR_123456');
+  const pairing = client.pairLocal(async () => { refreshed++; });
+  await client.disconnect();
+  complete({ deviceId: 'old-kufr', host: 'old.local' });
+  await pairing;
+  assert.equal(refreshed, 0);
+});
+
+test('lost pairing response is never replayed or exposed as SDK text', async () => {
+  let pairs = 0;
+  const updates = [];
+  const client = new ProvisioningClient({ connect: async () => status, pairLocal: async () => {
+    pairs++; throw { code: 'timeout', message: 'token=private' };
+  } }, (...event) => updates.push(event));
+  await client.connect('KUFR_123456');
+  await client.pairLocal(async () => { throw new Error('must not refresh'); });
+  assert.equal(pairs, 1);
+  assert.match(updates.at(-1)[1], /nejistý/);
+  assert.doesNotMatch(updates.at(-1)[1], /private|token=/);
+});
+
+test('pairing tap during a quiet poll reserves one action and waits for its BLE slot', async (context) => {
+  context.mock.timers.enable({ apis: ['setTimeout'] });
+  let finishPoll;
+  let pairs = 0;
+  let refreshed = 0;
+  const client = new ProvisioningClient({ connect: async () => status,
+    status: () => new Promise(resolve => { finishPoll = resolve; }),
+    pairLocal: async () => { pairs++; return { deviceId: 'kufr-1', host: 'kufr.local' }; },
+    disconnect: async () => {} }, () => {});
+  client.show(true);
+  await client.connect('KUFR_123456');
+  context.mock.timers.tick(1000);
+  const pairing = client.pairLocal(async () => { refreshed++; });
+  await client.pairLocal(async () => { refreshed++; });
+  assert.equal(pairs, 0);
+  finishPoll(status);
+  await pairing;
+  assert.equal(pairs, 1);
+  assert.equal(refreshed, 1);
+  await client.disconnect();
+});
