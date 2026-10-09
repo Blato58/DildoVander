@@ -31,6 +31,14 @@ prázdnou plochou zůstávají funkční. Dva Node regresní testy skutečných
 handlerů (`node --test test_viewer.cjs`) a browser přechod od PCA přes
 plochu do karty/změny barvy prošly. Testovací GPU není důkaz renderování;
 browser ověření používá skutečný WebGL. Nezávislé review opravy prošlo.
+Další PR review doplnilo oddělení souběžných napájecích, signálových a
+zemních spojů do samostatných křivek, včetně shodných promítnutých středů.
+Třetí Node regresní test prošel pro dvou- i čtyřvazbový svazek.
+`Regenerate.ps1` nyní před CAD/balením spouští kontrolu syntaxe JS i
+všechny tři Node testy. Skutečný skript byl ověřen v izolované fixture:
+správné JS pokračuje do navazujících testovacích kroků, chybná syntaxe
+i selhávající Node test každý zastaví práci před Python/CAD. Toto
+ověření řídicího skriptu není novým geometrickým ověřením balíčku.
 V tomto slice se regeneruje pouze
 `exports/viewer.html`; starší geometrické reporty a celý ZIP tím nejsou
 znovu ověřené. Další krok: používat Inspect při prohlídce; fyzická

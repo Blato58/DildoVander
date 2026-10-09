@@ -22,7 +22,7 @@ class Element {
   setPointerCapture() {}
 }
 
-function viewer() {
+function viewer(connections = []) {
   const elements = new Map(), frames = [];
   const get = id => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); };
   get('lid').value = '105'; get('lift').value = '0';
@@ -52,7 +52,7 @@ function viewer() {
   };
   const context = {
     document, window:{addEventListener() {}}, devicePixelRatio:1,
-    model:{meshes,connections:[],sources:[],hinge:[0,0,0],mechanism:{dwell_degrees:10,travel_degrees:160,lift:16}},
+    model:{meshes,connections,sources:[],hinge:[0,0,0],mechanism:{dwell_degrees:10,travel_degrees:160,lift:16}},
     localStorage:{getItem:() => null,setItem() {}},
     Option:class {constructor(text,value) {this.textContent = text; this.value = value;}},
     requestAnimationFrame:callback => frames.push(callback),
@@ -86,4 +86,23 @@ test('empty-space inspection shows all names while retaining the pinned card', (
   assert.deepEqual(app.get('names').children.map(node=>node.textContent).sort(),['esp32','pca9685']);
   app.hover(2); app.click();
   assert.equal(app.get('mesh-id').textContent,'esp32');
+});
+
+test('parallel power, I2C, OE and ground remain separate visible paths', () => {
+  for (const count of [2,4]) {
+    const connections = ['power','signal','signal','ground'].slice(0,count).map((kind,index) => ({
+      from:'esp32',to:'pca9685',kind,label:['3V3','I2C','OE','GND'][index],note:'test',
+    }));
+    const app = viewer(connections);
+    app.hover(1); app.click();
+    const paths = app.get('overlay').children.filter(node=>node.attributes.d);
+    assert.equal(paths.length,count);
+    assert.equal(new Set(paths.map(node=>node.attributes.d)).size,count);
+    assert.equal(new Set(paths.map(node=>node.attributes.stroke)).size,count===4 ? 3 : 2);
+    for (const node of paths) {
+      const values = node.attributes.d.split(' ');
+      assert.ok(Math.hypot(+values[4]-values[1],+values[5]-values[2])>1,'Coincident endpoints still need a visible curve');
+    }
+    assert.equal(app.get('connections').children.length,count);
+  }
 });
