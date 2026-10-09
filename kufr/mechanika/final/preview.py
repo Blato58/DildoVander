@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import math
+import argparse
 import vtk
 import numpy as np
 
@@ -11,6 +12,7 @@ from build import OUT
 from check_fit import scene
 import mechanism
 import chassis
+import inspect_data
 
 
 def mesh(shape):
@@ -82,8 +84,10 @@ def render(items,path,title,camera,target,parallel=300):
 
 
 def viewer():
+    inspect_data.snapshot_sources()
     meshes=[]
-    for item in scene(lid=0):
+    items=scene(lid=0)
+    for item in items:
         vertices,faces=mesh(item.shape)
         # Flat normals make the actual printed facets and clearances legible.
         packed=[]
@@ -97,10 +101,18 @@ def viewer():
             n/=length
             for p in tri:
                 packed.extend([*p,*n])
-        meshes.append({"name":item.name,"group":item.group,"color":COLORS[item.color],"data":[round(float(x),4) for x in packed]})
+        meshes.append({"name":item.name,"group":item.group,"color":COLORS[item.color],
+                       "bounds":[round(v,4) for v in bounds(item.shape)],
+                       "info":inspect_data.describe(item),
+                       "data":[round(float(x),4) for x in packed]})
     template=(ROOT/"viewer-template.html").read_text(encoding="utf-8")
-    payload={"meshes":meshes,"hinge":chassis.HINGE,"mechanism":mechanism.M}
-    (OUT/"viewer.html").write_text(template.replace("__MODEL_DATA__",json.dumps(payload,separators=(",",":"))),encoding="utf-8")
+    payload={"meshes":meshes,"hinge":chassis.HINGE,"mechanism":mechanism.M,
+             "connections":inspect_data.connection_data({i.name for i in items}),
+             "sources":inspect_data.source_evidence()}
+    OUT.mkdir(parents=True,exist_ok=True)
+    script=(ROOT/"viewer.js").read_text(encoding="utf-8")
+    html=template.replace("__VIEWER_SCRIPT__",script).replace("__MODEL_DATA__",json.dumps(payload,separators=(",",":")))
+    (OUT/"viewer.html").write_text(html,encoding="utf-8")
 
 
 def main():
@@ -122,4 +134,11 @@ def main():
 
 
 if __name__=="__main__":
-    main()
+    parser=argparse.ArgumentParser(description="Render F1 CAD previews or regenerate only the offline viewer.")
+    parser.add_argument("--viewer-only",action="store_true",help="Skip PNG rendering and regenerate exports/viewer.html only")
+    args=parser.parse_args()
+    if args.viewer_only:
+        viewer()
+        print("Standalone viewer written",flush=True)
+    else:
+        main()

@@ -1,5 +1,36 @@
 # Předání F1 – 9. 10. 2026
 
+## Doplnění prohlížeče: Inspect
+
+Navazující softwarový slice přidává inspektor viditelné geometrie při
+držení Shiftu, názvy dílů nad prázdnou plochou, připnutí karty a volbu barvy
+s místním trvalým uložením. Kabelové vazby používají potvrzené zapojení;
+rozměry a neznámé údaje vycházejí z rozměrového Markdown podkladu.
+Tištěná geometrie ani elektrické zapojení se nemění.
+
+Zdroje: `viewer-template.html`, nový `viewer.js` a `inspect_data.py`,
+`preview.py`, `build.py`, `Regenerate.ps1`, nové testy a ověřená kopie
+podkladů v `reference/inspect-sources.json`. Popisy jsou přiřazené všem
+232 objektům; náhled obsahuje 92 dokumentovaných logických vazeb.
+Přesné konektory,
+kabelové délky a síťové přiřazení konkrétních ID svorek nejsou domyšlené.
+
+Ověření 9. 10. 2026: `node --check viewer.js`, 20/20 testů metadat a
+balení, `preview.py --viewer-only` a tentýž generátor v izolované kopii
+zdrojů bez externích Markdown souborů prošly. Browser přes localhost
+v oknech 611 × 764 a 1280 × 900: skutečný výběr PCA, Shift nad prázdnou
+plochou, propojení, výběr seznamem, zdvih 16 mm, skryté vrstvy a obnovení
+barvy po zavření/znovuotevření stránky; konzole bez chyb. Přímý test
+`file://` odmítla bezpečnostní politika nástroje. Nezávislé review opravilo
+chybějící podklady ve vybaleném balíčku a popisy výstelky/kování;
+finální review nemá otevřený nález. Doručení uvádí globální stav.
+V tomto slice se regeneruje pouze
+`exports/viewer.html`; starší geometrické reporty a celý ZIP tím nejsou
+znovu ověřené. Další krok: používat Inspect při prohlídce; fyzická
+akceptace prvního mechanismu zůstává podle původního předání níže.
+
+## Původní mechanické předání
+
 Aktuální mechanický návrh je v `kufr/mechanika/final/`. Následný požadavek
 majitele na úklid odstranil z verzovaných souborů předchozí generátory,
 modely a návody; potvrzené rozměrové podklady zůstaly zachované.
