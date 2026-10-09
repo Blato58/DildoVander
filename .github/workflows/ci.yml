@@ -2,6 +2,7 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, reopened, synchronize, edited, ready_for_review]
     branches: [main]
     paths:
       - '.github/**'
@@ -27,13 +28,23 @@ on:
         type: choice
         default: all
         options: [all, repository, backend, firmware, web, ai-eval]
+      pr_number:
+        description: Internal synchronized PR number (empty for recovery builds)
+        type: string
+      expected_head_sha:
+        description: Internal synchronized PR head SHA
+        type: string
+      expected_base_sha:
+        description: Internal synchronized target SHA
+        type: string
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-${{ github.event.pull_request.number || inputs.pr_number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || inputs.pr_number != '' }}
 
 jobs:
   changes:
@@ -51,15 +62,39 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+      - name: Reject stale PR builds before selecting projects
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha || inputs.expected_head_sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha || inputs.expected_base_sha }}
+        with:
+          script: |
+            if (!process.env.PR_NUMBER && !process.env.PR_HEAD && !process.env.PR_BASE) {
+              if (context.ref !== 'refs/heads/main') throw new Error('Recovery builds must use main');
+              return;
+            }
+            if (context.eventName === 'workflow_dispatch' && context.sha !== process.env.PR_HEAD) {
+              throw new Error('Dispatch branch changed before CI started');
+            }
+            const current = await require('./scripts/ci/pr-freshness.cjs').check({ github, context }, {
+              number: process.env.PR_NUMBER, head: process.env.PR_HEAD, base: process.env.PR_BASE,
+            });
+            if (context.eventName === 'workflow_dispatch'
+                && (context.ref !== `refs/heads/${current.pr.head.ref}`
+                    || current.pr.head.repo?.full_name !== `${context.repo.owner}/${context.repo.repo}`)) {
+              throw new Error('Dispatch must build the same-repository PR branch');
+            }
       - name: Select builds from the complete PR diff
         id: projects
         env:
           CI_EVENT_NAME: ${{ github.event_name }}
-          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.expected_base_sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha || inputs.expected_head_sha }}
+          CI_PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
           CI_PROJECT: ${{ inputs.project || 'all' }}
         run: |
-          if [ "$CI_EVENT_NAME" = workflow_dispatch ]; then
+          if [ "$CI_EVENT_NAME" = workflow_dispatch ] && [ -z "$CI_PR_NUMBER" ]; then
             python3 scripts/ci/select_projects.py select --project "$CI_PROJECT"
           else
             python3 scripts/ci/select_projects.py select --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
@@ -90,7 +125,7 @@ jobs:
         run: |
           "$RUNNER_TEMP/actionlint" -shellcheck= -pyflakes=
       - name: Test artifact provenance and promotion guards
-        run: node --test scripts/ci/verify-build.test.cjs
+        run: node --test scripts/ci/*.test.cjs
       - name: Test artifact integrity and safe extraction
         run: python3 -m unittest discover -s scripts/ci -p 'test_*.py'
       - name: Check whitespace
