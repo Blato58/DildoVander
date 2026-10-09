@@ -80,7 +80,7 @@ internal static class CostumeImageEndpoints
 
     internal static async Task<byte[]?> ReadBodyAsync(HttpContext context, int maximum, TimeSpan? timeout = null)
     {
-        if (context.Request.ContentLength > maximum) { return null; }
+        if (context.Request.ContentLength > maximum) { CloseRejectedBody(context); return null; }
         var feature = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
         if (feature is { IsReadOnly: false }) { feature.MaxRequestBodySize = maximum; }
         using var memory = new MemoryStream(maximum);
@@ -93,15 +93,26 @@ internal static class CostumeImageEndpoints
             {
                 var count = await context.Request.Body.ReadAsync(buffer, deadline.Token);
                 if (count == 0) { return memory.ToArray(); }
-                if (memory.Length + count > maximum) { return null; }
+                if (memory.Length + count > maximum) { CloseRejectedBody(context); return null; }
                 memory.Write(buffer, 0, count);
             }
         }
-        catch (BadHttpRequestException exception) when (exception.StatusCode == 413) { return null; }
+        catch (BadHttpRequestException exception) when (exception.StatusCode == 413)
+        { CloseRejectedBody(context); return null; }
         finally
         {
             CryptographicOperations.ZeroMemory(buffer);
             if (memory.TryGetBuffer(out var bytes)) { CryptographicOperations.ZeroMemory(bytes.AsSpan()); }
+        }
+    }
+
+    private static void CloseRejectedBody(HttpContext context)
+    {
+        // Kestrel may close HTTP/1 while draining an unread oversized body after
+        // flushing the 413. Tell pooled clients before they reuse that socket.
+        if (context.Request.Protocol is "HTTP/1.0" or "HTTP/1.1")
+        {
+            context.Response.Headers.Connection = "close";
         }
     }
 }

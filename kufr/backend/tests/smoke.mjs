@@ -185,7 +185,7 @@ async function imageRequest(id, token, headers, jpeg = costumeJpeg, correction =
     body: correction === null ? jpeg : JSON.stringify({ description: correction })
   });
   assert.equal(response.headers.get('cache-control'), 'no-store');
-  return { status: response.status, result: await response.json() };
+  return { status: response.status, result: await response.json(), connection: response.headers.get('connection') };
 }
 
 startServer();
@@ -390,7 +390,12 @@ try {
   assert.equal((await imageRequest(created.result.conversationId, tokenA,
     { ...imageHeaders, 'Boot-Id': body.bootId, Generation: String(body.generation), 'Catalog-Version': body.catalogVersion })).status, 403);
   assert.equal((await imageRequest(imageId, virtualToken, imageHeaders, Buffer.from('invalid'))).status, 400);
-  assert.equal((await imageRequest(imageId, virtualToken, imageHeaders, Buffer.alloc(262145))).status, 413);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const oversizedImage = await imageRequest(imageId, virtualToken, imageHeaders, Buffer.alloc(262145));
+    assert.equal(oversizedImage.status, 413);
+    assert.equal(oversizedImage.connection, 'close', 'rejected unread image must not advertise reusable HTTP/1 socket');
+    assert.equal((await imageRequest(imageId, virtualToken, imageHeaders, Buffer.from('invalid'))).status, 400);
+  }
   const jpegMetadata = Buffer.from(costumeJpeg); jpegMetadata[3] = 0xe1;
   assert.equal((await imageRequest(imageId, virtualToken, imageHeaders, jpegMetadata)).status, 400);
   const imageAccepted = await imageRequest(imageId, virtualToken, imageHeaders);

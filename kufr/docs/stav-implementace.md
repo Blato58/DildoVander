@@ -45,6 +45,17 @@ Parent znovu ověřil maintenance owner MSVC test, backend build (0 warnings,
 Linux CI a nativní macOS podpis/publikace čekají Git předání; jejich skutečný
 výsledek bude doplněn po provedení.
 
+Git předání: implementační commit `c2ab3cf`, synchronizace dokumentačního
+`main` jako `ade0e32`, scoped push helper ověřil remote; PR144 je otevřený.
+CI37885094519 prošlo web/repository/.NET build+celý runner, ale odhalilo GCC
+range-loop warning v SD testu (opraveno) a socket reuse při starším image413.
+Oprava explicitně zavírá HTTP/1 spojení u nepřečteného oversized těla, nemění
+limity a nepřidává forbidden Connection na HTTP2. Nové regrese a lokální
+HTTP smoke včetně tří po sobě jdoucích rejection/next-request prošly.
+Publisher podporuje všechny tři skutečně existující runner temp kořeny a
+otvírá jejich celý řetězec přes no-follow directory handles. Na VPS jsou
+pouze soukromé backupy a staged source; release služby se zatím neměnil.
+
 Široký deployment Python discovery na Windows narazil na již existující
 Linux `os.getuid`/POSIX práva a Windows cestu/SQLite cleanup v memory suite;
 nejde o změnu provisioning systému. Cílený deploy-helper a Linux CI jsou

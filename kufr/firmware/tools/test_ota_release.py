@@ -74,6 +74,31 @@ class ReleaseTests(unittest.TestCase):
         with self.image.open('rb') as stream, self.assertRaises(ValueError):
             publisher.snapshot_descriptor(stream.fileno())
 
+    def test_publisher_accepts_only_approved_runner_roots(self):
+        path = Path(__file__).resolve().parents[2] / 'backend' / 'deploy' / 'firmware-publish.py'
+        specification = importlib.util.spec_from_file_location('publisher_roots', path)
+        publisher = importlib.util.module_from_spec(specification)
+        specification.loader.exec_module(publisher)
+        roots = (self.root / 'runner-main', self.root / 'runner-second')
+        publisher.RUNNER_TEMPS = roots
+        for root in roots:
+            root.mkdir()
+            image = root / 'firmware.bin'
+            image.write_bytes(self.image.read_bytes())
+            self.assertEqual(publisher.source_path(image), image)
+            if os.name == 'posix':
+                self.assertEqual(publisher.read_source(image), self.image.read_bytes())
+        with self.assertRaises(ValueError):
+            publisher.source_path(self.image)
+        if os.name == 'posix':
+            linked = self.root / 'linked-root'
+            linked.symlink_to(roots[1], target_is_directory=True)
+            publisher.RUNNER_TEMPS = (linked,)
+            with self.assertRaises(ValueError):
+                publisher.source_path(linked / 'firmware.bin')
+            with self.assertRaises(OSError):
+                publisher.open_directory(linked)
+
 
 if __name__ == '__main__':
     unittest.main()

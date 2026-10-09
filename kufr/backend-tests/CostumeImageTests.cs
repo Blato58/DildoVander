@@ -33,6 +33,22 @@ internal static class CostumeImageTests
         try { await CostumeImageEndpoints.ReadBodyAsync(timeoutContext, 100, TimeSpan.FromMilliseconds(20)); }
         catch (OperationCanceledException) { timedOut = true; }
         Check(timedOut && stalled.Buffer.Span.IndexOfAnyExcept((byte)0) < 0, "stalled upload expires and clears owned buffer");
+        var rejected = new DefaultHttpContext();
+        rejected.Request.Protocol = "HTTP/1.1";
+        rejected.Request.ContentLength = 101;
+        rejected.Request.Body = new MemoryStream(new byte[101]);
+        Check(await CostumeImageEndpoints.ReadBodyAsync(rejected, 100) is null
+            && rejected.Request.Body.Position == 0 && rejected.Response.Headers.Connection == "close",
+            "declared oversized HTTP/1 body is bounded and explicitly closes connection");
+        var chunked = new DefaultHttpContext();
+        chunked.Request.Protocol = "HTTP/1.1";
+        chunked.Request.Body = new MemoryStream(new byte[101]);
+        Check(await CostumeImageEndpoints.ReadBodyAsync(chunked, 100) is null
+            && chunked.Response.Headers.Connection == "close", "chunked overflow closes HTTP/1 connection");
+        rejected.Request.Protocol = "HTTP/2";
+        rejected.Response.Headers.Connection = default;
+        Check(await CostumeImageEndpoints.ReadBodyAsync(rejected, 100) is null
+            && !rejected.Response.Headers.ContainsKey("Connection"), "HTTP/2 has no forbidden connection header");
         await StoreAsync();
         await ClearCostumeAsync();
         await ImageCloseBarrierAsync();
