@@ -296,3 +296,22 @@ test('route refresh reports pending BLE connection/action instead of silently us
   assert.equal(await client.refreshLocalAddress(), true);
   assert.equal(reads, 1);
 });
+
+
+test('hidden-panel native BLE loss clears stale client state and allows the next saved-route tap', async (context) => {
+  context.mock.timers.enable({ apis: ['setTimeout'] });
+  let reads = 0;
+  const client = new ProvisioningClient({ connect: async () => status,
+    status: async () => { reads++; throw { code: 'disconnected' }; }, disconnect: async () => {} }, () => {});
+  client.show(true);
+  await client.connect('KUFR_123456');
+  client.show(false);
+  assert.equal(await client.refreshLocalAddress(), false);
+  assert.equal(reads, 1);
+  assert.equal(await client.refreshLocalAddress(), true);
+  assert.equal(reads, 1);
+  client.show(true);
+  context.mock.timers.tick(5000);
+  await flush();
+  assert.equal(reads, 1);
+});

@@ -29,10 +29,14 @@ mezi savedDevice a async socket bridge: veřejný host/deviceId snapshot se nyn�
 kopíruje při vytvoření socketu před listener await a cestuje s pokusem. Native
 connect odmítá partial/invalid/mismatched target, stále znovu čte pin/token z
 Keychain a route zapisuje pouze po auth onOpen. Regrese ověřuje listener delay,
-mutaci původní route a native snapshot po BLE end.
+mutaci původní route a native snapshot po BLE end. GitHub P2 stale BLE state
+po ztrátě session ve skrytém panelu je opravené: failed refresh pro aktuální
+generaci vymaže logical connected/lastStatus a polling; další explicitní tap
+může použít uloženou/ruční route bez opakování mrtvé BLE session. Regrese ověřuje
+první odmítnutý refresh, druhý uložený-route tap a žádné obnovené polling requesty.
 
 Ověřeno: dvě MSVC station suites (worker /std:c++14 /W4 /WX), pět parent host
-suites pairing/TLS/BLE/discovery/WSS, 49 mobile tests, npm run build a
+suites pairing/TLS/BLE/discovery/WSS, 50 mobile tests, npm run build a
 pio run -e esp32-s3-idf -s, vše exit0. Native helper/status regressions jsou
 připravené pro existující macOS workflow; Windows je nespustil. Nezávislé native
 review odhalilo a následně ověřilo opravený legacy ID regression; kombinované
