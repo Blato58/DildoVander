@@ -1,5 +1,16 @@
 # Backend kufru (E7)
 
+## Podepsaná firmware distribuce (D158)
+
+Veřejné read-only `GET /v1/firmware/manifests/{channel}.json` a
+`GET /v1/firmware/artifacts/{sha256}.bin` nevyžadují device token. Autoritu
+určuje P-256 podpis provisionovaný na ESP, nikoli samotný checksum.
+`Backend:Firmware:Directory` je absolutní admin-owned adresář; neplatná
+konfigurace/release vrací 404. Shared concurrency limit 4, queue 0, 429.
+Root-only publikace ověřeného CI artefaktu udržuje podpisové klíče mimo
+runner/source/image. [Kontrakt a přesný deployment](../../docs/firmware-ota.md).
+
+
 ## Volitelná fotografie kostýmu a rozpočet (9. 10. 2026)
 
 `POST /v1/conversations/{id}/image` přijme jednu vědomě aktivovanou,

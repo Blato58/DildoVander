@@ -7,6 +7,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 
 // Paid provider diagnostic is explicit and never part of normal offline CI.
+if (args is ["--firmware"]) { FirmwareReleaseTests.Run(); return; }
 if (args is ["--gpt-live-smoke"])
 {
     Environment.ExitCode = await GptLiveSmoke.RunAsync();
@@ -20,6 +21,7 @@ if (args is ["--autonomous-memory"])
 }
 
 if (args is ["--image"]) { await CostumeImageTests.RunAsync(); return; }
+FirmwareReleaseTests.Run();
 await CostumeImageTests.RunAsync();
 await RealtimeTests.RunAsync();
 await GptLiveTests.RunAsync();

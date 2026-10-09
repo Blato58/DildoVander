@@ -8,6 +8,7 @@ import {
 } from './features/device_connection/FakeDeviceConnection';
 import { SimulatorDeviceConnection } from './features/device_connection/SimulatorDeviceConnection';
 import { DebugPanel } from './features/debug/DebugPanel';
+import { ProvisioningPanel } from './features/provisioning/ProvisioningPanel';
 
 type PendingAction = {
   kind: 'select' | 'reload';
@@ -61,31 +62,38 @@ const debugPanel = new DebugPanel(nativeMode, () => {
   connection?.stop();
 });
 controlPanel.after(debugPanel.element);
+const provisioningPanel = new ProvisioningPanel(nativeMode);
+debugPanel.element.after(provisioningPanel.element);
 const tabs = document.createElement('nav');
 tabs.className = 'app-tabs';
 tabs.setAttribute('aria-label', 'Sekce aplikace');
 tabs.innerHTML = `<div role="tablist" aria-label="Sekce aplikace">
   <button type="button" role="tab" id="tab-control" aria-controls="control-panel" aria-selected="true">Ovládání</button>
-  <button type="button" role="tab" id="tab-debug" aria-controls="debug-panel" aria-selected="false" tabindex="-1">Debug</button></div>`;
+  <button type="button" role="tab" id="tab-debug" aria-controls="debug-panel" aria-selected="false" tabindex="-1">Debug</button>
+  <button type="button" role="tab" id="tab-provisioning" aria-controls="provisioning-panel" aria-selected="false" tabindex="-1">Síť kufru</button></div>`;
 controlPanel.before(tabs);
-function selectTab(debug: boolean): void {
-  controlPanel.hidden = debug;
-  debugPanel.show(debug);
+function selectTab(id: string): void {
+  controlPanel.hidden = id !== 'tab-control';
+  debugPanel.show(id === 'tab-debug');
+  provisioningPanel.show(id === 'tab-provisioning');
   for (const button of Array.from(tabs.querySelectorAll<HTMLButtonElement>('[role="tab"]'))) {
-    const selected = (button.id === 'tab-debug') === debug;
+    const selected = button.id === id;
     button.setAttribute('aria-selected', String(selected));
     button.tabIndex = selected ? 0 : -1;
   }
 }
 tabs.addEventListener('click', (event) => {
   const button = (event.target as HTMLElement).closest('[role="tab"]');
-  if (button) { selectTab(button.id === 'tab-debug'); }
+  if (button) { selectTab(button.id); }
 });
 tabs.addEventListener('keydown', (event) => {
   if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
     event.preventDefault();
-    const debug = event.key === 'End' || (event.key !== 'Home' && controlPanel.hidden === false);
-    selectTab(debug);
+    const buttons = Array.from(tabs.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+    const current = buttons.findIndex((button) => button.getAttribute('aria-selected') === 'true');
+    const index = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1
+      : (current + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
+    selectTab(buttons[index].id);
     tabs.querySelector<HTMLButtonElement>('[aria-selected="true"]')!.focus();
   }
 });

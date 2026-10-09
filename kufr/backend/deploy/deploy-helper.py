@@ -48,6 +48,7 @@ def make_environment(payload):
     lines = [
         "ASPNETCORE_URLS=http://127.0.0.1:5080",
         "Backend__DatabasePath=/var/lib/kufr-backend/journal.sqlite",
+        "Backend__Firmware__Directory=/opt/kufr-firmware",
     ]
     if device_id:
         lines.extend((f"Devices__0__DeviceId={device_id}",

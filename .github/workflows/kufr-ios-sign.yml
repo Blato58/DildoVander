@@ -76,6 +76,8 @@ jobs:
           bash scripts/test-native-transport.sh
       - name: Test native debug backend client
         run: bash scripts/test-native-debug.sh
+      - name: Test secure BLE status and secret whitelist
+        run: bash scripts/test-native-provisioning.sh
       - name: Build signed IPA
         env:
           IOS_BUNDLE_ID: app.turquoise6409.green2444

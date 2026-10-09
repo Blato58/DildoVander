@@ -49,7 +49,11 @@ EspIdfWifiStation::~EspIdfWifiStation() {
 }
 
 bool EspIdfWifiStation::Start(const NetworkSettings& settings) {
-  if (!settings.IsConfigured() || events_ != nullptr) {
+  return settings.IsConfigured() && Start() && Select(settings.Ssid(), settings.Password());
+}
+
+bool EspIdfWifiStation::Start() {
+  if (events_ != nullptr) {
     return false;
   }
   events_ = xEventGroupCreate();
@@ -84,20 +88,39 @@ bool EspIdfWifiStation::Start(const NetworkSettings& settings) {
     return false;
   }
 
-  wifi_config_t wifiConfig = {};
-  WifiConfigWiper wipe(wifiConfig);
-  const size_t ssidLength = std::strlen(settings.Ssid());
-  const size_t passwordLength = std::strlen(settings.Password());
-  std::memcpy(wifiConfig.sta.ssid, settings.Ssid(), ssidLength);
-  std::memcpy(wifiConfig.sta.password, settings.Password(), passwordLength);
-  wifiConfig.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
-  if (esp_wifi_set_config(WIFI_IF_STA, &wifiConfig) != ESP_OK) {
-    return false;
-  }
   if (esp_wifi_start() != ESP_OK) {
     return false;
   }
   wifiStarted_ = true;
+  return true;
+}
+
+void EspIdfWifiStation::Disconnect() {
+  if (wifiStarted_) {
+    const bool hadIp = HasIp();
+    esp_wifi_disconnect();
+    xEventGroupClearBits(events_, GotIpBit);
+    if (hadIp) { ipGeneration_.fetch_add(1); }
+  }
+}
+
+bool EspIdfWifiStation::Select(const char* ssid, const char* password) {
+  if (!wifiStarted_ || ssid == nullptr || password == nullptr ||
+      std::strlen(ssid) == 0 || std::strlen(ssid) > 32 ||
+      std::strlen(password) < 8 || std::strlen(password) > 63) { return false; }
+  if ((xEventGroupWaitBits(events_, StartedBit, pdFALSE, pdTRUE,
+                          pdMS_TO_TICKS(5000)) & StartedBit) == 0) { return false; }
+  Disconnect();
+  wifi_config_t wifiConfig = {};
+  WifiConfigWiper wipe(wifiConfig);
+  const size_t ssidLength = std::strlen(ssid);
+  const size_t passwordLength = std::strlen(password);
+  std::memcpy(wifiConfig.sta.ssid, ssid, ssidLength);
+  std::memcpy(wifiConfig.sta.password, password, passwordLength);
+  wifiConfig.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
+  if (esp_wifi_set_config(WIFI_IF_STA, &wifiConfig) != ESP_OK) {
+    return false;
+  }
   return true;
 }
 

@@ -6,6 +6,55 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D158 – 9. 10. 2026 – plný audit, nativní BLE, hotspot-first Wi-Fi, OTA a SD.**
+Převzato z čistého tracked `6cb130d`; větev `codex/event-software-completion`.
+Nesouvisející untracked `.codex/` zůstává mimo slice. Majitel následně výslovně
+autorizoval VPS, push a publikaci. Nahrání do desky a placené AI testy nebyly
+součástí tohoto povolení. Kompletní inventura a 47 scénářů jsou v
+[auditu](../../docs/software-completion-audit.md) a
+[event readiness](../../docs/event-readiness.md).
+
+Implementováno: oficiální BLE Security1/PoP, nativní ESPProvision/CoreBluetooth
+v existující Capacitor aplikaci, tajemství zadávaná jen nativně, compact wire
+do 512 B; hotspot/fallback jako jeden NVS blob, test-before-commit a rollback;
+společná rezervace síť/OTA/SD proti nové hlasové/ruční/fyzické interakci.
+Podepsaný manifest P-256, strict kompatibilita/velikost/verze, HTTPS bez
+redirectů, inactive slot, SHA celého obrazu, bounded první boot/rollback,
+automatické i ruční kontroly. Nové read-only backend endpointy mají limit
+čtyř souběžných odpovědí. Root signer/publisher a CI používají ověřený build
+se zdrojovým Git tree; dev a stable autority jsou oddělené. Žádný privátní
+klíč není v repo/image/IPA. Nový USB network-service nastavuje PoP/backend
+identitu/veřejný OTA trust bez NVS erase. SDMMC1-bit asset driver zachovává
+GPIO38–40, vyžaduje servisně ověřené zapojení a nepovoluje format/write/erase.
+Kamera, GPT-Live, personálity, hlas i B-effects zůstaly zachované.
+
+Dosavadní ověření: celý backend executable runner a cílené firmware release
+testy prošly; mobil 32/32 + TypeScript/Vite build, browser 393/320 px bez
+overflow; kontrakty včetně nových public OTA GET prošly. OpenSSL package
+testy 4/4 prošly včetně skutečného podpisu/corruption a bounded fd publisheru.
+MSVC `/std:c++14 /W4 /WX` testy profilů/STA/Wi-Fi/BLE/OTA/SD prošly u workerů;
+USB network-service build (ESP-IDF6.1) 254885 B flash/17948 B RAM, jeho Python
+5/5 a hardware-service 6/6. Nezávislé review opravilo limit BLE, bounded root
+copy a souběh public download; finální main gate review nemá další nález.
+Finální společný `pio run -d kufr/firmware -e esp32-s3-idf` prošel:
+RAM 86300 B, flash 1731653 B, skutečný app binary 1732080 B z 6553600 B slotu.
+Jeho skutečné OpenSSL package/verify a partition/image check prošly; lokální
+build obsahuje identitu původního HEAD a není vydáván za clean CI release.
+Parent znovu ověřil maintenance owner MSVC test, backend build (0 warnings,
+0 errors), deploy-helper 4/4, CI/provenance Node 55/55 a offline AI eval.
+Linux CI a nativní macOS podpis/publikace čekají Git předání; jejich skutečný
+výsledek bude doplněn po provedení.
+
+Široký deployment Python discovery na Windows narazil na již existující
+Linux `os.getuid`/POSIX práva a Windows cestu/SQLite cleanup v memory suite;
+nejde o změnu provisioning systému. Cílený deploy-helper a Linux CI jsou
+rozhodující pro tento serverový kód. Žádné fyzické BLE/hotspot/SD/audio/servo,
+NVS power-loss ani OTA rollback měření nebylo provedeno. Produkční stable
+signer musí být servisně provisionován; development klíč není produkční.
+Další krok po software delivery: kontrolované první USB uvedení do provozu,
+provisioning trust/PoP a 47 scénářů na konkrétním ESP a iPhonu, včetně zátěže.
+
+
 **D157 – 9. 10. 2026 – fotografie pro dialog, zrušení peněžních capů a Arduino profilu.**
 Majitel zadal backend → iOS → kamerový firmware. Zdroj popisuje viditelný
 kostým a možnou fiktivní postavu, ne biometrickou identitu. Před firmwarem

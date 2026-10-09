@@ -3,6 +3,7 @@
   "revision": 1,
   "profile_b_ok": false,
   "camera_verified": false,
+  "sd_verified": false,
   "servos": [
     {
       "rest_us": 0,

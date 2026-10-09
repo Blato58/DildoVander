@@ -6,13 +6,13 @@ from pathlib import Path
 
 def generate(config):
     keys = {"profile", "revision", "profile_b_ok", "servos"}
-    if set(config) not in (keys, keys | {"camera_verified"}) or config["profile"] != "B-effects":
+    if not keys <= set(config) or set(config) - keys - {"camera_verified", "sd_verified"} or config["profile"] != "B-effects":
         raise ValueError("Expected the explicit B-effects profile and exact fields")
-    flags = [config["profile_b_ok"], config.get("camera_verified", False)]
+    flags = [config["profile_b_ok"], config.get("camera_verified", False), config.get("sd_verified", False)]
     if any(type(flag) is not bool for flag in flags):
         raise ValueError("Verification flags must be booleans")
-    if flags[1] and not flags[0]:
-        raise ValueError("Camera requires verified Profile B wiring")
+    if any(flags[1:]) and not flags[0]:
+        raise ValueError("Camera/SD require verified Profile B wiring")
     revision = config["revision"]
     if type(revision) is not int or not 1 <= revision <= 2**64 - 1:
         raise ValueError("Calibration revision must be a positive uint64")

@@ -123,6 +123,26 @@ jobs:
             tests/physical_effects_test.cpp -o "$RUNNER_TEMP/physical-effects-test"
           "$RUNNER_TEMP/physical-effects-test"
           python3 -m unittest discover -s diagnostics/hardware-service -p 'test_*.py'
+      - name: Optional read-only SD assets and adapter
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++14 -Wall -Wextra -Werror \
+            src/features/sd_assets/AssetReader.cpp \
+            tests/sd_assets_test.cpp -o "$RUNNER_TEMP/sd-assets-test"
+          "$RUNNER_TEMP/sd-assets-test"
+          g++ -std=c++14 -Wall -Wextra -Werror -I tests/sd_stubs \
+            src/features/sd_assets/AssetReader.cpp \
+            src/features/sd_assets/EspIdfSdAssets.cpp \
+            tests/espidf_sd_assets_test.cpp -o "$RUNNER_TEMP/sd-assets-adapter-test"
+          "$RUNNER_TEMP/sd-assets-adapter-test"
+      - name: Physical USB network service validation
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s diagnostics/network-service -p 'test_*.py'
       - name: Device control tests
         working-directory: kufr/firmware
         shell: bash
@@ -152,12 +172,25 @@ jobs:
         run: |
           set -euo pipefail
           g++ -std=c++14 -Wall -Wextra -Werror -I tests/station_stubs \
+            src/features/network_provisioning/NetworkProfiles.cpp \
             src/features/backend_access/EspIdfStationNetwork.cpp \
             src/features/backend_access/NetworkSettings.cpp \
             src/features/backend_access/ReconnectPolicy.cpp \
             tests/espidf_station_network_test.cpp \
             -o "$RUNNER_TEMP/station-network-test"
           "$RUNNER_TEMP/station-network-test"
+      - name: Secure network profiles and OTA policy/adapters
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++14 -Wall -Wextra -Werror src/features/network_provisioning/NetworkProfiles.cpp src/features/backend_access/NetworkSettings.cpp tests/network_profiles_test.cpp -o "$RUNNER_TEMP/network-profiles-test"
+          "$RUNNER_TEMP/network-profiles-test"
+          g++ -std=c++14 -Wall -Wextra -Werror src/features/firmware_update/OtaManifest.cpp src/features/firmware_update/OtaPolicy.cpp tests/firmware_update_test.cpp -o "$RUNNER_TEMP/firmware-update-test"
+          "$RUNNER_TEMP/firmware-update-test"
+          g++ -std=c++14 -Wall -Wextra -Werror -I tests/ota_stubs src/features/firmware_update/OtaManifest.cpp src/features/firmware_update/OtaPolicy.cpp src/features/firmware_update/EspIdfFirmwareUpdate.cpp tests/espidf_firmware_update_test.cpp -o "$RUNNER_TEMP/ota-adapter-test"
+          "$RUNNER_TEMP/ota-adapter-test"
+          python3 -m unittest discover -s tools -p 'test_*.py'
       - name: Local service discovery lifecycle
         working-directory: kufr/firmware
         shell: bash
@@ -440,7 +473,7 @@ jobs:
             ~/.platformio/packages
             ~/.platformio/platforms
             ~/.cache/pip
-          key: pio-${{ runner.os }}-6.2.0-${{ hashFiles('kufr/firmware/platformio.ini', 'kufr/firmware/dependencies.lock', 'kufr/firmware/diagnostics/board-memory/platformio.ini', 'kufr/firmware/diagnostics/pca9685-logic/platformio.ini') }}
+          key: pio-${{ runner.os }}-6.2.0-${{ hashFiles('kufr/firmware/platformio.ini', 'kufr/firmware/dependencies.lock', 'kufr/firmware/diagnostics/board-memory/platformio.ini', 'kufr/firmware/diagnostics/pca9685-logic/platformio.ini', 'kufr/firmware/diagnostics/network-service/platformio.ini', 'kufr/firmware/diagnostics/network-service/dependencies.lock') }}
       - name: Install pinned PlatformIO Core
         shell: bash
         run: |
@@ -450,7 +483,27 @@ jobs:
       - name: Build ESP-IDF profile
         shell: bash
         run: |
+          set -euo pipefail
           "$RUNNER_TEMP/platformio-venv/bin/pio" run -d kufr/firmware -e esp32-s3-idf -s
+          python3 kufr/firmware/tools/ota_release.py check --binary kufr/firmware/.pio/build/esp32-s3-idf/firmware.bin --version "$(cat kufr/firmware/version.txt)"
+      - name: Secured BLE adapter with pinned managed cJSON
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          cjson=managed_components/espressif__cjson/cJSON
+          test -f "$cjson/cJSON.c"
+          test -f "$cjson/cJSON.h"
+          gcc -std=c99 -Wall -Wextra -Werror -I "$cjson" \
+            -c "$cjson/cJSON.c" -o "$RUNNER_TEMP/provisioning-cjson.o"
+          g++ -std=c++14 -Wall -Wextra -Werror \
+            -I tests/ble_stubs -I tests/station_stubs -I "$cjson" \
+            src/features/network_provisioning/EspIdfBleProvisioning.cpp \
+            src/features/network_provisioning/NetworkProfiles.cpp \
+            src/features/backend_access/NetworkSettings.cpp \
+            tests/espidf_ble_provisioning_test.cpp \
+            "$RUNNER_TEMP/provisioning-cjson.o" -o "$RUNNER_TEMP/ble-provisioning-test"
+          "$RUNNER_TEMP/ble-provisioning-test"
       - name: Build USB-only board memory diagnostic
         shell: bash
         run: |
@@ -466,6 +519,11 @@ jobs:
           cd kufr/firmware/diagnostics/hardware-service
           python3 make_config.py service_config.example.json
           "$RUNNER_TEMP/platformio-venv/bin/pio" run -s
+      - name: Build physical USB network service without embedded credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/platformio-venv/bin/pio" run -d kufr/firmware/diagnostics/network-service -e network-service -s
       - name: Bundle flashable firmware outputs without device credentials
         shell: bash
         run: |

@@ -18,6 +18,9 @@ class EspIdfWifiStation final {
   EspIdfWifiStation& operator=(const EspIdfWifiStation&) = delete;
 
   bool Start(const NetworkSettings& settings);
+  bool Start();
+  bool Select(const char* ssid, const char* password);
+  void Disconnect();
   bool ConnectAndWait(uint32_t timeoutMs);
   bool HasIp() const;
   uint32_t IpGeneration() const;

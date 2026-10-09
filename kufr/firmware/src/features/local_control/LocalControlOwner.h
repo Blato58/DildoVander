@@ -33,6 +33,7 @@ class LocalControlOwner final {
 
   void Poll();
   void Tick();
+  void SetMaintenance(bool active) { maintenance_ = active; }
   void PumpReply(LocalConversationReplyPort& replies);
   bool CompleteTurn(const std::string& clientTurnId, uint64_t generation);
 
@@ -66,4 +67,5 @@ class LocalControlOwner final {
   uint64_t connectedAtMs_ = 0;
   uint64_t lastSnapshotAtMs_ = 0;
   bool hello_ = false;
+  bool maintenance_ = false;
 };
