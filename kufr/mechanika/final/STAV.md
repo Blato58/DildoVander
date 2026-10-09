@@ -35,10 +35,27 @@ Další PR review doplnilo oddělení souběžných napájecích, signálových 
 zemních spojů do samostatných křivek, včetně shodných promítnutých středů.
 Třetí Node regresní test prošel pro dvou- i čtyřvazbový svazek.
 `Regenerate.ps1` nyní před CAD/balením spouští kontrolu syntaxe JS i
-všechny tři Node testy. Skutečný skript byl ověřen v izolované fixture:
+Node testy. Skutečný skript byl ověřen v izolované fixture:
 správné JS pokračuje do navazujících testovacích kroků, chybná syntaxe
 i selhávající Node test každý zastaví práci před Python/CAD. Toto
 ověření řídicího skriptu není novým geometrickým ověřením balíčku.
+Další review odstranilo pomalé rozmísťování názvů při každém pohybu myši:
+layout se znovu používá a první rozmístění hledá volné úseky mřížky.
+Prošly 4/4 Node regrese, včetně 232 objektů, přepočtu při změně pohledu,
+vrstev, panelu a animace, zachování uzlů při pohybu a změně barvy.
+Browser na 1280 × 900 zobrazil 232 názvů bez vzájemných průniků. Ve stejné
+automatizované sekvenci pohybu nad prázdnou plochou klesl kumulativní JS
+čas z 3869 na 71 ms; první rozmístění z 320 na 11 ms (CDP Performance,
+jeden lokální běh, nikoli obecná garance výkonu). Konzole bez chyb.
+Majitel následně upřesnil chování připnutí: při Shiftu se všechny názvy
+nezobrazují, pokud je výběr připnutý; kliknutí do prázdna jej zruší.
+Regresní test ověřuje oba přechody. Druhé upřesnění majitele: připnutí
+samo nezapíná trvalý Inspect. Puštění Shiftu jej vypne, ale karta a vazby
+zůstanou a tažením lze otáčet. Prázdný klik bez Shiftu výběr zruší,
+tažení jej zachová. Aktuálně prošlo 5/5 Node testů těchto přechodů.
+Finální regenerované HTML prošlo také skutečným browser Shift-klikem
+na PCA, puštěním Shiftu, otočením bez ztráty pinu a prázdným klikem
+se Shiftem i bez něj; karta a propojení odpovídají výběru, konzole bez chyb.
 V tomto slice se regeneruje pouze
 `exports/viewer.html`; starší geometrické reporty a celý ZIP tím nejsou
 znovu ověřené. Další krok: používat Inspect při prohlídce; fyzická

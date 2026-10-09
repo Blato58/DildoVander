@@ -93,6 +93,7 @@ function lift(a) {
   return model.mechanism.lift*(10*x**3-15*x**4+6*x**5);
 }
 let yaw = -1.05, pitch = .66, distance = 1300, drag = null, showWands = true;
+let dragDistance = 0;
 let shiftDown = false, inspectEnabled = false, hovered = null, pinned = null, pointer = null;
 let projection, view, frameRequested = false;
 function inspecting() { return shiftDown || inspectEnabled; }
@@ -184,23 +185,54 @@ function label(name, x, y) {
 }
 function allNames() {
   const width = canvas.clientWidth, height = canvas.clientHeight;
-  const occupied = el('inspector').hidden ? [] : [[width-el('inspector').offsetWidth-12,12,el('inspector').offsetWidth,el('inspector').offsetHeight]];
-  // Search screen slots nearest each projected center; leader lines retain object identity.
+  const panel = el('inspector');
+  const exclusion = panel.hidden ? null : [width-panel.offsetWidth-12,12,panel.offsetWidth,panel.offsetHeight];
+  const labels = [];
+  // Append first, then measure together to avoid forcing layout once per object.
   for (const mesh of model.meshes.filter(visible)) {
     const point = project(mesh);
     if (!point || point[0] < 0 || point[0] > width || point[1] < 0 || point[1] > height) continue;
-    const node = label(mesh.name, 0, 0), w = node.offsetWidth, h = node.offsetHeight;
+    labels.push({node:label(mesh.name,0,0),point});
+  }
+  for (const item of labels) { item.w = item.node.offsetWidth; item.h = item.node.offsetHeight; }
+  const cellWidth = 16, rowHeight = Math.max(0,...labels.map(item=>item.h))+3;
+  const columns = Math.max(0,Math.floor((width-8)/cellWidth));
+  const rows = Math.max(0,Math.floor((height-45)/rowHeight));
+  const occupied = Array.from({length:rows},()=>new Uint8Array(columns));
+  if (exclusion) {
+    for (let row = 0; row < rows; row++) {
+      for (let column = 0; column < columns; column++) {
+        const x = 8+column*cellWidth, y = 45+row*rowHeight;
+        if (x < exclusion[0]+exclusion[2]+3 && x+cellWidth+3 > exclusion[0] &&
+            y < exclusion[1]+exclusion[3]+3 && y+rowHeight+3 > exclusion[1]) occupied[row][column] = 1;
+      }
+    }
+  }
+  // Search free row segments, rather than every slot against every previous label.
+  const placements = [];
+  for (const {node,point,w,h} of labels) {
+    const required = Math.ceil((w+3)/cellWidth);
+    const desired = Math.round((point[0]-w/2-8)/cellWidth);
     let best = null, score = Infinity;
-    for (let y = 45; y+h < height; y += h+3) {
-      for (let x = 8; x+w < width; x += 16) {
-        if (occupied.some(r => x < r[0]+r[2]+3 && x+w+3 > r[0] && y < r[1]+r[3]+3 && y+h+3 > r[1])) continue;
-        const d = (x+w/2-point[0])**2+(y+h/2-point[1])**2;
-        if (d < score) { best = [x,y]; score = d; }
+    for (let row = 0; row < rows; row++) {
+      let start = 0;
+      for (let column = 0; column <= columns; column++) {
+        if (column < columns && !occupied[row][column]) continue;
+        if (column-start >= required) {
+          const candidate = Math.max(start,Math.min(column-required,desired));
+          const x = 8+candidate*cellWidth, y = 45+row*rowHeight;
+          const d = (x+w/2-point[0])**2+(y+h/2-point[1])**2;
+          if (d < score) { best = {x,y,row,column:candidate}; score = d; }
+        }
+        start = column+1;
       }
     }
     // Very small viewports can be dense; every in-frame name is still shown.
-    const [x,y] = best || [Math.max(0,Math.min(width-w,point[0])), Math.max(45,Math.min(height-h,point[1]))];
-    occupied.push([x,y,w,h]);
+    const {x,y} = best || {x:Math.max(0,Math.min(width-w,point[0])),y:Math.max(45,Math.min(height-h,point[1]))};
+    if (best) occupied[best.row].fill(1,best.column,best.column+required);
+    placements.push({node,point,w,h,x,y});
+  }
+  for (const {node,point,w,h,x,y} of placements) {
     node.style.left = x+'px'; node.style.top = y+'px';
     svgElement('line', {x1:point[0],y1:point[1],x2:x+w/2,y2:y+h/2,stroke:'#776c5b','stroke-opacity':'.35'});
   }
@@ -277,6 +309,24 @@ function updateObjectOptions() {
   for (const mesh of model.meshes.filter(visible)) select.add(new Option(`${mesh.info.title} · ${mesh.name}`, mesh.name));
   select.value = current;
 }
+let overlayLayoutKey = '';
+function updateOverlay(selected) {
+  const names = inspecting() && !selected;
+  const mode = names ? 'names' : selected ? 'connections' : 'none';
+  const panel = el('inspector');
+  // Picking remains live; stable empty-space movement reuses the existing DOM layout.
+  const key = JSON.stringify([
+    mode,mode === 'connections' ? selected.name : '',canvas.clientWidth,canvas.clientHeight,
+    yaw,pitch,distance,el('lid').value,el('lift').value,
+    ...['cover','case','beds','hardware'].map(id=>el(id).checked),showWands,
+    panel.hidden ? 0 : panel.offsetWidth,panel.hidden ? 0 : panel.offsetHeight,
+  ]);
+  if (key === overlayLayoutKey) return;
+  overlayLayoutKey = key;
+  el('overlay').replaceChildren(); el('names').replaceChildren();
+  if (names) allNames();
+  else if (selected) drawConnections(selected);
+}
 function draw() {
   const ratio = devicePixelRatio || 1;
   const w = Math.max(1,Math.round(canvas.clientWidth*ratio)), h = Math.max(1,Math.round(canvas.clientHeight*ratio));
@@ -295,12 +345,10 @@ function draw() {
   el('lidvalue').textContent = el('lid').value+'°';
   el('inspect').setAttribute('aria-pressed', String(inspectEnabled));
   el('inspect-hint').hidden = !inspecting();
-  el('inspect-hint').textContent = pinned ? `Připnuto: ${pinned.name}. Klik na jiný objekt změní výběr; Zrušit výběr obnoví prohlížení.` : selected ? 'Klik na objekt připne jeho kartu a umožní změnit barvu.' : 'Inspect: názvy všech objektů zapnutých vrstev. Najeďte na díl; Servis odkryje elektroniku.';
+  el('inspect-hint').textContent = pinned ? `Připnuto: ${pinned.name}. Klik na jiný objekt změní výběr; klik do prázdna nebo Zrušit výběr jej zruší.` : selected ? 'Klik na objekt připne jeho kartu a umožní změnit barvu.' : 'Inspect: názvy všech objektů zapnutých vrstev. Najeďte na díl; Servis odkryje elektroniku.';
   canvas.style.cursor = inspecting() ? 'crosshair' : drag ? 'grabbing' : 'grab';
   updatePanel(selected);
-  el('overlay').replaceChildren(); el('names').replaceChildren();
-  if (inspecting() && (!selected || (pointer && !hovered))) allNames();
-  else if (selected) drawConnections(selected);
+  updateOverlay(selected);
 }
 function requestDraw() {
   if (frameRequested) return;
@@ -311,13 +359,20 @@ function layersChanged() { displayedMesh = undefined; updateObjectOptions(); req
 canvas.addEventListener('pointerdown', event => {
   pointer = [event.clientX,event.clientY];
   if (inspecting()) {
-    draw(); pinned = hovered; if (hovered) inspectEnabled = true; requestDraw();
+    draw(); pinned = hovered; requestDraw();
     return;
   }
-  drag = [event.clientX,event.clientY]; canvas.setPointerCapture(event.pointerId);
+  drag = [event.clientX,event.clientY]; dragDistance = 0; canvas.setPointerCapture(event.pointerId);
 });
 function endDrag() { drag = null; requestDraw(); }
-canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointerup', event => {
+  if (drag && dragDistance < 4 && pinned) {
+    pointer = [event.clientX,event.clientY];
+    draw();
+    if (!pick()) pinned = null;
+  }
+  endDrag();
+});
 canvas.addEventListener('pointercancel', endDrag);
 canvas.addEventListener('lostpointercapture', endDrag);
 canvas.addEventListener('pointermove', event => {
@@ -325,6 +380,7 @@ canvas.addEventListener('pointermove', event => {
   // Recover a missed key-up after a native color dialog or switching windows.
   shiftDown = event.shiftKey;
   if (drag) {
+    dragDistance += Math.hypot(event.clientX-drag[0],event.clientY-drag[1]);
     yaw -= (event.clientX-drag[0])*.006;
     pitch = Math.max(.07,Math.min(1.5,pitch+(event.clientY-drag[1])*.006));
     drag = [event.clientX,event.clientY];
@@ -341,7 +397,9 @@ document.addEventListener('keydown', event => {
   if (event.key === 'Shift' && !shiftDown) { shiftDown = true; requestDraw(); }
   if (event.key === 'Escape') closeInspect();
 });
-document.addEventListener('keyup', event => { if (event.key === 'Shift') { shiftDown = false; requestDraw(); } });
+document.addEventListener('keyup', event => {
+  if (event.key === 'Shift') { shiftDown = false; inspectEnabled = false; requestDraw(); }
+});
 window.addEventListener('blur', () => { shiftDown = false; drag = null; pointer = null; requestDraw(); });
 el('inspect').onclick = () => { inspectEnabled = !inspectEnabled; if (!inspectEnabled) pinned = null; requestDraw(); };
 el('close-inspect').onclick = closeInspect;

@@ -10,7 +10,8 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 `kufr/mechanika/final/exports/viewer.html` byl regenerován z aktuálních
 zdrojů. Shift zvýrazní skutečnou viditelnou geometrii a zobrazí kartu;
 Shift nad prázdnou plochou ukáže názvy dílů zapnutých vrstev v záběru.
-Klik připne kartu, tlačítko Inspect a seznam objektů umožňují další
+Klik připne kartu; Shift pak zachová pouze její propojení a klik do
+prázdna výběr zruší. Tlačítko Inspect a seznam objektů umožňují další
 ovládání. Barva se ukládá pro ID objektu do místního úložiště prohlížeče.
 232 objektů má popisy, CAD obálky a rozměrovou evidenci; 92 logických
 kabelových vazeb obsahuje GPIO, kanály, napětí a poznámky podle
@@ -63,6 +64,23 @@ navazujícími kroky. README uvádí Node.js v PATH pro úplnou regeneraci.
 Tato kontrola testovací fixture nepředstírá novou validaci výrobního ZIPu.
 Browser finálního HTML potvrdil mezi ESP32 a PCA čtyři odlišné SVG
 křivky ve třech barvách a konzoli bez chyb. Nezávislé review změn prošlo.
+
+Další P2 review opravilo opakované drahé rozmísťování všech názvů:
+layout se ukládá podle pohledu, vrstev, animací a rozměrů panelu; první
+rozmístění používá volné úseky mřížky. Prošly 4/4 JS regrese včetně
+232 objektů, přepočtu při změnách a zachování DOM uzlů při pohybu myši.
+Browser 1280 × 900 zobrazil 232 názvů bez vzájemných průniků; v jednom
+stejném automatizovaném pohybu klesl kumulativní JS čas z 3869 na 71 ms,
+první rozmístění z 320 na 11 ms (CDP Performance, lokální měření).
+Nezávislé review této opravy nemá nález. Majitel následně upřesnil,
+že připnutý objekt při Shiftu potlačuje všechny názvy a klik do prázdna
+jej zruší; test ověřuje zrušení i navazující zobrazení všech názvů.
+Následné upřesnění: pin nezapíná trvalý Inspect. Puštění Shiftu jej vypne,
+připnutá karta a vazby zůstanou a tažením lze měnit úhel. Prázdný klik
+bez Shiftu pin zruší, drag jej zachová. Aktuálně prošlo 5/5 Node regresí.
+Regenerované HTML tyto přechody ověřilo i v browseru: Shift-klik na PCA,
+puštění Shiftu, rotace s pinem a prázdný klik se Shiftem i bez něj prošly.
+Konzole zůstala bez chyb, lokální screenshot byl obnoven.
 
 **9. 10. 2026 – F1 a úklid předchozího CAD; zdroje ověřené a pushnuté.**
 Jediným aktivním návrhem je [F1](../mechanika/final/README.md), vytvořený
