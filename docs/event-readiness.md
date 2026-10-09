@@ -1,6 +1,26 @@
 # Připravenost na akci a provozní checklist
 
-**Aktuální předání: D163.** [CI 37928528451](https://github.com/Blato58/DildoVander/actions/runs/37928528451)
+**Aktuální předání: D164.**
+[PR161](https://github.com/Blato58/DildoVander/pull/161) a
+[CI 37931935316](https://github.com/Blato58/DildoVander/actions/runs/37931935316)
+prošly; development OTA **0.1.161** je
+[publikovaná 37933188173](https://github.com/Blato58/DildoVander/actions/runs/37933188173).
+Main stack má 16 KiB místo 3584 B pro načtení existující TLS identity.
+Majitelem výslovně schválená USB obnova COM7 s vypnutým napájením pohonů
+ověřila pouze app zápis na `0x10000` na ESP32-S3 rev. 0.2 / N16R8 se shodnou
+partition table; flasher NVS nesmazal ani nepřepsal. Soukromá záloha partition/
+NVS/otadata je dostupná pouze vlastníkovi. Normální RTS restart potvrdil
+**0.1.161**, 16384 B configured / 12556 B minimum remaining, control loop,
+BLE advertising a místní TLS server přibližně za 19 s. PC scan našel `KUFR_4B6048`
+s očekávaným service UUID; před obnovou **0.1.157** končila main stack overflow
+před BLE startem. Nejde o nový důkaz automatické OTA.
+
+iOS zůstává **1.0 / build 1000.0.21** z níže uvedeného D163 podpisu a publikace;
+v D164 se znovu nepodepisovalo ani nepublikovalo. Majitel potvrdil novou iPhone zkoušku na stejné
+Wi-Fi: „yes I am connected“. Připojení prošlo; dlouhodobé pinned WSS a Keychain po aktualizaci zůstávají
+otevřené podle [stavu implementace](../kufr/docs/stav-implementace.md#předání-další-ai).
+
+**Historické předání D163.** [CI 37928528451](https://github.com/Blato58/DildoVander/actions/runs/37928528451)
 prošlo; development OTA **0.1.160** je [publikovaná 37929155208](https://github.com/Blato58/DildoVander/actions/runs/37929155208)
 s ověřeným veřejným podpisem, hashem a embedded verzí.
 iOS **1.0 / build 1000.0.21** prošlo [native testy a podpisem 37929159117](https://github.com/Blato58/DildoVander/actions/runs/37929159117)
@@ -8,8 +28,8 @@ a [Safari publikací 37929535139](https://github.com/Blato58/DildoVander/actions
 instalační stránka, manifest, veřejná IPA a checksum byly ověřené.
 Server přijímá nabídku WS extensions
 bez jejího výběru; čtyři skutečné Apple WSS požadavky v harnessu ji obsahovaly.
-Mobil vypisuje bezpečný failureCode a omezuje reconnect. Instalace nových obrazů
-a stabilní LAN provoz na fyzické sestavě zbývají podle
+Mobil vypisuje bezpečný failureCode a omezuje reconnect. Při předání D163
+instalace nových obrazů a stabilní LAN provoz na fyzické sestavě zbývaly podle
 [stavu implementace](../kufr/docs/stav-implementace.md#předání-další-ai).
 
 **Historická publikace D162.** Rozhodující záznam je v
@@ -116,7 +136,7 @@ neprokazuje runtime. H = kontrola skutečné desky přes USB/UART a korelované
 serverové logy. M = výsledek
 na telefonu potvrzený majitelem. NE = neprovedeno v uvedeném prostředí.**
 D159 doplňuje pouze výslovně uvedené historické výsledky skutečné desky a telefonu;
-nelze je přenést na D163 bez nové zkoušky. Aktuální publikace a hlášené LAN odpojování
+nelze je přenést na D164 bez nové zkoušky. Aktuální publikace a hlášené LAN odpojování
 jsou uvedené nahoře. Host adaptér OTA
 simuluje HTTP, flash a kryptografické odpovědi; skutečný podpis balíčku ověřují
 samostatné release/backend testy. BLE host stub potvrzuje zapojení Security1,
@@ -180,13 +200,13 @@ a aktuální CI/publikační výsledky patří do stavu implementace.
 ## Připravenost subsystémů a vnější podmínky
 
 Řádky s D158/D159 zachovávají historickou akceptaci příslušných verzí;
-aktuální předání je D163 podle odkazu nahoře.
+aktuální předání je D164 podle odkazu nahoře.
 
 | Subsystém | Stav při tomto zápisu | Co ještě brání úplné akceptaci |
 | --- | --- | --- |
 | BLE provisioning a hotspot/fallback firmware | IMPLEMENTED — PARTIALLY HARDWARE VERIFIED | D159 USB servis/NVS a majitelem potvrzený PoP handshake/domácí Wi-Fi prošly. Zbývá wrong-PoP, hotspot/failover, radio coexistence a úplné reconnect zkoušky. |
 | iOS Síť kufru | IMPLEMENTED — PARTIALLY HARDWARE VERIFIED | Web 32 testů/build, skutečné native testy/Xcode archive/Ad Hoc export i public IPA prošly; majitel použil aplikaci pro BLE/domácí Wi-Fi. Hotspot/error/recovery scénáře zbývají. |
-| Lokální LAN ovládání | NOT ACCEPTED | Majitel potvrdil vyhledání a párování, ale LAN spojení se opakovaně odpojovalo. D163 přidává opravu WS extension offers a omezení reconnect; fyzický stabilní provoz nové verze zbývá. |
+| Lokální LAN ovládání | NOT ACCEPTED | Majitel potvrdil vyhledání a párování, ale LAN spojení se opakovaně odpojovalo. D163 přidalo opravu WS extension offers a omezení reconnect; D164 potvrdilo USB obnovu, boot **0.1.161**, BLE scan z PC a start TLS serveru. Majitel následně potvrdil připojení iPhonu; dlouhodobé WSS a Keychain po aktualizaci stále zbývají. |
 | OTA firmware | IMPLEMENTED — PARTIALLY HARDWARE VERIFIED | D159 prošlo skutečnou podepsanou OTA0.1.0→0.1.1, VALID boot, credential retention a další reset/reconnect. Zbývají negativní image/signature, přerušení/power-loss a rollback. |
 | Release distribuce a VPS | READY v ověřeném development/server rozsahu | Root GitHub verifier, signed OTA/backend/iOS pipelines a public HTTPS bajty/hash/signature prošly; D159 také skutečně přijalo development OTA na ESP. Stable autorita má samostatný provisioning. |
 | Produkční stable autorita | BLOCKED pro nasazení bez správné důvěry | Provisionovat příslušný produkční podpisový klíč mimo repo a shodný veřejný trust na zařízení; development klíč není automaticky produkční oprávnění. |

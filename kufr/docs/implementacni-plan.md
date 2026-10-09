@@ -1,6 +1,26 @@
 # Implementační plán AI kufru
 
-> **D163, 9. 10. 2026: místní WSS po BLE párování.**
+> **D164, 9. 10. 2026: obnova startu se zachovanou TLS identitou.**
+> [PR161](https://github.com/Blato58/DildoVander/pull/161), merge `12efd65`,
+> zvětšilo main stack z 3584 B na 16 KiB při načtení existující TLS identity.
+> [CI 37931935316](https://github.com/Blato58/DildoVander/actions/runs/37931935316)
+> prošlo; run number 160 odvodilo development OTA **0.1.161** a
+> [publikace 37933188173](https://github.com/Blato58/DildoVander/actions/runs/37933188173) prošla.
+> Majitelem schválená app-only USB obnova COM7 na `0x10000` s vypnutými pohony
+> ověřila zápis a shodnou partition table na ESP32-S3 rev. 0.2 / N16R8;
+> flasher NVS nesmazal ani nepřepsal. Soukromá záloha partition/NVS/otadata
+> má ACL pouze vlastníka. Normální RTS restart potvrdil **0.1.161**, main stack
+> 16384 B / minimum remaining 12556 B, control loop, BLE advertising a místní
+> TLS server přibližně za 19 s. PC scan našel `KUFR_4B6048` s očekávaným UUID;
+> před obnovou **0.1.157** končila main stack overflow před BLE startem.
+> iOS zůstává **1.0 / build 1000.0.21** z D163; nebylo znovu podepsané ani publikované.
+> Majitel potvrdil novou iPhone zkoušku na stejné Wi-Fi: „yes I am connected“.
+> Připojení prošlo; dlouhodobé pinned WSS a uchování Keychain po aktualizaci zůstávají otevřené. USB obnova a boot
+> nenahrazují novou OTA ani akceptaci celé sestavy; hranice systému/E10 se nemění.
+> Přesné předání a veřejné ověření vede
+> [stav implementace](stav-implementace.md#předání-další-ai).
+
+> **Historické D163, 9. 10. 2026: místní WSS po BLE párování.**
 > Server přijímá nabídku WebSocket extensions bez jejího výběru; přesná bearer
 > autentizace, TLS pin a limity rámců zůstávají. Čtyři Apple WSS požadavky v
 > macOS harnessu nabídku obsahovaly. Mobil vrací bezpečný failureCode,
@@ -12,7 +32,7 @@
 > prošla; veřejný manifest, IPA a checksum byly ověřené. Přesné předání vede
 > [stav implementace](stav-implementace.md#předání-další-ai). Majitel před opravou
 > potvrdil scan/párování, ale Ovládání na stejné Wi-Fi opakovaně selhávalo.
-> Instalace nových verzí a stabilní fyzické WSS zůstávají nesplněnou akceptací;
+> Při předání D163 byly instalace nových verzí a stabilní fyzické WSS nesplněné;
 > tato oprava nemění hranice systému ani uzavření E10.
 
 > **D160, 9. 10. 2026: uchování BLE PoP na žádost majitele.**
@@ -120,7 +140,7 @@
 > tímto akceptované; [D145–D146](stav-implementace.md#předání-další-ai)
 > uvádí skutečné běhy, konfiguraci a zbývající ověření. Architektura níže
 > se samotnou publikací nemění. Jde o historický doklad D145–D146;
-> D162/1.0/1000.0.20 je také historická publikace; aktuální předání D163 vede stav implementace;
+> D162/1.0/1000.0.20 a D163 jsou historická předání; aktuální D164 vede stav implementace;
 > D158/1000.0.19 zůstává historický doklad fyzického BLE ověření D159.
 
 > **D143, 6. 10. 2026: opt-in autonomní GPT-Live a hybridní paměť.**
