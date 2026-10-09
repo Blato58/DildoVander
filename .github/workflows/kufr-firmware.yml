@@ -24,6 +24,8 @@ jobs:
         run: npm ci
       - name: Test compiler cache pruning
         run: python3 -m unittest discover -s kufr/firmware/ci -p 'test_*.py'
+      - name: Test automatic firmware versions and OTA packaging
+        run: python3 -m unittest discover -s kufr/firmware/tools -p 'test_*.py'
       - name: Bodyless backend token exchange
         working-directory: kufr/firmware
         shell: bash
@@ -490,8 +492,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          version="$(python3 kufr/firmware/tools/firmware_version.py --policy kufr/firmware/version.txt --run-number "$GITHUB_RUN_NUMBER")"
+          echo "Building firmware $version for CI run $GITHUB_RUN_NUMBER"
+          # Regenerate PROJECT_VER for a new run on an incremental checkout.
+          rm -f kufr/firmware/.pio/build/esp32-s3-idf/CMakeCache.txt
           "$KUFR_PIO" run -d kufr/firmware -e esp32-s3-idf -s
-          python3 kufr/firmware/tools/ota_release.py check --binary kufr/firmware/.pio/build/esp32-s3-idf/firmware.bin --version "$(cat kufr/firmware/version.txt)"
+          python3 kufr/firmware/tools/ota_release.py check --binary kufr/firmware/.pio/build/esp32-s3-idf/firmware.bin --version "$version"
       - name: Secured BLE adapter with pinned managed cJSON
         working-directory: kufr/firmware
         shell: bash
