@@ -20,10 +20,14 @@ Stejný device ID zachová connection instance a unresolved-command gate. Lifecy
 číslo zruší starý tap při background/pagehide, změně identity/adresy a disconnect/
 forget; návrat do foreground starý async connect neobnoví. Dva followup review P2
 nálezy byly opraveny a regresní testy provádějí skutečný main tap handler s fake
-native adaptéry na obou async hranicích.
+native adaptéry na obou async hranicích. GitHub review následně odhalilo P2
+silent skip při jiné pending BLE akci: refresh nyní vrací úspěch/neúspěch,
+pending/skipped/failed/stale refresh blokuje WSS tap. Plně odpojené BLE stále
+povolí uloženou/ruční LAN route. Dvě regrese pokrývají pending connection/action
+a main handler abort bez čtení staré adresy.
 
 Ověřeno: dvě MSVC station suites (worker /std:c++14 /W4 /WX), pět parent host
-suites pairing/TLS/BLE/discovery/WSS, 46 mobile tests, npm run build a
+suites pairing/TLS/BLE/discovery/WSS, 48 mobile tests, npm run build a
 pio run -e esp32-s3-idf -s, vše exit0. Native helper/status regressions jsou
 připravené pro existující macOS workflow; Windows je nespustil. Nezávislé native
 review odhalilo a následně ověřilo opravený legacy ID regression; kombinované

@@ -488,8 +488,12 @@ async function initializeNativeAsync(): Promise<void> {
     const generation = controlConnectGeneration;
     const current = () => !document.hidden && generation === controlConnectGeneration;
     void performAsync(async () => {
-      await provisioningPanel.refreshLocalAddress();
+      const refreshed = await provisioningPanel.refreshLocalAddress();
       if (!current()) return;
+      if (!refreshed) {
+        status.textContent = 'BLE ještě pracuje nebo adresu neobnovilo. Dokončete připojení v Síť kufru a zkuste znovu.';
+        return;
+      }
       const saved = await nativeBridge.savedDevice();
       if (!current()) return;
       if (!saved.paired || saved.deviceId !== savedDeviceId || typeof saved.host !== 'string') {

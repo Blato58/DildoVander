@@ -24,7 +24,7 @@ function setup() {
   const context = {
     document: { hidden: false }, controlConnectGeneration: 0,
     connectButton: { addEventListener: (_, action) => { tap = action; } },
-    provisioningPanel: { refreshLocalAddress: async () => {} },
+    provisioningPanel: { refreshLocalAddress: async () => true },
     nativeBridge: { savedDevice: async () => ({ paired: true, deviceId: 'kufr-1', host: '192.168.0.62' }) },
     savedDeviceId: 'kufr-1', addressInput: {}, status: {}, connection, NativeDeviceConnection,
     applySavedDevice: () => { throw new Error('Same device must preserve its connection state'); },
@@ -63,4 +63,13 @@ test('background/foreground cancels an old connect tap at either async boundary'
     assert.equal(flow.connection.connects, 0, boundary);
     assert.equal(flow.connection.uncertainCommand, 'selection-in-flight');
   }
+});
+
+
+test('a skipped or failed BLE refresh cannot start a stale LAN connection', async () => {
+  const flow = setup();
+  flow.context.provisioningPanel.refreshLocalAddress = async () => false;
+  flow.context.nativeBridge.savedDevice = async () => { throw new Error('Must not consume stale address'); };
+  await flow.tap();
+  assert.equal(flow.connection.connects, 0);
 });

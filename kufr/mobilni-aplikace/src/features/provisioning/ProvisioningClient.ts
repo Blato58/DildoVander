@@ -105,10 +105,18 @@ export class ProvisioningClient {
     }
   }
 
-  async refreshLocalAddress(): Promise<void> {
-    // The control tab stops periodic BLE polling. Refresh on the explicit
-    // connect tap so a still-live secured session can provide a current route.
-    await this.perform(() => this.bridge.status());
+  async refreshLocalAddress(): Promise<boolean> {
+    // A fully disconnected BLE client can use the persisted/manual LAN route.
+    // An in-flight connection/action must not pretend it refreshed that route.
+    if (!this.connected && !this.pending) return true;
+    const generation = this.generation;
+    let refreshed = false;
+    await this.perform(async () => {
+      const status = await this.bridge.status();
+      refreshed = true;
+      return status;
+    });
+    return refreshed && generation === this.generation;
   }
 
   async disconnect(): Promise<void> {
