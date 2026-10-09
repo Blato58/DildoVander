@@ -7,7 +7,9 @@
 
 
 bool EspIdfVoiceAudio::Mute(bool enabled) {
-  const bool result = board_ ? board_->EnableAmplifiers(enabled) :
+  // B keeps SD unmodified. Stop/listen close the PCM gate, queued DMA
+  // drains into auto-cleared silence; this is not immediate hardware mute.
+  const bool result = board_ ? board_->AudioReady() :
                                gpio_set_level(GPIO_NUM_16, enabled ? 1 : 0) == ESP_OK;
   if (!result) failed_.store(true);
   return result;

@@ -81,7 +81,7 @@ jobs:
             src/features/voice_turn/EspIdfVoiceAudio.cpp tests/espidf_voice_audio_test.cpp \
             -o "$RUNNER_TEMP/voice-audio-test"
           "$RUNNER_TEMP/voice-audio-test"
-      - name: Physical effects and feedback-controlled presentation
+      - name: Physical effects and calibrated timed presentation
         working-directory: kufr/firmware
         shell: bash
         run: |

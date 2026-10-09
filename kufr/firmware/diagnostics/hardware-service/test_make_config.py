@@ -12,19 +12,19 @@ class ConfigurationTests(unittest.TestCase):
 
     def measured(self):
         config = copy.deepcopy(self.disabled)
-        for key in ("profile_b_ok", "mute_ok", "inhibit_ok", "positions_ok"):
+        for key in ("profile_b_ok",):
             config[key] = True
         for record in config["servos"]:
             record.update(rest_us=1150, raised_us=1800, travel_ms=450)
         return config
 
     def test_disabled_template_cannot_authorize_motion(self):
-        self.assertIn("ServiceFlags[] = {0,0,0,0}", generate(self.disabled))
+        self.assertIn("ServiceFlags[] = {0}", generate(self.disabled))
 
     def test_only_complete_measured_records_enable_hardware(self):
         config = self.measured()
-        self.assertIn("ServiceFlags[] = {1,1,1,1}", generate(config))
-        for field, value in (("rest_us", 499), ("raised_us", 2501), ("travel_ms", 501), ("travel_ms", True)):
+        self.assertIn("ServiceFlags[] = {1}", generate(config))
+        for field, value in (("rest_us", 499), ("raised_us", 2501), ("travel_ms", 3001), ("travel_ms", True)):
             with self.subTest(field=field, value=value):
                 bad = copy.deepcopy(config)
                 bad["servos"][2][field] = value

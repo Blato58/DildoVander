@@ -5,7 +5,7 @@
 #include "../wand_presentation/WandPresentation.h"
 
 // Runs only on the control owner. Journal admission precedes the first effect;
-// endpoint feedback, rather than elapsed servo time, permits completion.
+// calibrated elapsed travel permits completion; positions are not measured.
 class PhysicalPresentation final : public WandPresentationPort {
  public:
   PhysicalPresentation(PhysicalEffects& effects, DeviceControlRuntime& runtime)
@@ -13,6 +13,8 @@ class PhysicalPresentation final : public WandPresentationPort {
   void Tick(uint64_t nowMs);
   bool IsReady(uint8_t compartment) const override { return effects_.Ready(compartment); }
   bool IsSafeToContinue() const override { return effects_.Healthy(); }
+  uint64_t RaiseTimeoutMs(uint8_t n) const override { return 2200 + effects_.MotionTimeoutMs(n); }
+  uint64_t LowerTimeoutMs(uint8_t n) const override { return effects_.MotionTimeoutMs(n); }
   bool IsRaised(uint8_t compartment) const override;
   bool IsResting(uint8_t compartment) const override;
   bool Raise(uint8_t compartment, const std::string& proposalId,

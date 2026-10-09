@@ -6,7 +6,63 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**D155 – 9. 10. 2026 – potvrzené nákupy, zapojení a fyzický ESP-IDF adaptér připravené.**
+**D156 – 9. 10. 2026 – zjednodušená architektura podle majitele, bez doplňkových pohonových modulů.**
+Majitel výslovně odstranil externí watchdog, hardwarový heartbeat přes I2C,
+nezávislou inhibit logiku, elektronický high-side switch i 12 koncových
+spínačů. Požaduje 12V PD z UGREEN C1, původní mono SD/GAIN obou DFR0954
+bez odpájení R1, softwarový mute a individuální dobu serv místo pevné
+500ms meze. Toto rozhodnutí **nahrazuje D155 a starší požadavky na tyto
+doplňky**; neobjednávat je a neimplementovat jejich podporu.
+
+Aktuální [zapojení](zapojeni-potvrzeneho-hardwaru.md): GPIO2 přímo PCA OE,
+HIGH vypnuto, pull-up kolem 10 kΩ (dva koupené 22kΩ paralelně = 11 kΩ).
+Zelená kolébka přímo odpojuje 5V pohony, zem společná. Stav kolébky se
+nesnímá. MCP0x20 používá pouze GPA0 pro bílé tlačítko; ostatní vývody volné.
+PCA0x40: serva 0–5, U059 6–11, ostatní FULL_OFF. RGB48 přes Pixel Shifter,
+36 LED, šest na přihrádku, jas 64/255. Audio B 21/41/42/47; SD38–40 a
+kamerové piny zůstávají volné. Měnič SBC-Buck02 / SEG-28582: 12V vstup,
+5V výstup, udávané 5 A; současně jeden pohon a jeden LED úsek.
+
+Firmware odstranil pulzní úlohu a příslušné GPIO/flags, čtení koncových
+kontaktů, mute zápisy do MCP i povolení závislé na přídavných dílech.
+NVS servisní konfigurace má jen `profile_b_ok`, revizi a šest kalibrací.
+Servo okno je individuální 20–3000 ms, softwarová mez čas + 250 ms;
+ruční cyklus do 15 s, autonomní čekání na zdvih/návrat podle kalibrace.
+Kontrola prodlevy řídicí smyčky 250 ms a vibrace 150 ms zůstává.
+Před změnou kanálů a při I2C chybě jde přímé OE HIGH, potom FULL_OFF.
+Žádný automatický návrat po Stop; další pohyb až po ruční kontrole
+všech přihrádek dole a 2s přidržení tlačítka. Normální časovaný návrat
+uzavírá journal a obnovuje dostupnost, **poloha je předpokládaná**, ne
+měřená; `physicalVerification: unavailable` zůstává pravdivé.
+
+Zesilovače mají tovární mono konfiguraci. Software mění PCM hlasitost
+(25 %), Stop uzavře přísun nového PCM, auto-clear DMA a drain vytvářejí
+ticho. Již zařazený zvuk může doběhnout, boot/resetové ticho není
+zaručené. Síťové heartbeat pro ruční lease se nemění: nejsou to odstraněné
+hardwarové pulzy. AGENTS, plán, napájení, objednávka, README a CAD
+inventární metadata odpovídají novému zadání; CAD geometrie se nemění.
+
+Ověření dosud: nový fyzický host test prošel (jeden pohon/úsek, limity,
+I/O chyba/prodleva, kalibrace, journal před pohybem, autonomní i ruční
+návrat, replay/Stop/přerušení ukázky i návratu, chyba uzavření journalu,
+1,5s pohyb v obou režimech). Audio A/B stub test a tři testy servisního
+JSON prošly. Finální `pio run -d kufr/firmware` (ESP-IDF 6.1 /
+espressif32 7.1.3) **SUCCESS**, RAM 70 192 B, flash 1 248 353 B;
+Arduino sériový build **SUCCESS**. Servisní projekt s vypnutým příkladem
+**SUCCESS**, flash 170 957 B. Dosavadní firmware host sada z cloudového
+setupu prošla včetně 52 skutečných výstupních zpráv proti v1 schématu.
+Ověřeno 91 lokálních Markdown cest, `git diff --check` a Python syntaxe
+CAD metadat. Git/CI doručení bude doplněné podle skutečného výsledku.
+
+Fyzické zapojení, kalibrace, proudy, teplota, napájení ESP, GPIO2/OE reset
+a skutečné I2S/DMA nejsou tímto ověřené. Při úplném zamrznutí může pohon
+zůstat aktivní; vypnutí zajišťuje zelená kolébka. Bez snímačů se zaseknutí
+serva nebo pohyb bez napájení polohově nezjistí. Další krok: proměřit 12V
+PD/5V napájení/OE, kalibrovat jednu přihrádku a potom zbylé, zkontrolovat
+pasivní držení a mechanické dorazy, následně samostatně autorizované
+servisní nahrání a fyzická akceptace. Kamera/SD driver E13 zbývá.
+
+**D155 – 9. 10. 2026 – původní návrh adaptéru; nahrazen D156.**
 Majitel doložil dva snímky nákupu: měnič SEG-28582, druhý DFR0954,
 MCP23017 Adafruit 5346, dva PH2 kabely, Dupont, zelenou a další červenou
 kolébku, multimetr, dvojlinky, rezistory a Degson. Objednávka tyto položky
@@ -2555,7 +2611,7 @@ Dotčené cesty: `kufr/firmware/`, související README a tento stav. Dosavadní
 
 | Část | Co skutečně existuje | Co zatím chybí |
 | --- | --- | --- |
-| Firmware | ESP-IDF složený runtime D99: jeden STA vlastník, provisionované HTTPS pairing/TLS/WSS, řídicí router, journal/safety snapshot, textový input a korelované backendové repliky. Autonomní model D77 a porty jsou hostitelsky testované. Arduino sériový profil zůstává vývojový. | B1, fyzické service/inspection/kalibrace, GPIO/watchdog, živý ESP32 NVS/TLS/STA a I2S. |
+| Firmware | ESP-IDF složený runtime D99: jeden STA vlastník, provisionované HTTPS pairing/TLS/WSS, řídicí router, journal/safety snapshot, textový input a korelované backendové repliky. Autonomní model D77 a porty jsou hostitelsky testované. Arduino sériový profil zůstává vývojový. | B1: měření externího napájení, přímého OE, mechaniky a kalibrace; živé NVS/TLS/STA/I2S. |
 | Mobil | Web fake / C++ simulator UI; Capacitor 8.4.3 a E10.1 Swift SPKI/Keychain/pairing/WSS. Text/cancel/result (D102), NWBrowser discovery (D103), Debug telemetrie/log a izolovaný backendový hlas na telefonu (D108). macOS native testy, Xcode a iOS Simulator prošly. | Čtení QR/servisní provisioning, běžný audio tok po E9, aktivace diagnostického backendu/nová IPA a živý iPhone/LAN acceptance. |
 | Backend/kontrakty/simulátor | E7 SQLite/idempotence/retence/kvóty; E8 Responses Sol s trvalou oddělenou pamětí večera, nasazený textový rozhovor D75. D106: explicitní STT/TTS s omezenými asynchronními operacemi a WAV převodem. Strict v1 schéma, C++/WSS simulator, OpenAPI a fake media E2. | Firmware audio tok, živá hlasová evaluace, zařízení a lidská/provozní akceptace. |
 | iOS CI | Capacitor web/Xcode/simulator CI; D70 podepsaná Ad Hoc IPA a HTTPS manifest, majitelem potvrzený start na iPhonu 15 Pro. D101 unsigned nativní build/test. | Nová native IPA a její LAN/TLS/Keychain/lifecycle iPhone zkouška; aktualizace/rollback. |
@@ -2570,12 +2626,12 @@ Přesné závislosti a kritéria dokončení jsou v kapitole 12 plánu. Následu
 | Etapa | Stav | Dokončený rozsah / důkaz | Zbytek nebo podmínka dalšího kroku |
 | --- | --- | --- | --- |
 | E0 – provozní předpoklady | rozpracováno | Architektonické výchozí předpoklady v plánu; žádná měření. | Vstupy B1–B5 níže; software E1 může začít. |
-| E1 – bezpečné jádro | hotovo | E1.1: Stop v každé fázi, safety port, 250/500/5000ms limity, explicitní zotavení (D1). E1.2: hostitelský timeout průchodu smyčkou, porucha, výpadek ručního lease a přednost Stop; hostitelské testy a firmware build prošly (D2). | Fyzická reakce nezávislého watchdogu patří E5 a nebyla měřena; softwarový model vypíná až při dalším průchodu smyčkou. |
+| E1 – bezpečné jádro | hotovo | E1.1: Stop v každé fázi, safety port, 250/500/5000ms limity, explicitní zotavení (D1). E1.2: hostitelský timeout průchodu smyčkou, porucha, výpadek ručního lease a přednost Stop; hostitelské testy a firmware build prošly (D2). | D156 používá přímé OE a fyzickou zelenou kolébku; softwarový limit se uplatní při dalším průchodu smyčkou. |
 | E2 – smlouvy a simulátor | hotovo | E2.1–4 kontrakty, C++ model, fake journal, parser a WSS; E2.5 časová osa s browser ověřením (D10,D22); E2.6 OpenAPI, E2.7 reload, E2.8 fake text/cancel, E2.9 fake media parser/socket (D3–D18). Ztracený ACK, duplicitní/pozdní příkaz, restart a zotavení kryjí hostitelské testy a WSS scénáře. | Fake není skutečný audio buffer, NVS ani backend; tyto hranice patří E4/E7/E9. |
 | E3 – ruční mobil bez HW | hotovo | E3.1 fake UI (D19), E3.2a ověřený místní most (D20), E3.2b UI adaptér a celý výběr/reload/Stop/odpojení proti C++ simulátoru, cílené testy ztracených zpráv a nového lease (D21). | Jde pouze o webovou/simulátorovou akceptaci E3; nativní iPhone, TLS pinning a fyzický kufr patří E3a/E10/E5. |
 | E3a – iOS CI základ | hotovo | Capacitor 8.4.3, iOS projekt/SPM/sdílené scheme; web, Xcode a simulator CI (D50). D70: [Ad Hoc běh 36636991415](https://github.com/Blato58/DildoVander/actions/runs/36636991415) podepsal a ověřil IPA, publikoval ji na vlastním HTTPS serveru s manifestem a externě znovu ověřil; instalační web prošel browser kontrolou na mobilním viewportu. Majitel 30. 9. potvrdil instalaci a spuštění na iPhonu 15 Pro. | Native WSS/Swift bridge, LAN oprávnění, Keychain a aktualizace aplikace patří E10/E11; nejsou doložené tímto startem. |
 | E4 – runtime a přímá síť | rozpracováno | E4.1: ESP-IDF 6.1 profil, CMake, bezpečná smyčka, 16MB oddíly a lokální build; Arduino sériový profil zachován (D33). E4.2a: trvalý journal a NVS adaptér v IDF sestavení, hostitelský restart a chyby úložiště (D34). E4.2b: formát identity, softwarová servisní brána a NVS čtení (D35). E4.3a: tokenový model, parser a HTTPS adaptér (D36). E4.3b: NVS síťové nastavení, Wi-Fi STA/SNTP/čas v samostatném tasku (D37). E4.3c1–11: JSON kodeky, HTTPS adaptéry startu/tahu/pollu, guard korelace, UUID generátor a časování pollu (D38–D48). E4.3c12: interní čekající text a síťový fake cyklus (D49). E4.3d1: uzamčený snapshot a invalidace starého textu/výsledku (D51). E4.3d2a: vlastník bezpečných změn snapshotu v IDF smyčce (D64). E4.3d2b1: fronta přijímá jen předem ověřený snapshot (D71). E4.3d2b2: autonomní journal, snapshot a okamžitý Stop ověřeny hostitelsky (D77). E4.3d2b3–5: omezená replika, korelace tahu a mapování místního sezení (D78–D80). E4.4a–g: vlastník lease, přijetí textu, společná generation, místní brána, sdílené boot ID, čistý párovací model a ESP-IDF úložné/kryptografické adaptéry (D81–D87). E4.4h–s: bearer/admission, RNG/TLS, parser/fronta, WSS server/router, pravdivý output/reply, HTTPS párování a runtime s jediným LAN vlastníkem (D88–D99), host testy/build bez HW. | Fyzicky střežený USB provisioning, inspection/kalibrace, živé WSS/NVS/síť a pro nahrání B1; software input/output je složený, fyzická/hlasová prezentace není. |
-| E5 – jedna bezpečná přihrádka | nezahájeno | Bez ovládání a měření. | E0/E1/E4; B1, fyzická akceptace. |
+| E5 – jedna bezpečná přihrádka | rozpracováno | D156: skutečné GPIO/I2C/RMT adaptéry a kalibrovaná časovaná prezentace jsou sestavené a hostitelsky testované; fyzické měření chybí. | E0/E1/E4; B1, fyzická akceptace. |
 | E6 – šest přihrádek | nezahájeno | Bez fyzického ověření. | E5; cykly, proudy, dostupnost/reload. |
 | E7 – backend bez skutečné AI | hotovo | E7.1–2 identity/fake dialog; E7.3a–c SQLite idempotence, restart a kvóta; E7.4a–b cleanup/retence a rušení; E7.5a–b WAV fake hlas; E7.6 transakční nákladová rezervace. Lokální HTTP/SQLite testy přístupů, souběhu, restartu, retence a logů prošly (D23–D32). | Skutečné provider ceny/limity/klíče a placená akceptace patří E8/B4; device HTTPS/TLS integrace E4. |
 | E8 – skutečný textový dialog | rozpracováno | D53–D54: samostatný Responses eval a party prompt. D57: 60 českých případů a dvě jazykové odbočky. D60–D62: backendový Responses klient, cena a asynchronní napojení za výslovný přepínač a rezervaci. D63: jeden nasazený syntetický placený tah. D66: modelový vícekolový dialog s omezenou RAM historií. D68: tři skutečné placené tahy přes veřejné HTTPS, dvě AI otázky a návrh s navázáním na odpovědi. D72: původní šestičlenný katalog a tematický kufr Ollivanderova obchodu, backend/eval filtrování dle readyMask ověřeno offline. D73: nové téma včetně prvního představení kufru prošlo veřejným tříkolovým testem; server vrácen do fake režimu. | Širší lidské hodnocení, produkční region/retence, zařízení a fyzické potvrzení; B1/B5. |
@@ -2591,7 +2647,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 
 | ID | Chybějící vstup a kdo ho dodá | Co blokuje | Co může pokračovat |
 | --- | --- | --- | --- |
-| B1 | **Částečně ověřeno D122:** doručený N16R8, USB-UART COM7, ESP32-S3 chip v0.2, 16 MB Quad flash/3,3 V a 8 MB Octal PSRAM/80 MHz; autorizovaná USB-only diagnostika prošla tři restarty a 7 MiB pattern test. Stále chybí revize PCB/schéma, nativní USB/LED, externí napájení, bezpečnostní větev/watchdog, mechanika, servisní vstup a kalibrace. | Flash aplikačního firmware a provisioning s periferiemi, E5/E6 a HW akceptaci E9/E13. | USB-only diagnostika v doloženém rozsahu D122, hostitelské testy, protokol, simulátor, SW build. |
+| B1 | **Částečně ověřeno D122:** doručený N16R8, USB-UART COM7, ESP32-S3 chip v0.2, 16 MB Quad flash/3,3 V a 8 MB Octal PSRAM/80 MHz; autorizovaná USB-only diagnostika prošla tři restarty a 7 MiB pattern test. Stále chybí revize PCB/schéma, nativní USB/LED, externí 12V/5V napájení, přímé OE/reset, mechanika, servisní vstup a kalibrace podle D156. | Flash aplikačního firmware a provisioning s periferiemi, E5/E6 a HW akceptaci E9/E13. | USB-only diagnostika v doloženém rozsahu D122, hostitelské testy, protokol, simulátor, SW build. |
 | B2 | **Vyřešeno pro Ad Hoc export:** environment `ios-signing` obsahuje distribuční `.p12` a profil pro Team `3QRXV8G5Y3`, Bundle `app.turquoise6409.green2444`, jedno zařízení, `get-task-allow=false`, expiraci 24. 12. 2026. Stejné `IOS_P12_PASSWORD` OpenSSL přečetl; [běh 36636991415](https://github.com/Blato58/DildoVander/actions/runs/36636991415) importoval přebalenou identitu, ověřil shodu certifikátu s profilem, archiv, podpis a embedded profil IPA. | Podpis již neblokuje E3a; obnovit certifikát/profil před expirací. | iPhone akceptace B3 a další software. |
 | B3 | **Vyřešeno pro první instalaci E3a:** majitel potvrdil iPhone 15 Pro s iOS 26.6.1 a správné UDID v profilu. Stránka [https://2.28.202.220/ios/](https://2.28.202.220/ios/) veřejně vrací podepsanou verzi, `itms-services`, manifest a IPA; D70 ověřil externí HTTPS download a majitel 30. 9. potvrdil instalaci i spuštění. | LAN/Keychain a ovládání E10, aktualizace/rollback E11 stále vyžadují samostatnou zkoušku. | E4.3d2b a další software může pokračovat bez telefonu. |
 | B4 | Majitel dodal Ubuntu server s veřejnou IP `2.28.202.220` a runnerem `dildovander-server`; backend běží na loopback. OPENAI_API_KEY je v GitHub environmentu; D63 ověřil jeden placený Responses tah na loopback API. D67 root bootstrap vydal platný IP SAN certifikát, zapnul Nginx a obnovovací timer; externí [sonda 36633620137](https://github.com/Blato58/DildoVander/actions/runs/36633620137) ověřila veřejnou TLS důvěru, health, platnost a HTTP přesměrování. Pro skutečné zařízení zbývá jeho Device ID/credential, region/retence a fyzická TLS akceptace. GitHub environment má limity 0,50 USD/sezení a 10 USD/měsíc; majitel 29. 9. potvrdil projektový hard spend limit 10 USD v OpenAI. | Reálné ESP32/TLS spojení a produkční podmínky AI dat. | Veřejné HTTPS nyní funguje pro syntetické testy bez HW; loopback backend, CI a E8 eval korpus. |

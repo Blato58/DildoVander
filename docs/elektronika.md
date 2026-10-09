@@ -3,13 +3,13 @@
 > **Aktualizace 9. 10. 2026:** Pro AI kufr objednávat pouze podle
 > [nového seznamu chybějících dílů](objednavka-doplneni-kufru-2026-10-06.md).
 > Zohledňuje nové potvrzené nákupy, dva zesilovače, kameru, jeden aktivní LED úsek a jeden pohon,
-> kolébkové vypínače a odklad watchdogu pro laboratorní prototyp. Níže je historický podklad.
+> kolébkové vypínače, přímé OE a ruční odpojení pohonů. Níže je historický podklad.
 
 Stav návrhu k 28. 9. 2026. Ceny jsou orientační z průzkumu a mohou se změnit; před platbou zkontrolovat variantu, sklad a cenu a odečíst již pořízené díly. Prioritu v rozpočtu 10 000 Kč má **AI kufr**. Powerbanku si majitel pořídí samostatně, proto není v nákupních součtech. Součet není cena celého kostýmu a nezahrnuje dopravu, kufry, knihu, hůlky ani mechanické díly. Překročení celkového rozpočtu vyžaduje schválení majitele.
 
 ## 1. AI kufr — koupit jako první
 
-**Doplnění podle [implementačního plánu](../kufr/docs/implementacni-plan.md):** tabulky a součty níže jsou historický nákupní podklad, nikoli kompletní kusovník finálního systému. Chybí konkrétní watchdog, bezpečnostní logika/spínač napájení pohonů a PHYSICAL_ENABLE včetně snímání. Pro profil B může přibýt MCP23017 a příslušenství, pro provoz router/AP; při nevyhovění desky další řadič. Výběr a ceny doplnit po E0/E5, před objednáním přepočítat rozpočet. Stav nákupů ani měření tento dokument nepotvrzuje; viz [stav implementace](../kufr/docs/stav-implementace.md).
+**Současný stav:** tabulky níže jsou historický nákupní podklad. Potvrzené nákupy vede [aktuální objednávka](objednavka-doplneni-kufru-2026-10-06.md), montáž a ovládání [aktuální zapojení](../kufr/docs/zapojeni-potvrzeneho-hardwaru.md).
 
 Počítáme se šesti hůlkami, každou s krátkým adresovatelným RGB páskem, vibračním modulem a západkou uvolňovanou servem. Kufr má vlastní mikrofon, reproduktor a tlačítko; mobilní aplikace později zajistí ovládání a záložní vstup. AI služba ani její případné poplatky nejsou v této tabulce. [Nákup rozdělený do dvou obchodů](nakupni-seznam-kufr.md) · [Návrh efektů a napájení](../kufr/docs/efekty-a-napajeni.md).
 
@@ -26,8 +26,8 @@ Počítáme se šesti hůlkami, každou s krátkým adresovatelným RGB páskem,
 | Převodník datové úrovně Adafruit Pixel Shifter 6066 | 1 | 136 Kč | [Botland](https://botland.cz/prislusenstvi-pro-led-pasky/28640-pixel-shifter-prevodnik-logickych-urovni-33-v-5-v-pro-adresovatelne-led-diody-adafruit-6066-5906623498802.html); 3,3V signál ESP32 na 5V datovou linku WS2812B |
 | Rezistor 330 Ω | 1 | 1 Kč | [Drátek](https://dratek.cz/arduino-platforma/7655-rezistor-330r-0.25-w-1.html); do datové linky před první LED |
 | Vibrační modul M5Stack U059 | 6 celkem | 492 Kč | [Botland](https://botland.cz/moduly-jednotek-rozsirujici-moduly/17999-vibracni-motor-n20-rozsirujici-modul-unit-pro-vyvojove-moduly-m5stack-6972934170972.html); **nejprve 1 kus na prototyp**, dalších 5 po ověření účinku |
-| Powerbanka s USB-C PD 20 V | 1 | mimo košík | Majitel ji koupí samostatně; před zapojením ověřit profil 20 V a vhodný USB-C kabel |
-| USB-C PD modul s volbou 20 V | 1 | 32 Kč | [Drátek](https://dratek.cz/arduino-platforma/232511-power-modul-usb-c-pd-s-nastavitelnym-napetim-a-prepinacem.html); pouze na vstup 5V měniče |
+| Powerbanka s USB-C PD 12 V / 3 A | 1 | mimo košík | Majitel ji koupí samostatně; před zapojením ověřit profil 12 V / 3 A na C1 a vhodný USB-C kabel |
+| USB-C PD modul nastavený na 12 V | 1 | 32 Kč | [Drátek](https://dratek.cz/arduino-platforma/232511-power-modul-usb-c-pd-s-nastavitelnym-napetim-a-prepinacem.html); pouze na vstup 5V měniče |
 | DC/DC měnič 9–30 V → 5 V / 5 A s USB-A výstupem | 1 | 57 Kč | [Drátek](https://dratek.cz/arduino-platforma/180391-step-down-menic-xy3606-9-30v-dc-5a-usb-vystup-dc5-5x2-1-vstup-svorkovnice.html); jedna 5V větev pro kufr, před připojením změřit |
 | Kabel USB-A → USB-C pro desku | 1, pokud není doma | 72 Kč | [Drátek](https://dratek.cz/arduino-platforma/180220-datovy-a-nabijeci-kabel-usb-c-usb-a-1m-cerny.html); z USB-A měniče do desky ESP32 |
 | Kabel USB-C → USB-C, 60 W / 20 V 3 A | 1, pokud není doma | 185 Kč | [Drátek](https://dratek.cz/arduino/180410-baseus-napajeci-kabel-usb-c-na-usb-c-60w-1-metr-cerno-sedy.html); mezi samostatně kupovanou powerbankou a PD modulem |

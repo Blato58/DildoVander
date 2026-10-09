@@ -25,7 +25,7 @@ There is no NVS, network, audio, OE or PWM initialization.
 `RESULT PASS` means an ACK and five successful stable mode-register reads.
 The PCA9685 has no unique identification register; this does not prove chip
 authenticity, precise supply voltage, pull-up resistance, waveform margins,
-servo/motor operation or the physical watchdog/inhibit safety circuit.
+servo/motor operation, direct OE control or the service power switch.
 Measured acceptance remains in the [implementation status](../../../docs/stav-implementace.md).
 After a full VCC power cycle the expected MODE1/MODE2 defaults are 0x11/0x04;
 different stable values require interpretation and are not rejected by this test.
@@ -40,7 +40,7 @@ the existing application from this directory:
 pio run -d ../.. -e esp32-s3-idf -j 2 --target upload --upload-port COM7
 ```
 
-Its PCA actuator driver is still absent.
+The main image includes the PCA actuator driver; motion requires verified wiring and calibration.
 
 Protocol/API sources: [NXP PCA9685 datasheet](https://www.nxp.com/docs/en/data-sheet/PCA9685.pdf)
 and the installed ESP-IDF 6.1 `driver/i2c_master.h`.

@@ -2,9 +2,7 @@
 
 namespace {
 
-constexpr uint64_t RaiseTimeoutMs = 3000;
 constexpr uint64_t ShowDurationMs = 5000;
-constexpr uint64_t LowerTimeoutMs = 3000;
 
 bool Elapsed(uint64_t nowMs, uint64_t startedAtMs, uint64_t durationMs) {
   return nowMs - startedAtMs >= durationMs;
@@ -64,7 +62,7 @@ void WandPresentation::Tick(uint64_t nowMs) {
     case WandPresentationState::Fault:
       return;
     case WandPresentationState::Raising:
-      if (Elapsed(nowMs, phaseStartedAtMs_, RaiseTimeoutMs)) {
+      if (Elapsed(nowMs, phaseStartedAtMs_, port_.RaiseTimeoutMs(compartment_))) {
         Fault();
       } else if (port_.IsRaised(compartment_)) {
         state_ = WandPresentationState::Showing;
@@ -82,7 +80,7 @@ void WandPresentation::Tick(uint64_t nowMs) {
       }
       return;
     case WandPresentationState::Lowering:
-      if (Elapsed(nowMs, phaseStartedAtMs_, LowerTimeoutMs)) {
+      if (Elapsed(nowMs, phaseStartedAtMs_, port_.LowerTimeoutMs(compartment_))) {
         Fault();
       } else if (port_.IsResting(compartment_)) {
         if (!port_.Complete(compartment_)) {
