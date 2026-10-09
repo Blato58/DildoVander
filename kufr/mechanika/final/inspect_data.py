@@ -16,6 +16,19 @@ KUFR = ROOT.parents[1]
 DIMENSIONS = KUFR / "mechanika/rozmery-nakoupenych-soucastek.md"
 WIRING = KUFR / "docs/zapojeni-potvrzeneho-hardwaru.md"
 SNAPSHOT = ROOT / "reference/inspect-sources.json"
+# connection_data() was reviewed against these exact source bytes. Refreshing
+# provenance must never imply that its manually encoded topology was updated.
+REVIEWED_WIRING_SHA256 = "585836db04eda8bddc3362788ddf24fdeb756f32520d85b151782ea1c99016b8"
+
+
+def _assert_reviewed_wiring(record):
+    if record["sha256"] != REVIEWED_WIRING_SHA256:
+        raise ValueError(
+            "Unreviewed wiring source: " + record["name"] + ". "
+            "Review and update connection_data() against the changed wiring document, "
+            "run its regression tests, then deliberately update REVIEWED_WIRING_SHA256 "
+            "in inspect_data.py before refreshing the snapshot or packaging the viewer."
+        )
 
 
 def _source_paths():
@@ -44,6 +57,7 @@ def _snapshot_records():
                 raise ValueError("Source snapshot text must be UTF-8 text")
             if hashlib.sha256(row["text"].encode("utf-8")).hexdigest() != row["sha256"]:
                 raise ValueError("Source snapshot digest mismatch: " + row["name"])
+        _assert_reviewed_wiring(records[1])
         return records
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
         raise ValueError(f"Invalid or missing inspection source snapshot: {SNAPSHOT}: {error}") from error
@@ -52,8 +66,10 @@ def _snapshot_records():
 def _source_records():
     paths = _source_paths()
     snapshot = None if all(path.is_file() for path in paths) else _snapshot_records()
-    return [_source_record(path) if path.is_file() else snapshot[index]
-            for index, path in enumerate(paths)]
+    records = [_source_record(path) if path.is_file() else snapshot[index]
+               for index, path in enumerate(paths)]
+    _assert_reviewed_wiring(records[1])
+    return records
 
 
 def snapshot_sources():
@@ -61,7 +77,7 @@ def snapshot_sources():
     if not all(path.is_file() for path in _source_paths()):
         assert_snapshot_current()
         return
-    payload = {"schema": 1, "sources": [_source_record(path) for path in _source_paths()]}
+    payload = {"schema": 1, "sources": _source_records()}
     content = (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     if not SNAPSHOT.is_file() or SNAPSHOT.read_bytes() != content:
         SNAPSHOT.parent.mkdir(parents=True, exist_ok=True)
@@ -71,6 +87,8 @@ def snapshot_sources():
 def assert_snapshot_current():
     """Read-only freshness check used before claiming generated CAD is current."""
     records = _snapshot_records()
+    if WIRING.is_file():
+        _assert_reviewed_wiring(_source_record(WIRING))
     for path, record in zip(_source_paths(), records):
         if path.is_file() and _source_record(path)["sha256"] != record["sha256"]:
             raise ValueError("Stale inspection source snapshot: " + record["name"])
@@ -222,6 +240,7 @@ def connection_data(names: set[str]):
     Degson and capacitor IDs have no documented net assignment. Deliberately
     leave them disconnected instead of treating their CAD position as evidence.
     """
+    _source_records()
     result = []
 
     def add(start, end, label, kind, note=""):

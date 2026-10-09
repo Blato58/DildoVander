@@ -118,6 +118,21 @@ class InspectDataTests(unittest.TestCase):
         self.assertEqual("esp32", samples["to"])
         self.assertEqual("SD → GPIO42", samples["label"])
 
+    def test_reviewed_wiring_keeps_current_92_connections(self):
+        names = {"powerbank", "pd_trigger", "buck", "breaker", "red_main", "esp32",
+                 "pixel_shifter", "amplifier_left", "amplifier_right", "green_drives",
+                 "white_ptt", "pca9685", "mcp23017", "microphone", "speaker_left",
+                 "speaker_right", "camera"}
+        names |= {f"{prefix}_{index}" for prefix in ("servo", "u059", "led")
+                  for index in range(1, 7)}
+        self.assertEqual(data.REVIEWED_WIRING_SHA256, data._source_records()[1]["sha256"])
+        edges = data.connection_data(names)
+        self.assertEqual(92, len(edges))
+        topology = [(edge["from"], edge["to"], edge["label"], edge["kind"]) for edge in edges]
+        encoded = json.dumps(topology, ensure_ascii=False).encode("utf-8")
+        self.assertEqual("c35dbc6c09ab663386d19e5c39eb51b820252240d52e52859eda3530ded67752",
+                         hashlib.sha256(encoded).hexdigest())
+
 
 class SourceSnapshotTests(unittest.TestCase):
     def setUp(self):
@@ -190,12 +205,41 @@ class SourceSnapshotTests(unittest.TestCase):
 
     def test_snapshot_preserves_utf8_and_line_endings(self):
         content = "První řádek\r\nDruhý řádek\r\n".encode("utf-8")
-        data.WIRING.write_bytes(content)
+        data.DIMENSIONS.write_bytes(content)
         data.snapshot_sources()
-        data.WIRING.unlink()
-        record = data._source_records()[1]
+        data.DIMENSIONS.unlink()
+        record = data._source_records()[0]
         self.assertEqual(content, record["text"].encode("utf-8"))
         self.assertEqual(hashlib.sha256(content).hexdigest(), record["sha256"])
+
+    def test_changed_wiring_cannot_refresh_provenance_or_emit_connections(self):
+        data.snapshot_sources()
+        before = data.SNAPSHOT.read_bytes()
+        updated = data.WIRING.read_bytes().replace(b"| 1 | PCA SDA", b"| 3 | PCA SDA")
+        self.assertNotEqual(data.WIRING.read_bytes(), updated)
+        data.WIRING.write_bytes(updated)
+        for action in (data.snapshot_sources, data.assert_snapshot_current, data.source_evidence,
+                       lambda: data.connection_data({"esp32", "pca9685"})):
+            with self.subTest(action=action), self.assertRaisesRegex(ValueError, "Review and update connection_data"):
+                action()
+        self.assertEqual(before, data.SNAPSHOT.read_bytes())
+
+    def test_valid_but_unreviewed_extracted_wiring_snapshot_is_rejected(self):
+        data.snapshot_sources()
+        payload = json.loads(data.SNAPSHOT.read_text(encoding="utf-8"))
+        record = payload["sources"][1]
+        record["text"] = record["text"].replace("| 1 | PCA SDA", "| 3 | PCA SDA")
+        record["sha256"] = hashlib.sha256(record["text"].encode("utf-8")).hexdigest()
+        self.assertNotEqual(data.REVIEWED_WIRING_SHA256, record["sha256"])
+        data.SNAPSHOT.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        data.DIMENSIONS.unlink()
+        data.WIRING.unlink()
+        before = data.SNAPSHOT.read_bytes()
+        for action in (data.snapshot_sources, data.assert_snapshot_current, data.source_evidence,
+                       lambda: data.connection_data({"esp32", "pca9685"})):
+            with self.subTest(action=action), self.assertRaisesRegex(ValueError, "REVIEWED_WIRING_SHA256"):
+                action()
+        self.assertEqual(before, data.SNAPSHOT.read_bytes())
 
     def test_isolated_package_runs_metadata_suite_without_external_docs(self):
         data.snapshot_sources()
