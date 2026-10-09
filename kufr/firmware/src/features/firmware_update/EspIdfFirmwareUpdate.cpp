@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <memory>
+#include <new>
 #include "esp_app_desc.h"
 #include "esp_crt_bundle.h"
 #include "esp_http_client.h"
@@ -24,6 +26,7 @@
 namespace kufr { namespace ota {
 namespace {
 constexpr uint64_t DownloadDeadlineMs = 180000;
+constexpr size_t TransferBufferSize = 4096;
 uint64_t NowMs() { return static_cast<uint64_t>(esp_timer_get_time() / 1000); }
 
 class Lock final {
@@ -312,18 +315,19 @@ void EspIdfFirmwareUpdate::Check() {
   status_.state = compatible.empty() ? "available" : "current";
 }
 
-bool EspIdfFirmwareUpdate::VerifyPartition(const void* partition, const Manifest& manifest) const {
+bool EspIdfFirmwareUpdate::VerifyPartition(const void* partition, const Manifest& manifest,
+                                         uint8_t* buffer, size_t bufferSize) const {
   // Hash exactly the signed artifact length, including image padding/appended
   // image hash. esp_partition_get_sha256 has different app-image semantics.
   const auto* target = static_cast<const esp_partition_t*>(partition);
+  if (!buffer || !bufferSize) return false;
   psa_hash_operation_t hash = PSA_HASH_OPERATION_INIT;
   if (psa_hash_setup(&hash, PSA_ALG_SHA_256) != PSA_SUCCESS) return false;
-  std::array<uint8_t, 4096> bytes{};
   bool valid = true;
   for (uint32_t offset = 0; offset < manifest.sizeBytes && valid;) {
-    const size_t count = std::min(bytes.size(), static_cast<size_t>(manifest.sizeBytes - offset));
-    valid = esp_partition_read(target, offset, bytes.data(), count) == ESP_OK &&
-        psa_hash_update(&hash, bytes.data(), count) == PSA_SUCCESS;
+    const size_t count = std::min(bufferSize, static_cast<size_t>(manifest.sizeBytes - offset));
+    valid = esp_partition_read(target, offset, buffer, count) == ESP_OK &&
+        psa_hash_update(&hash, buffer, count) == PSA_SUCCESS;
     offset += static_cast<uint32_t>(count);
     vTaskDelay(1);
   }
@@ -345,18 +349,21 @@ void EspIdfFirmwareUpdate::Install() {
       !ValidateUpgrade(candidate, KUFR_FIRMWARE_VERSION, KUFR_FIRMWARE_BUILD_ID, channel_, target->size).empty()) {
     Fail("install-compatibility-changed"); return;
   }
+  // Download and flash verification share one allocation, acquired before any
+  // erase/write begins. Nested 4 KiB automatic buffers exhaust the worker stack.
+  std::unique_ptr<uint8_t[]> buffer(new (std::nothrow) uint8_t[TransferBufferSize]);
+  if (!buffer) { Fail("update-buffer-unavailable"); return; }
   Http http;
   if (!http.Open(origin_ + candidate.url, target->size, candidate.sizeBytes)) { Fail("artifact-http-failed"); return; }
   esp_ota_handle_t handle = 0;
   if (esp_ota_begin(target, candidate.sizeBytes, &handle) != ESP_OK) { Fail("flash-begin-failed"); return; }
-  std::array<uint8_t, 4096> buffer{};
   uint32_t written = 0;
   const uint64_t deadline = NowMs() + DownloadDeadlineMs;
   bool valid = true;
   while (written < candidate.sizeBytes && valid && NowMs() < deadline) {
-    const int received = esp_http_client_read(http.client, reinterpret_cast<char*>(buffer.data()),
-        static_cast<int>(std::min(buffer.size(), static_cast<size_t>(candidate.sizeBytes - written))));
-    valid = received > 0 && esp_ota_write(handle, buffer.data(), received) == ESP_OK;
+    const int received = esp_http_client_read(http.client, reinterpret_cast<char*>(buffer.get()),
+        static_cast<int>(std::min(TransferBufferSize, static_cast<size_t>(candidate.sizeBytes - written))));
+    valid = received > 0 && esp_ota_write(handle, buffer.get(), received) == ESP_OK;
     if (valid) written += static_cast<uint32_t>(received);
     vTaskDelay(1);
   }
@@ -367,7 +374,7 @@ void EspIdfFirmwareUpdate::Install() {
   // changing boot selection. Only our digest check can promote the slot.
   if (esp_ota_end(handle) != ESP_OK) { Fail("artifact-image-invalid"); return; }
   { Lock lock(mutex_); status_.state = "verifying-image"; }
-  if (!VerifyPartition(target, candidate)) { Fail("artifact-sha256-invalid"); return; }
+  if (!VerifyPartition(target, candidate, buffer.get(), TransferBufferSize)) { Fail("artifact-sha256-invalid"); return; }
   esp_app_desc_t description{};
   if (esp_ota_get_partition_description(target, &description) != ESP_OK ||
       std::strncmp(description.version, candidate.version.c_str(), sizeof(description.version)) != 0 ||

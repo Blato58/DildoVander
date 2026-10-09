@@ -30,7 +30,7 @@ OTA trust bez NVS erase. SDMMC1-bit asset driver zachovává GPIO38–40,
 vyžaduje servisně ověřené zapojení a nepovoluje format/write/erase.
 Kamera, GPT-Live, personálity, hlas i B-effects zůstaly zachované.
 
-Aktuální CI: commit `e3d4da2`, run **37889978122**, všechny kontroly úspěšné:
+Dosavadní CI: commit `9a3395f`, run **37892885423**, všechny kontroly úspěšné:
 firmware host suite, main ESP-IDF build a čtyři diagnostické buildy,
 backend, web a repository checks. Zahrnuje celý .NET executable runner,
 HTTP smoke, 20 client Python a 12 deploy Python testů. Lokálně prošly mobil
@@ -97,10 +97,23 @@ Trvalá chyba úložiště může zmařit i rollback; nejde o cross-key transakc
 fyzickou power-loss akceptaci. MSVC regrese prošly; parent na skutečném
 Linuxu GCC15.2 znovu sestavil a spustil OTA policy, NVS adapter, pure profiles,
 STA lifecycle a BLE/real cJSON (vše C++14 -Wall/-Wextra/-Werror), všech pět
-binárek prošlo. Node provenance/freshness 55/55 znovu prošlo. Před
-merge/publikací musí projít nové CI a source/PR review po posledním push.
+binárek prošlo. Node provenance/freshness 55/55 znovu prošlo.
+Další dokončené Codex review na `9a3395f` našlo OTA stack P1 a dvě BLE P2.
+OTA nyní alokuje jediný 4096 B heap buffer před flash begin a sdílí jej pro
+download i přesné hashování partition; selhání alokace neeraseuje/nepíše ani
+nepromuje slot. Regrese pokrývají jedinou alokaci, její chybu, partial tail,
+poškozený poslední byte a truncation. Xtensa GCC15.2 `-fstack-usage` a
+`-Wframe-larger-than=2048` změřily Install 624 B, VerifyPartition 208 B a
+Check 1664 B; nejde o úplnou SDK/TLS callgraph ani fyzický high-water.
+Initial BLE window se opakuje po 1s nezávisle na připojeném Wi-Fi, má původní
+absolutní 5min deadline a nečerpá pozdější offline recovery. ESPProvision3.2.0
+`espDeviceNotFound` vrací prázdný seznam místo chybného Bluetooth failure;
+typ callbacku byl ověřen proti skutečné resolved SDK revizi. MSVC adapter
+regrese i skutečné Linux GCC15.2 C++14 -Wall/-Wextra/-Werror OTA adapter a
+BLE/real cJSON binárky prošly. Nezávislé finální source review je čisté.
+Před merge/publikací musí projít nové CI a PR review po posledním push.
 Git předání začalo `c2ab3cf`, zahrnuje synchronizaci `main`
-`ade0e32` a nynější `e3d4da2`; scoped push byl ověřen, PR144 zůstává otevřený.
+`ade0e32` a dosavadní `9a3395f`; scoped push byl ověřen, PR144 zůstává otevřený.
 Merge, ověření cílového tree a finální publikace jsou stále neprovedené.
 
 Žádné fyzické BLE/hotspot/SD/audio/servo, NVS power-loss ani OTA rollback

@@ -72,6 +72,10 @@ and `esp_ota_begin/write/end/set_boot_partition`: installed6.1 wrapper code can
 follow redirects internally despite the client disable flag. Explicit HTTP
 open/header/read APIs let this implementation reject them before following.
 It still uses ESP-IDF OTA/partition APIs, not custom raw flash management.
+Download and exact partition hashing reuse one 4 KiB heap buffer, allocated
+before flash erase/write. Allocation failure releases maintenance and leaves
+the running slot intact. Local Xtensa frame measurements cover updater source;
+physical task stack high-water and complete SDK call-stack use remain unverified.
 
 ## Build and publish a future release
 

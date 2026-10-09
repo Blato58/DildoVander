@@ -51,7 +51,15 @@ public class KufrProvisioningPlugin: CAPPlugin, CAPBridgedPlugin, ESPDeviceConne
             ESPProvisionManager.shared.searchESPDevices(devicePrefix: "KUFR_", transport: .ble, security: .secure) { devices, error in
                 DispatchQueue.main.async {
                     guard self.epoch == epoch, self.pending === call else { return }
-                    guard error == nil else { self.fail("bluetooth_unavailable"); return }
+                    if let error {
+                        switch error {
+                        case .espDeviceNotFound:
+                            self.finish(["devices": []])
+                        default:
+                            self.fail("bluetooth_unavailable")
+                        }
+                        return
+                    }
                     var seen = Set<String>()
                     for device in devices ?? [] {
                         let advertised = device.advertisementData?[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] ?? []

@@ -21,7 +21,7 @@ class EspIdfBleProvisioning final {
   bool Active() const { return active_.load(); }
 
  private:
-  bool Open(uint64_t nowMs);
+  bool Open(uint64_t nowMs, uint64_t windowDeadline);
   void Close(uint64_t nowMs);
   void UpdateWindow(uint64_t nowMs, bool networkReady);
   static void TaskEntry(void* context);
@@ -44,6 +44,8 @@ class EspIdfBleProvisioning final {
   uint64_t offlineSince_ = 0;
   bool offlineTracked_ = false;
   bool recoveryUsed_ = false;
+  bool initialPending_ = false;
+  uint64_t initialDeadline_ = 0;
   bool closing_ = false;
   uint64_t nextCloseRetry_ = 0;
   uint64_t nextOpenAttempt_ = 0;

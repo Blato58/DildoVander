@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstddef>
 #include <string>
 #include "OtaManifest.h"
 #include "OtaPolicy.h"
@@ -41,7 +42,7 @@ class EspIdfFirmwareUpdate final {
   void Fail(const char* error);
   bool LoadSettings();
   bool VerifyEnvelope(const Envelope& envelope) const;
-  bool VerifyPartition(const void* partition, const Manifest& manifest) const;
+  bool VerifyPartition(const void* partition, const Manifest& manifest, uint8_t* buffer, size_t bufferSize) const;
 
   mutable SemaphoreHandle_t mutex_ = nullptr;
   TaskHandle_t task_ = nullptr;
