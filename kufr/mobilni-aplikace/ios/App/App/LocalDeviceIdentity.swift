@@ -109,6 +109,20 @@ final class ProvisioningProofKeychain {
 }
 
 enum LocalBlePairingCodec {
+    static func error(_ data: Data) -> String? {
+        guard data.count <= 512,
+              let response = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              Set(response.keys) == Set(["v", "ok", "error"]),
+              let version = response["v"] as? NSNumber,
+              CFGetTypeID(version) != CFBooleanGetTypeID(), version.doubleValue == 1,
+              let ok = response["ok"] as? NSNumber,
+              CFGetTypeID(ok) == CFBooleanGetTypeID(), !ok.boolValue,
+              let code = response["error"] as? String else { return nil }
+        return ["already_paired", "pairing_unavailable", "busy", "network_not_ready",
+                "pairing_requires_service", "pairing_storage_unavailable", "pairing_failed",
+                "invalid_request"].contains(code) ? code : "pairing_failed"
+    }
+
     static func decode(_ data: Data, expectedDeviceId: String) -> LocalDeviceIdentity? {
         guard data.count <= 512,
               let response = try? JSONSerialization.jsonObject(with: data) as? [String: Any],

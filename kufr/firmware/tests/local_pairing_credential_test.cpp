@@ -75,11 +75,12 @@ class FakeRandom final : public PairingRandomPort {
       return false;
     }
     for (size_t index = 0; index < length; ++index) {
-      output[index] = zero ? 0 : static_cast<uint8_t>(0x80 + index);
+      output[index] = zero ? 0 : static_cast<uint8_t>(0x80 + index + offset);
     }
     return true;
   }
 
+  uint8_t offset = 0;
   int calls = 0;
   bool fail = false;
   bool zero = false;
@@ -211,6 +212,89 @@ void TestAuthenticatedBleFirstUse() {
   assert(failingStorage.writes == 1);
 }
 
+void TestAuthenticatedBleRecoveryRevokesAndReloads() {
+  MemoryStorage storage;
+  FakeHasher hasher;
+  FakeRandom random;
+  LocalPairingCredential credential(storage, hasher, random);
+  std::array<uint8_t, LocalPairingCredential::TokenSize> token{};
+  token.fill(0xff);
+  assert(!credential.RotateFromAuthenticatedBle(token));
+  assert(storage.writes == 0 && random.calls == 0);
+  assert(std::all_of(token.begin(), token.end(), [](uint8_t byte) { return byte == 0; }));
+  assert(credential.InitializeFromAuthenticatedBle(token));
+  const auto originalToken = token;
+  const auto originalRecord = storage.record;
+
+  // A stuck RNG must not report success while keeping the same authority.
+  assert(!credential.RotateFromAuthenticatedBle(token));
+  assert(storage.writes == 1 && storage.record == originalRecord);
+  assert(std::all_of(token.begin(), token.end(), [](uint8_t byte) { return byte == 0; }));
+  assert(credential.VerifyToken(originalToken.data(), originalToken.size()));
+  random.fail = true;
+  assert(!credential.RotateFromAuthenticatedBle(token));
+  assert(std::all_of(token.begin(), token.end(), [](uint8_t byte) { return byte == 0; }));
+  random.fail = false;
+  random.zero = true;
+  assert(!credential.RotateFromAuthenticatedBle(token));
+  assert(std::all_of(token.begin(), token.end(), [](uint8_t byte) { return byte == 0; }));
+  random.zero = false;
+  random.offset = 1;
+  hasher.fail = true;
+  assert(!credential.RotateFromAuthenticatedBle(token));
+  assert(std::all_of(token.begin(), token.end(), [](uint8_t byte) { return byte == 0; }));
+  hasher.fail = false;
+  assert(credential.IsHealthy() && storage.writes == 1);
+  assert(credential.VerifyToken(originalToken.data(), originalToken.size()));
+  assert(credential.RotateFromAuthenticatedBle(token));
+  assert(storage.writes == 2 && token != originalToken);
+  assert(credential.IsPaired() && !credential.IsPairingReady());
+  assert(!credential.VerifyToken(originalToken.data(), originalToken.size()));
+  assert(credential.VerifyToken(token.data(), token.size()));
+  assert(std::search(storage.record.begin(), storage.record.end(),
+                     token.begin(), token.end()) == storage.record.end());
+  LocalPairingCredential restarted(storage, hasher, random);
+  assert(restarted.VerifyToken(token.data(), token.size()));
+  assert(!restarted.VerifyToken(originalToken.data(), originalToken.size()));
+  const auto recoveredToken = token;
+  assert(!restarted.InitializeFromAuthenticatedBle(token));
+  assert(restarted.VerifyToken(recoveredToken.data(), recoveredToken.size()));
+
+  random.offset = 2;
+  storage.failWrite = true;
+  assert(!restarted.RotateFromAuthenticatedBle(token));
+  assert(!restarted.IsHealthy() && !restarted.IsPaired());
+  assert(!restarted.VerifyToken(recoveredToken.data(), recoveredToken.size()));
+  assert(std::all_of(token.begin(), token.end(), [](uint8_t byte) { return byte == 0; }));
+  const int writes = storage.writes;
+  assert(!restarted.RotateFromAuthenticatedBle(token));
+  assert(storage.writes == writes); // Failed storage stays closed for this boot.
+}
+
+void TestAuthenticatedBleRecoveryPreservesOtherStates() {
+  MemoryStorage storage;
+  FakeHasher hasher;
+  FakeRandom random;
+  FakeServiceGate gate;
+  gate.serviceMode = true;
+  gate.supplyDisconnected = true;
+  const auto secret = Secret(0x39);
+  std::array<uint8_t, LocalPairingCredential::TokenSize> token{};
+  LocalPairingCredential awaiting(storage, hasher, random);
+  assert(awaiting.ProvisionPairingSecret(secret.data(), secret.size(), gate));
+  const auto record = storage.record;
+  assert(!awaiting.RotateFromAuthenticatedBle(token));
+  assert(awaiting.IsPairingReady() && storage.record == record && storage.writes == 1);
+  assert(random.calls == 0);
+  storage.record[0] = 'X';
+  LocalPairingCredential corrupt(storage, hasher, random);
+  assert(!corrupt.RotateFromAuthenticatedBle(token));
+  storage.failRead = true;
+  LocalPairingCredential unreadable(storage, hasher, random);
+  assert(!unreadable.RotateFromAuthenticatedBle(token));
+  assert(storage.writes == 1 && random.calls == 0);
+}
+
 void TestConcurrentFirstUseCannotRotate() {
   MemoryStorage storage;
   FakeHasher hasher;
@@ -296,6 +380,8 @@ void TestFailureAndMalformedRecordFailClosed() {
 int main() {
   TestOneTimePairingAndRestart();
   TestAuthenticatedBleFirstUse();
+  TestAuthenticatedBleRecoveryRevokesAndReloads();
+  TestAuthenticatedBleRecoveryPreservesOtherStates();
   TestConcurrentFirstUseCannotRotate();
   TestFailureAndMalformedRecordFailClosed();
   return 0;

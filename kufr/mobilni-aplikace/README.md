@@ -51,7 +51,10 @@ Samotné discovery nenahrazuje autentizaci a TLS pin.
 Tlačítko vyžaduje již ověřené BLE/PoP a firmware s `pair-local` (D161).
 Existující profil jiného kufru se nepřepisuje; starší servisní QR párování
 se nezneplatňuje. Ztracená odpověď či selhání Keychain po vydání tokenu
-se automaticky neopakují a mohou vyžadovat fyzickou servisní obnovu.
+se automaticky neopakují. D165 přidává explicitní obnovu přes zabezpečené BLE:
+po Zapomenout párování stiskněte stejné tlačítko a potvrďte Obnovit párování.
+Starý přístup se zneplatní, nový token se vloží do Keychain bez přepsání
+jiného uloženého kufru. Kufr musí být nečinný a ostatní ovladače odpojené.
 Hesla Wi-Fi se do Keychain neukládají. PoP má vlastní oddělený profil z D160.
 
 Záložka **Síť kufru** v nativní iPhone aplikaci vyhledá `KUFR_` zařízení
@@ -332,11 +335,13 @@ Odchod do pozadí nebo uzamčení uzavře nativní socket; návrat vyžaduje nov
 explicitní připojení. Odpojení ručního vlastníka řeší také firmware.
 
 Zapomenutí má nativní potvrzení: původní token nelze z kufru znovu získat,
-nové párování vyžaduje fyzickou servisní obnovu. Totéž platí při ztrátě úspěšné
+nové párování lze u zdravého spárovaného ESP obnovit přes Security1/PoP BLE
+a explicitní nativní potvrzení D165. Totéž platí při ztrátě úspěšné
 párovací odpovědi nebo selhání Keychain zápisu po spotřebování tajemství.
 Neověřená/prázdná NVS nebo kalibrace 0 na desce se z telefonu neobchází.
 Živý ESP32, LAN permission, Keychain po aktualizaci a uspání iPhonu zůstávají
-samostatnou akceptací B1/E10; nové IPA se tímto slice nepodepisuje/nepublikuje.
+samostatnou akceptací B1/E10. Původní E10 slice IPA nepublikoval; přesný
+podpis a nasazení opravy D165 vede stav implementace.
 
 macOS CI navíc spouští `bash scripts/test-native-transport.sh`: porovná SPKI
 EC P-256/P-384 a RSA s OpenSSL, ověří Keychain a skutečné loopback HTTPS/WSS

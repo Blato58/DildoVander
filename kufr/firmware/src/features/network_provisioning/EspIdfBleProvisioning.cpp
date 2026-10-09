@@ -205,24 +205,30 @@ cJSON* EspIdfBleProvisioning::Execute(cJSON* request) {
   }
   const auto* version = cJSON_GetObjectItemCaseSensitive(request, "v");
   const char* command = Text(request, "command");
-  if (command != nullptr && std::strcmp(command, "pair-local") == 0) {
+  const bool recover = command != nullptr && std::strcmp(command, "recover-local") == 0;
+  if (command != nullptr && (std::strcmp(command, "pair-local") == 0 || recover)) {
     auto* ok = cJSON_AddBoolToObject(response, "ok", false);
     if (ok == nullptr) { cJSON_Delete(response); return nullptr; }
     const bool valid = cJSON_IsObject(request) && UniqueFields(request) &&
         cJSON_IsNumber(version) && version->valuedouble == 1 &&
-        cJSON_GetArraySize(request) == 2;
+        cJSON_GetArraySize(request) == (recover ? 3 : 2) &&
+        (!recover || cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(request, "confirm")));
+    const auto callback = recover ? callbacks_.recoverLocal : callbacks_.pairLocal;
     const char* error = !valid ? "invalid_request" :
-        callbacks_.pairLocal == nullptr ? "pairing_unavailable" :
-        callbacks_.pairLocal(response, callbacks_.context);
+        callback == nullptr ? "pairing_unavailable" :
+        callback(response, callbacks_.context);
     cJSON_SetBoolValue(ok, error == nullptr);
     if (error != nullptr) {
       // Failure responses are exclusive too: no status fields or credentials.
       cJSON_Delete(response);
       response = cJSON_CreateObject();
       if (response == nullptr) { return nullptr; }
-      cJSON_AddNumberToObject(response, "v", 1);
-      cJSON_AddBoolToObject(response, "ok", false);
-      cJSON_AddStringToObject(response, "error", error);
+      if (cJSON_AddNumberToObject(response, "v", 1) == nullptr ||
+          cJSON_AddBoolToObject(response, "ok", false) == nullptr ||
+          cJSON_AddStringToObject(response, "error", error) == nullptr) {
+        cJSON_Delete(response);
+        return nullptr;
+      }
     }
     return response;
   }
