@@ -1,66 +1,52 @@
-# Objednávka chybějící elektroniky kufru – 6. 10. 2026
+# Objednávka a potvrzená elektronika kufru
 
-**Zjednodušeno 8. 10. 2026:** objednat jen tabulky 1 a 2. Počítáme
-s jedním už koupeným zesilovačem a reproduktorem, připájenými kabely
-a kamerou, kterou majitel zvolil 6. 10. Automatické odpojení pohonů
-je odložené; tento košík je pro nezatížený laboratorní prototyp pod
-dohledem, nikoli kompletní hardware pro provoz s publikem.
+**Aktualizace 9. 10. 2026:** majitel v tomto zadání výslovně potvrdil nákup
+položek ze dvou přiložených snímků (montážní seznam je datovaný 8. 10.).
+Jejich množství jsou níže přidaná k dříve doloženým fakturám, nikoli
+považovaná za elektricky ověřené zapojení. Původní objednávka byla z 6. 10.;
+její staré součty 1 529/1 142 Kč už nevyjadřují zbývající nákup.
 
-**Objednávat podle tohoto souboru, nikoli podle historického nákupního seznamu.**
-Seznam odečítá díly doložené fakturou Botland FOS_3325_09_2026 a fotografií
-faktury Drátku. Nový provozní limit majitele: svítí nejvýše jeden 20cm LED
-úsek a běží nejvýše **jedno servo NEBO jedna vibrace**. LED a pohon se mohou
-překrývat. Kamera, mikrofon, Wi-Fi a zvuk jsou zahrnuté v návrhu napájení.
+Máme **dva DFR0954 a dva 8Ω reproduktory**, měnič SEG-28582, MCP23017,
+dva PH2 kabely, dvě nová podsvícená kolébková tlačítka a montážní materiál.
+Zelená kolébka bude servisní odpojení pohonů; jedna červená hlavní vypínač,
+druhá červená rezerva. U dvojlinek je na snímku pouze „1×“: bez faktury
+s jednotkou ani měření nelze tvrdit, že dorazilo původně navržených 5/2 m.
 
-Dva obchody: **Botland + Drátek**. Součty používají orientační ceny
-z 6. 10. 2026; nejde o nové ověření všech cen ani skladů. Doprava
-a mechanika nejsou zahrnuté. Nákup součástek
-není doklad hotového zapojení: montážní kontroly jsou v
-[návrhu napájení](../kufr/docs/efekty-a-napajeni.md).
+Powerbanka **UGREEN 20000mAh PD 100W (PB720 / 25188)** je zvolená
+v předchozím zadání; oba nové nákupní snímky její koupi nedokládají.
+Použije se s už potvrzeným PD triggerem nastaveným na 20 V a tímto 5V
+měničem. Akyga není nutná při použití vhodné zvolené powerbanky.
 
-## 1. Botland – objednat
+Provozní limity: nejvýše jeden 20cm úsek WS2812B a jedno servo NEBO
+jedna vibrace. Světlo může svítit s pohonem. Automatický watchdog/load
+switch zůstává odložený pro nezatížený laboratorní prototyp pod dohledem;
+nákup ani software neuzavírají E5/B1.
 
-| Hotovo | Položka / přímý odkaz | Objednat | Cena za jednotku | Celkem | K čemu |
-| --- | --- | ---: | ---: | ---: | --- |
-| ☐ | [Akyga AK-CH-31 USB-C PD, 65 W](https://botland.cz/plug-in-napajeci-zdroje/27953-napajeci-zdroj-s-usb-typu-c-a-usb-typu-a-5-20v-135-3a-akyga-ak-ch-31-5906708750672.html) | 1 ks, jen pokud nemáme vhodný zdroj | 387 Kč | 387 Kč | Vynechat, máme-li USB-C PD zdroj/powerbanku s 20 V alespoň 1,5 A, lépe 2 A |
-| ☐ | [Joy-IT měnič 9–35 V → pevně 5 V / 5 A](https://botland.cz/step-down-prevadece/28582-snizujici-menic-9v-35v-na-5v-5a-4250236824017.html) | 1 ks | 148 Kč | 148 Kč | Jediný měnič, připojení na šroubové svorky |
-| ☐ | [JST PH 2,0 mm, dvoupinová zástrčka s vodiči](https://botland.cz/napajeci-kabely-a-konektory/6563-jst-prima-2kolikova-zastrcka-roztec-20-mm-s-dratem-5904422334789.html) | 1 ks | 11 Kč | 11 Kč | Jeden reproduktor do už koupeného zesilovače; vynechat, pokud vhodný kabel už máme |
-| ☐ | [Modul USB-A zásuvky s připájenými piny](https://botland.cz/prislusenstvi-kontaktnich-desek/16154-modul-se-zasuvkou-usb-typu-a-pajene-konektory-5904422300692.html) | 1 ks | 21 Kč | 21 Kč | Výstup 5 V pro koupený USB-A → USB-C kabel k ESP32 |
-| ☐ | [Adafruit 5346 MCP23017, modul GPIO expanderu](https://botland.cz/expandery-vystupu/21037-modul-mcp23017-gpio-pin-expander-16kanalovy-i2c-stemma-qt-qwiic-adafruit-5346.html) | 1 ks | 197 Kč | 197 Kč | Pomocné I/O pro kamerový profil B; napájet 3,3 V |
+## 1. Botland – dosud nepotvrzené
 
-**Botland: 764 Kč se zdrojem / 377 Kč s vlastním vhodným zdrojem.**
-U MCP23017 počítat s připájením přibalené lišty. Neobjednávat holý čip
-místo modulu. MCP zůstává potřebný pro zvolený kamerový profil B;
-PCA9685 neumí nahradit jeho tlačítkové a stavové vstupy. Kamera i MCP
-lze odložit společně jen při vědomém návratu k profilu A bez kamery.
+| Stav | Položka / přímý odkaz | Množství | Orientační cena | Role |
+| --- | --- | ---: | ---: | --- |
+| ☐ | [USB-A zásuvka, modul](https://botland.cz/prislusenstvi-kontaktnich-desek/16154-modul-se-zasuvkou-usb-typu-a-pajene-konektory-5904422300692.html) | 1 | 21 Kč | Napájení ESP přes jeho USB-UART; vynechat, pokud máme vhodné hotové vedení |
+| Volitelné | [Akyga AK-CH-31 USB-C PD 65 W](https://botland.cz/plug-in-napajeci-zdroje/27953-napajeci-zdroj-s-usb-typu-c-a-usb-typu-a-5-20v-135-3a-akyga-ak-ch-31-5906708750672.html) | 1 | 387 Kč | Jen náhrada powerbanky pro stolní napájení; není součást povinného zbytku |
 
-## 2. Drátek – objednat
+Měnič, MCP a reproduktorové PH2 kabely už znovu neobjednávat.
 
-| Hotovo | Položka / přímý odkaz | Objednat | Cena za jednotku | Celkem | K čemu |
-| --- | --- | ---: | ---: | ---: | --- |
-| ☐ | [Sada ESP32-S3 N16R8 + kamera OV5640](https://dratek.cz/arduino-platforma/232702-vyvojova-deska-esp32-s3-s-kameru-ov5640-wifi-bluetooth-nespajeny-s-pinovou-listou-v-baleni.html) | 1 sada | 479 Kč | 479 Kč | Kamera z varianty stejné řady desek; další ESP32 jako rezerva |
-| ☐ | [Dvojlinka CYH 2×0,5 mm²](https://dratek.cz/arduino-platforma/3024-dvojlinka-cyh-2x0-5-cernorudy.html) | 5 m | 13 Kč/m | 65 Kč | Krátké napájecí odbočky; množství 5 znamená 5 metrů |
-| ☐ | [Dvojlinka CYH 2×1,5 mm²](https://dratek.cz/arduino-platforma/123159-dvojlinka-cyh-2x1-5-cernorudy-vm00vh-h.html) | 2 m | 26 Kč/m | 52 Kč | Hlavní 5V rozvod a přívod k pohonům |
-| ☐ | [Degson páčková rychlosvorka, 5pin](https://dratek.cz/arduino-platforma/177181-rychlosvorka-bezsroubova-degson-5pin.html) | 10 ks | 10 Kč | 100 Kč | Rozbočení napájení, každý blok propojuje všech pět otvorů |
-| ☐ | [Dupont F-F, 40 vodičů](https://dratek.cz/arduino-platforma/835-eses-40-x-f-f-dupont-kabel.html) | 1 balení | 31 Kč | 31 Kč | Signály mezi osazenými samčími piny |
-| ☐ | [Kolébkový vypínač s červenou LED](https://dratek.cz/arduino-platforma/1242-prepinac-kolebkovy-led-dioda-cervena.html) | 1 ks navíc | 18 Kč | 18 Kč | Samostatný servisní vypínač pohonů; hlavní kolébku už máme |
-| ☐ | [Rezistor 100 kΩ / 0,25 W / 1 %](https://dratek.cz/arduino-platforma/7653-rezistor-100k-0.25-w-1.html) | 10 ks | cca 1 Kč | cca 10 Kč | Šest motorových DIN, PCA OE a výchozí stavy řízení; drobná montážní rezerva |
-| ☐ | [Rezistor 15 kΩ / 0,25 W / 1 %](https://dratek.cz/arduino-platforma/174960-metalizovany-rezistor-15k-0-25w-1.html) | 5 ks | cca 1 Kč | cca 5 Kč | Pull-up PTT a horní odpor děliče servisního vypínače; drobná rezerva |
-| ☐ | [Rezistor 22 kΩ / 0,25 W / 1 %](https://dratek.cz/arduino-platforma/174961-metalizovany-rezistor-22k-0-25w-1.html) | 5 ks | cca 1 Kč | cca 5 Kč | Spodní odpor děliče 5 V → cca 2,97 V; drobná rezerva |
+## 2. Drátek – dosud nepotvrzené
 
-**Drátek: přibližně 765 Kč. Celkem: přibližně 1 529 Kč se zdrojem,
-nebo 1 142 Kč s vlastním vhodným zdrojem, bez dopravy.**
-Proti původnímu základu 1 999 Kč jde o úsporu cca 470 Kč. Kabely a svorky
-jsou montážní odhad pro šest přihrádek; přesnou spotřebu určí délky tras.
-Rezistory nevyhazovat spolu s watchdogem: drží definované úrovně a dělič
-chrání 3,3V vstup. Ani samotný pull-up OE nenahrazuje automatické vypnutí.
+| Stav | Položka / přímý odkaz | Množství | Orientační cena | Role |
+| --- | --- | ---: | ---: | --- |
+| ☐ | [ESP32-S3 N16R8 + OV5640, párovaná sada](https://dratek.cz/arduino-platforma/232702-vyvojova-deska-esp32-s3-s-kameru-ov5640-wifi-bluetooth-nespajeny-s-pinovou-listou-v-baleni.html) | 1 | 479 Kč | Kamera z vybrané řady; nákup není na nových snímcích potvrzený |
 
-Kamera: nekupovat náhodný modul pouze podle označení OV5640 ani Raspberry Pi
-kameru. Stejný senzor nezaručuje stejný FPC konektor a pořadí pinů. Sada je
-doložená nabídka kamerové varianty naší řady; před zasunutím porovnat revizi,
-konektor a orientaci kontaktů obou desek. Při rozdílu použít párovanou novou
-desku se sadou a původní ponechat jako rezervu. Prodloužení FPC zatím
-nekupovat: nejjednodušší je umístit desku poblíž objektivu.
+**Zbývající doloženě nepotvrzené položky: orientačně 500 Kč**
+(479 + 21 Kč, bez dopravy), používáme-li zvolenou powerbanku.
+Ceny pocházejí z 6. 10., nebyly nově ověřené. Délky koupených kabelů,
+mute rozhraní, ochranná větev a montážní materiál se musí ověřit zvlášť;
+500 Kč není úplný rozpočet finálně akceptovaného systému.
+
+Kamera ze sady není libovolný modul se stejným senzorem: před připojením
+porovnat FPC, kontakty a revizi desky. Kamerový profil B vyžaduje jiné
+audio/RGB piny než A. MikroSD je pro základní hlas a jednotlivý snímek
+volitelná. [Zapojení a napájení](../kufr/docs/efekty-a-napajeni.md).
 
 ## 3. Teď neobjednávat – volitelné doplňky
 
@@ -69,11 +55,10 @@ nekupovat: nejjednodušší je umístit desku poblíž objektivu.
 | Vynechat | [Grove → čtyři šroubové svorky](https://botland.cz/grove-prevadece/11348-grove-4pinovy-sroubovy-konektor-5904422340063.html) | 6 ks | 258 Kč | Pohodlí při montáži. Lze použít koupené Grove kabely: jeden konec upravit, vodiče napojit pájením a izolovat; konektor u U059 zachovat |
 | Vynechat | [JST-SM třípinová zástrčka + zásuvka s vodiči](https://botland.cz/prislusenstvi-pro-led-pasky/11125-konektor-pro-led-pasky-a-pasky-jst-sm-3kolikove-sparkfun-cab-14575-5904422317249.html) | 6 párů | 390 Kč | Pohodlné odpojení LED. Pro funkci stačí připájené a izolované vodiče, se zachovaným DIN/DOUT |
 | Vynechat | [Goodram M1A4 microSD 32 GB + adaptér + USB čtečka](https://botland.cz/pametove-karty-microsd-sd/6946-goodram-all-in-one-m1a4-32-gb-100-mb-s-microsd-pametova-karta-trida-10-adapter-ctecka-otg-5908267930274.html) | 1 sada | 274 Kč | Volitelné lokální assety. Boot, základní hlas a kamera kartu nepotřebují; základní nouzové hlášky jsou podle plánu ve flash |
-| Vynechat | [DFRobot DFR0954 MAX98357A](https://botland.cz/mp3-wav-ogg-midi-prehravace/21992-modul-zesilovace-zvuku-max98357-dfrobot-dfr0954-6959420922703.html) + druhý PH2 kabel | 1 + 1 ks | 164 Kč | Potřebné až pro druhý reproduktor. Pro základní mono hlas už máme jeden zesilovač a reproduktor |
 
-Oproti původní objednávce se všemi doplňky za 2 921 Kč je nynější
-košík se zdrojem levnější přibližně o **1 392 Kč**. Druhý reproduktor
-ponechat jako rezervu; výstupy zesilovačů nikdy neparalelizovat.
+Druhý zesilovač a dva PH2 kabely jsou od 9. 10. potvrzené nákupy.
+Osadíme oba reproduktory; každý má vlastní zesilovač. Výstupy zesilovačů
+nikdy neparalelizovat, SPK− není GND.
 
 Grove napájí jednotlivý modul, nikoli celou motorovou větev. Do páčkových
 svorek nedávat tenké Dupont vodiče: Degson je určený od 0,2 mm². Pro LED
@@ -115,19 +100,31 @@ při zamrznutí nenahrazují.
 | WS2812B 5 V, 30 LED/m, IP65 | 1 role 5 m | Použijeme 6×20 cm, zbytek rezerva |
 | Adafruit Pixel Shifter 6066 | 1 | Datová linka RGB 3,3 → 5 V |
 | Adafruit ICS43434 | 1 | Mikrofon, napájení 3,3 V |
-| DFRobot DFR0954 | 1 | Stačí pro základní mono hlas, druhý nyní nekupovat |
-| Waveshare 14595, 8 Ω / 5 W | 1 pár | Použít jeden, druhý rezerva |
+| DFRobot DFR0954 | **2 celkem** | Původní 1 + nově potvrzený 1; jeden zesilovač pro každý reproduktor |
+| Waveshare 14595, 8 Ω / 5 W | 1 pár / **2 kusy** | Oba osadit, nezávislé SPK výstupy |
 | USB-C PD modul s přepínačem, Drátek 1782992576 | 1 | 20 V, max. 3 A; pro nový návrh vyhovuje |
 | USB-C → USB-C 60 W / 3 A | 1 | Zdroj → PD modul; nový 5A kabel netřeba |
 | USB-A → USB-C datový kabel | 1 | 5V USB-A zásuvka → USB-UART ESP32 |
 | Bíle podsvícené momentové tlačítko | 1 | **Zahájení rozhovoru / PTT**, nikoli hlavní napájení |
-| Červeně podsvícená kolébka | 1 | **Hlavní vypínač celého 5V rozvodu**, za měničem |
+| Červeně podsvícená kolébka | **2 celkem** | Původní 1 + nově potvrzený 1; hlavní vypínač, druhý rezerva |
+| Zeleně podsvícená kolébka | 1 | Nově potvrzená; servisní vypínač pohonů |
 | Tepelný vratný jistič 5 A | 1 | Hlavní 5V přívod; není watchdog ani okamžité elektronické proudové omezení |
 | Rezistory 330 Ω | 10 | RGB data, pomocné sériové odpory |
 | Kondenzátory 470 µF / 50 V | 10 | Dvojice paralelně u LED, pohonů a elektroniky |
 | Dupont M-F 20 cm, 40 vodičů | 2 balení | Signály; nejsou náhrada F-F |
 | Smršťovací bužírky | 1 sada | Izolace pájených spojů |
 | Univerzální desky 50×70 mm | 2 | Pomocná rozhraní, později bezpečnostní logika |
+| Joy-IT měnič 9–35 V → 5 V / 5 A, SEG-28582 | 1 | Nově potvrzený, jediný měnič kufru |
+| MCP23017 Adafruit 5346, ADA-21037 | 1 | Nově potvrzený, pomocné vstupy/výstupy kamerového profilu B |
+| JST PH 2,0 mm dvoupinový kabel, DNG-06563 | 2 | Nově potvrzené, dva oddělené reproduktorové kabely |
+| Dupont F-F, 40×20 cm | 2 balení | Nově potvrzené; signály, nikoli výkonový rozvod |
+| PROSKIT MT-1210 | 1 | Nově potvrzený multimetr pro polaritu, kontinuitu a napětí |
+| CYH 2×0,50 mm² | 1 objednávková položka | Délka není ze snímku doložená; přeměřit před návrhem kabelových tras |
+| CYH 2×1,50 mm² (VM00VH-H) | 1 objednávková položka | Délka není ze snímku doložená; hlavní napájecí vedení |
+| Rezistory 100 kΩ / 0,25 W / 1 % | 20 | Nově potvrzené, výchozí stavy; dvě sady po 10 nesčítat s nepotvrzenou objednávkou |
+| Rezistory 15 kΩ / 0,25 W / 1 % | 10 | Nově potvrzené, pull-up a horní odpor děliče |
+| Rezistory 22 kΩ / 0,25 W / 1 % | 10 | Nově potvrzené, dolní odpor děliče |
+| Degson 5pin rychlosvorka | 10 | Nově potvrzené; všech 5 pozic tvoří jeden elektrický uzel |
 
 Neobjednávat Pololu D24V90F5, 100W zdroj, Adafruit 5807 ani hlavní tlačítkový
 vypínač Pololu 2813 z dřívějšího návrhu. Pololu **2814** měl jinou roli:
@@ -137,7 +134,7 @@ pro nynější ovládání potřeba.
 
 ## 5. Co ještě zajistit pro montáž a provoz
 
-- Páječku a multimetr řeší majitel mimo tento košík. Připravit také pájecí
+- Multimetr PROSKIT MT-1210 je koupený; stav páječky není potvrzený. Připravit také pájecí
   drát s tavidlem, odizolovací a štípací nástroj; není doloženo, že jsou doma.
 - Vývody obou kolébek lze připájet a izolovat koupenou bužírkou. Fastony
   ani krimpovací kleště tedy nejsou nutné pro tento způsob montáže.
