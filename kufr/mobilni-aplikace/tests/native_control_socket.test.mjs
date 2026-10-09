@@ -207,6 +207,12 @@ test('native permanent failures stop retries and only allowlisted reasons reach 
     createSocket: () => new NativeControlSocket(native),
   });
   await settle();
+  native.emit('closed', undefined, undefined, 'network_unavailable');
+  assert.match(connection.snapshot().status, /síť/);
+  assert.equal(timers.size, 1);
+  const [id, timer] = [...timers.entries()].at(-1);
+  timers.delete(id); timer.callback();
+  await settle();
   native.emit('closed', undefined, undefined, 'secret-token-or-url');
   assert.doesNotMatch(connection.snapshot().status, /secret-token-or-url/);
   assert.equal(timers.size, 1);
