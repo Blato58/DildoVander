@@ -4,7 +4,7 @@
 #include "nvs_flash.h"
 
 // Reject a stale generated header rather than reading beyond the old flag.
-static_assert(sizeof(ServiceFlags) == 2, "Regenerate service_config.h with make_config.py");
+static_assert(sizeof(ServiceFlags) == 3, "Regenerate service_config.h with make_config.py");
 
 // A separately authorized service image, with actuator power physically OFF.
 // It never configures GPIO, initializes peripherals, or erases NVS identities.
@@ -12,7 +12,7 @@ extern "C" void app_main() {
   if (nvs_flash_init() != ESP_OK) { ESP_LOGE("hw_service", "NVS unavailable; no erase attempted"); return; }
   nvs_handle_t handle;
   if (nvs_open("wand_hw", NVS_READWRITE, &handle) != ESP_OK) return;
-  const char* flags[] = {"profile_b_ok", "camera_verified"};
+  const char* flags[] = {"profile_b_ok", "camera_verified", "sd_verified"};
   bool ok = true;
   // First persist a closed gate. An interrupted update cannot retain an old
   // permission while installing new calibration or wiring flags.
@@ -24,7 +24,7 @@ extern "C" void app_main() {
          nvs_commit(handle) == ESP_OK;
   }
   if (ok) {
-    for (unsigned i = 0; i < 2; ++i) ok = nvs_set_u8(handle, flags[i], ServiceFlags[i]) == ESP_OK && ok;
+    for (unsigned i = 0; i < sizeof(ServiceFlags); ++i) ok = nvs_set_u8(handle, flags[i], ServiceFlags[i]) == ESP_OK && ok;
     ok = nvs_commit(handle) == ESP_OK && ok;
   }
   if (!ok) {

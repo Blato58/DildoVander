@@ -1,0 +1,66 @@
+name: Publish signed Kufr firmware OTA
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: Successful firmware CI run for merged/current main
+        type: string
+        required: true
+      channel:
+        description: Signing authority (stable requires separately provisioned production key)
+        type: choice
+        options: [development, stable]
+        default: development
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
+concurrency:
+  group: kufr-firmware-publication
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/reuse-build.yml
+    with:
+      build_run_id: ${{ inputs.build_run_id }}
+      workflow: ci.yml
+      artifact: firmware
+  publish:
+    if: github.ref == 'refs/heads/main'
+    needs: verify
+    runs-on: [self-hosted, Linux, X64, kufr-backend]
+    environment: backend-production
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.verify.outputs.main_sha }}
+          persist-credentials: false
+      - name: Reject stale publication
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          EXPECTED_SHA: ${{ needs.verify.outputs.main_sha }}
+        with:
+          script: await require('./scripts/ci/verify-build.cjs').checkMain({ github, context }, process.env.EXPECTED_SHA)
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: verified-firmware
+          path: ${{ runner.temp }}/ota-package
+      - name: Unpack verified firmware
+        shell: bash
+        run: python3 scripts/ci/package.py unpack "$RUNNER_TEMP/ota-package" "$RUNNER_TEMP/ota-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+      - name: Sign and atomically publish using root-owned authority
+        shell: bash
+        env:
+          BUILD_ID: ${{ needs.verify.outputs.source_sha }}
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          set -euo pipefail
+          version="$(cat kufr/firmware/version.txt)"
+          python3 kufr/firmware/tools/ota_release.py check --version "$version" --binary "$RUNNER_TEMP/ota-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/esp32-s3-idf/firmware.bin"
+          sudo -n /usr/local/sbin/kufr-firmware-publish "$RUNNER_TEMP/ota-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/esp32-s3-idf/firmware.bin" "$version" "$BUILD_ID" "$CHANNEL"

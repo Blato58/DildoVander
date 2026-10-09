@@ -1,5 +1,19 @@
 # Firmware AI kufru
 
+## BLE, hotspot, OTA a volitelné SD (D158)
+
+Firmware obsahuje oficiální protocomm BLE Security1, hotspot/fallback NVS
+profily a podepsané dual-slot OTA s rollbackem. První provisioning PoP,
+backend identity a veřejného OTA trustu provádí oddělený
+[USB network-service](diagnostics/network-service/README.md); běžné změny Wi-Fi
+už probíhají z iPhonu. [BLE návod](../../docs/ios-ble-provisioning.md),
+[síť](../../docs/device-networking.md), [OTA/build/publikace](../../docs/firmware-ota.md)
+a [event checklist](../../docs/event-readiness.md) popisují skutečný postup.
+SD asset mount/stat/read/unmount je read-only, na CMD38/CLK39/DATA40,
+default disabled; hardware-service musí po měření nastavit `sd_verified`.
+OTA, síť a SD mají společnou rezervaci klidu; Stop zůstává dostupný.
+Žádný host test/build nedokazuje physical ESP/iPhone akceptaci.
+
 ## Fyzické efekty a audio B (D156, 9. 10. 2026)
 
 Hlavní ESP-IDF obraz obsahuje koordinovaný I2C adaptér PCA9685/MCP23017,
@@ -33,7 +47,8 @@ Stop zavře PCM gate; již zařazená DMA dohraje do auto-cleared ticha
 (přibližně do 80 ms fronty, skutečnou latenci změřit). Boot/resetové ticho
 není garantované. A zůstává gated `wand_audio/profile_a_ok` bez kamery.
 Fyzické napájení, resetové stavy, pulzy, mechanika a audio zatím nebyly
-na sestavě měřené. Kamera má volitelný one-shot adaptér níže; SD zůstává samostatná práce.
+na sestavě měřené. Kamera má volitelný one-shot adaptér níže; SD má gated
+read-only asset adaptér a fyzické ověření stále zbývá.
 
 ## Volitelná fotografie kostýmu z OV5640
 

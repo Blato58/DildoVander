@@ -1,5 +1,25 @@
 # Implementační plán AI kufru
 
+> **D158, 9. 10. 2026: BLE síťové nastavení, hotspot a podepsané OTA.**
+> Výslovné zadání majitele rozšiřuje mobilní aplikaci o nativní CoreBluetooth
+> přes oficiální ESPProvision 3.2.0 a ESP-IDF protocomm Security1 s unikátním
+> PoP. BLE slouží nastavení a diagnostice; místní WSS/TLS ruční ovládání
+> i samostatný HTTPS backend klient zůstávají. Níže uvedená historická
+> preference BLE nepřidávat a návrh servisního SoftAP nejsou aktuální cestou
+> změny Wi-Fi: současný firmware používá omezené autentizované BLE okno.
+> Síťová priorita je hotspot iPhonu → volitelná záložní Wi-Fi; změny jsou
+> transakční a probíhají pod společnou rezervací klidu s OTA a SD.
+> Aktualizace používají původní dva 0x640000 app sloty, IDF rollback,
+> HTTPS a ECDSA P-256 podepsaný manifest z existujícího backendu.
+> NVS/oddíly/piny se nemění. SD asset worker je volitelný, read-only,
+> gated měřeným `sd_verified`; camera/audio kontrakty zůstávají.
+> [Audit](../../docs/software-completion-audit.md),
+> [BLE](../../docs/ios-ble-provisioning.md),
+> [OTA](../../docs/firmware-ota.md) a
+> [akceptační matice](../../docs/event-readiness.md) určují nový rozsah.
+> Dokončení E11/E13 stále vyžaduje skutečný iPhone/ESP a fyzické měření.
+
+
 > **D157, 9. 10. 2026: obrazové rozšíření na přání majitele.**
 > Softwarová větev E12/E13 postupuje v pořadí backend → iOS → firmware.
 > Jednorázový JPEG se samostatným souhlasem slouží opatrnému popisu

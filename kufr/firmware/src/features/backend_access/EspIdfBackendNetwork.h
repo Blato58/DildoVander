@@ -40,6 +40,8 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
       const ConversationRuntimeSnapshot& snapshot, bool imageConsent) override;
   void StopVoice() override;
   bool Start(bool nvsInitialized);
+  bool IsOnline() const { return online_.load(); }
+  bool IsVoiceBusy() const { return voiceBusy_.load() || voicePending_.load(); }
   bool QueueTextTurn(const std::string& text,
                      const std::string& conversationId,
                      const std::string& clientTurnId,

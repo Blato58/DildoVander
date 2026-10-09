@@ -62,6 +62,14 @@ bool NetworkSettings::Configure(const char* ssid, const char* password,
 
 bool NetworkSettings::IsConfigured() const { return configured_; }
 
+bool NetworkSettings::ConfigureBackend(const char* backendHost) {
+  Clear();
+  if (backendHost == nullptr || !IsValidBackendHost(backendHost)) { return false; }
+  CopyText(backendHost, std::strlen(backendHost), backendHost_);
+  configured_ = true;
+  return true;
+}
+
 const char* NetworkSettings::Ssid() const {
   return configured_ ? ssid_.data() : nullptr;
 }

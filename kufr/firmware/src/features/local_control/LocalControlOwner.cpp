@@ -189,6 +189,17 @@ void LocalControlOwner::Handle(
     return;
   }
   bool accepted = true;
+  // Stop/cancel/status remain available while network/OTA owns the idle
+  // reservation. A queued controller command cannot start new work then.
+  if (maintenance_ && (message.kind == LocalControlMessageKind::Acquire ||
+      message.kind == LocalControlMessageKind::VoiceStart ||
+      message.kind == LocalControlMessageKind::Text ||
+      message.kind == LocalControlMessageKind::Selection ||
+      message.kind == LocalControlMessageKind::Reload ||
+      message.kind == LocalControlMessageKind::Reset)) {
+    Close();
+    return;
+  }
   switch (message.kind) {
     case LocalControlMessageKind::StateGet:
       Snapshot(nowMs);

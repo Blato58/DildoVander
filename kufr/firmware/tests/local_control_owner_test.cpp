@@ -516,9 +516,32 @@ void TestStandaloneVoice() {
   assert(!fixture.output.lastVoiceAccepted && fixture.voice.started == 1);
 }
 
+void TestMaintenanceReservation() {
+  for (const auto kind : {LocalControlMessageKind::Acquire,
+                         LocalControlMessageKind::VoiceStart,
+                         LocalControlMessageKind::Text,
+                         LocalControlMessageKind::Selection}) {
+    Fixture fixture;
+    fixture.Connect();
+    fixture.owner.SetMaintenance(true);
+    fixture.Submit(kind);
+    assert(!fixture.control.HasManualControl());
+    assert(!fixture.conversation.HasActiveTurn());
+    assert(fixture.voice.started == 0 && fixture.port.vibrations == 0);
+  }
+  Fixture observer;
+  observer.Connect();
+  observer.owner.SetMaintenance(true);
+  observer.Submit(LocalControlMessageKind::StateGet);
+  observer.Submit(LocalControlMessageKind::VoiceStop);
+  observer.Submit(LocalControlMessageKind::Stop);
+  assert(observer.voice.stopped == 2);
+}
+
 }  // namespace
 
 int main() {
+  TestMaintenanceReservation();
   TestStandaloneVoice();
   TestHelloAndObserver();
   TestLeaseAndText();

@@ -14,6 +14,7 @@ class NetworkSettings final {
 
   bool Configure(const char* ssid, const char* password,
                  const char* backendHost);
+  bool ConfigureBackend(const char* backendHost);
   void Reset();
   bool IsConfigured() const;
   const char* Ssid() const;

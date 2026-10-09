@@ -8,6 +8,33 @@
   "servers": [{ "url": "https://localhost:7043", "description": "Local development only" }],
   "security": [{ "DeviceAccess": [] }],
   "paths": {
+    "/v1/firmware/manifests/{channel}.json": {
+      "get": {
+        "operationId": "getFirmwareManifest",
+        "summary": "Public authenticated firmware release envelope",
+        "description": "Exact base64 payload authenticated by DER ECDSA P-256/SHA-256. Channel authority is service-provisioned; a device token is not needed. Invalid releases return 404. Shared distribution limit: four concurrent responses, no queue.",
+        "security": [],
+        "parameters": [{ "name": "channel", "in": "path", "required": true, "schema": { "type": "string", "enum": ["stable", "development"] } }],
+        "responses": {
+          "200": { "description": "Signed envelope, at most 8192 bytes", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FirmwareEnvelope" } } } },
+          "404": { "description": "Release unavailable or invalid" },
+          "429": { "description": "Concurrent distribution limit reached; retry with backoff" }
+        }
+      }
+    },
+    "/v1/firmware/artifacts/{hash}.bin": {
+      "get": {
+        "operationId": "getFirmwareArtifact",
+        "summary": "Content-addressed ESP32-S3 application image",
+        "security": [],
+        "parameters": [{ "name": "hash", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }],
+        "responses": {
+          "200": { "description": "SHA-256 verified image; authenticate signed metadata before use", "content": { "application/octet-stream": { "schema": { "type": "string", "format": "binary", "maxLength": 6553600 } } } },
+          "404": { "description": "Artifact unavailable or corrupt" },
+          "429": { "description": "Concurrent distribution limit reached; retry with backoff" }
+        }
+      }
+    },
     "/v1/conversations/{id}/image": {
       "post": {
         "operationId": "submitCostumeImage",
@@ -1605,6 +1632,16 @@
       }
     },
     "schemas": {
+      "FirmwareEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["schemaVersion", "payload", "signature"],
+        "properties": {
+          "schemaVersion": { "const": 1 },
+          "payload": { "type": "string", "minLength": 4, "maxLength": 5464, "pattern": "^[A-Za-z0-9+/]+={0,2}$", "description": "Exact base64 JSON: schemaVersion, version, buildId, hardware, profile, channel, updaterVersion, minUpdaterVersion, url, sizeBytes, sha256 and signatureAlgorithm. Verify signature before decoding metadata." },
+          "signature": { "type": "string", "minLength": 12, "maxLength": 108, "pattern": "^[A-Za-z0-9+/]+={0,2}$", "description": "Base64 DER ECDSA P-256 signature over decoded payload bytes using SHA-256" }
+        }
+      },
       "ImageAccepted": {
         "type": "object",
         "additionalProperties": false,
