@@ -36,6 +36,8 @@ export class ProvisioningClient {
   private connected = false;
   private pending = false;
   private visible = false;
+  private poll: Promise<void> | undefined;
+  private queued = false;
   constructor(
     private readonly bridge: ProvisioningBridge,
     private readonly update: (status: ProvisioningStatus | null, message: string, busy: boolean) => void,
@@ -48,6 +50,9 @@ export class ProvisioningClient {
   }
 
   async connect(name: string): Promise<void> {
+    const requestedGeneration = this.generation;
+    if (this.poll && !await this.waitForPoll(requestedGeneration)) return;
+    if (requestedGeneration !== this.generation) return;
     if (this.pending) return;
     const generation = ++this.generation;
     this.cancelPoll();
@@ -70,6 +75,11 @@ export class ProvisioningClient {
   }
 
   async perform(action: () => Promise<ProvisioningStatus>): Promise<void> {
+    const requestedGeneration = this.generation;
+    // A tap during a background refresh waits for the BLE slot instead of
+    // being dropped or starting a concurrent native request.
+    if (this.poll && !await this.waitForPoll(requestedGeneration)) return;
+    if (requestedGeneration !== this.generation) return;
     if (!this.connected || this.pending) return;
     const generation = this.generation;
     this.pending = true;
@@ -94,6 +104,8 @@ export class ProvisioningClient {
     ++this.generation;
     this.cancelPoll();
     this.pending = false;
+    this.poll = undefined;
+    this.queued = false;
     this.connected = false;
     this.update(null, 'BLE odpojeno. Samostatný kufr pokračuje bez telefonu.', false);
     await this.bridge.disconnect().catch(() => undefined);
@@ -104,28 +116,44 @@ export class ProvisioningClient {
     this.timer = undefined;
   }
 
+  private async waitForPoll(generation: number): Promise<boolean> {
+    if (this.queued) return false;
+    this.queued = true;
+    // Reserve one user action and disable further taps while its BLE slot waits.
+    // Background polling alone still leaves the screen unchanged.
+    this.update(null, 'Čekám na dokončení obnovy stavu kufru…', true);
+    await this.poll;
+    if (generation !== this.generation) return false;
+    this.queued = false;
+    return true;
+  }
+
   private schedulePoll(): void {
     if (!this.connected || !this.visible || this.pending) return;
     const generation = this.generation;
-    this.timer = setTimeout(async () => {
+    this.timer = setTimeout(() => {
       this.timer = undefined;
-      this.pending = true;
-      this.update(null, '', true);
-      try {
-        const status = await this.bridge.status();
-        if (generation === this.generation) this.update(status, '', false);
-      } catch (error) {
-        if (generation === this.generation) {
-          this.connected = false;
-          this.update(null, errorMessage(error), false);
-        }
-      } finally {
-        if (generation === this.generation) {
-          this.pending = false;
-          this.schedulePoll();
-        }
-      }
+      this.poll = this.refresh(generation);
     }, 1000);
+  }
+
+  private async refresh(generation: number): Promise<void> {
+    this.pending = true;
+    try {
+      const status = await this.bridge.status();
+      if (generation === this.generation) this.update(status, '', this.queued);
+    } catch (error) {
+      if (generation === this.generation) {
+        this.connected = false;
+        this.update(null, errorMessage(error), false);
+      }
+    } finally {
+      if (generation === this.generation) {
+        this.pending = false;
+        this.poll = undefined;
+        this.schedulePoll();
+      }
+    }
   }
 }
 
@@ -136,6 +164,7 @@ export function errorMessage(error: unknown): string {
     bluetooth_unavailable: 'Bluetooth není dostupné. Zapněte Bluetooth a povolte přístup této aplikaci v Nastavení.',
     provisioning_unavailable: 'Kufr není v servisním BLE okně. Ověřte jeho napájení a servisní režim.',
     authentication_failed: 'Ověření selhalo. Použijte PoP z vnitřního servisního štítku kufru.',
+    credential_write_failed: 'PoP se nepodařilo bezpečně uložit. Odemkněte telefon a znovu kufr ověřte.',
     invalid_credentials: 'SSID musí mít 1–32 bajtů; heslo WPA 8–63 bajtů.',
     disconnected: 'BLE bylo odpojeno. Vyhledejte kufr a znovu jej ověřte; uložená Wi-Fi zůstává v kufru.',
     timeout: 'Kufr neodpověděl včas. Výsledek změny může být nejistý; znovu se připojte a ověřte stav.',

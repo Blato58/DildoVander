@@ -452,7 +452,7 @@ async function initializeNativeAsync(): Promise<void> {
       status.textContent = result.failed
         ? 'Místní hledání není dostupné. Povolte aplikaci místní síť v Nastavení, ověřte Wi-Fi nebo zadejte IP.'
         : devices.length === 0
-          ? 'Za 5 sekund nebyl nalezen odpovídající kufr. Zadejte IP nebo nastavte DHCP rezervaci v routeru.'
+          ? 'Za 5 sekund nebyl nalezen odpovídající kufr. Telefon i kufr musí být ve stejné síti; kufr musí mít také servisně nastavenou místní TLS identitu a párování. Samotné BLE nastavení Wi-Fi nestačí. U připraveného kufru lze zadat IP.'
           : 'Nalezené adresy nejsou ověřená identita. Vyberte adresu; připojení potom spustíte výslovně.';
       for (const device of devices) {
         const button = document.createElement('button');

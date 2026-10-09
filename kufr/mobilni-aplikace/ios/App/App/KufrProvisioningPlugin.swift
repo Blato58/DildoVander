@@ -29,6 +29,7 @@ public class KufrProvisioningPlugin: CAPPlugin, CAPBridgedPlugin, ESPDeviceConne
     private var lifecycleObservers: [NSObjectProtocol] = []
     private var bleObserver: ProvisioningBLEObserver?
     private var connectionStarted = false
+    private let proofKeychain = ProvisioningProofKeychain()
 
     public override func load() {
         // Upstream debug logs include PoP and Wi-Fi secrets; disable before any SDK use.
@@ -77,11 +78,24 @@ public class KufrProvisioningPlugin: CAPPlugin, CAPBridgedPlugin, ESPDeviceConne
     @objc func connect(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             guard let name = call.getString("name"), let selected = self.devices[name] else { call.reject("Kufr znovu vyhledejte.", "provisioning_unavailable"); return }
-            guard self.begin(call, seconds: 120), let viewController = self.bridge?.viewController else { return }
+            guard self.begin(call, seconds: 120) else { return }
             self.releaseDevice()
             self.device = selected
-            let epoch = self.epoch
-            let prompt = UIAlertController(title: "Ověřit " + name, message: "Zadejte 32znakový PoP z vnitřního servisního štítku. Nejde o heslo Wi-Fi. Tajemství se neukládá.", preferredStyle: .alert)
+            // An unreadable item must not prevent entering a corrected proof.
+            let savedProof = try? self.proofKeychain.read(deviceName: name)
+            self.presentProofPrompt(selected: selected, call: call, savedProof: savedProof)
+        }
+    }
+
+    private func presentProofPrompt(selected: ESPDevice, call: CAPPluginCall, savedProof: String?) {
+        guard let viewController = self.bridge?.viewController else { self.close(code: "provisioning_unavailable"); return }
+        let name = selected.name
+        let epoch = self.epoch
+        let message = savedProof == nil
+            ? "Zadejte 32znakový PoP z vnitřního servisního štítku. Nejde o heslo Wi-Fi. Po úspěšném ověření se uloží do Keychain tohoto iPhonu pro tento kufr."
+            : "PoP je uložený v Keychain tohoto iPhonu pro tento kufr. Můžete jej použít nebo zadat nový PoP ze servisního štítku. Nový PoP jej nahradí až po úspěšném ověření."
+        let prompt = UIAlertController(title: "Ověřit " + name, message: message, preferredStyle: .alert)
+        if savedProof == nil {
             prompt.addTextField { field in
                 field.placeholder = "Proof of possession (PoP)"
                 field.isSecureTextEntry = true
@@ -89,45 +103,55 @@ public class KufrProvisioningPlugin: CAPPlugin, CAPBridgedPlugin, ESPDeviceConne
                 field.autocorrectionType = .no
                 field.textContentType = .oneTimeCode
             }
-            prompt.addAction(UIAlertAction(title: "Zrušit", style: .cancel) { _ in
-                prompt.textFields?.forEach { $0.text = nil }
-                guard self.epoch == epoch else { return }
-                self.close(code: "cancelled")
-            })
-            prompt.addAction(UIAlertAction(title: "Ověřit", style: .default) { _ in
-                let pop = prompt.textFields?.first?.text ?? ""
-                prompt.textFields?.forEach { $0.text = nil }
+        } else {
+            prompt.addAction(UIAlertAction(title: "Zadat nový PoP", style: .default) { _ in
                 self.prompt = nil
-                guard self.epoch == epoch else { return }
-                guard pop.range(of: "^[a-f0-9]{32}$", options: .regularExpression) != nil else { self.close(code: "authentication_failed"); return }
-                selected.proofOfPossession = pop
-                let observer = ProvisioningBLEObserver { [weak self, weak selected] in
-                    DispatchQueue.main.async {
-                        guard let self, let selected, self.device === selected else { return }
+                prompt.dismiss(animated: true) {
+                    guard self.epoch == epoch, self.pending === call else { return }
+                    self.presentProofPrompt(selected: selected, call: call, savedProof: nil)
+                }
+            })
+        }
+        prompt.addAction(UIAlertAction(title: "Zrušit", style: .cancel) { _ in
+            prompt.textFields?.forEach { $0.text = nil }
+            guard self.epoch == epoch else { return }
+            self.close(code: "cancelled")
+        })
+        prompt.addAction(UIAlertAction(title: savedProof == nil ? "Ověřit" : "Použít uložený PoP", style: .default) { _ in
+            let pop = savedProof ?? prompt.textFields?.first?.text ?? ""
+            prompt.textFields?.forEach { $0.text = nil }
+            self.prompt = nil
+            guard self.epoch == epoch else { return }
+            guard pop.range(of: "^[a-f0-9]{32}$", options: .regularExpression) != nil else { self.close(code: "authentication_failed"); return }
+            selected.proofOfPossession = pop
+            let observer = ProvisioningBLEObserver { [weak self, weak selected] in
+                DispatchQueue.main.async {
+                    guard let self, let selected, self.device === selected else { return }
+                    self.close(code: "disconnected")
+                }
+            }
+            self.bleObserver = observer
+            selected.bleDelegate = observer
+            self.connectionStarted = true
+            selected.connect(delegate: self) { status in
+                DispatchQueue.main.async {
+                    guard self.epoch == epoch, self.pending === call else { return }
+                    switch status {
+                    case .connected:
+                        guard self.secure(selected) else { self.close(code: "authentication_failed"); return }
+                        do { try self.proofKeychain.write(pop, deviceName: name) }
+                        catch { self.close(code: "credential_write_failed"); return }
+                        self.request(["v": 1, "command": "status"], call: call)
+                    case .failedToConnect:
+                        self.close(code: "authentication_failed")
+                    case .disconnected:
                         self.close(code: "disconnected")
                     }
                 }
-                self.bleObserver = observer
-                selected.bleDelegate = observer
-                self.connectionStarted = true
-                selected.connect(delegate: self) { status in
-                    DispatchQueue.main.async {
-                        guard self.epoch == epoch, self.pending === call else { return }
-                        switch status {
-                        case .connected:
-                            guard self.secure(selected) else { self.close(code: "authentication_failed"); return }
-                            self.request(["v": 1, "command": "status"], call: call)
-                        case .failedToConnect:
-                            self.close(code: "authentication_failed")
-                        case .disconnected:
-                            self.close(code: "disconnected")
-                        }
-                    }
-                }
-            })
-            self.prompt = prompt
-            viewController.present(prompt, animated: true)
-        }
+            }
+        })
+        self.prompt = prompt
+        viewController.present(prompt, animated: true)
     }
 
     @objc func status(_ call: CAPPluginCall) {
