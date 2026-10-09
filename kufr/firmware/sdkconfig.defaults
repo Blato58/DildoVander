@@ -1,4 +1,7 @@
 CONFIG_IDF_TARGET="esp32s3"
+# Existing TLS identities are parsed and validated during app_main startup.
+# The IDF 3584-byte default overflows after a provisioned identity is reloaded.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384
 CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 CONFIG_PARTITION_TABLE_CUSTOM=y

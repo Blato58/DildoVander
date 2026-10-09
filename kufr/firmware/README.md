@@ -27,6 +27,13 @@ identity se automaticky nepřepisuje. Po Wi-Fi připojení spustí místní TLS
 server a Bonjour `_kufr._tcp:443` i před prvním spárováním; WSS řízení
 dál vyžaduje bearer token. Veřejné TXT nenese pin ani token.
 
+Main task má 16 KiB stack i při opětovném načtení uložené TLS identity;
+první generování má samostatný worker. Malý starý generovaný sdkconfig
+odmítne compile-time guard. Po změně sdkconfig.defaults regenerujte SDK
+konfiguraci; startup log uvádí configured/minimum remaining bytes.
+D164 z COM7 doložilo main stack overflow verze0.1.157 před BLE startem.
+Build s větším stackem musí na desce potvrdit margin a stabilní restart
+se zachovanou identitou; samotná kompilace to neprokazuje.
 `pair-local` na Security1/PoP ověřeném BLE vydá první místní token jen při
 prázdném pairing záznamu, uloží jeho hash a vrátí ID, `.local` host, SPKI
 SHA-256 a token do nativního iOS Keychain. Existující QR či token nezmění.
