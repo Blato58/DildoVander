@@ -18,11 +18,25 @@ Upraveny CI, skripty a testy, CI/CD návod, README a CONTRIBUTING.
 Lokálně prošel připnutý actionlint 1.7.12 se SHA-256 kontrolou a 55 Node
 testů včetně polling/concurrency regresí. Python: 16/17;
 dosavadní POSIX executable-mode test na Windows selhává (0666 vs 0755),
-nových pět packaging testů prošlo. Linux CI a živá aktualizace/dispatch
-se ještě musí ověřit. Implementace `859201b` byla commitnuta a push
-ověřil remote SHA; PR [140](https://github.com/Blato58/DildoVander/pull/140).
+nových pět packaging testů prošlo. Linux CI ověřilo všech 17 Python
+testů i 55 Node testů; repository checks, web, backend, host testy
+firmware a všechny firmware profily i CI required prošly v běhu
+[37876637730](https://github.com/Blato58/DildoVander/actions/runs/37876637730).
+Implementace `859201b` a finální `ca42330` byly commitnuty; push
+ověřil remote SHA. PR [140](https://github.com/Blato58/DildoVander/pull/140)
+bylo sloučeno jako `06661ce`; cílový Git tree odpovídá otestovanému stromu.
 První živý CI běh odmítl zaostávající větev před buildy, protože mezitím
-přibylo `30fc338` do `main`; cíl byl přimíchán a nové CI ještě čeká.
+přibylo `30fc338` do `main`; cíl byl přimíchán před úspěšným CI.
+Živý main-push controller
+[37877486084](https://github.com/Blato58/DildoVander/actions/runs/37877486084)
+sám aktualizoval dokumentační PR 141 z `592ff84` na `06533a9` a spustil
+[CI 37877504456](https://github.com/Blato58/DildoVander/actions/runs/37877504456)
+na nové SHA. Freshness a CI required prošly, všechny buildy se správně
+vynechaly. Výsledek a hranice jsou v [záznamu ověření](../../docs/pr-sync-validation.md).
+Předání záznamu je v PR [141](https://github.com/Blato58/DildoVander/pull/141);
+finální commit a stav merge jsou dohledatelné v uvedeném PR. Nasazení ani AI/HW test
+se nespouštěly. Další krok tohoto slice: sledovat synchronizaci běžných PR;
+software a fyzická akceptace kufru pokračují podle D156 níže.
 
 **D156 – 9. 10. 2026 – zjednodušená architektura podle majitele, bez doplňkových pohonových modulů.**
 Majitel výslovně odstranil externí watchdog, hardwarový heartbeat přes I2C,
