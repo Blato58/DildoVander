@@ -27,7 +27,7 @@ def source_hashes():
     inspect_data.assert_snapshot_current()
     candidates=list(ROOT.iterdir())+list((ROOT/"reference").glob("*"))
     return {p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(candidates)
-            if p.is_file() and p.suffix in (".py",".js",".json",".md",".txt",".ps1",".html",".csv",".png") and p.name!="fit-debug.json"}
+            if p.is_file() and p.suffix in (".py",".js",".cjs",".json",".md",".txt",".ps1",".html",".csv",".png") and p.name!="fit-debug.json"}
 
 
 def main():
