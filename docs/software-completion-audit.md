@@ -154,9 +154,9 @@ Exact final commands, results, commits and live publication are recorded in
 [implementation status](../kufr/docs/stav-implementace.md). The test matrix in
 [event readiness](event-readiness.md) maps all requested scenarios to host,
 build/live-server or outstanding physical checks. Its D158/D159 results remain
-historical evidence. D164 adds only the explicitly recorded USB recovery, boot
-and PC BLE scan above; it does not extend iPhone WSS, Keychain, OTA-negative or
-full-event acceptance.
+historical evidence. D164 adds the explicitly recorded USB recovery, boot,
+PC BLE scan and owner-confirmed iPhone connection above. Long-running WSS,
+post-update Keychain, OTA-negative and full-event acceptance remain pending.
 
 Software tests cannot establish actual CoreBluetooth/radio coexistence, iPhone
 hotspot behavior, power-loss rollback, NVS physical security, measured servo
