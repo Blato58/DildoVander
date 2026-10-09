@@ -76,10 +76,15 @@ označené předpoklady. Pro ně jsou vytvořené montážní rezervy a zkušebn
 
 Držet **Shift** a najet na díl: zvýrazní se skutečný viditelný povrch a
 zobrazí se název, popis, rozměrový podklad, CAD obálka a kabelové vazby.
-Shift nad prázdnou plochou zobrazí názvy všech dílů zapnutých vrstev,
-jejichž středy jsou v záběru; popisky mají spojnice k objektům.
-**Klik** připne kartu. Tlačítko **Inspect** režim zapíná trvale, výběr
-**Objekt** v kartě umožňuje ovládání klávesnicí. **Esc** inspektor zavře.
+Shift nad prázdnou plochou bez připnutého výběru zobrazí názvy všech dílů
+zapnutých vrstev, jejichž středy jsou v záběru; popisky mají spojnice k objektům.
+**Klik** připne kartu. Připnutý výběr zachová jen vlastní propojení i při
+držení Shiftu. **Klik do prázdna** výběr zruší i bez Shiftu; tažení výběr zachová.
+**Puštění Shiftu** vypne Inspect a umožní otáčení pohledu, připnutá karta
+a její vazby zůstávají. Připnutí samo Inspect nezapíná trvale.
+Tlačítko **Inspect** režim zapne bez držení klávesy; puštění Shiftu jej
+opět vypne. Výběr **Objekt** v kartě umožňuje ovládání klávesnicí.
+**Esc** inspektor zavře.
 Pohled **Servis** odkryje elektroniku. Vypnuté vrstvy se kurzorem nevybírají.
 
 Barva se mění pro konkrétní ID dílu a ukládá do `localStorage` prohlížeče;
