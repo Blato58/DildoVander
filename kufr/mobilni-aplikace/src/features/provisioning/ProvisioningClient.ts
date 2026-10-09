@@ -8,6 +8,7 @@ export type ProvisioningStatus = {
   firmwareVersion: string;
   network: {
     phase: string;
+    ipv4?: string;
     activeProfile: string;
     lastSuccessfulProfile: string;
     result: string;
@@ -102,6 +103,32 @@ export class ProvisioningClient {
         this.schedulePoll();
       }
     }
+  }
+
+  async refreshLocalAddress(): Promise<boolean> {
+    // A fully disconnected BLE client can use the persisted/manual LAN route.
+    // An in-flight connection/action must not pretend it refreshed that route.
+    if (!this.connected && !this.pending) return true;
+    const generation = this.generation;
+    let refreshed = false;
+    await this.perform(async () => {
+      try {
+        const status = await this.bridge.status();
+        refreshed = true;
+        return status;
+      } catch (error) {
+        // Native BLE loss may occur while its panel is hidden and not polling.
+        // Clear only this session's stale state so the next explicit tap can
+        // use its saved/manual LAN route instead of repeating dead BLE requests.
+        if (generation === this.generation) {
+          this.connected = false;
+          this.lastStatus = null;
+          this.cancelPoll();
+        }
+        throw error;
+      }
+    });
+    return refreshed && generation === this.generation;
   }
 
   async disconnect(): Promise<void> {
@@ -202,15 +229,15 @@ export function errorMessage(error: unknown): string {
     disconnected: 'BLE bylo odpojeno. Vyhledejte kufr a znovu jej ověřte; uložená Wi-Fi zůstává v kufru.',
     timeout: 'Kufr neodpověděl včas. Výsledek změny může být nejistý; znovu se připojte a ověřte stav.',
     invalid_response: 'Kufr vrátil neplatnou nebo nekompatibilní diagnostiku.',
-    busy: 'Jiná BLE akce právě probíhá.',
-    already_paired: 'Párování už existuje. Použijte uložený kufr; nové párování vyžaduje servisní obnovu.',
+    busy: 'Kufr nebo BLE je zaneprázdněné. Odpojte ostatní ovladače a počkejte, až bude kufr nečinný.',
+    already_paired: 'Telefon už má uložený kufr. Použijte jej, nebo nejprve zapomeňte párování.',
     pairing_unavailable: 'Místní párování není připravené. Ověřte firmware a Wi-Fi kufru.',
     network_not_ready: 'Kufr nemá místní Wi-Fi adresu. Nejprve nastavte síť a ověřte její připojení.',
     pairing_requires_service: 'Kufr má dřívější servisní párování. Použijte jeho QR nebo fyzickou servisní obnovu.',
     pairing_storage_unavailable: 'Úložiště párování kufru není dostupné. Je nutná servisní kontrola.',
-    pairing_failed: 'Párování nebylo potvrzené. Obnovte stav; při spotřebovaném tokenu je nutná servisní obnova.',
+    pairing_failed: 'Párování nebylo potvrzené. Znovu připojte BLE a potvrďte obnovu; ověřte aktuální firmware kufru.',
     credential_unavailable: 'Keychain není dostupný. Odemkněte iPhone a zkuste akci znovu.',
-    local_credential_write_failed: 'Token se nepodařilo uložit do Keychain. Párování může být spotřebované; je nutná servisní obnova kufru.',
+    local_credential_write_failed: 'Token se nepodařilo uložit do Keychain. Odemkněte telefon, znovu připojte BLE a potvrďte obnovu párování.',
   };
   return messages[code] ?? 'Požadavek selhal. Obnovte stav nebo znovu vyhledejte kufr.';
 }

@@ -109,6 +109,20 @@ final class ProvisioningProofKeychain {
 }
 
 enum LocalBlePairingCodec {
+    static func error(_ data: Data) -> String? {
+        guard data.count <= 512,
+              let response = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              Set(response.keys) == Set(["v", "ok", "error"]),
+              let version = response["v"] as? NSNumber,
+              CFGetTypeID(version) != CFBooleanGetTypeID(), version.doubleValue == 1,
+              let ok = response["ok"] as? NSNumber,
+              CFGetTypeID(ok) == CFBooleanGetTypeID(), !ok.boolValue,
+              let code = response["error"] as? String else { return nil }
+        return ["already_paired", "pairing_unavailable", "busy", "network_not_ready",
+                "pairing_requires_service", "pairing_storage_unavailable", "pairing_failed",
+                "invalid_request"].contains(code) ? code : "pairing_failed"
+    }
+
     static func decode(_ data: Data, expectedDeviceId: String) -> LocalDeviceIdentity? {
         guard data.count <= 512,
               let response = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -124,6 +138,63 @@ enum LocalBlePairingCodec {
         let identity = LocalDeviceIdentity(deviceId: expectedDeviceId, host: host, spkiSha256: pin, token: token)
         guard (try? identity.validate()) != nil else { return nil }
         return identity
+    }
+}
+
+// A route hint is never an identity: WSS still uses the stored token and SPKI pin.
+// Only the secured BLE plugin writes this main-queue, session-bound cache.
+enum LocalDeviceAddressHints {
+    private static var session: UUID?
+    private static var deviceId: String?
+    private static var address: String?
+    private static var receivedAt = Date.distantPast
+
+    static func begin(session: UUID) {
+        precondition(Thread.isMainThread)
+        self.session = session
+        deviceId = nil
+        address = nil
+    }
+
+    static func update(session: UUID, deviceId: String, address: String?, now: Date = Date()) -> Bool {
+        precondition(Thread.isMainThread)
+        guard self.session == session,
+              self.deviceId == nil || self.deviceId == deviceId else { return false }
+        self.deviceId = deviceId
+        self.address = LocalDeviceIdentity.validDeviceId(deviceId)
+            ? address.flatMap { ProvisioningStatusCodec.validIpv4($0) ? $0 : nil } : nil
+        receivedAt = now
+        return true
+    }
+
+    static func end(session: UUID) {
+        precondition(Thread.isMainThread)
+        guard self.session == session else { return }
+        self.session = nil
+        deviceId = nil
+        address = nil
+    }
+
+    static func host(deviceId: String, now: Date = Date()) -> String? {
+        precondition(Thread.isMainThread)
+        let age = now.timeIntervalSince(receivedAt)
+        guard session != nil, self.deviceId == deviceId, age >= 0, age <= 60 else { return nil }
+        return address
+    }
+
+    static func connectionHost(manual: String?, identity: LocalDeviceIdentity,
+                               capturedHost: Any?, capturedDeviceId: Any?) -> String? {
+        precondition(Thread.isMainThread)
+        if capturedHost == nil && capturedDeviceId == nil {
+            return selectedHost(manual: manual, identity: identity)
+        }
+        guard let host = capturedHost as? String, LocalDeviceIdentity.validHost(host),
+              let deviceId = capturedDeviceId as? String, deviceId == identity.deviceId else { return nil }
+        return host
+    }
+
+    static func selectedHost(manual: String?, identity: LocalDeviceIdentity) -> String {
+        manual ?? host(deviceId: identity.deviceId) ?? identity.host
     }
 }
 

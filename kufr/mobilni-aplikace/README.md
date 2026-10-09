@@ -1,5 +1,135 @@
 # Mobilní ovládání kufru
 
+> D166: secured BLE status can include current STA IPv4 (`n.ip`). The iOS native
+> layer uses it for the paired device for up to 60 seconds while that BLE session
+> remains connected. The explicit Control connect tap refreshes the live BLE
+> status first, even while its panel is hidden. Manual address selection takes precedence. The stored token
+> and certificate pin still authenticate WSS; the route is saved in Keychain only
+> after authenticated connection succeeds. Offline/missing/invalid IP and BLE
+> disconnect clear the hint. Bonjour failure remains visible; BLE can supply an
+> address independently. Each socket captures the selected host/device ID before
+> asynchronous listener registration; BLE loss cannot switch that attempt to an
+> older hostname. Hardware service/calibration gates remain unchanged.
+
+## Aktuální předání D166
+
+Majitel zadal ručně `192.168.0.59` a obdržel servisní stav, který UI ukazuje
+až po validním snapshotu: tento důkaz potvrzuje autentizované pinned WSS přes IP.
+Hostname timeout byl pozorovaný; konkrétní příčina DNS/multicast na iPhonu není doložená.
+D166 předává aktuální STA IPv4 jako volitelné `n.ip` pouze přes zabezpečené BLE;
+offline/změna generace ho vynechá a při 512 B limitu se vynechá jen tento hint.
+Nativní RAM hint je vázaný na session/device ID a platí 60 s. Connect obnoví status
+živé BLE session i ve skrytém panelu; pending/skipped/failed/stale refresh pokus
+zastaví. Failed refresh vymaže logické BLE spojení, takže další tap může použít
+uloženou/ruční route. Ruční adresa má přednost. Host/device ID se zachytí před
+async listener await; nativní validace přijme oba platné odpovídající údaje nebo
+oba chybějící. Keychain pin/token zůstávají stejné a route se uloží až po auth onOpen.
+Nejisté povely ani hardware gates se touto změnou neobcházejí.
+
+[PR165](https://github.com/Blato58/DildoVander/pull/165) se sloučilo jako
+`b22f478ffcba03bf052b8073a9ed4fd1a53be47b` ze source
+`e4d215cfe10b2d293c74cdf9e581efc974ae80a4`.
+[CI 37945851773](https://github.com/Blato58/DildoVander/actions/runs/37945851773), run number 167,
+prošlo; shodný tree CI/main je `dc21879478bd6f691b67b3c8934e2d731f8e0f6f`.
+[OTA publikace 37946520625](https://github.com/Blato58/DildoVander/actions/runs/37946520625)
+zveřejnila **0.1.168**; veřejné HTTPS, ECDSA podpis, hash a embedded verze byly ověřené.
+[iOS podpis 37946514768](https://github.com/Blato58/DildoVander/actions/runs/37946514768)
+prošel všemi třemi native harnessy (pinned LAN/Keychain/WSS/captured route,
+native Debug backend a secured BLE whitelist), Xcode archive a Ad Hoc export.
+Podepsaná IPA má ověřené Bundle ID `app.turquoise6409.green2444` a verzi
+**1.0 / build 1000.0.23**.
+[Safari publikace 37947083377](https://github.com/Blato58/DildoVander/actions/runs/37947083377)
+prošla všemi joby. Veřejná [instalační stránka](https://2.28.202.220/ios/)
+a manifest potvrzují **1000.0.23**; veřejná IPA a checksum odpovídají podepsanému artefaktu.
+Application-only zápis **0.1.168** na COM7 do `0x10000` prošel hash kontrolou;
+NVS, otadata a partition table zůstaly zachované. Normální RTS boot potvrdil
+**0.1.168**, start control loop a místního TLS serveru; PC BLE scan našel
+`KUFR_4B6048` s očekávaným service UUID. Aktuální dodaná sestava je
+**0.1.168 / 1000.0.23**. D165 **0.1.162 / 1000.0.22** zůstává historické.
+Přesné dodání vede
+[stav implementace](../docs/stav-implementace.md#předání-další-ai).
+Majitel na přesný dotaz k aktualizaci **1000.0.23**, zabezpečenému BLE
+s uloženým párováním a připojení bez psaní IP odpověděl **„Connection worked“**.
+To potvrzuje automatické připojení D166 v této zkoušce. Další krok: fyzická
+kalibrace, dlouhodobé WSS, Keychain po restartu/aktualizaci a negativní DHCP/
+síťové/lifecycle scénáře. Úplná fyzická akceptace zůstává otevřená.
+
+## Historické předání D165
+
+Po **Zapomenout párování** iPhone smazal místní profil, ESP ale zachovalo token
+hash a další BLE párování vracelo `already_paired`. D165 nabídne nativní
+**Obnovit párování kufru?**; až po potvrzení odešle `recover-local` s `confirm:true`
+přes stejné ověřené Security1/PoP BLE. Zrušení ani automatický reconnect párování
+nemění. Zdravý Paired záznam získá nový token; QR/chybějící/poškozená storage
+se neobchází. Připojený ovladač, handshake, čekající povely/disconnect, ruční lease,
+hlas a maintenance vracejí `busy`. TLS identita a Wi-Fi zůstávají zachované.
+Token/pin zůstávají nativní; nový credential se vloží jen do prázdného Keychain
+profilu, existující profil se nepřepisuje.
+
+[PR163](https://github.com/Blato58/DildoVander/pull/163), merge
+`f752c1e0009d25b6827657f789bd35ff943c74f4`, source
+`50b6b0605279884be5c2ed969254e2a57f32411a`, prošlo
+[CI 37936213640](https://github.com/Blato58/DildoVander/actions/runs/37936213640)
+s firmware **0.1.162**.
+[OTA publikace 37936948294](https://github.com/Blato58/DildoVander/actions/runs/37936948294)
+prošla; veřejné HTTPS, ECDSA podpis, hash a embedded verze byly ověřené.
+COM7 app-only zápis na `0x10000` prošel hash kontrolou bez změny NVS. Normální RTS
+boot potvrdil **0.1.162**, main stack 16384 B / minimum remaining 12540 B,
+BLE advertising, control loop a TLS server v 18899 ms.
+[iOS podpis 37936943860](https://github.com/Blato58/DildoVander/actions/runs/37936943860)
+prošel všemi třemi native harnessy, Xcode archive i Ad Hoc exportem pro
+**1.0 / build 1000.0.22**. [Safari publikace 37937381222](https://github.com/Blato58/DildoVander/actions/runs/37937381222)
+prošla všemi třemi joby. Veřejná instalační stránka a manifest uvádějí
+`app.turquoise6409.green2444` / **1000.0.22**; IPA 1873296 B a veřejný checksum
+byly ověřené, SHA-256 `f5cb611018ea898b215701bda0982c76dcd0dff7d1738421e9d13299fb39ff3e`.
+PC BLE scan po flashi našel `KUFR_4B6048` s očekávaným service UUID.
+Majitel následně potvrdil opakované párování, ale LAN discovery/připojení
+stále selhává. PC Bonjour a neautentizované TLS zůstávají dostupné; token/pin
+telefonu, stabilní WSS a Keychain po aktualizaci zatím nejsou ověřené.
+Přesný rozsah vede [stav implementace](../docs/stav-implementace.md#předání-další-ai).
+
+Pozdější ruční IP test zobrazil device service state; source ho vydá až po validním
+snapshotu, tedy dokládá přímé IP WSS. Hostname timeout zůstává otevřený.
+Hardware/calibration gate se neobchází; automatická adresa a dlouhodobé WSS/
+Keychain kontroly zbývají.
+
+## Historické předání D164
+
+Development OTA **0.1.161** prošla
+[CI 37931935316](https://github.com/Blato58/DildoVander/actions/runs/37931935316)
+a [publikací 37933188173](https://github.com/Blato58/DildoVander/actions/runs/37933188173).
+[PR161](https://github.com/Blato58/DildoVander/pull/161) zvětšilo main stack
+pro načtení existující TLS identity. Po majitelem povolené USB obnově aplikace
+bez smazání NVS skutečná deska při normálním RTS restartu spustila control loop,
+BLE advertising i místní TLS server; PC scan našel `KUFR_4B6048` s očekávaným UUID.
+Před obnovou končila **0.1.157** main stack overflow ještě před BLE startem.
+
+V D164 iOS zůstávalo **1.0 / build 1000.0.21** z
+[podpisu 37929159117](https://github.com/Blato58/DildoVander/actions/runs/37929159117)
+a [Safari publikace 37929535139](https://github.com/Blato58/DildoVander/actions/runs/37929535139);
+v D164 se znovu nepodepisovalo ani nepublikovalo. PC scan a firmware boot
+nepotvrzují nový iPhone handshake, stabilní Ovládání přes pinned WSS ani
+uchování Keychain po aktualizaci. Majitel následně potvrdil novou zkoušku na
+stejné Wi-Fi: „yes I am connected“. Připojení v Ovládání je tím potvrzené;
+dlouhodobý provoz a Keychain po aktualizaci zůstávají otevřené. Přesné předání vede
+[stav implementace](../docs/stav-implementace.md#předání-další-ai).
+
+## Historické předání D163
+
+Development OTA **0.1.160** s opravou přijetí WebSocket extension offers je
+[publikovaná](https://github.com/Blato58/DildoVander/actions/runs/37929155208).
+[Podpis 37929159117](https://github.com/Blato58/DildoVander/actions/runs/37929159117)
+prošel native pinned/debug/BLE harnessy i archive/export pro **1.0 / build 1000.0.21**.
+[Safari publikace 37929535139](https://github.com/Blato58/DildoVander/actions/runs/37929535139)
+prošla; [instalační stránka](https://2.28.202.220/ios/) nabízí tento build.
+Veřejný manifest, IPA 1870043 B a checksum byly ověřené; SHA-256 IPA je
+`8dc624add9451524953476e54889b6d87886ee7078c32a9cf0d1e651aaba4a7d`.
+Nativní Apple WSS test potvrdil čtyři nabídky extensions; server je nemusí vybrat.
+Mobil nyní ukazuje pouze bezpečný failureCode a omezuje reconnect.
+Majitel před opravou potvrdil scan/párování, ale Ovládání se na stejné Wi-Fi
+opakovaně odpojovalo. Nová instalace, stabilní pinned WSS a Keychain po aktualizaci
+zůstávají fyzickou akceptací podle [stavu implementace](../docs/stav-implementace.md#předání-další-ai).
+
 ## BLE nastavení sítě a firmware
 
 Po ověřeném BLE připojení zvolte **Spárovat ovládání přes Wi-Fi**.
@@ -14,7 +144,10 @@ Samotné discovery nenahrazuje autentizaci a TLS pin.
 Tlačítko vyžaduje již ověřené BLE/PoP a firmware s `pair-local` (D161).
 Existující profil jiného kufru se nepřepisuje; starší servisní QR párování
 se nezneplatňuje. Ztracená odpověď či selhání Keychain po vydání tokenu
-se automaticky neopakují a mohou vyžadovat fyzickou servisní obnovu.
+se automaticky neopakují. D165 přidává explicitní obnovu přes zabezpečené BLE:
+po Zapomenout párování stiskněte stejné tlačítko a potvrďte Obnovit párování.
+Starý přístup se zneplatní, nový token se vloží do Keychain bez přepsání
+jiného uloženého kufru. Kufr musí být nečinný a ostatní ovladače odpojené.
 Hesla Wi-Fi se do Keychain neukládají. PoP má vlastní oddělený profil z D160.
 
 Záložka **Síť kufru** v nativní iPhone aplikaci vyhledá `KUFR_` zařízení
@@ -129,9 +262,14 @@ Nativní adaptér vlastní TLS pin, oprávnění LAN a Keychain. E10.1 použív�
 
 ## Debug D108/D109/D110/D112 a Realtime
 
-Aktuální [Safari instalace](https://2.28.202.220/ios/) nabízí verzi 1.0,
-build **1000.0.19** ([podpis 9. 10. 2026](https://github.com/Blato58/DildoVander/actions/runs/37899385679),
-[publikace](https://github.com/Blato58/DildoVander/actions/runs/37899776001)).
+**Historické předání D162:** [Safari instalace](https://2.28.202.220/ios/) nabízela verzi 1.0,
+build **1000.0.20** ([podpis 9. 10. 2026](https://github.com/Blato58/DildoVander/actions/runs/37923948887),
+[publikace](https://github.com/Blato58/DildoVander/actions/runs/37924314161)).
+D161 přidává tlačítko Wi-Fi párování přes ověřené BLE a nativní Keychain;
+nativní harnessy prošly v podpisovém workflow. Odpovídající development
+OTA firmware je0.1.157. Majitel po publikaci potvrdil scan a párování;
+na stejné Wi-Fi v Ovládání selhává LAN spojení a opakuje připojování.
+Přesné instalované verze nejsou doložené; WSS a Keychain retention zůstávají otevřené.
 D158 přidává nativní bezpečný BLE provisioning/hotspot/fallback a OTA ovládání;
 GPT-Live a stávající hlas zůstávají zachované. Nativní testy, skutečný Xcode
 archive/export, Ad Hoc podpis a veřejná kontrola manifestu/IPA/SHA-256 prošly.
@@ -290,19 +428,26 @@ Odchod do pozadí nebo uzamčení uzavře nativní socket; návrat vyžaduje nov
 explicitní připojení. Odpojení ručního vlastníka řeší také firmware.
 
 Zapomenutí má nativní potvrzení: původní token nelze z kufru znovu získat,
-nové párování vyžaduje fyzickou servisní obnovu. Totéž platí při ztrátě úspěšné
+nové párování lze u zdravého spárovaného ESP obnovit přes Security1/PoP BLE
+a explicitní nativní potvrzení D165. Totéž platí při ztrátě úspěšné
 párovací odpovědi nebo selhání Keychain zápisu po spotřebování tajemství.
 Neověřená/prázdná NVS nebo kalibrace 0 na desce se z telefonu neobchází.
 Živý ESP32, LAN permission, Keychain po aktualizaci a uspání iPhonu zůstávají
-samostatnou akceptací B1/E10; nové IPA se tímto slice nepodepisuje/nepublikuje.
+samostatnou akceptací B1/E10. Původní E10 slice IPA nepublikoval; přesný
+podpis a nasazení opravy D165 vede stav implementace.
 
 macOS CI navíc spouští `bash scripts/test-native-transport.sh`: porovná SPKI
 EC P-256/P-384 a RSA s OpenSSL, ověří Keychain a skutečné loopback HTTPS/WSS
 včetně odmítnutí jiného pinu, tokenu, redirectu a nepovolených rámců. Test
 používá jednorázové syntetické identity; nepotřebuje kufr ani placený provider.
 
-Přerušené nativní spojení za běhu opakuje připojení s 0,5–8s backoffem a
-jitterem; po welcome zůstane v pozorování. Výslovné odpojení retry zruší.
+Nativní spojení vrací jen bezpečný failureCode; UI rozlišuje síť, pin,
+autentizaci a protokol. Neplatná identita/pin, odmítnutá autentizace/handshake,
+TLS nebo protokol zastaví retry ihned. Ostatní chyby včetně dočasné ztráty
+sítě mají nejvýše tři retry s backoffem 0,5/1/2 s a jitterem. Po welcome
+zůstane ovládání v pozorování; limit obnoví až pět sekund platných snapshotů.
+Po zastavení lze zkusit **Připojit uložený kufr**. Výslovné odpojení retry
+zruší; uložené párování zůstává v Keychain.
 Testovací `/tests/native-ui-harness.html` nabízí syntetický bridge pouze přes
 Vite pro kontrolu formuláře a recovery UI. Není v produkčním bundlu a nenahrazuje
 native alert, UIKit lifecycle ani zkoušku oprávnění na iPhonu.
@@ -452,7 +597,7 @@ ani offline provider testy nejsou fyzický poslech.
 Dne 6. 10. 2026 byla na [instalační stránce](https://2.28.202.220/ios/)
 publikována Ad Hoc **1.0 / build 1000.0.16** pro dosavadní registrovaný iPhone.
 Tento oddíl zachycuje tehdejší verzi a serverovou konfiguraci D146;
-aktuální publikovaná verze je **1.0 / build 1000.0.19** podle přehledu výše.
+historické předání D162 je **1.0 / build 1000.0.20**; aktuální D166 vede přehled nahoře.
 [Podpis 37429759564](https://github.com/Blato58/DildoVander/actions/runs/37429759564)
 ověřil Xcode 26.3, nativní transport/debug/audio testy a podpis;
 [publikace 37429982348](https://github.com/Blato58/DildoVander/actions/runs/37429982348)

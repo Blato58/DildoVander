@@ -21,27 +21,33 @@ int main() {
   stop.bootId = "boot";
   stop.messageId = "stop";
   assert(!inbox.Take(event));
+  assert(inbox.RunIfDisconnected([&]() {}));
   assert(!inbox.Open({}, 0));
   assert(inbox.Open(first, 20));
+  assert(!inbox.RunIfDisconnected([&]() { assert(false); }));
   assert(!inbox.Open(reused, 21));
   assert(!inbox.Submit(reused, text));
   for (size_t index = 0; index < LocalControlInbox::QueueCapacity; ++index) {
     assert(inbox.Submit(first, text));
   }
   assert(!inbox.Submit(first, text));
+  assert(!inbox.RunIfDisconnected([&]() { assert(false); }));
   LocalControlMessage wrongStop = stop;
   wrongStop.bootId = "old-boot";
   assert(!inbox.Submit(first, wrongStop));
   assert(inbox.Submit(first, stop));
   assert(!inbox.Submit(first, text));
   inbox.Disconnect(first);
+  assert(!inbox.RunIfDisconnected([&]() { assert(false); }));
   assert(!inbox.Open(reused, 22));
   assert(inbox.Take(event) && event.kind == LocalControlEventKind::Connected);
   assert(event.handle.generation == 1 && event.connectedAtMs == 20);
   assert(inbox.Take(event) && event.kind == LocalControlEventKind::Stop);
   assert(event.message.messageId == "stop");
+  assert(!inbox.RunIfDisconnected([&]() { assert(false); }));
   assert(inbox.Take(event) && event.kind == LocalControlEventKind::Disconnected);
   assert(!inbox.Take(event));
+  assert(inbox.RunIfDisconnected([&]() {}));
   assert(inbox.Open(reused, 30));
   inbox.Disconnect(first);
   assert(inbox.Submit(reused, text));
@@ -78,4 +84,29 @@ int main() {
   assert(began);
   assert(!guarded.RunIfCurrent(first, [&]() { assert(false); }));
   assert(!guarded.RunIfNoUrgent([&]() { assert(false); }));
+
+  LocalControlInbox recovery("kufr-001", "boot");
+  std::promise<void> openAttempting;
+  std::promise<void> openCompleted;
+  auto openAttemptingFuture = openAttempting.get_future();
+  auto openCompletedFuture = openCompleted.get_future();
+  std::thread connection;
+  assert(recovery.RunIfDisconnected([&]() {
+    connection = std::thread([&]() {
+      openAttempting.set_value();
+      assert(recovery.Open(first, 40));
+      openCompleted.set_value();
+    });
+    openAttemptingFuture.wait();
+    assert(openCompletedFuture.wait_for(std::chrono::milliseconds(20)) ==
+           std::future_status::timeout);
+  }));
+  connection.join();
+  assert(!recovery.RunIfDisconnected([&]() { assert(false); }));
+  assert(recovery.Take(event) && event.kind == LocalControlEventKind::Connected);
+  assert(!recovery.RunIfDisconnected([&]() { assert(false); }));
+  recovery.Disconnect(first);
+  assert(!recovery.RunIfDisconnected([&]() { assert(false); }));
+  assert(recovery.Take(event) && event.kind == LocalControlEventKind::Disconnected);
+  assert(recovery.RunIfDisconnected([&]() {}));
 }

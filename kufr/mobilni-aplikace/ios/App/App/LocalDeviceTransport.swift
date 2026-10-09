@@ -1,6 +1,22 @@
 import Foundation
 import Security
 
+// The only failure information allowed across the native/JavaScript boundary.
+// NSError descriptions, URLs, certificate data and credentials stay native.
+enum LocalDeviceTransportFailureCode: String, CaseIterable, Hashable, Sendable {
+    case invalidIdentity = "invalid_identity"
+    case certificateMismatch = "certificate_mismatch"
+    case authorizationRejected = "authorization_rejected"
+    case serverBusy = "server_busy"
+    case handshakeRejected = "handshake_rejected"
+    case tlsFailed = "tls_failed"
+    case hostUnreachable = "host_unreachable"
+    case networkUnavailable = "network_unavailable"
+    case connectionTimeout = "connection_timeout"
+    case protocolError = "protocol_error"
+    case connectionLost = "connection_lost"
+}
+
 // All state and URLSession callbacks live on the main queue. Each operation
 // owns its immutable pin; a late callback can never borrow a new connection.
 final class LocalDeviceTransport: NSObject, URLSessionWebSocketDelegate, URLSessionTaskDelegate, @unchecked Sendable {
@@ -14,9 +30,57 @@ final class LocalDeviceTransport: NSObject, URLSessionWebSocketDelegate, URLSess
     private var pairingCompletion: ((Result<String, Error>) -> Void)?
     private var finished = false
     private var sendsPending = 0
+    private(set) var failureCode: LocalDeviceTransportFailureCode?
     var onOpen: (() -> Void)?
     var onFrame: ((String) -> Void)?
     var onClose: (() -> Void)?
+
+    static func classifyFailure(_ error: Error?, httpStatus: Int? = nil) -> LocalDeviceTransportFailureCode {
+        if let httpStatus, httpStatus != 101 {
+            switch httpStatus {
+            case 401, 403: return .authorizationRejected
+            case 409, 503: return .serverBusy
+            default: return .handshakeRejected
+            }
+        }
+        guard let error = error as NSError?, error.domain == NSURLErrorDomain else {
+            return .connectionLost
+        }
+        switch error.code {
+        case NSURLErrorBadURL, NSURLErrorUnsupportedURL:
+            return .invalidIdentity
+        case NSURLErrorUserAuthenticationRequired:
+            return .authorizationRejected
+        case NSURLErrorBadServerResponse:
+            return .handshakeRejected
+        case NSURLErrorSecureConnectionFailed, NSURLErrorServerCertificateHasBadDate,
+             NSURLErrorServerCertificateUntrusted, NSURLErrorServerCertificateHasUnknownRoot,
+             NSURLErrorServerCertificateNotYetValid, NSURLErrorClientCertificateRejected,
+             NSURLErrorClientCertificateRequired, NSURLErrorAppTransportSecurityRequiresSecureConnection:
+            return .tlsFailed
+        case NSURLErrorCannotFindHost, NSURLErrorDNSLookupFailed, NSURLErrorCannotConnectToHost:
+            return .hostUnreachable
+        case NSURLErrorNotConnectedToInternet, NSURLErrorInternationalRoamingOff,
+             NSURLErrorDataNotAllowed, NSURLErrorCallIsActive:
+            return .networkUnavailable
+        case NSURLErrorTimedOut:
+            return .connectionTimeout
+        case NSURLErrorDataLengthExceedsMaximum, NSURLErrorCannotDecodeRawData, NSURLErrorCannotDecodeContentData:
+            return .protocolError
+        default:
+            return .connectionLost
+        }
+    }
+
+    private func fail(_ code: LocalDeviceTransportFailureCode) {
+        guard !finished else { return }
+        failureCode = failureCode ?? code
+        close()
+    }
+
+    private func fail(_ error: Error?, task: URLSessionTask?) {
+        fail(Self.classifyFailure(error, httpStatus: (task?.response as? HTTPURLResponse)?.statusCode))
+    }
 
     init(host: String, pin: String, port: Int = 443) {
         self.host = host
@@ -53,6 +117,7 @@ final class LocalDeviceTransport: NSObject, URLSessionWebSocketDelegate, URLSess
               secret.utf8.count >= 32, secret.utf8.count <= 128,
               secret.utf8.count % 2 == 0,
               LocalDeviceIdentity.validHex(secret, bytes: secret.utf8.count / 2) else {
+            if !finished { failureCode = failureCode ?? .invalidIdentity }
             completion(.failure(LocalDeviceError.invalidIdentity))
             return
         }
@@ -72,7 +137,7 @@ final class LocalDeviceTransport: NSObject, URLSessionWebSocketDelegate, URLSess
         guard session == nil, !finished,
               LocalDeviceIdentity.validHost(host), LocalDeviceIdentity.validHex(pin, bytes: 32),
               LocalDeviceIdentity.validHex(token, bytes: 32) else {
-            close()
+            fail(.invalidIdentity)
             return
         }
         startSession()
@@ -85,8 +150,8 @@ final class LocalDeviceTransport: NSObject, URLSessionWebSocketDelegate, URLSess
 
     func send(_ frame: String, completion: @escaping (Bool) -> Void) {
         guard !finished, let socket, frame.utf8.count <= 8192, sendsPending < 4 else {
+            fail(.protocolError)
             completion(false)
-            close()
             return
         }
         sendsPending += 1
@@ -94,8 +159,8 @@ final class LocalDeviceTransport: NSObject, URLSessionWebSocketDelegate, URLSess
             DispatchQueue.main.async {
                 guard let self, !self.finished else { completion(false); return }
                 self.sendsPending -= 1
+                if let error { self.fail(error, task: socket) }
                 completion(error == nil)
-                if error != nil { self.close() }
             }
         }
     }
@@ -125,8 +190,10 @@ final class LocalDeviceTransport: NSObject, URLSessionWebSocketDelegate, URLSess
                 case .success(.string(let frame)) where frame.utf8.count <= 8192:
                     self.onFrame?(frame)
                     self.receive()
-                default:
-                    self.close()
+                case .success:
+                    self.fail(.protocolError)
+                case .failure(let error):
+                    self.fail(error, task: self.socket)
                 }
             }
         }
@@ -134,8 +201,16 @@ final class LocalDeviceTransport: NSObject, URLSessionWebSocketDelegate, URLSess
 
     func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge,
                     completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
-        guard !finished,
-              challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+        guard !finished, session === self.session else {
+            completionHandler(.cancelAuthenticationChallenge, nil)
+            return
+        }
+        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust else {
+            completionHandler(.cancelAuthenticationChallenge, nil)
+            fail(.tlsFailed)
+            return
+        }
+        guard
               challenge.protectionSpace.host.caseInsensitiveCompare(host) == .orderedSame,
               challenge.protectionSpace.port == port,
               let trust = challenge.protectionSpace.serverTrust,
@@ -143,9 +218,10 @@ final class LocalDeviceTransport: NSObject, URLSessionWebSocketDelegate, URLSess
               let leaf = chain.first,
               LocalCertificatePin.matches(SecCertificateCopyData(leaf) as Data, expected: pin) else {
             completionHandler(.cancelAuthenticationChallenge, nil)
+            fail(.certificateMismatch)
             return
         }
-        // This isolated LAN session uses the physically obtained QR SPKI as its
+        // This isolated LAN session uses the physically obtained QR/BLE SPKI as its
         // authority, including self-signed identity. Cloud traffic never uses it.
         completionHandler(.useCredential, URLCredential(trust: trust))
     }
@@ -155,23 +231,27 @@ final class LocalDeviceTransport: NSObject, URLSessionWebSocketDelegate, URLSess
                     newRequest request: URLRequest,
                     completionHandler: @escaping (URLRequest?) -> Void) {
         completionHandler(nil)
-        close()
+        guard !finished, session === self.session,
+              task === socket || task === pairingTask else { return }
+        fail(.handshakeRejected)
     }
 
     func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask,
                     didOpenWithProtocol selectedProtocol: String?) {
-        guard !finished, webSocketTask === socket, selectedProtocol == nil else { close(); return }
+        guard !finished, session === self.session, webSocketTask === socket else { return }
+        guard selectedProtocol == nil else { fail(.protocolError); return }
         onOpen?()
         receive()
     }
 
     func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask,
                     didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
-        close()
+        guard !finished, session === self.session, webSocketTask === socket else { return }
+        fail(closeCode == .protocolError || closeCode == .messageTooBig ? .protocolError : .connectionLost)
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        guard !finished else { return }
+        guard !finished, session === self.session else { return }
         if task === pairingTask {
             let completion = pairingCompletion
             pairingCompletion = nil
@@ -187,12 +267,14 @@ final class LocalDeviceTransport: NSObject, URLSessionWebSocketDelegate, URLSess
                LocalDeviceIdentity.validHex(token, bytes: 32) {
                 result = .success(token)
             } else {
+                failureCode = error == nil && response?.statusCode == 200 ? .protocolError :
+                    Self.classifyFailure(error, httpStatus: response?.statusCode == 200 ? nil : response?.statusCode)
                 result = .failure(LocalDeviceError.invalidPairingResponse)
             }
             close()
             completion?(result)
         } else if task === socket {
-            close()
+            fail(error, task: task)
         }
     }
 }
@@ -201,20 +283,26 @@ extension LocalDeviceTransport: URLSessionDataDelegate {
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask,
                     didReceive response: URLResponse,
                     completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
-        guard dataTask === pairingTask,
+        guard !finished, session === self.session, dataTask === pairingTask else {
+            completionHandler(.cancel)
+            return
+        }
+        guard
               let response = response as? HTTPURLResponse,
               response.statusCode == 200, response.mimeType == "application/json",
               response.expectedContentLength <= 192 else {
             completionHandler(.cancel)
-            close()
+            let status = (response as? HTTPURLResponse)?.statusCode
+            fail(status == 200 ? .protocolError : Self.classifyFailure(nil, httpStatus: status))
             return
         }
         completionHandler(.allow)
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-        guard !finished, dataTask === pairingTask, data.count <= 192 - pairingBytes.count else {
-            close()
+        guard !finished, session === self.session, dataTask === pairingTask else { return }
+        guard data.count <= 192 - pairingBytes.count else {
+            fail(.protocolError)
             return
         }
         pairingBytes.append(data)

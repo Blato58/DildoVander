@@ -260,9 +260,9 @@ void EspIdfLocalControlServer::Stop() {
 
 esp_err_t EspIdfLocalControlServer::BeforeUpgrade(httpd_req_t* request) {
   auto* server = static_cast<EspIdfLocalControlServer*>(request->user_ctx);
-  if (std::strcmp(request->uri, "/v1/control") != 0 ||
-      httpd_req_get_hdr_value_len(request, "Sec-WebSocket-Extensions") != 0 ||
-      request->sess_ctx != nullptr) {
+  // A client may offer extensions without requiring them. IDF's upgrade
+  // response selects none, so the connection stays uncompressed (RFC6455).
+  if (std::strcmp(request->uri, "/v1/control") != 0 || request->sess_ctx != nullptr) {
     return Reject(request, "400 Bad Request");
   }
   constexpr size_t HeaderLength = 71;

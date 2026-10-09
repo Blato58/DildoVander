@@ -103,47 +103,102 @@ struct BleStatusBridge {
   LocalPairingCredential& pairing;
   EspIdfStationNetwork& station;
   const std::string& hostname;
-  static const char* PairLocal(cJSON* response, void* context) {
-    auto& bridge = *static_cast<BleStatusBridge*>(context);
-    if (!bridge.identity.IsHealthy() || !bridge.identity.IsProvisioned() ||
-        !bridge.tls.IsHealthy() || !bridge.tls.IsProvisioned() || bridge.hostname.empty()) {
+  MaintenanceGate& maintenance;
+  LocalSocketAdmission& admission;
+  LocalControlInbox& inbox;
+
+  const char* PairingPrerequisites(bool recovering) {
+    if (!identity.IsHealthy() || !identity.IsProvisioned() ||
+        !tls.IsHealthy() || !tls.IsProvisioned() || hostname.empty()) {
       return "pairing_unavailable";
     }
-    if (!bridge.pairing.IsHealthy()) { return "pairing_storage_unavailable"; }
+    if (!pairing.IsHealthy()) { return "pairing_storage_unavailable"; }
     // Backend provisioning historically accepts IDs outside control-v1. Do
     // not consume enrollment that the native control client cannot validate.
-    if (!EspIdfLocalServiceAdvertisement::SupportsLocalControl(bridge.identity.DeviceId())) {
+    if (!EspIdfLocalServiceAdvertisement::SupportsLocalControl(identity.DeviceId())) {
       return "pairing_requires_service";
     }
-    if (bridge.pairing.IsPaired()) { return "already_paired"; }
-    if (bridge.pairing.IsPairingReady()) { return "pairing_requires_service"; }
-    if (!bridge.station.HasIp()) { return "network_not_ready"; }
-    // Allocate response fields before consuming the only enrollment. Never put
-    // a bearer token in public status, advertising or durable firmware state.
+    if (pairing.IsPairingReady()) { return "pairing_requires_service"; }
+    if (recovering && !pairing.IsPaired()) { return "pairing_unavailable"; }
+    if (!recovering && pairing.IsPaired()) { return "already_paired"; }
+    if (!station.HasIp()) { return "network_not_ready"; }
+    return nullptr;
+  }
+
+  cJSON* PreparePairingResponse(cJSON* response) {
+    // Allocate every response field before changing the durable credential.
+    // Token data never enters public status, advertising or firmware storage.
     constexpr char Hex[] = "0123456789abcdef";
     char pin[65]{};
-    for (size_t index = 0; index < bridge.tls.PublicKeyDigest().size(); ++index) {
-      pin[index * 2] = Hex[bridge.tls.PublicKeyDigest()[index] >> 4];
-      pin[index * 2 + 1] = Hex[bridge.tls.PublicKeyDigest()[index] & 15];
+    for (size_t index = 0; index < tls.PublicKeyDigest().size(); ++index) {
+      pin[index * 2] = Hex[tls.PublicKeyDigest()[index] >> 4];
+      pin[index * 2 + 1] = Hex[tls.PublicKeyDigest()[index] & 15];
     }
-    const std::string host = bridge.hostname + ".local";
+    const std::string host = hostname + ".local";
     const std::string placeholder(64, '0');
     auto* tokenField = cJSON_AddStringToObject(response, "token", placeholder.c_str());
     if (tokenField == nullptr ||
-        cJSON_AddStringToObject(response, "id", bridge.identity.DeviceId().c_str()) == nullptr ||
+        cJSON_AddStringToObject(response, "id", identity.DeviceId().c_str()) == nullptr ||
         cJSON_AddStringToObject(response, "host", host.c_str()) == nullptr ||
         cJSON_AddStringToObject(response, "spkiSha256", pin) == nullptr) {
-      return "pairing_failed";
+      return nullptr;
     }
-    std::array<uint8_t, LocalPairingCredential::TokenSize> token{};
-    if (!bridge.pairing.InitializeFromAuthenticatedBle(token)) {
-      return "pairing_failed";
-    }
+    return tokenField;
+  }
+
+  static void CompletePairingResponse(
+      cJSON* tokenField, std::array<uint8_t, LocalPairingCredential::TokenSize>& token) {
+    constexpr char Hex[] = "0123456789abcdef";
     for (size_t index = 0; index < token.size(); ++index) {
       tokenField->valuestring[index * 2] = Hex[token[index] >> 4];
       tokenField->valuestring[index * 2 + 1] = Hex[token[index] & 15];
     }
     NetworkProfiles::Wipe(token.data(), token.size());
+  }
+
+  static const char* PairLocal(cJSON* response, void* context) {
+    auto& bridge = *static_cast<BleStatusBridge*>(context);
+    const char* error = bridge.PairingPrerequisites(false);
+    if (error != nullptr) { return error; }
+    auto* tokenField = bridge.PreparePairingResponse(response);
+    if (tokenField == nullptr) { return "pairing_failed"; }
+    std::array<uint8_t, LocalPairingCredential::TokenSize> token{};
+    if (!bridge.pairing.InitializeFromAuthenticatedBle(token)) {
+      NetworkProfiles::Wipe(token.data(), token.size());
+      return "pairing_failed";
+    }
+    CompletePairingResponse(tokenField, token);
+    return nullptr;
+  }
+
+  static const char* RecoverLocal(cJSON* response, void* context) {
+    auto& bridge = *static_cast<BleStatusBridge*>(context);
+    const char* error = bridge.PairingPrerequisites(true);
+    if (error != nullptr) { return error; }
+    auto* tokenField = bridge.PreparePairingResponse(response);
+    if (tokenField == nullptr) { return "pairing_failed"; }
+    std::array<uint8_t, LocalPairingCredential::TokenSize> token{};
+    // Owner admissions share this lock; never stop the server, control owner
+    // or actuators from BLE. Socket/inbox locks cover pending handshakes and
+    // disconnect events as well as live clients. Lock order is maintenance ->
+    // admission -> inbox -> credential, compatible with handshake authentication.
+    std::unique_lock<std::mutex> lock(bridge.maintenance.mutex, std::try_to_lock);
+    if (!lock.owns_lock() || !bridge.maintenance.safeIdle ||
+        bridge.maintenance.networkHeld || bridge.maintenance.otaHeld) {
+      return "busy";
+    }
+    bool rotated = false;
+    bool disconnected = false;
+    const bool empty = bridge.admission.RunIfEmpty([&]() {
+      disconnected = bridge.inbox.RunIfDisconnected([&]() {
+        rotated = bridge.pairing.RotateFromAuthenticatedBle(token);
+      });
+    });
+    if (!empty || !disconnected || !rotated) {
+      NetworkProfiles::Wipe(token.data(), token.size());
+      return !empty || !disconnected ? "busy" : "pairing_failed";
+    }
+    CompletePairingResponse(tokenField, token);
     return nullptr;
   }
   static void Status(cJSON* response, void* context) {
@@ -329,14 +384,16 @@ extern "C" void app_main() {
   firmwareUpdate.Begin();
   static kufr::assets::EspIdfSdAssets sdAssets;
   sdAssets.Begin();
-  static BleStatusBridge bleBridge{
-      firmwareUpdate, backendNetwork, identity, tlsIdentity, pairing, station, localHostname};
-  static EspIdfBleProvisioning provisioning(station);
-  provisioning.Begin(nvsStatus == ESP_OK, identity.DeviceId().c_str(), KUFR_FIRMWARE_VERSION,
-      {BleStatusBridge::Status, BleStatusBridge::Command, &bleBridge, BleStatusBridge::PairLocal});
   static LocalBearerAuthenticator authenticator(pairing);
   static LocalSocketAdmission admission(authenticator);
   static LocalControlInbox inbox(identity.DeviceId(), bootId);
+  static BleStatusBridge bleBridge{
+      firmwareUpdate, backendNetwork, identity, tlsIdentity, pairing, station, localHostname,
+      maintenance, admission, inbox};
+  static EspIdfBleProvisioning provisioning(station);
+  provisioning.Begin(nvsStatus == ESP_OK, identity.DeviceId().c_str(), KUFR_FIRMWARE_VERSION,
+      {BleStatusBridge::Status, BleStatusBridge::Command, &bleBridge,
+       BleStatusBridge::PairLocal, BleStatusBridge::RecoverLocal});
   static EspIdfLocalControlServer server(tlsIdentity, pairing, admission, inbox);
   static EspIdfLocalServiceAdvertisement advertisement(station, hasher);
   static LocalControlOutput output(
@@ -357,6 +414,11 @@ extern "C" void app_main() {
   bool hardwareFaultHandled = false;
   uint64_t buttonChangedAt = 0, buttonPressedAt = 0;
   ESP_LOGI(LogTag, "ESP-IDF control loop started; physical outputs require verified service configuration");
+  static_assert(CONFIG_ESP_MAIN_TASK_STACK_SIZE >= 16384,
+                "TLS identity startup requires at least 16 KiB of main task stack");
+  ESP_LOGI(LogTag, "Main task stack: configured %u bytes, minimum remaining %u bytes",
+           static_cast<unsigned>(CONFIG_ESP_MAIN_TASK_STACK_SIZE),
+           static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
 
   while (true) {
     std::unique_lock<std::mutex> maintenanceLock(maintenance.mutex);

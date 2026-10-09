@@ -3,8 +3,10 @@ from dataclasses import FrozenInstanceError
 import hashlib
 import io
 import json
+from pathlib import Path
 import stat
 import struct
+import sys
 import tarfile
 import unittest
 from unittest.mock import patch
@@ -12,28 +14,31 @@ import urllib.error
 import warnings
 import zipfile
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'firmware' / 'tools'))
 import firmware_artifact as verifier
 
 HEAD, SOURCE, TREE, BASE, MAIN = (letter * 40 for letter in ('a', 'b', 'c', 'd', 'f'))
 TOKEN = 'ephemeral-secret-never-log'
 
 
-def image():
+def image(version='1.2.3'):
     data = bytearray(512)
     data[0], data[1], data[3] = 0xe9, 1, 0x40
     struct.pack_into('<H', data, 12, 9)
     struct.pack_into('<I', data, 32, 0xabcd5432)
-    data[48:53] = b'1.2.3'
+    encoded_version = version.encode('ascii')
+    assert len(encoded_version) <= 31
+    data[48:48 + len(encoded_version)] = encoded_version
     return bytes(data)
 
 
-def tar_payload(entries=None):
+def tar_payload(entries=None, version='1.2.3'):
     if entries is None:
         directory = tarfile.TarInfo('esp32-s3-idf')
         directory.type = tarfile.DIRTYPE
         binary = tarfile.TarInfo('esp32-s3-idf/firmware.bin')
-        binary.size = len(image())
-        entries = [(directory, b''), (binary, image())]
+        binary.size = len(image(version))
+        entries = [(directory, b''), (binary, image(version))]
     output = io.BytesIO()
     with tarfile.open(fileobj=output, mode='w:gz') as archive:
         for member, data in entries:
@@ -118,6 +123,14 @@ class Fixture:
 
 
 class ArtifactTests(unittest.TestCase):
+    def ci_fixture(self, run_number=7, embedded_version='0.1.8', policy=b'0.1.1+ci\n'):
+        fixture = Fixture()
+        fixture.version = policy
+        fixture.run['run_number'] = run_number
+        fixture.payload = tar_payload(version=embedded_version)
+        fixture.refresh()
+        return fixture
+
     def verify(self, fixture):
         with patch.object(verifier, '_GitHubClient', return_value=fixture):
             return verifier.verify_artifact('123', TOKEN)
@@ -239,6 +252,43 @@ class ArtifactTests(unittest.TestCase):
         fixture.payload = tar_payload([(member, bytes(invalid))]); fixture.refresh()
         self.assertEqual(self.assert_rejected(fixture), 'firmware-image-contract-invalid')
 
+    def test_ci_version_derived_from_authoritative_run_matches_embedded_image(self):
+        fixture = self.ci_fixture()
+        result = self.verify(fixture)
+        self.assertEqual(result.version, '0.1.8')
+        self.assertEqual(result.sha256, hashlib.sha256(image('0.1.8')).hexdigest())
+        self.assertIn('?ref=' + MAIN, fixture.requests[-1])
+        fixture = self.ci_fixture(1, '0.2.0', b'0.1.65535+ci\n')
+        self.assertEqual(self.verify(fixture).version, '0.2.0')
+
+    def test_ci_run_number_missing_boolean_negative_or_forged_is_rejected(self):
+        for run_number in (None, True, False, 0, -1, '7', 7.0, 9007199254740992):
+            with self.subTest(run_number=run_number):
+                self.assertEqual(self.assert_rejected(self.ci_fixture(run_number)), 'main-version-invalid')
+        fixture = self.ci_fixture()
+        del fixture.run['run_number']
+        self.assertEqual(self.assert_rejected(fixture), 'main-version-invalid')
+        # A runner cannot replace GitHub's number through an uploaded field.
+        for field in ('run_number', 'version'):
+            fixture = self.ci_fixture()
+            fixture.manifest[field] = 100 if field == 'run_number' else '0.1.101'
+            fixture.refresh()
+            self.assertEqual(self.assert_rejected(fixture), 'build-provenance-invalid')
+
+    def test_ci_image_cannot_choose_a_different_number_or_baseline(self):
+        for embedded in ('0.1.1', '0.1.7', '0.1.9', '1.0.8', '0.1.8+ci'):
+            with self.subTest(embedded=embedded):
+                self.assertEqual(self.assert_rejected(self.ci_fixture(embedded_version=embedded)),
+                                 'firmware-image-contract-invalid')
+        fixture = self.ci_fixture(run_number=8)
+        self.assertEqual(self.assert_rejected(fixture), 'firmware-image-contract-invalid')
+
+    def test_legacy_plain_versions_do_not_require_ci_run_number(self):
+        for run_number in (None, True, 'forged'):
+            fixture = Fixture()
+            if run_number is not None:
+                fixture.run['run_number'] = run_number
+            self.assertEqual(self.verify(fixture).version, '1.2.3')
     def test_zip_exact_names_no_extra_paths_links_or_oversized_json(self):
         for name in ('../extra', '/extra', 'extra', 'dir/extra'):
             fixture = Fixture(); fixture.zipped = zip_contents(fixture.manifest, fixture.payload, [(name, b'x')])

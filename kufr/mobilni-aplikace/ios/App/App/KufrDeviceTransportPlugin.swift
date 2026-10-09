@@ -45,7 +45,7 @@ public class KufrDeviceTransportPlugin: CAPPlugin, CAPBridgedPlugin {
             do {
                 if let identity = try self.keychain.read() {
                     call.resolve(["paired": true, "deviceId": identity.deviceId,
-                                  "host": self.selectedHost ?? identity.host])
+                                  "host": LocalDeviceAddressHints.selectedHost(manual: self.selectedHost, identity: identity)])
                 } else {
                     call.resolve(["paired": false])
                 }
@@ -67,9 +67,19 @@ public class KufrDeviceTransportPlugin: CAPPlugin, CAPBridgedPlugin {
             self.discovery = discovery
             discovery.start { [weak self] devices, failed in
                 self?.discovery = nil
-                call.resolve(["failed": failed, "devices": devices.map {
+                var candidates = devices.map {
                     ["deviceId": $0.deviceId, "host": $0.host, "capabilities": $0.capabilities] as [String: Any]
-                }])
+                }
+                // Keep the Bonjour failure visible; secured BLE supplies a separate route.
+                var bleAddressAvailable = false
+                if let self, let identity = try? self.keychain.read(),
+                   let host = LocalDeviceAddressHints.host(deviceId: identity.deviceId) {
+                    candidates.removeAll { $0["deviceId"] as? String == identity.deviceId }
+                    candidates.insert(["deviceId": identity.deviceId, "host": host,
+                                       "capabilities": [String]()], at: 0)
+                    bleAddressAvailable = true
+                }
+                call.resolve(["failed": failed, "bleAddressAvailable": bleAddressAvailable, "devices": candidates])
             }
         }
     }
@@ -189,12 +199,18 @@ public class KufrDeviceTransportPlugin: CAPPlugin, CAPBridgedPlugin {
                     call.reject("Nejprve spárujte kufr.", "not_paired")
                     return
                 }
-                let host = self.selectedHost ?? identity.host
+                guard let host = LocalDeviceAddressHints.connectionHost(manual: self.selectedHost,
+                    identity: identity, capturedHost: call.options["host"],
+                    capturedDeviceId: call.options["deviceId"]) else {
+                    call.reject("Adresa nebo uložený kufr se změnily. Připojte jej znovu.", "invalid_identity")
+                    return
+                }
                 let transport = LocalDeviceTransport(host: host, pin: identity.spkiSha256)
                 self.transport = transport
                 self.connectionId = id
                 transport.onOpen = { [weak self, weak transport] in
-                    guard let self, self.connectionId == id else { return }
+                    guard let self, let transport, self.transport === transport,
+                          self.connectionId == id else { return }
                     do {
                         if host != identity.host {
                             try self.keychain.write(LocalDeviceIdentity(deviceId: identity.deviceId, host: host,
@@ -202,20 +218,25 @@ public class KufrDeviceTransportPlugin: CAPPlugin, CAPBridgedPlugin {
                         }
                         self.selectedHost = nil
                     } catch {
-                        transport?.close()
+                        transport.close()
                         return
                     }
                     self.notifyListeners("transport", data: ["connectionId": id, "state": "open"])
                 }
-                transport.onFrame = { [weak self] frame in
-                    guard let self, self.connectionId == id else { return }
+                transport.onFrame = { [weak self, weak transport] frame in
+                    guard let self, let transport, self.transport === transport,
+                          self.connectionId == id else { return }
                     self.notifyListeners("transport", data: ["connectionId": id, "state": "frame", "frame": frame])
                 }
-                transport.onClose = { [weak self] in
-                    guard let self, self.connectionId == id else { return }
+                transport.onClose = { [weak self, weak transport] in
+                    guard let self, let transport, self.transport === transport,
+                          self.connectionId == id else { return }
+                    let failureCode = transport.failureCode?.rawValue
                     self.transport = nil
                     self.connectionId = nil
-                    self.notifyListeners("transport", data: ["connectionId": id, "state": "closed"])
+                    var event: [String: Any] = ["connectionId": id, "state": "closed"]
+                    if let failureCode { event["failureCode"] = failureCode }
+                    self.notifyListeners("transport", data: event)
                 }
                 transport.connect(token: identity.token)
                 call.resolve()
@@ -258,8 +279,8 @@ public class KufrDeviceTransportPlugin: CAPPlugin, CAPBridgedPlugin {
                 return
             }
             let prompt = UIAlertController(title: "Zapomenout párování?",
-                message: "Nové párování bude vyžadovat fyzický servisní reset kufru. " +
-                    "Uložený token už nepůjde získat zpět.", preferredStyle: .alert)
+                message: "Přístup se odstraní z tohoto telefonu. Pro nové párování připojte " +
+                    "kufr v Síť kufru přes zabezpečené BLE a potvrďte obnovu párování.", preferredStyle: .alert)
             prompt.addAction(UIAlertAction(title: "Zrušit", style: .cancel) { _ in
                 call.reject("Párování zůstalo uložené.", "cancelled")
             })

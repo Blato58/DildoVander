@@ -13,6 +13,50 @@ func waitUntil(_ condition: () -> Bool) {
     check(condition(), "Native test deadline")
 }
 
+let firstAddressSession = UUID()
+let nextAddressSession = UUID()
+let hintTime = Date()
+let hintIdentity = LocalDeviceIdentity(deviceId: "kufr-1", host: "kufr.local",
+    spkiSha256: String(repeating: "a", count: 64), token: String(repeating: "b", count: 64))
+LocalDeviceAddressHints.begin(session: firstAddressSession)
+check(LocalDeviceAddressHints.update(session: firstAddressSession, deviceId: "kufr-1",
+    address: "192.168.0.59", now: hintTime), "Bind secured session address")
+check(LocalDeviceAddressHints.host(deviceId: "kufr-1", now: hintTime) == "192.168.0.59", "Current hint")
+check(LocalDeviceAddressHints.host(deviceId: "kufr-2", now: hintTime) == nil, "No cross-device hint")
+check(LocalDeviceAddressHints.host(deviceId: "kufr-1", now: hintTime.addingTimeInterval(61)) == nil, "Expire hint")
+check(LocalDeviceAddressHints.selectedHost(manual: nil, identity: hintIdentity) == "192.168.0.59", "Prefer secured address")
+check(LocalDeviceAddressHints.selectedHost(manual: "192.168.0.60", identity: hintIdentity) == "192.168.0.60", "Manual address first")
+check(!LocalDeviceAddressHints.update(session: firstAddressSession, deviceId: "kufr-2",
+    address: "192.168.0.61"), "Session device ID must not change")
+LocalDeviceAddressHints.begin(session: nextAddressSession)
+check(LocalDeviceAddressHints.update(session: nextAddressSession, deviceId: "kufr-1", address: "192.168.0.62"), "New session")
+check(!LocalDeviceAddressHints.update(session: firstAddressSession, deviceId: "kufr-1", address: "192.168.0.59"), "Reject stale update")
+LocalDeviceAddressHints.end(session: firstAddressSession)
+check(LocalDeviceAddressHints.host(deviceId: "kufr-1") == "192.168.0.62", "Stale disconnect preserves new session")
+let clearedAddresses: [String?] = [nil, "not-an-ip"]
+for clearedAddress in clearedAddresses {
+    check(LocalDeviceAddressHints.update(session: nextAddressSession, deviceId: "kufr-1", address: clearedAddress), "Clear absent/invalid route")
+    check(LocalDeviceAddressHints.host(deviceId: "kufr-1") == nil, "Cleared route")
+}
+LocalDeviceAddressHints.end(session: nextAddressSession)
+check(LocalDeviceAddressHints.selectedHost(manual: nil, identity: hintIdentity) == "kufr.local", "Stored hostname fallback")
+
+check(LocalDeviceAddressHints.connectionHost(manual: nil, identity: hintIdentity,
+    capturedHost: "192.168.0.62", capturedDeviceId: "kufr-1") == "192.168.0.62",
+      "Captured route survives BLE session end without hostname fallback")
+let invalidTargets: [[Any?]] = [[nil, "kufr-1"], ["192.168.0.62", nil], ["http://bad", "kufr-1"],
+                       ["192.168.0.62", "kufr-2"], [true, "kufr-1"], [NSNull(), "kufr-1"]]
+for target in invalidTargets {
+    check(LocalDeviceAddressHints.connectionHost(manual: nil, identity: hintIdentity,
+        capturedHost: target[0], capturedDeviceId: target[1]) == nil, "Reject partial/invalid/mismatched route")
+}
+let legacySession = UUID()
+LocalDeviceAddressHints.begin(session: legacySession)
+check(LocalDeviceAddressHints.update(session: legacySession, deviceId: "kufr_1", address: "192.168.0.59"),
+      "Legacy provisioning identity remains usable")
+check(LocalDeviceAddressHints.host(deviceId: "kufr_1") == nil, "Legacy ID cannot supply control route")
+LocalDeviceAddressHints.end(session: legacySession)
+
 let directory = CommandLine.arguments[1]
 let port = Int(CommandLine.arguments[2])!
 let discoveryTxt = ["deviceId": "test-kufr", "protocol": "1",
@@ -116,6 +160,23 @@ check(!LocalDeviceEnrollment.begin(), "Serialize QR and BLE before token consump
 LocalDeviceEnrollment.end()
 check(LocalDeviceEnrollment.begin(), "Release native enrollment")
 LocalDeviceEnrollment.end()
+for code in ["already_paired", "busy", "pairing_failed", "invalid_request"] {
+    let response = try JSONSerialization.data(withJSONObject: ["v": 1, "ok": false, "error": code])
+    check(LocalBlePairingCodec.error(response) == code, "Allowlisted BLE recovery error")
+}
+let unknownError = try JSONSerialization.data(withJSONObject: ["v": 1, "ok": false, "error": "secret value"])
+check(LocalBlePairingCodec.error(unknownError) == "pairing_failed", "Never expose firmware error text")
+let malformedRecoveryResponses: [[String: Any]] = [
+    ["v": true, "ok": false, "error": "already_paired"],
+    ["v": 1, "ok": 0, "error": "already_paired"],
+    ["v": 1, "ok": true, "error": "already_paired"],
+    ["v": 1, "ok": false, "error": "already_paired", "token": "secret"]
+]
+for malformed in malformedRecoveryResponses {
+    let response = try JSONSerialization.data(withJSONObject: malformed)
+    check(LocalBlePairingCodec.error(response) == nil, "Malformed response cannot trigger recovery")
+}
+check(LocalBlePairingCodec.error(Data(repeating: 32, count: 513)) == nil, "Bound recovery errors")
 let bleIdentity = LocalBlePairingCodec.decode(bleData, expectedDeviceId: "test-kufr")!
 check(bleIdentity.host == "kufr-test.local", "Decode native BLE pairing identity")
 check(LocalBlePairingCodec.decode(bleData, expectedDeviceId: "other-kufr") == nil, "BLE device binding")
@@ -187,7 +248,35 @@ try checkProof(reopenedProofKeychain, "KUFR_AABBCC", nil, "Remove selected BLE p
 try checkProof(reopenedProofKeychain, "KUFR_112233", replacementProof, "Removal preserves another device proof")
 try proofKeychain.remove(deviceName: "KUFR_112233")
 
-func testPair(_ secret: String, pin expectedPin: String, success: Bool) {
+let failureAllowlist: Set<String> = [
+    "invalid_identity", "certificate_mismatch", "authorization_rejected", "server_busy",
+    "handshake_rejected", "tls_failed", "host_unreachable", "network_unavailable",
+    "connection_timeout", "protocol_error", "connection_lost"
+]
+check(Set(LocalDeviceTransportFailureCode.allCases.map(\.rawValue)) == failureAllowlist,
+      "Native failures must be the exact sanitized allowlist")
+for (status, expected) in [(401, LocalDeviceTransportFailureCode.authorizationRejected),
+                           (403, .authorizationRejected), (409, .serverBusy), (503, .serverBusy),
+                           (400, .handshakeRejected), (200, .handshakeRejected)] {
+    check(LocalDeviceTransport.classifyFailure(nil, httpStatus: status) == expected,
+          "Classify HTTP upgrade status without response details")
+}
+for (code, expected) in [(NSURLErrorTimedOut, LocalDeviceTransportFailureCode.connectionTimeout),
+                         (NSURLErrorCannotFindHost, .hostUnreachable),
+                         (NSURLErrorCannotConnectToHost, .hostUnreachable),
+                         (NSURLErrorNotConnectedToInternet, .networkUnavailable),
+                         (NSURLErrorSecureConnectionFailed, .tlsFailed),
+                         (NSURLErrorBadServerResponse, .handshakeRejected),
+                         (NSURLErrorNetworkConnectionLost, .connectionLost)] {
+    let unsafe = NSError(domain: NSURLErrorDomain, code: code,
+                         userInfo: [NSLocalizedDescriptionKey: "secret-token https://private-host.invalid/ pin"])
+    check(LocalDeviceTransport.classifyFailure(unsafe) == expected, "Sanitize URL errors")
+}
+check(LocalDeviceTransport.classifyFailure(NSError(domain: "private-detail", code: 42)) == .connectionLost,
+      "Unknown errors cannot expose their domain or description")
+
+func testPair(_ secret: String, pin expectedPin: String, success: Bool,
+              expectedFailure: LocalDeviceTransportFailureCode? = nil) {
     let transport = LocalDeviceTransport(host: "127.0.0.1", pin: expectedPin, port: port)
     var done = false
     transport.pair(secret: secret) { result in
@@ -198,31 +287,65 @@ func testPair(_ secret: String, pin expectedPin: String, success: Bool) {
         done = true
     }
     waitUntil { done }
+    check(transport.failureCode == expectedFailure, "Pairing failure code")
 }
 testPair(String(repeating: "a", count: 32), pin: pin, success: true)
-testPair(String(repeating: "a", count: 32), pin: String(repeating: "0", count: 64), success: false)
-for secret in ["c", "d", "e", "f"] {
-    testPair(String(repeating: secret, count: 32), pin: pin, success: false)
+testPair(String(repeating: "a", count: 32), pin: String(repeating: "0", count: 64), success: false,
+         expectedFailure: .certificateMismatch)
+for (secret, expected) in [("c", LocalDeviceTransportFailureCode.handshakeRejected),
+                           ("d", .protocolError), ("e", .protocolError), ("f", .authorizationRejected)] {
+    testPair(String(repeating: secret, count: 32), pin: pin, success: false, expectedFailure: expected)
 }
 
-func testSocket(_ message: String, expectedPin: String, token: String, receivesFrame: Bool) {
+func testSocket(_ message: String, expectedPin: String, token: String, receivesFrame: Bool,
+                expectedFailures: Set<LocalDeviceTransportFailureCode> = []) {
     let transport = LocalDeviceTransport(host: "127.0.0.1", pin: expectedPin, port: port)
     var done = false
     var received = false
-    transport.onOpen = { transport.send(message) { _ in } }
+    var closeCount = 0
+    var openCount = 0
+    transport.onOpen = { openCount += 1; transport.send(message) { _ in } }
     transport.onFrame = { frame in
         check(receivesFrame && frame == message, "Unexpected WSS frame")
         received = true
         transport.close()
     }
-    transport.onClose = { done = true }
+    transport.onClose = { closeCount += 1; done = true }
     transport.connect(token: token)
     waitUntil { done }
     check(received == receivesFrame, "Frame delivery")
+    if receivesFrame {
+        check(transport.failureCode == nil, "Explicit close must not invent a failure")
+    } else {
+        check(transport.failureCode != nil, "Failed WSS reports a sanitized failure code")
+        if !expectedFailures.isEmpty {
+            check(expectedFailures.contains(transport.failureCode!), "Expected WSS failure code")
+        }
+    }
+    if expectedFailures.contains(.certificateMismatch) || expectedFailures.contains(.authorizationRejected) {
+        check(openCount == 0, "Failed pin/auth must not invoke the Keychain route persistence boundary")
+    }
+    let failure = transport.failureCode
+    transport.close()
+    transport.close()
+    check(closeCount == 1 && transport.failureCode == failure, "Close is idempotent and preserves first failure")
 }
 testSocket("hello", expectedPin: pin, token: identity.token, receivesFrame: true)
-testSocket("hello", expectedPin: String(repeating: "0", count: 64), token: identity.token, receivesFrame: false)
-testSocket("hello", expectedPin: pin, token: String(repeating: "a", count: 64), receivesFrame: false)
-testSocket("binary", expectedPin: pin, token: identity.token, receivesFrame: false)
+testSocket("hello", expectedPin: String(repeating: "0", count: 64), token: identity.token, receivesFrame: false,
+           expectedFailures: [.certificateMismatch])
+// Apple may omit the HTTP response for a rejected upgrade. Without its status
+// the transport reports the generic handshake code instead of guessing 401.
+testSocket("hello", expectedPin: pin, token: String(repeating: "a", count: 64), receivesFrame: false,
+           expectedFailures: [.authorizationRejected, .handshakeRejected])
+testSocket("hello", expectedPin: pin, token: "invalid", receivesFrame: false, expectedFailures: [.invalidIdentity])
+testSocket("binary", expectedPin: pin, token: identity.token, receivesFrame: false, expectedFailures: [.protocolError])
 testSocket("large", expectedPin: pin, token: identity.token, receivesFrame: false)
+let unsendable = LocalDeviceTransport(host: "127.0.0.1", pin: pin, port: port)
+var sendEvents: [String] = []
+unsendable.onClose = { sendEvents.append("closed") }
+unsendable.send("hello") { sent in
+    check(!sent && unsendable.failureCode == .protocolError, "Rejected send reports sanitized failure")
+    sendEvents.append("completion")
+}
+check(sendEvents == ["closed", "completion"], "Typed closure precedes rejected send completion")
 print("Native discovery / SPKI / Keychain / pinned HTTPS / authenticated WSS tests passed")

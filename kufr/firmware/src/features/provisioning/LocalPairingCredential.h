@@ -50,8 +50,11 @@ class LocalPairingCredential final {
   bool IsPairingReady() const;
   bool IsPaired() const;
   // Only the authenticated Security1 BLE endpoint may call this first-use API.
-  // Existing or corrupt records are never replaced; rotation uses ServiceGate.
+  // Existing or corrupt records are never replaced by first-use enrollment.
   bool InitializeFromAuthenticatedBle(std::array<uint8_t, TokenSize>& issuedToken);
+  // Explicit confirmed BLE recovery only, with all transport/owner idle gates
+  // held by the caller. QR enrollment and corrupt/missing records stay blocked.
+  bool RotateFromAuthenticatedBle(std::array<uint8_t, TokenSize>& issuedToken);
   bool ProvisionPairingSecret(const uint8_t* secret, size_t length,
                               const ServiceGate& gate);
   bool Pair(const uint8_t* secret, size_t secretLength,
