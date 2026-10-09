@@ -6,6 +6,33 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D164 – 9. 10. 2026 – převzatá oprava boot loop na skutečném COM7.**
+Majitel nedokáže ESP najít ani přes BLE a autorizoval debug přes COM7/PC Bluetooth.
+Windows potvrzuje CH343 USB UART COM7 a funkční Intel Bluetooth adaptér.
+Pasivní 115200 čtení bez resetu zachytilo opakovaný boot verze **0.1.157**,
+`***ERROR*** A stack overflow in task main has been detected.` a soft reset.
+Matching ELF z CI37923289582 má SHA-256
+`99d9505e1c5ed3afeff6adf232f169c85afa490f0f34c8a8214f3862525f07e6`;
+addr2line potvrzuje `vApplicationStackOverflowHook`, backtrace je poškozený.
+K pádu dojde po hardware/calibration warning a před BLE/control loop startem.
+Tím je doložen důvod chybějící BLE na desce; verze0.1.160 na ní neběží.
+
+Zdroj má main stack3584 B. Constructor existující LocalTlsIdentity validuje
+uložený certifikát/klíč přes PSA/mbedTLS na main ještě před workerem pro
+první generování. Přesný crypto frame není z poškozeného backtrace určitelný.
+Nezávislé review doporučilo main stack16384 B, zachovat canary a runtime
+watermark; zvýšení spotřebuje dalších12800 B. sdkconfig.defaults přidává
+hodnotu, compile-time guard odmítne staré malé generované config a log uvede
+konfigurovanou velikost i minimum zbývajících bytů po startupu. Generovaný
+config byl zálohovaný mimo repo a regenerovaný; effective config je16384.
+TLS/pairing/PoP/Wi-Fi NVS, Keychain a hardware gates se nemění.
+Lokální `pio run -d kufr/firmware -e esp32-s3-idf -s` prošel; generated
+sdkconfig.h potvrzuje16384 B a canary1. `git diff --check` a nezávislé
+review prošly. UART ROM probe potvrdil ESP32-S3 rev0.2, flash16MB a PSRAM8MB.
+CI, publikace a fyzická obnova zůstávají otevřené; nahrání do desky
+vyžaduje samostatné oprávnění podle AGENTS.md. Nebyl proveden flash/erase.
+Další krok: ověřit build a schválený obraz, zachovat NVS/partition layout,
+po autorizovaném app-only uploadu měřit startup margin, BLE a WSS/restart.
 **D163 – 9. 10. 2026 – oprava místního připojení po BLE párování.**
 Majitel potvrdil scan a párování; na stejné Wi-Fi v Ovládání hlásí
 „Spojení se kufrem bylo přerušeno“ a opakované připojování. Přesné instalované
