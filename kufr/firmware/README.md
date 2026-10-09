@@ -1,5 +1,19 @@
 # Firmware AI kufru
 
+D159 opravuje skutečnou HTTPS výměnu device tokenu na ESP-IDF 6.1: bodyless
+POST používá výchozí prázdné tělo klienta a automatický `Content-Length: 0`.
+Volání `set_post_field("", 0)` bez Content-Type vracelo v tomto SDK
+`ESP_ERR_NOT_FOUND` a zabránilo odeslání požadavku. Regrese adaptéru modeluje
+tuto SDK chybu, úspěšný token, 401, chybu transportu a oversized response.
+Firmware verze s opravou je `0.1.1`; fyzické ověření a přesný build zapisuje
+[stav implementace](../docs/stav-implementace.md).
+
+```text
+g++ -std=c++14 -Wall -Wextra -Werror -I tests/speech_stubs src/features/backend_access/EspIdfTokenExchangeTransport.cpp src/features/backend_access/NetworkSettings.cpp src/features/backend_access/TokenResponseParser.cpp tests/espidf_token_exchange_transport_test.cpp -o <docasna-slozka>/token-transport-test
+```
+
+Vzniklý executable spustit; stejnou regresi spouští firmware CI.
+
 ## BLE, hotspot, OTA a volitelné SD (D158)
 
 Firmware obsahuje oficiální protocomm BLE Security1, hotspot/fallback NVS

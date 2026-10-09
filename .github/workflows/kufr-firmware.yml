@@ -24,6 +24,17 @@ jobs:
         run: npm ci
       - name: Test compiler cache pruning
         run: python3 -m unittest discover -s kufr/firmware/ci -p 'test_*.py'
+      - name: Bodyless backend token exchange
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++14 -Wall -Wextra -Werror -I tests/speech_stubs \
+            src/features/backend_access/EspIdfTokenExchangeTransport.cpp \
+            src/features/backend_access/NetworkSettings.cpp \
+            src/features/backend_access/TokenResponseParser.cpp \
+            tests/espidf_token_exchange_transport_test.cpp -o "$RUNNER_TEMP/token-transport-test"
+          "$RUNNER_TEMP/token-transport-test"
       - name: Optional costume photo consent and HTTPS upload
         working-directory: kufr/firmware
         shell: bash

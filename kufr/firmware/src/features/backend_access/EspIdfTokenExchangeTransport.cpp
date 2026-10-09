@@ -70,11 +70,12 @@ TokenExchangeResponse EspIdfTokenExchangeTransport::Exchange(
   std::array<char, 7 + CredentialHexLength + 1> authorization{};
   std::memcpy(authorization.data(), "Bearer ", 7);
   std::memcpy(authorization.data() + 7, credentialHex, CredentialHexLength);
+  // A new client already has an empty body and emits Content-Length: 0 for POST.
+  // IDF 6.1 set_post_field("", 0) fails when Content-Type has not been set.
   const bool configured =
       esp_http_client_set_method(client, HTTP_METHOD_POST) == ESP_OK &&
       esp_http_client_set_header(client, "Authorization",
-                                 authorization.data()) == ESP_OK &&
-      esp_http_client_set_post_field(client, "", 0) == ESP_OK;
+                                 authorization.data()) == ESP_OK;
   const esp_err_t result =
       configured ? esp_http_client_perform(client) : ESP_FAIL;
   // ESP-IDF returns ESP_FAIL for HTTP 401 when auth retries are disabled,

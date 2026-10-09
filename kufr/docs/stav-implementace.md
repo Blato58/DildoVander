@@ -6,6 +6,90 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D159 – 9. 10. 2026 – první USB servis a domácí Wi-Fi na skutečné desce.**
+Majitel požádal o provisioning připojeného ESP a potvrdil samostatnou desku
+bez pohonů a přesun datového kabelu z CH343 UART/COM7 na native USB/COM8.
+Čtení ROM ověřilo ESP32-S3 rev0.2, MAC `68:ee:8f:4b:60:48`, 16 MiB flash,
+embedded 8 MiB PSRAM AP_3v3. Secure boot/flash encryption jsou vypnuté;
+žádný eFuse nebyl změněn. Před zápisem byla uložená owner-only soukromá
+záloha celé flash (16777216 B), NVS a otadata. SHA-256 původní flash je
+`b75db526a8737a4e2bb4b39b27bf2657ab4c209c6d5cac7bb703eaccb7b4dd7f`.
+Původní NVS neměla device identity, PoP ani Wi-Fi profil; existující TLS/pairing
+namespaces neměly žádné logické klíče, tedy nejde o test zachování existujících
+platných pairing credentialů.
+
+USB network-service ESP-IDF build a všech pět jeho Python testů prošly.
+Partition tabulka byla před zápisem porovnaná s instalovanou. Servisní obraz
+ohlásil `KUFR_SERVICE_READY`; autorizovaný frame vrátil `saved` pro novou
+identitu `kufr-68ee8f4b6048`, náhodný credential a PoP, backend host
+`2.28.202.220`, development OTA origin stejného HTTPS serveru, veřejný P-256
+trust, automatickou instalaci a interval 3600 s. Žádné NVS erase ani úplné
+flash erase neproběhlo. Raw credential, PoP a zálohy zůstávají výhradně v
+owner-only `DildoVander-private/esp32s3-68ee8f4b6048-20261009T081416Z/`;
+`iphone-pairing-private.json` byl otevřený majiteli pro nativní PoP dialog.
+SSID/heslo se zadávaly pouze na telefonu, nikoli v chatu či příkazové řádce.
+
+Na VPS byla nejdříve soukromě zálohovaná původní unit a `backend.env`.
+Nová identita má index `1` v root-only
+`/etc/kufr-backend/device-identities.env`, připojeném trvalým systemd drop-in
+`50-device-identities.conf`. Deploy index `0` a jeho původní ID/hash zůstaly
+nezměněné; budoucí aktivace přepisuje pouze původní `backend.env`.
+Přenesen byl jen SHA-256 přesného UTF-8 hex credential textu, nikoli raw
+credential nebo PoP. Po restartu prošel backend/nginx health a skutečný HTTPS
+token exchange nové identity ze servisního PC. Raw credential staré identity
+nebyl dostupný: její zachování je kontrola efektivní konfigurace, nikoli nový
+autentizační test. Restart zneplatnil RAM access tokeny; dlouhodobé credentialy
+a data se zachovaly. Provozní vlastnictví konfigurace je popsané v backend README.
+
+Z ověřeného CI37895236311 byl bezpečně stažený a SHA-256 ověřený balíček.
+Na desku se obnovily bootloader, partition table, initial otadata a aplikace
+0.1.0 s build ID `d932ec15ea005c3a10001874645fea5062ab54b5`;
+obraz 1732304 B má SHA-256
+`cf31728845fd24ecbfca999d193bda047e2bbdd537b514de2747f5328bf50048`.
+Esptool ověřil hashe všech zápisů. Následný USB readback NVS nezávisle ověřil
+identitu, PoP, backend a OTA settings. Novější CI-cache změna PR146 nebyla
+znovu nahraná; zdroj na desce se označuje přesným CI build ID výše.
+
+Majitel v publikované nativní aplikaci potvrdil discovery/spojení s PoP
+a nastavil domácí Wi-Fi. Jeho počáteční hlášení Backend připojený se po
+restartu nepotvrdilo; obnovený stav byl backend offline. USB readback
+ověřil úspěšný `profiles_v1` fallback blob (hotspot slot zatím prázdný)
+a nezměněné servisní settings bez výpisu SSID/hesla. Po hard resetu majitel
+potvrdil automatické Wi-Fi znovupřipojení bez opětovného zadání hesla.
+
+UART log z COM7 ověřil boot 0.1.0/ESP-IDF6.1, DHCP a validovaný TLS
+certificate bundle; nginx doložil skutečné ESP GET development manifestu200.
+NVS měla důvěryhodný UTC checkpoint 08:49:23Z. Počítačové NTP sondy do
+pool.ntp.org/Cloudflare/Google prošly, ale nepředstavují ESP time test.
+Žádný ESP token POST na server nedorazil. P1 byl dohledaný v pinned SDK:
+`set_post_field(client, "", 0)` vrací `ESP_ERR_NOT_FOUND`, když chybí
+Content-Type; boolean konfigurace proto vůbec nevolal `perform`.
+Oprava ponechá prázdné tělo nového klienta, pro něž SDK automaticky vytvoří
+Content-Length0. Bearer, TLS, zákaz redirectů/auth retry a credential wiping
+se zachovávají. Ostatní post-field adaptéry explicitně nastavují Content-Type.
+
+Nová host regrese modeluje přesné chybové SDK chování, skutečný adapter POST
+a parse200, 401/ESP_FAIL, transport failure, 513B overflow, header failure
+a odmítnutí neplatného credentialu. MSVC `/std:c++14 /EHsc /W4 /WX`
+na starém kódu skončil1, po opravě0. Lokální
+`pio run -d kufr/firmware -e esp32-s3-idf -s` prošel; firmware je 0.1.1.
+Regrese je přidaná do existujícího firmware CI, nová PR146 cache se zachovává.
+Lokální testovací obraz má předchozí HEAD metadata a není release artefakt.
+Nezávislé SDK/source review potvrdilo příčinu a správnost bodyless POST.
+Původní šestidokumentový link check ověřil56 odkazů a všech47 readiness řádků;
+review nalezené rozpory o dokončeném servisu/dev trust byly opravené.
+
+Placené AI volání, pohyby, SD/audio/kamera, špatný PoP/heslo,
+iPhone hotspot/failover, skutečná OTA instalace/power-loss/rollback a plná
+akceptace celé sestavy neproběhly. Development trust není stable autorita.
+Další krok: čerstvé CI/review, vydání a fyzická instalace0.1.1, skutečný ESP
+token POST200 a backend reconnect po restartu. Pro akci doplnit iPhone hotspot
+a samostatně přijmout zbývající scénáře podle event-readiness.
+Před Git předáním: finální nezávislé source review je bez otevřeného nálezu,
+55 Node CI/provenance regresí a whitespace prošly. Sedmidokumentový check
+ověřil79 místních odkazů a přesně47 readiness řádků bez chyb. Commit/push/PR,
+aktuální CI/publikace a fyzický výsledek budou doplněné po skutečném ověření.
+
 **9. 10. 2026 – zrychlení firmware CI.** Převzaté soubory:
 `.github/workflows/kufr-firmware.yml`, nové `kufr/firmware/ci/` a firmware
 README. Živá kontrola potvrdila VPS s 1 CPU, 1909 MiB RAM, 2 GiB swap

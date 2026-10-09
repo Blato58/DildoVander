@@ -14,18 +14,26 @@ The software is merged and delivered: complete firmware/backend/web CI,
 macOS native suites and signed Ad Hoc archive/export passed. Backend,
 development OTA0.1.0 and iOS1.0/build1000.0.19 are published with verified
 HTTPS readback. Exact commits, hashes and workflow receipts are in the status.
-Production stable signing and the physical ESP/iPhone event acceptance remain
-separate requirements; no new board flashing or paid inference was performed.
+Production stable signing and full physical event acceptance remain separate
+requirements. D159 subsequently installed the verified CI image on the physical
+ESP32-S3, provisioned its identity/PoP/development OTA trust and verified NVS
+readback plus backend authentication from the service computer. The owner
+confirmed native BLE connection and home Wi-Fi reconnection after reset. Physical
+testing exposed an SDK6.1 empty-body token setup bug; firmware0.1.1 removes the
+failing call and adds a reproduced adapter regression. The corrected image's
+physical backend check is pending;
+hotspot transitions, physical OTA update/rollback and loaded peripherals remain
+unverified. No paid inference was performed.
 
 ## Functional inventory and prioritized findings
 
 | Subsystem / evidence | Initial finding and impact | Priority | Implementation and dependencies | Verification / readiness |
 | --- | --- | --- | --- | --- |
 | Boot, `firmware/src/espidf_main.cpp` | Existing safe outputs, journal recovery and fail-closed NVS; no destructive automatic erase | P0 | Preserved. Optional peripherals remain gated by service measurements | Builds and host safety tests; hardware acceptance remains separate |
-| Wi-Fi, `features/backend_access/EspIdfStationNetwork.*` | One USB-configured network; no phone credential replacement or fallback | P0 | Added persistent hotspot/fallback profiles, timeout/backoff, tested replacement, rollback to old credentials, idle reservation | Host station/profile tests; actual hotspot/radio not verified |
-| BLE, `features/network_provisioning/` | No BLE provisioning/runtime | P0 | Official ESP-IDF protocomm Security1, per-device 128-bit PoP, bounded advertising windows, encrypted custom endpoint, compact 512-byte wire | Host adapter/real cJSON tests and firmware build; physical handshake pending |
+| Wi-Fi, `features/backend_access/EspIdfStationNetwork.*` | One USB-configured network; no phone credential replacement or fallback | P0 | Added persistent hotspot/fallback profiles, timeout/backoff, tested replacement, rollback to old credentials, idle reservation | Host station/profile tests; D159 owner-confirmed home Wi-Fi plus physical NVS readback; hotspot/failover pending |
+| BLE, `features/network_provisioning/` | No BLE provisioning/runtime | P0 | Official ESP-IDF protocomm Security1, per-device 128-bit PoP, bounded advertising windows, encrypted custom endpoint, compact 512-byte wire | Host adapter/real cJSON tests and firmware build; D159 owner-confirmed physical discovery/authorized handshake; wrong-PoP test pending |
 | iOS, `mobilni-aplikace/ios/App/App/KufrProvisioningPlugin.swift` | Existing Capacitor app had LAN pairing and Debug, no native BLE | P0 | Extended existing app with official ESPProvision 3.2.0/CoreBluetooth, native secret entry, discovery, status, replacement/delete/test/OTA controls | Web tests/build/browser passed; full Swift/Xcode and physical acceptance recorded separately |
-| Backend identity, `features/provisioning/DeviceIdentity.*` | Per-device credential and trusted TLS already implemented; factory device needs service initialization | P0 | Preserved identity/token boundary; service tool now makes initial network/PoP/OTA settings concrete without embedding secrets | Source and backend access tests; real ESP identity provisioning pending |
+| Backend identity, `features/provisioning/DeviceIdentity.*`, `backend_access/EspIdfTokenExchangeTransport.cpp` | Factory identity needs service initialization; physical test found SDK6.1 rejects empty post-field setup before token request | P0 | Preserved identity/token boundary; D159 provisioned the board and removes the failing empty-body call in0.1.1 | USB/NVS, additive backend registration and service-PC HTTPS exchange passed. Token regression reproduces old failure/new pass; physical fixed-image token check pending |
 | OTA, `features/firmware_update/` | Dual slots existed, no updater or rollback acceptance flow | P0 | Signed manifest, strict hardware/channel/version/size, certificate-validated HTTPS, inactive-slot writes, exact SHA, scheduled idle restart, bounded boot health and rollback | Pure/adapter tests, real release-signature verification, firmware build; power-loss/rollback hardware tests pending |
 | OTA distribution, `backend/Features/Firmware/FirmwareReleases.cs` | No firmware release endpoint/pipeline | P0 | Read-only signed manifests/artifacts in existing backend, per-channel trust, bounded concurrency; root-owned signing/publication helper and provenance reuse workflow | Backend tests and packaging tests; live deployment evidence appended in status |
 | HTTP photo rejection, `CostumeImageEndpoints.cs` | Linux smoke exposed an existing oversized-body rejection that could advertise a socket Kestrel then closes | P2 | Explicit HTTP/1 Connection: close on unread/overflow 413; preserves body limits and HTTP/2 semantics | Added declared/chunked/HTTP2 regression and repeated HTTP oversized/next-request test |
@@ -38,7 +46,7 @@ separate requirements; no new board flashing or paid inference was performed.
 | MicroSD, `features/sd_assets/` | Protected pins documented, storage driver absent | P1 | Added gated 1-bit CMD38/CLK39/DATA40, safe worker, bounded flat-name reads, no formatting or outbound card writes | Host adapter/build checks; SD revision/card/pullups/simultaneous loads pending |
 | Crash/watchdog, safety/journal and IDF configuration | Control-pass fault bound exists; no project hardware watchdog required by current owner design | P1 | Preserved software bound and persistent pending-command recovery; added OTA first-boot recovery | Source/tests. No claim of independent hardware inhibit or measured reset silence |
 | Memory/PSRAM, `sdkconfig.defaults`, camera/audio adapters | Octal PSRAM and bounded queues exist; no physical integrated stress measurement | P1 | Preserved camera/SD/USB allocations; BLE and updater get separate bounded workers | Binary/config checks; heap, DMA, thermal/current and duration measurements pending |
-| Observability, `backend/Features/Diagnostics/`, native Debug | Technical correlation/log reader exists; firmware network/OTA visibility missing | P1 | Added secret-free encrypted BLE diagnostics and update states; preserved server reader separation | Backend/native codec tests; operational handset check pending |
+| Observability, `backend/Features/Diagnostics/`, native Debug | Technical correlation/log reader exists; firmware network/OTA visibility missing | P1 | Added secret-free encrypted BLE diagnostics and update states; preserved server reader separation | Backend/native codec tests; D159 owner-confirmed Wi-Fi/backend BLE status; OTA/error/recovery handset checks pending |
 | Durable session state, `OperationJournal`, evening/hybrid memory | Persistent journal/evenings exist; active streams are intentionally RAM-scoped and cancelled on restart | P1 | Preserved idempotence, limits, cleanup and deliberate restart behavior | Existing full backend runner. No promise of resuming an interrupted spoken turn |
 | CI/deploy, `.github/workflows/`, `scripts/ci/` | Web/backend/firmware and signed iOS paths exist; no signed firmware publisher | P1 | Extended existing paths; no competing OTA service or simulator signing pipeline | Local checks and actual CI/publish evidence separately recorded |
 | Provisioned-data security | Current production build does not enable flash encryption/secure boot | P1 | No false encryption claim. Credentials remain in NVS and survive ordinary OTA; physical USB/flash access is a service trust boundary | Encrypted BLE/HTTPS implemented; physical-at-rest protection needs deliberate eFuse/key provisioning |
