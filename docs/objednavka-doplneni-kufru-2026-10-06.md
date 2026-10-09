@@ -11,6 +11,8 @@ dva PH2 kabely, dva nové podsvícené kolébkové vypínače a montážní mate
 Zelená kolébka bude servisní odpojení pohonů; jedna červená hlavní vypínač,
 druhá červená rezerva. U dvojlinek je na snímku pouze „1×“: bez faktury
 s jednotkou ani měření nelze tvrdit, že dorazilo původně navržených 5/2 m.
+Upřesnění majitele: svorky Degson jsou pořízené, **ještě nedorazily**.
+Jejich neznámé rozměry ani další měření kabelů neblokují rozvržení kufru.
 
 Powerbanka **UGREEN 20000mAh PD 100W (PB720 / 25188)** je zvolená
 v předchozím zadání; oba nové nákupní snímky její koupi nedokládají.
@@ -69,8 +71,8 @@ vybrané konektory se jednou připájí a zaizolují.
 
 ## 4. Už koupené – znovu neobjednávat
 
-Katalogové rozměry, přímé zdroje a chybějící montážní měření pro všechny
-položky níže jsou v [rozměrech nakoupených součástek](../kufr/mechanika/rozmery-nakoupenych-soucastek.md).
+Všechny rozměry kufru a součástek, údaje doplněné majitelem a přímé zdroje
+jsou pohromadě v [přehledu rozměrů](../kufr/mechanika/rozmery-nakoupenych-soucastek.md).
 
 | Díly | Doložené množství | Použití |
 | --- | ---: | --- |
@@ -105,7 +107,7 @@ položky níže jsou v [rozměrech nakoupených součástek](../kufr/mechanika/r
 | Rezistory 100 kΩ / 0,25 W / 1 % | 20 | Nově potvrzené, výchozí stavy; dvě sady po 10 nesčítat s nepotvrzenou objednávkou |
 | Rezistory 15 kΩ / 0,25 W / 1 % | 10 | Nově potvrzené, pull-up a horní odpor děliče |
 | Rezistory 22 kΩ / 0,25 W / 1 % | 10 | Nově potvrzené, dolní odpor děliče |
-| Degson 5pin rychlosvorka | 10 | Nově potvrzené; všech 5 pozic tvoří jeden elektrický uzel |
+| Degson 5pin rychlosvorka | 10 | Pořízené, čekají na doručení; neblokují rozvržení. Všech 5 pozic tvoří jeden elektrický uzel |
 
 Neobjednávat Pololu D24V90F5, 100W zdroj, Adafruit 5807 ani hlavní tlačítkový
 vypínač Pololu 2813 z dřívějšího návrhu.
@@ -118,15 +120,16 @@ pro nynější ovládání potřeba.
   drát s tavidlem, odizolovací a štípací nástroj; není doloženo, že jsou doma.
 - Vývody obou kolébek lze připájet a izolovat koupenou bužírkou. Fastony
   ani krimpovací kleště tedy nejsou nutné pro tento způsob montáže.
-- Držáky desek, serv, kamery a reproduktorů, šrouby a mechaniku přihrádek
-  určit podle skutečných otvorů a prostoru kufru; katalogové rozměry jsou
-  dohledané v uvedeném přehledu, montážní měření doručených kusů ještě chybí.
+- Držáky a rozložení navrhovat podle společného přehledu rozměrů a
+  upřesnění majitele. Výšky mikrofonu/zesilovačů, další rozměry otvorů,
+  kolébek, LED/kabelů a výztuhy nejsou podmínkou rozvržení.
+  Powerbanka 139×80×26,5 mm musí jít jednoduše vyjmout.
   Malé moduly bez montážních otvorů umístit do izolačního držáku,
   nevrtat skrz jejich PCB. Nezakrýt chlazení měniče ani mikrofonní otvor.
 - Zajistit existující 2,4GHz Wi-Fi s internetem (router/hotspot pro kufr).
   Nový router se automaticky nekupuje; není nutný pro místní offline řízení.
 - Kamera vyžaduje profil B a ověření GPIO2/48, ne jen zasunutí modulu.
   Adaptéry efektů/audio jsou implementované, kamerový driver E13 a fyzická měření ještě zbývají.
-- Před zapojením zbývá ověřit montážní rozměry, proudy, OE, resetové stavy a audio
+- Při fyzické montáži ověřit usazení; před zapojením proudy, OE, resetové stavy a audio
   propojení podle technického dokumentu; případné doplnění dílů určit ze
   skutečného schématu a měření, ne z úspěšného nákupu.

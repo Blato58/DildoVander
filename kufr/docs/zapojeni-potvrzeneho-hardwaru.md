@@ -5,6 +5,9 @@ Použijeme **jednu ESP32-S3 N16R8, jednu PCA9685, MCP23017, šest serv,
 Druhá PCA je rezerva. Přesné počty koupených dílů jsou v
 [potvrzené objednávce](../../docs/objednavka-doplneni-kufru-2026-10-06.md).
 Powerbanka UGREEN PB720 / 25188 je vybraná v předchozím zadání.
+Majitel potvrdil rozměr **139×80×26,5 mm** a požaduje jednoduché vyjmutí
+bez demontáže okolních dílů. Všechny rozměry jsou v
+[jednom přehledu](../mechanika/rozmery-nakoupenych-soucastek.md).
 
 Implementovaný profil **B-effects** zachovává kamerové a SD piny.
 Kamerový driver/snímek E13 a SD driver zatím nejsou dokončené.
@@ -49,7 +52,8 @@ zem pohonů nevypínat. 12 V vede pouze do vstupu měniče.
 Nejdřív změřit výstup měniče a polaritu, potom připojit elektroniku.
 
 Hlavní rozvod: koupená dvojlinka 1,5 mm²; krátké odbočky: 0,5 mm².
-Délky přeměřit. Degson spojuje všech pět pozic: samostatné bloky pro
+Délky určit při montáži kabelových tras; jejich měření neblokuje rozvržení.
+Degson je pořízený, čeká na doručení. Spojuje všech pět pozic: samostatné bloky pro
 +5 V, +5 V za zelenou kolébkou a GND. Jeden blok nesmí obsahovat oba póly.
 Dupont použít na signály. Ze zásoby 470 µF dát dvě paralelně u LED,
 dvě u pohonů a dvě u audio/elektroniky, dodržet polaritu.
