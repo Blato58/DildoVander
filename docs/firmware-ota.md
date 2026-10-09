@@ -11,11 +11,18 @@ Build from the repository root:
 
 ```powershell
 pio run -d kufr/firmware -e esp32-s3-idf
-$firmwareVersion = (Get-Content kufr/firmware/version.txt -Raw).Trim()
+$firmwareVersion = python kufr/firmware/tools/firmware_version.py --policy kufr/firmware/version.txt --local
 python kufr/firmware/tools/ota_release.py check --binary kufr/firmware/.pio/build/esp32-s3-idf/firmware.bin --version $firmwareVersion
 ```
 
-`version.txt` supplies ESP-IDF `PROJECT_VER` and the updater version string.
+`version.txt` supplies the reviewed baseline and version policy. `0.1.1+ci`
+assigns a new version on every new CI workflow run: its authoritative run number
+is added to the baseline as a three-component, 16-bit-per-component ordinal.
+For example, run42 produces0.1.43; patch overflow carries into minor/major,
+and total overflow fails. Reruns retain their run number/version. Local builds
+use only the baseline and are not OTA publication candidates. CI regenerates
+CMake configuration even on an incremental checkout so the embedded version
+cannot retain the preceding run's value.
 The CMake build also embeds the Git build identity. The automatic check validates
 the partition layout, image chip/flash target and embedded version in CI.
 
@@ -81,14 +88,15 @@ physical task stack high-water and complete SDK call-stack use remain unverified
 
 ## Build and publish a future release
 
-Increment `kufr/firmware/version.txt`, run relevant host/full builds and merge a
-reviewed PR with green CI. The existing provenance verifier accepts only a
+Versions now increase automatically in firmware CI; no version-bump commit or
+repository-write credential is required. Merge a reviewed PR with green CI.
+The existing provenance verifier accepts only a
 successful firmware artifact matching the merged/current main Git tree.
 
 For an offline/local package with a signing key kept outside source:
 
 ```powershell
-$firmwareVersion = (Get-Content kufr/firmware/version.txt -Raw).Trim()
+$firmwareVersion = python kufr/firmware/tools/firmware_version.py --policy kufr/firmware/version.txt --local
 python kufr/firmware/tools/ota_release.py package --binary kufr/firmware/.pio/build/esp32-s3-idf/firmware.bin --version $firmwareVersion --build-id GIT_40_HEX --channel development --key C:/private/nonproduction-key.pem --out C:/private/new-ota-package
 python kufr/firmware/tools/ota_release.py verify --out C:/private/new-ota-package
 ```
@@ -100,7 +108,7 @@ real signature and artifact bytes. Development test keys live only in private
 temporary storage; no committed test key is accepted as production trust.
 
 On VPS, install the reviewed root-owned publisher as
-`/usr/local/sbin/kufr-firmware-publish`, `firmware_artifact.py`, packaging tool
+`/usr/local/sbin/kufr-firmware-publish`, `firmware_artifact.py`, `firmware_version.py`, packaging tool
 and partition table under
 `/usr/local/lib/kufr-firmware/`, and private/public authority files under
 `/etc/kufr-backend/ota-{development|stable}-{private|public}.pem`.
@@ -108,10 +116,10 @@ Private keys must be root0600; parent directories root-owned and not writable
 by runner/backend. The narrow sudo rule allows only this validated publisher.
 The helper accepts only `BINARY CI_RUN_ID CHANNEL`; an ephemeral Actions read
 token arrives on standard input and is never saved. Root independently fetches
-the successful `ci.yml` run, merged same-repository PR/current main provenance,
+the successful `ci.yml` run (including its run number), merged same-repository PR/current main provenance,
 GitHub artifact ZIP and its server-recorded digest. It validates the bounded
 ZIP/TAR package, source tree and payload hash, derives version/build identity
-from immutable GitHub source, and compares the exact firmware bytes to its
+from immutable GitHub source and the authoritative CI counter, and compares the exact firmware bytes to its
 bounded snapshot of the runner file. Caller-supplied metadata is not authority.
 The signed-URL download receives no Authorization header. Missing metadata,
 modified firmware or a changed main branch rejects publication before promotion.
@@ -132,6 +140,12 @@ gh workflow run kufr-firmware-release.yml --ref main -f build_run_id=CI_RUN_ID -
 Use `stable` only after explicitly provisioning its production authority and
 the same public trust on the device. The workflow does not create a production key.
 The actual publication/channel evidence is in the implementation status.
+Publication reuses the version already embedded by CI; publishing the same
+artifact again does not bump it. The trusted version resolver must be installed
+root-owned alongside the verifier before promoting a new-policy build. Plain
+legacy policies remain supported without falling back when a `+ci` build fails.
+The device retains its existing same-source build-ID guard: rebuilding identical
+source gets a new version, but does not force an OTA update on that same source.
 
 ## Activation, diagnosis and recovery
 
