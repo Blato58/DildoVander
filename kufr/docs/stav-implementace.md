@@ -40,7 +40,7 @@ nabízí **1.0 /1000.0.20**; Bundle ID/Team ID se nemění. Windows klient
 ověřil aktuální stránku, manifest, build a staženou IPA1866106 B se SHA-256
 `a90a1671aafd6b7ac3e2e7d02fc5f10ccc589eff543ffe844fceab657362a294`.
 
-Zbývá fyzicky ověřit instalaci IPA/OTA, Bonjour, tlačítko přes ověřené BLE,
+Majitel po publikaci potvrdil scan a párování; přesné verze na telefonu/ESP nejsou doložené. Na stejné Wi-Fi v Ovládání selhává LAN spojení a opakuje připojování. Zbývá ověřit
 pinned WSS, restart ESP, relaunch/aktualizaci aplikace a Keychain persistence.
 Připojené ESP USB nebylo nalezené; nebyl proveden flash ani potvrzen nový
 boot. Publikace není přijetí změny na iPhonu/ESP a HW/E10 se neuzavírá.
@@ -3430,7 +3430,7 @@ Dotčené cesty: `kufr/firmware/`, související README a tento stav. D159 síť
 | Část | Co skutečně existuje | Co zatím chybí |
 | --- | --- | --- |
 | Firmware | ESP-IDF6.1 runtime se STA/backend HTTPS, odděleným LAN vlastníkem, journal/safety snapshotem a textovým input/output. D158 BLE, profily a OTA; D159 skutečný USB/NVS servis, home Wi-Fi, token POST200, OTA0.1.1/VALID boot a restart. Arduino profil je odstraněný. | B1: externí napájení/OE/mechanika/kalibrace a skutečné I2S; hotspot/failover, LAN TLS/pairing/WSS a celý konverzační průchod. |
-| Mobil | Web/simulátor, Capacitor8.5.2 a native Swift SPKI/Keychain/pairing/WSS, text/cancel/result, Bonjour a Debug/hlas. D161 BLE Wi-Fi párování a Keychain; podepsaný iOS1.0/build1000.0.20 je zveřejněný. D159 majitel skutečně použil PoP/BLE na1000.0.19, nastavil domácí Wi-Fi a potvrdil připojený backend po restartu. | LAN QR/TLS/pairing/Keychain/lifecycle, hotspot/failover a skutečné audio zkoušky; instalace nové1000.0.20 není potvrzená. |
+| Mobil | Web/simulátor, Capacitor8.5.2 a native Swift SPKI/Keychain/pairing/WSS, text/cancel/result, Bonjour a Debug/hlas. D161 BLE Wi-Fi párování a Keychain; podepsaný iOS1.0/build1000.0.20 je zveřejněný. D159 majitel skutečně použil PoP/BLE na1000.0.19, nastavil domácí Wi-Fi a potvrdil připojený backend po restartu. | LAN QR/TLS/pairing/Keychain/lifecycle, hotspot/failover a skutečné audio zkoušky; majitel potvrdil scan/párování, ale LAN v Ovládání se opakovaně odpojuje; přesné instalované verze nejsou doložené. |
 | Backend/kontrakty/simulátor | SQLite/idempotence/retence, Responses Sol a trvalá oddělená paměť večera, izolovaný hlas a technické logy. Backend je nasazený; D159 fyzická device identita je trvale registrovaná a skutečný ESP HTTPS token POST200 prošel i po restartu. Strict v1 kontrakty a simulátor zůstávají. | Skutečný celý device rozhovor/hlas, živá evaluace a lidská/provozní akceptace; produkční region/retence. |
 | iOS CI | Stávající ruční macOS workflow: D162 native testy, Xcode archive a Ad Hoc export37923948887; iOS1000.0.20 publish37924314161 a public IPA/hash prošly. D159 majitel použil BLE na iPhonu s1000.0.19. | Další LAN/TLS/Keychain/lifecycle iPhone zkoušky a řízená app aktualizace/rollback. |
 | Hardware | D122/D159 konkrétní ESP32-S3 rev0.2, N16R8, ROM flash/PSRAM a UART/native USB; USB-only aplikace a skutečná OTA na samostatné desce. Dodaný pinový podklad a návrh napájení zůstávají. | PCB/schéma externího zapojení, bezpečnostní větev/OE, LED, napájení, mechanika, kalibrace a fyzická akceptace periferií. |
