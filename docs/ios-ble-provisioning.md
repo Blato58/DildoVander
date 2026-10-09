@@ -53,3 +53,11 @@ Native source/permissions/package registration live in the existing Xcode
 project. Use the existing `kufr-ios-sign.yml` workflow with a verified web CI run;
 it resolves the pinned Swift package, runs native tests and signs the app.
 Xcode or a signed archive does not establish physical BLE/hotspot acceptance.
+
+Current verified delivery: iOS1.0/build1000.0.19 at
+[Safari installation](https://2.28.202.220/ios/), signed/native run
+[37899385679](https://github.com/Blato58/DildoVander/actions/runs/37899385679)
+and public manifest/IPA/checksum verification
+[37899776001](https://github.com/Blato58/DildoVander/actions/runs/37899776001).
+The initial registered iPhone profile is still required; physical installation,
+Bluetooth permissions, handshake and hotspot tests have not been repeated here.

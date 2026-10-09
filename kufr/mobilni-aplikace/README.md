@@ -101,11 +101,12 @@ Nativní adaptér vlastní TLS pin, oprávnění LAN a Keychain. E10.1 použív�
 ## Debug D108/D109/D110/D112 a Realtime
 
 Aktuální [Safari instalace](https://2.28.202.220/ios/) nabízí verzi 1.0,
-build **1000.0.14** ([publikace 3. 10. 2026](https://github.com/Blato58/DildoVander/actions/runs/37120810300),
-D134: obnovení přehrávače a ověření průchodu audia před AI streamem; nadále
-GPT-Live + Sol a přirozenější úvod).
-Nativní testy, Ad Hoc podpis a veřejná kontrola manifestu/IPA/SHA-256
-prošly. Skutečná aktualizace a poslech na iPhonu zbývá ověřit.
+build **1000.0.19** ([podpis 9. 10. 2026](https://github.com/Blato58/DildoVander/actions/runs/37899385679),
+[publikace](https://github.com/Blato58/DildoVander/actions/runs/37899776001)).
+D158 přidává nativní bezpečný BLE provisioning/hotspot/fallback a OTA ovládání;
+GPT-Live a stávající hlas zůstávají zachované. Nativní testy, skutečný Xcode
+archive/export, Ad Hoc podpis a veřejná kontrola manifestu/IPA/SHA-256 prošly.
+Skutečná aktualizace, BLE/hotspot a poslech na iPhonu zbývá ověřit.
 První uložení credentialu po přechodu z RAM-only verze
 je potřeba zopakovat. Profil uložený od 1000.0.2 se dál načítá ze stejného
 Keychain; skutečnou aktualizaci a její zachování ověří registrovaný iPhone.
