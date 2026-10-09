@@ -1,5 +1,40 @@
 # Firmware AI kufru
 
+## Fyzické efekty a audio B (D156, 9. 10. 2026)
+
+Hlavní ESP-IDF obraz obsahuje koordinovaný I2C adaptér PCA9685/MCP23017,
+RMT výstup 36 WS2812B, šest serv, šest U059 a audio pro dva DFR0954.
+Profil **B-effects** zachovává kamerové GPIO i SD38–40. GPIO2 přímo
+řídí PCA OE (HIGH vypnuto); napájení pohonů odpojuje zelená kolébka.
+[Konkrétní zapojení a oživení](../docs/zapojeni-potvrzeneho-hardwaru.md).
+
+`PhysicalEffects` vynucuje jeden úsek / jeden pohon, jas do 64/255,
+150ms vibraci, individuální servo pulzy a časové okno 20–3000 ms podle kalibrace + 250ms softwarovou rezervu.
+Bez dalších polohových snímačů představují `IsRaised` / `IsResting`
+**programově zadanou polohu po uplynutí kalibrovaného pohybu**.
+Zablokované servo nepoznají; výstupní `physicalVerification` zůstává
+`unavailable`. `PhysicalPresentation` spojuje journal s hledáním,
+třemi vibracemi, zdvihem, 5s ukázkou a časovaným návratem.
+Fyzický ruční režim má stejný návrat přes `SelectionSequence(..., true)`.
+Normální naprogramovaný návrat obnoví dostupnost až po úspěšném trvalém
+zápisu. Stop, I/O chyba či prodleva smyčky 250 ms vyžadují místní kontrolu,
+nikdy automatický návrat. Arduino zachovává sériový prototyp západky.
+
+[Servisní projekt](diagnostics/hardware-service/README.md) nastavuje pouze
+`wand_hw`: `profile_b_ok`, pozitivní `cal_revision` a 36 bajtů
+kalibrací. Příklad má flags false a nulové pulzy, tedy pohony zakazuje.
+Každý boot vyžaduje ruční kontrolu všech přihrádek dole a přidržení
+momentového tlačítka 2 s. Polohu potvrzuje obsluha, firmware ji nesnímá.
+Krátký stisk v klidu spouští/zastavuje hlas; při prezentaci vyvolá Stop.
+
+Audio B nepřejde na kamerové piny A; oba SD/GAIN zůstávají v továrním
+mono zapojení. Mute/hlasitost jsou softwarové, bez zápisů do MCP GPA1.
+Stop zavře PCM gate; již zařazená DMA dohraje do auto-cleared ticha
+(přibližně do 80 ms fronty, skutečnou latenci změřit). Boot/resetové ticho
+není garantované. A zůstává gated `wand_audio/profile_a_ok` bez kamery.
+Fyzické napájení, resetové stavy, pulzy, mechanika a audio zatím nebyly
+na sestavě měřené. Kamera/SD driver E13 zůstávají samostatná práce.
+
 ## Autonomní Live: místní přehrání (D143)
 
 Nová serverová opt-in větev posílá `playback_checkpoint` s UUID, přesným
@@ -57,12 +92,12 @@ server VAD zavře vstup po tichu a po dohrání se poslech obnoví. Telefon mů�
 zůstat pouhým pozorovatelem nebo se odpojit. **Zastavit hlas** vypne audio;
 **Stop kufru** vypne také hlas a zachová povinné zotavení pohonů.
 
-Audio je vypnuté do servisního potvrzení **ověřeného profilu A**: NVS
+Historický audio profil A je vypnutý do servisního potvrzení: NVS
 namespace `wand_audio`, u8 `profile_a_ok=1`. Je to potvrzení revize/zapojení,
 ne běžná volba aplikace. Před provisionováním ověřte GPIO4/5/6/7/16 podle
 plánu, levou volbu ICS43434, MAX98357A shutdown a nepřítomnost kamery/SD.
 Bez tohoto údaje se audio piny nenastavují a UI uvádí nedostupné audio.
-Profil B s MCP23017 nemá tento adaptér. Hlasový režim/hlas jsou v RAM,
+Současný B-effects používá `wand_hw/profile_b_ok` podle D156 výše. Hlasový režim/hlas jsou v RAM,
 po restartu se vrací `off`/`marin`; reconnect nikdy sám nespouští rozhovor.
 
 I2S má 32kHz/32bit stereo sloty a průběžný FIR pro 24kHz PCM Realtime.
@@ -99,9 +134,9 @@ Podrobný postup a skutečně provedené kontroly jsou ve
 provisionované HTTPS párování a autentizovaný WSS vstup s řídicím vlastníkem,
 backendovou textovou frontou a korelovaným výstupem replik. Snapshot vydává
 `DeviceControlRuntime` pouze po bezpečných přechodech. Wi-Fi má vlastní úlohu,
-nezávislou na cloudovém tokenu/čase. Kalibrace zůstává 0, zotavení bez doložené
-fyzické kontroly je zavřené a fyzický GPIO port pohonů chybí. Audio port
-vyžaduje ověřený profil A. Prázdná NVS neposkytuje identitu ani párování;
+nezávislou na cloudovém tokenu/čase. Bez servisní konfigurace je kalibrace 0 a zotavení zavřené. Nový fyzický
+port vyžaduje B-effects a individuální kalibraci; audio může používat
+ověřený A nebo B podle D155 výše. Prázdná NVS neposkytuje identitu ani párování;
 D123 ověřilo základní offline boot, síť/párování a periferie zbývají.
 
 E4.4t přidává inzerci `_kufr._tcp.local:443` až po spuštění provisionovaného
@@ -126,7 +161,7 @@ bude potřeba.
 ```text
 src/
   main.cpp                                  Arduino sestavení a smyčka
-  espidf_main.cpp                           rozpracovaná IDF smyčka bez GPIO
+  espidf_main.cpp                           IDF smyčka s gated fyzickým portem
   features/
     safety/
       SafetyPort.h                          požadavky na vypnutí/pohony
@@ -224,8 +259,8 @@ poruchu a ztrátu ručního lease; ta zastaví jen výběr spuštěný v ruční
 nikoli samostatný výběr při odpojení pozorovatele. Porucha zůstane odlišená od
 Stop a oba stavy vyžadují kontrolu a výslovné zotavení. Tyto vstupy jsou zatím
 hostitelský model bez síťového detektoru. Software rozpozná zaseknutí smyčky
-až při dalším průchodu; nezávislé vypnutí při úplném zamrznutí musí zajistit
-budoucí hardwarový watchdog a inhibit.
+až při dalším průchodu. Úplné zamrznutí se nepovažuje za důkaz vypnutí;
+napájení pohonů se odpojí zelenou kolébkou.
 Časování je zatím výchozí pro prototyp; délku pulzů a polohu serva
 bude třeba doladit podle skutečné mechaniky a měření proudu.
 
@@ -766,7 +801,7 @@ Slices a jejich odpovědnosti jsou v kapitole 3 plánu. Čisté jádro zachovat
 testovatelné bez Arduino/ESP-IDF; síťový callback nesmí přímo spínat GPIO.
 
 Pro skutečné výstupy platí jas zpočátku kolem 25 %, nejvýše jeden pohon
-v pohybu a nezávislá vypínaná větev pohonů s watchdogem. Po Stop/resetu
+v pohybu, přímé PCA OE a ruční servisní odpojení pohonů. Po Stop/resetu
 není poloha rekvizity známá bez kontroly, proto se automaticky nespouští
 další prezentace.
 OV5640 + SD vyžadují pozdější profil B/E13 a nové ověření pinů.
@@ -781,7 +816,7 @@ Vazby pinů na desce popisuje
 zapojení a energetický limit popisuje
 [`../docs/efekty-a-napajeni.md`](../docs/efekty-a-napajeni.md), kamerové
 omezení [`../docs/kamera.md`](../docs/kamera.md). Před připojením ESP32 je
-nutné změřit 5V výstup měniče; 20 V smí být pouze na vstupu měniče.
+nutné změřit 5V výstup měniče; 12 V smí být pouze na vstupu měniče.
 
 `LocalControlOwner::PumpReply` předává nejvýše jednu backendovou repliku na
 průchod. Kontroluje aktuální token/snapshot, aktivní local conversation a turn,

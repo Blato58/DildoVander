@@ -1,10 +1,9 @@
 # Nákup elektroniky pro AI kufr: dva obchody
 
-> **Aktualizace 8. 10. 2026:** Pro AI kufr objednávat pouze podle
+> **Aktualizace 9. 10. 2026:** Pro AI kufr objednávat pouze podle
 > [nového seznamu chybějících dílů](objednavka-doplneni-kufru-2026-10-06.md).
-> Zohledňuje faktury, kameru, jeden aktivní LED úsek a jeden pohon,
-> kolébkové vypínače a odklad automatického watchdogu jen pro laboratorní
-> prototyp pod dohledem. Volitelné doplňky nejsou v základním košíku.
+> Zohledňuje nové potvrzené nákupy, dva zesilovače, kameru, jeden aktivní LED úsek a jeden pohon,
+> kolébkové vypínače, přímé OE a ruční odpojení pohonů. Volitelné doplňky nejsou v základním košíku.
 > Níže je historický podklad.
 
 Ověřeno 28. 9. 2026. Jde o elektroniku **pouze pro kufr**. Powerbanku kupuje majitel samostatně a v cenách níže není. Ceny a dostupnost se mohou změnit; před odesláním objednávky zkontrolovat košíky a odečíst již pořízené díly. Stav dosavadních nákupů není potvrzen. Ostatní díly kostýmu, mechanika přihrádek a doprava nejsou zahrnuty.
@@ -13,7 +12,7 @@ Tato kombinace zachovává ESP32-S3 připravené na kameru, I²S mikrofon a repr
 
 ## 1. Drátek — řízení, napájecí moduly a montáž
 
-**Rozsah košíku:** ceny níže nebyly při sjednocení dokumentace znovu ověřovány. Podle [implementačního plánu](../kufr/docs/implementacni-plan.md) ještě chybí výběr a ocenění bezpečnostní větve pohonů (watchdog, logika, load switch, PHYSICAL_ENABLE), případného MCP23017 pro profil B a provozního routeru. Tyto položky nejsou v dosavadních součtech; před nákupem ověřit revizi desky a doplnit kusovník/rozpočet. Postup eviduje [stav implementace](../kufr/docs/stav-implementace.md).
+**Rozsah košíku:** historické ceny níže nejsou aktuální zbývající nákup. MCP, měnič a oba zesilovače jsou potvrzené; pro sestavu platí [současné zapojení](../kufr/docs/zapojeni-potvrzeneho-hardwaru.md).
 
 | Položka | Množství | Cena celkem | Odkaz |
 | --- | ---: | ---: | --- |
@@ -21,7 +20,7 @@ Tato kombinace zachovává ESP32-S3 připravené na kameru, I²S mikrofon a repr
 | Polohovací mikroservo 180° | 6 | 300 Kč | [Servomotor](https://dratek.cz/arduino-platforma/897-eses-servo-motor-9g.html), množstevní cena 50 Kč/ks od 5 ks; nekupovat variantu 360° |
 | PCA9685, 16kanálový driver serv | 1 | 167 Kč | [Driver](https://dratek.cz/arduino-platforma/1686-iic-i2c-modulovy-driver-servo-motoru-pro-arduino-pca9685-16-kanalu-12-bit-pwm.html) |
 | Rezistor 330 Ω / 0,25 W | 1 | 1 Kč | [Rezistor](https://dratek.cz/arduino-platforma/7655-rezistor-330r-0.25-w-1.html) |
-| USB-C PD trigger s volbou 20 V | 1 | 32 Kč | [PD modul](https://dratek.cz/arduino-platforma/232511-power-modul-usb-c-pd-s-nastavitelnym-napetim-a-prepinacem.html) |
+| USB-C PD trigger nastavený na 12 V | 1 | 32 Kč | [PD modul](https://dratek.cz/arduino-platforma/232511-power-modul-usb-c-pd-s-nastavitelnym-napetim-a-prepinacem.html) |
 | XY3606, měnič 9–30 V → 5 V / 5 A | 1 | 57 Kč | [Měnič](https://dratek.cz/arduino-platforma/180391-step-down-menic-xy3606-9-30v-dc-5a-usb-vystup-dc5-5x2-1-vstup-svorkovnice.html) |
 | Datový kabel USB-A → USB-C 1 m pro ESP32, pokud není doma | 1 | 72 Kč | [Kabel k desce](https://dratek.cz/arduino-platforma/180220-datovy-a-nabijeci-kabel-usb-c-usb-a-1m-cerny.html) |
 | Napájecí kabel USB-C → USB-C 60 W / 20 V 3 A mezi powerbankou a PD modulem, pokud není doma | 1 | 185 Kč | [PD kabel](https://dratek.cz/arduino/180410-baseus-napajeci-kabel-usb-c-na-usb-c-60w-1-metr-cerno-sedy.html) |
@@ -72,7 +71,7 @@ musí změřit. XY3606 má pevný 5V výstup, nikoli nastavovací trimr.
 - **Dva obchody, všech šest vibračních modulů:** přibližně **3 323 Kč** za elektroniku, oba kabely a uvedený montážní materiál; bez powerbanky, dopravy a mechaniky.
 - **Dva obchody, na začátek jeden vibrační modul:** přibližně **2 913 Kč**; zbylých pět modulů později za 410 Kč plus případná doprava. To přidá další zásilku, proto pro jednu objednávku z Botlandu počítat rovnou se šesti.
 - Pokud jsou kabely k dispozici, odečíst 72 Kč za USB-A → USB-C a 185 Kč za USB-C → USB-C.
-- Vlastní napájecí zdroj musí umět USB-C PD profil 20 V (doporučeně alespoň 2 A). Výstup měniče nejprve změřit na 5 V. Převodník Pixel Shifter slouží pouze pro datový signál LED, výkon pro LED jde přímo z 5V větve.
+- Vlastní napájecí zdroj musí umět USB-C PD profil 12 V / 3 A. Výstup měniče nejprve změřit na 5 V. Převodník Pixel Shifter slouží pouze pro datový signál LED, výkon pro LED jde přímo z 5V větve.
 - Volitelnou kameru zatím nekupovat. Deska má konektor, takže ji lze později doplnit bez změny řídicí desky.
 
 Výběr je doložen jednotlivými produktovými stránkami výše. Stav skladu a finální cenu určuje až košík prodejce při nákupu.

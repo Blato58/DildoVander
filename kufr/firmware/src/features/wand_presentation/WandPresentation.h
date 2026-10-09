@@ -6,16 +6,16 @@
 
 #include "../conversation/PendingProposal.h"
 
-// IsReady gates calibration, switched power, watchdog and known rest position.
-// IsSafeToContinue checks inhibit, Stop/fault and ownership/generation after
-// Raise changes the published snapshot. Raise must journal and invalidate it;
-// Complete must persist restoration and republish readiness only after rest
-// position is established. No such hardware adapter currently exists.
+// Readiness gates calibration and locally inspected/commanded position.
+// PhysicalPresentation uses timed calibrated moves, not measured feedback.
+// Journal admission precedes Raise; completion persists restored availability.
 class WandPresentationPort {
  public:
   virtual ~WandPresentationPort() = default;
   virtual bool IsReady(uint8_t compartment) const = 0;
   virtual bool IsSafeToContinue() const = 0;
+  virtual uint64_t RaiseTimeoutMs(uint8_t) const { return 3000; }
+  virtual uint64_t LowerTimeoutMs(uint8_t) const { return 3000; }
   virtual bool IsRaised(uint8_t compartment) const = 0;
   virtual bool IsResting(uint8_t compartment) const = 0;
   virtual bool Raise(uint8_t compartment, const std::string& proposalId,
@@ -34,7 +34,7 @@ enum class WandPresentationState : uint8_t {
 };
 
 // An autonomous cycle for a prop that stays in its compartment. The port
-// confirms both end positions; elapsed time alone never proves restoration.
+// reports commanded end positions; physical verification stays unavailable.
 class WandPresentation final {
  public:
   explicit WandPresentation(WandPresentationPort& port);

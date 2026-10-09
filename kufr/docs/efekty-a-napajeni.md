@@ -1,18 +1,18 @@
 # Efekty, zapojení a napájení kufru
 
-Aktualizováno 8. 10. 2026; základ návrhu z 6. 10. vychází z faktur. Nákupní zdroj
-pravdy je [samostatná objednávka](../../docs/objednavka-doplneni-kufru-2026-10-06.md).
-Architektura a akceptace zůstávají v kapitolách 8 a 10
-[implementačního plánu](implementacni-plan.md). Níže je konkrétní návrh pro
-montáž prototypu; elektrické měření ani zapojení firmware dosud neproběhlo.
+Aktualizováno **9. 10. 2026**. Potvrzené nákupy jsou v
+[objednávce](../../docs/objednavka-doplneni-kufru-2026-10-06.md), konkrétní
+kabelový plán a implementovaný profil v
+[zapojení potvrzeného hardwaru](zapojeni-potvrzeneho-hardwaru.md).
+Máme měnič Joy-IT 5 V / 5 A, MCP23017, dva DFR0954, dvě PH2 vedení,
+oba reproduktory a montážní materiál. Zvolená powerbanka je UGREEN PB720.
+Firmware nyní obsahuje fyzické adaptéry; elektrické měření nové sestavy
+neproběhlo a prázdná NVS pohony nepovoluje.
 
-**Revize nákupu 8. 10.:** pro základní hlas stačí jeden již koupený
-DFR0954 a jeden reproduktor. Druhý kanál, Grove/JST-SM adaptéry a SD/čtečka
-jsou volitelné. Kamera a MCP zůstávají v objednávce podle rozhodnutí 6. 10.
-Celá kandidátní větev Pololu 2801 + CD4093BE + Pololu 2814 se odkládá pro
-nezatížené laboratorní pokusy pod dohledem. Níže uvedené schéma zachovává
-**cílové automatické odpojení**, není schématem k jeho obejití. Ruční
-vytažení napájení neprokazuje Stop při zamrznutí; E0/E5/B1 se neuzavírají.
+Pohony mají 5V napájení přímo za zelenou servisní kolébkou.
+GPIO2 přímo řídí PCA OE. Jednotlivé kalibrované časované pohyby
+nevyžadují další moduly ani polohové snímače. Servo poloha není měřená;
+pulzy, proudy a mute rozhraní se musí ověřit na skutečné sestavě.
 
 ## Provozní limity a mechanika
 
@@ -34,21 +34,20 @@ Zdvih, dorazy a kalibrace pulzů se ověřují na jedné skutečné přihrádce.
 ## Napájení: jeden měnič
 
 ```text
-230 V → vnější USB-C PD zdroj Akyga AK-CH-31
+UGREEN PB720 USB-C1 PD (případně vnější vhodný USB-C PD zdroj)
       → koupený kabel C–C 60 W / 3 A
-      → koupený PD modul nastavený na 20 V
-      → Joy-IT 9–35 V / pevně 5 V / max. 5 A
+      → koupený PD modul nastavený na 12 V
+      → Joy-IT SBC-Buck02 / SEG-28582, 9–35 V / pevně 5 V / max. 5 A
       → koupený vratný jistič 5 A
       → koupená hlavní kolébka (5V strana)
       → společný rozvod 5 V
           ├─ ESP32 přes USB-A modul + kabel A–C
           ├─ dva MAX98357A, LED a Pixel Shifter
           └─ nová servisní kolébka pohonů
-              → MOSFET load switch Pololu 2814
               → V+ PCA9685 + napájení šesti U059
 ```
 
-Logika PCA9685, MCP23017 a bezpečnostního obvodu je napájená **3,3 V**
+Logika PCA9685 a MCP23017 je napájená **3,3 V**
 z ESP32 a nezávisí na servisní kolébce. Všechny země společné, zem pohonů
 se neodpojuje. Rozvod výkonu nevede přes 5V pin ESP32, Dupont ani univerzální
 PCB tenkými cestami. Joy-IT má společnou zem pro vstup/výstup: řídit se
@@ -56,10 +55,10 @@ potiskem svorek, ne domyšleným pořadím. Před připojením desek změřit 5 
 
 PD modul máme: [Drátek 1782992576](https://dratek.cz/arduino-platforma/232511-power-modul-usb-c-pd-s-nastavitelnym-napetim-a-prepinacem.html)
 uvádí max. 3 A. Pro tuto sestavu vyhovuje; při 20 W výstupu a 85% účinnosti
-měniče je vstupní odběr asi 1,18 A při 20 V. Nepotřebujeme nový PD modul,
+měniče je vstupní odběr asi 1,96 A při 12 V. Nepotřebujeme nový PD modul,
 5A USB kabel ani 100W zdroj. Zdroj AK-CH-31 používat pro kufr samotný,
 nevynucovat současné nabíjení dalších zařízení na jeho druhém portu.
-Případná powerbanka musí poskytovat 20V PD profil alespoň 1,5 A (lépe 2 A).
+Případná powerbanka musí poskytovat 12V PD profil 3 A.
 
 | Zátěž při 5 V | Návrhová hodnota | Povaha údaje |
 | --- | ---: | --- |
@@ -83,61 +82,22 @@ každé tenké odbočky a nenahrazuje proudové omezení zdroje/měniče.
 | --- | --- | --- |
 | Koupené bíle podsvícené momentové tlačítko | Začátek rozhovoru / PTT, případně servisní potvrzení podle plánu | Kontakt na GND, 15kΩ pull-up na 3,3 V, profil B MCP GPA0; LED odděleně podle skutečné specifikace tlačítka |
 | Koupená červená kolébka | Hlavní zapnutí/vypnutí kufru | Přerušuje +5 V za měničem, LED na 5V stranu |
-| Nová druhá kolébka | PHYSICAL_ENABLE: fyzické odpojení pohonů při servisu | Přerušuje jen +5 V před load switchem; logika, světla a hlas zůstávají napájené |
+| Koupená zelená kolébka | PHYSICAL_ENABLE: fyzické odpojení pohonů při servisu | Přerušuje přímo +5 V serv/U059; logika, světla a hlas zůstávají napájené |
 
 Kolébka má tři kontakty, **nejde o dva nezávislé spínací póly**: jeden je
-pro LED/zem. Identifikovat kontakty podle potisku a měřením. Snímat napětí
-za servisní kolébkou, ještě před MOSFET switchem, přes dělič **15 kΩ nahoře
-+ 22 kΩ k GND**; nominálně cca 2,97 V při 5 V. Tento uzel je vstup fyzického
-povolení do logiky a MCP GPA3, ne přímý 5V vstup do GPIO. Při vypnutí je
-stažený k zemi. LED kolébek jsou podle prodejce pro 5–12 V, proto nepatří
-na 20V stranu. Po hlavním vypnutí zůstává PD/měnič pod napětím, úplně
-odpojit USB-C pro práci na vstupní části. Druhé momentové tlačítko netřeba.
+pro LED/zem. Identifikovat kontakty podle potisku a měřením. Stav zelené
+kolébky se nesnímá; GPA3 je volný. Před jejím vypnutím vyvolat Stop,
+po opětovném zapnutí ručně zkontrolovat přihrádky a potvrdit zotavení.
+LED kolébek zapojit na 5 V. Pro práci na vstupu odpojit USB-C zdroj.
 
-## Konkrétní návrh nezávislého watchdogu a inhibit
+## Přímé řízení PCA OE
 
-Vybrané součástky doplňují dosud chybějící kusovník; **nejde o již otestovaný
-bezpečnostní obvod**. Stav E0/E5/B1 zůstává neuzavřený do měření.
-
-- Pololu **2801** napájený 3,3 V sleduje RC IN. Použijeme jeho **GOOD**, ne
-  silový výstup (žádný nemá) a ne stav OUT závislý na prahu/safe-start.
-- RC IN dostane jeden softwarový pulz cca **1 ms každých 50 ms**, pouze po
-  úspěšném průchodu řídicí úlohou. Samovolně běžící LEDC/RMT/PCA PWM není
-  heartbeat. V B je zdroj MCP GPA2; musí být ověřeno, že I2C umí pulz
-  dokončit v rozsahu 0,5–2,5 ms i při zátěži. Pomocná úloha smí dokončit
-  jediný vyžádaný pulz, nesmí sama opakovat ani přehrávat starou frontu.
-- [Pololu manuál](https://www.pololu.com/docs/0J60/all), §8, uvádí ztrátu
-  signálu po **130 ms bez aktivity**, přípustné pulzy 0,5–2,5 ms / 10–333 Hz
-  a tři dobré pulzy před GOOD. To odpovídá návrhovému limitu 250 ms;
-  konkrétní reakci při HIGH/LOW a zamrzlé I2C změřit.
-- CD4093BE je napájený **3,3 V**, s 100 nF přímo mezi VDD a GND. Jeho čtyři
-  NAND hradla skládají `ACTUATOR_EN = RUN_REQUEST AND GOOD AND PHYSICAL_ENABLE`
-  a `OE = NOT ACTUATOR_EN`. Napájení 5 V by vyžadovalo nové ověření logických
-  úrovní a není tímto návrhem povolené.
-- Pololu **2814** je high-side switch pouze pohonů. Vestavěný posuvník musí
-  zůstat **OFF**; pin **ON** řídí ACTUATOR_EN. Nepoužívat pin SW jako ON.
-  [Výrobce](https://www.pololu.com/product/2814) uvádí ON LOW/nepřipojený =
-  vypnuto, HIGH nad cca 1 V = zapnuto. Integrovaný posuvník v ON by obešel
-  digitální inhibit. Mechanická servisní kolébka zůstává nezávislou cestou
-  odpojení při selhání MOSFETu.
-- RUN_REQUEST, RC IN a ON mají výchozí pull-down; OE výchozí pull-up
-  na 3,3 V, například 100 kΩ. Motorové DIN vlastní pull-down. Ověřit
-  pull rezistory na skutečné PCA/MCP desce: případný OE pull-down odstranit
-  nebo upravit, aby vznikl zaručený HIGH při bootu a hradlo bylo schopné
-  řídit obě úrovně. CD4093 má slabší výstupy než HC logika; zátěž OE/ON
-  se musí změřit. Žádný nezapojený logický vstup nezůstane plovoucí.
-
-Logický rozklad pro schéma: N1=NAND(RUN_REQUEST,GOOD), N2=NAND(N1,N1),
-N3=NAND(N2,PHYSICAL_ENABLE)=OE, N4=NAND(N3,N3)=ACTUATOR_EN.
-DIP14 pinout převzít z [TI datasheetu CD4093B](https://www.ti.com/lit/ds/symlink/cd4093b.pdf),
-nezapojovat pouze podle pořadí hradel v této větě.
-
-PCA nastavit neinvertovaně, `OUTNE=00` (OE HIGH → výstupy LOW); ověřit,
-že výstupy do odpojených serv/U059 nezpůsobují zpětné napájení. Logické
-napájení PCA zůstává zapnuté. Přímé RUN_REQUEST v B vede z GPIO2, nikoli
-přes MCP. Při I2C timeoutu 20 ms stáhnout RUN_REQUEST bez dalšího I2C zápisu.
-Watchdog se nejdříve prokáže při RUN_REQUEST=0, pak lze povolit pohony.
-Obnovení heartbeat samo neobnoví sekvenci: firmware musí držet fault latch.
+OE na GPIO2, pull-up kolem 10 kΩ (2×22 kΩ paralelně = 11 kΩ ze zásoby) na 3,3 V. HIGH vypíná signály (`OUTNE=00`).
+Ověřit případný pull-down OE na PCA a onboard LED2; výchozí HIGH musí
+platit při bootu/resetu/odpojení MCU. Firmware nastaví OE HIGH před
+FULL_OFF a každou změnou kanálu. Při I2C chybě nebo Stop dá OE HIGH
+přímo, pak maže kanály. OE nevypíná napájení serv/U059; to dělá zelená
+kolébka. Při úplném zamrznutí řídicí úlohy software sám odpojení nedoloží.
 
 ## Připojení jednotlivých částí
 
@@ -156,23 +116,18 @@ Obnovení heartbeat samo neobnoví sekvenci: firmware musí držet fault latch.
   Pixel Shifter a 330 Ω na začátku řetězce. JST-SM konektor na vstupu
   úseku dovolí servisní odpojení; výstupní data vést zvlášť do dalšího.
   Odkrýt IP65 u pájení, zaizolovat spoje, ověřit šipky a polaritu.
-- **Audio:** základ tvoří jeden DFR0954 a jeden 8Ω reproduktor; při
-  volitelném doplnění druhého oba DFR0954 sdílejí BCLK/WS/DIN, pro společný hlas
-  zachovat shodné kanálové nastavení. Každý má vlastní 8Ω reproduktor přes
-  PH2.0 kabel. Jejich SPK+ / SPK− nikdy neparalelizovat a SPK− není GND.
-  Reproduktory 5 W jsou zatížitelnost, MAX98357A při 8 Ω dodá přibližně
-  1,8 W na kanál. Mute/SD obou ověřit podle konkrétního modulu a nastavit
-  fail-muted boot; mikrofon ICS43434 napájet 3,3 V. [Schéma výrobce](https://dfimg.dfrobot.com/wiki/20560/DFR0954_max98357a-i2s_schematics_1.0.pdf)
-  ukazuje pull-up SD k VCC, zatímco [wiki](https://wiki.dfrobot.com/dfr0954/)
-  popisuje jinou hodnotu odporu. Při 5V napájení nepřipojovat SD přímo
-  k 3,3V MCP/GPIO bez ověření konkrétního kusu a vhodného rozhraní;
-  obecný 100kΩ pull-down nezaručuje mute. Toto rozhraní ještě nemá
-  potvrzený kusovník a není vyřešené zjednodušením objednávky.
-- **Kamera/SD:** OV5640 ze sady stejné řady, revizi/FPC ověřit před montáží.
-  Karta 32 GB FAT32 pro lokální assety, ne archiv rozhovorů. Předběžný
+- **Audio:** dva potvrzené DFR0954 a dva samostatné 8Ω reproduktory,
+  společné BCLK/WS/DIN. SPK výstupy nikdy nespojovat; SPK− není GND.
+  Každý má vlastní PH2 kabel. Mikrofon ICS43434 napájet 3,3 V.
+  Oba DFR0954 ponechat v původním smíšeném mono režimu, SD/GAIN nechat
+  nezapojené a R1 neupravovat. Hlasitost/mute řeší software PCM/I2S,
+  ticho při bootu/resetu není garantované. Detaily v
+  [zapojení](zapojeni-potvrzeneho-hardwaru.md#dva-zesilovače-a-mute).
+- **Kamera/SD:** stávající ESP32-S3 Drátek 232701 má konektor OV5640;
+  samotná kamera je objednaná, čeká na doručení. Revizi/FPC ověřit před montáží.
+  Profil B-effects zachovává GPIO38–40 pro SD; jeho driver ještě chybí. Předběžný
   [profil B a piny](pin-mapa-esp32-s3.md) vyžadují ověření GPIO2/48 a SD.
-  Sada obsahuje rezervní řadič, který je alternativou při nevyhovění desky,
-  ne oprávnění improvizovat neověřenou mapu.
+  Druhá deska se nekupuje; souběh periferií ověřit na stávajícím řadiči.
 - **Rozvod:** 1,5mm² hlavní vedení, 0,5mm² krátké odbočky, společná zem.
   Degson má všech pět pozic společných: pro +5 V a GND samostatné bloky,
   nikdy oba póly do stejné svorky. Nepoužívat ji na tenký Dupont pod 0,2 mm².
@@ -186,13 +141,11 @@ Obnovení heartbeat samo neobnoví sekvenci: firmware musí držet fault latch.
 
 ## Kontroly před uzavřením kufru
 
-1. Změřit kontakty kolébek, polaritu kabelů a zem; 20 V pouze na vstupu měniče.
+1. Změřit kontakty kolébek, polaritu kabelů a zem; 12 V pouze na vstupu měniče.
 2. Změřit 5 V bez zátěže i při LED + jednom pohonu + Wi-Fi/kamera/audio,
    klidový odběr zbytku, poklesy u ESP32 a zahřívání v konečné montáži.
-3. Bez pohonů prokázat boot/reset inhibit, OE/ON úrovně, watchdog pulzy,
-   HIGH/LOW zamrznutí a odpojení heartbeat do 250 ms. Pro samotné časování
-   nestačí multimetr: logický analyzátor/osciloskop nebo měření stavů přes
-   nezávislý řadič při prototypování; nástroj není v nákupním součtu.
+3. Bez pohonů proměřit GPIO2/OE HIGH při bootu/resetu a přímé OE při
+   I2C chybě; konfigurace PCA má výstupy LOW při OE HIGH.
 4. S jedním pohonem ověřit Stop, I2C timeout, servisní kolébku, vybití
    kondenzátorů a absenci zpětného napájení. MCU reset nesmí vyvolat pohyb.
 5. Ověřit pasivní držení přihrádky, mechanické dorazy, jeden aktivní úsek

@@ -133,7 +133,7 @@ void SerialSelectionPort::Emit(const SelectionStep& step) {
 }
 
 void SerialSelectionPort::DisableActuators() {
-  Serial.println("safety request: inhibit all actuators (log only)");
+  Serial.println("safety request: disable all actuators (log only)");
 }
 
 void SerialSelectionPort::StartVibration(uint8_t compartment) {

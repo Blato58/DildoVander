@@ -15,7 +15,8 @@ constexpr uint8_t VibrationPulseCount = 3;
 
 }  // namespace
 
-SelectionSequence::SelectionSequence(SafetyController& safety) : safety_(safety) {}
+SelectionSequence::SelectionSequence(SafetyController& safety, bool returnsProp)
+    : safety_(safety), returnsProp_(returnsProp) {}
 
 bool SelectionSequence::Start(uint8_t compartment, uint32_t nowMs,
                               SelectionStep& step) {
@@ -55,7 +56,7 @@ bool SelectionSequence::Update(uint32_t nowMs, SelectionStep& step) {
   }
 
   // Unsigned subtraction keeps short delays correct across millis() wraparound.
-  if (nowMs - sequenceStartedAtMs_ >= SequenceHardLimitMs) {
+  if (nowMs - sequenceStartedAtMs_ >= (returnsProp_ ? 15000 : SequenceHardLimitMs)) {
     Stop(step);
     return true;
   }
@@ -136,6 +137,17 @@ bool SelectionSequence::Update(uint32_t nowMs, SelectionStep& step) {
       return true;
 
     case Phase::Releasing:
+      if (returnsProp_) {
+        if (safety_.PropRaised()) {
+          safety_.DisableActuators();
+          phase_ = Phase::Showing;
+          phaseStartedAtMs_ = nowMs;
+          step = {SelectionEffect::Highlight, selectedCompartment_};
+          return true;
+        }
+        if (elapsedMs >= safety_.MotionTimeoutMs()) { Stop(step); return true; }
+        return false;
+      }
       if (elapsedMs >= LatchHardLimitMs) {
         Stop(step);
         return true;
@@ -151,6 +163,27 @@ bool SelectionSequence::Update(uint32_t nowMs, SelectionStep& step) {
       controlMode_ = SelectionControlMode::Standalone;
       step = {SelectionEffect::Idle, 0};
       return true;
+
+    case Phase::Showing:
+      if (!safety_.PropRaised()) { Stop(step); return true; }
+      if (elapsedMs < 5000) return false;
+      if (!safety_.LowerProp()) { Stop(step); return true; }
+      phase_ = Phase::Returning;
+      phaseStartedAtMs_ = nowMs;
+      step = {SelectionEffect::ReleaseLatch, selectedCompartment_};
+      return true;
+
+    case Phase::Returning:
+      if (safety_.PropResting()) {
+        safety_.Complete();
+        phase_ = Phase::Idle;
+        selectedCompartment_ = 0;
+        controlMode_ = SelectionControlMode::Standalone;
+        step = {SelectionEffect::Idle, 0};
+        return true;
+      }
+      if (elapsedMs >= safety_.MotionTimeoutMs()) { Stop(step); return true; }
+      return false;
   }
 
   return false;
@@ -227,6 +260,8 @@ SelectionPhase SelectionSequence::CurrentPhase() const {
     case Phase::BetweenPulses:
       return SelectionPhase::Vibrating;
     case Phase::Releasing:
+    case Phase::Showing:
+    case Phase::Returning:
       return SelectionPhase::Releasing;
   }
   return SelectionPhase::Idle;

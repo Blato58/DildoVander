@@ -54,6 +54,13 @@ void SafetyController::DisableActuators() {
   output_ = Output::Off;
 }
 
+bool SafetyController::LowerProp() {
+  if (state_ != State::Running || output_ != Output::Off) return false;
+  port_.LowerProp(compartment_);
+  output_ = Output::Latch;
+  return true;
+}
+
 void SafetyController::Complete() {
   DisableActuators();
   if (state_ == State::Running) {

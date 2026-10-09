@@ -37,7 +37,7 @@
 - `wand_selection/SelectionSequence` je čistá C++ posloupnost pro výběr přihrádky 1–6. Sériový adaptér zatím pouze vypisuje kroky; nevydávej je za ověřené ovládání LED, motorů nebo serv.
 - Pinová mapa dodaná k projektu je v `kufr/docs/pin-mapa-esp32-s3.md`. Rozlišuj popisky obrázku, předběžná přidělení externích pinů A/B v plánu a skutečně změřené zapojení; před nahráním firmwaru ověř revizi desky a vlastnosti flash, PSRAM a USB.
 - Při zapojování fyzických efektů dodrž návrh napájení: změř 5V výstup měniče před připojením ESP32, omez jas RGB zpočátku přibližně na 25 %, spouštěj nejvýše jeden vibrační motor a neudržuj motor zapnutý při pohybu serva. Skutečné limity potvrď měřením prototypu.
-- Příkazy pro prezentaci přijímej jako explicitní číslo přihrádky 1–6; volný text z AI nesmí přímo řídit aktuátory. Pohony musí mít nezávislou bezpečnostní spínanou větev/watchdog podle plánu. Odpojení pozorovatelského telefonu nesmí zastavit samostatný kufr; ztráta ručního lease musí bezpečně ukončit ruční řízení.
+- Příkazy pro prezentaci přijímej jako explicitní číslo přihrádky 1–6; volný text z AI nesmí přímo řídit aktuátory. Podle rozhodnutí majitele 9. 10. 2026 řídí GPIO2 přímo PCA OE a napájení pohonů odpojuje zelená kolébka. Použij jen koupené díly a kalibrované časované servopohyby bez dalších polohových snímačů. Fyzicky nepotvrzenou polohu nevydávej za měřenou. Odpojení pozorovatelského telefonu nesmí zastavit samostatný kufr; ztráta ručního lease musí bezpečně ukončit ruční řízení.
 - Přístupové údaje necommituj ani nevkládej do firmware image či mobilního balíčku. Device identita se provisionuje servisně, provider klíč je pouze na backendu; Apple podpisové identity pouze v odděleném CI prostředí.
 
 ## Sestavení a ověření

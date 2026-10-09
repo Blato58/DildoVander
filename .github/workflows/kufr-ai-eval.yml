@@ -45,7 +45,7 @@ jobs:
         run: python3 -m unittest discover -s kufr/ai-eval -p 'test_*.py'
 
   live:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.workflow == 'Kufr AI development eval'
     needs: offline
     runs-on: [self-hosted, Linux, X64, kufr-backend]
     timeout-minutes: 12

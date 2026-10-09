@@ -3,7 +3,30 @@ name: CI
 on:
   pull_request:
     branches: [main]
+    paths:
+      - '.github/**'
+      - 'scripts/ci/**'
+      - 'kufr/backend/**'
+      - 'kufr/backend-tests/**'
+      - 'kufr/firmware/**'
+      - 'kufr/mobilni-aplikace/**'
+      - 'kufr/contracts/**'
+      - 'kufr/simulator/**'
+      - 'kufr/ai-eval/**'
+      - 'kufr/global.json'
+      - 'kufr/Directory.Build.props'
+      - '!**/*.md'
+      - '!**/*.MD'
+      - '!**/*.mdx'
+      - '!**/*.rst'
+      - '!**/docs/**'
   workflow_dispatch:
+    inputs:
+      project:
+        description: Project to rebuild for an artifact on the current tree
+        type: choice
+        default: all
+        options: [all, repository, backend, firmware, web, ai-eval]
 
 permissions:
   contents: read
@@ -13,8 +36,39 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  changes:
+    name: Select changed projects
+    runs-on: [self-hosted, Linux, X64, kufr-backend]
+    timeout-minutes: 3
+    outputs:
+      repository: ${{ steps.projects.outputs.repository }}
+      backend: ${{ steps.projects.outputs.backend }}
+      firmware: ${{ steps.projects.outputs.firmware }}
+      web: ${{ steps.projects.outputs.web }}
+      ai-eval: ${{ steps.projects.outputs.ai-eval }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Select builds from the complete PR diff
+        id: projects
+        env:
+          CI_EVENT_NAME: ${{ github.event_name }}
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_PROJECT: ${{ inputs.project || 'all' }}
+        run: |
+          if [ "$CI_EVENT_NAME" = workflow_dispatch ]; then
+            python3 scripts/ci/select_projects.py select --project "$CI_PROJECT"
+          else
+            python3 scripts/ci/select_projects.py select --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
+          fi
+
   repository:
     name: Repository checks
+    needs: changes
+    if: needs.changes.outputs.repository == 'true'
     runs-on: [self-hosted, Linux, X64, kufr-backend]
     timeout-minutes: 5
     steps:
@@ -43,29 +97,34 @@ jobs:
         run: git diff --check HEAD^ HEAD
 
   backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     uses: ./.github/workflows/kufr-backend.yml
   firmware:
+    needs: changes
+    if: needs.changes.outputs.firmware == 'true'
     uses: ./.github/workflows/kufr-firmware.yml
   web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     uses: ./.github/workflows/kufr-web.yml
   ai-eval:
+    needs: changes
+    if: needs.changes.outputs.ai-eval == 'true'
     uses: ./.github/workflows/kufr-ai-eval.yml
 
   required:
     name: CI required
     if: always()
-    needs: [repository, backend, firmware, web, ai-eval]
+    needs: [changes, repository, backend, firmware, web, ai-eval]
     runs-on: [self-hosted, Linux, X64, kufr-backend]
     timeout-minutes: 2
     env:
       RESULTS: ${{ toJSON(needs) }}
+      SELECTED_PROJECTS: ${{ toJSON(needs.changes.outputs) }}
     steps:
-      - name: Require every build and offline check to succeed
-        run: |
-          python3 - <<'PY'
-          import json, os
-          jobs = json.loads(os.environ['RESULTS'])
-          failed = [name for name, job in jobs.items() if job['result'] != 'success']
-          if failed:
-              raise SystemExit('Required jobs failed or were skipped: ' + ', '.join(failed))
-          PY
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Require selected builds to succeed and unrelated builds to be skipped
+        run: python3 scripts/ci/select_projects.py check

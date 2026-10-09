@@ -29,7 +29,7 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
                        ConversationRuntimeState& runtimeState,
                        const std::string& bootId,
                        EspIdfStationNetwork& station);
-  bool InitializeVoice(bool nvsInitialized);
+  bool InitializeVoice(bool nvsInitialized, AudioBoardPort* board = nullptr);
   LocalVoiceStatus VoiceStatus() const override;
   bool ConfigureVoice(const std::string& mode, const std::string& voice) override;
   bool StartVoice(const std::string& requestId,
