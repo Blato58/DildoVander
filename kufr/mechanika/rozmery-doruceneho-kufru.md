@@ -34,3 +34,5 @@ Tento záznam nemění CAD, neověřuje fyzické usazení ani pohyb pod zatíže
 Architekturu a akceptaci určuje [implementační plán](../docs/implementacni-plan.md),
 postup vede [stav implementace](../docs/stav-implementace.md).
 Montážní podklady jsou v [README mechaniky](README.md).
+Katalogové rozměry elektroniky a seznam toho, co má majitel změřit,
+jsou v [rozměrech nakoupených součástek](rozmery-nakoupenych-soucastek.md).

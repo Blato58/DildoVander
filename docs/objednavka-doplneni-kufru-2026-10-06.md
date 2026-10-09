@@ -69,6 +69,9 @@ vybrané konektory se jednou připájí a zaizolují.
 
 ## 4. Už koupené – znovu neobjednávat
 
+Katalogové rozměry, přímé zdroje a chybějící montážní měření pro všechny
+položky níže jsou v [rozměrech nakoupených součástek](../kufr/mechanika/rozmery-nakoupenych-soucastek.md).
+
 | Díly | Doložené množství | Použití |
 | --- | ---: | --- |
 | ESP32-S3 N16R8 s konektorem OV5640, Drátek 232701 | 1 | Stávající hlavní řadič, osazené samčí lišty; samotná kamera je objednaná, dosud nedoručená |
@@ -116,8 +119,9 @@ pro nynější ovládání potřeba.
 - Vývody obou kolébek lze připájet a izolovat koupenou bužírkou. Fastony
   ani krimpovací kleště tedy nejsou nutné pro tento způsob montáže.
 - Držáky desek, serv, kamery a reproduktorů, šrouby a mechaniku přihrádek
-  určit podle skutečných otvorů a prostoru kufru; rozměry dosud nejsou
-  změřené. Malé moduly bez montážních otvorů umístit do izolačního držáku,
+  určit podle skutečných otvorů a prostoru kufru; katalogové rozměry jsou
+  dohledané v uvedeném přehledu, montážní měření doručených kusů ještě chybí.
+  Malé moduly bez montážních otvorů umístit do izolačního držáku,
   nevrtat skrz jejich PCB. Nezakrýt chlazení měniče ani mikrofonní otvor.
 - Zajistit existující 2,4GHz Wi-Fi s internetem (router/hotspot pro kufr).
   Nový router se automaticky nekupuje; není nutný pro místní offline řízení.
