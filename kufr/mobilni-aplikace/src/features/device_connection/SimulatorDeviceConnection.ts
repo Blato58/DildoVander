@@ -70,7 +70,7 @@ export class ProtocolDeviceConnection {
     protocol_error: 'Kufr poslal neplatnou zprávu ovládání.',
   };
   private static readonly terminalNativeFailures = new Set(['invalid_identity', 'certificate_mismatch',
-    'authorization_rejected', 'handshake_rejected', 'tls_failed', 'network_unavailable', 'protocol_error']);
+    'authorization_rejected', 'handshake_rejected', 'tls_failed', 'protocol_error']);
   private closeFailure: string | undefined;
   private stableSince: number | null = null;
   private readonly voice = new LocalVoiceClient(
