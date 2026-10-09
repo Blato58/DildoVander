@@ -6,6 +6,23 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**9. 10. 2026 – doručený kufr: potvrzené rozměry a způsob prezentace.**
+Majitel v konverzaci k pěti fotografiím potvrdil vnitřní rozměry:
+šířka 17″ = 431,8 mm, délka 10,5″ = 266,7 mm a výška spodní části
+od dna po horní okraj 4,5″ = 114,3 mm. Pracovní zaokrouhlení je
+432 × 267 × 114 mm (šířka × délka × výška). Prezentace bude s otevřeným
+kufrem; veškerá mechanika a elektronika mají být ve spodní části,
+víko zůstane prázdné a jeho prostor se do zástavby nezapočítává.
+Tloušťka příčné výztuhy na dně z fotografií zatím není změřená.
+
+Zapsáno do plánu, README mechaniky a samostatného souboru
+[rozměry doručeného kufru](../mechanika/rozmery-doruceneho-kufru.md).
+CAD, parametry a exporty se tímto
+zápisem nemění; původní obálka 310 × 450 × 200 mm není důkazem usazení
+do doručeného kufru. Další mechanický krok: přizpůsobit rozložení
+potvrzeným rozměrům, ověřit výztuhu a znovu ověřit obálky/pohyb před tiskem.
+Jde pouze o dokumentační záznam, bez fyzické akceptace nebo nasazení.
+
 **D159 – 9. 10. 2026 – USB provisioning, OTA0.1.1 a backend po restartu.**
 Majitel požádal o provisioning připojeného ESP a potvrdil samostatnou desku
 bez pohonů a přesun datového kabelu z CH343 UART/COM7 na native USB/COM8.
