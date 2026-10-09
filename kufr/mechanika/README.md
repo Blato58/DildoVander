@@ -13,6 +13,8 @@ po horní okraj 4,5″ (114,3 mm). Zaokrouhlená obálka spodní části je tedy
 otevřený; veškerá mechanika a elektronika patří do spodní části a víko
 zůstane prázdné. Prostor víka se do zástavby nepočítá.
 Samostatný záznam: [rozměry doručeného kufru](rozmery-doruceneho-kufru.md).
+Katalogové rozměry všech potvrzených nákupů, zdroje a seznam chybějících
+měření: [rozměry nakoupených součástek](rozmery-nakoupenych-soucastek.md).
 
 Současný CAD a `parametry.json` stále používají původní pracovní prostor
 **310 × 450 × 200 mm (X × Y × Z)** a novým rozměrům nejsou přizpůsobené.
@@ -74,7 +76,7 @@ policí je rozvod, na ní powerbanka, na pravé PCA a dva zesilovače.
 | ESP32-S3 + OV5640 | Jedna horní zadní platforma; výměnný držák kamery míří přibližně 20° vzhůru. ESP leží přímo za kamerou, USB a FPC jsou přístupné. |
 | ICS43434 | Přední prostřední výškově posuvný držák, akustický port k návštěvníkovi. Oddělit PCB tenkou pěnou; port nezakrýt. |
 | PCA9685 | Pravá univerzální deska se štěrbinami, místo pro kabely ke všem šesti servům a U059. |
-| 2× zesilovač DFR0954 / MAX98357A | Dvě malé desky na pravé polici. Historický seznam potvrzuje jeden koupený zesilovač; druhý musí být pro dva samostatné reproduktory potvrzený/osazený. |
+| 2× zesilovač DFR0954 / MAX98357A | Dvě malé desky na pravé polici. Oba zesilovače jsou od 9. 10. potvrzené nákupy; fyzické osazení a propojení ještě vyžadují ověření. |
 | Joy-IT SBC-Buck02, PD trigger, pojistka a svorky | Spodní servisní deska pod powerbankou. Výška komponent včetně kabelů musí odpovídat volnému prostoru; nejsou to změřené tovární modely. |
 | MCP23017, Pixel Shifter a drobná logika | Zadní univerzální servisní deska. Zachovat elektrické oddělení a přístup ke konektorům. |
 | PTT, hlavní vypínač, PHYSICAL_ENABLE | Odnímatelný přední boční panel; otvory jsou pracovní a musí se porovnat s doručenými prvky. Dřevěný kufr se modelem neřeže. |
