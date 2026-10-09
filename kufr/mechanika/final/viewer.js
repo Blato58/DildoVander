@@ -16,20 +16,20 @@ gl.attachShader(program, shader(gl.VERTEX_SHADER, `
   attribute vec3 p,n; uniform mat4 projection,view,move; varying vec3 normal;
   void main(){gl_Position=projection*view*move*vec4(p,1.);normal=mat3(move)*n;}`));
 gl.attachShader(program, shader(gl.FRAGMENT_SHADER, `
-  precision mediump float; uniform vec3 color; uniform bool picking; uniform float highlight; varying vec3 normal;
+  precision mediump float; uniform vec3 color; uniform bool picking; uniform float highlight,opacity; varying vec3 normal;
   void main(){if(picking){gl_FragColor=vec4(color,1.);return;}
     float l=.48+.42*max(0.,dot(normalize(normal),normalize(vec3(.4,-.7,1.))))+.1*abs(normalize(normal).z);
-    gl_FragColor=vec4(mix(color*l,vec3(1.,.69,.12),highlight),1.);}`));
+    gl_FragColor=vec4(mix(color*l,vec3(1.,.69,.12),highlight),opacity);}`));
 gl.linkProgram(program);
 if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
 gl.useProgram(program);
 const loc = {};
-for (const name of ['projection', 'view', 'move', 'color', 'picking', 'highlight']) loc[name] = gl.getUniformLocation(program, name);
+for (const name of ['projection', 'view', 'move', 'color', 'picking', 'highlight', 'opacity']) loc[name] = gl.getUniformLocation(program, name);
 const pa = gl.getAttribLocation(program, 'p'), na = gl.getAttribLocation(program, 'n');
 gl.enableVertexAttribArray(pa);
 gl.enableVertexAttribArray(na);
 
-const colorKey = 'dildovander.f1.object-colors.v1';
+const colorKey = 'dildovander.f2.object-colors.v1';
 let savedColors = {}, storageMessage = 'Barvy se ukládají v tomto prohlížeči i po jeho zavření.';
 function validColor(value) { return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value); }
 function colorVector(value) { return [1, 3, 5].map(i => parseInt(value.slice(i, i + 2), 16) / 255); }
@@ -92,46 +92,120 @@ function lift(a) {
   const x = (a-d)/(t-2*d);
   return model.mechanism.lift*(10*x**3-15*x**4+6*x**5);
 }
-let yaw = -1.05, pitch = .66, distance = 1300, drag = null, showWands = true;
+const trayAngles = Array(model.mechanism.count || 6).fill(0);
+const routes = model.routes || [];
+const routesById = new Map(routes.map(route => [route.id,route]));
+const hiddenMeshes = new Set(), hiddenGroups = new Set();
+const assemblyGuide = model.assemblyGuide || {steps:[]};
+let mode = 'operation', assemblyIndex = -1, isolateName = null;
+let yaw = -1.05, pitch = .66, distance = 1050, drag = null;
+let automaticFit = true;
+let cameraTarget = [(model.case?.inside_x || 431.8)/2,(model.case?.inside_y || 266.7)/2,65];
 let dragDistance = 0;
 let shiftDown = false, inspectEnabled = false, hovered = null, pinned = null, pointer = null;
 let projection, view, frameRequested = false;
+let selectedWire = '', selectedEndpoint = '';
+let hoveredConnection = null;
+let effect = null, effectFault = false;
+const lightStates = Array(trayAngles.length).fill(null);
 function inspecting() { return shiftDown || inspectEnabled; }
+function matchesPart(name, part) {
+  return name === part || name.startsWith(part.endsWith('*') ? part.slice(0,-1) : part.endsWith('_') ? part : part + '_');
+}
+function installedParts() { return assemblyGuide.steps.slice(0,assemblyIndex+1).flatMap(step => step.parts || []); }
+function newlyInstalled(mesh) {
+  return mode === 'assembly' && assemblyGuide.steps[assemblyIndex]?.parts.some(part => matchesPart(mesh.name,part));
+}
 function visible(mesh) {
-  if (['cover', 'fabric'].includes(mesh.group) && !el('cover').checked) return false;
+  if (hiddenMeshes.has(mesh.name) || hiddenGroups.has(mesh.group)) return false;
+  if (isolateName && mesh.name !== isolateName) return false;
+  if (mesh.transportOnly && mode !== 'transport') return false;
+  if (mesh.operationOnly && mode === 'transport') return false;
+  if ((mesh.group === 'wand' || mesh.name.startsWith('wand_')) && (mode === 'transport' || !el('wands').checked)) return false;
+  if (mesh.name === 'powerbank' && (mode === 'transport' || !el('bank').checked)) return false;
+  if ((mesh.group.includes('fabric') || mesh.group === 'textile' || mesh.name.startsWith('soft_liner_')) && (mode === 'transport' || !el('textile').checked)) return false;
+  if (mesh.group === 'cover' && !el('cover').checked) return false;
   if (mesh.group === 'case' && !el('case').checked) return false;
-  if ((mesh.name.startsWith('tray_') || mesh.group === 'wand') && !el('beds').checked) return false;
+  if (mesh.name.startsWith('tray_') && !el('beds').checked) return false;
   if (['hardware', 'moving_hw'].includes(mesh.group) && !el('hardware').checked) return false;
-  return !((mesh.group === 'wand' || mesh.name === 'powerbank') && !showWands);
+  if (mode === 'assembly' && !['case','lid','lid_hardware'].includes(mesh.group)) {
+    return installedParts().some(part => matchesPart(mesh.name,part));
+  }
+  return true;
+}
+function motionFor(mesh) {
+  if (mesh.motion) return mesh.motion;
+  const index = +(mesh.name.match(/_([1-6])$/)?.[1] || 0);
+  if (!index) return null;
+  if (/^(cam_|stock_horn_|coupler_)/.test(mesh.name)) return {type:'cam',index};
+  if (/^(tray_|u059_|led_|wand_|roller_|follower_|soft_liner_|tray_foam_|tray_fabric_)/.test(mesh.name)) return {type:'lift',index};
+  return null;
 }
 function movement(mesh) {
   if (mesh.group.startsWith('lid')) return rotX(-el('lid').value*Math.PI/180, model.hinge);
-  if (['tray_3','u059_3','led_3','wand_3','roller_3'].includes(mesh.name) ||
-      (mesh.name.startsWith('follower_') && mesh.name.endsWith('_3'))) return translate(lift(+el('lift').value));
-  if (['cam_3','stock_horn_3'].includes(mesh.name) ||
-      (mesh.name.startsWith('coupler_') && mesh.name.endsWith('_3'))) {
-    return rotX(el('lift').value*Math.PI/180, [0, model.mechanism.origin_y+model.mechanism.cam_y, model.mechanism.origin_z+model.mechanism.cam_z]);
+  const motion = motionFor(mesh), angle = motion ? trayAngles[motion.index-1] : 0;
+  if (motion?.type === 'lift') return translate(lift(angle));
+  if (motion?.type === 'cam') {
+    return rotX(angle*Math.PI/180, [0, model.mechanism.origin_y+model.mechanism.cam_y, model.mechanism.origin_z+model.mechanism.cam_z]);
   }
   return identity();
 }
 function project(mesh) {
-  const point = transform(projection, transform(view, transform(movement(mesh), [...mesh.center, 1])));
+  return projectPoint(transform(movement(mesh),[...mesh.center,1]).slice(0,3));
+}
+function projectPoint(position) {
+  const point = transform(projection, transform(view, [...position, 1]));
   if (point[3] <= 0 || Math.abs(point[2]/point[3]) > 1) return null;
   return [(point[0]/point[3]+1)*canvas.clientWidth/2, (1-point[1]/point[3])*canvas.clientHeight/2];
 }
+function visibleCorners() {
+  const points = [];
+  for (const mesh of model.meshes.filter(visible)) {
+    const matrix = movement(mesh);
+    for (let corner=0; corner<8; corner++) {
+      const point = [0,1,2].map(axis => mesh.bounds[axis+((corner >> axis)&1)*3]);
+      points.push(transform(matrix,[...point,1]).slice(0,3));
+    }
+  }
+  return points;
+}
+function fitScene() {
+  const points = visibleCorners();
+  if (!points.length) return;
+  cameraTarget = [0,1,2].map(axis => (Math.min(...points.map(point=>point[axis]))+Math.max(...points.map(point=>point[axis])))/2);
+  const forward = [Math.cos(pitch)*Math.cos(yaw),Math.cos(pitch)*Math.sin(yaw),Math.sin(pitch)];
+  const right = norm(cross([0,0,1],forward)), up = cross(forward,right);
+  const tangent = Math.tan(.6/2), aspect = Math.max(.05,canvas.clientWidth/Math.max(1,canvas.clientHeight));
+  let requiredDistance = 75;
+  // Fit every transformed corner, including an open lid, with screen-space margin.
+  for (const point of points) {
+    const relative = subtract(point,cameraTarget);
+    const extent = Math.max(Math.abs(dot(relative,right))/(tangent*aspect),Math.abs(dot(relative,up))/tangent);
+    requiredDistance = Math.max(requiredDistance,dot(relative,forward)+extent*1.16);
+  }
+  distance = requiredDistance;
+}
 function renderMeshes(picking, selected) {
   gl.uniform1i(loc.picking, picking ? 1 : 0);
-  for (const mesh of model.meshes) {
+  const ordered = [...model.meshes].sort((a,b) => Number(['case','lid'].includes(a.group))-Number(['case','lid'].includes(b.group)));
+  for (const mesh of ordered) {
     if (!visible(mesh)) continue;
     gl.uniformMatrix4fv(loc.move, false, movement(mesh));
     const id = mesh.pickId;
-    gl.uniform3fv(loc.color, picking ? [(id & 255)/255, ((id >> 8) & 255)/255, ((id >> 16) & 255)/255] : mesh.color);
-    gl.uniform1f(loc.highlight, !picking && selected === mesh ? .65 : 0);
+    const ledIndex = +(mesh.name.match(/^led_([1-6])$/)?.[1] || 0);
+    const effectColor = ledIndex && lightStates[ledIndex-1];
+    const translucent = !picking && ['case','lid'].includes(mesh.group) && +el('case-opacity').value < 1;
+    gl.uniform1f(loc.opacity,translucent ? +el('case-opacity').value : 1);
+    if (translucent) { gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); }
+    else { gl.disable(gl.BLEND); gl.depthMask(true); }
+    gl.uniform3fv(loc.color, picking ? [(id & 255)/255, ((id >> 8) & 255)/255, ((id >> 16) & 255)/255] : effectColor || mesh.color);
+    gl.uniform1f(loc.highlight, !picking && selected === mesh ? .65 : !picking && newlyInstalled(mesh) ? .45 : 0);
     gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffer);
     gl.vertexAttribPointer(pa, 3, gl.FLOAT, false, 24, 0);
     gl.vertexAttribPointer(na, 3, gl.FLOAT, false, 24, 12);
     gl.drawArrays(gl.TRIANGLES, 0, mesh.count);
   }
+  gl.depthMask(true); gl.disable(gl.BLEND);
 }
 
 // A depth-tested ID pass hits the actual visible triangles, including animated parts.
@@ -176,11 +250,11 @@ function svgElement(tag, attributes) {
   el('overlay').append(node);
   return node;
 }
-function label(name, x, y) {
+function label(name, x, y,container='names') {
   const node = document.createElement('span');
   node.className = 'object-name'; node.textContent = name;
   node.style.left = x+'px'; node.style.top = y+'px';
-  el('names').append(node);
+  el(container).append(node);
   return node;
 }
 function allNames() {
@@ -237,42 +311,112 @@ function allNames() {
     svgElement('line', {x1:point[0],y1:point[1],x2:x+w/2,y2:y+h/2,stroke:'#776c5b','stroke-opacity':'.35'});
   }
 }
-function connectionsFor(mesh) { return model.connections.filter(edge => edge.from === mesh.name || edge.to === mesh.name); }
-function drawConnections(mesh) {
-  const start = project(mesh);
-  if (!start) return;
-  const bundles = new Map();
-  for (const edge of connectionsFor(mesh)) {
-    const name = edge.from === mesh.name ? edge.to : edge.from;
-    if (!bundles.has(name)) bundles.set(name, []);
-    bundles.get(name).push(edge);
+function componentOf(endpoint) { return model.endpoints?.[endpoint]?.component || (endpoint || '').split(':')[0]; }
+function physicalEndpoint(route,side) {
+  const bankAbsent = mode === 'transport' || !el('bank').checked;
+  return bankAbsent && route['transport_'+side] || route[side];
+}
+function routePoints(route) {
+  const bankAbsent = mode === 'transport' || !el('bank').checked;
+  const parked = bankAbsent && (route.transport_points || route.disconnected_points);
+  const points = (parked || route.points).map(point => [...point]);
+  if (parked) return points;
+  // Fixed trunks stay in CAD coordinates. Only declared moving points deform.
+  const transforms = route.moving_points || {};
+  for (let i = 0; i < points.length; i++) {
+    const endpoint = transforms[i] || (i === 0 ? route.from : i === points.length-1 ? route.to : '');
+    const mesh = meshesByName.get(componentOf(endpoint));
+    if (mesh && motionFor(mesh)) points[i] = transform(movement(mesh),[...points[i],1]).slice(0,3);
   }
-  for (const [name, edges] of bundles) {
-    const other = meshesByName.get(name);
-    const end = project(other);
-    if (!end) continue;
-    const dx = end[0]-start[0], dy = end[1]-start[1], length = Math.hypot(dx,dy);
-    const perpendicular = length > 1 ? [-dy/length,dx/length] : [1,0];
-    // Fan parallel nets apart so GND cannot paint over power, I2C or OE.
-    for (const [index, edge] of edges.entries()) {
-      const offset = (index-(edges.length-1)/2)*24;
-      const angle = index*2*Math.PI/edges.length;
-      const displacement = length > 1 ? perpendicular.map(v => v*offset) : [32*Math.cos(angle),32*Math.sin(angle)];
-      const control = [(start[0]+end[0])/2+displacement[0], (start[1]+end[1])/2+displacement[1]];
-      const color = {power:'#c02b25',signal:'#256fb2',ground:'#655d55'}[edge.kind];
-      svgElement('path', {
-        d:`M ${start[0]} ${start[1]} Q ${control[0]} ${control[1]} ${end[0]} ${end[1]}`,
-        fill:'none',stroke:color,'stroke-width':2,'stroke-dasharray':visible(other)?'':'6 4',
-        'data-from':edge.from,'data-to':edge.to,'data-kind':edge.kind,
-      });
+  return points;
+}
+function connectionsFor(mesh) {
+  return routes.filter(route => componentOf(route.from) === mesh.name || componentOf(route.to) === mesh.name);
+}
+function scopedRoutes(mesh) {
+  const wire = selectedWire || hoveredConnection?.route, endpoint = selectedEndpoint || (!selectedWire && hoveredConnection?.endpoint);
+  let selected = wire ? [routesById.get(wire)].filter(Boolean) : mesh ? connectionsFor(mesh) : [];
+  if (endpoint) selected = routes.filter(route => route.from === endpoint || route.to === endpoint || physicalEndpoint(route,'from') === endpoint || physicalEndpoint(route,'to') === endpoint);
+  const scope = el('wire-scope').value;
+  if (scope === 'net' || scope === 'bundle') {
+    const keys = new Set(selected.map(route => route[scope]));
+    selected = routes.filter(route => route[scope] && keys.has(route[scope]));
+  }
+  return selected;
+}
+function wireColor(route) { return {power:'#b6322b',signal:'#287ab0',ground:'#73685d'}[route.kind] || '#a36e27'; }
+function routeIsInstalled(route) {
+  return mode !== 'assembly' || assemblyGuide.steps.slice(0,assemblyIndex+1).some(step => (step.wires || []).includes(route.id));
+}
+function drawRoutes(selected) {
+  const selectedIds = new Set(scopedRoutes(selected).map(route => route.id));
+  for (const route of routes.filter(route => routeIsInstalled(route) && (el('wires').checked || selectedIds.has(route.id)))) {
+    const points = routePoints(route).map(projectPoint);
+    if (points.some(point => !point)) continue;
+    const active = selectedIds.has(route.id);
+    svgElement('polyline', {
+      points:points.map(point => point.join(',')).join(' '),fill:'none',
+      stroke:wireColor(route),'stroke-width':active ? 3.5 : 1.2,
+      'stroke-opacity':active ? 1 : .5,'data-wire-id':route.id,
+      'data-from':route.from,'data-to':route.to,'data-kind':route.kind,
+      'data-net':route.net || '', 'data-bundle':route.bundle || '',
+    });
+    if (active) {
+      for (const moving of route.moving_endpoints || []) {
+        const index = moving.endpoint === route.from ? 0 : points.length-1;
+        const neighbour = index === 0 ? 1 : index-1;
+        svgElement('line',{x1:points[index][0],y1:points[index][1],x2:points[neighbour][0],y2:points[neighbour][1],
+          stroke:'#b79852','stroke-width':4,'stroke-dasharray':'4 3','data-flexible':route.id});
+        label(route.id+' · pohyblivý konec, aproximace smyčky',points[neighbour][0]+5,points[neighbour][1]-16);
+      }
     }
-    svgElement('circle', {cx:end[0],cy:end[1],r:4,fill:'#655d55'});
-    label(other.name+(visible(other)?'':' (skryto)'), Math.max(0,Math.min(canvas.clientWidth-170,end[0]+6)), Math.max(0,Math.min(canvas.clientHeight-24,end[1])));
+    if (!active && !inspecting()) continue;
+    for (const [index,endpoint] of [[0,physicalEndpoint(route,'from')],[points.length-1,physicalEndpoint(route,'to')]]) {
+      const point = points[index];
+      svgElement('circle',{cx:point[0],cy:point[1],r:active ? 4 : 2.5,
+        fill:wireColor(route),'data-endpoint':endpoint,'data-wire-id':route.id});
+      if (active) {
+        const disconnected = endpoint !== route.from && index === 0;
+        label(endpoint+(disconnected ? ' · odpojeno / parkováno' : ''),point[0]+5,point[1]+5);
+      }
+    }
   }
+}
+function wireHit() {
+  if (!pointer || !inspecting()) return null;
+  const rect = canvas.getBoundingClientRect(), point = [pointer[0]-rect.left,pointer[1]-rect.top];
+  let best = null, bestDistance = 7;
+  function distanceToSegment(start,end) {
+    const dx = end[0]-start[0], dy = end[1]-start[1], length = dx*dx+dy*dy;
+    const t = length ? Math.max(0,Math.min(1,((point[0]-start[0])*dx+(point[1]-start[1])*dy)/length)) : 0;
+    return Math.hypot(point[0]-start[0]-t*dx,point[1]-start[1]-t*dy);
+  }
+  const selectedIds = new Set(scopedRoutes(pinned || hovered).map(route=>route.id));
+  const projected = routes.filter(route => routeIsInstalled(route) && (el('wires').checked || selectedIds.has(route.id)))
+    .map(route=>({route,points:routePoints(route).map(projectPoint)})).filter(item=>item.points.every(Boolean));
+  // Endpoint markers take priority over line segments, including crossings.
+  for (const {route,points} of projected) {
+    for (const [index,endpoint] of [[0,physicalEndpoint(route,'from')],[points.length-1,physicalEndpoint(route,'to')]]) {
+      const d = Math.hypot(point[0]-points[index][0],point[1]-points[index][1]);
+      if (d < bestDistance) { best = {route:route.id,endpoint}; bestDistance = d; }
+    }
+  }
+  if (best) return best;
+  for (const {route,points} of projected) {
+    for (let i=1; i<points.length; i++) {
+      const d = distanceToSegment(points[i-1],points[i]);
+      if (d < bestDistance) { best = {route:route.id,endpoint:''}; bestDistance = d; }
+    }
+  }
+  return best;
 }
 let displayedMesh = undefined;
 function updatePanel(mesh) {
-  el('inspector').hidden = !mesh && !inspectEnabled;
+  const wireInspection = !!(selectedWire || selectedEndpoint || hoveredConnection);
+  el('inspector').hidden = (!mesh && !inspectEnabled) || (wireInspection && !pinned);
+  // A hover card can appear under the pointer. Until pinned, canvas picking
+  // must still receive the next click; the empty Inspect selector stays usable.
+  el('inspector').style.pointerEvents = pinned || !mesh ? 'auto' : 'none';
   el('object-details').hidden = !mesh;
   el('unpin').hidden = !pinned;
   if (displayedMesh === mesh) return;
@@ -290,15 +434,13 @@ function updatePanel(mesh) {
   el('color').value = colorHex(mesh.color);
   el('storage-status').textContent = storageMessage;
   el('connections').replaceChildren();
-  const edges = connectionsFor(mesh);
+  const edges = scopedRoutes(mesh);
   el('empty-connections').hidden = edges.length > 0;
   el('empty-connections').textContent = mesh.name.startsWith('spare_') ? 'Rezervní díl není zapojený.' : 'Pro tento díl není v podkladech přiřazeno kabelové spojení.';
   for (const edge of edges) {
-    const other = meshesByName.get(edge.from === mesh.name ? edge.to : edge.from);
     const li = document.createElement('li');
-    li.textContent = `${meshesByName.get(edge.from).info.title} → ${meshesByName.get(edge.to).info.title}: ${edge.label}`;
+    li.textContent = edge.id+': '+edge.from+' → '+edge.to+' · '+edge.net+' · svazek '+(edge.bundle || 'neuveden');
     if (edge.note) { const note = document.createElement('small'); note.textContent = edge.note; li.append(note); }
-    if (!visible(other)) { const note = document.createElement('small'); note.textContent = 'Druhý objekt je nyní skrytý.'; li.append(note); }
     el('connections').append(li);
   }
   el('evidence').textContent = model.sources.map(source => `${source.name} (SHA-256 ${source.sha256})`).join('\n');
@@ -306,48 +448,54 @@ function updatePanel(mesh) {
 function updateObjectOptions() {
   const select = el('object'), current = select.value;
   select.replaceChildren(new Option('Vyberte objekt…', ''));
-  for (const mesh of model.meshes.filter(visible)) select.add(new Option(`${mesh.info.title} · ${mesh.name}`, mesh.name));
+  for (const mesh of model.meshes) select.add(new Option(`${mesh.info.title} · ${mesh.name}`, mesh.name));
   select.value = current;
 }
 let overlayLayoutKey = '';
 function updateOverlay(selected) {
-  const names = inspecting() && !selected;
+  const names = inspecting() && !selected && !selectedWire && !selectedEndpoint && !hoveredConnection;
   const mode = names ? 'names' : selected ? 'connections' : 'none';
   const panel = el('inspector');
   // Picking remains live; stable empty-space movement reuses the existing DOM layout.
   const key = JSON.stringify([
     mode,mode === 'connections' ? selected.name : '',canvas.clientWidth,canvas.clientHeight,
-    yaw,pitch,distance,el('lid').value,el('lift').value,
-    ...['cover','case','beds','hardware'].map(id=>el(id).checked),showWands,
+    yaw,pitch,distance,cameraTarget,el('lid').value,trayAngles,mode,assemblyIndex,selectedWire,selectedEndpoint,hoveredConnection,
+    el('wire-scope').value,el('wires').checked,el('dimensions').checked,
+    ...['cover','case','beds','hardware','wands','bank','textile'].map(id=>el(id).checked),
+    [...hiddenMeshes],[...hiddenGroups],isolateName,
     panel.hidden ? 0 : panel.offsetWidth,panel.hidden ? 0 : panel.offsetHeight,
   ]);
   if (key === overlayLayoutKey) return;
   overlayLayoutKey = key;
-  el('overlay').replaceChildren(); el('names').replaceChildren();
+  el('overlay').replaceChildren(); el('names').replaceChildren(); el('orientation').replaceChildren();
   if (names) allNames();
-  else if (selected) drawConnections(selected);
+  drawRoutes(selected);
+  if (el('dimensions').checked) drawDimensions();
+  drawOrientation();
 }
 function draw() {
   const ratio = devicePixelRatio || 1;
   const w = Math.max(1,Math.round(canvas.clientWidth*ratio)), h = Math.max(1,Math.round(canvas.clientHeight*ratio));
   if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
   gl.viewport(0,0,w,h); gl.enable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE); gl.disable(gl.BLEND);
-  const target = [220,165,155], fitDistance = distance*Math.max(1,.9/(w/h));
+  if (automaticFit) fitScene();
+  const target = cameraTarget, fitDistance = distance;
   const eye = [target[0]+fitDistance*Math.cos(pitch)*Math.cos(yaw),target[1]+fitDistance*Math.cos(pitch)*Math.sin(yaw),target[2]+fitDistance*Math.sin(pitch)];
   projection = perspective(w/h); view = look(eye,target);
   gl.uniformMatrix4fv(loc.projection,false,projection); gl.uniformMatrix4fv(loc.view,false,view);
-  if (pinned && !visible(pinned)) pinned = null;
   hovered = inspecting() && !drag ? pick() : null;
+  hoveredConnection = inspecting() && !drag && !selectedWire && !selectedEndpoint ? wireHit() : null;
   const selected = pinned || hovered;
   gl.clearColor(.937,.922,.894,1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   renderMeshes(false, hovered || selected);
-  el('liftvalue').textContent = lift(+el('lift').value).toFixed(1)+' mm';
+  el('liftvalue').textContent = lift(trayAngles[+el('tray').value-1] || 0).toFixed(1)+' mm';
   el('lidvalue').textContent = el('lid').value+'°';
   el('inspect').setAttribute('aria-pressed', String(inspectEnabled));
   el('inspect-hint').hidden = !inspecting();
   el('inspect-hint').textContent = pinned ? `Připnuto: ${pinned.name}. Klik na jiný objekt změní výběr; klik do prázdna nebo Zrušit výběr jej zruší.` : selected ? 'Klik na objekt připne jeho kartu a umožní změnit barvu.' : 'Inspect: názvy všech objektů zapnutých vrstev. Najeďte na díl; Servis odkryje elektroniku.';
   canvas.style.cursor = inspecting() ? 'crosshair' : drag ? 'grabbing' : 'grab';
   updatePanel(selected);
+  updateWireDetails();
   updateOverlay(selected);
 }
 function requestDraw() {
@@ -357,9 +505,15 @@ function requestDraw() {
 }
 function layersChanged() { displayedMesh = undefined; updateObjectOptions(); requestDraw(); }
 canvas.addEventListener('pointerdown', event => {
+  event.preventDefault(); // Shift inspection must not extend browser text selection.
   pointer = [event.clientX,event.clientY];
   if (inspecting()) {
-    draw(); pinned = hovered; requestDraw();
+    draw();
+    const hit = wireHit();
+    selectedWire = hit?.route || ''; selectedEndpoint = hit?.endpoint || '';
+    pinned = hit ? null : hovered;
+    el('wire').value = selectedWire; el('endpoint').value = selectedEndpoint;
+    displayedMesh = undefined; updateWireDetails(); requestDraw();
     return;
   }
   drag = [event.clientX,event.clientY]; dragDistance = 0; canvas.setPointerCapture(event.pointerId);
@@ -389,10 +543,18 @@ canvas.addEventListener('pointermove', event => {
 });
 canvas.addEventListener('pointerleave', () => { pointer = null; requestDraw(); });
 canvas.addEventListener('wheel', event => {
-  event.preventDefault(); distance = Math.max(250,Math.min(2000,distance*Math.exp(event.deltaY*.001))); requestDraw();
+  event.preventDefault(); automaticFit = false;
+  distance = Math.max(75,Math.min(8000,distance*Math.exp(event.deltaY*.001))); requestDraw();
 }, {passive:false});
-el('inspector').addEventListener('pointerenter', () => { if (!pinned && displayedMesh) pinned = displayedMesh; pointer = null; requestDraw(); });
-function closeInspect() { shiftDown = false; inspectEnabled = false; pinned = null; hovered = null; requestDraw(); }
+el('inspector').addEventListener('pointerenter', () => {
+  if (!pinned) return;
+  pointer = null; requestDraw();
+});
+function clearWireSelection() {
+  selectedWire = ''; selectedEndpoint = ''; hoveredConnection = null;
+  el('wire').value = ''; el('endpoint').value = '';
+}
+function closeInspect() { shiftDown = false; inspectEnabled = false; pinned = null; hovered = null; clearWireSelection(); requestDraw(); }
 document.addEventListener('keydown', event => {
   if (event.key === 'Shift' && !shiftDown) { shiftDown = true; requestDraw(); }
   if (event.key === 'Escape') closeInspect();
@@ -403,8 +565,11 @@ document.addEventListener('keyup', event => {
 window.addEventListener('blur', () => { shiftDown = false; drag = null; pointer = null; requestDraw(); });
 el('inspect').onclick = () => { inspectEnabled = !inspectEnabled; if (!inspectEnabled) pinned = null; requestDraw(); };
 el('close-inspect').onclick = closeInspect;
-el('unpin').onclick = () => { pinned = null; pointer = null; requestDraw(); };
-el('object').onchange = () => { pinned = meshesByName.get(el('object').value) || null; pointer = null; requestDraw(); };
+el('unpin').onclick = () => { pinned = null; pointer = null; clearWireSelection(); requestDraw(); };
+el('object').onchange = () => {
+  clearWireSelection(); displayedMesh = undefined;
+  pinned = meshesByName.get(el('object').value) || null; pointer = null; updateWireDetails(); requestDraw();
+};
 el('color').oninput = () => {
   if (!displayedMesh || !validColor(el('color').value)) return;
   pinned = displayedMesh;
@@ -416,20 +581,255 @@ el('reset-color').onclick = () => {
   pinned = displayedMesh; delete savedColors[pinned.name]; pinned.color = [...pinned.originalColor];
   el('color').value = colorHex(pinned.color); saveColors(); requestDraw();
 };
-for (const id of ['lid','lift']) el(id).oninput = requestDraw;
+el('lid').oninput = requestDraw;
+el('lift').oninput = () => {
+  if (effect || effectFault || mode === 'transport' || mode === 'assembly') return;
+  trayAngles[+el('tray').value-1] = +el('lift').value; requestDraw();
+};
+el('tray').onchange = () => { el('lift').value = trayAngles[+el('tray').value-1]; requestDraw(); };
 for (const id of ['cover','case','beds','hardware']) el(id).oninput = layersChanged;
-el('open').onclick = () => {
-  el('lid').value = 105; el('lift').value = 160; el('cover').checked = true; el('case').checked = true; el('beds').checked = true;
-  showWands = true; layersChanged();
+el('open').onclick = () => setMode('operation');
+el('service').onclick = () => setMode('service');
+el('closed').onclick = () => setMode('transport');
+el('mode').onchange = () => setMode(el('mode').value);
+for (const id of ['wands','bank','textile','wires','dimensions','case-opacity']) el(id).oninput = layersChanged;
+for (const name of ['top','front','side','overview']) el('view-'+name).onclick = () => setView(name);
+el('view-reset').onclick = resetView;
+el('hide-object').onclick = () => { if (pinned) hiddenMeshes.add(pinned.name); layersChanged(); };
+el('isolate-object').onclick = () => { isolateName = pinned?.name || null; layersChanged(); };
+el('show-all').onclick = () => { hiddenMeshes.clear(); hiddenGroups.clear(); isolateName = null; buildTree(); layersChanged(); };
+el('zoom-object').onclick = () => { if (pinned) zoomObject(pinned); };
+el('wire').onchange = () => {
+  pinned = null; hovered = null; hoveredConnection = null; pointer = null;
+  selectedWire = el('wire').value; selectedEndpoint = ''; el('endpoint').value = '';
+  displayedMesh = undefined; updateWireDetails(); requestDraw();
 };
-el('service').onclick = () => {
-  el('cover').checked = false; el('beds').checked = false; el('case').checked = false; el('lid').value = 105; el('lift').value = 0;
-  showWands = false; layersChanged();
+el('endpoint').onchange = () => {
+  pinned = null; hovered = null; hoveredConnection = null; pointer = null;
+  selectedEndpoint = el('endpoint').value; selectedWire = ''; el('wire').value = '';
+  displayedMesh = undefined; updateWireDetails(); requestDraw();
 };
-el('closed').onclick = () => {
-  el('lid').value = 0; el('lift').value = 0; el('cover').checked = true; el('case').checked = true; el('beds').checked = true;
-  showWands = false; layersChanged();
+el('wire-scope').onchange = () => { displayedMesh = undefined; updateWireDetails(); requestDraw(); };
+el('assembly-next').onclick = () => moveAssembly(1);
+el('assembly-prev').onclick = () => moveAssembly(-1);
+el('assembly-restart').onclick = () => { setMode('assembly'); };
+el('play-main').onclick = () => startEffect('main');
+el('play-short').onclick = () => startEffect('short');
+el('effect-stop').onclick = stopEffect;
+el('service-reset').onclick = () => {
+  if (mode !== 'service') return;
+  effect = null; effectFault = false; trayAngles.fill(0); lightStates.fill(null);
+  el('effect-phase').textContent = '';
+  el('lift').disabled = false; el('lift').value = 0;
+  updateEffectControls();
+  updateEffectStatus('Servisní reset modelu. Fyzická poloha musí být ručně zkontrolována.'); requestDraw();
 };
-window.addEventListener('resize', requestDraw);
-updateObjectOptions(); draw();
-window.F1 = {draw, meshes:model.meshes.length};
+function resetView() {
+  automaticFit = true; setView('overview');
+}
+function setView(name) {
+  const views = {top:[-Math.PI/2,Math.PI/2-.001],front:[-Math.PI/2,.01],side:[0,.01],overview:[-1.05,.66]};
+  [yaw,pitch] = views[name] || views.overview; requestDraw();
+}
+function zoomObject(mesh) {
+  automaticFit = false;
+  cameraTarget = transform(movement(mesh),[...mesh.center,1]).slice(0,3);
+  distance = Math.max(75,Math.max(...[0,1,2].map(i=>mesh.bounds[i+3]-mesh.bounds[i]))*4); requestDraw();
+}
+function buildTree() {
+  el('tree').replaceChildren();
+  const titles = {case:'Dřevěný kufr',lid:'Víko',fixed:'Rám a nosiče',moving:'Mechanismy',moving_hw:'Pohyblivé díly',hardware:'Elektronika a spoje',cover:'Kryty',fabric:'Textil',lid_fabric:'Textil víka',bond:'Lepené spoje',fastener:'Spojovací materiál',wand:'Vyjímatelné hůlky',restraint:'Přepravní zajištění'};
+  for (const group of [...new Set(model.meshes.map(mesh=>mesh.group))]) {
+    const section = document.createElement('details'), summary = document.createElement('summary');
+    const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = !hiddenGroups.has(group);
+    checkbox.setAttribute('aria-label','Zobrazit vrstvu '+(titles[group] || group));
+    checkbox.onchange = () => { checkbox.checked ? hiddenGroups.delete(group) : hiddenGroups.add(group); layersChanged(); };
+    summary.append(checkbox);
+    const text = document.createElement('span'); text.textContent = ' '+(titles[group] || group); summary.append(text); section.append(summary);
+    for (const mesh of model.meshes.filter(item=>item.group === group)) {
+      const button = document.createElement('button'); button.textContent = mesh.name;
+      button.onclick = () => { pinned = mesh; inspectEnabled = true; pointer = null; clearWireSelection(); requestDraw(); };
+      section.append(button);
+    }
+    el('tree').append(section);
+  }
+}
+function setMode(value) {
+  if (effect) stopEffect();
+  mode = value; el('mode').value = value;
+  pinned = null; hovered = null; hoveredConnection = null; pointer = null;
+  clearWireSelection(); displayedMesh = undefined;
+  el('object').value = ''; el('wire').value = ''; el('endpoint').value = ''; el('wire-scope').value = 'branch';
+  hiddenMeshes.clear(); hiddenGroups.clear(); isolateName = null;
+  const transport = mode === 'transport', service = mode === 'service';
+  el('lid').value = transport ? 0 : 105;
+  el('cover').checked = !service; el('case').checked = true; el('beds').checked = true; el('hardware').checked = true;
+  el('wands').checked = !transport && !service; el('bank').checked = !transport; el('textile').checked = !transport && !service;
+  el('wires').checked = service; el('case-opacity').value = service ? .2 : 1;
+  el('dimensions').checked = false;
+  if (transport || mode === 'assembly') trayAngles.fill(0);
+  el('lift').value = trayAngles[+el('tray').value-1] || 0;
+  el('lift').disabled = transport || mode === 'assembly' || effectFault;
+  el('service-reset').disabled = !service;
+  el('mode-note').textContent = transport ? 'Ruční přepravní sestava: všech šest pásků, prázdná lůžka, odpojená banka, parkovaný USB kabel. Stav pásků nelze elektronicky potvrdit.' : 'Jde o náhled sestavy. Přepnutí režimu nepohybuje fyzickým mechanismem.';
+  if (mode === 'assembly') assemblyIndex = -1;
+  if (!effectFault) {
+    el('effect-phase').textContent = '';
+    updateEffectStatus('Časování zdvihu je ilustrační do kalibrace. Lokální poslech tónů není fyzická přejímka.');
+  }
+  updateEffectControls();
+  buildTree(); updateAssembly(); updateTransportInstructions(); layersChanged(); updateWireDetails();
+}
+function materialLabel(id) {
+  const material = assemblyGuide.materialCatalog?.[id];
+  return typeof material === 'string' ? material : material?.label || id;
+}
+function updateAssembly() {
+  el('assembly-panel').hidden = mode !== 'assembly';
+  const step = assemblyGuide.steps[assemblyIndex];
+  el('assembly-title').textContent = step ? (assemblyIndex+1)+'/'+assemblyGuide.steps.length+' · '+step.title : 'Montáž od začátku';
+  el('assembly-text').textContent = step?.instruction || (assemblyGuide.steps.length ? 'Pokračujte prvním krokem. Viditelné díly se odvozují z dokončených kroků.' : 'Montážní data nejsou dostupná.');
+  el('assembly-check').textContent = step?.check || '';
+  el('assembly-parts').textContent = step?.partSummary ? 'Díly v tomto kroku:\n'+(Array.isArray(step.partSummary) ? step.partSummary.join('\n') : step.partSummary) : '';
+  el('assembly-materials').textContent = step ? 'Materiál:\n'+(step.materials || []).map(item=>'• '+item.quantity+' × '+materialLabel(item.id)).join('\n')+'\n\nNástroje:\n'+(step.tools || []).map(tool=>'• '+tool).join('\n') : '';
+  el('assembly-depends').textContent = step?.depends?.length ? 'Předchůdci: '+step.depends.join(', ') : '';
+  el('assembly-prev').disabled = assemblyIndex < 0; el('assembly-next').disabled = assemblyIndex >= assemblyGuide.steps.length-1;
+}
+function updateTransportInstructions() {
+  el('transport-panel').hidden = mode !== 'transport';
+  for (const [target,instructions] of [
+    ['transport-instructions',assemblyGuide.transport],
+    ['recommission-instructions',assemblyGuide.recommission || assemblyGuide.startup],
+  ]) {
+    el(target).replaceChildren();
+    for (const instruction of instructions || []) {
+      const item = document.createElement('li');
+      item.textContent = typeof instruction === 'string' ? instruction : [instruction.title,instruction.instruction,instruction.check].filter(Boolean).join(' — ');
+      el(target).append(item);
+    }
+    if (!instructions?.length) {
+      const item = document.createElement('li'); item.textContent = 'Postup není v montážních datech dostupný.'; el(target).append(item);
+    }
+  }
+}
+function moveAssembly(delta) {
+  assemblyIndex = Math.max(-1,Math.min(assemblyGuide.steps.length-1,assemblyIndex+delta));
+  const step = assemblyGuide.steps[assemblyIndex]; if (step) setView(step.camera);
+  updateAssembly(); layersChanged();
+}
+function updateWireDetails() {
+  const entries = scopedRoutes(pinned || hovered);
+  const endpoint = selectedEndpoint || hoveredConnection?.endpoint;
+  const pin = model.endpoints?.[endpoint];
+  const pinNote = pin ? '\nPin '+endpoint+': '+pin.position_status+'; fyzický terminál '+pin.physical_terminal : '';
+  el('wire-details').textContent = entries.length ? entries.map(route=>route.id+': '+route.from+' → '+route.to+'; síť '+route.net+'; svazek '+route.bundle+'. '+(route.note || '')+((mode === 'transport' || !el('bank').checked) && route.transport_from ? ' Fyzický konec: '+route.transport_from+' — '+route.transport_connection : '')).join('\n')+pinNote+'\nPiny jsou návrhové obálky, smyčky zobrazují pouze aproximaci flexibility; nejde o změřené souřadnice.' : 'Vyberte vodič, pin nebo díl. Větev je konkrétní vodič; svazek a síť rozšíří výběr podle společných ID.'+pinNote;
+}
+function drawDimensions() {
+  const c = model.case || {inside_x:431.8,inside_y:266.7,base_height:114.3};
+  for (const [start,end,text] of [
+    [[0,0,0],[c.inside_x,0,0],'Vnitřní X '+c.inside_x+' mm'],
+    [[0,0,0],[0,c.inside_y,0],'Vnitřní Y '+c.inside_y+' mm'],
+    [[0,0,0],[0,0,c.base_height],'Spodní Z '+c.base_height+' mm'],
+  ]) {
+    const a = projectPoint(start), b = projectPoint(end); if (!a || !b) continue;
+    svgElement('line',{x1:a[0],y1:a[1],x2:b[0],y2:b[1],stroke:'#b79852','stroke-width':2});
+    label(text,(a[0]+b[0])/2,(a[1]+b[1])/2);
+  }
+}
+function drawOrientation() {
+  const c = model.case || {inside_x:431.8,inside_y:266.7};
+  for (const [position,text] of [
+    [[c.inside_x/2,0,0],'PŘEDEK · ovládání'],
+    [[c.inside_x/2,c.inside_y,0],'ZÁDA · panty'],
+    [[0,c.inside_y/2,0],'LEVÁ'],
+    [[c.inside_x,c.inside_y/2,0],'PRAVÁ'],
+  ]) {
+    const point = projectPoint(position); if (!point) continue;
+    label(text,Math.max(4,Math.min(canvas.clientWidth-125,point[0])),Math.max(4,Math.min(canvas.clientHeight-22,point[1])),'orientation');
+  }
+}
+function updateEffectStatus(text) { el('effect-status').textContent = text; }
+function updateEffectControls() {
+  el('play-main').disabled = mode !== 'operation' || effectFault || !!effect;
+  el('play-short').disabled = mode !== 'operation' || effectFault || !!effect;
+  el('effect-stop').disabled = !effect;
+}
+let audioContext = null, toneOscillator = null;
+function stopTone() { if (toneOscillator) { toneOscillator.stop(); toneOscillator = null; } }
+function playTone(frequency) {
+  stopTone();
+  if (!audioContext || !el('audio-preview').checked || !frequency) return;
+  const gain = audioContext.createGain(); gain.gain.value = .035;
+  toneOscillator = audioContext.createOscillator(); toneOscillator.type = 'sine';
+  toneOscillator.frequency.value = frequency; toneOscillator.connect(gain); gain.connect(audioContext.destination); toneOscillator.start();
+}
+function startEffect(kind) {
+  if (mode !== 'operation' || effectFault || effect) return;
+  const phases = model.effects?.[kind];
+  if (!Array.isArray(phases) || !phases.length) { updateEffectStatus('Sdílená data efektů nejsou dostupná.'); return; }
+  if (el('audio-preview').checked && !audioContext && window.AudioContext) audioContext = new window.AudioContext();
+  audioContext?.resume()?.catch(() => updateEffectStatus('Lokální zvuk není dostupný; vizuální sekvence pokračuje bez zvuku.'));
+  effect = {phases,index:0,started:null,selected:+el('tray').value-1,initial:[...trayAngles]};
+  updateEffectControls();
+  el('lift').disabled = true;
+  updateEffectStatus('Ilustrační časování; zdvih vyžaduje kalibraci serva. Zvuk v prohlížeči je pouze lokální poslech tónů.');
+  requestAnimationFrame(tickEffect);
+}
+function stopEffect() {
+  if (!effect) return;
+  effect = null; effectFault = true; lightStates.fill(null); stopTone(); el('lift').disabled = true;
+  updateEffectControls();
+  updateEffectStatus('Stop: výstupy vypnuty, poloha modelu zůstává. Skutečná poloha je neznámá; ruční kontrola a explicitní servisní reset.');
+  requestDraw();
+}
+function targetIndexes(target,selected,fraction) {
+  if (typeof target === 'number') return [target-1];
+  if (target === 'all') return trayAngles.map((_,index)=>index);
+  if (target === 'next') return [(selected+1)%trayAngles.length];
+  if (target === 'previous') return [(selected+trayAngles.length-1)%trayAngles.length];
+  if (target === 'scan') return [Math.min(trayAngles.length-1,Math.floor(fraction*trayAngles.length))];
+  return [selected];
+}
+function tickEffect(timestamp) {
+  if (!effect) return;
+  const now = Number.isFinite(timestamp) ? timestamp : Date.now();
+  const phase = effect.phases[effect.index];
+  if (effect.started === null) {
+    effect.started = now; effect.initial = [...trayAngles];
+    playTone(phase.audio ? phase.tone_hz : 0);
+  }
+  const fraction = Math.min(1,(now-effect.started)/Math.max(1,phase.duration_ms));
+  const indexes = targetIndexes(phase.target,effect.selected,fraction);
+  lightStates.fill(null);
+  for (const index of indexes) {
+    if (index < 0 || index >= trayAngles.length) continue;
+    lightStates[index] = (phase.light || [0,0,0]).map(value=>Math.min(255,value)*(model.effects.max_brightness || 64)/(255*255));
+    if (phase.motion) {
+      const destination = phase.motion === 'raise' ? model.mechanism.travel_degrees : 0;
+      trayAngles[index] = effect.initial[index]+(destination-effect.initial[index])*fraction;
+    }
+  }
+  el('lift').value = trayAngles[+el('tray').value-1];
+  el('effect-phase').textContent = phase.phase+(phase.vibration ? ' · vibrace vybrané přihrádky (náhled)' : '');
+  if (fraction >= 1) {
+    effect.index++; effect.started = null; stopTone();
+    if (effect.index >= effect.phases.length) {
+      effect = null; lightStates.fill(null); el('lift').disabled = false;
+      updateEffectControls();
+      updateEffectStatus('Ilustrační sekvence dokončena. Náhled není zkouška fyzických výstupů.');
+    }
+  }
+  requestDraw(); if (effect) requestAnimationFrame(tickEffect);
+}
+for (let index=1; index<=trayAngles.length; index++) el('tray').add(new Option('Přihrádka '+index,String(index)));
+el('tray').value = '3';
+for (const route of routes) el('wire').add(new Option(route.id+' · '+route.from+' → '+route.to,route.id));
+for (const endpoint of [...new Set([...Object.keys(model.endpoints || {}),...routes.flatMap(route=>[route.from,route.to,route.transport_from])])].filter(Boolean).sort()) el('endpoint').add(new Option(endpoint,endpoint));
+el('mode').value = mode; el('wire-scope').value = 'branch'; el('case-opacity').value = 1;
+el('envelope-note').textContent = 'Bezpečný vložitelný kvádr: '+(model.case?.safe_zone || [400,240,170]).join(' × ')+' mm. Zdvih '+model.mechanism.lift+' mm, '+trayAngles.length+' modulů. Korpus není určen k tisku.';
+updateObjectOptions(); buildTree(); updateAssembly(); updateTransportInstructions(); updateEffectControls(); draw();
+window.addEventListener('resize',requestDraw);
+window.F2 = {draw,meshes:model.meshes.length,lift,movement,visible,routePoints,setMode,setView,moveAssembly,startEffect,stopEffect,
+  projectPoint,visibleCorners,
+  state:()=>({mode,trayAngles:[...trayAngles],assemblyIndex,effectFault,selectedWire,selectedEndpoint,pinned:pinned?.name || '',automaticFit,distance,cameraTarget:[...cameraTarget]}),routes:routes.map(route=>route.id)};
+window.F1 = window.F2;

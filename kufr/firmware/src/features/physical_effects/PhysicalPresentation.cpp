@@ -6,62 +6,65 @@ bool PhysicalPresentation::Raise(uint8_t compartment, const std::string& proposa
       !effects_.IsResting(compartment) ||
       !runtime_.BeginAutonomousPresentation(proposalId, compartment, snapshot)) return false;
   compartment_ = compartment;
-  search_ = 1;
-  pulses_ = 0;
-  phase_ = Phase::Search;
+  scoreIndex_ = 0;
+  phase_ = Phase::Score;
   phaseAt_ = nowMs_;
-  return effects_.Highlight(search_, 100, 40, 255);
+  if (!EnterScoreStep()) { DisableAndFault(); return false; }
+  return true;
+}
+
+unsigned PhysicalPresentation::StepCount() const {
+  return repeat_ ? sizeof(PresentationScore::Short) / sizeof(PresentationScore::Step)
+                 : sizeof(PresentationScore::Main) / sizeof(PresentationScore::Step);
+}
+
+const PresentationScore::Step& PhysicalPresentation::CurrentStep() const {
+  return repeat_ ? PresentationScore::Short[scoreIndex_] : PresentationScore::Main[scoreIndex_];
+}
+
+bool PhysicalPresentation::EnterScoreStep() {
+  const auto& step = CurrentStep();
+  uint8_t target = compartment_;
+  if (step.target > 0) target = static_cast<uint8_t>(step.target);
+  else if (step.target == -2) target = compartment_ % 6 + 1;
+  else if (step.target == -3) target = (compartment_ + 4) % 6 + 1;
+  const uint8_t mask = step.target == -1 ? 63 : static_cast<uint8_t>(1u << (target - 1));
+  if (!effects_.Illuminate(mask, step.red, step.green, step.blue)) return false;
+  if (step.vibration && !effects_.StartVibration(compartment_)) return false;
+  if (audio_ && step.toneHz) audio_->Cue(step.toneHz, 100);
+  return true;
 }
 
 void PhysicalPresentation::Tick(uint64_t nowMs) {
   nowMs_ = nowMs;
   if (phase_ == Phase::Idle) return;
   if (!effects_.Healthy() || nowMs < phaseAt_) { DisableAndFault(); return; }
-  const uint64_t elapsed = nowMs - phaseAt_;
   switch (phase_) {
     case Phase::Idle: return;
-    case Phase::Search:
-      if (elapsed < 100) return;
-      if (++search_ <= 6) {
-        if (!effects_.Highlight(search_, 100, 40, 255)) DisableAndFault();
-      } else {
-        phase_ = Phase::Highlight;
-        if (!effects_.Highlight(compartment_, 255, 170, 30)) DisableAndFault();
-      }
-      phaseAt_ = nowMs;
-      return;
-    case Phase::Highlight:
-      if (elapsed < 400) return;
-      if (!effects_.StartVibration(compartment_)) { DisableAndFault(); return; }
-      phase_ = Phase::Vibration;
-      phaseAt_ = nowMs;
-      return;
-    case Phase::Vibration:
-      if (elapsed < 150) return;
+    case Phase::Score:
+      if (nowMs - phaseAt_ < CurrentStep().durationMs) return;
       effects_.Disable();
-      ++pulses_;
-      phase_ = Phase::Gap;
-      phaseAt_ = nowMs;
-      return;
-    case Phase::Gap:
-      if (elapsed < 150) return;
-      if (pulses_ < 3) {
-        if (!effects_.StartVibration(compartment_)) { DisableAndFault(); return; }
-        phase_ = Phase::Vibration;
+      if (!effects_.Healthy()) { DisableAndFault(); return; }
+      if (++scoreIndex_ < StepCount()) {
+        if (!EnterScoreStep()) { DisableAndFault(); return; }
       } else {
-        if (!effects_.Move(compartment_, true)) { DisableAndFault(); return; }
+        if (!effects_.Highlight(compartment_, 255, 220, 110) ||
+            !effects_.Move(compartment_, true)) { DisableAndFault(); return; }
+        if (audio_) audio_->Cue(PresentationScore::RevealToneHz, 180);
         phase_ = Phase::Raise;
       }
       phaseAt_ = nowMs;
       return;
     case Phase::Raise:
-      if (effects_.IsRaised(compartment_)) phase_ = Phase::Raised;
+      if (effects_.IsRaised(compartment_)) {
+        phase_ = Phase::Raised;
+        if (!effects_.Highlight(compartment_, 255, 170, 30)) DisableAndFault();
+      }
       return;
     case Phase::Raised:
       if (!effects_.IsRaised(compartment_)) DisableAndFault();
       return;
-    case Phase::Lower:
-      return;
+    case Phase::Lower: return;
   }
 }
 
@@ -74,6 +77,7 @@ bool PhysicalPresentation::IsResting(uint8_t compartment) const {
 }
 bool PhysicalPresentation::Lower(uint8_t compartment) {
   if (!IsRaised(compartment) || !effects_.Move(compartment, false)) return false;
+  if (!effects_.Highlight(compartment_, 80, 30, 10)) { DisableAndFault(); return false; }
   phase_ = Phase::Lower;
   return true;
 }
@@ -82,10 +86,13 @@ bool PhysicalPresentation::Complete(uint8_t compartment) {
   effects_.Disable();
   if (!effects_.Healthy() || !runtime_.CompleteAutonomousPresentation(compartment)) return false;
   phase_ = Phase::Idle;
+  repeat_ = true;
+  if (audio_) audio_->StopCues();
   compartment_ = 0;
   return effects_.Highlight(0, 0, 0, 0);
 }
 void PhysicalPresentation::DisableAndFault() {
+  if (audio_) audio_->StopCues();
   effects_.Fault();
   effects_.Highlight(0, 0, 0, 0);
   phase_ = Phase::Idle;

@@ -985,10 +985,13 @@ veškerá mechanika a elektronika patří do spodní části, víko zůstává
 prázdné a jeho prostor se do zástavby nepočítá. Příčná výztuha na dně
 má podle majitele **5 mm**; další údaje o ní nejsou podmínkou rozvržení. Toto potvrzení
 nahrazuje původní předpoklad prostoru kufru. Aktuální
-[mechanický návrh F1](../mechanika/final/README.md) používá tyto vnitřní
-rozměry jako podklad pro nový tištěný korpus s prázdným víkem; není vložkou
-do dřevěné skořepiny. Starší CAD byl nahrazen. Geometrické ověření F1
-neuzavírá fyzickou přejímku osazení, pohybu, retence ani únosnosti.
+[mechanický návrh F2](../mechanika/final/README.md) je vložka do skutečného
+kufru bez nových otvorů v jeho stěnách. Nahrazuje chybný koncept tištěného
+korpusu F1. Majitel dále potvrdil vnější údaj výrobce 450 × 310 × 200 mm
+a bezpečný vložitelný kvádr 400 × 240 × 170 mm. Vložka používá šest
+samostatných modulů, dolní mechanické podpěry a ruční přepravní pásky;
+prázdné víko není konstrukčním zajištěním. CAD ověření není fyzická přejímka
+lepených kotev, pohybu, serva bez impulzů, kabeláže ani únosnosti.
 
 **Doplnění rozměrů majitelem 9. 10. 2026:** PTT 14×14×35 mm,
 PCA9685 25×70×15 mm a U059 podle výrobce 32×24×8 mm. Servo používá

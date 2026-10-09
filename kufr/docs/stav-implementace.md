@@ -1,10 +1,69 @@
 # Stav implementace AI kufru
 
+## F2 — vložka do skutečného kufru, 10. 10. 2026
+
+F1 nový tištěný korpus je nahrazen vložkou do vlastněného dřevěného kufru
+bez nových otvorů. Použity jsou potvrzené obálky 450 × 310 × 200 mm,
+spodní vnitřek 431,8 × 266,7 × 114,3 mm a bezpečný kvádr 400 × 240 × 170 mm.
+[Specifikace](../mechanika/final/SPECIFIKACE.md) a `parameters.json` řídí
+šest modulů na rozteči 48 mm, zdvih 16 mm, čtyři panely, dvě Al lišty
+a čtyři lepené Al kotvy. Banka, hůlky a textil nenesou konstrukci.
+Přeprava používá šest samostatných pásků a parkování odpojeného USB.
+
+Změněny jsou zdroje `mechanika/final/` včetně kabeláže, skutečných spojů,
+montážního postupu, vieweru a balení. 135 elektrických propojení a GPIO
+zůstávají zachované; doplněné pasivní USB zakončení je výslovně v materiálu.
+`effects.json` a generovaný `PresentationScore.h` sjednocují hlavní a krátkou
+choreografii s `PhysicalPresentation`, světly a volitelnými místními tóny
+existujícího I2S adaptéru. Stop neprovádí automatický návrat.
+
+Provedeno: 68 Python testů, 16 testů vieweru, hostitelský test fyzických
+efektů a `pio run -e esp32-s3-idf` PASS (RAM 91 644 B, flash 1 746 349 B).
+Geometrický výsledek je `PASS_CAD_NOT_PHYSICAL_ACCEPTANCE`: 32 STL typů /
+47 výtisků, 69 CAD souborů, zpětné načtení STEP, uzavřené propojené STL,
+tři celé sestavy, 102 poloh mechanismů, 36 poloh víka, 37 kroků vyjmutí
+banky a 24 dráh nástroje. 135 vodičů prošlo 25 467 BREP porovnáními bez
+kolizí či překročení bezpečné obálky; 352 stavů kontroluje vlastní
+překrývání vodičů. Otisk zdrojů během auditu byl stabilní. Zaplnění tras
+a počty materiálu v 15 krocích pro 589 dílů scény souhlasí.
+
+Skutečný browser na `http://127.0.0.1:8915/viewer.html`: všech 15 kroků
+vpřed i zpět a restart, všech šest dokončených výběrů, Shift na větvi
+D2-2, servu S1-S a I2C s šesti vodiči, bez chyb konzole. Ověřen i malý
+viewport 390 × 844. Nezávislé review vyřešilo kolize vedení, překrývání USB,
+zachytávání kliknutí kartou, degenerované STL držáků a kontrolu otisků ZIPu.
+Aktuální autorita je [verification.json](../mechanika/final/exports/verification.json).
+
+Celá regenerace 10. 10. 2026 skončila úspěšně včetně osmi prohlédnutých
+renderů, výkresů a samostatného ZIPu (43 498 347 B, SHA256
+`2a629efa6581eb6692943aa02bf244ced5c13c4ad11454c5467782fdde360c41`).
+Závěrečný browser načetl nové výstupy, zobrazil šest přepravních pásků
+a odpojené USB v držáku; konzole bez varování a chyb.
+Nezávislá kontrola ZIPu: CRC a přesný seznam 141 členů, 49 otisků zdrojů,
+91 otisků exportů a 69 CAD souborů PASS. Po rozbalení mimo repozitář
+prošlo 19 Inspect testů a 6 testů balení. V checkoutu platí všech 22
+lokálních Markdown odkazů; v ZIPu pouze odkaz README na samotný ZIP
+nemá cíl (archiv se do sebe záměrně nebalí). Referenční podklady jsou přiložené.
+
+Fyzická výroba, nalepení kotev, zkouška přepravy, kalibrace a nahrání
+firmware neproběhly. Neuzavřené jsou skutečné hůlky/pouzdra, servopáka,
+konektory, kamera/FPC, víko, ohyby kabelů, soudržnost dřeva/lepidla,
+zatížený zdvih a chování serva po vypnutí PWM. Podrobnosti a přejímka:
+[STAV F2](../mechanika/final/STAV.md), [MONTÁŽ](../mechanika/final/MONTÁŽ.md).
+Další fyzický krok: měrka a jeden modul, suché vložení a elektrická
+přejímka; až poté ostatní kusy. Historické výsledky F1 níže nejsou ověřením F2.
+
+## Historie před F2
+
+
 Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální i CI ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a E3a. Ad Hoc podpis a serverová publikace IPA/manifestu prošly CI a veřejným HTTPS testem; majitel potvrdil instalaci a spuštění na iPhonu 15 Pro (D70). D159 doložilo USB provisioning, iPhone BLE/domácí Wi-Fi, backend přihlášení po restartu a skutečnou OTA na0.1.1. Celá HW sestava, native LAN WSS/TLS a aktualizace IPA na telefonu zatím nemají úplnou runtime akceptaci. Hotový návrh není hotová implementace.
 
 [Implementační plán](implementacni-plan.md) určuje architekturu a akceptaci. [AGENTS.md](../../AGENTS.md) určuje pracovní postup AI. Tento soubor je jediný průběžný záznam postupu; README ho pouze odkazují.
 
 ## Předání další AI
+
+Aktuální mechanické předání je F2 v úvodu tohoto dokumentu; následuje
+historie F1 a předchozích softwarových etap.
 
 **9. 10. 2026 – F1 optimalizace kabeláže a rozložení ověřena v CAD.**
 PD trigger, měnič a jistič jsou u banky vlevo; měnič mezi maticemi

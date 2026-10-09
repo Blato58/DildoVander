@@ -1,5 +1,6 @@
 #pragma once
 #include <atomic>
+#include <array>
 #include <vector>
 #include <mutex>
 #include "driver/i2s_std.h"
@@ -9,8 +10,9 @@
 #include "PcmRateConverter.h"
 #include "VoiceAudioPort.h"
 #include "AudioBoardPort.h"
+#include "../physical_effects/PresentationAudioPort.h"
 
-class EspIdfVoiceAudio final : public VoiceAudioPort {
+class EspIdfVoiceAudio final : public VoiceAudioPort, public PresentationAudioPort {
  public:
   bool Initialize(bool nvsInitialized, AudioBoardPort* board = nullptr);
   void Continuous(bool enabled) { continuous_.store(enabled); }
@@ -22,9 +24,12 @@ class EspIdfVoiceAudio final : public VoiceAudioPort {
   bool Drain() override;
   void Stop() override;
   bool Failed() const override { return failed_.load(); }
+  void Cue(uint16_t frequencyHz, uint16_t durationMs) override;
+  void StopCues() override;
  private:
   static void CaptureTask(void* argument);
   void Capture();
+  void PumpCue();
   bool Mute(bool enabled);
   struct Frame { uint32_t epoch; uint16_t bytes; uint8_t pcm[960]; };
   i2s_chan_handle_t tx_ = nullptr, rx_ = nullptr;
@@ -34,6 +39,12 @@ class EspIdfVoiceAudio final : public VoiceAudioPort {
   std::atomic<uint32_t> epoch_{0};
   bool available_ = false;
   std::mutex muteGate_;
+  // Cue writes and voice DMA writes share a short critical section. Scheduling
+  // from the control task only updates atomics; synthesis runs on capture task.
+  std::mutex outputGate_;
+  std::atomic<uint32_t> cue_{0};
+  uint32_t cueSample_ = 0;
+  std::array<int32_t, 1280> cuePcm_{}; // Capture-owned; never double the task stack.
   AudioBoardPort* board_ = nullptr;
   PcmRateConverter outputRate_{24000, 32000};
 };

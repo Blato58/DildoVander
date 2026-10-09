@@ -1,101 +1,58 @@
-# Podklady, odhady a úplnost osazení F1
+# Podklady a otevřené vstupy F2
 
-Datum návrhu: 9. 10. 2026. Všechny délky v mm. Uživatelské zadání má přednost
-před historickými konstrukcemi. Byly přečteny rozměry, potvrzené zapojení,
-napájení, kamera, mechanické části plánu, README a aktuální předání v záznamu stavu.
-Převzaty byly fyzické údaje a funkční kontrakt; žádná tisknutelná geometrie.
+## Potvrzené údaje
 
-## Fotografie
+- Majitel: spodní vnitřek 431,8 × 266,7 × 114,3 mm, výztuha dna 5 mm.
+- Výrobce podle majitele: vnější 450 × 310 × 200 mm.
+- Majitel: kvádr 400 × 240 × 170 mm se vejde s rezervou.
+- [Inventář](exports/reference-sources.html#inventar) určuje elektroniku, množství
+  a doložené rozměry. Zakoupené rezervy zůstávají evidované.
+- [Zapojení](exports/reference-sources.html#zapojeni) určuje GPIO, kanály,
+  napájení a bezpečnostní zapojení. F2 je nemění.
 
-Originály šesti příloh jsou v `reference/`; soubor `reference/evidence.json`
-obsahuje jejich SHA-256. Obrázky se neupravovaly.
+Všechny fotografie `reference/photo-1.png` až `photo-6.png` byly prohlédnuty.
+Dokládají dřevěný kufr, povrch, příčnou výztuhu, kování a tvar hůlek.
+Fotografie je vizuální reference; perspektiva neposkytuje přesnou tloušťku
+stěny, výšku víka, polohu konektorů ani rozteč otvorů.
 
-| Pozorování | Co z něj vyplývá | Co neprokazuje |
+## Parametrické odhady, které je nutné potvrdit
+
+| Oblast | Použitý předpoklad | Praktický důsledek |
 | --- | --- | --- |
-| Obrázek 2 uvádí „about 19~20cm“ | Výchozí délka rekvizity 200; 12 mm podélná rezerva lůžka | Nejde o fyzické přeměření doručené hůlky |
-| Osa od okolí (235,722) k (554,103) v obrázku 800×800 | Viditelná délka asi 696 px; prsty zakrývají konec | Nelze z toho udělat přesnou metrologii |
-| Největší šířka ozdoby kolmo na osu přibližně 110–120 px | Poměr přibližně 0,16–0,17, tedy asi 30–35 mm při délce 190–200 | Perspektiva, ostré ozdoby a zakrytí přidávají nejistotu |
-| Dřík výrazně užší než ozdoba | Pro návrh konzervativní obálka Ø16 | Foto nenabízí samostatný boční pohled pro tloušťku |
-| Pouze přední pohled na hlavici | Zvolená výšková rezerva 28 a šířka 38 | Výška 28 není měřená ani přímo odvozená |
-| Obrázky 1 a 3 mají metr, ale neukazují oba konce měření | Souhlas s proporcemi dřevěného kufru | Není to nové přesné měření celé šířky/délky |
-| Obrázky 4–6 ukazují dřevěné víko, kování a příčnou lať | Vzhledová reference; servis je shora | Tloušťka víka, únosnost kování ani rozměr pouzdra hůlky nejsou známé |
+| Korpus | Stěna 9,1 mm, dno 6 mm, víko 79,7 mm, osa pantu a šířka/poloha výztuhy | Suché vložení a celý chod víka; korpus se nevyrábí |
+| Bezpečný kvádr | V půdorysu centrovaný | Ověřit jeho polohu ve skutečném kufru |
+| Hůlky | Délka 200 mm z popisku 19–20 cm; hlavice 38 × 28 × 55 mm, dřík Ø 16 mm | Změřit maximum včetně skutečného pouzdra; jinak nelze uzavřít volbu 6 pozic |
+| Servo | Tělo z inventáře; poloha osy, šířka a náboj páky dlouhé 35 mm jsou odhadnuté | Měrka jednoho modulu, teprve potom šest výtisků |
+| Kamera/FPC | Výměnná obálka 24 × 12 × 24 mm | Potvrdit doručenou variantu a konektory |
+| Degson | Návrhová obálka 35 × 22 × 16 mm | Ověřit skutečné páčky, vstupy a nástrojový prostor |
+| Konektory USB | 20 mm přímý prostor, 12 × 12 mm průřez; poloha podle rezervací | Potvrdit každou skutečnou zásuvku i kabelovou vidlici |
+| Ostatní piny | Relativní návrhové kotvy na skutečných obálkách desek | Souřadnice v kabeláži nejsou zaměřením pinů |
+| Kabely | Vnější průměry (OD) a minimální poloměry podle kabelového plánu | Fyzicky projít celý pohyb; délky nejsou zaručené střihy bez zkušebního osazení |
+| Napájení ESP přes USB | Pasivní USB-A zásuvka a intaktní kabel USB-A/C uvedené k doplnění | Ověřit dostupnost, proudové zatížení a skutečné rozměry; nejde o doložený nákup |
+| Zatížení | Návrhových 5 kg, rázové zrychlení 3 × g; hůlka 150 g | Zvážit skutečnou sestavu; provést zatěžovací zkoušku |
 
-Potvrzených 431,8 × 266,7 × 114,3 pro původní kufr pochází z dokumentace
-majitele. Nová skořepina má vlastní 4mm stěny/dno. Příčnou dřevěnou lať
-nekopíruje: u zcela nového tištěného kufru by neměla konstrukční účel.
-Vnitřní výška nové základny je 114,3 od horní plochy dna k okraji.
+## Vyřešené rozpory
 
-Parametrické rezervy: hlavice 38 × 55 × 28, dřík Ø16, délka 200;
-samet 0,8, měkký podklad 1,2; boční vůle vodítek 0,45; drážka 6,8 pro
-váleček Ø6. Tyto údaje se snadno upravují v JSON. Verifikátor odmítne
-hůlku delší než lůžko minus 12 mm nebo širší než vyhrazená obálka.
-Při změně mechanických pevných bodů je nutná odpovídající úprava CAD,
-nikoli jen vypnutí neúspěšné kontroly. Výstupní STL se nesmí škálovat.
+F1 dříve navrhoval nový tištěný korpus. To odporovalo současnému zadání;
+F2 jej odstranil z aktivního CAD, tisku, dokumentace a seznamu balíčku.
+Zůstává skutečný dřevěný kufr bez nových děr. Původní reference se zachovaly.
+Rozměr bezpečného kvádru doplňuje vnitřní měření; nepřepisuje jej.
+Předchozí měkká brzda nebyla doložená pro mezilehlé polohy a je odstraněna.
+Stop je ručně kontrolovaný stav, nikoli tvrzení o pasivním zabrzdění zdvihu.
 
-## Osazené a rezervní komponenty
+Katalogové tělo desky není její montážní rozteč. Nosiče proto přidržují
+okraje a pásky. Powerbanka ani samet nesmějí nahrazovat doraz nebo šroub.
+Druhá PCA, sedm svorek a další rezervy nejsou aktivní vnitřní výplň.
 
-Koordináty všech níže modelovaných součástí a jejich obálky jsou v exportním CSV.
-Desky představují konzervativní prostorové obálky, nikoli vymyšlené montážní díry.
-Konektory mají samostatné rezervy; nejsou zaměněny za rozměry samotných PCB.
+## Externí podklady pro doplněný materiál
 
-| Inventář | Počet / umístění a fixace |
-| --- | --- |
-| ESP32-S3 57×28×13 | 1, pravý přední stolek, izolující suchý zip a záložní pásek; USB směrem dozadu |
-| PCA9685 70×25×15 | 1 aktivní vpředu uprostřed; 1 odpojená rezerva napříč základnami 1–2, v izolovaném pouzdře |
-| Mikroservo 22×11,5×27 | Všech 6 v tuhých lůžkách, dva uvolnitelné pásky na každém; proti pootočení působí stěny lůžka |
-| U059 32×24×8 | Všech 6 pod pohyblivými lůžky, dorazy a pásky přes otvory lůžka |
-| WS2812B 10mm pás | 6×200 mm = 36 LED, na vnější pravé svislé hraně lůžek; světlo do podélných mezer |
-| Pixel Shifter 25,5×15×10,2 | 1 v přední servisní liště, suchý zip, izolované pájené spoje |
-| ICS43434 16,51×12,7 | 1 uvnitř přední stěny, otvor zvuku ven; 5mm výška je rezerva |
-| DFR0954 18×18 | Oba moduly na příslušných bočních stolcích; výšková rezerva 8 |
-| Waveshare 100×45×21 | Oba reproduktory dole vpředu po stranách, ploché pěnové podložky a dva pásky; zvuk bočními štěrbinami |
-| MCP23017 43×18×5 | 1 vpředu, na 6mm izolační podložce + 2mm suchém zipu kvůli maticím spoje dna |
-| PD trigger 28×14×11 | 1 vlevo pod servisním stolkem, vedle banky; vstup USB dopředu |
-| Joy-IT 31×46×19 | 1 otočený na levém stolku v Z81; 8 mm nad komponentou do krytu, větrací mřížka přímo nad ním. Proudění a teplotu ověřit fyzicky |
-| Bílé PTT 14×14×35 | 1 v levém předním krytu, závit v otvoru 12,4; dílčí otvor před tiskem ověřit měrkou |
-| Červené kolébky 24×24×30 | 1 skrytá hlavní; 1 odpojená rezerva pod lůžkem 2 |
-| Zelená kolébka 24×24×30 | 1 skrytá vedle červené, napájení pohonů dle závazného zapojení |
-| Jistič 45×28×13 | 1 pod levým stolkem v Z61; zvednout stolek pro reset, izolovat spodní plochu, tlačítko a svorky nesmí sevřít pásek |
-| Kondenzátory Ø10×17 | 1–2 u LED, 3–4 u PCA V+, 5–6 u audio/elektroniky. Přiřazení podle KABELAZ, nikoli podle samotné polohy; 4 izolované rezervy pod lůžkem 1 |
-| Degson 5pin | degson_1 MAIN5, degson_2 DRIVE5, degson_3 GND pod lůžky 3–5; tabulka portů a měděných odboček v KABELAZ. Dalších 7 je rezerva. Obálka 35×22×16 není měření |
-| 2 univerzální PCB 50×70 | Pravá zadní zóna: signálové spoje a nízkoproudá logika, nikoli výkonový rozvod; pracovní výška 1,6 |
-| Kamera | Vyhrazená obálka 24×24×12 před ESP, vyměnitelný slotted držák; doručený typ není známý |
-| UGREEN PB720 | 139×80×26,5; orientace v modelu 26,5 X ×139 Y ×80 Z; dvě smyčky a mechanické dorazy |
-
-Rezistory 330 Ω, 100 kΩ, 15 kΩ, 22 kΩ se montují na univerzální PCB nebo
-izolovaně do kabeláže podle zapojení. Jsou to spotřební součástky, nikoli
-32 dalších samostatných držáků. Pracovní počty: 1×330, 6×100k, 1×15k,
-2×22k; ostatní zůstávají označenou zásobou. Kabely C–C 1 m, A–C 1 m,
-Dupont 200, PH2 100, dvojlinky 0,5/1,5 mm² a bužírky tvoří svazky;
-zbytek rolí, rezervní vodiče a multimetr patří do servisní výbavy mimo kufr.
-Všech 32 řádků nákupního inventáře je tím přiřazeno k osazení, kabeláži,
-spotřební zásobě nebo nástroji. Jejich obaly nejsou modelovány jako výrobek.
-
-[Výrobce měniče](https://joy-it.net/files/files/Produkte/SBC-BUCK02/SBC-Buck02_Manual_2023-09-15.pdf)
-uvádí zahřívání při zatížení a doporučuje dodatečné chlazení pro vysokou
-zátěž. Horní mřížka je návrhové opatření, nikoli důkaz dostatečného chlazení;
-plánovaný proud a teploty je nutné ověřit na skutečně osazeném stolku.
-
-Vnější kovové panty, západky, textilní postroj a konkrétní šrouby jsou
-montážní materiál návrhu, nikoli tvrzení o dalších potvrzených elektronických
-nákupních položkách. Nic nebylo objednáno. Před montáží ověřit dostupný rozměr
-kování proti drážkám; referenční kování není přesný model konkrétního výrobce.
-
-## Elektrické a servisní hranice
-
-Zůstává jedna ESP32, jedna aktivní PCA na 0x40, MCP na 0x20,
-PCA 0–5 serva, 6–11 U059. GPIO 1/14 I2C, 48 LED, 2 OE, 21/41/42/47 audio;
-19/20 USB, 38–40 SD a kamerové piny se neuvolňují pro jinou funkci.
-Používá se jeden pohon celkem a vypínání impulzů po pohybu. Zelená
-kolébka zůstává skutečným vypínačem výkonu, nikoli momentovým tlačítkem.
-
-Napájení: PB → C–C → 12V PD → Joy-IT 5 V → jistič → červená → hvězda;
-pohony za zelenou. Samostatné bloky +5 V, +5 V pohonů a GND se nikdy
-nespojují do jedné společné Degson. Každý zesilovač má vlastní reproduktor;
-SPK− není zem. Žádné propojení reproduktorových výstupů.
-
-Délka/orientace FPC kamery ani úplný tvar USB vidlic nejsou známé.
-Rezerva pro PB počítá s C1 orientovaným k přední horní části kapsy;
-ověřit na fyzickém PB před nalepením dorazových pěn. ESP a kamera leží
-těsně vedle sebe a držák dovoluje podložení/posun; případná jiná kamera
-vyžaduje změnit jen její malý držák. Viditelný otvor objektivu není tlačítko.
+[Bison Epoxy Metal 24 ml, výrobek 6305443](https://www.bison.net/getmedia/d54542f5-f56f-40b2-9406-3ad692c92a30/Print%20PDF.pdf)
+uvádí spojování hliníku se dřevem, směs 1:1, fixaci 10 h a konečnou pevnost
+po 24 h. Jeho údaj 22 MPa je pro hliník, nikoli pro dřevo tohoto kufru.
+[Hydro EN AW-6060](https://www.hydro.com/globalassets/08-about-hydro/hydro-worldwide/austria/nenzing/alloy-data-sheets/hydro-en-aw-6060.pdf)
+uvádí pro stav T66 a tloušťku do 5 mm mez kluzu 160 MPa;
+návrh konzervativně požaduje doložených
+alespoň 150 MPa. Konkrétní profil musí odpovídat požadovanému stavu materiálu.
+Příklad českého zdroje rozměru je
+[profil L 20 × 20 × 3 mm](https://www.ehlinik.cz/hlinikovy-l-profil-20x20x3/pro-8WS0000101.html).
+Nic nebylo objednáno.

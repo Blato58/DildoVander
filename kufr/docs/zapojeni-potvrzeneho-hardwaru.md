@@ -10,7 +10,7 @@ bez demontáže okolních dílů. Všechny rozměry jsou v
 [jednom přehledu](../mechanika/rozmery-nakoupenych-soucastek.md).
 
 Rozmístění, označení svazků, obsazení tří pracovních svorek a pořadí
-montáže určuje [kabelový plán F1](../mechanika/final/KABELAZ.md).
+montáže určuje [kabelový plán F2](../mechanika/final/KABELAZ.md).
 PD trigger, měnič a jistič jsou společně vlevo u powerbanky. Rozbočení
 výkonu tvoří samostatné izolované měděné vodiče, nikoli plošné spoje
 univerzálních desek. Na jednom portu Degson je jeden odpovídající vodič;
@@ -124,7 +124,9 @@ z opožděné smyčky; úplné zamrznutí není dokladem automatického odpojen�
 Pixel Shifter podle potisku, jeho 5V výstup přes 330 Ω na DIN prvního
 úseku, potom DOUT → DIN dalších: **šest úseků po šesti LED**.
 Napájení úseků vést z rozvodu. Firmware vždy přepíše celý řetězec,
-svítí jen vybraných šest LED s RGB do 64/255.
+choreografie F2 může rozsvítit jednotlivé skupiny i všech 36 LED;
+každá složka RGB zůstává nejvýše 64/255. Sdílené časování hlavní a krátké
+varianty je v [popisu efektů](../mechanika/final/EFEKTY.md).
 Onboard LED48 zrcadlí první pixel, neposouvá externí indexy.
 
 ## MCP23017 a tlačítko

@@ -1,8 +1,9 @@
 #include "WandPresentation.h"
+#include "../physical_effects/PresentationScore.h"
 
 namespace {
 
-constexpr uint64_t ShowDurationMs = 5000;
+constexpr uint64_t ShowDurationMs = PresentationScore::ShowMs;
 
 bool Elapsed(uint64_t nowMs, uint64_t startedAtMs, uint64_t durationMs) {
   return nowMs - startedAtMs >= durationMs;

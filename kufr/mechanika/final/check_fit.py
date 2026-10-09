@@ -14,12 +14,23 @@ def overlaps(a,b):
     return all(min(a[i+3],b[i+3])-max(a[i],b[i])>1e-5 for i in range(3))
 
 
+def mating_pair(a,b):
+    """Only documented screw/head intersections are intentional geometry."""
+    names={a.name,b.name}
+    for prefix in ("anchor_", "module_"):
+        for name in names:
+            if name.startswith(prefix+"m"):
+                suffix=name.split("_",2)[2]
+                return prefix+"head_"+suffix in names
+    return False
+
+
 def collisions(items):
     result=[]
     cached={i.name:bounds(i.shape) for i in items}
     for a,b in itertools.combinations(items,2):
-        if a.group=="fastener" or b.group=="fastener":
-            continue  # Solid screw shanks intentionally occupy their mating hardware.
+        if mating_pair(a,b):
+            continue
         if not overlaps(cached[a.name],cached[b.name]):
             continue
         volume=a.shape.intersect(b.shape).Volume()
@@ -30,7 +41,7 @@ def collisions(items):
 
 def scene(angle=0,lid=105,covers=True,transport=False):
     result=chassis.items(lid)+layout.items(covers,not transport)+retention.hardware(lid,transport)
-    for i in range(6):
+    for i in range(mechanism.M["count"]):
         result+=mechanism.module(i,angle if i==2 else 0,not transport)
     return result
 

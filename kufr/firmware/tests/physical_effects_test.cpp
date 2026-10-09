@@ -135,11 +135,41 @@ void LimitsAndFaults() {
   assert(invalid.effects.CalibrationRevision() == 0 && !invalid.io.run);
 }
 
+class CueSink final : public PresentationAudioPort {
+ public:
+  std::vector<uint16_t> notes;
+  unsigned stops = 0;
+  void Cue(uint16_t hz, uint16_t ms) override { assert(ms <= 200); notes.push_back(hz); }
+  void StopCues() override { ++stops; }
+};
+
+void SharedScoreAndRepeat() {
+  Fixture f;
+  CueSink audio;
+  f.adapter.BindAudio(audio);
+  assert(f.Start("main-score"));
+  unsigned lit = 0;
+  for (unsigned i = 0; i < 108; i += 3) if (f.io.pixels[i]) ++lit;
+  assert(lit == 36 && f.io.servoWrites == 0);
+  for (uint64_t t = 40; t < 12000; t += 10) f.Tick(t);
+  assert(f.presentation.State() == WandPresentationState::Idle);
+  assert(audio.notes.front() == 220 && audio.stops == 1);
+  assert(f.io.vibrationWrites == 3 && f.io.servoWrites == 2 && !f.io.run);
+  assert(f.Start("short-score",12000));
+  for (uint64_t t = 12010; t < 20000; t += 10) f.Tick(t);
+  assert(f.presentation.State() == WandPresentationState::Idle);
+  assert(f.io.vibrationWrites == 4 && f.io.servoWrites == 4 && !f.io.run);
+  assert(f.Start("stop-score",20000));
+  SelectionStep stopped;
+  f.runtime.Stop(stopped);
+  assert(!f.io.run && audio.stops >= 3);
+}
+
 void AutonomousCycle() {
   Fixture f;
   assert(f.Start("proposal-1"));
   assert(f.journal.pending && f.io.servoWrites == 0 && f.io.vibrationWrites == 0);
-  for (uint64_t t = 40; t < 9500; t += 10) {
+  for (uint64_t t = 40; t < 12000; t += 10) {
     f.Tick(t);
   }
   assert(f.presentation.State() == WandPresentationState::Idle);
@@ -147,7 +177,7 @@ void AutonomousCycle() {
   assert(f.io.vibrationWrites == 3 && f.io.servoWrites == 2 && !f.io.run);
   ConversationRuntimeSnapshot restored;
   assert(f.state.Read(restored) && restored.readyMask == 63);
-  assert(!f.Start("proposal-1", 9500)); // A replay cannot move again.
+  assert(!f.Start("proposal-1", 12000)); // A replay cannot move again.
 
   Fixture failed;
   assert(failed.Start("owner-stall"));
@@ -183,7 +213,7 @@ void ManualCycle() {
   assert(f.runtime.AcceptSelection(command, true, 30).outcome == CommandOutcome::Accepted);
   SelectionStep step;
   assert(f.runtime.BeginAcceptedSelection(30, step));
-  for (uint64_t t = 40; t < 9500; t += 10) {
+  for (uint64_t t = 40; t < 12000; t += 10) {
     assert(f.runtime.RenewManualLease("lease", t));
     f.Tick(t);
   }
@@ -218,7 +248,7 @@ void InterruptedReturn() {
 
   Fixture f;
   assert(f.Start("return-journal-failure"));
-  for (uint64_t t = 40; t < 9500; t += 10) {
+  for (uint64_t t = 40; t < 12000; t += 10) {
     if (f.io.servoWrites == 2) f.journal.fail = true;
     f.Tick(t);
   }
@@ -248,6 +278,6 @@ void LongerCalibratedTravel() {
 }
 
 int main() {
-  LimitsAndFaults(); AutonomousCycle(); ManualCycle(); InterruptedReturn(); LongerCalibratedTravel();
+  LimitsAndFaults(); SharedScoreAndRepeat(); AutonomousCycle(); ManualCycle(); InterruptedReturn(); LongerCalibratedTravel();
   std::cout << "Physical limits, calibrated commanded travel, journal, autonomous/manual return and Stop passed\n";
 }
