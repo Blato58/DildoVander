@@ -26,6 +26,12 @@ aplikační buildy, placené AI testy, CAD export ani fyzická měření.
 CAD a parametry jsou beze změny, HW kritéria zůstávají otevřená.
 Další krok: doplnit chybějící měření a podle nich upravit rozložení
 do potvrzené spodní části kufru, následně ověřit obálky/pohyb před tiskem.
+Git předání: dokumentační commit `ca503ca` byl ověřeně pushnutý helperem,
+[PR154](https://github.com/Blato58/DildoVander/pull/154). Souběžný PR151
+byl začleněný z `main` commitem `6b7884b`, rovněž ověřeně pushnutým;
+oba záznamy předání jsou zachované. Integrovaný diff vůči `main` zůstává
+omezený na uvedených pět dokumentů. GitHub review a CI se před sloučením
+musí dokončit a znovu zkontrolovat podle AGENTS.md.
 
 **D160 – 9. 10. 2026 – stabilní BLE obrazovka, uložený PoP a vysvětlení LAN discovery.**
 Majitel hlásil blikání po BLE spojení, opakované opisování PoP a prázdné
