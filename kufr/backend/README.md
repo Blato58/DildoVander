@@ -322,13 +322,39 @@ Používá dočasný SQLite soubor a ověřuje také atomický souběh rezervac�
 znovuotevření po restartu. `Microsoft.Data.Sqlite` je připnutý na `10.0.12`.
 
 Zařízení se registrují mimo HTTP API konfigurací `Devices__0__DeviceId`
-a `Devices__0__CredentialSha256` (64 hex znaků SHA-256 credential).
+a `Devices__0__CredentialSha256` (64 hex znaků SHA-256 přesného UTF-8 textu
+credential, bez koncového newline; hex credential se před hashováním nedekóduje).
 V repozitáři není žádný credential ani ukázkový platný hash. Unikátní
 náhodný credential se zadá do zařízení servisním postupem; hash se přidá
 do konfigurace backendu mimo git. Další zařízení používá index `1` atd.
 Bez konfigurace zařízení se backend spustí, ale token nevydá.
 Duplicitní ID nebo hash credential zabrání startu. Na jedno zařízení lze mít
 nejvýše 16 současně platných access tokenů; další výměna vrátí 429.
+
+Na VPS aktivační helper při každém deploy přepisuje
+`/etc/kufr-backend/backend.env` a spravuje v něm index `0`. Další servisní
+identity patří do root-owned `/etc/kufr-backend/device-identities.env`
+(mode 0600), se dvěma položkami `Devices__N__DeviceId` a
+`Devices__N__CredentialSha256` pro každý dosud nepoužitý index `N`.
+Raw credential ani PoP do tohoto souboru nepatří. Trvalý systemd drop-in
+`/etc/systemd/system/kufr-backend.service.d/50-device-identities.conf`
+(root-owned, mode 0644) obsahuje:
+
+```ini
+[Service]
+EnvironmentFile=/etc/kufr-backend/device-identities.env
+```
+
+Prázdným `EnvironmentFile=` nerušit původní soubor. Před změnou soukromě
+zálohovat unit/config, zachovat všechny existující identity a ověřit unikátnost
+ID i hashů přes oba soubory. Po změně provést `systemctl daemon-reload`,
+restart backendu, health check a token exchange nové identity bez výpisu
+credentialu/tokenů. Registrace se načítá při startu; restart zneplatní RAM
+access tokeny, jejich zachované credentialy dovolí získat nové.
+D159 přidalo fyzickou desku `kufr-68ee8f4b6048` na index `1`; deploy index `0`
+zůstal zachovaný. Změna GitHub `DEVICE_ID`/hash na stejnou identitu by vytvořila
+duplicitu a zabránila startu; případná migrace vyžaduje koordinovanou úpravu
+obou zdrojů konfigurace.
 
 `POST /v1/device-access/token` přijímá provisionovaný credential jako bearer.
 `POST /v1/conversations` a `POST /v1/conversations/{id}/turns` vyžadují
@@ -491,9 +517,9 @@ Environment `backend-production` má tyto GitHub Actions secrets:
 
 | Secret | Hodnota |
 | --- | --- |
-| `DEVICE_ID` | Nyní `dev-simulator-1` pro vývoj; před použitím skutečného kufru jej nahradit servisně provisionovaným ID společně s hashem. |
-| `DEVICE_CREDENTIAL_SHA256` | 64 hex znaků SHA-256 credential pro dané ID; nyní odpovídá vývojovému `DEV_DEVICE_CREDENTIAL`. |
-| `DEV_DEVICE_CREDENTIAL` | Jen pro ruční loopback smoke nasazené vývojové instance; odpovídá hashi vývojového `DEVICE_ID`, není provisionovaný v kufru. Před fyzickým nasazením jej nahradit skutečnou identitou a oddělit testovací prostředí. |
+| `DEVICE_ID` | Identita deploy indexu `0`, dosud `dev-simulator-1`. Další fyzická zařízení registrovat na nepoužitých indexech v trvalém servisním environmentu výše; nevytvořit duplicitní ID. |
+| `DEVICE_CREDENTIAL_SHA256` | 64 hex znaků SHA-256 přesného UTF-8 credential textu pro deploy index `0`; zachovat shodu s jeho identitou a případným `DEV_DEVICE_CREDENTIAL`. |
+| `DEV_DEVICE_CREDENTIAL` | Jen pro ruční loopback smoke vývojové identity indexu `0`; neprovisionovat jej do fyzického kufru. Fyzické zařízení má vlastní credential a registraci, nezávislou na této testovací identitě. |
 | `OPENAI_API_KEY` | Projektový OpenAI API klíč. Čte jej pouze explicitní režim `responses`; ve výchozím `fake` se OpenAI nevolá. |
 | `SESSION_CAP_MICRO_USD` | Zastaralé, ignoruje se; rozpočet řídí OpenAI. |
 | `DAILY_CAP_MICRO_USD` | Zastaralé, ignoruje se. Denní součty zůstávají auditní. |

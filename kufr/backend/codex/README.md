@@ -28,6 +28,7 @@ Ověřená mapa nasazení (8. 10. 2026; před každou změnou znovu zkontrolovat
 | Backend | `kufr-backend.service`, účet `kufr-backend`, loopback port 5080 |
 | Veřejná proxy | `nginx.service` |
 | Runtime konfigurace | `/etc/kufr-backend/backend.env`; soukromý soubor root / kufr-backend, mode 0640 |
+| Dodatečné identity (D159) | `/etc/kufr-backend/device-identities.env`, root / root 0600; systemd drop-in `kufr-backend.service.d/50-device-identities.conf`, root / root 0644. Zachovává deploy index `0`; podrobnosti v [backend README](../README.md). |
 | Aktivační helper | `/usr/local/sbin/kufr-backend-deploy`; root / root, mode 0755 |
 | Trvalá data | `/var/lib/kufr-backend`; journal, diagnostika a oddělená paměť večerů |
 | GitHub runner | `actions.runner.Blato58-DildoVander.dildovander-server.service`, `/opt/actions-runner` |
