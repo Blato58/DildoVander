@@ -10,6 +10,9 @@ struct BleManagementCallbacks {
   void (*status)(cJSON* response, void* context) = nullptr;
   bool (*command)(const char* name, bool automaticInstall, void* context) = nullptr;
   void* context = nullptr;
+  // Invoked only inside the PoP-authenticated and encrypted control endpoint.
+  // Null means success; otherwise a public error code, never credential data.
+  const char* (*pairLocal)(cJSON* response, void* context) = nullptr;
 };
 
 class EspIdfBleProvisioning final {

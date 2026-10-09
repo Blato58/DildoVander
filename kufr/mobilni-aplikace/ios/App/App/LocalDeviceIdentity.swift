@@ -108,6 +108,43 @@ final class ProvisioningProofKeychain {
     }
 }
 
+enum LocalBlePairingCodec {
+    static func decode(_ data: Data, expectedDeviceId: String) -> LocalDeviceIdentity? {
+        guard data.count <= 512,
+              let response = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              Set(response.keys) == Set(["v", "ok", "id", "host", "spkiSha256", "token"]),
+              let version = response["v"] as? NSNumber,
+              CFGetTypeID(version) != CFBooleanGetTypeID(), version.doubleValue == 1,
+              let ok = response["ok"] as? NSNumber,
+              CFGetTypeID(ok) == CFBooleanGetTypeID(), ok.boolValue,
+              response["id"] as? String == expectedDeviceId,
+              let host = response["host"] as? String,
+              let pin = response["spkiSha256"] as? String,
+              let token = response["token"] as? String else { return nil }
+        let identity = LocalDeviceIdentity(deviceId: expectedDeviceId, host: host, spkiSha256: pin, token: token)
+        guard (try? identity.validate()) != nil else { return nil }
+        return identity
+    }
+}
+
+// Both native enrollment entry points run on the main queue. Reserve before
+// asking either device to consume a token, not only before Keychain insertion.
+enum LocalDeviceEnrollment {
+    private static var pending = false
+
+    static func begin() -> Bool {
+        precondition(Thread.isMainThread)
+        guard !pending else { return false }
+        pending = true
+        return true
+    }
+
+    static func end() {
+        precondition(Thread.isMainThread)
+        pending = false
+    }
+}
+
 final class LocalDeviceKeychain {
     private let service: String
     private let account = "paired-kufr"
@@ -153,6 +190,18 @@ final class LocalDeviceKeychain {
                 throw LocalDeviceError.credentialWriteFailed
             }
         } else if status != errSecSuccess {
+            throw LocalDeviceError.credentialWriteFailed
+        }
+    }
+
+    // Enrollment must not replace an existing device/token if another native
+    // entry point wins the race. Address updates still use write().
+    func insert(_ identity: LocalDeviceIdentity) throws {
+        try identity.validate()
+        var insertion = query
+        insertion[kSecValueData as String] = try JSONEncoder().encode(identity)
+        insertion[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        guard SecItemAdd(insertion as CFDictionary, nil) == errSecSuccess else {
             throw LocalDeviceError.credentialWriteFailed
         }
     }
