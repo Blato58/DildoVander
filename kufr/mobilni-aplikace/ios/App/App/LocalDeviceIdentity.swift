@@ -44,6 +44,70 @@ struct LocalDeviceIdentity: Codable {
     }
 }
 
+// BLE PoP has a separate namespace from the WSS token. ESPProvision exposes
+// the validated advertised name; ambiguous duplicate names are rejected by discovery.
+final class ProvisioningProofKeychain {
+    private let service: String
+
+    init(service: String = "app.turquoise6409.green2444.kufr.provisioning") {
+        self.service = service
+    }
+
+    private func query(deviceName: String) throws -> [String: Any] {
+        guard deviceName.range(of: "^KUFR_[A-Fa-f0-9]{6}$", options: .regularExpression) != nil else {
+            throw LocalDeviceError.invalidIdentity
+        }
+        return [kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: deviceName,
+                kSecAttrSynchronizable as String: false]
+    }
+
+    func read(deviceName: String) throws -> String? {
+        var request = try query(deviceName: deviceName)
+        request[kSecReturnData as String] = true
+        request[kSecMatchLimit as String] = kSecMatchLimitOne
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(request as CFDictionary, &result)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess, let data = result as? Data, data.count == 32,
+              let proof = String(data: data, encoding: .utf8),
+              LocalDeviceIdentity.validHex(proof, bytes: 16) else {
+            throw LocalDeviceError.unavailableCredential
+        }
+        return proof
+    }
+
+    func write(_ proof: String, deviceName: String) throws {
+        guard LocalDeviceIdentity.validHex(proof, bytes: 16) else {
+            throw LocalDeviceError.invalidIdentity
+        }
+        let query = try query(deviceName: deviceName)
+        let attributes: [String: Any] = [
+            kSecValueData as String: Data(proof.utf8),
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        ]
+        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        if status == errSecItemNotFound {
+            var insertion = query
+            attributes.forEach { insertion[$0.key] = $0.value }
+            guard SecItemAdd(insertion as CFDictionary, nil) == errSecSuccess else {
+                throw LocalDeviceError.credentialWriteFailed
+            }
+        } else if status != errSecSuccess {
+            throw LocalDeviceError.credentialWriteFailed
+        }
+    }
+
+    func remove(deviceName: String) throws {
+        let query = try query(deviceName: deviceName)
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw LocalDeviceError.credentialWriteFailed
+        }
+    }
+}
+
 final class LocalDeviceKeychain {
     private let service: String
     private let account = "paired-kufr"
