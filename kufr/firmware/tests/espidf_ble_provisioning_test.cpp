@@ -90,6 +90,15 @@ void FillStatus(cJSON* response,void*) {
   cJSON_AddStringToObject(ota,"e","ota-trust-or-origin-not-provisioned");
   cJSON_AddBoolToObject(ota,"i",false);
 }
+int pairCalls = 0;
+const char* FillPair(cJSON* response, void*) {
+  if (++pairCalls != 1) { return "already_paired"; }
+  cJSON_AddStringToObject(response, "id", std::string(64, 'i').c_str());
+  cJSON_AddStringToObject(response, "host", "kufr-0123456789abcdef0123456789abcdef.local");
+  cJSON_AddStringToObject(response, "spkiSha256", std::string(64, 'a').c_str());
+  cJSON_AddStringToObject(response, "token", std::string(64, 'b').c_str());
+  return nullptr;
+}
 std::string Request(const std::string& input,esp_err_t expected=ESP_OK) {
   uint8_t* out=nullptr; ssize_t length=0;
   const auto result=handler(1,reinterpret_cast<const uint8_t*>(input.data()),input.size(),&out,&length,handlerContext);
@@ -308,7 +317,7 @@ int main() {
   proofAvailable=true;
   EspIdfBleProvisioning ble(station);
   std::string id(64,'i');
-  assert(ble.Begin(true,id.c_str(),"123.123.123-build-version",{FillStatus,nullptr,nullptr}));
+  assert(ble.Begin(true,id.c_str(),"123.123.123-build-version",{FillStatus,nullptr,nullptr,FillPair}));
   assert(opens==0); // Begin and Tick do not block the control-owner task.
   ble.Tick(0,false);
   assert(opens==0);
@@ -317,6 +326,17 @@ int main() {
   assert(opens==1 && ble.Active());
   auto status=Request("{\"v\":1,\"command\":\"status\"}");
   assert(status.find("\"n\":")!=std::string::npos && status.find("password")==std::string::npos);
+  assert(status.find("token") == std::string::npos && status.find("spkiSha256") == std::string::npos);
+  auto paired = Request("{\"v\":2,\"command\":\"pair-local\"}");
+  assert(paired == "{\"v\":1,\"ok\":false,\"error\":\"invalid_request\"}" && pairCalls == 0);
+  paired = Request("{\"v\":1,\"command\":\"pair-local\",\"confirm\":true}");
+  assert(paired.find("invalid_request") != std::string::npos && pairCalls == 0);
+  paired = Request("{\"v\":1,\"command\":\"pair-local\"}");
+  assert(paired.find("\"ok\":true") != std::string::npos && paired.find("\"token\":") != std::string::npos);
+  assert(paired.find("\"host\":") != std::string::npos && paired.find("\"spkiSha256\":") != std::string::npos);
+  assert(paired.find("\"n\":") == std::string::npos && paired.find("\"o\":") == std::string::npos);
+  paired = Request("{\"v\":1,\"command\":\"pair-local\"}");
+  assert(paired == "{\"v\":1,\"ok\":false,\"error\":\"already_paired\"}" && pairCalls == 2);
   auto result=Request("{\"v\":1,\"command\":\"configure\",\"profile\":\"hotspot\",\"ssid\":\"Owner iPhone\",\"password\":\"secret-password\"}");
   assert(configureCalls==1 && lastSsid=="Owner iPhone" && result.find("secret-password")==std::string::npos);
   Request(std::string(513,'x'),ESP_ERR_INVALID_ARG);

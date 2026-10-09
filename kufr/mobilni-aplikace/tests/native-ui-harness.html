@@ -79,12 +79,12 @@
       }] };
       window.CapacitorCustomPlatform = { name: 'ios' };
       let bleConnected = false;
-      const bleStatus = { v: 1, ok: true, deviceId: 'kufr-harness', firmwareVersion: 'test',
+      const bleStatus = { v: 1, ok: true, deviceId: snapshot.deviceId, firmwareVersion: 'test',
         network: { phase: 'connected', result: 'connected', activeProfile: 'fallback', lastSuccessfulProfile: 'fallback',
           hotspot: { configured: false, ssid: '' }, fallback: { configured: true, ssid: 'Test Wi-Fi' } },
         backendConnected: false, ota: { state: 'idle', automaticInstall: false } };
       window.Capacitor = {
-        PluginHeaders: [{ name: 'KufrProvisioning', methods: ['discover', 'connect', 'status', 'disconnect',
+        PluginHeaders: [{ name: 'KufrProvisioning', methods: ['discover', 'connect', 'status', 'pairLocal', 'disconnect',
           'configure', 'command', 'openSettings'].map(name => ({ name, rtype: 'promise' })) },
         { name: 'KufrDeviceTransport', methods: [
           ...['savedDevice', 'discover', 'setAddress', 'pair', 'connect', 'send', 'close', 'forget', 'removeListener'].map((name) => ({ name, rtype: 'promise' })),
@@ -103,6 +103,12 @@
             if (method === 'openSettings') return;
             if (method === 'connect') { bleConnected = true; return bleStatus; }
             if (!bleConnected) throw { code: 'disconnected' };
+            if (method === 'pairLocal') {
+              if (new URLSearchParams(location.search).has('pairFailed')) throw { code: 'pairing_unavailable' };
+              paired = true;
+              saved = { paired: true, deviceId: snapshot.deviceId, host: 'kufr-test.local' };
+              return { deviceId: saved.deviceId, host: saved.host };
+            }
             // Keep a refresh in flight long enough to exercise taps during polling.
             await new Promise(resolve => setTimeout(resolve, 250));
             return bleStatus;

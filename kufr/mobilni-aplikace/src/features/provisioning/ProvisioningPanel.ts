@@ -8,7 +8,7 @@ export class ProvisioningPanel {
   private readonly client: ProvisioningClient;
   private connected = false;
   private busy = false;
-  constructor(private readonly nativeMode: boolean) {
+  constructor(private readonly nativeMode: boolean, private readonly onPaired: () => Promise<void> = async () => {}) {
     this.element.id = 'provisioning-panel';
     this.element.className = 'debug-panel';
     this.element.hidden = true;
@@ -33,6 +33,9 @@ export class ProvisioningPanel {
           jedinečný PoP z vnitřního servisního štítku; nejde o token místního WSS.</p>
         <div class="actions"><button type="button" data-ble="discover">Vyhledat BLE kufry</button>
           <button type="button" data-ble="disconnect" disabled>Odpojit BLE</button></div>
+        <p>Po ověření BLE spárujte místní ovládání jedním tlačítkem. Adresa, otisk a token se
+          převezmou automaticky; přístup zůstane v Keychain tohoto iPhonu i při aktualizaci aplikace.</p>
+        <button type="button" data-ble="pair-local" disabled>Spárovat ovládání přes Wi-Fi</button>
         <ul class="ble-devices" aria-label="Nalezené BLE kufry"></ul>
         <p class="status" role="status" aria-live="polite">${nativeMode ? 'Vyhledejte zapnutý kufr.' : 'BLE provisioning je dostupný v nativní iPhone aplikaci. Web nemá přístup k Bluetooth.'}</p>
         <dl class="debug-metrics ble-metrics" hidden>
@@ -116,6 +119,7 @@ export class ProvisioningPanel {
       await bridge.openSettings().catch((error) => this.update(null, errorMessage(error), false));
       return;
     }
+    if (action === 'pair-local') { await this.client.pairLocal(this.onPaired); return; }
     if (action === 'configure') { await this.client.perform(() => bridge.configure({ profile })); return; }
     if (action === 'status') { await this.client.perform(() => bridge.status()); return; }
     if (action === 'ota-enable' || action === 'ota-disable') {

@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include <array>
+#include <mutex>
 
 #include "DeviceIdentity.h"
 #include "ProvisioningStorage.h"
@@ -48,6 +49,9 @@ class LocalPairingCredential final {
   bool IsHealthy() const;
   bool IsPairingReady() const;
   bool IsPaired() const;
+  // Only the authenticated Security1 BLE endpoint may call this first-use API.
+  // Existing or corrupt records are never replaced; rotation uses ServiceGate.
+  bool InitializeFromAuthenticatedBle(std::array<uint8_t, TokenSize>& issuedToken);
   bool ProvisionPairingSecret(const uint8_t* secret, size_t length,
                               const ServiceGate& gate);
   bool Pair(const uint8_t* secret, size_t secretLength,
@@ -65,6 +69,7 @@ class LocalPairingCredential final {
                    const std::array<uint8_t, DigestSize>& pairingDigest,
                    const std::array<uint8_t, DigestSize>& tokenDigest);
   void FailClosed();
+  bool IssueToken(std::array<uint8_t, TokenSize>& issuedToken);
 
   LocalPairingStorage& storage_;
   Sha256Port& hasher_;
@@ -73,4 +78,5 @@ class LocalPairingCredential final {
   std::array<uint8_t, DigestSize> pairingDigest_{};
   std::array<uint8_t, DigestSize> tokenDigest_{};
   bool healthy_ = false;
+  mutable std::mutex mutex_;
 };

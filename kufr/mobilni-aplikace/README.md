@@ -2,6 +2,21 @@
 
 ## BLE nastavení sítě a firmware
 
+Po ověřeném BLE připojení zvolte **Spárovat ovládání přes Wi-Fi**.
+Adresa kufru, SPKI pin a první místní token se převezmou přes šifrované BLE
+bez dalšího zadávání. Token a pin zůstávají v nativním nesynchronizovaném
+Keychain `WhenUnlockedThisDeviceOnly`; stabilní Bundle ID/Team ID zachová
+přístup při aktualizaci aplikace. JavaScript dostane jen ID a adresu.
+V záložce **Ovládání** pak zvolte **Připojit uložený kufr**. Telefon a ESP
+musí být ve stejné LAN; Bonjour hledání i uložené `.local` jméno řeší adresu.
+Samotné discovery nenahrazuje autentizaci a TLS pin.
+
+Tlačítko vyžaduje již ověřené BLE/PoP a firmware s `pair-local` (D161).
+Existující profil jiného kufru se nepřepisuje; starší servisní QR párování
+se nezneplatňuje. Ztracená odpověď či selhání Keychain po vydání tokenu
+se automaticky neopakují a mohou vyžadovat fyzickou servisní obnovu.
+Hesla Wi-Fi se do Keychain neukládají. PoP má vlastní oddělený profil z D160.
+
 Záložka **Síť kufru** v nativní iPhone aplikaci vyhledá `KUFR_` zařízení
 s projektovým BLE service UUID a použije oficiální Espressif ESPProvision
 **3.2.0**, CoreBluetooth a Security1. Kufr musí mít otevřené omezené servisní
