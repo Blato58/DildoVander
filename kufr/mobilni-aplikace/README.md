@@ -456,7 +456,7 @@ ani offline provider testy nejsou fyzický poslech.
 Dne 6. 10. 2026 byla na [instalační stránce](https://2.28.202.220/ios/)
 publikována Ad Hoc **1.0 / build 1000.0.16** pro dosavadní registrovaný iPhone.
 Tento oddíl zachycuje tehdejší verzi a serverovou konfiguraci D146;
-aktuální publikovaná verze je **1.0 / build 1000.0.19** podle přehledu výše.
+aktuální publikovaná verze je **1.0 / build 1000.0.20** podle přehledu výše.
 [Podpis 37429759564](https://github.com/Blato58/DildoVander/actions/runs/37429759564)
 ověřil Xcode 26.3, nativní transport/debug/audio testy a podpis;
 [publikace 37429982348](https://github.com/Blato58/DildoVander/actions/runs/37429982348)

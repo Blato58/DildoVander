@@ -631,7 +631,7 @@ codesign --verify --deep --strict, Bundle ID a embedded profile kontrola prošly
 To zároveň ověřilo skutečný plutil/XML project a scoped signing inheritance.
 [Publikace37899776001](https://github.com/Blato58/DildoVander/actions/runs/37899776001)
 prošla všemi třemi joby včetně public HTTPS manifest/IPA/MIME/SHA-256 readback.
-Aktuální [Safari instalace](https://2.28.202.220/ios/) je **1.0/build1000.0.19**,
+Tehdejší [Safari instalace](https://2.28.202.220/ios/) byla **1.0/build1000.0.19**,
 Bundle ID `app.turquoise6409.green2444`, IPA **1858197 B**, SHA-256
 `b1e1c01452cc600975e3793de0071449d955fa61db1388679301c8eb8ffd4273`.
 Parent nezávisle zopakoval public HTTPS hash/Info.plist/manifest kontrolu a
@@ -641,7 +641,8 @@ shodný s root signerem. Všechny publikace používaly odpovídající current 
 tree; následné docs-only předání nemění nasazený software.
 Větev `codex/event-completion-delivery-record` synchronizuje pouze audit,
 readiness, plán, provozní README a tyto skutečné doklady. Starší IPA 1000.0.16
-je výslovně označená jako historická; aktuální publikace je 1000.0.19.
+je výslovně označená jako historická; při D158 byla publikace1000.0.19.
+Aktuální publikace D162 je1000.0.20 podle předání nahoře.
 Žádný nový runtime kód ani
 secrets/privátní klíče nejsou součástí posledního dokumentačního předání.
 
@@ -1418,9 +1419,9 @@ A/B, skutečná indexace/search/delete hostů, instalace IPA na konkrétním
 telefonu, firmware flash a fyzická prezentace nebyly provedené. Nový
 technický log změří skutečnou delegaci při dalším použití; známá změna
 quiet=4000→1500 sama není měřením celkové latence rozhovoru.
-Pro autonomní režim použít aktuální IPA D146 build **1000.0.16** z
+Tehdy doporučená IPA pro autonomní režim byla D146 build **1000.0.16** z
 [instalační stránky](https://2.28.202.220/ios/); starší klient bez
-checkpointu nepoužívat. Další krok je reálný rozhovor/poslech a kontrola
+checkpointu nepoužívat. Aktuální build uvádí předání nahoře. Další krok je reálný rozhovor/poslech a kontrola
 `live_decision_completed`, správné hůlky a životního cyklu; HW B1 zůstává otevřené.
 První implementační commit `2710d49b2ae565f705e2c352f70f41bec3bfd706`
 byl pushnutý a `ls-remote` potvrdilo shodu. Povinný PowerShell helper
@@ -3429,9 +3430,9 @@ Dotčené cesty: `kufr/firmware/`, související README a tento stav. D159 síť
 | Část | Co skutečně existuje | Co zatím chybí |
 | --- | --- | --- |
 | Firmware | ESP-IDF6.1 runtime se STA/backend HTTPS, odděleným LAN vlastníkem, journal/safety snapshotem a textovým input/output. D158 BLE, profily a OTA; D159 skutečný USB/NVS servis, home Wi-Fi, token POST200, OTA0.1.1/VALID boot a restart. Arduino profil je odstraněný. | B1: externí napájení/OE/mechanika/kalibrace a skutečné I2S; hotspot/failover, LAN TLS/pairing/WSS a celý konverzační průchod. |
-| Mobil | Web/simulátor, Capacitor8.4.3 a native Swift SPKI/Keychain/pairing/WSS, text/cancel/result, Bonjour a Debug/hlas. Podepsaný iOS1.0/build1000.0.19 je zveřejněný; D159 majitel skutečně použil PoP/BLE, nastavil domácí Wi-Fi a potvrdil připojený backend po restartu. | LAN QR/TLS/pairing/Keychain/lifecycle, hotspot/failover a skutečné audio zkoušky. |
+| Mobil | Web/simulátor, Capacitor8.5.2 a native Swift SPKI/Keychain/pairing/WSS, text/cancel/result, Bonjour a Debug/hlas. D161 BLE Wi-Fi párování a Keychain; podepsaný iOS1.0/build1000.0.20 je zveřejněný. D159 majitel skutečně použil PoP/BLE na1000.0.19, nastavil domácí Wi-Fi a potvrdil připojený backend po restartu. | LAN QR/TLS/pairing/Keychain/lifecycle, hotspot/failover a skutečné audio zkoušky; instalace nové1000.0.20 není potvrzená. |
 | Backend/kontrakty/simulátor | SQLite/idempotence/retence, Responses Sol a trvalá oddělená paměť večera, izolovaný hlas a technické logy. Backend je nasazený; D159 fyzická device identita je trvale registrovaná a skutečný ESP HTTPS token POST200 prošel i po restartu. Strict v1 kontrakty a simulátor zůstávají. | Skutečný celý device rozhovor/hlas, živá evaluace a lidská/provozní akceptace; produkční region/retence. |
-| iOS CI | Stávající ruční macOS workflow: D158 native testy, Xcode archive a Ad Hoc export37899385679; iOS1000.0.19 publish37899776001 a public IPA/hash prošly. D159 majitel použil BLE na iPhonu. | Další LAN/TLS/Keychain/lifecycle iPhone zkoušky a řízená app aktualizace/rollback. |
+| iOS CI | Stávající ruční macOS workflow: D162 native testy, Xcode archive a Ad Hoc export37923948887; iOS1000.0.20 publish37924314161 a public IPA/hash prošly. D159 majitel použil BLE na iPhonu s1000.0.19. | Další LAN/TLS/Keychain/lifecycle iPhone zkoušky a řízená app aktualizace/rollback. |
 | Hardware | D122/D159 konkrétní ESP32-S3 rev0.2, N16R8, ROM flash/PSRAM a UART/native USB; USB-only aplikace a skutečná OTA na samostatné desce. Dodaný pinový podklad a návrh napájení zůstávají. | PCB/schéma externího zapojení, bezpečnostní větev/OE, LED, napájení, mechanika, kalibrace a fyzická akceptace periferií. |
 
 Zdroje: [firmware](../firmware/README.md), [jeho konfigurace](../firmware/platformio.ini), [sekvence](../firmware/src/features/wand_selection/SelectionSequence.cpp), [hostitelský test](../firmware/tests/selection_sequence_test.cpp), [mobilní vstup](../mobilni-aplikace/src/main.ts), [package.json](../mobilni-aplikace/package.json). Tento přehled aktualizuj, až se skutečný stav změní.
