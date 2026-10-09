@@ -425,6 +425,17 @@ Popis má přednost a funguje i bez fotky. Poté začne úvod/hlas. Chyba fotky
 ukáže varování. Nejprve se potvrdí úklid starého sezení (včetně rozpracovaného image
 provideru), pak vznikne nové sezení bez souhlasu k fotce a použije se případný
 ruční popis. Neúspěšný nebo nepotvrzený úklid nový hlas nespustí; upload se neopakuje.
+Klient si v RAM ponechá vlastněné ID i stejný idempotency klíč DELETE až do
+potvrzeného 204. Neúspěšný úklid zablokuje Start a ponechá Stop dostupný pro
+opakování, i když příprava ještě nevrátila objekt sezení. Po potvrzení úklidu
+se záznam s přístupovými údaji odstraní. Již potvrzený úklid se neposílá znovu.
+Odmítne-li server token při úklidu jako neplatný (401), klient obnoví device
+access a zopakuje stejné DELETE ID a klíč. Selhání obnovy zachová čekající
+úklid pro další Stop; úspěšně obnovený token zůstane v RAM do potvrzeného 204.
+Ztracené či neplatné potvrzení ručního popisu se jednou obnoví přes stejný
+klíč, payload a korelaci PUT. Opakovaný nejednoznačný výsledek zobrazí chybu,
+zablokuje tento začátek hlasu a uklidí vlastněné sezení; netvrdí, že popis
+nebyl uložen. Tato obnova neopakuje fotku ani provider práci.
 Stop během přípravy zruší práci a smaže právě vytvořené sezení, takže
 opožděný výsledek nespustí hlas. Odhad je nejistá nápověda s TTL 120 sekund,
 není identifikací osoby. Běžný přepis se dále uchovává v paměti večera;

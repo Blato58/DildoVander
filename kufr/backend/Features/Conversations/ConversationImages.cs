@@ -52,6 +52,7 @@ internal sealed partial class ConversationStore
             if (error is not null) { return error; }
             var conversation = conversations[id];
             if (conversation.ImageOperationId is not null) { return new(409, null, "image_already_submitted"); }
+            if (conversation.CostumeCleared) { return new(409, null, "costume_context_discarded"); }
             if (conversation.ManualCostume && conversation.Costume is null)
             { return new(409, null, "costume_context_expired"); }
             if (conversation.TurnCount != 0 || HasActiveCall(id)) { return new(409, null, "image_before_dialogue_required"); }
@@ -117,12 +118,23 @@ internal sealed partial class ConversationStore
                 kind: "costume", consumesTurn: false);
             if (reservation.Conflict) { return new(409, null); }
             conversation.ManualCostume = true;
+            conversation.CostumeCleared = description.Length == 0;
             conversation.CostumeCorrectionCount++;
             var context = new CostumeContext(description, "", "high", "manual", clock.GetUtcNow().AddSeconds(120));
-            conversation.Costume = context;
-            if (conversation.ImageOperationId is { } imageId && operations.TryGetValue(imageId, out var imageOperation))
+            // The empty manual receipt acknowledges a clear; it is never an active prompt cue.
+            conversation.Costume = conversation.CostumeCleared ? null : context;
+            if (conversation.ImageOperationId is { } imageId)
             {
-                operations[imageId] = imageOperation with { Result = context };
+                if (conversation.CostumeCleared)
+                {
+                    // Suppress publication without interrupting usage settlement or the cleanup barrier.
+                    journal.CancelOperation(deviceId, imageId, key);
+                    operations.Remove(imageId);
+                }
+                else if (operations.TryGetValue(imageId, out var imageOperation))
+                {
+                    operations[imageId] = imageOperation with { Result = context };
+                }
             }
             var operation = new TurnOperation(reservation.OperationId, "costume", "completed",
                 new(deviceId, correlation.BootId, id, correlation.ClientTurnId, correlation.Generation, correlation.DeviceRevision), context, null);
@@ -172,7 +184,7 @@ internal sealed partial class ConversationStore
                 CleanupExpired(clock.GetUtcNow());
                 if (cancellation.IsCancellationRequested || !conversations.TryGetValue(correlation.ConversationId, out var conversation))
                 { journal.MarkFailed(operationId); return; }
-                if (conversation.ManualCostume && conversation.Costume is null)
+                if (conversation.CostumeCleared || conversation.ManualCostume && conversation.Costume is null)
                 { journal.MarkFailed(operationId); return; }
                 var context = new CostumeContext(response.Description, response.PossibleCharacter, response.Uncertainty,
                     "photo", clock.GetUtcNow().AddSeconds(120));

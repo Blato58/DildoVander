@@ -26,6 +26,13 @@ Volitelná ruční oprava přes `PUT /v1/conversations/{id}/costume-context`
 s tělem `{ "description": "červený plášť" }` a stejnými korelačními hlavičkami
 nevolá AI. Nepotřebuje obrazový souhlas; nejvýše 240 znaků bez řídicích znaků,
 prázdný text odstraní vodítko. Vrací `200` s dokončenou operací `kind=costume`.
+Prázdný popis v ručním výsledku je pouze potvrzení odstranění; do žádného
+provider promptu se nepředává. Odstranění zruší i výsledek image operace
+(`status=cancelled`, `result=null`), takže poll nikdy nevrátí prázdný dokončený
+popis fotografie. Rozpracovaná analýza přesto doúčtuje spotřebu, vynuluje JPEG
+a uvolní provider slot. První upload po odstranění se odmítne s 409
+`costume_context_discarded`; neprázdná nová ruční oprava může vodítko obnovit.
+Popis z fotografie/fake musí obsahovat nejméně jeden znak.
 Ruční údaj má přednost i před pozdní odpovědí fotografie. Pro změněnou opravu
 použij nový idempotency key. Nejvýše osm oprav na rozhovor chrání RAM. Opravu dokonči před hlasem. Kontext se předává
 textovému Responses, Realtime, GPT-Live i samostatnému Sol rozhodování jako

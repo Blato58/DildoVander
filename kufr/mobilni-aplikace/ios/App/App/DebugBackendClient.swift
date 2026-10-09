@@ -386,6 +386,24 @@ final class DebugBackendClient {
     typealias HTTP = (URLRequest, Int) async throws -> (Data, HTTPURLResponse)
     private let http: HTTP
     private let transport: DebugHTTPTransport?
+    private struct CleanupRecord {
+        let profile: DebugBackendProfile
+        var token: String
+        let conversation: String
+        let key: String
+    }
+    // Only this client's acquired conversation IDs enter this registry. Keep
+    // failed mutations across Stop; remove credentials after confirmed 204.
+    private var pendingCleanup: [String: CleanupRecord] = [:]
+    private var cleanupTasks: [String: Task<Void, Error>] = [:]
+    private var confirmedCleanup = Set<String>()
+    var hasPendingCleanup: Bool { !pendingCleanup.isEmpty }
+
+    func retryPendingCleanup() async throws {
+        for record in Array(pendingCleanup.values) {
+            try await cleanup(record.profile, token: record.token, conversation: record.conversation)
+        }
+    }
 
     init(http: HTTP? = nil) {
         if let http = http {
@@ -406,6 +424,7 @@ final class DebugBackendClient {
         guard ["fake", "openai"].contains(expectedMode), (0...63).contains(readyMask),
               ["cedar", "marin", "onyx", "coral"].contains(voice), speed.isFinite,
               (0.85...1.25).contains(speed) else { throw DebugBackendError.invalidResponse }
+        guard !hasPendingCleanup else { throw DebugBackendError.serverCode("realtime_cleanup_failed") }
         let token = try await accessToken(profile)
         guard try await metadata(profile, token: token, expectedMode: expectedMode, requireDialog: true) == expectedMode else {
             throw DebugBackendError.wrongMode
@@ -438,6 +457,7 @@ final class DebugBackendClient {
               speed.isFinite, (0.8...1.2).contains(speed) else {
             throw DebugBackendError.invalidResponse
         }
+        guard !hasPendingCleanup else { throw DebugBackendError.serverCode("realtime_cleanup_failed") }
         let token = try await accessToken(profile)
         guard try await metadata(profile, token: token, expectedMode: "openai", requireDialog: true) == "openai" else {
             throw DebugBackendError.wrongMode
@@ -488,6 +508,7 @@ final class DebugBackendClient {
         async throws -> DebugHandsFreeSession {
         guard (0...63).contains(readyMask), ["cedar", "marin", "coral"].contains(voice),
               speed.isFinite, (0.8...1.2).contains(speed) else { throw DebugBackendError.invalidResponse }
+        guard !hasPendingCleanup else { throw DebugBackendError.serverCode("realtime_cleanup_failed") }
         let token = try await accessToken(profile)
         guard try await metadata(profile, token: token, expectedMode: "openai", requireDialog: true) == "openai" else {
             throw DebugBackendError.wrongMode
@@ -562,38 +583,58 @@ final class DebugBackendClient {
             if let description = input.description {
                 input.description = nil
                 do {
-                    guard !description.isEmpty, description.unicodeScalars.count <= 240,
-                        !description.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else {
-                        throw DebugBackendError.invalidResponse
-                    }
-                    let data = try JSONSerialization.data(withJSONObject: ["description": description])
-                    let turn = UUID().uuidString.lowercased()
-                    let operation = try await costumeRequest(profile, token: token, conversation: preparedConversation,
-                        boot: boot, turn: turn, suffix: "costume-context", method: "PUT",
-                        data: data, contentType: "application/json")
-                    let correlation: [String: Any] = ["deviceId": profile.deviceId, "bootId": boot,
-                        "conversationId": preparedConversation, "clientTurnId": turn, "generation": 0, "deviceRevision": 0]
-                    _ = try uuid(operation, "operationId")
-                    guard let received = operation["correlation"] as? NSDictionary, received.isEqual(to: correlation),
-                        operation["kind"] as? String == "costume", operation["status"] as? String == "completed",
-                        let result = operation["result"] as? [String: Any] else { throw DebugBackendError.invalidResponse }
-                    try validateCostumeResult(result, manual: true)
+                    try await correctCostume(profile, token: token, conversation: preparedConversation,
+                        boot: boot, description: description)
                     status((photoFailed ? "Fotku se nepodařilo zpracovat. " : "") + "Používám ruční popis kostýmu místo odhadu z fotky.")
                 } catch {
                     try Task.checkCancellation()
-                    status("Ruční popis se nepodařilo předat. Rozhovor pokračuje bez něj.")
+                    status("Ruční popis nebyl potvrzen. Rozhovor se nespustil; použijte Stop.")
+                    throw error
                 }
             }
             try Task.checkCancellation()
             return preparedConversation
         } catch {
             // The caller still owns the original ID until this helper returns.
-            // Keep ownership of a fresh ID across manual/preflight cancellation.
+            // cleanup registers a fresh ID/key before I/O. A failed DELETE
+            // remains in this retained client for Stop, even without a session.
             if preparedConversation != conversation {
                 try? await cleanup(profile, token: token, conversation: preparedConversation)
             }
             throw error
         }
+    }
+
+    private func correctCostume(_ profile: DebugBackendProfile, token: String, conversation: String,
+                                boot: String, description: String) async throws {
+        guard !description.isEmpty, description.unicodeScalars.count <= 240,
+            !description.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else {
+            throw DebugBackendError.invalidResponse
+        }
+        let data = try JSONSerialization.data(withJSONObject: ["description": description], options: [.sortedKeys])
+        let turn = UUID().uuidString.lowercased()
+        let key = UUID().uuidString.lowercased()
+        let correlation: [String: Any] = ["deviceId": profile.deviceId, "bootId": boot,
+            "conversationId": conversation, "clientTurnId": turn, "generation": 0, "deviceRevision": 0]
+        for attempt in 0..<2 {
+            do {
+                // A lost or malformed success may already have committed a cue.
+                // Replay only this exact mutation; never retry photo/provider work.
+                let operation = try await costumeRequest(profile, token: token, conversation: conversation,
+                    boot: boot, turn: turn, suffix: "costume-context", method: "PUT", data: data,
+                    contentType: "application/json", idempotencyKey: key)
+                _ = try uuid(operation, "operationId")
+                guard let received = operation["correlation"] as? NSDictionary, received.isEqual(to: correlation),
+                    operation["kind"] as? String == "costume", operation["status"] as? String == "completed",
+                    let result = operation["result"] as? [String: Any] else { throw DebugBackendError.invalidResponse }
+                try validateCostumeResult(result, manual: true)
+                return
+            } catch {
+                try Task.checkCancellation()
+                if attempt == 1 { throw error }
+            }
+        }
+        throw DebugBackendError.invalidResponse
     }
 
     private func submitCostumeImage(_ profile: DebugBackendProfile, token: String, conversation: String,
@@ -617,13 +658,13 @@ final class DebugBackendClient {
 
     private func costumeRequest(_ profile: DebugBackendProfile, token: String, conversation: String,
                                 boot: String, turn: String, suffix: String, method: String,
-                                data: Data, contentType: String) async throws -> [String: Any] {
+                                data: Data, contentType: String, idempotencyKey: String? = nil) async throws -> [String: Any] {
         try Task.checkCancellation()
         var request = URLRequest(url: profile.baseURL.appendingPathComponent("v1/conversations/\(conversation)/\(suffix)"))
         request.httpMethod = method
         request.httpBody = data
         let headers = ["Authorization": "Bearer \(token)", "Content-Type": contentType,
-            "Idempotency-Key": UUID().uuidString.lowercased(), "Client-Turn-Id": turn, "Boot-Id": boot,
+            "Idempotency-Key": idempotencyKey ?? UUID().uuidString.lowercased(), "Client-Turn-Id": turn, "Boot-Id": boot,
             "Generation": "0", "Device-Revision": "0", "Catalog-Version": "ollivander-private-party-v1"]
         for (key, value) in headers { request.setValue(value, forHTTPHeaderField: key) }
         // Single attempt: never resend a photo after an ambiguous network error.
@@ -777,6 +818,7 @@ final class DebugBackendClient {
              phase: (String) -> Void) async throws -> Data {
         guard ["fake", "openai"].contains(expectedMode) else { throw DebugBackendError.wrongMode }
         phase("checking")
+        guard !hasPendingCleanup else { throw DebugBackendError.serverCode("realtime_cleanup_failed") }
         let token = try await accessToken(profile)
         guard try await metadata(profile, token: token, expectedMode: expectedMode) == expectedMode else { throw DebugBackendError.wrongMode }
         let bootId = UUID().uuidString.lowercased()
@@ -875,21 +917,52 @@ final class DebugBackendClient {
     }
 
     func cleanup(_ profile: DebugBackendProfile, token: String, conversation: String) async throws {
-        // An unstructured task performs cleanup even when the caller was cancelled.
-        // Only the conversation ID acquired by this run may be deleted.
-        try await Task { @MainActor in
-            let key = UUID().uuidString.lowercased()
+        if confirmedCleanup.contains(conversation) { return }
+        if let current = cleanupTasks[conversation] { try await current.value; return }
+        let record = pendingCleanup[conversation] ?? CleanupRecord(profile: profile, token: token,
+            conversation: conversation, key: UUID().uuidString.lowercased())
+        pendingCleanup[conversation] = record
+        // Unstructured cleanup survives caller cancellation. The same key stays
+        // owned even if both attempts fail: a later Stop must replay it because
+        // the backend removes the conversation before its image barrier completes.
+        let current = Task { @MainActor in
+            var ownedRecord = record
+            var renewalAttempted = false
             for attempt in 0..<2 {
                 do {
-                    let (_, response) = try await request(profile, path: "v1/conversations/\(conversation)", token: token,
-                        method: "DELETE", body: nil, limit: 4096, key: key)
+                    var (_, response) = try await self.request(ownedRecord.profile,
+                        path: "v1/conversations/\(ownedRecord.conversation)", token: ownedRecord.token,
+                        method: "DELETE", body: nil, limit: 4096, key: ownedRecord.key,
+                        allowUnauthorizedResponse: true)
+                    if response.statusCode == 401 && !renewalAttempted {
+                        renewalAttempted = true
+                        ownedRecord.token = try await self.accessToken(ownedRecord.profile)
+                        // Persist renewal before the replay: a failed barrier must
+                        // keep the fresh credential for the next Stop as well.
+                        self.pendingCleanup[conversation] = ownedRecord
+                        (_, response) = try await self.request(ownedRecord.profile,
+                            path: "v1/conversations/\(ownedRecord.conversation)", token: ownedRecord.token,
+                            method: "DELETE", body: nil, limit: 4096, key: ownedRecord.key,
+                            allowUnauthorizedResponse: true)
+                    }
+                    if response.statusCode == 401 { throw DebugBackendError.httpStatus }
                     guard response.statusCode == 204 else { throw DebugBackendError.invalidResponse }
+                    self.pendingCleanup.removeValue(forKey: conversation)
+                    self.confirmedCleanup.insert(conversation)
                     return
                 } catch {
                     if attempt == 1 { throw error }
                 }
             }
-        }.value
+        }
+        cleanupTasks[conversation] = current
+        do {
+            try await current.value
+            cleanupTasks.removeValue(forKey: conversation)
+        } catch {
+            cleanupTasks.removeValue(forKey: conversation)
+            throw error
+        }
     }
 
     func cancelOperation(_ profile: DebugBackendProfile, token: String, operation: String) async throws {
@@ -940,7 +1013,8 @@ final class DebugBackendClient {
 
     fileprivate func request(_ profile: DebugBackendProfile, path: String, token: String,
                          method: String, body: [String: Any]?, limit: Int, key: String? = nil,
-                         queryItems: [URLQueryItem]? = nil) async throws -> (Data, HTTPURLResponse) {
+                         queryItems: [URLQueryItem]? = nil,
+                         allowUnauthorizedResponse: Bool = false) async throws -> (Data, HTTPURLResponse) {
         try Task.checkCancellation()
         var components = URLComponents(url: profile.baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
         components.queryItems = queryItems
@@ -955,7 +1029,8 @@ final class DebugBackendClient {
         let (data, response) = try await http(request, limit)
         try Task.checkCancellation()
         guard data.count <= limit else { throw DebugBackendError.tooLarge }
-        guard (200...299).contains(response.statusCode) else { throw DebugBackendError.httpStatus }
+        guard (200...299).contains(response.statusCode) ||
+                (allowUnauthorizedResponse && response.statusCode == 401) else { throw DebugBackendError.httpStatus }
         return (data, response)
     }
 
