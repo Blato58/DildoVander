@@ -3,7 +3,46 @@
 The existing Capacitor app is extended; its **Síť kufru** tab uses a native
 CoreBluetooth/ESPProvision 3.2.0 plugin. Safari/Web Bluetooth is not used.
 
-**Current handoff: D164.** Development OTA **0.1.161** passed
+**Current handoff: D165.** The owner forgot the iPhone's
+local pairing, then BLE enrollment returned `already_paired`: forgetting Keychain
+had left the ESP's token digest intact. D165 adds explicit native confirmation
+**Obnovit párování kufru?**. Only confirmation sends
+`{"v":1,"command":"recover-local","confirm":true}` over the authenticated Security1/PoP
+session. A healthy Paired record can rotate to a fresh token digest; pending QR,
+missing or corrupt records remain blocked. Connected/reserved sockets, queued
+owner events, disconnects, manual lease, voice and maintenance reject recovery
+as busy. Cancel and automatic reconnect never rotate the credential. TLS identity
+and Wi-Fi settings stay intact. Pin/token stay native; the new Keychain credential
+is inserted only into an empty local profile and never overwrites an existing one.
+
+[PR163](https://github.com/Blato58/DildoVander/pull/163) merged as
+`f752c1e0009d25b6827657f789bd35ff943c74f4`, from source
+`50b6b0605279884be5c2ed969254e2a57f32411a`.
+[CI 37936213640](https://github.com/Blato58/DildoVander/actions/runs/37936213640)
+passed with firmware **0.1.162**.
+[OTA publication 37936948294](https://github.com/Blato58/DildoVander/actions/runs/37936948294)
+succeeded; public HTTPS, ECDSA signature, hash and embedded version were verified.
+The COM7 app-only write at `0x10000` was hash-verified without touching NVS.
+Normal RTS boot confirmed **0.1.162**, main stack 16384 B / minimum remaining
+12540 B, BLE advertising, control loop and TLS startup at 18899 ms.
+[iOS signing 37936943860](https://github.com/Blato58/DildoVander/actions/runs/37936943860)
+passed all three native harnesses, Xcode archive and Ad Hoc export for
+**1.0 / build 1000.0.22**. [Safari publication 37937381222](https://github.com/Blato58/DildoVander/actions/runs/37937381222)
+succeeded in all three jobs. The public installation page and manifest identify
+`app.turquoise6409.green2444` / **1000.0.22**; public IPA 1873296 B and its checksum
+were verified, SHA-256 `f5cb611018ea898b215701bda0982c76dcd0dff7d1738421e9d13299fb39ff3e`.
+The post-flash PC BLE scan found `KUFR_4B6048` with the expected service UUID. The owner subsequently confirmed pairing again, but reported that network discovery
+and connection still fail. PC Bonjour and unauthenticated TLS remain reachable;
+these checks do not validate the phone's token or pin. LAN/WSS and post-update
+Keychain acceptance remain open in
+[implementation status](../kufr/docs/stav-implementace.md#předání-další-ai).
+
+The later direct-IP test reached the device service-state UI; source emits that
+only after a valid snapshot, so this is evidence of a direct-IP WSS connection.
+The hostname timed out. Hardware/calibration remains gated; automatic address
+selection and long-running WSS/Keychain checks remain open.
+
+**Historical D164 handoff.** Development OTA **0.1.161** passed
 [CI 37931935316](https://github.com/Blato58/DildoVander/actions/runs/37931935316)
 and [publication 37933188173](https://github.com/Blato58/DildoVander/actions/runs/37933188173).
 [PR161](https://github.com/Blato58/DildoVander/pull/161) increases the main task
@@ -15,7 +54,7 @@ loop, BLE advertising and the local TLS server after about 19 seconds. An active
 PC scan found `KUFR_4B6048` with the expected service UUID; the previous **0.1.157**
 main stack overflow prevented BLE startup.
 
-iOS remains **1.0 / build 1000.0.21**, signed and published by the D163 runs below;
+At D164, iOS remained **1.0 / build 1000.0.21**, signed and published by the D163 runs below;
 it was not signed or published again in D164. The owner confirmed the fresh same-Wi-Fi
 iPhone test: "yes I am connected". This confirms connection through Ovládání;
 long-running WSS and Keychain retention after update remain pending. Exact receipts and public verification are in
@@ -88,8 +127,9 @@ local TLS storage is initialized at boot with a unique EC identity. Firmware
 advertises `_kufr._tcp` after its TLS server starts, even before first local pairing.
 Once PoP-authenticated BLE connects, **Spárovat ovládání přes Wi-Fi** issues the
 first local token and transfers the address/pin/token only to native Keychain.
-Existing or corrupt records are not replaced automatically; recovery remains a
-physical service operation. Use the same LAN and allow local-network access.
+Existing or corrupt records are not replaced automatically. D165 permits explicit
+confirmed BLE recovery only for healthy Paired records; pending QR and corrupt
+storage still require physical service. Use the same LAN and allow local-network access.
 Discovery or an address alone does not authenticate the subsequent pinned WSS.
 
 Protocol: service `b97a7f10-70e8-4b98-9dcc-40d66395c821`; characteristics
@@ -97,6 +137,9 @@ Protocol: service `b97a7f10-70e8-4b98-9dcc-40d66395c821`; characteristics
 (`kufr-control`). Official `sec_ver=1`, PoP mandatory; no `no_pop` capability.
 Plain management JSON inside the secure session is at most 512 bytes. Status
 wire keys are `{v,ok,error?,id,fw,n:{p,r,a,l,h,f},b,o:{s,a,e,i}}`.
+Pairing and recovery responses are exclusive: `{v:1,ok:true,id,host,spkiSha256,token}`
+or `{v:1,ok:false,error}`; they never include public status. Recovery requires the
+exact confirmed request above; omitted, false, duplicate or extra fields are rejected.
 The Swift codec projects the existing rich network/update objects.
 
 Build on Windows: `npm ci`, `npm test`, `npm run build` in
