@@ -18,7 +18,7 @@ WIRING = KUFR / "docs/zapojeni-potvrzeneho-hardwaru.md"
 SNAPSHOT = ROOT / "reference/inspect-sources.json"
 # connection_data() was reviewed against these exact source bytes. Refreshing
 # provenance must never imply that its manually encoded topology was updated.
-REVIEWED_WIRING_SHA256 = "585836db04eda8bddc3362788ddf24fdeb756f32520d85b151782ea1c99016b8"
+REVIEWED_WIRING_SHA256 = "a48ec974485e4b2f0558bb2f691fc70198464c0908e3b88f2ca8e9171e401a84"
 
 
 def _assert_reviewed_wiring(record):
@@ -221,7 +221,15 @@ def describe(item):
     if item.name.startswith("spare_"):
         details.append("Rezerva je odpojená; vývody izolovat a díl zajistit pro přepravu.")
     if item.name.startswith("degson_"):
-        details.append("Konkrétní ID této obálky není přiřazeno síti +5 V, pohony ani GND; zapojení nelze odvodit z polohy v CAD.")
+        net = {"degson_1":"MAIN5 (+5 V)", "degson_2":"DRIVE5 (+5 V za zelenou)",
+               "degson_3":"GND (nevypínat)"}.get(item.name)
+        if net:
+            details.append("Montážní návrh KABELAZ.md: " + net + "; jeden vodič na port, izolované měděné odbočky. Nejde o měřené zapojení.")
+    if item.name.startswith("capacitor_"):
+        branch = {"capacitor_1":"LED", "capacitor_2":"LED", "capacitor_3":"PCA V+",
+                  "capacitor_4":"PCA V+", "capacitor_5":"audio/elektronika", "capacitor_6":"audio/elektronika"}.get(item.name)
+        if branch:
+            details.append("Montážní návrh KABELAZ.md: dvojice paralelně u větve " + branch + "; ověřit polaritu a izolaci.")
     if item.source and item.source != "design":
         details.append("Podklad obálky CAD: " + item.source)
     details.append("Skupina modelu: " + item.group + "; ID: " + item.name)
@@ -237,8 +245,8 @@ def source_evidence():
 def connection_data(names: set[str]):
     """Logical documented nets, not cable routing or verified physical wiring.
 
-    Degson and capacitor IDs have no documented net assignment. Deliberately
-    leave them disconnected instead of treating their CAD position as evidence.
+    This preserves the source pinout independently of the assembly fan-outs
+    in harness.py. Their explicit nets are added only to the generated viewer.
     """
     _source_records()
     result = []

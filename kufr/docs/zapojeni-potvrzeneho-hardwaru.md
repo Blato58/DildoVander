@@ -9,6 +9,15 @@ Majitel potvrdil rozměr **139×80×26,5 mm** a požaduje jednoduché vyjmutí
 bez demontáže okolních dílů. Všechny rozměry jsou v
 [jednom přehledu](../mechanika/rozmery-nakoupenych-soucastek.md).
 
+Rozmístění, označení svazků, obsazení tří pracovních svorek a pořadí
+montáže určuje [kabelový plán F1](../mechanika/final/KABELAZ.md).
+PD trigger, měnič a jistič jsou společně vlevo u powerbanky. Rozbočení
+výkonu tvoří samostatné izolované měděné vodiče, nikoli plošné spoje
+univerzálních desek. Na jednom portu Degson je jeden odpovídající vodič;
+pět společných portů samo neposkytne odbočku pro každou zátěž.
+Plán zachovává níže uvedené piny a elektrické sítě; délky jsou montážní
+odhady a fyzická přejímka ještě neproběhla.
+
 Implementovaný profil **B-effects** zachovává kamerové a SD piny.
 Kamerový driver/snímek E13 a SD driver zatím nejsou dokončené.
 Majitel potvrdil stávající desku Drátek 232701 s konektorem OV5640;

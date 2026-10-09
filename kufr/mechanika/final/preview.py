@@ -13,6 +13,7 @@ from check_fit import scene
 import mechanism
 import chassis
 import inspect_data
+import harness
 
 
 def mesh(shape):
@@ -106,8 +107,10 @@ def viewer():
                        "info":inspect_data.describe(item),
                        "data":[round(float(x),4) for x in packed]})
     template=(ROOT/"viewer-template.html").read_text(encoding="utf-8")
+    names = {item.name for item in items}
     payload={"meshes":meshes,"hinge":chassis.HINGE,"mechanism":mechanism.M,
-             "connections":inspect_data.connection_data({i.name for i in items}),
+             "connections":inspect_data.connection_data(names) +
+                           [edge for edge in harness.CONNECTIONS if edge["from"] in names and edge["to"] in names],
              "sources":inspect_data.source_evidence()}
     OUT.mkdir(parents=True,exist_ok=True)
     script=(ROOT/"viewer.js").read_text(encoding="utf-8")

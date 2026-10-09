@@ -10,6 +10,8 @@ from geometry import PARAMS
 from build import OUT
 import chassis
 import mechanism as m
+import layout
+import harness
 
 
 def dimension(ax,a,b,label,offset=0):
@@ -34,7 +36,8 @@ def main():
     ax.add_patch(Rectangle((18.5,123),26.5,139,facecolor="#7c8590"))
     ax.text(32,193,"PB 139 × 80 × 26,5\nstojí na hraně",rotation=90,ha="center",va="center",fontsize=9,color="white")
     for x in (18,403):ax.add_patch(Rectangle((x,19),21,100,facecolor="#9a8c7c"))
-    ax.text(396,201,"Měnič\nPCB\nrozvod",ha="center",va="center")
+    ax.text(396,201,"Signálové\nPCB",ha="center",va="center")
+    ax.text(40,80,"PD / měnič\n/ jistič",ha="center",va="center",fontsize=8)
     ax.text(395,65,"ESP\nkamera",ha="center")
     for x,label,color in ((22,"H","#a5a5a5"),(56,"P","#a5a5a5"),(38,"B","white")):
         y=19 if label=="B" else 40.5
@@ -64,6 +67,7 @@ def main():
     fig.savefig(OUT/"layout.svg",facecolor=fig.get_facecolor())
     fig.savefig(OUT/"layout.png",dpi=150,facecolor=fig.get_facecolor())
     plt.close(fig)
+    cable_drawing()
     angles=np.linspace(0,160,641)
     lift=np.array([m.cam_law(a)[0]-m.M["cam_low_radius"] for a in angles])
     fig,(left,right)=plt.subplots(1,2,figsize=(13,5),facecolor="#faf8f3")
@@ -81,6 +85,51 @@ def main():
     fig.suptitle("F1 · uzavřená drážka aktivně zvedá i vrací lůžko",fontsize=17)
     fig.tight_layout(rect=(0,0,1,.92));fig.savefig(OUT/"kinematika.svg",facecolor=fig.get_facecolor());plt.close(fig)
     print("Dimensioned SVG/PNG drawings written",flush=True)
+
+
+def cable_drawing():
+    fig, ax = plt.subplots(figsize=(14,9),facecolor="#faf8f3")
+    ax.set_facecolor("#faf8f3")
+    ax.add_patch(Rectangle((4,4),chassis.X-8,chassis.Y-8,fill=False,lw=2))
+    names = {"powerbank","pd_trigger","buck","breaker","esp32","pca9685",
+             "mcp23017","pixel_shifter","microphone","degson_1","degson_2","degson_3"}
+    from geometry import bounds
+    for item in layout.hardware():
+        if item.name not in names:continue
+        x,y,z,xx,yy,zz = bounds(item.shape)
+        ax.add_patch(Rectangle((x,y),xx-x,yy-y,facecolor="#e3e1d6",edgecolor="#686655",alpha=.7))
+        if item.name in ("buck", "breaker", "pd_trigger"):
+            continue  # These components share a footprint at different heights.
+        label = {"degson_1":"D1 · MAIN5", "degson_2":"D2 · DRIVE5",
+                 "degson_3":"D3 · GND"}.get(item.name,item.name)
+        ax.text((x+xx)/2,(y+yy)/2,label,ha="center",va="center",fontsize=7)
+    for label, point, text_y in (("Měnič · Z81",(39,80),40),
+                                  ("Jistič · Z61",(39,84),50),
+                                  ("PD · Z18",(49,79),60)):
+        ax.annotate(label,xy=point,xytext=(10,text_y),fontsize=8,
+                    arrowprops={"arrowstyle":"-","color":"#686655","lw":.7},
+                    bbox={"facecolor":"#faf8f3","edgecolor":"none","pad":1})
+    colors = {"power":"#b94436","ground":"#596267","signal":"#356fb0"}
+    for route in harness.routes():
+        points = np.array(route["points"])
+        color = colors.get(route["kind"],"#825b8c")
+        ax.plot(points[:,0],points[:,1],color=color,lw=1,alpha=.5,ls="--")
+    for index in range(6):
+        x = m.M["origin_x"]+index*m.M["pitch"]
+        ax.add_patch(Rectangle((x+17,m.M["origin_y"]+52),24,26,
+                               facecolor="#c9b5db",edgecolor="#75578a",alpha=.6))
+        ax.text(x+29,99,str(index+1),ha="center",fontsize=10)
+    ax.text(220,37,"Signály · Y27 / Z38",ha="center",fontsize=8,
+            bbox={"facecolor":"#faf8f3","edgecolor":"none","pad":1})
+    ax.text(220,230,"Napájecí kmen · Y212 / Z45",ha="center",fontsize=8)
+    ax.text(220,288,"Červená: napájení · modrá: signály · šedá: GND · fialová: volný prostor smyčky",ha="center",fontsize=10)
+    ax.text(220,-18,"Návrhové trasy; přesné svorky, ohyby a délky ověřit při suché montáži. Zdvih 16 mm.",ha="center",fontsize=10)
+    ax.set_xlim(-15,455);ax.set_ylim(303,-32);ax.set_aspect("equal");ax.axis("off")
+    ax.set_title("F1 · montážní kabelový plán (souřadnice v mm)",fontsize=18,pad=12)
+    fig.tight_layout()
+    fig.savefig(OUT/"cable-layout.svg",facecolor=fig.get_facecolor())
+    fig.savefig(OUT/"cable-layout.png",dpi=150,facecolor=fig.get_facecolor())
+    plt.close(fig)
 
 
 if __name__=="__main__":main()

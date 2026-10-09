@@ -107,15 +107,24 @@ kolébka. Při úplném zamrznutí řídicí úlohy software sám odpojení nedo
   platí pro serva; nelze jej vydávat za 10kHz PWM vibrací.
 - **MCP23017:** modul Adafruit 5346, 3,3 V, adresa 0x20. Pomocné piny podle
   B, I2C GPIO1/14. Souběh kamery používá jiné piny než profil A.
-- **Vibrace:** vlastní Grove kabel → adaptér → 0,5mm² napájecí odbočka.
+- **Vibrace:** původní Grove konektor a kabel zachovat na straně U059;
+  opačný konec zapojit jednotlivými izolovanými vodiči podle
+  [montážního kabelového plánu F1](../mechanika/final/KABELAZ.md).
+  Napájení pokračuje označenou pájenou 0,5mm² odbočkou, DIN do PCA;
+  plán nepoužívá dodatečný Grove adaptér.
   U059 má vlastní driver: červená 5 V, černá GND, žlutá DIN, bílá NC.
   [M5Stack](https://docs.m5stack.com/en/unit/Unit_Vibrator) uvádí 424,35 mA
   při 5 V / 10kHz PWM / 50 %. Není to maximální proud ani spotřeba při
   našem digitálním FULL_ON řízení, proto rezerva a měření.
 - **LED:** data DOUT → DIN všech šesti úseků; +5 V/GND do každého zvlášť.
-  Pixel Shifter a 330 Ω na začátku řetězce. JST-SM konektor na vstupu
-  úseku dovolí servisní odpojení; výstupní data vést zvlášť do dalšího.
-  Odkrýt IP65 u pájení, zaizolovat spoje, ověřit šipky a polaritu.
+  Pixel Shifter a 330 Ω na začátku řetězce. Současná sestava F1 má
+  označené pájené odbočky +5 V/GND a samostatné spoje DOUT/DIN;
+  JST-SM konektory nejsou koupené a nejsou součástí montážního plánu.
+  Servis jednotlivého úseku vyžaduje odpojit zdroj, ověřit vybití,
+  odkrýt a odpájet jeho konkrétní výkonové i datové spoje, poté je
+  obnovit a znovu zaizolovat podle [KABELAZ.md](../mechanika/final/KABELAZ.md#co-lze-při-servisu-rozpojit).
+  Odkrýt IP65 u pájení, zachovat délkovou rezervu pro servis, ověřit
+  šipky a polaritu. LED úseky nemají rychlorozpojitelný konektor.
 - **Audio:** dva potvrzené DFR0954 a dva samostatné 8Ω reproduktory,
   společné BCLK/WS/DIN. SPK výstupy nikdy nespojovat; SPK− není GND.
   Každý má vlastní PH2 kabel. Mikrofon ICS43434 napájet 3,3 V.

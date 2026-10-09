@@ -10,6 +10,7 @@ FIXED_EXPORTS = (
     "manifest.json", "verification.json", "collision-details.json",
     "print-bom.csv", "installed-hardware.csv", "viewer.html",
     "layout.svg", "layout.png", "kinematika.svg",
+    "cable-plan.json", "cable-cut-list.csv", "cable-layout.svg", "cable-layout.png",
     "images/open.png", "images/service.png", "images/transport.png",
     "images/mechanism.png", "images/cam.png",
 )
