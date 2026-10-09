@@ -51,7 +51,18 @@ lockfilů, metadat balíčků a compiler/linker/archive binárek; přes všechny
 namespaces platí společný 1 GiB a dočasné zápisy mladší jedné hodiny jsou
 chráněné. Deset lokálních regresí prošlo. Nový namespace začíná studený,
 staré objekty bez zaznamenaného fingerprintu se nepřejmenovávají.
-Finální Linux CI a dokončení review před merge ještě čekají.
+Opravy v commitu `9a65bb219466515acf68427a4dff49aab12412cb` byly ověřeně
+pushnuté přes helper. Nezávislé review a GitHub Codex review `9a65bb2`
+i následného `a08dd12` dokončily bez nových nálezů; obě původní P2 vlákna
+jsou po opravě vyřešená. Dokumentační `main` `7be0387` začlenil PR sync;
+firmware Git tree zůstal `fa568d147e89594c8a7a454dfa0b7440b9d0be97`.
+Předchozí `CI 37901626217` proto přerušilo poslední diagnostiku, nikoli chyba
+kódu. Celý [CI 37902376481](https://github.com/Blato58/DildoVander/actions/runs/37902376481)
+na `a08dd12` prošel: deset cache regresí, všechny host tests, repository
+checks, ESP-IDF, BLE/cJSON, čtyři diagnostiky, OTA check, balení i `CI required`.
+Studený nový namespace na druhém runneru znamenal 533 s (8m53s), příprava
+2 s, hlavní build 261 s, diagnostiky 59/59/66/71 s. Oba runnery nyní mají
+nový cache namespace; plný běh s jeho teplou cache bude doložen v kontrolách PR.
 Nevzniká nová VPS objednávka, provider inference, deploy ani HW flash.
 
 **D158 – 9. 10. 2026 – plný audit, nativní BLE, hotspot-first Wi-Fi, OTA a SD.**
