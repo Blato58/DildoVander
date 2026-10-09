@@ -62,7 +62,7 @@ Skutečný macOS15/Xcode26.3 resolver **37887830815** prošel; commit `478f1ab`
 obsahuje byte-for-byte Package.resolved s Capacitor8.5.2, ESPProvision3.2.0
 a SwiftProtobuf1.38.1 včetně ověřených Git revisions. Dočasný resolver
 workflow je odstraněn. Plný nativní compile, podpis a publikace nového IPA
-dosud neproběhly; patří do existující ruční iOS pipeline.
+později prošly v existující ruční pipeline podle finálních dokladů níže.
 
 VPS cleanup je dokončený: zbývají pouze GitHub runnery ID2 (main) a ID22 (-2).
 Třetí runner byl odregistrován, Codex i CloudVPSBridge jsou odinstalované;
