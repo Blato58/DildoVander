@@ -6,6 +6,65 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**9. 10. 2026 – zrychlení firmware CI.** Převzaté soubory:
+`.github/workflows/kufr-firmware.yml`, nové `kufr/firmware/ci/` a firmware
+README. Živá kontrola potvrdila VPS s 1 CPU, 1909 MiB RAM, 2 GiB swap
+a dvěma aktivními runnery s odděleným `HOME`; backend health je `ok`.
+Posledních pět úspěšných firmware jobů trvalo 437–622 s; novější joby
+mají navíc další USB diagnostiku. Obnova toolchain cache zabírala
+54–78 s, hlavní ESP-IDF 168–286 s a každá diagnostika přibližně minutu.
+Slice nahrazuje přenos archivu lokálně zachovaným toolchainem/venv a
+SCons cache mimo checkout, oddělenou po runnerech a omezenou na 1 GiB.
+Objekty s `__DATE__`/`__TIME__` se vždy překládají. Lokální Windows
+`pio run -d kufr/firmware -e esp32-s3-idf` na zdrojích `199664e` prošel
+se studenou cache za 305,71 s. Po odložení build adresáře mimo aktivní
+profil zachovalý cache načetl 1334 výstupů; finální teplý build prošel
+za 97,01 s, ale měl již CMake konfiguraci z předchozího pokusu (42,78 s).
+Nejde tedy o přímo srovnatelné celé joby. Guard nejprve odhalil vnořené
+SCons NodeList; opravené `Flatten(PIOBUILDFILES)` vybírá skutečný objekt.
+Log potvrzuje nový překlad network, app i bootloader timestamp objektů.
+Pět Python regresí pro pruning a timestamp graph, 55 Node CI/provenance
+testů, 6 CI-routing testů, `actionlint` 1.7.12 a whitespace prošly.
+Nezávislé review je po opravách bez otevřeného nálezu.
+Před Git předáním začleněný `origin/main` `d4862ff` (nové OTA/BLE/SD
+software slices); jejich kontroly a USB network diagnostika zůstávají
+v upraveném workflow. Implementační commit `703792186bcb1e4fda7e1683fdce0baeec4158ba`
+byl odeslaný přes `Push-CurrentBranch.ps1`; remote SHA je ověřená.
+PR [146](https://github.com/Blato58/DildoVander/pull/146) má první plný
+[CI 37897760345](https://github.com/Blato58/DildoVander/actions/runs/37897760345)
+úspěšný: Linux host tests, pět cache regresí, repository checks, ESP-IDF,
+OTA version check, managed cJSON BLE test a všechny čtyři diagnostiky
+i `CI required`. Firmware job `113712989981` na `dildovander-server`
+trval 530 s (8m50s), z toho příprava Core 9 s, hlavní build 251 s a
+diagnostiky 59/58/66/71 s. První běh vytvořil 374 MiB cache; pruning
+nemusel nic mazat. Stažený artefakt prošel SHA-256 a bezpečným unpackem
+`scripts/ci/package.py`; firmware OTA verze `0.1.0` je ověřená.
+Po začlenění iOS-only `main` přes PR sync prošel celý
+[CI 37899404378](https://github.com/Blato58/DildoVander/actions/runs/37899404378)
+na `028df36` se shodným firmware Git tree. Job na `dildovander-server-2`
+trval 362 s (6m02s) s částečně teplou cache. Hlavní build klesl
+z 267 s v předchozím běhu stejného runneru na 141 s a příprava z 10 s na 1 s;
+některé diagnostiky ještě plnily cache. Předchozí běh přerušil PR sync.
+Následné GitHub Codex review našlo dvě P2: namespace bez identity toolchainu
+a nezapočítané přerušené cache zápisy. Oprava zavádí fingerprint build pinů,
+lockfilů, metadat balíčků a compiler/linker/archive binárek; přes všechny
+namespaces platí společný 1 GiB a dočasné zápisy mladší jedné hodiny jsou
+chráněné. Deset lokálních regresí prošlo. Nový namespace začíná studený,
+staré objekty bez zaznamenaného fingerprintu se nepřejmenovávají.
+Opravy v commitu `9a65bb219466515acf68427a4dff49aab12412cb` byly ověřeně
+pushnuté přes helper. Nezávislé review a GitHub Codex review `9a65bb2`
+i následného `a08dd12` dokončily bez nových nálezů; obě původní P2 vlákna
+jsou po opravě vyřešená. Dokumentační `main` `7be0387` začlenil PR sync;
+firmware Git tree zůstal `fa568d147e89594c8a7a454dfa0b7440b9d0be97`.
+Předchozí `CI 37901626217` proto přerušilo poslední diagnostiku, nikoli chyba
+kódu. Celý [CI 37902376481](https://github.com/Blato58/DildoVander/actions/runs/37902376481)
+na `a08dd12` prošel: deset cache regresí, všechny host tests, repository
+checks, ESP-IDF, BLE/cJSON, čtyři diagnostiky, OTA check, balení i `CI required`.
+Studený nový namespace na druhém runneru znamenal 533 s (8m53s), příprava
+2 s, hlavní build 261 s, diagnostiky 59/59/66/71 s. Oba runnery nyní mají
+nový cache namespace; plný běh s jeho teplou cache bude doložen v kontrolách PR.
+Nevzniká nová VPS objednávka, provider inference, deploy ani HW flash.
+
 **D158 – 9. 10. 2026 – plný audit, nativní BLE, hotspot-first Wi-Fi, OTA a SD.**
 Převzato z čistého tracked `6cb130d`; větev `codex/event-software-completion`.
 Nesouvisející untracked `.codex/` zůstává mimo slice. Majitel následně výslovně
