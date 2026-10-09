@@ -28,6 +28,12 @@ Změněny společný přehled, záznam kufru, README mechaniky, plán, tento sta
 potvrzená objednávka, odkazy v historických nákupních seznamech a návody napájení/zapojení. Ověření: konzistence
 údajů a inventáře, lokální odkazy, diff a nezávislé dokumentační review.
 CAD/parametry/exporty se nemění; aplikační buildy ani fyzické testy neběžely.
+Git předání: commit `7538816` byl ověřeně pushnutý přes repo helper,
+[PR156](https://github.com/Blato58/DildoVander/pull/156). Kontrola pokrytí
+32/32 položek, 89 lokálních odkazů v deseti dokumentech a whitespace prošla.
+Nezávislé review vedlo k odstranění zbylých podmínek pro rozvržení u
+servo adaptéru, jističe a PH2 kabelu. Před sloučením se znovu načte
+GitHub review a dostupné CI podle AGENTS.md.
 
 **9. 10. 2026 – rozměry nakoupených součástek: dokumentační rešerše.**
 Historie PR154; požadavky na další měření níže byly nahrazené následným
