@@ -44,7 +44,11 @@ USB napájecí zakončení ESP zůstává k ověření existujícího adaptéru;
 plán žádný nekoupený konektor nepředstírá. Další krok: suchá montáž
 levé napájecí sestavy a jednoho osazeného modulu, elektrická přejímka
 a pohyb včetně opačných poloh sousedních lůžek. HW kritéria zůstávají
-otevřená. Git předání se doplní po skutečném push.
+otevřená. Implementační commit `1bd8fe1` byl skutečně pushnut a jeho
+remote SHA ověřeno pomocí `scripts/Push-CurrentBranch.ps1`.
+[PR #169](https://github.com/Blato58/DildoVander/pull/169) obsahuje tento
+slice; dokončení merge podléhá poslední kontrole reviews/inline komentářů
+a stavu CI. Vygenerované exporty jsou lokální, reprodukovatelné a v ZIPu.
 
 **9. 10. 2026 – F1 prohlížeč: Inspect, barvy a kabelové vazby.**
 `kufr/mechanika/final/exports/viewer.html` byl regenerován z aktuálních
