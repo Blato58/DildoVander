@@ -199,9 +199,33 @@ void EspIdfBleProvisioning::AddStatus(cJSON* response) {
 cJSON* EspIdfBleProvisioning::Execute(cJSON* request) {
   auto* response = cJSON_CreateObject();
   if (response == nullptr) { return nullptr; }
-  cJSON_AddNumberToObject(response, "v", 1);
+  if (cJSON_AddNumberToObject(response, "v", 1) == nullptr) {
+    cJSON_Delete(response);
+    return nullptr;
+  }
   const auto* version = cJSON_GetObjectItemCaseSensitive(request, "v");
   const char* command = Text(request, "command");
+  if (command != nullptr && std::strcmp(command, "pair-local") == 0) {
+    auto* ok = cJSON_AddBoolToObject(response, "ok", false);
+    if (ok == nullptr) { cJSON_Delete(response); return nullptr; }
+    const bool valid = cJSON_IsObject(request) && UniqueFields(request) &&
+        cJSON_IsNumber(version) && version->valuedouble == 1 &&
+        cJSON_GetArraySize(request) == 2;
+    const char* error = !valid ? "invalid_request" :
+        callbacks_.pairLocal == nullptr ? "pairing_unavailable" :
+        callbacks_.pairLocal(response, callbacks_.context);
+    cJSON_SetBoolValue(ok, error == nullptr);
+    if (error != nullptr) {
+      // Failure responses are exclusive too: no status fields or credentials.
+      cJSON_Delete(response);
+      response = cJSON_CreateObject();
+      if (response == nullptr) { return nullptr; }
+      cJSON_AddNumberToObject(response, "v", 1);
+      cJSON_AddBoolToObject(response, "ok", false);
+      cJSON_AddStringToObject(response, "error", error);
+    }
+    return response;
+  }
   bool accepted = false;
   const char* error = "invalid_request";
   if (cJSON_IsObject(request) && UniqueFields(request) && cJSON_IsNumber(version) && version->valuedouble == 1 && command != nullptr) {
@@ -250,19 +274,37 @@ esp_err_t EspIdfBleProvisioning::Handle(uint32_t, const uint8_t* input, ssize_t 
     return ESP_ERR_INVALID_ARG;
   }
   auto* request = cJSON_ParseWithOpts(buffer, nullptr, true);
-  auto* response = request != nullptr ? owner->Execute(request) : nullptr;
+  // Allocate serialization before a command can commit first-time pairing.
+  // Fixed capacity avoids freed reallocation buffers containing token fragments.
+  // cJSON needs five spare bytes; the wire response is still at most 512 bytes.
+  constexpr size_t SerializedCapacity = 518;
+  char* serialized = static_cast<char*>(std::calloc(SerializedCapacity, 1));
+  auto* response = request != nullptr && serialized != nullptr ? owner->Execute(request) : nullptr;
   if (request != nullptr) {
     auto* password = cJSON_GetObjectItemCaseSensitive(request, "password");
     if (cJSON_IsString(password)) { NetworkProfiles::Wipe(password->valuestring, std::strlen(password->valuestring)); }
   }
   cJSON_Delete(request);
   NetworkProfiles::Wipe(buffer, sizeof(buffer));
-  if (response == nullptr) { return ESP_ERR_INVALID_ARG; }
-  char* serialized = cJSON_PrintUnformatted(response);
-  cJSON_Delete(response);
   if (serialized == nullptr) { return ESP_ERR_NO_MEM; }
+  if (response == nullptr) { std::free(serialized); return ESP_ERR_INVALID_ARG; }
+  const bool printed = cJSON_PrintPreallocated(response, serialized, SerializedCapacity, false);
+  auto* token = cJSON_GetObjectItemCaseSensitive(response, "token");
+  if (cJSON_IsString(token)) {
+    NetworkProfiles::Wipe(token->valuestring, std::strlen(token->valuestring));
+  }
+  cJSON_Delete(response);
+  if (!printed) {
+    NetworkProfiles::Wipe(serialized, SerializedCapacity);
+    std::free(serialized);
+    return ESP_ERR_INVALID_SIZE;
+  }
   const size_t length = std::strlen(serialized);
-  if (length > 512) { cJSON_free(serialized); return ESP_ERR_INVALID_SIZE; }
+  if (length > 512) {
+    NetworkProfiles::Wipe(serialized, SerializedCapacity);
+    std::free(serialized);
+    return ESP_ERR_INVALID_SIZE;
+  }
   *output = reinterpret_cast<uint8_t*>(serialized);
   *outputLength = length;
   return ESP_OK;
