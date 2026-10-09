@@ -131,8 +131,17 @@ nikoli měřený výkon koupeného serva. Ověřit proud, plynulost a sílu pod 
 
 ## Kabeláž, látka a ovládání
 
-Hlavní dvojlinka je vedena napříč základnami za vačkami, přibližně Y=211,
-Z=38. Odbočky mají odlehčení tahu. Pravý stolek obsahuje spodní kabelový
+Začít [kabelovým plánem](KABELAZ.md): připravit a označit svazky na stole,
+ověřit izolované rozbočky a porty svorek, potom osazovat kufr. Napájení
+se sestavuje vlevo: PD pod stolkem, měnič nahoře, jistič na izolované
+spodní straně. Levý stolek je nyní v Z76; jeho kabelový výřez má střed
+X65/Y93. Pravý přední stolek má výřez X376/Y50. Vodiče vést těmito výřezy
+před připevněním stolků, jejich konektory se otvorem neprotahují.
+Větrání měniče je v levém
+bankovém krytu; nesmí se zakrýt látkou ani rezervou USB kabelu.
+
+Výkonový svazek je veden napříč základnami za vačkami, kolem Y=212,
+Z=45 v rezervě 14 × 10 mm. Odbočky mají odlehčení tahu. Pravý stolek obsahuje spodní kabelový
 průchod; clony krytů mají průchody hluboko pod lůžky, ne odkryté otvory v líci.
 Signály vedou přední servisní zónou. Nepřikládat mikrofonní vodiče těsně
 k rozběhovým proudům serv; napájení se větví hvězdicově podle závazného souboru.
@@ -140,9 +149,11 @@ k rozběhovým proudům serv; napájení se větví hvězdicově podle závazné
 Servo kabel 150 mm nepokryje každou trasu. Použít příslušné části koupených
 200mm M–F propojek pro signály a odpovídající napájecí vedení; konektorové
 spoje pojistit a označit 1–6. U059 má 200mm kabel. Pro pohyblivé LED/U059
-vytvořit u pravé strany každého lůžka pružnou smyčku, návrhový poloměr
-alespoň 12 mm, a odlehčit oba konce. Vyhrazený prostor: lokální X=39..44,
-Y=52..82, pod lůžkem; skutečný svazek ověřit při celém zdvihu a návratu.
+vytvořit před vačkou pružnou smyčku, návrhový poloměr
+alespoň 12 mm, a odlehčit oba konce existujícími drážkami lůžka a základny.
+Vyhrazený prostor: lokální X=17..41, Y=52..78, globální Z=36..60.
+Při zdvihu se kontroluje tato obálka; skutečný svazek ověřit při celém
+zdvihu a návratu. Poloměr 12 mm je návrh, případný větší limit výrobce má přednost.
 Nepředpokládat, že samotná CAD rezerva prokazuje ohyb kabelu. Rezervy kabelů
 vázat do osmičky, nedávat 1m USB smotek k vačce nebo k měniči.
 
@@ -178,10 +189,10 @@ meziprostor a obslužná poloha; prakticky ji ověřit, zvláště po napnutí s
 | Vyměnit ESP / připojit USB | Pravý přední kryt L, pásek/suchý zip desky; pro PC odpojit externí napájení proti backfeedu |
 | Kamera | Stejný kryt, dva šrouby malého držáku, originální FPC; bez pohybu okolních modulů |
 | Servo / vačka | Odpojit pohony, rozepnout hůlku, vyjmout horní dvě matice vodítek a čep válečku, zvednout jedno lůžko; dva pásky serva |
-| LED / U059 | Sejmout pouze příslušné lůžko, rozpojit jeho označený konektor; ostatních pět zůstává zapojených |
+| LED / U059 | Odpojit banku. U059 rozpojit původním Grove. LED výkonový spoj je pájený: odkrýt označenou izolovanou odbočku a odpájet konkrétní větev, DATA rozpojit samostatně. JST-SM páry nejsou koupené; vyjmutí LED přeruší DATA řetězec |
 | Reproduktor | Boční kryt a čtyři matice příslušného stolku, odložit stolek na servisní smyčce; dva pásky a PH2 daného reproduktoru |
-| Jistič / levé audio | Levý zadní kryt, volný horní stolek; banka nemusí ven |
-| Měnič / obě univerzální PCB | Pravý zadní kryt; pro dolní patra čtyři matice a zvednutí stolku, krátké servisní smyčky |
+| Měnič / jistič / PD / levé audio | Levý zadní kryt; čtyři matice levého stolku a zvednutí na servisní rezervě pro spodní jistič/PD; banka nemusí ven. Reset jističe pouze bez napájení |
+| Obě univerzální PCB | Pravý zadní kryt; pro dolní patra čtyři matice a zvednutí stolku, krátké servisní smyčky |
 | Bílé tlačítko | Levý přední kryt L, matice tlačítka; ponechat přibližně 200–300mm servisní smyčku |
 | Červená / zelená | Tentýž kryt; čtyři M3 spodní police, uvolnění pojistek kolébky bez trhání látky |
 

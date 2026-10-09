@@ -1,8 +1,9 @@
 # F1 – nový kouzelný kufr
 
 Samostatný návrh z 9. 10. 2026 a jediný aktivní CAD projektu. Geometrie
-tištěných dílů vznikla od základu. Návrh osobně provedl jeden agent;
-nebyli použiti subagenti. Elektrické zapojení ani firmware se nemění.
+tištěných dílů vznikla od základu. Původní návrh provedl jeden agent.
+Navazující optimalizace kabeláže využívá samostatný pracovní a kontrolní
+agent; piny a firmware zachovává.
 
 **Výsledkem je parametrický výrobní podklad pro první fyzický prototyp.**
 Geometrické ověření, které skutečně proběhlo, uvádí
@@ -21,6 +22,9 @@ Provedení těchto zkoušek zůstává výslovně otevřené; nejsou zaškrtnut�
   [STEP sestav](exports/assembly/).
 - [Tiskový kusovník](exports/print-bom.csv), [osazení s koordináty](exports/installed-hardware.csv),
   [mechanický materiál](mechanicky-material.csv), [montáž](MONTÁŽ.md).
+- [Kabelový plán a pořadí zapojení](KABELAZ.md),
+  [řezací seznam s rezervami](exports/cable-cut-list.csv) a
+  [strojový plán](exports/cable-plan.json), [výkres tras](exports/cable-layout.svg).
 
 ## Zvolená konstrukce
 
@@ -49,6 +53,15 @@ a zadní lišty jsou jejich součástí. Montáž nepotřebuje čtyři další k
 Servisní stolky a čtyři základny vytvářejí rovné plochy pro suchý zip;
 reproduktory, pohony, vysoké sestavy a rezervní díly mají navíc pásky.
 Powerbanka je nastojato v mechanickém lůžku vlevo, porty dopředu.
+
+PD trigger, měnič a jistič jsou nyní u banky v levé servisní zóně.
+Měnič leží na zvýšeném stolku s větráním přímo nad ním, jistič pod ním;
+stolek má otevřený kabelový výřez. Dvanáctivoltová větev zůstává vlevo.
+Tři pracovní svorky mají přiřazené sítě MAIN5, DRIVE5 a GND a vlastní
+tabulku pěti portů. Předem připravené izolované měděné odbočky umožňují
+zapojit šest přihrádek bez rozvodu výkonu přes Dupont či plošný spoj.
+Pohybové rezervy mají obálku 24 × 26 × 24 mm před vačkami; skutečný
+poloměr ohybu a vedení svazku se ověří při zdvihu prvního kusu.
 
 Celkem **29 typů STL, 44 výtisků včetně jedné měrky**. Největší půdorys
 je 214 × 202,7 mm; s 3mm brimem 220 × 208,7 mm. U přístroje s menší
@@ -98,9 +111,11 @@ přerušovaná spojnice vede ke skrytému dílu. Seznam vazeb obsahuje GPIO,
 kanály PCA, napětí a poznámky. Jde o elektrické vztahy podle potvrzeného
 zapojení, nikoli o změřené kabelové trasy. Rezervní zakoupené díly jsou
 z náhledu i seznamu Inspect odstraněné.
-ID svorek Degson a kondenzátorů nemají v podkladu přiřazenou konkrétní síť;
-prohlížeč ji neodvozuje z polohy CAD. Pořadí ID úseků LED je označené jako
-konvence vizualizace.
+Sítě svorek a dvojice kondenzátorů přiřazuje výslovně kabelový plán;
+prohlížeč rozlišuje tento montážní návrh od potvrzeného pinového zapojení.
+Pořadí ID úseků LED je označené jako konvence vizualizace.
+Přerušované trasy ve výkresu jsou kotevní odhady; samotný prohlížeč nadále
+kreslí logické elektrické vazby. Jejich křivky nejsou vedením reálného kabelu.
 
 `inspect_data.py` načítá oba závazné Markdown podklady při generování.
 Jejich přesné texty a SHA-256 se ukládají do `reference/inspect-sources.json`

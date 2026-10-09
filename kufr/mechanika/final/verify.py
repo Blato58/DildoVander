@@ -16,6 +16,7 @@ from check_fit import scene,collisions,overlaps
 import chassis
 import mechanism as mech
 import layout
+import harness
 from artifacts import export_names
 
 
@@ -102,6 +103,13 @@ def mechanical_checks():
         # Include both resting neighbours: their LED strips must clear every nut.
         moving=mech.module(1,angle)
         hit=collisions(moving)
+        # Modules and loop envelopes are translated clones; check one full
+        # moving module, with all six keepouts checked in the static assembly.
+        reserve = next(r for r in layout.reservations() if r.name == "moving_loop_2")
+        for item in moving:
+            if item.group == "fastener":continue
+            if overlaps(bounds(reserve.shape),bounds(item.shape)) and reserve.shape.intersect(item.shape).Volume()>0.03:
+                errors.setdefault("moving_loop_keepouts",[]).append([angle,reserve.name,item.name])
         # Their internal static pairs were already checked in the complete rest scene.
         for a in moving:
             if a.group=="fastener":continue
@@ -139,7 +147,9 @@ def mechanical_checks():
                 errors.setdefault("bank_removal",[]).append([z,item.name])
     # Connector airspace includes plug lengths, not merely bare PCB rectangles.
     allow={"esp_usb":{"esp32"},"pd_usb":{"pd_trigger"},"bank_usb":{"powerbank"},"buck_air":{"buck"},
-           "camera_fpc":{"camera","esp32","camera_angle"},"power_trunk":set(),"front_bus":set()}
+           "camera_fpc":{"camera","esp32","camera_angle"},"power_trunk":set(),"front_bus":set(),
+           "left_shelf_passage":set(),"right_shelf_passage":set(),"left_front_passage":set()}
+    allow.update({f"moving_loop_{i}":set() for i in range(1,7)})
     complete=[i for i in scene() if not i.group.startswith("lid") and i.group!="fastener"]
     for r in layout.reservations():
         if r.name not in allow:continue
@@ -152,7 +162,7 @@ def mechanical_checks():
     from geometry import cylinder
     nuts=[(x,y,13,3.4,5) for x,y in chassis.module_holes()]
     nuts += [(x,y,4,4.8,5) for x,y in chassis.seam_floor_holes()]
-    nuts += [(x,y,z,3.4,3.2) for x,ys,z in ((12,(83,103),75),(66,(83,103),75),(374,(32,115,158,250),71),(429,(32,115,158,250),71)) for y in ys]
+    nuts += [(x,y,z,3.4,3.2) for x,ys,z in ((12,(83,103),79),(66,(83,103),79),(374,(32,115,158,250),71),(429,(32,115,158,250),71)) for y in ys]
     for x,y,z,r,h in nuts:
         nut=cylinder(r,h,(x,y,z))
         for item in occupied:
@@ -170,6 +180,8 @@ def mechanical_checks():
     brake=1.3*gravity
     ideal_torque=(gravity+brake)*max_derivative/1000
     return {"static_assemblies":3,"motion_material_samples":len(motion),"motion_includes_both_resting_neighbours":True,"lid_material_samples":36,"bank_removal_samples":37,
+            "moving_loop_samples":len(motion),"moving_loop_representative_module":2,
+            "moving_loop_static_keepouts":6,
             "collisions":[],"dwell_radius_mm":[M["cam_low_radius"],M["cam_low_radius"]+M["lift"]],
             "lift_mm":M["lift"],"groove_roller_diametral_clearance_mm":M["groove_width"]-M["roller_diameter"],
             "brake_test_target_N":round(brake,2),"moving_mass_design_kg":round(moving_mass,3),
@@ -183,10 +195,11 @@ def main():
     initial_sources=source_hashes()
     parts=export_checks()
     mech_result=mechanical_checks()
+    harness_result=harness.validate()
     assert initial_sources==source_hashes(),"Sources changed during verification; regenerate"
     report={"result":"PASS_CAD_NOT_PHYSICAL_ACCEPTANCE","revision":PARAMS["revision"],
             "physical_test_performed":False,"stl_types":len(parts),"print_count":sum(p["quantity"] for p in parts),
-            "parts":parts,"mechanics":mech_result,"sources":source_hashes()}
+            "parts":parts,"mechanics":mech_result,"harness":harness_result,"sources":source_hashes()}
     (OUT/"verification.json").write_text(json.dumps(report,indent=2,ensure_ascii=False),encoding="utf-8")
     print(json.dumps({k:v for k,v in report.items() if k not in ("parts","sources")},indent=2),flush=True)
 

@@ -1,5 +1,40 @@
 # Předání F1 – 9. 10. 2026
 
+## Optimalizace rozložení a kabeláže
+
+Navazující zadání přesouvá PD trigger a měnič z pravé zadní zóny k bance
+a kolébkám vlevo. Levý servisní stolek je v Z76; měnič leží nahoře v Z81,
+jistič na izolované spodní straně v Z61, PD modul pod ním. Levý reproduktor
+je snížen o 4 mm. Větrání se přesouvá nad měnič do levého bankového krytu;
+pravý zadní kryt má plnou plochu. Držák banky a cesta vyjmutí zůstávají.
+Pinové přiřazení, firmware a mechanismus zdvihu se tím nemění.
+
+Tři pracovní Degson mají sítě MAIN5, DRIVE5, GND, tabulku portů a izolované
+měděné odbočky. Univerzální PCB nesou pouze signály a nízkoproudou logiku.
+Dvojice kondenzátorů mají konkrétní větve LED, PCA V+ a audio/elektronika.
+Pohyblivé smyčky mají rezervu 24 × 26 × 24 mm před vačkou; zadní výkonová
+trasa má rezervu 14 × 10 mm. [KABELAZ.md](KABELAZ.md) popisuje sestavení
+na stole, označení obou konců, délkové rezervy a skutečné servisní odpojení.
+LED nemají nekoupené JST-SM páry; jejich výkonová odbočka je pájená.
+
+Změněné zdroje: `layout.py`, `inspect_data.py`, `build.py`, `verify.py`,
+`drawings.py`, `preview.py`, `artifacts.py`, `Regenerate.ps1`, nový
+`harness.py` a jeho testy, montážní podklady a ověřený snapshot zapojení.
+Vznikají také `cable-plan.json`, `cable-cut-list.csv` a `cable-layout.svg/png`,
+zahrnuté do výrobního ZIPu. Autoritou aktuální geometrické kontroly je
+`exports/verification.json` se shodnými zdrojovými SHA-256; předání se
+zapisuje do globálního stavu až po skutečném dokončení regenerace.
+Kontrola zahrnuje pohybovou obálku reprezentativního modulu 2 při všech
+81 vzorcích zdvihu a všech šest obálek proti kompletní klidové sestavě.
+Čistý model nepotvrzuje ohyb vodičů, pájení, proudy, teplotu či montáž.
+
+Přípravu kabelového plánu a nezávislé review provedli oddělení agenti;
+integraci a ověření vlastní rodič. Žádný nákup, upload firmware, serverové
+nasazení ani placený test neprobíhá. Další fyzický krok: suchá montáž
+levého stolku, kabelů a jednoho osazeného lůžka, potom elektrická přejímka
+a zatížený pohyb podle původních kritérií. USB napájecí zakončení ESP,
+svorky a skutečné délky kabelové zásoby zůstávají kontrolami montáže.
+
 ## Doplnění prohlížeče: Inspect
 
 Navazující softwarový slice přidává inspektor viditelné geometrie při
