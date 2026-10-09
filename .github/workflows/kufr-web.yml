@@ -32,6 +32,8 @@ jobs:
       - run: npm run build
       - run: bash -n scripts/build-ios-ipa.sh
       - run: python3 -m unittest discover -s scripts -p 'test_publish_*.py'
+      - name: Test app-only iOS signing settings and source restoration
+        run: python3 -m unittest discover -s scripts -p 'test_configure_ios_signing.py'
       - name: Package web build with provenance
         working-directory: .
         run: python3 scripts/ci/package.py pack kufr/mobilni-aplikace/dist "$RUNNER_TEMP/web-package"
