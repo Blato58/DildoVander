@@ -63,7 +63,7 @@ Jejich skutečné výsledky, verze a běhy zapisuje
 | --- | --- |
 | Hotspot není dostupný | Zapnout jej ručně, ověřit SSID/heslo a 2,4 GHz; počkat na timeout/backoff. Nastavený fallback se zkouší po selhání preferovaného profilu. Návrat na hotspot se sondou zkouší nejvýše jednou za minutu a pouze v klidu; úspěšný explicitní configure/test fallbacku i rollback začíná nový 60s interval do další sondy. |
 | Obě sítě nefungují | V autentizovaném BLE okně opravit profil nebo použít **Test**. Po minutě offline se jednou za boot otevírá další pětiminutové recovery okno. Pokud vypršelo, provést vědomý power cycle až po bezpečném ukončení aktivity; nesmazat NVS. Offline ruční bezpečnostní řízení nepotřebuje AI/WAN. |
-| Nové heslo nefunguje | Zkontrolovat konečný `connection_failed`/`storage_failed`. Neúspěšná náhrada zachovává předchozí uložený profil a pokouší se vrátit původní spojení. Neopakovat naslepo více změn během čekající operace. |
+| Nové heslo nefunguje | Zkontrolovat konečný `connection_failed`/`storage_failed`. Chybné heslo zachová předchozí profil. Storage failure zachová starý stav RAM a jednou zkusí obnovit uložený blob i původní spojení; trvalá chyba NVS může zmařit obnovu. Po zotavení ověřit skutečný uložený profil, případně použít kontrolovaný USB servis. Neopakovat naslepo více změn během čekající operace. |
 | Wi-Fi je připojená, backend ne | Ověřit internet na telefonu a přečíst stav/technické logy. Prověřit UTC čas, identitu a skutečně nasazenou verzi. Nevypínat TLS; provider klíč nepatří do telefonu ani ESP. |
 | Telefon nebo BLE se odpojil | Samostatný kufr pokračuje; pozorovatelské odpojení samo nezastavuje rozhovor. Ztráta ručního lease má vlastní bezpečné ukončení. Nové připojení neobnovuje automaticky starý hlasový tah ani fyzický povel. |
 | OTA hlásí selhání | Uchovat verzi/chybový kód, ověřit síť a OTA veřejnou důvěru. Neplatný podpis/hash/target neopravovat vypnutím kontrol. Starý běžící slot zůstává při neúspěšném downloadu použitelný; nová opravená verze je potřeba po odmítnuté boot validaci stejné verze. |
@@ -103,7 +103,7 @@ a aktuální CI/publikační výsledky patří do stavu implementace.
 | 9 | Credentialy přežijí reboot | S: profiles record save/load/reboot simulace. | NE: fyzický restart a opětovné připojení z NVS. |
 | 10 | Chybné heslo dává srozumitelnou chybu | S: `connection_failed`, UI/status projekce. | NE: skutečné odmítnutí Wi-Fi hesla a zobrazení na iPhonu. |
 | 11 | Credentialy lze bezpečně nahradit | S: idle gate, test kandidáta a atomický record commit. | NE: náhrada přes BLE, skutečný DHCP a NVS. |
-| 12 | Neúspěšná náhrada nezničí funkční konfiguraci | S: špatné heslo i storage failure zachovají předchozí profil a obnoví starý pokus. | NE: rádio/NVS failure a návrat skutečného spojení. |
+| 12 | Neúspěšná náhrada nezničí funkční konfiguraci | S: špatné heslo zachová profil; storage failure drží starou RAM a jednou zkusí persistentní rollback/obnovu spojení. | NE: rádio/NVS failure a návrat skutečného spojení. Trvalá chyba NVS může zmařit i rollback; nejde o záruku při power-loss. |
 | 13 | Provisioning lze obnovit bez Wi-Fi | S: oddělený BLE lifecycle a bounded recovery okno. | NE: offline iPhone spojení, vypršení okna a bezpečný power cycle. |
 | 14 | Cizí BLE klient nezmění konfiguraci | S/K: služba vyžaduje PoP/Security1; bounded management bez veřejného konfiguračního endpointu. | NE: negativní test skutečného klienta bez správného PoP. |
 | 15 | Preferovaný hotspot je nedostupný | S: timeout/backoff/volba dalšího profilu. | NE: vypnutý hotspot na telefonu. |
