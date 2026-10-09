@@ -80,7 +80,8 @@ nezávislé review oprav nehlásí otevřené nálezy. Git/CI předání je dolo
 níže; native macOS kontrola je v tomto tasku vynechaná na pokyn majitele.
 Implementační commit `0c18faf56f39620186338f460158d48ab41b7829` vznikl po
 ověření, `Push-CurrentBranch.ps1` uspěl a read-back remote potvrdil stejnou SHA.
-PR [142](https://github.com/Blato58/DildoVander/pull/142) je otevřený.
+PR [142](https://github.com/Blato58/DildoVander/pull/142) předal implementaci
+i review opravy a je sloučený; přesný merge a ověření jsou uvedené níže.
 První CI `37878086941` odhalilo GCC `-Werror=sign-compare` v JPEG parseru;
 počet komponent je nyní `size_t`, stejně jako délka segmentu. Následný
 lokální `pio run -d kufr/firmware -s` prošel. Následný Codex review PR
