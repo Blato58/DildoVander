@@ -1,9 +1,10 @@
 # Předání F1 – 9. 10. 2026
 
-Rozsah je výhradně nový mechanický návrh v `kufr/mechanika/final/`.
-Starší CAD, elektrické zapojení, aplikace, firmware a nasazení se nemění.
-Záznam zůstává v určené složce, jak požaduje toto zadání. Historický globální
-stav není přepsán na tvrzení o fyzicky hotovém kufru.
+Aktuální mechanický návrh je v `kufr/mechanika/final/`. Následný požadavek
+majitele na úklid odstranil z verzovaných souborů předchozí generátory,
+modely a návody; potvrzené rozměrové podklady zůstaly zachované.
+Elektrické zapojení, aplikace, firmware a nasazení se tímto návrhem nemění.
+Globální stav ani tento záznam netvrdí, že je kufr fyzicky hotový.
 
 Dokončené zdroje: nový šestidílný korpus a šestidílné prázdné víko,
 šest drážkových zdvihů s brzdou, montážní zóny pro potvrzený hardware,
@@ -48,7 +49,9 @@ pasivní držení po vypnutí ve všech polohách a zatížený návrat. Pokud n
 současně splnit tření brzdy a sílu serva, neprohlašovat konstrukci za
 akceptovanou a neopakovat ji šestkrát; upravit mechanismus podle měření.
 
-Předání zůstává lokální. Existující stav tohoto worktree zaznamenává zákaz
-push; jeho předchozí nepublikované změny se neodesílají spolu s tímto návrhem.
-Žádný nákup, push/PR/merge, publikace, cloudové nasazení nebo hardwarový zásah
-neproběhl. Aktuální případný lokální commit lze z této složky dohledat `git log -- .`.
+Majitel následně výslovně požádal o úklid nepoužívaného CAD, push a merge;
+tím nahradil předchozí omezení na lokální předání. Návrh byl původně uložen
+v commitu `14ff82a`. Výsledek předání přes PR a aktuální kontroly zaznamenává
+[globální stav](../../docs/stav-implementace.md). Generované exporty zůstávají
+lokální a reprodukovatelné. Nákup, cloudové nasazení ani hardwarový zásah
+nejsou součástí tohoto předání.
