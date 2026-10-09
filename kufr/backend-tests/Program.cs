@@ -19,6 +19,8 @@ if (args is ["--autonomous-memory"])
     return;
 }
 
+if (args is ["--image"]) { await CostumeImageTests.RunAsync(); return; }
+await CostumeImageTests.RunAsync();
 await RealtimeTests.RunAsync();
 await GptLiveTests.RunAsync();
 await PersonalityTests.RunAsync();
@@ -524,7 +526,7 @@ var noBudgetReservation = restartedJournal.Reserve(
     quotaCorrelation with { ConversationId = Guid.NewGuid().ToString("D") },
     consumesTurn: false,
     estimatedCostMicroUsd: 1);
-Require(!noBudgetReservation.CostRejected, "default approved session cap allows a reservation");
+Require(!noBudgetReservation.CostRejected, "missing cap settings do not block accounting");
 
 var costClock = new AdjustableTimeProvider(new DateTimeOffset(2026, 9, 29, 10, 0, 0, TimeSpan.Zero));
 var costPath = Path.Combine(databaseDirectory, "cost.sqlite");
@@ -552,9 +554,9 @@ using (var costJournal = new OperationJournal(costConfiguration, costClock))
         Task.Run(() => costJournal.Reserve(
             "device-a", costRoute, Guid.NewGuid(), "other-body", costCorrelation,
             consumesTurn: false, estimatedCostMicroUsd: 60)));
-    Require(competitors.Count(value => !value.CostRejected) == 1,
-        "parallel paid reservations respect all caps");
-    acceptedCostOperation = competitors.Single(value => !value.CostRejected).OperationId;
+    Require(competitors.Count(value => !value.CostRejected) == 2,
+        "parallel accounting reservations ignore legacy caps");
+    acceptedCostOperation = competitors[0].OperationId;
     Require(costJournal.SettleCost(acceptedCostOperation, 30), "actual charge settles below estimate");
     Require(costJournal.SettleCost(acceptedCostOperation, 30), "same settlement is idempotent");
     Require(!costJournal.SettleCost(acceptedCostOperation, 31), "different settlement conflicts");
@@ -562,7 +564,7 @@ using (var costJournal = new OperationJournal(costConfiguration, costClock))
     var secondCost = costJournal.Reserve(
         "device-a", costRoute, secondCostKey, "third-body", costCorrelation,
         consumesTurn: false, estimatedCostMicroUsd: 60);
-    Require(!secondCost.CostRejected, "unused reservation amount returns to available budget");
+    Require(!secondCost.CostRejected, "settlement adjusts audit accounting");
     runningCostOperation = secondCost.OperationId;
     Require(costJournal.MarkRunning(runningCostOperation),
         "reserved paid operation enters running state once");
@@ -577,10 +579,10 @@ using (var costJournal = new OperationJournal(costConfiguration, costClock))
         "device-a", costRoute, secondCostKey, "changed-body", costCorrelation,
         consumesTurn: false, estimatedCostMicroUsd: 60).Conflict,
         "paid key rejects changed body");
-    Require(costJournal.Reserve(
+    Require(!costJournal.Reserve(
         "device-a", costRoute, Guid.NewGuid(), "fourth-body", costCorrelation,
         consumesTurn: false, estimatedCostMicroUsd: 11).CostRejected,
-        "remaining ten micro-USD is enforced");
+        "legacy remaining monetary cap never blocks a reservation");
 
     var overageCorrelation = costCorrelation with
     {
@@ -596,10 +598,10 @@ using (var costJournal = new OperationJournal(costConfiguration, costClock))
         consumesTurn: false, estimatedCostMicroUsd: 10);
     Require(!overage.CostRejected && costJournal.SettleCost(overage.OperationId, 120),
         "actual overage remains charged instead of being hidden");
-    Require(costJournal.Reserve(
+    Require(!costJournal.Reserve(
         "device-b", costRoute, Guid.NewGuid(), "overage-next", overageCorrelation,
         consumesTurn: false, estimatedCostMicroUsd: 1).CostRejected,
-        "overage blocks further paid work");
+        "actual overage is accounted and never blocks later work");
 }
 var partialCostConfiguration = new ConfigurationBuilder()
     .AddInMemoryCollection(new Dictionary<string, string?>
@@ -623,10 +625,10 @@ using (var restartedCostJournal = new OperationJournal(costConfiguration, costCl
         "paid running operation remains unknown after restart");
     Require(!restartedCostJournal.MarkRunning(runningCostOperation),
         "unknown operation cannot restart its provider call");
-    Require(restartedCostJournal.Reserve(
+    Require(!restartedCostJournal.Reserve(
         "device-a", costRoute, Guid.NewGuid(), "after-restart", costCorrelation,
         consumesTurn: false, estimatedCostMicroUsd: 11).CostRejected,
-        "unknown operation keeps its reserved budget after restart");
+        "unknown accounting reservations do not block work after restart");
     costClock.Advance(TimeSpan.FromDays(8));
     restartedCostJournal.PurgeExpired();
     using var costConnection = new SqliteConnection($"Data Source={costPath}");
@@ -740,7 +742,7 @@ catch (InvalidOperationException)
     // A shared credential must not select a device by configuration order.
 }
 
-Console.WriteLine("Backend clock tests: expiry, restart, fake voice, cost caps and migrations passed");
+Console.WriteLine("Backend clock tests: expiry, restart, fake voice, cost accounting and migrations passed");
 restartedJournal.Dispose();
 SqliteConnection.ClearAllPools();
 Directory.Delete(databaseDirectory, recursive: true);

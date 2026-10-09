@@ -31,7 +31,6 @@ jobs:
           PUBLIC_IPV4: ${{ vars.KUFR_BACKEND_PUBLIC_IPV4 }}
           DEVICE_ID: ${{ secrets.DEVICE_ID }}
           DEV_DEVICE_CREDENTIAL: ${{ secrets.DEV_DEVICE_CREDENTIAL }}
-          SESSION_CAP_MICRO_USD: '3000000'
           REPORT_PATH: ${{ runner.temp }}/realtime-live-report.json
         run: python3 kufr/backend/tests/realtime_live_smoke.py
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

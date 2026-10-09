@@ -28,6 +28,8 @@
     <string>Připojení ke kufru v místní síti pro pozorování a ruční ovládání.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Po spuštění Realtime rozhovoru mikrofon průběžně posílá váš hlas serveru. Rozhovor můžete kdykoli zastavit.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Jen po vašem souhlasu pořídíme fotku kostýmu. Schválenou fotku předáme serveru pro dočasnou nápovědu rozhovoru; neukládáme ji do galerie.</string>
     <key>NSBonjourServices</key>
     <array><string>_kufr._tcp</string></array>
 	<key>UILaunchStoryboardName</key>

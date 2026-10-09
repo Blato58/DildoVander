@@ -3,6 +3,7 @@ set -euo pipefail
 test_directory="$(mktemp -d "${TMPDIR:-/tmp}/kufr-debug-test.XXXXXX")"
 peer_pid=""
 handsfree_peer_pid=""
+costume_peer_pid=""
 keychain_service="kufr-debug-tests.$(uuidgen)"
 cleanup() {
   if [[ -x "$test_directory/native-debug-tests" ]]; then
@@ -15,6 +16,10 @@ cleanup() {
   if [[ -n "$handsfree_peer_pid" ]]; then
     kill "$handsfree_peer_pid" 2>/dev/null || true
     wait "$handsfree_peer_pid" 2>/dev/null || true
+  fi
+  if [[ -n "$costume_peer_pid" ]]; then
+    kill "$costume_peer_pid" 2>/dev/null || true
+    wait "$costume_peer_pid" 2>/dev/null || true
   fi
   rm -rf -- "$test_directory"
 }
@@ -54,3 +59,16 @@ swiftc -swift-version 5 -warnings-as-errors -parse-as-library \
   ios/App/App/DebugBackendClient.swift ios/App/App/DebugRealtimeSession.swift ios/App/App/DebugHandsFreeSession.swift ios/App/App/DebugHandsFreeAudio.swift tests/native_handsfree/upload_regression.swift \
   -o "$test_directory/native-handsfree-upload-tests"
 KUFR_DEBUG_HTTP_PEER="$(cat "$test_directory/handsfree-address")" "$test_directory/native-handsfree-upload-tests"
+
+node tests/native_costume/http_peer.mjs "$test_directory/costume-address" &
+costume_peer_pid=$!
+for ((attempt = 0; attempt < 50; attempt++)); do
+  if [[ -s "$test_directory/costume-address" ]]; then break; fi
+  if ! kill -0 "$costume_peer_pid" 2>/dev/null; then echo 'Costume peer exited' >&2; exit 1; fi
+  sleep 0.1
+done
+test -s "$test_directory/costume-address"
+swiftc -swift-version 5 -warnings-as-errors -parse-as-library \
+  ios/App/App/DebugBackendClient.swift ios/App/App/DebugRealtimeSession.swift ios/App/App/DebugHandsFreeSession.swift tests/native_costume/main.swift \
+  -o "$test_directory/native-costume-tests"
+KUFR_DEBUG_HTTP_PEER="$(cat "$test_directory/costume-address")" "$test_directory/native-costume-tests"

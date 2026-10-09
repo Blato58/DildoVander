@@ -4,8 +4,8 @@
 
 Živé syntetické testy vyžadují `python3 -m pip install -r requirements.txt`
 (oficiální `openai==3.22.1`). `call_openai` používá Responses SDK, streaming
-HTTP příjem do 64 KiB, timeout 45 s a `max_retries=0`. Rezervace/tarifní
-kontroly zůstávají. Offline unittest testy importují SDK až v provider
+HTTP příjem do 64 KiB, timeout 45 s a `max_retries=0`. Tarifní kontrola
+zůstává. Offline unittest testy importují SDK až v provider
 funkci a nevykonávají placené volání. CI instaluje SDK jen v live jobu.
 
 D114 rozšiřuje sdílený `prompt.txt`: podrobná pravidla mluvené češtiny,
@@ -34,8 +34,7 @@ Neplatný, odmítnutý či neúplný výsledek končí bezpečnou chybou. Kvalit
 
 1. Založ samostatný projekt například kufr-dev a projektový API klíč.
    Vytvářet Agent Builder agenta pro tento úzký dialog není potřeba.
-2. Celkový rozpočet nastav přímo v OpenAI projektu. D128 používá místně
-   3 USD/session a neurčuje další denní ani měsíční strop.
+2. Rozpočet nastav přímo v OpenAI projektu; ten je jediným peněžním limitem.
 3. API klíč vlož do GitHub repozitáře
    Blato58/DildoVander → Settings → Environments → backend-production →
    Environment secrets pod názvem OPENAI_API_KEY. Neposílej jej do chatu
@@ -70,16 +69,16 @@ Ruční workflow má volbu `party_compare`. Spustí `evaluate_party.py`, který
 testuje Sol na stejných třech fiktivních osobnostech. Návštěvník
 simulovaný modelem Sol odpovídá na **skutečnou poslední otázku**, místo
 předem napsané repliky bez souvislosti. Každý dialog má nejvýše osm replik
-kufru; hned končí návrhem/no_selection. Další placené volání se předem
-rezervuje; všechny návštěvnické i kufrové modely sdílí limit 3 USD pro
-jednotlivý rozhovor. Další profil dostává vlastní session rozpočet.
+kufru; hned končí návrhem/no_selection. Před každým voláním se vypočítá
+konzervativní odhad pouze pro reportování; všechny hovory a profily omezuje
+rozpočet OpenAI účtu.
 Vstup `party_models=selected` použije jen vybraný model. CLI volba
-`--budget-micro-usd` může výslovně omezit celý běh, ve workflow se nepoužívá.
+`--budget-micro-usd` zůstává kvůli kompatibilitě, je zastaralá a ignoruje se.
 Síťový výpadek se neopakuje
 ani nepovažuje za bezplatný. Ruční běh je placený; běžné PR CI pouze offline.
 
 Výstup `evaluation.json` obsahuje celé **syntetické** dialogy, modely, tokeny,
-latence, response ID, původní provider usage včetně cache/reasoning a konzervativní ceníkový odhad. `billingVerified: false` a `billedCostMicroUsd: null` výslovně označují, že skutečnou účtovanou cenu neznáme. `upperCostMicroUsd` je pouze pojistka rozpočtu, nikdy údaj o utracených penězích.
+latence, response ID, původní provider usage včetně cache/reasoning a konzervativní ceníkový odhad. `billingVerified: false` a `billedCostMicroUsd: null` výslovně označují, že skutečnou účtovanou cenu neznáme. `upperCostMicroUsd` je ceníkový odhad, nikdy údaj o utracených penězích.
 Přepis posuzuj podle konkrétnosti pointy, přirozené češtiny, návaznosti,
 zbytečného představování, respektování změny tématu a správného připomenutí
 historie. Platný JSON sám není známka dobrého humoru. Model návštěvníka také
@@ -95,8 +94,8 @@ může produkovat umělou řeč, takže finální akceptace patří skutečné o
   trvalé objekty napříč sezeními, ale majitel výslovně zvolil vlastní archiv.
   Compaction je alternativa pro dlouhý provider kontext, nikoli náhrada
   archivu s mazáním a pravidly přiřazení lidí. V tomto slice se nevolá.
-- Klíč pouze v serverovém/GitHub secret store, samostatný projekt s potvrzeným
-  hlavním limitem. Zachovat 3 USD/session, rezervace a měření latence.
+- Klíč pouze v serverovém/GitHub secret store, samostatný projekt s nastaveným
+  účtovým rozpočtem. Zachovat měření nákladů a latence.
 - Prompt a výběr kontextu nejsou trénování modelu. Fine-tuning, agentní
   framework ani vector store nemají bez měřeného přínosu smysl přidávat.
 
@@ -110,15 +109,15 @@ a spusť python kufr/ai-eval/evaluate.py --case none_ready. Klíč se
 neukládá do projektu. Při časovém limitu se POST neopakuje automaticky,
 protože už mohl být účtován.
 
-Skript před voláním používá konzervativní odhad maximální ceny jednoho
-tahu a odmítne odhad nad 3 USD. Skutečné tokeny a horní ceníkový odhad
-zapíše do výsledku. Tato ochrana není průběžný měsíční účet ani přesná
-faktura; celý účet chrání projektový hard spend limit. Backend i eval používají `SESSION_CAP_MICRO_USD=3000000`; staré
-denní/měsíční konfigurace už backend nevynucuje.
+Skript zapíše skutečné tokeny a ceníkový odhad do výsledku, ale podle odhadu
+volání nezastavuje. Odhad po odpovědi zohlední vrácené využití i v případě,
+že překročí původní konzervativní předpoklad. Skutečnou fakturovanou cenu
+nezná; účet omezuje rozpočet nastavený v OpenAI projektu. Historické reporty
+a dřívější popisy limitů zůstávají důkazem tehdejšího stavu.
 
 [Živé syntetické přepisy a pozorování z 30. 9.](reports/2026-09-30-party-dialogue.md)
 
-Backend i eval volají explicitně `service_tier: default`; jiný/chybějící vrácený tarif zastaví běh a ponechá rezervaci. Rezervace kryje i 2× sazbu Fast. Známé vrácené tarify se oceňují podle vlastního ceníku, `cacheAdjustedEstimateMicroUsd` navíc využívá rozpad cache; stále nejde o fakturu. Příliš velký požadavek může být odmítnut ještě před odesláním. Starší reporty před touto opravou tarif nezohledňovaly; jejich částky nelze vydávat za ověřenou útratu ani spolehlivý horní limit.
+Backend i eval volají explicitně `service_tier: default`; jiný/chybějící vrácený tarif zastaví další volání. Známé vrácené tarify se oceňují podle vlastního ceníku, `cacheAdjustedEstimateMicroUsd` navíc využívá rozpad cache; stále nejde o fakturu. Starší reporty před touto opravou tarif nezohledňovaly; jejich částky nelze vydávat za ověřenou útratu ani spolehlivý horní limit.
 
 
 D75: pro živé hodnocení backendu používej ruční workflow **Kufr backend interactive

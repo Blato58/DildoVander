@@ -2,6 +2,11 @@
 
 Rešerše a implementační rozhodnutí, 2.–3. 10. 2026 (D127–D135).
 
+Aktualizace 9. 10. 2026: majitel zrušil všechny softwarové peněžní
+limity v backendu a evaluaci; rozpočet řídí pouze OpenAI účet. Starší
+části rešerše popisují tehdejší stropy. Technické meze a evidence usage
+zůstávají; tato změna sama neprovádí placený test ani nasazení.
+
 ## D150: závěrečné rýpnutí jako oznámení
 
 Majitel sdílel iPhone Debug screenshot: simulovaný návrh přihrádky 4
@@ -395,9 +400,8 @@ Po nasazení stejné verze backendu, aplikace a firmware:
 3. Nový režim vybírej mezi sezeními. Pro srovnání stejným přepínačem vrať
    Realtime a použij stejné situace a hlas. Poznamenej českou výslovnost,
    latenci, konkrétnost pointy, opakování a reakce na přerušení.
-4. Každé sezení má 3 USD rozpočet společný pro hlas a všechny delegace;
-   celkový rozpočet zůstává v OpenAI. AI eval má také 3 USD na rozhovor,
-   bez výchozího souhrnného limitu celé sady.
+4. Finanční rozpočet rozhovoru, delegací i AI evaluace řídí nastavení
+   OpenAI účtu. Software náklady eviduje a nevynucuje peněžní strop.
 
 Omezení prototypu: ESP nemá ověřené AEC, proto během přehrávání posílá
 časově souvislé ticho a začne poslouchat po dohrání segmentu. Na telefonu

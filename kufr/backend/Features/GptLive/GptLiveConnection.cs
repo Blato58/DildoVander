@@ -2,7 +2,6 @@ using System.Net.WebSockets;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Kufr.Backend.Features.Realtime;
-using Kufr.Backend.Features.Usage;
 
 namespace Kufr.Backend.Features.GptLive;
 
@@ -12,7 +11,7 @@ internal sealed class GptLiveClient(IConfiguration configuration) : IDisposable
 {
     private readonly HttpMessageInvoker transport = new(new HttpClientHandler { AllowAutoRedirect = false });
     internal bool Available => !string.IsNullOrWhiteSpace(configuration["OPENAI_API_KEY"])
-        && CostLimits.Read(configuration).Enabled;
+       ;
     internal async Task<GptLiveConnection> ConnectAsync(CancellationToken token)
     {
         if (!Available) throw new InvalidOperationException("GPT-Live is unavailable.");

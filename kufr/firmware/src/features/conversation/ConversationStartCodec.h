@@ -12,6 +12,7 @@ struct ConversationStartRequest {
   std::string catalogVersion;
   uint64_t generation = 0;
   bool audioConsent = false;
+  bool imageConsent = false;
 };
 
 struct ConversationStartResponse {
@@ -25,7 +26,7 @@ bool IsConversationUuid(const std::string& value);
 bool NormalizeConversationUuid(const std::string& value,
                                std::string& normalized);
 
-// Audio consent is explicit for an operator-started voice session; image stays false.
+// Consents are explicit for this conversation, never inherited from pairing.
 bool BuildConversationStartRequest(const ConversationStartRequest& request,
                                    std::string& body);
 bool ParseConversationStartResponse(const char* data, size_t length,

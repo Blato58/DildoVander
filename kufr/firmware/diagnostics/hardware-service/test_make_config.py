@@ -19,11 +19,11 @@ class ConfigurationTests(unittest.TestCase):
         return config
 
     def test_disabled_template_cannot_authorize_motion(self):
-        self.assertIn("ServiceFlags[] = {0}", generate(self.disabled))
+        self.assertIn("ServiceFlags[] = {0,0}", generate(self.disabled))
 
     def test_only_complete_measured_records_enable_hardware(self):
         config = self.measured()
-        self.assertIn("ServiceFlags[] = {1}", generate(config))
+        self.assertIn("ServiceFlags[] = {1,0}", generate(config))
         for field, value in (("rest_us", 499), ("raised_us", 2501), ("travel_ms", 3001), ("travel_ms", True)):
             with self.subTest(field=field, value=value):
                 bad = copy.deepcopy(config)
@@ -33,6 +33,16 @@ class ConfigurationTests(unittest.TestCase):
         config["servos"][2]["raised_us"] = config["servos"][2]["rest_us"]
         with self.assertRaises(ValueError):
             generate(config)
+
+    def test_camera_gate_requires_profile_b_and_explicit_boolean(self):
+        config = self.measured()
+        config["camera_verified"] = True
+        self.assertIn("ServiceFlags[] = {1,1}", generate(config))
+        config["profile_b_ok"] = False
+        with self.assertRaises(ValueError): generate(config)
+        config["profile_b_ok"] = True
+        config["camera_verified"] = "true"
+        with self.assertRaises(ValueError): generate(config)
 
     def test_reject_profile_flag_type_and_unexpected_fields(self):
         for key, value in (("profile", "B-with-SD"), ("profile_b_ok", "true"), ("revision", True), ("extra", 1)):

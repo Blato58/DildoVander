@@ -8,8 +8,11 @@
   <body>
     <p style="padding:1rem;background:#593b19">TEST NATIVNÍHO ROZHRANÍ · syntetický bridge, bez sítě a kufru</p>
     <button type="button" data-harness-answer>Simulovat průběžnou hlasovou odpověď</button>
-    <button type="button" data-harness-error>Simulovat nákladový limit</button>
+    <button type="button" data-harness-error>Simulovat omezení OpenAI účtu</button>
     <button type="button" data-harness-audio-error>Simulovat přerušení audia při startu</button>
+    <label>Foto scénář <select data-harness-photo><option value="success">Schválit fotku</option>
+      <option value="cancel">Zrušit náhled</option><option value="denied">Fotoaparát nepovolený</option>
+      <option value="failed">Zpracování fotky selže</option><option value="wait">Zpracování čeká 3 sekundy</option></select></label>
     <div id="app"></div>
     <script type="module">
       // Served by Vite only; never included in the single index.html release.
@@ -20,6 +23,8 @@
       let connectionId;
       let debugStatus = { configured: false, running: false, session: false, recording: false,
         phase: 'idle', mode: 'unknown', transcript: [], selected: null, timings: null };
+      let photoDraft;
+      let stopGeneration = 0;
       let simulatedMask = 63;
       let askedQuestions = 0;
       const questions = [
@@ -80,7 +85,7 @@
         ] }, { name: 'KufrDebug', methods: ['status', 'configure', 'inspectBackend', 'inspectServer', 'changeServerModes',
           'runOpeningSpeech', 'startConversation', 'answerConversation', 'startRecording', 'finishRecording',
           'speakSystem', 'stop', 'shareLog', 'forgetProfile', 'inspectEvenings', 'createEvening',
-          'activateEvening', 'readServerLogs'].map((name) => ({ name, rtype: 'promise' })) }],
+          'activateEvening', 'readServerLogs', 'captureCostumePhoto', 'discardCostumePhoto'].map((name) => ({ name, rtype: 'promise' })) }],
         nativeCallback(_plugin, method, _options, callback) {
           if (method === 'addListener') { listener = callback; return Promise.resolve('listener-1'); }
         },
@@ -135,12 +140,34 @@
               setTimeout(() => { if (debugStatus.phase === 'playing') { debugStatus.running = false; debugStatus.phase = 'completed'; } }, 1500);
               return;
             }
+            if (method === 'captureCostumePhoto') {
+              const scenario = document.querySelector('[data-harness-photo]').value;
+              if (scenario === 'denied') throw new Error('Camera denied');
+              photoDraft = scenario === 'cancel' ? undefined : { id: crypto.randomUUID(), expiry: Date.now() + 120000 };
+              return { draftId: photoDraft?.id ?? null };
+            }
+            if (method === 'discardCostumePhoto') { photoDraft = undefined; return; }
             if (method === 'startConversation') {
+              const generation = stopGeneration;
+              const hasPhoto = Boolean(photoDraft && photoDraft.id === options.photoDraftId && photoDraft.expiry > Date.now());
+              photoDraft = undefined;
+              const scenario = document.querySelector('[data-harness-photo]').value;
+              debugStatus.costumeStatus = null;
+              if (hasPhoto && scenario === 'wait') {
+                debugStatus.running = true; debugStatus.phase = 'checking';
+                debugStatus.costumeStatus = 'Zpracovávám schválenou fotku kostýmu…';
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                if (generation !== stopGeneration) return;
+              }
+              if (hasPhoto) debugStatus.costumeStatus = scenario === 'failed'
+                ? 'Fotku se nepodařilo zpracovat. Rozhovor pokračuje bez fotky.'
+                : 'Fotka zpracována. Vzhled je jen nejistá nápověda; hosta se zeptáme.';
+              if (options.costumeDescription) debugStatus.costumeStatus = 'Používám ruční popis kostýmu místo odhadu z fotky.';
               if (debugStatus.session) { throw new Error('Session active'); }
               simulatedMask = options.readyMask;
               askedQuestions = simulatedMask ? 1 : 0;
               debugStatus.session = simulatedMask !== 0;
-              debugStatus.handsFree = options.engine === 'realtime' && options.expectedMode === 'openai';
+              debugStatus.handsFree = ['realtime', 'gpt-live'].includes(options.engine) && options.expectedMode === 'openai';
               debugStatus.running = debugStatus.session && debugStatus.handsFree;
               debugStatus.errorCode = null;
               debugStatus.recording = false;
@@ -162,6 +189,7 @@
               simulateAnswer('Moje odpověď nahraná mikrofonem'); return;
             }
             if (method === 'stop') {
+              stopGeneration++; photoDraft = undefined; debugStatus.costumeStatus = null;
               debugStatus.running = false; debugStatus.session = false; debugStatus.recording = false;
               debugStatus.transcript = []; debugStatus.selected = null; debugStatus.timings = null;
               debugStatus.phase = 'cancelled'; return;

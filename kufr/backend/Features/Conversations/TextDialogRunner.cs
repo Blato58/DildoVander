@@ -1,12 +1,13 @@
-using Kufr.Backend.Features.Usage;
 
 namespace Kufr.Backend.Features.Conversations;
 
 internal sealed class TextDialogRunner : IDisposable
 {
     private readonly Func<string, int, IReadOnlyList<DialogExchange>, bool, CancellationToken, string, string, Task<TextDialogResponse>>? generate;
+    private readonly ResponsesTextDialogClient? provider;
     private readonly SemaphoreSlim slot = new(1, 1);
     private readonly HttpClient? httpClient;
+    private readonly Func<byte[], CancellationToken, Task<CostumeImageResponse>>? analyzeImage;
     private volatile bool enabled = true;
 
     public TextDialogRunner(IConfiguration configuration, IHostApplicationLifetime lifetime)
@@ -24,8 +25,7 @@ internal sealed class TextDialogRunner : IDisposable
         }
 
         var apiKey = configuration["OPENAI_API_KEY"];
-        if (string.IsNullOrWhiteSpace(apiKey)
-            || !CostLimits.Read(configuration).Enabled)
+        if (string.IsNullOrWhiteSpace(apiKey))
         {
             if (mode == "fake")
             {
@@ -33,7 +33,7 @@ internal sealed class TextDialogRunner : IDisposable
             }
 
             throw new InvalidOperationException(
-                "Responses mode requires an API key and a positive session usage cap.");
+                "Responses mode requires an API key.");
         }
 
         httpClient = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false });
@@ -41,7 +41,9 @@ internal sealed class TextDialogRunner : IDisposable
             httpClient,
             apiKey,
             Model);
-        generate = client.GenerateAsync;
+        provider = client;
+        generate = (text, mask, history, question, token, context, personality) => client.GenerateAsync(text, mask, history, question, token, context, personality);
+        analyzeImage = new CostumeImageClient(httpClient, apiKey, Model).AnalyzeAsync;
         enabled = mode == "responses";
         Stopping = lifetime.ApplicationStopping;
     }
@@ -61,9 +63,11 @@ internal sealed class TextDialogRunner : IDisposable
     }
 
     internal TextDialogRunner(
-        Func<string, int, IReadOnlyList<DialogExchange>, bool, CancellationToken, string, string, Task<TextDialogResponse>> generate)
+        Func<string, int, IReadOnlyList<DialogExchange>, bool, CancellationToken, string, string, Task<TextDialogResponse>> generate,
+        Func<byte[], CancellationToken, Task<CostumeImageResponse>>? analyzeImage = null)
     {
         this.generate = generate;
+        this.analyzeImage = analyzeImage;
     }
 
     public string Model { get; } = ResponsesTextDialogBudget.Model;
@@ -76,6 +80,11 @@ internal sealed class TextDialogRunner : IDisposable
 
     public bool TryAcquire() => Enabled && slot.Wait(0);
 
+    internal Task<CostumeImageResponse> AnalyzeImageAsync(byte[] jpeg, CancellationToken cancellationToken) =>
+        analyzeImage is null
+            ? throw new InvalidOperationException("Image provider unavailable.")
+            : analyzeImage(jpeg, cancellationToken);
+
     public Task<TextDialogResponse> GenerateAsync(
         string text,
         int readyMask,
@@ -83,9 +92,12 @@ internal sealed class TextDialogRunner : IDisposable
         bool requireQuestion,
         CancellationToken cancellationToken,
         string eveningContext = "",
-        string personalityId = PersonalityCatalog.DefaultId)
+        string personalityId = PersonalityCatalog.DefaultId,
+        string costumeContext = "")
     {
-        return generate!(text, readyMask, history, requireQuestion, cancellationToken, eveningContext, personalityId);
+        return provider is not null
+            ? provider.GenerateAsync(text, readyMask, history, requireQuestion, cancellationToken, eveningContext, personalityId, costumeContext)
+            : generate!(text, readyMask, history, requireQuestion, cancellationToken, eveningContext + costumeContext, personalityId);
     }
 
     public void Release() => slot.Release();

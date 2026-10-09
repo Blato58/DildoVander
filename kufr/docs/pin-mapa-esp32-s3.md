@@ -6,10 +6,11 @@ slotem MicroSD a dvěma porty USB-C ([produktová stránka](https://dratek.cz/ar
 Obrázek ukazuje funkce vyvedených pinů; není to schéma zapojení externích
 prvků kufru ani potvrzení skutečného osazení doručené revize desky.
 
-Předběžné kompletní přidělení externích signálů je v kapitole 10
-[implementačního plánu](implementacni-plan.md): profil A bez kamery/SD
-a profil B s OV5640 + SD, MCP23017 a podmíněným sdílením LED pinů.
-Tabulky jsou návrh do ověření desky, nikoli pokyn k okamžitému zapojení.
+Aktuální přidělení externích signálů B-effects je v
+[zapojení potvrzeného hardwaru](zapojeni-potvrzeneho-hardwaru.md) a kapitole 10
+[implementačního plánu](implementacni-plan.md). GPIO2 přímo řídí PCA OE,
+RGB používá GPIO48 a audio 21/41/42/47. Historický profil A koliduje s kamerou.
+Zapojení je třeba ověřit na skutečné desce před nahráním provozního firmware.
 Výsledky měření a blokace se evidují ve [stavu implementace](stav-implementace.md).
 
 ![Pinová mapa desky ESP32-S3](pin-map-esp32-s3.png)
@@ -53,8 +54,11 @@ na konkrétní osazené desce elektricky volné nebo vhodné pro libovolnou zát
 ## Omezení pro návrh
 
 - Kamera je od nákupního auditu 6. 10. 2026 zahrnutá do objednávky pro profil B;
-  její konektor podle obrázku sdílí 14 GPIO. Funkce ještě není implementovaná
-  ani ověřená. Externí zapojení musí počítat s těmito rezervovanými piny.
+  její konektor podle obrázku sdílí 14 GPIO. D157 přidává volitelný OV5640
+  driver; fyzická funkce není ověřená. D0–D7 jsou 11/9/8/10/12/18/17/16,
+  PCLK13, XCLK15, VSYNC6, HREF7 a SCCB SDA4/SCL5 (I2C port 1).
+  Reset/PWDN -1 vyžadují kontrolu modulu. Piny zůstávají rezervované;
+  servisní `camera_verified` je výchozím stavem false.
 - MicroSD používá GPIO38–40; použití slotu a JTAG na GPIO39/40 se musí
   posoudit společně.
 - U ESP32-S3 jsou GPIO0, GPIO3, GPIO45 a GPIO46 strapping piny. GPIO19/20
@@ -67,7 +71,8 @@ na konkrétní osazené desce elektricky volné nebo vhodné pro libovolnou zát
   serva přes kanály 0–5; společnou servo frekvenci nelze vydávat za nezávislé
   PWM vibrací. Profil B vyžaduje ověření LED GPIO2/48 a uvolnění externího
   JTAG při zachování USB/debug; při nevyhovění plán porovnává druhý řadič.
-  V současném firmware tyto piny **nejsou implementované ani ověřené**.
+  B-effects a kamerový driver jsou implementované; skutečné elektrické
+  chování a souběh periferií tím **nejsou ověřené**.
 - Před pájením a nahráním firmwaru porovnat obrázek s potiskem a schématem
   skutečně dodané revize desky. Funkce 3V3/5V, PSRAM a USB ověřit na
   konkrétním kusu; současná konfigurace PlatformIO sama správné zapojení

@@ -217,3 +217,35 @@ test('native voice settings and start use schema-validated device confirmation w
   assert.equal(validateControlMessage(new TextEncoder().encode(native.sent.at(-1).frame)).type, 'voice.stop');
   connection.suspend();
 });
+
+
+test('native camera consent crosses the strict schema only for an explicit start', async () => {
+  const native = bridge();
+  const connection = new ProtocolDeviceConnection(() => {}, {
+    source: 'native-device', deviceId: fixture.deviceId,
+    createSocket: () => new NativeControlSocket(native),
+    parseFrame: frame => validateControlMessage(new TextEncoder().encode(frame)),
+  });
+  await settle(); native.emit('open'); await settle();
+  const hello = JSON.parse(native.sent.at(-1).frame);
+  const voice = { available: true, cameraAvailable: true, photoWarning: null,
+    mode: 'realtime', voice: 'marin', phase: 'idle', error: null };
+  native.emit('frame', JSON.stringify({ protocolVersion: 1, type: 'welcome', requestMessageId: hello.messageId,
+    snapshot: { ...fixture, controlMode: 'standalone', controlLeaseId: null, activeCommandId: null, voice },
+  }));
+  assert.equal(connection.snapshot().voice.cameraAvailable, true);
+  assert.equal(connection.startVoice(true), true); await settle();
+  const start = validateControlMessage(new TextEncoder().encode(native.sent.at(-1).frame));
+  assert.equal(start.imageConsent, true);
+  native.emit('frame', JSON.stringify({ protocolVersion: 1, type: 'voice.ack', bootId: fixture.bootId,
+    requestMessageId: start.messageId, accepted: true, voice: { ...voice, phase: 'photo_wait' },
+  }));
+  assert.equal(connection.snapshot().voice.phase, 'photo_wait');
+  assert.equal(connection.snapshot().voice.canStop, true);
+  const next = { ...fixture, controlMode: 'standalone', controlLeaseId: null, activeCommandId: null,
+    eventSequence: fixture.eventSequence + 1, voice: { ...voice, phase: 'listening', photoWarning: 'photo_failed' } };
+  native.emit('frame', JSON.stringify(next));
+  assert.match(connection.snapshot().voice.status, /bez ní/);
+  assert.equal(connection.snapshot().voice.error, null);
+  connection.suspend();
+});

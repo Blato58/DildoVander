@@ -22,13 +22,13 @@ class ProjectSelectionTests(unittest.TestCase):
 
     def test_each_project_and_real_build_inputs(self):
         for paths, expected in [
-            (["kufr/firmware/src/main.cpp", "docs/a.md"], {"firmware"}),
+            (["kufr/firmware/src/espidf_main.cpp", "docs/a.md"], {"firmware"}),
             (["kufr/firmware/src/CMakeLists.txt"], {"firmware"}),
             (["kufr/backend-tests/Program.cs"], {"backend"}),
             (["kufr/global.json", "kufr/Directory.Build.props"], {"backend"}),
             (["kufr/mobilni-aplikace/public/icon.svg"], {"web"}),
             (["kufr/ai-eval/cases.json"], {"ai-eval"}),
-            (["kufr/firmware/src/main.cpp", "kufr/backend/Program.cs"], {"firmware", "backend"}),
+            (["kufr/firmware/src/espidf_main.cpp", "kufr/backend/Program.cs"], {"firmware", "backend"}),
             (["kufr/mechanika/model.py", "obludarium/docs/a.md"], set()),
         ]:
             with self.subTest(paths=paths):

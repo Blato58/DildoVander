@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       party_compare:
-        description: Adaptive party conversations using Sol (3 USD per session)
+        description: Adaptive party conversations using Sol (OpenAI account budget applies)
         type: boolean
         default: false
       party_models:
@@ -52,7 +52,6 @@ jobs:
     environment: backend-production
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      SESSION_CAP_MICRO_USD: '3000000'
       MODEL: ${{ inputs.model }}
       CASE_ID: ${{ inputs.case_id }}
       PARTY_MODELS: ${{ inputs.party_models }}

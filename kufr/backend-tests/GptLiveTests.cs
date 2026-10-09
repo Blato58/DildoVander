@@ -4,23 +4,21 @@ using System.Threading.Channels;
 using Kufr.Backend.Features.Conversations;
 using Kufr.Backend.Features.GptLive;
 using Kufr.Backend.Features.Realtime;
-using Kufr.Backend.Features.Usage;
 using Microsoft.Extensions.Configuration;
 
 internal static class GptLiveTests
 {
     internal static async Task RunAsync()
     {
-        var defaults = CostLimits.Read(new ConfigurationBuilder().Build());
-        Check(defaults.Enabled && defaults.SessionMicroUsd == 3_000_000
-            && defaults.DailyMicroUsd == 0 && defaults.MonthlyMicroUsd == 0, "3 USD session-only default");
-        var legacy = CostLimits.Read(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        var keyOnly = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["Backend:Usage:SessionCapMicroUsd"] = "3000000",
+            ["OPENAI_API_KEY"] = "fixture-key",
+            ["Backend:Usage:SessionCapMicroUsd"] = "invalid-ignored",
             ["Backend:Usage:DailyCapMicroUsd"] = "1",
             ["Backend:Usage:MonthlyCapMicroUsd"] = "1"
-        }).Build());
-        Check(legacy == defaults, "legacy deployment helper period settings never reinstate global caps");
+        }).Build();
+        using var available = new GptLiveClient(keyOnly);
+        Check(available.Available, "provider key enables Live; legacy monetary caps are ignored");
         Check(GptLiveProtocol.VoiceCost(60) == 50_000 && GptLiveProtocol.VoiceCost(0.1) == 84,
             "duration billing uses fractional seconds without rounding to minutes");
         foreach (var seconds in new[] { double.NaN, double.PositiveInfinity, -1, 191 })

@@ -92,7 +92,7 @@ internal sealed partial class ConversationStore(
                     request.Consent.Audio,
                     personalityId,
                     response.ExpiresAt,
-                    now.AddMinutes(30)) { LivePrompt = LivePromptSnapshot.Create(personalityId, liveOptions ?? new()) });
+                    now.AddMinutes(30)) { ImageConsented = request.Consent.Image, LivePrompt = LivePromptSnapshot.Create(personalityId, liveOptions ?? new()) });
             return new CreateResult(201, response);
         }
     }
@@ -191,7 +191,7 @@ internal sealed partial class ConversationStore(
                     bodyHash,
                     correlation,
                     estimatedCostMicroUsd: paid
-                        ? ResponsesTextDialogBudget.ReserveForContext(memory?.Transcript ?? "", dialogRunner!.Model, conversation.PersonalityId)
+                        ? ResponsesTextDialogBudget.ReserveForContext((memory?.Transcript ?? "") + CostumePrompt(conversation), dialogRunner!.Model, conversation.PersonalityId)
                         : 0);
                 if (reservation.Conflict)
                 {
@@ -201,11 +201,6 @@ internal sealed partial class ConversationStore(
                 if (reservation.LimitExceeded)
                 {
                     return new SubmitTurnResult(429, null, "turn_limit");
-                }
-
-                if (reservation.CostRejected)
-                {
-                    return new SubmitTurnResult(429, null, "cost_limit");
                 }
 
                 if (reservation.Existing)
@@ -234,6 +229,7 @@ internal sealed partial class ConversationStore(
                         completedQuestions,
                         conversation.PersonalityId,
                         memory,
+                        CostumePrompt(conversation),
                         cancellation));
                     queued = true;
                     return new SubmitTurnResult(202, operationId, null);
@@ -338,6 +334,7 @@ internal sealed partial class ConversationStore(
         int completedQuestions,
         string selectedPersonalityId,
         EveningContext? memory,
+        string costumeContext,
         CancellationTokenSource cancellation)
     {
         try
@@ -366,7 +363,8 @@ internal sealed partial class ConversationStore(
                 completedQuestions < PersonalityCatalog.MinimumQuestions(selectedPersonalityId) && readyMask != 0,
                 cancellation.Token,
                 memory?.Transcript ?? "",
-                selectedPersonalityId);
+                selectedPersonalityId,
+                costumeContext);
             var actualCost = ResponsesTextDialogBudget.CalculateActualMicroUsd(response, dialogRunner.Model);
             lock (gate)
             {
@@ -772,6 +770,10 @@ internal sealed partial class ConversationStore(
             var result = journal.CancelOperation(deviceId, operationId, key);
             if (result.Status == 204)
             {
+                foreach (var conversation in conversations.Values.Where(entry => entry.ImageOperationId == operationId && !entry.ManualCostume))
+                {
+                    conversation.Costume = null;
+                }
                 if (activePaidCalls.TryGetValue(operationId, out var paidCall))
                 {
                     paidCall.Cancellation.Cancel();
@@ -923,6 +925,14 @@ internal sealed partial class ConversationStore(
 
     private void CleanupExpired(DateTimeOffset now)
     {
+        foreach (var conversation in conversations.Values)
+        {
+            if (conversation.Costume?.ExpiresAt <= now) { conversation.Costume = null; }
+        }
+        foreach (var id in operations.Where(pair => pair.Value.Result is CostumeContext context && context.ExpiresAt <= now).Select(pair => pair.Key).ToArray())
+        {
+            operations.Remove(id);
+        }
         foreach (var audioId in audio.Where(pair => pair.Value.ExpiresAt <= now)
             .Select(pair => pair.Key).ToArray())
         {
@@ -1026,6 +1036,12 @@ internal sealed partial class ConversationStore(
         public int Generation { get; } = generation;
         public string CatalogVersion { get; } = catalogVersion;
         public bool AudioConsented { get; } = audioConsented;
+        public bool ImageConsented { get; init; }
+        public string? ImageOperationId { get; set; }
+        public CostumeContext? Costume { get; set; }
+        public bool ManualCostume { get; set; }
+        public bool CostumeCleared { get; set; }
+        public int CostumeCorrectionCount { get; set; }
         public string PersonalityId { get; } = selectedPersonalityId;
         public LivePromptSnapshot LivePrompt { get; init; } = LivePromptSnapshot.Create(selectedPersonalityId, new());
         public string LiveGeneration { get; } = Guid.NewGuid().ToString("D");

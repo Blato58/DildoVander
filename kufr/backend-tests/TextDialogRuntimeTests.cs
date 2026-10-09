@@ -75,7 +75,14 @@ internal static class TextDialogRuntimeTests
             {
             }
         }
-        Require(configured.Enabled, "explicit Responses mode accepts key and all caps");
+        Require(configured.Enabled, "explicit Responses mode accepts provider key");
+        var keyOnly = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Backend:Dialog:Mode"] = "responses", ["OPENAI_API_KEY"] = "fixture-key",
+            ["Backend:Usage:SessionCapMicroUsd"] = "invalid-ignored"
+        }).Build();
+        using var capless = new TextDialogRunner(keyOnly, lifetime);
+        Require(capless.Enabled, "explicit mode and key need no valid monetary cap");
     }
 
     private static async Task RunSuccessfulTurnAsync(string directory)
@@ -153,8 +160,8 @@ internal static class TextDialogRuntimeTests
         var second = store.SubmitTurn(
             "device-a", conversationId, Guid.NewGuid(), "second"u8,
             request with { ClientTurnId = Guid.NewGuid() });
-        Require(second.Status == 429 && second.ErrorCode == "cost_limit",
-            "ambiguous provider failure keeps the reservation");
+        Require(second.Status == 202, "legacy cap does not block work after ambiguous failure");
+        await PollAsync(store, runner, second.OperationId!, "failed");
     }
 
     private static async Task RunMultiTurnDialogueAsync(string directory)
@@ -390,8 +397,9 @@ internal static class TextDialogRuntimeTests
         var next = store.SubmitTurn(
             "device-a", conversationId, Guid.NewGuid(), "next"u8,
             request with { ClientTurnId = Guid.NewGuid() });
-        Require(next.ErrorCode == "cost_limit",
-            "sent but cancelled call conservatively retains its reservation");
+        Require(next.Status == 202, "legacy cap does not block work after cancellation");
+        store.CancelOperation("device-a", next.OperationId!, Guid.NewGuid());
+        await PollAsync(store, runner, next.OperationId!, "cancelled");
     }
 
     private static IConfiguration BuildConfiguration(string path, long sessionCap)

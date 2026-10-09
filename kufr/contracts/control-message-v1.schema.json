@@ -99,6 +99,7 @@
         "bootId": {
           "$ref": "#/$defs/uuid"
         },
+        "imageConsent": { "type": "boolean" },
         "expectedRevision": {
           "$ref": "#/$defs/safeInteger"
         }
@@ -143,6 +144,8 @@
         "error"
       ],
       "properties": {
+        "cameraAvailable": { "type": "boolean" },
+        "photoWarning": { "enum": [null, "photo_unavailable", "photo_failed"] },
         "available": {
           "type": "boolean"
         },
@@ -165,6 +168,9 @@
             "unavailable",
             "idle",
             "starting",
+            "photo_capture",
+            "photo_upload",
+            "photo_wait",
             "listening",
             "thinking",
             "speaking",

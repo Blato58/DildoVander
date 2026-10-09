@@ -48,7 +48,7 @@ Nativní adaptér vlastní TLS pin, oprávnění LAN a Keychain. E10.1 použív�
 Aktuální [Safari instalace](https://2.28.202.220/ios/) nabízí verzi 1.0,
 build **1000.0.14** ([publikace 3. 10. 2026](https://github.com/Blato58/DildoVander/actions/runs/37120810300),
 D134: obnovení přehrávače a ověření průchodu audia před AI streamem; nadále
-GPT-Live + Sol, přirozenější úvod a 3 USD/session).
+GPT-Live + Sol a přirozenější úvod).
 Nativní testy, Ad Hoc podpis a veřejná kontrola manifestu/IPA/SHA-256
 prošly. Skutečná aktualizace a poslech na iPhonu zbývá ověřit.
 První uložení credentialu po přechodu z RAM-only verze
@@ -385,7 +385,7 @@ Používá mikrofon a reproduktor telefonu s Apple voice processing; rychlost
 je 1×. Režim přepínej před zahájením nového rozhovoru. **Hlas kufru** má
 stejnou novou volbu a posílá `voice.configure mode:gpt-live` přímo do ESP.
 Nastavení kufru je do restartu; během probíhajícího hovoru ho nelze měnit.
-Každé sezení má 3 USD limit, celkový rozpočet řídí OpenAI.
+Aplikace ani server neomezují peněžní rozpočet sezení. Náklady, kredit a limity dostupnosti řídí OpenAI účet; technické meze audia a délky tahu zůstávají.
 Nová funkce vyžaduje nasazený D128 backend a novou aplikaci/firmware;
 webový build sám neověřuje nativní iPhone audio.
 [Postup a omezení testování](../docs/hlas-a-humor-research.md#d128-testovaci-gpt-live-rezim).
@@ -407,3 +407,47 @@ nestačí. Za hovoru ukončí frontu bez potvrzeného přehrávání po 2,5 s k�
 `realtime_live_audio_output_stalled`; příchozí audio tento timeout neoddaluje.
 Test grafu používá macOS offline render, takže fyzický poslech na iOS je
 stále samostatná akceptace.
+
+
+### Volitelná fotka kostýmu
+
+Debug nabízí **Se souhlasem vyfotit kostým** před každým ze čtyř režimů.
+iOS požádá o fotoaparát teprve při této akci. Systémová kamera umožňuje
+náhled, opakování, Použít fotku a Zrušit. Schválená fotka se překreslí na
+nejvýše 640×640, převede na JPEG do 256 KiB a zbaví APP1–15/COM metadat.
+Zůstává v RAM; do webu přejde jen jednorázové UUID platné 120 sekund.
+Spotřebování, zrušení, Stop, pozadí nebo expirace ji odstraní. Fotka ani
+odhad vzhledu nepoužívají galerii, soubory, Keychain ani localStorage.
+
+Po vytvoření rozhovoru s explicitním `consent.image:true` se odešle JPEG
+na `/image`, vyčká na výsledek a případně předá ruční popis na `/costume-context`.
+Popis má přednost a funguje i bez fotky. Poté začne úvod/hlas. Chyba fotky
+ukáže varování. Nejprve se potvrdí úklid starého sezení (včetně rozpracovaného image
+provideru), pak vznikne nové sezení bez souhlasu k fotce a použije se případný
+ruční popis. Neúspěšný nebo nepotvrzený úklid nový hlas nespustí; upload se neopakuje.
+Klient si v RAM ponechá vlastněné ID i stejný idempotency klíč DELETE až do
+potvrzeného 204. Neúspěšný úklid zablokuje Start a ponechá Stop dostupný pro
+opakování, i když příprava ještě nevrátila objekt sezení. Po potvrzení úklidu
+se záznam s přístupovými údaji odstraní. Již potvrzený úklid se neposílá znovu.
+Odmítne-li server token při úklidu jako neplatný (401), klient obnoví device
+access a zopakuje stejné DELETE ID a klíč. Selhání obnovy zachová čekající
+úklid pro další Stop; úspěšně obnovený token zůstane v RAM do potvrzeného 204.
+Ztracené či neplatné potvrzení ručního popisu se jednou obnoví přes stejný
+klíč, payload a korelaci PUT. Opakovaný nejednoznačný výsledek zobrazí chybu,
+zablokuje tento začátek hlasu a uklidí vlastněné sezení; netvrdí, že popis
+nebyl uložen. Tato obnova neopakuje fotku ani provider práci.
+Stop během přípravy zruší práci a smaže právě vytvořené sezení, takže
+opožděný výsledek nespustí hlas. Odhad je nejistá nápověda s TTL 120 sekund,
+není identifikací osoby. Běžný přepis se dále uchovává v paměti večera;
+surová fotka ani strukturovaný odhad do ní nevstupují. Již použitá nápověda
+může zůstat ve stávajícím provider spojení do jeho uzavření.
+
+**Hlas kufru** má samostatný nezaškrtnutý souhlas k jedné fotce z kamery kufru,
+povolený jen pro `cameraAvailable:true`. Po každém Start a při pozadí se
+souhlas resetuje. Bez souhlasu se posílá původní `voice.start` bez dalšího pole.
+Foto fáze a varování se ukazují odděleně od hlasové chyby; selhání fotky
+nezastaví dialog. Vývojový web reálnou fotku nepořizuje. Syntetický nativní
+harness `tests/native-ui-harness.html` nabízí schválení/zrušení/permission/chybu/čekání.
+`./scripts/test-native-debug.sh` na macOS testuje HTTP pořadí a cleanup offline.
+Systémový náhled, práva kamery a nativní audio vyžadují podepsaný iPhone build
+přes přijaté workflow a fyzickou akceptaci.

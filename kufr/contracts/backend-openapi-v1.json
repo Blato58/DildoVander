@@ -8,6 +8,242 @@
   "servers": [{ "url": "https://localhost:7043", "description": "Local development only" }],
   "security": [{ "DeviceAccess": [] }],
   "paths": {
+    "/v1/conversations/{id}/image": {
+      "post": {
+        "operationId": "submitCostumeImage",
+        "summary": "One separately consented costume JPEG before dialogue",
+        "description": "Single JPEG at most 262144 bytes, baseline/progressive 8-bit, dimensions 1..640 each. No EXIF/GPS/other metadata or thumbnails. Re-encode after preview. One admission per conversation, before opening or a voice stream. An expired manual cue rejects a later first image with 409 costume_context_expired before charging; an already-pending photo cannot revive the expired manual cue. Requires consent.image. Upload timeout 60s; provider timeout 45s. Fake remains default. The provider gets input_image detail low; no face identity, age, gender, embeddings or actuator decision. Idempotent operation polling; ambiguous paid calls are never repeated. Owned photo buffers erased; no-store. RAM result and local prompt lookup expire after 120s; already-started provider context may retain the cue until conversation closes. Optional failure leaves dialogue usable.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConversationId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "name": "Client-Turn-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Boot-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Generation",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "Device-Revision",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "Catalog-Version",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "image/jpeg": {
+              "schema": {
+                "type": "string",
+                "format": "binary",
+                "maxLength": 262144
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Poll image operation; same-key replay never causes another provider call.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageAccepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "408": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "415": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/v1/conversations/{id}/costume-context": {
+      "put": {
+        "operationId": "correctCostumeContext",
+        "summary": "Optional manual costume correction before dialogue",
+        "description": "No paid call. Explicit text needs no image consent. Maximum 240 characters, no control characters; empty text discards the active cue and returns an empty manual context-shaped receipt. The receipt is not added to prompts. Clearing cancels any image poll result; an in-flight provider still settles usage and cleans up without publishing. A later first image is rejected with 409 costume_context_discarded until a nonempty correction. Manual correction takes precedence over a pending or later photo. Before opening or voice start; use a new idempotency key for a changed correction. At most eight corrections per conversation protect RAM. RAM-only structured context and operation result; local lookup expires after 120s. Regular voluntarily spoken/text dialogue memory remains unchanged.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConversationId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "name": "Client-Turn-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Boot-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Generation",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "Device-Revision",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "Catalog-Version",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "description"
+                ],
+                "properties": {
+                  "description": {
+                    "type": "string",
+                    "maxLength": 240,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Standard costume operation envelope with completed result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostumeOperation"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "408": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "415": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/v1/admin/logs": {
       "get": {
         "operationId": "readServerLogs",
@@ -475,11 +711,12 @@
           { "$ref": "#/components/parameters/IdempotencyKey" }
         ],
         "responses": {
-          "204": { "description": "Conversation ended; active operations cancelled" },
+          "204": { "description": "Conversation ended; active operations cancelled. An owned paid image also wipes its JPEG and releases the shared provider slot before 204. Wait is bounded to 5s; 503 image_cancel_pending means already ended but image cleanup is still pending. Retry DELETE with the same key before a fresh no-image opening." },
           "401": { "$ref": "#/components/responses/Problem" },
           "403": { "$ref": "#/components/responses/Problem" },
           "404": { "$ref": "#/components/responses/Problem" },
-          "409": { "$ref": "#/components/responses/Problem" }
+          "409": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
         }
       }
     },
@@ -1368,6 +1605,190 @@
       }
     },
     "schemas": {
+      "ImageAccepted": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "operationId",
+          "kind",
+          "status"
+        ],
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "const": "image"
+          },
+          "status": {
+            "const": "pending"
+          }
+        }
+      },
+      "CostumeContext": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Photo and fake results have a nonempty description. An empty manual receipt acknowledges a discarded cue and is never included in provider prompts.",
+        "required": [
+          "description",
+          "possibleCharacter",
+          "uncertainty",
+          "source",
+          "expiresAt"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "maxLength": 240,
+            "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$"
+          },
+          "possibleCharacter": {
+            "type": "string",
+            "maxLength": 80,
+            "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$"
+          },
+          "uncertainty": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "source": {
+            "enum": [
+              "photo",
+              "fake",
+              "manual"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "source": { "enum": ["photo", "fake"] } } },
+            "then": { "properties": { "description": { "type": "string", "minLength": 1 } } }
+          }
+        ]
+      },
+      "CostumeOperation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "operationId",
+          "kind",
+          "status",
+          "correlation",
+          "result",
+          "error"
+        ],
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "enum": [
+              "image",
+              "costume"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/OperationStatus"
+          },
+          "correlation": {
+            "$ref": "#/components/schemas/TurnCorrelation"
+          },
+          "result": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CostumeContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OperationError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "kind": { "const": "image" }, "status": { "const": "completed" } } },
+            "then": { "properties": { "result": { "type": "object", "properties": { "description": { "type": "string", "minLength": 1 } } } } }
+          },
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "completed"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "result": {
+                  "$ref": "#/components/schemas/CostumeContext"
+                },
+                "error": {
+                  "type": "null"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "enum": [
+                    "pending",
+                    "running",
+                    "cancelled",
+                    "unknown"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "result": {
+                  "type": "null"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "failed"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "result": {
+                  "type": "null"
+                },
+                "error": {
+                  "$ref": "#/components/schemas/OperationError"
+                }
+              }
+            }
+          }
+        ]
+      },
       "ServerLogEntry": {
         "type": "object",
         "additionalProperties": false,
@@ -1709,7 +2130,8 @@
         "oneOf": [
           { "$ref": "#/components/schemas/TranscriptionOperation" },
           { "$ref": "#/components/schemas/TurnOperation" },
-          { "$ref": "#/components/schemas/SpeechOperation" }
+          { "$ref": "#/components/schemas/SpeechOperation" },
+          { "$ref": "#/components/schemas/CostumeOperation" }
         ]
       },
       "TranscriptionOperation": {

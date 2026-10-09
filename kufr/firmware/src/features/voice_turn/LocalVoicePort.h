@@ -8,6 +8,8 @@ struct LocalVoiceStatus {
   std::string voice = "marin";
   std::string phase = "unavailable";
   std::string error = "";
+  bool cameraAvailable = false;
+  std::string photoWarning;
 };
 
 class LocalVoicePort {
@@ -18,6 +20,10 @@ class LocalVoicePort {
   virtual bool StartVoice(const std::string& requestId,
                           const ConversationRuntimeSnapshot& snapshot) = 0;
   virtual void StopVoice() = 0;
+  virtual bool StartVoiceWithImageConsent(const std::string& requestId,
+      const ConversationRuntimeSnapshot& snapshot, bool imageConsent) {
+    return !imageConsent && StartVoice(requestId, snapshot);
+  }
 };
 
 inline std::string VoiceStatusJson(const LocalVoiceStatus& status) {
@@ -25,5 +31,7 @@ inline std::string VoiceStatusJson(const LocalVoiceStatus& status) {
   return "{\"available\":" + std::string(status.available ? "true" : "false") +
       ",\"mode\":\"" + status.mode + "\",\"voice\":\"" + status.voice +
       "\",\"phase\":\"" + status.phase + "\",\"error\":" +
-      (status.error.empty() ? "null" : "\"" + status.error + "\"") + "}";
+      (status.error.empty() ? "null" : "\"" + status.error + "\"") +
+      ",\"cameraAvailable\":" + (status.cameraAvailable ? "true" : "false") +
+      ",\"photoWarning\":" + (status.photoWarning.empty() ? "null" : "\"" + status.photoWarning + "\"") + "}";
 }

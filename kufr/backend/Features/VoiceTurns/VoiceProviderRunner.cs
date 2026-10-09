@@ -1,5 +1,4 @@
 using Kufr.Backend.Features.Speech;
-using Kufr.Backend.Features.Usage;
 using System.Security.Cryptography;
 
 namespace Kufr.Backend.Features.VoiceTurns;
@@ -29,14 +28,14 @@ internal sealed class VoiceProviderRunner : IDisposable
         }
 
         var apiKey = configuration["OPENAI_API_KEY"];
-        if (string.IsNullOrWhiteSpace(apiKey) || !CostLimits.Read(configuration).Enabled)
+        if (string.IsNullOrWhiteSpace(apiKey))
         {
             if (mode == "fake")
             {
                 return;
             }
 
-            throw new InvalidOperationException("OpenAI voice requires an explicit mode, key and a positive session usage cap.");
+            throw new InvalidOperationException("OpenAI voice requires an explicit mode and key.");
         }
 
         httpClient = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false });

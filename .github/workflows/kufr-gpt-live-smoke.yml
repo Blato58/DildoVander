@@ -28,5 +28,4 @@ jobs:
       - name: Test greeting with continuous synthetic silence (35 seconds maximum)
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          Backend__Usage__SessionCapMicroUsd: '3000000'
         run: dotnet run --project kufr/backend-tests/BackendTests.csproj -c Release -- --gpt-live-smoke

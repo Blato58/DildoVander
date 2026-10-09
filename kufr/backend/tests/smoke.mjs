@@ -175,6 +175,19 @@ async function downloadAudio(path, token) {
   };
 }
 
+
+const costumeJpeg = Buffer.from('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAACAAIDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD5/ooooA//2Q==', 'base64');
+async function imageRequest(id, token, headers, jpeg = costumeJpeg, correction = null) {
+  const response = await fetch(`${baseUrl}/v1/conversations/${id}/${correction === null ? 'image' : 'costume-context'}`, {
+    method: correction === null ? 'POST' : 'PUT',
+    headers: { ...headers, ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      'Content-Type': correction === null ? 'image/jpeg' : 'application/json' },
+    body: correction === null ? jpeg : JSON.stringify({ description: correction })
+  });
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  return { status: response.status, result: await response.json() };
+}
+
 startServer();
 try {
   await waitForServer();
@@ -362,6 +375,54 @@ try {
     key: randomUUID(),
     body
   })).status, 409);
+
+  const imageBody = { ...virtualBody, consent: { audio: true, image: true } };
+  const imageSession = await call('/v1/conversations', { token: virtualToken, key: randomUUID(), body: imageBody });
+  assert.equal(imageSession.status, 201);
+  const imageId = imageSession.result.conversationId;
+  const imageHeaders = { 'Idempotency-Key': randomUUID(), 'Client-Turn-Id': randomUUID(),
+    'Boot-Id': imageBody.bootId, Generation: String(imageBody.generation), 'Device-Revision': '0',
+    'Catalog-Version': imageBody.catalogVersion };
+  assert.equal((await imageRequest(imageId, undefined, imageHeaders)).status, 401);
+  assert.equal((await imageRequest(imageId, tokenB, imageHeaders)).status, 403);
+  assert.equal((await imageRequest(imageId, virtualToken, {})).status, 400);
+  assert.equal((await imageRequest(imageId, virtualToken, { ...imageHeaders, Generation: '999' })).status, 409);
+  assert.equal((await imageRequest(created.result.conversationId, tokenA,
+    { ...imageHeaders, 'Boot-Id': body.bootId, Generation: String(body.generation), 'Catalog-Version': body.catalogVersion })).status, 403);
+  assert.equal((await imageRequest(imageId, virtualToken, imageHeaders, Buffer.from('invalid'))).status, 400);
+  assert.equal((await imageRequest(imageId, virtualToken, imageHeaders, Buffer.alloc(262145))).status, 413);
+  const jpegMetadata = Buffer.from(costumeJpeg); jpegMetadata[3] = 0xe1;
+  assert.equal((await imageRequest(imageId, virtualToken, imageHeaders, jpegMetadata)).status, 400);
+  const imageAccepted = await imageRequest(imageId, virtualToken, imageHeaders);
+  assert.equal(imageAccepted.status, 202);
+  assert.equal((await imageRequest(imageId, virtualToken, imageHeaders)).result.operationId, imageAccepted.result.operationId);
+  assert.equal((await imageRequest(imageId, virtualToken, { ...imageHeaders, 'Idempotency-Key': randomUUID() })).status, 409);
+  const imageOperation = await read(`/v1/operations/${imageAccepted.result.operationId}`, virtualToken);
+  assert.equal(imageOperation.result.kind, 'image');
+  assert.equal(imageOperation.result.result.source, 'fake');
+  const correctionHeaders = { ...imageHeaders, 'Idempotency-Key': randomUUID() };
+  const correction = await imageRequest(imageId, virtualToken, correctionHeaders, null, 'Cerveny plast');
+  assert.equal(correction.status, 200);
+  assert.equal(correction.result.kind, 'costume');
+  assert.equal(correction.result.result.description, 'Cerveny plast');
+  assert.equal(correction.result.result.source, 'manual');
+  assert.equal((await read(`/v1/operations/${imageAccepted.result.operationId}`, virtualToken)).result.result.description, 'Cerveny plast');
+  assert.equal((await imageRequest(imageId, virtualToken, correctionHeaders, null, 'Cerveny plast')).result.operationId,
+    correction.result.operationId);
+  assert.equal((await imageRequest(imageId, virtualToken, correctionHeaders, null, 'Modry plast')).status, 409);
+  const clearHeaders = { ...imageHeaders, 'Idempotency-Key': randomUUID() };
+  const clear = await imageRequest(imageId, virtualToken, clearHeaders, null, '');
+  assert.equal(clear.status, 200);
+  assert.equal(clear.result.status, 'completed');
+  assert.equal(clear.result.kind, 'costume');
+  assert.equal(clear.result.result.source, 'manual');
+  assert.equal(clear.result.result.description, '');
+  assert.equal((await imageRequest(imageId, virtualToken, clearHeaders, null, '')).result.operationId,
+    clear.result.operationId, 'empty correction is an idempotent receipt');
+  const clearedImage = await read(`/v1/operations/${imageAccepted.result.operationId}`, virtualToken);
+  assert.equal(clearedImage.result.status, 'cancelled');
+  assert.equal(clearedImage.result.result, null, 'clear never publishes an empty completed image');
+  assert.equal(await remove(`/v1/conversations/${imageId}`, virtualToken, randomUUID()), 204);
 
   const parallelBody = { ...body, deviceId: 'device-b' };
   const parallel = await Promise.all([
