@@ -41,7 +41,7 @@ type ActiveCommand = {
 
 export interface ControlSocket {
   readonly readyState: number;
-  addEventListener(type: string, listener: (event: { data?: unknown }) => void): void;
+  addEventListener(type: string, listener: (event: { data?: unknown; failureCode?: string }) => void): void;
   send(frame: string): void;
   close(): void;
 }
@@ -57,6 +57,22 @@ export interface ProtocolConnectionOptions {
 // One owner of lease, command retry and uncertain-result reconciliation, shared
 // by the development proxy and the native pinned-TLS transport.
 export class ProtocolDeviceConnection {
+  private static readonly nativeFailures: Record<string, string> = {
+    invalid_identity: 'Uložené párování není platné.',
+    certificate_mismatch: 'Kufr má jiný bezpečnostní klíč než uložené párování. Ověřte zařízení a servisní párování.',
+    authorization_rejected: 'Kufr odmítl uložené párování. Ověřte servisní párování.',
+    server_busy: 'Kufr má již aktivní Wi-Fi spojení.',
+    handshake_rejected: 'Kufr odmítl připojení k místnímu ovládání.',
+    tls_failed: 'Zabezpečené připojení ke kufru selhalo.',
+    host_unreachable: 'Kufr není dostupný v místní Wi-Fi.',
+    network_unavailable: 'Místní síť není dostupná. Ověřte Wi-Fi a oprávnění Místní síť.',
+    connection_timeout: 'Připojení ke kufru neodpovědělo včas.',
+    protocol_error: 'Kufr poslal neplatnou zprávu ovládání.',
+  };
+  private static readonly terminalNativeFailures = new Set(['invalid_identity', 'certificate_mismatch',
+    'authorization_rejected', 'handshake_rejected', 'tls_failed', 'network_unavailable', 'protocol_error']);
+  private closeFailure: string | undefined;
+  private stableSince: number | null = null;
   private readonly voice = new LocalVoiceClient(
     (message) => this.send(message), () => this.publish(), () => this.socket?.close(),
   );
@@ -126,6 +142,11 @@ export class ProtocolDeviceConnection {
   }
 
   connect(): void {
+    this.reconnectAttempt = 0;
+    this.openConnection();
+  }
+
+  private openConnection(): void {
     this.suspended = false;
     if (this.retryTimer !== null) {
       window.clearTimeout(this.retryTimer);
@@ -135,6 +156,7 @@ export class ProtocolDeviceConnection {
       return;
     }
     const socket = this.options.createSocket();
+    this.closeFailure = undefined;
     this.socket = socket;
     this.state.phase = 'disconnected';
     this.state.controlMode = 'observer';
@@ -149,7 +171,7 @@ export class ProtocolDeviceConnection {
     socket.addEventListener('message', (event) => {
       if (this.socket === socket) { this.receive(event.data); }
     });
-    socket.addEventListener('close', () => {
+    socket.addEventListener('close', (event) => {
       if (this.socket === socket) {
         this.rememberUnresolvedCommand();
         this.socket = null;
@@ -163,20 +185,28 @@ export class ProtocolDeviceConnection {
         this.voice.invalidate();
         this.conversation.invalidate();
         this.clearTimers();
+        this.stableSince = null;
+        const native = this.options.source === 'native-device';
+        const failure = this.closeFailure ?? event.failureCode;
+        const stopped = native && (this.reconnectAttempt >= 3 ||
+          (failure !== undefined && ProtocolDeviceConnection.terminalNativeFailures.has(failure)));
+        const failureText = native && failure ? ProtocolDeviceConnection.nativeFailures[failure] : undefined;
         this.state = {
           ...this.state,
           controlMode: 'observer',
           phase: 'disconnected',
           activeCompartment: null,
           busy: false,
-          status: 'Spojení se simulátorem bylo přerušeno. Výsledek případného povelu je nejistý.',
+          status: (failureText ?? 'Spojení se simulátorem bylo přerušeno. Výsledek případného povelu je nejistý.') +
+            (failureText && this.unresolvedCommand ? ' Výsledek případného povelu je nejistý.' : '') +
+            (stopped ? ' Automatické připojování bylo zastaveno. Po ověření zkuste připojení znovu.' : ''),
         };
         this.publish();
-        if (!this.suspended && !document.hidden) {
+        if (!stopped && !this.suspended && !document.hidden) {
           const delayMs = this.options.source === 'native-device'
             ? Math.min(8000, 500 * 2 ** Math.min(this.reconnectAttempt++, 4)) * (0.8 + Math.random() * 0.4)
             : 1500;
-          this.retryTimer = window.setTimeout(() => this.connect(), delayMs);
+          this.retryTimer = window.setTimeout(() => this.openConnection(), delayMs);
         }
       }
     });
@@ -340,6 +370,7 @@ export class ProtocolDeviceConnection {
 
   private receive(raw: unknown): void {
     if (typeof raw !== 'string') {
+      this.closeFailure = 'protocol_error';
       this.socket?.close();
       return;
     }
@@ -349,10 +380,12 @@ export class ProtocolDeviceConnection {
         ? this.options.parseFrame(raw)
         : JSON.parse(raw) as Record<string, unknown>;
     } catch {
+      this.closeFailure = 'protocol_error';
       this.socket?.close();
       return;
     }
     if (message === null || Array.isArray(message) || message.protocolVersion !== 1 || typeof message.type !== 'string') {
+      this.closeFailure = 'protocol_error';
       this.socket?.close();
       return;
     }
@@ -364,14 +397,17 @@ export class ProtocolDeviceConnection {
     if (message.type === 'welcome' || message.type === 'state.snapshot') {
       const candidate = message.type === 'welcome' ? message.snapshot : message;
       if (!this.isSnapshot(candidate) || candidate.deviceId !== this.options.deviceId) {
+        this.closeFailure = 'protocol_error';
         this.socket?.close();
         return;
       }
       const acquisitionCompleted = this.acquirePending && candidate.controlMode === 'manual';
       this.applySnapshot(candidate);
+      if (this.stableSince === null) { this.stableSince = performance.now(); }
+      // A single welcome followed by another immediate close is not recovery.
+      if (performance.now() - this.stableSince >= 5000) { this.reconnectAttempt = 0; }
       if (message.type === 'welcome' || acquisitionCompleted) {
         this.clearRequestTimeout();
-        this.reconnectAttempt = 0;
       }
     } else if (message.type === 'voice.ack') {
       this.voice.receive(message);

@@ -33,6 +33,8 @@ const server = https.createServer({
 });
 const wss = new WebSocketServer({ noServer: true, maxPayload: 8192 });
 server.on('upgrade', (request, socket, head) => {
+  // Observe Apple's offer without printing any header value or credential.
+  process.stdout.write(`native-wss-extension-offered=${Object.hasOwn(request.headers, 'sec-websocket-extensions')}\n`);
   if (request.url !== '/v1/control' || request.headers.authorization !== `Bearer ${token}`) {
     socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
     return;

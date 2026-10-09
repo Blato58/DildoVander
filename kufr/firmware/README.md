@@ -477,8 +477,9 @@ a schématem jako mobil/simulátor; test není důkazem HW sekvence.
 443. Start odmítne chybějící TLS identitu, poškozený credential nebo
 chybějící párovací záznam; připravené jednorázové párování umožní `/v1/pair`.
 Přesná bearer hlavička se ověří v pre-handshake callbacku před 101;
-post-handshake teprve potvrdí socket a oznámí připojení. Query a žádost
-o WS extensions se odmítají. Přijímá jen celé textové rámce do 8192 B;
+post-handshake teprve potvrdí socket a oznámí připojení. Query se odmítají.
+Nabídka WS extensions je přípustná; server žádné nevybere a rámce zůstávají
+nekomprimované. Přijímá jen celé textové rámce do 8192 B;
 parser nadále omezuje netextové povely na 2048 B. PING/PONG/CLOSE jsou
 omezené na 125 B a aplikace je sama spotřebuje. Zahlcení nebo neplatný
 rámec uzavře spojení, nikdy nečeká na volné místo v řídicí frontě.
