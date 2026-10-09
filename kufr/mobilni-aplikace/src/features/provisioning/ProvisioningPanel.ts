@@ -87,6 +87,8 @@ export class ProvisioningPanel {
 
   private async action(action: string, name?: string): Promise<void> {
     if (!this.nativeMode || this.busy) return;
+    // Preserve the tap's target while a background BLE refresh releases its slot.
+    const profile = this.profile();
     if (action === 'discover') {
       await this.client.disconnect();
       this.update(null, 'Hledám BLE kufry…', true);
@@ -114,14 +116,14 @@ export class ProvisioningPanel {
       await bridge.openSettings().catch((error) => this.update(null, errorMessage(error), false));
       return;
     }
-    if (action === 'configure') { await this.client.perform(() => bridge.configure({ profile: this.profile() })); return; }
+    if (action === 'configure') { await this.client.perform(() => bridge.configure({ profile })); return; }
     if (action === 'status') { await this.client.perform(() => bridge.status()); return; }
     if (action === 'ota-enable' || action === 'ota-disable') {
       await this.client.perform(() => bridge.command({ command: 'ota-policy', automaticInstall: action === 'ota-enable' }));
       return;
     }
     if (['test', 'delete', 'ota-check', 'ota-install'].includes(action)) {
-      await this.client.perform(() => bridge.command({ command: action as 'test' | 'delete' | 'ota-check' | 'ota-install', profile: this.profile() }));
+      await this.client.perform(() => bridge.command({ command: action as 'test' | 'delete' | 'ota-check' | 'ota-install', profile }));
     }
   }
 
@@ -129,9 +131,10 @@ export class ProvisioningPanel {
     this.busy = busy;
     if (status) this.connected = true;
     else if (!busy && message) this.connected = false;
-    if (message) this.element.querySelector<HTMLElement>('[role="status"]')!.textContent = message;
+    const messageElement = this.element.querySelector<HTMLElement>('[role="status"]')!;
+    if (message && messageElement.textContent !== message) messageElement.textContent = message;
     const metrics = this.element.querySelector<HTMLElement>('.ble-metrics')!;
-    metrics.hidden = !this.connected;
+    if (metrics.hidden === this.connected) metrics.hidden = !this.connected;
     if (status) {
       const values: Record<string, string> = {
         device: `${status.deviceId} · ${status.firmwareVersion}`,
@@ -142,12 +145,18 @@ export class ProvisioningPanel {
         backend: status.backendConnected ? 'připojený' : 'nepřipojený / neověřený',
         ota: `${status.ota.state}${status.ota.version ? ` · ${status.ota.version}` : ''}${status.ota.availableVersion ? ` · dostupná ${status.ota.availableVersion}` : ''}${status.ota.error ? ` · ${status.ota.error}` : ''}${status.ota.automaticInstall === undefined ? '' : status.ota.automaticInstall ? ' · automatická instalace zapnutá' : ' · automatická instalace vypnutá'}`,
       };
-      for (const [key, value] of Object.entries(values)) this.element.querySelector<HTMLElement>(`[data-metric="${key}"]`)!.textContent = value;
+      for (const [key, value] of Object.entries(values)) {
+        const metric = this.element.querySelector<HTMLElement>(`[data-metric="${key}"]`)!;
+        if (metric.textContent !== value) metric.textContent = value;
+      }
     }
     for (const button of this.element.querySelectorAll<HTMLButtonElement>('[data-ble]')) {
       const needsConnection = !['discover', 'connect', 'settings'].includes(button.dataset.ble!);
-      button.disabled = !this.nativeMode || busy || (needsConnection && !this.connected);
+      const disabled = !this.nativeMode || busy || (needsConnection && !this.connected);
+      if (button.disabled !== disabled) button.disabled = disabled;
     }
-    this.element.querySelector<HTMLSelectElement>('[data-profile]')!.disabled = !this.nativeMode || busy;
+    const profile = this.element.querySelector<HTMLSelectElement>('[data-profile]')!;
+    const disabled = !this.nativeMode || busy;
+    if (profile.disabled !== disabled) profile.disabled = disabled;
   }
 }

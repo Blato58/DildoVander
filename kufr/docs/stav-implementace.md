@@ -6,6 +6,43 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D160 – 9. 10. 2026 – stabilní BLE obrazovka, uložený PoP a vysvětlení LAN discovery.**
+Majitel hlásil blikání po BLE spojení, opakované opisování PoP a prázdné
+LAN hledání. Slice mění mobilní ProvisioningClient/Panel, nativní
+KufrProvisioningPlugin, LocalDeviceIdentity/Discovery, zprávu LAN hledání,
+webový harness a web/native regrese; plán a oba návody odpovídají změně.
+Polling už nebliká deaktivací tlačítek ani přepisem nezměněných metrik.
+Akce i reconnect čekají na volný BLE slot, zůstávají v původní generaci
+a uchovávají profil z okamžiku klepnutí. Nezávislé review našlo a následně
+potvrdilo opravy zahozeného reconnect tapu a záměny profilu při čekání.
+PoP se ukládá pouze po úspěšné autentizaci Security1 do odděleného
+nesynchronizovaného Keychain WhenUnlockedThisDeviceOnly; při reconnectu lze
+použít uložený údaj nebo bezpečně zadat nový. Wi-Fi hesla se neukládají,
+JavaScript PoP nečte. Bonjour TXT klíče se validují bez závislosti na velikosti
+písmen, kolidující varianty se odmítají; TLS a identita dál ověřují spojení.
+
+LAN příčina je oddělená: espidf_main spouští lokální server až po provisioningu
+TLS identity a místního párování, Bonjour až po startu serveru. USB network-service
+z D159 zapisuje jen BLE/device/backend/OTA, nikoli `wand_tls/server` a
+`wand_pairing/local`. D159 doložil původně prázdné TLS/pairing namespaces;
+bez jejich doplnění kufr žádnou WSS službu nepublikuje. Toto je source/commissioning
+důkaz, nikoli čerstvé čtení NVS; firmware brána nebyla oslabena ani deska změněna.
+
+Ověření: `npm ci` pro mobil i contracts, `npm test` **36/36**, `npm run build`
+(TypeScript/Vite) prošly. První běh bez contracts závislostí selhal na chybějícím
+ajv; po jejich instalaci prošel. Playwright browser harness při 393×852
+ověřil připojení, opakované polling cykly s **0 DOM změnami**, aktivní tlačítka,
+viditelné metriky a nulové horizontální přetečení. Klepnutí Delete při čekajícím
+pollu a následná změna hotspot→fallback odeslalo původní `profile=hotspot`.
+Počáteční favicon404 je vývojový harness; aplikační console chyby nebyly nalezeny.
+Nezávislé finální source review nemá otevřený P1/P2 nález. Nové Swift testy pro
+Keychain a Apple TXT decoding jsou připravené, **na Windows se nespustily**.
+MacOS/Xcode, nová podepsaná IPA, instalace, fyzický BLE/Keychain/LAN test
+ani servisní doplnění místní TLS/pairing nejsou tímto slice doložené.
+Další krok: podepsat/publikovat aktualizaci po oprávnění, ověřit na iPhonu
+a samostatně připravit místní TLS/pairing provisioning skutečného kufru.
+Git předání bude doplněné po ověřeném push/PR/CI.
+
 **D159 – 9. 10. 2026 – první USB servis a domácí Wi-Fi na skutečné desce.**
 Majitel požádal o provisioning připojeného ESP a potvrdil samostatnou desku
 bez pohonů a přesun datového kabelu z CH343 UART/COM7 na native USB/COM8.
