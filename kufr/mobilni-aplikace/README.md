@@ -59,6 +59,16 @@ přímo přesně připnutou závislost ESPProvision z projektu; generovaný
 `CapApp-SPM/Package.swift` se kvůli ní neupravuje. Zdrojové napojení,
 webový build a harness nenahrazují skutečný iPhone/BLE/hotspot/OTA test.
 
+D159 na skutečném iPhonu s build1000.0.19 doložilo discovery, PoP/Security1
+spojení a nastavení domácí Wi-Fi jako fallback. Majitel potvrdil automatické
+Wi-Fi znovupřipojení a připojený backend i po OTA0.1.1 a dalším resetu ESP;
+NVS readback a serverové ESP token POST200 byly ověřené nezávisle. OTA proběhla
+automaticky na ESP, nikoli testem telefonních check/install tlačítek.
+Hotspot/failover, wrong-PoP, BLE lifecycle/error scénáře, LAN TLS/pairing/Keychain
+a skutečné audio zůstávají samostatnou akceptací. Přesný rozsah a důkazy jsou ve
+[stavu implementace](../docs/stav-implementace.md) a
+[BLE návodu](../../docs/ios-ble-provisioning.md).
+
 ## Autonomní Live a playback checkpoint (D143)
 
 Katalog a výběr personality dál načítá dosavadní Debug → Server. Novou
@@ -110,7 +120,9 @@ build **1000.0.19** ([podpis 9. 10. 2026](https://github.com/Blato58/DildoVander
 D158 přidává nativní bezpečný BLE provisioning/hotspot/fallback a OTA ovládání;
 GPT-Live a stávající hlas zůstávají zachované. Nativní testy, skutečný Xcode
 archive/export, Ad Hoc podpis a veřejná kontrola manifestu/IPA/SHA-256 prošly.
-Skutečná aktualizace, BLE/hotspot a poslech na iPhonu zbývá ověřit.
+D159 ověřilo skutečné BLE/PoP a domácí Wi-Fi/status backendu na iPhonu.
+Řízená aktualizace aplikace s Keychain retention, hotspot/failover, LAN
+párování/lifecycle a poslech zůstávají neověřené.
 První uložení credentialu po přechodu z RAM-only verze
 je potřeba zopakovat. Profil uložený od 1000.0.2 se dál načítá ze stejného
 Keychain; skutečnou aktualizaci a její zachování ověří registrovaný iPhone.
