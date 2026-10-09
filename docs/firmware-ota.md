@@ -11,7 +11,8 @@ Build from the repository root:
 
 ```powershell
 pio run -d kufr/firmware -e esp32-s3-idf
-python kufr/firmware/tools/ota_release.py check --binary kufr/firmware/.pio/build/esp32-s3-idf/firmware.bin --version 0.1.0
+$firmwareVersion = (Get-Content kufr/firmware/version.txt -Raw).Trim()
+python kufr/firmware/tools/ota_release.py check --binary kufr/firmware/.pio/build/esp32-s3-idf/firmware.bin --version $firmwareVersion
 ```
 
 `version.txt` supplies ESP-IDF `PROJECT_VER` and the updater version string.
@@ -81,7 +82,8 @@ successful firmware artifact matching the merged/current main Git tree.
 For an offline/local package with a signing key kept outside source:
 
 ```powershell
-python kufr/firmware/tools/ota_release.py package --binary kufr/firmware/.pio/build/esp32-s3-idf/firmware.bin --version 0.1.0 --build-id GIT_40_HEX --channel development --key C:/private/nonproduction-key.pem --out C:/private/new-ota-package
+$firmwareVersion = (Get-Content kufr/firmware/version.txt -Raw).Trim()
+python kufr/firmware/tools/ota_release.py package --binary kufr/firmware/.pio/build/esp32-s3-idf/firmware.bin --version $firmwareVersion --build-id GIT_40_HEX --channel development --key C:/private/nonproduction-key.pem --out C:/private/new-ota-package
 python kufr/firmware/tools/ota_release.py verify --out C:/private/new-ota-package
 ```
 

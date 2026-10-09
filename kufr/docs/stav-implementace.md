@@ -42,8 +42,14 @@ Jeho skutečné OpenSSL package/verify a partition/image check prošly; lokáln�
 build obsahuje identitu původního HEAD a není vydáván za clean CI release.
 Parent znovu ověřil maintenance owner MSVC test, backend build (0 warnings,
 0 errors), deploy-helper 4/4, CI/provenance Node 55/55 a offline AI eval.
-Linux CI a nativní macOS podpis/publikace čekají Git předání; jejich skutečný
-výsledek bude doplněn po provedení.
+Linux CI37888034634 prošlo backend/web/repository: celý .NET runner, HTTP
+smoke, 20 client Python a 12 deploy Python testů. Host OTA a skutečný podpis
+9/9 prošly; starší discovery test potřeboval link real NetworkProfiles.cpp
+a storage stub pro nový StationNetwork member. Původní linker failure byl
+reprodukován a opravený přesný C++14 `-Wall/-Wextra/-Werror` command i binárka
+prošly na izolovaném Linuxu GCC15.2; nezávislé review opravy bez nálezu.
+Firmware CI a nativní macOS podpis/publikace mají samostatnou akceptaci;
+další run musí ověřit celý opravený host suite.
 
 Git předání: implementační commit `c2ab3cf`, synchronizace dokumentačního
 `main` jako `ade0e32`, scoped push helper ověřil remote; PR144 je otevřený.
@@ -65,13 +71,13 @@ Root disk má přibližně 14 GB volných (původně 142 MB); po doloženém OOM
 pro oba CI runnery provisionovaný 2 GB swap. Backend healthz, iOS HTTPS
 hosting, nginx a oba runner services jsou aktivní; jejich sdílená provisioning
 metadata zůstala zachována. CI37885908752 selhalo kvůli plnému disku a OOM,
-nikoli dokončeným softwarovým kontrolám; nové CI čeká následující push.
+nikoli dokončeným softwarovým kontrolám; nové CI běží nad předaným zdrojem.
 Codex review navíc našlo tři P2: explicitní fallback potřebuje nový 60s
 interval do dalšího hotspot probe (regrese MSVC prošla a reprodukuje starý
 kód), OTA guard musí kontrolovat CSV flags (9 Python testů) a iOS lock musí
 obsahovat skutečný Xcode resolution pro ESPProvision/SwiftProtobuf. První
 dvě opravy prošly nezávislým source review. Skutečný macOS15/Xcode26.3 resolver
-CI37887830815 prošel; jeho byte-for-byte Package.resolved má Capacitor8.5.2,
+CI37887830815 prošel; commit `478f1ab` obsahuje byte-for-byte Package.resolved s Capacitor8.5.2,
 ESPProvision3.2.0 a SwiftProtobuf1.38.1 včetně ověřených Git revisions.
 Dočasný resolver workflow je odstraněn před merge; nativní build/sign je
 samostatná kontrola v existující ruční iOS pipeline. OTA Python 9/9 prošlo

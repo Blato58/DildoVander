@@ -3,10 +3,11 @@
 Stav k 9. 10. 2026: software obsahuje BLE konfiguraci, hotspot/fallback, OTA
 a volitelné SD assety. Lokální testy potvrzují dílčí softwarové chování;
 **připravenost celé fyzické sestavy na akci ještě není doložená**.
-Nová fyzická ESP/iPhone akceptace ani macOS/Xcode ověření v této úloze
-neproběhly. Finální společný `pio run` prošel, binary má 1732080 B
+Nová fyzická ESP/iPhone akceptace v této úloze neproběhla. Skutečný macOS15/
+Xcode26.3 package resolver CI37887830815 prošel; nativní build/podpis má
+samostatné ověření. Finální lokální společný `pio run` prošel, binary má 1732080 B
 z 6553600 B slotu a skutečný OpenSSL podpis/verify prošel. Vzdálené CI,
-VPS publikace a podepsaný iOS build čekají Git předání.
+VPS publikace a podepsaný iOS build jsou v procesu předání.
 Jejich skutečné výsledky, verze a běhy zapisuje
 [stav implementace](../kufr/docs/stav-implementace.md); plánovaný běh není úspěch.
 
@@ -60,7 +61,7 @@ Jejich skutečné výsledky, verze a běhy zapisuje
 
 | Projev | Postup |
 | --- | --- |
-| Hotspot není dostupný | Zapnout jej ručně, ověřit SSID/heslo a 2,4 GHz; počkat na timeout/backoff. Nastavený fallback se zkouší po selhání preferovaného profilu. Návrat na hotspot se sondou zkouší nejvýše jednou za minutu a pouze v klidu. |
+| Hotspot není dostupný | Zapnout jej ručně, ověřit SSID/heslo a 2,4 GHz; počkat na timeout/backoff. Nastavený fallback se zkouší po selhání preferovaného profilu. Návrat na hotspot se sondou zkouší nejvýše jednou za minutu a pouze v klidu; úspěšný explicitní configure/test fallbacku i rollback začíná nový 60s interval do další sondy. |
 | Obě sítě nefungují | V autentizovaném BLE okně opravit profil nebo použít **Test**. Po minutě offline se jednou za boot otevírá další pětiminutové recovery okno. Pokud vypršelo, provést vědomý power cycle až po bezpečném ukončení aktivity; nesmazat NVS. Offline ruční bezpečnostní řízení nepotřebuje AI/WAN. |
 | Nové heslo nefunguje | Zkontrolovat konečný `connection_failed`/`storage_failed`. Neúspěšná náhrada zachovává předchozí uložený profil a pokouší se vrátit původní spojení. Neopakovat naslepo více změn během čekající operace. |
 | Wi-Fi je připojená, backend ne | Ověřit internet na telefonu a přečíst stav/technické logy. Prověřit UTC čas, identitu a skutečně nasazenou verzi. Nevypínat TLS; provider klíč nepatří do telefonu ani ESP. |
@@ -86,8 +87,8 @@ nikoli skutečný X25519 handshake přes rádio. Úspěšný web build není Swi
 
 Lokálně prošel backendový .NET testovací runner, cílené firmware host testy,
 release/service testy a 32 mobilních testů s webovým buildem. Finální firmware
-build a vzdálené kroky výše zůstávají v tomto přehledu čekající; přesné příkazy
-a finální výsledky patří do stavu implementace.
+build prošel lokálně; vzdálené kroky mají vlastní výsledky. Přesné příkazy
+a aktuální CI/publikační výsledky patří do stavu implementace.
 
 | # | Požadovaný scénář | Aktuálně doložená softwarová část | Zbývající ESP/iPhone/native nebo provozní kontrola |
 | --- | --- | --- | --- |
@@ -145,7 +146,7 @@ a finální výsledky patří do stavu implementace.
 | --- | --- | --- |
 | BLE provisioning a hotspot/fallback firmware | IMPLEMENTED — NOT HARDWARE VERIFIED | ESP/iPhone handshake, radio coexistence, skutečné NVS a reconnect zkoušky. |
 | iOS Síť kufru | PARTIALLY READY | Web 32 testů/build prošel; dokončit macOS/Xcode testy, podpis, instalaci a fyzické BLE/hotspot scénáře. |
-| OTA firmware | IMPLEMENTED — NOT HARDWARE VERIFIED | Finální build, první USB instalace rollback-capable bootloaderu, skutečný digest/signature/power-loss/rollback. |
+| OTA firmware | IMPLEMENTED — NOT HARDWARE VERIFIED | První USB instalace rollback-capable bootloaderu, skutečný digest/signature/power-loss/rollback na ESP. |
 | Release distribuce a VPS | PARTIALLY READY | Lokální testy/package verifikace; vzdálený publisher, CI provenance, živé HTTPS readback a konkrétní trust na ESP ještě musí mít vlastní důkaz. |
 | Produkční stable autorita | BLOCKED pro nasazení bez správné důvěry | Provisionovat příslušný produkční podpisový klíč mimo repo a shodný veřejný trust na zařízení; development klíč není automaticky produkční oprávnění. |
 | Backend/GPT-Live/katalog | PARTIALLY READY | Lokální runner prošel; čerstvá nasazená verze, případný placený test a lidská konverzační akceptace jsou oddělené kontroly. |

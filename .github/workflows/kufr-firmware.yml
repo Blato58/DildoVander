@@ -204,6 +204,7 @@ jobs:
           g++ -std=c++14 -Wall -Wextra -Werror -I tests/discovery_stubs -I tests/station_stubs \
             src/features/local_control/EspIdfLocalServiceAdvertisement.cpp \
             src/features/backend_access/NetworkSettings.cpp \
+            src/features/network_provisioning/NetworkProfiles.cpp \
             tests/espidf_local_service_advertisement_test.cpp -o "$RUNNER_TEMP/local-discovery-test"
           "$RUNNER_TEMP/local-discovery-test"
       - name: Local control codec test
