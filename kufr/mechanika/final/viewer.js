@@ -209,18 +209,33 @@ function connectionsFor(mesh) { return model.connections.filter(edge => edge.fro
 function drawConnections(mesh) {
   const start = project(mesh);
   if (!start) return;
-  const shown = new Set();
+  const bundles = new Map();
   for (const edge of connectionsFor(mesh)) {
-    const other = meshesByName.get(edge.from === mesh.name ? edge.to : edge.from);
+    const name = edge.from === mesh.name ? edge.to : edge.from;
+    if (!bundles.has(name)) bundles.set(name, []);
+    bundles.get(name).push(edge);
+  }
+  for (const [name, edges] of bundles) {
+    const other = meshesByName.get(name);
     const end = project(other);
     if (!end) continue;
-    const color = {power:'#c02b25',signal:'#256fb2',ground:'#655d55'}[edge.kind];
-    svgElement('line', {x1:start[0],y1:start[1],x2:end[0],y2:end[1],stroke:color,'stroke-width':2,'stroke-dasharray':visible(other)?'':'6 4'});
-    svgElement('circle', {cx:end[0],cy:end[1],r:4,fill:color});
-    if (!shown.has(other.name)) {
-      label(other.name+(visible(other)?'':' (skryto)'), Math.max(0,Math.min(canvas.clientWidth-170,end[0]+6)), Math.max(0,Math.min(canvas.clientHeight-24,end[1])));
-      shown.add(other.name);
+    const dx = end[0]-start[0], dy = end[1]-start[1], length = Math.hypot(dx,dy);
+    const perpendicular = length > 1 ? [-dy/length,dx/length] : [1,0];
+    // Fan parallel nets apart so GND cannot paint over power, I2C or OE.
+    for (const [index, edge] of edges.entries()) {
+      const offset = (index-(edges.length-1)/2)*24;
+      const angle = index*2*Math.PI/edges.length;
+      const displacement = length > 1 ? perpendicular.map(v => v*offset) : [32*Math.cos(angle),32*Math.sin(angle)];
+      const control = [(start[0]+end[0])/2+displacement[0], (start[1]+end[1])/2+displacement[1]];
+      const color = {power:'#c02b25',signal:'#256fb2',ground:'#655d55'}[edge.kind];
+      svgElement('path', {
+        d:`M ${start[0]} ${start[1]} Q ${control[0]} ${control[1]} ${end[0]} ${end[1]}`,
+        fill:'none',stroke:color,'stroke-width':2,'stroke-dasharray':visible(other)?'':'6 4',
+        'data-from':edge.from,'data-to':edge.to,'data-kind':edge.kind,
+      });
     }
+    svgElement('circle', {cx:end[0],cy:end[1],r:4,fill:'#655d55'});
+    label(other.name+(visible(other)?'':' (skryto)'), Math.max(0,Math.min(canvas.clientWidth-170,end[0]+6)), Math.max(0,Math.min(canvas.clientHeight-24,end[1])));
   }
 }
 let displayedMesh = undefined;

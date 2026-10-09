@@ -53,6 +53,17 @@ nová generace HTML a skutečný browser přechod od PCA do karty a editace
 barvy. Nezávislé review opravy nemá nález. Nový `test_viewer.cjs` patří
 do fingerprintů zdrojů; spouští se příkazem `node --test test_viewer.cjs`.
 
+Navazující PR review řeší zakrytí souběžných elektrických vazeb: každý
+spoj má nyní samostatnou křivku, i pokud mají oba díly v daném pohledu
+shodný střed. Prošly 3/3 Node testy včetně dvou- a čtyřvazbových svazků.
+Standardní `Regenerate.ps1` spouští `node --check viewer.js` i Node
+regrese před Python/CAD. Skutečný skript ve fixture se správným JS
+pokračoval; chybná syntaxe a selhávající Node test jej zastavily před
+navazujícími kroky. README uvádí Node.js v PATH pro úplnou regeneraci.
+Tato kontrola testovací fixture nepředstírá novou validaci výrobního ZIPu.
+Browser finálního HTML potvrdil mezi ESP32 a PCA čtyři odlišné SVG
+křivky ve třech barvách a konzoli bez chyb. Nezávislé review změn prošlo.
+
 **9. 10. 2026 – F1 a úklid předchozího CAD; zdroje ověřené a pushnuté.**
 Jediným aktivním návrhem je [F1](../mechanika/final/README.md), vytvořený
 od základu v commitu `14ff82a`: nový tištěný korpus a prázdné víko,

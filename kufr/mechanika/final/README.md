@@ -111,7 +111,9 @@ Pouze náhled, bez nového exportu STEP/STL a PNG, lze obnovit příkazem:
 Tento příkaz neobnovuje výrobní balíček ani jeho geometrické ověření.
 Pro celý balíček použít následující postup.
 
-Použito Python 3.11 a CadQuery 2.7.0. Žádný plugin ani GUI CAD není nutný.
+Použito Python 3.11 a CadQuery 2.7.0. Úplná regenerace navíc vyžaduje
+Node.js v PATH pro kontrolu syntaxe a regresní testy prohlížeče.
+Žádný plugin ani GUI CAD není nutný.
 Z této složky:
 
 ```powershell
