@@ -1,19 +1,40 @@
 # Implementační plán AI kufru
 
 > **D166, 9. 10. 2026: automatická LAN adresa ze zabezpečeného BLE.**
-> Hostname na iPhonu timeoutuje; ručně zadaná aktuální IP vrací validní snapshot
-> a servisní stav. Rozšíření status v1 o volitelné `n.ip` předává pouze aktuální
+> Hostname na iPhonu timeoutuje; ruční `192.168.0.59` vedla k servisnímu stavu
+> po validním snapshotu, tedy k pinned/auth WSS. Konkrétní příčina iPhone DNS/
+> multicast není doložená. Rozšíření status v1 o volitelné `n.ip` předává pouze aktuální
 > STA IPv4. Nativní RAM hint je svázaný s autentizovanou BLE session a device ID,
 > má platnost 60 sekund a mizí při odpojení/offline. Explicitní Connect obnoví
-> status živé BLE session před použitím adresy. Ruční adresa má přednost.
+> status živé BLE session před použitím adresy, i při skrytém panelu. Pending/
+> skipped/failed/stale refresh zastaví pokus; failed refresh vymaže logical BLE
+> stav a další tap dovolí saved/manual route. Ruční adresa má přednost.
 > Veřejný snapshot host/deviceId se váže na konkrétní socket ještě před async
 > listener registrací; nativní connect odmítne partial/invalid/mismatched target.
 > Odpojení BLE během předání proto nezmění zvolenou route na starý hostname.
 > Token a SPKI pin zůstávají v Keychain; nová adresa se tam zapíše až po
 > připnutém autentizovaném WSS připojení. Bonjour failure se nezamlčuje.
 > Fyzická kalibrace a servisní gates se nemění; jde o směrování připojení.
+> [PR165](https://github.com/Blato58/DildoVander/pull/165), merge `b22f478`, a finální
+> [CI 37945851773](https://github.com/Blato58/DildoVander/actions/runs/37945851773) prošly.
+> Development **0.1.168** je [publikované](https://github.com/Blato58/DildoVander/actions/runs/37946520625)
+> s ověřeným public HTTPS/podpisem/hashem/embedded verzí. App-only COM7 zápis
+> do `0x10000` prošel hash kontrolou při zachování NVS/otadata/partition table.
+> [iOS podpis 37946514768](https://github.com/Blato58/DildoVander/actions/runs/37946514768)
+> prošel třemi native harnessy, Xcode archive a Ad Hoc export; podepsaná IPA
+> má ověřený build **1000.0.23**.
+> [Safari publikace 37947083377](https://github.com/Blato58/DildoVander/actions/runs/37947083377)
+> prošla; public index/manifest/IPA/checksum potvrzují **1000.0.23**.
+> Normální RTS boot potvrdil **0.1.168**, control loop a místní TLS; PC BLE scan
+> našel `KUFR_4B6048` s očekávaným service UUID. Pohyb zůstává disabled,
+> wiring/kalibrace nejsou fyzicky ověřené. Majitel na přesný dotaz k aktualizaci
+> **1000.0.23**, secured BLE/uloženému párování a připojení bez IP odpověděl
+> **„Connection worked“**. Automatické připojení D166 je v této zkoušce potvrzené.
+> Další krok: fyzická kalibrace, dlouhodobý provoz, Keychain po restartu/aktualizaci
+> a negativní DHCP/síťové/lifecycle scénáře podle
+> [stavu implementace](stav-implementace.md#předání-další-ai).
 
-> **D165, 9. 10. 2026: obnova ztraceného místního párování přes BLE.**
+> **Historické D165, 9. 10. 2026: obnova ztraceného místního párování přes BLE.**
 > Majitel po Zapomenout párování nemůže znovu párovat: Keychain token byl smazán,
 > ale ESP drží jeho hash a první `pair-local` správně odmítne `already_paired`.
 > Nový explicitní `{"v":1,"command":"recover-local","confirm":true}` smí přes
@@ -173,7 +194,7 @@
 > tímto akceptované; [D145–D146](stav-implementace.md#předání-další-ai)
 > uvádí skutečné běhy, konfiguraci a zbývající ověření. Architektura níže
 > se samotnou publikací nemění. Jde o historický doklad D145–D146;
-> D162/1.0/1000.0.20 a D163 jsou historická předání; aktuální D165 vede stav implementace;
+> D162/1.0/1000.0.20 a D163 jsou historická předání; aktuální D166 vede stav implementace;
 > D158/1000.0.19 zůstává historický doklad fyzického BLE ověření D159.
 
 > **D143, 6. 10. 2026: opt-in autonomní GPT-Live a hybridní paměť.**
