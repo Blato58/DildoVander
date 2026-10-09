@@ -187,7 +187,35 @@ try checkProof(reopenedProofKeychain, "KUFR_AABBCC", nil, "Remove selected BLE p
 try checkProof(reopenedProofKeychain, "KUFR_112233", replacementProof, "Removal preserves another device proof")
 try proofKeychain.remove(deviceName: "KUFR_112233")
 
-func testPair(_ secret: String, pin expectedPin: String, success: Bool) {
+let failureAllowlist: Set<String> = [
+    "invalid_identity", "certificate_mismatch", "authorization_rejected", "server_busy",
+    "handshake_rejected", "tls_failed", "host_unreachable", "network_unavailable",
+    "connection_timeout", "protocol_error", "connection_lost"
+]
+check(Set(LocalDeviceTransportFailureCode.allCases.map(\.rawValue)) == failureAllowlist,
+      "Native failures must be the exact sanitized allowlist")
+for (status, expected) in [(401, LocalDeviceTransportFailureCode.authorizationRejected),
+                           (403, .authorizationRejected), (409, .serverBusy), (503, .serverBusy),
+                           (400, .handshakeRejected), (200, .handshakeRejected)] {
+    check(LocalDeviceTransport.classifyFailure(nil, httpStatus: status) == expected,
+          "Classify HTTP upgrade status without response details")
+}
+for (code, expected) in [(NSURLErrorTimedOut, LocalDeviceTransportFailureCode.connectionTimeout),
+                         (NSURLErrorCannotFindHost, .hostUnreachable),
+                         (NSURLErrorCannotConnectToHost, .hostUnreachable),
+                         (NSURLErrorNotConnectedToInternet, .networkUnavailable),
+                         (NSURLErrorSecureConnectionFailed, .tlsFailed),
+                         (NSURLErrorBadServerResponse, .handshakeRejected),
+                         (NSURLErrorNetworkConnectionLost, .connectionLost)] {
+    let unsafe = NSError(domain: NSURLErrorDomain, code: code,
+                         userInfo: [NSLocalizedDescriptionKey: "secret-token https://private-host.invalid/ pin"])
+    check(LocalDeviceTransport.classifyFailure(unsafe) == expected, "Sanitize URL errors")
+}
+check(LocalDeviceTransport.classifyFailure(NSError(domain: "private-detail", code: 42)) == .connectionLost,
+      "Unknown errors cannot expose their domain or description")
+
+func testPair(_ secret: String, pin expectedPin: String, success: Bool,
+              expectedFailure: LocalDeviceTransportFailureCode? = nil) {
     let transport = LocalDeviceTransport(host: "127.0.0.1", pin: expectedPin, port: port)
     var done = false
     transport.pair(secret: secret) { result in
@@ -198,31 +226,61 @@ func testPair(_ secret: String, pin expectedPin: String, success: Bool) {
         done = true
     }
     waitUntil { done }
+    check(transport.failureCode == expectedFailure, "Pairing failure code")
 }
 testPair(String(repeating: "a", count: 32), pin: pin, success: true)
-testPair(String(repeating: "a", count: 32), pin: String(repeating: "0", count: 64), success: false)
-for secret in ["c", "d", "e", "f"] {
-    testPair(String(repeating: secret, count: 32), pin: pin, success: false)
+testPair(String(repeating: "a", count: 32), pin: String(repeating: "0", count: 64), success: false,
+         expectedFailure: .certificateMismatch)
+for (secret, expected) in [("c", LocalDeviceTransportFailureCode.handshakeRejected),
+                           ("d", .protocolError), ("e", .protocolError), ("f", .authorizationRejected)] {
+    testPair(String(repeating: secret, count: 32), pin: pin, success: false, expectedFailure: expected)
 }
 
-func testSocket(_ message: String, expectedPin: String, token: String, receivesFrame: Bool) {
+func testSocket(_ message: String, expectedPin: String, token: String, receivesFrame: Bool,
+                expectedFailures: Set<LocalDeviceTransportFailureCode> = []) {
     let transport = LocalDeviceTransport(host: "127.0.0.1", pin: expectedPin, port: port)
     var done = false
     var received = false
+    var closeCount = 0
     transport.onOpen = { transport.send(message) { _ in } }
     transport.onFrame = { frame in
         check(receivesFrame && frame == message, "Unexpected WSS frame")
         received = true
         transport.close()
     }
-    transport.onClose = { done = true }
+    transport.onClose = { closeCount += 1; done = true }
     transport.connect(token: token)
     waitUntil { done }
     check(received == receivesFrame, "Frame delivery")
+    if receivesFrame {
+        check(transport.failureCode == nil, "Explicit close must not invent a failure")
+    } else {
+        check(transport.failureCode != nil, "Failed WSS reports a sanitized failure code")
+        if !expectedFailures.isEmpty {
+            check(expectedFailures.contains(transport.failureCode!), "Expected WSS failure code")
+        }
+    }
+    let failure = transport.failureCode
+    transport.close()
+    transport.close()
+    check(closeCount == 1 && transport.failureCode == failure, "Close is idempotent and preserves first failure")
 }
 testSocket("hello", expectedPin: pin, token: identity.token, receivesFrame: true)
-testSocket("hello", expectedPin: String(repeating: "0", count: 64), token: identity.token, receivesFrame: false)
-testSocket("hello", expectedPin: pin, token: String(repeating: "a", count: 64), receivesFrame: false)
-testSocket("binary", expectedPin: pin, token: identity.token, receivesFrame: false)
+testSocket("hello", expectedPin: String(repeating: "0", count: 64), token: identity.token, receivesFrame: false,
+           expectedFailures: [.certificateMismatch])
+// Apple may omit the HTTP response for a rejected upgrade. Without its status
+// the transport reports the generic handshake code instead of guessing 401.
+testSocket("hello", expectedPin: pin, token: String(repeating: "a", count: 64), receivesFrame: false,
+           expectedFailures: [.authorizationRejected, .handshakeRejected])
+testSocket("hello", expectedPin: pin, token: "invalid", receivesFrame: false, expectedFailures: [.invalidIdentity])
+testSocket("binary", expectedPin: pin, token: identity.token, receivesFrame: false, expectedFailures: [.protocolError])
 testSocket("large", expectedPin: pin, token: identity.token, receivesFrame: false)
+let unsendable = LocalDeviceTransport(host: "127.0.0.1", pin: pin, port: port)
+var sendEvents: [String] = []
+unsendable.onClose = { sendEvents.append("closed") }
+unsendable.send("hello") { sent in
+    check(!sent && unsendable.failureCode == .protocolError, "Rejected send reports sanitized failure")
+    sendEvents.append("completion")
+}
+check(sendEvents == ["closed", "completion"], "Typed closure precedes rejected send completion")
 print("Native discovery / SPKI / Keychain / pinned HTTPS / authenticated WSS tests passed")
