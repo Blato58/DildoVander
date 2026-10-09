@@ -10,6 +10,13 @@ remain authoritative for stage acceptance. Historical acceptance is not treated
 as a fresh test. This report distinguishes executable source, host verification,
 deployment and physical acceptance.
 
+The software is merged and delivered: complete firmware/backend/web CI,
+macOS native suites and signed Ad Hoc archive/export passed. Backend,
+development OTA0.1.0 and iOS1.0/build1000.0.19 are published with verified
+HTTPS readback. Exact commits, hashes and workflow receipts are in the status.
+Production stable signing and the physical ESP/iPhone event acceptance remain
+separate requirements; no new board flashing or paid inference was performed.
+
 ## Functional inventory and prioritized findings
 
 | Subsystem / evidence | Initial finding and impact | Priority | Implementation and dependencies | Verification / readiness |
