@@ -38,12 +38,15 @@ deployment and physical acceptance.
 | Battery/power telemetry | PB720 capacity/runtime telemetry has no verified hardware/API contract | P3 | Documented measurement task; no invented driver or power estimate | Not implemented; not a core software requirement |
 | Removed endstops/external watchdog/high-side modules | Older notes describe cancelled hardware | P3 | Explicitly obsolete per D156; not restored | Latest source/wiring contract preserved |
 
-Delivery review found two P1 defects in the new OTA path: the privileged signer
+Delivery review found three P1 defects in the new OTA path: the privileged signer
 needed independent GitHub artifact verification before signing, and first-boot
-confirmation needed calibrated effects health. Both are corrected with rejected
-artifact/promotion and boot-health lifecycle regressions. Two P2 recovery defects
-are also corrected: failed BLE teardown is retried before reopening, and legacy
-credential cleanup failures propagate with one bounded previous-profile restore.
+confirmation needed calibrated effects health, and nested download/hash buffers
+exceeded the OTA worker stack. These are corrected with rejected artifact,
+boot-health and single heap-buffer/allocation-failure regressions. BLE startup
+retries independently of Wi-Fi within its original boot deadline, failed teardown
+is retried before reopening, and legacy credential cleanup failures propagate
+with one bounded previous-profile restore. Native empty scans correctly return
+an empty list. Package pins, partition flags and fallback probe timing are fixed.
 Actual Linux/MSVC checks and the latest CI/review receipts are in the status.
 
 ## Architecture and compatibility
@@ -61,7 +64,9 @@ wire fields into a credential-free whitelist for JavaScript. Provisioning PoP
 is distinct from the local WSS bearer and backend device credential.
 
 The Wi-Fi profiles are one versioned NVS blob. Candidate credentials are tested
-before publication; failed connection/storage retains the previous record.
+before publication. Failed connection retains the previous record; storage
+failure keeps the old RAM state and attempts one persistent restoration. A
+persistent NVS fault can defeat that rollback and requires inspection/repair.
 Legacy Wi-Fi settings migrate and the immutable backend host is preserved.
 OTA and optional SD share the owner admission boundary with network changes.
 

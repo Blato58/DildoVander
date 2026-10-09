@@ -25,8 +25,12 @@ No general factory reset is exposed. Successful credential deletion/replacement
 also removes stale legacy Wi-Fi values so they cannot reappear after reboot.
 
 Replacement is staged in RAM, connected/tested, then committed as one blob.
-Wrong password or failed NVS commit leaves the old record intact and tries to
-restore the previously active network. A reported accepted request is not a
+Wrong passwords leave the previous record intact. A failed storage operation
+keeps the old RAM profile, attempts one restoration of the previous stored blob
+and tries to restore the previously active network. Persistent NVS faults can
+also defeat that restoration; `storage_failed` is not a durability guarantee.
+Inspect the saved profile after recovery and use controlled USB service if
+needed. A reported accepted request is not a
 successful network connection. Native UI polls the final phase/result.
 
 If both networks are unavailable, use the authenticated BLE recovery window,
