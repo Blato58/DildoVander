@@ -132,7 +132,7 @@ internal sealed class CostumeImageClient(HttpClient httpClient, string apiKey, s
             text = new { format = new { type = "json_schema", name = "costume_context", strict = true,
                 schema = new { type = "object", additionalProperties = false,
                     properties = new {
-                        description = new { type = "string", pattern = @"^[^\u0000-\u001F\u007F]{0,240}$" },
+                        description = new { type = "string", minLength = 1, pattern = @"^[^\u0000-\u001F\u007F]{1,240}$" },
                         possibleCharacter = new { type = "string", pattern = @"^[^\u0000-\u001F\u007F]{0,80}$" },
                         uncertainty = new { type = "string", @enum = new[] { "low", "medium", "high" } }
                     }, required = new[] { "description", "possibleCharacter", "uncertainty" } } } }
@@ -195,7 +195,8 @@ internal sealed class CostumeImageClient(HttpClient httpClient, string apiKey, s
         var summary = value.GetProperty("description").GetString();
         var character = value.GetProperty("possibleCharacter").GetString();
         var uncertainty = value.GetProperty("uncertainty").GetString();
-        if (!ValidText(summary, 240) || !ValidText(character, 80) || uncertainty is not ("low" or "medium" or "high"))
+        if (!ValidText(summary, 240) || summary!.Length == 0 || !ValidText(character, 80)
+            || uncertainty is not ("low" or "medium" or "high"))
         { throw new InvalidDataException("Invalid image description."); }
         var usage = root.GetProperty("usage");
         var cost = ResponsesTextDialogBudget.CalculateUsageMicroUsd(root.GetProperty("model").GetString()!,

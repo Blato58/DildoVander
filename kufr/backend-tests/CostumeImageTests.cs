@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using Kufr.Backend.Features.Conversations;
 using Kufr.Backend.Features.GptLive;
 using Kufr.Backend.Features.Realtime;
+using Kufr.Backend.Features.VoiceTurns;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Http;
@@ -33,6 +34,7 @@ internal static class CostumeImageTests
         catch (OperationCanceledException) { timedOut = true; }
         Check(timedOut && stalled.Buffer.Span.IndexOfAnyExcept((byte)0) < 0, "stalled upload expires and clears owned buffer");
         await StoreAsync();
+        await ClearCostumeAsync();
         await ImageCloseBarrierAsync();
         Console.WriteLine("Costume image tests passed.");
     }
@@ -61,6 +63,9 @@ internal static class CostumeImageTests
             Check(image.GetProperty("image_url").GetString() == "data:image/jpeg;base64," + Convert.ToBase64String(Jpeg()),
                 "actual JPEG sent through SDK");
             Check(root.GetProperty("text").GetProperty("format").GetProperty("strict").GetBoolean(), "strict output schema");
+            Check(root.GetProperty("text").GetProperty("format").GetProperty("schema")
+                .GetProperty("properties").GetProperty("description").GetProperty("minLength").GetInt32() == 1,
+                "provider schema requires a nonempty photo description");
             return Response(ProviderBody());
         }));
         var result = await new CostumeImageClient(http, "fixture-key", ResponsesTextDialogBudget.Model).AnalyzeAsync(Jpeg(), default);
@@ -69,6 +74,7 @@ internal static class CostumeImageTests
             root => root["status"] = "incomplete",
             root => root["model"] = "unpriced-model",
             root => root.Remove("usage"),
+            root => root["output"]![0]!["content"]![0]!["text"] = "{\"description\":\"\",\"possibleCharacter\":\"\",\"uncertainty\":\"high\"}",
             root => root["output"]![0]!["content"]![0]!["text"] = "{\"description\":\"x\",\"possibleCharacter\":\"\",\"uncertainty\":\"high\",\"compartment\":1}",
             root => root["output"]![0]!["content"]![0]!["text"] = "{\"description\":\"x\",\"possibleCharacter\":\"\",\"uncertainty\":\"certain\"}"
         })
@@ -86,6 +92,15 @@ internal static class CostumeImageTests
         try { await new CostumeImageClient(failing, "fixture", ResponsesTextDialogBudget.Model).AnalyzeAsync(Jpeg(), default); }
         catch (Exception) { }
         Check(errors == 1, "no paid retry");
+        foreach (var description in new[] { "x", new string('x', 240) })
+        {
+            var boundary = JsonSerializer.SerializeToNode(ProviderBody())!.AsObject();
+            boundary["output"]![0]!["content"]![0]!["text"] = JsonSerializer.Serialize(new {
+                description, possibleCharacter = "", uncertainty = "high" });
+            using var document = JsonDocument.Parse(boundary.ToJsonString());
+            Check(CostumeImageClient.Parse(document.RootElement, ResponsesTextDialogBudget.Model).Description == description,
+                "nonempty photo description boundaries accepted");
+        }
         using var cancelledHttp = new HttpClient(new Handler(async (_, token) => {
             await Task.Delay(Timeout.Infinite, token); return Response(ProviderBody()); }));
         using var cancelled = new CancellationTokenSource(TimeSpan.FromMilliseconds(20));
@@ -306,6 +321,131 @@ internal static class CostumeImageTests
             await WaitAsync(() => expiryRunner.TryAcquire()); expiryRunner.Release();
             Check(expiryStore.GetOperation("expired-pending", pendingPhoto.OperationId!).Operation?.Result is null
                 && journal.ReadSessionCharge(expiryId) == 17, "late photo after manual expiry fails with usage settled, never completed-null");
+        }
+        finally { SqliteConnection.ClearAllPools(); Directory.Delete(directory, recursive: true); }
+    }
+
+    private static async Task ClearCostumeAsync()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "kufr-image-clear-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var clock = new Clock();
+            var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> {
+                ["Backend:DatabasePath"] = Path.Combine(directory, "journal.sqlite") }).Build();
+            using var journal = new OperationJournal(configuration, clock);
+            var boot = Guid.NewGuid();
+            var upload = new CostumeImageUpload(Guid.NewGuid(), boot, 1, 1, "catalog", Jpeg());
+            foreach (var stage in new[] { "before", "pending", "completed" })
+            {
+                var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                var finish = new TaskCompletionSource<CostumeImageResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
+                byte[]? ownedBytes = null;
+                string? prompt = null;
+                var calls = 0;
+                using var runner = new TextDialogRunner((_, _, _, _, _, context, _) => {
+                    prompt = context;
+                    return Task.FromResult(new TextDialogResponse("Question?", "ask", "", null, ResponsesTextDialogBudget.Model, 1, 1, "default"));
+                }, (jpeg, _) => {
+                    calls++;
+                    ownedBytes = jpeg;
+                    started.TrySetResult();
+                    return finish.Task;
+                });
+                var store = new ConversationStore(clock, journal, runner);
+                var id = store.Create(stage, Guid.NewGuid(), Encoding.UTF8.GetBytes(stage),
+                    new(stage, boot, 1, "catalog", "cs-CZ", new(true, true))).Response!.ConversationId;
+                SubmitTurnResult? image = null;
+                if (stage != "before")
+                {
+                    image = store.SubmitImage(stage, id, Guid.NewGuid(), upload);
+                    await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                    if (stage == "completed")
+                    {
+                        finish.SetResult(new("photo secret", "", "high", 17));
+                        await WaitAsync(() => store.GetOperation(stage, image.OperationId!).Operation?.Status == "completed");
+                        await WaitAsync(() => ownedBytes!.All(value => value == 0));
+                    }
+                }
+                store.CorrectCostume(stage, id, Guid.NewGuid(), upload, "manual secret");
+                var clearKey = Guid.NewGuid();
+                var clear = store.CorrectCostume(stage, id, clearKey, upload, "");
+                Check(clear.Status == 200 && clear.Operation is { Kind: "costume", Status: "completed",
+                    Result: CostumeContext { Source: "manual", Description: "" } }, "clear returns compatible manual acknowledgement");
+                Check(store.CorrectCostume(stage, id, clearKey, upload, "").Operation == clear.Operation,
+                    "clear replay retains the same acknowledgement");
+                Check(store.CorrectCostume(stage, id, clearKey, upload, "changed").Status == 409,
+                    "clear replay cannot change its description");
+                if (image is not null)
+                {
+                    Check(store.GetOperation(stage, image.OperationId!).Operation is { Status: "cancelled", Result: null },
+                        "clear suppresses pending and completed image polls without a completed-null result");
+                    if (stage == "pending") { finish.SetResult(new("late photo secret", "", "high", 17)); }
+                    await WaitAsync(() => ownedBytes!.All(value => value == 0));
+                    await WaitAsync(() => runner.TryAcquire());
+                    runner.Release();
+                    Check(calls == 1 && journal.ReadSessionCharge(id) == 17
+                        && store.GetOperation(stage, image.OperationId!).Operation is { Status: "cancelled", Result: null },
+                        "discarded photo settles once, wipes bytes, and cannot revive its cue");
+                }
+                else
+                {
+                    var rejected = store.SubmitImage(stage, id, Guid.NewGuid(), upload);
+                    Check(rejected.ErrorCode == "costume_context_discarded" && journal.ReadSessionCharge(id) == 0,
+                        "clear before photo rejects admission before provider charging");
+                    clock.Now = clock.Now.AddSeconds(121);
+                    Check(store.CorrectCostume(stage, id, clearKey, upload, "").Operation?.Error is not null,
+                        "clear receipt expires without replaying or restoring a prompt cue");
+                    Check(store.SubmitImage(stage, id, Guid.NewGuid(), upload).ErrorCode == "costume_context_discarded",
+                        "clear remains distinct from an expired manual cue");
+                }
+                var turn = store.SubmitTurn(stage, id, Guid.NewGuid(), Encoding.UTF8.GetBytes(stage + "-opening"),
+                    new(Guid.NewGuid(), boot, 1, "", 63, 1, "catalog"), true);
+                await WaitAsync(() => store.GetOperation(stage, turn.OperationId!).Operation?.Result is TurnResult);
+                Check(prompt == "", "clear supplies no cue to the next Responses turn");
+            }
+
+            var restoredStore = new ConversationStore(clock, journal);
+            var restoredId = restoredStore.Create("restored", Guid.NewGuid(), "restored"u8,
+                new("restored", boot, 1, "catalog", "cs-CZ", new(true, true))).Response!.ConversationId;
+            restoredStore.CorrectCostume("restored", restoredId, Guid.NewGuid(), upload, "");
+            restoredStore.CorrectCostume("restored", restoredId, Guid.NewGuid(), upload, "restored manual cue");
+            var restoredPhoto = restoredStore.SubmitImage("restored", restoredId, Guid.NewGuid(), upload);
+            Check(restoredPhoto.Status == 202 && restoredStore.GetOperation("restored", restoredPhoto.OperationId!).Operation?.Result
+                is CostumeContext { Source: "manual", Description: "restored manual cue" },
+                "a new nonempty correction restores manual priority and permits a first fake photo");
+
+            using var dialog = new TextDialogRunner((_, _, _, _, _, _, _) => throw new Exception("No provider expected."));
+            using var voice = new VoiceProviderRunner((_, _) => throw new Exception("No provider expected."),
+                (_, _) => throw new Exception("No provider expected."));
+            foreach (var gptLive in new[] { false, true })
+            {
+                var device = "clear-voice-" + gptLive;
+                var store = new ConversationStore(clock, journal, dialog, voiceRunner: voice);
+                var id = store.Create(device, Guid.NewGuid(), Encoding.UTF8.GetBytes(device),
+                    new(device, boot, 1, PartyWandCatalog.Version, "cs-CZ", new(true, true))).Response!.ConversationId;
+                var voiceCorrelation = upload with { CatalogVersion = PartyWandCatalog.Version };
+                store.CorrectCostume(device, id, Guid.NewGuid(), voiceCorrelation, "manual secret");
+                store.CorrectCostume(device, id, Guid.NewGuid(), voiceCorrelation, "");
+                var request = new RealtimeTurnRequest(Guid.NewGuid(), boot, 1, 63, 1, PartyWandCatalog.Version, true, "", null, "marin", 1);
+                var admission = store.BeginRealtimeTurn(device, id, Guid.NewGuid(), JsonSerializer.SerializeToUtf8Bytes(request),
+                    request, true, default, default, gptLive: gptLive);
+                Check(admission.Call is not null && admission.Call.Context.CostumeContext == "",
+                    "clear supplies no cue to Realtime or Live admission");
+                var turn = admission.Call!.Context;
+                Check(!RealtimeProtocol.SessionOptions(turn).Instructions.Contains("Transient costume cue")
+                    && !JsonSerializer.Serialize(GptLiveProtocol.Start(turn)).Contains("Transient costume cue")
+                    && !JsonSerializer.Serialize(GptLiveProtocol.AutonomousStart(turn with {
+                        LivePrompt = LivePromptSnapshot.Create(PersonalityCatalog.DefaultId, new() { Mode = LiveActorMode.AutonomousActor })
+                    }, "test")).Contains("Transient costume cue"),
+                    "voice model prompts exclude the clear acknowledgement");
+                var input = new WandDecisionInput(1, 63, 1, [], turn.LivePrompt!.Policy, 1, false,
+                    CostumeContext: turn.CostumeContext);
+                Check(!WandDecisionService.BuildRequest(input).Contains("Transient costume cue"),
+                    "Sol prompt excludes the clear acknowledgement");
+                store.ReleaseRealtimeTurn(admission.Call, dispatched: false, completed: false);
+            }
         }
         finally { SqliteConnection.ClearAllPools(); Directory.Delete(directory, recursive: true); }
     }

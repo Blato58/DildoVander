@@ -124,7 +124,7 @@
       "put": {
         "operationId": "correctCostumeContext",
         "summary": "Optional manual costume correction before dialogue",
-        "description": "No paid call. Explicit text needs no image consent. Maximum 240 characters, no control characters; empty text discards the cue. Manual correction takes precedence over a pending or later photo. Before opening or voice start; use a new idempotency key for a changed correction. At most eight corrections per conversation protect RAM. RAM-only structured context and operation result; local lookup expires after 120s. Regular voluntarily spoken/text dialogue memory remains unchanged.",
+        "description": "No paid call. Explicit text needs no image consent. Maximum 240 characters, no control characters; empty text discards the active cue and returns an empty manual context-shaped receipt. The receipt is not added to prompts. Clearing cancels any image poll result; an in-flight provider still settles usage and cleans up without publishing. A later first image is rejected with 409 costume_context_discarded until a nonempty correction. Manual correction takes precedence over a pending or later photo. Before opening or voice start; use a new idempotency key for a changed correction. At most eight corrections per conversation protect RAM. RAM-only structured context and operation result; local lookup expires after 120s. Regular voluntarily spoken/text dialogue memory remains unchanged.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ConversationId"
@@ -1629,6 +1629,7 @@
       "CostumeContext": {
         "type": "object",
         "additionalProperties": false,
+        "description": "Photo and fake results have a nonempty description. An empty manual receipt acknowledges a discarded cue and is never included in provider prompts.",
         "required": [
           "description",
           "possibleCharacter",
@@ -1665,7 +1666,13 @@
             "type": "string",
             "format": "date-time"
           }
-        }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "source": { "enum": ["photo", "fake"] } } },
+            "then": { "properties": { "description": { "type": "string", "minLength": 1 } } }
+          }
+        ]
       },
       "CostumeOperation": {
         "type": "object",
@@ -1717,6 +1724,10 @@
           }
         },
         "allOf": [
+          {
+            "if": { "properties": { "kind": { "const": "image" }, "status": { "const": "completed" } } },
+            "then": { "properties": { "result": { "type": "object", "properties": { "description": { "type": "string", "minLength": 1 } } } } }
+          },
           {
             "if": {
               "properties": {

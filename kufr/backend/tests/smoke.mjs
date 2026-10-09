@@ -410,6 +410,18 @@ try {
   assert.equal((await imageRequest(imageId, virtualToken, correctionHeaders, null, 'Cerveny plast')).result.operationId,
     correction.result.operationId);
   assert.equal((await imageRequest(imageId, virtualToken, correctionHeaders, null, 'Modry plast')).status, 409);
+  const clearHeaders = { ...imageHeaders, 'Idempotency-Key': randomUUID() };
+  const clear = await imageRequest(imageId, virtualToken, clearHeaders, null, '');
+  assert.equal(clear.status, 200);
+  assert.equal(clear.result.status, 'completed');
+  assert.equal(clear.result.kind, 'costume');
+  assert.equal(clear.result.result.source, 'manual');
+  assert.equal(clear.result.result.description, '');
+  assert.equal((await imageRequest(imageId, virtualToken, clearHeaders, null, '')).result.operationId,
+    clear.result.operationId, 'empty correction is an idempotent receipt');
+  const clearedImage = await read(`/v1/operations/${imageAccepted.result.operationId}`, virtualToken);
+  assert.equal(clearedImage.result.status, 'cancelled');
+  assert.equal(clearedImage.result.result, null, 'clear never publishes an empty completed image');
   assert.equal(await remove(`/v1/conversations/${imageId}`, virtualToken, randomUUID()), 204);
 
   const parallelBody = { ...body, deviceId: 'device-b' };

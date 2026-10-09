@@ -80,6 +80,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
     private var lastError: String?
     private var recordingTimer: Timer?
     private var cleanupTask: Task<Void, Never>?
+    private var conversationClient: DebugBackendClient?
     private var camera: DebugCostumeCamera?
     private var cameraCall: CAPPluginCall?
     private var photoDraft: (id: String, jpeg: Data, expiry: Date)?
@@ -127,12 +128,14 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
     @objc func status(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             self.restoreProfile()
-            call.resolve(["configured": self.profile != nil, "running": self.task != nil || self.player != nil || self.realtimePlayer != nil || self.synthesizer.isSpeaking || self.microphone != nil || self.cleanupTask != nil,
+            call.resolve(["configured": self.profile != nil, "running": self.task != nil || self.player != nil || self.realtimePlayer != nil || self.synthesizer.isSpeaking || self.microphone != nil || self.cleanupTask != nil || self.conversationClient?.hasPendingCleanup == true,
                           "phase": self.phase, "mode": self.mode,
                           "session": self.dialogSession != nil || self.realtimeSession != nil || self.handsFreeSession != nil,
                           "recording": self.microphone != nil, "handsFree": self.handsFreeSession != nil,
                           "errorCode": (self.lastError as Any?) ?? NSNull(),
-                          "costumeStatus": (self.costumeStatus as Any?) ?? NSNull(),
+                          "costumeStatus": self.conversationClient?.hasPendingCleanup == true
+                            ? "Server nepotvrdil úklid rozhovoru. Použijte znovu Stop; nový rozhovor je zablokovaný."
+                            : (self.costumeStatus as Any?) ?? NSNull(),
                           "audioOutput": (self.handsFreeAudio?.outputStatus as Any?) ?? NSNull(),
                           "transcript": self.transcript, "selected": (self.selected as Any?) ?? NSNull(), "timings": self.timings,
                           "evenings": (self.evenings?.bridgeValue as Any?) ?? NSNull(),
@@ -329,6 +332,8 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
             self.discardPhotoDraft()
             let description = call.getString("costumeDescription")?.trimmingCharacters(in: .whitespacesAndNewlines)
             let costume = DebugCostumeInput(jpeg: jpeg, description: description?.isEmpty == false ? description : nil)
+            let client = DebugBackendClient()
+            self.conversationClient = client
             self.task = Task { @MainActor in
                 var owned: DebugDialogSession?
                 var realtimeOwned: DebugRealtimeSession?
@@ -337,11 +342,11 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
                     let engine = call.getString("engine") ?? "chained"
                     if engine == "realtime" || engine == "gpt-live" {
                         guard self.mode == "openai" else { throw DebugBackendError.wrongMode }
-                        try await self.runHandsFree(call, profile: profile, generation: generation, costume: costume)
+                        try await self.runHandsFree(call, profile: profile, generation: generation, costume: costume, client: client)
                         return
                     } else if engine == "realtime-ptt" {
                         guard self.mode == "openai" else { throw DebugBackendError.wrongMode }
-                        let session = try await DebugBackendClient().openRealtimeSession(profile,
+                        let session = try await client.openRealtimeSession(profile,
                             readyMask: call.getInt("readyMask") ?? -1, voice: call.getString("voice") ?? "cedar",
                             speed: call.getDouble("speed") ?? 1.1, costume: costume,
                             costumeStatus: { if self.generation == generation { self.costumeStatus = $0 } })
@@ -350,7 +355,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
                         self.realtimeSession = session
                         try await self.realtimeTurn(session, text: nil, wav: nil, generation: generation)
                     } else {
-                        let session = try await DebugBackendClient().openSession(profile,
+                        let session = try await client.openSession(profile,
                             expectedMode: self.mode, readyMask: call.getInt("readyMask") ?? -1,
                             voice: call.getString("voice") ?? "cedar", speed: call.getDouble("speed") ?? 1.1, costume: costume,
                             costumeStatus: { if self.generation == generation { self.costumeStatus = $0 } })
@@ -385,6 +390,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
                         }
                     }
                     if self.generation == generation {
+                        if client.hasPendingCleanup { self.lastError = "realtime_cleanup_failed" }
                         if case DebugBackendError.serverCode(let code) = error { self.lastError = code }
                         self.failDialog()
                     }
@@ -395,7 +401,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
     }
 
     @MainActor private func runHandsFree(_ call: CAPPluginCall, profile: DebugBackendProfile, generation: Int,
-                                       costume: DebugCostumeInput) async throws {
+                                       costume: DebugCostumeInput, client: DebugBackendClient) async throws {
         let permitted: Bool
         if #available(iOS 17.0, *) { permitted = await AVAudioApplication.requestRecordPermission() }
         else {
@@ -421,7 +427,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
             guard let self = self, self.generation == generation else { return }
             self.lastError = code; self.stopWork(); self.phase = "failed"
         })
-        let session = try await DebugBackendClient().openHandsFreeSession(profile,
+        let session = try await client.openHandsFreeSession(profile,
             readyMask: call.getInt("readyMask") ?? -1, voice: call.getString("voice") ?? "cedar",
             speed: gptLive ? 1 : (call.getDouble("speed") ?? 1.1), gptLive: gptLive,
             costume: costume, costumeStatus: { if self.generation == generation { self.costumeStatus = $0 } },
@@ -722,9 +728,10 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
             self.generation += 1
             let generation = self.generation
             self.phase = "checking"
+            let client = DebugBackendClient()
+            self.conversationClient = client
             self.task = Task { @MainActor in
                 do {
-                    let client = DebugBackendClient()
                     if let expectedMode = expectedMode {
                         let wav = try await client.run(profile, expectedMode: expectedMode) { value in
                             if self.generation == generation { self.phase = value }
@@ -793,13 +800,13 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
         }
     }
 
-    private func canStart() -> Bool {
+    @MainActor private func canStart() -> Bool {
         canAnswer() && dialogSession == nil && realtimeSession == nil && handsFreeSession == nil
     }
 
-    private func canAnswer() -> Bool {
+    @MainActor private func canAnswer() -> Bool {
         UIApplication.shared.applicationState == .active && task == nil && player == nil && realtimePlayer == nil &&
-            !synthesizer.isSpeaking && configurationCall == nil && cameraCall == nil && microphone == nil && cleanupTask == nil && handsFreeSession == nil
+            !synthesizer.isSpeaking && configurationCall == nil && cameraCall == nil && microphone == nil && cleanupTask == nil && handsFreeSession == nil && conversationClient?.hasPendingCleanup != true
     }
 
     @MainActor private func stopWork() {
@@ -817,15 +824,22 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
         let session = dialogSession
         let realtime = realtimeSession
         let handsFree = handsFreeSession
+        let client = conversationClient
         handsFreeAudio?.stop(); handsFreeAudio = nil; handsFreeSession = nil
         dialogSession = nil
         realtimeSession = nil
         realtimePlayer?.stop(); realtimePlayer = nil
-        if cleanupTask == nil && (session != nil || realtime != nil || handsFree != nil || stoppedTask != nil) {
+        if cleanupTask == nil && (session != nil || realtime != nil || handsFree != nil || stoppedTask != nil || client?.hasPendingCleanup == true) {
             cleanupTask = Task { @MainActor in
                 // A cancelled create can still be recovering its owned ID.
                 // Do not admit another test until that recovery has finished.
                 if let stoppedTask = stoppedTask { await stoppedTask.value }
+                // Preflight may fail before a session object is returned. Its
+                // client still owns every failed DELETE identity and replay key.
+                if let client = client {
+                    do { try await client.retryPendingCleanup() }
+                    catch { self.phase = "failed"; self.lastError = "realtime_cleanup_failed" }
+                }
                 if let session = session {
                     do { try await session.close() }
                     catch { self.phase = "failed" }
@@ -844,6 +858,14 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
                     await handsFree.stop()
                     do { try await handsFree.close() }
                     catch { self.handsFreeSession = handsFree; self.phase = "failed"; self.lastError = "realtime_cleanup_failed" }
+                }
+                if let client = client, !client.hasPendingCleanup, self.conversationClient === client {
+                    self.conversationClient = nil
+                    if self.lastError == "realtime_cleanup_failed", self.dialogSession == nil,
+                        self.realtimeSession == nil, self.handsFreeSession == nil {
+                        self.lastError = nil
+                        if self.phase == "failed" { self.phase = "cancelled" }
+                    }
                 }
                 self.cleanupTask = nil
             }

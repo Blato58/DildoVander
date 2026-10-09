@@ -1,6 +1,6 @@
 # Stav implementace AI kufru
 
-Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální Arduino i ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a E3a. Ad Hoc podpis a serverová publikace IPA/manifestu prošly CI a veřejným HTTPS testem; majitel potvrdil instalaci a spuštění na iPhonu 15 Pro (D70). Hardware, native WSS/TLS a aktualizace IPA na telefonu zatím nemají runtime akceptaci. Hotový návrh není hotová implementace.
+Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální i CI ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a E3a. Ad Hoc podpis a serverová publikace IPA/manifestu prošly CI a veřejným HTTPS testem; majitel potvrdil instalaci a spuštění na iPhonu 15 Pro (D70). Hardware, native WSS/TLS a aktualizace IPA na telefonu zatím nemají runtime akceptaci. Hotový návrh není hotová implementace.
 
 [Implementační plán](implementacni-plan.md) určuje architekturu a akceptaci. [AGENTS.md](../../AGENTS.md) určuje pracovní postup AI. Tento soubor je jediný průběžný záznam postupu; README ho pouze odkazují.
 
@@ -83,8 +83,34 @@ ověření, `Push-CurrentBranch.ps1` uspěl a read-back remote potvrdil stejnou 
 PR [142](https://github.com/Blato58/DildoVander/pull/142) je otevřený.
 První CI `37878086941` odhalilo GCC `-Werror=sign-compare` v JPEG parseru;
 počet komponent je nyní `size_t`, stejně jako délka segmentu. Následný
-lokální `pio run -d kufr/firmware -s` prošel. Linux CI, merge a nativní
-macOS ověření se dokončí podle skutečného výsledku.
+lokální `pio run -d kufr/firmware -s` prošel. Následný Codex review PR
+našel pět P2 nálezů: ztracené vlastnictví náhradního rozhovoru, ztracený
+DELETE klíč po timeoutu, neurčitý zápis ruční opravy, prázdný foto popis a
+neúplné odstranění cue. Opravy zachovávají vlastněné ID a DELETE klíč až do
+204; nejednoznačný PUT se opakuje se stejným payloadem/korelací/klíčem,
+opakovaná chyba blokuje úvod a uklidí sezení. Prázdná ruční oprava ponechá
+jen replayable potvrzení, odstraní aktivní cue a zruší image polling;
+spotřeba a vymazání rozpracovaného provideru se dokončí. Foto výsledek
+vyžaduje neprázdný popis. Regrese zahrnují čtyři režimy iOS a následující
+Start po neúspěšném úklidu. Firmware už DELETE klíč i čekání na úklid
+zachovával; cílené review nepotvrdilo potřebu jeho změny.
+Po opravách znovu prošel celý backend runner, cílené image testy, HTTP
+smoke a kontrakty; mobil 28/28 testů, build a skutečný HTTP fixture
+self-check prošly. Swift provedení nových regresí čeká macOS.
+Nezávislé review navíc odhalilo expirovaný access token při pozdějším Stop:
+cleanup obnoví token na 401, ponechá stejný DELETE klíč/ID a při selhání
+obnovy zachová vlastnictví pro další pokus. HTTP fixture ověřil obnovu,
+selhání a další úspěšný Stop i uchování obnoveného tokenu přes další 503.
+Synthetic credential fixture nyní odpovídá skutečnému Bearer requestu;
+produkční autentizační kontrakt se nemění.
+Závěrečný nezávislý source review backendu, kontraktů a iOS těchto oprav
+nepotvrdil žádný zbývající actionable nález; sám nespouštěl buildy/testy.
+Trvalé pravidlo v tracked `AGENTS.md` vyžaduje načtení review/komentářů
+po posledním push a před každým merge; nevztahuje se jen na tuto větev.
+CI `37878589564` před těmito review opravami prošlo všechny vybrané
+projekty. Stažený firmware balíček prošel SHA-256 ověřením a obsahuje
+jen `esp32-s3-idf/` (bootloader, firmware, partition, OTA data a ELF).
+Linux CI nových oprav, merge a nativní macOS ověření se doplní podle výsledku.
 Neprovedeno: placená inference, cloudové nasazení, publikace IPA ani flash.
 E12/E13 nejsou celé hotové: kamera ještě není doručená; revize/FPC/piny,
 napájení/proud/souběh, skutečný obraz/latence, iPhone kamera/pozadí a SD

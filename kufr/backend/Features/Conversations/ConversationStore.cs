@@ -1040,6 +1040,7 @@ internal sealed partial class ConversationStore(
         public string? ImageOperationId { get; set; }
         public CostumeContext? Costume { get; set; }
         public bool ManualCostume { get; set; }
+        public bool CostumeCleared { get; set; }
         public int CostumeCorrectionCount { get; set; }
         public string PersonalityId { get; } = selectedPersonalityId;
         public LivePromptSnapshot LivePrompt { get; init; } = LivePromptSnapshot.Create(selectedPersonalityId, new());

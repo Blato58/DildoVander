@@ -22,6 +22,7 @@
 - Po ověření slice aktualizuj stav implementace, zkontroluj `git status` a obsah změn, přidej pouze soubory patřící k danému slice a vytvoř commit. Následně bez další žádosti o potvrzení spusť z kořene repozitáře `./scripts/Push-CurrentBranch.ps1`; používá pro tento remote účet `Blato58`, aniž změní aktivní účet GitHub pro ostatní projekty. Do stavu a odpovědi zapiš commit a skutečný výsledek push.
 - Cizí nebo nesouvisející úpravy nikdy automaticky nepřidávej. Neúspěšný build/test neopravuj commitem, který tvrdí dokončení; rozpracovaný stav zaznamenej a pokračuj podle konkrétní chyby.
 - Pokud chybí remote/upstream, přístup nebo jiný nezbytný údaj, dokonči bezpečný lokální commit a vyžádej jen chybějící údaj. Push neprohlašuj za hotový, dokud není ověřen.
+- Před každým merge načti z GitHubu všechna PR reviews, inline komentáře a stav Codex review. Probíhající review nech dokončit. Každý relevantní nález oprav, ověř regresním testem a zaznamenej výsledek; zamítnutý nález zdůvodni konkrétním kódem a důkazem. Po posledním push a těsně před merge komentáře znovu načti, včetně nových a dosud nevyřešených vláken. Dokud zbývá nevyřešený relevantní nález, PR neslučuj; zelené CI ani oprávnění k automatickému merge tuto kontrolu nenahrazují. Toto pravidlo výslovně požaduje majitel od 9. 10. 2026.
 - Majitel 29. 9. 2026 výslovně schválil automatické sloučení PR v tomto repozitáři. Po dokončení vlastního ověřeného slice otevři potřebný PR, zkontroluj diff, konflikty a dostupné CI kontroly a bez další žádosti jej sluč. Selhání nebo nejasný výsledek nejprve vyřeš; merge ověř na cílové větvi. Toto oprávnění neznamená release, cloudové nasazení, placené AI testy nad schválený rozpočet ani nahrání firmware do desky.
 
 ## Přijaté hranice systému
@@ -44,7 +45,7 @@
 ## Sestavení a ověření
 
 - V `kufr/firmware/` spusť `pio run`. Čistou posloupnost lze testovat hostitelským C++ kompilátorem podle příkazu v `kufr/firmware/README.md`; testy jsou v `kufr/firmware/tests/`.
-- V `kufr/mobilni-aplikace/` je lockfile: pro reprodukovatelnou instalaci použij `npm ci`, pro kontrolu `npm run build` (`tsc --noEmit && vite build`). Další příkazy dokumentuj až s jejich skutečným zavedením. Mobilní aplikace zatím nemá komunikaci s ESP32 ani AI službou.
+- V `kufr/mobilni-aplikace/` je lockfile: pro reprodukovatelnou instalaci použij `npm ci`, pro kontrolu `npm test` a `npm run build` (`tsc --noEmit && vite build`). Aplikace obsahuje LAN ovládání ESP32 a nativní backend Debug; browser ani simulátor neprokazují akceptaci na iPhonu. Nativní testy a podpis ověř existujícím macOS workflow výše.
 - V `obludarium/firmware/` je sestavovací příkaz `pio run`; projekt je zatím jen startovní kostra.
 - `**/.pio/`, `**/node_modules/` a `**/dist/` jsou generované nebo lokální výstupy. Neupravuj je jako zdrojové soubory.
 - Po změně kódu ověř nejmenší dotčený projekt a relevantní testy. Pokud chybí hardware pro ověření skutečného efektu, uveď tuto mezeru ve výsledku.
