@@ -15,7 +15,7 @@
 > [CI37936213640](https://github.com/Blato58/DildoVander/actions/runs/37936213640) prošly.
 > Development **0.1.162** je publikované a application-only USB boot na COM7 ověřený;
 > **iOS1000.0.22** prošlo native harnessy/archive/export i Safari publikací.
-> Majitel dostal výzvu k nové obnově po forget; výsledek zatím chybí.
+> Majitel potvrdil opakované párování po forget, ale LAN discovery/připojení selhává.
 > Přesné běhy/hash/USB rozsah a akceptaci vede
 > [stav implementace](stav-implementace.md#předání-další-ai).
 
@@ -160,7 +160,7 @@
 > tímto akceptované; [D145–D146](stav-implementace.md#předání-další-ai)
 > uvádí skutečné běhy, konfiguraci a zbývající ověření. Architektura níže
 > se samotnou publikací nemění. Jde o historický doklad D145–D146;
-> D162/1.0/1000.0.20 a D163 jsou historická předání; aktuální D164 vede stav implementace;
+> D162/1.0/1000.0.20 a D163 jsou historická předání; aktuální D165 vede stav implementace;
 > D158/1000.0.19 zůstává historický doklad fyzického BLE ověření D159.
 
 > **D143, 6. 10. 2026: opt-in autonomní GPT-Live a hybridní paměť.**
@@ -409,7 +409,7 @@ otisku nebo dalšího tajemství. Jedinečný servisní PoP a Security1 zůstáv
 autoritou BLE; samotné nalezení zařízení nestačí. U zdravé, dosud prázdné
 lokální TLS identity firmware při startu vygeneruje samostatný EC klíč a
 self-signed certifikát a atomicky je uloží. Existující i poškozené záznamy
-se automaticky nepřepisují. Rotace a obnova zůstávají fyzickým servisem.
+se automaticky nepřepisují. Rotace a obnova TLS klíče/certifikátu zůstávají fyzickým servisem.
 TLS server a Bonjour mohou běžet před prvním párováním; řízení dál vyžaduje token.
 
 Šifrovaný `kufr-control` přijímá `{"v":1,"command":"pair-local"}`.
@@ -421,12 +421,13 @@ ověří ID proti ověřenému BLE stavu a vloží profil do nesynchronizovanéh
 Keychain `WhenUnlockedThisDeviceOnly`, bez přepsání dřívějšího profilu.
 Do JavaScriptu vrátí jen ID/adresu. Stejný pin ověřuje následné HTTPS/WSS.
 Nejistý příkaz se neopakuje; ztráta odpovědi nebo Keychain zápisu po vydání
-tokenu vyžaduje servisní obnovu. Níže uvedený QR postup zůstává servisní alternativou.
+tokenu umožní u zdravého Paired záznamu explicitní D165 Security1/PoP BLE obnovu
+s confirm:true; ostatní stavy vyžadují servis. Níže uvedený QR postup zůstává servisní alternativou.
 
 1. Při servisním uvedení do provozu vygenerovat pro každou desku samostatný TLS klíč/certifikát, `deviceId` a náhodné párovací tajemství alespoň 128 bitů. Generování/provisioning je budoucí lokální servisní krok, ne obsah firmware image. QR uvnitř kufru obsahuje `deviceId`, SHA-256 otisk veřejného klíče, jednorázové tajemství a údaje servisního AP. Privátní klíč neopouští servisní úložiště desky.
 2. Párovací AP povolit jen držením tlačítka během startu, nejvýše 120 s, s unikátním WPA2 heslem. Výstupy jsou během nastavení blokované. Nepoužívat běžné BOOT tlačítko jako návštěvnické PTT.
 3. Telefon přečte QR a přes nativní TLS adaptér ověří přesně očekávaný veřejný klíč. Self-signed identita není globální výjimka ověřování. Při odlišném klíči spojení odmítnout; mDNS/IP nejsou důvěryhodná identita.
-4. Přes připnuté TLS předat Wi-Fi SSID/heslo a spárovat obsluhu. Firmware ověří tajemství, vydá unikátní náhodný 256bitový lokální bearer token, uloží jen jeho hash a původní tajemství zneplatní. iPhone uloží token do iOS Keychain. Při ztrátě telefonu je obnova pouze fyzickým servisním resetem párování; nový QR/tajemství, žádné vzdálené obejití.
+4. Přes připnuté TLS předat Wi-Fi SSID/heslo a spárovat obsluhu. Firmware ověří tajemství, vydá unikátní náhodný 256bitový lokální bearer token, uloží jen jeho hash a původní tajemství zneplatní. iPhone uloží token do iOS Keychain. Při ztrátě telefonu může držitel servisního PoP obnovit zdravé místní párování explicitním Security1 BLE recovery D165 v omezeném okně a při idle/socket/inbox gate; bez PoP či při poškozeném/připraveném QR záznamu je nutný fyzický servisní reset a nový QR/tajemství. Veřejný LAN reset není dostupný.
 
 5. Deska přejde do STA režimu routeru, AP zavře. Změna sítě nikdy sama nevyvolá pohyb.
 
