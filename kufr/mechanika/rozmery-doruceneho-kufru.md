@@ -27,10 +27,12 @@ Příčná výztuha na dně má podle majitele tloušťku **5 mm**. Další úda
 o výztuze nejsou podmínkou rozvržení kufru. Při zkoušce sestavy ověřit
 lokální vůle u stěn, pantů a zavírání a prostor pro kabely a pohyb přihrádek.
 
-Současný `parametry.json` a CAD používají starý pracovní prostor
-310 × 450 × 200 mm (X × Y × Z). Rozložení je třeba přizpůsobit
-potvrzenému kufru a znovu ověřit obálky i pohyb před tiskem.
-Tento záznam nemění CAD, neověřuje fyzické usazení ani pohyb pod zatížením.
+Nová sestava [cad/](cad/README.md) používá potvrzený vnitřní prostor.
+Majitel pro rekonstrukci 9. 10. 2026 zvolil stěny 3 mm jako návrhovou
+hodnotu; tloušťka dna, půdorys výztuhy, hloubka víka a kování jsou
+parametrické předpoklady. Původní `parametry.json` se starým pracovním
+prostorem 310 × 450 × 200 mm zůstává zachovaný pro historický generátor.
+Fyzické usazení a pohyb pod zatížením musí být ověřené na prototypu.
 
 Architekturu a akceptaci určuje [implementační plán](../docs/implementacni-plan.md),
 postup vede [stav implementace](../docs/stav-implementace.md).

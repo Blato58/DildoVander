@@ -6,6 +6,43 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**9. 10. 2026 – parametrická CAD sestava doručeného kufru, lokální prototyp.**
+Rozsah tohoto zadání je mechanika: společný referenční model, osazení,
+šest přihrádek, servisní držáky, STL a montážní dokumentace v
+`kufr/mechanika/cad/`. Potvrzený vnitřek 431,8 × 266,7 × 114,3 mm;
+majitel v této úloze zvolil tloušťku stěn 3 mm jako návrhovou hodnotu.
+Víko zůstává prázdné. Fáze A vytvořila STEP těla, víka, otevřeného a
+zavřeného kufru a montážního prostoru; 106 vzorků otáčení víka prošlo
+bez průniku s dřevěným tělem. Vnější kování, hloubka víka, tloušťka dna
+a půdorys výztuhy jsou parametrické předpoklady, nikoli měření.
+Fotografie uvedené v zadání nebyly v aktuální konverzaci dostupné.
+Implementované jsou šestice kloubových mechanismů, boční servisní nosiče,
+vyjímatelná powerbanka, nastavitelná provizorní kamera, dělený rám a kabelové
+rezervy. Skutečné výstupy: 56 STL (162 tisknutých kusů včetně měrek), 56 STEP
+dílů, 5 referenčních a 7 montážních STEP sestav, 44 hardwarových STEP souborů,
+8 renderů, offline 3D náhled, kusovník a ZIP. Parametrický zdroj je Python/JSON
+(CadQuery 2.7); původní modely a jejich výstupy zůstávají zachované.
+
+Ověření: 106 poloh víka včetně kování, 101 kinematických poloh a 21
+materiálových poloh mechanismu; celá sestava, konektorové rezervy, osa kamery
+a vytažení powerbanky bez nepovolených průniků. Skutečné STL mají uzavřené
+manifold sítě a shodné obálky/objemy; zpětně načtené STEP jsou validní.
+5 mechanických a 5 integračních regresí prošlo, stejně jako 15 skutečných
+servisních STL, 54 M3 rozhraní a 36 páskových průchodů. Nezávislé review
+a skutečný export vedly k opravám pantů, servisních spojů a topologie racku.
+Prohlédnuty rendery a vyzkoušen HTML náhled. Regenerace přes
+`cad/Regenerate.ps1` dokončila i kontrolu zdrojových SHA-256 a integrity ZIP.
+Podrobný [report a omezení](../mechanika/cad/docs/overeni.md) a
+[montážní postup](../mechanika/cad/docs/montaz.md) patří k této sadě.
+
+Zdroj rozměrů z worktree f0e4 je totožný s lokálním přehledem. Zůstává
+provizorní geometrie hůlek/kamery/konektorů, úplný pružný svazek a rozdělení
+svorek; pevnost, moment serv, zadržení bez napájení a transport potřebují
+fyzickou zkoušku. Další krok: měrky a jedna přihrádka podle montážního návodu.
+Fyzická kritéria E5/E6/E13 se neuzavírají. Firmware/backend ani hardware nebyly
+měněné; aplikační buildy neběžely. Lokální commit následuje po závěrečné
+kontrole; uživatelský zákaz push má přednost, žádný push/PR/merge/nasazení.
+
 **9. 10. 2026 – rozměry doplněné majitelem a zrušení podmínek pro rozvržení.**
 Všechny údaje jsou pohromadě v [přehledu rozměrů kufru a součástek](../mechanika/rozmery-nakoupenych-soucastek.md).
 PTT má 14×14×35 mm, PCA9685 25×70×15 mm; pro U059 použít výrobce
