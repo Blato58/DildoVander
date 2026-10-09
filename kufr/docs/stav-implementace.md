@@ -6,6 +6,46 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**9. 10. 2026 – F1 optimalizace kabeláže a rozložení ověřena v CAD.**
+PD trigger, měnič a jistič jsou u banky vlevo; měnič mezi maticemi
+zvýšeného stolku, jistič izolovaně pod ním. Stolky a boční clony mají
+servisní průchody, nad měničem je větrání. Tři Degson mají sítě MAIN5,
+DRIVE5 a GND, tabulku portů a izolované vodičové rozbočky mimo PCB.
+135 vedení má oba konce označené, délkové rezervy a rozlišení původních
+kabelů od prodloužení. Návod a pořadí montáže: [KABELAZ.md](../mechanika/final/KABELAZ.md).
+Vznikly JSON/CSV kabelový plán a řezací seznam, SVG/PNG výkres a nový ZIP.
+GPIO, firmware ani mechanismus zdvihu se tím nemění.
+
+Změněny zdroje `final/layout.py`, `harness.py`, `test_harness.py`,
+`build.py`, `verify.py`, `drawings.py`, `preview.py`, `inspect_data.py`,
+`artifacts.py`, `Regenerate.ps1`, ověřený snapshot a montážní dokumentace;
+potvrzené zapojení odkazuje tento montážní plán. Nezávislé review je bez
+otevřeného nálezu; nalezené průniky kabelových tras, matic a rezervních
+dílů byly opraveny před úspěšným předáním.
+
+Provedeno: `Regenerate.ps1 -Python ..\.venv\Scripts\python.exe` PASS,
+51 Python testů a 5 testů prohlížeče; 29 STL typů / 44 výtisků, zpětné
+načtení STEP, tři celé sestavy, 81 vzorků mechanismu se sousedy, 36 poloh
+víka a 37 kroků vyjmutí banky. Smyčková obálka modulu 2 má 81 vzorků;
+všech šest obálek je ověřeno ve statické sestavě. Ad hoc BREP audit
+266 úseků střednic o tloušťce 0,1 mm včetně rezervních dílů: 0 průniků.
+Shoda zdrojových SHA-256, ZIP CRC/inventory, 135 CSV řádků se štítky
+a 37 místních odkazů PASS. ZIP SHA-256:
+`a311683282ad46472274e07d397c14f11cc83a9f14c7093082cbb71e2ad351ce`.
+Browser `http://127.0.0.1:8914/viewer.html`, 611 × 764: Servis,
+Inspect D1/MAIN5, kondenzátor 3/PCA V+ a měnič 46×31×19 fungují;
+bez vodorovného přetékání a varování/chyb konzole. Výkres a servisní
+render vizuálně zkontrolovány. Autoritou geometrie zůstává
+`final/exports/verification.json` se shodnými zdrojovými hashi.
+
+Fyzicky neověřeno: skutečné ohyby/zaplnění svazků, konektory, dostupná
+délka vodičů, izolace/polarita, teploty/proudy a zatížený mechanismus.
+USB napájecí zakončení ESP zůstává k ověření existujícího adaptéru;
+plán žádný nekoupený konektor nepředstírá. Další krok: suchá montáž
+levé napájecí sestavy a jednoho osazeného modulu, elektrická přejímka
+a pohyb včetně opačných poloh sousedních lůžek. HW kritéria zůstávají
+otevřená. Git předání se doplní po skutečném push.
+
 **9. 10. 2026 – F1 prohlížeč: Inspect, barvy a kabelové vazby.**
 `kufr/mechanika/final/exports/viewer.html` byl regenerován z aktuálních
 zdrojů. Shift zvýrazní skutečnou viditelnou geometrii a zobrazí kartu;
