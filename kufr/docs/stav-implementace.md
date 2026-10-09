@@ -192,7 +192,9 @@ má SHA-256 `129902b4103e5f94aa9715fddee775ea9ec8046aefe9c752533a5f04641318f1`,
 shodný s root signerem. Všechny publikace používaly odpovídající current main
 tree; následné docs-only předání nemění nasazený software.
 Větev `codex/event-completion-delivery-record` synchronizuje pouze audit,
-readiness, provozní README a tyto skutečné doklady. Žádný nový runtime kód ani
+readiness, plán, provozní README a tyto skutečné doklady. Starší IPA 1000.0.16
+je výslovně označená jako historická; aktuální publikace je 1000.0.19.
+Žádný nový runtime kód ani
 secrets/privátní klíče nejsou součástí posledního dokumentačního předání.
 
 Žádné fyzické BLE/hotspot/SD/audio/servo, NVS power-loss ani OTA rollback
