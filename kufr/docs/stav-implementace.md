@@ -6,6 +6,31 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**9. 10. 2026 – zrychlení firmware CI (rozpracováno).** Převzaté soubory:
+`.github/workflows/kufr-firmware.yml`, nové `kufr/firmware/ci/` a firmware
+README. Živá kontrola potvrdila VPS s 1 CPU, 1909 MiB RAM, 2 GiB swap
+a dvěma aktivními runnery s odděleným `HOME`; backend health je `ok`.
+Posledních pět úspěšných firmware jobů trvalo 437–622 s; novější joby
+mají navíc další USB diagnostiku. Obnova toolchain cache zabírala
+54–78 s, hlavní ESP-IDF 168–286 s a každá diagnostika přibližně minutu.
+Slice nahrazuje přenos archivu lokálně zachovaným toolchainem/venv a
+SCons cache mimo checkout, oddělenou po runnerech a omezenou na 1 GiB.
+Objekty s `__DATE__`/`__TIME__` se vždy překládají. Lokální Windows
+`pio run -d kufr/firmware -e esp32-s3-idf` na zdrojích `199664e` prošel
+se studenou cache za 305,71 s. Po odložení build adresáře mimo aktivní
+profil zachovalý cache načetl 1334 výstupů; finální teplý build prošel
+za 97,01 s, ale měl již CMake konfiguraci z předchozího pokusu (42,78 s).
+Nejde tedy o přímo srovnatelné celé joby. Guard nejprve odhalil vnořené
+SCons NodeList; opravené `Flatten(PIOBUILDFILES)` vybírá skutečný objekt.
+Log potvrzuje nový překlad network, app i bootloader timestamp objektů.
+Pět Python regresí pro pruning a timestamp graph, 55 Node CI/provenance
+testů, 6 CI-routing testů, `actionlint` 1.7.12 a whitespace prošly.
+Nezávislé review je po opravách bez otevřeného nálezu.
+Před Git předáním začleněný `origin/main` `d4862ff` (nové OTA/BLE/SD
+software slices); jejich kontroly a USB network diagnostika zůstávají
+v upraveném workflow. Plný Linux CI na tomto stromu teprve následuje.
+Nevzniká nová VPS objednávka, provider inference, deploy ani HW flash.
+
 **D158 – 9. 10. 2026 – plný audit, nativní BLE, hotspot-first Wi-Fi, OTA a SD.**
 Převzato z čistého tracked `6cb130d`; větev `codex/event-software-completion`.
 Nesouvisející untracked `.codex/` zůstává mimo slice. Majitel následně výslovně

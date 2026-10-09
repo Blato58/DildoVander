@@ -600,6 +600,24 @@ zůstává zavřený do servisního potvrzení profilu a kalibrace.
 
 ## Sestavení a test
 
+Firmware CI běží na existujících self-hosted VPS runnerech. Každý runner
+musí mít vlastní `HOME` a `PLATFORMIO_CORE_DIR`; jeden sdílený účet bez
+oddělených adresářů nestačí. `ci/prepare_build.py` ponechává PlatformIO
+Core 6.2.0 v Python venv pod `~/.cache/kufr-firmware-ci/` a využívá již
+nainstalované balíčky v PlatformIO Core adresáři. Stahování a rozbalování
+celého toolchain archivu z Actions cache při každém buildu se nepoužívá.
+
+`PLATFORMIO_BUILD_CACHE_DIR` uchovává obsahově adresované SCons objekty
+mimo checkout; změna zdroje, hlaviček nebo compile flags mění jejich
+signaturu. Checkout stále čistí `.pio`, tedy CMake konfigurace i výsledný
+balíček vznikají z aktuálního stromu. CI post-script `ci/build_cache.py`
+vždy překládá objekty s build datem pro TLS a ESP-IDF app/bootloader
+metadata. Před i po jobu se nejstarší cache objekty ořezávají na 1 GiB
+na runner; první build na daném runneru cache teprve naplní.
+Pro studený build lze při nečinném runneru odstranit pouze jeho
+`~/.cache/kufr-firmware-ci/objects-v1/`; příští CI jej znovu vytvoří.
+Tento cache limit nesouvisí s odstraněnými peněžními AI limity.
+
 Ve složce `kufr/firmware`:
 
 ```text
