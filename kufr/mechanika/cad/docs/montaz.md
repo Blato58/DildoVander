@@ -1,115 +1,93 @@
-# Montáž a fyzické ověření
+# Montáž jednoduché verze
 
-Tento návod patří k nové sestavě v `cad/`, nikoli k původnímu velkému kufru.
-Přesné názvy souborů, počty, obálky a účel každé tisknutelné položky jsou
-v [aktuálním kusovníku](../exports/print-bom.csv). Kusovník vzniká ze skutečných
-instancí sestavy; pouze dvě zkušební měrky se přidávají jako příslušenství.
+Sada má 18 typů STL a 56 výtisků včetně měrky. [Kusovník](../exports/print-bom.csv)
+obsahuje skutečné názvy, počty, rozměry, účel a tiskové parametry všech souborů.
+Tištěné konstrukce jsou spojené objemové díly; zakoupený hardware má instalační obálky.
 
-## Tisk
+## Díly a tisk
 
-Výchozí materiál PETG, tryska 0,4 mm, vrstva 0,2 mm, čtyři obvody, alespoň
-pět plných horních/dolních vrstev, výplň přibližně 40 %. Jsou to počáteční
-parametry, nikoli deklarace pevnosti. Šroubové klouby a dlouhé nohy se zkouší
-na vytištěném kusu. V teplém uzavřeném kufru je třeba sledovat tečení plastu.
+PETG, vrstva 0,2 mm, tryska 0,4 mm, čtyři obvody, pět plných horních/spodních
+vrstev, zpočátku 40 % výplně. Pevnost a tečení plastu ověřit na prototypu.
+STL mají Z0 na podložce a doporučenou orientaci; přidat brim podle přilnavosti.
 
-STL již mají nejnižší bod na Z=0. Táhlo, páka a podložky jsou otočené s osou
-čepu kolmo na podložku. Lůžka a základny se tisknou dnem dolů. Pod vodorovnými
-otvory závěsu a okem táhla použít pouze nezbytné lokální podpěry. U vysokých
-servisních dílů posoudit oporu/bridging a brim ve sliceru; generátor není slicer.
-Rozměr tiskárny nejprve upravit v `parameters.json`; 220 × 220 × 250 mm není
-potvrzeným modelem uživatelovy tiskárny.
-
-| Tisknutelná skupina | Účel a montáž |
+| STL / počet | Účel a orientace |
 | --- | --- |
-| `base_1`, `base_2`, `base_splice`, `base_floor_pad` | Dělená základna každého modulu, spojená M3 a uchycená k příčným lištám |
-| `tray_1`, `tray_2`, `tray_splice` | Dělené pohyblivé lůžko; spoj přes zapuštěné hlavy pod LED kanálem |
-| `hinge_support`, `hinge_spacer` | Zadní M4 čep a seřiditelné tření; není ověřený bezpečnostní zámek |
-| `lower_rest` | Pevné dosednutí sklopeného lůžka |
-| `servo_strap_cradle` | Podepření skutečné obálky serva, jištění páskem; otevřená strana pro výstup a páku |
-| `crank_horn_adapter`, `servo_link`, `link_spacer_3mm` | Páka, táhlo a odstupy M3 kloubů; otvorovou rozteč původní servopáky nutno přizpůsobit |
-| `wand_saddle` | Dvě sedla na rekvizitu, průchozí otvory pro pružné jištění, LED kanál |
-| `vibration_cage` | U059 pod lůžkem, přístupný konektor a páskové jištění |
-| `frame_rail_*`, `frame_splice_*` | Segmentované příčné podlahové lišty a spojky mimo nohy modulů |
-| `service_floor_*` | Dělené boční podlahy, horní montážní rovina Z=8, odlehčení výztuhy pod nimi |
-| `harness_clip` | Příchytky kabelů k přední liště, nikoli k pohyblivým částem |
-| `*_carrier`, servisní platforma/rack a panely | Podpěry hran, páskové otvory, spojení na vyjímatelnou podlahu; konkrétní účel je v kusovníku |
-| `camera_saddle` | Provizorní šikmý držák, dopřesnit podle doručeného modulu |
-| `fit_coupon`, `head_fit_gauge` | Zkouška otvorů M3/M4 a prostoru ozdobné hlavice před tiskem celé sady |
+| `module_chassis` /6 | Základna, sedlo serva, doraz a zadní čelisti v jednom. Ploché dno, natočení 45°, přibližně 202,3 × 202,3 mm |
+| `module_foot` /12 | Patky s vodicími klíči; ploše dnem na bed, vlepit do spodních kapes základny |
+| `wand_tray` /6 | Lůžko, V sedla, U059 vodítka a opory transportního pásku. Ploché dno, natočení 45° |
+| `crank_horn_adapter` /6 | Adaptér původní servopáky; plochou stranou na bed, integrovaný odstup vzhůru |
+| `servo_link` /6 | Táhlo; 4mm tloušťka ve směru Z, čepy kolmo na bed |
+| Čtyři `*_cassette` /po1 | Boční kazety s integrovanými nosiči; podlahou na bed |
+| `cassette_foot` /8 | Patky kazet; klíče vzhůru |
+| `switch_hood`, `ptt_hood` /po1 | Panely ovladačů; střechou dolů, stěny rostou vzhůru |
+| `controller_bridge`, `speaker_bridge` /po1 | Odnímatelné horní podpěry; střechou dolů, bez dlouhého mostu při tisku |
+| `esp32_carrier`, `speaker_right_carrier` /po1 | Samostatná lůžka na můstcích; plochým dnem dolů |
+| `camera_wedge` /1 | Pevný 45° držák; na boční ploše X podle exportu |
+| `fit_coupon` /1 | Měrka otvorů M3/M4; vytisknout první |
 
-## Spojovací materiál
+Dlouhé díly využívají úhlopříčku předpokládané 220mm podložky. Skutečnou plochu
+nastavit v `parameters.json`. Krátké tunely a otvory do 4,5 mm zkontrolovat ve
+sliceru a případně místně podepřít. Ověřený kontakt velké základny s bedem není
+zárukou kvality konkrétní tiskárny. Jinou orientaci závěsů nejprve vyzkoušet.
 
-Šrouby, matice, podložky, měkké izolační podložení a uvolnitelné pásky nejsou
-v potvrzeném nákupním inventáři doložené. Jsou nutným montážním materiálem
-tohoto návrhu, nikoli tvrzením o uskutečněném nákupu.
+## Montážní materiál
 
-- M3 průchozí šrouby, matice a podložky pro základny, příčné lišty, nosiče a rack.
-  Délku volit podle skutečné sestavy a přístupné strany matice; kabely nesmějí
-  ležet na vyčnívajícím závitu. Není vhodné zašroubovat M3 do 3mm nevyztužené stěny.
-- Nosiče servisní elektroniky používají bočně vložené běžné M3 matice,
-  tloušťka nejvýše 2,4 mm. Šrouby vložit **odspodu před vložením rámu do kufru**.
-  Hlavy jsou zápustné Ø6 mm a musí lícovat se skutečnou spodní plochou, zejména
-  nad dřevěnou výztuhou. Délky ke špičce jsou pro každou polohu uvedené v
-  `assemblies/validation.json` → `frame.service_floor_fasteners`.
-  Jde o geometrické cílové délky, nemusí odpovídat prodávané délkové řadě:
-  vhodný šroub zkrátit/odjehlit při zkoušce nebo upravit spoj. Závit nesmí
-  vyčnívat nad matici do PCB; CAD nepředstírá, že libovolný M3×14 vždy pasuje.
-- Čtyři M3 zápustné šrouby na spoj lůžka, celkem 24 pro šest lůžek; hlava
-  nejvýše Ø6 mm musí být zarovnaná s podlahou před nalepením LED.
-- Dva M3×14 čepy táhla na modul, celkem 12; běžná matice tloušťky nejvýše
-  2,4 mm podle modelované obálky. Distanční díly zachovají boční vůli. Neutáhnout
-  pohyblivé oko napevno. Přístup k zajištění závitu ověřit na prvním modulu.
-- Jeden M4 kloub na modul, celkem 6, s podložkami a pojistnou maticí.
-  Délka závitu podle skutečného průchozího souvrství; model ukazuje 36mm obálku čepu.
-- U059 a servo: uvolnitelné izolační pásky. Hůlka: dvě pružné smyčky na modul.
-  Powerbanka/PCB: tenké uvolnitelné izolační pásky, jištění nesmí tlačit na SMD
-  ani blokovat port či odtrhnout součástku. Šířku ověřit v otvorech nosiče.
-  U nejmenších nosičů použít tenké **2,5mm** pásky; širší 5–10mm pásek se
-  nevejde do všech tunelů. Přesná přípustná šířka patří k metadatům nosiče.
+Pásky, šrouby, výstelka a lepidla jsou nutný doplňkový materiál; nákup není potvrzený.
 
-## Pořadí sestavení
+- 12 šroubů M3×14 a běžných matic pro táhla. Neutáhnout pohyblivá oka napevno;
+  kovové závity zajistit při zachování demontáže. Přidané podložky mění potřebnou délku.
+- 6 šroubů M4×35, 12 kovových podložek tloušťky 1 mm a 6 běžných matic tloušťky
+  3,2 mm. Model ukazuje tyto obálky. Pro samojistnou matici upravit délku šroubu.
+- Původní servopáky a výrobcem dodané šrouby. Adaptér není tištěný spline.
+  Středový otvor 3,5 a pomocné 2,2 mm jsou návrhové: přizpůsobit dodané páce.
+- 20 podlahových dvojic samolepicího suchého zipu: 12 přibližně 42 × 12 mm
+  pod mechanismy, 8 přibližně 42 × 10 mm pod kazety; stlačená výška modelu 2 mm.
+- Lepidlo vhodné pro konkrétní PETG na klíčované patky, panely, ESP nosič a klín
+  kamery. Lepí se tisk k tisku; dřevo drží suchý zip. Vytvrzení dle výrobce.
+- Šest 10mm uvolnitelných transportních pásků, v modelu tloušťka 0,8 mm.
+  Před pohybem serv sejmout. Zůstávají mimo ornamenty a nad LED na opěrných ploškách.
+- Tenké uvolnitelné pásky pro servo, U059, desky a banku; do nejmenších tunelů
+  pouze 2,5mm pásek tloušťky nejvýše 1,5 mm. Široký suchý zip se tam nevejde.
+  Rozměry a trasy jsou v `assemblies/validation.json` → `service.retainers`.
+- 6mm páska kolem řídicího můstku a podlahy kazety v Y145..151; 8mm páska kolem
+  reproduktoru, jeho můstku a celé pravé zadní kazety v Y234..242. Délku podle
+  skutečného obvodu. Modeluje se i jejich trasa, nikoli podrobná přezka.
+- Měkká výstelka V sedel, dvě pružné uvolnitelné smyčky na dřík každé hůlky,
+  samolepicí páskové příchytky pro pevný kabelový svazek. Netlačit na ozdobné výčnělky.
 
-1. Zkontrolovat vnitřní usazení, skutečnou výztuhu a překážky pantů. Nejprve
-   vytisknout měrky, jednu dvojici základny/lůžka a jedno sedlo. Ověřit hůlku,
-   servo, skutečnou páku a kabely. Model neukládá nákup dalších senzorů.
-2. Sestavit segmenty přední/zadní příčné lišty. Přidat boční podlahové díly,
-   spojit je s lištami přes jejich konstrukční otvory. Zkusmo vložit do kufru
-   a zase vyjmout na stůl; další montáž vyžaduje přístup odspodu. Podpěry se
-   vyhýbají 5mm výztuze; bez souhlasu nevrtat ani neřezat dřevo.
-3. Mimo kufr osadit spodní PCB nosiče, předem založit boční matice a odspodu
-   vložit zápustné šrouby správné délky. Teprve potom upevnit desky. Pájené spoje
-   zaizolovat, PCB držet přes měkké podložení za bezpečné hrany. Změřit výstup
-   měniče na 5 V před připojením ESP32. Výkon 100 W na powerbance není výkon
-   ani proudová zatížitelnost celého 5V rozvodu.
-4. Sestavit jednu mechaniku: základna, servo, spodní opěra, zadní čep,
-   spojené lůžko, originální servopáka s adaptérem, táhlo. Ověřit ručně celý
-   rozsah s odpojeným pohonem. Rozměr 35/20 mm je délka servopáky, nikoli
-   potvrzená rozteč jejích malých otvorů. Adaptér přizpůsobit skutečnému kusu.
-5. Osadit U059, LED úsek 200 mm a dvě sedla. LED pás vede mimo táhlo,
-   rekvizitu zajistit pružnými smyčkami. Zajistit vodiče na pevné i pohyblivé
-   straně; u kloubu ponechat smyčku. Ověřit, že konektor U059 jde vyjmout.
-6. Po úspěšné zkoušce opakovat pro zbývajících pět modulů. Připevnit moduly
-   na příčné lišty. Každý lze demontovat samostatně; servis serva vyžaduje
-   odložení vlastní rekvizity a uvolnění vlastního lůžka/táhla.
-7. Osadit horní pravý rack, zesilovače a reproduktory. Pro spodní konektory
-   je rack odnímatelný; nezalévat šrouby a nefixovat přes ně trvalý svazek.
-   Powerbanku vložit na hranu vlevo a zajistit uvolnitelnými pásky.
-8. ESP32 a kameru propojit originálním FPC až podle skutečné varianty,
-   orientace kontaktů a délky. Návrhová smyčka není potvrzení kompatibility
-   neznámého FPC. Kameru nesmí zakrývat stěna, pásek ani hůlka; vyzkoušet
-   náhled při skutečné výšce stolu. Mikrofonní otvor ponechat volný.
-9. Osazený rám vložit do kufru a zkontrolovat, že žádná hlava šroubu netlačí
-   do dřeva ani výztuhy. Před každým zavřením ručně/povelem ověřit sklopenou polohu všech lůžek,
-   uklidit volné kabely a zavírat pomalu. Pro přenášení ověřit fixaci celého
-   rámu měkkým vymezením a jištěním; samotná gravitační opora není důkaz,
-   že sestava drží při převrácení kufru. Elektronika ani powerbanka nesmí volně vypadnout.
+## Sestavení
 
-## Vedení kabelů a konektory
+1. Vytisknout měrku a jeden mechanismus. Ověřit skutečnou servopáku, obálku hůlky,
+   hmotnost a tiskovou plochu. Fotografie dokládá délku 190–200 mm; průměry 16/40
+   jsou pouze rezervy. Celou sadu tisknout až po zkoušce jedné přihrádky.
+2. Patky nasucho zasunout do kapes, vyčistit tiskové zbytky a přilepit k podkladům.
+   Po vytvrzení aplikovat suchý zip zespodu. Patky nesmějí stát na středové lati.
+3. Servo vložit do sedla a zajistit dvěma tenkými pásky. Nasadit původní páku,
+   adaptér a táhlo. CAD úhly −45..45 nejsou hotová PWM kalibrace skutečného serva.
+4. Lůžko připojit M4 čepem se dvěma podložkami; M3 spoji připojit táhlo. Ručně
+   projet celý rozsah. Dolní poloha dosedá na pevný doraz, servo do něj nesmí
+   trvale tlačit. Boční přístup ke šroubům získáme vyjmutím jediného modulu.
+5. U059 položit mezi vodítka na lůžku a zajistit tunely. Vlevo nalepit LED pásek,
+   šest LED na přihrádku. V sedla měkce vypodložit podle dříku a osadit smyčky.
+   Hůlka zůstává v lůžku; nevytvářet svěrný spoj přes kovový ornament.
+6. Do kazet osadit desky a upevnit každou pásky. Zkontrolovat spodní vývody,
+   izolaci a tlak na SMD. Panely vlepit do podlah, ověřit pojistné prvky tlačítek.
+   Čtyři provizorní svorky jsou přístupné po vyjmutí powerbanky.
+7. ESP nosič a kamerový klín vlepit na řídicí můstek, desky zůstávají vyjímatelné
+   po uvolnění pásků. Můstek jistí 6mm obvodový pásek. Reproduktorový nosič sedí
+   přímo na jeho můstku bez mezivrstvy; společný 8mm pásek drží celý komplet
+   k zadní kazetě. Uvolněním můstků se zpřístupní spodní elektronika.
+8. Rozmístit podle [souřadnic](../assemblies/placements.csv), ověřit vodorovnost
+   a přilnavost suchého zipu na mořeném dřevě. Nevtlačovat díly násilím. Vyzkoušet
+   samostatné vytažení banky a dostupnost každého serva.
+9. Dokončit kabely, jistit konce pohyblivých smyček a vyzkoušet pomalý pohyb
+   nejprve bez rekvizity, potom s ní. Kalibrovat každé servo individuálně.
 
-V sestavě jsou vyznačené rezervy konektorů a servisní přístupy, nikoli
-detailní digitální kopie celého pružného svazku. Příčnou trasu lze vést
-před mechanikou mezi předním lemem a opěrami, případně za zadními čepy;
-nesmí procházet smykem kliky a táhla. Použít příchytky rámu a jištění obou
-stran pohyblivé smyčky. Nevést žádný kabel do prázdného víka.
+## Kabely a elektrické návaznosti
+
+Příčné koridory jsou před a za mechanismy. Svazek vést po pevných částech,
+ke každému lůžku ponechat měkkou smyčku s oběma konci odlehčenými. Žádný vodič
+nejde do víka. Model zachycuje rezervy, nikoli celý ohebný svazek.
 
 PCA9685 má jednu aktivní desku, druhá zůstává rezervní. Serva 0–5 a U059
 6–11 používají společný PCA; U059 se z PCA pouze řídí, nenapájí. I²C je
@@ -137,21 +115,33 @@ odpojuje napájení pohonů, GPIO2 řídí OE. Použít nejvýše jeden vibračn
 a při pohybu serva motor vypnout. Pro první zkoušky LED přibližně 25 % jasu.
 Tento návrh nepřidává polohová čidla ani nevydává časovaný pohyb za změřenou polohu.
 
-## Přejímka prototypu
+## Přenášení bez hůlek a powerbanky
 
-| Zkouška | Kritérium a záznam |
+Vypnout napájení, vyjmout všech šest hůlek i powerbanku a sklopit lůžka na dorazy.
+Každé prázdné lůžko a jeho základnu obejmout 10mm páskem na dvou ploškách u předního
+konce. Pásek běží nad LED a brání poskočení lůžka bez přenosu rázu na servo.
+Horní můstky, elektronika, reproduktory a kabely musí mít své retenční pásky.
+Volný USB konec upevnit k pevné kazetě, zavřít víko. CAD této polohy je
+`transport-open.step` / `transport-closed.step` a `renders/viewer-transport.html`.
+
+Nosná cesta: součást → pásek/nosič → kazeta či základna → vlepená klíčovaná
+patka → suchý zip → dno. Nic nesmí držet jen vlastní vahou. Transportní pásky
+před zapnutím všech serv odstranit; konstrukce nemá snímač jejich přítomnosti.
+
+## Fyzická přejímka
+
+| Zkouška | Kritérium |
 | --- | --- |
-| Usazení | Rám se nekývá o výztuhu, stěny se neprohýbají, žádný tlak na kování; zaznamenat skutečné vůle |
-| Ruční pohyb | Celý rozsah bez drhnutí, táhla a kabely nekolidují, šrouby dosažitelné |
-| Zatížení a ztráta napájení | Zvážit každou pohyblivou sestavu; ověřit držení v dolní, střední i horní poloze bez proudu, včetně tečení PETG |
-| Servo | Individuální pulzy a zdvih, bez opírání do tvrdého dorazu nebo zbytečného trvalého momentu; měřit proud a teplotu |
-| Powerbanka | Odpojit a vyjmout vzhůru bez demontáže okolních dílů; žádný kabel ani pásek nesmí zůstat zachycený |
-| Servis | Vyměnit jedno servo, ESP a spodní PCB; pro rack ověřit pořadí šroubů/konektorů |
-| Víko | Ručně pomalu zavřít se sklopenými hůlkami a kompletní kabeláží; nic nepřiskřípnout |
-| Transport | Odpojené napájení, zajištěné rekvizity i celý rám; opatrný náklon všech směrů, teprve po ověření manipulace |
-| Kamera a zvuk | Skutečný záběr a poloha návštěvníka; poslech obou reproduktorů, akustický port a ozvěna mikrofonu |
-| Vytrvalost | Až po předchozích kontrolách 100 cyklů na přihrádku podle E6, sledovat povolené šrouby, otěr a teploty |
+| Zip a lepení | Zkušební patka na skutečném povrchu po vytvrzení; tah kolmo i ve smyku. Nesmí se odtrhnout lak ani spoj PETG |
+| Uchycení | Zvážit osazený modul bez hůlky/banky. Na stolním přípravku zatížit spoj trojnásobkem vlastní tíhy ve směru odtržení i smyku; je to návrhová zkouška, ne přepravní certifikace |
+| Přenášení | Nad měkkou podložkou pozvolna naklonit vypnutý zavřený kufr na všechny boky a prohlédnout. Poté pět běžných přenesení za madlo: žádný posun, povolený pásek nebo odlepení. Nejde o pádový test |
+| Pohyb | Celý rozsah bez drhnutí, i s finálním svazkem; tlak pouze na dřík, ne na ornament |
+| Servo | Individuální kalibrace, měření proudu/teploty, bez trvalého tlaku do dorazu |
+| Výpadek napájení | S hůlkou zkusit dolní, střední a horní polohu; nechtěný pokles znamená nutnou změnu tření nebo jištění |
+| Zavření | Pomalu zavřít se sklopenými lůžky a kabeláží. Banka končí v Z111, návrhová rezerva pod hranicí spodní části je 3,3 mm |
+| Servis | Vyjmout banku bez rozborky, vyměnit jedno servo a desky; ověřit skutečné konektory a délky |
+| Kamera, zvuk, vytrvalost | Reálný záběr u stolu, poslech a ozvěna; potom 100 cyklů každé přihrádky dle E6 |
 
-Pokud zatížené lůžko při výpadku napájení klesá nebo vyžaduje tření přesahující
-možnosti serva, není mechanismus akceptovaný. Změnit mechanické zajištění;
-nepovažovat samotnou převodovku serva ani dotaženou PETG matici za důkaz bezpečnosti.
+Fyzická přejímka dosud neproběhla. Únosnost zipu/lepidla, hmotnost hůlek, moment
+serv, přesný FPC a konektory nejsou potvrditelné z fotografie ani z CAD. Při
+selhání spoje upravit uchycení a zkoušku zopakovat; zelená geometrie není zkouška nosnosti.

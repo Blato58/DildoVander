@@ -5,7 +5,10 @@ kufr, prázdné otočné víko, elektronika, šest přihrádek, boční servisn�
 konstrukce, STEP sestavy, skutečné STL a náhledy. Používá potvrzený vnitřek
 431,8 × 266,7 × 114,3 mm a majitelem zvolenou návrhovou tloušťku stěn 3 mm.
 Regenerace: `./cad/Regenerate.ps1` z tohoto adresáře; lze předat `-Python`.
-Podmínky výroby a fyzického ověření uvádí nový návod, CAD zůstává prototypový.
+Aktuální jednoduchá verze má 18 typů STL / 56 výtisků včetně měrky, jednodílné
+mechanismy a čtyři boční kazety na suchý zip. Transportní sestava počítá s vyjmutými
+hůlkami a powerbankou, prázdná lůžka jistí pásky. Podmínky výroby a fyzického
+ověření uvádí nový návod, CAD zůstává prototypový.
 
 Původní `model.py` a `parametry.json` zůstaly zachované jako opakovaně použitý
 zdroj kloubové mechaniky a historický generátor. Nová sestava je importuje a

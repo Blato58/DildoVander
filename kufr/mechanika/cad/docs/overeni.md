@@ -1,100 +1,87 @@
-# Předání CAD – 9. 10. 2026
+# Předání jednoduché CAD verze – 9. 10. 2026
 
-Výsledek je **vygenerovaný a geometricky ověřený prototyp**, nikoli fyzicky
-akceptovaný výrobek. Referenční vnitřek je 431,8 × 266,7 × 114,3 mm;
-3mm stěny jsou volba majitele. Všechny komponenty jsou ve spodní části.
+Skutečně vygenerovaný prototyp. Fyzická montáž, únosnost a transport dosud
+nejsou potvrzené. Revize vychází z nově přiložených fotografií a požadavku
+na jednoduchý tisk, suchý zip a přenášení bez hůlek a banky.
 
-## Skutečné výstupy
+## Soubory a změna rozsahu
 
-| Výstup | Umístění a rozsah |
+| Výstup | Skutečný rozsah |
 | --- | --- |
-| Parametry a zdroje | `parameters.json`, `reference/`, `components/`, `printable/`, `scripts/` |
-| Reference kufru | 5 STEP v `reference/`: tělo, víko, montážní prostor, otevřený a zavřený kufr |
-| Sestavy | 7 STEP v `assemblies/`: otevřená, zavřená, prezentace, servis, jedna přihrádka, rozložená a prostorové rezervy |
-| Hardware | 44 STEP v `components/`, včetně souhrnné sestavy osazeného hardwaru; katalogové obálky jsou označené podle důvěryhodnosti |
-| Tisknutelné díly | 56 různých STL a 56 odpovídajících STEP v `exports/stl/` a `exports/step/` |
-| Kusovník | 162 tisknutých kusů včetně dvou měrek; `exports/print-bom.csv` |
-| Pozice | 555 interních instancí: 528 materiálových modelů a 27 prostorových rezerv; `assemblies/inventory.json` a `placements.csv` |
-| Náhledy | 8 PNG a samostatný offline `renders/viewer.html` |
-| Balík | `exports/kufr-complete-provisional.zip`, kontrolní součet `.zip.sha256` |
+| Parametrické zdroje | `parameters.json`, `reference/case.py`, `components/hardware.py`, `printable/*.py`, `scripts/*.py` |
+| Tisk | 18 STL a 18 odpovídajících STEP; 56 výtisků včetně měrky |
+| Referenční kufr | 5 STEP: tělo, víko, montážní prostor, prázdný otevřený/zavřený |
+| Sestavy | 9 STEP v `assemblies/`, včetně otevřeného/zavřeného transportu bez hůlek a banky |
+| Hardware | 40 STEP v `components/`, včetně souhrnného instalovaného hardwaru |
+| Instance | 261 interních instancí, z toho 243 materiálových a 18 rezerv |
+| Obrazové výstupy | 9 PNG, `renders/viewer.html`, `renders/viewer-transport.html` |
+| Kusovník a pozice | `exports/print-bom.csv`, `assemblies/placements.csv`, `assemblies/inventory.json` |
+| Předání | `exports/kufr-complete-provisional.zip` a `.zip.sha256` |
 
-Kompletní STEP zachovávají pojmenované samostatné díly. Prostorové rezervy
-jsou zvlášť, aby v běžném CAD pohledu nezakrývaly komponenty. Zdrojové modely
-jsou Python/CadQuery; import STEP do FreeCADu nevytváří nativní parametrický
-strom. Původní `model.py` je zachovaná závislost přizpůsobené mechaniky a je
-součástí ZIP. Starý adresář `output/` se nepřepisuje.
+Předchozí verze měla 56 typů STL a 162 výtisků. Odstraněné jsou dělené lišty,
+spojky, samostatné držáky serv/dorazy/sedla, závěsné klece U059 a 54 servisních
+šroubových rozhraní. Nahradily je jednodílné mechanismy a čtyři boční kazety.
+Původní historické modely se nemění, staré výstupy této CAD větve nahrazuje
+vlastní generátor. Editovatelným zdrojem je Python/JSON; STEP je BREP bez
+nativního FreeCAD stromu. Veškeré modelování provedl hlavní agent.
 
-## Provedené kontroly
+## Ověření
 
-- Referenční tělo, víko a kování: platné BREP, spojené listy pantů,
-  **106 poloh víka** bez nepovoleného průniku. Fáze A proběhla před osazením.
-- Celá sklopená sestava: všechny dvojice posouzené obálkovým filtrem,
-  681 přesných průnikových kontrol; **0 nepovolených průniků**.
-- Osazení vůči dřevu i kování, rozsah pohybu proti rámu, elektronice a
-  otevřenému víku, dráha zavírání se sklopenými hůlkami: **0 kolizí**.
-- Uzavření kinematického řetězce ve 101 polohách; kontrola materiálů a
-  integrace ve 21 polohách. Sousední moduly mají oddělené intervaly X s
-  3mm mezerou i při rozdílných úhlech. Zdvih přední hrany 30,747 mm,
-  náklon 7,7503°, sklopená mechanika končí v Z=111 mm (rezerva 3,3 mm).
-  Nejvyšší pevný prvek celé zástavby je držák kamery v Z=112 mm; celková
-  rezerva pod hranicí spodní části je tedy **2,3 mm**.
-- Konektorové rezervy, dvě příčné kabelové trasy a nominální středová osa
-  kamery bez průniku. Zorné pole neznámého objektivu se tím nepotvrzuje.
-- Vytažení powerbanky vzhůru, 54 M3 rozhraní, průchody šroubů, boční vložení
-  matic a 36 cest pro pásky prošly. Kamera má ověřené polohy 35/40/45/50°.
-- **56/56 STL**: nenulová uzavřená manifold síť, souhlasná orientace,
-  kladný objem, odpovídající obálka a Z=0. Největší zjištěná odchylka
-  objemu od CAD přibližně **0,0596 %**, obálky **0,0134 mm**.
-- Všechny díly se vejdou do nastavených 220 × 220 × 250 mm. Největší
-  rozměry napříč exporty jsou X=210, Y=210,2, Z=75 mm; nejde o jeden díl.
-- Zpětný import 56 STEP dílů a hlavní otevřené sestavy prošel. Následuje
-  nové čtení skutečných STL proti importovanému STEP, kontrola přesných názvů,
-  SHA-256 jednotlivých sítí i zdrojů a ZIP CRC. Strojové výsledky jsou v
-  `assemblies/validation.json`, `exports/stl-validation.json` a
-  `exports/delivery-validation.json`.
-- Vizuálně prohlédnuty skutečné rendery, v prohlížeči vyzkoušené filtry,
-  výběr samostatného racku, otáčení a zoom. Konzole při této kontrole bez chyb.
+- Fáze A před osazením: platné referenční objemy a spojené listy pantů,
+  **106 vzorkovaných poloh víka** bez průniku.
+- Celá sklopená sestava: 396 přesných průnikových kontrol
+  po obálkovém filtru všech dvojic; **0 nepovolených kolizí**.
+- **101** kinematických poloh, **21** materiálových poloh. Mechanika, elektronika,
+  dřevo, otevřené víko a kabelové koridory bez zjištěné kolize. Oddělení sousedních
+  mechanismů v X je 2 mm i při rozdílném náklonu. Náklon 7,80745°, zdvih přední
+  hrany přibližně 30.973 mm. Sklopená mechanika končí v Z103, rezerva 11,3 mm.
+- Nejvyšší celek je banka v Z111; návrhová rezerva pod okrajem spodní části
+  je 3,3 mm. Zavření je ověřeno pouze pro sklopená lůžka.
+- Transportní model: šest prázdných zajištěných lůžek, banka a hůlky odebrané;
+  388 přesných kontrol, **0 kolizí**, vyhovující
+  hranice kufru a všech 106 poloh zavírání. Dva horní můstky mají také modelované pásky.
+- Svislé vytažení powerbanky, lokální konektorové rezervy, dva kabelové koridory
+  a nominální středová osa kamery bez průniku. Zorné pole neznámého objektivu
+  ani celá ohebná kabeláž tím nejsou ověřené.
+- **18/18 skutečných STL**: nenulové uzavřené manifold sítě, konzistentní orientace,
+  kladný objem, odpovídající obálka, Z0 na podložce. Maximální rozdíl objemu proti
+  CAD přibližně 0.0349 %, obálky
+  0.0044 mm.
+- Všechny díly se vejdou do nastavených 220 × 220 × 250 mm. Dlouhé základny
+  se tisknou diagonálně, obálka 202,233 × 202,233 mm. Reálná podlahová plocha
+  základny i lůžka na bedu přesahuje 8 000 mm²; nejde o model visící na jednom oku.
+- **9 mechanických a 5 integračních regresí** prošlo. Servisní kontrola ověřila
+  všech 11 skutečně exportovaných STL v dočasném adresáři a 19 sad retenčních
+  metadat/cest. Kontrolovány i klíče patek, jejich dosednutí a výztuha.
+- Nezávislé read-only review odhalilo ignorovaný parametr délky hůlky a možné
+  plovoucí patky při změně výšky. Obojí opraveno, dvě cílené regrese prošly také
+  u reviewera. Délka mimo 170..216 mm nyní vyžaduje změnu návrhu a export je odmítnut.
+- Generátor a následný `verify_delivery.py` načítají zpět všech 18 STEP dílů,
+  hlavní sestavu i skutečné STL. Kontrolují přesné názvy, rozměry, SHA sítí a
+  zdrojů i ZIP CRC. [Strojový záznam](../exports/delivery-validation.json) je
+  rozhodující pro aktuální balík; změna zdrojů vyžaduje novou generaci.
+- Vizuálně prohlédnuty skutečné rendery osazení, servisní vrstvy a transportu.
+  Nejde o AI vytvořenou představu výsledku, ale zobrazení modelovaných objemů.
+  HTML transportní náhled se načetl, výběr samostatného lůžka i návrat na sestavu
+  fungovaly; při této kontrole nebyla zaznamenaná chyba konzole.
 
-Průnikové testy používají objemový práh 0,1 mm³ a obálkovou toleranci;
-vzorkování pohybu není důkazem bezkoliznosti v každém mezilehlém úhlu.
+Průnikový práh je 0,1 mm³, u lokální mechaniky 0,01 mm³. Vzorkování pohybu
+není spojitý matematický důkaz. Modely hůlek jsou konzervativní kolizní obálky,
+nikoli plastická kopie jejich ozdob.
 
-## Reprodukce a regresní testy
+## Zbývající omezení
 
-Použité prostředí: Python 3.11.3, CadQuery 2.7.0, existující závislosti
-`mechanika/requirements.txt`. Skutečně spuštěný příkaz z kořene repozitáře:
+Neověřené zůstávají hmotnost/průměry šesti hůlek, dodaná servopáka, konkrétní
+kamera/FPC, některé konektory a výšky PCB, přesné svorky a jejich rozdělení,
+tiskárna, zatížení, únosnost spojů, akustika a teploty. Stěny3 mm jsou volba
+majitele; půdorys latě90 mm je návrhová rezerva podle její orientace na fotografii.
+[Fotografická evidence](fotografie-a-omezeni.md) výslovně rozlišuje tyto údaje.
 
-```powershell
-./kufr/mechanika/cad/Regenerate.ps1 -Python C:/Development/DildoVander/kufr/mechanika/.venv/Scripts/python.exe
-```
+Suchý zip a lepené patky mají popsanou nosnou cestu, ale skutečná přilnavost
+k mořenému dřevu není z CAD prokazatelná. [Montážní návod](montaz.md) obsahuje
+zkoušku uchycení a přenášení se zajištěnými prázdnými lůžky. Zkouška na skutečném
+kufru dosud neproběhla, sada proto není označená za výrobně uvolněnou.
 
-Regenerace dokončila skutečné exporty, náhledy, ZIP i ověření předání.
-S vlastním prostředím lze použít standardní příkaz z [README](../README.md).
-
-| Kontrola | Výsledek |
-| --- | --- |
-| `scripts/test_mechanics.py -v` | 5 testů PASS |
-| `scripts/test_service.py` | 15 skutečných STL a všechny servisní geometrické kontroly PASS |
-| `scripts/test_integration_contracts.py -v` | 5 testů PASS, včetně zneplatnění nedokončeného balíku při přerušení |
-| Nezávislé review | Nálezy opravené: spojitost pantů, matice/šrouby, průchody pásků, poloha optické osy, integrita exportů |
-
-První export racku odhalil deset hran se čtyřmi sousedními trojúhelníky.
-Příčné nosníky se dotýkaly vyvýšených podpor jen hranou. Oprava přidává
-0,2mm objemový přesah; testuje se skutečné STL bez změkčení validátoru.
-
-## Hranice platnosti a další fyzický krok
-
-Fotografie uvedené v zadání nebyly dostupné. Exteriér, kování, hloubka víka,
-tloušťka dna a půdorys výztuhy jsou parametrické předpoklady. Hůlky 200 mm,
-hlavice Ø40 a dřík Ø16 jsou pracovní obálky. Ověřit skutečnou servopáku,
-výstupní osu, konkrétní kameru/FPC, neznámé konektory a tiskovou plochu.
-
-Čtyři umístěné Degson bloky představují provizorní rozvod. Zbývajících šest
-nakoupených není označeno za nepotřebné; nejprve rozpočítat póly a větve.
-Pružný svazek, veškeré šrouby, akustika, teploty, únosnost a zajištění celého
-rámu při přenášení nejsou plně ověřené. Některé M3 šrouby vyžadují zkrácení
-a odjehlení, aby hlavy lícovaly a závit nevystoupil do PCB.
-
-Další krok: měrky a jedna přihrádka, ruční zkouška, zkouška zatížení a
-výpadku napájení, poté zapojení a kalibrace podle [montážního návodu](montaz.md).
-Celá sada zůstává **PROVISIONAL**. Fyzická kritéria E5/E6/E13 nejsou uzavřena.
-Firmware, backend, skutečný hardware a vzdálený repozitář se touto prací nemění.
+Neproběhly změny firmware/backendu, elektrického zapojení, upload do hardware,
+push, PR, merge ani nasazení. Další fyzický krok: měrka, jeden modul a zkouška
+uchycení; poté dopasování neznámých rozměrů a tisk celé sady.

@@ -40,6 +40,8 @@ def build(p, angle=0):
     wood("lid_right", box(right, d, lh, (w, 0, z)), "lid")
     wood("lid_front", box(outside_w, front, lh, (-left, -front, z)), "lid")
     wood("lid_back", box(outside_w, back, lh, (-left, d, z)), "lid")
+    wood("lid_cross_batten", box(w, c["brace_depth"], c["brace_height"],
+                                 (0, d / 2 - c["brace_depth"] / 2, z + lh - c["brace_height"])), "lid")
     axis = hinge_axis(p)
     for index, fraction in enumerate(c["hinge_x_fractions"], 1):
         x = fraction * w
@@ -90,7 +92,7 @@ def validate_and_export(p, root):
                   connected_hinge_leaves=all(len(i.shape.Solids()) == 1 for i in body + closed_lid if "leaf" in i.name),
                   limitations=["Interior and brace height confirmed; walls chosen 3 mm by owner.",
                                "Floor, lid depth, hinge and brace footprint, handle and latches provisional.",
-                               "No photographs accessible in current task; exterior not photo-reconstructed.",
+                               "Photographs establish battens, hinges, locks and handle; their detailed dimensions remain assumptions.",
                                "Hinge hardware fastening and strength require inspection; swept test is sampled."])
     write_json(root / "reference" / "validation.json", report)
     if collisions:

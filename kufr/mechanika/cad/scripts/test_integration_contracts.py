@@ -10,7 +10,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common import bounds, load_parameters, overlap
 from reference.case import build, hinge_axis
-from printable import frame, mechanics
+from printable import frame, mechanics, service
 from scripts import generate, verify_delivery
 
 
@@ -33,14 +33,17 @@ class IntegrationContracts(unittest.TestCase):
             self.assertFalse(digest.exists())
             self.assertEqual(json.loads(receipt.read_text())["status"], "FAIL")
 
-    def test_service_heads_are_flush_over_both_rail_and_wood_brace(self):
+    def test_keyed_cassette_feet_clear_conservative_wood_batten(self):
         p = load_parameters()
-        parts, items, metadata = frame.build(p, [[7.4, 7.4, 8], [41, 120.6, 8]])
-        self.assertEqual({f["head_bottom_z_mm"] for f in metadata["service_floor_fasteners"]}, {0, 5})
+        _, service_items, metadata = service.build(p)
+        parts, items, _ = frame.build(p, metadata["feet"])
         body, _, _ = build(p)
-        for bolt in [i for i in items if i.kind == "metal"]:
-            for obstacle in [i for i in items if i.part] + body:
-                self.assertLess(overlap(bolt.shape, obstacle.shape), .01, (bolt.name, obstacle.name))
+        for foot in [i for i in items if i.part]:
+            for obstacle in body + service_items:
+                if obstacle.kind == "space":
+                    continue
+                self.assertLess(overlap(foot.shape, obstacle.shape), .01, (foot.name, obstacle.name))
+        self.assertEqual(len(items), 16)
         self.assertTrue(all(s.isValid() and len(s.Solids()) == 1 for s in parts.values()))
 
     def test_fixed_hinge_has_connected_material_reaching_pin(self):

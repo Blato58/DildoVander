@@ -14,7 +14,7 @@ import sys
 
 import cadquery as cq
 
-from common import Item, bounds
+from common import Item, bounds, box, cylinder
 
 MECHANIKA_ROOT = Path(__file__).resolve().parents[2]
 if str(MECHANIKA_ROOT) not in sys.path:
@@ -29,7 +29,8 @@ def mechanics_parameters(p):
     result.update(
         compartment_count=m["count"], compartment_pitch_mm=m["pitch"],
         tray_length_mm=m["tray_length"], tray_floor_low_mm=m["tray_floor"],
-        hinge_axis_z_mm=m["tray_floor"], wand_max_length_mm=m["wand_length"],
+        hinge_axis_z_mm=m["tray_floor"] + 7, link_tray_z_offset_mm=-2.5,
+        wand_max_length_mm=m["wand_length"],
         wand_shaft_diameter_mm=m["wand_shaft_diameter"],
         wand_head_diameter_mm=m["wand_head_diameter"],
         servo_body_xyz_mm=[27, 22, 11.5], vibration_body_xyz_mm=[32, 24, 8],
@@ -37,9 +38,12 @@ def mechanics_parameters(p):
         case_dimensions_confirmed_internal=True,
         printer_bed_mm=p["manufacturing"]["printer_bed_mm"],
     )
-    legacy.validate_config(result)
+    if m["tray_length"] != 240 or m["count"] != 6:
+        raise ValueError("This six-module layout currently requires 240 mm trays")
+    if not 170 <= m["wand_length"] <= m["tray_length"] - 24:
+        raise ValueError("Wand must be 170..216 mm for this saddle spacing and tray; redesign before export")
     if m["base_z"] < 8:
-        raise ValueError("The module feet extend 8 mm below its base plane")
+        raise ValueError("Base must clear the 5 mm batten and provide room for keyed feet")
     return result
 
 
@@ -55,24 +59,125 @@ def _slug(name):
 
 def _local_build(p):
     parameters = mechanics_parameters(p)
-    parts, printed, purchased, metadata = legacy.build(parameters)
-    # Horizontal through-slots route elastic under the supported shaft. The
-    # elastic itself is intentionally excluded from rigid collision checks.
-    slot = legacy.block(parameters["tray_width_mm"], 3, 2,
-                        (0, 0, parameters["tray_floor_low_mm"] + 10))
-    led_channel = legacy.block(parameters["led_strip_width_mm"] + 1, 18, 6.5,
-                               (5, 0, parameters["tray_floor_low_mm"] + 3.9))
-    for item in printed:
-        if item["name"] == "wand_saddle":
-            center = item["shape"].BoundingBox().center.y
-            item["shape"] = item["shape"].cut(slot.translate((0, center, 0)))
-            item["shape"] = item["shape"].cut(led_channel.translate((0, center, 0))).clean()
-    parts["wand_saddle"] = next(i["shape"] for i in printed if i["name"] == "wand_saddle")
+    parts, printed, purchased = {}, [], []
+    def add(name, shape, motion="fixed", bought=False):
+        shape = shape.clean()
+        (purchased if bought else printed).append(dict(name=name, shape=shape, motion=motion))
+        if not bought:
+            parts[name] = shape
+
+    b = legacy.block
     floor = parameters["tray_floor_low_mm"]
+    hy, hz = parameters["hinge_y_mm"], parameters["hinge_axis_z_mm"]
+    home = legacy.linkage_state(parameters, parameters["angle_low_deg"])
+    sy, sz, radius = parameters["servo_axis_y_mm"], parameters["servo_axis_height_mm"], parameters["crank_radius_mm"]
+
+    # All structural features grow from a flat 4 mm base. Separate feet avoid a
+    # 220 mm unsupported bridge underneath that base during FDM printing.
+    chassis = b(46, 240, 4)
+    chassis = chassis.fuse(b(40, 8, floor - 4, (0, -108, 4)))
+    for x in (-11, 11):
+        chassis = chassis.fuse(b(6, 16, hz - 4, (x, hy, 4)),
+                               cylinder(8, 6, (x - 3, hy, hz), (1, 0, 0)))
+    chassis = chassis.cut(cylinder(2.25, 40, (-20, hy, hz), (1, 0, 0)))
+    # Servo support is solid down to the base; two 3 mm tie tunnels retain its
+    # body without pretending that the unknown mounting ears are measured.
+    sx, dy, dz = parameters["servo_body_xyz_mm"]
+    centre = (7 - sx / 2, sy + dy / 2 - 8, sz - dz / 2)
+    cradle_bottom = centre[2] - 3
+    chassis = chassis.fuse(b(sx + 6, dy + 8, centre[2] - 4, (centre[0], centre[1], 4)))
+    for y in (centre[1] - dy / 2 - 2.5, centre[1] + dy / 2 + 2.5):
+        chassis = chassis.fuse(b(sx + 6, 3, dz + 2, (centre[0], y, centre[2])))
+    chassis = chassis.fuse(b(3, dy + 8, dz + 2, (7 - sx - 1.5, centre[1], centre[2])))
+    # Output face and nut sweep stay open at X >= 7.
+    chassis = chassis.cut(box(40, dy + 8, 70, (7, centre[1] - (dy + 8) / 2, 4)))
+    for y in (centre[1] - 7, centre[1] + 7):
+        chassis = chassis.cut(b(sx + 8, 3, 1.8, (centre[0], y, cradle_bottom + .5)))
+    for y in (-110, 110):
+        # Two keys locate each separately printed foot. Glue the keys once;
+        # the hook-loop case interface remains releasable.
+        foot_height = p["mechanism"]["base_z"] - 2
+        foot = b(46, 16, foot_height, (0, y, -foot_height))
+        for x in (-16, 16):
+            foot = foot.fuse(b(4, 4, 1, (x, y, 0)))
+            chassis = chassis.cut(b(4.6, 4.6, 1.6, (x, y, -.1)))
+        add("module_foot", foot)
+        add("foot case hook_loop", b(42, 12, 2, (0, y, -p["mechanism"]["base_z"])), bought=True)
+    add("module_chassis", chassis)
+    add("servo envelope (unmeasured)", b(sx, dy, dz, centre), bought=True)
+
+    tray = b(46, 240, 4, (0, 0, floor))
+    # Rear neck fits between the fixed cheeks. Barrel is above the flat floor.
+    for x in (-16, 16):
+        tray = tray.cut(b(17, 32, 24, (x, hy + 4, floor - 1)))
+    tray = tray.fuse(cylinder(6, 15.6, (-7.8, hy, hz), (1, 0, 0)))
+    tray = tray.cut(cylinder(2.25, 18, (-9, hy, hz), (1, 0, 0)))
+    ty, tz = home["attachment_y_mm"], home["attachment_z_mm"]
+    tray = tray.cut(box(15, 24, 22, (16.7, ty - 12, floor - 1)))
+    tray = tray.fuse(cylinder(4.5, 6.7, (10, ty, tz), (1, 0, 0)))
+    tray = tray.cut(cylinder(1.65, 10, (7, ty, tz), (1, 0, 0)))
+    tray = tray.cut(cylinder(3.5, 2.6, (7.4, ty, tz), (1, 0, 0)))
+    # Open 90-degree V saddles accept tapered shafts with a soft removable liner.
+    # The V position uses the conservative 16 mm shaft, not a photo measurement.
+    vertex = floor + 29 - parameters["wand_shaft_diameter_mm"] / math.sqrt(2)
+    wedge = cq.Workplane("XZ").polyline([(-30, vertex + 30), (0, vertex), (30, vertex + 30)]).close().extrude(18).val()
+    for y in (-25, 75):
+        saddle = b(22, 16, 24, (0, y, floor + 4)).cut(wedge.translate((0, y + 9, 0)))
+        saddle = saddle.cut(b(24, 4, 2, (0, y, floor + 10)))
+        tray = tray.fuse(saddle)
+    # U059 sits on the deck under the shaft; no hanging cage or cage screws.
+    for x in (-11.1, 17.1):
+        tray = tray.fuse(b(3, 34, 4, (x, 25, floor + 4)))
+    for y in (16, 34):
+        tray = tray.cut(b(32, 3, 1.8, (3, y, floor + 1)))
+    # Empty-tray transport wrap rides above the LED strip on two small pads.
+    # Raised ends locate its 10 mm width; release/remove before powering servos.
+    for x in (-9.5, 20):
+        tray = tray.fuse(b(3, 12, 5, (x, -92, floor + 4)))
+        for y in (-97.5, -86.5):
+            tray = tray.fuse(b(3, 1, 1, (x, y, floor + 9)))
+    add("wand_tray", tray, "tray")
+    add("U059 envelope (unmeasured)", b(24, 32, 8, (3, 25, floor + 4)), "tray", True)
+    add("LED strip envelope (unmeasured)", b(10, 200, 3.2, (-18, 0, floor + 4.1)), "tray", True)
     for index in range(6):
         y = -100 + (index + 0.5) * 200 / 6
-        purchased.append(dict(name="WS2812B LED chip envelope", motion="tray", color="#ffffff",
-                              shape=legacy.block(5, 5, 1.6, (5, y, floor + 7.3))))
+        add("WS2812B LED chip envelope", b(5, 5, 1.6, (-18, y, floor + 7.3)), "tray", True)
+    # Conservative envelopes retained for clearance tests, including ornaments.
+    wand_length = parameters["wand_max_length_mm"]
+    add("wand shaft envelope", cylinder(parameters["wand_shaft_diameter_mm"] / 2, wand_length - 50,
+        (0, -wand_length / 2 + 50, floor + 29), (0, 1, 0)), "tray", True)
+    add("wand decorative head envelope (unmeasured)", cylinder(parameters["wand_head_diameter_mm"] / 2, 50,
+        (0, -wand_length / 2, floor + 29), (0, 1, 0)), "tray", True)
+
+    crank = cylinder(7, 4, (10, sy, sz), (1, 0, 0)).fuse(b(4, radius, 10, (12, sy + radius / 2, sz - 5)),
+        cylinder(5.5, 4, (10, sy + radius, sz), (1, 0, 0)), cylinder(4.5, 2.7, (14, sy + radius, sz), (1, 0, 0)))
+    for y, diameter in ((sy, 3.5), (sy + 6, 2.2), (sy + 12, 2.2), (sy + radius, 3.3)):
+        crank = crank.cut(cylinder(diameter / 2, 10, (9, y, sz), (1, 0, 0)))
+    add("crank_horn_adapter", crank.rotate((0, sy, sz), (1, sy, sz), parameters["angle_low_deg"]), "crank")
+    cy, cz, length = home["crank_y_mm"], home["crank_z_mm"], home["link_length_mm"]
+    link = cylinder(5.5, 4, (17, 0, 0), (1, 0, 0)).fuse(cylinder(5.5, 4, (17, length, 0), (1, 0, 0)),
+        b(4, length, 11, (19, length / 2, -5.5)))
+    for y in (0, length):
+        link = link.cut(cylinder(1.65, 6, (16, y, 0), (1, 0, 0)))
+    add("servo_link", link.rotate((0, 0, 0), (1, 0, 0), home["link_angle_deg"]).translate((0, cy, cz)), "link")
+    for y, z, motion in ((cy, cz, "crank"), (ty, tz, "tray")):
+        add("link pivot M3 head envelope", cylinder(2.75, 3, (21, y, z), (1, 0, 0)), motion, True)
+        nut = cylinder(3.25, 2.4, (7.6, y, z), (1, 0, 0)).cut(cylinder(1.65, 4, (7, y, z), (1, 0, 0)))
+        add("link pivot M3 nut envelope", nut, motion, True)
+        add("link pivot M3x14 shaft envelope", cylinder(1.5, 14, (7, y, z), (1, 0, 0)), motion, True)
+    add("M4x35 hinge shaft envelope", cylinder(2, 35, (-15, hy, hz), (1, 0, 0)), bought=True)
+    add("M4 hinge head envelope", cylinder(3.5, 4, (-19, hy, hz), (1, 0, 0)), bought=True)
+    for x in (-15, 14):
+        washer = cylinder(4.5, 1, (x, hy, hz), (1, 0, 0)).cut(cylinder(2.2, 3, (x - 1, hy, hz), (1, 0, 0)))
+        add("M4 metal washer envelope", washer, bought=True)
+    nut = cylinder(4.1, 3.2, (15, hy, hz), (1, 0, 0)).cut(cylinder(2.2, 5, (14, hy, hz), (1, 0, 0)))
+    add("M4 ordinary nut envelope", nut, bought=True)
+    gauge = b(72, 30, 5)
+    for i, diameter in enumerate((3.1, 3.3, 4.1, 4.3, 4.5, 4.7)):
+        gauge = gauge.cut(cylinder(diameter / 2, 7, (-27 + i * 10.8, 0, -1)))
+    parts["fit_coupon"] = gauge.clean()
+    high = legacy.linkage_state(parameters, parameters["angle_high_deg"])
+    metadata = dict(home_state=home, high_state=high, lift_mm=(hy + 120) * math.sin(math.radians(high["tilt_deg"])))
     return parameters, parts, printed, purchased, metadata
 
 
@@ -94,6 +199,8 @@ def build(p):
                 kind, evidence = "drive", "rozmery-nakoupenych-soucastek.md"
             elif "LED" in canonical:
                 kind, evidence = "electronics", "catalogue width/length; thickness and chips provisional"
+            elif "hook_loop" in canonical:
+                kind, evidence = "cable", "required adhesive hook-and-loop; compressed thickness assumption 2 mm"
             else:
                 kind, evidence = "metal", "required consumable; purchase not confirmed"
             items.append(Item(
@@ -106,11 +213,11 @@ def build(p):
     metadata.update(
         parameters=parameters, module_origins_mm=[list(module_origin(p, i)) for i in range(6)],
         module_count=6, led_chip_count=36,
-        foot_centres_local_y_mm=[-110, 110], foot_bottom_world_z_mm=p["mechanism"]["base_z"] - 8,
-        base_splice_bottom_world_z_mm=p["mechanism"]["base_z"] - 3,
-        required_consumables=["M3 fasteners and nuts for bases, splices, cradle, cage and linkage",
-                              "M4 hinge bolts/nuts with friction retention", "servo and U059 retaining straps",
-                              "two releasable elastic wand straps per module"],
+        foot_centres_local_y_mm=[-110, 110], foot_bottom_world_z_mm=2,
+        required_consumables=["two M3x14 link pivots and one M4x35 hinge axle per module",
+                              "M4 ordinary nuts, two 1 mm washers, metal thread locking; adjust friction", "servo and U059 retaining straps",
+                              "two releasable elastic wand straps per module", "10 mm transport strap around empty tray and chassis",
+                              "42 x 12 mm adhesive hook-loop pads beneath two keyed glued feet"],
         provisional=["servo spline/horn adapter central and auxiliary holes are design placeholders",
                      "servo output offset/ears are not factory geometry; cradle uses body straps",
                      "LED thickness/chip envelope; wand shaft/head envelope; flexible cable/strap routes"],
@@ -139,6 +246,19 @@ def pose(p, items, servo_angle, module=None):
     return posed
 
 
+def transport(p, items):
+    """Wands and powerbank removed, empty trays strapped to their own bases."""
+    result = [i for i in items if i.kind != "wand" and i.name != "powerbank" and i.kind != "space"]
+    top = p["mechanism"]["tray_floor"] + 9
+    strap = box(48.6, 10, top + 1.6, (-24.3, -97, -.8))
+    strap = strap.cut(box(47, 12, top, (-23.5, -98, 0))).clean()
+    for index in range(p["mechanism"]["count"]):
+        result.append(Item(f"transport_wrap_{index + 1}", strap.translate(module_origin(p, index)), "cable", "transport",
+                           evidence="required 10 mm releasable strap; 0.8 mm thickness assumption",
+                           metadata={"release_before_motion": True, "purpose": "Retain empty tray independently of servo; pads keep strap above LEDs."}))
+    return result
+
+
 def print_shape(name, shape, p):
     """Put thin X-axis pivot parts flat; retain tray-floor-up orientations."""
     parameters = mechanics_parameters(p)
@@ -149,6 +269,8 @@ def print_shape(name, shape, p):
         shape = shape.rotate((0, 0, 0), (1, 0, 0), -parameters["angle_low_deg"])
     if name in {"servo_link", "crank_horn_adapter", "link_spacer_3mm", "hinge_spacer"}:
         shape = shape.rotate((0, 0, 0), (0, 1, 0), -90)
+    if name in {"module_chassis", "wand_tray"}:
+        shape = shape.rotate((0, 0, 0), (0, 0, 1), 45)
     return legacy.normalize_for_print(shape)
 
 
