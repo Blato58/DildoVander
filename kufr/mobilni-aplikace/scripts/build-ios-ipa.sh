@@ -30,10 +30,29 @@ fi
 work_dir="$(mktemp -d "${RUNNER_TEMP}/kufr-ios.XXXXXXXX")"
 keychain="${work_dir}/signing.keychain-db"
 profile_path=''
+project_path='ios/App/App.xcodeproj/project.pbxproj'
+project_backup=''
 original_keychains="${work_dir}/keychains.txt"
 security list-keychains -d user | sed 's/^[[:space:]]*"//; s/"[[:space:]]*$//' > "${original_keychains}"
 
 cleanup() {
+  local restore_failed=0
+  local recovery_dir=''
+  if [[ -n "${project_backup}" ]]; then
+    if ! cp "${project_backup}" "${project_path}"; then
+      restore_failed=1
+      # Preserve only the public project, never the credential-bearing work dir.
+      if recovery_dir="$(mktemp -d "${RUNNER_TEMP}/kufr-ios-project-recovery.XXXXXXXX")" \
+        && cp "${project_backup}" "${recovery_dir}/project-original.pbxproj"; then
+        echo "Could not restore the Xcode project; public backup retained at ${recovery_dir}/project-original.pbxproj." >&2
+      else
+        echo 'Could not restore the Xcode project or preserve its public backup.' >&2
+        if [[ -n "${recovery_dir}" ]]; then
+          rm -rf -- "${recovery_dir}"
+        fi
+      fi
+    fi
+  fi
   local previous_keychains=()
   while IFS= read -r item; do
     previous_keychains+=("${item}")
@@ -46,6 +65,7 @@ cleanup() {
   fi
   security delete-keychain "${keychain}" >/dev/null 2>&1 || true
   rm -rf -- "${work_dir}"
+  return "${restore_failed}"
 }
 trap cleanup EXIT
 
@@ -162,18 +182,24 @@ cat > "${work_dir}/ExportOptions.plist" <<EOF
 EOF
 
 mkdir -p dist/ipa
+# Command-line build settings also affect Swift package resource bundles. Keep
+# signing metadata in the App target's Release configuration for this run only.
+cp "${project_path}" "${work_dir}/project-original.pbxproj"
+project_backup="${work_dir}/project-original.pbxproj"
+plutil -convert json -o "${work_dir}/project.json" "${project_path}"
+python3 scripts/configure-ios-signing.py \
+  "${work_dir}/project.json" "${work_dir}/project-signed.pbxproj" \
+  "${IOS_TEAM_ID}" "${IOS_BUNDLE_ID}" "${sign_identity}" \
+  "${profile_uuid}" "${build_number}"
+plutil -lint "${work_dir}/project-signed.pbxproj"
+cp "${work_dir}/project-signed.pbxproj" "${project_path}"
+
 xcodebuild archive \
   -project ios/App/App.xcodeproj \
   -scheme App \
   -configuration Release \
   -destination 'generic/platform=iOS' \
-  -archivePath "${work_dir}/App.xcarchive" \
-  CODE_SIGN_STYLE=Manual \
-  CODE_SIGN_IDENTITY="${sign_identity}" \
-  PROVISIONING_PROFILE_SPECIFIER="${profile_uuid}" \
-  DEVELOPMENT_TEAM="${IOS_TEAM_ID}" \
-  PRODUCT_BUNDLE_IDENTIFIER="${IOS_BUNDLE_ID}" \
-  CURRENT_PROJECT_VERSION="${build_number}"
+  -archivePath "${work_dir}/App.xcarchive"
 
 xcodebuild -exportArchive \
   -archivePath "${work_dir}/App.xcarchive" \

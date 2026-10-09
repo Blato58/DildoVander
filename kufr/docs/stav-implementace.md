@@ -185,8 +185,28 @@ obsahuje `-renewed-`, což chybně označilo původní token za renewed. Source 
 používá přesný očekávaný token a zachovává kontrolu všech následujících DELETE;
 nezávislé source review potvrdilo deterministic fixture defect, nikoli product
 token-retention bug. Na větvi `codex/event-software-completion-receipt` je oprava
-a upřesnění NVS/OTA docs; nové CI, macOS regression, Ad Hoc archive/podpis a
-publikace nového IPA ještě čekají na další předání.
+a upřesnění NVS/OTA docs. [PR145](https://github.com/Blato58/DildoVander/pull/145)
+po zeleném web CI **37897276104**, nezávislém source/doc review (43 místních
+odkazů, všech 47 řádků) a dokončeném Codex review bez nálezů sloučen jako
+`d4862ff49210d5439c4a741a666c33ae13e79f79`; cílový tree ověřen proti `c3a7216`.
+[Nový macOS run37897551684](https://github.com/Blato58/DildoVander/actions/runs/37897551684)
+prošel všemi native LAN/Debug/realtime/hands-free/costume i BLE status/whitelist
+testy. Archive skončil na globálním app provisioning profile, který se přenesl
+na SwiftProtobuf resource bundle. Signing oprava vymezí profile/identity/team/
+bundle/version pouze na App Release target a zachová private cleanup/export
+kontroly. Source oprava přes built-in plutil a strict helper mění jen šest
+veřejných App Release settings; dependencies/Debug/project defaults zůstávají
+původní. Exit obnovuje původní project bytes. Když obnova selže, uchová pouze
+public project backup a vždy odstraní credential-bearing work_dir.
+6 Python test methods včetně šesti úplných Bash exit scénářů prošlo na Windows
+i skutečném Linuxu; nejde o skutečné macOS plutil/archive. Nezávislé review je
+čisté a existující web CI nově spouští stejnou regresi. Na větvi
+`codex/event-final-publication-receipt` čeká fresh CI/PR předání a skutečný iOS
+archive/podpis a public IPA stále nejsou doložené.
+Po úspěšné backend aktivaci odstraněn pouze neaktivovaný staging attempt1
+(117963947 B) po kontrole absolute paths, mountů/symlinků a current guardu;
+health prošel a current se nezměnil. Soukromá metadata záloha zůstává pod
+`/root/kufr-maintenance/d158-ota-provenance/failed-backend-attempt1/`.
 
 Žádné fyzické BLE/hotspot/SD/audio/servo, NVS power-loss ani OTA rollback
 měření nebylo provedeno. Produkční stable signer musí být servisně
