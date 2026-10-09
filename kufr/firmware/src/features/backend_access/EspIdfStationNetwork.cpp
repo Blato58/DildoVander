@@ -40,6 +40,12 @@ bool EspIdfStationNetwork::Start(bool nvsInitialized) {
 void EspIdfStationNetwork::SetChangeGate(NetworkChangeGate gate) { gate_ = gate; }
 bool EspIdfStationNetwork::HasIp() const { return initialized_.load() && wifi_.HasIp(); }
 uint32_t EspIdfStationNetwork::IpGeneration() const { return initialized_.load() ? wifi_.IpGeneration() : 0; }
+std::string EspIdfStationNetwork::CurrentIpv4() const {
+  const uint32_t generation = IpGeneration();
+  if (!initialized_.load() || changing_.load() || !wifi_.HasIp()) { return {}; }
+  const std::string address = wifi_.CurrentIpv4();
+  return !changing_.load() && wifi_.HasIp() && IpGeneration() == generation ? address : "";
+}
 const NetworkSettings& EspIdfStationNetwork::Settings() const { return settings_; }
 StationNetworkStatus EspIdfStationNetwork::Status() {
   StationNetworkStatus result;

@@ -10,6 +10,8 @@ void* argument;
 bool ip = false, gateAllowed = true, reserved = false, legacy = true, stored = false, saveFails = false;
 int64_t clockMs = 0, stopAt = 0;
 uint32_t ipGeneration = 0;
+bool changeDuringIpRead = false;
+EspIdfStationNetwork* addressObserver = nullptr;
 void (*delayHook)() = nullptr;
 NetworkProfileRecord saved;
 std::vector<std::string> attempts;
@@ -46,10 +48,18 @@ bool EspIdfWifiStation::Select(const char* ssid, const char*) {
 void EspIdfWifiStation::Disconnect() { ip = false; }
 bool EspIdfWifiStation::HasIp() const { return ip; }
 uint32_t EspIdfWifiStation::IpGeneration() const { return ipGeneration; }
+std::string EspIdfWifiStation::CurrentIpv4() const {
+  if (changeDuringIpRead) { ++ipGeneration; changeDuringIpRead = false; }
+  return ip ? "192.168.5.37" : "";
+}
 bool EspIdfWifiStation::ConnectAndWait(uint32_t timeoutMs) {
   assert(timeoutMs == 15000 && reserved);
   ip = selected != "bad-password";
   if (ip) { ++ipGeneration; }
+  if (addressObserver != nullptr) {
+    // A newly acquired address is hidden until the profile operation settles.
+    assert(addressObserver->CurrentIpv4().empty());
+  }
   return ip;
 }
 BaseType_t xTaskCreate(TaskFunction_t entry, const char* name, uint32_t stack, void* context,
@@ -117,13 +127,24 @@ void VerifyExplicitFallbackProbeDelay() {
 int main() {
   EspIdfStationNetwork noNvs;
   assert(!noNvs.Start(false));
+  assert(noNvs.CurrentIpv4().empty());
   EspIdfStationNetwork first;
   first.SetChangeGate({Acquire, Release, nullptr});
   assert(first.Start(true));
   assert(stored && std::strcmp(saved.hotspot.password, "old-password") == 0);
   assert(!first.Start(true));
+  assert(first.CurrentIpv4().empty());
+  addressObserver = &first;
   RunFor(100);
+  addressObserver = nullptr;
   assert(first.HasIp() && first.Status().active == NetworkProfile::Hotspot);
+  assert(first.CurrentIpv4() == "192.168.5.37");
+  changeDuringIpRead = true;
+  assert(first.CurrentIpv4().empty());
+  assert(first.CurrentIpv4() == "192.168.5.37");
+  ip = false;
+  assert(first.CurrentIpv4().empty());
+  ip = true;
   assert(first.Configure(NetworkProfile::Hotspot, "bad-password", "invalid-pass"));
   assert(!first.Configure(NetworkProfile::Fallback, "duplicate", "password123"));
   RunFor(100);

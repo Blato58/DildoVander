@@ -147,6 +147,21 @@ bool EspIdfWifiStation::HasIp() const {
 
 uint32_t EspIdfWifiStation::IpGeneration() const { return ipGeneration_.load(); }
 
+std::string EspIdfWifiStation::CurrentIpv4() const {
+  const uint32_t generation = IpGeneration();
+  if (netif_ == nullptr || !HasIp()) { return {}; }
+  esp_netif_ip_info_t info{};
+  if (esp_netif_get_ip_info(netif_, &info) != ESP_OK || info.ip.addr == 0) {
+    return {};
+  }
+  char address[16]{};
+  if (esp_ip4addr_ntoa(&info.ip, address, static_cast<int>(sizeof(address))) == nullptr ||
+      !HasIp() || IpGeneration() != generation) {
+    return {};
+  }
+  return address;
+}
+
 void EspIdfWifiStation::OnEvent(void* argument,
                                 esp_event_base_t eventBase, int32_t eventId,
                                 void*) {
