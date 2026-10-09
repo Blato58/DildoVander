@@ -40,8 +40,10 @@ provizorní geometrie hůlek/kamery/konektorů, úplný pružný svazek a rozdě
 svorek; pevnost, moment serv, zadržení bez napájení a transport potřebují
 fyzickou zkoušku. Další krok: měrky a jedna přihrádka podle montážního návodu.
 Fyzická kritéria E5/E6/E13 se neuzavírají. Firmware/backend ani hardware nebyly
-měněné; aplikační buildy neběžely. Lokální commit následuje po závěrečné
-kontrole; uživatelský zákaz push má přednost, žádný push/PR/merge/nasazení.
+měněné; aplikační buildy neběžely. Implementační commit `7cbdb26` je lokálně
+na větvi `codex/kufr-complete-cad`; uživatelský zákaz push má přednost,
+žádný push/PR/merge/nasazení. Generované soubory jsou skutečně uložené v tomto
+worktree a v ZIP, Gitem se předávají reprodukovatelné zdroje a dokumentace.
 
 **9. 10. 2026 – rozměry doplněné majitelem a zrušení podmínek pro rozvržení.**
 Všechny údaje jsou pohromadě v [přehledu rozměrů kufru a součástek](../mechanika/rozmery-nakoupenych-soucastek.md).
