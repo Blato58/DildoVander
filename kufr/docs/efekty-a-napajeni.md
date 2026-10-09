@@ -125,7 +125,8 @@ kolébka. Při úplném zamrznutí řídicí úlohy software sám odpojení nedo
   [zapojení](zapojeni-potvrzeneho-hardwaru.md#dva-zesilovače-a-mute).
 - **Kamera/SD:** stávající ESP32-S3 Drátek 232701 má konektor OV5640;
   samotná kamera je objednaná, čeká na doručení. Revizi/FPC ověřit před montáží.
-  Profil B-effects zachovává GPIO38–40 pro SD; jeho driver ještě chybí. Předběžný
+  Profil B-effects zachovává GPIO38–40 pro SD; D158 přidává read-only SDMMC
+  asset driver gated servisním `sd_verified`. Fyzické ověření zbývá. Předběžný
   [profil B a piny](pin-mapa-esp32-s3.md) vyžadují ověření GPIO2/48 a SD.
   Druhá deska se nekupuje; souběh periferií ověřit na stávajícím řadiči.
 - **Rozvod:** 1,5mm² hlavní vedení, 0,5mm² krátké odbočky, společná zem.

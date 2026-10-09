@@ -69,6 +69,8 @@ assert.deepEqual(Object.keys(document.paths).sort(), [
   '/v1/conversations/{id}/turns',
   '/v1/device-access/token',
   '/v1/diagnostics',
+  '/v1/firmware/manifests/{channel}.json',
+  '/v1/firmware/artifacts/{hash}.bin',
   '/v1/evening-memory',
   '/v1/evening-memory/{id}',
   '/v1/evenings',
@@ -77,6 +79,13 @@ assert.deepEqual(Object.keys(document.paths).sort(), [
 ].sort());
 assert.deepEqual(document.paths['/v1/device-access/token'].post.security, [{ DeviceCredential: [] }]);
 assert.deepEqual(document.security, [{ DeviceAccess: [] }]);
+for (const path of ['/v1/firmware/manifests/{channel}.json', '/v1/firmware/artifacts/{hash}.bin']) {
+  assert.deepEqual(document.paths[path].get.security, []);
+  assert(document.paths[path].get.responses['429']);
+}
+validate('FirmwareEnvelope', { schemaVersion: 1, payload: 'e30=', signature: 'MEYCIQD12345' }, true);
+validate('FirmwareEnvelope', { schemaVersion: 0, payload: 'e30=', signature: 'MEYCIQD12345' }, false);
+validate('FirmwareEnvelope', { schemaVersion: 1, payload: 'e30=', signature: 'MEYCIQD12345', privateKey: 'secret' }, false);
 assert.deepEqual(document.paths['/v1/admin/modes'].get.security, [{ ServerAdmin: [] }]);
 assert.deepEqual(document.paths['/v1/admin/modes'].put.security, [{ ServerAdmin: [] }]);
 const serverModes = { revision: '00000000-0000-4000-8000-000000000001', dialogMode: 'fake', voiceMode: 'fake',
