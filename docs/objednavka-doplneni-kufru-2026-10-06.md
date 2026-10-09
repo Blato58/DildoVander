@@ -31,20 +31,22 @@ z kalibrovaných pulzů a času, fyzické měření E5/B1 ještě neproběhlo.
 
 Měnič, MCP a reproduktorové PH2 kabely už znovu neobjednávat.
 
-## 2. Drátek – dosud nepotvrzené
+## 2. Kamera – objednaná, čeká na doručení
 
-| Stav | Položka / přímý odkaz | Množství | Orientační cena | Role |
-| --- | --- | ---: | ---: | --- |
-| ☐ | [ESP32-S3 N16R8 + OV5640, párovaná sada](https://dratek.cz/arduino-platforma/232702-vyvojova-deska-esp32-s3-s-kameru-ov5640-wifi-bluetooth-nespajeny-s-pinovou-listou-v-baleni.html) | 1 | 479 Kč | Kamera z vybrané řady; nákup není na nových snímcích potvrzený |
+Majitel 9. 10. potvrdil, že má současnou
+[ESP32-S3 N16R8 s konektorem OV5640](https://dratek.cz/arduino-platforma/232701-vyvojova-deska-esp32-s3-s-konektorem-pro-kameru-ov5640-wifi-bluetooth.html)
+a samotnou kameru už objednal. Zatím má pouze konektor na desce.
+**Druhou ESP desku ani sadu deska + kamera neobjednávat.** Přesný kód,
+cena a provedení objednaného kamerového modulu nejsou doložené.
 
-**Zbývající doloženě nepotvrzené položky: orientačně 500 Kč**
-(479 + 21 Kč, bez dopravy), používáme-li zvolenou powerbanku.
-Ceny pocházejí z 6. 10., nebyly nově ověřené. Délky koupených kabelů,
+V dosavadním seznamu zůstává pouze podmíněný USB-A modul za orientačních
+21 Kč (cena z 6. 10., nově neověřená); vynechat jej při vhodném hotovém
+vedení. Původní součet 500 Kč se ruší. Délky koupených kabelů,
 I2S audio, OE/resetové stavy a montážní materiál se musí ověřit zvlášť;
-500 Kč není úplný rozpočet finálně akceptovaného systému.
+úplný rozpočet montáže z těchto podkladů určit nelze.
 
-Kamera ze sady není libovolný modul se stejným senzorem: před připojením
-porovnat FPC, kontakty a revizi desky. Kamerový profil B vyžaduje jiné
+Po doručení kamery před připojením porovnat FPC, kontakty a revizi
+se stávající deskou. Kamerový profil B vyžaduje jiné
 audio/RGB piny než A. MikroSD je pro základní hlas a jednotlivý snímek
 volitelná. [Zapojení a napájení](../kufr/docs/efekty-a-napajeni.md).
 
@@ -69,7 +71,7 @@ vybrané konektory se jednou připájí a zaizolují.
 
 | Díly | Doložené množství | Použití |
 | --- | ---: | --- |
-| ESP32-S3 N16R8, bez kamery | 1 | Hlavní řadič, osazené samčí lišty |
+| ESP32-S3 N16R8 s konektorem OV5640, Drátek 232701 | 1 | Stávající hlavní řadič, osazené samčí lišty; samotná kamera je objednaná, dosud nedoručená |
 | PCA9685 | 2 | Jedna deska stačí pro 6 serv + 6 digitálních motorových vstupů, druhá jako rezerva |
 | Polohovací mikroservo 180° | 6 | Vždy jen jedno aktivní; ostatní nemusí silou držet polohu |
 | M5Stack U059 N20 včetně Grove kabelů | 6 | Vždy jen jedna vibrace; výkonový driver už obsahuje modul |
@@ -89,7 +91,7 @@ vybrané konektory se jednou připájí a zaizolují.
 | Kondenzátory 470 µF / 50 V | 10 | Dvojice paralelně u LED, pohonů a elektroniky |
 | Dupont M-F 20 cm, 40 vodičů | 2 balení | Signály; nejsou náhrada F-F |
 | Smršťovací bužírky | 1 sada | Izolace pájených spojů |
-| Univerzální desky 50×70 mm | 2 | Pomocná rozhraní, později bezpečnostní logika |
+| Univerzální desky 50×70 mm | 2 | Rozvod a pomocné montážní spoje |
 | Joy-IT měnič 9–35 V → 5 V / 5 A, SEG-28582 | 1 | Nově potvrzený, jediný měnič kufru |
 | MCP23017 Adafruit 5346, ADA-21037 | 1 | Nově potvrzený, pomocné vstupy/výstupy kamerového profilu B |
 | JST PH 2,0 mm dvoupinový kabel, DNG-06563 | 2 | Nově potvrzené, dva oddělené reproduktorové kabely |

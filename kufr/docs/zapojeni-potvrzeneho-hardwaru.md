@@ -7,8 +7,10 @@ Druhá PCA je rezerva. Přesné počty koupených dílů jsou v
 Powerbanka UGREEN PB720 / 25188 je vybraná v předchozím zadání.
 
 Implementovaný profil **B-effects** zachovává kamerové a SD piny.
-Kamerový driver/snímek E13 a SD driver zatím nejsou dokončené;
-koupi samotné OV5640 nové snímky nedokládají. Firmware řídí koupené
+Kamerový driver/snímek E13 a SD driver zatím nejsou dokončené.
+Majitel potvrdil stávající desku Drátek 232701 s konektorem OV5640;
+samotná kamera je objednaná a čeká na doručení. Druhý řadič se nekupuje.
+Firmware řídí koupené
 pohony bez dalších modulů či polohových snímačů. Servo polohu odvozuje
 z individuálně kalibrovaného pulzu a doby pohybu, **polohu neměří**.
 `physicalVerification` ve výsledcích zůstává `unavailable`.
