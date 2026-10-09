@@ -272,3 +272,27 @@ test('control connect refreshes a live BLE route after a long hidden-panel dwell
   await client.refreshLocalAddress();
   assert.equal(reads, 1);
 });
+
+
+test('route refresh reports pending BLE connection/action instead of silently using a stale host', async () => {
+  let finishConnect;
+  let finishAction;
+  let reads = 0;
+  const client = new ProvisioningClient({ connect: () => new Promise(resolve => { finishConnect = resolve; }),
+    status: async () => { reads++; return status; }, disconnect: async () => {} }, () => {});
+  const connecting = client.connect('KUFR_123456');
+  assert.equal(await client.refreshLocalAddress(), false);
+  assert.equal(reads, 0);
+  finishConnect(status);
+  await connecting;
+  const action = client.perform(() => new Promise(resolve => { finishAction = resolve; }));
+  assert.equal(await client.refreshLocalAddress(), false);
+  assert.equal(reads, 0);
+  finishAction(status);
+  await action;
+  assert.equal(await client.refreshLocalAddress(), true);
+  assert.equal(reads, 1);
+  await client.disconnect();
+  assert.equal(await client.refreshLocalAddress(), true);
+  assert.equal(reads, 1);
+});

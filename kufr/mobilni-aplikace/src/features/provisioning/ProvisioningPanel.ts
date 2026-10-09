@@ -84,8 +84,8 @@ export class ProvisioningPanel {
     this.client.show(visible);
   }
 
-  async refreshLocalAddress(): Promise<void> {
-    await this.client.refreshLocalAddress();
+  async refreshLocalAddress(): Promise<boolean> {
+    return this.client.refreshLocalAddress();
   }
 
   private profile(): NetworkProfile {
