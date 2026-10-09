@@ -13,6 +13,7 @@ import chassis
 import mechanism
 import layout
 from check_fit import scene
+from artifacts import ASSEMBLY_NAMES
 
 OUT=ROOT/"exports"
 
@@ -53,6 +54,7 @@ def main():
         print(f"Exported {p.name}",flush=True)
     scenes={"open_rest":scene(),"open_presenting":scene(160),"service":scene(covers=False),
             "closed_transport":scene(lid=0,transport=True),"one_module":mechanism.module()}
+    assert set(scenes)==set(ASSEMBLY_NAMES),"Update the current assembly inventory"
     for name,items in scenes.items():
         assembly(items,name).export(str(OUT/"assembly"/(name+".step")))
         print(f"Assembly {name}",flush=True)
@@ -60,7 +62,7 @@ def main():
     for i in scenes["open_rest"]:
         if i.group in ("hardware","moving_hw","wand"):
             inventory.append({"name":i.name,"bounds_mm":[round(v,4) for v in bounds(i.shape)],"source":i.source})
-    (OUT/"manifest.json").write_text(json.dumps({"revision":PARAMS["revision"],"parts":manifest,"inventory":inventory,"sources":source_hashes()},indent=2,ensure_ascii=False),encoding="utf-8")
+    (OUT/"manifest.json").write_text(json.dumps({"revision":PARAMS["revision"],"parts":manifest,"assemblies":list(scenes),"inventory":inventory,"sources":source_hashes()},indent=2,ensure_ascii=False),encoding="utf-8")
     with (OUT/"print-bom.csv").open("w",newline="",encoding="utf-8-sig") as f:
         writer=csv.writer(f)
         writer.writerow(["part","quantity","X_mm","Y_mm","Z_mm","solid_cm3","purpose"])

@@ -5,6 +5,7 @@ import zipfile
 
 from geometry import ROOT
 from build import OUT,source_hashes
+from artifacts import package_files
 
 
 def main():
@@ -13,9 +14,7 @@ def main():
     assert report["sources"]==source_hashes(),"Sources changed since verification"
     manifest=json.loads((OUT/"manifest.json").read_text(encoding="utf-8"))
     assert manifest["sources"]==report["sources"],"Export and verification source manifests differ"
-    files=[p for p in ROOT.iterdir() if p.is_file() and p.name not in ("fit-debug.json",)]
-    files += [p for p in (ROOT/"reference").glob("*") if p.is_file()]
-    files += [p for p in OUT.rglob("*") if p.is_file() and p.suffix not in (".zip",) and p.name!="package-sha256.txt"]
+    files=package_files(ROOT,report["sources"],manifest)
     target=OUT/"F1-kouzelny-kufr.zip"
     with zipfile.ZipFile(target,"w",zipfile.ZIP_DEFLATED,compresslevel=6) as archive:
         for p in files:archive.write(p,p.relative_to(ROOT).as_posix())
