@@ -1,0 +1,35 @@
+polozka,pocet,specifikace,pouziti,stav
+M4 zapustny sroub,26,M4x8; hlava max9; podlozka0.5; matice3.2,Spoje dna korpusu a vika,Overit zasobu a zkusit stack; nic neobjednano
+M4 nizka hlava,24,M4x10; hlava dovnitr; matice ven,Svisle spoje korpusu a vika,Overit zasobu
+M4 matice a podlozky,50,Bezna matice3.2 a podlozka0.5; vne lze krytou matici,Seams; zajistit proti povoleni,Overit zasobu
+M4 sroub pro panty,12,M4x12 z vnitrni zapustene kapsy; konkretni kovani rozhoduje,Tri kovove panty,Overit vybrane kovani a stack
+Ocelovy pant,3,Obalka40mm; dvojice otvoru24mm v podlouhlych drazkach,Viko,Referencni obalka; vyber a rating jeste overit
+Kovova zapadka,2,S otvory v rozteci16mm nebo prizpusobenim kovani,Zavreni vika,Referencni obalka
+M3 srouby zapadek,8,M3 delka podle skutecneho kovani plus matice,Zapadky a protikusy,Overit zasobu
+M3 zapustny sroub,24,M3x20 plus matice a podlozka,Ctyri body kazde ze sesti zakladen,Overit zasobu
+M3 zapustny sroub,16,M3x14; do tepelne vlozky od spodniho povrchu racku,Ctyri body kazdeho bocniho racku,Overit zasobu
+M3 tepelna vlozka,20,Navrh OD4.6 delka5 pilot4.2; 16 dole a4 nahore,Racky a police kolebek; nejdrive merka,Overit realny typ vlozky
+M3 zapustny sroub,4,M3x8,Police kolebek do vlozek,Overit zasobu
+M3 zavitova tyc,4,Prirez75mm pro levy stolek; konec nesmi zasahovat komponenty,Pruchozi uchyceni stolkove nohy,Rezervy po realnem stacku zkratit
+M3 zavitova tyc,8,Prirez70mm pro prave stolky,Pruchozi uchyceni stolkove nohy,Rezervy po realnem stacku zkratit
+M3 matice a podlozky pro stolky,24,Po dvou na kazdou tyc,Stolky; dolni matice pred osazenim racku,Overit zasobu
+M4 vodici vyztuzovaci sroub,12,M4x90 nizka hlava; matice a podlozkaOD12,Voditka a koncova pojistka luzka,Overit zasobu
+M3 sroub brzdy,6,M3x20; matice a dve podlozky,Serizeni deleneho pouzdra,Overit zasobu
+Plst brzdy,12,Pasek0.3mm tloustka; odstrihnout dle pouzdra,Pasivni stabilita ve vsech polohach,Nutna fyzicka zkouska treni
+M3 sroub valecku,6,M3x12 ISO7380 hlava max5.7x1.65; matice2.4 a podlozka0.5,Cam follower,Overit volne otaceni a axialni vuli
+Nylonovy valecek,6,OD6 ID4.2 delka3; po hladkem mosaznem pouzdre,Vymenny kontakt vacky,Overit zasobu nebo vyriznout z pouzdra
+Mosazne pouzdro valecku,6,OD4 ID3.2 delka4.5; kolmy odjehleny rez,Loziskova plocha a sevreni sroubu,Novy montazni material
+Mezikus valecku,6,OD6 ID4.2 delka1.1; ponechat axialni vuli0.4,Axialni vymezeni,Novy montazni material
+M2 srouby a matice,12,M2x10 hlava max3.5x1.3; radius9 parametricky; matice zapustena,Prisroubovani vacky k dodane pace,Neznamy skutecny raster otvoru paky
+M3 srouby kamery,2,M3x10 plus matice; podle finalniho modulu,Nastavitelny drzak kamery,Overit po doruceni kamery
+Popruh pro nosny postroj,1,Hotovy rating nejmene10kg; dve25mm smycky pod dnem a propojovaci rukojet,Transport; nesou hlavni zatez,Novy montazni material nikoli potvrzeny nakup
+Omezovaci pasek vika,2,Sirka8mm; ucinna delka priblizne141mm plus zalozeni,Nastavit105stupnu; slozit po bocich,Overit skutecne kovani
+Transportni pasek luzka,6,Sirka8mm delka priblizne220mm; opakovatelne rozepinani,Spojit otvory luzka a zakladny,Overit zasobu
+Pasek powerbanky,2,Sirka15mm delka priblizne260mm; tahaci smycka,Mechanicka retence vyjimatelne banky,Overit zasobu
+Pasky hulek,12,Mekke sirka6mm; delka dle skutecne rekvizity,Dve smycky na kazdem luzku,Overit prumer a snadnou manipulaci
+Pasky serv a U059,24,Dva pro servo a dva pro kazdy U059; nesvirat kabel,Pozitivni retence,Spotrebni material
+Pasky reproduktoru,4,Dva na kazdy reproduktor mimo membranu,Pozitivni retence,Spotrebni material
+Samolepici suchy zip,1,Vyska spojene dvojice2mm; plocha orientacne0.15m2,Lehka elektronika a kryty; nezakryt chlazeni,Overit skutecnou vysku a adhezi
+Samet,1,Tloustka0.8mm; orientacne0.7m2 vcetne rezervy,Kryty a viko; svetla a ventilace bez latky,Overit skutecnou tloustku
+Izolacni mekke podlozky,1,1.2mm pro hulky; 4mm pod banku;6mm pod MCP,Oddeleni a tlumeni mimo U059,Rezervy tloustek overit
+Izolovane sacky na rezervy,1,Tenke a zajistene k zakladne; zadne volne vodive vyvody,Rezervni PCA kolebka svorky a kondenzatory,Spotrebni material
