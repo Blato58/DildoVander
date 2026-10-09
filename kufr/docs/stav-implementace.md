@@ -78,6 +78,9 @@ testy a dosavadní start codec prošly, servisní Python sada 4/4. Konfigurace
 PlatformIO potvrzuje jen ESP-IDF; workflow YAML se parsuje. Závěrečné
 nezávislé review oprav nehlásí otevřené nálezy. Git/CI předání a native
 macOS výsledek budou doplněné podle skutečnosti.
+Implementační commit `0c18faf56f39620186338f460158d48ab41b7829` vznikl po
+ověření, `Push-CurrentBranch.ps1` uspěl a read-back remote potvrdil stejnou SHA.
+PR/CI/merge a nativní macOS ověření jsou další kroky tohoto předání.
 Neprovedeno: placená inference, cloudové nasazení, publikace IPA ani flash.
 E12/E13 nejsou celé hotové: kamera ještě není doručená; revize/FPC/piny,
 napájení/proud/souběh, skutečný obraz/latence, iPhone kamera/pozadí a SD
