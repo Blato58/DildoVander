@@ -63,6 +63,12 @@ bool NetworkProfiles::MakeCandidate(const char* ssid, const char* password,
 bool NetworkProfiles::Commit(NetworkProfileRecord& next) {
   const bool saved = storage_.Save(next);
   if (saved) { record_ = next; }
+  else {
+    // A storage adapter can commit the new blob and then fail legacy cleanup.
+    // Restore the prior blob once; persistent storage faults may also reject
+    // this rollback, so the operation remains failed and RAM stays unchanged.
+    storage_.Save(record_);
+  }
   Wipe(&next, sizeof(next));
   return saved;
 }

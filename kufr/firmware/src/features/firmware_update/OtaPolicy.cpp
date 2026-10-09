@@ -1,6 +1,9 @@
 #include "OtaPolicy.h"
 
 namespace kufr { namespace ota {
+bool BootSelfTestReady(bool runtimeReady, bool profileSelected, bool calibrated, bool effectsHealthy) {
+  return runtimeReady && (!profileSelected || (calibrated && effectsHealthy));
+}
 void OtaPolicy::Start(uint64_t nowMs, bool pendingVerification) {
   pending_ = pendingVerification;
   healthy_ = false;

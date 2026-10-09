@@ -186,6 +186,8 @@ jobs:
           set -euo pipefail
           g++ -std=c++14 -Wall -Wextra -Werror src/features/network_provisioning/NetworkProfiles.cpp src/features/backend_access/NetworkSettings.cpp tests/network_profiles_test.cpp -o "$RUNNER_TEMP/network-profiles-test"
           "$RUNNER_TEMP/network-profiles-test"
+          g++ -std=c++14 -Wall -Wextra -Werror -I tests/ble_stubs src/features/network_provisioning/EspIdfNetworkProfileStorage.cpp src/features/network_provisioning/NetworkProfiles.cpp tests/espidf_network_profile_storage_test.cpp -o "$RUNNER_TEMP/network-profile-storage-test"
+          "$RUNNER_TEMP/network-profile-storage-test"
           g++ -std=c++14 -Wall -Wextra -Werror src/features/firmware_update/OtaManifest.cpp src/features/firmware_update/OtaPolicy.cpp tests/firmware_update_test.cpp -o "$RUNNER_TEMP/firmware-update-test"
           "$RUNNER_TEMP/firmware-update-test"
           g++ -std=c++14 -Wall -Wextra -Werror -I tests/ota_stubs src/features/firmware_update/OtaManifest.cpp src/features/firmware_update/OtaPolicy.cpp src/features/firmware_update/EspIdfFirmwareUpdate.cpp tests/espidf_firmware_update_test.cpp -o "$RUNNER_TEMP/ota-adapter-test"

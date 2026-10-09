@@ -4,6 +4,7 @@
 namespace kufr { namespace ota {
 
 enum class BootDecision { Wait, Confirm, Rollback };
+bool BootSelfTestReady(bool runtimeReady, bool profileSelected, bool calibrated, bool effectsHealthy);
 class OtaPolicy final {
  public:
   void Start(uint64_t nowMs, bool pendingVerification);

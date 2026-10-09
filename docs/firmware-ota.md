@@ -94,14 +94,28 @@ real signature and artifact bytes. Development test keys live only in private
 temporary storage; no committed test key is accepted as production trust.
 
 On VPS, install the reviewed root-owned publisher as
-`/usr/local/sbin/kufr-firmware-publish`, tooling/table under
+`/usr/local/sbin/kufr-firmware-publish`, `firmware_artifact.py`, packaging tool
+and partition table under
 `/usr/local/lib/kufr-firmware/`, and private/public authority files under
 `/etc/kufr-backend/ota-{development|stable}-{private|public}.pem`.
 Private keys must be root0600; parent directories root-owned and not writable
 by runner/backend. The narrow sudo rule allows only this validated publisher.
-The helper snapshots a bounded regular runner artifact without following links,
-signs with the selected root-held key, verifies it, then atomically publishes
+The helper accepts only `BINARY CI_RUN_ID CHANNEL`; an ephemeral Actions read
+token arrives on standard input and is never saved. Root independently fetches
+the successful `ci.yml` run, merged same-repository PR/current main provenance,
+GitHub artifact ZIP and its server-recorded digest. It validates the bounded
+ZIP/TAR package, source tree and payload hash, derives version/build identity
+from immutable GitHub source, and compares the exact firmware bytes to its
+bounded snapshot of the runner file. Caller-supplied metadata is not authority.
+The signed-URL download receives no Authorization header. Missing metadata,
+modified firmware or a changed main branch rejects publication before promotion.
+It signs with the selected root-held key, verifies it, then atomically publishes
 the artifact before the channel manifest under `/opt/kufr-firmware`.
+GitHub CI and its build runner remain trusted producers. The server-recorded
+digest authenticates the uploaded artifact; it does not prove reproducible
+compilation or protect against a compromised builder uploading malicious bytes.
+The root boundary prevents substituting a different local staging image after
+CI. Production authority and builder access therefore require separate custody.
 Backend config is `Backend__Firmware__Directory=/opt/kufr-firmware`; it verifies
 against `trust-{channel}.pem` and caps public download concurrency at4.
 
@@ -122,7 +136,10 @@ interactions. Only the inactive slot is written. Failed transfers continue the
 existing app; persistent NVS credentials remain outside both app slots.
 
 New boot must pass passive local health and network readiness continuously for
-5s within120s. Pending verification blocks interactions but allows Wi-Fi recovery.
+5s within120s. A selected effects profile also requires loaded calibration,
+successful effects configuration and current passive effects health; an effects
+fault restarts the continuous health window. Pending verification blocks
+interactions but allows Wi-Fi recovery.
 Failure marks the image invalid and requests bootloader rollback. If no valid
 fallback exists, the updater cannot invent one; use the USB backup/recovery path.
 Reinstalling a previously invalid image of the same version is rejected.

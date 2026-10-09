@@ -13,6 +13,8 @@ void* taskContext;
 protocomm_req_handler_t handler;
 void* handlerContext;
 int opens=0, closes=0, configureCalls=0;
+int stopFailures=0, endpointFailures=0;
+protocomm_t* pendingStop=nullptr;
 int64_t nowMs=0, stopAt=0;
 void (*delayHook)()=nullptr;
 bool proofAvailable=true;
@@ -51,13 +53,21 @@ esp_err_t nvs_get_str(nvs_handle_t,const char* name,char* data,size_t* length) {
 }
 void nvs_close(nvs_handle_t) {}
 protocomm_t* protocomm_new() { return new protocomm_t; }
-void protocomm_delete(protocomm_t* transport) { delete transport; }
+void protocomm_delete(protocomm_t* transport) {
+  assert(transport!=pendingStop); delete transport;
+}
 esp_err_t protocomm_ble_start(protocomm_t*,const protocomm_ble_config_t* config) {
+  assert(pendingStop==nullptr); // A new radio must never overlap failed teardown.
   ++opens; assert(config->service_uuid[12]==0x10 && config->service_uuid[13]==0x7f);
   assert(config->nu_lookup_count==3 && config->nu_lookup[2].uuid==0xff54);
   assert(std::strcmp(config->nu_lookup[2].name,"kufr-control")==0); return ESP_OK;
 }
-esp_err_t protocomm_ble_stop(protocomm_t*) { ++closes; return ESP_OK; }
+esp_err_t protocomm_ble_stop(protocomm_t* transport) {
+  ++closes;
+  if(stopFailures>0) { --stopFailures; pendingStop=transport; return ESP_ERR_INVALID_ARG; }
+  if(pendingStop!=nullptr) { assert(pendingStop==transport); pendingStop=nullptr; }
+  return ESP_OK;
+}
 esp_err_t protocomm_set_version(protocomm_t*,const char*,const char* version) {
   assert(std::strstr(version,"\"sec_ver\":1") && !std::strstr(version,"no_pop")); return ESP_OK;
 }
@@ -67,6 +77,7 @@ esp_err_t protocomm_set_security(protocomm_t*,const char* name,const protocomm_s
   assert(proof->len==32 && proof->data[0]=='a'); return ESP_OK;
 }
 esp_err_t protocomm_add_endpoint(protocomm_t*,const char*,protocomm_req_handler_t callback,void* context) {
+  if(endpointFailures>0) { --endpointFailures; return ESP_ERR_INVALID_ARG; }
   handler=callback; handlerContext=context; return ESP_OK;
 }
 void FillStatus(cJSON* response,void*) {
@@ -111,6 +122,101 @@ void VerifyWindows() {
       throw Stop{};
   }
 }
+int baseOpens=0, baseCloses=0;
+void VerifyStopRetry() {
+  switch(windowStage++) {
+    case 0:
+      assert(windowOwner->Active() && opens==baseOpens+1);
+      stopFailures=2;
+      nowMs=300001;
+      return;
+    case 1:
+      assert(!windowOwner->Active() && closes==baseCloses+1 && opens==baseOpens+1);
+      Request("{\"v\":1,\"command\":\"status\"}",ESP_ERR_INVALID_ARG);
+      nowMs+=999;
+      return;
+    case 2:
+      assert(closes==baseCloses+1 && opens==baseOpens+1);
+      ++nowMs;
+      return;
+    case 3:
+      assert(closes==baseCloses+2 && !windowOwner->Active() && opens==baseOpens+1);
+      nowMs+=1000;
+      return;
+    case 4:
+      assert(closes==baseCloses+3 && windowOwner->Active() && opens==baseOpens+2);
+      nowMs+=300001;
+      return;
+    case 5:
+      assert(closes==baseCloses+4 && !windowOwner->Active());
+      nowMs+=60001;
+      return;
+    default:
+      assert(opens==baseOpens+2 && closes==baseCloses+4 && pendingStop==nullptr);
+      throw Stop{};
+  }
+}
+void VerifyInitialCleanup() {
+  switch(windowStage++) {
+    case 0:
+      assert(opens==baseOpens+1 && closes==baseCloses+1 && !windowOwner->Active());
+      nowMs=999;
+      return;
+    case 1:
+      assert(closes==baseCloses+1 && opens==baseOpens+1);
+      nowMs=1000;
+      return;
+    case 2:
+      assert(closes==baseCloses+2 && pendingStop!=nullptr);
+      nowMs=2000;
+      return;
+    case 3:
+      assert(closes==baseCloses+3 && pendingStop==nullptr && opens==baseOpens+1);
+      nowMs=60000;
+      return;
+    case 4:
+      assert(windowOwner->Active() && opens==baseOpens+2);
+      nowMs+=300001;
+      return;
+    default:
+      assert(!windowOwner->Active() && opens==baseOpens+2 && closes==baseCloses+4);
+      throw Stop{};
+  }
+}
+void VerifyRecoveryOpenFailure() {
+  switch(windowStage++) {
+    case 0:
+      assert(windowOwner->Active());
+      endpointFailures=1;
+      nowMs=300001;
+      return;
+    case 1:
+      assert(!windowOwner->Active() && opens==baseOpens+2 && closes==baseCloses+2);
+      nowMs+=999;
+      return;
+    case 2:
+      assert(opens==baseOpens+2);
+      ++nowMs;
+      return;
+    case 3:
+      assert(windowOwner->Active() && opens==baseOpens+3);
+      nowMs+=300001;
+      return;
+    default:
+      assert(!windowOwner->Active() && opens==baseOpens+3 && closes==baseCloses+3);
+      throw Stop{};
+  }
+}
+void LifecycleRegression(EspIdfStationNetwork& station,void (*hook)(),bool failInitial) {
+  EspIdfBleProvisioning owner(station);
+  nowMs=0; windowStage=0; baseOpens=opens; baseCloses=closes;
+  endpointFailures=failInitial ? 1 : 0;
+  stopFailures=failInitial ? 2 : 0;
+  assert(owner.Begin(true,"id","1.0.0",{}));
+  windowOwner=&owner; delayHook=hook;
+  try { lifecycle(taskContext); assert(false); } catch(const Stop&) {}
+  assert(pendingStop==nullptr);
+}
 int main() {
   EspIdfStationNetwork station;
   EspIdfBleProvisioning absent(station);
@@ -144,4 +250,7 @@ int main() {
   delayHook=VerifyWindows;
   try { lifecycle(taskContext); assert(false); } catch(const Stop&) {}
   assert(windowStage==5);
+  LifecycleRegression(station,VerifyStopRetry,false);
+  LifecycleRegression(station,VerifyInitialCleanup,true);
+  LifecycleRegression(station,VerifyRecoveryOpenFailure,false);
 }

@@ -14,94 +14,101 @@ součástí tohoto povolení. Kompletní inventura a 47 scénářů jsou v
 [auditu](../../docs/software-completion-audit.md) a
 [event readiness](../../docs/event-readiness.md).
 
-Implementováno: oficiální BLE Security1/PoP, nativní ESPProvision/CoreBluetooth
-v existující Capacitor aplikaci, tajemství zadávaná jen nativně, compact wire
-do 512 B; hotspot/fallback jako jeden NVS blob, test-before-commit a rollback;
-společná rezervace síť/OTA/SD proti nové hlasové/ruční/fyzické interakci.
-Podepsaný manifest P-256, strict kompatibilita/velikost/verze, HTTPS bez
-redirectů, inactive slot, SHA celého obrazu, bounded první boot/rollback,
-automatické i ruční kontroly. Nové read-only backend endpointy mají limit
-čtyř souběžných odpovědí. Root signer/publisher a CI používají ověřený build
-se zdrojovým Git tree; dev a stable autority jsou oddělené. Žádný privátní
-klíč není v repo/image/IPA. Nový USB network-service nastavuje PoP/backend
-identitu/veřejný OTA trust bez NVS erase. SDMMC1-bit asset driver zachovává
-GPIO38–40, vyžaduje servisně ověřené zapojení a nepovoluje format/write/erase.
+Implementováno: oficiální BLE Security1 s device-specific PoP, nativní
+ESPProvision/CoreBluetooth v existující Capacitor aplikaci, tajemství zadávaná
+jen nativně a compact wire do 512 B. První PoP vyžaduje fyzický USB servis;
+bez něj BLE selže uzavřeně. Hotspot/fallback jsou jeden NVS blob s
+test-before-commit a rollback; po explicitním úspěchu fallback nebo jeho
+obnovení běží nový 60s interval do dalšího hotspot probe. Společná rezervace
+síť/OTA/SD brání nové hlasové/ruční/fyzické interakci během údržby.
+OTA ověřuje podepsaný P-256 manifest, kompatibilitu/velikost/verzi, HTTPS bez
+redirectů a SHA celého obrazu v inactive slotu; má bounded první boot/rollback
+a automatické i ruční kontroly. Read-only backend endpointy mají limit čtyř
+souběžných odpovědí. Dev a stable autority jsou oddělené; privátní klíč není
+v repo/image/IPA. USB network-service nastavuje PoP/backend identitu/veřejný
+OTA trust bez NVS erase. SDMMC1-bit asset driver zachovává GPIO38–40,
+vyžaduje servisně ověřené zapojení a nepovoluje format/write/erase.
 Kamera, GPT-Live, personálity, hlas i B-effects zůstaly zachované.
 
-Dosavadní ověření: celý backend executable runner a cílené firmware release
-testy prošly; mobil 32/32 + TypeScript/Vite build, browser 393/320 px bez
-overflow; kontrakty včetně nových public OTA GET prošly. OpenSSL package
-testy 4/4 prošly včetně skutečného podpisu/corruption a bounded fd publisheru.
-MSVC `/std:c++14 /W4 /WX` testy profilů/STA/Wi-Fi/BLE/OTA/SD prošly u workerů;
-USB network-service build (ESP-IDF6.1) 254885 B flash/17948 B RAM, jeho Python
-5/5 a hardware-service 6/6. Nezávislé review opravilo limit BLE, bounded root
-copy a souběh public download; finální main gate review nemá další nález.
-Finální společný `pio run -d kufr/firmware -e esp32-s3-idf` prošel:
-RAM 86300 B, flash 1731653 B, skutečný app binary 1732080 B z 6553600 B slotu.
-Jeho skutečné OpenSSL package/verify a partition/image check prošly; lokální
-build obsahuje identitu původního HEAD a není vydáván za clean CI release.
-Parent znovu ověřil maintenance owner MSVC test, backend build (0 warnings,
-0 errors), deploy-helper 4/4, CI/provenance Node 55/55 a offline AI eval.
-Linux CI37888034634 prošlo backend/web/repository: celý .NET runner, HTTP
-smoke, 20 client Python a 12 deploy Python testů. Host OTA a skutečný podpis
-9/9 prošly; starší discovery test potřeboval link real NetworkProfiles.cpp
-a storage stub pro nový StationNetwork member. Původní linker failure byl
-reprodukován a opravený přesný C++14 `-Wall/-Wextra/-Werror` command i binárka
-prošly na izolovaném Linuxu GCC15.2; nezávislé review opravy bez nálezu.
-Firmware CI a nativní macOS podpis/publikace mají samostatnou akceptaci;
-další run musí ověřit celý opravený host suite.
+Aktuální CI: commit `e3d4da2`, run **37889978122**, všechny kontroly úspěšné:
+firmware host suite, main ESP-IDF build a čtyři diagnostické buildy,
+backend, web a repository checks. Zahrnuje celý .NET executable runner,
+HTTP smoke, 20 client Python a 12 deploy Python testů. Lokálně prošly mobil
+32/32 + TypeScript/Vite build, browser 393/320 px bez overflow, kontrakty
+včetně OTA GET, MSVC `/std:c++14 /W4 /WX` testy profilů/STA/Wi-Fi/BLE/OTA/SD
+a maintenance owner. USB network-service Python 5/5 a hardware-service 6/6
+prošly; OTA Python 9/9 použilo skutečný OpenSSL bez skipu. Dosavadní package
+testy 4/4 ověřily podpis/corruption a bounded fd publisher; nový P1 níže
+vyžaduje samostatnou regresi. Partition guard kontroluje i CSV flags.
+Backend build měl 0 warnings/errors,
+deploy-helper 4/4, CI/provenance Node 55/55 a offline AI eval prošly.
+Lokální `pio run -d kufr/firmware -e esp32-s3-idf` prošel: RAM 86300 B,
+flash 1731653 B, app binary 1732080 B z 6553600 B slotu. Jeho OpenSSL
+package/verify a partition/image check prošly; tento lokální obraz obsahuje
+identitu původního HEAD a není clean CI release.
 
-CI37889009222 již prošlo celým firmware host suite. HTTP smoke znovu
-odhalilo přenosovou race starého eager oversized realtime uploadu na Node24:
-izolovaná reprodukce nad shodným publikovaným backendem přesně určila
-`realtime-turns`, 2600261 B a EPIPE při zápisu po časném odmítnutí.
-Smoke nyní testuje declared-size image/realtime 413 přes Content-Length a
-Expect100-continue; nepovolí upload po odmítnutí, kontroluje úplný JSON,
-no-store a image HTTP1 close. Skutečné streamed-overflow testy zůstaly.
-Přesný full HTTP smoke na Node24.21.0 prošel třikrát po sobě na izolovaném
-Linuxu; nové testovací změny prošly nezávislým review. Aplikační kód ani
-limity se touto opravou neměnily. Finální CI čeká další předání.
+Starší neúspěchy jsou vyřešené, nikoli nové runtime akceptace: GCC warning
+v SD testu, discovery linker (doplněný real NetworkProfiles.cpp a storage
+stub; reprodukce i oprava prošly na izolovaném Linuxu GCC15.2) a HTTP/1 reuse
+u nepřečteného image413. Realtime smoke race s eager oversized uploadem na
+Node24 byla reprodukována; declared-size 413 nyní používá Content-Length
+a Expect100-continue, ověřuje JSON/no-store a zachovává streamed-overflow
+testy. Full HTTP smoke na Node24.21.0 prošel třikrát po sobě. Opravy prošly
+nezávislým review a aktuálním CI. Dřívější plný disk/OOM nebyl softwarová
+regrese. Široké Windows Python discovery narazilo na Linux/POSIX předpoklady
+a Windows cestu/SQLite cleanup; rozhodující serverové kontroly prošly v CI.
 
-Git předání: implementační commit `c2ab3cf`, synchronizace dokumentačního
-`main` jako `ade0e32`, scoped push helper ověřil remote; PR144 je otevřený.
-CI37885094519 prošlo web/repository/.NET build+celý runner, ale odhalilo GCC
-range-loop warning v SD testu (opraveno) a socket reuse při starším image413.
-Oprava explicitně zavírá HTTP/1 spojení u nepřečteného oversized těla, nemění
-limity a nepřidává forbidden Connection na HTTP2. Nové regrese a lokální
-HTTP smoke včetně tří po sobě jdoucích rejection/next-request prošly.
-Publisher podporuje oba zbývající runner temp kořeny a
-otvírá jejich celý řetězec přes no-follow directory handles. Na VPS jsou
-soukromé backupy a staged source; release služby se zatím neměnil.
-Majitel výslovně zadal odebrání třetího runneru, Codex a CloudVPSBridge.
-Runner3 byl odregistrován; soukromý stav všech tří odebraných instalací je
-v root-only zálohách `/root/kufr-maintenance/d158-ade0e32/removed-software/`.
-Služby, mounty, nginx vhosty i instalace CloudVPSBridge jsou odstraněné;
-globální Codex i jeho VPS stav také. Odstraněny staré Arduino toolchains,
-regenerovatelné download cache a osiřelá neúspěšná instalace .NET v tmpfs.
-Root disk má přibližně 14 GB volných (původně 142 MB); po doloženém OOM je
-pro oba CI runnery provisionovaný 2 GB swap. Backend healthz, iOS HTTPS
-hosting, nginx a oba runner services jsou aktivní; jejich sdílená provisioning
-metadata zůstala zachována. CI37885908752 selhalo kvůli plnému disku a OOM,
-nikoli dokončeným softwarovým kontrolám; nové CI běží nad předaným zdrojem.
-Codex review navíc našlo tři P2: explicitní fallback potřebuje nový 60s
-interval do dalšího hotspot probe (regrese MSVC prošla a reprodukuje starý
-kód), OTA guard musí kontrolovat CSV flags (9 Python testů) a iOS lock musí
-obsahovat skutečný Xcode resolution pro ESPProvision/SwiftProtobuf. První
-dvě opravy prošly nezávislým source review. Skutečný macOS15/Xcode26.3 resolver
-CI37887830815 prošel; commit `478f1ab` obsahuje byte-for-byte Package.resolved s Capacitor8.5.2,
-ESPProvision3.2.0 a SwiftProtobuf1.38.1 včetně ověřených Git revisions.
-Dočasný resolver workflow je odstraněn před merge; nativní build/sign je
-samostatná kontrola v existující ruční iOS pipeline. OTA Python 9/9 prošlo
-u parenta se skutečným OpenSSL, bez skipu.
+Skutečný macOS15/Xcode26.3 resolver **37887830815** prošel; commit `478f1ab`
+obsahuje byte-for-byte Package.resolved s Capacitor8.5.2, ESPProvision3.2.0
+a SwiftProtobuf1.38.1 včetně ověřených Git revisions. Dočasný resolver
+workflow je odstraněn. Plný nativní compile, podpis a publikace nového IPA
+dosud neproběhly; patří do existující ruční iOS pipeline.
 
-Široký deployment Python discovery na Windows narazil na již existující
-Linux `os.getuid`/POSIX práva a Windows cestu/SQLite cleanup v memory suite;
-nejde o změnu provisioning systému. Cílený deploy-helper a Linux CI jsou
-rozhodující pro tento serverový kód. Žádné fyzické BLE/hotspot/SD/audio/servo,
-NVS power-loss ani OTA rollback měření nebylo provedeno. Produkční stable
-signer musí být servisně provisionován; development klíč není produkční.
-Další krok po software delivery: kontrolované první USB uvedení do provozu,
-provisioning trust/PoP a 47 scénářů na konkrétním ESP a iPhonu, včetně zátěže.
+VPS cleanup je dokončený: zbývají pouze GitHub runnery ID2 (main) a ID22 (-2).
+Třetí runner byl odregistrován, Codex i CloudVPSBridge jsou odinstalované;
+soukromá záloha je `/root/kufr-maintenance/d158-ade0e32/removed-software/`.
+Odstraněny jejich služby/mounty/vhosty i regenerovatelné cache a staré
+Arduino toolchains. Bezpečně odstraněno 26 starých backend releases po
+kontrole cest/mountů/symlinků a nezměněného current; aktivní release a dva
+nejnovější rollbacky zůstaly. Soukromý konfigurační archiv a inventura mají
+root-only mód 0600 ve stejné záloze. Releases klesly z 3,2 GB na 340 MB;
+root disk má 15 GB volných z 38 GB (21 GB použito, 59 %). Systém má 2 GB
+swap pro oba runnery. Backend healthz, iOS HTTPS,
+nginx a oba runner services jsou zdravé. Nasazený backend/iOS release
+zůstává původní: **PR144 není sloučený**, nové změny nejsou nasazené.
+
+P1 root signing helper byl opraven: nezávisle čte GitHub successful CI,
+merged PR/current main tree, serverový ZIP digest a bounded ZIP/TAR;
+verzi/build ID odvozuje ze zdroje a porovnává přesný root snapshot před
+podpisem. Ephemeral token je pouze stdin, s 10s deadline a bez persistence;
+download redirect nikdy nepřebírá Authorization. Před promotion znovu
+kontroluje main. Regrese 30/30 prošly na Linuxu (Windows 29 + jeden POSIX
+skip), nezávislé security review bez dalšího bypassu. Root-owned verifier
+a helper jsou instalované, sudoers/py_compile/hash/health ověřené; po
+dočasném zákazu je nový helper znovu povolený. CI builder zůstává důvěryhodný
+producent, nejde o reproducible-build attestation. Další čerstvé Codex review
+na `e3d4da2` našlo OTA boot calibration/health P1 a BLE shutdown retry/NVS
+cleanup error P2; jsou opravené. Selected profile vyžaduje kalibraci i
+aktuální pasivní effects health před 5s potvrzením bootu. BLE teardown se
+opakuje každou sekundu a nespotřebuje recovery window do úspěšného otevření.
+NVS cleanup propaguje erase/final commit failure; po failed save se jednou
+obnoví předchozí blob, RAM zůstává stará a výsledek je vždy storage_failed.
+Trvalá chyba úložiště může zmařit i rollback; nejde o cross-key transakci ani
+fyzickou power-loss akceptaci. MSVC regrese prošly; parent na skutečném
+Linuxu GCC15.2 znovu sestavil a spustil OTA policy, NVS adapter, pure profiles,
+STA lifecycle a BLE/real cJSON (vše C++14 -Wall/-Wextra/-Werror), všech pět
+binárek prošlo. Node provenance/freshness 55/55 znovu prošlo. Před
+merge/publikací musí projít nové CI a source/PR review po posledním push.
+Git předání začalo `c2ab3cf`, zahrnuje synchronizaci `main`
+`ade0e32` a nynější `e3d4da2`; scoped push byl ověřen, PR144 zůstává otevřený.
+Merge, ověření cílového tree a finální publikace jsou stále neprovedené.
+
+Žádné fyzické BLE/hotspot/SD/audio/servo, NVS power-loss ani OTA rollback
+měření nebylo provedeno. Produkční stable signer musí být servisně
+provisionován; development klíč není produkční. Po softwarovém předání
+následuje kontrolované první USB uvedení do provozu, provisioning trust/PoP
+a všech 47 scénářů na konkrétním ESP a iPhonu včetně zátěže. Inventura
+scénářů ani úspěšný build nenahrazují jejich fyzickou akceptaci.
 
 
 **D157 – 9. 10. 2026 – fotografie pro dialog, zrušení peněžních capů a Arduino profilu.**

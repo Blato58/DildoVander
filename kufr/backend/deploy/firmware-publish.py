@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Root-owned signer/publisher. Private signing keys never reach the runner."""
+import hashlib
 import importlib.util
 import os
 from pathlib import Path
 import re
+import select
 import stat
 import sys
 import tempfile
+import time
 
 
 DESTINATION = Path('/opt/kufr-firmware')
@@ -14,6 +17,7 @@ RUNNER_TEMPS = tuple(Path('/opt') / name / '_work' / '_temp'
                      for name in ('actions-runner', 'actions-runner-2'))
 KEYS = Path('/etc/kufr-backend')
 TOOL = Path('/usr/local/lib/kufr-firmware/ota_release.py')
+VERIFIER = Path('/usr/local/lib/kufr-firmware/firmware_artifact.py')
 PARTITIONS = Path('/usr/local/lib/kufr-firmware/partitions_16mb.csv')
 
 
@@ -33,31 +37,58 @@ def source_path(value):
     return source
 
 
-def publish(source, version, build_id, channel):
-    if channel not in {'stable', 'development'} or not re.fullmatch(r'[0-9a-f]{40}', build_id):
-        raise ValueError('Invalid channel/build identity')
+def load_owned_module(name, path):
+    for entry in [path, *path.parents]:
+        information = entry.lstat()
+        if entry.is_symlink() or information.st_uid != 0 or information.st_mode & 0o022:
+            raise ValueError('Signing configuration must be root-owned and immutable to other users')
+    if not path.is_file():
+        raise ValueError('Signing configuration must be a regular file')
+    specification = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(specification)
+    sys.modules[name] = module
+    specification.loader.exec_module(module)
+    return module
+
+
+def verified_snapshot(source, expected):
+    data = read_source(source)
+    if len(data) != expected.size_bytes or hashlib.sha256(data).hexdigest() != expected.sha256:
+        raise ValueError('Runner artifact differs from the independently verified GitHub artifact')
+    return data
+
+
+def publish(source, run_id, channel, token):
+    if channel not in {'stable', 'development'} or not re.fullmatch(r'[1-9][0-9]{0,15}', run_id):
+        raise ValueError('Invalid channel/build run')
     source = source_path(source)
     key = KEYS / ('ota-' + channel + '-private.pem')
     public = KEYS / ('ota-' + channel + '-public.pem')
-    for path in [key, public, TOOL, PARTITIONS]:
-        if not path.is_file() or path.is_symlink() or path.stat().st_uid != 0 or path.stat().st_mode & 0o022:
-            raise ValueError('Signing configuration must be root-owned and immutable to other users')
+    for path in [key, public, PARTITIONS]:
+        for entry in [path, *path.parents]:
+            information = entry.lstat()
+            if entry.is_symlink() or information.st_uid != 0 or information.st_mode & 0o022:
+                raise ValueError('Signing configuration must be root-owned and immutable to other users')
+        if not path.is_file():
+            raise ValueError('Signing configuration must be a regular file')
     if key.stat().st_mode & 0o077:
         raise ValueError('Private signing key must have mode 0600')
-    specification = importlib.util.spec_from_file_location('ota_release', TOOL)
-    module = importlib.util.module_from_spec(specification)
-    specification.loader.exec_module(module)
+    verifier = load_owned_module('firmware_artifact', VERIFIER)
+    expected = verifier.verify_artifact(run_id, token)
+    version, build_id = expected.version, expected.build_id
+    module = load_owned_module('ota_release', TOOL)
     # Snapshot untrusted runner bytes once, before validation/signing. A runner
     # cannot swap the input between hash, signing and the copy to public storage.
     with tempfile.TemporaryDirectory(prefix='kufr-firmware-publish-') as temporary:
         root = Path(temporary)
         snapshot = root / 'firmware.bin'
-        snapshot.write_bytes(read_source(source))
+        snapshot.write_bytes(verified_snapshot(source, expected))
         release = root / 'release'
         metadata = module.package(snapshot, PARTITIONS, version, build_id, channel, key, release)
         module.verify(release)
         if (release / 'trust.pem').read_bytes() != public.read_bytes():
             raise ValueError('Configured public key does not match the signer')
+        verifier.assert_main_unchanged(expected.main_sha, token)
         if DESTINATION.is_symlink() or DESTINATION.parent.is_symlink():
             raise ValueError('Unsafe distribution directory')
         DESTINATION.mkdir(mode=0o755, exist_ok=True)
@@ -153,7 +184,32 @@ def atomic_write(path, data):
         temporary.unlink(missing_ok=True)
 
 
+def parse_token(data):
+    if not data or len(data) > 1024 or any(byte < 33 or byte > 126 for byte in data):
+        raise ValueError('A bounded ephemeral GitHub token is required on standard input')
+    return data.decode('ascii')
+
+
+def read_token(descriptor, timeout_seconds=10):
+    deadline = time.monotonic() + timeout_seconds
+    data = bytearray()
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0 or not select.select([descriptor], [], [], remaining)[0]:
+            raise ValueError('Ephemeral token input timed out')
+        chunk = os.read(descriptor, 1025 - len(data))
+        if not chunk:
+            return parse_token(data)
+        data.extend(chunk)
+        if len(data) > 1024:
+            raise ValueError('Ephemeral token input exceeds its limit')
+
+
 if __name__ == '__main__':
-    if len(sys.argv) != 5 or os.geteuid() != 0:
-        raise SystemExit('Usage as root: kufr-firmware-publish BINARY VERSION BUILD_ID CHANNEL')
-    publish(*sys.argv[1:])
+    if len(sys.argv) != 4 or os.geteuid() != 0:
+        raise SystemExit('Usage as root: kufr-firmware-publish BINARY CI_RUN_ID CHANNEL (token on stdin)')
+    try:
+        publish(*sys.argv[1:], read_token(sys.stdin.buffer.fileno()))
+    except (ValueError, OSError):
+        # Do not expose credentials, signed download URLs or private paths in CI.
+        raise SystemExit('Firmware publication rejected: provenance, snapshot or signing configuration invalid') from None

@@ -57,10 +57,11 @@ jobs:
       - name: Sign and atomically publish using root-owned authority
         shell: bash
         env:
-          BUILD_ID: ${{ needs.verify.outputs.source_sha }}
+          BUILD_RUN_ID: ${{ inputs.build_run_id }}
           CHANNEL: ${{ inputs.channel }}
+          ARTIFACT_READ_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           version="$(cat kufr/firmware/version.txt)"
           python3 kufr/firmware/tools/ota_release.py check --version "$version" --binary "$RUNNER_TEMP/ota-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/esp32-s3-idf/firmware.bin"
-          sudo -n /usr/local/sbin/kufr-firmware-publish "$RUNNER_TEMP/ota-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/esp32-s3-idf/firmware.bin" "$version" "$BUILD_ID" "$CHANNEL"
+          printf '%s' "$ARTIFACT_READ_TOKEN" | sudo -n /usr/local/sbin/kufr-firmware-publish "$RUNNER_TEMP/ota-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/esp32-s3-idf/firmware.bin" "$BUILD_RUN_ID" "$CHANNEL"
