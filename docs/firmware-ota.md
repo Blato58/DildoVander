@@ -155,3 +155,13 @@ after reboot; a successful server download/build is not device OTA acceptance.
 Physical tests must cover interrupted/power-loss writes, failed health,
 fallback boot, credential retention and idle activation. Keep the last accepted
 USB recovery package and initial flash backup privately available.
+
+D159 verified one real development-channel update on9 October2026:
+`kufr-68ee8f4b6048` automatically upgraded0.1.0→0.1.1 over trusted HTTPS,
+booted ota_1 at`0x650000` and confirmed its boot VALID. A read-only NVS check
+proved identity, PoP, network and OTA settings unchanged; another reset retained
+the new slot and successful backend authentication. The CI USB recovery package
+and pre-service flash backup remain private. This accepts the successful update
+path; interrupted writes, invalid signatures/images and actual rollback still
+need physical tests. Exact CI/build/hash/UTC evidence is in the
+[implementation status](../kufr/docs/stav-implementace.md).
