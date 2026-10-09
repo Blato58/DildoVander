@@ -5,7 +5,9 @@ POST používá výchozí prázdné tělo klienta a automatický `Content-Length
 Volání `set_post_field("", 0)` bez Content-Type vracelo v tomto SDK
 `ESP_ERR_NOT_FOUND` a zabránilo odeslání požadavku. Regrese adaptéru modeluje
 tuto SDK chybu, úspěšný token, 401, chybu transportu a oversized response.
-Firmware verze s opravou je `0.1.1`; fyzické ověření a přesný build zapisuje
+Firmware verze s opravou je `0.1.1`; skutečná automatická OTA, potvrzený VALID
+boot, NVS retention a backend přihlášení i po dalším resetu prošly na samostatné
+desce. Majitel potvrdil připojený stav na iPhonu. Přesný build a rozsah zapisuje
 [stav implementace](../docs/stav-implementace.md).
 
 ```text
@@ -348,7 +350,7 @@ uzavření journalu. Přijetí výběru, aktivní pohyb, Stop a porucha jej inva
 změny lease, revision a masky publikují novou verzi. Sdílené boot ID již vzniká
 při startu, nulová kalibrace zatím záměrně nedovoluje spustit pohon.
 Autentizovaný WSS vstup a přísný parser jsou zapojené přes `LocalControlOwner`.
-Skutečný NVS/WSS běh na desce a servisní USB zápis zbývají.
+D159 ověřilo NVS a USB síťový provisioning na desce; místní WSS běh zbývá.
 Po autorizovaném zrušení textového rozhovoru `CancelConversation` zvýší stejnou
 generation jako ruční Stop nebo ztráta lease a vydá nový snapshot. Kontroluje
 vlastníka lease, monotónní čas před expirací a očekávanou generation. Místní
@@ -365,15 +367,17 @@ existující `DeviceControlRuntime`. Odpojení pozorovatele nemění samostatný
 režim; odpojení vlastníka ukončí lease a zvýší generation. Po vypršení lease
 je další takeover možný teprve po místním zotavení. Třída sama neověřuje
 token, nepřijímá JSON ani nevystavuje WSS. ESP-IDF smyčka ji používá přes
-`LocalControlOwner`; skutečná TLS/token akceptace na desce zbývá.
+`LocalControlOwner`; skutečná místní WSS TLS/token akceptace na desce zbývá.
 
 `DeviceIdentity` čte oddělený verzovaný NVS záznam s `deviceId` a 32 bajty
 device credential. Pro HTTP Authorization jej lze vyjádřit 64 malými
 hexadecimálními znaky; backend porovnává SHA-256 přesně těchto UTF-8 znaků.
 Případný zápis vyžaduje v modelu současně aktivní fyzický servisní režim a
 odpojenou větev pohonů. ESP-IDF smyčka zatím identitu pouze čte a oznamuje
-stav bez její hodnoty. Skutečné USB servisní rozhraní, ověření fyzické brány,
-náhodné generování credential mimo image a běžící TLS spojení zbývají.
+stav bez její hodnoty. Oddělený network-service nástroj v D159 provisionoval
+náhodný credential mimo image při majitelem potvrzené odpojené větvi pohonů;
+USB/NVS readback a backend HTTPS token exchange na desce prošly. Místní
+TLS/pairing identita je jiný servisní rozsah.
 
 `LocalPairingCredential` je oddělený čistý model pro místní telefonní token.
 Servisně přijme nejméně 16bajtové jednorázové tajemství jen při fyzické bráně;
@@ -489,15 +493,18 @@ v RAM a odmítá odpověď s jiným `deviceId`, typem tokenu nebo dobou platnost
 ESP-IDF HTTPS adaptér má pevnou cestu token endpointu, ověřuje server přes CA
 bundle a hostname, nepovoluje redirect a omezuje odpověď na 512 bajtů.
 `TokenResponseParser` přijímá pouze čtyři očekávaná pole a odmítá duplicity.
-EspIdfStationNetwork spouští jedinou STA úlohu s kompletní servisní NVS konfigurací v `wand_network` (`ssid`, `password`,
-`backend_host`). Wi-Fi konfigurace zůstává v driveru v RAM. Samostatný backend s platnou
+EspIdfStationNetwork spouští jedinou STA úlohu se servisním `backend_host`
+a persistentními hotspot/fallback profily `profiles_v1` v `wand_network`;
+staré `ssid`/`password` jsou pouze migrační vstup. Wi-Fi konfigurace zůstává
+v driveru v RAM. Samostatný backend s platnou
 device identitou nejprve
 získá IP, čeká na SNTP a kontroluje čas proti datu buildu i poslednímu
 důvěryhodnému času v NVS. Teprve pak může přes HTTPS vyměnit credential za
 token. Výpadek Wi-Fi vyvolá čekání 1/2/4/8/16/30 s s jitterem; síťová úloha
-nemá přístup k portu pohonů. Servisní zápis s fyzickou bránou zatím chybí,
-takže na prázdné desce síť nezačne. Skutečné Wi-Fi, SNTP ani TLS spojení nebylo
-na desce ověřeno. V image není URL ani credential.
+nemá přístup k portu pohonů. Prázdná deska potřebuje oddělený USB network-service
+pro identitu/backend/PoP. D159 ověřilo domácí Wi-Fi, trusted-time gate,
+validovaný HTTPS a token POST200 i po restartu; hotspot/failover a delší
+výpadky zůstávají neověřené. V image není URL ani credential.
 
 `ConversationSession` je čistý model jednoho textového sezení. Kontroluje
 ruční lease, boot/session/generation, revision a délku UTF-8 textu. Místní
