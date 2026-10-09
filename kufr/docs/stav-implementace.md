@@ -69,7 +69,7 @@ mode test vyžadují Linux; nepřipisovat je nové funkci. Browser syntetický
 native harness ověřil manual priority, pokračování po chybě, Stop a starou
 firmware capability; bez chyb konzole. Nové Swift HTTP peer testy pokrývají
 přípravu všech režimů, ztracenou/neplatnou odpověď uploadu, úvod jen v novém rozhovoru a Stop během
-cleanup/create; jejich skutečné spuštění čeká macOS workflow.
+cleanup/create; nativní provedení zůstává neověřené.
 
 Finální `pio run -d kufr/firmware` po odstranění Arduina prošel: 82 400 B
 statické RAM, 1 342 745 B flash. Servisní generator/build prošel (14 800 B
@@ -96,7 +96,7 @@ Start po neúspěšném úklidu. Firmware už DELETE klíč i čekání na úkli
 zachovával; cílené review nepotvrdilo potřebu jeho změny.
 Po opravách znovu prošel celý backend runner, cílené image testy, HTTP
 smoke a kontrakty; mobil 28/28 testů, build a skutečný HTTP fixture
-self-check prošly. Swift provedení nových regresí čeká macOS.
+self-check prošly. Swift provedení nových regresí se nespouštělo.
 Nezávislé review navíc odhalilo expirovaný access token při pozdějším Stop:
 cleanup obnoví token na 401, ponechá stejný DELETE klíč/ID a při selhání
 obnovy zachová vlastnictví pro další pokus. HTTP fixture ověřil obnovu,
@@ -121,7 +121,7 @@ pět opravených Codex vláken je resolved, review nebylo rozpracované.
 PR 142 je sloučený jako `6cb130d542e2eb2d0ff41a6cde05c7f47adbdc30`;
 fetch cíle potvrdil Git tree `1d8710572af596e28ff94e2e954d4a8e7d5ec74a`,
 shodný s otestovanou verzí `ab28dd0`.
-Majitel poté výslovně zadal „skip ios ci“. Nativní `kufr-ios-sign.yml`
+Majitel v tomto tasku výslovně zadal „skip ios ci“. Nativní `kufr-ios-sign.yml`
 se nespustil; nové Swift regrese, UIKit kompilace, podpis a iPhone runtime
 nejsou tímto předáním ověřené. Web/mobile Node testy nejsou native CI.
 Neprovedeno: placená inference, cloudové nasazení, publikace IPA ani flash.
