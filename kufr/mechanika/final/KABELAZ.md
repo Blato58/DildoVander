@@ -12,6 +12,11 @@ Každý vodič má ID, oba konce, síť, průřez, trasu, délkové rezervy a dv
 Souřadnice jsou **návrhové kotevní body**, nikoli změřené polohy konektorů.
 Porty Degson 1–5 jsou montážní štítky, ne tvrzení o orientaci svorky.
 Všech pět pozic jednoho bloku je jeden vodivý uzel.
+Náhled rozvádí každou obsazenou pozici až ke skutečným součástkám přes
+označené pájené rozbočky, včetně navazující logické země. Každá větev
+zachovává v popisku ID portu a síť; rozbočka je elektrický spoj, ne další
+součástka či konektor. Připravená USB napájecí větev se zobrazuje u ESP
+s výslovnou poznámkou o neověřeném adaptéru a cestě přes USB-UART.
 
 ## Tři bloky a izolované rozbočky
 
@@ -122,8 +127,8 @@ Skutečné polohy vývodů ani průchod konektorů nejsou tímto odhadem dolože
 Při pokládce nezakrýt vedení, vačku, brzdu, páku, mikrofon ani chlazení.
 
 LED a U059 se s přihrádkou pohybují o **16 mm**. Každý jejich napájecí
-i signálový vodič má navíc **64 mm volné délky**: 2×16 mm na relativní
-pohyb a 32 mm návrhové rezervy pro oblouk. Smyčka musí mít odlehčení na
+i signálový vodič má navíc **64 mm volné délky na každý pohyblivý konec**:
+2×16 mm na relativní pohyb a 32 mm návrhové rezervy pro oblouk. Smyčka musí mít odlehčení na
 pevné základně i pohyblivé přihrádce; bužírka ani pájený spoj nesmí tvořit
 ohybný úsek. Smyčku položit v přední vyhrazené oblasti mimo vodítka a
 vačku: v každé přihrádce místní X17–41, globální Y86–112 / Z36–60.
@@ -136,7 +141,12 @@ Obě strany RGB propojky
 navštíví vlastní smyčku; čára mezi kotevními body nepředstavuje pružný kabel.
 Konkrétní poloměr, tuhost a přichycení ověřit se skutečným kabelem.
 Spoje DOUT/DIN mezi sousedními LED mají dvě oddělená pohyblivá odlehčení;
-ověřit jeden úsek nahoře a sousední dole i opačně. Zvolené délky ani CAD
+propojky RGB-2 až RGB-6 proto mají **128 mm pohybové rezervy celkem**,
+64 mm pro každý ze dvou nezávisle pohyblivých konců. RGB-1 od pevného
+Pixel Shifteru a jednotlivé napájecí či DIN větve k LED/U059 mají 64 mm.
+`motion_mm` v řezném seznamu je součet těchto rezerv celého vodiče;
+zvyšuje také návrhovou celkovou délku a přídavek k ustřižení.
+Ověřit jeden úsek nahoře a sousední dole i opačně. Zvolené délky ani CAD
 obálka smyčky tuto fyzickou kontrolu nenahrazují. Servo zůstává na pevné
 základně, proto jeho kabel nedostává pohybovou rezervu. Jeho přívody
 vedou z přední trasy nejdřív přes místní X26 / globální Y30 / Z38,
