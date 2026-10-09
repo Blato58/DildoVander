@@ -42,6 +42,18 @@ class LocalSocketAdmission final {
   // The transport must close the returned socket before admitting a retry.
   bool ExpirePending(uint64_t nowMs, Handle& expired);
 
+  // Bounded recovery only; no reentrant admission/transport calls. Holding this
+  // mutex linearizes credential rotation against handshake authentication.
+  template <typename Action>
+  bool RunIfEmpty(const Action& action) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (state_ != State::Empty) {
+      return false;
+    }
+    action();
+    return true;
+  }
+
  private:
   enum class State {
     Empty,

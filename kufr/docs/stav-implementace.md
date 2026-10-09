@@ -6,6 +6,18 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D165 – převzatá oprava opakovaného párování po Zapomenout párování.**
+Majitel po úspěšném D164 připojení zapomněl párování a nové BLE párování vrací
+already_paired. Native forget maže pouze Keychain; firmware ponechá hash.
+Implementuje se explicitní PoP BLE recovery podle D165 plánu, s nativním
+potvrzením, idle/socket/inbox gate a revokací starého tokenu. Sedm MSVC host suites (pairing, TLS, BLE, discovery, WSS server, inbox,
+admission) prošlo; 43 mobilních testů a npm run build prošly.
+`pio run -e esp32-s3-idf -s` prošel. Nezávislé firmware/native review
+a diff --check prošly. Native review neprovedlo UIKit lifecycle test;
+firmware gates mají host testy, kombinace MaintenanceGate je source-reviewed.
+Native podpis, publikace a fyzická opakovaná zkouška zatím neproběhly.
+
+
 **D164 – 9. 10. 2026 – opravený startup a fyzická obnova COM7 na0.1.161.**
 Majitel nedokáže ESP najít ani přes BLE a autorizoval debug přes COM7/PC Bluetooth.
 Windows potvrzuje CH343 USB UART COM7 a funkční Intel Bluetooth adaptér.

@@ -264,8 +264,8 @@ public class KufrDeviceTransportPlugin: CAPPlugin, CAPBridgedPlugin {
                 return
             }
             let prompt = UIAlertController(title: "Zapomenout párování?",
-                message: "Nové párování bude vyžadovat fyzický servisní reset kufru. " +
-                    "Uložený token už nepůjde získat zpět.", preferredStyle: .alert)
+                message: "Přístup se odstraní z tohoto telefonu. Pro nové párování připojte " +
+                    "kufr v Síť kufru přes zabezpečené BLE a potvrďte obnovu párování.", preferredStyle: .alert)
             prompt.addAction(UIAlertAction(title: "Zrušit", style: .cancel) { _ in
                 call.reject("Párování zůstalo uložené.", "cancelled")
             })
