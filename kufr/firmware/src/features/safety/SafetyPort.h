@@ -11,4 +11,7 @@ class SafetyPort {
   virtual void DisableActuators() = 0;
   virtual void StartVibration(uint8_t compartment) = 0;
   virtual void ReleaseLatch(uint8_t compartment) = 0;
+  virtual void LowerProp(uint8_t) {}
+  virtual bool PropRaised(uint8_t) const { return false; }
+  virtual bool PropResting(uint8_t) const { return false; }
 };

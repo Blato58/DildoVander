@@ -25,6 +25,9 @@ class SafetyController {
   bool BeginSelection(uint8_t compartment);
   bool StartVibration();
   bool ReleaseLatch();
+  bool LowerProp();
+  bool PropRaised() const { return port_.PropRaised(compartment_); }
+  bool PropResting() const { return port_.PropResting(compartment_); }
   void DisableActuators();
   void Complete();
 

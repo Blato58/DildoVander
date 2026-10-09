@@ -40,7 +40,8 @@ class SelectionSequence {
  public:
   static constexpr uint8_t CompartmentCount = 6;
 
-  explicit SelectionSequence(SafetyController& safety);
+  explicit SelectionSequence(SafetyController& safety, bool returnsProp = false);
+  bool ReturnsProp() const { return returnsProp_; }
 
   bool Start(uint8_t compartment, uint32_t nowMs, SelectionStep& step);
   bool Start(uint8_t compartment, uint32_t nowMs,
@@ -65,9 +66,12 @@ class SelectionSequence {
     Vibrating,
     BetweenPulses,
     Releasing,
+    Showing,
+    Returning,
   };
 
   SafetyController& safety_;
+  bool returnsProp_;
   Phase phase_ = Phase::Idle;
   SelectionControlMode controlMode_ = SelectionControlMode::Standalone;
   bool hasControlLoopPass_ = false;

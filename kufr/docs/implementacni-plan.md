@@ -863,6 +863,27 @@ Pro jednu malou VM/doménu počítat plánovací rezervu přibližně 5–15 EUR
 
 ## 10. Předběžné piny, periferie a napájení
 
+**D155 – 9. 10. 2026: implementovaný B-effects-no-SD.** Potvrzené nákupy
+obsahují MCP, měnič, druhý DFR0954 a montážní materiál. Fyzické adaptéry
+PCA/RMT/MCP, audio B a návrat rekvizity jsou nyní v kódu. Pro skutečné
+potvrzení polohy devítigramových serv doplňuje konkrétní varianta 12
+krajních kontaktů na MCP4–15. GPIO38 čte GOOD watchdogu: SD se nepoužívá.
+Je to explicitní odvozený profil od B níže, nikoli tvrzení souběhu SD
+s touto kabeláží. Nové kontakty, nezávislý inhibit a měření nejsou nákupem
+ani softwarem doložené. NVS vyžaduje ověřené piny/mute/inhibit/polohy,
+individuální kalibraci a místní zotavení. Komerční servo bez zpětného
+kanálu nedovoluje nahradit potvrzený návrat pouhým timeoutem.
+[Konkrétní zapojení a servis](zapojeni-potvrzeneho-hardwaru.md).
+
+Autonomní i nové fyzické ruční řízení drží journal až do potvrzeného
+návratu a potom obnoví dostupnost. Pětisekundová ukázka probíhá bez
+impulzů/příkonu pohonů; celá ruční prezentace má strop 10 s, každé servo
+okno nadále nejvýše 500 ms a motorový pulz 150 ms (tvrdě 250 ms).
+Historické 5s/400ms limity níže zůstávají v kompatibilním sériovém
+prototypu západky, nikoli v implementované prezentaci. Změna brání tomu,
+aby se nový návrat ukončil před pětisekundovou ukázkou; žádná mez se nedá
+měnit AI ani běžným síťovým příkazem. HW kritéria E5/E6/B1 se nemění.
+
 ### Co skutečně plyne z podkladů
 
 Zdrojem barevných vazeb je [dodaná pinová mapa](pin-map-esp32-s3.png) a její [přepis](pin-mapa-esp32-s3.md). **Ani jedno nenahrazuje schéma a měření doručeného kusu.** Označení N16R8, kapacita pamětí a význam „LED ON“ nejsou zde elektricky ověřené.

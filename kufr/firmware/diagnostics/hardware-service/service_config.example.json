@@ -1,0 +1,16 @@
+{
+  "profile": "B-effects-no-SD",
+  "revision": 1,
+  "profile_b_ok": false,
+  "mute_ok": false,
+  "inhibit_ok": false,
+  "positions_ok": false,
+  "servos": [
+    {"rest_us": 0, "raised_us": 0, "travel_ms": 0},
+    {"rest_us": 0, "raised_us": 0, "travel_ms": 0},
+    {"rest_us": 0, "raised_us": 0, "travel_ms": 0},
+    {"rest_us": 0, "raised_us": 0, "travel_ms": 0},
+    {"rest_us": 0, "raised_us": 0, "travel_ms": 0},
+    {"rest_us": 0, "raised_us": 0, "travel_ms": 0}
+  ]
+}

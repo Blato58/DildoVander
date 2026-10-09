@@ -1,5 +1,38 @@
 # Firmware AI kufru
 
+## Fyzické efekty a audio B (D155, 9. 10. 2026)
+
+Hlavní ESP-IDF obraz nově obsahuje koordinovaný I2C adaptér PCA9685/MCP23017,
+RMT výstup 36 WS2812B, ovládání šesti serv a šesti U059 a audio profil B
+pro dva DFR0954. Fyzický profil **B-effects-no-SD** zachovává kamerové GPIO,
+GPIO38 používá pro GOOD watchdogu; SD slot zůstává prázdný.
+[Konkrétní zapojení, chybějící díly a oživení](../docs/zapojeni-potvrzeneho-hardwaru.md).
+
+`physical_effects/PhysicalEffects` vynucuje jeden úsek / jeden pohon,
+počáteční jas 64/255, 150ms vibraci, individuální servo pulzy a okno do
+500 ms. Krajní kontakty se potvrzují po 30 ms; časovač není snímač polohy.
+`PhysicalPresentation` propojuje journal a autonomní bránu s hledáním,
+třemi pulzy, zdvihem, 5s ukázkou a návratem. Fyzický ruční režim používá
+stejný návrat přes `SelectionSequence(..., true)` a obnovuje dostupnost
+jen při potvrzené spodní poloze a úspěšném trvalém zápisu. Kompatibilní
+Arduino sériový prototyp dál používá původní režim západky.
+
+NVS namespace `wand_hw` se nastavuje odděleným
+[servisním projektem](diagnostics/hardware-service/README.md). Vyžaduje
+`profile_b_ok`, `mute_ok`, `inhibit_ok`, `positions_ok`, pozitivní
+`cal_revision` a 36 bajtů jednotlivých kalibrací. Příklad všechny brány
+zakazuje. Bez ověření firmware pohony nepovolí, po bootu vyžaduje místní
+kontrolu (2s přidržení tlačítka a všech šest kontaktů dole). Krátký stisk
+v klidu spouští/zastavuje hlas; při prezentaci zastaví pohyb.
+
+Profil B po chybě nikdy nespadne zpět na kamerové audio piny A. Mute přes
+MCP běží pod task mutexem, nikoli spinlockem. Starý profil A zůstává
+podmíněný `wand_audio/profile_a_ok` a absencí kamery. Mikrofon, oba
+zesilovače, DMA a proudy stále potřebují fyzickou akceptaci. Odložený
+nezávislý inhibit a 12 krajních kontaktů nejsou potvrzené nákupy;
+software ani úspěšný build nejsou uzavření E5/E6/B1/E9/E13.
+
+
 ## Autonomní Live: místní přehrání (D143)
 
 Nová serverová opt-in větev posílá `playback_checkpoint` s UUID, přesným
@@ -62,7 +95,7 @@ namespace `wand_audio`, u8 `profile_a_ok=1`. Je to potvrzení revize/zapojení,
 ne běžná volba aplikace. Před provisionováním ověřte GPIO4/5/6/7/16 podle
 plánu, levou volbu ICS43434, MAX98357A shutdown a nepřítomnost kamery/SD.
 Bez tohoto údaje se audio piny nenastavují a UI uvádí nedostupné audio.
-Profil B s MCP23017 nemá tento adaptér. Hlasový režim/hlas jsou v RAM,
+Nový B-effects-no-SD má expander adaptér podle D155 výše. Hlasový režim/hlas jsou v RAM,
 po restartu se vrací `off`/`marin`; reconnect nikdy sám nespouští rozhovor.
 
 I2S má 32kHz/32bit stereo sloty a průběžný FIR pro 24kHz PCM Realtime.
@@ -99,9 +132,9 @@ Podrobný postup a skutečně provedené kontroly jsou ve
 provisionované HTTPS párování a autentizovaný WSS vstup s řídicím vlastníkem,
 backendovou textovou frontou a korelovaným výstupem replik. Snapshot vydává
 `DeviceControlRuntime` pouze po bezpečných přechodech. Wi-Fi má vlastní úlohu,
-nezávislou na cloudovém tokenu/čase. Kalibrace zůstává 0, zotavení bez doložené
-fyzické kontroly je zavřené a fyzický GPIO port pohonů chybí. Audio port
-vyžaduje ověřený profil A. Prázdná NVS neposkytuje identitu ani párování;
+nezávislou na cloudovém tokenu/čase. Bez servisní konfigurace je kalibrace 0 a zotavení zavřené. Nový fyzický
+port vyžaduje B-effects-no-SD, endpointy a inhibit; audio může používat
+ověřený A nebo B podle D155 výše. Prázdná NVS neposkytuje identitu ani párování;
 D123 ověřilo základní offline boot, síť/párování a periferie zbývají.
 
 E4.4t přidává inzerci `_kufr._tcp.local:443` až po spuštění provisionovaného
@@ -126,7 +159,7 @@ bude potřeba.
 ```text
 src/
   main.cpp                                  Arduino sestavení a smyčka
-  espidf_main.cpp                           rozpracovaná IDF smyčka bez GPIO
+  espidf_main.cpp                           IDF smyčka s gated fyzickým portem
   features/
     safety/
       SafetyPort.h                          požadavky na vypnutí/pohony
