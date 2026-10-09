@@ -81,9 +81,7 @@ def read_stream(response, events):
 
 
 def run():
-    cap = int(os.environ["SESSION_CAP_MICRO_USD"])
-    check(0 < cap <= 3_000_000, "approved_budget_guard")
-    report = {"kind": "synthetic_hands_free", "maximumSessionUsd": cap / 1_000_000,
+    report = {"kind": "synthetic_hands_free", "spendingAuthority": "openai_project",
               "model": "gpt-realtime-2.1", "turns": [], "completed": False}
     output = Path(os.environ.get("REPORT_PATH", "realtime-live-report.json"))
     client = ApiClient(validate_base_url(os.environ["PUBLIC_IPV4"]))
@@ -179,7 +177,6 @@ def run():
                     check(type(cost) is int and cost > 0 and first_audio is not None, "missing_cost_or_audio")
                     charged += cost
                     report["conservativeTotalUsd"] = charged / 1_000_000
-                    check(charged <= cap, "session_cost_exceeded")
                     result = event["result"]
                     report["turns"].append({"reply": result["reply"], "decision": result["decision"],
                         "visitor": transcripts[-1] if transcripts else None,

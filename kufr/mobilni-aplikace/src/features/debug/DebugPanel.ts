@@ -10,6 +10,7 @@ interface VoiceStatus {
   recording?: boolean;
   handsFree?: boolean;
   errorCode?: string | null;
+  costumeStatus?: string | null;
   audioOutput?: { route: 'speaker' | 'receiver' | 'external' | 'none'; volume: number;
     receivedSeconds: number; renderedSeconds: number; engineRunning: boolean } | null;
   transcript?: Array<{ role: 'kufr' | 'visitor'; text: string }>;
@@ -50,8 +51,10 @@ interface DebugBridge {
   inspectServer(): Promise<void>;
   changeServerModes(options: { expectedRevision: string; dialogMode: string; voiceMode: string; personalityId?: string }): Promise<void>;
   runOpeningSpeech(options: { expectedMode: 'fake' | 'openai' }): Promise<void>;
+  captureCostumePhoto(): Promise<{ draftId: string | null }>;
+  discardCostumePhoto(): Promise<void>;
   startConversation(options: {
-    expectedMode: 'fake' | 'openai'; readyMask: number;
+    expectedMode: 'fake' | 'openai'; readyMask: number; photoDraftId?: string; costumeDescription?: string;
     voice: 'cedar' | 'marin' | 'onyx' | 'coral'; speed: number; engine: 'realtime' | 'gpt-live' | 'realtime-ptt' | 'chained';
   }): Promise<void>;
   answerConversation(options: { text: string }): Promise<void>;
@@ -69,7 +72,7 @@ const phases: Record<VoiceStatus['phase'], string> = {
   listening: 'Poslouchám. Můžete mluvit', thinking: 'Připravuji odpověď',
   waiting_listening: 'Zapínám další poslech',
   speech: 'Generuji hlas', download: 'Stahuji audio', playing: 'Přehrávám na telefonu', completed: 'Dokončeno',
-  cancelled: 'Zastaveno', failed: 'Akce selhala; ověřte přístup, server a jeho AI limity',
+  cancelled: 'Zastaveno', failed: 'Akce selhala; ověřte přístup, server a OpenAI účet',
 };
 
 export class DebugPanel {
@@ -80,9 +83,14 @@ export class DebugPanel {
   private visible = false;
   private category: DebugCategory | 'all' = 'all';
   private pending = false;
+  private photoDraftId?: string;
+  private photoSequence = 0;
+  private photoTimer?: number;
+  private photoMessage = 'Bez fotky. Rozhovor ji nepotřebuje.';
   private serverRevision?: string;
   private eveningRevision?: string;
   private statusSequence = 0;
+  private actionGeneration = 0;
   private readonly serverLogs = new ServerLogBuffer();
   private logsPending = false;
   private logsSequence = 0;
@@ -108,7 +116,7 @@ export class DebugPanel {
       <section class="debug-card" aria-labelledby="server-heading"><h2 id="server-heading">Server</h2>
         <p>Nastavení platí pro celý backend. Personalita se ukládá i přes restart; režimy do restartu.
           Změny lze použít mezi rozhovory.
-          AI režim může čerpat serverový limit až při spuštění testu nebo rozhovoru.</p>
+          AI testy čerpají OpenAI účet až při spuštění.</p>
         <div class="actions">
           <button type="button" data-debug="configure">Nastavit serverový / testovací přístup</button>
           <button type="button" data-debug="forget-profile">Zapomenout uložený přístup</button>
@@ -153,7 +161,7 @@ export class DebugPanel {
       <section class="debug-card" aria-labelledby="voice-heading"><h2 id="voice-heading">Hlas</h2>
         <p>AI test přehraje úvodní repliku na telefonu. Neovládá pohony ani reproduktor kufru.
           Vyžaduje samostatné testovací device ID a credential backendu; místní párovací token sem nepatří.
-          Replika se může uložit do paměti testovacího večera a test může čerpat serverový AI limit.</p>
+          Replika se může uložit do paměti testovacího večera a test čerpá OpenAI účet.</p>
         <div class="actions">
           <button type="button" data-debug="system">Test reproduktoru telefonu</button>
           <button type="button" data-debug="inspect">Ověřit backend</button>
@@ -167,7 +175,7 @@ export class DebugPanel {
       <section class="debug-card debug-conversation" aria-labelledby="debug-conversation-heading">
         <h2 id="debug-conversation-heading">Zkušební rozhovor a výběr hůlky</h2>
         <p>Rozhovor běží na telefonu pod servisní identitou. Dostupnost přihrádek je pouze simulovaná;
-          návrh hůlky nespouští pohon kufru. AI režim může čerpat serverový limit.</p>
+          návrh hůlky nespouští pohon kufru. AI režim čerpá OpenAI účet.</p>
         <p data-conversation-personality>Personalitu zvolte a použijte v nastavení serveru výše.</p>
         <fieldset data-conversation-availability><legend>Simulované dostupné přihrádky</legend>
           <div class="debug-ready-grid">
@@ -187,6 +195,17 @@ export class DebugPanel {
             <option value="0.9">0,9×</option><option value="1">1×</option>
             <option value="1.1" selected>1,1×</option><option value="1.2">1,2×</option></select></label>
         </div>
+        <fieldset data-costume-controls><legend>Volitelná nápověda kostýmu</legend>
+          <p>Fotku pořizujte jen se souhlasem hosta. Potvrzením „Použít fotku“ souhlasíte s jejím předáním
+            serveru a OpenAI pro tento rozhovor. Fotka se neukládá do galerie ani paměti večera.</p>
+          <div class="actions"><button type="button" data-debug="costume-photo">Se souhlasem vyfotit kostým</button>
+            <button type="button" data-debug="costume-discard">Zrušit fotku</button></div>
+          <p data-costume-status role="status"></p>
+          <label>Ruční popis nebo oprava odhadu <input type="text" data-costume-description maxlength="240"
+            autocomplete="off" placeholder="Například čaroděj s modrým pláštěm"></label>
+          <p class="footnote">Popis má přednost před fotkou. Vzhled je nejistá nápověda; neověřuje identitu.
+            Po chybě fotky rozhovor pokračuje. Běžný přepis se dál ukládá do paměti večera.</p>
+        </fieldset>
         <div class="actions">
           <button type="button" class="primary" data-debug="conversation-ai">Otestovat personalitu · AI</button>
           <button type="button" data-debug="conversation-fake">Otestovat personalitu · fake</button>
@@ -205,7 +224,7 @@ export class DebugPanel {
         </div>
         </div>
         <p class="footnote">V Realtime a GPT-Live stačí spustit rozhovor a povolit mikrofon. Realtime poslouchá mezi replikami;
-          GPT-Live poslouchá i během odpovědi. Limit je 3 USD na rozhovor.
+          GPT-Live poslouchá i během odpovědi. Náklady a dostupnost řídí OpenAI účet.
           Zastavit jej můžete kdykoli. Hlas se průběžně posílá serveru a přepis může zůstat v paměti vybraného večera.</p>
         <p data-conversation-selection></p>
         <p data-conversation-timings class="footnote"></p>
@@ -256,6 +275,8 @@ export class DebugPanel {
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
         this.clearServerLogs();
+        this.clearCostumeDraft();
+        this.actionGeneration += 1;
         this.statusSequence += 1;
         this.journal.record('background');
         this.element.querySelector<HTMLTextAreaElement>('[data-conversation-answer]')!.value = '';
@@ -463,7 +484,7 @@ export class DebugPanel {
 
     const selected = this.voice.selected;
     const errors: Record<string, string> = {
-      cost_limit: 'Rozhovor dosáhl AI limitu serveru. Ukončete jej a zkontrolujte nastavený rozpočet.',
+      cost_limit: 'OpenAI účet omezil dostupnost AI. Ověřte jeho kredit a limity.',
       turn_limit: 'Rozhovor dosáhl maximálního počtu odpovědí. Spusťte nový rozhovor.',
       dialogue_busy: 'Server právě zpracovává jiný rozhovor. Zkuste to za chvíli.',
       realtime_unavailable: 'Realtime hlas není na serveru dostupný. Obnovte stav serveru.',
@@ -524,6 +545,7 @@ export class DebugPanel {
           : this.voice.phase === 'completed' && (this.voice.transcript?.length ?? 0) > 0
             ? 'Rozhovor skončil bez návrhu hůlky.'
           : 'Připravte simulovanou dostupnost a spusťte rozhovor.';
+    this.element.querySelector('[data-costume-status]')!.textContent = this.voice.costumeStatus ?? this.photoMessage;
     this.renderConversationControls();
   }
 
@@ -563,17 +585,30 @@ export class DebugPanel {
     this.button('evening-activate').disabled = busy || !list || !selection.value || selection.value === list.activeEveningId;
   }
 
+  private clearCostumeDraft(clearDescription = true): void {
+    this.photoSequence += 1;
+    if (this.photoTimer !== undefined) window.clearTimeout(this.photoTimer);
+    this.photoTimer = undefined;
+    this.photoDraftId = undefined;
+    this.photoMessage = 'Bez fotky. Rozhovor ji nepotřebuje.';
+    this.voice.costumeStatus = null;
+    if (clearDescription) this.element.querySelector<HTMLInputElement>('[data-costume-description]')!.value = '';
+  }
+
   private renderConversationControls(): void {
     const busy = !this.native || this.pending || this.voice.running;
     const session = this.voice.session === true;
     const server = this.voice.server;
+    this.button('costume-photo').disabled = busy || session;
+    this.button('costume-discard').disabled = !this.photoDraftId;
+    this.element.querySelector<HTMLInputElement>('[data-costume-description]')!.disabled = busy || session;
     this.button('conversation-ai').disabled = busy || session || !this.voice.configured
       || this.voice.mode !== 'openai' || server?.dialogMode !== 'responses';
     this.button('conversation-fake').disabled = busy || session || !this.voice.configured
       || this.voice.mode !== 'fake' || server?.dialogMode !== 'fake';
     this.button('conversation-stop').disabled = !this.native
       || (!this.pending && !session && !this.voice.running
-        && (this.voice.transcript?.length ?? 0) === 0 && this.voice.selected == null);
+        && !this.photoDraftId && (this.voice.transcript?.length ?? 0) === 0 && this.voice.selected == null);
 
     this.element.querySelectorAll<HTMLInputElement>('[data-ready]').forEach((input) => {
       input.disabled = busy || session;
@@ -654,6 +689,8 @@ export class DebugPanel {
     }
     if (!this.native) { return; }
     if (action === 'voice-stop' || action === 'conversation-stop') {
+      this.actionGeneration += 1;
+      this.clearCostumeDraft();
       this.statusSequence += 1;
       await bridge.stop().catch(() => undefined);
       this.element.querySelector<HTMLTextAreaElement>('[data-conversation-answer]')!.value = '';
@@ -661,9 +698,37 @@ export class DebugPanel {
       if (!this.paused) { this.renderLog(); }
       return;
     }
+    if (action === 'costume-discard') {
+      this.clearCostumeDraft(false);
+      await bridge.discardCostumePhoto().catch(() => undefined);
+      this.renderConversation(); return;
+    }
+    if (action === 'costume-photo') {
+      if (this.pending) return;
+      this.clearCostumeDraft(false);
+      const sequence = ++this.photoSequence;
+      this.pending = true; this.renderVoice();
+      try {
+        const result = await bridge.captureCostumePhoto();
+        if (sequence !== this.photoSequence || document.hidden) return;
+        this.photoDraftId = result.draftId ?? undefined;
+        this.photoMessage = result.draftId ? 'Schválená fotka připravena na 2 minuty pro jeden rozhovor.' : 'Fotka zrušena. Pokračujte bez ní.';
+        if (this.photoTimer !== undefined) window.clearTimeout(this.photoTimer);
+        if (result.draftId) this.photoTimer = window.setTimeout(() => {
+          if (sequence !== this.photoSequence) return;
+          this.clearCostumeDraft(false);
+          this.photoMessage = 'Fotka vypršela. Pořiďte novou nebo pokračujte bez ní.';
+          this.renderConversation();
+        }, 120000);
+      } catch {
+        if (sequence === this.photoSequence) this.photoMessage = 'Fotoaparát není dostupný nebo povolený. Pokračujte bez fotky nebo s ručním popisem.';
+      } finally { this.pending = false; this.renderVoice(); }
+      return;
+    }
     if (this.pending) { return; }
     const errorText = this.element.querySelector<HTMLElement>('[data-voice-error]')!;
     errorText.hidden = true;
+    const generation = this.actionGeneration;
     this.pending = true; this.renderVoice();
     let code: DebugCode | null = 'voice_started';
     try {
@@ -712,7 +777,11 @@ export class DebugPanel {
           'cedar' | 'marin' | 'onyx' | 'coral';
         const speed = Number(this.element.querySelector<HTMLSelectElement>('[data-conversation-speed]')!.value);
         const engine = this.element.querySelector<HTMLSelectElement>('[data-conversation-engine]')!.value as 'realtime' | 'gpt-live' | 'realtime-ptt' | 'chained';
+        const photoDraftId = this.photoDraftId;
+        const costumeDescription = this.element.querySelector<HTMLInputElement>('[data-costume-description]')!.value.trim() || undefined;
+        this.clearCostumeDraft();
         await bridge.startConversation({
+          photoDraftId, costumeDescription,
           expectedMode: action === 'conversation-ai' ? 'openai' : 'fake',
           readyMask, voice, speed, engine: action === 'conversation-ai' ? engine : 'chained',
         });
@@ -733,9 +802,13 @@ export class DebugPanel {
         }
         code = null;
       }
-      if (code !== null) { this.journal.record(code); }
+      if (code !== null && generation === this.actionGeneration) {
+        const state = code === 'voice_started' ? await bridge.status().catch(() => null) : null;
+        if (generation === this.actionGeneration && state?.phase !== 'cancelled') this.journal.record(code);
+      }
     } catch {
       // Never render provider/transport error text or credential-bearing URLs.
+      if (generation !== this.actionGeneration) return;
       const state = await bridge.status().catch(() => null);
       if (state?.phase === 'cancelled') {
         this.journal.record('voice_stopped');

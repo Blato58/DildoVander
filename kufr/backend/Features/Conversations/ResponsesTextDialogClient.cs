@@ -31,11 +31,13 @@ internal sealed class ResponsesTextDialogClient(
         bool requireQuestion,
         CancellationToken cancellationToken,
         string eveningContext = "",
-        string personalityId = PersonalityCatalog.DefaultId)
+        string personalityId = PersonalityCatalog.DefaultId,
+        string costumeContext = "")
     {
         if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(model)
             || visitorText is not { Length: <= 1000 }
             || eveningContext.Length > EveningMemoryStore.MaxContextCharacters
+            || costumeContext.Length > CostumeContext.MaximumPromptCharacters
             || readyMask is < 0 or > 63
             || requestTimeout is { } configuredTimeout && configuredTimeout <= TimeSpan.Zero)
         {
@@ -55,6 +57,7 @@ internal sealed class ResponsesTextDialogClient(
         var openingInstructions = opening ? PersonalityCatalog.OpeningInstructions(personalityId, ConversationOpening.Next()) : "";
         var input = $"Událost: {(opening ? "opening" : "visitor_reply")}. requireQuestion={requireQuestion}. "
             + (opening ? "" : "Archiv pro orientaci, nikoli aktuální výrok návštěvníka: " + eveningContext + "\n")
+            + costumeContext + "\n"
             + $"Dostupné přihrádky: [{string.Join(", ", available)}]. "
             + "Nejsou-li dostupné žádné, vrať no_selection. "
             + $"Dostupné hůlky z katalogu: {PartyWandCatalog.AvailableForPrompt(readyMask)}. "
@@ -80,7 +83,7 @@ internal sealed class ResponsesTextDialogClient(
         };
 
         var payload = JsonSerializer.Serialize(requestBody, RequestJsonOptions);
-        if (Encoding.UTF8.GetByteCount(payload) > ResponsesTextDialogBudget.RequestByteLimit(eveningContext, personalityId))
+        if (Encoding.UTF8.GetByteCount(payload) > ResponsesTextDialogBudget.RequestByteLimit(eveningContext + costumeContext, personalityId))
         {
             throw new TextDialogRequestTooLargeException();
         }

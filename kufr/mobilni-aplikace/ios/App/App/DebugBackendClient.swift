@@ -349,11 +349,61 @@ private final class DebugHTTPCall: @unchecked Sendable {
     }
 }
 
+final class DebugCostumeInput {
+    var jpeg: Data?
+    var description: String?
+    init(jpeg: Data?, description: String?) { self.jpeg = jpeg; self.description = description }
+}
+
+enum DebugCostumeJPEG {
+    // The redraw removes location/orientation; strip auxiliary JPEG metadata too.
+    static func withoutMetadata(_ data: Data) throws -> Data {
+        let bytes = [UInt8](data)
+        guard bytes.count >= 4, bytes[0] == 255, bytes[1] == 216 else { throw DebugBackendError.invalidResponse }
+        var output = Data(bytes.prefix(2))
+        var offset = 2
+        while offset + 3 < bytes.count {
+            guard bytes[offset] == 255 else { throw DebugBackendError.invalidResponse }
+            let marker = bytes[offset + 1]
+            if marker == 218 {
+                output.append(contentsOf: bytes[offset...])
+                guard output.count <= 262_144 else { throw DebugBackendError.tooLarge }
+                return output
+            }
+            let length = Int(bytes[offset + 2]) * 256 + Int(bytes[offset + 3])
+            guard length >= 2, offset + 2 + length <= bytes.count else { throw DebugBackendError.invalidResponse }
+            if !(225...239).contains(marker) && marker != 254 {
+                output.append(contentsOf: bytes[offset..<(offset + 2 + length)])
+            }
+            offset += 2 + length
+        }
+        throw DebugBackendError.invalidResponse
+    }
+}
+
 @MainActor
 final class DebugBackendClient {
     typealias HTTP = (URLRequest, Int) async throws -> (Data, HTTPURLResponse)
     private let http: HTTP
     private let transport: DebugHTTPTransport?
+    private struct CleanupRecord {
+        let profile: DebugBackendProfile
+        var token: String
+        let conversation: String
+        let key: String
+    }
+    // Only this client's acquired conversation IDs enter this registry. Keep
+    // failed mutations across Stop; remove credentials after confirmed 204.
+    private var pendingCleanup: [String: CleanupRecord] = [:]
+    private var cleanupTasks: [String: Task<Void, Error>] = [:]
+    private var confirmedCleanup = Set<String>()
+    var hasPendingCleanup: Bool { !pendingCleanup.isEmpty }
+
+    func retryPendingCleanup() async throws {
+        for record in Array(pendingCleanup.values) {
+            try await cleanup(record.profile, token: record.token, conversation: record.conversation)
+        }
+    }
 
     init(http: HTTP? = nil) {
         if let http = http {
@@ -369,10 +419,12 @@ final class DebugBackendClient {
     deinit { transport?.invalidate() }
 
     func openSession(_ profile: DebugBackendProfile, expectedMode: String, readyMask: Int,
-                     voice: String, speed: Double) async throws -> DebugDialogSession {
+                     voice: String, speed: Double, costume: DebugCostumeInput? = nil,
+                     costumeStatus: (String) -> Void = { _ in }) async throws -> DebugDialogSession {
         guard ["fake", "openai"].contains(expectedMode), (0...63).contains(readyMask),
               ["cedar", "marin", "onyx", "coral"].contains(voice), speed.isFinite,
               (0.85...1.25).contains(speed) else { throw DebugBackendError.invalidResponse }
+        guard !hasPendingCleanup else { throw DebugBackendError.serverCode("realtime_cleanup_failed") }
         let token = try await accessToken(profile)
         guard try await metadata(profile, token: token, expectedMode: expectedMode, requireDialog: true) == expectedMode else {
             throw DebugBackendError.wrongMode
@@ -381,10 +433,11 @@ final class DebugBackendClient {
         let created = try await json(profile, path: "v1/conversations", token: token, method: "POST", body: [
             "deviceId": profile.deviceId, "bootId": boot, "generation": 0,
             "catalogVersion": "ollivander-private-party-v1", "locale": "cs-CZ",
-            "consent": ["audio": true, "image": false]
+            "consent": ["audio": true, "image": costume?.jpeg != nil]
         ])
-        let conversation = try uuid(created, "conversationId")
+        var conversation = try uuid(created, "conversationId")
         do {
+            conversation = try await prepareCostume(profile, token: token, conversation: conversation, boot: boot, input: costume, status: costumeStatus)
             guard try await metadata(profile, token: token, expectedMode: expectedMode, requireDialog: true) == expectedMode else {
                 throw DebugBackendError.wrongMode
             }
@@ -398,11 +451,13 @@ final class DebugBackendClient {
     }
 
     func openRealtimeSession(_ profile: DebugBackendProfile, readyMask: Int,
-                             voice: String, speed: Double) async throws -> DebugRealtimeSession {
+                             voice: String, speed: Double, costume: DebugCostumeInput? = nil,
+                             costumeStatus: (String) -> Void = { _ in }) async throws -> DebugRealtimeSession {
         guard (0...63).contains(readyMask), ["cedar", "marin", "coral"].contains(voice),
               speed.isFinite, (0.8...1.2).contains(speed) else {
             throw DebugBackendError.invalidResponse
         }
+        guard !hasPendingCleanup else { throw DebugBackendError.serverCode("realtime_cleanup_failed") }
         let token = try await accessToken(profile)
         guard try await metadata(profile, token: token, expectedMode: "openai", requireDialog: true) == "openai" else {
             throw DebugBackendError.wrongMode
@@ -411,13 +466,15 @@ final class DebugBackendClient {
         let created = try await json(profile, path: "v1/conversations", token: token, method: "POST", body: [
             "deviceId": profile.deviceId, "bootId": boot, "generation": 0,
             "catalogVersion": "ollivander-private-party-v1", "locale": "cs-CZ",
-            "consent": ["audio": true, "image": false]
+            "consent": ["audio": true, "image": costume?.jpeg != nil]
         ])
-        let conversation = try uuid(created, "conversationId")
+        var conversation = try uuid(created, "conversationId")
         do {
+            conversation = try await prepareCostume(profile, token: token, conversation: conversation, boot: boot, input: costume, status: costumeStatus)
             guard try await metadata(profile, token: token, expectedMode: "openai", requireDialog: true) == "openai" else {
                 throw DebugBackendError.wrongMode
             }
+            try Task.checkCancellation()
             return DebugRealtimeSession(client: self, profile: profile, token: token, conversation: conversation,
                                         boot: boot, readyMask: readyMask, voice: voice, speed: speed)
         } catch {
@@ -442,7 +499,8 @@ final class DebugBackendClient {
     }
 
     @MainActor func openHandsFreeSession(_ profile: DebugBackendProfile, readyMask: Int,
-        voice: String, speed: Double, gptLive: Bool = false, phase: @escaping DebugHandsFreeSession.Phase,
+        voice: String, speed: Double, gptLive: Bool = false, costume: DebugCostumeInput? = nil,
+        costumeStatus: (String) -> Void = { _ in }, phase: @escaping DebugHandsFreeSession.Phase,
         visitor: @escaping DebugHandsFreeSession.Visitor, reply: @escaping DebugHandsFreeSession.Reply,
         audio: @escaping DebugHandsFreeSession.Audio, listening: @escaping DebugHandsFreeSession.Listening,
         inputGate: @escaping DebugHandsFreeSession.InputGate, failure: @escaping DebugHandsFreeSession.Failure,
@@ -450,6 +508,7 @@ final class DebugBackendClient {
         async throws -> DebugHandsFreeSession {
         guard (0...63).contains(readyMask), ["cedar", "marin", "coral"].contains(voice),
               speed.isFinite, (0.8...1.2).contains(speed) else { throw DebugBackendError.invalidResponse }
+        guard !hasPendingCleanup else { throw DebugBackendError.serverCode("realtime_cleanup_failed") }
         let token = try await accessToken(profile)
         guard try await metadata(profile, token: token, expectedMode: "openai", requireDialog: true) == "openai" else {
             throw DebugBackendError.wrongMode
@@ -458,10 +517,11 @@ final class DebugBackendClient {
         let created = try await json(profile, path: "v1/conversations", token: token, method: "POST", body: [
             "deviceId": profile.deviceId, "bootId": boot, "generation": 0,
             "catalogVersion": "ollivander-private-party-v1", "locale": "cs-CZ",
-            "consent": ["audio": true, "image": false]
+            "consent": ["audio": true, "image": costume?.jpeg != nil]
         ])
-        let conversation = try uuid(created, "conversationId")
+        var conversation = try uuid(created, "conversationId")
         do {
+            conversation = try await prepareCostume(profile, token: token, conversation: conversation, boot: boot, input: costume, status: costumeStatus)
             guard try await metadata(profile, token: token, expectedMode: "openai", requireDialog: true) == "openai" else {
                 throw DebugBackendError.wrongMode
             }
@@ -473,6 +533,147 @@ final class DebugBackendClient {
             try? await cleanup(profile, token: token, conversation: conversation)
             throw error
         }
+    }
+
+    private func prepareCostume(_ profile: DebugBackendProfile, token: String, conversation: String,
+                                boot: String, input: DebugCostumeInput?, status: (String) -> Void) async throws -> String {
+        guard let input = input else { return conversation }
+        var preparedConversation = conversation
+        var photoFailed = false
+        do {
+            if input.jpeg != nil {
+                status("Zpracovávám schválenou fotku kostýmu…")
+                do {
+                    let turn = UUID().uuidString.lowercased()
+                    let accepted = try await submitCostumeImage(profile, token: token, conversation: conversation,
+                        boot: boot, turn: turn, input: input)
+                    guard accepted["kind"] as? String == "image", accepted["status"] as? String == "pending" else {
+                        throw DebugBackendError.invalidResponse
+                    }
+                    let correlation: [String: Any] = ["deviceId": profile.deviceId, "bootId": boot,
+                        "conversationId": conversation, "clientTurnId": turn, "generation": 0, "deviceRevision": 0]
+                    let id = try uuid(accepted, "operationId")
+                    let result = try await poll(profile, token: token, id: id,
+                        kind: "image", correlation: correlation)
+                    try validateCostumeResult(result, manual: false)
+                    status("Fotka zpracována. Vzhled je jen nejistá nápověda; hosta se zeptáme.")
+                } catch {
+                    try Task.checkCancellation()
+                    // A lost POST/202 may have admitted work whose ID we never saw.
+                    // DELETE is a backend completion barrier: no fresh voice may start
+                    // until JPEG/provider ownership has been released and 204 confirmed.
+                    status("Fotku se nepodařilo zpracovat. Uklízím původní rozhovor…")
+                    do { try await cleanup(profile, token: token, conversation: conversation) }
+                    catch {
+                        status("Úklid fotky nebyl potvrzen. Nový rozhovor se nespustil; použijte Stop.")
+                        throw error
+                    }
+                    try Task.checkCancellation()
+                    let created = try await json(profile, path: "v1/conversations", token: token, method: "POST", body: [
+                        "deviceId": profile.deviceId, "bootId": boot, "generation": 0,
+                        "catalogVersion": "ollivander-private-party-v1", "locale": "cs-CZ",
+                        "consent": ["audio": true, "image": false]
+                    ])
+                    preparedConversation = try uuid(created, "conversationId")
+                    try Task.checkCancellation()
+                    photoFailed = true
+                    status("Fotku se nepodařilo zpracovat. Rozhovor pokračuje bez fotky.")
+                }
+            }
+            if let description = input.description {
+                input.description = nil
+                do {
+                    try await correctCostume(profile, token: token, conversation: preparedConversation,
+                        boot: boot, description: description)
+                    status((photoFailed ? "Fotku se nepodařilo zpracovat. " : "") + "Používám ruční popis kostýmu místo odhadu z fotky.")
+                } catch {
+                    try Task.checkCancellation()
+                    status("Ruční popis nebyl potvrzen. Rozhovor se nespustil; použijte Stop.")
+                    throw error
+                }
+            }
+            try Task.checkCancellation()
+            return preparedConversation
+        } catch {
+            // The caller still owns the original ID until this helper returns.
+            // cleanup registers a fresh ID/key before I/O. A failed DELETE
+            // remains in this retained client for Stop, even without a session.
+            if preparedConversation != conversation {
+                try? await cleanup(profile, token: token, conversation: preparedConversation)
+            }
+            throw error
+        }
+    }
+
+    private func correctCostume(_ profile: DebugBackendProfile, token: String, conversation: String,
+                                boot: String, description: String) async throws {
+        guard !description.isEmpty, description.unicodeScalars.count <= 240,
+            !description.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else {
+            throw DebugBackendError.invalidResponse
+        }
+        let data = try JSONSerialization.data(withJSONObject: ["description": description], options: [.sortedKeys])
+        let turn = UUID().uuidString.lowercased()
+        let key = UUID().uuidString.lowercased()
+        let correlation: [String: Any] = ["deviceId": profile.deviceId, "bootId": boot,
+            "conversationId": conversation, "clientTurnId": turn, "generation": 0, "deviceRevision": 0]
+        for attempt in 0..<2 {
+            do {
+                // A lost or malformed success may already have committed a cue.
+                // Replay only this exact mutation; never retry photo/provider work.
+                let operation = try await costumeRequest(profile, token: token, conversation: conversation,
+                    boot: boot, turn: turn, suffix: "costume-context", method: "PUT", data: data,
+                    contentType: "application/json", idempotencyKey: key)
+                _ = try uuid(operation, "operationId")
+                guard let received = operation["correlation"] as? NSDictionary, received.isEqual(to: correlation),
+                    operation["kind"] as? String == "costume", operation["status"] as? String == "completed",
+                    let result = operation["result"] as? [String: Any] else { throw DebugBackendError.invalidResponse }
+                try validateCostumeResult(result, manual: true)
+                return
+            } catch {
+                try Task.checkCancellation()
+                if attempt == 1 { throw error }
+            }
+        }
+        throw DebugBackendError.invalidResponse
+    }
+
+    private func submitCostumeImage(_ profile: DebugBackendProfile, token: String, conversation: String,
+                                    boot: String, turn: String, input: DebugCostumeInput) async throws -> [String: Any] {
+        defer { input.jpeg = nil }
+        guard let jpeg = input.jpeg, !jpeg.isEmpty, jpeg.count <= 262_144 else { throw DebugBackendError.tooLarge }
+        return try await costumeRequest(profile, token: token, conversation: conversation,
+            boot: boot, turn: turn, suffix: "image", method: "POST", data: jpeg, contentType: "image/jpeg")
+    }
+
+    private func validateCostumeResult(_ result: [String: Any], manual: Bool) throws {
+        guard let description = result["description"] as? String, !description.isEmpty, description.unicodeScalars.count <= 240,
+            let uncertainty = result["uncertainty"] as? String, ["low", "medium", "high"].contains(uncertainty),
+            let source = result["source"] as? String, (manual ? ["manual"] : ["photo", "fake"]).contains(source),
+            let expiry = result["expiresAt"] as? String, let date = DebugDialogSession.date(expiry), date > Date(),
+            date <= Date().addingTimeInterval(125) else { throw DebugBackendError.invalidResponse }
+        if let character = result["possibleCharacter"] as? String, character.unicodeScalars.count > 80 {
+            throw DebugBackendError.invalidResponse
+        }
+    }
+
+    private func costumeRequest(_ profile: DebugBackendProfile, token: String, conversation: String,
+                                boot: String, turn: String, suffix: String, method: String,
+                                data: Data, contentType: String, idempotencyKey: String? = nil) async throws -> [String: Any] {
+        try Task.checkCancellation()
+        var request = URLRequest(url: profile.baseURL.appendingPathComponent("v1/conversations/\(conversation)/\(suffix)"))
+        request.httpMethod = method
+        request.httpBody = data
+        let headers = ["Authorization": "Bearer \(token)", "Content-Type": contentType,
+            "Idempotency-Key": idempotencyKey ?? UUID().uuidString.lowercased(), "Client-Turn-Id": turn, "Boot-Id": boot,
+            "Generation": "0", "Device-Revision": "0", "Catalog-Version": "ollivander-private-party-v1"]
+        for (key, value) in headers { request.setValue(value, forHTTPHeaderField: key) }
+        // Single attempt: never resend a photo after an ambiguous network error.
+        let (data, response) = try await http(request, 16_384)
+        try Task.checkCancellation()
+        guard response.statusCode == (method == "POST" ? 202 : 200), data.count <= 16_384,
+            response.mimeType == "application/json", let result = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { throw DebugBackendError.invalidResponse }
+        return result
     }
 
     fileprivate func upload(_ profile: DebugBackendProfile, token: String, path: String,
@@ -617,6 +818,7 @@ final class DebugBackendClient {
              phase: (String) -> Void) async throws -> Data {
         guard ["fake", "openai"].contains(expectedMode) else { throw DebugBackendError.wrongMode }
         phase("checking")
+        guard !hasPendingCleanup else { throw DebugBackendError.serverCode("realtime_cleanup_failed") }
         let token = try await accessToken(profile)
         guard try await metadata(profile, token: token, expectedMode: expectedMode) == expectedMode else { throw DebugBackendError.wrongMode }
         let bootId = UUID().uuidString.lowercased()
@@ -715,21 +917,52 @@ final class DebugBackendClient {
     }
 
     func cleanup(_ profile: DebugBackendProfile, token: String, conversation: String) async throws {
-        // An unstructured task performs cleanup even when the caller was cancelled.
-        // Only the conversation ID acquired by this run may be deleted.
-        try await Task { @MainActor in
-            let key = UUID().uuidString.lowercased()
+        if confirmedCleanup.contains(conversation) { return }
+        if let current = cleanupTasks[conversation] { try await current.value; return }
+        let record = pendingCleanup[conversation] ?? CleanupRecord(profile: profile, token: token,
+            conversation: conversation, key: UUID().uuidString.lowercased())
+        pendingCleanup[conversation] = record
+        // Unstructured cleanup survives caller cancellation. The same key stays
+        // owned even if both attempts fail: a later Stop must replay it because
+        // the backend removes the conversation before its image barrier completes.
+        let current = Task { @MainActor in
+            var ownedRecord = record
+            var renewalAttempted = false
             for attempt in 0..<2 {
                 do {
-                    let (_, response) = try await request(profile, path: "v1/conversations/\(conversation)", token: token,
-                        method: "DELETE", body: nil, limit: 4096, key: key)
+                    var (_, response) = try await self.request(ownedRecord.profile,
+                        path: "v1/conversations/\(ownedRecord.conversation)", token: ownedRecord.token,
+                        method: "DELETE", body: nil, limit: 4096, key: ownedRecord.key,
+                        allowUnauthorizedResponse: true)
+                    if response.statusCode == 401 && !renewalAttempted {
+                        renewalAttempted = true
+                        ownedRecord.token = try await self.accessToken(ownedRecord.profile)
+                        // Persist renewal before the replay: a failed barrier must
+                        // keep the fresh credential for the next Stop as well.
+                        self.pendingCleanup[conversation] = ownedRecord
+                        (_, response) = try await self.request(ownedRecord.profile,
+                            path: "v1/conversations/\(ownedRecord.conversation)", token: ownedRecord.token,
+                            method: "DELETE", body: nil, limit: 4096, key: ownedRecord.key,
+                            allowUnauthorizedResponse: true)
+                    }
+                    if response.statusCode == 401 { throw DebugBackendError.httpStatus }
                     guard response.statusCode == 204 else { throw DebugBackendError.invalidResponse }
+                    self.pendingCleanup.removeValue(forKey: conversation)
+                    self.confirmedCleanup.insert(conversation)
                     return
                 } catch {
                     if attempt == 1 { throw error }
                 }
             }
-        }.value
+        }
+        cleanupTasks[conversation] = current
+        do {
+            try await current.value
+            cleanupTasks.removeValue(forKey: conversation)
+        } catch {
+            cleanupTasks.removeValue(forKey: conversation)
+            throw error
+        }
     }
 
     func cancelOperation(_ profile: DebugBackendProfile, token: String, operation: String) async throws {
@@ -780,7 +1013,8 @@ final class DebugBackendClient {
 
     fileprivate func request(_ profile: DebugBackendProfile, path: String, token: String,
                          method: String, body: [String: Any]?, limit: Int, key: String? = nil,
-                         queryItems: [URLQueryItem]? = nil) async throws -> (Data, HTTPURLResponse) {
+                         queryItems: [URLQueryItem]? = nil,
+                         allowUnauthorizedResponse: Bool = false) async throws -> (Data, HTTPURLResponse) {
         try Task.checkCancellation()
         var components = URLComponents(url: profile.baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
         components.queryItems = queryItems
@@ -795,7 +1029,8 @@ final class DebugBackendClient {
         let (data, response) = try await http(request, limit)
         try Task.checkCancellation()
         guard data.count <= limit else { throw DebugBackendError.tooLarge }
-        guard (200...299).contains(response.statusCode) else { throw DebugBackendError.httpStatus }
+        guard (200...299).contains(response.statusCode) ||
+                (allowUnauthorizedResponse && response.statusCode == 401) else { throw DebugBackendError.httpStatus }
         return (data, response)
     }
 
@@ -965,7 +1200,7 @@ final class DebugDialogSession {
         catch { self.closing = nil; throw error }
     }
 
-    private static func date(_ value: String) -> Date? {
+    fileprivate static func date(_ value: String) -> Date? {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter.date(from: value) ?? ISO8601DateFormatter().date(from: value)

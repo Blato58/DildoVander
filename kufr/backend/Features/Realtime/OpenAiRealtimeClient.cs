@@ -3,7 +3,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Kufr.Backend.Features.Conversations;
-using Kufr.Backend.Features.Usage;
 using OpenAI.Realtime;
 
 namespace Kufr.Backend.Features.Realtime;
@@ -17,7 +16,7 @@ internal sealed class OpenAiRealtimeClient : IDisposable
     public OpenAiRealtimeClient(IConfiguration configuration)
     {
         var key = configuration["OPENAI_API_KEY"];
-        Available = !string.IsNullOrWhiteSpace(key) && CostLimits.Read(configuration).Enabled;
+        Available = !string.IsNullOrWhiteSpace(key);
         transport = new HttpMessageInvoker(new HttpClientHandler { AllowAutoRedirect = false });
         connect = async token =>
         {

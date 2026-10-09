@@ -24,7 +24,7 @@ class DeploymentConfigurationTests(unittest.TestCase):
         self.assertIn("Backend__DatabasePath=/var/lib/kufr-backend/journal.sqlite\n", environment)
         self.assertNotIn("OPENAI_API_KEY", environment)
         self.assertNotIn("Devices__", environment)
-        self.assertIn("Backend__Usage__SessionCapMicroUsd=3000000\n", environment)
+        self.assertNotIn("CapMicroUsd", environment)
 
     def test_complete_configuration_uses_backend_keys(self):
         environment = helper.make_environment({
@@ -35,9 +35,15 @@ class DeploymentConfigurationTests(unittest.TestCase):
         }).decode("ascii")
 
         self.assertIn("Devices__0__DeviceId=kufr-1\n", environment)
-        self.assertIn("Backend__Usage__SessionCapMicroUsd=200000\n", environment)
+        self.assertNotIn("CapMicroUsd", environment)
         self.assertNotIn("DailyCapMicroUsd", environment)
         self.assertNotIn("MonthlyCapMicroUsd", environment)
+
+    def test_legacy_monetary_settings_are_ignored(self):
+        for caps in ({"session": "3000001"}, {"session": "-1"}, "invalid-ignored", None):
+            with self.subTest(caps=caps):
+                environment = helper.make_environment({"caps": caps}).decode("ascii")
+                self.assertNotIn("CapMicroUsd", environment)
 
     def test_partial_or_injected_configuration_is_rejected(self):
         base = {
@@ -49,8 +55,6 @@ class DeploymentConfigurationTests(unittest.TestCase):
         for change in (
             {"deviceId": "kufr-1"},
             {"openAiApiKey": "sk-proj_fake\nASPNETCORE_URLS=http://0.0.0.0:5080"},
-            {"caps": {"session": "3000001"}},
-            {"caps": {"session": "-1", "daily": "1", "monthly": "1"}},
         ):
             with self.subTest(change=change), self.assertRaises(ValueError):
                 helper.make_environment(base | change)

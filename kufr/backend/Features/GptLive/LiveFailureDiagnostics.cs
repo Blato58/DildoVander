@@ -70,7 +70,7 @@ internal static class LiveFailureDiagnostics
             "Terminal speech was interrupted during close." => "live_close_interrupted",
             "Unexpected Live close." => "live_close_unexpected",
             "Live closed without final usage." => "live_final_usage_missing",
-            "Live decision budget exhausted." => "live_decision_budget",
+            "Live decision count exhausted." => "live_decision_count",
             "Invalid Live audio." => "live_audio_invalid",
             _ => "live_data_invalid"
         },

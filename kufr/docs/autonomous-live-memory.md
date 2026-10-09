@@ -151,8 +151,8 @@ hodnoty, prázdné store ID a žádný klíč.
 Serverový `OPENAI_API_KEY` zůstává ve stávajícím bezpečném mechanismu.
 Nepatří do souborů verzovaných v gitu, firmware, telefonu ani URL.
 Chybějící klíč / store ID má diagnostický stav, nikoli automatické
-vytváření resources či fake úspěch. Rozpočty 3 USD/session, stávající
-model a jeho časové limity nejsou zvýšené. Paměť má zvlášť trvalé denní
+vytváření resources či fake úspěch. Od 9. 10. 2026 peněžní rozpočet řídí
+pouze OpenAI účet; model a časové limity zůstávají. Paměť má zvlášť trvalé denní
 objemové kvóty `memory_usage`, objem obsahu a backlog. Výchozí worker
 nevytváří shrnutí pomocí LLM; ukládá skutečný přepis a explicitní tvrzení
 na významové hranici. Nevzniká modelové volání za každý fragment.
@@ -241,7 +241,8 @@ konkrétního release. Parametry `live_actor_mode` (výchozí
 mapuje na `Backend:GptLive:ActorMode`, `Backend:Memory:Enabled` a
 `Backend:Memory:CloudIndexingEnabled`. `LongTermPersonalEnabled` zůstává
 false. Zapnutí hybridní paměti vyžaduje obě provisionovaná IDs; cloud
-navíc zapnutou paměť. Režimy/modely/3 USD session cap se nemění automaticky.
+navíc zapnutou paměť. Režimy/modely se nemění automaticky; softwarové
+peněžní capy byly na přání majitele 9. 10. 2026 odstraněné.
 
 Od D148 `live_decision_model` volí nezávisle `gpt-6.1-sol` (výchozí)
 nebo `gpt-6-luna`. `live_terminal_quiet_ms` má výchozí 4000 a v tomto

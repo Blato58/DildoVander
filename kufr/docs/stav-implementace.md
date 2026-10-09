@@ -1,10 +1,122 @@
 # Stav implementace AI kufru
 
-Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální Arduino i ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a E3a. Ad Hoc podpis a serverová publikace IPA/manifestu prošly CI a veřejným HTTPS testem; majitel potvrdil instalaci a spuštění na iPhonu 15 Pro (D70). Hardware, native WSS/TLS a aktualizace IPA na telefonu zatím nemají runtime akceptaci. Hotový návrh není hotová implementace.
+Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální i CI ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a E3a. Ad Hoc podpis a serverová publikace IPA/manifestu prošly CI a veřejným HTTPS testem; majitel potvrdil instalaci a spuštění na iPhonu 15 Pro (D70). Hardware, native WSS/TLS a aktualizace IPA na telefonu zatím nemají runtime akceptaci. Hotový návrh není hotová implementace.
 
 [Implementační plán](implementacni-plan.md) určuje architekturu a akceptaci. [AGENTS.md](../../AGENTS.md) určuje pracovní postup AI. Tento soubor je jediný průběžný záznam postupu; README ho pouze odkazují.
 
 ## Předání další AI
+
+**D157 – 9. 10. 2026 – fotografie pro dialog, zrušení peněžních capů a Arduino profilu.**
+Majitel zadal backend → iOS → kamerový firmware. Zdroj popisuje viditelný
+kostým a možnou fiktivní postavu, ne biometrickou identitu. Před firmwarem
+proběhl nový `git pull --ff-only origin main` na `3d0e73a` (D156/PR138).
+Rozpracované zdroje byly zachované a jediný konflikt ve stavu sloučený;
+nové B-effects, přímé PCA OE a softwarový mute se zachovávají.
+Větev je `codex/costume-photo-context`, původní čistý checkout `fa81390`.
+Před Git předáním byl na následný pokyn začleněný aktuální `main`
+(`e58dabf`, PR139–141) přes `git merge --ff-only origin/main`.
+Scoped stash obnovil zdroje, konflikt pouze v tomto záznamu zachoval oba
+slices. Tracked backend/iOS/firmware/kontrakty jsou shodné s otestovanou
+verzí před stash; `HEAD...origin/main` je 0/0. Po merge prošlo 55 Node
+CI/provenance/freshness testů a 6 testů výběru projektů.
+
+Backend přidal `POST .../image` (jedna odsouhlasená metadata-free JPEG,
+256 KiB / 640 px, korelace a idempotence), polling a `PUT .../costume-context`
+pro ruční opravu s předností. Omezený textový kontext se předává Responses,
+Realtime, GPT Live a Sol rozhodování; není příkazem pohonům. Vlastní JPEG
+a kódované buffery se mažou, lokální cue/operace expirují za 120 s.
+Již předaný Live kontext může zůstat do ukončení spojení; běžný textový
+přepis dál může obsahovat zmínku o kostýmu. SDK/OS/provider kopie nejsou
+prohlašované za garantovaně vymazané. Fake neověřuje skutečné rozpoznání.
+
+iOS Debug má native focení, náhled/retake/použít/zrušit, jednorázový RAM
+draft do 120 s a ruční popis před všemi čtyřmi režimy dialogu. Hlasový
+panel kufru předává explicitní `imageConsent`, výchozí false, pouze když
+zařízení hlásí `cameraAvailable`. Souhlas se spotřebuje každým startem.
+Firmware přidal `features/costume_photo/`, OV5640/PSRAM jedno framebuffer,
+`esp32-camera` 2.1.8 + generovaný lock. SCCB port 1 GPIO4/5 je oddělený
+od PCA/MCP I2C0 GPIO1/14; kamerové piny podle mapy jsou nezávislé na B-effects.
+Servisní `wand_hw/camera_verified` je false a má podporovaný generator/writer.
+Fotografie jde z ESP přímo backendu před mikrofonem, bez opakování uploadu.
+
+Nezávislé review našlo a vedlo k opravě Unicode expanze cue a neurčitého
+výsledku uploadu. Při chybě fotografie klient ukončí vlastněný rozhovor
+a vytvoří čistý bez image consent. Backend DELETE potvrdí 204 až po
+vymazání JPEG a uvolnění provider slotu; timeout 503 `image_cancel_pending`
+nepovolí nový hlas. Stop/generation/snapshot zneplatní pozdní start.
+Expirace ruční cue nemůže publikovat completed operaci s null výsledkem.
+
+Majitel odstranil všechny softwarové peněžní limity: žádný lokální
+session/daily/monthly budget ani povinný kladný cap. Účetní rezervace a
+skutečná spotřeba zůstávají auditem; velikost, čas, počet a souběh jsou
+technické meze. Backend, eval, workflow, smoke a aktuální návody souhlasí.
+OpenAI nastavení se neměnilo; před budoucím deploy je nutné aktualizovat
+root-owned deploy helper na VPS kvůli payloadu bez caps (viz backend README).
+
+Na následný výslovný pokyn byl odstraněný `esp32-s3-arduino-serial`, jeho
+`main.cpp` a `SerialSelectionPort`, CI build/balení a aktuální návody.
+Jediný profil kufru je ESP-IDF; čisté C++ jádro a jeho host testy zůstávají.
+Samostatný Arduino Nano projekt obludaria se neměnil.
+
+Lokální ověření: finální plný `dotnet run --project kufr/backend-tests/BackendTests.csproj --no-restore`
+prošel po opravách, také cílené `-- --image` a HTTP `node kufr/backend/tests/smoke.mjs`.
+Node 24.21.0: mobil `npm test` 28/28 a `npm run build` prošly; kontrakty
+27 valid / 42 invalid + OpenAPI/media frame/control prošly. AI eval má
+25 offline testů, deploy helper 4 a realtime smoke safety 3 testy prošlé.
+CI routing má 6 testů prošlých. Širší Python sady na Windows nejsou celé
+zelené: starší Linux `os.getuid`/temp path, openssl/python3 a Unix executable
+mode test vyžadují Linux; nepřipisovat je nové funkci. Browser syntetický
+native harness ověřil manual priority, pokračování po chybě, Stop a starou
+firmware capability; bez chyb konzole. Nové Swift HTTP peer testy pokrývají
+přípravu všech režimů, ztracenou/neplatnou odpověď uploadu, úvod jen v novém rozhovoru a Stop během
+cleanup/create; jejich skutečné spuštění čeká macOS workflow.
+
+Finální `pio run -d kufr/firmware` po odstranění Arduina prošel: 82 400 B
+statické RAM, 1 342 745 B flash. Servisní generator/build prošel (14 800 B
+RAM / 171 053 B flash), tři hostitelské MSVC `/std:c++14 /W4 /WX` foto/HTTP/driver
+testy a dosavadní start codec prošly, servisní Python sada 4/4. Konfigurace
+PlatformIO potvrzuje jen ESP-IDF; workflow YAML se parsuje. Závěrečné
+nezávislé review oprav nehlásí otevřené nálezy. Git/CI předání a native
+macOS výsledek budou doplněné podle skutečnosti.
+Implementační commit `0c18faf56f39620186338f460158d48ab41b7829` vznikl po
+ověření, `Push-CurrentBranch.ps1` uspěl a read-back remote potvrdil stejnou SHA.
+PR [142](https://github.com/Blato58/DildoVander/pull/142) je otevřený.
+První CI `37878086941` odhalilo GCC `-Werror=sign-compare` v JPEG parseru;
+počet komponent je nyní `size_t`, stejně jako délka segmentu. Následný
+lokální `pio run -d kufr/firmware -s` prošel. Následný Codex review PR
+našel pět P2 nálezů: ztracené vlastnictví náhradního rozhovoru, ztracený
+DELETE klíč po timeoutu, neurčitý zápis ruční opravy, prázdný foto popis a
+neúplné odstranění cue. Opravy zachovávají vlastněné ID a DELETE klíč až do
+204; nejednoznačný PUT se opakuje se stejným payloadem/korelací/klíčem,
+opakovaná chyba blokuje úvod a uklidí sezení. Prázdná ruční oprava ponechá
+jen replayable potvrzení, odstraní aktivní cue a zruší image polling;
+spotřeba a vymazání rozpracovaného provideru se dokončí. Foto výsledek
+vyžaduje neprázdný popis. Regrese zahrnují čtyři režimy iOS a následující
+Start po neúspěšném úklidu. Firmware už DELETE klíč i čekání na úklid
+zachovával; cílené review nepotvrdilo potřebu jeho změny.
+Po opravách znovu prošel celý backend runner, cílené image testy, HTTP
+smoke a kontrakty; mobil 28/28 testů, build a skutečný HTTP fixture
+self-check prošly. Swift provedení nových regresí čeká macOS.
+Nezávislé review navíc odhalilo expirovaný access token při pozdějším Stop:
+cleanup obnoví token na 401, ponechá stejný DELETE klíč/ID a při selhání
+obnovy zachová vlastnictví pro další pokus. HTTP fixture ověřil obnovu,
+selhání a další úspěšný Stop i uchování obnoveného tokenu přes další 503.
+Synthetic credential fixture nyní odpovídá skutečnému Bearer requestu;
+produkční autentizační kontrakt se nemění.
+Závěrečný nezávislý source review backendu, kontraktů a iOS těchto oprav
+nepotvrdil žádný zbývající actionable nález; sám nespouštěl buildy/testy.
+Trvalé pravidlo v tracked `AGENTS.md` vyžaduje načtení review/komentářů
+po posledním push a před každým merge; nevztahuje se jen na tuto větev.
+CI `37878589564` před těmito review opravami prošlo všechny vybrané
+projekty. Stažený firmware balíček prošel SHA-256 ověřením a obsahuje
+jen `esp32-s3-idf/` (bootloader, firmware, partition, OTA data a ELF).
+Linux CI nových oprav, merge a nativní macOS ověření se doplní podle výsledku.
+Neprovedeno: placená inference, cloudové nasazení, publikace IPA ani flash.
+E12/E13 nejsou celé hotové: kamera ještě není doručená; revize/FPC/piny,
+napájení/proud/souběh, skutečný obraz/latence, iPhone kamera/pozadí a SD
+zůstávají samostatnými akceptacemi. Další konkrétní krok: po software CI
+ověřit nativní build, po doručení kamery servisně změřit a povolit profil;
+provider evaluace a fyzický flash vyžadují svou původní autorizaci.
 
 **9. 10. 2026 – synchronizace PR před CI.** Převzatý slice přidává
 API-only workflow `pr-sync.yml` a `scripts/ci/pr-freshness.cjs`: při PR
@@ -167,6 +279,7 @@ na další elektroniku jsou odstraněné z tohoto přehledu; verze zůstává
 v Git historii v commitu `519631d`. Aktuální piny, kalibrace, ověření
 a zbývající fyzická měření jsou pouze v D156 a
 [zapojení](zapojeni-potvrzeneho-hardwaru.md).
+
 
 **D154 – 8. 10. 2026 – tiskový CAD a exporty pro upřesněnou elektroniku ověřené.**
 Fotografie majitele uvádí hůlku 19–20 cm; model počítá s 200 mm a pracovní
@@ -2681,8 +2794,8 @@ Přesné závislosti a kritéria dokončení jsou v kapitole 12 plánu. Následu
 | E9 – samostatný hlas kufru | rozpracováno | E9.1a/D106: explicitní OpenAI STT/TTS, asynchronní operace, nákladové rezervace, omezené WAV a převod 24→32 kHz. E9.1b/D107: striktní speech JSON, korelovaný WAV buffer, task-only HTTPS a hostitelský speech/poll/download/release cyklus. | Připojení do runtime, firmware STT upload, capture/playback porty, živá česká evaluace; fyzický PTT/I2S a akceptace E4/E5/E8/B1. |
 | E10 – dokončení mobilní zálohy | rozpracováno | E10.1: Swift párování, Keychain, SPKI pinning a WSS; sdílený ruční řadič, strict schema a pozorování po připojení. E10.2: device-owned text/cancel/result; E10.3: Bonjour a adresní fallback; D108: Debug/log a samostatný hlasový test telefonu. macOS loopback TLS/WSS/Bonjour/debug, Xcode a iOS Simulator prošly (D101–D108). | Čtení QR/servisní provisioning, běžný audio tok po E9, nová IPA/aktivace debug backendu a skutečná iPhone/LAN/TLS/audio akceptace. |
 | E11 – provozní balení | rozpracováno | D52–D59: Ubuntu backend, systemd a rollback. D67: veřejné IP HTTPS, Nginx, obnovovací timer a externí TLS/health sonda. D70: `/ios/` statická stránka, Ad Hoc IPA/manifest s externí kontrolou podpisu, MIME, hashe a HTTPS. | Reálná obnova certifikátu po expiraci, instalace na iPhone a zařízení; plné E11 vyžaduje E6/E8/E9, zálohu E10 a provozní zkoušku. |
-| E12 – obraz telefonu | odloženo | Volitelné rozšíření po základní verzi. | E8/E11 a potvrzený přínos. |
-| E13 – OV5640 + SD profil B | odloženo | Jen předběžný návrh B. | E0 pro B/E9/E12; nové měření pinů a zátěže. |
+| E12 – obraz telefonu | rozpracováno | D157: JPEG upload/poll, transient cue ve všech dialogových režimech, ruční oprava, native iOS náhled a one-use draft; lokální software kontroly prošly. | Native macOS/iPhone kamera/pozadí, skutečná image inference a přínos; celková akceptace dál vyžaduje E8/E11. |
+| E13 – OV5640 + SD profil B | rozpracováno | D157: před firmwarem pull `3d0e73a`, OV5640 driver/SCCB1, explicitní souhlas, přímý upload, servisní gate false a výchozí ESP-IDF build prošly. Arduino profil odstraněn. | Kamera nedoručená, fyzické FPC/piny/napájení/proud/souběh/obraz, SD samostatně; E0 pro B/E9/E12 zůstávají. |
 
 ## Chybějící vstupy a blokace
 
@@ -2693,7 +2806,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 | B1 | **Částečně ověřeno D122:** doručený N16R8, USB-UART COM7, ESP32-S3 chip v0.2, 16 MB Quad flash/3,3 V a 8 MB Octal PSRAM/80 MHz; autorizovaná USB-only diagnostika prošla tři restarty a 7 MiB pattern test. Stále chybí revize PCB/schéma, nativní USB/LED, externí 12V/5V napájení, přímé OE/reset, mechanika, servisní vstup a kalibrace podle D156. | Flash aplikačního firmware a provisioning s periferiemi, E5/E6 a HW akceptaci E9/E13. | USB-only diagnostika v doloženém rozsahu D122, hostitelské testy, protokol, simulátor, SW build. |
 | B2 | **Vyřešeno pro Ad Hoc export:** environment `ios-signing` obsahuje distribuční `.p12` a profil pro Team `3QRXV8G5Y3`, Bundle `app.turquoise6409.green2444`, jedno zařízení, `get-task-allow=false`, expiraci 24. 12. 2026. Stejné `IOS_P12_PASSWORD` OpenSSL přečetl; [běh 36636991415](https://github.com/Blato58/DildoVander/actions/runs/36636991415) importoval přebalenou identitu, ověřil shodu certifikátu s profilem, archiv, podpis a embedded profil IPA. | Podpis již neblokuje E3a; obnovit certifikát/profil před expirací. | iPhone akceptace B3 a další software. |
 | B3 | **Vyřešeno pro první instalaci E3a:** majitel potvrdil iPhone 15 Pro s iOS 26.6.1 a správné UDID v profilu. Stránka [https://2.28.202.220/ios/](https://2.28.202.220/ios/) veřejně vrací podepsanou verzi, `itms-services`, manifest a IPA; D70 ověřil externí HTTPS download a majitel 30. 9. potvrdil instalaci i spuštění. | LAN/Keychain a ovládání E10, aktualizace/rollback E11 stále vyžadují samostatnou zkoušku. | E4.3d2b a další software může pokračovat bez telefonu. |
-| B4 | Majitel dodal Ubuntu server s veřejnou IP `2.28.202.220` a runnerem `dildovander-server`; backend běží na loopback. OPENAI_API_KEY je v GitHub environmentu; D63 ověřil jeden placený Responses tah na loopback API. D67 root bootstrap vydal platný IP SAN certifikát, zapnul Nginx a obnovovací timer; externí [sonda 36633620137](https://github.com/Blato58/DildoVander/actions/runs/36633620137) ověřila veřejnou TLS důvěru, health, platnost a HTTP přesměrování. Pro skutečné zařízení zbývá jeho Device ID/credential, region/retence a fyzická TLS akceptace. GitHub environment má limity 0,50 USD/sezení a 10 USD/měsíc; majitel 29. 9. potvrdil projektový hard spend limit 10 USD v OpenAI. | Reálné ESP32/TLS spojení a produkční podmínky AI dat. | Veřejné HTTPS nyní funguje pro syntetické testy bez HW; loopback backend, CI a E8 eval korpus. |
+| B4 | Majitel dodal Ubuntu server s veřejnou IP `2.28.202.220` a runnerem `dildovander-server`; backend běží na loopback. OPENAI_API_KEY je v GitHub environmentu; D63 ověřil jeden placený Responses tah na loopback API. D67 root bootstrap vydal platný IP SAN certifikát, zapnul Nginx a obnovovací timer; externí [sonda 36633620137](https://github.com/Blato58/DildoVander/actions/runs/36633620137) ověřila veřejnou TLS důvěru, health, platnost a HTTP přesměrování. Pro skutečné zařízení zbývá jeho Device ID/credential, region/retence a fyzická TLS akceptace. D157 ruší softwarové peněžní capy; finance vlastní OpenAI účet. Historicky majitel 29. 9. potvrdil projektový limit 10 USD v OpenAI, dnešní stav účtu se neověřoval ani neměnil. | Reálné ESP32/TLS spojení a produkční podmínky AI dat. | Veřejné HTTPS nyní funguje pro syntetické testy bez HW; loopback backend, CI a E8 eval korpus. |
 | B5 | Katalog šesti původních hůlek a Harry Potter / Ollivander tematickou roli majitel svěřil nezávislému agentovi; zdroj je `ai-eval/wand-catalog.json` (D72). Stále chybí rozměry, router, prostředí akce a živé obsahové hodnocení s hosty. | Provozní akceptaci E8/E11, fyzické mapování hůlek a finální mechaniku. | Sdílený tematický katalog, vývojové a simulované scénáře; skutečné přihrádky až s HW. |
 
 ## Deník změn a ověření

@@ -16,7 +16,6 @@ MODEL_PRICES = {
 }
 MINIMUM_QUESTIONS = 4
 MAX_OUTPUT_TOKENS = 1200
-MAX_SESSION_MICRO_USD = 3_000_000
 
 RESULT_SCHEMA = {
     "type": "object",
@@ -270,10 +269,6 @@ def main():
 
     case = load_case(args.case)
     request = build_request(case, args.model)
-    maximum = upper_bound_micro_usd(request, args.model)
-    configured_cap = int(os.getenv("SESSION_CAP_MICRO_USD", MAX_SESSION_MICRO_USD))
-    if configured_cap <= 0 or maximum > min(configured_cap, MAX_SESSION_MICRO_USD):
-        raise ValueError("Conservative one-call estimate exceeds $3 session cap")
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise ValueError("OPENAI_API_KEY is missing")

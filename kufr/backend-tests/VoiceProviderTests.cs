@@ -387,15 +387,16 @@ internal static class VoiceProviderTests
         },
             (_, _) => Task.FromResult(DeviceWav()));
         using var rejected = new Fixture(directory, "cost", runner, cap: 9_999);
-        Require(rejected.Store.SubmitTranscription("device-a", rejected.Id, Guid.NewGuid(), rejected.Upload()).ErrorCode
-            == "cost_limit" && calls == 0, "cost is reserved before any outbound request");
+        var lowCapCall = rejected.Store.SubmitTranscription("device-a", rejected.Id, Guid.NewGuid(), rejected.Upload());
+        Require(lowCapCall.Status == 202, "legacy low monetary cap cannot block voice");
+        await PollAsync(rejected.Store, lowCapCall.OperationId!, "failed");
         using var noConsent = new Fixture(directory, "consent", runner, consent: false);
         Require(noConsent.Store.SubmitTranscription("device-a", noConsent.Id, Guid.NewGuid(), noConsent.Upload()).Status
-            == 403 && calls == 0, "audio consent is checked before dispatch");
+            == 403 && calls == 1, "audio consent is checked before dispatch");
         using var failed = new Fixture(directory, "failure", runner);
         var failure = failed.Store.SubmitTranscription("device-a", failed.Id, Guid.NewGuid(), failed.Upload());
         await PollAsync(failed.Store, failure.OperationId!, "failed");
-        Require(calls == 1, "failed provider is not retried automatically");
+        Require(calls == 2, "failed provider is not retried automatically");
         failed.RequireReservation(failure.OperationId!, VoiceProviderRunner.TranscriptionReservationMicroUsd);
     }
 

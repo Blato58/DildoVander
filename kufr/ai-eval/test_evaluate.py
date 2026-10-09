@@ -1,5 +1,9 @@
 import json
+import os
+import sys
+import tempfile
 import unittest
+from unittest.mock import patch
 
 from evaluate import (
     CATALOG,
@@ -16,6 +20,35 @@ from evaluate import (
 
 
 class EvalTests(unittest.TestCase):
+    def test_small_legacy_environment_cap_does_not_block_large_usage(self):
+        from evaluate import main
+
+        result = {
+            "reply": "Nevyberu hůlku.", "decision": "no_selection",
+            "compartment": None, "reason": "Syntetický test",
+        }
+        response = {
+            "id": "resp_fake", "status": "completed", "model": "gpt-6.1-sol",
+            "service_tier": "default",
+            "output": [{"type": "message", "content": [{
+                "type": "output_text", "text": json.dumps(result),
+            }]}],
+            "usage": {"input_tokens": 1_300_000, "output_tokens": 10},
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = os.path.join(temp_dir, "evaluation.json")
+            with patch.dict(os.environ, {"OPENAI_API_KEY": "fake", "SESSION_CAP_MICRO_USD": "1"}), \
+                    patch("evaluate.call_openai", return_value=response) as send, \
+                    patch.object(sys, "argv", ["evaluate.py", "--case", "none_ready", "--output", output_path]), \
+                    patch("builtins.print"):
+                main()
+
+            with open(output_path, encoding="utf-8") as output_file:
+                report = json.load(output_file)
+
+        send.assert_called_once()
+        self.assertGreater(report["estimatedUpperCostMicroUsd"], 3_000_000)
+
     def test_each_case_has_bounded_reservation(self):
         cases = json.loads(__import__("pathlib").Path(__file__).with_name("cases.json").read_text(encoding="utf-8"))
         self.assertEqual(62, len(cases))

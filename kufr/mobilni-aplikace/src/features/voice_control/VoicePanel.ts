@@ -12,13 +12,15 @@ export class VoicePanel {
     this.element.setAttribute('aria-label', 'Hlasové ovládání kufru');
     this.element.innerHTML = `
       <h2>Hlas kufru</h2>
-      <p>Kufr poslouchá svým mikrofonem a odpovídá reproduktorem. Hlasové režimy používají AI a serverové limity.
+      <p>Kufr poslouchá svým mikrofonem a odpovídá reproduktorem. Hlasové režimy používají AI a čerpají OpenAI účet.
          Spuštěním souhlasíte se zpracováním audia; přepis uchovává paměť večera. Nastavení platí do restartu kufru.</p>
       <form>
         <label>Hlasový režim<select name="mode"><option value="off">Vypnutý</option><option value="realtime">Realtime · průběžný rozhovor</option><option value="gpt-live">GPT-Live + Sol · test kvality</option></select></label>
         <label>Hlas<select name="voice"><option value="marin">Marin</option><option value="cedar">Cedar</option><option value="coral">Coral</option></select></label>
         <button type="submit" disabled>Použít nastavení hlasu</button>
       </form>
+      <label><input type="checkbox" data-image-consent> Host souhlasí s jednou fotkou kostýmu z kamery kufru pro tento rozhovor.</label>
+      <p class="footnote">Volitelné. Fotka se předá serveru a OpenAI jako nejistá nápověda a neukládá se do paměti večera.</p>
       <div class="actions">
         <button type="button" class="primary" data-voice="start" disabled>Spustit hlas na kufru</button>
         <button type="button" data-voice="stop" disabled>Zastavit hlas</button>
@@ -36,12 +38,22 @@ export class VoicePanel {
       if (connection()?.configureVoice(this.mode.value as 'off' | 'realtime' | 'gpt-live', this.voice.value as 'cedar' | 'marin' | 'coral'))
         this.draftChanged = false;
     });
-    this.element.querySelector('[data-voice="start"]')!.addEventListener('click', () => connection()?.startVoice());
+    this.element.querySelector('[data-voice="start"]')!.addEventListener('click', () => {
+      const consent = this.element.querySelector<HTMLInputElement>('[data-image-consent]')!;
+      connection()?.startVoice(consent.checked);
+      consent.checked = false;
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) this.element.querySelector<HTMLInputElement>('[data-image-consent]')!.checked = false;
+    });
     this.element.querySelector('[data-voice="stop"]')!.addEventListener('click', () => connection()?.stopVoice());
   }
   update(snapshot: DeviceSnapshot): void {
     const voice = snapshot.voice;
     const native = snapshot.source === 'native-device';
+    const consent = this.element.querySelector<HTMLInputElement>('[data-image-consent]')!;
+    consent.disabled = !native || voice?.canStart !== true || voice?.cameraAvailable !== true || snapshot.busy;
+    if (!native || voice?.cameraAvailable !== true) consent.checked = false;
     const configure = native && voice?.canConfigure === true;
     this.mode.disabled = this.voice.disabled = !configure;
     this.mode.querySelector<HTMLOptionElement>('[value="realtime"]')!.disabled = !voice?.available;

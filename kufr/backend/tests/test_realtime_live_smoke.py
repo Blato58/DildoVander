@@ -8,17 +8,16 @@ import realtime_live_smoke as live
 
 
 class LiveSmokeSafetyTests(unittest.TestCase):
-    def test_invalid_budget_stops_before_token_exchange(self):
-        for cap in ("0", "3000001"):
-            with self.subTest(cap=cap), patch.dict(live.os.environ, {
-                "SESSION_CAP_MICRO_USD": cap,
-                "DAILY_CAP_MICRO_USD": "10000000",
-                "MONTHLY_CAP_MICRO_USD": "10000000",
-                "APPROVED_BUDGET_USD": "1",
-            }, clear=True), patch.object(live, "ApiClient") as client:
-                with self.assertRaises(live.DialogueError):
+    def test_legacy_monetary_settings_do_not_gate_token_exchange(self):
+        for cap in (None, "0", "3000001", "invalid-ignored"):
+            settings = {"PUBLIC_IPV4": "8.8.8.8", "DEV_DEVICE_CREDENTIAL": "fixture", "DEVICE_ID": "fixture"}
+            if cap is not None:
+                settings["SESSION_CAP_MICRO_USD"] = cap
+            with self.subTest(cap=cap), patch.dict(live.os.environ, settings, clear=True), \
+                    patch.object(live, "ApiClient", side_effect=RuntimeError("offline fixture reached")) as client:
+                with self.assertRaisesRegex(RuntimeError, "offline fixture reached"):
                     live.run()
-                client.assert_not_called()
+                client.assert_called_once()
 
     def test_stream_rejects_oversized_and_unterminated_events(self):
         for content in (b"x" * 65537, b'{"type":"heartbeat"}'):
