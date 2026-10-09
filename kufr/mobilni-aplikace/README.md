@@ -1,6 +1,39 @@
 # Mobilní ovládání kufru
 
-## Aktuální předání D164
+## Aktuální předání D165
+
+Po **Zapomenout párování** iPhone smazal místní profil, ESP ale zachovalo token
+hash a další BLE párování vracelo `already_paired`. D165 nabídne nativní
+**Obnovit párování kufru?**; až po potvrzení odešle `recover-local` s `confirm:true`
+přes stejné ověřené Security1/PoP BLE. Zrušení ani automatický reconnect párování
+nemění. Zdravý Paired záznam získá nový token; QR/chybějící/poškozená storage
+se neobchází. Připojený ovladač, handshake, čekající povely/disconnect, ruční lease,
+hlas a maintenance vracejí `busy`. TLS identita a Wi-Fi zůstávají zachované.
+Token/pin zůstávají nativní; nový credential se vloží jen do prázdného Keychain
+profilu, existující profil se nepřepisuje.
+
+[PR163](https://github.com/Blato58/DildoVander/pull/163), merge
+`f752c1e0009d25b6827657f789bd35ff943c74f4`, source
+`50b6b0605279884be5c2ed969254e2a57f32411a`, prošlo
+[CI 37936213640](https://github.com/Blato58/DildoVander/actions/runs/37936213640)
+s firmware **0.1.162**.
+[OTA publikace 37936948294](https://github.com/Blato58/DildoVander/actions/runs/37936948294)
+prošla; veřejné HTTPS, ECDSA podpis, hash a embedded verze byly ověřené.
+COM7 app-only zápis na `0x10000` prošel hash kontrolou bez změny NVS. Normální RTS
+boot potvrdil **0.1.162**, main stack 16384 B / minimum remaining 12540 B,
+BLE advertising, control loop a TLS server v 18899 ms.
+[iOS podpis 37936943860](https://github.com/Blato58/DildoVander/actions/runs/37936943860)
+prošel všemi třemi native harnessy, Xcode archive i Ad Hoc exportem pro
+**1.0 / build 1000.0.22**. [Safari publikace 37937381222](https://github.com/Blato58/DildoVander/actions/runs/37937381222)
+prošla všemi třemi joby. Veřejná instalační stránka a manifest uvádějí
+`app.turquoise6409.green2444` / **1000.0.22**; IPA 1873296 B a veřejný checksum
+byly ověřené, SHA-256 `f5cb611018ea898b215701bda0982c76dcd0dff7d1738421e9d13299fb39ff3e`.
+PC BLE scan po flashi našel `KUFR_4B6048` s očekávaným service UUID. D164 připojení před zapomenutím není
+akceptací nové obnovy. iPhone update, potvrzená obnova a uchování Keychain
+po aktualizaci zůstávají otevřené podle
+[stavu implementace](../docs/stav-implementace.md#předání-další-ai).
+
+## Historické předání D164
 
 Development OTA **0.1.161** prošla
 [CI 37931935316](https://github.com/Blato58/DildoVander/actions/runs/37931935316)
@@ -11,7 +44,7 @@ bez smazání NVS skutečná deska při normálním RTS restartu spustila contro
 BLE advertising i místní TLS server; PC scan našel `KUFR_4B6048` s očekávaným UUID.
 Před obnovou končila **0.1.157** main stack overflow ještě před BLE startem.
 
-Aktuální iOS zůstává **1.0 / build 1000.0.21** z
+V D164 iOS zůstávalo **1.0 / build 1000.0.21** z
 [podpisu 37929159117](https://github.com/Blato58/DildoVander/actions/runs/37929159117)
 a [Safari publikace 37929535139](https://github.com/Blato58/DildoVander/actions/runs/37929535139);
 v D164 se znovu nepodepisovalo ani nepublikovalo. PC scan a firmware boot
@@ -504,7 +537,7 @@ ani offline provider testy nejsou fyzický poslech.
 Dne 6. 10. 2026 byla na [instalační stránce](https://2.28.202.220/ios/)
 publikována Ad Hoc **1.0 / build 1000.0.16** pro dosavadní registrovaný iPhone.
 Tento oddíl zachycuje tehdejší verzi a serverovou konfiguraci D146;
-historické předání D162 je **1.0 / build 1000.0.20**; aktuální D164 vede přehled nahoře.
+historické předání D162 je **1.0 / build 1000.0.20**; aktuální D165 vede přehled nahoře.
 [Podpis 37429759564](https://github.com/Blato58/DildoVander/actions/runs/37429759564)
 ověřil Xcode 26.3, nativní transport/debug/audio testy a podpis;
 [publikace 37429982348](https://github.com/Blato58/DildoVander/actions/runs/37429982348)

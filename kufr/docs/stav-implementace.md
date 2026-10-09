@@ -6,17 +6,60 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**D165 – převzatá oprava opakovaného párování po Zapomenout párování.**
-Majitel po úspěšném D164 připojení zapomněl párování a nové BLE párování vrací
+**D165 – 9. 10. 2026 – obnova opakovaného párování po Zapomenout párování.**
+Majitel po úspěšném D164 připojení zapomněl párování a nové BLE párování vracelo
 already_paired. Native forget maže pouze Keychain; firmware ponechá hash.
-Implementuje se explicitní PoP BLE recovery podle D165 plánu, s nativním
-potvrzením, idle/socket/inbox gate a revokací starého tokenu. Sedm MSVC host suites (pairing, TLS, BLE, discovery, WSS server, inbox,
-admission) prošlo; 43 mobilních testů a npm run build prošly.
-`pio run -e esp32-s3-idf -s` prošel. Nezávislé firmware/native review
-a diff --check prošly. Native review neprovedlo UIKit lifecycle test;
-firmware gates mají host testy, kombinace MaintenanceGate je source-reviewed.
-Native podpis, publikace a fyzická opakovaná zkouška zatím neproběhly.
+Explicitní `recover-local` s `confirm:true` přes existující Security1/PoP BLE
+po nativním potvrzení nahradí pouze zdravý spárovaný token. Chybějící, poškozené
+záznamy a připravené QR se touto cestou nenahrazují. Maintenance → admission →
+inbox → credential zámky vyžadují idle owner, žádnou údržbu a žádný živý/pending
+socket či event; starý token nemůže během výměny navázat handshake ani doběhnout
+jako ruční povel. Hash nového tokenu je durable, starý je revokovaný i po reload.
+Native recheck prázdného Keychain a non-overwriting insert zachovají jiný záznam.
+Cancel, background, timeout a stale callback jsou epoch-guarded; mutace se
+neopakují automaticky. Nový token/pin neprochází JS. Po ztrátě odpovědi lze
+zabezpečené BLE připojení a explicitní obnovu zopakovat.
 
+Sedm MSVC host suites (pairing, TLS, BLE, discovery, WSS server, inbox, admission)
+prošlo; 43 mobilních testů a npm run build prošly. `pio run -e esp32-s3-idf -s`
+prošel. Nezávislé firmware/native review a diff --check prošly. UIKit lifecycle
+není v host harnessu; jednotlivé firmware gates mají host testy, kombinace
+MaintenanceGate je source-reviewed. Regrese pokrývají reload/revokaci, RNG/hash/
+write failure, opakovaný digest, přesné confirmation fields, busy/pending a
+handshake/inbox souběh, native allowlist/types/extra fields/512B bounds.
+Commit `50b6b0605279884be5c2ed969254e2a57f32411a` byl pushnutý repo helperem;
+[PR163](https://github.com/Blato58/DildoVander/pull/163) sloučený jako
+`f752c1e0009d25b6827657f789bd35ff943c74f4` po zeleném
+[CI37936213640](https://github.com/Blato58/DildoVander/actions/runs/37936213640).
+Codex review dokončené bez findings; po posledním push a těsně před merge znovu
+načtené reviews, inline a threads, žádná nevyřešená vlákna.
+Tree `0add227557e52d87cd25e77769d7871f1f81bda2` odpovídá main i CI obrazu.
+
+[OTA37936948294](https://github.com/Blato58/DildoVander/actions/runs/37936948294)
+publikovala development **0.1.162**, buildId
+`a3426c091ce727418e8e7252d3f66b3087ddf5c3`, 1744688 B, SHA-256
+`0345a302c0170ded0ba80e4d4f5a5ff0bba5a06a4e3457bc0768a4bb2eab682b`.
+Veřejné HTTPS stažení nezávisle ověřilo ECDSA podpis, hash a embedded version.
+N16R8 image check a porovnání skutečné partition table se soukromou D164 zálohou
+prošly. V rámci schválené COM7 obnovy s vypnutými pohony esptool zapsal pouze
+aplikaci na0x10000, ověřil hash; NVS/otadata/partition table/bootloader zůstaly.
+Normal RTS boot potvrzuje **0.1.162**, main16384 B/minimum zbývajících12540 B,
+control loop, BLE advertise a local TLS server v18.899 s. PC BLE scan znovu našel
+**KUFR_4B6048** s očekávaným service UUID. USB boot není nová OTA instalace.
+
+[Podpis37936943860](https://github.com/Blato58/DildoVander/actions/runs/37936943860)
+prošel včetně všech tří native harnessů, Xcode archive a Ad Hoc exportu pro
+**1.0 /1000.0.22**.
+[Publikace37937381222](https://github.com/Blato58/DildoVander/actions/runs/37937381222)
+prošla všemi třemi joby. [Safari instalace](https://2.28.202.220/ios/) nabízí
+1000.0.22; Windows nezávisle ověřil stránku a manifest se zachovaným Bundle ID,
+IPA1873296 B se SHA-256
+`f5cb611018ea898b215701bda0982c76dcd0dff7d1738421e9d13299fb39ff3e`
+proti veřejnému checksumu. Backend zůstává active/healthz ok, jeho aplikace
+a data se neměnily. Native build nenahrazuje skutečnou obnovu na iPhonu.
+Další krok: po publikaci aktualizovat iPhone, zopakovat BLE pairing/recovery po
+forget, připojit Ovládání a ověřit relaunch/aktualizaci Keychain a cancel/background.
+D164 připojení před forget nenahrazuje tuto novou fyzickou akceptaci.
 
 **D164 – 9. 10. 2026 – opravený startup a fyzická obnova COM7 na0.1.161.**
 Majitel nedokáže ESP najít ani přes BLE a autorizoval debug přes COM7/PC Bluetooth.

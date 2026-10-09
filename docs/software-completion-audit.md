@@ -5,7 +5,42 @@ mobile companion, contracts, simulator, offline AI evaluation, service tools
 and deployment workflows. `obludarium/` remains an independent Arduino Nano
 starter project, outside the suitcase implementation scope.
 
-**Current handoff: D164.**
+**Current handoff: D165.** Forgetting the iPhone's local
+Keychain profile left the ESP paired, so subsequent first-use BLE pairing returned
+`already_paired`. D165 adds a native confirmation before authenticated
+Security1/PoP `recover-local` with exact `confirm:true`. Healthy Paired records alone
+can rotate to a fresh digest; pending QR, Missing and corrupt records stay blocked.
+Recovery holds maintenance, admission, inbox and credential gates, rejecting live
+or pending controllers, queued/disconnect events, manual lease, voice and maintenance.
+It preserves TLS identity and Wi-Fi settings, keeps pin/token native and inserts
+into an empty Keychain profile without overwriting an existing credential.
+Cancel, reconnect and failed enrollment do not automatically rotate authority.
+
+[PR163](https://github.com/Blato58/DildoVander/pull/163) merged as
+`f752c1e0009d25b6827657f789bd35ff943c74f4`, from source
+`50b6b0605279884be5c2ed969254e2a57f32411a`;
+[CI 37936213640](https://github.com/Blato58/DildoVander/actions/runs/37936213640)
+passed with firmware **0.1.162**.
+[OTA publication 37936948294](https://github.com/Blato58/DildoVander/actions/runs/37936948294)
+succeeded: buildId `a3426c091ce727418e8e7252d3f66b3087ddf5c3`, 1744688 B,
+SHA-256 `0345a302c0170ded0ba80e4d4f5a5ff0bba5a06a4e3457bc0768a4bb2eab682b`.
+Public HTTPS, ECDSA signature, hash and embedded version were verified. COM7
+app-only recovery at `0x10000` was hash-verified without touching NVS. Normal RTS
+boot confirmed **0.1.162**, 16384 B main stack / minimum remaining 12540 B,
+BLE advertising, control loop and TLS startup at 18899 ms.
+[iOS signing 37936943860](https://github.com/Blato58/DildoVander/actions/runs/37936943860)
+passed all three native harnesses, Xcode archive and Ad Hoc export for
+**1.0 / build 1000.0.22**. [Safari publication 37937381222](https://github.com/Blato58/DildoVander/actions/runs/37937381222)
+succeeded in all three jobs. The public installation page and manifest identify
+`app.turquoise6409.green2444` / **1000.0.22**; public IPA 1873296 B and its checksum
+were verified, SHA-256 `f5cb611018ea898b215701bda0982c76dcd0dff7d1738421e9d13299fb39ff3e`.
+The post-flash PC BLE scan found `KUFR_4B6048` with the expected service UUID.
+D164's owner-confirmed connection predates forgetting and does not accept D165
+recovery. Physical recovery, iPhone update and Keychain retention remain pending;
+exact delivery and acceptance are tracked in
+[implementation status](../kufr/docs/stav-implementace.md#předání-další-ai).
+
+**Historical D164 handoff.**
 [PR161](https://github.com/Blato58/DildoVander/pull/161) merged as
 `12efd65fa40d12cda2c6041e7590b10c600d772c`;
 [CI 37931935316](https://github.com/Blato58/DildoVander/actions/runs/37931935316)
@@ -26,7 +61,7 @@ advertising and local TLS startup after about 19 seconds. Active PC scanning fou
 the 3584 B main stack before BLE startup. This verifies USB recovery and startup,
 not a new OTA installation or complete LAN control acceptance.
 
-iOS remains **1.0 / build 1000.0.21** from the D163 signing/publication below;
+At D164, iOS remained **1.0 / build 1000.0.21** from the D163 signing/publication below;
 D164 did not sign or publish it again. The owner confirmed the fresh
 same-Wi-Fi iPhone control path: "yes I am connected". Connection is confirmed;
 long-running pinned WSS and post-update Keychain retention remain pending.
@@ -155,7 +190,8 @@ Exact final commands, results, commits and live publication are recorded in
 [event readiness](event-readiness.md) maps all requested scenarios to host,
 build/live-server or outstanding physical checks. Its D158/D159 results remain
 historical evidence. D164 adds the explicitly recorded USB recovery, boot,
-PC BLE scan and owner-confirmed iPhone connection above. Long-running WSS,
+PC BLE scan and owner-confirmed iPhone connection above. That connection predates
+forgetting and is not D165 recovery acceptance. Long-running WSS, physical recovery,
 post-update Keychain, OTA-negative and full-event acceptance remain pending.
 
 Software tests cannot establish actual CoreBluetooth/radio coexistence, iPhone
