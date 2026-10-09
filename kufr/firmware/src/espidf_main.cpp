@@ -34,6 +34,8 @@
 #include "features/provisioning/LocalTlsIdentity.h"
 #include "features/safety/SafetyController.h"
 #include "features/wand_selection/SelectionSequence.h"
+#include "features/physical_effects/EspIdfPhysicalIo.h"
+#include "features/physical_effects/PhysicalPresentation.h"
 
 namespace {
 
@@ -41,28 +43,24 @@ constexpr char LogTag[] = "kufr";
 constexpr uint32_t ControlLoopPeriodMs = 10;
 constexpr char CatalogVersion[] = "ollivander-private-party-v1";
 
-class LoggingSafetyPort final : public SafetyPort {
+class HardwareSafetyPort final : public SafetyPort {
  public:
-  void DisableActuators() override {
-    ESP_LOGI(LogTag, "Actuator disable requested (no GPIO adapter)");
-  }
-
+  explicit HardwareSafetyPort(PhysicalEffects& effects) : effects_(effects) {}
+  void DisableActuators() override { effects_.Disable(); }
   void StartVibration(uint8_t compartment) override {
-    ESP_LOGW(LogTag, "Vibration %u requested without an actuator adapter",
-             static_cast<unsigned>(compartment));
+    if (!effects_.StartVibration(compartment)) effects_.Fault();
   }
-
   void ReleaseLatch(uint8_t compartment) override {
-    ESP_LOGW(LogTag, "Latch %u requested without an actuator adapter",
-             static_cast<unsigned>(compartment));
+    if (!effects_.Move(compartment, true)) effects_.Fault();
   }
+  void LowerProp(uint8_t compartment) override {
+    if (!effects_.Move(compartment, false)) effects_.Fault();
+  }
+  bool PropRaised(uint8_t compartment) const override { return effects_.IsRaised(compartment); }
+  bool PropResting(uint8_t compartment) const override { return effects_.IsResting(compartment); }
+ private:
+  PhysicalEffects& effects_;
 };
-
-void LogStep(const SelectionStep& step) {
-  ESP_LOGI(LogTag, "Selection step %u for compartment %u",
-           static_cast<unsigned>(step.effect),
-           static_cast<unsigned>(step.compartment));
-}
 
 class RuntimeClock final : public LocalControlClockPort {
  public:
@@ -88,22 +86,48 @@ class RuntimeLeaseIds final : public LocalControlIdPort {
   PairingRandomPort& random_;
 };
 
-class UnverifiedInspection final : public LocalControlRecoveryGate {
+class PhysicalInspection final : public LocalControlRecoveryGate {
  public:
-  bool InspectionAllowsRecovery() const override { return false; }
+  explicit PhysicalInspection(PhysicalEffects& effects) : effects_(effects) {}
+  bool InspectionAllowsRecovery() const override {
+    if (!effects_.Healthy() || !effects_.ButtonPressed()) return false;
+    for (uint8_t n = 1; n <= 6; ++n) if (!effects_.IsResting(n)) return false;
+    return true;
+  }
+ private:
+  PhysicalEffects& effects_;
 };
 
-class LoggingSteps final : public LocalControlStepPort {
+class HardwareSteps final : public LocalControlStepPort {
  public:
-  void OnStep(const SelectionStep& step) override { LogStep(step); }
+  HardwareSteps(PhysicalEffects& effects, DeviceControlRuntime& runtime) : effects_(effects), runtime_(runtime) {}
+  void OnStep(const SelectionStep& step) override {
+    switch (step.effect) {
+      case SelectionEffect::SearchStep:
+        effects_.Highlight(step.compartment, 100, 40, 255); break;
+      case SelectionEffect::Highlight:
+        effects_.Highlight(step.compartment, 255, 170, 30); break;
+      case SelectionEffect::Stopped:
+        effects_.Highlight(0, 0, 0, 0); break;
+      case SelectionEffect::Idle:
+        if (!runtime_.HasAutonomousPresentation()) effects_.Highlight(0, 0, 0, 0);
+        break;
+      default: break;
+    }
+  }
+ private:
+  PhysicalEffects& effects_;
+  DeviceControlRuntime& runtime_;
 };
 
 }  // namespace
 
 extern "C" void app_main() {
-  static LoggingSafetyPort safetyPort;
+  static EspIdfPhysicalIo hardware;
+  static PhysicalEffects effects(hardware);
+  static HardwareSafetyPort safetyPort(effects);
   static SafetyController safetyController(safetyPort);
-  static SelectionSequence selectionSequence(safetyController);
+  static SelectionSequence selectionSequence(safetyController, true);
 
   // Safe output request precedes all future provisioning and network work.
   safetyController.InitializeSafe();
@@ -114,6 +138,12 @@ extern "C" void app_main() {
   static const std::string conversationId = GenerateEspIdfConversationUuid();
   bootloader_random_disable();
   const esp_err_t nvsStatus = nvs_flash_init();
+  const bool hardwareStarted = hardware.Initialize(nvsStatus == ESP_OK);
+  std::array<ServoCalibration, 6> calibration{};
+  uint64_t calibrationRevision = 0;
+  const bool calibrated = hardwareStarted && hardware.LoadCalibration(calibration, calibrationRevision) &&
+                          effects.Configure(calibration, calibrationRevision, hardware.InhibitVerified());
+  if (!calibrated) ESP_LOGW(LogTag, "Hardware wiring/inhibit/endpoints/calibration unverified; motion remains inhibited");
   static EspIdfJournalStorage journalStorage(nvsStatus == ESP_OK);
   static PersistentCommandJournal journal(journalStorage);
   static EspIdfProvisioningStorage identityStorage(nvsStatus == ESP_OK);
@@ -137,19 +167,22 @@ extern "C" void app_main() {
   } else if (!identity.IsProvisioned()) {
     ESP_LOGW(LogTag, "Device identity not provisioned; backend stays offline");
   }
-  // B1 has no calibrated physical port/inspection gate. Do not fake recovery.
+  // Hardware validation is provisioned after measurement, never by network input.
   // Boot-lifetime objects also keep the small app_main stack bounded.
   static DeviceControl deviceControl(
-      identity.DeviceId(), bootId, selectionSequence, journal, 0);
+      identity.DeviceId(), bootId, selectionSequence, journal, effects.CalibrationRevision());
   static ConversationRuntimeState runtimeState(false, 0, "");
   static DeviceControlRuntime controlRuntime(
       deviceControl, selectionSequence, runtimeState, CatalogVersion);
+  static PhysicalPresentation presentationPort(effects, controlRuntime);
+  static WandPresentation presentation(presentationPort);
+  controlRuntime.BindPresentation(presentation);
   controlRuntime.PublishCurrent();
   static ConversationSession conversation(bootId, conversationId);
   static EspIdfStationNetwork station;
   const bool stationStarted = station.Start(nvsStatus == ESP_OK);
   static EspIdfBackendNetwork backendNetwork(identity, runtimeState, bootId, station);
-  backendNetwork.InitializeVoice(nvsStatus == ESP_OK);
+  backendNetwork.InitializeVoice(nvsStatus == ESP_OK, hardware.ProfileSelected() ? &hardware : nullptr);
   if (!stationStarted || !backendNetwork.Start(nvsStatus == ESP_OK)) {
     ESP_LOGW(LogTag, "Backend network not configured; stays offline");
   }
@@ -163,8 +196,8 @@ extern "C" void app_main() {
       selectionSequence, conversation, server, &backendNetwork);
   static RuntimeClock clock;
   static RuntimeLeaseIds leaseIds(random);
-  static UnverifiedInspection inspection;
-  static LoggingSteps steps;
+  static PhysicalInspection inspection(effects);
+  static HardwareSteps steps(effects, controlRuntime);
   static LocalControlOwner owner(
       identity.DeviceId(), bootId, controlRuntime, runtimeState, conversation,
       backendNetwork, inbox, server, output, leaseIds, inspection, steps, clock, &backendNetwork);
@@ -172,7 +205,10 @@ extern "C" void app_main() {
   uint64_t retryServerAtMs = 0;
   bool advertisementStarted = false;
   uint64_t retryAdvertisementAtMs = 0;
-  ESP_LOGI(LogTag, "ESP-IDF control loop started; actuators are unconnected");
+  bool rawButton = false, button = false, gestureConsumed = false;
+  bool hardwareFaultHandled = false;
+  uint64_t buttonChangedAt = 0, buttonPressedAt = 0;
+  ESP_LOGI(LogTag, "ESP-IDF control loop started; physical outputs require verified service configuration");
 
   while (true) {
     const uint64_t nowMs = clock.NowMs();
@@ -193,9 +229,56 @@ extern "C" void app_main() {
       advertisementStarted = advertisement.Start(identity.DeviceId());
       retryAdvertisementAtMs = nowMs + 5000;
     }
+    effects.Tick(nowMs);
+    if (effects.Healthy()) hardwareFaultHandled = false;
+    if (calibrated && !effects.Healthy() && !hardwareFaultHandled) {
+      hardwareFaultHandled = true;
+      SelectionStep stopped;
+      controlRuntime.Stop(stopped);
+      backendNetwork.StopVoice();
+      steps.OnStep(stopped);
+    }
+    const bool sampleButton = effects.ButtonPressed();
+    if (sampleButton != rawButton) { rawButton = sampleButton; buttonChangedAt = nowMs; }
+    if (sampleButton != button && nowMs - buttonChangedAt >= 30) {
+      button = sampleButton;
+      if (button) {
+        buttonPressedAt = nowMs;
+        gestureConsumed = false;
+        if (controlRuntime.HasAutonomousPresentation() || selectionSequence.IsBusy()) {
+          SelectionStep stopped;
+          controlRuntime.Stop(stopped);
+          backendNetwork.StopVoice();
+          steps.OnStep(stopped);
+          gestureConsumed = true;
+        }
+      } else if (!gestureConsumed) {
+        const auto voice = backendNetwork.VoiceStatus();
+        if (voice.phase != "idle" && voice.phase != "unavailable") backendNetwork.StopVoice();
+        else {
+          ConversationRuntimeSnapshot snapshot;
+          if (runtimeState.Read(snapshot)) {
+            if (voice.mode == "off") backendNetwork.ConfigureVoice("gpt-live", "marin");
+            backendNetwork.StartVoice(GenerateEspIdfConversationUuid(), snapshot);
+          }
+        }
+      }
+    }
+    if (button && !gestureConsumed && nowMs - buttonPressedAt >= 2000) {
+      gestureConsumed = true;
+      if (!selectionSequence.IsBusy() && !controlRuntime.HasAutonomousPresentation() &&
+          effects.RecoverAfterInspection()) controlRuntime.RecoverAfterInspection();
+    }
     server.Pump();
     owner.Tick();
+    inbox.RunIfNoUrgent([&]() { presentationPort.Tick(clock.NowMs()); });
     owner.PumpReply(backendNetwork);
+    // Owner has applied urgent Stop/lease changes before any autonomous start.
+    inbox.RunIfNoUrgent([&]() {
+      if (!deviceControl.HasManualControl() && effects.Healthy())
+        backendNetwork.BeginPendingPresentation(presentation, clock.NowMs());
+    });
+    backendNetwork.FinishPresentation(presentation);
     vTaskDelay(pdMS_TO_TICKS(ControlLoopPeriodMs));
   }
 }

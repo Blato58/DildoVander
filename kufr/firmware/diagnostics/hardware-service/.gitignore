@@ -1,0 +1,4 @@
+src/service_config.h
+service_config.json
+sdkconfig.hardware-service
+sdkconfig.hardware-service.old

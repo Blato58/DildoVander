@@ -10,7 +10,8 @@
 // IsSafeToContinue checks inhibit, Stop/fault and ownership/generation after
 // Raise changes the published snapshot. Raise must journal and invalidate it;
 // Complete must persist restoration and republish readiness only after rest
-// position is established. No such hardware adapter currently exists.
+// position is established. PhysicalPresentation implements this with
+// gated I2C/RMT output and debounced endpoint feedback.
 class WandPresentationPort {
  public:
   virtual ~WandPresentationPort() = default;

@@ -1,10 +1,67 @@
 # Stav implementace AI kufru
 
-Poslední aktualizace: **8. 10. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální Arduino i ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a E3a. Ad Hoc podpis a serverová publikace IPA/manifestu prošly CI a veřejným HTTPS testem; majitel potvrdil instalaci a spuštění na iPhonu 15 Pro (D70). Hardware, native WSS/TLS a aktualizace IPA na telefonu zatím nemají runtime akceptaci. Hotový návrh není hotová implementace.
+Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální Arduino i ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a E3a. Ad Hoc podpis a serverová publikace IPA/manifestu prošly CI a veřejným HTTPS testem; majitel potvrdil instalaci a spuštění na iPhonu 15 Pro (D70). Hardware, native WSS/TLS a aktualizace IPA na telefonu zatím nemají runtime akceptaci. Hotový návrh není hotová implementace.
 
 [Implementační plán](implementacni-plan.md) určuje architekturu a akceptaci. [AGENTS.md](../../AGENTS.md) určuje pracovní postup AI. Tento soubor je jediný průběžný záznam postupu; README ho pouze odkazují.
 
 ## Předání další AI
+
+**D155 – 9. 10. 2026 – potvrzené nákupy, zapojení a fyzický ESP-IDF adaptér připravené.**
+Majitel doložil dva snímky nákupu: měnič SEG-28582, druhý DFR0954,
+MCP23017 Adafruit 5346, dva PH2 kabely, Dupont, zelenou a další červenou
+kolébku, multimetr, dvojlinky, rezistory a Degson. Objednávka tyto položky
+přesunula do potvrzeného hardwaru; jsou dva zesilovače a dva reproduktory.
+Délky dvojlinek, koupě kamery a powerbanky se ze snímků neodvozují.
+[Konkrétní zapojení](zapojeni-potvrzeneho-hardwaru.md) obsahuje napájení,
+piny, PCA kanály, všech 16 MCP vývodů, LED řetězec a mute obou DFR0954.
+
+Implementovaný profil **B-effects-no-SD** zachovává kamerové piny:
+I2C 1/14, RGB48, RUN2, audio 21/41/42/47, GOOD38; slot SD musí zůstat
+prázdný. `physical_effects` nyní řídí PCA9685, MCP23017 a RMT pro 36 LED
+po šesti, jas do 64/255, jeden pohon, jednotlivé heartbeat pulzy z řídicí
+smyčky a přímé RUN LOW před vypnutím či změnou kanálů. GPIO se aktivují
+jen po servisním ověření profilu/mute. NVS kalibrace + inhibit + kontakty
+podmiňují pohyb a každý boot vyžaduje místní kontrolu a přidržení tlačítka.
+`PhysicalPresentation` připojuje autonomní journal a sekvenci hledání,
+zvýraznění, tří vibrací, zdvihu, 5s ukázky a návratu. Ruční ESP-IDF
+sekvence také čeká na skutečný zdvih/návrat a obnovuje dostupnost až po
+atomickém uzavření journalu. Stop ani ztráta ručního lease nevrací servo.
+Arduino sériový profil zachovává původní model. Krátké tlačítko v klidu
+spouští/zastavuje hlas; během prezentace je Stop. Audio B používá sdílený
+MCP mute a task mutex namísto blokujícího I2C ve spinlocku, profil A zůstává.
+
+Servisní projekt `diagnostics/hardware-service` validuje explicitní JSON,
+zapisuje pouze `wand_hw`, nemaže identity/TLS a nejdřív zavírá gate před
+změnou kalibrace. Ignorované výstupní hlavičky nejsou credentialy; příklad
+má všechny flags false a nulové pulzy, tedy nic nepovoluje. Chyba NVS
+vyžaduje ponechat výkon fyzicky odpojený. CI obsahuje nové fyzické testy,
+validaci konfigurace a build servisního projektu.
+
+Lokální ověření: `pio run -d kufr/firmware` (ESP-IDF 6.1 / espressif32
+7.1.3) a `pio run -d kufr/firmware -e esp32-s3-arduino-serial` **SUCCESS**;
+ESP-IDF obraz přibližně 1,25 MB, Arduino 287 017 B. Samostatný servisní
+projekt s vypnutým příkladem **SUCCESS**, flash 171 049 B.
+Dosavadní hostitelská firmware sada ze setupu
+prošla. Nový `physical_effects_test.cpp` s `g++ -std=c++14 -Wall -Wextra
+-Werror -pthread` prošel: limity, zpětná vazba, restartová brána, I/O chyba,
+250ms prodleva, chybějící/rozporné kontakty, journal před pohybem,
+autonomní/ruční návrat, replay, Stop, ztráta ručního řízení během ukázky
+i návratu a chyba uzavření journalu. `espidf_voice_audio_test.cpp` s audio
+stuby prošel pro A/B, mute, pinout, zpožděný playback a chybu expanderu.
+`python3 -m unittest discover -s diagnostics/hardware-service -p
+'test_*.py'` **3 passed**. Ověřeno 84 lokálních Markdown cest a
+`git diff --check`. Tyto testy neověřují skutečné I2C/RMT periferie.
+
+Neprovedeno: flash, fyzické zapojení/měření, napájení pod zátěží, teplota,
+časování heartbeat, fail-muted rozhraní či pasivní držení mechanismu.
+Krajní kontakty (12 NO) ani nezávislý watchdog/logika/load switch nejsou
+potvrzené nákupy; nelze je nahradit časovým odhadem polohy nebo softwarem.
+E5/E6/B1 a HW audio akceptace zůstávají otevřené. Kamerový snímek/driver
+E13 není součástí tohoto adaptéru, pouze jeho piny zůstávají volné.
+Další krok: doplnit ochranu/kontakty, proměřit mute/power/reset,
+kalibrovat jednu nezatíženou přihrádku a následně zbývající; pak samostatně
+autorizované servisní nahrání a celá fyzická akceptace. Git/CI doručení
+bude doplněné podle skutečného výsledku.
 
 **D154 – 8. 10. 2026 – tiskový CAD a exporty pro upřesněnou elektroniku ověřené.**
 Fotografie majitele uvádí hůlku 19–20 cm; model počítá s 200 mm a pracovní

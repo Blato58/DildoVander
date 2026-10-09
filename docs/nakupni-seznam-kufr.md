@@ -1,8 +1,8 @@
 # Nákup elektroniky pro AI kufr: dva obchody
 
-> **Aktualizace 8. 10. 2026:** Pro AI kufr objednávat pouze podle
+> **Aktualizace 9. 10. 2026:** Pro AI kufr objednávat pouze podle
 > [nového seznamu chybějících dílů](objednavka-doplneni-kufru-2026-10-06.md).
-> Zohledňuje faktury, kameru, jeden aktivní LED úsek a jeden pohon,
+> Zohledňuje nové potvrzené nákupy, dva zesilovače, kameru, jeden aktivní LED úsek a jeden pohon,
 > kolébkové vypínače a odklad automatického watchdogu jen pro laboratorní
 > prototyp pod dohledem. Volitelné doplňky nejsou v základním košíku.
 > Níže je historický podklad.

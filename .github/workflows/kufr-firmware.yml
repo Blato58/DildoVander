@@ -81,6 +81,24 @@ jobs:
             src/features/voice_turn/EspIdfVoiceAudio.cpp tests/espidf_voice_audio_test.cpp \
             -o "$RUNNER_TEMP/voice-audio-test"
           "$RUNNER_TEMP/voice-audio-test"
+      - name: Physical effects and feedback-controlled presentation
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++14 -Wall -Wextra -Werror -pthread \
+            src/features/physical_effects/PhysicalEffects.cpp \
+            src/features/physical_effects/PhysicalPresentation.cpp \
+            src/features/safety/SafetyController.cpp \
+            src/features/wand_selection/SelectionSequence.cpp \
+            src/features/device_control/DeviceControl.cpp \
+            src/features/device_control/DeviceControlRuntime.cpp \
+            src/features/conversation/ConversationRuntimeState.cpp \
+            src/features/conversation/PendingProposal.cpp \
+            src/features/wand_presentation/WandPresentation.cpp \
+            tests/physical_effects_test.cpp -o "$RUNNER_TEMP/physical-effects-test"
+          "$RUNNER_TEMP/physical-effects-test"
+          python3 -m unittest discover -s diagnostics/hardware-service -p 'test_*.py'
       - name: Device control tests
         working-directory: kufr/firmware
         shell: bash
@@ -421,6 +439,13 @@ jobs:
         shell: bash
         run: |
           "$RUNNER_TEMP/platformio-venv/bin/pio" run -d kufr/firmware/diagnostics/pca9685-logic -s
+      - name: Build hardware service diagnostic with disabled example configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd kufr/firmware/diagnostics/hardware-service
+          python3 make_config.py service_config.example.json
+          "$RUNNER_TEMP/platformio-venv/bin/pio" run -s
       - name: Bundle flashable firmware outputs without device credentials
         shell: bash
         run: |

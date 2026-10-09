@@ -7,7 +7,7 @@ považovaná za elektricky ověřené zapojení. Původní objednávka byla z 6.
 její staré součty 1 529/1 142 Kč už nevyjadřují zbývající nákup.
 
 Máme **dva DFR0954 a dva 8Ω reproduktory**, měnič SEG-28582, MCP23017,
-dva PH2 kabely, dvě nová podsvícená kolébková tlačítka a montážní materiál.
+dva PH2 kabely, dva nové podsvícené kolébkové vypínače a montážní materiál.
 Zelená kolébka bude servisní odpojení pohonů; jedna červená hlavní vypínač,
 druhá červená rezerva. U dvojlinek je na snímku pouze „1×“: bez faktury
 s jednotkou ani měření nelze tvrdit, že dorazilo původně navržených 5/2 m.

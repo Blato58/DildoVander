@@ -1,6 +1,9 @@
 idf_component_register(
     SRCS
         "espidf_main.cpp"
+        "features/physical_effects/PhysicalEffects.cpp"
+        "features/physical_effects/PhysicalPresentation.cpp"
+        "features/physical_effects/EspIdfPhysicalIo.cpp"
         "features/voice_turn/EspIdfVoiceAudio.cpp"
         "features/voice_turn/EspIdfRealtimeTransport.cpp"
         "features/voice_turn/RealtimeEventCodec.cpp"
@@ -65,5 +68,5 @@ idf_component_register(
         "features/wand_selection/SelectionSequence.cpp"
         "features/wand_presentation/WandPresentation.cpp"
     INCLUDE_DIRS "."
-    REQUIRES esp_driver_i2s esp_driver_gpio bootloader_support esp_event esp_http_client esp_http_server esp_https_server esp_hw_support esp_netif esp_timer esp_wifi freertos log mbedtls mdns nvs_flash
+    REQUIRES esp_driver_i2c esp_driver_rmt esp_driver_i2s esp_driver_gpio bootloader_support esp_event esp_http_client esp_http_server esp_https_server esp_hw_support esp_netif esp_timer esp_wifi freertos log mbedtls mdns nvs_flash
 )
