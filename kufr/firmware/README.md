@@ -9,7 +9,53 @@
 > disconnect clear the hint. Bonjour failure remains visible; BLE can supply an
 > address independently. Hardware service/calibration gates remain unchanged.
 
-## Aktuální předání D165
+## Aktuální předání D166
+
+Majitel zadal ručně `192.168.0.59` a obdržel servisní stav, který UI ukazuje
+až po validním snapshotu: tento důkaz potvrzuje autentizované pinned WSS přes IP.
+Hostname timeout byl pozorovaný; konkrétní příčina DNS/multicast na iPhonu není doložená.
+D166 předává aktuální STA IPv4 jako volitelné `n.ip` pouze přes zabezpečené BLE;
+offline/změna generace ho vynechá a při 512 B limitu se vynechá jen tento hint.
+Nativní RAM hint je vázaný na session/device ID a platí 60 s. Connect obnoví status
+živé BLE session i ve skrytém panelu; pending/skipped/failed/stale refresh pokus
+zastaví. Failed refresh vymaže logické BLE spojení, takže další tap může použít
+uloženou/ruční route. Ruční adresa má přednost. Host/device ID se zachytí před
+async listener await; nativní validace přijme oba platné odpovídající údaje nebo
+oba chybějící. Keychain pin/token zůstávají stejné a route se uloží až po auth onOpen.
+Nejisté povely ani hardware gates se touto změnou neobcházejí.
+
+[PR165](https://github.com/Blato58/DildoVander/pull/165) se sloučilo jako
+`b22f478ffcba03bf052b8073a9ed4fd1a53be47b` ze source
+`e4d215cfe10b2d293c74cdf9e581efc974ae80a4`.
+[CI 37945851773](https://github.com/Blato58/DildoVander/actions/runs/37945851773), run number 167,
+prošlo; shodný tree CI/main je `dc21879478bd6f691b67b3c8934e2d731f8e0f6f`.
+[OTA publikace 37946520625](https://github.com/Blato58/DildoVander/actions/runs/37946520625)
+zveřejnila **0.1.168**, buildId `a228b02f1a1881065470680c26081f8ca8884f6a`,
+1745456 B, SHA-256 `a83069da0bf9af357bbf8613f85eedb1455e838ced225f5f7c7f08a55d9ddc31`.
+Veřejné HTTPS, ECDSA podpis, hash a embedded verze byly ověřené. CI image/partition
+ověření pro N16R8 prošlo; USB zápis a ověřený boot jsou popsané níže.
+[iOS podpis 37946514768](https://github.com/Blato58/DildoVander/actions/runs/37946514768)
+prošel všemi třemi native harnessy (pinned LAN/Keychain/WSS/captured route,
+native Debug backend a secured BLE whitelist), Xcode archive a Ad Hoc export.
+Podepsaná IPA má ověřené Bundle ID `app.turquoise6409.green2444` a verzi
+**1.0 / build 1000.0.23**.
+[Safari publikace 37947083377](https://github.com/Blato58/DildoVander/actions/runs/37947083377)
+prošla všemi joby. Veřejná [instalační stránka](https://2.28.202.220/ios/)
+a manifest potvrzují **1000.0.23**; veřejná IPA a checksum odpovídají podepsanému artefaktu.
+Application-only zápis **0.1.168** na COM7 do `0x10000` prošel hash kontrolou;
+NVS, otadata a partition table zůstaly zachované. Normální RTS boot potvrdil
+**0.1.168**, start control loop a místního TLS serveru; PC BLE scan našel
+`KUFR_4B6048` s očekávaným service UUID. Aktuální dodaná sestava je
+**0.1.168 / 1000.0.23**. D165 **0.1.162 / 1000.0.22** zůstává historické.
+Přesné dodání vede
+[stav implementace](../docs/stav-implementace.md#předání-další-ai).
+Majitel na přesný dotaz k aktualizaci **1000.0.23**, zabezpečenému BLE
+s uloženým párováním a připojení bez psaní IP odpověděl **„Connection worked“**.
+To potvrzuje automatické připojení D166 v této zkoušce. Další krok: fyzická
+kalibrace, dlouhodobé WSS, Keychain po restartu/aktualizaci a negativní DHCP/
+síťové/lifecycle scénáře. Úplná fyzická akceptace zůstává otevřená.
+
+## Historické předání D165
 
 Zapomenutí místního Keychain párování na iPhonu nezrušilo ESP token hash;
 nové první BLE párování proto vracelo `already_paired`. D165 přidává přesný
