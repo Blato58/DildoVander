@@ -40,7 +40,7 @@ bool ValidCostumeJpeg(const uint8_t* data, size_t size) {
     position += length;
     if (marker == 218) {
       if (!frame || !quantization || !huffman || length < 8) return false;
-      const uint8_t components = data[position - length + 2];
+      const size_t components = data[position - length + 2];
       if (components < 1 || components > 3 || length != 6 + components * 2) return false;
       const size_t entropy = position;
       scan = true;
