@@ -845,6 +845,16 @@ zůstává historickou evidencí; montážní návod a nový zdroj jsou
 v [mechanice](../mechanika/README.md). Žádné kritérium HW akceptace se tím
 neuzavírá.
 
+**Doručený kufr – rozhodnutí majitele 9. 10. 2026:** potvrzené vnitřní
+rozměry jsou 17″ na šířku, 10,5″ na délku a 4,5″ od dna po horní okraj
+spodní části, tedy 431,8 × 266,7 × 114,3 mm. Pro návrh používat přibližně
+432 × 267 × 114 mm (šířka × délka × výška). Kufr se prezentuje otevřený;
+veškerá mechanika a elektronika patří do spodní části, víko zůstává
+prázdné a jeho prostor se do zástavby nepočítá. Příčná výztuha na dně
+je vidět na fotografiích, její tloušťka se musí změřit. Toto potvrzení
+nahrazuje původní předpoklad prostoru kufru; CAD s obálkou
+310 × 450 × 200 mm je nutné přizpůsobit a znovu ověřit před tiskem.
+
 Firmware musí mít samostatně testovaný `Abort` a bezpečný výstup, nikoli čekat na další běžný krok stávající sekvence. Motorový pulz má provozní limit 150 ms a tvrdý softwarový strop 250 ms, servo okno dle kalibrace 20–3000 ms + 250ms softwarová rezerva, fyzická prezentace do 15 s (sériový prototyp 5 s). Pozdní smyčka při aktivním motoru znamená vypnutí, nikoli další prodloužení pulzu. Maximálně jeden motor NEBO jedno servo, nikdy současně; nejvýše jeden 20cm LED úsek může svítit i během pohybu. Celkové limity nesmí měnit AI nebo běžný klient.
 
 ### Elektrické výchozí stavy
