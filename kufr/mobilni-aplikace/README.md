@@ -410,15 +410,18 @@ vyžaduje aktualizaci; starší aplikace při změně režimů volbu zachová.
 jméno a používá stávající hlasový tok. Změnu personality nejprve použijte
 v nastavení serveru. Fake test má pro nový kufr dvě otázky a pro původní
 čtyři; neověřuje humor ani nesyntetizuje skutečný hlas. AI používá stejný
-vybraný prompt v Solu, Realtime i GPT-Live a dosavadní nákladové limity.
+vybraný prompt v Solu, Realtime i GPT-Live a dosavadní technické meze.
+Softwarové peněžní limity byly v D157 zrušené; náklady řídí OpenAI účet.
 [Inventář, přesné zdroje a postup](../ai-eval/personalities.md).
 K použití na telefonu je nutná nová IPA a backend s D142; webový harness
 ani offline provider testy nejsou fyzický poslech.
 
-## D146: publikovaná aktualizace
+## D146: historický doklad publikace
 
-Od 6. 10. 2026 je na [instalační stránce](https://2.28.202.220/ios/)
-Ad Hoc **1.0 / build 1000.0.16** pro dosavadní registrovaný iPhone.
+Dne 6. 10. 2026 byla na [instalační stránce](https://2.28.202.220/ios/)
+publikována Ad Hoc **1.0 / build 1000.0.16** pro dosavadní registrovaný iPhone.
+Tento oddíl zachycuje tehdejší verzi a serverovou konfiguraci D146;
+aktuální publikovaná verze je **1.0 / build 1000.0.19** podle přehledu výše.
 [Podpis 37429759564](https://github.com/Blato58/DildoVander/actions/runs/37429759564)
 ověřil Xcode 26.3, nativní transport/debug/audio testy a podpis;
 [publikace 37429982348](https://github.com/Blato58/DildoVander/actions/runs/37429982348)
