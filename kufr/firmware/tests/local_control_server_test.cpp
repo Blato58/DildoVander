@@ -274,7 +274,13 @@ int main(int argc, char** argv) {
                             sizeof(certificate),
                             reinterpret_cast<const uint8_t*>(key), sizeof(key),
                             gate));
-  assert(!server.Start());
+  // A healthy missing pairing record permits discovery/enrollment while TLS
+  // remains configured. It cannot authenticate a bearer until BLE pairs it.
+  assert(server.Start());
+  assert(!credential.IsPaired() && !credential.IsPairingReady());
+  auto unpaired = Request();
+  assert(endpoint.ws_pre_handshake_cb(&unpaired) == ESP_FAIL);
+  server.Stop();
   std::array<uint8_t, 16> secret{};
   secret.fill(0x73);
   assert(credential.ProvisionPairingSecret(secret.data(), secret.size(), gate));

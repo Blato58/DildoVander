@@ -95,6 +95,14 @@ int main() {
   EspIdfStationNetwork station;
   TestHasher hash;
   EspIdfLocalServiceAdvertisement advertisement(station, hash);
+  for (const char* legacyId : {"kufr_1", "Kufr-001", "1kufr"}) {
+    const auto host = EspIdfLocalServiceAdvertisement::Hostname(legacyId, hash);
+    assert(host.size() == 37 && host.substr(0, 5) == "kufr-");
+    assert(!EspIdfLocalServiceAdvertisement::SupportsLocalControl(legacyId));
+  }
+  assert(EspIdfLocalServiceAdvertisement::Hostname("", hash).empty());
+  assert(EspIdfLocalServiceAdvertisement::Hostname(std::string(65, 'a'), hash).empty());
+  assert(EspIdfLocalServiceAdvertisement::SupportsLocalControl("kufr-001"));
   assert(!advertisement.Start("") && !advertisement.Start("bad/id"));
   assert(!advertisement.Start(std::string(65, 'a')));
   assert(!advertisement.Start("Kufr-001") && !advertisement.Start("kufr_001") &&

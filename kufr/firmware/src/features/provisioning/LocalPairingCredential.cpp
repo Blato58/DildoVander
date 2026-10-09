@@ -89,18 +89,24 @@ LocalPairingCredential::~LocalPairingCredential() {
   FailClosed();
 }
 
-bool LocalPairingCredential::IsHealthy() const { return healthy_; }
+bool LocalPairingCredential::IsHealthy() const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return healthy_;
+}
 
 bool LocalPairingCredential::IsPairingReady() const {
+  std::lock_guard<std::mutex> lock(mutex_);
   return healthy_ && state_ == State::AwaitingPairing;
 }
 
 bool LocalPairingCredential::IsPaired() const {
+  std::lock_guard<std::mutex> lock(mutex_);
   return healthy_ && state_ == State::Paired;
 }
 
 bool LocalPairingCredential::ProvisionPairingSecret(
     const uint8_t* secret, size_t length, const ServiceGate& gate) {
+  std::lock_guard<std::mutex> lock(mutex_);
   if (!healthy_ || !gate.ServiceModeActive() ||
       !gate.ActuatorSupplyDisconnected() || secret == nullptr ||
       length < MinimumSecretSize || length > MaximumSecretSize) {
@@ -119,8 +125,9 @@ bool LocalPairingCredential::ProvisionPairingSecret(
 bool LocalPairingCredential::Pair(
     const uint8_t* secret, size_t secretLength,
     std::array<uint8_t, TokenSize>& issuedToken) {
+  std::lock_guard<std::mutex> lock(mutex_);
   issuedToken.fill(0);
-  if (!IsPairingReady() || secret == nullptr ||
+  if (!healthy_ || state_ != State::AwaitingPairing || secret == nullptr ||
       secretLength < MinimumSecretSize ||
       secretLength > MaximumSecretSize) {
     return false;
@@ -128,9 +135,25 @@ bool LocalPairingCredential::Pair(
   std::array<uint8_t, DigestSize> suppliedDigest{};
   WipeArray<DigestSize> wipeSupplied(suppliedDigest);
   if (!hasher_.Hash(secret, secretLength, suppliedDigest) ||
-      !SameDigest(suppliedDigest, pairingDigest_) ||
-      !random_.Fill(issuedToken.data(), issuedToken.size()) ||
-      IsZero(issuedToken)) {
+      !SameDigest(suppliedDigest, pairingDigest_)) {
+    issuedToken.fill(0);
+    return false;
+  }
+  return IssueToken(issuedToken);
+}
+
+bool LocalPairingCredential::InitializeFromAuthenticatedBle(
+    std::array<uint8_t, TokenSize>& issuedToken) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  issuedToken.fill(0);
+  if (!healthy_ || state_ != State::Missing) {
+    return false;
+  }
+  return IssueToken(issuedToken);
+}
+
+bool LocalPairingCredential::IssueToken(std::array<uint8_t, TokenSize>& issuedToken) {
+  if (!random_.Fill(issuedToken.data(), issuedToken.size()) || IsZero(issuedToken)) {
     issuedToken.fill(0);
     return false;
   }
@@ -150,7 +173,8 @@ bool LocalPairingCredential::Pair(
 }
 
 bool LocalPairingCredential::VerifyToken(const uint8_t* token, size_t length) {
-  if (!IsPaired() || token == nullptr || length != TokenSize) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (!healthy_ || state_ != State::Paired || token == nullptr || length != TokenSize) {
     return false;
   }
   std::array<uint8_t, DigestSize> suppliedDigest{};

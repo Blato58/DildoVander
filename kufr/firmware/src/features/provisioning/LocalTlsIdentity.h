@@ -14,6 +14,13 @@ class LocalTlsValidator {
                         std::array<uint8_t, 32>& publicKeyDigest) = 0;
 };
 
+class LocalTlsGenerator {
+ public:
+  virtual ~LocalTlsGenerator() = default;
+  virtual bool Generate(std::vector<uint8_t>& certificate,
+                        std::vector<uint8_t>& privateKey) = 0;
+};
+
 // One bounded record makes certificate/key rotation atomic at the storage port.
 // The private key is available only while this non-copyable owner is alive.
 class LocalTlsIdentity final {
@@ -38,6 +45,9 @@ class LocalTlsIdentity final {
   const uint8_t* PrivateKey() const;
   size_t PrivateKeyLength() const;
   const std::array<uint8_t, 32>& PublicKeyDigest() const;
+  // Startup-only: preserve any valid existing identity and fail closed on
+  // unreadable/corrupt storage. Rotation continues to require ServiceGate.
+  bool InitializeIfMissing(LocalTlsGenerator& generator);
   // PEM lengths include exactly one terminating NUL, with none embedded.
   // A failed write has indeterminate durable state; this instance is disabled.
   // Service recovery must reload/verify the stored SPKI before issuing a QR.
@@ -46,6 +56,8 @@ class LocalTlsIdentity final {
                  const ServiceGate& gate);
 
  private:
+  bool Store(const uint8_t* certificate, size_t certificateLength,
+             const uint8_t* privateKey, size_t privateKeyLength);
   bool ValidateRecord(std::vector<uint8_t>& record,
                       std::array<uint8_t, 32>& publicKeyDigest) const;
   void Clear();

@@ -108,6 +108,42 @@ check(LocalDeviceIdentity.validHost("kufr.local"), "Allow local hostname")
 let pin = try String(contentsOfFile: directory + "/ec256.sha256", encoding: .utf8)
     .trimmingCharacters(in: .whitespacesAndNewlines)
 let keychain = LocalDeviceKeychain(service: "kufr-native-test." + UUID().uuidString)
+let bleResponse: [String: Any] = ["v": 1, "ok": true, "id": "test-kufr", "host": "kufr-test.local",
+                                "spkiSha256": pin, "token": String(repeating: "b", count: 64)]
+let bleData = try JSONSerialization.data(withJSONObject: bleResponse)
+check(LocalDeviceEnrollment.begin(), "Reserve native enrollment")
+check(!LocalDeviceEnrollment.begin(), "Serialize QR and BLE before token consumption")
+LocalDeviceEnrollment.end()
+check(LocalDeviceEnrollment.begin(), "Release native enrollment")
+LocalDeviceEnrollment.end()
+let bleIdentity = LocalBlePairingCodec.decode(bleData, expectedDeviceId: "test-kufr")!
+check(bleIdentity.host == "kufr-test.local", "Decode native BLE pairing identity")
+check(LocalBlePairingCodec.decode(bleData, expectedDeviceId: "other-kufr") == nil, "BLE device binding")
+for (field, value) in [("host", "https://evil.local"), ("token", "secret"), ("spkiSha256", "ABC"), ("extra", "secret")] {
+    var invalid = bleResponse
+    invalid[field] = value
+    let invalidData = try JSONSerialization.data(withJSONObject: invalid)
+    check(LocalBlePairingCodec.decode(invalidData, expectedDeviceId: "test-kufr") == nil,
+          "Reject malformed BLE pairing " + field)
+}
+for (field, value) in [("v", NSNumber(value: true)), ("ok", NSNumber(value: 1))] {
+    var invalid = bleResponse
+    invalid[field] = value
+    let invalidData = try JSONSerialization.data(withJSONObject: invalid)
+    check(LocalBlePairingCodec.decode(invalidData, expectedDeviceId: "test-kufr") == nil,
+          "Reject BLE scalar type mismatch " + field)
+}
+check(LocalBlePairingCodec.decode(Data(repeating: 32, count: 513), expectedDeviceId: "test-kufr") == nil,
+      "Bound BLE pairing response")
+try keychain.insert(bleIdentity)
+do {
+    try keychain.insert(LocalDeviceIdentity(deviceId: "other-kufr", host: "other.local", spkiSha256: pin,
+                                         token: String(repeating: "c", count: 64)))
+    fatalError("Enrollment replaced existing Keychain pairing")
+} catch LocalDeviceError.credentialWriteFailed {}
+let preserved = try keychain.read()
+check(preserved?.token == bleIdentity.token && preserved?.deviceId == bleIdentity.deviceId, "Preserve first enrollment")
+try keychain.remove()
 let initialIdentity = try keychain.read()
 check(initialIdentity == nil, "Initially unpaired")
 let identity = LocalDeviceIdentity(deviceId: "test-kufr", host: "127.0.0.1", spkiSha256: pin,

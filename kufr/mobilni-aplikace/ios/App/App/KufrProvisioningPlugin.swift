@@ -14,6 +14,7 @@ public class KufrProvisioningPlugin: CAPPlugin, CAPBridgedPlugin, ESPDeviceConne
         CAPPluginMethod(name: "discover", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "connect", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "status", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "pairLocal", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "configure", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "command", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "disconnect", returnType: CAPPluginReturnPromise),
@@ -30,6 +31,9 @@ public class KufrProvisioningPlugin: CAPPlugin, CAPBridgedPlugin, ESPDeviceConne
     private var bleObserver: ProvisioningBLEObserver?
     private var connectionStarted = false
     private let proofKeychain = ProvisioningProofKeychain()
+    private var connectedDeviceId: String?
+    private let localKeychain = LocalDeviceKeychain()
+    private var localEnrollmentPending = false
 
     public override func load() {
         // Upstream debug logs include PoP and Wi-Fi secrets; disable before any SDK use.
@@ -161,6 +165,51 @@ public class KufrProvisioningPlugin: CAPPlugin, CAPBridgedPlugin, ESPDeviceConne
         }
     }
 
+    @objc func pairLocal(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard self.begin(call) else { return }
+            guard let device = self.device, self.secure(device),
+                  let deviceId = self.connectedDeviceId else { self.fail("disconnected"); return }
+            do {
+                if let saved = try self.localKeychain.read() {
+                    guard saved.deviceId == deviceId else { self.fail("already_paired"); return }
+                    self.finish(["deviceId": saved.deviceId, "host": saved.host])
+                    return
+                }
+            } catch { self.fail("credential_unavailable"); return }
+            guard LocalDeviceEnrollment.begin() else { self.fail("busy"); return }
+            self.localEnrollmentPending = true
+            let epoch = self.epoch
+            let data = Data("{\"v\":1,\"command\":\"pair-local\"}".utf8)
+            device.sendData(path: "kufr-control", data: data) { data, error in
+                DispatchQueue.main.async {
+                    guard self.epoch == epoch, self.pending === call else { return }
+                    guard error == nil, let data else { self.close(code: "disconnected"); return }
+                    guard data.count <= 512,
+                          let response = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                          response["v"] as? Int == 1, let ok = response["ok"] as? Bool else {
+                        self.close(code: "invalid_response"); return
+                    }
+                    guard ok else {
+                        // Only known codes cross the bridge, never firmware/SDK text.
+                        let code = response["error"] as? String ?? ""
+                        self.fail(["already_paired", "pairing_unavailable", "busy", "network_not_ready",
+                                   "pairing_requires_service", "pairing_storage_unavailable"].contains(code) ? code : "pairing_failed")
+                        return
+                    }
+                    guard let identity = LocalBlePairingCodec.decode(data, expectedDeviceId: deviceId) else {
+                        self.close(code: "invalid_response"); return
+                    }
+                    do {
+                        try self.localKeychain.insert(identity)
+                        // Raw BLE token/pin stay native. JS receives public identity only.
+                        self.finish(["deviceId": identity.deviceId, "host": identity.host])
+                    } catch { self.fail("local_credential_write_failed") }
+                }
+            }
+        }
+    }
+
     @objc func configure(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             guard let profile = self.profile(call), self.begin(call, seconds: 120), let viewController = self.bridge?.viewController else { return }
@@ -277,12 +326,14 @@ public class KufrProvisioningPlugin: CAPPlugin, CAPBridgedPlugin, ESPDeviceConne
                     self.close(code: error == nil ? "invalid_response" : "disconnected")
                     return
                 }
+                self.connectedDeviceId = result["deviceId"] as? String
                 self.finish(result)
             }
         }
     }
 
     private func finish(_ result: [String: Any]) {
+        endLocalEnrollment()
         let call = pending
         pending = nil
         timeout?.cancel()
@@ -292,6 +343,7 @@ public class KufrProvisioningPlugin: CAPPlugin, CAPBridgedPlugin, ESPDeviceConne
     }
 
     private func fail(_ code: String) {
+        endLocalEnrollment()
         let call = pending
         pending = nil
         timeout?.cancel()
@@ -309,11 +361,19 @@ public class KufrProvisioningPlugin: CAPPlugin, CAPBridgedPlugin, ESPDeviceConne
         releaseDevice()
     }
 
+    private func endLocalEnrollment() {
+        if localEnrollmentPending {
+            localEnrollmentPending = false
+            LocalDeviceEnrollment.end()
+        }
+    }
+
     private func releaseDevice() {
         let old = device
         let disconnect = connectionStarted
         connectionStarted = false
         device = nil
+        connectedDeviceId = nil
         bleObserver = nil
         old?.bleDelegate = nil
         old?.delegate = nil

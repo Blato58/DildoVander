@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
+#include <thread>
 
 #include "../src/features/provisioning/LocalPairingCredential.h"
 
@@ -156,6 +158,83 @@ void TestOneTimePairingAndRestart() {
   assert(!restarted.VerifyToken(originalToken.data(), originalToken.size()));
 }
 
+void TestAuthenticatedBleFirstUse() {
+  MemoryStorage storage;
+  FakeHasher hasher;
+  FakeRandom random;
+  LocalPairingCredential credential(storage, hasher, random);
+  std::array<uint8_t, LocalPairingCredential::TokenSize> token{};
+  assert(credential.InitializeFromAuthenticatedBle(token));
+  assert(credential.IsPaired() && storage.writes == 1);
+  assert(credential.VerifyToken(token.data(), token.size()));
+  assert(std::search(storage.record.begin(), storage.record.end(),
+                     token.begin(), token.end()) == storage.record.end());
+  const auto originalToken = token;
+  assert(!credential.InitializeFromAuthenticatedBle(token));
+  assert(std::all_of(token.begin(), token.end(), [](uint8_t byte) { return byte == 0; }));
+  assert(storage.writes == 1 && random.calls == 1);
+  LocalPairingCredential restarted(storage, hasher, random);
+  assert(!restarted.InitializeFromAuthenticatedBle(token));
+  assert(restarted.VerifyToken(originalToken.data(), originalToken.size()));
+  FakeServiceGate gate;
+  const auto secret = Secret(0x39);
+  assert(!restarted.ProvisionPairingSecret(secret.data(), secret.size(), gate));
+  assert(storage.writes == 1);
+
+  MemoryStorage awaitingStorage;
+  LocalPairingCredential awaiting(awaitingStorage, hasher, random);
+  gate.serviceMode = true;
+  gate.supplyDisconnected = true;
+  assert(awaiting.ProvisionPairingSecret(secret.data(), secret.size(), gate));
+  assert(!awaiting.InitializeFromAuthenticatedBle(token));
+  assert(awaiting.IsPairingReady() && awaitingStorage.writes == 1);
+
+  storage.record[0] = 'X';
+  LocalPairingCredential corrupt(storage, hasher, random);
+  assert(!corrupt.InitializeFromAuthenticatedBle(token));
+  storage.failRead = true;
+  LocalPairingCredential unreadable(storage, hasher, random);
+  assert(!unreadable.InitializeFromAuthenticatedBle(token));
+  assert(storage.writes == 1);
+
+  MemoryStorage failingStorage;
+  LocalPairingCredential failing(failingStorage, hasher, random);
+  random.fail = true;
+  assert(!failing.InitializeFromAuthenticatedBle(token));
+  assert(failing.IsHealthy() && failingStorage.writes == 0);
+  random.fail = false;
+  failingStorage.failWrite = true;
+  assert(!failing.InitializeFromAuthenticatedBle(token));
+  assert(!failing.IsHealthy() && failingStorage.writes == 1);
+  assert(std::all_of(token.begin(), token.end(), [](uint8_t byte) { return byte == 0; }));
+  assert(!failing.InitializeFromAuthenticatedBle(token));
+  assert(failingStorage.writes == 1);
+}
+
+void TestConcurrentFirstUseCannotRotate() {
+  MemoryStorage storage;
+  FakeHasher hasher;
+  FakeRandom random;
+  LocalPairingCredential credential(storage, hasher, random);
+  std::atomic<unsigned> ready{0};
+  std::array<uint8_t, LocalPairingCredential::TokenSize> tokens[2]{};
+  bool results[2]{};
+  auto issue = [&](unsigned index) {
+    ready.fetch_add(1);
+    while (ready.load() != 2) { std::this_thread::yield(); }
+    results[index] = credential.InitializeFromAuthenticatedBle(tokens[index]);
+  };
+  std::thread first(issue, 0);
+  std::thread second(issue, 1);
+  first.join();
+  second.join();
+  assert(results[0] != results[1]);
+  assert(storage.writes == 1 && random.calls == 1);
+  const unsigned winner = results[0] ? 0 : 1;
+  assert(credential.VerifyToken(tokens[winner].data(), tokens[winner].size()));
+  assert(!credential.VerifyToken(tokens[1 - winner].data(), tokens[1 - winner].size()));
+}
+
 void TestFailureAndMalformedRecordFailClosed() {
   MemoryStorage storage;
   FakeHasher hasher;
@@ -216,6 +295,8 @@ void TestFailureAndMalformedRecordFailClosed() {
 
 int main() {
   TestOneTimePairingAndRestart();
+  TestAuthenticatedBleFirstUse();
+  TestConcurrentFirstUseCannotRotate();
   TestFailureAndMalformedRecordFailClosed();
   return 0;
 }

@@ -72,6 +72,7 @@ idf_component_register(
         "features/provisioning/EspIdfPairingRandom.cpp"
         "features/provisioning/EspIdfLocalTlsStorage.cpp"
         "features/provisioning/EspIdfLocalTlsValidator.cpp"
+        "features/provisioning/EspIdfLocalTlsGenerator.cpp"
         "features/provisioning/LocalTlsIdentity.cpp"
         "features/provisioning/EspIdfSha256.cpp"
         "features/provisioning/LocalPairingCredential.cpp"

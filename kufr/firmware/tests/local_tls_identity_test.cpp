@@ -58,6 +58,56 @@ class Gate final : public ServiceGate {
   bool disconnected = false;
 };
 
+class Generator final : public LocalTlsGenerator {
+ public:
+  bool Generate(std::vector<uint8_t>& certificate, std::vector<uint8_t>& key) override {
+    ++calls;
+    certificate.assign(Certificate, Certificate + sizeof(Certificate));
+    key.assign(PrivateKey, PrivateKey + sizeof(PrivateKey));
+    return !fail;
+  }
+  int calls = 0;
+  bool fail = false;
+};
+
+void TestFirstInitializationPreservesRecords() {
+  MemoryStorage storage;
+  Validator validator;
+  Generator generator;
+  LocalTlsIdentity identity(storage, validator);
+  assert(identity.InitializeIfMissing(generator));
+  assert(identity.IsProvisioned() && generator.calls == 1 && storage.writes == 1);
+  const auto record = storage.bytes;
+  assert(identity.InitializeIfMissing(generator));
+  LocalTlsIdentity restarted(storage, validator);
+  assert(restarted.InitializeIfMissing(generator));
+  assert(generator.calls == 1 && storage.writes == 1 && storage.bytes == record);
+  Gate gate;
+  assert(!identity.Provision(reinterpret_cast<const uint8_t*>(Certificate), sizeof(Certificate),
+      reinterpret_cast<const uint8_t*>(PrivateKey), sizeof(PrivateKey), gate));
+  assert(storage.bytes == record);
+  storage.bytes[0] = 'X';
+  LocalTlsIdentity corrupt(storage, validator);
+  assert(!corrupt.InitializeIfMissing(generator));
+  storage.failRead = true;
+  LocalTlsIdentity unreadable(storage, validator);
+  assert(!unreadable.InitializeIfMissing(generator));
+  assert(generator.calls == 1 && storage.writes == 1);
+
+  MemoryStorage failedStorage;
+  LocalTlsIdentity failed(failedStorage, validator);
+  generator.fail = true;
+  assert(!failed.InitializeIfMissing(generator));
+  assert(failed.IsHealthy() && failedStorage.writes == 0);
+  generator.fail = false;
+  failedStorage.failWrite = true;
+  assert(!failed.InitializeIfMissing(generator));
+  assert(!failed.IsHealthy() && failedStorage.writes == 1);
+  const int calls = generator.calls;
+  assert(!failed.InitializeIfMissing(generator));
+  assert(generator.calls == calls && failedStorage.writes == 1);
+}
+
 bool Provision(LocalTlsIdentity& identity, const Gate& gate) {
   return identity.Provision(
       reinterpret_cast<const uint8_t*>(Certificate), sizeof(Certificate),
@@ -192,6 +242,7 @@ void TestMaximumRecordAndRotation() {
 
 int main() {
   TestServiceGateAndRestart();
+  TestFirstInitializationPreservesRecords();
   TestMalformedRecordsAndFailedWrite();
   TestInputBoundsAndMissingStorage();
   TestMaximumRecordAndRotation();

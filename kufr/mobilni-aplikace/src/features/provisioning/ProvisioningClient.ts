@@ -22,6 +22,7 @@ export interface ProvisioningBridge {
   discover(): Promise<{ devices: ProvisioningDevice[] }>;
   connect(options: { name: string }): Promise<ProvisioningStatus>;
   status(): Promise<ProvisioningStatus>;
+  pairLocal(): Promise<{ deviceId: string; host: string }>;
   configure(options: { profile: NetworkProfile }): Promise<ProvisioningStatus>;
   command(options: { command: 'test' | 'delete' | 'ota-check' | 'ota-install' | 'ota-policy'; profile?: NetworkProfile; automaticInstall?: boolean }): Promise<ProvisioningStatus>;
   disconnect(): Promise<void>;
@@ -38,6 +39,7 @@ export class ProvisioningClient {
   private visible = false;
   private poll: Promise<void> | undefined;
   private queued = false;
+  private lastStatus: ProvisioningStatus | null = null;
   constructor(
     private readonly bridge: ProvisioningBridge,
     private readonly update: (status: ProvisioningStatus | null, message: string, busy: boolean) => void,
@@ -63,6 +65,7 @@ export class ProvisioningClient {
       const status = await this.bridge.connect({ name });
       if (generation !== this.generation) return;
       this.connected = true;
+      this.lastStatus = status;
       this.update(status, 'Zabezpečené BLE spojení. Hesla se v telefonu neukládají.', false);
     } catch (error) {
       if (generation === this.generation) this.update(null, errorMessage(error), false);
@@ -88,6 +91,7 @@ export class ProvisioningClient {
     try {
       const status = await action();
       if (generation === this.generation) {
+        this.lastStatus = status;
         this.update(status, status.ok ? 'Požadavek přijat; stav se průběžně obnovuje.' : `Kufr odmítl požadavek: ${status.error ?? 'unknown'}`, false);
       }
     } catch (error) {
@@ -107,8 +111,34 @@ export class ProvisioningClient {
     this.poll = undefined;
     this.queued = false;
     this.connected = false;
+    this.lastStatus = null;
     this.update(null, 'BLE odpojeno. Samostatný kufr pokračuje bez telefonu.', false);
     await this.bridge.disconnect().catch(() => undefined);
+  }
+
+  async pairLocal(onPaired: () => Promise<void>): Promise<void> {
+    const requestedGeneration = this.generation;
+    if (this.poll && !await this.waitForPoll(requestedGeneration)) return;
+    if (requestedGeneration !== this.generation) return;
+    if (!this.connected || this.pending) return;
+    const generation = this.generation;
+    this.pending = true;
+    this.cancelPoll();
+    this.update(null, 'Páruji kufr a ukládám přístup do Keychain…', true);
+    try {
+      await this.bridge.pairLocal();
+      if (generation !== this.generation) return;
+      await onPaired();
+      if (generation !== this.generation) return;
+      this.update(this.lastStatus, 'Kufr je uložený v Keychain. V Ovládání zvolte Připojit uložený kufr.', false);
+    } catch (error) {
+      if (generation === this.generation) this.update(this.lastStatus, errorMessage(error), false);
+    } finally {
+      if (generation === this.generation) {
+        this.pending = false;
+        this.schedulePoll();
+      }
+    }
   }
 
   private cancelPoll(): void {
@@ -141,7 +171,10 @@ export class ProvisioningClient {
     this.pending = true;
     try {
       const status = await this.bridge.status();
-      if (generation === this.generation) this.update(status, '', this.queued);
+      if (generation === this.generation) {
+        this.lastStatus = status;
+        this.update(status, '', this.queued);
+      }
     } catch (error) {
       if (generation === this.generation) {
         this.connected = false;
@@ -170,6 +203,14 @@ export function errorMessage(error: unknown): string {
     timeout: 'Kufr neodpověděl včas. Výsledek změny může být nejistý; znovu se připojte a ověřte stav.',
     invalid_response: 'Kufr vrátil neplatnou nebo nekompatibilní diagnostiku.',
     busy: 'Jiná BLE akce právě probíhá.',
+    already_paired: 'Párování už existuje. Použijte uložený kufr; nové párování vyžaduje servisní obnovu.',
+    pairing_unavailable: 'Místní párování není připravené. Ověřte firmware a Wi-Fi kufru.',
+    network_not_ready: 'Kufr nemá místní Wi-Fi adresu. Nejprve nastavte síť a ověřte její připojení.',
+    pairing_requires_service: 'Kufr má dřívější servisní párování. Použijte jeho QR nebo fyzickou servisní obnovu.',
+    pairing_storage_unavailable: 'Úložiště párování kufru není dostupné. Je nutná servisní kontrola.',
+    pairing_failed: 'Párování nebylo potvrzené. Obnovte stav; při spotřebovaném tokenu je nutná servisní obnova.',
+    credential_unavailable: 'Keychain není dostupný. Odemkněte iPhone a zkuste akci znovu.',
+    local_credential_write_failed: 'Token se nepodařilo uložit do Keychain. Párování může být spotřebované; je nutná servisní obnova kufru.',
   };
   return messages[code] ?? 'Požadavek selhal. Obnovte stav nebo znovu vyhledejte kufr.';
 }
