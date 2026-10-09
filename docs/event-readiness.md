@@ -32,6 +32,11 @@ stále selhává. PC Bonjour a neautentizované TLS zůstávají dostupné; toke
 telefonu, stabilní WSS a Keychain po aktualizaci zatím nejsou ověřené.
 Přesný rozsah vede [stav implementace](../kufr/docs/stav-implementace.md#předání-další-ai).
 
+Pozdější ruční IP test zobrazil device service state; source ho vydá až po validním
+snapshotu, tedy dokládá přímé IP WSS. Hostname timeout zůstává otevřený.
+Hardware/calibration gate se neobchází; automatická adresa a dlouhodobé WSS/
+Keychain kontroly zbývají.
+
 **Historické předání D164.**
 [PR161](https://github.com/Blato58/DildoVander/pull/161) a
 [CI 37931935316](https://github.com/Blato58/DildoVander/actions/runs/37931935316)
@@ -239,7 +244,7 @@ aktuální předání je D165 podle odkazu nahoře.
 | --- | --- | --- |
 | BLE provisioning a hotspot/fallback firmware | IMPLEMENTED — PARTIALLY HARDWARE VERIFIED | D159 USB servis/NVS a majitelem potvrzený PoP handshake/domácí Wi-Fi prošly. Zbývá wrong-PoP, hotspot/failover, radio coexistence a úplné reconnect zkoušky. |
 | iOS Síť kufru | IMPLEMENTED — PARTIALLY HARDWARE VERIFIED | Web 32 testů/build, skutečné native testy/Xcode archive/Ad Hoc export i public IPA prošly; majitel použil aplikaci pro BLE/domácí Wi-Fi. Hotspot/error/recovery scénáře zbývají. |
-| Lokální LAN ovládání | NOT ACCEPTED | Majitel potvrdil vyhledání a párování, ale LAN spojení se opakovaně odpojovalo. D163 přidalo opravu WS extension offers a omezení reconnect; D164 potvrdilo USB obnovu, boot **0.1.161**, BLE scan z PC a start TLS serveru. Majitel následně potvrdil připojení iPhonu před zapomenutím. D165 přidává explicitní obnovu; firmware **0.1.162** je publikovaný a boot ověřený. iOS **1000.0.22** je publikované; fyzická obnova D165, dlouhodobé WSS a Keychain po aktualizaci stále zbývají. |
+| Lokální LAN ovládání | NOT ACCEPTED | Majitel potvrdil vyhledání a párování, ale LAN spojení se opakovaně odpojovalo. D163 přidalo opravu WS extension offers a omezení reconnect; D164 potvrdilo USB obnovu, boot **0.1.161**, BLE scan z PC a start TLS serveru. Majitel následně potvrdil připojení iPhonu před zapomenutím. D165 přidává explicitní obnovu; firmware **0.1.162** je publikovaný a boot ověřený. iOS **1000.0.22** je publikované; majitel potvrdil opakované párování a po zadání IP UI ukazuje device service state. Hostname discovery/connection, dlouhodobé WSS a Keychain po aktualizaci stále zbývají. |
 | OTA firmware | IMPLEMENTED — PARTIALLY HARDWARE VERIFIED | D159 prošlo skutečnou podepsanou OTA0.1.0→0.1.1, VALID boot, credential retention a další reset/reconnect. Zbývají negativní image/signature, přerušení/power-loss a rollback. |
 | Release distribuce a VPS | READY v ověřeném development/server rozsahu | Root GitHub verifier, signed OTA/backend/iOS pipelines a public HTTPS bajty/hash/signature prošly; D159 také skutečně přijalo development OTA na ESP. Stable autorita má samostatný provisioning. |
 | Produkční stable autorita | BLOCKED pro nasazení bez správné důvěry | Provisionovat příslušný produkční podpisový klíč mimo repo a shodný veřejný trust na zařízení; development klíč není automaticky produkční oprávnění. |

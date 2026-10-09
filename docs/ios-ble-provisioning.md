@@ -37,6 +37,11 @@ these checks do not validate the phone's token or pin. LAN/WSS and post-update
 Keychain acceptance remain open in
 [implementation status](../kufr/docs/stav-implementace.md#předání-další-ai).
 
+The later direct-IP test reached the device service-state UI; source emits that
+only after a valid snapshot, so this is evidence of a direct-IP WSS connection.
+The hostname timed out. Hardware/calibration remains gated; automatic address
+selection and long-running WSS/Keychain checks remain open.
+
 **Historical D164 handoff.** Development OTA **0.1.161** passed
 [CI 37931935316](https://github.com/Blato58/DildoVander/actions/runs/37931935316)
 and [publication 37933188173](https://github.com/Blato58/DildoVander/actions/runs/37933188173).

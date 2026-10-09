@@ -57,16 +57,21 @@ IPA1873296 B se SHA-256
 `f5cb611018ea898b215701bda0982c76dcd0dff7d1738421e9d13299fb39ff3e`
 proti veřejnému checksumu. Backend zůstává active/healthz ok, jeho aplikace
 a data se neměnily. Native build nenahrazuje skutečnou obnovu na iPhonu.
-Další krok: po publikaci aktualizovat iPhone, zopakovat BLE pairing/recovery po
-forget, připojit Ovládání a ověřit relaunch/aktualizaci Keychain a cancel/background.
+Další krok: vyřešit iPhone LAN discovery/adresu, ověřit dlouhodobé WSS a
+relaunch/aktualizaci Keychain i cancel/background; dokončené párování neopakovat.
 D164 připojení před forget nenahrazuje tuto novou fyzickou akceptaci.
 Majitel následně potvrdil **„I can pair again, but cant see him on network or connect to it“**.
 Opakované párování tedy funguje; LAN discovery/připojení zůstává hlášenou chybou.
 PC následně znovu resolve `_kufr._tcp` na stejný .local host/443 s protocol1
 provedlo a TLS WS bez credentialu vrátil401. Pasivní20s UART (120 B) nezachytil
-restart loop; tyto PC kontroly neověřují token/pin telefonu. Čeká se na přesný
-nativní failureCode a stav iOS Local Network permission; source hodnoty TXT
-splňují aktuální parser. Další práce je iPhone LAN/WSS, nikoli další reset NVS.
+restart loop; tyto PC kontroly neověřují token/pin telefonu. Majitel následně
+hlásil hostname connection_timeout („pripojeni ke kufru neodpovedelo vcas“),
+ale po ručním zadání192.168.0.59 UI přešlo na „Kufr vyžaduje servisní kontrolu“.
+Source tuto hlášku vydá až po validním snapshotu: přímé IP tedy podle tohoto
+UI důkazu navázalo pinned/authenticated WSS. Hláška odráží hardware/calibration
+unverified gate; pohony se neodblokovávají. Bonjour/DNS na iPhonu zůstává otevřené.
+Další práce: bez psaní získat aktuální IP přes již ověřené BLE jako address hint,
+pin/token zachovat a adresu persistovat až po ověřeném WSS. Žádný další reset NVS.
 
 **D164 – 9. 10. 2026 – opravený startup a fyzická obnova COM7 na0.1.161.**
 Majitel nedokáže ESP najít ani přes BLE a autorizoval debug přes COM7/PC Bluetooth.

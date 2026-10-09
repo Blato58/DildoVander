@@ -34,6 +34,11 @@ stále selhává. PC Bonjour a neautentizované TLS zůstávají dostupné; toke
 telefonu, stabilní WSS a Keychain po aktualizaci zatím nejsou ověřené.
 Přesný rozsah vede [stav implementace](../docs/stav-implementace.md#předání-další-ai).
 
+Pozdější ruční IP test zobrazil device service state; source ho vydá až po validním
+snapshotu, tedy dokládá přímé IP WSS. Hostname timeout zůstává otevřený.
+Hardware/calibration gate se neobchází; automatická adresa a dlouhodobé WSS/
+Keychain kontroly zbývají.
+
 ## Historické předání D164
 
 Development OTA **0.1.161** prošla
