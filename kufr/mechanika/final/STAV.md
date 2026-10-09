@@ -1,5 +1,77 @@
 # Předání F1 – 9. 10. 2026
 
+## Doplnění prohlížeče: Inspect
+
+Navazující softwarový slice přidává inspektor viditelné geometrie při
+držení Shiftu, názvy dílů nad prázdnou plochou, připnutí karty a volbu barvy
+s místním trvalým uložením. Kabelové vazby používají potvrzené zapojení;
+rozměry a neznámé údaje vycházejí z rozměrového Markdown podkladu.
+Tištěná geometrie ani elektrické zapojení se nemění.
+
+Zdroje: `viewer-template.html`, nový `viewer.js` a `inspect_data.py`,
+`preview.py`, `build.py`, `Regenerate.ps1`, nové testy a ověřená kopie
+podkladů v `reference/inspect-sources.json`. Popisy jsou přiřazené všem
+219 objektům; náhled obsahuje 92 dokumentovaných logických vazeb.
+Přesné konektory,
+kabelové délky a síťové přiřazení konkrétních ID svorek nejsou domyšlené.
+
+Ověření 9. 10. 2026: `node --check viewer.js`, 20/20 testů metadat a
+balení, `preview.py --viewer-only` a tentýž generátor v izolované kopii
+zdrojů bez externích Markdown souborů prošly. Browser přes localhost
+v oknech 611 × 764 a 1280 × 900: skutečný výběr PCA, Shift nad prázdnou
+plochou, propojení, výběr seznamem, zdvih 16 mm, skryté vrstvy a obnovení
+barvy po zavření/znovuotevření stránky; konzole bez chyb. Přímý test
+`file://` odmítla bezpečnostní politika nástroje. Nezávislé review opravilo
+chybějící podklady ve vybaleném balíčku a popisy výstelky/kování;
+finální review nemá otevřený nález. Doručení uvádí globální stav.
+GitHub review PR168 následně odhalilo přepis připnuté karty při pohybu
+kurzoru. Karta i úprava barvy nyní patří připnutému objektu až do
+výslovného zrušení/nového kliku; zvýraznění pod kurzorem a názvy nad
+prázdnou plochou zůstávají funkční. Dva Node regresní testy skutečných
+handlerů (`node --test test_viewer.cjs`) a browser přechod od PCA přes
+plochu do karty/změny barvy prošly. Testovací GPU není důkaz renderování;
+browser ověření používá skutečný WebGL. Nezávislé review opravy prošlo.
+Další PR review doplnilo oddělení souběžných napájecích, signálových a
+zemních spojů do samostatných křivek, včetně shodných promítnutých středů.
+Třetí Node regresní test prošel pro dvou- i čtyřvazbový svazek.
+`Regenerate.ps1` nyní před CAD/balením spouští kontrolu syntaxe JS i
+Node testy. Skutečný skript byl ověřen v izolované fixture:
+správné JS pokračuje do navazujících testovacích kroků, chybná syntaxe
+i selhávající Node test každý zastaví práci před Python/CAD. Toto
+ověření řídicího skriptu není novým geometrickým ověřením balíčku.
+Další review odstranilo pomalé rozmísťování názvů při každém pohybu myši:
+layout se znovu používá a první rozmístění hledá volné úseky mřížky.
+Prošly 4/4 Node regrese, včetně 232 objektů, přepočtu při změně pohledu,
+vrstev, panelu a animace, zachování uzlů při pohybu a změně barvy.
+Browser na 1280 × 900 zobrazil 232 názvů bez vzájemných průniků. Ve stejné
+automatizované sekvenci pohybu nad prázdnou plochou klesl kumulativní JS
+čas z 3869 na 71 ms; první rozmístění z 320 na 11 ms (CDP Performance,
+jeden lokální běh, nikoli obecná garance výkonu). Konzole bez chyb.
+Majitel následně upřesnil chování připnutí: při Shiftu se všechny názvy
+nezobrazují, pokud je výběr připnutý; kliknutí do prázdna jej zruší.
+Regresní test ověřuje oba přechody. Druhé upřesnění majitele: připnutí
+samo nezapíná trvalý Inspect. Puštění Shiftu jej vypne, ale karta a vazby
+zůstanou a tažením lze otáčet. Prázdný klik bez Shiftu výběr zruší,
+tažení jej zachová. Aktuálně prošlo 5/5 Node testů těchto přechodů.
+Finální regenerované HTML prošlo také skutečným browser Shift-klikem
+na PCA, puštěním Shiftu, otočením bez ztráty pinu a prázdným klikem
+se Shiftem i bez něj; karta a propojení odpovídají výběru, konzole bez chyb.
+Poslední upřesnění majitele odstranilo všech 13 rezervních objektů
+(`spare_*`) z payloadu prohlížeče. Náhled ani seznam Inspect je neobsahují;
+zůstává 219 objektů a 92 vazeb. Změna je omezená na prohlížeč.
+Regenerované HTML i browser ověřily 219 objektů, žádné rezervní ID
+v geometrii/seznamu/popiscích a všech 92 vazeb bez chybějících konců.
+Další PR nález vyžaduje kontrolu změněného zapojení: ověřený hash
+`REVIEWED_WIRING_SHA256` nyní brání přepsání provenance i generování
+vazeb z jiného dokumentu, včetně validního změněného ZIP snapshotu.
+Prošlo 23/23 testů metadat/balení; změna rozměrů zůstává nezávislá.
+V tomto slice se regeneruje pouze
+`exports/viewer.html`; starší geometrické reporty a celý ZIP tím nejsou
+znovu ověřené. Další krok: používat Inspect při prohlídce; fyzická
+akceptace prvního mechanismu zůstává podle původního předání níže.
+
+## Původní mechanické předání
+
 Aktuální mechanický návrh je v `kufr/mechanika/final/`. Následný požadavek
 majitele na úklid odstranil z verzovaných souborů předchozí generátory,
 modely a návody; potvrzené rozměrové podklady zůstaly zachované.

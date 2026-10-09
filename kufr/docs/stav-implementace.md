@@ -6,6 +6,91 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**9. 10. 2026 – F1 prohlížeč: Inspect, barvy a kabelové vazby.**
+`kufr/mechanika/final/exports/viewer.html` byl regenerován z aktuálních
+zdrojů. Shift zvýrazní skutečnou viditelnou geometrii a zobrazí kartu;
+Shift nad prázdnou plochou ukáže názvy dílů zapnutých vrstev v záběru.
+Klik připne kartu; Shift pak zachová pouze její propojení a klik do
+prázdna výběr zruší. Tlačítko Inspect a seznam objektů umožňují další
+ovládání. Barva se ukládá pro ID objektu do místního úložiště prohlížeče.
+219 objektů má popisy, CAD obálky a rozměrovou evidenci; 92 logických
+kabelových vazeb obsahuje GPIO, kanály, napětí a poznámky podle
+potvrzeného zapojení. Rezervní díly jsou z náhledu odstraněné. Konkrétní ID svorek ani
+kondenzátorů nemají doložené přiřazení sítě; trasy kabelů se neměří.
+
+Změněné zdroje jsou v `final/`: šablona, nový `viewer.js`, nový modul
+`inspect_data.py` a jeho testy, generátor náhledu, fingerprinty a
+regenerace. Oba závazné Markdown podklady mají přesnou ověřenou kopii
+`reference/inspect-sources.json`, takže zdrojový ZIP lze regenerovat
+bez původního repozitáře. V repozitáři se kontroluje její aktuálnost.
+README a místní STAV popisují ovládání a hranice tohoto slice.
+
+Provedeno: `node --check viewer.js`, 20/20 Python testů metadat/balení,
+generace samotného prohlížeče a skutečná generace ve samostatné kopii
+zdrojů bez externích Markdownů. Browser na localhost v 611 × 764 a
+1280 × 900 ověřil výběr PCA, Shift, vazby, seznam, zdvih 16 mm, skrývání
+vrstev a obnovení barvy po zavření a znovuotevření stránky; konzole
+bez chyb. Screenshot je lokální `exports/inspect-preview.png`.
+Přímé otevření `file://` bezpečnostní politika browser nástroje odmítla;
+HTML má geometrii, data i skript vložené uvnitř a neváže síťové zdroje.
+Nezávislé review nemá zbývající nález. Celý CAD export/výrobní ZIP,
+geometrické zkoušky, fyzické měření, firmware, iPhone ani nasazení se
+v tomto prohlížečovém slice znovu neprováděly. Další krok zůstává
+fyzická akceptace jednoho F1 mechanismu podle místního STAV.
+
+Doručení: implementační commit `5c6a19faa34dfb728c4c6d2430dbb1c03a61e88e`,
+`Push-CurrentBranch.ps1` potvrdil shodný vzdálený HEAD na `codex/f1-inspect`.
+Předání a vzdálené kontroly jsou v
+[PR168](https://github.com/Blato58/DildoVander/pull/168).
+Existující nevázané `.codex/` soubory nebyly přidány ani upraveny;
+při push byla pouze procesně potlačena jejich kontrola jako untracked.
+
+PR review našlo P2: pohyb kurzoru mohl přepsat klikem připnutou kartu
+a změnit objekt, jehož barva se upravuje. Oprava dává připnutému dílu
+trvalé vlastnictví karty do zrušení či dalšího kliku, odděluje zvýraznění
+pod kurzorem a zachovává všechny názvy nad prázdnou plochou. Prošly
+2/2 Node regresní testy skutečných event handlerů s testovacím GPU,
+nová generace HTML a skutečný browser přechod od PCA do karty a editace
+barvy. Nezávislé review opravy nemá nález. Nový `test_viewer.cjs` patří
+do fingerprintů zdrojů; spouští se příkazem `node --test test_viewer.cjs`.
+
+Navazující PR review řeší zakrytí souběžných elektrických vazeb: každý
+spoj má nyní samostatnou křivku, i pokud mají oba díly v daném pohledu
+shodný střed. Prošly 3/3 Node testy včetně dvou- a čtyřvazbových svazků.
+Standardní `Regenerate.ps1` spouští `node --check viewer.js` i Node
+regrese před Python/CAD. Skutečný skript ve fixture se správným JS
+pokračoval; chybná syntaxe a selhávající Node test jej zastavily před
+navazujícími kroky. README uvádí Node.js v PATH pro úplnou regeneraci.
+Tato kontrola testovací fixture nepředstírá novou validaci výrobního ZIPu.
+Browser finálního HTML potvrdil mezi ESP32 a PCA čtyři odlišné SVG
+křivky ve třech barvách a konzoli bez chyb. Nezávislé review změn prošlo.
+
+Další P2 review opravilo opakované drahé rozmísťování všech názvů:
+layout se ukládá podle pohledu, vrstev, animací a rozměrů panelu; první
+rozmístění používá volné úseky mřížky. Prošly 4/4 JS regrese včetně
+232 objektů, přepočtu při změnách a zachování DOM uzlů při pohybu myši.
+Browser 1280 × 900 zobrazil 232 názvů bez vzájemných průniků; v jednom
+stejném automatizovaném pohybu klesl kumulativní JS čas z 3869 na 71 ms,
+první rozmístění z 320 na 11 ms (CDP Performance, lokální měření).
+Nezávislé review této opravy nemá nález. Majitel následně upřesnil,
+že připnutý objekt při Shiftu potlačuje všechny názvy a klik do prázdna
+jej zruší; test ověřuje zrušení i navazující zobrazení všech názvů.
+Následné upřesnění: pin nezapíná trvalý Inspect. Puštění Shiftu jej vypne,
+připnutá karta a vazby zůstanou a tažením lze měnit úhel. Prázdný klik
+bez Shiftu pin zruší, drag jej zachová. Aktuálně prošlo 5/5 Node regresí.
+Regenerované HTML tyto přechody ověřilo i v browseru: Shift-klik na PCA,
+puštění Shiftu, rotace s pinem a prázdný klik se Shiftem i bez něj prošly.
+Konzole zůstala bez chyb, lokální screenshot byl obnoven.
+Poslední požadavek odstranil všech 13 rezervních dílů (`spare_*`) přímo
+z payloadu náhledu, včetně možnosti jejich výběru v Inspectu. Aktuální
+prohlížeč má 219 objektů a 92 vazeb; ostatní CAD exporty se tím nemění.
+Generované HTML i browser potvrdily 219 objektů, žádná rezervní ID a
+92 vazeb bez chybějících konců. P2 review dále zavedlo explicitně
+ověřený hash zapojení v `inspect_data.py`: změněný dokument ani validní
+změněný snapshot nesmějí bez kontroly mapy vazeb obnovit provenance či
+generovat. README popisuje aktualizaci mapy/hash. Prošlo 23/23 Python
+testů metadat/balení, včetně změn zdroje a vybaleného balíčku.
+
 **9. 10. 2026 – F1 a úklid předchozího CAD; zdroje ověřené a pushnuté.**
 Jediným aktivním návrhem je [F1](../mechanika/final/README.md), vytvořený
 od základu v commitu `14ff82a`: nový tištěný korpus a prázdné víko,

@@ -12,6 +12,7 @@ from geometry import ROOT, PARAMS, assembly, print_position, bounds
 import chassis
 import mechanism
 import layout
+import inspect_data
 from check_fit import scene
 from artifacts import ASSEMBLY_NAMES
 
@@ -23,12 +24,14 @@ def all_parts():
 
 
 def source_hashes():
+    inspect_data.assert_snapshot_current()
     candidates=list(ROOT.iterdir())+list((ROOT/"reference").glob("*"))
     return {p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(candidates)
-            if p.is_file() and p.suffix in (".py",".json",".md",".txt",".ps1",".html",".csv",".png") and p.name!="fit-debug.json"}
+            if p.is_file() and p.suffix in (".py",".js",".cjs",".json",".md",".txt",".ps1",".html",".csv",".png") and p.name!="fit-debug.json"}
 
 
 def main():
+    inspect_data.snapshot_sources()
     for directory in (OUT,OUT/"stl",OUT/"step",OUT/"assembly",OUT/"images"):
         directory.mkdir(exist_ok=True)
     expected={p.name for p in all_parts()}
