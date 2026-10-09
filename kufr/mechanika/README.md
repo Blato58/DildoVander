@@ -6,11 +6,20 @@ dříkem do 16 mm a ozdobnou hlavicí do **40 mm**. Průměry jsou rezervy podle
 fotografie, **ne změřené rozměry**. Hlavice má širší přední část lůžka;
 není třeba tisknout kopii ornamentu.
 
-Pracovní vnitřní prostor je **310 × 450 × 200 mm (X × Y × Z)**.
-Majitel dříve uvedl kufr 450 × 310 × 200 mm; vnitřní rozměr, výstelka,
-panty a prostor pod víkem stále nejsou potvrzené. Nejdříve vytiskni měrky
-a jednu přihrádku. Hotový CAD nedokazuje usazení do skutečné truhly ani
-bezpečný pohyb pod zatížením.
+**Doručený kufr – potvrzení majitele 9. 10. 2026:** vnitřní šířka je
+17″ (431,8 mm), délka 10,5″ (266,7 mm) a výška spodní části od dna
+po horní okraj 4,5″ (114,3 mm). Zaokrouhlená obálka spodní části je tedy
+**432 × 267 × 114 mm (šířka × délka × výška)**. Kufr se bude prezentovat
+otevřený; veškerá mechanika a elektronika patří do spodní části a víko
+zůstane prázdné. Prostor víka se do zástavby nepočítá.
+Samostatný záznam: [rozměry doručeného kufru](rozmery-doruceneho-kufru.md).
+
+Současný CAD a `parametry.json` stále používají původní pracovní prostor
+**310 × 450 × 200 mm (X × Y × Z)** a novým rozměrům nejsou přizpůsobené.
+Před tiskem upravit rozložení a znovu ověřit obálky i pohyb. Fotografie
+ukazují příčnou výztuhu na dně; její tloušťka a vliv na usazení zatím
+nejsou změřené. Potom vytisknout měrky a jednu přihrádku. Hotový CAD
+nedokazuje usazení do skutečné truhly ani bezpečný pohyb pod zatížením.
 
 ## Soubory pro tisk a stavbu
 
