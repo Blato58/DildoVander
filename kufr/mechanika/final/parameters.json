@@ -1,0 +1,91 @@
+{
+  "revision": "F1",
+  "case": {
+    "inside_x": 431.8,
+    "inside_y": 266.7,
+    "wall": 4.0,
+    "floor": 4.0,
+    "base_height": 118.3,
+    "lid_height": 30.0,
+    "lid_gap": 1.0,
+    "lap": 12.0,
+    "joint_clearance": 0.25
+  },
+  "print": {
+    "bed_x": 220.0,
+    "bed_y": 220.0,
+    "brim": 3.0,
+    "layer": 0.2,
+    "material": "PETG",
+    "density_g_cm3": 1.27
+  },
+  "mechanism": {
+    "count": 6,
+    "pitch": 48.0,
+    "origin_x": 77.0,
+    "origin_y": 34.0,
+    "origin_z": 9.0,
+    "length": 212.0,
+    "base_width": 46.0,
+    "tray_width": 44.0,
+    "tray_thickness": 3.0,
+    "cam_x": 29.0,
+    "cam_y": 112.0,
+    "cam_z": 36.0,
+    "cam_thickness": 10.0,
+    "cam_low_radius": 10.0,
+    "lift": 16.0,
+    "travel_degrees": 160.0,
+    "dwell_degrees": 20.0,
+    "guide_clearance": 0.45,
+    "guide_height": 83.0,
+    "sleeve_length": 22.0,
+    "horn_slot_inner_radius": 7.0,
+    "horn_slot_outer_radius": 12.0,
+    "horn_screw_clearance": 2.4,
+    "horn_fastener_radius": 9.0,
+    "follower_drop": 17.0,
+    "groove_width": 6.8,
+    "groove_depth": 6.0,
+    "roller_diameter": 6.0
+  },
+  "wand": {
+    "length": 200.0,
+    "head_width": 38.0,
+    "head_height": 28.0,
+    "head_length": 55.0,
+    "shaft_diameter": 16.0,
+    "fabric": 0.8,
+    "foam": 1.2,
+    "design_payload_g": 150.0,
+    "dimensions_status": "photo length label 190-200; other dimensions conservative estimates, not measurements"
+  },
+  "mounting": {
+    "velcro_thickness": 2.0,
+    "cover_z": 108.0,
+    "cover_thickness": 3.0,
+    "m3_clearance": 3.4,
+    "m4_clearance": 4.5,
+    "rocker_hole": 19.4,
+    "ptt_hole": 12.4,
+    "rocker_top_z": 105.0,
+    "fabric_rocker_gap": 3.0,
+    "camera_envelope": [
+      24.0,
+      24.0,
+      12.0
+    ],
+    "degson_envelope": [
+      35.0,
+      22.0,
+      16.0
+    ]
+  },
+  "safety": {
+    "carry_design_mass_kg": 5.0,
+    "static_proof_factor": 2.0,
+    "shock_acceleration_g": 3.0,
+    "physical_validation": "NOT PERFORMED",
+    "pinout_changed": false
+  }
+}

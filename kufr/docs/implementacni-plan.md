@@ -984,8 +984,11 @@ spodní části, tedy 431,8 × 266,7 × 114,3 mm. Pro návrh používat přibli�
 veškerá mechanika a elektronika patří do spodní části, víko zůstává
 prázdné a jeho prostor se do zástavby nepočítá. Příčná výztuha na dně
 má podle majitele **5 mm**; další údaje o ní nejsou podmínkou rozvržení. Toto potvrzení
-nahrazuje původní předpoklad prostoru kufru; CAD s obálkou
-310 × 450 × 200 mm je nutné přizpůsobit a znovu ověřit před tiskem.
+nahrazuje původní předpoklad prostoru kufru. Aktuální
+[mechanický návrh F1](../mechanika/final/README.md) používá tyto vnitřní
+rozměry jako podklad pro nový tištěný korpus s prázdným víkem; není vložkou
+do dřevěné skořepiny. Starší CAD byl nahrazen. Geometrické ověření F1
+neuzavírá fyzickou přejímku osazení, pohybu, retence ani únosnosti.
 
 **Doplnění rozměrů majitelem 9. 10. 2026:** PTT 14×14×35 mm,
 PCA9685 25×70×15 mm a U059 podle výrobce 32×24×8 mm. Servo používá

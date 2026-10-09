@@ -27,10 +27,11 @@ Příčná výztuha na dně má podle majitele tloušťku **5 mm**. Další úda
 o výztuze nejsou podmínkou rozvržení kufru. Při zkoušce sestavy ověřit
 lokální vůle u stěn, pantů a zavírání a prostor pro kabely a pohyb přihrádek.
 
-Současný `parametry.json` a CAD používají starý pracovní prostor
-310 × 450 × 200 mm (X × Y × Z). Rozložení je třeba přizpůsobit
-potvrzenému kufru a znovu ověřit obálky i pohyb před tiskem.
-Tento záznam nemění CAD, neověřuje fyzické usazení ani pohyb pod zatížením.
+Aktuální [návrh F1](final/README.md) používá potvrzený vnitřní prostor
+jako podklad pro nový tištěný korpus. Jeho 4mm stěny a 30mm víko jsou
+konstrukční volby, nikoli změřené rozměry tohoto dřevěného kufru.
+F1 není vložkou do dřevěné skořepiny a nekopíruje její příčnou výztuhu.
+Fyzické osazení a pohyb pod zatížením musí být ověřené na prototypu.
 
 Architekturu a akceptaci určuje [implementační plán](../docs/implementacni-plan.md),
 postup vede [stav implementace](../docs/stav-implementace.md).

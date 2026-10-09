@@ -6,6 +6,48 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**9. 10. 2026 – F1 a úklid předchozího CAD; zdroje ověřené a pushnuté.**
+Jediným aktivním návrhem je [F1](../mechanika/final/README.md), vytvořený
+od základu v commitu `14ff82a`: nový tištěný korpus a prázdné víko,
+šest servem ovládaných lůžek se zdvihem 16 mm, skryté osazení, čtyři
+servisní kryty a vyjímatelná powerbanka. 29 typů STL / 44 výtisků včetně
+měrky pro podložku 220 × 220 mm; pět STEP sestav, náhledy a kusovníky.
+Při transportu jsou hůlky a banka vyjmuté, zbývající osazení zajištěné.
+
+Majitel výslovně požádal o úklid, push a merge; předchozí zákaz push tím
+nahradil. Odstraněny verzované starší generátory, jejich testy a montážní
+návody. Rozměrové podklady, závazné zapojení, šest fotografií a F1 zůstávají.
+Starší lokální exporty a cache zůstaly na disku: automatická kontrola odmítla
+jejich odstranění jako „blocked by policy“. Do commitu ani push nepatří.
+Záznamy dvou předchozích CAD variant jsou dostupné v historii Gitu.
+
+Po úklidu opakované CAD ověření prošlo: 29 STL/STEP, tři sestavy,
+81 vzorků mechanismu včetně sousedních lůžek, 36 poloh víka a 37 kroků
+vyjmutí banky bez detekovaných kolizí. Všech 104 místních odkazů v devíti
+dokumentech existuje; šest testů výběru CI projektů a 55 Node testů prošlo.
+Širší Python sada má na Windows 16/17: jediný neúspěch je existující kontrola
+Unix oprávnění 0755 při extrakci souboru. Úplná sada následně prošla na Linuxu
+v [CI 37957861517](https://github.com/Blato58/DildoVander/actions/runs/37957861517)
+včetně Node testů, actionlint a povinného CI souhrnu. Aplikační buildy byly
+správně vynechané. Celý příkaz `final/Regenerate.ps1` dokončil také rendery,
+výkresy a ZIP CRC; report/manifest odpovídají zdrojovým SHA-256. Regenerovaný
+HTML prohlížeč je bajtově shodný s již ověřeným browser výsledkem.
+
+Cleanup commit `b06ea867bb96d691deeeae9eaede5c3c94ff364c` byl odeslán přes
+`scripts/Push-CurrentBranch.ps1`; read-back ověřil shodnou vzdálenou SHA.
+Předání a výsledek merge/review vede [PR167](https://github.com/Blato58/DildoVander/pull/167).
+Automatické review dokončené 9. 10. v 16:21 UTC odhalilo jeden P2 nález:
+ZIP mohl obsahovat staré výstupy. Balení nyní používá výslovný seznam
+aktuálních souborů a přesný inventář pěti sestav. Čtyři regresní testy
+včetně skutečného ZIP se záměrně ponechanými starými soubory prošly.
+Geometrie se opravou nemění; plná regenerace po opravě byla spuštěna.
+Před merge znovu načíst připomínky a ověřit CI posledního push.
+Tisk, osazení, moment serva, tření brzdy, proudy/teploty, akustika, FPC
+kamery a skutečné přenášení zůstávají neověřené. [Montážní návod](../mechanika/final/MONTÁŽ.md)
+vyžaduje nejprve měrku a jeden zatížený modul. E5/E6/B1/E13 se neuzavírají.
+Elektrické zapojení, firmware, aplikace, nasazení ani fyzický hardware se
+v tomto mechanickém předání nemění. Novější softwarové záznamy níže zůstávají.
+
 **D166 – aktuální předání 9. 10. 2026: automatická IPv4 ze Security1 BLE.**
 Majitel potvrdil hostname timeout, ale ruční `192.168.0.59` vedla k servisnímu
 stavu po validním snapshotu: tento UI důkaz potvrzuje pinned/authenticated WSS
@@ -1201,56 +1243,14 @@ a zbývající fyzická měření jsou pouze v D156 a
 [zapojení](zapojeni-potvrzeneho-hardwaru.md).
 
 
-**D154 – 8. 10. 2026 – tiskový CAD a exporty pro upřesněnou elektroniku ověřené.**
-Fotografie majitele uvádí hůlku 19–20 cm; model počítá s 200 mm a pracovní
-rezervou 40 mm pro ozdobnou hlavici. Powerbanka UGREEN PB720 / 25188 má
-otevřenou kolébku pro konzervativní obálku 139 × 80,8 × 26,7 mm a vůli;
-výrobce uvádí 139 × 80 × 26,5 mm. Dva reproduktory Waveshare mají dvě
-samostatné podpěry směřující dopředu. Kamera a ESP sdílejí horní zadní
-držák, plánované oblasti konektorů jsou 22,85 mm od sebe, kamera je
-nakloněná 20° vzhůru. Přední mikrofon má výškový posuv a vzdálenost
-asi 318 mm od obou reproduktorů. Délka FPC není potvrzená.
-
-Původní třísegmentové lůžko s tyčemi nahrazuje dvoudílné lůžko na zadním
-M4 čepu, původní servo páka, tištěný adaptér a jedno táhlo. Geometrický
-zdvih přední hrany je 30,722 mm při sklonu 7,744°, osová délka táhla
-33,907 mm. Jedna tisknutelná sada má 33 různých dílů. Nový `electronics.py`
-drží otevřené police, prostor pro rozvod/měnič pod powerbankou, PCA,
-dvě rezervovaná místa zesilovačů, kameru/ESP, mikrofon a odnímatelný panel.
-Univerzální desky nejsou tvrzení shody s nezměřenými PCB. Aktuální seznam
-eviduje jeden koupený zesilovač; druhé osazení se musí potvrdit.
-
-Zdroj: `model.py`, `electronics.py`, `preview.py`, `parametry.json`,
-`test_model.py`, `montazni-material.csv`, nový montážní README a rozhodnutí
-v plánu. Lokální `kufr/mechanika/output/` obsahuje STL/STEP, obě sestavy,
-offline HTML, PNG, dvě tisková CSV, ověření a kompletní ZIP; výstupy jsou
-ignorované, jejich zdroj se předává Gitem. Firmware, nákup, napájení,
-server a aplikace se v tomto kroku neměnily.
-
-Ověření: `.venv/Scripts/python.exe -m unittest test_model -v` **9 passed**;
-`model.py` úspěšně vyexportoval **33 validních jednotlivých solidů**;
-`verify_exports.py` potvrdil **33 uzavřených STL**, kladné objemy a shodu
-s CAD do 2 %. Kontrola všech dvojic ve 21 polohách zahrnuje vybrané hlavy,
-matice a celé M3×14 čepy; uzavření/návrat táhla testované ve 101 polohách.
-Elektronika prošla samostatnou kontrolou průniků a **62 obálek hlav šroubů**.
-Tisková obálka 220 × 220 × 250 mm a nominální prostor kufru v klidu/i po
-zdvihu prošly. Ověřeno 42 lokálních Markdown odkazů, kusovníkové počty,
-CRC ZIP a shoda zabaleného zdroje. Nezávislá revize našla a ověřila opravy
-upevnění u LED, serva, podpěr a mikrofonu/kamery; nezůstal doložený nález.
-In-app Browser na `http://127.0.0.1:8766/nahled.html`, 1280 × 720:
-posuvník na 100 zobrazil 30,7 mm / 7,7°, horní/prostorový pohled i skrytí
-elektroniky fungovaly; console warning/error seznam prázdný. Náhled uložen
-do `output/browser-nahled.png`. `git diff --check` prošel.
-
-Neprovedeno: fyzický tisk, změřené vnitřní rozměry kufru, šířka hlavice,
-FPC/konektory, akustika, teplota, zatížené servo a zadržení při výpadku.
-Třecí M4 čep vyžaduje zkoušku i dlouhodobého tečení PETG ve všech polohách;
-E5/E6/B1 zůstávají otevřené. Další krok: měrky, jedna přihrádka a ruční
-zkouška s reálnou hůlkou, potom skutečné usazení elektroniky/kabelů.
-Implementační commit `1d61ce7bebbaca5ed54533a7ba2bf99d8ad71729` je na
-`codex/printable-case-final-electronics`. Povinný
-`scripts/Push-CurrentBranch.ps1` uspěl přes účet Blato58; read-back remote
-ref potvrdil stejnou SHA. Tento následný záznam uchovává skutečné předání.
+**Historické D154 – 8. 10. 2026 – první tiskový CAD, nahrazený F1.**
+Tehdejší kloubové mechanismy, rozmístění elektroniky, generátory a lokální
+exporty byly nahrazeny [F1](../mechanika/final/README.md). Nejsou aktuálním
+výrobním podkladem. Historický implementační commit
+`1d61ce7bebbaca5ed54533a7ba2bf99d8ad71729` byl ověřený a pushnutý na
+`codex/printable-case-final-electronics`; tehdejší testy ani CAD neprokázaly
+fyzický tisk, usazení, zatížený pohyb a zadržení při výpadku. Podrobný
+původní záznam a zdroje zůstávají dohledatelné v historii Gitu.
 
 **D153 – 8. 10. 2026 – revize minimální objednávky, dokumentace ověřená.**
 Majitel žádá ponechat jen skutečně potřebné díly. Tento starší nákupní
