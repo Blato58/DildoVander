@@ -68,6 +68,11 @@ Majitel následně potvrdil připojení iPhonu; dlouhodobý provoz stále zbýv�
 `pair-local` na Security1/PoP ověřeném BLE vydá první místní token jen při
 prázdném pairing záznamu, uloží jeho hash a vrátí ID, `.local` host, SPKI
 SHA-256 a token do nativního iOS Keychain. Existující QR či token nezmění.
+D165 přidává samostatné `recover-local` s přesným `confirm:true` na stejném
+PoP Security1 endpointu. Zdravý spárovaný hash se nahradí novým; původní token
+přestane platit i po restartu. Recovery odmítá připravené QR, chybějící/poškozené
+záznamy a busy owner/socket/inbox/maintenance. Zámky brání handshake i doběhu
+starých povelů během výměny. Nevytváří trvalé BLE okno a nemění TLS/Wi-Fi.
 Ztracený token se nevydává znovu; obnova/rotace zůstává fyzickým servisem.
 Tato změna neprokazuje LAN TLS/Bonjour ani Keychain po aktualizaci na iPhonu.
 

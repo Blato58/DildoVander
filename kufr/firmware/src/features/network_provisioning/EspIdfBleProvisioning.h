@@ -13,6 +13,8 @@ struct BleManagementCallbacks {
   // Invoked only inside the PoP-authenticated and encrypted control endpoint.
   // Null means success; otherwise a public error code, never credential data.
   const char* (*pairLocal)(cJSON* response, void* context) = nullptr;
+  // Same authenticated endpoint, only after an exact explicit confirmation.
+  const char* (*recoverLocal)(cJSON* response, void* context) = nullptr;
 };
 
 class EspIdfBleProvisioning final {

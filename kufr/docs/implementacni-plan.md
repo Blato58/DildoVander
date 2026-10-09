@@ -1,5 +1,18 @@
 # Implementační plán AI kufru
 
+> **D165, 9. 10. 2026: obnova ztraceného místního párování přes BLE.**
+> Majitel po Zapomenout párování nemůže znovu párovat: Keychain token byl smazán,
+> ale ESP drží jeho hash a první `pair-local` správně odmítne `already_paired`.
+> Nový explicitní `{"v":1,"command":"recover-local","confirm":true}` smí přes
+> existující Security1/PoP BLE kanál po nativním potvrzení nahradit zdravý
+> spárovaný token. Připravené QR a poškozené záznamy se neobnovují touto cestou.
+> Obnova vyžaduje idle owner, prázdné socket admission i inbox a žádnou údržbu;
+> společné zámky brání souběžnému handshake či ručnímu povelu. Starý token přestane
+> platit, nový zůstane v nativním Keychain; TLS identita, Wi-Fi a backend se nemění.
+> Nejde o veřejný reset ani o automatické přepsání párování. Při ztrátě odpovědi
+> lze explicitní obnovu zopakovat; platnost nové odpovědi musí ověřit iPhone.
+
+
 > **D164, 9. 10. 2026: obnova startu se zachovanou TLS identitou.**
 > [PR161](https://github.com/Blato58/DildoVander/pull/161), merge `12efd65`,
 > zvětšilo main stack z 3584 B na 16 KiB při načtení existující TLS identity.
