@@ -29,7 +29,7 @@ class ProjectSelectionTests(unittest.TestCase):
             (["kufr/mobilni-aplikace/public/icon.svg"], {"web"}),
             (["kufr/ai-eval/cases.json"], {"ai-eval"}),
             (["kufr/firmware/src/espidf_main.cpp", "kufr/backend/Program.cs"], {"firmware", "backend"}),
-            (["kufr/mechanika/model.py", "obludarium/docs/a.md"], set()),
+            (["kufr/mechanika/final/mechanism.py", "obludarium/docs/a.md"], set()),
         ]:
             with self.subTest(paths=paths):
                 self.assertEqual(self.selected(*paths), expected)

@@ -16,7 +16,8 @@ Kufr má potvrzenou vnitřní obálku spodní části **431,8 × 266,7 × 114,3 
 (šířka × délka × výška)**. Víko zůstává prázdné.
 [Příčná výztuha](rozmery-doruceneho-kufru.md) má podle majitele **5 mm**;
 její další rozměry nejsou podmínkou rozvržení kufru.
-Tento podklad nemění CAD ani `parametry.json` a nedokládá fyzické usazení.
+Tento přehled je rozměrovým podkladem pro [návrh F1](final/README.md);
+samotné katalogové a potvrzené obálky nedokládají fyzické usazení.
 
 ## Řízení, zvuk a efekty
 
