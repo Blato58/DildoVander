@@ -30,10 +30,11 @@ prošel všemi třemi native harnessy, Xcode archive i Ad Hoc exportem pro
 prošla všemi třemi joby. Veřejná instalační stránka a manifest uvádějí
 `app.turquoise6409.green2444` / **1000.0.22**; IPA 1873296 B a veřejný checksum
 byly ověřené, SHA-256 `f5cb611018ea898b215701bda0982c76dcd0dff7d1738421e9d13299fb39ff3e`.
-PC BLE scan po flashi našel `KUFR_4B6048` s očekávaným service UUID. Obnova na iPhonu a Keychain po
-aktualizaci zatím nejsou doložené. D164 potvrdilo připojení před zapomenutím;
-jeho výsledek obnovu nenahrazuje. Přesné dodání vede
-[stav implementace](../docs/stav-implementace.md#předání-další-ai).
+PC BLE scan po flashi našel `KUFR_4B6048` s očekávaným service UUID.
+Majitel následně potvrdil opakované párování, ale LAN discovery/připojení
+stále selhává. PC Bonjour a neautentizované TLS zůstávají dostupné; token/pin
+telefonu, stabilní WSS a Keychain po aktualizaci zatím nejsou ověřené.
+Přesný rozsah vede [stav implementace](../docs/stav-implementace.md#předání-další-ai).
 
 ## Historické předání D164
 

@@ -31,9 +31,10 @@ passed all three native harnesses, Xcode archive and Ad Hoc export for
 succeeded in all three jobs. The public installation page and manifest identify
 `app.turquoise6409.green2444` / **1000.0.22**; public IPA 1873296 B and its checksum
 were verified, SHA-256 `f5cb611018ea898b215701bda0982c76dcd0dff7d1738421e9d13299fb39ff3e`.
-The post-flash PC BLE scan found `KUFR_4B6048` with the expected service UUID. D164's connection
-confirmation preceded forgetting; it does not prove D165 recovery. The owner has been asked to try explicit recovery in the new app; no result is
-available yet. Physical recovery, the iPhone update and Keychain retention remain pending in
+The post-flash PC BLE scan found `KUFR_4B6048` with the expected service UUID. The owner subsequently confirmed pairing again, but reported that network discovery
+and connection still fail. PC Bonjour and unauthenticated TLS remain reachable;
+these checks do not validate the phone's token or pin. LAN/WSS and post-update
+Keychain acceptance remain open in
 [implementation status](../kufr/docs/stav-implementace.md#předání-další-ai).
 
 **Historical D164 handoff.** Development OTA **0.1.161** passed

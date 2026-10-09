@@ -35,10 +35,10 @@ succeeded in all three jobs. The public installation page and manifest identify
 `app.turquoise6409.green2444` / **1000.0.22**; public IPA 1873296 B and its checksum
 were verified, SHA-256 `f5cb611018ea898b215701bda0982c76dcd0dff7d1738421e9d13299fb39ff3e`.
 The post-flash PC BLE scan found `KUFR_4B6048` with the expected service UUID.
-D164's owner-confirmed connection predates forgetting and does not accept D165
-recovery. Physical recovery, iPhone update and Keychain retention remain pending;
-exact delivery and acceptance are tracked in
-[implementation status](../kufr/docs/stav-implementace.md#předání-další-ai).
+The owner subsequently confirmed pairing again, but LAN discovery/connection
+still fail. PC Bonjour and unauthenticated TLS are reachable; phone token/pin,
+stable WSS and Keychain retention remain unverified. Exact delivery and acceptance
+are tracked in [implementation status](../kufr/docs/stav-implementace.md#předání-další-ai).
 
 **Historical D164 handoff.**
 [PR161](https://github.com/Blato58/DildoVander/pull/161) merged as

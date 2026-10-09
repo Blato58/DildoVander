@@ -60,6 +60,13 @@ a data se neměnily. Native build nenahrazuje skutečnou obnovu na iPhonu.
 Další krok: po publikaci aktualizovat iPhone, zopakovat BLE pairing/recovery po
 forget, připojit Ovládání a ověřit relaunch/aktualizaci Keychain a cancel/background.
 D164 připojení před forget nenahrazuje tuto novou fyzickou akceptaci.
+Majitel následně potvrdil **„I can pair again, but cant see him on network or connect to it“**.
+Opakované párování tedy funguje; LAN discovery/připojení zůstává hlášenou chybou.
+PC následně znovu resolve `_kufr._tcp` na stejný .local host/443 s protocol1
+provedlo a TLS WS bez credentialu vrátil401. Pasivní20s UART (120 B) nezachytil
+restart loop; tyto PC kontroly neověřují token/pin telefonu. Čeká se na přesný
+nativní failureCode a stav iOS Local Network permission; source hodnoty TXT
+splňují aktuální parser. Další práce je iPhone LAN/WSS, nikoli další reset NVS.
 
 **D164 – 9. 10. 2026 – opravený startup a fyzická obnova COM7 na0.1.161.**
 Majitel nedokáže ESP najít ani přes BLE a autorizoval debug přes COM7/PC Bluetooth.
