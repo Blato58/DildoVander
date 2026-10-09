@@ -9,7 +9,10 @@ CoreBluetooth/ESPProvision 3.2.0 plugin. Safari/Web Bluetooth is not used.
    retain the PoP privately with the device. It is not an advertised MAC/code.
 2. Power the suitcase, open **Síť kufru**, scan and select `KUFR_…`.
 3. Enter the device PoP in the native secure dialog. An incorrect PoP fails the
-   official Security1 handshake. There is no unauthenticated credential endpoint.
+   official Security1 handshake. A successfully authenticated PoP is saved in
+   this iPhone's non-synchronizing Keychain for that BLE suitcase. On reconnect,
+   choose the saved PoP or enter a replacement; a replacement is saved only
+   after successful authentication. There is no unauthenticated credential endpoint.
 4. On the iPhone open Settings → Personal Hotspot and enable **Allow Others to
    Join**. Enable **Maximize Compatibility** for ESP32's 2.4GHz Wi-Fi. The app
    cannot enable the hotspot, read its password or guarantee discovery of SSID.
@@ -35,10 +38,20 @@ deliberate power cycle. They are never permanently unrestricted. Every custom
 request still needs the PoP-authenticated session. Nearby access with an unknown
 PoP cannot configure Wi-Fi; denial-of-service/radio interference is not prevented.
 
-Passwords/PoP are native-dialog input, not JavaScript state or retained Keychain
-entries. SDK logging is disabled. Native buffers are released after submission;
+Wi-Fi passwords and PoP are native-dialog input, never JavaScript state.
+Wi-Fi passwords are not retained on the phone. PoP uses a separate Keychain
+namespace, accessible only while unlocked and only on this device, without
+iCloud synchronization. SDK logging is disabled. Session buffers are released;
 no claim is made about guaranteed zeroing of Swift/OS/SDK copies. Diagnostics
 whitelist public fields; submitted/saved passwords are never returned.
+
+LAN discovery requires more than BLE Wi-Fi setup: the suitcase must also have
+its local TLS identity and local pairing provisioned. Firmware advertises
+`_kufr._tcp` only after its authenticated local TLS server starts. The USB
+network-service provisioning tool does not install these local TLS/pairing
+records. An empty LAN scan on such a device cannot be fixed by entering its IP.
+Use the same LAN with local-network permission and provision the local identity
+through the separate service process before expecting WSS discovery/pairing.
 
 Protocol: service `b97a7f10-70e8-4b98-9dcc-40d66395c821`; characteristics
 `b97aff50-…` (`proto-ver`), `b97aff51-…` (`prov-session`), `b97aff54-…`

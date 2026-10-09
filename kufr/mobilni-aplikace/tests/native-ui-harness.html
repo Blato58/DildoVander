@@ -78,8 +78,15 @@
         exchangeCount: 42, droppedCount: 0,
       }] };
       window.CapacitorCustomPlatform = { name: 'ios' };
+      let bleConnected = false;
+      const bleStatus = { v: 1, ok: true, deviceId: 'kufr-harness', firmwareVersion: 'test',
+        network: { phase: 'connected', result: 'connected', activeProfile: 'fallback', lastSuccessfulProfile: 'fallback',
+          hotspot: { configured: false, ssid: '' }, fallback: { configured: true, ssid: 'Test Wi-Fi' } },
+        backendConnected: false, ota: { state: 'idle', automaticInstall: false } };
       window.Capacitor = {
-        PluginHeaders: [{ name: 'KufrDeviceTransport', methods: [
+        PluginHeaders: [{ name: 'KufrProvisioning', methods: ['discover', 'connect', 'status', 'disconnect',
+          'configure', 'command', 'openSettings'].map(name => ({ name, rtype: 'promise' })) },
+        { name: 'KufrDeviceTransport', methods: [
           ...['savedDevice', 'discover', 'setAddress', 'pair', 'connect', 'send', 'close', 'forget', 'removeListener'].map((name) => ({ name, rtype: 'promise' })),
           { name: 'addListener', rtype: 'callback' },
         ] }, { name: 'KufrDebug', methods: ['status', 'configure', 'inspectBackend', 'inspectServer', 'changeServerModes',
@@ -90,6 +97,16 @@
           if (method === 'addListener') { listener = callback; return Promise.resolve('listener-1'); }
         },
         async nativePromise(_plugin, method, options) {
+          if (_plugin === 'KufrProvisioning') {
+            if (method === 'discover') return { devices: [{ name: 'KUFR_123456' }] };
+            if (method === 'disconnect') { bleConnected = false; return; }
+            if (method === 'openSettings') return;
+            if (method === 'connect') { bleConnected = true; return bleStatus; }
+            if (!bleConnected) throw { code: 'disconnected' };
+            // Keep a refresh in flight long enough to exercise taps during polling.
+            await new Promise(resolve => setTimeout(resolve, 250));
+            return bleStatus;
+          }
           if (_plugin === 'KufrDebug') {
             if (method === 'readServerLogs') {
               if (!debugStatus.configured || new URLSearchParams(location.search).has('logsDenied')) { throw new Error('Synthetic denial'); }
