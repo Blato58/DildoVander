@@ -134,8 +134,9 @@ build **1000.0.20** ([podpis 9. 10. 2026](https://github.com/Blato58/DildoVander
 [publikace](https://github.com/Blato58/DildoVander/actions/runs/37924314161)).
 D161 přidává tlačítko Wi-Fi párování přes ověřené BLE a nativní Keychain;
 nativní harnessy prošly v podpisovém workflow. Odpovídající development
-OTA firmware je0.1.157. Instalace této IPA/OTA a nové LAN párování na
-skutečném iPhonu/ESP se zatím nepotvrdily.
+OTA firmware je0.1.157. Majitel po publikaci potvrdil scan a párování;
+na stejné Wi-Fi v Ovládání selhává LAN spojení a opakuje připojování.
+Přesné instalované verze nejsou doložené; WSS a Keychain retention zůstávají otevřené.
 D158 přidává nativní bezpečný BLE provisioning/hotspot/fallback a OTA ovládání;
 GPT-Live a stávající hlas zůstávají zachované. Nativní testy, skutečný Xcode
 archive/export, Ad Hoc podpis a veřejná kontrola manifestu/IPA/SHA-256 prošly.

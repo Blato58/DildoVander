@@ -74,7 +74,7 @@ and public manifest/IPA/checksum verification
 [37924314161](https://github.com/Blato58/DildoVander/actions/runs/37924314161).
 D161 adds one-button Wi-Fi control pairing over authenticated BLE, with
 credentials stored only in native Keychain; development OTA0.1.157 is published.
-Installation and this new pairing flow on the physical iPhone/ESP remain unverified.
+After publication the owner confirmed scanning and pairing, then repeated LAN disconnects in Ovládání on the same Wi-Fi. Exact installed versions are not documented; pinned WSS and Keychain retention remain open.
 The initial registered iPhone profile is still required. During D159 on
 9 October 2026 with iOS build1000.0.19, the owner confirmed discovery and a successful PoP-authenticated
 connection to the provisioned physical ESP32-S3, then entered home Wi-Fi privately
