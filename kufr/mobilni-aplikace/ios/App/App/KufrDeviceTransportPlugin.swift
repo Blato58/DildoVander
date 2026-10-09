@@ -119,6 +119,10 @@ public class KufrDeviceTransportPlugin: CAPPlugin, CAPBridgedPlugin {
                 call.reject("Úložiště párování není dostupné.", "credential_unavailable")
                 return
             }
+            guard LocalDeviceEnrollment.begin() else {
+                call.reject("Jiné párování právě probíhá.", "busy")
+                return
+            }
             self.pairingCall = call
             let prompt = UIAlertController(
                 title: "Spárovat kufr " + deviceId,
@@ -134,6 +138,7 @@ public class KufrDeviceTransportPlugin: CAPPlugin, CAPBridgedPlugin {
             prompt.addAction(UIAlertAction(title: "Zrušit", style: .cancel) { _ in
                 prompt.textFields?.first?.text = nil
                 self.pairingCall = nil
+                LocalDeviceEnrollment.end()
                 call.reject("Párování bylo zrušeno.", "cancelled")
             })
             prompt.addAction(UIAlertAction(title: "Spárovat", style: .default) { _ in
@@ -141,6 +146,7 @@ public class KufrDeviceTransportPlugin: CAPPlugin, CAPBridgedPlugin {
                 prompt.textFields?.first?.text = nil
                 guard UIApplication.shared.applicationState == .active else {
                     self.pairingCall = nil
+                    LocalDeviceEnrollment.end()
                     call.reject("Párování vyžaduje otevřenou aplikaci.", "inactive")
                     return
                 }
@@ -149,10 +155,11 @@ public class KufrDeviceTransportPlugin: CAPPlugin, CAPBridgedPlugin {
                 transport.pair(secret: secret) { result in
                     self.transport = nil
                     self.pairingCall = nil
+                    LocalDeviceEnrollment.end()
                     switch result {
                     case .success(let token):
                         do {
-                            try self.keychain.write(LocalDeviceIdentity(
+                            try self.keychain.insert(LocalDeviceIdentity(
                                 deviceId: deviceId, host: host, spkiSha256: pin, token: token))
                             call.resolve(["deviceId": deviceId, "host": host])
                         } catch {

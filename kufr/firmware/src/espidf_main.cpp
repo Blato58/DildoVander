@@ -9,6 +9,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 #include "nvs_flash.h"
 
 #include "features/device_control/EspIdfJournalStorage.h"
@@ -29,6 +30,7 @@
 #include "features/provisioning/EspIdfLocalPairingStorage.h"
 #include "features/provisioning/EspIdfLocalTlsStorage.h"
 #include "features/provisioning/EspIdfLocalTlsValidator.h"
+#include "features/provisioning/EspIdfLocalTlsGenerator.h"
 #include "features/provisioning/EspIdfPairingRandom.h"
 #include "features/provisioning/EspIdfProvisioningStorage.h"
 #include "features/provisioning/EspIdfSha256.h"
@@ -46,6 +48,31 @@ namespace {
 constexpr char LogTag[] = "kufr";
 constexpr uint32_t ControlLoopPeriodMs = 10;
 constexpr char CatalogVersion[] = "ollivander-private-party-v1";
+
+struct InitialTlsSetup {
+  LocalTlsIdentity& identity;
+  LocalTlsGenerator& generator;
+  SemaphoreHandle_t completed = nullptr;
+  bool ready = false;
+  static void Run(void* context) {
+    auto& setup = *static_cast<InitialTlsSetup*>(context);
+    setup.ready = setup.identity.InitializeIfMissing(setup.generator);
+    xSemaphoreGive(setup.completed);
+    vTaskDelete(nullptr);
+  }
+  bool Initialize() {
+    if (!identity.IsHealthy()) { return false; }
+    if (identity.IsProvisioned()) { return true; }
+    completed = xSemaphoreCreateBinary();
+    if (completed == nullptr) { return false; }
+    // Crypto's nested call frames should not consume the 3584-byte main stack.
+    const bool started = xTaskCreate(Run, "initial_local_tls", 16384, this, 3, nullptr) == pdPASS;
+    if (started) { xSemaphoreTake(completed, portMAX_DELAY); }
+    vSemaphoreDelete(completed);
+    completed = nullptr;
+    return started && ready;
+  }
+};
 
 // Owner admissions and a worker's idle reservation share this mutex. Sampling
 // an idle flag without holding it would race a queued voice/servo start.
@@ -71,6 +98,49 @@ struct MaintenanceGate {
 struct BleStatusBridge {
   kufr::ota::EspIdfFirmwareUpdate& ota;
   EspIdfBackendNetwork& backend;
+  DeviceIdentity& identity;
+  LocalTlsIdentity& tls;
+  LocalPairingCredential& pairing;
+  EspIdfStationNetwork& station;
+  const std::string& hostname;
+  static const char* PairLocal(cJSON* response, void* context) {
+    auto& bridge = *static_cast<BleStatusBridge*>(context);
+    if (!bridge.identity.IsHealthy() || !bridge.identity.IsProvisioned() ||
+        !bridge.tls.IsHealthy() || !bridge.tls.IsProvisioned() || bridge.hostname.empty()) {
+      return "pairing_unavailable";
+    }
+    if (!bridge.pairing.IsHealthy()) { return "pairing_storage_unavailable"; }
+    if (bridge.pairing.IsPaired()) { return "already_paired"; }
+    if (bridge.pairing.IsPairingReady()) { return "pairing_requires_service"; }
+    if (!bridge.station.HasIp()) { return "network_not_ready"; }
+    // Allocate response fields before consuming the only enrollment. Never put
+    // a bearer token in public status, advertising or durable firmware state.
+    constexpr char Hex[] = "0123456789abcdef";
+    char pin[65]{};
+    for (size_t index = 0; index < bridge.tls.PublicKeyDigest().size(); ++index) {
+      pin[index * 2] = Hex[bridge.tls.PublicKeyDigest()[index] >> 4];
+      pin[index * 2 + 1] = Hex[bridge.tls.PublicKeyDigest()[index] & 15];
+    }
+    const std::string host = bridge.hostname + ".local";
+    const std::string placeholder(64, '0');
+    auto* tokenField = cJSON_AddStringToObject(response, "token", placeholder.c_str());
+    if (tokenField == nullptr ||
+        cJSON_AddStringToObject(response, "id", bridge.identity.DeviceId().c_str()) == nullptr ||
+        cJSON_AddStringToObject(response, "host", host.c_str()) == nullptr ||
+        cJSON_AddStringToObject(response, "spkiSha256", pin) == nullptr) {
+      return "pairing_failed";
+    }
+    std::array<uint8_t, LocalPairingCredential::TokenSize> token{};
+    if (!bridge.pairing.InitializeFromAuthenticatedBle(token)) {
+      return "pairing_failed";
+    }
+    for (size_t index = 0; index < token.size(); ++index) {
+      tokenField->valuestring[index * 2] = Hex[token[index] >> 4];
+      tokenField->valuestring[index * 2 + 1] = Hex[token[index] & 15];
+    }
+    NetworkProfiles::Wipe(token.data(), token.size());
+    return nullptr;
+  }
   static void Status(cJSON* response, void* context) {
     auto& bridge = *static_cast<BleStatusBridge*>(context);
     cJSON_AddBoolToObject(response, "b", bridge.backend.IsOnline());
@@ -196,6 +266,9 @@ extern "C" void app_main() {
   static PersistentCommandJournal journal(journalStorage);
   static EspIdfProvisioningStorage identityStorage(nvsStatus == ESP_OK);
   static DeviceIdentity identity(identityStorage);
+  // PSA may seed its random generator during parsing or hasher construction.
+  // Enable hardware entropy before the first PSA initialization, not just keygen.
+  bootloader_random_enable();
   static EspIdfLocalTlsStorage tlsStorage(nvsStatus == ESP_OK);
   static EspIdfLocalTlsValidator tlsValidator;
   static LocalTlsIdentity tlsIdentity(tlsStorage, tlsValidator);
@@ -203,6 +276,16 @@ extern "C" void app_main() {
   static EspIdfSha256 hasher;
   static EspIdfPairingRandom random;
   static LocalPairingCredential pairing(pairingStorage, hasher, random);
+  static const std::string localHostname =
+      EspIdfLocalServiceAdvertisement::Hostname(identity.DeviceId(), hasher);
+  static EspIdfLocalTlsGenerator tlsGenerator(localHostname + ".local");
+  static InitialTlsSetup tlsSetup{tlsIdentity, tlsGenerator};
+  // Fresh TLS identity creation is boot-only. Never toggle ADC entropy while
+  // the station or audio tasks are running, nor generate inside control ticks.
+  const bool localTlsReady = identity.IsHealthy() && identity.IsProvisioned() &&
+      !localHostname.empty() && tlsSetup.Initialize();
+  bootloader_random_disable();
+  if (!localTlsReady) { ESP_LOGW(LogTag, "Local TLS identity unavailable; service recovery required"); }
   if (!journal.IsHealthy()) {
     safetyController.ReportFault();
     ESP_LOGE(LogTag, "Journal unavailable; control remains faulted (%d)",
@@ -241,10 +324,11 @@ extern "C" void app_main() {
   firmwareUpdate.Begin();
   static kufr::assets::EspIdfSdAssets sdAssets;
   sdAssets.Begin();
-  static BleStatusBridge bleBridge{firmwareUpdate, backendNetwork};
+  static BleStatusBridge bleBridge{
+      firmwareUpdate, backendNetwork, identity, tlsIdentity, pairing, station, localHostname};
   static EspIdfBleProvisioning provisioning(station);
   provisioning.Begin(nvsStatus == ESP_OK, identity.DeviceId().c_str(), KUFR_FIRMWARE_VERSION,
-      {BleStatusBridge::Status, BleStatusBridge::Command, &bleBridge});
+      {BleStatusBridge::Status, BleStatusBridge::Command, &bleBridge, BleStatusBridge::PairLocal});
   static LocalBearerAuthenticator authenticator(pairing);
   static LocalSocketAdmission admission(authenticator);
   static LocalControlInbox inbox(identity.DeviceId(), bootId);
@@ -296,8 +380,7 @@ extern "C" void app_main() {
         station.HasIp() &&
         identity.IsHealthy() && identity.IsProvisioned() &&
         tlsIdentity.IsHealthy() && tlsIdentity.IsProvisioned() &&
-        pairing.IsHealthy() &&
-        (pairing.IsPairingReady() || pairing.IsPaired())) {
+        pairing.IsHealthy()) {
       serverStarted = server.Start();
       retryServerAtMs = nowMs + 5000;
       if (serverStarted) {
