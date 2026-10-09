@@ -194,7 +194,8 @@ public class KufrDeviceTransportPlugin: CAPPlugin, CAPBridgedPlugin {
                 self.transport = transport
                 self.connectionId = id
                 transport.onOpen = { [weak self, weak transport] in
-                    guard let self, self.connectionId == id else { return }
+                    guard let self, let transport, self.transport === transport,
+                          self.connectionId == id else { return }
                     do {
                         if host != identity.host {
                             try self.keychain.write(LocalDeviceIdentity(deviceId: identity.deviceId, host: host,
@@ -202,20 +203,25 @@ public class KufrDeviceTransportPlugin: CAPPlugin, CAPBridgedPlugin {
                         }
                         self.selectedHost = nil
                     } catch {
-                        transport?.close()
+                        transport.close()
                         return
                     }
                     self.notifyListeners("transport", data: ["connectionId": id, "state": "open"])
                 }
-                transport.onFrame = { [weak self] frame in
-                    guard let self, self.connectionId == id else { return }
+                transport.onFrame = { [weak self, weak transport] frame in
+                    guard let self, let transport, self.transport === transport,
+                          self.connectionId == id else { return }
                     self.notifyListeners("transport", data: ["connectionId": id, "state": "frame", "frame": frame])
                 }
-                transport.onClose = { [weak self] in
-                    guard let self, self.connectionId == id else { return }
+                transport.onClose = { [weak self, weak transport] in
+                    guard let self, let transport, self.transport === transport,
+                          self.connectionId == id else { return }
+                    let failureCode = transport.failureCode?.rawValue
                     self.transport = nil
                     self.connectionId = nil
-                    self.notifyListeners("transport", data: ["connectionId": id, "state": "closed"])
+                    var event: [String: Any] = ["connectionId": id, "state": "closed"]
+                    if let failureCode { event["failureCode"] = failureCode }
+                    self.notifyListeners("transport", data: event)
                 }
                 transport.connect(token: identity.token)
                 call.resolve()

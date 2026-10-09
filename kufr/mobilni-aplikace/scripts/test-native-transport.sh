@@ -3,6 +3,9 @@ set -euo pipefail
 test_directory="$(mktemp -d "${TMPDIR:-/tmp}/kufr-native-test.XXXXXX")"
 server_pid=""
 cleanup() {
+  if [ -f "$test_directory/server.log" ]; then
+    grep -E '^native-wss-extension-offered=(true|false)$' "$test_directory/server.log" || true
+  fi
   if [ -n "$server_pid" ]; then kill "$server_pid" 2>/dev/null || true; fi
   rm -rf -- "$test_directory"
 }
@@ -32,3 +35,4 @@ for attempt in {1..50}; do
 done
 grep -q native-test-peer-ready "$test_directory/server.log"
 "$test_directory/native-tests" "$test_directory" 49443
+grep -qE '^native-wss-extension-offered=(true|false)$' "$test_directory/server.log"

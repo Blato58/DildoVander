@@ -6,6 +6,24 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D163 – 9. 10. 2026 – oprava místního připojení po BLE párování.**
+Majitel potvrdil scan a párování; na stejné Wi-Fi v Ovládání hlásí
+„Spojení se kufrem bylo přerušeno“ a opakované připojování. Přesné instalované
+verze nejsou doložené. Zdroj odmítal každou nabídku WebSocket extensions
+před 101; podle RFC6455 §4.2.2 lze nabídku přijmout bez výběru extension.
+ESP-IDF odpověď žádné extensions nevybírá. Odmítnutí nabídky bylo odstraněno,
+přesná bearer autentizace, pin a limity rámců zůstávají. Nejde ještě o důkaz
+příčiny na fyzickém telefonu; macOS peer zaznamená jen boolean přítomnosti nabídky.
+Nativní transport vrací pouze allowlisted failureCode bez NSError/URL/tajností.
+Mobil vypíše konkrétní důvod, zastaví trvalé chyby a nejvýše třikrát obnoví
+ostatní spojení; explicitní připojení obnoví limit. Welcome samo limit
+neresetuje, až pět sekund platných snapshotů. Nejisté povely se nereplayují.
+Keychain/NVS se nemažou ani nepřepisují.
+Lokální ověření: pět MSVC pairing/TLS/BLE/discovery/server suites prošlo,
+43 mobilních testů a npm run build prošly; pio run -e esp32-s3-idf -s prošel.
+Node peer syntax, bash script syntax a diff --check prošly. Swift/macOS harness,
+podpis, publikace a fyzický opakovaný průchod jsou při převzetí stále otevřené.
+Nasazení navazuje na výslovně autorizované deploy; backend kód se nemění.
 **D162 – 9. 10. 2026 – D161 nasazený a workflow verze automatická.**
 Automatické firmware verze jsou sloučené v [PR157](https://github.com/Blato58/DildoVander/pull/157),
 commit `3bf81025a9a51e9c93da5ac99646242b897c7094`. [CI37923289582](https://github.com/Blato58/DildoVander/actions/runs/37923289582)

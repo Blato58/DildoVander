@@ -31,8 +31,8 @@ function bridge() {
     async connect(options) { native.connected.push(options); },
     async send(options) { native.sent.push(options); },
     async close(options) { native.closed.push(options); },
-    emit(state, frame, connectionId = native.connected.at(-1)?.connectionId) {
-      for (const callback of callbacks) { callback({ connectionId, state, frame }); }
+    emit(state, frame, connectionId = native.connected.at(-1)?.connectionId, failureCode) {
+      for (const callback of callbacks) { callback({ connectionId, state, frame, failureCode }); }
     },
   };
   return native;
@@ -152,11 +152,12 @@ test('malformed, duplicate, oversized and wrong-device snapshots close native co
     native.emit('frame', bad);
     assert.equal(connection.snapshot().phase, 'disconnected');
     assert.equal(connection.acquire(), false);
+    assert.match(connection.snapshot().status, /zastaveno/);
     connection.suspend();
   }
 });
 
-test('native reconnect backs off, remains an observer and explicit disconnect cancels retries', async () => {
+test('native reconnect stops after three retries and an explicit connect starts a fresh attempt', async () => {
   timers.clear();
   const native = bridge();
   const connection = new ProtocolDeviceConnection(() => {}, {
@@ -164,7 +165,7 @@ test('native reconnect backs off, remains an observer and explicit disconnect ca
     createSocket: () => new NativeControlSocket(native),
   });
   await settle();
-  for (const baseDelay of [500, 1000, 2000, 4000, 8000, 8000]) {
+  for (const baseDelay of [500, 1000, 2000]) {
     native.emit('closed');
     assert.equal(connection.snapshot().controlMode, 'observer');
     const [id, timer] = [...timers.entries()].at(-1);
@@ -174,8 +175,86 @@ test('native reconnect backs off, remains an observer and explicit disconnect ca
     await settle();
   }
   native.emit('closed');
+  assert.equal(timers.size, 0);
+  assert.match(connection.snapshot().status, /zastaveno/);
+  connection.connect();
+  await settle();
+  native.emit('closed');
+  assert.equal(timers.size, 1);
   connection.suspend();
   assert.equal(timers.size, 0);
+});
+
+test('native permanent failures stop retries and only allowlisted reasons reach the UI', async () => {
+  for (const reason of ['certificate_mismatch', 'authorization_rejected', 'protocol_error', 'tls_failed']) {
+    timers.clear();
+    const native = bridge();
+    const connection = new ProtocolDeviceConnection(() => {}, {
+      source: 'native-device', deviceId: fixture.deviceId,
+      createSocket: () => new NativeControlSocket(native),
+    });
+    await settle();
+    native.emit('closed', undefined, undefined, reason);
+    assert.equal(timers.size, 0);
+    assert.match(connection.snapshot().status, /zastaveno/);
+    assert.doesNotMatch(connection.snapshot().status, /simulátor/);
+    connection.suspend();
+  }
+  timers.clear();
+  const native = bridge();
+  const connection = new ProtocolDeviceConnection(() => {}, {
+    source: 'native-device', deviceId: fixture.deviceId,
+    createSocket: () => new NativeControlSocket(native),
+  });
+  await settle();
+  native.emit('closed', undefined, undefined, 'secret-token-or-url');
+  assert.doesNotMatch(connection.snapshot().status, /secret-token-or-url/);
+  assert.equal(timers.size, 1);
+  connection.suspend();
+});
+
+test('brief welcome connections cannot reset the retry limit but five seconds of snapshots can', async () => {
+  timers.clear();
+  now = 0;
+  const native = bridge();
+  const connection = new ProtocolDeviceConnection(() => {}, {
+    source: 'native-device', deviceId: fixture.deviceId,
+    createSocket: () => new NativeControlSocket(native),
+    parseFrame: frame => validateControlMessage(new TextEncoder().encode(frame)),
+  });
+  const welcome = async () => {
+    await settle(); native.emit('open'); await settle();
+    const hello = JSON.parse(native.sent.at(-1).frame);
+    native.emit('frame', JSON.stringify({ protocolVersion: 1, type: 'welcome',
+      requestMessageId: hello.messageId,
+      snapshot: { ...fixture, controlMode: 'standalone', controlLeaseId: null, activeCommandId: null },
+    }));
+  };
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await welcome();
+    now += 100;
+    native.emit('closed');
+    if (attempt < 3) {
+      const [id, timer] = [...timers.entries()].at(-1);
+      timers.delete(id); timer.callback();
+    }
+  }
+  assert.equal(timers.size, 0);
+  connection.connect();
+  await welcome();
+  native.emit('closed');
+  const [retryId, retryTimer] = [...timers.entries()].at(-1);
+  timers.delete(retryId); retryTimer.callback();
+  await welcome();
+  for (let seconds = 1; seconds <= 5; seconds++) {
+    now += 1000;
+    native.emit('frame', JSON.stringify({ ...fixture, controlMode: 'standalone', controlLeaseId: null,
+      activeCommandId: null, eventSequence: fixture.eventSequence + seconds, deviceUptimeMs: fixture.deviceUptimeMs + seconds * 1000 }));
+  }
+  native.emit('closed');
+  const retry = [...timers.values()].at(-1);
+  assert.ok(retry.milliseconds >= 400 && retry.milliseconds <= 600);
+  connection.suspend();
 });
 
 test('native voice settings and start use schema-validated device confirmation without a lease', async () => {
