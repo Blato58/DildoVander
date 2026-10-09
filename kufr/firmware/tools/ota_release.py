@@ -16,19 +16,30 @@ SLOT_SIZE = 0x640000
 
 def check_partitions(path):
     rows = []
-    for row in csv.reader(path.read_text(encoding='utf-8').splitlines()):
-        if not row or row[0].lstrip().startswith('#'):
-            continue
-        name, kind, subtype, offset, size = [value.strip() for value in row[:5]]
-        rows.append((name, kind, subtype, int(offset, 0), int(size, 0)))
-    required = {'nvs': ('data', 'nvs', 0x9000, 0x5000),
-                'otadata': ('data', 'ota', 0xe000, 0x2000),
-                'app0': ('app', 'ota_0', 0x10000, SLOT_SIZE),
-                'app1': ('app', 'ota_1', 0x650000, SLOT_SIZE),
-                'spiffs': ('data', 'spiffs', 0xc90000, 0x360000),
-                'coredump': ('data', 'coredump', 0xff0000, 0x10000)}
+    try:
+        for row in csv.reader(path.read_text(encoding='utf-8').splitlines(), strict=True):
+            if not row or (len(row) == 1 and not row[0].strip()) or row[0].lstrip().startswith('#'):
+                continue
+            # ESP-IDF permits an omitted flags field. Never ignore a seventh
+            # column: layout/flag changes require an explicit USB migration.
+            if len(row) not in {5, 6}:
+                raise ValueError('Expected five partition fields and optional flags')
+            name, kind, subtype, offset, size = [value.strip() for value in row[:5]]
+            flag_text = row[5].strip() if len(row) == 6 else ''
+            flags = [flag.strip() for flag in flag_text.split(':')] if flag_text else []
+            if any(flag not in {'encrypted', 'readonly'} for flag in flags) or len(set(flags)) != len(flags):
+                raise ValueError('Unknown, empty or duplicate partition flags')
+            rows.append((name, kind, subtype, int(offset, 0), int(size, 0), tuple(sorted(flags))))
+    except (csv.Error, ValueError) as error:
+        raise ValueError('Invalid partition table; initial USB migration must be reviewed') from error
+    required = {'nvs': ('data', 'nvs', 0x9000, 0x5000, ()),
+                'otadata': ('data', 'ota', 0xe000, 0x2000, ()),
+                'app0': ('app', 'ota_0', 0x10000, SLOT_SIZE, ()),
+                'app1': ('app', 'ota_1', 0x650000, SLOT_SIZE, ()),
+                'spiffs': ('data', 'spiffs', 0xc90000, 0x360000, ()),
+                'coredump': ('data', 'coredump', 0xff0000, 0x10000, ())}
     if len(rows) != len(required) or {row[0]: row[1:] for row in rows} != required:
-        raise ValueError('Partition layout changed; initial USB migration must be reviewed')
+        raise ValueError('Partition layout or flags changed; initial USB migration must be reviewed')
     ordered = sorted(rows, key=lambda row: row[3])
     for left, right in zip(ordered, ordered[1:]):
         if left[3] + left[4] > right[3]:

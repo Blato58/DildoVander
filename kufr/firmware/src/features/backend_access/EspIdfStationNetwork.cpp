@@ -145,8 +145,15 @@ void EspIdfStationNetwork::Run() {
   NetworkProfile attempt = profiles_.First();
   bool wasConnected = false;
   while (true) {
+    const uint32_t generationBeforeRequest = wifi_.IpGeneration();
     ProcessRequest();
     const int64_t now = esp_timer_get_time() / 1000;
+    if (wifi_.HasIp() && active_ == NetworkProfile::Fallback &&
+        wifi_.IpGeneration() != generationBeforeRequest) {
+      // Explicit fallback tests/configuration and successful rollbacks deserve
+      // a full quiet interval before probing the preferred network again.
+      nextPreferredProbe = now + 60000;
+    }
     if (wasConnected && !wifi_.HasIp()) { attempt = profiles_.First(); }
     wasConnected = wifi_.HasIp();
     const auto* attempted = profiles_.Get(attempt);

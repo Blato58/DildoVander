@@ -1,4 +1,5 @@
 import importlib.util
+import csv
 import os
 from pathlib import Path
 import shutil
@@ -43,6 +44,60 @@ class ReleaseTests(unittest.TestCase):
             stream.truncate(ota_release.SLOT_SIZE + 1)
         with self.assertRaises(ValueError):
             ota_release.check_image(self.image)
+
+    def partition_rows(self):
+        return [row for row in csv.reader(self.partitions.read_text().splitlines())
+                if row and not row[0].lstrip().startswith('#')]
+
+    def write_partition_rows(self, rows):
+        changed = self.root / 'partitions.csv'
+        with changed.open('w', newline='') as stream:
+            csv.writer(stream).writerows(rows)
+        return changed
+
+    def test_partition_encryption_flags_require_explicit_migration(self):
+        for partition in ('nvs', 'otadata', 'app0', 'app1', 'spiffs', 'coredump'):
+            for flag in ('encrypted', 'readonly', 'encrypted:readonly', 'readonly:encrypted'):
+                with self.subTest(partition=partition, flag=flag):
+                    rows = self.partition_rows()
+                    next(row for row in rows if row[0].strip() == partition)[5] = flag
+                    with self.assertRaisesRegex(ValueError, 'migration must be reviewed'):
+                        ota_release.check_partitions(self.write_partition_rows(rows))
+
+    def test_blank_or_omitted_flags_preserve_current_layout(self):
+        rows = self.partition_rows()
+        for row in rows:
+            row[5] = '   '
+        ota_release.check_partitions(self.write_partition_rows(rows))
+        ota_release.check_partitions(self.write_partition_rows([row[:5] for row in rows]))
+
+    def test_extra_partition_columns_and_rows_are_rejected(self):
+        for extra in ('', 'encrypted', 'ignored'):
+            with self.subTest(extra=extra):
+                rows = self.partition_rows()
+                rows[0].append(extra)
+                with self.assertRaisesRegex(ValueError, 'migration must be reviewed'):
+                    ota_release.check_partitions(self.write_partition_rows(rows))
+        rows = self.partition_rows()
+        rows.append(rows[0].copy())
+        with self.assertRaisesRegex(ValueError, 'migration must be reviewed'):
+            ota_release.check_partitions(self.write_partition_rows(rows))
+        rows = self.partition_rows()
+        rows.append(['unreviewed', 'data', '0x40', '0x8000', '0x1000', ''])
+        with self.assertRaisesRegex(ValueError, 'migration must be reviewed'):
+            ota_release.check_partitions(self.write_partition_rows(rows))
+
+    def test_invalid_partition_flags_and_short_rows_are_rejected(self):
+        for flag in ('unknown', 'encrypted:', ':readonly', 'encrypted::readonly', 'encrypted:encrypted'):
+            with self.subTest(flag=flag):
+                rows = self.partition_rows()
+                rows[0][5] = flag
+                with self.assertRaisesRegex(ValueError, 'migration must be reviewed'):
+                    ota_release.check_partitions(self.write_partition_rows(rows))
+        rows = self.partition_rows()
+        rows[0] = rows[0][:4]
+        with self.assertRaisesRegex(ValueError, 'migration must be reviewed'):
+            ota_release.check_partitions(self.write_partition_rows(rows))
 
     def test_real_development_signing_and_corruption(self):
         executable = os.environ.get('OPENSSL') or shutil.which('openssl')

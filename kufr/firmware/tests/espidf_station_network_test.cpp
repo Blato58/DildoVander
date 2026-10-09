@@ -9,6 +9,8 @@ TaskFunction_t task;
 void* argument;
 bool ip = false, gateAllowed = true, reserved = false, legacy = true, stored = false, saveFails = false;
 int64_t clockMs = 0, stopAt = 0;
+uint32_t ipGeneration = 0;
+void (*delayHook)() = nullptr;
 NetworkProfileRecord saved;
 std::vector<std::string> attempts;
 std::string selected;
@@ -43,10 +45,11 @@ bool EspIdfWifiStation::Select(const char* ssid, const char*) {
 }
 void EspIdfWifiStation::Disconnect() { ip = false; }
 bool EspIdfWifiStation::HasIp() const { return ip; }
-uint32_t EspIdfWifiStation::IpGeneration() const { return 7; }
+uint32_t EspIdfWifiStation::IpGeneration() const { return ipGeneration; }
 bool EspIdfWifiStation::ConnectAndWait(uint32_t timeoutMs) {
   assert(timeoutMs == 15000 && reserved);
   ip = selected != "bad-password";
+  if (ip) { ++ipGeneration; }
   return ip;
 }
 BaseType_t xTaskCreate(TaskFunction_t entry, const char* name, uint32_t stack, void* context,
@@ -56,6 +59,7 @@ BaseType_t xTaskCreate(TaskFunction_t entry, const char* name, uint32_t stack, v
 }
 void vTaskDelete(TaskHandle_t) {}
 void vTaskDelay(TickType_t ticks) {
+  if (delayHook != nullptr) { delayHook(); return; }
   clockMs += ticks;
   if (clockMs >= stopAt) { throw EndTest{}; }
 }
@@ -69,6 +73,46 @@ void Release(void*) { assert(reserved); reserved = false; }
 void RunFor(int64_t duration) {
   stopAt = clockMs + duration;
   try { task(argument); assert(false); } catch (const EndTest&) {}
+}
+EspIdfStationNetwork* regressionStation = nullptr;
+unsigned regressionStage = 0;
+void VerifyExplicitFallbackProbeDelay() {
+  switch (regressionStage++) {
+    case 0:
+      assert(attempts.size() == 1 && attempts.back() == "owner-hotspot");
+      clockMs = 61000; // The automatic probe deadline has already expired.
+      assert(regressionStation->Configure(NetworkProfile::Fallback, "verified-fallback", "fallback-password"));
+      return;
+    case 1:
+      assert(attempts.size() == 2 && attempts.back() == "verified-fallback");
+      assert(regressionStation->Status().active == NetworkProfile::Fallback);
+      assert(regressionStation->Status().result == std::string("connected"));
+      clockMs = 121001;
+      assert(regressionStation->Test(NetworkProfile::Fallback));
+      return;
+    case 2:
+      assert(attempts.size() == 3 && attempts.back() == "verified-fallback");
+      assert(regressionStation->Status().active == NetworkProfile::Fallback);
+      assert(regressionStation->Status().result == std::string("connected"));
+      clockMs = 181002;
+      assert(regressionStation->Configure(NetworkProfile::Hotspot, "bad-password", "wrong-password"));
+      return;
+    case 3:
+      assert(attempts.size() == 5 && attempts[3] == "bad-password" && attempts[4] == "verified-fallback");
+      assert(regressionStation->Status().active == NetworkProfile::Fallback);
+      assert(regressionStation->Status().result == std::string("connection_failed"));
+      clockMs = 241001; // 59999 ms since the successful rollback.
+      return;
+    case 4:
+      assert(attempts.size() == 5 && regressionStation->Status().active == NetworkProfile::Fallback);
+      assert(regressionStation->Status().result == std::string("connection_failed"));
+      clockMs = 241003; // Automatic preference probing resumes after 60000 ms.
+      return;
+    default:
+      assert(attempts.size() == 6 && attempts.back() == "owner-hotspot");
+      assert(regressionStation->Status().active == NetworkProfile::Hotspot);
+      throw EndTest{};
+  }
 }
 int main() {
   EspIdfStationNetwork noNvs;
@@ -123,4 +167,16 @@ int main() {
   RunFor(1200);
   assert(attempts.size() == 2 && attempts[0] == "bad-password" && attempts[1] == "event-wifi");
   assert(fallback.HasIp() && fallback.Status().active == NetworkProfile::Fallback);
+  ip = false;
+  clockMs = 0;
+  assert(NetworkProfiles::MakeCandidate("owner-hotspot", "hotspot-password", saved.hotspot));
+  attempts.clear();
+  EspIdfStationNetwork explicitFallback;
+  explicitFallback.SetChangeGate({Acquire, Release, nullptr});
+  assert(explicitFallback.Start(true));
+  regressionStation = &explicitFallback;
+  delayHook = VerifyExplicitFallbackProbeDelay;
+  try { task(argument); assert(false); } catch (const EndTest&) {}
+  delayHook = nullptr;
+  assert(regressionStage == 6);
 }
