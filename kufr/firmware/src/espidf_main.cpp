@@ -357,6 +357,11 @@ extern "C" void app_main() {
   bool hardwareFaultHandled = false;
   uint64_t buttonChangedAt = 0, buttonPressedAt = 0;
   ESP_LOGI(LogTag, "ESP-IDF control loop started; physical outputs require verified service configuration");
+  static_assert(CONFIG_ESP_MAIN_TASK_STACK_SIZE >= 16384,
+                "TLS identity startup requires at least 16 KiB of main task stack");
+  ESP_LOGI(LogTag, "Main task stack: configured %u bytes, minimum remaining %u bytes",
+           static_cast<unsigned>(CONFIG_ESP_MAIN_TASK_STACK_SIZE),
+           static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
 
   while (true) {
     std::unique_lock<std::mutex> maintenanceLock(maintenance.mutex);
