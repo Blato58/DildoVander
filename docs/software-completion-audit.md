@@ -40,6 +40,11 @@ still fail. PC Bonjour and unauthenticated TLS are reachable; phone token/pin,
 stable WSS and Keychain retention remain unverified. Exact delivery and acceptance
 are tracked in [implementation status](../kufr/docs/stav-implementace.md#předání-další-ai).
 
+The later direct-IP test reached the device service-state UI; source emits that
+only after a valid snapshot, so this is evidence of a direct-IP WSS connection.
+The hostname timed out. Hardware/calibration remains gated; automatic address
+selection and long-running WSS/Keychain checks remain open.
+
 **Historical D164 handoff.**
 [PR161](https://github.com/Blato58/DildoVander/pull/161) merged as
 `12efd65fa40d12cda2c6041e7590b10c600d772c`;
@@ -191,8 +196,9 @@ Exact final commands, results, commits and live publication are recorded in
 build/live-server or outstanding physical checks. Its D158/D159 results remain
 historical evidence. D164 adds the explicitly recorded USB recovery, boot,
 PC BLE scan and owner-confirmed iPhone connection above. That connection predates
-forgetting and is not D165 recovery acceptance. Long-running WSS, physical recovery,
-post-update Keychain, OTA-negative and full-event acceptance remain pending.
+forgetting. D165 subsequently adds owner-confirmed re-pairing and a valid-device
+service-state UI after using the direct IP; hostname discovery/connection still fail.
+Long-running WSS, post-update Keychain, OTA-negative and full-event acceptance remain pending.
 
 Software tests cannot establish actual CoreBluetooth/radio coexistence, iPhone
 hotspot behavior, power-loss rollback, NVS physical security, measured servo
