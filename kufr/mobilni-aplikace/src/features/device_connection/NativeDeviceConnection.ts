@@ -13,7 +13,7 @@ export interface SavedNativeDevice {
 
 interface KufrNativeBridge extends NativeTransportBridge {
   savedDevice(): Promise<SavedNativeDevice>;
-  discover(): Promise<{ failed: boolean; devices: { deviceId: string; host: string; capabilities: string[] }[] }>;
+  discover(): Promise<{ failed: boolean; bleAddressAvailable?: boolean; devices: { deviceId: string; host: string; capabilities: string[] }[] }>;
   setAddress(options: { host: string }): Promise<void>;
   pair(options: { deviceId: string; host: string; spkiSha256: string }): Promise<{ deviceId: string; host: string }>;
   forget(): Promise<void>;

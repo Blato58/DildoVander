@@ -6,6 +6,23 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D166 – převzato 9. 10. 2026: automatická IPv4 ze Security1 BLE.**
+Majitel potvrdil hostname timeout, ale přímá IP 192.168.0.59 vrací servisní
+stav po validním snapshotu. Volitelné n.ip je nyní implementované s IP generation/HasIp recheck a 512B
+fallbackem, který vynechá pouze optional IP. Nativní session/ID hint má 60s
+platnost, odmítá stale update/disconnect a změnu ID, staré provisioning ID stále
+umožní Wi-Fi provisioning. Ruční adresa má přednost; pin/token a hardwarové gates
+zůstávají. Keychain route write je stále pouze v onOpen po připnutém auth WSS.
+Discovery zachová Bonjour failed a zvlášť oznámí dostupnost BLE adresy.
+
+Ověřeno: dvě MSVC station suites (worker /std:c++14 /W4 /WX), pět parent host
+suites pairing/TLS/BLE/discovery/WSS, 43 mobile tests, npm run build a
+pio run -e esp32-s3-idf -s, vše exit0. Native helper/status regressions jsou
+připravené pro existující macOS workflow; Windows je nespustil. Nezávislé native
+review odhalilo a následně ověřilo opravený legacy ID regression; kombinované
+firmware/native nezávislé review prošlo bez zbývajících findings. CI, native build, publikace a USB D166 dosud neprovedeny.
+D165 níže je historická doložená dodávka.
+
 **D165 – 9. 10. 2026 – obnova opakovaného párování po Zapomenout párování.**
 Majitel po úspěšném D164 připojení zapomněl párování a nové BLE párování vracelo
 already_paired. Native forget maže pouze Keychain; firmware ponechá hash.

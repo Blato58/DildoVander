@@ -186,6 +186,10 @@ void EspIdfBleProvisioning::AddStatus(cJSON* response) {
   cJSON_AddStringToObject(network, "l", ProfileName(status.lastSuccessful));
   cJSON_AddStringToObject(network, "h", status.hotspotSsid);
   cJSON_AddStringToObject(network, "f", status.fallbackSsid);
+  const std::string ip = station_.CurrentIpv4();
+  if (std::strcmp(status.phase, "connected") == 0 && !ip.empty()) {
+    cJSON_AddStringToObject(network, "ip", ip.c_str());
+  }
   if (callbacks_.status != nullptr) { callbacks_.status(response, callbacks_.context); }
   if (cJSON_GetObjectItemCaseSensitive(response, "b") == nullptr) {
     cJSON_AddBoolToObject(response, "b", false);
@@ -294,7 +298,17 @@ esp_err_t EspIdfBleProvisioning::Handle(uint32_t, const uint8_t* input, ssize_t 
   NetworkProfiles::Wipe(buffer, sizeof(buffer));
   if (serialized == nullptr) { return ESP_ERR_NO_MEM; }
   if (response == nullptr) { std::free(serialized); return ESP_ERR_INVALID_ARG; }
-  const bool printed = cJSON_PrintPreallocated(response, serialized, SerializedCapacity, false);
+  bool printed = cJSON_PrintPreallocated(response, serialized, SerializedCapacity, false);
+  if (!printed || std::strlen(serialized) > 512) {
+    auto* network = cJSON_GetObjectItemCaseSensitive(response, "n");
+    if (cJSON_GetObjectItemCaseSensitive(network, "ip") != nullptr) {
+      // The optional address hint must not make an existing status exceed its
+      // wire limit. Preserve all original fields and the pairing token response.
+      cJSON_DeleteItemFromObjectCaseSensitive(network, "ip");
+      NetworkProfiles::Wipe(serialized, SerializedCapacity);
+      printed = cJSON_PrintPreallocated(response, serialized, SerializedCapacity, false);
+    }
+  }
   auto* token = cJSON_GetObjectItemCaseSensitive(response, "token");
   if (cJSON_IsString(token)) {
     NetworkProfiles::Wipe(token->valuestring, std::strlen(token->valuestring));

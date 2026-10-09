@@ -13,6 +13,41 @@ func waitUntil(_ condition: () -> Bool) {
     check(condition(), "Native test deadline")
 }
 
+let firstAddressSession = UUID()
+let nextAddressSession = UUID()
+let hintTime = Date()
+let hintIdentity = LocalDeviceIdentity(deviceId: "kufr-1", host: "kufr.local",
+    spkiSha256: String(repeating: "a", count: 64), token: String(repeating: "b", count: 64))
+LocalDeviceAddressHints.begin(session: firstAddressSession)
+check(LocalDeviceAddressHints.update(session: firstAddressSession, deviceId: "kufr-1",
+    address: "192.168.0.59", now: hintTime), "Bind secured session address")
+check(LocalDeviceAddressHints.host(deviceId: "kufr-1", now: hintTime) == "192.168.0.59", "Current hint")
+check(LocalDeviceAddressHints.host(deviceId: "kufr-2", now: hintTime) == nil, "No cross-device hint")
+check(LocalDeviceAddressHints.host(deviceId: "kufr-1", now: hintTime.addingTimeInterval(61)) == nil, "Expire hint")
+check(LocalDeviceAddressHints.selectedHost(manual: nil, identity: hintIdentity) == "192.168.0.59", "Prefer secured address")
+check(LocalDeviceAddressHints.selectedHost(manual: "192.168.0.60", identity: hintIdentity) == "192.168.0.60", "Manual address first")
+check(!LocalDeviceAddressHints.update(session: firstAddressSession, deviceId: "kufr-2",
+    address: "192.168.0.61"), "Session device ID must not change")
+LocalDeviceAddressHints.begin(session: nextAddressSession)
+check(LocalDeviceAddressHints.update(session: nextAddressSession, deviceId: "kufr-1", address: "192.168.0.62"), "New session")
+check(!LocalDeviceAddressHints.update(session: firstAddressSession, deviceId: "kufr-1", address: "192.168.0.59"), "Reject stale update")
+LocalDeviceAddressHints.end(session: firstAddressSession)
+check(LocalDeviceAddressHints.host(deviceId: "kufr-1") == "192.168.0.62", "Stale disconnect preserves new session")
+let clearedAddresses: [String?] = [nil, "not-an-ip"]
+for clearedAddress in clearedAddresses {
+    check(LocalDeviceAddressHints.update(session: nextAddressSession, deviceId: "kufr-1", address: clearedAddress), "Clear absent/invalid route")
+    check(LocalDeviceAddressHints.host(deviceId: "kufr-1") == nil, "Cleared route")
+}
+LocalDeviceAddressHints.end(session: nextAddressSession)
+check(LocalDeviceAddressHints.selectedHost(manual: nil, identity: hintIdentity) == "kufr.local", "Stored hostname fallback")
+
+let legacySession = UUID()
+LocalDeviceAddressHints.begin(session: legacySession)
+check(LocalDeviceAddressHints.update(session: legacySession, deviceId: "kufr_1", address: "192.168.0.59"),
+      "Legacy provisioning identity remains usable")
+check(LocalDeviceAddressHints.host(deviceId: "kufr_1") == nil, "Legacy ID cannot supply control route")
+LocalDeviceAddressHints.end(session: legacySession)
+
 let directory = CommandLine.arguments[1]
 let port = Int(CommandLine.arguments[2])!
 let discoveryTxt = ["deviceId": "test-kufr", "protocol": "1",
@@ -259,7 +294,8 @@ func testSocket(_ message: String, expectedPin: String, token: String, receivesF
     var done = false
     var received = false
     var closeCount = 0
-    transport.onOpen = { transport.send(message) { _ in } }
+    var openCount = 0
+    transport.onOpen = { openCount += 1; transport.send(message) { _ in } }
     transport.onFrame = { frame in
         check(receivesFrame && frame == message, "Unexpected WSS frame")
         received = true
@@ -276,6 +312,9 @@ func testSocket(_ message: String, expectedPin: String, token: String, receivesF
         if !expectedFailures.isEmpty {
             check(expectedFailures.contains(transport.failureCode!), "Expected WSS failure code")
         }
+    }
+    if expectedFailures.contains(.certificateMismatch) || expectedFailures.contains(.authorizationRejected) {
+        check(openCount == 0, "Failed pin/auth must not invoke the Keychain route persistence boundary")
     }
     let failure = transport.failureCode
     transport.close()

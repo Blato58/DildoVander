@@ -45,7 +45,7 @@ public class KufrDeviceTransportPlugin: CAPPlugin, CAPBridgedPlugin {
             do {
                 if let identity = try self.keychain.read() {
                     call.resolve(["paired": true, "deviceId": identity.deviceId,
-                                  "host": self.selectedHost ?? identity.host])
+                                  "host": LocalDeviceAddressHints.selectedHost(manual: self.selectedHost, identity: identity)])
                 } else {
                     call.resolve(["paired": false])
                 }
@@ -67,9 +67,19 @@ public class KufrDeviceTransportPlugin: CAPPlugin, CAPBridgedPlugin {
             self.discovery = discovery
             discovery.start { [weak self] devices, failed in
                 self?.discovery = nil
-                call.resolve(["failed": failed, "devices": devices.map {
+                var candidates = devices.map {
                     ["deviceId": $0.deviceId, "host": $0.host, "capabilities": $0.capabilities] as [String: Any]
-                }])
+                }
+                // Keep the Bonjour failure visible; secured BLE supplies a separate route.
+                var bleAddressAvailable = false
+                if let self, let identity = try? self.keychain.read(),
+                   let host = LocalDeviceAddressHints.host(deviceId: identity.deviceId) {
+                    candidates.removeAll { $0["deviceId"] as? String == identity.deviceId }
+                    candidates.insert(["deviceId": identity.deviceId, "host": host,
+                                       "capabilities": [String]()], at: 0)
+                    bleAddressAvailable = true
+                }
+                call.resolve(["failed": failed, "bleAddressAvailable": bleAddressAvailable, "devices": candidates])
             }
         }
     }
@@ -189,7 +199,7 @@ public class KufrDeviceTransportPlugin: CAPPlugin, CAPBridgedPlugin {
                     call.reject("Nejprve spárujte kufr.", "not_paired")
                     return
                 }
-                let host = self.selectedHost ?? identity.host
+                let host = LocalDeviceAddressHints.selectedHost(manual: self.selectedHost, identity: identity)
                 let transport = LocalDeviceTransport(host: host, pin: identity.spkiSha256)
                 self.transport = transport
                 self.connectionId = id

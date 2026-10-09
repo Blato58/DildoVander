@@ -8,6 +8,7 @@ export type ProvisioningStatus = {
   firmwareVersion: string;
   network: {
     phase: string;
+    ipv4?: string;
     activeProfile: string;
     lastSuccessfulProfile: string;
     result: string;

@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <atomic>
+#include <string>
 
 #include "esp_event.h"
 #include "esp_netif.h"
@@ -24,6 +25,8 @@ class EspIdfWifiStation final {
   bool ConnectAndWait(uint32_t timeoutMs);
   bool HasIp() const;
   uint32_t IpGeneration() const;
+  // Empty while offline or if the address generation changes during sampling.
+  std::string CurrentIpv4() const;
 
  private:
   static void OnEvent(void* argument, esp_event_base_t eventBase,

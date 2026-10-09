@@ -350,7 +350,7 @@ async function initializeNativeAsync(): Promise<void> {
       Níže zůstává ruční párování podle servisního QR.</p>
     <button type="button" data-native="discover">Hledat kufr v síti (5 s)</button>
     <p>Telefon a kufr musí být ve stejné místní síti. Nalezené údaje jsou jen vodítko;
-      identitu ověřuje otisk z QR. Bez nálezu zadejte IP nebo nastavte DHCP rezervaci v routeru.</p>
+      identitu ověřuje uložený otisk. Připojení přes zabezpečené BLE v Síť kufru doplní aktuální IP automaticky.</p>
     <div data-discovery-results></div>
     <form>
       <label>Adresa v místní síti<input name="host" autocomplete="off" autocapitalize="none" required maxlength="253" placeholder="192.168.1.50"></label>
@@ -452,7 +452,11 @@ async function initializeNativeAsync(): Promise<void> {
       status.textContent = 'Hledám kufr v místní síti, nejvýše 5 sekund…';
       const result = await nativeBridge.discover();
       const devices = result.devices.filter((device) => !paired || device.deviceId === savedDeviceId);
-      status.textContent = result.failed
+      status.textContent = result.bleAddressAvailable && devices.length > 0
+        ? (result.failed
+          ? 'Místní hledání není dostupné. Adresa spárovaného kufru je dostupná přes zabezpečené Bluetooth; můžete se připojit.'
+          : 'Adresa spárovaného kufru je dostupná přes zabezpečené Bluetooth; můžete se připojit.')
+        : result.failed
         ? 'Místní hledání není dostupné. Povolte aplikaci místní síť v Nastavení, ověřte Wi-Fi nebo zadejte IP.'
         : devices.length === 0
           ? 'Za 5 sekund nebyl nalezen odpovídající kufr. Telefon i kufr musí být ve stejné síti; kufr musí mít také servisně nastavenou místní TLS identitu a párování. Samotné BLE nastavení Wi-Fi nestačí. U připraveného kufru lze zadat IP.'
