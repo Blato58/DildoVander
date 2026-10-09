@@ -12,7 +12,7 @@
     "wall_back": 3,
     "floor_thickness": 3,
     "brace_height": 5,
-    "brace_depth": 30,
+    "brace_depth": 90,
     "brace_y_fraction": 0.5,
     "lid_inside_height": 30,
     "lid_top_thickness": 3,
@@ -24,9 +24,9 @@
   },
   "mechanism": {
     "count": 6,
-    "pitch": 50,
+    "pitch": 49,
     "tray_length": 240,
-    "tray_floor": 52,
+    "tray_floor": 44,
     "base_z": 10,
     "wand_length": 200,
     "wand_head_diameter": 40,
@@ -46,9 +46,9 @@
     "case_inside": "OWNER CONFIRMED: rozmery-doruceneho-kufru.md, 2026-10-09",
     "brace_height": "OWNER CONFIRMED: 5 mm",
     "walls": "OWNER DESIGN CHOICE in this task: use 3 mm; not a measurement",
-    "floor_lid_hinges_hardware": "PROVISIONAL: photos not attached to this task; nominal reconstructable geometry",
-    "brace_footprint": "PROVISIONAL: across X at middle of Y, 30 mm deep",
-    "wand": "PROVISIONAL: prior photograph record 190-200 mm; diameters not measured",
+    "floor_lid_hinges_hardware": "Photos supplied 2026-10-09: broad transverse battens, two rear hinges, two front locks, leather handle. Exterior dimensions remain provisional.",
+    "brace_footprint": "Conservative design allowance: 90 mm across the middle of Y, spans X; photograph establishes orientation, not a measured width.",
+    "wand": "Supplier image supplied 2026-10-09 states about 190-200 mm. Decorative projecting head; 40 mm head and 16 mm shaft remain conservative unmeasured envelopes. Mass unknown.",
     "component_dimensions": "Primary: ../rozmery-nakoupenych-soucastek.md; identical to user-specified f0e4 file",
     "printer": "PROVISIONAL configurable working volume; must be set before slicing"
   }

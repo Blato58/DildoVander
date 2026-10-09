@@ -2,10 +2,12 @@
 import sys
 from pathlib import Path
 import unittest
+import copy
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from common import bounds, load_parameters, overlap
-from printable.mechanics import build, mechanics_parameters, pose, print_shape, verification
+from common import bounds, box, load_parameters, overlap
+from printable.mechanics import build, mechanics_parameters, pose, print_shape, verification, transport
+from scripts.validate import pairs
 
 
 class MechanicsTests(unittest.TestCase):
@@ -47,10 +49,44 @@ class MechanicsTests(unittest.TestCase):
         self.assertAlmostEqual(b.zlen, 4, places=6)
 
     def test_front_and_rear_floor_attachment_positions(self):
-        pads = [i for i in self.items if i.part == "base_floor_pad" and i.metadata["module"] == 1]
+        pads = [i for i in self.items if i.part == "module_foot" and i.metadata["module"] == 1]
         self.assertEqual(len(pads), 2)
         self.assertEqual(sorted(round(i.shape.BoundingBox().center.y, 2) for i in pads), [23.35, 243.35])
         self.assertTrue(all(abs(bounds(i.shape)[2] - 2) < 1e-6 for i in pads))
+
+    def test_long_parts_have_a_real_bed_contact_floor(self):
+        for name in ("module_chassis", "wand_tray"):
+            printed = print_shape(name, self.parts[name], self.p)
+            slab = box(250, 250, .2)
+            # Reject a normalization that puts a lone lug on the bed and leaves
+            # the actual long deck suspended above it.
+            self.assertGreater(printed.intersect(slab).Volume() / .2, 8000, name)
+
+    def test_empty_transport_wraps_clear_leds_and_fit_neighbours(self):
+        travel = transport(self.p, self.items)
+        self.assertFalse(any(i.kind == "wand" for i in travel))
+        self.assertEqual(len([i for i in travel if i.group == "transport"]), 6)
+        self.assertEqual(pairs(travel)["collisions"], [])
+
+    def test_wand_parameter_changes_the_actual_envelope(self):
+        p = copy.deepcopy(self.p)
+        p["mechanism"]["wand_length"] = 190
+        _, items, _ = build(p)
+        wand = [bounds(i.shape) for i in items if i.kind == "wand" and i.metadata["module"] == 1]
+        self.assertAlmostEqual(max(b[4] for b in wand) - min(b[1] for b in wand), 190)
+        p["mechanism"]["wand_length"] = 300
+        with self.assertRaises(ValueError):
+            build(p)
+
+    def test_changed_base_height_retains_wood_contact(self):
+        p = copy.deepcopy(self.p)
+        p["mechanism"]["base_z"] = 12
+        _, items, _ = build(p)
+        pads = [i for i in items if "case_hook_loop" in i.name]
+        self.assertEqual(len(pads), 12)
+        self.assertTrue(all(abs(bounds(i.shape)[2]) < 1e-6 for i in pads))
+        feet = [i for i in items if i.part == "module_foot"]
+        self.assertTrue(all(abs(bounds(i.shape)[2] - 2) < 1e-6 for i in feet))
 
 
 if __name__ == "__main__":

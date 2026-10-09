@@ -6,7 +6,32 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
-**9. 10. 2026 – parametrická CAD sestava doručeného kufru, lokální prototyp.**
+**9. 10. 2026 – zjednodušení CAD podle fotografií a požadavku na transport.**
+Nová aktuální verze v `kufr/mechanika/cad/` má 18 typů STL / 56 výtisků včetně
+měrky (předchozí 56 / 162). Jednodílné základny a lůžka, integrovaná V sedla,
+U059 na horní ploše, čtyři boční kazety, klíčované vlepené patky a suchý zip
+k dřevu. Prázdná lůžka mají šest samostatných transportních pásků; hůlky a banka
+se pro přenášení vyjmou. Horní můstky jistí samostatné modelované obvodové pásky.
+Dlouhé výtisky využívají úhlopříčku pracovní220mm podložky, panely/můstky se
+tisknou střechou dolů. Fotografie nově dokládají širokou příčnou lať a ozdobné
+hůlky190–200 mm; 90mm rezerva latě a průměry16/40 zůstávají předpoklady.
+
+Provedeno: 9 mechanických +5 integračních regresí; 11 servisních STL a19
+retenčních sad; celá sestava, transport, vytažení banky, 106 poloh víka,
+101 kinematických a21 materiálových poloh bez zjištěné kolize. Skutečný export
+18 STL/STEP, 5 referenčních a9 montážních STEP, 40 hardwarových STEP, 9 PNG a2
+HTML náhledy. STEP/STL načtené zpět, SHA a ZIP CRC ověřené regeneračním příkazem.
+Nezávislé read-only review vyústilo v opravu parametrizace hůlky a dosednutí
+patek, cílené testy prošly. Modelování dělal výhradně hlavní agent.
+
+Podrobný [report](../mechanika/cad/docs/overeni.md), [montáž a přenášení](../mechanika/cad/docs/montaz.md)
+a [evidence fotografií](../mechanika/cad/docs/fotografie-a-omezeni.md).
+Únosnost suchého zipu/lepení, hmotnost hůlek, servo síla, fyzický pohyb, uzavření
+se skutečnou kabeláží a přenášení zůstávají fyzickou přejímkou; CAD ji nenahrazuje.
+Další krok je měrka a jedna přihrádka, potom zkouška uchycení podle návodu.
+Bez změn firmware/backendu/hardwaru. Lokální předání, zákaz push trvá.
+
+**9. 10. 2026 – první CAD verze, nahrazená zjednodušením výše.**
 Rozsah tohoto zadání je mechanika: společný referenční model, osazení,
 šest přihrádek, servisní držáky, STL a montážní dokumentace v
 `kufr/mechanika/cad/`. Potvrzený vnitřek 431,8 × 266,7 × 114,3 mm;

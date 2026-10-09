@@ -56,7 +56,7 @@ def export_parts(p, parts, instances, mech_names):
             raise ValueError(f"Uninstanced production part in BOM: {name}")
         if not shape.isValid() or len(shape.Solids()) != 1 or shape.Volume() <= 0:
             raise ValueError(f"Invalid/disconnected printable: {name}")
-        printed = mechanics.print_shape(name, shape, p) if name in mech_names else shape
+        printed = mechanics.print_shape(name, shape, p) if name in mech_names else service.print_shape(name, shape)
         b = bounds(printed)
         printed = printed.translate(tuple(-x for x in b[:3]))
         b = bounds(printed)
@@ -140,13 +140,8 @@ def main():
     reference_report = validate_and_export(p, ROOT)
     print("A PASS: reference case", flush=True)
     mech_parts, mech_items, mech_meta = mechanics.build(p)
-    # Legacy clip is superseded by the front-rail mounted cross-bundle clip.
-    mech_parts.pop("cable_clip")
     service_parts, service_items, service_meta = service.build(p)
-    floor_holes = service_meta.get("floor_mounting_holes", [])
-    if not floor_holes:
-        floor_holes = [hole for mount in service_meta["mounts"] for hole in mount["mounting_holes"] if abs(hole[2] - 8) < .01]
-    frame_parts, frame_items, frame_meta = frame.build(p, floor_holes)
+    frame_parts, frame_items, frame_meta = frame.build(p, service_meta["feet"])
     all_parts = {**mech_parts, **service_parts, **frame_parts}
     if len(all_parts) != len(mech_parts) + len(service_parts) + len(frame_parts):
         raise ValueError("Printable part name collision")
@@ -160,6 +155,10 @@ def main():
     mechanical_report = mechanics.verification(p)
     print("D: mechanics verified", flush=True)
     static_report = validate.pairs(contents, service_meta.get("intended_collision_pairs", []))
+    transport_items = mechanics.transport(p, contents)
+    transport_report = validate.pairs(transport_items)
+    transport_lid_hits = check_lid(p, lid, transport_items)
+    transport_boundary = validate.containment(transport_items, p)
     boundary_failures = validate.containment(contents, p)
     wood_hits = []
     for a in body:
@@ -223,6 +222,9 @@ def main():
         if vol > .001:
             sightline_hits.append([item.name, round(vol, 4)])
     report = dict(reference=reference_report, mechanics=mechanical_report,
+                  transport={"rigid_pairs": transport_report, "lid_intersections": transport_lid_hits,
+                             "containment_failures": transport_boundary, "empty_tray_wraps": 6,
+                             "wands_and_powerbank_removed": True, "physical_carry_test": "NOT RUN"},
                   runtime={"python": sys.version.split()[0], "cadquery": cq.__version__},
                   static=static_report, containment_failures=boundary_failures,
                   wood_intersections=wood_hits, lid_sweep_intersections=lid_hits,
@@ -238,6 +240,7 @@ def main():
                             "strength_and_servo_torque": "physical acceptance required",
                             "hardware_fasteners": "mechanism envelopes present; side mounting screws not fully modelled"})
     failures = static_report["collisions"] + boundary_failures + wood_hits + lid_hits + moving_hits + extraction_hits + route_hits + local_access_hits + sightline_hits
+    failures += transport_report["collisions"] + transport_lid_hits + transport_boundary
     report["status"] = "FAIL" if failures else "PASS_NOMINAL_RIGID_GEOMETRY"
     write_json(ROOT / "assemblies" / "validation.json", report)
     if failures:
@@ -253,6 +256,8 @@ def main():
     stl_report = export_parts(p, all_parts, contents, set(mech_parts))
     assembly(body + opened_lid + physical(contents), ROOT / "assemblies" / "complete-open.step")
     assembly(body + lid + physical(contents), ROOT / "assemblies" / "complete-closed.step")
+    assembly(body + lid + transport_items, ROOT / "assemblies" / "transport-closed.step")
+    assembly(body + opened_lid + transport_items, ROOT / "assemblies" / "transport-open.step")
     raised = mechanics.pose(p, mech_items, mech_meta["parameters"]["angle_high_deg"], module=3)
     assembly(body + opened_lid + physical(frame_items + service_items + raised), ROOT / "assemblies" / "presentation.step")
     assembly(physical(frame_items + service_items), ROOT / "assemblies" / "service-layer.step")
@@ -300,10 +305,12 @@ def main():
             ("06-closed", body + lid + contents, "06 / Closed transport envelope", False),
             ("07-exploded", body + [i.translated((0, 0, 100)) for i in opened_lid] + exploded, "07 / Exploded assembly", False),
             ("08-service", frame_items + service_items, "08 / Removable service structure", False),
+            ("09-transport", body + transport_items, "09 / Transport - wands and bank removed, trays strapped", True),
         ]
         for name, objects, title, top in scenes:
             render.png(objects, ROOT / "renders" / f"{name}.png", title, top)
         render.html(body + opened_lid + contents, ROOT / "renders" / "viewer.html")
+        render.html(body + opened_lid + transport_items, ROOT / "renders" / "viewer-transport.html")
     report.update(stl_count=len(stl_report), assembly_instance_count=len(contents), exported=True,
                   renders_exported=not args.skip_renders)
     write_json(ROOT / "assemblies" / "validation.json", report)

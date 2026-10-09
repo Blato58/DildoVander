@@ -1,159 +1,110 @@
-# CAD doručeného kufru
+# CAD doručeného kufru – jednoduchá modulární verze
 
-Parametrická sestava pro potvrzený vnitřek **431,8 × 266,7 × 114,3 mm**.
-Všechno osazení je ve spodní části; víko zůstává prázdné. **Návrh je
-prototypový: ověření geometrie není potvrzením fyzické montáže ani uvolněním
-celé sady k výrobě.** Stěny 3 mm jsou výslovná návrhová volba majitele.
+Skutečná parametrická sestava pro vnitřek **431,8 × 266,7 × 114,3 mm**.
+Vše je ve spodní části kufru, víko zůstává prázdné. Python/CadQuery 2.7 a JSON
+jsou editovatelné zdroje; STEP jsou přesné pojmenované BREP sestavy, STL skutečné
+objemové exporty. Import STEP do FreeCADu nevytváří jeho nativní strom operací.
 
-Používáme existující **CadQuery 2.7 / OpenCascade**, nikoli nový CAD systém.
-Python a JSON jsou editovatelné parametrické zdroje. STEP obsahuje pojmenované
-samostatné díly; po importu do FreeCADu jde o přesné BREP, ne o nativní strom
-FreeCAD parametrických operací. STL jsou skutečně exportované objemové díly.
+Nová verze nahrazuje dělené lišty a šroubovaný rack: **18 typů STL, 56 výtisků
+včetně jedné měrky** místo původních 56 typů / 162 výtisků. Šest samostatných
+mechanismů a čtyři boční kazety se připevní suchým zipem. Drobné patky se jednou
+vlepí do vodicích kapes; při servisu se vyjímá celý modul. Transport je navržen
+**bez hůlek a powerbanky**, s páskem kolem každého prázdného lůžka.
+
+**Stav: geometricky ověřovaný prototyp, fyzická přejímka dosud neprovedena.**
+Fotografie určují konstrukční uspořádání a dodavatelský údaj délky hůlky
+190–200 mm. Průměry, hmotnost, lepidlo na skutečném dřevě a tiskárna zůstávají
+neověřené. Tisk první přihrádky a zkouška uchycení předchází tisku celé sady.
 
 ## Otevření výsledků
 
-- [Otočný náhled, filtrování kategorií a jednotlivých dílů](renders/viewer.html).
-- [Kompletní otevřená sestava](assemblies/complete-open.step),
-  [zavřená sestava](assemblies/complete-closed.step),
-  [prezentace třetí hůlky](assemblies/presentation.step),
-  [rozložená sestava](assemblies/exploded.step).
-- [Servisní konstrukce](assemblies/service-layer.step) a
-  [jedna kompletní přihrádka](assemblies/single-compartment.step).
-- [Samostatné prostorové rezervy konektorů a kabelů](assemblies/clearance-reservations.step);
-  v hlavních STEP sestavách nezakrývají skutečné díly.
-- [Balík zdrojů, CAD, STL, náhledů a dokumentace](exports/kufr-complete-provisional.zip).
-- [Tiskový kusovník](exports/print-bom.csv), [kontrola skutečných STL](exports/stl-validation.json),
-  [úplný report geometrie](assemblies/validation.json),
-  [poloha každé instance v mm](assemblies/placements.csv).
-- [Zpětné načtení STEP a kontrola balíku](exports/delivery-validation.json).
+- [Interaktivní 3D náhled](renders/viewer.html), [pohled shora](renders/04-top.png),
+  [servisní kazety](renders/08-service.png), [transport](renders/09-transport.png).
+- [Otevřená sestava](assemblies/complete-open.step), [zavřená sestava](assemblies/complete-closed.step),
+  [prezentace třetí hůlky](assemblies/presentation.step), [rozložená sestava](assemblies/exploded.step).
+- [Transport otevřený](assemblies/transport-open.step), [transport zavřený](assemblies/transport-closed.step).
+- [Jedna přihrádka](assemblies/single-compartment.step), [servisní vrstva](assemblies/service-layer.step),
+  [samostatné prostorové rezervy](assemblies/clearance-reservations.step).
+- [Balík zdrojů, CAD, STL a návodů](exports/kufr-complete-provisional.zip).
+- [Kusovník: názvy, počty, rozměry, účel a tisk](exports/print-bom.csv),
+  [pozice všech dílů](assemblies/placements.csv), [inventář](assemblies/inventory.json).
+- [Geometrická validace](assemblies/validation.json), [STL validace](exports/stl-validation.json),
+  [zpětný import a integrita balíku](exports/delivery-validation.json).
 
-Podrobnosti stavby: [montáž, kabeláž a akceptace](docs/montaz.md).
-Výsledky předání: [soubory, provedené kontroly a zbývající omezení](docs/overeni.md).
-Základní rozměrový podklad z worktree f0e4 je totožný s
-[lokálním přehledem](../rozmery-nakoupenych-soucastek.md); staré 310 × 450 × 200 mm
-není rozměrem tohoto návrhu.
+[Montáž a fyzické zkoušky](docs/montaz.md) · [výsledky předání](docs/overeni.md) ·
+[rozměry zakoupených součástek](../rozmery-nakoupenych-soucastek.md).
 
-## Zdroje a pořadí regenerace
+## Parametry a evidence
 
-| Soubor/adresář | Účel |
+Počátek je levý přední vnitřní roh na povrchu dna; X doprava, Y k pantům,
+Z nahoru. Všechny délky jsou v mm. Tloušťky dřeva rostou ven z vnitřní obálky.
+
+| Parametr | Hodnota a stav |
 | --- | --- |
-| `parameters.json` | Rozměry kufru, kloubové mechaniky, tiskárny a stav znalostí |
-| `reference/case.py` | Tělo, dno, výztuha, víko, panty, madlo, zámky a kování |
-| `components/hardware.py` | Katalogové obálky, model reproduktoru, kamery a ovladačů |
-| `printable/mechanics.py` | Adaptace původní ověřované kloubové mechaniky; importuje `../model.py` |
-| `printable/service.py` | Konkrétní rozmístění elektroniky a její montážní díly |
-| `printable/frame.py` | Dělené podlahové lišty a servisní desky bez vrtání do dřeva |
-| `scripts/generate.py` | Celý postup, brány validace, exporty, kusovník, náhledy, ZIP |
-| `scripts/validate.py` | Nezávislé objemové průniky, obálky a skutečné binární STL |
-| `scripts/verify_delivery.py` | Zpětný import STEP, shoda zdrojů, kontrola ZIP a jeho SHA-256 |
+| Vnitřek spodní části | 431,8 × 266,7 × 114,3; potvrzený majitelem |
+| Čtyři stěny | 3; výslovná volba majitele, nikoli měření |
+| Dno / víko uvnitř / horní deska víka | 3 / 30 / 3; pracovní předpoklady |
+| Výztuha dna | Výška 5 potvrzena; hloubka 90 je konzervativní návrhová rezerva, nikoli odečet z fotografie |
+| Výztuha ve víku | Fotografie dokládá příčnou lať; pracovní obálka 90 × 5 |
+| Panty, zámky, madlo | Parametrická referenční geometrie podle jejich funkce a polohy na fotografiích; rozměry neměřené |
+| Otevření víka | Nominálně 105°; skutečný doraz neověřen |
+| Mechanismy | Rozteč 49; délka 240; základna Z10, lůžko Z54, osa zadního čepu Z61 |
+| Hůlky | Dodavatelský obrázek uvádí 190–200; model délka 200, dřík do16, ozdobná obálka do40, oba průměry neověřené |
+| Tiskárna | 220 × 220 × 250; konfigurovatelný předpoklad, není potvrzeným strojem |
 
-Výstupy jsou lokální, ignorované Gitem; trvalý zdroj jsou uvedené skripty,
-JSON a dokumentace. Balík obsahuje také závislost na původním `model.py` a
-`parametry.json`. Původní modely ani jejich `output/` se nemažou. Generátor
-obnovuje vlastní CAD/STL/náhledy v `cad/`; staré modely nezahrnuje do nové sady.
+Vnější rozměry dřeva odvozené z těchto předpokladů jsou 437,8 × 272,7 × 150,8.
+Fotografie není milimetrovým výkresem. Příčná výztuha na snímcích je široká;
+patky proto stojí mimo pracovní 90mm pás, základny ho přemosťují s vůlí.
+Barevné válce hůlek jsou konzervativní kolizní obálky, nikoli kopie ornamentů.
+Otevřená V sedla s měkkou výstelkou umožňují přizpůsobení skutečnému dříku.
 
-V `kufr/mechanika/` vytvořte prostředí podle existujícího `requirements.txt`:
+## Rozmístění a servis
+
+Středy přihrádek X = **93,4; 142,4; 191,4; 240,4; 289,4; 338,4**; Y =133,35.
+Ornamenty směřují dopředu. Servo s původní pákou, adaptérem a táhlem zdvihá přední
+část lůžka kolem zadního M4 čepu a vrací ji. Nejde o vyhazování rekvizity.
+
+| Varianta | Prostor / výroba / servis | Rozhodnutí |
+| --- | --- | --- |
+| Veškerá elektronika pod mechanismy | Výšková kolize s pohony, obtížný servis | Zamítnuto |
+| Elektronika za mechanismy | Zbývá pouze 26,7mm hloubky celkem | Zamítnuto |
+| Boční kazety na suchém zipu | Snadné vyjmutí, několik nízkých vrstev a lehké odnímatelné můstky | Implementováno |
+
+Powerbanka stojí vlevo nad čtyřmi provizorními svorkami; jde vyjmout vzhůru.
+Mikrofon a PTT jsou vpředu vlevo, napájecí kolébky vpředu vpravo. Reproduktory
+směřují do středu; mezera vedle mechanismů vede zvuk vzhůru. Akustické zastínění
+se musí poslechnout, návrh netvrdí laděnou ozvučnici. Kamera na pevném 45° klínu
+míří dopředu a nahoru, nad ESP; skutečný objektiv/FPC stále nejsou doložené.
+
+Servis serva vyžaduje jen vyjmutí jeho modulu a uvolnění jeho čepů/pásků.
+Svorky jsou přístupné po vyjmutí powerbanky. Spodní pravé PCB po uvolnění pásků
+horních můstků. Do dřeva se nevrtá; přilnavost suchého zipu je podmínkou přejímky.
+
+## Reprodukování
+
+Z `kufr/mechanika/`:
 
 ```powershell
-py -3.11 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\cad\Regenerate.ps1
+.\cad\Regenerate.ps1 -Python C:/Development/DildoVander/kufr/mechanika/.venv/Scripts/python.exe
 ```
 
-Lze předat existující Python: `./cad/Regenerate.ps1 -Python C:/cesta/python.exe`.
-`-CheckOnly` zkontroluje geometrii a referenci, ale nevytvoří novou tiskovou
-sadu. `-SkipRenders` vytvoří geometrii a balík bez obrázků, nepřibalí staré
-náhledy. Chybějící prostředí se neinstaluje potichu.
+Na jiném počítači vytvořit `.venv` podle `requirements.txt` a vynechat `-Python`.
+`-CheckOnly` ověří geometrii, `-SkipRenders` vynechá obrázky. Menší tisková
+plocha může vyžadovat další dělení; generátor nadměrný díl odmítne, nezmenší hardware.
 
-Generátor nejprve **vytvoří a ověří fázi A**, teprve potom sestaví komponenty,
-rozmístění a držáky. Při kolizi zastaví export. Každý tisknutelný model musí být
-jediný validní solid, vejít se do tiskové obálky a projít kontrolou skutečného
-STL: nenulové trojúhelníky, uzavřené manifold hrany, orientace stěn, kladný
-objem, rozdíl objemu vůči CAD do 2 % a shoda obálky do 0,15 mm.
-Regenerační příkaz poté znovu načte exportované STEP díly a hlavní sestavu,
-zkontroluje shodu zdrojů s reportem a integritu ZIP. Kontrolní součet balíku
-je vedle něj v souboru `.zip.sha256`.
-
-Regresní kontroly:
+`reference/case.py` nejprve vytvoří a ověří tělo/víko. `components/hardware.py`
+obsahuje zakoupené obálky. `printable/mechanics.py`, `service.py`, `frame.py`
+vytvoří díly a umístění. `scripts/generate.py` kontroluje kolize, pohyb a zavření,
+potom exportuje skutečné STL/STEP, kusovník, devět renderů a ZIP.
+`scripts/verify_delivery.py` znovu načte STEP/STL, ověří SHA zdrojů i sítí a ZIP CRC.
 
 ```powershell
 .\.venv\Scripts\python.exe .\cad\scripts\test_mechanics.py -v
-.\.venv\Scripts\python.exe .\cad\scripts\test_service.py -v
+.\.venv\Scripts\python.exe .\cad\scripts\test_service.py
 .\.venv\Scripts\python.exe .\cad\scripts\test_integration_contracts.py -v
 ```
 
-## Parametry a jejich důvěryhodnost
-
-Počátek `[0,0,0]` leží v levém předním vnitřním rohu na horním povrchu dna.
-X jde doprava, Y dozadu k pantům, Z nahoru. Dno a stěny se modelují směrem
-ven z potvrzené vnitřní obálky, jejich tloušťka nezmenšuje využitelný prostor.
-
-| Parametry v JSON | Výchozí hodnota | Stav |
-| --- | --- | --- |
-| `case.inside_width/depth/height` | 431,8 / 266,7 / 114,3 | Potvrzeno majitelem |
-| `case.wall_left/right/front/back` | 3 každý | Volba majitele pro tuto úlohu, neměřeno |
-| `case.floor_thickness` | 3 | Návrhový předpoklad |
-| `case.brace_height` | 5 | Potvrzeno majitelem |
-| `case.brace_depth`, `brace_y_fraction` | 30, 0,5 | Předpoklad příčné výztuhy přes šířku |
-| `case.lid_inside_height`, `lid_top_thickness` | 30, 3 | Předpoklad, nezapočteno do zástavby |
-| `case.lid_gap`, `hinge_rear_offset` | 0,5, 5 | Předpoklad zavírání |
-| `case.hinge_x_fractions`, `hinge_radius` | 0,2 / 0,8; 2,5 | Nominální kování, vyžaduje porovnání s kusem |
-| `case.lid_open_angle` | 105° | Návrhová otevřená poloha |
-| `mechanism.pitch`, `tray_length`, `base_z` | 50, 240, 10 | Konstrukční volba |
-| `mechanism.wand_length/head_diameter/shaft_diameter` | 200 / 40 / 16 | Pracovní obálka, průměry neměřené |
-| `manufacturing.printer_bed_mm` | 220 × 220 × 250 | Konfigurovatelný předpoklad, tiskárna nepotvrzena |
-
-Vnější šířka je součtem vnitřní šířky a obou stěn, výchozí **437,8 mm**;
-vnější hloubka **272,7 mm**. Zavřená výška dřeva včetně dna vychází
-**150,8 mm**, kování ji může překročit. Tyto odvozené rozměry nejsou měření.
-Fotografie zmíněné v zadání nebyly v aktuální konverzaci dostupné, proto
-nejde o potvrzenou fotogrammetrickou kopii povrchů a kování.
-
-Změna JSON jednoznačně regeneruje geometrii. Není to automatický optimalizátor
-libovolného kufru: při změně rozměrů se znovu kontroluje každá kolize a tisková
-obálka. Nepasující komponenty se nezmenšují. Menší tiskárna může vyžadovat
-další dělení konstrukce; generátor nadměrný díl odmítne.
-
-## Zvolené uspořádání
-
-| Varianta | Prostor a vzhled | Výroba, spolehlivost a servis | Rozhodnutí |
-| --- | --- | --- | --- |
-| Celá elektronika pod šesti lůžky | Čistý pohled, ale vrstva se střetává se servy/táhly; výška 114,3 mm nestačí bez změny zdvihu | Hůře přístupné konektory, vyžaduje rozsáhlejší přestavbu | Nepoužito |
-| Elektronika vzadu za lůžky | Málo potřebných vrstev | 240mm lůžka ponechávají jen 26,7 mm hloubky celkem | Nepoužito |
-| Šest lůžek uprostřed, boční servisní kazety | Využije šířku kufru, přiznává servisní techniku po stranách | Zachová kloubovou mechaniku, powerbanka jde ven samostatně, horní pravý rack je snímatelný | **Implementováno** |
-
-Středy modulů X = **90,9; 140,9; 190,9; 240,9; 290,9; 340,9 mm**,
-Y = 133,35 mm. Rekvizity míří ozdobným koncem dopředu. Servo přes původní
-páku, tištěný adaptér a táhlo naklopí lůžko na zadním M4 čepu. Zachovává se
-požadované vysunutí/prezentace/návrat pevné rekvizity; nejde o vyhazování hůlky.
-
-Powerbanka stojí na hraně vlevo; oba reproduktory jsou svisle podél boků,
-ozvučnou plochou ke středu. Jejich vyzařování může mechanika částečně zastínit:
-model netvrdí návrh naladěné ozvučnice. Mikrofon má volný horní port vlevo
-vpředu. ESP a provizorní kamera sdílejí přední pravou platformu; kamera míří
-nahoru a k návštěvníkovi. Její přesný modul, FPC i zorné pole nejsou známé.
-
-Na PCB se nevymýšlejí otvory: používají se otevřené podpěry hran a uvolnitelné
-izolační pásky. Montážní otvory CAD patří tištěným nosičům. Serva lze vyjmout
-po sejmutí vlastní hůlky/lůžka a uvolnění vlastního táhla; ostatních pět modulů
-se nerozebírá. Spodní pravá elektronika je přístupná po odšroubování společného
-horního racku, nikoli okamžitě bez demontáže.
-
-## Co přesně ověřujeme
-
-- Veškeré tuhé modelované díly ve sklopené poloze proti sobě i vůči dřevu.
-- Uzavření táhla ve 101 polohách; tuhé díly mechanismu ve 21 polohách.
-- Sousední moduly mají oddělené intervaly X při jakékoli kombinaci náklonů.
-- Otevřené víko a boční osazení proti pohybu; dráhu zavírání se **sklopenými** hůlkami.
-- Volný svislý prostor k vytažení powerbanky po odpojení kabelu a pásků.
-- Lokální konektorové rezervy a skutečnou modelovanou středovou osu kamery;
-  neznámé zorné pole tím není ověřené.
-- Cesty 54 servisních spojů M3, přístup bočních matic a zapuštění hlav
-  vůči dnu/výztuze; přesné délky šroubů se dopasují při montáži.
-- BREP a skutečné STL, jejich rozměry a orientaci na Z=0; rozdělené podlahy a lůžka.
-
-Mezi vzorky není dokázaná nepřetržitá bezkoliznost. Pružné kabely, jejich
-poloměry ohybu, některé montážní šrouby, skutečný FPC, pružné pásky a prsty
-montéra nejsou úplně geometricky ověřené. Není provedena FEA, měření zatížení,
-teplot ani akustiky. Nezavírat se zdviženou přihrádkou. Mechanické zajištění
-pro přenášení a zadržení při výpadku napájení musí projít fyzickým testem.
+Původní `../model.py` zůstává pouze zdrojem kinematického řešení a obecných
+geometrických funkcí; nové díly tvoří nová CAD vrstva. Původní výstupy se nemažou.
+Generované CAD/STL jsou lokální a ignorované Gitem; trvalé jsou zdroje a návod.
+Každá změna parametrů vyžaduje novou generaci i fyzické přezkoušení dotčených dílů.
