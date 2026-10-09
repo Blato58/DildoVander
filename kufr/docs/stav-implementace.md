@@ -52,9 +52,26 @@ range-loop warning v SD testu (opraveno) a socket reuse při starším image413.
 Oprava explicitně zavírá HTTP/1 spojení u nepřečteného oversized těla, nemění
 limity a nepřidává forbidden Connection na HTTP2. Nové regrese a lokální
 HTTP smoke včetně tří po sobě jdoucích rejection/next-request prošly.
-Publisher podporuje všechny tři skutečně existující runner temp kořeny a
+Publisher podporuje oba zbývající runner temp kořeny a
 otvírá jejich celý řetězec přes no-follow directory handles. Na VPS jsou
-pouze soukromé backupy a staged source; release služby se zatím neměnil.
+soukromé backupy a staged source; release služby se zatím neměnil.
+Majitel výslovně zadal odebrání třetího runneru, Codex a CloudVPSBridge.
+Runner3 byl odregistrován; soukromý stav všech tří odebraných instalací je
+v root-only zálohách `/root/kufr-maintenance/d158-ade0e32/removed-software/`.
+Služby, mounty, nginx vhosty i instalace CloudVPSBridge jsou odstraněné;
+globální Codex i jeho VPS stav také. Odstraněny staré Arduino toolchains,
+regenerovatelné download cache a osiřelá neúspěšná instalace .NET v tmpfs.
+Root disk má přibližně 14 GB volných (původně 142 MB); po doloženém OOM je
+pro oba CI runnery provisionovaný 2 GB swap. Backend healthz, iOS HTTPS
+hosting, nginx a oba runner services jsou aktivní; jejich sdílená provisioning
+metadata zůstala zachována. CI37885908752 selhalo kvůli plnému disku a OOM,
+nikoli dokončeným softwarovým kontrolám; nové CI čeká následující push.
+Codex review navíc našlo tři P2: explicitní fallback potřebuje nový 60s
+interval do dalšího hotspot probe (regrese MSVC prošla a reprodukuje starý
+kód), OTA guard musí kontrolovat CSV flags (9 Python testů) a iOS lock musí
+obsahovat skutečný Xcode resolution pro ESPProvision/SwiftProtobuf. První
+dvě opravy prošly nezávislým source review; pro poslední je připraven dočasný macOS
+resolver bez native build/sign, který se před merge odstraní.
 
 Široký deployment Python discovery na Windows narazil na již existující
 Linux `os.getuid`/POSIX práva a Windows cestu/SQLite cleanup v memory suite;

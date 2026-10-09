@@ -11,7 +11,7 @@ import tempfile
 
 DESTINATION = Path('/opt/kufr-firmware')
 RUNNER_TEMPS = tuple(Path('/opt') / name / '_work' / '_temp'
-                     for name in ('actions-runner', 'actions-runner-2', 'actions-runner-3'))
+                     for name in ('actions-runner', 'actions-runner-2'))
 KEYS = Path('/etc/kufr-backend')
 TOOL = Path('/usr/local/lib/kufr-firmware/ota_release.py')
 PARTITIONS = Path('/usr/local/lib/kufr-firmware/partitions_16mb.csv')
