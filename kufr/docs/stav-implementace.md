@@ -29,6 +29,30 @@ výslovně doplnil jeden pohon celkem, nepřekrývající se servo/vibraci,
 pasivní držení polohy a inicializaci OE HIGH / OUTNE=00 / všech 16 FULL_OFF.
 Jde o dokumentaci už implementovaného chování; nové HW měření neproběhlo.
 
+Majitel následně potvrdil, že starou větev už v zapojení nevidí.
+Z tohoto záznamu jsou odstraněné také zastaralé instrukce D155/D153/D147
+k dalším pohonovým modulům a starší B1 blokace na jejich měření.
+Aktuální postup je pouze D156 a přímé OE/kolébka.
+
+Na nové zadání CI používá path filtr: samotné `docs/` a Markdown/rst
+workflow nespouštějí. `scripts/ci/select_projects.py` vybírá backend,
+firmware, web nebo offline AI eval z úplného diffu PR; sdílené kontrakty,
+simulátor a balení spustí jejich skutečné spotřebitele. Nesouvisející joby
+se vynechají a závěrečná kontrola odmítne chybný/neočekávaně vynechaný
+vybraný projekt. Ruční CI nabízí výběr projektu pro obnovu artefaktu.
+PR obsahující změny kódu se při dalším commitu vyhodnocuje jako celek,
+takže dokumentační commit do takového PR stále ověřuje jeho kód.
+CI návod, CONTRIBUTING a README tomu odpovídají; neaktivní šablona rulesetu
+nemá univerzální povinný status, který by blokoval dokumentační PR.
+Živá nastavení GitHubu se neměnila (rulesets API opět 403 kvůli tarifu).
+
+Lokální ověření CI změny: šest nových testů výběru projektů/rename/gate
+a šest dosavadních testů balení, celkem **12 passed**. Připnutý actionlint
+1.7.12 ověřený SHA-256 zkontroloval všechny workflow bez chyby.
+Dosavadních 29 Node testů promotion/provenance také prošlo; ověřeno
+111 lokálních Markdown cest v celém diffu a `git diff --check`.
+Finální CI a merge se zaznamenají podle skutečného výsledku PR 138.
+
 Aktuální [zapojení](zapojeni-potvrzeneho-hardwaru.md): GPIO2 přímo PCA OE,
 HIGH vypnuto, pull-up kolem 10 kΩ (dva koupené 22kΩ paralelně = 11 kΩ).
 Zelená kolébka přímo odpojuje 5V pohony, zem společná. Stav kolébky se
@@ -85,61 +109,12 @@ pasivní držení a mechanické dorazy, následně samostatně autorizované
 servisní nahrání a fyzická akceptace. Kamera/SD driver E13 zbývá.
 
 **D155 – 9. 10. 2026 – původní návrh adaptéru; nahrazen D156.**
-Majitel doložil dva snímky nákupu: měnič SEG-28582, druhý DFR0954,
-MCP23017 Adafruit 5346, dva PH2 kabely, Dupont, zelenou a další červenou
-kolébku, multimetr, dvojlinky, rezistory a Degson. Objednávka tyto položky
-přesunula do potvrzeného hardwaru; jsou dva zesilovače a dva reproduktory.
-Délky dvojlinek, koupě kamery a powerbanky se ze snímků neodvozují.
-[Konkrétní zapojení](zapojeni-potvrzeneho-hardwaru.md) obsahuje napájení,
-piny, PCA kanály, všech 16 MCP vývodů, LED řetězec a mute obou DFR0954.
-
-Implementovaný profil **B-effects-no-SD** zachovává kamerové piny:
-I2C 1/14, RGB48, RUN2, audio 21/41/42/47, GOOD38; slot SD musí zůstat
-prázdný. `physical_effects` nyní řídí PCA9685, MCP23017 a RMT pro 36 LED
-po šesti, jas do 64/255, jeden pohon, jednotlivé heartbeat pulzy z řídicí
-smyčky a přímé RUN LOW před vypnutím či změnou kanálů. GPIO se aktivují
-jen po servisním ověření profilu/mute. NVS kalibrace + inhibit + kontakty
-podmiňují pohyb a každý boot vyžaduje místní kontrolu a přidržení tlačítka.
-`PhysicalPresentation` připojuje autonomní journal a sekvenci hledání,
-zvýraznění, tří vibrací, zdvihu, 5s ukázky a návratu. Ruční ESP-IDF
-sekvence také čeká na skutečný zdvih/návrat a obnovuje dostupnost až po
-atomickém uzavření journalu. Stop ani ztráta ručního lease nevrací servo.
-Arduino sériový profil zachovává původní model. Krátké tlačítko v klidu
-spouští/zastavuje hlas; během prezentace je Stop. Audio B používá sdílený
-MCP mute a task mutex namísto blokujícího I2C ve spinlocku, profil A zůstává.
-
-Servisní projekt `diagnostics/hardware-service` validuje explicitní JSON,
-zapisuje pouze `wand_hw`, nemaže identity/TLS a nejdřív zavírá gate před
-změnou kalibrace. Ignorované výstupní hlavičky nejsou credentialy; příklad
-má všechny flags false a nulové pulzy, tedy nic nepovoluje. Chyba NVS
-vyžaduje ponechat výkon fyzicky odpojený. CI obsahuje nové fyzické testy,
-validaci konfigurace a build servisního projektu.
-
-Lokální ověření: `pio run -d kufr/firmware` (ESP-IDF 6.1 / espressif32
-7.1.3) a `pio run -d kufr/firmware -e esp32-s3-arduino-serial` **SUCCESS**;
-ESP-IDF obraz přibližně 1,25 MB, Arduino 287 017 B. Samostatný servisní
-projekt s vypnutým příkladem **SUCCESS**, flash 171 049 B.
-Dosavadní hostitelská firmware sada ze setupu
-prošla. Nový `physical_effects_test.cpp` s `g++ -std=c++14 -Wall -Wextra
--Werror -pthread` prošel: limity, zpětná vazba, restartová brána, I/O chyba,
-250ms prodleva, chybějící/rozporné kontakty, journal před pohybem,
-autonomní/ruční návrat, replay, Stop, ztráta ručního řízení během ukázky
-i návratu a chyba uzavření journalu. `espidf_voice_audio_test.cpp` s audio
-stuby prošel pro A/B, mute, pinout, zpožděný playback a chybu expanderu.
-`python3 -m unittest discover -s diagnostics/hardware-service -p
-'test_*.py'` **3 passed**. Ověřeno 84 lokálních Markdown cest a
-`git diff --check`. Tyto testy neověřují skutečné I2C/RMT periferie.
-
-Neprovedeno: flash, fyzické zapojení/měření, napájení pod zátěží, teplota,
-časování heartbeat, fail-muted rozhraní či pasivní držení mechanismu.
-Krajní kontakty (12 NO) ani nezávislý watchdog/logika/load switch nejsou
-potvrzené nákupy; nelze je nahradit časovým odhadem polohy nebo softwarem.
-E5/E6/B1 a HW audio akceptace zůstávají otevřené. Kamerový snímek/driver
-E13 není součástí tohoto adaptéru, pouze jeho piny zůstávají volné.
-Další krok: doplnit ochranu/kontakty, proměřit mute/power/reset,
-kalibrovat jednu nezatíženou přihrádku a následně zbývající; pak samostatně
-autorizované servisní nahrání a celá fyzická akceptace. Git/CI doručení
-bude doplněné podle skutečného výsledku.
+Původní návrh fyzických efektů a jeho tehdejší fake/build ověření byly
+nahrazené zjednodušenou implementací D156. Staré zapojení a požadavky
+na další elektroniku jsou odstraněné z tohoto přehledu; verze zůstává
+v Git historii v commitu `519631d`. Aktuální piny, kalibrace, ověření
+a zbývající fyzická měření jsou pouze v D156 a
+[zapojení](zapojeni-potvrzeneho-hardwaru.md).
 
 **D154 – 8. 10. 2026 – tiskový CAD a exporty pro upřesněnou elektroniku ověřené.**
 Fotografie majitele uvádí hůlku 19–20 cm; model počítá s 200 mm a pracovní
@@ -193,8 +168,8 @@ Implementační commit `1d61ce7bebbaca5ed54533a7ba2bf99d8ad71729` je na
 ref potvrdil stejnou SHA. Tento následný záznam uchovává skutečné předání.
 
 **D153 – 8. 10. 2026 – revize minimální objednávky, dokumentace ověřená.**
-Majitel hlásí nedostupný CD4093BE a žádá ponechat jen skutečně potřebné
-díly. [Objednávka](../../docs/objednavka-doplneni-kufru-2026-10-06.md)
+Majitel žádá ponechat jen skutečně potřebné díly. Tento starší nákupní
+návrh nahrazuje potvrzený inventář a zapojení D156. [Objednávka](../../docs/objednavka-doplneni-kufru-2026-10-06.md)
 má nyní základ pro jeden již koupený zesilovač/reproduktor, pájené
 kabely a kameru + MCP podle rozhodnutí 6. 10. Druhý zesilovač/PH2 kabel,
 Grove/JST-SM adaptéry a SD/čtečka jsou volitelné. Rezistory sníženy na
@@ -204,12 +179,9 @@ Součty z orientačních cen 6. 10.: Botland 764/377 Kč, Drátek 765 Kč,
 celkem 1 529/1 142 Kč bez dopravy; úspora 470 Kč vůči starému základu
 nebo 1 392 Kč proti objednávce se všemi doplňky.
 
-Celá kandidátní větev 2801 + CD4093BE + 2814 a její 100nF kondenzátory
-je odložená pouze pro nezatížený laboratorní prototyp pod dohledem.
-Ruční odpojení není doklad watchdogu; E0/E5/B1 zůstávají otevřené.
-Plán a napájení zachovávají cílový inhibit a akceptaci. Zároveň je
-výslovně otevřené rozhraní SD/mute DFR0954 (pull-up k 5V VCC proti
-3,3V logice); zmenšený košík není kompletní instalační kusovník.
+Tehdejší požadavek doplňkové pohonové větve a úprav SD/mute je zrušený
+rozhodnutím D156. Aktuálně je OE připojené přímo k ESP32, zelená kolébka
+odpojuje napájení a zesilovače zůstávají v továrním stavu.
 Změněna jen objednávka, úvod historického seznamu a dokumenty napájení,
 plánu, kamery a stavu. Firmware, zapojování, nákup ani nasazení neproběhly.
 
@@ -219,8 +191,7 @@ kontrola součtů a vyřazení odložených položek ze základních tabulek,
 Nezávislý read-only HW audit a kontrola kombinovaného diffu nenašly
 závadu. Nové ceny/sklady všech položek, firmware build a fyzické měření
 nebyly ověřované. Další krok: montážní trasy, konkrétní mute rozhraní,
-revize kamery a měření jedné přihrádky; watchdog doplnit před konečnou
-akceptací pohonů podle původního plánu.
+revize kamery a měření jedné přihrádky podle nynějšího zapojení D156.
 Dokumentační slice je v commitu `bb51ec127b1eac063ca0918d7a2d4ecdc67f3809`
 na `codex/trim-kufr-purchase-list`. Povinný
 `scripts/Push-CurrentBranch.ps1` uspěl přes účet Blato58 a read-back
@@ -643,12 +614,10 @@ Návrh respektuje jeden LED úsek a jedno servo NEBO jednu vibraci,
 s možným souběhem LED a pohonu. Koupený 3A PD trigger a 60W kabel se
 znovu využijí; nový pevný 5V/5A měnič napájí celé zařízení.
 
-Doplněny MCP23017 pro profil B, kamera ze sady stejné řady, druhý mono
-zesilovač a dva správné PH2 konektory, kabeláž, svorky a kandidátní
-nezávislý inhibit Pololu 2801 (GOOD) + CD4093BE + Pololu 2814 (ON).
-Třípinová kolébka nemá pomocný kontakt: stav napětí snímá dělič
-15 kΩ / 22 kΩ. Upřesněn slabší výstup CD4093, nutnost ověření PCA OE,
-časování heartbeat, zpětného napájení, proudu a vybití kondenzátorů.
+Tehdejší rozšířený kusovník, snímání kolébky a úpravy zesilovačů
+nahrazuje D156: potvrzený MCP23017, dva zesilovače v továrním stavu,
+PH2 kabely a přímé OE/napájení pohonů. Kamera je objednaná samostatně
+pro stávající desku.
 Dokumentace zapojení byla sjednocena s plánem, pinovou mapou a kamerou;
 historické nákupní soubory a README odkazují novou objednávku.
 
@@ -657,7 +626,7 @@ počty a cenové součty, 78 relativních odkazů v devíti dotčených Markdown
 `git diff --check` a rozsah pouze dokumentace. Firmware/build ani HW
 měření nebyly provedené. E0/E5/B1 zůstávají neuzavřené; další krok je
 ověření revize kamery a skutečné pinové mapy, montáž jedné přihrádky a
-proudové/resetové/Stop/watchdog zkoušky podle návrhu napájení. Mechanické
+proudové/resetové/Stop zkoušky podle nynějšího zapojení. Mechanické
 rozměry a držáky nejsou doložené, případná úprava prototypu může změnit
 kusovník. Dokumentační commit `9a13366b51e3acdd8b260eb07f4a7d2fee4b669c`
 byl pushnutý na `origin/work`; `ls-remote` potvrdilo shodný hash. Povinný
@@ -1762,7 +1731,7 @@ Oba řízené EN/RTS restarty s 30 s UART capture prošly: bootloader 16 MB,
 (`no GPIO adapter`), neprovisionovaná identita, nenastavená síť a start
 ESP-IDF control loop. Žádný neočekávaný restart, panic, brownout, watchdog
 ani journal chyba v obou záznamech. To potvrzuje pouze základní offline
-aplikační boot. Neprokazuje elektrický inhibit/watchdog, servo/motor/LED
+aplikační boot. Neprokazuje skutečné vypnutí pohonů, servo/motor/LED
 adaptér, zvuk, Wi-Fi/TLS/WSS, provisioning ani mechanickou akceptaci.
 Není nastaveno `profile_a_ok`, síť, identita ani jakýkoli credential.
 
@@ -1828,7 +1797,7 @@ test, endurance flash ani přímé ověření nativního USB-OTG.
 
 B1 zůstává otevřené pro bezpečnostní větev, zapojení, kalibraci a fyzické
 efekty; dnešní souhlas platí pro tento diagnostický obraz.
-Další konkrétní krok: určit a změřit externí napájení, inhibit/watchdog,
+Další konkrétní krok: určit a změřit externí napájení a PCA OE,
 servisní vstup a profil A; teprve s těmito podklady povolit periferie,
 provisioning a další flash aplikačního firmware. Diagnostika může zůstat
 na desce, externí komponenty zatím nepřipojovat.
@@ -2603,7 +2572,7 @@ zůstávají dalšími softwarovými částmi E9/E10, nevydávat celý projekt z
 
 **Rozpracovaná firmware cesta:** E4.3 – samostatný ESP32 klient backendu, současně E8 backendový textový dialog pro testování bez HW. E4.1 ESP-IDF profil a bezpečná smyčka jsou softwarově sestavené (D33); E4.2 má trvalý journal a model identity s NVS adaptéry bez HW/USB akceptace (D34–D35). E4.3a přidává model backend tokenu a HTTPS adaptér (D36), E4.3b servisně čtenou síť, SNTP/časovou bránu a samostatnou úlohu (D37). E4.3c má JSON kodeky, HTTPS adaptéry, obnovu tokenu, korelaci, UUID a časování (D38–D48). D49 připojil interní cestu start/tah/poll; D51 přidal atomický snapshot a vazbu čekajícího textu na jeho verzi. D64 zapojil `DeviceControlRuntime` jako vlastníka snapshotu v IDF smyčce; D77 doplnil hostitelský autonomní cyklus s journalem a okamžitým Stop. D95–D99 připojují autentizovaný místní textový vstup; boot stále vyžaduje fyzické zotavení/kalibraci B1. E7 backend bez skutečné AI je dokončen a běží na Ubuntu přes loopback; autentizovaný fake tah prošel na nasazené službě (D59). E8 backendový textový dialog a jeho živé ověření jsou v D53–D76; fyzické nezávislé vypnutí a měření zůstávají kritérii E5, produkční E8 provoz a fyzická akceptace stále čekají.
 
-**Další konkrétní krok E4/E5:** B1 od majitele/stavitele: revize PCB, flash/PSRAM/USB, ověřené schéma a měření bezpečnostní větve/watchdogu, servisní a inspection vstup a kalibrace jedné přihrádky. D77–D99 hostitelsky ověřují journal/snapshot, autonomní model, autorizaci/párování/TLS/WSS, řídicí router, pravdivý snapshot/ACK a korelované repliky. D99 je skládá do ESP-IDF runtime a odděluje LAN od cloudové úlohy. E4 potřebuje skutečnou TLS/NVS/STA zkoušku; E5 fyzický port. Bez B1 se nesmí doplnit fake inspection do runtime ani nahrávat do desky. Opening/PTT, TTS/I2S a propojení finálního oznámení s kalibrovaným autonomním portem vyžadují další hardware/software E9, jehož závislost E5 není splněná. Native E10 má v §12 závislost E4/E8 a vyžaduje vlastní iPhone zkoušku. Další placené AI testy, deployment a firmware flash nejsou tímto pokračováním spuštěné.
+**Další konkrétní krok E4/E5:** B1 od majitele/stavitele: revize PCB, flash/PSRAM/USB, ověřené schéma a měření napájení/PCA OE, servisní a inspection vstup a kalibrace jedné přihrádky. D77–D99 hostitelsky ověřují journal/snapshot, autonomní model, autorizaci/párování/TLS/WSS, řídicí router, pravdivý snapshot/ACK a korelované repliky. D99 je skládá do ESP-IDF runtime a odděluje LAN od cloudové úlohy. E4 potřebuje skutečnou TLS/NVS/STA zkoušku; E5 fyzický port. Bez B1 se nesmí doplnit fake inspection do runtime ani nahrávat do desky. Opening/PTT, TTS/I2S a propojení finálního oznámení s kalibrovaným autonomním portem vyžadují další hardware/software E9, jehož závislost E5 není splněná. Native E10 má v §12 závislost E4/E8 a vyžaduje vlastní iPhone zkoušku. Další placené AI testy, deployment a firmware flash nejsou tímto pokračováním spuštěné.
 
 **Navazující provisioning/QR:** §4 nadále platí pro servisní AP i autorizované USB nastavení bez telefonu; nejde o nové rozhodování mezi těmito cestami. Současný `/v1/pair` páruje již provisionovanou STA/TLS identitu, nepřenáší Wi-Fi SSID/heslo a nevytváří AP. Pro skutečný servisní runtime chybí doložený fyzický vstup/odpojená bezpečnostní větev B1; nevytvářet vzdálenou náhradu. Machine QR envelope dosud není v kontraktech: musí následovat konkrétní servisní provisioning (device ID, SPKI, jednorázové tajemství a AP údaje), zůstat nativní a zachovat tajemství mimo JS/logy. Camera scanner ani samotná nová permission nenahradí tuto chybějící cestu. E9/E10 audio je po E5/E9, E11 provozní akceptace po E6/E8/E9/E10. Nejbližší ověřitelný další krok je B1/service/inspection, nikoli další fake fyzický stav.
 
@@ -2768,7 +2737,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 
 - D101–D103 jsou doručené na `main`, nikoli pouze místní návrhy: native transport/párování/Keychain, device-owned text/cancel/result a firmware/nativní Bonjour s ručním adresním fallbackem. D103 finální commity `043fd729087ca0c47a3fb2fe99468572183625ac`, `5e212ca4310f0a70ae60386d6a3892e3c7e99bb0`, `a9a34427eb8f0407f96176096bc1492872cf813c` a `e0be0dad1ca8925b7dfe318112228f286f00821e` byly ověřeně pushnuty projektovým skriptem. [PR #67](https://github.com/Blato58/DildoVander/pull/67) bez konfliktů/diff mimo scope sloučen jako `6315857414e2c6030e991f3ddda43aa21ceee28a`; scoped fetch a fast-forward lokální main tento merge ověřily.
 - Finální [firmware CI 36797984092](https://github.com/Blato58/DildoVander/actions/runs/36797984092) a [iOS CI 36797984095](https://github.com/Blato58/DildoVander/actions/runs/36797984095) pro `e0be0dad1ca8925b7dfe318112228f286f00821e` prošly: všechny host testy, ESP-IDF/Arduino build, 16 mobilních testů/web build, skutečný macOS Bonjour resolver + Keychain/pinned HTTPS/WSS harness, Xcode a install/launch/terminate iOS Simulator. Finální device ID negativní testy a mDNS 1.13.1 lock jsou součástí této revize. Browser native harness otestoval discovery/paired adresu/empty/denied a invalid/valid v1 ID; 393×852 bez vodorovného přetečení a console warnings/errors. Real C++ simulator browser text/Stop ověřeno D102. Dočasné testovací servery byly ukončeny; pouze vlastní MSVC artefakty vzniklé v rootu byly odstraněny.
-- Navazující závislosti byly znovu zkontrolované podle §4/§12. B1 stále chybí v doložených podkladech: konkrétní PCB/flash/PSRAM/USB, měření nezávislé bezpečnostní větve/watchdogu, skutečný service/inspection vstup a kalibrace jedné přihrádky. Bez nich nelze ověřit servisní USB/AP cestu, NVS/TLS/STA na desce a fyzický port E5; E6 a E9/E10 audio na ně navazují. QR kamera potřebuje dosud chybějící konkrétní servisní envelope/cestu, ne samotnou permission. Existující AP i USB varianta plánu se zachovávají. Fyzický iPhone/LAN/Keychain update a mechanická akceptace nejsou nahrazené macOS/simulator testem. Neprovedeno: placený AI test, nový podpis/publikace IPA, cloudové nasazení ani firmware flash.
+- Navazující závislosti byly znovu zkontrolované podle §4/§12. B1 stále chybí v doložených podkladech: konkrétní PCB/flash/PSRAM/USB, měření napájení a PCA OE, skutečný service/inspection vstup a kalibrace jedné přihrádky. Bez nich nelze ověřit servisní USB/AP cestu, NVS/TLS/STA na desce a fyzický port E5; E6 a E9/E10 audio na ně navazují. QR kamera potřebuje dosud chybějící konkrétní servisní envelope/cestu, ne samotnou permission. Existující AP i USB varianta plánu se zachovávají. Fyzický iPhone/LAN/Keychain update a mechanická akceptace nejsou nahrazené macOS/simulator testem. Neprovedeno: placený AI test, nový podpis/publikace IPA, cloudové nasazení ani firmware flash.
 
 ### D103 – 1. 10. 2026 – E4.4t/E10.3 Bonjour discovery
 
@@ -2797,7 +2766,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 ### D100 – 30. 9. 2026 – audit návaznosti a předání na B1
 
 - Rozsah pokračování: D90–D99 dokončují deset ověřitelných firmware slice od RNG/TLS identity přes přísný parser a prioritní inbox po WSS router/output/reply, jednorázové HTTPS párování a runtime s jediným vlastníkem LAN. Každý vlastní slice má commit/push, kontrolovaný PR a ověřené sloučení po host/firmware CI. Současná práce neuzavírá E4 hardware ani E5/E9/E10.
-- Blokace nejbližšího kroku: B1 dosud nemá revizi PCB a potvrzené flash/PSRAM/USB, schéma/měření watchdogu a bezpečnostní větve, fyzicky měřitelný servisní/inspection vstup a kalibraci jedné přihrádky. Bez nich nelze servisně provisionovat, otestovat skutečný TLS/NVS/RNG/STA a bezpečně připojit fyzický port. Runtime nesmí nahradit tuto mezeru fake Recover/inspection. Majitel 29. 9. potvrdil, že údaje o revizi/paměti/USB nemá.
+- Blokace nejbližšího kroku: B1 dosud nemá revizi PCB a potvrzené flash/PSRAM/USB, schéma/měření napájení a PCA OE, fyzicky měřitelný servisní/inspection vstup a kalibraci jedné přihrádky. Bez nich nelze servisně provisionovat, otestovat skutečný TLS/NVS/RNG/STA a bezpečně připojit fyzický port. Runtime nesmí nahradit tuto mezeru fake Recover/inspection. Majitel 29. 9. potvrdil, že údaje o revizi/paměti/USB nemá.
 - Návaznost podle §12: E5 vyžaduje E0/E1/E4 a měření; E9 vyžaduje E4/E5/E8; native E10 potřebuje E4/E8 a vlastní fyzický iPhone test. V rámci převzaté nejbližší firmware cesty není další krok se splněnými závislostmi; zbývající testování na hostu neuzavře chybějící HW kritéria. Přímý servisní opening/PTT a audio/presentation zůstávají po těchto vstupech.
 - Dokumentace: rozšíření D97 result a D98 pairing je přesunuto z konce referencí do příslušných částí protokolu; D99 runtime do architektury. Handoff a README odpovídají kódu, B2/B3 nepředstírají novou blokaci. 36 místních Markdown odkazů a diff kontrola prošly; u dokumentačního předání se nespouštěly ručně další aplikační buildy. Cizí změny nebyly přidány.
 
@@ -3279,7 +3248,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 
 - Převzetí a rozsah: po dokončení E7 byl převzat první E4 software slice. PlatformIO `espressif32@7.1.3` nainstalovalo `framework-espidf@4.60100.0` (ESP-IDF 6.1.0). Přibyly CMake soubory, `sdkconfig.defaults` s předběžným profilem N16R8, 16MB tabulka oddílů a `app_main` se safety portem bez GPIO a neblokující smyčkou. Generované IDF sdkconfig se ignoruje. ESP-IDF je výchozí profil; Arduino sériový profil má oddělený zdrojový filtr.
 - Ověření: `pio run` prošel pro ESP-IDF 6.1.0; obraz obsahuje platný checksum/hash, 16MB flash a 80MHz režim. Výstup: 16 604 B RAM a 181 137 B flash z OTA slotu 6 553 600 B. Účinný sdkconfig potvrzuje QIO výběr (boot image začíná v DIO dle ESP-IDF), octal PSRAM a vlastní 16MB oddíly. `pio run -e esp32-s3-arduino-serial` prošel (18 660 B RAM, 279 333 B flash). Všechny tři hostitelské C++ testy (`selection_sequence`, `device_control`, `conversation_session`) prošly s MSVC `/W4 /WX`; zdroje čistého jádra se neměnily. Kopii tabulky oddílů ověřil lokální `gen_esp32part.py --flash-size 16MB`; `git diff --check` prošel. První pokusy instalace toolchainu selhaly na `HTTPClientError`, pozdější pokus nainstaloval všechny balíčky a build dokončil.
-- Omezení: sestavení neověřuje boot ani PSRAM na skutečné desce, fyzický inhibit/watchdog, NVS, Wi-Fi, TLS či WSS. Nenahrávalo se. Volba generické `esp32-s3-devkitc-1` se skutečnou N16R8 revizí ověří až po B1.
+- Omezení: sestavení neověřuje boot ani PSRAM na skutečné desce, fyzické vypnutí pohonů, NVS, Wi-Fi, TLS či WSS. Nenahrávalo se. Volba generické `esp32-s3-devkitc-1` se skutečnou N16R8 revizí ověří až po B1.
 - Revize a doručení: E4.1 je v commitu `cdc7f9448e2b2d656bb13417366daa0756499088`; `./scripts/Push-CurrentBranch.ps1` potvrdil push `main` na `origin/main` v této revizi.
 - Předání: E4.1 software slice je sestavený; následuje E4.2 NVS identita a journal. Fyzické ověření až po B1.
 
@@ -3503,7 +3472,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 - Rozsah: `firmware/src/features/wand_selection/SelectionSequence.h/.cpp` rozlišuje samostatný a ruční původ výběru, při ztrátě ručního lease zastaví pouze ruční výběr a při mezeře řídicí smyčky 250 ms vyžádá Stop před dalším sériovým povelem. `firmware/src/features/safety/SafetyController.h/.cpp` uchovává poruchu do výslovného zotavení i při souběžném Stop. `src/main.cpp` provádí kontrolu mezery na začátku průchodu; firmware README popisuje hranici hostitelského modelu. Všechny výstupy zůstávají jen požadavky přes port bez GPIO.
 - Hostitelské ověření z `%TEMP%\dildovander-e1-validation-final`: `cmd /c '"C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Auxiliary\Build\vcvars64.bat" >nul && cl /nologo /std:c++14 /W4 /WX /EHsc C:\Development\DildoVander\kufr\firmware\src\features\safety\SafetyController.cpp C:\Development\DildoVander\kufr\firmware\src\features\wand_selection\SelectionSequence.cpp C:\Development\DildoVander\kufr\firmware\tests\selection_sequence_test.cpp /Fe:selection_sequence_test.exe'`, pak `.\selection_sequence_test.exe` — obojí úspěšně. Testy navíc pokryly výpadek lease ve všech fázích, bez vlivu na samostatný výběr, poruchu při aktivním motoru/západce, přednost Stop, zachování příznaku poruchy a timeout smyčky včetně přetečení času.
 - Firmware build z `kufr/firmware`: `& 'C:\Users\vojtech.petrik\.platformio\penv\Scripts\pio.exe' run` — **SUCCESS** na PlatformIO `espressif32@7.1.3`/Arduino; 18 660 B RAM a 270 493 B flash. `git diff --check` bez chyb. Pomocné `.obj` z prvního hostitelského buildu byly odstraněny, zdroje nebyly dotčeny.
-- Revize a doručení: E1.2 je v commitu `d960210bc2352c3318690e3ec470b5f8df94edb6`, `./scripts/Push-CurrentBranch.ps1` potvrdil shodu `origin/main` s tímto commitem. Nenahrávalo se do desky. Softwarová kontrola mezery vypne výstup až při návratu do smyčky; při úplném zamrznutí musí vypnout nezávislý fyzický watchdog/inhibit. To je neověřená podmínka E5/B1, nikoli důkaz E1.2.
+- Revize a doručení: E1.2 je v commitu `d960210bc2352c3318690e3ec470b5f8df94edb6`, `./scripts/Push-CurrentBranch.ps1` potvrdil shodu `origin/main` s tímto commitem. Nenahrávalo se do desky. Softwarová kontrola mezery vypne výstup až při návratu do smyčky; při úplném zamrznutí může pohon zůstat aktivní a napájení se odpojuje zelenou kolébkou podle D156. Tento test není důkaz skutečného fyzického vypnutí.
 - Předání: softwarová kritéria E1 kapitoly 12 jsou hostitelsky doložena; další je E2.1 podle horní části souboru.
 
 ### D1 – 29. 9. 2026 – E1.1 Stop a bezpečnostní požadavky bez desky
@@ -3512,7 +3481,7 @@ Jde o budoucí podmínky konkrétních etap, nikoli důvod neprovést E1/E2. Dal
 - Rozsah: nové `firmware/src/features/safety/SafetyPort.h` a `SafetyController.h/.cpp`; upravené `wand_selection/SelectionSequence.h/.cpp`, `SerialSelectionPort.h/.cpp`, `src/main.cpp`, `tests/selection_sequence_test.cpp` a firmware README. Sekvence po startu i Stop vyžaduje výslovné zotavení; Stop hned volá port pro vypnutí, nepokouší se znovu zamknout západku. Safety controller odmítá souběh motoru a západky; motor je provozně 150 ms, pozdní průchod od 250 ms, západka od 500 ms a sekvence od 5 s vyvolají Stop. Sériový port pouze vypisuje požadavky, žádné GPIO.
 - Hostitelské ověření z `C:\Users\vojtech.petrik\AppData\Local\Temp\kufr-e1-validation`: `cmd /c '"C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Auxiliary\Build\vcvars64.bat" >nul && cl /nologo /EHsc /W4 /WX /std:c++14 C:\Development\DildoVander\kufr\firmware\src\features\safety\SafetyController.cpp C:\Development\DildoVander\kufr\firmware\src\features\wand_selection\SelectionSequence.cpp C:\Development\DildoVander\kufr\firmware\tests\selection_sequence_test.cpp /Fe:selection_sequence_test.exe && selection_sequence_test.exe'` — průchod bez chyb. Testy pokrývají původní pořadí/validaci, Stop ve všech fázích, opakovaný i externí Stop, zotavení, pozdní průchod, meze 250/500/5000 ms a přetečení čítače včetně aktivního motoru/západky. Celý `src/main.cpp` a sériový adaptér navíc prošly kompilací s dočasnou hlavičkou Arduino mimo repo; tento stub není náhradou skutečného PlatformIO buildu.
 - Firmware build z `kufr/firmware`: `& (Join-Path $env:TEMP 'kufr-pio-venv\Scripts\python.exe') -m platformio run` — **SUCCESS**, PlatformIO Core 6.2.0, platforma `espressif32@7.1.3`, Arduino; 18 660 B RAM a 270 217 B flash. CLI bylo nainstalováno do dočasného venv mimo repo; běžný příkaz `pio run` bez tohoto prostředí v PATH nefunguje. `.pio/` je ignorovaný výstup.
-- Revize: žádný commit/push; checkout nemá HEAD a všechny původní soubory jsou untracked. Neproběhlo nahrání do desky, měření watchdogu/inhibit, ověření serva ani iPhone/CI. Softwarový Stop vydává požadavek; nepředstavuje důkaz fyzického vypnutí při zatuhlé smyčce.
+- Revize: žádný commit/push; checkout nemá HEAD a všechny původní soubory jsou untracked. Neproběhlo nahrání do desky, měření napájení/OE, ověření serva ani iPhone/CI. Softwarový Stop vydává požadavek; nepředstavuje důkaz fyzického vypnutí při zatuhlé smyčce.
 - Dodatečné doručení 29. 9. 2026: po potvrzení prvního importu celého projektu byl E1.1 zahrnut do commitu `b21725a23be88b89f723fa01b59496058cb89abd` a pushnut na `origin/main` repozitáře `Blato58/DildoVander`. Pravidlo automatického commitu/push po každém dalším dokončeném slice, ověřovací skript a připnutí Node 24.21.0 byly pushnuty v commitu `80fecdebbad9e0b5d136d520e954da66caeedcee`. Trvalý PlatformIO Core 6.2.0 je v uživatelském prostředí; `pio run` znovu prošel, stejně jako `npm ci` a `npm run build` mobilního prototypu pod Node 24.21.0. Tyto buildy nedokazují HW ani iOS akceptaci.
 - Předání: E1.2 podle horní části souboru. B1 blokuje jen fyzickou část E5, nikoli další hostitelské testy.
 
