@@ -96,7 +96,8 @@ jiný profil, soukromé okno či vymazání dat nejsou stejným úložištěm.
 Červené spojnice značí napájení, modré signály a šedé společnou GND;
 přerušovaná spojnice vede ke skrytému dílu. Seznam vazeb obsahuje GPIO,
 kanály PCA, napětí a poznámky. Jde o elektrické vztahy podle potvrzeného
-zapojení, nikoli o změřené kabelové trasy. Rezervy nejsou zapojené.
+zapojení, nikoli o změřené kabelové trasy. Rezervní zakoupené díly jsou
+z náhledu i seznamu Inspect odstraněné.
 ID svorek Degson a kondenzátorů nemají v podkladu přiřazenou konkrétní síť;
 prohlížeč ji neodvozuje z polohy CAD. Pořadí ID úseků LED je označené jako
 konvence vizualizace.
@@ -106,6 +107,11 @@ Jejich přesné texty a SHA-256 se ukládají do `reference/inspect-sources.json
 pro regeneraci z vybaleného ZIPu. V repozitáři mají přednost aktuální
 podklady; ověření odmítne zastaralou kopii. `viewer.js` se vkládá přímo
 do HTML, náhled nepotřebuje síť ani soubory vedle sebe.
+Kabelové vazby jsou ručně přepsané podle ověřené verze zapojení. Její
+SHA-256 je v `inspect_data.py` jako `REVIEWED_WIRING_SHA256`; změna dokumentu
+zastaví obnovu podkladů i generování. Po změně je nutné zkontrolovat
+`connection_data()`, aktualizovat vazby a regresní testy, teprve potom
+záměrně změnit tento hash a znovu generovat. Platí to i pro zdrojový ZIP.
 
 Pouze náhled, bez nového exportu STEP/STL a PNG, lze obnovit příkazem:
 

@@ -13,9 +13,9 @@ Shift nad prázdnou plochou ukáže názvy dílů zapnutých vrstev v záběru.
 Klik připne kartu; Shift pak zachová pouze její propojení a klik do
 prázdna výběr zruší. Tlačítko Inspect a seznam objektů umožňují další
 ovládání. Barva se ukládá pro ID objektu do místního úložiště prohlížeče.
-232 objektů má popisy, CAD obálky a rozměrovou evidenci; 92 logických
+219 objektů má popisy, CAD obálky a rozměrovou evidenci; 92 logických
 kabelových vazeb obsahuje GPIO, kanály, napětí a poznámky podle
-potvrzeného zapojení. Rezervy jsou odpojené. Konkrétní ID svorek ani
+potvrzeného zapojení. Rezervní díly jsou z náhledu odstraněné. Konkrétní ID svorek ani
 kondenzátorů nemají doložené přiřazení sítě; trasy kabelů se neměří.
 
 Změněné zdroje jsou v `final/`: šablona, nový `viewer.js`, nový modul
@@ -81,6 +81,15 @@ bez Shiftu pin zruší, drag jej zachová. Aktuálně prošlo 5/5 Node regresí.
 Regenerované HTML tyto přechody ověřilo i v browseru: Shift-klik na PCA,
 puštění Shiftu, rotace s pinem a prázdný klik se Shiftem i bez něj prošly.
 Konzole zůstala bez chyb, lokální screenshot byl obnoven.
+Poslední požadavek odstranil všech 13 rezervních dílů (`spare_*`) přímo
+z payloadu náhledu, včetně možnosti jejich výběru v Inspectu. Aktuální
+prohlížeč má 219 objektů a 92 vazeb; ostatní CAD exporty se tím nemění.
+Generované HTML i browser potvrdily 219 objektů, žádná rezervní ID a
+92 vazeb bez chybějících konců. P2 review dále zavedlo explicitně
+ověřený hash zapojení v `inspect_data.py`: změněný dokument ani validní
+změněný snapshot nesmějí bez kontroly mapy vazeb obnovit provenance či
+generovat. README popisuje aktualizaci mapy/hash. Prošlo 23/23 Python
+testů metadat/balení, včetně změn zdroje a vybaleného balíčku.
 
 **9. 10. 2026 – F1 a úklid předchozího CAD; zdroje ověřené a pushnuté.**
 Jediným aktivním návrhem je [F1](../mechanika/final/README.md), vytvořený

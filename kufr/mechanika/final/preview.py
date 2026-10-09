@@ -86,7 +86,7 @@ def render(items,path,title,camera,target,parallel=300):
 def viewer():
     inspect_data.snapshot_sources()
     meshes=[]
-    items=scene(lid=0)
+    items=[item for item in scene(lid=0) if not item.name.startswith("spare_")]
     for item in items:
         vertices,faces=mesh(item.shape)
         # Flat normals make the actual printed facets and clearances legible.

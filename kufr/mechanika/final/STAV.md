@@ -11,7 +11,7 @@ Tištěná geometrie ani elektrické zapojení se nemění.
 Zdroje: `viewer-template.html`, nový `viewer.js` a `inspect_data.py`,
 `preview.py`, `build.py`, `Regenerate.ps1`, nové testy a ověřená kopie
 podkladů v `reference/inspect-sources.json`. Popisy jsou přiřazené všem
-232 objektům; náhled obsahuje 92 dokumentovaných logických vazeb.
+219 objektům; náhled obsahuje 92 dokumentovaných logických vazeb.
 Přesné konektory,
 kabelové délky a síťové přiřazení konkrétních ID svorek nejsou domyšlené.
 
@@ -56,6 +56,15 @@ tažení jej zachová. Aktuálně prošlo 5/5 Node testů těchto přechodů.
 Finální regenerované HTML prošlo také skutečným browser Shift-klikem
 na PCA, puštěním Shiftu, otočením bez ztráty pinu a prázdným klikem
 se Shiftem i bez něj; karta a propojení odpovídají výběru, konzole bez chyb.
+Poslední upřesnění majitele odstranilo všech 13 rezervních objektů
+(`spare_*`) z payloadu prohlížeče. Náhled ani seznam Inspect je neobsahují;
+zůstává 219 objektů a 92 vazeb. Změna je omezená na prohlížeč.
+Regenerované HTML i browser ověřily 219 objektů, žádné rezervní ID
+v geometrii/seznamu/popiscích a všech 92 vazeb bez chybějících konců.
+Další PR nález vyžaduje kontrolu změněného zapojení: ověřený hash
+`REVIEWED_WIRING_SHA256` nyní brání přepsání provenance i generování
+vazeb z jiného dokumentu, včetně validního změněného ZIP snapshotu.
+Prošlo 23/23 testů metadat/balení; změna rozměrů zůstává nezávislá.
 V tomto slice se regeneruje pouze
 `exports/viewer.html`; starší geometrické reporty a celý ZIP tím nejsou
 znovu ověřené. Další krok: používat Inspect při prohlídce; fyzická
