@@ -15,11 +15,14 @@ jen výchozí větev. CI odmítá starý head/base před buildy a zachovává
 výběr dotčených projektů. Balení/promotion podporuje PR dispatch bez
 oslabení důkazu sloučeného PR a shody stromu s aktuálním `main`.
 Upraveny CI, skripty a testy, CI/CD návod, README a CONTRIBUTING.
-Lokálně prošel připnutý actionlint 1.7.12 se SHA-256 kontrolou a 53 Node
-testů před doplněním dvou polling/concurrency regresí. Python: 16/17;
+Lokálně prošel připnutý actionlint 1.7.12 se SHA-256 kontrolou a 55 Node
+testů včetně polling/concurrency regresí. Python: 16/17;
 dosavadní POSIX executable-mode test na Windows selhává (0666 vs 0755),
 nových pět packaging testů prošlo. Linux CI a živá aktualizace/dispatch
-se ještě musí ověřit; commit, push a merge se doplní podle skutečnosti.
+se ještě musí ověřit. Implementace `859201b` byla commitnuta a push
+ověřil remote SHA; PR [140](https://github.com/Blato58/DildoVander/pull/140).
+První živý CI běh odmítl zaostávající větev před buildy, protože mezitím
+přibylo `30fc338` do `main`; cíl byl přimíchán a nové CI ještě čeká.
 
 **D156 – 9. 10. 2026 – zjednodušená architektura podle majitele, bez doplňkových pohonových modulů.**
 Majitel výslovně odstranil externí watchdog, hardwarový heartbeat přes I2C,
