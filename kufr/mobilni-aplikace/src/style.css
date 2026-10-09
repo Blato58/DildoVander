@@ -27,6 +27,11 @@ body { margin: 0; min-height: 100vh; }
 .debug-heading h1 { margin-bottom: .25rem; }
 .debug-card { margin-top: 1.25rem; padding: 1.25rem; background: #252b34; border: 1px solid #4b5866; border-radius: .55rem; }
 .debug-card p { line-height: 1.5; }
+.debug-card ol { padding-left: 1.5rem; line-height: 1.6; }
+.ble-devices { padding: 0; list-style: none; display: grid; gap: .75rem; }
+.ble-network-actions { margin-top: 1rem; }
+.debug-card select { display: block; width: 100%; margin-top: .5rem; padding: .75rem; background: #252b34; color: #fff; font: inherit; border: 1px solid #83909d; border-radius: .4rem; }
+.app-tabs button { min-width: 0; }
 .debug-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
 .debug-metrics dt { font-size: .85rem; color: #bfc7cd; }
 .debug-metrics dd { margin: .3rem 0 0; overflow-wrap: anywhere; }

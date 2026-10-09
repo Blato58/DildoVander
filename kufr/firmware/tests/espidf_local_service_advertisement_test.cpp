@@ -29,6 +29,10 @@ struct EndTest {};
 }
 
 // The advertisement adapter alone is under test; no STA/task/network is live.
+bool EspIdfNetworkProfileStorage::Save(const NetworkProfileRecord&) {
+  assert(false);  // Discovery must never write network profiles.
+  return false;
+}
 bool EspIdfStationNetwork::HasIp() const { return hasIp; }
 uint32_t EspIdfStationNetwork::IpGeneration() const { return generation; }
 EspIdfWifiStation::~EspIdfWifiStation() = default;

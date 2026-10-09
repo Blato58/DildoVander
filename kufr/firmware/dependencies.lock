@@ -1,4 +1,14 @@
 dependencies:
+  espressif/cjson:
+    component_hash: 9372811fb197926f522c467627cf4a8e72b681e0366e17879631da801103aef3
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.7.19
   espressif/esp32-camera:
     component_hash: d1770097ec47996a9aba49b8d99672863c9855ea2d47e91fe31e11e58e8c7813
     dependencies:
@@ -38,8 +48,9 @@ dependencies:
       type: idf
     version: 6.1.0
 direct_dependencies:
+- espressif/cjson
 - espressif/esp32-camera
 - espressif/mdns
-manifest_hash: be126247ebf8811de04fbfeb05e326d2b9d2a5f3329ae380dcf9da085555013b
+manifest_hash: 556523104d6d38e9c18110a7bb0c183779f9b52beff41ac249005f42843cbcaf
 target: esp32s3
 version: 3.0.0

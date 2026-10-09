@@ -1,5 +1,60 @@
 # Mobilní ovládání kufru
 
+## BLE nastavení sítě a firmware
+
+Záložka **Síť kufru** v nativní iPhone aplikaci vyhledá `KUFR_` zařízení
+s projektovým BLE service UUID a použije oficiální Espressif ESPProvision
+**3.2.0**, CoreBluetooth a Security1. Kufr musí mít otevřené omezené servisní
+nebo obnovovací okno a provisionovaný jedinečný 32znakový PoP. PoP se zadává
+v nativním zabezpečeném dialogu z vnitřního servisního štítku. Místní WSS
+párovací token ani backend credential nejsou BLE PoP. Bez ověřeného
+Security1 a povinného PoP klient neposílá síťové údaje.
+
+Pro iPhone hotspot otevřete **Nastavení → Osobní hotspot**, zapněte
+**Povolit připojení ostatním** a **Maximalizovat kompatibilitu** (2,4 GHz).
+V aplikaci zvolte iPhone Osobní hotspot a zadejte název iPhonu (SSID) a heslo
+z Nastavení. Aplikace hotspot nezapíná ani jeho heslo/SSID automaticky nečte;
+tlačítko Nastavení používá pouze veřejné `UIApplication.openSettingsURLString`
+a otevře nastavení oprávnění aplikace. Telefon se k vlastnímu hotspotu
+nepřipojuje jako Wi-Fi klient. Při prvním připojení může být nutné ponechat
+obrazovku hotspotu otevřenou a potom BLE znovu vyhledat a ověřit.
+
+Hotspot je přednostní síť, **Záložní Wi-Fi** je alternativní profil.
+Nativní dialog **Nastavit / nahradit údaje** přijme SSID 1–32 UTF-8 bajtů
+a WPA heslo 8–63 bajtů. Po potvrzení se oba údaje odešlou přes autentizovaný,
+šifrovaný `kufr-control` endpoint; JavaScript ani aplikační log heslo a PoP
+nepřijímají. Telefon je neukládá do Keychain ani localStorage. SDK logging je
+výslovně vypnuté před jeho použitím. Swift/iOS/SDK mohou během operace držet
+vlastní paměťové kopie; zdroj netvrdí garantované vynulování těchto kopií.
+
+Stav se při otevřené záložce obnovuje každou sekundu bez souběžných BLE
+požadavků. Ukazuje firmware, nastavené SSID, aktivní a poslední úspěšný
+profil, výsledek Wi-Fi testu, backend a OTA. **Otestovat připojení sítě**
+ověřuje uložený profil. Při výměně firmware zachová původní údaje až do
+úspěšného testu nové sítě; chyba nesmí zrušit platný profil. **Smazat vybranou
+síť** vyžaduje další nativní potvrzení a nemaže zařízení, párování ani druhou
+síť. Mazání je dostupné až po ověřené BLE relaci.
+
+**Zkontrolovat firmware**, **Nainstalovat ověřenou aktualizaci** a tlačítka
+politiky automatické instalace používají stejné autentizované rozhraní.
+Instalaci/změnu politiky potvrzuje nativní dialog. Firmware rozhoduje o
+kompatibilitě, ověření podpisu a bezpečném klidu před instalací/restartem.
+Telefon nikdy neflashuje paměť přímo. BLE timeout může znamenat nejistý
+výsledek: znovu ověřte stav; aplikace změnu automaticky neopakuje.
+
+Odchod do pozadí nebo uzamčení zruší nativní BLE relaci a vymaže její
+přechodné PoP. Návrat vyžaduje nové explicitní vyhledání/ověření.
+Zavření nebo odpojení BLE neukončuje samostatný provoz kufru. Web zobrazuje
+návod a nedostupný stav; nepoužívá Web Bluetooth a nesimuluje připojený kufr.
+
+Lokální webové testy zahrnují zrušení/pozdní odpovědi, polling, ztrátu BLE
+a zákaz opakování nejisté změny. `bash scripts/test-native-provisioning.sh`
+na macOS ověřuje whitelist diagnostiky včetně vyřazení tajných polí,
+nekompatibilního protokolu a nadměrného rámce. Xcode package resolver používá
+přímo přesně připnutou závislost ESPProvision z projektu; generovaný
+`CapApp-SPM/Package.swift` se kvůli ní neupravuje. Zdrojové napojení,
+webový build a harness nenahrazují skutečný iPhone/BLE/hotspot/OTA test.
+
 ## Autonomní Live a playback checkpoint (D143)
 
 Katalog a výběr personality dál načítá dosavadní Debug → Server. Novou

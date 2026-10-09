@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+        AE2000000000000000000101 /* KufrProvisioningPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2000000000000000000001 /* KufrProvisioningPlugin.swift */; };
+        AE2000000000000000000102 /* ProvisioningStatusCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2000000000000000000002 /* ProvisioningStatusCodec.swift */; };
+        AE2000000000000000000103 /* ESPProvision in Frameworks */ = {isa = PBXBuildFile; productRef = AE2000000000000000000004 /* ESPProvision */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */ = {isa = PBXBuildFile; productRef = 4D22ABE82AF431CB00220026 /* CapApp-SPM */; };
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
@@ -28,6 +31,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+        AE2000000000000000000001 /* KufrProvisioningPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KufrProvisioningPlugin.swift; sourceTree = "<group>"; };
+        AE2000000000000000000002 /* ProvisioningStatusCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProvisioningStatusCodec.swift; sourceTree = "<group>"; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -56,6 +61,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */,
+                AE2000000000000000000103 /* ESPProvision in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -85,6 +91,8 @@
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				AE1000000000000000000004 /* KufrBridgeViewController.swift */,
+                AE2000000000000000000001 /* KufrProvisioningPlugin.swift */,
+                AE2000000000000000000002 /* ProvisioningStatusCodec.swift */,
 				AE1000000000000000000003 /* KufrDeviceTransportPlugin.swift */,
 				AE1000000000000000000002 /* LocalDeviceTransport.swift */,
 				AE1000000000000000000001 /* LocalDeviceIdentity.swift */,
@@ -122,6 +130,7 @@
 			name = App;
 			packageProductDependencies = (
 				4D22ABE82AF431CB00220026 /* CapApp-SPM */,
+                AE2000000000000000000004 /* ESPProvision */,
 			);
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* App.app */;
@@ -154,6 +163,7 @@
 			mainGroup = 504EC2FB1FED79650016851F;
 			packageReferences = (
 				D4C12C0A2AAA248700AAC8A2 /* XCLocalSwiftPackageReference "CapApp-SPM" */,
+                AE2000000000000000000003 /* XCRemoteSwiftPackageReference "ESPProvision" */,
 			);
 			productRefGroup = 504EC3051FED79650016851F /* Products */;
 			projectDirPath = "";
@@ -186,6 +196,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
+                AE2000000000000000000101 /* KufrProvisioningPlugin.swift in Sources */,
+                AE2000000000000000000102 /* ProvisioningStatusCodec.swift in Sources */,
 				AE1000000000000000000104 /* KufrBridgeViewController.swift in Sources */,
 				AE1000000000000000000103 /* KufrDeviceTransportPlugin.swift in Sources */,
 				AE1000000000000000000102 /* LocalDeviceTransport.swift in Sources */,
@@ -405,12 +417,24 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+        AE2000000000000000000004 /* ESPProvision */ = {
+            isa = XCSwiftPackageProductDependency;
+            package = AE2000000000000000000003 /* XCRemoteSwiftPackageReference "ESPProvision" */;
+            productName = ESPProvision;
+        };
 		4D22ABE82AF431CB00220026 /* CapApp-SPM */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = D4C12C0A2AAA248700AAC8A2 /* XCLocalSwiftPackageReference "CapApp-SPM" */;
 			productName = "CapApp-SPM";
 		};
 /* End XCSwiftPackageProductDependency section */
+/* Begin XCRemoteSwiftPackageReference section */
+        AE2000000000000000000003 /* XCRemoteSwiftPackageReference "ESPProvision" */ = {
+            isa = XCRemoteSwiftPackageReference;
+            repositoryURL = "https://github.com/espressif/esp-idf-provisioning-ios.git";
+            requirement = {kind = exactVersion; version = 3.2.0; };
+        };
+/* End XCRemoteSwiftPackageReference section */
 	};
 	rootObject = 504EC2FC1FED79650016851F /* Project object */;
 }

@@ -49,12 +49,11 @@ NetworkSettingsLoadResult LoadEspIdfNetworkSettings(NetworkSettings& settings,
   SensitiveBuffer<33> ssid;
   SensitiveBuffer<64> password;
   SensitiveBuffer<254> backendHost;
-  const bool valid =
-      ReadText(handle, "ssid", ssid) &&
-      ReadText(handle, "password", password) &&
-      ReadText(handle, "backend_host", backendHost) &&
-      settings.Configure(ssid.data.data(), password.data.data(),
-                         backendHost.data.data());
+  const bool hostLoaded = ReadText(handle, "backend_host", backendHost);
+  const bool legacyLoaded = ReadText(handle, "ssid", ssid) && ReadText(handle, "password", password);
+  const bool valid = hostLoaded && (legacyLoaded ?
+      settings.Configure(ssid.data.data(), password.data.data(), backendHost.data.data()) :
+      settings.ConfigureBackend(backendHost.data.data()));
   nvs_close(handle);
   return valid ? NetworkSettingsLoadResult::Loaded
                : NetworkSettingsLoadResult::Failed;

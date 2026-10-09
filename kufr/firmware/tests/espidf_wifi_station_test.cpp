@@ -42,6 +42,7 @@ esp_err_t esp_wifi_set_config(int iface, wifi_config_t* config) {
 esp_err_t esp_wifi_start() { wifiCallback(context, WIFI_EVENT, WIFI_EVENT_STA_START, nullptr); return ESP_OK; }
 esp_err_t esp_wifi_stop() { return ESP_OK; }
 esp_err_t esp_wifi_connect() { ipCallback(context, IP_EVENT, IP_EVENT_STA_GOT_IP, nullptr); return ESP_OK; }
+esp_err_t esp_wifi_disconnect() { return ESP_OK; }
 EventGroupHandle_t xEventGroupCreate() { return &bits; }
 void vEventGroupDelete(EventGroupHandle_t) {}
 EventBits_t xEventGroupSetBits(EventGroupHandle_t, EventBits_t value) { return bits |= value; }

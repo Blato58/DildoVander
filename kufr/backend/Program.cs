@@ -5,12 +5,24 @@ using Kufr.Backend.Features.VoiceTurns;
 using Kufr.Backend.Features.Realtime;
 using Kufr.Backend.Features.Diagnostics;
 using Kufr.Backend.Features.Memory;
+using Kufr.Backend.Features.Firmware;
+using Microsoft.AspNetCore.RateLimiting;
 
 var provisioning = args.Contains("--memory-provision");
 var builder = WebApplication.CreateBuilder(args.Where(a => a is not ("--memory-provision" or "--execute" or "--create")).ToArray());
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 4096);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<DeviceAccessStore>();
+builder.Services.AddSingleton<FirmwareReleases>();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = 429;
+    options.AddConcurrencyLimiter("firmware", policy =>
+    {
+        policy.PermitLimit = 4;
+        policy.QueueLimit = 0;
+    });
+});
 builder.Services.AddSingleton<ServerAdminAccess>();
 builder.Services.AddSingleton<LogReadAccess>();
 builder.Services.AddSingleton<ServerLogStore>();
@@ -49,6 +61,7 @@ logs.Write("info", "server_started");
 app.Lifetime.ApplicationStopping.Register(() => logs.Write("info", "server_stopping"));
 
 app.Use((context, next) => ServerLogEvents.RequestAsync(context, next, logs));
+app.UseRateLimiter();
 
 app.Use(async (context, next) =>
 {
@@ -61,6 +74,7 @@ app.Use(async (context, next) =>
 });
 
 app.MapDeviceAccess();
+app.MapFirmwareReleases();
 app.MapConversations();
 app.MapCostumeImages();
 app.MapRealtimeTurns();

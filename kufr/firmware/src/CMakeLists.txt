@@ -1,5 +1,13 @@
 idf_component_register(
     SRCS
+        "features/network_provisioning/NetworkProfiles.cpp"
+        "features/network_provisioning/EspIdfNetworkProfileStorage.cpp"
+        "features/network_provisioning/EspIdfBleProvisioning.cpp"
+        "features/firmware_update/OtaManifest.cpp"
+        "features/firmware_update/OtaPolicy.cpp"
+        "features/firmware_update/EspIdfFirmwareUpdate.cpp"
+        "features/sd_assets/AssetReader.cpp"
+        "features/sd_assets/EspIdfSdAssets.cpp"
         "features/costume_photo/CostumePhoto.cpp"
         "features/costume_photo/EspIdfCostumeCamera.cpp"
         "features/costume_photo/EspIdfCostumeUpload.cpp"
@@ -71,5 +79,13 @@ idf_component_register(
         "features/wand_selection/SelectionSequence.cpp"
         "features/wand_presentation/WandPresentation.cpp"
     INCLUDE_DIRS "."
-    REQUIRES esp_driver_i2c esp_driver_rmt esp_driver_i2s esp_driver_gpio bootloader_support esp_event esp_http_client esp_http_server esp_https_server esp_hw_support esp_netif esp_timer esp_wifi freertos log mbedtls mdns nvs_flash
+    REQUIRES app_update protocomm cjson fatfs sdmmc esp_driver_sdmmc esp_driver_i2c esp_driver_rmt esp_driver_i2s esp_driver_gpio bootloader_support esp_event esp_http_client esp_http_server esp_https_server esp_hw_support esp_netif esp_timer esp_wifi freertos log mbedtls mdns nvs_flash
 )
+
+execute_process(COMMAND git rev-parse HEAD WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
+    OUTPUT_VARIABLE KUFR_BUILD_ID OUTPUT_STRIP_TRAILING_WHITESPACE)
+if(NOT KUFR_BUILD_ID MATCHES "^[0-9a-f]+$" OR NOT KUFR_BUILD_ID)
+    message(FATAL_ERROR "Firmware requires a Git build identity")
+endif()
+target_compile_definitions(${COMPONENT_LIB} PRIVATE
+    KUFR_FIRMWARE_VERSION="${PROJECT_VER}" KUFR_FIRMWARE_BUILD_ID="${KUFR_BUILD_ID}")

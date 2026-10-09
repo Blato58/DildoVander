@@ -19,3 +19,4 @@ esp_err_t esp_wifi_set_config(int, wifi_config_t*);
 esp_err_t esp_wifi_start();
 esp_err_t esp_wifi_stop();
 esp_err_t esp_wifi_connect();
+esp_err_t esp_wifi_disconnect();

@@ -78,12 +78,11 @@ async function waitForServer() {
   throw new Error(`Backend did not start: ${serverOutput}`);
 }
 
-async function call(path, { credential, token, key, body, closeConnection = false } = {}) {
+async function call(path, { credential, token, key, body } = {}) {
   const headers = {};
   if (credential || token) headers.Authorization = `Bearer ${credential ?? token}`;
   if (key) headers['Idempotency-Key'] = key;
   if (body) headers['Content-Type'] = 'application/json';
-  if (closeConnection) headers.Connection = 'close';
   const response = await fetch(`${baseUrl}${path}`, {
     method: 'POST',
     headers,
@@ -185,7 +184,41 @@ async function imageRequest(id, token, headers, jpeg = costumeJpeg, correction =
     body: correction === null ? jpeg : JSON.stringify({ description: correction })
   });
   assert.equal(response.headers.get('cache-control'), 'no-store');
-  return { status: response.status, result: await response.json() };
+  return { status: response.status, result: await response.json(), connection: response.headers.get('connection') };
+}
+
+// Do not eagerly upload after a declared-size rejection: Undici can report
+// EPIPE while it is still writing instead of exposing the server's early 413.
+async function declaredOversizeRequest(path, headers, byteCount) {
+  return await new Promise((resolve, reject) => {
+    const oversizedRequest = request(`${baseUrl}${path}`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Length': byteCount, Expect: '100-continue' }
+    }, response => {
+      const chunks = [];
+      let received = 0;
+      response.on('error', reject);
+      response.on('data', chunk => {
+        received += chunk.length;
+        if (received > 4096) { response.destroy(new Error('Oversized rejection response')); return; }
+        chunks.push(chunk);
+      });
+      response.on('end', () => {
+        try {
+          assert.equal(response.headers['cache-control'], 'no-store');
+          resolve({ status: response.statusCode,
+            result: JSON.parse(Buffer.concat(chunks).toString('utf8')),
+            connection: response.headers.connection });
+        } catch (error) { reject(error); }
+        finally { oversizedRequest.destroy(); }
+      });
+    });
+    oversizedRequest.on('error', reject);
+    oversizedRequest.on('continue', () => oversizedRequest.destroy(
+      new Error('Declared oversized body was not rejected before upload')));
+    oversizedRequest.setTimeout(5000, () => oversizedRequest.destroy(new Error('Oversized request timed out')));
+    oversizedRequest.flushHeaders();
+  });
 }
 
 startServer();
@@ -390,7 +423,13 @@ try {
   assert.equal((await imageRequest(created.result.conversationId, tokenA,
     { ...imageHeaders, 'Boot-Id': body.bootId, Generation: String(body.generation), 'Catalog-Version': body.catalogVersion })).status, 403);
   assert.equal((await imageRequest(imageId, virtualToken, imageHeaders, Buffer.from('invalid'))).status, 400);
-  assert.equal((await imageRequest(imageId, virtualToken, imageHeaders, Buffer.alloc(262145))).status, 413);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const oversizedImage = await declaredOversizeRequest(`/v1/conversations/${imageId}/image`,
+      { ...imageHeaders, Authorization: `Bearer ${virtualToken}`, 'Content-Type': 'image/jpeg' }, 262145);
+    assert.equal(oversizedImage.status, 413);
+    assert.equal(oversizedImage.connection, 'close', 'rejected unread image must not advertise reusable HTTP/1 socket');
+    assert.equal((await imageRequest(imageId, virtualToken, imageHeaders, Buffer.from('invalid'))).status, 400);
+  }
   const jpegMetadata = Buffer.from(costumeJpeg); jpegMetadata[3] = 0xe1;
   assert.equal((await imageRequest(imageId, virtualToken, imageHeaders, jpegMetadata)).status, 400);
   const imageAccepted = await imageRequest(imageId, virtualToken, imageHeaders);
@@ -465,8 +504,11 @@ try {
   assert.equal((await call(realtimePath, { token: virtualToken, key: randomUUID(),
     body: { ...realtime, opening: false, wav: makeWav(19200).toString('base64') } })).result.code,
     'opening_required_or_already_started');
-  assert.equal((await call(realtimePath, { token: virtualToken, key: randomUUID(),
-    closeConnection: true, body: { ...realtime, opening: false, wav: 'a'.repeat(2600001) } })).status, 413);
+  const oversizedRealtimeBytes = Buffer.byteLength(JSON.stringify({ ...realtime,
+    opening: false, wav: 'a'.repeat(2600001) }));
+  assert.equal((await declaredOversizeRequest(realtimePath,
+    { Authorization: `Bearer ${virtualToken}`, 'Idempotency-Key': randomUUID(),
+      'Content-Type': 'application/json' }, oversizedRealtimeBytes)).status, 413);
   assert.equal(await remove(`/v1/conversations/${realtimeSession.result.conversationId}`, virtualToken, randomUUID()), 204);
   const turnKey = randomUUID();
   assert.equal((await call(turnPath, {
