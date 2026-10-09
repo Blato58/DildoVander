@@ -18,6 +18,7 @@ RUNNER_TEMPS = tuple(Path('/opt') / name / '_work' / '_temp'
 KEYS = Path('/etc/kufr-backend')
 TOOL = Path('/usr/local/lib/kufr-firmware/ota_release.py')
 VERIFIER = Path('/usr/local/lib/kufr-firmware/firmware_artifact.py')
+VERSION_TOOL = Path('/usr/local/lib/kufr-firmware/firmware_version.py')
 PARTITIONS = Path('/usr/local/lib/kufr-firmware/partitions_16mb.csv')
 
 
@@ -73,6 +74,7 @@ def publish(source, run_id, channel, token):
             raise ValueError('Signing configuration must be a regular file')
     if key.stat().st_mode & 0o077:
         raise ValueError('Private signing key must have mode 0600')
+    load_owned_module('firmware_version', VERSION_TOOL)
     verifier = load_owned_module('firmware_artifact', VERIFIER)
     expected = verifier.verify_artifact(run_id, token)
     version, build_id = expected.version, expected.build_id
