@@ -24,6 +24,13 @@ barvy po zavření/znovuotevření stránky; konzole bez chyb. Přímý test
 `file://` odmítla bezpečnostní politika nástroje. Nezávislé review opravilo
 chybějící podklady ve vybaleném balíčku a popisy výstelky/kování;
 finální review nemá otevřený nález. Doručení uvádí globální stav.
+GitHub review PR168 následně odhalilo přepis připnuté karty při pohybu
+kurzoru. Karta i úprava barvy nyní patří připnutému objektu až do
+výslovného zrušení/nového kliku; zvýraznění pod kurzorem a názvy nad
+prázdnou plochou zůstávají funkční. Dva Node regresní testy skutečných
+handlerů (`node --test test_viewer.cjs`) a browser přechod od PCA přes
+plochu do karty/změny barvy prošly. Testovací GPU není důkaz renderování;
+browser ověření používá skutečný WebGL. Nezávislé review opravy prošlo.
 V tomto slice se regeneruje pouze
 `exports/viewer.html`; starší geometrické reporty a celý ZIP tím nejsou
 znovu ověřené. Další krok: používat Inspect při prohlídce; fyzická

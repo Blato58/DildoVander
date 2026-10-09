@@ -273,19 +273,19 @@ function draw() {
   gl.uniformMatrix4fv(loc.projection,false,projection); gl.uniformMatrix4fv(loc.view,false,view);
   if (pinned && !visible(pinned)) pinned = null;
   hovered = inspecting() && !drag ? pick() : null;
-  const selected = inspecting() && pointer ? hovered : pinned;
+  const selected = pinned || hovered;
   gl.clearColor(.937,.922,.894,1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  renderMeshes(false, selected);
+  renderMeshes(false, hovered || selected);
   el('liftvalue').textContent = lift(+el('lift').value).toFixed(1)+' mm';
   el('lidvalue').textContent = el('lid').value+'°';
   el('inspect').setAttribute('aria-pressed', String(inspectEnabled));
   el('inspect-hint').hidden = !inspecting();
-  el('inspect-hint').textContent = selected ? 'Klik na objekt připne jeho kartu a umožní změnit barvu.' : 'Inspect: názvy všech objektů zapnutých vrstev. Najeďte na díl; Servis odkryje elektroniku.';
+  el('inspect-hint').textContent = pinned ? `Připnuto: ${pinned.name}. Klik na jiný objekt změní výběr; Zrušit výběr obnoví prohlížení.` : selected ? 'Klik na objekt připne jeho kartu a umožní změnit barvu.' : 'Inspect: názvy všech objektů zapnutých vrstev. Najeďte na díl; Servis odkryje elektroniku.';
   canvas.style.cursor = inspecting() ? 'crosshair' : drag ? 'grabbing' : 'grab';
   updatePanel(selected);
   el('overlay').replaceChildren(); el('names').replaceChildren();
-  if (selected) drawConnections(selected);
-  else if (inspecting()) allNames();
+  if (inspecting() && (!selected || (pointer && !hovered))) allNames();
+  else if (selected) drawConnections(selected);
 }
 function requestDraw() {
   if (frameRequested) return;
@@ -320,7 +320,7 @@ canvas.addEventListener('pointerleave', () => { pointer = null; requestDraw(); }
 canvas.addEventListener('wheel', event => {
   event.preventDefault(); distance = Math.max(250,Math.min(2000,distance*Math.exp(event.deltaY*.001))); requestDraw();
 }, {passive:false});
-el('inspector').addEventListener('pointerenter', () => { if (displayedMesh) pinned = displayedMesh; pointer = null; requestDraw(); });
+el('inspector').addEventListener('pointerenter', () => { if (!pinned && displayedMesh) pinned = displayedMesh; pointer = null; requestDraw(); });
 function closeInspect() { shiftDown = false; inspectEnabled = false; pinned = null; hovered = null; requestDraw(); }
 document.addEventListener('keydown', event => {
   if (event.key === 'Shift' && !shiftDown) { shiftDown = true; requestDraw(); }

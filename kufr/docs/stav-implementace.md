@@ -44,6 +44,15 @@ Předání a vzdálené kontroly jsou v
 Existující nevázané `.codex/` soubory nebyly přidány ani upraveny;
 při push byla pouze procesně potlačena jejich kontrola jako untracked.
 
+PR review našlo P2: pohyb kurzoru mohl přepsat klikem připnutou kartu
+a změnit objekt, jehož barva se upravuje. Oprava dává připnutému dílu
+trvalé vlastnictví karty do zrušení či dalšího kliku, odděluje zvýraznění
+pod kurzorem a zachovává všechny názvy nad prázdnou plochou. Prošly
+2/2 Node regresní testy skutečných event handlerů s testovacím GPU,
+nová generace HTML a skutečný browser přechod od PCA do karty a editace
+barvy. Nezávislé review opravy nemá nález. Nový `test_viewer.cjs` patří
+do fingerprintů zdrojů; spouští se příkazem `node --test test_viewer.cjs`.
+
 **9. 10. 2026 – F1 a úklid předchozího CAD; zdroje ověřené a pushnuté.**
 Jediným aktivním návrhem je [F1](../mechanika/final/README.md), vytvořený
 od základu v commitu `14ff82a`: nový tištěný korpus a prázdné víko,
