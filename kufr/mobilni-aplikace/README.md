@@ -1,5 +1,21 @@
 # Mobilní ovládání kufru
 
+## Aktuální předání D163
+
+Development OTA **0.1.160** s opravou přijetí WebSocket extension offers je
+[publikovaná](https://github.com/Blato58/DildoVander/actions/runs/37929155208).
+[Podpis 37929159117](https://github.com/Blato58/DildoVander/actions/runs/37929159117)
+prošel native pinned/debug/BLE harnessy i archive/export pro **1.0 / build 1000.0.21**.
+[Safari publikace 37929535139](https://github.com/Blato58/DildoVander/actions/runs/37929535139)
+prošla; [instalační stránka](https://2.28.202.220/ios/) nabízí tento build.
+Veřejný manifest, IPA 1870043 B a checksum byly ověřené; SHA-256 IPA je
+`8dc624add9451524953476e54889b6d87886ee7078c32a9cf0d1e651aaba4a7d`.
+Nativní Apple WSS test potvrdil čtyři nabídky extensions; server je nemusí vybrat.
+Mobil nyní ukazuje pouze bezpečný failureCode a omezuje reconnect.
+Majitel před opravou potvrdil scan/párování, ale Ovládání se na stejné Wi-Fi
+opakovaně odpojovalo. Nová instalace, stabilní pinned WSS a Keychain po aktualizaci
+zůstávají fyzickou akceptací podle [stavu implementace](../docs/stav-implementace.md#předání-další-ai).
+
 ## BLE nastavení sítě a firmware
 
 Po ověřeném BLE připojení zvolte **Spárovat ovládání přes Wi-Fi**.
@@ -129,7 +145,7 @@ Nativní adaptér vlastní TLS pin, oprávnění LAN a Keychain. E10.1 použív�
 
 ## Debug D108/D109/D110/D112 a Realtime
 
-Aktuální [Safari instalace](https://2.28.202.220/ios/) nabízí verzi 1.0,
+**Historické předání D162:** [Safari instalace](https://2.28.202.220/ios/) nabízela verzi 1.0,
 build **1000.0.20** ([podpis 9. 10. 2026](https://github.com/Blato58/DildoVander/actions/runs/37923948887),
 [publikace](https://github.com/Blato58/DildoVander/actions/runs/37924314161)).
 D161 přidává tlačítko Wi-Fi párování přes ověřené BLE a nativní Keychain;
@@ -462,7 +478,7 @@ ani offline provider testy nejsou fyzický poslech.
 Dne 6. 10. 2026 byla na [instalační stránce](https://2.28.202.220/ios/)
 publikována Ad Hoc **1.0 / build 1000.0.16** pro dosavadní registrovaný iPhone.
 Tento oddíl zachycuje tehdejší verzi a serverovou konfiguraci D146;
-aktuální publikovaná verze je **1.0 / build 1000.0.20** podle přehledu výše.
+historické předání D162 je **1.0 / build 1000.0.20**; aktuální D163 vede přehled nahoře.
 [Podpis 37429759564](https://github.com/Blato58/DildoVander/actions/runs/37429759564)
 ověřil Xcode 26.3, nativní transport/debug/audio testy a podpis;
 [publikace 37429982348](https://github.com/Blato58/DildoVander/actions/runs/37429982348)

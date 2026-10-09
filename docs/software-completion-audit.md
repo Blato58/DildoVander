@@ -5,7 +5,23 @@ mobile companion, contracts, simulator, offline AI evaluation, service tools
 and deployment workflows. `obludarium/` remains an independent Arduino Nano
 starter project, outside the suitcase implementation scope.
 
-**Current published delivery: D162.** The current receipt in
+**Current handoff: D163.**
+[PR159](https://github.com/Blato58/DildoVander/pull/159) merged as
+`5f742b24364b9564b729628ef5cd620ae601fb90`; [CI 37928528451](https://github.com/Blato58/DildoVander/actions/runs/37928528451)
+passed. Development OTA **0.1.160** is
+[published 37929155208](https://github.com/Blato58/DildoVander/actions/runs/37929155208),
+with public signature/hash/embedded version verified. iOS **1.0 / build 1000.0.21**
+passed [native harnesses and signing 37929159117](https://github.com/Blato58/DildoVander/actions/runs/37929159117)
+and [Safari publication 37929535139](https://github.com/Blato58/DildoVander/actions/runs/37929535139);
+the installation page, manifest, public IPA and checksum were verified.
+The firmware now accepts extension offers without
+negotiating them; four Apple WSS harness requests offered extensions. Native
+failure diagnostics and reconnect are bounded. The owner's reported scan/pairing
+success and repeated same-Wi-Fi Ovládání disconnect still require a physical retest.
+Exact current receipts and acceptance are in
+[implementation status](../kufr/docs/stav-implementace.md#předání-další-ai).
+
+**Historical D162 publication receipt:** the receipt in
 [implementation status](../kufr/docs/stav-implementace.md#předání-další-ai)
 records development OTA **0.1.157** from
 [publish run 37923929435](https://github.com/Blato58/DildoVander/actions/runs/37923929435)
@@ -13,8 +29,9 @@ and iOS **1.0 / build 1000.0.20** from
 [signing run 37923948887](https://github.com/Blato58/DildoVander/actions/runs/37923948887)
 and [publish run 37924314161](https://github.com/Blato58/DildoVander/actions/runs/37924314161).
 These publication receipts do not establish installation or physical acceptance.
-The owner's subsequent report confirms scanning and pairing work, but LAN
-connection repeatedly disconnects; its cause remains under investigation.
+The owner's subsequent report confirmed scanning and pairing work, but LAN
+connection repeatedly disconnected. D163 fixes a source incompatibility;
+physical acceptance remains pending.
 
 The implementation plan and [implementation status](../kufr/docs/stav-implementace.md)
 remain authoritative for stage acceptance. Historical acceptance is not treated
@@ -111,7 +128,7 @@ Exact final commands, results, commits and live publication are recorded in
 [implementation status](../kufr/docs/stav-implementace.md). The test matrix in
 [event readiness](event-readiness.md) maps all requested scenarios to host,
 build/live-server or outstanding physical checks. Its D158/D159 results remain
-historical evidence; the current D162 publication and unresolved LAN disconnect
+historical evidence; the current D163 publication and unresolved LAN disconnect
 report above do not extend those physical acceptance results.
 
 Software tests cannot establish actual CoreBluetooth/radio coexistence, iPhone
