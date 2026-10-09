@@ -1,6 +1,47 @@
 # Firmware AI kufru
 
-## Aktuální předání D164
+## Aktuální předání D165
+
+Zapomenutí místního Keychain párování na iPhonu nezrušilo ESP token hash;
+nové první BLE párování proto vracelo `already_paired`. D165 přidává přesný
+`{"v":1,"command":"recover-local","confirm":true}` na Security1/PoP endpointu.
+Nativní potvrzení dovolí pouze zdravému Paired záznamu atomicky uložit nový
+hash a zneplatnit starý token. Připravené QR, chybějící/poškozená NVS a opakovaný
+nový digest se odmítají. Zámky maintenance → admission → inbox → credential
+blokují obnovu při ovladači/handshaku, čekajícím povelu/disconnectu, ručním lease,
+hlasu či maintenance. BLE task nezastavuje server, owner ani pohony. TLS identita
+a Wi-Fi se nemění; token/pin se předají jen nativně, bez veřejného statusu/Bonjour.
+
+[PR163](https://github.com/Blato58/DildoVander/pull/163) se sloučilo jako
+`f752c1e0009d25b6827657f789bd35ff943c74f4` ze source
+`50b6b0605279884be5c2ed969254e2a57f32411a`;
+[CI 37936213640](https://github.com/Blato58/DildoVander/actions/runs/37936213640)
+prošlo s firmware **0.1.162**.
+[OTA publikace 37936948294](https://github.com/Blato58/DildoVander/actions/runs/37936948294)
+prošla: buildId `a3426c091ce727418e8e7252d3f66b3087ddf5c3`, 1744688 B,
+SHA-256 `0345a302c0170ded0ba80e4d4f5a5ff0bba5a06a4e3457bc0768a4bb2eab682b`.
+Veřejné HTTPS, ECDSA podpis, hash a embedded verze byly ověřené. COM7 app-only
+zápis na `0x10000` prošel hash kontrolou bez změny NVS. Normální RTS boot potvrdil
+**0.1.162**, main stack 16384 B / minimum remaining 12540 B, BLE advertising,
+control loop a TLS server v 18899 ms. Jde o USB instalaci a boot, nikoli novou OTA zkoušku.
+[iOS podpis 37936943860](https://github.com/Blato58/DildoVander/actions/runs/37936943860)
+prošel všemi třemi native harnessy, Xcode archive i Ad Hoc exportem pro
+**1.0 / build 1000.0.22**. [Safari publikace 37937381222](https://github.com/Blato58/DildoVander/actions/runs/37937381222)
+prošla všemi třemi joby. Veřejná instalační stránka a manifest uvádějí
+`app.turquoise6409.green2444` / **1000.0.22**; IPA 1873296 B a veřejný checksum
+byly ověřené, SHA-256 `f5cb611018ea898b215701bda0982c76dcd0dff7d1738421e9d13299fb39ff3e`.
+PC BLE scan po flashi našel `KUFR_4B6048` s očekávaným service UUID.
+Majitel následně potvrdil opakované párování, ale LAN discovery/připojení
+stále selhává. PC Bonjour a neautentizované TLS zůstávají dostupné; token/pin
+telefonu, stabilní WSS a Keychain po aktualizaci zatím nejsou ověřené.
+Přesný rozsah vede [stav implementace](../docs/stav-implementace.md#předání-další-ai).
+
+Pozdější ruční IP test zobrazil device service state; source ho vydá až po validním
+snapshotu, tedy dokládá přímé IP WSS. Hostname timeout zůstává otevřený.
+Hardware/calibration gate se neobchází; automatická adresa a dlouhodobé WSS/
+Keychain kontroly zbývají.
+
+## Historické předání D164
 
 [PR161](https://github.com/Blato58/DildoVander/pull/161), merge
 `12efd65fa40d12cda2c6041e7590b10c600d772c`, opravil main stack overflow
@@ -23,7 +64,7 @@ a místního TLS serveru přibližně za 19 s. Aktivní BLE scan na PC našel
 `KUFR_4B6048` s očekávaným service UUID; před obnovou se kvůli overflow
 verze **0.1.157** BLE nespustilo. Jde o USB obnovu a boot, nikoli novou OTA akceptaci.
 
-iOS zůstává **1.0 / build 1000.0.21** z
+V D164 iOS zůstávalo **1.0 / build 1000.0.21** z
 [podpisu 37929159117](https://github.com/Blato58/DildoVander/actions/runs/37929159117)
 a [Safari publikace 37929535139](https://github.com/Blato58/DildoVander/actions/runs/37929535139).
 V D164 nebylo znovu podepsané ani publikované. Majitel potvrdil nové připojení
@@ -73,7 +114,8 @@ PoP Security1 endpointu. Zdravý spárovaný hash se nahradí novým; původní 
 přestane platit i po restartu. Recovery odmítá připravené QR, chybějící/poškozené
 záznamy a busy owner/socket/inbox/maintenance. Zámky brání handshake i doběhu
 starých povelů během výměny. Nevytváří trvalé BLE okno a nemění TLS/Wi-Fi.
-Ztracený token se nevydává znovu; obnova/rotace zůstává fyzickým servisem.
+Původní ztracený token se nevydává znovu; D165 umožňuje potvrzenou BLE rotaci.
+Připravené QR a poškozené záznamy stále vyžadují fyzický servis.
 Tato změna neprokazuje LAN TLS/Bonjour ani Keychain po aktualizaci na iPhonu.
 
 Historické předání D162 publikovalo development OTA **0.1.157** s D161. CI workflow nyní
