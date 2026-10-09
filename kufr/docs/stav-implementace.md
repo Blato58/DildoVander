@@ -62,7 +62,7 @@ Skutečný macOS15/Xcode26.3 resolver **37887830815** prošel; commit `478f1ab`
 obsahuje byte-for-byte Package.resolved s Capacitor8.5.2, ESPProvision3.2.0
 a SwiftProtobuf1.38.1 včetně ověřených Git revisions. Dočasný resolver
 workflow je odstraněn. Plný nativní compile, podpis a publikace nového IPA
-dosud neproběhly; patří do existující ruční iOS pipeline.
+později prošly v existující ruční pipeline podle finálních dokladů níže.
 
 VPS cleanup je dokončený: zbývají pouze GitHub runnery ID2 (main) a ID22 (-2).
 Třetí runner byl odregistrován, Codex i CloudVPSBridge jsou odinstalované;
@@ -74,8 +74,9 @@ nejnovější rollbacky zůstaly. Soukromý konfigurační archiv a inventura ma
 root-only mód 0600 ve stejné záloze. Releases klesly z 3,2 GB na 340 MB;
 root disk má 15 GB volných z 38 GB (21 GB použito, 59 %). Systém má 2 GB
 swap pro oba runnery. Backend healthz, iOS HTTPS,
-nginx a oba runner services jsou zdravé. Backend a development OTA už jsou
-nasazené podle dokladů níže; iOS publikace stále čeká na native fixture opravu.
+nginx a oba runner services jsou zdravé. Backend, development OTA i podepsané
+iOS jsou nasazené podle dokladů níže. Finální snapshot po publikaci: 14 GB
+volných z 38 GB, 22 GB použito (62 %), oba runnery online/idle, healthz ok.
 
 P1 root signing helper byl opraven: nezávisle čte GitHub successful CI,
 merged PR/current main tree, serverový ZIP digest a bounded ZIP/TAR;
@@ -163,13 +164,38 @@ původní. Exit obnovuje původní project bytes. Když obnova selže, uchová p
 public project backup a vždy odstraní credential-bearing work_dir.
 6 Python test methods včetně šesti úplných Bash exit scénářů prošlo na Windows
 i skutečném Linuxu; nejde o skutečné macOS plutil/archive. Nezávislé review je
-čisté a existující web CI nově spouští stejnou regresi. Na větvi
-`codex/event-final-publication-receipt` čeká fresh CI/PR předání a skutečný iOS
-archive/podpis a public IPA stále nejsou doložené.
+čisté a existující web CI nově spouští stejnou regresi.
+[PR147](https://github.com/Blato58/DildoVander/pull/147) prošel web/repository
+CI **37898951185** a dokončeným Codex review bez nálezů; před merge byly všechny
+reviews/inline/stav znovu načteny. Sloučen jako
+`edb8eabf3449f2e4cd87ac25ec4cfb28f9cd5142`, main tree
+`48b1a060279690f8ab697258c0d8247138d974fa` odpovídá testovanému `99b2e24`.
 Po úspěšné backend aktivaci odstraněn pouze neaktivovaný staging attempt1
 (117963947 B) po kontrole absolute paths, mountů/symlinků a current guardu;
 health prošel a current se nezměnil. Soukromá metadata záloha zůstává pod
 `/root/kufr-maintenance/d158-ota-provenance/failed-backend-attempt1/`.
+
+**Finální iOS předání je ověřené.**
+[macOS15/Xcode26.3 podpis37899385679](https://github.com/Blato58/DildoVander/actions/runs/37899385679)
+prošel provenance, pinned package resolution, všemi native LAN/Debug/realtime/
+hands-free/costume/BLE status testy, skutečným archive i exportem. Ad Hoc
+codesign --verify --deep --strict, Bundle ID a embedded profile kontrola prošly.
+To zároveň ověřilo skutečný plutil/XML project a scoped signing inheritance.
+[Publikace37899776001](https://github.com/Blato58/DildoVander/actions/runs/37899776001)
+prošla všemi třemi joby včetně public HTTPS manifest/IPA/MIME/SHA-256 readback.
+Aktuální [Safari instalace](https://2.28.202.220/ios/) je **1.0/build1000.0.19**,
+Bundle ID `app.turquoise6409.green2444`, IPA **1858197 B**, SHA-256
+`b1e1c01452cc600975e3793de0071449d955fa61db1388679301c8eb8ffd4273`.
+Parent nezávisle zopakoval public HTTPS hash/Info.plist/manifest kontrolu a
+ověřil lokální kopii v Downloads/DildoVander. Development OTA public key export
+má SHA-256 `129902b4103e5f94aa9715fddee775ea9ec8046aefe9c752533a5f04641318f1`,
+shodný s root signerem. Všechny publikace používaly odpovídající current main
+tree; následné docs-only předání nemění nasazený software.
+Větev `codex/event-completion-delivery-record` synchronizuje pouze audit,
+readiness, plán, provozní README a tyto skutečné doklady. Starší IPA 1000.0.16
+je výslovně označená jako historická; aktuální publikace je 1000.0.19.
+Žádný nový runtime kód ani
+secrets/privátní klíče nejsou součástí posledního dokumentačního předání.
 
 Žádné fyzické BLE/hotspot/SD/audio/servo, NVS power-loss ani OTA rollback
 měření nebylo provedeno. Produkční stable signer musí být servisně
