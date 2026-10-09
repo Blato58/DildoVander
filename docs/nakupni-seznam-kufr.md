@@ -5,6 +5,8 @@
 > Zohledňuje nové potvrzené nákupy, dva zesilovače, kameru, jeden aktivní LED úsek a jeden pohon,
 > kolébkové vypínače, přímé OE a ruční odpojení pohonů. Volitelné doplňky nejsou v základním košíku.
 > Níže je historický podklad.
+> Rozměry kufru a součástek doplněné majitelem, stav doručení svorek
+> a snadno vyjímatelná powerbanka jsou v [aktuálním přehledu](../kufr/mechanika/rozmery-nakoupenych-soucastek.md).
 
 Ověřeno 28. 9. 2026. Jde o elektroniku **pouze pro kufr**. Powerbanku kupuje majitel samostatně a v cenách níže není. Ceny a dostupnost se mohou změnit; před odesláním objednávky zkontrolovat košíky a odečíst již pořízené díly. Stav dosavadních nákupů není potvrzen. Ostatní díly kostýmu, mechanika přihrádek a doprava nejsou zahrnuty.
 
