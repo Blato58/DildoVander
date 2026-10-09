@@ -20,6 +20,8 @@ import urllib.parse
 import urllib.request
 import zipfile
 
+from firmware_version import resolve_version
+
 REPOSITORY = 'Blato58/DildoVander'
 API_ORIGIN = 'https://api.github.com'
 API_ROOT = '/repos/' + REPOSITORY
@@ -320,7 +322,7 @@ def _tar_image(payload):
     return digest, size, image_header
 
 
-def _version(client, main_sha):
+def _version(client, main_sha, run_number=None):
     result = client.api(API_ROOT + '/contents/' + VERSION_PATH + '?ref=' + main_sha)
     if (result.get('type') != 'file' or result.get('path') != VERSION_PATH
             or result.get('encoding') != 'base64' or not _sha(result.get('sha'))
@@ -331,10 +333,12 @@ def _version(client, main_sha):
     if len(data) != result['size']:
         _fail('main-version-size-invalid')
     version = data.decode('ascii').rstrip('\r\n')
-    if (not re.fullmatch(r'(0|[1-9][0-9]{0,4})\.(0|[1-9][0-9]{0,4})\.(0|[1-9][0-9]{0,4})', version)
-            or any(int(component) > 65535 for component in version.split('.'))):
+    try:
+        # Only immutable main opts into CI numbering. The number comes from
+        # GitHub's run record, never the uploaded manifest or embedded image.
+        return resolve_version(version, run_number if version.endswith('+ci') else None)
+    except ValueError:
         _fail('main-version-invalid')
-    return version
 
 
 def verify_artifact(run_id: str, token: str) -> VerifiedArtifact:
@@ -401,7 +405,7 @@ def verify_artifact(run_id: str, token: str) -> VerifiedArtifact:
         head = _commit(client, run['head_sha'])
         if main['tree']['sha'] != manifest['source_tree'] or head['tree']['sha'] != main['tree']['sha']:
             _fail('build-tree-differs-from-current-main')
-        version = _version(client, main['sha'])
+        version = _version(client, main['sha'], run.get('run_number'))
         digest, size, header = _tar_image(contents['payload.tar.gz'])
         if (header[0] != 0xe9 or not 1 <= header[1] <= 16 or header[3] >> 4 != 4
                 or struct.unpack_from('<H', header, 12)[0] != 9

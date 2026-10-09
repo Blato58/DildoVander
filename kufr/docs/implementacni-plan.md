@@ -334,6 +334,17 @@ stub testy a build neprokazují reconnect/IP změny/TLS/aktuátory na desce.
 
 ## 4. Připojení, párování a identita
 
+**D162 – rozhodnutí majitele 9. 10. 2026:** firmware workflow samo přiděluje
+vyšší verzi každému novému CI běhu. Immutable `version.txt` policy
+`0.1.1+ci` určuje baseline; autoritativní GitHub CI run_number se přičte
+k 3×16bit version ordinalu s carry a kontrolou overflow. Build i root
+publikační verifier počítají stejnou verzi nezávisle. Root spouští pouze
+instalovaný root-owned resolver, nikoli stažený kód. Rerun a opětovná
+publikace téhož artefaktu zachovají embedded verzi. Lokální build baseline
+není publikovatelná nová-policy OTA; zdroj/pin/NVS a pravidlo odmítnutí
+stejného buildId na zařízení se nemění. Nahrazuje se ruční version-bump
+commit, nikoli review/CI/provenance brána.
+
 ### První nastavení
 
 **D161 – rozhodnutí majitele 9. 10. 2026:** po ověřeném BLE spojení má

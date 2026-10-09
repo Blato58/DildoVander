@@ -6,6 +6,32 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**9. 10. 2026 – nasazení D161 (BLE/Wi-Fi pairing), převzato.**
+Majitel výslovně požádal `deploy`. PR155 je sloučený jako `f0f10b6`;
+finální CI37920004873 a Codex review07963d1 prošly, relevantní P1 je
+opravený a vlákno uzavřené. Veřejný development OTA manifest stále nabízí
+0.1.1; updater přijímá pouze vyšší verzi. Majitel doplnil, že má workflow
+verzi zvyšovat samo při každém běhu. D162 proto používá immutable policy
+`0.1.1+ci`: baseline + autoritativní CI run_number, s 16bit carry a odmítnutím
+overflow. Nový běh dostane vyšší verzi bez commitování verze; rerun/publikace
+stejného artefaktu ji nemění. Root verifier stejnou verzi odvodí nezávisle
+z GitHub API a immutable source a porovná ji s binárkou. CMake se při CI
+vždy regeneruje; lokální nepublikovaný build má pouze baseline. Legacy
+plain policies zůstávají kompatibilní. Instalace root-owned resolveru je
+nutná před publikací. Partition layout, důvěra OTA, PoP, NVS ani Apple/Keychain identita
+se nemění. Rozsah nasazení: podepsaná development OTA publikace a Ad Hoc
+IPA na existující Safari stránku přes existující workflow. Backend kód
+D161 nemění. Publikace nenahrazuje potvrzení instalace a nativního pairing
+na iPhonu/ESP. Výsledné build/publish běhy a runtime mezery se doplní
+po ověření; nyní nejde o prohlášení úspěšného nasazení.
+Lokální D162 ověření: dva navazující ESP-IDF buildy ve stejném checkoutu
+pro simulované CI run42/43 mají ověřený embedded version0.1.43/0.1.44;
+mezi nimi byl odstraněn jen CMakeCache, ne celý compiler cache. Verifier/
+publisher testy:33 prošlo,1 Linux-only skip; version/OTA tools:13 prošlo,
+1 OpenSSL skip; Node provenance55/55. Python CI archive testy16 prošlo,
+1 existující Unix mode test na Windows selhal (0o666 místo0o755); Linux CI
+ověří skutečná oprávnění. Nezávislé review bez blockeru, diff --check prošel.
+
 **9. 10. 2026 – rozměry doplněné majitelem a zrušení podmínek pro rozvržení.**
 Všechny údaje jsou pohromadě v [přehledu rozměrů kufru a součástek](../mechanika/rozmery-nakoupenych-soucastek.md).
 PTT má 14×14×35 mm, PCA9685 25×70×15 mm; pro U059 použít výrobce

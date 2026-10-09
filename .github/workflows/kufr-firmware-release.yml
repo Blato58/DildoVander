@@ -54,14 +54,27 @@ jobs:
       - name: Unpack verified firmware
         shell: bash
         run: python3 scripts/ci/package.py unpack "$RUNNER_TEMP/ota-package" "$RUNNER_TEMP/ota-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+      - name: Read the verified CI run counter
+        id: build-version
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          BUILD_RUN_ID: ${{ inputs.build_run_id }}
+        with:
+          script: |
+            const { data: run } = await github.rest.actions.getWorkflowRun({
+              ...context.repo, run_id: Number(process.env.BUILD_RUN_ID),
+            });
+            if (!Number.isSafeInteger(run.run_number) || run.run_number < 1) throw new Error('Invalid CI run counter');
+            core.setOutput('run_number', run.run_number);
       - name: Sign and atomically publish using root-owned authority
         shell: bash
         env:
           BUILD_RUN_ID: ${{ inputs.build_run_id }}
           CHANNEL: ${{ inputs.channel }}
           ARTIFACT_READ_TOKEN: ${{ github.token }}
+          BUILD_RUN_NUMBER: ${{ steps.build-version.outputs.run_number }}
         run: |
           set -euo pipefail
-          version="$(cat kufr/firmware/version.txt)"
+          version="$(python3 kufr/firmware/tools/firmware_version.py --policy kufr/firmware/version.txt --run-number "$BUILD_RUN_NUMBER")"
           python3 kufr/firmware/tools/ota_release.py check --version "$version" --binary "$RUNNER_TEMP/ota-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/esp32-s3-idf/firmware.bin"
           printf '%s' "$ARTIFACT_READ_TOKEN" | sudo -n /usr/local/sbin/kufr-firmware-publish "$RUNNER_TEMP/ota-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/esp32-s3-idf/firmware.bin" "$BUILD_RUN_ID" "$CHANNEL"
