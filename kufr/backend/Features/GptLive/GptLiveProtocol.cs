@@ -7,7 +7,8 @@ namespace Kufr.Backend.Features.GptLive;
 internal static class GptLiveProtocol
 {
     internal const string Model = "gpt-live-1";
-    internal const long SessionBudget = 3_000_000;
+    // Conservative accounting reservation, never a spending limit.
+    internal const long SessionReservationMicroUsd = 3_000_000;
     internal const int DurationSeconds = 180;
     // $0.05/minute, billed per second. Reserve an extra ten seconds for close.
     internal const long VoiceReservation = 158_334;
@@ -27,7 +28,7 @@ internal static class GptLiveProtocol
             input = Array.Empty<object>(),
             audio = new { format = new { type = "audio/pcm", rate = 24000 }, output = new { voice = turn.Request.Voice } },
             delegation = new { type = "client" },
-            instructions = PersonalityCatalog.Persona(turn.PersonalityId) + "\n\n" + """
+            instructions = PersonalityCatalog.Persona(turn.PersonalityId) + (turn.CostumeContext.Length == 0 ? "" : "\n" + turn.CostumeContext) + "\n\n" + """
                 Delegation policy:
                 Backend tools: Backend připravuje další roast s otázkou a ověřuje výběr dostupné hůlky nebo konec hry.
                 Delegate to the backend when: Host dokončí novou odpověď na otázku, opraví ji nebo žádá skončit.
@@ -48,7 +49,7 @@ internal static class GptLiveProtocol
             throw new InvalidOperationException("Live startup context exceeds its verified contract.");
         return new { type = "session.start", event_id = eventId, session = new
         {
-            model = Model, store = false, input = turn.LiveInput, instructions = snapshot.Instructions,
+            model = Model, store = false, input = turn.LiveInput, instructions = snapshot.Instructions + "\n" + turn.CostumeContext,
             audio = new { format = new { type = "audio/pcm", rate = 24000 }, output = new { voice = turn.Request.Voice } },
             delegation = new { type = "client" }
         } };

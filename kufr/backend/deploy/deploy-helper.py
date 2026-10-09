@@ -37,7 +37,6 @@ def make_environment(payload):
     device_id = payload.get("deviceId", "")
     credential_hash = payload.get("credentialSha256", "")
     api_key = payload.get("openAiApiKey", "")
-    caps = payload.get("caps", {})
     if bool(device_id) != bool(credential_hash):
         raise ValueError("Device ID and credential hash must be supplied together")
     if device_id:
@@ -45,8 +44,6 @@ def make_environment(payload):
         checked_text(credential_hash, re.compile(r"[0-9a-fA-F]{64}\Z"), "credential hash")
     if api_key:
         checked_text(api_key, KEY_PATTERN, "OpenAI API key")
-    if not isinstance(caps, dict):
-        raise ValueError("Invalid cost caps")
 
     lines = [
         "ASPNETCORE_URLS=http://127.0.0.1:5080",
@@ -58,10 +55,7 @@ def make_environment(payload):
     if api_key:
         lines.append(f"OPENAI_API_KEY={api_key}")
 
-    value = caps.get("session") or "3000000"
-    if not isinstance(value, str) or not re.fullmatch(r"[1-9][0-9]{0,6}", value) or int(value) > 3_000_000:
-        raise ValueError("Invalid session cost cap")
-    lines.append(f"Backend__Usage__SessionCapMicroUsd={value}")
+    # Legacy software monetary caps are intentionally ignored. OpenAI owns spending limits.
     return ("\n".join(lines) + "\n").encode("ascii")
 
 

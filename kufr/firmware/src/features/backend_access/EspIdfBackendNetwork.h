@@ -4,6 +4,7 @@
 #include <mutex>
 #include "../voice_turn/LocalVoicePort.h"
 #include "../voice_turn/EspIdfVoiceAudio.h"
+#include "../costume_photo/EspIdfCostumeCamera.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -30,10 +31,13 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
                        const std::string& bootId,
                        EspIdfStationNetwork& station);
   bool InitializeVoice(bool nvsInitialized, AudioBoardPort* board = nullptr);
+  void InitializeCamera(bool nvsInitialized, bool profileBVerified);
   LocalVoiceStatus VoiceStatus() const override;
   bool ConfigureVoice(const std::string& mode, const std::string& voice) override;
   bool StartVoice(const std::string& requestId,
                   const ConversationRuntimeSnapshot& snapshot) override;
+  bool StartVoiceWithImageConsent(const std::string& requestId,
+      const ConversationRuntimeSnapshot& snapshot, bool imageConsent) override;
   void StopVoice() override;
   bool Start(bool nvsInitialized);
   bool QueueTextTurn(const std::string& text,
@@ -97,6 +101,8 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
                  struct ConversationStartRequest& startRequest);
   void SetVoicePhase(const char* phase);
   EspIdfVoiceAudio voiceAudio_;
+  EspIdfCostumeCamera camera_;
+  bool voiceImageConsent_ = false;
   mutable std::mutex voiceMutex_;
   LocalVoiceStatus voiceStatus_;
   ConversationRuntimeSnapshot voiceSnapshot_;

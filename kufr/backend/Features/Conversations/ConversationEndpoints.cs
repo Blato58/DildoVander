@@ -426,12 +426,15 @@ internal static class ConversationEndpoints
             return ApiProblem.Create(context, 400, "invalid_request");
         }
 
-        var result = conversations.EndConversation(deviceId, id, key);
+        var result = await conversations.EndConversationAfterImageAsync(deviceId, id, key, context.RequestAborted);
         return result.Status == 204
             ? Results.NoContent()
-            : ApiProblem.Create(context, result.Status, result.Status == 403
-                ? "device_scope_mismatch"
-                : "conversation_not_found");
+            : ApiProblem.Create(context, result.Status, result.Status switch
+            {
+                403 => "device_scope_mismatch",
+                503 => "image_cancel_pending",
+                _ => "conversation_not_found"
+            });
     }
 
     private static IResult GetEveningMemory(HttpContext context,

@@ -24,6 +24,7 @@
 #include "../conversation/EspIdfTurnPollTransport.h"
 #include "../conversation/TurnPollSchedule.h"
 #include "../conversation/TurnPollGuard.h"
+#include "../costume_photo/EspIdfCostumeUpload.h"
 
 namespace {
 
@@ -787,6 +788,12 @@ bool EspIdfBackendNetwork::InitializeVoice(bool nvsInitialized, AudioBoardPort* 
   return available;
 }
 
+void EspIdfBackendNetwork::InitializeCamera(bool nvsInitialized, bool profileBVerified) {
+  camera_.Configure(nvsInitialized, profileBVerified);
+  std::lock_guard<std::mutex> lock(voiceMutex_);
+  voiceStatus_.cameraAvailable = camera_.Available();
+}
+
 LocalVoiceStatus EspIdfBackendNetwork::VoiceStatus() const {
   std::lock_guard<std::mutex> lock(voiceMutex_);
   return voiceStatus_;
@@ -806,6 +813,11 @@ bool EspIdfBackendNetwork::ConfigureVoice(const std::string& mode, const std::st
 
 bool EspIdfBackendNetwork::StartVoice(const std::string& requestId,
                                      const ConversationRuntimeSnapshot& snapshot) {
+  return StartVoiceWithImageConsent(requestId, snapshot, false);
+}
+
+bool EspIdfBackendNetwork::StartVoiceWithImageConsent(const std::string& requestId,
+    const ConversationRuntimeSnapshot& snapshot, bool imageConsent) {
   if (!online_.load() || cancelRequested_.load() || !IsConversationUuid(requestId) ||
       !runtimeState_.Matches(snapshot) || replyInbox_.HasPending(runtimeState_)) return false;
   std::lock_guard<std::mutex> presentationLock(presentationMutex_);
@@ -817,6 +829,8 @@ bool EspIdfBackendNetwork::StartVoice(const std::string& requestId,
   voiceRequestId_ = lastVoiceRequestId_ = requestId;
   voiceStatus_.phase = "starting";
   voiceStatus_.error.clear();
+  voiceStatus_.photoWarning.clear();
+  voiceImageConsent_ = imageConsent;
   voiceStartEpoch_ = voiceEpoch_.fetch_add(1) + 1;
   voiceQueuedAtMs_ = MonotonicMs();
   voiceBusy_.store(true);
@@ -845,23 +859,25 @@ void EspIdfBackendNetwork::RunVoice(DeviceTokenSession& tokens,
   ConversationRuntimeSnapshot snapshot;
   std::string requestId, voice, mode;
   uint64_t epoch = 0, queuedAtMs = 0;
+  bool imageConsent = false;
   {
     std::lock_guard<std::mutex> lock(voiceMutex_);
     snapshot = voiceSnapshot_; requestId = voiceRequestId_; voice = voiceStatus_.voice; mode = voiceStatus_.mode;
     epoch = voiceStartEpoch_; queuedAtMs = voiceQueuedAtMs_;
+    imageConsent = voiceImageConsent_;
+    voiceImageConsent_ = false;
   }
   const auto current = [this, snapshot, epoch]() {
     return voiceEpoch_.load() == epoch && !cancelRequested_.load() &&
            station_.HasIp() && runtimeState_.Matches(snapshot);
   };
-  voiceAudio_.Continuous(mode == "gpt-live");
-  voiceAudio_.Begin();
   EspIdfConversationTextTransport cleanup(settings_.BackendHost());
   bool succeeded = false;
   TurnOperationObservation final;
   std::string error = "ai_unavailable";
   if (MonotonicMs() - queuedAtMs <= 5000 && current() && CloseConversation(coordinator, cleanup, tokens, startRequest)) {
     startRequest.audioConsent = true;
+    startRequest.imageConsent = imageConsent;
     startRequest.generation = snapshot.generation;
     startRequest.catalogVersion = snapshot.catalogVersion;
     startRequest.idempotencyKey = requestId;
@@ -874,21 +890,58 @@ void EspIdfBackendNetwork::RunVoice(DeviceTokenSession& tokens,
       correlation.clientTurnId = GenerateEspIdfConversationUuid();
       correlation.generation = snapshot.generation;
       correlation.deviceRevision = snapshot.deviceRevision;
-      const std::string body = "{\"clientTurnId\":\"" + correlation.clientTurnId +
-          "\",\"bootId\":\"" + bootId_ + "\",\"generation\":" + std::to_string(snapshot.generation) +
-          ",\"readyMask\":" + std::to_string(snapshot.readyMask) +
-          ",\"deviceRevision\":" + std::to_string(snapshot.deviceRevision) +
-          ",\"catalogVersion\":\"" + snapshot.catalogVersion +
-          "\",\"opening\":true,\"text\":\"\",\"wav\":null,\"voice\":\"" + voice + "\",\"speed\":1}";
-      const char* token = tokens.AccessToken(MonotonicMs());
-      EspIdfRealtimeTransport transport(settings_.BackendHost(), token ? token : "", voiceAudio_,
-          current, [this](const char* phase) { SetVoicePhase(phase); }, mode == "gpt-live");
-      succeeded = transport.Run(body, GenerateEspIdfConversationUuid(), correlation, snapshot,
-          [&final, &current](const TurnOperationObservation& operation) {
-            if (!current()) return false;
-            final = operation; return true;
-          });
-      if (!transport.Error().empty()) error = transport.Error();
+      bool photoConversationReady = true;
+      if (imageConsent) {
+        EspIdfCostumeUpload upload(settings_.BackendHost(), tokens, correlation,
+            snapshot.catalogVersion, GenerateEspIdfConversationUuid(), current);
+        const PhotoOutcome photo = PrepareCostumePhoto(true, camera_, upload, current,
+            MonotonicMs, []() { WaitMs(250); },
+            [this](const char* phase) { SetVoicePhase(phase); });
+        {
+          std::lock_guard<std::mutex> lock(voiceMutex_);
+          voiceStatus_.cameraAvailable = camera_.Available();
+          voiceStatus_.photoWarning = photo == PhotoOutcome::Unavailable ? "photo_unavailable" :
+              photo == PhotoOutcome::Failed ? "photo_failed" : "";
+        }
+        if (photo == PhotoOutcome::Failed) {
+          // The upload may have been accepted despite a lost response. Cancel
+          // that owned conversation and continue without a photo in a new one;
+          // never replay the JPEG or let an uncertain old result enter voice.
+          photoConversationReady = current() && CloseConversation(coordinator, cleanup, tokens, startRequest);
+          if (photoConversationReady) {
+            startRequest.imageConsent = false;
+            startRequest.idempotencyKey = GenerateEspIdfConversationUuid();
+            const auto fresh = coordinator.Start(startRequest, MonotonicMs());
+            photoConversationReady = (fresh == ConversationStartOutcome::Started ||
+                fresh == ConversationStartOutcome::AlreadyStarted) && current();
+            if (photoConversationReady) correlation.conversationId = coordinator.ConversationId();
+          }
+        }
+      }
+      // No microphone/output start precedes terminal photo handling. A Stop or
+      // changed snapshot during capture/poll cannot open a newer voice stream.
+      if (!current() || !photoConversationReady) {
+        CloseConversation(coordinator, cleanup, tokens, startRequest);
+      } else {
+        correlation.clientTurnId = GenerateEspIdfConversationUuid();
+        voiceAudio_.Continuous(mode == "gpt-live");
+        voiceAudio_.Begin();
+        const std::string body = "{\"clientTurnId\":\"" + correlation.clientTurnId +
+            "\",\"bootId\":\"" + bootId_ + "\",\"generation\":" + std::to_string(snapshot.generation) +
+            ",\"readyMask\":" + std::to_string(snapshot.readyMask) +
+            ",\"deviceRevision\":" + std::to_string(snapshot.deviceRevision) +
+            ",\"catalogVersion\":\"" + snapshot.catalogVersion +
+            "\",\"opening\":true,\"text\":\"\",\"wav\":null,\"voice\":\"" + voice + "\",\"speed\":1}";
+        const char* token = tokens.AccessToken(MonotonicMs());
+        EspIdfRealtimeTransport transport(settings_.BackendHost(), token ? token : "", voiceAudio_,
+            current, [this](const char* phase) { SetVoicePhase(phase); }, mode == "gpt-live");
+        succeeded = transport.Run(body, GenerateEspIdfConversationUuid(), correlation, snapshot,
+            [&final, &current](const TurnOperationObservation& operation) {
+              if (!current()) return false;
+              final = operation; return true;
+            });
+        if (!transport.Error().empty()) error = transport.Error();
+      }
     }
   }
   voiceAudio_.Stop();
@@ -904,6 +957,7 @@ void EspIdfBackendNetwork::RunVoice(DeviceTokenSession& tokens,
   }
   if (!proposalStored) CloseConversation(coordinator, cleanup, tokens, startRequest);
   startRequest.audioConsent = false;
+  startRequest.imageConsent = false;
   {
     std::lock_guard<std::mutex> lock(voiceMutex_);
     voiceStatus_.phase = succeeded && current() ? "completed" : voiceEpoch_.load() != epoch ? "idle" : "failed";

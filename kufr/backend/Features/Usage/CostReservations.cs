@@ -3,31 +3,11 @@ using Microsoft.Data.Sqlite;
 
 namespace Kufr.Backend.Features.Usage;
 
-internal sealed record CostLimits(long SessionMicroUsd, long DailyMicroUsd, long MonthlyMicroUsd)
-{
-    public const long DefaultSessionMicroUsd = 3_000_000;
-    public bool Enabled => SessionMicroUsd > 0;
-
-    public static CostLimits Read(IConfiguration configuration)
-    {
-        var raw = configuration["Backend:Usage:SessionCapMicroUsd"];
-        if (string.IsNullOrWhiteSpace(raw)) return new(DefaultSessionMicroUsd, 0, 0);
-        if (!long.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out var cap)
-            || cap <= 0 || cap > DefaultSessionMicroUsd)
-            throw new InvalidOperationException("Session cap must be positive and at most 3 USD.");
-        // Daily/monthly totals remain auditable; the OpenAI project owns the
-        // global spending limit. Legacy period-cap settings are ignored.
-        return new(cap, 0, 0);
-    }
-
-}
-
 internal static class CostReservations
 {
     public static bool TryReserve(
         SqliteConnection connection,
         SqliteTransaction transaction,
-        CostLimits limits,
         DateTimeOffset now,
         string operationId,
         string deviceId,
@@ -39,22 +19,12 @@ internal static class CostReservations
             return true;
         }
 
-        if (estimatedMicroUsd < 0 || !limits.Enabled)
+        if (estimatedMicroUsd < 0)
         {
-            return false;
+            throw new ArgumentOutOfRangeException(nameof(estimatedMicroUsd));
         }
-
         var day = now.UtcDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         var month = now.UtcDateTime.ToString("yyyy-MM", CultureInfo.InvariantCulture);
-        var sessionUsage = ReadUsage(
-            connection,
-            transaction,
-            "SELECT charged_micro_usd FROM cost_session_usage WHERE conversation_id = $key",
-            conversationId);
-        if (Exceeds(sessionUsage, estimatedMicroUsd, limits.SessionMicroUsd))
-        {
-            return false;
-        }
 
         using (var reservation = connection.CreateCommand())
         {
@@ -166,21 +136,6 @@ internal static class CostReservations
         command.Parameters.AddWithValue("$auditCutoff", now.AddDays(-7).ToUnixTimeMilliseconds());
         command.Parameters.AddWithValue("$aggregateCutoff", now.AddDays(-90).ToUnixTimeMilliseconds());
         command.ExecuteNonQuery();
-    }
-
-    private static bool Exceeds(long current, long estimate, long cap) => estimate > cap - current;
-
-    private static long ReadUsage(
-        SqliteConnection connection,
-        SqliteTransaction transaction,
-        string sql,
-        string key)
-    {
-        using var command = connection.CreateCommand();
-        command.Transaction = transaction;
-        command.CommandText = sql;
-        command.Parameters.AddWithValue("$key", key);
-        return command.ExecuteScalar() is long amount ? amount : 0;
     }
 
     private static void AddUsage(

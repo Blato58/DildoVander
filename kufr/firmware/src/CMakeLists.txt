@@ -1,5 +1,8 @@
 idf_component_register(
     SRCS
+        "features/costume_photo/CostumePhoto.cpp"
+        "features/costume_photo/EspIdfCostumeCamera.cpp"
+        "features/costume_photo/EspIdfCostumeUpload.cpp"
         "espidf_main.cpp"
         "features/physical_effects/PhysicalEffects.cpp"
         "features/physical_effects/PhysicalPresentation.cpp"

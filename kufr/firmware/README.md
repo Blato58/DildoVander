@@ -18,7 +18,7 @@ třemi vibracemi, zdvihem, 5s ukázkou a časovaným návratem.
 Fyzický ruční režim má stejný návrat přes `SelectionSequence(..., true)`.
 Normální naprogramovaný návrat obnoví dostupnost až po úspěšném trvalém
 zápisu. Stop, I/O chyba či prodleva smyčky 250 ms vyžadují místní kontrolu,
-nikdy automatický návrat. Arduino zachovává sériový prototyp západky.
+nikdy automatický návrat.
 
 [Servisní projekt](diagnostics/hardware-service/README.md) nastavuje pouze
 `wand_hw`: `profile_b_ok`, pozitivní `cal_revision` a 36 bajtů
@@ -33,7 +33,44 @@ Stop zavře PCM gate; již zařazená DMA dohraje do auto-cleared ticha
 (přibližně do 80 ms fronty, skutečnou latenci změřit). Boot/resetové ticho
 není garantované. A zůstává gated `wand_audio/profile_a_ok` bez kamery.
 Fyzické napájení, resetové stavy, pulzy, mechanika a audio zatím nebyly
-na sestavě měřené. Kamera/SD driver E13 zůstávají samostatná práce.
+na sestavě měřené. Kamera má volitelný one-shot adaptér níže; SD zůstává samostatná práce.
+
+## Volitelná fotografie kostýmu z OV5640
+
+`voice.start.imageConsent=true` je jednorázový souhlas pro právě zahájený
+rozhovor. Bez pole/false, při fyzickém PTT nebo po reconnectu kamera nesnímá.
+Po bezpečném přijetí a založení backend sezení pořídí nejvýše jednu 640×480 JPEG
+fotografii (maximum 262 144 B), odešle ji přímo přes HTTPS na
+`/v1/conversations/{id}/image` a počká na terminální korelovanou operaci.
+Až potom začne mikrofon a Realtime/GPT-Live stream. Upload se neopakuje při 401
+ani neurčitém výsledku. Chybějící kamera/chyba fotografie pokračují hlasem bez
+nového foto kontextu; `voice.photoWarning` uvádí důvod. Stop/změna generace
+zavřou streamovou bránu a zneplatní pozdní výsledek.
+
+Driver je pinned `espressif/esp32-camera==2.1.8` přes ESP-IDF component manager
+(závislosti v generovaném `dependencies.lock`). SCCB používá **nový I2C driver,
+port 1 na GPIO4/5**, fyzické efekty drží port 0 na GPIO1/14. Profil B kamerové
+a audio piny compile-time odděluje. JPEG má jeden PSRAM framebuffer,
+XCLK GPIO15, RESET/PWDN `-1`; konektor a tyto předpoklady vyžadují skutečnou kontrolu.
+[Piny a omezení kamery](../docs/kamera.md).
+
+Kamera zůstává vypnutá do servisního zápisu `wand_hw/camera_verified=1`
+spolu s ověřeným B profilem. Podporovaný postup je
+[hardware-service](diagnostics/hardware-service/README.md); šablona má flag false.
+Kamera se neinicializuje při bootu. Při snímku ověří OV5640 PID, vymaže převzatý
+framebuffer, vrátí ho a deinicializuje driver. JPEG v aplikační RAM se po
+uploadu/selhání/zrušení explicitně nuluje; celá foto příprava má 120s limit.
+Fotografie se nelogují, neukládají do NVS/SD ani do mobilu. Textový výsledek zůstává
+backend kontextem a nevolá fyzické výstupy. Host fake testy ani build nepotvrzují
+skutečný obraz, napájení, latenci nebo souběh periferií; kamera dosud nedorazila.
+
+Host ověření (stejné příkazy běží v existujícím firmware CI):
+
+```sh
+g++ -std=c++14 -Wall -Wextra -Werror src/features/costume_photo/CostumePhoto.cpp src/features/local_control/LocalControlCodec.cpp src/features/conversation/ConversationSession.cpp src/features/conversation/ConversationStartCodec.cpp src/features/conversation/TurnPollGuard.cpp tests/costume_photo_test.cpp -o <docasna-slozka>/costume-photo-test
+g++ -std=c++14 -Wall -Wextra -Werror -I tests/speech_stubs src/features/costume_photo/CostumePhoto.cpp src/features/costume_photo/EspIdfCostumeUpload.cpp src/features/conversation/ConversationSession.cpp src/features/conversation/ConversationStartCodec.cpp src/features/conversation/TurnPollGuard.cpp src/features/backend_access/DeviceTokenSession.cpp src/features/backend_access/NetworkSettings.cpp src/features/provisioning/DeviceIdentity.cpp tests/espidf_costume_upload_test.cpp -o <docasna-slozka>/costume-upload-test
+g++ -std=c++14 -Wall -Wextra -Werror -I tests/camera_stubs src/features/costume_photo/CostumePhoto.cpp src/features/costume_photo/EspIdfCostumeCamera.cpp src/features/conversation/ConversationSession.cpp src/features/conversation/ConversationStartCodec.cpp src/features/conversation/TurnPollGuard.cpp tests/espidf_costume_camera_test.cpp -o <docasna-slozka>/costume-camera-test
+```
 
 ## Autonomní Live: místní přehrání (D143)
 
@@ -125,8 +162,7 @@ PlatformIO používá připnutou platformu Espressif 32 7.1.3. Zvolená tabulka
 oddílů dává ze 16 MB flash každému ze dvou OTA slotů 6,25 MiB pro aplikaci.
 
 Výchozí sestavení `pio run` používá **ESP-IDF 6.1** v profilu
-`esp32-s3-idf`. Původní sériový Arduino prototyp je dostupný samostatně přes
-`pio run -e esp32-s3-arduino-serial`. Oba profily byly sestaveny lokálně;
+`esp32-s3-idf`, jediném aplikačním profilu kufru;
 samostatné paměťové USB ověření vede D122 a první offline aplikační
 flash/boot D123. Síť a skutečné periferie tím nejsou ověřené.
 Podrobný postup a skutečně provedené kontroly jsou ve
@@ -152,7 +188,7 @@ práci a fyzickou akceptaci; inzerce sama neobchází kalibraci ani inspection.
 ## Architektura
 
 Firmware roste po vertical slices. Každá funkce drží své rozhodování a své
-vstupní/výstupní porty pohromadě. `main.cpp` jen skládá instance a volá je
+vstupní/výstupní porty pohromadě. `espidf_main.cpp` jen skládá instance a volá je
 ve smyčce s časováním bez `delay()`. ESP-IDF `espidf_main.cpp` skládá stejné
 bezpečnostní jádro nad FreeRTOS smyčkou. Nezavádíme globální vrstvu
 service/repository ani společné rozhraní pro každou periferii předtím, než
@@ -160,7 +196,6 @@ bude potřeba.
 
 ```text
 src/
-  main.cpp                                  Arduino sestavení a smyčka
   espidf_main.cpp                           IDF smyčka s gated fyzickým portem
   features/
     safety/
@@ -168,7 +203,6 @@ src/
       SafetyController.h/.cpp               Stop/porucha a vzájemné vyloučení výstupů
     wand_selection/
       SelectionSequence.h/.cpp              čistá, časovaná posloupnost
-      SerialSelectionPort.h/.cpp            vývojové příkazy a výpis požadavků
     wand_presentation/
       WandPresentation.h/.cpp               autonomní vyzdvižení, ukázání a návrat rekvizity
     device_control/
@@ -539,32 +573,15 @@ horní polohu, ukáže rekvizitu 5 s, vyžádá spuštění a čeká na potvrzen
 polohu. Úspěch dovolí další cyklus bez ručního resetu. Stop, timeout nebo
 selhání portu vypne pohony a zablokuje další cyklus do kontroly polohy.
 Rozhraní `WandPresentationPort` vyžaduje kalibraci, bezpečnostní větev,
-journal a publikaci stavu od skutečného adaptéru. Takový adaptér ani senzor
-polohy nyní neexistují; model se v `espidf_main.cpp` nespouští.
+journal a publikaci stavu od skutečného adaptéru. `PhysicalPresentation` se
+skládá v `espidf_main.cpp` a používá kalibrovaný časový model pohybu D156.
+Polohový senzor není součástí sestavy; časované dokončení není změřená poloha.
 `DeviceControlRuntime` má pro budoucí port autonomní transakci bez ručního
 lease: před zdvihem ověří přesný snapshot a trvale otevře journal, čímž
 zneplatní dostupnost. Potvrzený návrat journal atomicky uzavře se zachovanou
 maskou a zveřejní novou revizi. Stop nebo porucha nechá záznam otevřený k
-fyzické kontrole. Hostitelský fake port ověřuje celý cyklus; není to připojení
-servo výstupu do smyčky ESP32.
-
-`SerialSelectionPort` je první vstup/výstup pro vývoj bez zapojené elektroniky.
-Příkazy na sériovém monitoru (115200 Bd, ukončení řádku LF nebo CRLF):
-
-```text
-select 4
-stop
-reset
-status
-help
-```
-
-`reset` znamená, že obsluha předtím zkontrolovala mechaniku. Sériový adaptér
-vypisuje také požadavky safety portu; skutečné vypnutí nelze z těchto výpisů
-odvodit. Žádný GPIO pin, motor, servo ani LED se
-zatím neinicializuje. Sériový Arduino profil neobsahuje přihlašovací údaje
-ani síťové připojení. Nahrání do desky je až další krok po kontrole konkrétního
-modulu.
+fyzické kontrole. Hostitelský fake port ověřuje celý cyklus; fyzický adaptér
+zůstává zavřený do servisního potvrzení profilu a kalibrace.
 
 ## Sestavení a test
 
@@ -575,15 +592,14 @@ pio run
 ```
 
 Výchozí profil používá PlatformIO `espressif32@7.1.3`, připnutý ESP-IDF 6.1,
-`sdkconfig.defaults` a vlastní kopii 16MB tabulky oddílů. Zatím pouze
-vyžaduje bezpečný výstup, prochází čistým jádrem s monotónním časem a vypisuje
-požadavky do logu. Inicializuje NVS journal, čte identitu a při kompletním
-servisním nastavení spouští síťovou úlohu bez fyzických výstupů. Neobsahuje
-sériové příkazy ani GPIO adaptér pohonů.
+`sdkconfig.defaults` a vlastní kopii 16MB tabulky oddílů. Inicializuje bezpečný
+výstup, NVS journal a provisionovanou identitu; skládá WSS řízení, síťovou
+úlohu a fyzický adaptér profilu B. Pohony, audio a volitelná kamera mají
+samostatné servisní brány popsané výše. Safety smyčka používá monotónní čas
+nezávisle na HTTPS operacích. Jediný aplikační vstup je `espidf_main.cpp`.
 Před Wi-Fi krátce zapne interní zdroj entropie, vytvoří jediné `bootId` pro
 `DeviceControl` i backendového klienta a zdroj opět vypne. Stejné ID nyní čte místní WSS vrstva; skutečný běh RNG na desce zatím nebyl ověřen.
 Skutečný výsledek sestavení a mezery akceptace jsou ve stavu implementace.
-Původní sériový prototyp lze sestavit `pio run -e esp32-s3-arduino-serial`.
 
 Jednotkový test čisté sekvence lze sestavit libovolným hostitelským C++
 kompilátorem (C++11 nebo novějším), např.:
@@ -596,7 +612,7 @@ g++ -std=c++11 -Wall -Wextra -Werror src/features/safety/SafetyController.cpp sr
 Test pokrývá pořadí a časování kroků, neplatný či souběžný výběr, Stop v každé
 fázi, opakovaný Stop, explicitní zotavení, přetočení časovače, zpožděný průchod
 smyčkou, poruchu, ztrátu ručního lease a vzájemné vyloučení výstupů. Nepotřebuje
-ESP32 ani knihovnu Arduino.
+ESP32 ani SDK.
 Na Windows lze použít také Visual Studio Developer Command Prompt a `cl`.
 
 Hostitelský test modelu příkazů používá stejné čisté zdroje a navíc
@@ -798,7 +814,7 @@ autonomní zdvih/ukázání/spuštění rekvizity, audio a bezpečnou sekvenci.
 Telefon komunikuje místně
 přes WSS jako volitelná záloha; backend neposílá povely k otevření.
 Slices a jejich odpovědnosti jsou v kapitole 3 plánu. Čisté jádro zachovat
-testovatelné bez Arduino/ESP-IDF; síťový callback nesmí přímo spínat GPIO.
+testovatelné bez ESP-IDF; síťový callback nesmí přímo spínat GPIO.
 
 Pro skutečné výstupy platí jas zpočátku kolem 25 %, nejvýše jeden pohon
 v pohybu, přímé PCA OE a ruční servisní odpojení pohonů. Po Stop/resetu
@@ -858,8 +874,8 @@ D119 audio driver test dále ověřuje, že Stop zůstává účinný pro celé 
 `voice.configure` přijímá `off`, `realtime` a `gpt-live`; volbu a hlas lze
 měnit z aplikace před spuštěním, platí do restartu. GPT-Live používá stejné
 samostatné HTTPS připojení ESP k backendu, nové `/gpt-live` routy a jediný
-kontinuální vstup s pořadím PCM bloků. Cena hlasu a Sol delegací má společný
-strop 3 USD/session. Backend i firmware musí být D128 nebo novější.
+kontinuální vstup s pořadím PCM bloků. Hlas a Sol delegace zachovávají
+technické časové a datové limity bez softwarového finančního stropu. Backend i firmware musí být D128 nebo novější.
 ESP při přehrávání posílá ticho místo mikrofonu, protože AEC není ověřené.
 Pauza výstupu způsobí drain reproduktoru a obnovení mikrofonu. Finální
 návrh prochází původní snapshot/kalibrační/bezpečnostní bránou; Stop platí

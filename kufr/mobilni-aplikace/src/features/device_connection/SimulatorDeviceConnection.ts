@@ -118,7 +118,7 @@ export class ProtocolDeviceConnection {
   configureVoice(mode: VoiceSettings['mode'], voice: VoiceSettings['voice']): boolean {
     return this.voice.configure(mode, voice);
   }
-  startVoice(): boolean { return this.voice.start(); }
+  startVoice(imageConsent = false): boolean { return this.voice.start(imageConsent); }
   stopVoice(): boolean { return this.voice.stop(); }
 
   cancelConversation(): boolean {

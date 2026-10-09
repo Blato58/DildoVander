@@ -1,5 +1,65 @@
 # Backend kufru (E7)
 
+## Volitelná fotografie kostýmu a rozpočet (9. 10. 2026)
+
+`POST /v1/conversations/{id}/image` přijme jednu vědomě aktivovanou,
+předem zobrazenou fotografii pro toto sezení. Vyžaduje samostatné
+`consent.image=true`, device token, UUID `Idempotency-Key`, `Client-Turn-Id`,
+`Boot-Id` a hlavičky `Generation`, `Device-Revision`, `Catalog-Version`.
+Tělo je přímo `image/jpeg`, nejvýše 262144 B a 640 × 640 pixelů; přijímají se
+8bitové baseline/progressive JPEG, bez EXIF/GPS, komentářů a vložených thumbnailů.
+Klient po preview JPEG znovu zakóduje. Upload musí skončit do 60 s.
+Prováděj ho před `/opening`, `/realtime-live` nebo `/gpt-live`; po zahájení
+dialogu se odmítne. Výchozí fake nečte obsah fotografie a nevolá AI.
+
+Responses adaptér posílá skutečný JPEG přes oficiální SDK jako `input_image`
+s base64 data URL, `detail=low`, `store=false`, bez retry, s deadlinem 45 s.
+Vrací výhradně přísný stručný popis kostýmu, možnou fiktivní postavu a nejistotu;
+nesmí určovat identitu člověka, věk, gender, biometrii ani pohony. Odpověď `202`
+obsahuje `operationId`, `kind=image`, `status=pending`. Poll přes stávající
+`GET /v1/operations/{id}` vrací obvyklý envelope; dokončený `result` má
+`description`, `possibleCharacter`, `uncertainty` (`low/medium/high`), `source`
+(`photo/fake/manual`) a `expiresAt`. Ztracený nebo expirovaný výsledek se placeně
+neobnovuje. Jeden přijatý image upload na rozhovor; ani novým klíčem jej neopakuj.
+
+Volitelná ruční oprava přes `PUT /v1/conversations/{id}/costume-context`
+s tělem `{ "description": "červený plášť" }` a stejnými korelačními hlavičkami
+nevolá AI. Nepotřebuje obrazový souhlas; nejvýše 240 znaků bez řídicích znaků,
+prázdný text odstraní vodítko. Vrací `200` s dokončenou operací `kind=costume`.
+Ruční údaj má přednost i před pozdní odpovědí fotografie. Pro změněnou opravu
+použij nový idempotency key. Nejvýše osm oprav na rozhovor chrání RAM. Opravu dokonči před hlasem. Kontext se předává
+textovému Responses, Realtime, GPT-Live i samostatnému Sol rozhodování jako
+nejistá data o kostýmu; není mluveným důkazem identity nebo povahy návštěvníka.
+
+Vlastněné vstupní JPEG, base64 znaky a UTF-8 provider request buffery jsou pouze
+v RAM a při dokončení/chybě se vynulují; upload 60 s + analýza 45 s je pod 120 s.
+Nemáme záruku vymazání interních kopií SDK/TLS/OS nebo dat u poskytovatele.
+Strukturovaný popis ani snímek se přímo neukládají do journalu, paměti, logů
+či na SD. Lokální lookup/poll výsledku expiruje po 120 s. Expirace ruční opravy nepovolí
+pozdní fotografii obnovit staré vodítko; nový první upload se odmítne 409
+`costume_context_expired` před účtováním, pozdní již odeslaný výsledek selže. Již přijatý hlasový
+provider prompt může vodítko držet do uzavření tohoto rozhovoru; celé DELETE
+rozhovoru jej zruší. DELETE image operace odstraní její vodítko z budoucích
+tahů, pokud jej nepřepsala ruční oprava. Běžná dokončená textová/mluvená
+výměna zůstává v paměti večera podle existujícího souhlasu a může obsahovat
+vyslovenou zmínku o kostýmu. Fotografie nevytváří identitu ani vazbu na hosta.
+Všechny odpovědi mají `Cache-Control:no-store`. Selhání fotografie ani její
+rušení neukončí dialog; Stop rozhovoru ruší i rozpracovanou analýzu.
+DELETE rozhovoru s placenou fotografií vrátí 204 až po vynulování JPEG a uvolnění
+sdíleného provider slotu. Čeká nejvýše 5 s; 503 `image_cancel_pending` znamená,
+že rozhovor už skončil, ale cleanup ještě běží. Opakuj DELETE se stejným klíčem
+a nový rozhovor bez fotografie otevři až po 204. Neopakuje to AI ani upload.
+
+Majitel 9. 10. 2026 zrušil všechny softwarové finanční stropy. Rozpočet řídí
+výhradně OpenAI projekt. `Backend:Usage:*CapMicroUsd` a staré deployment cap
+hodnoty se ignorují, včetně chybného/nízkého nastavení. Režimy potřebují
+explicitní volbu a platný provider klíč. Účetní rezervace, settlement usage,
+retence a nejasné výsledky zůstávají evidované, nikdy neblokují další práci.
+Pevné technické hranice (jeden placený slot, počet tahů/delegací, velikosti,
+tokeny, audio a čas) zůstávají. Root-owned deploy helper musí být před dalším
+nasazením aktualizován z `deploy/deploy-helper.py`; nový payload neposílá cap
+hodnoty a stará instalovaná verze helperu není důkazem této změny na VPS.
+
 ## OpenAI SDK (D119)
 
 Všechny provider operace používají oficiální .NET SDK **2.14.0**:
@@ -71,23 +131,18 @@ Paměť a nákladový journal mají oddělené SQLite soubory. Pokud po zápisu
 paměti selže dokončení journalu, tah se ohlásí jako neúspěšný, ale výměna
 může zůstat v paměti. Toto není atomická transakce přes obě databáze.
 
-Realtime sdílí placený slot a limit 3 USD/session. Rezervace pokrývá
-nejvýše dvě odpovědi (PTT 1024, průběžný hlas 768 tokenů), serializovaný prompt/paměť, audio
-vstup i případné audio první odpovědi v druhém vstupu; navíc 0,01 USD pro
-souběžný přepis. Usage se vypořádá při konzervativních sazbách 4 USD/1M
-textového vstupu, 32 USD/1M audio vstupu a 64 USD/1M výstupu. Chybějící
-usage drží rezervaci. Delší prompt/paměť zvyšují potřebnou rezervaci;
-cap 0,20 USD na sezení nestačí ani pro první tah. Když rezervace nezapadne,
-backend nejprve sníží hlasový limit na 512 tokenů, potom omezí provider
-context na 8/4 KiB celých výměn se zachovaným úvodem každého mluvčího.
-Uložená paměť ani podrobný prompt se nemažou. Staré provider audio/context
-se mezi tahy odstraní a backend vloží aktuální omezenou paměť/history.
-Před nasazením ověřit
-skutečné stropy a odsouhlasený rozpočet, nezvyšovat je automaticky.
+Realtime sdílí placený slot. Účetní rezervace pokrývá nejvýše dvě odpovědi
+(PTT 1024, průběžný hlas 768 tokenů), serializovaný prompt/paměť a audio;
+navíc 0,01 USD pro souběžný přepis. Usage se vypořádá při konzervativních
+sazbách 4 USD/1M textového vstupu, 32 USD/1M audio vstupu a 64 USD/1M
+výstupu. Chybějící usage ponechá účetní odhad; další práci neblokuje.
+Kontext ani hlasový tokenový limit se nesnižují kvůli peněžní rezervaci.
+Staré provider audio/context se mezi tahy odstraní a backend vloží aktuální
+omezenou paměť/history. Rozpočet řídí OpenAI projekt.
 Lokální testy nedokládají latenci ani kvalitu placeného hlasu.
 Autorizovanou syntetickou zkoušku D116 spouští `kufr-backend-realtime-live.yml`:
 jeden rozhovor s českou offline syntetickou řečí, nejvýše čtyři odpovědi,
-session cap musí být kladný a nejvýše 1 USD. Report měří první audio,
+peněžní strop zajišťuje OpenAI projekt. Report měří první audio,
 celý tah a konzervativní náklad, ukončí sezení a obnoví předchozí večer.
 Není to poslech na skutečném iPhonu ani účtenka OpenAI.
 
@@ -108,7 +163,7 @@ přihrádku z masky; maska 0 vede k `no_selection`.
 Je to neplacená diagnostická simulace pro iOS D110, nikoli skutečný snapshot
 nebo fyzické ovládání. Běžné fake identity ani Responses Sol se nemění.
 Fake přepis nahrávky zůstává syntetický. Odeslání vlastní hlasové odpovědi
-k opravdovému STT vyžaduje explicitní `voice_mode=openai` a může čerpat limit.
+k opravdovému STT vyžaduje explicitní `voice_mode=openai` a může být účtované poskytovatelem.
 
 ASP.NET Core 10 Minimal API pro přímé HTTPS spojení ESP32 s backendem.
 E7.1–2 přijímají servisně provisionovaný device credential,
@@ -149,7 +204,7 @@ Obsah paměti se nikdy nepovažuje za instrukce či aktuální dostupnost hůlek
 Limit základního JSON těla je 14 kB plus JSON-encoded velikost paměti
 a přírůstek velikosti zvolené personality;
 rezervace před voláním je 0,10 USD plus cache-write cena Fast
-přidaných bajtů. Všechny tři stávající nákladové stropy zůstávají účinné.
+přidaných bajtů. Účetní odhad neomezuje další práci; rozpočet řídí OpenAI projekt.
 
 `POST /v1/conversations/{id}/opening` přijímá pole textového tahu **bez text**.
 Vytvoří běžnou pollovatelnou turn operaci: kufr promluví první, krátce osloví
@@ -181,9 +236,7 @@ při pádu mezi dvěma SQLite commity může obsahovat vygenerovanou repliku,
 kterou zařízení nepřevzalo. Ani dokončený tah není důkazem přehrání zvuku.
 
 `responses` je zatím pouze vývojový režim pro syntetické vstupy přes loopback.
-Vyžaduje `Backend__Dialog__Mode=responses`, `OPENAI_API_KEY`, všechny tři
-kladné limity `Backend__Usage__*CapMicroUsd` a projektový OpenAI hard spend
-limit. Samotná přítomnost klíče režim nepřepíná. Neznámá konfigurace zastaví
+Vyžaduje `Backend__Dialog__Mode=responses` a `OPENAI_API_KEY`. Rozpočet řídí OpenAI projekt. Samotná přítomnost klíče režim nepřepíná. Neznámá konfigurace zastaví
 start; výchozí `fake` nevolá OpenAI. Veřejné HTTPS je dostupné; skutečná identita zařízení, fyzická akceptace a obsahové hodnocení návštěvníky zůstávají otevřené.
 
 ## Vývojové spuštění
@@ -199,7 +252,7 @@ a `lifetime=until_restart`. PUT přijímá `expectedRevision`, `dialogMode`
 revize, živý rozhovor/doznívající provider či nedostupný provider vrací 409.
 Změna a create sdílejí zámek a nikdy nerozdělí probíhající rozhovor mezi režimy.
 Stejný stav je povolený no-op. Režimy nejsou trvalé; po restartu platí konfigurace
-nasazení a nová revize. Přepnutí nemění model Sol, credential, limity ani paměť
+nasazení a nová revize. Přepnutí nemění model Sol, credential, technické hranice ani paměť
 večera a samo nevolá OpenAI. Ve fake režimu mohou být klienti připraveni, ale
 žádný provider se nepoužije.
 
@@ -293,8 +346,7 @@ Odpovědi `/v1` mají `Cache-Control: no-store`; chyby používají
 
 `Backend__Voice__Mode=openai` zapne nezávisle na textovém dialogu
 STT `gpt-transcribe` (český vstup) a TTS `gpt-4o-mini-tts-2025-12-15`,
-hlas `marin` s českými instrukcemi. Vyžaduje `OPENAI_API_KEY` a všechny tři
-kladné nákladové limity uvedené níže. Výchozí `fake` nevolá poskytovatele;
+hlas `marin` s českými instrukcemi. Vyžaduje `OPENAI_API_KEY`. Výchozí `fake` nevolá poskytovatele;
 neznámý režim nebo chybějící předpoklad zastaví start. TTS čte pouze uloženou
 validovanou repliku dokončeného dialogu, nikoli libovolný klientský text.
 
@@ -341,16 +393,14 @@ obsah sezení z RAM zmizel a nový rozhovor vyžaduje nový key. Schéma v4 při
 schéma v5 přidává typ operace do technického journalu; osazené v4 řádky jsou
 typ `turn`. Schéma v6 přidává technický nákladový journal a agregáty bez
 obsahu. Fake operace rezervují nulu. Budoucí placený adaptér musí v transakci
-vzniku operace rezervovat horní odhad a před voláním odmítnout `CostRejected`.
-Od D128 je výchozí session limit `Backend__Usage__SessionCapMicroUsd=3000000`.
-Nasazení jej nastavuje explicitně; lze konfigurovat nižší kladný limit do 3 USD.
-Denní a měsíční nastavení se ignorují, agregáty zůstávají pro audit.
-Celkový rozpočet určuje hlavní limit OpenAI projektu. Po odpovědi `SettleCost` zaúčtuje skutečnost; levnější
-odpověď uvolní rozdíl, vyšší cenu eviduje a zablokuje další placenou práci.
-Neznámý výsledek po restartu si rezervaci ponechá. Technický audit se maže po
-7 dnech, denní/měsíční agregáty po 90 dnech. Schválené limity jsou na
-testovacím serveru nakonfigurovány a D61 přidal ověřenou konzervativní sazbu
-pro `gpt-6.1-sol`; explicitní režim `responses` ji používá. Výchozí režim
+vzniku operace zaznamenat účetní odhad. Žádný softwarový finanční strop se
+neuplatňuje; historické `Backend__Usage__*CapMicroUsd` se ignorují.
+Po odpovědi `SettleCost` zaúčtuje skutečnost, levnější i dražší odpověď
+pouze upraví účetnictví. Neznámý výsledek po restartu si odhad ponechá;
+nejde o blokaci nového tahu ani o povolení placeného retry.
+Technický audit se maže po 7 dnech, denní/měsíční agregáty po 90 dnech.
+D61 přidal ověřenou konzervativní sazbu
+`gpt-6.1-sol`; explicitní režim `responses` ji používá. Výchozí režim
 `fake` žádné placené volání nespouští.
 `RetentionWorker` každou minutu smaže expirované paměťové sezení/výsledky,
 granty a 24hodinové technické SQLite záznamy. Sezení trvá nejvýše
@@ -427,7 +477,7 @@ Environment `backend-production` má tyto GitHub Actions secrets:
 | `DEVICE_CREDENTIAL_SHA256` | 64 hex znaků SHA-256 credential pro dané ID; nyní odpovídá vývojovému `DEV_DEVICE_CREDENTIAL`. |
 | `DEV_DEVICE_CREDENTIAL` | Jen pro ruční loopback smoke nasazené vývojové instance; odpovídá hashi vývojového `DEVICE_ID`, není provisionovaný v kufru. Před fyzickým nasazením jej nahradit skutečnou identitou a oddělit testovací prostředí. |
 | `OPENAI_API_KEY` | Projektový OpenAI API klíč. Čte jej pouze explicitní režim `responses`; ve výchozím `fake` se OpenAI nevolá. |
-| `SESSION_CAP_MICRO_USD` | Deployment nastavuje `3000000` (3 USD/session); stejný výchozí limit při chybějícím nastavení. |
+| `SESSION_CAP_MICRO_USD` | Zastaralé, ignoruje se; rozpočet řídí OpenAI. |
 | `DAILY_CAP_MICRO_USD` | Zastaralé, ignoruje se. Denní součty zůstávají auditní. |
 | `MONTHLY_CAP_MICRO_USD` | Zastaralé, ignoruje se. Celkový rozpočet spravuje OpenAI. |
 
@@ -445,7 +495,7 @@ původního UUID a stejného vstupu používá stejné idempotentní klíče. Ž
 credential/token není vstupem ani součástí artefaktu; zůstává v runneru.
 `finish` uvolní sezení, paměť zůstává. `status` ukazuje limity/počty večera;
 `clear` vyžaduje přesné aktuální `expected_evening_id`. Před mazáním ověř, že jde
-výhradně o vlastní testovací data. Pro testování platí 3 USD na session, bez dalšího aplikačního periodického limitu; ceníkový odhad není skutečná fakturace.
+výhradně o vlastní testovací data. Rozpočet testování řídí OpenAI projekt; ceníkový odhad není skutečná fakturace.
 
 Nasazení volí `dialog_model=gpt-6.1-sol`; backend čte
 `Backend__Dialog__Model` a jiný model v responses režimu odmítne. Funkce
@@ -456,8 +506,8 @@ DELETE. AI sama vybírá hůlku. Místní autonomní brána ESP32 provede prezen
 pevné rekvizity a návrat; nevyžaduje potvrzení obsluhy. Stop a poruchy mají přednost.
 
 Všechny hodnoty mohou pro první fake nasazení chybět. Bez dvojice zařízení
-se nikdo nepřihlásí; chybějící session limit použije výchozí 3 USD.
-Částečná dvojice device identity nebo neplatný session limit nasazení zastaví.
+se nikdo nepřihlásí. Částečná dvojice device identity nasazení zastaví.
+Historické cap položky nový helper ignoruje a nezapisuje do prostředí.
 Environment je omezený na větev `main`; podle potřeby nastav požadované
 schválení. Při změně secrets spusť workflow znovu; běžící služba se sama
 nepřekonfiguruje. Klíč nevkládej do chatu, repozitáře ani mobilní aplikace.
@@ -616,15 +666,12 @@ po dokončení starého; starý výsledek se započítá, ale nevysloví.
 Stejná revize nespustí duplicitní práci ani pokyn k čekání. Limit deseti
 backendových volání zahrnuje i přepočty opraveného textu. Nejde o retry
 nejasného či selhaného placeného volání. GPT-Live zůstává `gpt-live-1`.
-Kontext dalších delegací dostává paměť a poslední výměny. Před rezervací
-se použije společný 3 USD/session limit. GPT-Live rezervuje celé 3 USD,
-po řádném `session.closed` přepočítá kumulativní délku (0,05 USD/min,
-po sekundách) a všechny Sol odpovědi. Při nejistém ukončení drží rezervaci;
-nejde o tvrzení o skutečně vyúčtované ceně. Sezení trvá nejvýše 180 s.
-Žádný retry placeného requestu; denní a měsíční limit se neuplatňuje.
-Deploy payload kvůli staršímu root-owned helperu nadále posílá i `daily`
-a `monthly` jako kompatibilitní položky. D128 backend jejich hodnoty
-ignoruje; neobnovují periodické limity. Nový helper je do prostředí nepíše.
+Kontext dalších delegací dostává paměť a poslední výměny. GPT-Live zapisuje
+konzervativní účetní rezervaci 3 USD, která není limitem. Po řádném
+`session.closed` přepočítá kumulativní délku (0,05 USD/min, po sekundách) a
+všechny Sol odpovědi. Při nejistém ukončení eviduje odhad; další práci
+neblokuje. Sezení trvá nejvýše 180 s, má nejvýše deset backendových volání.
+Žádný retry placeného requestu. Rozpočet řídí výhradně OpenAI projekt.
 
 Pinned .NET SDK 2.14.0 Live API neposkytuje, proto `Features/GptLive`
 izoluje omezený WebSocket adaptér podle oficiálního schématu. Událost
@@ -674,5 +721,5 @@ používají jediný vybraný zdroj; text `ollivander-trunk-persona.txt` je embe
 beze změn. Jeho obvyklé dvě odpovědi a povolený dřívější výběr nepřebírají
 původní povinné čtyři otázky ani požadavek na otevřenou otázku. Pro delší
 prompt se limit requestu a rezervace zvýší o serializovaný UTF-8 přírůstek;
-3 USD/session, katalog a validace návrhu zůstávají.
+Účetní odhady, katalog a validace návrhu zůstávají; peněžní limit má OpenAI projekt.
 [Inventář a iOS debug test](../ai-eval/personalities.md).

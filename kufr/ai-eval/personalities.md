@@ -26,7 +26,7 @@ Legacy Live, Sol a Realtime zůstávají na dosavadních zdrojích.
    personality a použijte **Otestovat personalitu · AI** nebo **· fake**.
 
 AI test používá zvolený tok Realtime, GPT-Live + Sol nebo řetězený hlas a
-může čerpat dosavadní limit 3 USD na sezení. Fake ověřuje cestu a počet
+útratu omezuje rozpočet OpenAI účtu. Fake ověřuje cestu a počet
 otázek (původní čtyři, nový kufr dvě); negeneruje charakter ani humor a
 vrací tiché WAV. Test používá simulované přihrádky a neovládá pohony.
 Pro srovnání s čistou pamětí lze zvolit nový testovací večer.
@@ -43,8 +43,7 @@ je zdroj inventáře pro iOS. Obsah se skládá z jediné vybrané personality
 a stávajících pravidel funkcí/katalogu; Live má vlastní delegaci na Sol.
 Původní čtyřotázková brána a opening zůstávají jen původní personalitě.
 Nová vyžaduje úvodní otázku, další rozhodnutí nechává pravidlům promptu.
-Delší prompt má vlastní přírůstek limitu requestu a nákladové rezervace;
-celkový limit sezení se nezvyšuje.
+Delší prompt má vlastní přírůstek limitu requestu a odhadu nákladů.
 
 Další personalitu přidejte jako samostatný embedded UTF-8 zdroj do
 `backend.csproj`, do katalogu s jedinečným stabilním ID a její politikou

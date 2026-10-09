@@ -108,7 +108,8 @@ internal sealed partial class ConversationStore
                 conversation.History.ToArray(),
                 LiveAudio: handsFree && !request.Opening,
                 OutputTokenLimit: handsFree ? 768 : RealtimeProtocol.MaxOutputTokens)
-            { PersonalityId = conversation.PersonalityId, LivePrompt = conversation.LivePrompt };
+            { PersonalityId = conversation.PersonalityId, LivePrompt = conversation.LivePrompt,
+                CostumeContext = CostumePrompt(conversation) };
             if (gptLive)
             {
                 conversation.LiveReadyMask = request.ReadyMask;
@@ -117,34 +118,14 @@ internal sealed partial class ConversationStore
             var correlation = new TurnCorrelation(deviceId, request.BootId, conversationId,
                 request.ClientTurnId, request.Generation, request.DeviceRevision);
             var reservation = journal.Reserve(deviceId, route, key, bodyHash, correlation,
-                estimatedCostMicroUsd: gptLive ? 3_000_000 : RealtimeProtocol.ReservationMicroUsd(turn));
-            if (reservation.CostRejected && !gptLive)
-            {
-                // Reserve a shorter spoken reply before discarding useful
-                // memory. This changes only provider context, never storage
-                // or the configured session spending cap.
-                foreach (var memoryBytes in new[] { int.MaxValue, 8192, 4096 })
-                {
-                    turn = turn with
-                    {
-                        OutputTokenLimit = 512,
-                        EveningContext = BoundRealtimeMemory(memory?.Transcript ?? "", memoryBytes)
-                    };
-                    reservation = journal.Reserve(deviceId, route, key, bodyHash, correlation,
-                        estimatedCostMicroUsd: RealtimeProtocol.ReservationMicroUsd(turn));
-                    if (!reservation.CostRejected)
-                    {
-                        break;
-                    }
-                }
-            }
+                estimatedCostMicroUsd: gptLive ? GptLiveProtocol.SessionReservationMicroUsd : RealtimeProtocol.ReservationMicroUsd(turn));
             if (reservation.Conflict || reservation.Existing)
             {
                 return new(409, "realtime_stream_not_replayable", null);
             }
-            if (reservation.CostRejected || reservation.LimitExceeded)
+            if (reservation.LimitExceeded)
             {
-                return new(429, reservation.CostRejected ? "cost_limit" : "turn_limit", null);
+                return new(429, "turn_limit", null);
             }
             var cancellation = CancellationTokenSource.CreateLinkedTokenSource(disconnected, stopping);
             cancellation.CancelAfter(TimeSpan.FromSeconds(gptLive ? 180 : 45));
@@ -274,7 +255,7 @@ internal sealed partial class ConversationStore
     {
         lock (gate)
         {
-            if (!IsRealtimeTurnCurrent(call) || outcome.Reply.CostMicroUsd > GptLiveProtocol.SessionBudget)
+            if (!IsRealtimeTurnCurrent(call))
                 return null;
             if (outcome.Autonomous)
                 return CompleteAutonomousLive(call, outcome);

@@ -10,12 +10,10 @@ internal sealed partial class OperationJournal : IDisposable
     private readonly string connectionString;
     private readonly FileStream instanceLock;
     private readonly TimeProvider clock;
-    private readonly CostLimits costLimits;
 
     public OperationJournal(IConfiguration configuration, TimeProvider clock)
     {
         this.clock = clock;
-        costLimits = CostLimits.Read(configuration);
         var databasePath = configuration["Backend:DatabasePath"];
         if (string.IsNullOrWhiteSpace(databasePath))
         {
@@ -233,6 +231,16 @@ internal sealed partial class OperationJournal : IDisposable
         return new JournalCreateReservation(response, false, false);
     }
 
+    internal long ReadSessionCharge(string conversationId)
+    {
+        using var connection = Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT charged_micro_usd FROM cost_session_usage WHERE conversation_id = $id";
+        command.Parameters.AddWithValue("$id", conversationId);
+        var charged = command.ExecuteScalar() is long amount ? amount : 0;
+        return charged;
+    }
+
     public JournalReservation Reserve(
         string deviceId,
         string route,
@@ -287,7 +295,6 @@ internal sealed partial class OperationJournal : IDisposable
         if (!CostReservations.TryReserve(
             connection,
             transaction,
-            costLimits,
             clock.GetUtcNow(),
             operationId,
             deviceId,

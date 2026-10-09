@@ -1,7 +1,12 @@
+import json
+import os
+import sys
+import tempfile
 import unittest
+from unittest.mock import patch
 
-from evaluate import build_request
-from evaluate_party import Meter, read_visitor
+from evaluate import build_request, upper_bound_micro_usd
+from evaluate_party import Meter, main, read_visitor
 
 
 class PartyTests(unittest.TestCase):
@@ -17,24 +22,36 @@ class PartyTests(unittest.TestCase):
         self.assertIn("Private archive", follow_up["input"])
         self.assertIn("Old guest", follow_up["input"])
 
-    def test_default_budget_is_three_usd_per_session_only(self):
+    def test_usage_above_three_dollars_does_not_block_later_calls(self):
         calls = []
-        meter = Meter("fake", send=lambda *args: calls.append(args))
-        self.assertIsNone(meter.limit)
-        self.assertEqual(3_000_000, meter.session_limit)
-        meter.session_estimated_micro_usd = 3_000_000
-        request = build_request({"readyMask": 63, "visitorText": "Petr"}, "gpt-6.1-sol")
-        with self.assertRaisesRegex(RuntimeError, "cap"):
-            meter.invoke(request, "gpt-6.1-sol", "test")
-        self.assertEqual([], calls)
+        def send(request, _):
+            calls.append(request)
+            return {"model": request["model"], "service_tier": "default",
+                    "usage": {"input_tokens": 1_300_000, "output_tokens": 10}}
 
-    def test_rejected_reservation_never_calls_provider(self):
-        calls = []
-        meter = Meter("fake", limit=1, send=lambda *args: calls.append(args))
-        request = build_request({"readyMask": 63, "visitorText": ""}, "gpt-6.1-sol", opening=True)
-        with self.assertRaisesRegex(RuntimeError, "cap"):
-            meter.invoke(request, "gpt-6.1-sol", "test")
-        self.assertEqual([], calls)
+        meter = Meter("fake", send=send)
+        request = build_request({"readyMask": 63, "visitorText": "Petr"}, "gpt-6.1-sol")
+        meter.invoke(request, "gpt-6.1-sol", "first")
+        meter.invoke(request, "gpt-6.1-sol", "second")
+        self.assertEqual(2, len(calls))
+        self.assertGreater(meter.estimated_micro_usd, 6_000_000)
+
+    def test_legacy_budget_flag_is_accepted_and_ignored(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = os.path.join(temp_dir, "evaluation.json")
+            with patch.dict(os.environ, {"OPENAI_API_KEY": "fake", "SESSION_CAP_MICRO_USD": "1"}), \
+                    patch("evaluate_party.run_dialogue", return_value={"upperCostMicroUsd": 4_000_000}), \
+                    patch.object(sys, "argv", ["evaluate_party.py", "--budget-micro-usd", "1",
+                                                "--output", output_path]), \
+                    patch("builtins.print"):
+                main()
+
+            with open(output_path, encoding="utf-8") as output_file:
+                report = json.load(output_file)
+
+        self.assertTrue(report["completed"])
+        self.assertNotIn("approvedRunCapMicroUsd", report)
+        self.assertEqual(4_000_000, report["dialogues"][0]["upperCostMicroUsd"])
 
     def test_ambiguous_network_failure_retains_reservation(self):
         def fail(*_):
@@ -62,24 +79,26 @@ class PartyTests(unittest.TestCase):
         self.assertEqual(700, meter.estimated_micro_usd)
         self.assertEqual(350, meter.session_estimated_micro_usd)
 
-    def test_tier_mismatch_retains_reservation_and_stops_run(self):
+    def test_known_tier_mismatch_is_priced_and_stops_run(self):
         request = build_request({"readyMask": 63, "visitorText": "Petr"}, "gpt-6.1-sol")
         meter = Meter("fake", send=lambda *_: {"model": "gpt-6.1-sol", "service_tier": "fast",
                                               "usage": {"input_tokens": 100, "output_tokens": 10}})
         with self.assertRaisesRegex(RuntimeError, "unexpected service tier"):
             meter.invoke(request, "gpt-6.1-sol", "test")
-        self.assertGreater(meter.estimated_micro_usd, 700)
+        self.assertEqual(700, meter.estimated_micro_usd)
         self.assertEqual(700, meter.calls[0]["upperCostMicroUsd"])
 
-    def test_malformed_output_or_cache_retains_full_reservation(self):
+    def test_invalid_output_or_cache_keeps_safe_estimate(self):
         request = build_request({"readyMask": 63, "visitorText": "Petr"}, "gpt-6.1-sol")
-        for details in ({}, {"cached_tokens": 101, "cache_write_tokens": 0}):
+        reservation = upper_bound_micro_usd(request, "gpt-6.1-sol")
+        for details, expected_estimate in (({}, 350),
+                                           ({"cached_tokens": 101, "cache_write_tokens": 0}, reservation)):
             meter = Meter("fake", send=lambda *_: {
                 "model": "gpt-6.1-sol", "service_tier": "default", "status": "incomplete",
                 "usage": {"input_tokens": 100, "output_tokens": 10, "input_tokens_details": details}})
             with self.assertRaises(ValueError):
                 meter.invoke(request, "gpt-6.1-sol", "test", validate=read_visitor)
-            self.assertGreater(meter.estimated_micro_usd, 350)
+            self.assertEqual(expected_estimate, meter.estimated_micro_usd)
             self.assertEqual([], meter.calls)
 
     def test_incomplete_visitor_is_not_a_real_reply(self):
