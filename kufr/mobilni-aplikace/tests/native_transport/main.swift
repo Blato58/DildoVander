@@ -1,4 +1,5 @@
 import Foundation
+import Network
 
 func check(_ condition: @autoclosure () -> Bool, _ description: String) {
     if !condition() { fatalError(description) }
@@ -23,6 +24,19 @@ for invalidId in ["Kufr-001", "kufr_001", "1kufr", "kufr.local", String(repeatin
 let discoveryCandidate = LocalDiscoveredDevice.parse(txt: discoveryTxt, host: "kufr-test.local.", port: 443)
 check(discoveryCandidate?.host == "kufr-test.local", "Normalize Bonjour hostname")
 check(discoveryCandidate?.capabilities.count == 3, "Bounded public capabilities")
+let networkTxt = NWTXTRecord(NetService.data(fromTXTRecord: discoveryTxt.mapValues { Data($0.utf8) })).dictionary
+check(LocalDiscoveredDevice.parse(txt: networkTxt, host: "kufr-test.local.", port: 443)?.deviceId == "test-kufr",
+      "Accept actual Network.framework decoding of firmware TXT record")
+let lowercasedTxt = Dictionary(uniqueKeysWithValues: discoveryTxt.map { ($0.key.lowercased(), $0.value) })
+check(LocalDiscoveredDevice.parse(txt: lowercasedTxt, host: "kufr-test.local.", port: 443)?.deviceId == "test-kufr",
+      "Accept case-insensitive DNS-SD TXT keys returned by Network.framework")
+let uppercaseTxt = Dictionary(uniqueKeysWithValues: discoveryTxt.map { ($0.key.uppercased(), $0.value) })
+check(LocalDiscoveredDevice.parse(txt: uppercaseTxt, host: "kufr-test.local.", port: 443)?.deviceId == "test-kufr",
+      "TXT key case does not alter advertised device ID")
+var duplicateCaseTxt = discoveryTxt
+duplicateCaseTxt["deviceid"] = "other-kufr"
+check(LocalDiscoveredDevice.parse(txt: duplicateCaseTxt, host: "kufr-test.local.", port: 443) == nil,
+      "Reject ambiguous duplicate case-insensitive keys")
 for host in ["example.com", "https://kufr.local", "kufr.local:443", "a..local", "kufr.local/secret"] {
     check(LocalDiscoveredDevice.parse(txt: discoveryTxt, host: host, port: 443) == nil, "Reject discovery host")
 }
@@ -104,6 +118,38 @@ check(restoredIdentity?.token == identity.token, "Keychain roundtrip")
 try keychain.remove()
 let removedIdentity = try keychain.read()
 check(removedIdentity == nil, "Keychain cleanup")
+
+let proofService = "kufr-provisioning-test." + UUID().uuidString
+let proofKeychain = ProvisioningProofKeychain(service: proofService)
+let proof = String(repeating: "a", count: 32)
+let replacementProof = String(repeating: "b", count: 32)
+func checkProof(_ store: ProvisioningProofKeychain, _ name: String, _ expected: String?, _ description: String) throws {
+    let actual = try store.read(deviceName: name)
+    check(actual == expected, description)
+}
+try checkProof(proofKeychain, "KUFR_AABBCC", nil, "Initially no saved BLE proof")
+try proofKeychain.write(proof, deviceName: "KUFR_AABBCC")
+let reopenedProofKeychain = ProvisioningProofKeychain(service: proofService)
+try checkProof(reopenedProofKeychain, "KUFR_AABBCC", proof, "BLE proof survives store recreation")
+try checkProof(reopenedProofKeychain, "KUFR_112233", nil, "Do not reuse proof for another BLE device")
+try proofKeychain.write(replacementProof, deviceName: "KUFR_112233")
+try proofKeychain.write(replacementProof, deviceName: "KUFR_AABBCC")
+try checkProof(reopenedProofKeychain, "KUFR_AABBCC", replacementProof, "Replace old verified BLE proof")
+for invalidProof in ["", String(repeating: "a", count: 31), String(repeating: "A", count: 32)] {
+    do {
+        try proofKeychain.write(invalidProof, deviceName: "KUFR_AABBCC")
+        fatalError("Invalid proof accepted")
+    } catch LocalDeviceError.invalidIdentity {}
+}
+try checkProof(reopenedProofKeychain, "KUFR_AABBCC", replacementProof, "Invalid writes preserve stored proof")
+do {
+    _ = try proofKeychain.read(deviceName: "other-device")
+    fatalError("Invalid BLE name accepted")
+} catch LocalDeviceError.invalidIdentity {}
+try proofKeychain.remove(deviceName: "KUFR_AABBCC")
+try checkProof(reopenedProofKeychain, "KUFR_AABBCC", nil, "Remove selected BLE proof")
+try checkProof(reopenedProofKeychain, "KUFR_112233", replacementProof, "Removal preserves another device proof")
+try proofKeychain.remove(deviceName: "KUFR_112233")
 
 func testPair(_ secret: String, pin expectedPin: String, success: Bool) {
     let transport = LocalDeviceTransport(host: "127.0.0.1", pin: expectedPin, port: port)

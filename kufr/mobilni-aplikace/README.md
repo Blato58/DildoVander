@@ -23,7 +23,10 @@ Hotspot je přednostní síť, **Záložní Wi-Fi** je alternativní profil.
 Nativní dialog **Nastavit / nahradit údaje** přijme SSID 1–32 UTF-8 bajtů
 a WPA heslo 8–63 bajtů. Po potvrzení se oba údaje odešlou přes autentizovaný,
 šifrovaný `kufr-control` endpoint; JavaScript ani aplikační log heslo a PoP
-nepřijímají. Telefon je neukládá do Keychain ani localStorage. SDK logging je
+nepřijímají. Wi-Fi hesla telefon neukládá. Úspěšně ověřený PoP ukládá nativně
+do odděleného Keychain pro konkrétní BLE kufr, jen na tomto odemčeném iPhonu,
+bez iCloud synchronizace. Při dalším připojení lze použít uložený PoP nebo
+zadat nový; nahradí se až po úspěšném ověření. SDK logging je
 výslovně vypnuté před jeho použitím. Swift/iOS/SDK mohou během operace držet
 vlastní paměťové kopie; zdroj netvrdí garantované vynulování těchto kopií.
 
@@ -43,7 +46,8 @@ Telefon nikdy neflashuje paměť přímo. BLE timeout může znamenat nejistý
 výsledek: znovu ověřte stav; aplikace změnu automaticky neopakuje.
 
 Odchod do pozadí nebo uzamčení zruší nativní BLE relaci a vymaže její
-přechodné PoP. Návrat vyžaduje nové explicitní vyhledání/ověření.
+přechodné PoP. Uložený PoP v Keychain zůstává; návrat vyžaduje nové explicitní
+vyhledání/ověření, při kterém lze uložený PoP použít bez opisování.
 Zavření nebo odpojení BLE neukončuje samostatný provoz kufru. Web zobrazuje
 návod a nedostupný stav; nepoužívá Web Bluetooth a nesimuluje připojený kufr.
 

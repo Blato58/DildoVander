@@ -6,6 +6,58 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D160 – 9. 10. 2026 – stabilní BLE obrazovka, uložený PoP a vysvětlení LAN discovery.**
+Majitel hlásil blikání po BLE spojení, opakované opisování PoP a prázdné
+LAN hledání. Slice mění mobilní ProvisioningClient/Panel, nativní
+KufrProvisioningPlugin, LocalDeviceIdentity/Discovery, zprávu LAN hledání,
+webový harness a web/native regrese; plán a oba návody odpovídají změně.
+Polling už nebliká deaktivací tlačítek ani přepisem nezměněných metrik.
+Akce i reconnect čekají na volný BLE slot, zůstávají v původní generaci
+a uchovávají profil z okamžiku klepnutí. Nezávislé review našlo a následně
+potvrdilo opravy zahozeného reconnect tapu a záměny profilu při čekání.
+PoP se ukládá pouze po úspěšné autentizaci Security1 do odděleného
+nesynchronizovaného Keychain WhenUnlockedThisDeviceOnly; při reconnectu lze
+použít uložený údaj nebo bezpečně zadat nový. Wi-Fi hesla se neukládají,
+JavaScript PoP nečte. Bonjour TXT klíče se validují bez závislosti na velikosti
+písmen, kolidující varianty se odmítají; TLS a identita dál ověřují spojení.
+
+LAN příčina je oddělená: espidf_main spouští lokální server až po provisioningu
+TLS identity a místního párování, Bonjour až po startu serveru. USB network-service
+z D159 zapisuje jen BLE/device/backend/OTA, nikoli `wand_tls/server` a
+`wand_pairing/local`. D159 doložil původně prázdné TLS/pairing namespaces;
+bez jejich doplnění kufr žádnou WSS službu nepublikuje. Toto je source/commissioning
+důkaz, nikoli čerstvé čtení NVS; firmware brána nebyla oslabena ani deska změněna.
+
+Ověření: `npm ci` pro mobil i contracts, `npm test` **36/36**, `npm run build`
+(TypeScript/Vite) prošly. První běh bez contracts závislostí selhal na chybějícím
+ajv; po jejich instalaci prošel. Playwright browser harness při 393×852
+ověřil připojení, opakované polling cykly s **0 DOM změnami**, aktivní tlačítka,
+viditelné metriky a nulové horizontální přetečení. Klepnutí Delete při čekajícím
+pollu a následná změna hotspot→fallback odeslalo původní `profile=hotspot`.
+Počáteční favicon404 je vývojový harness; aplikační console chyby nebyly nalezeny.
+Nezávislé finální source review nemá otevřený P1/P2 nález. Nové Swift testy pro
+Keychain a Apple TXT decoding jsou připravené, **na Windows se nespustily**.
+MacOS/Xcode, nová podepsaná IPA, instalace, fyzický BLE/Keychain/LAN test
+ani servisní doplnění místní TLS/pairing nejsou tímto slice doložené.
+Další krok: podepsat/publikovat aktualizaci po oprávnění, ověřit na iPhonu
+a samostatně připravit místní TLS/pairing provisioning skutečného kufru.
+Git předání: implementační commit `ac9c9e0e830eb6fa62627ca3d210f9f9179afab3`
+byl ověřeně pushnutý helperem; [PR151](https://github.com/Blato58/DildoVander/pull/151).
+Souběžný PR150 byl začleněný s oběma záznamy; změnil jen dokumentaci.
+60 místních odkazů a whitespace prošly. [CI37915875139](https://github.com/Blato58/DildoVander/actions/runs/37915875139)
+pro integrovaný commit `44256f0` prošlo včetně web/contracts/signing-source
+regresí a required gate; backend/firmware/AI byly správně přeskočené.
+GitHub review pro `2c5fcc9` dokončilo bez nálezů; bezprostřední recheck
+odhalil nový dokumentační PR153. Jeho záznam rozměrů byl zachován; před merge
+se znovu načtou reviews i inline vlákna a ověří finální CI.
+Review pro `13355f3` následně našlo P2: dva současně čekající tapy neměly
+rezervaci prvního požadavku. Oprava rezervuje jeden slot a UI označí busy hned
+po uživatelském tapu; samotný polling dál busy nezobrazuje. Refresh zachová
+busy do zahájení/ukončení akce a disconnect rezervaci zruší. Nová regrese
+ověřuje tento interval, druhý tap a následný reconnect; finální lokální
+`npm test` **37/37** a `npm run build` prošly.
+Nová IPA se tímto nepublikuje.
+
 **9. 10. 2026 – doručený kufr: potvrzené rozměry a způsob prezentace.**
 Majitel v konverzaci k pěti fotografiím potvrdil vnitřní rozměry:
 šířka 17″ = 431,8 mm, délka 10,5″ = 266,7 mm a výška spodní části

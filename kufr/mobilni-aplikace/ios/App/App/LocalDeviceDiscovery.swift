@@ -7,14 +7,22 @@ struct LocalDiscoveredDevice {
     let capabilities: [String]
 
     static func parse(txt: [String: String], host: String, port: Int) -> LocalDiscoveredDevice? {
+        // DNS-SD TXT keys are case-insensitive (RFC 6763 section 6.4).
+        // Network.framework may return the firmware's deviceId as deviceid.
+        var normalized: [String: String] = [:]
+        for (key, value) in txt {
+            let key = key.lowercased()
+            guard normalized[key] == nil else { return nil }
+            normalized[key] = value
+        }
         let normalizedHost = host.hasSuffix(".") ? String(host.dropLast()) : host
-        guard Set(txt.keys) == Set(["deviceId", "protocol", "capabilities"]),
+        guard Set(normalized.keys) == Set(["deviceid", "protocol", "capabilities"]),
               txt.reduce(0, { $0 + $1.key.utf8.count + $1.value.utf8.count }) <= 512,
-              txt["protocol"] == "1", let deviceId = txt["deviceId"],
+              normalized["protocol"] == "1", let deviceId = normalized["deviceid"],
               LocalDeviceIdentity.validDeviceId(deviceId), port == 443,
               normalizedHost.lowercased().hasSuffix(".local"),
               LocalDeviceIdentity.validHost(normalizedHost),
-              let csv = txt["capabilities"] else { return nil }
+              let csv = normalized["capabilities"] else { return nil }
         let capabilities = csv.split(separator: ",", omittingEmptySubsequences: false).map(String.init)
         guard !capabilities.isEmpty, capabilities.count <= 16,
               Set(capabilities).count == capabilities.count,
