@@ -59,5 +59,14 @@ Current verified delivery: iOS1.0/build1000.0.19 at
 [37899385679](https://github.com/Blato58/DildoVander/actions/runs/37899385679)
 and public manifest/IPA/checksum verification
 [37899776001](https://github.com/Blato58/DildoVander/actions/runs/37899776001).
-The initial registered iPhone profile is still required; physical installation,
-Bluetooth permissions, handshake and hotspot tests have not been repeated here.
+The initial registered iPhone profile is still required. During D159 on
+9 October 2026, the owner confirmed discovery and a successful PoP-authenticated
+connection to the provisioned physical ESP32-S3, then entered home Wi-Fi privately
+as the fallback profile. The profile blob was independently read back from NVS
+without exposing its SSID/password; the owner confirmed Wi-Fi reconnection after
+reset without re-entering credentials. The initial reported backend connection
+did not hold after reset. UART/server evidence identified an SDK6.1 bodyless token
+POST setup failure, fixed in firmware0.1.1 with a reproduced regression; physical
+backend verification with the new image is pending. Actual
+iPhone hotspot, wrong-PoP rejection and hotspot/fallback transitions remain
+unverified; this home-network setup does not establish their acceptance.
