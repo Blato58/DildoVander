@@ -6,17 +6,41 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**9. 10. 2026 – rozměry doplněné majitelem a zrušení podmínek pro rozvržení.**
+Všechny údaje jsou pohromadě v [přehledu rozměrů kufru a součástek](../mechanika/rozmery-nakoupenych-soucastek.md).
+PTT má 14×14×35 mm, PCA9685 25×70×15 mm; pro U059 použít výrobce
+32×24×8 mm. Servo páka má 35 mm v oboustranném provedení s upevněním a osou
+uprostřed nebo 20 mm v jednostranném provedení s upevněním a osou na konci.
+Nezaměnit za montážní uši těla serva nebo rozteč otvorů.
+Výztuha dna má podle majitele 5 mm. Powerbanka má potvrzených
+139×80×26,5 mm a musí jít jednoduše vyjmout bez demontáže okolních dílů:
+otevřený držák, uvolnitelné pásky, přístupné porty a volná cesta ven.
+Degson je pořízený, zatím nedoručený; inventář zůstává 32 položek.
+
+Majitel nepožaduje další výšky mikrofonu/zesilovačů, rozměry otvorů
+reproduktorů a podrobnosti kolébek, LED/kabelů ani výztuhy pro rozvržení.
+Původní seznam požadovaných měření v PR154 se ruší. Další konkrétní
+mechanický krok je přizpůsobit CAD potvrzené spodní části kufru a tomuto
+přehledu, včetně snadného vyjmutí powerbanky; další měření nejsou vstupní
+blokací. Fyzické usazení, pohyb, kalibrace a elektrická akceptace se ověřují
+na sestavě; tato oprava dokumentace je neprohlašuje za splněné.
+Změněny společný přehled, záznam kufru, README mechaniky, plán, tento stav,
+potvrzená objednávka, odkazy v historických nákupních seznamech a návody napájení/zapojení. Ověření: konzistence
+údajů a inventáře, lokální odkazy, diff a nezávislé dokumentační review.
+CAD/parametry/exporty se nemění; aplikační buildy ani fyzické testy neběžely.
+
 **9. 10. 2026 – rozměry nakoupených součástek: dokumentační rešerše.**
+Historie PR154; požadavky na další měření níže byly nahrazené následným
+upřesněním majitele výše a nejsou aktuálními blokacemi rozvržení.
 Na žádost majitele je připravený [přehled všech 32 položek potvrzeného
 inventáře](../mechanika/rozmery-nakoupenych-soucastek.md), navíc objednané
 kamery a vybrané powerbanky. Katalogové údaje byly ověřené na konkrétních
 stránkách výrobců/prodejců a oddělené od půdorysů PCB, délek kabelů a
 podmíněné shody variant. Rozměry svorek Degson a celé obálky PTT nebyly
-publikované; přesná kamera není identifikovaná. U U059 je rozpor výrobce
-32×24×8 mm proti prodejci 48×24×12 mm, proto se držák nesmí navrhnout
-bez měření doručeného kusu. PCA, mikrofon a zesilovače nemají úplnou
-katalogovou výšku; další montážní rozteče a kabelové obálky jsou vypsané
-k měření majitelem. Nové kolébky vyžadují potvrzení katalogové varianty.
+publikované; přesná kamera nebyla identifikovaná. Rešerše zjistila rozpor
+U059 výrobce/prodejce a neúplné katalogové výšky některých desek.
+Následně majitel doplnil PTT/PCA a zvolil rozměr U059 podle výrobce;
+ostatní požadovaná měření pro rozvržení zrušil. Aktuální údaje jsou v přehledu.
 
 Změněné soubory: nový přehled rozměrů, odkazy v README mechaniky,
 záznamu doručeného kufru a potvrzené objednávce; tento stav. README také
@@ -24,8 +48,8 @@ opraveno na již potvrzené dva zesilovače. Ověření: kontrola inventáře,
 zdrojových URL, lokálních odkazů a `git diff --check`. Neprováděly se
 aplikační buildy, placené AI testy, CAD export ani fyzická měření.
 CAD a parametry jsou beze změny, HW kritéria zůstávají otevřená.
-Další krok: doplnit chybějící měření a podle nich upravit rozložení
-do potvrzené spodní části kufru, následně ověřit obálky/pohyb před tiskem.
+Původní další krok s doplňováním měření je nahrazený předáním výše:
+rozložení upravit podle potvrzených údajů, následně ověřit obálky/pohyb před tiskem.
 Git předání: dokumentační commit `ca503ca` byl ověřeně pushnutý helperem,
 [PR154](https://github.com/Blato58/DildoVander/pull/154). Souběžný PR151
 byl začleněný z `main` commitem `6b7884b`, rovněž ověřeně pushnutým;
@@ -92,14 +116,15 @@ od dna po horní okraj 4,5″ = 114,3 mm. Pracovní zaokrouhlení je
 432 × 267 × 114 mm (šířka × délka × výška). Prezentace bude s otevřeným
 kufrem; veškerá mechanika a elektronika mají být ve spodní části,
 víko zůstane prázdné a jeho prostor se do zástavby nezapočítává.
-Tloušťka příčné výztuhy na dně z fotografií zatím není změřená.
+Tloušťku příčné výztuhy majitel následně doplnil: **5 mm**;
+další údaje o ní neblokují rozvržení.
 
 Zapsáno do plánu, README mechaniky a samostatného souboru
 [rozměry doručeného kufru](../mechanika/rozmery-doruceneho-kufru.md).
 CAD, parametry a exporty se tímto
 zápisem nemění; původní obálka 310 × 450 × 200 mm není důkazem usazení
 do doručeného kufru. Další mechanický krok: přizpůsobit rozložení
-potvrzeným rozměrům, ověřit výztuhu a znovu ověřit obálky/pohyb před tiskem.
+potvrzeným rozměrům a znovu ověřit obálky/pohyb před tiskem.
 Jde pouze o dokumentační záznam, bez fyzické akceptace nebo nasazení.
 
 **D159 – 9. 10. 2026 – USB provisioning, OTA0.1.1 a backend po restartu.**

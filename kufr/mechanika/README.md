@@ -13,14 +13,14 @@ po horní okraj 4,5″ (114,3 mm). Zaokrouhlená obálka spodní části je tedy
 otevřený; veškerá mechanika a elektronika patří do spodní části a víko
 zůstane prázdné. Prostor víka se do zástavby nepočítá.
 Samostatný záznam: [rozměry doručeného kufru](rozmery-doruceneho-kufru.md).
-Katalogové rozměry všech potvrzených nákupů, zdroje a seznam chybějících
-měření: [rozměry nakoupených součástek](rozmery-nakoupenych-soucastek.md).
+Rozměry kufru i součástek doplněné majitelem a katalogové zdroje jsou
+pohromadě v [přehledu rozměrů](rozmery-nakoupenych-soucastek.md).
 
 Současný CAD a `parametry.json` stále používají původní pracovní prostor
 **310 × 450 × 200 mm (X × Y × Z)** a novým rozměrům nejsou přizpůsobené.
 Před tiskem upravit rozložení a znovu ověřit obálky i pohyb. Fotografie
-ukazují příčnou výztuhu na dně; její tloušťka a vliv na usazení zatím
-nejsou změřené. Potom vytisknout měrky a jednu přihrádku. Hotový CAD
+ukazují příčnou výztuhu na dně; majitel doplnil tloušťku **5 mm** a její
+další údaje nepožaduje pro rozvržení. Potom vytisknout měrky a jednu přihrádku. Hotový CAD
 nedokazuje usazení do skutečné truhly ani bezpečný pohyb pod zatížením.
 
 ## Soubory pro tisk a stavbu
@@ -45,7 +45,11 @@ Hůlka leží v otevřeném lůžku a zůstává zajištěná dvěma pružnými 
 **Zadní konec lůžka se otáčí na jednom M4 čepu.** Servo přes původní páku,
 tištěný adaptér a krátké táhlo nadzvedne přední konec. Při návratu stejné
 táhlo vrací lůžko dolů. Nejsou potřeba dlouhé vodicí tyče, ložiska ani ozubené
-rozvody. Pro každé servo se musí fyzicky ověřit osa, původní páka a pulzy.
+rozvody. Majitel doplnil dvě páky: **35 mm oboustranná s upevněním a osou
+uprostřed** a **20 mm jednostranná s upevněním a osou na konci**. Jde
+o páky serva, nikoli montážní uši jeho těla nebo rozteče otvorů.
+Další rozměry páky nejsou podmínkou rozvržení; při fyzické kalibraci
+se ověří skutečný pohyb každého serva a jeho pulzy.
 
 Při výchozích parametrech: lůžko 240 mm, dvě 120mm poloviny, šířka dříku
 28 mm, přední 70mm část široká 46 mm. Rozteč šesti modulů je 48 mm.
@@ -71,22 +75,24 @@ policí je rozvod, na ní powerbanka, na pravé PCA a dva zesilovače.
 
 | Součást | Umístění a uchycení |
 | --- | --- |
-| UGREEN PB720 / 25188 | Otevřená kolébka vlevo vzadu, dva pásky, tlačítko a porty přístupné. |
-| 2× Waveshare 14595, 8 Ω / 5 W | Dvě samostatné tištěné podpěry vzadu vlevo/vpravo, čela k návštěvníkovi. Obálka jednoho kusu 100 × 45 × 21 mm; otvory a příruby nezměřené. |
+| UGREEN PB720 / 25188 | Potvrzená obálka 139 × 80 × 26,5 mm. Otevřená kolébka vlevo vzadu, dva uvolnitelné pásky, tlačítko a porty přístupné. Musí jít snadno vyjmout bez demontáže okolních dílů. |
+| 2× Waveshare 14595, 8 Ω / 5 W | Dvě samostatné tištěné podpěry vzadu vlevo/vpravo, čela k návštěvníkovi. Obálka jednoho kusu 100 × 45 × 21 mm; další měření otvorů/přírub majitel pro rozvržení nepožaduje. |
 | ESP32-S3 + OV5640 | Jedna horní zadní platforma; výměnný držák kamery míří přibližně 20° vzhůru. ESP leží přímo za kamerou, USB a FPC jsou přístupné. |
 | ICS43434 | Přední prostřední výškově posuvný držák, akustický port k návštěvníkovi. Oddělit PCB tenkou pěnou; port nezakrýt. |
-| PCA9685 | Pravá univerzální deska se štěrbinami, místo pro kabely ke všem šesti servům a U059. |
+| PCA9685 | Obálka majitele 25 × 70 × 15 mm. Pravá univerzální deska se štěrbinami, místo pro kabely ke všem šesti servům a U059. |
 | 2× zesilovač DFR0954 / MAX98357A | Dvě malé desky na pravé polici. Oba zesilovače jsou od 9. 10. potvrzené nákupy; fyzické osazení a propojení ještě vyžadují ověření. |
-| Joy-IT SBC-Buck02, PD trigger, pojistka a svorky | Spodní servisní deska pod powerbankou. Výška komponent včetně kabelů musí odpovídat volnému prostoru; nejsou to změřené tovární modely. |
+| Joy-IT SBC-Buck02, PD trigger, pojistka a svorky | Spodní servisní deska pod powerbankou. Katalogové obálky jsou ve společném přehledu; svorky jsou pořízené a čekají na doručení, rozvržení neblokují. |
 | MCP23017, Pixel Shifter a drobná logika | Zadní univerzální servisní deska. Zachovat elektrické oddělení a přístup ke konektorům. |
-| PTT, hlavní vypínač, PHYSICAL_ENABLE | Odnímatelný přední boční panel; otvory jsou pracovní a musí se porovnat s doručenými prvky. Dřevěný kufr se modelem neřeže. |
-| 6× U059 a 6× 20cm RGB | U059 v kleci pod lůžkem, RGB na jeho dně pod rekvizitou. Vést pružnou smyčku mimo čep, páku a táhlo. |
+| PTT, hlavní vypínač, PHYSICAL_ENABLE | PTT má podle majitele 14 × 14 × 35 mm. Odnímatelný přední boční panel; rozměr obálky není průměr otvoru. Další měření kolébek není podmínkou rozvržení. Dřevěný kufr se modelem neřeže. |
+| 6× U059 a 6× 20cm RGB | Pro U059 používat obálku výrobce 32 × 24 × 8 mm podle rozhodnutí majitele. U059 v kleci pod lůžkem, RGB na jeho dně pod rekvizitou. Vést pružnou smyčku mimo čep, páku a táhlo. |
 
-UGREEN má podle [výrobce](https://eu.ugreen.com/en-fi/products/25188)
-139 × 80 × 26,5 mm; [zvolená nabídka Alza](https://www.alza.cz/ugreen-20000mah-pd-100w-power-bank-d8021597.htm)
-uvádí 139 × 80,8 × 26,7 mm. Model používá větší obálku a navíc boční vůli
-1,2 mm. U kladného Y konce powerbanky zbývá jen 15,5 mm k nominální stěně:
-ověřit skutečný konektor, použít vhodný úhlový kabel nebo kolébku posunout.
+UGREEN má majitelem potvrzené rozměry **139 × 80 × 26,5 mm**, shodně
+s [výrobcem](https://eu.ugreen.com/en-fi/products/25188). Při úpravě CAD
+používat tuto obálku a samostatnou montážní vůli. Stávající model dosud
+používá starší větší obálku 139 × 80,8 × 26,7 mm a boční vůli 1,2 mm;
+není tímto dokumentačním zápisem přegenerovaný. Nové rozložení musí
+umožnit jednoduché vyjmutí powerbanky: volná cesta ven, přístupné porty
+a uvolnitelné pásky bez demontáže okolních dílů.
 100 W je maximální výkon powerbanky, nikoli limit nebo záruka 5V rozvodu kufru.
 Elektrický návrh se řídí [napájením](../docs/efekty-a-napajeni.md).
 
@@ -94,8 +100,9 @@ Kamera a ESP jsou na společném držáku, plánované oblasti konektorů jsou
 asi 23 mm od sebe. **Délka/orientace originálního FPC není známá**:
 tento údaj není potvrzení jeho vejití. Použít originální spárovaný FPC,
 bez náhodného prodlužování, a upravit polohu desky podle skutečných konektorů.
-Sklon kamery změnit podle výšky stolu a návštěvníka. Kufr nemá změřené víko
-ani zorné pole; kamera potřebuje volný výhled přes lůžka a nezakryté víko.
+Sklon kamery změnit podle výšky stolu a návštěvníka. Rozměry víka nejsou
+podmínkou rozvržení: víko zůstává prázdné. Kamera potřebuje volný výhled
+přes lůžka; zorné pole se ověří na sestavě.
 Podrobnosti varianty kamery jsou v [dokumentaci](../docs/kamera.md).
 
 Mikrofon je přibližně 32 cm od obou reproduktorů. Jeho držák se musí
@@ -105,7 +112,9 @@ ozvučnicích. Poslech, vibrace a mikrofon vyzkoušet v sestaveném kufru.
 
 ## Nejprve jeden modul
 
-1. Změř vnitřek kufru, hlavici a dřík hůlky. Vytiskni `fit_coupon` pro M3/M4
+1. Použij [společný přehled rozměrů](rozmery-nakoupenych-soucastek.md)
+   a přizpůsob mu CAD. Před tiskem lůžka ověř hlavici a dřík hůlky.
+   Vytiskni `fit_coupon` pro M3/M4
    a `head_fit_gauge`: otevřené výřezy zleva 32 / 36 / 40 / 44 mm.
 2. Vytiskni díly podle `prvni-prihradka.csv`. Výchozí materiál PETG,
    tryska 0,4 mm, vrstva 0,2 mm, 4 obvody, 35–50 % výplně. Pevnost je
@@ -121,7 +130,10 @@ ozvučnicích. Poslech, vibrace a mikrofon vyzkoušet v sestaveném kufru.
    `lower_rest` je pod širokým předním koncem. Vyzkoušej ruční vyklopení.
 6. Servo vlož do `servo_strap_cradle`, zajisti pásky a přišroubuj přes
    **vnější montážní uši**. Tištěný adaptér se šroubuje k původní páce;
-   rozteč M2 otvorů 6/12 mm je pracovní a musí odpovídat doručené páce.
+   rozteč M2 otvorů 6/12 mm patří pouze ke stávajícímu pracovnímu CAD,
+   není potvrzenou roztečí páky ani podmínkou rozvržení. Oboustranná
+   35mm páka se upevňuje uprostřed, jednostranná 20mm na konci;
+   adaptér se při úpravě CAD přizpůsobí zvolenému provedení.
 7. Táhlo má dva M3 čepy a na obou `link_spacer_3mm`. Hlavy čepových
    šroubů jsou na vnější straně táhla; vnitřní matice potřebují prostor
    mimo tělo serva. Výchozí délka M3×14, delší závit nesmí zasáhnout servo.

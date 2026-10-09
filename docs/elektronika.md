@@ -4,6 +4,8 @@
 > [nového seznamu chybějících dílů](objednavka-doplneni-kufru-2026-10-06.md).
 > Zohledňuje nové potvrzené nákupy, dva zesilovače, kameru, jeden aktivní LED úsek a jeden pohon,
 > kolébkové vypínače, přímé OE a ruční odpojení pohonů. Níže je historický podklad.
+> Rozměry kufru a součástek doplněné majitelem, stav doručení svorek
+> a snadno vyjímatelná powerbanka jsou v [aktuálním přehledu](../kufr/mechanika/rozmery-nakoupenych-soucastek.md).
 
 Stav návrhu k 28. 9. 2026. Ceny jsou orientační z průzkumu a mohou se změnit; před platbou zkontrolovat variantu, sklad a cenu a odečíst již pořízené díly. Prioritu v rozpočtu 10 000 Kč má **AI kufr**. Powerbanku si majitel pořídí samostatně, proto není v nákupních součtech. Součet není cena celého kostýmu a nezahrnuje dopravu, kufry, knihu, hůlky ani mechanické díly. Překročení celkového rozpočtu vyžaduje schválení majitele.
 

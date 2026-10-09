@@ -130,6 +130,7 @@ kolébka. Při úplném zamrznutí řídicí úlohy software sám odpojení nedo
   [profil B a piny](pin-mapa-esp32-s3.md) vyžadují ověření GPIO2/48 a SD.
   Druhá deska se nekupuje; souběh periferií ověřit na stávajícím řadiči.
 - **Rozvod:** 1,5mm² hlavní vedení, 0,5mm² krátké odbočky, společná zem.
+  Svorky Degson jsou pořízené, čekají na doručení a neblokují rozvržení kufru.
   Degson má všech pět pozic společných: pro +5 V a GND samostatné bloky,
   nikdy oba póly do stejné svorky. Nepoužívat ji na tenký Dupont pod 0,2 mm².
 - **Kondenzátory:** ze zakoupených 10×470 µF použít 2 paralelně u LED,
@@ -151,5 +152,9 @@ kolébka. Při úplném zamrznutí řídicí úlohy software sám odpojení nedo
    kondenzátorů a absenci zpětného napájení. MCU reset nesmí vyvolat pohyb.
 5. Ověřit pasivní držení přihrádky, mechanické dorazy, jeden aktivní úsek
    a jeden pohon včetně přechodů. Pak rozšířit na všech šest přihrádek.
-6. Změřit vnitřní prostor, držáky a kabelové trasy; síťový adaptér ponechat
-   mimo kufr. Úspěšný nákup není uzavření E5/B1 ani veřejná HW akceptace.
+6. Na sestavě ověřit usazení držáků a kabelové trasy podle
+   [společného přehledu rozměrů](../mechanika/rozmery-nakoupenych-soucastek.md).
+   Vnitřek kufru je potvrzený, výztuha má 5 mm a další měření neblokují
+   rozvržení. Powerbanka 139×80×26,5 mm musí jít snadno vyjmout;
+   síťový adaptér ponechat mimo kufr. Úspěšný nákup není uzavření E5/B1
+   ani veřejná HW akceptace.
