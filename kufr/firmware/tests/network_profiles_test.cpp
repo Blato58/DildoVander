@@ -15,7 +15,49 @@ class Storage final : public NetworkProfileStorage {
   int writes = 0;
   NetworkProfileRecord saved;
 };
+class PartialStorage final : public NetworkProfileStorage {
+ public:
+  bool Save(const NetworkProfileRecord& record) override {
+    ++writes;
+    if (writes == 2 && failRollbackBeforePersist) { return false; }
+    durable = record;
+    return false; // Blob committed, but subsequent cleanup failed.
+  }
+  unsigned writes = 0;
+  bool failRollbackBeforePersist = false;
+  NetworkProfileRecord durable;
+};
+void VerifyPartialSaveRollback() {
+  NetworkProfileRecord old;
+  WifiProfile replacement;
+  assert(NetworkProfiles::MakeCandidate("Old phone", "old-password", old.hotspot));
+  assert(NetworkProfiles::MakeCandidate("New phone", "new-password", replacement));
+  for (unsigned operation = 0; operation < 2; ++operation) {
+    PartialStorage storage;
+    storage.durable = old;
+    NetworkProfiles profiles(storage);
+    assert(profiles.Load(old));
+    const bool saved = operation == 1 ? profiles.Delete(NetworkProfile::Hotspot) :
+        profiles.CommitReplacement(NetworkProfile::Hotspot, replacement);
+    assert(!saved && storage.writes == 2);
+    assert(std::strcmp(profiles.Get(NetworkProfile::Hotspot)->ssid, "Old phone") == 0);
+    NetworkProfiles rebooted(storage);
+    assert(rebooted.Load(storage.durable));
+    assert(std::strcmp(rebooted.Get(NetworkProfile::Hotspot)->ssid, "Old phone") == 0);
+  }
+  PartialStorage broken;
+  broken.durable = old;
+  broken.failRollbackBeforePersist = true;
+  NetworkProfiles profiles(broken);
+  assert(profiles.Load(old));
+  assert(!profiles.CommitReplacement(NetworkProfile::Hotspot, replacement));
+  assert(broken.writes == 2);
+  assert(std::strcmp(profiles.Get(NetworkProfile::Hotspot)->ssid, "Old phone") == 0);
+  // A persistent failure is reported; the API never promises durable rollback.
+  assert(std::strcmp(broken.durable.hotspot.ssid, "New phone") == 0);
+}
 int main() {
+  VerifyPartialSaveRollback();
   Storage store;
   NetworkProfiles profiles(store);
   assert(profiles.First() == NetworkProfile::None);

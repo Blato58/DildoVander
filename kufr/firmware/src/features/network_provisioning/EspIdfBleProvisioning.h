@@ -22,7 +22,7 @@ class EspIdfBleProvisioning final {
 
  private:
   bool Open(uint64_t nowMs);
-  void Close();
+  void Close(uint64_t nowMs);
   void UpdateWindow(uint64_t nowMs, bool networkReady);
   static void TaskEntry(void* context);
   void Run();
@@ -44,6 +44,9 @@ class EspIdfBleProvisioning final {
   uint64_t offlineSince_ = 0;
   bool offlineTracked_ = false;
   bool recoveryUsed_ = false;
+  bool closing_ = false;
+  uint64_t nextCloseRetry_ = 0;
+  uint64_t nextOpenAttempt_ = 0;
   bool ready_ = false;
   TaskHandle_t lifecycleTask_ = nullptr;
   std::atomic<bool> networkReady_{false};

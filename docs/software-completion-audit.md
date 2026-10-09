@@ -38,6 +38,14 @@ deployment and physical acceptance.
 | Battery/power telemetry | PB720 capacity/runtime telemetry has no verified hardware/API contract | P3 | Documented measurement task; no invented driver or power estimate | Not implemented; not a core software requirement |
 | Removed endstops/external watchdog/high-side modules | Older notes describe cancelled hardware | P3 | Explicitly obsolete per D156; not restored | Latest source/wiring contract preserved |
 
+Delivery review found two P1 defects in the new OTA path: the privileged signer
+needed independent GitHub artifact verification before signing, and first-boot
+confirmation needed calibrated effects health. Both are corrected with rejected
+artifact/promotion and boot-health lifecycle regressions. Two P2 recovery defects
+are also corrected: failed BLE teardown is retried before reopening, and legacy
+credential cleanup failures propagate with one bounded previous-profile restore.
+Actual Linux/MSVC checks and the latest CI/review receipts are in the status.
+
 ## Architecture and compatibility
 
 The ESP remains the owner of conversation and physical sequences. The phone

@@ -132,10 +132,45 @@ void SchedulingAndHealth() {
   assert(policy.BootHealth(116000, true) == BootDecision::Wait);
   assert(policy.BootHealth(121000, true) == BootDecision::Rollback);
 }
+void BootSelfTestLifecycle() {
+  OtaPolicy policy;
+
+  // A selected effects profile cannot validate an image without its calibration.
+  policy.Start(0, true);
+  for (uint64_t nowMs : {0ULL, 5000ULL, 119999ULL}) {
+    assert(policy.BootHealth(nowMs, BootSelfTestReady(true, true, false, true)) == BootDecision::Wait);
+  }
+  assert(policy.BootHealth(120000, BootSelfTestReady(true, true, false, true)) == BootDecision::Rollback);
+  assert(policy.BootHealth(125000, BootSelfTestReady(true, true, true, true)) == BootDecision::Wait);
+
+  // Passive health loss just before confirmation restarts the continuous window.
+  policy.Start(1000, true);
+  assert(policy.BootHealth(1000, BootSelfTestReady(true, true, true, true)) == BootDecision::Wait);
+  assert(policy.BootHealth(5899, BootSelfTestReady(true, true, true, true)) == BootDecision::Wait);
+  assert(policy.BootHealth(5900, BootSelfTestReady(true, true, true, false)) == BootDecision::Wait);
+  assert(policy.BootHealth(6000, BootSelfTestReady(true, true, true, true)) == BootDecision::Wait);
+  assert(policy.BootHealth(10999, BootSelfTestReady(true, true, true, true)) == BootDecision::Wait);
+  assert(policy.BootHealth(11000, BootSelfTestReady(true, true, true, true)) == BootDecision::Confirm);
+
+  // Development without a selected hardware profile still requires the runtime.
+  policy.Start(0, true);
+  assert(policy.BootHealth(0, BootSelfTestReady(false, false, false, false)) == BootDecision::Wait);
+  assert(policy.BootHealth(5000, BootSelfTestReady(false, false, false, false)) == BootDecision::Wait);
+  assert(policy.BootHealth(6000, BootSelfTestReady(true, false, false, false)) == BootDecision::Wait);
+  assert(policy.BootHealth(10999, BootSelfTestReady(true, false, false, false)) == BootDecision::Wait);
+  assert(policy.BootHealth(11000, BootSelfTestReady(true, false, false, false)) == BootDecision::Confirm);
+
+  // Infrastructure failure blocks confirmation even with healthy, calibrated effects.
+  policy.Start(0, true);
+  assert(policy.BootHealth(0, BootSelfTestReady(true, true, true, true)) == BootDecision::Wait);
+  assert(policy.BootHealth(4900, BootSelfTestReady(false, true, true, true)) == BootDecision::Wait);
+  assert(policy.BootHealth(120000, BootSelfTestReady(false, true, true, true)) == BootDecision::Rollback);
+}
 }  // namespace
 int main() {
   Parser();
   VersionsAndOrigin();
   SchedulingAndHealth();
+  BootSelfTestLifecycle();
   std::cout << "Firmware OTA manifest/security, compatibility, scheduling and rollback policy passed.\n";
 }

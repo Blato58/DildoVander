@@ -277,8 +277,10 @@ extern "C" void app_main() {
         !controlRuntime.HasAutonomousPresentation() && !conversation.HasActiveTurn() &&
         !journal.HasPending() && !backendNetwork.IsVoiceBusy() &&
         !backendNetwork.ReadPendingProposal(pendingProposal, nowMs);
-    const bool selfTestReady = nvsStatus == ESP_OK && journal.IsHealthy() && stationStarted &&
-        (!hardware.ProfileSelected() || hardwareStarted);
+    effects.Tick(nowMs);
+    const bool selfTestReady = kufr::ota::BootSelfTestReady(
+        nvsStatus == ESP_OK && journal.IsHealthy() && stationStarted,
+        hardware.ProfileSelected(), calibrated, effects.Healthy());
     firmwareUpdate.Tick(nowMs, station.HasIp(), selfTestReady,
         maintenance.safeIdle && !maintenance.networkHeld && !sdAssets.Reserved());
     sdAssets.Tick(maintenance.safeIdle && !maintenance.networkHeld && !firmwareUpdate.Reserved());
@@ -306,7 +308,6 @@ extern "C" void app_main() {
       advertisementStarted = advertisement.Start(identity.DeviceId());
       retryAdvertisementAtMs = nowMs + 5000;
     }
-    effects.Tick(nowMs);
     if (effects.Healthy()) hardwareFaultHandled = false;
     if (calibrated && !effects.Healthy() && !hardwareFaultHandled) {
       hardwareFaultHandled = true;

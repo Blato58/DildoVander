@@ -18,14 +18,16 @@ bool EspIdfNetworkProfileStorage::Save(const NetworkProfileRecord& record) {
   if (!NetworkProfiles::ValidRecord(record)) { return false; }
   nvs_handle_t handle;
   if (nvs_open("wand_network", NVS_READWRITE, &handle) != ESP_OK) { return false; }
-  const bool saved = nvs_set_blob(handle, "profiles_v1", &record, sizeof(record)) == ESP_OK &&
+  bool saved = nvs_set_blob(handle, "profiles_v1", &record, sizeof(record)) == ESP_OK &&
       nvs_commit(handle) == ESP_OK;
   if (saved) {
-    // Only the versioned profiles own Wi-Fi credentials after successful migration.
-    // Erasing the legacy keys prevents a deleted profile resurfacing on reboot.
-    nvs_erase_key(handle, "ssid");
-    nvs_erase_key(handle, "password");
-    nvs_commit(handle);
+    // The replacement must be durable before deleting migration credentials.
+    // NVS does not guarantee an atomic transaction across these three keys.
+    const auto ssid = nvs_erase_key(handle, "ssid");
+    const auto password = nvs_erase_key(handle, "password");
+    const auto committed = nvs_commit(handle);
+    saved = (ssid == ESP_OK || ssid == ESP_ERR_NVS_NOT_FOUND) &&
+        (password == ESP_OK || password == ESP_ERR_NVS_NOT_FOUND) && committed == ESP_OK;
   }
   nvs_close(handle);
   return saved;
