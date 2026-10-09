@@ -22,8 +22,9 @@ starý součet 500 Kč se ruší. Kamerový driver E13 nadále zbývá.
 Toto následné upřesnění mění pouze dokumentaci; ověřeno 39 lokálních
 Markdown odkazů v pěti dotčených dokumentech a `git diff --check`.
 Upřesnění kamery je v commitu `381c2d4dcceb35a348e6c78ac25ad3d794a0e8b6`,
-push proběhl a read-back remote potvrdil tuto SHA. PR je
-[138](https://github.com/Blato58/DildoVander/pull/138); CI zatím běží.
+push proběhl a read-back remote potvrdil tuto SHA. PR
+[138](https://github.com/Blato58/DildoVander/pull/138) je sloučený;
+finální CI a cílová větev jsou ověřené níže.
 Na následný pokyn upravit přímo „Zapojení potvrzeného hardwaru“ dokument
 výslovně doplnil jeden pohon celkem, nepřekrývající se servo/vibraci,
 pasivní držení polohy a inicializaci OE HIGH / OUTNE=00 / všech 16 FULL_OFF.
@@ -53,7 +54,23 @@ a šest dosavadních testů balení, celkem **12 passed**. Připnutý actionlint
 1.7.12 ověřený SHA-256 zkontroloval všechny workflow bez chyby.
 Dosavadních 29 Node testů promotion/provenance také prošlo; ověřeno
 111 lokálních Markdown cest v celém diffu a `git diff --check`.
-Finální CI a merge se zaznamenají podle skutečného výsledku PR 138.
+Finální předání: push implementace/CI `c236fdb981abb5d0cf7b3e796b76661be02013f7`
+byl ověřený read-back remote. Mezitím do main přišel samostatný Vite PR 135;
+aktualizace větve z `fa81390` proběhla bez konfliktů, výsledný commit
+`783a9558b8c90fb05e5e41868098c7f7a4afa538` byl pushnutý a ověřený.
+Firmware, CI skripty a workflow při této aktualizaci zůstaly identické.
+[Finální CI 37874983422](https://github.com/Blato58/DildoVander/actions/runs/37874983422)
+**SUCCESS**: výběr projektů, repository checks, firmware build/host tests,
+offline AI eval i CI required. Backend/web a placený live eval se správně
+vynechaly. Původní plné CI 37872574618 také prošlo všemi projekty.
+PR 138 byl 9. 10. v 02:41 UTC squash-merged do main jako
+`3d0e73afdb6c79e16d5d4e2df0be63034edbcbc0`; fetch a `git diff --exit-code`
+potvrdily totožný obsah s otestovanou větví. Git tree je
+`d9005e2d4a91afbf1cde2233a29fa9f4526d962c`.
+Tento následný záznam předání mění pouze dokumentaci; kód se nemění.
+Povinný PowerShell push helper není v Linux prostředí spustitelný;
+všechny pushe proběhly repo-scoped credential fallbackem uvedeným níže.
+Nenahrávalo se do desky, nenasazoval backend ani nevolala placená AI.
 
 Aktuální [zapojení](zapojeni-potvrzeneho-hardwaru.md): GPIO2 přímo PCA OE,
 HIGH vypnuto, pull-up kolem 10 kΩ (dva koupené 22kΩ paralelně = 11 kΩ).
@@ -100,7 +117,8 @@ se v Linux cloud prostředí nespustil (exit 126, PowerShell není dostupný);
 použitý fallback `git -c credential.helper= -c
 'credential.helper=!gh auth git-credential' push --set-upstream origin
 codex/kufr-hardware-firmware-2026-10-09` využil přihlášený účet Blato58
-pouze pro tento příkaz, bez změny globálního účtu. CI/merge se ověří v PR.
+pouze pro tento příkaz, bez změny globálního účtu. Finální CI/merge jsou
+ověřené výše.
 
 Fyzické zapojení, kalibrace, proudy, teplota, napájení ESP, GPIO2/OE reset
 a skutečné I2S/DMA nejsou tímto ověřené. Při úplném zamrznutí může pohon
