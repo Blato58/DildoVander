@@ -3,7 +3,25 @@
 The existing Capacitor app is extended; its **Síť kufru** tab uses a native
 CoreBluetooth/ESPProvision 3.2.0 plugin. Safari/Web Bluetooth is not used.
 
-**Current handoff: D163.** Development OTA **0.1.160** is
+**Current handoff: D164.** Development OTA **0.1.161** passed
+[CI 37931935316](https://github.com/Blato58/DildoVander/actions/runs/37931935316)
+and [publication 37933188173](https://github.com/Blato58/DildoVander/actions/runs/37933188173).
+[PR161](https://github.com/Blato58/DildoVander/pull/161) increases the main task
+stack from 3584 B to 16 KiB for loading an existing TLS identity. With actuator
+power off and the owner's explicit approval, app-only USB recovery at `0x10000`
+retained NVS. A deliberate normal RTS reboot of the real ESP32-S3 rev. 0.2 / N16R8
+confirmed **0.1.161**, 16384 B configured / 12556 B minimum remaining, the control
+loop, BLE advertising and the local TLS server after about 19 seconds. An active
+PC scan found `KUFR_4B6048` with the expected service UUID; the previous **0.1.157**
+main stack overflow prevented BLE startup.
+
+iOS remains **1.0 / build 1000.0.21**, signed and published by the D163 runs below;
+it was not signed or published again in D164. The owner confirmed the fresh same-Wi-Fi
+iPhone test: "yes I am connected". This confirms connection through Ovládání;
+long-running WSS and Keychain retention after update remain pending. Exact receipts and public verification are in
+[implementation status](../kufr/docs/stav-implementace.md#předání-další-ai).
+
+**Historical D163 handoff.** Development OTA **0.1.160** is
 [published](https://github.com/Blato58/DildoVander/actions/runs/37929155208), with
 public signature, hash and embedded version verified. iOS **1.0 / build 1000.0.21**
 passed [native tests and signing 37929159117](https://github.com/Blato58/DildoVander/actions/runs/37929159117)
@@ -13,7 +31,7 @@ were verified for this build. The firmware accepts WebSocket extension
 offers without negotiating extensions; native errors are sanitized and reconnect
 is bounded. The Apple harness observed extension offers in four actual requests.
 The owner's same-Wi-Fi report still requires physical retesting: scan/pairing
-worked, then Ovládání disconnected repeatedly. Current receipts and acceptance
+worked, then Ovládání disconnected repeatedly. Receipts and acceptance
 remain in [implementation status](../kufr/docs/stav-implementace.md#předání-další-ai).
 
 1. Initially install firmware and run the separate USB
