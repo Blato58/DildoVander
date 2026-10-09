@@ -22,6 +22,8 @@ jobs:
       - name: Install contract verifier
         working-directory: kufr/contracts
         run: npm ci
+      - name: Test compiler cache pruning
+        run: python3 -m unittest discover -s kufr/firmware/ci -p 'test_*.py'
       - name: Optional costume photo consent and HTTPS upload
         working-directory: kufr/firmware
         shell: bash
@@ -470,24 +472,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ~/.platformio/packages
-            ~/.platformio/platforms
-            ~/.cache/pip
-          key: pio-${{ runner.os }}-6.2.0-${{ hashFiles('kufr/firmware/platformio.ini', 'kufr/firmware/dependencies.lock', 'kufr/firmware/diagnostics/board-memory/platformio.ini', 'kufr/firmware/diagnostics/pca9685-logic/platformio.ini', 'kufr/firmware/diagnostics/network-service/platformio.ini', 'kufr/firmware/diagnostics/network-service/dependencies.lock') }}
-      - name: Install pinned PlatformIO Core
+      - name: Prepare persistent PlatformIO and compiler cache
         shell: bash
-        run: |
-          set -euo pipefail
-          python3 -m venv "$RUNNER_TEMP/platformio-venv"
-          "$RUNNER_TEMP/platformio-venv/bin/python" -m pip install platformio==6.2.0
+        run: python3 kufr/firmware/ci/prepare_build.py
       - name: Build ESP-IDF profile
         shell: bash
         run: |
           set -euo pipefail
-          "$RUNNER_TEMP/platformio-venv/bin/pio" run -d kufr/firmware -e esp32-s3-idf -s
+          "$KUFR_PIO" run -d kufr/firmware -e esp32-s3-idf -s
           python3 kufr/firmware/tools/ota_release.py check --binary kufr/firmware/.pio/build/esp32-s3-idf/firmware.bin --version "$(cat kufr/firmware/version.txt)"
       - name: Secured BLE adapter with pinned managed cJSON
         working-directory: kufr/firmware
@@ -510,23 +502,26 @@ jobs:
       - name: Build USB-only board memory diagnostic
         shell: bash
         run: |
-          "$RUNNER_TEMP/platformio-venv/bin/pio" run -d kufr/firmware/diagnostics/board-memory -s
+          "$KUFR_PIO" run -d kufr/firmware/diagnostics/board-memory -s
       - name: Build PCA9685 logic diagnostic
         shell: bash
         run: |
-          "$RUNNER_TEMP/platformio-venv/bin/pio" run -d kufr/firmware/diagnostics/pca9685-logic -s
+          "$KUFR_PIO" run -d kufr/firmware/diagnostics/pca9685-logic -s
       - name: Build hardware service diagnostic with disabled example configuration
         shell: bash
         run: |
           set -euo pipefail
           cd kufr/firmware/diagnostics/hardware-service
           python3 make_config.py service_config.example.json
-          "$RUNNER_TEMP/platformio-venv/bin/pio" run -s
+          "$KUFR_PIO" run -s
       - name: Build physical USB network service without embedded credentials
         shell: bash
         run: |
           set -euo pipefail
-          "$RUNNER_TEMP/platformio-venv/bin/pio" run -d kufr/firmware/diagnostics/network-service -e network-service -s
+          "$KUFR_PIO" run -d kufr/firmware/diagnostics/network-service -e network-service -s
+      - name: Keep compiler cache within 1 GiB per runner
+        if: always()
+        run: python3 kufr/firmware/ci/prepare_build.py --prune-only
       - name: Bundle flashable firmware outputs without device credentials
         shell: bash
         run: |
