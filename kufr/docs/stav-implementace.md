@@ -80,7 +80,11 @@ nezávislé review oprav nehlásí otevřené nálezy. Git/CI předání a nativ
 macOS výsledek budou doplněné podle skutečnosti.
 Implementační commit `0c18faf56f39620186338f460158d48ab41b7829` vznikl po
 ověření, `Push-CurrentBranch.ps1` uspěl a read-back remote potvrdil stejnou SHA.
-PR/CI/merge a nativní macOS ověření jsou další kroky tohoto předání.
+PR [142](https://github.com/Blato58/DildoVander/pull/142) je otevřený.
+První CI `37878086941` odhalilo GCC `-Werror=sign-compare` v JPEG parseru;
+počet komponent je nyní `size_t`, stejně jako délka segmentu. Následný
+lokální `pio run -d kufr/firmware -s` prošel. Linux CI, merge a nativní
+macOS ověření se dokončí podle skutečného výsledku.
 Neprovedeno: placená inference, cloudové nasazení, publikace IPA ani flash.
 E12/E13 nejsou celé hotové: kamera ještě není doručená; revize/FPC/piny,
 napájení/proud/souběh, skutečný obraz/latence, iPhone kamera/pozadí a SD
