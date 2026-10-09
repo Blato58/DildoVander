@@ -29,7 +29,8 @@ a [evidence fotografií](../mechanika/cad/docs/fotografie-a-omezeni.md).
 Únosnost suchého zipu/lepení, hmotnost hůlek, servo síla, fyzický pohyb, uzavření
 se skutečnou kabeláží a přenášení zůstávají fyzickou přejímkou; CAD ji nenahrazuje.
 Další krok je měrka a jedna přihrádka, potom zkouška uchycení podle návodu.
-Bez změn firmware/backendu/hardwaru. Lokální předání, zákaz push trvá.
+Bez změn firmware/backendu/hardwaru. Implementační commit `8ef4f73` je lokální;
+zákaz push trvá, push/PR/merge ani nasazení neproběhly.
 
 **9. 10. 2026 – první CAD verze, nahrazená zjednodušením výše.**
 Rozsah tohoto zadání je mechanika: společný referenční model, osazení,
