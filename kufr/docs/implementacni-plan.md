@@ -11,6 +11,13 @@
 > platit, nový zůstane v nativním Keychain; TLS identita, Wi-Fi a backend se nemění.
 > Nejde o veřejný reset ani o automatické přepsání párování. Při ztrátě odpovědi
 > lze explicitní obnovu zopakovat; platnost nové odpovědi musí ověřit iPhone.
+> [PR163](https://github.com/Blato58/DildoVander/pull/163) a
+> [CI37936213640](https://github.com/Blato58/DildoVander/actions/runs/37936213640) prošly.
+> Development **0.1.162** je publikované a application-only USB boot na COM7 ověřený;
+> **iOS1000.0.22** prošlo native harnessy/archive/export i Safari publikací.
+> Majitel dostal výzvu k nové obnově po forget; výsledek zatím chybí.
+> Přesné běhy/hash/USB rozsah a akceptaci vede
+> [stav implementace](stav-implementace.md#předání-další-ai).
 
 
 > **D164, 9. 10. 2026: obnova startu se zachovanou TLS identitou.**
