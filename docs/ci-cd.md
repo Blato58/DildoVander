@@ -1,13 +1,44 @@
 # CI/CD: build jednou, nasazení z artefaktu
 
 [CI](../.github/workflows/ci.yml) používá path filtr: změny samotné
-dokumentace (`docs/`, `.md`, `.mdx`, `.rst`) workflow vůbec nespouštějí.
+dokumentace (`docs/`, `.md`, `.mdx`, `.rst`) build CI nespouštějí.
 U PR s kódem [výběr projektů](../scripts/ci/select_projects.py) porovná
 celý PR s jeho base a spustí jen dotčené kontroly. **CI required** vyžaduje
 úspěch vybraných projektů a vynechání ostatních; selhání výběru nebo
 neočekávané vynechání dotčeného projektu odmítne. Nový commit do stejného
 PR zruší zastaralé CI; rozběhnuté nasazení se neruší. Merge do `main`
 nevyvolá druhý build.
+
+### Aktualizace PR před buildem
+
+[Synchronizace větví](../.github/workflows/pr-sync.yml) při otevření,
+aktualizaci nebo připravení PR a při push do `main` zkontroluje otevřená
+PR vůči jejich aktuální cílové větvi. Pokud větev zaostává, GitHub API
+nejprve přimíchá cíl do PR větve. Očekávaná head SHA chrání souběžný
+commit autora; konflikt ukončí synchronizaci a musí se vyřešit ručně.
+Draft a fork PR se automaticky nemění. Nejde o sloučení PR do cíle.
+
+Teprve po dokončení aktualizace automatika explicitně spustí CI na nové
+head SHA. Kontrola aktuálního head/base před výběrem projektů odmítne
+zastaralý běh ještě před buildy. PR dispatch i běžné PR CI sdílejí
+concurrency skupinu, takže nový běh ruší starý. Pozdější změna cíle
+může stále vyžadovat nové CI; kontrola ji nepředstírá jako ověřenou.
+
+Writer používá dočasný `ubuntu-latest` runner a kód pouze z výchozí
+větve; PR kód nedostává jeho write token. Bez dalších secrets použije
+`GITHUB_TOKEN` a explicitní dispatch, protože tokenem vyvolané PR
+události na GitHubu vyžadují schválení. Takový čekající PR běh nemusíme
+schvalovat: rozhodující je automaticky spuštěné CI na stejné head SHA.
+Samotná dokumentace může vyvolat krátkou kontrolu synchronizace,
+ale výběr projektů pro ni nespustí buildy. Běžné buildy zůstávají na VPS.
+
+Při selhání po aktualizaci větve zopakuj synchronizační běh; opakovaný
+pokus umí spustit CI i pro již aktuální PR. Ruční **Synchronize PR branches**
+zkontroluje všechna otevřená PR do `main` a obnoví jejich CI.
+Interní dispatch vstupy `pr_number`, `expected_head_sha`, `expected_base_sha`
+se zadávají společně; běžný obnovovací build bez nich patří na `main`.
+Artefakty PR dispatch zachovávají číslo PR a base/head SHA a pro promotion
+vyžadují sloučené PR i shodu celého stromu s aktuálním `main`.
 
 | Změněné soubory | Spuštěné projekty |
 | --- | --- |
@@ -19,7 +50,7 @@ nevyvolá druhý build.
 | `kufr/simulator/` | Firmware a mobilní web |
 | Build workflow konkrétního projektu | Daný projekt a kontroly repozitáře |
 | `.github/`, `scripts/ci/` | Kontroly repozitáře; změna balení artefaktů také backend, firmware a web |
-| Samotná dokumentace | Žádné workflow ani build |
+| Samotná dokumentace | Žádný build; pouze kontrola synchronizace PR |
 
 Path filtr se vztahuje na celý PR. Když PR obsahuje i změny kódu,
 následný dokumentační commit stále ověřuje jeho dotčené projekty.
@@ -30,7 +61,7 @@ použít také po dokumentační změně, potřebujeme-li nový artefakt přesn�
 ## Runnery
 
 Majitel 1. 10. 2026 požádal přesun všech Linux jobů na svůj server.
-Všechny používají `[self-hosted, Linux, X64, kufr-backend]`, tedy stávající
+Build/test a provozní joby používají `[self-hosted, Linux, X64, kufr-backend]`, tedy stávající
 runner `dildovander-server`. Pouze ruční podepsaný Ad Hoc IPA build
 a jeho nativní testy běží na GitHub-hosted `macos-15` s Xcode 26.3.
 Linux runner obsluhuje i PR kontroly, ověření artefaktů, veřejné HTTPS
@@ -62,7 +93,8 @@ izolaci jednorázového GitHub-hosted stroje. Spouštěj zde pouze důvěryhodn�
 
 | Workflow | Účel | Výstup / vstup |
 | --- | --- | --- |
-| `ci.yml` | PR build dotčených projektů; ruční obnovovací build vybraného projektu na `main` | Artefakty pouze vybraných projektů: `backend-publish`, `web-dist`, `firmware` |
+| `ci.yml` | PR build dotčených projektů, také automatický PR dispatch; ruční obnovovací build na `main` | Artefakty pouze vybraných projektů: `backend-publish`, `web-dist`, `firmware` |
+| `pr-sync.yml` | Aktualizace PR z cíle před buildy | API-only writer; explicitní CI dispatch |
 | `kufr-backend-deploy.yml` | Aktivace backendu bez restore/build | `build_run_id` úspěšného CI |
 | `kufr-memory-provision.yml` | Explicitní CLI dry-run / verify / create OpenAI stores, bez exportu hostů | CI `build_run_id`; trvalá provisioning ID runneru |
 | `kufr-ios-sign.yml` | Samostatný podepsaný device build; převzetí webu z CI | CI `build_run_id`; výstup Ad Hoc `signed-ipa` |

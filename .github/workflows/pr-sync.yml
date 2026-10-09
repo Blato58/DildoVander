@@ -1,0 +1,33 @@
+name: Synchronize PR branches
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+# Do not interrupt an accepted branch update before its CI dispatch.
+concurrency:
+  group: pr-branch-synchronization-${{ github.event.pull_request.base.ref || 'main' }}
+  cancel-in-progress: false
+
+jobs:
+  synchronize:
+    # The API writer must not share the persistent runner executing PR code.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Merge target branches before dispatching PR builds
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: await require('./scripts/ci/pr-freshness.cjs').run({ github, context, core })

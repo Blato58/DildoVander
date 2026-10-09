@@ -51,6 +51,15 @@ async function verifyFixture(f, options = {}) {
     await verify(f.api, {manifestPath: file, runId: 123, workflow: 'ci.yml', ...options});
   } finally { fs.rmSync(folder, {recursive: true, force: true}); }
 }
+
+function dispatchedPrFixture() {
+  const f = fixture();
+  f.run.event = f.manifest.event = 'workflow_dispatch';
+  f.run.head_branch = f.pr.head.ref = 'codex/feature';
+  f.manifest.source_sha = f.source.sha = f.run.head_sha;
+  f.source.parents = [{sha: sha('d')}];
+  return f;
+}
 test('successful merged PR can promote its tested merge tree after a squash merge', async () => {
   const f = fixture();
   await resolve(f.api, {runId: '123', workflow: 'ci.yml', artifact: 'backend-publish'});
@@ -92,12 +101,43 @@ test('recovery build on main can be promoted', async () => {
   const f = fixture();
   f.run.event = f.manifest.event = 'workflow_dispatch'; f.run.head_branch = 'main';
   f.run.head_sha = f.manifest.head_sha = f.manifest.source_sha;
+  f.manifest.pr_number = f.manifest.base_sha = null;
   await verifyFixture(f);
+});
+
+test('merged PR dispatch can promote its exact head tree after a squash merge', async () => {
+  const f = dispatchedPrFixture();
+  await resolve(f.api, {runId: '123', workflow: 'ci.yml', artifact: 'backend-publish'});
+  await verifyFixture(f);
+  assert.equal(f.outputs.source_sha, f.run.head_sha);
+  assert.equal(f.outputs.main_sha, sha('f'));
+});
+
+for (const [description, mutate] of [
+  ['unmerged PR', f => {f.pr.merged = false;}],
+  ['fork PR', f => {f.pr.head.repo.full_name = 'attacker/repo';}],
+  ['wrong base branch', f => {f.pr.base.ref = 'dev';}],
+  ['wrong base repository', f => {f.pr.base.repo.full_name = 'attacker/repo';}],
+  ['wrong PR head', f => {f.pr.head.sha = sha('d');}],
+  ['wrong PR branch', f => {f.pr.head.ref = 'codex/different';}],
+  ['missing branch metadata', f => {delete f.run.head_branch; delete f.pr.head.ref;}],
+  ['source different from run head', f => {f.manifest.source_sha = sha('b');}],
+  ['manifest head different from run head', f => {f.manifest.head_sha = sha('b');}],
+  ['invalid PR number', f => {f.manifest.pr_number = '42';}],
+  ['missing PR number', f => {f.manifest.pr_number = null;}],
+  ['invalid base SHA', f => {f.manifest.base_sha = 'not-a-sha';}],
+  ['missing base SHA', f => {f.manifest.base_sha = null;}],
+  ['different repository', f => {f.run.repository.full_name = 'attacker/repo';}],
+  ['changed main tree', f => {f.main.tree.sha = sha('d');}],
+  ['forged source tree', f => {f.source.tree.sha = sha('d');}],
+]) test(`PR dispatch promotion rejects ${description}`, async () => {
+  const f = dispatchedPrFixture(); mutate(f); await assert.rejects(verifyFixture(f));
 });
 test('manual build from a feature branch is rejected', async () => {
   const f = fixture();
   f.run.event = f.manifest.event = 'workflow_dispatch'; f.run.head_branch = 'feature';
   f.run.head_sha = f.manifest.head_sha = f.manifest.source_sha;
+  f.manifest.pr_number = f.manifest.base_sha = null;
   await assert.rejects(verifyFixture(f));
 });
 test('development IPA cannot be published as Ad Hoc', async () => {

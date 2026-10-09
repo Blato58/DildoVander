@@ -28,7 +28,8 @@ async function verify({ github, context, core }, { manifestPath, runId, workflow
   const repo = context.repo;
   const { data: run } = await github.rest.actions.getWorkflowRun({ ...repo, run_id: Number(runId) });
   const { data: expected } = await github.rest.actions.getWorkflow({ ...repo, workflow_id: workflow });
-  if (run.workflow_id !== expected.id || run.status !== 'completed' || run.conclusion !== 'success'
+  if (run.repository.full_name !== `${repo.owner}/${repo.repo}`
+      || run.workflow_id !== expected.id || run.status !== 'completed' || run.conclusion !== 'success'
       || manifest.schema !== 1 || manifest.repository !== `${repo.owner}/${repo.repo}`
       || manifest.run_id !== run.id || !Number.isSafeInteger(manifest.run_attempt) || manifest.run_attempt < 1 || manifest.run_attempt > run.run_attempt
       || manifest.event !== run.event || manifest.head_sha !== run.head_sha
@@ -37,11 +38,18 @@ async function verify({ github, context, core }, { manifestPath, runId, workflow
       || !/^[a-f0-9]{64}$/.test(manifest.payload_sha256)) {
     throw new Error('Build provenance does not match the successful workflow run');
   }
-  if (run.event === 'pull_request') {
+  const dispatchedPr = run.event === 'workflow_dispatch' && manifest.pr_number != null;
+  if (run.event === 'pull_request' || dispatchedPr) {
     if (!Number.isSafeInteger(manifest.pr_number) || manifest.pr_number < 1) throw new Error('Missing build PR');
+    if (dispatchedPr && (manifest.source_sha !== run.head_sha
+        || !/^[a-f0-9]{40}$/.test(manifest.base_sha)
+        || typeof run.head_branch !== 'string' || !run.head_branch)) {
+      throw new Error('PR dispatch provenance must identify its exact head and base');
+    }
     const { data: pr } = await github.rest.pulls.get({ ...repo, pull_number: manifest.pr_number });
     if (!pr.merged || pr.base.ref !== 'main' || pr.base.repo.full_name !== manifest.repository
-        || pr.head.repo?.full_name !== manifest.repository || pr.head.sha !== run.head_sha) {
+        || pr.head.repo?.full_name !== manifest.repository || pr.head.sha !== run.head_sha
+        || (dispatchedPr && pr.head.ref !== run.head_branch)) {
       throw new Error('The build PR must be merged into main from this repository');
     }
   } else if (run.event !== 'workflow_dispatch' || run.head_branch !== 'main' || manifest.source_sha !== run.head_sha) {
