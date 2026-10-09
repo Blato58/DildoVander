@@ -1,7 +1,7 @@
 # F1 – nový kouzelný kufr
 
-Samostatný návrh z 9. 10. 2026. Zdroje této složky neimportují geometrii ani
-konstrukci staršího `cad/` nebo `model.py`. Návrh osobně provedl jeden agent;
+Samostatný návrh z 9. 10. 2026 a jediný aktivní CAD projektu. Geometrie
+tištěných dílů vznikla od základu. Návrh osobně provedl jeden agent;
 nebyli použiti subagenti. Elektrické zapojení ani firmware se nemění.
 
 **Výsledkem je parametrický výrobní podklad pro první fyzický prototyp.**
