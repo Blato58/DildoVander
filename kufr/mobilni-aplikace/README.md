@@ -1,6 +1,27 @@
 # Mobilní ovládání kufru
 
-## Aktuální předání D163
+## Aktuální předání D164
+
+Development OTA **0.1.161** prošla
+[CI 37931935316](https://github.com/Blato58/DildoVander/actions/runs/37931935316)
+a [publikací 37933188173](https://github.com/Blato58/DildoVander/actions/runs/37933188173).
+[PR161](https://github.com/Blato58/DildoVander/pull/161) zvětšilo main stack
+pro načtení existující TLS identity. Po majitelem povolené USB obnově aplikace
+bez smazání NVS skutečná deska při normálním RTS restartu spustila control loop,
+BLE advertising i místní TLS server; PC scan našel `KUFR_4B6048` s očekávaným UUID.
+Před obnovou končila **0.1.157** main stack overflow ještě před BLE startem.
+
+Aktuální iOS zůstává **1.0 / build 1000.0.21** z
+[podpisu 37929159117](https://github.com/Blato58/DildoVander/actions/runs/37929159117)
+a [Safari publikace 37929535139](https://github.com/Blato58/DildoVander/actions/runs/37929535139);
+v D164 se znovu nepodepisovalo ani nepublikovalo. PC scan a firmware boot
+nepotvrzují nový iPhone handshake, stabilní Ovládání přes pinned WSS ani
+uchování Keychain po aktualizaci. Majitel následně potvrdil novou zkoušku na
+stejné Wi-Fi: „yes I am connected“. Připojení v Ovládání je tím potvrzené;
+dlouhodobý provoz a Keychain po aktualizaci zůstávají otevřené. Přesné předání vede
+[stav implementace](../docs/stav-implementace.md#předání-další-ai).
+
+## Historické předání D163
 
 Development OTA **0.1.160** s opravou přijetí WebSocket extension offers je
 [publikovaná](https://github.com/Blato58/DildoVander/actions/runs/37929155208).
@@ -478,7 +499,7 @@ ani offline provider testy nejsou fyzický poslech.
 Dne 6. 10. 2026 byla na [instalační stránce](https://2.28.202.220/ios/)
 publikována Ad Hoc **1.0 / build 1000.0.16** pro dosavadní registrovaný iPhone.
 Tento oddíl zachycuje tehdejší verzi a serverovou konfiguraci D146;
-historické předání D162 je **1.0 / build 1000.0.20**; aktuální D163 vede přehled nahoře.
+historické předání D162 je **1.0 / build 1000.0.20**; aktuální D164 vede přehled nahoře.
 [Podpis 37429759564](https://github.com/Blato58/DildoVander/actions/runs/37429759564)
 ověřil Xcode 26.3, nativní transport/debug/audio testy a podpis;
 [publikace 37429982348](https://github.com/Blato58/DildoVander/actions/runs/37429982348)
