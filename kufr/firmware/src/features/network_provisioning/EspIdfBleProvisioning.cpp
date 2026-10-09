@@ -86,6 +86,8 @@ bool EspIdfBleProvisioning::Begin(bool nvsInitialized, const char* deviceId,
   proofParams_.data = reinterpret_cast<const uint8_t*>(proof_);
   proofParams_.len = 32;
   callbacks_ = callbacks;
+  initialDeadline_ = esp_timer_get_time() / 1000 + WindowMs;
+  initialPending_ = true;
   ready_ = true;
   if (xTaskCreate(TaskEntry, "ble_provisioning", 6144, this, 3, &lifecycleTask_) != pdPASS) {
     ready_ = false;
@@ -94,8 +96,8 @@ bool EspIdfBleProvisioning::Begin(bool nvsInitialized, const char* deviceId,
   }
   return true;
 }
-bool EspIdfBleProvisioning::Open(uint64_t nowMs) {
-  if (!ready_ || closing_ || transport_ != nullptr) { return false; }
+bool EspIdfBleProvisioning::Open(uint64_t nowMs, uint64_t windowDeadline) {
+  if (!ready_ || closing_ || transport_ != nullptr || nowMs >= windowDeadline) { return false; }
   // The STA and BLE may initialize in either order, but share one default loop.
   const auto loop = esp_event_loop_create_default();
   if (loop != ESP_OK && loop != ESP_ERR_INVALID_STATE) { return false; }
@@ -119,7 +121,7 @@ bool EspIdfBleProvisioning::Open(uint64_t nowMs) {
       protocomm_set_security(transport_, "prov-session", &protocomm_security1, &proofParams_) == ESP_OK &&
       protocomm_add_endpoint(transport_, "kufr-control", Handle, this) == ESP_OK;
   if (!endpoints) { Close(nowMs); return false; }
-  deadline_.store(nowMs + WindowMs);
+  deadline_.store(windowDeadline);
   active_.store(true);
   return true;
 }
@@ -147,7 +149,6 @@ void EspIdfBleProvisioning::TaskEntry(void* context) {
   vTaskDelete(nullptr);
 }
 void EspIdfBleProvisioning::Run() {
-  Open(esp_timer_get_time() / 1000);
   while (true) {
     UpdateWindow(esp_timer_get_time() / 1000, networkReady_.load());
     vTaskDelay(pdMS_TO_TICKS(100));
@@ -158,14 +159,20 @@ void EspIdfBleProvisioning::UpdateWindow(uint64_t nowMs, bool networkReady) {
   if (closing_) {
     if (nowMs >= nextCloseRetry_) { Close(nowMs); }
   } else if (active_.load() && nowMs >= deadline_.load()) { Close(nowMs); }
+  // Startup retries are independent of Wi-Fi and cannot extend the boot window.
+  if (initialPending_ && nowMs >= initialDeadline_) { initialPending_ = false; }
+  if (initialPending_ && !closing_ && nowMs >= nextOpenAttempt_) {
+    nextOpenAttempt_ = nowMs + LifecycleRetryMs;
+    if (Open(nowMs, initialDeadline_)) { initialPending_ = false; }
+  }
   if (networkReady) { offlineTracked_ = false; return; }
   if (!offlineTracked_) { offlineTracked_ = true; offlineSince_ = nowMs; }
   // A failed stop retains transport ownership. Retry without consuming the one
   // recovery window, and never start a second radio against that stale transport.
-  if (!closing_ && !active_.load() && !recoveryUsed_ &&
+  if (!initialPending_ && !closing_ && !active_.load() && !recoveryUsed_ &&
       nowMs - offlineSince_ >= 60000 && nowMs >= nextOpenAttempt_) {
     nextOpenAttempt_ = nowMs + LifecycleRetryMs;
-    if (Open(nowMs)) { recoveryUsed_ = true; }
+    if (Open(nowMs, nowMs + WindowMs)) { recoveryUsed_ = true; }
   }
 }
 void EspIdfBleProvisioning::AddStatus(cJSON* response) {

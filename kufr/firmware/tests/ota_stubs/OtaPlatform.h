@@ -45,6 +45,10 @@ extern esp_ota_img_states_t runningState, targetState;
 extern esp_app_desc_t runningDescription, stagedDescription;
 extern bool signatureValid, imageValid, bootPromoted, rebooted, rolledBack, aborted;
 extern unsigned writes;
+extern unsigned begins;
+extern size_t partitionBytesRead;
+extern const void* downloadBuffer;
+extern bool reusedTransferBuffer;
 void Reset();
 }
 inline SemaphoreHandle_t xSemaphoreCreateMutex() { return reinterpret_cast<void*>(1); }
@@ -96,6 +100,7 @@ inline int64_t esp_http_client_fetch_headers(esp_http_client_handle_t client) { 
 inline int esp_http_client_get_status_code(esp_http_client_handle_t client) { return client->status; }
 inline bool esp_http_client_is_chunked_response(esp_http_client_handle_t client) { return client->chunked; }
 inline int esp_http_client_read(esp_http_client_handle_t client, char* buffer, int count) {
+  ota_fake::downloadBuffer = buffer;
   if (client->interrupted && client->offset >= 1024) return -1;
   size_t available = std::min(static_cast<size_t>(count), client->body.size() - client->offset);
   if (client->interrupted) available = std::min(available, static_cast<size_t>(1024));
@@ -110,7 +115,7 @@ inline const esp_partition_t* esp_ota_get_next_update_partition(const void*) { r
 inline int esp_ota_get_state_partition(const esp_partition_t* partition, esp_ota_img_states_t* state) { *state = partition == &ota_fake::running ? ota_fake::runningState : ota_fake::targetState; return ESP_OK; }
 inline int esp_ota_mark_app_valid_cancel_rollback() { ota_fake::runningState = ESP_OTA_IMG_VALID; return ESP_OK; }
 inline int esp_ota_mark_app_invalid_rollback_and_reboot() { ota_fake::rolledBack = true; return ESP_OK; }
-inline int esp_ota_begin(const esp_partition_t*, size_t, esp_ota_handle_t* handle) { *handle = 1; ota_fake::staged.clear(); return ESP_OK; }
+inline int esp_ota_begin(const esp_partition_t*, size_t, esp_ota_handle_t* handle) { ++ota_fake::begins; *handle = 1; ota_fake::staged.clear(); return ESP_OK; }
 inline int esp_ota_write(esp_ota_handle_t, const void* bytes, size_t length) {
   const auto* buffer = static_cast<const uint8_t*>(bytes);
   ota_fake::staged.insert(ota_fake::staged.end(), buffer, buffer + length);
@@ -122,6 +127,8 @@ inline void esp_ota_abort(esp_ota_handle_t) { ota_fake::aborted = true; }
 inline int esp_ota_set_boot_partition(const esp_partition_t*) { ota_fake::bootPromoted = true; return ESP_OK; }
 inline int esp_partition_read(const esp_partition_t*, size_t offset, void* buffer, size_t length) {
   if (offset + length > ota_fake::staged.size()) return ESP_FAIL;
+  ota_fake::partitionBytesRead += length;
+  ota_fake::reusedTransferBuffer = ota_fake::reusedTransferBuffer && buffer == ota_fake::downloadBuffer;
   std::memcpy(buffer, ota_fake::staged.data() + offset, length);
   return ESP_OK;
 }

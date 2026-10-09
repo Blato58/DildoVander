@@ -4,6 +4,7 @@
 #include "../src/features/firmware_update/EspIdfFirmwareUpdate.h"
 #include <cassert>
 #include <iostream>
+#include <new>
 
 namespace ota_fake {
 uint64_t nowMs;
@@ -16,6 +17,11 @@ esp_ota_img_states_t runningState, targetState;
 esp_app_desc_t runningDescription, stagedDescription;
 bool signatureValid, imageValid, bootPromoted, rebooted, rolledBack, aborted;
 unsigned writes;
+unsigned begins;
+size_t partitionBytesRead;
+const void* downloadBuffer;
+bool reusedTransferBuffer, failTransferAllocation;
+unsigned transferAllocations;
 void Reset() {
   nowMs = 0;
   settings = {{"origin", "https://firmware.example.test"}, {"trust_pem", "PUBLIC TEST KEY"}, {"channel", "stable"}};
@@ -29,8 +35,25 @@ void Reset() {
   signatureValid = imageValid = true;
   bootPromoted = rebooted = rolledBack = aborted = false;
   writes = 0;
+  begins = 0;
+  partitionBytesRead = 0;
+  downloadBuffer = nullptr;
+  reusedTransferBuffer = true;
+  failTransferAllocation = false;
+  transferAllocations = 0;
 }
 }
+
+// Fault only the updater's nothrow 4 KiB array, without a production test hook.
+void* operator new[](size_t bytes, const std::nothrow_t&) noexcept {
+  if (bytes == 4096) {
+    ++ota_fake::transferAllocations;
+    if (ota_fake::failTransferAllocation) return nullptr;
+  }
+  try { return ::operator new[](bytes); }
+  catch (...) { return nullptr; }
+}
+void operator delete[](void* bytes, const std::nothrow_t&) noexcept { ::operator delete[](bytes); }
 
 using namespace kufr::ota;
 namespace kufr { namespace ota {
@@ -60,14 +83,14 @@ std::string Encode(const std::string& bytes) {
   }
   return encoded;
 }
-void Release() {
+void Release(size_t imageSize = 8192) {
   const std::string payload = "{\"schemaVersion\":1,\"version\":\"0.2.0\",\"buildId\":\"" + std::string(40, 'a') +
       "\",\"hardware\":\"esp32s3-n16r8\",\"profile\":\"B-effects\",\"channel\":\"stable\",\"url\":\"/v1/firmware/artifacts/" +
-      std::string(64, '0') + ".bin\",\"sizeBytes\":8192,\"sha256\":\"" + std::string(64, '0') +
+      std::string(64, '0') + ".bin\",\"sizeBytes\":" + std::to_string(imageSize) + ",\"sha256\":\"" + std::string(64, '0') +
       "\",\"updaterVersion\":1,\"minUpdaterVersion\":1,\"signatureAlgorithm\":\"ecdsa-p256-sha256\"}";
   const std::string envelope = "{\"schemaVersion\":1,\"payload\":\"" + Encode(payload) + "\",\"signature\":\"" + Encode(std::string(70, 's')) + "\"}";
   ota_fake::responses[ManifestUrl] = {envelope, 200, static_cast<int64_t>(envelope.size()), 0, false, false};
-  ota_fake::responses[ArtifactUrl] = {std::string(8192, '\0'), 200, 8192, 0, false, false};
+  ota_fake::responses[ArtifactUrl] = {std::string(imageSize, '\0'), 200, static_cast<int64_t>(imageSize), 0, false, false};
 }
 void Run(EspIdfFirmwareUpdate& ota) {
   FirmwareUpdateTestAccess::Run(ota);
@@ -93,9 +116,42 @@ void Success() {
   StartInstall(ota);
   assert(ota_fake::bootPromoted && ota.Status().state == "ready-to-reboot" && ota.Reserved());
   assert(ota_fake::writes == 2 && ota_fake::staged.size() == 8192);
+  assert(ota_fake::transferAllocations == 1 && ota_fake::begins == 1);
+  assert(ota_fake::partitionBytesRead == 8192 && ota_fake::reusedTransferBuffer);
   ota.Tick(100, true, true, false); assert(!ota_fake::rebooted);
   ota.Tick(200, true, true, true); assert(ota_fake::rebooted);
   assert(ota_fake::settings["trust_pem"] == "PUBLIC TEST KEY");
+}
+void TransferBufferAndExactLength() {
+  ota_fake::Reset(); Release();
+  EspIdfFirmwareUpdate unavailable; assert(unavailable.Begin()); Check(unavailable);
+  ota_fake::failTransferAllocation = true;
+  StartInstall(unavailable);
+  assert(unavailable.Status().error == "update-buffer-unavailable" && !unavailable.Reserved());
+  assert(ota_fake::transferAllocations == 1 && ota_fake::begins == 0 && ota_fake::writes == 0);
+  assert(!ota_fake::bootPromoted && !ota_fake::rebooted && ota_fake::requested.size() == 1);
+  assert(ota_fake::runningState == ESP_OTA_IMG_VALID);
+
+  // The final partial block must be written and verified by the same buffer.
+  ota_fake::Reset(); Release(8205);
+  EspIdfFirmwareUpdate partial; assert(partial.Begin()); Check(partial); StartInstall(partial);
+  assert(ota_fake::bootPromoted && ota_fake::writes == 3 && ota_fake::staged.size() == 8205);
+  assert(ota_fake::partitionBytesRead == 8205 && ota_fake::reusedTransferBuffer);
+  assert(ota_fake::transferAllocations == 1);
+
+  ota_fake::Reset(); Release(8205);
+  EspIdfFirmwareUpdate corruptTail; assert(corruptTail.Begin()); Check(corruptTail);
+  ota_fake::responses[ArtifactUrl].body.back() = 1;
+  StartInstall(corruptTail);
+  assert(corruptTail.Status().error == "artifact-sha256-invalid" && !ota_fake::bootPromoted && !corruptTail.Reserved());
+  assert(ota_fake::partitionBytesRead == 8205 && ota_fake::reusedTransferBuffer);
+
+  ota_fake::Reset(); Release(8205);
+  EspIdfFirmwareUpdate truncated; assert(truncated.Begin()); Check(truncated);
+  ota_fake::responses[ArtifactUrl].body.pop_back();
+  StartInstall(truncated);
+  assert(truncated.Status().error == "artifact-download-incomplete" && ota_fake::aborted && !truncated.Reserved());
+  assert(!ota_fake::bootPromoted && ota_fake::partitionBytesRead == 0);
 }
 void Failures() {
   ota_fake::Reset(); Release();
@@ -155,6 +211,6 @@ void BootHealth() {
 }
 }
 int main() {
-  Success(); Failures(); BootHealth();
+  Success(); TransferBufferAndExactLength(); Failures(); BootHealth();
   std::cout << "ESP-IDF OTA adapter success/failure, safe reservation and boot recovery tests passed (fake HTTP/flash/crypto).\n";
 }
