@@ -5,12 +5,15 @@ a volitelné SD assety. Lokální testy potvrzují dílčí softwarové chován�
 **připravenost celé fyzické sestavy na akci ještě není doložená**.
 V D159 byl ověřen první USB servis, flash a NVS readback konkrétní desky;
 majitel potvrdil iPhone BLE spojení a domácí Wi-Fi i po restartu.
-Fyzický test odhalil a source/regrese opravily token POST bug ESP-IDF6.1;
-ověření backendu na desce s verzí0.1.1 ještě probíhá.
+Fyzický test odhalil a source/regrese opravily token POST bug ESP-IDF6.1.
+Deska sama provedla podepsanou OTA0.1.0→0.1.1, potvrdila VALID boot,
+zachovala NVS settings a přihlásila se k backendu i po dalším resetu;
+majitel potvrdil připojenou Wi-Fi/backend na iPhonu.
 Hotspot, zátěž a úplná fyzická akceptace zbývají. Skutečný macOS15/
 Xcode26.3 package resolver CI37887830815 prošel; nativní build/podpis má
 samostatné ověření. Plný CI37895236311 prošel včetně hlavního ESP-IDF a čtyř
-servisních buildů. Development OTA0.1.0 (1732304 B z 6553600 B slotu) a backend
+servisních buildů. Firmware CI37912208656 a development publish37912902381
+prošly pro0.1.1 (1732288 B z 6553600 B slotu). Development OTA a backend
 jsou nasazené; public HTTPS bajty/hash a skutečný podpis byly ověřeny.
 macOS15/Xcode26.3 run37899385679 prošel všemi native testy, archive, export,
 Ad Hoc podpisem i profile kontrolou. iOS1.0/build1000.0.19 je zveřejněn přes
@@ -86,9 +89,10 @@ Do sdíleného záznamu nevkládat hesla, PoP, tokeny ani obsah paměti návšt�
 ## Matice všech 47 požadovaných scénářů
 
 **S = dílčí softwarová simulace/test prošel. K = statická/source kontrola;
-neprokazuje runtime. H = fyzická kontrola provedená přes USB. M = výsledek
+neprokazuje runtime. H = kontrola skutečné desky přes USB/UART a korelované
+serverové logy. M = výsledek
 na telefonu potvrzený majitelem. NE = neprovedeno v uvedeném prostředí.**
-D159 doplňuje pouze výslovně uvedené USB a telefonní výsledky. Host adaptér OTA
+D159 doplňuje pouze výslovně uvedené výsledky skutečné desky a telefonu. Host adaptér OTA
 simuluje HTTP, flash a kryptografické odpovědi; skutečný podpis balíčku ověřují
 samostatné release/backend testy. BLE host stub potvrzuje zapojení Security1,
 nikoli skutečný X25519 handshake přes rádio. Úspěšný web build není Swift build.
@@ -106,9 +110,9 @@ a aktuální CI/publikační výsledky patří do stavu implementace.
 | 4 | Chybná autorizace je odmítnuta | S: chybějící PoP zakazuje službu; K: management je za Security1. | NE: špatný PoP proti skutečnému šifrovanému handshake. |
 | 5 | Hotspot credentialy se přenesou bezpečně | S: bounded codec/endpoint a whitelist diagnostiky; K: native secure dialog a Security1. | M: PoP handshake a nastavení domácí Wi-Fi doložené. NE: hotspot přenos a ověření nepřítomnosti citlivých údajů v nativních logách. |
 | 6 | ESP připojí hotspot | S: station worker/fake DHCP, preferovaný profil. | NE: skutečný iPhone hotspot, 2,4 GHz, operátor/iOS. |
-| 7 | Firmware hlásí stav připojení | S: station status a BLE JSON/codec. | M: telefon zobrazil domácí Wi-Fi připojenou a po restartu backend offline. Další rádio přechody neověřené. |
-| 8 | ESP připojí backend | S: síť/token/time a backend testy; nová regrese token adaptéru opravuje bodyless POST na SDK6.1. | H: nová identita ověřená HTTPS token exchange ze servisního PC; skutečný ESP token POST/verze0.1.1 čeká na CI/flash. Cesta přes iPhone hotspot zůstává NE. |
-| 9 | Credentialy přežijí reboot | S: profiles record save/load/reboot simulace. | H: uložený úspěšný fallback blob a nezměněná identita/PoP/trust přečtené z NVS; M: Wi-Fi po fyzickém resetu automaticky připojená bez nového zadání hesla. Backend reconnect se ověřuje po opravě0.1.1. |
+| 7 | Firmware hlásí stav připojení | S: station status a BLE JSON/codec. | M: po OTA0.1.1 a dalším resetu telefon zobrazil domácí Wi-Fi i backend připojený. Další rádio přechody neověřené. |
+| 8 | ESP připojí backend | S: síť/token/time a backend testy; nová regrese token adaptéru opravuje bodyless POST na SDK6.1. | H: skutečný ESP POST200 v09:45:03Z po OTA0.1.1 a09:47:43Z po dalším resetu; M: Backend připojený. Cesta přes iPhone hotspot zůstává NE. |
+| 9 | Credentialy přežijí reboot | S: profiles record save/load/reboot simulace. | H: devět identity/PoP/network/OTA klíčů z NVS beze změny po skutečné OTA; nový slot VALID a další reboot0.1.1. M: Wi-Fi a backend znovu připojené bez zadání hesla, stejný PoP. |
 | 10 | Chybné heslo dává srozumitelnou chybu | S: `connection_failed`, UI/status projekce. | NE: skutečné odmítnutí Wi-Fi hesla a zobrazení na iPhonu. |
 | 11 | Credentialy lze bezpečně nahradit | S: idle gate, test kandidáta a atomický record commit. | NE: náhrada přes BLE, skutečný DHCP a NVS. |
 | 12 | Neúspěšná náhrada nezničí funkční konfiguraci | S: špatné heslo zachová profil; storage failure drží starou RAM a jednou zkusí persistentní rollback/obnovu spojení. | NE: rádio/NVS failure a návrat skutečného spojení. Trvalá chyba NVS může zmařit i rollback; nejde o záruku při power-loss. |
@@ -123,29 +127,29 @@ a aktuální CI/publikační výsledky patří do stavu implementace.
 | 21 | Zařízení se samo znovu připojí | S: worker reconnect/backoff bez manuálního restartu. | NE: více skutečných výpadků a návratů sítí/WAN. |
 | 22 | Síťové přechody nespustí nebezpečné pohony | S: společná maintenance brána blokuje nové lease/voice/text/prezentace; Stop zůstává dostupný. | NE: měřený souběh rádia, serv, vibrací a bezpečnostní smyčky. |
 | 23 | Není nová OTA verze | S: porovnání verzí/same-build/anti-downgrade. | NE: fyzická kontrola aktuálního release bez instalace. |
-| 24 | Je platná OTA aktualizace | S: manifest parser/compatibility a adapter nabídka; release/backend testy ověřují skutečný podpis. | NE: zveřejněný manifest přijatý konkrétním ESP s jeho trust. |
-| 25 | Firmware se úspěšně stáhne | S: fake HTTP → inactive flash → promotion, bounded size. | NE: skutečný HTTPS download a zápis do flash. |
+| 24 | Je platná OTA aktualizace | S: manifest parser/compatibility a adapter nabídka; release/backend testy ověřují skutečný podpis. | H: konkrétní ESP přijal podepsaný development manifest a automaticky nainstaloval0.1.1 se svým provisionovaným trust. |
+| 25 | Firmware se úspěšně stáhne | S: fake HTTP → inactive flash → promotion, bounded size. | H: ESP HTTPS download200 a skutečný boot0.1.1 v ota_1; public/CI image hash a podpis ověřené nezávisle. |
 | 26 | Poškozený obraz je odmítnut | S: adapter mismatch digest zakazuje boot promotion; release testy ověřují skutečné bajty/hash. | NE: poškozený obraz odmítnutý skutečným ESP. |
 | 27 | Neplatný podpis/autenticita je odmítnuta | S: adapter verifier failure a release/backend skutečná signature verification. | NE: neplatný podpis ověřený mbedTLS na desce. |
 | 28 | Obraz pro jiný hardware je odmítnut | S: hardware/profile/channel/min-updater/slot-size policy a image metadata kontroly. | NE: skutečný nekompatibilní ESP image bez změny boot slotu. |
 | 29 | Download je přerušen | S: short/interrupted HTTP vede k OTA abort, bez promotion. | NE: výpadek hotspotu/WAN při zápisu flash. |
 | 30 | Během aktualizace vypadne napájení | K: inactive slot a OTA metadata používají oficiální IDF API. | NE: řízené fyzické přerušení v různých bodech flash/boot metadata. Není doložené simulací napájení. |
-| 31 | Po instalaci firmware rebootuje | S: reboot callback až při safe idle, držená rezervace. | NE: skutečný reboot, zvolený slot a oznámení nové verze. |
+| 31 | Po instalaci firmware rebootuje | S: reboot callback až při safe idle, držená rezervace. | H: automatický reboot na ota_1/0x650000 a UART verze0.1.1; read-only otadata seq2/VALID/CRC. Stejný slot/verze přežil další reset. |
 | 32 | Selže validace prvního bootu | S: reset stability/deadline, unhealthy stav žádá rollback. | NE: skutečný vadný první boot a údržbová izolace. |
 | 33 | Proběhne automatický rollback | S: policy a IDF rollback callback; K: rollback konfigurace. | NE: bootloader vrátí skutečný platný slot; potvrdit také případ bez fallbacku. |
-| 34 | Trvalé credentialy zůstanou zachované | S: adapter nemění uložená trust/settings; K: NVS je mimo app sloty. | NE: porovnání soukromé NVS konfigurace před/po skutečné OTA a rollbacku bez zveřejnění tajemství. |
+| 34 | Trvalé credentialy zůstanou zachované | S: adapter nemění uložená trust/settings; K: NVS je mimo app sloty. | H: přesný logický readback devíti identity/PoP/network/OTA klíčů před/po skutečné OTA je shodný, bez zveřejnění tajemství. NE: retention po skutečném rollbacku. |
 | 35 | Selhaná OTA neznefunkční zařízení | S: download/hash/descriptor failure nepřepne boot a uvolní reservation. | NE: flash/power-loss/metadata a USB recovery na skutečné desce; absolutní odolnost není prokázaná. |
 | 36 | Instalace čeká na bezpečný klid | S: deferred install/reboot a společné maintenance regression testy. | NE: požadavek OTA při skutečném hlasu, lease, návrhu a pohybu. |
 | 37 | Funguje ruční OTA kontrola | S: RequestCheck/worker a BLE management codec. | NE: skutečný iPhone příkaz → HTTPS manifest → zobrazený výsledek. |
-| 38 | Fungují periodické kontroly | S: initial delay, interval 60–86400 s, offline/unsafe defer a capped backoff. | NE: dlouhý fyzický běh se změnou dostupnosti serveru. |
+| 38 | Fungují periodické kontroly | S: initial delay, interval 60–86400 s, offline/unsafe defer a capped backoff. | H: automatická počáteční kontrola manifestu i po dalších bootech. NE: dlouhý fyzický běh se změnou dostupnosti serveru a celý hodinový interval. |
 | 39 | GPT-Live dál funguje | S: stávající backend actor/flow regression testy v offline/fake prostředí. | NE: nový placený provider test, skutečný rozhovor/audio a lidská akceptace. |
 | 40 | Výběr osobnosti je zachován | S: stávající katalog/personality testy v backend runneru; katalog nebyl nahrazen. | NE: lidská akceptace skutečného provider rozhovoru s katalogem. |
 | 41 | Výběr hůlky funguje | S: selection sequence/proposal/journal a lokální brány. | NE: kalibrovaná fyzická přihrádka 1–6, prezentace a návrat. |
-| 42 | Firmware/backend protokol je kompatibilní | S: stávající codecs/backend kontrakty a bounded nové management/release endpointy. | NE: celý skutečný ESP/backend/iPhone průchod nad shodně nasazenými verzemi. |
+| 42 | Firmware/backend protokol je kompatibilní | S: stávající codecs/backend kontrakty a bounded nové management/release endpointy. | H/M: skutečný ESP0.1.1 token/backend a iOS1000.0.19 BLE network status prošly. NE: celý rozhovor/hlas/pohyb nad nasazenými verzemi. |
 | 43 | Audio funguje na zvoleném hardwaru | S: I2S/PCM transport/drain a half-duplex testy; K: zachované B-effects piny. | NE: oba DFR0954/reproduktory, mikrofon, clipping, echo, latence a resetové ticho. |
 | 44 | Kamera a SD jsou ověřené v dostupném rozsahu | S: costume photo/camera fake adapter, SD flat-path/bounds/read-only/cleanup. | NE: OV5640/FPC, fotografie, SD karta/pullupy a souběh s audiem. |
 | 45 | Servo/LED/ostatní efekty dál fungují | S: existing physical/sequence safety testy, pin kontrakt zachován. | NE: pulzy, dorazy, PCA/MCP/U059/WS2812B, proud a skutečný mechanický návrat. |
-| 46 | Existující deployment workflow zůstává kompatibilní | K/S: plné CI `37895236311`, backend deploy `37896345546` attempt 2, development OTA publish `37896352363`, macOS native testy/archive/export `37899385679` a iOS publish `37899776001` prošly; veřejné manifesty, artefakty a checksumy byly načteny a ověřeny. | H: development device trust a USB CI image provisionované/readback ověřené. NE: úplná fyzická akceptace, skutečný OTA cyklus a další deploy po přidání identity. Stable autorita/trust mají samostatný provisioning. |
+| 46 | Existující deployment workflow zůstává kompatibilní | K/S: plné CI `37895236311`, backend deploy `37896345546` attempt 2, firmware CI `37912208656`/development publish `37912902381`, macOS native testy/archive/export `37899385679` a iOS publish `37899776001` prošly; veřejné manifesty, artefakty a checksumy byly načteny a ověřeny. | H: development trust, USB provisioning a skutečná OTA0.1.1/VALID boot/reconnect prošly. NE: úplná fyzická akceptace a další backend deploy po přidání identity. Stable autorita/trust mají samostatný provisioning. |
 | 47 | Celý systém se zotaví z dočasných chyb | S: dílčí síť/OTA/session/journal/fault recovery testy. | NE: souvislá zkouška celé sestavy v místě akce, výpadky a návraty bez nebezpečného pohybu. |
 
 ## Připravenost subsystémů a vnější podmínky
@@ -154,8 +158,8 @@ a aktuální CI/publikační výsledky patří do stavu implementace.
 | --- | --- | --- |
 | BLE provisioning a hotspot/fallback firmware | IMPLEMENTED — PARTIALLY HARDWARE VERIFIED | D159 USB servis/NVS a majitelem potvrzený PoP handshake/domácí Wi-Fi prošly. Zbývá wrong-PoP, hotspot/failover, radio coexistence a úplné reconnect zkoušky. |
 | iOS Síť kufru | IMPLEMENTED — PARTIALLY HARDWARE VERIFIED | Web 32 testů/build, skutečné native testy/Xcode archive/Ad Hoc export i public IPA prošly; majitel použil aplikaci pro BLE/domácí Wi-Fi. Hotspot/error/recovery scénáře zbývají. |
-| OTA firmware | IMPLEMENTED — NOT HARDWARE VERIFIED pro OTA cyklus | D159 ověřilo USB instalaci rollback-capable bootloaderu/aplikace a development trust. Zbývá skutečný OTA download/digest/signature/power-loss/rollback na ESP. |
-| Release distribuce a VPS | READY v ověřeném development/server rozsahu | Root GitHub verifier, signed OTA/backend/iOS pipelines a public HTTPS bajty/hash/signature prošly; D159 doplnilo development trust na ESP. Stable autorita a skutečný OTA cyklus mají samostatné blokace. |
+| OTA firmware | IMPLEMENTED — PARTIALLY HARDWARE VERIFIED | D159 prošlo skutečnou podepsanou OTA0.1.0→0.1.1, VALID boot, credential retention a další reset/reconnect. Zbývají negativní image/signature, přerušení/power-loss a rollback. |
+| Release distribuce a VPS | READY v ověřeném development/server rozsahu | Root GitHub verifier, signed OTA/backend/iOS pipelines a public HTTPS bajty/hash/signature prošly; D159 také skutečně přijalo development OTA na ESP. Stable autorita má samostatný provisioning. |
 | Produkční stable autorita | BLOCKED pro nasazení bez správné důvěry | Provisionovat příslušný produkční podpisový klíč mimo repo a shodný veřejný trust na zařízení; development klíč není automaticky produkční oprávnění. |
 | Backend/GPT-Live/katalog | PARTIALLY READY | Plný runner i čerstvé nasazení/health/modes/store metadata kontroly prošly; nebyla volána nová placená inference ani provedena lidská konverzační akceptace celé sestavy. |
 | Fyzické efekty a audio | IMPLEMENTED — NOT HARDWARE VERIFIED | Měřené zapojení/napájení/kalibrace a souběžný provoz na celé sestavě. |

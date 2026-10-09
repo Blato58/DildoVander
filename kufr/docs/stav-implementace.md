@@ -1,12 +1,12 @@
 # Stav implementace AI kufru
 
-Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální i CI ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a E3a. Ad Hoc podpis a serverová publikace IPA/manifestu prošly CI a veřejným HTTPS testem; majitel potvrdil instalaci a spuštění na iPhonu 15 Pro (D70). Hardware, native WSS/TLS a aktualizace IPA na telefonu zatím nemají runtime akceptaci. Hotový návrh není hotová implementace.
+Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální i CI ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a E3a. Ad Hoc podpis a serverová publikace IPA/manifestu prošly CI a veřejným HTTPS testem; majitel potvrdil instalaci a spuštění na iPhonu 15 Pro (D70). D159 doložilo USB provisioning, iPhone BLE/domácí Wi-Fi, backend přihlášení po restartu a skutečnou OTA na0.1.1. Celá HW sestava, native LAN WSS/TLS a aktualizace IPA na telefonu zatím nemají úplnou runtime akceptaci. Hotový návrh není hotová implementace.
 
 [Implementační plán](implementacni-plan.md) určuje architekturu a akceptaci. [AGENTS.md](../../AGENTS.md) určuje pracovní postup AI. Tento soubor je jediný průběžný záznam postupu; README ho pouze odkazují.
 
 ## Předání další AI
 
-**D159 – 9. 10. 2026 – první USB servis a domácí Wi-Fi na skutečné desce.**
+**D159 – 9. 10. 2026 – USB provisioning, OTA0.1.1 a backend po restartu.**
 Majitel požádal o provisioning připojeného ESP a potvrdil samostatnou desku
 bez pohonů a přesun datového kabelu z CH343 UART/COM7 na native USB/COM8.
 Čtení ROM ověřilo ESP32-S3 rev0.2, MAC `68:ee:8f:4b:60:48`, 16 MiB flash,
@@ -47,8 +47,8 @@ Na desku se obnovily bootloader, partition table, initial otadata a aplikace
 obraz 1732304 B má SHA-256
 `cf31728845fd24ecbfca999d193bda047e2bbdd537b514de2747f5328bf50048`.
 Esptool ověřil hashe všech zápisů. Následný USB readback NVS nezávisle ověřil
-identitu, PoP, backend a OTA settings. Novější CI-cache změna PR146 nebyla
-znovu nahraná; zdroj na desce se označuje přesným CI build ID výše.
+identitu, PoP, backend a OTA settings. Při tomto obnovení nebyla novější
+CI-cache změna PR146 znovu nahraná; pozdější OTA je doložená níže.
 
 Majitel v publikované nativní aplikaci potvrdil discovery/spojení s PoP
 a nastavil domácí Wi-Fi. Jeho počáteční hlášení Backend připojený se po
@@ -79,16 +79,46 @@ Nezávislé SDK/source review potvrdilo příčinu a správnost bodyless POST.
 Původní šestidokumentový link check ověřil56 odkazů a všech47 readiness řádků;
 review nalezené rozpory o dokončeném servisu/dev trust byly opravené.
 
-Placené AI volání, pohyby, SD/audio/kamera, špatný PoP/heslo,
-iPhone hotspot/failover, skutečná OTA instalace/power-loss/rollback a plná
+Implementační commit `d80d95d84156bb56b37f3e103bd41ac5ab9c49cf` byl ověřeně
+pushnutý přes helper. [PR149](https://github.com/Blato58/DildoVander/pull/149)
+má úspěšné [CI37912208656](https://github.com/Blato58/DildoVander/actions/runs/37912208656)
+včetně Linux host regresí, ESP-IDF a všech servisních buildů. Nezávislé source
+review i GitHub Codex review dokončily bez nálezů; před merge byly znovu načtené
+reviews, komentáře a prázdná unresolved vlákna. Squash `668949e37756ccd05c3be980e9af64eb05385841`
+má stejný Git tree `0378d4a51a32e90dfa6d5d8c5c83672d1c477fd9` jako ověřený
+CI obraz. [Development publish37912902381](https://github.com/Blato58/DildoVander/actions/runs/37912902381)
+prošel root provenance verifierem i podpisem. Veřejný HTTPS manifest,
+P-256 podpis a image SHA-256 se nezávisle ověřily; stažený CI balíček má
+shodný tree a bajty. Verze0.1.1 má build ID PR merge ref
+`81543ff4404f16bdbb7c09e8b47ab5f19f3d30b5`, délku1732288 B a SHA-256
+`5e937b158eae49d49b7812fbe952bfcfdc201a168770e11c6ea4b0a2ed5ab5e2`.
+
+**Skutečný OTA a backend výsledek:** po vědomém UART resetu09:43:47Z se
+deska sama připojila k uložené Wi-Fi, stáhla development manifest09:44:22Z
+a nový image09:44:43Z (nginx ESP32 GET200). Bez dalšího USB zápisu bootovala
+09:44:49Z z `0x650000`/ota_1 a UART oznámil verzi0.1.1. Skutečný ESP
+token POST skončil200 v09:45:03Z. Read-only ROM čtení NVS/otadata doložilo
+oba platné metadata CRC, seq1/VALID původního slotu a seq2/VALID nového slotu:
+první boot tedy úspěšně dokončil health potvrzení. Porovnání přes IDF NVS
+parser ověřilo všech9 logických klíčů v `wand_identity`, `wand_ble`,
+`wand_network` a `wand_ota` beze změny proti před-OTA NVS; žádný credential
+se nevypisoval. Nový hard reset09:47:19Z znovu bootoval0.1.1/ota_1,
+připojil Wi-Fi a token POST200 v09:47:43Z. Majitel potom na iPhonu znovu
+potvrdil **Wi-Fi connected; Backend připojený** se stejným PoP.
+Soukromé raw logy, NVS/otadata, receipt a přijatý CI USB recovery balíček
+zůstávají u majitele. UART capture skončilo a COM7 je uvolněný.
+
+Lokální source regrese/build, 55 Node CI/provenance testů, nezávislé review,
+79 místních odkazů a přesně47 readiness řádků prošly před implementačním
+Git předáním. Placené AI volání, pohyby, SD/audio/kamera, špatný PoP/heslo,
+iPhone hotspot/failover, OTA power-loss/negativní podpis/rollback a plná
 akceptace celé sestavy neproběhly. Development trust není stable autorita.
-Další krok: čerstvé CI/review, vydání a fyzická instalace0.1.1, skutečný ESP
-token POST200 a backend reconnect po restartu. Pro akci doplnit iPhone hotspot
-a samostatně přijmout zbývající scénáře podle event-readiness.
-Před Git předáním: finální nezávislé source review je bez otevřeného nálezu,
-55 Node CI/provenance regresí a whitespace prošly. Sedmidokumentový check
-ověřil79 místních odkazů a přesně47 readiness řádků bez chyb. Commit/push/PR,
-aktuální CI/publikace a fyzický výsledek budou doplněné po skutečném ověření.
+Další krok pro akci: doplnit iPhone hotspot a samostatně přijmout zbývající
+scénáře podle event-readiness; domácí síť je úspěšně provisionovaná.
+Finální šestidokumentový acceptance diff prošel nezávislým review bez nálezu,
+67 místních odkazů, všech47 scénářů, whitespace a kontrolou nepřítomnosti
+soukromých credentialů/PoP v diffu. Pro docs-only předání se aplikace znovu
+nebuildovala; úspěšný firmware CI a fyzický výsledek jsou doložené výše.
 
 **9. 10. 2026 – zrychlení firmware CI.** Převzaté soubory:
 `.github/workflows/kufr-firmware.yml`, nové `kufr/firmware/ci/` a firmware
