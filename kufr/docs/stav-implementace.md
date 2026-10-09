@@ -52,7 +52,14 @@ Arduino sériový build **SUCCESS**. Servisní projekt s vypnutým příkladem
 **SUCCESS**, flash 170 957 B. Dosavadní firmware host sada z cloudového
 setupu prošla včetně 52 skutečných výstupních zpráv proti v1 schématu.
 Ověřeno 91 lokálních Markdown cest, `git diff --check` a Python syntaxe
-CAD metadat. Git/CI doručení bude doplněné podle skutečného výsledku.
+CAD metadat. Implementace je v commitu `f2be877b34f41065fda8aeeda08027f77611e67c`
+na `codex/kufr-hardware-firmware-2026-10-09`, push úspěšný a remote
+read-back potvrdil shodnou SHA. Povinný `./scripts/Push-CurrentBranch.ps1`
+se v Linux cloud prostředí nespustil (exit 126, PowerShell není dostupný);
+použitý fallback `git -c credential.helper= -c
+'credential.helper=!gh auth git-credential' push --set-upstream origin
+codex/kufr-hardware-firmware-2026-10-09` využil přihlášený účet Blato58
+pouze pro tento příkaz, bez změny globálního účtu. CI/merge se ověří v PR.
 
 Fyzické zapojení, kalibrace, proudy, teplota, napájení ESP, GPIO2/OE reset
 a skutečné I2S/DMA nejsou tímto ověřené. Při úplném zamrznutí může pohon
