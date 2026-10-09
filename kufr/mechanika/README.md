@@ -1,4 +1,23 @@
-# Tisknutelná konstrukce kufru – revize 8. 10. 2026
+# Mechanika doručeného kufru
+
+Aktuální společný model je v **[cad/](cad/README.md)**: referenční dřevěný
+kufr, prázdné otočné víko, elektronika, šest přihrádek, boční servisní
+konstrukce, STEP sestavy, skutečné STL a náhledy. Používá potvrzený vnitřek
+431,8 × 266,7 × 114,3 mm a majitelem zvolenou návrhovou tloušťku stěn 3 mm.
+Regenerace: `./cad/Regenerate.ps1` z tohoto adresáře; lze předat `-Python`.
+Podmínky výroby a fyzického ověření uvádí nový návod, CAD zůstává prototypový.
+
+Původní `model.py` a `parametry.json` zůstaly zachované jako opakovaně použitý
+zdroj kloubové mechaniky a historický generátor. Nová sestava je importuje a
+přepisuje rozměry přes `cad/parameters.json`; výstup starého příkazu
+`python model.py` není osazení doručeného kufru. Jeho původní `output/`
+se nemaže. Pro aktuální tisk používat pouze výstupy nového `cad/exports/`.
+
+## Archiv konstrukce z 8. 10. 2026
+
+Následující text popisuje starší rozmístění a jeho tehdejší ověření.
+Údaje o zadních policích, rozteči 48 mm a starém prostoru nejsou aktuálním
+montážním plánem; nahrazuje je [nový CAD návod](cad/README.md).
 
 Šest pevných rekvizit, dva reproduktory a společný držák ESP32-S3 s kamerou.
 Fotografie majitele uvádí hůlku **19–20 cm**. Model počítá s délkou 200 mm,
