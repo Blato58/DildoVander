@@ -503,7 +503,7 @@ async function initializeNativeAsync(): Promise<void> {
       // Preserve unresolved-command state across a reconnect to the same device.
       addressInput.value = saved.host;
       status.textContent = `Uložený kufr ${saved.deviceId} · ${saved.host}.`;
-      if (connection instanceof NativeDeviceConnection) { connection.connect(); }
+      if (connection instanceof NativeDeviceConnection) { connection.connect(saved.host); }
     });
   });
   disconnectButton.addEventListener('click', () => {

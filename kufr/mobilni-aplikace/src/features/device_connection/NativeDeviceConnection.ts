@@ -24,13 +24,23 @@ const validate = createControlValidator(schema);
 const encoder = new TextEncoder();
 
 export class NativeDeviceConnection extends ProtocolDeviceConnection {
+  private readonly route: { deviceId: string; host?: string };
+
   constructor(onChange: (snapshot: DeviceSnapshot) => void, deviceId: string) {
+    const route: { deviceId: string; host?: string } = { deviceId };
     super(onChange, {
       source: 'native-device',
       deviceId,
       autoConnect: false,
-      createSocket: () => new NativeControlSocket(nativeBridge),
+      createSocket: () => new NativeControlSocket(nativeBridge,
+        route.host ? { host: route.host, deviceId: route.deviceId } : undefined),
       parseFrame: (frame) => validate(encoder.encode(frame)) as Record<string, unknown>,
     });
+    this.route = route;
+  }
+
+  override connect(host?: string): void {
+    this.route.host = host;
+    super.connect();
   }
 }

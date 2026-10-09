@@ -41,6 +41,15 @@ for clearedAddress in clearedAddresses {
 LocalDeviceAddressHints.end(session: nextAddressSession)
 check(LocalDeviceAddressHints.selectedHost(manual: nil, identity: hintIdentity) == "kufr.local", "Stored hostname fallback")
 
+check(LocalDeviceAddressHints.connectionHost(manual: nil, identity: hintIdentity,
+    capturedHost: "192.168.0.62", capturedDeviceId: "kufr-1") == "192.168.0.62",
+      "Captured route survives BLE session end without hostname fallback")
+let invalidTargets: [[Any?]] = [[nil, "kufr-1"], ["192.168.0.62", nil], ["http://bad", "kufr-1"],
+                       ["192.168.0.62", "kufr-2"], [true, "kufr-1"], [NSNull(), "kufr-1"]]
+for target in invalidTargets {
+    check(LocalDeviceAddressHints.connectionHost(manual: nil, identity: hintIdentity,
+        capturedHost: target[0], capturedDeviceId: target[1]) == nil, "Reject partial/invalid/mismatched route")
+}
 let legacySession = UUID()
 LocalDeviceAddressHints.begin(session: legacySession)
 check(LocalDeviceAddressHints.update(session: legacySession, deviceId: "kufr_1", address: "192.168.0.59"),

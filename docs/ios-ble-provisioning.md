@@ -7,7 +7,9 @@
 > and certificate pin still authenticate WSS; the route is saved in Keychain only
 > after authenticated connection succeeds. Offline/missing/invalid IP and BLE
 > disconnect clear the hint. Bonjour failure remains visible; BLE can supply an
-> address independently. Hardware service/calibration gates remain unchanged.
+> address independently. Each socket captures the selected host/device ID before
+> asynchronous listener registration; BLE loss cannot switch that attempt to an
+> older hostname. Hardware service/calibration gates remain unchanged.
 
 The existing Capacitor app is extended; its **Síť kufru** tab uses a native
 CoreBluetooth/ESPProvision 3.2.0 plugin. Safari/Web Bluetooth is not used.
