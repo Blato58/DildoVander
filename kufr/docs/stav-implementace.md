@@ -44,8 +44,11 @@ a samostatně připravit místní TLS/pairing provisioning skutečného kufru.
 Git předání: implementační commit `ac9c9e0e830eb6fa62627ca3d210f9f9179afab3`
 byl ověřeně pushnutý helperem; [PR151](https://github.com/Blato58/DildoVander/pull/151).
 Souběžný PR150 byl začleněný s oběma záznamy; změnil jen dokumentaci.
-60 místních odkazů a whitespace prošly. PR CI/review/merge budou ověřené
-před konečným předáním; nová IPA se tímto nepublikuje.
+60 místních odkazů a whitespace prošly. [CI37915875139](https://github.com/Blato58/DildoVander/actions/runs/37915875139)
+pro integrovaný commit `44256f0` prošlo včetně web/contracts/signing-source
+regresí a required gate; backend/firmware/AI byly správně přeskočené.
+GitHub review probíhá; před merge se znovu načtou reviews i inline vlákna.
+Nová IPA se tímto nepublikuje.
 
 **D159 – 9. 10. 2026 – USB provisioning, OTA0.1.1 a backend po restartu.**
 Majitel požádal o provisioning připojeného ESP a potvrdil samostatnou desku
