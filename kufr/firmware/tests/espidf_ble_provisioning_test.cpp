@@ -1,6 +1,7 @@
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
+#include <initializer_list>
 #include <string>
 #include "../src/features/network_provisioning/EspIdfBleProvisioning.h"
 #include "protocomm_ble.h"
@@ -19,14 +20,18 @@ int64_t nowMs=0, stopAt=0;
 void (*delayHook)()=nullptr;
 bool proofAvailable=true;
 std::string lastSsid;
+std::string currentIpv4;
+const char* networkPhase = "connecting";
+std::string availableVersion = "1.2.3-build-with-long-version";
 struct Stop {};
 }
 const protocomm_security_t protocomm_security1{};
 EspIdfWifiStation::~EspIdfWifiStation()=default;
 bool EspIdfNetworkProfileStorage::Save(const NetworkProfileRecord&) { return true; }
+std::string EspIdfStationNetwork::CurrentIpv4() const { return currentIpv4; }
 StationNetworkStatus EspIdfStationNetwork::Status() {
   StationNetworkStatus status;
-  status.phase="connecting"; status.result="connection_failed";
+  status.phase=networkPhase; status.result="connection_failed";
   status.active=NetworkProfile::Fallback; status.lastSuccessful=NetworkProfile::Fallback;
   std::memset(status.hotspotSsid,'"',32); std::memset(status.fallbackSsid,'"',32);
   return status;
@@ -86,18 +91,28 @@ void FillStatus(cJSON* response,void*) {
   cJSON_AddBoolToObject(response,"b",false);
   auto* ota=cJSON_AddObjectToObject(response,"o");
   cJSON_AddStringToObject(ota,"s","waiting-safe-idle");
-  cJSON_AddStringToObject(ota,"a","1.2.3-build-with-long-version");
+  cJSON_AddStringToObject(ota,"a",availableVersion.c_str());
   cJSON_AddStringToObject(ota,"e","ota-trust-or-origin-not-provisioned");
   cJSON_AddBoolToObject(ota,"i",false);
 }
 int pairCalls = 0;
-const char* FillPair(cJSON* response, void*) {
-  if (++pairCalls != 1) { return "already_paired"; }
+int recoverCalls = 0;
+const char* recoveryError = nullptr;
+void FillPairingFields(cJSON* response) {
   cJSON_AddStringToObject(response, "id", std::string(64, 'i').c_str());
   cJSON_AddStringToObject(response, "host", "kufr-0123456789abcdef0123456789abcdef.local");
   cJSON_AddStringToObject(response, "spkiSha256", std::string(64, 'a').c_str());
   cJSON_AddStringToObject(response, "token", std::string(64, 'b').c_str());
+}
+const char* FillPair(cJSON* response, void*) {
+  if (++pairCalls != 1) { return "already_paired"; }
+  FillPairingFields(response);
   return nullptr;
+}
+const char* FillRecovery(cJSON* response, void*) {
+  ++recoverCalls;
+  FillPairingFields(response);
+  return recoveryError;
 }
 std::string Request(const std::string& input,esp_err_t expected=ESP_OK) {
   uint8_t* out=nullptr; ssize_t length=0;
@@ -105,6 +120,15 @@ std::string Request(const std::string& input,esp_err_t expected=ESP_OK) {
   assert(result==expected);
   if(result!=ESP_OK) { return {}; }
   assert(length<=512); std::string response(reinterpret_cast<char*>(out),length); cJSON_free(out); return response;
+}
+void AssertStatusIp(const std::string& response, const char* expected) {
+  auto* root = cJSON_Parse(response.c_str());
+  assert(root != nullptr);
+  const auto* network = cJSON_GetObjectItemCaseSensitive(root, "n");
+  const auto* ip = cJSON_GetObjectItemCaseSensitive(network, "ip");
+  if (expected == nullptr) { assert(ip == nullptr); }
+  else { assert(cJSON_IsString(ip) && std::strcmp(ip->valuestring, expected) == 0); }
+  cJSON_Delete(root);
 }
 EspIdfBleProvisioning* windowOwner=nullptr;
 unsigned windowStage=0;
@@ -248,6 +272,8 @@ void VerifyInitialStartRetry() {
     case 3:
       assert(windowOwner->Active());
       Request("{\"v\":1,\"command\":\"status\"}");
+      assert(Request("{\"v\":1,\"command\":\"recover-local\",\"confirm\":true}") ==
+             "{\"v\":1,\"ok\":false,\"error\":\"pairing_unavailable\"}");
       nowMs=300000;
       return;
     case 4:
@@ -317,7 +343,7 @@ int main() {
   proofAvailable=true;
   EspIdfBleProvisioning ble(station);
   std::string id(64,'i');
-  assert(ble.Begin(true,id.c_str(),"123.123.123-build-version",{FillStatus,nullptr,nullptr,FillPair}));
+  assert(ble.Begin(true,id.c_str(),"123.123.123-build-version",{FillStatus,nullptr,nullptr,FillPair,FillRecovery}));
   assert(opens==0); // Begin and Tick do not block the control-owner task.
   ble.Tick(0,false);
   assert(opens==0);
@@ -327,6 +353,32 @@ int main() {
   auto status=Request("{\"v\":1,\"command\":\"status\"}");
   assert(status.find("\"n\":")!=std::string::npos && status.find("password")==std::string::npos);
   assert(status.find("token") == std::string::npos && status.find("spkiSha256") == std::string::npos);
+  AssertStatusIp(status, nullptr);
+  networkPhase = "connected";
+  currentIpv4 = "192.168.255.254";
+  status = Request("{\"v\":1,\"command\":\"status\"}");
+  AssertStatusIp(status, currentIpv4.c_str());
+  const std::string originalAvailableVersion = availableVersion;
+  availableVersion = "1.2.3-" + std::string(58, 'a');
+  status = Request("{\"v\":1,\"command\":\"status\"}");
+  AssertStatusIp(status, nullptr); // Omit only the optional hint to retain the 512-byte status.
+  assert(status.find(availableVersion) != std::string::npos);
+  auto* boundedStatus = cJSON_Parse(status.c_str());
+  const auto* network = cJSON_GetObjectItemCaseSensitive(boundedStatus, "n");
+  assert(std::strlen(cJSON_GetObjectItemCaseSensitive(network, "h")->valuestring) == 32);
+  assert(std::strlen(cJSON_GetObjectItemCaseSensitive(network, "f")->valuestring) == 32);
+  cJSON_Delete(boundedStatus);
+  availableVersion = originalAvailableVersion;
+  for (const char* phase : {"offline", "connecting"}) {
+    networkPhase = phase;
+    status = Request("{\"v\":1,\"command\":\"status\"}");
+    AssertStatusIp(status, nullptr);
+  }
+  networkPhase = "connected";
+  currentIpv4.clear();
+  status = Request("{\"v\":1,\"command\":\"status\"}");
+  AssertStatusIp(status, nullptr);
+  networkPhase = "connecting";
   auto paired = Request("{\"v\":2,\"command\":\"pair-local\"}");
   assert(paired == "{\"v\":1,\"ok\":false,\"error\":\"invalid_request\"}" && pairCalls == 0);
   paired = Request("{\"v\":1,\"command\":\"pair-local\",\"confirm\":true}");
@@ -337,6 +389,29 @@ int main() {
   assert(paired.find("\"n\":") == std::string::npos && paired.find("\"o\":") == std::string::npos);
   paired = Request("{\"v\":1,\"command\":\"pair-local\"}");
   assert(paired == "{\"v\":1,\"ok\":false,\"error\":\"already_paired\"}" && pairCalls == 2);
+  for (const char* invalid : {
+      "{\"v\":1,\"command\":\"recover-local\"}",
+      "{\"v\":1,\"command\":\"recover-local\",\"confirm\":false}",
+      "{\"v\":1,\"command\":\"recover-local\",\"confirm\":1}",
+      "{\"v\":1,\"command\":\"recover-local\",\"confirm\":\"true\"}",
+      "{\"v\":1,\"command\":\"recover-local\",\"confirm\":true,\"extra\":true}",
+      "{\"v\":1,\"command\":\"recover-local\",\"confirm\":true,\"confirm\":true}",
+      "{\"v\":2,\"command\":\"recover-local\",\"confirm\":true}"}) {
+    assert(Request(invalid) == "{\"v\":1,\"ok\":false,\"error\":\"invalid_request\"}");
+    assert(recoverCalls == 0 && pairCalls == 2);
+  }
+  auto recovered = Request("{\"v\":1,\"command\":\"recover-local\",\"confirm\":true}");
+  assert(recoverCalls == 1 && pairCalls == 2);
+  assert(recovered.find("\"ok\":true") != std::string::npos);
+  assert(recovered.find("\"id\":") != std::string::npos && recovered.find("\"host\":") != std::string::npos);
+  assert(recovered.find("\"spkiSha256\":") != std::string::npos && recovered.find("\"token\":") != std::string::npos);
+  assert(recovered.find("\"n\":") == std::string::npos && recovered.find("\"o\":") == std::string::npos);
+  recoveryError = "busy";
+  assert(Request("{\"v\":1,\"command\":\"recover-local\",\"confirm\":true}") ==
+         "{\"v\":1,\"ok\":false,\"error\":\"busy\"}");
+  assert(recoverCalls == 2 && pairCalls == 2);
+  status = Request("{\"v\":1,\"command\":\"status\"}");
+  assert(status.find("token") == std::string::npos && status.find("spkiSha256") == std::string::npos);
   auto result=Request("{\"v\":1,\"command\":\"configure\",\"profile\":\"hotspot\",\"ssid\":\"Owner iPhone\",\"password\":\"secret-password\"}");
   assert(configureCalls==1 && lastSsid=="Owner iPhone" && result.find("secret-password")==std::string::npos);
   Request(std::string(513,'x'),ESP_ERR_INVALID_ARG);

@@ -321,7 +321,9 @@ window.setInterval(() => {
   }
 }, 2000);
 
+let controlConnectGeneration = 0;
 document.addEventListener('visibilitychange', () => {
+  ++controlConnectGeneration;
   if (document.hidden) {
     pendingAction = null;
     connection?.release();
@@ -334,6 +336,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 window.addEventListener('pagehide', () => {
+  ++controlConnectGeneration;
   connection?.release();
   if ((connection instanceof SimulatorDeviceConnection || connection instanceof NativeDeviceConnection)) {
     connection.suspend();
@@ -350,7 +353,7 @@ async function initializeNativeAsync(): Promise<void> {
       Níže zůstává ruční párování podle servisního QR.</p>
     <button type="button" data-native="discover">Hledat kufr v síti (5 s)</button>
     <p>Telefon a kufr musí být ve stejné místní síti. Nalezené údaje jsou jen vodítko;
-      identitu ověřuje otisk z QR. Bez nálezu zadejte IP nebo nastavte DHCP rezervaci v routeru.</p>
+      identitu ověřuje uložený otisk. Připojení přes zabezpečené BLE v Síť kufru doplní aktuální IP automaticky.</p>
     <div data-discovery-results></div>
     <form>
       <label>Adresa v místní síti<input name="host" autocomplete="off" autocapitalize="none" required maxlength="253" placeholder="192.168.1.50"></label>
@@ -398,6 +401,7 @@ async function initializeNativeAsync(): Promise<void> {
     form.querySelector<HTMLButtonElement>('button')!.disabled = busy;
   };
   const applySavedDevice = (saved: SavedNativeDevice) => {
+    ++controlConnectGeneration;
     paired = saved.paired && typeof saved.deviceId === 'string' && typeof saved.host === 'string';
     savedDeviceId = paired ? saved.deviceId : undefined;
     addressInput.value = paired ? saved.host! : '';
@@ -435,6 +439,7 @@ async function initializeNativeAsync(): Promise<void> {
     });
   });
   const changeAddressAsync = async (host: string) => {
+    ++controlConnectGeneration;
     connection?.release();
     if (connection instanceof NativeDeviceConnection) { connection.suspend(); }
     await nativeBridge.setAddress({ host });
@@ -452,7 +457,11 @@ async function initializeNativeAsync(): Promise<void> {
       status.textContent = 'Hledám kufr v místní síti, nejvýše 5 sekund…';
       const result = await nativeBridge.discover();
       const devices = result.devices.filter((device) => !paired || device.deviceId === savedDeviceId);
-      status.textContent = result.failed
+      status.textContent = result.bleAddressAvailable && devices.length > 0
+        ? (result.failed
+          ? 'Místní hledání není dostupné. Adresa spárovaného kufru je dostupná přes zabezpečené Bluetooth; můžete se připojit.'
+          : 'Adresa spárovaného kufru je dostupná přes zabezpečené Bluetooth; můžete se připojit.')
+        : result.failed
         ? 'Místní hledání není dostupné. Povolte aplikaci místní síť v Nastavení, ověřte Wi-Fi nebo zadejte IP.'
         : devices.length === 0
           ? 'Za 5 sekund nebyl nalezen odpovídající kufr. Telefon i kufr musí být ve stejné síti; kufr musí mít také servisně nastavenou místní TLS identitu a párování. Samotné BLE nastavení Wi-Fi nestačí. U připraveného kufru lze zadat IP.'
@@ -475,13 +484,35 @@ async function initializeNativeAsync(): Promise<void> {
     });
   });
   connectButton.addEventListener('click', () => {
-    if (!document.hidden && connection instanceof NativeDeviceConnection) { connection.connect(); }
+    if (document.hidden) return;
+    const generation = controlConnectGeneration;
+    const current = () => !document.hidden && generation === controlConnectGeneration;
+    void performAsync(async () => {
+      const refreshed = await provisioningPanel.refreshLocalAddress();
+      if (!current()) return;
+      if (!refreshed) {
+        status.textContent = 'BLE ještě pracuje nebo adresu neobnovilo. Dokončete připojení v Síť kufru a zkuste znovu.';
+        return;
+      }
+      const saved = await nativeBridge.savedDevice();
+      if (!current()) return;
+      if (!saved.paired || saved.deviceId !== savedDeviceId || typeof saved.host !== 'string') {
+        applySavedDevice(saved);
+        return;
+      }
+      // Preserve unresolved-command state across a reconnect to the same device.
+      addressInput.value = saved.host;
+      status.textContent = `Uložený kufr ${saved.deviceId} · ${saved.host}.`;
+      if (connection instanceof NativeDeviceConnection) { connection.connect(saved.host); }
+    });
   });
   disconnectButton.addEventListener('click', () => {
+    ++controlConnectGeneration;
     connection?.release();
     if (connection instanceof NativeDeviceConnection) { connection.suspend(); }
   });
   forgetButton.addEventListener('click', () => {
+    ++controlConnectGeneration;
     void performAsync(async () => {
       await nativeBridge.forget();
       applySavedDevice(await nativeBridge.savedDevice());

@@ -21,11 +21,30 @@ enum ProvisioningStatusCodec {
         if let version = text(ota["a"], max: 31) { safeOta["availableVersion"] = version }
         if let error = text(ota["e"]) { safeOta["error"] = error }
         if let automatic = ota["i"] as? Bool { safeOta["automaticInstall"] = automatic }
+        var safeNetwork: [String: Any] = ["phase": phase, "activeProfile": active,
+            "lastSuccessfulProfile": last, "result": result, "hotspot": hotspot, "fallback": fallback]
+        if phase == "connected", let ip = network["ip"] as? String, validIpv4(ip) {
+            safeNetwork["ipv4"] = ip
+        }
         var safe: [String: Any] = ["v": 1, "ok": ok, "deviceId": deviceId, "firmwareVersion": firmware,
-            "network": ["phase": phase, "activeProfile": active, "lastSuccessfulProfile": last, "result": result,
-                        "hotspot": hotspot, "fallback": fallback], "backendConnected": backend, "ota": safeOta]
+            "network": safeNetwork, "backendConnected": backend, "ota": safeOta]
         if let error = text(object["error"]) { safe["error"] = error }
         return safe
+    }
+
+    static func validIpv4(_ address: String) -> Bool {
+        let parts = address.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 4 else { return false }
+        var octets: [Int] = []
+        for part in parts {
+            guard !part.isEmpty, part.count <= 3,
+                  part.utf8.allSatisfy({ (48...57).contains($0) }),
+                  part.count == 1 || part.first != "0",
+                  let octet = Int(part), octet <= 255 else { return false }
+            octets.append(octet)
+        }
+        // Reject unspecified, loopback, multicast and reserved destinations.
+        return octets[0] > 0 && octets[0] != 127 && octets[0] < 224
     }
 
     private static func text(_ value: Any?, max: Int = 64) -> String? {

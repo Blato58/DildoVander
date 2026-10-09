@@ -186,6 +186,10 @@ void EspIdfBleProvisioning::AddStatus(cJSON* response) {
   cJSON_AddStringToObject(network, "l", ProfileName(status.lastSuccessful));
   cJSON_AddStringToObject(network, "h", status.hotspotSsid);
   cJSON_AddStringToObject(network, "f", status.fallbackSsid);
+  const std::string ip = station_.CurrentIpv4();
+  if (std::strcmp(status.phase, "connected") == 0 && !ip.empty()) {
+    cJSON_AddStringToObject(network, "ip", ip.c_str());
+  }
   if (callbacks_.status != nullptr) { callbacks_.status(response, callbacks_.context); }
   if (cJSON_GetObjectItemCaseSensitive(response, "b") == nullptr) {
     cJSON_AddBoolToObject(response, "b", false);
@@ -205,24 +209,30 @@ cJSON* EspIdfBleProvisioning::Execute(cJSON* request) {
   }
   const auto* version = cJSON_GetObjectItemCaseSensitive(request, "v");
   const char* command = Text(request, "command");
-  if (command != nullptr && std::strcmp(command, "pair-local") == 0) {
+  const bool recover = command != nullptr && std::strcmp(command, "recover-local") == 0;
+  if (command != nullptr && (std::strcmp(command, "pair-local") == 0 || recover)) {
     auto* ok = cJSON_AddBoolToObject(response, "ok", false);
     if (ok == nullptr) { cJSON_Delete(response); return nullptr; }
     const bool valid = cJSON_IsObject(request) && UniqueFields(request) &&
         cJSON_IsNumber(version) && version->valuedouble == 1 &&
-        cJSON_GetArraySize(request) == 2;
+        cJSON_GetArraySize(request) == (recover ? 3 : 2) &&
+        (!recover || cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(request, "confirm")));
+    const auto callback = recover ? callbacks_.recoverLocal : callbacks_.pairLocal;
     const char* error = !valid ? "invalid_request" :
-        callbacks_.pairLocal == nullptr ? "pairing_unavailable" :
-        callbacks_.pairLocal(response, callbacks_.context);
+        callback == nullptr ? "pairing_unavailable" :
+        callback(response, callbacks_.context);
     cJSON_SetBoolValue(ok, error == nullptr);
     if (error != nullptr) {
       // Failure responses are exclusive too: no status fields or credentials.
       cJSON_Delete(response);
       response = cJSON_CreateObject();
       if (response == nullptr) { return nullptr; }
-      cJSON_AddNumberToObject(response, "v", 1);
-      cJSON_AddBoolToObject(response, "ok", false);
-      cJSON_AddStringToObject(response, "error", error);
+      if (cJSON_AddNumberToObject(response, "v", 1) == nullptr ||
+          cJSON_AddBoolToObject(response, "ok", false) == nullptr ||
+          cJSON_AddStringToObject(response, "error", error) == nullptr) {
+        cJSON_Delete(response);
+        return nullptr;
+      }
     }
     return response;
   }
@@ -288,7 +298,17 @@ esp_err_t EspIdfBleProvisioning::Handle(uint32_t, const uint8_t* input, ssize_t 
   NetworkProfiles::Wipe(buffer, sizeof(buffer));
   if (serialized == nullptr) { return ESP_ERR_NO_MEM; }
   if (response == nullptr) { std::free(serialized); return ESP_ERR_INVALID_ARG; }
-  const bool printed = cJSON_PrintPreallocated(response, serialized, SerializedCapacity, false);
+  bool printed = cJSON_PrintPreallocated(response, serialized, SerializedCapacity, false);
+  if (!printed || std::strlen(serialized) > 512) {
+    auto* network = cJSON_GetObjectItemCaseSensitive(response, "n");
+    if (cJSON_GetObjectItemCaseSensitive(network, "ip") != nullptr) {
+      // The optional address hint must not make an existing status exceed its
+      // wire limit. Preserve all original fields and the pairing token response.
+      cJSON_DeleteItemFromObjectCaseSensitive(network, "ip");
+      NetworkProfiles::Wipe(serialized, SerializedCapacity);
+      printed = cJSON_PrintPreallocated(response, serialized, SerializedCapacity, false);
+    }
+  }
   auto* token = cJSON_GetObjectItemCaseSensitive(response, "token");
   if (cJSON_IsString(token)) {
     NetworkProfiles::Wipe(token->valuestring, std::strlen(token->valuestring));

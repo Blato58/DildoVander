@@ -1,6 +1,9 @@
 #include <cassert>
 
 #include <array>
+#include <chrono>
+#include <future>
+#include <thread>
 #include <string>
 
 #include "../src/features/local_control/LocalBearerAuthenticator.h"
@@ -39,10 +42,11 @@ class TestRandom final : public PairingRandomPort {
       return false;
     }
     for (size_t index = 0; index < length; ++index) {
-      output[index] = static_cast<uint8_t>(0xa0 + index);
+      output[index] = static_cast<uint8_t>(0xa0 + index + offset);
     }
     return true;
   }
+  uint8_t offset = 0;
 };
 
 class TestGate final : public ServiceGate {
@@ -156,10 +160,54 @@ void TestExpiredReservationCannotBecomeOwner() {
   assert(admission.IsActive(second));
 }
 
+void TestRecoveryGateLinearizesAuthentication() {
+  MemoryStorage storage;
+  TestHasher hasher;
+  TestRandom random;
+  LocalPairingCredential credential(storage, hasher, random);
+  LocalBearerAuthenticator authenticator(credential);
+  LocalSocketAdmission admission(authenticator);
+  std::array<uint8_t, LocalPairingCredential::TokenSize> token{};
+  assert(credential.InitializeFromAuthenticatedBle(token));
+  const std::string originalAuthorization = Authorization(token);
+  LocalSocketAdmission::Handle handle;
+  assert(admission.Reserve(21, originalAuthorization.data(), originalAuthorization.size(), 0, handle));
+  assert(!admission.RunIfEmpty([&]() { assert(false); }));
+  assert(admission.Confirm(handle, 1));
+  assert(!admission.RunIfEmpty([&]() { assert(false); }));
+  assert(admission.Release(handle) == LocalSocketAdmission::ReleaseResult::Active);
+
+  std::promise<void> attempting;
+  std::promise<void> completed;
+  auto attemptingFuture = attempting.get_future();
+  auto completedFuture = completed.get_future();
+  std::thread handshake;
+  bool accepted = true;
+  assert(admission.RunIfEmpty([&]() {
+    handshake = std::thread([&]() {
+      attempting.set_value();
+      accepted = admission.Reserve(22, originalAuthorization.data(), originalAuthorization.size(), 2, handle);
+      completed.set_value();
+    });
+    attemptingFuture.wait();
+    assert(completedFuture.wait_for(std::chrono::milliseconds(20)) == std::future_status::timeout);
+    random.offset = 1;
+    assert(credential.RotateFromAuthenticatedBle(token));
+  }));
+  handshake.join();
+  assert(!accepted); // The blocked handshake must validate against the new digest.
+  const std::string recoveredAuthorization = Authorization(token);
+  assert(admission.Reserve(23, recoveredAuthorization.data(), recoveredAuthorization.size(), 3, handle));
+  assert(!admission.RunIfEmpty([&]() { assert(false); }));
+  assert(admission.Release(handle) == LocalSocketAdmission::ReleaseResult::Reserved);
+  assert(admission.RunIfEmpty([&]() {}));
+}
+
 }  // namespace
 
 int main() {
   TestExclusiveHandshakeAndDisconnect();
   TestExpiredReservationCannotBecomeOwner();
+  TestRecoveryGateLinearizesAuthentication();
   return 0;
 }

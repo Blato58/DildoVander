@@ -126,7 +126,7 @@ class PublisherBoundaryTests(unittest.TestCase):
                     patch.object(PUBLISHER, 'DESTINATION', destination), \
                     patch.object(PUBLISHER, 'source_path', return_value=Path('unused')), \
                     patch.object(PUBLISHER, 'read_source', return_value=self.data), \
-                    patch.object(PUBLISHER, 'load_owned_module', side_effect=[verifier, signer]):
+                    patch.object(PUBLISHER, 'load_owned_module', side_effect=[Mock(), verifier, signer]):
                 if main_changed:
                     with self.assertRaisesRegex(ValueError, 'main changed'):
                         PUBLISHER.publish('unused', '123', 'development', 'ephemeral')
@@ -152,7 +152,7 @@ class PublisherBoundaryTests(unittest.TestCase):
         keys.__truediv__.return_value = owned
         with patch.object(PUBLISHER, 'KEYS', keys), patch.object(PUBLISHER, 'PARTITIONS', owned), \
                 patch.object(PUBLISHER, 'source_path', return_value=Path('unused')), \
-                patch.object(PUBLISHER, 'load_owned_module', side_effect=[verifier, signer]), \
+                patch.object(PUBLISHER, 'load_owned_module', side_effect=[Mock(), verifier, signer]), \
                 patch.object(PUBLISHER, 'atomic_write') as promote:
             with self.assertRaises(ValueError):
                 PUBLISHER.publish('unused', '123', 'development', 'ephemeral')

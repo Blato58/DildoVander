@@ -3,6 +3,9 @@ set -euo pipefail
 test_directory="$(mktemp -d "${TMPDIR:-/tmp}/kufr-native-test.XXXXXX")"
 server_pid=""
 cleanup() {
+  if [ -f "$test_directory/server.log" ]; then
+    grep -E '^native-wss-extension-offered=(true|false)$' "$test_directory/server.log" || true
+  fi
   if [ -n "$server_pid" ]; then kill "$server_pid" 2>/dev/null || true; fi
   rm -rf -- "$test_directory"
 }
@@ -22,7 +25,7 @@ for name in ec256 ec384 rsa; do
 done
 swiftc -swift-version 5 -warnings-as-errors \
   ios/App/App/LocalDeviceIdentity.swift ios/App/App/LocalDeviceTransport.swift \
-  ios/App/App/LocalDeviceDiscovery.swift \
+  ios/App/App/LocalDeviceDiscovery.swift ios/App/App/ProvisioningStatusCodec.swift \
   tests/native_transport/main.swift -o "$test_directory/native-tests"
 node scripts/native-test-server.mjs "$test_directory" 49443 > "$test_directory/server.log" 2>&1 &
 server_pid="$!"
@@ -32,3 +35,4 @@ for attempt in {1..50}; do
 done
 grep -q native-test-peer-ready "$test_directory/server.log"
 "$test_directory/native-tests" "$test_directory" 49443
+grep -qE '^native-wss-extension-offered=(true|false)$' "$test_directory/server.log"

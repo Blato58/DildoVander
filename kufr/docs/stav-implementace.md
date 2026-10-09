@@ -71,6 +71,330 @@ na větvi `codex/kufr-complete-cad`; uživatelský zákaz push má přednost,
 žádný push/PR/merge/nasazení. Generované soubory jsou skutečně uložené v tomto
 worktree a v ZIP, Gitem se předávají reprodukovatelné zdroje a dokumentace.
 
+**D166 – aktuální předání 9. 10. 2026: automatická IPv4 ze Security1 BLE.**
+Majitel potvrdil hostname timeout, ale ruční `192.168.0.59` vedla k servisnímu
+stavu po validním snapshotu: tento UI důkaz potvrzuje pinned/authenticated WSS
+přes IP. Konkrétní příčina DNS/multicast na iPhonu není doložená. Volitelné n.ip je nyní implementované s IP generation/HasIp recheck a 512B
+fallbackem, který vynechá pouze optional IP. Nativní session/ID hint má 60s
+platnost, odmítá stale update/disconnect a změnu ID, staré provisioning ID stále
+umožní Wi-Fi provisioning. Ruční adresa má přednost; pin/token a hardwarové gates
+zůstávají. Keychain route write je stále pouze v onOpen po připnutém auth WSS.
+Discovery zachová Bonjour failed a zvlášť oznámí dostupnost BLE adresy.
+Explicitní Control connect nejprve obnoví status živé BLE session i při skrytém
+panelu a následně znovu načte savedDevice; odpadá 60s stale-host timing gap.
+Stejný device ID zachová connection instance a unresolved-command gate. Lifecycle
+číslo zruší starý tap při background/pagehide, změně identity/adresy a disconnect/
+forget; návrat do foreground starý async connect neobnoví. Dva followup review P2
+nálezy byly opraveny a regresní testy provádějí skutečný main tap handler s fake
+native adaptéry na obou async hranicích. GitHub review následně odhalilo P2
+silent skip při jiné pending BLE akci: refresh nyní vrací úspěch/neúspěch,
+pending/skipped/failed/stale refresh blokuje WSS tap. Plně odpojené BLE stále
+povolí uloženou/ruční LAN route. Dvě regrese pokrývají pending connection/action
+a main handler abort bez čtení staré adresy. Další GitHub P2 odhalilo BLE loss
+mezi savedDevice a async socket bridge: veřejný host/deviceId snapshot se nyní
+kopíruje při vytvoření socketu před listener await a cestuje s pokusem. Native
+connect odmítá partial/invalid/mismatched target, stále znovu čte pin/token z
+Keychain a route zapisuje pouze po auth onOpen. Regrese ověřuje listener delay,
+mutaci původní route a native snapshot po BLE end. GitHub P2 stale BLE state
+po ztrátě session ve skrytém panelu je opravené: failed refresh pro aktuální
+generaci vymaže logical connected/lastStatus a polling; další explicitní tap
+může použít uloženou/ruční route bez opakování mrtvé BLE session. Regrese ověřuje
+první odmítnutý refresh, druhý uložený-route tap a žádné obnovené polling requesty.
+
+Ověřeno: dvě MSVC station suites (worker /std:c++14 /W4 /WX), pět parent host
+suites pairing/TLS/BLE/discovery/WSS, 50 mobile tests, npm run build a
+pio run -e esp32-s3-idf -s, vše exit0. Native helper/status regressions jsou
+připravené pro existující macOS workflow; Windows je nespustil. Nezávislé native
+review odhalilo a následně ověřilo opravený legacy ID regression; kombinované
+firmware/native nezávislé review prošlo bez zbývajících findings.
+Finální source commit `e4d215cfe10b2d293c74cdf9e581efc974ae80a4` byl sloučen v
+[PR165](https://github.com/Blato58/DildoVander/pull/165) jako
+`b22f478ffcba03bf052b8073a9ed4fd1a53be47b`.
+[CI 37945851773](https://github.com/Blato58/DildoVander/actions/runs/37945851773),
+run number 167, prošlo včetně webu, host suites, main i diagnostických firmware
+buildů. CI a main mají shodný tree `dc21879478bd6f691b67b3c8934e2d731f8e0f6f`.
+Tři GitHub P2 vlákna jsou opravená, regresně ověřená a resolved. Reviews/inline/
+threads byly znovu načtené po posledním push i těsně před merge; poslední Codex
+review dokončené v 14:42:54 UTC nezanechalo nevyřešený relevantní nález.
+
+[OTA publikace 37946520625](https://github.com/Blato58/DildoVander/actions/runs/37946520625)
+prošla a zveřejnila development **0.1.168**, buildId
+`a228b02f1a1881065470680c26081f8ca8884f6a`, 1745456 B, SHA-256
+`a83069da0bf9af357bbf8613f85eedb1455e838ced225f5f7c7f08a55d9ddc31`.
+Existující root verifier a nezávislé veřejné HTTPS ověření potvrdily ECDSA podpis,
+hash a embedded verzi; metadata odpovídají CI image. Image/partition/N16R8
+kontroly prošly. Application-only COM7 zápis 1745456 B do `0x10000` prošel
+hash kontrolou a následoval vědomý hard RTS reset. NVS, otadata a partition
+table zůstaly zachované. Normální RTS boot zachytil **0.1.168**, start control
+loop, main configured **16384 B** / minimum remaining **12540 B** a start
+provisionovaného local TLS serveru v **19279 ms**. Hardware wiring/kalibrace
+zůstávají neověřené a pohyb disabled. PC active BLE scan našel `KUFR_4B6048`
+s očekávaným service UUID `b97a7f10-70e8-4b98-9dcc-40d66395c821`.
+[iOS podpis 37946514768](https://github.com/Blato58/DildoVander/actions/runs/37946514768),
+run number 23, prošel všemi třemi native harnessy: pinned LAN transport
+(SPKI/Keychain/WSS/captured route), native Debug backend a secured BLE status/
+secret whitelist, Xcode archive a Ad Hoc export. Stažená podepsaná IPA má
+ověřené Info.plist: Bundle ID `app.turquoise6409.green2444`, verze
+**1.0 / build 1000.0.23**, 1881267 B, SHA-256
+`399409f8692284a513643ab9dbeff33814e7b1caa72b2be03e6079284826a5b9`.
+[Safari publikace 37947083377](https://github.com/Blato58/DildoVander/actions/runs/37947083377)
+prošla všemi joby. Veřejné HTTPS bez TLS bypass potvrdilo
+[instalační stránku](https://2.28.202.220/ios/) s **1000.0.23**, manifest
+`/ios/releases/37947083377-1/manifest.plist` se správným Bundle ID/buildem
+a veřejnou IPA 1881267 B se shodným SHA-256 vůči podepsanému artefaktu i checksumu.
+Publikované verze D166 jsou **0.1.168 / 1000.0.23**. Historická bootovaná sestava
+D165 byla **0.1.162 / 1000.0.22**.
+Majitel na přesný dotaz k aktualizaci iPhonu na **1000.0.23**, zabezpečenému
+BLE s uloženým párováním a připojení uloženého kufru bez psaní IP odpověděl
+**„Connection worked“**. To potvrzuje automatické připojení D166 v této zkoušce;
+nebyla hlášená další přesná UI zpráva, dlouhodobé WSS ani restartová akceptace.
+Další konkrétní krok: fyzická kalibrace a dlouhodobý provoz; samostatně ověřit
+Keychain po restartu/aktualizaci, DHCP změnu a negativní síťové scénáře,
+cancel/background a nejisté povely. Dlouhodobý provoz, UIKit a fyzická
+kalibrace celé sestavy zůstávají otevřené. Žádné hardware gates se neodblokovaly.
+D165 níže je historická doložená dodávka.
+
+**Historické D165 – 9. 10. 2026 – obnova opakovaného párování po Zapomenout párování.**
+Majitel po úspěšném D164 připojení zapomněl párování a nové BLE párování vracelo
+already_paired. Native forget maže pouze Keychain; firmware ponechá hash.
+Explicitní `recover-local` s `confirm:true` přes existující Security1/PoP BLE
+po nativním potvrzení nahradí pouze zdravý spárovaný token. Chybějící, poškozené
+záznamy a připravené QR se touto cestou nenahrazují. Maintenance → admission →
+inbox → credential zámky vyžadují idle owner, žádnou údržbu a žádný živý/pending
+socket či event; starý token nemůže během výměny navázat handshake ani doběhnout
+jako ruční povel. Hash nového tokenu je durable, starý je revokovaný i po reload.
+Native recheck prázdného Keychain a non-overwriting insert zachovají jiný záznam.
+Cancel, background, timeout a stale callback jsou epoch-guarded; mutace se
+neopakují automaticky. Nový token/pin neprochází JS. Po ztrátě odpovědi lze
+zabezpečené BLE připojení a explicitní obnovu zopakovat.
+
+Sedm MSVC host suites (pairing, TLS, BLE, discovery, WSS server, inbox, admission)
+prošlo; 43 mobilních testů a npm run build prošly. `pio run -e esp32-s3-idf -s`
+prošel. Nezávislé firmware/native review a diff --check prošly. UIKit lifecycle
+není v host harnessu; jednotlivé firmware gates mají host testy, kombinace
+MaintenanceGate je source-reviewed. Regrese pokrývají reload/revokaci, RNG/hash/
+write failure, opakovaný digest, přesné confirmation fields, busy/pending a
+handshake/inbox souběh, native allowlist/types/extra fields/512B bounds.
+Commit `50b6b0605279884be5c2ed969254e2a57f32411a` byl pushnutý repo helperem;
+[PR163](https://github.com/Blato58/DildoVander/pull/163) sloučený jako
+`f752c1e0009d25b6827657f789bd35ff943c74f4` po zeleném
+[CI37936213640](https://github.com/Blato58/DildoVander/actions/runs/37936213640).
+Codex review dokončené bez findings; po posledním push a těsně před merge znovu
+načtené reviews, inline a threads, žádná nevyřešená vlákna.
+Tree `0add227557e52d87cd25e77769d7871f1f81bda2` odpovídá main i CI obrazu.
+
+[OTA37936948294](https://github.com/Blato58/DildoVander/actions/runs/37936948294)
+publikovala development **0.1.162**, buildId
+`a3426c091ce727418e8e7252d3f66b3087ddf5c3`, 1744688 B, SHA-256
+`0345a302c0170ded0ba80e4d4f5a5ff0bba5a06a4e3457bc0768a4bb2eab682b`.
+Veřejné HTTPS stažení nezávisle ověřilo ECDSA podpis, hash a embedded version.
+N16R8 image check a porovnání skutečné partition table se soukromou D164 zálohou
+prošly. V rámci schválené COM7 obnovy s vypnutými pohony esptool zapsal pouze
+aplikaci na0x10000, ověřil hash; NVS/otadata/partition table/bootloader zůstaly.
+Normal RTS boot potvrzuje **0.1.162**, main16384 B/minimum zbývajících12540 B,
+control loop, BLE advertise a local TLS server v18.899 s. PC BLE scan znovu našel
+**KUFR_4B6048** s očekávaným service UUID. USB boot není nová OTA instalace.
+
+[Podpis37936943860](https://github.com/Blato58/DildoVander/actions/runs/37936943860)
+prošel včetně všech tří native harnessů, Xcode archive a Ad Hoc exportu pro
+**1.0 /1000.0.22**.
+[Publikace37937381222](https://github.com/Blato58/DildoVander/actions/runs/37937381222)
+prošla všemi třemi joby. [Safari instalace](https://2.28.202.220/ios/) nabízí
+1000.0.22; Windows nezávisle ověřil stránku a manifest se zachovaným Bundle ID,
+IPA1873296 B se SHA-256
+`f5cb611018ea898b215701bda0982c76dcd0dff7d1738421e9d13299fb39ff3e`
+proti veřejnému checksumu. Backend zůstává active/healthz ok, jeho aplikace
+a data se neměnily. Native build nenahrazuje skutečnou obnovu na iPhonu.
+Další krok: vyřešit iPhone LAN discovery/adresu, ověřit dlouhodobé WSS a
+relaunch/aktualizaci Keychain i cancel/background; dokončené párování neopakovat.
+D164 připojení před forget nenahrazuje tuto novou fyzickou akceptaci.
+Majitel následně potvrdil **„I can pair again, but cant see him on network or connect to it“**.
+Opakované párování tedy funguje; LAN discovery/připojení zůstává hlášenou chybou.
+PC následně znovu resolve `_kufr._tcp` na stejný .local host/443 s protocol1
+provedlo a TLS WS bez credentialu vrátil401. Pasivní20s UART (120 B) nezachytil
+restart loop; tyto PC kontroly neověřují token/pin telefonu. Majitel následně
+hlásil hostname connection_timeout („pripojeni ke kufru neodpovedelo vcas“),
+ale po ručním zadání192.168.0.59 UI přešlo na „Kufr vyžaduje servisní kontrolu“.
+Source tuto hlášku vydá až po validním snapshotu: přímé IP tedy podle tohoto
+UI důkazu navázalo pinned/authenticated WSS. Hláška odráží hardware/calibration
+unverified gate; pohony se neodblokovávají. Bonjour/DNS na iPhonu zůstává otevřené.
+Další práce: bez psaní získat aktuální IP přes již ověřené BLE jako address hint,
+pin/token zachovat a adresu persistovat až po ověřeném WSS. Žádný další reset NVS.
+
+**D164 – 9. 10. 2026 – opravený startup a fyzická obnova COM7 na0.1.161.**
+Majitel nedokáže ESP najít ani přes BLE a autorizoval debug přes COM7/PC Bluetooth.
+Windows potvrzuje CH343 USB UART COM7 a funkční Intel Bluetooth adaptér.
+Pasivní 115200 čtení bez resetu zachytilo opakovaný boot verze **0.1.157**,
+`***ERROR*** A stack overflow in task main has been detected.` a soft reset.
+Matching ELF z CI37923289582 má SHA-256
+`99d9505e1c5ed3afeff6adf232f169c85afa490f0f34c8a8214f3862525f07e6`;
+addr2line potvrzuje `vApplicationStackOverflowHook`, backtrace je poškozený.
+K pádu dojde po hardware/calibration warning a před BLE/control loop startem.
+Tím je doložen důvod chybějící BLE na desce; verze0.1.160 na ní neběží.
+
+Zdroj má main stack3584 B. Constructor existující LocalTlsIdentity validuje
+uložený certifikát/klíč přes PSA/mbedTLS na main ještě před workerem pro
+první generování. Přesný crypto frame není z poškozeného backtrace určitelný.
+Nezávislé review doporučilo main stack16384 B, zachovat canary a runtime
+watermark; zvýšení spotřebuje dalších12800 B. sdkconfig.defaults přidává
+hodnotu, compile-time guard odmítne staré malé generované config a log uvede
+konfigurovanou velikost i minimum zbývajících bytů po startupu. Generovaný
+config byl zálohovaný mimo repo a regenerovaný; effective config je16384.
+TLS/pairing/PoP/Wi-Fi NVS, Keychain a hardware gates se nemění.
+Lokální `pio run -d kufr/firmware -e esp32-s3-idf -s` prošel; generated
+sdkconfig.h potvrzuje16384 B a canary1. `git diff --check` a nezávislé
+review prošly. UART ROM probe potvrdil ESP32-S3 rev0.2, flash16MB a PSRAM8MB.
+[PR161](https://github.com/Blato58/DildoVander/pull/161) je sloučený jako
+`12efd65fa40d12cda2c6041e7590b10c600d772c`; zdrojový commit
+`5286d6dc04b2e66cf364c4a09de73f469f49c3b0` byl pushnutý repo helperem.
+[CI37931935316](https://github.com/Blato58/DildoVander/actions/runs/37931935316)
+prošlo včetně host testů a všech firmware profilů. Codex review dokončené bez
+findings; reviews a inline byly po posledním push a těsně před merge znovu
+načtené. Tree `fda951953e72906ab5b1a5747094c44773459050` odpovídá main i obrazu.
+[OTA37933188173](https://github.com/Blato58/DildoVander/actions/runs/37933188173)
+publikovala development **0.1.161**, buildId
+`56413430197b8becdcaa03c19658a2f24dbf5360`, 1743920 B, SHA-256
+`119c799fc6b31b96be891f9b5356483714d6e8ae14eb09748604f8deb5871c52`.
+Nezávislé veřejné HTTPS stažení ověřilo ECDSA podpis, hash a embedded version;
+veřejný obraz se shoduje s obrazem skutečně nahraným přes USB.
+
+Majitel výslovně schválil „Flash COM7; actuator power is off“.
+Soukromá záloha partition/NVS/otadata má owner-only ACL mimo repo.
+Před zápisem byl ověřen shodný partition layout a skutečná revize desky.
+Esptool zapsal jen aplikaci na **0x10000**, ověřil hash a resetoval desku;
+NVS, otadata, partition table a bootloader nebyly přepsané ani vymazané.
+Normal boot s UART capture potvrzuje **0.1.161**, control loop, main stack
+**16384 B / minimum zbývajících12556 B**, BLE advertising a místní TLS server
+(start v18.918 s). Původní startup stack overflow se při tomto bootu neopakoval.
+PC aktivní BLE scan našel **KUFR_4B6048** se service UUID očekávaným iOS.
+Windows Bonjour objevil `_kufr._tcp`, host
+`kufr-820259579315c0916bbcc62999aa243a.local.` na443 a protocol1.
+LAN TLS WebSocket probe s extension offer bez credentialu vrátil očekávané
+**401 Unauthorized**; tento diagnostický probe neověřoval pin certifikátu ani
+nezakládal autentizované spojení. BLE scan neprovedl GATT pairing.
+
+Backend zůstal active/healthz ok, aplikace backendu nebyla přenasazená.
+Aktuální iOS zůstává **1.0 /1000.0.21** z D163; D164 ho znovu nepodepisovalo
+ani nepublikovalo. Zachování NVS doloží dostupné BLE/uložená Wi-Fi/TLS;
+Majitel následně odpověděl na výzvu k Síť kufru / Připojit uložený kufr
+v Ovládání na iOS1000.0.21: **„yes I am connected“**. Nové připojení telefonu
+je tím potvrzené; délka stabilního provozu ani Keychain po aktualizaci
+z této odpovědi nevyplývají.
+Další krok: ověřit dlouhodobé WSS, relaunch/aktualizaci aplikace a Keychain persistence.
+HW/E10 a skutečné pohony zůstávají otevřené; publikace ani PC probe je neuzavírají.
+
+**D163 – historické předání 9. 10. 2026 – oprava místního připojení po BLE párování.**
+Majitel potvrdil scan a párování; na stejné Wi-Fi v Ovládání hlásí
+„Spojení se kufrem bylo přerušeno“ a opakované připojování. Přesné instalované
+verze nejsou doložené. Zdroj odmítal každou nabídku WebSocket extensions
+před 101; podle RFC6455 §4.2.2 lze nabídku přijmout bez výběru extension.
+ESP-IDF odpověď žádné extensions nevybírá. Odmítnutí nabídky bylo odstraněno,
+přesná bearer autentizace, pin a limity rámců zůstávají. Nejde ještě o důkaz
+příčiny na fyzickém telefonu; macOS peer zaznamená jen boolean přítomnosti nabídky.
+Nativní transport vrací pouze allowlisted failureCode bez NSError/URL/tajností.
+Mobil vypíše konkrétní důvod, zastaví trvalé chyby a nejvýše třikrát obnoví
+ostatní spojení; explicitní připojení obnoví limit. Welcome samo limit
+neresetuje, až pět sekund platných snapshotů. Nejisté povely se nereplayují.
+Keychain/NVS se nemažou ani nepřepisují.
+Lokální ověření: pět MSVC pairing/TLS/BLE/discovery/server suites prošlo,
+43 mobilních testů a npm run build prošly; pio run -e esp32-s3-idf -s prošel.
+Node peer syntax, bash script syntax a diff --check prošly. Nezávislé source
+review vedlo k opravě pořadí typed close před send completion a k testu
+healthy reset po spotřebovaném retry. GitHub P2 dočasné ztráty sítě a README
+byly opravené; návrh změnit healthy reset byl zdůvodněně odmítnut: owner
+posílá snapshot každou sekundu i při ručním lease. Reviews/inline byly po
+posledním push a těsně před merge znovu načtené, všechna vlákna vyřešená.
+Commity c30d3ba/a9a92e3 byly pushnuté repo helperem;
+[PR159](https://github.com/Blato58/DildoVander/pull/159) je sloučený jako
+`5f742b24364b9564b729628ef5cd620ae601fb90` po zeleném
+[CI37928528451](https://github.com/Blato58/DildoVander/actions/runs/37928528451).
+Git tree `3f84a4c2bee77d1841bd31c9060db1652c90285a` odpovídá main i artefaktu.
+
+[OTA37929155208](https://github.com/Blato58/DildoVander/actions/runs/37929155208)
+publikovala development **0.1.160**, buildId
+`9d067195927db3774ff5a6f84c739f48bd8298de`, 1743728 B, SHA-256
+`f02029d55ed02281492fee8a3f24e3bd7634b6ad254193ef3f20f554c52cb192`.
+Veřejné HTTPS stažení nezávisle ověřilo podpis ECDSA, SHA-256 a embedded version.
+[Podpis37929159117](https://github.com/Blato58/DildoVander/actions/runs/37929159117)
+prošel včetně všech tří native harnessů, Xcode archive a Ad Hoc exportu.
+Apple URLSession v syntetickém macOS peeru skutečně poslala WS extension offer
+(čtyři `native-wss-extension-offered=true`), který původní ESP odmítal.
+[Publikace37929535139](https://github.com/Blato58/DildoVander/actions/runs/37929535139)
+prošla ve všech třech jobech. [Safari instalace](https://2.28.202.220/ios/)
+aktuálně nabízí **1.0 /1000.0.21**; Bundle ID/Team zůstaly zachované.
+Windows ověřil stránku, manifest a IPA1870043 B se SHA-256
+`8dc624add9451524953476e54889b6d87886ee7078c32a9cf0d1e651aaba4a7d`
+proti veřejnému checksumu. Backend zůstal active/healthz ok, jeho aplikace,
+credentialy a data se neměnily. Nasazení navazuje na výslovné deploy.
+Zbývá aktualizovat oba fyzické klienty a zopakovat Ovládání/WSS, restart ESP,
+relaunch/aktualizaci aplikace a Keychain persistence. Publikace ani macOS
+loopback tyto kontroly nenahrazují; HW/E10 zůstává otevřené.
+**D162 – 9. 10. 2026 – D161 nasazený a workflow verze automatická.**
+Automatické firmware verze jsou sloučené v [PR157](https://github.com/Blato58/DildoVander/pull/157),
+commit `3bf81025a9a51e9c93da5ac99646242b897c7094`. [CI37923289582](https://github.com/Blato58/DildoVander/actions/runs/37923289582)
+prošlo včetně Linux helper/provenance testů, host testů a všech firmware
+diagnostických buildů. Codex review464af6d dokončené bez findings;
+před merge znovu načtené reviews/inline, žádná nevyřešená vlákna.
+Git tree `21215f06a8c999f056ba1e9c9176b254ddb79435` odpovídá main i artefaktu.
+CI run_number156 přidělil firmware **0.1.157**; ruční bump0.1.2 byl
+nahrazen požadovaným automatickým číslováním. Nový CI běh verzi zvýší,
+rerun/publikace stejného artefaktu ji zachovají.
+
+Root-owned resolver/verifier/publisher byly instalované z tohoto checkoutu
+se shodnými SHA-256, root644/644/755. Předchozí helpery mají soukromou
+zálohu v `/root/kufr-release-3bf8102-37923289582/backup`; privátní klíče nebyly
+zobrazené, kopírované ani měněné (signer je běžně používá). Environment
+a návštěvnická data nebyly čtené ani měněné. Backend zůstal active a
+veřejný `/healthz` vrátil ok před i po publikaci; aplikace backendu nebyla
+přenasazená, D161 její kód nemění.
+[OTA publikace37923929435](https://github.com/Blato58/DildoVander/actions/runs/37923929435)
+prošla: development0.1.157, buildId `cea012486b7c67f44984ea82ab5c038549920c7d`
+(testovaný PR merge commit, stejný Git tree jako squash main),1743776 B,
+SHA-256 `40c54e708214fa32721eb3998d6fc1683715a71d59e28b2c0916323f383476d8`.
+Nezávislé veřejné HTTPS stažení ověřilo ECDSA podpis, SHA-256 a embedded
+version; manifest je dostupný i z Windows.
+
+[Web CI37923839902](https://github.com/Blato58/DildoVander/actions/runs/37923839902),
+[Ad Hoc podpis37923948887](https://github.com/Blato58/DildoVander/actions/runs/37923948887)
+a [Safari publikace37924314161](https://github.com/Blato58/DildoVander/actions/runs/37924314161)
+prošly. Nativní macOS harnessy pro pinned LAN/Keychain, debug backend a BLE
+status/secret whitelist prošly. Veřejná [instalace](https://2.28.202.220/ios/)
+nabízí **1.0 /1000.0.20**; Bundle ID/Team ID se nemění. Windows klient
+ověřil aktuální stránku, manifest, build a staženou IPA1866106 B se SHA-256
+`a90a1671aafd6b7ac3e2e7d02fc5f10ccc589eff543ffe844fceab657362a294`.
+
+Majitel po publikaci potvrdil scan a párování; přesné verze na telefonu/ESP nejsou doložené. Na stejné Wi-Fi v Ovládání selhává LAN spojení a opakuje připojování. Zbývá ověřit
+pinned WSS, restart ESP, relaunch/aktualizaci aplikace a Keychain persistence.
+Připojené ESP USB nebylo nalezené; nebyl proveden flash ani potvrzen nový
+boot. Publikace není přijetí změny na iPhonu/ESP a HW/E10 se neuzavírá.
+Nesouvisející lokální `.codex/environments/environment.toml` zůstal zachovaný.
+
+**9. 10. 2026 – nasazení D161 (BLE/Wi-Fi pairing), převzato.**
+Majitel výslovně požádal `deploy`. PR155 je sloučený jako `f0f10b6`;
+finální CI37920004873 a Codex review07963d1 prošly, relevantní P1 je
+opravený a vlákno uzavřené. Veřejný development OTA manifest při převzetí nabízel
+0.1.1; updater přijímá pouze vyšší verzi. Majitel doplnil, že má workflow
+verzi zvyšovat samo při každém běhu. D162 proto používá immutable policy
+`0.1.1+ci`: baseline + autoritativní CI run_number, s 16bit carry a odmítnutím
+overflow. Nový běh dostane vyšší verzi bez commitování verze; rerun/publikace
+stejného artefaktu ji nemění. Root verifier stejnou verzi odvodí nezávisle
+z GitHub API a immutable source a porovná ji s binárkou. CMake se při CI
+vždy regeneruje; lokální nepublikovaný build má pouze baseline. Legacy
+plain policies zůstávají kompatibilní. Instalace root-owned resolveru je
+nutná před publikací. Partition layout, důvěra OTA, PoP, NVS ani Apple/Keychain identita
+se nemění. Rozsah nasazení: podepsaná development OTA publikace a Ad Hoc
+IPA na existující Safari stránku přes existující workflow. Backend kód
+D161 nemění. Publikace nenahrazuje potvrzení instalace a nativního pairing
+na iPhonu/ESP. Výsledné build/publish běhy a runtime mezery se doplní
+po ověření; nyní nejde o prohlášení úspěšného nasazení.
+Lokální D162 ověření: dva navazující ESP-IDF buildy ve stejném checkoutu
+pro simulované CI run42/43 mají ověřený embedded version0.1.43/0.1.44;
+mezi nimi byl odstraněn jen CMakeCache, ne celý compiler cache. Verifier/
+publisher testy:33 prošlo,1 Linux-only skip; version/OTA tools:13 prošlo,
+1 OpenSSL skip; Node provenance55/55. Python CI archive testy16 prošlo,
+1 existující Unix mode test na Windows selhal (0o666 místo0o755); Linux CI
+ověří skutečná oprávnění. Nezávislé review bez blockeru, diff --check prošel.
+
 **9. 10. 2026 – rozměry doplněné majitelem a zrušení podmínek pro rozvržení.**
 Všechny údaje jsou pohromadě v [přehledu rozměrů kufru a součástek](../mechanika/rozmery-nakoupenych-soucastek.md).
 PTT má 14×14×35 mm, PCA9685 25×70×15 mm; pro U059 použít výrobce
@@ -630,7 +954,7 @@ codesign --verify --deep --strict, Bundle ID a embedded profile kontrola prošly
 To zároveň ověřilo skutečný plutil/XML project a scoped signing inheritance.
 [Publikace37899776001](https://github.com/Blato58/DildoVander/actions/runs/37899776001)
 prošla všemi třemi joby včetně public HTTPS manifest/IPA/MIME/SHA-256 readback.
-Aktuální [Safari instalace](https://2.28.202.220/ios/) je **1.0/build1000.0.19**,
+Tehdejší [Safari instalace](https://2.28.202.220/ios/) byla **1.0/build1000.0.19**,
 Bundle ID `app.turquoise6409.green2444`, IPA **1858197 B**, SHA-256
 `b1e1c01452cc600975e3793de0071449d955fa61db1388679301c8eb8ffd4273`.
 Parent nezávisle zopakoval public HTTPS hash/Info.plist/manifest kontrolu a
@@ -640,7 +964,8 @@ shodný s root signerem. Všechny publikace používaly odpovídající current 
 tree; následné docs-only předání nemění nasazený software.
 Větev `codex/event-completion-delivery-record` synchronizuje pouze audit,
 readiness, plán, provozní README a tyto skutečné doklady. Starší IPA 1000.0.16
-je výslovně označená jako historická; aktuální publikace je 1000.0.19.
+je výslovně označená jako historická; při D158 byla publikace1000.0.19.
+Aktuální publikace D163 je1000.0.21 podle předání nahoře.
 Žádný nový runtime kód ani
 secrets/privátní klíče nejsou součástí posledního dokumentačního předání.
 
@@ -1417,9 +1742,9 @@ A/B, skutečná indexace/search/delete hostů, instalace IPA na konkrétním
 telefonu, firmware flash a fyzická prezentace nebyly provedené. Nový
 technický log změří skutečnou delegaci při dalším použití; známá změna
 quiet=4000→1500 sama není měřením celkové latence rozhovoru.
-Pro autonomní režim použít aktuální IPA D146 build **1000.0.16** z
+Tehdy doporučená IPA pro autonomní režim byla D146 build **1000.0.16** z
 [instalační stránky](https://2.28.202.220/ios/); starší klient bez
-checkpointu nepoužívat. Další krok je reálný rozhovor/poslech a kontrola
+checkpointu nepoužívat. Aktuální build uvádí předání nahoře. Další krok je reálný rozhovor/poslech a kontrola
 `live_decision_completed`, správné hůlky a životního cyklu; HW B1 zůstává otevřené.
 První implementační commit `2710d49b2ae565f705e2c352f70f41bec3bfd706`
 byl pushnutý a `ls-remote` potvrdilo shodu. Povinný PowerShell helper
@@ -3428,9 +3753,9 @@ Dotčené cesty: `kufr/firmware/`, související README a tento stav. D159 síť
 | Část | Co skutečně existuje | Co zatím chybí |
 | --- | --- | --- |
 | Firmware | ESP-IDF6.1 runtime se STA/backend HTTPS, odděleným LAN vlastníkem, journal/safety snapshotem a textovým input/output. D158 BLE, profily a OTA; D159 skutečný USB/NVS servis, home Wi-Fi, token POST200, OTA0.1.1/VALID boot a restart. Arduino profil je odstraněný. | B1: externí napájení/OE/mechanika/kalibrace a skutečné I2S; hotspot/failover, LAN TLS/pairing/WSS a celý konverzační průchod. |
-| Mobil | Web/simulátor, Capacitor8.4.3 a native Swift SPKI/Keychain/pairing/WSS, text/cancel/result, Bonjour a Debug/hlas. Podepsaný iOS1.0/build1000.0.19 je zveřejněný; D159 majitel skutečně použil PoP/BLE, nastavil domácí Wi-Fi a potvrdil připojený backend po restartu. | LAN QR/TLS/pairing/Keychain/lifecycle, hotspot/failover a skutečné audio zkoušky. |
+| Mobil | Web/simulátor, Capacitor8.5.2 a native Swift SPKI/Keychain/pairing/WSS, text/cancel/result, Bonjour a Debug/hlas. D161 BLE Wi-Fi párování a Keychain; D163 opravuje WSS offer/retry a podepsaný iOS1.0/build1000.0.21 je zveřejněný. D159 majitel skutečně použil PoP/BLE na1000.0.19, nastavil domácí Wi-Fi a potvrdil připojený backend po restartu. | LAN QR/TLS/pairing/Keychain/lifecycle, hotspot/failover a skutečné audio zkoušky; majitel potvrdil scan/párování, ale LAN v Ovládání se opakovaně odpojuje; přesné instalované verze nejsou doložené. |
 | Backend/kontrakty/simulátor | SQLite/idempotence/retence, Responses Sol a trvalá oddělená paměť večera, izolovaný hlas a technické logy. Backend je nasazený; D159 fyzická device identita je trvale registrovaná a skutečný ESP HTTPS token POST200 prošel i po restartu. Strict v1 kontrakty a simulátor zůstávají. | Skutečný celý device rozhovor/hlas, živá evaluace a lidská/provozní akceptace; produkční region/retence. |
-| iOS CI | Stávající ruční macOS workflow: D158 native testy, Xcode archive a Ad Hoc export37899385679; iOS1000.0.19 publish37899776001 a public IPA/hash prošly. D159 majitel použil BLE na iPhonu. | Další LAN/TLS/Keychain/lifecycle iPhone zkoušky a řízená app aktualizace/rollback. |
+| iOS CI | Stávající ruční macOS workflow: D163 native testy, Xcode archive a Ad Hoc export37929159117; iOS1000.0.21 publish37929535139 a public IPA/hash prošly. D159 majitel použil BLE na iPhonu s1000.0.19. | Další LAN/TLS/Keychain/lifecycle iPhone zkoušky a řízená app aktualizace/rollback. |
 | Hardware | D122/D159 konkrétní ESP32-S3 rev0.2, N16R8, ROM flash/PSRAM a UART/native USB; USB-only aplikace a skutečná OTA na samostatné desce. Dodaný pinový podklad a návrh napájení zůstávají. | PCB/schéma externího zapojení, bezpečnostní větev/OE, LED, napájení, mechanika, kalibrace a fyzická akceptace periferií. |
 
 Zdroje: [firmware](../firmware/README.md), [jeho konfigurace](../firmware/platformio.ini), [sekvence](../firmware/src/features/wand_selection/SelectionSequence.cpp), [hostitelský test](../firmware/tests/selection_sequence_test.cpp), [mobilní vstup](../mobilni-aplikace/src/main.ts), [package.json](../mobilni-aplikace/package.json). Tento přehled aktualizuj, až se skutečný stav změní.
