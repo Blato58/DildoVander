@@ -5,12 +5,24 @@ mobile companion, contracts, simulator, offline AI evaluation, service tools
 and deployment workflows. `obludarium/` remains an independent Arduino Nano
 starter project, outside the suitcase implementation scope.
 
+**Current published delivery: D162.** The current receipt in
+[implementation status](../kufr/docs/stav-implementace.md#předání-další-ai)
+records development OTA **0.1.157** from
+[publish run 37923929435](https://github.com/Blato58/DildoVander/actions/runs/37923929435)
+and iOS **1.0 / build 1000.0.20** from
+[signing run 37923948887](https://github.com/Blato58/DildoVander/actions/runs/37923948887)
+and [publish run 37924314161](https://github.com/Blato58/DildoVander/actions/runs/37924314161).
+These publication receipts do not establish installation or physical acceptance.
+The owner's subsequent report confirms scanning and pairing work, but LAN
+connection repeatedly disconnects; its cause remains under investigation.
+
 The implementation plan and [implementation status](../kufr/docs/stav-implementace.md)
 remain authoritative for stage acceptance. Historical acceptance is not treated
 as a fresh test. This report distinguishes executable source, host verification,
 deployment and physical acceptance.
 
-The software is merged and delivered: complete firmware/backend/web CI,
+**Historical D158/D159 delivery and physical evidence:** the software was merged
+and delivered: complete firmware/backend/web CI,
 macOS native suites and signed Ad Hoc archive/export passed. Backend,
 development OTA0.1.1 and iOS1.0/build1000.0.19 are published with verified
 HTTPS readback. Exact commits, hashes and workflow receipts are in the status.
@@ -27,7 +39,7 @@ both after OTA and another reset; the owner confirmed connected Wi-Fi/backend
 on the iPhone. Hotspot transitions, OTA power-loss/negative verification/rollback
 and loaded peripherals remain unverified. No paid inference was performed.
 
-## Functional inventory and prioritized findings
+## Functional inventory and prioritized findings (D158/D159 snapshot)
 
 | Subsystem / evidence | Initial finding and impact | Priority | Implementation and dependencies | Verification / readiness |
 | --- | --- | --- | --- | --- |
@@ -98,7 +110,9 @@ The original 16MB partition offsets and filesystem space remain intact.
 Exact final commands, results, commits and live publication are recorded in
 [implementation status](../kufr/docs/stav-implementace.md). The test matrix in
 [event readiness](event-readiness.md) maps all requested scenarios to host,
-build/live-server or outstanding physical checks.
+build/live-server or outstanding physical checks. Its D158/D159 results remain
+historical evidence; the current D162 publication and unresolved LAN disconnect
+report above do not extend those physical acceptance results.
 
 Software tests cannot establish actual CoreBluetooth/radio coexistence, iPhone
 hotspot behavior, power-loss rollback, NVS physical security, measured servo

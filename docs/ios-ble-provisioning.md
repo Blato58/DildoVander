@@ -67,13 +67,16 @@ project. Use the existing `kufr-ios-sign.yml` workflow with a verified web CI ru
 it resolves the pinned Swift package, runs native tests and signs the app.
 Xcode or a signed archive does not establish physical BLE/hotspot acceptance.
 
-Current verified delivery: iOS1.0/build1000.0.19 at
+Current verified delivery: iOS1.0/build1000.0.20 at
 [Safari installation](https://2.28.202.220/ios/), signed/native run
-[37899385679](https://github.com/Blato58/DildoVander/actions/runs/37899385679)
+[37923948887](https://github.com/Blato58/DildoVander/actions/runs/37923948887)
 and public manifest/IPA/checksum verification
-[37899776001](https://github.com/Blato58/DildoVander/actions/runs/37899776001).
+[37924314161](https://github.com/Blato58/DildoVander/actions/runs/37924314161).
+D161 adds one-button Wi-Fi control pairing over authenticated BLE, with
+credentials stored only in native Keychain; development OTA0.1.157 is published.
+After publication the owner confirmed scanning and pairing, then repeated LAN disconnects in Ovládání on the same Wi-Fi. Exact installed versions are not documented; pinned WSS and Keychain retention remain open.
 The initial registered iPhone profile is still required. During D159 on
-9 October 2026, the owner confirmed discovery and a successful PoP-authenticated
+9 October 2026 with iOS build1000.0.19, the owner confirmed discovery and a successful PoP-authenticated
 connection to the provisioned physical ESP32-S3, then entered home Wi-Fi privately
 as the fallback profile. The profile blob was independently read back from NVS
 without exposing its SSID/password; the owner confirmed Wi-Fi reconnection after
