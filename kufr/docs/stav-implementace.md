@@ -55,6 +55,14 @@ po vyžádaném podepsaném buildu a firmware publikaci ověřit na ESP/iPhonu
 Bonjour, párování přes BLE, pinned WSS, restart ESP, relaunch/aktualizaci
 aplikace a odmítnutí cizího pinu/tokenu. HW/E10 akceptace se neuzavírá.
 
+Git předání: integrovaný implementační commit
+`d571f7a726b67d0b7e3a2ba2dca03a25feafe26e` byl ověřeně pushnutý helperem
+na `codex/ble-wifi-pairing`; [PR155](https://github.com/Blato58/DildoVander/pull/155).
+Lokální necommitovaný `.codex/environments/environment.toml` je nesouvisející
+a zůstal zachovaný; při push byl pouze v procesu helperu potlačen jeho
+untracked status. Po rebasi pět C++ sad i `pio run -s` znovu prošly.
+Před merge zbývá ověřit finální CI a znovu načíst GitHub reviews/inline vlákna.
+
 **9. 10. 2026 – rozměry nakoupených součástek: dokumentační rešerše.**
 Na žádost majitele je připravený [přehled všech 32 položek potvrzeného
 inventáře](../mechanika/rozmery-nakoupenych-soucastek.md), navíc objednané
