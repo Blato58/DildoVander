@@ -13,6 +13,7 @@ import chassis
 import mechanism
 import layout
 import inspect_data
+import harness
 from check_fit import scene
 from artifacts import ASSEMBLY_NAMES
 
@@ -32,6 +33,7 @@ def source_hashes():
 
 def main():
     inspect_data.snapshot_sources()
+    harness.validate()
     for directory in (OUT,OUT/"stl",OUT/"step",OUT/"assembly",OUT/"images"):
         directory.mkdir(exist_ok=True)
     expected={p.name for p in all_parts()}
@@ -66,6 +68,7 @@ def main():
         if i.group in ("hardware","moving_hw","wand"):
             inventory.append({"name":i.name,"bounds_mm":[round(v,4) for v in bounds(i.shape)],"source":i.source})
     (OUT/"manifest.json").write_text(json.dumps({"revision":PARAMS["revision"],"parts":manifest,"assemblies":list(scenes),"inventory":inventory,"sources":source_hashes()},indent=2,ensure_ascii=False),encoding="utf-8")
+    harness.export(OUT)
     with (OUT/"print-bom.csv").open("w",newline="",encoding="utf-8-sig") as f:
         writer=csv.writer(f)
         writer.writerow(["part","quantity","X_mm","Y_mm","Z_mm","solid_cm3","purpose"])

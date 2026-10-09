@@ -6,6 +6,75 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**9. 10. 2026 – F1 optimalizace kabeláže a rozložení ověřena v CAD.**
+PD trigger, měnič a jistič jsou u banky vlevo; měnič mezi maticemi
+zvýšeného stolku, jistič izolovaně pod ním. Stolky a boční clony mají
+servisní průchody, nad měničem je větrání. Tři Degson mají sítě MAIN5,
+DRIVE5 a GND, tabulku portů a izolované vodičové rozbočky mimo PCB.
+135 vedení má oba konce označené, délkové rezervy a rozlišení původních
+kabelů od prodloužení. Návod a pořadí montáže: [KABELAZ.md](../mechanika/final/KABELAZ.md).
+Vznikly JSON/CSV kabelový plán a řezací seznam, SVG/PNG výkres a nový ZIP.
+GPIO, firmware ani mechanismus zdvihu se tím nemění.
+
+Změněny zdroje `final/layout.py`, `harness.py`, `test_harness.py`,
+`build.py`, `verify.py`, `drawings.py`, `preview.py`, `inspect_data.py`,
+`artifacts.py`, `Regenerate.ps1`, ověřený snapshot a montážní dokumentace;
+potvrzené zapojení odkazuje tento montážní plán. Nezávislé review je bez
+otevřeného nálezu; nalezené průniky kabelových tras, matic a rezervních
+dílů byly opraveny před úspěšným předáním.
+
+Provedeno: `Regenerate.ps1 -Python ..\.venv\Scripts\python.exe` PASS,
+56 Python testů a 5 testů prohlížeče; 29 STL typů / 44 výtisků, zpětné
+načtení STEP, tři celé sestavy, 81 vzorků mechanismu se sousedy, 36 poloh
+víka a 37 kroků vyjmutí banky. Smyčková obálka modulu 2 má 81 vzorků;
+všech šest obálek je ověřeno ve statické sestavě. Ad hoc BREP audit
+266 úseků střednic o tloušťce 0,1 mm včetně rezervních dílů: 0 průniků.
+Shoda zdrojových SHA-256, ZIP CRC/inventory, 135 CSV řádků se štítky
+a 37 místních odkazů PASS. ZIP SHA-256:
+`5f32903ee4f9871feba184fbd4088df71b234caa556579cdbbb112f93eadab8a`.
+Browser `http://127.0.0.1:8914/viewer.html`, 611 × 764: Servis,
+Inspect D1/MAIN5, kondenzátor 3/PCA V+ a měnič 46×31×19 fungují;
+bez vodorovného přetékání a varování/chyb konzole. Výkres a servisní
+render vizuálně zkontrolovány. Autoritou geometrie zůstává
+`final/exports/verification.json` se shodnými zdrojovými hashi.
+
+Fyzicky neověřeno: skutečné ohyby/zaplnění svazků, konektory, dostupná
+délka vodičů, izolace/polarita, teploty/proudy a zatížený mechanismus.
+USB napájecí zakončení ESP zůstává k ověření existujícího adaptéru;
+plán žádný nekoupený konektor nepředstírá. Další krok: suchá montáž
+levé napájecí sestavy a jednoho osazeného modulu, elektrická přejímka
+a pohyb včetně opačných poloh sousedních lůžek. HW kritéria zůstávají
+otevřená. Implementační commit `1bd8fe1` byl skutečně pushnut a jeho
+remote SHA ověřeno pomocí `scripts/Push-CurrentBranch.ps1`.
+[PR #169](https://github.com/Blato58/DildoVander/pull/169) obsahuje tento
+slice; dokončení merge podléhá poslední kontrole reviews/inline komentářů
+a stavu CI. Vygenerované exporty jsou lokální, reprodukovatelné a v ZIPu.
+GitHub Codex review následně zachytil P2 rozpor v `efekty-a-napajeni.md`:
+starší pokyn požadoval JST-SM u LED a dodatečný Grove adaptér. Dokument
+je sjednocen s F1: LED mají označené pájené výkonové/datové spoje,
+servis po odpojení zdroje a ověření vybití vyžaduje odpájení vlastní
+větve; U059 zachovává původní Grove na straně modulu. Ověření opravy:
+`python -m unittest -q test_harness` 28 PASS, regresní kontrola LED/Grove
+montážního kontraktu a nových místních odkazů PASS. Zdrojové hashe CAD
+a tehdejší ZIP se neměnily; jejich kontrola znovu PASS. Oprava byla pouze
+v tomto provozním podkladu a záznamu stavu, žádný aplikační build neběžel.
+
+Další dva P2 nálezy PR review jsou opravené: RGB-2 až RGB-6 mají 128 mm
+pohybové rezervy pro dva nezávislé konce, RGB-1 a jednotlivé větve 64 mm.
+Svorkové vazby v náhledu se rozvinou přes pájené rozbočky až k reálným
+součástkám, včetně vnořené logické GND a označeného USB aliasu ESP.
+Reprodukční testy nejprve selhaly; po opravě 33 testů kabeláže PASS.
+Nezávislé review bez nálezu. Celý `Regenerate.ps1` znovu PASS; údaje
+a hash ZIP výše patří této nové regeneraci. Browser po reloadu ověřil
+D1/LED, audio a PTT, D2/všech šest U059 a D3/vnořenou GND; konzole
+bez varování/chyb. SHA-256 zdrojů, CRC/inventory ZIP a CSV znovu PASS.
+Nález požadující regeneraci po samotném `35cab87` měl chybný předpoklad:
+commit změnil pouze `efekty-a-napajeni.md` a tento stav; Git blob
+`reference/inspect-sources.json` zůstal shodný. Snapshot obsahuje pouze
+rozměry a potvrzené zapojení, nikoli provozní dokument efektů. Nynější
+změna `harness.py`/testů/montážního návodu už zdrojový fingerprint mění,
+proto se celý výrobní balíček skutečně regeneroval a ověřil.
+
 **9. 10. 2026 – F1 prohlížeč: Inspect, barvy a kabelové vazby.**
 `kufr/mechanika/final/exports/viewer.html` byl regenerován z aktuálních
 zdrojů. Shift zvýrazní skutečnou viditelnou geometrii a zobrazí kartu;

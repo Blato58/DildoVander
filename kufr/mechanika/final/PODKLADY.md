@@ -50,15 +50,15 @@ Konektory mají samostatné rezervy; nejsou zaměněny za rozměry samotných PC
 | DFR0954 18×18 | Oba moduly na příslušných bočních stolcích; výšková rezerva 8 |
 | Waveshare 100×45×21 | Oba reproduktory dole vpředu po stranách, ploché pěnové podložky a dva pásky; zvuk bočními štěrbinami |
 | MCP23017 43×18×5 | 1 vpředu, na 6mm izolační podložce + 2mm suchém zipu kvůli maticím spoje dna |
-| PD trigger 28×14×11 | 1 v pravé zadní dolní servisní zóně, vstup USB dopředu |
-| Joy-IT 31×46×19 | 1 na pravém zadním stolku, 15 mm vzduchu nad komponentou, horní a boční nezakryté větrání |
+| PD trigger 28×14×11 | 1 vlevo pod servisním stolkem, vedle banky; vstup USB dopředu |
+| Joy-IT 31×46×19 | 1 otočený na levém stolku v Z81; 8 mm nad komponentou do krytu, větrací mřížka přímo nad ním. Proudění a teplotu ověřit fyzicky |
 | Bílé PTT 14×14×35 | 1 v levém předním krytu, závit v otvoru 12,4; dílčí otvor před tiskem ověřit měrkou |
 | Červené kolébky 24×24×30 | 1 skrytá hlavní; 1 odpojená rezerva pod lůžkem 2 |
 | Zelená kolébka 24×24×30 | 1 skrytá vedle červené, napájení pohonů dle závazného zapojení |
-| Jistič 45×28×13 | 1 na levém stolku, pod bankovým krytem, tlačítko a svorky nesmí sevřít pásek |
-| Kondenzátory Ø10×17 | 6 v zapojení: dva u audia vlevo, dva u výkonového rozvodu, dva u logiky/LED; 4 izolované rezervy pod lůžkem 1 |
-| Degson 5pin | 3 oddělené pracovní bloky pod lůžky 3–5; dalších 7 odpojených na základnách pod lůžky. Obálka 35×22×16 je zatím rezerva |
-| 2 univerzální PCB 50×70 | Pravá zadní zóna: jedna dole, druhá na spodní straně vyjímatelného stolku; pracovní výška 1,6 |
+| Jistič 45×28×13 | 1 pod levým stolkem v Z61; zvednout stolek pro reset, izolovat spodní plochu, tlačítko a svorky nesmí sevřít pásek |
+| Kondenzátory Ø10×17 | 1–2 u LED, 3–4 u PCA V+, 5–6 u audio/elektroniky. Přiřazení podle KABELAZ, nikoli podle samotné polohy; 4 izolované rezervy pod lůžkem 1 |
+| Degson 5pin | degson_1 MAIN5, degson_2 DRIVE5, degson_3 GND pod lůžky 3–5; tabulka portů a měděných odboček v KABELAZ. Dalších 7 je rezerva. Obálka 35×22×16 není měření |
+| 2 univerzální PCB 50×70 | Pravá zadní zóna: signálové spoje a nízkoproudá logika, nikoli výkonový rozvod; pracovní výška 1,6 |
 | Kamera | Vyhrazená obálka 24×24×12 před ESP, vyměnitelný slotted držák; doručený typ není známý |
 | UGREEN PB720 | 139×80×26,5; orientace v modelu 26,5 X ×139 Y ×80 Z; dvě smyčky a mechanické dorazy |
 
@@ -70,6 +70,11 @@ Dupont 200, PH2 100, dvojlinky 0,5/1,5 mm² a bužírky tvoří svazky;
 zbytek rolí, rezervní vodiče a multimetr patří do servisní výbavy mimo kufr.
 Všech 32 řádků nákupního inventáře je tím přiřazeno k osazení, kabeláži,
 spotřební zásobě nebo nástroji. Jejich obaly nejsou modelovány jako výrobek.
+
+[Výrobce měniče](https://joy-it.net/files/files/Produkte/SBC-BUCK02/SBC-Buck02_Manual_2023-09-15.pdf)
+uvádí zahřívání při zatížení a doporučuje dodatečné chlazení pro vysokou
+zátěž. Horní mřížka je návrhové opatření, nikoli důkaz dostatečného chlazení;
+plánovaný proud a teploty je nutné ověřit na skutečně osazeném stolku.
 
 Vnější kovové panty, západky, textilní postroj a konkrétní šrouby jsou
 montážní materiál návrhu, nikoli tvrzení o dalších potvrzených elektronických
