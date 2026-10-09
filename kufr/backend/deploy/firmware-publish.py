@@ -4,14 +4,14 @@ import importlib.util
 import os
 from pathlib import Path
 import re
-import shutil
 import stat
 import sys
 import tempfile
 
 
 DESTINATION = Path('/opt/kufr-firmware')
-RUNNER_TEMP = Path('/opt/actions-runner/_work/_temp')
+RUNNER_TEMPS = tuple(Path('/opt') / name / '_work' / '_temp'
+                     for name in ('actions-runner', 'actions-runner-2', 'actions-runner-3'))
 KEYS = Path('/etc/kufr-backend')
 TOOL = Path('/usr/local/lib/kufr-firmware/ota_release.py')
 PARTITIONS = Path('/usr/local/lib/kufr-firmware/partitions_16mb.csv')
@@ -22,7 +22,8 @@ def source_path(value):
     if not source.is_absolute() or not source.is_file() or source.is_symlink():
         raise ValueError('Source must be a regular runner artifact')
     resolved = source.resolve(strict=True)
-    if not resolved.is_relative_to(RUNNER_TEMP.resolve(strict=True)):
+    root = runner_directory(source)
+    if not resolved.is_relative_to(root.resolve(strict=True)):
         raise ValueError('Source must be below the configured runner temporary directory')
     for entry in [source, *source.parents]:
         if entry.is_symlink():
@@ -79,12 +80,13 @@ def publish(source, version, build_id, channel):
 
 
 def read_source(source):
-    relative = source.relative_to(RUNNER_TEMP)
+    root = runner_directory(source)
+    relative = source.relative_to(root)
     if '..' in relative.parts:
         raise ValueError('Invalid source path')
     # Resolve directory handles without following links; replacing a checked
     # parent path cannot redirect the privileged read to an unrelated file.
-    directory = os.open(RUNNER_TEMP, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    directory = open_directory(root)
     descriptor = None
     try:
         for part in relative.parts[:-1]:
@@ -97,6 +99,26 @@ def read_source(source):
         if descriptor is not None:
             os.close(descriptor)
         os.close(directory)
+
+
+def runner_directory(source):
+    for directory in RUNNER_TEMPS:
+        if source.is_relative_to(directory):
+            return directory
+    raise ValueError('Source must be below an approved runner temporary directory')
+
+
+def open_directory(path):
+    directory = os.open(path.anchor, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        for part in path.parts[1:]:
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
+            os.close(directory)
+            directory = child
+        return directory
+    except BaseException:
+        os.close(directory)
+        raise
 
 
 def snapshot_descriptor(descriptor):

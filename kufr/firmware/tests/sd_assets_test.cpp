@@ -13,7 +13,7 @@ class FakeFile final : public AssetFilePort {
     now += delay;
     if (failRead) return -1;
     const size_t size = std::min(count, data.size() - offset);
-    std::memcpy(bytes, data.data() + offset, size);
+    if (size > 0) std::memcpy(bytes, data.data() + offset, size);
     offset += size;
     return static_cast<int>(size);
   }
@@ -33,7 +33,7 @@ int main() {
   FakeFile good;
   assert(ReadAsset(good, "intro.wav", 16, bytes, error));
   assert(bytes.size == good.data.size() && std::equal(good.data.begin(), good.data.end(), bytes.data.get()) && error.empty() && good.closes == 1);
-  for (const std::string& name : {"", "../secret", "dir/file", "dir\\file", ".hidden", "asset..wav", "asset.wav/", "a:secret", "percent%2ffile", "trailing.", "with space.wav"}) {
+  for (const char* name : {"", "../secret", "dir/file", "dir\\file", ".hidden", "asset..wav", "asset.wav/", "a:secret", "percent%2ffile", "trailing.", "with space.wav"}) {
     FakeFile bad;
     assert(!ReadAsset(bad, name, 16, bytes, error) && bytes.size == 0 && bad.opens == 0);
   }
