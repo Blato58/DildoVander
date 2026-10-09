@@ -7,11 +7,11 @@
 > i samostatný HTTPS backend klient zůstávají. Níže uvedená historická
 > preference BLE nepřidávat a návrh servisního SoftAP nejsou aktuální cestou
 > změny Wi-Fi: současný firmware používá omezené autentizované BLE okno.
-> Síťová priorita je hotspot iPhonu → volitelná záložní Wi-Fi; změny jsou
-> transakční a probíhají pod společnou rezervací klidu s OTA a SD.
+> Síťová priorita je hotspot iPhonu → volitelná záložní Wi-Fi; kandidátní
+> připojení se ověřuje před uložením pod společnou rezervací klidu s OTA a SD.
 > Aktualizace používají původní dva 0x640000 app sloty, IDF rollback,
 > HTTPS a ECDSA P-256 podepsaný manifest z existujícího backendu.
-> NVS/oddíly/piny se nemění. SD asset worker je volitelný, read-only,
+> NVS se nemaže; rozložení oddílů a piny se nemění. SD asset worker je volitelný, read-only,
 > gated měřeným `sd_verified`; camera/audio kontrakty zůstávají.
 > [Audit](../../docs/software-completion-audit.md),
 > [BLE](../../docs/ios-ble-provisioning.md),
@@ -89,13 +89,14 @@
 
 > **D145–D146, 6. 10. 2026: skutečné nasazení a provisioning.**
 > D143 backend je v produkci, dvě OpenAI stores byly vytvořené a ověřené;
-> žádná data hostů nebyla exportovaná. Aktuální Ad Hoc IPA 1.0/1000.0.16
+> žádná data hostů nebyla exportovaná. Tehdejší Ad Hoc IPA 1.0/1000.0.16
 > je podepsaná a publikovaná po macOS nativních testech a HTTPS kontrole.
 > Server zůstává LegacyBackendScripted, hybrid memory=true, cloud indexing
 > a long-term personal=false. Instalace této IPA, poslech a hardware nejsou
 > tímto akceptované; [D145–D146](stav-implementace.md#předání-další-ai)
 > uvádí skutečné běhy, konfiguraci a zbývající ověření. Architektura níže
-> se samotnou publikací nemění.
+> se samotnou publikací nemění. Jde o historický doklad D145–D146;
+> aktuální publikace D158 je 1.0/1000.0.19 podle stavu implementace.
 
 > **D143, 6. 10. 2026: opt-in autonomní GPT-Live a hybridní paměť.**
 > `Backend:GptLive:ActorMode=AutonomousActor` odděluje hlasového herce od

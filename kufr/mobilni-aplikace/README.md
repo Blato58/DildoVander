@@ -101,11 +101,12 @@ Nativní adaptér vlastní TLS pin, oprávnění LAN a Keychain. E10.1 použív�
 ## Debug D108/D109/D110/D112 a Realtime
 
 Aktuální [Safari instalace](https://2.28.202.220/ios/) nabízí verzi 1.0,
-build **1000.0.14** ([publikace 3. 10. 2026](https://github.com/Blato58/DildoVander/actions/runs/37120810300),
-D134: obnovení přehrávače a ověření průchodu audia před AI streamem; nadále
-GPT-Live + Sol a přirozenější úvod).
-Nativní testy, Ad Hoc podpis a veřejná kontrola manifestu/IPA/SHA-256
-prošly. Skutečná aktualizace a poslech na iPhonu zbývá ověřit.
+build **1000.0.19** ([podpis 9. 10. 2026](https://github.com/Blato58/DildoVander/actions/runs/37899385679),
+[publikace](https://github.com/Blato58/DildoVander/actions/runs/37899776001)).
+D158 přidává nativní bezpečný BLE provisioning/hotspot/fallback a OTA ovládání;
+GPT-Live a stávající hlas zůstávají zachované. Nativní testy, skutečný Xcode
+archive/export, Ad Hoc podpis a veřejná kontrola manifestu/IPA/SHA-256 prošly.
+Skutečná aktualizace, BLE/hotspot a poslech na iPhonu zbývá ověřit.
 První uložení credentialu po přechodu z RAM-only verze
 je potřeba zopakovat. Profil uložený od 1000.0.2 se dál načítá ze stejného
 Keychain; skutečnou aktualizaci a její zachování ověří registrovaný iPhone.
@@ -409,15 +410,18 @@ vyžaduje aktualizaci; starší aplikace při změně režimů volbu zachová.
 jméno a používá stávající hlasový tok. Změnu personality nejprve použijte
 v nastavení serveru. Fake test má pro nový kufr dvě otázky a pro původní
 čtyři; neověřuje humor ani nesyntetizuje skutečný hlas. AI používá stejný
-vybraný prompt v Solu, Realtime i GPT-Live a dosavadní nákladové limity.
+vybraný prompt v Solu, Realtime i GPT-Live a dosavadní technické meze.
+Softwarové peněžní limity byly v D157 zrušené; náklady řídí OpenAI účet.
 [Inventář, přesné zdroje a postup](../ai-eval/personalities.md).
 K použití na telefonu je nutná nová IPA a backend s D142; webový harness
 ani offline provider testy nejsou fyzický poslech.
 
-## D146: publikovaná aktualizace
+## D146: historický doklad publikace
 
-Od 6. 10. 2026 je na [instalační stránce](https://2.28.202.220/ios/)
-Ad Hoc **1.0 / build 1000.0.16** pro dosavadní registrovaný iPhone.
+Dne 6. 10. 2026 byla na [instalační stránce](https://2.28.202.220/ios/)
+publikována Ad Hoc **1.0 / build 1000.0.16** pro dosavadní registrovaný iPhone.
+Tento oddíl zachycuje tehdejší verzi a serverovou konfiguraci D146;
+aktuální publikovaná verze je **1.0 / build 1000.0.19** podle přehledu výše.
 [Podpis 37429759564](https://github.com/Blato58/DildoVander/actions/runs/37429759564)
 ověřil Xcode 26.3, nativní transport/debug/audio testy a podpis;
 [publikace 37429982348](https://github.com/Blato58/DildoVander/actions/runs/37429982348)
