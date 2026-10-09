@@ -6,6 +6,40 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**9. 10. 2026 – F1 prohlížeč: Inspect, barvy a kabelové vazby.**
+`kufr/mechanika/final/exports/viewer.html` byl regenerován z aktuálních
+zdrojů. Shift zvýrazní skutečnou viditelnou geometrii a zobrazí kartu;
+Shift nad prázdnou plochou ukáže názvy dílů zapnutých vrstev v záběru.
+Klik připne kartu, tlačítko Inspect a seznam objektů umožňují další
+ovládání. Barva se ukládá pro ID objektu do místního úložiště prohlížeče.
+232 objektů má popisy, CAD obálky a rozměrovou evidenci; 92 logických
+kabelových vazeb obsahuje GPIO, kanály, napětí a poznámky podle
+potvrzeného zapojení. Rezervy jsou odpojené. Konkrétní ID svorek ani
+kondenzátorů nemají doložené přiřazení sítě; trasy kabelů se neměří.
+
+Změněné zdroje jsou v `final/`: šablona, nový `viewer.js`, nový modul
+`inspect_data.py` a jeho testy, generátor náhledu, fingerprinty a
+regenerace. Oba závazné Markdown podklady mají přesnou ověřenou kopii
+`reference/inspect-sources.json`, takže zdrojový ZIP lze regenerovat
+bez původního repozitáře. V repozitáři se kontroluje její aktuálnost.
+README a místní STAV popisují ovládání a hranice tohoto slice.
+
+Provedeno: `node --check viewer.js`, 20/20 Python testů metadat/balení,
+generace samotného prohlížeče a skutečná generace ve samostatné kopii
+zdrojů bez externích Markdownů. Browser na localhost v 611 × 764 a
+1280 × 900 ověřil výběr PCA, Shift, vazby, seznam, zdvih 16 mm, skrývání
+vrstev a obnovení barvy po zavření a znovuotevření stránky; konzole
+bez chyb. Screenshot je lokální `exports/inspect-preview.png`.
+Přímé otevření `file://` bezpečnostní politika browser nástroje odmítla;
+HTML má geometrii, data i skript vložené uvnitř a neváže síťové zdroje.
+Nezávislé review nemá zbývající nález. Celý CAD export/výrobní ZIP,
+geometrické zkoušky, fyzické měření, firmware, iPhone ani nasazení se
+v tomto prohlížečovém slice znovu neprováděly. Další krok zůstává
+fyzická akceptace jednoho F1 mechanismu podle místního STAV.
+
+Doručení: připraveno na větvi `codex/f1-inspect`; commit/push a
+výsledek PR se doplní po skutečném ověření vzdálené větve.
+
 **9. 10. 2026 – F1 a úklid předchozího CAD; zdroje ověřené a pushnuté.**
 Jediným aktivním návrhem je [F1](../mechanika/final/README.md), vytvořený
 od základu v commitu `14ff82a`: nový tištěný korpus a prázdné víko,

@@ -72,6 +72,45 @@ označené předpoklady. Pro ně jsou vytvořené montážní rezervy a zkušebn
 
 ## Regenerace
 
+### Inspect v 3D náhledu
+
+Držet **Shift** a najet na díl: zvýrazní se skutečný viditelný povrch a
+zobrazí se název, popis, rozměrový podklad, CAD obálka a kabelové vazby.
+Shift nad prázdnou plochou zobrazí názvy všech dílů zapnutých vrstev,
+jejichž středy jsou v záběru; popisky mají spojnice k objektům.
+**Klik** připne kartu. Tlačítko **Inspect** režim zapíná trvale, výběr
+**Objekt** v kartě umožňuje ovládání klávesnicí. **Esc** inspektor zavře.
+Pohled **Servis** odkryje elektroniku. Vypnuté vrstvy se kurzorem nevybírají.
+
+Barva se mění pro konkrétní ID dílu a ukládá do `localStorage` prohlížeče;
+obnoví se po zavření a opětovném otevření stejné stránky v témže profilu.
+Tlačítko **Původní barva** smaže danou volbu. Pokud prohlížeč úložiště
+zakáže, karta výslovně oznámí, že barva platí jen do zavření. Jiná adresa,
+jiný profil, soukromé okno či vymazání dat nejsou stejným úložištěm.
+
+Červené spojnice značí napájení, modré signály a šedé společnou GND;
+přerušovaná spojnice vede ke skrytému dílu. Seznam vazeb obsahuje GPIO,
+kanály PCA, napětí a poznámky. Jde o elektrické vztahy podle potvrzeného
+zapojení, nikoli o změřené kabelové trasy. Rezervy nejsou zapojené.
+ID svorek Degson a kondenzátorů nemají v podkladu přiřazenou konkrétní síť;
+prohlížeč ji neodvozuje z polohy CAD. Pořadí ID úseků LED je označené jako
+konvence vizualizace.
+
+`inspect_data.py` načítá oba závazné Markdown podklady při generování.
+Jejich přesné texty a SHA-256 se ukládají do `reference/inspect-sources.json`
+pro regeneraci z vybaleného ZIPu. V repozitáři mají přednost aktuální
+podklady; ověření odmítne zastaralou kopii. `viewer.js` se vkládá přímo
+do HTML, náhled nepotřebuje síť ani soubory vedle sebe.
+
+Pouze náhled, bez nového exportu STEP/STL a PNG, lze obnovit příkazem:
+
+```powershell
+..\.venv\Scripts\python.exe preview.py --viewer-only
+```
+
+Tento příkaz neobnovuje výrobní balíček ani jeho geometrické ověření.
+Pro celý balíček použít následující postup.
+
 Použito Python 3.11 a CadQuery 2.7.0. Žádný plugin ani GUI CAD není nutný.
 Z této složky:
 
