@@ -70,8 +70,12 @@ Codex review navíc našlo tři P2: explicitní fallback potřebuje nový 60s
 interval do dalšího hotspot probe (regrese MSVC prošla a reprodukuje starý
 kód), OTA guard musí kontrolovat CSV flags (9 Python testů) a iOS lock musí
 obsahovat skutečný Xcode resolution pro ESPProvision/SwiftProtobuf. První
-dvě opravy prošly nezávislým source review; pro poslední je připraven dočasný macOS
-resolver bez native build/sign, který se před merge odstraní.
+dvě opravy prošly nezávislým source review. Skutečný macOS15/Xcode26.3 resolver
+CI37887830815 prošel; jeho byte-for-byte Package.resolved má Capacitor8.5.2,
+ESPProvision3.2.0 a SwiftProtobuf1.38.1 včetně ověřených Git revisions.
+Dočasný resolver workflow je odstraněn před merge; nativní build/sign je
+samostatná kontrola v existující ruční iOS pipeline. OTA Python 9/9 prošlo
+u parenta se skutečným OpenSSL, bez skipu.
 
 Široký deployment Python discovery na Windows narazil na již existující
 Linux `os.getuid`/POSIX práva a Windows cestu/SQLite cleanup v memory suite;
