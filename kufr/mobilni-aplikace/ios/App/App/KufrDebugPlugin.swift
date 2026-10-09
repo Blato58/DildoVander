@@ -2,11 +2,56 @@ import Capacitor
 import UIKit
 import AVFoundation
 
+// The system camera supplies preview, retake, Use Photo and Cancel. It never
+// writes to Photos. Only the normalized bounded JPEG is retained in memory.
+@MainActor
+private final class DebugCostumeCamera: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+    let picker = UIImagePickerController()
+    private let completed: (Data?) -> Void
+
+    init(completed: @escaping (Data?) -> Void) {
+        self.completed = completed
+        super.init()
+        picker.sourceType = .camera
+        picker.cameraCaptureMode = .photo
+        picker.delegate = self
+    }
+
+    func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+        picker.dismiss(animated: true)
+        completed(nil)
+    }
+
+    func imagePickerController(_ picker: UIImagePickerController,
+                               didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+        defer { picker.dismiss(animated: true) }
+        guard let image = info[.originalImage] as? UIImage, image.size.width > 0, image.size.height > 0 else {
+            completed(nil); return
+        }
+        let ratio = min(1, 640 / max(image.size.width, image.size.height))
+        let size = CGSize(width: max(1, floor(image.size.width * ratio)), height: max(1, floor(image.size.height * ratio)))
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1; format.opaque = true
+        let redrawn = UIGraphicsImageRenderer(size: size, format: format).image { context in
+            UIColor.white.setFill(); context.fill(CGRect(origin: .zero, size: size))
+            image.draw(in: CGRect(origin: .zero, size: size))
+        }
+        let qualities: [CGFloat] = [0.8, 0.65, 0.5, 0.35]
+        for quality in qualities {
+            if let jpeg = redrawn.jpegData(compressionQuality: quality),
+               let clean = try? DebugCostumeJPEG.withoutMetadata(jpeg) {
+                completed(clean); return
+            }
+        }
+        completed(nil)
+    }
+}
+
 @objc(KufrDebugPlugin)
 public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate, AVSpeechSynthesizerDelegate {
     public let identifier = "KufrDebugPlugin"
     public let jsName = "KufrDebug"
-    public let pluginMethods: [CAPPluginMethod] = ["status", "configure", "forgetProfile", "inspectEvenings", "createEvening", "activateEvening", "inspectBackend", "inspectServer", "changeServerModes", "runOpeningSpeech", "startConversation", "answerConversation", "startRecording", "finishRecording", "speakSystem", "stop", "shareLog", "readServerLogs"].map {
+    public let pluginMethods: [CAPPluginMethod] = ["status", "configure", "forgetProfile", "inspectEvenings", "createEvening", "activateEvening", "inspectBackend", "inspectServer", "changeServerModes", "runOpeningSpeech", "startConversation", "answerConversation", "startRecording", "finishRecording", "speakSystem", "stop", "shareLog", "readServerLogs", "captureCostumePhoto", "discardCostumePhoto"].map {
         CAPPluginMethod(name: $0, returnType: CAPPluginReturnPromise)
     }
     private var profile: DebugBackendProfile?
@@ -35,6 +80,11 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
     private var lastError: String?
     private var recordingTimer: Timer?
     private var cleanupTask: Task<Void, Never>?
+    private var camera: DebugCostumeCamera?
+    private var cameraCall: CAPPluginCall?
+    private var photoDraft: (id: String, jpeg: Data, expiry: Date)?
+    private var photoTimer: Timer?
+    private var costumeStatus: String?
 
     public override func load() {
         synthesizer.delegate = self
@@ -82,6 +132,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
                           "session": self.dialogSession != nil || self.realtimeSession != nil || self.handsFreeSession != nil,
                           "recording": self.microphone != nil, "handsFree": self.handsFreeSession != nil,
                           "errorCode": (self.lastError as Any?) ?? NSNull(),
+                          "costumeStatus": (self.costumeStatus as Any?) ?? NSNull(),
                           "audioOutput": (self.handsFreeAudio?.outputStatus as Any?) ?? NSNull(),
                           "transcript": self.transcript, "selected": (self.selected as Any?) ?? NSNull(), "timings": self.timings,
                           "evenings": (self.evenings?.bridgeValue as Any?) ?? NSNull(),
@@ -214,13 +265,70 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
         }
     }
 
+    @objc func captureCostumePhoto(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard self.canStart(), UIImagePickerController.isSourceTypeAvailable(.camera) else {
+                call.reject("Fotoaparát není dostupný. Můžete pokračovat bez fotky.", "camera_unavailable"); return
+            }
+            self.discardPhotoDraft()
+            self.cameraCall = call
+            let generation = self.generation
+            Task { @MainActor in
+                let permitted = await AVCaptureDevice.requestAccess(for: .video)
+                guard self.generation == generation, self.cameraCall === call,
+                    UIApplication.shared.applicationState == .active else {
+                    if self.cameraCall === call { self.cameraCall = nil; call.resolve(["draftId": NSNull()]) }
+                    return
+                }
+                guard permitted, let controller = self.bridge?.viewController else {
+                    self.cameraCall = nil
+                    call.reject("Fotoaparát nebyl povolen. Rozhovor může pokračovat bez fotky.", "camera_unavailable"); return
+                }
+                let camera = DebugCostumeCamera { [weak self] data in
+                    guard let self = self, self.generation == generation, self.cameraCall === call else { return }
+                    self.camera = nil; self.cameraCall = nil
+                    guard let data = data else { call.resolve(["draftId": NSNull()]); return }
+                    let id = UUID().uuidString.lowercased()
+                    self.photoDraft = (id, data, Date().addingTimeInterval(120))
+                    self.photoTimer = Timer.scheduledTimer(withTimeInterval: 120, repeats: false) { [weak self] _ in
+                        DispatchQueue.main.async { self?.discardPhotoDraft() }
+                    }
+                    call.resolve(["draftId": id])
+                }
+                self.camera = camera
+                controller.present(camera.picker, animated: true)
+            }
+        }
+    }
+
+    @objc func discardCostumePhoto(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { self.discardPhotoDraft(); call.resolve() }
+    }
+
+    @MainActor private func discardPhotoDraft() {
+        photoDraft = nil
+        photoTimer?.invalidate(); photoTimer = nil
+    }
+
     @objc func startConversation(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
-            guard self.canStart(), let profile = self.profile else { call.reject("Nastavte backend a ukončete předchozí test.", "unavailable"); return }
+            guard self.canStart(), let profile = self.profile else {
+                self.discardPhotoDraft()
+                call.reject("Nastavte backend a ukončete předchozí test.", "unavailable"); return
+            }
             self.generation += 1
             let generation = self.generation
             self.transcript = []; self.selected = nil; self.timings = [:]; self.phase = "checking"
             self.lastError = nil
+            self.costumeStatus = nil
+            var jpeg: Data?
+            if let id = call.getString("photoDraftId") {
+                if let draft = self.photoDraft, draft.id == id, draft.expiry > Date() { jpeg = draft.jpeg }
+                else { self.costumeStatus = "Fotka vypršela nebo byla zrušena. Pokračuji bez fotky." }
+            }
+            self.discardPhotoDraft()
+            let description = call.getString("costumeDescription")?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let costume = DebugCostumeInput(jpeg: jpeg, description: description?.isEmpty == false ? description : nil)
             self.task = Task { @MainActor in
                 var owned: DebugDialogSession?
                 var realtimeOwned: DebugRealtimeSession?
@@ -229,13 +337,14 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
                     let engine = call.getString("engine") ?? "chained"
                     if engine == "realtime" || engine == "gpt-live" {
                         guard self.mode == "openai" else { throw DebugBackendError.wrongMode }
-                        try await self.runHandsFree(call, profile: profile, generation: generation)
+                        try await self.runHandsFree(call, profile: profile, generation: generation, costume: costume)
                         return
                     } else if engine == "realtime-ptt" {
                         guard self.mode == "openai" else { throw DebugBackendError.wrongMode }
                         let session = try await DebugBackendClient().openRealtimeSession(profile,
                             readyMask: call.getInt("readyMask") ?? -1, voice: call.getString("voice") ?? "cedar",
-                            speed: call.getDouble("speed") ?? 1.1)
+                            speed: call.getDouble("speed") ?? 1.1, costume: costume,
+                            costumeStatus: { if self.generation == generation { self.costumeStatus = $0 } })
                         realtimeOwned = session
                         try self.requireCurrent(generation)
                         self.realtimeSession = session
@@ -243,7 +352,8 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
                     } else {
                         let session = try await DebugBackendClient().openSession(profile,
                             expectedMode: self.mode, readyMask: call.getInt("readyMask") ?? -1,
-                            voice: call.getString("voice") ?? "cedar", speed: call.getDouble("speed") ?? 1.1)
+                            voice: call.getString("voice") ?? "cedar", speed: call.getDouble("speed") ?? 1.1, costume: costume,
+                            costumeStatus: { if self.generation == generation { self.costumeStatus = $0 } })
                         owned = session
                         try self.requireCurrent(generation)
                         self.dialogSession = session
@@ -278,13 +388,14 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
                         if case DebugBackendError.serverCode(let code) = error { self.lastError = code }
                         self.failDialog()
                     }
-                    call.reject("Rozhovor nebyl dokončen. Ověřte přístup, režim a limity serveru.", "dialog_failed")
+                    call.reject("Rozhovor nebyl dokončen. Ověřte přístup, režim a dostupnost OpenAI účtu.", "dialog_failed")
                 }
             }
         }
     }
 
-    @MainActor private func runHandsFree(_ call: CAPPluginCall, profile: DebugBackendProfile, generation: Int) async throws {
+    @MainActor private func runHandsFree(_ call: CAPPluginCall, profile: DebugBackendProfile, generation: Int,
+                                       costume: DebugCostumeInput) async throws {
         let permitted: Bool
         if #available(iOS 17.0, *) { permitted = await AVAudioApplication.requestRecordPermission() }
         else {
@@ -313,6 +424,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
         let session = try await DebugBackendClient().openHandsFreeSession(profile,
             readyMask: call.getInt("readyMask") ?? -1, voice: call.getString("voice") ?? "cedar",
             speed: gptLive ? 1 : (call.getDouble("speed") ?? 1.1), gptLive: gptLive,
+            costume: costume, costumeStatus: { if self.generation == generation { self.costumeStatus = $0 } },
             phase: { [weak self] value in if self?.generation == generation { self?.phase = value } },
             visitor: { [weak self] value in
                 if self?.generation == generation { self?.transcript.append(["role": "visitor", "text": value]) }
@@ -687,12 +799,16 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
 
     private func canAnswer() -> Bool {
         UIApplication.shared.applicationState == .active && task == nil && player == nil && realtimePlayer == nil &&
-            !synthesizer.isSpeaking && configurationCall == nil && microphone == nil && cleanupTask == nil && handsFreeSession == nil
+            !synthesizer.isSpeaking && configurationCall == nil && cameraCall == nil && microphone == nil && cleanupTask == nil && handsFreeSession == nil
     }
 
     @MainActor private func stopWork() {
         logTask?.cancel()
         generation += 1
+        discardPhotoDraft()
+        costumeStatus = nil
+        camera?.picker.dismiss(animated: false); camera = nil
+        cameraCall?.resolve(["draftId": NSNull()]); cameraCall = nil
         let stoppedTask = task
         task?.cancel(); task = nil
         recordingTimer?.invalidate(); recordingTimer = nil

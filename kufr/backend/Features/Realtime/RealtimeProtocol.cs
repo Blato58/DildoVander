@@ -28,6 +28,7 @@ internal sealed record RealtimeTurnContext(
     bool LiveAudio = false,
     int OutputTokenLimit = RealtimeProtocol.MaxOutputTokens)
 {
+    internal string CostumeContext { get; init; } = "";
     internal string PersonalityId { get; init; } = PersonalityCatalog.DefaultId;
     internal GptLive.LivePromptSnapshot? LivePrompt { get; init; }
     internal IReadOnlyList<object> LiveInput { get; init; } = [];
@@ -123,7 +124,7 @@ internal static class RealtimeProtocol
         }
         var options = new RealtimeConversationSessionOptions
         {
-            Instructions = PersonalityCatalog.DecisionInstructions(turn.PersonalityId) + "\nServerová pravidla tohoto tahu: "
+            Instructions = PersonalityCatalog.DecisionInstructions(turn.PersonalityId) + "\n" + turn.CostumeContext + "\nServerová pravidla tohoto tahu: "
                 + $"opening={turn.Request.Opening}; requireQuestion={turn.RequireQuestion}; "
                 + $"Dostupné hůlky: {PartyWandCatalog.AvailableForPrompt(turn.Request.ReadyMask)}. "
                 + (turn.Request.ReadyMask == 0

@@ -170,10 +170,10 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                     projection.Revision, state.Revision), task.DelegationId); return;
             }
             workInput = new(projection.Revision, state.ReadyMask, state.Revision, projection.Evidence(), snapshot.Policy,
-                projection.AnswerCandidates, projection.DirectSelection, excluded, turn.EveningContext);
+                projection.AnswerCandidates, projection.DirectSelection, excluded, turn.EveningContext, turn.CostumeContext);
             reserved = decisions.Reservation(workInput);
-            if (++paidCalls > 10 || cost + reserved + GptLiveProtocol.VoiceReservation > GptLiveProtocol.SessionBudget)
-                throw new InvalidDataException("Live decision budget exhausted.");
+            if (++paidCalls > 10)
+                throw new InvalidDataException("Live decision count exhausted.");
             workFingerprint = key;
             workStartedAt = Elapsed();
             tasks[task.DelegationId] = task with { State = "running", DecisionRevision = projection.Revision, AvailabilityRevision = state.Revision };

@@ -22,6 +22,30 @@ jobs:
       - name: Install contract verifier
         working-directory: kufr/contracts
         run: npm ci
+      - name: Optional costume photo consent and HTTPS upload
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          common=(src/features/costume_photo/CostumePhoto.cpp
+            src/features/conversation/ConversationSession.cpp
+            src/features/conversation/ConversationStartCodec.cpp
+            src/features/conversation/TurnPollGuard.cpp)
+          g++ -std=c++14 -Wall -Wextra -Werror "${common[@]}" \
+            src/features/local_control/LocalControlCodec.cpp \
+            tests/costume_photo_test.cpp -o "$RUNNER_TEMP/costume-photo-test"
+          "$RUNNER_TEMP/costume-photo-test"
+          g++ -std=c++14 -Wall -Wextra -Werror -I tests/speech_stubs "${common[@]}" \
+            src/features/costume_photo/EspIdfCostumeUpload.cpp \
+            src/features/backend_access/DeviceTokenSession.cpp \
+            src/features/backend_access/NetworkSettings.cpp \
+            src/features/provisioning/DeviceIdentity.cpp \
+            tests/espidf_costume_upload_test.cpp -o "$RUNNER_TEMP/costume-upload-test"
+          "$RUNNER_TEMP/costume-upload-test"
+          g++ -std=c++14 -Wall -Wextra -Werror -I tests/camera_stubs "${common[@]}" \
+            src/features/costume_photo/EspIdfCostumeCamera.cpp \
+            tests/espidf_costume_camera_test.cpp -o "$RUNNER_TEMP/costume-camera-test"
+          "$RUNNER_TEMP/costume-camera-test"
       - name: Correlated speech audio buffer
         working-directory: kufr/firmware
         shell: bash
@@ -416,7 +440,7 @@ jobs:
             ~/.platformio/packages
             ~/.platformio/platforms
             ~/.cache/pip
-          key: pio-${{ runner.os }}-6.2.0-${{ hashFiles('kufr/firmware/platformio.ini', 'kufr/firmware/dependencies.lock.md', 'kufr/firmware/diagnostics/board-memory/platformio.ini', 'kufr/firmware/diagnostics/pca9685-logic/platformio.ini') }}
+          key: pio-${{ runner.os }}-6.2.0-${{ hashFiles('kufr/firmware/platformio.ini', 'kufr/firmware/dependencies.lock', 'kufr/firmware/diagnostics/board-memory/platformio.ini', 'kufr/firmware/diagnostics/pca9685-logic/platformio.ini') }}
       - name: Install pinned PlatformIO Core
         shell: bash
         run: |
@@ -427,10 +451,6 @@ jobs:
         shell: bash
         run: |
           "$RUNNER_TEMP/platformio-venv/bin/pio" run -d kufr/firmware -e esp32-s3-idf -s
-      - name: Build Arduino serial profile
-        shell: bash
-        run: |
-          "$RUNNER_TEMP/platformio-venv/bin/pio" run -d kufr/firmware -e esp32-s3-arduino-serial -s
       - name: Build USB-only board memory diagnostic
         shell: bash
         run: |
@@ -450,11 +470,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for profile in esp32-s3-idf esp32-s3-arduino-serial; do
-            mkdir -p "$RUNNER_TEMP/firmware/$profile"
-            cp kufr/firmware/.pio/build/"$profile"/*.bin "$RUNNER_TEMP/firmware/$profile/"
-            cp kufr/firmware/.pio/build/"$profile"/firmware.elf "$RUNNER_TEMP/firmware/$profile/"
-          done
+          mkdir -p "$RUNNER_TEMP/firmware/esp32-s3-idf"
+          cp kufr/firmware/.pio/build/esp32-s3-idf/*.bin "$RUNNER_TEMP/firmware/esp32-s3-idf/"
+          cp kufr/firmware/.pio/build/esp32-s3-idf/firmware.elf "$RUNNER_TEMP/firmware/esp32-s3-idf/"
           python3 scripts/ci/package.py pack "$RUNNER_TEMP/firmware" "$RUNNER_TEMP/firmware-package"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

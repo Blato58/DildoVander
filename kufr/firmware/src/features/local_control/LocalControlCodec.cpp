@@ -30,6 +30,7 @@ enum Field : uint32_t {
   Inspection = 1U << 16,
   VoiceMode = 1U << 17,
   Voice = 1U << 18,
+  ImageConsent = 1U << 19,
 };
 
 bool ReadSafeInteger(JsonCursor& cursor, uint64_t& value) {
@@ -263,6 +264,9 @@ bool Parse(JsonCursor& cursor, LocalControlMessage& message, size_t length) {
     } else if (key == "inspectionConfirmed") {
       field = Inspection;
       valid = cursor.ReadTrue();
+    } else if (key == "imageConsent") {
+      field = ImageConsent;
+      valid = cursor.ReadBoolean(message.imageConsent);
     }
     if (!valid || (seen & field) != 0) {
       return false;
@@ -271,7 +275,7 @@ bool Parse(JsonCursor& cursor, LocalControlMessage& message, size_t length) {
   } while (cursor.Consume(','));
 
   if (!cursor.Consume('}') || !cursor.AtEnd() ||
-      seen != ExpectedFields(message.kind) ||
+      (seen & ~(message.kind == LocalControlMessageKind::VoiceStart ? static_cast<uint32_t>(ImageConsent) : 0U)) != ExpectedFields(message.kind) ||
       (message.kind != LocalControlMessageKind::Text && length > 2048)) {
     return false;
   }

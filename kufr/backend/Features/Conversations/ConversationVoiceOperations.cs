@@ -73,11 +73,6 @@ internal sealed partial class ConversationStore
                 return new SubmitTurnResult(409, null, "idempotency_conflict");
             }
 
-            if (reservation.CostRejected)
-            {
-                return new SubmitTurnResult(429, null, "cost_limit");
-            }
-
             if (reservation.Existing)
             {
                 return new SubmitTurnResult(202, reservation.OperationId, null);

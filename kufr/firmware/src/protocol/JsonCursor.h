@@ -55,6 +55,15 @@ class JsonCursor {
     return true;
   }
 
+  bool ReadBoolean(bool& value) {
+    if (ReadTrue()) { value = true; return true; }
+    SkipWhitespace();
+    if (length_ - position_ < 5 || std::string(data_ + position_, 5) != "false") return false;
+    position_ += 5;
+    value = false;
+    return true;
+  }
+
   bool ReadUnsigned(uint64_t& value) {
     SkipWhitespace();
     if (position_ == length_ || data_[position_] < '0' ||

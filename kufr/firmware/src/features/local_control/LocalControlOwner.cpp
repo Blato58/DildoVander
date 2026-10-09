@@ -218,7 +218,7 @@ void LocalControlOwner::Handle(
       ConversationRuntimeSnapshot snapshot;
       const bool ready = voice_ && session_->LeaseId().empty() && runtimeState_.Read(snapshot) &&
                          snapshot.deviceRevision == message.expectedRevision;
-      const bool started = ready && voice_->StartVoice(message.messageId, snapshot);
+      const bool started = ready && voice_->StartVoiceWithImageConsent(message.messageId, snapshot, message.imageConsent);
       accepted = output_.VoiceAck(handle_, message, started);
       break;
     }

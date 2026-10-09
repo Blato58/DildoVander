@@ -62,6 +62,7 @@ app.Use(async (context, next) =>
 
 app.MapDeviceAccess();
 app.MapConversations();
+app.MapCostumeImages();
 app.MapRealtimeTurns();
 app.MapRealtimeLive();
 app.MapGptLive();

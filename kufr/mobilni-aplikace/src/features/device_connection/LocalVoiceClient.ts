@@ -1,8 +1,10 @@
 export interface VoiceSettings {
   available: boolean;
+  cameraAvailable?: boolean;
+  photoWarning?: 'photo_unavailable' | 'photo_failed' | null;
   mode: 'off' | 'realtime' | 'gpt-live';
   voice: 'cedar' | 'marin' | 'coral';
-  phase: 'unavailable' | 'idle' | 'starting' | 'listening' | 'thinking' | 'speaking' | 'stopping' | 'completed' | 'failed';
+  phase: 'unavailable' | 'idle' | 'starting' | 'photo_capture' | 'photo_upload' | 'photo_wait' | 'listening' | 'thinking' | 'speaking' | 'stopping' | 'completed' | 'failed';
   error: 'ai_unavailable' | 'audio_failed' | 'cost_limit' | null;
 }
 export interface LocalVoiceState extends VoiceSettings {
@@ -17,10 +19,12 @@ interface Context {
   phase: string; activeCommandId: string | null; voice?: VoiceSettings;
 }
 const active = (phase: VoiceSettings['phase']) =>
-  ['starting', 'listening', 'thinking', 'speaking', 'stopping'].includes(phase);
+  ['starting', 'photo_capture', 'photo_upload', 'photo_wait', 'listening', 'thinking', 'speaking', 'stopping'].includes(phase);
 const labels: Record<VoiceSettings['phase'], string> = {
   unavailable: 'Audio kufru není připravené. Je potřeba servisně ověřit zapojení mikrofonu a reproduktoru.',
   idle: 'Hlasový rozhovor je připravený.', starting: 'Spouštím hlasový rozhovor na kufru…',
+  photo_capture: 'Pořizuji schválenou fotku kostýmu…', photo_upload: 'Předávám fotku serveru…',
+  photo_wait: 'Zpracovávám fotku před rozhovorem…',
   listening: 'Kufr poslouchá. Odpovídejte nahlas.', thinking: 'Kufr připravuje odpověď…',
   speaking: 'Kufr mluví.', stopping: 'Zastavuji hlasový rozhovor…',
   completed: 'Hlasový rozhovor skončil.', failed: 'Hlasový rozhovor selhal.',
@@ -48,7 +52,7 @@ export class LocalVoiceClient {
     const voice: VoiceSettings = this.context?.voice ?? { available: false, mode: 'off', voice: 'marin', phase: 'unavailable', error: null };
     const connected = this.context?.voice != null;
     const changing = this.pending !== null;
-    const error = voice.error === 'cost_limit' ? 'Dosažen limit nákladů na AI.'
+    const error = voice.error === 'cost_limit' ? 'OpenAI účet omezil dostupnost AI. Ověřte jeho kredit a limity.'
       : voice.error === 'audio_failed' ? 'Audio nebo spojení se přerušilo. Spusťte nový rozhovor.'
       : voice.error === 'ai_unavailable' ? 'AI není dostupná. Ověřte síť a režimy serveru.' : '';
     return { ...voice, pending: changing,
@@ -57,7 +61,7 @@ export class LocalVoiceClient {
         && this.context?.controlMode === 'standalone' && this.context?.phase === 'ready'
         && this.context?.activeCommandId === null,
       canStop: connected && (active(voice.phase) || changing),
-      status: this.message || error || labels[voice.phase],
+      status: this.message || error || (voice.photoWarning ? 'Fotka není dostupná; rozhovor pokračuje bez ní. ' : '') + labels[voice.phase],
     };
   }
   configure(mode: VoiceSettings['mode'], voice: VoiceSettings['voice']): boolean {
@@ -65,8 +69,10 @@ export class LocalVoiceClient {
       !['cedar', 'marin', 'coral'].includes(voice) || mode !== 'off' && !this.state().available) return false;
     return this.request('voice.configure', { mode, voice });
   }
-  start(): boolean {
-    return this.state().canStart && this.request('voice.start', { expectedRevision: this.context!.revision });
+  start(imageConsent = false): boolean {
+    if (imageConsent && this.context?.voice?.cameraAvailable !== true) return false;
+    return this.state().canStart && this.request('voice.start', { expectedRevision: this.context!.revision,
+      ...(imageConsent ? { imageConsent: true } : {}) });
   }
   stop(): boolean {
     if (!this.state().canStop) return false;

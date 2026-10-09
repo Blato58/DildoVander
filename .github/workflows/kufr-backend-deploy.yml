@@ -100,7 +100,6 @@ jobs:
           DEVICE_ID: ${{ secrets.DEVICE_ID }}
           DEVICE_CREDENTIAL_SHA256: ${{ secrets.DEVICE_CREDENTIAL_SHA256 }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          SESSION_CAP_MICRO_USD: '3000000'
           DIALOG_MODE: ${{ inputs.dialog_mode || 'fake' }}
           DIALOG_MODEL: ${{ inputs.dialog_model || 'gpt-6.1-sol' }}
           VOICE_MODE: ${{ inputs.voice_mode || 'fake' }}
@@ -205,13 +204,6 @@ jobs:
               "deviceId": os.environ["DEVICE_ID"],
               "credentialSha256": os.environ["DEVICE_CREDENTIAL_SHA256"],
               "openAiApiKey": os.environ["OPENAI_API_KEY"],
-              "caps": {
-                  "session": os.environ["SESSION_CAP_MICRO_USD"],
-                  # Compatibility with the root-owned helper installed before D128.
-                  # Current backend ignores period caps; these are wire placeholders.
-                  "daily": os.environ["SESSION_CAP_MICRO_USD"],
-                  "monthly": os.environ["SESSION_CAP_MICRO_USD"],
-              },
           }))
           PY
       - name: Verify public modes and memory stores without dialogue generation

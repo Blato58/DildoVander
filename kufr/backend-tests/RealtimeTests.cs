@@ -287,9 +287,9 @@ internal static class RealtimeTests
                 var rejected = limitedStore.BeginRealtimeTurn(
                     "device-a", limitedConversation.Response!.ConversationId, key,
                     body, request, true, default, default);
-                Require(rejected.Status == 429 && rejected.Code == "cost_limit"
-                    && rejected.Call is null && limitedStore.ActiveProviderCallCount == 0,
-                    "a low session cap rejects Realtime before provider dispatch");
+                Require(rejected.Status == 200 && rejected.Call is not null && limitedStore.ActiveProviderCallCount == 1,
+                    "legacy low session cap cannot block Realtime admission");
+                limitedStore.ReleaseRealtimeTurn(rejected.Call!, dispatched: false, completed: false);
             }
             Require(store.BeginRealtimeTurn("device-b", conversation, key, body, request, true, default, default).Status == 403,
                 "device scope enforced");

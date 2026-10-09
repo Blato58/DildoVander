@@ -1,5 +1,24 @@
 # Implementační plán AI kufru
 
+> **D157, 9. 10. 2026: obrazové rozšíření na přání majitele.**
+> Softwarová větev E12/E13 postupuje v pořadí backend → iOS → firmware.
+> Jednorázový JPEG se samostatným souhlasem slouží opatrnému popisu
+> viditelného kostýmu a možné fiktivní postavy, s ruční opravou.
+> Rozpoznávání biometrické identity, věku a pohlaví se nepřidává.
+> Fotografie jde do Responses přes oficiální SDK; do hlasového dialogu
+> a rozhodování se předává omezený textový kontext. Obraz ani jeho
+> výsledek nejsou fyzickým povelem. Software lze ověřit bez desky;
+> úplná akceptace E12/E13 nadále vyžaduje původní provozní a HW kritéria.
+> Před implementací firmwaru proběhl nový `git pull --ff-only origin main`:
+> checkout převzal D156/PR138 (`3d0e73a`) a B-effects s volnými kamerovými piny.
+> Majitel současně ruší všechny softwarové peněžní limity. Staré
+> session/daily/monthly capy se nepoužívají ani jako podmínka dostupnosti
+> AI; účetní odhady a idempotence zůstávají. Finanční nastavení vlastní
+> OpenAI účet. Velikosti dat, čas, počet tahů a souběh zůstávají
+> technickými limity. Toto rozhodnutí nahrazuje starší peněžní stropy níže.
+> Majitel dále odstranil Arduino sériový profil kufru. Jediný podporovaný
+> runtime a sestavovací profil je ESP-IDF; původní Arduino prototyp je historie.
+
 > **D151, 7. 10. 2026: hranice Live událostí a diagnostika přerušení.**
 > Dva skutečné hovory skončily `ai_unavailable`, jiné dva výběr dokončily.
 > Dosavadní log nezachoval výjimku; konkrétní příčinu těchto pádů nelze
@@ -164,9 +183,9 @@ První provozní verze tedy pracuje samostatně **z hlediska telefonu**, nikoli 
 | Síť na akci | Vyhrazený malý router/AP, 2,4 GHz pro ESP32, telefon ve stejné LAN, bez izolace klientů. WAN z Ethernetu nebo LTE. | Další zařízení, energie a případný nákup mimo současný košík. Hotspot řídicího telefonu lze použít po testu konkrétního telefonu; není výchozí provozní předpoklad. |
 | Backend | **ASP.NET Core 10 LTS**, jeden proces, Minimal APIs a vertical slices, SQLite pro přístupy, limity a technický audit. Linux kontejner na jedné malé VM v EU. | Provoz VM a aktualizace. TypeScript backend by sdílel jazyk klienta, ale zde převažuje jednoduchý .NET provoz a testování. Serverless přidává cold start a limity běhu/úložiště. Při více instancích přejít na PostgreSQL a sdílenou idempotenci/kvóty. |
 | Vlastník řízení | **ESP32 iniciuje HTTPS spojení s backendem a orchestruje rozhovor.** Backend vrací data, nemá endpoint ani push kanál pro otevírání. Autonomní přijetí a sekvenci vlastní firmware. Mobil je místní záloha. | Vyžaduje device identitu, TLS, správu paměti a nový conversation slice ve firmware. Pro S3 N16R8 je omezený PTT přenos realistický; nutné potvrdit heap/DMA/PSRAM zátěžovým testem. Telefonní most je záložní architektonická varianta jen při nevyhovujících měřeních. |
-| AI | Responses Sol pro text; Realtime 2.1 pro přímý hlas od D135, reasoning **medium** od D140 na přání majitele. Validované funkce určují návrh. Bez agentního frameworku, RAG nebo nástrojů řídících zařízení. | D135 vychází z primárních zdrojů: 2.1 zlepšuje hluk, ticho a přerušení; skutečná česká kvalita/latence vyžaduje poslech. D140 mění pouze Realtime effort; medium může zvýšit latenci a usage. SDK a wire kontrakt klientů zůstávají, JSON patch přidává reasoning. Konzervativní sazba výstupu 64 USD/1M pokrývá i textové reasoning tokeny 24 USD/1M; rozpočet 3 USD/session zůstává. |
+| AI | Responses Sol pro text; Realtime 2.1 pro přímý hlas od D135, reasoning **medium** od D140 na přání majitele. Validované funkce určují návrh. Bez agentního frameworku, RAG nebo nástrojů řídících zařízení. | D135 vychází z primárních zdrojů: 2.1 zlepšuje hluk, ticho a přerušení; skutečná česká kvalita/latence vyžaduje poslech. D140 mění pouze Realtime effort; medium může zvýšit latenci a usage. SDK a wire kontrakt klientů zůstávají, JSON patch přidává reasoning. Konzervativní sazba výstupu 64 USD/1M pokrývá i textové reasoning tokeny 24 USD/1M; peněžní stropy od 9. 10. 2026 určuje pouze OpenAI účet. |
 | Hlas | iOS Debug: **průběžný Realtime poslech se server VAD**, mikrofon se zavírá během přehrávání. PTT a STT → Sol → TTS jsou zálohy. | D116 drží jedno provider spojení a automaticky pokračuje po dohrání. Přerušování řeči a samostatný ESP32 hlas vyžadují další práci E9. Latenci/kvalitu změřit po nasazení; místní bezpečnost výběru zůstává v ESP32. |
-| Firmware runtime | Pro síťovou etapu přejít na **ESP-IDF 6.1 přes stávající PlatformIO 7.1.3**, zachovat čisté C++ jádro a vertical slices. | Malá migrace `main.cpp` a sériového adaptéru. Důvodem je konfigurovatelný oficiální WSS server, I2S a NVS; manifest platformy rozlišuje Arduino 2.0.17 a ESP-IDF 6.1. Nemíchat návody nového IDF s existujícím Arduino runtime. K Arduinu se vrátit jen při doloženém jednodušším a udržovaném řešení všech těchto potřeb. |
+| Firmware runtime | Pouze **ESP-IDF 6.1 přes PlatformIO 7.1.3**, čisté C++ jádro a vertical slices, vstup `espidf_main.cpp`. | Konfigurovatelný oficiální WSS server, I2S, NVS a kamera. Původní Arduino sériový profil i jeho adaptéry jsou na pokyn majitele D157 odstraněné z konfigurace, zdrojů a CI; nejsou podporovaný fallback. |
 | Kamera | Nejprve žádná; první obrazový experiment kamerou telefonu. Kufrovou OV5640 + MicroSD dodat až jako samostatný profil. | GPIO a výkon jsou těsné. Obraz je jen volitelný popis kostýmu, nikdy identita člověka či povel aktuátoru. |
 
 Capacitor 8 podporuje iOS 15+ a vyžaduje Xcode 26.0+; jeho CLI vyžaduje Node 22+ [O1]. Pro tento projekt připnout Node alespoň 22.12 kvůli existujícímu Vite a konkrétní otestované verze Capacitor balíčků. iOS přístup do LAN vyžaduje vlastní popis oprávnění a deklaraci používané Bonjour služby; odmítnutí musí mít vlastní stav UI [O2]. .NET 10 má uvedenou podporu do 14. 11. 2028 [O3]. Podpora WSS je doložena příkladem Espressif, nikoli dosavadním sestavením tohoto projektu [O4]. Přesné package verze a konfiguraci zvolených runtime uzamknout v příslušné implementační etapě; plán žádné balíčky neinstaluje.
@@ -250,7 +269,7 @@ Tabulka je návrh cílových adresářů; vytvářet je postupně s příslušn�
 | `.../voice_turn/` | Záložní mikrofon/přehrávání telefonu přes ESP32, stav médií. Nativní most neposílá každý PCM rámec přes DOM. |
 | `.../wand_selection/` | Návrh AI, dostupnost, ruční změna, potvrzení, příkaz a sledování výsledku. Žádná druhá implementace časování motorů. |
 | `.../manual_control/` | Offline výběr 1–6, Stop, přehled chyb a ruční potvrzení založení hůlky. |
-| `.../costume_snapshot/` | Souhlas s jedním snímkem, náhled, smazání, oprava popisu; až volitelná etapa. |
+| Nativní `KufrDebugPlugin` + `DebugBackendClient`, `features/debug/` | Souhlas s jedním snímkem, náhled, smazání a ruční oprava popisu pro testovací dialog; `features/voice_control/` předává souhlas samostatnému kufru. |
 | `backend/Features/Access/` | Registrace zařízení, vydání krátkého access tokenu za device credential, odvolání a izolace každého kufru. |
 | `backend/Features/Conversations/` | Start/ukončení sezení, textové tahy, sestavení promptu, Responses adaptér a omezená historie. |
 | `backend/Features/VoiceTurns/` | Validace WAV, STT adaptér, převzetí přepisu; neotevírá hůlky. |
@@ -265,7 +284,7 @@ Tabulka je návrh cílových adresářů; vytvářet je postupně s příslušn�
 | `firmware/src/features/safety/` | Jediný vlastník povolení pohonů, stop latch, softwarové timeouty, reakce na reset a chyby sběrnice. |
 | `firmware/src/features/voice_turn/` | I2S, DMA, PTT, zesilovač, omezené buffery, lokální nouzové audio. |
 | `firmware/src/features/provisioning/` | Fyzické párovací okno, Wi-Fi/NVS, identita desky a revize konfigurace. |
-| `firmware/src/features/costume_snapshot/` | Kamera a jeden JPEG; samostatná volitelná capability. |
+| `firmware/src/features/costume_photo/` | OV5640 a jeden JPEG před hlasem, servisní ověření kamery a souhlas pro jednotlivý start; samostatná volitelná capability. |
 | `firmware/src/features/local_assets/` | Kontrolované čtení nouzových hlášek z flash/SD; ztráta SD neblokuje řízení. |
 | `simulator/`, `contracts/`, `tests/` | Hostitelský firmware model, sdílené JSON Schema/OpenAPI, pozitivní i chybné protokolové fixtures a integrační scénáře. |
 
@@ -534,8 +553,8 @@ zodpovězené otázky, dříve při dostatku podkladů/žádosti; server vynucuj
 úvodní otázku a dovolí výběr od první odpovědi. Sol, Realtime a GPT-Live
 přebírají stejné zvolené znění, bez přimíchání první personality. Pravidla
 funkcí a reálného katalogu zůstávají oddělená. Delší prompt zvyšuje pouze
-explicitní přírůstek limitu requestu a předběžnou rezervaci; limit sezení
-3 USD a fyzická bezpečnost se nemění. Změna mezi rozhovory vyžaduje admin
+explicitní přírůstek limitu requestu a předběžný účetní odhad. Peněžní
+limit určuje OpenAI účet; fyzická bezpečnost se nemění. Změna mezi rozhovory vyžaduje admin
 credential a aktuální revizi, nedovolí změnu během provider volání a sama
 AI nevolá. Debug používá existující izolovaný test: fake pro průchod/politiku
 otázek, AI pro poslech charakteru. Nasazení backendu a nová IPA jsou
@@ -548,7 +567,7 @@ Prompt: český mluvící kouzelný kufr prodejce z Ollivanderova obchodu ve sv�
 
 Kufr začne na explicitní událost opening bez vymyšlené zprávy návštěvníka. Hostitel vysvětlí roli kufru; model sám vytvoří krátké oslovení nového hosta a otevřenou otázku s vlastním tématem. Server přidává jen interní identifikátor pro variaci úvodu, nikdy banku témat či hotových otázek. Jméno není povinný první krok. Opening neodesílá archiv ani historii; od dalšího tahu se paměť opět používá. Hovorová čeština, jedna otázka, konkrétní osobní situace, krátké pointy a situační vulgarita nahrazují formální dotazník. Opening se počítá mezi první čtyři otázky; po 4–7 otázkách má následovat autonomní výběr. Místní bezpečnost pohonu řídí ESP32. Model dostává statický sdílený prompt a strukturovaný výsledek, reasoning low; vyšší effort není automaticky lepší humor. Sol hodnotit na adaptivních syntetických návštěvnících a lidsky hodnotit celý přepis. Celkový schválený rozpočet tohoto srovnání je 1 USD při zachování 10 USD/měsíc.
 
-Základní JSON požadavek má limit 14 kB; paměť přidá pouze vlastní JSON-encoded počet bajtů. Rezervace Sol 0,10 USD se před odesláním zvýší o konzervativní cenu přidaných bajtů (nejvýše jeden token na bajt při sazbě cache-write Fast). Požadavek výslovně volí `service_tier: default`; jiný nebo chybějící tarif odpovědi se odmítne a drží celou rezervaci. Dvojnásobná pojistka kryje neočekávanou sazbu Fast, potvrzený Standard se přepočítá podle tokenů. Od D128 se vynucuje 3 USD/session; denní/měsíční součty slouží pouze auditu. Dvě nedávné výměny v RAM doplňují výběr z trvalé paměti. Samostatný obsahový soubor není součástí technických záloh. Po smazání se změní eveningId, zruší se aktivní sezení a pozdní odpověď starého večera nesmí paměť obnovit. Smazání konkrétního starého eveningId je idempotentní a nikdy nesmaže nový večer.
+Základní JSON požadavek má limit 14 kB; paměť přidá pouze vlastní JSON-encoded počet bajtů. Rezervace Sol 0,10 USD se před odesláním zvýší o konzervativní cenu přidaných bajtů (nejvýše jeden token na bajt při sazbě cache-write Fast). Požadavek výslovně volí `service_tier: default`; jiný nebo chybějící tarif odpovědi se odmítne a drží celou rezervaci. Dvojnásobná pojistka kryje neočekávanou sazbu Fast, potvrzený Standard se přepočítá podle tokenů. Od 9. 10. 2026 se peněžní session/daily/monthly stropy nevynucují; součty slouží pouze auditu. Dvě nedávné výměny v RAM doplňují výběr z trvalé paměti. Samostatný obsahový soubor není součástí technických záloh. Po smazání se změní eveningId, zruší se aktivní sezení a pozdní odpověď starého večera nesmí paměť obnovit. Smazání konkrétního starého eveningId je idempotentní a nikdy nesmaže nový večer.
 
 ### Strukturovaný výsledek
 
@@ -597,7 +616,31 @@ Každý endpoint ověřuje device access token a vlastnictví sezení; ID samo n
 
 OpenAPI kontrakt E2.6 v `contracts/backend-openapi-v1.json` konkretizuje všechny základní HTTP trasy v tabulce. Token endpoint používá samostatné bearer schéma pro servisně provisionovaný device credential; ostatní trasy krátkodobý device access token. Odpověď tokenu obsahuje `accessToken`, `tokenType: "Bearer"`, `expiresInSeconds: 900` a `deviceId`. Backend při založení sezení ověří shodu `deviceId` v těle se scope tokenu a u všech následujících ID vlastnictví sezení/operace/audio. Odpověď sezení vrací `limits` s počtem tahů, délkou textu a TTL. Stav operace obsahuje echo identit, generace a revize, typ `transcription | turn | speech`, stav, příslušný typovaný výsledek nebo chybu; `propose` má povinný návrh a ostatní rozhodnutí jej nemají. Transcription multipart pole `wav` je PCM16 mono 32 kHz nejvýše 30 s; `source` rozlišuje `deviceMicrophone | phoneMicrophone`. Speech `outputTarget` je právě `device | phone`, nikdy obojí, a přijímá ID předchozího tahu bez libovolného textu. Audio odpověď je `audio/wav` PCM16 mono 32 kHz s `no-store`; důvěryhodný vývojový certifikát, kontrola WAV bajtů a runtime autorizace zůstávají povinností implementace. Tento HTTP kontrakt nemění lokální WSS kontrakt.
 
-Pozdější `POST /v1/conversations/{id}/costume-snapshot` přijme JPEG do 512 KiB, odstraní EXIF, zmenší na max. 640 × 480 a vrátí editovatelný popis. Nezískává žádné oprávnění pro aktuátory. REST chyby vracet jako ProblemDetails se stabilním `code`, `traceId`, bez promptu nebo klíče. 400 formát, 401 přihlášení, 403 scope, 409 souběh/verze, 413 velikost, 429 limit, 502/503/504 poskytovatel.
+D157 konkretizuje původní návrh snapshotu: `POST /v1/conversations/{id}/image`
+přijímá jeden metadata-free JPEG do 256 KiB, nejvýše 640 × 640, se
+samostatným `consent.image: true`, před úvodní replikou. Klient překreslí
+telefonní snímek před uploadem; firmware snímá 640 × 480. Backend odmítne
+EXIF/GPS, komentáře a náhledy. Vyžaduje UUID `Idempotency-Key`, `Client-Turn-Id`,
+`Boot-Id`, nezáporné `Generation`/`Device-Revision` a `Catalog-Version`.
+Vrací 202 a operaci typu `image`; běžný polling vydá stručný popis,
+možnou fiktivní postavu, nejistotu, zdroj a dobu platnosti. `PUT .../costume-context`
+vrací synchronní obálku operace `costume` pro ruční popis do 240 znaků,
+s předností před obrazovým výsledkem; prázdný popis kontext vymaže.
+Osm korekcí je technická mez RAM, ne peněžní budget. Obraz a lokální
+vizuální kontext jsou krátkodobé (120 s), ne archivační paměť; běžný
+textový přepis zůstává zachovaný. Již předaný Live kontext může přetrvat
+do ukončení provider spojení. Rozšíření nezískává oprávnění pro aktuátory.
+REST chyby jsou ProblemDetails se stabilním `code`, `traceId`, bez promptu
+nebo klíče: 400 formát, 401 přihlášení, 403 scope, 409 souběh/verze,
+413 velikost, 429 technický limit, 502/503/504 poskytovatel.
+
+Lokální v1 kontrakt rozšiřuje `voice.start` o volitelné `imageConsent`
+(výchozí false), `voice.status` o `cameraAvailable` a `photoWarning`
+(null/`photo_unavailable`/`photo_failed`) a přípravné fáze
+`photo_capture`/`photo_upload`/`photo_wait`. Staré zprávy zůstávají platné.
+Příznak `wand_hw/camera_verified` z existující servisní konfigurace
+je výchozí false a vyžaduje skutečnou kontrolu modulu/pinů/souběhu.
+Bez kamery či při chybě fotografie hlas pokračuje s varováním.
 
 Operace je před placeným voláním transakčně zapsána do SQLite včetně rezervace nákladů a idempotence; dočasný citlivý obsah zůstává v RAM, dokončené textové výměny se ukládají do samostatné paměti večera podle §6. Po restartu backendu neznámé rozběhnuté operace označit `unknown`, bez automatického znovuúčtovaného volání. Záznam idempotence bez obsahu držet 24 h. Ztracený citlivý výsledek vrací `result_expired`, nikoli tichou regeneraci. Pro jednu instanci stačí omezená in-process fronta; přetížení odmítnout, neakumulovat rozhovory.
 
@@ -839,7 +882,7 @@ Nahrávky a fotografie držet pouze v RAM/PSRAM ESP32 a backendu, při záložn�
 
 `store:false` není příslib nulové retence poskytovatele. Oficiální datové podmínky uvádějí, že API data se standardně nepoužívají k trénování bez opt-in; abuse monitoring může data uchovávat až 30 dní s výjimkami. ZDR a regionální zpracování mají podmínky a schválení [O11]. EU VM sama nezaručuje, že všechna AI data zůstávají v EU. Pokud pořadatel vyžaduje výhradně lokální/EU zpracování, nejprve potvrdit podmínky pro konkrétní modely a účet, jinak cloudový hlas/obraz nepoužít.
 
-### Náklady a vynucené limity
+### Evidence nákladů a technické limity
 
 Veřejné standardní sazby textu: GPT-6.1 Sol 2,00 USD / 1M vstupních a 10,00 USD / 1M výstupních tokenů; GPT-6 Luna 0,10/0,50. Cache write může stát více než běžný vstup [O22]. Pro hlas zůstává orientačně gpt-transcribe 0,0045 USD/min a mini-TTS 0,60 USD / 1M textových a 12 USD / 1M audio výstupních tokenů [O12, O18]. Před aktivací ověřit účet, modelovou dostupnost a skutečné usage včetně reasoning tokenů. Audio tokeny nelze převést na minuty pevnou konstantou.
 
@@ -847,7 +890,16 @@ Příklad sezení se Sol: 15 000 vstupních a 1 500 výstupních dialogových to
 
 Výchozí aplikační stropy: jeden návštěvník a jeden placený request na sezení současně; 10 tahů / sezení; vstupní text 1000 znaků; textový kontext a nákladová rezervace podle §6; provider výstup nejvýše 1200 tokenů včetně reasoning; nejvýše 30 s nahrávky a 30 s přehrávání; 10 nových tahů/min/zařízení; fronta backendu nejvýše 4 operace, dvě současná provider volání celkem. Kontext vybírat z trvalé paměti podle §6; žádné skryté sumarizační volání. Limit kontextu nevymaže archiv večera.
 
-Od D128 majitel schválil 3 USD na každé sezení v backendu i AI evaluaci. Další aplikační denní, měsíční ani výchozí souhrnné testovací limity se neuplatňují; celkový rozpočet určuje hlavní limit OpenAI projektu. Rezervovat horní odhad transakčně **před** placeným voláním, po odpovědi přepočítat konzervativní ceníkový odhad podle vrácených tokenů a ověřeného tarifu. Tento odhad není skutečné vyúčtování z OpenAI; účtovanou cenu uvádět pouze po ověření billing zdroje. Nejasně ukončené volání ponechat rezervované do uzávěrky, aby restart neobešel limit. Místní session limit zůstává transakční; celkový limit se konfiguruje v OpenAI. Po dosažení limitu funguje ruční režim dál.
+Majitel 9. 10. 2026 zrušil všechny softwarové peněžní stropy v backendu,
+AI evaluaci i diagnostice. Staré proměnné session/daily/monthly cap se
+ignorují a jejich chybění či hodnota nebrání startu AI. Finanční kontrola
+patří nastavení OpenAI účtu; [Spend limits](https://developers.openai.com/api/docs/guides/spend-limits)
+rozlišují upozornění a vynucený limit. V aplikaci se nadále transakčně
+zapisuje odhad před voláním a spotřeba po odpovědi pro audit/idempotenci,
+bez peněžního zamítnutí nebo zkracování dialogu podle zbývající částky.
+Nejasný provider request se po restartu neopakuje. Účetní odhad není
+vyúčtování OpenAI; skutečnou cenu uvádět pouze po ověření billing zdroje.
+Ruční režim je nadále nezávislý na dostupnosti AI a účtu.
 
 Pro jednu malou VM/doménu počítat plánovací rezervu přibližně 5–15 EUR/měsíc; není to ověřená nabídka konkrétního hostingu. Router/LTE a nový bezpečnostní obvod/PCA úpravy/expander patří do doplnění nákupního rozpočtu, nikoli do původního součtu elektroniky. Před nákupem potvrdit, zda jsou již k dispozici.
 
@@ -961,7 +1013,7 @@ Fault injection: ztracený ACK, zpožděný příkaz, zavřený socket v každé
 | --- | --- |
 | C++ unit | Stávající tři testy zachovat; přidat abort v každé fázi, maximální on-time, výpadek lease, časový overflow, pozdní loop a prioritu Stop. Invariant: nejvýše jeden motor, motor=0 při servo výstupu, safe state vypíná všechny pohony. |
 | Protokol | Stejné fixtures C++/TypeScript/.NET. Čísla 0/7/1.5/"4", záporné délky, neznámý boot, stará revision, duplicitní klíče, oversize, změněný payload pod stejným ID, ztráta ACK a vyprázdněná cache nesmějí způsobit druhé spuštění. |
-| Backend integrace | Skutečná lokální SQLite a HTTP fake provider; souběžné idempotentní requesty spustí právě jednu provider operaci, rezervace nákladů nepřekročí strop, cizí session=403, restart=unknown bez automatického replay, cleanup odstraňuje obsah. |
+| Backend integrace | Skutečná lokální SQLite a HTTP fake provider; souběžné idempotentní requesty spustí právě jednu provider operaci, náklady se evidují bez peněžního stropu, cizí session=403, restart=unknown bez automatického replay, cleanup odstraňuje obsah. |
 | Mobil + simulátor E2E | Text → návrh → změna na jinou hůlku → potvrzení → odpovídající commandId a přihrádka. Ruční cesta má explicitní potvrzení; autonomní cesta má samostatnou validaci dle D75. Ruční režim při odpojené WAN, Stop, zamítnuté oprávnění a návrat z pozadí. |
 | Samostatný kufr E2E | Žádný spuštěný telefon: PTT fixture → device HTTPS → fake/AI → hlasový výběr → autonomní vysunutí/předvedení/zasunutí. Odpojení pozorovatele nic nezmění; ztráta manual lease zastaví. Starý návrh po takeover/reconnect/reboot se nespustí. Test PTT/Stop v každém stavu, USB provisioning, opuštěný rozhovor a opakované normální cykly bez ručního reloadu. |
 | Audio fixtures | Správná délka a sample rate, int24 znaménko, resampling 24→32 kHz, clipping, prázdná řeč, maximum 30 s, přerušený přenos, starý streamId a zrušení při playback. |
@@ -1022,7 +1074,7 @@ Pokyn „začni/pokračuj implementovat aplikaci podle implementačního plánu�
 - **Plán:** přijatá rozhodnutí, kontrakty, bezpečnost, etapové závislosti a kritéria. Měnit při novém architektonickém důkazu; důvod, dopady a potřebnou migraci zaznamenat spolu se změnou. Nesnižovat kritéria, aby šla etapa označit za hotovou.
 - **[Stav implementace](stav-implementace.md):** jediný seznam stavů E0–E13/E3a, dílčí kroky, chybějící vstupy, důkazy kontrol a konkrétní předání. Aktualizovat při převzetí i dokončení/přerušení kroku. Fake, build, integrační test a fyzické ověření rozlišovat; procenta bez podkladu nepoužívat.
 - **README a AGENTS:** krátké vstupní body a postup práce. Komponentové README popisují skutečně dostupné příkazy/konfiguraci a zvlášť budoucí směr. Nové příkazy a závislosti doplnit zároveň s jejich implementací; nepředstírat existující backend/CI jen proto, že ho plán navrhuje.
-- **Firmware po E4:** aktualizovat skutečný runtime, kontrakty, profily, servisní provisioning bez tajemství a ověřené příkazy. Do té doby platí popis Arduino sériového prototypu.
+- **Firmware:** dokumentovat skutečný ESP-IDF runtime, kontrakty, jediný profil, servisní provisioning bez tajemství a ověřené příkazy. Historický Arduino sériový prototyp se nesestavuje ani neobnovuje.
 - **Mobil po E3/E3a/E4:** doplnit skutečné Windows/CI příkazy, Swift adaptér, workflow cestu, názvy secrets, podpisový režim a důkaz instalace. Vite build ani CI archive neznamenají otestovaný iPhone.
 - **Hardware:** podkladový obrázek zachovat; měření doplňovat s revizí PCB, firmware, profilem a kalibrací. Profily A/B zůstávají předběžné do ověření. Nákupní ceny jsou historický podklad, bezpečnostní obvod/MCP/router vyžadují doplnění rozpočtu před nákupem.
 

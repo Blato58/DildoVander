@@ -71,16 +71,14 @@ internal sealed class GptLiveDialogue(GptLiveConnection connection, TextDialogRu
         using var backendWork = CancellationTokenSource.CreateLinkedTokenSource(token);
         void StartBackend(string? id)
         {
-            var reservation = ResponsesTextDialogBudget.ReserveForContext(turn.EveningContext, personalityId: turn.PersonalityId);
-            if (++backendCalls > 10
-                || modelCost + reservation + GptLiveProtocol.VoiceReservation > GptLiveProtocol.SessionBudget)
-                throw new InvalidDataException("Live session budget exhausted.");
+            if (++backendCalls > 10)
+                throw new InvalidDataException("Live delegation count exhausted.");
             pendingId = id;
             deferredId = null;
             pendingVersion = version;
             pendingInput = input.ToString();
             pending = dialog.GenerateAsync(pendingInput, turn.Request.ReadyMask, SpokenHistory(archive),
-                questions < PersonalityCatalog.MinimumQuestions(turn.PersonalityId), backendWork.Token, turn.EveningContext, turn.PersonalityId);
+                questions < PersonalityCatalog.MinimumQuestions(turn.PersonalityId), backendWork.Token, turn.EveningContext, turn.PersonalityId, turn.CostumeContext);
         }
         if (turn.Request.ReadyMask == 0)
             StartBackend(null);

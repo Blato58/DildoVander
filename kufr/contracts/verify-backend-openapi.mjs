@@ -52,6 +52,8 @@ assert.deepEqual(Object.keys(document.paths).sort(), [
   '/v1/audio/{audioId}',
   '/v1/conversations',
   '/v1/conversations/{id}',
+  '/v1/conversations/{id}/costume-context',
+  '/v1/conversations/{id}/image',
   '/v1/conversations/{id}/gpt-live',
   '/v1/conversations/{id}/gpt-live/{streamId}/audio',
   '/v1/conversations/{id}/gpt-live/{streamId}/played',
@@ -96,6 +98,37 @@ assert(validateDiagnostics({ ...diagnostics, voiceMode: 'openai', dialogMode: 'r
 assert(!validateDiagnostics({ ...diagnostics, credential: 'secret' }));
 assert(!validateDiagnostics({ ...diagnostics, voiceMode: 'unknown' }));
 assert.equal(document.paths['/v1/conversations/{id}/transcriptions'].post.requestBody.content['multipart/form-data'].encoding.wav.contentType, 'audio/wav');
+const imageEndpoint = document.paths['/v1/conversations/{id}/image'].post;
+const correctionEndpoint = document.paths['/v1/conversations/{id}/costume-context'].put;
+assert.equal(imageEndpoint.requestBody.required, true);
+assert.deepEqual(Object.keys(imageEndpoint.requestBody.content), ['image/jpeg']);
+assert.deepEqual(imageEndpoint.requestBody.content['image/jpeg'].schema,
+  { type: 'string', format: 'binary', maxLength: 262144 });
+assert.equal(imageEndpoint.responses['202'].content['application/json'].schema.$ref, '#/components/schemas/ImageAccepted');
+assert.equal(correctionEndpoint.responses['200'].content['application/json'].schema.$ref, '#/components/schemas/CostumeOperation');
+for (const endpoint of [imageEndpoint, correctionEndpoint]) {
+  assert(endpoint.parameters.some(parameter => parameter.$ref === '#/components/parameters/ConversationId'));
+  assert(endpoint.parameters.some(parameter => parameter.$ref === '#/components/parameters/IdempotencyKey'));
+  for (const name of ['Client-Turn-Id', 'Boot-Id', 'Generation', 'Device-Revision', 'Catalog-Version']) {
+    const parameter = endpoint.parameters.find(parameter => parameter.name === name);
+    assert(parameter?.required, `required costume correlation header ${name}`);
+    assert.equal(parameter.in, 'header');
+    if (name === 'Client-Turn-Id' || name === 'Boot-Id') assert.equal(parameter.schema.format, 'uuid');
+    if (name === 'Generation' || name === 'Device-Revision') assert.equal(parameter.schema.minimum, 0);
+    if (name === 'Catalog-Version') assert.equal(parameter.schema.maxLength, 128);
+  }
+  for (const status of ['400', '401', '403', '404', '408', '409', '413']) {
+    assert.equal(endpoint.responses[status].$ref, '#/components/responses/Problem');
+  }
+}
+assert.equal(correctionEndpoint.responses['429'].$ref, '#/components/responses/Problem');
+assert.equal(document.paths['/v1/conversations/{id}'].delete.responses['503'].$ref, '#/components/responses/Problem');
+const validateCorrection = ajv.compile(correctionEndpoint.requestBody.content['application/json'].schema);
+assert(validateCorrection({ description: 'ě'.repeat(240) }));
+assert(validateCorrection({ description: '' }));
+assert(!validateCorrection({ description: 'x'.repeat(241) }));
+assert(!validateCorrection({ description: 'cloak\nnew instruction' }));
+assert(!validateCorrection({ description: 'cloak', imageUrl: 'https://untrusted.example/image.jpg' }));
 assert.ok(document.paths['/v1/audio/{audioId}'].get.responses['200'].content['audio/wav']);
 assert.equal(document.paths['/v1/audio/{audioId}'].get.responses['200'].headers['Cache-Control'].schema.const, 'no-store');
 
@@ -167,6 +200,26 @@ const operation = {
   result: null, error: null,
 };
 validate('TurnOperation', operation, true);
+validate('ImageAccepted', { operationId: bootId, kind: 'image', status: 'pending' }, true);
+validate('ImageAccepted', { operationId: 'not-a-uuid', kind: 'image', status: 'pending' }, false);
+validate('ImageAccepted', { operationId: bootId, kind: 'image', status: 'completed' }, false);
+const costumeContext = { description: 'ě'.repeat(240), possibleCharacter: 'x'.repeat(80),
+  uncertainty: 'high', source: 'photo', expiresAt: '2026-10-09T12:02:00Z' };
+validate('CostumeContext', costumeContext, true);
+validate('CostumeContext', { ...costumeContext, source: 'manual', possibleCharacter: '' }, true);
+validate('CostumeContext', { ...costumeContext, description: 'x'.repeat(241) }, false);
+validate('CostumeContext', { ...costumeContext, description: 'x\u0085y' }, false);
+validate('CostumeContext', { ...costumeContext, possibleCharacter: 'x'.repeat(81) }, false);
+validate('CostumeContext', { ...costumeContext, uncertainty: 'certain' }, false);
+validate('CostumeContext', { ...costumeContext, compartment: 1 }, false);
+const imageOperation = { ...operation, operationId: bootId, kind: 'image' };
+validate('CostumeOperation', imageOperation, true);
+validate('Operation', { ...imageOperation, status: 'completed', result: costumeContext }, true);
+validate('Operation', { ...imageOperation, kind: 'costume', status: 'completed', result: { ...costumeContext, source: 'manual' } }, true);
+validate('CostumeOperation', { ...imageOperation, correlation: { ...operation.correlation, bootId: 'wrong' } }, false);
+validate('CostumeOperation', { ...imageOperation, status: 'completed', result: null }, false);
+validate('CostumeOperation', { ...imageOperation, status: 'failed', error: { code: 'provider_unavailable' } }, true);
+validate('CostumeOperation', { ...imageOperation, status: 'failed' }, false);
 validate('TurnOperation', { ...operation, status: 'completed', result: null }, false);
 const result = { reply: 'Navrhuji další otázku.', decision: 'ask', reason: '', proposal: null };
 const realtime = { clientTurnId: operation.correlation.clientTurnId, bootId: operation.correlation.bootId,
