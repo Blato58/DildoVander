@@ -93,6 +93,11 @@ def _component(endpoint):
     return endpoint.split(":", 1)[0]
 
 
+def _moving_end_count(start, end):
+    return sum(_component(endpoint).startswith(("led_", "u059_"))
+               for endpoint in (start, end))
+
+
 def _endpoint_path(endpoint, corridor):
     """From nominal endpoint outward to its fixed shared corridor."""
     part = _component(endpoint)
@@ -179,13 +184,16 @@ def route_length(points):
 def _wire(identifier, start, end, net, area=0.5, corridor="power", native=0,
           moving=False, channel=None, stock=None, note="", construction="solder + heatshrink"):
     points = _route(start, end, corridor)
-    required = math.ceil((route_length(points) + SERVICE_MM + TERMINATION_MM + (MOTION_MM if moving else 0)) / 10) * 10
+    moving_count = _moving_end_count(start, end)
+    moving = moving_count > 0
+    motion_mm = MOTION_MM * moving_count
+    required = math.ceil((route_length(points) + SERVICE_MM + TERMINATION_MM + motion_mm) / 10) * 10
     return {
         "id": identifier, "from": start, "to": end, "net": net,
         "kind": "ground" if net in ("GND", "PD_RETURN") else "power" if net in ("MAIN5", "DRIVE5", "LOGIC3", "PD12", "BUCK5", "USB5") else "signal",
         "area_mm2": area, "points": points, "route_mm": round(route_length(points), 1),
         "service_mm": SERVICE_MM, "termination_mm": TERMINATION_MM,
-        "motion_mm": MOTION_MM if moving else 0, "lift_mm": LIFT_MM if moving else 0,
+        "motion_mm": motion_mm, "lift_mm": LIFT_MM if moving else 0,
         "native_lead_mm": native, "stock_mm": stock,
         "estimated_total_mm": required, "estimated_cut_mm": max(0, required - (stock or native)),
         "channel": channel, "label_from": f"{identifier} A / {net} / {start}",
@@ -280,10 +288,44 @@ def _make_harnesses():
 
 
 HARNESSES = _make_harnesses()
-CONNECTIONS = tuple({"from": _component(wire["from"]), "to": _component(wire["to"]),
-                     "label": f'{wire["id"]}: {wire["net"]}', "kind": wire["kind"],
-                     "note": "Assembly cable route estimate; pin locations and cut lengths require dry-fit."}
-                    for wire in HARNESSES if "degson_" in wire["from"])
+
+
+def _physical_loads(endpoint, trail=(), visited=()):
+    """Resolve declared fanout loads; local capacitor edges remain explicit below."""
+    if endpoint not in FANOUTS:
+        return [(endpoint, trail)]
+    if endpoint in visited:
+        raise ValueError(f"Cyclic assembly fanout: {endpoint}")
+    result = []
+    for load in FANOUTS[endpoint]["loads"]:
+        branches = [wire for wire in HARNESSES if wire["from"] == endpoint and wire["to"] == load]
+        if len(branches) != 1:
+            raise ValueError(f"Missing or ambiguous assembly fanout branch: {endpoint} -> {load}")
+        result.extend(_physical_loads(load, trail + (branches[0]["id"],), visited + (endpoint,)))
+    return result
+
+
+def _terminal_connections():
+    """Keep actual scene endpoints so preview filtering preserves every port."""
+    edges = []
+    for wire in HARNESSES:
+        if not wire["from"].startswith("degson_"):
+            continue
+        for endpoint, trail in _physical_loads(wire["to"]):
+            target = _component(endpoint)
+            note = "Assigned F1 assembly branch; actual terminals and physical fit require verification."
+            if trail:
+                note += " Through insulated soldered wire fanout; no power through perfboard."
+            if target == "esp_usb_supply":
+                target = "esp32"
+                note += " USB-UART power route via unconfirmed USB supply adapter; remains an acceptance gap."
+            path = " / ".join((wire["id"],) + trail)
+            edges.append({"from": _component(wire["from"]), "to": target,
+                          "label": f'{path}: {wire["net"]}', "kind": wire["kind"], "note": note})
+    return tuple(edges)
+
+
+CONNECTIONS = _terminal_connections()
 CONNECTIONS += tuple({"from": "degson_3" if polarity == "-" else "pca9685" if index in (3, 4) else "degson_1",
                       "to": f"capacitor_{index}", "label": f'C{index}{polarity}: {"GND" if polarity == "-" else "DRIVE5" if index in (3, 4) else "MAIN5"}',
                       "kind": "ground" if polarity == "-" else "power",
@@ -329,12 +371,15 @@ def validate(wires=None, terminals=None):
                 errors.append(f"{wire['id']}: wrong fanout net")
         if wire["estimated_total_mm"] <= 0 or wire["estimated_cut_mm"] < 0:
             errors.append(f"{wire['id']}: invalid estimated length")
+        minimum_cut = max(0, wire["estimated_total_mm"] - (wire["stock_mm"] or wire["native_lead_mm"]))
+        if wire["estimated_cut_mm"] < minimum_cut:
+            errors.append(f"{wire['id']}: insufficient cut length after native lead allowance")
         minimum = route_length(wire["points"]) + wire["service_mm"] + wire["termination_mm"] + wire["motion_mm"]
         if wire["estimated_total_mm"] < minimum:
             errors.append(f"{wire['id']}: insufficient route/slack allowance")
-        moving_end = any(_component(endpoint).startswith(("u059_", "led_")) for endpoint in (wire["from"], wire["to"]))
-        if moving_end and (wire["motion_mm"] < 2 * LIFT_MM + 32 or not wire["fixed_anchor"] or not wire["moving_anchor"]):
-            errors.append(f"{wire['id']}: moving harness requires loop and two strain reliefs")
+        moving_count = _moving_end_count(wire["from"], wire["to"])
+        if moving_count and (wire["motion_mm"] < moving_count * (2 * LIFT_MM + 32) or not wire["fixed_anchor"] or not wire["moving_anchor"]):
+            errors.append(f"{wire['id']}: moving harness requires a loop allowance and both strain reliefs per moving end")
     for index in range(1, 7):
         for identifier, channel in ((f"S{index}-S", index - 1), (f"U{index}-DIN", index + 5)):
             matches = [wire for wire in wires if wire["id"] == identifier]

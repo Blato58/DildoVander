@@ -328,6 +328,82 @@ class HarnessTests(unittest.TestCase):
         routes[0]["points"][0][0] = -100
         self.assertNotEqual(-100, harness.HARNESSES[0]["points"][0][0])
 
+    def test_rgb_links_reserve_slack_for_each_independent_moving_end(self):
+        for index in range(1, 7):
+            wire = next(wire for wire in harness.HARNESSES if wire["id"] == f"RGB-{index}")
+            required_motion = 64 if index == 1 else 128
+            with self.subTest(wire=wire["id"]):
+                self.assertEqual(required_motion, wire["motion_mm"])
+                expected_total = math.ceil((harness.route_length(wire["points"]) +
+                                           wire["service_mm"] + wire["termination_mm"] + required_motion) / 10) * 10
+                self.assertEqual(expected_total, wire["estimated_total_mm"])
+                self.assertEqual(expected_total, wire["estimated_cut_mm"])
+        for identifier in ("F_LED+-02", "U1-DIN"):
+            wire = next(wire for wire in harness.HARNESSES if wire["id"] == identifier)
+            self.assertEqual(64, wire["motion_mm"])
+
+    def test_validator_rejects_only_one_loop_for_two_moving_rgb_ends(self):
+        wires = self.wires()
+        wire = next(wire for wire in wires if wire["id"] == "RGB-2")
+        wire["motion_mm"] = 64
+        with self.assertRaisesRegex(ValueError, "moving harness"):
+            harness.validate(wires=wires)
+
+    def test_validator_rejects_undersized_rgb_total_and_cut_length(self):
+        wires = self.wires()
+        wire = next(wire for wire in wires if wire["id"] == "RGB-2")
+        wire["estimated_total_mm"] -= 60
+        wire["estimated_cut_mm"] = wire["estimated_total_mm"]
+        with self.assertRaisesRegex(ValueError, "insufficient route/slack"):
+            harness.validate(wires=wires)
+        wires = self.wires()
+        next(wire for wire in wires if wire["id"] == "RGB-2")["estimated_cut_mm"] -= 10
+        with self.assertRaisesRegex(ValueError, "insufficient cut length"):
+            harness.validate(wires=wires)
+
+    def test_terminal_connection_metadata_reaches_real_fanout_loads(self):
+        expected = {
+            "D1-3": {"pixel_shifter"} | {f"led_{index}" for index in range(1, 7)},
+            "D1-4": {"amplifier_left", "amplifier_right", "esp32"},
+            "D1-5": {"white_ptt"},
+            "D2-3": {f"u059_{index}" for index in range(1, 4)},
+            "D2-4": {f"u059_{index}" for index in range(4, 7)},
+            "D3-3": {"pixel_shifter"} | {f"led_{index}" for index in range(1, 7)},
+            "D3-4": {f"u059_{index}" for index in range(1, 7)},
+            "D3-5": {"amplifier_left", "amplifier_right", "esp32", "mcp23017", "microphone",
+                       "red_main", "green_drives", "white_ptt"},
+        }
+        for port, targets in expected.items():
+            edges = [edge for edge in harness.CONNECTIONS if edge["label"].startswith(f"{port} ") or edge["label"].startswith(f"{port}:")]
+            with self.subTest(port=port):
+                self.assertEqual(targets, {edge["to"] for edge in edges})
+                self.assertTrue(all("fanout" in edge["note"] for edge in edges))
+                self.assertTrue(all(harness.NETS[f"degson_{port[1]}"] in edge["label"] for edge in edges))
+        for edge in harness.CONNECTIONS:
+            self.assertFalse(edge["to"].startswith("F_"))
+            self.assertNotEqual("esp_usb_supply", edge["to"])
+        usb_edges = [edge for edge in harness.CONNECTIONS if edge["to"] == "esp32"]
+        self.assertEqual(2, len(usb_edges))
+        self.assertTrue(all("USB-UART" in edge["note"] and "unconfirmed" in edge["note"] for edge in usb_edges))
+
+    def test_every_occupied_degson_port_keeps_edges_after_physical_scene_filter(self):
+        scene_names = {"degson_1", "degson_2", "degson_3", "buck", "pca9685", "pixel_shifter",
+                       "amplifier_left", "amplifier_right", "esp32", "white_ptt", "red_main", "green_drives",
+                       "mcp23017", "microphone"}
+        scene_names |= {f"{prefix}_{index}" for prefix in ("led", "u059", "capacitor") for index in range(1, 7)}
+        visible = [edge for edge in harness.CONNECTIONS
+                   if edge["from"] in scene_names and edge["to"] in scene_names]
+        self.assertEqual(len(harness.CONNECTIONS), len(visible))
+        for block, ports in harness.TERMINALS.items():
+            for port, endpoint in ports.items():
+                if endpoint is None:
+                    continue
+                identifier = f"D{block[-1]}-{port}"
+                with self.subTest(port=identifier):
+                    self.assertTrue(any(edge["from"] == block and
+                                        (edge["label"].startswith(f"{identifier}:") or edge["label"].startswith(f"{identifier} /"))
+                                        for edge in visible))
+
 
 if __name__ == "__main__":
     unittest.main()
