@@ -34,7 +34,7 @@ sám aktualizoval dokumentační PR 141 z `592ff84` na `06533a9` a spustil
 na nové SHA. Freshness a CI required prošly, všechny buildy se správně
 vynechaly. Výsledek a hranice jsou v [záznamu ověření](../../docs/pr-sync-validation.md).
 Předání záznamu je v PR [141](https://github.com/Blato58/DildoVander/pull/141);
-po této dokumentační úpravě zbývá jeho push a merge. Nasazení ani AI/HW test
+finální commit a stav merge jsou dohledatelné v uvedeném PR. Nasazení ani AI/HW test
 se nespouštěly. Další krok tohoto slice: sledovat synchronizaci běžných PR;
 software a fyzická akceptace kufru pokračují podle D156 níže.
 
