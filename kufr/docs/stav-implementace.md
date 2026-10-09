@@ -6,6 +6,45 @@ Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelsk
 
 ## Předání další AI
 
+**D162 – 9. 10. 2026 – D161 nasazený a workflow verze automatická.**
+Automatické firmware verze jsou sloučené v [PR157](https://github.com/Blato58/DildoVander/pull/157),
+commit `3bf81025a9a51e9c93da5ac99646242b897c7094`. [CI37923289582](https://github.com/Blato58/DildoVander/actions/runs/37923289582)
+prošlo včetně Linux helper/provenance testů, host testů a všech firmware
+diagnostických buildů. Codex review464af6d dokončené bez findings;
+před merge znovu načtené reviews/inline, žádná nevyřešená vlákna.
+Git tree `21215f06a8c999f056ba1e9c9176b254ddb79435` odpovídá main i artefaktu.
+CI run_number156 přidělil firmware **0.1.157**; ruční bump0.1.2 byl
+nahrazen požadovaným automatickým číslováním. Nový CI běh verzi zvýší,
+rerun/publikace stejného artefaktu ji zachovají.
+
+Root-owned resolver/verifier/publisher byly instalované z tohoto checkoutu
+se shodnými SHA-256, root644/644/755. Předchozí helpery mají soukromou
+zálohu v `/root/kufr-release-3bf8102-37923289582/backup`; klíče, environment
+a návštěvnická data nebyly čtené ani měněné. Backend zůstal active a
+veřejný `/healthz` vrátil ok před i po publikaci; aplikace backendu nebyla
+přenasazená, D161 její kód nemění.
+[OTA publikace37923929435](https://github.com/Blato58/DildoVander/actions/runs/37923929435)
+prošla: development0.1.157, buildId `cea012486b7c67f44984ea82ab5c038549920c7d`
+(testovaný PR merge commit, stejný Git tree jako squash main),1743776 B,
+SHA-256 `40c54e708214fa32721eb3998d6fc1683715a71d59e28b2c0916323f383476d8`.
+Nezávislé veřejné HTTPS stažení ověřilo ECDSA podpis, SHA-256 a embedded
+version; manifest je dostupný i z Windows.
+
+[Web CI37923839902](https://github.com/Blato58/DildoVander/actions/runs/37923839902),
+[Ad Hoc podpis37923948887](https://github.com/Blato58/DildoVander/actions/runs/37923948887)
+a [Safari publikace37924314161](https://github.com/Blato58/DildoVander/actions/runs/37924314161)
+prošly. Nativní macOS harnessy pro pinned LAN/Keychain, debug backend a BLE
+status/secret whitelist prošly. Veřejná [instalace](https://2.28.202.220/ios/)
+nabízí **1.0 /1000.0.20**; Bundle ID/Team ID se nemění. Windows klient
+ověřil aktuální stránku, manifest, build a staženou IPA1866106 B se SHA-256
+`a90a1671aafd6b7ac3e2e7d02fc5f10ccc589eff543ffe844fceab657362a294`.
+
+Zbývá fyzicky ověřit instalaci IPA/OTA, Bonjour, tlačítko přes ověřené BLE,
+pinned WSS, restart ESP, relaunch/aktualizaci aplikace a Keychain persistence.
+Připojené ESP USB nebylo nalezené; nebyl proveden flash ani potvrzen nový
+boot. Publikace není přijetí změny na iPhonu/ESP a HW/E10 se neuzavírá.
+Nesouvisející lokální `.codex/environments/environment.toml` zůstal zachovaný.
+
 **9. 10. 2026 – nasazení D161 (BLE/Wi-Fi pairing), převzato.**
 Majitel výslovně požádal `deploy`. PR155 je sloučený jako `f0f10b6`;
 finální CI37920004873 a Codex review07963d1 prošly, relevantní P1 je
