@@ -21,6 +21,13 @@ zohledňují. Druhá ESP deska/sada se ze zbývajícího nákupu odstranila,
 starý součet 500 Kč se ruší. Kamerový driver E13 nadále zbývá.
 Toto následné upřesnění mění pouze dokumentaci; ověřeno 39 lokálních
 Markdown odkazů v pěti dotčených dokumentech a `git diff --check`.
+Upřesnění kamery je v commitu `381c2d4dcceb35a348e6c78ac25ad3d794a0e8b6`,
+push proběhl a read-back remote potvrdil tuto SHA. PR je
+[138](https://github.com/Blato58/DildoVander/pull/138); CI zatím běží.
+Na následný pokyn upravit přímo „Zapojení potvrzeného hardwaru“ dokument
+výslovně doplnil jeden pohon celkem, nepřekrývající se servo/vibraci,
+pasivní držení polohy a inicializaci OE HIGH / OUTNE=00 / všech 16 FULL_OFF.
+Jde o dokumentaci už implementovaného chování; nové HW měření neproběhlo.
 
 Aktuální [zapojení](zapojeni-potvrzeneho-hardwaru.md): GPIO2 přímo PCA OE,
 HIGH vypnuto, pull-up kolem 10 kΩ (dva koupené 22kΩ paralelně = 11 kΩ).

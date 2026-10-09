@@ -10,14 +10,20 @@ Implementovaný profil **B-effects** zachovává kamerové a SD piny.
 Kamerový driver/snímek E13 a SD driver zatím nejsou dokončené.
 Majitel potvrdil stávající desku Drátek 232701 s konektorem OV5640;
 samotná kamera je objednaná a čeká na doručení. Druhý řadič se nekupuje.
-Firmware řídí koupené
-pohony bez dalších modulů či polohových snímačů. Servo polohu odvozuje
+Firmware řídí koupené pohony bez dalších modulů či polohových snímačů.
+Servo polohu odvozuje
 z individuálně kalibrovaného pulzu a doby pohybu, **polohu neměří**.
 `physicalVerification` ve výsledcích zůstává `unavailable`.
 
 Pinout vychází z dodané mapy a komunikačního testu PCA D124.
 Není dokladem měření celé sestavy. NVS vyžaduje ověření zapojení
 a individuální kalibraci; prázdná NVS žádný pohyb nepovolí.
+
+**Proudové špičky omezujeme pořadím efektů:** současně smí běžet pouze
+jeden pohon celkem, tedy jedno servo nebo jeden U059. Vibrace a pohyb
+serva se nepřekrývají. Ostatní servo kanály jsou FULL_OFF; mechanismus
+musí polohu držet pasivně. Proud při rozběhu a zatížení se změří na
+prototypu, samotné omezení souběhu nedokládá dodržení limitu 5 A.
 
 ## Napájení a vypínače
 
@@ -97,6 +103,8 @@ OE musí být HIGH při resetu i odpojeném ESP. Ověřit také zátěž onboard
 Firmware před změnou pohonu nastaví OE HIGH, vymaže všech 16 kanálů,
 nastaví jediný výstup a teprve pak OE LOW. Při Stop/I2C chybě dá OE HIGH
 přímo před dalším zápisem. OE zastavuje signály, **neodpojuje 5V napájení**.
+Při inicializaci ponechá OE HIGH, nastaví `OUTNE=00` a všech 16 kanálů
+FULL_OFF. Výstupy povolí až pro přijatý pohyb po kalibraci a místní kontrole.
 Napájení pohonů odpojuje zelená kolébka. Software zastaví po návratu
 z opožděné smyčky; úplné zamrznutí není dokladem automatického odpojení.
 
