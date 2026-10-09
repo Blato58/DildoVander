@@ -868,8 +868,9 @@ Fyzický kontrakt vysunutí/prezentace/návratu se nemění, firmware nepřebír
 nové pulzy bez kalibrace. Pasivní zadržení se navrhuje třecím čepem, ale
 není ověřené; výpadek v jakékoli poloze a tečení plastu zůstávají součástí
 E5/B1. Společný zadní držák kamery a ESP zachovává krátký originální FPC,
-mikrofon je vpředu mimo reproduktory. Šířka ornamentu, skutečný vnitřek
-kufru, FPC a konkrétní elektronika se musí změřit. Původní CAD/export D126
+mikrofon je vpředu mimo reproduktory. Pro rozvržení platí majitelem
+doplněný [společný přehled rozměrů](../mechanika/rozmery-nakoupenych-soucastek.md).
+Usazení rekvizity a kamerového FPC se ověří na prototypu. Původní CAD/export D126
 zůstává historickou evidencí; montážní návod a nový zdroj jsou
 v [mechanice](../mechanika/README.md). Žádné kritérium HW akceptace se tím
 neuzavírá.
@@ -880,9 +881,21 @@ spodní části, tedy 431,8 × 266,7 × 114,3 mm. Pro návrh používat přibli�
 432 × 267 × 114 mm (šířka × délka × výška). Kufr se prezentuje otevřený;
 veškerá mechanika a elektronika patří do spodní části, víko zůstává
 prázdné a jeho prostor se do zástavby nepočítá. Příčná výztuha na dně
-je vidět na fotografiích, její tloušťka se musí změřit. Toto potvrzení
+má podle majitele **5 mm**; další údaje o ní nejsou podmínkou rozvržení. Toto potvrzení
 nahrazuje původní předpoklad prostoru kufru; CAD s obálkou
 310 × 450 × 200 mm je nutné přizpůsobit a znovu ověřit před tiskem.
+
+**Doplnění rozměrů majitelem 9. 10. 2026:** PTT 14×14×35 mm,
+PCA9685 25×70×15 mm a U059 podle výrobce 32×24×8 mm. Servo používá
+oboustrannou páku délky 35 mm s upevněním a osou uprostřed nebo
+jednostrannou délky 20 mm s upevněním a osou na konci; nejde o rozměry
+montážních uší těla serva ani rozteč otvorů. Powerbanka má potvrzené
+rozměry **139×80×26,5 mm** a musí jít jednoduše vyjmout po uvolnění pásků
+a odpojení kabelu, bez demontáže okolních dílů. Svorky jsou pořízené,
+čekají na doručení a neblokují rozvržení. Další výšky mikrofonu/zesilovačů,
+otvory reproduktorů a podrobnosti kolébek, LED či kabelů nejsou podmínkou
+rozvržení. Údaje jsou pohromadě ve společném přehledu; fyzické usazení,
+kalibrace a elektrická akceptace E5/B1 zůstávají samostatným ověřením.
 
 Firmware musí mít samostatně testovaný `Abort` a bezpečný výstup, nikoli čekat na další běžný krok stávající sekvence. Motorový pulz má provozní limit 150 ms a tvrdý softwarový strop 250 ms, servo okno dle kalibrace 20–3000 ms + 250ms softwarová rezerva, fyzická prezentace do 15 s (sériový prototyp 5 s). Pozdní smyčka při aktivním motoru znamená vypnutí, nikoli další prodloužení pulzu. Maximálně jeden motor NEBO jedno servo, nikdy současně; nejvýše jeden 20cm LED úsek může svítit i během pohybu. Celkové limity nesmí měnit AI nebo běžný klient.
 
@@ -1125,7 +1138,7 @@ Hardwarová větev je E0→E1/E2→E4→E5→E6. Konverzační větev E2→E7→
 | Potřebujeme kameru i SD zároveň? | Ne pro základ. SD jen assety, kamera jednotlivé snímky; potvrdit užitek před E13 a teprve pak měnit kabeláž. |
 | Hlasitost a srozumitelnost v reálném hluku? | Dva reproduktory 8 Ω, každý vlastní MAX98357A, společný hlas a PTT; český eval a měření v prostředí před E10/E11. |
 | Kdo platí a spravuje cloud, jaká retence/region je přípustný? | Jeden správce, explicitní limity a informování návštěvníků. Přesné účetní/datové podmínky a dostupnost modelů před placeným testem. |
-| Rozměry kufru, kabely, teplota a výdrž powerbanky? | Z dokumentace neurčeno. Ověřit mechanickým prototypem a zátěžovým měřením; nepočítat výdrž pouze z nominální kapacity. |
+| Rozměry kufru, kabely, teplota a výdrž powerbanky? | Vnitřek kufru 431,8×266,7×114,3 mm, výztuha 5 mm; součástky ve společném přehledu. Powerbanka 139×80×26,5 mm musí jít snadno vyjmout. Další kabelové rozměry neblokují rozvržení; teplotu a výdrž ověřit zátěžovým měřením, ne pouze z nominální kapacity. |
 
 ## 14. Práce s plánem a průběžná dokumentace
 
