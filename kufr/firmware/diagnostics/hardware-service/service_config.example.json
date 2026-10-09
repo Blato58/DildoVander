@@ -1,0 +1,37 @@
+{
+  "profile": "B-effects",
+  "revision": 1,
+  "profile_b_ok": false,
+  "servos": [
+    {
+      "rest_us": 0,
+      "raised_us": 0,
+      "travel_ms": 0
+    },
+    {
+      "rest_us": 0,
+      "raised_us": 0,
+      "travel_ms": 0
+    },
+    {
+      "rest_us": 0,
+      "raised_us": 0,
+      "travel_ms": 0
+    },
+    {
+      "rest_us": 0,
+      "raised_us": 0,
+      "travel_ms": 0
+    },
+    {
+      "rest_us": 0,
+      "raised_us": 0,
+      "travel_ms": 0
+    },
+    {
+      "rest_us": 0,
+      "raised_us": 0,
+      "travel_ms": 0
+    }
+  ]
+}

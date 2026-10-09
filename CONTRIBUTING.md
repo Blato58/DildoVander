@@ -8,8 +8,9 @@ Zdroj postupu je [AGENTS.md](AGENTS.md), architektura je v
 2. Používej připnuté SDK, `npm ci` a NuGet locked restore. Generované výstupy
    ani přístupové údaje necommituj.
 3. Ověř dotčený projekt a uveď skutečně provedené testy, blokace a další krok.
-4. Před merge aktualizuj větev z `main` a vyčkej na úspěšné **CI required**.
-   Kontrola je stabilní a běží pro každé PR, včetně změn dokumentace.
+4. Před merge aktualizuj větev z `main`. PR s kódem musí mít úspěšné
+   **CI required** pro dotčené projekty. U změn samotné dokumentace CI
+   neběží; ověř odkazy, konzistenci a `git diff --check`.
 5. Nasazuj existující ověřený artefakt podle [CI/CD návodu](docs/ci-cd.md).
 
 Dependabot otevírá týdenní skupinové PR pro Actions, npm a NuGet. Aktualizace

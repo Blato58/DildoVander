@@ -779,8 +779,8 @@ bool EspIdfBackendNetwork::CloseConversation(
   return true;
 }
 
-bool EspIdfBackendNetwork::InitializeVoice(bool nvsInitialized) {
-  const bool available = voiceAudio_.Initialize(nvsInitialized);
+bool EspIdfBackendNetwork::InitializeVoice(bool nvsInitialized, AudioBoardPort* board) {
+  const bool available = voiceAudio_.Initialize(nvsInitialized, board);
   std::lock_guard<std::mutex> lock(voiceMutex_);
   voiceStatus_.available = available;
   voiceStatus_.phase = available ? "idle" : "unavailable";

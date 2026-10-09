@@ -1,10 +1,31 @@
 # CI/CD: build jednou, nasazení z artefaktu
 
-Každé PR do `main` spustí [CI](../.github/workflows/ci.yml). Workflow nemá
-path filtr: backend, firmware, mobilní web a offline AI testy
-musí projít i po změně společné konfigurace. Jediná kontrola pro ochranu větve
-je **CI required**. Nový commit do stejného PR zruší zastaralé CI; rozběhnuté
-nasazení se neruší. Merge do `main` nevyvolá druhý build.
+[CI](../.github/workflows/ci.yml) používá path filtr: změny samotné
+dokumentace (`docs/`, `.md`, `.mdx`, `.rst`) workflow vůbec nespouštějí.
+U PR s kódem [výběr projektů](../scripts/ci/select_projects.py) porovná
+celý PR s jeho base a spustí jen dotčené kontroly. **CI required** vyžaduje
+úspěch vybraných projektů a vynechání ostatních; selhání výběru nebo
+neočekávané vynechání dotčeného projektu odmítne. Nový commit do stejného
+PR zruší zastaralé CI; rozběhnuté nasazení se neruší. Merge do `main`
+nevyvolá druhý build.
+
+| Změněné soubory | Spuštěné projekty |
+| --- | --- |
+| `kufr/backend/`, `kufr/backend-tests/`, .NET konfigurace v `kufr/` | Backend |
+| `kufr/firmware/` | Firmware a hostitelské testy |
+| `kufr/mobilni-aplikace/` | Mobilní web |
+| `kufr/ai-eval/` | Offline AI eval |
+| `kufr/contracts/` | Backend, firmware, mobilní web |
+| `kufr/simulator/` | Firmware a mobilní web |
+| Build workflow konkrétního projektu | Daný projekt a kontroly repozitáře |
+| `.github/`, `scripts/ci/` | Kontroly repozitáře; změna balení artefaktů také backend, firmware a web |
+| Samotná dokumentace | Žádné workflow ani build |
+
+Path filtr se vztahuje na celý PR. Když PR obsahuje i změny kódu,
+následný dokumentační commit stále ověřuje jeho dotčené projekty.
+Ruční `workflow_dispatch` nabízí `project`: `all`, `repository`,
+`backend`, `firmware`, `web` nebo `ai-eval`. Výslovný ruční build lze
+použít také po dokumentační změně, potřebujeme-li nový artefakt přesného stromu.
 
 ## Runnery
 
@@ -41,7 +62,7 @@ izolaci jednorázového GitHub-hosted stroje. Spouštěj zde pouze důvěryhodn�
 
 | Workflow | Účel | Výstup / vstup |
 | --- | --- | --- |
-| `ci.yml` | PR build a testy; ruční obnovovací build na `main` | `backend-publish`, `web-dist`, `firmware` |
+| `ci.yml` | PR build dotčených projektů; ruční obnovovací build vybraného projektu na `main` | Artefakty pouze vybraných projektů: `backend-publish`, `web-dist`, `firmware` |
 | `kufr-backend-deploy.yml` | Aktivace backendu bez restore/build | `build_run_id` úspěšného CI |
 | `kufr-memory-provision.yml` | Explicitní CLI dry-run / verify / create OpenAI stores, bez exportu hostů | CI `build_run_id`; trvalá provisioning ID runneru |
 | `kufr-ios-sign.yml` | Samostatný podepsaný device build; převzetí webu z CI | CI `build_run_id`; výstup Ad Hoc `signed-ipa` |
@@ -58,7 +79,8 @@ výstupy. Artefakty z buildu se uchovávají **14 dní**, ověřovací kopie **1
 
 ## Běžné nasazení
 
-1. Aktualizuj PR z `main`, vyčkej na zelené **CI required** a sluč PR.
+1. Aktualizuj PR z `main`, u změn kódu vyčkej na zelené **CI required**
+   a sluč PR. Dokumentační PR ověř lokálně; automatické CI neběží.
 2. V Actions vyber **Deploy Kufr backend**, větev `main` a ID CI tohoto PR.
    Zvol `dialog_mode`, `dialog_model`, `voice_mode` stejně jako dříve.
    Volitelné `live_actor_mode`, `hybrid_memory`, `cloud_indexing` mají bezpečné
@@ -118,7 +140,7 @@ IPA obsahuje profil nutný pro instalaci podepsané aplikace.
 Požadovaná nastavení jsou v
 [repository-settings.json](../.github/repository-settings.json) a
 [main-ruleset.json](../.github/main-ruleset.json): squash merge, mazání větví,
-PR před merge, aktuální base a **CI required**, vyřešené review komentáře, zákaz
+PR před merge, vyřešené review komentáře, zákaz
 mazání/force push `main`. Sólo vlastník nemusí získávat review sám od sebe;
 CODEOWNERS review není povinné. Pro tým lze přidat jedno povinné schválení.
 
@@ -140,3 +162,8 @@ Běžné volby může admin nastavit i bez Pro, pravidlo větve vyžaduje uveden
 CI gate lze do té doby používat jako kontrolu před merge, GitHub jej ale
 nevynucuje. Podpisové prostředí `ios-signing` a `backend-production` mají mít
 povoleny deploymenty pouze z `main`; přístup k jejich správě nebyl dostupný.
+
+Path filtr znamená, že dokumentační PR nemá status **CI required**.
+Neaktivovat univerzální povinný status pro všechna PR: GitHub by u
+dokumentačního PR čekal na workflow, které se záměrně nespustí.
+Kontrola úspěšného CI pro změny kódu zůstává součástí postupu před merge.

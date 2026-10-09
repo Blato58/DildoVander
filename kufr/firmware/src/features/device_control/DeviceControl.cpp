@@ -493,11 +493,12 @@ CommandOutcome DeviceControl::FinishCurrent(CommandOutcome outcome) {
     return outcome;
   }
 
-  readyMask_ &= static_cast<uint8_t>(~(1u << (pendingCompartment_ - 1)));
+  if (outcome != CommandOutcome::Completed || !selection_.ReturnsProp())
+    readyMask_ &= static_cast<uint8_t>(~(1u << (pendingCompartment_ - 1)));
   // An interrupted release has an unknown physical result. Keep its durable
   // record until an operator inspects the compartment after Stop or reboot.
   if (outcome == CommandOutcome::Completed &&
-      !journal_.Resolve(readyMask_)) {
+      !(selection_.ReturnsProp() ? journal_.ResolveRestored(pendingCompartment_) : journal_.Resolve(readyMask_))) {
     SelectionStep step;
     selection_.ReportFault(step);
     outcome = CommandOutcome::OutcomeUnknown;

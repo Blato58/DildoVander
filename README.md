@@ -31,7 +31,8 @@ Pro zahájení další práce stačí: **„Začni implementovat aplikaci podle 
 
 ## CI a standardy repozitáře
 
-Každé PR prochází společným build/test CI. Nasazení přebírá ověřené artefakty
+PR s kódem spustí build/test CI pouze pro dotčené projekty; změny samotné
+dokumentace workflow nespouštějí. Nasazení přebírá ověřené artefakty
 bez nového buildu; postup, cache a dostupnost ochrany větve popisuje
 [CI/CD návod](docs/ci-cd.md). Pravidla předání jsou v [CONTRIBUTING.md](CONTRIBUTING.md)
 a hlášení zranitelností v [SECURITY.md](SECURITY.md).
