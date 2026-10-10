@@ -23,6 +23,9 @@ if (app === null) {
 
 let pendingAction: PendingAction | null = null;
 let currentSnapshot: DeviceSnapshot;
+let stopPending = false;
+let stopSubmitting = false;
+let stopStatus = '';
 const nativeMode = Capacitor.getPlatform() === 'ios';
 let connection: FakeDeviceConnection | SimulatorDeviceConnection | NativeDeviceConnection | null = null;
 // Static Companion explicitly selects fake mode; local Vite still discovers E2.
@@ -59,10 +62,14 @@ app.before(controlPanel);
 controlPanel.append(app, conversationPanel);
 const voicePanel = new VoicePanel(() => connection instanceof NativeDeviceConnection ? connection : null);
 conversationPanel.before(voicePanel.element);
-const debugPanel = new DebugPanel(nativeMode, () => {
-  pendingAction = null;
-  connection?.stop();
-});
+const debugPanel = new DebugPanel(nativeMode, stopDevice);
+// Debug refreshes its button independently. Native fieldset disabling keeps the
+// same in-flight guard effective across those refreshes without changing telemetry.
+const debugStopGuard = document.createElement('fieldset');
+debugStopGuard.className = 'device-stop-guard';
+const debugStop = debugPanel.element.querySelector<HTMLButtonElement>('[data-debug="esp-stop"]')!;
+debugStop.before(debugStopGuard);
+debugStopGuard.append(debugStop);
 controlPanel.after(debugPanel.element);
 let refreshNativePairing: (() => Promise<void>) | undefined;
 const provisioningPanel = new ProvisioningPanel(nativeMode, async () => { await refreshNativePairing?.(); });
@@ -77,17 +84,60 @@ tabs.innerHTML = `<div class="workshop-bar">
   </div><div role="tablist" aria-label="Sekce aplikace">
   <button type="button" role="tab" id="tab-control" aria-controls="control-panel" aria-selected="true">Ovládání</button>
   <button type="button" role="tab" id="tab-debug" aria-controls="debug-panel" aria-selected="false" tabindex="-1">Debug</button>
-  <button type="button" role="tab" id="tab-provisioning" aria-controls="provisioning-panel" aria-selected="false" tabindex="-1">Síť kufru</button></div>`;
+  <button type="button" role="tab" id="tab-provisioning" aria-controls="provisioning-panel" aria-selected="false" tabindex="-1">Síť kufru</button></div>
+  <p class="shell-status" data-shell-status role="status" aria-live="polite" aria-atomic="true"></p>`;
 controlPanel.before(tabs);
 const shellStop = tabs.querySelector<HTMLButtonElement>('[data-shell-stop]')!;
-shellStop.addEventListener('click', () => {
+const shellStatus = tabs.querySelector<HTMLElement>('[data-shell-status]')!;
+shellStop.addEventListener('click', stopDevice);
+
+function updateStopControls(snapshot: DeviceSnapshot): void {
+  if (stopPending && !stopSubmitting &&
+      (snapshot.phase === 'stopped' || snapshot.phase === 'disconnected')) {
+    stopPending = false;
+    stopStatus = '';
+  }
+  // Ordinary/equal-sequence snapshots can clear adapter busy while Stop is
+  // still unresolved. Retain its submission status until a terminal state;
+  // an unrelated heartbeat must not announce success.
+  const unavailable = stopPending || snapshot.phase === 'stopped' || snapshot.phase === 'disconnected';
+  shellStop.disabled = unavailable;
+  shellStop.setAttribute('aria-busy', String(stopPending));
+  shellStop.textContent = stopPending ? 'Stop · čekám…'
+    : snapshot.source === 'native-device' ? 'Stop kufru' : 'Stop simulace';
+  debugStopGuard.disabled = unavailable;
+  const controlStop = app!.querySelector<HTMLButtonElement>('[data-action="stop"]');
+  if (controlStop) { controlStop.disabled = unavailable; }
+  // Avoid repeating identical announcements on heartbeat or tab changes.
+  const status = stopPending ? stopStatus : snapshot.status;
+  if (shellStatus.textContent !== status) { shellStatus.textContent = status; }
+}
+
+function stopDevice(): void {
+  if (stopPending || !connection || !currentSnapshot ||
+      currentSnapshot.phase === 'stopped' || currentSnapshot.phase === 'disconnected') {
+    return;
+  }
   pendingAction = null;
-  connection?.stop();
-});
+  stopPending = true;
+  stopStatus = 'Čekám na potvrzený výsledek Stop; fyzické zastavení není ověřené.';
+  stopSubmitting = true;
+  updateStopControls(currentSnapshot);
+  try {
+    // Adapters publish pending/result snapshots synchronously or later; returning
+    // from this void command is never an acknowledgment of physical shutdown.
+    connection.stop();
+  } finally {
+    if (currentSnapshot.busy) { stopStatus = currentSnapshot.status; }
+    stopSubmitting = false;
+    updateStopControls(currentSnapshot);
+  }
+}
 function selectTab(id: string): void {
   controlPanel.hidden = id !== 'tab-control';
   debugPanel.show(id === 'tab-debug');
   provisioningPanel.show(id === 'tab-provisioning');
+  if (currentSnapshot) { updateStopControls(currentSnapshot); }
   for (const button of Array.from(tabs.querySelectorAll<HTMLButtonElement>('[role="tab"]'))) {
     const selected = button.id === id;
     button.setAttribute('aria-selected', String(selected));
@@ -151,8 +201,6 @@ function render(snapshot: DeviceSnapshot): void {
     pendingAction = null;
   }
   currentSnapshot = snapshot;
-  shellStop.disabled = snapshot.phase === 'stopped' || snapshot.phase === 'disconnected';
-  shellStop.textContent = physical ? 'Stop kufru' : 'Stop simulace';
   debugPanel.update(snapshot);
   renderConversation(snapshot);
   voicePanel.update(snapshot);
@@ -243,6 +291,7 @@ function render(snapshot: DeviceSnapshot): void {
     : physical ? 'Povely jdou přímo do spárovaného kufru v LAN. Po ACK čekejte na výsledek a zkontrolujte přihrádku.'
     : 'Povely jdou pouze do místního E2 C++ simulátoru. Žádný fyzický kufr není připojen.'}</p>
     </main>`;
+  updateStopControls(snapshot);
 }
 
 if (nativeMode) {
@@ -290,8 +339,7 @@ app.addEventListener('click', (event) => {
       connection?.release();
       break;
     case 'stop':
-      pendingAction = null;
-      connection?.stop();
+      stopDevice();
       break;
     case 'inspect':
       if (connection instanceof FakeDeviceConnection) {

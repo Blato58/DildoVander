@@ -39,6 +39,18 @@ Viewer má 25 testů včetně návratu focusu při zavření/Escape a přenosu z
 Exploreru do Inspectoru. Tyto cesty prošly i ve skutečném mobilním browseru;
 desktop focus neztrácí. Opraveny jsou také UTF-8 šipky ve stromu dílů.
 
+Další review doplnila trvalý live status Stop ve všech záložkách a společnou
+ochranu proti opakovanému odeslání ze shellu, Ovládání i Debug. Stav i nejistý
+výsledek pocházejí z adaptéru; návrat void metody není potvrzení fyzického zastavení.
+Mobil má 56 úspěšných testů a TypeScript/Vite build; skutečný browser na Debug
+zobrazil nejistý výsledek fake Stop a zakázal další Stop. Čekání a ztrátu spojení
+pokrývají regresní testy, nikoli měření zařízení. Site retence po úspěšném readbacku
+uchová aktivní, bezprostředně předchozí a třetí ověřený release; neznámé adresáře,
+symlinky ani iOS nemaže. Všech 13 site testů prošlo na Linuxu včetně rollbacku po
+retenci, ochrany souboru mimo release root a sdíleného CLI zámku. Nezávislé
+review opravily neplatný manifest i souběh s ručním rollbackem; čekající Stop
+neodemkne ani opožděný ready/running snapshot se stejným pořadovým číslem.
+
 Začleněny jsou commitnuté opravy F2 `44463c2` včetně zdrojového snapshotu
 exportů a úplných prezentačních fází; necommitnutý checkout zůstává původnímu tasku.
 Předání je zatím rozpracované: čeká úplná CI regenerace/ověření výrobního balíčku,

@@ -12,6 +12,12 @@ předchozí release zůstává pro návrat. SHA zdroje je v `site-manifest.json`
 Neúspěšný HTTPS readback vrátí předchozí release; při úplně první publikaci
 odstraní pouze její vlastní aktivní symlink a obnoví původní stav bez webu.
 Rollback odmítne změnit jiný mezitím aktivovaný release.
+Po úspěšném veřejném ověření deploy ponechá tři ověřené site releases,
+vždy včetně aktivní a předchozí verze. Maže pouze starší přímé adresáře
+s úplným platným inventářem tohoto publisheru; neznámé soubory, adresáře
+a symlinky zachová. iOS releases do této retence nespadají.
+Všechny CLI mutace sdílejí trvalý Linux flock `.publication.lock`;
+retence navíc odmítne změněnou aktivaci od posledního veřejného ověření.
 
 CI projekt `site` regeneruje CAD přes `final/Regenerate.ps1`, sestaví webový
 Companion a kontroluje balíček. Workflow `kufr-site-deploy.yml` se automaticky
@@ -25,5 +31,6 @@ aby opakovaný původní bootstrap neztratil již nainstalované rozšíření.
 
 Po úspěšném ověření nového webu odstraňuje deploy výhradně dva historické
 soubory `/var/www/kufr-ios/kufr-mechanika-prototyp.zip` a `viewer.html`.
-Aktuální IPA, manifesty a iOS releases ponechá. Pro rollback lze nastavit
-`current` na předchozí release a obnovit konfiguraci z root-only zálohy.
+Aktuální IPA, manifesty a iOS releases ponechá. Ruční rollback provádějte
+stejným CLI `python3 publish-site.py --site /var/www/dildovander --rollback ID`;
+nepřepínejte symlink mimo tento zámek. Konfiguraci lze obnovit z root-only zálohy.

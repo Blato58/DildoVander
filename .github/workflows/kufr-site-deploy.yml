@@ -93,3 +93,10 @@ jobs:
               target.unlink(missing_ok=True)
           print('Obsolete CAD files removed; iOS installation preserved')
           PY
+      - name: Retain a bounded verified rollback set
+        if: success()
+        env:
+          PREVIOUS_RELEASE: ${{ steps.publish.outputs.previous_release }}
+        run: |
+          python3 kufr/web/publish-site.py --site /var/www/dildovander --prune-releases \
+            --previous-release "$PREVIOUS_RELEASE" --retain 3 --release-id '${{ github.run_id }}-${{ github.run_attempt }}'
