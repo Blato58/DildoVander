@@ -34,8 +34,10 @@ pojmenované komponenty, Reduced Motion a 12 lokálních Lucide ikon s licencí
 a ověřenými otisky. PR review našla chybějící rollback první publikace:
 `restore_activation` obnoví i stav bez `current`, odmítne jiný aktivní release
 a má dva regresní testy. Všech 9 site testů prošlo na Linuxu a actionlint PASS.
-Po doplnění motion tokenů znovu prošlo 22 viewer testů,
-4 testy offline stylů a TypeScript/Vite build.
+Po doplnění motion tokenů znovu prošly testy offline stylů a TypeScript/Vite build.
+Viewer má 25 testů včetně návratu focusu při zavření/Escape a přenosu z ukrytého
+Exploreru do Inspectoru. Tyto cesty prošly i ve skutečném mobilním browseru;
+desktop focus neztrácí. Opraveny jsou také UTF-8 šipky ve stromu dílů.
 
 Začleněny jsou commitnuté opravy F2 `44463c2` včetně zdrojového snapshotu
 exportů a úplných prezentačních fází; necommitnutý checkout zůstává původnímu tasku.
