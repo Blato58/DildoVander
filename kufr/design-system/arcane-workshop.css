@@ -2,4 +2,5 @@
 @import url('./tokens/palette.css');
 @import url('./tokens/typography.css');
 @import url('./tokens/layout.css');
+@import url('./tokens/motion.css');
 @import url('./components/patterns.css');

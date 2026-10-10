@@ -29,10 +29,15 @@ syntaxe a whitespace PASS. Skutečný browser ověřil mobilní sekce, sticky St
 klávesnicovou izolaci tabů, viewer fonty/ovládání >=44px, drawer/bottom sheet,
 šířky 390 a 320px bez přetékání, bez chyb konzole. Nezávislá review opravila
 šířky ovládání, sdílené závislosti site, úplný veřejný readback a stale-main bránu.
-Skill schema a 47 lokálních design odkazů PASS.
+Skill schema a 69 lokálních design odkazů PASS. Kontrakt pokrývá sedm stavů,
+pojmenované komponenty, Reduced Motion a 12 lokálních Lucide ikon s licencí
+a ověřenými otisky. Po doplnění motion tokenů znovu prošlo 22 viewer testů,
+4 testy offline stylů a TypeScript/Vite build.
 
-Předání je zatím rozpracované: čeká začlenění commitnutých oprav původního F2,
-úplná CI regenerace/ověření výrobního balíčku, review/merge, skutečný deploy
+Začleněny jsou commitnuté opravy F2 `44463c2` včetně zdrojového snapshotu
+exportů a úplných prezentačních fází; necommitnutý checkout zůstává původnímu tasku.
+Předání je zatím rozpracované: čeká úplná CI regenerace/ověření výrobního balíčku,
+review/merge, skutečný deploy
 webu a nový podepsaný iOS build. Webové kontroly neprokazují akceptaci iPhonu,
 VoiceOver ani fyzickou bezpečnost/mechaniku. Tyto hranice zůstávají otevřené.
 
