@@ -9,6 +9,9 @@ pozorovací konzole. Veřejný web neposkytuje simulátoru WSS facade ani token.
 zdrojů, výstupů a ZIPu a sestaví výslovný inventář bez starých exportů.
 `publish-site.py` ověří všechny soubory a atomicky přepne symlink `current`;
 předchozí release zůstává pro návrat. SHA zdroje je v `site-manifest.json`.
+Neúspěšný HTTPS readback vrátí předchozí release; při úplně první publikaci
+odstraní pouze její vlastní aktivní symlink a obnoví původní stav bez webu.
+Rollback odmítne změnit jiný mezitím aktivovaný release.
 
 CI projekt `site` regeneruje CAD přes `final/Regenerate.ps1`, sestaví webový
 Companion a kontroluje balíček. Workflow `kufr-site-deploy.yml` se automaticky

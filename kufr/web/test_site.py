@@ -48,7 +48,30 @@ class PublicationTests(unittest.TestCase):
             self.assertEqual(publisher.publish(source, site, '100-1', SOURCE_SHA), '')
             self.assertEqual(publisher.publish(source, site, '101-1', SOURCE_SHA), '100-1')
             self.assertTrue((site / 'current').samefile(site / 'releases/101-1'))
-            publisher.switch(site, '100-1')
+            publisher.restore_activation(site, '101-1', '100-1')
+            self.assertTrue((site / 'current').samefile(site / 'releases/100-1'))
+
+    def test_first_activation_failure_restores_absent_current(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source, site = root / 'source', root / 'site'
+            payload(source)
+            site.mkdir()
+            previous = publisher.publish(source, site, '100-1', SOURCE_SHA)
+            publisher.restore_activation(site, '100-1', previous)
+            self.assertFalse((site / 'current').exists())
+            self.assertFalse((site / 'current').is_symlink())
+            self.assertTrue((site / 'releases/100-1/index.html').is_file())
+
+    def test_failed_activation_rollback_refuses_an_unrelated_current(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source, site = root / 'source', root / 'site'
+            payload(source)
+            site.mkdir()
+            publisher.publish(source, site, '100-1', SOURCE_SHA)
+            with self.assertRaisesRegex(ValueError, 'Current changed'):
+                publisher.restore_activation(site, '101-1', '')
             self.assertTrue((site / 'current').samefile(site / 'releases/100-1'))
 
     def test_wrong_provenance_or_changed_payload_never_switches_current(self):

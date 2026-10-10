@@ -71,11 +71,13 @@ jobs:
         run: |
           python3 kufr/web/verify-site.py --base "https://$PUBLIC_IPV4" \
             --local "$RUNNER_TEMP/arcane-site-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-      - name: Restore previous site after failed verification
-        if: failure() && steps.publish.outcome == 'success' && steps.publish.outputs.previous_release != ''
+      - name: Restore pre-deploy state after failed verification
+        if: failure() && steps.publish.outcome == 'success'
         env:
           PREVIOUS_RELEASE: ${{ steps.publish.outputs.previous_release }}
-        run: python3 kufr/web/publish-site.py --site /var/www/dildovander --rollback "$PREVIOUS_RELEASE"
+        run: |
+          python3 kufr/web/publish-site.py --site /var/www/dildovander --rollback-activation \
+            --release-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --previous-release "$PREVIOUS_RELEASE"
       - name: Remove obsolete CAD files from the iOS route
         if: success()
         run: |
