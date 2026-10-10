@@ -57,8 +57,8 @@ zůstávají zachované; doplněné pasivní USB zakončení je výslovně v mat
 choreografii s `PhysicalPresentation`, světly a volitelnými místními tóny
 existujícího I2S adaptéru. Stop neprovádí automatický návrat.
 
-Provedeno: 68 Python testů, 18 testů vieweru, hostitelský test fyzických
-efektů a `pio run -e esp32-s3-idf` PASS (RAM 91 644 B, flash 1 746 349 B).
+Provedeno: 85 Python testů, 18 testů vieweru, hostitelský test fyzických
+efektů a `pio run -e esp32-s3-idf` PASS (RAM 91 644 B, flash 1 746 709 B).
 Geometrický výsledek je `PASS_CAD_NOT_PHYSICAL_ACCEPTANCE`: 32 STL typů /
 47 výtisků, 69 CAD souborů, zpětné načtení STEP, uzavřené propojené STL,
 tři celé sestavy, 102 poloh mechanismů, 36 poloh víka, 37 kroků vyjmutí
@@ -75,13 +75,15 @@ zachytávání kliknutí kartou, degenerované STL držáků a kontrolu otisků 
 Aktuální autorita je [verification.json](../mechanika/final/exports/verification.json).
 
 Celá regenerace 10. 10. 2026 skončila úspěšně včetně osmi prohlédnutých
-renderů, výkresů a samostatného ZIPu (43 500 699 B, SHA256
-`6d2436e2dbd05cd744ddaec2b5a0000a3cf1a45538bb2415549e4937e548721b`).
+renderů, výkresů a samostatného ZIPu (43 523 071 B, SHA256
+`7b1154bba79f748c99759d779f701f38fe0d2a20114a39062711724fba56fbfd`).
 Závěrečný browser načetl nové výstupy, zobrazil šest přepravních pásků
 a odpojené USB v držáku; konzole bez varování a chyb.
-Nezávislá kontrola ZIPu: CRC a přesný seznam 141 členů, 49 otisků zdrojů,
-91 otisků exportů a 69 CAD souborů PASS. Po rozbalení mimo repozitář
-prošlo 19 Inspect testů a 6 testů balení. V checkoutu platí všech 22
+Nezávislá kontrola ZIPu: CRC a přesný seznam 143 členů, 49 otisků zdrojů,
+93 otisků exportního indexu, 92 ověřených exportů, 89 výstupů generování
+a 69 CAD souborů PASS proti ZIPu i checkoutu. Po rozbalení mimo repozitář
+prošlo 47 testů (19 Inspect, 9 efektů, 11 balení, 8 ověřovací brány).
+V checkoutu platí všech 22
 lokálních Markdown odkazů; v ZIPu pouze odkaz README na samotný ZIP
 nemá cíl (archiv se do sebe záměrně nebalí). Referenční podklady jsou přiložené.
 
@@ -105,7 +107,24 @@ přepravu; konzole je bez varování/chyb. Aktuální balíček má otisk uveden
 Oprava a potvrzené rozměry byly odeslány commitem
 `2dd15fc11ef44e88fabee77463a91a37771ce2d5`; `Push-CurrentBranch.ps1`
 potvrdil shodný vzdálený SHA. Původní P2 vlákno je po regresi a browser
-kontrole vyřešené; nové CI a Codex review tohoto commitu běží v PR #170.
+kontrole vyřešené. CI commitu `64b55f4` rovněž prošlo. Jeho závěrečné
+Codex review našlo další dvě P2, nyní opravené: ne-CAD exporty nebyly
+svázané s ověřeným snapshotem a generátor předával firmwaru jen přípravu.
+Generování nyní probíhá v prázdné složce, ověření sváže všechny výstupy
+a balení odmítne pozdější změny. Firmware přebírá všechny fáze, dodržuje
+kalibraci a obnoví dostupnost po 250 ms klidu s vypnutým PWM. Generátor
+odmítá nepodporované kanály, tóny mimo 80–2000 Hz a více než 100 přípravných
+kroků, které by překročily časovou rezervu řídicí smyčky.
+Nezávislé review obou oprav je bez otevřeného nálezu; nové regrese
+prošly. Celá následná regenerace skončila úspěšně. 32 STL, osm renderů
+a výsledný viewer jsou byte po bytu shodné s prohlédnutou geometrií/UI.
+Nový viewer se načetl v reálném browseru se 135 vodiči a bez chyb či
+varování konzole. Aktuální ZIP výše nahrazuje předchozí balíček.
+Obě opravy byly 10. 10. 2026 odeslány commitem
+`b1da483fc97aea51881bea568d192e344349c78f`; `Push-CurrentBranch.ps1`
+ověřil shodný vzdálený SHA. Po tomto push byly obě P2 vlákna vyřešené.
+Dokončení nového PR CI a posledního Codex review se ověřuje před merge;
+tento záznam sám merge nepotvrzuje.
 
 Fyzická výroba, nalepení kotev, zkouška přepravy, kalibrace a nahrání
 firmware neproběhly. Neuzavřené jsou zbývající tvarové rozměry a usazení

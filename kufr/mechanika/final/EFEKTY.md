@@ -2,6 +2,9 @@
 
 Jeden zdroj `effects.json` řídí náhled a generovaný soubor pro firmware
 `PresentationScore.h` (`generate_effects.py --check` hlídá shodu).
+Generuje všechny fáze včetně odhalení, čekání, návratu a klidu; neplatné
+pořadí, kanály nebo nepodporované kombinace odmítne. Ilustrační čas
+pohybu není náhradou kalibrace skutečného serva.
 Šest přihrádek, šest LED na pozici, celkem 36. Počáteční limit jasu je 64 z 255.
 Volba je vždy konkrétní číslo 1–6 z existující místní bezpečnostní brány.
 
@@ -16,7 +19,7 @@ Volba je vždy konkrétní číslo 1–6 z existující místní bezpečnostní 
 | Odhalení | kalibrovaný zdvih, světlá zlatá, tón 880 Hz | stejné |
 | Prezentace | 5 s nahoře, teplé světlo | stejné |
 | Návrat | kalibrovaný návrat, tlumené teplé světlo | stejné |
-| Klid | výstupy vypnuté | výstupy vypnuté |
+| Klid | 250 ms, výstupy vypnuté | 250 ms, výstupy vypnuté |
 
 Příprava trvá 3 520 ms nebo 700 ms. Náhled používá ilustračních 1 000 ms na
 každý pohyb; firmware použije servisně naměřenou kalibraci konkrétního serva.

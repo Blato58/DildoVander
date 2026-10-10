@@ -63,7 +63,9 @@ vodičů z kabelového plánu, nikoli náhradní spojnice středů desek.
 Každý ze šesti zdvihů lze prohlédnout zvlášť. Hlavní a krátká sekvence
 používají společná data `effects.json`; čas jízdy ve vieweru je ilustrativní,
 v reálném firmware jej určí kalibrace. Stop zmrazí neznámou mezilehlou
-polohu; reset vyžaduje servisní režim. Zvuk prohlížeče je volitelný.
+polohu; reset vyžaduje servisní režim. Generátor předává všechny fáze
+sekvence a odmítá nepodporované pořadí, kanály nebo souběhy. Závěrečný
+klid trvá 250 ms s vypnutými výstupy. Zvuk prohlížeče je volitelný.
 Montážní režim ukazuje kumulativní stav s krokem, materiálem, nástroji a
 kontrolou. Přeprava odstraní banku, hůlky a textil a ukáže šest pásků i
 odpojený parkovaný USB konektor. Přepnutí režimu ovládá pouze model.
@@ -88,9 +90,12 @@ V samostatně vybaleném ZIPu vytvořit prostředí a instalovat
 V repozitáři se navíc kontroluje shoda generovaného firmware souboru
 `PresentationScore.h`; samostatný ZIP tuto kontrolu vynechá, pokud adresář
 firmware není přítomný. Balíček obsahuje mechanické podklady a sdílená data
-efektů; jeho regenerace není ověřením sestavení firmware. Generátor kontroluje
-zdrojové otisky, oba podklady Inspect, geometrii, STEP/STL, mechanismy,
-montážní a kabelová data, teprve potom zabalí explicitní seznam výstupů.
+efektů; jeho regenerace není ověřením sestavení firmware. Generování nejprve
+vytvoří CAD, viewer a výkresy a sváže jejich obsah se zdroji v
+`generation-snapshot.json`. Ověření kontroluje zdrojové otisky, oba podklady
+Inspect, geometrii, STEP/STL, mechanismy, montážní a kabelová data a zapíše
+otisky všech exportů. Balení porovná každý soubor s tímto ověřeným záznamem;
+změněný obrázek, CSV nebo viewer odmítne stejně jako CAD.
 Starší ZIP/STL nejsou součástí F2. Samostatné `preview.py --viewer-only`
 nepotvrzuje nové ověření ani neobnovuje výrobní balíček.
 
