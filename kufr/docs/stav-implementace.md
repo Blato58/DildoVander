@@ -8,6 +8,9 @@ spodní vnitřek 431,8 × 266,7 × 114,3 mm a bezpečný kvádr 400 × 240 × 17
 [Specifikace](../mechanika/final/SPECIFIKACE.md) a `parameters.json` řídí
 šest modulů na rozteči 48 mm, zdvih 16 mm, čtyři panely, dvě Al lišty
 a čtyři lepené Al kotvy. Banka, hůlky a textil nenesou konstrukci.
+Majitel 10. 10. potvrdil délku hůlky do 200 mm a šířku hlavice 38 mm
+včetně případného pouzdra; [záznam](../mechanika/rozmery-hulek.md) odděluje
+tyto dvě hodnoty od dosud předpokládaných ostatních tvarových rozměrů.
 Přeprava používá šest samostatných pásků a parkování odpojeného USB.
 
 Změněny jsou zdroje `mechanika/final/` včetně kabeláže, skutečných spojů,
@@ -17,7 +20,7 @@ zůstávají zachované; doplněné pasivní USB zakončení je výslovně v mat
 choreografii s `PhysicalPresentation`, světly a volitelnými místními tóny
 existujícího I2S adaptéru. Stop neprovádí automatický návrat.
 
-Provedeno: 68 Python testů, 16 testů vieweru, hostitelský test fyzických
+Provedeno: 68 Python testů, 18 testů vieweru, hostitelský test fyzických
 efektů a `pio run -e esp32-s3-idf` PASS (RAM 91 644 B, flash 1 746 349 B).
 Geometrický výsledek je `PASS_CAD_NOT_PHYSICAL_ACCEPTANCE`: 32 STL typů /
 47 výtisků, 69 CAD souborů, zpětné načtení STEP, uzavřené propojené STL,
@@ -35,8 +38,8 @@ zachytávání kliknutí kartou, degenerované STL držáků a kontrolu otisků 
 Aktuální autorita je [verification.json](../mechanika/final/exports/verification.json).
 
 Celá regenerace 10. 10. 2026 skončila úspěšně včetně osmi prohlédnutých
-renderů, výkresů a samostatného ZIPu (43 498 347 B, SHA256
-`2a629efa6581eb6692943aa02bf244ced5c13c4ad11454c5467782fdde360c41`).
+renderů, výkresů a samostatného ZIPu (43 500 699 B, SHA256
+`6d2436e2dbd05cd744ddaec2b5a0000a3cf1a45538bb2415549e4937e548721b`).
 Závěrečný browser načetl nové výstupy, zobrazil šest přepravních pásků
 a odpojené USB v držáku; konzole bez varování a chyb.
 Nezávislá kontrola ZIPu: CRC a přesný seznam 141 členů, 49 otisků zdrojů,
@@ -50,8 +53,22 @@ Implementační commit `381e06388f38cf8c18f4a9091aab65fdeb7799c4` byl
 `origin/codex/wooden-case-insert-f2`; skript ověřil shodu vzdáleného SHA.
 Tento záznam ještě nepotvrzuje dokončení PR CI ani merge.
 
+PR #170: CI pro `2852351` prošlo (hostitelské testy, ESP-IDF i diagnostické
+varianty). Codex review našlo P2 v přepnutí režimu během přerušeného zdvihu.
+Oprava zachovává všech šest úhlů a do explicitního resetu vynucuje servis;
+nelze zobrazit přepravu ani obnovit klid jezdcem či montážním krokem.
+Dvě nové regrese před opravou selhaly, po opravě všech 18 testů PASS;
+nezávislá kontrola skutečných handlerů změn režimu, slideru, startu a resetu
+je bez nálezů. Úplná regenerace po opravě a potvrzení rozměrů opět PASS;
+všech osm nových renderů je byte po bytu shodných s prohlédnutými pohledy.
+Reálný browser nejprve reprodukoval chybu (16 mm → Přeprava → 0 mm),
+potom ověřil opravu (16 mm → Přeprava/Montáž → Servis, stále 16 mm,
+jezdec zakázaný). Pouze explicitní servisní reset vrátí 0 mm a odblokuje
+přepravu; konzole je bez varování/chyb. Aktuální balíček má otisk uvedený výše.
+
 Fyzická výroba, nalepení kotev, zkouška přepravy, kalibrace a nahrání
-firmware neproběhly. Neuzavřené jsou skutečné hůlky/pouzdra, servopáka,
+firmware neproběhly. Neuzavřené jsou zbývající tvarové rozměry a usazení
+hůlek/pouzder, servopáka,
 konektory, kamera/FPC, víko, ohyby kabelů, soudržnost dřeva/lepidla,
 zatížený zdvih a chování serva po vypnutí PWM. Podrobnosti a přejímka:
 [STAV F2](../mechanika/final/STAV.md), [MONTÁŽ](../mechanika/final/MONTÁŽ.md).

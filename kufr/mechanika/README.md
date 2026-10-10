@@ -7,6 +7,7 @@ připevněné k vlastnímu rámu; powerbanka, hůlky a textil jsou odnímatelné
 - [Návrhová specifikace](final/SPECIFIKACE.md)
 - [Montáž, materiál a přejímka](final/MONTÁŽ.md)
 - [Potvrzené rozměry kufru](rozmery-doruceneho-kufru.md)
+- [Potvrzená délka a šířka hůlek](rozmery-hulek.md)
 - [Inventář elektroniky](rozmery-nakoupenych-soucastek.md)
 - [Kabeláž](final/KABELAZ.md)
 - [Stav a hranice ověření](final/STAV.md)

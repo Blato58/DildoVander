@@ -656,6 +656,10 @@ function buildTree() {
 }
 function setMode(value) {
   if (effect) stopEffect();
+  if (effectFault) {
+    value = 'service';
+    updateEffectStatus('Poloha po přerušení je neznámá. Před změnou režimu ručně zkontrolujte mechanismus a potvrďte servisní reset; dosažené úhly zůstávají zachované.');
+  }
   mode = value; el('mode').value = value;
   pinned = null; hovered = null; hoveredConnection = null; pointer = null;
   clearWireSelection(); displayedMesh = undefined;
@@ -713,6 +717,7 @@ function updateTransportInstructions() {
   }
 }
 function moveAssembly(delta) {
+  if (mode !== 'assembly' || effectFault) return;
   assemblyIndex = Math.max(-1,Math.min(assemblyGuide.steps.length-1,assemblyIndex+delta));
   const step = assemblyGuide.steps[assemblyIndex]; if (step) setView(step.camera);
   updateAssembly(); layersChanged();

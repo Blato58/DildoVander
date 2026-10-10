@@ -30,8 +30,10 @@ po stranách míří nahoru, protože skutečný plášť se neřeže.
 | Pět pozic | 240 mm | 160 mm celkem po stranách | Rezerva při překročení skutečné obálky; samostatná sestava se nevyrábí |
 
 Mezi základnami je 2 mm, mezi lůžky 4 mm; vedení má vůli 0,45 mm
-na stranu. Vnitřní šířka lůžka mezi bočnicemi je 40 mm, takže odhadnutá
-hlavice široká 38 mm má jen 1 mm na každé straně. Podélně je před hůlkou
+na stranu. Vnitřní šířka lůžka mezi bočnicemi je 40 mm, takže potvrzená
+hlavice široká 38 mm má jen 1 mm na každé straně. Majitel 10. 10. 2026
+potvrdil maximální celkovou délku 200 mm a šířku hlavice 38 mm včetně
+případného pouzdra; šest modulů zůstává zvolenou variantou. Podélně je před hůlkou
 za předním dorazem 3 mm a vzadu 6 mm. Vynechání šesté pozice tyto vůle
 samo nezvětší; širší hůlka by vyžadovala přepracování rozteče a lůžka.
 Kolize vybrané varianty řeší kontrola celé geometrie a kabeláže; nezměřené

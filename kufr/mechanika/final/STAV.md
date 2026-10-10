@@ -54,10 +54,13 @@ Logika prohlížeče na `http://127.0.0.1:8915/viewer.html` byla ověřena:
 volba vodiče D2-2, síť DRIVE5, pin CH0, svazek I2C, Stop a servisní reset.
 Přehrána celá hlavní sekvence pozice 1 a krátké sekvence pozic 2–6,
 vždy návrat do klidu. Ověřen viewport 390 × 844 i běžný panel, bez chyb
-konzole; 16 regresních testů vieweru prošlo. Skutečný Shift klik byl
+konzole; 18 regresních testů vieweru prošlo. Skutečný Shift klik byl
 ověřen na degson_2:2 (D2-2), servo_1:S (S1-S) a esp32:GPIO1 (I2C),
 včetně šesti zvýrazněných vodičů sběrnice při zvětšení displeje 125 %.
 Nepřipnutá karta již nezachytává klik určený vodiči.
+PR #170 doplnilo regresi přerušení při změně režimu: po Stopu se zachovají
+všechny úhly a další režim je servis. Přepravu, montáž i provoz odblokuje
+až explicitní servisní reset; přepnutí samo neobnovuje klidovou polohu.
 Přepnutí do přepravy ukazuje
 pět kroků přípravy a čtyři kroky opětovného uvedení do provozu.
 Finální geometrie a kabeláž se po dokončení generují znovu; přesné
@@ -68,7 +71,7 @@ integrační kontroly a Git předání se zapisují do hlavního stavu projektu.
 | Podmínka | Další konkrétní krok |
 | --- | --- |
 | Skutečný kufr/víko/konektory | Změřit a nasucho vložit měrku a rám, ověřit celý chod víka |
-| Hůlky a případná pouzdra | Změřit maximum, potvrdit 6 pozic nebo upravit na 5 |
+| Hůlky a případná pouzdra | Délku do 200 mm a šířku hlavice 38 mm majitel potvrdil 10. 10. 2026; šest pozic zůstává. Ověřit zbývající výškové/tvarové rozměry, hmotnost a skutečné usazení |
 | Kamera/FPC a svorky | Potvrdit doručené rozměry, vývody a manipulační prostor |
 | Servo a páka | Ověřit polohu osy, náboj, rozteč páky a dodaný středový šroubek na jednom modulu |
 | Dřevo/lepidlo/nosné spoje | Vytvrzení a zátěžová přejímka podle MONTÁŽ.md |

@@ -21,7 +21,7 @@ stěny, výšku víka, polohu konektorů ani rozteč otvorů.
 | --- | --- | --- |
 | Korpus | Stěna 9,1 mm, dno 6 mm, víko 79,7 mm, osa pantu a šířka/poloha výztuhy | Suché vložení a celý chod víka; korpus se nevyrábí |
 | Bezpečný kvádr | V půdorysu centrovaný | Ověřit jeho polohu ve skutečném kufru |
-| Hůlky | Délka 200 mm z popisku 19–20 cm; hlavice 38 × 28 × 55 mm, dřík Ø 16 mm | Změřit maximum včetně skutečného pouzdra; jinak nelze uzavřít volbu 6 pozic |
+| Hůlky | Majitel 10. 10. 2026 potvrdil celkovou délku do 200 mm a maximální šířku hlavice 38 mm; otázka zahrnovala případné pouzdro | Volba šesti pozic má potvrzený délkový a šířkový vstup. Výška hlavice 28 mm, délka hlavice 55 mm, dřík Ø 16 mm a hmotnost 150 g zůstávají návrhové předpoklady; ověřit usazení v prototypu |
 | Servo | Tělo z inventáře; poloha osy, šířka a náboj páky dlouhé 35 mm jsou odhadnuté | Měrka jednoho modulu, teprve potom šest výtisků |
 | Kamera/FPC | Výměnná obálka 24 × 12 × 24 mm | Potvrdit doručenou variantu a konektory |
 | Degson | Návrhová obálka 35 × 22 × 16 mm | Ověřit skutečné páčky, vstupy a nástrojový prostor |

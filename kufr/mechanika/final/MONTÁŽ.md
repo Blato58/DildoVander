@@ -8,8 +8,10 @@ nikdy skutečný kufr. Návrh není fyzicky přijatý.
 
 ## Příprava
 
-Změřit největší hůlku s pouzdrem, osu serva a páku, USB vidlice/zásuvky,
-Degson a doručenou kameru s FPC. Nasucho vložit šablonu 400 × 240 mm nad
+Délku hůlky do 200 mm a šířku hlavice 38 mm včetně případného pouzdra
+majitel potvrdil 10. 10. 2026. Ověřit zbývající výškové/tvarové rozměry
+a usazení, osu serva a páku, USB vidlice/zásuvky, Degson a doručenou
+kameru s FPC. Nasucho vložit šablonu 400 × 240 mm nad
 výztuhu vysokou 5 mm a ověřit celý chod víka. [PODKLADY.md](PODKLADY.md)
 rozlišuje měření a odhady.
 Překročenou obálku řešit parametry a regenerací. Šest pozic platí pro
