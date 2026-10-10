@@ -135,6 +135,7 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
     ['tokens/palette.css', 'text/css; charset=utf-8'],
     ['tokens/typography.css', 'text/css; charset=utf-8'],
     ['tokens/layout.css', 'text/css; charset=utf-8'],
+    ['tokens/motion.css', 'text/css; charset=utf-8'],
     ['components/patterns.css', 'text/css; charset=utf-8'],
     ['fonts/cinzel.ttf', 'font/ttf'],
     ['fonts/inter.ttf', 'font/ttf'],

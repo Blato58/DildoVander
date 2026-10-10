@@ -60,6 +60,20 @@
   --aw-shadow: 0 16px 48px #00000030;
 }
 
+:root {
+  --aw-motion-fast: 150ms;
+  --aw-motion-normal: 200ms;
+  --aw-motion-slow: 250ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --aw-motion-fast: 0ms;
+    --aw-motion-normal: 0ms;
+    --aw-motion-slow: 0ms;
+  }
+}
+
 /* Component classes are opt-in; no form or application state is changed here. */
 .aw-root { margin: 0; background: var(--aw-void); color: var(--aw-ivory); font-family: var(--aw-font-ui); font-size: var(--aw-text-body); line-height: 1.6; }
 .aw-root *, .aw-root *::before, .aw-root *::after { box-sizing: border-box; }
@@ -70,7 +84,7 @@
 .aw-root h1 { font: 600 var(--aw-text-title)/1.2 var(--aw-font-display); letter-spacing: .01em; }
 .aw-root h2 { font-size: 1.125rem; line-height: 1.4; }
 .aw-root h3 { font-size: 1rem; line-height: 1.4; }
-.aw-shell { display: grid; grid-template-columns: 224px minmax(0, 1fr); min-height: 100dvh; }
+.aw-shell { display: grid; grid-template-columns: 248px minmax(0, 1fr); min-height: 100dvh; }
 .aw-sidebar { padding: var(--aw-space-8) var(--aw-space-6); background: var(--aw-surface); border-right: 1px solid var(--aw-border-subtle); }
 .aw-brand { color: var(--aw-brass); font-family: var(--aw-font-display); font-weight: 600; font-size: 1.125rem; letter-spacing: .08em; }
 .aw-eyebrow { color: var(--aw-brass); font-size: .6875rem; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; }
