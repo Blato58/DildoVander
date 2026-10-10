@@ -59,6 +59,16 @@ oddílu aktuálního zadání; oprávnění a stav „dokoupit“ dokládá SPEC
 Nezávislá kontrola oprav je bez otevřeného nálezu. Následný cílový ESP-IDF
 build prošel: RAM 91 660 B, flash 1 746 865 B. Nahrání do desky neproběhlo.
 
+Následující P2 review doplnilo validaci časového rozpočtu upravovaných
+efektů a sjednotilo README firmwaru s omezením na jediný LED úsek.
+Generátor započítá dvě maximální 3 000ms jízdy, zaokrouhlení každé fáze
+na 10ms průchody a 20 ms předání mezi fázemi. Hlavní varianta má
+nominální rozpočet 14 790 ms a krátká 11 970 ms. Náhled samostatně
+započítává snímky a přechody při nominálních 60 Hz; hraničních 900 snímků
+(15 s) odmítne. Všech 15 regresních testů efektů prošlo. Aktuální data
+efektů, generovaná hlavička a runtime firmwaru se touto validací nezměnily.
+Pomalejší běh nadále zastaví absolutní runtime limit, nikoli prodloužení času.
+
 Kontrola zdrojové geometrie: 32 typů STL / 47 výtisků, platná
 jednotlivá tělesa a tisková plocha 220 × 220 mm. Montáž pokrývá 589 dílů
 ve scéně a všech 135 vodičů; počty spojovacího materiálu odpovídají CSV.
