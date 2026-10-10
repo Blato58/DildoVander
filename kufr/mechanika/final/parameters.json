@@ -66,8 +66,11 @@
     "follower_drop": 17.0,
     "groove_width": 6.8,
     "groove_depth": 6.0,
-    "roller_diameter": 6.0,
-    "lower_stop_clearance": 0.15
+    "lower_stop_clearance": 0.15,
+    "sliding_follower_diameter": 6.0,
+    "sliding_follower_tip_x": 35.5,
+    "sliding_follower_root_x": 40.0,
+    "sliding_friction_assumed": 0.4
   },
   "wand": {
     "length": 200.0,
@@ -109,7 +112,7 @@
     "pinout_changed": false,
     "manufacturing_ready": false,
     "pending": [
-      "wood bond substrate and proof load",
+      "bare floor wood, mechanical epoxy keys and printed anchor proof load",
       "wand/sleeve height, head length, shaft diameter, mass and physical dry fit",
       "camera/FPC delivered fit",
       "servo pulse-off behaviour and loaded torque",
@@ -137,21 +140,11 @@
     ],
     "joint_lap": 12.0,
     "joint_clearance": 0.25,
-    "anchor_y": [
-      45,
-      225
-    ],
     "anchor_x": [
       27.0,
       404.8
     ],
-    "angle_vertical": 40.0,
-    "angle_horizontal": 40.0,
-    "angle_thickness": 3.0,
-    "angle_length": 50.0,
-    "bond_gap": 0.5,
     "bond_thickness": 0.5,
-    "bond_area_each_mm2": 2000.0,
     "anchor_hole_y": [
       30,
       243
@@ -172,7 +165,7 @@
           71,
           359
         ],
-        "material": "EN AW-6060 T66, specified proof yield >=150 MPa"
+        "material": "PETG; integrated into printed frame panels; supported by bonded floor cradles"
       },
       {
         "id": "rear_crossrail",
@@ -189,9 +182,41 @@
           71,
           359
         ],
-        "material": "EN AW-6060 T66, specified proof yield >=150 MPa"
+        "material": "PETG; integrated into printed frame panels; supported by bonded floor cradles"
       }
-    ]
+    ],
+    "floor_anchors": {
+      "z": 0.5,
+      "height": 7.5,
+      "split_gap": 0.5,
+      "side_width": 50.1,
+      "front_range": [
+        14.0,
+        114.5
+      ],
+      "rear_range": [
+        175.5,
+        253.35
+      ],
+      "front_cross_range": [
+        14.0,
+        38.0
+      ],
+      "rear_cross_range": [
+        214.0,
+        253.35
+      ],
+      "key_neck_diameter": 6.0,
+      "key_head_diameter": 9.0,
+      "key_head_bottom": 2.5,
+      "key_head_top": 4.5,
+      "module_nut_z": 2.6,
+      "frame_nut_z": 1.8,
+      "nut_roof_z": 5.0,
+      "frame_head_z": 11.5,
+      "module_screw_length": 14.0,
+      "frame_screw_length": 10.0
+    }
   },
   "clearances": {
     "guide_per_side": 0.45,
@@ -629,5 +654,16 @@
       ],
       "status": "design reservation; actual port positions require dry fit"
     }
+  },
+  "assembly_method": {
+    "variant": "F2 printed floor anchors and integral sliding follower",
+    "forbidden_tools": [
+      "saw",
+      "file",
+      "drill",
+      "metal bending"
+    ],
+    "fit_policy": "Calibrate coupon and reprint; never enlarge holes by drilling or filing",
+    "surface_preparation": "Sandpaper only for local bare-wood adhesive preparation; no power tools"
   }
 }

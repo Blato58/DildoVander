@@ -1,5 +1,40 @@
 # Stav implementace AI kufru
 
+## F2 — montáž bez opracování kovů, ověřený návrh 10. 10. 2026
+
+Rolničku a její samostatné spojovací díly nahrazuje integrální kluzný
+čep Ø6 mm vytištěný s lůžkem; šest přihrádek a zdvih 16 mm zůstávají.
+Čtyři lepené PETG podlahové kotvy s bočně vkládanými maticemi a 85
+odlitými epoxidovými zámky nahrazují kovové úhelníky; lišty jsou součástí
+tištěných panelů. Montáž nevyžaduje pilník, pilku, vrtačku ani ohýbání.
+Brusný papír slouží pouze pro lepené stopy na dřevu. Aktualizované jsou
+CAD, dvě zkušební měrky, výpočty, 15 montážních kroků, servisní pořadí,
+BOM, výkresy a viewer. Zásoba PETG je 3 kg; lepidlo 2 × 24 ml.
+
+V izolovaném worktree `printed-no-tool-mechanics` prošel celý
+`Regenerate.ps1`: 108 Python testů, 34 Node testů, montážní validátor,
+generování, geometrické ověření a balení. Samostatně prošly 4 testy stylu.
+Výsledek `PASS_CAD_NOT_PHYSICAL_ACCEPTANCE`: 37 typů STL, 52 výtisků,
+79 CAD souborů, tři sestavy, 102 vzorků pohybu zdvihů, 36 poloh víka,
+37 poloh vyjmutí banky a 24 přístupů šroubováku bez zjištěných kolizí.
+Audit všech 135 vodičů prošel v klidu, přepravě a polohách 0/80/160°
+každého modulu; zahrnuje i vzájemnou geometrii vodičů. Nejde o spojitý
+důkaz pohybu ani fyzickou přejímku. ZIP obsahuje 161 souborů, 54 172 261 B;
+SHA-256 `41abdc29d794fafd60a7bc9f82e15c1a3d4dc5c3ec312660c5cc04a1d89d5f1c`.
+Balicí skript ověřil každý archivovaný soubor proti přijatým otiskům.
+
+Browser na localhost:8916 ověřil montážní kroky, nové kotvy, pohyb
+0–160°/16 mm, přepravní stav a úzké i široké zobrazení bez konzolových
+chyb. Vedlejší požadavek favicon.ico vrací 404. Všech 22 lokálních
+odkazů v mechanické dokumentaci má nyní existující cíl. Nezávislé review
+nenašlo blokující vadu po opravě montážního pořadí a vůlí hlav M4.
+
+Další krok: zkušební tisk a fyzické ověření tření, zatížení, lepení,
+tečení PETG a rozměrů skutečného servohornu. Výrobní kvalifikace ani
+hardware akceptace nejsou splněné. Git předání a PR následují po tomto
+ověření. Merge automaticky publikuje veřejný Workshop; tato publikace
+není zahrnuta v samotném zadání úpravy mechaniky a čeká na souhlas.
+
 ## U1 — Arcane Workshop a automatický veřejný web, 10. 10. 2026
 
 Majitel autorizoval commit/push/merge a nasazení veřejného rozcestníku,

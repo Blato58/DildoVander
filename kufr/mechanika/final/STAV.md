@@ -7,14 +7,46 @@ Zachovává šest přihrádek, potvrzený inventář a elektrické zapojení.
 ## Rozhodnutí
 
 - Bezpečný kvádr 400 × 240 × 170 mm podle majitele, klidová zástavba pod 114,3 mm.
-- Čtyři tištěné panely a dvě Al lišty; čtyři lepené Al kotvy k holému dřevu.
+- Čtyři PETG panely s integrovanými žebry; čtyři tištěné podlahové kotvy
+  se spodním filmem a odlitými epoxidovými zámky na holém dřevu DNA.
+- Vačku sleduje integrální Ø6 PETG čep lůžka, tisk +90° kolem Y čepem
+  vzhůru. Vůli řeší profil/parametr a nový tisk. Konstrukční montáž
+  nepoužívá pilník, pilku ani vrtačku; brusný papír pouze na lepené dřevo.
 - Zdvih 16 mm zachycenou vačkou, skutečné dolní podpěry, šest ručních pásků.
 - Elektronika má tvarové dorazy, pásky a vlastní nosiče. Hůlky, banka
   a textil nejsou součástí nosné cesty. Kufr se nevrtá ani neřeže.
 - ESP/kamera vzadu uprostřed, mikrofon vpředu uprostřed, reproduktory po stranách.
 - 135 samostatně identifikovaných vodičů se společnými daty pro výkres/viewer.
-- Montáž má 15 kumulativních kroků; provoz/servis/přeprava jsou explicitní stavy.
+- Montáž má 15 kroků: měrka → rám a nosiče na stole → lepení/přejímka
+  kotev a boční vložení matic → rám 4 × M4 × 10 → moduly 24 × M3 × 14.
+  Provoz/servis/přeprava jsou explicitní stavy.
 - Hlavní i krátká choreografie pochází z jednoho souboru pro firmware a náhled.
+
+## Aktuální změna montáže
+
+Zjednodušení 10. 10. 2026 mění geometrii, BOM a montážní pořadí. Návrh má
+37 typů STL / 52 výtisků včetně dvoudílné měrky. Výrobní výstupy přijmout
+pouze s aktuálním `exports/verification.json` a manifestem, jejichž zdrojové
+SHA-256 odpovídají nynějším souborům. Historické ověření tuto variantu
+nepokrývá. Fyzická přejímka zůstává nesplněná.
+
+Aktuální kotvy mají 36 831,325 mm² lepených stop a 85 zámků; minimum
+spodního filmu a zámků je 36,958 ml bez ztrát. BOM uvádí dvě balení
+Bison 24 ml, s rezervou přibližně 11,042 ml pro vzorek a ztráty. PETG
+kotvy se předplní odspodu; horní porty jsou kontrolní/odvzdušňovací.
+Boční vložení 24 M3 a 4 M4 matic před instalací rámu kryje souvislá
+3mm střecha. Moduly mají vlastní 24 M3 × 14, rám 4 M4 × 10 ISO4762;
+8 M3 × 10 zůstává pouze pro kryty. Integrální čep vyžaduje společné
+nasazení a servisní sejmutí lůžka, vačky a serva; dva pásky serva se při
+servisu odstřihují a nahrazují.
+
+Zdrojová kontrola před finální úpravou mřížky zámků 10. 10. 2026:
+`test_f2_cad`, testy kluzného čepu, kotev a měrky — 21 testů prošlo
+za 59,836 s. Výsledek není ověřením exportů ani balíčku a upravenou
+mřížku musí pokrýt nové ověření. Samostatné `validate_assembly.py`
+potvrdilo 15 kroků, 545 dílů scény a 135 vodičů, přesné počty BOM,
+pořadí prvního osazení spojů a zákaz opracovacích nástrojů. Fyzické
+nasazení čepu, spoj dřevo/epoxid, střechy matic a pohyb nebyly testovány.
 
 ## Ověřování a důkazy
 
@@ -80,7 +112,9 @@ funkce vieweru potvrdil dokončení při 899 a zastavení při 900 snímcích.
 Nominální náhled má 672 snímků / 11 200 ms pro hlavní variantu a
 484 snímků / přibližně 8 066,67 ms pro krátkou.
 
-Kontrola zdrojové geometrie: 32 typů STL / 47 výtisků, platná
+Historické ověření před zjednodušením 10. 10. 2026 (kovové kotvy, výztuhy
+a samostatný sledovač; není platné pro nynější variantu): 32 typů STL /
+47 výtisků, platná
 jednotlivá tělesa a tisková plocha 220 × 220 mm. Montáž pokrývá 589 dílů
 ve scéně a všech 135 vodičů; počty spojovacího materiálu odpovídají CSV.
 Rozsah celé regenerace zahrnuje tři celé sestavy, 102 poloh mechanismů
@@ -96,7 +130,8 @@ Při CAD review byly opraveny retenční hlavy/matice vodítek, sdílení
 konektorových obálek, skutečné šestihranné kapsy matic a kontrola kontaktu
 s materiálem dolních podpěr. Kontrola neuzavírá níže uvedené fyzické body.
 
-Logika prohlížeče na `http://127.0.0.1:8915/viewer.html` byla ověřena:
+Historická kontrola prohlížeče před změnou geometrie a montážního pořadí
+na `http://127.0.0.1:8915/viewer.html` byla ověřena:
 15 kroků vpřed, krok zpět, restart, všech šest ručních zdvihů 16 mm,
 volba vodiče D2-2, síť DRIVE5, pin CH0, svazek I2C, Stop a servisní reset.
 Přehrána celá hlavní sekvence pozice 1 a krátké sekvence pozic 2–6,
@@ -121,7 +156,7 @@ integrační kontroly a Git předání se zapisují do hlavního stavu projektu.
 | Hůlky a případná pouzdra | Délku do 200 mm a šířku hlavice 38 mm majitel potvrdil 10. 10. 2026; šest pozic zůstává. Ověřit zbývající výškové/tvarové rozměry, hmotnost a skutečné usazení |
 | Kamera/FPC a svorky | Potvrdit doručené rozměry, vývody a manipulační prostor |
 | Servo a páka | Ověřit polohu osy, náboj, rozteč páky a dodaný středový šroubek na jednom modulu |
-| Dřevo/lepidlo/nosné spoje | Vytvrzení a zátěžová přejímka podle MONTÁŽ.md |
+| Dřevo/lepidlo/nosné spoje | Přejímka holého připraveného dna, vyplněných epoxidových zámků a tištěných střech matic podle MONTÁŽ.md |
 | Servo dole bez držení | Změřit proud a reakci po FULL_OFF a porovnat je s odpojeným V+ |
 | Zdvih | Zatížené cykly, kalibrace, proud a oteplení prvního a následně všech modulů |
 | Kabely | Reálné poloměry, svorkování, polarita, pohyblivé rezervy a vyjmutí banky |

@@ -139,7 +139,7 @@ function motionFor(mesh) {
   const index = +(mesh.name.match(/_([1-6])$/)?.[1] || 0);
   if (!index) return null;
   if (/^(cam_|stock_horn_|coupler_)/.test(mesh.name)) return {type:'cam',index};
-  if (/^(tray_|u059_|led_|wand_|roller_|follower_|soft_liner_|tray_foam_|tray_fabric_)/.test(mesh.name)) return {type:'lift',index};
+  if (/^(tray_|u059_|led_|wand_|soft_liner_|tray_foam_|tray_fabric_)/.test(mesh.name)) return {type:'lift',index};
   return null;
 }
 function movement(mesh) {

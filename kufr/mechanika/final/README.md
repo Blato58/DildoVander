@@ -1,15 +1,22 @@
 # F2 — vložka do skutečného dřevěného kufru
 
 F2 nahrazuje chybný tištěný korpus F1. Skutečný kufr se nevrtá ani neřeže.
-Uvnitř je čtyřdílný rám vyztužený dvěma hliníkovými lištami, šest nezávislých
-vačkových zdvihů a pevné držáky elektroniky. Čtyři lepené kovové kotvy
-připojují rám ke dřevu. Hůlky, powerbanka a textil jsou odnímatelný obsah;
+Uvnitř je čtyřdílný PETG rám s integrovanými předními/zadními žebry, šest
+nezávislých vačkových zdvihů a pevné držáky elektroniky. Čtyři tištěné
+podlahové kotvy připojují rám k holému dřevu DNA přes spodní epoxidový film
+a odlité mechanické zámky Ø6/Ø9. Konstrukce se neopírá o neověřenou
+chemickou adhezi epoxidu k PETG. Hůlky, powerbanka a textil jsou odnímatelný obsah;
 nejsou nutné pro soudržnost vložky.
 
 **Návrh není fyzicky přijatý ani uvolněný k sériovému tisku.** CAD ověření
 nepotvrzuje skutečné rozměry hůlek a konektorů, soudržnost dřeva/lepidla,
 moment serva ani jeho chování bez PWM. Tyto podmínky zůstávají výslovně
 otevřené v [předání](STAV.md) a [montážním návodu](MONTÁŽ.md).
+
+Výstupy lze přijmout pouze s ověřením, jehož zdrojové SHA-256 odpovídají
+aktuálním souborům; starší ověření nepokrývá zjednodušení montáže. Návrh má
+37 typů STL / 52 výtisků včetně dvoudílné zkušební měrky. Skutečné počty
+exportovaných dílů uvádí aktuální tiskový seznam.
 
 ## Co otevřít
 
@@ -37,7 +44,11 @@ nikoli rozměry odvozené jako jisté z perspektivních fotografií.
 Zvoleno šest modulů na rozteči 48 mm, s délkou 212 mm a zdvihem 16 mm.
 Majitel 10. 10. 2026 potvrdil délku hůlky do 200 mm a šířku hlavice 38 mm
 včetně případného pouzdra. Ostatní tvarové rozměry zůstávají předpoklady.
-Zachycená vačka řídí zdvih i návrat. Dole lůžko spočívá na pevných
+Zachycená vačka řídí zdvih i návrat přes integrální PETG kluzný čep Ø6
+na lůžku. Lůžko se tiskne otočené +90° kolem Y, čep vzhůru bez podpory
+na kluzné ploše. Nevyhovující vůli řeší změna profilu/parametru a nový tisk;
+montáž nepotřebuje pilník, pilku ani vrtačku. Brusný papír patří pouze
+k odstranění povrchové úpravy v lepených stopách dřeva. Dole lůžko spočívá na pevných
 podpěrách; firmware vypne impulzy serva. Pro přepravu každé prázdné lůžko
 samostatně zachytí výrazný pásek široký 8 mm. Bez snímače se odjištění ověřuje ručně.
 Stop nepředstírá návrat dolů a vyžaduje kontrolu před zotavením.
