@@ -37,6 +37,15 @@ a její vzdálený SHA ověřen. Nezávislé review potvrdilo nulový rozdíl
 všech 84 produkčních nástrojových objemů; dva další cílené testy prošly.
 Review vlákno PR #172 je vyřešené; výsledek CI je dostupný přímo v PR.
 
+Finální regenerace po doplnění měrky 10. 10. 2026 prošla celá:
+111 Python testů, 34 Node testů, všech 79 CAD souborů, kolizní audit
+sestavy i 135 vodičů a všech 15 montážních kroků. Počty zůstávají
+37 typů STL / 52 výtisků. Výsledek `PASS_CAD_NOT_PHYSICAL_ACCEPTANCE`.
+Aktuální ZIP má 161 členů, 54 214 717 B a SHA-256
+`f32082840636daf430950609be85292af8be3ce3fb96f730b49c5a979e3ab150`.
+Zpětné čtení ZIPu, CRC i otisky všech členů prošly; prohlížeč ověřil
+nový první krok s M3/M4 kapsami bez konzolových chyb.
+
 Browser na localhost:8916 ověřil montážní kroky, nové kotvy, pohyb
 0–160°/16 mm, přepravní stav a úzké i široké zobrazení bez konzolových
 chyb. Vedlejší požadavek favicon.ico vrací 404. Všech 22 lokálních
@@ -47,7 +56,12 @@ Další krok: zkušební tisk a fyzické ověření tření, zatížení, lepen�
 tečení PETG a rozměrů skutečného servohornu. Výrobní kvalifikace ani
 hardware akceptace nejsou splněné. Implementační commit `f5846f5` byl přes
 `Push-CurrentBranch.ps1` úspěšně odeslán a vzdálený SHA ověřen na větvi
-`codex/printed-no-tool-mechanics`. PR následuje po tomto předání.
+`codex/printed-no-tool-mechanics`. Oprava měrky i záznam předání
+jsou pushnuté do [PR #172](https://github.com/Blato58/DildoVander/pull/172).
+CI run `38071954833` a synchronizační run `38071953450` se nespustily:
+GitHub uvádí „The job was not started because an Actions budget is
+preventing further use.“ Jde o blokaci rozpočtem Actions, nikoli výsledek
+CAD testů. Bez úspěšného CI nebyl proveden merge.
 Merge automaticky publikuje veřejný Workshop; tato publikace
 není zahrnuta v samotném zadání úpravy mechaniky a čeká na souhlas.
 
