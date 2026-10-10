@@ -65,6 +65,10 @@ Reálný browser nejprve reprodukoval chybu (16 mm → Přeprava → 0 mm),
 potom ověřil opravu (16 mm → Přeprava/Montáž → Servis, stále 16 mm,
 jezdec zakázaný). Pouze explicitní servisní reset vrátí 0 mm a odblokuje
 přepravu; konzole je bez varování/chyb. Aktuální balíček má otisk uvedený výše.
+Oprava a potvrzené rozměry byly odeslány commitem
+`2dd15fc11ef44e88fabee77463a91a37771ce2d5`; `Push-CurrentBranch.ps1`
+potvrdil shodný vzdálený SHA. Původní P2 vlákno je po regresi a browser
+kontrole vyřešené; nové CI a Codex review tohoto commitu běží v PR #170.
 
 Fyzická výroba, nalepení kotev, zkouška přepravy, kalibrace a nahrání
 firmware neproběhly. Neuzavřené jsou zbývající tvarové rozměry a usazení
