@@ -5,7 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 HEADER = ROOT.parents[1] / 'firmware/src/features/physical_effects/PresentationScore.h'
-TARGETS = {'selected': 0, 'all': -1, 'next': -2, 'previous': -3}
+TARGETS = {'selected': 0, 'next': -2, 'previous': -3}
 STAGES = ('prepare', 'raise', 'show', 'lower', 'rest')
 # PhysicalPresentation advances one preparation step per nominal 10 ms control
 # pass. Cap rounding overhead at 100 * 10 ms, its existing 1000 ms allowance.
@@ -49,6 +49,7 @@ def validate(score):
             require(not set(step) - STEP_FIELDS, f'{label}: unsupported step field')
             require(integer(step['duration_ms'], 1, 65535), f'{label}: invalid duration')
             target = step['target']
+            require(target != 'all', f'{label}: only one LED segment may be targeted')
             require((type(target) is int and 1 <= target <= 6) or
                     (isinstance(target, str) and target in TARGETS), f'{label}: invalid target')
             require(isinstance(step['light'], list) and len(step['light']) == 3 and
