@@ -11,7 +11,10 @@ Nominální rozpočet náhledu započítá i první interval po spuštění
 (hlavní 672 snímků / 11 200 ms, krátká 484 / přibližně 8 066,67 ms).
 Firmware, jeho hlavička i data choreografie se nemění. Nezávislé review,
 úplná regenerace a audit nového ZIPu prošly; výsledek je doložený níže.
-Závěrečné CI, review a merge budou ověřené v PR #170 po odeslání opravy.
+Oprava byla 10. 10. 2026 odeslána commitem
+`0b66e132880a223d880d774fb8c8e2d64523ad33`; `Push-CurrentBranch.ps1`
+ověřil shodný vzdálený SHA. Závěrečné CI, review a merge dokládá PR #170;
+tento záznam sám merge nepotvrzuje.
 
 CI `6413398` prošlo. Následné review našlo zbývající zastaralé tvrzení
 o svícení všech 36 LED v potvrzeném návodu zapojení. Oprava mění pouze
