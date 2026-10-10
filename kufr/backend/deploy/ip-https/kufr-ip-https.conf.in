@@ -21,6 +21,10 @@ server {
     ssl_protocols TLSv1.2 TLSv1.3;
     client_max_body_size 4m;
 
+    # Optional managed extensions; bracket globs also allow initial bootstrap.
+    include /etc/nginx/snippets/dildovander-site.con[f];
+    include /etc/nginx/snippets/cloudvpsbridge-location.con[f];
+
     location ^~ /ios/ {
         alias /var/www/kufr-ios/;
         index index.html;
