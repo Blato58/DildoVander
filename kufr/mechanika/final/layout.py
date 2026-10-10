@@ -258,8 +258,8 @@ def fit_coupon():
         nut=next(n for n in anchor_nuts(anchor) if n["kind"]==kind)
         shift=(target_x-nut["x"],-edge,-PARAMS["frame"]["floor_anchors"]["z"])
         holes.extend(tool.translate(shift) for tool in anchor_nut_clearances(nut,edge))
-    # This third internal-bridge sample also checks the 9 mm epoxy chamber,
-    # 6 mm underside neck and both 2.5 mm vents before large anchor prints.
+    # This third internal-bridge sample checks the production epoxy chamber,
+    # underside neck and both 2.5 mm vents before large anchor prints.
     holes.append(floor_anchor_key_shape(100,40).translate(
         (0,0,-PARAMS["frame"]["floor_anchors"]["z"])))
     return cut(shape,holes)
