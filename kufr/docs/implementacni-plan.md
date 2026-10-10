@@ -312,6 +312,22 @@ Capacitor 8 podporuje iOS 15+ a vyžaduje Xcode 26.0+; jeho CLI vyžaduje Node 2
 
 ## 3. Komponenty, nasazení a vertical slices
 
+Od 10. 10. 2026 sjednocuje všechna UI [Arcane Workshop](../design-system/README.md).
+Sdílené CSS tokeny, komponentové a přístupnostní kontrakty se používají ve
+stávajících frameworcích; nemění lokální řízení, BLE, Keychain, kamerový souhlas
+ani rozdíl pozorování/simulace/fyzického stavu. Tři ilustrační mockupy a přesné
+specifikace obrazovek jsou součástí design systému. Nové Home/Control/Voice/Service,
+AI Studio a Show Mode jsou navazující rozšíření funkcí, nikoli už existující
+obrazovky; současné Ovládání/Debug/Síť kufru zůstávají funkčně zachované.
+
+Majitel 10. 10. autorizoval automatické publikování [veřejného webu](../web/README.md)
+po relevantním merge do `main`: rozcestník, ověřený F2 viewer a celý ZIP, webový
+Companion a odpojený náhled pozorovacího simulátoru. Podepsaný iOS build nadále
+spouští ruční `kufr-ios-sign.yml`; jeho úspěšné dokončení na `main` nyní automaticky
+spouští `kufr-ios-deploy.yml`. Tím se nahrazuje níže uvedená ruční publikace IPA.
+Publikace používá stávající ověření zdroje a artefaktu, atomické přepnutí release
+a veřejné HTTPS readback; podpis ani build nezastupují akceptaci na iPhonu.
+
 ```text
 Návštěvník -- PTT / hlas --> ESP32-S3 -- HTTPS /v1 --> backend --> STT / Responses / TTS
 Návštěvník <-- reproduktor - ESP32-S3 <-- odpověď / návrh / audio -- backend

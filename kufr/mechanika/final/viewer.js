@@ -53,6 +53,7 @@ function saveColors() {
 }
 
 const meshesByName = new Map();
+const treeButtons = new Map();
 for (const [index, mesh] of model.meshes.entries()) {
   mesh.pickId = index + 1;
   mesh.originalColor = [...mesh.color];
@@ -259,8 +260,8 @@ function label(name, x, y,container='names') {
 }
 function allNames() {
   const width = canvas.clientWidth, height = canvas.clientHeight;
-  const panel = el('inspector');
-  const exclusion = panel.hidden ? null : [width-panel.offsetWidth-12,12,panel.offsetWidth,panel.offsetHeight];
+  // The inspector is docked outside the canvas, so it no longer consumes label space.
+  const exclusion = null;
   const labels = [];
   // Append first, then measure together to avoid forcing layout once per object.
   for (const mesh of model.meshes.filter(visible)) {
@@ -414,13 +415,16 @@ let displayedMesh = undefined;
 function updatePanel(mesh) {
   const wireInspection = !!(selectedWire || selectedEndpoint || hoveredConnection);
   el('inspector').hidden = (!mesh && !inspectEnabled) || (wireInspection && !pinned);
+  el('inspector-empty').hidden = !el('inspector').hidden;
   // A hover card can appear under the pointer. Until pinned, canvas picking
   // must still receive the next click; the empty Inspect selector stays usable.
   el('inspector').style.pointerEvents = pinned || !mesh ? 'auto' : 'none';
   el('object-details').hidden = !mesh;
   el('unpin').hidden = !pinned;
   if (displayedMesh === mesh) return;
+  if (pinned && mesh) setWorkshopPanel('inspector', true);
   displayedMesh = mesh;
+  for (const [name, button] of treeButtons) button.setAttribute('aria-pressed', String(name === mesh?.name));
   el('object').value = mesh?.name || '';
   if (!mesh) return;
   el('object-title').textContent = mesh.info.title;
@@ -486,7 +490,7 @@ function draw() {
   hovered = inspecting() && !drag ? pick() : null;
   hoveredConnection = inspecting() && !drag && !selectedWire && !selectedEndpoint ? wireHit() : null;
   const selected = pinned || hovered;
-  gl.clearColor(.937,.922,.894,1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.clearColor(13/255,18/255,24/255,1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   renderMeshes(false, hovered || selected);
   el('liftvalue').textContent = lift(trayAngles[+el('tray').value-1] || 0).toFixed(1)+' mm';
   el('lidvalue').textContent = el('lid').value+'°';
@@ -555,9 +559,40 @@ function clearWireSelection() {
   el('wire').value = ''; el('endpoint').value = '';
 }
 function closeInspect() { shiftDown = false; inspectEnabled = false; pinned = null; hovered = null; clearWireSelection(); requestDraw(); }
+function setWorkshopPanel(name, open) {
+  const panel = el(name === 'explorer' ? 'sidebar' : 'inspector-rail');
+  const activeElement = document.activeElement;
+  const focusWasInside = panel.contains(activeElement);
+  panel.setAttribute('data-open', String(open));
+  const toggle = el(name+'-toggle');
+  toggle.setAttribute('aria-expanded', String(open));
+  if (open) {
+    const other = name === 'explorer' ? 'inspector' : 'explorer';
+    const otherPanel = el(other === 'explorer' ? 'sidebar' : 'inspector-rail');
+    const focusWasInOther = otherPanel.contains(activeElement);
+    otherPanel.setAttribute('data-open', 'false');
+    el(other+'-toggle').setAttribute('aria-expanded', 'false');
+    const closeButton = el(name+'-close');
+    if (focusWasInOther && !otherPanel.getClientRects().length && closeButton.getClientRects().length) {
+      closeButton.focus({preventScroll:true});
+    }
+  } else if (focusWasInside && !panel.getClientRects().length && toggle.getClientRects().length) {
+    toggle.focus({preventScroll:true});
+  }
+  requestDraw();
+}
+for (const name of ['explorer','inspector']) {
+  el(name+'-toggle').onclick = () => setWorkshopPanel(name, el(name+'-toggle').getAttribute('aria-expanded') !== 'true');
+  el(name+'-close').onclick = () => setWorkshopPanel(name, false);
+}
+el('begin-inspect').onclick = () => { inspectEnabled = true; requestDraw(); };
+const localExport = ['localhost','127.0.0.1'].includes(window.location?.hostname) && window.location?.pathname === '/viewer.html';
+const localViewer = window.location?.protocol === 'file:' || localExport;
+el('workshop-home').setAttribute('href', localViewer ? './reference-sources.html' : '/');
+if (localViewer) el('workshop-home').setAttribute('aria-label', 'Zdrojové podklady offline balíčku F2');
 document.addEventListener('keydown', event => {
   if (event.key === 'Shift' && !shiftDown) { shiftDown = true; requestDraw(); }
-  if (event.key === 'Escape') closeInspect();
+  if (event.key === 'Escape') { closeInspect(); setWorkshopPanel('explorer', false); setWorkshopPanel('inspector', false); }
 });
 document.addEventListener('keyup', event => {
   if (event.key === 'Shift') { shiftDown = false; inspectEnabled = false; requestDraw(); }
@@ -591,6 +626,7 @@ for (const id of ['cover','case','beds','hardware']) el(id).oninput = layersChan
 el('open').onclick = () => setMode('operation');
 el('service').onclick = () => setMode('service');
 el('closed').onclick = () => setMode('transport');
+el('assembly-mode').onclick = () => setMode('assembly');
 el('mode').onchange = () => setMode(el('mode').value);
 for (const id of ['wands','bank','textile','wires','dimensions','case-opacity']) el(id).oninput = layersChanged;
 for (const name of ['top','front','side','overview']) el('view-'+name).onclick = () => setView(name);
@@ -622,6 +658,7 @@ el('service-reset').onclick = () => {
   el('effect-phase').textContent = '';
   el('lift').disabled = false; el('lift').value = 0;
   updateEffectControls();
+  showEffectTimeline(model.effects?.main || []);
   updateEffectStatus('Servisní reset modelu. Fyzická poloha musí být ručně zkontrolována.'); requestDraw();
 };
 function resetView() {
@@ -630,6 +667,7 @@ function resetView() {
 function setView(name) {
   const views = {top:[-Math.PI/2,Math.PI/2-.001],front:[-Math.PI/2,.01],side:[0,.01],overview:[-1.05,.66]};
   [yaw,pitch] = views[name] || views.overview; requestDraw();
+  for (const viewName of ['top','front','side','overview']) el('view-'+viewName).setAttribute('aria-pressed',String(viewName === name));
 }
 function zoomObject(mesh) {
   automaticFit = false;
@@ -638,16 +676,20 @@ function zoomObject(mesh) {
 }
 function buildTree() {
   el('tree').replaceChildren();
+  treeButtons.clear();
+  el('part-count').textContent = model.meshes.length+' dílů';
   const titles = {case:'Dřevěný kufr',lid:'Víko',fixed:'Rám a nosiče',moving:'Mechanismy',moving_hw:'Pohyblivé díly',hardware:'Elektronika a spoje',cover:'Kryty',fabric:'Textil',lid_fabric:'Textil víka',bond:'Lepené spoje',fastener:'Spojovací materiál',wand:'Vyjímatelné hůlky',restraint:'Přepravní zajištění'};
   for (const group of [...new Set(model.meshes.map(mesh=>mesh.group))]) {
     const section = document.createElement('details'), summary = document.createElement('summary');
     const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = !hiddenGroups.has(group);
     checkbox.setAttribute('aria-label','Zobrazit vrstvu '+(titles[group] || group));
     checkbox.onchange = () => { checkbox.checked ? hiddenGroups.delete(group) : hiddenGroups.add(group); layersChanged(); };
-    summary.append(checkbox);
+    const visibilityLabel = document.createElement('label'); visibilityLabel.className = 'tree-visibility';
+    visibilityLabel.append(checkbox); summary.append(visibilityLabel);
     const text = document.createElement('span'); text.textContent = ' '+(titles[group] || group); summary.append(text); section.append(summary);
     for (const mesh of model.meshes.filter(item=>item.group === group)) {
       const button = document.createElement('button'); button.textContent = mesh.name;
+      button.setAttribute('aria-pressed', String(mesh === pinned)); treeButtons.set(mesh.name, button);
       button.onclick = () => { pinned = mesh; inspectEnabled = true; pointer = null; clearWireSelection(); requestDraw(); };
       section.append(button);
     }
@@ -661,6 +703,9 @@ function setMode(value) {
     updateEffectStatus('Poloha po přerušení je neznámá. Před změnou režimu ručně zkontrolujte mechanismus a potvrďte servisní reset; dosažené úhly zůstávají zachované.');
   }
   mode = value; el('mode').value = value;
+  for (const [id, target] of [['open','operation'],['service','service'],['closed','transport'],['assembly-mode','assembly']]) {
+    el(id).setAttribute('aria-pressed', String(mode === target));
+  }
   pinned = null; hovered = null; hoveredConnection = null; pointer = null;
   clearWireSelection(); displayedMesh = undefined;
   el('object').value = ''; el('wire').value = ''; el('endpoint').value = ''; el('wire-scope').value = 'branch';
@@ -680,6 +725,7 @@ function setMode(value) {
   if (!effectFault) {
     el('effect-phase').textContent = '';
     updateEffectStatus('Časování zdvihu je ilustrační do kalibrace. Lokální poslech tónů není fyzická přejímka.');
+    showEffectTimeline(model.effects?.main || []);
   }
   updateEffectControls();
   buildTree(); updateAssembly(); updateTransportInstructions(); layersChanged(); updateWireDetails();
@@ -754,6 +800,29 @@ function drawOrientation() {
   }
 }
 function updateEffectStatus(text) { el('effect-status').textContent = text; }
+let timelinePhases = [];
+function showEffectTimeline(phases) {
+  timelinePhases = phases;
+  el('effect-timeline').replaceChildren();
+  for (const phase of phases) {
+    const segment = document.createElement('span');
+    segment.className = 'timeline-phase'; segment.textContent = phase.phase;
+    segment.style.flexGrow = Math.max(1,phase.duration_ms);
+    segment.setAttribute('title', phase.phase+' · '+(phase.duration_ms/1000).toFixed(2)+' s');
+    segment.setAttribute('aria-label', phase.phase+'; ilustrační čas '+(phase.duration_ms/1000).toFixed(2)+' sekund');
+    el('effect-timeline').append(segment);
+  }
+  updateEffectTimeline(-1,0);
+}
+function updateEffectTimeline(index, fraction) {
+  const total = timelinePhases.reduce((sum,phase)=>sum+phase.duration_ms,0);
+  const elapsed = index < 0 ? 0 : timelinePhases.slice(0,index).reduce((sum,phase)=>sum+phase.duration_ms,0)+(timelinePhases[index]?.duration_ms || 0)*fraction;
+  el('timeline-time').textContent = (elapsed/1000).toFixed(1)+' / '+(total/1000).toFixed(1)+' s';
+  for (const [position,segment] of Array.from(el('effect-timeline').children).entries()) {
+    segment.setAttribute('aria-current', position === index ? 'step' : 'false');
+    segment.setAttribute('data-complete', String(position < index));
+  }
+}
 function updateEffectControls() {
   el('play-main').disabled = mode !== 'operation' || effectFault || !!effect;
   el('play-short').disabled = mode !== 'operation' || effectFault || !!effect;
@@ -777,6 +846,7 @@ function startEffect(kind) {
   if (el('audio-preview').checked && !audioContext && window.AudioContext) audioContext = new window.AudioContext();
   audioContext?.resume()?.catch(() => updateEffectStatus('Lokální zvuk není dostupný; vizuální sekvence pokračuje bez zvuku.'));
   effect = {phases,index:0,started:null,presentationStarted,selected:+el('tray').value-1,initial:[...trayAngles]};
+  showEffectTimeline(phases);
   updateEffectControls();
   el('lift').disabled = true;
   updateEffectStatus('Ilustrační časování; zdvih vyžaduje kalibraci serva. Zvuk v prohlížeči je pouze lokální poslech tónů.');
@@ -814,6 +884,7 @@ function tickEffect(timestamp) {
     playTone(phase.audio ? phase.tone_hz : 0);
   }
   const fraction = Math.min(1,(now-effect.started)/Math.max(1,phase.duration_ms));
+  updateEffectTimeline(effect.index,fraction);
   const indexes = targetIndexes(phase.target,effect.selected,fraction);
   lightStates.fill(null);
   for (const index of indexes) {
@@ -829,6 +900,7 @@ function tickEffect(timestamp) {
   if (fraction >= 1) {
     effect.index++; effect.started = null; stopTone();
     if (effect.index >= effect.phases.length) {
+      updateEffectTimeline(effect.phases.length,0);
       effect = null; lightStates.fill(null); el('lift').disabled = false;
       updateEffectControls();
       updateEffectStatus('Ilustrační sekvence dokončena. Náhled není zkouška fyzických výstupů.');
@@ -842,7 +914,7 @@ for (const route of routes) el('wire').add(new Option(route.id+' · '+route.from
 for (const endpoint of [...new Set([...Object.keys(model.endpoints || {}),...routes.flatMap(route=>[route.from,route.to,route.transport_from])])].filter(Boolean).sort()) el('endpoint').add(new Option(endpoint,endpoint));
 el('mode').value = mode; el('wire-scope').value = 'branch'; el('case-opacity').value = 1;
 el('envelope-note').textContent = 'Bezpečný vložitelný kvádr: '+(model.case?.safe_zone || [400,240,170]).join(' × ')+' mm. Zdvih '+model.mechanism.lift+' mm, '+trayAngles.length+' modulů. Korpus není určen k tisku.';
-updateObjectOptions(); buildTree(); updateAssembly(); updateTransportInstructions(); updateEffectControls(); draw();
+updateObjectOptions(); buildTree(); updateAssembly(); updateTransportInstructions(); updateEffectControls(); showEffectTimeline(model.effects?.main || []); draw();
 window.addEventListener('resize',requestDraw);
 window.F2 = {draw,meshes:model.meshes.length,lift,movement,visible,routePoints,setMode,setView,moveAssembly,startEffect,stopEffect,
   projectPoint,visibleCorners,

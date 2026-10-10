@@ -26,24 +26,27 @@ class ProjectSelectionTests(unittest.TestCase):
             (["kufr/firmware/src/CMakeLists.txt"], {"firmware"}),
             (["kufr/backend-tests/Program.cs"], {"backend"}),
             (["kufr/global.json", "kufr/Directory.Build.props"], {"backend"}),
-            (["kufr/mobilni-aplikace/public/icon.svg"], {"web"}),
+            (["kufr/mobilni-aplikace/public/icon.svg"], {"web", "site"}),
             (["kufr/ai-eval/cases.json"], {"ai-eval"}),
             (["kufr/firmware/src/espidf_main.cpp", "kufr/backend/Program.cs"], {"firmware", "backend"}),
-            (["kufr/mechanika/final/mechanism.py", "obludarium/docs/a.md"], set()),
+            (["kufr/mechanika/final/mechanism.py", "obludarium/docs/a.md"], {"site"}),
+            (["kufr/design-system/tokens/colors.css"], {"web", "site"}),
+            (["kufr/web/index.html"], {"site"}),
         ]:
             with self.subTest(paths=paths):
                 self.assertEqual(self.selected(*paths), expected)
 
     def test_shared_dependencies_select_their_consumers(self):
         self.assertEqual(self.selected("kufr/contracts/control-message-v1.schema.json"),
-                         {"backend", "firmware", "web"})
+                         {"backend", "firmware", "web", "site"})
         self.assertEqual(self.selected("kufr/simulator/bridge.cpp"), {"firmware", "web"})
-        self.assertEqual(self.selected("scripts/ci/package.py"), {"repository", "backend", "firmware", "web"})
+        self.assertEqual(self.selected("scripts/ci/package.py"), {"repository", "backend", "firmware", "web", "site"})
 
     def test_workflow_changes_select_only_the_corresponding_build(self):
         self.assertEqual(self.selected(".github/workflows/kufr-firmware.yml"), {"repository", "firmware"})
         self.assertEqual(self.selected(".github/workflows/ci.yml"), {"repository"})
         self.assertEqual(self.selected("scripts/ci/select_projects.py"), {"repository"})
+        self.assertEqual(self.selected(".github/workflows/kufr-site.yml"), {"repository", "site"})
 
     def test_git_diff_includes_both_sides_of_a_rename(self):
         with tempfile.TemporaryDirectory() as folder:

@@ -1,0 +1,13 @@
+:root {
+  --aw-motion-fast: 150ms;
+  --aw-motion-normal: 200ms;
+  --aw-motion-slow: 250ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --aw-motion-fast: 0ms;
+    --aw-motion-normal: 0ms;
+    --aw-motion-slow: 0ms;
+  }
+}

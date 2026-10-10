@@ -1,5 +1,76 @@
 # Stav implementace AI kufru
 
+## U1 — Arcane Workshop a automatický veřejný web, 10. 10. 2026
+
+Majitel autorizoval commit/push/merge a nasazení veřejného rozcestníku,
+F2 vieweru s celým výrobním ZIPem a jednotný vzhled všech existujících UI.
+Navazujeme na commitnutý F2; necommitnuté mechanické opravy vlastní původní task.
+Sdílené tokeny, lokální OFL fonty, komponenty, přístupnost a tři ilustrační
+HTML mockupy jsou v [design systému](../design-system/README.md). Tracked
+repo skill `.agents/skills/dildovander-ui` a AGENTS.md závazně vedou další UI práci.
+Změněny jsou mobilní Ovládání/Debug/Síť kufru, skutečný generátor vieweru
+včetně offline CSS/fontů a zdrojových podkladů, pozorovací dashboard a iOS
+instalační stránka. Autorizace, BLE/Keychain, kamerový souhlas a kontrakty zůstávají.
+Stop v mobilním shellu používá stejnou existující bránu i z dalších záložek.
+
+[Web](../web/README.md) sestavuje pouze zdrojově ověřené CAD exporty a ZIP,
+kontroluje celý inventář a atomicky přepíná release. Nové site CI i automatický
+deploy po změně main mají kontrolu aktuálnosti a HTTPS readback každého souboru.
+Úspěšný ruční podepsaný iOS build nyní automaticky publikuje stávajícím deployem.
+Na VPS byly s privátní zálohou připraveny Nginx routy; health a stávající /ios/
+vracejí úspěch, CloudVPSBridge include je zachován. Starý CAD ZIP/viewer budou
+odstraněny až po úspěšné publikaci nové verze; aktuální IPA zůstává.
+
+Provedeno: mobil 50 testů + TypeScript/Vite build, viewer 22 Node testů a
+4 testy offline stylů, publisher iOS 4 testy, CI guardy 55 Node + selektor
+6 Python testů, site 7 testů na Linuxu včetně atomického přepnutí/rollbacku
+(Windows stejný celek s jedním záměrným skip), actionlint všech workflows,
+syntaxe a whitespace PASS. Skutečný browser ověřil mobilní sekce, sticky Stop,
+klávesnicovou izolaci tabů, viewer fonty/ovládání >=44px, drawer/bottom sheet,
+šířky 390 a 320px bez přetékání, bez chyb konzole. Nezávislá review opravila
+šířky ovládání, sdílené závislosti site, úplný veřejný readback a stale-main bránu.
+Skill schema a 69 lokálních design odkazů PASS. Kontrakt pokrývá sedm stavů,
+pojmenované komponenty, Reduced Motion a 12 lokálních Lucide ikon s licencí
+a ověřenými otisky. PR review našla chybějící rollback první publikace:
+`restore_activation` obnoví i stav bez `current`, odmítne jiný aktivní release
+a má dva regresní testy. Všech 9 site testů prošlo na Linuxu a actionlint PASS.
+Po doplnění motion tokenů znovu prošly testy offline stylů a TypeScript/Vite build.
+Viewer má 25 testů včetně návratu focusu při zavření/Escape a přenosu z ukrytého
+Exploreru do Inspectoru. Tyto cesty prošly i ve skutečném mobilním browseru;
+desktop focus neztrácí. Opraveny jsou také UTF-8 šipky ve stromu dílů.
+
+Další review doplnila trvalý live status Stop ve všech záložkách a společnou
+ochranu proti opakovanému odeslání ze shellu, Ovládání i Debug. Stav i nejistý
+výsledek pocházejí z adaptéru; návrat void metody není potvrzení fyzického zastavení.
+Mobil má 56 úspěšných testů a TypeScript/Vite build; skutečný browser na Debug
+zobrazil nejistý výsledek fake Stop a zakázal další Stop. Čekání a ztrátu spojení
+pokrývají regresní testy, nikoli měření zařízení. Site retence po úspěšném readbacku
+uchová aktivní, bezprostředně předchozí a třetí ověřený release; neznámé adresáře,
+symlinky ani iOS nemaže. Všech 13 site testů prošlo na Linuxu včetně rollbacku po
+retenci, ochrany souboru mimo release root a sdíleného CLI zámku. Nezávislé
+review opravily neplatný manifest i souběh s ručním rollbackem; čekající Stop
+neodemkne ani opožděný ready/running snapshot se stejným pořadovým číslem.
+
+Začleněny jsou commitnuté opravy F2 až po `07adaab5` včetně zdrojového snapshotu
+exportů, úplných prezentačních fází, jednoho LED segmentu a globálního deadline.
+Limit náhledu nyní běží od přijetí akce podle aktuálního monotónního času;
+čekání na první snímek, audio inicializace ani stará časová značka jej neprodlouží.
+Integrovaný viewer má 34 úspěšných testů, sdílená choreografie 15 testů;
+necommitnutý checkout zůstává původnímu tasku. Kandidát `dfeb954` prošel celým
+CI `38014347068`; stažený site artefakt má shodný Git tree, všech 145 souborů
+ověřených podle inventáře a výrobní ZIP se 147 položkami bez chyby CRC.
+Skutečný browser ověřil tento artefakt včetně vieweru, Companionu a odpojeného
+simulátoru. Následné drobné zdrojové úpravy zvětšují odkaz patičky rozcestníku
+a diagnostické odkazy iOS instalace na alespoň 44 px; oba náhledy prošly
+na 320/390 px bez přetékání a iOS publisher má stále 4 úspěšné testy.
+F2 PR #170 je sloučený jako `6477fbf5`; ověřený tree cílového main je shodný
+s `07adaab5`. Synchronizace UI větve zachovala celý již začleněný obsah,
+nezávislá kontrola kombinovaného vieweru nenašla blokující problém.
+Předání je zatím rozpracované: čeká CI výsledného tree, review/merge a skutečný deploy
+webu a nový podepsaný iOS build. Webové kontroly neprokazují akceptaci iPhonu,
+VoiceOver ani fyzickou bezpečnost/mechaniku. Tyto hranice zůstávají otevřené.
+
+
 ## F2 — vložka do skutečného kufru, 10. 10. 2026
 
 CI `21ecc48` prošlo. Následná P2 je opravená: náhled měří limit 15 s

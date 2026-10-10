@@ -8,6 +8,6 @@
     "ws": "8.22.0"
   },
   "scripts": {
-    "test": "node verify-bridge.mjs && node verify-conversation.mjs && node verify-socket.mjs && node verify-media-socket.mjs"
+    "test": "node verify-dashboard.mjs && node verify-bridge.mjs && node verify-conversation.mjs && node verify-socket.mjs && node verify-media-socket.mjs"
   }
 }

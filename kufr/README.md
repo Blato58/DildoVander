@@ -19,6 +19,8 @@ Vybraná rekvizita: [sada dvou dřevěných truhel Marketos](https://www.marketo
 - [`simulator/`](simulator/) — spustitelná hostitelská časová osa čistého modelu výběru a deterministické scénáře.
 - [`mechanika/`](mechanika/README.md) — parametrické STL/STEP prototypy šesti zdvihacích přihrádek, držáků vibrací a krabiček; skutečné usazení a pasivní stabilita čekají na měření.
 - [`backend/`](backend/) — ASP.NET Core 10 s device tokenem, SQLite journalem a pamětí večera, fake režimem a Responses dialogem Sol.
+- [`design-system/`](design-system/README.md) — Arcane Workshop: sdílené tokeny, komponentové vzory, přístupnost a tři ilustrační mockupy.
+- [`web/`](web/README.md) — veřejný rozcestník, ověřený výrobní ZIP a automatické atomické nasazení Workshopu, webového Companionu a odpojeného náhledu simulátoru.
 - [`docs/implementacni-plan.md`](docs/implementacni-plan.md) — rozhodnutí, protokol, bezpečnost, předběžné piny A/B, testování a etapy.
 - [`docs/stav-implementace.md`](docs/stav-implementace.md) — jediný průběžný přehled realizace, ověření, blokací a dalšího kroku.
 - [`docs/kamera.md`](docs/kamera.md) — volitelné rozšíření o obraz; vybraná deska má kamerový konektor.

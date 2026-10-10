@@ -1,100 +1,99 @@
 <!doctype html>
 <html lang="cs">
+<head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>F2 — vložka do dřevěného kouzelného kufru</title>
-<style>
-*{box-sizing:border-box}body{margin:0;background:#eee5d6;color:#34251e;font:14px system-ui;height:100vh;display:flex;flex-direction:column;overflow:hidden}
-header,footer{flex:none;padding:9px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#eee5d6}
-header{border-bottom:2px solid #b69755}h1{font-size:21px;margin:0}h2{font-size:17px;margin:10px 0}small{color:#685244}
-label{display:inline-flex;align-items:center;gap:6px}button{background:#682e3d;color:#fff8e9;border:1px solid #825143;border-radius:4px;padding:7px 10px;cursor:pointer}
-button:disabled{opacity:.45;cursor:default}button[aria-pressed=true]{background:#986d29}button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid #d39c35;outline-offset:2px}
-select{max-width:100%;padding:5px;background:#fff9ee;color:#34251e;border:1px solid #bfa480}input[type=range]{width:110px}.note{font-size:11px;max-width:510px}
-#workspace{display:flex;flex:1;min-height:100px}#sidebar{width:275px;overflow:auto;padding:12px;border-right:1px solid #bfa480;background:#f4eadb;font-size:12px}
-#sidebar>details{margin:8px 0;border-top:1px solid #d4c0a0;padding-top:7px}summary{cursor:pointer;font-weight:600}#sidebar label{margin:3px 0}#sidebar p{overflow-wrap:anywhere}
-#sidebar select{display:block;width:100%;margin:4px 0 8px}#tree details{margin:5px 0}#tree button{display:block;padding:3px 6px;margin:3px 0 3px 14px;font-size:11px;background:#806553;border-color:#aa9074}
-#wire-details{white-space:pre-line;overflow-wrap:anywhere;line-height:1.4;max-height:140px;overflow:auto}#assembly-check{font-weight:600;color:#682e3d}#assembly-panel p{line-height:1.5}#assembly-panel{border-top:2px solid #b69755;padding-top:8px}#assembly-materials,#assembly-parts{white-space:pre-line;overflow-wrap:anywhere}#assembly-controls{position:sticky;bottom:0;display:flex;gap:5px;flex-wrap:wrap;padding:8px 0;background:#f4eadb;border-top:1px solid #bfa480}#transport-panel ol{padding-left:20px;line-height:1.5}#transport-panel li{margin:5px 0;overflow-wrap:anywhere}
-#scene{position:relative;flex:1;min-width:0;overflow:hidden}canvas{display:block;width:100%;height:100%;touch-action:none;user-select:none}
-#overlay,#names,#orientation{position:absolute;inset:0;pointer-events:none}#overlay{width:100%;height:100%;overflow:hidden}#orientation .object-name{background:#eee5d6df;font:10px system-ui;color:#682e3d}
-.object-name{position:absolute;font:10px ui-monospace,monospace;background:#fff9eee8;border:1px solid #b7a07f;border-radius:3px;padding:2px 4px;white-space:nowrap;color:#34251e}
-#inspect-hint{position:absolute;left:12px;top:10px;padding:7px 10px;background:#fff9eeed;border-radius:5px;max-width:calc(100% - 24px);font-size:12px;pointer-events:none}
-#inspector{position:absolute;right:12px;top:12px;width:330px;max-width:calc(100% - 24px);max-height:calc(100% - 24px);overflow:auto;padding:14px;background:#fff9eef5;box-shadow:0 3px 24px #34251e30;border:1px solid #bfa480;border-radius:6px;font-size:12px;overflow-wrap:anywhere}
-#inspector select{width:100%;margin:7px 0}#inspector p{line-height:1.5}#mesh-id{font:11px ui-monospace,monospace;color:#685244}
-#details,#connections{padding-left:18px;line-height:1.5}#connections li{margin:6px 0}#connections small{display:block}.panel-toolbar{display:flex;justify-content:space-between;gap:5px;flex-wrap:wrap}
-.panel-toolbar button{padding:5px 7px;font-size:11px}#color{width:48px;height:30px}#storage-status{display:block;margin-top:7px}#wire-note{border-top:1px solid #d4c0a0;padding-top:9px}
-#effect-status,#mode-note{line-height:1.4}#effect-phase{font-weight:600;color:#682e3d}#effect-stop{background:#a23732}#service-reset{margin-top:6px}
-[hidden]{display:none!important}
-@media(max-width:700px){h1{font-size:17px}header{padding:6px;gap:6px}header small{display:none}#sidebar{width:190px;padding:8px}footer{padding:6px;font-size:11px}footer .note{display:none}#inspector{width:260px;padding:10px}.object-name{font-size:9px}}
-@media(max-width:450px){#sidebar{width:145px;font-size:11px}#sidebar button{font-size:10px;padding:5px}header button{padding:5px;font-size:11px}input[type=range]{width:80px}}
-</style>
-<header>
-  <div><h1>F2 · Vložka do dřevěného kufru</h1><small>Skutečná geometrie CAD · mm · dřevo / vínový samet / mosaz</small></div>
-  <button id="open">Provoz</button><button id="service">Servis</button><button id="closed">Přeprava</button>
-  <button id="inspect" aria-pressed="false">Inspect / Shift</button>
-  <button id="view-top">Shora</button><button id="view-front">Zepředu</button><button id="view-side">Z boku</button><button id="view-overview">Přehled</button><button id="view-reset">Reset pohledu</button>
+<meta name="theme-color" content="#0D1218">
+<title>Arcane Workshop · F2 kouzelný kufr</title>
+<style>__WORKSHOP_DESIGN_SYSTEM__</style>
+<style>__WORKSHOP_VIEWER_STYLE__</style>
+</head>
+<body class="aw-workshop">
+<header class="workshop-header">
+  <a id="workshop-home" class="brand" href="/" aria-label="Úvod projektu DildoVander"><span class="brand-mark" aria-hidden="true">✦</span><span>DILDO<span class="brand-accent">VANDER</span><small>ARCANE WORKSHOP</small></span></a>
+  <div class="project-heading"><span class="eyebrow">MECHANIKA / F2</span><h1>Kouzelný kufr</h1></div>
+  <span class="status-badge"><span aria-hidden="true">●</span> Návrhový model</span>
+  <a class="download-package" href="./F2-kouzelny-kufr.zip" download>↓ <span>Stáhnout F2 balíček</span></a>
 </header>
+<nav class="workshop-toolbar" aria-label="Pracovní režimy">
+  <button id="explorer-toggle" class="mobile-toggle" aria-expanded="false" aria-controls="sidebar">☰ Díly</button>
+  <div class="mode-tabs"><button id="open" aria-pressed="true">Provoz</button><button id="service" aria-pressed="false">Servis</button><button id="closed" aria-pressed="false">Přeprava</button><button id="assembly-mode" aria-pressed="false">Montáž</button></div>
+  <span class="toolbar-caption">3D sestava · lokální náhled</span>
+  <button id="inspector-toggle" class="mobile-toggle" aria-expanded="false" aria-controls="inspector-rail">⌘ Detaily</button>
+</nav>
 <main id="workspace">
   <aside id="sidebar" aria-label="Sestava a ovládání">
-    <label for="mode">Režim sestavy</label>
-    <select id="mode"><option value="operation">Provoz</option><option value="service">Servis</option><option value="transport">Přeprava</option><option value="assembly">Montáž krok za krokem</option></select>
-    <p id="mode-note">Náhled není potvrzení skutečné polohy ani fyzická přejímka.</p>
-    <p id="envelope-note"></p>
-    <section id="transport-panel" hidden aria-label="Přeprava a opětovné uvedení do provozu">
-      <h2>Příprava k přepravě</h2><ol id="transport-instructions"></ol>
-      <h2>Opětovné uvedení do provozu</h2><ol id="recommission-instructions"></ol>
-    </section>
-    <details><summary>Zobrazení vrstev a strom dílů</summary>
-      <label><input id="cover" type="checkbox" checked>Kryty</label><label><input id="case" type="checkbox" checked>Korpus</label>
-      <label><input id="beds" type="checkbox" checked>Lůžka</label><label><input id="hardware" type="checkbox" checked>Elektronika</label>
-      <label><input id="wands" type="checkbox" checked>Hůlky</label><label><input id="bank" type="checkbox" checked>Powerbanka</label>
-      <label><input id="textile" type="checkbox" checked>Snímatelný textil</label><label><input id="wires" type="checkbox">Skutečné trasy kabelů</label>
-      <label><input id="dimensions" type="checkbox">Rozměry</label>
-      <label for="case-opacity">Průhlednost korpusu (jen zobrazení)</label><input id="case-opacity" type="range" min="0.1" max="1" step="0.1" value="1">
-      <button id="show-all">Obnovit vrstvy / izolaci</button><div id="tree"></div>
-    </details>
-    <details open><summary>Kabel / pin / svazek / síť</summary>
-      <label for="wire-scope">Rozsah výběru</label><select id="wire-scope"><option value="branch">Větev — konkrétní vodič</option><option value="bundle">Celý svazek</option><option value="net">Celá elektrická síť</option></select>
-      <label for="wire">Vodič</label><select id="wire"><option value="">Vyberte vodič…</option></select>
-      <label for="endpoint">Konkrétní pin</label><select id="endpoint"><option value="">Vyberte pin…</option></select>
-      <p id="wire-details">Shift na dílu zvýrazní jeho skutečné vodiče. Výběry jsou dostupné také klávesnicí.</p>
-    </details>
-    <section id="assembly-panel" hidden aria-live="polite">
-      <h2 id="assembly-title"></h2><p id="assembly-text"></p><p id="assembly-parts"></p><p id="assembly-materials"></p><p id="assembly-depends"></p><p id="assembly-check"></p>
-      <div id="assembly-controls"><button id="assembly-prev">Zpět</button><button id="assembly-next">Další</button><button id="assembly-restart">Restart montáže</button></div>
-    </section>
-    <details open><summary>Sdílená prezentace hůlky</summary>
-      <button id="play-main">Hlavní výběr</button><button id="play-short">Krátké opakování</button><button id="effect-stop">Stop</button>
-      <label><input id="audio-preview" type="checkbox">Lokální poslech tónů</label>
-      <p id="effect-phase" aria-live="polite"></p><p id="effect-status" role="status">Časování zdvihu je ilustrační do kalibrace. Světlo vychází pouze ze šesti skutečných LED skupin. Zvuk je lokální syntéza, žádná cloudová služba.</p>
-      <button id="service-reset" disabled>Servisní reset po ruční kontrole</button>
-    </details>
+    <div class="panel-heading"><span class="eyebrow">EXPLORER</span><strong>Sestava kufru</strong><button id="explorer-close" class="mobile-toggle" aria-label="Zavřít seznam dílů">✕</button></div>
+    <div class="panel-content">
+      <label for="mode">Režim sestavy</label>
+      <select id="mode"><option value="operation">Provoz</option><option value="service">Servis</option><option value="transport">Přeprava</option><option value="assembly">Montáž krok za krokem</option></select>
+      <p id="mode-note" class="panel-note">Náhled není potvrzení skutečné polohy ani fyzická přejímka.</p>
+      <details open class="layers-panel"><summary>Viditelnost vrstev</summary>
+        <div class="layer-grid"><label><input id="cover" type="checkbox" checked>Kryty</label><label><input id="case" type="checkbox" checked>Korpus</label>
+          <label><input id="beds" type="checkbox" checked>Lůžka</label><label><input id="hardware" type="checkbox" checked>Elektronika</label>
+          <label><input id="wands" type="checkbox" checked>Hůlky</label><label><input id="bank" type="checkbox" checked>Powerbanka</label>
+          <label><input id="textile" type="checkbox" checked>Textil</label><label><input id="wires" type="checkbox">Kabelové trasy</label>
+          <label><input id="dimensions" type="checkbox">Rozměry</label></div>
+        <label for="case-opacity">Průhlednost korpusu</label><input id="case-opacity" type="range" min="0.1" max="1" step="0.1" value="1">
+        <button id="show-all" class="quiet-button">Obnovit vrstvy / izolaci</button>
+      </details>
+      <div class="tree-heading"><span class="eyebrow">DÍLY A SKUPINY</span><span id="part-count"></span></div><div id="tree"></div>
+      <section id="transport-panel" hidden aria-label="Přeprava a opětovné uvedení do provozu">
+        <h2>Příprava k přepravě</h2><ol id="transport-instructions"></ol><h2>Opětovné uvedení do provozu</h2><ol id="recommission-instructions"></ol>
+      </section>
+      <section id="assembly-panel" hidden aria-live="polite">
+        <h2 id="assembly-title"></h2><p id="assembly-text"></p><p id="assembly-parts"></p><p id="assembly-materials"></p><p id="assembly-depends"></p><p id="assembly-check"></p>
+        <div id="assembly-controls"><button id="assembly-prev">Zpět</button><button id="assembly-next">Další</button><button id="assembly-restart">Restart montáže</button></div>
+      </section>
+      <p id="envelope-note" class="panel-note"></p>
+    </div>
   </aside>
   <section id="scene" aria-label="3D model">
+    <div class="viewport-heading"><span class="eyebrow">F2 / INTERAKTIVNÍ SESTAVA</span><span class="viewport-unit">JEDNOTKY: mm</span></div>
     <canvas id="view" aria-label="3D model kufru. Shift nebo Inspect odkrývá vodiče. Každý díl lze vybrat ve stromu a seznamu."></canvas>
     <svg id="overlay" aria-hidden="true"></svg><div id="names" aria-hidden="true"></div><div id="orientation" aria-hidden="true"></div><div id="inspect-hint" role="status" hidden></div>
-    <aside id="inspector" aria-label="Informace o objektu" hidden>
-      <div class="panel-toolbar"><strong>Inspect</strong><button id="unpin">Zrušit výběr</button><button id="close-inspect" aria-label="Zavřít inspektor">✕</button></div>
-      <label for="object">Objekt (včetně skrytých)</label><select id="object"><option value="">Vyberte objekt…</option></select>
-      <div class="panel-toolbar"><button id="hide-object">Skrýt</button><button id="isolate-object">Izolovat</button><button id="zoom-object">Přiblížit</button></div>
-      <div id="object-details" hidden>
-        <h2 id="object-title"></h2><div id="mesh-id"></div><p id="description"></p><ul id="details"></ul>
-        <label for="color">Barva objektu</label> <input id="color" type="color"> <button id="reset-color">Původní barva</button>
-        <small id="storage-status" role="status"></small>
-        <p id="wire-note">Lomené čáry jsou skutečné návrhové trasy z kabelového plánu. Červená: napájení · modrá: signál · šedá: GND. Souřadnice pinů nejsou změřené; deformace pohyblivé smyčky je aproximace. Skrytí dílu nemaže jeho zapojení.</p>
-        <strong>Kabelové propojení</strong><ul id="connections"></ul><p id="empty-connections" hidden></p>
-        <details><summary>Zdrojové podklady</summary><p id="evidence"></p></details>
-      </div>
-    </aside>
+    <div class="view-controls" aria-label="Pohled na model"><button id="view-overview" aria-pressed="true">Celek</button><button id="view-top" aria-pressed="false">Shora</button><button id="view-front" aria-pressed="false">Zepředu</button><button id="view-side" aria-pressed="false">Z boku</button><button id="view-reset" aria-label="Obnovit pohled na celou sestavu">↺</button><button id="inspect" aria-pressed="false">Inspect / Shift</button></div>
+    <div class="viewport-bottom"><span>Tažení otáčí · kolečko přibližuje</span><span class="cad-stamp">CAD · NENÍ FYZICKÁ PŘEJÍMKA</span></div>
   </section>
+  <aside id="inspector-rail" aria-label="Inspekce a kabeláž">
+    <div class="panel-heading"><span class="eyebrow">INSPECTOR</span><strong>Podrobnosti objektu</strong><button id="inspector-close" class="mobile-toggle" aria-label="Zavřít podrobnosti">✕</button></div>
+    <div class="panel-content">
+      <div id="inspector-empty" class="inspector-empty"><span aria-hidden="true">⌖</span><strong>Prozkoumejte sestavu</strong><p>Vyberte díl ve stromu. Inspect nebo Shift ukáže povrch a skutečné návrhové kabelové trasy.</p><button id="begin-inspect">Vybrat objekt</button></div>
+      <section id="inspector" aria-label="Informace o objektu" hidden>
+        <div class="panel-toolbar"><strong>Výběr objektu</strong><button id="unpin">Zrušit výběr</button><button id="close-inspect" aria-label="Zavřít inspektor">✕</button></div>
+        <label for="object">Objekt (včetně skrytých)</label><select id="object"><option value="">Vyberte objekt…</option></select>
+        <div class="panel-toolbar"><button id="hide-object">Skrýt</button><button id="isolate-object">Izolovat</button><button id="zoom-object">Přiblížit</button></div>
+        <div id="object-details" hidden>
+          <h2 id="object-title"></h2><div id="mesh-id"></div><p id="description"></p><ul id="details"></ul>
+          <div class="color-control"><label for="color">Barva objektu</label><input id="color" type="color"><button id="reset-color">Původní</button></div><small id="storage-status" role="status"></small>
+          <p id="wire-note" class="panel-note">Lomené čáry jsou skutečné návrhové trasy z kabelového plánu. Červená: napájení · modrá: signál · šedá: GND. Souřadnice pinů nejsou změřené; deformace pohyblivé smyčky je aproximace. Skrytí dílu nemaže jeho zapojení.</p>
+          <strong>Kabelové propojení</strong><ul id="connections"></ul><p id="empty-connections" hidden></p>
+          <details><summary>Zdrojové podklady</summary><p id="evidence"></p></details>
+        </div>
+      </section>
+      <details open id="wire-panel"><summary>Kabel / pin / svazek / síť</summary>
+        <label for="wire-scope">Rozsah výběru</label><select id="wire-scope"><option value="branch">Větev — konkrétní vodič</option><option value="bundle">Celý svazek</option><option value="net">Celá elektrická síť</option></select>
+        <label for="wire">Vodič</label><select id="wire"><option value="">Vyberte vodič…</option></select>
+        <label for="endpoint">Konkrétní pin</label><select id="endpoint"><option value="">Vyberte pin…</option></select>
+        <p id="wire-details">Shift na dílu zvýrazní jeho skutečné vodiče. Výběry jsou dostupné také klávesnicí.</p>
+      </details>
+      <p class="acceptance-note">Návrh není fyzicky přijatý. Model neprokazuje moment serva, vypnutí držení, lepený spoj ani bezpečnost přepravy. Rozměry kamery, pinů a tvar hůlek vyžadují kontrolu.</p>
+    </div>
+  </aside>
 </main>
-<footer>
-  <label>Víko <input id="lid" type="range" min="0" max="105" value="105"><output id="lidvalue">105°</output></label>
-  <label for="tray">Přihrádka</label><select id="tray"></select>
-  <label>Zdvih <input id="lift" type="range" min="0" max="160" value="0"><output id="liftvalue">0 mm</output></label>
-  <small>Tažení: otáčení · kolečko: zoom · Shift: inspect · klik: připnout · Esc: zavřít</small>
-  <span class="note">Model neprokazuje moment serva, vypnutí jeho držení, lepený spoj, zavření skutečného víka ani bezpečnost přepravy. Rozměry hůlek, kamery a pinů vyžadují fyzickou kontrolu.</span>
+<footer class="motion-panel" aria-label="Pohyb a prezentace modelu">
+  <div class="motion-heading"><span class="eyebrow">MOTION STUDIO</span><span class="simulation-tag">POUZE SIMULACE</span><span id="effect-phase" aria-live="polite"></span><output id="timeline-time" aria-label="Čas sekvence">0.0 / 0.0 s</output></div>
+  <div class="motion-controls"><div class="sequence-actions"><button id="play-main">▶ Hlavní výběr</button><button id="play-short">▶ Krátké opakování</button><button id="effect-stop">■ Stop</button></div>
+    <label>Víko <input id="lid" type="range" min="0" max="105" value="105"><output id="lidvalue">105°</output></label>
+    <label for="tray">Přihrádka <select id="tray"></select></label>
+    <label>Zdvih <input id="lift" type="range" min="0" max="160" value="0"><output id="liftvalue">0 mm</output></label>
+    <label class="audio-toggle"><input id="audio-preview" type="checkbox">Poslech tónů</label>
+  </div>
+  <div id="effect-timeline" role="group" aria-label="Fáze ilustrační sekvence"></div>
+  <div class="motion-notes"><p id="effect-status" role="status">Časování zdvihu je ilustrační do kalibrace. Světlo vychází pouze ze šesti skutečných LED skupin. Zvuk je lokální syntéza, žádná cloudová služba.</p><button id="service-reset" disabled>Servisní reset po ruční kontrole</button></div>
 </footer>
 <script>const model=__MODEL_DATA__;
 __VIEWER_SCRIPT__
 </script>
+</body>
 </html>
