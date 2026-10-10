@@ -429,6 +429,9 @@ extern "C" void app_main() {
         !controlRuntime.HasAutonomousPresentation() && !conversation.HasActiveTurn() &&
         !journal.HasPending() && !backendNetwork.IsVoiceBusy() &&
         !backendNetwork.ReadPendingProposal(pendingProposal, nowMs);
+    // The whole-cycle deadline precedes physical output processing, even when
+    // per-phase calibration timeouts would still allow the sequence to run.
+    presentation.CheckDeadline(nowMs);
     effects.Tick(nowMs);
     const bool selfTestReady = kufr::ota::BootSelfTestReady(
         nvsStatus == ESP_OK && journal.IsHealthy() && stationStarted,
@@ -500,7 +503,11 @@ extern "C" void app_main() {
     }
     server.Pump();
     owner.Tick();
-    inbox.RunIfNoUrgent([&]() { presentationPort.Tick(clock.NowMs()); });
+    inbox.RunIfNoUrgent([&]() {
+      const uint64_t effectNowMs = clock.NowMs();
+      presentation.CheckDeadline(effectNowMs);
+      presentationPort.Tick(effectNowMs);
+    });
     owner.PumpReply(backendNetwork);
     // Owner has applied urgent Stop/lease changes before any autonomous start.
     inbox.RunIfNoUrgent([&]() {

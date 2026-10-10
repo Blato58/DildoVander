@@ -10,7 +10,7 @@ Volba je vždy konkrétní číslo 1–6 z existující místní bezpečnostní 
 
 | Fáze | Hlavní sekvence | Opakování |
 | --- | --- | --- |
-| Probuzení | 600 ms, všechny pozice fialově, nízký tón | vynecháno |
+| Probuzení | 600 ms, vybraná pozice fialově, nízký tón | vynecháno |
 | Hledání | 6 × 120 ms, světlo postupuje přes pozice 1–6 s rostoucími tóny | vynecháno |
 | Náznaky | 300 ms soused vpravo, 300 ms soused vlevo | vynecháno |
 | Volba | 500 ms, zlaté světlo | 400 ms, zlaté světlo |
@@ -29,7 +29,14 @@ Automatický normální návrat obnoví dostupnost. Opakování používá krát
 variantu; ruční řízení zachovává dosavadní samostatnou sekvenci.
 
 Během pohybu serva neběží vibrace; zapnutý je nejvýše jeden motor a jeho
-puls má 150 ms. Lokální syntetické tóny využívají existující I2S B profil,
+puls má 150 ms. Svítí nejvýše jeden 20cm LED úsek; generátor odmítá
+souběžné skupiny a výstupní vrstva odmítá vícebitovou masku.
+Celá prezentace má pevný limit 15 s od přijetí návrhu, včetně přípravy,
+obou pohybů a závěrečného klidu. Přechody mezi fázemi jej neprodlužují.
+Při prvním průchodu řídicí smyčky při dosažení 15 s nebo později se výstupy vypnou
+a vznikne chyba bez automatického návratu či obnovení dostupnosti.
+Stejný limit dodržuje náhled, i když prohlížeč pozastaví animaci.
+Lokální syntetické tóny využívají existující I2S B profil,
 nevolají AI a ustupují živému hlasu. Je-li audio nedostupné, tón se přeskočí.
 Stop okamžitě zakáže nové efekty a deaktivuje řídicí výstupy; již přijatý
 krátký DMA blok audia může doběhnout. Není přidaný žádný nový reproduktor,

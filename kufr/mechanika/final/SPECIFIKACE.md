@@ -90,6 +90,22 @@ LED 6 × 200 mm / 36 pixelů zůstávají u jednotlivých lůžek, míří šikm
 nahoru k hůlce a mají černé pasivní stínění. Žádné další zdroje světla.
 Zásoba elektroniky patří mimo aktivní sestavu; inventář zůstává zachovaný.
 
+Pasivní USB-A zásuvka (5 V / nejméně 3 A) a intaktní kabel USB-A → USB-C
+300 mm (nejméně 3 A, vnější průměr nejvýše 4,5 mm) jsou montážní materiál
+k doplnění, nikoli doloženě nakoupená elektronika. Aktuální zadání majitele
+v oddílu „Běžný montážní materiál je povolený“ výslovně povoluje
+„Běžné vodiče, jednoduché pasivní konektory, svorky a izolační materiál
+potřebný pro realizaci potvrzeného zapojení.“ Toto oprávnění se vztahuje
+na obě položky; nepovoluje nový napájecí modul ani jinou funkční elektroniku.
+Položky `USB_SOCKET` a `USB300` mají v `mechanicky-material.csv` stav
+„dokoupit“. Původní 1m kabel USB-A → USB-C zůstává rezervou mimo sestavu.
+Nic nebylo objednáno; polarita, proudová únosnost a ochrana proti zpětnému
+napájení se musí ověřit před připojením.
+
+Svítí nejvýše jeden 20cm LED úsek a celá autonomní prezentace má pevný
+limit 15 s včetně přípravy, pohybů a klidu. Překročení znamená vypnutí
+výstupů a chybu vyžadující ruční kontrolu, nikoli automatický návrat.
+
 ## Společná data a dodávka
 
 Zachovat identifikátory `base_1..6`, `tray_1..6`, `cam_1..6`, `servo_1..6`,

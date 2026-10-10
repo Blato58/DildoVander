@@ -6,7 +6,7 @@ enum class Stage : uint8_t { Prepare, Raise, Show, Lower, Rest };
 // Raise/Lower durationMs is viewer-only; firmware motion uses servo calibration.
 struct Step { Stage stage; uint16_t durationMs; int8_t target; uint8_t red, green, blue; bool vibration; uint16_t toneHz; };
 constexpr Step Main[] = {
-  {Stage::Prepare, 600, -1, 60, 12, 90, false, 220},
+  {Stage::Prepare, 600, 0, 60, 12, 90, false, 220},
   {Stage::Prepare, 120, 1, 90, 30, 220, false, 385},
   {Stage::Prepare, 120, 2, 90, 30, 220, false, 440},
   {Stage::Prepare, 120, 3, 90, 30, 220, false, 495},
