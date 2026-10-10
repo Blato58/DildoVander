@@ -18,7 +18,7 @@ WIRING = KUFR / "docs/zapojeni-potvrzeneho-hardwaru.md"
 SNAPSHOT = ROOT / "reference/inspect-sources.json"
 # connection_data() was reviewed against these exact source bytes. Refreshing
 # provenance must never imply that its manually encoded topology was updated.
-REVIEWED_WIRING_SHA256 = "a48ec974485e4b2f0558bb2f691fc70198464c0908e3b88f2ca8e9171e401a84"
+REVIEWED_WIRING_SHA256 = "0691867c74d7d25d176176f636bbd898ebc8874418bb90a16543328bf71302e5"
 
 
 def _assert_reviewed_wiring(record):
@@ -110,12 +110,8 @@ def _purchased_rows():
     return rows
 
 
-# Ordered prefixes keep the spare and hardware descriptions ahead of generic parts.
+# Active hardware only. Inventory spares are outside the physical assembly.
 _HARDWARE = {
-    "spare_pca": ("Rezervní PCA9685", "PCA9685"),
-    "spare_red_rocker": ("Rezervní červená kolébka", "Červeně podsvícená kolébka"),
-    "spare_degson_": ("Rezervní svorka Degson", "Degson 5pin"),
-    "spare_capacitor_": ("Rezervní kondenzátor", "Kondenzátor 470"),
     "esp32": ("Řídicí deska ESP32-S3", "ESP32-S3 N16R8"),
     "pca9685": ("Řadič serv a vibrací PCA9685", "PCA9685"),
     "mcp23017": ("Vstupní expandér MCP23017", "MCP23017"),
@@ -141,28 +137,35 @@ _HARDWARE = {
 }
 
 _MECHANICAL = {
-    "body_": ("Díl spodní skořepiny", "Tištěný díl s přeplátovanými šroubovanými spoji."),
-    "lid_lining": ("Textilní výstelka prázdného víka", "Referenční vnitřní textilní výstelka víka."),
-    "lid_": ("Díl prázdného víka", "Tištěný díl víka; víko nenese elektroniku."),
+    "wooden_case": ("Skutečný dřevěný kufr", "Referenční celistvý plášť; není určen k tisku ani vrtání."),
+    "wooden_lid": ("Prázdné víko kufru", "Referenční prázdné víko; detaily pantů nejsou změřené."),
+    "floor_brace": ("Výztuha dna", "Potvrzená výška 5 mm; poloha XY je předpoklad, rám ji překračuje."),
+    "frame_panel_": ("Díl montážního rámu", "PETG rám s přeplátovanými spoji a samostatnými kotvami každého modulu."),
+    "bonded_angle_": ("Lepený hliníkový úhelník", "40 × 40 × 3, délka 50; vrtá se nový úhelník a tisk, nikoli kufr."),
+    "wood_bond_": ("Lepený spoj na holé dřevo", "Spoj vyžaduje přípravu povrchu, vytvrzení a fyzickou zkoušku."),
+    "anchor_": ("Kotevní spoj rámu", "Přístupný samostatný M4 spoj rámu s lepeným úhelníkem."),
+    "frame_seam_": ("Spoj dílů rámu", "Samostatný M3 spoj přeplátovaných dílů."),
+    "carrier_": ("Nosič zakoupeného dílu", "Pevné dorazy a dva pásky; upevnění k rámu nezávisle na bance."),
+    "component_tie_": ("Uvolnitelný pásek komponenty", "Pásek drží součástku v nosiči s pevnými dorazy."),
+    "esp_usb_supply": ("Pasivní USB-A napájecí zásuvka", "Doplnit jednu zásuvku nebo pigtail ≥3 A; pouze MAIN5/GND, datové kontakty izolované."),
+    "usb_park_clip": ("Parkovací příchytka USB", "Drží odpojenou zástrčku po vyjmutí powerbanky."),
+    "usb_coil": ("Rezerva metrového USB kabelu", "Svislá smyčka vedle banky, mimo pohyb a vyjímání; ohyby ověřit."),
+    "moving_loop_": ("Nezávislá pohybová smyčka", "LED a U059 mají samostatnou rezervu každého lůžka; pružný pohyb ověřit fyzicky."),
+    "module_": ("Montážní spoj modulu", "Samostatné M3 spoje; sejmutí modulu neuvolní sousední."),
+    "transport_": ("Transportní aretace", "Vyjímatelný 8mm pásek prázdného lůžka; odstranit před provozem."),
+    "retention_": ("Ochranná vložka lůžka", "Měkká boční ochrana a založené hrany pohyblivého lůžka."),
     "hinge_lower_": ("Spodní list závěsu víka", "Referenční list ocelového závěsu připevněný ke spodní skořepině; skutečné otvory přizpůsobit koupenému kusu."),
     "hinge_upper_": ("Horní list závěsu víka", "Referenční list ocelového závěsu připevněný k víku; skutečné otvory přizpůsobit koupenému kusu."),
     "latch_": ("Uzávěr kufru", "Referenční obálka uzávěru; upevnění ověřit při sestavení."),
     "keeper_": ("Protikus uzávěru kufru", "Referenční obálka protikusu, do kterého se uzávěr zachytí."),
     "hinge_pin_": ("Ocelový závěs víka", "Referenční obálka závěsu; skutečnou rozteč otvorů přizpůsobit koupenému kusu."),
-    "rack_": ("Boční nosič elektroniky", "Tištěná základna s podporami krytů a otvory pro pásky."),
-    "left_service_table": ("Levá servisní plošina", "Odnímatelná plošina nad spodními součástkami."),
-    "right_front_table": ("Pravá přední servisní plošina", "Odnímatelná plošina pro řídicí desku a audio."),
-    "right_back_table": ("Pravá zadní servisní plošina", "Odnímatelná plošina pro měnič; ponechat chlazení."),
-    "switch_shelf": ("Montážní police vypínačů", "Nese kolébky pod odnímatelnými textilními membránami."),
     "camera_angle": ("Nastavitelný držák kamery", "Drážkovaný držák; přesná kamera a její upevnění čekají na doručení."),
     "control_cover": ("Kryt ovládacích prvků", "Neprůhledný odnímatelný kryt s předním lemem."),
     "bank_cover": ("Kryt powerbanky", "Odnímatelný kryt nad vyjímatelnou powerbankou."),
-    "right_front_cover": ("Pravý přední kryt", "Neprůhledný kryt elektroniky s vnitřní sukní."),
-    "right_back_cover": ("Pravý zadní větraný kryt", "Mřížka nad měničem zůstává bez sametu."),
     "red_membrane": ("Textilní membrána hlavního vypínače", "Volný samet s mezerou nad kolébkou; jde o textilní referenci."),
     "green_membrane": ("Textilní membrána vypínače pohonů", "Volný samet umožní stisk obou polovin kolébky."),
     "base_": ("Pevná základna zdvihu", "Tištěné vedení, servo lůžko a kotevní body transportního pásku."),
-    "tray_": ("Pohyblivé lůžko hůlky", "Tištěné lůžko s vodicími pouzdry, dorazy U059 a nastavitelnou plstěnou brzdou."),
+    "tray_": ("Pohyblivé lůžko hůlky", "Tištěné lůžko s vodicími pouzdry, dorazy U059, měkkými vložkami a nezávislou transportní aretací."),
     "cam_": ("Drážková zdvihová vačka", "Zachycený váleček přenáší zdvih i návrat; kruhové úseky drží koncové polohy."),
     "roller_": ("Nylonový sledovací váleček", "Váleček v drážce vačky se otáčí na mosazném pouzdře."),
     "follower_head_": ("Hlava šroubu sledovače", "Obálka hlavy M3 ISO7380 u vačky."),
@@ -183,9 +186,6 @@ _MECHANICAL = {
     "pd_usb": ("Rezerva USB-C PD triggeru", "Prostor kabelu; přesná obálka zástrčky není změřená."),
     "bank_usb": ("Rezerva kabelu powerbanky", "Předpokládaný vývod C1 vyžaduje zkoušku usazení."),
     "camera_fpc": ("Rezerva kamerového FPC", "Skutečný konektor a délka FPC nejsou doložené."),
-    "buck_air": ("Vzduch pro chlazení měniče", "Volný vzduch pod nepotaženou větrací mřížkou."),
-    "power_trunk": ("Trasa hlavního napájení", "Rezerva pro dvojlinku 1,5 mm² přes pevná lůžka; není to elektrický díl."),
-    "front_bus": ("Trasa přední signálové sběrnice", "Rezerva nad deskami pod předním krytem; není to elektrický díl."),
 }
 
 
@@ -196,8 +196,8 @@ def _matches(name, prefix):
 def describe(item):
     """Describe a geometry Item without importing CadQuery or changing geometry."""
     details = []
-    title, description = item.name, "Díl sestavy F1."
-    document = "Návrh F1: layout.py / mechanism.py / chassis.py"
+    title, description = item.name, "Díl sestavy F2."
+    document = "Návrh F2: parameters.json / layout.py / mechanism.py / chassis.py"
     for prefix, (candidate_title, row_prefix) in _HARDWARE.items():
         if _matches(item.name, prefix):
             title = candidate_title
@@ -218,8 +218,6 @@ def describe(item):
             if _matches(item.name, prefix):
                 title, description = candidate_title, candidate_description
                 break
-    if item.name.startswith("spare_"):
-        details.append("Rezerva je odpojená; vývody izolovat a díl zajistit pro přepravu.")
     if item.name.startswith("degson_"):
         net = {"degson_1":"MAIN5 (+5 V)", "degson_2":"DRIVE5 (+5 V za zelenou)",
                "degson_3":"GND (nevypínat)"}.get(item.name)

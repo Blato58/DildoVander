@@ -48,7 +48,8 @@ class InspectDataTests(unittest.TestCase):
         for name in ("camera_angle", "camera_fpc"):
             self.assertEqual(data._MECHANICAL[name][0], data.describe(FakeItem(name))["title"])
         self.assertEqual(data._HARDWARE["camera"][0], data.describe(FakeItem("camera"))["title"])
-        self.assertEqual(data._MECHANICAL["lid_lining"][0], data.describe(FakeItem("lid_lining", "fabric"))["title"])
+        self.assertEqual(data._MECHANICAL["wooden_lid"][0], data.describe(FakeItem("wooden_lid", "lid"))["title"])
+        self.assertFalse(any(prefix.startswith("spare_") for prefix in data._HARDWARE))
 
     def test_endpoints_must_exist(self):
         names = {"esp32", "pca9685", "servo_1"}

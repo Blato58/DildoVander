@@ -1,22 +1,33 @@
-# Kabeláž F1: příprava, montáž a servis
+# Kabeláž F2: příprava, montáž a servis
 
-Tento plán převádí [potvrzené zapojení](../../docs/zapojeni-potvrzeneho-hardwaru.md)
+Tento plán převádí [potvrzené zapojení](exports/reference-sources.html#zapojeni)
 do montážních svazků. Nemění GPIO ani kanály PCA. Používá tři z deseti
 koupených Degsonů, koupené dvojlinky 1,5 a 0,5 mm², původní kabely modulů,
 Dupont, dvě univerzální desky, rezistory a bužírky. Dalších sedm Degsonů,
 druhá PCA, červená kolébka a čtyři kondenzátory zůstávají odpojené rezervy.
-Žádné nové JST-SM, Grove adaptéry ani konektorové sady nejsou součástí návrhu.
+Rezervy jsou mimo aktivní sestavu. Doplnit jednu pasivní zásuvku USB-A samice
+nebo pigtail ≥3 A / 5 V a jeden intaktní USB-A/C kabel 300 mm ≥3 A.
+Žádný nový napájený modul. GPIO, PCA kanály a všech 135 ID vodičů zůstávají
+zachované. ESP/kamera jsou vzadu uprostřed, mikrofon vpředu uprostřed,
+reproduktory po stranách míří nahoru; plášť ani víko se nevrtají.
 
 `harness.py` vytváří `cable-plan.json` a `cable-cut-list.csv` přes hlavní build.
-Každý vodič má ID, oba konce, síť, průřez, trasu, délkové rezervy a dva štítky.
-Souřadnice jsou **návrhové kotevní body**, nikoli změřené polohy konektorů.
+Každý vodič má ID, konkrétní piny obou konců, síť, svazek, průřez, barvu,
+vnější průměr, zakončení, trasu, délkové rezervy a dva štítky.
+Piny mají samostatné obálkově relativní kotvy z `parameters.json`;
+souřadnice jsou **návrhové kotevní body**, nikoli změřené polohy konektorů.
+Návrhový vnější průměr signálních vodičů 0,14 mm² je 1,2 mm; u výkonových
+větví 0,5 mm² se počítá s 2,1 mm a u kmenových vodičů 1,5 mm² s 2,7 mm.
+Pro USB kabel se počítá se 4,5 mm. Jde o předpoklady pro návrhovou obálku,
+nikoli o měření skutečně koupených vodičů; všechny průměry ověřit na materiálu.
 Porty Degson 1–5 jsou montážní štítky, ne tvrzení o orientaci svorky.
 Všech pět pozic jednoho bloku je jeden vodivý uzel.
 Náhled rozvádí každou obsazenou pozici až ke skutečným součástkám přes
 označené pájené rozbočky, včetně navazující logické země. Každá větev
 zachovává v popisku ID portu a síť; rozbočka je elektrický spoj, ne další
 součástka či konektor. Připravená USB napájecí větev se zobrazuje u ESP
-s výslovnou poznámkou o neověřeném adaptéru a cestě přes USB-UART.
+s poznámkou o doplnění pasivní zásuvky a cestě přes USB-UART. Ve vieweru
+se odbočky označují `F_NAME:joint`, starší surová data zachovávají `F_NAME`.
 
 ## Tři bloky a izolované rozbočky
 
@@ -80,7 +91,7 @@ dvojice 3/4 ještě držet energii; dobu vybití změřit před servisem.
 | 8 | SIG-RGB, RGB-1…6, F_LED* | GPIO48 → Pixel Shifter → 330Ω → DIN LED1 → DOUT/DIN až LED6; šest úseků po šesti LED; napájení úseků ze svazku |
 | 9 | SIG-BCLK*, SIG-WS*, SIG-DIN*, SIG-MIC, SPK-* | I2S GPIO21/41/47, mikrofon SD GPIO42; každý PH2 pouze svůj zesilovač a reproduktor |
 | 10 | SIG-PTT, PTT-GND, F_PANEL* | GPA0 kontakt proti GND s místním 15kΩ na 3V3, LED tlačítka odděleně na 5 V; LED kolébek má vlastní LED-GND návrat |
-| 11 | USB-ESP, F_AUDIO+-03 | Připravená USB větev zůstává nezapojená, dokud není ověřen existující vhodný napájecí adaptér |
+| 11 | USB-ESP, F_AUDIO+-03 | Doplnit pasivní zásuvku USB-A samice ≥3 A, VBUS z MAIN5, GND ze společné země; USB-A/C 300 mm do USB-UART |
 | 12 | Všechny ID | Ručně ověřit plný pohyb každé přihrádky, nezávislý pohyb sousedů, zavření krytů a snadné vyjmutí powerbanky |
 
 GND i V+ serv se vedou přes jejich původní třípinové kabely do PCA;
@@ -91,88 +102,109 @@ SPK− není GND: oba reproduktorové páry jsou oddělené od země i od sebe.
 I2C pull-upy musí být jen na 3V3; případný odpor OE proti GND na modulu
 identifikovat a upravit podle potvrzeného zapojení před prvním zapnutím.
 
-## Délky, trasy a pohyblivé smyčky
+## Délky, trasy a rezervy pro pohyb
 
-Výpočet používá součet pravoúhlých úseků trasy, **40 mm servisní rezervy**
-a **20 mm na zakončení**, zaokrouhlený nahoru na 10 mm. Nejde o přímou
-vzdálenost konektorů ani průkaz bezpečného ohybu. Napájecí kmen je v
-rezervě Y205–219 / Z40–50 (14×10 mm, osa Y212/Z45); signály v přední
-rezervě Y22–31 / Z32–44. Větve položit ve vrstvách bez křížení napříč
-výškou, skutečné zaplnění dvojlinkami a bužírkami ověřit před zavřením.
-K U059 vede výkon od zadního kmene po vnějším okraji jednotlivého lůžka
-k přednímu místu smyčky, aby nevznikla přímá trasa přes vačku a servo.
-Levá napájecí větev a vývody kondenzátorů 1/2 mají svislou trasu v půdorysu
-po X60, na pravé straně powerbanky; nepokládat je přes její tělo ani do
-dráhy vyjmutí. Přechod přes vnitřní boční kryt používá zadní kabelový otvor.
-Výkonové přívody PCA a Pixel Shifteru se od zadní trasy vracejí po pravém
-vnějším okraji X365 do přední trasy Y27/Z38; nepoložit je přímo napříč
-vačkami či servy. Zaplnění úzkého pravého okraje ověřit skutečnými kabely.
-Sestup horní elektroniky používá kabelové otvory v servisních stolcích:
-vlevo X61–69 / Y88–98, kotevní bod X65/Y93; vpravo X371–379 / Y44–56,
-kotevní bod X376/Y50. Zesilovače, měnič a místní výkonový řetězec mají
-trasu přes příslušný otvor. Vodiče ovladačů nejdřív vedou nad reproduktorem
-do Y62, zvednou se na Z84, přesunou na X65 a vedou do Y93 mimo bok
-měniče, teprve potom projdou levým otvorem dolů. USB-C kabel powerbanky
-vede nejdřív do Y99/Z84, pak X65/Y99 a X65/Y93 mezi měničem a zesilovačem.
-U ESP se kabel nejdřív
-přesune nad pravým stolkem na X380 při zachování vlastního Y/Z, pak na
-X380/Y50 a X376/Y50 a teprve sestoupí do přední trasy. Stejně vést horní
-přívody pravého zesilovače a USB napájení; podélný úsek na X376 u Y120
-by křížil vysokou podpěru pravého předního stojanu.
-Pravé větve po sestupu projdou X376/Y50/Z38 do X380/Y50/Z38,
-pak X380/Y27/Z38 a X365/Y27/Z38
-a teprve na X365 pokračují k zadní trase Y212/Z45, aby neprocházely
-řadami nohou servisních stolků na X376.
-Skutečné polohy vývodů ani průchod konektorů nejsou tímto odhadem doloženy.
-Při pokládce nezakrýt vedení, vačku, brzdu, páku, mikrofon ani chlazení.
+Všechny souřadnice vycházejí z aktuálního `parameters.json`; není zachována
+servisní police F1 ani stará trasa v osách X/Y. `harness.endpoint_registry()`
+přiřazuje každému konkrétnímu pinu vlastní předběžnou kotvu vztaženou k obálce,
+včetně aliasů společné země měniče. `harness.routes()` je jediným zdrojem
+lomených tras ve vieweru i výkresu kabeláže; středy součástek nenahrazují
+trasy fyzických pinů. Napájení a signály mají nad rámem oddělenou výšku trasy.
+Pevné zadní desky vedou do zadního koridoru; mikrofon prochází přední částí
+a potom pevným pravým servisním koridorem. Každá ze šesti kabelových smyček
+přihrádek má místní rezervu X17…41, Y52…78 a Z(rovina rámu+24)…(rovina rámu+48).
+Vodiče serv jsou pevné a nedostávají rezervu pro zdvih.
 
-LED a U059 se s přihrádkou pohybují o **16 mm**. Každý jejich napájecí
-i signálový vodič má navíc **64 mm volné délky na každý pohyblivý konec**:
-2×16 mm na relativní pohyb a 32 mm návrhové rezervy pro oblouk. Smyčka musí mít odlehčení na
-pevné základně i pohyblivé přihrádce; bužírka ani pájený spoj nesmí tvořit
-ohybný úsek. Smyčku položit v přední vyhrazené oblasti mimo vodítka a
-vačku: v každé přihrádce místní X17–41, globální Y86–112 / Z36–60.
-Trasy vedou přes pevný návrhový bod místní X29 / Y99 / Z45 a pohyblivý
-bod X29 / Y99 / Z59. Od modulu nejdřív sestoupí na Z59 při zachování
-jeho X/Y, pak vedou k Y99 a X29; vysoká vodorovná trasa by křížila
-žebra LED či páteř přihrádky. LED kotevní bod je místní X47, nominálně
-2 mm vně žebra; není to změřená poloha pájecí plošky.
-Obě strany RGB propojky
-navštíví vlastní smyčku; čára mezi kotevními body nepředstavuje pružný kabel.
-Konkrétní poloměr, tuhost a přichycení ověřit se skutečným kabelem.
-Spoje DOUT/DIN mezi sousedními LED mají dvě oddělená pohyblivá odlehčení;
-propojky RGB-2 až RGB-6 proto mají **128 mm pohybové rezervy celkem**,
-64 mm pro každý ze dvou nezávisle pohyblivých konců. RGB-1 od pevného
-Pixel Shifteru a jednotlivé napájecí či DIN větve k LED/U059 mají 64 mm.
-`motion_mm` v řezném seznamu je součet těchto rezerv celého vodiče;
-zvyšuje také návrhovou celkovou délku a přídavek k ustřižení.
-Ověřit jeden úsek nahoře a sousední dole i opačně. Zvolené délky ani CAD
-obálka smyčky tuto fyzickou kontrolu nenahrazují. Servo zůstává na pevné
-základně, proto jeho kabel nedostává pohybovou rezervu. Jeho přívody
-vedou z přední trasy nejdřív přes místní X26 / globální Y30 / Z38,
-tam stoupají na Z55 a potom vedou do Y145 / Z55,
-přes místní X14 a nakonec dolů ke kotevnímu bodu serva Z45. Tím návrhová
-střednice obchází přední pouzdro vodítka a lůžko serva.
-Vývody kondenzátorů 3/4 u PCA se přesunou po Y35 při zdrojové výšce Z23,
-potom do cílového Y55 stále při Z23 a až tam sestoupí na Z17, aby nekřížily
-druhý kondenzátor ani okraj základny. Kondenzátory 3/4 mají střed X174/187,
-Y55/Z17; posun z Y43 uvolňuje matici ve středu X181/Y43. Nominální součet
-poloměru kondenzátoru 5 mm a obálky matice 3,4 mm je 8,4 mm; tuto vzdálenost
-středů návrh překračuje, fyzické usazení se stále ověřuje při montáži.
+Odhad délky k ustřižení = délka lomené trasy + 40 mm servisní rezerva
++ 20 mm na zakončení + 64 mm za KAŽDÝ samostatně pohyblivý konec; výsledek
+se zaokrouhluje nahoru na 10 mm. RGB-2…6 mají pohybovou rezervu 128 mm;
+RGB-1 a samostatné napájecí větve LED/U059 mají 64 mm. Každý pohyblivý konec
+má vlastní smyčku, pevné uchycení a pohyblivé uchycení. Spoje, rezistory
+a bužírky patří mimo úseky, které se ohýbají. Ověřit pohyb sousedních přihrádek
+v opačných krajních polohách. Lom trasy nedokládá poloměr ohybu: ohyb vodiče
+8 mm a zdrojového USB kabelu 20 mm jsou předběžné hodnoty ke kontrole při
+fyzickém sestavení, nikoli potvrzené poloměry.
 
-`estimated_total_mm` je návrhová délka celého vodiče. `estimated_cut_mm`
-je návrhový přídavek z koupené dvojlinky po odečtení známého původního
-vedení: servo 150 mm, Grove 200 mm, PH2 100 mm. Nula znamená, že nemusí
-být potřeba prodloužení; **původní kabel nekrátit před zkouškou**. U
-Dupontu zachovat potřebné koncovky F-F/M-F z koupených 200mm vodičů,
-delší signál prodloužit pájeným 0,5mm² vodičem a bužírkou; neřetězit
-další plastové konektory. Jejich krátké koncové pahýly výpočet preventivně
-neodečítá. Použít skutečně potřebnou pohlavnost podle osazení lišt, ne
-domnělé orientace modelu. U dvou intaktních USB kabelů je `stock_mm=1000`;
-jejich zbytek uložit na pevné straně s velkým obloukem, nekřížit dráhu
-vyjmutí powerbanky. Žádný řádek neprokazuje celkovou dostupnou délku
-koupené dvojlinky; délku zásoby zkontrolovat před stříháním. Kladné
-hodnoty jsou odhady, konečné délky určit přiložením k montované sestavě.
+`estimated_total_mm` označuje celou potřebnou délku vodiče. `estimated_cut_mm`
+odečítá pouze skutečnou délku původního kabelu serva 150 mm, Grove 200 mm,
+PH2 100 mm nebo intaktního USB kabelu. Délky kabelů v zásobách nedokládají
+skutečně koupené množství vodiče CYH. Původní kabely nezkracovat před
+zkušebním sestavením. Zachovat potřebné koncovky Dupont; prodloužení pájet,
+izolovat a použít průřez uvedený pro daný vodič v CSV. Konektory Dupont
+nikdy neřetězit jako napájecí kmen.
+
+## Zdroj USB, pasivní zásuvka pro ESP a přeprava
+
+Koupený kabel USB-C/C 1 m, 60 W/3 A, zůstává neporušený mezi konektorem C1
+powerbanky a modulem PD. PD nastavit na 12 V a před připojením desek změřit
+na výstupu měniče 5 V. Přebytek kabelu se ukládá do samostatné svislé smyčky
+v osách Y/Z VEDLE vyjímatelné powerbanky; `harness.USB_COIL` vymezuje
+předběžnou rezervu 18×80×65 mm v bodě [49,165,20]. Tři závity tvoří
+průběžnou spirálu s bočním posunem a postupným růstem poloměru;
+nejmenší návrhový oblouk je přibližně R20 mm, vzorkovaný po 10°.
+Celá trasa měří 939,0 mm; s 40 mm servisní rezervy a 20 mm na konce
+se požadavek po zaokrouhlení rovná celému 1 m koupeného kabelu.
+Další délkovou rezervu tedy nezapočítávat. Obálka počítá s průměrem
+nejvýše 4,5 mm a kontrola nepřipouští návrat kabelu přes vlastní závit.
+Tyto návrhové hodnoty nedokládají skutečnou délku tuhých koncovek ani
+dovolený ohyb koupeného kabelu. Kabel
+nasucho vyzkoušet; nezmenšovat poloměr ohybu kvůli vměstnání do rezervy
+a nezasahovat do dráhy vyjmutí powerbanky. Cívku uchytit dvěma stahovacími
+pásky PA66 3,6×250 mm v samostatné kolébce.
+
+Po odpojení C1 se volná koncovka připne do pevného držáku vlevo.
+`transport_points` nahrazuje část trasy vedoucí k powerbance;
+`transport_from` je `usb_park_clip:unplugged_C` a elektrický stav je
+DISCONNECTED (ODPOJENO). Zobrazená kabeláž se po vyjmutí powerbanky
+nepřipojuje k jejímu volnému místu. Konec u PD i smyčka zůstávají pevné.
+Powerbanka se samostatně jistí dvěma pásky na suchý zip 8×300 mm.
+Při přepravě se prázdná lůžka zajistí šesti pásky na suchý zip 8×250 mm.
+
+Na pevný zadní nosič DOPLNIT přesně jednu PASIVNÍ zásuvku nebo pigtail USB-A
+samice ≥3 A / 5 V: F_AUDIO+-03 → VBUS, F_AUDIO_PANEL--03 → GND. D+/D− zůstávají
+nepřipojené a každý samostatně izolovaný; nepoužít napájený adaptér, druhý
+měnič, paralelní výstup powerbanky ani přívod na 5V pin ESP. K USB-UART
+DOPLNIT jeden neporušený kabel USB-A/C 300 mm ≥3 A. Koupený kabel A/C 1 m
+zůstává mimo aktivní sestavu jako servisní zásoba. Dokud není změřena ochrana
+proti zpětnému napájení, odpojit externí zdroj USB-A před připojením k PC.
+
+## Materiál a nákup
+
+| Materiál | Potřeba pro aktivní sestavu | Zásoba / doplnění |
+| --- | --- | --- |
+| USB-C/C 1 m, 60 W, 3 A | 1 neporušený kabel; zdroj → PD | Koupeno |
+| Pasivní zásuvka/pigtail USB-A samice ≥3 A, 5 V | 1; pouze VBUS/GND | Doplnit; starší nákupní košík nákup nedokládá |
+| USB-A/C 300 mm ≥3 A | 1 neporušený kabel; zásuvka → USB-UART | Doplnit |
+| Degson, 5 pozic | 3 oddělené sítě | Z 10 koupených; dodání a rozměry neověřeny |
+| Třípinový kabel serva / Grove / PH2 | 6×150 / 6×200 / 2×100 mm zachovat a doplnit délkami dle CSV | Koupeno; zachovat původní koncovky |
+| Pružný měděný vodič 1,5 mm² | Součet jednotlivých `estimated_cut_mm` pro 1,5 mm² + 20 % | Položka koupena; dodaná délka v metrech neznámá |
+| Pružný měděný vodič 0,5 mm² | Součet jednotlivých `estimated_cut_mm` pro 0,5 mm² + 20 % | Položka koupena; dodaná délka neznámá; případný nedostatek doplnit |
+| Signální vodič 0,14 mm² | Součet jednotlivých řezů 0,14 mm² + 20 % | Množství určit podle aktuálního CSV |
+| Dupont 200 mm M–F/F–F | Pohlaví podle dodaných protikusů; nejvýše 2 koncovky na vodič | Koupeno 80 M–F + 80 F–F; nepoužívat pro kmenové napájení |
+| 22 kΩ / 100 kΩ / 15 kΩ / 330 Ω | 2 / 6 / 1 / 1 | Koupeno z balení po 10 / 20 / 10 / 10 |
+| 470 µF, 50 V | 6; tři paralelní dvojice | Koupeno z balení po 10 |
+| Univerzální deska 50×70 mm | 2; pouze signálové spoje | Koupeno |
+| Smršťovací bužírka, štítky, snímatelné pásky | Izolovat každý spoj; 270 štítků konců; dva úchyty na každý pohyblivý konec; 2× PA66 3,6×250 mm pro USB smyčku, 2× suchý zip 8×300 mm pro powerbanku, 6× suchý zip 8×250 mm pro přepravu | Bužírka koupena; štítky a pásky započítat při sestavení |
+
+CSV udává délku jednotlivých vodičů, nikoli dvojlinky. Při nákupu CYH sečíst
+kladné a záporné vodiče do dvojic a nepárové signály vykázat samostatně;
+nepočítat automaticky každý jednotlivý vodič jako celou dvojlinku. Pro každý
+průřez zvlášť sečíst délky `estimated_cut_mm` v aktuálně vygenerovaném CSV
+a přidat 20% rezervu. Konečné potřebné metry tedy vycházejí až z tohoto CSV
+a skutečné zásoby; tabulka neurčuje pevný počet metrů. Před nákupem porovnat
+výsledek se skutečně dodaným materiálem. Řezat až po zkušebním sestavení;
+aktuální vygenerované CSV má přednost před staršími součty ve výkresech.
+Protikus fastonu na vývodech jističe a kolébek není změřený: před výběrem
+protikusů určit jeho velikost. Plán připouští izolované připájené vývody
+kolébek; velikost fastonu neodhadovat.
+
+Kamera-FPC je samostatná LOGICKÁ návaznost mezi blízkými ESP a kamerou
+uprostřed zadní části. GPIO4/5/6/7/8/9/10/11/12/13/15/16/17/18 zůstávají
+beze změny. Konektor, stranu kontaktů, délku a poloměr ohybu určuje dodaná
+varianta kamery; konektor ani náhradní volný GPIO kabel se nevymýšlí.
+I2S mikrofonu zůstává na GPIO21 SCK, 41 WS, 42 SD; zesilovače sdílejí
+21 BCLK, 41 LRC a 47 DIN. SD/GAIN zůstávají volné, R1 se zachovává a každý
+pár PH2 SPK+/− zůstává oddělený od GND i druhého zesilovače.
 
 ## Co lze při servisu rozpojit
 
@@ -192,18 +224,16 @@ nepředpokládat dva spínací póly, proměřit IN/OUT/LED-GND. Tříkontaktov�
 kolébky nemají čtvrtý externí LED+ vývod: kladné napájení jejich LED
 je uvnitř z OUT, samostatně připojit pouze LED-GND. Pokud skutečný kus
 neodpovídá tomuto zapojení, před fyzickým připojením upřesnit jeho funkci.
-Kryty odnímat
-po uvolnění uchycení, vodiče nesmějí nést váhu krytu. U powerbanky
+Kryty lze odejmout po uvolnění uchycení; vodiče nesmějí nést jejich váhu.
+U powerbanky
 odpojit pouze její USB-C kabel a uvolnit pásky; ostatní svazky mají
 odlehčení na pevné konstrukci mimo svislou dráhu vyjmutí.
 
-ESP se napájí přes ověřený USB-UART konektor. USB-A napájecí modul ze
-starého košíku není potvrzená koupě, a proto plán **nepovažuje tuto větev
-za kompletní**. Připravené konce 5V/GND zaizolovat a nepřipojovat k
-5V pinu ESP. Při připojení PC odpojit externí napájení ESP, dokud není
-prokázaná ochrana proti backfeedu. Tato mezera neblokuje rozvržení a
-přípravu ostatních kabelů; před autonomním napájeným provozem ji vyřešit
-ověřením skutečného vhodného existujícího adaptéru.
+Napájení ESP je navrženo přes USB-UART s pasivní zásuvkou popsanou výše.
+Jde o návrhovou rezervaci, nikoli fyzicky ověřený konektor. Větev nebude
+fyzicky dokončená, dokud nebude zásuvka i krátký kabel pořízen a nebude
+ověřena polarita a ochrana proti zpětnému napájení. To nebrání sestavení
+nezávislých částí ani nepotvrzuje akceptaci zařízení pod napětím.
 
 Programové testy kontrolují kapacitu svorek, oddělení sítí, pořadí kanálů,
 izolované NC, zákaz SPK/GND a délkové rezervy. Elektrická měření,

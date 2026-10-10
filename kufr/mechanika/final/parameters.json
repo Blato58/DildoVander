@@ -1,15 +1,34 @@
 {
-  "revision": "F1",
+  "revision": "F2",
   "case": {
     "inside_x": 431.8,
     "inside_y": 266.7,
-    "wall": 4.0,
-    "floor": 4.0,
-    "base_height": 118.3,
-    "lid_height": 30.0,
-    "lid_gap": 1.0,
+    "wall": 9.1,
+    "floor": 6.0,
+    "base_height": 114.3,
+    "lid_height": 79.7,
+    "lid_gap": 0.0,
     "lap": 12.0,
-    "joint_clearance": 0.25
+    "joint_clearance": 0.25,
+    "inside_z": 114.3,
+    "outer_x": 450.0,
+    "outer_y": 310.0,
+    "outer_z": 200.0,
+    "brace_height": 5.0,
+    "brace_width": 60.0,
+    "brace_y": 115.0,
+    "geometry_status": "Interior and outer envelope owner confirmed; wall distribution, floor, lid partition and brace XY are visual assumptions; no shell manufacturing.",
+    "safe_zone": [
+      400.0,
+      240.0,
+      170.0
+    ],
+    "safe_origin": [
+      15.9,
+      13.35,
+      0.0
+    ],
+    "safe_status": "Owner confirmed fit with margin on 2026-10-09"
   },
   "print": {
     "bed_x": 220.0,
@@ -22,9 +41,9 @@
   "mechanism": {
     "count": 6,
     "pitch": 48.0,
-    "origin_x": 77.0,
-    "origin_y": 34.0,
-    "origin_z": 9.0,
+    "origin_x": 71.0,
+    "origin_y": 21.0,
+    "origin_z": 12.0,
     "length": 212.0,
     "base_width": 46.0,
     "tray_width": 44.0,
@@ -47,7 +66,8 @@
     "follower_drop": 17.0,
     "groove_width": 6.8,
     "groove_depth": 6.0,
-    "roller_diameter": 6.0
+    "roller_diameter": 6.0,
+    "lower_stop_clearance": 0.15
   },
   "wand": {
     "length": 200.0,
@@ -58,7 +78,7 @@
     "fabric": 0.8,
     "foam": 1.2,
     "design_payload_g": 150.0,
-    "dimensions_status": "photo length label 190-200; other dimensions conservative estimates, not measurements"
+    "dimensions_status": "owner confirmed maximum overall length 200 mm and head width 38 mm on 2026-10-10, including any sleeve in the question; head height 28, head length 55, shaft diameter 16 and payload 150 g remain design assumptions"
   },
   "mounting": {
     "velcro_thickness": 2.0,
@@ -86,6 +106,528 @@
     "static_proof_factor": 2.0,
     "shock_acceleration_g": 3.0,
     "physical_validation": "NOT PERFORMED",
-    "pinout_changed": false
+    "pinout_changed": false,
+    "manufacturing_ready": false,
+    "pending": [
+      "wood bond substrate and proof load",
+      "wand/sleeve height, head length, shaft diameter, mass and physical dry fit",
+      "camera/FPC delivered fit",
+      "servo pulse-off behaviour and loaded torque",
+      "actual lid/hinge detail dry fit",
+      "USB connector locations and delivered plug envelopes"
+    ]
+  },
+  "coordinates": {
+    "units": "mm",
+    "origin": "inner floor front left",
+    "x": "right",
+    "y": "hinges/back",
+    "z": "up"
+  },
+  "frame": {
+    "origin": [
+      15.9,
+      13.35,
+      8.0
+    ],
+    "size": [
+      400.0,
+      240.0,
+      4.0
+    ],
+    "joint_lap": 12.0,
+    "joint_clearance": 0.25,
+    "anchor_y": [
+      45,
+      225
+    ],
+    "anchor_x": [
+      27.0,
+      404.8
+    ],
+    "angle_vertical": 40.0,
+    "angle_horizontal": 40.0,
+    "angle_thickness": 3.0,
+    "angle_length": 50.0,
+    "bond_gap": 0.5,
+    "bond_thickness": 0.5,
+    "bond_area_each_mm2": 2000.0,
+    "anchor_hole_y": [
+      30,
+      243
+    ],
+    "stiffeners": [
+      {
+        "id": "front_crossrail",
+        "origin": [
+          15.9,
+          14,
+          9
+        ],
+        "length": 400,
+        "leg": 20,
+        "thickness": 3,
+        "upright_y": 14,
+        "upright_x": [
+          71,
+          359
+        ],
+        "material": "EN AW-6060 T66, specified proof yield >=150 MPa"
+      },
+      {
+        "id": "rear_crossrail",
+        "origin": [
+          15.9,
+          233,
+          9
+        ],
+        "length": 400,
+        "leg": 20,
+        "thickness": 3,
+        "upright_y": 250,
+        "upright_x": [
+          71,
+          359
+        ],
+        "material": "EN AW-6060 T66, specified proof yield >=150 MPa"
+      }
+    ]
+  },
+  "clearances": {
+    "guide_per_side": 0.45,
+    "tray_neighbour": 4.0,
+    "base_neighbour": 2.0,
+    "wand_side": 1.0,
+    "wand_length_total": 9.0,
+    "bank_side": 2.0,
+    "bank_extraction": "up, cover and two straps only",
+    "connector_straight": 20.0,
+    "wire_min_bend_radius": 8.0,
+    "fabric_thickness": 0.8,
+    "frame_to_brace": 3.0,
+    "hand_tool_radius": 6.0
+  },
+  "components": {
+    "esp32": {
+      "size": [
+        57,
+        13,
+        28
+      ],
+      "origin": [
+        187.4,
+        236,
+        44
+      ],
+      "orientation": "rear centre vertical; long axis X; USB toward -X (connector position to verify)",
+      "mount": "positive edge stops plus two ties on bolted printed carrier",
+      "status": "purchased"
+    },
+    "camera": {
+      "size": [
+        24,
+        12,
+        24
+      ],
+      "origin": [
+        203.9,
+        237,
+        84
+      ],
+      "orientation": "rear centre faces front; provisional module and FPC",
+      "mount": "positive edge stops plus two ties on bolted printed carrier",
+      "status": "ordered"
+    },
+    "microphone": {
+      "size": [
+        16.51,
+        5,
+        12.7
+      ],
+      "origin": [
+        207.645,
+        14,
+        87
+      ],
+      "orientation": "front centre; acoustic port forward/up unobstructed above wall only when open",
+      "mount": "positive edge stops plus two ties on bolted printed carrier",
+      "status": "purchased"
+    },
+    "pca9685": {
+      "size": [
+        70,
+        15,
+        25
+      ],
+      "origin": [
+        267,
+        234,
+        20
+      ],
+      "orientation": "rear vertical",
+      "mount": "positive edge stops plus two ties on bolted printed carrier",
+      "status": "purchased"
+    },
+    "mcp23017": {
+      "size": [
+        43,
+        5,
+        18
+      ],
+      "origin": [
+        119,
+        240,
+        20
+      ],
+      "orientation": "rear vertical",
+      "mount": "positive edge stops plus two ties on bolted printed carrier",
+      "status": "purchased"
+    },
+    "pixel_shifter": {
+      "size": [
+        25.5,
+        15,
+        10.2
+      ],
+      "origin": [
+        374,
+        136,
+        20
+      ],
+      "orientation": "right service zone",
+      "mount": "positive edge stops plus two ties on bolted printed carrier",
+      "status": "purchased"
+    },
+    "speaker_left": {
+      "size": [
+        45,
+        100,
+        21
+      ],
+      "origin": [
+        20,
+        13.35,
+        18
+      ],
+      "orientation": "faces upward; no case holes",
+      "mount": "positive edge stops plus two ties on bolted printed carrier",
+      "status": "purchased"
+    },
+    "speaker_right": {
+      "size": [
+        45,
+        100,
+        21
+      ],
+      "origin": [
+        367,
+        16,
+        18
+      ],
+      "orientation": "faces upward; no case holes",
+      "mount": "positive edge stops plus two ties on bolted printed carrier",
+      "status": "purchased"
+    },
+    "amplifier_left": {
+      "size": [
+        18,
+        18,
+        8
+      ],
+      "origin": [
+        46,
+        95,
+        49
+      ],
+      "orientation": "left above speaker",
+      "mount": "positive edge stops plus two ties on bolted printed carrier",
+      "status": "purchased"
+    },
+    "amplifier_right": {
+      "size": [
+        18,
+        18,
+        8
+      ],
+      "origin": [
+        388,
+        116,
+        18
+      ],
+      "orientation": "right by speaker",
+      "mount": "positive edge stops plus two ties on bolted printed carrier",
+      "status": "purchased"
+    },
+    "breaker": {
+      "size": [
+        45,
+        28,
+        13
+      ],
+      "origin": [
+        21,
+        65,
+        49
+      ],
+      "orientation": "under removable power shelf",
+      "mount": "positive edge stops plus two ties on bolted printed carrier",
+      "status": "purchased"
+    },
+    "buck": {
+      "size": [
+        46,
+        31,
+        19
+      ],
+      "origin": [
+        20,
+        65,
+        77
+      ],
+      "orientation": "above left speaker; ventilated",
+      "mount": "positive edge stops plus two ties on bolted printed carrier",
+      "status": "purchased"
+    },
+    "pd_trigger": {
+      "size": [
+        14,
+        28,
+        11
+      ],
+      "origin": [
+        48,
+        118.35,
+        64
+      ],
+      "orientation": "beside front end of bank",
+      "mount": "positive edge stops plus two ties on bolted printed carrier",
+      "status": "purchased"
+    },
+    "powerbank": {
+      "size": [
+        26.5,
+        139,
+        80
+      ],
+      "origin": [
+        20,
+        114.35,
+        18
+      ],
+      "orientation": "ports forward; lift out",
+      "mount": "positive edge stops plus two ties on bolted printed carrier",
+      "status": "selected"
+    },
+    "perfboard_1": {
+      "size": [
+        50,
+        70,
+        1.6
+      ],
+      "origin": [
+        363,
+        163,
+        20
+      ],
+      "orientation": "right rear signal joints only",
+      "mount": "positive edge stops plus two ties on bolted printed carrier",
+      "status": "purchased"
+    },
+    "perfboard_2": {
+      "size": [
+        50,
+        70,
+        1.6
+      ],
+      "origin": [
+        363,
+        163,
+        48
+      ],
+      "orientation": "right rear signal joints only",
+      "mount": "positive edge stops plus two ties on bolted printed carrier",
+      "status": "purchased"
+    },
+    "degson_1": {
+      "size": [
+        35,
+        22,
+        16
+      ],
+      "origin": [
+        372,
+        156,
+        76
+      ],
+      "orientation": "MAIN5 provisional envelope",
+      "mount": "positive edge stops plus two ties on bolted printed carrier",
+      "status": "ordered"
+    },
+    "degson_2": {
+      "size": [
+        35,
+        22,
+        16
+      ],
+      "origin": [
+        372,
+        186,
+        76
+      ],
+      "orientation": "DRIVE5 provisional envelope",
+      "mount": "positive edge stops plus two ties on bolted printed carrier",
+      "status": "ordered"
+    },
+    "degson_3": {
+      "size": [
+        35,
+        22,
+        16
+      ],
+      "origin": [
+        372,
+        216,
+        76
+      ],
+      "orientation": "GND provisional envelope",
+      "mount": "positive edge stops plus two ties on bolted printed carrier",
+      "status": "ordered"
+    }
+  },
+  "panel": {
+    "red_main": [
+      32,
+      43,
+      78
+    ],
+    "green_drives": [
+      59,
+      43,
+      78
+    ],
+    "white_ptt": [
+      43,
+      23,
+      78
+    ]
+  },
+  "capacitors": [
+    [
+      28,
+      105,
+      60
+    ],
+    [
+      40,
+      105,
+      60
+    ],
+    [
+      172,
+      55,
+      20
+    ],
+    [
+      185,
+      55,
+      20
+    ],
+    [
+      234,
+      183,
+      20
+    ],
+    [
+      246,
+      183,
+      20
+    ]
+  ],
+  "usb_coil": {
+    "origin": [
+      49,
+      165,
+      20
+    ],
+    "size": [
+      18,
+      80,
+      65
+    ],
+    "minimum_bend_radius": 20,
+    "assumed_cable_od_max": 4.5,
+    "loops": 4,
+    "status": "dry fit required"
+  },
+  "connector_reservations": {
+    "esp32_usb": {
+      "origin": [
+        167.4,
+        236.5,
+        52
+      ],
+      "size": [
+        20,
+        12,
+        12
+      ],
+      "endpoint": [
+        187.4,
+        242.5,
+        58
+      ],
+      "direction": [
+        -1,
+        0,
+        0
+      ],
+      "status": "design reservation; delivered connector position requires dry fit"
+    },
+    "pd_usb": {
+      "origin": [
+        49,
+        98.35,
+        63.5
+      ],
+      "size": [
+        12,
+        20,
+        12
+      ],
+      "endpoint": [
+        55,
+        118.35,
+        69.5
+      ],
+      "direction": [
+        0,
+        -1,
+        0
+      ],
+      "status": "design reservation; delivered connector position requires dry fit"
+    },
+    "bank_usb": {
+      "origin": [
+        27.25,
+        94.35,
+        40
+      ],
+      "size": [
+        12,
+        20,
+        12
+      ],
+      "endpoint": [
+        33.25,
+        114.35,
+        46
+      ],
+      "direction": [
+        0,
+        -1,
+        0
+      ],
+      "status": "design reservation; actual port positions require dry fit"
+    }
   }
 }
