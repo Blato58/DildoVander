@@ -2,6 +2,13 @@
 
 ## F2 — vložka do skutečného kufru, 10. 10. 2026
 
+CI `6413398` prošlo. Následné review našlo zbývající zastaralé tvrzení
+o svícení všech 36 LED v potvrzeném návodu zapojení. Oprava mění pouze
+popis na jediný 20cm úsek, obnovuje schválený otisk zdroje a jeho kopii
+pro Inspect. Topologie a firmware se nemění. Nezávislá kontrola navazující
+dokumentace nenašla další rozpor v LED souběhu ani limitu 15 s. Úplná
+regenerace i nezávislý audit nového ZIPu prošly; následuje odeslání opravy.
+
 CI `43d2903` prošlo; dvě následné P2 jsou opravené. Generátor nyní odmítá
 choreografii, která se při nejdelší kalibraci a nominálním časování nevejde
 pod limit 15 s; README firmwaru správně uvádí jediný svítící LED úsek.
@@ -56,8 +63,8 @@ zachytávání kliknutí kartou, degenerované STL držáků a kontrolu otisků 
 Aktuální autorita je [verification.json](../mechanika/final/exports/verification.json).
 
 Celá regenerace 10. 10. 2026 skončila úspěšně včetně osmi prohlédnutých
-renderů, výkresů a samostatného ZIPu (43 528 031 B, SHA256
-`085d8ed3c897db3fd12fa18ac88ba7431a0b60e4792e365267e85482c7ed4bac`).
+renderů, výkresů a samostatného ZIPu (43 527 591 B, SHA256
+`cf1a23550e94ba19d984ce65b605cf672fb3b628519502f51d92d886f9810a16`).
 Závěrečný browser načetl nové výstupy, zobrazil šest přepravních pásků
 a odpojené USB v držáku; konzole bez varování a chyb.
 Nezávislá kontrola ZIPu: CRC a přesný seznam 143 členů, 49 otisků zdrojů,
@@ -128,6 +135,11 @@ bez varování/chyb konzole. Poslední oprava byla 10. 10. 2026 odeslána
 commitem `f0d1dbe2f7ee7cd9003084e57b4b5a3d6a718c47`;
 `Push-CurrentBranch.ps1` ověřil shodný vzdálený SHA. Aktuální CI/review
 a případný merge dokládá PR #170; tento záznam sám merge nepotvrzuje.
+
+Po opravě návodu zapojení opět prošlo 91 Python a 20 JS testů i celá
+geometrická kontrola. Všech 32 STL a osm renderů zůstalo byte po bytu
+shodných. Viewer se liší pouze otiskem podkladového návodu; skutečný
+browser zobrazil opravenou přibalenou větu a načetl sestavu bez chyb.
 
 Fyzická výroba, nalepení kotev, zkouška přepravy, kalibrace a nahrání
 firmware neproběhly. Neuzavřené jsou zbývající tvarové rozměry a usazení

@@ -18,7 +18,7 @@ WIRING = KUFR / "docs/zapojeni-potvrzeneho-hardwaru.md"
 SNAPSHOT = ROOT / "reference/inspect-sources.json"
 # connection_data() was reviewed against these exact source bytes. Refreshing
 # provenance must never imply that its manually encoded topology was updated.
-REVIEWED_WIRING_SHA256 = "4813c5353a8dbf2ed5c668df0d7fa712a03b448d0dde995530b07fe3cc7c1e34"
+REVIEWED_WIRING_SHA256 = "0691867c74d7d25d176176f636bbd898ebc8874418bb90a16543328bf71302e5"
 
 
 def _assert_reviewed_wiring(record):
