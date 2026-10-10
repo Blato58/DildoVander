@@ -30,6 +30,11 @@ pouze s aktuálním `exports/verification.json` a manifestem, jejichž zdrojové
 SHA-256 odpovídají nynějším souborům. Historické ověření tuto variantu
 nepokrývá. Fyzická přejímka zůstává nesplněná.
 
+GitHub review PR #172 doplnilo do měrky také skutečné boční kapsy M3/M4
+včetně uzavřených střech a slepého dna. První tisk tím ověří osazení matic
+ještě před tiskem čtyř velkých kotev; matice se po zkoušce použijí v sestavě.
+Úpravu pokrývá regresní kontrola shody profilů a zasunutí matic bez kolize.
+
 Aktuální kotvy mají 36 831,325 mm² lepených stop a 85 zámků; minimum
 spodního filmu a zámků je 36,958 ml bez ztrát. BOM uvádí dvě balení
 Bison 24 ml, s rezervou přibližně 11,042 ml pro vzorek a ztráty. PETG

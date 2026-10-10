@@ -15,7 +15,8 @@ otevřené v [předání](STAV.md) a [montážním návodu](MONTÁŽ.md).
 
 Výstupy lze přijmout pouze s ověřením, jehož zdrojové SHA-256 odpovídají
 aktuálním souborům; starší ověření nepokrývá zjednodušení montáže. Návrh má
-37 typů STL / 52 výtisků včetně dvoudílné zkušební měrky. Skutečné počty
+37 typů STL / 52 výtisků včetně dvoudílné zkušební měrky pro čep, drážku
+a boční kapsy matic M3/M4. Skutečné počty
 exportovaných dílů uvádí aktuální tiskový seznam.
 
 ## Co otevřít

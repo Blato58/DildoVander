@@ -127,5 +127,81 @@ class FloorAnchorTests(unittest.TestCase):
                 self.assertTrue(all(r["bearing_area_mm2"]>0 for r in data["nut_roofs"]))
 
 
+class AnchorCouponTests(unittest.TestCase):
+    def test_coupon_matches_actual_profiles_and_preserves_production_anchors(self):
+        import layout
+        coupon=layout.fit_coupon()
+        anchor="floor_anchor_front_left"
+        edge=chassis.floor_anchor_specs()[anchor]["y_range"][0]
+        production_tools=chassis.floor_anchor_clearances(anchor)
+        for kind,x0,target_x in (("module",86,93),("frame",100,107)):
+            nut=next(n for n in chassis.anchor_nuts(anchor) if n["kind"]==kind)
+            shift=(target_x-nut["x"],-edge,-.5)
+            tools=chassis.anchor_nut_clearances(nut,edge)
+            window=box(14,25,7.5,(x0,0,0))
+            expected=window.cut(*(tool.translate(shift) for tool in tools))
+            actual=coupon.intersect(window)
+            with self.subTest(profile=kind):
+                self.assertLess(actual.cut(expected).Volume()+expected.cut(actual).Volume(),1e-6)
+                index=next(i for i,n in enumerate(chassis.anchor_nuts(anchor)) if n["kind"]==kind)
+                for current,original in zip(tools,production_tools[index*3:index*3+3]):
+                    self.assertLess(current.cut(original).Volume()+original.cut(current).Volume(),1e-6)
+        # Measured immediately before extracting the shared helper. This catches
+        # production changes beyond matching just the two coupon cavities.
+        original_volumes={
+            "floor_anchor_front_left":57123.1009256252,
+            "floor_anchor_front_right":56968.513422466254,
+            "floor_anchor_rear_left":64526.54860282508,
+            "floor_anchor_rear_right":64408.0335907647}
+        for name,volume in original_volumes.items():
+            self.assertAlmostEqual(chassis.floor_anchor_shape(name).Volume(),volume,places=5)
+
+    def test_coupon_side_insertion_complete_roofs_and_blind_tip_barriers(self):
+        import layout
+        coupon=layout.fit_coupon()
+        a=PARAMS["frame"]["floor_anchors"]
+        nuts=chassis.anchor_nuts("floor_anchor_front_left")
+        for kind,target_x in (("module",93),("frame",107)):
+            source=next(n for n in nuts if n["kind"]==kind)
+            x,y,z=target_x,16,source["z"]-a["z"]
+            roof_z=a["nut_roof_z"]-a["z"]
+            height=a["nut_roof_z"]-source["z"]
+            nut=chassis.hex_prism(x,y,z,source["diameter"],height).cut(
+                hole_z(x,y,3 if kind=="module" else 4,z=z-.1,height=height+.2))
+            with self.subTest(profile=kind):
+                for ratio in (0,.25,.5,.75,1):
+                    self.assertLess(coupon.intersect(nut.translate((0,-y*ratio,0))).Volume(),1e-6)
+                roof=chassis.hex_prism(x,y,roof_z,source["pocket"],3).cut(
+                    hole_z(x,y,source["bore"],z=roof_z-.1,height=3.2))
+                self.assertAlmostEqual(coupon.intersect(roof).Volume(),roof.Volume(),places=5)
+                self.assertGreater(coupon.intersect(nut.translate((0,0,.1))).Volume(),1)
+                # Production blind bore starts at global Z1, hence the coupon
+                # retains a true 0.5 mm closed printed bottom, not a through bore.
+                barrier=cylinder(source["bore"]/2,.5,(x,y,0))
+                self.assertAlmostEqual(coupon.intersect(barrier).Volume(),barrier.Volume(),places=5)
+                free_tip=hole_z(x,y,source["bore"],z=.5,height=.01)
+                self.assertLess(coupon.intersect(free_tip).Volume(),1e-6)
+
+    def test_coupon_remains_one_existing_print_and_retains_original_features(self):
+        import layout
+        from build import all_parts
+        coupon=layout.fit_coupon()
+        self.assertTrue(coupon.isValid())
+        self.assertEqual(len(coupon.Solids()),1)
+        self.assertEqual(bounds(print_position(coupon))[:3],[0,0,0])
+        self.assertAlmostEqual(bounds(coupon)[3],115)
+        for x,diameter in ((10,3.4),(25,4.5),(41,12.4),(61,19.4)):
+            with self.subTest(original_bore=diameter):
+                self.assertLess(coupon.intersect(hole_z(x,12,diameter,z=0,height=4)).Volume(),1e-6)
+        guide=box(8,10,22,(5,34,4))
+        self.assertAlmostEqual(coupon.intersect(guide).Volume(),guide.Volume(),places=5)
+        peg=layout.follower_coupon_peg()
+        self.assertAlmostEqual(coupon.intersect(peg).Volume(),peg.Volume(),places=5)
+        parts=all_parts()
+        self.assertEqual(len(parts),37)
+        self.assertEqual(sum(p.quantity for p in parts),52)
+        self.assertEqual(sum(p.name=="fit_coupon" for p in parts),1)
+
+
 if __name__=="__main__":
     unittest.main()

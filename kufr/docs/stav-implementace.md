@@ -11,7 +11,8 @@ Brusný papír slouží pouze pro lepené stopy na dřevu. Aktualizované jsou
 CAD, dvě zkušební měrky, výpočty, 15 montážních kroků, servisní pořadí,
 BOM, výkresy a viewer. Zásoba PETG je 3 kg; lepidlo 2 × 24 ml.
 
-V izolovaném worktree `printed-no-tool-mechanics` prošel celý
+Před rozšířením měrky podle PR review v izolovaném worktree
+`printed-no-tool-mechanics` prošel celý
 `Regenerate.ps1`: 108 Python testů, 34 Node testů, montážní validátor,
 generování, geometrické ověření a balení. Samostatně prošly 4 testy stylu.
 Výsledek `PASS_CAD_NOT_PHYSICAL_ACCEPTANCE`: 37 typů STL, 52 výtisků,
@@ -22,6 +23,14 @@ každého modulu; zahrnuje i vzájemnou geometrii vodičů. Nejde o spojitý
 důkaz pohybu ani fyzickou přejímku. ZIP obsahuje 161 souborů, 54 172 261 B;
 SHA-256 `41abdc29d794fafd60a7bc9f82e15c1a3d4dc5c3ec312660c5cc04a1d89d5f1c`.
 Balicí skript ověřil každý archivovaný soubor proti přijatým otiskům.
+
+PR #172 následně identifikovalo chybějící zkoušku bočních kapes matic.
+Měrka nyní obsahuje přesné produkční profily M3/M4 ze společné funkce,
+3mm střechu i 0,5mm slepé dno; kotvy a ostatní sestava jsou nezměněné.
+Všech 13 cílených testů kotev/měrky/čepu prošlo. Montáž výslovně požaduje
+100% výplň měrky a zasunutí skutečných matic před tiskem velkých kotev.
+Pro rozšířenou měrku se znovu generují a ověřují exporty; výše uvedený
+otisk ZIPu patří předchozí variantě, nikoli tomuto doplnění.
 
 Browser na localhost:8916 ověřil montážní kroky, nové kotvy, pohyb
 0–160°/16 mm, přepravní stav a úzké i široké zobrazení bez konzolových
