@@ -2,6 +2,9 @@
 from pathlib import Path
 import re
 import hashlib
+import json
+import shutil
+import tempfile
 
 
 ASSEMBLY_NAMES = (
@@ -9,6 +12,7 @@ ASSEMBLY_NAMES = (
 )
 FIXED_EXPORTS = (
     "manifest.json", "verification.json", "collision-details.json", "artifact-sha256.json",
+    "generation-snapshot.json", "wire-collision-details.json",
     "print-bom.csv", "installed-hardware.csv", "viewer.html", "reference-sources.html",
     "layout.svg", "layout.png", "kinematika.svg",
     "cable-plan.json", "cable-cut-list.csv", "cable-layout.svg", "cable-layout.png",
@@ -16,6 +20,9 @@ FIXED_EXPORTS = (
     "images/mechanism.png", "images/cam.png",
     "images/top.png", "images/wiring.png", "images/anchors.png",
 )
+VERIFICATION_EXPORTS = {"verification.json", "artifact-sha256.json"}
+AUDIT_EXPORTS = {"collision-details.json", "wire-collision-details.json"}
+GENERATION_SNAPSHOT = "generation-snapshot.json"
 
 
 def export_names(manifest):
@@ -51,6 +58,91 @@ def package_files(root, source_names, manifest):
     return files
 
 
+def generated_export_names(manifest):
+    return set(export_names(manifest)) - VERIFICATION_EXPORTS - AUDIT_EXPORTS - {GENERATION_SNAPSHOT}
+
+
+def export_hashes(out, names):
+    return {name: hashlib.sha256((Path(out) / name).read_bytes()).hexdigest()
+            for name in sorted(names)}
+
+
+def assert_export_hashes(out, expected, names):
+    if set(expected) != set(names):
+        raise ValueError("Verified export hash inventory differs from manifest")
+    for name, digest in expected.items():
+        actual = hashlib.sha256((Path(out) / name).read_bytes()).hexdigest()
+        if actual != digest:
+            raise ValueError("Generated export changed after snapshot: " + name)
+
+
+def assert_generation_snapshot(out, manifest, sources):
+    """Accept only outputs freshly generated together from the current sources."""
+    snapshot = json.loads((Path(out) / GENERATION_SNAPSHOT).read_bytes())
+    if snapshot.get("schema") != 1 or snapshot.get("sources") != sources or manifest["sources"] != sources:
+        raise ValueError("Generated exports belong to stale sources; regenerate")
+    assert_export_hashes(out, snapshot["sha256"], generated_export_names(manifest))
+    return snapshot
+
+
+def assert_verified_exports(out, manifest, report):
+    names = set(export_names(manifest)) - VERIFICATION_EXPORTS
+    assert_export_hashes(out, report["export_sha256"], names)
+    assert_generation_snapshot(out, manifest, report["sources"])
+
+
+def generate_exports(root, out, generators, source_hashes):
+    """Run every generator in an empty directory; publish a source-bound receipt last.
+
+    The generators must expose their existing OUT global and main() entry point.
+    Staging prevents a successful but incomplete generator from blessing leftovers.
+    """
+    out = Path(out)
+    out.mkdir(parents=True, exist_ok=True)
+    for name in (GENERATION_SNAPSHOT, *VERIFICATION_EXPORTS):
+        (out / name).unlink(missing_ok=True)
+    initial_sources = source_hashes()
+    with tempfile.TemporaryDirectory(prefix="f2-generation-", dir=Path(root).parent) as directory:
+        staging = Path(directory) / "exports"
+        previous_outputs = [(generator, generator.OUT) for generator in generators]
+        try:
+            for generator in generators:
+                generator.OUT = staging
+            for generator in generators:
+                generator.main()
+            manifest = json.loads((staging / "manifest.json").read_bytes())
+            if source_hashes() != initial_sources or manifest["sources"] != initial_sources:
+                raise ValueError("Sources changed during export generation; regenerate")
+            hashes = export_hashes(staging, generated_export_names(manifest))
+            for name in hashes:
+                destination = out / name
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(staging / name, destination)
+            if source_hashes() != initial_sources:
+                raise ValueError("Sources changed while publishing generated exports; regenerate")
+            assert_export_hashes(out, hashes, generated_export_names(manifest))
+            snapshot = {"schema": 1, "sources": initial_sources, "sha256": hashes}
+            (out / GENERATION_SNAPSHOT).write_text(
+                json.dumps(snapshot, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        finally:
+            for generator, previous in previous_outputs:
+                generator.OUT = previous
+
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Generate the complete source-bound F2 export snapshot.")
+    parser.add_argument("--generate", action="store_true", required=True)
+    parser.parse_args()
+    import build
+    import preview
+    import drawings
+    import inspect_data
+    # Refresh the repository evidence snapshot before capturing the input sources.
+    inspect_data.snapshot_sources()
+    generate_exports(build.ROOT, build.OUT, (build, preview, drawings), build.source_hashes)
+
+
 def assert_cad_hashes(root, manifest, report):
     """Refuse changed generated CAD, even when all source files are unchanged."""
     expected={name for name in export_names(manifest) if name.endswith(('.stl','.step'))}
@@ -64,3 +156,7 @@ def assert_cad_hashes(root, manifest, report):
     for part in report['parts']:
         if recorded['stl/'+part['name']+'.stl']!=part['sha256']:
             raise ValueError('STL changed after mesh checks: '+part['name'])
+
+
+if __name__ == "__main__":
+    main()

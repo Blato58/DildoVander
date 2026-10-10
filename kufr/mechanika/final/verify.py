@@ -20,7 +20,9 @@ import harness
 import strength
 import validate_assembly
 import verify_harness_geometry
-from artifacts import export_names
+from artifacts import (export_names, assert_generation_snapshot, export_hashes,
+                       assert_export_hashes, GENERATION_SNAPSHOT, VERIFICATION_EXPORTS,
+                       AUDIT_EXPORTS)
 
 
 def stl_check(path,reference):
@@ -82,7 +84,8 @@ def export_checks():
         results.append({"name":p.name,"quantity":p.quantity,"print_box_mm":[round(v,3) for v in size],
                         "step_roundtrip":True,**stl_check(OUT/"stl"/(p.name+".stl"),s)})
         print(f"Verified STL/STEP {p.name}",flush=True)
-    for path in (OUT/"assembly").glob("*.step"):
+    for name in manifest["assemblies"]:
+        path=OUT/"assembly"/(name+".step")
         s=cq.importers.importStep(str(path)).val()
         assert s.isValid() and len(s.Solids())>0,f"Invalid assembly {path.name}"
     return results
@@ -242,6 +245,9 @@ def require_complete_wire_audit(result):
 def main():
     (OUT/"verification.json").unlink(missing_ok=True)
     initial_sources=source_hashes()
+    manifest=json.loads((OUT/'manifest.json').read_bytes())
+    generated=assert_generation_snapshot(OUT,manifest,initial_sources)
+    generation_digest=export_hashes(OUT,[GENERATION_SNAPSHOT])[GENERATION_SNAPSHOT]
     initial_cad=cad_hashes()
     parts=export_checks()
     mech_result=mechanical_checks(OUT/"collision-details.json")
@@ -253,12 +259,18 @@ def main():
     require_complete_wire_audit(wire_geometry)
     assert initial_sources==source_hashes(),"Sources changed during verification; regenerate"
     assert initial_cad==cad_hashes(),"CAD files changed during verification; regenerate"
+    assert generated==assert_generation_snapshot(OUT,manifest,initial_sources),"Generation snapshot changed during verification"
+    assert generation_digest==export_hashes(OUT,[GENERATION_SNAPSHOT])[GENERATION_SNAPSHOT],"Generation snapshot bytes changed during verification"
+    verified_exports={**generated['sha256'],GENERATION_SNAPSHOT:generation_digest,
+                      **export_hashes(OUT,AUDIT_EXPORTS)}
+    assert_export_hashes(OUT,verified_exports,set(export_names(manifest))-VERIFICATION_EXPORTS)
     report={"result":"PASS_CAD_NOT_PHYSICAL_ACCEPTANCE","revision":PARAMS["revision"],
             "physical_test_performed":False,"stl_types":len(parts),"print_count":sum(p["quantity"] for p in parts),
             "parts":parts,"mechanics":mech_result,"harness":harness_result,"strength":strength.calculate(),
-            "assembly":assembly_result,"wire_geometry":wire_geometry,"cad_sha256":initial_cad,"sources":initial_sources}
+            "assembly":assembly_result,"wire_geometry":wire_geometry,"cad_sha256":initial_cad,
+            "export_sha256":verified_exports,"sources":initial_sources}
     (OUT/"verification.json").write_text(json.dumps(report,indent=2,ensure_ascii=False,allow_nan=False),encoding="utf-8")
-    print(json.dumps({k:v for k,v in report.items() if k not in ("parts","sources","cad_sha256","wire_geometry")},indent=2),flush=True)
+    print(json.dumps({k:v for k,v in report.items() if k not in ("parts","sources","cad_sha256","export_sha256","wire_geometry")},indent=2),flush=True)
 
 
 if __name__=="__main__":

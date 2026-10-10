@@ -9,7 +9,13 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'F2 regeneration failed: viewer JavaScript syntax' }
     & node --test test_viewer.cjs
     if ($LASTEXITCODE -ne 0) { throw 'F2 regeneration failed: viewer regression tests' }
-    foreach ($taskStep in @('test_effects.py', 'test_packaging.py', 'test_verification_gate.py', 'test_inspect_data.py', 'test_harness.py', 'test_f2_cad.py', 'validate_assembly.py', 'build.py', 'verify.py', 'preview.py', 'drawings.py', 'package.py')) {
+    foreach ($taskStep in @('test_effects.py', 'test_packaging.py', 'test_verification_gate.py', 'test_inspect_data.py', 'test_harness.py', 'test_f2_cad.py', 'validate_assembly.py')) {
+        & $taskPython $taskStep
+        if ($LASTEXITCODE -ne 0) { throw "F2 regeneration failed: $taskStep" }
+    }
+    & $taskPython artifacts.py --generate
+    if ($LASTEXITCODE -ne 0) { throw 'F2 regeneration failed: source-bound export generation' }
+    foreach ($taskStep in @('verify.py', 'package.py')) {
         & $taskPython $taskStep
         if ($LASTEXITCODE -ne 0) { throw "F2 regeneration failed: $taskStep" }
     }
