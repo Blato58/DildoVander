@@ -3,6 +3,8 @@ import io
 import importlib.util
 import json
 import os
+import subprocess
+import sys
 from pathlib import Path
 import tempfile
 import unittest
@@ -107,6 +109,93 @@ class PublicationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaises(ValueError):
                 publisher.switch(Path(directory), '../outside')
+
+    @unittest.skipIf(os.name == 'nt', 'Multiple atomic directory symlink replacements require Linux')
+    def test_retention_protects_active_and_previous_releases(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source, site = root / 'source', root / 'site'
+            payload(source)
+            site.mkdir()
+            for identifier in ('100-1', '101-1', '102-1', '103-1', '104-1'):
+                publisher.publish(source, site, identifier, SOURCE_SHA)
+            removed = publisher.prune_releases(site, '100-1', retain=3)
+            self.assertEqual(set(removed), {'101-1', '102-1'})
+            self.assertEqual({path.name for path in (site / 'releases').iterdir()},
+                             {'100-1', '103-1', '104-1'})
+            self.assertTrue((site / 'current').samefile(site / 'releases/104-1'))
+            with self.assertRaisesRegex(ValueError, 'Current changed'):
+                publisher.prune_releases(site, expected_release='103-1')
+            publisher.restore_activation(site, '104-1', '100-1')
+            self.assertTrue((site / 'current').samefile(site / 'releases/100-1'))
+
+    def test_retention_preserves_unrecognized_directories_and_outside_symlinks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source, site = root / 'source', root / 'site'
+            payload(source)
+            site.mkdir()
+            publisher.publish(source, site, '100-1', SOURCE_SHA)
+            outside = root / 'outside'
+            outside.mkdir()
+            sentinel = outside / 'keep.txt'
+            sentinel.write_text('private unrelated data')
+            unknown = site / 'releases/90-1'
+            unknown.mkdir()
+            (unknown / 'keep.txt').write_text('unrecognized data')
+            (site / 'releases/91-1').symlink_to(outside, target_is_directory=True)
+            malformed = site / 'releases/92-1'
+            malformed.mkdir()
+            (malformed / 'site-manifest.json').write_text(json.dumps(
+                {'schema': 1, 'source_sha': SOURCE_SHA, 'package': 'F2.zip', 'sha256': []}))
+            self.assertEqual(publisher.prune_releases(site), [])
+            self.assertTrue(sentinel.is_file())
+            self.assertTrue((unknown / 'keep.txt').is_file())
+            self.assertTrue((site / 'releases/91-1').is_symlink())
+            self.assertTrue((malformed / 'site-manifest.json').is_file())
+            with self.assertRaises(ValueError):
+                publisher.prune_releases(site, '../outside')
+            with self.assertRaises(ValueError):
+                publisher.prune_releases(site, retain=1)
+
+    def test_invalid_manifest_shapes_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / 'source'
+            payload(source)
+            for manifest in ([], {'schema': 1, 'source_sha': SOURCE_SHA, 'package': 'F2.zip', 'sha256': []}):
+                (source / 'site-manifest.json').write_text(json.dumps(manifest))
+                with self.assertRaisesRegex(ValueError, 'manifest shape'):
+                    publisher.verify(source, SOURCE_SHA)
+
+    @unittest.skipIf(os.name != 'posix', 'Production CLI publication lock is a Linux contract')
+    def test_publication_lock_serializes_mutations_and_rejects_symlink_lock(self):
+        with tempfile.TemporaryDirectory() as directory:
+            site = Path(directory)
+            script = ("import sys; from pathlib import Path; from test_site import publisher; "
+                      "print('ready', flush=True); "
+                      "\nwith publisher.publication_lock(Path(sys.argv[1])): print('acquired', flush=True)")
+            with publisher.publication_lock(site):
+                child = subprocess.Popen([sys.executable, '-c', script, str(site)],
+                                         cwd=Path(__file__).parent, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                try:
+                    self.assertEqual(child.stdout.readline().strip(), 'ready')
+                    with self.assertRaises(subprocess.TimeoutExpired):
+                        child.communicate(timeout=0.2)
+                except BaseException:
+                    child.kill()
+                    child.communicate()
+                    raise
+            output, errors = child.communicate(timeout=5)
+            self.assertEqual(child.returncode, 0, errors)
+            self.assertEqual(output.strip(), 'acquired')
+            (site / '.publication.lock').unlink()
+            outside = site / 'private.txt'
+            outside.write_text('keep')
+            (site / '.publication.lock').symlink_to(outside)
+            with self.assertRaises(OSError):
+                with publisher.publication_lock(site):
+                    self.fail('Symlink lock must never be opened')
+            self.assertEqual(outside.read_text(), 'keep')
 
 
 class CadPromotionTests(unittest.TestCase):

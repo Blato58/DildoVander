@@ -37,6 +37,9 @@ h3 { margin: 0; font-size: 1rem; }
 .workshop-brand .eyebrow { display: block; margin-bottom: 4px; }
 .workshop-mark { flex: 0 0 40px; width: 40px; height: 40px; stroke: var(--aw-brass); stroke-width: 1.5; }
 .shell-stop { flex: 0 0 auto; }
+.shell-status { margin: 12px 0 0; color: var(--aw-muted); font-size: .75rem; line-height: 1.5; }
+.shell-status:empty { display: none; }
+.device-stop-guard { border: 0; padding: 0; margin: 0; min-width: 0; }
 .app-tabs [role="tablist"] { display: flex; gap: 8px; }
 .app-tabs [role="tab"] { flex: 1; min-width: 0; background: var(--aw-surface); border-color: transparent; color: var(--aw-muted); }
 .app-tabs [aria-selected="true"] { background: var(--aw-elevated); color: var(--aw-brass); border-color: var(--aw-brass); }
