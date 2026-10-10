@@ -34,11 +34,11 @@ def integer(value, minimum, maximum):
 
 
 def viewer_frame_count(steps):
-    # Each phase consumes ceil(duration * 60 / 1000) intervals; tickEffect
-    # initializes the following phase on another requestAnimationFrame pass.
+    # Each phase consumes ceil(duration * 60 / 1000) intervals. Admission to
+    # first rAF consumes one more interval, followed by one per phase handover.
     frames = sum((step['duration_ms'] * VIEWER_FRAMES_PER_SECOND + 999) // 1000
                  for step in steps)
-    return frames + len(steps) - 1
+    return frames + len(steps)
 
 
 def presentation_budgets(steps):

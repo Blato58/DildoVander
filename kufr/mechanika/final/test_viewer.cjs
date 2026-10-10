@@ -24,7 +24,7 @@ class Element {
 
 function viewer(routes = [], extraMeshes = [], data = {}) {
   const elements = new Map(), frames = [];
-  let labelMeasurements = 0;
+  let labelMeasurements = 0, clockNow = 0, audioStarts = 0;
   const get = id => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); };
   get('lid').value = '105'; get('lift').value = '0';
   if (data.viewport) [get('view').clientWidth,get('view').clientHeight]=data.viewport;
@@ -65,20 +65,30 @@ function viewer(routes = [], extraMeshes = [], data = {}) {
     listeners:{}, addEventListener(name, callback) { this.listeners[name] = callback; },
   };
   const window = {listeners:{},addEventListener(name,callback) { this.listeners[name] = callback; }};
+  window.AudioContext = class {
+    constructor() { clockNow+=data.audioSetupDelayMs || 0; }
+    resume() { return Promise.resolve(); }
+    createGain() { return {gain:{value:0},connect() {}}; }
+    createOscillator() {
+      return {frequency:{value:0},connect() {},start() { audioStarts++; },stop() {}};
+    }
+  };
   const context = {
     document, window, devicePixelRatio:data.devicePixelRatio || 1,
+    performance:{now:()=>clockNow},
     model:{meshes,routes,sources:[],hinge:[0,0,0],mechanism:{count:6,origin_y:21,origin_z:12,cam_y:112,cam_z:36,dwell_degrees:20,travel_degrees:160,lift:16},...data},
     localStorage:{getItem:() => null,setItem() {}},
     Option:class {constructor(text,value) {this.textContent = text; this.value = value;}},
     requestAnimationFrame:callback => frames.push(callback),
   };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'viewer.js'),'utf8'), context);
-  const flush = () => { let count=0; while (frames.length) { if (++count>1000) throw new Error('Animation did not finish'); frames.shift()(count*100); } };
-  const frame = timestamp => { const pending = frames.splice(0); for (const callback of pending) callback(timestamp); };
+  const flush = () => { let count=0; while (frames.length) { if (++count>1000) throw new Error('Animation did not finish'); clockNow+=100; frames.shift()(clockNow); } };
+  const frame = (timestamp,liveNow=timestamp) => { if (Number.isFinite(liveNow)) clockNow=liveNow; const pending = frames.splice(0); for (const callback of pending) callback(timestamp); };
   const hover = id => { hit = id; get('view').fire('pointermove',{clientX:400,clientY:300,shiftKey:true}); flush(); };
   const click = () => { get('view').fire('pointerdown',{clientX:400,clientY:300,pointerId:1}); flush(); };
   const lights = () => vm.runInNewContext('lightStates.map(color=>color && [...color])', context);
-  return {get,hover,click,flush,frame,document,window,meshes,api:window.F2,lights,measurements:()=>labelMeasurements};
+  return {get,hover,click,flush,frame,document,window,meshes,api:window.F2,lights,
+    now:()=>clockNow,advanceTo:timestamp=>{clockNow=timestamp;},audioStarts:()=>audioStarts,measurements:()=>labelMeasurements};
 }
 
 function route(id='wire-A', net='MAIN5', bundle='rear') {
@@ -281,11 +291,12 @@ test('authored main and short scores illuminate at most one segment for every se
     for (let selected=1; selected<=6; selected++) {
       const app=viewer([],[],{effects});
       app.get('tray').value=String(selected); app.get('tray').onchange(); app.flush();
-      app.api.startEffect(variant); app.frame(0);
+      const admitted=app.now();
+      app.api.startEffect(variant); app.frame(admitted);
       const litIndexes=()=>Array.from(app.lights()).flatMap((color,index)=>color?.some(value=>value>0) ? [index] : []);
       assert.deepEqual(litIndexes(),[selected-1],'Wake lights only the selected compartment');
       for (let timestamp=100; timestamp<=20000; timestamp+=100) {
-        app.frame(timestamp);
+        app.frame(admitted+timestamp);
         assert.ok(litIndexes().length<=1,`${variant}, selection ${selected}, ${timestamp} ms`);
       }
       assert.equal(app.get('effect-stop').disabled,true,'The complete score finishes');
@@ -312,6 +323,112 @@ test('whole-cycle deadline stops before a late animation frame can move or compl
   assert.match(app.get('effect-status').textContent,/Limit 15 s/);
 });
 
+function admissionDeadlineViewer(audioSetupDelayMs=0) {
+  const phase={phase:'Raise',duration_ms:1000,target:'selected',motion:'raise',light:[255,0,0],audio:'local_tone',tone_hz:880};
+  const app=viewer([],[{name:'tray_3',group:'moving'}],{audioSetupDelayMs,effects:{max_brightness:64,main:[phase],short:[phase]}});
+  app.get('audio-preview').checked=true;
+  app.advanceTo(5000);
+  return app;
+}
+
+test('admission deadline faults before outputs when the first frame arrives at or after 15 seconds', () => {
+  for (const variant of ['main','short']) {
+    for (const delay of [15000,16000]) {
+      const app=admissionDeadlineViewer();
+      app.get('play-'+variant).onclick();
+      assert.equal(app.get('effect-stop').disabled,false,'The click admits the sequence before rAF');
+      app.frame(5000+delay);
+      assert.equal(app.api.state().effectFault,true,`${variant}, first frame delayed ${delay} ms`);
+      assert.deepEqual(Array.from(app.api.state().trayAngles),[0,0,0,0,0,0]);
+      assert.ok(Array.from(app.lights()).every(color=>color===null));
+      assert.equal(app.audioStarts(),0,'Expired first frame cannot start the local tone');
+      assert.equal(app.get('effect-phase').textContent,undefined,'No phase entered or completed');
+      assert.match(app.get('effect-status').textContent,/Limit 15 s/);
+    }
+  }
+});
+
+test('a first frame just before the admission deadline has only the remaining budget', () => {
+  const app=admissionDeadlineViewer();
+  app.get('play-main').onclick();
+  app.frame(19990);
+  assert.equal(app.api.state().effectFault,false);
+  assert.equal(app.audioStarts(),1);
+  app.frame(19995);
+  assert.ok(app.api.state().trayAngles[2]>0 && app.api.state().trayAngles[2]<160);
+  const frozen=Array.from(app.api.state().trayAngles);
+  app.frame(20000); app.frame(21000);
+  assert.equal(app.api.state().effectFault,true);
+  assert.deepEqual(Array.from(app.api.state().trayAngles),frozen,'The first frame cannot reset the deadline');
+  assert.ok(Array.from(app.lights()).every(color=>color===null));
+});
+
+test('audio initialization delay counts from admission before the first frame', () => {
+  const app=admissionDeadlineViewer(15000);
+  app.get('play-main').onclick();
+  assert.equal(app.now(),20000);
+  app.frame(app.now());
+  assert.equal(app.api.state().effectFault,true);
+  assert.equal(app.audioStarts(),0);
+  assert.equal(app.api.state().trayAngles[2],0);
+  assert.ok(Array.from(app.lights()).every(color=>color===null));
+});
+
+test('missing rAF timestamp uses the admission performance clock and rollback still faults', () => {
+  const app=admissionDeadlineViewer();
+  app.get('play-main').onclick();
+  app.advanceTo(5100); app.frame(NaN);
+  assert.equal(app.api.state().effectFault,false);
+  app.advanceTo(5600); app.frame(NaN);
+  assert.equal(app.api.state().trayAngles[2],80,'Fallback uses the same monotonic domain');
+  app.frame(4999);
+  assert.equal(app.api.state().effectFault,true);
+  assert.equal(app.api.state().trayAngles[2],80,'A clock before admission cannot move the tray');
+});
+
+test('live expiry stops a callback with a stale frame timestamp before motion or completion', () => {
+  const app=admissionDeadlineViewer();
+  app.get('play-main').onclick();
+  app.frame(5000);
+  assert.equal(app.audioStarts(),1);
+  app.frame(19999,20000);
+  assert.equal(app.api.state().effectFault,true,'Live elapsed time expires even if the rAF timestamp has not');
+  assert.equal(app.api.state().trayAngles[2],0,'The expired callback cannot finish the raise');
+  assert.ok(Array.from(app.lights()).every(color=>color===null));
+  assert.equal(app.audioStarts(),1,'The callback starts no new tone');
+  assert.match(app.get('effect-status').textContent,/Limit 15 s/);
+});
+
+test('a first shared frame timestamp before admission does not falsely fault a live callback', () => {
+  const app=admissionDeadlineViewer();
+  app.get('play-main').onclick();
+  app.frame(4999,5001);
+  assert.equal(app.api.state().effectFault,false);
+  assert.equal(app.audioStarts(),1);
+  assert.equal(app.api.state().trayAngles[2],0);
+  app.frame(5499,5501);
+  assert.equal(app.api.state().trayAngles[2],80);
+  assert.equal(app.api.state().effectFault,false);
+});
+
+test('service recovery admits a fresh sequence on the continuing monotonic clock', () => {
+  const app=admissionDeadlineViewer();
+  app.get('play-main').onclick(); app.frame(20000);
+  assert.equal(app.api.state().effectFault,true);
+  app.api.setMode('service'); app.flush();
+  app.get('service-reset').onclick(); app.flush();
+  app.api.setMode('operation'); app.flush();
+  const admitted=app.now();
+  assert.ok(admitted>20000,'Draw flushes continue the same live clock');
+  app.get('play-main').onclick();
+  app.frame(admitted+10); app.frame(admitted+510);
+  assert.equal(app.api.state().effectFault,false);
+  assert.equal(app.api.state().trayAngles[2],80);
+  app.frame(admitted+1010);
+  assert.equal(app.get('effect-stop').disabled,true);
+  assert.equal(app.api.state().effectFault,false,'Fresh admission does not retain the expired deadline');
+});
+
 function partiallyRaisedSequence() {
   const effects={max_brightness:64,main:[{phase:'Raise',duration_ms:1000,target:'selected',motion:'raise',light:[255,0,0]}]};
   const app=viewer([],[
@@ -322,7 +439,8 @@ function partiallyRaisedSequence() {
     app.get('tray').value=String(index); app.get('lift').value=String(index*10); app.get('lift').oninput();
   }
   app.get('tray').value='3'; app.get('tray').onchange(); app.flush();
-  app.api.startEffect('main'); app.frame(0); app.frame(500);
+  const admitted=app.now();
+  app.api.startEffect('main'); app.frame(admitted); app.frame(admitted+500);
   assert.deepEqual(Array.from(app.api.state().trayAngles),[10,20,95,40,50,60]);
   return app;
 }

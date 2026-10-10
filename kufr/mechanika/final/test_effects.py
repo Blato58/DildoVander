@@ -128,10 +128,10 @@ class ChoreographyContract(unittest.TestCase):
                             generate(changed)
 
     def test_current_variants_fit_maximum_calibration_and_viewer_budgets(self):
-        self.assertEqual(presentation_budgets(self.score['main']), (14790, Fraction(33550, 3)))
-        self.assertEqual(presentation_budgets(self.score['short']), (11970, 8050))
-        self.assertEqual(viewer_frame_count(self.score['main']), 671)
-        self.assertEqual(viewer_frame_count(self.score['short']), 483)
+        self.assertEqual(presentation_budgets(self.score['main']), (14790, 11200))
+        self.assertEqual(presentation_budgets(self.score['short']), (11970, Fraction(24200, 3)))
+        self.assertEqual(viewer_frame_count(self.score['main']), 672)
+        self.assertEqual(viewer_frame_count(self.score['short']), 484)
         generate(self.score)
 
     def test_physical_budget_rejects_overlong_show_preparation_and_rest(self):
@@ -187,8 +187,8 @@ class ChoreographyContract(unittest.TestCase):
             for stage in ('raise', 'lower'):
                 self.phase(changed, variant, stage)['duration_ms'] = 7024
         self.assertEqual(sum(step['duration_ms'] for step in changed['short']), 14999)
-        self.assertEqual(viewer_frame_count(changed['short']), 908)
-        with self.assertRaisesRegex(ValueError, 'short: illustrative viewer budget .*908 frames'):
+        self.assertEqual(viewer_frame_count(changed['short']), 909)
+        with self.assertRaisesRegex(ValueError, 'short: illustrative viewer budget .*909 frames'):
             generate(changed)
 
     def test_viewer_nominal_frame_budget_accepts_899_and_rejects_900_for_both_variants(self):
@@ -199,17 +199,17 @@ class ChoreographyContract(unittest.TestCase):
             baseline[variant] = [baseline[variant][0]] + baseline[variant][-4:]
             baseline[variant][0].update(duration_ms=1, audio=None, tone_hz=0)
             self.phase(baseline, variant, 'show')['duration_ms'] = 1
-            self.phase(baseline, variant, 'rest')['duration_ms'] = 883
+            self.phase(baseline, variant, 'rest')['duration_ms'] = 866
             for stage in ('raise', 'lower'):
                 self.phase(baseline, variant, stage)['duration_ms'] = 7000
-            # 840 motion frames + 1 prepare + 1 show + 53 rest + 4 handovers.
+            # 840 motion + 1 prepare + 1 show + 52 rest + 5 admission/handovers.
             self.assertEqual(viewer_frame_count(baseline[variant]), 899)
             self.assertEqual(presentation_budgets(baseline[variant])[1], Fraction(44950, 3))
         generate(baseline)
         for variant in ('main', 'short'):
             with self.subTest(variant=variant):
                 changed = copy.deepcopy(baseline)
-                self.phase(changed, variant, 'rest')['duration_ms'] = 884
+                self.phase(changed, variant, 'rest')['duration_ms'] = 867
                 self.assertEqual(viewer_frame_count(changed[variant]), 900)
                 self.assertEqual(presentation_budgets(changed[variant])[1], 15000)
                 with self.assertRaisesRegex(ValueError, f'{variant}: illustrative viewer budget 15000.00 ms'):

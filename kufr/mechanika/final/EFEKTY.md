@@ -35,12 +35,14 @@ Celá prezentace má pevný limit 15 s od přijetí návrhu, včetně přípravy
 obou pohybů a závěrečného klidu. Přechody mezi fázemi jej neprodlužují.
 Při prvním průchodu řídicí smyčky při dosažení 15 s nebo později se výstupy vypnou
 a vznikne chyba bez automatického návratu či obnovení dostupnosti.
-Stejný limit dodržuje náhled, i když prohlížeč pozastaví animaci.
+Stejný limit dodržuje náhled od přijetí kliknutí na spuštění, i když
+prohlížeč pozastaví animaci ještě před prvním snímkem.
 Generátor odmítne také sekvenci, která se do limitu nevejde už podle
 časování: započítá přípravu, ukázku, klid a nejdelší povolenou kalibraci
 3 000 ms pro každý pohyb, zaokrouhlení na nominální 10ms průchody a dva
 přechody mezi fázemi. Samostatně kontroluje náhled při nominálních 60 Hz,
-včetně zaokrouhlení na snímky a přechodového snímku mezi fázemi.
+včetně prvního intervalu po spuštění, zaokrouhlení na snímky a přechodového
+snímku mezi fázemi.
 Pomalejší smyčka nebo prohlížeč mohou vyvolat bezpečné zastavení limitem;
 validace nezaručuje rychlost skutečného zařízení.
 Lokální syntetické tóny využívají existující I2S B profil,

@@ -2,20 +2,31 @@
 
 ## F2 — vložka do skutečného kufru, 10. 10. 2026
 
+CI `21ecc48` prošlo. Následná P2 je opravená: náhled měří limit 15 s
+od přijetí kliknutí ještě před přípravou zvuku a kontroluje aktuální
+monotónní čas před každým výstupem. Uspání před prvním snímkem ani starší
+časová značka snímku rozpočet neprodlouží. Nová regrese proti původnímu
+kódu selhala; po opravě prošlo 27 testů vieweru a 15 testů efektů.
+Nominální rozpočet náhledu započítá i první interval po spuštění
+(hlavní 672 snímků / 11 200 ms, krátká 484 / přibližně 8 066,67 ms).
+Firmware, jeho hlavička i data choreografie se nemění. Nezávislé review,
+úplná regenerace a audit nového ZIPu prošly; výsledek je doložený níže.
+Závěrečné CI, review a merge budou ověřené v PR #170 po odeslání opravy.
+
 CI `6413398` prošlo. Následné review našlo zbývající zastaralé tvrzení
 o svícení všech 36 LED v potvrzeném návodu zapojení. Oprava mění pouze
 popis na jediný 20cm úsek, obnovuje schválený otisk zdroje a jeho kopii
 pro Inspect. Topologie a firmware se nemění. Nezávislá kontrola navazující
 dokumentace nenašla další rozpor v LED souběhu ani limitu 15 s. Úplná
 regenerace i nezávislý audit nového ZIPu prošly; oprava je odeslaná.
-Čeká se na kontroly posledního commitu v PR #170.
+Kontroly tohoto commitu prošly; následná oprava náhledu je popsaná výše.
 
 CI `43d2903` prošlo; dvě následné P2 jsou opravené. Generátor nyní odmítá
 choreografii, která se při nejdelší kalibraci a nominálním časování nevejde
 pod limit 15 s; README firmwaru správně uvádí jediný svítící LED úsek.
 Nezávislé review a úplná regenerace prošly. Runtime, aktuální data efektů
 a generovaná hlavička se touto opravou nezměnily. Nezávislý audit nového
-ZIPu rovněž prošel. Oprava je odeslaná, čeká se na závěrečné kontroly PR.
+ZIPu rovněž prošel. Oprava je odeslaná a její CI prošlo.
 
 P1 review PR #170 na `44463c2` je zpracované: doplněný absolutní limit celé
 prezentace 15 s a omezení na jediný LED úsek prošly hostitelskými regresemi,
@@ -45,7 +56,7 @@ zůstávají zachované; doplněné pasivní USB zakončení je výslovně v mat
 choreografii s `PhysicalPresentation`, světly a volitelnými místními tóny
 existujícího I2S adaptéru. Stop neprovádí automatický návrat.
 
-Provedeno: 91 Python testů, 20 testů vieweru, hostitelské testy prezentace
+Provedeno: 91 Python testů, 27 testů vieweru, hostitelské testy prezentace
 a fyzických efektů, `pio run -e esp32-s3-idf` PASS (RAM 91 660 B,
 flash 1 746 865 B).
 Geometrický výsledek je `PASS_CAD_NOT_PHYSICAL_ACCEPTANCE`: 32 STL typů /
@@ -64,10 +75,15 @@ zachytávání kliknutí kartou, degenerované STL držáků a kontrolu otisků 
 Aktuální autorita je [verification.json](../mechanika/final/exports/verification.json).
 
 Celá regenerace 10. 10. 2026 skončila úspěšně včetně osmi prohlédnutých
-renderů, výkresů a samostatného ZIPu (43 527 591 B, SHA256
-`cf1a23550e94ba19d984ce65b605cf672fb3b628519502f51d92d886f9810a16`).
+renderů, výkresů a samostatného ZIPu (43 529 672 B, SHA256
+`8ef43307e53bc87a344d2f831567461637fcb842b337e86dc1f9ef41dacad7d5`).
 Závěrečný browser načetl nové výstupy, zobrazil šest přepravních pásků
 a odpojené USB v držáku; konzole bez varování a chyb.
+Po poslední opravě časování znovu dokončil hlavní i krátkou sekvenci
+se zdvihem 16 mm a návratem do klidu. Stop a přepnutí do přepravy správně
+vynutily servis až do explicitního resetu; konzole bez varování/chyb.
+Všech 32 STL a osm renderů zůstalo byte po bytu shodných s prohlédnutými
+výstupy. Opravené časování je v nově vygenerovaném vieweru a ZIPu výše.
 Nezávislá kontrola ZIPu: CRC a přesný seznam 143 členů, 49 otisků zdrojů,
 93 otisků exportního indexu, 92 ověřených exportů, 89 výstupů generování
 a 69 CAD souborů PASS proti ZIPu i checkoutu. Po rozbalení mimo repozitář
