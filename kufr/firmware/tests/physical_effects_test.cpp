@@ -143,6 +143,71 @@ class CueSink final : public PresentationAudioPort {
   void StopCues() override { ++stops; }
 };
 
+const PresentationScore::Step& MainPhase(PresentationScore::Stage stage) {
+  for (const auto& step : PresentationScore::Main) {
+    if (step.stage == stage) return step;
+  }
+  assert(false);
+  return PresentationScore::Main[0];
+}
+
+void AssertSelectedLights(const FakeIo& io, const PresentationScore::Step& step) {
+  // Fixture selects compartment 3; all other compartments must be dark.
+  for (unsigned i = 0; i < 108; i += 3) {
+    const bool selected = i >= 36 && i < 54;
+    assert(io.pixels[i] == (selected ? step.green * KufrBoard::InitialBrightness / 255 : 0));
+    assert(io.pixels[i + 1] == (selected ? step.red * KufrBoard::InitialBrightness / 255 : 0));
+    assert(io.pixels[i + 2] == (selected ? step.blue * KufrBoard::InitialBrightness / 255 : 0));
+  }
+}
+
+void EveryAuthoredPhaseAndRestCompletion() {
+  const auto& raise = MainPhase(PresentationScore::Stage::Raise);
+  const auto& show = MainPhase(PresentationScore::Stage::Show);
+  const auto& lower = MainPhase(PresentationScore::Stage::Lower);
+  const auto& rest = MainPhase(PresentationScore::Stage::Rest);
+  Fixture f(20); // Hardware motion finishes before the illustrative viewer travel.
+  CueSink audio;
+  f.adapter.BindAudio(audio);
+  assert(f.Start("all-authored-phases"));
+  bool sawRaise = false, sawShow = false, sawLower = false;
+  uint64_t restAt = 0;
+  for (uint64_t t = 40; t < 15000; t += 10) {
+    f.Tick(t);
+    if (f.io.servoWrites == 1 && f.io.run) {
+      sawRaise = true;
+      AssertSelectedLights(f.io, raise);
+      if (raise.toneHz) assert(audio.notes.back() == raise.toneHz);
+    }
+    if (f.presentation.State() == WandPresentationState::Showing) {
+      sawShow = true;
+      AssertSelectedLights(f.io, show);
+      if (show.toneHz) assert(audio.notes.back() == show.toneHz);
+    }
+    if (f.io.servoWrites == 2 && f.io.run) {
+      sawLower = true;
+      AssertSelectedLights(f.io, lower);
+      if (lower.toneHz) assert(audio.notes.back() == lower.toneHz);
+    }
+    if (f.io.servoWrites == 2 && f.effects.IsResting(3) && !restAt) restAt = t;
+    if (restAt && t - restAt < rest.durationMs) {
+      assert(!f.io.run && f.journal.pending && f.journal.restores == 0);
+      assert(f.presentation.State() == WandPresentationState::Lowering);
+      assert(!f.adapter.IsResting(3));
+      AssertSelectedLights(f.io, rest);
+      assert(audio.stops == 1);
+    }
+    if (f.presentation.State() == WandPresentationState::Idle) {
+      assert(restAt && t - restAt >= rest.durationMs);
+      assert(!f.journal.pending && f.journal.restores == 1 && !f.io.run);
+      break;
+    }
+  }
+  assert(sawRaise && sawShow && sawLower && restAt);
+  assert(f.presentation.State() == WandPresentationState::Idle);
+  assert(f.adapter.LowerTimeoutMs(3) == f.effects.MotionTimeoutMs(3) + rest.durationMs);
+}
+
 void SharedScoreAndRepeat() {
   Fixture f;
   CueSink audio;
@@ -278,6 +343,6 @@ void LongerCalibratedTravel() {
 }
 
 int main() {
-  LimitsAndFaults(); SharedScoreAndRepeat(); AutonomousCycle(); ManualCycle(); InterruptedReturn(); LongerCalibratedTravel();
+  LimitsAndFaults(); EveryAuthoredPhaseAndRestCompletion(); SharedScoreAndRepeat(); AutonomousCycle(); ManualCycle(); InterruptedReturn(); LongerCalibratedTravel();
   std::cout << "Physical limits, calibrated commanded travel, journal, autonomous/manual return and Stop passed\n";
 }

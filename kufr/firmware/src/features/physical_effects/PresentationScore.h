@@ -2,33 +2,42 @@
 #pragma once
 #include <stdint.h>
 namespace PresentationScore {
-struct Step { uint16_t durationMs; int8_t target; uint8_t red, green, blue; bool vibration; uint16_t toneHz; };
+enum class Stage : uint8_t { Prepare, Raise, Show, Lower, Rest };
+// Raise/Lower durationMs is viewer-only; firmware motion uses servo calibration.
+struct Step { Stage stage; uint16_t durationMs; int8_t target; uint8_t red, green, blue; bool vibration; uint16_t toneHz; };
 constexpr Step Main[] = {
-  {600, -1, 60, 12, 90, false, 220},
-  {120, 1, 90, 30, 220, false, 385},
-  {120, 2, 90, 30, 220, false, 440},
-  {120, 3, 90, 30, 220, false, 495},
-  {120, 4, 90, 30, 220, false, 550},
-  {120, 5, 90, 30, 220, false, 605},
-  {120, 6, 90, 30, 220, false, 660},
-  {300, -2, 20, 40, 170, false, 392},
-  {300, -3, 120, 20, 170, false, 349},
-  {500, 0, 255, 140, 20, false, 523},
-  {150, 0, 255, 170, 30, true, 110},
-  {150, 0, 30, 10, 0, false, 0},
-  {150, 0, 255, 170, 30, true, 110},
-  {150, 0, 30, 10, 0, false, 0},
-  {150, 0, 255, 170, 30, true, 110},
-  {150, 0, 30, 10, 0, false, 0},
-  {200, 0, 0, 0, 0, false, 0},
+  {Stage::Prepare, 600, -1, 60, 12, 90, false, 220},
+  {Stage::Prepare, 120, 1, 90, 30, 220, false, 385},
+  {Stage::Prepare, 120, 2, 90, 30, 220, false, 440},
+  {Stage::Prepare, 120, 3, 90, 30, 220, false, 495},
+  {Stage::Prepare, 120, 4, 90, 30, 220, false, 550},
+  {Stage::Prepare, 120, 5, 90, 30, 220, false, 605},
+  {Stage::Prepare, 120, 6, 90, 30, 220, false, 660},
+  {Stage::Prepare, 300, -2, 20, 40, 170, false, 392},
+  {Stage::Prepare, 300, -3, 120, 20, 170, false, 349},
+  {Stage::Prepare, 500, 0, 255, 140, 20, false, 523},
+  {Stage::Prepare, 150, 0, 255, 170, 30, true, 110},
+  {Stage::Prepare, 150, 0, 30, 10, 0, false, 0},
+  {Stage::Prepare, 150, 0, 255, 170, 30, true, 110},
+  {Stage::Prepare, 150, 0, 30, 10, 0, false, 0},
+  {Stage::Prepare, 150, 0, 255, 170, 30, true, 110},
+  {Stage::Prepare, 150, 0, 30, 10, 0, false, 0},
+  {Stage::Prepare, 200, 0, 0, 0, 0, false, 0},
+  {Stage::Raise, 1000, 0, 255, 220, 110, false, 880},
+  {Stage::Show, 5000, 0, 255, 170, 30, false, 0},
+  {Stage::Lower, 1000, 0, 80, 30, 10, false, 0},
+  {Stage::Rest, 250, 0, 0, 0, 0, false, 0},
 };
 constexpr uint32_t MainPreparationMs = 3520;
 constexpr Step Short[] = {
-  {400, 0, 255, 170, 30, false, 523},
-  {150, 0, 255, 170, 30, true, 110},
-  {150, 0, 0, 0, 0, false, 0},
+  {Stage::Prepare, 400, 0, 255, 170, 30, false, 523},
+  {Stage::Prepare, 150, 0, 255, 170, 30, true, 110},
+  {Stage::Prepare, 150, 0, 0, 0, 0, false, 0},
+  {Stage::Raise, 1000, 0, 255, 220, 110, false, 880},
+  {Stage::Show, 5000, 0, 255, 170, 30, false, 0},
+  {Stage::Lower, 1000, 0, 80, 30, 10, false, 0},
+  {Stage::Rest, 250, 0, 0, 0, 0, false, 0},
 };
 constexpr uint32_t ShortPreparationMs = 700;
 constexpr uint32_t ShowMs = 5000;
-constexpr uint16_t RevealToneHz = 880;
 }
