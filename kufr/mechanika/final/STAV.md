@@ -34,6 +34,10 @@ GitHub review PR #172 doplnilo do měrky také skutečné boční kapsy M3/M4
 včetně uzavřených střech a slepého dna. První tisk tím ověří osazení matic
 ještě před tiskem čtyř velkých kotev; matice se po zkoušce použijí v sestavě.
 Úpravu pokrývá regresní kontrola shody profilů a zasunutí matic bez kolize.
+Navazující připomínka doplnila do téže měrky i přesnou produkční dutinu
+epoxidového zámku včetně spodního vstupu a obou horních odvzdušnění.
+Před tiskem kotev se zkouší přemostění i naplnění odspodu; geometrie je
+sdílená s kotvami. Počet typů a výtisků tím zůstává nezměněný.
 
 Aktuální kotvy mají 36 831,325 mm² lepených stop a 85 zámků; minimum
 spodního filmu a zámků je 36,958 ml bez ztrát. BOM uvádí dvě balení

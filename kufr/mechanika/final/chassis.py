@@ -49,6 +49,16 @@ def carrier_holes():
     return holes
 
 
+def carrier_head_clearance(x,y):
+    """Actual underside M3 head relief tool, including 0.1 mm overrun."""
+    return hole_z(x,y,6.2,z=6.35,height=1.75)
+
+
+def frame_head_clearance(x,y):
+    """Actual M4 panel head tool; the panel clips it to 0.5 mm depth."""
+    return hole_z(x,y,7.5,z=F["floor_anchors"]["frame_head_z"],height=5)
+
+
 def rail_shape(spec):
     x,y,z=spec["origin"]
     t,leg=spec["thickness"],spec["leg"]
@@ -101,7 +111,7 @@ def frame():
         holes.append(cq.Solid.makeCone(3.3,1.7,1.6,cq.Vector(xx,yy,z+t),cq.Vector(0,0,-1)))
     for xx,yy in rack_holes():
         # ISO4762 M4 head sits 0.5 mm into the panel, on a real annular seat.
-        holes.append(hole_z(xx,yy,7.5,z=F["floor_anchors"]["frame_head_z"],height=5))
+        holes.append(frame_head_clearance(xx,yy))
     result=fuse([result]+[rail_shape(spec) for spec in F["stiffeners"]])
     return cut(result,holes)
 
@@ -207,10 +217,21 @@ def floor_anchor_clearances(name):
         tools.extend(anchor_nut_clearances(nut,edge))
     # Carriers/guide bolts are preassembled outside the case. These cavities
     # allow their real heads/nuts without opening any module/frame nut roof.
-    tools += [hole_z(x,y,6.2,z=6.35,height=1.75) for x,y in carrier_holes()]
+    tools += [carrier_head_clearance(x,y) for x,y in carrier_holes()]
     tools += [hole_z(x,y,8.2,z=5.2,height=2.9) for x,y in guide_holes()]
     tools += [hex_prism(x,y,5.6,6.7,2.5) for x,y in seam_floor_holes()]
     return tuple(tools)
+
+
+def floor_anchor_key_shape(x,y):
+    """Production epoxy key void, shared with the printer-fit coupon."""
+    a=F["floor_anchors"]
+    neck=cylinder(a["key_neck_diameter"]/2,a["key_head_bottom"]-a["z"],(x,y,a["z"]))
+    head=cylinder(a["key_head_diameter"]/2,a["key_head_top"]-a["key_head_bottom"],(x,y,a["key_head_bottom"]))
+    # Two 2.5 mm vents/witnesses reach the top. Paste is prepacked through
+    # the open 6 mm underside neck, never syringe-injected.
+    mouths=[cylinder(1.25,8-a["key_head_top"],(x+dx,y,a["key_head_top"])) for dx in (-2,2)]
+    return fuse([neck,head]+mouths)
 
 
 @lru_cache
@@ -231,12 +252,7 @@ def floor_anchor_keys(name):
                 continue
             if any(clearance.intersect(tool).Volume()>1e-6 for tool in exclusions):
                 continue
-            neck=cylinder(a["key_neck_diameter"]/2,a["key_head_bottom"]-a["z"],(x,y,a["z"]))
-            head=cylinder(radius,a["key_head_top"]-a["key_head_bottom"],(x,y,a["key_head_bottom"]))
-            # Two 2.5 mm vents/witnesses reach the top. Paste is prepacked
-            # through the open 6 mm underside neck, never syringe-injected.
-            mouths=[cylinder(1.25,8-a["key_head_top"],(x+dx,y,a["key_head_top"])) for dx in (-2,2)]
-            keys.append({"x":x,"y":y,"shape":fuse([neck,head]+mouths)})
+            keys.append({"x":x,"y":y,"shape":floor_anchor_key_shape(x,y)})
     return tuple(keys)
 
 

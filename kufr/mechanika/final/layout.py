@@ -229,12 +229,22 @@ def camera_bracket():
 
 
 def fit_coupon():
-    from chassis import anchor_nut_clearances, anchor_nuts, floor_anchor_specs
+    from chassis import (anchor_nut_clearances, anchor_nuts,
+                         floor_anchor_specs, floor_anchor_key_shape,
+                         carrier_head_clearance, frame_head_clearance)
 
     shape=box(85,58,4).fuse(box(8,10,22,(5,34,4)))
     # Coupon-only seat reproduces the one-mm lug-to-cam-face axial gap.
     shape=fuse([shape, cylinder(5,1,(78,51,4)), follower_coupon_peg()])
     holes=[hole_z(x,12,d,z=-1,height=6) for x,d in zip((10,25,41,61),(3.4,4.5,12.4,19.4))]
+    # Standard head-fit samples share the production relief tools. Align the
+    # actual anchor/panel top faces, retaining the cutters' harmless overrun.
+    m3_head=carrier_head_clearance(10,12)
+    floor=PARAMS["frame"]["floor_anchors"]
+    holes.append(m3_head.translate((0,0,4-floor["z"]-floor["height"])))
+    m4_head=frame_head_clearance(25,12)
+    panel_top=PARAMS["frame"]["origin"][2]+PARAMS["frame"]["size"][2]
+    holes.append(m4_head.translate((0,0,4-panel_top)))
     holes += [box(8+2*c,10+2*c,6,(x,33,-1)) for x,c in ((25,.3),(44,.45),(64,.6))]
     # One attached 7.5 mm block reproduces both production nut tunnels, roofs
     # and blind tips. Z=0 is the anchor's printed bottom (global Z=0.5).
@@ -248,6 +258,10 @@ def fit_coupon():
         nut=next(n for n in anchor_nuts(anchor) if n["kind"]==kind)
         shift=(target_x-nut["x"],-edge,-PARAMS["frame"]["floor_anchors"]["z"])
         holes.extend(tool.translate(shift) for tool in anchor_nut_clearances(nut,edge))
+    # This third internal-bridge sample also checks the 9 mm epoxy chamber,
+    # 6 mm underside neck and both 2.5 mm vents before large anchor prints.
+    holes.append(floor_anchor_key_shape(100,40).translate(
+        (0,0,-PARAMS["frame"]["floor_anchors"]["z"])))
     return cut(shape,holes)
 
 
