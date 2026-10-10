@@ -17,6 +17,8 @@ Před publikací i po stažení artefaktu odmítne zastaralý main. Nginx routy
 instaluje správce jednou přes `deploy/install-site-host.sh github-runner`.
 Installer zachová ostatní routy, privátně zazálohuje konfiguraci a při chybě
 obnoví původní stav. Nemění backendovou službu, credentialy ani databáze.
+HTTPS šablona obsahuje volitelné include pro Workshop a CloudVPSBridge,
+aby opakovaný původní bootstrap neztratil již nainstalované rozšíření.
 
 Po úspěšném ověření nového webu odstraňuje deploy výhradně dva historické
 soubory `/var/www/kufr-ios/kufr-mechanika-prototyp.zip` a `viewer.html`.

@@ -35,12 +35,15 @@ from pathlib import Path
 import sys
 path = Path(sys.argv[1])
 text = path.read_text()
-include = '    include /etc/nginx/snippets/dildovander-site.conf;'
+include = '    include /etc/nginx/snippets/dildovander-site.con[f];'
+legacy_include = '    include /etc/nginx/snippets/dildovander-site.conf;'
+text = text.replace(legacy_include, include)
 if include not in text:
     anchor = '    client_max_body_size 4m;'
     if text.count(anchor) != 1:
         raise SystemExit('Unexpected Nginx site; do not overwrite it')
-    path.write_text(text.replace(anchor, anchor + '\n\n' + include))
+    text = text.replace(anchor, anchor + '\n\n' + include)
+path.write_text(text)
 PY
 if ! nginx -t || ! systemctl reload nginx.service || ! curl --fail --silent --show-error --max-time 10 -o /dev/null http://127.0.0.1:5080/healthz; then
   cp -- "$backup/nginx-site.conf" "$site"
