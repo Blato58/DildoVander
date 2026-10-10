@@ -2,11 +2,18 @@
 
 ## F2 — vložka do skutečného kufru, 10. 10. 2026
 
+CI `43d2903` prošlo; dvě následné P2 jsou opravené. Generátor nyní odmítá
+choreografii, která se při nejdelší kalibraci a nominálním časování nevejde
+pod limit 15 s; README firmwaru správně uvádí jediný svítící LED úsek.
+Nezávislé review a úplná regenerace prošly. Runtime, aktuální data efektů
+a generovaná hlavička se touto opravou nezměnily. Nezávislý audit nového
+ZIPu rovněž prošel; následuje odeslání poslední opravy a kontroly PR.
+
 P1 review PR #170 na `44463c2` je zpracované: doplněný absolutní limit celé
 prezentace 15 s a omezení na jediný LED úsek prošly hostitelskými regresemi,
 nezávislou kontrolou, cílovým buildem i úplnou regenerací. Nezávislý audit
-nového archivu rovněž prošel a opravy jsou odeslané; zbývá CI a poslední
-Codex review před merge.
+tehdejšího archivu rovněž prošel a opravy byly odeslané; CI prošlo.
+Následující dvě P2 a jejich oprava jsou popsané výše.
 Třetí nález k pasivnímu USB
 zakončení je věcně odmítnutý: aktuální zadání výslovně povoluje běžné
 vodiče a pasivní konektory k doplnění; nejde o novou funkční elektroniku
@@ -30,7 +37,7 @@ zůstávají zachované; doplněné pasivní USB zakončení je výslovně v mat
 choreografii s `PhysicalPresentation`, světly a volitelnými místními tóny
 existujícího I2S adaptéru. Stop neprovádí automatický návrat.
 
-Provedeno: 86 Python testů, 20 testů vieweru, hostitelské testy prezentace
+Provedeno: 91 Python testů, 20 testů vieweru, hostitelské testy prezentace
 a fyzických efektů, `pio run -e esp32-s3-idf` PASS (RAM 91 660 B,
 flash 1 746 865 B).
 Geometrický výsledek je `PASS_CAD_NOT_PHYSICAL_ACCEPTANCE`: 32 STL typů /
@@ -49,14 +56,14 @@ zachytávání kliknutí kartou, degenerované STL držáků a kontrolu otisků 
 Aktuální autorita je [verification.json](../mechanika/final/exports/verification.json).
 
 Celá regenerace 10. 10. 2026 skončila úspěšně včetně osmi prohlédnutých
-renderů, výkresů a samostatného ZIPu (43 526 083 B, SHA256
-`ca6477fd2d0046ee5712b22668a6119f7e0f57df7a27c002398421b533820eae`).
+renderů, výkresů a samostatného ZIPu (43 528 031 B, SHA256
+`085d8ed3c897db3fd12fa18ac88ba7431a0b60e4792e365267e85482c7ed4bac`).
 Závěrečný browser načetl nové výstupy, zobrazil šest přepravních pásků
 a odpojené USB v držáku; konzole bez varování a chyb.
 Nezávislá kontrola ZIPu: CRC a přesný seznam 143 členů, 49 otisků zdrojů,
 93 otisků exportního indexu, 92 ověřených exportů, 89 výstupů generování
 a 69 CAD souborů PASS proti ZIPu i checkoutu. Po rozbalení mimo repozitář
-prošlo 48 testů (19 Inspect, 10 efektů, 11 balení, 8 ověřovací brány).
+prošlo 53 testů (19 Inspect, 15 efektů, 11 balení, 8 ověřovací brány).
 V checkoutu platí všech 22
 lokálních Markdown odkazů; v ZIPu pouze odkaz README na samotný ZIP
 nemá cíl (archiv se do sebe záměrně nebalí). Referenční podklady jsou přiložené.
@@ -108,8 +115,16 @@ regenerace prošla, všech 32 STL a osm renderů je byte po bytu shodných.
 Nový browser znovu přehrál všech šest výběrů se zdvihem 16 mm a návratem
 do klidu, bez varování/chyb konzole. Opravy byly 10. 10. 2026 odeslány
 commitem `f2ae30366760f894dbb114410d6e545b3cf32b72`;
-`Push-CurrentBranch.ps1` ověřil shodný vzdálený SHA. Čeká se na kontroly
-posledního commitu; tento záznam sám merge nepotvrzuje.
+`Push-CurrentBranch.ps1` ověřil shodný vzdálený SHA. CI následného commitu
+`43d2903` prošlo. Jeho dvě P2 jsou opravené: fyzický rozpočet započítá dvě
+3 000ms jízdy, zaokrouhlení fází na 10ms průchody a 20 ms předání;
+hlavní varianta má 14 790 ms, krátká 11 970 ms. Náhled započítá nominální
+60Hz snímky i předání mezi fázemi. Všech 15 regresí efektů prošlo,
+včetně hranic 14 990/15 000 ms a 899/900 snímků. Nezávislý test skutečného
+vieweru potvrdil dokončení při 899 a zastavení při 900 snímcích.
+Následná úplná regenerace prošla; všech 32 STL, osm renderů a viewer jsou
+byte po bytu shodné s prohlédnutou verzí. Browser načetl nové výstupy
+bez varování/chyb konzole. Tento záznam sám merge nepotvrzuje.
 
 Fyzická výroba, nalepení kotev, zkouška přepravy, kalibrace a nahrání
 firmware neproběhly. Neuzavřené jsou zbývající tvarové rozměry a usazení
