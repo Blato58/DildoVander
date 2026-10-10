@@ -229,11 +229,25 @@ def camera_bracket():
 
 
 def fit_coupon():
+    from chassis import anchor_nut_clearances, anchor_nuts, floor_anchor_specs
+
     shape=box(85,58,4).fuse(box(8,10,22,(5,34,4)))
     # Coupon-only seat reproduces the one-mm lug-to-cam-face axial gap.
     shape=fuse([shape, cylinder(5,1,(78,51,4)), follower_coupon_peg()])
     holes=[hole_z(x,12,d,z=-1,height=6) for x,d in zip((10,25,41,61),(3.4,4.5,12.4,19.4))]
     holes += [box(8+2*c,10+2*c,6,(x,33,-1)) for x,c in ((25,.3),(44,.45),(64,.6))]
+    # One attached 7.5 mm block reproduces both production nut tunnels, roofs
+    # and blind tips. Z=0 is the anchor's printed bottom (global Z=0.5).
+    shape=shape.fuse(box(30,58,7.5,(85,0,0)))
+    # Retain the existing inverted groove coupon's hand-fit clearance above
+    # the one-mm seat; the taller extension must not become a second stop.
+    holes.append(box(4,18,3.6,(85,40,4)))
+    anchor="floor_anchor_front_left"
+    edge=floor_anchor_specs()[anchor]["y_range"][0]
+    for kind,target_x in (("module",93),("frame",107)):
+        nut=next(n for n in anchor_nuts(anchor) if n["kind"]==kind)
+        shift=(target_x-nut["x"],-edge,-PARAMS["frame"]["floor_anchors"]["z"])
+        holes.extend(tool.translate(shift) for tool in anchor_nut_clearances(nut,edge))
     return cut(shape,holes)
 
 

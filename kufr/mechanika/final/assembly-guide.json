@@ -6,8 +6,8 @@
       "title": "Ověření podkladů a zkušební výtisk",
       "parts": [],
       "wires": [],
-      "instruction": "Vytisknout měrku a jeden zkušební modul. Změřit skutečné hůlky s pouzdrem, konektory a osu serva. Nasucho vložit obrys 400 × 240 mm nad 5mm výztuhu. Lůžko tisknout otočené +90° kolem Y, integrální Ø6 čep směřuje vzhůru bez podpor na kluzné ploše. Nevyhovující vůli opravit tiskovým profilem nebo parametrem a znovu vytisknout; nikdy pilníkem, vrtákem ani změnou měřítka STL. Ověřit, že skutečné původní otvory páky přijmou M2 bez vrtání; jinak upravit tištěnou spojku nebo použít vhodnou standardní neupravenou páku před finálním tiskem.",
-      "check": "Zapsané rozměry odpovídají parametrům; tisková vůle funguje; víko se nedotýká obálky.",
+      "instruction": "Vytisknout měrku se 100% výplní a jeden zkušební modul. Před tiskem velkých kotev nasunout skutečné matice M3 i M4 bočními tunely měrky pod uzavřenou střechu a vyzkoušet šrouby; potom matice vyjmout pro finální montáž. Změřit skutečné hůlky s pouzdrem, konektory a osu serva. Nasucho vložit obrys 400 × 240 mm nad 5mm výztuhu. Lůžko tisknout otočené +90° kolem Y, integrální Ø6 čep směřuje vzhůru bez podpor na kluzné ploše. Nevyhovující vůli opravit tiskovým profilem nebo parametrem a znovu vytisknout; nikdy pilníkem, vrtákem ani změnou měřítka STL. Ověřit, že skutečné původní otvory páky přijmou M2 bez vrtání; jinak upravit tištěnou spojku nebo použít vhodnou standardní neupravenou páku před finálním tiskem.",
+      "check": "Zapsané rozměry odpovídají parametrům; čep a vedení mají funkční vůli; obě matice jdou bočně zasunout i vyjmout bez opracování a šrouby se ručně chytí do závitu; víko se nedotýká obálky.",
       "materials": [
         {
           "id": "PETG",
@@ -21,7 +21,7 @@
       ],
       "camera": "overview",
       "depends": [],
-      "partSummary": "2 × díl tiskové měrky (čep a drážka); 1 × půdorysná šablona"
+      "partSummary": "2 × díl tiskové měrky (čep, kapsy M3/M4 a drážka); 1 × půdorysná šablona"
     },
     {
       "id": "frame",

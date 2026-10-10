@@ -18,18 +18,22 @@ a odhady. Překročenou obálku řešit parametry a regenerací.
 
 PETG: STL již mají tiskovou orientaci. Použít vrstvu 0,2 mm, nejméně
 4 perimetry a 5 plných horních i spodních vrstev. Čtyři podlahové kotvy,
-`lift_base`, `wand_bed` a `dwell_cam` tisknout se 100% výplní, aby nominální
+`lift_base`, `wand_bed`, `dwell_cam` a zkušební `fit_coupon` tisknout se 100% výplní, aby nominální
 nosné průřezy nebyly nahrazené řídkou výplní. Ostatní díly přibližně 40 %.
 Přemostění vnitřních kapes matic a epoxidových zámků nejprve zkontrolovat
 v náhledu sliceru a na zkušebním výtisku; uvnitř těchto dutin nezavřít podpory.
 Připravit 3 kg PETG. Součet plných CAD objemů všech 52 výtisků při hustotě
-1,27 g/cm³ odpovídá přibližně 2,40 kg; samotné povinně plné díly přibližně
-1,45 kg. Skutečnou spotřebu ostatních dílů, podpor, lemů a zkoušek určí
+1,27 g/cm³ odpovídá přibližně 2,42 kg; samotné povinně plné díly přibližně
+1,49 kg. Skutečnou spotřebu ostatních dílů, podpor, lemů a zkoušek určí
 slicer. Původní 1kg položka pro tuto variantu nestačí.
 Namáhaná vodítka, vačky, kluzný čep a střechy matic nesmějí mít nedotisky.
 Lůžko je otočené +90° kolem Y; integrální čep Ø6 směřuje vzhůru. Kluzná
 plocha čepu ani drážky nesmí mít kontaktní plochy podpor. Nejdříve ověřit
-čep a odpovídající drážku dvoudílnou měrkou. Vůli řešit profilem nebo
+čep a odpovídající drážku dvoudílnou měrkou. Ještě před tiskem velkých
+kotev do měrky z boku zasunout skutečné M3 a M4 matice, vyzkoušet
+zachycení závitu šroubem a matice opět vyjmout pro finální sestavu.
+Tunely, šestihranné kapsy, slepé dno a uzavřené střechy měrky mají stejný
+profil a tiskovou orientaci jako kotvy. Vůli řešit profilem nebo
 parametrem a novým tiskem, nikdy pilníkem, vrtákem nebo měřítkem STL.
 Brusný papír se smí použít jen k přípravě skutečných lepených stop dřeva.
 

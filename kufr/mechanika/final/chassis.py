@@ -180,22 +180,31 @@ def anchor_nuts(name):
     return result
 
 
+def anchor_nut_clearances(nut, edge):
+    """Production hex pocket, side-loading tunnel and blind screw-tip bore.
+
+    Coupon callers translate these exact tools rather than reconstructing a
+    similar pocket, so printer fit and unsupported roof bridges match anchors.
+    """
+    x,y=nut["x"],nut["y"]
+    bottom=nut["z"]-.1
+    roof=F["floor_anchors"]["nut_roof_z"]
+    diameter=nut["pocket"]
+    # Tunnel ends at the nut centre so the far hex half prevents rotation.
+    return (hex_prism(x,y,bottom,diameter,roof-bottom),
+            box(diameter,abs(y-edge),roof-bottom,
+                (x-diameter/2,min(y,edge),bottom)),
+            hole_z(x,y,nut["bore"],z=1.0,height=7.1))
+
+
 @lru_cache
 def floor_anchor_clearances(name):
     """Closed roofs, side insertion, blind tips and explicit underside reliefs."""
-    a=F["floor_anchors"]; spec=floor_anchor_specs()[name]
+    spec=floor_anchor_specs()[name]
     tools=[]
+    edge=spec["y_range"][0] if spec["end"]=="front" else spec["y_range"][1]
     for nut in anchor_nuts(name):
-        x,y=nut["x"],nut["y"]
-        bottom=nut["z"]-.1
-        roof=a["nut_roof_z"]
-        diameter=nut["pocket"]
-        tools.append(hex_prism(x,y,bottom,diameter,roof-bottom))
-        # Tunnel ends at the nut centre so the far hex half prevents rotation.
-        edge=spec["y_range"][0] if spec["end"]=="front" else spec["y_range"][1]
-        tools.append(box(diameter,abs(y-edge),roof-bottom,
-                         (x-diameter/2,min(y,edge),bottom)))
-        tools.append(hole_z(x,y,nut["bore"],z=1.0,height=7.1))
+        tools.extend(anchor_nut_clearances(nut,edge))
     # Carriers/guide bolts are preassembled outside the case. These cavities
     # allow their real heads/nuts without opening any module/frame nut roof.
     tools += [hole_z(x,y,6.2,z=6.35,height=1.75) for x,y in carrier_holes()]

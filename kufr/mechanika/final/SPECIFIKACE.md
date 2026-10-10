@@ -97,6 +97,9 @@ a oddělenou rezervu tření vodítek. Při μ=0,4 vychází kvazistatický mome
 Nejde o potvrzenou únosnost PETG ani provozní moment konkrétního serva.
 Kotvy, základny, lůžka a vačky mají předepsanou 100% výplň; tím se ovšem
 neprokazuje pevnost vrstev, kvalita přemostění ani teplotní odolnost výtisku.
+Zkušební `fit_coupon` se tiskne také plně. Obsahuje shodné boční tunely,
+šestihranné kapsy M3/M4, slepé dno a střechy podlahových kotev; skutečné
+matice musí jít zasunout a vyjmout před tiskem celé sady kotev.
 Přepravní zajištění tvoří šest 8mm pásků skrz základny a prázdná lůžka.
 Pásky zachycují převrácení nezávisle na převodech; před provozem se vyjmou.
 Bez snímače jejich stav nepotvrzuje elektronika. Výpadek uprostřed pohybu
