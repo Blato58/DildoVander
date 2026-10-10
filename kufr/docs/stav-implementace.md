@@ -31,8 +31,10 @@ nenašlo blokující vadu po opravě montážního pořadí a vůlí hlav M4.
 
 Další krok: zkušební tisk a fyzické ověření tření, zatížení, lepení,
 tečení PETG a rozměrů skutečného servohornu. Výrobní kvalifikace ani
-hardware akceptace nejsou splněné. Git předání a PR následují po tomto
-ověření. Merge automaticky publikuje veřejný Workshop; tato publikace
+hardware akceptace nejsou splněné. Implementační commit `f5846f5` byl přes
+`Push-CurrentBranch.ps1` úspěšně odeslán a vzdálený SHA ověřen na větvi
+`codex/printed-no-tool-mechanics`. PR následuje po tomto předání.
+Merge automaticky publikuje veřejný Workshop; tato publikace
 není zahrnuta v samotném zadání úpravy mechaniky a čeká na souhlas.
 
 ## U1 — Arcane Workshop a automatický veřejný web, 10. 10. 2026
