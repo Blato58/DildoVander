@@ -7,7 +7,7 @@
     {
       "phase": "Probuzení",
       "duration_ms": 600,
-      "target": "all",
+      "target": "selected",
       "light": [
         60,
         12,

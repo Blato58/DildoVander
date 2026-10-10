@@ -48,7 +48,8 @@ rezervní nakoupené kusy zůstávají v inventáři mimo kufr. Každá deska m�
 pevné dorazy a pásky, nosiče vlastní spojení s rámem. Powerbanku lze po
 odpojení USB a uvolnění krytu a dvou pásků vyjmout nahoru.
 Pasivní USB-A zásuvka a kabel pro napájení ESP jsou uvedené k doplnění
-v kabelovém plánu; jejich dostupnost není potvrzeným nákupem.
+v kabelovém plánu; jejich dostupnost není potvrzeným nákupem. Zadání
+výslovně dovoluje tyto pasivní montážní díly; podklad je ve specifikaci.
 
 ## Ovládání vieweru
 
@@ -66,6 +67,8 @@ v reálném firmware jej určí kalibrace. Stop zmrazí neznámou mezilehlou
 polohu; reset vyžaduje servisní režim. Generátor předává všechny fáze
 sekvence a odmítá nepodporované pořadí, kanály nebo souběhy. Závěrečný
 klid trvá 250 ms s vypnutými výstupy. Zvuk prohlížeče je volitelný.
+Svítí jen jeden LED úsek. Pevný limit celé prezentace je 15 s; při jeho
+dosažení se sekvence zastaví s požadavkem na kontrolu a servisní reset.
 Montážní režim ukazuje kumulativní stav s krokem, materiálem, nástroji a
 kontrolou. Přeprava odstraní banku, hůlky a textil a ukáže šest pásků i
 odpojený parkovaný USB konektor. Přepnutí režimu ovládá pouze model.
