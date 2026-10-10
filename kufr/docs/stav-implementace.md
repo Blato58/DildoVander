@@ -63,8 +63,10 @@ Skutečný browser ověřil tento artefakt včetně vieweru, Companionu a odpoje
 simulátoru. Následné drobné zdrojové úpravy zvětšují odkaz patičky rozcestníku
 a diagnostické odkazy iOS instalace na alespoň 44 px; oba náhledy prošly
 na 320/390 px bez přetékání a iOS publisher má stále 4 úspěšné testy.
-Předání je zatím rozpracované: čeká začlenění posledního ověřeného F2 z PR #170,
-CI výsledného tree, review/merge a skutečný deploy
+F2 PR #170 je sloučený jako `6477fbf5`; ověřený tree cílového main je shodný
+s `07adaab5`. Synchronizace UI větve zachovala celý již začleněný obsah,
+nezávislá kontrola kombinovaného vieweru nenašla blokující problém.
+Předání je zatím rozpracované: čeká CI výsledného tree, review/merge a skutečný deploy
 webu a nový podepsaný iOS build. Webové kontroly neprokazují akceptaci iPhonu,
 VoiceOver ani fyzickou bezpečnost/mechaniku. Tyto hranice zůstávají otevřené.
 
