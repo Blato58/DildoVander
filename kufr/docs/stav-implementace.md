@@ -7,7 +7,7 @@ choreografii, která se při nejdelší kalibraci a nominálním časování nev
 pod limit 15 s; README firmwaru správně uvádí jediný svítící LED úsek.
 Nezávislé review a úplná regenerace prošly. Runtime, aktuální data efektů
 a generovaná hlavička se touto opravou nezměnily. Nezávislý audit nového
-ZIPu rovněž prošel; následuje odeslání poslední opravy a kontroly PR.
+ZIPu rovněž prošel. Oprava je odeslaná, čeká se na závěrečné kontroly PR.
 
 P1 review PR #170 na `44463c2` je zpracované: doplněný absolutní limit celé
 prezentace 15 s a omezení na jediný LED úsek prošly hostitelskými regresemi,
@@ -124,7 +124,10 @@ včetně hranic 14 990/15 000 ms a 899/900 snímků. Nezávislý test skutečné
 vieweru potvrdil dokončení při 899 a zastavení při 900 snímcích.
 Následná úplná regenerace prošla; všech 32 STL, osm renderů a viewer jsou
 byte po bytu shodné s prohlédnutou verzí. Browser načetl nové výstupy
-bez varování/chyb konzole. Tento záznam sám merge nepotvrzuje.
+bez varování/chyb konzole. Poslední oprava byla 10. 10. 2026 odeslána
+commitem `f0d1dbe2f7ee7cd9003084e57b4b5a3d6a718c47`;
+`Push-CurrentBranch.ps1` ověřil shodný vzdálený SHA. Aktuální CI/review
+a případný merge dokládá PR #170; tento záznam sám merge nepotvrzuje.
 
 Fyzická výroba, nalepení kotev, zkouška přepravy, kalibrace a nahrání
 firmware neproběhly. Neuzavřené jsou zbývající tvarové rozměry a usazení
