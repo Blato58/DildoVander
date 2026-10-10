@@ -1,79 +1,62 @@
 # Stav implementace AI kufru
 
-## F2 — montáž bez opracování kovů, ověřený návrh 10. 10. 2026
+## F2 — montáž bez opracování kovů, finální ověření 10. 10. 2026
 
-Rolničku a její samostatné spojovací díly nahrazuje integrální kluzný
-čep Ø6 mm vytištěný s lůžkem; šest přihrádek a zdvih 16 mm zůstávají.
+Rolničku a její samostatné spojovací díly nahrazuje kluzný čep Ø6 mm
+vytištěný přímo s lůžkem. Šest přihrádek a zdvih 16 mm zůstávají.
 Čtyři lepené PETG podlahové kotvy s bočně vkládanými maticemi a 85
 odlitými epoxidovými zámky nahrazují kovové úhelníky; lišty jsou součástí
-tištěných panelů. Montáž nevyžaduje pilník, pilku, vrtačku ani ohýbání.
+čtyř tištěných panelů. Montáž nevyžaduje pilník, pilku, vrtačku ani ohýbání.
 Brusný papír slouží pouze pro lepené stopy na dřevu. Aktualizované jsou
-CAD, dvě zkušební měrky, výpočty, 15 montážních kroků, servisní pořadí,
-BOM, výkresy a viewer. Zásoba PETG je 3 kg; lepidlo 2 × 24 ml.
+CAD, výpočty, 15 montážních kroků, servisní pořadí, BOM, výkresy a viewer.
+Zásoba je 3 kg PETG a 2 × 24 ml epoxidu; část rezervy slouží zkoušce.
 
-Před rozšířením měrky podle PR review v izolovaném worktree
-`printed-no-tool-mechanics` prošel celý
-`Regenerate.ps1`: 108 Python testů, 34 Node testů, montážní validátor,
-generování, geometrické ověření a balení. Samostatně prošly 4 testy stylu.
-Výsledek `PASS_CAD_NOT_PHYSICAL_ACCEPTANCE`: 37 typů STL, 52 výtisků,
-79 CAD souborů, tři sestavy, 102 vzorků pohybu zdvihů, 36 poloh víka,
-37 poloh vyjmutí banky a 24 přístupů šroubováku bez zjištěných kolizí.
-Audit všech 135 vodičů prošel v klidu, přepravě a polohách 0/80/160°
-každého modulu; zahrnuje i vzájemnou geometrii vodičů. Nejde o spojitý
-důkaz pohybu ani fyzickou přejímku. ZIP obsahuje 161 souborů, 54 172 261 B;
-SHA-256 `41abdc29d794fafd60a7bc9f82e15c1a3d4dc5c3ec312660c5cc04a1d89d5f1c`.
-Balicí skript ověřil každý archivovaný soubor proti přijatým otiskům.
+Po obou konstrukčních připomínkách PR review zahrnuje dvoudílná měrka
+čep/drážku, skutečné boční kapsy M3/M4 včetně střech a slepého dna,
+produkční epoxidový zámek Ø6/Ø9 s oběma Ø2,5 odvzdušněními a skutečná
+zahloubení hlav šroubů. Geometrie se sdílí s produkčními díly; všechny
+čtyři kotvy i 85 zámků zůstaly shodné. Měrka se tiskne se 100% výplní;
+před velkými kotvami se ověřují matice, hlavy, přemostění i plnění zámku.
+Patnáct cílených testů a nezávislé review se čtyřmi dalšími cílenými
+kontrolami prošly bez zbývající konstrukční připomínky.
 
-PR #172 následně identifikovalo chybějící zkoušku bočních kapes matic.
-Měrka nyní obsahuje přesné produkční profily M3/M4 ze společné funkce,
-3mm střechu i 0,5mm slepé dno; kotvy a ostatní sestava jsou nezměněné.
-Všech 13 cílených testů kotev/měrky/čepu prošlo. Montáž výslovně požaduje
-100% výplň měrky a zasunutí skutečných matic před tiskem velkých kotev.
-Autoritou plného ověření rozšířené měrky jsou aktuální
-`final/exports/verification.json` a `package-sha256.txt`; přijmout je lze
-jen při shodě zdrojových SHA-256. Výše uvedený otisk ZIPu patří předchozí
-variantě, nikoli tomuto doplnění. Oprava `6676e0a` byla úspěšně pushnuta
-a její vzdálený SHA ověřen. Nezávislé review potvrdilo nulový rozdíl
-všech 84 produkčních nástrojových objemů; dva další cílené testy prošly.
-Review vlákno PR #172 je vyřešené; výsledek CI je dostupný přímo v PR.
+Celý `Regenerate.ps1` po poslední změně prošel: 113 Python testů,
+34 Node testů, generování, geometrický audit a balení. Samostatně dříve
+prošly 4 testy nezměněného sdíleného stylu. Výsledek je výhradně
+`PASS_CAD_NOT_PHYSICAL_ACCEPTANCE`: 37 typů STL / 52 výtisků a 79 CAD
+souborů. Tři sestavy, 102 vzorků zdvihu, 36 poloh víka, 37 poloh vyjmutí
+banky a 24 přístupů nástroje prošly bez kolizí. Audit 135 vodičů prošel
+v klidu, přepravě a 0/80/160° každého modulu, včetně vzájemných kolizí.
+Montážní validátor pokrývá 15 kroků, 545 dílů scény a všech 135 vodičů.
 
-Finální regenerace po doplnění měrky 10. 10. 2026 prošla celá:
-111 Python testů, 34 Node testů, všech 79 CAD souborů, kolizní audit
-sestavy i 135 vodičů a všech 15 montážních kroků. Počty zůstávají
-37 typů STL / 52 výtisků. Výsledek `PASS_CAD_NOT_PHYSICAL_ACCEPTANCE`.
-Aktuální ZIP má 161 členů, 54 214 717 B a SHA-256
-`f32082840636daf430950609be85292af8be3ce3fb96f730b49c5a979e3ab150`.
-Zpětné čtení ZIPu, CRC i otisky všech členů prošly; prohlížeč ověřil
-nový první krok s M3/M4 kapsami bez konzolových chyb.
+Aktuální ZIP má 161 členů, 54 259 317 B a SHA-256
+`5253cd97e7c889f552e3444c3da92cf12ebff554186aff2faf7fd6c2eaade89d`.
+Balicí skript ověřil každý archivovaný soubor proti přijatým otiskům;
+zpětné čtení ZIPu a CRC prošly. Dodatečná kontrola potvrdila, že zdrojové
+SHA-256 v `final/exports/verification.json` odpovídají aktuálním souborům.
+Předchozí lokální ZIPy před doplněním měrky nejsou aktuální předání.
 
-Druhé review PR #172 doplňuje do stejné měrky také produkční epoxidový
-zámek Ø6/Ø9 s oběma Ø2,5 odvzdušněními a kontrolu skutečných zahloubení
-hlav M3/M4. Společné geometrické funkce zachovávají všechny produkční
-kotvy; změna se týká zkušebního výtisku a jeho montážního kroku. Lepidlo
-se připravuje už v prvním kroku, zkouška spotřebuje část původní rezervy.
-Všech 15 cílených testů kotev/měrky/čepu a montážní validátor prošly;
-produkční objemy kotev i všech 85 zámků jsou beze změny.
-Výše uvedený ZIP ještě tuto druhou připomínku nepokrývá; aktuální
-exporty musí znovu projít plnou regenerací a kontrolou zdrojových otisků.
+Browser na localhost:8916 ověřil provoz, zdvih 0–160°/16 mm, přepravu,
+montáž a úzké i široké zobrazení. Poslední regenerovaný viewer zobrazuje
+zkoušku matic, hlav a plnění zámku, obě balení epoxidu a pomůcky v prvním
+kroku; dlouhý text je přístupný posuvem panelu. Bez konzolových chyb;
+vedlejší favicon.ico vrací 404. Lokální odkazy v mechanické dokumentaci
+byly ověřeny. Firmware ani fyzické zařízení se v tomto slice neměnily.
 
-Browser na localhost:8916 ověřil montážní kroky, nové kotvy, pohyb
-0–160°/16 mm, přepravní stav a úzké i široké zobrazení bez konzolových
-chyb. Vedlejší požadavek favicon.ico vrací 404. Všech 22 lokálních
-odkazů v mechanické dokumentaci má nyní existující cíl. Nezávislé review
-nenašlo blokující vadu po opravě montážního pořadí a vůlí hlav M4.
+Práce proběhla v izolovaném worktree `printed-no-tool-mechanics`.
+Implementační commity včetně posledního `80e6588` byly úspěšně odeslány
+přes `Push-CurrentBranch.ps1` a vzdálený SHA byl ověřen na větvi
+`codex/printed-no-tool-mechanics`, [PR #172](https://github.com/Blato58/DildoVander/pull/172).
+CI run `38073199793` se vůbec nespustil: GitHub uvádí „The job was not
+started because an Actions budget is preventing further use.“ Nejde
+o neúspěch CAD testů; bez úspěšného CI nebyl proveden merge. Merge navíc
+automaticky publikuje veřejný Workshop; tato publikace čeká na souhlas
+podle hranice oprávnění v AGENTS.md.
 
-Další krok: zkušební tisk a fyzické ověření tření, zatížení, lepení,
-tečení PETG a rozměrů skutečného servohornu. Výrobní kvalifikace ani
-hardware akceptace nejsou splněné. Implementační commit `f5846f5` byl přes
-`Push-CurrentBranch.ps1` úspěšně odeslán a vzdálený SHA ověřen na větvi
-`codex/printed-no-tool-mechanics`. Oprava měrky i záznam předání
-jsou pushnuté do [PR #172](https://github.com/Blato58/DildoVander/pull/172).
-CI run `38071954833` a synchronizační run `38071953450` se nespustily:
-GitHub uvádí „The job was not started because an Actions budget is
-preventing further use.“ Jde o blokaci rozpočtem Actions, nikoli výsledek
-CAD testů. Bez úspěšného CI nebyl proveden merge.
-Merge automaticky publikuje veřejný Workshop; tato publikace
-není zahrnuta v samotném zadání úpravy mechaniky a čeká na souhlas.
+Další krok je fyzický zkušební tisk: skutečný tiskový profil, plnění
+zámků, lepení ke dřevu, tečení PETG, zatížené tření čepu a rozměry
+serva/páky. Vzorkovaná CAD kontrola není spojitým důkazem pohybu.
+Výrobní kvalifikace ani hardware akceptace nejsou splněné.
 
 ## U1 — Arcane Workshop a automatický veřejný web, 10. 10. 2026
 
