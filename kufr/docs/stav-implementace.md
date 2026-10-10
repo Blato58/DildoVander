@@ -5,7 +5,8 @@
 P1 review PR #170 na `44463c2` je zpracované: doplněný absolutní limit celé
 prezentace 15 s a omezení na jediný LED úsek prošly hostitelskými regresemi,
 nezávislou kontrolou, cílovým buildem i úplnou regenerací. Nezávislý audit
-nového archivu rovněž prošel; zbývá Git předání a CI posledního commitu.
+nového archivu rovněž prošel a opravy jsou odeslané; zbývá CI a poslední
+Codex review před merge.
 Třetí nález k pasivnímu USB
 zakončení je věcně odmítnutý: aktuální zadání výslovně povoluje běžné
 vodiče a pasivní konektory k doplnění; nejde o novou funkční elektroniku
@@ -105,7 +106,9 @@ nedokončené prezentace a vyžaduje se fyzická kontrola; nevznikne falešné
 potvrzení návratu. Nezávislé review je bez nálezu. Následná úplná
 regenerace prošla, všech 32 STL a osm renderů je byte po bytu shodných.
 Nový browser znovu přehrál všech šest výběrů se zdvihem 16 mm a návratem
-do klidu, bez varování/chyb konzole. Čeká se na Git předání a kontroly
+do klidu, bez varování/chyb konzole. Opravy byly 10. 10. 2026 odeslány
+commitem `f2ae30366760f894dbb114410d6e545b3cf32b72`;
+`Push-CurrentBranch.ps1` ověřil shodný vzdálený SHA. Čeká se na kontroly
 posledního commitu; tento záznam sám merge nepotvrzuje.
 
 Fyzická výroba, nalepení kotev, zkouška přepravy, kalibrace a nahrání
