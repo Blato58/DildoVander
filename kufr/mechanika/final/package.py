@@ -5,7 +5,7 @@ import zipfile
 
 from geometry import ROOT, PARAMS
 from build import OUT,source_hashes
-from artifacts import package_files, export_names, assert_cad_hashes
+from artifacts import package_files, assert_cad_hashes, assert_verified_exports
 
 
 def main():
@@ -17,9 +17,8 @@ def main():
     manifest=json.loads(manifest_bytes)
     assert manifest["sources"]==report["sources"],"Export and verification source manifests differ"
     assert_cad_hashes(ROOT,manifest,report)
-    hashes={name:hashlib.sha256((OUT/name).read_bytes()).hexdigest()
-            for name in export_names(manifest) if name!='artifact-sha256.json'}
-    assert hashes['verification.json']==hashlib.sha256(report_bytes).hexdigest(), 'Verification report changed while packaging'
+    assert_verified_exports(OUT,manifest,report)
+    hashes={**report['export_sha256'],'verification.json':hashlib.sha256(report_bytes).hexdigest()}
     assert hashes['manifest.json']==hashlib.sha256(manifest_bytes).hexdigest(), 'Manifest changed while packaging'
     index_bytes=(json.dumps(hashes,indent=2)+'\n').encode('utf-8')
     (OUT/'artifact-sha256.json').write_bytes(index_bytes)

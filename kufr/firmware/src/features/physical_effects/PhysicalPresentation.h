@@ -17,9 +17,13 @@ class PhysicalPresentation final : public WandPresentationPort {
   bool IsReady(uint8_t compartment) const override { return effects_.Ready(compartment); }
   bool IsSafeToContinue() const override { return effects_.Healthy(); }
   uint64_t RaiseTimeoutMs(uint8_t n) const override {
-    return PresentationScore::MainPreparationMs + 1000 + effects_.MotionTimeoutMs(n);
+    const uint32_t preparationMs = repeat_ ? PresentationScore::ShortPreparationMs
+                                          : PresentationScore::MainPreparationMs;
+    return preparationMs + 1000 + effects_.MotionTimeoutMs(n);
   }
-  uint64_t LowerTimeoutMs(uint8_t n) const override { return effects_.MotionTimeoutMs(n); }
+  uint64_t LowerTimeoutMs(uint8_t n) const override {
+    return effects_.MotionTimeoutMs(n) + RestDurationMs();
+  }
   bool IsRaised(uint8_t compartment) const override;
   bool IsResting(uint8_t compartment) const override;
   bool Raise(uint8_t compartment, const std::string& proposalId,
@@ -28,10 +32,11 @@ class PhysicalPresentation final : public WandPresentationPort {
   bool Complete(uint8_t compartment) override;
   void DisableAndFault() override;
  private:
-  enum class Phase { Idle, Score, Raise, Raised, Lower };
+  enum class Phase { Idle, Score, Raise, Raised, Lower, Rest };
   bool EnterScoreStep();
   const PresentationScore::Step& CurrentStep() const;
   unsigned StepCount() const;
+  uint16_t RestDurationMs() const;
   PhysicalEffects& effects_;
   DeviceControlRuntime& runtime_;
   Phase phase_ = Phase::Idle;

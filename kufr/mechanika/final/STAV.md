@@ -22,16 +22,26 @@ Autoritou geometrického výsledku je `exports/verification.json`, který
 obsahuje přesné SHA-256 zdrojů, počty dílů a provedených kontrol. Úspěšný
 status je výhradně `PASS_CAD_NOT_PHYSICAL_ACCEPTANCE`. Balicí skript
 nepřijme starší ověření, změněné zdroje ani chybějící aktuální soubory.
+`generation-snapshot.json` svazuje výstupy generování s aktuálními zdroji;
+ověření zaznamenává také otisky vieweru, výkresů, CSV a obrázků. Balení je
+pouze porovná s ověřeným stavem, nevytváří dodatečnou důvěru změněným souborům.
 Počet typů STL, počet výtisků a tiskové rozměry jsou v `exports/print-bom.csv`.
 Samotné vygenerování vieweru či ZIPu není fyzická přejímka.
 
-Samostatná kontrola firmware 10. 10. 2026: cílový ESP-IDF build prošel,
+Samostatná kontrola firmware 10. 10. 2026 před rozšířením generátoru všech
+fází choreografie: cílový ESP-IDF build prošel,
 RAM 91 644 B, flash 1 746 349 B. Hostitelský test fyzických efektů prošel.
 Nezávislá kontrola kódu ověřila Stop, časování, souběh hlasu a akcentů;
 velký lokální PCM buffer byl přesunut mimo zásobník. Objektový kód
 `PumpCue` má zásobníkový rámec 96 B proti původním 5 216 B. Se zásobníkovým
 rámcem `Capture` je součet 6 384 B před dalšími voláními.
 Skutečnou rezervu zásobníku a fungování I2S potvrdí až deska.
+
+Po rozšíření generátoru všech fází choreografie znovu prošel cílový
+ESP-IDF build: RAM 91 644 B, flash 1 746 709 B. Hostitelský test ověřuje
+barvy/tóny jednotlivých fází, kalibrovaný pohyb a vypnuté PWM během
+závěrečných 250 ms klidu před obnovením dostupnosti. Zdrojové kontroly
+odmítají nepodporované kanály, souběhy a hodnoty zvuku.
 
 Kontrola zdrojové geometrie: 32 typů STL / 47 výtisků, platná
 jednotlivá tělesa a tisková plocha 220 × 220 mm. Montáž pokrývá 589 dílů
