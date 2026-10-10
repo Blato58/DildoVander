@@ -561,12 +561,23 @@ function clearWireSelection() {
 function closeInspect() { shiftDown = false; inspectEnabled = false; pinned = null; hovered = null; clearWireSelection(); requestDraw(); }
 function setWorkshopPanel(name, open) {
   const panel = el(name === 'explorer' ? 'sidebar' : 'inspector-rail');
+  const activeElement = document.activeElement;
+  const focusWasInside = panel.contains(activeElement);
   panel.setAttribute('data-open', String(open));
-  el(name+'-toggle').setAttribute('aria-expanded', String(open));
+  const toggle = el(name+'-toggle');
+  toggle.setAttribute('aria-expanded', String(open));
   if (open) {
     const other = name === 'explorer' ? 'inspector' : 'explorer';
-    el(other === 'explorer' ? 'sidebar' : 'inspector-rail').setAttribute('data-open', 'false');
+    const otherPanel = el(other === 'explorer' ? 'sidebar' : 'inspector-rail');
+    const focusWasInOther = otherPanel.contains(activeElement);
+    otherPanel.setAttribute('data-open', 'false');
     el(other+'-toggle').setAttribute('aria-expanded', 'false');
+    const closeButton = el(name+'-close');
+    if (focusWasInOther && !otherPanel.getClientRects().length && closeButton.getClientRects().length) {
+      closeButton.focus({preventScroll:true});
+    }
+  } else if (focusWasInside && !panel.getClientRects().length && toggle.getClientRects().length) {
+    toggle.focus({preventScroll:true});
   }
   requestDraw();
 }
