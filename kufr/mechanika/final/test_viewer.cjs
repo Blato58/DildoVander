@@ -274,6 +274,64 @@ test('Stop freezes intermediate lift and disables further output until explicit 
   app.get('service-reset').onclick(); app.flush(); assert.equal(app.api.state().effectFault,false); assert.equal(app.api.state().trayAngles[2],0);
 });
 
+function partiallyRaisedSequence() {
+  const effects={max_brightness:64,main:[{phase:'Raise',duration_ms:1000,target:'selected',motion:'raise',light:[255,0,0]}]};
+  const app=viewer([],[
+    ...Array.from({length:6},(_,index)=>({name:'tray_'+(index+1),group:'moving'})),
+    ...Array.from({length:6},(_,index)=>({name:'bed_transport_tie_'+(index+1),group:'restraint',transportOnly:true})),
+  ],{effects,assemblyGuide:{steps:[{id:'tray',title:'Tray',parts:['tray_1'],materials:[],tools:[],camera:'top'}]}});
+  for (let index=1; index<=6; index++) {
+    app.get('tray').value=String(index); app.get('lift').value=String(index*10); app.get('lift').oninput();
+  }
+  app.get('tray').value='3'; app.get('tray').onchange(); app.flush();
+  app.api.startEffect('main'); app.frame(0); app.frame(500);
+  assert.deepEqual(Array.from(app.api.state().trayAngles),[10,20,95,40,50,60]);
+  return app;
+}
+
+test('switching mode during motion stops into service without changing any angles or showing transport ties', () => {
+  for (const requestedMode of ['transport','assembly','operation','service']) {
+    const app=partiallyRaisedSequence(), frozen=Array.from(app.api.state().trayAngles);
+    app.api.setMode(requestedMode); app.flush();
+    assert.equal(app.api.state().mode,'service',requestedMode);
+    assert.equal(app.get('mode').value,'service');
+    assert.equal(app.api.state().effectFault,true);
+    assert.deepEqual(Array.from(app.api.state().trayAngles),frozen);
+    assert.ok(app.meshes.filter(mesh=>mesh.transportOnly).every(mesh=>!app.api.visible(mesh)));
+    assert.equal(app.get('transport-panel').hidden,true);
+    assert.equal(app.get('assembly-panel').hidden,true);
+    assert.equal(app.get('lift').disabled,true);
+    assert.equal(app.get('play-main').disabled,true);
+    assert.match(app.get('effect-status').textContent,/servisní reset/);
+  }
+});
+
+test('already stopped motion cannot be reset by mode, slider or assembly controls; explicit service reset releases it', () => {
+  const app=partiallyRaisedSequence(), frozen=Array.from(app.api.state().trayAngles);
+  app.api.stopEffect(); app.flush();
+  for (const requestedMode of ['transport','assembly','operation']) {
+    app.get('mode').value=requestedMode; app.get('mode').onchange(); app.flush();
+    assert.equal(app.api.state().mode,'service');
+    assert.equal(app.get('mode').value,'service');
+    assert.deepEqual(Array.from(app.api.state().trayAngles),frozen);
+  }
+  app.get('lift').value='0'; app.get('lift').oninput();
+  app.api.moveAssembly(1); app.get('assembly-restart').onclick(); app.flush();
+  assert.equal(app.api.state().assemblyIndex,-1);
+  assert.deepEqual(Array.from(app.api.state().trayAngles),frozen);
+  assert.ok(app.meshes.filter(mesh=>mesh.transportOnly).every(mesh=>!app.api.visible(mesh)));
+  app.get('service-reset').onclick(); app.flush();
+  assert.equal(app.api.state().effectFault,false);
+  assert.deepEqual(Array.from(app.api.state().trayAngles),[0,0,0,0,0,0]);
+  app.api.setMode('transport'); app.flush();
+  assert.equal(app.api.state().mode,'transport');
+  assert.equal(app.meshes.filter(mesh=>mesh.transportOnly && app.api.visible(mesh)).length,6);
+  app.api.setMode('assembly'); app.api.moveAssembly(1); app.flush();
+  assert.equal(app.api.state().assemblyIndex,0);
+  app.api.setMode('operation'); app.flush();
+  assert.equal(app.get('play-main').disabled,false);
+});
+
 test('empty-space labels reuse DOM between pointer moves and refresh after view changes', () => {
   const app=viewer([],Array.from({length:230},(_,i)=>({name:'part_'+i,group:'hardware'})));
   app.hover(0); const first=app.get('names').children[0], measured=app.measurements();

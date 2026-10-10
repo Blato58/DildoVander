@@ -35,6 +35,8 @@ Tloušťky dřeva, detail pantů a rozdělení prostoru víka jsou parametry,
 nikoli rozměry odvozené jako jisté z perspektivních fotografií.
 
 Zvoleno šest modulů na rozteči 48 mm, s délkou 212 mm a zdvihem 16 mm.
+Majitel 10. 10. 2026 potvrdil délku hůlky do 200 mm a šířku hlavice 38 mm
+včetně případného pouzdra. Ostatní tvarové rozměry zůstávají předpoklady.
 Zachycená vačka řídí zdvih i návrat. Dole lůžko spočívá na pevných
 podpěrách; firmware vypne impulzy serva. Pro přepravu každé prázdné lůžko
 samostatně zachytí výrazný pásek široký 8 mm. Bez snímače se odjištění ověřuje ručně.

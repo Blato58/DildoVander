@@ -78,7 +78,7 @@
     "fabric": 0.8,
     "foam": 1.2,
     "design_payload_g": 150.0,
-    "dimensions_status": "photo length label 190-200; other dimensions conservative estimates, not measurements"
+    "dimensions_status": "owner confirmed maximum overall length 200 mm and head width 38 mm on 2026-10-10, including any sleeve in the question; head height 28, head length 55, shaft diameter 16 and payload 150 g remain design assumptions"
   },
   "mounting": {
     "velcro_thickness": 2.0,
@@ -110,7 +110,7 @@
     "manufacturing_ready": false,
     "pending": [
       "wood bond substrate and proof load",
-      "wand/sleeve measured maximum envelope",
+      "wand/sleeve height, head length, shaft diameter, mass and physical dry fit",
       "camera/FPC delivered fit",
       "servo pulse-off behaviour and loaded torque",
       "actual lid/hinge detail dry fit",

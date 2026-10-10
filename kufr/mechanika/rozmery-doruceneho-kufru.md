@@ -45,3 +45,4 @@ postup vede [stav implementace](../docs/stav-implementace.md).
 Montážní podklady jsou v [README mechaniky](README.md).
 Společný přehled rozměrů kufru, elektroniky, servopák a snadno vyjímatelné
 powerbanky je v [rozměrech součástek](rozmery-nakoupenych-soucastek.md).
+Potvrzenou délku a šířku hůlek vede [samostatný přehled](rozmery-hulek.md).
