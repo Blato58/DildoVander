@@ -8,12 +8,13 @@ import re
 import subprocess
 
 
-PROJECTS = ("repository", "backend", "firmware", "web", "ai-eval")
+PROJECTS = ("repository", "backend", "firmware", "web", "ai-eval", "site")
 BUILD_WORKFLOWS = {
     ".github/workflows/kufr-backend.yml": "backend",
     ".github/workflows/kufr-firmware.yml": "firmware",
     ".github/workflows/kufr-web.yml": "web",
     ".github/workflows/kufr-ai-eval.yml": "ai-eval",
+    ".github/workflows/kufr-site.yml": "site",
 }
 
 
@@ -28,7 +29,7 @@ def select_projects(paths):
         if path in BUILD_WORKFLOWS:
             selected[BUILD_WORKFLOWS[path]] = True
         if path in {"scripts/ci/package.py", "scripts/ci/test_package.py"}:
-            for name in ("backend", "firmware", "web"):
+            for name in ("backend", "firmware", "web", "site"):
                 selected[name] = True
         if path.startswith(("kufr/backend/", "kufr/backend-tests/")) or path in {
             "kufr/global.json", "kufr/Directory.Build.props"
@@ -38,13 +39,20 @@ def select_projects(paths):
             selected["firmware"] = True
         if path.startswith("kufr/mobilni-aplikace/"):
             selected["web"] = True
+            selected["site"] = True
+        if path.startswith(("kufr/web/", "kufr/mechanika/", "kufr/design-system/")):
+            selected["site"] = True
+        if path.startswith("kufr/design-system/"):
+            selected["web"] = True
         if path.startswith("kufr/ai-eval/"):
             selected["ai-eval"] = True
         if path.startswith("kufr/contracts/"):
-            for name in ("backend", "firmware", "web"):
+            for name in ("backend", "firmware", "web", "site"):
                 selected[name] = True
         if path.startswith("kufr/simulator/"):
             selected["firmware"] = selected["web"] = True
+            if PurePosixPath(path).name.startswith("dashboard"):
+                selected["site"] = True
     return selected
 
 

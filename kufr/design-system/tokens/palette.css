@@ -1,0 +1,15 @@
+:root {
+  color-scheme: dark;
+  --aw-void: #0D1218;
+  --aw-surface: #171F29;
+  --aw-elevated: #25313D;
+  --aw-brass: #D9B777;
+  --aw-ivory: #F3ECE0;
+  --aw-muted: #AAB7C2;
+  --aw-success: #79C6A4;
+  --aw-danger: #E7807C;
+  --aw-warning: #E3BC73;
+  --aw-info: #8CBBDD;
+  --aw-border: #6B7E8E;
+  --aw-border-subtle: #34424F;
+}

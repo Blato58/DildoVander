@@ -15,6 +15,7 @@ import mechanism
 import chassis
 import inspect_data
 import harness
+from viewer_style import snapshot_styles
 
 
 def mesh(shape):
@@ -132,10 +133,11 @@ def viewer():
     for record,anchor,title in zip(evidence,("inventar","zapojeni"),("Inventář a rozměry","Potvrzené elektrické zapojení")):
         sections.append(f'<section id="{anchor}"><h2>{title}</h2><p>{html.escape(record["name"])}</p>'
                         f'<p>SHA-256: <code>{record["sha256"]}</code></p><pre>{html.escape(record["text"])}</pre></section>')
-    document='<!doctype html><html lang="cs"><meta charset="utf-8"><title>Podklady F2</title>'
-    document+='<style>body{font:16px system-ui;max-width:1100px;margin:32px auto;padding:0 20px;background:#f4eadb;color:#34251e}pre{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5}code{overflow-wrap:anywhere}section{margin-top:40px;border-top:1px solid #bfa480}</style>'
+    document='<!doctype html><html lang="cs"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Podklady F2 · Arcane Workshop</title>'
+    document+='<style>'+snapshot_styles().read_text(encoding="utf-8")+'</style>'
+    document+='<style>body{max-width:1100px;margin:32px auto;padding:0 20px}pre{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5;font-family:var(--aw-font-mono)}code{overflow-wrap:anywhere}section{margin-top:40px;padding-top:24px;border-top:1px solid var(--aw-border)}nav{display:flex;flex-wrap:wrap;gap:16px}nav a{min-height:44px;display:inline-flex;align-items:center}</style><body class="aw-root">'
     document+='<h1>Úplné zdrojové podklady F2</h1><p>Ověřený otisk zdrojových dokumentů přibalený pro samostatné použití. Text včetně původních odkazů je zachovaný; odkazy uvnitř přepisu odkazují do původního repozitáře.</p>'
-    document+='<nav><a href="#inventar">Inventář a rozměry</a> · <a href="#zapojeni">Zapojení</a> · <a href="viewer.html">3D sestava</a></nav>'+''.join(sections)+'</html>'
+    document+='<nav aria-label="Zdrojové podklady"><a href="#inventar">Inventář a rozměry</a><a href="#zapojeni">Zapojení</a><a href="viewer.html">3D sestava</a></nav>'+''.join(sections)+'</body></html>'
     OUT.mkdir(parents=True,exist_ok=True)
     (OUT/"reference-sources.html").write_text(document,encoding="utf-8")
     meshes=[]
@@ -180,7 +182,10 @@ def viewer():
              "sources":inspect_data.source_evidence()}
     OUT.mkdir(parents=True,exist_ok=True)
     script=(ROOT/"viewer.js").read_text(encoding="utf-8")
-    viewer_html=template.replace("__VIEWER_SCRIPT__",script).replace("__MODEL_DATA__",json.dumps(payload,separators=(",",":")))
+    shared_styles=snapshot_styles().read_text(encoding="utf-8")
+    viewer_styles=(ROOT/"viewer-workshop.css").read_text(encoding="utf-8-sig")
+    viewer_html=template.replace("__WORKSHOP_DESIGN_SYSTEM__",shared_styles).replace("__WORKSHOP_VIEWER_STYLE__",viewer_styles)
+    viewer_html=viewer_html.replace("__VIEWER_SCRIPT__",script).replace("__MODEL_DATA__",json.dumps(payload,separators=(",",":")))
     (OUT/"viewer.html").write_text(viewer_html,encoding="utf-8")
 
 

@@ -6,7 +6,8 @@ const vm = require('node:vm');
 const path = require('node:path');
 
 class Element {
-  constructor() {
+  constructor(document = null) {
+    this.document = document; this.parent = null; this.rendered = true;
     this.value = ''; this.checked = true; this.hidden = true;
     this.children = []; this.style = {}; this.listeners = {}; this.attributes = {};
     this.clientWidth = 800; this.clientHeight = 600; this.width = 800; this.height = 600;
@@ -15,17 +16,26 @@ class Element {
   addEventListener(name, callback) { this.listeners[name] = callback; }
   fire(name, event = {}) { this.listeners[name]?.({preventDefault() {}, ...event}); }
   setAttribute(name, value) { this.attributes[name] = value; }
-  append(node) { this.children.push(node); }
+  getAttribute(name) { return this.attributes[name]; }
+  append(node) { node.parent = this; this.children.push(node); }
   add(node) { this.append(node); }
-  replaceChildren(...nodes) { this.children = nodes; }
+  replaceChildren(...nodes) { this.children = []; for (const node of nodes) this.append(node); }
+  contains(node) { return this === node || this.children.some(child => child === node || child.contains?.(node)); }
+  getClientRects() {
+    if (!this.rendered || (this.panelDrawer && this.attributes['data-open'] !== 'true')) return [];
+    if (this.parent && !this.parent.getClientRects().length) return [];
+    return [this.getBoundingClientRect()];
+  }
+  focus(options) { this.document.activeElement = this; this.focusOptions = options; }
   getBoundingClientRect() { return {left:0,top:0,width:800,height:600}; }
   setPointerCapture() {}
 }
 
 function viewer(routes = [], extraMeshes = [], data = {}) {
   const elements = new Map(), frames = [];
+  let document;
   let labelMeasurements = 0, clockNow = 0, audioStarts = 0;
-  const get = id => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); };
+  const get = id => { if (!elements.has(id)) elements.set(id, new Element(document)); return elements.get(id); };
   get('lid').value = '105'; get('lift').value = '0';
   if (data.viewport) [get('view').clientWidth,get('view').clientHeight]=data.viewport;
   if (data.canvasRect) get('view').getBoundingClientRect=()=>data.canvasRect;
@@ -51,7 +61,7 @@ function viewer(routes = [], extraMeshes = [], data = {}) {
     info:{title:item.name,description:item.name,details:[],source:'test'},
   }));
   function createElement() {
-    const node = new Element();
+    const node = new Element(document);
     for (const [property,value] of [['offsetWidth',100],['offsetHeight',22]]) {
       Object.defineProperty(node,property,{get() {
         if (node.className === 'object-name') labelMeasurements++;
@@ -60,11 +70,18 @@ function viewer(routes = [], extraMeshes = [], data = {}) {
     }
     return node;
   }
-  const document = {
-    getElementById:get, createElement, createElementNS:() => new Element(),
+  document = {
+    activeElement:null,
+    getElementById:get, createElement, createElementNS:() => new Element(document),
     listeners:{}, addEventListener(name, callback) { this.listeners[name] = callback; },
   };
-  const window = {listeners:{},addEventListener(name,callback) { this.listeners[name] = callback; }};
+  // Model only the ancestry/visibility needed by keyboard focus; layout stays fake.
+  for (const element of elements.values()) element.document = document;
+  get('sidebar').append(get('tree')); get('sidebar').append(get('explorer-close'));
+  get('inspector-rail').append(get('object')); get('inspector-rail').append(get('inspector-close'));
+  for (const id of ['sidebar','inspector-rail']) get(id).panelDrawer = !!data.mobilePanels;
+  for (const id of ['explorer-toggle','inspector-toggle','explorer-close','inspector-close']) get(id).rendered = !!data.mobilePanels;
+  const window = {location:data.location,listeners:{},addEventListener(name,callback) { this.listeners[name] = callback; }};
   window.AudioContext = class {
     constructor() { clockNow+=data.audioSetupDelayMs || 0; }
     resume() { return Promise.resolve(); }
@@ -557,4 +574,106 @@ test('transport and recommission instructions and Czech assembly material labels
   assert.match(app.get('assembly-materials').textContent,/4 × šroub M4 × 12/);
   assert.match(app.get('assembly-parts').textContent,/4 × kotva/);
   assert.deepEqual(app.get('orientation').children.map(node=>node.textContent),['PŘEDEK · ovládání','ZÁDA · panty','LEVÁ','PRAVÁ']);
+});
+
+test('workshop drawers expose and clear state; object selection opens inspector without changing geometry', () => {
+  const app=viewer();
+  app.get('explorer-toggle').onclick(); app.flush();
+  assert.equal(app.get('sidebar').attributes['data-open'],'true');
+  assert.equal(app.get('explorer-toggle').attributes['aria-expanded'],'true');
+  app.get('inspector-toggle').onclick(); app.flush();
+  assert.equal(app.get('inspector-rail').attributes['data-open'],'true');
+  assert.equal(app.get('sidebar').attributes['data-open'],'false');
+  app.get('inspector-close').onclick(); app.flush();
+  assert.equal(app.get('inspector-rail').attributes['data-open'],'false');
+  app.get('object').value='esp32'; app.get('object').onchange(); app.flush();
+  assert.equal(app.get('inspector-rail').attributes['data-open'],'true');
+  app.document.listeners.keydown({key:'Escape'}); app.flush();
+  assert.equal(app.get('inspector-rail').attributes['data-open'],'false');
+  assert.equal(app.api.state().pinned,'');
+  assert.equal(app.api.state().mode,'operation');
+});
+
+test('mobile panel close and Escape restore focus to the visible corresponding toggle', () => {
+  const app=viewer([],[],{mobilePanels:true});
+  app.get('explorer-toggle').onclick(); app.flush();
+  app.get('explorer-close').focus(); app.get('explorer-close').onclick(); app.flush();
+  assert.equal(app.document.activeElement,app.get('explorer-toggle'));
+  assert.equal(app.get('explorer-toggle').focusOptions.preventScroll,true);
+  app.get('inspector-toggle').onclick(); app.flush();
+  app.get('object').focus(); app.document.listeners.keydown({key:'Escape'}); app.flush();
+  assert.equal(app.document.activeElement,app.get('inspector-toggle'));
+  assert.equal(app.get('inspector-toggle').focusOptions.preventScroll,true);
+  app.get('explorer-toggle').onclick(); app.flush();
+  app.get('inspector-toggle').focus(); app.get('explorer-close').onclick(); app.flush();
+  assert.equal(app.document.activeElement,app.get('inspector-toggle'),'Closing a panel cannot steal outside focus');
+  app.get('explorer-toggle').onclick(); app.flush();
+  app.get('explorer-close').focus(); app.get('explorer-toggle').rendered=false;
+  app.get('explorer-close').onclick(); app.flush();
+  assert.equal(app.document.activeElement,app.get('explorer-close'),'Never transfer focus to a hidden toggle');
+});
+
+test('mobile tree selection transfers focus to Inspector; opening Explorer transfers it back', () => {
+  const app=viewer([],[],{mobilePanels:true});
+  app.get('explorer-toggle').onclick(); app.flush();
+  const treeButton=app.get('tree').children[0].children.find(node=>typeof node.onclick === 'function');
+  treeButton.focus(); treeButton.onclick(); app.flush();
+  assert.equal(app.document.activeElement,app.get('inspector-close'));
+  assert.equal(app.get('inspector-close').focusOptions.preventScroll,true);
+  assert.equal(app.get('sidebar').getClientRects().length,0);
+  app.get('object').focus(); app.get('explorer-toggle').onclick(); app.flush();
+  assert.equal(app.document.activeElement,app.get('explorer-close'));
+  assert.equal(app.get('explorer-close').focusOptions.preventScroll,true);
+  assert.equal(app.get('inspector-rail').getClientRects().length,0);
+});
+
+test('desktop docked panels preserve keyboard focus on selection, switching and Escape', () => {
+  const app=viewer();
+  const treeButton=app.get('tree').children[0].children.find(node=>typeof node.onclick === 'function');
+  treeButton.focus(); treeButton.onclick(); app.flush();
+  assert.equal(app.document.activeElement,treeButton,'The still-visible Explorer retains focus');
+  app.get('object').focus(); app.get('explorer-toggle').onclick(); app.flush();
+  assert.equal(app.document.activeElement,app.get('object'),'A still-visible Inspector retains focus');
+  treeButton.focus();
+  app.document.listeners.keydown({key:'Escape'}); app.flush();
+  assert.equal(app.document.activeElement,treeButton);
+});
+
+test('timeline follows shared effect durations and retains elapsed progress when Stop freezes motion', () => {
+  const phases=[{phase:'Raise',duration_ms:1000,target:'selected',motion:'raise',light:[255,0,0]},
+    {phase:'Lower',duration_ms:1000,target:'selected',motion:'lower',light:[0,0,0]}];
+  const app=viewer([],[{name:'tray_3',group:'moving'}],{effects:{main:phases,max_brightness:64}});
+  assert.equal(app.get('effect-timeline').children.length,2);
+  assert.equal(app.get('timeline-time').textContent,'0.0 / 2.0 s');
+  app.api.startEffect('main'); app.frame(0); app.frame(500);
+  assert.equal(app.get('timeline-time').textContent,'0.5 / 2.0 s');
+  assert.equal(app.get('effect-timeline').children[0].attributes['aria-current'],'step');
+  app.api.stopEffect(); app.flush();
+  assert.equal(app.get('timeline-time').textContent,'0.5 / 2.0 s');
+  assert.equal(app.api.state().trayAngles[2],80);
+  app.api.setMode('service'); app.get('service-reset').onclick(); app.flush();
+  assert.equal(app.get('timeline-time').textContent,'0.0 / 2.0 s');
+});
+
+test('offline home resolves inside complete package while hosted viewer links to project root', () => {
+  for (const location of [{protocol:'file:',hostname:''},{protocol:'http:',hostname:'127.0.0.1',pathname:'/viewer.html'}]) {
+    const app=viewer([],[],{location});
+    assert.equal(app.get('workshop-home').attributes.href,'./reference-sources.html');
+  }
+  const app=viewer([],[],{location:{protocol:'https:',hostname:'example.test'}});
+  assert.equal(app.get('workshop-home').attributes.href,'/');
+  const localSite=viewer([],[],{location:{protocol:'http:',hostname:'127.0.0.1',pathname:'/kufr/mechanika/final/exports/viewer.html'}});
+  assert.equal(localSite.get('workshop-home').attributes.href,'/');
+});
+
+test('workshop template retains all source viewer IDs once and exposes self-contained stylesheet placeholders', () => {
+  const template=fs.readFileSync(path.join(__dirname,'viewer-template.html'),'utf8');
+  const ids=[...template.matchAll(/\bid="([^"]+)"/g)].map(match=>match[1]);
+  assert.equal(new Set(ids).size,ids.length,'Duplicate DOM IDs break viewer handlers');
+  const script=fs.readFileSync(path.join(__dirname,'viewer.js'),'utf8');
+  for (const match of script.matchAll(/el\('([^']+)'\)/g)) assert.ok(ids.includes(match[1]),'Missing element '+match[1]);
+  assert.match(template,/href="\.\/F2-kouzelny-kufr.zip" download/);
+  assert.match(template,/__WORKSHOP_DESIGN_SYSTEM__/);
+  assert.match(template,/__WORKSHOP_VIEWER_STYLE__/);
+  assert.doesNotMatch(template,/<link[^>]+stylesheet/);
 });

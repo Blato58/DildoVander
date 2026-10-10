@@ -1,0 +1,102 @@
+name: Deploy Arcane Workshop
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/kufr-site*.yml'
+      - 'kufr/web/**'
+      - 'kufr/mechanika/**'
+      - 'kufr/design-system/**'
+      - 'kufr/mobilni-aplikace/**'
+      - 'kufr/contracts/**'
+      - 'kufr/simulator/dashboard*'
+      - 'scripts/ci/package.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: dildovander-site-production
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/kufr-site.yml
+
+  publish:
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: [self-hosted, Linux, X64, kufr-backend]
+    timeout-minutes: 15
+    env:
+      PUBLIC_IPV4: ${{ vars.KUFR_BACKEND_PUBLIC_IPV4 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Reject stale main before publication
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        with:
+          script: |
+            const current = await github.rest.git.getRef({ ...context.repo, ref: 'heads/main' });
+            if (current.data.object.sha !== process.env.EXPECTED_SHA) throw new Error('main changed during build');
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: arcane-site
+          path: ${{ runner.temp }}/arcane-package
+      - name: Unpack verified artifact
+        run: python3 scripts/ci/package.py unpack "$RUNNER_TEMP/arcane-package" "$RUNNER_TEMP/arcane-site-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+      - name: Recheck main immediately before activation
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        with:
+          script: |
+            const current = await github.rest.git.getRef({ ...context.repo, ref: 'heads/main' });
+            if (current.data.object.sha !== process.env.EXPECTED_SHA) throw new Error('main changed before activation');
+      - name: Atomically publish site
+        id: publish
+        run: |
+          python3 kufr/web/publish-site.py --site /var/www/dildovander \
+            --source "$RUNNER_TEMP/arcane-site-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --release-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --expected-sha "$GITHUB_SHA"
+      - name: Read back HTTPS pages and full download
+        id: verify
+        run: |
+          python3 kufr/web/verify-site.py --base "https://$PUBLIC_IPV4" \
+            --local "$RUNNER_TEMP/arcane-site-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+      - name: Restore pre-deploy state after failed verification
+        if: failure() && steps.publish.outcome == 'success'
+        env:
+          PREVIOUS_RELEASE: ${{ steps.publish.outputs.previous_release }}
+        run: |
+          python3 kufr/web/publish-site.py --site /var/www/dildovander --rollback-activation \
+            --release-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --previous-release "$PREVIOUS_RELEASE"
+      - name: Remove obsolete CAD files from the iOS route
+        if: success()
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('/var/www/kufr-ios')
+          if root.is_symlink() or not root.is_dir():
+              raise SystemExit('Unexpected iOS root')
+          for name in ('kufr-mechanika-prototyp.zip', 'viewer.html'):
+              target = root / name
+              if target.is_symlink():
+                  raise SystemExit('Refusing legacy file symlink')
+              target.unlink(missing_ok=True)
+          print('Obsolete CAD files removed; iOS installation preserved')
+          PY
+      - name: Retain a bounded verified rollback set
+        if: success()
+        env:
+          PREVIOUS_RELEASE: ${{ steps.publish.outputs.previous_release }}
+        run: |
+          python3 kufr/web/publish-site.py --site /var/www/dildovander --prune-releases \
+            --previous-release "$PREVIOUS_RELEASE" --retain 3 --release-id '${{ github.run_id }}-${{ github.run_attempt }}'

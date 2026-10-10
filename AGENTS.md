@@ -42,6 +42,18 @@
 - Příkazy pro prezentaci přijímej jako explicitní číslo přihrádky 1–6; volný text z AI nesmí přímo řídit aktuátory. Podle rozhodnutí majitele 9. 10. 2026 řídí GPIO2 přímo PCA OE a napájení pohonů odpojuje zelená kolébka. Použij jen koupené díly a kalibrované časované servopohyby bez dalších polohových snímačů. Fyzicky nepotvrzenou polohu nevydávej za měřenou. Odpojení pozorovatelského telefonu nesmí zastavit samostatný kufr; ztráta ručního lease musí bezpečně ukončit ruční řízení.
 - Přístupové údaje necommituj ani nevkládej do firmware image či mobilního balíčku. Device identita se provisionuje servisně, provider klíč je pouze na backendu; Apple podpisové identity pouze v odděleném CI prostředí.
 
+## Vizuální styl všech UI
+
+- Pro každou změnu uživatelského rozhraní v tomto repozitáři načti tracked skill
+  [.agents/skills/dildovander-ui/SKILL.md](.agents/skills/dildovander-ui/SKILL.md).
+  Platí pro mobilní aplikaci, simulátor, Workshop/CAD viewer i veřejný přehled.
+- Zdrojem sdíleného vzhledu je [Arcane Workshop](kufr/design-system/README.md):
+  používej jeho tokeny, komponenty a pravidla přístupnosti. Lokální styl řeší
+  rozložení konkrétního UI; nevytvářej další nezávislou paletu ani fontové CDN.
+- Ilustrace a simulace musí zůstat jasně označené. Vzhled nemění autorizaci,
+  bezpečnostní brány, smlouvy ani důkazní hranici hardware/iPhone. Generovaný
+  viewer upravuj ve zdroji a přegeneruj skutečným postupem.
+
 ## Sestavení a ověření
 
 - V `kufr/firmware/` spusť `pio run`. Čistou posloupnost lze testovat hostitelským C++ kompilátorem podle příkazu v `kufr/firmware/README.md`; testy jsou v `kufr/firmware/tests/`.
