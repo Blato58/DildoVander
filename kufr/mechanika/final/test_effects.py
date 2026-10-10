@@ -1,8 +1,9 @@
 import copy
 import json
 import unittest
+from fractions import Fraction
 from pathlib import Path
-from generate_effects import generate, HEADER, MAX_PREPARATION_STEPS
+from generate_effects import generate, HEADER, MAX_PREPARATION_STEPS, presentation_budgets, viewer_frame_count
 
 ROOT = Path(__file__).resolve().parent
 
@@ -125,6 +126,94 @@ class ChoreographyContract(unittest.TestCase):
                     else:
                         with self.assertRaisesRegex(ValueError, 'firmware scheduling allowance'):
                             generate(changed)
+
+    def test_current_variants_fit_maximum_calibration_and_viewer_budgets(self):
+        self.assertEqual(presentation_budgets(self.score['main']), (14790, 11200))
+        self.assertEqual(presentation_budgets(self.score['short']), (11970, Fraction(24200, 3)))
+        self.assertEqual(viewer_frame_count(self.score['main']), 672)
+        self.assertEqual(viewer_frame_count(self.score['short']), 484)
+        generate(self.score)
+
+    def test_physical_budget_rejects_overlong_show_preparation_and_rest(self):
+        changed = copy.deepcopy(self.score)
+        changed['show_ms'] = 20000
+        for variant in ('main', 'short'):
+            self.phase(changed, variant, 'show')['duration_ms'] = 20000
+        with self.assertRaisesRegex(ValueError, 'main: physical presentation budget .* below 15000'):
+            generate(changed)
+        for variant in ('main', 'short'):
+            for stage in ('prepare', 'rest'):
+                with self.subTest(variant=variant, stage=stage):
+                    changed = copy.deepcopy(self.score)
+                    self.phase(changed, variant, stage)['duration_ms'] = 15000
+                    with self.assertRaisesRegex(ValueError, f'{variant}: physical presentation budget'):
+                        generate(changed)
+
+    def test_physical_budget_rounding_and_strict_boundary_for_both_variants(self):
+        for variant, last_valid_rest in (('main', 450), ('short', 3270)):
+            for rest_ms, allowed in ((last_valid_rest, True),
+                                     (last_valid_rest + 1, False),
+                                     (last_valid_rest + 10, False)):
+                with self.subTest(variant=variant, rest_ms=rest_ms):
+                    changed = copy.deepcopy(self.score)
+                    self.phase(changed, variant, 'rest')['duration_ms'] = rest_ms
+                    if allowed:
+                        self.assertEqual(presentation_budgets(changed[variant])[0], 14990)
+                        generate(changed)
+                    else:
+                        self.assertEqual(presentation_budgets(changed[variant])[0], 15000)
+                        with self.assertRaisesRegex(ValueError, f'{variant}: physical presentation budget 15000 ms'):
+                            generate(changed)
+
+    def test_viewer_budget_is_independent_of_calibrated_motion_budget(self):
+        changed = copy.deepcopy(self.score)
+        changed['illustrative_travel_ms'] = 5000
+        for variant in ('main', 'short'):
+            for stage in ('raise', 'lower'):
+                self.phase(changed, variant, stage)['duration_ms'] = 5000
+        self.assertEqual(presentation_budgets(changed['main'])[0], 14790)
+        with self.assertRaisesRegex(ValueError, 'main: illustrative viewer budget .* frames at nominal 60 Hz'):
+            generate(changed)
+
+        # Keep main and both physical budgets safe. An authored 14999 ms short
+        # timeline already exceeds the deadline once frame overhead is counted.
+        changed['show_ms'] = 1
+        changed['illustrative_travel_ms'] = 7024
+        changed['main'] = [changed['main'][0]] + changed['main'][-4:]
+        changed['main'][0]['duration_ms'] = 1
+        self.phase(changed, 'main', 'rest')['duration_ms'] = 1
+        for variant in ('main', 'short'):
+            self.phase(changed, variant, 'show')['duration_ms'] = 1
+            for stage in ('raise', 'lower'):
+                self.phase(changed, variant, stage)['duration_ms'] = 7024
+        self.assertEqual(sum(step['duration_ms'] for step in changed['short']), 14999)
+        self.assertEqual(viewer_frame_count(changed['short']), 909)
+        with self.assertRaisesRegex(ValueError, 'short: illustrative viewer budget .*909 frames'):
+            generate(changed)
+
+    def test_viewer_nominal_frame_budget_accepts_899_and_rejects_900_for_both_variants(self):
+        baseline = copy.deepcopy(self.score)
+        baseline['show_ms'] = 1
+        baseline['illustrative_travel_ms'] = 7000
+        for variant in ('main', 'short'):
+            baseline[variant] = [baseline[variant][0]] + baseline[variant][-4:]
+            baseline[variant][0].update(duration_ms=1, audio=None, tone_hz=0)
+            self.phase(baseline, variant, 'show')['duration_ms'] = 1
+            self.phase(baseline, variant, 'rest')['duration_ms'] = 866
+            for stage in ('raise', 'lower'):
+                self.phase(baseline, variant, stage)['duration_ms'] = 7000
+            # 840 motion + 1 prepare + 1 show + 52 rest + 5 admission/handovers.
+            self.assertEqual(viewer_frame_count(baseline[variant]), 899)
+            self.assertEqual(presentation_budgets(baseline[variant])[1], Fraction(44950, 3))
+        generate(baseline)
+        for variant in ('main', 'short'):
+            with self.subTest(variant=variant):
+                changed = copy.deepcopy(baseline)
+                self.phase(changed, variant, 'rest')['duration_ms'] = 867
+                self.assertEqual(viewer_frame_count(changed[variant]), 900)
+                self.assertEqual(presentation_budgets(changed[variant])[1], 15000)
+                with self.assertRaisesRegex(ValueError, f'{variant}: illustrative viewer budget 15000.00 ms'):
+                    generate(changed)
 
     def test_hardware_changes_fail_closed(self):
         for field, value in (('count', 5), ('leds_per_compartment', 5),
