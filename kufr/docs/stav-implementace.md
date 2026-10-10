@@ -7,7 +7,8 @@ o svícení všech 36 LED v potvrzeném návodu zapojení. Oprava mění pouze
 popis na jediný 20cm úsek, obnovuje schválený otisk zdroje a jeho kopii
 pro Inspect. Topologie a firmware se nemění. Nezávislá kontrola navazující
 dokumentace nenašla další rozpor v LED souběhu ani limitu 15 s. Úplná
-regenerace i nezávislý audit nového ZIPu prošly; následuje odeslání opravy.
+regenerace i nezávislý audit nového ZIPu prošly; oprava je odeslaná.
+Čeká se na kontroly posledního commitu v PR #170.
 
 CI `43d2903` prošlo; dvě následné P2 jsou opravené. Generátor nyní odmítá
 choreografii, která se při nejdelší kalibraci a nominálním časování nevejde
@@ -140,6 +141,10 @@ Po opravě návodu zapojení opět prošlo 91 Python a 20 JS testů i celá
 geometrická kontrola. Všech 32 STL a osm renderů zůstalo byte po bytu
 shodných. Viewer se liší pouze otiskem podkladového návodu; skutečný
 browser zobrazil opravenou přibalenou větu a načetl sestavu bez chyb.
+Oprava návodu byla 10. 10. 2026 odeslána commitem
+`77934286a28a0b7d2b1ce594f707ddf67624f861`; `Push-CurrentBranch.ps1`
+ověřil shodný vzdálený SHA. Výsledek posledního CI/review a merge
+je dostupný v PR #170.
 
 Fyzická výroba, nalepení kotev, zkouška přepravy, kalibrace a nahrání
 firmware neproběhly. Neuzavřené jsou zbývající tvarové rozměry a usazení
