@@ -54,9 +54,15 @@ neodemkne ani opožděný ready/running snapshot se stejným pořadovým čísle
 Začleněny jsou commitnuté opravy F2 až po `43d2903` včetně zdrojového snapshotu
 exportů, úplných prezentačních fází, jednoho LED segmentu a globálního deadline.
 Integrovaný viewer má 27 úspěšných testů, sdílená choreografie 10 testů;
-necommitnutý checkout zůstává původnímu tasku.
-Předání je zatím rozpracované: čeká úplná CI regenerace/ověření výrobního balíčku,
-review/merge, skutečný deploy
+necommitnutý checkout zůstává původnímu tasku. Kandidát `dfeb954` prošel celým
+CI `38014347068`; stažený site artefakt má shodný Git tree, všech 145 souborů
+ověřených podle inventáře a výrobní ZIP se 147 položkami bez chyby CRC.
+Skutečný browser ověřil tento artefakt včetně vieweru, Companionu a odpojeného
+simulátoru. Následné drobné zdrojové úpravy zvětšují odkaz patičky rozcestníku
+a diagnostické odkazy iOS instalace na alespoň 44 px; oba náhledy prošly
+na 320/390 px bez přetékání a iOS publisher má stále 4 úspěšné testy.
+Předání je zatím rozpracované: čeká začlenění posledního ověřeného F2 z PR #170,
+CI výsledného tree, review/merge a skutečný deploy
 webu a nový podepsaný iOS build. Webové kontroly neprokazují akceptaci iPhonu,
 VoiceOver ani fyzickou bezpečnost/mechaniku. Tyto hranice zůstávají otevřené.
 

@@ -63,7 +63,7 @@ def render_page(version: str, build: str, manifest_url: str, ipa_url: str) -> st
   <title>Kufr · Arcane Workshop · iPhone</title>
   <style>
     /* Standalone fallback also keeps archived releases readable offline. */
-    :root {{ --aw-void: #0D1218; --aw-surface: #171F29; --aw-elevated: #25313D; --aw-brass: #D9B777; --aw-ivory: #F3ECE0; --aw-muted: #AAB7C2; --aw-border: #4E6070; --aw-font-display: 'Cinzel', Georgia, serif; --aw-font-ui: 'Inter', -apple-system, system-ui, sans-serif; --aw-font-mono: 'IBM Plex Mono', monospace; color-scheme: dark; }}
+    :root {{ --aw-void: #0D1218; --aw-surface: #171F29; --aw-elevated: #25313D; --aw-brass: #D9B777; --aw-ivory: #F3ECE0; --aw-muted: #AAB7C2; --aw-border: #6B7E8E; --aw-font-display: 'Cinzel', Georgia, serif; --aw-font-ui: 'Inter', -apple-system, system-ui, sans-serif; --aw-font-mono: 'IBM Plex Mono', monospace; color-scheme: dark; }}
     * {{ box-sizing: border-box; }}
     body {{ margin: 0; padding: calc(24px + env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left, 0px)); background: var(--aw-void); color: var(--aw-ivory); min-height: 100vh; font-family: var(--aw-font-ui); }}
     main {{ max-width: 44rem; margin: min(10vh, 80px) auto; }}
@@ -78,6 +78,8 @@ def render_page(version: str, build: str, manifest_url: str, ipa_url: str) -> st
     .button:hover {{ background: var(--aw-ivory); }}
     .button:focus-visible, a:focus-visible {{ outline: 3px solid var(--aw-brass); outline-offset: 4px; }}
     .meta {{ color: var(--aw-muted); font-size: .8125rem; }}
+    .diagnostics {{ display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }}
+    .diagnostics a {{ display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; padding: 8px 12px; border: 1px solid var(--aw-border); border-radius: 8px; background: var(--aw-elevated); text-decoration: none; }}
     .version {{ font-family: var(--aw-font-mono); }}
     a {{ color: var(--aw-brass); }}
     code {{ overflow-wrap: anywhere; }}
@@ -96,7 +98,7 @@ def render_page(version: str, build: str, manifest_url: str, ipa_url: str) -> st
       <div class="meta version">Verze {version_label} · sestavení {build_label}</div>
       <a class="button" href="{html.escape(install_url, quote=True)}">Nainstalovat na iPhone</a>
       <p>Po klepnutí potvrď instalaci. Pokud ji iPhone odmítne, ověř vývojářský režim a profil zařízení.</p>
-      <p class="meta">Diagnostika: <a href="{html.escape(ipa_url, quote=True)}">stáhnout IPA</a> · <a href="{html.escape(manifest_url, quote=True)}">otevřít manifest</a>.</p>
+      <p class="meta diagnostics"><span>Diagnostika:</span><a href="{html.escape(ipa_url, quote=True)}">stáhnout IPA</a><a href="{html.escape(manifest_url, quote=True)}">otevřít manifest</a></p>
     </section>
   </main>
 </body>
