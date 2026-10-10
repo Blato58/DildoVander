@@ -37,12 +37,15 @@ enum class WandPresentationState : uint8_t {
 // reports commanded end positions; physical verification stays unavailable.
 class WandPresentation final {
  public:
+  static constexpr uint64_t MaximumDurationMs = 15000;
   explicit WandPresentation(WandPresentationPort& port);
 
   bool Start(PendingProposal& pending,
              const ConversationRuntimeState& runtime,
              uint64_t nowMs);
   void Tick(uint64_t nowMs);
+  // Fault-only guard for the control loop before physical outputs are serviced.
+  void CheckDeadline(uint64_t nowMs);
   void Stop();
   bool RecoverAfterInspection(bool inspected);
   WandPresentationState State() const;
@@ -55,5 +58,8 @@ class WandPresentation final {
   WandPresentationState state_ = WandPresentationState::Idle;
   uint8_t compartment_ = 0;
   uint64_t phaseStartedAtMs_ = 0;
+  // Admission time stays unchanged across every phase of one presentation.
+  uint64_t presentationStartedAtMs_ = 0;
+  uint64_t lastObservedAtMs_ = 0;
   std::string lastProposalId_;
 };

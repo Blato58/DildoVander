@@ -4,10 +4,11 @@ from __future__ import annotations
 import json
 import math
 import argparse
+import html
 import vtk
 import numpy as np
 
-from geometry import ROOT,COLORS,bounds
+from geometry import ROOT,COLORS,PARAMS,bounds
 from build import OUT
 from check_fit import scene
 import mechanism
@@ -48,11 +49,50 @@ def actor(item):
     return result
 
 
-def render(items,path,title,camera,target,parallel=300):
+def cable_actor(route,transport=False):
+    """The exact harness polyline; tube radius is display-only, not bundle size."""
+    coordinates=(route.get("transport_points") or route["points"]) if transport else route["points"]
+    points=vtk.vtkPoints()
+    for coordinate in coordinates:
+        points.InsertNextPoint(*coordinate)
+    line=vtk.vtkPolyLine()
+    line.GetPointIds().SetNumberOfIds(len(coordinates))
+    for index in range(len(coordinates)):
+        line.GetPointIds().SetId(index,index)
+    cells=vtk.vtkCellArray()
+    cells.InsertNextCell(line)
+    poly=vtk.vtkPolyData()
+    poly.SetPoints(points)
+    poly.SetLines(cells)
+    for key in ("id","from","to","net","bundle"):
+        metadata=vtk.vtkStringArray()
+        metadata.SetName(key)
+        metadata.InsertNextValue(str(route.get(key,"unknown")))
+        poly.GetFieldData().AddArray(metadata)
+    tube=vtk.vtkTubeFilter()
+    tube.SetInputData(poly)
+    tube.SetRadius(.55)
+    tube.SetNumberOfSides(6)
+    tube.CappingOn()
+    mapper=vtk.vtkPolyDataMapper()
+    mapper.SetInputConnection(tube.GetOutputPort())
+    result=vtk.vtkActor()
+    result.SetMapper(mapper)
+    result.GetProperty().SetColor(*{"power":(.7,.16,.12),"signal":(.15,.4,.65),"ground":(.3,.26,.2)}.get(route["kind"],(.6,.4,.15)))
+    return result
+
+
+def render(items,path,title,camera,target,parallel=300,wires=False,transport=False):
     renderer=vtk.vtkRenderer()
     renderer.SetBackground(0.945,0.929,0.898)
     for item in items:
-        renderer.AddActor(actor(item))
+        rendered=actor(item)
+        if transport and item.group in ("case","lid","cover"):
+            rendered.GetProperty().SetOpacity(.10 if item.group=="lid" else .22)
+        renderer.AddActor(rendered)
+    if wires:
+        for route in harness.routes():
+            renderer.AddActor(cable_actor(route,transport))
     text=vtk.vtkTextActor()
     text.SetInput(title)
     text.GetTextProperty().SetFontSize(26)
@@ -62,7 +102,7 @@ def render(items,path,title,camera,target,parallel=300):
     camera_obj=renderer.GetActiveCamera()
     camera_obj.SetPosition(*camera)
     camera_obj.SetFocalPoint(*target)
-    camera_obj.SetViewUp(0,0,1)
+    camera_obj.SetViewUp(0,1,0) if abs(camera[0]-target[0])+abs(camera[1]-target[1])<1 else camera_obj.SetViewUp(0,0,1)
     camera_obj.ParallelProjectionOn()
     camera_obj.SetParallelScale(parallel)
     window=vtk.vtkRenderWindow()
@@ -86,8 +126,24 @@ def render(items,path,title,camera,target,parallel=300):
 
 def viewer():
     inspect_data.snapshot_sources()
+    inspect_data.assert_snapshot_current()
+    evidence=json.loads(inspect_data.SNAPSHOT.read_text(encoding="utf-8"))["sources"]
+    sections=[]
+    for record,anchor,title in zip(evidence,("inventar","zapojeni"),("Inventář a rozměry","Potvrzené elektrické zapojení")):
+        sections.append(f'<section id="{anchor}"><h2>{title}</h2><p>{html.escape(record["name"])}</p>'
+                        f'<p>SHA-256: <code>{record["sha256"]}</code></p><pre>{html.escape(record["text"])}</pre></section>')
+    document='<!doctype html><html lang="cs"><meta charset="utf-8"><title>Podklady F2</title>'
+    document+='<style>body{font:16px system-ui;max-width:1100px;margin:32px auto;padding:0 20px;background:#f4eadb;color:#34251e}pre{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5}code{overflow-wrap:anywhere}section{margin-top:40px;border-top:1px solid #bfa480}</style>'
+    document+='<h1>Úplné zdrojové podklady F2</h1><p>Ověřený otisk zdrojových dokumentů přibalený pro samostatné použití. Text včetně původních odkazů je zachovaný; odkazy uvnitř přepisu odkazují do původního repozitáře.</p>'
+    document+='<nav><a href="#inventar">Inventář a rozměry</a> · <a href="#zapojeni">Zapojení</a> · <a href="viewer.html">3D sestava</a></nav>'+''.join(sections)+'</html>'
+    OUT.mkdir(parents=True,exist_ok=True)
+    (OUT/"reference-sources.html").write_text(document,encoding="utf-8")
     meshes=[]
     items=[item for item in scene(lid=0) if not item.name.startswith("spare_")]
+    normal_names={item.name for item in items}
+    transport_items=[item for item in scene(lid=0,transport=True) if not item.name.startswith("spare_")]
+    transport_names={item.name for item in transport_items}
+    items += [item for item in transport_items if item.name not in normal_names]
     for item in items:
         vertices,faces=mesh(item.shape)
         # Flat normals make the actual printed facets and clearances legible.
@@ -103,41 +159,56 @@ def viewer():
             for p in tri:
                 packed.extend([*p,*n])
         meshes.append({"name":item.name,"group":item.group,"color":COLORS[item.color],
+                       "transportOnly":item.name not in normal_names,
+                       "operationOnly":item.name not in transport_names,
                        "bounds":[round(v,4) for v in bounds(item.shape)],
                        "info":inspect_data.describe(item),
                        "data":[round(float(x),4) for x in packed]})
     template=(ROOT/"viewer-template.html").read_text(encoding="utf-8")
     names = {item.name for item in items}
-    payload={"meshes":meshes,"hinge":chassis.HINGE,"mechanism":mechanism.M,
+    def optional_json(name,default):
+        path=ROOT/name
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else default
+    payload={"revision":"F2","meshes":meshes,"hinge":chassis.HINGE,"mechanism":mechanism.M,
+             "case":PARAMS["case"],"routes":harness.routes(),
+             "endpoints":harness.endpoint_registry(),
+             "cameraFpc":harness.CAMERA_FPC,"supplyConnector":harness.SUPPLY_CONNECTOR,
+             "assemblyGuide":optional_json("assembly-guide.json",{"steps":[]}),
+             "effects":optional_json("effects.json",{}),
              "connections":inspect_data.connection_data(names) +
                            [edge for edge in harness.CONNECTIONS if edge["from"] in names and edge["to"] in names],
              "sources":inspect_data.source_evidence()}
     OUT.mkdir(parents=True,exist_ok=True)
     script=(ROOT/"viewer.js").read_text(encoding="utf-8")
-    html=template.replace("__VIEWER_SCRIPT__",script).replace("__MODEL_DATA__",json.dumps(payload,separators=(",",":")))
-    (OUT/"viewer.html").write_text(html,encoding="utf-8")
+    viewer_html=template.replace("__VIEWER_SCRIPT__",script).replace("__MODEL_DATA__",json.dumps(payload,separators=(",",":")))
+    (OUT/"viewer.html").write_text(viewer_html,encoding="utf-8")
 
 
 def main():
     (OUT/"images").mkdir(parents=True,exist_ok=True)
-    render(scene(160),OUT/"images"/"open.png","F1 | Open case - bed 3 raised 16 mm",(750,-640,650),(220,165,100),245)
+    render(scene(160),OUT/"images"/"open.png","F2 | Wood case insert - tray 3 raised; dimensions provisional",(750,-640,650),(216,133,65),245)
     print("Rendered open",flush=True)
     service=[i for i in scene(covers=False) if not i.group.startswith("lid") and i.group!="wand" and not i.name.startswith("tray_")]
-    render(service,OUT/"images"/"service.png","F1 | Service view - covers and beds removed",(680,-540,760),(220,138,40),205)
+    render(service,OUT/"images"/"service.png","F2 | Service - real CAD; no physical acceptance",(680,-540,760),(216,133,40),205)
+    top=[i for i in scene() if not i.group.startswith("lid")]
+    render(top,OUT/"images"/"top.png","F2 | Top - six independent trays and two service zones",(216,133,900),(216,133,40),205)
+    render(service,OUT/"images"/"wiring.png","F2 | Actual planned wire routes; pins and flexible loops unmeasured",(680,-540,760),(216,133,40),205,wires=True)
     print("Rendered service",flush=True)
-    render(scene(lid=0,transport=True),OUT/"images"/"transport.png","F1 | Transport - no wands or powerbank; textile carry harness",(700,-650,520),(220,130,80),220)
+    render(scene(lid=0,transport=True),OUT/"images"/"transport.png","F2 | Transport - transparent case; six ties; bank and wands removed",(700,-650,520),(216,133,65),220,wires=True,transport=True)
+    anchors=[i for i in scene(covers=False) if i.group=="case" or i.name.startswith(("anchor_","frame_","bonded_angle_","wood_bond_"))]
+    render(anchors,OUT/"images"/"anchors.png","F2 | Frame and four bonded aluminium anchors; proof load not performed",(650,-500,600),(216,133,35),220)
     module=mechanism.module(0,80,False)
-    render(module,OUT/"images"/"mechanism.png","F1 | Positive-return cam and adjustable guide brake",(230,-170,200),(100,140,55),120)
+    render(module,OUT/"images"/"mechanism.png","F2 | Captured cam and lower stops; pulse-off behaviour untested",(230,-170,200),(100,140,55),120)
     # Second view is deliberately uncapped for visibility of the actual groove.
     detail=[i for i in mechanism.module(0,80,False) if not i.name.startswith(("tray_","u059_","led_"))]
-    render(detail,OUT/"images"/"cam.png","F1 | Cam groove, captured roller and servo body",(360,80,140),(100,145,45),105)
+    render(detail,OUT/"images"/"cam.png","F2 | Cam groove, captured roller and servo body",(360,80,140),(100,145,45),105)
     print("Rendered mechanism and transport",flush=True)
     viewer()
     print("Standalone viewer written",flush=True)
 
 
 if __name__=="__main__":
-    parser=argparse.ArgumentParser(description="Render F1 CAD previews or regenerate only the offline viewer.")
+    parser=argparse.ArgumentParser(description="Render F2 CAD previews or regenerate only the offline viewer.")
     parser.add_argument("--viewer-only",action="store_true",help="Skip PNG rendering and regenerate exports/viewer.html only")
     args=parser.parse_args()
     if args.viewer_only:

@@ -1,10 +1,190 @@
 # Stav implementace AI kufru
 
+## F2 — vložka do skutečného kufru, 10. 10. 2026
+
+CI `21ecc48` prošlo. Následná P2 je opravená: náhled měří limit 15 s
+od přijetí kliknutí ještě před přípravou zvuku a kontroluje aktuální
+monotónní čas před každým výstupem. Uspání před prvním snímkem ani starší
+časová značka snímku rozpočet neprodlouží. Nová regrese proti původnímu
+kódu selhala; po opravě prošlo 27 testů vieweru a 15 testů efektů.
+Nominální rozpočet náhledu započítá i první interval po spuštění
+(hlavní 672 snímků / 11 200 ms, krátká 484 / přibližně 8 066,67 ms).
+Firmware, jeho hlavička i data choreografie se nemění. Nezávislé review,
+úplná regenerace a audit nového ZIPu prošly; výsledek je doložený níže.
+Oprava byla 10. 10. 2026 odeslána commitem
+`0b66e132880a223d880d774fb8c8e2d64523ad33`; `Push-CurrentBranch.ps1`
+ověřil shodný vzdálený SHA. Závěrečné CI, review a merge dokládá PR #170;
+tento záznam sám merge nepotvrzuje.
+
+CI `6413398` prošlo. Následné review našlo zbývající zastaralé tvrzení
+o svícení všech 36 LED v potvrzeném návodu zapojení. Oprava mění pouze
+popis na jediný 20cm úsek, obnovuje schválený otisk zdroje a jeho kopii
+pro Inspect. Topologie a firmware se nemění. Nezávislá kontrola navazující
+dokumentace nenašla další rozpor v LED souběhu ani limitu 15 s. Úplná
+regenerace i nezávislý audit nového ZIPu prošly; oprava je odeslaná.
+Kontroly tohoto commitu prošly; následná oprava náhledu je popsaná výše.
+
+CI `43d2903` prošlo; dvě následné P2 jsou opravené. Generátor nyní odmítá
+choreografii, která se při nejdelší kalibraci a nominálním časování nevejde
+pod limit 15 s; README firmwaru správně uvádí jediný svítící LED úsek.
+Nezávislé review a úplná regenerace prošly. Runtime, aktuální data efektů
+a generovaná hlavička se touto opravou nezměnily. Nezávislý audit nového
+ZIPu rovněž prošel. Oprava je odeslaná a její CI prošlo.
+
+P1 review PR #170 na `44463c2` je zpracované: doplněný absolutní limit celé
+prezentace 15 s a omezení na jediný LED úsek prošly hostitelskými regresemi,
+nezávislou kontrolou, cílovým buildem i úplnou regenerací. Nezávislý audit
+tehdejšího archivu rovněž prošel a opravy byly odeslané; CI prošlo.
+Následující dvě P2 a jejich oprava jsou popsané výše.
+Třetí nález k pasivnímu USB
+zakončení je věcně odmítnutý: aktuální zadání výslovně povoluje běžné
+vodiče a pasivní konektory k doplnění; nejde o novou funkční elektroniku
+ani tvrzení o nákupu. Přesný podklad je ve specifikaci F2.
+
+F1 nový tištěný korpus je nahrazen vložkou do vlastněného dřevěného kufru
+bez nových otvorů. Použity jsou potvrzené obálky 450 × 310 × 200 mm,
+spodní vnitřek 431,8 × 266,7 × 114,3 mm a bezpečný kvádr 400 × 240 × 170 mm.
+[Specifikace](../mechanika/final/SPECIFIKACE.md) a `parameters.json` řídí
+šest modulů na rozteči 48 mm, zdvih 16 mm, čtyři panely, dvě Al lišty
+a čtyři lepené Al kotvy. Banka, hůlky a textil nenesou konstrukci.
+Majitel 10. 10. potvrdil délku hůlky do 200 mm a šířku hlavice 38 mm
+včetně případného pouzdra; [záznam](../mechanika/rozmery-hulek.md) odděluje
+tyto dvě hodnoty od dosud předpokládaných ostatních tvarových rozměrů.
+Přeprava používá šest samostatných pásků a parkování odpojeného USB.
+
+Změněny jsou zdroje `mechanika/final/` včetně kabeláže, skutečných spojů,
+montážního postupu, vieweru a balení. 135 elektrických propojení a GPIO
+zůstávají zachované; doplněné pasivní USB zakončení je výslovně v materiálu.
+`effects.json` a generovaný `PresentationScore.h` sjednocují hlavní a krátkou
+choreografii s `PhysicalPresentation`, světly a volitelnými místními tóny
+existujícího I2S adaptéru. Stop neprovádí automatický návrat.
+
+Provedeno: 91 Python testů, 27 testů vieweru, hostitelské testy prezentace
+a fyzických efektů, `pio run -e esp32-s3-idf` PASS (RAM 91 660 B,
+flash 1 746 865 B).
+Geometrický výsledek je `PASS_CAD_NOT_PHYSICAL_ACCEPTANCE`: 32 STL typů /
+47 výtisků, 69 CAD souborů, zpětné načtení STEP, uzavřené propojené STL,
+tři celé sestavy, 102 poloh mechanismů, 36 poloh víka, 37 kroků vyjmutí
+banky a 24 dráh nástroje. 135 vodičů prošlo 25 467 BREP porovnáními bez
+kolizí či překročení bezpečné obálky; 352 stavů kontroluje vlastní
+překrývání vodičů. Otisk zdrojů během auditu byl stabilní. Zaplnění tras
+a počty materiálu v 15 krocích pro 589 dílů scény souhlasí.
+
+Skutečný browser na `http://127.0.0.1:8915/viewer.html`: všech 15 kroků
+vpřed i zpět a restart, všech šest dokončených výběrů, Shift na větvi
+D2-2, servu S1-S a I2C s šesti vodiči, bez chyb konzole. Ověřen i malý
+viewport 390 × 844. Nezávislé review vyřešilo kolize vedení, překrývání USB,
+zachytávání kliknutí kartou, degenerované STL držáků a kontrolu otisků ZIPu.
+Aktuální autorita je [verification.json](../mechanika/final/exports/verification.json).
+
+Celá regenerace 10. 10. 2026 skončila úspěšně včetně osmi prohlédnutých
+renderů, výkresů a samostatného ZIPu (43 529 672 B, SHA256
+`8ef43307e53bc87a344d2f831567461637fcb842b337e86dc1f9ef41dacad7d5`).
+Závěrečný browser načetl nové výstupy, zobrazil šest přepravních pásků
+a odpojené USB v držáku; konzole bez varování a chyb.
+Po poslední opravě časování znovu dokončil hlavní i krátkou sekvenci
+se zdvihem 16 mm a návratem do klidu. Stop a přepnutí do přepravy správně
+vynutily servis až do explicitního resetu; konzole bez varování/chyb.
+Všech 32 STL a osm renderů zůstalo byte po bytu shodných s prohlédnutými
+výstupy. Opravené časování je v nově vygenerovaném vieweru a ZIPu výše.
+Nezávislá kontrola ZIPu: CRC a přesný seznam 143 členů, 49 otisků zdrojů,
+93 otisků exportního indexu, 92 ověřených exportů, 89 výstupů generování
+a 69 CAD souborů PASS proti ZIPu i checkoutu. Po rozbalení mimo repozitář
+prošlo 53 testů (19 Inspect, 15 efektů, 11 balení, 8 ověřovací brány).
+V checkoutu platí všech 22
+lokálních Markdown odkazů; v ZIPu pouze odkaz README na samotný ZIP
+nemá cíl (archiv se do sebe záměrně nebalí). Referenční podklady jsou přiložené.
+
+Implementační commit `381e06388f38cf8c18f4a9091aab65fdeb7799c4` byl
+10. 10. 2026 odeslán přes `scripts/Push-CurrentBranch.ps1` na
+`origin/codex/wooden-case-insert-f2`; skript ověřil shodu vzdáleného SHA.
+Tento záznam ještě nepotvrzuje dokončení PR CI ani merge.
+
+PR #170: CI pro `2852351` prošlo (hostitelské testy, ESP-IDF i diagnostické
+varianty). Codex review našlo P2 v přepnutí režimu během přerušeného zdvihu.
+Oprava zachovává všech šest úhlů a do explicitního resetu vynucuje servis;
+nelze zobrazit přepravu ani obnovit klid jezdcem či montážním krokem.
+Dvě nové regrese před opravou selhaly, po opravě všech 18 testů PASS;
+nezávislá kontrola skutečných handlerů změn režimu, slideru, startu a resetu
+je bez nálezů. Úplná regenerace po opravě a potvrzení rozměrů opět PASS;
+všech osm nových renderů je byte po bytu shodných s prohlédnutými pohledy.
+Reálný browser nejprve reprodukoval chybu (16 mm → Přeprava → 0 mm),
+potom ověřil opravu (16 mm → Přeprava/Montáž → Servis, stále 16 mm,
+jezdec zakázaný). Pouze explicitní servisní reset vrátí 0 mm a odblokuje
+přepravu; konzole je bez varování/chyb. Aktuální balíček má otisk uvedený výše.
+Oprava a potvrzené rozměry byly odeslány commitem
+`2dd15fc11ef44e88fabee77463a91a37771ce2d5`; `Push-CurrentBranch.ps1`
+potvrdil shodný vzdálený SHA. Původní P2 vlákno je po regresi a browser
+kontrole vyřešené. CI commitu `64b55f4` rovněž prošlo. Jeho závěrečné
+Codex review našlo další dvě P2, nyní opravené: ne-CAD exporty nebyly
+svázané s ověřeným snapshotem a generátor předával firmwaru jen přípravu.
+Generování nyní probíhá v prázdné složce, ověření sváže všechny výstupy
+a balení odmítne pozdější změny. Firmware přebírá všechny fáze, dodržuje
+kalibraci a obnoví dostupnost po 250 ms klidu s vypnutým PWM. Generátor
+odmítá nepodporované kanály, tóny mimo 80–2000 Hz a více než 100 přípravných
+kroků, které by překročily časovou rezervu řídicí smyčky.
+Nezávislé review obou oprav je bez otevřeného nálezu; nové regrese
+prošly. Celá následná regenerace skončila úspěšně. 32 STL, osm renderů
+a výsledný viewer jsou byte po bytu shodné s prohlédnutou geometrií/UI.
+Nový viewer se načetl v reálném browseru se 135 vodiči a bez chyb či
+varování konzole. Aktuální ZIP výše nahrazuje předchozí balíček.
+Obě opravy byly 10. 10. 2026 odeslány commitem
+`b1da483fc97aea51881bea568d192e344349c78f`; `Push-CurrentBranch.ps1`
+ověřil shodný vzdálený SHA. Po tomto push byly obě P2 vlákna vyřešené.
+CI commitu `44463c2` prošlo. Jeho Codex review našlo dvě P1 v napájecím
+limitu LED a celkovém času prezentace. Obě jsou opravené v generátoru,
+výstupní vrstvě, řídicí smyčce a náhledu. Regrese ověřují všech 256 LED
+masek, pevný deadline v každé fázi, návrat hodin zpět a nejpomalejší
+kalibraci 3 000 ms s průchody po 100 ms. Při timeoutu zůstává záznam
+nedokončené prezentace a vyžaduje se fyzická kontrola; nevznikne falešné
+potvrzení návratu. Nezávislé review je bez nálezu. Následná úplná
+regenerace prošla, všech 32 STL a osm renderů je byte po bytu shodných.
+Nový browser znovu přehrál všech šest výběrů se zdvihem 16 mm a návratem
+do klidu, bez varování/chyb konzole. Opravy byly 10. 10. 2026 odeslány
+commitem `f2ae30366760f894dbb114410d6e545b3cf32b72`;
+`Push-CurrentBranch.ps1` ověřil shodný vzdálený SHA. CI následného commitu
+`43d2903` prošlo. Jeho dvě P2 jsou opravené: fyzický rozpočet započítá dvě
+3 000ms jízdy, zaokrouhlení fází na 10ms průchody a 20 ms předání;
+hlavní varianta má 14 790 ms, krátká 11 970 ms. Náhled započítá nominální
+60Hz snímky i předání mezi fázemi. Všech 15 regresí efektů prošlo,
+včetně hranic 14 990/15 000 ms a 899/900 snímků. Nezávislý test skutečného
+vieweru potvrdil dokončení při 899 a zastavení při 900 snímcích.
+Následná úplná regenerace prošla; všech 32 STL, osm renderů a viewer jsou
+byte po bytu shodné s prohlédnutou verzí. Browser načetl nové výstupy
+bez varování/chyb konzole. Poslední oprava byla 10. 10. 2026 odeslána
+commitem `f0d1dbe2f7ee7cd9003084e57b4b5a3d6a718c47`;
+`Push-CurrentBranch.ps1` ověřil shodný vzdálený SHA. Aktuální CI/review
+a případný merge dokládá PR #170; tento záznam sám merge nepotvrzuje.
+
+Po opravě návodu zapojení opět prošlo 91 Python a 20 JS testů i celá
+geometrická kontrola. Všech 32 STL a osm renderů zůstalo byte po bytu
+shodných. Viewer se liší pouze otiskem podkladového návodu; skutečný
+browser zobrazil opravenou přibalenou větu a načetl sestavu bez chyb.
+Oprava návodu byla 10. 10. 2026 odeslána commitem
+`77934286a28a0b7d2b1ce594f707ddf67624f861`; `Push-CurrentBranch.ps1`
+ověřil shodný vzdálený SHA. Výsledek posledního CI/review a merge
+je dostupný v PR #170.
+
+Fyzická výroba, nalepení kotev, zkouška přepravy, kalibrace a nahrání
+firmware neproběhly. Neuzavřené jsou zbývající tvarové rozměry a usazení
+hůlek/pouzder, servopáka,
+konektory, kamera/FPC, víko, ohyby kabelů, soudržnost dřeva/lepidla,
+zatížený zdvih a chování serva po vypnutí PWM. Podrobnosti a přejímka:
+[STAV F2](../mechanika/final/STAV.md), [MONTÁŽ](../mechanika/final/MONTÁŽ.md).
+Další fyzický krok: měrka a jeden modul, suché vložení a elektrická
+přejímka; až poté ostatní kusy. Historické výsledky F1 níže nejsou ověřením F2.
+
+## Historie před F2
+
+
 Poslední aktualizace: **9. 10. 2026**. Zdroj stavu: aktuální kód, hostitelské testy a lokální i CI ESP-IDF firmware build, kontrakty a simulátor E2, browser kontrola časové osy E2.5, Vite build, cílené testy adaptéru a E3a. Ad Hoc podpis a serverová publikace IPA/manifestu prošly CI a veřejným HTTPS testem; majitel potvrdil instalaci a spuštění na iPhonu 15 Pro (D70). D159 doložilo USB provisioning, iPhone BLE/domácí Wi-Fi, backend přihlášení po restartu a skutečnou OTA na0.1.1. Celá HW sestava, native LAN WSS/TLS a aktualizace IPA na telefonu zatím nemají úplnou runtime akceptaci. Hotový návrh není hotová implementace.
 
 [Implementační plán](implementacni-plan.md) určuje architekturu a akceptaci. [AGENTS.md](../../AGENTS.md) určuje pracovní postup AI. Tento soubor je jediný průběžný záznam postupu; README ho pouze odkazují.
 
 ## Předání další AI
+
+Aktuální mechanické předání je F2 v úvodu tohoto dokumentu; následuje
+historie F1 a předchozích softwarových etap.
 
 **9. 10. 2026 – F1 optimalizace kabeláže a rozložení ověřena v CAD.**
 PD trigger, měnič a jistič jsou u banky vlevo; měnič mezi maticemi

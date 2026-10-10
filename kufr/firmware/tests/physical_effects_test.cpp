@@ -7,7 +7,7 @@ class FakeIo final : public PhysicalIo {
  public:
   PhysicalInputs inputs{false};
   bool run = false, fail = false;
-  int servoWrites = 0, vibrationWrites = 0, clears = 0;
+  int servoWrites = 0, vibrationWrites = 0, clears = 0, lightWrites = 0;
   uint8_t channel = 0;
   uint16_t pulse = 0;
   std::array<uint8_t, 108> pixels{};
@@ -19,7 +19,18 @@ class FakeIo final : public PhysicalIo {
   bool Vibration(uint8_t selected, bool enabled) override {
     assert(!run && enabled); channel = selected; ++vibrationWrites; return !fail;
   }
-  bool Lights(const std::array<uint8_t, 108>& frame) override { pixels = frame; return !fail; }
+  bool Lights(const std::array<uint8_t, 108>& frame) override {
+    unsigned litSegments = 0;
+    for (unsigned first = 0; first < frame.size(); first += 18) {
+      bool lit = false;
+      for (unsigned i = first; i < first + 18; ++i) lit |= frame[i] != 0;
+      if (lit) ++litSegments;
+    }
+    assert(litSegments <= 1);
+    ++lightWrites;
+    pixels = frame;
+    return !fail;
+  }
   bool ReadInputs(PhysicalInputs& value) override { value = inputs; return !fail; }
 };
 
@@ -79,9 +90,11 @@ struct Fixture {
     assert(runtime.RecoverAfterInspection());
   }
   void Tick(uint64_t now) {
+    presentation.CheckDeadline(now);
     effects.Tick(now);
     SelectionStep step;
     runtime.Tick(now, step);
+    presentation.CheckDeadline(now);
     adapter.Tick(now);
   }
   bool Start(const std::string& id, uint64_t now = 30) {
@@ -135,11 +148,130 @@ void LimitsAndFaults() {
   assert(invalid.effects.CalibrationRevision() == 0 && !invalid.io.run);
 }
 
+void SingleLedSegmentBoundary() {
+  Fixture f;
+  for (unsigned mask = 0; mask <= 255; ++mask) {
+    const bool allowed = mask <= 63 && (mask & (mask - 1)) == 0;
+    const auto previousFrame = f.io.pixels;
+    const int writes = f.io.lightWrites;
+    assert(f.effects.Illuminate(static_cast<uint8_t>(mask), 255, 255, 255) == allowed);
+    assert(f.effects.Healthy());
+    if (!allowed) {
+      assert(f.io.lightWrites == writes && f.io.pixels == previousFrame);
+    } else {
+      assert(f.io.lightWrites == writes + 1);
+      for (unsigned compartment = 0; compartment < 6; ++compartment) {
+        for (unsigned i = compartment * 18; i < (compartment + 1) * 18; ++i) {
+          assert(f.io.pixels[i] == ((mask & (1u << compartment)) ? 64 : 0));
+        }
+      }
+    }
+  }
+  assert(f.effects.Highlight(0, 0, 0, 0));
+  for (auto value : f.io.pixels) assert(value == 0);
+}
+
+class CueSink final : public PresentationAudioPort {
+ public:
+  std::vector<uint16_t> notes;
+  unsigned stops = 0;
+  void Cue(uint16_t hz, uint16_t ms) override { assert(ms <= 200); notes.push_back(hz); }
+  void StopCues() override { ++stops; }
+};
+
+const PresentationScore::Step& MainPhase(PresentationScore::Stage stage) {
+  for (const auto& step : PresentationScore::Main) {
+    if (step.stage == stage) return step;
+  }
+  assert(false);
+  return PresentationScore::Main[0];
+}
+
+void AssertSelectedLights(const FakeIo& io, const PresentationScore::Step& step) {
+  // Fixture selects compartment 3; all other compartments must be dark.
+  for (unsigned i = 0; i < 108; i += 3) {
+    const bool selected = i >= 36 && i < 54;
+    assert(io.pixels[i] == (selected ? step.green * KufrBoard::InitialBrightness / 255 : 0));
+    assert(io.pixels[i + 1] == (selected ? step.red * KufrBoard::InitialBrightness / 255 : 0));
+    assert(io.pixels[i + 2] == (selected ? step.blue * KufrBoard::InitialBrightness / 255 : 0));
+  }
+}
+
+void EveryAuthoredPhaseAndRestCompletion() {
+  const auto& raise = MainPhase(PresentationScore::Stage::Raise);
+  const auto& show = MainPhase(PresentationScore::Stage::Show);
+  const auto& lower = MainPhase(PresentationScore::Stage::Lower);
+  const auto& rest = MainPhase(PresentationScore::Stage::Rest);
+  Fixture f(20); // Hardware motion finishes before the illustrative viewer travel.
+  CueSink audio;
+  f.adapter.BindAudio(audio);
+  assert(f.Start("all-authored-phases"));
+  bool sawRaise = false, sawShow = false, sawLower = false;
+  uint64_t restAt = 0;
+  for (uint64_t t = 40; t < 15000; t += 10) {
+    f.Tick(t);
+    if (f.io.servoWrites == 1 && f.io.run) {
+      sawRaise = true;
+      AssertSelectedLights(f.io, raise);
+      if (raise.toneHz) assert(audio.notes.back() == raise.toneHz);
+    }
+    if (f.presentation.State() == WandPresentationState::Showing) {
+      sawShow = true;
+      AssertSelectedLights(f.io, show);
+      if (show.toneHz) assert(audio.notes.back() == show.toneHz);
+    }
+    if (f.io.servoWrites == 2 && f.io.run) {
+      sawLower = true;
+      AssertSelectedLights(f.io, lower);
+      if (lower.toneHz) assert(audio.notes.back() == lower.toneHz);
+    }
+    if (f.io.servoWrites == 2 && f.effects.IsResting(3) && !restAt) restAt = t;
+    if (restAt && t - restAt < rest.durationMs) {
+      assert(!f.io.run && f.journal.pending && f.journal.restores == 0);
+      assert(f.presentation.State() == WandPresentationState::Lowering);
+      assert(!f.adapter.IsResting(3));
+      AssertSelectedLights(f.io, rest);
+      assert(audio.stops == 1);
+    }
+    if (f.presentation.State() == WandPresentationState::Idle) {
+      assert(restAt && t - restAt >= rest.durationMs);
+      assert(!f.journal.pending && f.journal.restores == 1 && !f.io.run);
+      break;
+    }
+  }
+  assert(sawRaise && sawShow && sawLower && restAt);
+  assert(f.presentation.State() == WandPresentationState::Idle);
+  assert(f.adapter.LowerTimeoutMs(3) == f.effects.MotionTimeoutMs(3) + rest.durationMs);
+}
+
+void SharedScoreAndRepeat() {
+  Fixture f;
+  CueSink audio;
+  f.adapter.BindAudio(audio);
+  assert(f.Start("main-score"));
+  unsigned lit = 0;
+  for (unsigned i = 0; i < 108; i += 3) if (f.io.pixels[i]) ++lit;
+  assert(lit == 6 && f.io.servoWrites == 0);
+  AssertSelectedLights(f.io, PresentationScore::Main[0]);
+  for (uint64_t t = 40; t < 12000; t += 10) f.Tick(t);
+  assert(f.presentation.State() == WandPresentationState::Idle);
+  assert(audio.notes.front() == 220 && audio.stops == 1);
+  assert(f.io.vibrationWrites == 3 && f.io.servoWrites == 2 && !f.io.run);
+  assert(f.Start("short-score",12000));
+  for (uint64_t t = 12010; t < 20000; t += 10) f.Tick(t);
+  assert(f.presentation.State() == WandPresentationState::Idle);
+  assert(f.io.vibrationWrites == 4 && f.io.servoWrites == 4 && !f.io.run);
+  assert(f.Start("stop-score",20000));
+  SelectionStep stopped;
+  f.runtime.Stop(stopped);
+  assert(!f.io.run && audio.stops >= 3);
+}
+
 void AutonomousCycle() {
   Fixture f;
   assert(f.Start("proposal-1"));
   assert(f.journal.pending && f.io.servoWrites == 0 && f.io.vibrationWrites == 0);
-  for (uint64_t t = 40; t < 9500; t += 10) {
+  for (uint64_t t = 40; t < 12000; t += 10) {
     f.Tick(t);
   }
   assert(f.presentation.State() == WandPresentationState::Idle);
@@ -147,7 +279,7 @@ void AutonomousCycle() {
   assert(f.io.vibrationWrites == 3 && f.io.servoWrites == 2 && !f.io.run);
   ConversationRuntimeSnapshot restored;
   assert(f.state.Read(restored) && restored.readyMask == 63);
-  assert(!f.Start("proposal-1", 9500)); // A replay cannot move again.
+  assert(!f.Start("proposal-1", 12000)); // A replay cannot move again.
 
   Fixture failed;
   assert(failed.Start("owner-stall"));
@@ -183,7 +315,7 @@ void ManualCycle() {
   assert(f.runtime.AcceptSelection(command, true, 30).outcome == CommandOutcome::Accepted);
   SelectionStep step;
   assert(f.runtime.BeginAcceptedSelection(30, step));
-  for (uint64_t t = 40; t < 9500; t += 10) {
+  for (uint64_t t = 40; t < 12000; t += 10) {
     assert(f.runtime.RenewManualLease("lease", t));
     f.Tick(t);
   }
@@ -218,7 +350,7 @@ void InterruptedReturn() {
 
   Fixture f;
   assert(f.Start("return-journal-failure"));
-  for (uint64_t t = 40; t < 9500; t += 10) {
+  for (uint64_t t = 40; t < 12000; t += 10) {
     if (f.io.servoWrites == 2) f.journal.fail = true;
     f.Tick(t);
   }
@@ -247,7 +379,37 @@ void LongerCalibratedTravel() {
   assert(manual.io.servoWrites == 2 && manual.effects.IsResting(2));
 }
 
+void MaximumTravelStillHonorsAbsoluteDeadline() {
+  Fixture f(3000);
+  assert(f.Start("maximum-travel-deadline"));
+  for (uint64_t t = 130; t <= 14930; t += 100) {
+    f.Tick(t);
+    assert(f.presentation.State() != WandPresentationState::Fault);
+    assert(f.effects.Healthy());
+  }
+  // 100 ms passes remain below the 250 ms stall guard, but preparation
+  // rounding plus calibrated travel extends this cycle beyond 15 seconds.
+  assert(f.presentation.State() == WandPresentationState::Lowering);
+  assert(f.io.servoWrites == 2 && f.io.run && f.journal.pending);
+  assert(!f.effects.IsResting(3));
+  f.Tick(30 + WandPresentation::MaximumDurationMs);
+  assert(f.presentation.State() == WandPresentationState::Fault);
+  assert(!f.io.run && !f.effects.Healthy());
+  assert(f.journal.pending && f.journal.restores == 0);
+  const int servoWrites = f.io.servoWrites;
+  const int vibrationWrites = f.io.vibrationWrites;
+  for (uint64_t t = 15130; t <= 16030; t += 100) f.Tick(t);
+  assert(f.io.servoWrites == servoWrites && f.io.vibrationWrites == vibrationWrites);
+  assert(f.journal.pending && f.journal.restores == 0);
+  assert(!f.presentation.RecoverAfterInspection(false));
+  assert(!f.presentation.RecoverAfterInspection(true)); // Physical fault still needs inspection recovery.
+  assert(f.effects.RecoverAfterInspection());
+  assert(f.runtime.RecoverAfterInspection());
+  assert(f.presentation.State() == WandPresentationState::Idle && !f.io.run);
+  assert(!f.journal.pending && f.journal.restores == 0); // Deliberate recovery, not normal completion.
+}
+
 int main() {
-  LimitsAndFaults(); AutonomousCycle(); ManualCycle(); InterruptedReturn(); LongerCalibratedTravel();
+  LimitsAndFaults(); SingleLedSegmentBoundary(); EveryAuthoredPhaseAndRestCompletion(); SharedScoreAndRepeat(); AutonomousCycle(); ManualCycle(); InterruptedReturn(); LongerCalibratedTravel(); MaximumTravelStillHonorsAbsoluteDeadline();
   std::cout << "Physical limits, calibrated commanded travel, journal, autonomous/manual return and Stop passed\n";
 }

@@ -31,6 +31,7 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
                        const std::string& bootId,
                        EspIdfStationNetwork& station);
   bool InitializeVoice(bool nvsInitialized, AudioBoardPort* board = nullptr);
+  PresentationAudioPort& PresentationAudio() { return voiceAudio_; }
   void InitializeCamera(bool nvsInitialized, bool profileBVerified);
   LocalVoiceStatus VoiceStatus() const override;
   bool ConfigureVoice(const std::string& mode, const std::string& voice) override;

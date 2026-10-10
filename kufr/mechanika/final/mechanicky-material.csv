@@ -1,35 +1,35 @@
-polozka,pocet,specifikace,pouziti,stav
-M4 zapustny sroub,26,M4x8; hlava max9; podlozka0.5; matice3.2,Spoje dna korpusu a vika,Overit zasobu a zkusit stack; nic neobjednano
-M4 nizka hlava,24,M4x10; hlava dovnitr; matice ven,Svisle spoje korpusu a vika,Overit zasobu
-M4 matice a podlozky,50,Bezna matice3.2 a podlozka0.5; vne lze krytou matici,Seams; zajistit proti povoleni,Overit zasobu
-M4 sroub pro panty,12,M4x12 z vnitrni zapustene kapsy; konkretni kovani rozhoduje,Tri kovove panty,Overit vybrane kovani a stack
-Ocelovy pant,3,Obalka40mm; dvojice otvoru24mm v podlouhlych drazkach,Viko,Referencni obalka; vyber a rating jeste overit
-Kovova zapadka,2,S otvory v rozteci16mm nebo prizpusobenim kovani,Zavreni vika,Referencni obalka
-M3 srouby zapadek,8,M3 delka podle skutecneho kovani plus matice,Zapadky a protikusy,Overit zasobu
-M3 zapustny sroub,24,M3x20 plus matice a podlozka,Ctyri body kazde ze sesti zakladen,Overit zasobu
-M3 zapustny sroub,16,M3x14; do tepelne vlozky od spodniho povrchu racku,Ctyri body kazdeho bocniho racku,Overit zasobu
-M3 tepelna vlozka,20,Navrh OD4.6 delka5 pilot4.2; 16 dole a4 nahore,Racky a police kolebek; nejdrive merka,Overit realny typ vlozky
-M3 zapustny sroub,4,M3x8,Police kolebek do vlozek,Overit zasobu
-M3 zavitova tyc,4,Prirez75mm pro levy stolek; konec nesmi zasahovat komponenty,Pruchozi uchyceni stolkove nohy,Rezervy po realnem stacku zkratit
-M3 zavitova tyc,8,Prirez70mm pro prave stolky,Pruchozi uchyceni stolkove nohy,Rezervy po realnem stacku zkratit
-M3 matice a podlozky pro stolky,24,Po dvou na kazdou tyc,Stolky; dolni matice pred osazenim racku,Overit zasobu
-M4 vodici vyztuzovaci sroub,12,M4x90 nizka hlava; matice a podlozkaOD12,Voditka a koncova pojistka luzka,Overit zasobu
-M3 sroub brzdy,6,M3x20; matice a dve podlozky,Serizeni deleneho pouzdra,Overit zasobu
-Plst brzdy,12,Pasek0.3mm tloustka; odstrihnout dle pouzdra,Pasivni stabilita ve vsech polohach,Nutna fyzicka zkouska treni
-M3 sroub valecku,6,M3x12 ISO7380 hlava max5.7x1.65; matice2.4 a podlozka0.5,Cam follower,Overit volne otaceni a axialni vuli
-Nylonovy valecek,6,OD6 ID4.2 delka3; po hladkem mosaznem pouzdre,Vymenny kontakt vacky,Overit zasobu nebo vyriznout z pouzdra
-Mosazne pouzdro valecku,6,OD4 ID3.2 delka4.5; kolmy odjehleny rez,Loziskova plocha a sevreni sroubu,Novy montazni material
-Mezikus valecku,6,OD6 ID4.2 delka1.1; ponechat axialni vuli0.4,Axialni vymezeni,Novy montazni material
-M2 srouby a matice,12,M2x10 hlava max3.5x1.3; radius9 parametricky; matice zapustena,Prisroubovani vacky k dodane pace,Neznamy skutecny raster otvoru paky
-M3 srouby kamery,2,M3x10 plus matice; podle finalniho modulu,Nastavitelny drzak kamery,Overit po doruceni kamery
-Popruh pro nosny postroj,1,Hotovy rating nejmene10kg; dve25mm smycky pod dnem a propojovaci rukojet,Transport; nesou hlavni zatez,Novy montazni material nikoli potvrzeny nakup
-Omezovaci pasek vika,2,Sirka8mm; ucinna delka priblizne141mm plus zalozeni,Nastavit105stupnu; slozit po bocich,Overit skutecne kovani
-Transportni pasek luzka,6,Sirka8mm delka priblizne220mm; opakovatelne rozepinani,Spojit otvory luzka a zakladny,Overit zasobu
-Pasek powerbanky,2,Sirka15mm delka priblizne260mm; tahaci smycka,Mechanicka retence vyjimatelne banky,Overit zasobu
-Pasky hulek,12,Mekke sirka6mm; delka dle skutecne rekvizity,Dve smycky na kazdem luzku,Overit prumer a snadnou manipulaci
-Pasky serv a U059,24,Dva pro servo a dva pro kazdy U059; nesvirat kabel,Pozitivni retence,Spotrebni material
-Pasky reproduktoru,4,Dva na kazdy reproduktor mimo membranu,Pozitivni retence,Spotrebni material
-Samolepici suchy zip,1,Vyska spojene dvojice2mm; plocha orientacne0.15m2,Lehka elektronika a kryty; nezakryt chlazeni,Overit skutecnou vysku a adhezi
-Samet,1,Tloustka0.8mm; orientacne0.7m2 vcetne rezervy,Kryty a viko; svetla a ventilace bez latky,Overit skutecnou tloustku
-Izolacni mekke podlozky,1,1.2mm pro hulky; 4mm pod banku;6mm pod MCP,Oddeleni a tlumeni mimo U059,Rezervy tloustek overit
-Izolovane sacky na rezervy,1,Tenke a zajistene k zakladne; zadne volne vodive vyvody,Rezervni PCA kolebka svorky a kondenzatory,Spotrebni material
+﻿id,mnozstvi,jednotka,specifikace,pouziti,nastroj,stav,priklad_zdroje
+PETG,1,kg,PETG; 1.75 nebo2.85 dle tiskárny; přesná spotřeba až po sliceru,Všechny STL dleprint-bom,3D tiskárna,ověřit doma; dokoupit dle sliceru,běžné železářství / galanterie / elektro; konkrétní nákup neproveden
+ANGLE40,4,ks,AlEN AW6060 T66 L40×40×3; délka50mm,Čtyři lepené kotvy; nové díry podleSTEP,pilka; pilník; vrtačka,dokoupit nebo ověřit doma,běžné železářství / galanterie / elektro; konkrétní nákup neproveden
+RAIL20,2,ks,AlEN AW6060 T66 L20×20×3; délka400mm; Rp0.2≥150MPa,Příčné lišty; upravit svislé konce podleCAD,pilka; pilník; vrtačka,dokoupit nebo ověřit doma,https://www.ehlinik.cz/hlinikovy-l-profil-20x20x3/pro-8WS0000101.html
+EPOXY,1,balení,Bison Epoxy Metal24ml6305443; směs1:1; plocha4×2000mm²,Nosné spoje Al–holé dřevo; filmmin4ml plus rezerva,brusný papír; svěrky; rukavice,dokoupit nebo ověřit doma,https://www.bison.net/getmedia/d54542f5-f56f-40b2-9406-3ad692c92a30/Print%20PDF.pdf
+M3x6,9,ks,M3×6 DIN7991 zápustná hlava90° ocel,8 spojů rámových panelů + 1 USB parkovací klip,imbus2mm,ověřit doma,běžné železářství / galanterie / elektro; konkrétní nákup neproveden
+M3x8,44,ks,M3×8 ISO7380 nízká půlkulatá hlava maxØ5.7×1.65,Pevné nosiče a pomocné držáky; skutečný počet podle CAD,imbus2mm,ověřit doma,běžné železářství / galanterie / elektro; konkrétní nákup neproveden
+M3x10,32,ks,M3×10 ISO7380 nízká hlava,24 spoje6modulů +8 horní spoje4krytů,imbus2mm,ověřit doma,běžné železářství / galanterie / elektro; konkrétní nákup neproveden
+NUT3,89,ks,M3 DIN934 ocel; přes plochy5.5; výška2.4,8 rám + 49 nosiče/doplňky + 24 moduly + 8 kryty; dalších 6 matic je v sadách FOLLOWER3,klíč5.5mm,ověřit doma,běžné železářství / galanterie / elektro; konkrétní nákup neproveden
+M4x12,4,ks,M4×12 ISO7380 nízká hlava,Rám/lišta ke čtyřem kotvám,imbus2.5mm; klíč7mm,ověřit doma,běžné železářství / galanterie / elektro; konkrétní nákup neproveden
+NUT4,4,ks,M4 DIN934 ocel; přesplochy7; výška3.2,Kotevní M4 spoje,klíč7mm,ověřit doma,běžné železářství / galanterie / elektro; konkrétní nákup neproveden
+GUIDE4,12,ks,M4×100 DIN931 hladký vodicí dříkØ4; ověřit délku nešroubované části,Dvě vedení každého modulu; spodní hlava,klíč7mm,dokoupit nebo ověřit doma,https://www.prumex.cz/sroub-sestihranny-castecny-zavit-din-931-m4x100-8-8-bez-pu/
+GUIDE_NUT,12,ks,M4 DIN934 matice výška3.2mm + nízká pevnost zajištění závitu kov/kov,Horní zachycení vedení proti vytažení,klíč7mm,ověřit doma,běžné železářství / galanterie / elektro; konkrétní nákup neproveden
+GUIDE_WASHER,12,ks,M4 DIN125A Ø9/4.3×0.8mm,Horní zachycení; větší Ø12 koliduje,ručně,ověřit doma,běžné železářství / galanterie / elektro; konkrétní nákup neproveden
+FOLLOWER3,6,sada,M3×12 ISO7380 +M3DIN934 +podložkaØ7/3.2×0.5,Čep kladky,imbus2mm; klíč5.5mm,ověřit doma,běžné železářství / galanterie / elektro; konkrétní nákup neproveden
+ROLLER,6,ks,PA6 trubičkaØ6/4; převrtat otvor4.2mm; uříznout6×3mm; odjehlit,Kladka v drážce vačky,pilka; pilník; vrták4.2; měřítko,dokoupit,https://www.inaircom.cz/produkt/R16020614-trubicka-pa6-nylon-c-6x4mm
+SLEEVE,6,ks,Mosazná trubičkaØ4/3.2 délka4.5mm; otvor proM3,Distanc kladky přenáší svěrnou sílu,pilka; pilník; měřítko,dokoupit,https://eshop.hvp-modell.cz/Mosazna-trubka-pr-4x3-2x1000mm-d541.htm
+SPACER,6,ks,PA6 ze stejné trubičkyØ6/4 převrtané na4.2; 6×1.1mm; výsledná axiální vůle0.4mm,Axiální vedení kladky; výsledná vůle0.4mm,pilník; měřítko,dokoupit nebo vyrobit z téže trubičky,běžné železářství / galanterie / elektro; konkrétní nákup neproveden
+COUPLER2,12,sada,"M2 × 10 ISO7380-1 + M2 DIN934; hlava Ø3,5 × 1,3 mm; 2 sady/vačka",Původní servo páka k vačce; ověřit skutečnou rozteč,"imbus 1,3 mm; klíč 4 mm",ověřit doma,https://www.inerez.cz/zbozi-sroub-iso-7380-1-vni-6hr-pulkulata-hl-a4-m2x10-10-detail-193120
+SERVO_CENTRE,6,ks,Původní středový šroubek konkrétního serva; závit není doložený,Páka na výstupní hřídel,malý křížový šroubovák,ověřit dodané příslušenství; nekupovat naslepo,běžné železářství / galanterie / elektro; konkrétní nákup neproveden
+TIE25,100,ks,PA66 stahovací pásek2.5×200mm; jednotlivé přebytky odstřihnout,36 pevná elektronika + 12 serva + 24 U059/LED; zbytek odlehčení kabelů a rezerva,stranové kleště,dokoupit nebo ověřit doma; balení s rezervou,běžné železářství / galanterie / elektro; konkrétní nákup neproveden
+BED_WRAP,6,ks,Výrazný červený háček/smyčka oboustranný pásek8×250mm,Samostatná přepravní aretace každého prázdného lůžka,nůžky; štítek1–6,dokoupit,běžné železářství / galanterie / elektro; konkrétní nákup neproveden
+BANK_WRAP,2,ks,Uvolnitelný oboustranný háček/smyčka8×300mm,Powerbanka; uvolnit před vyjmutím,nůžky,dokoupit,běžné železářství / galanterie / elektro; konkrétní nákup neproveden
+TEXTILE,1,kus,Vínový samet0.8mm; přířez1000×700mm; dělit dleCAD+10mm založení,6lůžek;4kryty;víko; snímatelné a nenosné,nůžky; šití,dokoupit,běžné železářství / galanterie / elektro; konkrétní nákup neproveden
+FOAM,1,kus,Měkká uzavřená EVA1.2mm; přířez300×300mm,6podložek lůžek podleCAD,nůžky,dokoupit,běžné železářství / galanterie / elektro; konkrétní nákup neproveden
+TEXTILE_FIX,2,m,Šicí háček/smyčka šířka10mm +polyesterová nit; smyčka na textilu,Lem dekorace; protikus na krytech mimo pohyb,jehla/šicí stroj,dokoupit,běžné železářství / galanterie / elektro; konkrétní nákup neproveden
+LED_TAPE,2,m,Tenká oboustranná páska šířka8mm; tloušťka≤0.2mm; vhodná proPETG/IP65plášť po zkoušce,Pomocné LED a lemové přidržení; mechanické pásky zůstávají,nůžky; odmaštěnídlepásky,dokoupit,běžné železářství / galanterie / elektro; konkrétní nákup neproveden
+INSULATION,1,kus,PET/Mylar elektroizolační fólie0.2mm přířez300×300mm,Pod pájecí strany univerzálních PCB a místní spoje,nůžky,dokoupit,běžné železářství / galanterie / elektro; konkrétní nákup neproveden
+THREADLOCK,1,tuba,Nízká pevnost proM2–M4 kov/kov; malé množství; mimoPETG,Nezajištěné kovové matice; ne na plast ani servohřídel,ručně,ověřit doma,běžné železářství / galanterie / elektro; konkrétní nákup neproveden
+USB_SOCKET,1,ks,Pasivní USB-A female pigtail; VBUS/GND nejméně3A/5V; izolovaný,RozvodMAIN5 na USB napájení ESP; beznovéfunkčníelektroniky,pájka; bužírka,dokoupit,běžné železářství / galanterie / elektro; konkrétní nákup neproveden
+USB300,1,ks,Intaktní USB-A→USB-C300mm nejméně3A; maxOD4.5mm,ESP USB-UART; původní1mA/C zůstane rezerva,ručně,dokoupit,běžné železářství / galanterie / elektro; konkrétní nákup neproveden
+WIRE,1,sada,Průřezy a délky podleexports/cable-cut-list.csv; dokoupit jen rozdíl vůči zásobě,Označené vodiče135ID,odizolovací kleště; pájka; multimetr,délka koupených cívek neznámá; ověřit doma,běžné železářství / galanterie / elektro; konkrétní nákup neproveden
+LABELS,276,štítků,270 štítků: ID každého vodiče na obou koncích; dalších 6 aretačních štítků,Zapojení a servis,popisovač nebo tiskárna štítků,dokoupit nebo ověřit doma,běžné železářství / galanterie / elektro; konkrétní nákup neproveden
+M3CSK8,4,ks,M3 × 8 DIN7991 zápustná hlava 90°; ocel,2 mikrofon + 2 kamera; zapuštěné hlavy u okraje bezpečné zóny,imbus2mm,ověřit doma,běžné železářství
+COIL_TIE,2,ks,"PA66 stahovací pásek 3,6 × 250 mm; otvor v držáku 4,2 mm",Nezávislé zajištění USB cívky; zachovat poloměr kabelu alespoň 20 mm,stranové kleště,dokoupit nebo ověřit doma,https://eshop.zofi.cz/stahovaci-paska/307012-250-x-3-6-mm

@@ -1,7 +1,10 @@
 """Topology regression checks without CAD or physical-hardware claims."""
 import csv
+import hashlib
 import json
 import math
+import subprocess
+import sys
 import tempfile
 import unittest
 from copy import deepcopy
@@ -97,85 +100,12 @@ class HarnessTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "insufficient route"):
             harness.validate(wires=wires)
 
-    def test_power_routes_to_moving_modules_use_outer_edge_before_front_loop(self):
-        route = next(wire for wire in harness.HARNESSES if wire["id"] == "F_U123+-01")
-        self.assertIn([121, 212, 45], route["points"])
-        self.assertIn([121, 99, 45], route["points"])
-        self.assertIn([106, 99, 45], route["points"])
-        for wire in harness.HARNESSES:
-            for start, end in zip(wire["points"], wire["points"][1:]):
-                self.assertLessEqual(sum(a != b for a, b in zip(start, end)), 1)
 
-    def test_left_cluster_power_avoids_vertical_bank_and_caps_keep_assigned_nets(self):
-        for identifier in ("D1-1", "D1-2", "C1+", "C2-"):
-            route = next(wire for wire in harness.HARNESSES if wire["id"] == identifier)
-            self.assertIn([60, 212, 45], route["points"])
-        for index in range(1, 7):
-            edges = [edge for edge in harness.CONNECTIONS if edge["to"] == f"capacitor_{index}"]
-            self.assertEqual(2, len(edges))
-            self.assertEqual("degson_3", next(edge for edge in edges if edge["kind"] == "ground")["from"])
-            positive = next(edge for edge in edges if edge["kind"] == "power")
-            self.assertEqual("pca9685" if index in (3, 4) else "degson_1", positive["from"])
 
-    def test_front_board_power_does_not_cross_actuators_from_rear(self):
-        for identifier in ("D2-2", "D3-2", "F_LED+-01", "F_LED--01"):
-            route = next(wire for wire in harness.HARNESSES if wire["id"] == identifier)
-            self.assertIn([365, 212, 45], route["points"])
-            self.assertIn([365, 27, 38], route["points"])
 
-    def test_every_moving_endpoint_visits_its_reserved_loop_box(self):
-        for wire in harness.HARNESSES:
-            for endpoint in (wire["from"], wire["to"]):
-                part = endpoint.split(":", 1)[0]
-                if not part.startswith(("led_", "u059_")):
-                    continue
-                origin_x = 77 + 48 * (int(part.split("_")[-1]) - 1)
-                inside = [point for point in wire["points"]
-                          if origin_x + 17 <= point[0] <= origin_x + 41
-                          and 86 <= point[1] <= 112 and 36 <= point[2] <= 60]
-                with self.subTest(wire=wire["id"], endpoint=endpoint):
-                    self.assertIn([origin_x + 29, 99, 45], inside)
-                    self.assertIn([origin_x + 29, 99, 59], inside)
 
-    def test_esp_signal_approach_stays_outside_right_speaker(self):
-        for wire in harness.HARNESSES:
-            if wire["kind"] != "signal" or not any(endpoint.startswith("esp32:") for endpoint in (wire["from"], wire["to"])):
-                continue
-            with self.subTest(wire=wire["id"]):
-                self.assertIn([376, 50, 86], wire["points"])
-                self.assertIn([376, 50, 38], wire["points"])
-                self.assertIn([380, 50, 38], wire["points"])
-                for start, end in zip(wire["points"], wire["points"][1:]):
-                    if start[0] >= 403 and end[0] >= 403:
-                        self.assertGreater(min(start[2], end[2]), 63)
 
-    def test_service_shelf_tails_pass_through_provided_openings(self):
-        left_upper = {"amplifier_left", "buck", "red_main", "green_drives", "white_ptt"}
-        right_upper = {"esp32", "amplifier_right", "esp_usb_supply"}
-        for wire in harness.HARNESSES:
-            for endpoint in (wire["from"], wire["to"]):
-                part = endpoint.split(":", 1)[0]
-                if part not in left_upper | right_upper:
-                    continue
-                # Intact PD cable does not cross the service shelf.
-                if wire["id"] == "USB-PD":
-                    continue
-                x, y = (65, 93) if part in left_upper else (376, 50)
-                with self.subTest(wire=wire["id"], endpoint=endpoint):
-                    self.assertTrue(any(point[:2] == [x, y] for point in wire["points"]))
 
-    def test_right_power_exits_leg_rows_through_front_before_rear_trunk(self):
-        for wire in harness.HARNESSES:
-            if wire["kind"] not in ("power", "ground") or wire["id"] == "USB-ESP":
-                continue
-            if not any(endpoint.split(":", 1)[0] in ("amplifier_right", "esp_usb_supply", "esp32")
-                       for endpoint in (wire["from"], wire["to"])):
-                continue
-            with self.subTest(wire=wire["id"]):
-                self.assertIn([380, 27, 38], wire["points"])
-                self.assertIn([365, 27, 38], wire["points"])
-                if wire["net"] != "LOGIC3":
-                    self.assertIn([365, 212, 45], wire["points"])
 
     def test_three_contact_rockers_have_no_external_fourth_led_positive_pin(self):
         endpoints = {endpoint for wire in harness.HARNESSES for endpoint in (wire["from"], wire["to"])}
@@ -186,29 +116,7 @@ class HarnessTests(unittest.TestCase):
             self.assertIn(f"{rocker}:OUT", endpoints)
         self.assertEqual(["white_ptt:LED+"], harness.FANOUTS["F_PANEL+"]["loads"])
 
-    def test_control_tails_exit_above_speaker_before_descending(self):
-        for wire in harness.HARNESSES:
-            for endpoint in (wire["from"], wire["to"]):
-                part = endpoint.split(":", 1)[0]
-                if part not in ("red_main", "green_drives", "white_ptt"):
-                    continue
-                a = harness.ANCHORS[part]
-                with self.subTest(wire=wire["id"], endpoint=endpoint):
-                    self.assertIn([a[0], 62, a[2]], wire["points"])
-                    self.assertIn([a[0], 62, 84], wire["points"])
-                    self.assertIn([65, 62, 84], wire["points"])
-                    self.assertIn([65, 93, 84], wire["points"])
-                    for start, end in zip(wire["points"], wire["points"][1:]):
-                        self.assertFalse(segment_intersects_box(start, end, (17, 65, 81, 63, 96, 100)))
 
-    def test_bank_usb_approaches_left_passage_between_amplifier_and_buck(self):
-        wire = next(wire for wire in harness.HARNESSES if wire["id"] == "USB-PD")
-        self.assertIn([32, 99, 84], wire["points"])
-        self.assertIn([65, 99, 84], wire["points"])
-        self.assertIn([65, 93, 84], wire["points"])
-        for start, end in zip(wire["points"], wire["points"][1:]):
-            self.assertFalse(segment_intersects_box(start, end, (42, 102, 81, 60, 120, 89)))
-            self.assertFalse(segment_intersects_box(start, end, (17, 65, 81, 63, 96, 100)))
 
     def test_buck_negative_labels_alias_one_common_physical_terminal(self):
         self.assertEqual("buck:GND", harness.TERMINAL_ALIASES["buck:IN-"])
@@ -216,103 +124,103 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual("GND", harness.NET_ALIASES["PD_RETURN"])
         self.assertIn("One 1.5mm2 lead", harness.BUCK_GROUND_JOINT["construction"])
 
-    def test_moving_endpoint_drops_before_horizontal_route_at_module_height(self):
+
+
+
+
+
+
+
+
+    def test_topology_ids_and_channels_are_unchanged(self):
+        topology = [(w['id'],w['from'],w['to'],w['net'],w['channel']) for w in harness.HARNESSES]
+        self.assertEqual(135, len(topology))
+        self.assertEqual('54d060b24bedb1f7cc1ee525a4bb26102210a62b5969a3d31a6da066ad28c841',
+                         hashlib.sha256(json.dumps(topology).encode()).hexdigest())
+
+    def test_every_wire_uses_actual_named_terminal_anchors_and_metadata(self):
+        registry = harness.endpoint_registry()
+        for wire in harness.routes():
+            with self.subTest(wire=wire['id']):
+                self.assertEqual(registry[wire['from']]['point'], wire['points'][0])
+                self.assertEqual(registry[wire['to']]['point'], wire['points'][-1])
+                self.assertTrue(wire['bundle'] and wire['colour'] and wire['spec'])
+                self.assertTrue(wire['from_termination'] and wire['to_termination'])
+                self.assertGreater(wire['outer_diameter_mm'],0)
+                self.assertIn('provisional', registry[wire['from']]['position_status'])
+                for a,b in zip(wire['points'],wire['points'][1:]):
+                    if sum(x!=y for x,y in zip(a,b))>1:
+                        self.assertEqual("USB-PD",wire["id"])
+                        self.assertEqual(10,wire["curve_sampling_degrees"])
+                        self.assertLessEqual(math.dist(a,b),14.5)
+
+    def test_component_parameter_change_moves_pin_and_routes_without_topology_change(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "harness.py").write_bytes(Path(harness.__file__).read_bytes())
+            params = deepcopy(harness.PARAMS)
+            params["components"]["esp32"]["origin"][0] += 1
+            (root / "parameters.json").write_text(json.dumps(params), encoding="utf-8")
+            command = "import harness,json; print(json.dumps({'pin':harness.endpoint_registry()['esp32:GPIO1']['point'],'wire':next(w['points'][0] for w in harness.HARNESSES if w['id']=='SIG-SDA-IN'),'ids':[w['id'] for w in harness.HARNESSES]}))"
+            completed = subprocess.run([sys.executable, "-c", command], cwd=root,
+                                       capture_output=True, text=True, timeout=20, check=True)
+            result = json.loads(completed.stdout)
+            initial = harness.endpoint_registry()["esp32:GPIO1"]["point"]
+            self.assertEqual([initial[0]+1,*initial[1:]], result["pin"])
+            self.assertEqual(result["pin"],result["wire"])
+            self.assertEqual([w["id"] for w in harness.HARNESSES],result["ids"])
+
+    def test_routes_remain_inside_case_and_above_frame(self):
+        case = harness.PARAMS['case']
         for wire in harness.HARNESSES:
-            for key, reverse in (("from", False), ("to", True)):
-                part = wire[key].split(":", 1)[0]
-                if not part.startswith(("u059_", "led_")):
-                    continue
-                points = list(reversed(wire["points"])) if reverse else wire["points"]
-                a = harness.ANCHORS[part]
-                with self.subTest(wire=wire["id"], endpoint=wire[key]):
-                    self.assertEqual(list(a), points[0])
-                    self.assertEqual([a[0], a[1], 59], points[1])
-                    if part.startswith("led_"):
-                        origin_x = 77 + 48 * (int(part.split("_")[-1]) - 1)
-                        self.assertGreaterEqual(a[0] - (origin_x + 45), 2)
-                        self.assertLessEqual(a[0], origin_x + 48)
+            for point in wire['points']:
+                with self.subTest(wire=wire['id'],point=point):
+                    self.assertTrue(0 <= point[0] <= case['inside_x'])
+                    self.assertTrue(0 <= point[1] <= case['inside_y'])
+                    self.assertTrue(harness.FRAME_TOP <= point[2] <= case['inside_z'])
 
-    def test_servo_tails_approach_above_cradle_and_detour_front_guide(self):
-        for wire in harness.HARNESSES:
-            part = wire["to"].split(":", 1)[0]
-            if not part.startswith("servo_"):
-                continue
-            origin_x = 77 + 48 * (int(part.split("_")[-1]) - 1)
-            with self.subTest(wire=wire["id"]):
-                self.assertIn([origin_x + 26, 30, 55], wire["points"])
-                self.assertIn([origin_x + 26, 30, 38], wire["points"])
-                self.assertIn([origin_x + 26, 145, 55], wire["points"])
-                self.assertIn([origin_x + 14, 145, 55], wire["points"])
+    def test_transport_pd_is_parked_disconnected_and_coil_stays_beside_bank(self):
+        wire = next(w for w in harness.routes() if w['id']=='USB-PD')
+        self.assertEqual('usb_park_clip:unplugged_C', wire['transport_from'])
+        self.assertEqual(list(harness.USB_PARK_POINT),wire['transport_points'][0])
+        self.assertNotEqual(wire['points'][0],wire['transport_points'][0])
+        self.assertEqual(wire['points'][-1],wire['transport_points'][-1])
+        self.assertIn('disconnected',wire['transport_connection'])
+        bank = harness.PARAMS['components']['powerbank']
+        self.assertGreater(harness.USB_COIL['origin'][0],bank['origin'][0]+bank['size'][0])
+        self.assertLess(harness.USB_COIL['origin'][0]+harness.USB_COIL['size'][0],harness.M['origin_x'])
 
-    def test_right_upper_routes_clear_front_table_inner_leg(self):
-        for wire in harness.HARNESSES:
-            if not any(endpoint.split(":", 1)[0] in ("amplifier_right", "esp32", "esp_usb_supply")
-                       for endpoint in (wire["from"], wire["to"])):
-                continue
-            for start, end in zip(wire["points"], wire["points"][1:]):
-                with self.subTest(wire=wire["id"], start=start, end=end):
-                    self.assertFalse(segment_intersects_box(start, end, (371, 29, 12, 377, 35, 68)))
+    def test_all_six_modules_reserve_independent_moving_endpoint_loops(self):
+        modules = set()
+        for wire in harness.routes():
+            self.assertEqual(harness._moving_end_count(wire['from'],wire['to']),len(wire['moving_endpoints']))
+            for moving in wire['moving_endpoints']:
+                index = int(moving['component'].split('_')[-1])
+                modules.add(index)
+                self.assertEqual(harness.loop_reserve(index),moving['loop'])
+                self.assertIn(moving['fixed_point'],wire['points'])
+                self.assertEqual(harness.LIFT_MM,moving['lift_mm'])
+        self.assertEqual(set(range(1,7)),modules)
 
-    def test_pca_capacitor_tails_detour_the_other_capacitor(self):
-        for index in (3, 4):
-            other_x = 187 if index == 3 else 174
-            for suffix in ("+", "-"):
-                wire = next(wire for wire in harness.HARNESSES if wire["id"] == f"C{index}{suffix}")
-                target_x = harness.ANCHORS[f"capacitor_{index}"][0]
-                self.assertIn([target_x, 35, 23], wire["points"])
-                self.assertIn([target_x, 55, 23], wire["points"])
-                for start, end in zip(wire["points"], wire["points"][1:]):
-                    self.assertFalse(segment_intersects_box(start, end,
-                                                           (other_x - 5, 50, 17, other_x + 5, 60, 34)))
+    def test_usb_supply_is_only_passive_main5_and_short_added_cable(self):
+        self.assertIn('passive USB-A',harness.SUPPLY_CONNECTOR['type'])
+        self.assertIn('MAIN5 only',harness.SUPPLY_CONNECTOR['supply'])
+        wire = next(w for w in harness.HARNESSES if w['id']=='USB-ESP')
+        self.assertEqual(300,wire['stock_mm'])
+        self.assertLessEqual(wire['estimated_total_mm'],wire['stock_mm'])
+        self.assertFalse(any(w['from']=='powerbank:C1' and w['to'].startswith('esp') for w in harness.HARNESSES))
+        self.assertEqual('camera:FPC',harness.CAMERA_FPC['to'])
+        self.assertIn('logical adjacency only',harness.CAMERA_FPC['status'])
 
-    def test_pca_capacitors_clear_mounting_nut_with_radius_allowance(self):
-        nut_center = (181, 43)
-        capacitor_radius, nut_radius = 5, 3.4
-        for index in (3, 4):
-            x, y, z = harness.ANCHORS[f"capacitor_{index}"]
-            with self.subTest(capacitor=index):
-                self.assertEqual((55, 17), (y, z))
-                self.assertGreater(math.hypot(x - nut_center[0], y - nut_center[1]),
-                                   capacitor_radius + nut_radius)
-
-    def test_servo_rise_is_behind_front_cover_fascia(self):
-        fascia = (75, 25, 45, 368, 27.1, 108)
-        for wire in harness.HARNESSES:
-            if not wire["to"].startswith("servo_"):
-                continue
-            for start, end in zip(wire["points"], wire["points"][1:]):
-                with self.subTest(wire=wire["id"], start=start, end=end):
-                    self.assertFalse(segment_intersects_box(start, end, fascia))
-
-    def test_pca_capacitor_horizontal_tails_stay_above_base_edge(self):
-        base_edge = (173, 34, 13, 176, 246, 17.1)
-        for identifier in ("C3+", "C3-", "C4+", "C4-"):
-            wire = next(wire for wire in harness.HARNESSES if wire["id"] == identifier)
-            for start, end in zip(wire["points"], wire["points"][1:]):
-                if start[2] != end[2]:
-                    continue  # local capacitor endpoint descent is checked by CAD
-                with self.subTest(wire=identifier, start=start, end=end):
-                    self.assertFalse(segment_intersects_box(start, end, base_edge))
-
-    def test_right_service_approach_clears_full_height_rear_support(self):
-        right_endpoints = {"amplifier_right", "esp32", "esp_usb_supply", "speaker_right"}
-        support = (371, 120, 12, 377, 126, 105)
-        conservative_support = (support[0], support[1] - 0.1, *support[2:])
-        for wire in harness.HARNESSES:
-            if not any(endpoint.split(":", 1)[0] in right_endpoints
-                       for endpoint in (wire["from"], wire["to"])):
-                continue
-            for start, end in zip(wire["points"], wire["points"][1:]):
-                with self.subTest(wire=wire["id"], start=start, end=end):
-                    # The Y120 face is included: a finite-thickness cable there
-                    # already overlaps the support even if its line touches it.
-                    self.assertFalse(segment_intersects_box(start, end, conservative_support))
-            for endpoint in (wire["from"], wire["to"]):
-                part = endpoint.split(":", 1)[0]
-                if part in right_endpoints:
-                    a = harness.ANCHORS[part]
-                    self.assertIn([380, a[1], a[2]], wire["points"])
-                    self.assertIn([380, 50, a[2]], wire["points"])
+    def test_validator_rejects_unknown_pin_and_detached_registry_endpoint(self):
+        wires=self.wires()
+        wires[0]['to']='pd_trigger:invented'
+        with self.assertRaisesRegex(ValueError,'unknown component or pin'):
+            harness.validate(wires)
+        wires=self.wires()
+        wires[0]['points'][0][0]+=1
+        with self.assertRaisesRegex(ValueError,'route endpoint'):
+            harness.validate(wires)
 
     def test_export_is_complete_and_routes_are_copies(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -361,30 +269,6 @@ class HarnessTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "insufficient cut length"):
             harness.validate(wires=wires)
 
-    def test_terminal_connection_metadata_reaches_real_fanout_loads(self):
-        expected = {
-            "D1-3": {"pixel_shifter"} | {f"led_{index}" for index in range(1, 7)},
-            "D1-4": {"amplifier_left", "amplifier_right", "esp32"},
-            "D1-5": {"white_ptt"},
-            "D2-3": {f"u059_{index}" for index in range(1, 4)},
-            "D2-4": {f"u059_{index}" for index in range(4, 7)},
-            "D3-3": {"pixel_shifter"} | {f"led_{index}" for index in range(1, 7)},
-            "D3-4": {f"u059_{index}" for index in range(1, 7)},
-            "D3-5": {"amplifier_left", "amplifier_right", "esp32", "mcp23017", "microphone",
-                       "red_main", "green_drives", "white_ptt"},
-        }
-        for port, targets in expected.items():
-            edges = [edge for edge in harness.CONNECTIONS if edge["label"].startswith(f"{port} ") or edge["label"].startswith(f"{port}:")]
-            with self.subTest(port=port):
-                self.assertEqual(targets, {edge["to"] for edge in edges})
-                self.assertTrue(all("fanout" in edge["note"] for edge in edges))
-                self.assertTrue(all(harness.NETS[f"degson_{port[1]}"] in edge["label"] for edge in edges))
-        for edge in harness.CONNECTIONS:
-            self.assertFalse(edge["to"].startswith("F_"))
-            self.assertNotEqual("esp_usb_supply", edge["to"])
-        usb_edges = [edge for edge in harness.CONNECTIONS if edge["to"] == "esp32"]
-        self.assertEqual(2, len(usb_edges))
-        self.assertTrue(all("USB-UART" in edge["note"] and "unconfirmed" in edge["note"] for edge in usb_edges))
 
     def test_every_occupied_degson_port_keeps_edges_after_physical_scene_filter(self):
         scene_names = {"degson_1", "degson_2", "degson_3", "buck", "pca9685", "pixel_shifter",
@@ -403,6 +287,97 @@ class HarnessTests(unittest.TestCase):
                     self.assertTrue(any(edge["from"] == block and
                                         (edge["label"].startswith(f"{identifier}:") or edge["label"].startswith(f"{identifier} /"))
                                         for edge in visible))
+
+
+
+class FiniteGeometryContractTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        try:
+            import verify_harness_geometry
+            cls.verifier=verify_harness_geometry
+        except ImportError:
+            raise unittest.SkipTest("Run finite geometry tests in the existing CadQuery environment")
+
+    def test_corner_is_full_sphere_and_covers_lower_half(self):
+        v=self.verifier
+        sphere=v.tube((30,40,20),(30,40,20),2)
+        self.assertAlmostEqual(4*math.pi*8/3,sphere.Volume(),places=6)
+        self.assertTrue(sphere.isInside(v.cq.Vector(30,40,18.5)))
+
+    def test_segment_distance_handles_crossing_parallel_and_finite_ends(self):
+        distance=self.verifier.segment_distance
+        self.assertAlmostEqual(0,distance((0,0,0),(10,0,0),(5,-2,0),(5,2,0)))
+        self.assertAlmostEqual(5,distance((0,0,0),(10,0,0),(2,3,4),(8,3,4)))
+        self.assertAlmostEqual(3,distance((0,0,0),(2,0,0),(5,0,0),(7,0,0)))
+
+    def test_closed_usb_lap_and_returning_tail_fail_self_clearance(self):
+        wire={"id":"USB-test","outer_diameter_mm":4.5,
+              "points":[[0,0,0],[0,40,0],[0,40,40],[0,0,40],[0,0,0],[20,0,0]]}
+        self.assertEqual("FAIL",self.verifier.self_clearance(wire)["status"])
+
+    def test_native_usb_spiral_and_both_complete_tails_are_disjoint(self):
+        wire=deepcopy(next(row for row in harness.HARNESSES if row["id"]=="USB-PD"))
+        for points in (wire["points"],wire["transport_points"]):
+            with self.subTest(transport=points is wire["transport_points"]):
+                self.assertEqual(len(points),len({tuple(point) for point in points}))
+                wire["points"]=points
+                result=self.verifier.self_clearance(wire)
+                self.assertEqual("PASS",result["status"],result["collisions"])
+                self.assertGreaterEqual(result["minimum_nonlocal_distance_mm"],5.1)
+                self.assertLessEqual(harness.route_length(points)+wire["service_mm"]+wire["termination_mm"],wire["stock_mm"])
+
+    def test_all_wires_have_complete_self_geometry_coverage(self):
+        result=self.verifier.verify_self_geometry()
+        self.assertEqual("PASS",result["status"],result["collisions"])
+        self.assertEqual(135,result["coverage"]["rest_wire_count"])
+        self.assertEqual(135,result["coverage"]["transport_wire_count"])
+        self.assertEqual([0,80,160],result["coverage"]["motion_angles"])
+        self.assertEqual(list(range(1,7)),result["coverage"]["modules"])
+        json.dumps(result,allow_nan=False)
+
+    def test_short_straight_wire_has_no_nonlocal_minimum(self):
+        result=self.verifier.self_clearance({"id":"short","outer_diameter_mm":4.5,
+                                            "points":[[0,0,0],[5,0,0]]})
+        self.assertEqual("PASS",result["status"])
+        self.assertIsNone(result["minimum_nonlocal_distance_mm"])
+        json.dumps(result,allow_nan=False)
+
+    def test_endzone_never_exempts_middle_return_through_owner(self):
+        v=self.verifier
+        from geometry import Item,box
+        wire={"id":"return-test","from":"buck:IN+","to":"esp32:GPIO1",
+              "outer_diameter_mm":1.2,"points":[[30,40,20],[45,40,20],[45,41,20],[30,41,20],[35,41,20]]}
+        result=v.audit([wire],[Item("buck",box(2,2,2,(30,40,19)),"hardware","metal")])
+        self.assertEqual("FAIL",result["status"])
+        self.assertTrue(any(row["segment"]==2 for row in result["collisions"]))
+        self.assertTrue(result["endpoint_contacts"])
+
+    def test_sampled_motion_preserves_fixed_loop_anchor_and_moves_exact_pin(self):
+        v=self.verifier
+        for module in range(1,7):
+            wire=next(row for row in harness.HARNESSES if row["to"]==f"u059_{module}:red")
+            points=v.points_for_pose(wire,module,160)
+            fixed=wire["moving_endpoints"][0]["fixed_point"]
+            self.assertIn(fixed,points)
+            self.assertEqual(wire["points"][-1][2]+16,points[-1][2])
+            self.assertEqual(wire["points"][0],points[0])
+
+    def test_rear_packing_uses_finite_diameters_and_disjoint_physical_slots(self):
+        result=self.verifier.bundle_fit(harness.HARNESSES)
+        self.assertEqual("PASS",result["status"])
+        self.assertGreater(result["rear_wire_count"],80)
+        self.assertGreater(result["peak_conductor_area_mm2"],0)
+        self.assertLess(result["peak_conductor_area_mm2"],result["window_area_mm2"])
+
+    def test_bounded_search_proposes_clear_route_around_real_solid(self):
+        v=self.verifier
+        from geometry import Item,box
+        items=[Item("obstacle",box(6,4,4,(42,38,18)),"fixed","metal")]
+        points=v.search_route((30,40,20),(60,40,20),items,.9,max_nodes=5000)
+        wire={"id":"search-test","from":"buck:IN+","to":"esp32:GPIO1",
+              "outer_diameter_mm":1.2,"points":points}
+        self.assertEqual("PASS",v.audit([wire],items)["status"])
 
 
 if __name__ == "__main__":

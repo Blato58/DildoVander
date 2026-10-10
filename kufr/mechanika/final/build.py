@@ -65,7 +65,7 @@ def main():
         print(f"Assembly {name}",flush=True)
     inventory=[]
     for i in scenes["open_rest"]:
-        if i.group in ("hardware","moving_hw","wand"):
+        if i.group in ("hardware","moving_hw","wand","fastener","restraint","bond"):
             inventory.append({"name":i.name,"bounds_mm":[round(v,4) for v in bounds(i.shape)],"source":i.source})
     (OUT/"manifest.json").write_text(json.dumps({"revision":PARAMS["revision"],"parts":manifest,"assemblies":list(scenes),"inventory":inventory,"sources":source_hashes()},indent=2,ensure_ascii=False),encoding="utf-8")
     harness.export(OUT)

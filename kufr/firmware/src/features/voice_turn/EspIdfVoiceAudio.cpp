@@ -1,6 +1,7 @@
 #include "EspIdfVoiceAudio.h"
 #include <array>
 #include <cstring>
+#include <cmath>
 #include "driver/gpio.h"
 #include "nvs.h"
 #include "../physical_effects/BoardPins.h"
@@ -54,6 +55,7 @@ bool EspIdfVoiceAudio::Initialize(bool nvsInitialized, AudioBoardPort* board) {
 
 void EspIdfVoiceAudio::Begin() {
   Stop();
+  std::lock_guard<std::mutex> outputLock(outputGate_);
   if (board_ && !board_->AudioReady()) { failed_.store(true); return; }
   failed_.store(false);
   if (input_) xQueueReset(input_);
@@ -77,6 +79,7 @@ void EspIdfVoiceAudio::Listen(bool enabled) {
 }
 
 void EspIdfVoiceAudio::Stop() {
+  StopCues();
   muteGate_.lock();
   active_.store(false);
   listening_.store(false);
@@ -130,6 +133,7 @@ bool EspIdfVoiceAudio::Play(const std::vector<uint8_t>& pcm) {
     const bool unmuted = allowed && Mute(true);
     muteGate_.unlock();
     if (!unmuted) { Stop(); return false; }
+    std::lock_guard<std::mutex> outputLock(outputGate_);
     size_t written = 0;
     if (i2s_channel_write(tx_, slots.data(), samples.size() * 8, &written, 100) != ESP_OK ||
         written != samples.size() * 8) { Stop(); return false; }
@@ -145,6 +149,7 @@ bool EspIdfVoiceAudio::Drain() {
   const uint32_t epoch = epoch_.load();
   std::array<int32_t, 640> silence{};
   for (int i = 0; i < 9; ++i) {
+    std::lock_guard<std::mutex> outputLock(outputGate_);
     size_t written = 0;
     if (!playing_.load() || epoch_.load() != epoch ||
         i2s_channel_write(tx_, silence.data(), sizeof(silence), &written, 100) != ESP_OK ||
@@ -153,6 +158,45 @@ bool EspIdfVoiceAudio::Drain() {
   const bool muted = Mute(false);
   playing_.store(false);
   return muted;
+}
+
+
+void EspIdfVoiceAudio::Cue(uint16_t frequencyHz, uint16_t durationMs) {
+  // Optional sound never acquires a mutex on the control loop. Voice owns TX
+  // whenever active; effects cannot interrupt listening or remote speech.
+  if (!board_ || !available_ || active_.load() || failed_.load() || frequencyHz < 80 ||
+      frequencyHz > 2000 || durationMs == 0 || durationMs > 200) return;
+  cue_.store((static_cast<uint32_t>(durationMs) << 16) | frequencyHz);
+}
+
+void EspIdfVoiceAudio::StopCues() { cue_.store(0); }
+
+void EspIdfVoiceAudio::PumpCue() {
+  std::lock_guard<std::mutex> outputLock(outputGate_);
+  uint32_t cue = cue_.load();
+  if (!cue || active_.load() || failed_.load()) { cueSample_ = 0; return; }
+  const uint16_t frequency = static_cast<uint16_t>(cue);
+  const uint16_t remainingMs = static_cast<uint16_t>(cue >> 16);
+  const unsigned frames = std::min<unsigned>(remainingMs, 20) * 32;
+  for (unsigned i = 0; i < frames; ++i) {
+    // Peak 1/16 full scale, sine with a short fade to avoid abrupt clicks.
+    const double envelope = std::min(1.0, std::min((cueSample_ + i) / 160.0,
+        (remainingMs * 32.0 - i) / 160.0));
+    const int32_t sample = static_cast<int32_t>(134217727.0 * envelope *
+        std::sin(6.283185307179586 * frequency * (cueSample_ + i) / 32000.0));
+    cuePcm_[2*i] = cuePcm_[2*i+1] = sample;
+  }
+  if (active_.load() || cue_.load() != cue) return;
+  size_t written = 0;
+  // B leaves amplifier SD unchanged. Never reopen profile A's hardware mute
+  // from this optional path. Cancel discards future blocks; an admitted <=20ms
+  // block can still drain through DMA, as with the existing voice Stop path.
+  if (!board_ || !board_->AudioReady() ||
+      i2s_channel_write(tx_, cuePcm_.data(), frames * 8, &written, 25) != ESP_OK ||
+      written != frames * 8) { cue_.store(0); cueSample_ = 0; return; }
+  cueSample_ += frames;
+  const uint32_t next = remainingMs > 20 ? ((remainingMs - 20u) << 16) | frequency : 0;
+  if (!cue_.compare_exchange_strong(cue, next) || !next) cueSample_ = 0;
 }
 
 void EspIdfVoiceAudio::CaptureTask(void* argument) { static_cast<EspIdfVoiceAudio*>(argument)->Capture(); }
@@ -167,6 +211,7 @@ void EspIdfVoiceAudio::Capture() {
     const uint32_t epoch = epoch_.load();
     const esp_err_t result = i2s_channel_read(rx_, slots.data(), sizeof(slots), &read, 100);
     if (!listening_.load()) {
+      PumpCue();
       Frame discarded{};
       for (unsigned i = 0; i < 20 && xQueueReceive(input_, &discarded, 0) == pdTRUE; ++i)
         std::memset(&discarded, 0, sizeof(discarded));

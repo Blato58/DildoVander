@@ -1,4 +1,4 @@
-"""Original F1 CAD primitives and explicit assembly records, millimetres."""
+"""Shared CAD primitives and explicit assembly records, millimetres."""
 from __future__ import annotations
 
 import json
@@ -54,7 +54,8 @@ COLORS = {"shell": (0.23, 0.12, 0.065), "mechanism": (0.22, 0.25, 0.28),
           "tray": (0.18, 0.10, 0.23), "cover": (0.12, 0.055, 0.17),
           "pcb": (0.08, 0.38, 0.26), "metal": (0.55, 0.48, 0.32),
           "black": (0.055, 0.06, 0.07), "wand": (0.42, 0.22, 0.10),
-          "light": (0.93, 0.69, 0.22), "white": (0.9, 0.9, 0.9)}
+          "light": (0.93, 0.69, 0.22), "white": (0.9, 0.9, 0.9),
+          "red": (0.85, 0.045, 0.035)}
 
 
 @dataclass
