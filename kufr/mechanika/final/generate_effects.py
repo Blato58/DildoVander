@@ -1,6 +1,7 @@
 """Validate the shared viewer score and generate every firmware phase."""
 import argparse
 import json
+from fractions import Fraction
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -11,6 +12,14 @@ STAGES = ('prepare', 'raise', 'show', 'lower', 'rest')
 # pass. Cap rounding overhead at 100 * 10 ms, its existing 1000 ms allowance.
 # Slow/stalled control passes still fail safely through the runtime watchdogs.
 MAX_PREPARATION_STEPS = 100
+CONTROL_LOOP_PERIOD_MS = 10
+MAX_CALIBRATED_TRAVEL_MS = 3000
+MAX_PRESENTATION_MS = 15000
+VIEWER_FRAMES_PER_SECOND = 60
+# With effects.Tick -> WandPresentation.Tick -> PhysicalPresentation.Tick,
+# Showing sees the completed raise one pass later; completion sees the cached
+# rest elapsed time one pass later. These are handovers, not timeout slack.
+PHASE_HANDOVER_MS = 2 * CONTROL_LOOP_PERIOD_MS
 STEP_FIELDS = {'phase', 'duration_ms', 'target', 'light', 'vibration', 'motion',
                'audio', 'tone_hz', 'stage'}
 
@@ -22,6 +31,31 @@ def require(condition, message):
 
 def integer(value, minimum, maximum):
     return type(value) is int and minimum <= value <= maximum
+
+
+def viewer_frame_count(steps):
+    # Each phase consumes ceil(duration * 60 / 1000) intervals. Admission to
+    # first rAF consumes one more interval, followed by one per phase handover.
+    frames = sum((step['duration_ms'] * VIEWER_FRAMES_PER_SECOND + 999) // 1000
+                 for step in steps)
+    return frames + len(steps)
+
+
+def presentation_budgets(steps):
+    def rounded(duration_ms):
+        return ((duration_ms + CONTROL_LOOP_PERIOD_MS - 1) //
+                CONTROL_LOOP_PERIOD_MS) * CONTROL_LOOP_PERIOD_MS
+
+    # Nominal 10 ms scheduling feasibility, not a guarantee under load. The
+    # runtime deadline still aborts delayed control passes independently.
+    physical_ms = 2 * MAX_CALIBRATED_TRAVEL_MS + PHASE_HANDOVER_MS
+    physical_ms += sum(rounded(step['duration_ms']) for step in steps
+                       if step['stage'] not in ('raise', 'lower'))
+    # Nominal 60 Hz browser feasibility, including phase handovers. Preserve
+    # the rational duration for exact boundary comparisons; slower frames still
+    # abort through the viewer's independent runtime deadline.
+    illustrative_ms = Fraction(viewer_frame_count(steps) * 1000, VIEWER_FRAMES_PER_SECOND)
+    return physical_ms, illustrative_ms
 
 
 def validate(score):
@@ -86,6 +120,14 @@ def validate(score):
             if stage == 'rest':
                 require(step['light'] == [0, 0, 0] and step['audio'] is None,
                         f'{label}: rest requires lights and audio off')
+        physical_ms, illustrative_ms = presentation_budgets(steps)
+        require(physical_ms < MAX_PRESENTATION_MS,
+                f'{name}: physical presentation budget {physical_ms} ms must be below '
+                f'{MAX_PRESENTATION_MS} ms (maximum calibrated travel and nominal scheduling)')
+        require(illustrative_ms < MAX_PRESENTATION_MS,
+                f'{name}: illustrative viewer budget {float(illustrative_ms):.2f} ms '
+                f'({viewer_frame_count(steps)} frames at nominal {VIEWER_FRAMES_PER_SECOND} Hz) '
+                f'must be below {MAX_PRESENTATION_MS} ms')
 
 
 def generate(score=None):

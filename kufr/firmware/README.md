@@ -230,7 +230,11 @@ F2 načítá generované časování z `PresentationScore.h`; autoritou je
 [`effects.json`](../mechanika/final/effects.json). První autonomní výběr
 má přípravu 3520 ms, další úspěšné výběry krátkou 700 ms; skutečné jízdy
 používají kalibraci. Podrobnosti [choreografie](../mechanika/final/EFEKTY.md).
-Světlo může osvětlit více skupin, vibrace a servo se nepřekrývají.
+Svítí nejvýše jeden 20cm LED úsek. `PhysicalEffects::Illuminate()` odmítne
+vícebitovou masku; nulová maska světla zhasne. Vibrace a servo se nepřekrývají.
+Celá autonomní prezentace má pevný limit 15 s včetně přípravy, obou jízd
+a závěrečného klidu. Jeho dosažení vypne výstupy a vyžaduje ruční kontrolu;
+nepovolí automatický návrat ani opožděné potvrzení dokončení.
 Volitelné lokální tóny používají existující I2S B, ustupují hlasu a
 nevolají AI. Stop ukončí nové tóny, již přijatý krátký DMA blok může
 odtéct. Firmware nebyl v rámci CAD změny nahrán do desky.

@@ -124,8 +124,10 @@ z opožděné smyčky; úplné zamrznutí není dokladem automatického odpojen�
 Pixel Shifter podle potisku, jeho 5V výstup přes 330 Ω na DIN prvního
 úseku, potom DOUT → DIN dalších: **šest úseků po šesti LED**.
 Napájení úseků vést z rozvodu. Firmware vždy přepíše celý řetězec,
-choreografie F2 může rozsvítit jednotlivé skupiny i všech 36 LED;
-každá složka RGB zůstává nejvýše 64/255. Sdílené časování hlavní a krátké
+současně však svítí nejvýše jeden 20cm úsek se šesti LED. Ostatní úseky
+zůstávají zhasnuté; každá složka RGB svítícího úseku je nejvýše 64/255.
+Generátor choreografie i fyzický výstup odmítají vícebitovou masku.
+Sdílené časování hlavní a krátké
 varianty je v [popisu efektů](../mechanika/final/EFEKTY.md).
 Onboard LED48 zrcadlí první pixel, neposouvá externí indexy.
 
