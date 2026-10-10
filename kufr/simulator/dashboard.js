@@ -5,6 +5,16 @@ const statusLabel = document.querySelector('#connection-status');
 const errorLabel = document.querySelector('#connection-error');
 const slots = document.querySelector('#slots');
 const timeline = document.querySelector('#timeline');
+const staticPreview = document.body.hasAttribute('data-static-preview');
+
+if (staticPreview) {
+  tokenInput.disabled = true;
+  connectButton.disabled = true;
+  disconnectButton.disabled = true;
+  statusLabel.textContent = 'Veřejný náhled · místní simulátor není připojen';
+  document.querySelector('#token-help').textContent = 'Veřejný náhled nepřijímá přístupové údaje.';
+  document.querySelector('#static-preview-help').hidden = false;
+}
 
 const phaseLabels = {
   bootSafe: 'Bezpečný start',
@@ -76,7 +86,7 @@ function setConnected(connected) {
 }
 
 async function connect() {
-  if (connection) {
+  if (staticPreview || connection) {
     return;
   }
   let token = tokenInput.value.trim();

@@ -1,5 +1,42 @@
 # Stav implementace AI kufru
 
+## U1 — Arcane Workshop a automatický veřejný web, 10. 10. 2026
+
+Majitel autorizoval commit/push/merge a nasazení veřejného rozcestníku,
+F2 vieweru s celým výrobním ZIPem a jednotný vzhled všech existujících UI.
+Navazujeme na commitnutý F2; necommitnuté mechanické opravy vlastní původní task.
+Sdílené tokeny, lokální OFL fonty, komponenty, přístupnost a tři ilustrační
+HTML mockupy jsou v [design systému](../design-system/README.md). Tracked
+repo skill `.agents/skills/dildovander-ui` a AGENTS.md závazně vedou další UI práci.
+Změněny jsou mobilní Ovládání/Debug/Síť kufru, skutečný generátor vieweru
+včetně offline CSS/fontů a zdrojových podkladů, pozorovací dashboard a iOS
+instalační stránka. Autorizace, BLE/Keychain, kamerový souhlas a kontrakty zůstávají.
+Stop v mobilním shellu používá stejnou existující bránu i z dalších záložek.
+
+[Web](../web/README.md) sestavuje pouze zdrojově ověřené CAD exporty a ZIP,
+kontroluje celý inventář a atomicky přepíná release. Nové site CI i automatický
+deploy po změně main mají kontrolu aktuálnosti a HTTPS readback každého souboru.
+Úspěšný ruční podepsaný iOS build nyní automaticky publikuje stávajícím deployem.
+Na VPS byly s privátní zálohou připraveny Nginx routy; health a stávající /ios/
+vracejí úspěch, CloudVPSBridge include je zachován. Starý CAD ZIP/viewer budou
+odstraněny až po úspěšné publikaci nové verze; aktuální IPA zůstává.
+
+Provedeno: mobil 50 testů + TypeScript/Vite build, viewer 22 Node testů a
+4 testy offline stylů, publisher iOS 4 testy, CI guardy 55 Node + selektor
+6 Python testů, site 7 testů na Linuxu včetně atomického přepnutí/rollbacku
+(Windows stejný celek s jedním záměrným skip), actionlint všech workflows,
+syntaxe a whitespace PASS. Skutečný browser ověřil mobilní sekce, sticky Stop,
+klávesnicovou izolaci tabů, viewer fonty/ovládání >=44px, drawer/bottom sheet,
+šířky 390 a 320px bez přetékání, bez chyb konzole. Nezávislá review opravila
+šířky ovládání, sdílené závislosti site, úplný veřejný readback a stale-main bránu.
+Skill schema a 47 lokálních design odkazů PASS.
+
+Předání je zatím rozpracované: čeká začlenění commitnutých oprav původního F2,
+úplná CI regenerace/ověření výrobního balíčku, review/merge, skutečný deploy
+webu a nový podepsaný iOS build. Webové kontroly neprokazují akceptaci iPhonu,
+VoiceOver ani fyzickou bezpečnost/mechaniku. Tyto hranice zůstávají otevřené.
+
+
 ## F2 — vložka do skutečného kufru, 10. 10. 2026
 
 F1 nový tištěný korpus je nahrazen vložkou do vlastněného dřevěného kufru

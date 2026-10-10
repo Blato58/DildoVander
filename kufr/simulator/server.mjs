@@ -129,6 +129,21 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
   const observers = new Set();
   const dashboardHtml = await readFile(new URL('./dashboard.html', import.meta.url));
   const dashboardScript = await readFile(new URL('./dashboard.js', import.meta.url));
+  // Only these public assets are exposed; request paths never become file paths.
+  const designAssetFiles = [
+    ['arcane-workshop.css', 'text/css; charset=utf-8'],
+    ['tokens/palette.css', 'text/css; charset=utf-8'],
+    ['tokens/typography.css', 'text/css; charset=utf-8'],
+    ['tokens/layout.css', 'text/css; charset=utf-8'],
+    ['components/patterns.css', 'text/css; charset=utf-8'],
+    ['fonts/cinzel.ttf', 'font/ttf'],
+    ['fonts/inter.ttf', 'font/ttf'],
+    ['fonts/ibmplexmono.ttf', 'font/ttf'],
+  ];
+  const designAssets = new Map(await Promise.all(designAssetFiles.map(async ([path, contentType]) => [
+    `/design-system/${path}`,
+    { contentType, content: await readFile(new URL(`../design-system/${path}`, import.meta.url)) },
+  ])));
 
   const nowMs = () => Math.floor(performance.now() - startedAtMs);
 
@@ -498,12 +513,16 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
       response.writeHead(200, {
         ...headers,
         'Content-Type': 'text/html; charset=utf-8',
-        'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'",
+        'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'",
       });
       response.end(dashboardHtml);
     } else if (request.url === '/simulator/dashboard.js') {
       response.writeHead(200, { ...headers, 'Content-Type': 'text/javascript; charset=utf-8' });
       response.end(dashboardScript);
+    } else if (designAssets.has(request.url)) {
+      const asset = designAssets.get(request.url);
+      response.writeHead(200, { ...headers, 'Content-Type': asset.contentType });
+      response.end(asset.content);
     } else if (request.url === '/v1/observe') {
       if (!isBearerToken(request.headers.authorization, token)) {
         response.writeHead(401, headers);

@@ -15,6 +15,7 @@ class Element {
   addEventListener(name, callback) { this.listeners[name] = callback; }
   fire(name, event = {}) { this.listeners[name]?.({preventDefault() {}, ...event}); }
   setAttribute(name, value) { this.attributes[name] = value; }
+  getAttribute(name) { return this.attributes[name]; }
   append(node) { this.children.push(node); }
   add(node) { this.append(node); }
   replaceChildren(...nodes) { this.children = nodes; }
@@ -64,7 +65,7 @@ function viewer(routes = [], extraMeshes = [], data = {}) {
     getElementById:get, createElement, createElementNS:() => new Element(),
     listeners:{}, addEventListener(name, callback) { this.listeners[name] = callback; },
   };
-  const window = {listeners:{},addEventListener(name,callback) { this.listeners[name] = callback; }};
+  const window = {location:data.location,listeners:{},addEventListener(name,callback) { this.listeners[name] = callback; }};
   const context = {
     document, window, devicePixelRatio:data.devicePixelRatio || 1,
     model:{meshes,routes,sources:[],hinge:[0,0,0],mechanism:{count:6,origin_y:21,origin_z:12,cam_y:112,cam_z:36,dwell_degrees:20,travel_degrees:160,lift:16},...data},
@@ -401,4 +402,61 @@ test('transport and recommission instructions and Czech assembly material labels
   assert.match(app.get('assembly-materials').textContent,/4 × šroub M4 × 12/);
   assert.match(app.get('assembly-parts').textContent,/4 × kotva/);
   assert.deepEqual(app.get('orientation').children.map(node=>node.textContent),['PŘEDEK · ovládání','ZÁDA · panty','LEVÁ','PRAVÁ']);
+});
+
+test('workshop drawers expose and clear state; object selection opens inspector without changing geometry', () => {
+  const app=viewer();
+  app.get('explorer-toggle').onclick(); app.flush();
+  assert.equal(app.get('sidebar').attributes['data-open'],'true');
+  assert.equal(app.get('explorer-toggle').attributes['aria-expanded'],'true');
+  app.get('inspector-toggle').onclick(); app.flush();
+  assert.equal(app.get('inspector-rail').attributes['data-open'],'true');
+  assert.equal(app.get('sidebar').attributes['data-open'],'false');
+  app.get('inspector-close').onclick(); app.flush();
+  assert.equal(app.get('inspector-rail').attributes['data-open'],'false');
+  app.get('object').value='esp32'; app.get('object').onchange(); app.flush();
+  assert.equal(app.get('inspector-rail').attributes['data-open'],'true');
+  app.document.listeners.keydown({key:'Escape'}); app.flush();
+  assert.equal(app.get('inspector-rail').attributes['data-open'],'false');
+  assert.equal(app.api.state().pinned,'');
+  assert.equal(app.api.state().mode,'operation');
+});
+
+test('timeline follows shared effect durations and retains elapsed progress when Stop freezes motion', () => {
+  const phases=[{phase:'Raise',duration_ms:1000,target:'selected',motion:'raise',light:[255,0,0]},
+    {phase:'Lower',duration_ms:1000,target:'selected',motion:'lower',light:[0,0,0]}];
+  const app=viewer([],[{name:'tray_3',group:'moving'}],{effects:{main:phases,max_brightness:64}});
+  assert.equal(app.get('effect-timeline').children.length,2);
+  assert.equal(app.get('timeline-time').textContent,'0.0 / 2.0 s');
+  app.api.startEffect('main'); app.frame(0); app.frame(500);
+  assert.equal(app.get('timeline-time').textContent,'0.5 / 2.0 s');
+  assert.equal(app.get('effect-timeline').children[0].attributes['aria-current'],'step');
+  app.api.stopEffect(); app.flush();
+  assert.equal(app.get('timeline-time').textContent,'0.5 / 2.0 s');
+  assert.equal(app.api.state().trayAngles[2],80);
+  app.api.setMode('service'); app.get('service-reset').onclick(); app.flush();
+  assert.equal(app.get('timeline-time').textContent,'0.0 / 2.0 s');
+});
+
+test('offline home resolves inside complete package while hosted viewer links to project root', () => {
+  for (const location of [{protocol:'file:',hostname:''},{protocol:'http:',hostname:'127.0.0.1',pathname:'/viewer.html'}]) {
+    const app=viewer([],[],{location});
+    assert.equal(app.get('workshop-home').attributes.href,'./reference-sources.html');
+  }
+  const app=viewer([],[],{location:{protocol:'https:',hostname:'example.test'}});
+  assert.equal(app.get('workshop-home').attributes.href,'/');
+  const localSite=viewer([],[],{location:{protocol:'http:',hostname:'127.0.0.1',pathname:'/kufr/mechanika/final/exports/viewer.html'}});
+  assert.equal(localSite.get('workshop-home').attributes.href,'/');
+});
+
+test('workshop template retains all source viewer IDs once and exposes self-contained stylesheet placeholders', () => {
+  const template=fs.readFileSync(path.join(__dirname,'viewer-template.html'),'utf8');
+  const ids=[...template.matchAll(/\bid="([^"]+)"/g)].map(match=>match[1]);
+  assert.equal(new Set(ids).size,ids.length,'Duplicate DOM IDs break viewer handlers');
+  const script=fs.readFileSync(path.join(__dirname,'viewer.js'),'utf8');
+  for (const match of script.matchAll(/el\('([^']+)'\)/g)) assert.ok(ids.includes(match[1]),'Missing element '+match[1]);
+  assert.match(template,/href="\.\/F2-kouzelny-kufr.zip" download/);
+  assert.match(template,/__WORKSHOP_DESIGN_SYSTEM__/);
+  assert.match(template,/__WORKSHOP_VIEWER_STYLE__/);
+  assert.doesNotMatch(template,/<link[^>]+stylesheet/);
 });

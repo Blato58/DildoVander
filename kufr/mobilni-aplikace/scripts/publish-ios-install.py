@@ -58,30 +58,42 @@ def render_page(version: str, build: str, manifest_url: str, ipa_url: str) -> st
 <html lang="cs">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Kufr · instalace pro iPhone</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0D1218">
+  <title>Kufr · Arcane Workshop · iPhone</title>
   <style>
-    :root {{ color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif; }}
-    body {{ margin: 0; padding: 1.5rem; background: radial-gradient(circle at 80% 0%, #493066, #17101e 52%); color: #f8f2ff; min-height: 100vh; }}
-    main {{ max-width: 44rem; margin: min(14vh, 7rem) auto; }}
-    .eyebrow {{ color: #c7a2f2; font-size: .82rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }}
-    h1 {{ font-size: clamp(2.7rem, 10vw, 5rem); line-height: 1.03; margin: .7rem 0 1rem; }}
-    p {{ color: #d6c9df; line-height: 1.6; }}
-    .card {{ background: #ffffff12; border: 1px solid #ffffff2a; border-radius: 1.25rem; padding: clamp(1.3rem, 5vw, 2rem); margin-top: 2rem; }}
-    .button {{ display: inline-block; background: #d4a7ff; color: #21102e; padding: .95rem 1.3rem; border-radius: .8rem; font-weight: 800; text-decoration: none; margin: .8rem 0; }}
-    .button:focus-visible, a:focus-visible {{ outline: 3px solid #fff; outline-offset: 3px; }}
-    .meta {{ color: #ae9abb; font-size: .92rem; }}
-    a {{ color: #e2bdff; }}
+    /* Standalone fallback also keeps archived releases readable offline. */
+    :root {{ --aw-void: #0D1218; --aw-surface: #171F29; --aw-elevated: #25313D; --aw-brass: #D9B777; --aw-ivory: #F3ECE0; --aw-muted: #AAB7C2; --aw-border: #4E6070; --aw-font-display: 'Cinzel', Georgia, serif; --aw-font-ui: 'Inter', -apple-system, system-ui, sans-serif; --aw-font-mono: 'IBM Plex Mono', monospace; color-scheme: dark; }}
+    * {{ box-sizing: border-box; }}
+    body {{ margin: 0; padding: calc(24px + env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left, 0px)); background: var(--aw-void); color: var(--aw-ivory); min-height: 100vh; font-family: var(--aw-font-ui); }}
+    main {{ max-width: 44rem; margin: min(10vh, 80px) auto; }}
+    .brand {{ display: flex; align-items: center; gap: 16px; padding-bottom: 24px; border-bottom: 1px solid var(--aw-border); margin-bottom: 40px; }}
+    .mark {{ width: 40px; height: 40px; stroke: var(--aw-brass); stroke-width: 1.5; }}
+    .eyebrow {{ color: var(--aw-brass); font-size: .75rem; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; }}
+    h1 {{ font: 600 clamp(2.25rem, 8vw, 4rem)/1.1 var(--aw-font-display); margin: 16px 0 24px; }}
+    h2 {{ font: 600 1.25rem/1.3 var(--aw-font-display); margin: 0 0 16px; }}
+    p {{ color: var(--aw-muted); line-height: 1.6; }}
+    .card {{ background: var(--aw-surface); border: 1px solid var(--aw-border); border-radius: 12px; padding: clamp(24px, 5vw, 32px); margin-top: 32px; }}
+    .button {{ display: inline-flex; align-items: center; justify-content: center; min-height: 44px; background: var(--aw-brass); color: var(--aw-void); padding: 16px 24px; border-radius: 8px; font-weight: 600; text-decoration: none; margin: 16px 0 8px; }}
+    .button:hover {{ background: var(--aw-ivory); }}
+    .button:focus-visible, a:focus-visible {{ outline: 3px solid var(--aw-brass); outline-offset: 4px; }}
+    .meta {{ color: var(--aw-muted); font-size: .8125rem; }}
+    .version {{ font-family: var(--aw-font-mono); }}
+    a {{ color: var(--aw-brass); }}
     code {{ overflow-wrap: anywhere; }}
+    @media (max-width: 480px) {{ .button {{ width: 100%; }} main {{ margin-top: 24px; }} }}
   </style>
+  <link rel="stylesheet" href="/design-system/arcane-workshop.css">
 </head>
 <body>
   <main>
+    <div class="brand"><svg class="mark" viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M20 3 35 12v16L20 37 5 28V12Z"/><path d="m13 27 14-14M14 12l2 4m8 8 4 2M20 7v4M7 20h4M29 20h4M20 29v4"/></svg><span class="eyebrow">Arcane Workshop · Kufr</span></div>
     <div class="eyebrow">Soukromý test · iPhone 15 Pro</div>
-    <h1>Kufr do kapsy.</h1>
+    <h1>Vaše ovládací dílna.</h1>
     <p>Otevři tuto stránku v Safari na registrovaném iPhonu a nainstaluj podepsanou aplikaci.</p>
     <section class="card" aria-label="Instalace aplikace">
-      <div class="meta">Verze {version_label} · sestavení {build_label}</div>
+      <h2>Kufr pro iPhone</h2>
+      <div class="meta version">Verze {version_label} · sestavení {build_label}</div>
       <a class="button" href="{html.escape(install_url, quote=True)}">Nainstalovat na iPhone</a>
       <p>Po klepnutí potvrď instalaci. Pokud ji iPhone odmítne, ověř vývojářský režim a profil zařízení.</p>
       <p class="meta">Diagnostika: <a href="{html.escape(ipa_url, quote=True)}">stáhnout IPA</a> · <a href="{html.escape(manifest_url, quote=True)}">otevřít manifest</a>.</p>

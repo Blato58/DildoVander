@@ -518,7 +518,15 @@ experimentální API. Deklarace `vite/client` pokrývají import CSS a assetů.
 
 Pro E2 simulátor nejprve sestavte mobilní web pomocí `npm run build`, spusťte E2 WSS server a pak místní most podle [návodu simulátoru](../simulator/README.md). Stránka na `http://127.0.0.1:5174` vybere simulátor podle odpovědi `/dev-mode`; Vite stránka zůstává na fake adaptéru. Web nevidí bearer token ani certifikát upstreamu. Po ztrátě spojení zablokuje povely a ukáže nedostupný stav; nejasný výsledek předchozího výběru vyžaduje kontrolu mimo UI. Snapshot a ACK simulátoru nejsou důkaz fyzického otevření.
 
-Horní přepínače Ovládání/Debug respektují iOS safe area. Viewport má
+Vzhled **Arcane Workshop** používá společné tokeny a lokálně balené fonty z
+`../design-system/arcane-workshop.css`. Ovládání, Debug a Síť kufru zachovávají
+stávající funkce; hlas a textový rozhovor zůstávají v Ovládání. Horní lišta
+ukazuje Stop kufru (ve vývoji Stop simulace) také při přepnutí do Debug nebo
+Síť kufru. Používá stejný povel a stejnou dostupnost podle přijatého stavu,
+nepřidává potvrzení a neobchází zotavení. Instalační Safari stránka sdílí vzhled
+přes `/design-system/arcane-workshop.css` a má samostatný CSS fallback.
+
+Horní přepínače Ovládání/Debug/Síť kufru respektují iOS safe area. Viewport má
 `viewport-fit=cover`; sticky lišta přidává `safe-area-inset-top` k hornímu
 odsazení a boční insets k minimálním okrajům. Hodnoty dodává WebKit podle
 zařízení a orientace, takže výřez nepřekrývá taby ani po scrollování.

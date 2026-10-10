@@ -25,7 +25,9 @@ let pendingAction: PendingAction | null = null;
 let currentSnapshot: DeviceSnapshot;
 const nativeMode = Capacitor.getPlatform() === 'ios';
 let connection: FakeDeviceConnection | SimulatorDeviceConnection | NativeDeviceConnection | null = null;
-const modeResponse = nativeMode ? null : await fetch('/dev-mode').catch(() => null);
+// Static Companion explicitly selects fake mode; local Vite still discovers E2.
+const publishedFakeMode = document.querySelector<HTMLMetaElement>('meta[name="kufr-browser-mode"]')?.content === 'local-fake';
+const modeResponse = nativeMode || publishedFakeMode ? null : await fetch('/dev-mode').catch(() => null);
 const simulatorMode = modeResponse?.ok &&
   modeResponse.headers.get('content-type')?.includes('application/json') &&
   (await modeResponse.json() as { simulator?: boolean }).simulator === true;
@@ -68,11 +70,20 @@ debugPanel.element.after(provisioningPanel.element);
 const tabs = document.createElement('nav');
 tabs.className = 'app-tabs';
 tabs.setAttribute('aria-label', 'Sekce aplikace');
-tabs.innerHTML = `<div role="tablist" aria-label="Sekce aplikace">
+tabs.innerHTML = `<div class="workshop-bar">
+  <div class="workshop-brand"><svg class="workshop-mark" viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M20 3 35 12v16L20 37 5 28V12Z"/><path d="m13 27 14-14M14 12l2 4m8 8 4 2M20 7v4M7 20h4M29 20h4M20 29v4"/></svg>
+    <div><span class="eyebrow">ARCANE WORKSHOP</span><strong>Kufr · ovládací dílna</strong></div></div>
+  <button type="button" class="stop shell-stop" data-shell-stop disabled>Stop kufru</button>
+  </div><div role="tablist" aria-label="Sekce aplikace">
   <button type="button" role="tab" id="tab-control" aria-controls="control-panel" aria-selected="true">Ovládání</button>
   <button type="button" role="tab" id="tab-debug" aria-controls="debug-panel" aria-selected="false" tabindex="-1">Debug</button>
   <button type="button" role="tab" id="tab-provisioning" aria-controls="provisioning-panel" aria-selected="false" tabindex="-1">Síť kufru</button></div>`;
 controlPanel.before(tabs);
+const shellStop = tabs.querySelector<HTMLButtonElement>('[data-shell-stop]')!;
+shellStop.addEventListener('click', () => {
+  pendingAction = null;
+  connection?.stop();
+});
 function selectTab(id: string): void {
   controlPanel.hidden = id !== 'tab-control';
   debugPanel.show(id === 'tab-debug');
@@ -88,6 +99,9 @@ tabs.addEventListener('click', (event) => {
   if (button) { selectTab(button.id); }
 });
 tabs.addEventListener('keydown', (event) => {
+  if (!(event.target as HTMLElement).closest('[role="tab"]')) {
+    return;
+  }
   if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
     event.preventDefault();
     const buttons = Array.from(tabs.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
@@ -137,6 +151,8 @@ function render(snapshot: DeviceSnapshot): void {
     pendingAction = null;
   }
   currentSnapshot = snapshot;
+  shellStop.disabled = snapshot.phase === 'stopped' || snapshot.phase === 'disconnected';
+  shellStop.textContent = physical ? 'Stop kufru' : 'Stop simulace';
   debugPanel.update(snapshot);
   renderConversation(snapshot);
   voicePanel.update(snapshot);
@@ -182,7 +198,7 @@ function render(snapshot: DeviceSnapshot): void {
 
   app!.innerHTML = `
     <header>
-      <p class="eyebrow">AI KUFR · ${physical ? 'MÍSTNÍ OVLADAČ' : 'VÝVOJOVÝ OVLADAČ'}</p>
+      <p class="eyebrow">${physical ? 'MÍSTNÍ OVLADAČ' : 'VÝVOJOVÝ OVLADAČ'} · PŘIHRÁDKY 01–06</p>
       <h1>Ruční ovládání</h1>
       <div class="simulation">${physical ? 'MÍSTNÍ KUFR · Nativní připojení' : `SIMULACE · ${snapshot.source === 'local-fake'
     ? 'Místní fake bez připojení'

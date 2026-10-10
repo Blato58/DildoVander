@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Arcane Workshop · F2 / ilustrační 3D dílna</title>
+  <link rel="stylesheet" href="../arcane-workshop.css">
+  <link rel="stylesheet" href="workshop-mockup.css">
+</head>
+<body class="aw-root aw-workshop-preview">
+  <p class="aw-preview-label">ILUSTRATIVNÍ UKÁZKA F2 · pevná data · žádné připojení ani fyzické ovládání</p>
+  <header class="aw-workshop-topbar">
+    <a href="index.html" class="aw-workshop-brand"><span aria-hidden="true">✦</span><span>DildoVander<small>ARCANE WORKSHOP</small></span></a>
+    <div class="aw-workshop-project"><p class="aw-eyebrow">Mechanika / F2</p><h1>Kouzelný kufr</h1></div>
+    <nav class="aw-row" aria-label="Ukázkové obrazovky"><a href="desktop-workshop.html" aria-current="page">Workshop</a><a href="mobile-home.html">Mobil</a><a href="simulation-lab.html">Simulation Lab</a></nav>
+    <span class="aw-badge aw-badge--warning">Design preview</span>
+  </header>
+  <nav class="aw-workshop-toolbar" aria-label="Ukázka režimů sestavy">
+    <span class="aw-eyebrow">Režim sestavy</span>
+    <div class="aw-row"><button class="aw-button" type="button" disabled>Provoz</button><button class="aw-button aw-button--secondary" type="button" disabled>Servis</button><button class="aw-button aw-button--secondary" type="button" disabled>Přeprava</button><button class="aw-button aw-button--secondary" type="button" disabled>Montáž</button></div>
+    <span class="aw-mono aw-muted">Ilustrace rozhraní · bez CAD dat</span>
+  </nav>
+  <main class="aw-workshop-columns">
+    <aside class="aw-workshop-explorer" aria-labelledby="explorer-title">
+      <div class="aw-workshop-panel-heading"><p class="aw-eyebrow">Explorer</p><h2 id="explorer-title">Sestava kufru</h2></div>
+      <div class="aw-workshop-panel-body">
+        <details open><summary>Viditelnost vrstev</summary><div class="aw-workshop-layers"><label><input type="checkbox" checked disabled> Korpus</label><label><input type="checkbox" checked disabled> Mechanika</label><label><input type="checkbox" checked disabled> Elektronika</label><label><input type="checkbox" disabled> Kabelové trasy</label></div></details>
+        <div class="aw-workshop-tree-heading"><span class="aw-eyebrow">Díly a skupiny</span><span class="aw-mono aw-muted">Příklad</span></div>
+        <details open class="aw-workshop-tree"><summary>Rám a nosiče</summary><ul><li><span>Korpus kufru</span></li><li><span>Základní nosič</span></li><li><span>Servisní kryt</span></li></ul></details>
+        <details open class="aw-workshop-tree"><summary>Pohyblivá mechanika</summary><ul><li class="is-selected"><span>Lože přihrádky 01</span><small>Vybraný objekt</small></li><li><span>Lože přihrádky 02</span></li><li><span>Lože přihrádky 03–06</span></li></ul></details>
+        <details class="aw-workshop-tree"><summary>Elektronika a propojení</summary><ul><li><span>ESP32-S3</span></li><li><span>Servový řadič</span></li><li><span>Napájecí větve</span></li></ul></details>
+        <p class="aw-notice">Strom je ilustrační. Nevychází ze skutečného CAD inventáře.</p>
+      </div>
+    </aside>
+    <section class="aw-workshop-viewport" aria-labelledby="viewport-title">
+      <div class="aw-workshop-viewport-heading"><div><p class="aw-eyebrow">F2 / 3D Workshop</p><h2 id="viewport-title">Prostor pro každý detail.</h2></div><span class="aw-mono aw-muted">Stylizovaná geometrie</span></div>
+      <div class="aw-workshop-model">
+        <svg viewBox="0 0 640 450" role="img" aria-label="Ilustrační perspektiva otevřeného kufru se šesti přihrádkami. Není skutečným CAD modelem.">
+          <defs><linearGradient id="body" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#25313D"/><stop offset="1" stop-color="#171F29"/></linearGradient><linearGradient id="bed" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#D9B777" stop-opacity=".22"/><stop offset="1" stop-color="#D9B777" stop-opacity=".04"/></linearGradient></defs>
+          <g stroke="#34424F" fill="none" stroke-width="1"><path d="M30 330 334 250 610 382M24 355l308-81 280 134M32 382l297-81 267 129M57 410l268-84 225 111M81 318l245 121M143 302l250 126M207 286l251 125M269 271l256 126M336 254l253 126"/></g>
+          <g stroke="#6B7E8E" stroke-width="1.5" stroke-linejoin="round"><path d="M92 220 331 153l219 108v97l-239 70L92 319Z" fill="url(#body)"/><path d="M92 220 331 153l219 108-239 69Z" fill="#0D1218"/><path d="m92 220 21-142 239-63-21 138" fill="url(#body)"/><path d="M121 86 341 27l-19 119-217 62Z" fill="#0D1218"/><path d="m311 330 239-69M311 330v98M92 220l219 110" fill="none"/><path d="m290 361 20-6 20 9v29l-20 6-20-10Z" fill="#171F29" stroke="#D9B777"/><path d="m170 343 37 19m226-7 33-10" stroke="#D9B777" stroke-width="4"/></g>
+          <g stroke="#6B7E8E" stroke-width="1.3"><path d="m113 225 68-19 89 44-67 20Z" fill="url(#bed)" stroke="#D9B777" stroke-width="2"/><path d="m190 203 68-19 89 44-67 20Z m77-22 62-18 91 45-65 19Z m-55 80 69-20 89 44-68 20Z m77-23 68-19 91 44-69 20Z m77-22 63-18 91 45-64 18Z" fill="#25313D"/></g>
+          <g stroke="#D9B777" stroke-width="4" stroke-linecap="round"><path d="m139 225 56 28m21-49 56 28m22-48 56 28m-53 76 56 28m22-50 56 28m21-50 56 28"/></g>
+          <g fill="#79C6A4"><circle cx="166" cy="207" r="3"/><circle cx="244" cy="185" r="3"/><circle cx="319" cy="165" r="3"/></g>
+          <g stroke="#D9B777" fill="none"><path d="m173 227-54-22H49"/><circle cx="173" cy="227" r="5"/></g><g fill="#D9B777" font-family="Inter, sans-serif" font-size="12"><text x="28" y="197">Lože přihrádky 01</text></g>
+        </svg>
+      </div>
+      <div class="aw-workshop-view-controls"><button class="aw-button aw-button--secondary" type="button" disabled>Celek</button><button class="aw-button aw-button--secondary" type="button" disabled>Shora</button><button class="aw-button aw-button--secondary" type="button" disabled>Zepředu</button><button class="aw-button aw-button--secondary" type="button" disabled>Inspect</button></div>
+      <div class="aw-workshop-viewport-footer"><span class="aw-mono">Ukázka vzhledu · bez pohybu</span><span class="aw-badge aw-badge--warning">CAD ≠ fyzická akceptace</span></div>
+    </section>
+    <aside class="aw-workshop-inspector" aria-labelledby="inspector-title">
+      <div class="aw-workshop-panel-heading"><p class="aw-eyebrow">Inspector</p><h2 id="inspector-title">Detail objektu</h2></div>
+      <div class="aw-workshop-panel-body"><span class="aw-badge aw-badge--info">Vybraný objekt · ukázka</span><h3 class="aw-workshop-object-title">Lože přihrádky 01</h3><p class="aw-mono aw-muted">F2 / moving / preview_01</p><p class="aw-muted">Ilustrační nosič pro přehled vazeb. Údaje nejsou výrobní podklad.</p><dl class="aw-facts"><div><dt>Vrstva</dt><dd>Mechanika</dd></div><div><dt>Materiál</dt><dd>PETG · návrh</dd></div></dl><hr class="aw-divider"><h3>Propojení</h3><ul class="aw-workshop-connections"><li><span class="aw-mono">SERVO / 01</span><span class="aw-muted">Příklad logické vazby</span></li><li><span class="aw-mono">LED / 01</span><span class="aw-muted">Příklad efektové skupiny</span></li></ul><button class="aw-button aw-button--secondary" disabled type="button">Zvýraznit vazby · ukázka</button><hr class="aw-divider"><p class="aw-notice">Dosednutí, zatížení a pohyb vyžadují ověření prototypu.</p><a href="../README.md">Pravidla design systému →</a></div>
+    </aside>
+  </main>
+  <footer class="aw-workshop-motion" aria-labelledby="motion-title">
+    <div class="aw-card-heading"><div class="aw-row"><h2 id="motion-title">Motion Studio</h2><span class="aw-badge aw-badge--warning">Pouze ilustrační sekvence</span></div><span class="aw-mono aw-muted">0.0 / — s · bez kalibrace</span></div>
+    <div class="aw-workshop-motion-controls"><button class="aw-button" type="button" disabled>▶ Hlavní výběr</button><button class="aw-button aw-button--secondary" type="button" disabled>Krátké opakování</button><button class="aw-button aw-button--danger" type="button" disabled>■ Stop ukázky</button><span class="aw-muted">Přihrádka 01 · žádné povely</span></div>
+    <ol class="aw-workshop-phases" aria-label="Ilustrační fáze posloupnosti"><li>Hledání</li><li>Zvýraznění</li><li>Prezentace</li><li>Prodleva</li><li>Návrat</li><li>Dokončení</li></ol>
+    <p class="aw-muted">Fáze a geometrie jsou ilustrativní. Ukázka nic neodesílá, nepočítá polohu a neověřuje fyzické výstupy.</p>
+  </footer>
+</body>
+</html>

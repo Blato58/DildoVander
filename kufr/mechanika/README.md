@@ -16,3 +16,9 @@ STL, STEP, obrázky, viewer a balíček se reprodukovatelně generují příkaze
 `final/Regenerate.ps1`. Jediný aktivní výstup je `final/exports/` s revizíF2.
 Staré F1 skořepiny nejsou díly tohoto návrhu. Před celým tiskem vytisknout
 měrku a jeden modul. Fyzická přepravní akceptace zůstává otevřená.
+
+Veřejný [3D Workshop](https://2.28.202.220/workshop/) a celý aktuální ZIP
+publikuje automaticky workflow `kufr-site-deploy.yml` po změně příslušných
+zdrojů v `main`. Nasazení regeneruje a kontroluje všechny zdroje a exporty;
+postup a rollback popisuje [veřejný web](../web/README.md). Vzhled vieweru
+určuje společný [Arcane Workshop](../design-system/README.md).

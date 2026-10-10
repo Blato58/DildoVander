@@ -1,6 +1,10 @@
 name: Deploy Kufr IPA
 
 on:
+  workflow_run:
+    workflows: ['Build signed Kufr IPA']
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       build_run_id:
@@ -19,10 +23,10 @@ concurrency:
 
 jobs:
   verify:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
     uses: ./.github/workflows/reuse-build.yml
     with:
-      build_run_id: ${{ inputs.build_run_id }}
+      build_run_id: ${{ format('{0}', inputs.build_run_id || github.event.workflow_run.id) }}
       workflow: kufr-ios-sign.yml
       artifact: signed-ipa
       signing_kind: ad_hoc
