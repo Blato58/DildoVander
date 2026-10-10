@@ -66,8 +66,25 @@ na 320/390 px bez přetékání a iOS publisher má stále 4 úspěšné testy.
 F2 PR #170 je sloučený jako `6477fbf5`; ověřený tree cílového main je shodný
 s `07adaab5`. Synchronizace UI větve zachovala celý již začleněný obsah,
 nezávislá kontrola kombinovaného vieweru nenašla blokující problém.
-Předání je zatím rozpracované: čeká CI výsledného tree, review/merge a skutečný deploy
-webu a nový podepsaný iOS build. Webové kontroly neprokazují akceptaci iPhonu,
+Finální CI `38019497965` nad `835180a5` prošlo celé. Stažený artefakt má
+tree `3c6368af4dfbb774e52a7c0887b99259fee94ef6`, všech 145 otisků souhlasí
+a výrobní ZIP o 45 714 872 B má 147 položek bez chyby CRC. Skutečný browser
+ověřil finální Stop, zachování timeline a explicitní servisní reset; patička má
+44 px a na 320 px nepřetéká, konzole je bez chyb. Poslední Codex review skončilo
+bez nových nálezů a všechna tři review vlákna byla vyřešená i při posledním
+načtení těsně před merge. PR #171 je sloučený jako `f92d4818`; tree main
+je přesně shodný s testovaným artefaktem.
+
+Podepsaný macOS build `38020785606` prošel včetně nativních testů pinned LAN
+transportu, Debug backend klienta a bezpečného BLE statusu/whitelistu.
+Úspěch sám spustil iOS publish `38020968150` přes `workflow_run`; všechny jeho
+kroky včetně veřejného HTTPS ověření manifestu a celého IPA prošly.
+Publikované IPA má verzi 1.0, build `1000.0.24` a 2 460 425 B. Nezávislé
+stažení z HTTPS ověřilo SHA-256, identitu a verzi podle instalačního manifestu
+a byte shodu všech šesti přebíraných CI web souborů uvnitř IPA.
+
+Automatický webový deploy `38020781384` se spustil po merge a ještě běží.
+Webové a nativní CI kontroly neprokazují akceptaci na skutečném iPhonu,
 VoiceOver ani fyzickou bezpečnost/mechaniku. Tyto hranice zůstávají otevřené.
 
 
