@@ -2,6 +2,15 @@
 
 ## F2 — vložka do skutečného kufru, 10. 10. 2026
 
+P1 review PR #170 na `44463c2` je zpracované: doplněný absolutní limit celé
+prezentace 15 s a omezení na jediný LED úsek prošly hostitelskými regresemi,
+nezávislou kontrolou, cílovým buildem i úplnou regenerací. Nezávislý audit
+nového archivu rovněž prošel; zbývá Git předání a CI posledního commitu.
+Třetí nález k pasivnímu USB
+zakončení je věcně odmítnutý: aktuální zadání výslovně povoluje běžné
+vodiče a pasivní konektory k doplnění; nejde o novou funkční elektroniku
+ani tvrzení o nákupu. Přesný podklad je ve specifikaci F2.
+
 F1 nový tištěný korpus je nahrazen vložkou do vlastněného dřevěného kufru
 bez nových otvorů. Použity jsou potvrzené obálky 450 × 310 × 200 mm,
 spodní vnitřek 431,8 × 266,7 × 114,3 mm a bezpečný kvádr 400 × 240 × 170 mm.
@@ -20,8 +29,9 @@ zůstávají zachované; doplněné pasivní USB zakončení je výslovně v mat
 choreografii s `PhysicalPresentation`, světly a volitelnými místními tóny
 existujícího I2S adaptéru. Stop neprovádí automatický návrat.
 
-Provedeno: 85 Python testů, 18 testů vieweru, hostitelský test fyzických
-efektů a `pio run -e esp32-s3-idf` PASS (RAM 91 644 B, flash 1 746 709 B).
+Provedeno: 86 Python testů, 20 testů vieweru, hostitelské testy prezentace
+a fyzických efektů, `pio run -e esp32-s3-idf` PASS (RAM 91 660 B,
+flash 1 746 865 B).
 Geometrický výsledek je `PASS_CAD_NOT_PHYSICAL_ACCEPTANCE`: 32 STL typů /
 47 výtisků, 69 CAD souborů, zpětné načtení STEP, uzavřené propojené STL,
 tři celé sestavy, 102 poloh mechanismů, 36 poloh víka, 37 kroků vyjmutí
@@ -38,14 +48,14 @@ zachytávání kliknutí kartou, degenerované STL držáků a kontrolu otisků 
 Aktuální autorita je [verification.json](../mechanika/final/exports/verification.json).
 
 Celá regenerace 10. 10. 2026 skončila úspěšně včetně osmi prohlédnutých
-renderů, výkresů a samostatného ZIPu (43 523 071 B, SHA256
-`7b1154bba79f748c99759d779f701f38fe0d2a20114a39062711724fba56fbfd`).
+renderů, výkresů a samostatného ZIPu (43 526 083 B, SHA256
+`ca6477fd2d0046ee5712b22668a6119f7e0f57df7a27c002398421b533820eae`).
 Závěrečný browser načetl nové výstupy, zobrazil šest přepravních pásků
 a odpojené USB v držáku; konzole bez varování a chyb.
 Nezávislá kontrola ZIPu: CRC a přesný seznam 143 členů, 49 otisků zdrojů,
 93 otisků exportního indexu, 92 ověřených exportů, 89 výstupů generování
 a 69 CAD souborů PASS proti ZIPu i checkoutu. Po rozbalení mimo repozitář
-prošlo 47 testů (19 Inspect, 9 efektů, 11 balení, 8 ověřovací brány).
+prošlo 48 testů (19 Inspect, 10 efektů, 11 balení, 8 ověřovací brány).
 V checkoutu platí všech 22
 lokálních Markdown odkazů; v ZIPu pouze odkaz README na samotný ZIP
 nemá cíl (archiv se do sebe záměrně nebalí). Referenční podklady jsou přiložené.
@@ -86,8 +96,17 @@ varování konzole. Aktuální ZIP výše nahrazuje předchozí balíček.
 Obě opravy byly 10. 10. 2026 odeslány commitem
 `b1da483fc97aea51881bea568d192e344349c78f`; `Push-CurrentBranch.ps1`
 ověřil shodný vzdálený SHA. Po tomto push byly obě P2 vlákna vyřešené.
-Dokončení nového PR CI a posledního Codex review se ověřuje před merge;
-tento záznam sám merge nepotvrzuje.
+CI commitu `44463c2` prošlo. Jeho Codex review našlo dvě P1 v napájecím
+limitu LED a celkovém času prezentace. Obě jsou opravené v generátoru,
+výstupní vrstvě, řídicí smyčce a náhledu. Regrese ověřují všech 256 LED
+masek, pevný deadline v každé fázi, návrat hodin zpět a nejpomalejší
+kalibraci 3 000 ms s průchody po 100 ms. Při timeoutu zůstává záznam
+nedokončené prezentace a vyžaduje se fyzická kontrola; nevznikne falešné
+potvrzení návratu. Nezávislé review je bez nálezu. Následná úplná
+regenerace prošla, všech 32 STL a osm renderů je byte po bytu shodných.
+Nový browser znovu přehrál všech šest výběrů se zdvihem 16 mm a návratem
+do klidu, bez varování/chyb konzole. Čeká se na Git předání a kontroly
+posledního commitu; tento záznam sám merge nepotvrzuje.
 
 Fyzická výroba, nalepení kotev, zkouška přepravy, kalibrace a nahrání
 firmware neproběhly. Neuzavřené jsou zbývající tvarové rozměry a usazení

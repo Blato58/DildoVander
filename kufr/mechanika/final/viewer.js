@@ -774,7 +774,7 @@ function startEffect(kind) {
   if (!Array.isArray(phases) || !phases.length) { updateEffectStatus('Sdílená data efektů nejsou dostupná.'); return; }
   if (el('audio-preview').checked && !audioContext && window.AudioContext) audioContext = new window.AudioContext();
   audioContext?.resume()?.catch(() => updateEffectStatus('Lokální zvuk není dostupný; vizuální sekvence pokračuje bez zvuku.'));
-  effect = {phases,index:0,started:null,selected:+el('tray').value-1,initial:[...trayAngles]};
+  effect = {phases,index:0,started:null,presentationStarted:null,selected:+el('tray').value-1,initial:[...trayAngles]};
   updateEffectControls();
   el('lift').disabled = true;
   updateEffectStatus('Ilustrační časování; zdvih vyžaduje kalibraci serva. Zvuk v prohlížeči je pouze lokální poslech tónů.');
@@ -798,6 +798,13 @@ function targetIndexes(target,selected,fraction) {
 function tickEffect(timestamp) {
   if (!effect) return;
   const now = Number.isFinite(timestamp) ? timestamp : Date.now();
+  if (effect.presentationStarted === null) effect.presentationStarted = now;
+  // Match the firmware's whole-cycle limit even after a suspended browser frame.
+  if (now < effect.presentationStarted || now-effect.presentationStarted >= 15000) {
+    stopEffect();
+    updateEffectStatus('Limit 15 s: výstupy vypnuty, dosažená poloha zachována. Zkontrolujte mechanismus a potvrďte servisní reset.');
+    return;
+  }
   const phase = effect.phases[effect.index];
   if (effect.started === null) {
     effect.started = now; effect.initial = [...trayAngles];

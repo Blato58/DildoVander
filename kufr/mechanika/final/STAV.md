@@ -43,6 +43,22 @@ barvy/tóny jednotlivých fází, kalibrovaný pohyb a vypnuté PWM během
 závěrečných 250 ms klidu před obnovením dostupnosti. Zdrojové kontroly
 odmítají nepodporované kanály, souběhy a hodnoty zvuku.
 
+Následné P1 review doplnilo absolutní limit celé prezentace 15 s.
+Kontrola předchází obsluze fyzických výstupů i přechodu do další fáze;
+příprava, kalibrované pohyby ani závěrečný klid limit neobnovují.
+Hostitelské regrese prošly v každé aktivní fázi, při návratu hodin zpět,
+při opožděném dokončení i s kalibrací 3 000 ms a průchody po 100 ms.
+V posledním scénáři se v 15 s vypne právě běžící návrat, zápis nedokončené
+prezentace zůstane zachován a dostupnost se neobnoví bez ruční kontroly.
+Probuzení osvítí jen vybranou přihrádku. Generátor odmítá více skupin;
+výstupní vrstva přijme pouze nulovou nebo jednobitovou LED masku.
+Regrese ověřila všech 256 masek i skutečně zapsané LED snímky.
+Náhled dodržuje stejný 15s limit a prošlo všech 20 testů vieweru.
+Pasivní USB zásuvka a 300mm kabel jsou povolené doplňky podle explicitního
+oddílu aktuálního zadání; oprávnění a stav „dokoupit“ dokládá SPECIFIKACE.md.
+Nezávislá kontrola oprav je bez otevřeného nálezu. Následný cílový ESP-IDF
+build prošel: RAM 91 660 B, flash 1 746 865 B. Nahrání do desky neproběhlo.
+
 Kontrola zdrojové geometrie: 32 typů STL / 47 výtisků, platná
 jednotlivá tělesa a tisková plocha 220 × 220 mm. Montáž pokrývá 589 dílů
 ve scéně a všech 135 vodičů; počty spojovacího materiálu odpovídají CSV.

@@ -43,6 +43,8 @@ bool WandPresentation::Start(
   lastProposalId_ = proposal.proposalId;
   compartment_ = proposal.compartment;
   phaseStartedAtMs_ = nowMs;
+  presentationStartedAtMs_ = nowMs;
+  lastObservedAtMs_ = nowMs;
   if (!port_.Raise(compartment_, proposal.proposalId, snapshot)) {
     Fault();
     return false;
@@ -52,6 +54,7 @@ bool WandPresentation::Start(
 }
 
 void WandPresentation::Tick(uint64_t nowMs) {
+  CheckDeadline(nowMs);
   if (state_ != WandPresentationState::Idle &&
       state_ != WandPresentationState::Fault &&
       (nowMs < phaseStartedAtMs_ || !port_.IsSafeToContinue())) {
@@ -93,6 +96,22 @@ void WandPresentation::Tick(uint64_t nowMs) {
       }
       return;
   }
+}
+
+void WandPresentation::CheckDeadline(uint64_t nowMs) {
+  if (state_ == WandPresentationState::Idle ||
+      state_ == WandPresentationState::Fault) {
+    return;
+  }
+  // Check clock order before unsigned subtraction; phase changes cannot extend
+  // the whole-cycle budget or permit a late completion to restore availability.
+  if (nowMs < presentationStartedAtMs_ || nowMs < phaseStartedAtMs_ ||
+      nowMs < lastObservedAtMs_ ||
+      Elapsed(nowMs, presentationStartedAtMs_, MaximumDurationMs)) {
+    Fault();
+    return;
+  }
+  lastObservedAtMs_ = nowMs;
 }
 
 void WandPresentation::Stop() {

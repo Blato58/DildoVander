@@ -77,7 +77,8 @@ function viewer(routes = [], extraMeshes = [], data = {}) {
   const frame = timestamp => { const pending = frames.splice(0); for (const callback of pending) callback(timestamp); };
   const hover = id => { hit = id; get('view').fire('pointermove',{clientX:400,clientY:300,shiftKey:true}); flush(); };
   const click = () => { get('view').fire('pointerdown',{clientX:400,clientY:300,pointerId:1}); flush(); };
-  return {get,hover,click,flush,frame,document,window,meshes,api:window.F2,measurements:()=>labelMeasurements};
+  const lights = () => vm.runInNewContext('lightStates.map(color=>color && [...color])', context);
+  return {get,hover,click,flush,frame,document,window,meshes,api:window.F2,lights,measurements:()=>labelMeasurements};
 }
 
 function route(id='wire-A', net='MAIN5', bundle='rear') {
@@ -272,6 +273,43 @@ test('Stop freezes intermediate lift and disables further output until explicit 
   app.get('lift').value='0'; app.get('lift').oninput(); app.flush(); assert.equal(app.api.state().trayAngles[2],80);
   app.api.setMode('service'); app.flush(); assert.equal(app.api.state().trayAngles[2],80);
   app.get('service-reset').onclick(); app.flush(); assert.equal(app.api.state().effectFault,false); assert.equal(app.api.state().trayAngles[2],0);
+});
+
+test('authored main and short scores illuminate at most one segment for every selection', () => {
+  const effects=JSON.parse(fs.readFileSync(path.join(__dirname,'effects.json'),'utf8'));
+  for (const variant of ['main','short']) {
+    for (let selected=1; selected<=6; selected++) {
+      const app=viewer([],[],{effects});
+      app.get('tray').value=String(selected); app.get('tray').onchange(); app.flush();
+      app.api.startEffect(variant); app.frame(0);
+      const litIndexes=()=>Array.from(app.lights()).flatMap((color,index)=>color?.some(value=>value>0) ? [index] : []);
+      assert.deepEqual(litIndexes(),[selected-1],'Wake lights only the selected compartment');
+      for (let timestamp=100; timestamp<=20000; timestamp+=100) {
+        app.frame(timestamp);
+        assert.ok(litIndexes().length<=1,`${variant}, selection ${selected}, ${timestamp} ms`);
+      }
+      assert.equal(app.get('effect-stop').disabled,true,'The complete score finishes');
+      assert.equal(app.api.state().effectFault,false,'The authored score completes before the hard deadline');
+    }
+  }
+});
+
+test('whole-cycle deadline stops before a late animation frame can move or complete a tray', () => {
+  const effects={max_brightness:64,main:[
+    {phase:'Raise',duration_ms:1000,target:'selected',motion:'raise',light:[255,0,0]},
+    {phase:'Wait',duration_ms:14000,target:'selected',light:[255,0,0]},
+    {phase:'Return',duration_ms:1000,target:'selected',motion:'lower',light:[255,0,0]},
+  ]};
+  const app=viewer([],[{name:'tray_3',group:'moving'}],{effects});
+  app.api.startEffect('main'); app.frame(0); app.frame(1000); app.frame(1100); app.frame(14999);
+  assert.equal(app.api.state().effectFault,false);
+  assert.equal(app.api.state().trayAngles[2],160);
+  app.frame(15000); app.frame(17000);
+  assert.equal(app.api.state().effectFault,true);
+  assert.equal(app.api.state().trayAngles[2],160,'Deadline must not initiate a return');
+  assert.ok(Array.from(app.lights()).every(color=>color===null));
+  assert.equal(app.get('play-main').disabled,true);
+  assert.match(app.get('effect-status').textContent,/Limit 15 s/);
 });
 
 function partiallyRaisedSequence() {

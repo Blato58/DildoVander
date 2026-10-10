@@ -72,7 +72,9 @@ bool PhysicalEffects::Highlight(uint8_t compartment, uint8_t red, uint8_t green,
 }
 
 bool PhysicalEffects::Illuminate(uint8_t mask, uint8_t red, uint8_t green, uint8_t blue) {
-  if (mask > 63) return false;
+  // The power contract permits one six-LED segment, including during motion.
+  // Enforce it here for every caller, not only generated presentation scores.
+  if (mask > 63 || (mask & (mask - 1)) != 0) return false;
   std::array<uint8_t, 108> pixels{};
   for (uint8_t compartment = 1; compartment <= 6; ++compartment) {
     if (!(mask & (1u << (compartment - 1)))) continue;

@@ -141,6 +141,17 @@ class ChoreographyContract(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'channel mapping'):
                     generate(changed)
 
+    def test_scores_cannot_target_multiple_led_segments(self):
+        self.assertEqual(self.score['main'][0]['target'], 'selected')
+        for variant in ('main', 'short'):
+            for index in range(len(self.score[variant])):
+                for target in ('all', [1, 2], 63):
+                    with self.subTest(variant=variant, index=index, target=target):
+                        changed = copy.deepcopy(self.score)
+                        changed[variant][index]['target'] = target
+                        with self.assertRaises(ValueError):
+                            generate(changed)
+
     def test_physical_limits_and_mapping(self):
         score = json.loads((ROOT / 'effects.json').read_text(encoding='utf-8'))
         self.assertEqual([c['servo'] for c in score['channels']], list(range(6)))
@@ -156,7 +167,7 @@ class ChoreographyContract(unittest.TestCase):
                     self.assertIsNone(step['motion'])
                     self.assertLessEqual(step['duration_ms'], 150)
                     self.assertFalse(steps[i+1]['vibration'])
-                self.assertIn(step['target'], [1,2,3,4,5,6,'selected','all','next','previous'])
+                self.assertIn(step['target'], [1,2,3,4,5,6,'selected','next','previous'])
 
     def test_firmware_generated_from_the_same_score(self):
         if HEADER.exists():
