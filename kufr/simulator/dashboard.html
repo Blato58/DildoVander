@@ -3,77 +3,63 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SIMULACE · časová osa kufru</title>
+  <title>SIMULACE · Arcane Workshop / Simulation Lab</title>
+  <link rel="stylesheet" href="../design-system/arcane-workshop.css">
   <style>
-    :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #101b24; color: #edf4f7; }
-    * { box-sizing: border-box; }
-    body { margin: 0; }
-    main { max-width: 1100px; margin: auto; padding: 24px; }
-    .badge { display: inline-block; padding: 6px 12px; border: 2px solid #ffd36d; border-radius: 999px; color: #ffd36d; font-weight: 800; letter-spacing: .09em; }
-    h1 { margin: 14px 0 4px; font-size: clamp(1.8rem, 4vw, 3rem); }
-    .muted { color: #b5c6d0; }
-    .notice { padding: 12px 16px; border-left: 4px solid #ffd36d; background: #263341; }
-    .panel { background: #1c2a36; border: 1px solid #405361; border-radius: 12px; padding: 18px; margin-top: 18px; }
-    .connect { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
-    label { display: grid; gap: 6px; font-weight: 650; min-width: min(100%, 300px); flex: 1; }
-    input { width: 100%; padding: 11px; border: 2px solid #849ca9; border-radius: 7px; background: #0f1a23; color: #fff; font: inherit; }
-    button { padding: 12px 18px; border: 0; border-radius: 7px; background: #ffd36d; color: #1d2830; font: inherit; font-weight: 750; cursor: pointer; }
-    button.secondary { background: #bdccd5; }
-    button:focus-visible, input:focus-visible { outline: 3px solid #8bd7ff; outline-offset: 3px; }
-    button:disabled { opacity: .55; cursor: not-allowed; }
-    .error { color: #ffb0a7; min-height: 1.5em; }
-    .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin: 0; }
-    .facts div { padding: 10px; background: #101d27; border-radius: 7px; }
-    dt { color: #b5c6d0; font-size: .9rem; }
-    dd { margin: 4px 0 0; font-weight: 700; overflow-wrap: anywhere; }
-    .slots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 0; list-style: none; }
-    .slots li { border: 1px solid #66869b; border-radius: 9px; padding: 14px; min-height: 80px; }
+    main { max-width: 1200px; margin: auto; padding: 32px; }
+    .panel { margin-top: 24px; }
+    .connect { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+    .connect label { min-width: min(100%, 300px); flex: 1; }
+    .error { color: var(--aw-danger); min-height: 1.5em; }
+    #connection-status { color: var(--aw-info); }
+    .slots { margin-top: 16px; }
+    .slots li { border: 1px solid var(--aw-border); border-radius: var(--aw-radius-control); padding: 16px; min-height: 96px; background: var(--aw-elevated); }
     .slots strong, .slots span { display: block; }
-    .slots span { margin-top: 6px; }
-    .slots li.unavailable { border-color: #9f8181; background: #31272e; }
-    .timeline { max-height: 360px; overflow: auto; padding-left: 26px; }
-    .timeline li { padding: 8px 2px; border-bottom: 1px solid #3d5260; }
-    .timeline time { color: #b5c6d0; margin-right: 12px; font-variant-numeric: tabular-nums; }
-    @media (max-width: 650px) { main { padding: 16px; } .slots { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .slots span { margin-top: 8px; color: var(--aw-success); }
+    .slots li.unavailable { border-style: dashed; background: var(--aw-void); }
+    .slots li.unavailable span { color: var(--aw-muted); }
+    .timeline { max-height: 360px; overflow: auto; padding-left: 8px; }
+    .timeline:empty::after { content: 'Události se zobrazí po připojení k místnímu modelu.'; color: var(--aw-muted); }
+    .timeline:focus-visible { outline: 3px solid var(--aw-info); outline-offset: 4px; }
+    @media (max-width: 650px) { main { padding: 24px 16px; } }
   </style>
   <script type="module" src="/simulator/dashboard.js"></script>
 </head>
-<body>
+<body class="aw-root">
   <main>
-    <span class="badge">SIMULACE</span>
-    <h1>Časová osa kufru</h1>
-    <p class="muted">Pozorovací pohled na hostitelský model. Neovládá fyzické pohony.</p>
-    <p class="notice">Uvolnění západky v časové ose znamená požadavek modelu, nikoli změřené otevření.</p>
+    <header class="aw-header"><div><p class="aw-eyebrow">Arcane Workshop / vývojová dílna</p><h1>Simulation Lab</h1><p class="aw-muted">Časová osa kufru · pozorovací pohled na hostitelský model.</p></div><span class="aw-badge aw-badge--warning">SIMULACE · pouze pozorování</span></header>
+    <p class="aw-notice"><strong>Neovládá fyzické pohony.</strong> Uvolnění západky v časové ose znamená požadavek modelu, nikoli změřené otevření.</p>
 
-    <section class="panel" aria-labelledby="connection-heading">
+    <section class="panel aw-card" aria-labelledby="connection-heading">
       <h2 id="connection-heading">Připojení k místní simulaci</h2>
       <div class="connect">
-        <label for="token">Testovací bearer token
-          <input id="token" type="password" autocomplete="off" spellcheck="false" aria-describedby="token-help">
+        <label for="token" class="aw-field">Testovací bearer token
+          <input id="token" class="aw-input" type="password" autocomplete="off" spellcheck="false" aria-describedby="token-help">
         </label>
-        <button id="connect" type="button">Připojit pozorování</button>
-        <button id="disconnect" type="button" class="secondary" disabled>Odpojit</button>
+        <button id="connect" class="aw-button" type="button">Připojit pozorování</button>
+        <button id="disconnect" type="button" class="aw-button aw-button--secondary" disabled>Odpojit</button>
       </div>
-      <p id="token-help" class="muted">Token zůstává pouze v paměti této stránky; odesílá se v HTTPS hlavičce.</p>
+      <p id="token-help" class="aw-muted">Token zůstává pouze v paměti této stránky; odesílá se v HTTPS hlavičce.</p>
+      <p id="static-preview-help" class="aw-notice" hidden>Veřejný náhled nemá přístup k místnímu modelu a nepřijímá tokeny. <a href="https://github.com/Blato58/DildoVander/blob/main/kufr/simulator/README.md">Návod místního simulátoru</a></p>
       <p id="connection-status" role="status">Nepřipojeno</p>
       <p id="connection-error" class="error" role="alert"></p>
     </section>
 
-    <section class="panel" aria-labelledby="state-heading">
+    <section class="panel aw-card" aria-labelledby="state-heading">
       <h2 id="state-heading">Stav modelu</h2>
-      <dl class="facts">
+      <dl class="facts aw-facts">
         <div><dt>Režim</dt><dd id="mode">—</dd></div>
         <div><dt>Fáze</dt><dd id="phase">—</dd></div>
         <div><dt>Journal</dt><dd id="journal">—</dd></div>
         <div><dt>Revize</dt><dd id="revision">—</dd></div>
       </dl>
       <h3>Přihrádky</h3>
-      <ul id="slots" class="slots" aria-label="Dostupnost šesti přihrádek"></ul>
+      <ul id="slots" class="slots aw-slots" aria-label="Dostupnost šesti přihrádek"></ul>
     </section>
 
-    <section class="panel" aria-labelledby="timeline-heading">
+    <section class="panel aw-card" aria-labelledby="timeline-heading">
       <h2 id="timeline-heading">Události modelu</h2>
-      <ol id="timeline" class="timeline" aria-live="polite" aria-relevant="additions"></ol>
+      <ol id="timeline" class="timeline aw-timeline" tabindex="0" aria-label="Časová osa událostí modelu" aria-live="polite" aria-relevant="additions"></ol>
     </section>
   </main>
 </body>

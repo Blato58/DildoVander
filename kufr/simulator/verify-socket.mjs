@@ -147,6 +147,17 @@ try {
   const script = await requestPage(simulator.port, certificate, '/simulator/dashboard.js');
   assert.equal(script.status, 200);
   assert.match(script.body, /v1\/observe/);
+  const sharedStyles = await requestPage(simulator.port, certificate, '/design-system/arcane-workshop.css');
+  assert.equal(sharedStyles.status, 200);
+  assert.match(sharedStyles.body, /tokens\/palette\.css/);
+  for (const assetPath of ['tokens/palette.css', 'tokens/typography.css', 'tokens/layout.css', 'components/patterns.css', 'fonts/cinzel.ttf', 'fonts/inter.ttf', 'fonts/ibmplexmono.ttf']) {
+    const asset = await requestPage(simulator.port, certificate, `/design-system/${assetPath}`);
+    assert.equal(asset.status, 200, `public design asset ${assetPath}`);
+    assert.ok(asset.body.length > 0);
+  }
+  for (const forbiddenPath of ['/design-system/../server.mjs', '/design-system/%2e%2e/server.mjs', '/design-system/fonts/unknown.ttf']) {
+    assert.equal((await requestPage(simulator.port, certificate, forbiddenPath)).status, 404);
+  }
   assert.equal((await requestPage(simulator.port, certificate, '/v1/observe')).status, 401);
   observer = await observe(simulator.port, certificate, token);
   assert.equal(observer.status, 200);

@@ -1,0 +1,13 @@
+:root {
+  --aw-space-1: 4px;
+  --aw-space-2: 8px;
+  --aw-space-3: 12px;
+  --aw-space-4: 16px;
+  --aw-space-6: 24px;
+  --aw-space-8: 32px;
+  --aw-space-12: 48px;
+  --aw-radius-card: 12px;
+  --aw-radius-control: 8px;
+  --aw-touch: 44px;
+  --aw-shadow: 0 16px 48px #00000030;
+}
