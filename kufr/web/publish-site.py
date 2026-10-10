@@ -82,6 +82,18 @@ def publish(source, site, release_id, expected_sha):
     return previous
 
 
+def restore_activation(site, failed_release, previous_release):
+    if site.is_symlink() or not site.is_dir() or not re.fullmatch(r'[0-9]+-[0-9]+', failed_release):
+        raise ValueError('Invalid rollback destination or release ID')
+    current = site / 'current'
+    if not current.is_symlink() or current.readlink() != Path('releases') / failed_release:
+        raise ValueError('Current changed after the failed activation')
+    if previous_release:
+        switch(site, previous_release)
+    else:
+        current.unlink()
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--site', type=Path, required=True)
@@ -89,8 +101,12 @@ if __name__ == '__main__':
     parser.add_argument('--release-id')
     parser.add_argument('--expected-sha')
     parser.add_argument('--rollback')
+    parser.add_argument('--rollback-activation', action='store_true')
+    parser.add_argument('--previous-release', default='')
     args = parser.parse_args()
-    if args.rollback:
+    if args.rollback_activation:
+        restore_activation(args.site, args.release_id or '', args.previous_release)
+    elif args.rollback:
         switch(args.site, args.rollback)
     else:
         if not all((args.source, args.release_id, args.expected_sha)):

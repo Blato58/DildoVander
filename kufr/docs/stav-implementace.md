@@ -31,7 +31,10 @@ klávesnicovou izolaci tabů, viewer fonty/ovládání >=44px, drawer/bottom she
 šířky ovládání, sdílené závislosti site, úplný veřejný readback a stale-main bránu.
 Skill schema a 69 lokálních design odkazů PASS. Kontrakt pokrývá sedm stavů,
 pojmenované komponenty, Reduced Motion a 12 lokálních Lucide ikon s licencí
-a ověřenými otisky. Po doplnění motion tokenů znovu prošlo 22 viewer testů,
+a ověřenými otisky. PR review našla chybějící rollback první publikace:
+`restore_activation` obnoví i stav bez `current`, odmítne jiný aktivní release
+a má dva regresní testy. Všech 9 site testů prošlo na Linuxu a actionlint PASS.
+Po doplnění motion tokenů znovu prošlo 22 viewer testů,
 4 testy offline stylů a TypeScript/Vite build.
 
 Začleněny jsou commitnuté opravy F2 `44463c2` včetně zdrojového snapshotu
