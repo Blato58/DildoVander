@@ -64,10 +64,21 @@ efektů a sjednotilo README firmwaru s omezením na jediný LED úsek.
 Generátor započítá dvě maximální 3 000ms jízdy, zaokrouhlení každé fáze
 na 10ms průchody a 20 ms předání mezi fázemi. Hlavní varianta má
 nominální rozpočet 14 790 ms a krátká 11 970 ms. Náhled samostatně
-započítává snímky a přechody při nominálních 60 Hz; hraničních 900 snímků
+započítává první interval po spuštění, snímky a přechody při nominálních
+60 Hz; hraničních 900 snímků
 (15 s) odmítne. Všech 15 regresních testů efektů prošlo. Aktuální data
 efektů, generovaná hlavička a runtime firmwaru se touto validací nezměnily.
 Pomalejší běh nadále zastaví absolutní runtime limit, nikoli prodloužení času.
+
+Náhled měří tento limit od přijetí kliknutí na spuštění monotónními
+hodinami prohlížeče. Uspání karty před prvním snímkem neobnoví časový
+rozpočet; po vypršení se první opožděný snímek zastaví před výstupy.
+Aktuální čas se kontroluje při každém průchodu, nezávisle na starší časové
+značce snímku. Všech 27 testů vieweru a 15 testů efektů prošlo; regrese
+opožděného prvního snímku před opravou selhala. Nezávislý test skutečné
+funkce vieweru potvrdil dokončení při 899 a zastavení při 900 snímcích.
+Nominální náhled má 672 snímků / 11 200 ms pro hlavní variantu a
+484 snímků / přibližně 8 066,67 ms pro krátkou.
 
 Kontrola zdrojové geometrie: 32 typů STL / 47 výtisků, platná
 jednotlivá tělesa a tisková plocha 220 × 220 mm. Montáž pokrývá 589 dílů
