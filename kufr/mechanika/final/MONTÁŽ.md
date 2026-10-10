@@ -35,6 +35,15 @@ zachycení závitu šroubem a matice opět vyjmout pro finální sestavu.
 Tunely, šestihranné kapsy, slepé dno a uzavřené střechy měrky mají stejný
 profil a tiskovou orientaci jako kotvy. Vůli řešit profilem nebo
 parametrem a novým tiskem, nikdy pilníkem, vrtákem nebo měřítkem STL.
+Měrka obsahuje také jeden skutečný epoxidový zámek: spodní Ø6 vstup,
+Ø9 komoru a dvě horní Ø2,5 odvzdušnění. Před tiskem kotev ověřit čisté
+přemostění komory a průchodnost vstupu/obou odvzdušnění. Po vyjmutí
+zkušebních matic předplnit komoru odspodu malou dávkou epoxidu z rezervy;
+obě horní ústí musí ukázat naplnění. Uvnitř nezavřít podpory. Neúspěch
+řešit profilem a novým tiskem. Tato zkouška nenahrazuje přejímku lepení ke dřevu.
+Nad průchozími otvory M3/M4 jsou také skutečná zahloubení pro hlavy
+šroubů Ø6,2 × 1,65 mm a Ø7,5 × 0,5 mm; standardní hlavy se musí
+usadit bez dopilování, stejně jako ve finálních dílech.
 Brusný papír se smí použít jen k přípravě skutečných lepených stop dřeva.
 
 ## Rám mimo kufr a podlahové kotvy

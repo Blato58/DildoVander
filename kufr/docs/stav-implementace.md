@@ -46,6 +46,16 @@ Aktuální ZIP má 161 členů, 54 214 717 B a SHA-256
 Zpětné čtení ZIPu, CRC i otisky všech členů prošly; prohlížeč ověřil
 nový první krok s M3/M4 kapsami bez konzolových chyb.
 
+Druhé review PR #172 doplňuje do stejné měrky také produkční epoxidový
+zámek Ø6/Ø9 s oběma Ø2,5 odvzdušněními a kontrolu skutečných zahloubení
+hlav M3/M4. Společné geometrické funkce zachovávají všechny produkční
+kotvy; změna se týká zkušebního výtisku a jeho montážního kroku. Lepidlo
+se připravuje už v prvním kroku, zkouška spotřebuje část původní rezervy.
+Všech 15 cílených testů kotev/měrky/čepu a montážní validátor prošly;
+produkční objemy kotev i všech 85 zámků jsou beze změny.
+Výše uvedený ZIP ještě tuto druhou připomínku nepokrývá; aktuální
+exporty musí znovu projít plnou regenerací a kontrolou zdrojových otisků.
+
 Browser na localhost:8916 ověřil montážní kroky, nové kotvy, pohyb
 0–160°/16 mm, přepravní stav a úzké i široké zobrazení bez konzolových
 chyb. Vedlejší požadavek favicon.ico vrací 404. Všech 22 lokálních

@@ -6,22 +6,28 @@
       "title": "Ověření podkladů a zkušební výtisk",
       "parts": [],
       "wires": [],
-      "instruction": "Vytisknout měrku se 100% výplní a jeden zkušební modul. Před tiskem velkých kotev nasunout skutečné matice M3 i M4 bočními tunely měrky pod uzavřenou střechu a vyzkoušet šrouby; potom matice vyjmout pro finální montáž. Změřit skutečné hůlky s pouzdrem, konektory a osu serva. Nasucho vložit obrys 400 × 240 mm nad 5mm výztuhu. Lůžko tisknout otočené +90° kolem Y, integrální Ø6 čep směřuje vzhůru bez podpor na kluzné ploše. Nevyhovující vůli opravit tiskovým profilem nebo parametrem a znovu vytisknout; nikdy pilníkem, vrtákem ani změnou měřítka STL. Ověřit, že skutečné původní otvory páky přijmou M2 bez vrtání; jinak upravit tištěnou spojku nebo použít vhodnou standardní neupravenou páku před finálním tiskem.",
-      "check": "Zapsané rozměry odpovídají parametrům; čep a vedení mají funkční vůli; obě matice jdou bočně zasunout i vyjmout bez opracování a šrouby se ručně chytí do závitu; víko se nedotýká obálky.",
+      "instruction": "Vytisknout měrku se 100% výplní a jeden zkušební modul. Před tiskem velkých kotev nasunout skutečné matice M3 i M4 bočními tunely měrky pod uzavřenou střechu a vyzkoušet šrouby. Ověřit také usazení standardních hlav šroubů v zahloubeních nad průchozími otvory M3/M4; potom matice vyjmout pro finální montáž. Ve stejném výtisku ověřit přemostění dutiny epoxidového zámku Ø6/Ø9 a obě horní Ø2,5 odvzdušnění. Malou dávkou epoxidu z rezervy předplnit komoru odspodu; obě horní ústí musí ukázat naplnění. Uvnitř nezavřít podpory. Zkouška plnění neprokazuje přilnutí ke dřevu. Změřit skutečné hůlky s pouzdrem, konektory a osu serva. Nasucho vložit obrys 400 × 240 mm nad 5mm výztuhu. Lůžko tisknout otočené +90° kolem Y, integrální Ø6 čep směřuje vzhůru bez podpor na kluzné ploše. Nevyhovující vůli opravit tiskovým profilem nebo parametrem a znovu vytisknout; nikdy pilníkem, vrtákem ani změnou měřítka STL. Ověřit, že skutečné původní otvory páky přijmou M2 bez vrtání; jinak upravit tištěnou spojku nebo použít vhodnou standardní neupravenou páku před finálním tiskem.",
+      "check": "Zapsané rozměry odpovídají parametrům; čep a vedení mají funkční vůli; obě matice jdou bočně zasunout i vyjmout bez opracování a šrouby se ručně chytí do závitu i usadí hlavy do zahloubení; epoxidový zámek jde naplnit odspodu s průchodnými oběma odvzdušněními; víko se nedotýká obálky.",
       "materials": [
         {
           "id": "PETG",
           "quantity": 3
+        },
+        {
+          "id": "EPOXY",
+          "quantity": 2
         }
       ],
       "tools": [
         "posuvné měřítko",
         "pravítko",
-        "3D tiskárna"
+        "3D tiskárna",
+        "rukavice",
+        "míchací miska a stěrka"
       ],
       "camera": "overview",
       "depends": [],
-      "partSummary": "2 × díl tiskové měrky (čep, kapsy M3/M4 a drážka); 1 × půdorysná šablona"
+      "partSummary": "2 × díl tiskové měrky (čep, kapsy M3/M4, epoxidový zámek a drážka); 1 × půdorysná šablona"
     },
     {
       "id": "frame",
@@ -115,13 +121,9 @@
         "anchor_nut*"
       ],
       "wires": [],
-      "instruction": "Nasucho ustavit čtyři tištěné kotvy na DNĚ podle sestaveného rámu. Brusným papírem odstranit povrchovou úpravu pouze v jejich skutečných lepených stopách na pevné holé dřevo. Chránit kapsy matic a otvory před lepidlem. Smíchat Bison Epoxy Metal 1:1; dodanou stěrkou PŘEDEM naplnit zámky Ø6/Ø9 z otevřené spodní strany kotvy, pak kotvu usadit na mokrý 0,5mm film na dně. Horní otvory Ø2,5 slouží odvzdušnění a vizuální kontrole, nikoli tlakové injektáži pasty. Mokré přebytky otřít před vytvrzením. Rám nepřilepit. Fixovat 10 h, při 20 °C nechat 24 h vytvrdnout a přezkoušet spoj podle MONTÁŽ.md. Až potom zasunout zboku 24 M3 a 4 M4 matice před vložením rámu. Čtyři stopy mají celkem 36 831,325 mm² a 85 zámků; minimum filmu a zámků je 36,958 ml bez ztrát. Připravit dvě balení po 24 ml, včetně rezervy pro vzorek, přebytky a ztráty.",
+      "instruction": "Nasucho ustavit čtyři tištěné kotvy na DNĚ podle sestaveného rámu. Brusným papírem odstranit povrchovou úpravu pouze v jejich skutečných lepených stopách na pevné holé dřevo. Chránit kapsy matic a otvory před lepidlem. Použít Bison Epoxy Metal ze zásoby připravené v prvním kroku a smíchat 1:1; dodanou stěrkou PŘEDEM naplnit zámky Ø6/Ø9 z otevřené spodní strany kotvy, pak kotvu usadit na mokrý 0,5mm film na dně. Horní otvory Ø2,5 slouží odvzdušnění a vizuální kontrole, nikoli tlakové injektáži pasty. Mokré přebytky otřít před vytvrzením. Rám nepřilepit. Fixovat 10 h, při 20 °C nechat 24 h vytvrdnout a přezkoušet spoj podle MONTÁŽ.md. Až potom zasunout zboku 24 M3 a 4 M4 matice před vložením rámu. Čtyři stopy mají celkem 36 831,325 mm² a 85 zámků; minimum filmu a zámků je 36,958 ml bez ztrát. Připravit dvě balení po 24 ml, včetně rezervy pro vzorek, přebytky a ztráty.",
       "check": "Kotvy jsou na dně, nikoli stěnách. Matice M3 leží Z2,6–5 a M4 Z1,8–5 pod souvislou 3mm střechou; žádné zalepení kapsy a nejméně 2 mm plastu mezi epoxidem a kapsou. Zámky jsou vyplněné; nepokračovat při odlupování dřeva, praskání nebo nevyhovující zátěžové zkoušce.",
       "materials": [
-        {
-          "id": "EPOXY",
-          "quantity": 2
-        },
         {
           "id": "NUT3",
           "quantity": 24

@@ -128,6 +128,58 @@ class FloorAnchorTests(unittest.TestCase):
 
 
 class AnchorCouponTests(unittest.TestCase):
+    def test_open_head_recesses_copy_production_tools_and_accept_actual_heads(self):
+        import layout
+        coupon=layout.fit_coupon()
+        m3=chassis.carrier_head_clearance(10,12)
+        m4=chassis.frame_head_clearance(25,12)
+        # Align actual top faces: the 1.75 mm M3 cutter has 0.1 mm overrun,
+        # leaving the same physical 1.65 mm recess as the production cradle.
+        samples=((10,3.4,6.2,1.65,m3.translate((0,0,4-8)),
+                  cylinder(2.85,1.65,(10,12,2.35))),
+                 (25,4.5,7.5,.5,m4.translate((0,0,4-12)),
+                  cylinder(3.5,4,(25,12,3.5))))
+        for x,bore,recess,depth,tool,head in samples:
+            with self.subTest(head_bore=bore):
+                void=cylinder(recess/2,depth,(x,12,4-depth))
+                self.assertLess(coupon.intersect(void).Volume(),1e-6)
+                self.assertAlmostEqual(void.intersect(tool).Volume(),void.Volume(),places=5)
+                self.assertLess(coupon.intersect(head).Volume(),1e-6)
+                bottom=cylinder(recess/2,.01,(x,12,4-depth-.01)).cut(
+                    cylinder(bore/2,.01,(x,12,4-depth-.01)))
+                self.assertAlmostEqual(coupon.intersect(bottom).Volume(),bottom.Volume(),places=5)
+                self.assertLess(coupon.intersect(hole_z(x,12,bore,z=0,height=4-depth)).Volume(),1e-6)
+
+    def test_coupon_epoxy_key_matches_production_and_preserves_lip_roof_and_ports(self):
+        import layout
+        coupon=layout.fit_coupon()
+        key=chassis.floor_anchor_key_shape(100,40).translate((0,0,-.5))
+        window=box(13,13,7.5,(93.5,33.5,0))
+        expected=window.cut(key)
+        actual=coupon.intersect(window)
+        self.assertLess(actual.cut(expected).Volume()+expected.cut(actual).Volume(),1e-6)
+        production_counts={"floor_anchor_front_left":20,"floor_anchor_front_right":22,
+                           "floor_anchor_rear_left":21,"floor_anchor_rear_right":22}
+        for name,count in production_counts.items():
+            keys=chassis.floor_anchor_keys(name)
+            self.assertEqual(len(keys),count)
+            source=keys[0]
+            translated=source["shape"].translate((100-source["x"],40-source["y"],-.5))
+            self.assertLess(key.cut(translated).Volume()+translated.cut(key).Volume(),1e-6)
+        neck=cylinder(3,2,(100,40,0))
+        chamber=cylinder(4.5,2,(100,40,2))
+        self.assertLess(coupon.intersect(neck).Volume(),1e-6)
+        self.assertLess(coupon.intersect(chamber).Volume(),1e-6)
+        lip=chamber.translate((0,0,-2)).cut(neck)
+        self.assertAlmostEqual(coupon.intersect(lip).Volume(),lip.Volume(),places=5)
+        vents=[cylinder(1.25,3.5,(x,40,4)) for x in (98,102)]
+        for vent in vents:
+            self.assertLess(coupon.intersect(vent).Volume(),1e-6)
+        roof=cylinder(4.5,3.5,(100,40,4)).cut(*vents)
+        self.assertAlmostEqual(coupon.intersect(roof).Volume(),roof.Volume(),places=5)
+        # An upward pull loads the bottom lip onto the mushroom shoulder.
+        self.assertGreater(coupon.translate((0,0,.1)).intersect(key).Volume(),3)
+
     def test_coupon_matches_actual_profiles_and_preserves_production_anchors(self):
         import layout
         coupon=layout.fit_coupon()
