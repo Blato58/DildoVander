@@ -49,8 +49,8 @@ samostatný sledovač vačky. Konstrukční díly vznikají tiskem, spojovací
 materiál zůstává standardní a neupravený. Čtyři tištěné kotvy lepíme na
 holé dřevo DNA. Jejich odlité epoxidové zámky zajišťují mechanické zachycení
 PETG; chemická adheze k plastu není potvrzená. Aktuální geometrie má
-36 831,325 mm² lepených stop a 85 zámků; 0,5mm film a zámky potřebují
-minimum 36,958 ml bez ztrát. BOM uvádí dvě balení po 24 ml s rezervou.
+36 831,325 mm² lepených stop a 84 zámků; 0,5mm film a zámky potřebují
+minimum 43,271 ml bez ztrát. BOM uvádí tři balení po 24 ml s rezervou.
 
 ## Externí podklady pro doplněný materiál
 

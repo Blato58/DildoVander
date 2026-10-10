@@ -83,16 +83,19 @@ class FloorAnchorTests(unittest.TestCase):
             total+=len(keys)
             for index,key in enumerate(keys):
                 with self.subTest(anchor=name,key=index):
-                    expanded=cylinder(6.5,7.5,(key["x"],key["y"],.5))
+                    head_radius=PARAMS["frame"]["floor_anchors"]["key_head_diameter"]/2
+                    expanded=cylinder(head_radius+2,7.5,(key["x"],key["y"],.5))
                     self.assertAlmostEqual(expanded.intersect(blank).Volume(),expanded.Volume(),places=5)
                     for tool in chassis.floor_anchor_clearances(name):
                         self.assertLess(expanded.intersect(tool).Volume(),1e-6)
                     for other in keys[index+1:]:
-                        self.assertGreaterEqual(math.hypot(key["x"]-other["x"],key["y"]-other["y"]),11)
+                        self.assertGreaterEqual(math.hypot(key["x"]-other["x"],key["y"]-other["y"]),2*head_radius+2-1e-8)
                     for dx in (-2,2):
                         mouth=cylinder(1.25,.01,(key["x"]+dx,key["y"],7.99))
                         self.assertAlmostEqual(key["shape"].intersect(mouth).Volume(),mouth.Volume(),places=5)
-                    neck=cylinder(3,.01,(key["x"],key["y"],.5))
+                    neck_radius=PARAMS["frame"]["floor_anchors"]["key_neck_diameter"]/2
+                    self.assertGreaterEqual(head_radius-neck_radius,1.5)
+                    neck=cylinder(neck_radius,.01,(key["x"],key["y"],.5))
                     self.assertAlmostEqual(key["shape"].intersect(neck).Volume(),neck.Volume(),places=5)
                     # Inverted carry physically loads the bottom lip onto the
                     # cast mushroom head; a straight unkeyed bore would fail.
@@ -158,16 +161,22 @@ class AnchorCouponTests(unittest.TestCase):
         expected=window.cut(key)
         actual=coupon.intersect(window)
         self.assertLess(actual.cut(expected).Volume()+expected.cut(actual).Volume(),1e-6)
-        production_counts={"floor_anchor_front_left":20,"floor_anchor_front_right":22,
-                           "floor_anchor_rear_left":21,"floor_anchor_rear_right":22}
+        production_counts={"floor_anchor_front_left":19,"floor_anchor_front_right":21,
+                           "floor_anchor_rear_left":22,"floor_anchor_rear_right":22}
         for name,count in production_counts.items():
             keys=chassis.floor_anchor_keys(name)
             self.assertEqual(len(keys),count)
             source=keys[0]
             translated=source["shape"].translate((100-source["x"],40-source["y"],-.5))
             self.assertLess(key.cut(translated).Volume()+translated.cut(key).Volume(),1e-6)
-        neck=cylinder(3,2,(100,40,0))
-        chamber=cylinder(4.5,2,(100,40,2))
+        a=PARAMS["frame"]["floor_anchors"]
+        neck_radius=a["key_neck_diameter"]/2
+        head_radius=a["key_head_diameter"]/2
+        self.assertAlmostEqual(a["key_head_bottom"]-a["z"],2)
+        self.assertAlmostEqual(a["z"]+a["height"]-a["key_head_top"],3.5)
+        self.assertGreaterEqual(head_radius-neck_radius,1.5)
+        neck=cylinder(neck_radius,2,(100,40,0))
+        chamber=cylinder(head_radius,2,(100,40,2))
         self.assertLess(coupon.intersect(neck).Volume(),1e-6)
         self.assertLess(coupon.intersect(chamber).Volume(),1e-6)
         lip=chamber.translate((0,0,-2)).cut(neck)
@@ -175,7 +184,7 @@ class AnchorCouponTests(unittest.TestCase):
         vents=[cylinder(1.25,3.5,(x,40,4)) for x in (98,102)]
         for vent in vents:
             self.assertLess(coupon.intersect(vent).Volume(),1e-6)
-        roof=cylinder(4.5,3.5,(100,40,4)).cut(*vents)
+        roof=cylinder(head_radius,3.5,(100,40,4)).cut(*vents)
         self.assertAlmostEqual(coupon.intersect(roof).Volume(),roof.Volume(),places=5)
         # An upward pull loads the bottom lip onto the mushroom shoulder.
         self.assertGreater(coupon.translate((0,0,.1)).intersect(key).Volume(),3)
@@ -198,13 +207,13 @@ class AnchorCouponTests(unittest.TestCase):
                 index=next(i for i,n in enumerate(chassis.anchor_nuts(anchor)) if n["kind"]==kind)
                 for current,original in zip(tools,production_tools[index*3:index*3+3]):
                     self.assertLess(current.cut(original).Volume()+original.cut(current).Volume(),1e-6)
-        # Measured immediately before extracting the shared helper. This catches
-        # production changes beyond matching just the two coupon cavities.
+        # Approved enlarged-key source volumes. These also catch production
+        # changes beyond matching just the two coupon nut cavities.
         original_volumes={
-            "floor_anchor_front_left":57123.1009256252,
-            "floor_anchor_front_right":56968.513422466254,
-            "floor_anchor_rear_left":64526.54860282508,
-            "floor_anchor_rear_right":64408.0335907647}
+            "floor_anchor_front_left":55863.91132015793,
+            "floor_anchor_front_right":55553.81498064702,
+            "floor_anchor_rear_left":62597.807063061126,
+            "floor_anchor_rear_right":62697.43639088506}
         for name,volume in original_volumes.items():
             self.assertAlmostEqual(chassis.floor_anchor_shape(name).Volume(),volume,places=5)
 

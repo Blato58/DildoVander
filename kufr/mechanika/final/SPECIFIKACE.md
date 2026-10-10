@@ -100,7 +100,7 @@ neprokazuje pevnost vrstev, kvalita přemostění ani teplotní odolnost výtisk
 Zkušební `fit_coupon` se tiskne také plně. Obsahuje shodné boční tunely,
 šestihranné kapsy M3/M4, slepé dno a střechy podlahových kotev; skutečné
 matice musí jít zasunout a vyjmout před tiskem celé sady kotev.
-Stejná měrka reprodukuje také produkční epoxidový zámek Ø6/Ø9 se dvěma
+Stejná měrka reprodukuje také produkční epoxidový zámek Ø7,5/Ø10,5 se dvěma
 Ø2,5 odvzdušněními pro zkoušku přemostění a předplnění odspodu. Geometrie
 zámku se sdílí s kotvami; zkouška plnění není důkazem přilnutí ke dřevu.
 Otevřená zahloubení Ø6,2 × 1,65 mm a Ø7,5 × 0,5 mm nad otvory

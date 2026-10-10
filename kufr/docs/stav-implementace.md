@@ -1,6 +1,19 @@
 # Stav implementace AI kufru
 
-## F2 — montáž bez opracování kovů, finální ověření 10. 10. 2026
+## F2 — montáž bez opracování kovů, navazující pevnostní oprava 10. 10. 2026
+
+Aktuálně probíhá oprava výpočtu kotev po další připomínce PR #172.
+Původní posouzení os X/Y podhodnotilo šikmé zatížení. Nový výpočet
+zahrnuje celý tenzor, všechny vodorovné směry a excentricitu skutečných
+matic. Původních 85 zámků nevyhovělo předpokladu 3 MPa; geometrie se
+zesílila bez snížení návrhového zatížení na 84 zámků Ø7,5/Ø10,5.
+Cílených 22 testů prošlo za 46,557 s; dalších 7 pevnostních testů po
+doplnění všech poměrů prošlo za 14,749 s. Nezávislé review potvrdilo
+>=2mm přepážky, všech 28 střech matic, měrku a minimum poměru pro krčky
+1,4731. Kontrola balení/brány: 20 testů PASS. Montážní validátor: PASS.
+BOM je nyní 3 × 24 ml epoxidu při minimu 43,271 ml. Úplná regenerace
+nové revize následuje. Následující záznam exportů
+patří předchozí revizi a novou opravu zatím neověřuje.
 
 Rolničku a její samostatné spojovací díly nahrazuje kluzný čep Ø6 mm
 vytištěný přímo s lůžkem. Šest přihrádek a zdvih 16 mm zůstávají.
@@ -29,7 +42,7 @@ banky a 24 přístupů nástroje prošly bez kolizí. Audit 135 vodičů prošel
 v klidu, přepravě a 0/80/160° každého modulu, včetně vzájemných kolizí.
 Montážní validátor pokrývá 15 kroků, 545 dílů scény a všech 135 vodičů.
 
-Aktuální ZIP má 161 členů, 54 259 317 B a SHA-256
+Předchozí ZIP před pevnostní opravou má 161 členů, 54 259 317 B a SHA-256
 `5253cd97e7c889f552e3444c3da92cf12ebff554186aff2faf7fd6c2eaade89d`.
 Balicí skript ověřil každý archivovaný soubor proti přijatým otiskům;
 zpětné čtení ZIPu a CRC prošly. Dodatečná kontrola potvrdila, že zdrojové
@@ -47,7 +60,7 @@ Práce proběhla v izolovaném worktree `printed-no-tool-mechanics`.
 Implementační commity včetně posledního `80e6588` byly úspěšně odeslány
 přes `Push-CurrentBranch.ps1` a vzdálený SHA byl ověřen na větvi
 `codex/printed-no-tool-mechanics`, [PR #172](https://github.com/Blato58/DildoVander/pull/172).
-CI run `38073199793` se vůbec nespustil: GitHub uvádí „The job was not
+CAD job v CI runu `38073199793` nebyl spuštěn: GitHub uvádí „The job was not
 started because an Actions budget is preventing further use.“ Nejde
 o neúspěch CAD testů; bez úspěšného CI nebyl proveden merge. Merge navíc
 automaticky publikuje veřejný Workshop; tato publikace čeká na souhlas

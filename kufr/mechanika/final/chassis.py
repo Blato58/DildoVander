@@ -229,7 +229,7 @@ def floor_anchor_key_shape(x,y):
     neck=cylinder(a["key_neck_diameter"]/2,a["key_head_bottom"]-a["z"],(x,y,a["z"]))
     head=cylinder(a["key_head_diameter"]/2,a["key_head_top"]-a["key_head_bottom"],(x,y,a["key_head_bottom"]))
     # Two 2.5 mm vents/witnesses reach the top. Paste is prepacked through
-    # the open 6 mm underside neck, never syringe-injected.
+    # the open underside neck, never syringe-injected.
     mouths=[cylinder(1.25,8-a["key_head_top"],(x+dx,y,a["key_head_top"])) for dx in (-2,2)]
     return fuse([neck,head]+mouths)
 
@@ -242,11 +242,14 @@ def floor_anchor_keys(name):
     x0,x1=spec["x_range"]; y0,y1=spec["y_range"]
     radius=a["key_head_diameter"]/2
     exclusions=floor_anchor_clearances(name)
+    layout=a["key_layouts"][name]
     keys=[]
     # Regular candidates are accepted by actual solid intersection, not by an
     # assumed full rectangular footprint. A 2 mm radial web is mandatory.
-    for x in [x0+8+12*i for i in range(int((x1-x0-16)/12)+1)]:
-        for y in [y0+8+12*i for i in range(int((y1-y0-16)/12)+1)]:
+    for row in range(int((y1-y0-layout["offset_y"])/layout["pitch_y"])+1):
+        y=y0+layout["offset_y"]+row*layout["pitch_y"]
+        for column in range(int((x1-x0-layout["offset_x"])/layout["pitch_x"])+1):
+            x=x0+layout["offset_x"]+column*layout["pitch_x"]+(row%2)*layout["row_stagger_x"]
             clearance=cylinder(radius+2,a["height"],(x,y,a["z"]))
             if abs(clearance.intersect(blank).Volume()-clearance.Volume())>1e-5:
                 continue
@@ -283,6 +286,10 @@ def floor_anchor_metrics():
         iy=(inertia[1][1]-area*a["z"]**3/12)/a["z"]
         sx=ix/max(centroid.y-bb.ymin,bb.ymax-centroid.y)
         sy=iy/max(centroid.x-bb.xmin,bb.xmax-centroid.x)
+        ixy=-inertia[0][1]/a["z"]
+        bottom=next(face for face in film.Faces() if face.geomType()=="PLANE"
+                    and abs(face.Center().z-bb.zmin)<1e-6 and face.normalAt().z<-.9)
+        boundary=sorted({(vertex.Center().x,vertex.Center().y) for vertex in bottom.outerWire().Vertices()})
         # PETG/film interface is net of the actual key neck openings.
         net=shape.intersect(box(X,Y,.01,(0,0,a["z"]))).Volume()/.01
         roof=[]
@@ -298,8 +305,14 @@ def floor_anchor_metrics():
                       for row in rows}
         metrics[name]={"wood_bond_area_mm2":area,"petg_film_contact_mm2":net,
                        "key_count":len(keys),"epoxy_volume_mm3":floor_bond_shape(name).Volume(),
-                       "key_head_retaining_area_mm2":len(keys)*math.pi*(4.5**2-3**2),
+                       "key_head_retaining_area_mm2":len(keys)*math.pi*((a["key_head_diameter"]/2)**2-(a["key_neck_diameter"]/2)**2),
+                       "printed_100_percent_volume_mm3":shape.Volume(),
+                       "printed_100_percent_mass_g":shape.Volume()/1000*PARAMS["print"]["density_g_cm3"],
                        "bond_section_modulus_min_mm3":min(sx,sy),
+                       "wood_bond_centroid_xy_mm":[centroid.x,centroid.y],
+                       "wood_bond_area_second_moment_tensor_mm4":[[iy,ixy],[ixy,ix]],
+                       "wood_bond_boundary_vertices_xy_mm":[list(point) for point in boundary],
+                       "wood_bond_tensor_convention":"integral r*r^T dA; CadQuery mechanical Ixy negated; x/y diagonal entries swap",
                        "nut_row_roof_net_sections_mm2":net_sections,
                        "nut_roofs":roof}
     return metrics
