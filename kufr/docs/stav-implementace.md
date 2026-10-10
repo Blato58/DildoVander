@@ -29,8 +29,13 @@ Měrka nyní obsahuje přesné produkční profily M3/M4 ze společné funkce,
 3mm střechu i 0,5mm slepé dno; kotvy a ostatní sestava jsou nezměněné.
 Všech 13 cílených testů kotev/měrky/čepu prošlo. Montáž výslovně požaduje
 100% výplň měrky a zasunutí skutečných matic před tiskem velkých kotev.
-Pro rozšířenou měrku se znovu generují a ověřují exporty; výše uvedený
-otisk ZIPu patří předchozí variantě, nikoli tomuto doplnění.
+Autoritou plného ověření rozšířené měrky jsou aktuální
+`final/exports/verification.json` a `package-sha256.txt`; přijmout je lze
+jen při shodě zdrojových SHA-256. Výše uvedený otisk ZIPu patří předchozí
+variantě, nikoli tomuto doplnění. Oprava `6676e0a` byla úspěšně pushnuta
+a její vzdálený SHA ověřen. Nezávislé review potvrdilo nulový rozdíl
+všech 84 produkčních nástrojových objemů; dva další cílené testy prošly.
+Review vlákno PR #172 je vyřešené; výsledek CI je dostupný přímo v PR.
 
 Browser na localhost:8916 ověřil montážní kroky, nové kotvy, pohyb
 0–160°/16 mm, přepravní stav a úzké i široké zobrazení bez konzolových
