@@ -238,6 +238,10 @@ def require_complete_wire_audit(result):
     assert self_coverage.get("motion_angles")==[0,80,160] and self_coverage.get("modules")==list(range(1,7))
 
 
+def require_anchor_assumption_screen(result):
+    assert result.get("normal_load_assumption_screen_passed") is True, "Printed anchor load exceeds stated design assumptions"
+
+
 def main():
     (OUT/"verification.json").unlink(missing_ok=True)
     initial_sources=source_hashes()
@@ -246,6 +250,8 @@ def main():
     generation_digest=export_hashes(OUT,[GENERATION_SNAPSHOT])[GENERATION_SNAPSHOT]
     initial_cad=cad_hashes()
     parts=export_checks()
+    strength_result=strength.calculate()
+    require_anchor_assumption_screen(strength_result)
     mech_result=mechanical_checks(OUT/"collision-details.json")
     harness_result=harness.validate()
     assembly_result=validate_assembly.validate()
@@ -262,7 +268,7 @@ def main():
     assert_export_hashes(OUT,verified_exports,set(export_names(manifest))-VERIFICATION_EXPORTS)
     report={"result":"PASS_CAD_NOT_PHYSICAL_ACCEPTANCE","revision":PARAMS["revision"],
             "physical_test_performed":False,"stl_types":len(parts),"print_count":sum(p["quantity"] for p in parts),
-            "parts":parts,"mechanics":mech_result,"harness":harness_result,"strength":strength.calculate(),
+            "parts":parts,"mechanics":mech_result,"harness":harness_result,"strength":strength_result,
             "assembly":assembly_result,"wire_geometry":wire_geometry,"cad_sha256":initial_cad,
             "export_sha256":verified_exports,"sources":initial_sources}
     (OUT/"verification.json").write_text(json.dumps(report,indent=2,ensure_ascii=False,allow_nan=False),encoding="utf-8")

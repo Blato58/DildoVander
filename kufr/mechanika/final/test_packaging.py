@@ -53,7 +53,8 @@ def verify_fixture(root, sources, during_audit=None):
         stack.enter_context(patch.object(verify, 'mechanical_checks', side_effect=mechanical_check))
         stack.enter_context(patch.object(verify.harness, 'validate', return_value={}))
         stack.enter_context(patch.object(verify.validate_assembly, 'validate', return_value={}))
-        stack.enter_context(patch.object(verify.strength, 'calculate', return_value={}))
+        stack.enter_context(patch.object(verify.strength, 'calculate',
+                                       return_value={'normal_load_assumption_screen_passed': True}))
         stack.enter_context(patch.object(verify.verify_harness_geometry, 'verify_all_states',
                                        return_value=WireAcceptanceTests().complete()))
         stack.enter_context(redirect_stdout(StringIO()))

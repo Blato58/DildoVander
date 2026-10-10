@@ -23,8 +23,8 @@ nosné průřezy nebyly nahrazené řídkou výplní. Ostatní díly přibližn�
 Přemostění vnitřních kapes matic a epoxidových zámků nejprve zkontrolovat
 v náhledu sliceru a na zkušebním výtisku; uvnitř těchto dutin nezavřít podpory.
 Připravit 3 kg PETG. Součet plných CAD objemů všech 52 výtisků při hustotě
-1,27 g/cm³ odpovídá přibližně 2,42 kg; samotné povinně plné díly přibližně
-1,49 kg. Skutečnou spotřebu ostatních dílů, podpor, lemů a zkoušek určí
+1,27 g/cm³ odpovídá přibližně 2,41 kg; samotné povinně plné díly přibližně
+1,48 kg. Skutečnou spotřebu ostatních dílů, podpor, lemů a zkoušek určí
 slicer. Původní 1kg položka pro tuto variantu nestačí.
 Namáhaná vodítka, vačky, kluzný čep a střechy matic nesmějí mít nedotisky.
 Lůžko je otočené +90° kolem Y; integrální čep Ø6 směřuje vzhůru. Kluzná
@@ -35,8 +35,8 @@ zachycení závitu šroubem a matice opět vyjmout pro finální sestavu.
 Tunely, šestihranné kapsy, slepé dno a uzavřené střechy měrky mají stejný
 profil a tiskovou orientaci jako kotvy. Vůli řešit profilem nebo
 parametrem a novým tiskem, nikdy pilníkem, vrtákem nebo měřítkem STL.
-Měrka obsahuje také jeden skutečný epoxidový zámek: spodní Ø6 vstup,
-Ø9 komoru a dvě horní Ø2,5 odvzdušnění. Před tiskem kotev ověřit čisté
+Měrka obsahuje také jeden skutečný epoxidový zámek: spodní Ø7,5 vstup,
+Ø10,5 komoru a dvě horní Ø2,5 odvzdušnění. Před tiskem kotev ověřit čisté
 přemostění komory a průchodnost vstupu/obou odvzdušnění. Po vyjmutí
 zkušebních matic předplnit komoru odspodu malou dávkou epoxidu z rezervy;
 obě horní ústí musí ukázat naplnění. Uvnitř nezavřít podpory. Neúspěch
@@ -65,7 +65,7 @@ Lepidlo Bison Epoxy Metal 24 ml, výrobek 6305443: označit skutečné lepené
 stopy kotev, pouze v nich odstranit lak brusným papírem na pevné suché
 dřevo a vysát prach. Nezalepit kapsy matic, boční vstupy ani šroubové
 otvory; použít odstranitelnou ochranu před nanášením. Tištěné průchozí
-zámky mají krček Ø6 a rozšířenou hlavu Ø9; mezi epoxidem a kapsami matic
+zámky mají krček Ø7,5 a rozšířenou hlavu Ø10,5; mezi epoxidem a kapsami matic
 musí zůstat nejméně 2 mm plastu. Vytvrzený zámek mechanicky zachytí kotvu;
 chemická přilnavost k PETG se nepovažuje za doloženou nosnou cestu.
 
@@ -81,10 +81,10 @@ při 20 °C v [technickém listu](https://www.bison.net/getmedia/d54542f5-f56f-4
 Nenamáčet lak ani původní spoje kufru rozpouštědlem.
 
 Geometrické metriky čtyř kotev: přední levá/pravá mají každá stopu
-8626,650 mm² a 20/22 zámků; zadní levá/pravá každá 9789,0125 mm² a 21/22
-zámků. Celkem jde o 36 831,325 mm² holého dřeva a 85 zámků. Spodní film
-0,5 mm má 18,416 ml, zámky přidají 18,542 ml: CAD minimum je 36,958 ml
-bez ztrát. Dvě balení po 24 ml dávají 48 ml; rozdíl přibližně 11,042 ml
+8626,650 mm² a 19/21 zámků; zadní levá/pravá každá 9789,0125 mm² a 22/22
+zámků. Celkem jde o 36 831,325 mm² holého dřeva a 84 zámků. Spodní film
+0,5 mm má 18,416 ml, zámky přidají 24,855 ml: CAD minimum je 43,271 ml
+bez ztrát. Tři balení po 24 ml dávají 72 ml; rozdíl přibližně 28,729 ml
 je rezerva pro zkušební vzorek, přebytky a ztráty při míchání/nanášení.
 Původní výpočet 4 × 2000 mm² / 4 ml patřil odstraněnému návrhu a neplatí.
 Dřevo s odlupujícími se vrstvami nebo spoj na laku nepřijmout. Katalogových
@@ -99,9 +99,15 @@ imbus 3 mm, hlava zapuštěná 0,5 mm. Nepřitahovat deformovaný rám silou.
 
 `strength.py` vyhodnocuje nynější podpíraná PETG žebra, lepené plochy,
 odlité zámky a střechy matic. Starý odhad samostatné kovové výztuhy se na
-tento návrh nepřenáší. Návrhová hmotnost je 5 kg, zrychlení 3 × g; finální
-geometrický výpočet a fyzická přejímka zůstávají otevřené. Výpočet nemůže
-prokázat skutečné odlupování, soudržnost dřeva ani tečení PETG.
+tento návrh nepřenáší. Návrhová hmotnost je 5 kg, zrychlení 3 × g a dvě
+zatížené kotvy. Každá dostává současně normálovou i vodorovnou sílu
+73,575 N s ramenem 170 mm; normálová síla se postupně umístí do každé
+skutečné matice. Výpočet zahrnuje smíšený moment plochy a nejhorší
+vodorovný směr, včetně šikmého. U zámků posuzuje jednotlivé síly, u dřeva
+lineární rozdělení napětí v celé lepené stopě. Materiálové meze jsou
+pouze uvedené návrhové předpoklady. Výpočet nemůže prokázat skutečné
+odlupování, soudržnost dřeva, vady plnění ani tečení PETG; fyzická
+přejímka zůstává otevřená.
 
 ## Zkušební mechanismus až po instalaci rámu
 

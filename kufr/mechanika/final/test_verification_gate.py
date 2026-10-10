@@ -5,8 +5,16 @@ import tempfile
 from pathlib import Path
 import json
 
-from verify import require_complete_wire_audit
+from verify import require_complete_wire_audit, require_anchor_assumption_screen
 from artifacts import ASSEMBLY_NAMES, GENERATION_SNAPSHOT
+
+
+class AnchorAcceptanceTests(unittest.TestCase):
+    def test_failed_or_missing_anchor_screen_cannot_receive_cad_acceptance(self):
+        for result in ({}, {"normal_load_assumption_screen_passed": False}):
+            with self.subTest(result=result), self.assertRaises(AssertionError):
+                require_anchor_assumption_screen(result)
+        require_anchor_assumption_screen({"normal_load_assumption_screen_passed": True})
 
 
 class WireAcceptanceTests(unittest.TestCase):

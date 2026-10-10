@@ -39,9 +39,9 @@ epoxidového zámku včetně spodního vstupu a obou horních odvzdušnění.
 Před tiskem kotev se zkouší přemostění i naplnění odspodu; geometrie je
 sdílená s kotvami. Počet typů a výtisků tím zůstává nezměněný.
 
-Aktuální kotvy mají 36 831,325 mm² lepených stop a 85 zámků; minimum
-spodního filmu a zámků je 36,958 ml bez ztrát. BOM uvádí dvě balení
-Bison 24 ml, s rezervou přibližně 11,042 ml pro vzorek a ztráty. PETG
+Aktuální kotvy mají 36 831,325 mm² lepených stop a 84 zámků; minimum
+spodního filmu a zámků je 43,271 ml bez ztrát. BOM uvádí tři balení
+Bison 24 ml, s rezervou přibližně 28,729 ml pro vzorek a ztráty. PETG
 kotvy se předplní odspodu; horní porty jsou kontrolní/odvzdušňovací.
 Boční vložení 24 M3 a 4 M4 matic před instalací rámu kryje souvislá
 3mm střecha. Moduly mají vlastní 24 M3 × 14, rám 4 M4 × 10 ISO4762;
@@ -49,13 +49,17 @@ Boční vložení 24 M3 a 4 M4 matic před instalací rámu kryje souvislá
 nasazení a servisní sejmutí lůžka, vačky a serva; dva pásky serva se při
 servisu odstřihují a nahrazují.
 
-Zdrojová kontrola před finální úpravou mřížky zámků 10. 10. 2026:
-`test_f2_cad`, testy kluzného čepu, kotev a měrky — 21 testů prošlo
-za 59,836 s. Výsledek není ověřením exportů ani balíčku a upravenou
-mřížku musí pokrýt nové ověření. Samostatné `validate_assembly.py`
-potvrdilo 15 kroků, 545 dílů scény a 135 vodičů, přesné počty BOM,
-pořadí prvního osazení spojů a zákaz opracovacích nástrojů. Fyzické
-nasazení čepu, spoj dřevo/epoxid, střechy matic a pohyb nebyly testovány.
+Pevnostní posouzení používá celý 2D tenzor skupiny zámků i lepené stopy,
+nejhorší vodorovný směr a sílu umístěnou postupně do každé skutečné matice.
+Zachovává 5 kg, 3 × g, dvě zatížené kotvy a rameno 170 mm. Původní
+zámky Ø6/Ø9 tomuto posouzení nevyhověly; nahrazují je zámky Ø7,5/Ø10,5
+s upraveným rozložením při nezměněném vnějším tvaru kotev. Nejnižší poměr
+předpokládané meze k napětí krčku je 1,473. Meze materiálu nejsou měřené.
+Regenerace zahrnuje regresní kontrolu původního nevyhovujícího rozložení,
+porovnání s hustým vzorkováním směrů a rovnováhu sil/momentů. Nevyhovující
+výpočtový výsledek zabrání vystavení `verification.json`. Aktuální běh,
+hash balíčku a Git předání zaznamenává [stav implementace](../../docs/stav-implementace.md).
+Fyzické nasazení čepu, spoj dřevo/epoxid, střechy matic a pohyb nebyly testovány.
 
 ## Ověřování a důkazy
 

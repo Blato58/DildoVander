@@ -69,6 +69,7 @@ def validate():
         material_rows=list(csv.DictReader(file))
     material_list={row['id']:float(row['mnozstvi']) for row in material_rows}
     for row in material_rows:
+        assert None not in row and all(value is not None for value in row.values()), 'Malformed material CSV row: '+row['id']
         validate_tool(row['nastroj'],wood_bonding=row['id']=='EPOXY')
     contract=validate_contract(guide,material_list)
     expected_anchors={f'floor_anchor_{end}_{side}' for end in ('front','rear') for side in ('left','right')}

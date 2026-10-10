@@ -4,7 +4,7 @@ F2 nahrazuje chybný tištěný korpus F1. Skutečný kufr se nevrtá ani neře�
 Uvnitř je čtyřdílný PETG rám s integrovanými předními/zadními žebry, šest
 nezávislých vačkových zdvihů a pevné držáky elektroniky. Čtyři tištěné
 podlahové kotvy připojují rám k holému dřevu DNA přes spodní epoxidový film
-a odlité mechanické zámky Ø6/Ø9. Konstrukce se neopírá o neověřenou
+a odlité mechanické zámky Ø7,5/Ø10,5. Konstrukce se neopírá o neověřenou
 chemickou adhezi epoxidu k PETG. Hůlky, powerbanka a textil jsou odnímatelný obsah;
 nejsou nutné pro soudržnost vložky.
 
