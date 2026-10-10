@@ -8,6 +8,7 @@ Z = PARAMS["mounting"]["cover_z"]
 RACKS = {}
 LEFT_STACK = ("breaker", "buck", "amplifier_left")
 RIGHT_STACK = ("perfboard_1", "perfboard_2", "degson_1", "degson_2", "degson_3")
+RIGHT_SERVICE_MOUNTS = ((365,160),(365,247),(410,160),(410,249.8))
 
 
 def hex_nut(x,y,z,pocket=False):
@@ -115,7 +116,7 @@ def service_platforms():
         post=post.cut(cylinder(3.2,2.4,(411.75,yy,105.6)))
         right.append(post)
     for xx,px in ((365,360.1),(410,406)):
-        for yy in (160,247):
+        for yy in (160,249.8 if xx==410 else 247):
             right.append(box(9.9,6,3,(px,yy-3,12)))
     left_shape=cut(fuse(left),[t.shape for n in LEFT_STACK+("speaker_left",) for t in ties(n)])
     # The narrow bank margin is preserved by ending the amp carrier ahead of it.
@@ -134,7 +135,7 @@ def service_platforms():
     from chassis import rack_holes
     right_shape=cut(right_shape,[cylinder(3.6,3,(xx,yy,12)) for xx,yy in rack_holes()])
     for shape_name,shape,rows in (("left",left_shape,[(xx,yy) for xx in (22,64) for yy in (68,92)]),
-                                  ("right",right_shape,[(xx,yy) for xx in (365,410) for yy in (160,247)])):
+                                  ("right",right_shape,RIGHT_SERVICE_MOUNTS)):
         tools=[hole_z(xx,yy,3.4,z=11,height=5) for xx,yy in rows]
         tools += [hex_nut(xx,yy,12,True) for xx,yy in rows]
         if shape_name=="left": left_shape=cut(shape,tools)
@@ -229,9 +230,29 @@ def camera_bracket():
 
 def fit_coupon():
     shape=box(85,58,4).fuse(box(8,10,22,(5,34,4)))
+    # Coupon-only seat reproduces the one-mm lug-to-cam-face axial gap.
+    shape=fuse([shape, cylinder(5,1,(78,51,4)), follower_coupon_peg()])
     holes=[hole_z(x,12,d,z=-1,height=6) for x,d in zip((10,25,41,61),(3.4,4.5,12.4,19.4))]
     holes += [box(8+2*c,10+2*c,6,(x,33,-1)) for x,c in ((25,.3),(44,.45),(64,.6))]
     return cut(shape,holes)
+
+
+def follower_coupon_peg():
+    """Copy the final rounded peg in its prescribed upward print orientation."""
+    from geometry import print_position
+    from mechanism import sliding_follower
+    return print_position(sliding_follower(), ((0,1,0),90)).translate((75,48,4))
+
+
+def follower_groove_coupon():
+    """Straight slot for clearance only; actual cam axial depth and print face."""
+    m=PARAMS["mechanism"]
+    start=m["cam_x"]
+    floor=start+m["cam_thickness"]-m["groove_depth"]
+    shape=box(m["cam_thickness"],20,20,(start,0,0))
+    groove=box(m["groove_depth"]+1,m["groove_width"],22,
+               (floor,10-m["groove_width"]/2,-1))
+    return shape.cut(groove).clean()
 
 
 def usb_clip():
@@ -252,7 +273,7 @@ def carrier_shapes():
     # Boundary stops cannot protrude beyond the owner-confirmed safe box.
     result["bank_holder"]=result["bank_holder"].cut(box(60,1,100,(15.9,253.35,12))).clean()
     result["carrier_speaker_left"]=result["carrier_speaker_left"].cut(box(60,1,20,(15.9,12.35,10))).clean()
-    # The metal upright occupies the rear margin of this shallow carrier.
+    # The integral frame upright occupies the rear margin of this carrier.
     from chassis import rail_shape
     rear=next(s for s in PARAMS["frame"]["stiffeners"] if s["id"]=="rear_crossrail")
     result["carrier_pca9685"]=result["carrier_pca9685"].cut(rail_shape(rear)).clean()
@@ -332,13 +353,21 @@ def carrier_shapes():
         nut_z=105.6 if name=="right_back_cover" else 102.6
         tools=[tool for xx,yy in points for tool in (hole_z(xx,yy,3.4,z=100,height=10),hex_nut(xx,yy,nut_z,True))]
         result[owners[name]]=cut(result[owners[name]],tools)
+    # ISO4762 M4 heads reach Z15.5, 0.5 mm above the former low-head
+    # envelope. Leave 0.25 mm above/around each actual purchased head.
+    from chassis import rack_holes
+    head_z=PARAMS["frame"]["floor_anchors"]["frame_head_z"]
+    head_clearances=[cylinder(3.75,4.25,(x,y,head_z)) for x,y in rack_holes()]
+    for name in ("carrier_speaker_left","carrier_speaker_right","bank_holder","right_service_carrier"):
+        result[name]=cut(result[name],head_clearances)
     return result
 
 
 def parts():
     result=[Part(n,s,1,"Positive perimeter stops, two ties; mounted independently to frame") for n,s in carrier_shapes().items()]
     result += [Part(n,s,1,"Removable non-load-bearing textile cover") for n,s in covers().items()]
-    result += [Part("fit_coupon",fit_coupon(),1,"Printer/fastener/guide clearance coupon")]
+    result += [Part("fit_coupon",fit_coupon(),1,"Fastener/guide coupon plus upward integral peg and 1 mm axial seat; adjust printer and reprint, never file/sand")]
+    result += [Part("follower_groove_coupon",follower_groove_coupon(),1,"6.8 mm straight clearance slot, 6 mm depth; print groove-up like cam; pair with peg coupon, not motion proof; reprint to correct fit",((0,1,0),-90))]
     return result
 
 
@@ -387,7 +416,7 @@ def items(with_covers=True,with_bank=True):
     mounts=[(f"{name}_{j+1}",xx,yy) for name in COMPONENTS if name not in excluded
             for j,(xx,yy) in enumerate(mount_positions(name))]
     mounts += [(f"left_service_{j+1}",xx,yy) for j,(xx,yy) in enumerate(( (xx,yy) for xx in (22,64) for yy in (68,92)))]
-    mounts += [(f"right_service_{j+1}",xx,yy) for j,(xx,yy) in enumerate(( (xx,yy) for xx in (365,410) for yy in (160,247)))]
+    mounts += [(f"right_service_{j+1}",xx,yy) for j,(xx,yy) in enumerate(RIGHT_SERVICE_MOUNTS)]
     mounts += [(f"switch_shelf_{j+1}",xx,yy) for j,(xx,yy) in enumerate(((20,27),(22,60)))]
     mounts += [(f"coil_cradle_{j+1}",xx,yy) for j,(xx,yy) in enumerate(((54,170),(62,240)))]
     mounts += [(f"capacitor_holder_{j+3}",xx,yy) for j,(xx,yy,zz) in enumerate(PARAMS["capacitors"][2:])]

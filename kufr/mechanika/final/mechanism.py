@@ -95,7 +95,7 @@ def retaining_ties(kind):
 @lru_cache
 def cam():
     shape = cq.Solid.extrudeLinear(cam_wire(M["groove_width"]/2+3),[],(M["cam_thickness"],0,0))
-    # True normal offsets preserve the roller clearance at the steep flank.
+    # True normal offsets preserve sliding-peg clearance at the steep flank.
     floor = M["cam_thickness"]-M["groove_depth"]
     groove = cq.Solid.extrudeLinear(cam_wire(M["groove_width"]/2,floor),[cam_wire(-M["groove_width"]/2,floor)],(M["groove_depth"]+1,0,0))
     through = M["cam_thickness"]+2
@@ -173,8 +173,24 @@ def base():
 
 
 @lru_cache
+def sliding_follower():
+    """Integral circular PETG peg; rounded entry tip, no axle or bore."""
+    tip, root = M["sliding_follower_tip_x"], M["sliding_follower_root_x"]
+    peg = cylinder(M["sliding_follower_diameter"]/2, root-tip,
+                   (tip, 112, -M["follower_drop"]), (1, 0, 0))
+    tip_edges = [edge for edge in peg.Edges()
+                 if edge.geomType() == "CIRCLE" and abs(edge.Center().x-tip) < 1e-6]
+    # Only the axial entry edge is rounded; the cam-contact section stays OD6.
+    return peg.fillet(.5, tip_edges)
+
+
+@lru_cache
 def tray():
-    """Top at z=3; upside-down printing puts the flat fabric face on the bed."""
+    """Top at z=3; print on the x45 side so the integral peg points upward.
+
+    Guide bridges and PETG fit need coupon/slicer validation and reprinting;
+    dimensional corrections must not depend on filing or drilling.
+    """
     pieces = [box(M["tray_width"], M["length"], M["tray_thickness"], (1, 0, 0))]
     holes = []
     for x, y in GUIDES:
@@ -186,9 +202,10 @@ def tray():
     pieces.extend([box(2,M["length"],6,(1,0,3)),
                    box(2,M["length"],6,(43,0,3)),
                    box(40,3,6,(3,0,3))])
-    # Four-mm lug leaves room for a washer, ordinary M3 nut and screw tip.
+    # The existing lug carries the integral peg. Its x40 root stays one mm
+    # clear of the x39 cam face, including the entire positive-return stroke.
     pieces.append(box(4,12,23,(40,106,-23)))
-    holes.append(cylinder(1.7,6,(39,112,-M["follower_drop"]),(1,0,0)))
+    pieces.append(sliding_follower())
     pieces.append(box(3,200,10,(42,6,-10)))
     # A flat central spine resists bending.
     pieces.append(box(4, 196, 8, (20, 8, -8)))
@@ -217,9 +234,9 @@ def wand():
 
 
 def parts():
-    return [Part("lift_base", base(), 6, "Servo cradle, two guides and transport strap anchors in one print"),
-            Part("wand_bed", tray(), 6, "Single 212 mm bed with integral guide sleeves and U059 stops", ((1,0,0),180)),
-            Part("dwell_cam", cam(), 6, "Captured roller drives both directions; two circular dwells", ((0,1,0),-90))]
+    return [Part("lift_base", base(), 6, "100% infill; servo cradle, two guides and transport strap anchors in one print"),
+            Part("wand_bed", tray(), 6, "100% infill; integral sliding peg: print +90 deg about Y on x45 side with wide brim; support only non-sliding surfaces; coupon/guide bridges provisional", ((0,1,0),90)),
+            Part("dwell_cam", cam(), 6, "100% infill; captured integral sliding peg drives both directions; two circular dwells", ((0,1,0),-90))]
 
 
 def module(index=0, angle=0, with_wand=True):
@@ -233,14 +250,7 @@ def module(index=0, angle=0, with_wand=True):
               Item(f"servo_{index+1}", box(27,22,11.5,(0.5,106.5,30.25)), "hardware", "black", "22 x 11.5 x 27 catalog; shaft offset provisional"),
               Item(f"stock_horn_{index+1}", cut(fuse([box(2,35,6,(0.2,-17.5,-3)),cylinder(4.5,2,(0.2,0,0),(1,0,0))]),[cylinder(1.2,4,(-1,sign*M["horn_fastener_radius"],0),(1,0,0)) for sign in (-1,1)]).rotate((0,0,0),(1,0,0),angle).translate((29,112,36)), "moving_hw", "white", "35 mm double horn; width/hub/thickness and slotted fastener location pending measured fit"),
               Item(f"u059_{index+1}", box(32,24,8,(7.5,24,tray_z-10)), "moving_hw", "pcb", "32 x 24 x 8 catalog"),
-              Item(f"led_{index+1}", box(3,200,10,(45,6,tray_z-7)), "moving_hw", "light", "10 x 200; thickness 3 provisional"),
-              Item(f"roller_{index+1}", cylinder(M["roller_diameter"]/2,3,(35.7,112,M["cam_z"]+radius),(1,0,0)).cut(cylinder(2.1,3,(35.7,112,M["cam_z"]+radius),(1,0,0))), "moving_hw", "white", "6 mm OD / 4.2 ID x 3 nylon roller on brass sleeve"),
-              Item(f"follower_head_{index+1}", cylinder(2.85,1.65,(33.85,112,M["cam_z"]+radius),(1,0,0)), "moving_hw", "metal", "M3 ISO7380 head envelope"),
-              Item(f"follower_sleeve_{index+1}", cylinder(2,4.5,(35.5,112,M["cam_z"]+radius),(1,0,0)).cut(cylinder(1.6,4.5,(35.5,112,M["cam_z"]+radius),(1,0,0))), "moving_hw", "metal", "4 / 3.2 x 4.5 brass bearing sleeve carries clamp force"),
-              Item(f"follower_spacer_{index+1}", cylinder(3,1.1,(38.9,112,M["cam_z"]+radius),(1,0,0)).cut(cylinder(2.1,1.1,(38.9,112,M["cam_z"]+radius),(1,0,0))), "moving_hw", "white", "6 / 4.2 x 1.1 spacer; 0.4 mm total roller axial clearance"),
-              Item(f"follower_washer_{index+1}", cylinder(3.5,.5,(44,112,M["cam_z"]+radius),(1,0,0)).cut(cylinder(1.6,.5,(44,112,M["cam_z"]+radius),(1,0,0))), "moving_hw", "metal"),
-              Item(f"follower_nut_{index+1}", cylinder(3.2,2.4,(44.5,112,M["cam_z"]+radius),(1,0,0)).cut(cylinder(1.5,2.4,(44.5,112,M["cam_z"]+radius),(1,0,0))), "moving_hw", "metal", "M3 nut circumscribed envelope; metal thread retention"),
-              Item(f"follower_pin_{index+1}", cylinder(1.5,12,(35.5,112,M["cam_z"]+radius),(1,0,0)), "fastener", "metal")]
+              Item(f"led_{index+1}", box(3,200,10,(45,6,tray_z-7)), "moving_hw", "light", "10 x 200; thickness 3 provisional")]
     for sign in (-1,1):
         y = sign*M["horn_fastener_radius"]
         for name,shape,group in (
@@ -261,9 +271,13 @@ def module(index=0, angle=0, with_wand=True):
         liner=cut(liner,[t.translate((0,0,tray_z)) for t in retaining_ties("led")])
         shapes.append(Item(f"soft_liner_{index+1}",liner,"moving_hw","cover","Removable 1.2 mm foam + 0.8 mm textile; relieved around LED ties"))
     for j,(x,y) in enumerate(MOUNT_HOLES):
-        shapes += [Item(f"module_m3_{index+1}_{j+1}",cylinder(1.5,10,(x,y,-4)),"fastener","metal","M3 x10; independent module mount"),
+        nut_z = PARAMS["frame"]["floor_anchors"]["module_nut_z"]-M["origin_z"]
+        screw_length = PARAMS["frame"]["floor_anchors"]["module_screw_length"]
+        nut = cq.Workplane("XY", origin=(x,y,nut_z)).polygon(6,5.5/math.cos(math.pi/6)).extrude(2.4).val()
+        nut = nut.cut(cylinder(1.5,3,(x,y,nut_z-.1)))
+        shapes += [Item(f"module_m3_{index+1}_{j+1}",cylinder(1.5,screw_length,(x,y,4-screw_length)),"fastener","metal","M3 x14; four independent module screws into bonded floor cradle"),
                    Item(f"module_head_{index+1}_{j+1}",cylinder(2.85,2,(x,y,4)),"hardware","metal"),
-                   Item(f"module_nut_{index+1}_{j+1}",cylinder(3.2,2.4,(x,y,-6.4)).cut(cylinder(1.5,3,(x,y,-6.5))),"hardware","metal")]
+                   Item(f"module_nut_{index+1}_{j+1}",nut,"hardware","metal","M3 AF5.5 H2.4 hex nut; captive side loading below z5 roof")]
     for kind in ("servo","u059","led"):
         for j,tie in enumerate(retaining_ties(kind)):
             shapes.append(Item(f"{kind}_tie_{j+1}_{index+1}",tie if kind=="servo" else tie.translate((0,0,tray_z)),
