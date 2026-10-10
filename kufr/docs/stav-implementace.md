@@ -83,6 +83,11 @@ prošly. Celá následná regenerace skončila úspěšně. 32 STL, osm renderů
 a výsledný viewer jsou byte po bytu shodné s prohlédnutou geometrií/UI.
 Nový viewer se načetl v reálném browseru se 135 vodiči a bez chyb či
 varování konzole. Aktuální ZIP výše nahrazuje předchozí balíček.
+Obě opravy byly 10. 10. 2026 odeslány commitem
+`b1da483fc97aea51881bea568d192e344349c78f`; `Push-CurrentBranch.ps1`
+ověřil shodný vzdálený SHA. Po tomto push byly obě P2 vlákna vyřešené.
+Dokončení nového PR CI a posledního Codex review se ověřuje před merge;
+tento záznam sám merge nepotvrzuje.
 
 Fyzická výroba, nalepení kotev, zkouška přepravy, kalibrace a nahrání
 firmware neproběhly. Neuzavřené jsou zbývající tvarové rozměry a usazení
