@@ -19,8 +19,8 @@ concurrency:
 
 jobs:
   synchronize:
-    # The API writer must not share the persistent runner executing PR code.
-    runs-on: ubuntu-latest
+    # Separate account and fail-closed job hook; never execute PR code here.
+    runs-on: [self-hosted, Linux, X64, kufr-control]
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
