@@ -551,12 +551,14 @@ ze skutečného `xcodebuild -resolvePackageDependencies` na macOS.
 
 Na Windows lze tyto příkazy použít pro kontrolu zdrojů. Každé PR spouští
 přes `ci.yml` mobilní testy a webový build na Linuxu; nativní iOS build ani
-iOS Simulator se v PR nebo obnovovacím CI nespouští. Web se buildí jednou
-a ruční macOS build převezme jeho artefakt. Po merge ruční workflow
+iOS Simulator se v PR nebo obnovovacím CI nespouští. PR kontroluje balení
+bez ukládání artefaktu; po merge spusť ručně `ci.yml` na `main` s `project=web`.
+Tento webový artefakt má retenci jeden den a macOS build jej převezme bez překladu.
+Ruční workflow
 **Build signed Kufr IPA** (`kufr-ios-sign.yml`) na `main` dostane `build_run_id`
 úspěšného CI, ověří Xcode 26.3 a nativní transport/debug testy a sestaví
 podepsaný device cíl v environmentu `ios-signing`. Používá výhradně Ad Hoc
-distribuční profil pro nasazení; artefakt má retenci 14 dní. Samostatné
+distribuční profil pro nasazení; podepsaný artefakt má retenci tři dny. Samostatné
 **Deploy Kufr IPA** (`kufr-ios-deploy.yml`) dostane
 ID úspěšného podepsaného buildu a publikuje instalační stránku na
 `https://2.28.202.220/ios/` bez dalšího buildu. Oba kroky ověřují shodu zdrojového
