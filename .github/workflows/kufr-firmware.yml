@@ -548,9 +548,11 @@ jobs:
           cp kufr/firmware/.pio/build/esp32-s3-idf/firmware.elf "$RUNNER_TEMP/firmware/esp32-s3-idf/"
           python3 scripts/ci/package.py pack "$RUNNER_TEMP/firmware" "$RUNNER_TEMP/firmware-package"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        # PR CI validates packages; explicit main builds retain deployable artifacts.
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && !github.event.inputs.pr_number
         with:
           name: firmware
           path: ${{ runner.temp }}/firmware-package/
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 1
           overwrite: true

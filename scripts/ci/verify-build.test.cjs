@@ -19,6 +19,37 @@ test('promotion callers and reusable verifier can read the merged PR provenance'
   }
 });
 
+test('promotion transfers the original immutable artifact without a second upload', () => {
+  const readWorkflow = name => fs.readFileSync(path.resolve(__dirname, '../../.github/workflows', name), 'utf8');
+  const verifier = readWorkflow('reuse-build.yml');
+  assert.doesNotMatch(verifier, /actions\/upload-artifact/);
+  for (const output of ['artifact_id', 'run_id']) {
+    assert.match(verifier, new RegExp(`value: \\$\\{\\{ jobs\\.verify\\.outputs\\.${output} \\}\\}`));
+    assert.match(verifier, new RegExp(`${output}: \\$\\{\\{ steps\\.resolve\\.outputs\\.${output} \\}\\}`));
+  }
+  for (const workflow of ['kufr-backend-deploy.yml', 'kufr-memory-provision.yml',
+                         'kufr-firmware-release.yml', 'kufr-ios-sign.yml', 'kufr-ios-deploy.yml']) {
+    const source = readWorkflow(workflow);
+    assert.match(source, /artifact-ids: \$\{\{ needs\.verify\.outputs\.artifact_id \}\}/, workflow);
+    assert.match(source, /run-id: \$\{\{ needs\.verify\.outputs\.run_id \}\}/, workflow);
+    assert.match(source, /github-token: \$\{\{ github\.token \}\}/, workflow);
+    assert.match(source, /merge-multiple: true/, workflow);
+    assert.doesNotMatch(source, /name: verified-/, workflow);
+    assert.match(source, /scripts\/ci\/package\.py unpack/, workflow);
+    assert.match(source, /verify-build\.cjs'\)\.checkMain/, workflow);
+  }
+});
+
+test('routine PR builds validate packages without consuming artifact storage', () => {
+  for (const workflow of ['kufr-backend.yml', 'kufr-firmware.yml', 'kufr-web.yml']) {
+    const source = fs.readFileSync(path.resolve(__dirname, '../../.github/workflows', workflow), 'utf8');
+    const upload = source.slice(source.indexOf('      - uses: actions/upload-artifact'));
+    assert.match(upload, /if: github\.event_name == 'workflow_dispatch' && github\.ref == 'refs\/heads\/main' && !github\.event\.inputs\.pr_number/, workflow);
+    assert.match(upload, /retention-days: 1\s/, workflow);
+    assert.match(source, /scripts\/ci\/package\.py pack/, workflow);
+  }
+});
+
 function fixture() {
   const run = { id: 123, workflow_id: 7, repository: { full_name: 'owner/repo' },
     status: 'completed', conclusion: 'success', event: 'pull_request', run_attempt: 2, head_sha: sha('a') };

@@ -48,9 +48,11 @@ jobs:
       - name: Package backend with build provenance
         run: python3 scripts/ci/package.py pack "$RUNNER_TEMP/kufr-publish" "$RUNNER_TEMP/backend-package"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        # PR CI validates packages; explicit main builds retain deployable artifacts.
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && !github.event.inputs.pr_number
         with:
           name: backend-publish
           path: ${{ runner.temp }}/backend-package/
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 1
           overwrite: true

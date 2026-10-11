@@ -20,6 +20,10 @@ on:
         value: ${{ jobs.verify.outputs.source_sha }}
       main_sha:
         value: ${{ jobs.verify.outputs.main_sha }}
+      artifact_id:
+        value: ${{ jobs.verify.outputs.artifact_id }}
+      run_id:
+        value: ${{ jobs.verify.outputs.run_id }}
 
 permissions:
   contents: read
@@ -34,6 +38,8 @@ jobs:
     outputs:
       source_sha: ${{ steps.verify.outputs.source_sha }}
       main_sha: ${{ steps.verify.outputs.main_sha }}
+      artifact_id: ${{ steps.resolve.outputs.artifact_id }}
+      run_id: ${{ steps.resolve.outputs.run_id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -76,13 +82,3 @@ jobs:
             });
       - name: Validate archive checksum and safe extraction
         run: python3 scripts/ci/package.py unpack "$RUNNER_TEMP/build-package" "$RUNNER_TEMP/validated-payload"
-      - name: Transfer the verified package to the deployment job
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: verified-${{ inputs.artifact }}
-          path: |
-            ${{ runner.temp }}/build-package/build-manifest.json
-            ${{ runner.temp }}/build-package/payload.tar.gz
-          if-no-files-found: error
-          retention-days: 1
-          overwrite: true
