@@ -48,6 +48,8 @@ jobs:
       - name: Package with source provenance
         run: python scripts/ci/package.py pack "$RUNNER_TEMP/arcane-site" "$RUNNER_TEMP/arcane-package"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        # PR CI validates the full package; deployment builds create their own artifact.
+        if: github.event_name != 'pull_request' && !github.event.inputs.pr_number
         with:
           name: arcane-site
           path: ${{ runner.temp }}/arcane-package/

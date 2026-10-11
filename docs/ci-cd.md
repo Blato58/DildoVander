@@ -87,6 +87,11 @@ jej ukládá do zapisovatelného `${{ runner.tool_cache }}/dotnet`.
 CAD dále potřebuje PowerShell (na VPS ověřena oficiální verze 7.6.6).
 Python 3.11 dodává setup-python; CAD závislosti se instalují do čerstvého
 `RUNNER_TEMP/cad-venv`, jehož Python používají všechny následující kroky.
+Site PR CI (běžný PR i synchronizační dispatch s `pr_number`) provede celé
+ověření, build a balení, ale neuploaduje `arcane-site` do GitHub storage.
+Deployment si vždy sestaví vlastní site balíček; main recovery CI a
+deployment build artifact upload zachovávají a jeho chybu neskrývají.
+Přesun runneru neodstraňuje samostatnou GitHub artifact storage kvótu.
 PlatformIO a OpenAI SDK ručního eval se instalují do vlastních venv
 v `RUNNER_TEMP`, bez změny systémového Pythonu. Rozšířený ruční
 **Kufr backend host probe** zkontroluje dostupnost nástrojů a Python venv.
