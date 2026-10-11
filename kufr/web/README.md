@@ -22,7 +22,14 @@ retence navíc odmítne změněnou aktivaci od posledního veřejného ověřen�
 CI projekt `site` regeneruje CAD přes `final/Regenerate.ps1`, sestaví webový
 Companion a kontroluje balíček. Workflow `kufr-site-deploy.yml` se automaticky
 spouští po změnách příslušných zdrojů v `main`; přímý ruční běh je také možný.
-Před publikací i po stažení artefaktu odmítne zastaralý main. Nginx routy
+Reusable workflow `kufr-site.yml` při `publish: true` sestaví, zabalí,
+ověřeně rozbalí a publikuje web v jednom jobu ve vlastním dočasném adresáři.
+Automatický ani ruční deploy nepotřebuje GitHub artifact storage; dvě kontroly
+přesného SHA `main` proběhnou po sestavení a těsně před aktivací. Publikace
+odmítne jinou větev, PR i jinou událost než push nebo přímý ruční běh.
+Běžné CI pouze ověřuje; výslovný recovery build CI na `main` bez `pr_number`
+uloží `arcane-site` na jeden den pro ruční obnovu. Lokální staging se vždy uklidí.
+Nginx routy
 instaluje správce jednou přes `deploy/install-site-host.sh github-runner`.
 Installer zachová ostatní routy, privátně zazálohuje konfiguraci a při chybě
 obnoví původní stav. Nemění backendovou službu, credentialy ani databáze.

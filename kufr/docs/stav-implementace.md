@@ -1,5 +1,37 @@
 # Stav implementace AI kufru
 
+## CI — 11. 10. 2026 — vyčištění artefaktů a oprava deploy workflows
+
+Převzato na žádost majitele „Clear GitHub artifacts and fix deploy workflows“.
+Site build `38106055107` nad `59d61d39` úspěšně sestavil 155 souborů,
+ale upload selhal na GitHub artifact storage kvótě. Inventura našla
+467 artefaktů o celkové velikosti 7 210 857 547 B. Všechny byly smazány
+přes artifact DELETE API; čerstvé API readback potvrdilo `total_count=0`.
+Při zahájení mazání neběželo žádné workflow.
+Logy Actions, veřejné releases, backendová data a credentialy se nemažou.
+
+Site deployment nově sestaví, zabalí, bezpečně rozbalí a publikuje celý
+balíček v jednom jobu. Obě kontroly aktuálního main, atomická aktivace,
+HTTPS readback, rollback a omezená retence zůstávají. Výchozí reusable
+workflow pouze validuje; publikace vyžaduje explicitní `publish=true`
+a přímý main push/dispatch bez interního PR čísla. PR CI backendu,
+firmwaru, webu i site neukládá artefakty; explicitní recovery build na
+main uloží vybraný balíček na jeden den, signed IPA na tři dny.
+`reuse-build.yml` předává původní neměnné artifact ID a run ID;
+backend, memory CLI, OTA, iOS podpis i iOS deploy stahují právě toto ID
+bez druhého uploadu a znovu ověřují checksum při bezpečném rozbalení.
+CI/CD návod a dotčené README uvádějí nový postup recovery před nasazením.
+
+Místní ověření: 57 Node testů prošlo, actionlint všech workflows a
+`git diff --check` PASS. Python suite na Windows narazila na starší test
+POSIX executable bitu; na Linuxu prošlo všech 24 CI Python testů včetně
+publication guardu a všech 13 site testů bez skipu. Ověřeny jsou lokální
+odkazy dotčených README a CI/CD návodu. Nezávislé review bez nálezů.
+Implementace je v commitu `a8fdec7ae315ec50deaeb3e36af8fdbe7a859517`;
+`Push-CurrentBranch.ps1` ověřil shodu vzdálené větve. PR CI, review,
+merge a skutečný site deploy jsou další ověření. Žádné placené AI volání, firmware flash ani iOS podpis
+nebyly spuštěné; hardware/iPhone akceptace se nemění.
+
 ## CI — 11. 10. 2026 — self-hosted Linux workflow, oddělené předání
 
 Na žádost majitele přesouváme poslední Linux joby `kufr-site.yml` na
