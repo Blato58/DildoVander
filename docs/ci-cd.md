@@ -24,7 +24,7 @@ zastaralý běh ještě před buildy. PR dispatch i běžné PR CI sdílejí
 concurrency skupinu, takže nový běh ruší starý. Pozdější změna cíle
 může stále vyžadovat nové CI; kontrola ji nepředstírá jako ověřenou.
 
-Writer používá dočasný `ubuntu-latest` runner a kód pouze z výchozí
+Writer používá oddělený self-hosted `kufr-control` runner a kód pouze z výchozí
 větve; PR kód nedostává jeho write token. Bez dalších secrets použije
 `GITHUB_TOKEN` a explicitní dispatch, protože tokenem vyvolané PR
 události na GitHubu vyžadují schválení. Takový čekající PR běh nemusíme
@@ -62,7 +62,9 @@ použít také po dokumentační změně, potřebujeme-li nový artefakt přesn�
 
 Majitel 1. 10. 2026 požádal přesun všech Linux jobů na svůj server.
 Build/test a provozní joby používají `[self-hosted, Linux, X64, kufr-backend]`, tedy stávající
-runner `dildovander-server`. Pouze ruční podepsaný Ad Hoc IPA build
+pool `dildovander-server` a `dildovander-server-2`. Synchronizace PR používá
+`[self-hosted, Linux, X64, kufr-control]` na `dildovander-control`.
+Pouze ruční podepsaný Ad Hoc IPA build
 a jeho nativní testy běží na GitHub-hosted `macos-15` s Xcode 26.3.
 Linux runner obsluhuje i PR kontroly, ověření artefaktů, veřejné HTTPS
 kontroly, diagnostiku a ruční AI testy. PR ani obnovovací CI nespouští
@@ -75,13 +77,16 @@ Správce jednorázově zajistí systémové závislosti:
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y --no-install-recommends git curl ca-certificates tar openssl build-essential python3 python3-venv espeak-ng
+sudo apt-get install -y --no-install-recommends git curl ca-certificates tar openssl build-essential python3 python3-venv espeak-ng xvfb xauth libgl1 libegl1 libglib2.0-0
 ```
 
 `espeak-ng` potřebuje jen explicitní živá Realtime zkouška. Workflow
 balíčky neinstaluje přes sudo. Node 24.21.0 instalují připnuté setup-node
 actions podle `.nvmrc`; .NET SDK určuje `kufr/global.json` a setup-dotnet
 jej ukládá do zapisovatelného `${{ runner.tool_cache }}/dotnet`.
+CAD dále potřebuje PowerShell (na VPS ověřena oficiální verze 7.6.6).
+Python 3.11 dodává setup-python; CAD závislosti se instalují do čerstvého
+`RUNNER_TEMP/cad-venv`, jehož Python používají všechny následující kroky.
 PlatformIO a OpenAI SDK ručního eval se instalují do vlastních venv
 v `RUNNER_TEMP`, bez změny systémového Pythonu. Rozšířený ruční
 **Kufr backend host probe** zkontroluje dostupnost nástrojů a Python venv.
@@ -90,6 +95,34 @@ PR CI nyní sdílí server s nasazením. GitHub environment secrets stále
 dostávají jen explicitní main-only joby, ale dlouhodobý runner neposkytuje
 izolaci jednorázového GitHub-hosted stroje. Spouštěj zde pouze důvěryhodná PR;
 účet runneru má mít pouze existující omezené sudo pro aktivační helper.
+
+### Izolace synchronizačního runneru
+
+`dildovander-control` používá samostatný účet `kufr-control`, soukromý
+`/home/kufr-control` a `/opt/actions-runner-control` (žádné sdílené actions,
+workspace ani tool cache). Účet nemá sudo ani Docker. Binárky a konfigurace
+runneru vlastní root; registrace používá `--disableupdate`. Správce musí
+runner aktualizovat ručně z ověřeného oficiálního archivu před koncem
+GitHub podpory verze. Oba build runnery zůstávají samostatné.
+
+Label sám není bezpečnostní hranice. Root instaluje
+[job hook](../scripts/ci/control-runner-hook.sh) jako
+`/usr/local/sbin/kufr-control-job-started.sh` s právy 0755 a nastaví
+`ACTIONS_RUNNER_HOOK_JOB_STARTED` v rootem vlastněném `.env` runneru.
+Hook povoluje pouze `pr-sync.yml@refs/heads/main`, události
+`pull_request_target`, `workflow_dispatch` a push do `main`. Při odmítnutí
+ukončí proces `Runner.Worker` ještě před prvním workflow krokem; samotný
+exit hooku není dostatečný proti kroku s `if: always()`.
+
+Pro jednorázovou migraci před merge lze do rootem vlastněného souboru
+`/etc/kufr-control/approved-workflows` (0644, adresář root/0755) zapsat dvojici
+`Blato58/DildoVander/.github/workflows/pr-sync.yml@refs/heads/BRANCH SHA`.
+SHA musí být přesná přezkoumaná `GITHUB_WORKFLOW_SHA`; výjimka povoluje
+jen ruční dispatch. Po migraci soubor vyprázdni. Hook ani jeho rodičovské
+adresáře nesmí být zapisovatelné build účtem. Ověř odmítnutí jiného workflow,
+podvržených job env a kroků `always()`/`failure()` a poté úspěšný controller.
+První negativní běh [38098122361](https://github.com/Blato58/DildoVander/actions/runs/38098122361)
+na runneru 2.338.0 selhal před kroky a oba zakázané testovací soubory chyběly.
 
 | Workflow | Účel | Výstup / vstup |
 | --- | --- | --- |
