@@ -475,8 +475,10 @@ Workflow `.github/workflows/kufr-backend.yml` volané z `ci.yml` sestaví a otes
 samostatný `linux-x64` release při každém PR na serverovém runneru
 `[self-hosted, Linux, X64, kufr-backend]`. Node a .NET SDK instalují
 setup actions do zapisovatelných cest účtu runneru. Merge již nebuildí. Ruční
+PR kontroluje i balení, ale neukládá artefakty do GitHub storage. Před nasazením
+spusť ručně `ci.yml` na `main` s `project=backend`; artefakt platí jeden den.
 `kufr-backend-deploy.yml` z `main` se vstupem `build_run_id` ověří původ a shodu
-stromu PR artefaktu s `main`, pak jej aktivuje bez překladu na self-hosted runneru
+stromu tohoto artefaktu s `main`, pak jej aktivuje bez překladu na self-hosted runneru
 se štítky `self-hosted`, `Linux`, `X64` a
 `kufr-backend` v environmentu `backend-production`.
 Vstup `dialog_mode` při ručním nasazení volí `fake` (výchozí) nebo `responses`;

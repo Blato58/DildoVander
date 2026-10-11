@@ -1,4 +1,4 @@
-# CI/CD: build jednou, nasazení z artefaktu
+# CI/CD: ověření PR a nasazení z explicitního buildu
 
 [CI](../.github/workflows/ci.yml) používá path filtr: změny samotné
 dokumentace (`docs/`, `.md`, `.mdx`, `.rst`) build CI nespouštějí.
@@ -7,7 +7,8 @@ celý PR s jeho base a spustí jen dotčené kontroly. **CI required** vyžaduje
 úspěch vybraných projektů a vynechání ostatních; selhání výběru nebo
 neočekávané vynechání dotčeného projektu odmítne. Nový commit do stejného
 PR zruší zastaralé CI; rozběhnuté nasazení se neruší. Merge do `main`
-nevyvolá druhý build.
+automaticky spouští pouze site deploy při změnách jeho zdrojů. Backend,
+firmware a web pro podpis se obnovují explicitním main buildem podle postupu níže.
 
 ### Aktualizace PR před buildem
 
@@ -37,8 +38,9 @@ pokus umí spustit CI i pro již aktuální PR. Ruční **Synchronize PR branche
 zkontroluje všechna otevřená PR do `main` a obnoví jejich CI.
 Interní dispatch vstupy `pr_number`, `expected_head_sha`, `expected_base_sha`
 se zadávají společně; běžný obnovovací build bez nich patří na `main`.
-Artefakty PR dispatch zachovávají číslo PR a base/head SHA a pro promotion
-vyžadují sloučené PR i shodu celého stromu s aktuálním `main`.
+PR i synchronizační dispatch kontrolují celé balení s číslem PR a base/head SHA,
+ale neukládají ho do GitHub artifact storage. Pro nasazení spusť explicitní
+obnovovací build příslušného projektu na aktuálním `main` bez interních PR vstupů.
 
 | Změněné soubory | Spuštěné projekty |
 | --- | --- |
@@ -46,16 +48,16 @@ vyžadují sloučené PR i shodu celého stromu s aktuálním `main`.
 | `kufr/firmware/` | Firmware a hostitelské testy |
 | `kufr/mobilni-aplikace/` | Mobilní web |
 | `kufr/ai-eval/` | Offline AI eval |
-| `kufr/contracts/` | Backend, firmware, mobilní web |
+| `kufr/contracts/` | Backend, firmware, mobilní web, site |
 | `kufr/simulator/` | Firmware a mobilní web |
 | Build workflow konkrétního projektu | Daný projekt a kontroly repozitáře |
-| `.github/`, `scripts/ci/` | Kontroly repozitáře; změna balení artefaktů také backend, firmware a web |
+| `.github/`, `scripts/ci/` | Kontroly repozitáře; změna balení artefaktů také backend, firmware, web a site |
 | Samotná dokumentace | Žádný build; pouze kontrola synchronizace PR |
 
 Path filtr se vztahuje na celý PR. Když PR obsahuje i změny kódu,
 následný dokumentační commit stále ověřuje jeho dotčené projekty.
 Ruční `workflow_dispatch` nabízí `project`: `all`, `repository`,
-`backend`, `firmware`, `web` nebo `ai-eval`. Výslovný ruční build lze
+`backend`, `firmware`, `web`, `ai-eval` nebo `site`. Výslovný ruční build lze
 použít také po dokumentační změně, potřebujeme-li nový artefakt přesného stromu.
 
 ## Runnery
@@ -87,10 +89,11 @@ jej ukládá do zapisovatelného `${{ runner.tool_cache }}/dotnet`.
 CAD dále potřebuje PowerShell (na VPS ověřena oficiální verze 7.6.6).
 Python 3.11 dodává setup-python; CAD závislosti se instalují do čerstvého
 `RUNNER_TEMP/cad-venv`, jehož Python používají všechny následující kroky.
-Site PR CI (běžný PR i synchronizační dispatch s `pr_number`) provede celé
-ověření, build a balení, ale neuploaduje `arcane-site` do GitHub storage.
-Deployment si vždy sestaví vlastní site balíček; main recovery CI a
-deployment build artifact upload zachovávají a jeho chybu neskrývají.
+PR CI (běžný PR i synchronizační dispatch s `pr_number`) provede celé
+ověření, build a balení bez uploadu do GitHub storage. Explicitní main recovery
+CI ukládá vybraný balíček na jeden den; chybu uploadu neskrývá.
+Site deployment si sestaví a ověří vlastní balíček a publikuje jej ve stejném
+jobu. Nepotřebuje upload/download artefaktu ani sdílený adresář mezi runnery.
 Přesun runneru neodstraňuje samostatnou GitHub artifact storage kvótu.
 PlatformIO a OpenAI SDK ručního eval se instalují do vlastních venv
 v `RUNNER_TEMP`, bez změny systémového Pythonu. Rozšířený ruční
@@ -131,12 +134,13 @@ na runneru 2.338.0 selhal před kroky a oba zakázané testovací soubory chybě
 
 | Workflow | Účel | Výstup / vstup |
 | --- | --- | --- |
-| `ci.yml` | PR build dotčených projektů, také automatický PR dispatch; ruční obnovovací build na `main` | Artefakty pouze vybraných projektů: `backend-publish`, `web-dist`, `firmware` |
+| `ci.yml` | PR build dotčených projektů bez uploadu; ruční obnovovací build na `main` | Obnovovací artefakty vybraných projektů: `backend-publish`, `web-dist`, `firmware`, `arcane-site` |
 | `pr-sync.yml` | Aktualizace PR z cíle před buildy | API-only writer; explicitní CI dispatch |
 | `kufr-backend-deploy.yml` | Aktivace backendu bez restore/build | `build_run_id` úspěšného CI |
 | `kufr-memory-provision.yml` | Explicitní CLI dry-run / verify / create OpenAI stores, bez exportu hostů | CI `build_run_id`; trvalá provisioning ID runneru |
 | `kufr-ios-sign.yml` | Samostatný podepsaný device build; převzetí webu z CI | CI `build_run_id`; výstup Ad Hoc `signed-ipa` |
 | `kufr-ios-deploy.yml` | Publikace existující Ad Hoc IPA bez Xcode/npm | `build_run_id` podepsaného IPA buildu |
+| `kufr-site-deploy.yml` | Build, ověření a atomická publikace webu ve stejném jobu | Automatický main push nebo ruční dispatch; bez GitHub artefaktu |
 
 Artefakty patří konkrétnímu běhu a API vybírá jejich neměnné ID. Retry úspěšného
 jobu nahradí jeho balíček; retry pouze neúspěšných jobů může použít výstup
@@ -145,13 +149,18 @@ ID běhu je číslo za
 `/actions/runs/` v URL Actions. Každý balíček má `payload.tar.gz` a
 `build-manifest.json`: repozitář, ID/pokus běhu, source/head/base SHA, zdrojový
 Git tree, PR a SHA-256 payloadu. Tar zachovává executable bit backendu a firmware
-výstupy. Artefakty z buildu se uchovávají **14 dní**, ověřovací kopie **1 den**.
+výstupy. Obnovovací CI artefakty se uchovávají **1 den**, podepsané IPA **3 dny**.
+Verifier předává původní neměnné artifact ID a run ID; další job stáhne přesně
+tento artefakt a znovu ověří checksum při bezpečném rozbalení. Ověřovací kopie
+se neuploadují. Retence serverových releases a veřejná instalace tím nejsou dotčené.
 
 ## Běžné nasazení
 
 1. Aktualizuj PR z `main`, u změn kódu vyčkej na zelené **CI required**
    a sluč PR. Dokumentační PR ověř lokálně; automatické CI neběží.
-2. V Actions vyber **Deploy Kufr backend**, větev `main` a ID CI tohoto PR.
+2. Spusť **CI** na `main` s `project=backend` (pro IPA `project=web`,
+   pro firmware `project=firmware`, případně `all`) bez interních PR vstupů.
+   Po úspěchu vyber **Deploy Kufr backend**, větev `main` a ID tohoto CI.
    Zvol `dialog_mode`, `dialog_model`, `voice_mode` stejně jako dříve.
    Volitelné `live_actor_mode`, `hybrid_memory`, `cloud_indexing` mají bezpečné
    výchozí hodnoty legacy/false/false. Pro hybridní paměť nejdříve spusť
@@ -168,12 +177,15 @@ do `main` ze stejného repozitáře. API Git commitů ověří původ build merg
 z konkrétního base/head a **shodu celého Git tree s aktuálním `main`**. Squash
 nebo merge mění commit SHA, proto nestačí porovnat SHA commitu. Checksum a
 rozbalení odmítnou poškození, traversal, symlinky, hardlinky a speciální soubory.
-Teprve ověřený balíček přejde do produkčního jobu; ten ještě kontroluje, zda
-se `main` během čekání nezměnil. Prostředí a secrets zůstávají oddělené.
+Teprve po ověření dostane produkční job původní neměnné artifact ID;
+stáhne stejný balíček a kontroluje, zda se `main` během čekání nezměnil.
+Prostředí a secrets zůstávají oddělené. Chybějící či smazaný artefakt se odmítne;
+deployment jej nenahradí jiným artefaktem stejného jména.
 
 Pokud `main` mezitím změnilo obsah nebo artefakt expiroval, deployment skončí
-s vysvětlením. Spusť ručně **CI** na `main` a použij jeho nový run ID. Deployment
-sám nikdy nepřekládá a nevytváří náhradní build. Přísná shoda celého stromu může
+s vysvětlením. Spusť ručně **CI** na `main` a použij jeho nový run ID. Backend,
+firmware ani iOS deployment nepřekládá a nevytváří náhradní build. Site deployment
+sestavuje web v témže jobu. Přísná shoda celého stromu může
 vyžadovat obnovovací CI i po změně dokumentace; chrání proti nasazení jiné verze.
 Rollback již uloženého release je nadále správcovská operace podle backend README.
 
@@ -188,10 +200,10 @@ IPA obsahuje profil nutný pro instalaci podepsané aplikace.
 
 - .NET restore používá lockfiles a NuGet cache, backend a testy se sestaví
   společně v Release pro `linux-x64`; test/run/publish používají `--no-build`.
-- Vite/TypeScript se sestaví jednou na Linuxu v `kufr-web.yml`. Ruční
+- Vite/TypeScript pro podpis se sestaví na Linuxu v `kufr-web.yml`. Ruční
   podpisový build převezme hotový web. npm cache zahrnuje všechny dotčené lockfiles.
 - PlatformIO Core i platforma jsou připnuté; cache ukládá toolchainy a pip,
-  nikoli znovupoužité firmware binárky. Oba firmware profily mají artefakt pro
+  nikoli znovupoužité firmware binárky. Explicitní main build má artefakt pro
   pozdější servisní flash bez dalšího buildu; CI samo do desky nenahrává.
 - Každý job má timeout. Actions jsou připnuté na commit SHA, checkout neponechává
   credentials, běžné CI má jen `contents: read`; čtení cizího Actions běhu pouze
@@ -203,7 +215,9 @@ IPA obsahuje profil nutný pro instalaci podepsané aplikace.
   původ/promotion i integritu archivu. `CODEOWNERS`, PR šablona, `CONTRIBUTING`,
   `SECURITY`, EditorConfig a Git attributes sjednocují předání a formátování.
 - Dependabot dělá týdenní seskupené Actions/npm/NuGet aktualizace. Placené AI
-  eval i skutečná publikace/nasazení zůstávají explicitní ruční operace.
+  eval, backend/OTA publikace a iOS podpis zůstávají explicitní ruční operace.
+  Site deploy běží po odpovídajícím main push; úspěšný ruční iOS podpis
+  spustí publikaci IPA přes `workflow_run`.
 
 ## Nastavení GitHubu a skutečné blokace
 

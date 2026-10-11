@@ -2,6 +2,11 @@ name: Build Arcane Workshop site
 
 on:
   workflow_call:
+    inputs:
+      publish:
+        description: Publish the validated site from this same job on main
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -9,13 +14,32 @@ permissions:
 jobs:
   build:
     runs-on: [self-hosted, Linux, X64, kufr-backend]
-    timeout-minutes: 60
+    timeout-minutes: 75
     env:
       MPLBACKEND: Agg
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Reject unsafe publication requests
+        if: inputs.publish
+        env:
+          SOURCE_REF: ${{ github.ref }}
+          SOURCE_EVENT: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.inputs.pr_number }}
+        run: |
+          if [ "$SOURCE_REF" != refs/heads/main ] || [ -n "$PR_NUMBER" ]; then
+            echo 'Publication requires a direct main build' >&2
+            exit 1
+          fi
+          case "$SOURCE_EVENT" in
+            push|workflow_dispatch) ;;
+            *) echo 'Unsupported publication event' >&2; exit 1 ;;
+          esac
+      - name: Allocate isolated site staging
+        run: |
+          site_work=$(mktemp -d "$RUNNER_TEMP/arcane-site.XXXXXX")
+          echo "SITE_WORK=$site_work" >> "$GITHUB_ENV"
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.11'
@@ -44,14 +68,87 @@ jobs:
           npm ci --prefix ../contracts
           npm run build -- --base=/companion/
       - name: Assemble verified site
-        run: python kufr/web/build-site.py --destination "$RUNNER_TEMP/arcane-site" --web-dist kufr/mobilni-aplikace/dist
+        run: python kufr/web/build-site.py --destination "$SITE_WORK/source" --web-dist kufr/mobilni-aplikace/dist
       - name: Package with source provenance
-        run: python scripts/ci/package.py pack "$RUNNER_TEMP/arcane-site" "$RUNNER_TEMP/arcane-package"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        # PR CI validates the full package; deployment builds create their own artifact.
-        if: github.event_name != 'pull_request' && !github.event.inputs.pr_number
+        run: python scripts/ci/package.py pack "$SITE_WORK/source" "$SITE_WORK/package"
+      - name: Upload explicit recovery package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        # Deployment consumes the verified package locally; only recovery requests store it.
+        if: ${{ !inputs.publish && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && !github.event.inputs.pr_number }}
         with:
           name: arcane-site
-          path: ${{ runner.temp }}/arcane-package/
+          path: ${{ env.SITE_WORK }}/package/
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 1
+      - name: Reject stale main before publication
+        if: inputs.publish
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        with:
+          script: |
+            const current = await github.rest.git.getRef({ ...context.repo, ref: 'heads/main' });
+            if (current.data.object.sha !== process.env.EXPECTED_SHA) throw new Error('main changed during build');
+      - name: Unpack verified local package
+        if: inputs.publish
+        run: python3 scripts/ci/package.py unpack "$SITE_WORK/package" "$SITE_WORK/verified"
+      - name: Recheck main immediately before activation
+        if: inputs.publish
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        with:
+          script: |
+            const current = await github.rest.git.getRef({ ...context.repo, ref: 'heads/main' });
+            if (current.data.object.sha !== process.env.EXPECTED_SHA) throw new Error('main changed before activation');
+      - name: Atomically publish site
+        if: inputs.publish
+        id: publish
+        run: |
+          python3 kufr/web/publish-site.py --site /var/www/dildovander \
+            --source "$SITE_WORK/verified" \
+            --release-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --expected-sha "$GITHUB_SHA"
+      - name: Read back HTTPS pages and full download
+        if: inputs.publish
+        id: verify
+        env:
+          PUBLIC_IPV4: ${{ vars.KUFR_BACKEND_PUBLIC_IPV4 }}
+        run: |
+          python3 kufr/web/verify-site.py --base "https://$PUBLIC_IPV4" \
+            --local "$SITE_WORK/verified"
+      - name: Restore pre-deploy state after failed verification
+        if: inputs.publish && failure() && steps.publish.outcome == 'success'
+        env:
+          PREVIOUS_RELEASE: ${{ steps.publish.outputs.previous_release }}
+        run: |
+          python3 kufr/web/publish-site.py --site /var/www/dildovander --rollback-activation \
+            --release-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --previous-release "$PREVIOUS_RELEASE"
+      - name: Remove obsolete CAD files from the iOS route
+        if: inputs.publish && success()
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('/var/www/kufr-ios')
+          if root.is_symlink() or not root.is_dir():
+              raise SystemExit('Unexpected iOS root')
+          for name in ('kufr-mechanika-prototyp.zip', 'viewer.html'):
+              target = root / name
+              if target.is_symlink():
+                  raise SystemExit('Refusing legacy file symlink')
+              target.unlink(missing_ok=True)
+          print('Obsolete CAD files removed; iOS installation preserved')
+          PY
+      - name: Retain a bounded verified rollback set
+        if: inputs.publish && success()
+        env:
+          PREVIOUS_RELEASE: ${{ steps.publish.outputs.previous_release }}
+        run: |
+          python3 kufr/web/publish-site.py --site /var/www/dildovander --prune-releases \
+            --previous-release "$PREVIOUS_RELEASE" --retain 3 --release-id '${{ github.run_id }}-${{ github.run_attempt }}'
+      - name: Remove local site staging
+        if: always() && env.SITE_WORK != ''
+        run: |
+          case "$SITE_WORK" in
+            "$RUNNER_TEMP"/arcane-site.*) rm -rf -- "$SITE_WORK" ;;
+            *) echo 'Refusing unexpected staging path' >&2; exit 1 ;;
+          esac
