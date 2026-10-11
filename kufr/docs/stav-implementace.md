@@ -1,5 +1,40 @@
 # Stav implementace AI kufru
 
+## CI — 11. 10. 2026 — self-hosted Linux workflow, oddělené předání
+
+Na žádost majitele přesouváme poslední Linux joby `kufr-site.yml` na
+`kufr-backend` a `pr-sync.yml` na oddělený `kufr-control`. macOS podpis
+zůstává `macos-15`. VPS má ověřený PowerShell 7.6.6, Xvfb a grafické
+knihovny; CAD používá čerstvý job venv. Controller 2.338.0 má samostatný
+Unix účet, HOME, workspace a rootem vlastněné binárky/config/job hook;
+nepřijímá PR kód. Soukromá záloha: `/root/kufr-ci-backup-20261011`.
+
+Změněny: oba workflow, `.github/actionlint.yaml`, `docs/ci-cd.md`,
+`scripts/ci/control-runner-hook.sh`, jeho Python regrese a tento záznam.
+Linux actionlint 1.7.12 pro všechny workflow, Bash syntaxe, 19 Python
+a 55 Node CI testů prošly. Živý negativní
+[controller test 38098122361](https://github.com/Blato58/DildoVander/actions/runs/38098122361)
+prokázal odmítnutí neautorizovaného workflow ještě před `always()`/`failure()`
+kroky; listener přežil. Pozitivní
+[controller 38099438711](https://github.com/Blato58/DildoVander/actions/runs/38099438711)
+na commitu `04c8821793266a33848ad6a4a895ff8119c67196` prošel.
+
+Úplné self-hosted [CI PR #172, 38099448378](https://github.com/Blato58/DildoVander/actions/runs/38099448378)
+na stejném commitu prošlo včetně CAD testů, regenerace, geometrického
+auditu, browser buildu, site assembly, balení a `CI required`.
+Předchozí běh selhal až při uploadu kvůli GitHub artifact storage kvótě.
+PR nyní vynechává nepotřebný upload; main recovery a deployment nadále
+vyžadují artifact. Kvóta pro budoucí deployment zůstává externí blokací.
+
+Review #172 přidalo P1 k chybějícímu řízení 0,5mm tloušťky lepidla
+pod kotvami. Majitel výslovně omezil toto zadání na workflow; CAD nález
+zůstává otevřený a #172 se neslučuje. CI změny jsou proto předány
+samostatným PR z `main`, bez mechanických změn #172.
+Další krok: ověřit samostatný PR, přečíst jeho reviews, sloučit s
+`[skip ci]` bez publikace, ověřit controller na `main` a vyprázdnit
+root migrační allowlist. Finální commit/push/merge výsledky doplní předání.
+Nebyly spuštěny macOS workflow, placená AI, nasazení ani flash zařízení.
+
 ## U1 — Arcane Workshop a automatický veřejný web, 10. 10. 2026
 
 Majitel autorizoval commit/push/merge a nasazení veřejného rozcestníku,
