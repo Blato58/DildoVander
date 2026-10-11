@@ -27,8 +27,9 @@ Místní ověření: 57 Node testů prošlo, actionlint všech workflows a
 POSIX executable bitu; na Linuxu prošlo všech 24 CI Python testů včetně
 publication guardu a všech 13 site testů bez skipu. Ověřeny jsou lokální
 odkazy dotčených README a CI/CD návodu. Nezávislé review bez nálezů.
-CI, commit/push/PR/merge a skutečný site deploy
-jsou v průběhu. Žádné placené AI volání, firmware flash ani iOS podpis
+Implementace je v commitu `a8fdec7ae315ec50deaeb3e36af8fdbe7a859517`;
+`Push-CurrentBranch.ps1` ověřil shodu vzdálené větve. PR CI, review,
+merge a skutečný site deploy jsou další ověření. Žádné placené AI volání, firmware flash ani iOS podpis
 nebyly spuštěné; hardware/iPhone akceptace se nemění.
 
 ## CI — 11. 10. 2026 — self-hosted Linux workflow, oddělené předání
