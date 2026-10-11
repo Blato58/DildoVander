@@ -24,11 +24,24 @@ testů (`node --test scripts/ci/*.test.cjs`) — vše PASS.
 s podvrženými job env a kroky `always()`/`failure()` selhal před kroky;
 oba zakázané soubory chybějí a listener zůstal aktivní.
 
-Další krok: push a úplné PR CI včetně CAD/site a pozitivní dispatch
-controlleru s rootem schválenou přesnou workflow SHA. Výsledek bude zapsán
-po běhu. Automatický `pull_request_target` do merge stále používá workflow
-z `main`; ruční dispatch ověří změněný workflow z PR. Merge tohoto PR
-současně publikuje Workshop a potřebuje oprávnění k této publikaci.
+Commit `e2519b732a08f3a544feedc2c89f2d1c04f69687` byl pushnut ověřovacím
+helperem do PR #172. Pozitivní controller
+[38098270568](https://github.com/Blato58/DildoVander/actions/runs/38098270568)
+na samostatném runneru prošel (druhý pokus po opravě CRLF v root allowlistu).
+Úplné self-hosted [CI 38098301412](https://github.com/Blato58/DildoVander/actions/runs/38098301412)
+prošlo všemi CAD testy, generováním, geometrickým auditem, browser buildem
+a balením 155 site souborů. Selhal teprve GitHub upload kvůli vyčerpané
+artifact storage kvótě; `CI required` správně selhalo. Nic nebylo vydáno.
+
+Následná oprava ponechává celé PR ověření a balení, ale vynechá nepotřebný
+site upload pro PR i synchronizační PR dispatch. Jediný deployment
+consumer vždy spouští vlastní build; main recovery a deployment nadále
+vyžadují úspěšný upload. Kvóta není opravena ani skryta pro deployment.
+Další krok: ověřit nový PR běh a po dokončení reviews sloučit s merge
+zprávou `[skip ci]`, která potlačí pouze tento push a jeho neautorizovanou
+publikaci. Poté ručně ověřit controller na `main`, odstranit migrační
+allowlist a zapsat finální předání. Automatický `pull_request_target`
+do merge stále používá workflow z `main`.
 Nebyly spuštěny macOS workflow, placená AI, nasazení ani flash zařízení.
 
 ## F2 — montáž bez opracování kovů, ověřené předání 10. 10. 2026
