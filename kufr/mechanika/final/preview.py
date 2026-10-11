@@ -8,7 +8,7 @@ import html
 import vtk
 import numpy as np
 
-from geometry import ROOT,COLORS,PARAMS,bounds
+from geometry import ROOT,COLORS,PARAMS,bounds,Item,box
 from build import OUT
 from check_fit import scene
 import mechanism
@@ -200,13 +200,17 @@ def main():
     render(service,OUT/"images"/"wiring.png","F2 | Actual planned wire routes; pins and flexible loops unmeasured",(680,-540,760),(216,133,40),205,wires=True)
     print("Rendered service",flush=True)
     render(scene(lid=0,transport=True),OUT/"images"/"transport.png","F2 | Transport - transparent case; six ties; bank and wands removed",(700,-650,520),(216,133,65),220,wires=True,transport=True)
-    anchors=[i for i in scene(covers=False) if i.group=="case" or i.name.startswith(("anchor_","frame_","bonded_angle_","wood_bond_"))]
-    render(anchors,OUT/"images"/"anchors.png","F2 | Frame and four bonded aluminium anchors; proof load not performed",(650,-500,600),(216,133,35),220)
+    anchors=[i for i in scene(covers=False) if i.name.startswith(("anchor_","floor_anchor_","wood_bond_"))]
+    render(anchors,OUT/"images"/"anchors.png","F2 | Four printed floor cradles; frame hidden; bond untested",(650,-500,600),(216,133,8),220)
     module=mechanism.module(0,80,False)
     render(module,OUT/"images"/"mechanism.png","F2 | Captured cam and lower stops; pulse-off behaviour untested",(230,-170,200),(100,140,55),120)
-    # Second view is deliberately uncapped for visibility of the actual groove.
+    # Cutaway shows the actual integral peg and lug without the bed hiding it.
     detail=[i for i in mechanism.module(0,80,False) if not i.name.startswith(("tray_","u059_","led_"))]
-    render(detail,OUT/"images"/"cam.png","F2 | Cam groove, captured roller and servo body",(360,80,140),(100,145,45),105)
+    m=PARAMS["mechanism"]
+    bed=next(i for i in module if i.name=="tray_1")
+    lug=bed.shape.intersect(box(12,16,110,(m["origin_x"]+35,m["origin_y"]+104,m["origin_z"])))
+    detail.append(Item("tray_lug_cutaway",lug,"moving","tray"))
+    render(detail,OUT/"images"/"cam.png","F2 | Bed cutaway: integral sliding peg in captured cam",(360,80,140),(100,145,45),105)
     print("Rendered mechanism and transport",flush=True)
     viewer()
     print("Standalone viewer written",flush=True)

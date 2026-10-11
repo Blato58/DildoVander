@@ -44,15 +44,24 @@ Katalogové tělo desky není její montážní rozteč. Nosiče proto přidržu
 okraje a pásky. Powerbanka ani samet nesmějí nahrazovat doraz nebo šroub.
 Druhá PCA, sedm svorek a další rezervy nejsou aktivní vnitřní výplň.
 
+Aktualizace 10. 10. 2026 odstranila opracované kovové výztuhy, kotvy a
+samostatný sledovač vačky. Konstrukční díly vznikají tiskem, spojovací
+materiál zůstává standardní a neupravený. Čtyři tištěné kotvy lepíme na
+holé dřevo DNA. Jejich odlité epoxidové zámky zajišťují mechanické zachycení
+PETG; chemická adheze k plastu není potvrzená. Aktuální geometrie má
+36 831,325 mm² lepených stop a 84 zámků; 0,5mm film a zámky potřebují
+minimum 43,271 ml bez ztrát. BOM uvádí tři balení po 24 ml s rezervou.
+
 ## Externí podklady pro doplněný materiál
 
 [Bison Epoxy Metal 24 ml, výrobek 6305443](https://www.bison.net/getmedia/d54542f5-f56f-40b2-9406-3ad692c92a30/Print%20PDF.pdf)
-uvádí spojování hliníku se dřevem, směs 1:1, fixaci 10 h a konečnou pevnost
-po 24 h. Jeho údaj 22 MPa je pro hliník, nikoli pro dřevo tohoto kufru.
-[Hydro EN AW-6060](https://www.hydro.com/globalassets/08-about-hydro/hydro-worldwide/austria/nenzing/alloy-data-sheets/hydro-en-aw-6060.pdf)
-uvádí pro stav T66 a tloušťku do 5 mm mez kluzu 160 MPa;
-návrh konzervativně požaduje doložených
-alespoň 150 MPa. Konkrétní profil musí odpovídat požadovanému stavu materiálu.
-Příklad českého zdroje rozměru je
-[profil L 20 × 20 × 3 mm](https://www.ehlinik.cz/hlinikovy-l-profil-20x20x3/pro-8WS0000101.html).
-Nic nebylo objednáno.
+byl ověřen v oficiálním technickém listu 10. 10. 2026. Výrobce uvádí dřevo
+mezi podklady, poměr 1:1, zpracovatelnost asi 45 minut při 20 °C,
+fixaci 10 h a konečnou pevnost po 24 h. Jde o pastovitý/tixotropní epoxid,
+proto komory předplnit z otevřené spodní strany dodanou stěrkou před
+usazením kotvy; Ø2,5mm horní otvory slouží jen odvzdušnění a kontrole.
+Údaj 22 MPa je pro hliník a není důkazem pevnosti tohoto dřeva ani PETG.
+Mokré přebytky odstranit před vytvrzením a kapsy matic/šroubové otvory
+chránit; konstrukce nevyžaduje opracování vytvrzeného spoje. Nic nebylo
+objednáno. Výpočet filmu a zámků je CAD minimum; skutečné nanesení a spotřebu
+ověřit vzorkem před lepením sestavy.

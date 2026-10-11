@@ -1,5 +1,6 @@
 """Existing wooden case and four bolted insert panels. No case drilling."""
 from functools import lru_cache
+import math
 import cadquery as cq
 from geometry import PARAMS, Part, Item, box, cylinder, fuse, cut, hole_z
 from mechanism import MOUNT_HOLES, GUIDES, M
@@ -41,10 +42,21 @@ def carrier_holes():
         holes += mount_positions(name)
     holes += [(x,y) for x,y,_ in PARAMS["capacitors"][2:]]
     holes += [(xx,yy) for xx in (22,64) for yy in (68,92)]
-    holes += [(xx,yy) for xx in (365,410) for yy in (160,247)]
+    # The rear-right point moves 2.8 mm back to preserve the full M4 nut roof.
+    holes += [(365,160),(365,247),(410,160),(410,249.8)]
     holes += [(20,27),(22,60)]
     holes += [(17.4,102),(54,170),(62,240)]
     return holes
+
+
+def carrier_head_clearance(x,y):
+    """Actual underside M3 head relief tool, including 0.1 mm overrun."""
+    return hole_z(x,y,6.2,z=6.35,height=1.75)
+
+
+def frame_head_clearance(x,y):
+    """Actual M4 panel head tool; the panel clips it to 0.5 mm depth."""
+    return hole_z(x,y,7.5,z=F["floor_anchors"]["frame_head_z"],height=5)
 
 
 def rail_shape(spec):
@@ -97,9 +109,10 @@ def frame():
               for xx,yy in rack_holes()+guide_holes()]
     for xx,yy in seam_floor_holes():
         holes.append(cq.Solid.makeCone(3.3,1.7,1.6,cq.Vector(xx,yy,z+t),cq.Vector(0,0,-1)))
-    for spec in F["stiffeners"]:
-        xx,yy,zz=spec["origin"]
-        holes.append(box(spec["length"],spec["leg"],spec["thickness"],(xx,yy,zz)))
+    for xx,yy in rack_holes():
+        # ISO4762 M4 head sits 0.5 mm into the panel, on a real annular seat.
+        holes.append(frame_head_clearance(xx,yy))
+    result=fuse([result]+[rail_shape(spec) for spec in F["stiffeners"]])
     return cut(result,holes)
 
 
@@ -120,26 +133,196 @@ def tiles(lid=False):
                 y0=y if iy==0 else y+d/2+shift+gap/2
                 y1=y+d if iy==1 else y+d/2+shift-gap/2
                 chunks.append(frame().intersect(box(x1-x0,y1-y0,t/2,(x0,y0,z+layer*t/2))))
+            # The integral uprights butt at the central gap; floor cradles carry
+            # the module load directly, without an unsupported plastic beam.
+            x0=x if ix==0 else x+w/2+gap/2
+            x1=x+w if ix==1 else x+w/2-gap/2
+            y0=y if iy==0 else y+d/2+gap/2
+            y1=y+d if iy==1 else y+d/2-gap/2
+            chunks.append(frame().intersect(box(x1-x0,y1-y0,30,(x0,y0,z+t))))
             panels.append(fuse(chunks))
     return panels
 
 
-def angle_bracket(side, y):
-    t,h,w,length = F["angle_thickness"],F["angle_vertical"],F["angle_horizontal"],F["angle_length"]
-    z = F["origin"][2]-t
-    gap = F["bond_gap"]
-    x0 = gap if side==0 else X-gap-w
-    wall_x = gap if side==0 else X-gap-t
-    shape=fuse([box(w,length,t,(x0,y-length/2,z)),box(t,length,h,(wall_x,y-length/2,z))])
-    hole_y=F["anchor_hole_y"][F["anchor_y"].index(y)]
-    holes=[hole_z(F["anchor_x"][side],hole_y,PARAMS["mounting"]["m4_clearance"],z=z-1,height=t+2)]
-    holes += [hole_z(xx,yy,6.2,z=z-1,height=t+2) for xx,yy in carrier_holes()]
-    return cut(shape,holes)
+def hex_prism(x,y,z,diameter,height):
+    return cq.Workplane("XY",origin=(x,y,z)).polygon(6,diameter).extrude(height).val()
+
+
+def floor_anchor_specs():
+    a=F["floor_anchors"]
+    x,y,_=F["origin"]
+    w,_,_=F["size"]
+    middle=x+w/2
+    result={}
+    for end in ("front","rear"):
+        y0,y1=a[end+"_range"]
+        cross0,cross1=a[end+"_cross_range"]
+        for side in ("left","right"):
+            x0=x if side=="left" else middle+a["split_gap"]/2
+            x1=middle-a["split_gap"]/2 if side=="left" else x+w
+            leg0=x if side=="left" else x+w-a["side_width"]
+            result[f"floor_anchor_{end}_{side}"]={
+                "end":end,"side":side,"x_range":(x0,x1),"y_range":(y0,y1),
+                "cross_range":(cross0,cross1),"leg_x":leg0}
+    return result
+
+
+@lru_cache
+def floor_anchor_blank(name):
+    a=F["floor_anchors"]; spec=floor_anchor_specs()[name]
+    x0,x1=spec["x_range"]; y0,y1=spec["y_range"]
+    c0,c1=spec["cross_range"]
+    return fuse([box(x1-x0,c1-c0,a["height"],(x0,c0,a["z"])),
+                 box(a["side_width"],y1-y0,a["height"],(spec["leg_x"],y0,a["z"]))])
+
+
+def anchor_nuts(name):
+    spec=floor_anchor_specs()[name]; a=F["floor_anchors"]
+    x0,x1=spec["x_range"]; c0,c1=spec["cross_range"]
+    result=[]
+    for kind,points,diameter,z,pocket,bore in (
+            ("module",module_holes(),5.5/math.cos(math.pi/6),a["module_nut_z"],6.7,3.4),
+            ("frame",rack_holes(),7/math.cos(math.pi/6),a["frame_nut_z"],8.5,4.5)):
+        for x,y in points:
+            if x0<x<x1 and c0<y<c1:
+                result.append({"kind":kind,"x":x,"y":y,"z":z,
+                               "diameter":diameter,"pocket":pocket,"bore":bore})
+    return result
+
+
+def anchor_nut_clearances(nut, edge):
+    """Production hex pocket, side-loading tunnel and blind screw-tip bore.
+
+    Coupon callers translate these exact tools rather than reconstructing a
+    similar pocket, so printer fit and unsupported roof bridges match anchors.
+    """
+    x,y=nut["x"],nut["y"]
+    bottom=nut["z"]-.1
+    roof=F["floor_anchors"]["nut_roof_z"]
+    diameter=nut["pocket"]
+    # Tunnel ends at the nut centre so the far hex half prevents rotation.
+    return (hex_prism(x,y,bottom,diameter,roof-bottom),
+            box(diameter,abs(y-edge),roof-bottom,
+                (x-diameter/2,min(y,edge),bottom)),
+            hole_z(x,y,nut["bore"],z=1.0,height=7.1))
+
+
+@lru_cache
+def floor_anchor_clearances(name):
+    """Closed roofs, side insertion, blind tips and explicit underside reliefs."""
+    spec=floor_anchor_specs()[name]
+    tools=[]
+    edge=spec["y_range"][0] if spec["end"]=="front" else spec["y_range"][1]
+    for nut in anchor_nuts(name):
+        tools.extend(anchor_nut_clearances(nut,edge))
+    # Carriers/guide bolts are preassembled outside the case. These cavities
+    # allow their real heads/nuts without opening any module/frame nut roof.
+    tools += [carrier_head_clearance(x,y) for x,y in carrier_holes()]
+    tools += [hole_z(x,y,8.2,z=5.2,height=2.9) for x,y in guide_holes()]
+    tools += [hex_prism(x,y,5.6,6.7,2.5) for x,y in seam_floor_holes()]
+    return tuple(tools)
+
+
+def floor_anchor_key_shape(x,y):
+    """Production epoxy key void, shared with the printer-fit coupon."""
+    a=F["floor_anchors"]
+    neck=cylinder(a["key_neck_diameter"]/2,a["key_head_bottom"]-a["z"],(x,y,a["z"]))
+    head=cylinder(a["key_head_diameter"]/2,a["key_head_top"]-a["key_head_bottom"],(x,y,a["key_head_bottom"]))
+    # Two 2.5 mm vents/witnesses reach the top. Paste is prepacked through
+    # the open underside neck, never syringe-injected.
+    mouths=[cylinder(1.25,8-a["key_head_top"],(x+dx,y,a["key_head_top"])) for dx in (-2,2)]
+    return fuse([neck,head]+mouths)
+
+
+@lru_cache
+def floor_anchor_keys(name):
+    """Epoxy mushroom keys; prepack through bottom neck before bonding."""
+    a=F["floor_anchors"]; blank=floor_anchor_blank(name)
+    spec=floor_anchor_specs()[name]
+    x0,x1=spec["x_range"]; y0,y1=spec["y_range"]
+    radius=a["key_head_diameter"]/2
+    exclusions=floor_anchor_clearances(name)
+    layout=a["key_layouts"][name]
+    keys=[]
+    # Regular candidates are accepted by actual solid intersection, not by an
+    # assumed full rectangular footprint. A 2 mm radial web is mandatory.
+    for row in range(int((y1-y0-layout["offset_y"])/layout["pitch_y"])+1):
+        y=y0+layout["offset_y"]+row*layout["pitch_y"]
+        for column in range(int((x1-x0-layout["offset_x"])/layout["pitch_x"])+1):
+            x=x0+layout["offset_x"]+column*layout["pitch_x"]+(row%2)*layout["row_stagger_x"]
+            clearance=cylinder(radius+2,a["height"],(x,y,a["z"]))
+            if abs(clearance.intersect(blank).Volume()-clearance.Volume())>1e-5:
+                continue
+            if any(clearance.intersect(tool).Volume()>1e-6 for tool in exclusions):
+                continue
+            keys.append({"x":x,"y":y,"shape":floor_anchor_key_shape(x,y)})
+    return tuple(keys)
+
+
+@lru_cache
+def floor_anchor_shape(name):
+    return cut(floor_anchor_blank(name),list(floor_anchor_clearances(name))+
+               [key["shape"] for key in floor_anchor_keys(name)])
+
+
+@lru_cache
+def floor_bond_shape(name):
+    a=F["floor_anchors"]
+    footprint=floor_anchor_blank(name).intersect(box(X,Y,a["z"],(0,0,a["z"])))
+    film=footprint.translate((0,0,-a["z"]))
+    return fuse([film]+[key["shape"] for key in floor_anchor_keys(name)])
+
+
+def floor_anchor_metrics():
+    a=F["floor_anchors"]; metrics={}
+    for name in floor_anchor_specs():
+        shape=floor_anchor_shape(name); keys=floor_anchor_keys(name)
+        area=floor_anchor_blank(name).Volume()/a["height"]
+        film=floor_bond_shape(name).intersect(box(X,Y,a["z"]))
+        centroid=film.Center(); inertia=cq.Shape.matrixOfInertia(film)
+        bb=film.BoundingBox()
+        # Volume inertia of a uniform film / thickness gives planar moments.
+        ix=(inertia[0][0]-area*a["z"]**3/12)/a["z"]
+        iy=(inertia[1][1]-area*a["z"]**3/12)/a["z"]
+        sx=ix/max(centroid.y-bb.ymin,bb.ymax-centroid.y)
+        sy=iy/max(centroid.x-bb.xmin,bb.xmax-centroid.x)
+        ixy=-inertia[0][1]/a["z"]
+        bottom=next(face for face in film.Faces() if face.geomType()=="PLANE"
+                    and abs(face.Center().z-bb.zmin)<1e-6 and face.normalAt().z<-.9)
+        boundary=sorted({(vertex.Center().x,vertex.Center().y) for vertex in bottom.outerWire().Vertices()})
+        # PETG/film interface is net of the actual key neck openings.
+        net=shape.intersect(box(X,Y,.01,(0,0,a["z"]))).Volume()/.01
+        roof=[]
+        for nut in anchor_nuts(name):
+            contact=hex_prism(nut["x"],nut["y"],5,nut["diameter"],.01)
+            roof.append({"kind":nut["kind"],"x":nut["x"],"y":nut["y"],
+                         "bearing_area_mm2":shape.intersect(contact).Volume()/.01,
+                         "pocket_perimeter_mm":3*nut["pocket"],"roof_mm":3.0})
+        rows=sorted({nut["y"] for nut in anchor_nuts(name)})
+        # Source-derived net transverse roof sections through actual bolt rows.
+        # This is a nominal section, not a crack/notch or beam qualification.
+        net_sections={str(row):shape.intersect(box(X,.01,3,(0,row-.005,5))).Volume()/.01
+                      for row in rows}
+        metrics[name]={"wood_bond_area_mm2":area,"petg_film_contact_mm2":net,
+                       "key_count":len(keys),"epoxy_volume_mm3":floor_bond_shape(name).Volume(),
+                       "key_head_retaining_area_mm2":len(keys)*math.pi*((a["key_head_diameter"]/2)**2-(a["key_neck_diameter"]/2)**2),
+                       "printed_100_percent_volume_mm3":shape.Volume(),
+                       "printed_100_percent_mass_g":shape.Volume()/1000*PARAMS["print"]["density_g_cm3"],
+                       "bond_section_modulus_min_mm3":min(sx,sy),
+                       "wood_bond_centroid_xy_mm":[centroid.x,centroid.y],
+                       "wood_bond_area_second_moment_tensor_mm4":[[iy,ixy],[ixy,ix]],
+                       "wood_bond_boundary_vertices_xy_mm":[list(point) for point in boundary],
+                       "wood_bond_tensor_convention":"integral r*r^T dA; CadQuery mechanical Ixy negated; x/y diagonal entries swap",
+                       "nut_row_roof_net_sections_mm2":net_sections,
+                       "nut_roofs":roof}
+    return metrics
 
 
 def parts():
     return [Part(f"frame_panel_{i+1}",s,1,"12 mm bolted half-lap; independent four-M3 module anchors")
-            for i,s in enumerate(tiles())]
+            for i,s in enumerate(tiles())] + [
+                Part(name,floor_anchor_shape(name),1,"100% infill PETG floor cradle; captive nuts and cast epoxy keys; inspect unsupported internal bridges")
+                for name in floor_anchor_specs()]
 
 
 def items(angle=105):
@@ -147,19 +330,19 @@ def items(angle=105):
             Item("wooden_lid",lid_position(shell(True),angle),"lid","shell",C["geometry_status"]),
             Item("floor_brace",box(X,C["brace_width"],C["brace_height"],(0,C["brace_y"],0)),"case","shell","5 mm height confirmed; XY provisional")]
     result += [Item(f"frame_panel_{i+1}",s,"fixed","mechanism") for i,s in enumerate(tiles())]
-    result += [Item(s["id"],rail_shape(s),"hardware","metal","Aluminium L20x20x3 EN AW6060-T66; cut upright ends, drill new rail only") for s in F["stiffeners"]]
-    for side in range(2):
-        for j,y in enumerate(F["anchor_y"]):
+    for name in floor_anchor_specs():
+        result.append(Item(name,floor_anchor_shape(name),"fixed","mechanism","Printed floor cradle; no wooden holes"))
+        result.append(Item(name.replace("floor_anchor_","wood_bond_"),floor_bond_shape(name),"bond","white","Bare-wood epoxy film plus mechanically captured cast keys; proof pending"))
+    a=F["floor_anchors"]
+    for side,xx in enumerate(F["anchor_x"]):
+        for j,hy in enumerate(F["anchor_hole_y"]):
             ident=f"{side+1}_{j+1}"
-            result.append(Item(f"bonded_angle_{ident}",angle_bracket(side,y),"hardware","metal","Aluminium 40x40x3 x50; drilled angle only"))
-            x=0 if side==0 else X-F["bond_thickness"]
-            result.append(Item(f"wood_bond_{ident}",box(F["bond_thickness"],F["angle_length"],F["angle_vertical"],(x,y-25,5)),"bond","white","2000 mm2 bare-wood interface; physical proof pending"))
-            xx=F["anchor_x"][side]
-            hy=F["anchor_hole_y"][j]
-            result += [Item(f"anchor_m4_{ident}",cylinder(2,12,(xx,hy,2)),"fastener","metal","M4 x12 through new frame/rail/angle"),
-                       Item(f"anchor_head_{ident}",cylinder(3.5,2,(xx,hy,12)),"hardware","metal"),
-                       Item(f"anchor_nut_{ident}",cylinder(4,3.2,(xx,hy,1.8)).cut(cylinder(2,4,(xx,hy,1))),"hardware","metal")]
+            head=a["frame_head_z"]
+            nut=hex_prism(xx,hy,a["frame_nut_z"],7/math.cos(math.pi/6),3.2).cut(hole_z(xx,hy,4,z=1.7,height=3.4))
+            result += [Item(f"anchor_m4_{ident}",cylinder(2,a["frame_screw_length"],(xx,hy,head-a["frame_screw_length"])),"fastener","metal","ISO4762 M4x10; blind tip, captive hex nut"),
+                       Item(f"anchor_head_{ident}",cylinder(3.5,4,(xx,hy,head)),"hardware","metal","ISO4762 diameter 7 height 4"),
+                       Item(f"anchor_nut_{ident}",nut,"hardware","metal","ISO4032 M4 AF7 height3.2; roof prevents pullout")]
     for j,(x,y) in enumerate(seam_floor_holes()):
         result += [Item(f"frame_seam_m3_{j+1}",cylinder(1.5,6,(x,y,6)),"fastener","metal","M3 countersunk x6"),
-                   Item(f"frame_seam_nut_{j+1}",cylinder(3.2,2.4,(x,y,5.6)).cut(cylinder(1.5,3,(x,y,5.5))),"hardware","metal")]
+                   Item(f"frame_seam_nut_{j+1}",hex_prism(x,y,5.6,5.5/math.cos(math.pi/6),2.4).cut(hole_z(x,y,3,z=5.5,height=3)),"hardware","metal","M3 hex AF5.5, height2.4; clearance pocket in floor cradle")]
     return result
