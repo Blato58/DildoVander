@@ -1,47 +1,44 @@
 # Stav implementace AI kufru
 
-## CI — 11. 10. 2026 — všechny Linux joby na self-hosted, PR #172
+## CI — 11. 10. 2026 — self-hosted Linux workflow, oddělené předání
 
-Převzaté zadání přesouvá poslední hosted Linux joby: `kufr-site.yml`
-na pool `kufr-backend`, `pr-sync.yml` na samostatný `kufr-control`.
-macOS podpis zůstává `macos-15`. CAD používá čerstvý venv místo změny
-sdíleného Pythonu. Změněny jsou oba workflow, actionlint labels,
-`scripts/ci/control-runner-hook.sh`, jeho Python regrese a `docs/ci-cd.md`.
+Na žádost majitele přesouváme poslední Linux joby `kufr-site.yml` na
+`kufr-backend` a `pr-sync.yml` na oddělený `kufr-control`. macOS podpis
+zůstává `macos-15`. VPS má ověřený PowerShell 7.6.6, Xvfb a grafické
+knihovny; CAD používá čerstvý job venv. Controller 2.338.0 má samostatný
+Unix účet, HOME, workspace a rootem vlastněné binárky/config/job hook;
+nepřijímá PR kód. Soukromá záloha: `/root/kufr-ci-backup-20261011`.
 
-VPS má nově Xvfb/xauth, grafické knihovny a ověřený oficiální PowerShell
-7.6.6. Kontrolní runner 2.338.0 běží jako oddělený `kufr-control` bez sudo
-a Docker, s privátním HOME/workspace a rootem vlastněnými binárkami,
-konfigurací a job hookem. Původní dva build runnery jsou zachovány.
-Soukromá záloha před úpravou je `/root/kufr-ci-backup-20261011`.
-Backend health po instalaci: `ok`.
+Změněny: oba workflow, `.github/actionlint.yaml`, `docs/ci-cd.md`,
+`scripts/ci/control-runner-hook.sh`, jeho Python regrese a tento záznam.
+Linux actionlint 1.7.12 pro všechny workflow, Bash syntaxe, 19 Python
+a 55 Node CI testů prošly. Živý negativní
+[controller test 38098122361](https://github.com/Blato58/DildoVander/actions/runs/38098122361)
+prokázal odmítnutí neautorizovaného workflow ještě před `always()`/`failure()`
+kroky; listener přežil. Pozitivní
+[controller 38099438711](https://github.com/Blato58/DildoVander/actions/runs/38099438711)
+na commitu `04c8821793266a33848ad6a4a895ff8119c67196` prošel.
 
-Linux ověření: actionlint 1.7.12 s ověřeným SHA-256, explicitním
-`-config-file .github/actionlint.yaml -shellcheck= -pyflakes=` pro všechny
-workflow, `bash -n scripts/ci/control-runner-hook.sh`, 19 Python testů
-(`python3 -m unittest discover -s scripts/ci -p 'test_*.py'`) a 55 Node
-testů (`node --test scripts/ci/*.test.cjs`) — vše PASS.
-Živý negativní [běh 38098122361](https://github.com/Blato58/DildoVander/actions/runs/38098122361)
-s podvrženými job env a kroky `always()`/`failure()` selhal před kroky;
-oba zakázané soubory chybějí a listener zůstal aktivní.
+Úplné self-hosted [CI PR #172, 38099448378](https://github.com/Blato58/DildoVander/actions/runs/38099448378)
+na stejném commitu prošlo včetně CAD testů, regenerace, geometrického
+auditu, browser buildu, site assembly, balení a `CI required`.
+Předchozí běh selhal až při uploadu kvůli GitHub artifact storage kvótě.
+PR nyní vynechává nepotřebný upload; main recovery a deployment nadále
+vyžadují artifact. Kvóta pro budoucí deployment zůstává externí blokací.
 
-Commit `e2519b732a08f3a544feedc2c89f2d1c04f69687` byl pushnut ověřovacím
-helperem do PR #172. Pozitivní controller
-[38098270568](https://github.com/Blato58/DildoVander/actions/runs/38098270568)
-na samostatném runneru prošel (druhý pokus po opravě CRLF v root allowlistu).
-Úplné self-hosted [CI 38098301412](https://github.com/Blato58/DildoVander/actions/runs/38098301412)
-prošlo všemi CAD testy, generováním, geometrickým auditem, browser buildem
-a balením 155 site souborů. Selhal teprve GitHub upload kvůli vyčerpané
-artifact storage kvótě; `CI required` správně selhalo. Nic nebylo vydáno.
-
-Následná oprava ponechává celé PR ověření a balení, ale vynechá nepotřebný
-site upload pro PR i synchronizační PR dispatch. Jediný deployment
-consumer vždy spouští vlastní build; main recovery a deployment nadále
-vyžadují úspěšný upload. Kvóta není opravena ani skryta pro deployment.
-Další krok: ověřit nový PR běh a po dokončení reviews sloučit s merge
-zprávou `[skip ci]`, která potlačí pouze tento push a jeho neautorizovanou
-publikaci. Poté ručně ověřit controller na `main`, odstranit migrační
-allowlist a zapsat finální předání. Automatický `pull_request_target`
-do merge stále používá workflow z `main`.
+Review #172 přidalo P1 k chybějícímu řízení 0,5mm tloušťky lepidla
+pod kotvami. Majitel výslovně omezil toto zadání na workflow; CAD nález
+zůstává otevřený a #172 se neslučuje. CI změny jsou proto předány
+samostatným PR z `main`, bez mechanických změn #172.
+Samostatný [PR #173](https://github.com/Blato58/DildoVander/pull/173) prošel
+[CI 38100611594](https://github.com/Blato58/DildoVander/actions/runs/38100611594)
+a review bez nálezů. Commit `c7ff5440535102a7dfa4e09402929e30a9fc6f0d`
+byl pushnut helperem a squash merge `e92422584549329464ffdcdd82f8c6f950cbeee5`
+s `[skip ci]` je v `main`; Git tree je shodný s ověřeným PR.
+Migrační allowlist je prázdný, backend health `ok` a publikovaný release
+zůstává `38020781384-1`. #172 přebírá tento main; jediný konflikt byl
+záznam stavu, mechanické zdroje zůstaly beze změny. Další konkrétní krok
+pro #172 je samostatná oprava a ověření P1 tloušťky lepidla, mimo toto zadání.
 Nebyly spuštěny macOS workflow, placená AI, nasazení ani flash zařízení.
 
 ## F2 — montáž bez opracování kovů, ověřené předání 10. 10. 2026
