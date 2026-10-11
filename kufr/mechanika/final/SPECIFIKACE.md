@@ -2,7 +2,12 @@
 
 Vlastník návrhu: hlavní agent. Závazné číselné parametry jsou pouze v
 `parameters.json`; identifikátory komponent přebírají CAD, kabeláž a viewer.
-Datum převzetí 9. 10. 2026. F1 nový tištěný plášť je tímto nahrazen.
+Datum převzetí 9. 10. 2026; zjednodušení montáže 10. 10. 2026.
+F1 nový tištěný plášť je tímto nahrazen. Aktuální varianta nepoužívá
+rolničky ani řezané, vrtané nebo ohýbané kovové díly. Otvory a kapsy
+vznikají tiskem; nesprávná tisková vůle se opraví parametrem a opakováním
+tisku, nikoli pilníkem či vrtákem. Brusný papír slouží pouze přípravě
+lokálního lepení na holé dřevo. Nůžky, kleště a odizolování vodičů zůstávají.
 
 ## Souřadnice a důkazy
 
@@ -39,18 +44,36 @@ samo nezvětší; širší hůlka by vyžadovala přepracování rozteče a lů�
 Kolize vybrané varianty řeší kontrola celé geometrie a kabeláže; nezměřené
 pouzdro nelze prohlásit za přijaté jen podle těchto návrhových mezer.
 
-Rám tvoří dvě hliníkové příčné lišty L20×20×3 EN AW-6060 T66, délka400,
-a čtyřdílná PETG deska s přeplátovanými šroubovanými spoji a
-integrovanými kotvami jednotlivých modulů. Každý modul má vlastní čtyři
-M3 šrouby a nezávislé matice. Konce svislých ramen lišt se uříznou
-pro boční osazení; jejich 3mm vodorovná ramena pokračují až ke kotvám. Sejmutí kteréhokoli modulu neuvolní další.
-Rám připojují čtyři M4 šrouby ke čtyřem běžným hliníkovým úhelníkům
-40 × 40 × 3, délka 50. Úhelníky se lepí svislou plochou 50 × 40 na
-připravené holé dřevo bočních stěn. Vrtají se pouze nové úhelníky a tisk.
-Lepení je trvalá lokální změna povrchu: lak v ploše spoje odstranit;
-nespoléhat na přilnavost laku. Typ lepidla a přejímka jsou v montážním
-návodu. Bez zkoušky soudržnosti dřeva a lepeného spoje nejde o přijaté
-přepravní upevnění. Samotný výpočet není certifikace.
+Rám tvoří čtyři PETG panely s integrovanými předními/zadními žebry.
+Obálka původních lišt u mikrofonu a kamery zůstává zachována; není to
+prostá záměna hliníku za plast ve volně neseném nosníku. Pod rámem jsou
+čtyři tištěné podlahové kotvy tvaru L, vysoké 7,5 mm nad 0,5mm lepidlem.
+Jejich příčné pásy přímo podepírají úchyty všech modulů; vnější ramena
+podepírají boční elektroniku. Vyhýbají se modelované výztuze dna Y115–175.
+Suché vložení musí potvrdit skutečnou polohu této výztuhy.
+
+Každý modul má vlastní čtyři M3×14 a zachycené matice v podlahových
+kotvách. Závitový dřík leží v Z2–16, matice v Z2,6–5. Matice se zasouvají
+zboku pod souvislou 3mm střechu kotvy, nikoli do otvoru otevřeného shora.
+Sejmutí jednoho modulu neuvolní jiný. Samotný rám a elektroniku drží
+čtyři M4×10: matice Z1,8–5, dřík Z1,5–11,5, hlava v 0,5mm zahloubení
+rámu. Montážní otvory vznikají tiskem; kovové součásti se nijak neopracují.
+Spodní hlavy šroubů nosičů mají v kotvách vlastní odlehčovací kapsy.
+Nosiče se před vložením rámu sestaví na stole. Servisní vyjmutí celého
+rámu vyžaduje odpojení kabelů, demontáž modulů a uvolnění čtyř kotevních šroubů.
+
+Kotvy se lepí na připravené holé dřevo dna. Vrstvu epoxidu doplňují
+tištěné průchozí plnicí kanály s rozšířenými komorami; vytvrzený epoxid
+mechanicky zachytí plast. Mezi epoxidem a kapsami matic musí zůstat
+nejméně 2 mm materiálu. Nosnost není odvozena z předpokládané chemické
+přilnavosti epoxidu k PETG. Skutečné plochy a spotřebu určuje geometrický
+výpočet, nikoli původní plocha kovového úhelníku. Lepení je trvalá lokální
+změna povrchu; lak v ploše spoje odstranit brusným papírem. Typ lepidla,
+příprava a přejímka jsou v montážním návodu. Zkouška soudržnosti dřeva,
+epoxidových zámků i tištěných střech matic je podmínkou přijetí přepravy.
+Pastovitý epoxid se do komor vtlačí odspodu před položením na mokrý
+film; dvojice horních otvorů slouží odvzdušnění a kontrole zaplnění.
+Přebytek se odstraní ještě za mokra, nikoli pilováním po vytvrzení.
 
 ## Zdvih a pasivní stavy
 
@@ -59,8 +82,29 @@ nůžky přidávají mnoho čepů a boční vůle; zachycená vačka používá 
 existující kompaktní převod s vedením ve dvou bodech a řízeným návratem.
 Vybrána vačka se zdvihem 16, úhlem 0–160 a kruhovými krajními úseky.
 Ponechat její ověřitelnou kinematickou funkci; přidat pevné dolní podpěry
-tak, aby lůžko dosedlo v rámci 0,15mm radiální vůle kladky. Kalibrace
+tak, aby lůžko dosedlo v rámci 0,15mm kalibračního rozdílu. Kalibrace
 nesmí tlačit proti podpěrám. Na dolním úseku není potřebný moment serva.
+Rolničku, pouzdro, distanční kroužek, šroub, hlavu, podložku a matici
+nahrazuje kruhový PETG kluzný čep Ø6 integrovaný do lůžka. V drážce
+široké 6,8 mm zůstává celková vůle 0,8 mm; čep zabírá 3,5 mm do hloubky
+drážky. Tisková orientace lůžka otočená o 90° kolem Y staví čep svisle,
+aby jeho kluzná plocha nevyžadovala odstraňování podpěr pilníkem.
+Vyšší kluzné tření a opotřebení musí projít zkouškou měrky a jednoho
+zatíženého modulu; dřívější výpočet pro rolničku není jejich ověřením.
+`follower_load.py` počítá citlivost na předpokládané tření 0 / 0,2 / 0,4
+a oddělenou rezervu tření vodítek. Při μ=0,4 vychází kvazistatický moment
+0,113 Nm a cíl prototypové zkoušky s násobkem 1,5 přibližně 0,169 Nm.
+Nejde o potvrzenou únosnost PETG ani provozní moment konkrétního serva.
+Kotvy, základny, lůžka a vačky mají předepsanou 100% výplň; tím se ovšem
+neprokazuje pevnost vrstev, kvalita přemostění ani teplotní odolnost výtisku.
+Zkušební `fit_coupon` se tiskne také plně. Obsahuje shodné boční tunely,
+šestihranné kapsy M3/M4, slepé dno a střechy podlahových kotev; skutečné
+matice musí jít zasunout a vyjmout před tiskem celé sady kotev.
+Stejná měrka reprodukuje také produkční epoxidový zámek Ø7,5/Ø10,5 se dvěma
+Ø2,5 odvzdušněními pro zkoušku přemostění a předplnění odspodu. Geometrie
+zámku se sdílí s kotvami; zkouška plnění není důkazem přilnutí ke dřevu.
+Otevřená zahloubení Ø6,2 × 1,65 mm a Ø7,5 × 0,5 mm nad otvory
+M3/M4 umožňují ověřit i usazení standardních hlav bez opracování.
 Přepravní zajištění tvoří šest 8mm pásků skrz základny a prázdná lůžka.
 Pásky zachycují převrácení nezávisle na převodech; před provozem se vyjmou.
 Bez snímače jejich stav nepotvrzuje elektronika. Výpadek uprostřed pohybu
@@ -122,8 +166,9 @@ montáž vpřed/zpět/restart a transport bez banky/hůlek/textilu. Odpojený
 USB kabel má parkovací příchytku v levé zóně; při transportu není připojen
 k nepřítomné bance. Stav se při změně režimu odvozuje deterministicky.
 
-Montáž: příprava a měrka → čtyři kotvy a vytvrzení → rám mimo kufr →
-nosiče a mechanismy na stole → přišroubování rámu → pevné desky/reproduktory →
+Montáž: příprava a dvě měrky → rám a prázdné nosiče mimo kufr →
+čtyři kotvy a vytvrzení → matice do bočních kapes → přišroubování rámu →
+moduly sestavené na stole přišroubovat jednotlivě ke kotvám → pevné desky/reproduktory →
 LED/U059 → kabely a parkování → mechanická/polaritní kontrola →
 odjištěný omezený test → textil → kontrola zavření. Každý krok nese díly,
 počty materiálu, nástroje, kameru, kontrolu a předchůdce.

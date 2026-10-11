@@ -18,6 +18,7 @@ import mechanism as mech
 import layout
 import harness
 import strength
+import follower_load
 import validate_assembly
 import verify_harness_geometry
 from artifacts import (export_names, assert_generation_snapshot, export_hashes,
@@ -98,15 +99,17 @@ def mechanical_checks(report_path=None):
     assert W["head_width"]+2*W["fabric"]+2<=M["tray_width"]
     assert M["count"]==6 and M["pitch"]>=M["base_width"]+2
     assert F["origin"][2]-C["brace_height"]>=PARAMS["clearances"]["frame_to_brace"]
-    assert len(chassis.parts())==4 and not any(p.name.startswith(("body_","lid_")) for p in all_parts())
+    assert sum(p.name.startswith("frame_panel_") for p in chassis.parts())==4
+    assert sum(p.name.startswith("floor_anchor_") for p in chassis.parts())==4
+    assert not any(p.name.startswith(("body_","lid_")) for p in all_parts())
     errors={}
     safe_low=C["safe_origin"]
     safe_high=[a+b for a,b in zip(safe_low,C["safe_zone"])]
     def check_safe_box(items,label):
         for item in items:
-            # Only the four wall anchors and their bond lines intentionally
-            # bridge from the guaranteed insert volume to the measured walls.
-            if item.group in ("case","bond") or item.group.startswith("lid") or item.name.startswith("bonded_angle_"):
+            # Printed floor anchors and adhesive must fit the same guaranteed
+            # volume as the insert; only the reference suitcase is excluded.
+            if item.group=="case" or item.group.startswith("lid"):
                 continue
             bb=bounds(item.shape)
             if any(bb[k]<safe_low[k]-.001 or bb[k+3]>safe_high[k]+.001 for k in range(3)):
@@ -198,20 +201,13 @@ def mechanical_checks(report_path=None):
     if report_path is not None:
         report_path.write_text(json.dumps(errors,indent=2),encoding="utf-8")
     assert not errors, "CAD intersections found: "+json.dumps(errors)[:3000]
-    max_derivative=max(abs(mech.cam_law(a/10)[1]) for a in range(1601))
-    moving_mass=(mech.tray().Volume()/1000*PARAMS["print"]["density_g_cm3"]+W["design_payload_g"]+25)/1000
-    gravity=moving_mass*9.81
-    friction_allowance=.5*gravity
-    ideal_torque=(gravity+friction_allowance)*max_derivative/1000
     return {"static_assemblies":3,"motion_material_samples":len(motion),"all_six_modules":True,
             "neighbour_states_degrees":[0,M["travel_degrees"]],"lid_material_samples":len(lid_angles),
             "bank_removal_samples":len(bank_offsets),"collisions":[],"lower_stop_contact_mm2":round(support_area,2),
             "lower_stop_nominal_gap_mm":0,"lower_stop_maximum_calibration_offset_mm":M["lower_stop_clearance"],
             "frame_anchor_count":len(chassis.rack_holes()),"case_holes_added":0,"module_tool_paths":tool_count,
-            "groove_roller_diametral_clearance_mm":M["groove_width"]-M["roller_diameter"],"lift_mm":M["lift"],
-            "friction_allowance_N":round(friction_allowance,3),"friction_assumed_not_measured":True,
-            "moving_mass_design_kg":round(moving_mass,3),"ideal_torque_Nm":round(ideal_torque,4),
-            "minimum_test_torque_with_1_5_margin_Nm":round(1.5*ideal_torque,4),
+            "groove_peg_diametral_clearance_mm":M["groove_width"]-M["sliding_follower_diameter"],"lift_mm":M["lift"],
+            "sliding_follower_load":follower_load.calculate(),
             "manufacturing_ready":False,"physical_test_performed":False,
             "limitations":["10 degree sampled BREP motion is not a continuous collision proof",
                             "Safe-zone, brace XY, lid partition and hinge axis need dry-fit acceptance",
@@ -242,6 +238,10 @@ def require_complete_wire_audit(result):
     assert self_coverage.get("motion_angles")==[0,80,160] and self_coverage.get("modules")==list(range(1,7))
 
 
+def require_anchor_assumption_screen(result):
+    assert result.get("normal_load_assumption_screen_passed") is True, "Printed anchor load exceeds stated design assumptions"
+
+
 def main():
     (OUT/"verification.json").unlink(missing_ok=True)
     initial_sources=source_hashes()
@@ -250,6 +250,8 @@ def main():
     generation_digest=export_hashes(OUT,[GENERATION_SNAPSHOT])[GENERATION_SNAPSHOT]
     initial_cad=cad_hashes()
     parts=export_checks()
+    strength_result=strength.calculate()
+    require_anchor_assumption_screen(strength_result)
     mech_result=mechanical_checks(OUT/"collision-details.json")
     harness_result=harness.validate()
     assembly_result=validate_assembly.validate()
@@ -266,7 +268,7 @@ def main():
     assert_export_hashes(OUT,verified_exports,set(export_names(manifest))-VERIFICATION_EXPORTS)
     report={"result":"PASS_CAD_NOT_PHYSICAL_ACCEPTANCE","revision":PARAMS["revision"],
             "physical_test_performed":False,"stl_types":len(parts),"print_count":sum(p["quantity"] for p in parts),
-            "parts":parts,"mechanics":mech_result,"harness":harness_result,"strength":strength.calculate(),
+            "parts":parts,"mechanics":mech_result,"harness":harness_result,"strength":strength_result,
             "assembly":assembly_result,"wire_geometry":wire_geometry,"cad_sha256":initial_cad,
             "export_sha256":verified_exports,"sources":initial_sources}
     (OUT/"verification.json").write_text(json.dumps(report,indent=2,ensure_ascii=False,allow_nan=False),encoding="utf-8")
