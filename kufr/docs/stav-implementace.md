@@ -1,5 +1,36 @@
 # Stav implementace AI kufru
 
+## CI — 11. 10. 2026 — všechny Linux joby na self-hosted, PR #172
+
+Převzaté zadání přesouvá poslední hosted Linux joby: `kufr-site.yml`
+na pool `kufr-backend`, `pr-sync.yml` na samostatný `kufr-control`.
+macOS podpis zůstává `macos-15`. CAD používá čerstvý venv místo změny
+sdíleného Pythonu. Změněny jsou oba workflow, actionlint labels,
+`scripts/ci/control-runner-hook.sh`, jeho Python regrese a `docs/ci-cd.md`.
+
+VPS má nově Xvfb/xauth, grafické knihovny a ověřený oficiální PowerShell
+7.6.6. Kontrolní runner 2.338.0 běží jako oddělený `kufr-control` bez sudo
+a Docker, s privátním HOME/workspace a rootem vlastněnými binárkami,
+konfigurací a job hookem. Původní dva build runnery jsou zachovány.
+Soukromá záloha před úpravou je `/root/kufr-ci-backup-20261011`.
+Backend health po instalaci: `ok`.
+
+Linux ověření: actionlint 1.7.12 s ověřeným SHA-256, explicitním
+`-config-file .github/actionlint.yaml -shellcheck= -pyflakes=` pro všechny
+workflow, `bash -n scripts/ci/control-runner-hook.sh`, 19 Python testů
+(`python3 -m unittest discover -s scripts/ci -p 'test_*.py'`) a 55 Node
+testů (`node --test scripts/ci/*.test.cjs`) — vše PASS.
+Živý negativní [běh 38098122361](https://github.com/Blato58/DildoVander/actions/runs/38098122361)
+s podvrženými job env a kroky `always()`/`failure()` selhal před kroky;
+oba zakázané soubory chybějí a listener zůstal aktivní.
+
+Další krok: push a úplné PR CI včetně CAD/site a pozitivní dispatch
+controlleru s rootem schválenou přesnou workflow SHA. Výsledek bude zapsán
+po běhu. Automatický `pull_request_target` do merge stále používá workflow
+z `main`; ruční dispatch ověří změněný workflow z PR. Merge tohoto PR
+současně publikuje Workshop a potřebuje oprávnění k této publikaci.
+Nebyly spuštěny macOS workflow, placená AI, nasazení ani flash zařízení.
+
 ## F2 — montáž bez opracování kovů, ověřené předání 10. 10. 2026
 
 Rolničku a její samostatné spojovací díly nahrazuje kluzný čep Ø6 mm
