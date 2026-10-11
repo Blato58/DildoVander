@@ -28,8 +28,26 @@ POSIX executable bitu; na Linuxu prošlo všech 24 CI Python testů včetně
 publication guardu a všech 13 site testů bez skipu. Ověřeny jsou lokální
 odkazy dotčených README a CI/CD návodu. Nezávislé review bez nálezů.
 Implementace je v commitu `a8fdec7ae315ec50deaeb3e36af8fdbe7a859517`;
-`Push-CurrentBranch.ps1` ověřil shodu vzdálené větve. PR CI, review,
-merge a skutečný site deploy jsou další ověření. Žádné placené AI volání, firmware flash ani iOS podpis
+`Push-CurrentBranch.ps1` ověřil shodu vzdálené větve. CI `38111504992`
+nad `d390d803` prošlo: repository, backend, firmware build i host testy,
+web, kompletní site build a `CI required`; všechny PR uploady byly
+vynechané a API po CI stále potvrdilo nula artefaktů. GitHub Codex review
+skončilo bez nálezů. Všechny reviews, inline komentáře, review vlákna
+a discussion byly načtené znovu po posledním push a těsně před merge.
+[PR #174](https://github.com/Blato58/DildoVander/pull/174) je sloučené
+jako `bdb5cc8108e6149c6a1551263e46500562bd745e`; Git tree
+`3172f9aef4090ff0fdc9d545b4dd36bf116616d6` je přesně shodný s testovanou
+větví. Automatický [site deploy `38112717037`](https://github.com/Blato58/DildoVander/actions/runs/38112717037)
+nad tímto merge prošel kompletně: upload recovery artefaktu byl vynechaný,
+obě freshness brány, bezpečné rozbalení, atomická publikace, HTTPS readback
+všech 155 souborů a celého CAD ZIPu, úklid dvou starých CAD souborů,
+retence releases i úklid lokálního stagingu PASS. Nezávislý HTTPS GET
+`site-manifest.json` potvrdil přesný source SHA `bdb5cc8108e6149c6a1551263e46500562bd745e`;
+aktivní serverový release je `38112717037-1`, backendová služba je `active`
+a čerstvé artifact API stále vrací `total_count=0`. Oprava deploy i cleanup
+jsou doručené. Před příštím backend/OTA nasazením nebo iOS podpisem spusť
+explicitní recovery CI na aktuálním main a použij jeho ID podle CI/CD návodu.
+Žádné placené AI volání, firmware flash ani iOS podpis
 nebyly spuštěné; hardware/iPhone akceptace se nemění.
 
 ## CI — 11. 10. 2026 — self-hosted Linux workflow, oddělené předání
