@@ -38,8 +38,9 @@ Fyzická montáž, konektory/prsty, kabelové rezervy, kamera/FPC, dřevo/epoxid
 zatížené servopohyby a přeprava zůstávají nepřijaté. Návrh není uvolněný
 k finálnímu tisku. Další krok po softwarovém ověření: rozměrový a montážní
 prototyp podle `mechanika/final/MONTÁŽ.md`, bez nahrání firmware v tomto slice.
-Git předání: větev `codex/cad-assembly-viewer-overhaul-public`; ověřený slice
-je připravený ke commitu a push přes projektový helper.
+Git předání: implementační commit `59c4b9f50b7fcf4a0f37c771fcd4ba4fe0a983ca`
+na větvi `codex/cad-assembly-viewer-overhaul-public`. Push projektovým
+`scripts/Push-CurrentBranch.ps1` uspěl; vzdálený SHA byl ověřen shodný.
 
 Poslední aktualizace: **12. 10. 2026**. Tento dokument zachycuje aktuální
 stav a další kroky; neobsahuje historický deník nasazení ani technické logy.
