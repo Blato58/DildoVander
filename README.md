@@ -39,6 +39,13 @@ správcovské operace. Postup a konfiguraci CI popisuje
 [CI/CD návod](docs/ci-cd.md). Pravidla předání jsou v [CONTRIBUTING.md](CONTRIBUTING.md)
 a hlášení zranitelností v [SECURITY.md](SECURITY.md).
 
+Zdrojový repozitář je zatím soukromý. Buildy jsou připravené i pro budoucí
+veřejný režim; změna viditelnosti vyžaduje samostatný pokyn majitele.
+Podepsaná IPA vzniká ve stávajícím ručním macOS workflow s prostředím
+`ios-signing`. Produkční nasazení serveru, OTA a distribuce IPA mají oddělenou
+orchestraci v soukromém repozitáři `Blato58/DildoVander-deploy`; místní fake
+vývoj tento repozitář nepotřebuje. Přesun konfigurace sám neprokazuje nasazení.
+
 ## Data, licence a příspěvky
 
 [Zpracování dat](docs/public-privacy.md) popisuje mikrofon, volitelnou fotografii,
@@ -49,8 +56,10 @@ Vlastní zdrojový kód, dokumentace a CAD zdroje projektu jsou pod
 [GNU Affero General Public License v3.0](LICENSE), SPDX `AGPL-3.0-only`.
 Licence třetích stran, včetně fontů a ikon, platí samostatně; AGPL nedává
 oprávnění k neověřeným cizím obrázkům nebo značkám.
-[Inventář a připsání zdrojů](docs/public-assets.md) uvádí doložený původ
-i zbývající práva, která musí vlastník ověřit před publikací.
+[Inventář a připsání zdrojů](docs/public-assets.md) uvádí doložený původ,
+odstraněné obrazové podklady a zbývající distribuční podmínky. Kopie dodavatelské
+pinové mapy, šest referenčních fotografií CAD a čtyři nativní PNG šablony byly
+odstraněny; iOS ikona se generuje z vlastního geometrického zdroje.
 
 DildoVander je neoficiální fanouškovský projekt inspirovaný světem Harryho
 Pottera. Není přidružený k držitelům práv ani jimi schválený. Toto sdělení

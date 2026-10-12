@@ -39,8 +39,8 @@ Majitel potvrdil vnitřní spodní prostor 431,8 × 266,7 × 114,3 mm,
 vnější údaj výrobce 450 × 310 × 200 mm a bezpečně vložitelný kvádr
 400 × 240 × 170 mm. Rám leží nad výztuhou dna vysokou 5 mm. Zástavba v klidu
 zůstává pod horní hranou spodní části; při zdvihu se používá otevřený kufr.
-Tloušťky dřeva, detail pantů a rozdělení prostoru víka jsou parametry,
-nikoli rozměry odvozené jako jisté z perspektivních fotografií.
+Tloušťky dřeva, detail pantů a rozdělení prostoru víka jsou návrhové
+parametry, které vyžadují fyzické ověření.
 
 Zvoleno šest modulů na rozteči 48 mm, s délkou 212 mm a zdvihem 16 mm.
 Majitel 10. 10. 2026 potvrdil délku hůlky do 200 mm a šířku hlavice 38 mm
@@ -93,8 +93,11 @@ choreografii. Exportovaný plášť je referenční STEP; nemá žádné STL k t
 STL jsou orientované pro tisk, sestavy STEP v souřadnicích celého kufru.
 X doprava, Y k pantům, Z nahoru; počátek na vnitřním dně vpředu vlevo.
 
-Použity jsou Python 3.11, CadQuery 2.7, Node.js a stávající závislosti z
-`requirements.txt`. Z této složky na Windows:
+Použity jsou Python 3.11, CadQuery 2.8.0, OCP 7.9.3.1.1, VTK 9.6.2,
+Node.js a závislosti z `requirements.txt`. OCP a VTK jsou připnuté také
+samostatně, aby instalace zachovala ověřenou verzi CAD jádra a renderování.
+Rozměrové vstupy jsou textové; regenerace nevyžaduje referenční fotografie.
+Z této složky na Windows:
 
 ```powershell
 .\Regenerate.ps1 -Python ..\.venv\Scripts\python.exe

@@ -3,35 +3,9 @@ name: Kufr AI development eval
 on:
   workflow_call:
   workflow_dispatch:
-    inputs:
-      party_compare:
-        description: Adaptive party conversations using Sol (OpenAI account budget applies)
-        type: boolean
-        default: false
-      party_models:
-        description: Sol dialogue model
-        type: choice
-        options: [compare, selected]
-        default: compare
-      model:
-        description: Dialogue model to compare
-        type: choice
-        required: true
-        default: gpt-6.1-sol
-        options:
-          - gpt-6.1-sol
-      case_id:
-        description: Case ID from kufr/ai-eval/cases.json (one per paid run)
-        type: string
-        required: true
-        default: unavailable_request
 
 permissions:
   contents: read
-
-concurrency:
-  group: kufr-ai-eval-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   offline:
@@ -43,42 +17,3 @@ jobs:
           persist-credentials: false
       - name: Validate synthetic corpus and fail-closed parser
         run: python3 -m unittest discover -s kufr/ai-eval -p 'test_*.py'
-
-  live:
-    if: github.repository == 'Blato58/DildoVander' && github.event.repository.private == true && (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.workflow == 'Kufr AI development eval')
-    needs: offline
-    runs-on: [self-hosted, Linux, X64, kufr-backend]
-    timeout-minutes: 12
-    environment: backend-production
-    env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      MODEL: ${{ inputs.model }}
-      CASE_ID: ${{ inputs.case_id }}
-      PARTY_MODELS: ${{ inputs.party_models }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Install pinned OpenAI SDK
-        run: |
-          python3 -m venv "$RUNNER_TEMP/ai-eval-venv"
-          "$RUNNER_TEMP/ai-eval-venv/bin/python" -m pip install -r kufr/ai-eval/requirements.txt
-          echo "$RUNNER_TEMP/ai-eval-venv/bin" >> "$GITHUB_PATH"
-      - name: Evaluate one synthetic turn
-        if: ${{ !inputs.party_compare }}
-        run: python3 kufr/ai-eval/evaluate.py --model "$MODEL" --case "$CASE_ID" --output "$RUNNER_TEMP/evaluation.json"
-      - name: Compare adaptive synthetic party dialogues
-        if: ${{ inputs.party_compare }}
-        run: |
-          if [ "$PARTY_MODELS" = selected ]; then
-            python3 kufr/ai-eval/evaluate_party.py --models "$MODEL" --output "$RUNNER_TEMP/evaluation.json"
-          else
-            python3 kufr/ai-eval/evaluate_party.py --output "$RUNNER_TEMP/evaluation.json"
-          fi
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: always()
-        with:
-          name: kufr-ai-evaluation
-          path: ${{ runner.temp }}/evaluation.json
-          if-no-files-found: warn
-          retention-days: 7

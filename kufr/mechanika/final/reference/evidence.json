@@ -1,32 +1,25 @@
-[
-  {
-    "photo": 1,
-    "file": "photo-1.png",
-    "sha256": "183B0C803484C9A68EB982031C081D09D1AD1AC91896DF1A336641B7B773C3C3"
-  },
-  {
-    "photo": 2,
-    "file": "photo-2.png",
-    "sha256": "6D9CDA93B7ECCF7CC9AF400DB7E0D1557C0A841BE03832D2FF594F2762051031"
-  },
-  {
-    "photo": 3,
-    "file": "photo-3.png",
-    "sha256": "FF87570F258C33ACDEAF249BBC89B2B9417090D531113FE50B8E8026FD548BED"
-  },
-  {
-    "photo": 4,
-    "file": "photo-4.png",
-    "sha256": "7B98F4D0E29809CDC630265AF902777EAD7F611665D651F666C0CF75004C543D"
-  },
-  {
-    "photo": 5,
-    "file": "photo-5.png",
-    "sha256": "A907272C76ADE8DB966D7BE747C3DD38712D29458591FC6F6B8A1039B5CC36F8"
-  },
-  {
-    "photo": 6,
-    "file": "photo-6.png",
-    "sha256": "20EFB9FF5188571EFAD28AEE84BFFFBDBB59E2667A9E96EC99C270BBFC422D09"
-  }
-]
+{
+  "schema": 1,
+  "units": "mm",
+  "status": "Recorded owner confirmations; not physical CAD acceptance",
+  "sources": [
+    {
+      "document": "mechanika/rozmery-doruceneho-kufru.md",
+      "confirmed_on": "2026-10-09",
+      "provenance": "Owner confirmed internal dimensions, brace height and fit envelope; outer dimensions attributed by owner to manufacturer",
+      "inside_base_xyz": [431.8, 266.7, 114.3],
+      "floor_brace_height": 5.0,
+      "outer_xyz_manufacturer": [450.0, 310.0, 200.0],
+      "owner_confirmed_fit_xyz": [400.0, 240.0, 170.0],
+      "unmeasured": ["wall and floor thickness", "lid partition and hinge geometry", "brace XY extent", "position of fit envelope"]
+    },
+    {
+      "document": "mechanika/rozmery-hulek.md",
+      "confirmed_on": "2026-10-10",
+      "provenance": "Owner confirmation includes optional wand case",
+      "maximum_total_length": 200.0,
+      "maximum_head_width": 38.0,
+      "unmeasured": ["head height and length", "shaft diameter", "mass", "actual tray fit"]
+    }
+  ]
+}

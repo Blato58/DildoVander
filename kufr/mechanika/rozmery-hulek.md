@@ -10,7 +10,7 @@ včetně případného pouzdra, která výslovně uváděla následující dvě 
 
 Toto potvrzení podporuje šest přihrádek návrhu F2 na rozteči 48 mm.
 Využitelná šířka lůžka je 40 mm, tedy nominálně 1 mm vůle na každé straně.
-Rozměry se nepřepisují odhadem z fotografií.
+Potvrzení se vztahuje pouze na tyto dvě hodnoty.
 
 Otázka neuváděla číselnou výšku ani další tvarové rozměry. Výška hlavice
 28 mm, délka hlavice 55 mm, průměr dříku 16 mm a hmotnost 150 g proto

@@ -68,7 +68,7 @@ class PackageInventoryTests(unittest.TestCase):
     def test_stale_exports_and_unverified_sources_are_not_packaged(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
-            current = {"build.py", "reference/photo.png"}
+            current = {"build.py", "reference/evidence.json"}
             current.update(f"exports/{name}" for name in export_names(self.manifest))
             stale = {
                 "scratch.txt", "exports/assembly/old.step", "exports/images/old.png",
@@ -80,7 +80,7 @@ class PackageInventoryTests(unittest.TestCase):
                 path = root / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("test", encoding="utf-8")
-            files = package_files(root, ["build.py", "reference/photo.png"], self.manifest)
+            files = package_files(root, ["build.py", "reference/evidence.json"], self.manifest)
             with zipfile.ZipFile(root / "result.zip", "w") as archive:
                 for path in files:
                     archive.write(path, path.relative_to(root).as_posix())
@@ -89,7 +89,7 @@ class PackageInventoryTests(unittest.TestCase):
                 self.assertIsNone(archive.testzip())
             (root / "exports/images/open.png").unlink()
             with self.assertRaises(FileNotFoundError):
-                package_files(root, ["build.py", "reference/photo.png"], self.manifest)
+                package_files(root, ["build.py", "reference/evidence.json"], self.manifest)
 
     def test_changed_cad_bytes_are_rejected_despite_unchanged_sources(self):
         with tempfile.TemporaryDirectory() as directory:

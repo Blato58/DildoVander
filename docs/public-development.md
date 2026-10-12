@@ -98,3 +98,22 @@ závislostmi z `requirements.txt` v odděleném virtuálním prostředí. Export
 `.pio`, `node_modules`, `dist` a lokální virtuální prostředí nejsou zdrojové
 soubory. Nepotřebuješ soukromý server pro místní kontrolu. iOS podpis,
 produkční deployment, OTA publikace a živé AI evaluace jsou správcovské operace.
+
+Po `npx cap sync ios` spusť z `kufr/mobilni-aplikace/`:
+
+```powershell
+node scripts/generate-native-assets.mjs
+```
+
+Generátor používá jen Node.js, vlastní geometrii kufru a barevné tokeny
+Arcane Workshop. Vytvoří ignorovaný RGB AppIcon 1024 × 1024 bez průhlednosti;
+tracked katalog `AppIcon.appiconset/Contents.json` je vstup pro Xcode.
+Launch storyboard používá tmavé pozadí bez rastrového podkladu. Stejný příkaz
+je součástí podepsaného macOS workflow před nativními testy a archivací.
+Samotná generace PNG na Windows neprokazuje kompilaci asset katalogu,
+podpis, instalaci ani akceptaci na iPhonu.
+
+Ruční zdrojové CI a podepsaný iOS build zůstávají v tomto repozitáři.
+Produkční orchestraci vede soukromý `Blato58/DildoVander-deploy`; jeho
+správce spouští explicitní ruční workflow nad ověřeným zdrojovým artefaktem.
+Podrobnosti předání a kontrol jsou v [CI/CD návodu](ci-cd.md).

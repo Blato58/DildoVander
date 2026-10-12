@@ -8,6 +8,7 @@
 **/node_modules/
 **/dist/
 /kufr/mobilni-aplikace/public/third-party-notices/
+/kufr/mobilni-aplikace/ios/App/App/Assets.xcassets/AppIcon.appiconset/*.png
 
 # .NET backend
 /kufr/backend/**/bin/

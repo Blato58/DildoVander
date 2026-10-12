@@ -10,10 +10,10 @@
 - [Zapojení](exports/reference-sources.html#zapojeni) určuje GPIO, kanály,
   napájení a bezpečnostní zapojení. F2 je nemění.
 
-Všechny fotografie `reference/photo-1.png` až `photo-6.png` byly prohlédnuty.
-Dokládají dřevěný kufr, povrch, příčnou výztuhu, kování a tvar hůlek.
-Fotografie je vizuální reference; perspektiva neposkytuje přesnou tloušťku
-stěny, výšku víka, polohu konektorů ani rozteč otvorů.
+Textové rozměrové vstupy a jejich původ shrnuje `reference/evidence.json`.
+Potvrzení majitele je zaznamenané v přehledu rozměrů kufru a hůlek;
+nenahrazuje fyzickou zkoušku vložky. Tloušťka stěny, výška víka, poloha
+konektorů ani montážní rozteče nejsou tímto potvrzením zaměřené.
 
 ## Parametrické odhady, které je nutné potvrdit
 
@@ -35,7 +35,7 @@ stěny, výšku víka, polohu konektorů ani rozteč otvorů.
 
 F1 dříve navrhoval nový tištěný korpus. To odporovalo současnému zadání;
 F2 jej odstranil z aktivního CAD, tisku, dokumentace a seznamu balíčku.
-Zůstává skutečný dřevěný kufr bez nových děr. Původní reference se zachovaly.
+Zůstává skutečný dřevěný kufr bez nových děr.
 Rozměr bezpečného kvádru doplňuje vnitřní měření; nepřepisuje jej.
 Předchozí měkká brzda nebyla doložená pro mezilehlé polohy a je odstraněna.
 Stop je ručně kontrolovaný stav, nikoli tvrzení o pasivním zabrzdění zdvihu.

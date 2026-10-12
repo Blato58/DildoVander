@@ -11,7 +11,6 @@ on:
 permissions:
   contents: read
   actions: read
-  pull-requests: read
 
 concurrency:
   group: kufr-ios-signing
@@ -19,7 +18,7 @@ concurrency:
 
 jobs:
   verify:
-    if: github.repository == 'Blato58/DildoVander' && github.event.repository.private == true && (github.ref == 'refs/heads/main')
+    if: github.repository == 'Blato58/DildoVander' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     uses: ./.github/workflows/reuse-build.yml
     with:
       build_run_id: ${{ inputs.build_run_id }}
@@ -27,7 +26,7 @@ jobs:
       artifact: web-dist
 
   signed-ipa:
-    if: github.repository == 'Blato58/DildoVander' && github.event.repository.private == true && (github.ref == 'refs/heads/main')
+    if: github.repository == 'Blato58/DildoVander' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     needs: verify
     timeout-minutes: 25
     runs-on: macos-15
@@ -71,6 +70,8 @@ jobs:
         working-directory: .
         run: python3 scripts/ci/package.py unpack "$RUNNER_TEMP/web-package" kufr/mobilni-aplikace/dist
       - run: npx cap sync ios
+      - name: Generate original native assets
+        run: node scripts/generate-native-assets.mjs
       - name: Resolve Swift packages
         run: xcodebuild -resolvePackageDependencies -project ios/App/App.xcodeproj -scheme App
       - name: Test native pinned LAN transport
@@ -81,6 +82,12 @@ jobs:
         run: bash scripts/test-native-debug.sh
       - name: Test secure BLE status and secret whitelist
         run: bash scripts/test-native-provisioning.sh
+      - name: Recheck main immediately before signing
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          EXPECTED_SHA: ${{ needs.verify.outputs.main_sha }}
+        with:
+          script: await require('./scripts/ci/verify-build.cjs').checkMain({ github, context }, process.env.EXPECTED_SHA)
       - name: Build signed IPA
         env:
           IOS_BUNDLE_ID: app.turquoise6409.green2444

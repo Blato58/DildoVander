@@ -21,20 +21,16 @@ retence navíc odmítne změněnou aktivaci od posledního veřejného ověřen�
 
 CI projekt `site` regeneruje CAD přes `final/Regenerate.ps1`, sestaví webový
 Companion a kontroluje balíček na GitHub-hosted `ubuntu-24.04`.
-Workflow `kufr-site-deploy.yml` je pouze ruční, pro původní soukromý repozitář
-a `main`; push jej automaticky nespouští. Reusable `kufr-site.yml` při
-`publish: true` sestaví/zabalí web na hosted runneru a uloží `arcane-site`
-na jeden den. Oddělený publish job s prostředím `backend-production` stáhne
-přesné neměnné artifact ID stejného runu, ověří provenance a bezpečně rozbalí
-balíček ve vlastním dočasném adresáři. Kontroly aktuálního SHA `main` chrání
-proti zastaralé aktivaci. Publikace odmítne veřejný repozitář, jinou větev,
-PR i jinou událost než přímý ruční běh.
-Běžné CI pouze ověřuje; výslovný recovery build CI na `main` bez `pr_number`
-uloží `arcane-site` na jeden den pro ruční obnovu. Lokální staging se vždy uklidí.
-Před zveřejněním repozitáře je nutné přesunout privátní publish job a jeho
-production-connected runner do oddělené důvěryhodné infrastruktury;
-podmínka `private` sama nezajišťuje izolaci registrovaného runneru. Ochrany
-GitHub environment musí správce nastavit a ověřit, viz [CI/CD](../../docs/ci-cd.md).
+Primy rucni CI build aktualniho `main` bez PR vstupu ulozi `arcane-site`
+na jeden den. Publikace `kufr-site-deploy.yml` patri do privatniho
+`Blato58/DildoVander-deploy`; maintainer ji spusti rucne na `main` s ID CI.
+Hosted verifier kontroluje workflow/run, aktualni source commit/tree a
+nemenne artifact ID. Privatni publisher pouziva vlastni vetted helpers,
+overi SHA-256 ZIPu i payloadu, bezpecne rozbali balicek a znovu zkontroluje
+source `main` tesne pred atomickou aktivaci. HTTPS readback, rollback i
+retence zustavaji zachovane. Zdrojovy repozitar nema produkcni workflow;
+skutecna migrace registraci a pristupu se doklada oddelene.
+Podrobnosti jsou v [CI/CD](../../docs/ci-cd.md).
 Nginx routy
 instaluje správce jednou přes `deploy/install-site-host.sh github-runner`.
 Installer zachová ostatní routy, privátně zazálohuje konfiguraci a při chybě

@@ -279,7 +279,7 @@ Následující inventura zachycuje výchozí stav při návrhu 29. 9. 2026. Aktu
 Přečtené místní podklady:
 
 - Kořenový `AGENTS.md`, pokyny přiložené k zadání, kořenový `README.md` a `kufr/README.md`.
-- `kufr/docs/efekty-a-napajeni.md`, `kamera.md`, `pin-mapa-esp32-s3.md` a samotný obrázek `pin-map-esp32-s3.png`.
+- `kufr/docs/efekty-a-napajeni.md`, `kamera.md` a textový záznam `pin-mapa-esp32-s3.md`.
 - `kufr/firmware/README.md`, `platformio.ini`, `src/main.cpp`, všechny čtyři soubory `wand_selection` a `tests/selection_sequence_test.cpp`.
 - `kufr/mobilni-aplikace/README.md`, `package.json`, relevantní uzamčené závislosti v `package-lock.json`, `tsconfig.json`, `index.html`, `src/main.ts` a `src/style.css`.
 - `docs/elektronika.md` kvůli konkrétním periferiím a rozpočtu; `.gitignore` kvůli hranicím zdrojových a generovaných souborů.
@@ -342,6 +342,14 @@ Notebook spouští backend na `https://localhost:7043`, Vite na `localhost:5173`
 
 ### iOS na Windows a vzdálené sestavení
 
+**Oddělení produkce (rozhodnutí majitele 12. 10. 2026):** Buildy, CAD
+a podepsaná IPA zůstávají v `Blato58/DildoVander`, i po jeho budoucím
+zveřejnění. Produkční runnery, deployment, administrace a online AI
+diagnostika patří do soukromého `Blato58/DildoVander-deploy`. Publikace
+přebírá pouze nový úspěšný ruční build přesného aktuálního `main`; PR
+artefakt nestačí. Přesun registrací a credentialů se potvrzuje skutečnou
+migrací, nikoli existencí YAML. Podrobnosti: [CI/CD](../../docs/ci-cd.md).
+
 **Zvolený postup (změna majitele 2. 10. 2026):** Windows → PR s webovými kontrolami na Linuxu → merge → ručně vyžádané nativní kontroly a Ad Hoc podpis na macOS/Xcode → IPA artifact → ruční publikace. Majitel dodal workflow z jiné MAUI aplikace a výslovně povolil vhodnější řešení. Jeho YAML nelze pro Capacitor beze změny použít. Webové PR kontroly zajišťuje `.github/workflows/kufr-web.yml`; jediný nativní iOS build je ruční `.github/workflows/kufr-ios-sign.yml` nad `main` pro podepsanou aplikaci určenou k nasazení. PR ani obnovovací CI nespouští unsigned simulator build. Pro registrovaný iPhone 15 Pro s iOS 26.6.1 majitel zvolil Ad Hoc IPA z tohoto CI a instalační HTML stránku, manifest a IPA na vlastním serveru `https://2.28.202.220/ios/`; publikace smí nastat až po úspěšném podpisu a ověření artifactu. Běh CI a instalaci na iPhone eviduje stav implementace.
 
 Na Windows se upravuje TypeScript, Swift pluginy, konfigurace a testy. Webové UI a simulátor zařízení se ověřují lokálně; Xcode a nativní testy běží na macOS runneru pouze při ručním podepsaném buildu. iOS Simulator lze použít lokálně na Macu. Zdrojový nativní projekt `kufr/mobilni-aplikace/ios/` včetně vlastní Swift části a sdíleného Xcode scheme bude verzovaný, nebude se znovu generovat při každém sestavení. Projekt používá Swift Package Manager; `Package.resolved` vznikne na macOS při prvním úspěšném resolve a musí se vrátit do repozitáře před uzavřením E3a [O1]. Build po `npm ci`, `npm run build` a `cap sync ios` nesmí přepsat vlastní nativní kód. Závislosti stahovat podle lockfile, nikoli neomezeně aktualizovat.
@@ -367,7 +375,7 @@ Nativní iOS implementace:
 9. **Volitelné ntfy:** pokud je zapnuté, po dokončení požadovaného build/publish kroku poslat verzi, výsledek a odkaz. NTFY URL/topic/token držet v konfiguraci/secrets dle citlivosti, neposílat certifikáty či UDID. Selhání oznámení nesmí znehodnotit úspěšnou IPA [O21]. Zapnutí skutečného odesílání musí být součástí autorizované konfigurace distribuce E11.
 10. **Úklid vždy:** `if: always()` po úspěchu i chybě odstraní dočasný podpisový keychain, dekódovaný `.p12` a nainstalovaný provisioning profil a obnoví případně změněný seznam keychainů. Mazat jen konkrétní cesty vytvořené jobem. U GitHub-hosted runneru navíc zaniká celý stroj [O17]; ani tak nespoléhat na budoucí použití self-hosted runneru bez explicitního úklidu.
 
-Actions připnout na prověřené revize; build job má běžně jen `contents: read`, Release job samostatně `contents: write`, Pages job jen potřebná Pages oprávnění. Nedávat podpisové secrets do cache ani do jobu spouštějícího kód z cizího PR přes `pull_request_target`. Privátní podpisový job nepřebírá neověřený artifact z nedůvěryhodného workflow. Náklady macOS runneru, retenci a dostupný Actions limit ověřit v konkrétním účtu; nezahrnovat je automaticky do rozpočtu AI volání.
+Actions připnout na prověřené revize; build job má běžně jen `contents: read`, Release job samostatně `contents: write`, Pages job jen potřebná Pages oprávnění. Nedávat podpisové secrets do cache ani do jobu spouštějícího kód z cizího PR přes `pull_request_target`. Podpisový job nepřebírá neověřený artifact z nedůvěryhodného workflow. Náklady macOS runneru, retenci a dostupný Actions limit ověřit v konkrétním účtu; nezahrnovat je automaticky do rozpočtu AI volání.
 
 #### IPA, instalační stránka a způsoby distribuce
 
@@ -1122,7 +1130,7 @@ měnit AI ani běžným síťovým příkazem. E5/E6/B1 vyžadují fyzické mě�
 
 ### Co skutečně plyne z podkladů
 
-Zdrojem barevných vazeb je [dodaná pinová mapa](pin-map-esp32-s3.png) a její [přepis](pin-mapa-esp32-s3.md). **Ani jedno nenahrazuje schéma a měření doručeného kusu.** Označení N16R8, kapacita pamětí a význam „LED ON“ nejsou zde elektricky ověřené.
+Zdrojem evidovaných vazeb je [textový přepis dodané pinové mapy](pin-mapa-esp32-s3.md); původní obrázek se veřejně nedistribuuje. **Přepis nenahrazuje schéma a měření doručeného kusu.** Označení N16R8, kapacita pamětí a význam „LED ON“ nejsou zde elektricky ověřené.
 
 | Funkce na obrázku / rezervace | Piny a zacházení |
 | --- | --- |

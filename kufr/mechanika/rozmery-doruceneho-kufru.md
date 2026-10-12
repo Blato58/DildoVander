@@ -1,7 +1,7 @@
 # Doručený kufr – rozměry a zástavba
 
-Potvrzeno majitelem **9. 10. 2026** v konverzaci k pěti fotografiím
-doručeného dřevěného kufru. Rozměry jsou **vnitřní**, mezi stěnami.
+Potvrzeno majitelem **9. 10. 2026** pro doručený dřevěný kufr.
+Rozměry jsou **vnitřní**, mezi stěnami.
 
 | Rozměr | Údaj majitele | Přepočet |
 | --- | --- | --- |

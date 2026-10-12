@@ -56,3 +56,13 @@ jobs:
           if-no-files-found: error
           retention-days: 1
           overwrite: true
+      - name: Package compiled synthetic provider diagnostic
+        run: python3 scripts/ci/package.py pack kufr/backend-tests/bin/Release/net10.0/linux-x64 "$RUNNER_TEMP/diagnostics-package"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && !github.event.inputs.pr_number
+        with:
+          name: backend-diagnostics
+          path: ${{ runner.temp }}/diagnostics-package/
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true

@@ -737,7 +737,7 @@ rovnou přidělí hůlku bez potvrzovací otázky.
 
 ### Omezená diagnostika GPT-Live
 
-Ruční workflow [kufr-gpt-live-smoke.yml](../../.github/workflows/kufr-gpt-live-smoke.yml)
+Ruční workflow [kufr-gpt-live-smoke.yml](https://github.com/Blato58/DildoVander-deploy/blob/main/.github/workflows/kufr-gpt-live-smoke.yml)
 na `main` spustí `dotnet run --project kufr/backend-tests/BackendTests.csproj -c Release -- --gpt-live-smoke`
 z kořene repozitáře. Vyžaduje serverový `OPENAI_API_KEY`. Jde o placený
 provider test: jeden hovor, syntetické ticho 20 s, absolutní deadline 35 s,

@@ -4,8 +4,10 @@ Stav inventáře: 12. 10. 2026, aktuální sledované soubory. Jde o evidenci p�
 nikoli právní potvrzení všech distribučních práv. Majitel 12. 10. 2026 zvolil
 AGPLv3: vlastní zdrojový kód, dokumentace a CAD zdroje projektu používají
 [AGPL-3.0-only](../LICENSE). Materiály třetích stran se tím nepřelicencují;
-neověřené obrázky nelze považovat za pokryté projektovou licencí. Vlastník
-musí před publikací ověřit oprávnění přispěvatelů i práva k těmto materiálům.
+neověřené obrázky nelze považovat za pokryté projektovou licencí. Kopie
+obrázků bez doložených redistribučních práv byly ze zdrojů odstraněny.
+Oprávnění přispěvatelů a práva ke zbývajícím materiálům je nutné posuzovat
+samostatně.
 Zveřejnění samo nenahrazuje licenci; GitHub rozlišuje veřejný repozitář a
 [licencovaný open source](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/licensing-a-repository).
 
@@ -13,10 +15,9 @@ Zveřejnění samo nenahrazuje licenci; GitHub rozlišuje veřejný repozitář 
 | --- | --- | --- |
 | `kufr/design-system/fonts/{cinzel,inter,ibmplexmono}.ttf` | [Fontový inventář](../kufr/design-system/fonts/README.md) uvádí Google Fonts commit `bd8f81ddb5c74d5c8897b36ad88b440266245103`, původní názvy a tři uložená oznámení SIL OFL 1.1. | Zachovat copyright a OFL text v každém balíčku obsahujícím fonty; zkrácený název souboru není licence nového fontu. |
 | 12 SVG v `kufr/design-system/icons/` | Lucide 0.548.0, commit `e560b8bf3a4f962b4ce2a357366d91271add06a9`; [inventář](../kufr/design-system/icons/README.md), [URL a SHA-256](../kufr/design-system/icons/provenance.json), [ISC a Feather MIT notice](../kufr/design-system/icons/LICENSE.txt). | Kopírovat oznámení s ikonami i při vložení inline; projektová licence je nepřepisuje. |
-| `kufr/docs/pin-map-esp32-s3.png` | [Technický přepis](../kufr/docs/pin-mapa-esp32-s3.md) uvádí obrázek dodaný pro projekt a produktovou stránku desky. Autor/redistribuční licence obrázku nejsou doloženy. | Vlastník ověří autora a svolení k publikaci, nebo připraví vlastní dokumentovaný diagram. Odkaz na obchod nedává právo kopírovat obrázek. |
-| `photo-1.png`, `photo-3.png`, `photo-5.png`, `photo-6.png` v `kufr/mechanika/final/reference/` | Měření/skutečný kufr, fotografie dodané pro projekt; [evidence.json](../kufr/mechanika/final/reference/evidence.json) uvádí otisky, nikoli autora/licenci. `photo-6.png` obsahuje i část těla, `photo-5.png` domácí okolí. | Potvrdit autorství, právo k publikaci a vhodnost těchto osobních detailů; případnou změnu podkladu provést s novou evidencí a regenerací. Otisk není právo k redistribuci. |
-| `photo-2.png`, `photo-4.png` ve stejné složce | Vizuálně produktový obrázek zdobené hůlky s rozměrovým nápisem a katalogový kufr na bílém pozadí. Skutečný dodavatel, autor ani licence nejsou doloženy; vzhled sám autorství neurčuje. | Dohledat zdroj a svolení, nebo nahradit vlastními podklady se zachováním technických důkazů a regenerací. Nelze je automaticky považovat za vlastní fotografie majitele. |
-| 4 PNG v `kufr/mobilni-aplikace/ios/App/App/Assets.xcassets/` | AppIcon a tři Splash varianty; ikona vizuálně odpovídá značce Capacitor. Zdrojový commit a oprávnění pro konkrétní obrázky nejsou v repozitáři evidovány. | Dohledat původ a podmínky šablony/značky nebo nahradit vlastními assety. Vizuální podobnost není ověřená provenance. |
+| Dodavatelská pinová mapa | Kopie PNG odstraněna. [Technický záznam](../kufr/docs/pin-mapa-esp32-s3.md) zachovává historický přepis popisků, omezení návrhu a rozpor USB. | Ověřit schéma a skutečné vedení konkrétní desky; textový přepis nepředstavuje měření. |
+| Šest referenčních fotografií F2 | Kopie PNG odstraněny. [Textová evidence](../kufr/mechanika/final/reference/evidence.json) uchovává rozměry potvrzené majitelem, jejich původ a nezměřené položky. | Při doplnění vlastních podkladů doložit původ a potřebná oprávnění; generované CAD podmínky nenahrazují fyzickou akceptaci. |
+| Nativní iOS AppIcon a launch screen | Čtyři PNG šablony odstraněny. [Vlastní geometrický generátor](../kufr/mobilni-aplikace/scripts/generate-native-assets.mjs), AGPL-3.0-only, kreslí kufr se šesti přihrádkami z Arcane Workshop tokenů; launch storyboard používá jednobarevné pozadí. Bez stažených obrazových či fontových podkladů. | PNG ikona vzniká jako ignorovaný výstup před nativním buildem; 1024 × 1024, RGB bez alfa kanálu. Nativní kompilace a podpis vyžadují samostatné ověření v existujícím macOS workflow. |
 | CAD, viewer a výrobní exporty | [F2](../kufr/mechanika/final/README.md) je parametrický projekt; vlastní zdroje používají AGPL-3.0-only. STL/STEP/ZIP a náhledy se generují skutečným postupem. Aktuální git index neobsahuje STL, STEP ani audio nahrávky. | U generovaných modelů posoudit odvozené prvky a distribuční podmínky; samotná licence generátoru není automatickou licencí všech jeho výstupů. Každý distribuovaný ZIP/web/IPA/firmware potřebuje vlastní inventář. |
 | AI persony a katalog | Texty a názvy v `kufr/ai-eval/` používají svět Harryho Pottera a Ollivandera; další replika vzniká při běhu poskytovatele. | Posoudit veřejné použití postav/názvů, výstupů a marketingu; neslibovat oprávnění k cizím značkám nebo dílům. |
 
@@ -32,7 +33,7 @@ oznámení ikon a licence Capacitor core/iOS do `dist/third-party-notices/`
 (přes ignorovanou generovanou
 složku `public/third-party-notices/`). Stejný obsah přebírá web i Capacitor sync.
 Samostatný Workshop CSS obsahuje OFL oznámení přímo. Tato kontrola nenahrazuje
-inventář dalších knihoven nebo práv k PNG; licenční oznámení závislostí
+inventář dalších knihoven; licenční oznámení závislostí
 nenahrazují projektovou AGPL.
 
 ## Závislosti nejsou projektovou licencí

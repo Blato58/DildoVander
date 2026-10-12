@@ -47,9 +47,9 @@ squash `main` může mít jiné SHA se stejným Git tree. Samotná nerovnost
 commitů nedokazuje rozdíl aplikace. Instalované helpery a systemd unit
 porovnej pomocí SHA-256 se skutečnými zdrojovými soubory.
 
-Nasazení používá [existující workflow](../../../.github/workflows/kufr-backend-deploy.yml)
+Nasazení používá [existující workflow](https://github.com/Blato58/DildoVander-deploy/blob/main/.github/workflows/kufr-backend-deploy.yml)
 s `build_run_id` úspěšného CI a ověřením aktuálního `main`.
-[Bootstrap source workflow](../../../.github/workflows/kufr-backend-bootstrap-source.yml)
+[Bootstrap source workflow](https://github.com/Blato58/DildoVander-deploy/blob/main/.github/workflows/kufr-backend-bootstrap-source.yml)
 umí na runneru připravit důvěryhodné instalační soubory a jejich hashe.
 Při opravě samotného helperu zálohuj jeho dosavadní verzi a instaluj pouze
 ověřený helper; jeho instalace nevyžaduje `activate`, přepsání environmentu
@@ -78,11 +78,11 @@ Pokud existuje `LOG_READER_CREDENTIAL`, používá jej; jinak existující
 `ADMIN_CREDENTIAL`. V obou případech workflow vykonává jen dvě GET čtení.
 
 ```bash
-gh workflow run kufr-backend-logs.yml --ref main -f level=warning
-gh run list --workflow kufr-backend-logs.yml --limit 1
-gh run watch ID_BEHU --exit-status
-gh run view ID_BEHU --log
-gh run download ID_BEHU -n kufr-server-logs -D /tmp/kufr-diagnostics
+gh workflow run kufr-backend-logs.yml --repo Blato58/DildoVander-deploy --ref main -f level=warning
+gh run list --repo Blato58/DildoVander-deploy --workflow kufr-backend-logs.yml --limit 1
+gh run watch ID_BEHU --repo Blato58/DildoVander-deploy --exit-status
+gh run view ID_BEHU --repo Blato58/DildoVander-deploy --log
+gh run download ID_BEHU --repo Blato58/DildoVander-deploy -n kufr-server-logs -D /tmp/kufr-diagnostics
 ```
 
 Výsledek je `kufr-server-logs.json`: režimy serveru a stránka logů.
@@ -103,7 +103,7 @@ Token není argument nástroje ani součást URL. HTTPS používá systémovou d
 redirecty jsou zakázané, odpověď nejvýše 256 KiB, timeout 15 s.
 
 Správce vygeneruje samostatný náhodný token nejméně 32 znaků a uloží ho
-jako environment secret `LOG_READER_CREDENTIAL` v GitHub `backend-production`.
+jako environment secret `LOG_READER_CREDENTIAL` v GitHub `backend-production` soukromého `Blato58/DildoVander-deploy`.
 Deploy uloží pouze jeho SHA-256 do `Backend:Logs:CredentialSha256`.
 Nesmí se shodovat s admin/device credentialem. Po změně je nutné nové nasazení.
 Reader token nemůže spravovat režimy, získat device token ani spustit AI.

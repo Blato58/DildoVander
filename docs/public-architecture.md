@@ -28,3 +28,10 @@ Webový mobil a veřejná konzole slouží pro vývoj/náhled. Nepotvrzují nati
 Keychain, BLE, mikrofon, dlouhodobé WSS nebo účinek motoru a serva. CAD ověření
 prokazuje generované geometrické podmínky, nikoli správný tisk, sestavení,
 napájení či fyzickou přepravní akceptaci. Tyto důkazy se zapisují zvlášť.
+
+Buildy zdrojového repozitáře zachovávají web, firmware, backend, CAD a
+podepsanou iOS IPA. Zdroj je zatím soukromý; build konfigurace podporuje
+zamýšlené budoucí zveřejnění. Produkční nasazení serveru, OTA a distribuce IPA
+jsou odděleny v soukromém `Blato58/DildoVander-deploy`. Přístup k tomuto
+repozitáři není potřeba pro lokální fake vývoj. Sestavení artefaktu,
+jeho podpis a jeho nasazení jsou samostatné výsledky ověření.
