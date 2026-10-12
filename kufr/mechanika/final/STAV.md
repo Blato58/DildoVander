@@ -1,4 +1,53 @@
-# Stav F2 — 12. 10. 2026
+# Rozměrová revize kufru — 12. 10. 2026
+
+Nové měření nahrazuje původní pravoúhlý plášť a odhad polohy výztuhy.
+Volný horní obdélník 430 × 269, stěna 5, horní výztuhy 20 mm včetně
+stěny a 40/30 mm dolů od hrany; spodní tečné rozměry 45 × 45 mm,
+středová výztuha 80 × 5 mm. CAD používá kruhovou interpolaci R45.
+Čtyři kotvy mají zakřivený spodek a 0,5mm svislý film; matice se vloží
+před lepením. Tisková orientace kotev má plochou horní stranu na podložce.
+Rozšířené příčné lepené stopy mají 43 806,325 mm² projektované plochy
+a 103 epoxidových zámků; minimum 52,381 ml, fyzická pevnost nepotvrzená.
+Fotografie majitele jsou pouze lokálním podkladem. Přesná měření a přetrvávající předpoklady vede ../rozmery-doruceneho-kufru.md.
+Dřívější geometrické kontroly níže samy nepřijímají tuto změněnou sestavu;
+aktuální výstupy přijímat pouze přes zdrojově svázaný verification.json.
+Fyzická přejímka dna, oblouku, kotev, vrstvení tisku a pantů zůstává otevřená.
+
+---
+
+# Aktuální předání DFA — 12. 10. 2026
+
+Implementovaná montážní a mobilní revize F2 má dvě
+odnímatelné boční kazety, sedm horních M3, skutečné přístupové drážky,
+16 kroků s odlišením stolu/kufru a přípravu vodicích šroubů před vložením.
+`POSTUP.md` je generovaný z `assembly-guide.json`; starší pořadí níže je
+historický podklad a nesmí se použít k montáži této revize. Autoritou
+výrobních výstupů zůstává aktuální zdrojově svázaný verification.json.
+Ověřeno: viewer 47/47 regresí a syntaxe; montážní regrese 8/8, kotvy 11/11,
+offline styly 4/4 a kontrakt 16 kroků / 542 osazených meshů / 135 vodičů.
+Chrome se skutečným WebGL: 320×568, 360×800, 390×844, 844×390, 768×1024
+a 1440×900; dotykový orbit/pan/pinch přes CDP, pohledy a focus, režimy,
+montáž vpřed/zpět/restart a Stop prošly bez chyb konzole nebo requestů.
+Prohlížeč je desktopová emulace, nikoli důkaz rychlosti/dotyku na iPhonu.
+Samostatně prošly obě kazety, vložení rámu a šest horních skupin; po
+poslední úpravě polohy zesilovače prošlo i sedm spojitých obálek hlav
+servisních šroubů. Levý zesilovač má polohu (46; 94; 49), podpěra kazety
+je před ohybem USB kabelu a přívod buck IN+ obchází válec spínače přes Y61.
+Zadní šroub levé kazety má osu Y111,7 a nejméně 1 mm k pásku zesilovače;
+trasy levých kondenzátorů procházejí před tímto páskem přes Y95,5.
+Úplný aktuální výsledek exportů, kabelových těles,
+pohybu a těchto montážních drah přijímat jen z `exports/verification.json`
+svázaného se zdrojem; ZIP má samostatný SHA-256 a ověřený inventář.
+Indexovaná tessellace zmenšila samostatný viewer ze 70 na přibližně 25,6 MB
+bez změny ploch; GPU dostává stejné plošné facety. Žádná nová závislost.
+Nezávislé source review vedlo k opravě jištění vodítek, skutečného
+stolního/kufrového stavu, montážních předchůdců a servisního přístupu.
+Git předání a přesný endpoint jsou v `../../docs/stav-implementace.md`.
+Fyzická přejímka a uvolnění k tisku zůstávají otevřené.
+
+---
+
+# Aktuální systém F2
 
 F2 je vložka do skutečného dřevěného kufru se šesti přihrádkami,
 potvrzeným inventářem a elektrickým zapojením. Kufr se nevrtá ani neřeže.
@@ -6,8 +55,9 @@ Návrh není fyzicky přijatý ani uvolněný k sériovému tisku.
 
 ## Aktuální návrh
 
-- Vnitřní spodní prostor 431,8 × 266,7 × 114,3 mm a výztuha dna 5 mm
-  jsou potvrzené majitelem. Bezpečný kvádr je 400 × 240 × 170 mm.
+- Volný horní obdélník je 430 × 269 mm, stěna 5 mm, dolní hloubka 114,3 mm.
+  Zaoblení má tečné rozměry 45/45; středová výztuha 80 × 5 a horní 20/40/30.
+  Návrhová obálka 400 × 240 × 170 nenahrazuje kontrolu skutečných těles.
 - Čtyři PETG panely mají integrovaná žebra. Čtyři tištěné podlahové kotvy
   se spodním filmem a odlitými epoxidovými zámky připojují rám na holé dřevo DNA.
 - Zdvih 16 mm řídí zachycená vačka s integrálním Ø6 PETG čepem lůžka.
@@ -17,13 +67,13 @@ Návrh není fyzicky přijatý ani uvolněný k sériovému tisku.
 - Elektronika má dorazy, pásky a vlastní nosiče. Hůlky, banka a textil
   nejsou součástí nosné cesty. ESP/kamera jsou vzadu uprostřed,
   mikrofon vpředu uprostřed, reproduktory po stranách.
-- Montáž má 15 kroků a kabelový plán 135 samostatně identifikovaných vodičů.
+- Montáž má 16 kroků a kabelový plán 135 samostatně identifikovaných vodičů.
   Hlavní i krátká choreografie pochází z jednoho souboru pro firmware a náhled.
 - Návrh má 37 typů STL / 52 výtisků včetně dvoudílné měrky pro čep,
   drážku, boční kapsy M3/M4 a epoxidový zámek s odvzdušněním.
 
-Kotvy mají 36 831,325 mm² lepených stop a 84 zámků Ø7,5/Ø10,5.
-Minimum spodního filmu a zámků je 43,271 ml bez ztrát; BOM uvádí tři
+Kotvy mají 43 806,325 mm² projektovaných lepených stop a 103 zámků Ø7,5/Ø10,5.
+Minimum spodního filmu a zámků je 52,381 ml bez ztrát; BOM uvádí tři
 balení Bison 24 ml. PETG kotvy se předplní odspodu. Boční vložení
 24 M3 a 4 M4 matic kryje souvislá 3mm střecha. Moduly mají vlastní
 24 M3 × 14, rám 4 M4 × 10 ISO4762; 8 M3 × 10 slouží pro kryty.

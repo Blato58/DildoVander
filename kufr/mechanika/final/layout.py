@@ -2,13 +2,14 @@
 from functools import lru_cache
 import cadquery as cq
 from geometry import PARAMS, Part, Item, box, cylinder, cut, fuse, hole_z
+from service_geometry import SERVICE_MOUNTS, NUT_Z, SEAT_Z, HEAD_RADIUS
 
 COMPONENTS = PARAMS["components"]
 Z = PARAMS["mounting"]["cover_z"]
 RACKS = {}
 LEFT_STACK = ("breaker", "buck", "amplifier_left")
 RIGHT_STACK = ("perfboard_1", "perfboard_2", "degson_1", "degson_2", "degson_3")
-RIGHT_SERVICE_MOUNTS = ((365,160),(365,247),(410,160),(410,249.8))
+RIGHT_SERVICE_MOUNTS = SERVICE_MOUNTS["right_service_carrier"]
 
 
 def hex_nut(x,y,z,pocket=False):
@@ -100,9 +101,6 @@ def service_platforms():
         start=y-.3 if compact else y-1.5
         px=45 if n=="amplifier_left" else 15.9
         left.append(box(69-px,depth,3,(px,start,z-3)))
-    for xx,px in ((22,15.9),(64,59)):
-        for yy in (68,92):
-            left.append(box(10,6,3,(px,yy-3,12)))
     right=[pocket(n) for n in RIGHT_STACK]
     for xx in (360.1,413):
         right.append(box(2.9,93,61,(xx,158.5,12)))
@@ -115,9 +113,8 @@ def service_platforms():
         post=post.cut(hole_z(411.75,yy,3.4,z=102,height=8))
         post=post.cut(cylinder(3.2,2.4,(411.75,yy,105.6)))
         right.append(post)
-    for xx,px in ((365,360.1),(410,406)):
-        for yy in (160,249.8 if xx==410 else 247):
-            right.append(box(9.9,6,3,(px,yy-3,12)))
+    for xx,yy in RIGHT_SERVICE_MOUNTS:
+        right.append(box(9.9,8,3,(360.1 if xx==365 else 406,yy-4,12)))
     left_shape=cut(fuse(left),[t.shape for n in LEFT_STACK+("speaker_left",) for t in ties(n)])
     # The narrow bank margin is preserved by ending the amp carrier ahead of it.
     left_shape=left_shape.cut(box(53.1,2,80,(15.9,113.35,40))).clean()
@@ -134,10 +131,21 @@ def service_platforms():
     right_shape=cut(right_shape,[box(4,28,19,(360,210,24)),box(4,28,20,(360,210,51))])
     from chassis import rack_holes
     right_shape=cut(right_shape,[cylinder(3.6,3,(xx,yy,12)) for xx,yy in rack_holes()])
-    for shape_name,shape,rows in (("left",left_shape,[(xx,yy) for xx in (22,64) for yy in (68,92)]),
+    # Peripheral flanges permit removal of the entire prewired cassette from
+    # above. The old screws beneath the populated shelves are eliminated.
+    # A full-section post joins the front shelf face ahead of the USB bend.
+    # Its 2 x 2 mm contact face avoids an edge-only mesh joint.
+    left_shape=left_shape.fuse(box(3,20,3,(66,92,12)),box(2,3,34,(66,91,12)))
+    for xx,yy in SERVICE_MOUNTS["left_service_carrier"]:
+        foot=box(7,8,3,(max(15.9,xx-3.5),yy-4,12))
+        foot=foot.cut(cylinder(3.5,3,(25,109.35,12)))
+        left_shape=left_shape.fuse(foot)
+    # Reach the front flange along the outer edge, clear of the control panel.
+    left_shape=left_shape.fuse(box(2,9,3,(66,59,12)))
+    for shape_name,shape,rows in (("left",left_shape,SERVICE_MOUNTS["left_service_carrier"]),
                                   ("right",right_shape,RIGHT_SERVICE_MOUNTS)):
         tools=[hole_z(xx,yy,3.4,z=11,height=5) for xx,yy in rows]
-        tools += [hex_nut(xx,yy,12,True) for xx,yy in rows]
+        tools += [hole_z(xx,yy,6.1,z=SEAT_Z,height=100) for xx,yy in rows]
         if shape_name=="left": left_shape=cut(shape,tools)
         else: right_shape=cut(shape,tools)
     return {"left_service_carrier":left_shape,"right_service_carrier":right_shape}
@@ -161,7 +169,7 @@ def bank_holder():
 
 def switch_shelf():
     points=PARAMS["panel"]
-    shape=box(53.1,42,3,(15.9,15,102))
+    shape=box(53.1,42,3,(15.9,15,102)).fuse(box(49.5,8,3,(19.5,55,102)))
     holes=[]
     for name,(x,y,z) in points.items():
         holes.append(hole_z(x,y,19.4 if name!="white_ptt" else 12.4,z=101,height=6))
@@ -173,12 +181,25 @@ def switch_shelf():
     shape=cut(shape,holes)
     shape=shape.fuse(box(3,48.5,3,(15.9,15,12)))
     for yy in (19.5,56.5):
-        shape=shape.fuse(box(3,7,87,(15.9,yy,12)),cover_post(15.9,yy,99))
+        shape=shape.fuse(box(3,7,87,(15.9,yy,12)))
+    # Rear cover screw sits behind the green switch, clear of the red flange.
+    # The full-width rear shelf carries its post; lower legs/mounts stay fixed.
+    for xx,yy in cover_mounts()["control_cover"]:
+        shape=shape.fuse(cover_post(xx-3.75,yy-3.5,99))
     for xx,yy in ((20,27),(22,60)):
         shape=shape.fuse(box(10.1,7,3,(15.9,yy-3.5,12)))
         shape=cut(shape,[hole_z(xx,yy,3.4,z=11,height=5.5),hex_nut(xx,yy,12,True)])
+    # The rear shelf extension must not obstruct the canonical cassette head
+    # withdrawal path at (67.5,61); retain its continuous 6.1 mm passage.
+    shape=cut(shape,[hole_z(xx,yy,6.1,z=SEAT_Z,height=100)
+                     for xx,yy in SERVICE_MOUNTS["left_service_carrier"]])
+    # Cassette feet are rectangular, wider than their screw-head cylinder.
+    # Open only the upper shelf for their lift path; the corner legs end at Z102.
+    shape=cut(shape,[box(7.2,8.2,9,(max(15.9,xx-3.5)-.1,yy-4.1,102))
+                     for xx,yy in SERVICE_MOUNTS["left_service_carrier"]])
     from chassis import rack_holes
-    return cut(shape,[cylinder(3.6,3,(xx,yy,12)) for xx,yy in rack_holes()])
+    return cut(shape,[tool for xx,yy in rack_holes() for tool in
+               (cylinder(3.6,3,(xx,yy,12)),cylinder(2.1,100,(xx,yy,15)))])
 
 
 @lru_cache
@@ -205,7 +226,9 @@ def covers():
             skirt=cut(skirt,[box(4,3.4,90.2,(15,yy,12)) for yy in (14.8,53.8)]+
                        [box(4,50,69.05,(15,63.45,12))])
         if name=="bank_cover":
-            skirt=skirt.cut(box(4,7.15,62,(15,104.35,12)))
+            # Extend the existing open front window past the cassette foot/head.
+            # 0.25 mm beyond Y115.5 preserves top access without moving a seat.
+            skirt=skirt.cut(box(4,11.4,62,(15,104.35,12)))
         if name=="control_cover":
             skirt=cut(skirt,[box(4,7.4,96,(15,yy-3.7,12)) for yy in (23,60)])
             skirt=skirt.cut(box(4,48.5,3.1,(15,15,12)))
@@ -220,7 +243,7 @@ def covers():
 
 
 def cover_mounts():
-    return {"control_cover":((19.65,23),(19.65,60)),"bank_cover":((51.5,152.5),(51.5,249.5)),
+    return {"control_cover":((19.65,23),(59.65,60)),"bank_cover":((51.5,152.5),(51.5,249.5)),
             "right_front_cover":((411.75,45),(411.75,125)),"right_back_cover":((411.75,160),(411.75,246))}
 
 
@@ -370,6 +393,19 @@ def carrier_shapes():
     bypasses=[cylinder(1.7,4,(xx,yy,12)) for xx in (22,64) for yy in (68,92)]
     bypasses += [cylinder(1.7,4,(xx,yy,12)) for xx,yy in ((20,27),(22,60))]
     result["carrier_speaker_left"]=cut(result["carrier_speaker_left"],bypasses)
+    # Top service screw heads occupy open recesses in the independent speaker
+    # pad. The speaker is released from its two straps for cassette service.
+    result["carrier_speaker_left"]=cut(result["carrier_speaker_left"],
+        [hole_z(xx,yy,6.1,z=15,height=3.1) for xx,yy in SERVICE_MOUNTS['left_service_carrier']])
+    result["carrier_speaker_left"]=cut(result["carrier_speaker_left"],
+        [hole_z(xx,yy,3.4,z=18,height=10) for xx,yy in SERVICE_MOUNTS['left_service_carrier']])
+    # Three rectangular service feet travel vertically through these open
+    # slots, with 0.1 mm CAD clearance per side. No coincident-face projection
+    # booleans are used: those produce unstable OCC same-domain cleanup.
+    foot_access=[box(7.2,8.2,12.2,(max(15.9,xx-3.5)-.1,yy-4.1,14.9))
+                 for xx,yy in SERVICE_MOUNTS['left_service_carrier']]
+    result['carrier_speaker_left']=cut(result['carrier_speaker_left'],foot_access)
+    result['bank_holder']=cut(result['bank_holder'],foot_access)
     reservations=PARAMS.get("connector_reservations",{})
     if "pd_usb" in reservations:
         spec=reservations["pd_usb"]
@@ -386,8 +422,9 @@ def carrier_shapes():
     from chassis import rack_holes
     head_z=PARAMS["frame"]["floor_anchors"]["frame_head_z"]
     head_clearances=[cylinder(3.75,4.25,(x,y,head_z)) for x,y in rack_holes()]
+    driver_passages=[hole_z(x,y,4.2,z=head_z+4,height=105) for x,y in rack_holes()]
     for name in ("carrier_speaker_left","carrier_speaker_right","bank_holder","right_service_carrier"):
-        result[name]=cut(result[name],head_clearances)
+        result[name]=cut(result[name],head_clearances+driver_passages)
     return result
 
 
@@ -443,8 +480,6 @@ def items(with_covers=True,with_bank=True):
     excluded=set(LEFT_STACK+RIGHT_STACK+("camera","microphone"))
     mounts=[(f"{name}_{j+1}",xx,yy) for name in COMPONENTS if name not in excluded
             for j,(xx,yy) in enumerate(mount_positions(name))]
-    mounts += [(f"left_service_{j+1}",xx,yy) for j,(xx,yy) in enumerate(( (xx,yy) for xx in (22,64) for yy in (68,92)))]
-    mounts += [(f"right_service_{j+1}",xx,yy) for j,(xx,yy) in enumerate(RIGHT_SERVICE_MOUNTS)]
     mounts += [(f"switch_shelf_{j+1}",xx,yy) for j,(xx,yy) in enumerate(((20,27),(22,60)))]
     mounts += [(f"coil_cradle_{j+1}",xx,yy) for j,(xx,yy) in enumerate(((54,170),(62,240)))]
     mounts += [(f"capacitor_holder_{j+3}",xx,yy) for j,(xx,yy,zz) in enumerate(PARAMS["capacitors"][2:])]
@@ -452,6 +487,12 @@ def items(with_covers=True,with_bank=True):
         result += [Item(f"carrier_shaft_{name}",cylinder(1.5,8,(x,y,8)),"fastener","metal","M3x8, fit carrier before purchased item"),
                    Item(f"carrier_head_{name}",cylinder(2.85,1.65,(x,y,6.35)),"hardware","metal","M3 ISO7380; underside head clears 5 mm brace"),
                    Item(f"carrier_nut_{name}",hex_nut(x,y,12),"hardware","metal","Captive M3 hex nut in 6.7 mm corner pocket")]
+    for cassette,rows in SERVICE_MOUNTS.items():
+        for j,(x,y) in enumerate(rows,1):
+            name=f"{cassette.removesuffix('_carrier')}_{j}"
+            result += [Item(f"carrier_shaft_{name}",cylinder(1.5,8,(x,y,SEAT_Z-8)),"fastener","metal","M3x8; top service screw; narrow hex shaft, handle above rim"),
+                       Item(f"carrier_head_{name}",cylinder(HEAD_RADIUS,1.65,(x,y,SEAT_Z)),"hardware","metal"),
+                       Item(f"carrier_nut_{name}",hex_nut(x,y,NUT_Z),"hardware","metal","Deck captive nut; fit from underside on bench before case installation")]
     if with_covers:
         result += [Item(n,s,"cover","cover") for n,s in covers().items()]
         for name,points in cover_mounts().items():

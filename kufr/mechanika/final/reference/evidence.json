@@ -7,11 +7,70 @@
       "document": "mechanika/rozmery-doruceneho-kufru.md",
       "confirmed_on": "2026-10-09",
       "provenance": "Owner confirmed internal dimensions, brace height and fit envelope; outer dimensions attributed by owner to manufacturer",
-      "inside_base_xyz": [431.8, 266.7, 114.3],
+      "inside_base_xyz": [
+        431.8,
+        266.7,
+        114.3
+      ],
       "floor_brace_height": 5.0,
-      "outer_xyz_manufacturer": [450.0, 310.0, 200.0],
-      "owner_confirmed_fit_xyz": [400.0, 240.0, 170.0],
-      "unmeasured": ["wall and floor thickness", "lid partition and hinge geometry", "brace XY extent", "position of fit envelope"]
+      "outer_xyz_manufacturer": [
+        450.0,
+        310.0,
+        200.0
+      ],
+      "owner_confirmed_fit_xyz": [
+        400.0,
+        240.0,
+        170.0
+      ],
+      "unmeasured": [
+        "wall and floor thickness",
+        "lid partition and hinge geometry",
+        "brace XY extent",
+        "position of fit envelope"
+      ],
+      "superseded_on": "2026-10-12",
+      "superseded_fields": [
+        "inside_base_xyz XY",
+        "wall thickness",
+        "brace XY extent"
+      ]
+    },
+    {
+      "document": "mechanika/rozmery-doruceneho-kufru.md",
+      "confirmed_on": "2026-10-12",
+      "provenance": "Owner direct measurements and clarification; private reference photographs are not distributed assets",
+      "clear_rim_rectangle_xy": [
+        430.0,
+        269.0
+      ],
+      "wall_thickness": 5.0,
+      "rim_total_width_including_wall": 20.0,
+      "rim_height_down_front_rear": [
+        40.0,
+        30.0
+      ],
+      "lower_side_tangents_yz": [
+        45.0,
+        45.0
+      ],
+      "floor_brace_width_height": [
+        80.0,
+        5.0
+      ],
+      "floor_brace_placement": "centered across the full 430 mm width",
+      "cad_interpolation": "circular R45 between measured tangents",
+      "derived_outer_xy": [
+        440.0,
+        309.0
+      ],
+      "unmeasured": [
+        "exact curve between tangents",
+        "floor thickness",
+        "lid profile/partition",
+        "hinge axis and hardware",
+        "actual floor-anchor contact and strength"
+      ]
     },
     {
       "document": "mechanika/rozmery-hulek.md",
@@ -19,7 +78,12 @@
       "provenance": "Owner confirmation includes optional wand case",
       "maximum_total_length": 200.0,
       "maximum_head_width": 38.0,
-      "unmeasured": ["head height and length", "shaft diameter", "mass", "actual tray fit"]
+      "unmeasured": [
+        "head height and length",
+        "shaft diameter",
+        "mass",
+        "actual tray fit"
+      ]
     }
   ]
 }

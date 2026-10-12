@@ -1,11 +1,12 @@
 """Existing case references and removable transport restraints, no new case holes."""
 from geometry import PARAMS, Item,box,fuse,cylinder
-from chassis import X,Y,C,HINGE,lid_position
+from chassis import X,Y,C,HINGE,lid_position,case_floor_space
 from mechanism import M,cam_law
 
 
 def hardware(lid_angle=105,transport=False):
-    result=[] if transport else [Item("lid_lining",lid_position(box(X-16,Y-16,.8,(8,8,6)),lid_angle),"lid_fabric","cover","Removable non-load-bearing textile; no electronics in lid")]
+    lining=box(X-16,Y-16,60,(8,8,0)).intersect(case_floor_space(6)).cut(case_floor_space(6.8))
+    result=[] if transport else [Item("lid_lining",lid_position(lining,lid_angle),"lid_fabric","cover","Removable non-load-bearing textile follows the reference curved lid; no electronics in lid")]
     if transport:
         top=M["origin_z"]+M["cam_z"]+cam_law(0)[0]+M["follower_drop"]+3
         for i in range(M["count"]):

@@ -36,3 +36,42 @@ a{color:var(--aw-brass)}button,input,select{font:inherit}button,a.download-packa
   .view-controls button{padding:6px 8px}
   .motion-notes{gap:8px}.motion-notes #service-reset{flex:none}
 }
+
+/* Mobile-first workspace: the model owns the screen; tools open on demand. */
+body.aw-workshop{min-height:0;padding-top:env(safe-area-inset-top)}
+#workspace{position:relative;flex:1;min-height:0}
+.compact-dock{display:flex;justify-content:center;align-items:center;gap:8px;flex:none;z-index:10;background:var(--aw-surface);border-top:1px solid var(--aw-border);padding:8px max(12px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+.compact-dock>button{min-width:80px}.compact-dock #assembly-controls{position:static;border:0;padding:0;flex-wrap:nowrap;background:transparent;gap:8px}.compact-dock #assembly-controls button{font-size:12px;white-space:nowrap}
+.camera-menu{position:absolute;bottom:46px;left:16px;z-index:4;border:1px solid var(--aw-border);background:var(--aw-surface);border-radius:var(--aw-radius-control);max-width:calc(100% - 32px)}
+.camera-menu>summary{padding:10px 14px;font-weight:500;font-size:12px;min-width:var(--aw-touch)}
+.camera-menu .view-controls{position:static;left:auto;right:auto;bottom:auto;transform:none;max-width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));padding:8px;border:0;box-shadow:none;overflow:visible;gap:8px}
+.camera-menu .view-controls button{font-size:12px;white-space:normal}.inspect-button{position:absolute;right:16px;bottom:46px;z-index:3;font-size:12px}
+.selection-bar{position:absolute;top:44px;left:12px;right:12px;z-index:3;display:flex;align-items:center;gap:8px;background:var(--aw-surface);border:1px solid var(--aw-brass);border-radius:var(--aw-radius-control);padding:4px 8px}
+.selection-bar strong{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}.selection-bar button{font-size:12px}
+#inspect-hint{top:100px;max-height:50px;overflow:hidden}.guide-sheet{position:absolute;right:16px;top:12px;bottom:12px;width:min(390px,45%);z-index:8;background:var(--aw-surface);border:1px solid var(--aw-border);border-radius:var(--aw-radius-card);box-shadow:0 12px 40px #0006;display:flex;flex-direction:column;overflow:hidden}
+.guide-sheet:not([data-open=true]){display:none}.guide-heading{display:flex;gap:8px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--aw-border)}.guide-heading strong{flex:1;min-width:0;font:500 17px var(--aw-font-display)}.guide-content{overflow:auto;padding:16px;min-height:0;overscroll-behavior:contain;font-size:13px}.guide-content p{white-space:pre-line;overflow-wrap:anywhere}.guide-content select{display:block;width:100%;margin:8px 0}.guide-content progress{display:block;width:100%;height:8px;accent-color:var(--aw-brass);margin:16px 0}.guide-actions{display:flex;flex-wrap:wrap;gap:8px}.guide-actions button{flex:1}.guide-content #assembly-check{border-left:2px solid var(--aw-success);padding-left:12px;color:var(--aw-ivory)}
+.motion-panel{position:absolute;bottom:76px;left:16px;right:16px;z-index:9;max-height:50dvh;overflow:auto;border:1px solid var(--aw-border);border-radius:var(--aw-radius-card);padding:16px}.motion-panel:not([data-open=true]){display:none}#motion-close{margin-left:auto;font-size:12px}.motion-heading #timeline-time{margin-left:0}.motion-panel .motion-controls{font-size:12px}.motion-panel #effect-status{font-size:12px;max-height:none}.motion-panel .timeline-phase{height:var(--aw-touch);font-size:10px}.motion-panel #service-reset{font-size:12px;max-width:none}
+#view:focus-visible{outline:3px solid var(--aw-info);outline-offset:-3px}
+@media(min-width:901px){#explorer-toggle,#inspector-toggle{display:none}#sidebar,#inspector-rail{position:static;width:auto;max-height:none}#workspace:has(.guide-sheet[data-open=true]){grid-template-columns:240px minmax(0,1fr) 390px}#workspace:has(.guide-sheet[data-open=true]) #inspector-rail{visibility:hidden}.guide-sheet{right:0;top:0;bottom:0;width:390px;border-radius:0}}
+@media(max-width:900px){
+  .workshop-header{min-height:56px;padding:6px 12px;gap:12px}.brand{font-size:12px;gap:6px}.brand small{display:none}.brand-mark{font-size:24px}.project-heading{padding-left:12px}h1{font-size:16px}.project-heading .eyebrow{font-size:8px;margin-bottom:3px}.download-package{margin-left:auto;font-size:18px!important;padding:4px!important}.download-package span{display:none}
+  .workshop-toolbar{min-height:48px;padding:4px 8px;flex-wrap:nowrap}.mode-tabs{width:auto;flex:1;order:0;gap:4px}.mode-tabs button{flex:1;font-size:11px;padding:6px;white-space:nowrap}.toolbar-caption{display:none}
+  #workspace{display:block}#scene{width:100%;height:100%;transition:none}
+  #sidebar,#inspector-rail,.guide-sheet{display:none;position:absolute;top:auto;left:8px;right:8px;bottom:8px;width:auto;max-height:none;height:43%;border:1px solid var(--aw-border);border-radius:var(--aw-radius-card);z-index:8;box-shadow:0 8px 28px #0005;overflow:hidden}
+  #sidebar[data-open=true],#inspector-rail[data-open=true],.guide-sheet[data-open=true]{display:flex;flex-direction:column}#sidebar .panel-content,#inspector-rail .panel-content{overflow:auto;min-height:0;overscroll-behavior:contain}
+  #workspace:has(#sidebar[data-open=true]) #scene,#workspace:has(#inspector-rail[data-open=true]) #scene,#workspace:has(.guide-sheet[data-open=true]) #scene{height:55%}
+  #explorer-close,#inspector-close{display:block;font-size:12px}.panel-heading{padding:8px 12px}.panel-content{padding:12px}.guide-heading{padding:8px 12px}.guide-heading strong{font-size:15px}.guide-content{padding:12px;font-size:13px}
+  .compact-dock{gap:6px;padding-left:max(8px,env(safe-area-inset-left));padding-right:max(8px,env(safe-area-inset-right))}.compact-dock>button{min-width:var(--aw-touch);flex:1;padding:6px 8px;font-size:12px}.compact-dock #assembly-controls{flex:3;min-width:0;gap:4px}.compact-dock #assembly-controls #guide-toggle{flex:1;min-width:0;font-size:11px;padding:6px 4px}.compact-dock #assembly-controls>button{padding:6px;min-width:var(--aw-touch)}
+  .viewport-heading{top:12px;left:12px;right:12px}.viewport-heading .eyebrow{font-size:8px}.viewport-unit{display:none}.viewport-bottom{left:8px;right:8px;bottom:8px}.viewport-bottom>span:first-child{display:none}.cad-stamp{font-size:8px;margin:auto}.camera-menu{left:8px;bottom:28px}.inspect-button{right:8px;bottom:28px;font-size:11px}.selection-bar{top:29px;padding:3px 6px}.selection-bar strong{font-size:11px}.selection-bar button{font-size:11px;padding:4px 6px}.selection-bar button#selection-details{display:none}#inspect-hint{display:none}
+  .motion-panel{left:8px;right:8px;bottom:calc(68px + env(safe-area-inset-bottom));max-height:43dvh;padding:12px}.motion-panel .motion-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.motion-panel .sequence-actions{grid-column:1/-1}.motion-panel .motion-controls>label{min-width:0;font-size:12px}.motion-panel .motion-controls select{width:auto}.motion-panel .timeline-phase{font-size:8px}.motion-panel .motion-heading{flex-wrap:wrap}.motion-panel .motion-notes{flex-wrap:wrap}.motion-panel #effect-status{font-size:11px}
+}
+@media(max-width:380px){.brand{font-size:10px}.brand-mark{display:none}.project-heading{padding-left:8px}.workshop-header{gap:8px}.compact-dock #assembly-controls #guide-toggle{font-size:10px}.compact-dock>button{font-size:11px;padding:5px}.selection-bar #selection-focus{padding:4px;font-size:10px}}
+@media(max-height:520px) and (max-width:900px){
+  .workshop-header{display:none}.workshop-toolbar{min-height:48px}.compact-dock{padding-top:4px;padding-bottom:max(4px,env(safe-area-inset-bottom))}
+  #sidebar,#inspector-rail,.guide-sheet{left:auto;right:8px;top:8px;bottom:8px;height:auto;width:42%;max-width:380px}
+  #workspace:has(#sidebar[data-open=true]) #scene,#workspace:has(#inspector-rail[data-open=true]) #scene,#workspace:has(.guide-sheet[data-open=true]) #scene{height:100%;width:56%}
+  .motion-panel{max-height:calc(100dvh - 116px);bottom:60px}.guide-heading strong{font-size:13px}.viewport-heading{top:8px}
+}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+
+#dock-effect-stop{color:var(--aw-danger);border-color:var(--aw-danger)}

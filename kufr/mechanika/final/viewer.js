@@ -52,6 +52,35 @@ function saveColors() {
   el('storage-status').textContent = storageMessage;
 }
 
+// The exported payload shares positions; the GPU still gets one flat normal per facet.
+function uploadGeometry(mesh) {
+  if (mesh.vertices === undefined && mesh.triangles === undefined) return new Float32Array(mesh.data);
+  const vertices = mesh.vertices, triangles = mesh.triangles;
+  if (!Array.isArray(vertices) || !Array.isArray(triangles) || vertices.length % 3 || triangles.length % 3 || !vertices.every(Number.isFinite)) {
+    throw new Error('Neplatná indexovaná geometrie: '+mesh.name);
+  }
+  const vertexCount = vertices.length/3;
+  if (!triangles.every(index=>Number.isInteger(index) && index >= 0 && index < vertexCount)) {
+    throw new Error('Neplatný index trojúhelníku: '+mesh.name);
+  }
+  const packed = new Float32Array(triangles.length*6);
+  let written = 0;
+  for (let face=0; face<triangles.length; face+=3) {
+    const a = triangles[face]*3, b = triangles[face+1]*3, c = triangles[face+2]*3;
+    const ux = vertices[b]-vertices[a], uy = vertices[b+1]-vertices[a+1], uz = vertices[b+2]-vertices[a+2];
+    const vx = vertices[c]-vertices[a], vy = vertices[c+1]-vertices[a+1], vz = vertices[c+2]-vertices[a+2];
+    const nx = uy*vz-uz*vy, ny = uz*vx-ux*vz, nz = ux*vy-uy*vx;
+    const length = Math.hypot(nx,ny,nz);
+    // Match the generator's facet rejection; repeated/collinear points never make NaN normals.
+    if (!Number.isFinite(length) || length < 1e-12) continue;
+    for (const position of [a,b,c]) {
+      packed[written++] = vertices[position]; packed[written++] = vertices[position+1]; packed[written++] = vertices[position+2];
+      packed[written++] = nx/length; packed[written++] = ny/length; packed[written++] = nz/length;
+    }
+  }
+  return packed.subarray(0,written);
+}
+
 const meshesByName = new Map();
 const treeButtons = new Map();
 for (const [index, mesh] of model.meshes.entries()) {
@@ -61,9 +90,10 @@ for (const [index, mesh] of model.meshes.entries()) {
   mesh.center = [0, 1, 2].map(i => (mesh.bounds[i] + mesh.bounds[i + 3]) / 2);
   mesh.buffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mesh.data), gl.STATIC_DRAW);
-  mesh.count = mesh.data.length / 6;
-  delete mesh.data;
+  const geometry = uploadGeometry(mesh);
+  gl.bufferData(gl.ARRAY_BUFFER, geometry, gl.STATIC_DRAW);
+  mesh.count = geometry.length / 6;
+  delete mesh.data; delete mesh.vertices; delete mesh.triangles;
   meshesByName.set(mesh.name, mesh);
 }
 
@@ -83,7 +113,7 @@ function look(eye,target) {
   return [x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-dot(x,eye),-dot(y,eye),-dot(z,eye),1];
 }
 function perspective(aspect) {
-  const f = 1/Math.tan(.6/2), near = 1, far = 4000;
+  const f = 1/Math.tan(.6/2), near = Math.max(.5,distance*.001), far = Math.max(4000,distance+modelScale*4);
   return [f/aspect,0,0,0,0,f,0,0,0,0,(far+near)/(near-far),-1,0,0,2*far*near/(near-far),0];
 }
 function lift(a) {
@@ -100,8 +130,38 @@ const hiddenMeshes = new Set(), hiddenGroups = new Set();
 const assemblyGuide = model.assemblyGuide || {steps:[]};
 let mode = 'operation', assemblyIndex = -1, isolateName = null;
 let yaw = -1.05, pitch = .66, distance = 1050, drag = null;
-let automaticFit = true;
-let cameraTarget = [(model.case?.inside_x || 431.8)/2,(model.case?.inside_y || 266.7)/2,65];
+let automaticFit = true, visualMode = 'complete';
+let cameraTransition = null;
+const activePointers = new Map();
+let gesture = null, gestureWasMulti = false;
+const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+const modelBounds = [0,1,2].map(axis => [Math.min(...model.meshes.map(mesh=>mesh.bounds[axis])),Math.max(...model.meshes.map(mesh=>mesh.bounds[axis+3]))]);
+const modelScale = Math.max(100,...modelBounds.map(([low,high])=>high-low));
+const modelPivot = modelBounds.map(([low,high])=>(low+high)/2);
+function boundDistance(value) { return Math.max(25,Math.min(modelScale*16,value)); }
+function boundTarget(target) { return target.map((value,axis)=>Math.max(modelBounds[axis][0]-modelScale*.6,Math.min(modelBounds[axis][1]+modelScale*.6,value))); }
+function currentStep() { return assemblyGuide.steps[assemblyIndex]; }
+function assemblyPartState(mesh) {
+  if ((currentStep()?.preparedParts || []).some(part=>matchesPart(mesh.name,part))) return 'prepared';
+  if (newlyInstalled(mesh)) return 'current';
+  if (isBenchStep() && benchPreviewPatterns().some(part=>matchesPart(mesh.name,part))) return 'prepared';
+  if (installedParts().some(part=>matchesPart(mesh.name,part))) return 'installed';
+  const next = assemblyGuide.steps[assemblyIndex+1];
+  if ([...(next?.parts || []),...(next?.preparedParts || [])].some(part=>matchesPart(mesh.name,part))) return 'next';
+  return 'future';
+}
+function isBenchStep() { return mode === 'assembly' && currentStep()?.installation?.kind === 'bench'; }
+function currentPartPatterns(step = currentStep()) { return [...(step?.parts || []),...(step?.preparedParts || [])]; }
+function casePartPatterns(step) { return step?.caseParts ?? step?.parts ?? []; }
+function benchPreviewPatterns() {
+  const step = currentStep(), targets = step?.installation?.targets || [];
+  if (Array.isArray(step?.benchParts)) return step.benchParts;
+  const active = [...currentPartPatterns(step),...targets];
+  // Wiring-only bench work adds no geometry; retain the preassembled deck for context.
+  return active.length ? active : installedParts();
+}
+
+let cameraTarget = [(model.case?.inside_x || 430)/2,(model.case?.inside_y || 269)/2,65];
 let dragDistance = 0;
 let shiftDown = false, inspectEnabled = false, hovered = null, pinned = null, pointer = null;
 let projection, view, frameRequested = false;
@@ -113,11 +173,16 @@ function inspecting() { return shiftDown || inspectEnabled; }
 function matchesPart(name, part) {
   return name === part || name.startsWith(part.endsWith('*') ? part.slice(0,-1) : part.endsWith('_') ? part : part + '_');
 }
-function installedParts() { return assemblyGuide.steps.slice(0,assemblyIndex+1).flatMap(step => step.parts || []); }
+function installedParts() { return assemblyGuide.steps.slice(0,assemblyIndex+1).flatMap(casePartPatterns); }
 function newlyInstalled(mesh) {
-  return mode === 'assembly' && assemblyGuide.steps[assemblyIndex]?.parts.some(part => matchesPart(mesh.name,part));
+  const patterns = isBenchStep() ? currentPartPatterns() : casePartPatterns(currentStep());
+  return mode === 'assembly' && patterns.some(part => matchesPart(mesh.name,part));
 }
 function visible(mesh) {
+  if (isBenchStep() && !benchPreviewPatterns().some(part=>matchesPart(mesh.name,part))) return false;
+  if (visualMode === 'structure' && ['hardware','moving_hw','wand','textile','fabric','lid_fabric','cover'].includes(mesh.group)) return false;
+  if (visualMode === 'electronics' && !['hardware','moving_hw','case','lid','fixed'].includes(mesh.group)) return false;
+  if (visualMode === 'cutaway' && ['case','cover'].includes(mesh.group)) return false;
   if (hiddenMeshes.has(mesh.name) || hiddenGroups.has(mesh.group)) return false;
   if (isolateName && mesh.name !== isolateName) return false;
   if (mesh.transportOnly && mode !== 'transport') return false;
@@ -129,6 +194,7 @@ function visible(mesh) {
   if (mesh.group === 'case' && !el('case').checked) return false;
   if (mesh.name.startsWith('tray_') && !el('beds').checked) return false;
   if (['hardware', 'moving_hw'].includes(mesh.group) && !el('hardware').checked) return false;
+  if (isBenchStep()) return true;
   if (mode === 'assembly' && !['case','lid','lid_hardware'].includes(mesh.group)) {
     return installedParts().some(part => matchesPart(mesh.name,part));
   }
@@ -195,8 +261,9 @@ function renderMeshes(picking, selected) {
     const id = mesh.pickId;
     const ledIndex = +(mesh.name.match(/^led_([1-6])$/)?.[1] || 0);
     const effectColor = ledIndex && lightStates[ledIndex-1];
-    const translucent = !picking && ['case','lid'].includes(mesh.group) && +el('case-opacity').value < 1;
-    gl.uniform1f(loc.opacity,translucent ? +el('case-opacity').value : 1);
+    const contextOpacity = visualMode === 'electronics' && !['hardware','moving_hw'].includes(mesh.group) ? .12 : ['case','lid'].includes(mesh.group) ? +el('case-opacity').value : 1;
+    const translucent = !picking && contextOpacity < 1;
+    gl.uniform1f(loc.opacity,translucent ? contextOpacity : 1);
     if (translucent) { gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); }
     else { gl.disable(gl.BLEND); gl.depthMask(true); }
     gl.uniform3fv(loc.color, picking ? [(id & 255)/255, ((id >> 8) & 255)/255, ((id >> 16) & 255)/255] : effectColor || mesh.color);
@@ -421,6 +488,7 @@ function updatePanel(mesh) {
   el('inspector').style.pointerEvents = pinned || !mesh ? 'auto' : 'none';
   el('object-details').hidden = !mesh;
   el('unpin').hidden = !pinned;
+  el('hide-object').textContent = mesh && hiddenMeshes.has(mesh.name) ? 'Zobrazit' : 'Skrýt';
   if (displayedMesh === mesh) return;
   if (pinned && mesh) setWorkshopPanel('inspector', true);
   displayedMesh = mesh;
@@ -432,7 +500,14 @@ function updatePanel(mesh) {
   el('description').textContent = mesh.info.description;
   el('details').replaceChildren();
   const size = [0,1,2].map(i => (mesh.bounds[i+3]-mesh.bounds[i]).toFixed(1)).join(' × ');
-  for (const detail of [...mesh.info.details, `Obálka v CAD (osy X × Y × Z): ${size} mm.`, `Zdroj modelu: ${mesh.info.source}`]) {
+  const subassembly = (assemblyGuide.subassemblies || []).find(group=>(group.parts || []).some(part=>matchesPart(mesh.name,part)));
+  const steps = assemblyGuide.steps.filter(step=>currentPartPatterns(step).some(part=>matchesPart(mesh.name,part)));
+  const installationDetails = [
+    `Poloha v CAD X / Y / Z: ${mesh.center.map(value=>value.toFixed(1)).join(' / ')} mm.`,
+    ...(subassembly ? [`Podsestava: ${subassembly.title}. ${subassembly.function || ''}`,`Montáž: ${subassembly.installation || 'Viz montážní průvodce.'}`,`Servis: ${subassembly.removal || 'Viz montážní průvodce.'}`] : []),
+    ...(steps.length ? ['Montážní kroky: '+steps.map(step=>step.title).join('; ')] : []),
+  ];
+  for (const detail of [...mesh.info.details,...installationDetails, `Obálka v CAD (osy X × Y × Z): ${size} mm.`, `Zdroj modelu: ${mesh.info.source}`]) {
     const li = document.createElement('li'); li.textContent = detail; el('details').append(li);
   }
   el('color').value = colorHex(mesh.color);
@@ -478,11 +553,12 @@ function updateOverlay(selected) {
   drawOrientation();
 }
 function draw() {
-  const ratio = devicePixelRatio || 1;
+  const ratio = Math.min(2,devicePixelRatio || 1);
   const w = Math.max(1,Math.round(canvas.clientWidth*ratio)), h = Math.max(1,Math.round(canvas.clientHeight*ratio));
   if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
   gl.viewport(0,0,w,h); gl.enable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE); gl.disable(gl.BLEND);
   if (automaticFit) fitScene();
+  advanceCamera();
   const target = cameraTarget, fitDistance = distance;
   const eye = [target[0]+fitDistance*Math.cos(pitch)*Math.cos(yaw),target[1]+fitDistance*Math.cos(pitch)*Math.sin(yaw),target[2]+fitDistance*Math.sin(pitch)];
   projection = perspective(w/h); view = look(eye,target);
@@ -501,6 +577,9 @@ function draw() {
   updatePanel(selected);
   updateWireDetails();
   updateOverlay(selected);
+  el('selection-bar').hidden = !pinned;
+  el('selection-title').textContent = pinned?.info?.title || pinned?.name || '';
+  if (cameraTransition) requestDraw();
 }
 function requestDraw() {
   if (frameRequested) return;
@@ -508,48 +587,91 @@ function requestDraw() {
   requestAnimationFrame(() => { frameRequested = false; draw(); });
 }
 function layersChanged() { displayedMesh = undefined; updateObjectOptions(); requestDraw(); }
+function selectAtPointer(openDetails = false) {
+  draw();
+  const hit = inspecting() ? wireHit() : null;
+  selectedWire = hit?.route || ''; selectedEndpoint = hit?.endpoint || '';
+  pinned = hit ? null : pick();
+  el('wire').value = selectedWire; el('endpoint').value = selectedEndpoint;
+  displayedMesh = undefined; updateWireDetails();
+  if (openDetails && pinned) setWorkshopPanel('inspector',true);
+  requestDraw();
+}
+function gestureSnapshot() {
+  const points = [...activePointers.values()];
+  if (!points.length) return null;
+  if (points.length === 1) return {x:points[0].x,y:points[0].y,span:0,pan:points[0].button === 2};
+  const [a,b] = points;
+  return {x:(a.x+b.x)/2,y:(a.y+b.y)/2,span:Math.hypot(a.x-b.x,a.y-b.y),pan:true};
+}
+function panCamera(dx,dy) {
+  const forward = [Math.cos(pitch)*Math.cos(yaw),Math.cos(pitch)*Math.sin(yaw),Math.sin(pitch)];
+  const right = norm(cross([0,0,1],forward)), up = cross(forward,right);
+  const units = 2*distance*Math.tan(.3)/Math.max(1,canvas.clientHeight);
+  cameraTarget = boundTarget(cameraTarget.map((value,axis)=>value+(-dx*right[axis]+dy*up[axis])*units));
+}
 canvas.addEventListener('pointerdown', event => {
-  event.preventDefault(); // Shift inspection must not extend browser text selection.
-  pointer = [event.clientX,event.clientY];
-  if (inspecting()) {
-    draw();
-    const hit = wireHit();
-    selectedWire = hit?.route || ''; selectedEndpoint = hit?.endpoint || '';
-    pinned = hit ? null : hovered;
-    el('wire').value = selectedWire; el('endpoint').value = selectedEndpoint;
-    displayedMesh = undefined; updateWireDetails(); requestDraw();
-    return;
-  }
-  drag = [event.clientX,event.clientY]; dragDistance = 0; canvas.setPointerCapture(event.pointerId);
+  event.preventDefault(); pointer = [event.clientX,event.clientY];
+  // Desktop Shift picking stays immediate; touch selection waits until a tap is known.
+  if (inspecting() && event.pointerType !== 'touch' && event.button !== 2) { selectAtPointer(); return; }
+  cameraTransition = null;
+  activePointers.set(event.pointerId,{x:event.clientX,y:event.clientY,button:event.button || 0});
+  gestureWasMulti = gestureWasMulti || activePointers.size > 1;
+  gesture = gestureSnapshot(); drag = [gesture.x,gesture.y]; dragDistance = 0;
+  canvas.setPointerCapture(event.pointerId);
 });
-function endDrag() { drag = null; requestDraw(); }
+function endDrag(event) {
+  if (event?.pointerId !== undefined) activePointers.delete(event.pointerId); else activePointers.clear();
+  gesture = gestureSnapshot(); drag = gesture ? [gesture.x,gesture.y] : null;
+  if (!drag) { gestureWasMulti = false; pointer = null; }
+  requestDraw();
+}
 canvas.addEventListener('pointerup', event => {
-  if (drag && dragDistance < 4 && pinned) {
-    pointer = [event.clientX,event.clientY];
-    draw();
-    if (!pick()) pinned = null;
+  if (drag && dragDistance < 4 && !gestureWasMulti && event.button !== 2) {
+    pointer = [event.clientX,event.clientY]; selectAtPointer(event.pointerType === 'touch');
   }
-  endDrag();
+  endDrag(event);
 });
 canvas.addEventListener('pointercancel', endDrag);
 canvas.addEventListener('lostpointercapture', endDrag);
 canvas.addEventListener('pointermove', event => {
-  pointer = [event.clientX,event.clientY];
-  // Recover a missed key-up after a native color dialog or switching windows.
-  shiftDown = event.shiftKey;
-  if (drag) {
-    dragDistance += Math.hypot(event.clientX-drag[0],event.clientY-drag[1]);
-    yaw -= (event.clientX-drag[0])*.006;
-    pitch = Math.max(.07,Math.min(1.5,pitch+(event.clientY-drag[1])*.006));
-    drag = [event.clientX,event.clientY];
+  pointer = [event.clientX,event.clientY]; shiftDown = !!event.shiftKey;
+  const pointerId = event.pointerId ?? (activePointers.size === 1 ? [...activePointers.keys()][0] : undefined);
+  if (drag && activePointers.has(pointerId)) {
+    event.preventDefault(); cameraTransition = null; automaticFit = false;
+    const previous = activePointers.get(pointerId);
+    activePointers.set(pointerId,{...previous,x:event.clientX,y:event.clientY});
+    const next = gestureSnapshot(), dx = next.x-gesture.x, dy = next.y-gesture.y;
+    dragDistance += Math.hypot(dx,dy);
+    if (next.pan) {
+      panCamera(dx,dy);
+      if (next.span > 2 && gesture.span > 2) distance = boundDistance(distance*gesture.span/next.span);
+    } else {
+      yaw -= dx*.006; pitch = Math.max(.01,Math.min(Math.PI/2-.001,pitch+dy*.006));
+    }
+    gesture = next; drag = [next.x,next.y];
   }
   requestDraw();
 });
-canvas.addEventListener('pointerleave', () => { pointer = null; requestDraw(); });
+canvas.addEventListener('pointerleave', () => { if (!drag) pointer = null; requestDraw(); });
+canvas.addEventListener('contextmenu', event=>event.preventDefault());
 canvas.addEventListener('wheel', event => {
-  event.preventDefault(); automaticFit = false;
-  distance = Math.max(75,Math.min(8000,distance*Math.exp(event.deltaY*.001))); requestDraw();
+  event.preventDefault(); automaticFit = false; cameraTransition = null;
+  distance = boundDistance(distance*Math.exp(Math.max(-200,Math.min(200,event.deltaY))*.001)); requestDraw();
 }, {passive:false});
+canvas.addEventListener('keydown',event=>{
+  if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','+','=','-','Home'].includes(event.key)) return;
+  event.preventDefault(); cameraTransition = null;
+  if (event.key === 'Home') { resetView(); return; }
+  automaticFit = false;
+  if (event.key === 'ArrowLeft') yaw += .1;
+  if (event.key === 'ArrowRight') yaw -= .1;
+  if (event.key === 'ArrowUp') pitch = Math.min(Math.PI/2-.001,pitch+.1);
+  if (event.key === 'ArrowDown') pitch = Math.max(.01,pitch-.1);
+  if (['+','='].includes(event.key)) distance = boundDistance(distance*.85);
+  if (event.key === '-') distance = boundDistance(distance/ .85);
+  requestDraw();
+});
 el('inspector').addEventListener('pointerenter', () => {
   if (!pinned) return;
   pointer = null; requestDraw();
@@ -567,6 +689,8 @@ function setWorkshopPanel(name, open) {
   const toggle = el(name+'-toggle');
   toggle.setAttribute('aria-expanded', String(open));
   if (open) {
+    if (mode === 'assembly') setGuideOpen(false);
+    setMotionOpen(false);
     const other = name === 'explorer' ? 'inspector' : 'explorer';
     const otherPanel = el(other === 'explorer' ? 'sidebar' : 'inspector-rail');
     const focusWasInOther = otherPanel.contains(activeElement);
@@ -592,12 +716,12 @@ el('workshop-home').setAttribute('href', localViewer ? './reference-sources.html
 if (localViewer) el('workshop-home').setAttribute('aria-label', 'Zdrojové podklady offline balíčku F2');
 document.addEventListener('keydown', event => {
   if (event.key === 'Shift' && !shiftDown) { shiftDown = true; requestDraw(); }
-  if (event.key === 'Escape') { closeInspect(); setWorkshopPanel('explorer', false); setWorkshopPanel('inspector', false); }
+  if (event.key === 'Escape') { closeInspect(); setWorkshopPanel('explorer', false); setWorkshopPanel('inspector', false); setGuideOpen(false); setMotionOpen(false); el('camera-menu').open = false; }
 });
 document.addEventListener('keyup', event => {
   if (event.key === 'Shift') { shiftDown = false; inspectEnabled = false; requestDraw(); }
 });
-window.addEventListener('blur', () => { shiftDown = false; drag = null; pointer = null; requestDraw(); });
+window.addEventListener('blur', () => { shiftDown = false; endDrag(); });
 el('inspect').onclick = () => { inspectEnabled = !inspectEnabled; if (!inspectEnabled) pinned = null; requestDraw(); };
 el('close-inspect').onclick = closeInspect;
 el('unpin').onclick = () => { pinned = null; pointer = null; clearWireSelection(); requestDraw(); };
@@ -629,11 +753,16 @@ el('closed').onclick = () => setMode('transport');
 el('assembly-mode').onclick = () => setMode('assembly');
 el('mode').onchange = () => setMode(el('mode').value);
 for (const id of ['wands','bank','textile','wires','dimensions','case-opacity']) el(id).oninput = layersChanged;
-for (const name of ['top','front','side','overview']) el('view-'+name).onclick = () => setView(name);
+for (const name of ['top','front','back','left','side','overview']) el('view-'+name).onclick = () => setView(name);
 el('view-reset').onclick = resetView;
-el('hide-object').onclick = () => { if (pinned) hiddenMeshes.add(pinned.name); layersChanged(); };
+el('view-fit').onclick = () => { isolateName = null; resetView(); };
+el('visual-mode').onchange = () => { visualMode = el('visual-mode').value; resetView(); layersChanged(); };
+el('selection-focus').onclick = () => { if (pinned) zoomObject(pinned); };
+el('selection-details').onclick = () => setWorkshopPanel('inspector',true);
+el('selection-clear').onclick = () => { pinned = null; clearWireSelection(); requestDraw(); };
+el('hide-object').onclick = () => { if (pinned) hiddenMeshes.has(pinned.name) ? hiddenMeshes.delete(pinned.name) : hiddenMeshes.add(pinned.name); layersChanged(); };
 el('isolate-object').onclick = () => { isolateName = pinned?.name || null; layersChanged(); };
-el('show-all').onclick = () => { hiddenMeshes.clear(); hiddenGroups.clear(); isolateName = null; buildTree(); layersChanged(); };
+el('show-all').onclick = () => { hiddenMeshes.clear(); hiddenGroups.clear(); isolateName = null; visualMode = 'complete'; el('visual-mode').value = 'complete'; resetView(); buildTree(); layersChanged(); };
 el('zoom-object').onclick = () => { if (pinned) zoomObject(pinned); };
 el('wire').onchange = () => {
   pinned = null; hovered = null; hoveredConnection = null; pointer = null;
@@ -652,6 +781,7 @@ el('assembly-restart').onclick = () => { setMode('assembly'); };
 el('play-main').onclick = () => startEffect('main');
 el('play-short').onclick = () => startEffect('short');
 el('effect-stop').onclick = stopEffect;
+el('dock-effect-stop').onclick = stopEffect;
 el('service-reset').onclick = () => {
   if (mode !== 'service') return;
   effect = null; effectFault = false; trayAngles.fill(0); lightStates.fill(null);
@@ -662,18 +792,38 @@ el('service-reset').onclick = () => {
   updateEffectStatus('Servisní reset modelu. Fyzická poloha musí být ručně zkontrolována.'); requestDraw();
 };
 function resetView() {
-  automaticFit = true; setView('overview');
+  cameraTransition = null; automaticFit = true; setView('overview');
 }
 function setView(name) {
-  const views = {top:[-Math.PI/2,Math.PI/2-.001],front:[-Math.PI/2,.01],side:[0,.01],overview:[-1.05,.66]};
-  [yaw,pitch] = views[name] || views.overview; requestDraw();
-  for (const viewName of ['top','front','side','overview']) el('view-'+viewName).setAttribute('aria-pressed',String(viewName === name));
+  cameraTransition = null;
+  const views = {top:[-Math.PI/2,Math.PI/2-.001],front:[-Math.PI/2,.01],back:[Math.PI/2,.01],left:[Math.PI,.01],side:[0,.01],overview:[-1.05,.66],iso:[-1.05,.66]};
+  [yaw,pitch] = views[name] || views.overview;
+  automaticFit = true; el('camera-menu').open = false; requestDraw();
+  for (const viewName of ['top','front','back','left','side','overview']) el('view-'+viewName).setAttribute('aria-pressed',String(viewName === name));
 }
-function zoomObject(mesh) {
+function transitionCamera(target,newDistance) {
   automaticFit = false;
-  cameraTarget = transform(movement(mesh),[...mesh.center,1]).slice(0,3);
-  distance = Math.max(75,Math.max(...[0,1,2].map(i=>mesh.bounds[i+3]-mesh.bounds[i]))*4); requestDraw();
+  const destination = {target:[...target],distance:boundDistance(newDistance)};
+  if (reducedMotion?.matches) { cameraTarget = destination.target; distance = destination.distance; cameraTransition = null; }
+  else cameraTransition = {...destination,from:[...cameraTarget],fromDistance:distance,start:performance.now()};
+  requestDraw();
 }
+function advanceCamera() {
+  if (!cameraTransition) return;
+  const transition = cameraTransition, progress = Math.min(1,(performance.now()-transition.start)/240), eased = 1-(1-progress)**3;
+  cameraTarget = transition.from.map((value,axis)=>value+(transition.target[axis]-value)*eased);
+  distance = transition.fromDistance+(transition.distance-transition.fromDistance)*eased;
+  if (progress === 1) cameraTransition = null;
+}
+function focusMeshes(meshes) {
+  if (!meshes.length) return;
+  const points = meshes.flatMap(mesh=>Array.from({length:8},(_,corner)=>transform(movement(mesh),[...[0,1,2].map(axis=>mesh.bounds[axis+((corner>>axis)&1)*3]),1]).slice(0,3)));
+  const low = [0,1,2].map(axis=>Math.min(...points.map(point=>point[axis]))), high = [0,1,2].map(axis=>Math.max(...points.map(point=>point[axis])));
+  const radius = Math.hypot(...high.map((value,axis)=>(value-low[axis])/2));
+  const angle = Math.atan(Math.tan(.3)*Math.min(1,canvas.clientWidth/Math.max(1,canvas.clientHeight)));
+  transitionCamera(low.map((value,axis)=>(value+high[axis])/2),Math.max(75,radius/Math.sin(angle)*1.2));
+}
+function zoomObject(mesh) { focusMeshes([mesh]); }
 function buildTree() {
   el('tree').replaceChildren();
   treeButtons.clear();
@@ -702,7 +852,10 @@ function setMode(value) {
     value = 'service';
     updateEffectStatus('Poloha po přerušení je neznámá. Před změnou režimu ručně zkontrolujte mechanismus a potvrďte servisní reset; dosažené úhly zůstávají zachované.');
   }
-  mode = value; el('mode').value = value;
+  mode = value; el('mode').value = value; cameraTransition = null; automaticFit = true;
+  visualMode = 'complete'; el('visual-mode').value = 'complete';
+  setMotionOpen(false);
+  if (mode !== 'assembly') setGuideOpen(false);
   for (const [id, target] of [['open','operation'],['service','service'],['closed','transport'],['assembly-mode','assembly']]) {
     el(id).setAttribute('aria-pressed', String(mode === target));
   }
@@ -721,7 +874,7 @@ function setMode(value) {
   el('lift').disabled = transport || mode === 'assembly' || effectFault;
   el('service-reset').disabled = !service;
   el('mode-note').textContent = transport ? 'Ruční přepravní sestava: všech šest pásků, prázdná lůžka, odpojená banka, parkovaný USB kabel. Stav pásků nelze elektronicky potvrdit.' : 'Jde o náhled sestavy. Přepnutí režimu nepohybuje fyzickým mechanismem.';
-  if (mode === 'assembly') assemblyIndex = -1;
+  if (mode === 'assembly') { assemblyIndex = -1; setGuideOpen(true); }
   if (!effectFault) {
     el('effect-phase').textContent = '';
     updateEffectStatus('Časování zdvihu je ilustrační do kalibrace. Lokální poslech tónů není fyzická přejímka.');
@@ -732,18 +885,70 @@ function setMode(value) {
 }
 function materialLabel(id) {
   const material = assemblyGuide.materialCatalog?.[id];
-  return typeof material === 'string' ? material : material?.label || id;
+  return typeof material === 'string' ? material : material?.label || material?.name || id;
 }
+function setGuideOpen(open) {
+  el('assembly-panel').setAttribute('data-open',String(open));
+  if (open) { setWorkshopPanel('explorer',false); setWorkshopPanel('inspector',false); setMotionOpen(false); }
+  el('guide-toggle').setAttribute('aria-expanded',String(open));
+  if (open && el('guide-close').getClientRects().length) el('guide-close').focus({preventScroll:true});
+  if (!open && el('assembly-panel').contains(document.activeElement)) el('guide-toggle').focus({preventScroll:true});
+  requestDraw();
+}
+function setMotionOpen(open) {
+  el('motion-panel').setAttribute('data-open',String(open));
+  if (open) { setWorkshopPanel('explorer',false); setWorkshopPanel('inspector',false); setGuideOpen(false); }
+  el('motion-toggle').setAttribute('aria-expanded',String(open));
+  if (open && el('motion-close').getClientRects().length) el('motion-close').focus({preventScroll:true});
+  if (!open && el('motion-panel').contains(document.activeElement)) el('motion-toggle').focus({preventScroll:true});
+  requestDraw();
+}
+el('guide-toggle').onclick = () => setGuideOpen(el('guide-toggle').getAttribute('aria-expanded') !== 'true');
+el('guide-close').onclick = () => setGuideOpen(false);
+el('motion-toggle').onclick = () => setMotionOpen(el('motion-toggle').getAttribute('aria-expanded') !== 'true');
+el('motion-close').onclick = () => setMotionOpen(false);
+el('assembly-step').onchange = () => jumpAssembly(+el('assembly-step').value);
+el('assembly-focus').onclick = focusAssembly;
+el('assembly-exit').onclick = () => { setMode('operation'); el('assembly-mode').focus({preventScroll:true}); };
+function readableItems(value) { return Array.isArray(value) ? value.join('\n') : value || ''; }
 function updateAssembly() {
-  el('assembly-panel').hidden = mode !== 'assembly';
-  const step = assemblyGuide.steps[assemblyIndex];
-  el('assembly-title').textContent = step ? (assemblyIndex+1)+'/'+assemblyGuide.steps.length+' · '+step.title : 'Montáž od začátku';
-  el('assembly-text').textContent = step?.instruction || (assemblyGuide.steps.length ? 'Pokračujte prvním krokem. Viditelné díly se odvozují z dokončených kroků.' : 'Montážní data nejsou dostupná.');
-  el('assembly-check').textContent = step?.check || '';
-  el('assembly-parts').textContent = step?.partSummary ? 'Díly v tomto kroku:\n'+(Array.isArray(step.partSummary) ? step.partSummary.join('\n') : step.partSummary) : '';
+  const active = mode === 'assembly', step = currentStep(), count = assemblyGuide.steps.length;
+  el('assembly-panel').hidden = !active; el('assembly-controls').hidden = !active;
+  el('motion-toggle').hidden = active;
+  el('assembly-counter').textContent = (assemblyIndex+1)+' / '+count;
+  el('assembly-title').textContent = step ? (assemblyIndex+1)+'/'+count+' · '+step.title : 'Začátek montáže';
+  el('assembly-progress').max = Math.max(1,count); el('assembly-progress').value = assemblyIndex+1;
+  el('assembly-step').replaceChildren(new Option('Začátek / příprava','-1'));
+  for (const [index,item] of assemblyGuide.steps.entries()) el('assembly-step').add(new Option((index+1)+'. '+item.title,String(index)));
+  el('assembly-step').value = String(assemblyIndex);
+  el('assembly-text').textContent = step?.instruction || (count ? 'Vyberte první krok nebo přejděte tlačítkem Další. Kroky neoznačují fyzické dokončení.' : 'Montážní data nejsou dostupná.');
+  el('assembly-context').textContent = isBenchStep() ? 'PRÁCE NA STOLE MIMO KUFR · Zobrazené díly v návrhovém vzájemném uspořádání; korpus je skrytý. Nejde o dráhu zasouvání.' : step ? 'STAV V KUFŘÍKU · Fyzicky vložené díly + mosazně zvýrazněné díly umístěné tímto krokem. Podsestavy připravené na stole se objeví až v kroku vložení. Vložení není animované.' : 'NÁVRHOVÝ PRŮVODCE · Postup ověřte na skutečném prototypu.';
+  el('assembly-location').textContent = step ? ['Podsestava: '+readableItems((Array.isArray(step.subassembly) ? step.subassembly : [step.subassembly]).filter(Boolean).map(id=>(assemblyGuide.subassemblies || []).find(item=>item.id===id)?.title || id)),step.location && 'Pracoviště / poloha: '+step.location,step.direction && 'Směr vložení: '+step.direction,step.installation?.clearance_mm && 'Požadovaný přístup: '+step.installation.clearance_mm+' mm'].filter(Boolean).join('\n') : '';
+  el('assembly-access').textContent = step?.access?.length ? 'Přístup rukou a nástroje:\n'+readableItems(step.access) : '';
+  el('assembly-connectors').textContent = step?.connectors?.length ? 'Konektory / kabely:\n'+readableItems(step.connectors) : '';
+  el('assembly-removal').textContent = step?.removal ? 'Servis a demontáž: '+readableItems(step.removal) : '';
+  el('assembly-check').textContent = step?.check ? 'Kontrola před pokračováním: '+step.check : '';
+  el('assembly-parts').textContent = step ? (step.preparedParts?.length ? 'Díly připravované na stole (ještě neosazené):\n' : 'Aktuální díly (zvýrazněné):\n')+readableItems(step.partSummary || currentPartPatterns(step)) : '';
+  const next = assemblyGuide.steps[assemblyIndex+1];
+  el('assembly-next-parts').textContent = next ? 'Následuje: '+next.title+'\n'+readableItems(next.partSummary || currentPartPatterns(next)) : count ? 'Poslední krok průvodce. Fyzická přejímka zůstává samostatná.' : '';
   el('assembly-materials').textContent = step ? 'Materiál:\n'+(step.materials || []).map(item=>'• '+item.quantity+' × '+materialLabel(item.id)).join('\n')+'\n\nNástroje:\n'+(step.tools || []).map(tool=>'• '+tool).join('\n') : '';
-  el('assembly-depends').textContent = step?.depends?.length ? 'Předchůdci: '+step.depends.join(', ') : '';
-  el('assembly-prev').disabled = assemblyIndex < 0; el('assembly-next').disabled = assemblyIndex >= assemblyGuide.steps.length-1;
+  const predecessors = (step?.depends || []).map(id=>assemblyGuide.steps.find(item=>item.id===id)?.title || id);
+  el('assembly-depends').textContent = [predecessors.length && 'Předchůdci: '+predecessors.join(', '),step?.installation?.absent?.length && 'Před vložením ještě neosazovat: '+step.installation.absent.join(', ')].filter(Boolean).join('\n');
+  el('assembly-prev').disabled = assemblyIndex < 0; el('assembly-next').disabled = assemblyIndex >= count-1;
+  el('assembly-focus').disabled = !step;
+}
+function focusAssembly() {
+  const step = currentStep(); if (!step) return;
+  const patterns = isBenchStep() ? benchPreviewPatterns() : [...casePartPatterns(step),...(step.installation?.targets || [])];
+  focusMeshes(model.meshes.filter(mesh=>visible(mesh) && patterns.some(part=>matchesPart(mesh.name,part))));
+}
+function jumpAssembly(index) {
+  if (mode !== 'assembly' || effectFault) return;
+  if (!Number.isInteger(index)) return;
+  assemblyIndex = Math.max(-1,Math.min(assemblyGuide.steps.length-1,index));
+  pinned = null; clearWireSelection(); displayedMesh = undefined;
+  const step = currentStep(); if (step) setView(step.camera);
+  updateAssembly(); layersChanged(); focusAssembly();
 }
 function updateTransportInstructions() {
   el('transport-panel').hidden = mode !== 'transport';
@@ -762,12 +967,7 @@ function updateTransportInstructions() {
     }
   }
 }
-function moveAssembly(delta) {
-  if (mode !== 'assembly' || effectFault) return;
-  assemblyIndex = Math.max(-1,Math.min(assemblyGuide.steps.length-1,assemblyIndex+delta));
-  const step = assemblyGuide.steps[assemblyIndex]; if (step) setView(step.camera);
-  updateAssembly(); layersChanged();
-}
+function moveAssembly(delta) { jumpAssembly(assemblyIndex+delta); }
 function updateWireDetails() {
   const entries = scopedRoutes(pinned || hovered);
   const endpoint = selectedEndpoint || hoveredConnection?.endpoint;
@@ -776,10 +976,10 @@ function updateWireDetails() {
   el('wire-details').textContent = entries.length ? entries.map(route=>route.id+': '+route.from+' → '+route.to+'; síť '+route.net+'; svazek '+route.bundle+'. '+(route.note || '')+((mode === 'transport' || !el('bank').checked) && route.transport_from ? ' Fyzický konec: '+route.transport_from+' — '+route.transport_connection : '')).join('\n')+pinNote+'\nPiny jsou návrhové obálky, smyčky zobrazují pouze aproximaci flexibility; nejde o změřené souřadnice.' : 'Vyberte vodič, pin nebo díl. Větev je konkrétní vodič; svazek a síť rozšíří výběr podle společných ID.'+pinNote;
 }
 function drawDimensions() {
-  const c = model.case || {inside_x:431.8,inside_y:266.7,base_height:114.3};
+  const c = model.case || {inside_x:430,inside_y:269,base_height:114.3};
   for (const [start,end,text] of [
-    [[0,0,0],[c.inside_x,0,0],'Vnitřní X '+c.inside_x+' mm'],
-    [[0,0,0],[0,c.inside_y,0],'Vnitřní Y '+c.inside_y+' mm'],
+    [[0,0,c.base_height],[c.inside_x,0,c.base_height],'Průchozí horní X '+c.inside_x+' mm'],
+    [[0,0,c.base_height],[0,c.inside_y,c.base_height],'Průchozí horní Y '+c.inside_y+' mm'],
     [[0,0,0],[0,0,c.base_height],'Spodní Z '+c.base_height+' mm'],
   ]) {
     const a = projectPoint(start), b = projectPoint(end); if (!a || !b) continue;
@@ -788,7 +988,7 @@ function drawDimensions() {
   }
 }
 function drawOrientation() {
-  const c = model.case || {inside_x:431.8,inside_y:266.7};
+  const c = model.case || {inside_x:430,inside_y:269};
   for (const [position,text] of [
     [[c.inside_x/2,0,0],'PŘEDEK · ovládání'],
     [[c.inside_x/2,c.inside_y,0],'ZÁDA · panty'],
@@ -827,6 +1027,8 @@ function updateEffectControls() {
   el('play-main').disabled = mode !== 'operation' || effectFault || !!effect;
   el('play-short').disabled = mode !== 'operation' || effectFault || !!effect;
   el('effect-stop').disabled = !effect;
+  el('dock-effect-stop').hidden = !effect;
+  el('dock-effect-stop').disabled = !effect;
 }
 let audioContext = null, toneOscillator = null;
 function stopTone() { if (toneOscillator) { toneOscillator.stop(); toneOscillator = null; } }
@@ -913,10 +1115,13 @@ el('tray').value = '3';
 for (const route of routes) el('wire').add(new Option(route.id+' · '+route.from+' → '+route.to,route.id));
 for (const endpoint of [...new Set([...Object.keys(model.endpoints || {}),...routes.flatMap(route=>[route.from,route.to,route.transport_from])])].filter(Boolean).sort()) el('endpoint').add(new Option(endpoint,endpoint));
 el('mode').value = mode; el('wire-scope').value = 'branch'; el('case-opacity').value = 1;
-el('envelope-note').textContent = 'Bezpečný vložitelný kvádr: '+(model.case?.safe_zone || [400,240,170]).join(' × ')+' mm. Zdvih '+model.mechanism.lift+' mm, '+trayAngles.length+' modulů. Korpus není určen k tisku.';
+el('envelope-note').textContent = 'Meze návrhu (nejsou zaručený volný kvádr): '+(model.case?.safe_zone || [400,240,170]).join(' × ')+' mm. Zdvih '+model.mechanism.lift+' mm, '+trayAngles.length+' modulů. Korpus není určen k tisku.';
 updateObjectOptions(); buildTree(); updateAssembly(); updateTransportInstructions(); updateEffectControls(); showEffectTimeline(model.effects?.main || []); draw();
 window.addEventListener('resize',requestDraw);
-window.F2 = {draw,meshes:model.meshes.length,lift,movement,visible,routePoints,setMode,setView,moveAssembly,startEffect,stopEffect,
+window.visualViewport?.addEventListener('resize',requestDraw);
+if (typeof ResizeObserver !== 'undefined') new ResizeObserver(requestDraw).observe(canvas);
+reducedMotion?.addEventListener('change',()=>{ if (cameraTransition) { cameraTarget = cameraTransition.target; distance = cameraTransition.distance; cameraTransition = null; requestDraw(); } });
+window.F2 = {draw,focusMeshes,assemblyPartState,meshes:model.meshes.length,lift,movement,visible,routePoints,setMode,setView,moveAssembly,startEffect,stopEffect,
   projectPoint,visibleCorners,
-  state:()=>({mode,trayAngles:[...trayAngles],assemblyIndex,effectFault,selectedWire,selectedEndpoint,pinned:pinned?.name || '',automaticFit,distance,cameraTarget:[...cameraTarget]}),routes:routes.map(route=>route.id)};
+  state:()=>({mode,visualMode,yaw,pitch,activePointers:activePointers.size,cameraTransition:!!cameraTransition,trayAngles:[...trayAngles],assemblyIndex,effectFault,selectedWire,selectedEndpoint,pinned:pinned?.name || '',automaticFit,distance,cameraTarget:[...cameraTarget]}),routes:routes.map(route=>route.id)};
 window.F1 = window.F2;

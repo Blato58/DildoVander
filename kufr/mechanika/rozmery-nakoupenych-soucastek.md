@@ -12,10 +12,12 @@ Pořadí os přebíráme ze zdroje; nejde automaticky o osy X/Y/Z modelu.
 Rozměry balení nepoužíváme jako rozměry součástky. Kabely, pájené vývody,
 montážní vůle a prostor pro manipulaci vyžadují další rezervu.
 
-Kufr má potvrzenou vnitřní obálku spodní části **431,8 × 266,7 × 114,3 mm
-(šířka × délka × výška)**. Víko zůstává prázdné.
-[Příčná výztuha](rozmery-doruceneho-kufru.md) má podle majitele **5 mm**;
-její další rozměry nejsou podmínkou rozvržení kufru.
+Kufr má podle měření majitele 12. 10. 2026 volný horní obdélník
+**430 × 269 mm mezi výztuhami**, stěnu 5 mm a spodní výšku 114,3 mm
+(dřívější údaj). [Měření kufru](rozmery-doruceneho-kufru.md) určuje
+středovou výztuhu 80 × 5 mm, přední/zadní výztuhy 20 mm včetně stěny
+s výškou 40/30 mm dolů od okraje a spodní tečné rozměry oblouků 45 × 45 mm.
+Víko zůstává prázdné. Původní palcový půdorys je nahrazený tímto měřením.
 Tento přehled je rozměrovým podkladem pro [návrh F2](final/README.md);
 samotné katalogové a potvrzené obálky nedokládají fyzické usazení.
 

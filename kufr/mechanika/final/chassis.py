@@ -41,9 +41,8 @@ def carrier_holes():
             continue
         holes += mount_positions(name)
     holes += [(x,y) for x,y,_ in PARAMS["capacitors"][2:]]
-    holes += [(xx,yy) for xx in (22,64) for yy in (68,92)]
-    # The rear-right point moves 2.8 mm back to preserve the full M4 nut roof.
-    holes += [(365,160),(365,247),(410,160),(410,249.8)]
+    from service_geometry import mount_points
+    holes += mount_points()
     holes += [(20,27),(22,60)]
     holes += [(17.4,102),(54,170),(62,240)]
     return holes
@@ -78,18 +77,44 @@ def rail_shape(spec):
     return cut(result,holes)
 
 
+def rounded_case_volume(width, x, front, rear, floor, radius, top):
+    """Extrude the measured lower YZ tangents as two quarter-circle arcs."""
+    diagonal=radius/math.sqrt(2)
+    profile=(cq.Workplane("YZ",origin=(x,0,0)).moveTo(front,top)
+             .lineTo(front,floor+radius)
+             .threePointArc((front+radius-diagonal,floor+radius-diagonal),(front+radius,floor))
+             .lineTo(rear-radius,floor)
+             .threePointArc((rear-radius+diagonal,floor+radius-diagonal),(rear,floor+radius))
+             .lineTo(rear,top).close())
+    return profile.extrude(width).val()
+
+
+@lru_cache
+def case_floor_space(offset=0):
+    """Interior above the curved floor; offset is a vertical adhesive gap.
+
+    XY zero is the front-left corner of the CLEAR rim rectangle. The main
+    front/rear walls are 15 mm beyond that rectangle, below the rim ledges.
+    """
+    inset=C["reinforcement_width"]-C["wall"]
+    return rounded_case_volume(X,0,-inset,Y+inset,offset,C["bottom_radius"],C["base_height"]+1)
+
+
 @lru_cache
 def shell(lid=False):
-    # Only outer/inner envelopes are confirmed. Wall distribution and hinge
-    # axis are visualization assumptions, not woodworking instructions.
-    dx, dy = (C["outer_x"]-X)/2, (C["outer_y"]-Y)/2
+    wall=C["wall"]; rim=C["reinforcement_width"]
     if lid:
-        outer = box(C["outer_x"], C["outer_y"], C["lid_height"], (-dx,-dy,0))
-        void = box(X,Y,C["lid_height"], (0,0,C["floor"]))
-    else:
-        outer = box(C["outer_x"],C["outer_y"],C["base_height"]+C["floor"],(-dx,-dy,-C["floor"]))
-        void = box(X,Y,C["base_height"]+1)
-    return outer.cut(void).clean()
+        # The unmeasured lid uses the matching reference profile. It is not a
+        # manufacturing drawing; the measured base remains the fit authority.
+        outer=rounded_case_volume(X+2*wall,-wall,-rim,Y+rim,0,C["bottom_radius"]+wall,C["lid_height"])
+        void=case_floor_space(C["floor"])
+        return outer.cut(void).clean()
+    outer=rounded_case_volume(X+2*wall,-wall,-rim,Y+rim,-C["floor"],
+                              C["bottom_radius"]+C["floor"],C["base_height"])
+    ledges=[box(X,rim-wall,height,(0,y,C["base_height"]-height))
+            for y,height in ((wall-rim,C["front_reinforcement_height"]),
+                             (Y,C["rear_reinforcement_height"]))]
+    return fuse([outer.cut(case_floor_space())]+ledges)
 
 
 def lid_position(shape, angle=0):
@@ -107,6 +132,10 @@ def frame():
              for xx,yy in module_holes()+seam_floor_holes()+carrier_holes()]
     holes += [hole_z(xx,yy,PARAMS["mounting"]["m4_clearance"],z=z-1,height=t+2)
               for xx,yy in rack_holes()+guide_holes()]
+    # Top-removable electronics cassettes have deck nuts loaded on the bench.
+    from service_geometry import mount_points, NUT_Z
+    for xx,yy in mount_points():
+        holes.append(hex_prism(xx,yy,NUT_Z-.1,6.7,2.5))
     for xx,yy in seam_floor_holes():
         holes.append(cq.Solid.makeCone(3.3,1.7,1.6,cq.Vector(xx,yy,z+t),cq.Vector(0,0,-1)))
     for xx,yy in rack_holes():
@@ -168,12 +197,19 @@ def floor_anchor_specs():
 
 
 @lru_cache
-def floor_anchor_blank(name):
+def floor_anchor_planar_blank(name):
     a=F["floor_anchors"]; spec=floor_anchor_specs()[name]
     x0,x1=spec["x_range"]; y0,y1=spec["y_range"]
     c0,c1=spec["cross_range"]
     return fuse([box(x1-x0,c1-c0,a["height"],(x0,c0,a["z"])),
                  box(a["side_width"],y1-y0,a["height"],(spec["leg_x"],y0,a["z"]))])
+
+
+@lru_cache
+def floor_anchor_blank(name):
+    # Keep the printable anchor top at Z8 and conform only its underside to
+    # the measured curve, leaving a constant 0.5 mm vertical epoxy film.
+    return floor_anchor_planar_blank(name).intersect(case_floor_space(F["floor_anchors"]["z"])).clean()
 
 
 def anchor_nuts(name):
@@ -204,7 +240,7 @@ def anchor_nut_clearances(nut, edge):
     return (hex_prism(x,y,bottom,diameter,roof-bottom),
             box(diameter,abs(y-edge),roof-bottom,
                 (x-diameter/2,min(y,edge),bottom)),
-            hole_z(x,y,nut["bore"],z=1.0,height=7.1))
+            hole_z(x,y,nut["bore"],z=1.0,height=7.1).intersect(case_floor_space(1)))
 
 
 @lru_cache
@@ -218,6 +254,8 @@ def floor_anchor_clearances(name):
     # Carriers/guide bolts are preassembled outside the case. These cavities
     # allow their real heads/nuts without opening any module/frame nut roof.
     tools += [carrier_head_clearance(x,y) for x,y in carrier_holes()]
+    from service_geometry import mount_points, NUT_Z
+    tools += [hex_prism(x,y,NUT_Z-.1,6.7,.2) for x,y in mount_points()]
     tools += [hole_z(x,y,8.2,z=5.2,height=2.9) for x,y in guide_holes()]
     tools += [hex_prism(x,y,5.6,6.7,2.5) for x,y in seam_floor_holes()]
     return tuple(tools)
@@ -266,10 +304,25 @@ def floor_anchor_shape(name):
 
 
 @lru_cache
-def floor_bond_shape(name):
+def floor_bond_projected_film(name):
+    """Planar XY projection used by the conservative bond load screen."""
     a=F["floor_anchors"]
-    footprint=floor_anchor_blank(name).intersect(box(X,Y,a["z"],(0,0,a["z"])))
-    film=footprint.translate((0,0,-a["z"]))
+    footprint=floor_anchor_planar_blank(name).intersect(box(X,Y,a["z"],(0,0,a["z"])))
+    return footprint.translate((0,0,-a["z"]))
+
+
+@lru_cache
+def floor_bond_film(name):
+    a=F["floor_anchors"]
+    # A curved film has the same projected XY area as the flat calculation,
+    # but its actual solid follows the wooden surface instead of filling air.
+    return floor_anchor_planar_blank(name).translate((0,0,-a["z"])).intersect(
+        case_floor_space()).cut(case_floor_space(a["z"])).clean()
+
+
+@lru_cache
+def floor_bond_shape(name):
+    film=floor_bond_film(name)
     return fuse([film]+[key["shape"] for key in floor_anchor_keys(name)])
 
 
@@ -277,8 +330,8 @@ def floor_anchor_metrics():
     a=F["floor_anchors"]; metrics={}
     for name in floor_anchor_specs():
         shape=floor_anchor_shape(name); keys=floor_anchor_keys(name)
-        area=floor_anchor_blank(name).Volume()/a["height"]
-        film=floor_bond_shape(name).intersect(box(X,Y,a["z"]))
+        film=floor_bond_projected_film(name)
+        area=film.Volume()/a["z"]
         centroid=film.Center(); inertia=cq.Shape.matrixOfInertia(film)
         bb=film.BoundingBox()
         # Volume inertia of a uniform film / thickness gives planar moments.
@@ -291,7 +344,8 @@ def floor_anchor_metrics():
                     and abs(face.Center().z-bb.zmin)<1e-6 and face.normalAt().z<-.9)
         boundary=sorted({(vertex.Center().x,vertex.Center().y) for vertex in bottom.outerWire().Vertices()})
         # PETG/film interface is net of the actual key neck openings.
-        net=shape.intersect(box(X,Y,.01,(0,0,a["z"]))).Volume()/.01
+        interface=shape.intersect(case_floor_space(a["z"])).cut(case_floor_space(a["z"]+.01))
+        net=interface.Volume()/.01
         roof=[]
         for nut in anchor_nuts(name):
             contact=hex_prism(nut["x"],nut["y"],5,nut["diameter"],.01)
@@ -312,7 +366,7 @@ def floor_anchor_metrics():
                        "wood_bond_centroid_xy_mm":[centroid.x,centroid.y],
                        "wood_bond_area_second_moment_tensor_mm4":[[iy,ixy],[ixy,ix]],
                        "wood_bond_boundary_vertices_xy_mm":[list(point) for point in boundary],
-                       "wood_bond_tensor_convention":"integral r*r^T dA; CadQuery mechanical Ixy negated; x/y diagonal entries swap",
+                       "wood_bond_tensor_convention":"projected XY integral r*r^T dA; curved-surface traction is not physically qualified; CadQuery Ixy negated, x/y diagonals swap",
                        "nut_row_roof_net_sections_mm2":net_sections,
                        "nut_roofs":roof}
     return metrics
@@ -321,14 +375,14 @@ def floor_anchor_metrics():
 def parts():
     return [Part(f"frame_panel_{i+1}",s,1,"12 mm bolted half-lap; independent four-M3 module anchors")
             for i,s in enumerate(tiles())] + [
-                Part(name,floor_anchor_shape(name),1,"100% infill PETG floor cradle; captive nuts and cast epoxy keys; inspect unsupported internal bridges")
+                Part(name,floor_anchor_shape(name),1,"100% infill PETG; flat top on bed, curved underside upward; captive nuts and cast epoxy keys; inspect internal bridges",((1,0,0),180))
                 for name in floor_anchor_specs()]
 
 
 def items(angle=105):
     result=[Item("wooden_case",shell(),"case","shell",C["geometry_status"]),
             Item("wooden_lid",lid_position(shell(True),angle),"lid","shell",C["geometry_status"]),
-            Item("floor_brace",box(X,C["brace_width"],C["brace_height"],(0,C["brace_y"],0)),"case","shell","5 mm height confirmed; XY provisional")]
+            Item("floor_brace",box(X,C["brace_width"],C["brace_height"],(0,C["brace_y"],0)),"case","shell","Owner measured full-width centered brace 80 x 5 mm on 2026-10-12")]
     result += [Item(f"frame_panel_{i+1}",s,"fixed","mechanism") for i,s in enumerate(tiles())]
     for name in floor_anchor_specs():
         result.append(Item(name,floor_anchor_shape(name),"fixed","mechanism","Printed floor cradle; no wooden holes"))

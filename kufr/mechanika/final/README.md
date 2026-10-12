@@ -19,6 +19,21 @@ aktuálním souborům; starší ověření nepokrývá zjednodušení montáže.
 a boční kapsy matic M3/M4 i epoxidový zámek s odvzdušněním. Skutečné počty
 exportovaných dílů uvádí aktuální tiskový seznam.
 
+## Montážní revize DFA — 12. 10. 2026
+
+Elektronika a pevné svazky vznikají na stole před vložením rámu a před
+pohyblivými lůžky. Dvě boční kazety mají sedm šroubů přístupných shora;
+nohy procházejí skutečnými servisními drážkami vedlejších nosičů.
+Vodicí M4 se vkládají zespodu před rámem a jistí se horními maticemi.
+V kufru se nejprve dotáhnou všechny základny, potom nasadí hotové horní
+skupiny. Rám stojí samostatně bez banky, hůlek, krytů i textilu.
+
+[Úplný postup v 16 krocích](POSTUP.md) se generuje ze stejných dat jako
+montážní průvodce; [ovládání vieweru](VIEWER.md) popisuje dotykové gesto,
+pohledy, díly a kompaktní mobilní panely. Starší patnáctikroková montáž
+v historických záznamech nepokrývá tuto revizi. Aktuální ověření stále
+neprokazuje fyzickou akceptaci.
+
 ## Co otevřít
 
 - [Interaktivní sestava](exports/viewer.html): provoz, servis, kabeláž,
@@ -35,13 +50,15 @@ exportovaných dílů uvádí aktuální tiskový seznam.
 
 ## Rozměry a návrh
 
-Majitel potvrdil vnitřní spodní prostor 431,8 × 266,7 × 114,3 mm,
-vnější údaj výrobce 450 × 310 × 200 mm a bezpečně vložitelný kvádr
-400 × 240 × 170 mm. Rám leží nad výztuhou dna vysokou 5 mm. Zástavba v klidu
-zůstává pod horní hranou spodní části; při zdvihu se používá otevřený kufr.
-Tloušťky dřeva, detail pantů a rozdělení prostoru víka jsou návrhové
-parametry, které vyžadují fyzické ověření.
-
+Měření majitele z 12. 10. určuje volný horní obdélník **430 × 269 mm**,
+stěnu 5 mm, přední/zadní výztuhu širokou 20 mm včetně stěny a vysokou
+40/30 mm dolů od okraje. Spodní boční oblouky mají tečné rozměry 45 × 45 mm;
+CAD je modeluje jako R45. Výztuha dna je 80 × 5 mm uprostřed přes celou
+šířku. Podrobnosti a předpoklady jsou v [měření kufru](../rozmery-doruceneho-kufru.md).
+Rám 400 × 240 mm je nad výztuhou; čtyři kotvy mají zakřivený spodek,
+0,5mm svislý film a vynechávají pás výztuhy. Kvádrová obálka nenahrazuje
+kontrolu skutečných těles. V klidu zástavba zůstává pod okrajem 114,3 mm.
+Dno 5 mm, víko a panty ještě vyžadují suchou montáž.
 Zvoleno šest modulů na rozteči 48 mm, s délkou 212 mm a zdvihem 16 mm.
 Majitel 10. 10. 2026 potvrdil délku hůlky do 200 mm a šířku hlavice 38 mm
 včetně případného pouzdra. Ostatní tvarové rozměry zůstávají předpoklady.

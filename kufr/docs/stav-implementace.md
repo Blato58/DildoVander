@@ -1,5 +1,46 @@
 # Stav implementace AI kufru
 
+## F2 DFA / Workshop — 12. 10. 2026
+
+Rozsah: montovatelná vložka do skutečného kufru a mobilní CAD viewer.
+Implementace je v `mechanika/final/`: dvě servisní kazety s horními M3,
+předzapojení na stole, montáž vodítek před vložením, přístup ke čtyřem M4
+a 24 modulovým M3 před horními skupinami. Červený spínač posunut o 6 mm
+kvůli imbusu, levý zesilovač o 1 mm vpřed a zadní servisní osa na Y111,7;
+rezerva hlavy k pásku zesilovače je přes 1 mm. Podpěra kazety a dvě lokální
+kabelové trasy obcházejí skutečná tělesa. Pinout a elektrické obvody jsou
+zachované. Korpus se nevrtá.
+`assembly-guide.json` má 16 kroků a rozlišuje přípravu na stole od osazení
+v kufru; ze stejných dat vzniká `POSTUP.md`. Viewer má mobilní panely,
+dotykový orbit/pan/pinch, pohledy, zaměření a montážní průvodce.
+
+Doplnění majitele během práce 12. 10. nahradilo geometrii kufru:
+430 × 269 mezi horními výztuhami, stěna 5, výztuhy celkem 20 včetně stěny,
+40/30 dolů od okraje; tečné rozměry spodních oblouků 45/45 a středová
+výztuha 80 × 5. Kotvy mají tvarovaný spodek, 0,5mm svislou lepicí spáru,
+103 zámků a matice vložené před lepením. Tisknou se horní stranou dolů.
+Předchozí geometrické výsledky nepřijímají tuto novou rozměrovou revizi.
+
+Ověřeno na aktuálních zdrojích: 138 Python testů (včetně 12 CAD a 8 montážních),
+47 Node testů, syntaxe a montážní kontrakt 16/542/135. Chrome/WebGL
+prošel šest viewportů od 320×568 po 1440×900 včetně landscape, skutečné
+CDP dotykové události, focus/pohledy, režimy a průvodce/Stop; bez chyb
+konzole a requestů. Viewer má přibližně 25,6 místo 70 MB díky indexům
+tessellace. Úplná regenerace prošla: 37 STL typů / 52 výtisků, STEP round-trip,
+uzavřené souvislé sítě, tři stavy sestavy, 102 pohybových vzorků všech šesti
+modulů, sedm spojitých drah nástroje/hlavy, vložení rámu a servis šesti
+horních skupin po 25 vzorcích. Audit 135 kabelů v klidu/přepravě a při
+0/80/160° prošel 26 991 BREP párů bez kolizí nebo výpadků mezí. Report
+`exports/verification.json` má `PASS_CAD_NOT_PHYSICAL_ACCEPTANCE`; ZIP
+41 558 082 B má ověřený inventář, readback a SHA-256 v `package-sha256.txt`.
+Všech 78 lokálních odkazů existuje. Nejde o iPhone/HW přejímku.
+Fyzická montáž, konektory/prsty, kabelové rezervy, kamera/FPC, dřevo/epoxid,
+zatížené servopohyby a přeprava zůstávají nepřijaté. Návrh není uvolněný
+k finálnímu tisku. Další krok po softwarovém ověření: rozměrový a montážní
+prototyp podle `mechanika/final/MONTÁŽ.md`, bez nahrání firmware v tomto slice.
+Git předání: větev `codex/cad-assembly-viewer-overhaul-public`; ověřený slice
+je připravený ke commitu a push přes projektový helper.
+
 Poslední aktualizace: **12. 10. 2026**. Tento dokument zachycuje aktuální
 stav a další kroky; neobsahuje historický deník nasazení ani technické logy.
 [Implementační plán](implementacni-plan.md) určuje akceptační kritéria,
