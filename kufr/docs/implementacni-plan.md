@@ -1001,21 +1001,32 @@ zůstává historickou evidencí; montážní návod a nový zdroj jsou
 v [mechanice](../mechanika/README.md). Žádné kritérium HW akceptace se tím
 neuzavírá.
 
-**Doručený kufr – rozhodnutí majitele 9. 10. 2026:** potvrzené vnitřní
-rozměry jsou 17″ na šířku, 10,5″ na délku a 4,5″ od dna po horní okraj
-spodní části, tedy 431,8 × 266,7 × 114,3 mm. Pro návrh používat přibližně
-432 × 267 × 114 mm (šířka × délka × výška). Kufr se prezentuje otevřený;
-veškerá mechanika a elektronika patří do spodní části, víko zůstává
-prázdné a jeho prostor se do zástavby nepočítá. Příčná výztuha na dně
-má podle majitele **5 mm**; další údaje o ní nejsou podmínkou rozvržení. Toto potvrzení
-nahrazuje původní předpoklad prostoru kufru. Aktuální
-[mechanický návrh F2](../mechanika/final/README.md) je vložka do skutečného
-kufru bez nových otvorů v jeho stěnách. Nahrazuje chybný koncept tištěného
-korpusu F1. Majitel dále potvrdil vnější údaj výrobce 450 × 310 × 200 mm
-a bezpečný vložitelný kvádr 400 × 240 × 170 mm. Vložka používá šest
-samostatných modulů, dolní mechanické podpěry a ruční přepravní pásky;
-prázdné víko není konstrukčním zajištěním. CAD ověření není fyzická přejímka
-lepených kotev, pohybu, serva bez impulzů, kabeláže ani únosnosti.
+**Doručený kufr – upřesnění majitele 12. 10. 2026:** volný horní obdélník
+mezi výztuhami je 430 × 269 mm, stěna 5 mm. Přední a zadní výztuha mají
+celkovou šířku 20 mm včetně stěny a výšku 40/30 mm dolů od horní hrany.
+Spodní boční zaoblení má vodorovný i svislý tečný rozměr 45 mm; CAD používá
+čtvrtkružnice R45. Středová výztuha dna je 80 × 5 mm přes celou šířku.
+Výška spodní části 114,3 mm zůstává dřívějším potvrzením z 9. 10.
+Podrobnosti vede [měření kufru](../mechanika/rozmery-doruceneho-kufru.md).
+Původní palcový půdorys 431,8 × 266,7 je nahrazený; údaj výrobce
+450 × 310 × 200 není měřením holých stěn. Rám 400 × 240 má návrhovou
+polohu XY15,9/13,35 a Z8; kvádrová obálka není důkazem volného prostoru
+u oblouku. Tištěné kotvy kopírují skutečný profil s 0,5mm svislou spárou
+pro epoxid, vynechávají širší výztuhu a před lepením mají vložené matice.
+[Mechanický návrh F2](../mechanika/final/README.md) používá šest nezávislých
+modulů, dolní podpěry a ruční přepravní pásky bez nových otvorů v kufru.
+Veškerá elektronika patří do spodní části a prázdné víko není zajištěním.
+Dno 5 mm, průběh oblouku mezi tečnými body, profil víka a panty ověřit
+suchou montáží. CAD neuzavírá přejímku lepidla, dřeva, serv ani přepravy.
+
+**Montážní revize F2 DFA, 12. 10. 2026:** rám a elektronika se předzapojí
+na stole. Dvě boční kazety mají sedm horních servisních M3 a skutečné
+přístupové drážky; vodicí M4 se vloží zespodu před rámem do kufru. Po
+vložení rámu se dotáhnou čtyři M4 a 24 modulových M3 před nasazením horních
+skupin. Posun červeného spínače Y43→49 a levého zesilovače Y95→94 mm řeší
+montážní přístup, zachovává pinout a potvrzený hardware. Průvodce i
+[postup](../mechanika/final/POSTUP.md) používají stejných 16 kroků.
+Toto rozhodnutí neuzavírá žádné fyzické kritérium E5/HW.
 
 **Doplnění rozměrů majitelem 9. 10. 2026:** PTT 14×14×35 mm,
 PCA9685 25×70×15 mm a U059 podle výrobce 32×24×8 mm. Servo používá
@@ -1270,7 +1281,7 @@ Hardwarová větev je E0→E1/E2→E4→E5→E6. Konverzační větev E2→E7→
 | Potřebujeme kameru i SD zároveň? | Ne pro základ. SD jen assety, kamera jednotlivé snímky; potvrdit užitek před E13 a teprve pak měnit kabeláž. |
 | Hlasitost a srozumitelnost v reálném hluku? | Dva reproduktory 8 Ω, každý vlastní MAX98357A, společný hlas a PTT; český eval a měření v prostředí před E10/E11. |
 | Kdo platí a spravuje cloud, jaká retence/region je přípustný? | Jeden správce, explicitní limity a informování návštěvníků. Přesné účetní/datové podmínky a dostupnost modelů před placeným testem. |
-| Rozměry kufru, kabely, teplota a výdrž powerbanky? | Vnitřek kufru 431,8×266,7×114,3 mm, výztuha 5 mm; součástky ve společném přehledu. Powerbanka 139×80×26,5 mm musí jít snadno vyjmout. Další kabelové rozměry neblokují rozvržení; teplotu a výdrž ověřit zátěžovým měřením, ne pouze z nominální kapacity. |
+| Rozměry kufru, kabely, teplota a výdrž powerbanky? | Volný obdélník mezi výztuhami 430×269 mm, spodní výška 114,3, stěna 5, oblouky 45/45, středová výztuha 80×5 a horní 20/40/30 mm; součástky ve společném přehledu. Powerbanka 139×80×26,5 mm musí jít snadno vyjmout. Další kabelové rozměry neblokují rozvržení; teplotu a výdrž ověřit zátěžovým měřením, ne pouze z nominální kapacity. |
 
 ## 14. Práce s plánem a průběžná dokumentace
 

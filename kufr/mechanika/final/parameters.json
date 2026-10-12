@@ -1,23 +1,28 @@
 {
   "revision": "F2",
   "case": {
-    "inside_x": 431.8,
-    "inside_y": 266.7,
-    "wall": 9.1,
-    "floor": 6.0,
+    "inside_x": 430.0,
+    "inside_y": 269.0,
+    "wall": 5.0,
+    "floor": 5.0,
     "base_height": 114.3,
     "lid_height": 79.7,
     "lid_gap": 0.0,
     "lap": 12.0,
     "joint_clearance": 0.25,
     "inside_z": 114.3,
-    "outer_x": 450.0,
-    "outer_y": 310.0,
+    "outer_x": 440.0,
+    "outer_y": 309.0,
     "outer_z": 200.0,
     "brace_height": 5.0,
-    "brace_width": 60.0,
-    "brace_y": 115.0,
-    "geometry_status": "Interior and outer envelope owner confirmed; wall distribution, floor, lid partition and brace XY are visual assumptions; no shell manufacturing.",
+    "brace_width": 80.0,
+    "brace_y": 94.5,
+    "reinforcement_width": 20.0,
+    "front_reinforcement_height": 40.0,
+    "rear_reinforcement_height": 30.0,
+    "bottom_radius": 45.0,
+    "measurement_date": "2026-10-12",
+    "geometry_status": "Owner measured clear rectangle between rim reinforcements 430x269; wall 5; total rim width including wall 20, front/rear heights 40/30 down from rim; bottom tangents 45/45 modeled as circular arcs; centered full-width brace 80x5. Floor thickness 5, lid partition and hinge axis remain assumptions. Outer 440x309 is derived, replacing the vendor envelope; no shell manufacturing.",
     "safe_zone": [
       400.0,
       240.0,
@@ -28,7 +33,7 @@
       13.35,
       0.0
     ],
-    "safe_status": "Owner confirmed fit with margin on 2026-10-09"
+    "safe_status": "Design bounding cuboid only; the corrected measured shell and brace are checked separately by BREP. The earlier fit confirmation does not certify curved-floor contact."
   },
   "print": {
     "bed_x": 220.0,
@@ -192,18 +197,18 @@
       "side_width": 50.1,
       "front_range": [
         14.0,
-        114.5
+        94.0
       ],
       "rear_range": [
-        175.5,
+        175.0,
         253.35
       ],
       "front_cross_range": [
         14.0,
-        38.0
+        56.0
       ],
       "rear_cross_range": [
-        214.0,
+        202.0,
         253.35
       ],
       "key_neck_diameter": 7.5,
@@ -218,20 +223,32 @@
       "frame_screw_length": 10.0,
       "key_layouts": {
         "floor_anchor_front_left": {
-          "pitch_x": 16.25, "pitch_y": 9.5, "row_stagger_x": 8.125,
-          "offset_x": 7.25, "offset_y": 7.25
+          "pitch_x": 12.5,
+          "pitch_y": 10.825317547305483,
+          "row_stagger_x": 6.25,
+          "offset_x": 7.25,
+          "offset_y": 23.25
         },
         "floor_anchor_front_right": {
-          "pitch_x": 16.25, "pitch_y": 9.5, "row_stagger_x": 8.125,
-          "offset_x": 9.25, "offset_y": 7.25
+          "pitch_x": 12.5,
+          "pitch_y": 10.825317547305483,
+          "row_stagger_x": 6.25,
+          "offset_x": 9.25,
+          "offset_y": 23.25
         },
         "floor_anchor_rear_left": {
-          "pitch_x": 12.5, "pitch_y": 10.825317547305483, "row_stagger_x": 6.25,
-          "offset_x": 7.25, "offset_y": 14.25
+          "pitch_x": 12.5,
+          "pitch_y": 10.825317547305483,
+          "row_stagger_x": 6.25,
+          "offset_x": 7.25,
+          "offset_y": 7.25
         },
         "floor_anchor_rear_right": {
-          "pitch_x": 12.5, "pitch_y": 10.825317547305483, "row_stagger_x": 6.25,
-          "offset_x": 17.25, "offset_y": 14.25
+          "pitch_x": 12.5,
+          "pitch_y": 10.825317547305483,
+          "row_stagger_x": 6.25,
+          "offset_x": 17.25,
+          "offset_y": 7.25
         }
       }
     }
@@ -379,7 +396,7 @@
       ],
       "origin": [
         46,
-        95,
+        94.0,
         49
       ],
       "orientation": "left above speaker",
@@ -540,7 +557,7 @@
   "panel": {
     "red_main": [
       32,
-      43,
+      49,
       78
     ],
     "green_drives": [

@@ -218,7 +218,9 @@ def _endpoint_path(endpoint, corridor):
         return prefix+[(left_x,last[1],z),(left_x,122,z),
                        (left_back,122,z),(left_back,y,z)]
     if part in ("buck","breaker"):
-        return left_lane([a,(a[0],60,a[2]),(left_x,60,a[2])])
+        # The finite 12V input cable clears the adjacent main-switch barrel.
+        escape_y=61 if endpoint=="buck:IN+" else 60
+        return left_lane([a,(a[0],escape_y,a[2]),(left_x,escape_y,a[2])])
     if part=="pd_trigger" and endpoint.endswith(("OUT+","OUT-")):
         return [a,(a[0],a[1]+2,a[2]),(left_back,a[1]+2,a[2]),(left_back,a[1]+2,z),(left_back,y,z)]
     if part.startswith("degson_"):
@@ -249,7 +251,8 @@ def _endpoint_path(endpoint, corridor):
     if part.startswith("capacitor_"):
         prefix=[a,(a[0],a[1],a[2]-1.5),(a[0],a[1]-7,a[2]-1.5)]
         if a[0]<M["origin_x"]:
-            return left_lane(prefix+[(a[0],96,a[2]-1.5),(left_x,96,a[2]-1.5)])
+            # Leave room ahead of the amplifier's retaining strap.
+            return left_lane(prefix+[(a[0],95.5,a[2]-1.5),(left_x,95.5,a[2]-1.5)])
         index=int(part.split("_")[-1])
         module=int((a[0]-M["origin_x"])/M["pitch"])
         escape_x=M["origin_x"]+module*M["pitch"]+46.65

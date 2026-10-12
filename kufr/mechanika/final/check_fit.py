@@ -33,7 +33,10 @@ def collisions(items):
             continue
         if not overlaps(cached[a.name],cached[b.name]):
             continue
-        volume=a.shape.intersect(b.shape).Volume()
+        try:
+            volume=a.shape.intersect(b.shape).Volume()
+        except ValueError as error:
+            raise ValueError(f'BREP intersection failed: {a.name} / {b.name}') from error
         if volume>0.03:
             result.append([a.name,b.name,round(volume,4)])
     return result

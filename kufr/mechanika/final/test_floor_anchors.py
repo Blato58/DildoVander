@@ -70,8 +70,14 @@ class FloorAnchorTests(unittest.TestCase):
                     tip=head-length
                     self.assertLessEqual(tip,z-.2)
                     self.assertGreater(head,5)
-                    barrier=cylinder(nut["bore"]/2,.49,(x,y,.51))
-                    self.assertAlmostEqual(anchor.intersect(barrier).Volume(),barrier.Volume(),places=5)
+                    # The blind tip retains 0.5 mm vertically above the
+                    # curved underside, including the rear M4 at Y243.
+                    barrier=cylinder(nut["bore"]/2,3,(x,y,.5)).intersect(
+                        chassis.case_floor_space(.5)).cut(chassis.case_floor_space(1))
+                    # Tight integration prevents curved-face quadrature error
+                    # from obscuring the exact 0.5 mm vertical wall check.
+                    self.assertAlmostEqual(barrier.Volume(1e-9),math.pi*(nut["bore"]/2)**2*.5,places=5)
+                    self.assertAlmostEqual(anchor.intersect(barrier).Volume(1e-9),barrier.Volume(1e-9),places=5)
         self.assertEqual(count,{"module":24,"frame":4})
 
     def test_epoxy_keys_keep_two_mm_web_bottom_access_and_top_vents(self):
@@ -161,8 +167,8 @@ class AnchorCouponTests(unittest.TestCase):
         expected=window.cut(key)
         actual=coupon.intersect(window)
         self.assertLess(actual.cut(expected).Volume()+expected.cut(actual).Volume(),1e-6)
-        production_counts={"floor_anchor_front_left":19,"floor_anchor_front_right":21,
-                           "floor_anchor_rear_left":22,"floor_anchor_rear_right":22}
+        production_counts={"floor_anchor_front_left":27,"floor_anchor_front_right":30,
+                           "floor_anchor_rear_left":22,"floor_anchor_rear_right":24}
         for name,count in production_counts.items():
             keys=chassis.floor_anchor_keys(name)
             self.assertEqual(len(keys),count)
@@ -207,13 +213,13 @@ class AnchorCouponTests(unittest.TestCase):
                 index=next(i for i,n in enumerate(chassis.anchor_nuts(anchor)) if n["kind"]==kind)
                 for current,original in zip(tools,production_tools[index*3:index*3+3]):
                     self.assertLess(current.cut(original).Volume()+original.cut(current).Volume(),1e-6)
-        # Approved enlarged-key source volumes. These also catch production
+        # DFA enlarged-key source volumes. These also catch production
         # changes beyond matching just the two coupon nut cavities.
         original_volumes={
-            "floor_anchor_front_left":55863.91132015793,
-            "floor_anchor_front_right":55553.81498064702,
-            "floor_anchor_rear_left":62597.807063061126,
-            "floor_anchor_rear_right":62697.43639088506}
+            "floor_anchor_front_left":63241.43453041498,
+            "floor_anchor_front_right":62483.67971674681,
+            "floor_anchor_rear_left":73708.60731797235,
+            "floor_anchor_rear_right":73216.29040742769}
         for name,volume in original_volumes.items():
             self.assertAlmostEqual(chassis.floor_anchor_shape(name).Volume(),volume,places=5)
 
@@ -240,7 +246,7 @@ class AnchorCouponTests(unittest.TestCase):
                 # retains a true 0.5 mm closed printed bottom, not a through bore.
                 barrier=cylinder(source["bore"]/2,.5,(x,y,0))
                 self.assertAlmostEqual(coupon.intersect(barrier).Volume(),barrier.Volume(),places=5)
-                free_tip=hole_z(x,y,source["bore"],z=.5,height=.01)
+                free_tip=hole_z(x,y,source["bore"],z=.6,height=.01)
                 self.assertLess(coupon.intersect(free_tip).Volume(),1e-6)
 
     def test_coupon_remains_one_existing_print_and_retains_original_features(self):

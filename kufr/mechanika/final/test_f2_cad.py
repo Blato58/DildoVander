@@ -14,6 +14,66 @@ from check_fit import collisions, overlaps
 
 
 class InsertCadTests(unittest.TestCase):
+    def test_left_cassette_wires_clear_installed_scene_after_service_moves(self):
+        import harness
+        from verify_harness_geometry import audit
+        wires=[wire for wire in harness.HARNESSES
+               if wire['id'] in ('USB-PD','P12+','F_AUDIO+-01','C1+','C1-','C2+','C2-')]
+        result=audit(wires=wires)
+        self.assertEqual(result['status'],'PASS',result['collisions'])
+
+    def test_measured_clear_rectangle_rim_and_lower_arcs(self):
+        shell=chassis.shell()
+        self.assertTrue(shell.isValid())
+        self.assertEqual(len(shell.Solids()),1)
+        actual=bounds(shell)
+        for value,expected in zip(actual,(-5,-20,-5,435,289,114.3)):
+            self.assertAlmostEqual(value,expected,places=6)
+        # The front/back walls continue below the rim ledges. The 430x269
+        # rectangle is clear only BETWEEN these ledges at the opening.
+        for y,z,expected in ((-5,80,1),(-5,70,0),(274,90,1),(274,80,0),
+                             (0,5,1),(30,.25,0),(238,.25,0),(269,10,1)):
+            probe=box(1,1,.1,(100,y,z))
+            self.assertAlmostEqual(shell.intersect(probe).Volume(),expected*.1,places=6)
+        c=PARAMS['case']
+        self.assertEqual((c['inside_x'],c['inside_y'],c['wall']),(430,269,5))
+        self.assertEqual((c['brace_width'],c['brace_y'],c['brace_height']),(80,94.5,5))
+
+    def test_curved_floor_anchors_and_bonds_follow_wood(self):
+        shell=chassis.shell()
+        for name in chassis.floor_anchor_specs():
+            with self.subTest(anchor=name):
+                anchor=chassis.floor_anchor_shape(name)
+                film=chassis.floor_bond_film(name)
+                self.assertLess(anchor.intersect(shell).Volume(),1e-6)
+                self.assertLess(film.intersect(shell).Volume(),1e-6)
+                self.assertLess(anchor.intersect(film).Volume(),1e-6)
+                self.assertAlmostEqual(film.Volume(),chassis.floor_bond_projected_film(name).Volume(),places=5)
+        # At the old front/rear edge the underside is curved, not a floating
+        # flat pad with several millimetres of unmodelled adhesive.
+        self.assertGreater(chassis.floor_bond_film('floor_anchor_front_left').BoundingBox().zmax,3)
+        self.assertGreater(chassis.floor_bond_film('floor_anchor_rear_left').BoundingBox().zmax,2)
+
+    def test_curved_anchor_print_orientation_and_strict_stl_topology(self):
+        from verify import stl_check
+        with tempfile.TemporaryDirectory() as directory:
+            for part in chassis.parts():
+                if not part.name.startswith('floor_anchor_'):
+                    continue
+                with self.subTest(anchor=part.name):
+                    self.assertEqual(part.rotation,((1,0,0),180))
+                    printed=print_position(part.shape,part.rotation)
+                    # The flat top goes on the bed; the curved underside is
+                    # uppermost, avoiding support on the glue contact curve.
+                    bottom_area=sum(face.Area() for face in printed.Faces()
+                                    if face.geomType()=='PLANE' and abs(face.Center().z)<1e-6
+                                    and face.normalAt().z<-.9)
+                    self.assertGreater(bottom_area,5000)
+                    path=Path(directory)/(part.name+'.stl')
+                    cq.exporters.export(printed,str(path),tolerance=.03,angularTolerance=.08)
+                    report=stl_check(path,printed)
+                    self.assertTrue(report['closed'] and report['connected'] and report['consistent_winding'])
+
     def test_printed_insert_has_no_wooden_shell_exports(self):
         parts=all_parts()
         self.assertFalse(any(p.name.startswith(("body_","lid_")) for p in parts))
@@ -89,6 +149,20 @@ class InsertCadTests(unittest.TestCase):
                     cq.exporters.export(shape,str(path),tolerance=.03,angularTolerance=.08)
                     result=stl_check(path,shape)
                     self.assertTrue(result["closed"] and result["connected"])
+
+    def test_service_cassettes_export_closed_connected_meshes(self):
+        from verify import stl_check
+        holders=layout.carrier_shapes()
+        with tempfile.TemporaryDirectory(prefix="f2-cassette-stl-") as directory:
+            for name in ("left_service_carrier","right_service_carrier"):
+                with self.subTest(part=name):
+                    shape=print_position(holders[name])
+                    self.assertTrue(shape.isValid())
+                    self.assertEqual(len(shape.Solids()),1)
+                    path=Path(directory)/(name+".stl")
+                    cq.exporters.export(shape,str(path),tolerance=.03,angularTolerance=.08)
+                    result=stl_check(path,shape)
+                    self.assertTrue(result["closed"] and result["connected"] and result["consistent_winding"])
 
 
 if __name__=="__main__":

@@ -1,4 +1,4 @@
-﻿id,pocet,rozmer_nebo_hodnota,stav,zdroj,upevneni_pouziti
+id,pocet,rozmer_nebo_hodnota,stav,zdroj,upevneni_pouziti
 esp32,1,57 × 13 × 28,zakoupeno,exports/reference-sources.html#inventar,Tvarové dorazy a dva pásky; vlastní přišroubovaný nosič
 camera,1,24 × 12 × 24 mm; předběžná obálka návrhu,objednáno; čeká se na doručení,exports/reference-sources.html#inventar,Tvarové dorazy a dva pásky; vlastní přišroubovaný nosič
 microphone,1,16.51 × 5 × 12.7,zakoupeno,exports/reference-sources.html#inventar,Tvarové dorazy a dva pásky; vlastní přišroubovaný nosič
@@ -7,17 +7,17 @@ mcp23017,1,43 × 5 × 18,zakoupeno,exports/reference-sources.html#inventar,Tvaro
 pixel_shifter,1,25.5 × 15 × 10.2,zakoupeno,exports/reference-sources.html#inventar,Tvarové dorazy a dva pásky; vlastní přišroubovaný nosič
 speaker_left,1,45 × 100 × 21,zakoupeno,exports/reference-sources.html#inventar,Tvarové dorazy a dva pásky; vlastní přišroubovaný nosič
 speaker_right,1,45 × 100 × 21,zakoupeno,exports/reference-sources.html#inventar,Tvarové dorazy a dva pásky; vlastní přišroubovaný nosič
-amplifier_left,1,18 × 18 × 8,zakoupeno,exports/reference-sources.html#inventar,Tvarové dorazy a dva pásky; vlastní přišroubovaný nosič
+amplifier_left,1,18 × 18 × 8,zakoupeno,exports/reference-sources.html#inventar,Dorazy a dva pásky na levé servisní kazetě; tři M3 shora
 amplifier_right,1,18 × 18 × 8,zakoupeno,exports/reference-sources.html#inventar,Tvarové dorazy a dva pásky; vlastní přišroubovaný nosič
-breaker,1,45 × 28 × 13,zakoupeno,exports/reference-sources.html#inventar,Tvarové dorazy a dva pásky; vlastní přišroubovaný nosič
-buck,1,46 × 31 × 19,zakoupeno,exports/reference-sources.html#inventar,Tvarové dorazy a dva pásky; vlastní přišroubovaný nosič
+breaker,1,45 × 28 × 13,zakoupeno,exports/reference-sources.html#inventar,Dorazy a dva pásky na levé servisní kazetě; tři M3 shora
+buck,1,46 × 31 × 19,zakoupeno,exports/reference-sources.html#inventar,Dorazy a dva pásky na levé servisní kazetě; tři M3 shora
 pd_trigger,1,14 × 28 × 11,zakoupeno,exports/reference-sources.html#inventar,Tvarové dorazy a dva pásky; vlastní přišroubovaný nosič
 powerbank,1,26.5 × 139 × 80,vybráno z inventáře; dostupnost ověřit doma,exports/reference-sources.html#inventar,Odnímatelná; dva uvolnitelné pásky 8 × 300; vlastní držák a cesta nahoru
-perfboard_1,1,50 × 70 × 1.6,zakoupeno,exports/reference-sources.html#inventar,Tvarové dorazy a dva pásky; vlastní přišroubovaný nosič
-perfboard_2,1,50 × 70 × 1.6,zakoupeno,exports/reference-sources.html#inventar,Tvarové dorazy a dva pásky; vlastní přišroubovaný nosič
-degson_1,1,35 × 22 × 16 mm; předběžná obálka návrhu,objednáno; čeká se na doručení,exports/reference-sources.html#inventar,Tvarové dorazy a dva pásky; vlastní přišroubovaný nosič
-degson_2,1,35 × 22 × 16 mm; předběžná obálka návrhu,objednáno; čeká se na doručení,exports/reference-sources.html#inventar,Tvarové dorazy a dva pásky; vlastní přišroubovaný nosič
-degson_3,1,35 × 22 × 16 mm; předběžná obálka návrhu,objednáno; čeká se na doručení,exports/reference-sources.html#inventar,Tvarové dorazy a dva pásky; vlastní přišroubovaný nosič
+perfboard_1,1,50 × 70 × 1.6,zakoupeno,exports/reference-sources.html#inventar,Dorazy a dva pásky na pravé servisní kazetě; čtyři M3 shora
+perfboard_2,1,50 × 70 × 1.6,zakoupeno,exports/reference-sources.html#inventar,Dorazy a dva pásky na pravé servisní kazetě; čtyři M3 shora
+degson_1,1,35 × 22 × 16 mm; předběžná obálka návrhu,objednáno; čeká se na doručení,exports/reference-sources.html#inventar,Dorazy a dva pásky na pravé servisní kazetě; čtyři M3 shora
+degson_2,1,35 × 22 × 16 mm; předběžná obálka návrhu,objednáno; čeká se na doručení,exports/reference-sources.html#inventar,Dorazy a dva pásky na pravé servisní kazetě; čtyři M3 shora
+degson_3,1,35 × 22 × 16 mm; předběžná obálka návrhu,objednáno; čeká se na doručení,exports/reference-sources.html#inventar,Dorazy a dva pásky na pravé servisní kazetě; čtyři M3 shora
 servo_1..6,6,22 × 11.5 × 27,zakoupeno,exports/reference-sources.html#inventar,Kolébka + mechanické zajištění
 u059_1..6,6,32 × 24 × 8,zakoupeno,exports/reference-sources.html#inventar,Dorazy a pásky na lůžku
 led_1..6,6,200 × 10; 6 LED na úsek,zakoupeno,exports/reference-sources.html#inventar,Z koupené 5m role spotřeba 1.2m; samolepicí a mechanické zajištění

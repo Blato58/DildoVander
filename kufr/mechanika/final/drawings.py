@@ -1,4 +1,5 @@
 """F2 drawings from the same parameters, CAD bounds and terminal routes."""
+import cadquery as cq
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -24,17 +25,38 @@ def dimension(ax, start, end, label, offset=0):
             bbox={"facecolor":BACKGROUND, "edgecolor":"none", "pad":2})
 
 
+def section_lines(shape, plane, origin, axes):
+    """Sample edges of the actual BREP section; no alternate outline geometry."""
+    section = cq.Workplane(plane, origin=origin).newObject([shape]).section().val()
+    result = []
+    for edge in section.Edges():
+        count = 2 if edge.geomType() == "LINE" else 129
+        points = [edge.positionAt(float(t)).toTuple() for t in np.linspace(0,1,count)]
+        result.append(np.array([[point[axes[0]],point[axes[1]]] for point in points]))
+    return result
+
+
+def plot_section(ax, shape, plane, origin, axes, **style):
+    for points in section_lines(shape,plane,origin,axes):
+        ax.plot(points[:,0],points[:,1],**style)
+
+
 def plan_axes(ax):
     case = PARAMS["case"]
     ax.set_facecolor(BACKGROUND)
+    plot_section(ax,chassis.shell(),"XY",(0,0,case["base_height"]-.1),(0,1),
+                 color="#573822",lw=1.5)
     ax.add_patch(Rectangle((0,0),case["inside_x"],case["inside_y"],
-                           fill=False, lw=2, edgecolor="#573822"))
+                           fill=False,lw=1,ls=":",edgecolor="#35778b"))
+    ax.add_patch(Rectangle((0,case["brace_y"]),case["inside_x"],case["brace_width"],
+                           facecolor="#d5c9ad",edgecolor="#94783f",alpha=.35,hatch="//"))
     origin = PARAMS["frame"]["origin"]
     size = PARAMS["frame"]["size"]
     ax.add_patch(Rectangle(origin[:2],size[0],size[1],fill=False,
                            ls="--",edgecolor="#9b642f"))
-    ax.set_xlim(-25,case["inside_x"]+25)
-    ax.set_ylim(case["inside_y"]+25,-35)
+    shell_bounds = bounds(chassis.shell())
+    ax.set_xlim(shell_bounds[0]-20,shell_bounds[3]+25)
+    ax.set_ylim(shell_bounds[4]+28,shell_bounds[1]-25)
     ax.set_aspect("equal")
     ax.axis("off")
 
@@ -73,15 +95,41 @@ def main():
         top.text(x+m.M["base_width"]/2,y+m.M["length"]/2,str(index+1),
                  ha="center",fontsize=20,color="#49374f")
     case = PARAMS["case"]
-    dimension(top,(0,-12),(case["inside_x"],-12),f"{case['inside_x']:.1f} mm",-5)
-    top.text(case["inside_x"]/2,case["inside_y"]+20,
-             f"Interior {case['inside_x']:.1f} x {case['inside_y']:.1f}; module pitch {m.M['pitch']:.0f}",ha="center")
-    top.set_title("F2 / actual wooden case, parametric active component footprints")
+    dimension(top,(0,-30),(case["inside_x"],-30),f"clear top X {case['inside_x']:.1f} mm",-5)
+    top.text(case["inside_x"]/2,case["inside_y"]+30,
+             f"Clear top rectangle {case['inside_x']:.1f} x {case['inside_y']:.1f} between rim ledges; outer {case['outer_x']:.0f} x {case['outer_y']:.0f}",ha="center")
+    top.text(case["inside_x"]/2,case["inside_y"]+45,
+             f"Hatched brace: {case['brace_width']:.0f} mm Y x {case['brace_height']:.0f} mm Z across full X; dashed frame is design placement",ha="center",fontsize=8)
+    top.annotate("",xy=(case["inside_x"]+15,case["inside_y"]),xytext=(case["inside_x"]+15,0),
+                 arrowprops={"arrowstyle":"<->","color":"#35778b","lw":1})
+    top.text(case["inside_x"]+20,case["inside_y"]/2,f"clear top Y {case['inside_y']:g} mm",
+             rotation=90,ha="center",va="center",fontsize=8,
+             bbox={"facecolor":BACKGROUND,"edgecolor":"none","pad":2})
+    top.set_title("F2 / purchased case BREP, clear top opening and component footprints")
     side.set_facecolor(BACKGROUND)
-    side.add_patch(Rectangle((0,0),case["inside_y"],case["base_height"],
-                             fill=False,lw=2,edgecolor="#573822"))
-    side.add_patch(Rectangle((0,case["base_height"]),case["inside_y"],case["lid_height"],
-                             fill=False,lw=2,ls="--",edgecolor="#573822"))
+    section_x = case["inside_x"]/2
+    plot_section(side,chassis.shell(),"YZ",(section_x,0,0),(1,2),color="#573822",lw=2)
+    plot_section(side,chassis.lid_position(chassis.shell(True),0),"YZ",(section_x,0,0),(1,2),
+                 color="#573822",lw=1.2,ls="--")
+    side.add_patch(Rectangle((case["brace_y"],0),case["brace_width"],case["brace_height"],
+                             fc="#d5c9ad",ec="#94783f",hatch="//"))
+    side.plot([0,case["inside_y"]],[case["base_height"]]*2,color="#35778b",ls=":",lw=1)
+    side.text(case["inside_y"]/2,case["base_height"]+5,"Clear top Y; not full-height clear void",ha="center",fontsize=8)
+    ledge_width = case.get("reinforcement_width",case["wall"])
+    front_drop = case.get("front_reinforcement_height",0)
+    rear_drop = case.get("rear_reinforcement_height",0)
+    radius = case.get("bottom_radius",0)
+    projection = ledge_width-case["wall"]
+    flat_front, flat_rear = radius-projection, case["inside_y"]+projection-radius
+    if radius:
+        side.scatter([flat_front,flat_rear],[0,0],s=12,color="#35778b")
+        side.text(case["inside_y"]/2,22,
+                  f"Inner R{radius:g}; floor tangencies Y{flat_front:g}..{flat_rear:g}",
+                  ha="center",fontsize=8,color="#35778b")
+    if front_drop or rear_drop:
+        side.text(case["inside_y"]/2,case["base_height"]+case["lid_height"]-25,
+                  f"Rim width {ledge_width:g} includes wall {case['wall']:g}\nFront {front_drop:g} / rear {rear_drop:g} down from rim",
+                  ha="center",fontsize=8)
     frame = PARAMS["frame"]
     side.add_patch(Rectangle((frame["origin"][1],frame["origin"][2]),frame["size"][1],frame["size"][2],fc="#82758a"))
     for raised,color in ((False,"#86718e"),(True,"#49374f")):
@@ -91,10 +139,11 @@ def main():
                   "raised" if raised else "rest",ha="center",color=color)
     dimension(side,(case["inside_y"]+10,harness.REST_TRAY_Z),
               (case["inside_y"]+10,harness.REST_TRAY_Z+m.M["lift"]),f"{m.M['lift']:.0f} mm")
-    side.text(0,-15,"Shell is reference geometry only.\nLid and connector details require dry fit.\nGeometry is not physical acceptance.",va="top")
+    side.text(0,-15,f"Section follows chassis.shell() at X{section_x:g}.\nFloor {case['floor']:g} mm / lid {case['lid_height']:g} mm assumed.\nBounds are not guaranteed clear void; dry fit required.",va="top")
     side.set_aspect("equal");side.axis("off")
-    side.set_xlim(-10,case["inside_y"]+40);side.set_ylim(-45,case["outer_z"]+10)
-    side.set_title("Actual interior + empty lid; measured envelope / provisional partitions")
+    shell_bounds=bounds(chassis.shell())
+    side.set_xlim(shell_bounds[1]-10,shell_bounds[4]+40);side.set_ylim(-45,case["outer_z"]+10)
+    side.set_title("BREP YZ section / rounded lower profile, rim ledges and centered brace")
     save_figure(fig,"layout")
     cable_drawing()
     kinematic_drawing()
@@ -123,9 +172,9 @@ def cable_drawing():
     ax.scatter([park[0]],[park[1]],marker="x",color="#a46b22")
     ax.text(park[0],park[1]-4,"unplugged park",fontsize=7)
     case=PARAMS["case"]
-    ax.text(case["inside_x"]/2,case["inside_y"]+18,
+    ax.text(case["inside_x"]/2,case["inside_y"]+35,
             "Red power / grey GND / blue signals; independent tray loops; exact pins and cut lengths in cable-plan.json",ha="center",fontsize=8)
-    ax.text(case["inside_x"]/2,-18,
+    ax.text(case["inside_x"]/2,-35,
             "Routing anchors require rounded bends and finite-wire clearance verification; no measured pin positions",ha="center",fontsize=8)
     ax.set_title("F2 physical wiring / all polylines from harness.py / unchanged GPIO and PCA channels")
     save_figure(fig,"cable-layout")

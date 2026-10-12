@@ -11,14 +11,16 @@ lokálního lepení na holé dřevo. Nůžky, kleště a odizolování vodičů 
 
 ## Souřadnice a důkazy
 
-mm, počátek na vnitřním dně vpředu vlevo, X doprava, Y k pantům, Z vzhůru.
-Majitel potvrdil vnitřní spodní prostor 431,8 × 266,7 × 114,3, výrobce
-vnější 450 × 310 × 200 a majitel dále bezpečný vložitelný kvádr
-400 × 240 × 170 s rezervou. Jeho XY polohu centrujeme; polohu skutečného
-kvádru v nepravidelném kufru ověřit suchým vložením. Konstrukce se neopírá
-o víko. Model pláště má celistvé stěny a prázdné víko. Rozdělení tlouštěk,
-osy pantů a XY příčné výztuhy nejsou změřené. Výztuha má potvrzenou výšku
-5; rám je nad její nejvyšší plochou. Plášť se nikdy neexportuje k tisku.
+mm, XY počátek v předním levém rohu volného horního obdélníku, Z0 na
+rovném vnitřním dně; X doprava a Y k pantům. Měření 12. 10. 2026:
+430 × 269 mm mezi výztuhami, stěna 5, výztuhy celkem 20 včetně stěny,
+přední/zadní výška 40/30 dolů od okraje. Hlavní vnitřní stěny mají Y−15
+a Y284; oblouky R45 přecházejí do rovného dna na Y30/Y239. Rám zůstává
+v návrhové poloze XY15,9/13,35 na Z8; jeho obálka není potvrzeným volným
+objemem kufru. Středová výztuha 80 × 5 leží na Y94,5–174,5.
+Kotvy kopírují oblouk s 0,5mm svislou lepicí spárou. Tisknou se plochou
+horní stranou dolů; zachycené matice se vloží na stole před lepením.
+Tloušťka dna 5, profil víka a panty zůstávají předpoklady. Plášť se netiskne.
 
 ## Vybraný konstrukční princip
 
@@ -47,9 +49,10 @@ pouzdro nelze prohlásit za přijaté jen podle těchto návrhových mezer.
 Rám tvoří čtyři PETG panely s integrovanými předními/zadními žebry.
 Obálka původních lišt u mikrofonu a kamery zůstává zachována; není to
 prostá záměna hliníku za plast ve volně neseném nosníku. Pod rámem jsou
-čtyři tištěné podlahové kotvy tvaru L, vysoké 7,5 mm nad 0,5mm lepidlem.
+čtyři tištěné podlahové kotvy tvaru L s horní plochou v Z8 mm a
+zakřiveným spodkem nad 0,5mm svislou lepicí spárou.
 Jejich příčné pásy přímo podepírají úchyty všech modulů; vnější ramena
-podepírají boční elektroniku. Vyhýbají se modelované výztuze dna Y115–175.
+podepírají boční elektroniku. Vyhýbají se potvrzené výztuze dna Y94,5–174,5.
 Suché vložení musí potvrdit skutečnou polohu této výztuhy.
 
 Každý modul má vlastní čtyři M3×14 a zachycené matice v podlahových
@@ -117,6 +120,23 @@ Pokud servo dál drží, automatické splnění požadavku zůstává blokované
 
 ## Montážní rozhraní a vzhled
 
+Revize DFA 12. 10. 2026 zachovává nosný čtyřpanelový rám a koupený kufr,
+ale nahrazuje spodní spoje levé/pravé elektronické kazety sedmi horními
+M3 × 8 do předem vložených matic rámu. Příruby a přístupové drážky ve
+vedlejších nosičích jsou skutečná CAD geometrie. Kazety se celé osazují
+a zapojují mimo kufr; spodní deska/police vždy před horní. Při servisu
+se vyjme kazeta po odpojení rozhraní; ostatní elektronika a zdvihy zůstávají.
+Nevzniká další typ výtisku ani kovový výrobek; počet šroubů klesá o jeden.
+
+Montáž je definovaná v `assembly-guide.json`: připravené části na stole,
+části skutečně vložené do kufru a samostatně připravené horní skupiny
+jsou odlišené. Elektronika a pevná kabeláž předchází vložení rámu;
+vodicí M4 se vkládají zespodu na stole a zajišťují horními maticemi;
+24 šroubů základen se dotahuje před lůžky. [Postup](POSTUP.md) a viewer
+čtou stejná data. Souřadnice každého koupeného dílu zůstávají v
+`parameters.json`, rezervní nakoupené kusy zůstávají mimo sestavu.
+
+
 Nakoupené desky mají skutečné obálky z inventáře; jejich neznámé otvory
 nenahrazujeme vymyšlenou roztečí. Tištěné kapsy mají pevné okraje a dva
 pásky na díl, přišroubované k rámu či servisnímu nosiči. Kamera má výměnnou
@@ -166,11 +186,12 @@ montáž vpřed/zpět/restart a transport bez banky/hůlek/textilu. Odpojený
 USB kabel má parkovací příchytku v levé zóně; při transportu není připojen
 k nepřítomné bance. Stav se při změně režimu odvozuje deterministicky.
 
-Montáž: příprava a dvě měrky → rám a prázdné nosiče mimo kufr →
-čtyři kotvy a vytvrzení → matice do bočních kapes → přišroubování rámu →
-moduly sestavené na stole přišroubovat jednotlivě ke kotvám → pevné desky/reproduktory →
-LED/U059 → kabely a parkování → mechanická/polaritní kontrola →
-odjištěný omezený test → textil → kontrola zavření. Každý krok nese díly,
+Montáž: měrky → rám a nosiče mimo kufr → elektronika a kabeláž na stole →
+čtyři kotvy a vytvrzení → matice do bočních kapes → holé základny a vedení
+zespodu na stole s horními jistícími maticemi → vložení předzapojeného rámu →
+4 M4 a 24 M3 ještě bez lůžek → horní skupiny servo/vačka/lůžko/LED/U059
+připravené na stole → spuštění po vedení → mechanická/polaritní kontrola →
+omezený test → textil → kryty → kontrola zavření. Každý krok nese díly,
 počty materiálu, nástroje, kameru, kontrolu a předchůdce.
 
 Ověření: všechny tištěné díly jediné uzavřené těleso, STL/STEP roundtrip,

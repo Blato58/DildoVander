@@ -20,6 +20,7 @@ import harness
 import strength
 import follower_load
 import validate_assembly
+import assembly_access
 import verify_harness_geometry
 from artifacts import (export_names, assert_generation_snapshot, export_hashes,
                        assert_export_hashes, GENERATION_SNAPSHOT, VERIFICATION_EXPORTS,
@@ -201,7 +202,14 @@ def mechanical_checks(report_path=None):
     if report_path is not None:
         report_path.write_text(json.dumps(errors,indent=2),encoding="utf-8")
     assert not errors, "CAD intersections found: "+json.dumps(errors)[:3000]
-    return {"static_assemblies":3,"motion_material_samples":len(motion),"all_six_modules":True,
+    return {"case_geometry":{"clear_rim_rectangle_mm":[C["inside_x"],C["inside_y"]],
+                             "wall_mm":C["wall"],"rim_total_width_mm":C["reinforcement_width"],
+                             "rim_heights_down_mm":[C["front_reinforcement_height"],C["rear_reinforcement_height"]],
+                             "bottom_tangent_mm":[C["bottom_radius"],C["bottom_radius"]],
+                             "brace_width_height_mm":[C["brace_width"],C["brace_height"]],
+                             "owner_measurement_date":C["measurement_date"],
+                             "status":C["geometry_status"]},
+            "static_assemblies":3,"motion_material_samples":len(motion),"all_six_modules":True,
             "neighbour_states_degrees":[0,M["travel_degrees"]],"lid_material_samples":len(lid_angles),
             "bank_removal_samples":len(bank_offsets),"collisions":[],"lower_stop_contact_mm2":round(support_area,2),
             "lower_stop_nominal_gap_mm":0,"lower_stop_maximum_calibration_offset_mm":M["lower_stop_clearance"],
@@ -210,7 +218,7 @@ def mechanical_checks(report_path=None):
             "sliding_follower_load":follower_load.calculate(),
             "manufacturing_ready":False,"physical_test_performed":False,
             "limitations":["10 degree sampled BREP motion is not a continuous collision proof",
-                            "Safe-zone, brace XY, lid partition and hinge axis need dry-fit acceptance",
+                            "Circular interpolation of measured tangents, floor thickness, lid and hinge axis need dry-fit acceptance",
                             "Actual harness bend radius, glue/wood strength, creep, loaded torque and pulse-off untested",
                             "Intermediate power loss requires manual support/inspection; no automatic descent",
                             "Camera/FPC and horn details provisional; no manufacturing qualification"]}
@@ -255,6 +263,7 @@ def main():
     mech_result=mechanical_checks(OUT/"collision-details.json")
     harness_result=harness.validate()
     assembly_result=validate_assembly.validate()
+    assembly_result['installation_access']=assembly_access.validate()
     wire_geometry=verify_harness_geometry.verify_all_states()
     # Save diagnostics even on failure, without issuing an acceptance report.
     (OUT/"wire-collision-details.json").write_text(json.dumps(wire_geometry,indent=2,allow_nan=False),encoding="utf-8")

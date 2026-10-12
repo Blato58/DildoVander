@@ -1,12 +1,12 @@
 {
-  "revision": "F2",
+  "revision": "F2-DFA-2026-10-12",
   "steps": [
     {
       "id": "fit",
       "title": "Ověření podkladů a zkušební výtisk",
       "parts": [],
       "wires": [],
-      "instruction": "Vytisknout měrku se 100% výplní a jeden zkušební modul. Před tiskem velkých kotev nasunout skutečné matice M3 i M4 bočními tunely měrky pod uzavřenou střechu a vyzkoušet šrouby. Ověřit také usazení standardních hlav šroubů v zahloubeních nad průchozími otvory M3/M4; potom matice vyjmout pro finální montáž. Ve stejném výtisku ověřit přemostění dutiny epoxidového zámku Ø7,5/Ø10,5 a obě horní Ø2,5 odvzdušnění. Malou dávkou epoxidu z rezervy předplnit komoru odspodu; obě horní ústí musí ukázat naplnění. Uvnitř nezavřít podpory. Zkouška plnění neprokazuje přilnutí ke dřevu. Změřit skutečné hůlky s pouzdrem, konektory a osu serva. Nasucho vložit obrys 400 × 240 mm nad 5mm výztuhu. Lůžko tisknout otočené +90° kolem Y, integrální Ø6 čep směřuje vzhůru bez podpor na kluzné ploše. Nevyhovující vůli opravit tiskovým profilem nebo parametrem a znovu vytisknout; nikdy pilníkem, vrtákem ani změnou měřítka STL. Ověřit, že skutečné původní otvory páky přijmou M2 bez vrtání; jinak upravit tištěnou spojku nebo použít vhodnou standardní neupravenou páku před finálním tiskem.",
+      "instruction": "Vytisknout měrku se 100% výplní a jeden zkušební modul. Před tiskem velkých kotev nasunout skutečné matice M3 i M4 bočními tunely měrky pod uzavřenou střechu a vyzkoušet šrouby. Ověřit také usazení standardních hlav šroubů v zahloubeních nad průchozími otvory M3/M4; potom matice vyjmout pro finální montáž. Ve stejném výtisku ověřit přemostění dutiny epoxidového zámku Ø7,5/Ø10,5 a obě horní Ø2,5 odvzdušnění. Malou dávkou epoxidu z rezervy předplnit komoru odspodu; obě horní ústí musí ukázat naplnění. Uvnitř nezavřít podpory. Zkouška plnění neprokazuje přilnutí ke dřevu. Změřit skutečné hůlky s pouzdrem, konektory a osu serva. Nasucho vložit obrys 400 × 240 mm přes volný horní obdélník 430 × 269 mm nad středovou výztuhu 80 × 5 mm. Šablonou ověřit oba oblouky 45 × 45 mm a usazení tvarovaných kotev; nelze použít staré kotvy pro ploché dno. Kotvy tisknout plochou horní stranou na podložce, zakřiveným spodkem vzhůru; STL má tuto orientaci již nastavenou. Lůžko tisknout otočené +90° kolem Y, integrální Ø6 čep směřuje vzhůru bez podpor na kluzné ploše. Nevyhovující vůli opravit tiskovým profilem nebo parametrem a znovu vytisknout; nikdy pilníkem, vrtákem ani změnou měřítka STL. Ověřit, že skutečné původní otvory páky přijmou M2 bez vrtání; jinak upravit tištěnou spojku nebo použít vhodnou standardní neupravenou páku před finálním tiskem.",
       "check": "Zapsané rozměry odpovídají parametrům; čep a vedení mají funkční vůli; obě matice jdou bočně zasunout i vyjmout bez opracování a šrouby se ručně chytí do závitu i usadí hlavy do zahloubení; epoxidový zámek jde naplnit odspodu s průchodnými oběma odvzdušněními; víko se nedotýká obálky.",
       "materials": [
         {
@@ -16,6 +16,10 @@
         {
           "id": "EPOXY",
           "quantity": 3
+        },
+        {
+          "id": "SHIM05",
+          "quantity": 1
         }
       ],
       "tools": [
@@ -27,7 +31,23 @@
       ],
       "camera": "overview",
       "depends": [],
-      "partSummary": "2 × díl tiskové měrky (čep, kapsy M3/M4, epoxidový zámek a drážka); 1 × půdorysná šablona"
+      "partSummary": "2 × díl tiskové měrky (čep, kapsy M3/M4, epoxidový zámek a drážka); 1 × půdorysná šablona",
+      "subassembly": "deck",
+      "location": "Dno skutečného kufru; X doprava, Y k pantům, Z nahoru",
+      "direction": "Podle označených přístupových bodů",
+      "access": [
+        "Banka odpojená; žádná síla přes PCB, konektory nebo vodiče."
+      ],
+      "connectors": [],
+      "removal": "Zkušební výtisky a šablony odstranit; nejsou součástí nosné sestavy.",
+      "installation": {
+        "kind": "inspection",
+        "clearance_mm": 0,
+        "absent": [],
+        "targets": []
+      },
+      "caseParts": [],
+      "benchParts": []
     },
     {
       "id": "frame",
@@ -57,11 +77,38 @@
       "depends": [
         "fit"
       ],
-      "partSummary": "4 × rámový panel s integrovanými žebry; 8 × přeplátovaný spoj"
+      "partSummary": "4 × rámový panel s integrovanými žebry; 8 × přeplátovaný spoj",
+      "subassembly": "deck",
+      "location": "Pracovní stůl mimo kufr",
+      "direction": "Na stole, přístup shora i zespodu",
+      "access": [
+        "Banka odpojená; žádná síla přes PCB, konektory nebo vodiče.",
+        "Použít podpěrky pod rám; zakryté spodní šrouby dokončit před vložením do kufru."
+      ],
+      "connectors": [],
+      "removal": "Odpojit napájení, sejmout horní skupiny, banku, oba reproduktory a pravou kazetu; povolit 24 M3 a 4 M4, vytáhnout celou vložku.",
+      "installation": {
+        "kind": "bench",
+        "clearance_mm": 0,
+        "absent": [
+          "tray_*",
+          "cam_*",
+          "servo_*"
+        ],
+        "targets": [
+          "frame_panel*",
+          "frame_seam*"
+        ]
+      },
+      "caseParts": [],
+      "benchParts": [
+        "frame_panel*",
+        "frame_seam*"
+      ]
     },
     {
       "id": "carriers",
-      "title": "Přišroubovat prázdné nosiče",
+      "title": "Nosiče a odnímatelné boční kazety na stole",
       "parts": [
         "carrier_*",
         "left_service_carrier",
@@ -77,12 +124,12 @@
         "usb_clip*"
       ],
       "wires": [],
-      "instruction": "Na stole před vložením rámu a osazením elektroniky namontovat nosiče i jejich spodní šrouby a matice. Osadit kotvy kabelů a otevřené pásky. Ověřit odlehčovací kapsy v podlahových kotvách pro spodní hlavy. Powerbankový držák nepřenáší sílu do sousedních dílů.",
+      "instruction": "Na stole připevnit spodními šrouby všechny pevné nosiče. Sedm matic odnímatelných bočních kazet vložit do spodních kapes rámu; kazety připevnit sedmi M3 × 8 shora. Zatím bez desek. Vnější rámy nenesou elektroniku; vlastní sestavená vložka zůstává nosná bez banky, hůlek a textilu.",
       "check": "Každý nosič drží samostatně; šrouby nekolidují s PCB, kabely mají průchody.",
       "materials": [
         {
           "id": "M3x8",
-          "quantity": 44
+          "quantity": 43
         },
         {
           "id": "M3CSK8",
@@ -94,7 +141,7 @@
         },
         {
           "id": "NUT3",
-          "quantity": 49
+          "quantity": 48
         }
       ],
       "tools": [
@@ -106,132 +153,60 @@
       "depends": [
         "frame"
       ],
-      "partSummary": "Sada pevných nosičů dle tiskového seznamu; každý 1 ×; držáky kondenzátorů 3–6 po 1 ×"
-    },
-    {
-      "id": "anchors",
-      "title": "Přilepit a přezkoušet čtyři podlahové kotvy",
-      "parts": [
-        "floor_anchor_front_left",
-        "floor_anchor_front_right",
-        "floor_anchor_rear_left",
-        "floor_anchor_rear_right",
-        "wood_bond*",
-        "module_nut*",
-        "anchor_nut*"
+      "partSummary": "Sada pevných nosičů dle tiskového seznamu; každý 1 ×; držáky kondenzátorů 3–6 po 1 ×",
+      "subassembly": "deck",
+      "location": "Pracovní stůl mimo kufr",
+      "direction": "Na stole, přístup shora i zespodu",
+      "access": [
+        "Banka odpojená; žádná síla přes PCB, konektory nebo vodiče.",
+        "Použít podpěrky pod rám; zakryté spodní šrouby dokončit před vložením do kufru."
       ],
-      "wires": [],
-      "instruction": "Nasucho ustavit čtyři tištěné kotvy na DNĚ podle sestaveného rámu. Brusným papírem odstranit povrchovou úpravu pouze v jejich skutečných lepených stopách na pevné holé dřevo. Chránit kapsy matic a otvory před lepidlem. Použít Bison Epoxy Metal ze zásoby připravené v prvním kroku a smíchat 1:1; dodanou stěrkou PŘEDEM naplnit zámky Ø7,5/Ø10,5 z otevřené spodní strany kotvy, pak kotvu usadit na mokrý 0,5mm film na dně. Horní otvory Ø2,5 slouží odvzdušnění a vizuální kontrole, nikoli tlakové injektáži pasty. Mokré přebytky otřít před vytvrzením. Rám nepřilepit. Fixovat 10 h, při 20 °C nechat 24 h vytvrdnout a přezkoušet spoj podle MONTÁŽ.md. Až potom zasunout zboku 24 M3 a 4 M4 matice před vložením rámu. Čtyři stopy mají celkem 36 831,325 mm² a 84 zámků; minimum filmu a zámků je 43,271 ml bez ztrát. Připravit tři balení po 24 ml, včetně rezervy pro vzorek, přebytky a ztráty.",
-      "check": "Kotvy jsou na dně, nikoli stěnách. Matice M3 leží Z2,6–5 a M4 Z1,8–5 pod souvislou 3mm střechou; žádné zalepení kapsy a nejméně 2 mm plastu mezi epoxidem a kapsou. Zámky jsou vyplněné; nepokračovat při odlupování dřeva, praskání nebo nevyhovující zátěžové zkoušce.",
-      "materials": [
-        {
-          "id": "NUT3",
-          "quantity": 24
-        },
-        {
-          "id": "NUT4",
-          "quantity": 4
-        }
-      ],
-      "tools": [
-        "brusný papír pouze na dřevo v lepené stopě",
-        "svěrky",
-        "rukavice",
-        "míchací miska a stěrka",
-        "pinzeta"
-      ],
-      "camera": "side",
-      "depends": [
-        "carriers"
-      ],
-      "partSummary": "4 × tištěná podlahová kotva; spodní film a odlité zámky; 24 × M3 a 4 × M4 zachycená matice"
-    },
-    {
-      "id": "install",
-      "title": "Vložit rám a upevnit čtyřmi M4 × 10",
-      "parts": [
-        "anchor_m4*",
-        "anchor_head*"
-      ],
-      "wires": [],
-      "instruction": "Po přejímce kotev a bočním vložení všech jejich matic vložit rám s prázdnými nosiči a upevnit čtyřmi standardními M4 × 10 ISO4762. Hlava Ø7 × 4 mm, imbus 3 mm, 0,5mm zapuštění. Moduly ještě nejsou namontované. Nepřitahovat křivý rám silou.",
-      "check": "Všechny čtyři šrouby drží rám; matice zůstávají pod střechou kotev. Spodní hlavy nosičů se vejdou do odlehčovacích kapes a rám nekoliduje s výztuhou.",
-      "materials": [
-        {
-          "id": "M4x10",
-          "quantity": 4
-        }
-      ],
-      "tools": [
-        "imbus 3 mm"
-      ],
-      "camera": "overview",
-      "depends": [
-        "anchors"
-      ],
-      "partSummary": "1 × rám s nosiči; 4 × M4 × 10 ISO4762"
-    },
-    {
-      "id": "mechanisms",
-      "title": "Sestavit šest zdvihů",
-      "parts": [
-        "base_*",
-        "tray_*",
-        "cam_*",
-        "servo_*",
-        "stock_horn*",
-        "coupler_*",
-        "guide_*",
-        "servo_tie*",
-        "module_m3*",
-        "module_head*"
-      ],
-      "wires": [],
-      "instruction": "Po instalaci rámu na stole připravit základnu s vodicími šrouby, lůžko zatím MIMO vodítka. Vačku s pákou a servem nasunout axiálně na integrální Ø6 čep lůžka. Lůžko, vačku a servo spustit společně na vodítka a ručně bez napájení vyzkoušet zdvih; servo přidržovat rukou, trvalé pásky ani horní matice ještě neosadit. Celou zachycenou podsestavu lůžko/vačka/servo potom sejmout z vodítek. Odkrytou základnu připevnit čtyřmi M3 × 14 do již zachycených matic podlahových kotev. Podsestavu vrátit na vodítka, usadit servo, teprve nyní zajistit dvěma trvalými pásky a osadit horní podložky a matice vodítek. Čep nevypáčit stranou při lůžku na vodítkách. Nesprávnou vůli řešit tiskovým profilem/parametrem a novým tiskem.",
-      "check": "Každé lůžko dosedá na dolní podpěry; integrální čep klouže v zachycené drážce bez zadrhnutí a vedení se nekříží. Šest sousedů se pohybuje nezávisle. Žádné obrábění tisku nebo kovu.",
-      "materials": [
-        {
-          "id": "M3x14",
-          "quantity": 24
-        },
-        {
-          "id": "GUIDE4",
-          "quantity": 12
-        },
-        {
-          "id": "COUPLER2",
-          "quantity": 12
-        },
-        {
-          "id": "GUIDE_NUT",
-          "quantity": 12
-        },
-        {
-          "id": "GUIDE_WASHER",
-          "quantity": 12
-        },
-        {
-          "id": "SERVO_CENTRE",
-          "quantity": 6
-        },
-        {
-          "id": "TIE25",
-          "quantity": 12
-        }
-      ],
-      "tools": [
-        "imbus",
-        "klíč 5,5 a 7 mm"
-      ],
-      "camera": "side",
-      "depends": [
-        "install"
-      ],
-      "partSummary": "6 × základna, lůžko s integrálním čepem, vačka a servo; 12 × vodítko; 24 × M3 × 14"
+      "connectors": [],
+      "removal": "Odpojit napájení, sejmout horní skupiny, banku, oba reproduktory a pravou kazetu; povolit 24 M3 a 4 M4, vytáhnout celou vložku.",
+      "installation": {
+        "kind": "bench",
+        "clearance_mm": 0,
+        "absent": [
+          "tray_*",
+          "cam_*",
+          "servo_*"
+        ],
+        "targets": [
+          "carrier_*",
+          "left_service_carrier",
+          "right_service_carrier",
+          "camera_angle",
+          "bank_holder",
+          "switch_shelf",
+          "usb_park_clip",
+          "capacitor_holder*",
+          "usb_coil_cradle",
+          "mic_mount*",
+          "camera_mount*",
+          "usb_clip*"
+        ]
+      },
+      "caseParts": [],
+      "benchParts": [
+        "frame_panel*",
+        "frame_seam*",
+        "carrier_*",
+        "left_service_carrier",
+        "right_service_carrier",
+        "camera_angle",
+        "bank_holder",
+        "switch_shelf",
+        "usb_park_clip",
+        "capacitor_holder*",
+        "usb_coil_cradle",
+        "mic_mount*",
+        "camera_mount*",
+        "usb_clip*"
+      ]
     },
     {
       "id": "electronics",
-      "title": "Osadit pevnou elektroniku",
+      "title": "Osadit elektroniku na otevřené vložce",
       "parts": [
         "esp32",
         "camera",
@@ -267,12 +242,11 @@
         "component_tie_buck*",
         "component_tie_pd_trigger*",
         "component_tie_perfboard*",
-        "component_tie_degson*",
-        "capacitor_tie*"
+        "component_tie_degson*"
       ],
       "wires": [],
-      "instruction": "Desky posadit do dorazů a přidržet dvěma pásky. Pásky nesmějí zatěžovat konektory, membrány ani drobné součástky. Kamera a Degson jsou do ověření dodaného provedení pouze prostorové obálky.",
-      "check": "Žádný díl nevypadne při opatrném otočení odpojené vložky; pájecí strany jsou izolované.",
+      "instruction": "Vše osadit na stole před vložením rámu a před nasazením zdvihových lůžek. Nejprve spodní deska pravé kazety a její vodiče, potom horní deska, nakonec Degson; levou kazetu osadit jističem a zesilovačem před měničem. Pásky provléknout před položením desky. ESP a kamera zůstávají vzadu uprostřed, mikrofon vpředu. Reproduktory osadit a svázat až po utažení sedmi kazetových šroubů; před pozdějším utažením čtyř M4 kotev je dočasně odložit.",
+      "check": "Každá deska má pevný doraz a dva pásky; vodiče lze zapojit před zakrytím vyšší policí. Pod sestavou je volný přístup pro spodní šrouby. ESP, kamera, PCA a MCP nejsou zakryté lůžky.",
       "materials": [
         {
           "id": "TIE25",
@@ -285,48 +259,122 @@
       ],
       "camera": "top",
       "depends": [
-        "mechanisms"
+        "carriers"
       ],
-      "partSummary": "1 × ESP, kamera, mikrofon, PCA, MCP, Pixel, měnič, PD, jistič a PTT; 2 × zesilovač, reproduktor a univerzální PCB; 3 × svorka; 2 × kolébka; 6 × kondenzátor"
-    },
-    {
-      "id": "moving",
-      "title": "Pohyblivé moduly a odlehčení tahu",
-      "parts": [
-        "u059_*",
-        "led_*",
-        "u059_tie*",
-        "led_tie*",
-        "cable_anchor*",
-        "cable_tie*"
+      "partSummary": "1 × ESP, kamera, mikrofon, PCA, MCP, Pixel, měnič, PD, jistič a PTT; 2 × zesilovač, reproduktor a univerzální PCB; 3 × svorka; 2 × kolébka; 6 × kondenzátor",
+      "subassembly": "rear_control",
+      "location": "Pracovní stůl mimo kufr",
+      "direction": "Na stole, přístup shora i zespodu",
+      "access": [
+        "Banka odpojená; žádná síla přes PCB, konektory nebo vodiče.",
+        "Použít podpěrky pod rám; zakryté spodní šrouby dokončit před vložením do kufru."
       ],
-      "wires": [],
-      "instruction": "U059 zajistit k lůžku, nalepit a mechanicky přichytit šest úseků LED. Každému pohyblivému konci ponechat vlastní smyčku, žádné pájené spoje v ohybu.",
-      "check": "Ručně celý zdvih 0–160° u všech šesti pozic: kabel nic netáhne, nedře ani nezvedá klidové lůžko.",
-      "materials": [
-        {
-          "id": "LED_TAPE",
-          "quantity": 1
-        },
-        {
-          "id": "TIE25",
-          "quantity": 24
-        }
+      "connectors": [
+        "Zapojovat bez napájení; ID a piny jsou v KABELAZ.md."
       ],
-      "tools": [
-        "pájka",
-        "smršťovací bužírka",
-        "kleště"
-      ],
-      "camera": "side",
-      "depends": [
-        "electronics"
-      ],
-      "partSummary": "6 × U059; 6 × úsek LED po 200 mm; samostatné pohyblivé rezervy"
+      "removal": "Odpojit USB/FPC a signály, odstranit pásky desky; nosič lze nechat na rámu. Kamera/FPC vyžadují přejímku skutečného dílu.",
+      "installation": {
+        "kind": "bench",
+        "clearance_mm": 0,
+        "absent": [
+          "tray_*",
+          "cam_*",
+          "servo_*"
+        ],
+        "targets": [
+          "esp32",
+          "camera",
+          "microphone",
+          "pca9685",
+          "mcp23017",
+          "pixel_shifter",
+          "speaker_left",
+          "speaker_right",
+          "amplifier_left",
+          "amplifier_right",
+          "breaker",
+          "buck",
+          "pd_trigger",
+          "perfboard_1",
+          "perfboard_2",
+          "degson_1",
+          "degson_2",
+          "degson_3",
+          "red_main",
+          "green_drives",
+          "white_ptt",
+          "capacitor_*",
+          "component_tie_esp32*",
+          "component_tie_camera*",
+          "component_tie_microphone*",
+          "component_tie_pca9685*",
+          "component_tie_mcp23017*",
+          "component_tie_pixel_shifter*",
+          "component_tie_speaker*",
+          "component_tie_amplifier*",
+          "component_tie_breaker*",
+          "component_tie_buck*",
+          "component_tie_pd_trigger*",
+          "component_tie_perfboard*",
+          "component_tie_degson*"
+        ]
+      },
+      "caseParts": [],
+      "benchParts": [
+        "frame_panel*",
+        "frame_seam*",
+        "carrier_*",
+        "left_service_carrier",
+        "right_service_carrier",
+        "camera_angle",
+        "bank_holder",
+        "switch_shelf",
+        "usb_park_clip",
+        "capacitor_holder*",
+        "usb_coil_cradle",
+        "mic_mount*",
+        "camera_mount*",
+        "usb_clip*",
+        "esp32",
+        "camera",
+        "microphone",
+        "pca9685",
+        "mcp23017",
+        "pixel_shifter",
+        "speaker_left",
+        "speaker_right",
+        "amplifier_left",
+        "amplifier_right",
+        "breaker",
+        "buck",
+        "pd_trigger",
+        "perfboard_1",
+        "perfboard_2",
+        "degson_1",
+        "degson_2",
+        "degson_3",
+        "red_main",
+        "green_drives",
+        "white_ptt",
+        "capacitor_*",
+        "component_tie_esp32*",
+        "component_tie_camera*",
+        "component_tie_microphone*",
+        "component_tie_pca9685*",
+        "component_tie_mcp23017*",
+        "component_tie_pixel_shifter*",
+        "component_tie_speaker*",
+        "component_tie_amplifier*",
+        "component_tie_breaker*",
+        "component_tie_buck*",
+        "component_tie_pd_trigger*",
+        "component_tie_perfboard*",
+        "component_tie_degson*"
+      ]
     },
     {
       "id": "power",
-      "title": "Napájecí svazky bez powerbanky",
+      "title": "Napájecí svazek na stole, banka odpojená",
       "parts": [
         "usb_coil_wrap*"
       ],
@@ -424,7 +472,7 @@
         "S6--",
         "PTT-GND"
       ],
-      "instruction": "Zapojovat podle štítků obou konců z řezného seznamu. MAIN5, DRIVE5 a GND rozlišit; do každého Degson portu jen jeden vodič. Kondenzátory polarizované. Parkovat odpojené USB. USB cívku zajistit dvěma pásky bez stlačení kabelu; poloměr ohybu nejméně 20 mm.",
+      "instruction": "Na stole bez powerbanky připojit napájecí svazky podle KABELAZ.md. Na levé kazetě nejprve připojit jistič a zesilovač, potom měnič; na pravé kazetě popsat MAIN5, DRIVE5 a GND. Mezilehlé vodiče přichytit k rámu a ponechat odpojitelnou rezervu, žádná smyčka nesmí nést kazetu. Volné vývody k PCA, servům, LED a U059 zůstanou označené a odpojené do montáže zdvihů. USB závit drží vlastní kolébka. Zelená kolébka dál přerušuje jen DRIVE5; GPIO2 přímo ovládá PCA OE.",
       "check": "Měřením vyloučit zkrat, ověřit kolébky a spojitou GND. Žádné napětí před dokončením kontroly.",
       "materials": [
         {
@@ -455,13 +503,89 @@
       ],
       "camera": "top",
       "depends": [
-        "moving"
+        "electronics"
       ],
-      "partSummary": "Napájecí a zemní vodiče: každý uvedený ID 1 ×; 1 × USB zásuvka; 1 × krátký USB kabel"
+      "partSummary": "Napájecí a zemní vodiče: každý uvedený ID 1 ×; 1 × USB zásuvka; 1 × krátký USB kabel",
+      "subassembly": "left_power",
+      "location": "Pracovní stůl mimo kufr",
+      "direction": "Na stole, přístup shora i zespodu",
+      "access": [
+        "Banka odpojená; žádná síla přes PCB, konektory nebo vodiče.",
+        "Použít podpěrky pod rám; zakryté spodní šrouby dokončit před vložením do kufru."
+      ],
+      "connectors": [
+        "Zapojovat bez napájení; ID a piny jsou v KABELAZ.md."
+      ],
+      "removal": "Odpojit banku a vývody, vyjmout banku a levý reproduktor a vyparkovat USB konektor; tři M3 shora, poté zvednout celou kazetu včetně jejího přišroubovaného USB klipu.",
+      "installation": {
+        "kind": "bench",
+        "clearance_mm": 0,
+        "absent": [
+          "tray_*",
+          "cam_*",
+          "servo_*"
+        ],
+        "targets": [
+          "usb_coil_wrap*"
+        ]
+      },
+      "caseParts": [],
+      "benchParts": [
+        "frame_panel*",
+        "frame_seam*",
+        "carrier_*",
+        "left_service_carrier",
+        "right_service_carrier",
+        "camera_angle",
+        "bank_holder",
+        "switch_shelf",
+        "usb_park_clip",
+        "capacitor_holder*",
+        "usb_coil_cradle",
+        "mic_mount*",
+        "camera_mount*",
+        "usb_clip*",
+        "esp32",
+        "camera",
+        "microphone",
+        "pca9685",
+        "mcp23017",
+        "pixel_shifter",
+        "speaker_left",
+        "speaker_right",
+        "amplifier_left",
+        "amplifier_right",
+        "breaker",
+        "buck",
+        "pd_trigger",
+        "perfboard_1",
+        "perfboard_2",
+        "degson_1",
+        "degson_2",
+        "degson_3",
+        "red_main",
+        "green_drives",
+        "white_ptt",
+        "capacitor_*",
+        "component_tie_esp32*",
+        "component_tie_camera*",
+        "component_tie_microphone*",
+        "component_tie_pca9685*",
+        "component_tie_mcp23017*",
+        "component_tie_pixel_shifter*",
+        "component_tie_speaker*",
+        "component_tie_amplifier*",
+        "component_tie_breaker*",
+        "component_tie_buck*",
+        "component_tie_pd_trigger*",
+        "component_tie_perfboard*",
+        "component_tie_degson*",
+        "usb_coil_wrap*"
+      ]
     },
     {
       "id": "signals",
-      "title": "Signály a ovladače",
+      "title": "Signály, audio a servisní vývody na stole",
       "parts": [],
       "wires": [
         "S1-S",
@@ -508,7 +632,7 @@
         "SPK-right-+",
         "SPK-right--"
       ],
-      "instruction": "Osadit I2C, I2S, OE, PTT, RGB a kanály PCA dle ID. Spoje označit na obou koncích. Kamera/FPC až po potvrzení dodaného modulu; neimprovizovat pinout.",
+      "instruction": "Připojit všechny pevné signály a audio na stole; spodní PCB zapojit před osazením horní PCB. Zachovat potvrzené piny v KABELAZ.md. Servo, Grove U059 a jednotlivé LED vývody označit a připravit pro pozdější připojení. Pro každou kazetu nechat délku umožňující odpojení konektorů při zvednutí nejvýše o 20 mm; teprve po odpojení lze kazetu úplně vyjmout. Pohyblivé svazky nesmějí být již napnuté v klidu.",
       "check": "Všechny vodiče mají vlastní ID; kanály serv0–5, U0596–11 a 36LED odpovídají zapojení.",
       "materials": [
         {
@@ -529,7 +653,554 @@
       "depends": [
         "power"
       ],
-      "partSummary": "Signální vodiče: každý uvedený ID 1 ×; odpory podle potvrzeného zapojení"
+      "partSummary": "Signální vodiče: každý uvedený ID 1 ×; odpory podle potvrzeného zapojení",
+      "subassembly": "right_signal",
+      "location": "Pracovní stůl mimo kufr",
+      "direction": "Na stole, přístup shora i zespodu",
+      "access": [
+        "Banka odpojená; žádná síla přes PCB, konektory nebo vodiče.",
+        "Použít podpěrky pod rám; zakryté spodní šrouby dokončit před vložením do kufru."
+      ],
+      "connectors": [
+        "Zapojovat bez napájení; ID a piny jsou v KABELAZ.md."
+      ],
+      "removal": "Po sejmutí pravého zadního krytu odpojit označené vývody, povolit čtyři M3 a zvednout kazetu.",
+      "installation": {
+        "kind": "bench",
+        "clearance_mm": 0,
+        "absent": [
+          "tray_*",
+          "cam_*",
+          "servo_*"
+        ],
+        "targets": []
+      },
+      "caseParts": [],
+      "benchParts": [
+        "frame_panel*",
+        "frame_seam*",
+        "carrier_*",
+        "left_service_carrier",
+        "right_service_carrier",
+        "camera_angle",
+        "bank_holder",
+        "switch_shelf",
+        "usb_park_clip",
+        "capacitor_holder*",
+        "usb_coil_cradle",
+        "mic_mount*",
+        "camera_mount*",
+        "usb_clip*",
+        "esp32",
+        "camera",
+        "microphone",
+        "pca9685",
+        "mcp23017",
+        "pixel_shifter",
+        "speaker_left",
+        "speaker_right",
+        "amplifier_left",
+        "amplifier_right",
+        "breaker",
+        "buck",
+        "pd_trigger",
+        "perfboard_1",
+        "perfboard_2",
+        "degson_1",
+        "degson_2",
+        "degson_3",
+        "red_main",
+        "green_drives",
+        "white_ptt",
+        "capacitor_*",
+        "component_tie_esp32*",
+        "component_tie_camera*",
+        "component_tie_microphone*",
+        "component_tie_pca9685*",
+        "component_tie_mcp23017*",
+        "component_tie_pixel_shifter*",
+        "component_tie_speaker*",
+        "component_tie_amplifier*",
+        "component_tie_breaker*",
+        "component_tie_buck*",
+        "component_tie_pd_trigger*",
+        "component_tie_perfboard*",
+        "component_tie_degson*",
+        "usb_coil_wrap*"
+      ]
+    },
+    {
+      "id": "anchors",
+      "title": "Přilepit a přezkoušet čtyři podlahové kotvy",
+      "parts": [
+        "floor_anchor_front_left",
+        "floor_anchor_front_right",
+        "floor_anchor_rear_left",
+        "floor_anchor_rear_right",
+        "wood_bond*",
+        "module_nut*",
+        "anchor_nut*"
+      ],
+      "wires": [],
+      "instruction": "Na stole před lepením zasunout zboku všech 24 M3 a 4 M4 matic pod střechy čtyř tištěných kotev. Po přilepení už spodní oblouk omezuje přístup k některým vstupům matic. Nasucho ustavit kotvy na DNĚ podle sestaveného rámu; zakřivený spodek musí souhlasit s oběma oblouky a přední/zadní ramena vynechat pás Y94,5–174,5 mm středové výztuhy. Brusným papírem odstranit povrchovou úpravu pouze v jejich skutečných lepených stopách na pevné holé dřevo. Chránit kapsy matic a otvory před lepidlem. Použít Bison Epoxy Metal ze zásoby připravené v prvním kroku a smíchat 1:1; dodanou stěrkou PŘEDEM naplnit zámky Ø7,5/Ø10,5 z otevřené spodní strany kotvy, pak kotvu ustavit na čtyři dočasné měřené 0,5mm PET podložky u přístupných vnějších okrajů na ROVNÉ části dna (přední kotvy kolem Y60, zadní kolem Y200); nedávat rovnou podložku do oblouku. Podložky určují výšku filmu; po vytvrzení je vyjmout, nepřilepit je ani rám. Tloušťku kontrolovat měřítkem před zatížením. Horní otvory Ø2,5 slouží odvzdušnění a vizuální kontrole, nikoli tlakové injektáži pasty. Mokré přebytky otřít před vytvrzením. Rám nepřilepit. Fixovat 10 h, při 20 °C nechat 24 h vytvrdnout a přezkoušet spoj podle MONTÁŽ.md. Po vytvrzení zkontrolovat čisté závity již zachycených matic a vyjmout ochranu otvorů před vložením rámu. Připravit tři balení po 24 ml, včetně rezervy pro vzorek, přebytky a ztráty. Množství lepidla a počet zámků přebrat z aktuálního verification.json; číselný výsledek starší varianty není přejímkou nových kapes kazet.",
+      "check": "Kotvy jsou na dně, nikoli stěnách. Matice M3 leží Z2,6–5 a M4 Z1,8–5 pod souvislou 3mm střechou; žádné zalepení kapsy a nejméně 2 mm plastu mezi epoxidem a kapsou. Zámky jsou vyplněné; nepokračovat při odlupování dřeva, praskání nebo nevyhovující zátěžové zkoušce. Zakřivené spodky sedí bez kývání; matice vložené před lepením zůstaly čisté a šrouby lze volně nasadit rukou.",
+      "materials": [
+        {
+          "id": "NUT3",
+          "quantity": 24
+        },
+        {
+          "id": "NUT4",
+          "quantity": 4
+        }
+      ],
+      "tools": [
+        "brusný papír pouze na dřevo v lepené stopě",
+        "svěrky",
+        "rukavice",
+        "míchací miska a stěrka",
+        "pinzeta",
+        "posuvné měřítko pro 0,5mm podložky"
+      ],
+      "camera": "side",
+      "depends": [
+        "signals"
+      ],
+      "partSummary": "4 × tištěná podlahová kotva; spodní film a odlité zámky; 24 × M3 a 4 × M4 zachycená matice",
+      "subassembly": "deck",
+      "location": "Dno skutečného kufru; X doprava, Y k pantům, Z nahoru",
+      "direction": "Podle označených přístupových bodů",
+      "access": [
+        "Banka odpojená; žádná síla přes PCB, konektory nebo vodiče."
+      ],
+      "connectors": [],
+      "removal": "Odpojit napájení, sejmout horní skupiny, banku, oba reproduktory a pravou kazetu; povolit 24 M3 a 4 M4, vytáhnout celou vložku.",
+      "installation": {
+        "kind": "inspection",
+        "clearance_mm": 0,
+        "absent": [],
+        "targets": [
+          "floor_anchor_front_left",
+          "floor_anchor_front_right",
+          "floor_anchor_rear_left",
+          "floor_anchor_rear_right",
+          "wood_bond*",
+          "module_nut*",
+          "anchor_nut*"
+        ]
+      },
+      "caseParts": [
+        "floor_anchor_front_left",
+        "floor_anchor_front_right",
+        "floor_anchor_rear_left",
+        "floor_anchor_rear_right",
+        "wood_bond*",
+        "module_nut*",
+        "anchor_nut*"
+      ],
+      "benchParts": []
+    },
+    {
+      "id": "bases",
+      "title": "Základny a vodicí šrouby před vložením",
+      "parts": [
+        "base_*",
+        "guide_bolt*",
+        "guide_head*",
+        "guide_washer*",
+        "guide_nut*"
+      ],
+      "wires": [],
+      "instruction": "Na stole vložit dvanáct M4 × 100 zespodu rámu a položit šest holých základen. Ihned nasadit finální podložky a matice na horní konce vedení Z95/95,8; tím šrouby při přenosu nevypadnou. Matice přitáhnout rukou bez deformace PETG. Bez lůžek, vaček a serv. Rám se už neobrací; podepřít jej mimo elektroniku a vodiče. Dlouhé vodicí šrouby se po vložení do kufru zespodu nedostanou na místo.",
+      "check": "Dvanáct spodních hlav je v předepsaných odlehčeních a všech dvanáct horních podložek/matic zajišťuje dříky proti vypadnutí; základny odpovídají rozteči 48 mm. Všech 24 modulových otvorů je shora volných.",
+      "materials": [
+        {
+          "id": "GUIDE4",
+          "quantity": 12
+        },
+        {
+          "id": "GUIDE_NUT",
+          "quantity": 12
+        },
+        {
+          "id": "GUIDE_WASHER",
+          "quantity": 12
+        }
+      ],
+      "tools": [
+        "klíč 7 mm"
+      ],
+      "camera": "top",
+      "depends": [
+        "anchors"
+      ],
+      "partSummary": "6 × holá základna; 12 × M4 × 100 s hladkým dříkem; 12 × horní podložka a matice držící šrouby při přenosu",
+      "subassembly": "lifts",
+      "location": "Pracovní stůl mimo kufr",
+      "direction": "Na stole, přístup shora i zespodu",
+      "access": [
+        "Banka odpojená; žádná síla přes PCB, konektory nebo vodiče.",
+        "Použít podpěrky pod rám; zakryté spodní šrouby dokončit před vložením do kufru.",
+        "Lůžka, vačky a serva ještě mimo kufr; reproduktory a pravá kazeta odložené pro přístup ke kotvám."
+      ],
+      "connectors": [],
+      "removal": "Odpojit vývody, sejmout matice a dva servo pásky; lůžko, vačku a servo vyjmout společně.",
+      "installation": {
+        "kind": "bench",
+        "clearance_mm": 0,
+        "absent": [
+          "tray_*",
+          "cam_*",
+          "servo_*"
+        ],
+        "targets": [
+          "base_*",
+          "guide_bolt*",
+          "guide_head*",
+          "guide_washer*",
+          "guide_nut*"
+        ]
+      },
+      "caseParts": [],
+      "benchParts": [
+        "frame_panel*",
+        "frame_seam*",
+        "carrier_*",
+        "left_service_carrier",
+        "right_service_carrier",
+        "camera_angle",
+        "bank_holder",
+        "switch_shelf",
+        "usb_park_clip",
+        "capacitor_holder*",
+        "usb_coil_cradle",
+        "mic_mount*",
+        "camera_mount*",
+        "usb_clip*",
+        "esp32",
+        "camera",
+        "microphone",
+        "pca9685",
+        "mcp23017",
+        "pixel_shifter",
+        "speaker_left",
+        "speaker_right",
+        "amplifier_left",
+        "amplifier_right",
+        "breaker",
+        "buck",
+        "pd_trigger",
+        "perfboard_1",
+        "perfboard_2",
+        "degson_1",
+        "degson_2",
+        "degson_3",
+        "red_main",
+        "green_drives",
+        "white_ptt",
+        "capacitor_*",
+        "component_tie_esp32*",
+        "component_tie_camera*",
+        "component_tie_microphone*",
+        "component_tie_pca9685*",
+        "component_tie_mcp23017*",
+        "component_tie_pixel_shifter*",
+        "component_tie_speaker*",
+        "component_tie_amplifier*",
+        "component_tie_breaker*",
+        "component_tie_buck*",
+        "component_tie_pd_trigger*",
+        "component_tie_perfboard*",
+        "component_tie_degson*",
+        "usb_coil_wrap*",
+        "base_*",
+        "guide_bolt*",
+        "guide_head*",
+        "guide_washer*",
+        "guide_nut*"
+      ]
+    },
+    {
+      "id": "install",
+      "title": "Vložit předzapojenou vložku a utáhnout základny",
+      "parts": [
+        "anchor_m4*",
+        "anchor_head*",
+        "module_m3*",
+        "module_head*"
+      ],
+      "wires": [],
+      "instruction": "Powerbanka je mimo kufr. Reproduktory dočasně vyjmout z pásků; pravou kazetu uvolnit jejími čtyřmi horními M3, odpojit a odložit. Tím zůstane přímý přístup ke všem čtyřem M4 kotvám. S horními podložkami a maticemi stále nasazenými vložku spouštět svisle dvěma rukama za přední a zadní žebro, nikoli za elektroniku nebo vodicí šrouby. Při dosednutí zkontrolovat správné zapadnutí hlav a žádný přiskřípnutý vodič. Utáhnout 4 × M4 × 10 a všech 24 × M3 × 14 holých základen. Pravou kazetu i reproduktory vrátit a připojit. Lůžka a serva zatím nejsou v cestě šroubováku.",
+      "check": "Všechny čtyři kotvy a 24 modulových šroubů dotaženy bez deformace PETG; základny sedí na rámu. Všechny dříky jsou svislé, rám leží nad 5mm výztuhou. konektory obnovené.",
+      "materials": [
+        {
+          "id": "M4x10",
+          "quantity": 4
+        },
+        {
+          "id": "M3x14",
+          "quantity": 24
+        }
+      ],
+      "tools": [
+        "imbus 3 mm",
+        "imbus 2 mm"
+      ],
+      "camera": "overview",
+      "depends": [
+        "bases"
+      ],
+      "partSummary": "1 × rám s nosiči; 4 × M4 × 10 ISO4762",
+      "subassembly": "deck",
+      "location": "Dno skutečného kufru; X doprava, Y k pantům, Z nahoru",
+      "direction": "Svisle shora",
+      "access": [
+        "Banka odpojená; žádná síla přes PCB, konektory nebo vodiče.",
+        "Lůžka, vačky a serva ještě mimo kufr; reproduktory a pravá kazeta odložené pro přístup ke kotvám.",
+        "Přední levá kotva: rovný imbus 3 mm projde otvorem v polici; červený spínač je posunutý na Y49 mm. Kryt zůstává sejmutý."
+      ],
+      "connectors": [],
+      "removal": "Odpojit napájení, sejmout horní skupiny, banku, oba reproduktory a pravou kazetu; povolit 24 M3 a 4 M4, vytáhnout celou vložku.",
+      "installation": {
+        "kind": "vertical",
+        "clearance_mm": 120,
+        "absent": [
+          "tray_*",
+          "cam_*",
+          "servo_*"
+        ],
+        "targets": [
+          "anchor_m4*",
+          "anchor_head*",
+          "module_m3*",
+          "module_head*"
+        ]
+      },
+      "caseParts": [
+        "frame_panel*",
+        "frame_seam*",
+        "carrier_*",
+        "left_service_carrier",
+        "right_service_carrier",
+        "camera_angle",
+        "bank_holder",
+        "switch_shelf",
+        "usb_park_clip",
+        "capacitor_holder*",
+        "usb_coil_cradle",
+        "mic_mount*",
+        "camera_mount*",
+        "usb_clip*",
+        "esp32",
+        "camera",
+        "microphone",
+        "pca9685",
+        "mcp23017",
+        "pixel_shifter",
+        "speaker_left",
+        "speaker_right",
+        "amplifier_left",
+        "amplifier_right",
+        "breaker",
+        "buck",
+        "pd_trigger",
+        "perfboard_1",
+        "perfboard_2",
+        "degson_1",
+        "degson_2",
+        "degson_3",
+        "red_main",
+        "green_drives",
+        "white_ptt",
+        "capacitor_*",
+        "component_tie_esp32*",
+        "component_tie_camera*",
+        "component_tie_microphone*",
+        "component_tie_pca9685*",
+        "component_tie_mcp23017*",
+        "component_tie_pixel_shifter*",
+        "component_tie_speaker*",
+        "component_tie_amplifier*",
+        "component_tie_breaker*",
+        "component_tie_buck*",
+        "component_tie_pd_trigger*",
+        "component_tie_perfboard*",
+        "component_tie_degson*",
+        "usb_coil_wrap*",
+        "base_*",
+        "guide_bolt*",
+        "guide_head*",
+        "guide_washer*",
+        "guide_nut*",
+        "anchor_m4*",
+        "anchor_head*",
+        "module_m3*",
+        "module_head*"
+      ],
+      "benchParts": []
+    },
+    {
+      "id": "moving",
+      "title": "Pohyblivé horní skupiny připravit na stole",
+      "parts": [],
+      "wires": [],
+      "instruction": "Každé lůžko, vačku s pákou a servo sestavit společně na stole: integrální čep zachytit v drážce bez násilí. Nasadit U059 a LED, provléknout jejich pásky a připájet LED vodiče před vložením. Připravit chráněnou pohyblivou smyčku, zkontrolovat odlehčení a izolaci. Zatím skupinu neuzavírat maticemi vedení. Každou skupinu zkoušet na tiskové měrce a popsat 1–6; sestavené skupiny zůstávají mimo kufr.",
+      "check": "Čep zůstává zachycený ve vačce, servo i obě pohyblivé desky jsou dostupné. LED spoje jsou izolované. Skupina jde bez páčení nasadit na dvojici vodicích dříků.",
+      "materials": [
+        {
+          "id": "LED_TAPE",
+          "quantity": 1
+        },
+        {
+          "id": "TIE25",
+          "quantity": 24
+        },
+        {
+          "id": "COUPLER2",
+          "quantity": 12
+        },
+        {
+          "id": "SERVO_CENTRE",
+          "quantity": 6
+        }
+      ],
+      "tools": [
+        "pájka",
+        "smršťovací bužírka",
+        "kleště"
+      ],
+      "camera": "side",
+      "depends": [
+        "install"
+      ],
+      "partSummary": "6 × U059; 6 × úsek LED po 200 mm; samostatné pohyblivé rezervy",
+      "preparedParts": [
+        "tray_*",
+        "cam_*",
+        "servo_*",
+        "stock_horn*",
+        "coupler_*",
+        "servo_tie*",
+        "u059_*",
+        "led_*",
+        "u059_tie*",
+        "led_tie*"
+      ],
+      "subassembly": "lifts",
+      "location": "Pracovní stůl mimo kufr",
+      "direction": "Na stole, přístup shora i zespodu",
+      "access": [
+        "Banka odpojená; žádná síla přes PCB, konektory nebo vodiče.",
+        "Použít podpěrky pod rám; zakryté spodní šrouby dokončit před vložením do kufru."
+      ],
+      "connectors": [
+        "Zapojovat bez napájení; ID a piny jsou v KABELAZ.md."
+      ],
+      "removal": "Odpojit vývody, sejmout matice a dva servo pásky; lůžko, vačku a servo vyjmout společně.",
+      "installation": {
+        "kind": "bench",
+        "clearance_mm": 0,
+        "absent": [],
+        "targets": [
+          "tray_*",
+          "cam_*",
+          "servo_*",
+          "stock_horn*",
+          "coupler_*",
+          "servo_tie*",
+          "u059_*",
+          "led_*",
+          "u059_tie*",
+          "led_tie*"
+        ]
+      },
+      "caseParts": [],
+      "benchParts": [
+        "tray_*",
+        "cam_*",
+        "servo_*",
+        "stock_horn*",
+        "coupler_*",
+        "servo_tie*",
+        "u059_*",
+        "led_*",
+        "u059_tie*",
+        "led_tie*"
+      ]
+    },
+    {
+      "id": "mechanisms",
+      "title": "Nasadit hotové horní skupiny a připojit vývody",
+      "parts": [
+        "tray_*",
+        "cam_*",
+        "servo_*",
+        "stock_horn*",
+        "coupler_*",
+        "servo_tie*",
+        "u059_*",
+        "led_*",
+        "u059_tie*",
+        "led_tie*"
+      ],
+      "wires": [],
+      "instruction": "Po dotažení holých základen sejmout shora obě dočasně nasazené podložky/matice daného modulu, dříky podepírají kotvy. Pak spouštět po jedné kompletní skupinu lůžka, vačky a serva svisle na oba vodicí dříky. Servo uložit do kolébky a připevnit dvěma pásky. Nasadit horní podložky a matice; matice nesmějí předepnout kluzné vedení. Připojit původní třípinový servo konektor, Grove U059 a připravené LED spoje. Připevnit smyčky mimo sousední vačky. Před další skupinou ověřit celý zdvih, dolní podpěry a možnost zpětného sejmutí.",
+      "check": "Každá skupina dosedá na podpěry, nevisí na servu. Zdvih 16 mm je bez zadrhávání, vodiče mají rezervu v obou krajích. K servisnímu sejmutí stačí odpojit vývody, sejmout horní matice a vyměnit dva pásky serva.",
+      "materials": [
+        {
+          "id": "TIE25",
+          "quantity": 12
+        }
+      ],
+      "tools": [
+        "imbus",
+        "klíč 5,5 a 7 mm"
+      ],
+      "camera": "side",
+      "depends": [
+        "moving"
+      ],
+      "partSummary": "6 × základna, lůžko s integrálním čepem, vačka a servo; 12 × vodítko; 24 × M3 × 14",
+      "subassembly": "lifts",
+      "location": "Dno skutečného kufru; X doprava, Y k pantům, Z nahoru",
+      "direction": "Svisle shora",
+      "access": [
+        "Banka odpojená; žádná síla přes PCB, konektory nebo vodiče."
+      ],
+      "connectors": [
+        "Zapojovat bez napájení; ID a piny jsou v KABELAZ.md."
+      ],
+      "removal": "Odpojit napájení a vývody, vyjmout hůlku a vlastní měkkou vložku, sejmout horní podložky/matice a dva servo pásky; lůžko, vačku a servo vyjmout společně nahoru. Sousední moduly zůstávají.",
+      "installation": {
+        "kind": "vertical",
+        "clearance_mm": 120,
+        "absent": [],
+        "targets": [
+          "tray_*",
+          "cam_*",
+          "servo_*",
+          "stock_horn*",
+          "coupler_*",
+          "servo_tie*",
+          "u059_*",
+          "led_*",
+          "u059_tie*",
+          "led_tie*"
+        ]
+      },
+      "caseParts": [
+        "tray_*",
+        "cam_*",
+        "servo_*",
+        "stock_horn*",
+        "coupler_*",
+        "servo_tie*",
+        "u059_*",
+        "led_*",
+        "u059_tie*",
+        "led_tie*"
+      ],
+      "benchParts": []
     },
     {
       "id": "coldtest",
@@ -550,9 +1221,25 @@
       ],
       "camera": "overview",
       "depends": [
-        "signals"
+        "mechanisms"
       ],
-      "partSummary": "6 × přepravní pásek pro zkušební zajištění, potom vyjmout"
+      "partSummary": "6 × přepravní pásek pro zkušební zajištění, potom vyjmout",
+      "subassembly": "deck",
+      "location": "Dno skutečného kufru; X doprava, Y k pantům, Z nahoru",
+      "direction": "Podle označených přístupových bodů",
+      "access": [
+        "Banka odpojená; žádná síla přes PCB, konektory nebo vodiče."
+      ],
+      "connectors": [],
+      "removal": "Odpojit napájení, sejmout horní skupiny, banku, oba reproduktory a pravou kazetu; povolit 24 M3 a 4 M4, vytáhnout celou vložku.",
+      "installation": {
+        "kind": "wiring",
+        "clearance_mm": 0,
+        "absent": [],
+        "targets": []
+      },
+      "caseParts": [],
+      "benchParts": []
     },
     {
       "id": "powered",
@@ -578,7 +1265,29 @@
       "depends": [
         "coldtest"
       ],
-      "partSummary": "1 × powerbanka a 2 × její pásek; zkoušet postupně po jednom LED úseku, motoru a servu"
+      "partSummary": "1 × powerbanka a 2 × její pásek; zkoušet postupně po jednom LED úseku, motoru a servu",
+      "subassembly": "content",
+      "location": "Dno skutečného kufru; X doprava, Y k pantům, Z nahoru",
+      "direction": "Svisle shora",
+      "access": [
+        "Připojit banku pouze pro omezenou zkoušku; před každou montážní úpravou odpojit napájení."
+      ],
+      "connectors": [],
+      "removal": "Banka nahoru po odpojení USB a dvou pásek; hůlky volně vyjmout, kryty M3 shora.",
+      "installation": {
+        "kind": "vertical",
+        "clearance_mm": 120,
+        "absent": [],
+        "targets": [
+          "powerbank",
+          "component_tie_powerbank*"
+        ]
+      },
+      "caseParts": [
+        "powerbank",
+        "component_tie_powerbank*"
+      ],
+      "benchParts": []
     },
     {
       "id": "soft",
@@ -608,7 +1317,29 @@
       "depends": [
         "powered"
       ],
-      "partSummary": "6 × měkká vložka lůžka; 1 × snímatelná výstelka víka"
+      "partSummary": "6 × měkká vložka lůžka; 1 × snímatelná výstelka víka",
+      "subassembly": "content",
+      "location": "Dno skutečného kufru; X doprava, Y k pantům, Z nahoru",
+      "direction": "Podle označených přístupových bodů",
+      "access": [
+        "Banka odpojená; žádná síla přes PCB, konektory nebo vodiče."
+      ],
+      "connectors": [],
+      "removal": "Před servisem horního modulu vyjmout jeho volnou vložku i hůlku; textil nepřenáší konstrukční zatížení.",
+      "installation": {
+        "kind": "inspection",
+        "clearance_mm": 0,
+        "absent": [],
+        "targets": [
+          "soft_liner*",
+          "lid_lining"
+        ]
+      },
+      "caseParts": [
+        "soft_liner*",
+        "lid_lining"
+      ],
+      "benchParts": []
     },
     {
       "id": "covers",
@@ -640,7 +1371,35 @@
       "depends": [
         "soft"
       ],
-      "partSummary": "4 × servisní kryt; 8 × upevnění krytu"
+      "partSummary": "4 × servisní kryt; 8 × upevnění krytu",
+      "subassembly": "content",
+      "location": "Dno skutečného kufru; X doprava, Y k pantům, Z nahoru",
+      "direction": "Podle označených přístupových bodů",
+      "access": [
+        "Banka odpojená; žádná síla přes PCB, konektory nebo vodiče."
+      ],
+      "connectors": [],
+      "removal": "Banka nahoru po odpojení USB a dvou pásek; hůlky volně vyjmout, kryty M3 shora.",
+      "installation": {
+        "kind": "inspection",
+        "clearance_mm": 0,
+        "absent": [],
+        "targets": [
+          "bank_cover",
+          "control_cover",
+          "right_front_cover",
+          "right_back_cover",
+          "cover_*"
+        ]
+      },
+      "caseParts": [
+        "bank_cover",
+        "control_cover",
+        "right_front_cover",
+        "right_back_cover",
+        "cover_*"
+      ],
+      "benchParts": []
     },
     {
       "id": "operation",
@@ -659,7 +1418,27 @@
       "depends": [
         "covers"
       ],
-      "partSummary": "Až 6 × hůlka; ostatní části již namontované"
+      "partSummary": "Až 6 × hůlka; ostatní části již namontované",
+      "subassembly": "content",
+      "location": "Dno skutečného kufru; X doprava, Y k pantům, Z nahoru",
+      "direction": "Podle označených přístupových bodů",
+      "access": [
+        "Banka odpojená; žádná síla přes PCB, konektory nebo vodiče."
+      ],
+      "connectors": [],
+      "removal": "Banka nahoru po odpojení USB a dvou pásek; hůlky volně vyjmout, kryty M3 shora.",
+      "installation": {
+        "kind": "inspection",
+        "clearance_mm": 0,
+        "absent": [],
+        "targets": [
+          "wand_*"
+        ]
+      },
+      "caseParts": [
+        "wand_*"
+      ],
+      "benchParts": []
     }
   ],
   "materialCatalog": {
@@ -689,7 +1468,8 @@
     "M3CSK8": "M3 × 8 zápustná hlava",
     "COIL_TIE": "pásek USB cívky 3,6 × 250 mm",
     "M3x14": "M3 × 14 ISO7380, standardní neupravený šroub modulu",
-    "M4x10": "M4 × 10 ISO4762; hlava Ø7 × 4 mm; imbus 3 mm"
+    "M4x10": "M4 × 10 ISO4762; hlava Ø7 × 4 mm; imbus 3 mm",
+    "SHIM05": "PET fólie 0,5 mm; čtyři dočasné podložky filmu, po vytvrzení vyjmout"
   },
   "transport": [
     "Vypnout obě kolébky a odpojit powerbanku.",
@@ -703,5 +1483,112 @@
     "Odstranit všech šest přepravních pásků; elektronika to neumí potvrdit.",
     "Ručně ověřit volný pohyb a vložit hůlky; zasunout a dvěma pásky zajistit banku.",
     "Připojit USB a zapnout napájení. Potvrdit zotavení až po kontrole poloh a zkusit jednu krátkou sekvenci."
+  ],
+  "subassemblies": [
+    {
+      "id": "deck",
+      "title": "Nosná servisní vložka",
+      "parts": [
+        "frame_panel*",
+        "frame_seam*",
+        "carrier_*",
+        "left_service_carrier",
+        "right_service_carrier",
+        "camera_angle",
+        "bank_holder",
+        "switch_shelf",
+        "usb_park_clip",
+        "capacitor_holder*",
+        "usb_coil_cradle",
+        "mic_mount*",
+        "camera_mount*",
+        "usb_clip*",
+        "base_*",
+        "guide_bolt*",
+        "guide_head*"
+      ],
+      "function": "Samonosný čtyřpanelový rám; bez závislosti na odnímatelném obsahu.",
+      "installation": "Svisle do připravených kotev; lůžka až po dotažení základen.",
+      "removal": "Odpojit napájení, sejmout horní skupiny, banku, oba reproduktory a pravou kazetu; povolit 24 M3 a 4 M4, vytáhnout celou vložku."
+    },
+    {
+      "id": "left_power",
+      "title": "Levá napájecí a audio kazeta",
+      "parts": [
+        "left_service_carrier",
+        "breaker",
+        "buck",
+        "amplifier_left",
+        "capacitor_1",
+        "capacitor_2"
+      ],
+      "function": "Napájecí převod a levé audio, předzapojené na stole.",
+      "installation": "Tři horní M3 do předem vložených matic rámu.",
+      "removal": "Odpojit banku a vývody, vyjmout banku a levý reproduktor a vyparkovat USB konektor; tři M3 shora, poté zvednout celou kazetu včetně jejího přišroubovaného USB klipu."
+    },
+    {
+      "id": "right_signal",
+      "title": "Pravá signálová a distribuční kazeta",
+      "parts": [
+        "right_service_carrier",
+        "perfboard_1",
+        "perfboard_2",
+        "degson_1",
+        "degson_2",
+        "degson_3"
+      ],
+      "function": "Pevné signálové spoje a rozvod MAIN5/DRIVE5/GND.",
+      "installation": "Čtyři M3 shora; spodní desku zapojit před horní.",
+      "removal": "Po sejmutí pravého zadního krytu odpojit označené vývody, povolit čtyři M3 a zvednout kazetu."
+    },
+    {
+      "id": "rear_control",
+      "title": "Zadní řízení a kamera",
+      "parts": [
+        "esp32",
+        "camera",
+        "pca9685",
+        "mcp23017",
+        "carrier_esp32",
+        "camera_angle",
+        "carrier_pca9685",
+        "carrier_mcp23017"
+      ],
+      "function": "ESP a kamera zůstávají vzadu uprostřed.",
+      "installation": "Pásky a konektory na stole před zdvihy.",
+      "removal": "Odpojit USB/FPC a signály, odstranit pásky desky; nosič lze nechat na rámu. Kamera/FPC vyžadují přejímku skutečného dílu."
+    },
+    {
+      "id": "lifts",
+      "title": "Šest nezávislých zdvihů",
+      "parts": [
+        "base_*",
+        "tray_*",
+        "cam_*",
+        "servo_*",
+        "u059_*",
+        "led_*",
+        "guide_*"
+      ],
+      "function": "Holé základny před horními skupinami.",
+      "installation": "Vedení zespodu na stole, 24 M3 shora před lůžky; pak skupiny z horní strany.",
+      "removal": "Odpojit vývody, sejmout matice a dva servo pásky; lůžko, vačku a servo vyjmout společně."
+    },
+    {
+      "id": "content",
+      "title": "Odnímatelný obsah a kryty",
+      "parts": [
+        "powerbank",
+        "wand_*",
+        "soft_liner*",
+        "bank_cover",
+        "control_cover",
+        "right_front_cover",
+        "right_back_cover"
+      ],
+      "function": "Obsah nenese rám ani elektroniku.",
+      "installation": "Až po ověření kabelů a pohybu.",
+      "removal": "Banka nahoru po odpojení USB a dvou pásek; hůlky volně vyjmout, kryty M3 shora."
+    }
   ]
 }

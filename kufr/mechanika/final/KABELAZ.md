@@ -79,6 +79,17 @@ dvojice 3/4 ještě držet energii; dobu vybití změřit před servisem.
 
 ## Svazky a pořadí stavby
 
+DFA 12. 10.: všechny pevné svazky sestavit a ověřit na pracovní vložce
+mimo kufr, před lůžky a kryty. Spodní desku pravé kazety zapojit před
+horní deskou; levou kazetu od jističe/zesilovače k měniči. Vývody do
+servo/Grove/LED označit a nechat volné do instalace horních skupin.
+Kazety mají sedm horních M3, odpojitelná rozhraní a servisní přístup;
+bez dostatečné fyzicky ověřené délky pro odpojení vývodů kazetu nezvedat.
+LED nemají nový rychlokonektor. Pinout, sítě, průřezy a potvrzené zapojení
+zůstávají stejné; nové mechanické příruby podléhají plnému CAD auditu
+135 konečných vodičů včetně ohybů. Před střihem ověřit skutečné kabely.
+
+
 | Pořadí | ID v řezném seznamu | Montáž a kontrola |
 | ---: | --- | --- |
 | 1 | USB-PD, P12+/− | Intaktní koupený C–C kabel, PD nastavit na 12 V; krátké vodiče do vstupu měniče, změřit polaritu |

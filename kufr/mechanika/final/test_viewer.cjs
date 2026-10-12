@@ -32,7 +32,7 @@ class Element {
 }
 
 function viewer(routes = [], extraMeshes = [], data = {}) {
-  const elements = new Map(), frames = [];
+  const elements = new Map(), frames = [], geometryUploads = [];
   let document;
   let labelMeasurements = 0, clockNow = 0, audioStarts = 0;
   const get = id => { if (!elements.has(id)) elements.set(id, new Element(document)); return elements.get(id); };
@@ -47,6 +47,7 @@ function viewer(routes = [], extraMeshes = [], data = {}) {
     getAttribLocation: () => 0, getUniformLocation: () => 0,
     checkFramebufferStatus: () => gl.FRAMEBUFFER_COMPLETE,
     readPixels: (x,y,w,h,format,type,pixel) => { pixel[0] = hit; },
+    bufferData: (target,data) => geometryUploads.push(Array.from(data)),
   }, {get(target,key) {
     if (key in target) return target[key];
     if (key === key.toUpperCase()) {
@@ -57,7 +58,7 @@ function viewer(routes = [], extraMeshes = [], data = {}) {
   }});
   get('view').getContext = () => gl;
   const meshes = [...['pca9685','esp32'].map(name => ({name,group:'hardware'})),...extraMeshes].map(item => ({
-    ...item,color:[.1,.4,.2],bounds:item.bounds || [100,100,20,110,110,30],data:[0,0,0,0,0,1],
+    ...item,color:[.1,.4,.2],bounds:item.bounds || [100,100,20,110,110,30],data:item.data ?? (item.vertices ? undefined : [0,0,0,0,0,1]),
     info:{title:item.name,description:item.name,details:[],source:'test'},
   }));
   function createElement() {
@@ -78,10 +79,11 @@ function viewer(routes = [], extraMeshes = [], data = {}) {
   // Model only the ancestry/visibility needed by keyboard focus; layout stays fake.
   for (const element of elements.values()) element.document = document;
   get('sidebar').append(get('tree')); get('sidebar').append(get('explorer-close'));
+  get('assembly-panel').append(get('guide-close')); get('motion-panel').append(get('motion-close'));
   get('inspector-rail').append(get('object')); get('inspector-rail').append(get('inspector-close'));
   for (const id of ['sidebar','inspector-rail']) get(id).panelDrawer = !!data.mobilePanels;
   for (const id of ['explorer-toggle','inspector-toggle','explorer-close','inspector-close']) get(id).rendered = !!data.mobilePanels;
-  const window = {location:data.location,listeners:{},addEventListener(name,callback) { this.listeners[name] = callback; }};
+  const window = {matchMedia:()=>({matches:!!data.reducedMotion,addEventListener(){}}),location:data.location,listeners:{},addEventListener(name,callback) { this.listeners[name] = callback; }};
   window.AudioContext = class {
     constructor() { clockNow+=data.audioSetupDelayMs || 0; }
     resume() { return Promise.resolve(); }
@@ -104,7 +106,7 @@ function viewer(routes = [], extraMeshes = [], data = {}) {
   const hover = id => { hit = id; get('view').fire('pointermove',{clientX:400,clientY:300,shiftKey:true}); flush(); };
   const click = () => { get('view').fire('pointerdown',{clientX:400,clientY:300,pointerId:1}); flush(); };
   const lights = () => vm.runInNewContext('lightStates.map(color=>color && [...color])', context);
-  return {get,hover,click,flush,frame,document,window,meshes,api:window.F2,lights,
+  return {get,hover,click,flush,frame,document,window,meshes,geometryUploads,api:window.F2,lights,
     now:()=>clockNow,advanceTo:timestamp=>{clockNow=timestamp;},audioStarts:()=>audioStarts,measurements:()=>labelMeasurements};
 }
 
@@ -676,4 +678,258 @@ test('workshop template retains all source viewer IDs once and exposes self-cont
   assert.match(template,/__WORKSHOP_DESIGN_SYSTEM__/);
   assert.match(template,/__WORKSHOP_VIEWER_STYLE__/);
   assert.doesNotMatch(template,/<link[^>]+stylesheet/);
+});
+
+
+test('two touch pointers pan and pinch without rotating, transition to single orbit and cancel cleanly', () => {
+  const app=viewer([],[],{viewport:[360,600]});
+  const view=app.get('view'), before=app.api.state();
+  view.fire('pointerdown',{pointerId:1,pointerType:'touch',clientX:100,clientY:200});
+  view.fire('pointerdown',{pointerId:2,pointerType:'touch',clientX:200,clientY:200});
+  view.fire('pointermove',{pointerId:1,pointerType:'touch',clientX:90,clientY:210});
+  view.fire('pointermove',{pointerId:2,pointerType:'touch',clientX:230,clientY:210}); app.flush();
+  const multi=app.api.state();
+  assert.equal(multi.yaw,before.yaw); assert.equal(multi.pitch,before.pitch);
+  assert.ok(multi.distance<before.distance,'Increasing finger distance zooms in');
+  assert.notDeepEqual(multi.cameraTarget,before.cameraTarget);
+  view.fire('pointerup',{pointerId:2,pointerType:'touch',clientX:230,clientY:210});
+  view.fire('pointermove',{pointerId:1,pointerType:'touch',clientX:110,clientY:210}); app.flush();
+  assert.notEqual(app.api.state().yaw,multi.yaw);
+  view.fire('pointercancel',{pointerId:1}); app.flush();
+  assert.equal(app.api.state().activePointers,0);
+  const canceled=app.api.state();
+  view.fire('pointermove',{pointerId:1,pointerType:'touch',clientX:1000,clientY:1000}); app.flush();
+  assert.equal(app.api.state().yaw,canceled.yaw);
+  assert.equal(app.api.state().pinned,'','A gesture cannot become an accidental tap');
+});
+
+test('desktop right button pans, camera target and zoom remain bounded and Home recovers whole model', () => {
+  const app=viewer(), view=app.get('view'), before=app.api.state();
+  view.fire('pointerdown',{pointerId:1,button:2,clientX:400,clientY:300});
+  view.fire('pointermove',{pointerId:1,clientX:8000,clientY:-8000}); app.flush();
+  assert.equal(app.api.state().yaw,before.yaw); assert.notDeepEqual(app.api.state().cameraTarget,before.cameraTarget);
+  assert.ok(app.api.state().cameraTarget.every(value=>Math.abs(value)<1000));
+  view.fire('pointerup',{pointerId:1,button:2,clientX:8000,clientY:-8000});
+  for(let i=0;i<100;i++) view.fire('wheel',{deltaY:100000}); app.flush();
+  assert.ok(app.api.state().distance<=1600);
+  view.fire('keydown',{key:'Home'}); app.flush();
+  assert.equal(app.api.state().automaticFit,true);
+  assert.deepEqual(app.api.state().cameraTarget,before.cameraTarget);
+});
+
+test('camera focus ends on selected part, preserves orientation and reduced motion uses no transition', () => {
+  for(const reducedMotion of [false,true]) {
+    const app=viewer([],[],{reducedMotion,viewport:[360,500],devicePixelRatio:4});
+    const before=app.api.state();
+    app.get('object').value='esp32'; app.get('object').onchange(); app.flush();
+    app.get('zoom-object').onclick();
+    assert.equal(app.api.state().cameraTransition,!reducedMotion);
+    app.flush();
+    assert.equal(app.api.state().cameraTransition,false);
+    assert.deepEqual(Array.from(app.api.state().cameraTarget),[105,105,25]);
+    assert.equal(app.api.state().yaw,before.yaw);
+    assert.equal(app.api.state().pitch,before.pitch);
+    assert.equal(app.get('view').width,720,'Pixel ratio is capped at two');
+  }
+});
+
+test('all named camera views fit the scene and remain finite', () => {
+  const app=viewer([],[{name:'case',group:'case',bounds:[0,0,0,432,267,114]}],{viewport:[360,500]});
+  for(const name of ['front','back','left','side','top','overview']) {
+    app.api.setView(name); app.flush();
+    assert.ok(Number.isFinite(app.api.state().distance));
+    for(const corner of app.api.visibleCorners()) {
+      const point=app.api.projectPoint(corner); assert.ok(point);
+      assert.ok(point[0]>=0 && point[0]<=360); assert.ok(point[1]>=0 && point[1]<=500);
+    }
+  }
+});
+
+test('guide picker supports variable steps and bench context, metadata, next state and destination', () => {
+  const steps=[
+    {id:'deck',title:'Deck on bench',parts:['deck'],instruction:'Wire outside case',subassembly:'electronics',location:'bench',direction:'from above',access:['driver top'],connectors:['USB slack'],removal:'Disconnect USB',installation:{kind:'bench',targets:['esp32'],clearance_mm:60,absent:['frame']},tools:['key'],materials:[]},
+    {id:'place',title:'Lower deck',parts:['frame'],depends:['deck'],installation:{kind:'vertical'},tools:[],materials:[]},
+  ];
+  const app=viewer([],[{name:'deck',group:'fixed'},{name:'frame',group:'fixed'},{name:'case',group:'case'}],{assemblyGuide:{steps}});
+  const part=name=>app.meshes.find(mesh=>mesh.name===name);
+  app.api.setMode('assembly'); app.get('assembly-step').value='0'; app.get('assembly-step').onchange(); app.flush();
+  assert.match(app.get('assembly-context').textContent,/PRÁCE NA STOLE/);
+  assert.equal(app.api.visible(part('case')),false,'Bench preview does not falsely place modules inside case');
+  assert.equal(app.api.visible(part('deck')),true);
+  assert.match(app.get('assembly-access').textContent,/driver top/);
+  assert.match(app.get('assembly-connectors').textContent,/USB slack/);
+  assert.match(app.get('assembly-removal').textContent,/Disconnect USB/);
+  assert.match(app.get('assembly-depends').textContent,/frame/);
+  assert.equal(app.api.assemblyPartState(part('deck')),'current');
+  assert.equal(app.api.assemblyPartState(part('frame')),'next');
+  assert.match(app.get('assembly-next-parts').textContent,/Lower deck/);
+  app.get('assembly-step').value='1'; app.get('assembly-step').onchange(); app.flush();
+  assert.equal(app.api.visible(part('case')),true); assert.equal(app.api.visible(part('deck')),true);
+  assert.equal(app.api.assemblyPartState(part('deck')),'installed');
+  assert.equal(app.get('assembly-progress').value,2); assert.equal(app.get('assembly-next').disabled,true);
+  app.get('assembly-exit').onclick(); app.flush(); assert.equal(app.api.state().mode,'operation');
+  assert.equal(app.get('assembly-panel').getAttribute('data-open'),'false','Hidden guide must not reserve viewport area after exit');
+});
+
+test('instruction and simulation sheets close with focus returned to their dock buttons', () => {
+  const app=viewer([],[],{assemblyGuide:{steps:[{title:'Build',parts:[]}]}});
+  app.api.setMode('assembly'); app.flush();
+  assert.equal(app.get('guide-toggle').getAttribute('aria-expanded'),'true');
+  app.get('guide-close').focus(); app.get('guide-close').onclick(); app.flush();
+  assert.equal(app.document.activeElement,app.get('guide-toggle'));
+  app.get('guide-toggle').onclick(); app.flush();
+  assert.equal(app.document.activeElement,app.get('guide-close'));
+  app.api.setMode('operation'); app.get('motion-toggle').onclick(); app.flush();
+  assert.equal(app.get('motion-panel').getAttribute('data-open'),'true');
+  app.get('motion-close').focus(); app.document.listeners.keydown({key:'Escape'}); app.flush();
+  assert.equal(app.document.activeElement,app.get('motion-toggle'));
+});
+
+
+test('Stop remains in compact dock when simulation sheet is collapsed', () => {
+  const phase={id:'rise',duration_ms:1000,motion:'lift',light:'off',tone:null,brightness:0};
+  const app=viewer([],[{name:'tray_3',group:'moving'}],{effects:{main:[phase]}});
+  app.get('play-main').onclick();
+  assert.equal(app.get('dock-effect-stop').hidden,false);
+  app.get('motion-close').onclick();
+  app.get('dock-effect-stop').onclick(); app.flush();
+  assert.equal(app.api.state().effectFault,true);
+  assert.equal(app.get('dock-effect-stop').hidden,true);
+});
+
+
+test('bench prepared parts are shown without entering cumulative installed state and wiring-only steps retain deck', () => {
+  const steps=[
+    {id:'deck',title:'Bench deck',parts:['deck'],materials:[{id:'SHIM05',quantity:4}],installation:{kind:'bench',targets:['deck']}},
+    {id:'wire',title:'Wire deck',parts:[],installation:{kind:'bench',targets:[]}},
+    {id:'prepare',title:'Prepare lift',parts:[],preparedParts:['tray_1'],installation:{kind:'bench',targets:['tray_1']}},
+    {id:'inspect',title:'Inspect deck',parts:[],installation:{kind:'inspection',targets:[]}},
+    {id:'install',title:'Install lift',parts:['tray_1'],installation:{kind:'vertical',targets:['tray_1']}},
+  ];
+  const app=viewer([],[{name:'deck',group:'fixed'},{name:'tray_1',group:'moving'},{name:'case',group:'case'}],{assemblyGuide:{steps,materialCatalog:{SHIM05:{name:'washer 0.5 mm',description:'level deck'}}}});
+  const part=name=>app.meshes.find(mesh=>mesh.name===name);
+  app.api.setMode('assembly'); app.api.moveAssembly(1); app.flush();
+  assert.match(app.get('assembly-materials').textContent,/4 × washer 0.5 mm/);
+  app.api.moveAssembly(1); app.flush();
+  assert.equal(app.api.visible(part('deck')),true,'Wiring-only bench operation retains earlier deck');
+  assert.equal(app.api.visible(part('case')),false);
+  app.api.moveAssembly(1); app.flush();
+  assert.equal(app.api.visible(part('tray_1')),true,'Prepared part bypasses cumulative installed filter only on bench');
+  assert.equal(app.api.assemblyPartState(part('tray_1')),'prepared');
+  assert.match(app.get('assembly-parts').textContent,/ještě neosazené/);
+  assert.match(app.get('assembly-parts').textContent,/tray_1/);
+  app.api.moveAssembly(1); app.flush();
+  assert.equal(app.api.visible(part('tray_1')),false,'Preparing a part must not install it in subsequent non-bench steps');
+  app.api.moveAssembly(1); app.flush();
+  assert.equal(app.api.visible(part('tray_1')),true,'Actual install stage adds part cumulatively');
+});
+
+
+test('actual authored guide retains bench deck context and transfers it to case only at installation', () => {
+  const guide=JSON.parse(fs.readFileSync(path.join(__dirname,'assembly-guide.json'),'utf8'));
+  const app=viewer([], [
+    {name:'case',group:'case'},{name:'frame_panel_1',group:'fixed'},
+    {name:'carrier_pca9685',group:'fixed'},{name:'left_service_carrier',group:'fixed'},
+    {name:'usb_coil_wrap_1',group:'restraint'},{name:'floor_anchor_front_left',group:'fixed'},
+    {name:'base_1',group:'fixed'},{name:'guide_bolt_1_16',group:'fastener'},
+    {name:'guide_washer_1_16',group:'hardware',bounds:[100,100,95,110,110,95.8]},
+    {name:'guide_nut_1_16',group:'hardware',bounds:[100,100,95.8,110,110,99]},
+    {name:'tray_1',group:'moving'},
+  ],{assemblyGuide:guide});
+  const part=name=>app.meshes.find(mesh=>mesh.name===name);
+  const stage=id=>{
+    const index=guide.steps.findIndex(step=>step.id===id); assert.notEqual(index,-1,'Actual guide stage '+id+' exists');
+    app.get('assembly-step').value=String(index); app.get('assembly-step').onchange(); app.flush();
+  };
+  const shown=name=>app.api.visible(part(name));
+  app.api.setMode('assembly');
+  for(const id of ['frame','carriers','electronics','power','signals']) {
+    stage(id);
+    assert.equal(shown('case'),false,id+': bench operation is outside case');
+    assert.equal(shown('frame_panel_1'),true,id+': complete supporting deck stays visible');
+    if(id!=='frame') assert.equal(shown('carrier_pca9685'),true,id+': carrier context stays visible');
+    if(['electronics','power','signals'].includes(id)) assert.equal(shown('pca9685'),true,id+': electronics stays on deck');
+    if(['power','signals'].includes(id)) assert.equal(shown('usb_coil_wrap_1'),true,id+': prepared power context stays visible');
+  }
+  stage('anchors');
+  assert.equal(shown('case'),true); assert.equal(shown('floor_anchor_front_left'),true);
+  for(const name of ['frame_panel_1','carrier_pca9685','pca9685','base_1','tray_1']) {
+    assert.equal(shown(name),false,'Bench-built '+name+' is not already inside case at anchors');
+  }
+  stage('bases');
+  assert.equal(shown('frame_panel_1'),true); assert.equal(shown('base_1'),true);
+  assert.equal(shown('guide_washer_1_16'),true);
+  assert.equal(app.api.movement(part('guide_washer_1_16'))[14],0,'Retention stays above integral guide towers at authored Z95');
+  stage('install');
+  for(const name of ['case','floor_anchor_front_left','frame_panel_1','carrier_pca9685','pca9685','base_1','guide_washer_1_16']) assert.equal(shown(name),true,name+' is present after deck insertion');
+  assert.equal(shown('tray_1'),false);
+  assert.equal(app.api.assemblyPartState(part('frame_panel_1')),'current','Transferred deck is highlighted on real insertion stage');
+  assert.equal(app.api.assemblyPartState(part('pca9685')),'current');
+  stage('moving');
+  assert.equal(shown('tray_1'),true); assert.equal(shown('frame_panel_1'),false);
+  assert.equal(shown('guide_washer_1_16'),false,'Caps remain on deck, not in separate upper-group bench preview');
+  stage('mechanisms');
+  for(const name of ['case','frame_panel_1','pca9685','base_1','tray_1','guide_washer_1_16','guide_nut_1_16']) assert.equal(shown(name),true,name+' remains after upper groups are installed');
+  assert.equal(app.api.movement(part('guide_washer_1_16'))[14],0,'Caps are restored at final authored height without invalid Z-79 displacement');
+  assert.equal(app.api.movement(part('guide_nut_1_16'))[14],0);
+});
+
+
+test('indexed geometry expands to the same winding, positions and flat unit normals as legacy facets', () => {
+  const vertices=[0,0,0, 2,0,0, 0,2,0, 0,0,2];
+  const triangles=[0,1,2, 0,3,1, 0,2,3, 1,3,2];
+  const diagonal=-1/Math.sqrt(3);
+  const legacy=[
+    0,0,0,0,0,1, 2,0,0,0,0,1, 0,2,0,0,0,1,
+    0,0,0,0,1,0, 0,0,2,0,1,0, 2,0,0,0,1,0,
+    0,0,0,1,0,0, 0,2,0,1,0,0, 0,0,2,1,0,0,
+    2,0,0,diagonal,diagonal,diagonal, 0,0,2,diagonal,diagonal,diagonal, 0,2,0,diagonal,diagonal,diagonal,
+  ];
+  const indexed=viewer([], [{name:'indexed',group:'fixed',vertices,triangles}]);
+  const expanded=viewer([], [{name:'legacy',group:'fixed',data:legacy}]);
+  assert.deepEqual(indexed.geometryUploads[2],expanded.geometryUploads[2]);
+  assert.equal(indexed.meshes[2].count,12);
+  assert.equal(indexed.meshes[2].vertices,undefined,'Shared source positions are released after upload');
+  assert.equal(indexed.meshes[2].triangles,undefined);
+  for(let offset=0;offset<indexed.geometryUploads[2].length;offset+=6) {
+    const normal=indexed.geometryUploads[2].slice(offset+3,offset+6);
+    assert.ok(Math.abs(Math.hypot(...normal)-1)<1e-6);
+  }
+});
+
+test('indexed repeated, collinear and subthreshold triangles are omitted without NaN geometry', () => {
+  const vertices=[0,0,0, 1,0,0, 2,0,0, 0,1,0, 0,1e-13,0];
+  const triangles=[0,0,1, 0,1,2, 0,1,4, 0,1,3];
+  const app=viewer([], [{name:'degenerate',group:'fixed',vertices,triangles}]);
+  assert.equal(app.meshes[2].count,3,'Only the well-formed face is uploaded');
+  assert.equal(app.geometryUploads[2].length,18);
+  assert.ok(app.geometryUploads[2].every(Number.isFinite));
+  const empty=viewer([], [{name:'only_degenerate',group:'fixed',vertices,triangles:[0,0,1,0,1,2]}]);
+  assert.equal(empty.meshes[2].count,0);
+  assert.deepEqual(empty.geometryUploads[2],[]);
+});
+
+test('indexed geometry rejects malformed positions and indices with the part identifier', () => {
+  for(const geometry of [
+    {vertices:[0,0],triangles:[]},
+    {vertices:[0,0,NaN],triangles:[]},
+    {vertices:[0,0,0],triangles:[0,0]},
+    {vertices:[0,0,0],triangles:[0,0,1]},
+    {vertices:[0,0,0],triangles:[0,0,-1]},
+    {vertices:[0,0,0],triangles:[0,0,.5]},
+  ]) assert.throws(()=>viewer([], [{name:'bad_geometry',group:'fixed',...geometry}]),/bad_geometry/);
+});
+
+
+test('dimension fallbacks label 430 by 269 as clear top opening and safe zone as design bounds', () => {
+  const app=viewer([],[{name:'case',group:'case',bounds:[-5,-20,-5,435,289,114.3]}]);
+  app.get('dimensions').checked=true; app.get('dimensions').oninput(); app.flush();
+  const labels=app.get('names').children.map(node=>node.textContent).filter(Boolean).join(' | ');
+  assert.match(labels,/Průchozí horní X 430 mm/);
+  assert.match(labels,/Průchozí horní Y 269 mm/);
+  assert.match(app.get('envelope-note').textContent,/nejsou zaručený volný kvádr/);
+  assert.doesNotMatch(app.get('envelope-note').textContent,/Bezpečný vložitelný/);
+  const parameters=JSON.parse(fs.readFileSync(path.join(__dirname,'parameters.json'),'utf8'));
+  const actual=viewer([],[],{case:parameters.case});
+  assert.match(actual.get('envelope-note').textContent,/400 × 240 × 170 mm/);
 });

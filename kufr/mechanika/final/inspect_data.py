@@ -137,9 +137,9 @@ _HARDWARE = {
 }
 
 _MECHANICAL = {
-    "wooden_case": ("Skutečný dřevěný kufr", "Referenční celistvý plášť; není určen k tisku ani vrtání."),
-    "wooden_lid": ("Prázdné víko kufru", "Referenční prázdné víko; detaily pantů nejsou změřené."),
-    "floor_brace": ("Výztuha dna", "Potvrzená výška 5 mm; poloha XY je předpoklad, rám ji překračuje."),
+    "wooden_case": ("Skutečný dřevěný kufr", "Plášť koupeného kufru s výztuhami u lemu a zaobleným spodním profilem; není určen k tisku ani vrtání. Průchozí horní obdélník není celovýškový volný prostor."),
+    "wooden_lid": ("Prázdné víko kufru", "Referenční prázdné víko; jeho výška je předpoklad, detaily pantů nejsou změřené."),
+    "floor_brace": ("Výztuha dna", "Majitelem potvrzená výztuha uprostřed dna přes celou šířku X; šířka v Y a výška v Z jsou parametry skutečného kufru."),
     "frame_panel_": ("Díl montážního rámu", "PETG rám s integrovanými výztuhami; moduly podpírají samostatně lepené podlahové kotvy."),
     "floor_anchor_": ("Tištěná podlahová kotva", "PETG opora s bočním vložením matic pod souvislý strop a tvarovými dutinami pro epoxid."),
     "wood_bond_": ("Epoxidový spoj na dno", "Film na holém dřevě a odlité tvarové zámky v kotvě; vytvrzení a únosnost vyžadují fyzickou zkoušku."),
@@ -212,6 +212,23 @@ def describe(item):
             if _matches(item.name, prefix):
                 title, description = candidate_title, candidate_description
                 break
+    if item.name in {"wooden_case","wooden_lid","floor_brace"} and (ROOT / "parameters.json").exists():
+        case = json.loads((ROOT / "parameters.json").read_text(encoding="utf-8"))["case"]
+        if item.name == "wooden_case":
+            details.extend([
+                f"Majitel potvrdil: horní průchozí obdélník X {case['inside_x']:g} × Y {case['inside_y']:g} mm mezi přední a zadní výztuhou lemu.",
+                f"Dříve potvrzená výška hlavní části: {case['base_height']:g} mm; tloušťka dna {case['floor']:g} mm je předpoklad.",
+                f"Meze návrhu safe_zone: {' × '.join(str(value) for value in case['safe_zone'])} mm od safe_origin; nejde o zaručený prázdný kvádr. Rozhoduje skutečný BREP pláště a kolizní kontrola.",
+            ])
+            if "reinforcement_width" in case:
+                details.extend([
+                    f"Potvrzeno: stěna {case['wall']:g} mm; celková šířka výztuhy u lemu {case['reinforcement_width']:g} mm zahrnuje stěnu. Výztuhy klesají od lemu: přední {case['front_reinforcement_height']:g}, zadní {case['rear_reinforcement_height']:g} mm.",
+                    f"Potvrzený spodní YZ profil: tečné vzdálenosti {case['bottom_radius']:g} × {case['bottom_radius']:g} mm od hlavní vnitřní stěny; kruhový profil v CAD ověřit na skutečném kufru.",
+                ])
+        elif item.name == "wooden_lid":
+            details.append(f"Výška víka {case['lid_height']:g} mm je dřívější předpoklad; není nové potvrzené měření. Pantová osa pochází z generátoru, kování vyžaduje kontrolu.")
+        else:
+            details.append(f"Potvrzená výztuha: X {case['inside_x']:g} mm přes celou šířku × Y {case['brace_width']:g} mm × Z {case['brace_height']:g} mm; vycentrovaná v Y, začátek Y {case['brace_y']:g} mm.")
     if item.name.startswith("degson_"):
         net = {"degson_1":"MAIN5 (+5 V)", "degson_2":"DRIVE5 (+5 V za zelenou)",
                "degson_3":"GND (nevypínat)"}.get(item.name)

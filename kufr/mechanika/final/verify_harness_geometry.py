@@ -259,7 +259,7 @@ def verify_self_geometry():
 
 def source_fingerprint():
     return {name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest()
-            for name in ("parameters.json","harness.py","mechanism.py","layout.py","chassis.py","retention.py",
+            for name in ("parameters.json","harness.py","mechanism.py","layout.py","chassis.py","service_geometry.py","retention.py",
                          "verify_harness_geometry.py","geometry.py","check_fit.py")}
 
 

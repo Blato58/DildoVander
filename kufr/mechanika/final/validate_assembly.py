@@ -25,9 +25,8 @@ def validate_contract(guide, material_list):
     assert not forbidden.intersection(material_list), 'Obsolete purchased material'
     steps={step['id']:step for step in guide['steps']}
     order=[step['id'] for step in guide['steps']]
-    assert len(order)==15, 'Assembly must retain fifteen steps'
-    required_order=('fit','frame','carriers','anchors','install','mechanisms')
-    assert [order.index(name) for name in required_order]==sorted(order.index(name) for name in required_order), 'Frame must precede module installation'
+    required_order=('fit','frame','carriers','electronics','power','signals','anchors','bases','install','moving','mechanisms')
+    assert [order.index(name) for name in required_order]==sorted(order.index(name) for name in required_order), 'Bench electronics/wiring and bare bases must precede upper lift installation'
     for before,after in zip(required_order,required_order[1:]):
         assert before in steps[after]['depends'], f'Missing assembly dependency: {before} -> {after}'
     for step in guide['steps']:
@@ -37,15 +36,15 @@ def validate_contract(guide, material_list):
     quantities=lambda name: Counter({m['id']:m['quantity'] for m in steps[name]['materials']})
     assert quantities('anchors')['NUT3']==24 and quantities('anchors')['NUT4']==4, 'Load captive nuts before frame'
     assert quantities('install')['M4x10']==4 and quantities('install')['NUT4']==0
-    assert quantities('mechanisms')['M3x14']==24 and quantities('mechanisms')['NUT3']==0
+    assert quantities('install')['M3x14']==24 and quantities('mechanisms')['M3x14']==0
     assert quantities('covers')['M3x10']==8 and material_list['M3x10']==8
-    assert material_list['NUT3']==89 and material_list['NUT4']==4
-    return {'no_fitting_tools':'PASS','printed_floor_anchor_order':'PASS'}
+    assert material_list['NUT3']==88 and material_list['NUT4']==4
+    return {'no_fitting_tools':'PASS','printed_floor_anchor_order':'PASS','bench_wiring_before_upper_groups':'PASS'}
 
 
 def validate():
     guide=json.loads((ROOT/'assembly-guide.json').read_text(encoding='utf-8'))
-    steps=guide['steps']; ids=[]; wired=[]; installed=set(); materials=Counter(); first_install={}
+    steps=guide['steps']; ids=[]; wired=[]; installed=set(); placed=set(); materials=Counter(); first_install={}
     meshes={i.name for i in scene() if i.group not in ('case','lid','lid_hardware')}
     for step in steps:
         assert step['id'] not in ids, 'Duplicate step'
@@ -53,6 +52,13 @@ def validate():
         ids.append(step['id'])
         assert all(step.get(key) for key in ('title','instruction','check','camera','partSummary'))
         assert step['camera'] in ('top','front','side','overview')
+        assert all(step.get(key) for key in ('subassembly','location','direction','access','removal','installation'))
+        installation=step['installation']
+        assert installation['kind'] in ('bench','vertical','wiring','inspection')
+        for pattern in installation['absent']:
+            assert not any(matches(name,pattern) for name in placed), 'Installation obstruction already present: '+pattern
+        for pattern in installation['targets']+step.get('preparedParts',[]):
+            assert any(matches(name,pattern) for name in meshes), 'Unknown installation target: '+pattern
         for material in step['materials']:
             assert material['id'] in guide['materialCatalog'] and material['quantity']>0
             materials[material['id']]+=material['quantity']
@@ -60,11 +66,25 @@ def validate():
         for name in step_meshes:
             first_install.setdefault(name,step['id'])
         installed.update(step_meshes)
+        case_meshes={name for name in meshes if any(matches(name,p) for p in step['caseParts'])}
+        assert not case_meshes.intersection(placed), 'Part placed twice: '+step['id']
+        assert case_meshes.issubset(installed), 'Case placement before bench preparation: '+step['id']
+        if installation['kind']=='bench':
+            assert not step['caseParts'] and step['benchParts'], 'Bench stage must retain prepared context'
+        placed.update(case_meshes)
         wired.extend(step['wires'])
     assert installed==meshes, 'Final assembly omits: '+str(sorted(meshes-installed))
+    assert placed==meshes, 'Final case placement omits: '+str(sorted(meshes-placed))
     expected={r['id'] for r in harness.routes()}
     assert set(wired)==expected and len(wired)==len(expected), 'Wire missing or assigned twice'
     assert len(guide['transport'])>=4 and len(guide['recommission'])>=4
+    hierarchy={entry['id']:entry for entry in guide['subassemblies']}
+    assert len(hierarchy)==len(guide['subassemblies']), 'Duplicate subassembly ID'
+    assert all(step['subassembly'] in hierarchy for step in steps), 'Unknown step subassembly'
+    for entry in hierarchy.values():
+        assert all(entry.get(key) for key in ('title','parts','function','installation','removal'))
+        for pattern in entry['parts']:
+            assert any(matches(name,pattern) for name in meshes), 'Unknown subassembly part: '+pattern
     with (ROOT/'mechanicky-material.csv').open(encoding='utf-8-sig',newline='') as file:
         material_rows=list(csv.DictReader(file))
     material_list={row['id']:float(row['mnozstvi']) for row in material_rows}
@@ -80,8 +100,9 @@ def validate():
     for pattern,count in scene_counts.items():
         assert sum(matches(name,pattern) for name in meshes)==count, 'Scene hardware count differs: '+pattern
     first_step_patterns={'anchors':('floor_anchor*','wood_bond*','module_nut*','anchor_nut*'),
-                         'install':('anchor_m4*','anchor_head*'),
-                         'mechanisms':('base_*','tray_*','cam_*','module_m3*','module_head*')}
+                         'bases':('base_*','guide_bolt*','guide_head*'),
+                         'install':('anchor_m4*','anchor_head*','module_m3*','module_head*'),
+                         'mechanisms':('tray_*','cam_*')}
     for step_id,patterns in first_step_patterns.items():
         for pattern in patterns:
             names={name for name in meshes if matches(name,pattern)}

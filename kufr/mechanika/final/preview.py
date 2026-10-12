@@ -148,24 +148,15 @@ def viewer():
     items += [item for item in transport_items if item.name not in normal_names]
     for item in items:
         vertices,faces=mesh(item.shape)
-        # Flat normals make the actual printed facets and clearances legible.
-        packed=[]
-        v=np.array(vertices)
-        for face in faces:
-            tri=v[list(face)]
-            n=np.cross(tri[1]-tri[0],tri[2]-tri[0])
-            length=np.linalg.norm(n)
-            if length<1e-12:
-                continue
-            n/=length
-            for p in tri:
-                packed.extend([*p,*n])
+        # Preserve exact tessellated facets without repeating every position
+        # and normal in JSON. The viewer expands flat normals once for the GPU.
         meshes.append({"name":item.name,"group":item.group,"color":COLORS[item.color],
                        "transportOnly":item.name not in normal_names,
                        "operationOnly":item.name not in transport_names,
                        "bounds":[round(v,4) for v in bounds(item.shape)],
                        "info":inspect_data.describe(item),
-                       "data":[round(float(x),4) for x in packed]})
+                       "vertices":[round(float(x),4) for vertex in vertices for x in vertex],
+                       "triangles":[int(index) for face in faces for index in face]})
     template=(ROOT/"viewer-template.html").read_text(encoding="utf-8")
     names = {item.name for item in items}
     def optional_json(name,default):
