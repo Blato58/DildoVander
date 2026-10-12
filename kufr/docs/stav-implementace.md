@@ -62,7 +62,8 @@ serverové adresáře, device identity a jednotlivé provozní incidenty sem nep
 Majitel schválil oddělený soukromý deployment repozitář, zachování buildů a
 podepsané IPA v tomto zdrojovém repozitáři, kompatibilní CAD upgrade,
 odstranění PNG podkladů a vyčištění jejich i stavové historie při zachování
-ostatních commitů. Viditelnost zdrojového repozitáře zůstává soukromá.
+ostatních commitů. Zdrojový repozitář byl se souhlasem majitele zveřejněn
+12. 10. 2026; deployment repozitář zůstává soukromý.
 
 Dokončeno a odesláno: oddělení workflow, CAD upgrade a úplná regenerace,
 odstranění PNG a vlastní generovaný native icon. Historie 59 původních větví
@@ -82,21 +83,26 @@ proces backendu a health se nezměnily. Soukromé CI skutečně prošlo na VPS:
 Root hook má samostatné mock i skutečné acceptance důkazy.
 
 Buildy a podpis zůstávají ve zdroji na GitHub-hosted Ubuntu/macOS; signing
-vyžaduje ruční main a prostředí `ios-signing`. Nový hosted build a native
-podpis blokuje budget dosud soukromého zdroje. Po publikaci je standardní
-hosted execution zdarma. Artifact storage kvota účtu má samostatnou blokaci:
-upload diagnostiky selhal po úspěšném čtení. Nová IPA ani fyzická akceptace
-nejsou doloženy. Konkrétní postup vede [CI/CD návod](../../docs/ci-cd.md).
+vyžaduje ruční main a prostředí `ios-signing`. Standardní hosted execution
+je po publikaci zdarma. Hosted CI běh `38245975321` prošel po opakování
+dočasného GitHub HTTP 504: Secret scan, Repository checks a CI required.
+Úplná native akceptace se dokládá samostatně. Na výslovný
+souhlas majitele bylo odstraněno všech 18 zbývajících artifactů účtu,
+385 769 675 bajtů. Kvota se přepočítává samostatně; úspěšný nový upload
+ani IPA zatím nejsou doloženy. Fyzická akceptace zůstává otevřená.
+Konkrétní postup vede [CI/CD návod](../../docs/ci-cd.md).
 
 GitHub stále nabízí 175 read-only PR refs se starými kopiemi; běžný push je
-nepřepíše. Support žádost je připravena soukromě, nebyla odeslána. Před publikací
-zbývá vyřešit tyto refs/cache, ověřit public ochrany a bezpečnostní kontakt.
+nepřepíše. Majitel výslovně rozhodl tyto refs/cache ponechat; Support žádost
+nebyla odeslána. Public main ruleset, read-only výchozí workflow token,
+schvalování externích PR workflow, SHA pinning a neveřejné hlášení
+zranitelností byly zapnuty a ověřeny přes GitHub API.
 Původní lokální klony/worktrees zůstaly zachovány pro jejich vlastníky;
 veřejnou práci zahájit z nového klonu, nepřipojovat starou historii zpět.
 
 ## Předání další AI
 
-1. Dokončit a ověřit publikační slice, bez změny viditelnosti a bez placené AI.
+1. Zachovat public zdroj a private deployment hranici; placenou AI nespouštět.
 2. Zachovat již přijaté servisní výsledky samostatné ESP desky; nevracet je
    znovu do stavu bez důkazu jen kvůli zkrácení deníku.
 3. Další funkční krok je skutečné napájení/OE, inspection, kalibrace a bezpečná

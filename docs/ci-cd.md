@@ -102,9 +102,14 @@ credential byl overen ctenim diagnostiky bez volani AI. Apple podpisove
 secrets zustaly ve zdrojovem `ios-signing`, omezenem na main.
 
 Standardni GitHub-hosted buildy vcetne macOS jsou po zverejneni zdroje zdarma.
-Do te doby nove hosted kontroly blokuje budget soukromeho repozitare.
-Ucet take dosahl kvoty artifact storage; tato kvota blokovala upload
-diagnostickeho artifactu i po uspesnem cteni a ma samostatnou akceptaci.
+Zdroj byl se souhlasem majitele zverejnen 12. 10. 2026; private deployment
+repo zustava soukromy. Main quality gate je aktivni, vychozi workflow token
+read-only, externi PR workflow vyzaduji schvaleni a Actions SHA pinning je
+povinny. Private vulnerability reporting je zapnuty.
+Ucet drive dosahl kvoty artifact storage; tato kvota blokovala upload
+diagnostickeho artifactu i po uspesnem cteni. Vsech 18 zbyvajicich artifactu
+uctu bylo se souhlasem majitele odstraneno; prepocet kvoty a novy uspesny
+upload maji samostatnou akceptaci.
 
 ## Kontroly a nastaveni zdroje
 

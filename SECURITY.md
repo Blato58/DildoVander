@@ -7,16 +7,13 @@ komponenty a rozlišuj backend, firmware, mobil, simulátor a distribuční nás
 ## Neveřejné hlášení zranitelnosti
 
 Použij **Report a vulnerability** v
-[GitHub Security Advisories](https://github.com/Blato58/DildoVander/security/advisories),
-pokud je tlačítko dostupné. Před zveřejněním musí vlastník určit funkční
-soukromý kontakt. GitHub nabízí **Private vulnerability reporting** pro
-veřejné repozitáře; při schváleném přechodu jej zapni v Settings → Advanced
-Security a ověř příjem oznámení podle
+[GitHub Security Advisories](https://github.com/Blato58/DildoVander/security/advisories).
+Tento neveřejný kanál byl zapnut a jeho konfigurace ověřena přes GitHub API
+12. 10. 2026 při schváleném zveřejnění repozitáře. Postup hlášení popisuje
 [návodu GitHub](https://docs.github.com/en/code-security/how-tos/report-and-fix-vulnerabilities/configure-vulnerability-reporting/configure-for-a-repository).
-Aktivace tohoto kanálu zatím není potvrzena. Pokud tlačítko chybí, lze veřejně
+Příjem skutečného oznámení nebyl testován. Pokud tlačítko chybí, lze veřejně
 požádat `@Blato58` pouze o dostupný soukromý kontakt, bez detailů zranitelnosti;
-jiný veřejný bezpečnostní kontakt zatím nebyl určen. Zprovoznění soukromého
-kanálu je podmínkou zveřejnění, ne splněným krokem tohoto dokumentu.
+jiný veřejný bezpečnostní kontakt zatím nebyl určen.
 
 Soukromé hlášení má obsahovat komponentu/verzi, dopad, kroky reprodukce a
 minimální syntetický příklad. Nevkládej skutečné credentialy, data hostů ani
