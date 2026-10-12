@@ -92,6 +92,20 @@ Migrace registraci, credentials a root-owned OTA verifieru se doklada
 skutecnymi API/runner vysledky; novy kod sam neprokazuje presun ani deployment.
 Privatni README vede presne secret/variable metadata a puvod vetted kopii.
 
+Migrace 12. 10. 2026 byla provedena: zdroj nema zadny VPS runner ani
+prostredi `backend-production`; dva backend runnery jsou pouze v privatnim
+deployment repozitari. Root-owned job hook povoluje jen rucni workflow na
+privatnim main a presny zkontrolovany commit. Odmitnuty probe nespustil zadny
+krok, vcetne `always()`. Produkcni release, proces aplikace a health zustaly
+stejne. Pet aktivnich produkcnich secrets bylo preneseno sifrovane; ADMIN
+credential byl overen ctenim diagnostiky bez volani AI. Apple podpisove
+secrets zustaly ve zdrojovem `ios-signing`, omezenem na main.
+
+Standardni GitHub-hosted buildy vcetne macOS jsou po zverejneni zdroje zdarma.
+Do te doby nove hosted kontroly blokuje budget soukromeho repozitare.
+Ucet take dosahl kvoty artifact storage; tato kvota blokovala upload
+diagnostickeho artifactu i po uspesnem cteni a ma samostatnou akceptaci.
+
 ## Kontroly a nastaveni zdroje
 
 Actions jsou pripnute na commit SHA, checkout nema persistovane credentials.

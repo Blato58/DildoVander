@@ -64,22 +64,35 @@ podepsané IPA v tomto zdrojovém repozitáři, kompatibilní CAD upgrade,
 odstranění PNG podkladů a vyčištění jejich i stavové historie při zachování
 ostatních commitů. Viditelnost zdrojového repozitáře zůstává soukromá.
 
-Lokálně dokončeno: oddělení workflow, CAD upgrade a úplná regenerace,
-odstranění referenčních PNG a vlastní generovaný native icon. Git rewrite
-a přechod runnerů se dokládají samostatně podle skutečného provedení. Podepisování vyžaduje původní main,
-ruční spuštění a prostředí ios-signing; do veřejného CI nepatří produkční
-runnery ani provider/diagnostické credentialy. Konkrétní postup vede
-[CI/CD návod](../../docs/ci-cd.md).
+Dokončeno a odesláno: oddělení workflow, CAD upgrade a úplná regenerace,
+odstranění PNG a vlastní generovaný native icon. Historie 59 původních větví
+byla přepsána se zachováním metadata commitů. Dodatečná větev
+`codex/sanitized-history` zachovává i vyčištěné commity původně dostupné pouze
+z PR. Nový remote mirror ověřil všech 653 přepsaných commitů, žádné PNG a
+odstranění původního stavového deníku; obnoven je pouze stručný aktuální stav.
 
-Soukromý deployment zdroj je připraven a odeslán; read-only token byl
-potvrzen pouze podle metadata. Nový hosted běh GitHub zablokoval před
-spuštěním kvůli Actions budgetu účtu. Migrace VPS runnerů/credentialů a
-skutečná native kompilace/podpis čekají na samostatné ověření.
+Zdroj nemá VPS runnery ani produkční prostředí/secrets. Dva backend runnery
+jsou pouze v soukromém deployment repozitáři. Root-owned hook povoluje přesný
+zkontrolovaný private main commit; skutečný odmítnutý job nespustil žádný
+krok včetně `always()`. Pět aktivních secrets bylo přeneseno šifrovaně;
+diagnostika ověřila soukromý ADMIN credential bez AI volání. Produkční release,
+proces backendu a health se nezměnily. Soukromé CI skutečně prošlo na VPS:
+36 Node testů, 23 CI Python testů (tři root-only kontroly přeskočeny),
+46 deploy testů, 13 diagnostických, 24 offline AI a čtyři IPA helper testy.
+Root hook má samostatné mock i skutečné acceptance důkazy.
 
-GitHub PR refs/cache nelze přepsat běžným pushem. Historické kopie v těchto
-odkazech a klonech musí být vyřešeny zvlášť; samotný rewrite není důkazem
-úplného odstranění dat. Úspěšné kroky, nové kontroly a zbývající blokace se
-při předání doplní pouze podle skutečného výsledku.
+Buildy a podpis zůstávají ve zdroji na GitHub-hosted Ubuntu/macOS; signing
+vyžaduje ruční main a prostředí `ios-signing`. Nový hosted build a native
+podpis blokuje budget dosud soukromého zdroje. Po publikaci je standardní
+hosted execution zdarma. Artifact storage kvota účtu má samostatnou blokaci:
+upload diagnostiky selhal po úspěšném čtení. Nová IPA ani fyzická akceptace
+nejsou doloženy. Konkrétní postup vede [CI/CD návod](../../docs/ci-cd.md).
+
+GitHub stále nabízí 175 read-only PR refs se starými kopiemi; běžný push je
+nepřepíše. Support žádost je připravena soukromě, nebyla odeslána. Před publikací
+zbývá vyřešit tyto refs/cache, ověřit public ochrany a bezpečnostní kontakt.
+Původní lokální klony/worktrees zůstaly zachovány pro jejich vlastníky;
+veřejnou práci zahájit z nového klonu, nepřipojovat starou historii zpět.
 
 ## Předání další AI
 

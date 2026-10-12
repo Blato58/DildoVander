@@ -1,8 +1,8 @@
 # Reviewed false positives tied to immutable commits, rule, path and line.
 # CAD component name (not a credential).
-7cbdb266fe2ce0c8c962b03702096993d6fc27ad:kufr/mechanika/cad/scripts/generate.py:generic-api-key:267
+d3f1a2e21fcff6fb41c8ce834afbb4d418562360:kufr/mechanika/cad/scripts/generate.py:generic-api-key:267
 # Python function arguments key=create_key (no credential literal).
-ed6920c1355e52d68155e3dd792a83414442ff8f:kufr/backend/tests/deployed_smoke.py:generic-api-key:75
+762cfabd6d0d6a5c7aad2154b73c930170ae27bf:kufr/backend/tests/deployed_smoke.py:generic-api-key:75
 # Synthetic idempotency UUIDs in firmware tests (not authentication tokens).
-9ed073cc2144df1805d788c8fda2388466f0058d:kufr/firmware/tests/conversation_text_codec_test.cpp:generic-api-key:13
-701483d2d8eccf612d6bf83b347645f473b839fd:kufr/firmware/tests/conversation_start_coordinator_test.cpp:generic-api-key:72
+616959def37ca63ab8bd8a87c660b3ad8069ffa9:kufr/firmware/tests/conversation_text_codec_test.cpp:generic-api-key:13
+ea40e0ffbda959256109ff524deb0194f3192eee:kufr/firmware/tests/conversation_start_coordinator_test.cpp:generic-api-key:72
