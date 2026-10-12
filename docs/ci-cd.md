@@ -69,7 +69,7 @@ profil nutny pro instalaci. Skutecna iPhone akceptace zustava samostatna.
 ## Privatni publikace a operator gate
 
 Privatni workflow pouzivaji vlastni zkontrolovane kopie deployment nastroju,
-nikdy checkout verejneho PR/head kodu na produkcnim hostu. Hosted verifier
+nikdy checkout verejneho PR/head kodu na produkcnim hostu. Privatni verifier
 ma jen `PUBLIC_SOURCE_READ_TOKEN` omezeny na **Actions: read** a
 **Contents: read** zdrojoveho repozitare. Token je nutny i dokud zdroj zustava
 privatni: vychozi token jineho repozitare nema automaticky cross-repo pristup.
