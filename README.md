@@ -45,10 +45,12 @@ a hlášení zranitelností v [SECURITY.md](SECURITY.md).
 paměť rozhovorů a technické logy. Pro běžný vývoj používej fake adaptéry a
 syntetická data.
 
-Licence vlastního kódu, dokumentace a CAD zatím není zvolena; repozitář proto
-neoznačujeme za licencovaný open-source projekt. Licence vložených fontů a ikon
-platí samostatně. [Inventář a připsání zdrojů](docs/public-assets.md) uvádí
-doložený původ i práva, která musí vlastník ověřit před publikací.
+Vlastní zdrojový kód, dokumentace a CAD zdroje projektu jsou pod
+[GNU Affero General Public License v3.0](LICENSE), SPDX `AGPL-3.0-only`.
+Licence třetích stran, včetně fontů a ikon, platí samostatně; AGPL nedává
+oprávnění k neověřeným cizím obrázkům nebo značkám.
+[Inventář a připsání zdrojů](docs/public-assets.md) uvádí doložený původ
+i zbývající práva, která musí vlastník ověřit před publikací.
 
 DildoVander je neoficiální fanouškovský projekt inspirovaný světem Harryho
 Pottera. Není přidružený k držitelům práv ani jimi schválený. Toto sdělení

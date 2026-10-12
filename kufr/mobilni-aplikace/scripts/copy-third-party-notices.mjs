@@ -3,6 +3,7 @@ import { copyFile, mkdir } from 'node:fs/promises';
 // Vite copies public/ into dist, including builds with a custom --base.
 // Keep the original notices authoritative instead of maintaining duplicate text.
 const notices = [
+  ['../../../LICENSE', 'project/LICENSE.txt'],
   ['../../design-system/fonts/cinzel-OFL.txt', 'fonts/cinzel-OFL.txt'],
   ['../../design-system/fonts/inter-OFL.txt', 'fonts/inter-OFL.txt'],
   ['../../design-system/fonts/ibmplexmono-OFL.txt', 'fonts/ibmplexmono-OFL.txt'],

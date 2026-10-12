@@ -1,9 +1,11 @@
 # Licence, assety a zdroje
 
 Stav inventáře: 12. 10. 2026, aktuální sledované soubory. Jde o evidenci původu,
-nikoli právní potvrzení všech distribučních práv. Licence vlastního kódu,
-textů a CAD nebyla vybrána a kořenový `LICENSE` neexistuje. Vlastník musí před
-publikací rozhodnout rozsah licence a ověřit oprávnění všech přispěvatelů.
+nikoli právní potvrzení všech distribučních práv. Majitel 12. 10. 2026 zvolil
+AGPLv3: vlastní zdrojový kód, dokumentace a CAD zdroje projektu používají
+[AGPL-3.0-only](../LICENSE). Materiály třetích stran se tím nepřelicencují;
+neověřené obrázky nelze považovat za pokryté projektovou licencí. Vlastník
+musí před publikací ověřit oprávnění přispěvatelů i práva k těmto materiálům.
 Zveřejnění samo nenahrazuje licenci; GitHub rozlišuje veřejný repozitář a
 [licencovaný open source](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/licensing-a-repository).
 
@@ -15,7 +17,7 @@ Zveřejnění samo nenahrazuje licenci; GitHub rozlišuje veřejný repozitář 
 | `photo-1.png`, `photo-3.png`, `photo-5.png`, `photo-6.png` v `kufr/mechanika/final/reference/` | Měření/skutečný kufr, fotografie dodané pro projekt; [evidence.json](../kufr/mechanika/final/reference/evidence.json) uvádí otisky, nikoli autora/licenci. `photo-6.png` obsahuje i část těla, `photo-5.png` domácí okolí. | Potvrdit autorství, právo k publikaci a vhodnost těchto osobních detailů; případnou změnu podkladu provést s novou evidencí a regenerací. Otisk není právo k redistribuci. |
 | `photo-2.png`, `photo-4.png` ve stejné složce | Vizuálně produktový obrázek zdobené hůlky s rozměrovým nápisem a katalogový kufr na bílém pozadí. Skutečný dodavatel, autor ani licence nejsou doloženy; vzhled sám autorství neurčuje. | Dohledat zdroj a svolení, nebo nahradit vlastními podklady se zachováním technických důkazů a regenerací. Nelze je automaticky považovat za vlastní fotografie majitele. |
 | 4 PNG v `kufr/mobilni-aplikace/ios/App/App/Assets.xcassets/` | AppIcon a tři Splash varianty; ikona vizuálně odpovídá značce Capacitor. Zdrojový commit a oprávnění pro konkrétní obrázky nejsou v repozitáři evidovány. | Dohledat původ a podmínky šablony/značky nebo nahradit vlastními assety. Vizuální podobnost není ověřená provenance. |
-| CAD, viewer a výrobní exporty | [F2](../kufr/mechanika/final/README.md) je parametrický projekt; STL/STEP/ZIP a náhledy se generují skutečným postupem. Aktuální git index neobsahuje STL, STEP ani audio nahrávky. | Vlastník určí licenci zdrojů i generovaných modelů a posoudí případné odvozené prvky. Každý distribuovaný ZIP/web/IPA/firmware potřebuje vlastní inventář. |
+| CAD, viewer a výrobní exporty | [F2](../kufr/mechanika/final/README.md) je parametrický projekt; vlastní zdroje používají AGPL-3.0-only. STL/STEP/ZIP a náhledy se generují skutečným postupem. Aktuální git index neobsahuje STL, STEP ani audio nahrávky. | U generovaných modelů posoudit odvozené prvky a distribuční podmínky; samotná licence generátoru není automatickou licencí všech jeho výstupů. Každý distribuovaný ZIP/web/IPA/firmware potřebuje vlastní inventář. |
 | AI persony a katalog | Texty a názvy v `kufr/ai-eval/` používají svět Harryho Pottera a Ollivandera; další replika vzniká při běhu poskytovatele. | Posoudit veřejné použití postav/názvů, výstupů a marketingu; neslibovat oprávnění k cizím značkám nebo dílům. |
 
 OFL dovoluje bundling za svých podmínek, včetně přiložení licence a copyrightu;
@@ -25,11 +27,13 @@ Podmínky ikon potvrzuje [Lucide licence](https://lucide.dev/license).
 Výrobní balíček a veřejný web nejsou automaticky pokryty tím, že jsou licence
 uloženy ve zdrojovém repozitáři: ověř obsah výsledného artefaktu.
 
-Mobilní `npm run build` kopíruje původní tři OFL texty, oznámení ikon a licence
-Capacitor core/iOS do `dist/third-party-notices/` (přes ignorovanou generovanou
+Mobilní `npm run build` kopíruje projektovou AGPL, původní tři OFL texty,
+oznámení ikon a licence Capacitor core/iOS do `dist/third-party-notices/`
+(přes ignorovanou generovanou
 složku `public/third-party-notices/`). Stejný obsah přebírá web i Capacitor sync.
 Samostatný Workshop CSS obsahuje OFL oznámení přímo. Tato kontrola nenahrazuje
-inventář dalších knihoven nebo práv k PNG; projektovou licenci neurčuje.
+inventář dalších knihoven nebo práv k PNG; licenční oznámení závislostí
+nenahrazují projektovou AGPL.
 
 ## Závislosti nejsou projektovou licencí
 

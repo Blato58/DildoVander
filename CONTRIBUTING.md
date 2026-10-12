@@ -4,8 +4,10 @@ Projekt je rozpracovaný prototyp. Architekturu určuje
 [implementační plán](kufr/docs/implementacni-plan.md), důkazy a otevřené kontroly
 vede [stav implementace](kufr/docs/stav-implementace.md). Začni
 [návodem bez hardwaru](docs/public-development.md) a README dotčené komponenty.
-Licence vlastního projektu čeká na rozhodnutí vlastníka; před přijetím nových
-příspěvků je potřeba vyjasnit podmínky jejich další distribuce.
+Vlastní zdrojový kód, dokumentace a CAD zdroje projektu používají
+[AGPL-3.0-only](LICENSE). Příspěvky do těchto částí poskytuj pod stejnou
+licencí a pouze s oprávněním k jejich distribuci. U materiálů třetích stran
+uveď původní licenci a zachovej jejich oznámení.
 
 1. U běžné chyby otevři issue s komponentou, verzí a reprodukcí na syntetických
    datech. Zranitelnosti hlásí [SECURITY.md](SECURITY.md).
