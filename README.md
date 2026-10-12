@@ -39,8 +39,8 @@ správcovské operace. Postup a konfiguraci CI popisuje
 [CI/CD návod](docs/ci-cd.md). Pravidla předání jsou v [CONTRIBUTING.md](CONTRIBUTING.md)
 a hlášení zranitelností v [SECURITY.md](SECURITY.md).
 
-Zdrojový repozitář je zatím soukromý. Buildy jsou připravené i pro budoucí
-veřejný režim; změna viditelnosti vyžaduje samostatný pokyn majitele.
+Zdrojový repozitář je od 12. 10. 2026 veřejný. Buildy používají standardní
+GitHub-hosted runnery; produkční runnery nejsou ke zdroji připojené.
 Podepsaná IPA vzniká ve stávajícím ručním macOS workflow s prostředím
 `ios-signing`. Produkční nasazení serveru, OTA a distribuce IPA mají oddělenou
 orchestraci v soukromém repozitáři `Blato58/DildoVander-deploy`; místní fake
