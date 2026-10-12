@@ -26,6 +26,7 @@ class ProjectSelectionTests(unittest.TestCase):
             (["kufr/firmware/src/CMakeLists.txt"], {"firmware"}),
             (["kufr/backend-tests/Program.cs"], {"backend"}),
             (["kufr/global.json", "kufr/Directory.Build.props"], {"backend"}),
+            (["NuGet.Config"], {"backend"}),
             (["kufr/mobilni-aplikace/public/icon.svg"], {"web", "site"}),
             (["kufr/ai-eval/cases.json"], {"ai-eval"}),
             (["kufr/firmware/src/espidf_main.cpp", "kufr/backend/Program.cs"], {"firmware", "backend"}),

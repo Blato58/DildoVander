@@ -13,8 +13,10 @@ runner/source/image. [Kontrakt a přesný deployment](../../docs/firmware-ota.md
 
 ## Volitelná fotografie kostýmu a rozpočet (9. 10. 2026)
 
-`POST /v1/conversations/{id}/image` přijme jednu vědomě aktivovanou,
-předem zobrazenou fotografii pro toto sezení. Vyžaduje samostatné
+`POST /v1/conversations/{id}/image` přijme jednu vědomě aktivovanou
+fotografii pro toto sezení. iPhone Debug ji před odesláním zobrazí;
+samostatná ESP kamera pořizuje a odesílá snímek po explicitním souhlasu
+bez náhledu na telefonu. Vyžaduje samostatné
 `consent.image=true`, device token, UUID `Idempotency-Key`, `Client-Turn-Id`,
 `Boot-Id` a hlavičky `Generation`, `Device-Revision`, `Catalog-Version`.
 Tělo je přímo `image/jpeg`, nejvýše 262144 B a 640 × 640 pixelů; přijímají se

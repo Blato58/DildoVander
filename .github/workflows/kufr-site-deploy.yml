@@ -1,21 +1,11 @@
 name: Deploy Arcane Workshop
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/kufr-site*.yml'
-      - 'kufr/web/**'
-      - 'kufr/mechanika/**'
-      - 'kufr/design-system/**'
-      - 'kufr/mobilni-aplikace/**'
-      - 'kufr/contracts/**'
-      - 'kufr/simulator/dashboard*'
-      - 'scripts/ci/package.py'
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: dildovander-site-production
@@ -23,7 +13,7 @@ concurrency:
 
 jobs:
   build-and-publish:
-    if: github.ref == 'refs/heads/main'
+    if: github.repository == 'Blato58/DildoVander' && github.event.repository.private == true && (github.ref == 'refs/heads/main')
     uses: ./.github/workflows/kufr-site.yml
     with:
       publish: true

@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   verify:
-    if: github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
+    if: github.repository == 'Blato58/DildoVander' && github.event.repository.private == true && (github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.head_branch == 'main')))
     uses: ./.github/workflows/reuse-build.yml
     with:
       build_run_id: ${{ format('{0}', inputs.build_run_id || github.event.workflow_run.id) }}
@@ -32,8 +32,9 @@ jobs:
       signing_kind: ad_hoc
 
   publish-ios:
-    if: github.ref == 'refs/heads/main'
+    if: github.repository == 'Blato58/DildoVander' && github.event.repository.private == true && (github.ref == 'refs/heads/main')
     needs: verify
+    environment: backend-production
     timeout-minutes: 10
     runs-on: [self-hosted, Linux, X64, kufr-backend]
     outputs:
@@ -78,8 +79,10 @@ jobs:
           echo "release_id=$release_id" >> "$GITHUB_OUTPUT"
 
   verify-ios-page:
+    if: github.repository == 'Blato58/DildoVander' && github.event.repository.private == true && github.ref == 'refs/heads/main'
     needs: publish-ios
     runs-on: [self-hosted, Linux, X64, kufr-backend]
+    environment: backend-production
     timeout-minutes: 5
     env:
       PUBLIC_IPV4: ${{ vars.KUFR_BACKEND_PUBLIC_IPV4 }}

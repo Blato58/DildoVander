@@ -8,8 +8,9 @@ permissions:
 
 jobs:
   stage:
-    if: github.ref == 'refs/heads/main'
+    if: github.repository == 'Blato58/DildoVander' && github.event.repository.private == true && (github.ref == 'refs/heads/main')
     runs-on: [self-hosted, Linux, X64, kufr-backend]
+    environment: backend-production
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

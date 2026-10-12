@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   read:
-    if: github.ref == 'refs/heads/main'
+    if: github.repository == 'Blato58/DildoVander' && github.event.repository.private == true && (github.ref == 'refs/heads/main')
     runs-on: [self-hosted, Linux, X64, kufr-backend]
     environment: backend-production
     timeout-minutes: 3

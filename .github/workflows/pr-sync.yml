@@ -2,15 +2,13 @@ name: Synchronize PR branches
 
 on:
   pull_request_target:
+    branches: [main]
     types: [opened, reopened, synchronize, edited, ready_for_review]
   push:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: write
-  pull-requests: write
-  actions: write
+permissions: {}
 
 # Do not interrupt an accepted branch update before its CI dispatch.
 concurrency:
@@ -19,8 +17,13 @@ concurrency:
 
 jobs:
   synchronize:
-    # Separate account and fail-closed job hook; never execute PR code here.
-    runs-on: [self-hosted, Linux, X64, kufr-control]
+    # Load only trusted main code; disable this private controller after publication.
+    if: github.repository == 'Blato58/DildoVander' && github.event.repository.private == true && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

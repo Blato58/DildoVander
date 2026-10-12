@@ -32,7 +32,7 @@ def select_projects(paths):
             for name in ("backend", "firmware", "web", "site"):
                 selected[name] = True
         if path.startswith(("kufr/backend/", "kufr/backend-tests/")) or path in {
-            "kufr/global.json", "kufr/Directory.Build.props"
+            "kufr/global.json", "kufr/Directory.Build.props", "NuGet.Config"
         }:
             selected["backend"] = True
         if path.startswith("kufr/firmware/"):

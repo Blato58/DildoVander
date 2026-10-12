@@ -35,7 +35,7 @@ concurrency:
 
 jobs:
   offline:
-    runs-on: [self-hosted, Linux, X64, kufr-backend]
+    runs-on: ubuntu-24.04
     timeout-minutes: 3
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -45,7 +45,7 @@ jobs:
         run: python3 -m unittest discover -s kufr/ai-eval -p 'test_*.py'
 
   live:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.workflow == 'Kufr AI development eval'
+    if: github.repository == 'Blato58/DildoVander' && github.event.repository.private == true && (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.workflow == 'Kufr AI development eval')
     needs: offline
     runs-on: [self-hosted, Linux, X64, kufr-backend]
     timeout-minutes: 12

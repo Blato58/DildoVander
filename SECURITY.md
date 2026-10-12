@@ -1,19 +1,43 @@
 # Bezpečnost
 
-Credentials, provider klíče a Apple podpisové identity patří do oddělených
-GitHub Environments nebo servisního provisioningu. PR CI nemá produkční ani
-podpisové environment secrets. Na výslovné zadání majitele Linux PR CI
-sdílí serverový self-hosted runner s nasazením; spouští se jen důvěryhodná
-PR. Dlouhodobý účet runneru není izolovaný jednorázový stroj. Systémová
-služba a její konfigurace nadále používají odděleného uživatele a omezený
-aktivační helper; viz [CI/CD návod](docs/ci-cd.md).
+Projekt je prototyp; bezpečnostní opravy se připravují proti aktuálnímu `main`.
+Starší sestavy nemají deklarovanou dobu podpory. Přilož verzi/commit dotčené
+komponenty a rozlišuj backend, firmware, mobil, simulátor a distribuční nástroje.
 
-Při nalezení zranitelnosti kontaktuj majitele repozitáře `@Blato58` neveřejným
-kanálem. Je-li dostupné GitHub private vulnerability reporting, použij jej.
-Do issues, logů a PR nevkládej klíče, tokeny, certifikáty ani osobní data.
-Uniklý credential ihned odvolej; smazání z aktuálního souboru nestačí.
+## Neveřejné hlášení zranitelnosti
 
-Nasazení ověřuje úspěšný build, původ artefaktu, sloučené PR, shodu zdrojového
-stromu s `main`, SHA-256 a bezpečné rozbalení. Nasazovací job před aktivací
-kontroluje, že se `main` během čekání nezměnil. Ruční rollback staršího release
-řeší správce podle [backend návodu](kufr/backend/README.md).
+Použij **Report a vulnerability** v
+[GitHub Security Advisories](https://github.com/Blato58/DildoVander/security/advisories),
+pokud je tlačítko dostupné. Před zveřejněním musí vlastník určit funkční
+soukromý kontakt. GitHub nabízí **Private vulnerability reporting** pro
+veřejné repozitáře; při schváleném přechodu jej zapni v Settings → Advanced
+Security a ověř příjem oznámení podle
+[návodu GitHub](https://docs.github.com/en/code-security/how-tos/report-and-fix-vulnerabilities/configure-vulnerability-reporting/configure-for-a-repository).
+Aktivace tohoto kanálu zatím není potvrzena. Pokud tlačítko chybí, lze veřejně
+požádat `@Blato58` pouze o dostupný soukromý kontakt, bez detailů zranitelnosti;
+jiný veřejný bezpečnostní kontakt zatím nebyl určen. Zprovoznění soukromého
+kanálu je podmínkou zveřejnění, ne splněným krokem tohoto dokumentu.
+
+Soukromé hlášení má obsahovat komponentu/verzi, dopad, kroky reprodukce a
+minimální syntetický příklad. Nevkládej skutečné credentialy, data hostů ani
+produkční konfiguraci. Neprováděj testy na cizím či produkčním zařízení,
+spouštění pohonů, placená volání nebo zátěž bez samostatného oprávnění.
+Projekt neslibuje SLA ani odměnu za hlášení.
+
+## Hranice bezpečnosti
+
+Provider klíč patří pouze na backend. Device identita a místní párování se
+provisionují servisně; Apple podpisové identity a OTA privátní podpisový klíč
+patří do odděleného správcovského prostředí. Nedávej je do image, frontend
+balíčku, logů ani git historie. Nález uniklého credentialu musí správce řešit
+odvoláním/rotací a posouzením historie, logů i artefaktů; smazání souboru nestačí.
+
+AI vrací pouze validovaný návrh. Místní ESP32 brána rozhoduje podle snapshotu,
+kalibrace a bezpečného stavu. Simulace ani úspěšný test nepotvrzují fyzický
+efekt nebo polohu. Pro běžné PR používej syntetická data a fake provider.
+Nasazení, podpis, údržba serveru a skutečné pohony vyžadují správcovské oprávnění.
+
+Zpracování a uchování návštěvnických dat popisuje
+[dokumentace soukromí](docs/public-privacy.md). Konfigurace CI a nasazení je v
+[provozním návodu](docs/ci-cd.md); její existence nedokazuje nastavení ochrany
+GitHub environments, větví nebo izolaci skutečných runnerů.

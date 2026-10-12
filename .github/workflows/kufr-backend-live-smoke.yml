@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   smoke:
-    if: github.ref == 'refs/heads/main'
+    if: github.repository == 'Blato58/DildoVander' && github.event.repository.private == true && (github.ref == 'refs/heads/main')
     runs-on: [self-hosted, Linux, X64, kufr-backend]
     timeout-minutes: 3
     environment: backend-production

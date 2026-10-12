@@ -13,7 +13,9 @@ Firmware obou rekvizit jsou oddělené projekty PlatformIO. Mobilní ovládání
 
 ## Vývoj AI kufru
 
-Schválený směr: ESP32 samo komunikuje s backendem a vede hlasový rozhovor; iOS aplikace je volitelná ruční/textová záloha. Vyvíjí se na Windows, nativní iOS sestavení a podpis jsou plánované přes macOS GitHub Actions. Dnes existuje sériový firmware prototyp a statický TypeScript/Vite ovladač; backend, síť, AI a iOS balení zatím implementované nejsou.
+ESP32-S3 samo komunikuje přes HTTPS s backendem a vlastní rozhovor i fyzickou sekvenci. iOS aplikace slouží jako místní ovladač a diagnostika. Repozitář obsahuje ESP-IDF firmware, ASP.NET Core backend se SQLite a adaptéry OpenAI, TypeScript/Vite + Capacitor/Swift aplikaci, hostitelský simulátor a parametrické CAD zdroje. Nativní iOS sestavení a podpis používají macOS GitHub Actions.
+
+Jde o rozpracovaný prototyp pro soukromou party 18+: persony obsahují dospělý humor. Softwarové testy, náhled CAD ani úspěšný build neprokazují bezpečnost a úplnou akceptaci skutečného kufru nebo iPhonu. Přesné dokončené části a otevřené fyzické kontroly vede stav implementace.
 
 - [Implementační plán](kufr/docs/implementacni-plan.md) určuje architekturu, kontrakty a akceptační kritéria etap E0–E13 včetně E3a.
 - [Stav implementace a předání práce](kufr/docs/stav-implementace.md) obsahuje dokončené části, důkazy ověření, blokace a nejbližší proveditelný krok.
@@ -25,15 +27,30 @@ Pro zahájení další práce stačí: **„Začni implementovat aplikaci podle 
 
 - Firmware: PlatformIO Core CLI a jeho závislosti podle `kufr/firmware/platformio.ini`; samotný C++ hostitelský test vyžaduje C++ kompilátor. Instalace PlatformIO IDE ve VS Code je volitelná.
 - Mobil: Node.js ve verzi `kufr/mobilni-aplikace/.nvmrc`, `npm ci` a `npm run build`. Na Windows lze verzi vybrat pomocí nvm-windows.
-- Budoucí backend: .NET 10 SDK. Nativní iOS build/test potřebuje Xcode na macOS runneru; na Windows se Xcode neinstaluje.
-- Po každém dokončeném implementačním slice se provede commit a push podle [AGENTS.md](AGENTS.md). Pro repozitář se dvěma přihlášenými účty GitHub používá push skript `scripts/Push-CurrentBranch.ps1`.
+- Backend: .NET 10 SDK podle `kufr/global.json` a místní SQLite mimo repozitář. Výchozí fake režim nepotřebuje OpenAI klíč. Nativní iOS build/test potřebuje Xcode na macOS a pro distribuci vlastní Apple identitu.
+- [Vývojové spuštění bez hardwaru](docs/public-development.md) uvádí minimální příkazy a potřebné nástroje; [architektura a hranice ověření](docs/public-architecture.md) propojují komponenty a kontrakty.
 
 
 ## CI a standardy repozitáře
 
-PR s kódem spustí build/test CI pouze pro dotčené projekty; změny samotné
-dokumentace buildy nespouštějí. Krátká synchronizace PR přimíchá cílovou
-větev před buildy; konflikty ponechá k ručnímu řešení. Nasazení přebírá ověřené artefakty
-bez nového buildu; postup, cache a dostupnost ochrany větve popisuje
+PR CI ověřuje dotčené projekty; změny samotné dokumentace nevyžadují
+nesouvisející buildy. Nasazení, podpis a živé placené testy jsou oddělené
+správcovské operace. Postup a konfiguraci CI popisuje
 [CI/CD návod](docs/ci-cd.md). Pravidla předání jsou v [CONTRIBUTING.md](CONTRIBUTING.md)
 a hlášení zranitelností v [SECURITY.md](SECURITY.md).
+
+## Data, licence a příspěvky
+
+[Zpracování dat](docs/public-privacy.md) popisuje mikrofon, volitelnou fotografii,
+paměť rozhovorů a technické logy. Pro běžný vývoj používej fake adaptéry a
+syntetická data.
+
+Licence vlastního kódu, dokumentace a CAD zatím není zvolena; repozitář proto
+neoznačujeme za licencovaný open-source projekt. Licence vložených fontů a ikon
+platí samostatně. [Inventář a připsání zdrojů](docs/public-assets.md) uvádí
+doložený původ i práva, která musí vlastník ověřit před publikací.
+
+DildoVander je neoficiální fanouškovský projekt inspirovaný světem Harryho
+Pottera. Není přidružený k držitelům práv ani jimi schválený. Toto sdělení
+nenahrazuje svolení k použití cizích postav, značek, fotografií nebo děl.
+Pro spolupráci platí [pravidla chování](CODE_OF_CONDUCT.md).

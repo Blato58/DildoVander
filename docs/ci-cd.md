@@ -1,14 +1,37 @@
 # CI/CD: ověření PR a nasazení z explicitního buildu
 
-[CI](../.github/workflows/ci.yml) používá path filtr: změny samotné
-dokumentace (`docs/`, `.md`, `.mdx`, `.rst`) build CI nespouštějí.
+[CI](../.github/workflows/ci.yml) vybírá projekty podle cest: změny samotné
+dokumentace (`docs/`, `.md`, `.mdx`, `.rst`) nespouštějí komponentní buildy.
+Samostatná hosted kontrola **Secret scan** prochází načtenou git historii
+pomocí připnutého Gitleaks s redigovaným výstupem, také u dokumentačních PR.
 U PR s kódem [výběr projektů](../scripts/ci/select_projects.py) porovná
 celý PR s jeho base a spustí jen dotčené kontroly. **CI required** vyžaduje
 úspěch vybraných projektů a vynechání ostatních; selhání výběru nebo
 neočekávané vynechání dotčeného projektu odmítne. Nový commit do stejného
 PR zruší zastaralé CI; rozběhnuté nasazení se neruší. Merge do `main`
-automaticky spouští pouze site deploy při změnách jeho zdrojů. Backend,
-firmware a web pro podpis se obnovují explicitním main buildem podle postupu níže.
+nepublikuje produkční web automaticky. Backend, firmware, web pro podpis
+a site se připravují explicitním main buildem podle postupu níže.
+
+## Hranice veřejné publikace
+
+Konfigurace připravená 12. 10. 2026 přesouvá běžné PR build/test joby na
+GitHub-hosted `ubuntu-24.04`. Provozní joby a podpis vyžadují původní
+repozitář, soukromou viditelnost a `main`; site publikuje pouze ruční dispatch.
+Jakmile repozitář bude veřejný, tyto privátní cesty se záměrně nespustí.
+Jde o připravenou zdrojovou konfiguraci, nikoli důkaz jejího nasazení.
+
+Před změnou viditelnosti musí správce odpojit všechny production-connected
+self-hosted runnery od tohoto repozitáře a přesunout deployment do samostatného
+soukromého repozitáře nebo izolovaného promotion systému. Main/private `if`
+ani runner label nebrání tomu, aby nové PR upravilo workflow a požádalo o
+stejný registrovaný runner. Produkční stroj nesmí být dostupný nedůvěryhodným
+workflow. Přesun a ochrany prostředí nejsou úpravou zdrojů automaticky provedeny.
+
+V soukromém deployment repozitáři nastav schválení a main-only pravidla pro
+`backend-production` i `ios-signing`, odděl build od aktivace a před převzetím
+ověř přesný důvěryhodný run/artifact ID, zdrojový strom a checksum. Chraň
+podpisové klíče a secrets odděleně od build účtu. Veřejné PR nepotřebuje
+produkční secrets, provozní přístup ani Apple podpis.
 
 ### Aktualizace PR před buildem
 
@@ -25,13 +48,14 @@ zastaralý běh ještě před buildy. PR dispatch i běžné PR CI sdílejí
 concurrency skupinu, takže nový běh ruší starý. Pozdější změna cíle
 může stále vyžadovat nové CI; kontrola ji nepředstírá jako ověřenou.
 
-Writer používá oddělený self-hosted `kufr-control` runner a kód pouze z výchozí
+Writer používá GitHub-hosted `ubuntu-24.04` a kód pouze z výchozí
 větve; PR kód nedostává jeho write token. Bez dalších secrets použije
 `GITHUB_TOKEN` a explicitní dispatch, protože tokenem vyvolané PR
 události na GitHubu vyžadují schválení. Takový čekající PR běh nemusíme
 schvalovat: rozhodující je automaticky spuštěné CI na stejné head SHA.
 Samotná dokumentace může vyvolat krátkou kontrolu synchronizace,
-ale výběr projektů pro ni nespustí buildy. Běžné buildy zůstávají na VPS.
+ale výběr projektů pro ni nespustí buildy. Writer je omezený na původní
+soukromý repozitář a `main`; veřejné fork PR se automaticky nemění.
 
 Při selhání po aktualizaci větve zopakuj synchronizační běh; opakovaný
 pokus umí spustit CI i pro již aktuální PR. Ruční **Synchronize PR branches**
@@ -44,7 +68,7 @@ obnovovací build příslušného projektu na aktuálním `main` bez interních 
 
 | Změněné soubory | Spuštěné projekty |
 | --- | --- |
-| `kufr/backend/`, `kufr/backend-tests/`, .NET konfigurace v `kufr/` | Backend |
+| `kufr/backend/`, `kufr/backend-tests/`, .NET konfigurace v `kufr/`, kořenový `NuGet.Config` | Backend |
 | `kufr/firmware/` | Firmware a hostitelské testy |
 | `kufr/mobilni-aplikace/` | Mobilní web |
 | `kufr/ai-eval/` | Offline AI eval |
@@ -52,7 +76,7 @@ obnovovací build příslušného projektu na aktuálním `main` bez interních 
 | `kufr/simulator/` | Firmware a mobilní web |
 | Build workflow konkrétního projektu | Daný projekt a kontroly repozitáře |
 | `.github/`, `scripts/ci/` | Kontroly repozitáře; změna balení artefaktů také backend, firmware, web a site |
-| Samotná dokumentace | Žádný build; pouze kontrola synchronizace PR |
+| Samotná dokumentace | Žádný komponentní build; secret scan, v soukromém repozitáři také synchronizace PR |
 
 Path filtr se vztahuje na celý PR. Když PR obsahuje i změny kódu,
 následný dokumentační commit stále ověřuje jeho dotčené projekty.
@@ -62,15 +86,13 @@ použít také po dokumentační změně, potřebujeme-li nový artefakt přesn�
 
 ## Runnery
 
-Majitel 1. 10. 2026 požádal přesun všech Linux jobů na svůj server.
-Build/test a provozní joby používají `[self-hosted, Linux, X64, kufr-backend]`, tedy stávající
-pool `dildovander-server` a `dildovander-server-2`. Synchronizace PR používá
-`[self-hosted, Linux, X64, kufr-control]` na `dildovander-control`.
-Pouze ruční podepsaný Ad Hoc IPA build
-a jeho nativní testy běží na GitHub-hosted `macos-15` s Xcode 26.3.
-Linux runner obsluhuje i PR kontroly, ověření artefaktů, veřejné HTTPS
-kontroly, diagnostiku a ruční AI testy. PR ani obnovovací CI nespouští
-Xcode nebo iOS Simulator.
+Běžné build/test joby a kontrola promotion artefaktů používají GitHub-hosted
+`ubuntu-24.04`. Synchronizace PR také běží hosted. Privátní provozní joby
+zatím používají `[self-hosted, Linux, X64, kufr-backend]`; tato registrace musí
+být před zveřejněním odstraněna/přesunuta, viz hranice výše.
+Ruční podepsaný Ad Hoc IPA build a nativní testy běží na GitHub-hosted
+`macos-15` s Xcode 26.3 a prostředím `ios-signing`.
+PR ani obnovovací CI nespouští Xcode nebo iOS Simulator.
 Jeden registrovaný serverový runner provádí vždy jen jeden job; ostatní
 čekají ve frontě. Závislosti mezi joby zůstávají zachované.
 
@@ -92,19 +114,25 @@ Python 3.11 dodává setup-python; CAD závislosti se instalují do čerstvého
 PR CI (běžný PR i synchronizační dispatch s `pr_number`) provede celé
 ověření, build a balení bez uploadu do GitHub storage. Explicitní main recovery
 CI ukládá vybraný balíček na jeden den; chybu uploadu neskrývá.
-Site deployment si sestaví a ověří vlastní balíček a publikuje jej ve stejném
-jobu. Nepotřebuje upload/download artefaktu ani sdílený adresář mezi runnery.
+Site deployment sestaví a ověří balíček na hosted runneru a uloží neměnný
+`arcane-site` artefakt na jeden den. Oddělený publish job s prostředím
+`backend-production` ve stejném
+runu stáhne jeho přesné artifact ID a před aktivací ověří původ i aktuální `main`.
 Přesun runneru neodstraňuje samostatnou GitHub artifact storage kvótu.
 PlatformIO a OpenAI SDK ručního eval se instalují do vlastních venv
 v `RUNNER_TEMP`, bez změny systémového Pythonu. Rozšířený ruční
 **Kufr backend host probe** zkontroluje dostupnost nástrojů a Python venv.
 
-PR CI nyní sdílí server s nasazením. GitHub environment secrets stále
-dostávají jen explicitní main-only joby, ale dlouhodobý runner neposkytuje
-izolaci jednorázového GitHub-hosted stroje. Spouštěj zde pouze důvěryhodná PR;
-účet runneru má mít pouze existující omezené sudo pro aktivační helper.
+PR CI podle nové konfigurace server s nasazením nesdílí. To samo nestačí pro
+zveřejnění: registrace produkčních runnerů a ochrany environments se musí
+ověřit a změnit samostatně. Účet privátního deployment runneru má mít pouze
+omezená existující práva pro aktivační helper.
 
-### Izolace synchronizačního runneru
+### Historická izolace synchronizačního runneru
+
+Následující popis je historický provozní podklad. Nový `pr-sync.yml` už
+self-hosted control runner nepoužívá; stará registrace musí být před veřejnou
+publikací také odpojena. Hook není náhradou této migrace.
 
 `dildovander-control` používá samostatný účet `kufr-control`, soukromý
 `/home/kufr-control` a `/opt/actions-runner-control` (žádné sdílené actions,
@@ -140,7 +168,7 @@ na runneru 2.338.0 selhal před kroky a oba zakázané testovací soubory chybě
 | `kufr-memory-provision.yml` | Explicitní CLI dry-run / verify / create OpenAI stores, bez exportu hostů | CI `build_run_id`; trvalá provisioning ID runneru |
 | `kufr-ios-sign.yml` | Samostatný podepsaný device build; převzetí webu z CI | CI `build_run_id`; výstup Ad Hoc `signed-ipa` |
 | `kufr-ios-deploy.yml` | Publikace existující Ad Hoc IPA bez Xcode/npm | `build_run_id` podepsaného IPA buildu |
-| `kufr-site-deploy.yml` | Build, ověření a atomická publikace webu ve stejném jobu | Automatický main push nebo ruční dispatch; bez GitHub artefaktu |
+| `kufr-site-deploy.yml` | Hosted build a oddělená atomická publikace přes environment | Privátní main-only ruční dispatch; přesné neměnné ID artefaktu stejného runu |
 
 Artefakty patří konkrétnímu běhu a API vybírá jejich neměnné ID. Retry úspěšného
 jobu nahradí jeho balíček; retry pouze neúspěšných jobů může použít výstup
@@ -157,7 +185,8 @@ se neuploadují. Retence serverových releases a veřejná instalace tím nejsou
 ## Běžné nasazení
 
 1. Aktualizuj PR z `main`, u změn kódu vyčkej na zelené **CI required**
-   a sluč PR. Dokumentační PR ověř lokálně; automatické CI neběží.
+   a sluč PR. Dokumentační PR ověř lokálně; komponentní buildy neběží,
+   secret scan zůstává povinný.
 2. Spusť **CI** na `main` s `project=backend` (pro IPA `project=web`,
    pro firmware `project=firmware`, případně `all`) bez interních PR vstupů.
    Po úspěchu vyber **Deploy Kufr backend**, větev `main` a ID tohoto CI.
@@ -171,7 +200,7 @@ se neuploadují. Retence serverových releases a veřejná instalace tím nejsou
    **Deploy Kufr IPA** následně dostane ID úspěšného **IPA buildu**;
    veřejná instalace vyžaduje `ad_hoc`.
 
-Deployment nejdřív v samostatném jobu na serverovém runneru ověří přes API očekávaný workflow,
+Deployment nejdřív v samostatném hosted jobu ověří přes API očekávaný workflow,
 celkově úspěšný běh, platný pokus stejného běhu a neexpirovaný artefakt. PR musí být sloučené
 do `main` ze stejného repozitáře. API Git commitů ověří původ build merge commitu
 z konkrétního base/head a **shodu celého Git tree s aktuálním `main`**. Squash
@@ -185,7 +214,8 @@ deployment jej nenahradí jiným artefaktem stejného jména.
 Pokud `main` mezitím změnilo obsah nebo artefakt expiroval, deployment skončí
 s vysvětlením. Spusť ručně **CI** na `main` a použij jeho nový run ID. Backend,
 firmware ani iOS deployment nepřekládá a nevytváří náhradní build. Site deployment
-sestavuje web v témže jobu. Přísná shoda celého stromu může
+sestavuje web v hosted jobu a převezme balíček v environment jobu stejného runu.
+Přísná shoda celého stromu může
 vyžadovat obnovovací CI i po změně dokumentace; chrání proti nasazení jiné verze.
 Rollback již uloženého release je nadále správcovská operace podle backend README.
 
@@ -209,7 +239,7 @@ IPA obsahuje profil nutný pro instalaci podepsané aplikace.
   credentials, běžné CI má jen `contents: read`; čtení cizího Actions běhu pouze
   promotion/sign/deploy. Promotion verifier i jeho callers potřebují
   `pull-requests: read` pro důkaz sloučeného PR; žádné PR write oprávnění.
-  PR CI běží na serverovém runneru bez produkčních environment secrets;
+  PR CI běží na GitHub-hosted runneru bez produkčních environment secrets;
   main-only podmínky nasazení, podpisu a placených testů zůstávají zachované.
 - Workflow syntax ověřuje připnutý actionlint s checksumem; testy ověřují
   původ/promotion i integritu archivu. `CODEOWNERS`, PR šablona, `CONTRIBUTING`,

@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       publish:
-        description: Publish the validated site from this same job on main
+        description: Publish this hosted build through the private deployment runner on main
         type: boolean
         default: false
 
@@ -13,7 +13,10 @@ permissions:
 
 jobs:
   build:
-    runs-on: [self-hosted, Linux, X64, kufr-backend]
+    if: ${{ !inputs.publish || (github.repository == 'Blato58/DildoVander' && github.event.repository.private == true && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-24.04
+    outputs:
+      artifact_id: ${{ steps.package.outputs.artifact-id }}
     timeout-minutes: 75
     env:
       MPLBACKEND: Agg
@@ -32,10 +35,10 @@ jobs:
             echo 'Publication requires a direct main build' >&2
             exit 1
           fi
-          case "$SOURCE_EVENT" in
-            push|workflow_dispatch) ;;
-            *) echo 'Unsupported publication event' >&2; exit 1 ;;
-          esac
+          if [ "$SOURCE_EVENT" != workflow_dispatch ]; then
+            echo 'Publication requires an explicit workflow dispatch' >&2
+            exit 1
+          fi
       - name: Allocate isolated site staging
         run: |
           site_work=$(mktemp -d "$RUNNER_TEMP/arcane-site.XXXXXX")
@@ -71,15 +74,49 @@ jobs:
         run: python kufr/web/build-site.py --destination "$SITE_WORK/source" --web-dist kufr/mobilni-aplikace/dist
       - name: Package with source provenance
         run: python scripts/ci/package.py pack "$SITE_WORK/source" "$SITE_WORK/package"
-      - name: Upload explicit recovery package
+      - name: Upload immutable main package
+        id: package
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        # Deployment consumes the verified package locally; only recovery requests store it.
-        if: ${{ !inputs.publish && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && !github.event.inputs.pr_number }}
+        # PR checks package locally; only explicit main builds retain a deployable artifact.
+        if: ${{ inputs.publish || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && !github.event.inputs.pr_number) }}
         with:
           name: arcane-site
           path: ${{ env.SITE_WORK }}/package/
           if-no-files-found: error
           retention-days: 1
+      - name: Remove hosted site staging
+        if: always() && env.SITE_WORK != ''
+        run: |
+          case "$SITE_WORK" in
+            "$RUNNER_TEMP"/arcane-site.*) rm -rf -- "$SITE_WORK" ;;
+            *) echo 'Refusing unexpected staging path' >&2; exit 1 ;;
+          esac
+
+  publish:
+    if: inputs.publish && github.repository == 'Blato58/DildoVander' && github.event.repository.private == true && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+    needs: build
+    permissions:
+      contents: read
+      actions: read
+    runs-on: [self-hosted, Linux, X64, kufr-backend]
+    environment: backend-production
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Allocate isolated publication staging
+        run: |
+          site_work=$(mktemp -d "$RUNNER_TEMP/arcane-site.XXXXXX")
+          echo "SITE_WORK=$site_work" >> "$GITHUB_ENV"
+      - name: Download this run's immutable package
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact_id }}
+          run-id: ${{ github.run_id }}
+          github-token: ${{ github.token }}
+          merge-multiple: true
+          path: ${{ env.SITE_WORK }}/package
       - name: Reject stale main before publication
         if: inputs.publish
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -89,8 +126,24 @@ jobs:
           script: |
             const current = await github.rest.git.getRef({ ...context.repo, ref: 'heads/main' });
             if (current.data.object.sha !== process.env.EXPECTED_SHA) throw new Error('main changed during build');
-      - name: Unpack verified local package
-        if: inputs.publish
+      - name: Check provenance against this main workflow run
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          BUILD_RUN_ID: ${{ github.run_id }}
+        with:
+          script: |
+            const fs = require('node:fs');
+            const manifest = JSON.parse(fs.readFileSync(`${process.env.SITE_WORK}/package/build-manifest.json`, 'utf8'));
+            const { data: source } = await github.rest.git.getCommit({ ...context.repo, commit_sha: context.sha });
+            if (manifest.schema !== 1 || manifest.repository !== `${context.repo.owner}/${context.repo.repo}`
+                || manifest.run_id !== Number(process.env.BUILD_RUN_ID) || !Number.isSafeInteger(manifest.run_attempt)
+                || manifest.run_attempt < 1 || manifest.run_attempt > context.runAttempt
+                || manifest.event !== 'workflow_dispatch' || manifest.head_sha !== context.sha
+                || manifest.source_sha !== context.sha || manifest.source_tree !== source.tree.sha
+                || manifest.pr_number != null) {
+              throw new Error('Site package does not belong to this main deployment run');
+            }
+      - name: Verify archive checksum and unpack safely
         run: python3 scripts/ci/package.py unpack "$SITE_WORK/package" "$SITE_WORK/verified"
       - name: Recheck main immediately before activation
         if: inputs.publish
