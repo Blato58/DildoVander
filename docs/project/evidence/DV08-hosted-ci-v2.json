@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "DV08-hosted-ci-v2",
+  "observedAtUtc": "2026-10-13T20:46:13.671813Z",
+  "kind": "unit",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "DV08",
+      "criterionId": "PLATFORMS",
+      "criterionRevision": 2,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "commit": "addf47512cd048689e186aa3d422786c08ceecd5",
+    "dirty": false,
+    "artifactDigest": "ce09a238d584127e58783a675b6705f7ac7f87648f61c3e0a5c617cb4b697573"
+  },
+  "method": "Actual PR CI38464232326 and explicitly dispatched PR CI38464412194;58 tracking tests per OS,27 repository Python tests including2 CI-step regressions; immutable-proof validation against explicit PR base",
+  "environment": "GitHub Actions windows-2025 Python3.12.10 and ubuntu-24.04 Python3.12.3; clean checkout",
+  "limitations": [
+    "No device/iPhone/provider/deployment proof; product builds and paid AI eval were skipped.",
+    "PR tests use virtual merge SHA while dispatch uses source HEAD; Git trees and CI checkout logs were actually compared.",
+    "Final closure metadata will have a newer commit and needs final CI before merge; tested source bundle stays unchanged."
+  ],
+  "artifactRefs": [
+    "https://github.com/Blato58/DildoVander/actions/runs/38464232326",
+    "https://github.com/Blato58/DildoVander/actions/runs/38464412194"
+  ],
+  "observation": "Both actual workflows passed matrix/repository/actionlint/secret scan/required checks. Logs show explicit base d0bcc0627ee7f1b179f4ffe0467e2b06338b307b on Windows+Ubuntu. PR checkout a5dab33b14c42a3f148b34c8d4afe54711b9d8a9 and dispatch/source addf47512cd048689e186aa3d422786c08ceecd5 share tree4c73ff2229888e3267e7fed17caab3dbe6282082. All54 fingerprinted source files equal committed blobs. Both GitHub P1 threads fixed, regressed, independently reviewed and resolved before closure.",
+  "testedTree": "4c73ff2229888e3267e7fed17caab3dbe6282082",
+  "prMergeCommit": "a5dab33b14c42a3f148b34c8d4afe54711b9d8a9",
+  "runs": [
+    {
+      "runId": 38464232326,
+      "event": "pull_request",
+      "result": "pass",
+      "url": "https://github.com/Blato58/DildoVander/actions/runs/38464232326"
+    },
+    {
+      "runId": 38464412194,
+      "event": "workflow_dispatch",
+      "result": "pass",
+      "url": "https://github.com/Blato58/DildoVander/actions/runs/38464412194"
+    }
+  ]
+}

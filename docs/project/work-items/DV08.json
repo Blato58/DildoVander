@@ -3,7 +3,7 @@
   "id": "DV08",
   "initiative": "DV08",
   "title": "Jednoduchý důvěryhodný tracking a migrace",
-  "state": "active",
+  "state": "closed",
   "priority": "P0",
   "sequence": 17,
   "scope": [
@@ -71,7 +71,9 @@
       "appliesTo": {
         "artifactDigest": "ce09a238d584127e58783a675b6705f7ac7f87648f61c3e0a5c617cb4b697573"
       },
-      "evidenceRefs": []
+      "evidenceRefs": [
+        "DV08-hosted-ci-v2"
+      ]
     },
     {
       "id": "OVERHEAD",
@@ -90,9 +92,100 @@
     }
   ],
   "blockers": [],
-  "currentNote": "PR180 P1 resolution marker a explicit PR-base CI plus P2 dostupnost nového closure opraveny;58+2regrese prošly Windows i Linux. Nový subjekt rev2 má nové důkazy; staré pass/fail záznamy zůstávají neměnné. Čeká se na skutečné hosted CI nové verze.",
-  "nextAction": "Pushnout opravený DV08, ověřit nové PR i workflow_dispatch CI s explicitním base, vyřešit review vlákna a teprve potom uzavřít/merge.",
+  "currentNote": "DV08 dokončeno pro přesný bundlece09a238…: bezpečná migrace, skill,58+2regrese a skutečné PR/dispatch Windows+Ubuntu CI. Fix commitaddf475 byl pushnut helperem a vzdálený SHA ověřen. Dva GitHub P1 i nezávislý P2 opraveny; oba PR threads vyřešené. Fyzická přejímka kufru zůstává otevřená.",
   "implementedSubject": {
     "artifactDigest": "ce09a238d584127e58783a675b6705f7ac7f87648f61c3e0a5c617cb4b697573"
+  },
+  "closure": {
+    "outcome": "accepted",
+    "reason": "SPECv2 tracking, usable migration/skill and measured overhead verified by actual Windows/Linux/native-discovery/secondary-worktree checks plus genuine PR+dispatch CI; known version1 failures retained honestly.",
+    "targetId": "DV08-tooling",
+    "subject": {
+      "artifactDigest": "ce09a238d584127e58783a675b6705f7ac7f87648f61c3e0a5c617cb4b697573"
+    },
+    "evidenceRefs": [
+      "DV08-hosted-ci-v2",
+      "DV08-local-tests-v2",
+      "DV08-measurements-v2",
+      "DV08-migration-v2",
+      "DV08-workflow-v2"
+    ],
+    "acceptedCriteria": [
+      {
+        "id": "CLI",
+        "revision": 2,
+        "expected": "CLI splňuje negativní scénáře SPEC v2, offline determinismus a atomický render",
+        "requiredEvidenceKinds": [
+          "unit"
+        ],
+        "rule": "allOf",
+        "appliesTo": {
+          "artifactDigest": "ce09a238d584127e58783a675b6705f7ac7f87648f61c3e0a5c617cb4b697573"
+        },
+        "evidenceRefs": [
+          "DV08-local-tests-v2"
+        ]
+      },
+      {
+        "id": "MIGRATION",
+        "revision": 2,
+        "expected": "Byte-for-byte archiv/hash, žádný ztracený blocker, odkazy/anchory a rollback ověřené před přepnutím",
+        "requiredEvidenceKinds": [
+          "source_review"
+        ],
+        "rule": "allOf",
+        "appliesTo": {
+          "artifactDigest": "ce09a238d584127e58783a675b6705f7ac7f87648f61c3e0a5c617cb4b697573"
+        },
+        "evidenceRefs": [
+          "DV08-migration-v2"
+        ]
+      },
+      {
+        "id": "WORKFLOW",
+        "revision": 2,
+        "expected": "Skutečná DV08 aktualizace + zahájení/evidence/handoff skillu v druhém worktree, chybějící a stale physical evidence",
+        "requiredEvidenceKinds": [
+          "source_review"
+        ],
+        "rule": "allOf",
+        "appliesTo": {
+          "artifactDigest": "ce09a238d584127e58783a675b6705f7ac7f87648f61c3e0a5c617cb4b697573"
+        },
+        "evidenceRefs": [
+          "DV08-workflow-v2"
+        ]
+      },
+      {
+        "id": "PLATFORMS",
+        "revision": 2,
+        "expected": "Shodné fixtures/render na Windows a Linux; skutečný Linux CI běh prošel",
+        "requiredEvidenceKinds": [
+          "unit"
+        ],
+        "rule": "allOf",
+        "appliesTo": {
+          "artifactDigest": "ce09a238d584127e58783a675b6705f7ac7f87648f61c3e0a5c617cb4b697573"
+        },
+        "evidenceRefs": [
+          "DV08-hosted-ci-v2"
+        ]
+      },
+      {
+        "id": "OVERHEAD",
+        "revision": 2,
+        "expected": "Na stejné stavové otázce změřeno nutné čtení, ruční aktualizace, duplicita, zachování blockerů a délka STATUS; metoda a omezení výslovně uvedené.",
+        "requiredEvidenceKinds": [
+          "source_review"
+        ],
+        "rule": "allOf",
+        "appliesTo": {
+          "artifactDigest": "ce09a238d584127e58783a675b6705f7ac7f87648f61c3e0a5c617cb4b697573"
+        },
+        "evidenceRefs": [
+          "DV08-measurements-v2"
+        ]
+      }
+    ]
   }
 }
