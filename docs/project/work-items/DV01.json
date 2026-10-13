@@ -101,8 +101,8 @@
       "role": "majitel a implementátor"
     }
   ],
-  "nextAction": "Review/merge verified offline A–E slice; then resolve B-LIVE/B-VISION/B-PHYSICAL with explicitly authorized capability-specific acceptance. Keep DV01 off and finale blocked by default.",
-  "currentNote": "Offline A–E implemented; named blocked, limited explicit opt-in, production visual permission_pending, live/audio hardware/physical/event_ready false. Implementation061ab1db667575adc73454a8b627ac2137ee7996 and smoke fix65779df570d0fbbf67782a7940365c91910a8175 pushed with verified remote HEAD. PR181 Codex review completed: both P1 findings fixed with regression tests and independent re-review. Linux host C++ passed; latest local replay/HTTP smoke passed. Final fix push/CI/merge still to verify. No paid calls, deployment or flash.",
+  "nextAction": "Resolve B-LIVE/B-VISION/B-PHYSICAL through explicitly authorized capability-specific acceptance; keep DV01 off and finale blocked by default. Current delivery: https://github.com/Blato58/DildoVander/pull/181.",
+  "currentNote": "Offline A–E implemented; named blocked, limited explicit opt-in, production visual permission_pending, live/audio hardware/physical/event_ready false. Implementation061ab1db667575adc73454a8b627ac2137ee7996; smoke fix65779df570d0fbbf67782a7940365c91910a8175; review fixesbf46a03411b0c4168567617cf166a0b1e27b2b01. Each pushed with Push-CurrentBranch.ps1 and verified remote HEAD. PR181 Codex review completed; both P1 findings fixed, regression-tested, independently re-reviewed and threads resolved. Linux host C++ and local replay/HTTP smoke passed. Final hosted CI and Git delivery are inspectable in PR181. No paid calls, deployment or flash.",
   "implementedSubject": {
     "artifactDigest": "a14bb273f52fde077b3c95bce99209769847c8ab2dc0f4ef86e47a3941f250fa",
     "policyVersion": "dv01-director-v1"
