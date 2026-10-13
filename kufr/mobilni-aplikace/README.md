@@ -558,9 +558,14 @@ API `v4`, které parser projektu používá; uuid 12 už CommonJS neposkytuje.
 Swift `Package.swift` generuje `cap sync ios`; `Package.resolved` pochází
 ze skutečného `xcodebuild -resolvePackageDependencies` na macOS.
 
-Na Windows lze tyto příkazy použít pro kontrolu zdrojů. Každé PR spouští
-přes `ci.yml` mobilní testy a webový build na Linuxu; nativní iOS build ani
-iOS Simulator se v PR nebo obnovovacím CI nespouští. PR kontroluje balení
+Na Windows lze tyto příkazy použít pro kontrolu zdrojů. PR se změnou mobilu
+nebo jeho závislostí spouští přes `ci.yml` mobilní testy a webový build na Linuxu
+a `kufr-ios.yml` na macOS s Xcode 26.3: nativní Swift testy transportu/TLS,
+backendového klienta a hlasu, BLE statusu a nepodepsaný iOS Simulator build.
+Selhání iOS ověření blokuje `CI required`. Stejné ověření lze spustit ručně
+volbou `project=ios` nebo `all`; build ani testy nepotřebují podpisové secrets.
+Testy běží v macOS harnessu, Simulator cíl se sestavuje bez spuštění aplikace;
+fyzické chování na iPhonu vyžaduje vlastní zkoušku. PR kontroluje balení
 bez ukládání artefaktu; po merge spusť ručně `ci.yml` na `main` s `project=web`.
 Tento webový artefakt má retenci jeden den a macOS build jej převezme bez překladu.
 Ruční workflow

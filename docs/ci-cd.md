@@ -8,7 +8,7 @@ Priprava hranice sama nemeni viditelnost zdrojoveho repozitare.
 
 ## Zdrojove buildy
 
-Vsech devet zdrojovych workflow pouziva GitHub-hosted runners. PR CI nema
+Vsech deset zdrojovych workflow pouziva GitHub-hosted runners. PR CI nema
 produkcni prostredi, SSH ani provider credentials. `pr-sync.yml` pouziva pouze
 API a duveryhodny kod vychozi vetve; jeho private guard po skutecnem
 zverejneni vypne controller. Fork PR se nemeni.
@@ -19,11 +19,18 @@ zverejneni vypne controller. Fork PR se nemeni.
 | `kufr-backend.yml` | Backend/testy, backend-publish a backend-diagnostics |
 | `kufr-firmware.yml` | ESP-IDF host testy a firmware build |
 | `kufr-web.yml` | Web a offline testy |
+| `kufr-ios.yml` | Nativni Swift testy a nepodepsany iOS Simulator build na macOS |
 | `kufr-site.yml` | Regenerace CAD, Companion a arcane-site na hosted Linuxu |
 | `kufr-ai-eval.yml` | Pouze offline synteticky corpus a parser |
 | `reuse-build.yml` | Overeni aktualniho main artefaktu pred podpisem |
 | `kufr-ios-sign.yml` | Rucni podepsane Ad Hoc IPA na macOS |
 | `pr-sync.yml` | API-only synchronizace vlastnich PR za private podminky |
+
+Od rozhodnuti majitele 14. 10. 2026 se zmeny mobilu, contracts, simulatoru,
+design-systemu a iOS workflow overuji i na macOS s Xcode 26.3. `kufr-ios.yml`
+spousti existujici nativni Swift harnessy a nepodepsany Simulator build po
+Capacitor sync; aplikaci v Simulatoru nespousti. Vysledek musi projit v
+`CI required`. Podpisove prostredi ani secrets se do PR CI neprenaseji.
 
 Deployment jobs nejsou ve zdrojovem repozitari. Jeho self-hosted registrace
 musi byt odstraneny pri migraci; odstraneni YAML nebo labelu registraci
@@ -32,7 +39,7 @@ nenahrazuje. Provoz privatniho repozitare popisuje jeho `README.md`.
 ## Priprava artefaktu a podpis IPA
 
 1. Po kontrole a slouceni spust zdrojove **CI** na `main` s projektem
-   `backend`, `web`, `firmware`, `site` nebo `all`. Interni `pr_number`,
+   `backend`, `web`, `ios`, `firmware`, `site` nebo `all`. Interni `pr_number`,
    `expected_head_sha` a `expected_base_sha` nech prazdne.
 2. Pro IPA spust **Build signed Kufr IPA** na `main` s ID uspesneho CI,
    ktery obsahuje `web-dist`.

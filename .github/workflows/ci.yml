@@ -10,7 +10,7 @@ on:
         description: Project to rebuild for an artifact on the current tree
         type: choice
         default: all
-        options: [all, repository, backend, firmware, web, ai-eval, site]
+        options: [all, repository, backend, firmware, web, ios, ai-eval, site]
       pr_number:
         description: Internal synchronized PR number (empty for recovery builds)
         type: string
@@ -60,6 +60,7 @@ jobs:
       backend: ${{ steps.projects.outputs.backend }}
       firmware: ${{ steps.projects.outputs.firmware }}
       web: ${{ steps.projects.outputs.web }}
+      ios: ${{ steps.projects.outputs.ios }}
       ai-eval: ${{ steps.projects.outputs.ai-eval }}
       site: ${{ steps.projects.outputs.site }}
     steps:
@@ -183,6 +184,10 @@ jobs:
     needs: changes
     if: needs.changes.outputs.web == 'true'
     uses: ./.github/workflows/kufr-web.yml
+  ios:
+    needs: changes
+    if: needs.changes.outputs.ios == 'true'
+    uses: ./.github/workflows/kufr-ios.yml
   ai-eval:
     needs: changes
     if: needs.changes.outputs.ai-eval == 'true'
@@ -199,7 +204,7 @@ jobs:
   required:
     name: CI required
     if: always()
-    needs: [secret-scan, changes, repository, tracking, backend, firmware, web, ai-eval, site]
+    needs: [secret-scan, changes, repository, tracking, backend, firmware, web, ios, ai-eval, site]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     env:
