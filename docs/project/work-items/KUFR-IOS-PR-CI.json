@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "id": "KUFR-IOS-PR-CI",
+  "initiative": "KUFR",
+  "title": "iOS ověření a nativní testy na PR",
+  "state": "active",
+  "priority": "P1",
+  "sequence": 18,
+  "scope": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/kufr-ios.yml",
+    "scripts/ci/select_projects.py",
+    "scripts/ci/test_select_projects.py"
+  ],
+  "dependencies": [],
+  "acceptance": [
+    {
+      "id": "LOCAL",
+      "revision": 1,
+      "expected": "Výběr iOS pro mobil a sdílené vstupy, povinná CI brána a validní workflow bez podpisových secrets.",
+      "requiredEvidenceKinds": [
+        "unit",
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "75c4f142cbecfebfba605a74c005f89007a3fcde4e1a6f517f1dab34575dc8ec"
+      },
+      "evidenceRefs": [
+        "KUFR-IOS-PR-CI-local",
+        "KUFR-IOS-PR-CI-review"
+      ]
+    },
+    {
+      "id": "MACOS",
+      "revision": 1,
+      "expected": "Skutečný PR CI běh dokončí nativní Swift harnessy a nepodepsaný iOS Simulator build s Xcode 26.3.",
+      "requiredEvidenceKinds": [
+        "native_ios"
+      ],
+      "appliesTo": {
+        "artifactDigest": "75c4f142cbecfebfba605a74c005f89007a3fcde4e1a6f517f1dab34575dc8ec"
+      },
+      "evidenceRefs": []
+    }
+  ],
+  "blockers": [],
+  "nextAction": "Commit/push, otevřít PR a ověřit skutečný macOS CI běh před merge.",
+  "currentNote": "Rozhodnutí majitele 14. 10. 2026 nahrazuje předchozí zákaz unsigned PR buildů. Podpis/instalace nejsou v rozsahu.",
+  "implementedSubject": {
+    "artifactDigest": "75c4f142cbecfebfba605a74c005f89007a3fcde4e1a6f517f1dab34575dc8ec"
+  }
+}
