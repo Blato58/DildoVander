@@ -116,7 +116,7 @@
     }
   ],
   "nextAction": "Resolve B-LIVE/B-VISION/B-PHYSICAL through explicitly authorized capability-specific acceptance; keep DV01 off and finale blocked by default. Current delivery: https://github.com/Blato58/DildoVander/pull/181.",
-  "currentNote": "Offline A–E implemented; named blocked, limited explicit opt-in, production visual permission_pending, live/audio hardware/physical/event_ready false. Reviewed implementation/scope868008053f56b8c45b4569572ed0f93894ecec7e pushed and remote verified. All five PR181 Codex findings fixed and resolved. Current v5 changes only fake test clock waits: local Release plus5 repeats and replay passed; historical v4 hosted timeout preserved, hosted recheck required. Production/UI/firmware/skill inputs unchanged, original scoped evidence retained. Git delivery/CI inspectable in PR181. No paid calls, deployment or flash.",
+  "currentNote": "Offline A–E implemented; named blocked, limited explicit opt-in, production visual permission_pending, live/audio hardware/physical/event_ready false. Final production/scope868008053f56b8c45b4569572ed0f93894ecec7e; fake-clock test fix7503f98253fbec461a96cf66434ac07e14bae722. Each pushed with Push-CurrentBranch.ps1 and verified remote HEAD. All five PR181 Codex findings fixed and resolved; independent code review clear. Local Release plus5 repeats and latest replay passed. Historical v4 Linux timeout retained; final hosted recheck and Git delivery inspectable in PR181. Production/UI/firmware/skill inputs unchanged by clock-only fix, original scoped evidence retained. No paid calls, deployment or flash.",
   "implementedSubject": {
     "artifactDigest": "c49f1b6ad1cc42a12dedc94fa9daa5d73bf53be918deb0b7924d48c1e90009c1",
     "policyVersion": "dv01-director-v1"
