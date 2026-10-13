@@ -536,7 +536,12 @@ class Project:
                 if (current, resolution_seen) in visited:
                     continue
                 visited.add((current, resolution_seen))
-                resolution_seen |= bool(by_id[current][0].get("resolution"))
+                current_receipt, current_claim = by_id[current]
+                successful_resolution = (bool(current_receipt.get("resolution")) and
+                                         current_claim["result"] == "pass" and
+                                         current_receipt["kind"] == terminal_receipt["kind"] and
+                                         (not require_available or self.available(current_receipt)))
+                resolution_seen |= successful_resolution
                 for ref in edges[current]:
                     old_claim = by_id[ref][1]
                     # An inconclusive correction cannot erase failure. A later inconclusive
@@ -929,6 +934,10 @@ def validate_baseline(project, revision):
             current = {value["id"]: value for value in item["acceptance"]}
             require(snapshot == current, f"{item_id}: new accepted closure must snapshot all current criteria")
             require(not item["blockers"], f"{item_id}: new accepted closure cannot retain blockers")
+            for criterion in closure["acceptedCriteria"]:
+                outcome = project.evaluate_criterion(item_id, criterion, closure["subject"])
+                require(outcome["state"] == "passed",
+                        f"{item_id}/{criterion['id']}: new accepted closure requires current available passed evidence ({outcome['state']})")
 
 
 def build_parser():

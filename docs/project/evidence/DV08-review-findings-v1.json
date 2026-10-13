@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "DV08-review-findings-v1",
+  "observedAtUtc": "2026-10-13T20:32:09.206714Z",
+  "kind": "source_review",
+  "result": "fail",
+  "claims": [
+    {
+      "workItemId": "DV08",
+      "criterionId": "CLI",
+      "criterionRevision": 1,
+      "result": "fail"
+    },
+    {
+      "workItemId": "DV08",
+      "criterionId": "WORKFLOW",
+      "criterionRevision": 1,
+      "result": "fail"
+    }
+  ],
+  "subject": {
+    "commit": "5a32078f54bd309e2486f011c03c6a33fe5e002c",
+    "dirty": false,
+    "artifactDigest": "d9c9206954d2d2ccdd78884bc05179dbc320b703facfa1bf9056fff003651c04"
+  },
+  "method": "Read completed GitHub Codex review of source5a32078 and independently reproduce closure availability edge; compare unchanged original baseline guard source.",
+  "environment": "GitHub PR180 review + independent isolated synthetic evaluator fixtures",
+  "limitations": [
+    "This records defects of the original version1 subject; unit/normal-CI pass observations remain true but are insufficient to establish correctness.",
+    "No real physical receipt/device/provider was involved."
+  ],
+  "artifactRefs": [
+    "https://github.com/Blato58/DildoVander/pull/180#discussion_r4263593693",
+    "https://github.com/Blato58/DildoVander/pull/180#discussion_r4263593722"
+  ],
+  "observation": "Original subject fails acceptance: an inconclusive middle receipt can contribute resolution text to a later successful terminal receipt; dispatched multi-commit PR CI checks HEAD^ rather than the PR base; new accepted closure inherits historical unavailable-artifact waiver. Both GitHub P1s and the independently reproduced P2 now have fixes and targeted tests on a NEW subject; original failed subject stays in history, not rewritten as passing."
+}

@@ -148,17 +148,28 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          fetch-depth: 2
+          fetch-depth: 0
       - name: Test tracking and validate the committed snapshot
+        shell: python
         env:
           PYTHONUTF8: '1'
+          TRACKING_BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.expected_base_sha }}
         run: |
-          python --version
-          python -m unittest discover -s scripts -p 'test_project_status.py'
-          python scripts/project_status.py validate --base HEAD^
-          python scripts/project_status.py verify-evidence
-          python scripts/project_status.py migration-check
-          python scripts/project_status.py render --check
+          import os
+          import subprocess
+          import sys
+
+          baseline = os.environ.get('TRACKING_BASE_SHA') or 'HEAD^'
+          commands = [
+              ['--version'],
+              ['-m', 'unittest', 'discover', '-s', 'scripts', '-p', 'test_project_status.py'],
+              ['scripts/project_status.py', 'validate', '--base', baseline],
+              ['scripts/project_status.py', 'verify-evidence'],
+              ['scripts/project_status.py', 'migration-check'],
+              ['scripts/project_status.py', 'render', '--check'],
+          ]
+          for command in commands:
+              subprocess.run([sys.executable, *command], check=True)
 
   backend:
     needs: changes

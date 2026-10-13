@@ -3,7 +3,7 @@
   "targetId": "DV08-tooling",
   "purpose": "Skutečně testovaný DV08 zdrojový bundle pro software-only akceptaci; identita rámovaných bytes v DV08-local-tests, ne release nebo čistý původní HEAD. Bookkeeping/receipts/projekce jsou vyloučeny z vlastního fingerprintu a validovány samostatně.",
   "components": {
-    "artifactDigest": "d9c9206954d2d2ccdd78884bc05179dbc320b703facfa1bf9056fff003651c04"
+    "artifactDigest": "ce09a238d584127e58783a675b6705f7ac7f87648f61c3e0a5c617cb4b697573"
   },
   "requiredCriteria": [
     {

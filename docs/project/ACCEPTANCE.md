@@ -123,6 +123,9 @@ nesmějí být cyklické ani časově obrácené. Změna subject nebo množiny t
 vyžaduje `supersedesReason`. Pass nahrazující fail stejného tvrzení vyžaduje
 `resolution` popisující opravu či opakovaný test. Resolving pass musí být vybraný,
 dostupný a stejného požadovaného druhu jako nahrazované selhání.
+V řetězci supersedes přenáší resolution pouze skutečný pass stejného druhu,
+jehož podklady jsou pro aktuální posouzení dostupné. Text resolution u
+inconclusive, nesprávného druhu či nedostupného mezilehlého pass selhání neodstraní.
 Inconclusive nevymaže fail.
 Nahrazení pro jiný subject neukryje selhání původního subjectu.
 Relevantní nevyřešené fail se hledají ve všech receipts, i mimo vybrané evidenceRefs.
@@ -145,7 +148,10 @@ Současná nedostupnost externího podkladu historický záznam nepřepisuje.
 `validate --base REV` je povinná kontrola změn používaná v CI: čte lokální Git
 bez sítě, odmítá změnu/smazání existujících receipts a změnu významu použitého
 kritéria bez zvýšení revision. Při novém accepted uzavření musí snapshot přesně
-odpovídat všem současným kritériím a nesmí zbýt jejich blocker. Existující
+odpovídat všem současným kritériím a nesmí zbýt jejich blocker. Pro nový přechod
+se všechna kritéria znovu vyhodnotí vůči closure.subject s právě dostupnými
+podklady nebo samostatnou observation; historická výjimka z dostupnosti se při
+novém uzavření nepoužije. Existující
 historické closure se nesmějí přepisovat. Samotná strukturální kontrola bez
 baseline nemůže doložit neměnnost vůči historii; reviewer musí ověřit skutečné
 provedení testu. Receipt není kryptografická atestace.

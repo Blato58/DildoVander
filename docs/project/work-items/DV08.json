@@ -17,82 +17,82 @@
   "acceptance": [
     {
       "id": "CLI",
-      "revision": 1,
+      "revision": 2,
       "expected": "CLI splňuje negativní scénáře SPEC v2, offline determinismus a atomický render",
       "requiredEvidenceKinds": [
         "unit"
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "d9c9206954d2d2ccdd78884bc05179dbc320b703facfa1bf9056fff003651c04"
+        "artifactDigest": "ce09a238d584127e58783a675b6705f7ac7f87648f61c3e0a5c617cb4b697573"
       },
       "evidenceRefs": [
-        "DV08-local-tests"
+        "DV08-local-tests-v2"
       ]
     },
     {
       "id": "MIGRATION",
-      "revision": 1,
+      "revision": 2,
       "expected": "Byte-for-byte archiv/hash, žádný ztracený blocker, odkazy/anchory a rollback ověřené před přepnutím",
       "requiredEvidenceKinds": [
         "source_review"
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "d9c9206954d2d2ccdd78884bc05179dbc320b703facfa1bf9056fff003651c04"
+        "artifactDigest": "ce09a238d584127e58783a675b6705f7ac7f87648f61c3e0a5c617cb4b697573"
       },
       "evidenceRefs": [
-        "DV08-migration"
+        "DV08-migration-v2"
       ]
     },
     {
       "id": "WORKFLOW",
-      "revision": 1,
+      "revision": 2,
       "expected": "Skutečná DV08 aktualizace + zahájení/evidence/handoff skillu v druhém worktree, chybějící a stale physical evidence",
       "requiredEvidenceKinds": [
         "source_review"
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "d9c9206954d2d2ccdd78884bc05179dbc320b703facfa1bf9056fff003651c04"
+        "artifactDigest": "ce09a238d584127e58783a675b6705f7ac7f87648f61c3e0a5c617cb4b697573"
       },
       "evidenceRefs": [
-        "DV08-workflow"
+        "DV08-workflow-v2"
       ]
     },
     {
       "id": "PLATFORMS",
-      "revision": 1,
+      "revision": 2,
       "expected": "Shodné fixtures/render na Windows a Linux; skutečný Linux CI běh prošel",
       "requiredEvidenceKinds": [
         "unit"
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "d9c9206954d2d2ccdd78884bc05179dbc320b703facfa1bf9056fff003651c04"
+        "artifactDigest": "ce09a238d584127e58783a675b6705f7ac7f87648f61c3e0a5c617cb4b697573"
       },
       "evidenceRefs": []
     },
     {
       "id": "OVERHEAD",
-      "revision": 1,
+      "revision": 2,
       "expected": "Na stejné stavové otázce změřeno nutné čtení, ruční aktualizace, duplicita, zachování blockerů a délka STATUS; metoda a omezení výslovně uvedené.",
       "requiredEvidenceKinds": [
         "source_review"
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "d9c9206954d2d2ccdd78884bc05179dbc320b703facfa1bf9056fff003651c04"
+        "artifactDigest": "ce09a238d584127e58783a675b6705f7ac7f87648f61c3e0a5c617cb4b697573"
       },
       "evidenceRefs": [
-        "DV08-measurements"
+        "DV08-measurements-v2"
       ]
     }
   ],
   "blockers": [],
-  "currentNote": "CLI, bezpečná migrace a skill ověřeny na Windows i skutečném Linuxu; 55 testů na každém. Chybí ještě skutečný hosted Windows/Linux CI běh. Žádná fyzická přejímka nebyla vytvořena.",
-  "nextAction": "Pushnout ověřený DV08 changeset, otevřít PR, počkat na skutečné Windows/Linux CI a reviews; přidat pravý CI receipt a uzavřít DV08.",
+  "currentNote": "PR180 P1 resolution marker a explicit PR-base CI plus P2 dostupnost nového closure opraveny;58+2regrese prošly Windows i Linux. Nový subjekt rev2 má nové důkazy; staré pass/fail záznamy zůstávají neměnné. Čeká se na skutečné hosted CI nové verze.",
+  "nextAction": "Pushnout opravený DV08, ověřit nové PR i workflow_dispatch CI s explicitním base, vyřešit review vlákna a teprve potom uzavřít/merge.",
   "implementedSubject": {
-    "artifactDigest": "d9c9206954d2d2ccdd78884bc05179dbc320b703facfa1bf9056fff003651c04"
+    "artifactDigest": "ce09a238d584127e58783a675b6705f7ac7f87648f61c3e0a5c617cb4b697573"
   }
 }

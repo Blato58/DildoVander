@@ -245,6 +245,35 @@ class TrackingTests(unittest.TestCase):
         self.write("work-items/ITEM.json", self.item)
         self.assertEqual("passed", self.project().verification(self.item))
 
+    def test_chain_resolution_requires_successful_available_same_kind_marker(self):
+        for result, kind, available in (("inconclusive", "unit", True),
+                                        ("pass", "unit", False),
+                                        ("pass", "source_review", True),
+                                        ("pass", "unit", True)):
+            with self.subTest(result=result, kind=kind, available=available):
+                self.write("evidence/FAIL.json", receipt("FAIL", result="fail"))
+                middle = receipt("MIDDLE", kind=kind, result=result)
+                middle["supersedes"] = ["FAIL"]
+                middle["resolution"] = "Fixture correction and repeated procedure recorded."
+                if not available:
+                    del middle["observation"]
+                    middle["artifactRefs"] = ["missing-middle-test-output.log"]
+                self.write("evidence/MIDDLE.json", middle)
+                final = receipt("FINAL")
+                final["supersedes"] = ["MIDDLE"]
+                self.write("evidence/FINAL.json", final)
+                self.item["acceptance"][0]["evidenceRefs"] = ["FINAL"]
+                self.write("work-items/ITEM.json", self.item)
+                project = self.project()
+                successful = result == "pass" and kind == "unit" and available
+                self.assertEqual("ready" if successful else "failed", project.gate("TARGET")["state"])
+                if result == "pass" and kind == "unit" and not available:
+                    historical = deepcopy(self.item["acceptance"][0])
+                    historical["evidenceRefs"] = ["FAIL", "MIDDLE", "FINAL"]
+                    outcome = project.evaluate_criterion("ITEM", historical, SOFTWARE, historical=True,
+                                                         require_available=False)
+                    self.assertEqual("passed", outcome["state"])
+
     def test_08_deferred_required_dependency_still_blocks(self):
         dependency = work_item("DEP", state="deferred")
         self.write("work-items/DEP.json", dependency)
@@ -767,6 +796,52 @@ class TrackingTests(unittest.TestCase):
             self.item["closure"]["reason"] = "Rewritten historical fixture closure."
             self.write("work-items/ITEM.json", self.item)
             self.assertEqual(2, self.invoke("validate", "--base", "HEAD")[0])
+
+    def test_baseline_new_closure_requires_current_available_or_selfcontained_proof(self):
+        self.passed()
+        missing = receipt()
+        del missing["observation"]
+        missing["artifactRefs"] = ["missing-closure-output.log"]
+        self.write("evidence/PASS.json", missing)
+        originals = {path.relative_to(self.root).as_posix(): path.read_bytes() for path in
+                     (self.directory / "work-items/ITEM.json", self.directory / "evidence/PASS.json")}
+        self.item["state"] = "closed"
+        self.item["closure"] = {"outcome": "accepted", "reason": "Synthetic closure after fixture validation.",
+                                "subject": SOFTWARE, "evidenceRefs": ["PASS"],
+                                "acceptedCriteria": deepcopy(self.item["acceptance"])}
+        self.write("work-items/ITEM.json", self.item)
+        self.assertEqual(0, self.invoke("validate")[0])
+        with patch("subprocess.run", side_effect=self.baseline_git(originals)):
+            result, _, error = self.invoke("validate", "--base", "HEAD")
+            self.assertEqual(2, result)
+            self.assertIn("current available passed evidence", error)
+            output = self.root / "missing-closure-output.log"
+            output.write_text("Successful synthetic fixture output\n", encoding="utf-8")
+            self.assertEqual(0, self.invoke("validate", "--base", "HEAD")[0])
+            output.unlink()
+            self.write("evidence/SELFCONTAINED.json", receipt("SELFCONTAINED"))
+            self.item["acceptance"][0]["evidenceRefs"] = ["SELFCONTAINED"]
+            self.item["closure"]["evidenceRefs"] = ["SELFCONTAINED"]
+            self.item["closure"]["acceptedCriteria"] = deepcopy(self.item["acceptance"])
+            self.write("work-items/ITEM.json", self.item)
+            self.assertEqual(0, self.invoke("validate", "--base", "HEAD")[0])
+
+    def test_baseline_existing_closure_preserves_later_artifact_unavailability(self):
+        self.close()
+        proof = receipt()
+        del proof["observation"]
+        proof["artifactRefs"] = ["historical-closure-output.log"]
+        self.write("evidence/PASS.json", proof)
+        output = self.root / "historical-closure-output.log"
+        output.write_text("Successful synthetic historical output\n", encoding="utf-8")
+        self.assertEqual("ready", self.project().gate("TARGET")["state"])
+        originals = {path.relative_to(self.root).as_posix(): path.read_bytes() for path in
+                     (self.directory / "work-items/ITEM.json", self.directory / "evidence/PASS.json")}
+        output.unlink()
+        with patch("subprocess.run", side_effect=self.baseline_git(originals)):
+            self.assertEqual(0, self.invoke("validate", "--base", "HEAD")[0])
+        self.assertEqual(3, self.invoke("verify-evidence")[0])
+        self.assertEqual("unknown", self.project().gate("TARGET")["state"])
 
 
 if __name__ == "__main__":
