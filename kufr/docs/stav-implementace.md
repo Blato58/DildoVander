@@ -39,7 +39,14 @@ lokální embedded verzi potvrdila N16R8 image/partition hranice.
 První `pio run` skončil interní chybou GCC v nezměněném SDK
 `esp_lcd_panel_rgb.c`; opakování `pio run -j 2` prošlo: RAM
 94 972/327 680 B, flash 1 758 689/6 553 600 B po poslední bráně zotavení. Nebyla měněna závislost
-ani zdroj SDK. Další předání doplní git SHA a skutečný výsledek push.
+ani zdroj SDK. Implementační commit
+`98cbefe7a26a80820c6f026e3d35d7c9d97ca8a6` byl úspěšně pushnut
+helperem na `codex/dance-for-me`; vzdálený SHA byl ověřen. Slice je
+přenesen na aktuální `main` `dacfdba` bez mechanických změn původního
+checkoutu; úplný aktuální deník ostatních prací zůstal zachovaný.
+Firmware/mobilní zdroje a testy jsou po přenosu totožné s ověřenými;
+nový main build včetně third-party notices a všech 60 mobilních testů
+prošel znovu po `npm ci`.
 Skutečné skladby majitele nejsou v repozitáři. Native podpis, instalace,
 flash, placená AI ani nasazení nejsou součástí tohoto zadání.
 
