@@ -57,7 +57,9 @@ bool EspIdfDancePlayer::Begin() {
   if (mutex_) return false;
   mutex_ = xSemaphoreCreateMutex();
   if (!mutex_) return false;
-  if (xTaskCreate(WorkerEntry, "kufr-dance", 6144, this, 3, &task_) != pdPASS) {
+  // Play's stereo conversion alone uses 5472 stack bytes, in addition to the
+  // live manifest, stream frame and SDK calls. Match the existing audio owner.
+  if (xTaskCreate(WorkerEntry, "kufr-dance", 16384, this, 3, &task_) != pdPASS) {
     status_.error = "dance_worker_unavailable"; return false;
   }
   status_.phase = "idle"; return true;

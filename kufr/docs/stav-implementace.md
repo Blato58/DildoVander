@@ -54,6 +54,18 @@ Další konkrétní krok: majitel připraví svoje skladby podle návodu;
 po fyzickém ověření profilu B/SD/audio/efektů vyzkoušet celou show,
 změřit beat/DMA, Stop a iPhone ovládání. E14 ani B1 nejsou uzavřené.
 
+GitHub PR #178 review navíc zachytilo příliš malý 6144B stack dance
+úlohy: skutečný `EspIdfVoiceAudio::Play` má na stacku 5472B buffer.
+Úloha nyní rezervuje 16 KiB stejně jako existující audio vlastník;
+regrese kontroluje skutečný argument `xTaskCreate`. CI současně
+odhalilo staré očekávání čtyř Bonjour capabilities v hostitelském testu;
+aktualizované očekávání obsahuje `dance`. Po opravě prošly znovu 4
+dance/SD hostitelské binárky i Bonjour regrese; `pio run -j 2` prošlo
+s RAM 94 940/327 680 B a flash 1 758 277/6 553 600 B. Nezávislé review
+potvrdilo opravu stacku. Další CI a GitHub review se ověřují nad touto
+opravou před merge. Fyzický stack high-water se musí změřit při dlouhém
+přehrávání na zařízení.
+
 ## F2 DFA / Workshop — 12. 10. 2026
 
 Rozsah: montovatelná vložka do skutečného kufru a mobilní CAD viewer.

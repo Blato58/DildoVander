@@ -82,6 +82,7 @@ int main() {
   kufr::assets::EspIdfSdAssets assets; assert(assets.Begin());
   Audio audio; EspIdfDancePlayer player(assets, audio);
   assert(player.Begin() && !player.Status().available);
+  assert(LastCreatedTaskStackBytes() >= 16384); // Real Play uses a 5472 B stack buffer.
   assert(!player.Start("before-mount"));
   assets.Tick(true); kufr::assets::SdAssetsTestAccess::Run(assets);
   assert(player.Status().available && player.Status().phase == "idle");
