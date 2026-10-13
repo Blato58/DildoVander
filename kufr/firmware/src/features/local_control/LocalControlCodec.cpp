@@ -82,6 +82,10 @@ bool ReadKind(JsonCursor& cursor, LocalControlMessageKind& kind) {
     kind = LocalControlMessageKind::VoiceStart;
   } else if (type == "voice.stop") {
     kind = LocalControlMessageKind::VoiceStop;
+  } else if (type == "dance.start") {
+    kind = LocalControlMessageKind::DanceStart;
+  } else if (type == "dance.stop") {
+    kind = LocalControlMessageKind::DanceStop;
   } else if (type == "safety.stop") {
     kind = LocalControlMessageKind::Stop;
   } else if (type == "safety.reset") {
@@ -181,8 +185,10 @@ uint32_t ExpectedFields(LocalControlMessageKind kind) {
     case LocalControlMessageKind::VoiceConfigure:
       return Common | VoiceMode | Voice;
     case LocalControlMessageKind::VoiceStart:
+    case LocalControlMessageKind::DanceStart:
       return Common | Revision;
     case LocalControlMessageKind::VoiceStop:
+    case LocalControlMessageKind::DanceStop:
       return Common;
     case LocalControlMessageKind::Selection:
     case LocalControlMessageKind::Reload:

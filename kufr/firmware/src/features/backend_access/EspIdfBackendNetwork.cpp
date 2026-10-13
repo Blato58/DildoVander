@@ -11,6 +11,7 @@
 
 #include "BuildDate.h"
 #include "../voice_turn/EspIdfRealtimeTransport.h"
+#include "../voice_turn/VoiceOutputCancellation.h"
 #include "DeviceTokenSession.h"
 #include "EspIdfStationNetwork.h"
 #include "EspIdfTokenExchangeTransport.h"
@@ -839,11 +840,8 @@ bool EspIdfBackendNetwork::StartVoiceWithImageConsent(const std::string& request
 }
 
 void EspIdfBackendNetwork::StopVoice() {
-  voiceEpoch_.fetch_add(1);
-  const bool pending = voicePending_.exchange(false);
-  if (pending) voiceBusy_.store(false);
-  voiceAudio_.Stop();
   std::lock_guard<std::mutex> lock(voiceMutex_);
+  CancelVoiceOutput(voiceEpoch_, voicePending_, voiceBusy_, voiceAudio_);
   if (voiceBusy_.load()) voiceStatus_.phase = "stopping";
   if (!voiceBusy_.load()) voiceStatus_.phase = voiceStatus_.available ? "idle" : "unavailable";
 }

@@ -1,5 +1,15 @@
 # Firmware AI kufru
 
+> **D167 – Dance for me:** vlastní 1–12 skladeb na ověřené SD, náhodný
+> výběr bez bezprostředního opakování, WAV PCM16/mono/24 kHz po 960 B,
+> LED a volitelné krátké vibrace podle BPM/offsetu. Telefon pouze spouští
+> samostatnou show. Stop zastaví audio i efekty; neaktivní hlasové rušení
+> při ztrátě sítě nezastaví SD audio. Příprava karty a technické hranice:
+> [návod](../docs/dance-for-me.md). Hostitelské regrese:
+> `bash tests/run_dance_tests.sh`; Python příprava:
+> `python -m unittest discover -s tools -p test_prepare_dance.py`.
+> SD/I2S/efekty a ovládání z iPhonu vyžadují fyzickou akceptaci E14/B1.
+
 > D166: secured BLE status can include current STA IPv4 (`n.ip`). The iOS native
 > layer uses it for the paired device for up to 60 seconds while that BLE session
 > remains connected. The explicit Control connect tap refreshes the live BLE

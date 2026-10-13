@@ -26,6 +26,10 @@ jobs:
         run: python3 -m unittest discover -s kufr/firmware/ci -p 'test_*.py'
       - name: Test automatic firmware versions and OTA packaging
         run: python3 -m unittest discover -s kufr/firmware/tools -p 'test_*.py'
+      - name: SD dance playback, synchronized effects and cancellation
+        working-directory: kufr/firmware
+        shell: bash
+        run: bash tests/run_dance_tests.sh
       - name: Bodyless backend token exchange
         working-directory: kufr/firmware
         shell: bash

@@ -21,6 +21,7 @@ bool DeviceControlRuntime::BindPresentation(
 }
 
 bool DeviceControlRuntime::RecoverAfterInspection() {
+  if (externalActivity_) return false;
   if (presentation_ != nullptr &&
       presentation_->State() != WandPresentationState::Idle &&
       presentation_->State() != WandPresentationState::Fault) {
@@ -39,6 +40,7 @@ bool DeviceControlRuntime::RecoverAfterInspection() {
 
 bool DeviceControlRuntime::AcquireManualControl(const std::string& leaseId,
                                                 uint64_t nowMs) {
+  if (externalActivity_) return false;
   const bool acquired = control_.AcquireManualControl(leaseId, nowMs);
   PublishCurrent();
   return acquired;
@@ -89,6 +91,7 @@ bool DeviceControlRuntime::OwnsLiveManualLease(
 
 CommandReceipt DeviceControlRuntime::AcceptSelection(
     const SelectionCommand& command, bool authenticated, uint64_t nowMs) {
+  if (externalActivity_) return CommandReceipt(CommandError::Busy);
   const bool hadManualControl = control_.HasManualControl();
   const CommandReceipt receipt =
       control_.AcceptSelection(command, authenticated, nowMs);
@@ -100,6 +103,7 @@ CommandReceipt DeviceControlRuntime::AcceptSelection(
 CommandReceipt DeviceControlRuntime::ConfirmReload(
     const InventoryReloadCommand& command, bool authenticated,
     uint64_t nowMs) {
+  if (externalActivity_) return CommandReceipt(CommandError::Busy);
   const bool hadManualControl = control_.HasManualControl();
   const CommandReceipt receipt =
       control_.ConfirmReload(command, authenticated, nowMs);
@@ -110,6 +114,7 @@ CommandReceipt DeviceControlRuntime::ConfirmReload(
 
 bool DeviceControlRuntime::BeginAcceptedSelection(uint64_t nowMs,
                                                   SelectionStep& step) {
+  if (externalActivity_) return false;
   const bool hadManualControl = control_.HasManualControl();
   const bool started = control_.BeginAcceptedSelection(nowMs, step);
   RecordLeaseLoss(hadManualControl);
@@ -120,7 +125,7 @@ bool DeviceControlRuntime::BeginAcceptedSelection(uint64_t nowMs,
 bool DeviceControlRuntime::BeginAutonomousPresentation(
     const std::string& proposalId, uint8_t compartment,
     const ConversationRuntimeSnapshot& expectedSnapshot) {
-  if (presentation_ == nullptr ||
+  if (externalActivity_ || presentation_ == nullptr ||
       presentation_->State() != WandPresentationState::Idle ||
       !runtime_.Matches(expectedSnapshot)) {
     return false;
@@ -192,7 +197,7 @@ bool DeviceControlRuntime::Stop(SelectionStep& step) {
 }
 
 bool DeviceControlRuntime::PublishCurrent() {
-  if (control_.NeedsRecovery() || control_.HasPendingSelection() ||
+  if (externalActivity_ || control_.NeedsRecovery() || control_.HasPendingSelection() ||
       control_.HasAutonomousPresentation() || selection_.IsBusy() ||
       (presentation_ != nullptr &&
        presentation_->State() != WandPresentationState::Idle)) {
@@ -224,6 +229,13 @@ bool DeviceControlRuntime::PublishCurrent() {
 }
 
 uint64_t DeviceControlRuntime::Generation() const { return generation_; }
+
+void DeviceControlRuntime::SetExternalActivity(bool active) {
+  if (externalActivity_ == active) return;
+  externalActivity_ = active;
+  if (active) ++generation_;
+  PublishCurrent();
+}
 
 bool DeviceControlRuntime::HasAutonomousPresentation() const {
   return control_.HasAutonomousPresentation();

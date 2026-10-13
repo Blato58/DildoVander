@@ -1,5 +1,14 @@
 # Mobilní ovládání kufru
 
+> **D167 – Dance for me:** panel v Ovládání spouští náhodnou vlastní
+> skladbu ze SD kufru a ukazuje soubor, BPM, průběh a srozumitelné chyby.
+> Zastavit tanec ukončí show, Stop kufru také zachová bezpečnostní zotavení.
+> Telefon zvuk nepřehrává a jeho odpojení autonomní show neruší. Pro start
+> uvolněte ruční řízení a ukončete rozhovor. [Příprava SD a hranice](../docs/dance-for-me.md).
+> Starý firmware bez `dance` dál funguje, panel zůstane vypnutý; před
+> instalací nového firmware aktualizujte mobil. Browser je vývojové
+> ověření, nové ovládání na iPhonu zatím není fyzicky akceptované.
+
 > D166: secured BLE status can include current STA IPv4 (`n.ip`). The iOS native
 > layer uses it for the paired device for up to 60 seconds while that BLE session
 > remains connected. The explicit Control connect tap refreshes the live BLE

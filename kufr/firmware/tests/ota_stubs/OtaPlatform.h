@@ -54,7 +54,11 @@ void Reset();
 inline SemaphoreHandle_t xSemaphoreCreateMutex() { return reinterpret_cast<void*>(1); }
 inline void xSemaphoreTake(SemaphoreHandle_t, int) {}
 inline void xSemaphoreGive(SemaphoreHandle_t) {}
-inline int xTaskCreate(void (*)(void*), const char*, unsigned, void*, unsigned, TaskHandle_t* handle) { *handle = reinterpret_cast<void*>(1); return pdPASS; }
+inline unsigned& LastCreatedTaskStackBytes() { static unsigned bytes = 0; return bytes; }
+inline int xTaskCreate(void (*)(void*), const char*, unsigned stackBytes, void*, unsigned, TaskHandle_t* handle) {
+  LastCreatedTaskStackBytes() = stackBytes;
+  *handle = reinterpret_cast<void*>(1); return pdPASS;
+}
 inline void xTaskNotifyGive(TaskHandle_t) {}
 inline void ulTaskNotifyTake(int, int) {}
 inline void vTaskDelay(unsigned ticks) { ota_fake::nowMs += ticks; }

@@ -22,6 +22,8 @@ enum class LocalControlMessageKind : uint8_t {
   VoiceConfigure,
   VoiceStart,
   VoiceStop,
+  DanceStart,
+  DanceStop,
 };
 
 struct LocalControlMessage {

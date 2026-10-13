@@ -1,5 +1,14 @@
 # Implementační plán AI kufru
 
+> **D167 – Dance for me, zadání majitele 13. 10. 2026:** mobil explicitně
+> spouští samostatnou hudební show kufru z vlastních skladeb na SD. ESP
+> náhodně vybere validovanou skladbu, streamuje PCM a řídí LED/volitelné
+> krátké vibrace podle jejího BPM a offsetu. Režim nepohybuje servy;
+> zachovává fyzické brány, Stop a vzájemné vyloučení s hlasem/výběrem,
+> SD servisem, OTA a změnami sítě. Odpojení pozorovatele show neruší.
+> Postup nastavení a hranice: [Dance for me](dance-for-me.md). Softwarové
+> ověření není SD/I2S/efektová ani iPhone akceptace E14/B1.
+
 > **D166, 9. 10. 2026: automatická LAN adresa ze zabezpečeného BLE.**
 > Hostname na iPhonu timeoutuje; ruční `192.168.0.59` vedla k servisnímu stavu
 > po validním snapshotu, tedy k pinned/auth WSS. Konkrétní příčina iPhone DNS/
@@ -427,6 +436,7 @@ Tabulka je návrh cílových adresářů; vytvářet je postupně s příslušn�
 | `firmware/src/features/conversation/` | Samostatný orchestrátor: fyzické PTT, HTTPS klient backendu, session/turn/generation, návrh, autonomní přijetí a ukončení opuštěného sezení. Text a média telefonu jsou alternativní vstupy do stejného sezení. |
 | `firmware/src/features/safety/` | Jediný vlastník povolení pohonů, stop latch, softwarové timeouty, reakce na reset a chyby sběrnice. |
 | `firmware/src/features/voice_turn/` | I2S, DMA, PTT, zesilovač, omezené buffery, lokální nouzové audio. |
+| `firmware/src/features/dance/` | Lokální SD seznam/WAV stream, náhodná skladba a PCM časová osa; řídicí vlastník aplikuje tempo/LED/krátké vibrace bez serv. |
 | `firmware/src/features/provisioning/` | Fyzické párovací okno, Wi-Fi/NVS, identita desky a revize konfigurace. |
 | `firmware/src/features/costume_photo/` | OV5640 a jeden JPEG před hlasem, servisní ověření kamery a souhlas pro jednotlivý start; samostatná volitelná capability. |
 | `firmware/src/features/local_assets/` | Kontrolované čtení nouzových hlášek z flash/SD; ztráta SD neblokuje řízení. |
@@ -656,6 +666,20 @@ Servisní kalibrace bude samostatná fyzicky odemčená funkce s lokálními ome
 Snapshot lokálního protokolu v1 nyní vyžaduje `conversation:{conversationId,generation,activeTurnId}`; identitu založí kufr, telefon ji čte ze snapshotu a nepřiděluje si vlastní. E2.8b2 přidává `conversation.ack` s `requestMessageId`, stavem přijetí a chybou a `conversation.result` s identitou tahu, generací a odpovědí. Opakování stejného cancel `messageId` a obsahu v aktivním manual lease vrátí duplicitní přijetí bez dalšího zvýšení generation; stejný ID se změněným obsahem je konflikt. Dosavadní přednasazovací fixtures snapshotu se doplnily o tato pole; budoucí klient musí číst snapshot před textovým vstupem. Hostitelský simulátor vrací výslovně `simulated:true` a pevnou odpověď bez backendu/AI; tato větev nevytváří kandidáta k výběru. Skutečný výsledek backendu bude před přijetím potřebovat úplné echo identity a revision podle kapitoly 4, a místní autonomní bránu dle D75.
 
 ### ACK, opakování a neznámý výsledek
+
+**D167 – hudební show:** `dance.start` nese autentizovanou device/boot
+identitu, čerstvou `expectedRevision` a jedinečné `messageId`; `dance.stop`
+ukončí show. `dance.ack` koreluje boot/požadavek a obsahuje skutečný stav.
+Volitelné `dance` ve snapshotu uvádí dostupnost, fázi, soubor, BPM,
+průběh/délku a technickou chybu; aktivní show má `phase:dancing`.
+Jde o explicitní start samostatného vlastníka z pozorovatelského telefonu,
+stejně jako `voice.start`, tedy bez ručního lease. ESP přijme start jen
+v bezpečném klidu bez jiné práce, ověří SD/audio/efekty a zneplatní
+backendový snapshot na celou show. Soubor/URL/povely k servo pohybu se
+z telefonu ani AI neposílají. Mobil nejistý start neopakuje; 128 přijatých
+ID na boot se nevyhazuje z historie. Během cleanup zůstává kufr obsazený.
+Nový klient přijímá starý snapshot bez `dance`; starý striktní klient
+nové pole/fázi odmítne, proto se před novým firmware aktualizuje mobil.
 
 - Cíl ACK do 200 ms na LAN, čekání 500 ms. Při ztrátě ACK nejvýše dvakrát opakovat **stejný příkaz, commandId, sequence i obsah**, po 500 a 1000 ms od prvního odeslání; stále musí platit lease a deadline. Nové ID při retry je chyba.
 - Firmware zpracuje příkaz atomicky v jednom vlastníkovi stavu: ověřit auth/boot/lease → rozpoznat duplicitu → validovat nový příkaz → zaznamenat přijetí → ACK → výstupy. Stejné ID s jiným obsahem = `id_conflict`. Duplicita vrací uložený stav, nespustí sekvenci znovu.
@@ -1261,8 +1285,17 @@ Každá etapa je samostatně reviewovatelná změna a lze ji dělit na menší o
 | E11 – provozní balení | Samostatný kufr, CI podepsaná iOS záloha, artifact a vlastní HTTPS instalační web s OTA manifestem, cloud instance, runbook, backup. | E6,E8,E9; záložní aplikace E10 | Celý scénář bez notebooku a bez aktivního telefonu; navíc funkční instalace/aktualizace ruční zálohy. Publikovaný IPA/manifest má ověřený download a platný podpis; klíče ani profily se samostatně nezveřejní. |
 | E12 – obraz telefonu | Souhlas, jednorázový obrázek, popis kostýmu a ruční oprava. | E8,E11 | Obrázek se neukládá, chybný popis nic fyzicky nespouští; přínos vyhodnocen. |
 | E13 – OV5640 + SD profil B | Přestavba pinů, MCP, sdílené LED piny nebo schválený druhý řadič; přímý HTTPS upload snímku, camera/SD stress test. | E0 kontrola B,E9,E12 | USB/debug a všechny efekty fungují, měřený DMA/heap/proud, selhání SD/kamery neovlivní safe state. |
+| E14 – Dance for me | Náhodná vlastní SD skladba, PCM stream, LED/krátké vibrace podle BPM/offsetu a mobilní start/stop. | B1/E5, audio E9, SD část E13; mobil E10 | Celá skladba na zařízení, změřená synchronizace/proud/teplota, Stop, vadná/odpojená SD, výpadek Wi-Fi, žádný souběh s jinou prací a skutečné ovládání z iPhonu. |
 
 Hardwarová větev je E0→E1/E2→E4→E5→E6. Konverzační větev E2→E7→E8 může běžet bez desky. Spojí se v E9 pro samostatný hlas; E3/E3a/E10 dodají iOS zálohu a E11 celek ověří na akci. Skutečný placený provider test vyžaduje vědomě nakonfigurovaný účet. E12/E13 nejsou podmínkou první použitelné rekvizity.
+
+E14 – Dance for me je další samostatná akceptace. Závisí na bezpečném
+B1/E5, reproduktoru E9 a fyzicky ověřeném SD profilu B z E13. Software
+může vzniknout bez těchto periferií s fake porty. Hotová E14 vyžaduje
+celou vlastní skladbu na zařízení, změřenou synchronizaci/proud/teplotu,
+Stop při načítání i hraní, vadnou/odpojenou SD, výpadek Wi-Fi, žádný
+souběh s hlasem/pohony/OTA a skutečné spuštění/zastavení z iPhonu.
+Příprava playlistu a úspěšný build tato kritéria nenahrazují.
 
 ## 13. Otevřené otázky a výchozí předpoklady
 
@@ -1278,7 +1311,7 @@ Hardwarová větev je E0→E1/E2→E4→E5→E6. Konverzační větev E2→E7→
 | Servo model, pulzy, zdvih a senzory? | Zvolen zdvih a automatický návrat; konkrétní mechanika a kalibrace jsou otevřené. Bez snímačů jen povelově ověřený stav. Po Stop/chybě žádný automatický návrat. |
 | Názvy/osobnosti šesti hůlek a cílové publikum? | Party katalog šesti rekvizit; majitel v D135 výslovně žádá ostrý, urážlivý humor a drzého prodavače z Ollivanderova obchodu pro dospělé. Otázky patří k výběru hůlky, respektují odmítnutí tématu a ukončení hry. Kvalita vyžaduje lidský poslech. |
 | Dostupnost/vracení hůlek? | Rozhodnuto majitelem 30. 9.: hůlka zůstává. Úspěšný normální návrat obnoví dostupnost, porucha/Stop vyžadují zotavení. |
-| Potřebujeme kameru i SD zároveň? | Ne pro základ. SD jen assety, kamera jednotlivé snímky; potvrdit užitek před E13 a teprve pak měnit kabeláž. |
+| Potřebujeme kameru i SD zároveň? | SD je od D167 potřeba pro volitelný Dance for me; kamera zůstává pro jednotlivé snímky mimo tanec. Fyzické zapojení profilu B a souběh periferií vyžadují E13/B1. |
 | Hlasitost a srozumitelnost v reálném hluku? | Dva reproduktory 8 Ω, každý vlastní MAX98357A, společný hlas a PTT; český eval a měření v prostředí před E10/E11. |
 | Kdo platí a spravuje cloud, jaká retence/region je přípustný? | Jeden správce, explicitní limity a informování návštěvníků. Přesné účetní/datové podmínky a dostupnost modelů před placeným testem. |
 | Rozměry kufru, kabely, teplota a výdrž powerbanky? | Volný obdélník mezi výztuhami 430×269 mm, spodní výška 114,3, stěna 5, oblouky 45/45, středová výztuha 80×5 a horní 20/40/30 mm; součástky ve společném přehledu. Powerbanka 139×80×26,5 mm musí jít snadno vyjmout. Další kabelové rozměry neblokují rozvržení; teplotu a výdrž ověřit zátěžovým měřením, ne pouze z nominální kapacity. |

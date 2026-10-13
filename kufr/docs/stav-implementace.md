@@ -1,5 +1,71 @@
 # Stav implementace AI kufru
 
+## D167 — Dance for me — softwarové ověření 13. 10. 2026
+
+Zadání majitele: mobil spustí náhodnou skladbu z vlastního seznamu
+na SD kufru, společně s efekty do rytmu. Nový rozsah vlastní
+`firmware/src/features/dance`, rezervace SD/audio/řídicího runtime,
+místní WSS kontrakt a mobilní panel. Nastavení: PCM16 mono 24 kHz,
+BPM/offset a RGB/volitelné vibrace; bez pohybu serv a bez AI/internetu.
+Nezávislé review zachytilo nepodmíněný Stop hlasového audia při výpadku
+Wi-Fi. Oprava respektuje vlastníka audia a má regresi v přehrávacím testu.
+Plán a [návod](dance-for-me.md) popisují E14, přípravu seznamu a migraci
+nového mobilu před novým firmware. E14/B1 zůstávají fyzicky neakceptované.
+
+Změněny: nová firmware feature a její testy/stuby, SD rezervace,
+backendové rušení vlastního audia, runtime a místní owner/parser/output,
+CMake/composition/capabilities, WSS schema/fixtures/interoperabilita,
+mobilní klient/panel/main/styl/testy/harness, Python příprava SD,
+firmware CI a dotčené README/plán/stav/návod.
+
+Provedeno: 4 C++ dance/SD hostitelské binárky a původní device-control/
+runtime, parser, output a owner regrese přes přesné CI source listy,
+`-std=c++14 -Wall -Wextra -Werror -pthread`, všechny prošly na VPS
+GCC 15.2 v soukromé dočasné složce bez změny nasazené aplikace. Lokální
+WSL nelze spustit (chybí jeho VHD). 54 skutečných firmware JSON zpráv
+prošlo sdílenou striktní v1 validací. `npm test` mobilu: 60/60;
+`npm run build`: TypeScript/Vite prošly. Kontrakty: 30 validních/
+44 nevalidních fixtures plus stávající OpenAPI/media kontroly prošly.
+Python příprava SD: 6/6 a py_compile. Nezávislé review po opravě
+vlastnictví audia nemá zbývající nález.
+
+Browser na localhost:5197 ověřil skutečný panel v celé aplikaci i označený
+syntetický harness: start, soubor/tempo/průběh, Stop, chybu SD, dohrání
+a odpojení. Na šířce 390 px nebylo vodorovné přetékání; konzole bez
+chyb/varování. Ověřeny jsou 4 nové lokální dokumentační odkazy a běžná
+kontrola diff whitespace. Kontrola `ota_release.py check` pro skutečnou
+lokální embedded verzi potvrdila N16R8 image/partition hranice.
+
+První `pio run` skončil interní chybou GCC v nezměněném SDK
+`esp_lcd_panel_rgb.c`; opakování `pio run -j 2` prošlo: RAM
+94 972/327 680 B, flash 1 758 689/6 553 600 B po poslední bráně zotavení. Nebyla měněna závislost
+ani zdroj SDK. Implementační commit
+`98cbefe7a26a80820c6f026e3d35d7c9d97ca8a6` byl úspěšně pushnut
+helperem na `codex/dance-for-me`; vzdálený SHA byl ověřen. Slice je
+přenesen na aktuální `main` `dacfdba` bez mechanických změn původního
+checkoutu; úplný aktuální deník ostatních prací zůstal zachovaný.
+Firmware/mobilní zdroje a testy jsou po přenosu totožné s ověřenými;
+nový main build včetně third-party notices a všech 60 mobilních testů
+prošel znovu po `npm ci`.
+Skutečné skladby majitele nejsou v repozitáři. Native podpis, instalace,
+flash, placená AI ani nasazení nejsou součástí tohoto zadání.
+
+Další konkrétní krok: majitel připraví svoje skladby podle návodu;
+po fyzickém ověření profilu B/SD/audio/efektů vyzkoušet celou show,
+změřit beat/DMA, Stop a iPhone ovládání. E14 ani B1 nejsou uzavřené.
+
+GitHub PR #178 review navíc zachytilo příliš malý 6144B stack dance
+úlohy: skutečný `EspIdfVoiceAudio::Play` má na stacku 5472B buffer.
+Úloha nyní rezervuje 16 KiB stejně jako existující audio vlastník;
+regrese kontroluje skutečný argument `xTaskCreate`. CI současně
+odhalilo staré očekávání čtyř Bonjour capabilities v hostitelském testu;
+aktualizované očekávání obsahuje `dance`. Po opravě prošly znovu 4
+dance/SD hostitelské binárky i Bonjour regrese; `pio run -j 2` prošlo
+s RAM 94 940/327 680 B a flash 1 758 277/6 553 600 B. Nezávislé review
+potvrdilo opravu stacku. Další CI a GitHub review se ověřují nad touto
+opravou před merge. Fyzický stack high-water se musí změřit při dlouhém
+přehrávání na zařízení.
+
 ## F2 DFA / Workshop — 12. 10. 2026
 
 Rozsah: montovatelná vložka do skutečného kufru a mobilní CAD viewer.

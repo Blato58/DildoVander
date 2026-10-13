@@ -31,6 +31,8 @@ for (const result of results) {
   assert.equal(result.requiresReload, true);
 }
 const voiceAcks = messages.filter(message => message.type === 'voice.ack');
+assert.ok(messages.some(message => message.type === 'dance.ack' && message.accepted && message.dance.track === 'song.wav'));
+assert.ok(snapshots.some(snapshot => snapshot.phase === 'dancing' && snapshot.dance.bpm === 120));
 assert.equal(voiceAcks.length, 2);
 assert.ok(voiceAcks.some(message => message.accepted && message.voice.voice === 'cedar'));
 assert.ok(voiceAcks.some(message => !message.accepted && message.voice.error === 'cost_limit'));

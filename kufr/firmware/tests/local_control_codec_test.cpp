@@ -105,6 +105,15 @@ void TestPhysicalEnvelope() {
 }  // namespace
 
 int main(int argc, char** argv) {
+  LocalControlMessage dance;
+  const std::string common = "\"protocolVersion\":1,\"messageId\":\"" + std::string(Id) +
+      "\",\"deviceId\":\"kufr-001\",\"bootId\":\"" + Id + "\"";
+  assert(Parse("{" + common + ",\"type\":\"dance.start\",\"expectedRevision\":1}", dance));
+  assert(dance.kind == LocalControlMessageKind::DanceStart && dance.expectedRevision == 1);
+  assert(!Parse("{" + common + ",\"type\":\"dance.start\"}", dance));
+  assert(Parse("{" + common + ",\"type\":\"dance.stop\"}", dance));
+  assert(dance.kind == LocalControlMessageKind::DanceStop);
+  assert(!Parse("{" + common + ",\"type\":\"dance.stop\",\"expectedRevision\":1}", dance));
   TestConnectionAndLease();
   TestTextAndHostileJson();
   TestPhysicalEnvelope();

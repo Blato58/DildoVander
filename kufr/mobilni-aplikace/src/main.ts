@@ -1,5 +1,6 @@
 import './style.css';
 import { VoicePanel } from './features/voice_control/VoicePanel';
+import { DancePanel } from './features/dance/DancePanel';
 import { Capacitor } from '@capacitor/core';
 import { NativeDeviceConnection, nativeBridge, type SavedNativeDevice } from './features/device_connection/NativeDeviceConnection';
 import {
@@ -62,6 +63,8 @@ app.before(controlPanel);
 controlPanel.append(app, conversationPanel);
 const voicePanel = new VoicePanel(() => connection instanceof NativeDeviceConnection ? connection : null);
 conversationPanel.before(voicePanel.element);
+const dancePanel = new DancePanel(() => connection instanceof NativeDeviceConnection ? connection : null);
+voicePanel.element.after(dancePanel.element);
 const debugPanel = new DebugPanel(nativeMode, stopDevice);
 // Debug refreshes its button independently. Native fieldset disabling keeps the
 // same in-flight guard effective across those refreshes without changing telemetry.
@@ -204,10 +207,13 @@ function render(snapshot: DeviceSnapshot): void {
   debugPanel.update(snapshot);
   renderConversation(snapshot);
   voicePanel.update(snapshot);
+  dancePanel.update(snapshot);
   const canControl = snapshot.controlMode === 'manual' && snapshot.phase === 'ready' &&
     !snapshot.busy && !snapshot.conversation?.pending;
   const modeText = snapshot.controlMode === 'manual' ? 'Ruční režim' : 'Pozorování';
-  const phaseText = snapshot.phase === 'running'
+  const phaseText = snapshot.dance && ['starting', 'playing', 'stopping'].includes(snapshot.dance.phase)
+    ? 'Dance for me'
+    : snapshot.phase === 'running'
     ? snapshot.activeCompartment === null
       ? 'Probíhá výběr'
       : `Probíhá výběr ${snapshot.activeCompartment}`
