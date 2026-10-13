@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-CAD-SPEED-shared-state-failure",
+  "observedAtUtc": "2026-10-13T23:31:40.387210+00:00",
+  "kind": "integration",
+  "result": "fail",
+  "claims": [
+    {
+      "workItemId": "KUFR-CAD-SPEED",
+      "criterionId": "REGEN",
+      "criterionRevision": 1,
+      "result": "fail"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "1288a50c03a93ac5f9abc1fda99f40fc6eec0967e6d54487af0fde9321873bb9"
+  },
+  "method": "pwsh -NoProfile -File kufr/mechanika/final/Regenerate.ps1 -Python temporary pinned Python3.11 -Force; first shared-all-stages implementation",
+  "environment": "Windows, Python3.11, CadQuery2.8.0/OCP7.9.3.1.1/VTK9.6.2",
+  "limitations": [
+    "This discarded implementation was not committed or accepted. No cache receipt or manufacturing verification issued.",
+    "Source code/static review had not established runtime native-state safety; full integration supplied the decisive failure."
+  ],
+  "observation": "475.457s;161 Python tests passed;37 STL types/52 prints and all STEP/viewer/drawing exports generated (264.37s generation). verify.export_checks failed strict abs(b[2])<1e-5 after in-process tessellation/rendering. Follow-up isolated export checks verified the37 STL/STEP parts in a fresh process. Corrective design retains shared unit-test process and restores pristine generation, verification and packaging subprocess boundaries; strict geometry gate remains unchanged."
+}
