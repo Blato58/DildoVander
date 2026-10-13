@@ -172,8 +172,10 @@ internal static class AutonomousLiveTests
         await socket.Command("session.instructions.append", lifetime.Token);
         socket.Transcript(false, "Co chceš kouzlem spravit?", 0, 1000);
         socket.Transcript(true, "Ztrácím klíče denně. Prostě mi nějakou vyber.", 1100, 2000);
-        await consumed.Reader.ReadAsync(lifetime.Token); socket.Delegate("before-withdrawal", 2000); clock.Advance(1300);
-        await socket.Command("session.commentary.append", lifetime.Token);
+        await consumed.Reader.ReadAsync(lifetime.Token); socket.Delegate("before-withdrawal", 2000);
+        var initialResult = socket.Command("session.commentary.append", lifetime.Token);
+        await AdvanceUntilAsync(initialResult, run, clock, lifetime.Token);
+        await initialResult;
         socket.Transcript(false, "Výběr mám.", 3000, 4000);
         socket.Transcript(true, control, 4100, 4500);
         await consumed.Reader.ReadAsync(lifetime.Token);
@@ -184,7 +186,7 @@ internal static class AutonomousLiveTests
         await consumed.Reader.ReadAsync(lifetime.Token);
         socket.Delegate("replacement", 7000); clock.Advance(1300);
         var updated = socket.Command("session.commentary.append", lifetime.Token);
-        if (await Task.WhenAny(updated, run) == run) { await run; }
+        await AdvanceUntilAsync(updated, run, clock, lifetime.Token);
         await updated;
         Check(calls == 2 && !run.IsCompleted, "withdrawn terminal cannot publish; valid replacement can be recomputed");
         lifetime.Cancel();
@@ -233,7 +235,7 @@ internal static class AutonomousLiveTests
         socket.Emit(new { type = "session.usage.updated", usage = new { seconds = 1 } });
         clock.Advance(1300);
         var commentary = socket.Command("session.commentary.append", lifetime.Token);
-        if (await Task.WhenAny(commentary, run) == run) { await run; }
+        await AdvanceUntilAsync(commentary, run, clock, lifetime.Token);
         var result = await commentary;
         Check(!result.Contains("Poslední slovo") && !result.Contains("compartment"), "identity is not delivered to limited actor");
         if (interrupted)
@@ -254,7 +256,9 @@ internal static class AutonomousLiveTests
         socket.Audio(); await chunks.Reader.ReadAsync(lifetime.Token);
         if (interrupted) { await chunks.Reader.ReadAsync(lifetime.Token); }
         clock.Advance(2000);
-        var checkpoint = await checkpoints.Reader.ReadAsync(lifetime.Token);
+        var checkpointRead = checkpoints.Reader.ReadAsync(lifetime.Token).AsTask();
+        await AdvanceUntilAsync(checkpointRead, run, clock, lifetime.Token);
+        var checkpoint = await checkpointRead;
         drained.SetResult(new(checkpoint.PlaybackId, checkpoint.PcmBytes, true));
         var outcome = await run.WaitAsync(lifetime.Token);
         Check(outcome.PlaybackVerified && outcome.Decision?.Compartment == 1 && played.Count == 2 && decisionCalls == 1
