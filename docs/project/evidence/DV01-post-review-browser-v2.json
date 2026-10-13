@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "DV01-post-review-browser-v2",
+  "observedAtUtc": "2026-10-13T22:12:03.833768+00:00",
+  "kind": "browser",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "DV01",
+      "criterionId": "CORE",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "a14bb273f52fde077b3c95bce99209769847c8ab2dc0f4ef86e47a3941f250fa",
+    "policyVersion": "dv01-director-v1"
+  },
+  "method": "Explicit scoped validity transfer from DV01-local-browser-v1: exact input hashes compared to original source manifest; no new browser run.",
+  "environment": "Windows local offline checks; independent read-only source review; explicit unchanged-component evidence transfer.",
+  "limitations": [
+    "No new physical/native/paid acceptance.",
+    "For transferred results preserve original observed dates and scope; this receipt records comparison, not a new execution."
+  ],
+  "observation": "Original visible Browser observations retain their date/scope (1280/1024/390/320px, zero overflow/console errors). All UI/mobile inputs and admin/diagnostic response shapes unchanged; these server-only evidence/publication fixes do not affect that rendered layout. No iPhone/admin acceptance claimed.",
+  "artifactRefs": [
+    "docs/project/artifacts/DV01-source-bundle-v2.json",
+    "docs/project/artifacts/DV01-review-fixes-v2.json",
+    "docs/project/artifacts/DV01-offline-v2.json",
+    "docs/project/evidence/DV01-local-browser-v1.json"
+  ]
+}

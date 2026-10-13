@@ -17,6 +17,7 @@ internal sealed class LiveConversationProjection(GptLiveOptions options)
     private readonly HashSet<string> eventIds = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> questionAnswers = new(StringComparer.Ordinal);
     private readonly HashSet<string> characterControls = new(StringComparer.Ordinal);
+    private readonly HashSet<string> evidenceChangingControls = new(StringComparer.Ordinal);
     private string? currentInputReference;
     private string? questionReference;
     private string? currentOutputReference;
@@ -35,7 +36,7 @@ internal sealed class LiveConversationProjection(GptLiveOptions options)
     internal bool HasCorrection { get; private set; }
     internal IReadOnlyList<LiveTranscriptSegment> Segments => segments;
     internal string LatestInput => answers.LastOrDefault()?.Text ?? "";
-    internal int AnswerCandidates => questionAnswers.Count;
+    internal int AnswerCandidates => questionAnswers.Values.Count(reference => !characterControls.Contains(reference));
     internal bool UnansweredDiagnosticCandidate => questionReference is not null && !questionAnswers.ContainsKey(questionReference);
     internal string Fingerprint => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
         string.Join("\n", answers.Skip(authoritativeFrom)
@@ -48,9 +49,22 @@ internal sealed class LiveConversationProjection(GptLiveOptions options)
     internal string LatestInputReference => currentInputReference ?? "input-0";
     internal double LatestInputEnd => lastInputEnd;
     internal bool LatestIsCharacterControl => currentInputReference is not null && characterControls.Contains(currentInputReference);
-    internal void MarkLatestCharacterControl()
+    internal bool LatestCharacterControlInvalidatesEvidence => currentInputReference is not null && evidenceChangingControls.Contains(currentInputReference);
+    internal void MarkLatestCharacterControl(bool invalidatesEvidence = false)
     {
-        if (currentInputReference is not null) { characterControls.Add(currentInputReference); }
+        if (currentInputReference is not null)
+        {
+            characterControls.Add(currentInputReference);
+            if (invalidatesEvidence) { evidenceChangingControls.Add(currentInputReference); }
+        }
+    }
+    internal void ClearLatestCharacterControl()
+    {
+        if (currentInputReference is not null)
+        {
+            characterControls.Remove(currentInputReference);
+            evidenceChangingControls.Remove(currentInputReference);
+        }
     }
     internal void InvalidatePriorCharacterEvidence()
     {

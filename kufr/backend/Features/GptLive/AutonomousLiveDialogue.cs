@@ -535,8 +535,9 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                         CharacterSignalKind.AttributeToOther or CharacterSignalKind.CorrectEvidence or CharacterSignalKind.MarkFiction)
                     { projection.InvalidatePriorCharacterEvidence(); }
                     characterCorrectionPending = false;
-                    if (!change.EvidenceChanged && control is not null && control != CharacterSignalKind.RequestExpress)
-                    { projection.MarkLatestCharacterControl(); }
+                    if (control is not null && control != CharacterSignalKind.RequestExpress)
+                    { projection.MarkLatestCharacterControl(change.EvidenceChanged); }
+                    else { projection.ClearLatestCharacterControl(); }
                     if (change.CancelResponse) { await CancelResponse(); }
                     speechBlocked = control == CharacterSignalKind.RequestStopSpeech;
                     if (projection.Intent == LiveRequestIntent.Repeat && inputRepairSources.Add(projection.LatestInputReference)
@@ -590,7 +591,8 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                 {
                     terminalInputPending = false;
                     if (projection.Intent is LiveRequestIntent.Repeat or LiveRequestIntent.Thanks or LiveRequestIntent.Acknowledge
-                        || character is not null && projection.LatestIsCharacterControl)
+                        || character is not null && projection.LatestIsCharacterControl
+                            && !projection.LatestCharacterControlInvalidatesEvidence)
                     {
                         // An acknowledgment is not new selection evidence. A
                         // split first fragment may have advanced the projection
@@ -707,7 +709,8 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         // This check is after streaming; it blocks proposal publication, never
         // claims to undo words already heard or to validate every semantic fact.
         return !LiveTerminalSpeech.MentionsAnyCatalogTitle(speech, PartyWandCatalog.Available(63))
-            && !System.Text.RegularExpressions.Regex.IsMatch(speech, @"(?i)(slot|přihrádk)[\p{L}\s]*[1-7]|už.{0,20}(vyjela|vyjel|vysunut)|vezmi.{0,10}(ji|hůlku)");
+            && !LiveTerminalSpeech.MentionsCompartmentIdentifier(speech)
+            && !System.Text.RegularExpressions.Regex.IsMatch(speech, @"(?i)už.{0,20}(vyjela|vyjel|vysunut)|vezmi.{0,10}(ji|hůlku)");
     }
 
     private static bool HasSpeech(byte[] pcm, int threshold)

@@ -525,7 +525,9 @@
     "T16": {
       "tests": [
         "kufr/backend-tests/CharacterDirectorTests.cs#ProvenanceAndCorrections",
-        "kufr/backend-tests/CharacterDirectorTests.cs#SourceBoundsAndExplicitMotifs"
+        "kufr/backend-tests/CharacterDirectorTests.cs#SourceBoundsAndExplicitMotifs",
+        "kufr/backend-tests/AutonomousLiveTests.cs#VerifyCharacterControlEvidence",
+        "kufr/backend-tests/AutonomousLiveTests.cs#VerifyCharacterEvidenceWithdrawal"
       ],
       "layer": "A/B",
       "status": "guard_covered",
@@ -543,7 +545,9 @@
     "T18": {
       "tests": [
         "kufr/backend-tests/AutonomousLiveTests.cs#VerifyConversation",
-        "kufr/backend-tests/AutonomousLiveTests.cs#VerifyCharacterFlow"
+        "kufr/backend-tests/AutonomousLiveTests.cs#VerifyCharacterFlow",
+        "kufr/backend-tests/AutonomousLiveTests.cs#VerifyCharacterControlEvidence",
+        "kufr/backend-tests/AutonomousLiveTests.cs#VerifyCharacterEvidenceWithdrawal"
       ],
       "layer": "A/B",
       "status": "guard_covered",
@@ -603,7 +607,8 @@
     "T24": {
       "tests": [
         "kufr/backend-tests/AutonomousLiveTests.cs#RunAsync",
-        "kufr/backend-tests/CharacterOperationTests.cs#VerifyPublicationAndSnapshot"
+        "kufr/backend-tests/CharacterOperationTests.cs#VerifyPublicationAndSnapshot",
+        "kufr/backend-tests/AutonomousLiveTests.cs#RunCharacterAsync"
       ],
       "layer": "A/B",
       "status": "guard_covered",
@@ -882,7 +887,9 @@
       "tests": [
         "kufr/backend-tests/AutonomousLiveTests.cs#VerifyConversation",
         "kufr/backend-tests/AutonomousLiveTests.cs#VerifyCharacterFlow",
-        "kufr/backend-tests/AutonomousLiveTests.cs#VerifySplitVoiceControl"
+        "kufr/backend-tests/AutonomousLiveTests.cs#VerifySplitVoiceControl",
+        "kufr/backend-tests/AutonomousLiveTests.cs#VerifyCharacterControlEvidence",
+        "kufr/backend-tests/AutonomousLiveTests.cs#VerifyCharacterEvidenceWithdrawal"
       ],
       "layer": "A/B",
       "status": "guard_covered",
@@ -1030,7 +1037,9 @@
     "T69": {
       "tests": [
         "kufr/backend-tests/CharacterDirectorTests.cs#ProvenanceAndCorrections",
-        "kufr/backend-tests/CharacterDirectorTests.cs#SourceBoundsAndExplicitMotifs"
+        "kufr/backend-tests/CharacterDirectorTests.cs#SourceBoundsAndExplicitMotifs",
+        "kufr/backend-tests/AutonomousLiveTests.cs#VerifyCharacterControlEvidence",
+        "kufr/backend-tests/AutonomousLiveTests.cs#VerifyCharacterEvidenceWithdrawal"
       ],
       "layer": "A/B",
       "status": "guard_covered",

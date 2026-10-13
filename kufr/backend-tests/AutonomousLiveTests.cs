@@ -26,6 +26,15 @@ internal static class AutonomousLiveTests
         Check(!AutonomousLiveDialogue.LimitedTerminalReady("Poslední slovo a Knihovní bouře.")
             && AutonomousLiveDialogue.LimitedTerminalReady("Výběr mám. Mechanika mi nepotvrdila konec, zatím na to nesahej."),
             "limited publication rejects catalog identity, remains distinct from named");
+        foreach (var speech in new[] { "První přihrádka.", "V první přihrádce.", "Přihrádka šest.",
+            "Přihrádka číslo ŠEST.", "Druhou přihrádku.", "Slot 6.", "Šestý slot.", "Přihrádka 7.",
+            "Ze sedmi přihrádek.", "Přihrádka jednička.", "Přihrádka číslo 99.",
+            "Přihrádka: šest.", "Přihrádka č. 6.", "Slot číslo: dva.", "V osmé přihrádce." })
+        { Check(!AutonomousLiveDialogue.LimitedTerminalReady(speech), "limited rejects spoken slot: " + speech); }
+        foreach (var speech in new[] { "První dojem.", "Šest nápadů.", "Přihrádka zůstává zavřená.",
+            "Přihrádka je patřičně zavřená." })
+        { Check(AutonomousLiveDialogue.LimitedTerminalReady(speech), "unrelated number is not a slot: " + speech); }
+        VerifyCharacterControlEvidence(options);
         foreach (var profile in new[] { FinaleProfile.Blocked, FinaleProfile.Limited })
         {
             await VerifyCharacterFlow(options with { Character = options.Character with { FinaleProfile = profile } });
@@ -36,7 +45,80 @@ internal static class AutonomousLiveTests
         await VerifyCharacterCancellation(options);
         await VerifySplitVoiceControl(options);
         await VerifyPcmCancellationFence(options);
+        foreach (var control in new[] { "To řekl kamarád.", "To není pravda.", "To byl vtip." })
+        { await VerifyCharacterEvidenceWithdrawal(options, control); }
+        await VerifyCharacterEvidenceWithdrawal(options, "To řekl kamarád.", sameReference: true);
         Console.WriteLine("DV01 fake Live integration passed (no provider/audio hardware).");
+    }
+
+    private static void VerifyCharacterControlEvidence(GptLiveOptions options)
+    {
+        foreach (var text in new[] { "To řekl kamarád.", "To není pravda.", "To byl vtip." })
+        {
+            var projection = new LiveConversationProjection(options);
+            Append(projection, false, "Co chceš?", 0, 100);
+            Append(projection, true, "Chci létat.", 200, 300);
+            Append(projection, false, "Co dalšího?", 400, 500);
+            Append(projection, true, text, 600, 700);
+            projection.InvalidatePriorCharacterEvidence();
+            projection.MarkLatestCharacterControl(invalidatesEvidence: true);
+            Check(projection.Evidence().Count == 0 && projection.LatestCharacterControlInvalidatesEvidence
+                && projection.AnswerCandidates == 1, "pure withdrawal is neither replacement evidence nor diagnostic answer");
+            var controlReference = projection.LatestInputReference;
+            Append(projection, true, " Oprava, chci přesnost.", 800, 900);
+            projection.ClearLatestCharacterControl();
+            Check(projection.Evidence().Count == 1 && projection.Evidence()[0].Text.Contains("přesnost")
+                && !projection.LatestIsCharacterControl && !projection.LatestCharacterControlInvalidatesEvidence
+                && projection.LatestInputReference == controlReference, "same-source substantive replacement remains evidence");
+        }
+    }
+
+    private static async Task VerifyCharacterEvidenceWithdrawal(GptLiveOptions options, string control, bool sameReference = false)
+    {
+        using var clock = new ManualClock(); using var socket = new SocketFixture();
+        socket.BeforeDelivery = () => clock.Advance(50);
+        await using var connection = new GptLiveConnection(socket);
+        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var calls = 0;
+        using var decisions = new WandDecisionService((input, _) =>
+        {
+            calls++;
+            if (calls == 2)
+            {
+                Check(input.Evidence.Count == 1 && input.Evidence[0].Text.Contains("přesnost")
+                    && !input.Evidence[0].Text.Contains("klíče") && !input.Evidence[0].Text.Contains(control),
+                    "new decision uses replacement, not withdrawn fact or control");
+            }
+            Check(calls <= 2, "withdrawal does not create additional decisions");
+            return Task.FromResult(Proposal(input, calls));
+        });
+        var consumed = Channel.CreateUnbounded<string>();
+        var invalidated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var run = new AutonomousLiveDialogue(connection, decisions, clock).RunAsync(Call(options, lifetime),
+            (_, _) => Task.CompletedTask, (text, _) => { consumed.Writer.TryWrite(text); return Task.CompletedTask; },
+            _ => Task.CompletedTask, (_, _) => throw new Exception("Withdrawn candidate reached playback checkpoint"),
+            () => (63, 7, true), _ => Task.CompletedTask, lifetime.Token,
+            terminalState: state => { if (state == "input_changed") { invalidated.TrySetResult(); } });
+        await socket.Command("session.instructions.append", lifetime.Token);
+        socket.Transcript(false, "Co chceš kouzlem spravit?", 0, 1000);
+        socket.Transcript(true, "Ztrácím klíče denně. Prostě mi nějakou vyber.", 1100, 2000);
+        await consumed.Reader.ReadAsync(lifetime.Token); socket.Delegate("before-withdrawal", 2000); clock.Advance(1300);
+        await socket.Command("session.commentary.append", lifetime.Token);
+        socket.Transcript(false, "Výběr mám.", 3000, 4000);
+        socket.Transcript(true, control, 4100, 4500);
+        await consumed.Reader.ReadAsync(lifetime.Token);
+        await AdvanceUntilAsync(invalidated.Task, run, clock, lifetime.Token);
+        socket.Delegate("pure-withdrawal", 4500); clock.Advance(1300);
+        if (!sameReference) { socket.Transcript(false, "Co opravdu chceš?", 5000, 6000); }
+        socket.Transcript(true, " Oprava, chci přesnost. Vyber rovnou.", 6100, 7000);
+        await consumed.Reader.ReadAsync(lifetime.Token);
+        socket.Delegate("replacement", 7000); clock.Advance(1300);
+        var updated = socket.Command("session.commentary.append", lifetime.Token);
+        if (await Task.WhenAny(updated, run) == run) { await run; }
+        await updated;
+        Check(calls == 2 && !run.IsCompleted, "withdrawn terminal cannot publish; valid replacement can be recomputed");
+        lifetime.Cancel();
+        try { await run; } catch (OperationCanceledException) { }
     }
 
     private static async Task VerifyCharacterFlow(GptLiveOptions options, bool interrupted = false, bool express = false)

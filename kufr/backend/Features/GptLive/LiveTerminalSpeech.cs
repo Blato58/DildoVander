@@ -12,6 +12,18 @@ internal static class LiveTerminalSpeech
         var words = Words(spoken);
         return catalog.Any(wand => Mentions(words, wand.DisplayName));
     }
+    internal static bool MentionsCompartmentIdentifier(string spoken)
+    {
+        // Czech speech commonly spells numbers and declines ordinals. A limited
+        // finale must not publish any numbered compartment, even an invalid one.
+        const string compartment = @"(?:slot(?:u|em|y|ech|um|a)?|prihrad(?:ka|ku|ce|ky|ek|kam|kach|kami|kou))";
+        const string number = @"(?:\d+|jeden|jedn(?:a|u|e|o|y|ou)|dva|dve|dvou|dvema|tri|trech|tremi|ctyri|ctyrech|ctyrmi|pet|peti|pati|sest|sesti|sedm|sedmi|osm|osmi|devet|deviti|deset|deseti|(?:prvn|tret)(?:i|iho|imu|im|ich|imi)|(?:druh|ctvrt|pat|sest|sedm|osm|devat|desat)(?:y|a|e|ou|eho|emu|ych|ym|ymi|em)|(?:jednick|dvojk|trojk|ctyrk|petk|sestk|sedmick)(?:a|u|y|ou|e))";
+        const string gap = @"\s+(?:\p{L}+\s+){0,2}";
+        var tokens = string.Join(" ", Regex.Matches(Plain(spoken), @"\p{L}+|\d+",
+            RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(20)).Select(match => match.Value));
+        return Regex.IsMatch(tokens, $@"\b(?:{compartment}{gap}{number}|{number}{gap}{compartment})\b",
+            RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(20));
+    }
     private static readonly HashSet<string> CaseEndings = new(StringComparer.Ordinal)
         { "", "a", "e", "i", "o", "u", "y", "ou", "em", "im", "ym", "ho", "mu", "eho", "emu", "ovi", "ove", "ich", "ych", "ech", "um", "ami", "emi", "imi", "ymi" };
 
@@ -57,8 +69,8 @@ internal static class LiveTerminalSpeech
 
     private static string[] Words(string text)
     {
-        var plain = string.Concat(text.Normalize(NormalizationForm.FormD)
-            .Where(c => CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark)).ToLowerInvariant();
-        return Regex.Matches(plain, @"\p{L}+").Select(m => m.Value).ToArray();
+        return Regex.Matches(Plain(text), @"\p{L}+").Select(m => m.Value).ToArray();
     }
+    private static string Plain(string text) => string.Concat(text.Normalize(NormalizationForm.FormD)
+        .Where(c => CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark)).ToLowerInvariant();
 }
