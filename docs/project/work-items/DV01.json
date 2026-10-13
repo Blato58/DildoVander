@@ -107,7 +107,7 @@
     }
   ],
   "nextAction": "Resolve B-LIVE/B-VISION/B-PHYSICAL through explicitly authorized capability-specific acceptance; keep DV01 off and finale blocked by default. Current delivery: https://github.com/Blato58/DildoVander/pull/181.",
-  "currentNote": "Offline A–E implemented; named blocked, limited explicit opt-in, production visual permission_pending, live/audio hardware/physical/event_ready false. Implementation061ab1db667575adc73454a8b627ac2137ee7996 and first review fixesbf46a03411b0c4168567617cf166a0b1e27b2b01 pushed with verified remote HEAD. PR181 second Codex review: three further findings fixed with express/cache, UI refresh and persona-invariant regressions; independent follow-up clear. Current local replay, HTTP smoke, web62/build and fresh production browser checks passed. Git/CI delivery is inspectable in PR181. No paid calls, deployment or flash.",
+  "currentNote": "Offline A–E implemented; named blocked, limited explicit opt-in, production visual permission_pending, live/audio hardware/physical/event_ready false. Implementation061ab1db667575adc73454a8b627ac2137ee7996; final review fixes0b6e1cd9c170b15de4595dd9a3271810d2e4f09c. Both pushed with Push-CurrentBranch.ps1 and verified remote HEAD. PR181: both Codex reviews completed; all five findings fixed, regression-tested, independently re-reviewed and threads resolved. Current local replay/HTTP smoke, web62/build and fresh production Browser checks passed. Hosted CI/Git delivery inspectable in PR181. No paid calls, deployment or flash.",
   "implementedSubject": {
     "artifactDigest": "e124ed1c994a859a9cac0f23f40ccec5e77905d9ae15ee67ce0be7854e27293a",
     "policyVersion": "dv01-director-v1"
