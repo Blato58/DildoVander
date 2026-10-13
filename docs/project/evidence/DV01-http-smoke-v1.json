@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "DV01-http-smoke-v1",
+  "observedAtUtc": "2026-10-13T22:02:13.173857+00:00",
+  "kind": "unit",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "DV01",
+      "criterionId": "CORE",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "393452e4214db16e58f75fd1ab8805e491056779ee0ed05f7b7e523e72289346",
+    "policyVersion": "dv01-director-v1",
+    "smokeArtifactDigest": "2bf83e3e169fd9b2c2b94d78e428536cab7c34f168bf6b03ee494b603911299e"
+  },
+  "method": "node kufr/backend/tests/smoke.mjs",
+  "environment": "Windows local backend HTTP, SDK10.0.303, random fake credentials/temporary SQLite, no provider.",
+  "limitations": [
+    "No paid Live, native iOS execution, physical audio/reveal or deployment.",
+    "This receipt adds a scoped check; full initiative LIVE/PHYSICAL criteria remain open."
+  ],
+  "observation": "HTTP smoke passed after adding the intentional DV01 diagnostic fields to the exact expected feature-off object. Existing auth/fake voice/evening scope/restart guards remain exercised. Initial hosted smoke assertion failed on additive fields, not backend console tests.",
+  "artifactRefs": [
+    "kufr/backend/tests/smoke.mjs"
+  ]
+}

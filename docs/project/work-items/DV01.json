@@ -35,7 +35,9 @@
         "DV01-local-unit-v1",
         "DV01-local-integration-v1",
         "DV01-local-source_review-v1",
-        "DV01-local-browser-v1"
+        "DV01-local-browser-v1",
+        "DV01-http-smoke-v1",
+        "DV01-linux-host-v1"
       ]
     },
     {
@@ -96,7 +98,7 @@
     }
   ],
   "nextAction": "Review/merge verified offline A–E slice; then resolve B-LIVE/B-VISION/B-PHYSICAL with explicitly authorized capability-specific acceptance. Keep DV01 off and finale blocked by default.",
-  "currentNote": "Offline A–E implemented with conservative capability gates; R01–R34/T01–T80 mapped. Named blocked; limited explicit opt-in; visual permission_pending; live/audio hardware/physical/event_ready false. No paid calls, deployment or flash. Implementační commit 061ab1db667575adc73454a8b627ac2137ee7996; Push-CurrentBranch.ps1 úspěšně ověřil shodný remote HEAD na codex/dv01-character. PR/CI/merge zatím neověřeny.",
+  "currentNote": "Offline A–E implemented; R01–R34/T01–T80 mapped. Named blocked; limited explicit opt-in; visual permission_pending; live/audio hardware/physical/event_ready false. Implementation061ab1db667575adc73454a8b627ac2137ee7996 and tracking89d4d28f171a82fa9c513829a1e9c4f861d2659d pushed and verified. PR181: hosted Linux host tests passed; initial HTTP smoke failed on additive DV01 diagnostics, expected shape updated and local HTTP smoke passed. CI recheck/Codex review/merge pending. No paid calls, deployment or flash.",
   "implementedSubject": {
     "artifactDigest": "393452e4214db16e58f75fd1ab8805e491056779ee0ed05f7b7e523e72289346",
     "policyVersion": "dv01-director-v1"
