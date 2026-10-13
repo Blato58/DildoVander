@@ -41,7 +41,8 @@
         "DV01-post-review-unit-v2",
         "DV01-post-review-integration-v2",
         "DV01-post-review-source_review-v2",
-        "DV01-post-review-browser-v2"
+        "DV01-post-review-browser-v2",
+        "DV01-production-browser-v3"
       ]
     },
     {
