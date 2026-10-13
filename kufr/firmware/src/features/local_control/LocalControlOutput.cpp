@@ -12,6 +12,19 @@ namespace {
 
 constexpr uint64_t MaximumInteger = 9007199254740991ULL;
 
+std::string DanceStatusJson(const kufr::dance::DanceStatus& status) {
+  std::string json = "{\"available\":" + std::string(status.available ? "true" : "false") +
+      ",\"phase\":\"" + status.phase + "\",\"track\":";
+  if (status.track.empty()) json += "null";
+  else AppendJsonString(status.track, json);
+  json += ",\"positionMs\":" + std::to_string(status.positionMs) +
+      ",\"durationMs\":" + std::to_string(status.durationMs) +
+      ",\"bpm\":" + std::to_string(status.bpm) + ",\"error\":";
+  if (status.error.empty()) json += "null";
+  else AppendJsonString(status.error, json);
+  return json + "}";
+}
+
 bool ValidDeviceId(const std::string& value) {
   if (value.empty() || value.size() > 64 || value[0] < 'a' || value[0] > 'z') {
     return false;
@@ -77,8 +90,8 @@ LocalControlOutput::LocalControlOutput(
     const std::string& deviceId, const std::string& bootId, DeviceControl& control,
     PersistentCommandJournal& journal, SafetyController& safety,
     SelectionSequence& selection, ConversationSession& conversation,
-    LocalControlTransport& transport, LocalVoicePort* voice)
-    : voice_(voice), deviceId_(deviceId), bootId_(bootId), control_(control), journal_(journal),
+    LocalControlTransport& transport, LocalVoicePort* voice, kufr::dance::LocalDancePort* dance)
+    : voice_(voice), dance_(dance), deviceId_(deviceId), bootId_(bootId), control_(control), journal_(journal),
       safety_(safety), selection_(selection), conversation_(conversation),
       transport_(transport) {}
 
@@ -103,6 +116,7 @@ const char* LocalControlOutput::Phase(bool liveLease) const {
   if (safety_.IsStopped()) {
     return "stopped";
   }
+  if (dance_ && kufr::dance::IsDanceActive(dance_->DanceState())) return "dancing";
   if (control_.HasManualControl() && !liveLease) {
     return "recoveryRequired";
   }
@@ -203,7 +217,8 @@ bool LocalControlOutput::BuildSnapshot(
       ",\"conversation\":{\"conversationId\":\"" + conversation_.ConversationId() +
       "\",\"generation\":" + std::to_string(conversation_.Generation()) +
       ",\"activeTurnId\":" + NullableUuid(conversation_.ActiveTurnId()) + "}" +
-      (voice_ ? ",\"voice\":" + VoiceStatusJson(voiceStatus) : "") + "}";
+      (voice_ ? ",\"voice\":" + VoiceStatusJson(voiceStatus) : "") +
+      (dance_ ? ",\"dance\":" + DanceStatusJson(dance_->DanceState()) : "") + "}";
   return true;
 }
 
@@ -320,4 +335,13 @@ bool LocalControlOutput::VoiceAck(const LocalSocketAdmission::Handle& handle,
   return Send(handle, "{\"protocolVersion\":1,\"type\":\"voice.ack\",\"bootId\":\"" + bootId_ +
       "\",\"requestMessageId\":\"" + request.messageId + "\",\"accepted\":" +
       (accepted ? "true" : "false") + ",\"voice\":" + VoiceStatusJson(voice_ ? voice_->VoiceStatus() : LocalVoiceStatus{}) + "}");
+}
+
+bool LocalControlOutput::DanceAck(const LocalSocketAdmission::Handle& handle,
+                                 const LocalControlMessage& request, bool accepted) {
+  if (!IsConversationUuid(request.messageId) || !AdvanceEvent()) return false;
+  return Send(handle, "{\"protocolVersion\":1,\"type\":\"dance.ack\",\"bootId\":\"" + bootId_ +
+      "\",\"requestMessageId\":\"" + request.messageId + "\",\"accepted\":" +
+      (accepted ? "true" : "false") + ",\"dance\":" +
+      DanceStatusJson(dance_ ? dance_->DanceState() : kufr::dance::DanceStatus{}) + "}");
 }

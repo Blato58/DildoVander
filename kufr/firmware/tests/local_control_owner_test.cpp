@@ -100,6 +100,10 @@ class Output final : public LocalControlOutputPort {
     lastVoiceAccepted = admitted; return accept;
   }
   bool lastVoiceAccepted = false;
+  bool DanceAck(const LocalSocketAdmission::Handle&, const LocalControlMessage&, bool admitted) override {
+    lastDanceAccepted = admitted; return accept;
+  }
+  bool lastDanceAccepted = false;
   bool Welcome(const LocalSocketAdmission::Handle&, const std::string&,
                 uint64_t) override { ++welcomes; return accept; }
   bool Snapshot(const LocalSocketAdmission::Handle&, const std::string& lease,
@@ -213,7 +217,8 @@ class Steps final : public LocalControlStepPort {
 
 class Voice final : public LocalVoicePort {
  public:
-  LocalVoiceStatus VoiceStatus() const override { return {}; }
+  LocalVoiceStatus VoiceStatus() const override { return status; }
+  LocalVoiceStatus status;
   bool ConfigureVoice(const std::string& mode, const std::string& chosen) override {
     ++configured; return mode == "realtime" && chosen == "cedar";
   }
@@ -225,6 +230,17 @@ class Voice final : public LocalVoicePort {
   uint64_t lastRevision = 0;
 };
 
+class Dance final : public kufr::dance::LocalDancePort {
+ public:
+  kufr::dance::DanceStatus DanceState() const override { return status; }
+  bool StartDance(const std::string&) override { ++starts; status.phase = "starting"; return true; }
+  void StopDance() override {
+    if (kufr::dance::IsDanceActive(status)) { ++stops; status.phase = "stopping"; }
+  }
+  kufr::dance::DanceStatus status;
+  int starts = 0, stops = 0;
+};
+
 struct Fixture {
   Fixture()
       : safety(port), sequence(safety),
@@ -233,7 +249,7 @@ struct Fixture {
         conversation(Boot, Conversation), inbox("kufr-001", Boot),
         transport(inbox), output(inbox, clock),
         owner("kufr-001", Boot, runtime, state, conversation, network,
-              inbox, transport, output, ids, recovery, steps, clock, &voice) {
+              inbox, transport, output, ids, recovery, steps, clock, &voice, &dance) {
     safety.InitializeSafe();
     assert(runtime.RecoverAfterInspection());
   }
@@ -288,6 +304,7 @@ struct Fixture {
   Recovery recovery;
   Steps steps;
   Voice voice;
+  Dance dance;
   LocalControlOwner owner;
   LocalSocketAdmission::Handle handle{7, 1};
 };
@@ -541,6 +558,39 @@ void TestMaintenanceReservation() {
 }  // namespace
 
 int main() {
+  {
+    Fixture fixture;
+    fixture.Connect();
+    fixture.Submit(LocalControlMessageKind::DanceStart);
+    assert(!fixture.output.lastDanceAccepted && fixture.dance.starts == 0);
+    fixture.owner.SetDanceAdmission(true);
+    auto stale = fixture.Message(LocalControlMessageKind::DanceStart);
+    ++stale.expectedRevision;
+    fixture.inbox.Submit(fixture.handle, stale); fixture.Poll(100);
+    assert(!fixture.output.lastDanceAccepted && fixture.dance.starts == 0);
+    fixture.voice.status.phase = "listening";
+    fixture.Submit(LocalControlMessageKind::DanceStart);
+    assert(!fixture.output.lastDanceAccepted && fixture.dance.starts == 0);
+    fixture.voice.status.phase = "idle";
+    fixture.Submit(LocalControlMessageKind::DanceStart);
+    assert(fixture.output.lastDanceAccepted && fixture.dance.starts == 1);
+    ConversationRuntimeSnapshot snapshot;
+    assert(!fixture.state.Read(snapshot));
+    fixture.Submit(LocalControlMessageKind::DanceStart);
+    assert(!fixture.output.lastDanceAccepted && fixture.dance.starts == 1);
+    fixture.inbox.Disconnect(fixture.handle); fixture.Poll(100);
+    assert(fixture.dance.stops == 0); // Observer disconnect preserves dance.
+    fixture.handle = {8, 2}; fixture.Connect();
+    fixture.Submit(LocalControlMessageKind::Stop);
+    assert(fixture.dance.stops == 1);
+  }
+  {
+    Fixture fixture;
+    fixture.Connect(); fixture.owner.SetDanceAdmission(true);
+    fixture.Submit(LocalControlMessageKind::Acquire);
+    fixture.Submit(LocalControlMessageKind::DanceStart);
+    assert(!fixture.output.lastDanceAccepted && fixture.dance.starts == 0);
+  }
   TestMaintenanceReservation();
   TestStandaloneVoice();
   TestHelloAndObserver();

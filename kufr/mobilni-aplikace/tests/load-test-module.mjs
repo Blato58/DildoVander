@@ -10,6 +10,8 @@ export async function loadDeviceModule(name) {
     if (moduleName === 'SimulatorDeviceConnection') {
       const voice = await compile('LocalVoiceClient');
       compiled = compiled.replace(/(['"])\.\/LocalVoiceClient\1/g, JSON.stringify(voice));
+      const dance = await compile('LocalDanceClient');
+      compiled = compiled.replace(/(['"])\.\/LocalDanceClient\1/g, JSON.stringify(dance));
       const conversation = await compile('LocalConversationClient');
       compiled = compiled.replace(/(['"])\.\/LocalConversationClient\1/g, JSON.stringify(conversation));
     }

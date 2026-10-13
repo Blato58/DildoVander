@@ -90,31 +90,47 @@ SdStatus EspIdfSdAssets::Status() const {
 }
 bool EspIdfSdAssets::Reserved() const {
   if (!mutex_) return false;
-  Lock lock(mutex_); return reserved_;
+  Lock lock(mutex_); return reserved_ || playbackReserved_;
+}
+bool EspIdfSdAssets::TryReservePlayback() {
+  if (!mutex_) return false;
+  Lock lock(mutex_);
+  if (!verified_ || !card_ || playbackReserved_ || reserved_ ||
+      active_ != Work::None || pending_ != Work::None || resultReady_ || statReady_) return false;
+  playbackReserved_ = true;
+  return true;
+}
+void EspIdfSdAssets::ReleasePlayback() {
+  if (!mutex_) return;
+  Lock lock(mutex_); playbackReserved_ = false;
+}
+bool EspIdfSdAssets::PlaybackReserved() const {
+  if (!mutex_) return false;
+  Lock lock(mutex_); return playbackReserved_;
 }
 bool EspIdfSdAssets::RequestMount() {
   if (!mutex_) return false;
   Lock lock(mutex_);
-  if (!verified_ || card_ || active_ != Work::None || pending_ != Work::None || resultReady_ || statReady_) return false;
+  if (!verified_ || card_ || playbackReserved_ || active_ != Work::None || pending_ != Work::None || resultReady_ || statReady_) return false;
   pending_ = Work::Mount; status_.state = "waiting-idle"; return true;
 }
 bool EspIdfSdAssets::RequestRead(const std::string& name, size_t maximumBytes) {
   if (!mutex_ || !IsAssetFilename(name) || maximumBytes == 0 || maximumBytes > MaximumAssetBytes) return false;
   Lock lock(mutex_);
-  if (!card_ || active_ != Work::None || pending_ != Work::None || resultReady_ || statReady_) return false;
+  if (!card_ || playbackReserved_ || active_ != Work::None || pending_ != Work::None || resultReady_ || statReady_) return false;
   name_ = name; maximumBytes_ = maximumBytes;
   pending_ = Work::Read; status_.state = "waiting-idle"; return true;
 }
 bool EspIdfSdAssets::RequestStat(const std::string& name) {
   if (!mutex_ || !IsAssetFilename(name)) return false;
   Lock lock(mutex_);
-  if (!card_ || active_ != Work::None || pending_ != Work::None || resultReady_ || statReady_) return false;
+  if (!card_ || playbackReserved_ || active_ != Work::None || pending_ != Work::None || resultReady_ || statReady_) return false;
   name_ = name; pending_ = Work::Stat; status_.state = "waiting-idle"; return true;
 }
 bool EspIdfSdAssets::RequestUnmount() {
   if (!mutex_) return false;
   Lock lock(mutex_);
-  if (!card_ || active_ != Work::None || pending_ != Work::None) return false;
+  if (!card_ || playbackReserved_ || active_ != Work::None || pending_ != Work::None) return false;
   pending_ = Work::Unmount; status_.state = "waiting-idle"; return true;
 }
 void EspIdfSdAssets::Tick(bool safeIdle) {
@@ -122,7 +138,7 @@ void EspIdfSdAssets::Tick(bool safeIdle) {
   bool notify = false;
   {
     Lock lock(mutex_);
-    if (safeIdle && pending_ != Work::None && active_ == Work::None) {
+    if (safeIdle && !playbackReserved_ && pending_ != Work::None && active_ == Work::None) {
       reserved_ = true; active_ = pending_; pending_ = Work::None;
       status_.state = active_ == Work::Mount ? "mounting" :
           active_ == Work::Read ? "reading" : active_ == Work::Stat ? "stat" : "unmounting";

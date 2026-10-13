@@ -1,4 +1,5 @@
 import type { LocalVoiceState } from './LocalVoiceClient';
+import type { LocalDanceState } from './LocalDanceClient';
 import type { LocalConversationState } from './LocalConversationClient';
 
 export type ControlMode = 'observer' | 'manual';
@@ -15,6 +16,7 @@ export interface DeviceSnapshot {
   status: string;
   conversation?: LocalConversationState;
   voice?: LocalVoiceState;
+  dance?: LocalDanceState;
   diagnostics?: {
     bootId: string;
     devicePhase: string;

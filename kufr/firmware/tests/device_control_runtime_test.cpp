@@ -209,6 +209,21 @@ void TestFailureAndLeaseLoss() {
 }  // namespace
 
 int main() {
+  {
+    Fixture fixture;
+    assert(fixture.runtime.RecoverAfterInspection());
+    ConversationRuntimeSnapshot before;
+    assert(fixture.state.Read(before));
+    fixture.runtime.SetExternalActivity(true);
+    assert(!fixture.state.Matches(before));
+    assert(!fixture.runtime.AcquireManualControl("lease-1", 0));
+    assert(!fixture.runtime.RecoverAfterInspection());
+    assert(fixture.runtime.AcceptSelection(fixture.Selection(before.deviceRevision), true, 0).error == CommandError::Busy);
+    fixture.runtime.SetExternalActivity(false);
+    ConversationRuntimeSnapshot after;
+    assert(fixture.state.Read(after) && after.generation == before.generation + 1);
+    assert(!fixture.state.Matches(before));
+  }
   TestDurableTransitions();
   TestFailureAndLeaseLoss();
 }

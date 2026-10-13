@@ -71,6 +71,14 @@ class Transport final : public LocalControlTransport {
   std::vector<std::string> messages;
 };
 
+class Dance final : public kufr::dance::LocalDancePort {
+ public:
+  kufr::dance::DanceStatus DanceState() const override { return status; }
+  bool StartDance(const std::string&) override { return false; }
+  void StopDance() override {}
+  kufr::dance::DanceStatus status;
+};
+
 class Voice final : public LocalVoicePort {
  public:
   LocalVoiceStatus VoiceStatus() const override { return status; }
@@ -86,7 +94,7 @@ struct Fixture {
         control("kufr-001", Boot, sequence, journal, calibration),
         conversation(Boot, Conversation),
         output("kufr-001", Boot, control, journal, safety, sequence,
-               conversation, transport, &voice) {
+               conversation, transport, &voice, &dance) {
     safety.InitializeSafe();
   }
   bool Snapshot(const std::string& lease = "", uint64_t nowMs = 100) {
@@ -126,6 +134,7 @@ struct Fixture {
   ConversationSession conversation;
   Transport transport;
   Voice voice;
+  Dance dance;
   LocalControlOutput output;
 };
 
@@ -285,6 +294,21 @@ void TestTerminalResultsAndPhases() {
 }  // namespace
 
 int main() {
+  {
+    Fixture fixture;
+    fixture.Ready();
+    fixture.dance.status.available = true;
+    fixture.dance.status.phase = "playing";
+    fixture.dance.status.track = "song.wav";
+    fixture.dance.status.positionMs = 1500;
+    fixture.dance.status.durationMs = 10000;
+    fixture.dance.status.bpm = 120;
+    assert(fixture.Snapshot());
+    assert(fixture.transport.messages.back().find("\"phase\":\"dancing\"") != std::string::npos);
+    LocalControlMessage request;
+    request.messageId = Command;
+    assert(fixture.output.DanceAck({7, 1}, request, true));
+  }
   TestCurrentStateAndBounds();
   TestAcceptanceAndIdleStop();
   TestCommandAndConversationAcks();

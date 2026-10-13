@@ -43,6 +43,7 @@ class DeviceControlRuntime final {
   bool Stop(SelectionStep& step);
 
   bool PublishCurrent();
+  void SetExternalActivity(bool active);
   uint64_t Generation() const;
   bool HasAutonomousPresentation() const;
 
@@ -58,5 +59,6 @@ class DeviceControlRuntime final {
   uint64_t publishedRevision_ = 0;
   uint8_t publishedReadyMask_ = 0;
   bool published_ = false;
+  bool externalActivity_ = false;
   WandPresentation* presentation_ = nullptr;
 };

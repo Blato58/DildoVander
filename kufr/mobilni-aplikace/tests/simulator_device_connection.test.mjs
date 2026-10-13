@@ -129,6 +129,30 @@ function startConnection() {
   return { connection, socket };
 }
 
+test('dance confirmation blocks voice/manual controls and reconnect never replays music', () => {
+  const { connection, socket } = startConnection();
+  const dance = { available: true, phase: 'idle', track: null, positionMs: 0, durationMs: 0, bpm: 0, error: null };
+  const voice = { available: true, mode: 'realtime', voice: 'marin', phase: 'idle', error: null };
+  socket.message(snapshot({ eventSequence: 2, dance, voice }));
+  assert.equal(connection.startDance(), true);
+  assert.equal(connection.acquire(), false);
+  assert.equal(connection.startVoice(), false);
+  const request = socket.sent.at(-1);
+  socket.message({ protocolVersion: 1, type: 'dance.ack', bootId, requestMessageId: request.messageId,
+    accepted: true, dance: { ...dance, phase: 'starting' } });
+  assert.equal(connection.snapshot().phase, 'running');
+  assert.equal(connection.snapshot().voice.canStart, false);
+  socket.message(snapshot({ eventSequence: 3, phase: 'dancing', dance: { ...dance, phase: 'playing',
+    track: 'song.wav', positionMs: 1000, durationMs: 10000, bpm: 120 }, voice }));
+  assert.equal(connection.snapshot().dance.track, 'song.wav');
+  assert.equal(connection.startDance(), false);
+  assert.equal(connection.stopDance(), true);
+  const starts = socket.sent.filter(message => message.type === 'dance.start').length;
+  socket.close();
+  assert.equal(connection.snapshot().dance.canStart, false);
+  assert.equal(starts, 1);
+});
+
 function acquire(connection, socket, leaseId = randomUUID(), eventSequence = 2) {
   assert.equal(connection.acquire(), true);
   socket.message(snapshot({

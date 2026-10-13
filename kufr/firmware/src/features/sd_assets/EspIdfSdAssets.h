@@ -19,6 +19,9 @@ class EspIdfSdAssets final {
   bool TakeReadResult(AssetBytes& output, std::string& error);
   bool TakeStatResult(AssetInfo& info, std::string& error);
   bool Reserved() const;
+  bool TryReservePlayback();
+  void ReleasePlayback();
+  bool PlaybackReserved() const;
   SdStatus Status() const;
  private:
   friend struct SdAssetsTestAccess;
@@ -35,6 +38,7 @@ class EspIdfSdAssets final {
   Work active_ = Work::None;
   bool verified_ = false;
   bool reserved_ = false;
+  bool playbackReserved_ = false;
   bool resultReady_ = false;
   bool statReady_ = false;
   std::string name_;

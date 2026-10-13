@@ -1,10 +1,12 @@
 import { LocalVoiceClient, type VoiceSettings } from './LocalVoiceClient';
+import { LocalDanceClient, danceActive, type DanceSettings } from './LocalDanceClient';
 import type { DeviceSnapshot } from './FakeDeviceConnection';
 import { LocalConversationClient, type ConversationDeviceState } from './LocalConversationClient';
 
 interface ProtocolSnapshot extends ConversationDeviceState {
   type: 'state.snapshot';
   voice?: VoiceSettings;
+  dance?: DanceSettings;
   deviceId: string;
   bootId: string;
   deviceUptimeMs: number;
@@ -76,6 +78,9 @@ export class ProtocolDeviceConnection {
   private readonly voice = new LocalVoiceClient(
     (message) => this.send(message), () => this.publish(), () => this.socket?.close(),
   );
+  private readonly dance = new LocalDanceClient(
+    (message) => this.send(message), () => this.publish(), () => this.socket?.close(),
+  );
   private readonly conversation = new LocalConversationClient(
     (message) => this.send(message),
     () => this.publish(),
@@ -132,10 +137,12 @@ export class ProtocolDeviceConnection {
   }
 
   configureVoice(mode: VoiceSettings['mode'], voice: VoiceSettings['voice']): boolean {
-    return this.voice.configure(mode, voice);
+    return !this.dance.state().canStop && this.voice.configure(mode, voice);
   }
-  startVoice(imageConsent = false): boolean { return this.voice.start(imageConsent); }
+  startVoice(imageConsent = false): boolean { return !this.dance.state().canStop && this.voice.start(imageConsent); }
   stopVoice(): boolean { return this.voice.stop(); }
+  startDance(): boolean { return !this.state.busy && !this.voice.state().pending && this.dance.start(); }
+  stopDance(): boolean { return this.dance.stop(); }
 
   cancelConversation(): boolean {
     return this.conversation.cancel();
@@ -183,6 +190,7 @@ export class ProtocolDeviceConnection {
         this.awaitingRevision = null;
         this.requests.clear();
         this.voice.invalidate();
+        this.dance.invalidate();
         this.conversation.invalidate();
         this.clearTimers();
         this.stableSince = null;
@@ -217,6 +225,7 @@ export class ProtocolDeviceConnection {
   }
 
   acquire(): boolean {
+    if (this.dance.state().canStop) return false;
     if (!this.device || this.state.controlMode !== 'observer' ||
         this.state.phase !== 'ready' || this.state.busy) {
       return false;
@@ -411,6 +420,8 @@ export class ProtocolDeviceConnection {
       }
     } else if (message.type === 'voice.ack') {
       this.voice.receive(message);
+    } else if (message.type === 'dance.ack') {
+      this.dance.receive(message);
     } else if (message.type === 'conversation.ack' || message.type === 'conversation.result') {
       this.conversation.receive(message);
     } else if (message.type === 'command.ack') {
@@ -552,6 +563,8 @@ export class ProtocolDeviceConnection {
         ? this.unresolvedCommand !== null
           ? 'Výsledek předchozího povelu je nejistý. Ovládání vyžaduje servisní kontrolu.'
           : 'Simulátor vyžaduje servisní kontrolu. Obnovení se provádí mimo mobilní UI.'
+        : snapshot.phase === 'dancing'
+          ? 'Kufr přehrává skladbu a tančí.'
         : snapshot.activeCommandId
           ? 'Na simulátoru běží výběr; čekám na výsledek.'
           : snapshot.readyMask < previousMask
@@ -563,6 +576,7 @@ export class ProtocolDeviceConnection {
             : 'Připojeno k hostitelskému E2 simulátoru v režimu pozorování.',
     };
     this.voice.update(snapshot);
+    this.dance.update(snapshot);
     this.conversation.update(snapshot);
     this.publish();
   }
@@ -799,8 +813,12 @@ export class ProtocolDeviceConnection {
   }
 
   private viewSnapshot(): DeviceSnapshot {
+    const dance = this.dance.state();
+    const voice = this.voice.state();
     const snapshot = {
       ...this.state,
+      busy: this.state.busy || dance.pending,
+      phase: this.state.phase === 'ready' && danceActive(dance.phase) ? 'running' as const : this.state.phase,
       diagnostics: this.device === null ? undefined : {
         bootId: this.device.bootId,
         devicePhase: this.device.phase,
@@ -810,7 +828,9 @@ export class ProtocolDeviceConnection {
         roundTripMs: Number.isFinite(this.roundTripMs) ? Math.round(this.roundTripMs) : null,
         faultCount: this.device.faults.length,
       },
-      voice: this.voice.state(),
+      voice: { ...voice, canStart: voice.canStart && !dance.canStop,
+        canConfigure: voice.canConfigure && !dance.canStop },
+      dance: { ...dance, canStart: dance.canStart && !voice.pending && !this.state.busy },
       conversation: this.conversation.snapshot(
         this.state.controlMode === 'manual' && this.state.phase === 'ready' && !this.state.busy,
       ),

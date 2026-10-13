@@ -34,6 +34,11 @@ int main() {
   sd.Tick(true); assert(sd.Reserved() && sd.Status().state == "mounting");
   SdAssetsTestAccess::Run(sd);
   assert(sd.Status().state == "mounted" && !sd.Reserved() && sd_fake::mounted);
+  assert(sd.TryReservePlayback() && sd.Reserved() && sd.PlaybackReserved());
+  assert(!sd.TryReservePlayback() && !sd.RequestRead("asset.bin", 16) &&
+      !sd.RequestStat("asset.bin") && !sd.RequestUnmount() && !sd.RequestMount());
+  sd.Tick(true); assert(sd_fake::unmounts == 0);
+  sd.ReleasePlayback(); assert(!sd.Reserved() && !sd.PlaybackReserved());
   assert(sd_fake::configuredSlot.width == 1 && sd_fake::configuredSlot.cmd == 38 &&
       sd_fake::configuredSlot.clk == 39 && sd_fake::configuredSlot.d0 == 40 && sd_fake::configuredSlot.flags == 0);
   assert(sd_fake::configuredHost.flags == SDMMC_HOST_FLAG_1BIT && sd_fake::configuredHost.command_timeout_ms == 1000);
@@ -47,19 +52,24 @@ int main() {
   sdmmc_command_t outbound{42, 512, 0};
   assert(sd_fake::configuredHost.do_transaction(1, &outbound) == ESP_ERR_NOT_SUPPORTED);
   assert(sd.RequestRead("missing-asset.bin", 16));
+  assert(!sd.TryReservePlayback());
   sd.Tick(false); assert(!sd.Reserved());
   sd.Tick(true); SdAssetsTestAccess::Run(sd);
+  assert(!sd.TryReservePlayback());
   AssetBytes bytes; std::string error;
   assert(sd.TakeReadResult(bytes, error) && bytes.size == 0 && error == "asset-open-failed");
   assert(!sd.TakeReadResult(bytes, error));
   assert(!sd.RequestStat("../secret"));
   assert(sd.RequestStat("missing-asset.bin"));
+  assert(!sd.TryReservePlayback());
   sd.Tick(true); SdAssetsTestAccess::Run(sd);
   AssetInfo info;
   assert(!sd.RequestRead("other.bin", 16));  // Consume the outstanding stat first.
+  assert(!sd.TryReservePlayback());
   assert(sd.TakeStatResult(info, error) && error == "asset-open-failed");
   assert(!sd.TakeStatResult(info, error));
   assert(sd.RequestUnmount()); sd.Tick(true); SdAssetsTestAccess::Run(sd);
+  assert(!sd.TryReservePlayback());
   assert(sd.Status().state == "unmounted" && !sd_fake::mounted && sd_fake::unmounts == 1 && sd_fake::cleanups == 1);
   sd_fake::Reset(); sd_fake::mountSuccess = false;
   EspIdfSdAssets failed;

@@ -3,6 +3,9 @@
   "$id": "urn:kufr:control-message:v1",
   "title": "Kufr local control messages v1",
   "oneOf": [
+    { "$ref": "#/$defs/danceStart" },
+    { "$ref": "#/$defs/danceStop" },
+    { "$ref": "#/$defs/danceAck" },
     { "$ref": "#/$defs/voiceConfigure" },
     { "$ref": "#/$defs/voiceStart" },
     { "$ref": "#/$defs/voiceStop" },
@@ -28,6 +31,46 @@
     { "$ref": "#/$defs/safetyReset" }
   ],
   "$defs": {
+    "danceStart": {
+      "type": "object", "additionalProperties": false,
+      "required": ["protocolVersion", "type", "messageId", "deviceId", "bootId", "expectedRevision"],
+      "properties": {
+        "protocolVersion": { "const": 1 }, "type": { "const": "dance.start" },
+        "messageId": { "$ref": "#/$defs/uuid" }, "deviceId": { "$ref": "#/$defs/deviceId" },
+        "bootId": { "$ref": "#/$defs/uuid" }, "expectedRevision": { "$ref": "#/$defs/safeInteger" }
+      }
+    },
+    "danceStop": {
+      "type": "object", "additionalProperties": false,
+      "required": ["protocolVersion", "type", "messageId", "deviceId", "bootId"],
+      "properties": {
+        "protocolVersion": { "const": 1 }, "type": { "const": "dance.stop" },
+        "messageId": { "$ref": "#/$defs/uuid" }, "deviceId": { "$ref": "#/$defs/deviceId" },
+        "bootId": { "$ref": "#/$defs/uuid" }
+      }
+    },
+    "danceStatus": {
+      "type": "object", "additionalProperties": false,
+      "required": ["available", "phase", "track", "positionMs", "durationMs", "bpm", "error"],
+      "properties": {
+        "available": { "type": "boolean" },
+        "phase": { "enum": ["unavailable", "idle", "starting", "playing", "stopping", "completed", "failed"] },
+        "track": { "anyOf": [{ "type": "null" }, { "type": "string", "maxLength": 64, "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,59}\\.wav$" }] },
+        "positionMs": { "type": "integer", "minimum": 0, "maximum": 600000 },
+        "durationMs": { "type": "integer", "minimum": 0, "maximum": 600000 },
+        "bpm": { "type": "integer", "minimum": 0, "maximum": 240 },
+        "error": { "anyOf": [{ "type": "null" }, { "type": "string", "maxLength": 64, "pattern": "^dance_[a-z_]+$" }] }
+      }
+    },
+    "danceAck": {
+      "type": "object", "additionalProperties": false,
+      "required": ["protocolVersion", "type", "bootId", "requestMessageId", "accepted", "dance"],
+      "properties": {
+        "protocolVersion": { "const": 1 }, "type": { "const": "dance.ack" },
+        "bootId": { "$ref": "#/$defs/uuid" }, "requestMessageId": { "$ref": "#/$defs/uuid" },
+        "accepted": { "type": "boolean" }, "dance": { "$ref": "#/$defs/danceStatus" }
+      }
+    },
     "voiceConfigure": {
       "type": "object",
       "additionalProperties": false,
@@ -618,6 +661,7 @@
       ],
       "properties": {
         "voice": { "$ref": "#/$defs/voiceStatus" },
+        "dance": { "$ref": "#/$defs/danceStatus" },
         "protocolVersion": { "const": 1 },
         "type": { "const": "state.snapshot" },
         "deviceId": { "$ref": "#/$defs/deviceId" },
@@ -639,6 +683,7 @@
             "vibrating",
             "releasing",
             "presenting",
+            "dancing",
             "stopped",
             "fault"
           ]

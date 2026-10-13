@@ -1,6 +1,7 @@
 #pragma once
 
 #include "LocalControlOutputPort.h"
+#include "../dance/DancePlayerPort.h"
 
 class LocalVoicePort;
 class DeviceControl;
@@ -16,9 +17,12 @@ class LocalControlOutput final : public LocalControlOutputPort {
                      DeviceControl& control, PersistentCommandJournal& journal,
                      SafetyController& safety, SelectionSequence& selection,
                      ConversationSession& conversation,
-                     LocalControlTransport& transport, LocalVoicePort* voice = nullptr);
+                     LocalControlTransport& transport, LocalVoicePort* voice = nullptr,
+                     kufr::dance::LocalDancePort* dance = nullptr);
 
   bool VoiceAck(const LocalSocketAdmission::Handle& handle,
+                const LocalControlMessage& request, bool accepted) override;
+  bool DanceAck(const LocalSocketAdmission::Handle& handle,
                 const LocalControlMessage& request, bool accepted) override;
   bool Welcome(const LocalSocketAdmission::Handle& handle,
                 const std::string& requestId, uint64_t nowMs) override;
@@ -47,6 +51,7 @@ class LocalControlOutput final : public LocalControlOutputPort {
   const char* Phase(bool liveLease) const;
 
   LocalVoicePort* voice_;
+  kufr::dance::LocalDancePort* dance_;
   std::string deviceId_;
   std::string bootId_;
   DeviceControl& control_;

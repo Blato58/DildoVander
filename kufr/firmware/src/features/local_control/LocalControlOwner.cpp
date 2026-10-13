@@ -27,8 +27,8 @@ LocalControlOwner::LocalControlOwner(
     LocalControlInbox& inbox, LocalControlTransport& transport,
     LocalControlOutputPort& output, LocalControlIdPort& ids,
     LocalControlRecoveryGate& recovery, LocalControlStepPort& steps,
-    LocalControlClockPort& clock, LocalVoicePort* voice)
-    : voice_(voice), deviceId_(deviceId), bootId_(bootId), runtime_(runtime),
+    LocalControlClockPort& clock, LocalVoicePort* voice, kufr::dance::LocalDancePort* dance)
+    : voice_(voice), dance_(dance), deviceId_(deviceId), bootId_(bootId), runtime_(runtime),
       runtimeState_(runtimeState), conversation_(conversation), network_(network),
       inbox_(inbox), transport_(transport), output_(output), ids_(ids),
       recovery_(recovery), steps_(steps), clock_(clock) {}
@@ -50,6 +50,7 @@ void LocalControlOwner::Poll() {
       switch (event.kind) {
         case LocalControlEventKind::Stop: {
           SelectionStep step;
+          if (dance_) dance_->StopDance();
           if (voice_) voice_->StopVoice();
           runtime_.Stop(step);
           steps_.OnStep(step);
@@ -191,7 +192,8 @@ void LocalControlOwner::Handle(
   bool accepted = true;
   // Stop/cancel/status remain available while network/OTA owns the idle
   // reservation. A queued controller command cannot start new work then.
-  if (maintenance_ && (message.kind == LocalControlMessageKind::Acquire ||
+  const bool dancing = dance_ && kufr::dance::IsDanceActive(dance_->DanceState());
+  if ((maintenance_ || dancing) && (message.kind == LocalControlMessageKind::Acquire ||
       message.kind == LocalControlMessageKind::VoiceStart ||
       message.kind == LocalControlMessageKind::Text ||
       message.kind == LocalControlMessageKind::Selection ||
@@ -223,7 +225,7 @@ void LocalControlOwner::Handle(
       }
       break;
     case LocalControlMessageKind::VoiceConfigure:
-      accepted = output_.VoiceAck(handle_, message, voice_ && voice_->ConfigureVoice(message.voiceMode, message.voice));
+      accepted = output_.VoiceAck(handle_, message, !dancing && voice_ && voice_->ConfigureVoice(message.voiceMode, message.voice));
       break;
     case LocalControlMessageKind::VoiceStart: {
       ConversationRuntimeSnapshot snapshot;
@@ -234,8 +236,28 @@ void LocalControlOwner::Handle(
       break;
     }
     case LocalControlMessageKind::VoiceStop:
-      if (voice_) voice_->StopVoice();
-      accepted = output_.VoiceAck(handle_, message, voice_ != nullptr);
+      if (voice_ && !dancing) voice_->StopVoice();
+      accepted = output_.VoiceAck(handle_, message, voice_ != nullptr && !dancing);
+      break;
+    case LocalControlMessageKind::DanceStart: {
+      ConversationRuntimeSnapshot snapshot;
+      const auto voice = voice_ ? voice_->VoiceStatus() : LocalVoiceStatus{};
+      const bool voiceIdle = voice.phase == "idle" || voice.phase == "unavailable" ||
+                             voice.phase == "completed" || voice.phase == "failed";
+      bool started = false;
+      inbox_.RunIfCurrent(handle_, [&]() {
+        started = dance_ && danceAdmission_ && !maintenance_ && !dancing && voiceIdle &&
+            session_->LeaseId().empty() && !conversation_.HasActiveTurn() &&
+            runtimeState_.Read(snapshot) && snapshot.deviceRevision == message.expectedRevision &&
+            dance_->StartDance(message.messageId);
+        if (started) runtime_.SetExternalActivity(true);
+      });
+      accepted = output_.DanceAck(handle_, message, started);
+      break;
+    }
+    case LocalControlMessageKind::DanceStop:
+      if (dance_) dance_->StopDance();
+      accepted = output_.DanceAck(handle_, message, dance_ != nullptr);
       break;
     case LocalControlMessageKind::Text: {
       ConversationTextCommand command;

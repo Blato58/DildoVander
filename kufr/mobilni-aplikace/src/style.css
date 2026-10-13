@@ -128,6 +128,10 @@ label:has(input[type="checkbox"]) { display: flex; align-items: center; min-heig
 .debug-transcript li:last-child { border-bottom: 0; }
 .debug-transcript p { margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .debug-answer-label { display: block; margin-bottom: 8px; }
+.dance-track { display: grid; gap: 8px; margin: 16px 0; overflow-wrap: anywhere; }
+.dance-track[hidden] { display: none; }
+.dance-track progress { width: 100%; height: 12px; accent-color: var(--aw-brass); }
+.dance-track [data-dance-tempo], .dance-track [data-dance-time] { color: var(--aw-muted); font-variant-numeric: tabular-nums; }
 .debug-conversation [data-conversation-selection] { font-weight: 600; color: var(--aw-brass); }
 .debug-conversation [data-conversation-error]:not(:empty) { color: var(--aw-danger); }
 

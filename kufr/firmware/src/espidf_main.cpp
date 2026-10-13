@@ -39,6 +39,8 @@
 #include "features/wand_selection/SelectionSequence.h"
 #include "features/physical_effects/EspIdfPhysicalIo.h"
 #include "features/physical_effects/PhysicalPresentation.h"
+#include "features/dance/DanceCoordinator.h"
+#include "features/dance/EspIdfDancePlayer.h"
 #include "features/network_provisioning/EspIdfBleProvisioning.h"
 #include "features/firmware_update/EspIdfFirmwareUpdate.h"
 #include "features/sd_assets/EspIdfSdAssets.h"
@@ -385,6 +387,9 @@ extern "C" void app_main() {
   firmwareUpdate.Begin();
   static kufr::assets::EspIdfSdAssets sdAssets;
   sdAssets.Begin();
+  static kufr::dance::EspIdfDancePlayer dancePlayer(sdAssets, backendNetwork.DanceAudio());
+  dancePlayer.Begin();
+  static kufr::dance::DanceCoordinator dance(dancePlayer, effects);
   static LocalBearerAuthenticator authenticator(pairing);
   static LocalSocketAdmission admission(authenticator);
   static LocalControlInbox inbox(identity.DeviceId(), bootId);
@@ -399,14 +404,14 @@ extern "C" void app_main() {
   static EspIdfLocalServiceAdvertisement advertisement(station, hasher);
   static LocalControlOutput output(
       identity.DeviceId(), bootId, deviceControl, journal, safetyController,
-      selectionSequence, conversation, server, &backendNetwork);
+      selectionSequence, conversation, server, &backendNetwork, &dance);
   static RuntimeClock clock;
   static RuntimeLeaseIds leaseIds(random);
   static PhysicalInspection inspection(effects);
   static HardwareSteps steps(effects, controlRuntime);
   static LocalControlOwner owner(
       identity.DeviceId(), bootId, controlRuntime, runtimeState, conversation,
-      backendNetwork, inbox, server, output, leaseIds, inspection, steps, clock, &backendNetwork);
+      backendNetwork, inbox, server, output, leaseIds, inspection, steps, clock, &backendNetwork, &dance);
   bool serverStarted = false;
   uint64_t retryServerAtMs = 0;
   bool advertisementStarted = false;
@@ -427,7 +432,7 @@ extern "C" void app_main() {
     TurnProposal pendingProposal;
     maintenance.safeIdle = !deviceControl.HasManualControl() && !selectionSequence.IsBusy() &&
         !controlRuntime.HasAutonomousPresentation() && !conversation.HasActiveTurn() &&
-        !journal.HasPending() && !backendNetwork.IsVoiceBusy() &&
+        !journal.HasPending() && !backendNetwork.IsVoiceBusy() && !dance.Reserved() &&
         !backendNetwork.ReadPendingProposal(pendingProposal, nowMs);
     // The whole-cycle deadline precedes physical output processing, even when
     // per-phase calibration timeouts would still allow the sequence to run.
@@ -445,6 +450,7 @@ extern "C" void app_main() {
         (firmwareUpdate.Reserved() && otaStatus.state != "verifying-boot");
     const bool maintaining = maintenance.networkHeld || firmwareUpdate.Reserved() || sdAssets.Reserved();
     owner.SetMaintenance(maintaining);
+    owner.SetDanceAdmission(maintenance.safeIdle && !maintaining);
     provisioning.Tick(nowMs, station.HasIp());
     if (!serverStarted &&
         nowMs >= retryServerAtMs &&
@@ -466,6 +472,7 @@ extern "C" void app_main() {
     if (calibrated && !effects.Healthy() && !hardwareFaultHandled) {
       hardwareFaultHandled = true;
       SelectionStep stopped;
+      dance.StopDance();
       controlRuntime.Stop(stopped);
       backendNetwork.StopVoice();
       steps.OnStep(stopped);
@@ -477,8 +484,9 @@ extern "C" void app_main() {
       if (button) {
         buttonPressedAt = nowMs;
         gestureConsumed = false;
-        if (controlRuntime.HasAutonomousPresentation() || selectionSequence.IsBusy()) {
+        if (controlRuntime.HasAutonomousPresentation() || selectionSequence.IsBusy() || dance.Reserved()) {
           SelectionStep stopped;
+          dance.StopDance();
           controlRuntime.Stop(stopped);
           backendNetwork.StopVoice();
           steps.OnStep(stopped);
@@ -498,27 +506,29 @@ extern "C" void app_main() {
     }
     if (!maintaining && button && !gestureConsumed && nowMs - buttonPressedAt >= 2000) {
       gestureConsumed = true;
-      if (!selectionSequence.IsBusy() && !controlRuntime.HasAutonomousPresentation() &&
+      if (!selectionSequence.IsBusy() && !controlRuntime.HasAutonomousPresentation() && !dance.Reserved() &&
           effects.RecoverAfterInspection()) controlRuntime.RecoverAfterInspection();
     }
     server.Pump();
     owner.Tick();
     inbox.RunIfNoUrgent([&]() {
       const uint64_t effectNowMs = clock.NowMs();
+      dance.Tick(effectNowMs);
+      controlRuntime.SetExternalActivity(dance.Reserved());
       presentation.CheckDeadline(effectNowMs);
       presentationPort.Tick(effectNowMs);
     });
     owner.PumpReply(backendNetwork);
     // Owner has applied urgent Stop/lease changes before any autonomous start.
     inbox.RunIfNoUrgent([&]() {
-      if (!maintaining && !deviceControl.HasManualControl() && effects.Healthy())
+      if (!maintaining && !dance.Reserved() && !deviceControl.HasManualControl() && effects.Healthy())
         backendNetwork.BeginPendingPresentation(presentation, clock.NowMs());
     });
     backendNetwork.FinishPresentation(presentation);
     // Publish idle only after all admissions in this iteration have completed.
     maintenance.safeIdle = !deviceControl.HasManualControl() && !selectionSequence.IsBusy() &&
         !controlRuntime.HasAutonomousPresentation() && !conversation.HasActiveTurn() &&
-        !journal.HasPending() && !backendNetwork.IsVoiceBusy() &&
+        !journal.HasPending() && !backendNetwork.IsVoiceBusy() && !dance.Reserved() &&
         !backendNetwork.ReadPendingProposal(pendingProposal, clock.NowMs());
     maintenanceLock.unlock();
     vTaskDelay(pdMS_TO_TICKS(ControlLoopPeriodMs));

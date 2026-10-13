@@ -6,6 +6,7 @@
 #include "LocalControlOutputPort.h"
 #include "LocalControlSession.h"
 #include "LocalConversationGateway.h"
+#include "../dance/DancePlayerPort.h"
 
 class LocalVoicePort;
 class LocalControlTransport;
@@ -28,12 +29,14 @@ class LocalControlOwner final {
                     LocalControlOutputPort& output, LocalControlIdPort& ids,
                     LocalControlRecoveryGate& recovery,
                     LocalControlStepPort& steps, LocalControlClockPort& clock,
-                    LocalVoicePort* voice = nullptr);
+                    LocalVoicePort* voice = nullptr,
+                    kufr::dance::LocalDancePort* dance = nullptr);
   ~LocalControlOwner();
 
   void Poll();
   void Tick();
   void SetMaintenance(bool active) { maintenance_ = active; }
+  void SetDanceAdmission(bool allowed) { danceAdmission_ = allowed; }
   void PumpReply(LocalConversationReplyPort& replies);
   bool CompleteTurn(const std::string& clientTurnId, uint64_t generation);
 
@@ -48,6 +51,7 @@ class LocalControlOwner final {
   bool SameHandle(const LocalSocketAdmission::Handle& handle) const;
 
   LocalVoicePort* voice_;
+  kufr::dance::LocalDancePort* dance_;
   std::string deviceId_;
   std::string bootId_;
   DeviceControlRuntime& runtime_;
@@ -68,4 +72,5 @@ class LocalControlOwner final {
   uint64_t lastSnapshotAtMs_ = 0;
   bool hello_ = false;
   bool maintenance_ = false;
+  bool danceAdmission_ = false;
 };
