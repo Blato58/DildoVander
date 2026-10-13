@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "observedAtUtc": "2026-10-13T22:56:18.982021+00:00",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-IOS-PR-CI",
+      "criterionId": "LOCAL",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "75c4f142cbecfebfba605a74c005f89007a3fcde4e1a6f517f1dab34575dc8ec"
+  },
+  "evidenceId": "KUFR-IOS-PR-CI-local",
+  "kind": "unit",
+  "method": "python -m unittest discover -s scripts/ci -p test_select_projects.py; node --test scripts/ci/*.test.cjs; actionlint 1.7.12 -shellcheck= -pyflakes=; git diff --check",
+  "environment": "Windows; actionlint release archive SHA256 checked against official checksums",
+  "limitations": [
+    "Xcode/native runtime tests pending actual hosted macOS CI.",
+    "Broader Python CI suite on Windows: 28 tests, 1 existing executable-mode assertion fails (438 != 493), 2 skipped; Linux CI must verify this platform-dependent test."
+  ],
+  "observation": "7 selector/gate tests passed; 45 Node CI guard tests passed; all workflows actionlint-valid; whitespace valid. Digest is SHA256 of listed scope paths plus NUL and exact bytes plus NUL, in listed order."
+}

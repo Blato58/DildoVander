@@ -27,11 +27,13 @@ class ProjectSelectionTests(unittest.TestCase):
             (["kufr/backend-tests/Program.cs"], {"backend"}),
             (["kufr/global.json", "kufr/Directory.Build.props"], {"backend"}),
             (["NuGet.Config"], {"backend"}),
-            (["kufr/mobilni-aplikace/public/icon.svg"], {"web", "site"}),
+            (["kufr/mobilni-aplikace/public/icon.svg"], {"web", "ios", "site"}),
+            (["kufr/mobilni-aplikace/ios/App/App/KufrDebugPlugin.swift"], {"web", "ios", "site"}),
+            (["kufr/mobilni-aplikace/tests/native_debug/main.swift"], {"web", "ios", "site"}),
             (["kufr/ai-eval/cases.json"], {"ai-eval"}),
             (["kufr/firmware/src/espidf_main.cpp", "kufr/backend/Program.cs"], {"firmware", "backend"}),
             (["kufr/mechanika/final/mechanism.py", "obludarium/docs/a.md"], {"site"}),
-            (["kufr/design-system/tokens/colors.css"], {"web", "site"}),
+            (["kufr/design-system/tokens/colors.css"], {"web", "ios", "site"}),
             (["kufr/web/index.html"], {"site"}),
         ]:
             with self.subTest(paths=paths):
@@ -39,8 +41,8 @@ class ProjectSelectionTests(unittest.TestCase):
 
     def test_shared_dependencies_select_their_consumers(self):
         self.assertEqual(self.selected("kufr/contracts/control-message-v1.schema.json"),
-                         {"backend", "firmware", "web", "site"})
-        self.assertEqual(self.selected("kufr/simulator/bridge.cpp"), {"firmware", "web"})
+                         {"backend", "firmware", "web", "ios", "site"})
+        self.assertEqual(self.selected("kufr/simulator/bridge.cpp"), {"firmware", "web", "ios"})
         self.assertEqual(self.selected("scripts/ci/package.py"), {"repository", "backend", "firmware", "web", "site"})
 
     def test_workflow_changes_select_only_the_corresponding_build(self):
@@ -48,6 +50,8 @@ class ProjectSelectionTests(unittest.TestCase):
         self.assertEqual(self.selected(".github/workflows/ci.yml"), {"repository"})
         self.assertEqual(self.selected("scripts/ci/select_projects.py"), {"repository"})
         self.assertEqual(self.selected(".github/workflows/kufr-site.yml"), {"repository", "site"})
+        self.assertEqual(self.selected(".github/workflows/kufr-ios.yml"), {"repository", "ios"})
+        self.assertEqual(self.selected(".github/workflows/kufr-ios-sign.yml"), {"repository", "ios"})
 
     def test_git_diff_includes_both_sides_of_a_rename(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -86,6 +90,17 @@ class ProjectSelectionTests(unittest.TestCase):
                 check_results(selected, failed)
         with self.assertRaises(ValueError):
             check_results({}, jobs)
+
+    def test_selected_ios_cannot_be_skipped_or_fail_the_required_gate(self):
+        selected = {name: "true" if name == "ios" else "false" for name in PROJECTS}
+        jobs = {name: {"result": "success" if name == "ios" else "skipped"} for name in PROJECTS}
+        jobs["changes"] = {"result": "success"}
+        check_results(selected, jobs)
+        for result in ("skipped", "failure", "cancelled"):
+            with self.subTest(result=result), self.assertRaises(ValueError):
+                check_results(selected, {**jobs, "ios": {"result": result}})
+        with self.assertRaises(ValueError):
+            check_results(selected, {name: value for name, value in jobs.items() if name != "ios"})
 
 
 if __name__ == "__main__":
