@@ -108,6 +108,7 @@ label:has(input[type="checkbox"]) { display: flex; align-items: center; min-heig
 .debug-card > h2 { padding-bottom: 16px; border-bottom: 1px solid var(--aw-border); }
 .debug-card ol { padding-left: 24px; line-height: 1.6; }
 .debug-card select { display: block; margin-top: 8px; }
+.debug-card fieldset.aw-field { border: 1px solid var(--aw-border); border-radius: 8px; margin: 16px 0; padding: 16px; }
 .debug-card input[type="text"] { margin: 8px 0 16px; }
 .ble-devices { padding: 0; list-style: none; display: grid; gap: 8px; }
 .ble-network-actions { margin-top: 16px; }

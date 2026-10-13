@@ -16,6 +16,7 @@ internal sealed class LiveConversationProjection(GptLiveOptions options)
     private readonly List<DecisionEvidence> answers = [];
     private readonly HashSet<string> eventIds = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> questionAnswers = new(StringComparer.Ordinal);
+    private readonly HashSet<string> characterControls = new(StringComparer.Ordinal);
     private string? currentInputReference;
     private string? questionReference;
     private string? currentOutputReference;
@@ -38,11 +39,24 @@ internal sealed class LiveConversationProjection(GptLiveOptions options)
     internal bool UnansweredDiagnosticCandidate => questionReference is not null && !questionAnswers.ContainsKey(questionReference);
     internal string Fingerprint => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
         string.Join("\n", answers.Skip(authoritativeFrom)
+            .Where(e => !characterControls.Contains(e.Reference))
             .Where(e => Classify(e.Text) is not (LiveRequestIntent.Thanks or LiveRequestIntent.Acknowledge
                 or LiveRequestIntent.Repeat or LiveRequestIntent.Technical or LiveRequestIntent.StopSpeech))
             .Select(e => e.Reference + ":" + e.Text)))));
     internal LiveRequestIntent Intent => Classify(LatestInput);
     internal bool DirectSelection => Regex.IsMatch(LatestInput, @"(?i)(prostě|rovnou|hned|nějakou|libovolnou).{0,35}(vyber|zvol)|(?:vyber|zvol).{0,35}(prostě|rovnou|nějakou|libovolnou)");
+    internal string LatestInputReference => currentInputReference ?? "input-0";
+    internal double LatestInputEnd => lastInputEnd;
+    internal bool LatestIsCharacterControl => currentInputReference is not null && characterControls.Contains(currentInputReference);
+    internal void MarkLatestCharacterControl()
+    {
+        if (currentInputReference is not null) { characterControls.Add(currentInputReference); }
+    }
+    internal void InvalidatePriorCharacterEvidence()
+    {
+        authoritativeFrom = Math.Max(0, answers.Count - 1);
+        Revision++;
+    }
 
     internal bool Append(JsonElement value, bool input)
     {
@@ -111,7 +125,7 @@ internal sealed class LiveConversationProjection(GptLiveOptions options)
     {
         // Always keep each answer's relevant head plus the newest correction.
         // Do not silently retain only the last two exchanges.
-        var active = answers.Skip(authoritativeFrom).TakeLast(64).ToArray();
+        var active = answers.Skip(authoritativeFrom).Where(e => !characterControls.Contains(e.Reference)).TakeLast(64).ToArray();
         var allowance = Math.Max(64, options.DecisionContextBytes / Math.Max(1, active.Length) - 32);
         return active.Select((e, i) => e with
         {

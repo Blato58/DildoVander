@@ -36,7 +36,8 @@ internal static class ServerModeEndpoints
     }
 }
 
-internal sealed record ServerModeChange(string ExpectedRevision, string DialogMode, string VoiceMode, string? PersonalityId = null);
+internal sealed record ServerModeChange(string ExpectedRevision, string DialogMode, string VoiceMode, string? PersonalityId = null,
+    bool? CharacterEnabled = null, string? CharacterTone = null, string? CharacterFinaleProfile = null, bool ResetCharacterVariety = false);
 internal sealed record ServerModes(
     string Revision,
     string DialogMode,
@@ -47,5 +48,9 @@ internal sealed record ServerModes(
     string PersonalityId,
     IReadOnlyList<PersonalityInfo> Personalities,
     string PersonalityLifetime = "persistent",
-    string Lifetime = "until_restart");
+    string Lifetime = "until_restart",
+    bool CharacterEnabled = false,
+    string CharacterTone = "Adult",
+    string CharacterFinaleProfile = "Blocked",
+    string CharacterVersion = "dv01-v1");
 internal sealed record ServerModeResult(int Status, ServerModes? State, string? Error);

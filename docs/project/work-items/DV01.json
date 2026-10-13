@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "id": "DV01",
+  "initiative": "DV01",
+  "title": "Živá postava, adaptivní roast a bezpečné finále",
+  "state": "blocked",
+  "priority": "P1",
+  "sequence": 0,
+  "scope": [
+    "kufr/backend",
+    "kufr/backend-tests",
+    "kufr/mobilni-aplikace",
+    "kufr/firmware",
+    "kufr/ai-eval",
+    ".agents/skills"
+  ],
+  "dependencies": [],
+  "acceptance": [
+    {
+      "id": "CORE",
+      "revision": 1,
+      "expected": "Proveditelné jádro A–E je opt-in, offline ověřené a dokumentované včetně zbývajících capability gates.",
+      "requiredEvidenceKinds": [
+        "unit",
+        "integration",
+        "source_review",
+        "browser"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "policyVersion": "dv01-director-v1",
+        "artifactDigest": "393452e4214db16e58f75fd1ab8805e491056779ee0ed05f7b7e523e72289346"
+      },
+      "evidenceRefs": [
+        "DV01-local-unit-v1",
+        "DV01-local-integration-v1",
+        "DV01-local-source_review-v1",
+        "DV01-local-browser-v1"
+      ]
+    },
+    {
+      "id": "LIVE",
+      "revision": 1,
+      "expected": "Párové live adult/chaos a textové/vizuální chování, nulové kritické chyby v doloženém corpusu.",
+      "requiredEvidenceKinds": [
+        "esp_runtime"
+      ],
+      "appliesTo": {
+        "policyVersion": "dv01-director-v1"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "PHYSICAL",
+      "revision": 1,
+      "expected": "Skutečný poslech, přerušení a fyzický reveal na konkrétní sestavě.",
+      "requiredEvidenceKinds": [
+        "esp_runtime"
+      ],
+      "appliesTo": {
+        "policyVersion": "dv01-director-v1"
+      },
+      "evidenceRefs": []
+    }
+  ],
+  "blockers": [
+    {
+      "id": "B-LIVE",
+      "problem": "Actual paired adult/chaos Live corpus and reliable speech/audio attribution not verified; named profile unavailable. Limited profile remains explicitly selected with residual streamed-speech risk.",
+      "severity": "high",
+      "blocks": [
+        "LIVE"
+      ],
+      "unblockCondition": "Authorize and run real Live/recorded listening C/D corpus; retain named blocked until pre-playback speech control is available.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-VISION",
+      "problem": "Production appearance-roast purpose/subject/revision/revocation permissions missing. Synthetic APIs exist, Live masks visual input.",
+      "severity": "high",
+      "blocks": [
+        "LIVE"
+      ],
+      "unblockCondition": "Provide the existing approved image permission contract without new photo acquisition; test session ownership/revocation and actual Live visual corpus.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-PHYSICAL",
+      "problem": "Native iPhone cancellation and ESP speaker/DMA/Stop/reveal/restart have no current physical receipt. Cross-build is not hardware acceptance.",
+      "severity": "high",
+      "blocks": [
+        "PHYSICAL"
+      ],
+      "unblockCondition": "Run existing macOS native tests and authorized iPhone/ESP listening + journal/reveal tests on identified assembly; document firmware/config/wiring/mechanics identities.",
+      "role": "majitel a implementátor"
+    }
+  ],
+  "nextAction": "Review/merge verified offline A–E slice; then resolve B-LIVE/B-VISION/B-PHYSICAL with explicitly authorized capability-specific acceptance. Keep DV01 off and finale blocked by default.",
+  "currentNote": "Offline A–E implemented with conservative capability gates; R01–R34/T01–T80 mapped. Named blocked; limited explicit opt-in; visual permission_pending; live/audio hardware/physical/event_ready false. No paid calls, deployment or flash.",
+  "implementedSubject": {
+    "artifactDigest": "393452e4214db16e58f75fd1ab8805e491056779ee0ed05f7b7e523e72289346",
+    "policyVersion": "dv01-director-v1"
+  }
+}

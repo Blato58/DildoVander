@@ -31,6 +31,7 @@ bool ParseRealtimeEvent(const std::string& line, RealtimeEvent& event) {
     else if (key == "playbackId") { field = 4096; valid = cursor.ReadString(event.playbackId, 36, true) && IsConversationUuid(event.playbackId); }
     else if (key == "pcmBytes") { field = 8192; valid = cursor.ReadUnsigned(event.pcmBytes) && event.pcmBytes > 0 && event.pcmBytes <= 9120000 && event.pcmBytes % 2 == 0; }
     else if (key == "decisionRevision") { field = 16384; valid = cursor.ReadUnsigned(event.decisionRevision) && event.decisionRevision <= 9007199254740991ULL; }
+    else if (key == "responseGeneration") { field = 32768; valid = cursor.ReadUnsigned(event.responseGeneration) && event.responseGeneration > 0 && event.responseGeneration <= 9007199254740991ULL; }
     if (!valid || seen & field) return false;
     seen |= field;
   } while (cursor.Consume(','));
@@ -46,6 +47,7 @@ bool ParseRealtimeEvent(const std::string& line, RealtimeEvent& event) {
   else if (event.type == "closed") expected = 1 | 2048;
   else if ((event.type == "heartbeat" || event.type == "pause")) expected = 1;
   else if (event.type == "playback_checkpoint") expected = 1 | 4096 | 8192 | 16384;
+  else if (event.type == "audio_cancel") expected = 1 | 32768;
   if (expected == 0 || seen != expected) return false;
   if (event.type == "started" || event.type == "completed") {
     if (result.empty()) result = "{\"reply\":\"pending\",\"decision\":\"ask\",\"reason\":\"\",\"proposal\":null}";

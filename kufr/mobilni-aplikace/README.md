@@ -228,6 +228,15 @@ a skutečné audio zůstávají samostatnou akceptací. Přesný rozsah a důkaz
 
 ## Autonomní Live a playback checkpoint (D143)
 
+DV01 přidává do stávající Debug správy serveru zapnutí pro nové session,
+Reserved/Dry/Adult/Chaos, explicitní Blocked/Limited a reset anonymní pestrosti.
+Vyžaduje `ollivander-trunk` a backendový `AutonomousActor`; neaktivuje placený test.
+`audio_cancel` ve Swift Live transportu ruší jen playback/checkpoint callbacks a
+zachovává capture/session. [DV01 návod a mezera unsegmented audia](../docs/dv01.md)
+odděluje offline guards od Live/iPhone/physical akceptace. Named ani vizuální roast
+nejsou touto správou označované jako ověřené. Obyčejné vypnutí nemění živou personu;
+okamžité ukončení a nouzový Stop mají dosavadní samostatné ovládání.
+
 Katalog a výběr personality dál načítá dosavadní Debug → Server. Novou
 autonomní větev aktivuje backendová konfigurace, nikoli nový seznam
 postav v telefonu. Swift Live transport přijme `playback_checkpoint`,

@@ -49,7 +49,8 @@ internal static class GptLiveProtocol
             throw new InvalidOperationException("Live startup context exceeds its verified contract.");
         return new { type = "session.start", event_id = eventId, session = new
         {
-            model = Model, store = false, input = turn.LiveInput, instructions = snapshot.Instructions + "\n" + turn.CostumeContext,
+            model = Model, store = false, input = turn.LiveInput, instructions = snapshot.Instructions
+                + (snapshot.Version == "dv01-adult-v1" ? "" : "\n" + turn.CostumeContext),
             audio = new { format = new { type = "audio/pcm", rate = 24000 }, output = new { voice = turn.Request.Voice } },
             delegation = new { type = "client" }
         } };

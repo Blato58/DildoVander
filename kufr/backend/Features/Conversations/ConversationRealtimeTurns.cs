@@ -77,6 +77,10 @@ internal sealed partial class ConversationStore
             {
                 return new(409, "conversation_finished", null);
             }
+            if (conversation.LivePrompt.Version == "dv01-adult-v1" && conversation.LivePrompt.CatalogVersion != request.CatalogVersion)
+            {
+                return new(409, "conversation_version_mismatch", null);
+            }
             if (request.Opening != (conversation.TurnCount == 0))
             {
                 return new(409, "opening_required_or_already_started", null);

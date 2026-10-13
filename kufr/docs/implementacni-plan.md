@@ -283,6 +283,14 @@ Tento plán určuje cílovou architekturu a akceptační kritéria. Aktuální d
 
 ## 1. Výchozí stav a cílový zážitek
 
+DV01 je verzované opt-in rozšíření existujícího autonomního Live owneru podle
+[specifikace 2.1 FINAL](dv01-specification.md). [Implementace a evidence](dv01.md)
+zachovávají backendovou volbu, lokální ESP acceptance, NVS nejistotu, původní hlas
+a katalog. Director nepřidává další model na tah, camera/portrait produkt ani show
+engine. Výchozí Blocked, explicitní Limited, nedostupný Named, image purpose,
+Live chování a fyzická akceptace mají oddělené gates; softwarové slice je
+nenahrazuje. Stav vede `docs/project/work-items/DV01.json`, nikoli historická inventura níže.
+
 Následující inventura zachycuje výchozí stav při návrhu 29. 9. 2026. Aktuální implementaci ověřuj podle stavového souboru a živého kódu; tento historický popis není překážkou zahájení dalších etap.
 
 Přečtené místní podklady:

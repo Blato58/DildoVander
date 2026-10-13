@@ -186,6 +186,14 @@ internal sealed class RealtimeLiveSession : IDisposable
             return checkpointDone.TrySetResult(new(id, pcmBytes, true)) || checkpointDone.Task.IsCompletedSuccessfully;
         }
     }
+    internal void CancelCheckpoint()
+    {
+        lock (gate)
+        {
+            if (checkpoint is not null) { checkpointDone?.TrySetResult(new(checkpoint.PlaybackId, checkpoint.PcmBytes, false)); }
+            checkpoint = null; checkpointDone = null;
+        }
+    }
 
     public void Dispose()
     {

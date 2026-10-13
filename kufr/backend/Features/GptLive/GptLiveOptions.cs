@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Kufr.Backend.Features.Conversations;
+using Kufr.Backend.Features.Character;
 
 namespace Kufr.Backend.Features.GptLive;
 
@@ -9,6 +10,7 @@ internal sealed record LiveConversationPolicy(int UsualAnswers, int MaximumAnswe
 
 internal sealed record GptLiveOptions
 {
+    internal CharacterPolicy Character { get; init; } = new();
     internal LiveActorMode Mode { get; init; } = LiveActorMode.LegacyBackendScripted;
     internal string DecisionModel { get; init; } = ResponsesTextDialogBudget.Model;
     internal bool AdultLanguage { get; init; } = true;
@@ -37,6 +39,7 @@ internal sealed record GptLiveOptions
             throw new InvalidOperationException("Invalid Backend:GptLive:ActorMode.");
         var options = new GptLiveOptions
         {
+            Character = CharacterConfiguration.Read(section.GetSection("Character")),
             Mode = parsed,
             DecisionModel = section["DecisionModel"] ?? ResponsesTextDialogBudget.Model,
             AdultLanguage = section.GetValue("AdultLanguage", true),
@@ -66,6 +69,10 @@ internal sealed record GptLiveOptions
             || options.MaximumAnswersOverride is < 1 or > 8
             || PersonalityCatalog.Inventory.Any(p => options.Policy(p.Id).MaximumAnswers < options.Policy(p.Id).UsualAnswers))
             throw new InvalidOperationException("Invalid Backend:GptLive configuration.");
+        if (options.Character.Enabled && options.Mode != LiveActorMode.AutonomousActor)
+        {
+            throw new InvalidOperationException("DV01 requires AutonomousActor; legacy behavior is unchanged.");
+        }
         return options;
     }
 }
@@ -73,9 +80,20 @@ internal sealed record GptLiveOptions
 internal sealed record LivePromptSnapshot(string PersonalityId, string Version, string Sha256,
     string Instructions, LiveConversationPolicy Policy, GptLiveOptions Options)
 {
+    internal string CatalogVersion { get; init; } = "";
+    internal string LoreVersion { get; init; } = "";
     internal static LivePromptSnapshot Create(string personality, GptLiveOptions options)
     {
         var policy = options.Policy(personality);
+        if (options.Character.Enabled && personality == PersonalityCatalog.OllivanderId)
+        {
+            policy = new(2, 3, true);
+            var characterInstructions = CharacterConfiguration.Persona;
+            return new(personality, "dv01-adult-v1",
+                Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(characterInstructions))),
+                characterInstructions, policy, options)
+            { CatalogVersion = PartyWandCatalog.Version, LoreVersion = CharacterLoreProfiles.Version };
+        }
         var instructions = options.Mode == LiveActorMode.AutonomousActor
             ? PersonalityCatalog.AutonomousLivePersona(personality) + "\n\n" + $"""
                 Důvěryhodná provozní politika aplikace:

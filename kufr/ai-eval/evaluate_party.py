@@ -147,7 +147,13 @@ def main():
         help="Deprecated and ignored; account-level OpenAI budget controls spend.",
     )
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--dv01-replay", action="store_true", help="Offline A/B guard replay; never calls OpenAI")
+    parser.add_argument("--dv01-check", action="store_true", help="Check corpus/baseline references without running models")
     args = parser.parse_args()
+    if args.dv01_replay or args.dv01_check:
+        from dv01_replay import run_offline
+        run_offline(args.output, check_only=args.dv01_check)
+        return
     key = os.environ.get("OPENAI_API_KEY")
     if not key:
         raise ValueError("OPENAI_API_KEY is missing")

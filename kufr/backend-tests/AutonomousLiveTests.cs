@@ -6,9 +6,210 @@ using Kufr.Backend.Features.Conversations;
 using Kufr.Backend.Features.GptLive;
 using Kufr.Backend.Features.Realtime;
 using Microsoft.Extensions.Configuration;
+using Kufr.Backend.Features.Character;
 
 internal static class AutonomousLiveTests
 {
+    internal static async Task RunCharacterAsync()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Backend:GptLive:ActorMode"] = "AutonomousActor", ["Backend:GptLive:Character:Enabled"] = "true"
+        }).Build();
+        var options = GptLiveOptions.Read(configuration) with { DelegationContextWaitMs = 0, OutputPauseMs = 500, TerminalQuietMs = 1000 };
+        Check(options.Character.Enabled && options.Character.HostTone == CharacterTone.Adult
+            && options.Character.FinaleProfile == FinaleProfile.Blocked, "opt-in adult and explicit blocked finale");
+        var candidate = LivePromptSnapshot.Create(PersonalityCatalog.OllivanderId, options);
+        var legacy = LivePromptSnapshot.Create(PersonalityCatalog.OllivanderId, options with { Character = new() });
+        Check(candidate.Version == "dv01-adult-v1" && legacy.Version == "autonomous-live-v3"
+            && candidate.Sha256 != legacy.Sha256, "separate version leaves feature-off snapshot intact");
+        Check(!AutonomousLiveDialogue.LimitedTerminalReady("Poslední slovo a Knihovní bouře.")
+            && AutonomousLiveDialogue.LimitedTerminalReady("Výběr mám. Mechanika mi nepotvrdila konec, zatím na to nesahej."),
+            "limited publication rejects catalog identity, remains distinct from named");
+        foreach (var profile in new[] { FinaleProfile.Blocked, FinaleProfile.Limited })
+        {
+            await VerifyCharacterFlow(options with { Character = options.Character with { FinaleProfile = profile } });
+        }
+        await VerifyCharacterFlow(options, interrupted: true);
+        await VerifyCharacterFlow(options, express: true);
+        await VerifyConversation(options, correction: true);
+        await VerifyCharacterCancellation(options);
+        await VerifySplitVoiceControl(options);
+        await VerifyPcmCancellationFence(options);
+        Console.WriteLine("DV01 fake Live integration passed (no provider/audio hardware).");
+    }
+
+    private static async Task VerifyCharacterFlow(GptLiveOptions options, bool interrupted = false, bool express = false)
+    {
+        using var clock = new ManualClock(); using var socket = new SocketFixture();
+        socket.BeforeDelivery = () => clock.Advance(50);
+        await using var connection = new GptLiveConnection(socket);
+        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var decisionCalls = 0;
+        using var decisions = new WandDecisionService((input, _) =>
+        {
+            decisionCalls++;
+            Check(input.CostumeContext.Length == 0 && input.MemoryContext.Length == 0, "roast and historical/image material do not alter scoring");
+            return Task.FromResult(Proposal(input, 1));
+        });
+        var consumed = Channel.CreateUnbounded<string>();
+        var chunks = Channel.CreateUnbounded<int>();
+        var checkpoints = Channel.CreateUnbounded<LivePlaybackRequest>();
+        var drained = new TaskCompletionSource<LivePlaybackConfirmation>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var played = new List<string>();
+        var cancellations = Channel.CreateUnbounded<long>();
+        var afterCancellation = false;
+        var freshDirective = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var run = new AutonomousLiveDialogue(connection, decisions, clock).RunAsync(Call(options, lifetime),
+            (pcm, _) => { chunks.Writer.TryWrite(pcm.Length); return Task.CompletedTask; },
+            (text, _) => { consumed.Writer.TryWrite(text); return Task.CompletedTask; }, _ => Task.CompletedTask,
+            (checkpoint, _) => { checkpoints.Writer.TryWrite(checkpoint); return drained.Task; },
+            () => (63, 7, true), _ => Task.CompletedTask, lifetime.Token, stylePlayed: (style, _) => played.Add(style),
+            cancelAudio: (generation, _) => { afterCancellation = true; cancellations.Writer.TryWrite(generation); return Task.CompletedTask; },
+            terminalState: state => { if (afterCancellation && state == "character_directive_accepted") { freshDirective.TrySetResult(); } });
+        await socket.Command("session.instructions.append", lifetime.Token);
+        socket.Transcript(false, "Co bys spravil kouzlem?", 0, 1000);
+        socket.Transcript(true, express ? "Vyber rovnou." : "Prostě mi nějakou vyber.", 1100, 2000);
+        await consumed.Reader.ReadAsync(lifetime.Token);
+        socket.Delegate("character-selection", 2000);
+        socket.Emit(new { type = "session.usage.updated", usage = new { seconds = 1 } });
+        clock.Advance(1300);
+        var commentary = socket.Command("session.commentary.append", lifetime.Token);
+        if (await Task.WhenAny(commentary, run) == run) { await run; }
+        var result = await commentary;
+        Check(!result.Contains("Poslední slovo") && !result.Contains("compartment"), "identity is not delivered to limited actor");
+        if (interrupted)
+        {
+            socket.Transcript(false, "Poslední slovo —", 3000, 4000);
+            socket.Transcript(true, "Mírněji.", 4100, 4200);
+            await cancellations.Reader.ReadAsync(lifetime.Token);
+            await consumed.Reader.ReadAsync(lifetime.Token);
+            socket.Audio(); // old stream packets are not a new response
+            socket.Emit(new { type = "session.usage.updated", usage = new { seconds = 2 } });
+            clock.Advance(2000);
+            await AdvanceUntilAsync(freshDirective.Task, run, clock, lifetime.Token);
+            socket.Emit(new { type = "session.usage.updated", usage = new { seconds = 3 } });
+            clock.Advance(1000);
+            socket.Audio(); // legal new audio before its transcript
+        }
+        socket.Transcript(false, "Výběr mám. Mechanika není potvrzená. Zasraná technika.", interrupted ? 5000 : 3000, interrupted ? 6000 : 4000);
+        socket.Audio(); await chunks.Reader.ReadAsync(lifetime.Token);
+        if (interrupted) { await chunks.Reader.ReadAsync(lifetime.Token); }
+        clock.Advance(2000);
+        var checkpoint = await checkpoints.Reader.ReadAsync(lifetime.Token);
+        drained.SetResult(new(checkpoint.PlaybackId, checkpoint.PcmBytes, true));
+        var outcome = await run.WaitAsync(lifetime.Token);
+        Check(outcome.PlaybackVerified && outcome.Decision?.Compartment == 1 && played.Count == 2 && decisionCalls == 1
+            && !outcome.Reply.Reply.Contains("Poslední slovo"), "one decision, response recovery and no cancelled transcript contamination");
+    }
+
+    private static async Task AdvanceUntilAsync(Task expected, Task run, ManualClock clock, CancellationToken token)
+    {
+        for (var step = 0; step < 300 && !expected.IsCompleted && !run.IsCompleted; step++)
+        {
+            clock.Advance(50);
+            await Task.Delay(1, token); // Scheduler handoff; durations remain on the fake clock.
+        }
+        if (!expected.IsCompleted && run.IsCompleted) { await run; }
+        await expected.WaitAsync(token);
+    }
+
+    private static async Task VerifyCharacterCancellation(GptLiveOptions options)
+    {
+        using var clock = new ManualClock(); using var socket = new SocketFixture();
+        socket.BeforeDelivery = () => clock.Advance(50);
+        await using var connection = new GptLiveConnection(socket);
+        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var decisions = new WandDecisionService((_, _) => throw new Exception("Control requested a decision"));
+        var consumed = Channel.CreateUnbounded<string>(); var chunks = Channel.CreateUnbounded<int>();
+        var cancelled = Channel.CreateUnbounded<long>();
+        var suppressed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var run = new AutonomousLiveDialogue(connection, decisions, clock).RunAsync(Call(options, lifetime),
+            (pcm, _) => { chunks.Writer.TryWrite(pcm.Length); return Task.CompletedTask; },
+            (text, _) => { consumed.Writer.TryWrite(text); return Task.CompletedTask; }, _ => Task.CompletedTask,
+            (_, _) => throw new Exception("Cancelled output reached checkpoint"), () => (63, 7, true),
+            _ => Task.CompletedTask, lifetime.Token,
+            cancelAudio: (generation, _) => { cancelled.Writer.TryWrite(generation); return Task.CompletedTask; },
+            terminalState: state => { if (state == "character_audio_suppressed") { suppressed.TrySetResult(); } });
+        await socket.Command("session.instructions.append", lifetime.Token);
+        socket.Transcript(false, "Tak co tvoje ego?", 0, 1000); socket.Audio();
+        await chunks.Reader.ReadAsync(lifetime.Token);
+        socket.Transcript(true, "Bez nadávek.", 1100, 2000);
+        await cancelled.Reader.ReadAsync(lifetime.Token); await consumed.Reader.ReadAsync(lifetime.Token);
+        socket.Audio(); socket.Emit(new { type = "session.usage.updated", usage = new { seconds = 2 } });
+        await suppressed.Task.WaitAsync(lifetime.Token);
+        clock.Advance(1500);
+        socket.Transcript(false, "Dobře. Zůstanu u hůlek.", 2000, 2050);
+        socket.Transcript(true, "Nechci pokračovat.", 2100, 2500);
+        try { await run.WaitAsync(lifetime.Token); throw new Exception("Opt-out ignored"); }
+        catch (OperationCanceledException) { }
+        Check(!chunks.Reader.TryRead(out _) && !socket.Sent.Any(text => text.Contains("session.commentary.append")),
+            "late cancelled audio and end participation cannot publish a proposal");
+    }
+
+    private static async Task VerifySplitVoiceControl(GptLiveOptions options)
+    {
+        using var clock = new ManualClock(); using var socket = new SocketFixture();
+        socket.BeforeDelivery = () => clock.Advance(50);
+        await using var connection = new GptLiveConnection(socket);
+        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var decisions = new WandDecisionService((_, _) => throw new Exception("Split word requested decision"));
+        var consumed = Channel.CreateUnbounded<string>();
+        var run = new AutonomousLiveDialogue(connection, decisions, clock).RunAsync(Call(options, lifetime),
+            (_, _) => Task.CompletedTask, (text, _) => { consumed.Writer.TryWrite(text); return Task.CompletedTask; },
+            _ => Task.CompletedTask, (_, _) => throw new Exception("No checkpoint"), () => (63, 7, true),
+            _ => Task.CompletedTask, lifetime.Token);
+        await socket.Command("session.instructions.append", lifetime.Token);
+        socket.Transcript(false, "Co bys spravil?", 0, 1000);
+        await connection.SendAudioAsync(new byte[] { 0, 32, 0, 32 }, lifetime.Token);
+        socket.Transcript(true, "Stop", 1100, 1200); await consumed.Reader.ReadAsync(lifetime.Token);
+        clock.Advance(1000);
+        Check(!run.IsCompleted, "unfinished Stop prefix is not an accepted end while PCM is active");
+        socket.Transcript(true, "ařské kouzlo je moje oblíbené.", 1200, 2000);
+        await consumed.Reader.ReadAsync(lifetime.Token); clock.Advance(1300);
+        socket.Emit(new { type = "session.usage.updated", usage = new { seconds = 1 } });
+        var update = socket.Command("session.instructions.append", lifetime.Token);
+        if (await Task.WhenAny(update, run) == run) { await run; }
+        await update;
+        Check(!run.IsCompleted, "stable Stopařské fantasy does not terminate participation");
+        socket.Transcript(false, "Dobře, pokračuj.", 2100, 2200);
+        socket.Transcript(true, "Stop.", 2300, 2400);
+        socket.Emit(new { type = "session.usage.updated", usage = new { seconds = 2 } });
+        clock.Advance(500);
+        try { await run.WaitAsync(lifetime.Token); throw new Exception("Complete voice Stop ignored"); }
+        catch (OperationCanceledException) { }
+    }
+
+    private static async Task VerifyPcmCancellationFence(GptLiveOptions options)
+    {
+        using var clock = new ManualClock(); using var socket = new SocketFixture();
+        socket.BeforeDelivery = () => clock.Advance(50);
+        await using var connection = new GptLiveConnection(socket);
+        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var decisions = new WandDecisionService((_, _) => throw new Exception("No delegation"));
+        var chunks = Channel.CreateUnbounded<int>(); var cancellations = Channel.CreateUnbounded<long>();
+        var suppressed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var run = new AutonomousLiveDialogue(connection, decisions, clock).RunAsync(Call(options, lifetime),
+            (pcm, _) => { chunks.Writer.TryWrite(pcm.Length); return Task.CompletedTask; }, (_, _) => Task.CompletedTask,
+            _ => Task.CompletedTask, (_, _) => throw new Exception("No checkpoint"), () => (63, 7, true),
+            _ => Task.CompletedTask, lifetime.Token,
+            cancelAudio: (generation, _) => { cancellations.Writer.TryWrite(generation); return Task.CompletedTask; },
+            terminalState: state => { if (state == "character_audio_suppressed") { suppressed.TrySetResult(); } });
+        await socket.Command("session.instructions.append", lifetime.Token);
+        socket.Transcript(false, "Co bys spravil?", 0, 1000); socket.Audio();
+        await chunks.Reader.ReadAsync(lifetime.Token);
+        await connection.SendAudioAsync(new byte[] { 0, 32, 0, 32 }, lifetime.Token);
+        clock.Advance(50); await cancellations.Reader.ReadAsync(lifetime.Token);
+        clock.Advance(2000);
+        // No new transcript/directive exists. Old timeline+old ACK may not
+        // authorize recovery merely because PCM subsequently became quiet.
+        socket.Transcript(false, "Staré pokračování.", 1100, 2000); socket.Audio();
+        await suppressed.Task.WaitAsync(lifetime.Token);
+        Check(!chunks.Reader.TryRead(out _), "PCM-only barge-in retires previous directive ACK");
+        lifetime.Cancel();
+        try { await run; } catch (OperationCanceledException) { }
+    }
+
     internal static async Task RunAsync()
     {
         var defaults = GptLiveOptions.Read(new ConfigurationBuilder().Build());
@@ -295,6 +496,7 @@ internal static class AutonomousLiveTests
         var result = await socket.Command("session.commentary.append", lifetime.Token);
         Check(calls == (correction ? 2 : 1) && !result.Contains("ZASTARALÝ"), "duplicate/late stale work is not published or replayed");
         var name = PartyWandCatalog.Available(63).Single(w => w.Compartment == (correction ? 2 : 1)).DisplayName;
+        if (options.Character.Enabled) { name = "Výběr mám"; }
         if (naturalVerdict) name = "Poslední slovo";
         socket.Transcript(false, name + " —", 3000, 4000);
         socket.Audio();
@@ -468,6 +670,11 @@ internal static class AutonomousLiveTests
         Check(session.ConfirmCheckpoint(request.PlaybackId, 48000, true) && (await drain).Drained,
             "real local checkpoint acknowledgement");
         Check(session.ConfirmCheckpoint(request.PlaybackId, 48000, true) && !session.ConfirmCheckpoint(request.PlaybackId, 2, true), "lost ACK can be retried idempotently with exact body");
+        var pending = new LivePlaybackRequest(Guid.NewGuid(), 96000, 3);
+        var oldDrain = session.PrepareCheckpoint(pending);
+        session.CancelCheckpoint();
+        Check(!(await oldDrain).Drained && !session.ConfirmCheckpoint(pending.PlaybackId, pending.PcmBytes, true),
+            "cancelled old audio-completed cannot complete a new response");
     }
     private static void Append(LiveConversationProjection p, bool input, string text, int start, int end)
     { using var doc = JsonDocument.Parse(JsonSerializer.Serialize(new { type = input ? "session.input_transcript.delta" : "session.output_transcript.delta", delta = text, start_ms = start, end_ms = end, event_id = Guid.NewGuid().ToString("N") })); p.Append(doc.RootElement, input); }

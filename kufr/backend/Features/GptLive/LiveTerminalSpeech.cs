@@ -7,6 +7,11 @@ namespace Kufr.Backend.Features.GptLive;
 
 internal static class LiveTerminalSpeech
 {
+    internal static bool MentionsAnyCatalogTitle(string spoken, IReadOnlyList<PartyWandCatalog.WandEntry> catalog)
+    {
+        var words = Words(spoken);
+        return catalog.Any(wand => Mentions(words, wand.DisplayName));
+    }
     private static readonly HashSet<string> CaseEndings = new(StringComparer.Ordinal)
         { "", "a", "e", "i", "o", "u", "y", "ou", "em", "im", "ym", "ho", "mu", "eho", "emu", "ovi", "ove", "ich", "ych", "ech", "um", "ami", "emi", "imi", "ymi" };
 
