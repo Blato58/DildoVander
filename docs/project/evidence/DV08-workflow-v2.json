@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "DV08-workflow-v2",
+  "observedAtUtc": "2026-10-13T20:35:39.681872Z",
+  "kind": "source_review",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "DV08",
+      "criterionId": "WORKFLOW",
+      "criterionRevision": 2,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "commit": "5a32078f54bd309e2486f011c03c6a33fe5e002c",
+    "dirty": true,
+    "artifactDigest": "ce09a238d584127e58783a675b6705f7ac7f87648f61c3e0a5c617cb4b697573"
+  },
+  "method": "Read STATUS/item/skill; actual second Git worktree58+2 tests, new unit receipt update/validation/render, blocked handoff; native skills/list and quick_validate",
+  "environment": "Windows; two actual repository worktrees; native Codex scanner; isolated physical fixtures",
+  "limitations": [
+    "Physical fixture evidence is explicitly synthetic; no production physical receipt.",
+    "Native discovery proves current CLI/app-server repository loading; an existing desktop chat catalog may require refresh.",
+    "No global configuration or absolute-worktree dependency."
+  ],
+  "observation": "Actual secondary v2 run58+2 passed, receipt DV08-secondary-v2-unit authored/selected after tests, data validated and repeated render identical. Explicit B-HANDOFF-V2 stopped DV08 recommendation without choosing KUFR. Start read only STATUS/item/skill. Unchanged SKILL bytes were discovered/loaded as enabled repo skill in both worktrees by installed native scanner; quick_validate passed again. Independent physical fixtures retain unknown when proof missing and stale after target-only wiring change."
+}

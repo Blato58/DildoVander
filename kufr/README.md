@@ -7,7 +7,7 @@ vlastní řeč, backend ověřuje skutečný výběr, SQLite vlastní revizovano
 paměť a OpenAI Vector Store její povolený odvozený index. Výchozí režim
 i katalog personalit zůstávají. [Aktivace, rollback, stores a retence](docs/autonomous-live-memory.md)
 jsou připravené; skutečný cloud, poslech a mechanika vyžadují samostatné
-ověření podle [stavu implementace](docs/stav-implementace.md).
+ověření podle [stavu implementace](../docs/project/STATUS.md).
 
 Vybraná rekvizita: [sada dvou dřevěných truhel Marketos](https://www.marketos.cz/marketos-truhla-drevena-2-ks-vintage-hneda/). Pro AI kufr je zamýšlená větší truhla; skutečný vnitřní prostor změříme po doručení. Menší truhla patří komediálnímu kufru, který je bez elektroniky.
 
@@ -22,7 +22,7 @@ Vybraná rekvizita: [sada dvou dřevěných truhel Marketos](https://www.marketo
 - [`design-system/`](design-system/README.md) — Arcane Workshop: sdílené tokeny, komponentové vzory, přístupnost a tři ilustrační mockupy.
 - [`web/`](web/README.md) — veřejný rozcestník, ověřený výrobní ZIP a automatické atomické nasazení Workshopu, webového Companionu a odpojeného náhledu simulátoru.
 - [`docs/implementacni-plan.md`](docs/implementacni-plan.md) — rozhodnutí, protokol, bezpečnost, předběžné piny A/B, testování a etapy.
-- [`docs/stav-implementace.md`](docs/stav-implementace.md) — jediný průběžný přehled realizace, ověření, blokací a dalšího kroku.
+- [`../docs/project/STATUS.md`](../docs/project/STATUS.md) — generovaný přehled práce a ověření ze společných JSON work items a receipts.
 - [`docs/kamera.md`](docs/kamera.md) — volitelné rozšíření o obraz; vybraná deska má kamerový konektor.
 - [`docs/efekty-a-napajeni.md`](docs/efekty-a-napajeni.md) — návrh RGB, vibrací a napájení kufru.
 - [`docs/pin-mapa-esp32-s3.md`](docs/pin-mapa-esp32-s3.md) — dodaná pinová mapa desky, její omezení a odkaz na předběžná přidělení A/B.

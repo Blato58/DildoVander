@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "focusInitiative": "KUFR",
+  "currentTarget": "kufr-68ee8f4b6048",
+  "statusLimits": {
+    "active": 5,
+    "planned": 5,
+    "blockers": 5
+  }
+}

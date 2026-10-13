@@ -279,7 +279,7 @@ Backend používá nativní Responses function calling: `continue_conversation`,
 
 Stav návrhu: **29. 9. 2026**. Dokument navrhuje budoucí implementaci; žádnou z ní neprohlašuje za hotovou. Pinová přidělení jsou **předběžná**, nikoli změřené zapojení konkrétní desky. Před zapojením a nahráním musí projít kontrolou revize podle kapitoly 10.
 
-Tento plán určuje cílovou architekturu a akceptační kritéria. Aktuální dokončení, rozpracovanost, ověření a konkrétní další krok vede [stav implementace](stav-implementace.md); postup další AI určuje [AGENTS.md](../../AGENTS.md). Plán nahrazuje dosavadní nezávazné softwarové představy, nikoli existující elektrická bezpečnostní omezení. Obludárium není součástí návrhu. Původní příprava plánu i navazující sjednocení dokumentace byly pouze dokumentační práce; nejsou dokončením implementačních etap.
+Tento plán určuje cílovou architekturu a akceptační kritéria. Aktuální dokončení, rozpracovanost, ověření a další krok vede [generovaný STATUS](../../docs/project/STATUS.md); postup další AI určuje [AGENTS.md](../../AGENTS.md). Plán nahrazuje dosavadní nezávazné softwarové představy, nikoli existující elektrická bezpečnostní omezení. Obludárium není součástí návrhu. Původní příprava plánu i navazující sjednocení dokumentace byly pouze dokumentační práce; nejsou dokončením implementačních etap.
 
 ## 1. Výchozí stav a cílový zážitek
 
@@ -1260,13 +1260,13 @@ Fault injection: ztracený ACK, zpožděný příkaz, zavřený socket v každé
 | AI eval | Alespoň 60 českých scénářů: běžné odpovědi, hluk/nářečí, nesrozumitelnost, prompt injection, volba nedostupné hůlky, všech šest možností a odmítnutí. 100 % výstupů musí buď projít validací, nebo skončit bezpečně; kvalitu stylu obsluha schválí alespoň v 90 % scénářů. |
 | Hardware | Osciloskop/logický analyzátor a měření proudu, žádný impulz motoru/serva při bootu/resetu, cut při I2C/freeze a fyzickém stop. USB/JTAG, audio bez praskání, SD/camera profil, desetiminutový tepelný test a alespoň 100 cyklů každé přihrádky bez chyb. |
 
-Při implementaci: firmware `pio run` v `kufr/firmware`, hostitelský C++ test podle aktuálního README (výstupy do dočasné/build složky); frontend `npm run build`, cílené unit/E2E skripty po jejich zavedení; backend cílené `dotnet test` a build po vytvoření projektu. Nové testovací závislosti zavádět odůvodněně jako součást příslušné etapy, s připnutými verzemi a ověřenými příkazy. Browser E2E a iOS Simulator v GitHub Actions **nenahrazují** fyzický iPhone test instalace podepsané IPA, native TLS, LAN oprávnění, mikrofonu a uspání. Dokumentační práce sama o sobě nevyžaduje spuštění CI; skutečně provedené kontroly vždy zapsat do stavu implementace.
+Při implementaci: firmware `pio run` v `kufr/firmware`, hostitelský C++ test podle aktuálního README (výstupy do dočasné/build složky); frontend `npm run build`, cílené unit/E2E skripty po jejich zavedení; backend cílené `dotnet test` a build po vytvoření projektu. Nové testovací závislosti zavádět odůvodněně jako součást příslušné etapy, s připnutými verzemi a ověřenými příkazy. Browser E2E a iOS Simulator v GitHub Actions **nenahrazují** fyzický iPhone test instalace podepsané IPA, native TLS, LAN oprávnění, mikrofonu a uspání. Dokumentační práce sama o sobě nevyžaduje spuštění CI; skutečně provedené kontroly zaznamenat v typovaném receipt.
 
 Metriky: LAN RTT a ACK p95, reconnect time, počet neznámých výsledků, provider latence/usage, buffer overruns, minimální heap/DMA/PSRAM, watchdog/reset reason a délky pulzů. Žádné texty či nahrávky v metrikách. Pro hardware evidovat revizi PCB, firmware hash, profil a kalibraci, aby byl výsledek reprodukovatelný.
 
 ## 12. Postup v malých ověřitelných etapách
 
-Každá etapa je samostatně reviewovatelná změna a lze ji dělit na menší ověřitelné kroky. Implementace softwaru a simulace mohou předběhnout dodání desky; povolení skutečných pohonů nikoli. Následující tabulka určuje akceptaci; skutečné dokončení se vede pouze ve stavu implementace.
+Každá etapa je samostatně reviewovatelná změna a lze ji dělit na menší ověřitelné kroky. Implementace softwaru a simulace mohou předběhnout dodání desky; povolení skutečných pohonů nikoli. Následující tabulka určuje akceptaci; skutečné dokončení se odvozuje z [work items a důkazů](../../docs/project/STATUS.md).
 
 | Etapa | Výstup | Závislost | Dokončeno, když |
 | --- | --- | --- | --- |
@@ -1321,7 +1321,7 @@ Příprava playlistu a úspěšný build tato kritéria nenahrazují.
 Pokyn „začni/pokračuj implementovat aplikaci podle implementačního plánu“ spouští postup v AGENTS.md: ověřit skutečný stav, převzít nejbližší proveditelný krok, implementovat, ověřit a předat. Při prvním zahájení je to E1, nikoli požadavek napřed dokončit všechna externí měření E0. Hardware/podpis/placené služby blokují jen své závislé části.
 
 - **Plán:** přijatá rozhodnutí, kontrakty, bezpečnost, etapové závislosti a kritéria. Měnit při novém architektonickém důkazu; důvod, dopady a potřebnou migraci zaznamenat spolu se změnou. Nesnižovat kritéria, aby šla etapa označit za hotovou.
-- **[Stav implementace](stav-implementace.md):** jediný seznam stavů E0–E13/E3a, dílčí kroky, chybějící vstupy, důkazy kontrol a konkrétní předání. Aktualizovat při převzetí i dokončení/přerušení kroku. Fake, build, integrační test a fyzické ověření rozlišovat; procenta bez podkladu nepoužívat.
+- **[Projektový tracking](../../docs/project/STATUS.md):** aktuální práce a ověření se odvozují z work items a typovaných receipts společným CLI; postup vede projektový skill odkazovaný z AGENTS. Historický stav je archiv, nepřidává se další deník.
 - **README a AGENTS:** krátké vstupní body a postup práce. Komponentové README popisují skutečně dostupné příkazy/konfiguraci a zvlášť budoucí směr. Nové příkazy a závislosti doplnit zároveň s jejich implementací; nepředstírat existující backend/CI jen proto, že ho plán navrhuje.
 - **Firmware:** dokumentovat skutečný ESP-IDF runtime, kontrakty, jediný profil, servisní provisioning bez tajemství a ověřené příkazy. Historický Arduino sériový prototyp se nesestavuje ani neobnovuje.
 - **Mobil po E3/E3a/E4:** doplnit skutečné Windows/CI příkazy, Swift adaptér, workflow cestu, názvy secrets, podpisový režim a důkaz instalace. Vite build ani CI archive neznamenají otestovaný iPhone.

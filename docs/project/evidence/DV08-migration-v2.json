@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "DV08-migration-v2",
+  "observedAtUtc": "2026-10-13T20:35:39.681872Z",
+  "kind": "source_review",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "DV08",
+      "criterionId": "MIGRATION",
+      "criterionRevision": 2,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "commit": "5a32078f54bd309e2486f011c03c6a33fe5e002c",
+    "dirty": true,
+    "artifactDigest": "ce09a238d584127e58783a675b6705f7ac7f87648f61c3e0a5c617cb4b697573"
+  },
+  "method": "migration-check;129 current Markdown local links/anchors;5 archive SHA-256 checks; independent original source/blocker audit",
+  "environment": "Windows/Git; migration and archives also checked in final Linux run",
+  "limitations": [
+    "No historical prose promoted to test receipt; prior accepted service results remain dated in notes/archive.",
+    "Semantic completeness needs human inventory, not just validators."
+  ],
+  "observation": "All5 original byte archives still hash-match manifest; all47 legacy rows and77 blockers retain destinations in122 mappings.129 current local links and preserved Unicode anchors passed again. Bootstrap/short shims/runbook remain consistent with JSON; source plan contracts preserved. Prior dry-run/switch provenance is documented in DV08-migration and the unchanged archive."
+}

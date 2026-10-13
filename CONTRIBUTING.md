@@ -2,7 +2,7 @@
 
 Projekt je rozpracovaný prototyp. Architekturu určuje
 [implementační plán](kufr/docs/implementacni-plan.md), důkazy a otevřené kontroly
-vede [stav implementace](kufr/docs/stav-implementace.md). Začni
+vede [generovaný STATUS](docs/project/STATUS.md). Začni
 [návodem bez hardwaru](docs/public-development.md) a README dotčené komponenty.
 Vlastní zdrojový kód, dokumentace a CAD zdroje projektu používají
 [AGPL-3.0-only](LICENSE). Příspěvky do těchto částí poskytuj pod stejnou

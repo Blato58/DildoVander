@@ -1,0 +1,4 @@
+interface:
+  display_name: "DildoVander project tracking"
+  short_description: "Current work, evidence and conservative acceptance"
+  default_prompt: "Use $dildovander-project-tracking to inspect or update the assigned DildoVander task and its actual verification."

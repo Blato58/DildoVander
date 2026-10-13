@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "id": "KUFR-EVENT",
+  "initiative": "KUFR",
+  "title": "Provozní podmínky a zkouška celé sestavy E11",
+  "state": "blocked",
+  "priority": "P1",
+  "sequence": 8,
+  "scope": [
+    "docs/event-readiness.md",
+    "kufr/docs/implementacni-plan.md"
+  ],
+  "dependencies": [
+    {
+      "itemId": "KUFR-E0",
+      "requiredMilestone": "accepted"
+    },
+    {
+      "itemId": "KUFR-E6",
+      "requiredMilestone": "accepted"
+    },
+    {
+      "itemId": "KUFR-NETWORK",
+      "requiredMilestone": "accepted"
+    },
+    {
+      "itemId": "KUFR-LAN",
+      "requiredMilestone": "accepted"
+    },
+    {
+      "itemId": "KUFR-OTA",
+      "requiredMilestone": "accepted"
+    },
+    {
+      "itemId": "KUFR-DIALOG",
+      "requiredMilestone": "accepted"
+    },
+    {
+      "itemId": "KUFR-AUDIO",
+      "requiredMilestone": "accepted"
+    },
+    {
+      "itemId": "KUFR-NATIVE-DELIVERY",
+      "requiredMilestone": "accepted"
+    }
+  ],
+  "acceptance": [
+    {
+      "id": "S47",
+      "revision": 1,
+      "expected": "Celý systém se zotaví z dočasných chyb. Zbývající zkouška: souvislá zkouška celé sestavy v místě akce, výpadky a návraty bez nebezpečného pohybu.",
+      "requiredEvidenceKinds": [
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "REHEARSAL",
+      "revision": 1,
+      "expected": "Celý scénář bez notebooku/aktivního telefonu, místní Stop/zotavení, powerbank výdrž a zkouška v místě akce",
+      "requiredEvidenceKinds": [
+        "esp_runtime",
+        "electrical_measurement",
+        "long_running_soak"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    }
+  ],
+  "blockers": [
+    {
+      "id": "B-S47",
+      "problem": "Zbývající fyzická/provozní kontrola: souvislá zkouška celé sestavy v místě akce, výpadky a návraty bez nebezpečného pohybu.",
+      "severity": "high",
+      "blocks": [
+        "S47"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-REHEARSAL",
+      "problem": "Celá návštěvnická sestava částečně připravena; integrovaná zkouška chybí.",
+      "severity": "critical",
+      "blocks": [
+        "REHEARSAL"
+      ],
+      "unblockCondition": "Doložit Celý scénář bez notebooku/aktivního telefonu, místní Stop/zotavení, powerbank výdrž a zkouška v místě akce",
+      "role": "majitel a implementátor"
+    }
+  ],
+  "currentNote": "Celá návštěvnická sestava není přijatá. Publikace není instalace a boot samostatné desky není přejímka pohonů.",
+  "nextAction": "Připravit konkrétní fyzickou zkoušku podle kritérií; provedení vyžaduje zadání majitele."
+}

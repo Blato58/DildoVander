@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "DV08-measurements",
+  "observedAtUtc": "2026-10-13T20:14:44.588188Z",
+  "kind": "source_review",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "DV08",
+      "criterionId": "OVERHEAD",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "commit": "d0bcc0627ee7f1b179f4ffe0467e2b06338b307b",
+    "dirty": true,
+    "artifactDigest": "d9c9206954d2d2ccdd78884bc05179dbc320b703facfa1bf9056fff003651c04"
+  },
+  "method": "Count len(decoded UTF-8 text with universal-newline normalization) per file required by the old/new bootstrap. Exclude unchanged AGENTS/global Codex context; include new skill in after. Before uses whole plan, whole state and firmware README required by old AGENTS. Token estimate only characters/4; no tokenizer.",
+  "environment": "Windows Python standard library; archived pre-switch documents and current generated candidate snapshot",
+  "limitations": [
+    "Measures documentation read under the old/new repository bootstrap, not the entire initial Codex context.",
+    "Current active-DV08 snapshot was measured; final closed snapshot length is checked separately.",
+    "Strictly mandatory manual file count did not decrease: one status file became one work item; genuine verification additionally has a receipt.",
+    "Token counts are estimates by characters/4, not measured tokenizer results."
+  ],
+  "observation": "Same E5 status question: 249921→11129 Unicode characters (95.55% reduction),3→3files including new skill. Actual secondary update changed2manual files+1generated STATUS. 77/77 blockers and47/47 scenarios retained. Selected duplicated WSS current claim3→1maintained place.",
+  "measurements": {
+    "question": "Zjistit stav E5, blokace a další povolenou práci; bez zahájení produktové implementace.",
+    "method": "Count len(decoded UTF-8 text with universal-newline normalization) per file required by the old/new bootstrap. Exclude unchanged AGENTS/global Codex context; include new skill in after. Before uses whole plan, whole state and firmware README required by old AGENTS. Token estimate only characters/4; no tokenizer.",
+    "before": [
+      {
+        "path": "kufr/docs/implementacni-plan.md",
+        "unicodeCharacters": 161045,
+        "lines": 1374
+      },
+      {
+        "path": "kufr/docs/stav-implementace.md",
+        "unicodeCharacters": 14691,
+        "lines": 236
+      },
+      {
+        "path": "kufr/firmware/README.md",
+        "unicodeCharacters": 74185,
+        "lines": 1146
+      }
+    ],
+    "beforeTotal": 249921,
+    "beforeFiles": 3,
+    "manualUpdateMethod": "Old instructions strictly mandated one state file; same WSS/Keychain pending assertion was manually maintained in three status documents. New workflow updates one relevant item plus optional receipt and generates STATUS. Do not claim reduction in mandatory manual files from 1 to 0.",
+    "after": [
+      {
+        "path": "docs/project/STATUS.md",
+        "unicodeCharacters": 2213,
+        "lines": 47
+      },
+      {
+        "path": "docs/project/work-items/KUFR-E5.json",
+        "unicodeCharacters": 5064,
+        "lines": 164
+      },
+      {
+        "path": ".agents/skills/dildovander-project-tracking/SKILL.md",
+        "unicodeCharacters": 3852,
+        "lines": 63
+      }
+    ],
+    "afterTotal": 11129,
+    "afterFiles": 3,
+    "characterReductionPercent": 95.55,
+    "tokenEstimateMethod": "Unicode characters / 4, estimate only; no tokenizer",
+    "beforeEstimatedTokens": 62480,
+    "afterEstimatedTokens": 2782,
+    "statusMeasurement": {
+      "unicodeCharacters": 2213,
+      "lines": 47,
+      "phase": "Actual active-DV08 update after genuine local/migration/workflow receipts; before CI closure/measurement receipt insertion."
+    },
+    "blockers": {
+      "inventoried": 77,
+      "mapped": 77,
+      "sourceScenarioRows": 47,
+      "lost": 0,
+      "method": "Every production blocker pair(itemId,blockerId) equals manifest.openBlockers pair set; source47 matrix row IDs all present. Independent source audit handles completeness beyond validator."
+    },
+    "manualUpdates": {
+      "oldStrictMandatoryFiles": 1,
+      "newWorkItemFiles": 1,
+      "newReceiptFilesForActualCheck": 1,
+      "newStatusManualEdits": 0,
+      "actualSecondaryWorkflowFilesWrittenManually": 2,
+      "actualSecondaryGeneratedFiles": 1,
+      "interpretation": "No claim that the strictly mandatory file count decreased. Duplicate status/verification narratives removed; meaningful checks add a typed receipt."
+    },
+    "duplicatedCurrentClaim": {
+      "claim": "LAN WSS acceptance remains open; distinguish historical successful connection from complete readiness.",
+      "beforeSourceDocuments": [
+        "kufr/docs/stav-implementace.md:E4/Předání",
+        "docs/event-readiness.md:D166/current subsystems",
+        "docs/software-completion-audit.md:Verification and remaining acceptance"
+      ],
+      "beforeMaintainedPlaces": 3,
+      "afterCanonicalPlace": "docs/project/work-items/KUFR-LAN.json:WSS",
+      "afterMaintainedPlaces": 1,
+      "method": "Manual source-section comparison of same pending WSS claim; exclude archive/operational instructions/automatically derived STATUS from current-authority count."
+    }
+  }
+}

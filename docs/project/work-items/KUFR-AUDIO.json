@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "id": "KUFR-AUDIO",
+  "initiative": "KUFR",
+  "title": "Skutečné audio a samostatný hlas E9",
+  "state": "blocked",
+  "priority": "P1",
+  "sequence": 5,
+  "scope": [
+    "kufr/firmware/src/features/voice_turn"
+  ],
+  "dependencies": [
+    {
+      "itemId": "KUFR-E5",
+      "requiredMilestone": "accepted"
+    }
+  ],
+  "acceptance": [
+    {
+      "id": "S43",
+      "revision": 1,
+      "expected": "Audio funguje na zvoleném hardwaru. Zbývající zkouška: oba DFR0954/reproduktory, mikrofon, clipping, echo, latence a resetové ticho.",
+      "requiredEvidenceKinds": [
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "AUDIOLOAD",
+      "revision": 1,
+      "expected": "Dva reproduktory/mikrofon: clipping/echo/latence/resetové ticho a DMA/heap",
+      "requiredEvidenceKinds": [
+        "esp_runtime",
+        "electrical_measurement"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "STANDALONE",
+      "revision": 1,
+      "expected": "Celý rozhovor a návrat bez telefonu; fyzické PTT/start a nouzové audio",
+      "requiredEvidenceKinds": [
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "SOAK100",
+      "revision": 1,
+      "expected": "100 hlasových tahů bez úniku RAM; český poslech a latence v hluku",
+      "requiredEvidenceKinds": [
+        "esp_runtime",
+        "long_running_soak"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    }
+  ],
+  "blockers": [
+    {
+      "id": "B-S43",
+      "problem": "Zbývající fyzická/provozní kontrola: oba DFR0954/reproduktory, mikrofon, clipping, echo, latence a resetové ticho.",
+      "severity": "high",
+      "blocks": [
+        "S43"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-AUDIOLOAD",
+      "problem": "E9 hardware, fyzický vstup a dlouhý provoz otevřené.",
+      "severity": "high",
+      "blocks": [
+        "AUDIOLOAD"
+      ],
+      "unblockCondition": "Doložit Dva reproduktory/mikrofon: clipping/echo/latence/resetové ticho a DMA/heap",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-STANDALONE",
+      "problem": "E9 hardware, fyzický vstup a dlouhý provoz otevřené.",
+      "severity": "high",
+      "blocks": [
+        "STANDALONE"
+      ],
+      "unblockCondition": "Doložit Celý rozhovor a návrat bez telefonu; fyzické PTT/start a nouzové audio",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-SOAK100",
+      "problem": "E9 hardware, fyzický vstup a dlouhý provoz otevřené.",
+      "severity": "high",
+      "blocks": [
+        "SOAK100"
+      ],
+      "unblockCondition": "Doložit 100 hlasových tahů bez úniku RAM; český poslech a latence v hluku",
+      "role": "majitel a implementátor"
+    }
+  ],
+  "currentNote": "I2S a half-duplex software nejsou akceptací mikrofonu/reproduktorů ani DMA/heap v zátěži.",
+  "nextAction": "Připravit konkrétní fyzickou zkoušku podle kritérií; provedení vyžaduje zadání majitele."
+}

@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "id": "KUFR-DIALOG",
+  "initiative": "KUFR",
+  "title": "Obsahová a device akceptace textu/hlasu a katalogu",
+  "state": "blocked",
+  "priority": "P1",
+  "sequence": 3,
+  "scope": [
+    "kufr/backend",
+    "kufr/firmware/src/features/conversation"
+  ],
+  "dependencies": [],
+  "acceptance": [
+    {
+      "id": "S39",
+      "revision": 1,
+      "expected": "GPT-Live dál funguje. Zbývající zkouška: nový placený provider test, skutečný rozhovor/audio a lidská akceptace.",
+      "requiredEvidenceKinds": [
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "S40",
+      "revision": 1,
+      "expected": "Výběr osobnosti je zachován. Zbývající zkouška: lidská akceptace skutečného provider rozhovoru s katalogem.",
+      "requiredEvidenceKinds": [
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "S42",
+      "revision": 1,
+      "expected": "Firmware/backend protokol je kompatibilní. Zbývající zkouška: celý rozhovor/hlas/pohyb nad nasazenými verzemi.",
+      "requiredEvidenceKinds": [
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    }
+  ],
+  "blockers": [
+    {
+      "id": "B-S39",
+      "problem": "Zbývající fyzická/provozní kontrola: nový placený provider test, skutečný rozhovor/audio a lidská akceptace.",
+      "severity": "high",
+      "blocks": [
+        "S39"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-S40",
+      "problem": "Zbývající fyzická/provozní kontrola: lidská akceptace skutečného provider rozhovoru s katalogem.",
+      "severity": "high",
+      "blocks": [
+        "S40"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-S42",
+      "problem": "Zbývající fyzická/provozní kontrola: celý rozhovor/hlas/pohyb nad nasazenými verzemi.",
+      "severity": "high",
+      "blocks": [
+        "S42"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    }
+  ],
+  "currentNote": "E8/E9 mají implementované adaptéry a offline testy; neprovedena nová placená inference ani lidská akceptace celé sestavy. Tento item neautorizuje placený test.",
+  "nextAction": "Připravit konkrétní fyzickou zkoušku podle kritérií; provedení vyžaduje zadání majitele."
+}
