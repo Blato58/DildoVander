@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "id": "KUFR-E0",
+  "initiative": "KUFR",
+  "title": "Provozní podmínky, síť a datová pravidla akce",
+  "state": "blocked",
+  "priority": "P0",
+  "sequence": 15,
+  "scope": [
+    "kufr/docs/implementacni-plan.md",
+    "docs/event-readiness.md"
+  ],
+  "dependencies": [],
+  "acceptance": [
+    {
+      "id": "VENUE",
+      "revision": 1,
+      "expected": "Konkrétní místo akce, router/AP nebo přijatý hotspot, WAN, izolace klientů a datové podmínky",
+      "requiredEvidenceKinds": [
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "DATA",
+      "revision": 1,
+      "expected": "Vlastník cloudu potvrdí region/retenci a informování návštěvníků; účet řídí náklady",
+      "requiredEvidenceKinds": [
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "BOARD",
+      "revision": 1,
+      "expected": "Přesná revize desky/zapojení A/B včetně PCA-U059 3.3V logiky potvrzená měřením",
+      "requiredEvidenceKinds": [
+        "electrical_measurement"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    }
+  ],
+  "blockers": [
+    {
+      "id": "B-VENUE",
+      "problem": "E0 provozní/elektrické podmínky zůstávají otevřené.",
+      "severity": "high",
+      "blocks": [
+        "VENUE"
+      ],
+      "unblockCondition": "Doložit Konkrétní místo akce, router/AP nebo přijatý hotspot, WAN, izolace klientů a datové podmínky",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-DATA",
+      "problem": "E0 provozní/elektrické podmínky zůstávají otevřené.",
+      "severity": "high",
+      "blocks": [
+        "DATA"
+      ],
+      "unblockCondition": "Doložit Vlastník cloudu potvrdí region/retenci a informování návštěvníků; účet řídí náklady",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-BOARD",
+      "problem": "E0 provozní/elektrické podmínky zůstávají otevřené.",
+      "severity": "high",
+      "blocks": [
+        "BOARD"
+      ],
+      "unblockCondition": "Doložit Přesná revize desky/zapojení A/B včetně PCA-U059 3.3V logiky potvrzená měřením",
+      "role": "majitel a implementátor"
+    }
+  ],
+  "currentNote": "",
+  "nextAction": "Připravit konkrétní fyzickou zkoušku podle kritérií; provedení vyžaduje zadání majitele."
+}

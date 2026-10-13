@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "id": "KUFR-PB720",
+  "initiative": "OPTIONAL",
+  "title": "Volitelná telemetrie PB720 — kontrakt nejprve ověřit",
+  "state": "blocked",
+  "priority": "P3",
+  "sequence": 16,
+  "scope": [
+    "docs/hardware-software-integration.md"
+  ],
+  "dependencies": [],
+  "acceptance": [
+    {
+      "id": "CONTRACT",
+      "revision": 1,
+      "expected": "Skutečný PB720 hardware/API kontrakt a měřená výdrž",
+      "requiredEvidenceKinds": [
+        "source_review",
+        "electrical_measurement"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    }
+  ],
+  "blockers": [
+    {
+      "id": "B-CONTRACT",
+      "problem": "Neověřený hardware/API kontrakt; driver ani odhad výdrže se nevymýšlí.",
+      "severity": "high",
+      "blocks": [
+        "CONTRACT"
+      ],
+      "unblockCondition": "Doložit Skutečný PB720 hardware/API kontrakt a měřená výdrž",
+      "role": "majitel a implementátor"
+    }
+  ],
+  "currentNote": "Není implementováno a nejde o core software requirement. Neimplementovat v DV08.",
+  "nextAction": "Připravit konkrétní fyzickou zkoušku podle kritérií; provedení vyžaduje zadání majitele."
+}

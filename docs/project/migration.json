@@ -1,0 +1,2167 @@
+{
+  "schemaVersion": 1,
+  "specification": {
+    "title": "DV08 — Přehled práce, změn a ověření bez stavového monolitu",
+    "version": 2,
+    "sha256": "e1c0f4cefcebd54d6830a763fbf2ed5ed878e6627acabba875eabf7ecf36bcac"
+  },
+  "sources": [
+    {
+      "path": "kufr/docs/stav-implementace.md",
+      "sha256": "7b6fbb86821aee0ca07e1c2bf36c7ff468da30648fbec84d79bc950c873cc709",
+      "archivePath": "docs/project/archive/dv08/kufr/docs/stav-implementace.md"
+    },
+    {
+      "path": "kufr/docs/implementacni-plan.md",
+      "sha256": "28d78a16f427aa4e1d4101c5b0f8efba5860e1e132f5211981ab207a740c26ed",
+      "archivePath": "docs/project/archive/dv08/kufr/docs/implementacni-plan.md"
+    },
+    {
+      "path": "docs/event-readiness.md",
+      "sha256": "3d5a94c1eeaa9e095ef38453da0d142fff3bacd2880d95dce248f56512159c8b",
+      "archivePath": "docs/project/archive/dv08/docs/event-readiness.md"
+    },
+    {
+      "path": "docs/software-completion-audit.md",
+      "sha256": "a2f380dad574b0fe406817466b4b400dcde1e2fc9379c93dafefe771d126a17a",
+      "archivePath": "docs/project/archive/dv08/docs/software-completion-audit.md"
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "8ce2cbd530c735fde0a3c3a4f39cbb3ad5dbf8d0cf0ca552a7cc0736065aabf9",
+      "archivePath": "docs/project/archive/dv08/AGENTS.md"
+    }
+  ],
+  "mappings": [
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 1",
+      "lineStart": 233,
+      "lineEnd": 233,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-NETWORK.json#S01",
+        "docs/project/work-items/KUFR-NETWORK.json#B-S01"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 2",
+      "lineStart": 234,
+      "lineEnd": 234,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-NETWORK.json#S02",
+        "docs/project/work-items/KUFR-NETWORK.json#B-S02"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 3",
+      "lineStart": 235,
+      "lineEnd": 235,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-NETWORK.json#S03",
+        "docs/project/work-items/KUFR-NETWORK.json#B-S03"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 4",
+      "lineStart": 236,
+      "lineEnd": 236,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-NETWORK.json#S04",
+        "docs/project/work-items/KUFR-NETWORK.json#B-S04"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 5",
+      "lineStart": 237,
+      "lineEnd": 237,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-NETWORK.json#S05",
+        "docs/project/work-items/KUFR-NETWORK.json#B-S05"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 6",
+      "lineStart": 238,
+      "lineEnd": 238,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-NETWORK.json#S06",
+        "docs/project/work-items/KUFR-NETWORK.json#B-S06"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 7",
+      "lineStart": 239,
+      "lineEnd": 239,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-NETWORK.json#S07",
+        "docs/project/work-items/KUFR-NETWORK.json#B-S07"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 8",
+      "lineStart": 240,
+      "lineEnd": 240,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-NETWORK.json#S08",
+        "docs/project/work-items/KUFR-NETWORK.json#B-S08"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 9",
+      "lineStart": 241,
+      "lineEnd": 241,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-NETWORK.json#S09",
+        "docs/project/work-items/KUFR-NETWORK.json#B-S09"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 10",
+      "lineStart": 242,
+      "lineEnd": 242,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-NETWORK.json#S10",
+        "docs/project/work-items/KUFR-NETWORK.json#B-S10"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 11",
+      "lineStart": 243,
+      "lineEnd": 243,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-NETWORK.json#S11",
+        "docs/project/work-items/KUFR-NETWORK.json#B-S11"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 12",
+      "lineStart": 244,
+      "lineEnd": 244,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-NETWORK.json#S12",
+        "docs/project/work-items/KUFR-NETWORK.json#B-S12"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 13",
+      "lineStart": 245,
+      "lineEnd": 245,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-NETWORK.json#S13",
+        "docs/project/work-items/KUFR-NETWORK.json#B-S13"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 14",
+      "lineStart": 246,
+      "lineEnd": 246,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-NETWORK.json#S14",
+        "docs/project/work-items/KUFR-NETWORK.json#B-S14"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 15",
+      "lineStart": 247,
+      "lineEnd": 247,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-NETWORK.json#S15",
+        "docs/project/work-items/KUFR-NETWORK.json#B-S15"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 16",
+      "lineStart": 248,
+      "lineEnd": 248,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-NETWORK.json#S16",
+        "docs/project/work-items/KUFR-NETWORK.json#B-S16"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 17",
+      "lineStart": 249,
+      "lineEnd": 249,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-NETWORK.json#S17",
+        "docs/project/work-items/KUFR-NETWORK.json#B-S17"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 18",
+      "lineStart": 250,
+      "lineEnd": 250,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-NETWORK.json#S18",
+        "docs/project/work-items/KUFR-NETWORK.json#B-S18"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 19",
+      "lineStart": 251,
+      "lineEnd": 251,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-NETWORK.json#S19",
+        "docs/project/work-items/KUFR-NETWORK.json#B-S19"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 20",
+      "lineStart": 252,
+      "lineEnd": 252,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-NETWORK.json#S20",
+        "docs/project/work-items/KUFR-NETWORK.json#B-S20"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 21",
+      "lineStart": 253,
+      "lineEnd": 253,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-NETWORK.json#S21",
+        "docs/project/work-items/KUFR-NETWORK.json#B-S21"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 22",
+      "lineStart": 254,
+      "lineEnd": 254,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-NETWORK.json#S22",
+        "docs/project/work-items/KUFR-NETWORK.json#B-S22"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 23",
+      "lineStart": 255,
+      "lineEnd": 255,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-OTA.json#S23",
+        "docs/project/work-items/KUFR-OTA.json#B-S23"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 24",
+      "lineStart": 256,
+      "lineEnd": 256,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-OTA.json#S24",
+        "docs/project/work-items/KUFR-OTA.json#B-S24"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 25",
+      "lineStart": 257,
+      "lineEnd": 257,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-OTA.json#S25",
+        "docs/project/work-items/KUFR-OTA.json#B-S25"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 26",
+      "lineStart": 258,
+      "lineEnd": 258,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-OTA.json#S26",
+        "docs/project/work-items/KUFR-OTA.json#B-S26"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 27",
+      "lineStart": 259,
+      "lineEnd": 259,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-OTA.json#S27",
+        "docs/project/work-items/KUFR-OTA.json#B-S27"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 28",
+      "lineStart": 260,
+      "lineEnd": 260,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-OTA.json#S28",
+        "docs/project/work-items/KUFR-OTA.json#B-S28"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 29",
+      "lineStart": 261,
+      "lineEnd": 261,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-OTA.json#S29",
+        "docs/project/work-items/KUFR-OTA.json#B-S29"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 30",
+      "lineStart": 262,
+      "lineEnd": 262,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-OTA.json#S30",
+        "docs/project/work-items/KUFR-OTA.json#B-S30"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 31",
+      "lineStart": 263,
+      "lineEnd": 263,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-OTA.json#S31",
+        "docs/project/work-items/KUFR-OTA.json#B-S31"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 32",
+      "lineStart": 264,
+      "lineEnd": 264,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-OTA.json#S32",
+        "docs/project/work-items/KUFR-OTA.json#B-S32"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 33",
+      "lineStart": 265,
+      "lineEnd": 265,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-OTA.json#S33",
+        "docs/project/work-items/KUFR-OTA.json#B-S33"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 34",
+      "lineStart": 266,
+      "lineEnd": 266,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-OTA.json#S34",
+        "docs/project/work-items/KUFR-OTA.json#B-S34"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 35",
+      "lineStart": 267,
+      "lineEnd": 267,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-OTA.json#S35",
+        "docs/project/work-items/KUFR-OTA.json#B-S35"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 36",
+      "lineStart": 268,
+      "lineEnd": 268,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-OTA.json#S36",
+        "docs/project/work-items/KUFR-OTA.json#B-S36"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 37",
+      "lineStart": 269,
+      "lineEnd": 269,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-OTA.json#S37",
+        "docs/project/work-items/KUFR-OTA.json#B-S37"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 38",
+      "lineStart": 270,
+      "lineEnd": 270,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-OTA.json#S38",
+        "docs/project/work-items/KUFR-OTA.json#B-S38"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 39",
+      "lineStart": 271,
+      "lineEnd": 271,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-DIALOG.json#S39",
+        "docs/project/work-items/KUFR-DIALOG.json#B-S39"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 40",
+      "lineStart": 272,
+      "lineEnd": 272,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-DIALOG.json#S40",
+        "docs/project/work-items/KUFR-DIALOG.json#B-S40"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 41",
+      "lineStart": 273,
+      "lineEnd": 273,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-E5.json#S41",
+        "docs/project/work-items/KUFR-E5.json#B-S41"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 42",
+      "lineStart": 274,
+      "lineEnd": 274,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-DIALOG.json#S42",
+        "docs/project/work-items/KUFR-DIALOG.json#B-S42"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 43",
+      "lineStart": 275,
+      "lineEnd": 275,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-AUDIO.json#S43",
+        "docs/project/work-items/KUFR-AUDIO.json#B-S43"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 44",
+      "lineStart": 276,
+      "lineEnd": 276,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-PERIPHERALS.json#S44",
+        "docs/project/work-items/KUFR-PERIPHERALS.json#B-S44"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 45",
+      "lineStart": 277,
+      "lineEnd": 277,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-E5.json#S45",
+        "docs/project/work-items/KUFR-E5.json#B-S45"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 46",
+      "lineStart": 278,
+      "lineEnd": 278,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-NATIVE-DELIVERY.json#S46",
+        "docs/project/work-items/KUFR-NATIVE-DELIVERY.json#B-S46"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 47",
+      "lineStart": 279,
+      "lineEnd": 279,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-EVENT.json#S47",
+        "docs/project/work-items/KUFR-EVENT.json#B-S47"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Aktuální předání D166",
+      "lineStart": 40,
+      "lineEnd": 44,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-LAN.json#WSS",
+        "docs/project/work-items/KUFR-LAN.json#B-WSS"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Aktuální předání D166",
+      "lineStart": 40,
+      "lineEnd": 44,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-LAN.json#KEYCHAIN",
+        "docs/project/work-items/KUFR-LAN.json#B-KEYCHAIN"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Aktuální předání D166",
+      "lineStart": 40,
+      "lineEnd": 44,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-LAN.json#DHCP",
+        "docs/project/work-items/KUFR-LAN.json#B-DHCP"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "Etapy / E5; Předání další AI",
+      "lineStart": 157,
+      "lineEnd": 158,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-E5.json#POWER",
+        "docs/project/work-items/KUFR-E5.json#B-POWER"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "Etapy / E5; Předání další AI",
+      "lineStart": 157,
+      "lineEnd": 158,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-E5.json#STOP",
+        "docs/project/work-items/KUFR-E5.json#B-STOP"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "Etapy / E5; Předání další AI",
+      "lineStart": 157,
+      "lineEnd": 158,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-E5.json#CALIBRATION",
+        "docs/project/work-items/KUFR-E5.json#B-CALIBRATION"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "Etapy / E5; Předání další AI",
+      "lineStart": 157,
+      "lineEnd": 158,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-E5.json#PASSIVE",
+        "docs/project/work-items/KUFR-E5.json#B-PASSIVE"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "12 / E6",
+      "lineStart": 1280,
+      "lineEnd": 1280,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-E6.json#CYCLES",
+        "docs/project/work-items/KUFR-E6.json#B-CYCLES"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "12 / E9",
+      "lineStart": 1283,
+      "lineEnd": 1283,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-AUDIO.json#AUDIOLOAD",
+        "docs/project/work-items/KUFR-AUDIO.json#B-AUDIOLOAD"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "12 / E9",
+      "lineStart": 1283,
+      "lineEnd": 1283,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-AUDIO.json#STANDALONE",
+        "docs/project/work-items/KUFR-AUDIO.json#B-STANDALONE"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "12 / E9",
+      "lineStart": 1283,
+      "lineEnd": 1283,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-AUDIO.json#SOAK100",
+        "docs/project/work-items/KUFR-AUDIO.json#B-SOAK100"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "Etapy / E12",
+      "lineStart": 164,
+      "lineEnd": 164,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-PHOTO.json#CONSENT",
+        "docs/project/work-items/KUFR-PHOTO.json#B-CONSENT"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "12 / E13",
+      "lineStart": 1287,
+      "lineEnd": 1287,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-PERIPHERALS.json#BLOAD",
+        "docs/project/work-items/KUFR-PERIPHERALS.json#B-BLOAD"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "F2 DFA / Workshop",
+      "lineStart": 120,
+      "lineEnd": 125,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-F2.json#ASSEMBLY",
+        "docs/project/work-items/KUFR-F2.json#B-ASSEMBLY"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "F2 DFA / Workshop",
+      "lineStart": 120,
+      "lineEnd": 125,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-F2.json#ACCESS",
+        "docs/project/work-items/KUFR-F2.json#B-ACCESS"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "F2 DFA / Workshop",
+      "lineStart": 120,
+      "lineEnd": 125,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-F2.json#CABLES",
+        "docs/project/work-items/KUFR-F2.json#B-CABLES"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "F2 DFA / Workshop",
+      "lineStart": 120,
+      "lineEnd": 125,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-F2.json#GLUE",
+        "docs/project/work-items/KUFR-F2.json#B-GLUE"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "F2 DFA / Workshop",
+      "lineStart": 120,
+      "lineEnd": 125,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-F2.json#TRANSPORT",
+        "docs/project/work-items/KUFR-F2.json#B-TRANSPORT"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "D167",
+      "lineStart": 50,
+      "lineEnd": 68,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-DANCE.json#SONGS",
+        "docs/project/work-items/KUFR-DANCE.json#B-SONGS"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "D167",
+      "lineStart": 50,
+      "lineEnd": 68,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-DANCE.json#BEAT",
+        "docs/project/work-items/KUFR-DANCE.json#B-BEAT"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "D167",
+      "lineStart": 50,
+      "lineEnd": 68,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-DANCE.json#FAULTS",
+        "docs/project/work-items/KUFR-DANCE.json#B-FAULTS"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "D167",
+      "lineStart": 50,
+      "lineEnd": 68,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-DANCE.json#IPHONE",
+        "docs/project/work-items/KUFR-DANCE.json#B-IPHONE"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "D167",
+      "lineStart": 50,
+      "lineEnd": 68,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-DANCE.json#STACK",
+        "docs/project/work-items/KUFR-DANCE.json#B-STACK"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Připravenost subsystémů / stable",
+      "lineStart": 293,
+      "lineEnd": 293,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-STABLE-TRUST.json#TRUST",
+        "docs/project/work-items/KUFR-STABLE-TRUST.json#B-TRUST"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "13 / otevřené otázky",
+      "lineStart": 1303,
+      "lineEnd": 1317,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-E0.json#VENUE",
+        "docs/project/work-items/KUFR-E0.json#B-VENUE"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "13 / otevřené otázky",
+      "lineStart": 1303,
+      "lineEnd": 1317,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-E0.json#DATA",
+        "docs/project/work-items/KUFR-E0.json#B-DATA"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "13 / otevřené otázky",
+      "lineStart": 1303,
+      "lineEnd": 1317,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-E0.json#BOARD",
+        "docs/project/work-items/KUFR-E0.json#B-BOARD"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "E3a; Příprava publikace",
+      "lineStart": 153,
+      "lineEnd": 219,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-NATIVE-DELIVERY.json#CURRENTIPA",
+        "docs/project/work-items/KUFR-NATIVE-DELIVERY.json#B-CURRENTIPA"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Připravenost subsystémů / celek",
+      "lineStart": 298,
+      "lineEnd": 302,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-EVENT.json#REHEARSAL",
+        "docs/project/work-items/KUFR-EVENT.json#B-REHEARSAL"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "docs/software-completion-audit.md",
+      "section": "Functional inventory / PB720",
+      "lineStart": 195,
+      "lineEnd": 195,
+      "classification": "current",
+      "destinations": [
+        "docs/project/work-items/KUFR-PB720.json#CONTRACT",
+        "docs/project/work-items/KUFR-PB720.json#B-CONTRACT"
+      ],
+      "reason": "Otevřená přejímka nebo chybějící reprodukovatelný důkaz; historická pozorování zůstávají v archivu."
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "Document preamble",
+      "lineStart": 1,
+      "lineEnd": 2,
+      "classification": "unresolved",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "## D167 — Dance for me — softwarové ověření 13. 10. 2026",
+      "lineStart": 3,
+      "lineEnd": 85,
+      "classification": "unresolved",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "## F2 DFA / Workshop — 12. 10. 2026",
+      "lineStart": 86,
+      "lineEnd": 133,
+      "classification": "unresolved",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "## Aktuální systém",
+      "lineStart": 134,
+      "lineEnd": 146,
+      "classification": "unresolved",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "## Etapy",
+      "lineStart": 147,
+      "lineEnd": 166,
+      "classification": "unresolved",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "## Ověření softwarové základny",
+      "lineStart": 167,
+      "lineEnd": 184,
+      "classification": "unresolved",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "## Příprava publikace",
+      "lineStart": 185,
+      "lineEnd": 227,
+      "classification": "unresolved",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "## Předání další AI",
+      "lineStart": 228,
+      "lineEnd": 236,
+      "classification": "unresolved",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "Document preamble",
+      "lineStart": 1,
+      "lineEnd": 283,
+      "classification": "historical",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "## 1. Výchozí stav a cílový zážitek",
+      "lineStart": 284,
+      "lineEnd": 303,
+      "classification": "historical",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "## 2. Rozhodnutí a porovnání variant",
+      "lineStart": 304,
+      "lineEnd": 321,
+      "classification": "historical",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "## 3. Komponenty, nasazení a vertical slices",
+      "lineStart": 322,
+      "lineEnd": 458,
+      "classification": "historical",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "## 4. Připojení, párování a identita",
+      "lineStart": 459,
+      "lineEnd": 577,
+      "classification": "historical",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "## 5. Datové kontrakty a spolehlivost povelů",
+      "lineStart": 578,
+      "lineEnd": 697,
+      "classification": "historical",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "## 6. Backend, AI a bezpečný převod na hůlku",
+      "lineStart": 698,
+      "lineEnd": 846,
+      "classification": "historical",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "## 7. Text, hlas, média a offline režimy",
+      "lineStart": 847,
+      "lineEnd": 994,
+      "classification": "historical",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "## 8. Stavy a bezpečnost provozu",
+      "lineStart": 995,
+      "lineEnd": 1092,
+      "classification": "historical",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "## 9. Bezpečnost přístupů, soukromí, náklady a limity",
+      "lineStart": 1093,
+      "lineEnd": 1145,
+      "classification": "historical",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "## 10. Předběžné piny, periferie a napájení",
+      "lineStart": 1146,
+      "lineEnd": 1239,
+      "classification": "historical",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "## 11. Vývoj bez fyzické desky a ověřování",
+      "lineStart": 1240,
+      "lineEnd": 1266,
+      "classification": "historical",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "## 12. Postup v malých ověřitelných etapách",
+      "lineStart": 1267,
+      "lineEnd": 1299,
+      "classification": "historical",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "## 13. Otevřené otázky a výchozí předpoklady",
+      "lineStart": 1300,
+      "lineEnd": 1318,
+      "classification": "historical",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "## 14. Práce s plánem a průběžná dokumentace",
+      "lineStart": 1319,
+      "lineEnd": 1331,
+      "classification": "historical",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "## 15. Ověřené externí zdroje",
+      "lineStart": 1332,
+      "lineEnd": 1374,
+      "classification": "historical",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Document preamble",
+      "lineStart": 1,
+      "lineEnd": 146,
+      "classification": "unresolved",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "## Příprava před akcí",
+      "lineStart": 147,
+      "lineEnd": 170,
+      "classification": "unresolved",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "## Zapnutí v místě akce",
+      "lineStart": 171,
+      "lineEnd": 192,
+      "classification": "unresolved",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "## Zotavení během provozu",
+      "lineStart": 193,
+      "lineEnd": 212,
+      "classification": "unresolved",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "## Matice všech 47 požadovaných scénářů (historické výsledky D158/D159)",
+      "lineStart": 213,
+      "lineEnd": 280,
+      "classification": "unresolved",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "## Připravenost subsystémů a vnější podmínky",
+      "lineStart": 281,
+      "lineEnd": 302,
+      "classification": "unresolved",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "docs/software-completion-audit.md",
+      "section": "Document preamble",
+      "lineStart": 1,
+      "lineEnd": 169,
+      "classification": "historical",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "docs/software-completion-audit.md",
+      "section": "## Functional inventory and prioritized findings (D158/D159 snapshot)",
+      "lineStart": 170,
+      "lineEnd": 208,
+      "classification": "historical",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "docs/software-completion-audit.md",
+      "section": "## Architecture and compatibility",
+      "lineStart": 209,
+      "lineEnd": 235,
+      "classification": "historical",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "docs/software-completion-audit.md",
+      "section": "## Verification and remaining acceptance",
+      "lineStart": 236,
+      "lineEnd": 256,
+      "classification": "historical",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "docs/software-completion-audit.md",
+      "section": "## Build, delivery and operation",
+      "lineStart": 257,
+      "lineEnd": 263,
+      "classification": "historical",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Datovaná historie / kontrakt zachován v archivu; aktuální detaily mají samostatné mapování. Žádný implicitní pass."
+    },
+    {
+      "source": "AGENTS.md",
+      "section": "Document preamble",
+      "lineStart": 1,
+      "lineEnd": 2,
+      "classification": "current",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Bootstrap a duplicita povinností nahrazeny krátkým odkazem na projektový skill; bezpečnostní/architektonické instrukce zachovány."
+    },
+    {
+      "source": "AGENTS.md",
+      "section": "## Projekty a zdroje pravdy",
+      "lineStart": 3,
+      "lineEnd": 9,
+      "classification": "current",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Bootstrap a duplicita povinností nahrazeny krátkým odkazem na projektový skill; bezpečnostní/architektonické instrukce zachovány."
+    },
+    {
+      "source": "AGENTS.md",
+      "section": "## Jak začít nebo pokračovat v implementaci",
+      "lineStart": 10,
+      "lineEnd": 19,
+      "classification": "current",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Bootstrap a duplicita povinností nahrazeny krátkým odkazem na projektový skill; bezpečnostní/architektonické instrukce zachovány."
+    },
+    {
+      "source": "AGENTS.md",
+      "section": "## Git předání po implementačním slice",
+      "lineStart": 20,
+      "lineEnd": 27,
+      "classification": "current",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Bootstrap a duplicita povinností nahrazeny krátkým odkazem na projektový skill; bezpečnostní/architektonické instrukce zachovány."
+    },
+    {
+      "source": "AGENTS.md",
+      "section": "## Přijaté hranice systému",
+      "lineStart": 28,
+      "lineEnd": 35,
+      "classification": "current",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Bootstrap a duplicita povinností nahrazeny krátkým odkazem na projektový skill; bezpečnostní/architektonické instrukce zachovány."
+    },
+    {
+      "source": "AGENTS.md",
+      "section": "## Firmware kufru",
+      "lineStart": 36,
+      "lineEnd": 44,
+      "classification": "current",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Bootstrap a duplicita povinností nahrazeny krátkým odkazem na projektový skill; bezpečnostní/architektonické instrukce zachovány."
+    },
+    {
+      "source": "AGENTS.md",
+      "section": "## Vizuální styl všech UI",
+      "lineStart": 45,
+      "lineEnd": 56,
+      "classification": "current",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Bootstrap a duplicita povinností nahrazeny krátkým odkazem na projektový skill; bezpečnostní/architektonické instrukce zachovány."
+    },
+    {
+      "source": "AGENTS.md",
+      "section": "## Sestavení a ověření",
+      "lineStart": 57,
+      "lineEnd": 65,
+      "classification": "current",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Bootstrap a duplicita povinností nahrazeny krátkým odkazem na projektový skill; bezpečnostní/architektonické instrukce zachovány."
+    },
+    {
+      "source": "AGENTS.md",
+      "section": "## SSH a produkční prostředí",
+      "lineStart": 66,
+      "lineEnd": 72,
+      "classification": "current",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Bootstrap a duplicita povinností nahrazeny krátkým odkazem na projektový skill; bezpečnostní/architektonické instrukce zachovány."
+    },
+    {
+      "source": "AGENTS.md",
+      "section": "## Debug nasazeného serveru s majitelem",
+      "lineStart": 73,
+      "lineEnd": 77,
+      "classification": "current",
+      "destinations": [
+        "docs/project/MIGRATION.md"
+      ],
+      "reason": "Bootstrap a duplicita povinností nahrazeny krátkým odkazem na projektový skill; bezpečnostní/architektonické instrukce zachovány."
+    }
+  ],
+  "openBlockers": [
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 1",
+      "workItemId": "KUFR-NETWORK",
+      "blockerId": "B-S01"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 2",
+      "workItemId": "KUFR-NETWORK",
+      "blockerId": "B-S02"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 3",
+      "workItemId": "KUFR-NETWORK",
+      "blockerId": "B-S03"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 4",
+      "workItemId": "KUFR-NETWORK",
+      "blockerId": "B-S04"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 5",
+      "workItemId": "KUFR-NETWORK",
+      "blockerId": "B-S05"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 6",
+      "workItemId": "KUFR-NETWORK",
+      "blockerId": "B-S06"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 7",
+      "workItemId": "KUFR-NETWORK",
+      "blockerId": "B-S07"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 8",
+      "workItemId": "KUFR-NETWORK",
+      "blockerId": "B-S08"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 9",
+      "workItemId": "KUFR-NETWORK",
+      "blockerId": "B-S09"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 10",
+      "workItemId": "KUFR-NETWORK",
+      "blockerId": "B-S10"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 11",
+      "workItemId": "KUFR-NETWORK",
+      "blockerId": "B-S11"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 12",
+      "workItemId": "KUFR-NETWORK",
+      "blockerId": "B-S12"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 13",
+      "workItemId": "KUFR-NETWORK",
+      "blockerId": "B-S13"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 14",
+      "workItemId": "KUFR-NETWORK",
+      "blockerId": "B-S14"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 15",
+      "workItemId": "KUFR-NETWORK",
+      "blockerId": "B-S15"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 16",
+      "workItemId": "KUFR-NETWORK",
+      "blockerId": "B-S16"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 17",
+      "workItemId": "KUFR-NETWORK",
+      "blockerId": "B-S17"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 18",
+      "workItemId": "KUFR-NETWORK",
+      "blockerId": "B-S18"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 19",
+      "workItemId": "KUFR-NETWORK",
+      "blockerId": "B-S19"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 20",
+      "workItemId": "KUFR-NETWORK",
+      "blockerId": "B-S20"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 21",
+      "workItemId": "KUFR-NETWORK",
+      "blockerId": "B-S21"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 22",
+      "workItemId": "KUFR-NETWORK",
+      "blockerId": "B-S22"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 23",
+      "workItemId": "KUFR-OTA",
+      "blockerId": "B-S23"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 24",
+      "workItemId": "KUFR-OTA",
+      "blockerId": "B-S24"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 25",
+      "workItemId": "KUFR-OTA",
+      "blockerId": "B-S25"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 26",
+      "workItemId": "KUFR-OTA",
+      "blockerId": "B-S26"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 27",
+      "workItemId": "KUFR-OTA",
+      "blockerId": "B-S27"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 28",
+      "workItemId": "KUFR-OTA",
+      "blockerId": "B-S28"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 29",
+      "workItemId": "KUFR-OTA",
+      "blockerId": "B-S29"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 30",
+      "workItemId": "KUFR-OTA",
+      "blockerId": "B-S30"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 31",
+      "workItemId": "KUFR-OTA",
+      "blockerId": "B-S31"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 32",
+      "workItemId": "KUFR-OTA",
+      "blockerId": "B-S32"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 33",
+      "workItemId": "KUFR-OTA",
+      "blockerId": "B-S33"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 34",
+      "workItemId": "KUFR-OTA",
+      "blockerId": "B-S34"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 35",
+      "workItemId": "KUFR-OTA",
+      "blockerId": "B-S35"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 36",
+      "workItemId": "KUFR-OTA",
+      "blockerId": "B-S36"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 37",
+      "workItemId": "KUFR-OTA",
+      "blockerId": "B-S37"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 38",
+      "workItemId": "KUFR-OTA",
+      "blockerId": "B-S38"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 39",
+      "workItemId": "KUFR-DIALOG",
+      "blockerId": "B-S39"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 40",
+      "workItemId": "KUFR-DIALOG",
+      "blockerId": "B-S40"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 41",
+      "workItemId": "KUFR-E5",
+      "blockerId": "B-S41"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 42",
+      "workItemId": "KUFR-DIALOG",
+      "blockerId": "B-S42"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 43",
+      "workItemId": "KUFR-AUDIO",
+      "blockerId": "B-S43"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 44",
+      "workItemId": "KUFR-PERIPHERALS",
+      "blockerId": "B-S44"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 45",
+      "workItemId": "KUFR-E5",
+      "blockerId": "B-S45"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 46",
+      "workItemId": "KUFR-NATIVE-DELIVERY",
+      "blockerId": "B-S46"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Matice scénářů / 47",
+      "workItemId": "KUFR-EVENT",
+      "blockerId": "B-S47"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Aktuální předání D166",
+      "workItemId": "KUFR-LAN",
+      "blockerId": "B-WSS"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Aktuální předání D166",
+      "workItemId": "KUFR-LAN",
+      "blockerId": "B-KEYCHAIN"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Aktuální předání D166",
+      "workItemId": "KUFR-LAN",
+      "blockerId": "B-DHCP"
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "Etapy / E5; Předání další AI",
+      "workItemId": "KUFR-E5",
+      "blockerId": "B-POWER"
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "Etapy / E5; Předání další AI",
+      "workItemId": "KUFR-E5",
+      "blockerId": "B-STOP"
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "Etapy / E5; Předání další AI",
+      "workItemId": "KUFR-E5",
+      "blockerId": "B-CALIBRATION"
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "Etapy / E5; Předání další AI",
+      "workItemId": "KUFR-E5",
+      "blockerId": "B-PASSIVE"
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "12 / E6",
+      "workItemId": "KUFR-E6",
+      "blockerId": "B-CYCLES"
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "12 / E9",
+      "workItemId": "KUFR-AUDIO",
+      "blockerId": "B-AUDIOLOAD"
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "12 / E9",
+      "workItemId": "KUFR-AUDIO",
+      "blockerId": "B-STANDALONE"
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "12 / E9",
+      "workItemId": "KUFR-AUDIO",
+      "blockerId": "B-SOAK100"
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "Etapy / E12",
+      "workItemId": "KUFR-PHOTO",
+      "blockerId": "B-CONSENT"
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "12 / E13",
+      "workItemId": "KUFR-PERIPHERALS",
+      "blockerId": "B-BLOAD"
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "F2 DFA / Workshop",
+      "workItemId": "KUFR-F2",
+      "blockerId": "B-ASSEMBLY"
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "F2 DFA / Workshop",
+      "workItemId": "KUFR-F2",
+      "blockerId": "B-ACCESS"
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "F2 DFA / Workshop",
+      "workItemId": "KUFR-F2",
+      "blockerId": "B-CABLES"
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "F2 DFA / Workshop",
+      "workItemId": "KUFR-F2",
+      "blockerId": "B-GLUE"
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "F2 DFA / Workshop",
+      "workItemId": "KUFR-F2",
+      "blockerId": "B-TRANSPORT"
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "D167",
+      "workItemId": "KUFR-DANCE",
+      "blockerId": "B-SONGS"
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "D167",
+      "workItemId": "KUFR-DANCE",
+      "blockerId": "B-BEAT"
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "D167",
+      "workItemId": "KUFR-DANCE",
+      "blockerId": "B-FAULTS"
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "D167",
+      "workItemId": "KUFR-DANCE",
+      "blockerId": "B-IPHONE"
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "D167",
+      "workItemId": "KUFR-DANCE",
+      "blockerId": "B-STACK"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Připravenost subsystémů / stable",
+      "workItemId": "KUFR-STABLE-TRUST",
+      "blockerId": "B-TRUST"
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "13 / otevřené otázky",
+      "workItemId": "KUFR-E0",
+      "blockerId": "B-VENUE"
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "13 / otevřené otázky",
+      "workItemId": "KUFR-E0",
+      "blockerId": "B-DATA"
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "section": "13 / otevřené otázky",
+      "workItemId": "KUFR-E0",
+      "blockerId": "B-BOARD"
+    },
+    {
+      "source": "kufr/docs/stav-implementace.md",
+      "section": "E3a; Příprava publikace",
+      "workItemId": "KUFR-NATIVE-DELIVERY",
+      "blockerId": "B-CURRENTIPA"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "section": "Připravenost subsystémů / celek",
+      "workItemId": "KUFR-EVENT",
+      "blockerId": "B-REHEARSAL"
+    },
+    {
+      "source": "docs/software-completion-audit.md",
+      "section": "Functional inventory / PB720",
+      "workItemId": "KUFR-PB720",
+      "blockerId": "B-CONTRACT"
+    }
+  ],
+  "links": [
+    {
+      "source": "AGENTS.md",
+      "href": "kufr/docs/stav-implementace.md"
+    },
+    {
+      "source": "CONTRIBUTING.md",
+      "href": "kufr/docs/stav-implementace.md"
+    },
+    {
+      "source": "README.md",
+      "href": "kufr/docs/stav-implementace.md"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "href": "../kufr/docs/stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "href": "../kufr/docs/stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "href": "../kufr/docs/stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "href": "../kufr/docs/stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "href": "../kufr/docs/stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "docs/event-readiness.md",
+      "href": "../kufr/docs/stav-implementace.md"
+    },
+    {
+      "source": "docs/firmware-ota.md",
+      "href": "../kufr/docs/stav-implementace.md"
+    },
+    {
+      "source": "docs/ios-ble-provisioning.md",
+      "href": "../kufr/docs/stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "docs/ios-ble-provisioning.md",
+      "href": "../kufr/docs/stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "docs/ios-ble-provisioning.md",
+      "href": "../kufr/docs/stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "docs/ios-ble-provisioning.md",
+      "href": "../kufr/docs/stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "docs/public-architecture.md",
+      "href": "../kufr/docs/stav-implementace.md"
+    },
+    {
+      "source": "docs/software-completion-audit.md",
+      "href": "../kufr/docs/stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "docs/software-completion-audit.md",
+      "href": "../kufr/docs/stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "docs/software-completion-audit.md",
+      "href": "../kufr/docs/stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "docs/software-completion-audit.md",
+      "href": "../kufr/docs/stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "docs/software-completion-audit.md",
+      "href": "../kufr/docs/stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "docs/software-completion-audit.md",
+      "href": "../kufr/docs/stav-implementace.md"
+    },
+    {
+      "source": "docs/software-completion-audit.md",
+      "href": "../kufr/docs/stav-implementace.md"
+    },
+    {
+      "source": "docs/software-completion-audit.md",
+      "href": "event-readiness.md"
+    },
+    {
+      "source": "docs/software-completion-audit.md",
+      "href": "event-readiness.md"
+    },
+    {
+      "source": "kufr/README.md",
+      "href": "docs/stav-implementace.md"
+    },
+    {
+      "source": "kufr/README.md",
+      "href": "docs/stav-implementace.md"
+    },
+    {
+      "source": "kufr/backend/README.md",
+      "href": "../docs/stav-implementace.md"
+    },
+    {
+      "source": "kufr/docs/autonomous-live-memory.md",
+      "href": "stav-implementace.md"
+    },
+    {
+      "source": "kufr/docs/autonomous-live-memory.md",
+      "href": "stav-implementace.md"
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "href": "stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "href": "stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "href": "stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "href": "stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "href": "../../docs/software-completion-audit.md"
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "href": "../../docs/event-readiness.md"
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "href": "stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "href": "stav-implementace.md"
+    },
+    {
+      "source": "kufr/docs/implementacni-plan.md",
+      "href": "stav-implementace.md"
+    },
+    {
+      "source": "kufr/docs/kamera.md",
+      "href": "stav-implementace.md"
+    },
+    {
+      "source": "kufr/docs/pin-mapa-esp32-s3.md",
+      "href": "stav-implementace.md"
+    },
+    {
+      "source": "kufr/docs/pin-mapa-esp32-s3.md",
+      "href": "stav-implementace.md"
+    },
+    {
+      "source": "kufr/firmware/README.md",
+      "href": "../docs/stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "kufr/firmware/README.md",
+      "href": "../docs/stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "kufr/firmware/README.md",
+      "href": "../docs/stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "kufr/firmware/README.md",
+      "href": "../docs/stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "kufr/firmware/README.md",
+      "href": "../docs/stav-implementace.md"
+    },
+    {
+      "source": "kufr/firmware/README.md",
+      "href": "../../docs/event-readiness.md"
+    },
+    {
+      "source": "kufr/firmware/README.md",
+      "href": "../docs/stav-implementace.md"
+    },
+    {
+      "source": "kufr/firmware/README.md",
+      "href": "../docs/stav-implementace.md"
+    },
+    {
+      "source": "kufr/firmware/README.md",
+      "href": "../docs/stav-implementace.md"
+    },
+    {
+      "source": "kufr/firmware/README.md",
+      "href": "../docs/stav-implementace.md"
+    },
+    {
+      "source": "kufr/mechanika/rozmery-doruceneho-kufru.md",
+      "href": "../docs/stav-implementace.md"
+    },
+    {
+      "source": "kufr/mechanika/rozmery-nakoupenych-soucastek.md",
+      "href": "../docs/stav-implementace.md"
+    },
+    {
+      "source": "kufr/mobilni-aplikace/README.md",
+      "href": "../docs/stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "kufr/mobilni-aplikace/README.md",
+      "href": "../docs/stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "kufr/mobilni-aplikace/README.md",
+      "href": "../docs/stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "kufr/mobilni-aplikace/README.md",
+      "href": "../docs/stav-implementace.md#předání-další-ai"
+    },
+    {
+      "source": "kufr/mobilni-aplikace/README.md",
+      "href": "../docs/stav-implementace.md"
+    },
+    {
+      "source": "kufr/mobilni-aplikace/README.md",
+      "href": "../docs/stav-implementace.md"
+    },
+    {
+      "source": "kufr/firmware/diagnostics/board-memory/README.md",
+      "href": "../../../docs/stav-implementace.md"
+    },
+    {
+      "source": "kufr/firmware/diagnostics/pca9685-logic/README.md",
+      "href": "../../../docs/stav-implementace.md"
+    }
+  ],
+  "rollback": "Read docs/project/MIGRATION.md; restore the five source paths byte-for-byte from the archive after checking SHA-256, restore README/CONTRIBUTING/CI bootstrap from the migration parent commit, and revert only the DV08 changeset. Never reset unrelated work."
+}

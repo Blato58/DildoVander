@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "id": "DV08",
+  "initiative": "DV08",
+  "title": "Jednoduchý důvěryhodný tracking a migrace",
+  "state": "active",
+  "priority": "P0",
+  "sequence": 17,
+  "scope": [
+    "scripts/project_status.py",
+    "scripts/test_project_status.py",
+    "docs/project",
+    ".agents/skills/dildovander-project-tracking",
+    "AGENTS.md"
+  ],
+  "dependencies": [],
+  "acceptance": [
+    {
+      "id": "CLI",
+      "revision": 1,
+      "expected": "CLI splňuje negativní scénáře SPEC v2, offline determinismus a atomický render",
+      "requiredEvidenceKinds": [
+        "unit"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "d9c9206954d2d2ccdd78884bc05179dbc320b703facfa1bf9056fff003651c04"
+      },
+      "evidenceRefs": [
+        "DV08-local-tests"
+      ]
+    },
+    {
+      "id": "MIGRATION",
+      "revision": 1,
+      "expected": "Byte-for-byte archiv/hash, žádný ztracený blocker, odkazy/anchory a rollback ověřené před přepnutím",
+      "requiredEvidenceKinds": [
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "d9c9206954d2d2ccdd78884bc05179dbc320b703facfa1bf9056fff003651c04"
+      },
+      "evidenceRefs": [
+        "DV08-migration"
+      ]
+    },
+    {
+      "id": "WORKFLOW",
+      "revision": 1,
+      "expected": "Skutečná DV08 aktualizace + zahájení/evidence/handoff skillu v druhém worktree, chybějící a stale physical evidence",
+      "requiredEvidenceKinds": [
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "d9c9206954d2d2ccdd78884bc05179dbc320b703facfa1bf9056fff003651c04"
+      },
+      "evidenceRefs": [
+        "DV08-workflow"
+      ]
+    },
+    {
+      "id": "PLATFORMS",
+      "revision": 1,
+      "expected": "Shodné fixtures/render na Windows a Linux; skutečný Linux CI běh prošel",
+      "requiredEvidenceKinds": [
+        "unit"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "d9c9206954d2d2ccdd78884bc05179dbc320b703facfa1bf9056fff003651c04"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "OVERHEAD",
+      "revision": 1,
+      "expected": "Na stejné stavové otázce změřeno nutné čtení, ruční aktualizace, duplicita, zachování blockerů a délka STATUS; metoda a omezení výslovně uvedené.",
+      "requiredEvidenceKinds": [
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "d9c9206954d2d2ccdd78884bc05179dbc320b703facfa1bf9056fff003651c04"
+      },
+      "evidenceRefs": [
+        "DV08-measurements"
+      ]
+    }
+  ],
+  "blockers": [],
+  "currentNote": "CLI, bezpečná migrace a skill ověřeny na Windows i skutečném Linuxu; 55 testů na každém. Chybí ještě skutečný hosted Windows/Linux CI běh. Žádná fyzická přejímka nebyla vytvořena.",
+  "nextAction": "Pushnout ověřený DV08 changeset, otevřít PR, počkat na skutečné Windows/Linux CI a reviews; přidat pravý CI receipt a uzavřít DV08.",
+  "implementedSubject": {
+    "artifactDigest": "d9c9206954d2d2ccdd78884bc05179dbc320b703facfa1bf9056fff003651c04"
+  }
+}

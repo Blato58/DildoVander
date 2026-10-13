@@ -1,0 +1,549 @@
+{
+  "schemaVersion": 1,
+  "id": "KUFR-NETWORK",
+  "initiative": "KUFR",
+  "title": "BLE, hotspot a fallback na skutečném iPhonu/ESP",
+  "state": "blocked",
+  "priority": "P1",
+  "sequence": 1,
+  "scope": [
+    "kufr/firmware/src/features/network_provisioning",
+    "kufr/firmware/src/features/backend_access",
+    "kufr/mobilni-aplikace/ios"
+  ],
+  "dependencies": [],
+  "acceptance": [
+    {
+      "id": "S01",
+      "revision": 1,
+      "expected": "Tovární zařízení může zahájit provisioning. Doložit přesný posuzovaný subjekt a rozsah; historická D159 pozorování zůstávají přijatá pro tehdejší rozsah.",
+      "requiredEvidenceKinds": [
+        "native_ios",
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "S02",
+      "revision": 1,
+      "expected": "iOS objeví zařízení. Doložit přesný posuzovaný subjekt a rozsah; historická D159 pozorování zůstávají přijatá pro tehdejší rozsah.",
+      "requiredEvidenceKinds": [
+        "native_ios",
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "S03",
+      "revision": 1,
+      "expected": "iOS naváže autorizované BLE spojení. Doložit přesný posuzovaný subjekt a rozsah; historická D159 pozorování zůstávají přijatá pro tehdejší rozsah.",
+      "requiredEvidenceKinds": [
+        "native_ios",
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "S04",
+      "revision": 1,
+      "expected": "Chybná autorizace je odmítnuta. Zbývající zkouška: špatný PoP proti skutečnému šifrovanému handshake.",
+      "requiredEvidenceKinds": [
+        "native_ios",
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "S05",
+      "revision": 1,
+      "expected": "Hotspot credentialy se přenesou bezpečně. Zbývající zkouška: hotspot přenos a ověření nepřítomnosti citlivých údajů v nativních logách.",
+      "requiredEvidenceKinds": [
+        "native_ios",
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "S06",
+      "revision": 1,
+      "expected": "ESP připojí hotspot. Zbývající zkouška: skutečný iPhone hotspot, 2,4 GHz, operátor/iOS.",
+      "requiredEvidenceKinds": [
+        "native_ios",
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "S07",
+      "revision": 1,
+      "expected": "Firmware hlásí stav připojení. Doložit přesný posuzovaný subjekt a rozsah; historická D159 pozorování zůstávají přijatá pro tehdejší rozsah.",
+      "requiredEvidenceKinds": [
+        "native_ios",
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "S08",
+      "revision": 1,
+      "expected": "ESP připojí backend. Doložit přesný posuzovaný subjekt a rozsah; historická D159 pozorování zůstávají přijatá pro tehdejší rozsah.",
+      "requiredEvidenceKinds": [
+        "native_ios",
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "S09",
+      "revision": 1,
+      "expected": "Credentialy přežijí reboot. Doložit přesný posuzovaný subjekt a rozsah; historická D159 pozorování zůstávají přijatá pro tehdejší rozsah.",
+      "requiredEvidenceKinds": [
+        "native_ios",
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "S10",
+      "revision": 1,
+      "expected": "Chybné heslo dává srozumitelnou chybu. Zbývající zkouška: skutečné odmítnutí Wi-Fi hesla a zobrazení na iPhonu.",
+      "requiredEvidenceKinds": [
+        "native_ios",
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "S11",
+      "revision": 1,
+      "expected": "Credentialy lze bezpečně nahradit. Zbývající zkouška: náhrada přes BLE, skutečný DHCP a NVS.",
+      "requiredEvidenceKinds": [
+        "native_ios",
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "S12",
+      "revision": 1,
+      "expected": "Neúspěšná náhrada nezničí funkční konfiguraci. Zbývající zkouška: rádio/NVS failure a návrat skutečného spojení. Trvalá chyba NVS může zmařit i rollback; nejde o záruku při power-loss.",
+      "requiredEvidenceKinds": [
+        "native_ios",
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "S13",
+      "revision": 1,
+      "expected": "Provisioning lze obnovit bez Wi-Fi. Zbývající zkouška: offline iPhone spojení, vypršení okna a bezpečný power cycle.",
+      "requiredEvidenceKinds": [
+        "native_ios",
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "S14",
+      "revision": 1,
+      "expected": "Cizí BLE klient nezmění konfiguraci. Zbývající zkouška: negativní test skutečného klienta bez správného PoP.",
+      "requiredEvidenceKinds": [
+        "native_ios",
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "S15",
+      "revision": 1,
+      "expected": "Preferovaný hotspot je nedostupný. Zbývající zkouška: vypnutý hotspot na telefonu.",
+      "requiredEvidenceKinds": [
+        "native_ios",
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "S16",
+      "revision": 1,
+      "expected": "Fallback Wi-Fi je dostupná. Zbývající zkouška: skutečný access point, DHCP a backend.",
+      "requiredEvidenceKinds": [
+        "native_ios",
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "S17",
+      "revision": 1,
+      "expected": "Obě sítě jsou nedostupné. Zbývající zkouška: skutečný offline běh, recovery okno a ruční řízení.",
+      "requiredEvidenceKinds": [
+        "native_ios",
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "S18",
+      "revision": 1,
+      "expected": "Hotspot se vrátí. Zbývající zkouška: návrat telefonu/hotspotu a přechod z funkčního fallbacku.",
+      "requiredEvidenceKinds": [
+        "native_ios",
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "S19",
+      "revision": 1,
+      "expected": "Hotspot vypadne během sezení. Zbývající zkouška: přerušení živého audio/sezení při fyzickém výpadku.",
+      "requiredEvidenceKinds": [
+        "native_ios",
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "S20",
+      "revision": 1,
+      "expected": "Backend je dočasně nedostupný. Zbývající zkouška: cílený výpadek nasazeného backendu v celé sestavě.",
+      "requiredEvidenceKinds": [
+        "native_ios",
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "S21",
+      "revision": 1,
+      "expected": "Zařízení se samo znovu připojí. Zbývající zkouška: více skutečných výpadků a návratů sítí/WAN.",
+      "requiredEvidenceKinds": [
+        "native_ios",
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "S22",
+      "revision": 1,
+      "expected": "Síťové přechody nespustí nebezpečné pohony. Zbývající zkouška: měřený souběh rádia, serv, vibrací a bezpečnostní smyčky.",
+      "requiredEvidenceKinds": [
+        "native_ios",
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    }
+  ],
+  "blockers": [
+    {
+      "id": "B-S01",
+      "problem": "Unresolved provenance pro aktuální cíl; historické přijetí se neruší: H: první USB servis, `saved`, NVS readback a obnova CI aplikace na N16R8 bez původní identity/PoP; M: následné BLE spojení. Bez PoP není bezpečný tovární handshake dostupný.",
+      "severity": "medium",
+      "blocks": [
+        "S01"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-S02",
+      "problem": "Unresolved provenance pro aktuální cíl; historické přijetí se neruší: M: majitel našel fyzický kufr a připojil se v Síť kufru.",
+      "severity": "medium",
+      "blocks": [
+        "S02"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-S03",
+      "problem": "Unresolved provenance pro aktuální cíl; historické přijetí se neruší: M: majitel potvrdil spojení s privátním device-specific PoP.",
+      "severity": "medium",
+      "blocks": [
+        "S03"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-S04",
+      "problem": "Zbývající fyzická/provozní kontrola: špatný PoP proti skutečnému šifrovanému handshake.",
+      "severity": "high",
+      "blocks": [
+        "S04"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-S05",
+      "problem": "Zbývající fyzická/provozní kontrola: hotspot přenos a ověření nepřítomnosti citlivých údajů v nativních logách.",
+      "severity": "high",
+      "blocks": [
+        "S05"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-S06",
+      "problem": "Zbývající fyzická/provozní kontrola: skutečný iPhone hotspot, 2,4 GHz, operátor/iOS.",
+      "severity": "high",
+      "blocks": [
+        "S06"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-S07",
+      "problem": "Unresolved provenance pro aktuální cíl; historické přijetí se neruší: M: po OTA0.1.1 a dalším resetu telefon zobrazil domácí Wi-Fi i backend připojený. Další rádio přechody neověřené.",
+      "severity": "medium",
+      "blocks": [
+        "S07"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-S08",
+      "problem": "Unresolved provenance pro aktuální cíl; historické přijetí se neruší: H: skutečný ESP POST200 v09:45:03Z po OTA0.1.1 a09:47:43Z po dalším resetu; M: Backend připojený. Cesta přes iPhone hotspot zůstává NE.",
+      "severity": "medium",
+      "blocks": [
+        "S08"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-S09",
+      "problem": "Unresolved provenance pro aktuální cíl; historické přijetí se neruší: H: devět identity/PoP/network/OTA klíčů z NVS beze změny po skutečné OTA; nový slot VALID a další reboot0.1.1. M: Wi-Fi a backend znovu připojené bez zadání hesla, stejný PoP.",
+      "severity": "medium",
+      "blocks": [
+        "S09"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-S10",
+      "problem": "Zbývající fyzická/provozní kontrola: skutečné odmítnutí Wi-Fi hesla a zobrazení na iPhonu.",
+      "severity": "high",
+      "blocks": [
+        "S10"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-S11",
+      "problem": "Zbývající fyzická/provozní kontrola: náhrada přes BLE, skutečný DHCP a NVS.",
+      "severity": "high",
+      "blocks": [
+        "S11"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-S12",
+      "problem": "Zbývající fyzická/provozní kontrola: rádio/NVS failure a návrat skutečného spojení. Trvalá chyba NVS může zmařit i rollback; nejde o záruku při power-loss.",
+      "severity": "high",
+      "blocks": [
+        "S12"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-S13",
+      "problem": "Zbývající fyzická/provozní kontrola: offline iPhone spojení, vypršení okna a bezpečný power cycle.",
+      "severity": "high",
+      "blocks": [
+        "S13"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-S14",
+      "problem": "Zbývající fyzická/provozní kontrola: negativní test skutečného klienta bez správného PoP.",
+      "severity": "high",
+      "blocks": [
+        "S14"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-S15",
+      "problem": "Zbývající fyzická/provozní kontrola: vypnutý hotspot na telefonu.",
+      "severity": "high",
+      "blocks": [
+        "S15"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-S16",
+      "problem": "Zbývající fyzická/provozní kontrola: skutečný access point, DHCP a backend.",
+      "severity": "high",
+      "blocks": [
+        "S16"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-S17",
+      "problem": "Zbývající fyzická/provozní kontrola: skutečný offline běh, recovery okno a ruční řízení.",
+      "severity": "high",
+      "blocks": [
+        "S17"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-S18",
+      "problem": "Zbývající fyzická/provozní kontrola: návrat telefonu/hotspotu a přechod z funkčního fallbacku.",
+      "severity": "high",
+      "blocks": [
+        "S18"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-S19",
+      "problem": "Zbývající fyzická/provozní kontrola: přerušení živého audio/sezení při fyzickém výpadku.",
+      "severity": "high",
+      "blocks": [
+        "S19"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-S20",
+      "problem": "Zbývající fyzická/provozní kontrola: cílený výpadek nasazeného backendu v celé sestavě.",
+      "severity": "high",
+      "blocks": [
+        "S20"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-S21",
+      "problem": "Zbývající fyzická/provozní kontrola: více skutečných výpadků a návratů sítí/WAN.",
+      "severity": "high",
+      "blocks": [
+        "S21"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-S22",
+      "problem": "Zbývající fyzická/provozní kontrola: měřený souběh rádia, serv, vibrací a bezpečnostní smyčky.",
+      "severity": "high",
+      "blocks": [
+        "S22"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    }
+  ],
+  "currentNote": "D159 majitel přijal autorizované BLE a domácí Wi-Fi/backend po resetu; servisní NVS readback zachoval devět klíčů. Tato historická přijetí se neruší; netvrdí přejímku celého současného cíle.",
+  "nextAction": "Připravit konkrétní fyzickou zkoušku podle kritérií; provedení vyžaduje zadání majitele."
+}

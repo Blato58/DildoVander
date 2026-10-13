@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "targetId": "DV08-tooling",
+  "purpose": "Skutečně testovaný DV08 zdrojový bundle pro software-only akceptaci; identita rámovaných bytes v DV08-local-tests, ne release nebo čistý původní HEAD. Bookkeeping/receipts/projekce jsou vyloučeny z vlastního fingerprintu a validovány samostatně.",
+  "components": {
+    "artifactDigest": "d9c9206954d2d2ccdd78884bc05179dbc320b703facfa1bf9056fff003651c04"
+  },
+  "requiredCriteria": [
+    {
+      "workItemId": "DV08",
+      "criterionId": "CLI"
+    },
+    {
+      "workItemId": "DV08",
+      "criterionId": "MIGRATION"
+    },
+    {
+      "workItemId": "DV08",
+      "criterionId": "WORKFLOW"
+    },
+    {
+      "workItemId": "DV08",
+      "criterionId": "PLATFORMS"
+    },
+    {
+      "workItemId": "DV08",
+      "criterionId": "OVERHEAD"
+    }
+  ]
+}

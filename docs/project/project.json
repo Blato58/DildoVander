@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "focusInitiative": "DV08",
+  "currentTarget": "DV08-tooling",
+  "statusLimits": {
+    "active": 5,
+    "planned": 5,
+    "blockers": 5
+  }
+}

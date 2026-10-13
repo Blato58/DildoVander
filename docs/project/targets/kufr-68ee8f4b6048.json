@@ -1,0 +1,280 @@
+{
+  "schemaVersion": 1,
+  "targetId": "kufr-68ee8f4b6048",
+  "purpose": "Existující sestava: základní event přejímka; volitelný obraz/SD/Dance a produkční stable trust se posuzují zvlášť. D166 verze jsou hlášený instalovaný základ, přesné digests/revize zapojení/mechaniky dosud unresolved.",
+  "components": {
+    "assemblyId": "kufr-68ee8f4b6048",
+    "firmwareVersion": "0.1.168",
+    "iosBuild": "1000.0.23"
+  },
+  "requiredCriteria": [
+    {
+      "workItemId": "KUFR-NETWORK",
+      "criterionId": "S01"
+    },
+    {
+      "workItemId": "KUFR-NETWORK",
+      "criterionId": "S02"
+    },
+    {
+      "workItemId": "KUFR-NETWORK",
+      "criterionId": "S03"
+    },
+    {
+      "workItemId": "KUFR-NETWORK",
+      "criterionId": "S04"
+    },
+    {
+      "workItemId": "KUFR-NETWORK",
+      "criterionId": "S05"
+    },
+    {
+      "workItemId": "KUFR-NETWORK",
+      "criterionId": "S06"
+    },
+    {
+      "workItemId": "KUFR-NETWORK",
+      "criterionId": "S07"
+    },
+    {
+      "workItemId": "KUFR-NETWORK",
+      "criterionId": "S08"
+    },
+    {
+      "workItemId": "KUFR-NETWORK",
+      "criterionId": "S09"
+    },
+    {
+      "workItemId": "KUFR-NETWORK",
+      "criterionId": "S10"
+    },
+    {
+      "workItemId": "KUFR-NETWORK",
+      "criterionId": "S11"
+    },
+    {
+      "workItemId": "KUFR-NETWORK",
+      "criterionId": "S12"
+    },
+    {
+      "workItemId": "KUFR-NETWORK",
+      "criterionId": "S13"
+    },
+    {
+      "workItemId": "KUFR-NETWORK",
+      "criterionId": "S14"
+    },
+    {
+      "workItemId": "KUFR-NETWORK",
+      "criterionId": "S15"
+    },
+    {
+      "workItemId": "KUFR-NETWORK",
+      "criterionId": "S16"
+    },
+    {
+      "workItemId": "KUFR-NETWORK",
+      "criterionId": "S17"
+    },
+    {
+      "workItemId": "KUFR-NETWORK",
+      "criterionId": "S18"
+    },
+    {
+      "workItemId": "KUFR-NETWORK",
+      "criterionId": "S19"
+    },
+    {
+      "workItemId": "KUFR-NETWORK",
+      "criterionId": "S20"
+    },
+    {
+      "workItemId": "KUFR-NETWORK",
+      "criterionId": "S21"
+    },
+    {
+      "workItemId": "KUFR-NETWORK",
+      "criterionId": "S22"
+    },
+    {
+      "workItemId": "KUFR-OTA",
+      "criterionId": "S23"
+    },
+    {
+      "workItemId": "KUFR-OTA",
+      "criterionId": "S24"
+    },
+    {
+      "workItemId": "KUFR-OTA",
+      "criterionId": "S25"
+    },
+    {
+      "workItemId": "KUFR-OTA",
+      "criterionId": "S26"
+    },
+    {
+      "workItemId": "KUFR-OTA",
+      "criterionId": "S27"
+    },
+    {
+      "workItemId": "KUFR-OTA",
+      "criterionId": "S28"
+    },
+    {
+      "workItemId": "KUFR-OTA",
+      "criterionId": "S29"
+    },
+    {
+      "workItemId": "KUFR-OTA",
+      "criterionId": "S30"
+    },
+    {
+      "workItemId": "KUFR-OTA",
+      "criterionId": "S31"
+    },
+    {
+      "workItemId": "KUFR-OTA",
+      "criterionId": "S32"
+    },
+    {
+      "workItemId": "KUFR-OTA",
+      "criterionId": "S33"
+    },
+    {
+      "workItemId": "KUFR-OTA",
+      "criterionId": "S34"
+    },
+    {
+      "workItemId": "KUFR-OTA",
+      "criterionId": "S35"
+    },
+    {
+      "workItemId": "KUFR-OTA",
+      "criterionId": "S36"
+    },
+    {
+      "workItemId": "KUFR-OTA",
+      "criterionId": "S37"
+    },
+    {
+      "workItemId": "KUFR-OTA",
+      "criterionId": "S38"
+    },
+    {
+      "workItemId": "KUFR-DIALOG",
+      "criterionId": "S39"
+    },
+    {
+      "workItemId": "KUFR-DIALOG",
+      "criterionId": "S40"
+    },
+    {
+      "workItemId": "KUFR-DIALOG",
+      "criterionId": "S42"
+    },
+    {
+      "workItemId": "KUFR-E5",
+      "criterionId": "S41"
+    },
+    {
+      "workItemId": "KUFR-E5",
+      "criterionId": "S45"
+    },
+    {
+      "workItemId": "KUFR-E5",
+      "criterionId": "POWER"
+    },
+    {
+      "workItemId": "KUFR-E5",
+      "criterionId": "STOP"
+    },
+    {
+      "workItemId": "KUFR-E5",
+      "criterionId": "CALIBRATION"
+    },
+    {
+      "workItemId": "KUFR-E5",
+      "criterionId": "PASSIVE"
+    },
+    {
+      "workItemId": "KUFR-AUDIO",
+      "criterionId": "S43"
+    },
+    {
+      "workItemId": "KUFR-AUDIO",
+      "criterionId": "AUDIOLOAD"
+    },
+    {
+      "workItemId": "KUFR-AUDIO",
+      "criterionId": "STANDALONE"
+    },
+    {
+      "workItemId": "KUFR-AUDIO",
+      "criterionId": "SOAK100"
+    },
+    {
+      "workItemId": "KUFR-NATIVE-DELIVERY",
+      "criterionId": "S46"
+    },
+    {
+      "workItemId": "KUFR-NATIVE-DELIVERY",
+      "criterionId": "CURRENTIPA"
+    },
+    {
+      "workItemId": "KUFR-EVENT",
+      "criterionId": "S47"
+    },
+    {
+      "workItemId": "KUFR-EVENT",
+      "criterionId": "REHEARSAL"
+    },
+    {
+      "workItemId": "KUFR-LAN",
+      "criterionId": "WSS"
+    },
+    {
+      "workItemId": "KUFR-LAN",
+      "criterionId": "KEYCHAIN"
+    },
+    {
+      "workItemId": "KUFR-LAN",
+      "criterionId": "DHCP"
+    },
+    {
+      "workItemId": "KUFR-E6",
+      "criterionId": "CYCLES"
+    },
+    {
+      "workItemId": "KUFR-F2",
+      "criterionId": "ASSEMBLY"
+    },
+    {
+      "workItemId": "KUFR-F2",
+      "criterionId": "ACCESS"
+    },
+    {
+      "workItemId": "KUFR-F2",
+      "criterionId": "CABLES"
+    },
+    {
+      "workItemId": "KUFR-F2",
+      "criterionId": "GLUE"
+    },
+    {
+      "workItemId": "KUFR-F2",
+      "criterionId": "TRANSPORT"
+    },
+    {
+      "workItemId": "KUFR-E0",
+      "criterionId": "VENUE"
+    },
+    {
+      "workItemId": "KUFR-E0",
+      "criterionId": "DATA"
+    },
+    {
+      "workItemId": "KUFR-E0",
+      "criterionId": "BOARD"
+    }
+  ]
+}

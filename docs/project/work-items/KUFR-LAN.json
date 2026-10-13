@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "id": "KUFR-LAN",
+  "initiative": "KUFR",
+  "title": "D166 WSS, Keychain a síťové/lifecycle revalidace",
+  "state": "blocked",
+  "priority": "P1",
+  "sequence": 9,
+  "scope": [
+    "kufr/mobilni-aplikace/src/features/device_connection",
+    "kufr/mobilni-aplikace/ios",
+    "kufr/firmware/src/features/local_control"
+  ],
+  "dependencies": [],
+  "acceptance": [
+    {
+      "id": "WSS",
+      "revision": 1,
+      "expected": "Dlouhodobé pinned WSS bez neočekávaného odpojování",
+      "requiredEvidenceKinds": [
+        "native_ios",
+        "long_running_soak"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "KEYCHAIN",
+      "revision": 1,
+      "expected": "Keychain a uložené párování po restartu a aktualizaci",
+      "requiredEvidenceKinds": [
+        "native_ios"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "DHCP",
+      "revision": 1,
+      "expected": "Negativní DHCP/síťové/lifecycle scénáře včetně změny IP a stale BLE hint",
+      "requiredEvidenceKinds": [
+        "native_ios",
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    }
+  ],
+  "blockers": [
+    {
+      "id": "B-WSS",
+      "problem": "D166 výslovně ponechává kontrolu otevřenou.",
+      "severity": "high",
+      "blocks": [
+        "WSS"
+      ],
+      "unblockCondition": "Doložit Dlouhodobé pinned WSS bez neočekávaného odpojování",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-KEYCHAIN",
+      "problem": "D166 výslovně ponechává kontrolu otevřenou.",
+      "severity": "high",
+      "blocks": [
+        "KEYCHAIN"
+      ],
+      "unblockCondition": "Doložit Keychain a uložené párování po restartu a aktualizaci",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-DHCP",
+      "problem": "D166 výslovně ponechává kontrolu otevřenou.",
+      "severity": "high",
+      "blocks": [
+        "DHCP"
+      ],
+      "unblockCondition": "Doložit Negativní DHCP/síťové/lifecycle scénáře včetně změny IP a stale BLE hint",
+      "role": "majitel a implementátor"
+    }
+  ],
+  "currentNote": "Majitel přijal Connection worked v D166 aktualizace/BLE/address-free trial na 0.1.168 / 1000.0.23. Hostname timeout byl pozorován; příčina DNS/multicast unresolved. Přijetí spojení se neruší; dlouhodobé a negativní scénáře nejsou přijaty.",
+  "nextAction": "Připravit konkrétní fyzickou zkoušku podle kritérií; provedení vyžaduje zadání majitele."
+}

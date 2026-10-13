@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "KUFR-NATIVE-DELIVERY",
+  "initiative": "KUFR",
+  "title": "Aktuální native build, instalace a distribuce",
+  "state": "blocked",
+  "priority": "P1",
+  "sequence": 7,
+  "scope": [
+    ".github/workflows/kufr-ios-sign.yml",
+    "docs/ci-cd.md",
+    "kufr/mobilni-aplikace/ios"
+  ],
+  "dependencies": [],
+  "acceptance": [
+    {
+      "id": "S46",
+      "revision": 1,
+      "expected": "Existující deployment workflow zůstává kompatibilní. Zbývající zkouška: úplná fyzická akceptace a další backend deploy po přidání identity. Stable autorita/trust mají samostatný provisioning.",
+      "requiredEvidenceKinds": [
+        "source_review",
+        "production_deploy"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "CURRENTIPA",
+      "revision": 1,
+      "expected": "Nová ikona/pipeline a D167 native změny prošly existujícím macOS workflow; aktuální IPA instalace/spuštění/aktualizace na registrovaném iPhonu",
+      "requiredEvidenceKinds": [
+        "native_ios"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    }
+  ],
+  "blockers": [
+    {
+      "id": "B-S46",
+      "problem": "Zbývající fyzická/provozní kontrola: úplná fyzická akceptace a další backend deploy po přidání identity. Stable autorita/trust mají samostatný provisioning.",
+      "severity": "high",
+      "blocks": [
+        "S46"
+      ],
+      "unblockCondition": "Doložit aktuální zkoušku nebo explicitně zdůvodněný přenos příslušného historického výsledku s přesnou identitou a omezeními.",
+      "role": "majitel a implementátor"
+    },
+    {
+      "id": "B-CURRENTIPA",
+      "problem": "Nový IPA upload/podpis a instalace nejsou doložené po publikaci zdroje.",
+      "severity": "high",
+      "blocks": [
+        "CURRENTIPA"
+      ],
+      "unblockCondition": "Doložit Nová ikona/pipeline a D167 native změny prošly existujícím macOS workflow; aktuální IPA instalace/spuštění/aktualizace na registrovaném iPhonu",
+      "role": "majitel a implementátor"
+    }
+  ],
+  "currentNote": "D166 1000.0.23 podpis/publikace a majitelem přijaté automatické spojení zůstávají datovaným tvrzením. D167 nemá nový podpis/instalaci; nová ikona/pipeline nejsou doložené aktuální IPA.",
+  "nextAction": "Připravit konkrétní fyzickou zkoušku podle kritérií; provedení vyžaduje zadání majitele."
+}

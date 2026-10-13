@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "id": "KUFR-PHOTO",
+  "initiative": "KUFR",
+  "title": "Obraz telefonu E12 a explicitní souhlas",
+  "state": "blocked",
+  "priority": "P1",
+  "sequence": 11,
+  "scope": [
+    "kufr/mobilni-aplikace/src/features/debug",
+    "kufr/backend/Features/CostumeDescription"
+  ],
+  "dependencies": [],
+  "acceptance": [
+    {
+      "id": "CONSENT",
+      "revision": 1,
+      "expected": "Souhlas pro jednotlivý obrázek, bez uložení, ruční oprava; chybný popis nespustí pohony; vyhodnocen přínos",
+      "requiredEvidenceKinds": [
+        "native_ios",
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "assemblyId": "kufr-68ee8f4b6048"
+      },
+      "evidenceRefs": []
+    }
+  ],
+  "blockers": [
+    {
+      "id": "B-CONSENT",
+      "problem": "Úplný scénář souhlasu a zařízení neproveden.",
+      "severity": "high",
+      "blocks": [
+        "CONSENT"
+      ],
+      "unblockCondition": "Doložit Souhlas pro jednotlivý obrázek, bez uložení, ruční oprava; chybný popis nespustí pohony; vyhodnocen přínos",
+      "role": "majitel a implementátor"
+    }
+  ],
+  "currentNote": "Jednorázový souhlas/popisek/ruční oprava existují; celý iPhone/device scénář a přínos nepřijaty.",
+  "nextAction": "Připravit konkrétní fyzickou zkoušku podle kritérií; provedení vyžaduje zadání majitele."
+}
