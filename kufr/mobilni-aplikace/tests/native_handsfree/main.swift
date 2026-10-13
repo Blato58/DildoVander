@@ -175,6 +175,7 @@ struct NativeHandsFreeTests {
         var audioBlocks = 0
         var checkpoints = 0
         var replies = 0
+        var cancellations = 0
         var session: DebugHandsFreeSession!
         session = DebugHandsFreeSession(client: client, profile: actorProfile, token: "access",
             conversation: "00000000-0000-4000-8000-000000000002", boot: "00000000-0000-4000-8000-000000000001",
@@ -196,6 +197,9 @@ struct NativeHandsFreeTests {
                     assert(metrics["actorCheckpoints"] == 0)
                     try await session.played(operationId: id)
                 }
+            }, cancelAudio: {
+                assert(gate && audioBlocks == 1)
+                cancellations += 1
             })
         let timeout = Task { try await Task.sleep(nanoseconds: 10_000_000_000); fatalError("Actor checkpoint timeout") }
         try await session.run()
@@ -203,9 +207,9 @@ struct NativeHandsFreeTests {
         try await session.close()
         let (data, _) = try await URLSession.shared.data(from: profile.baseURL.appendingPathComponent("test/metrics"))
         let metrics = try JSONSerialization.jsonObject(with: data) as! [String: Int]
-        assert(audioBlocks == 2 && checkpoints == 1 && replies == 1 && !gate)
+        assert(audioBlocks == 2 && checkpoints == 1 && replies == 1 && cancellations == 1 && !gate)
         assert(metrics["actorCheckpoints"] == 2 && metrics["livePlayed"] == 2)
-        print("Autonomous native full-duplex checkpoint, explicit local drain and lost-ACK retry passed.")
+        print("Autonomous native response cancellation/dedupe, preserved input, checkpoint drain and lost-ACK retry passed.")
     }
 
     static func testEngineStartup() {

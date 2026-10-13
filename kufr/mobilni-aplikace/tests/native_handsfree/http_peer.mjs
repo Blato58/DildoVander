@@ -80,6 +80,10 @@ const server = createServer((request, response) => {
       if (request.headers['input-id'] !== ids.opening || request.headers['input-sequence'] !== '0') throw new Error('Invalid Live input');
       liveUploads++;
       event({ type: 'visitor', text: 'Live odpověď' });
+      if (actorActive) {
+        event({ type: 'audio_cancel', responseGeneration: 1 });
+        event({ type: 'audio_cancel', responseGeneration: 1 }); // duplicate cannot cancel the fresh response
+      }
       event({ type: 'audio', delta: Buffer.from([0, 0, 1, 0]).toString('base64') });
       event({ type: 'pause' });
       if (actorActive) {
