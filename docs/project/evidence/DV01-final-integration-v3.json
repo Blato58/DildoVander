@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "DV01-final-integration-v3",
+  "observedAtUtc": "2026-10-13T22:31:31.328007+00:00",
+  "kind": "integration",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "DV01",
+      "criterionId": "CORE",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "e124ed1c994a859a9cac0f23f40ccec5e77905d9ae15ee67ce0be7854e27293a",
+    "policyVersion": "dv01-director-v1"
+  },
+  "method": "Latest fake-Live replay and local HTTP smoke; npm production build; unchanged firmware build evidence retained by byte identity.",
+  "environment": "Windows local offline/production preview; Sol6.1/high read-only backend review; parent UI review.",
+  "limitations": [
+    "No paid/provider/native/physical/deployment acceptance.",
+    "Unchanged firmware/skill evidence preserves original dates and scope; comparison does not claim a new run."
+  ],
+  "observation": "Selection evidence excludes pure tempo controls while valid early choice remains available. No provider/actuator calls in replay; updated CPU metrics and source identity recorded separately.",
+  "artifactRefs": [
+    "docs/project/artifacts/DV01-source-bundle-v3.json",
+    "docs/project/artifacts/DV01-review-fixes-v3.json",
+    "docs/project/artifacts/DV01-offline-v3.json",
+    "docs/project/artifacts/DV01-web-package-v4.json"
+  ]
+}

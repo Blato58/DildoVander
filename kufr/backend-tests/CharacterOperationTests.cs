@@ -34,6 +34,12 @@ internal static class CharacterOperationTests
                 var changed = store.ChangeServerModes(new(modes.Revision, "responses", "openai", PersonalityCatalog.OllivanderId,
                     CharacterEnabled: true, CharacterTone: "Chaos", CharacterFinaleProfile: profile.ToString()));
                 Require(changed.Status == 200, "admin explicit profile accepted before start");
+                var enabledModes = store.ReadServerModes();
+                var incompatible = store.ChangeServerModes(new(enabledModes.Revision, "responses", "openai", PersonalityCatalog.DefaultId));
+                Require(incompatible.Status == 409 && incompatible.Error == "character_requires_autonomous_ollivander"
+                    && store.ReadServerModes().PersonalityId == PersonalityCatalog.OllivanderId
+                    && store.ReadServerModes().Revision == enabledModes.Revision,
+                    "ordinary personality-only change cannot silently leave enabled DV01 on another persona");
                 var boot = Guid.NewGuid(); var device = "synthetic-device";
                 var created = store.Create(device, Guid.NewGuid(), "create"u8,
                     new(device, boot, 0, PartyWandCatalog.Version, "cs-CZ", new(true, false))).Response!;

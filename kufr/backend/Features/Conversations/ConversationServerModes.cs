@@ -49,10 +49,10 @@ internal sealed partial class ConversationStore
                     }).Build());
                 }
                 catch (InvalidOperationException) { return new(400, null, "invalid_character_policy"); }
-                if (nextCharacter.Enabled && (liveOptions?.Mode != LiveActorMode.AutonomousActor || requestedPersonality != PersonalityCatalog.OllivanderId))
-                {
-                    return new(409, null, "character_requires_autonomous_ollivander");
-                }
+            }
+            if (nextCharacter.Enabled && (liveOptions?.Mode != LiveActorMode.AutonomousActor || requestedPersonality != PersonalityCatalog.OllivanderId))
+            {
+                return new(409, null, "character_requires_autonomous_ollivander");
             }
 
             var current = ServerModesSnapshot();

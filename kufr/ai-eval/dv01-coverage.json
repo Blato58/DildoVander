@@ -9,7 +9,8 @@
       "status": "mapped_with_open_gates",
       "tests": [
         "kufr/ai-eval/test_dv01.py#test_complete_ids_actual_references_and_preserved_baseline",
-        "kufr/backend-tests/CharacterDirectorTests.cs#DefaultsAndIsolation"
+        "kufr/backend-tests/CharacterDirectorTests.cs#DefaultsAndIsolation",
+        "kufr/backend-tests/CharacterOperationTests.cs#VerifyPublicationAndSnapshot"
       ]
     },
     "R02": {
@@ -194,7 +195,11 @@
         "T09",
         "T40"
       ],
-      "status": "mapped_with_open_gates"
+      "status": "mapped_with_open_gates",
+      "tests": [
+        "kufr/backend-tests/AutonomousLiveTests.cs#VerifyExpressWithoutEvidence",
+        "kufr/backend-tests/AutonomousLiveTests.cs#VerifyExpressAfterNeedsInformation"
+      ]
     },
     "R18": {
       "scenarios": [
@@ -311,7 +316,10 @@
       "scenarios": [
         "T72"
       ],
-      "status": "mapped_with_open_gates"
+      "status": "mapped_with_open_gates",
+      "tests": [
+        "kufr/mobilni-aplikace/tests/debug_character_controls.test.mjs#DV01 actions enable after initial unknown server state and recover after a busy refresh"
+      ]
     },
     "R29": {
       "scenarios": [
@@ -398,7 +406,9 @@
     "T02": {
       "tests": [
         "kufr/backend-tests/AutonomousLiveTests.cs#VerifyConversation",
-        "kufr/backend-tests/AutonomousLiveTests.cs#VerifyCharacterFlow"
+        "kufr/backend-tests/AutonomousLiveTests.cs#VerifyCharacterFlow",
+        "kufr/backend-tests/AutonomousLiveTests.cs#VerifyExpressWithoutEvidence",
+        "kufr/backend-tests/AutonomousLiveTests.cs#VerifyExpressAfterNeedsInformation"
       ],
       "layer": "A/B",
       "status": "guard_covered",
@@ -461,7 +471,9 @@
     "T09": {
       "tests": [
         "kufr/backend-tests/CharacterDirectorTests.cs#QuestionAndAudioBudgets",
-        "kufr/backend-tests/CharacterDirectorTests.cs#ExplicitGuestControls"
+        "kufr/backend-tests/CharacterDirectorTests.cs#ExplicitGuestControls",
+        "kufr/backend-tests/AutonomousLiveTests.cs#VerifyExpressWithoutEvidence",
+        "kufr/backend-tests/AutonomousLiveTests.cs#VerifyExpressAfterNeedsInformation"
       ],
       "layer": "A/B",
       "status": "guard_covered",

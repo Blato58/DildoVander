@@ -1,0 +1,21 @@
+{
+  "artifactDigest": "f3a037dce1d09d9e99124cdc45324c2fd950673b93097d39e786a0e946530a24",
+  "algorithm": "SHA-256 of sorted repository-relative UTF-8 path and file bytes, each prefixed with 8-byte big-endian length",
+  "inputDigests": {
+    "assets/cinzel-Dzu6Mfm8.ttf": "f4d83d34d1f6c741193e4acf4b3dff9531e5a67b6aa65228d00a7db72a4e0f34",
+    "assets/ibmplexmono-C5_jWxVG.ttf": "6a3412f058c7d8dfd9170c41e85ade48e5156ecb89356110ca57a0a27734af46",
+    "assets/index-CHgv4sTM.css": "194badd935bcfed7f13d2d68a9eb0a157f07b654e7682d8d4dd9008dc57ba236",
+    "assets/index-DCVoTVFc.js": "88339330b96d80e4393475d5e763139c9a3c1d3bc8680542ead5d57f5124c2fe",
+    "assets/inter-VF2RPR_K.ttf": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031",
+    "index.html": "9790f2972b08666f86b87677a1009ec0830746e88f78f53873169294ef8b9a6b",
+    "third-party-notices/capacitor/core-LICENSE.txt": "9c6ebf3e5ab832ba4d5af38f340978e1fedbfee6e3d23662dfdb8917a9d864dd",
+    "third-party-notices/capacitor/ios-LICENSE.txt": "9c6ebf3e5ab832ba4d5af38f340978e1fedbfee6e3d23662dfdb8917a9d864dd",
+    "third-party-notices/fonts/cinzel-OFL.txt": "f5a242cf68ad6ebd0603b3359a74c593ca080318a681035be5296ba2c6b04ae6",
+    "third-party-notices/fonts/ibmplexmono-OFL.txt": "d741e57d5f865e294df801f96b7b5161a88b211df65887e4358d271c9fc5fb4f",
+    "third-party-notices/fonts/inter-OFL.txt": "5dd548d31a85f756e01d63e00d7faf1e324103ed3e9102fcbbabf2cc2db6dd39",
+    "third-party-notices/icons/LICENSE.txt": "3c57143f22dac950efebf84002e360bba5458c7b90fe583b0667aaaef1a7256e",
+    "third-party-notices/project/LICENSE.txt": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0"
+  },
+  "sourceBundleDigest": "e124ed1c994a859a9cac0f23f40ccec5e77905d9ae15ee67ce0be7854e27293a",
+  "scope": "npm run build after button gating fix; local production preview, no publish."
+}

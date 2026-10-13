@@ -228,7 +228,9 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                 waiting = null;
                 await Deliver(new(WandDecisionStatus.Cancelled, null, [], "", projection.Revision, state.Revision), task.DelegationId); return;
             }
-            if (equivalent.TryGetValue(key, out var cached))
+            var directSelection = projection.DirectSelection || character?.Tempo == CharacterTempo.Express;
+            if (equivalent.TryGetValue(key, out var cached)
+                && !(cached.Status == WandDecisionStatus.NeedsInformation && directSelection && snapshot.Policy.AllowEarlySelection))
             { waiting = null; await Deliver(cached with { DecisionRevision = projection.Revision }, task.DelegationId); return; }
             if (projection.Intent == LiveRequestIntent.Alternative)
             {
@@ -242,7 +244,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                     projection.Revision, state.Revision), task.DelegationId); return;
             }
             workInput = new(projection.Revision, state.ReadyMask, state.Revision, projection.Evidence(), snapshot.Policy,
-                projection.AnswerCandidates, projection.DirectSelection || character?.Tempo == CharacterTempo.Express,
+                projection.AnswerCandidates, directSelection,
                 excluded, character is null ? turn.EveningContext : "", character is null ? turn.CostumeContext : "");
             await Direct(CharacterPhase.Deciding);
             reserved = decisions.Reservation(workInput);
@@ -535,7 +537,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                         CharacterSignalKind.AttributeToOther or CharacterSignalKind.CorrectEvidence or CharacterSignalKind.MarkFiction)
                     { projection.InvalidatePriorCharacterEvidence(); }
                     characterCorrectionPending = false;
-                    if (control is not null && control != CharacterSignalKind.RequestExpress)
+                    if (control is not null)
                     { projection.MarkLatestCharacterControl(change.EvidenceChanged); }
                     else { projection.ClearLatestCharacterControl(); }
                     if (change.CancelResponse) { await CancelResponse(); }

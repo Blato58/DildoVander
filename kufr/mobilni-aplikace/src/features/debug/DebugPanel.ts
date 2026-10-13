@@ -423,8 +423,8 @@ export class DebugPanel {
     for (const control of this.element.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-character]')) {
       control.disabled = busy || !server || typeof server.characterEnabled !== 'boolean';
     }
-    this.button('character-apply').disabled ||= !server || typeof server.characterEnabled !== 'boolean';
-    this.button('character-reset').disabled ||= !server || typeof server.characterEnabled !== 'boolean';
+    this.button('character-apply').disabled = busy || !server || typeof server.characterEnabled !== 'boolean';
+    this.button('character-reset').disabled = busy || !server || typeof server.characterEnabled !== 'boolean';
     this.element.querySelector('[data-server-status]')!.textContent = server
       ? `Poslední ověřený stav: dialog ${server.dialogMode === 'responses' ? 'AI · Sol' : 'FAKE'}, hlas ${server.voiceMode === 'openai' ? 'AI · STT / TTS' : 'FAKE'}. Aktivní rozhovory: ${server.activeConversations}.`
       : this.native ? 'Nastavte přístup správce a obnovte stav serveru.' : 'Správa serveru je dostupná v nativní iOS aplikaci.';

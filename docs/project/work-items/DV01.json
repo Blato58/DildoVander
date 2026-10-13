@@ -29,7 +29,7 @@
       "rule": "allOf",
       "appliesTo": {
         "policyVersion": "dv01-director-v1",
-        "artifactDigest": "a14bb273f52fde077b3c95bce99209769847c8ab2dc0f4ef86e47a3941f250fa"
+        "artifactDigest": "e124ed1c994a859a9cac0f23f40ccec5e77905d9ae15ee67ce0be7854e27293a"
       },
       "evidenceRefs": [
         "DV01-local-unit-v1",
@@ -42,7 +42,11 @@
         "DV01-post-review-integration-v2",
         "DV01-post-review-source_review-v2",
         "DV01-post-review-browser-v2",
-        "DV01-production-browser-v3"
+        "DV01-production-browser-v3",
+        "DV01-final-unit-v3",
+        "DV01-final-integration-v3",
+        "DV01-final-source_review-v3",
+        "DV01-final-browser-v3"
       ]
     },
     {
@@ -103,9 +107,9 @@
     }
   ],
   "nextAction": "Resolve B-LIVE/B-VISION/B-PHYSICAL through explicitly authorized capability-specific acceptance; keep DV01 off and finale blocked by default. Current delivery: https://github.com/Blato58/DildoVander/pull/181.",
-  "currentNote": "Offline A–E implemented; named blocked, limited explicit opt-in, production visual permission_pending, live/audio hardware/physical/event_ready false. Implementation061ab1db667575adc73454a8b627ac2137ee7996; smoke fix65779df570d0fbbf67782a7940365c91910a8175; review fixesbf46a03411b0c4168567617cf166a0b1e27b2b01. Each pushed with Push-CurrentBranch.ps1 and verified remote HEAD. PR181 Codex review completed; both P1 findings fixed, regression-tested, independently re-reviewed and threads resolved. Linux host C++ and local replay/HTTP smoke passed. Final hosted CI and Git delivery are inspectable in PR181. No paid calls, deployment or flash.",
+  "currentNote": "Offline A–E implemented; named blocked, limited explicit opt-in, production visual permission_pending, live/audio hardware/physical/event_ready false. Implementation061ab1db667575adc73454a8b627ac2137ee7996 and first review fixesbf46a03411b0c4168567617cf166a0b1e27b2b01 pushed with verified remote HEAD. PR181 second Codex review: three further findings fixed with express/cache, UI refresh and persona-invariant regressions; independent follow-up clear. Current local replay, HTTP smoke, web62/build and fresh production browser checks passed. Git/CI delivery is inspectable in PR181. No paid calls, deployment or flash.",
   "implementedSubject": {
-    "artifactDigest": "a14bb273f52fde077b3c95bce99209769847c8ab2dc0f4ef86e47a3941f250fa",
+    "artifactDigest": "e124ed1c994a859a9cac0f23f40ccec5e77905d9ae15ee67ce0be7854e27293a",
     "policyVersion": "dv01-director-v1"
   }
 }

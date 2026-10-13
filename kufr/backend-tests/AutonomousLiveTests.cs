@@ -35,6 +35,9 @@ internal static class AutonomousLiveTests
             "Přihrádka je patřičně zavřená." })
         { Check(AutonomousLiveDialogue.LimitedTerminalReady(speech), "unrelated number is not a slot: " + speech); }
         VerifyCharacterControlEvidence(options);
+        foreach (var control in new[] { "Zrychli.", "Bez dalších otázek.", "Vyber rovnou." })
+        { await VerifyExpressWithoutEvidence(options, control); }
+        await VerifyExpressAfterNeedsInformation(options);
         foreach (var profile in new[] { FinaleProfile.Blocked, FinaleProfile.Limited })
         {
             await VerifyCharacterFlow(options with { Character = options.Character with { FinaleProfile = profile } });
@@ -71,6 +74,73 @@ internal static class AutonomousLiveTests
                 && !projection.LatestIsCharacterControl && !projection.LatestCharacterControlInvalidatesEvidence
                 && projection.LatestInputReference == controlReference, "same-source substantive replacement remains evidence");
         }
+    }
+
+    private static async Task VerifyExpressWithoutEvidence(GptLiveOptions options, string control)
+    {
+        using var clock = new ManualClock(); using var socket = new SocketFixture();
+        socket.BeforeDelivery = () => clock.Advance(50);
+        await using var connection = new GptLiveConnection(socket);
+        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var decisions = new WandDecisionService((_, _) => throw new Exception("Express-only control reached paid selection"));
+        var consumed = Channel.CreateUnbounded<string>();
+        var run = new AutonomousLiveDialogue(connection, decisions, clock).RunAsync(Call(options, lifetime),
+            (_, _) => Task.CompletedTask, (text, _) => { consumed.Writer.TryWrite(text); return Task.CompletedTask; },
+            _ => Task.CompletedTask, (_, _) => throw new Exception("Express-only control reached checkpoint"),
+            () => (63, 7, true), _ => Task.CompletedTask, lifetime.Token);
+        await socket.Command("session.instructions.append", lifetime.Token);
+        socket.Transcript(false, "Co chceš?", 0, 1000);
+        socket.Transcript(true, control, 1100, 2000);
+        await consumed.Reader.ReadAsync(lifetime.Token); socket.Delegate("empty-express", 2000); clock.Advance(1300);
+        var commentary = socket.Command("session.commentary.append", lifetime.Token);
+        await AdvanceUntilAsync(commentary, run, clock, lifetime.Token);
+        var context = await commentary;
+        Check(context.Contains("Chybí odpověď hosta") && !run.IsCompleted,
+            "express changes tempo but does not provide selection evidence or physical proposal");
+        lifetime.Cancel();
+        try { await run; } catch (OperationCanceledException) { }
+    }
+
+    private static async Task VerifyExpressAfterNeedsInformation(GptLiveOptions options)
+    {
+        using var clock = new ManualClock(); using var socket = new SocketFixture();
+        socket.BeforeDelivery = () => clock.Advance(50);
+        await using var connection = new GptLiveConnection(socket);
+        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var calls = 0;
+        using var decisions = new WandDecisionService((input, _) =>
+        {
+            calls++;
+            Check(input.Evidence.Count == 1 && input.Evidence[0].Text == "Chci přesnost.", "express retains only substantive evidence");
+            if (calls == 1)
+            {
+                Check(!input.DirectSelection, "first delegation uses standard policy");
+                return Task.FromResult(new WandDecisionResult(WandDecisionStatus.NeedsInformation, null, [], "Chybí další preference.", input.Revision, input.AvailabilityRevision));
+            }
+            Check(calls == 2 && input.DirectSelection, "express replaces obsolete needs-information policy once");
+            return Task.FromResult(Proposal(input, 1));
+        });
+        var consumed = Channel.CreateUnbounded<string>();
+        var run = new AutonomousLiveDialogue(connection, decisions, clock).RunAsync(Call(options, lifetime),
+            (_, _) => Task.CompletedTask, (text, _) => { consumed.Writer.TryWrite(text); return Task.CompletedTask; },
+            _ => Task.CompletedTask, (_, _) => throw new Exception("No physical checkpoint expected"),
+            () => (63, 7, true), _ => Task.CompletedTask, lifetime.Token);
+        await socket.Command("session.instructions.append", lifetime.Token);
+        socket.Transcript(false, "Co chceš?", 0, 1000);
+        socket.Transcript(true, "Chci přesnost.", 1100, 2000);
+        await consumed.Reader.ReadAsync(lifetime.Token); socket.Delegate("standard-first", 2000);
+        var first = socket.Command("session.commentary.append", lifetime.Token);
+        await AdvanceUntilAsync(first, run, clock, lifetime.Token);
+        await first;
+        socket.Transcript(false, "Co dalšího?", 3000, 4000);
+        socket.Transcript(true, "Vyber rovnou.", 4100, 5000);
+        await consumed.Reader.ReadAsync(lifetime.Token); socket.Delegate("express-second", 5000);
+        var second = socket.Command("session.commentary.append", lifetime.Token);
+        await AdvanceUntilAsync(second, run, clock, lifetime.Token);
+        await second;
+        Check(calls == 2, "express with retained evidence does not reuse the previous needs-information cache");
+        lifetime.Cancel();
+        try { await run; } catch (OperationCanceledException) { }
     }
 
     private static async Task VerifyCharacterEvidenceWithdrawal(GptLiveOptions options, string control, bool sameReference = false)
@@ -151,7 +221,13 @@ internal static class AutonomousLiveTests
             terminalState: state => { if (afterCancellation && state == "character_directive_accepted") { freshDirective.TrySetResult(); } });
         await socket.Command("session.instructions.append", lifetime.Token);
         socket.Transcript(false, "Co bys spravil kouzlem?", 0, 1000);
-        socket.Transcript(true, express ? "Vyber rovnou." : "Prostě mi nějakou vyber.", 1100, 2000);
+        if (express)
+        {
+            socket.Transcript(true, "Chci přesnost.", 1100, 1400);
+            await consumed.Reader.ReadAsync(lifetime.Token);
+            socket.Transcript(false, "Dobře, krátce.", 1500, 1600);
+        }
+        socket.Transcript(true, express ? "Vyber rovnou." : "Prostě mi nějakou vyber.", express ? 1700 : 1100, 2000);
         await consumed.Reader.ReadAsync(lifetime.Token);
         socket.Delegate("character-selection", 2000);
         socket.Emit(new { type = "session.usage.updated", usage = new { seconds = 1 } });
