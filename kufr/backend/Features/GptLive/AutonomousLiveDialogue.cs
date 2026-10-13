@@ -230,7 +230,8 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
             }
             var directSelection = projection.DirectSelection || character?.Tempo == CharacterTempo.Express;
             if (equivalent.TryGetValue(key, out var cached)
-                && !(cached.Status == WandDecisionStatus.NeedsInformation && directSelection && snapshot.Policy.AllowEarlySelection))
+                && !(character is not null && cached.Status == WandDecisionStatus.NeedsInformation
+                    && directSelection && snapshot.Policy.AllowEarlySelection))
             { waiting = null; await Deliver(cached with { DecisionRevision = projection.Revision }, task.DelegationId); return; }
             if (projection.Intent == LiveRequestIntent.Alternative)
             {
