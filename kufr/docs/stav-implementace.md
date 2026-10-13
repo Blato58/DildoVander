@@ -62,9 +62,26 @@ odhalilo staré očekávání čtyř Bonjour capabilities v hostitelském testu;
 aktualizované očekávání obsahuje `dance`. Po opravě prošly znovu 4
 dance/SD hostitelské binárky i Bonjour regrese; `pio run -j 2` prošlo
 s RAM 94 940/327 680 B a flash 1 758 277/6 553 600 B. Nezávislé review
-potvrdilo opravu stacku. Další CI a GitHub review se ověřují nad touto
-opravou před merge. Fyzický stack high-water se musí změřit při dlouhém
-přehrávání na zařízení.
+potvrdilo opravu stacku. Disassemblovaný ESP32 kód ukázal statické
+framy `Play` 5568 B, `PlayTrack` 288 B a `Execute` 592 B, tedy 6448 B
+ještě před dalšími SDK voláními. Fyzický stack high-water se musí změřit
+při dlouhém přehrávání na zařízení.
+
+Finální zdroj `ad6aa6e14304ed4962130f7df31e51bfef1b4bce` byl úspěšně
+pushnut helperem a vzdálený SHA ověřen. Úplné
+[CI 38419015751](https://github.com/Blato58/DildoVander/actions/runs/38419015751)
+nad tímto SHA prošlo: repository/secret scan, backend, oba firmware
+joby, web, výrobní/site balík a `CI required`; placený AI eval nebyl
+spuštěný. Před merge byly znovu přečteny všechny reviews, inline
+komentáře a Codex stav. Review skončilo, jediný P1 je opravený,
+regresně ověřený a vlákno vyřešené.
+[PR #178](https://github.com/Blato58/DildoVander/pull/178) je sloučený
+jako `7e32f4d608dfcc5805dbda3573c7ece6771a09d4` s `[skip ci]`.
+Fetch cílového main a porovnání potvrdily shodný Git tree
+`a1838f7b7622763e4ace296f6569a1a40c2f726e` s ověřeným zdrojem.
+CLI příprava SD navíc vytvořila přesný manifest a byte-identický
+canonical WAV ze syntetického vstupu. Dodávka je zdrojová: žádná
+publikace Release/Pages, cloudové nasazení, podpis iOS ani flash.
 
 ## F2 DFA / Workshop — 12. 10. 2026
 
