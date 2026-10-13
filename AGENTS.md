@@ -42,6 +42,12 @@
 
 ## Vizuální styl všech UI
 
+- Pro DV01 personu, dramaturgii a lore používej projektový skill
+  [.agents/skills/dildovander-character-design/SKILL.md](.agents/skills/dildovander-character-design/SKILL.md).
+  Pro regrese postavy, revizí, issued/restart a audia používej
+  [.agents/skills/dildovander-character-eval/SKILL.md](.agents/skills/dildovander-character-eval/SKILL.md).
+  Kanonické chování a otevřené brány jsou v [DV01](kufr/docs/dv01.md).
+
 - Pro každou změnu uživatelského rozhraní v tomto repozitáři načti tracked skill
   [.agents/skills/dildovander-ui/SKILL.md](.agents/skills/dildovander-ui/SKILL.md).
   Platí pro mobilní aplikaci, simulátor, Workshop/CAD viewer i veřejný přehled.

@@ -47,9 +47,11 @@ class Audio : public VoiceAudioPort {
   }
   bool Play(const std::vector<uint8_t>& pcm) override { assert(gptLive || !listening.load()); assert(pcm.size() == 6); ++blocks; return true; }
   bool Drain() override { ++drains; return true; }
+  bool CancelPlayback() override { ++cancelled; return true; }
   void Stop() override { listening.store(false); }
   bool Failed() const override { return false; }
   int blocks = 0;
+  int cancelled = 0;
 };
 std::string Correlation(const std::string& turn) {
   return "{\"deviceId\":\"kufr-001\",\"bootId\":\"" + Boot + "\",\"conversationId\":\"" + Conversation +
@@ -190,6 +192,14 @@ int main() {
     assert(autonomous.Run("{}", Boot, opening, snapshot, [](const TurnOperationObservation&) { return true; }));
     assert(checkpoints == (lostAck ? 2 : 1) && drains == 1 && played == 1 && !listening);
   }
+  const auto beforeAudio = stream.find("{\"type\":\"audio\"");
+  stream.insert(beforeAudio, "{\"type\":\"audio_cancel\",\"responseGeneration\":2}\n"
+      "{\"type\":\"audio_cancel\",\"responseGeneration\":2}\n");
+  Reset(); gptLive = true;
+  Audio cancelledAudio;
+  EspIdfRealtimeTransport scopedCancel("example.test", "testtoken", cancelledAudio, [] { return true; }, [](const char*) {}, true);
+  assert(scopedCancel.Run("{}", Boot, opening, snapshot, [](const TurnOperationObservation&) { return true; }));
+  assert(cancelledAudio.cancelled == 1 && cancelledAudio.blocks == 1 && played == 1);
   for (int scenario = 0; scenario < 4; ++scenario) {
     Reset(); Audio failingAudio;
     stream = session + Reply(Turn, true) + "{\"type\":\"closed\",\"reason\":\"conversation_terminal\"}\n";

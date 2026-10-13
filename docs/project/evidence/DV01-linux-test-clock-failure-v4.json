@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "DV01-linux-test-clock-failure-v4",
+  "observedAtUtc": "2026-10-13T22:37:52Z",
+  "kind": "unit",
+  "result": "fail",
+  "claims": [
+    {
+      "workItemId": "DV01",
+      "criterionId": "CORE",
+      "criterionRevision": 1,
+      "result": "fail"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "d576af7734dacba892c02fa839b4eb1b41267b3a53f44a078bc95845a1184da3",
+    "policyVersion": "dv01-director-v1",
+    "commit": "ca23ca9dee78cb88173634203b21598c4f98a013",
+    "dirty": false
+  },
+  "method": "Hosted Linux Release full backend suite, run38478898293 job115576666209.",
+  "environment": "GitHub Ubuntu24.04 SDK10.0.303, self-contained linux-x64 Release.",
+  "limitations": [
+    "Failure belongs to v4 test source; production defect is not established by this scheduler timeout."
+  ],
+  "observation": "Build passed, domain/store tests passed, then new fake withdrawal fixture initial commentary read canceled after10s. Exact stack and subsequent clock-boundary repair recorded; this historical failed subject remains visible.",
+  "artifactRefs": [
+    "https://github.com/Blato58/DildoVander/actions/runs/38478898293/job/115576666209",
+    "docs/project/artifacts/DV01-test-clock-v5.json"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "recordedAtUtc": "2026-10-13T22:35:33.289106+00:00",
+  "artifactDigest": "d576af7734dacba892c02fa839b4eb1b41267b3a53f44a078bc95845a1184da3",
+  "backendSourceDigest": "6fcf31dca9d3552782e9b0c629da869f9b39b029f269b9ec179f1fc76d4cc517",
+  "change": "Scope new express/NeedsInformation cache bypass to character is not null. DV01-off cache-return behavior stays as before; active DV01 still uses validated substantive evidence.",
+  "validation": "Latest offline replay passed candidate core/fake Live/server-mode and existing baseline Autonomous tests, with zero provider/actuator calls.",
+  "review": "Independent Sol6.1/high read-only check confirmed active character, NeedsInformation, direct selection and frozen early-selection permission all required; no writes/tests by reviewer.",
+  "transfer": {
+    "from": "docs/project/artifacts/DV01-source-bundle-v3.json",
+    "changedInputs": [
+      "kufr/backend/Features/GptLive/AutonomousLiveDialogue.cs"
+    ],
+    "reason": "Every UI/test/firmware/skill/eval input is byte-identical except this candidate-only conditional. Preserve original dates/scopes for62 web tests/build, production browser, HTTP smoke, firmware host/build and skills."
+  }
+}

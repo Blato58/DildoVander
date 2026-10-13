@@ -5,9 +5,11 @@ namespace Kufr.Backend.Features.GptLive;
 internal sealed class LiveInputActivity(TimeProvider clock, int threshold)
 {
     private long lastSpeech = -1;
+    private long lastFrame = -1;
 
     internal void Observe(byte[] pcm)
     {
+        Interlocked.Exchange(ref lastFrame, clock.GetTimestamp());
         long energy = 0;
         var samples = pcm.Length / 2;
         for (var i = 0; i + 1 < pcm.Length; i += 2)
@@ -17,6 +19,14 @@ internal sealed class LiveInputActivity(TimeProvider clock, int threshold)
         }
         if (samples > 0 && energy >= (long)threshold * threshold * samples)
             Interlocked.Exchange(ref lastSpeech, clock.GetTimestamp());
+    }
+    internal bool MicrophoneActive
+    {
+        get
+        {
+            var frame = Interlocked.Read(ref lastFrame);
+            return frame >= 0 && clock.GetElapsedTime(frame) < TimeSpan.FromSeconds(2);
+        }
     }
 
     internal bool QuietFor(int milliseconds)

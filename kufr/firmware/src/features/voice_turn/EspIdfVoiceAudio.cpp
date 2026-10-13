@@ -103,6 +103,31 @@ bool EspIdfVoiceAudio::TakeInput(std::vector<uint8_t>& pcm) {
   return !failed_.load();
 }
 
+bool EspIdfVoiceAudio::CancelPlayback() {
+  // The network reader owns Play and this method. Stop remains sticky on the
+  // independent control task. Mute first: a short admitted DMA tail can remain.
+  const uint32_t epoch = epoch_.load();
+  {
+    std::lock_guard<std::mutex> muteLock(muteGate_);
+    if (!active_.load() || failed_.load()) return false;
+    playing_.store(false);
+    if (!Mute(false)) return false;
+  }
+  // Replace the eight descriptor DMA tail with silence before a new Play can
+  // open output. B's SD cannot mute instantly; the admitted tail is a physical
+  // latency limit, but it must never be reopened by the next response.
+  std::array<int32_t, 640> silence{};
+  for (int i = 0; i < 9; ++i) {
+    std::lock_guard<std::mutex> outputLock(outputGate_);
+    size_t written = 0;
+    if (!active_.load() || epoch_.load() != epoch ||
+        i2s_channel_write(tx_, silence.data(), sizeof(silence), &written, 100) != ESP_OK ||
+        written != sizeof(silence)) return false;
+  }
+  outputRate_.Reset();
+  return true;
+}
+
 bool EspIdfVoiceAudio::Play(const std::vector<uint8_t>& pcm) {
   if (!available_ || pcm.empty() || pcm.size() % 2 || pcm.size() > 32768) return false;
   // Stop is sticky until Begin. A block admitted just before cancellation must

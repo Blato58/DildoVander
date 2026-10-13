@@ -40,5 +40,6 @@ class EspIdfRealtimeTransport final {
   bool sessionSeen_ = false, terminal_ = false, closed_ = false;
   unsigned sequence_ = 0, turns_ = 0;
   size_t audioBytes_ = 0, inputBytes_ = 0;
+  uint64_t responseGeneration_ = 0;
   std::atomic<uint64_t> startedAtMs_{0}, lastTurnAtMs_{0};
 };

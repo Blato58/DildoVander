@@ -72,6 +72,8 @@ internal static class LiveFailureDiagnostics
             "Live closed without final usage." => "live_final_usage_missing",
             "Live decision count exhausted." => "live_decision_count",
             "Invalid Live audio." => "live_audio_invalid",
+            "DV01 recovery transcript unavailable." => "character_recovery_unverified",
+            "DV01 input repair limit reached; use existing text/operator path." => "character_input_repair_limit",
             _ => "live_data_invalid"
         },
         _ => "live_internal_error"

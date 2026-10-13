@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "DV01-production-browser-v3",
+  "observedAtUtc": "2026-10-13T22:16:26.524601+00:00",
+  "kind": "browser",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "DV01",
+      "criterionId": "CORE",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "a14bb273f52fde077b3c95bce99209769847c8ab2dc0f4ef86e47a3941f250fa",
+    "policyVersion": "dv01-director-v1",
+    "webPackageArtifactDigest": "1af3cf76c7010afb0fe8b4410899151f99d88cd53ec55563df082d87a058e230"
+  },
+  "method": "npm exec -- vite preview --host127.0.0.1 --port5174 --strictPort; visible Codex in-app Browser Debug; viewport/DOM geometry, screenshot, console and HTTP HEAD for three bundled fonts.",
+  "environment": "Windows local production dist; widths1280/1024/390/320px, height900px; web simulation/native backend unavailable.",
+  "observation": "DV01 fieldset present at every width; no horizontal overflow, error or warning console entries. Three bundled font endpoints HTTP200; Cinzel heading family and rendered screenshot inspected. Native/admin controls truthfully disabled. No authenticated write/provider/device action.",
+  "limitations": [
+    "No iPhone/Swift execution, authenticated admin integration, actual audio or physical reveal.",
+    "Earlier Vite development-server source-font access was outside its allow list; production preview serves bundled fonts successfully. That pre-existing dev configuration was not changed."
+  ],
+  "artifactRefs": [
+    "docs/project/artifacts/DV01-web-package.json",
+    "docs/project/artifacts/DV01-source-bundle-v2.json"
+  ]
+}

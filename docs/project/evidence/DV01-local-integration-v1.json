@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "DV01-local-integration-v1",
+  "observedAtUtc": "2026-10-13T21:56:59.793452+00:00",
+  "kind": "integration",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "DV01",
+      "criterionId": "CORE",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "393452e4214db16e58f75fd1ab8805e491056779ee0ed05f7b7e523e72289346",
+    "policyVersion": "dv01-director-v1"
+  },
+  "method": "Offline replay fake Live and real ConversationStore/SQLite fixtures; final pio cross-build and npm production build.",
+  "environment": "Windows desktop; SDK10.0.303, local Python/Node/PlatformIO; synthetic fixtures and in-app Browser.",
+  "limitations": [
+    "No paid provider calls, native iOS build/test, physical audio listening, flash, reveal or deployment.",
+    "Host C++ execution unavailable locally: no g++; WSL disk missing. Firmware cross-build passed; host execution awaits hosted CI.",
+    "GPT-Live stream has no response/audio IDs or output-done: recovery fence is bounded heuristic, not complete semantic speech control.",
+    "Metadata/trigger fixture validation does not prove new-session model skill routing.",
+    "Prepared synthetic source guards are not completion of all T01–T80 live scenarios."
+  ],
+  "observation": "Offline fake streaming/control/revision/checkpoint flows passed with providerCalls=0 and actuatorCommands=0. Firmware and web build passed. Runtime audio/physical/native behavior remains unverified.",
+  "artifactRefs": [
+    "docs/project/artifacts/DV01-source-bundle.json",
+    "docs/project/artifacts/DV01-local-checks.json",
+    "docs/project/artifacts/DV01-offline.json"
+  ]
+}

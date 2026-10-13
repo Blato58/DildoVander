@@ -1,5 +1,16 @@
 # Backend kufru (E7)
 
+## DV01 · opt-in roast postava
+
+[DV01 provozní návod](../docs/dv01.md) popisuje `AutonomousActor` pro
+`ollivander-trunk`, default-off director s adult presetem, explicitní guest
+omezení, revize a anonymní pestrost. Debug/admin správa umí měnit DV01 pro nové
+session. Výchozí fyzické finále je Blocked; Limited je výslovná volba bez mluveného
+názvu, Named čeká na ověřený publikační bod. Původní persony, hlas a selection
+politika zůstávají baseline. Fotografie kostýmu sama neopravňuje appearance roast.
+Offline replay je `python kufr/ai-eval/evaluate_party.py --dv01-replay --output
+kufr/ai-eval/results/dv01-offline.json` z kořene. Live, iPhone a pohyby mají vlastní gates.
+
 ## Podepsaná firmware distribuce (D158)
 
 Veřejné read-only `GET /v1/firmware/manifests/{channel}.json` a
