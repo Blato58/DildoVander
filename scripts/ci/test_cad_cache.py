@@ -39,8 +39,22 @@ class CadCachePolicyTests(unittest.TestCase):
                 patch.object(sys, 'path', list(sys.path)), redirect_stdout(out), redirect_stderr(errors):
             main()
         self.assertEqual(out.getvalue(), 'f' * 64 + '\n')
-        self.assertIn('Generated assembly guides', errors.getvalue())
-        self.assertIn('CAD host diagnostics', errors.getvalue())
+        self.assertEqual(errors.getvalue(), '')
+
+    def test_key_command_survives_a_wrapper_merging_output_channels(self):
+        cache = SimpleNamespace(runtime_environment=lambda: identity()['environment'],
+                                cache_key=lambda value: 'f' * 64)
+        def prepare():
+            print('Generated assembly guides')
+            print('Generator diagnostic', file=sys.stderr)
+            return {'sources': identity()['sources'], 'environment': cache.runtime_environment()}
+        merged = io.StringIO()
+        with patch.dict(sys.modules, {'regenerate': SimpleNamespace(prepared_identity=prepare),
+                                     'regeneration_cache': cache}), \
+                patch.object(sys, 'argv', ['cad_cache.py', '--cache-key']), \
+                patch.object(sys, 'path', list(sys.path)), redirect_stdout(merged), redirect_stderr(merged):
+            main()
+        self.assertEqual(merged.getvalue(), 'f' * 64 + '\n')
 
     def test_runner_rollout_and_kernel_only_share_identity(self):
         before = identity()

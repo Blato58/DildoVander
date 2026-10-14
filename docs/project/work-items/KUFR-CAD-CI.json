@@ -32,18 +32,18 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "6b6b9c91e9f4d4767075d546cdce809ec4714c76b3891bb8b6191b0a01487fe1"
+        "artifactDigest": "16cfe26fb2b5190b7a644c89fb9d2101bef60361e8a80d966c37223922fe060d"
       },
       "evidenceRefs": [
-        "KUFR-CAD-CI-local-v4",
-        "KUFR-CAD-CI-review-v4"
+        "KUFR-CAD-CI-local-v5",
+        "KUFR-CAD-CI-review-v5"
       ]
     }
   ],
   "blockers": [],
   "nextAction": "Finish independent v3 cache policy review, push, and verify actual adoption/HIT plus required CI before merge.",
   "implementedSubject": {
-    "artifactDigest": "6b6b9c91e9f4d4767075d546cdce809ec4714c76b3891bb8b6191b0a01487fe1"
+    "artifactDigest": "16cfe26fb2b5190b7a644c89fb9d2101bef60361e8a80d966c37223922fe060d"
   },
-  "currentNote": "Implementation7c4c97f and canonical STATUS fix656614b pushed and verified. Initial hosted site job passed in13s, repository/secret scan and both tracking platforms passed; full CAD was still running when main advanced through approved DV10 and Twin media merges. Superseded runs38632994304 and38635034193 cancelled. Integrated current main3367277 preserving incoming media test and gallery assets; independent integration review passed. Main recovery38638670895 seeds current CAD cache before pushing merged PR to avoid duplicate cold regeneration. Deleted13 caches scoped only to confirmed closed PR140/187/174/172, freeing3779122917bytes; verified no entries for those refs, inventory74 caches/6975662703bytes. Integrated commit9206663865bc931d62403fd539e7955b85cc8255 pushed and remote verified. Main recovery38638670895 passed, v1 cache51007 saved after46min generation. PR38645207337 used key69d8 despite identical final/ sources, all installed packages and slicer native/runtime/launcher hashes: main image20261012.334.1 versus PR20261004.327.1. Cancelled this redundant miss. CI-only v2 wrapper now excludes just host ImageVersion/kernel while preserving Ubuntu24, architecture, glibc ABI, exact source/Python/distribution/slicer identities; legacy adoption requires original complete verification before writing normalized receipt. Local Regenerate unchanged. V3 implementation2f079e6d89a2b04a135710f16b426c7f1b5cea0c pushed/remote verified. Hosted38646983511 passed site/repository/secret/tracking but key output failed due source-generator progress mixed into stdout; no unsafe adoption occurred. V4 redirects preparation progress to stderr and validates64hex output;7 cache-policy/CLI regression tests pass."
+  "currentNote": "CI graph, real static assembly and required gates verified; independent v5 review and8 policy tests pass. Main recovery38638670895 passed and saved v1 key51007 after46min regeneration. Identical source/tools missed on different GitHub images20261004.327.1/20261012.334.1. CI v2 policy now retains exact sources/tools/Ubuntu24/architecture/glibc ABI and validates every legacy source/export/ZIP/slicer before receipt adoption. Latest pushed implementation202d6bbcffc9ccfa455265d8635fb4bbe4a5bb5f remote verified; v5 fixes stdout/stderr capture and awaits hosted verification. Closed-PR cache cleanup freed3779122917bytes from13 entries, checked absent afterward. Current main3367277 integrated; local regeneration remains strict. No publication/deployment/paid AI."
 }
