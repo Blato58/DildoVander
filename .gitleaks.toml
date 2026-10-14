@@ -1,0 +1,46 @@
+title = "DildoVander secret scan"
+
+[extend]
+useDefault = true
+
+# Keep every upstream detector. Only generic-api-key misreads these non-secrets.
+# AND binds each content exception to its intended file; no whole-file exclusions.
+[[allowlists]]
+description = "SHA-256 file inventories in project evidence and artifact manifests"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^docs/project/(evidence|artifacts)/[^/]+\.json$''']
+regexTarget = "line"
+regexes = ['''^\s*"[^"\r\n]+\.(py|cs|cpp|h|cjs|mjs|js|ts|swift|json|md|dll|pdb|exe|so|dylib)":\s*"[0-9a-f]{64}"\s*,?\s*$''']
+
+[[allowlists]]
+description = "CAD component identifier, not an API credential"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^kufr/mechanika/cad/scripts/generate\.py$''']
+regexTarget = "line"
+regexes = ['''^\s*key = "DFR0954_amplifier"\s*$''']
+
+[[allowlists]]
+description = "Smoke test passes a generated idempotency key by variable"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^kufr/backend/tests/deployed_smoke\.py$''']
+regexTarget = "line"
+regexes = ['''^\s*"POST", "/v1/conversations", bearer=token, key=create_key, body=conversation_body\s*$''']
+
+[[allowlists]]
+description = "Reviewed synthetic firmware idempotency UUID"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^kufr/firmware/tests/conversation_(text_codec|start_coordinator)_test\.cpp$''']
+regexTarget = "line"
+regexes = ['''^\s*request\.idempotencyKey = "7731ce10-a53c-4934-8909-06870fc86a12";\s*$''']
+
+[[allowlists]]
+description = "The scanner regression embeds the three reviewed non-secret values"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^scripts/ci/test_secret_scan\.py$''']
+regexTarget = "secret"
+regexes = ['''^DFR0954_amplifier$''', '''^body=conversation_body$''', '''^7731ce10-a53c-4934-8909-06870fc86a12$''']
