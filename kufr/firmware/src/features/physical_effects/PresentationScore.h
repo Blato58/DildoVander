@@ -7,7 +7,7 @@ enum class Stage : uint8_t { Prepare, Raise, Show, Lower, Rest };
 struct Step { Stage stage; uint16_t durationMs; int8_t target; uint8_t red, green, blue; bool vibration; uint16_t toneHz; };
 constexpr char SourceHash[] = "efd9ecdf662ecdc3cfa86da37d080e1679254fbff14ada6bb6270376a3961ae0";
 constexpr char CompiledHash[] = "a520f980f1ecca29d36a61deab3e237480bfbb75ea935aa08cc6747ee606a525";
-constexpr char BundleHash[] = "f410eb95e65f1c7f73db04f1da1e0df4e2a3a877909eba34b0dcc9befcf74063";
+constexpr char BundleHash[] = "7b0e2488ee4bfff9130c5d3c67652e4a7287728af8f9f5e4a1b64e85a732246d";
 constexpr char SemanticsVersion[] = "dv02-phase-1";
 constexpr Step Main[] = {
   {Stage::Prepare, 600, 0, 60, 12, 90, false, 220},

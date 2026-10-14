@@ -968,6 +968,40 @@ class PhaseCompilerContract(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'Stale'):
                     export_bundle(SOURCE.read_bytes(), check=True)
 
+    def test_isolated_standalone_check_preserves_strict_repository_checks(self):
+        bundle = compile_bundle(SOURCE.read_bytes())
+        with tempfile.TemporaryDirectory() as directory:
+            for context in ('standalone', 'firmware-tree', 'repository-marker'):
+                container = Path(directory) / context
+                final = container / 'kufr/mechanika/final'
+                final.mkdir(parents=True)
+                for name in ('generate_effects.py', 'effects.json'):
+                    (final / name).write_bytes((ROOT / name).read_bytes())
+                for artifact in (SCHEMA, PLAN, MANIFEST):
+                    (final / artifact.name).write_bytes(bundle[artifact])
+                if context == 'firmware-tree':
+                    (container / 'kufr/firmware').mkdir()
+                elif context == 'repository-marker':
+                    (container / '.git').write_text('gitdir: missing-test-worktree', encoding='utf-8')
+                before = {path.relative_to(container): (path.read_bytes(), path.stat().st_mtime_ns)
+                          for path in container.rglob('*') if path.is_file()}
+                result = subprocess.run([sys.executable, str(final / 'generate_effects.py'), '--check'],
+                                        cwd=final, capture_output=True, text=True)
+                with self.subTest(context=context):
+                    self.assertEqual(result.returncode == 0, context == 'standalone', result.stderr)
+                    if context != 'standalone':
+                        self.assertIn('Stale generated PresentationScore.h', result.stderr)
+                    after = {path.relative_to(container): (path.read_bytes(), path.stat().st_mtime_ns)
+                             for path in container.rglob('*') if path.is_file()}
+                    self.assertEqual(before, after)
+                if context == 'standalone':
+                    (final / PLAN.name).unlink()
+                    missing = subprocess.run([sys.executable, str(final / 'generate_effects.py'), '--check'],
+                                             cwd=final, capture_output=True, text=True)
+                    self.assertNotEqual(missing.returncode, 0)
+                    self.assertIn('Stale generated effects.plan.json', missing.stderr)
+                    self.assertFalse((container / 'kufr/firmware').exists())
+
 
 if __name__ == '__main__':
     unittest.main()

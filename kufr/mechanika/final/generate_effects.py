@@ -8,7 +8,8 @@ from fractions import Fraction
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-HEADER = ROOT.parents[1] / 'firmware/src/features/physical_effects/PresentationScore.h'
+FIRMWARE_ROOT = ROOT.parents[1] / 'firmware'
+HEADER = FIRMWARE_ROOT / 'src/features/physical_effects/PresentationScore.h'
 TARGETS = {'selected': 0, 'next': -2, 'previous': -3}
 STAGES = ('prepare', 'raise', 'show', 'lower', 'rest')
 # PhysicalPresentation advances one preparation step per nominal 10 ms control
@@ -651,10 +652,19 @@ def generate(score=None):
     return compile_bundle(raw)[HEADER].decode('utf-8')
 
 
+def firmware_context_present():
+    # Manufacturing ZIPs contain only final/. A repository/worktree still
+    # requires its header even when that file or its directory was deleted.
+    repository_marker = len(ROOT.parents) > 2 and (ROOT.parents[2] / '.git').exists()
+    return FIRMWARE_ROOT.exists() or repository_marker
+
+
 def export_bundle(raw, check=False):
     outputs = compile_bundle(raw)
     for path, content in outputs.items():
         if check:
+            if path == HEADER and not firmware_context_present():
+                continue
             require(path.is_file() and path.read_bytes() == content, f'Stale generated {path.name}')
         else:
             path.write_bytes(content)

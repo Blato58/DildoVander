@@ -24,12 +24,12 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "3affd6caca1f4b26dd365c27c0b2e94653048b10f9f1b6b0c3d5054c61133ed9",
+        "artifactDigest": "773f091287082f802c54f4a0a4fa6441c744bf3f48a5e4169b98d64425df88ff",
         "policyVersion": "dv02-phase-1"
       },
       "evidenceRefs": [
-        "DV02-local-unit-v4",
-        "DV02-local-source_review-v4"
+        "DV02-local-unit-v5",
+        "DV02-local-source_review-v5"
       ]
     },
     {
@@ -43,13 +43,13 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "3affd6caca1f4b26dd365c27c0b2e94653048b10f9f1b6b0c3d5054c61133ed9",
+        "artifactDigest": "773f091287082f802c54f4a0a4fa6441c744bf3f48a5e4169b98d64425df88ff",
         "policyVersion": "dv02-phase-1"
       },
       "evidenceRefs": [
-        "DV02-local-unit-v4",
-        "DV02-local-integration-v4",
-        "DV02-local-source_review-v4"
+        "DV02-local-unit-v5",
+        "DV02-local-integration-v5",
+        "DV02-local-source_review-v5"
       ]
     },
     {
@@ -64,14 +64,14 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "3affd6caca1f4b26dd365c27c0b2e94653048b10f9f1b6b0c3d5054c61133ed9",
+        "artifactDigest": "773f091287082f802c54f4a0a4fa6441c744bf3f48a5e4169b98d64425df88ff",
         "policyVersion": "dv02-phase-1"
       },
       "evidenceRefs": [
-        "DV02-local-unit-v4",
-        "DV02-local-integration-v4",
-        "DV02-local-source_review-v4",
-        "DV02-local-browser-v4"
+        "DV02-local-unit-v5",
+        "DV02-local-integration-v5",
+        "DV02-local-source_review-v5",
+        "DV02-local-browser-v5"
       ]
     },
     {
@@ -84,12 +84,12 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "3affd6caca1f4b26dd365c27c0b2e94653048b10f9f1b6b0c3d5054c61133ed9",
+        "artifactDigest": "773f091287082f802c54f4a0a4fa6441c744bf3f48a5e4169b98d64425df88ff",
         "policyVersion": "dv02-phase-1"
       },
       "evidenceRefs": [
-        "DV02-local-unit-v4",
-        "DV02-local-source_review-v4"
+        "DV02-local-unit-v5",
+        "DV02-local-source_review-v5"
       ]
     },
     {
@@ -120,9 +120,9 @@
     }
   ],
   "nextAction": "Samostatně připravit a autorizovat G: identifikovaná ESP/audio/iPhone sestava, provozní plán pro32journal ID a fyzické měření Stop/časování/heap/stack. Software A–F ověřen offline.",
-  "currentNote": "A–F offline verified for source3affd6caca1f4b26dd365c27c0b2e94653048b10f9f1b6b0c3d5054c61133ed9. Implementation d1e997232edf5305df7abfd575685a802c4c30e0; final clock/NVS and pre-LED admission fix f4a6abe63a3b3faee589a1a982f6b1d938f78f50. Push-CurrentBranch.ps1 verified remote codex/dv02-unified-show at f4a6abe63a3b3faee589a1a982f6b1d938f78f50. PR185 contains the verified implementation; Codex review4265468810 finding fixed, regression verified, independent peer cleared and review thread resolved. Final Git/CI result is available on PR185; no publication or physical acceptance is inferred. Physical G, live DV01 transport and acoustic/native acceptance remain open. Journal32 IDs fail closed. No release, deployment, flash, signing or paid AI.",
+  "currentNote": "A–F offline verified for source773f091287082f802c54f4a0a4fa6441c744bf3f48a5e4169b98d64425df88ff /bundle7b0e2488ee4bfff9130c5d3c67652e4a7287728af8f9f5e4a1b64e85a732246d. Concurrent main417bb7153f5bac39e065af4b59b0dc8a073785c0 integrated with DV02 gates preserved. Initial implementation d1e997232edf5305df7abfd575685a802c4c30e0; clock/admission fix f4a6abe63a3b3faee589a1a982f6b1d938f78f50. Last Push-CurrentBranch verified remote70f90cbf1e8eb4e850cf140a7a1b6ca7311da9fb. PR185 contains verified implementation, Codex4265468810 fixed/regressiontested/resolved and independent reviews cleared. Final Git/CI result is on PR185. Physical G/live DV01/audio/native acceptance open; journal32 IDs fail closed. No release/deployment/flash/signing/paid AI.",
   "implementedSubject": {
-    "artifactDigest": "3affd6caca1f4b26dd365c27c0b2e94653048b10f9f1b6b0c3d5054c61133ed9",
+    "artifactDigest": "773f091287082f802c54f4a0a4fa6441c744bf3f48a5e4169b98d64425df88ff",
     "policyVersion": "dv02-phase-1"
   }
 }

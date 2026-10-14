@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "DV02-local-browser-v5",
+  "observedAtUtc": "2026-10-14T00:36:40.051188+00:00",
+  "kind": "browser",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "DV02",
+      "criterionId": "TIMELINE",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "773f091287082f802c54f4a0a4fa6441c744bf3f48a5e4169b98d64425df88ff",
+    "policyVersion": "dv02-phase-1"
+  },
+  "method": "Actual existing CADvenv Python preview.py --viewer-only from final; parse generatedHTML and compare current manifest/plan/bothJS/raw source hashes. Browser interaction validity transfers within original v3 limitations; no new browser/filechooser claim.",
+  "environment": "Windows x64; Python3.14, MSVC19.51 C++14, Node, PlatformIO7.1.3 ESP-IDF6.1; existing CADvenv and browser. Host fakeports, no livehardware/provider.",
+  "limitations": [
+    "No ESP boot/flash, runtime heap/stack/tick measurement, actual sound/motion/Stop, iPhone signing/native run, deployment or paid provider calls.",
+    "Audio is phase-only / enqueue-proxy; already admitted <=20ms cue block and queued DMA may drain. No acoustic proof.",
+    "The local synthetic SceneIntent bridge is tested; existing nullable backend DV01 intent has no live device adapter.",
+    "Journal v2 retains32 durable IDs and fails closed when full; safe service rotation is an explicit operational gate. V1 completed IDs were not stored and cannot be reconstructed.",
+    "New-session skill discovery/reload and exact200percent browser zoom not observed. Final level-bearing filechooser blocked when IAB disappeared/Brave lacked permission; final DOM handler and export parsing passed.",
+    "Browser validity transfer is limited to unchanged rendered/control paths, supported by current source/DOM checks; newest identity fields and newest filechooser are explicitly not browser-verified."
+  ],
+  "observation": "Final exports/viewer.html generated successfully,25,668,237bytes and551actualCAD meshes. Exact currentmanifest/plan/viewerJS/timelineJS embedded; rawsource/plan/schema/compilerSHA256 andbundle selfhash match final7b0e2488. Existinggenerator also writes ignoredreference-sources helper bydesign. Earlier actualfourviewport/keyboard/reducedmotion/coreimport evidence remains dated and scoped; newestmetadata filechooser/exact200percent zoom and nativeiPhone not observed. No physical evidence inferred.",
+  "artifactRefs": [
+    "docs/project/artifacts/DV02-source-bundle-v5.json",
+    "kufr/docs/dv02-coverage.json",
+    "kufr/docs/dv02-performance-v4.json"
+  ],
+  "supersedes": [
+    "DV02-local-browser-v4"
+  ],
+  "supersedesReason": "Integrate concurrent main CAD runner417bb71, preserve DV02 gates on cachehit, and restore standalone manufacturing ZIP compiler check without weakening repository header validation. Compiler30, cache25, packaging11, Node55/Python7, final14 host checks/12 exact historical cases, actual551mesh viewer, PIO and independent integration review pass."
+}

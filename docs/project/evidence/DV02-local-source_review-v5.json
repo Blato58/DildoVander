@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "DV02-local-source_review-v5",
+  "observedAtUtc": "2026-10-14T00:36:40.051188+00:00",
+  "kind": "source_review",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "DV02",
+      "criterionId": "COMPILER",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "DV02",
+      "criterionId": "CORE",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "DV02",
+      "criterionId": "TIMELINE",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "DV02",
+      "criterionId": "WORKFLOW",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "773f091287082f802c54f4a0a4fa6441c744bf3f48a5e4169b98d64425df88ff",
+    "policyVersion": "dv02-phase-1"
+  },
+  "method": "Independent read-only peer review of concurrent CAD runner gate integration and compiler standalone fix; parent combined merge/source/diff review, current --check/coverage/link/PowerShell parsing. Earlier v4 clock/tail review transfers to unchanged runtime bytes.",
+  "environment": "Windows x64; Python3.14, MSVC19.51 C++14, Node, PlatformIO7.1.3 ESP-IDF6.1; existing CADvenv and browser. Host fakeports, no livehardware/provider.",
+  "limitations": [
+    "No ESP boot/flash, runtime heap/stack/tick measurement, actual sound/motion/Stop, iPhone signing/native run, deployment or paid provider calls.",
+    "Audio is phase-only / enqueue-proxy; already admitted <=20ms cue block and queued DMA may drain. No acoustic proof.",
+    "The local synthetic SceneIntent bridge is tested; existing nullable backend DV01 intent has no live device adapter.",
+    "Journal v2 retains32 durable IDs and fails closed when full; safe service rotation is an explicit operational gate. V1 completed IDs were not stored and cannot be reconstructed.",
+    "New-session skill discovery/reload and exact200percent browser zoom not observed. Final level-bearing filechooser blocked when IAB disappeared/Brave lacked permission; final DOM handler and export parsing passed."
+  ],
+  "observation": "Main 417bb7153f5bac39e065af4b59b0dc8a073785c0 integrated. Incoming thin PowerShell wrapper preserved; DV02 JS syntax/tests run unconditionally before cachelookup, documenttest remains in Python gates and prior pristine generate/verify/package boundaries remain. source_hashes covers allDV02inputs. Standalone skip requires nofirmwaretree AND no expectedrepo/worktree.git marker; allthree localexports remain strict/read-only. Isolated subprocess tests cover no-write/headerdeletion/localtamper cases. No remaining findings. Firmware runtime and motion ordering are unchanged from v4 verified corrections; only generated bundle identity changed because compilerHash changed. Compiledplan/source/calibration semantics unchanged.",
+  "artifactRefs": [
+    "docs/project/artifacts/DV02-source-bundle-v5.json",
+    "kufr/docs/dv02-coverage.json",
+    "kufr/docs/dv02-performance-v4.json"
+  ],
+  "supersedes": [
+    "DV02-local-source_review-v4"
+  ],
+  "supersedesReason": "Integrate concurrent main CAD runner417bb71, preserve DV02 gates on cachehit, and restore standalone manufacturing ZIP compiler check without weakening repository header validation. Compiler30, cache25, packaging11, Node55/Python7, final14 host checks/12 exact historical cases, actual551mesh viewer, PIO and independent integration review pass."
+}

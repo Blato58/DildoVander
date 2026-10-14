@@ -120,6 +120,22 @@ Z této složky na Windows:
 .\Regenerate.ps1 -Python ..\.venv\Scripts\python.exe
 ```
 
+Python testy sdílejí jeden proces a memoizovanou CAD geometrii. Generování,
+ověření a balení mají vlastní čisté procesy: triangulace při renderování
+nesmí ovlivnit referenční geometrii ověřovacích kontrol. Každý krok vypisuje
+své trvání. Opakovaný běh použije hotový ověřený balíček pouze při shodě
+všech zdrojových otisků, Pythonu/OS a instalovaných závislostí a SHA-256
+všech exportů, ověřovacího reportu, ZIPu a jeho kontrolního součtu.
+Chybějící, změněný nebo neúplný výstup vyvolá plnou regeneraci.
+Firmware choreografie a JavaScriptové testy se kontrolují při každém běhu.
+V CI se stejný balíček obnovuje přes Actions cache s přesným klíčem;
+obnovení samo žádnou kontrolu nenahrazuje. Cache není součástí výrobního ZIPu.
+
+Pro vynucení všech testů a generování použít `-Force` (přímo v Pythonu
+`python regenerate.py --force`). Současné regenerace ve stejné složce
+`exports/` nejsou povolené; po násilně ukončeném procesu odstranit
+`exports/.regeneration-lock` až po ověření, že proces už neběží.
+
 V samostatně vybaleném ZIPu vytvořit prostředí a instalovat
 `requirements.txt`, potom předat cestu jeho Pythonu.
 V repozitáři se navíc kontroluje shoda generovaného firmware souboru

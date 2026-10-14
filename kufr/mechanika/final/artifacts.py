@@ -62,8 +62,17 @@ def generated_export_names(manifest):
     return set(export_names(manifest)) - VERIFICATION_EXPORTS - AUDIT_EXPORTS - {GENERATION_SNAPSHOT}
 
 
+def file_sha256(path):
+    """Hash large CAD and archive files without holding their bytes in memory."""
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
 def export_hashes(out, names):
-    return {name: hashlib.sha256((Path(out) / name).read_bytes()).hexdigest()
+    return {name: file_sha256(Path(out) / name)
             for name in sorted(names)}
 
 
@@ -71,7 +80,7 @@ def assert_export_hashes(out, expected, names):
     if set(expected) != set(names):
         raise ValueError("Verified export hash inventory differs from manifest")
     for name, digest in expected.items():
-        actual = hashlib.sha256((Path(out) / name).read_bytes()).hexdigest()
+        actual = file_sha256(Path(out) / name)
         if actual != digest:
             raise ValueError("Generated export changed after snapshot: " + name)
 
@@ -150,7 +159,7 @@ def assert_cad_hashes(root, manifest, report):
     if set(recorded)!=expected:
         raise ValueError('Verified CAD hash inventory differs from manifest')
     for name,digest in recorded.items():
-        actual=hashlib.sha256((Path(root)/'exports'/name).read_bytes()).hexdigest()
+        actual=file_sha256(Path(root)/'exports'/name)
         if actual!=digest:
             raise ValueError('Generated CAD changed after verification: '+name)
     for part in report['parts']:
