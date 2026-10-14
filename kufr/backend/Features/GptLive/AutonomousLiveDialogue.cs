@@ -4,6 +4,7 @@ using System.Text.Json;
 using Kufr.Backend.Features.Conversations;
 using Kufr.Backend.Features.Memory;
 using Kufr.Backend.Features.Realtime;
+using Kufr.Backend.Features.Character;
 
 namespace Kufr.Backend.Features.GptLive;
 
@@ -43,13 +44,19 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         Func<LivePlaybackRequest, CancellationToken, Task<LivePlaybackConfirmation>> playback,
         Func<(int ReadyMask, int Revision, bool Current)> availability, Func<CancellationToken, Task> stopInput,
         CancellationToken token, MemoryAccess? memoryAccess = null, Action<double, WandDecisionStatus>? decisionTiming = null,
-        Action<string>? terminalState = null)
+        Action<string>? terminalState = null,
+        Func<long, CancellationToken, Task>? cancelAudio = null,
+        IReadOnlyList<string>? recentStyles = null,
+        Action<string, bool>? stylePlayed = null,
+        Action<double>? directorTiming = null)
     {
         var turn = call.Context;
         var snapshot = turn.LivePrompt ?? throw new InvalidOperationException("Missing frozen Live prompt.");
         var options = snapshot.Options;
         var inputActivity = new LiveInputActivity(clock, options.SpeechAmplitudeThreshold);
         var projection = new LiveConversationProjection(options);
+        var character = snapshot.Version == "dv01-adult-v1" ? new CharacterSession(call.SessionGeneration, options.Character, recentStyles) : null;
+        CharacterDirective? directive = null;
         var deliveredMemory = new HashSet<string>(turn.LiveMemoryReferences, StringComparer.Ordinal);
         var tracker = new LiveCommandTracker(connection);
         var startId = Guid.NewGuid().ToString("N");
@@ -61,6 +68,11 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                 throw new InvalidDataException("Live startup correlation failed.");
         connection.ObserveInput(inputActivity.Observe);
         connection.AudioReady();
+        if (character is not null)
+        {
+            directive = CharacterDirector.Evaluate(character, CharacterPhase.Opening, 0);
+            await tracker.AppendAsync("instructions", directive.PromptText, null, token);
+        }
         await tracker.AppendAsync("instructions", availability().ReadyMask == 0
             ? "Nová interakce. Žádná fyzická hůlka není dostupná. Oznam tento stav krátce vlastními slovy, bez otázky a bez vymyšleného kusu."
             : "Nová interakce začíná teď. Host ještě nic neřekl. Vytvoř vlastní krátké přivítání, rýpnutí a jednu otevřenou otázku; pak poslouchej.", null, token);
@@ -104,6 +116,20 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         Task<LivePlaybackConfirmation>? player = null;
         LivePlaybackRequest? playerRequest = null;
         string? reportedState = null;
+        string? directiveCommand = null;
+        bool directiveAccepted = true, audioSuppressed = false;
+        var lastProviderAudio = TimeSpan.Zero;
+        var minimumOutputStart = -1d;
+        var lastCharacterContentVersion = -1L;
+        var inputRepairs = 0;
+        var recoveryAudio = new List<byte[]>();
+        var recoveryBytes = 0;
+        var recoveryStartedAt = TimeSpan.Zero;
+        var recoveryBoundary = false;
+        var playedStyles = new HashSet<string>(StringComparer.Ordinal);
+        var inputRepairSources = new HashSet<string>(StringComparer.Ordinal);
+        bool silencePrompted = false, finishPrompted = false;
+        var characterCorrectionPending = false;
         using var workLifetime = CancellationTokenSource.CreateLinkedTokenSource(token);
         using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(50), clock);
         Task<bool>? tick = null;
@@ -116,11 +142,51 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
             if (reportedState == state) return;
             reportedState = state; terminalState?.Invoke(state);
         }
+        async Task Direct(CharacterPhase phase)
+        {
+            if (character is null) { return; }
+            var started = System.Diagnostics.Stopwatch.GetTimestamp();
+            directive = CharacterDirector.Evaluate(character, phase, projection.AnswerCandidates,
+                microphoneActive: !closing, inputSpeaking: !inputActivity.QuietFor(options.InputQuietMs));
+            directorTiming?.Invoke(System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            directiveCommand = await tracker.AppendAsync("instructions", directive.PromptText, null, token);
+            directiveAccepted = false;
+        }
+        async Task CancelResponse()
+        {
+            if (character is null) { return; }
+            character.CancelResponse();
+            audioSuppressed = true; minimumOutputStart = projection.LatestInputEnd;
+            directiveAccepted = false; directiveCommand = null;
+            terminalSegment = projection.Segments.Count;
+            recoveryBoundary = false; recoveryStartedAt = Elapsed();
+            foreach (var packet in recoveryAudio) { CryptographicOperations.ZeroMemory(packet); }
+            recoveryAudio.Clear(); recoveryBytes = 0;
+            player = null; playerRequest = null; terminalSpeech = false; speechSincePause = false;
+            if (cancelAudio is not null) { await cancelAudio(character.ResponseGeneration, token); }
+            Report("character_response_cancelled");
+        }
+        void RecordPlayedStyle()
+        {
+            if (directive is null || directive.StyleId.Length == 0) { return; }
+            var key = $"{directive.Phase}:{directive.SourceRevision}:{character!.ResponseGeneration}";
+            if (!playedStyles.Add(key)) { return; }
+            stylePlayed?.Invoke(directive.StyleId, directive.Phase == CharacterPhase.Opening);
+            if (directive.Phase == CharacterPhase.Ready && terminal?.Compartment is { } slot)
+            { stylePlayed?.Invoke("lore-" + slot, false); }
+        }
         async Task Deliver(WandDecisionResult result, string? delegation)
         {
             if (!Valid(result)) return;
             waiting = null;
-            var text = ResultContext(result);
+            var text = character is null ? ResultContext(result) : CharacterResultContext(result, options.Character.FinaleProfile);
+            await Direct(result.Status == WandDecisionStatus.NeedsInformation ? CharacterPhase.Responding : CharacterPhase.Ready);
+            if (character is not null && result.Status == WandDecisionStatus.ValidProposal && result.Compartment is { } slot
+                && CharacterLoreProfiles.ForConfirmedSelection(slot, turn.Request.CatalogVersion) is { } lore)
+            {
+                await tracker.AppendAsync("thinking", "Autorská lore fikce pro potvrzený výběr, nikoli vlastnost či nová identita: "
+                    + lore.Premise + " Nikde nevyslovuj název ani slot; lore nemění scoring, původní hlas nebo pohyb.", delegation, token);
+            }
             if (result.Status != WandDecisionStatus.NeedsInformation)
             {
                 terminal = result; terminalAt = Elapsed(); terminalSegment = projection.Segments.Count;
@@ -128,7 +194,10 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                 terminalInputPending = false;
                 announcementPrompted = false;
                 Report("result_ready");
-                await tracker.AppendAsync("instructions", "Následuje platný terminální výsledek. Oznam jej vlastními slovy pouze oznamovacími větami. "
+                await tracker.AppendAsync("instructions", character is not null
+                    ? "Terminální výsledek. Krátká oznamovací ceremonie nebo aktuální callback, bez otázky. "
+                        + "Nevyslovuj katalogový název, slot ani nové vlastnosti. Fyzická prezentace není potvrzená. Pak mlč."
+                    : "Následuje platný terminální výsledek. Oznam jej vlastními slovy pouze oznamovacími větami. "
                     + "Název hůlky vyslov jako její potvrzený štítek; nic nepřejmenovávej. "
                     + "Výběr proběhne automaticky bez souhlasu hosta. Nepokládej žádnou otázku, ani potvrzovací nebo řečnickou; nevybízej k hodnocení či odpovědi. "
                     + "Po krátkém rýpnutí či callbacku mlč. Návrh dosud nepotvrzuje fyzický pohyb ani prezentaci.", delegation, token);
@@ -140,8 +209,11 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
             var state = availability();
             if (!state.Current) throw new OperationCanceledException(token);
             var key = Key();
+            if (character is not null && projection.LatestIsCharacterControl
+                && CharacterSession.ClassifyExplicitControl(projection.LatestInput) != CharacterSignalKind.RequestExpress)
+            { waiting = null; tasks[task.DelegationId] = task with { State = "character_control" }; return; }
             if (projection.Intent is LiveRequestIntent.Memory or LiveRequestIntent.Remember or LiveRequestIntent.Forget
-                && memory is not null && memoryAccess is not null)
+                && character is null && memory is not null && memoryAccess is not null)
             {
                 memoryDelegation = task.DelegationId; memoryVersion = projection.ContentVersion;
                 memoryWork = projection.Intent == LiveRequestIntent.Memory
@@ -151,12 +223,15 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
             }
             if (projection.Intent is LiveRequestIntent.StopSpeech or LiveRequestIntent.Repeat or LiveRequestIntent.Technical or LiveRequestIntent.Thanks or LiveRequestIntent.Acknowledge)
             { waiting = null; tasks[task.DelegationId] = task with { State = "no_backend_work" }; return; }
-            if (projection.Intent == LiveRequestIntent.CancelConversation)
+            if (character is null && projection.Intent == LiveRequestIntent.CancelConversation)
             {
                 waiting = null;
                 await Deliver(new(WandDecisionStatus.Cancelled, null, [], "", projection.Revision, state.Revision), task.DelegationId); return;
             }
-            if (equivalent.TryGetValue(key, out var cached))
+            var directSelection = projection.DirectSelection || character?.Tempo == CharacterTempo.Express;
+            if (equivalent.TryGetValue(key, out var cached)
+                && !(character is not null && cached.Status == WandDecisionStatus.NeedsInformation
+                    && directSelection && snapshot.Policy.AllowEarlySelection))
             { waiting = null; await Deliver(cached with { DecisionRevision = projection.Revision }, task.DelegationId); return; }
             if (projection.Intent == LiveRequestIntent.Alternative)
             {
@@ -170,7 +245,9 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                     projection.Revision, state.Revision), task.DelegationId); return;
             }
             workInput = new(projection.Revision, state.ReadyMask, state.Revision, projection.Evidence(), snapshot.Policy,
-                projection.AnswerCandidates, projection.DirectSelection, excluded, turn.EveningContext, turn.CostumeContext);
+                projection.AnswerCandidates, directSelection,
+                excluded, character is null ? turn.EveningContext : "", character is null ? turn.CostumeContext : "");
+            await Direct(CharacterPhase.Deciding);
             reserved = decisions.Reservation(workInput);
             if (++paidCalls > 10)
                 throw new InvalidDataException("Live decision count exhausted.");
@@ -184,7 +261,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
             var capturedEpoch = memory?.StoreEpoch ?? 0;
             work = Task.Run(async () =>
             {
-                if (memory is not null && memoryAccess is not null)
+                if (character is null && memory is not null && memoryAccess is not null)
                     await memory.PersistContextAsync(memoryAccess, call.SessionGeneration, capturedSegments,
                         capturedInput.Evidence, capturedEpoch, workLifetime.Token);
                 return await decisions.DecideAsync(capturedInput, workLifetime.Token);
@@ -208,15 +285,27 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                 if (winner == receive)
                 {
                     using var document = await receive; receive = null; var value = document.RootElement;
+                    if (audioSuppressed && directiveAccepted && inputActivity.QuietFor(options.InputQuietMs)
+                        && Elapsed() - lastProviderAudio >= TimeSpan.FromMilliseconds(options.OutputPauseMs))
+                    {
+                        recoveryBoundary = true;
+                    }
                     switch (GptLiveProtocol.RequiredString(value, "type", 100))
                     {
                         case "session.input_transcript.delta":
                             if (!projection.Append(value, true)) break;
                             changedAt = Elapsed();
-                            if (projection.HasCorrection && memory is not null && memoryAccess is not null) memory.InvalidateCurrentFacts(memoryAccess);
+                            if (character is not null)
+                            {
+                                characterCorrectionPending |= projection.HasCorrection;
+                                if (speechSincePause || terminal is not null && !terminalInputPending) { await CancelResponse(); }
+                                if (audioSuppressed) { minimumOutputStart = projection.LatestInputEnd; }
+                                silencePrompted = false;
+                            }
+                            if (character is null && projection.HasCorrection && memory is not null && memoryAccess is not null) memory.InvalidateCurrentFacts(memoryAccess);
                             var fragment = value.GetProperty("delta").GetString()!;
                             foreach (var part in SplitVisitor(fragment)) await visitor(part, token);
-                            if (projection.Intent == LiveRequestIntent.CancelConversation)
+                            if (character is null && projection.Intent == LiveRequestIntent.CancelConversation)
                             {
                                 var pendingTask = tasks.Values.LastOrDefault(t => t.State is "running" or "awaiting_input_quiet");
                                 if (work is not null)
@@ -235,12 +324,13 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                                     availability().Revision, OperationState: "proposal_cancelled"), pendingTask?.DelegationId);
                                 break;
                             }
-                            if (projection.Intent == LiveRequestIntent.StopSpeech)
+                            if (character is null && projection.Intent == LiveRequestIntent.StopSpeech)
                             {
                                 speechBlocked = true; terminal = null; player = null; playerRequest = null; waiting = null;
                                 await tracker.AppendAsync("instructions", "Host chce přestat mluvit. Dej mu prostor a mlč; nevytvářej další otázku. Tento požadavek sám nepotvrzuje zrušení ani dokončení fyzické operace.", null, token);
                             }
-                            else if (projection.Intent is not (LiveRequestIntent.Repeat or LiveRequestIntent.Thanks)) speechBlocked = false;
+                            else if (projection.Intent is not (LiveRequestIntent.Repeat or LiveRequestIntent.Thanks)
+                                && (character is null || CharacterSession.ClassifyExplicitControl(projection.LatestInput) != CharacterSignalKind.RequestStopSpeech)) speechBlocked = false;
                             if (terminal is not null)
                             {
                                 // Input fragments may split even "Dobře". Stop a
@@ -251,20 +341,60 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                                 if (closing) throw new InvalidDataException("Terminal speech was interrupted during close.");
                             }
                             break;
-                        case "session.output_transcript.delta": projection.Append(value, false); lastOutput = Elapsed(); break;
+                        case "session.output_transcript.delta":
+                            projection.Append(value, false); lastOutput = Elapsed();
+                            if (character is not null && audioSuppressed && directiveAccepted && recoveryBoundary
+                                && GptLiveProtocol.Milliseconds(value, "start_ms") >= minimumOutputStart
+                                && inputActivity.QuietFor(options.InputQuietMs))
+                            {
+                                // Live has no response/audio IDs. This acoustic/timeline fence is
+                                // a capability-limited recovery, not proof of sample attribution.
+                                audioSuppressed = false;
+                                terminalSegment = projection.Segments.Count - 1;
+                                foreach (var packet in recoveryAudio)
+                                {
+                                    try
+                                    {
+                                        await audio(packet, token); sentBytes += packet.Length; RecordPlayedStyle();
+                                        speechSincePause = true; if (terminal is not null) { terminalSpeech = true; }
+                                    }
+                                    finally { CryptographicOperations.ZeroMemory(packet); }
+                                }
+                                recoveryAudio.Clear(); recoveryBytes = 0;
+                            }
+                            break;
                         case "session.output_audio.delta":
                             var pcm = Convert.FromBase64String(GptLiveProtocol.RequiredString(value, "delta", 180_000));
                             try
                             {
                                 providerBytes = checked(providerBytes + pcm.Length);
+                                lastProviderAudio = Elapsed();
                                 if (pcm.Length == 0 || pcm.Length % 2 != 0 || providerBytes > 24_000 * 2 * 190) throw new InvalidDataException("Invalid Live audio.");
+                                if (audioSuppressed && !recoveryBoundary) { Report("character_audio_suppressed"); }
+                                if (audioSuppressed && recoveryBoundary && !speechBlocked)
+                                {
+                                    if (recoveryBytes + pcm.Length > 96_000) { throw new InvalidDataException("DV01 recovery transcript unavailable."); }
+                                    foreach (var offset in Enumerable.Range(0, (pcm.Length + RealtimeProtocol.MaxChunkBytes - 1) / RealtimeProtocol.MaxChunkBytes))
+                                    {
+                                        var start = offset * RealtimeProtocol.MaxChunkBytes;
+                                        var packet = pcm.AsSpan(start, Math.Min(RealtimeProtocol.MaxChunkBytes, pcm.Length - start)).ToArray();
+                                        recoveryAudio.Add(packet); recoveryBytes += packet.Length;
+                                    }
+                                }
                                 if (HasSpeech(pcm, options.SpeechAmplitudeThreshold))
-                                { lastSpeech = Elapsed(); speechSincePause = true; if (terminal is not null) terminalSpeech = true; player = null; playerRequest = null; }
-                                if (speechSincePause)
+                                {
+                                    lastSpeech = Elapsed();
+                                    if (!audioSuppressed && !speechBlocked)
+                                    {
+                                        speechSincePause = true; if (terminal is not null) terminalSpeech = true;
+                                        player = null; playerRequest = null;
+                                    }
+                                }
+                                if (speechSincePause && !audioSuppressed && !speechBlocked)
                                     for (var offset = 0; offset < pcm.Length; offset += RealtimeProtocol.MaxChunkBytes)
                                     {
                                         var chunk = pcm.AsSpan(offset, Math.Min(RealtimeProtocol.MaxChunkBytes, pcm.Length - offset)).ToArray();
-                                        try { await audio(chunk, token); sentBytes += chunk.Length; }
+                                        try { await audio(chunk, token); sentBytes += chunk.Length; RecordPlayedStyle(); }
                                         finally { CryptographicOperations.ZeroMemory(chunk); }
                                     }
                             }
@@ -285,7 +415,11 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                             if (terminal is null && !closing && waiting is null) { waiting = task; waitingSince = Elapsed(); }
                             break;
                         case "session.instructions.appended": case "session.commentary.appended": case "session.thinking.appended":
-                            tracker.Acknowledge(value); if (tracker.LastAcknowledged == resultCommand) resultAccepted = true; break;
+                            tracker.Acknowledge(value);
+                            if (tracker.LastAcknowledged == resultCommand) resultAccepted = true;
+                            if (tracker.LastAcknowledged == directiveCommand)
+                            { directiveAccepted = true; Report("character_directive_accepted"); }
+                            break;
                         case "session.usage.updated": case "session.closed":
                             var currentSeconds = value.GetProperty("usage").GetProperty("seconds").GetDouble(); _ = GptLiveProtocol.VoiceCost(currentSeconds);
                             if (currentSeconds < seconds) throw new InvalidDataException("Live usage regressed."); seconds = currentSeconds;
@@ -381,6 +515,59 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                     }
                 }
                 if (winner == tick) { await tick!; tick = null; }
+                if (audioSuppressed && recoveryBytes > 0 && Elapsed() - recoveryStartedAt > TimeSpan.FromSeconds(8))
+                {
+                    throw new InvalidDataException("DV01 recovery transcript unavailable.");
+                }
+                if (character is not null && !closing && speechSincePause && !inputActivity.QuietFor(100))
+                {
+                    await CancelResponse();
+                }
+                if (character is not null && !closing && projection.ContentVersion != lastCharacterContentVersion
+                    && projection.ContentVersion > 0 && inputActivity.QuietFor(options.InputQuietMs)
+                    && Elapsed() - changedAt >= TimeSpan.FromMilliseconds(options.DelegationContextWaitMs))
+                {
+                    lastCharacterContentVersion = projection.ContentVersion;
+                    // A transcript delta can end in the middle of a word (Stop+ař).
+                    // Semantic voice controls use the same stable/quiet gate as
+                    // decision work. Physical/UI Stop remains immediate outside Live.
+                    var change = character.AcceptInput(projection.LatestInputReference, projection.ContentVersion,
+                        projection.LatestInput, characterCorrectionPending);
+                    var control = CharacterSession.ClassifyExplicitControl(projection.LatestInput);
+                    if (change.EvidenceChanged && !characterCorrectionPending && control is
+                        CharacterSignalKind.AttributeToOther or CharacterSignalKind.CorrectEvidence or CharacterSignalKind.MarkFiction)
+                    { projection.InvalidatePriorCharacterEvidence(); }
+                    characterCorrectionPending = false;
+                    if (control is not null)
+                    { projection.MarkLatestCharacterControl(change.EvidenceChanged); }
+                    else { projection.ClearLatestCharacterControl(); }
+                    if (change.CancelResponse) { await CancelResponse(); }
+                    speechBlocked = control == CharacterSignalKind.RequestStopSpeech;
+                    if (projection.Intent == LiveRequestIntent.Repeat && inputRepairSources.Add(projection.LatestInputReference)
+                        && ++inputRepairs > 2)
+                    { throw new InvalidDataException("DV01 input repair limit reached; use existing text/operator path."); }
+                    if (change.EndSession)
+                    {
+                        workLifetime.Cancel();
+                        throw new OperationCanceledException("DV01 participation ended.", token);
+                    }
+                    await Direct(projection.Intent == LiveRequestIntent.Repeat ? CharacterPhase.Repair
+                        : terminal is null ? CharacterPhase.Responding : CharacterPhase.Ready);
+                }
+                if (character is not null && !closing && terminal is null && work is null && readyResult is null && waiting is null
+                    && inputActivity.MicrophoneActive && inputActivity.QuietFor(5000)
+                    && !speechSincePause && !speechBlocked && projection.UnansweredDiagnosticCandidate
+                    && Elapsed() - lastOutput >= TimeSpan.FromSeconds(5) && !silencePrompted)
+                {
+                    silencePrompted = true;
+                    await tracker.AppendAsync("instructions", "Mikrofon je aktivní a čeká se na odpověď. Nejvýše jeden krátký návrat k otázce ve stejném tónu; žádné hodnocení povahy ani automatické změkčení. Potom zjednoduš nebo použij dostupnou cestu bez dalších otázek.", null, token);
+                }
+                if (character is not null && !finishPrompted && !closing && Elapsed() >= TimeSpan.FromSeconds(90)
+                    && inputActivity.QuietFor(options.InputQuietMs) && terminal is null && work is null && readyResult is null)
+                {
+                    finishPrompted = true;
+                    await tracker.AppendAsync("instructions", "Čas preferuje dokončení, ne přerušení hosta. Bez dalších obsahových otázek deleguj aktuální výběr backendu. Pokud evidence nestačí, pravdivě ukonči bez fyzického návrhu; nic náhodně nevybírej.", null, token);
+                }
                 if (readyResult is not null)
                 {
                     if (!inputActivity.QuietFor(options.InputQuietMs)) Report("result_input_active");
@@ -406,7 +593,9 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                     && Elapsed() - changedAt >= TimeSpan.FromMilliseconds(options.DelegationContextWaitMs))
                 {
                     terminalInputPending = false;
-                    if (projection.Intent is LiveRequestIntent.Repeat or LiveRequestIntent.Thanks or LiveRequestIntent.Acknowledge)
+                    if (projection.Intent is LiveRequestIntent.Repeat or LiveRequestIntent.Thanks or LiveRequestIntent.Acknowledge
+                        || character is not null && projection.LatestIsCharacterControl
+                            && !projection.LatestCharacterControlInvalidatesEvidence)
                     {
                         // An acknowledgment is not new selection evidence. A
                         // split first fragment may have advanced the projection
@@ -437,6 +626,10 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                         && Elapsed() - waitingSince >= TimeSpan.FromMilliseconds(options.DelegationTimeoutMs))
                     {
                         tasks[waiting.DelegationId] = waiting with { State = "context_missing" };
+                        if (character is not null && ++inputRepairs > 2)
+                        {
+                            throw new InvalidDataException("DV01 input repair limit reached; use existing text/operator path.");
+                        }
                         await tracker.AppendAsync("instructions", "K delegaci chybí spolehlivý přepis odpovědi. Pokud je potřeba výběr, nech krátce zopakovat chybějící část; nic nehádej.", waiting.DelegationId, token);
                         waiting = null;
                     }
@@ -450,7 +643,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                     var last = tasks.Values.LastOrDefault();
                     if (last is not null) { waiting = last with { State = "awaiting_context" }; waitingSince = Elapsed(); }
                 }
-                if (terminal is { Status: WandDecisionStatus.ValidProposal } && !closing && !terminalInputPending
+                if (character is null && terminal is { Status: WandDecisionStatus.ValidProposal } && !closing && !terminalInputPending
                     && !announcementPrompted && resultAccepted && terminalSpeech && !TerminalMentionsResult()
                     && !LiveTerminalSpeech.Unfinished(ActualTerminal())
                     && inputActivity.QuietFor(options.InputQuietMs)
@@ -489,6 +682,8 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         }
         finally
         {
+            character?.Close();
+            foreach (var packet in recoveryAudio) { CryptographicOperations.ZeroMemory(packet); }
             connection.ObserveInput(null);
             workLifetime.Cancel();
             if (work is not null) { try { await work; } catch (Exception) { } }
@@ -497,10 +692,28 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         string ActualTerminal() => string.Concat(projection.Segments.Skip(terminalSegment).Where(s => s.Speaker == "assistant").Select(s => s.Text)).Trim();
         bool TerminalMentionsResult()
         {
+            if (character is not null) { return LimitedTerminalReady(ActualTerminal()); }
             return LiveTerminalSpeech.Ready(ActualTerminal(),
                 terminal!.Status == WandDecisionStatus.ValidProposal ? terminal.Compartment : null,
                 PartyWandCatalog.Available(63));
         }
+    }
+
+    internal static string CharacterResultContext(WandDecisionResult result, FinaleProfile profile)
+    {
+        if (result.Status != WandDecisionStatus.ValidProposal) { return ResultContext(result); }
+        return profile == FinaleProfile.Blocked
+            ? "Backend výběr ověřil, ale fyzické finále je v této konfiguraci blokované. Oznam krátkou neosobní provozní opravu, bez názvu a slotu. Žádný reveal nebude vydán."
+            : "Backend má platnou strukturovanou volbu. Omezené finále: neuváděj katalogový název, číslo slotu ani faktické vlastnosti. Jeden aktuální callback nebo neosobní ceremonie; mechanika zatím není potvrzená. Hůlka zůstává rekvizitou.";
+    }
+    internal static bool LimitedTerminalReady(string speech)
+    {
+        if (LiveTerminalSpeech.Unfinished(speech)) { return false; }
+        // This check is after streaming; it blocks proposal publication, never
+        // claims to undo words already heard or to validate every semantic fact.
+        return !LiveTerminalSpeech.MentionsAnyCatalogTitle(speech, PartyWandCatalog.Available(63))
+            && !LiveTerminalSpeech.MentionsCompartmentIdentifier(speech)
+            && !System.Text.RegularExpressions.Regex.IsMatch(speech, @"(?i)už.{0,20}(vyjela|vyjel|vysunut)|vezmi.{0,10}(ji|hůlku)");
     }
 
     private static bool HasSpeech(byte[] pcm, int threshold)

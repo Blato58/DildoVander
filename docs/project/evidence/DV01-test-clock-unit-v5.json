@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "DV01-test-clock-unit-v5",
+  "observedAtUtc": "2026-10-13T22:42:41.448502+00:00",
+  "kind": "unit",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "DV01",
+      "criterionId": "CORE",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "c49f1b6ad1cc42a12dedc94fa9daa5d73bf53be918deb0b7924d48c1e90009c1",
+    "policyVersion": "dv01-director-v1"
+  },
+  "method": "Release --character passed, five subsequent --no-build Release repeats and latest replay passed; parent fake-clock review and exact unchanged-production/component input comparison to v4.",
+  "environment": "Windows local offline/production preview; Sol6.1/high read-only backend review; parent UI review.",
+  "limitations": [
+    "No paid/provider/native/physical/deployment acceptance.",
+    "Unchanged firmware/skill evidence preserves original dates and scope; comparison does not claim a new run.",
+    "This v4 receipt records changed backend checks and explicit transfer by exact input identity; it is not a repeated run of unchanged components."
+  ],
+  "observation": "Only fake-test synchronization changed. Candidate-only cache fix verified. Three express-only controls cannot reach provider/checkpoint; express after standard NeedsInformation recomputes with real evidence. Persona-only change is rejected without state/revision mutation. Actual panel render/status-refresh regressions pass with all authorization gates. No new browser/native/firmware/HTTP/web execution is claimed by this comparison; prior observations preserve their original dates and scope. Historical v4 Linux timeout is retained separately; hosted recheck is still required. No repeated native/browser/firmware/web/HTTP execution claimed by transfer.",
+  "artifactRefs": [
+    "docs/project/artifacts/DV01-source-bundle-v5.json",
+    "docs/project/artifacts/DV01-offline-v5.json",
+    "docs/project/artifacts/DV01-test-clock-v5.json",
+    "docs/project/evidence/DV01-baseline-scope-unit-v4.json"
+  ]
+}

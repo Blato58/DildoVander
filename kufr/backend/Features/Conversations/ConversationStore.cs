@@ -5,6 +5,7 @@ using Kufr.Backend.Features.Speech;
 using Kufr.Backend.Features.VoiceTurns;
 using Kufr.Backend.Features.GptLive;
 using Kufr.Backend.Features.Memory;
+using Kufr.Backend.Features.Character;
 
 namespace Kufr.Backend.Features.Conversations;
 
@@ -18,6 +19,7 @@ internal sealed partial class ConversationStore(
     GptLiveOptions? liveOptions = null)
 {
     private readonly Lock gate = new();
+    private CharacterPolicy characterPolicy = liveOptions?.Character ?? new();
     private readonly Dictionary<string, ConversationEntry> conversations = new(StringComparer.Ordinal);
     private readonly Dictionary<string, TurnOperation> operations = new(StringComparer.Ordinal);
     private readonly Dictionary<string, PaidCall> activePaidCalls = new(StringComparer.Ordinal);
@@ -92,7 +94,7 @@ internal sealed partial class ConversationStore(
                     request.Consent.Audio,
                     personalityId,
                     response.ExpiresAt,
-                    now.AddMinutes(30)) { ImageConsented = request.Consent.Image, LivePrompt = LivePromptSnapshot.Create(personalityId, liveOptions ?? new()) });
+                    now.AddMinutes(30)) { ImageConsented = request.Consent.Image, LivePrompt = LivePromptSnapshot.Create(personalityId, (liveOptions ?? new()) with { Character = characterPolicy }) });
             return new CreateResult(201, response);
         }
     }

@@ -12,6 +12,7 @@ final class DebugHandsFreeSession {
     typealias InputGate = (Bool) -> Void
     typealias Failure = (String) -> Void
     typealias Checkpoint = (String) -> Void
+    typealias CancelAudio = () -> Void
 
     private let client: DebugBackendClient
     private let profile: DebugBackendProfile
@@ -31,6 +32,9 @@ final class DebugHandsFreeSession {
     private let inputGate: InputGate
     private let failure: Failure
     private let checkpoint: Checkpoint
+    private let cancelAudio: CancelAudio
+    private var responseGeneration = 0
+    private var retiredCheckpoints: Set<String> = []
     private var checkpointBytes: [String: Int] = [:]
     private var receivedPcmBytes = 0
     private let requests = DebugHandsFreeRequest()
@@ -49,7 +53,8 @@ final class DebugHandsFreeSession {
     init(client: DebugBackendClient, profile: DebugBackendProfile, token: String, conversation: String,
          boot: String, readyMask: Int, voice: String, speed: Double, gptLive: Bool = false, phase: @escaping Phase,
          visitor: @escaping Visitor, reply: @escaping Reply, audio: @escaping Audio, listening: @escaping Listening,
-         inputGate: @escaping InputGate, failure: @escaping Failure, checkpoint: @escaping Checkpoint = { _ in }) {
+         inputGate: @escaping InputGate, failure: @escaping Failure, checkpoint: @escaping Checkpoint = { _ in },
+         cancelAudio: @escaping CancelAudio = {}) {
         self.client = client
         self.profile = profile
         self.token = token
@@ -67,6 +72,7 @@ final class DebugHandsFreeSession {
         self.inputGate = inputGate
         self.failure = failure
         self.checkpoint = checkpoint
+        self.cancelAudio = cancelAudio
     }
 
     func run() async throws {
@@ -155,6 +161,7 @@ final class DebugHandsFreeSession {
 
     // Called exactly once after all dataPlayedBack callbacks for an operation.
     func played(operationId: String) async throws {
+        if retiredCheckpoints.contains(operationId) { return }
         if let bytes = checkpointBytes[operationId] {
             guard !closed, gptLive, let streamId else { throw DebugBackendError.invalidResponse }
             var request = URLRequest(url: profile.baseURL.appendingPathComponent(
@@ -236,6 +243,16 @@ final class DebugHandsFreeSession {
             phase("playing")
             try audio(pcm)
         case .visitor(let text): visitor(text)
+        case .audioCancelled(let generation):
+            guard gptLive, currentOperationId != nil else { throw DebugBackendError.invalidResponse }
+            if generation > responseGeneration {
+                responseGeneration = generation
+                for id in checkpointBytes.keys { retiredCheckpoints.insert(id) }
+                guard retiredCheckpoints.count <= 64 else { throw DebugBackendError.invalidResponse }
+                checkpointBytes.removeAll()
+                cancelAudio()
+                phase("listening")
+            }
         case .completed(let operation, let correlation, let result, let cost):
             guard operation == currentOperationId, correlation == expectedCorrelation(clientTurnId: currentInputId ?? ""), cost > 0 else {
                 throw DebugBackendError.invalidResponse
@@ -342,6 +359,7 @@ private enum DebugHandsFreeEvent {
     case speechStopped(String)
     case heartbeat
     case pause
+    case audioCancelled(Int)
     case checkpoint(String, Int, Int)
     case closed
     case failed(String)
@@ -494,6 +512,12 @@ private final class DebugHandsFreeLiveStream: NSObject, URLSessionDataDelegate {
         case "pause":
             guard gptLive, object.count == 1 else { throw DebugBackendError.invalidResponse }
             return .pause
+        case "audio_cancel":
+            guard gptLive, object.count == 2, let generation = object["responseGeneration"] as? NSNumber,
+                  CFGetTypeID(generation) != CFBooleanGetTypeID(), generation.intValue > 0,
+                  generation.doubleValue <= 9_007_199_254_740_991,
+                  generation.doubleValue == Double(generation.intValue) else { throw DebugBackendError.invalidResponse }
+            return .audioCancelled(generation.intValue)
         case "playback_checkpoint":
             guard gptLive, object.count == 4, let id = uuid(object, "playbackId"),
                   let bytes = object["pcmBytes"] as? NSNumber, bytes.intValue > 0,

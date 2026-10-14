@@ -37,6 +37,9 @@ interface ServerModes {
   lifetime: 'until_restart';
   personalityId?: string;
   personalityLifetime?: 'persistent';
+  characterEnabled?: boolean;
+  characterTone?: 'Reserved' | 'Dry' | 'Adult' | 'Chaos';
+  characterFinaleProfile?: 'Limited' | 'Blocked';
   personalities?: Array<{ id: string; name: string; description: string; promptSha256: string }>;
 }
 interface DebugBridge {
@@ -49,7 +52,8 @@ interface DebugBridge {
   activateEvening(options: { eveningId: string; expectedEveningId: string }): Promise<void>;
   inspectBackend(): Promise<void>;
   inspectServer(): Promise<void>;
-  changeServerModes(options: { expectedRevision: string; dialogMode: string; voiceMode: string; personalityId?: string }): Promise<void>;
+  changeServerModes(options: { expectedRevision: string; dialogMode: string; voiceMode: string; personalityId?: string;
+    characterEnabled?: boolean; characterTone?: string; characterFinaleProfile?: string; resetCharacterVariety?: boolean }): Promise<void>;
   runOpeningSpeech(options: { expectedMode: 'fake' | 'openai' }): Promise<void>;
   captureCostumePhoto(): Promise<{ draftId: string | null }>;
   discardCostumePhoto(): Promise<void>;
@@ -129,6 +133,20 @@ export class DebugPanel {
             <option value="">Nejprve obnovte stav serveru</option></select></label>
           <button type="button" class="primary" data-debug="server-apply">Použít nastavení serveru</button>
         </div>
+        <fieldset class="aw-field"><legend>DV01 · dospělá roast postava</legend>
+          <label><input type="checkbox" data-character="enabled"> Zapnout pro další rozhovory</label>
+          <label>Hostitelský tón <select data-character="tone" aria-label="Hostitelský tón DV01">
+            <option value="Reserved">Reserved</option><option value="Dry">Dry · bez nadávek</option>
+            <option value="Adult" selected>Adult · ostrý roast</option><option value="Chaos">Chaos · absurdní roast</option></select></label>
+          <label>Finále <select data-character="finale" aria-label="Publikační profil finále DV01">
+            <option value="Blocked">Blokované · bez fyzického reveal</option>
+            <option value="Limited">Omezené · bez vysloveného názvu hůlky</option></select></label>
+          <p class="footnote">Pojmenované finále a roast fotografie čekají na samostatné ověření. Změna platí pro nové session;
+            ukončení živého rozhovoru a nouzový Stop používejte přes stávající ovládání.
+            DV01 vyžaduje personalitu ollivander-trunk a backendový AutonomousActor. DV01 přepis se nepřenáší do paměti dalšího hosta.</p>
+          <div class="actions"><button type="button" data-debug="character-apply">Použít DV01 pro nové rozhovory</button>
+            <button type="button" data-debug="character-reset">Resetovat anonymní pestrost</button></div>
+        </fieldset>
         <p data-personality-description></p>
         <p data-server-status role="status"></p>
         <p class="footnote">Správa vyžaduje samostatný credential správce a testovací ID debug-server-admin.
@@ -390,6 +408,9 @@ export class DebugPanel {
         personality.append(option);
       }
       personality.value = server?.personalityId ?? '';
+      this.element.querySelector<HTMLInputElement>('[data-character="enabled"]')!.checked = server?.characterEnabled ?? false;
+      this.element.querySelector<HTMLSelectElement>('[data-character="tone"]')!.value = server?.characterTone ?? 'Adult';
+      this.element.querySelector<HTMLSelectElement>('[data-character="finale"]')!.value = server?.characterFinaleProfile ?? 'Blocked';
       this.serverRevision = server?.revision;
     }
     personality.disabled = busy || !server?.personalities?.length || server.activeConversations > 0;
@@ -399,6 +420,11 @@ export class DebugPanel {
     dialog.disabled = voice.disabled = busy || !server || server.activeConversations > 0;
     this.button('server-inspect').disabled ||= !this.voice.configured;
     this.button('server-apply').disabled ||= !server || server.activeConversations > 0;
+    for (const control of this.element.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-character]')) {
+      control.disabled = busy || !server || typeof server.characterEnabled !== 'boolean';
+    }
+    this.button('character-apply').disabled = busy || !server || typeof server.characterEnabled !== 'boolean';
+    this.button('character-reset').disabled = busy || !server || typeof server.characterEnabled !== 'boolean';
     this.element.querySelector('[data-server-status]')!.textContent = server
       ? `Poslední ověřený stav: dialog ${server.dialogMode === 'responses' ? 'AI · Sol' : 'FAKE'}, hlas ${server.voiceMode === 'openai' ? 'AI · STT / TTS' : 'FAKE'}. Aktivní rozhovory: ${server.activeConversations}.`
       : this.native ? 'Nastavte přístup správce a obnovte stav serveru.' : 'Správa serveru je dostupná v nativní iOS aplikaci.';
@@ -754,6 +780,19 @@ export class DebugPanel {
         code = 'evening_changed';
       }
       else if (action === 'server-inspect') { await bridge.inspectServer(); code = 'backend_checked'; }
+      else if (action === 'character-apply' || action === 'character-reset') {
+        const server = this.voice.server;
+        if (!server) { return; }
+        await bridge.changeServerModes({ expectedRevision: server.revision, dialogMode: server.dialogMode,
+          voiceMode: server.voiceMode, personalityId: server.personalityId,
+          ...(action === 'character-apply' ? {
+            characterEnabled: this.element.querySelector<HTMLInputElement>('[data-character="enabled"]')!.checked,
+            characterTone: this.element.querySelector<HTMLSelectElement>('[data-character="tone"]')!.value,
+            characterFinaleProfile: this.element.querySelector<HTMLSelectElement>('[data-character="finale"]')!.value,
+          } : {}),
+          resetCharacterVariety: action === 'character-reset' });
+        code = 'server_modes_changed';
+      }
       else if (action === 'server-apply') {
         const server = this.voice.server;
         if (!server) { return; }

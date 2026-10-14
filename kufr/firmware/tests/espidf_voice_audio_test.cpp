@@ -48,6 +48,13 @@ int main() {
  assert(!audio.Play(pcm)); assert(mute==0); assert(!audio.Drain());
  writing={}; assert(!audio.Play(pcm)); // Late blocks never reopen this session.
  audio.Begin(); assert(audio.Play(pcm)); assert(audio.Drain()); assert(mute==0);
+ audio.Begin(); assert(audio.Play(pcm));
+ const int beforeCancel=writes;
+ assert(audio.CancelPlayback()); assert(writes==beforeCancel+9 && mute==0);
+ assert(audio.Play(pcm)); assert(audio.Drain()); // Response cancellation keeps the session usable.
+ audio.Stop(); assert(!audio.CancelPlayback() && !audio.Play(pcm));
+ audio.Begin(); writing=[&]{audio.Stop();};
+ assert(!audio.CancelPlayback()); writing={}; assert(!audio.Play(pcm));
  const int legacyGpioWrites = gpioWrites;
  profileB=true;
  SoftwareAudioBoard expander;

@@ -1,0 +1,33 @@
+{
+  "capturedAt": "2026-10-13",
+  "baseCommit": "d34eacedca9011ac1c0f048e2f1acdfb9d986678",
+  "catalogVersion": "ollivander-private-party-v1",
+  "files": {
+    "kufr/ai-eval/ollivander-trunk-live-persona.txt": {
+      "sha256": "c662ba00e849c3636f88b227b7ef33a60248eea82dfda187bd9647e9e0ecc370",
+      "gitBlob": "67dfa8c0fadca392bc08e26ea05155ebd221520c"
+    },
+    "kufr/ai-eval/ollivander-trunk-persona.txt": {
+      "sha256": "99a72891209ef2bf5ad5a0120a7998c5a08bf46317f38812fb1d3816a5c3099d",
+      "gitBlob": "5e8f58cf2cf3a39b189bdcb23eecaf5f6fc5f520"
+    },
+    "kufr/ai-eval/voice-persona.txt": {
+      "sha256": "202375830426274ace77f62c16d8399c2c4091245a49fd18e253486e65c49c02",
+      "gitBlob": "a1e89293091ef2f358ada2d321d91ed6681ec5b1"
+    },
+    "kufr/ai-eval/wand-catalog.json": {
+      "sha256": "1a637bdd24c985efa457d20e46f6719452614bed842777deac5914c65e77ae43",
+      "gitBlob": "043cfd8f680a3d14055aa3ba18fda14781845dd1"
+    },
+    "kufr/ai-eval/dialogue_cases.json": {
+      "sha256": "21e5a1d50225707792a09b7a98326641f67f571d233d9757cc5d476f4a984642",
+      "gitBlob": "2fc3238700145dbd129471ae4f3484e7a1ef77ef"
+    },
+    "kufr/ai-eval/evaluate_party.py": {
+      "sha256": "8f3580095c467c2dd73aa58b62a8852e1158c304fdad65c53199be109d148126",
+      "gitBlob": "b2c531419524ed75a33e7597a03db0d80c951f67"
+    }
+  },
+  "liveBaseline": "not_available_in_task; no paid baseline executed",
+  "suite": "existing ai-eval unittest corpus plus AutonomousLiveTests feature-off regressions"
+}

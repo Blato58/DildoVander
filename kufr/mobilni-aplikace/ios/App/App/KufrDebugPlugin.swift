@@ -452,6 +452,8 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
             failure: { [weak self] code in if self?.generation == generation { self?.lastError = code } },
             checkpoint: { [weak self] id in
                 if self?.generation == generation { audio.finishPlayback(operationId: id) }
+            }, cancelAudio: { [weak self] in
+                if self?.generation == generation { audio.cancelPlayback() }
             })
         var resolved = false
         do {
@@ -700,7 +702,9 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
                     let modes = try await DebugBackendClient().serverModes(profile,
                         expectedRevision: change ? revision : nil,
                         dialogMode: call.getString("dialogMode"), voiceMode: call.getString("voiceMode"),
-                        personalityId: call.getString("personalityId"))
+                        personalityId: call.getString("personalityId"), characterEnabled: call.getBool("characterEnabled"),
+                        characterTone: call.getString("characterTone"), characterFinaleProfile: call.getString("characterFinaleProfile"),
+                        resetCharacterVariety: call.getBool("resetCharacterVariety") ?? false)
                     try Task.checkCancellation()
                     guard self.generation == generation, UIApplication.shared.applicationState == .active else { throw CancellationError() }
                     self.serverModes = modes; self.mode = modes.voiceMode

@@ -1,0 +1,93 @@
+{
+  "recordedAtUtc": "2026-10-13T22:31:31.328007+00:00",
+  "artifactDigest": "e124ed1c994a859a9cac0f23f40ccec5e77905d9ae15ee67ce0be7854e27293a",
+  "backendSourceDigest": "33e5629d801db61464e03503509b64f4ddd7c1a508f68467459d0a3394b69e65",
+  "findings": [
+    {
+      "url": "https://github.com/Blato58/DildoVander/pull/181#discussion_r4264665051",
+      "fix": "Pure express controls change tempo but are excluded from evidence. Empty evidence fails closed before provider. Obsolete NeedsInformation cache is bypassed when current express/direct policy allows early selection; valid proposals remain reusable.",
+      "tests": [
+        "VerifyExpressWithoutEvidence (three controls)",
+        "VerifyExpressAfterNeedsInformation",
+        "VerifyCharacterFlow with substantive prior evidence"
+      ]
+    },
+    {
+      "url": "https://github.com/Blato58/DildoVander/pull/181#discussion_r4264665059",
+      "fix": "Both DV01 action buttons recompute disabled state on each render, preserving native/admin/busy/session/capability gates.",
+      "tests": [
+        "debug_character_controls.test.mjs: two actual-render/status-refresh tests"
+      ]
+    },
+    {
+      "url": "https://github.com/Blato58/DildoVander/pull/181#discussion_r4264665069",
+      "fix": "Every admin mode request revalidates enabled DV01 against requested personality and autonomous actor, before journal persistence or revision change.",
+      "tests": [
+        "CharacterOperationTests.VerifyPublicationAndSnapshot personality-only rejection/revision preservation"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "command": "dotnet run --no-restore --project backend-tests -- --character",
+      "cwd": "kufr",
+      "exitCode": 0
+    },
+    {
+      "command": "python kufr/ai-eval/evaluate_party.py --dv01-replay --output kufr/ai-eval/results/dv01-offline-v3.json",
+      "exitCode": 0
+    },
+    {
+      "command": "node kufr/backend/tests/smoke.mjs",
+      "exitCode": 0
+    },
+    {
+      "command": "npm test",
+      "cwd": "kufr/mobilni-aplikace",
+      "exitCode": 0,
+      "tests": 62
+    },
+    {
+      "command": "npm run build",
+      "cwd": "kufr/mobilni-aplikace",
+      "exitCode": 0
+    }
+  ],
+  "browser": {
+    "url": "http://127.0.0.1:5174",
+    "surface": "visible Codex in-app Browser production preview",
+    "widths": [
+      1280,
+      1024,
+      390,
+      320
+    ],
+    "horizontalOverflow": false,
+    "consoleErrors": 0,
+    "consoleWarnings": 0,
+    "scope": "Native backend unknown: Apply/Reset appropriately disabled; rendered screenshot inspected. Re-enable behavior tested through actual render/status-refresh unit fixture, not iPhone."
+  },
+  "independentReview": "Sol6.1/high final narrow backend review found no remaining actionable issue; parent independently inspected UI two-line fix and tests.",
+  "transfer": {
+    "from": "docs/project/artifacts/DV01-source-bundle-v2.json",
+    "identicalInputs": [
+      ".agents/skills/dildovander-character-design/SKILL.md",
+      ".agents/skills/dildovander-character-eval/SKILL.md",
+      "kufr/firmware/src/features/voice_turn/EspIdfRealtimeTransport.cpp",
+      "kufr/firmware/src/features/voice_turn/EspIdfRealtimeTransport.h",
+      "kufr/firmware/src/features/voice_turn/EspIdfVoiceAudio.cpp",
+      "kufr/firmware/src/features/voice_turn/EspIdfVoiceAudio.h",
+      "kufr/firmware/src/features/voice_turn/RealtimeEventCodec.cpp",
+      "kufr/firmware/src/features/voice_turn/RealtimeEventCodec.h",
+      "kufr/firmware/src/features/voice_turn/VoiceAudioPort.h",
+      "kufr/firmware/tests/espidf_realtime_transport_test.cpp",
+      "kufr/firmware/tests/espidf_voice_audio_test.cpp",
+      "kufr/firmware/tests/realtime_voice_test.cpp"
+    ],
+    "reason": "Firmware and both skill inputs unchanged by exact bytes; retain original build/host/metadata results with original dates/scopes."
+  },
+  "limitations": [
+    "No paid Live, native iOS, physical audio/reveal, deployment or flash.",
+    "Pure voice control classification and post-stream limited guard do not prove full semantic speech correctness."
+  ]
+}

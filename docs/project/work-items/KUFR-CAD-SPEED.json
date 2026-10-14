@@ -44,8 +44,8 @@
     }
   ],
   "blockers": [],
-  "nextAction": "Pokračovat běžící opravenou lokální full regenerací; draft PR umožní nezávislé Linux CI cold a následný cache hit před ready/merge.",
-  "currentNote": "Sdílení všech CAD fází narazilo na mutable triangulaci ve verifieru. Generování/ověření/balení mají opět čisté procesy; sdílené jsou pouze testy. Přísná geometrická brána zůstává nezměněná.",
+  "nextAction": "Ověřit CI cache hit nad synchronizovaným main944607b; pak uzavřít evidenci, ready PR a merge po reviews/CI.",
+  "currentNote": "Implementace0abfdae04b92f91751ced3b38c5ae95a4f97b3cd úspěšně pushnuta (remote SHA ověřeno). Windows full1506.295s a cache hit9.159s, ZIP/cache bytes beze změny; skutečný site162souborů. První Linux CI38485386880/attempt1 prošlo a uložilo cache (F2 total1121.75s). Attempt2 odmítl zastaralý základ po mergeDV01, nešlo o regresi CAD; lokální merge zachovává oba trackingy a beze změny F2zdrojů.",
   "implementedSubject": {
     "artifactDigest": "2e94cc46451d9949e1cca5d3eacf3c4494797b9c8b396e6ff89b458bf9295f02"
   }

@@ -1,0 +1,83 @@
+{
+  "recordedAtUtc": "2026-10-13T21:56:59.793452+00:00",
+  "sourceBundleDigest": "393452e4214db16e58f75fd1ab8805e491056779ee0ed05f7b7e523e72289346",
+  "backendSourceDigest": "a2f9fd45b3413db662d52939f3425211e33b0b3cf216733951a496baa64f6896",
+  "checks": [
+    {
+      "command": "dotnet restore backend-tests/BackendTests.csproj -r linux-x64 -p:UseAppHost=false --locked-mode",
+      "cwd": "kufr",
+      "exitCode": 0
+    },
+    {
+      "command": "dotnet run --no-restore --project backend-tests",
+      "cwd": "kufr",
+      "exitCode": 0,
+      "observation": "Full backend suite passed; includes existing feature-off behavior and DV01 fake Live."
+    },
+    {
+      "command": "python kufr/ai-eval/evaluate_party.py --dv01-replay --output kufr/ai-eval/results/dv01-offline.json",
+      "exitCode": 0
+    },
+    {
+      "command": "python -m unittest discover -s kufr/ai-eval",
+      "exitCode": 0,
+      "tests": 29
+    },
+    {
+      "command": "npm test",
+      "cwd": "kufr/mobilni-aplikace",
+      "exitCode": 0,
+      "tests": 60
+    },
+    {
+      "command": "npm run build",
+      "cwd": "kufr/mobilni-aplikace",
+      "exitCode": 0,
+      "observation": "tsc and Vite, final UI bytes passed."
+    },
+    {
+      "command": "pio run",
+      "cwd": "kufr/firmware",
+      "exitCode": 0,
+      "ramBytes": 94972,
+      "flashBytes": 1759309
+    },
+    {
+      "command": "python -X utf8 skill-creator/scripts/quick_validate.py (each project skill)",
+      "exitCode": 0,
+      "skills": 2
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  ],
+  "browser": {
+    "surface": "visible Codex in-app Browser",
+    "url": "http://localhost:5173",
+    "widths": [
+      1280,
+      1024,
+      390,
+      320
+    ],
+    "horizontalOverflow": false,
+    "consoleErrors": 0,
+    "consoleWarnings": 0,
+    "checkboxLabelHeightPx": 44,
+    "selectHeightPx": 45.6,
+    "scope": "DV01 administration layout with native backend unavailable; no real admin write."
+  },
+  "review": {
+    "independentAgent": "dv01_director, Sol 6.1/high",
+    "result": "Seven integration findings corrected; narrow follow-up source review reported no remaining important issue.",
+    "scope": "controls, stale directive ACK, transcript/audio cancellation fencing, ESP DMA queue; parent inspected combined diff."
+  },
+  "limitations": [
+    "No paid provider calls, native iOS build/test, physical audio listening, flash, reveal or deployment.",
+    "Host C++ execution unavailable locally: no g++; WSL disk missing. Firmware cross-build passed; host execution awaits hosted CI.",
+    "GPT-Live stream has no response/audio IDs or output-done: recovery fence is bounded heuristic, not complete semantic speech control.",
+    "Metadata/trigger fixture validation does not prove new-session model skill routing.",
+    "Prepared synthetic source guards are not completion of all T01–T80 live scenarios."
+  ]
+}

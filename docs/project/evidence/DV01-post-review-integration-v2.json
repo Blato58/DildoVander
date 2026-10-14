@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "DV01-post-review-integration-v2",
+  "observedAtUtc": "2026-10-13T22:12:03.833768+00:00",
+  "kind": "integration",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "DV01",
+      "criterionId": "CORE",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "a14bb273f52fde077b3c95bce99209769847c8ab2dc0f4ef86e47a3941f250fa",
+    "policyVersion": "dv01-director-v1"
+  },
+  "method": "Post-fix fake Live replay and actual local backend HTTP smoke; identical firmware/web input hash transfer from local integration receipt.",
+  "environment": "Windows local offline checks; independent read-only source review; explicit unchanged-component evidence transfer.",
+  "limitations": [
+    "No new physical/native/paid acceptance.",
+    "For transferred results preserve original observed dates and scope; this receipt records comparison, not a new execution."
+  ],
+  "observation": "Ready-candidate pure withdrawal cannot publish or decide from the control. Fresh replacement can recompute, including same source reference. SourceDigest and CPU metrics are in DV01-offline-v2.json; no provider or actuator calls.",
+  "artifactRefs": [
+    "docs/project/artifacts/DV01-source-bundle-v2.json",
+    "docs/project/artifacts/DV01-review-fixes-v2.json",
+    "docs/project/artifacts/DV01-offline-v2.json",
+    "docs/project/evidence/DV01-local-integration-v1.json"
+  ]
+}

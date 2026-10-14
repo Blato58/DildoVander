@@ -53,6 +53,9 @@ internal sealed partial class ConversationStore
     {
         var availability = LiveAvailability(call);
         var decision = outcome.Decision;
+        if (call.Context.LivePrompt is { Version: "dv01-adult-v1" } characterSnapshot
+            && (characterSnapshot.CatalogVersion != call.Context.Request.CatalogVersion
+                || characterSnapshot.CatalogVersion != PartyWandCatalog.Version)) { return null; }
         if (!outcome.PlaybackVerified || decision is null || !availability.Current
             || decision.DecisionRevision != outcome.DecisionRevision || decision.AvailabilityRevision != availability.Revision
             || decision.Status == WandDecisionStatus.ValidProposal && (availability.ReadyMask & (1 << (decision.Compartment!.Value - 1))) == 0
@@ -62,12 +65,13 @@ internal sealed partial class ConversationStore
         if (decision.Status == WandDecisionStatus.ValidProposal && availability.Revision != call.Correlation.DeviceRevision) return null;
         var reply = outcome.Reply;
         var correlation = call.Correlation;
-        var proposal = decision.Status == WandDecisionStatus.ValidProposal && decision.Compartment is { } compartment
+        var characterBlocked = call.Context.LivePrompt is { Version: "dv01-adult-v1", Options.Character.FinaleProfile: Character.FinaleProfile.Blocked };
+        var proposal = !characterBlocked && decision.Status == WandDecisionStatus.ValidProposal && decision.Compartment is { } compartment
             ? new SelectionProposal(Guid.NewGuid().ToString("D"), correlation.ConversationId, correlation.ClientTurnId,
                 call.Context.Request.CatalogVersion, correlation.DeviceRevision, compartment, reply.Reason,
                 correlation.BootId, correlation.Generation, clock.GetUtcNow().AddSeconds(60)) : null;
         var result = new TurnResult(reply.Reply, proposal is null ? "no_selection" : "propose", reply.Reason, proposal);
-        if (call.EveningId is not null)
+        if (call.EveningId is not null && call.Context.LivePrompt?.Version != "dv01-adult-v1")
         {
             var access = LiveMemoryAccess(call)!;
             eveningMemory!.AppendTimedTranscripts(access, call.SessionGeneration, outcome.Segments);

@@ -23,6 +23,7 @@ class EspIdfVoiceAudio final : public VoiceAudioPort, public PresentationAudioPo
   bool Play(const std::vector<uint8_t>& pcm) override;
   bool Drain() override;
   void Stop() override;
+  bool CancelPlayback() override;
   bool Failed() const override { return failed_.load(); }
   void Cue(uint16_t frequencyHz, uint16_t durationMs) override;
   void StopCues() override;

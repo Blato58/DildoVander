@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "DV01-baseline-scope-unit-v4",
+  "observedAtUtc": "2026-10-13T22:35:33.289106+00:00",
+  "kind": "unit",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "DV01",
+      "criterionId": "CORE",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "d576af7734dacba892c02fa839b4eb1b41267b3a53f44a078bc95845a1184da3",
+    "policyVersion": "dv01-director-v1"
+  },
+  "method": "Latest offline replay and independent cache-scope inspection; exact-input validity comparison to DV01-source-bundle-v3. Original scoped unit evidence retained where inputs unchanged.",
+  "environment": "Windows local offline/production preview; Sol6.1/high read-only backend review; parent UI review.",
+  "limitations": [
+    "No paid/provider/native/physical/deployment acceptance.",
+    "Unchanged firmware/skill evidence preserves original dates and scope; comparison does not claim a new run.",
+    "This v4 receipt records changed backend checks and explicit transfer by exact input identity; it is not a repeated run of unchanged components."
+  ],
+  "observation": "Candidate-only cache fix verified. Three express-only controls cannot reach provider/checkpoint; express after standard NeedsInformation recomputes with real evidence. Persona-only change is rejected without state/revision mutation. Actual panel render/status-refresh regressions pass with all authorization gates. No new browser/native/firmware/HTTP/web execution is claimed by this comparison; prior observations preserve their original dates and scope.",
+  "artifactRefs": [
+    "docs/project/artifacts/DV01-source-bundle-v4.json",
+    "docs/project/artifacts/DV01-offline-v4.json",
+    "docs/project/artifacts/DV01-baseline-cache-scope-v4.json",
+    "docs/project/evidence/DV01-final-unit-v3.json"
+  ]
+}

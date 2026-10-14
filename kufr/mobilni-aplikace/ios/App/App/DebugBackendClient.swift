@@ -126,6 +126,9 @@ struct DebugServerModes: Codable {
     let personalityId: String?
     let personalities: [DebugPersonality]?
     let personalityLifetime: String?
+    var characterEnabled: Bool? = nil
+    var characterTone: String? = nil
+    var characterFinaleProfile: String? = nil
 
     var bridgeValue: [String: Any] {
         ["revision": revision, "dialogMode": dialogMode, "voiceMode": voiceMode,
@@ -133,7 +136,10 @@ struct DebugServerModes: Codable {
          "activeConversations": activeConversations, "lifetime": lifetime,
          "personalityId": personalityId as Any? ?? NSNull(),
          "personalities": personalities?.map { $0.bridgeValue } as Any? ?? NSNull(),
-         "personalityLifetime": personalityLifetime as Any? ?? NSNull()]
+         "personalityLifetime": personalityLifetime as Any? ?? NSNull(),
+         "characterEnabled": characterEnabled as Any? ?? NSNull(),
+         "characterTone": characterTone as Any? ?? NSNull(),
+         "characterFinaleProfile": characterFinaleProfile as Any? ?? NSNull()]
     }
 }
 
@@ -504,7 +510,8 @@ final class DebugBackendClient {
         visitor: @escaping DebugHandsFreeSession.Visitor, reply: @escaping DebugHandsFreeSession.Reply,
         audio: @escaping DebugHandsFreeSession.Audio, listening: @escaping DebugHandsFreeSession.Listening,
         inputGate: @escaping DebugHandsFreeSession.InputGate, failure: @escaping DebugHandsFreeSession.Failure,
-        checkpoint: @escaping DebugHandsFreeSession.Checkpoint = { _ in })
+        checkpoint: @escaping DebugHandsFreeSession.Checkpoint = { _ in },
+        cancelAudio: @escaping DebugHandsFreeSession.CancelAudio = {})
         async throws -> DebugHandsFreeSession {
         guard (0...63).contains(readyMask), ["cedar", "marin", "coral"].contains(voice),
               speed.isFinite, (0.8...1.2).contains(speed) else { throw DebugBackendError.invalidResponse }
@@ -528,7 +535,7 @@ final class DebugBackendClient {
             try Task.checkCancellation()
             return DebugHandsFreeSession(client: self, profile: profile, token: token, conversation: conversation,
                 boot: boot, readyMask: readyMask, voice: voice, speed: speed, gptLive: gptLive, phase: phase, visitor: visitor,
-                reply: reply, audio: audio, listening: listening, inputGate: inputGate, failure: failure, checkpoint: checkpoint)
+                reply: reply, audio: audio, listening: listening, inputGate: inputGate, failure: failure, checkpoint: checkpoint, cancelAudio: cancelAudio)
         } catch {
             try? await cleanup(profile, token: token, conversation: conversation)
             throw error
@@ -770,7 +777,8 @@ final class DebugBackendClient {
 
     func serverModes(_ profile: DebugBackendProfile, expectedRevision: String? = nil,
                      dialogMode: String? = nil, voiceMode: String? = nil,
-                     personalityId: String? = nil) async throws -> DebugServerModes {
+                     personalityId: String? = nil, characterEnabled: Bool? = nil, characterTone: String? = nil,
+                     characterFinaleProfile: String? = nil, resetCharacterVariety: Bool = false) async throws -> DebugServerModes {
         var body: [String: Any]?
         if let revision = expectedRevision {
             guard UUID(uuidString: revision) != nil,
@@ -779,6 +787,16 @@ final class DebugBackendClient {
                 throw DebugBackendError.wrongMode
             }
             body = ["expectedRevision": revision, "dialogMode": dialog, "voiceMode": voice]
+            if let enabled = characterEnabled { body?["characterEnabled"] = enabled }
+            if let tone = characterTone {
+                guard ["Reserved", "Dry", "Adult", "Chaos"].contains(tone) else { throw DebugBackendError.wrongMode }
+                body?["characterTone"] = tone
+            }
+            if let finale = characterFinaleProfile {
+                guard ["Limited", "Blocked"].contains(finale) else { throw DebugBackendError.wrongMode }
+                body?["characterFinaleProfile"] = finale
+            }
+            if resetCharacterVariety { body?["resetCharacterVariety"] = true }
             if let id = personalityId {
                 guard id.range(of: "^[a-z0-9-]{1,64}$", options: .regularExpression) != nil else {
                     throw DebugBackendError.wrongMode
@@ -810,6 +828,10 @@ final class DebugBackendClient {
                       && !(item.name + item.description).unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) })
                       && item.promptSha256.range(of: "^[a-f0-9]{64}$", options: .regularExpression) != nil
                   }) else { throw DebugBackendError.invalidResponse }
+        }
+        guard modes.characterTone == nil || ["Reserved", "Dry", "Adult", "Chaos"].contains(modes.characterTone!),
+              modes.characterFinaleProfile == nil || ["Limited", "Blocked"].contains(modes.characterFinaleProfile!) else {
+            throw DebugBackendError.invalidResponse
         }
         return modes
     }

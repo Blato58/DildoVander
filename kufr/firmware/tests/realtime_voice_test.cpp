@@ -34,6 +34,11 @@ int main() {
 
   RealtimeEvent event;
   assert(ParseRealtimeEvent("{\"type\":\"heartbeat\"}", event));
+  assert(ParseRealtimeEvent("{\"type\":\"audio_cancel\",\"responseGeneration\":2}", event));
+  assert(event.responseGeneration == 2);
+  assert(!ParseRealtimeEvent("{\"type\":\"audio_cancel\",\"responseGeneration\":0}", event));
+  assert(!ParseRealtimeEvent("{\"type\":\"audio_cancel\",\"responseGeneration\":true}", event));
+  assert(!ParseRealtimeEvent("{\"type\":\"audio_cancel\",\"responseGeneration\":2,\"extra\":0}", event));
   assert(ParseRealtimeEvent("{\"type\":\"session\",\"streamId\":\"c85743d5-1b72-41b8-8500-ae3c102b27d6\",\"audioFormat\":\"pcm16-mono-24000\"}", event));
   for (const std::string invalid : {
       "{\"type\":\"audio\",\"type\":\"heartbeat\",\"delta\":\"AAAA\"}",

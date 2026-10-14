@@ -207,6 +207,17 @@ bool EspIdfRealtimeTransport::Event(const RealtimeEvent& event,
     operationId_ = event.operationId; audioBytes_ = 0; phase_("thinking"); return true;
   }
   if (event.type == "visitor") return !operationId_.empty();
+  if (event.type == "audio_cancel") {
+    if (!gptLive_ || operationId_.empty() || !Current()) return false;
+    if (event.responseGeneration <= responseGeneration_) return true;
+    if (!audio_.CancelPlayback()) return false;
+    responseGeneration_ = event.responseGeneration;
+    inputEpoch_.fetch_add(1);
+    segmentPlaying_ = false;
+    audio_.Listen(uploading_.load());
+    phase_("listening");
+    return true;
+  }
   if (event.type == "audio") {
     if (operationId_.empty()) return false;
     std::vector<uint8_t> pcm(32768);

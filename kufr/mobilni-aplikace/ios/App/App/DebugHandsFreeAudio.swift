@@ -422,6 +422,17 @@ final class DebugHandsFreeAudio {
         if shouldNotify { playbackDrained(operationId) }
     }
 
+    func cancelPlayback() {
+        // Response cancellation preserves capture and the session. Queued old
+        // dataPlayedBack callbacks cannot complete a new response/checkpoint.
+        lock.lock()
+        generation = UUID()
+        awaitingDrainOperation = nil
+        playbackProgress = DebugHandsFreePlaybackProgress()
+        lock.unlock()
+        player.stop()
+    }
+
     func stop() {
         audioActive = false
         startup = nil

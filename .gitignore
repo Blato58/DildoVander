@@ -31,6 +31,7 @@
 *.sqlite3-wal
 
 # Python environments and analysis caches
+/kufr/ai-eval/results/
 .venv/
 venv/
 .pytest_cache/

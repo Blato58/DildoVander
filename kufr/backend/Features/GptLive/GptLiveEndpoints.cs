@@ -74,7 +74,8 @@ internal static class GptLiveEndpoints
             registered = true;
             if (!conversations.StartRealtimeTurn(call)) throw new OperationCanceledException();
             var memoryAccess = conversations.LiveMemoryAccess(call);
-            if (call.Context.LivePrompt?.Options.Mode == LiveActorMode.AutonomousActor && memoryAccess is not null)
+            if (call.Context.LivePrompt?.Options.Mode == LiveActorMode.AutonomousActor && memoryAccess is not null
+                && call.Context.LivePrompt.Version != "dv01-adult-v1")
             {
                 var startup = await memory.StartupContextAsync(memoryAccess, call.Cancellation.Token);
                 var contextText = startup.Text;
@@ -119,7 +120,17 @@ internal static class GptLiveEndpoints
                         operationId: call.OperationId, conversationId: id, code: status.ToString().ToLowerInvariant()),
                     state => context.RequestServices.GetService<ServerLogStore>()?.Write("info", "live_terminal_state",
                         context.TraceIdentifier, "/v1/conversations/{id}/gpt-live", "POST",
-                        operationId: call.OperationId, conversationId: id, code: state))
+                        operationId: call.OperationId, conversationId: id, code: state),
+                    cancelAudio: (generation, token) =>
+                    {
+                        live.CancelCheckpoint();
+                        return Write(new { type = "audio_cancel", responseGeneration = generation }, token);
+                    },
+                    recentStyles: conversations.CharacterStyles(call),
+                    stylePlayed: (style, opening) => conversations.RecordCharacterStyle(call, style, opening),
+                    directorTiming: ms => context.RequestServices.GetService<ServerLogStore>()?.Write("info", "character_director",
+                        context.TraceIdentifier, "/v1/conversations/{id}/gpt-live", "POST", durationMs: Math.Round(ms, 3),
+                        operationId: call.OperationId, conversationId: id, code: "dv01_v1"))
                 : await new GptLiveDialogue(connection, dialog).RunAsync(call.Context,
                 (pcm, token) => Write(new { type = "audio", delta = Convert.ToBase64String(pcm) }, token),
                 (text, token) => Write(new { type = "visitor", text }, token),
