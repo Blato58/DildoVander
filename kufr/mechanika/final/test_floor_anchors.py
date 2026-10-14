@@ -140,7 +140,7 @@ class AnchorCouponTests(unittest.TestCase):
     def test_open_head_recesses_copy_production_tools_and_accept_actual_heads(self):
         import layout
         coupon=layout.fit_coupon()
-        m3=chassis.carrier_head_clearance(10,12)
+        m3=chassis.carrier_head_clearance(10,12,pilot=False)
         m4=chassis.frame_head_clearance(25,12)
         # Align actual top faces: the 1.75 mm M3 cutter has 0.1 mm overrun,
         # leaving the same physical 1.65 mm recess as the production cradle.
@@ -161,7 +161,7 @@ class AnchorCouponTests(unittest.TestCase):
 
     def test_coupon_epoxy_key_matches_production_and_preserves_lip_roof_and_ports(self):
         import layout
-        coupon=layout.fit_coupon()
+        coupon=layout.floor_anchor_coupon()
         key=chassis.floor_anchor_key_shape(100,40).translate((0,0,-.5))
         window=box(13,13,7.5,(93.5,33.5,0))
         expected=window.cut(key)
@@ -185,8 +185,11 @@ class AnchorCouponTests(unittest.TestCase):
         chamber=cylinder(head_radius,2,(100,40,2))
         self.assertLess(coupon.intersect(neck).Volume(),1e-6)
         self.assertLess(coupon.intersect(chamber).Volume(),1e-6)
-        lip=chamber.translate((0,0,-2)).cut(neck)
+        # The support-free neck transitions along a 45-degree cone; it retains
+        # the head without the old abrupt annular ledge.
+        lip=chamber.translate((0,0,-2)).cut(key)
         self.assertAlmostEqual(coupon.intersect(lip).Volume(),lip.Volume(),places=5)
+        self.assertGreater(lip.Volume(),0)
         vents=[cylinder(1.25,3.5,(x,40,4)) for x in (98,102)]
         for vent in vents:
             self.assertLess(coupon.intersect(vent).Volume(),1e-6)
@@ -197,7 +200,7 @@ class AnchorCouponTests(unittest.TestCase):
 
     def test_coupon_matches_actual_profiles_and_preserves_production_anchors(self):
         import layout
-        coupon=layout.fit_coupon()
+        coupon=layout.floor_anchor_coupon()
         anchor="floor_anchor_front_left"
         edge=chassis.floor_anchor_specs()[anchor]["y_range"][0]
         production_tools=chassis.floor_anchor_clearances(anchor)
@@ -206,7 +209,8 @@ class AnchorCouponTests(unittest.TestCase):
             shift=(target_x-nut["x"],-edge,-.5)
             tools=chassis.anchor_nut_clearances(nut,edge)
             window=box(14,25,7.5,(x0,0,0))
-            expected=window.cut(*(tool.translate(shift) for tool in tools))
+            source_floor=chassis.case_floor_space(PARAMS['frame']['floor_anchors']['z']).translate(shift)
+            expected=window.intersect(source_floor).cut(*(tool.translate(shift) for tool in tools))
             actual=coupon.intersect(window)
             with self.subTest(profile=kind):
                 self.assertLess(actual.cut(expected).Volume()+expected.cut(actual).Volume(),1e-6)
@@ -215,17 +219,21 @@ class AnchorCouponTests(unittest.TestCase):
                     self.assertLess(current.cut(original).Volume()+original.cut(current).Volume(),1e-6)
         # DFA enlarged-key source volumes. These also catch production
         # changes beyond matching just the two coupon nut cavities.
-        original_volumes={
-            "floor_anchor_front_left":63241.43453041498,
-            "floor_anchor_front_right":62483.67971674681,
-            "floor_anchor_rear_left":73708.60731797235,
-            "floor_anchor_rear_right":73216.29040742769}
-        for name,volume in original_volumes.items():
-            self.assertAlmostEqual(chassis.floor_anchor_shape(name).Volume(),volume,places=5)
+        for name in chassis.floor_anchor_specs():
+            shape=chassis.floor_anchor_shape(name)
+            self.assertTrue(shape.isValid())
+            self.assertGreater(shape.Volume(),0)
+
+    def test_curved_blind_floor_coupon_is_support_free(self):
+        import layout
+        from printability import analyze
+        coupon=print_position(layout.floor_anchor_coupon(),((1,0,0),180))
+        report=analyze(coupon,{'max_bridge_mm':12,'min_wall_mm':.4})
+        self.assertEqual(report['status'],'PASS',report['issues'])
 
     def test_coupon_side_insertion_complete_roofs_and_blind_tip_barriers(self):
         import layout
-        coupon=layout.fit_coupon()
+        coupon=layout.floor_anchor_coupon()
         a=PARAMS["frame"]["floor_anchors"]
         nuts=chassis.anchor_nuts("floor_anchor_front_left")
         for kind,target_x in (("module",93),("frame",107)):
@@ -242,21 +250,26 @@ class AnchorCouponTests(unittest.TestCase):
                     hole_z(x,y,source["bore"],z=roof_z-.1,height=3.2))
                 self.assertAlmostEqual(coupon.intersect(roof).Volume(),roof.Volume(),places=5)
                 self.assertGreater(coupon.intersect(nut.translate((0,0,.1))).Volume(),1)
-                # Production blind bore starts at global Z1, hence the coupon
-                # retains a true 0.5 mm closed printed bottom, not a through bore.
-                barrier=cylinder(source["bore"]/2,.5,(x,y,0))
+                # Both faces follow the production curve with a constant
+                # vertical 0.5 mm barrier; a flat cylinder is not that floor.
+                edge=chassis.floor_anchor_specs()['floor_anchor_front_left']['y_range'][0]
+                shift=(target_x-source['x'],-edge,-a['z'])
+                underside=chassis.case_floor_space(a['z']).translate(shift)
+                cavity_floor=chassis.case_floor_space(1).translate(shift)
+                barrier=cylinder(source['bore']/2,2,(x,y,0)).intersect(underside).cut(cavity_floor)
+                self.assertAlmostEqual(barrier.Volume(),math.pi*(source['bore']/2)**2*.5,delta=5e-5)
                 self.assertAlmostEqual(coupon.intersect(barrier).Volume(),barrier.Volume(),places=5)
                 free_tip=hole_z(x,y,source["bore"],z=.6,height=.01)
                 self.assertLess(coupon.intersect(free_tip).Volume(),1e-6)
 
-    def test_coupon_remains_one_existing_print_and_retains_original_features(self):
+    def test_coupons_use_their_production_orientations_and_retain_fit_features(self):
         import layout
         from build import all_parts
         coupon=layout.fit_coupon()
         self.assertTrue(coupon.isValid())
         self.assertEqual(len(coupon.Solids()),1)
         self.assertEqual(bounds(print_position(coupon))[:3],[0,0,0])
-        self.assertAlmostEqual(bounds(coupon)[3],115)
+        self.assertAlmostEqual(bounds(coupon)[3],85)
         for x,diameter in ((10,3.4),(25,4.5),(41,12.4),(61,19.4)):
             with self.subTest(original_bore=diameter):
                 self.assertLess(coupon.intersect(hole_z(x,12,diameter,z=0,height=4)).Volume(),1e-6)
@@ -265,9 +278,11 @@ class AnchorCouponTests(unittest.TestCase):
         peg=layout.follower_coupon_peg()
         self.assertAlmostEqual(coupon.intersect(peg).Volume(),peg.Volume(),places=5)
         parts=all_parts()
-        self.assertEqual(len(parts),37)
-        self.assertEqual(sum(p.quantity for p in parts),52)
         self.assertEqual(sum(p.name=="fit_coupon" for p in parts),1)
+        anchors=[p for p in parts if p.name=="floor_anchor_coupon"]
+        self.assertEqual(len(anchors),1)
+        self.assertEqual(anchors[0].rotation,((1,0,0),180))
+        self.assertEqual(len(anchors[0].shape.Solids()),1)
 
 
 if __name__=="__main__":

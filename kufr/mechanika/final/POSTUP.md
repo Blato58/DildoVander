@@ -6,7 +6,7 @@ CAD a prostorové rezervy nejsou fyzickou přejímkou. Před stavbou přečíst
 
 ## 1. Ověření podkladů a zkušební výtisk
 
-Vytisknout měrku se 100% výplní a jeden zkušební modul. Před tiskem velkých kotev nasunout skutečné matice M3 i M4 bočními tunely měrky pod uzavřenou střechu a vyzkoušet šrouby. Ověřit také usazení standardních hlav šroubů v zahloubeních nad průchozími otvory M3/M4; potom matice vyjmout pro finální montáž. Ve stejném výtisku ověřit přemostění dutiny epoxidového zámku Ø7,5/Ø10,5 a obě horní Ø2,5 odvzdušnění. Malou dávkou epoxidu z rezervy předplnit komoru odspodu; obě horní ústí musí ukázat naplnění. Uvnitř nezavřít podpory. Zkouška plnění neprokazuje přilnutí ke dřevu. Změřit skutečné hůlky s pouzdrem, konektory a osu serva. Nasucho vložit obrys 400 × 240 mm přes volný horní obdélník 430 × 269 mm nad středovou výztuhu 80 × 5 mm. Šablonou ověřit oba oblouky 45 × 45 mm a usazení tvarovaných kotev; nelze použít staré kotvy pro ploché dno. Kotvy tisknout plochou horní stranou na podložce, zakřiveným spodkem vzhůru; STL má tuto orientaci již nastavenou. Lůžko tisknout otočené +90° kolem Y, integrální Ø6 čep směřuje vzhůru bez podpor na kluzné ploše. Nevyhovující vůli opravit tiskovým profilem nebo parametrem a znovu vytisknout; nikdy pilníkem, vrtákem ani změnou měřítka STL. Ověřit, že skutečné původní otvory páky přijmou M2 bez vrtání; jinak upravit tištěnou spojku nebo použít vhodnou standardní neupravenou páku před finálním tiskem.
+Nejprve vytisknout tři samostatné měrky bez podpor podle jejich profilů: fit_coupon, follower_groove_coupon a obrácenou floor_anchor_coupon. Ověřit skutečné vodítko 8×10 v otvoru 8,9×10,9 s 0,6mm rohovými úkosy (čelní vůle 0,45 mm, nejmenší diagonální 0,212 mm), čep Ø6 v drážce 6,8 mm a standardní M3/M4 matice/hlavy. Podlahová měrka obsahuje skutečnou výrobní orientaci, boční přístup i epoxidový zámek. Nevyhovující vůli řešit nastavením nebo parametrem a novým tiskem.
 
 **Místo:** Dno skutečného kufru; X doprava, Y k pantům, Z nahoru; Podle označených přístupových bodů.
 
@@ -14,10 +14,10 @@ Vytisknout měrku se 100% výplní a jeden zkušební modul. Před tiskem velký
 
 **Již připravené kroky:** žádné.
 
-**Díly:** 2 × díl tiskové měrky (čep, kapsy M3/M4, epoxidový zámek a drážka); 1 × půdorysná šablona.
+**Díly:** 3 × výrobní měrka (čep/hlavy/vedení, drážka, obrácené kapsy matic/epoxidový zámek); 1 × obrysová šablona.
 
 **Materiál:**
-- 3 × kg PETG — zásoba pro sestavu, podpory a zkušební tisky (`PETG`)
+- 3 × kg PETG — zásoba pro sestavu a zkušební tisky bez podpěr (`PETG`)
 - 3 × Bison Epoxy Metal 24 ml (`EPOXY`)
 - 1 × PET fólie 0,5 mm; čtyři dočasné podložky filmu, po vytvrzení vyjmout (`SHIM05`)
 
@@ -32,7 +32,7 @@ Vytisknout měrku se 100% výplní a jeden zkušební modul. Před tiskem velký
 
 ## 2. Rám sestavit mimo kufr
 
-Na stole spojit čtyři PETG panely s integrovanými předními a zadními žebry. Osadit osm přeplátovaných spojů a jejich spodní matice. Všechny otvory jsou vytištěné; kovové šrouby a matice použít standardní, bez opracování.
+Na stole položit čtyři PETG panely spodkem na rovnou plochu. Střídavé rovinné rybiny se zasazují svisle; netlačit je podélně skrz zúžení. Spára má 0,25 mm, dvě rybiny vedle každé osy vedou XY. Osadit osm původních M3 × 6 a spodní matice; hlava i matice přemosťují spáru a svírají oba panely ve směru Z. Žebra se nahoře stýkají čelně; nosnou cestu dokončí čtyři podlahové kotvy a šrouby modulů. Všechny kovové díly standardní, bez opracování. Spodní kazetové matice vložit před osazením elektroniky; krajní kapsa je bočně otevřená pod zachovanou střechou.
 
 **Místo:** Pracovní stůl mimo kufr; Na stole, přístup shora i zespodu.
 
@@ -40,7 +40,7 @@ Na stole spojit čtyři PETG panely s integrovanými předními a zadními žebr
 
 **Již připravené kroky:** fit.
 
-**Díly:** 4 × rámový panel s integrovanými žebry; 8 × přeplátovaný spoj.
+**Díly:** 4 × panel se žebry; 8 × šroubovaný spoj s rovinnými rybinami.
 
 **Materiál:**
 - 8 × M3 × 6 zápustný šroub (`M3x6`)
@@ -59,7 +59,7 @@ Na stole spojit čtyři PETG panely s integrovanými předními a zadními žebr
 
 ## 3. Nosiče a odnímatelné boční kazety na stole
 
-Na stole připevnit spodními šrouby všechny pevné nosiče. Sedm matic odnímatelných bočních kazet vložit do spodních kapes rámu; kazety připevnit sedmi M3 × 8 shora. Zatím bez desek. Vnější rámy nenesou elektroniku; vlastní sestavená vložka zůstává nosná bez banky, hůlek a textilu.
+Na stole osadit spodní matice nosičů a sedm matic kazet do rámu. Každou kazetu sestavit z pěti výtisků: do levého bočního rámu nasunout tři patra na dvojice klíčů; přiložit pravý rám a patra stáhnout šrouby do vnějších kapes matic. Levá kazeta: prostřední patro 2 a jeho svěrný spoj dotáhnout před uzavřením spodního patra 1; jinak spodní doraz blokuje 25mm přímý nástroj. Spodní PCB zapojit na samostatném patře, rámy ponechat volné pro boční vložení; nakonec kazetu stáhnout. Pro servis prostředního spoje nejprve odpojit a vyjmout patro 1 na stole. Všechny kazetové svěrné spoje dotáhnout ještě bez USB kabelu v jeho konečné trase. Potom na stole bez banky a reproduktoru položit neporušený C–C kabel: oba konektory odpojené, kabel dosud bez cívky. Místní přední průchod vložit otevřeným okrajem −Y a zadní +Y do pravého rámu, pod spodním patrem využít otevřenou drážku. Vidlice se neprotahují malým otvorem. Tři závity cívky vytvořit a stáhnout až nakonec při napájecí kabeláži; při práci lze volný kabel odložit mimo dráhu imbusu. Pravou kazetu zapojovat odspodu nahoru; všechny spoje zůstávají rozebíratelné. Desku kamery spojit se dvěma samostatnými sloupky dvěma M3×10; matice vkládat z vnitřní strany mezi sloupky. Ovládací desku spojit se dvěma bočními rámy: vpředu dva ISO7380 M3×10, vzadu dva DIN7991 M3×10 zapuštěné do Z105. Zadní spoje dotáhnout před instalací vypínačů. Všechny vyjmenované tištěné díly mají vlastní nosnou cestu do rámu; banka, reproduktory a hůlky nejsou spojovací prvky. Dvoustupňové M3 střechy: 0,4mm pilot plus 0,4mm uzávěr, lokálně nejvýše 0,8 mm. Všech 40 míst podle manifestu otevřít ručním hladkým šídlem před osazením šroubů; nerozšiřovat kapsy ani dosedací plochy. Čtyři horní matice krytů banky a pravého reproduktoru zasunout bočními Y vstupy před kryty a textilem: přední vstup −Y, zadní +Y. Kapsa 2,7 mm pro 2,4mm matici má 0,3mm celkovou výškovou vůli. Dočasně přidržet existujícím M3×6, nebo M3×10 se skutečným 3mm krytem či 3mm distancí; M3×10 v holém sloupku může narazit na dno. Slepé montážní kanály mají průchozí podlahové otvory nebo malé boční kanály, žádnou uzavřenou vnitřní dutinu.
 
 **Místo:** Pracovní stůl mimo kufr; Na stole, přístup shora i zespodu.
 
@@ -67,24 +67,27 @@ Na stole připevnit spodními šrouby všechny pevné nosiče. Sedm matic odním
 
 **Již připravené kroky:** fit, frame.
 
-**Díly:** Sada pevných nosičů dle tiskového seznamu; každý 1 ×; držáky kondenzátorů 3–6 po 1 ×.
+**Díly:** Levá kazeta: dva boční rámy a tři patra; původní desky/osy; Pravá kazeta: dva boční rámy a tři patra; Dva boční sloupky + plochá deska kamery; dva nové M3×10; Dva boční rámy + ovládací deska; čtyři nové M3×10; Samostatné nosiče; stejná poloha zakoupené elektroniky.
 
 **Materiál:**
 - 43 × M3 × 8 nízká půlkulatá hlava (`M3x8`)
 - 4 × M3 × 8 zápustná hlava (`M3CSK8`)
 - 1 × M3 × 6 zápustný šroub (`M3x6`)
-- 48 × M3 matice (`NUT3`)
+- 10 × M3 × 12 ISO7380; deset kazetových spojů (`M3x12`)
+- 5 × M3 × 10 nízká hlava (`M3x10`)
+- 2 × M3 × 10 DIN7991; dva zadní zapuštěné spoje ovladačů (`M3CSK10`)
+- 65 × M3 matice (`NUT3`)
 
-**Nástroje:** imbus, pinzeta, stranové kleště.
+**Nástroje:** imbus, pinzeta, stranové kleště, Hladké ruční šídlo na dvoustupňové M3 střechy do 0,8 mm.
 
 **Přístup:**
 - Banka odpojená; žádná síla přes PCB, konektory nebo vodiče.
 - Použít podpěrky pod rám; zakryté spodní šrouby dokončit před vložením do kufru.
 - V kufru zatím nesmějí být: tray_*, cam_*, servo_*.
 
-**Kontrola:** Každý nosič drží samostatně; šrouby nekolidují s PCB, kabely mají průchody.
+**Kontrola:** Všechny klíče jsou zasunuté, šrouby dotažené bez deformace plastu; matice mají nosné dosedací plochy. Zkontrolovat sedm souvislých horních průchodů hlav/imbusů kazet. Kamera je nad ESP bez dotyku. Ovládací deska má čtyři pevné spoje a zadní hlavy jsou zapuštěné. Vyjmout banku a reproduktory: rám i ovladače zůstávají soudržné. Zadní výřez dekorativního pravého předního krytu míjí kazetové matice; kryt je stále nenosný. USB leží bez skřípnutí v otevřených průchodech; průměr a skutečný ohyb ověřit na dodaném kabelu.
 
-**Servis:** Odpojit napájení, sejmout horní skupiny, banku, oba reproduktory a pravou kazetu; povolit 24 M3 a 4 M4, vytáhnout celou vložku.
+**Servis:** Odpojit napájení, sejmout kryty a uvolnit pásky obsluhované elektroniky. Pro servis levé kazety vyjmout banku a levý reproduktor, odpojit a vytáhnout všechny tři ovladače. Vyšroubovat čtyři horní spoje, zvednout ovládací desku i s maticemi krytu a potom volný pravý rám s maticemi spojů 2 a 4. Levý rám, matice spojů 1 a 3 a původní spodní šrouby zůstávají. Teprve pak povolit tři kazetové M3 a kazetu svisle vytáhnout. Obnovit v opačném pořadí, spínače až po dotažení spojů. U pájených přívodů odpájet a obnovit izolaci, nevymýšlet rychlokonektor. Patra kazet rozebírat na stole po jejich vyjmutí; pravý boční rám uvolnit před vysunutím pater. Na stole před rozebráním prostředního spoje levé kazety vyjmout spodní patro 1.
 
 ## 4. Osadit elektroniku na otevřené vložce
 
@@ -117,7 +120,7 @@ Vše osadit na stole před vložením rámu a před nasazením zdvihových lůž
 
 ## 5. Napájecí svazek na stole, banka odpojená
 
-Na stole bez powerbanky připojit napájecí svazky podle KABELAZ.md. Na levé kazetě nejprve připojit jistič a zesilovač, potom měnič; na pravé kazetě popsat MAIN5, DRIVE5 a GND. Mezilehlé vodiče přichytit k rámu a ponechat odpojitelnou rezervu, žádná smyčka nesmí nést kazetu. Volné vývody k PCA, servům, LED a U059 zůstanou označené a odpojené do montáže zdvihů. USB závit drží vlastní kolébka. Zelená kolébka dál přerušuje jen DRIVE5; GPIO2 přímo ovládá PCA OE.
+Na stole bez powerbanky připojit napájecí svazky podle KABELAZ.md. Na levé kazetě nejprve připojit jistič a zesilovač, potom měnič; na pravé kazetě popsat MAIN5, DRIVE5 a GND. Mezilehlé vodiče přichytit k rámu a ponechat odpojitelnou rezervu, žádná smyčka nesmí nést kazetu. Volné vývody k PCA, servům, LED a U059 zůstanou označené a odpojené do montáže zdvihů. USB již položený otevřenými hranami kazety svinout do tří oddělených závitů; cívku drží vlastní kolébka. Konektor se před instalací banky ponechává odpojený. Zelená kolébka dál přerušuje jen DRIVE5; GPIO2 přímo ovládá PCA OE.
 
 **Místo:** Pracovní stůl mimo kufr; Na stole, přístup shora i zespodu.
 
@@ -146,7 +149,7 @@ Na stole bez powerbanky připojit napájecí svazky podle KABELAZ.md. Na levé k
 
 **Kontrola:** Měřením vyloučit zkrat, ověřit kolébky a spojitou GND. Žádné napětí před dokončením kontroly.
 
-**Servis:** Odpojit banku a vývody, vyjmout banku a levý reproduktor a vyparkovat USB konektor; tři M3 shora, poté zvednout celou kazetu včetně jejího přišroubovaného USB klipu.
+**Servis:** Odpojit banku a vývody, vyjmout banku a levý reproduktor a vyparkovat USB konektor. Odpojit a vyjmout červený/zelený spínač a PTT; vyšroubovat všechny čtyři horní spoje ovladačů, zvednout desku i s maticemi krytu a vyjmout volný pravý boční rám s maticemi spojů 2 a 4. Levý rám a jeho spodní spoje zůstávají. Potom tři kazetové M3 shora a svislé zvednutí celé kazety včetně jejího přišroubovaného USB klipu. Obnovit opačně, ovladače až po dotažení spojů. Západky, rukojeti a skutečné vodiče vyžadují fyzickou zkoušku.
 
 ## 6. Signály, audio a servisní vývody na stole
 
@@ -180,7 +183,7 @@ Připojit všechny pevné signály a audio na stole; spodní PCB zapojit před o
 
 ## 7. Přilepit a přezkoušet čtyři podlahové kotvy
 
-Na stole před lepením zasunout zboku všech 24 M3 a 4 M4 matic pod střechy čtyř tištěných kotev. Po přilepení už spodní oblouk omezuje přístup k některým vstupům matic. Nasucho ustavit kotvy na DNĚ podle sestaveného rámu; zakřivený spodek musí souhlasit s oběma oblouky a přední/zadní ramena vynechat pás Y94,5–174,5 mm středové výztuhy. Brusným papírem odstranit povrchovou úpravu pouze v jejich skutečných lepených stopách na pevné holé dřevo. Chránit kapsy matic a otvory před lepidlem. Použít Bison Epoxy Metal ze zásoby připravené v prvním kroku a smíchat 1:1; dodanou stěrkou PŘEDEM naplnit zámky Ø7,5/Ø10,5 z otevřené spodní strany kotvy, pak kotvu ustavit na čtyři dočasné měřené 0,5mm PET podložky u přístupných vnějších okrajů na ROVNÉ části dna (přední kotvy kolem Y60, zadní kolem Y200); nedávat rovnou podložku do oblouku. Podložky určují výšku filmu; po vytvrzení je vyjmout, nepřilepit je ani rám. Tloušťku kontrolovat měřítkem před zatížením. Horní otvory Ø2,5 slouží odvzdušnění a vizuální kontrole, nikoli tlakové injektáži pasty. Mokré přebytky otřít před vytvrzením. Rám nepřilepit. Fixovat 10 h, při 20 °C nechat 24 h vytvrdnout a přezkoušet spoj podle MONTÁŽ.md. Po vytvrzení zkontrolovat čisté závity již zachycených matic a vyjmout ochranu otvorů před vložením rámu. Připravit tři balení po 24 ml, včetně rezervy pro vzorek, přebytky a ztráty. Množství lepidla a počet zámků přebrat z aktuálního verification.json; číselný výsledek starší varianty není přejímkou nových kapes kazet.
+Na stole před lepením zasunout zboku všech 24 M3 a 4 M4 matic pod střechy čtyř tištěných kotev. Kapsy jsou záměrně vyšší pro tisk bez podpěr: každou matici dočasným šroubem s podložkou jemně usadit proti střeše Z5 a zajistit polohu při manipulaci; samotná volná matice nedokládá výšku závitu. Dočasné šrouby chránit před epoxidem a po vytvrzení vyjmout. Po přilepení už spodní oblouk omezuje přístup k některým vstupům matic. Nasucho ustavit kotvy na DNĚ podle sestaveného rámu; zakřivený spodek musí souhlasit s oběma oblouky a přední/zadní ramena vynechat pás Y94,5–174,5 mm středové výztuhy. Brusným papírem odstranit povrchovou úpravu pouze v jejich skutečných lepených stopách na pevné holé dřevo. Chránit kapsy matic a otvory před lepidlem. Použít Bison Epoxy Metal ze zásoby připravené v prvním kroku a smíchat 1:1; dodanou stěrkou PŘEDEM naplnit zámky Ø7,5/Ø10,5 s 45° přechodem krčku z otevřené spodní strany kotvy, pak kotvu ustavit na čtyři dočasné měřené 0,5mm PET podložky u přístupných vnějších okrajů na ROVNÉ části dna (přední kotvy kolem Y60, zadní kolem Y200); nedávat rovnou podložku do oblouku. Podložky určují výšku filmu; po vytvrzení je vyjmout, nepřilepit je ani rám. Tloušťku kontrolovat měřítkem před zatížením. Horní otvory Ø2,5 slouží odvzdušnění a vizuální kontrole, nikoli tlakové injektáži pasty. Mokré přebytky otřít před vytvrzením. Rám nepřilepit. Fixovat 10 h, při 20 °C nechat 24 h vytvrdnout a přezkoušet spoj podle MONTÁŽ.md. Po vytvrzení zkontrolovat čisté závity již zachycených matic a vyjmout ochranu otvorů před vložením rámu. Připravit tři balení po 24 ml, včetně rezervy pro vzorek, přebytky a ztráty. Množství lepidla a počet zámků přebrat z aktuálního verification.json; číselný výsledek starší varianty není přejímkou nových kapes kazet.
 
 **Místo:** Dno skutečného kufru; X doprava, Y k pantům, Z nahoru; Podle označených přístupových bodů.
 
@@ -194,7 +197,7 @@ Na stole před lepením zasunout zboku všech 24 M3 a 4 M4 matic pod střechy č
 - 24 × M3 matice (`NUT3`)
 - 4 × M4 matice (`NUT4`)
 
-**Nástroje:** brusný papír pouze na dřevo v lepené stopě, svěrky, rukavice, míchací miska a stěrka, pinzeta, posuvné měřítko pro 0,5mm podložky.
+**Nástroje:** brusný papír pouze na dřevo v lepené stopě, svěrky, rukavice, míchací miska a stěrka, pinzeta, posuvné měřítko pro 0,5mm podložky, dočasné M3/M4 šrouby a podložky pro usazení matic ke střeše.
 
 **Přístup:**
 - Banka odpojená; žádná síla přes PCB, konektory nebo vodiče.
@@ -262,7 +265,7 @@ Powerbanka je mimo kufr. Reproduktory dočasně vyjmout z pásků; pravou kazetu
 
 ## 10. Pohyblivé horní skupiny připravit na stole
 
-Každé lůžko, vačku s pákou a servo sestavit společně na stole: integrální čep zachytit v drážce bez násilí. Nasadit U059 a LED, provléknout jejich pásky a připájet LED vodiče před vložením. Připravit chráněnou pohyblivou smyčku, zkontrolovat odlehčení a izolaci. Zatím skupinu neuzavírat maticemi vedení. Každou skupinu zkoušet na tiskové měrce a popsat 1–6; sestavené skupiny zůstávají mimo kufr.
+Na stole sestavit každé lůžko ze wand_bed_left a wand_bed_right. Krátké jazýčky zasunout přímo podél X do kapes s 0,25mm vůlí; nezasouvat šikmo ani páčit. Na předním Y74 a zadním Y205 příčníku vložit dvě tenké M3 DIN439 matice do otevřených levých kapes. Z pravé strany nasadit dvě M3 × 45 ISO7380-1; hlavy Ø5,7 × 1,65, matice výška 1,8. Matice držet pinzetou/klíčem 5,5; celé závity musejí zabrat, špička má 1,2mm přesah uvnitř obálky modulu. Dotáhnout bez promáčknutí PETG, případně kapka stávajícího zajištění kov/kov s nízkou pevností. Šrouby se osazují před U059/LED a před vložením do kufru. Provléknout přepravní pásek otevřenými průchody Y60–68, nejde přes spojovací šroub. Potom lůžko, vačku s pákou a servo sestavit společně: integrální pravý čep zachytit v drážce bez násilí. Nasadit U059 a LED; nové řady pásků jsou U059 Y29/42,5 a LED Y29/180. Připájet LED vodiče, připravit chráněnou smyčku a odlehčení před instalací. Skupinu zatím neuzavírat maticemi vedení, popsat 1–6 a ponechat mimo kufr.
 
 **Místo:** Pracovní stůl mimo kufr; Na stole, přístup shora i zespodu.
 
@@ -270,15 +273,17 @@ Každé lůžko, vačku s pákou a servo sestavit společně na stole: integrál
 
 **Již připravené kroky:** fit, frame, carriers, electronics, power, signals, anchors, bases, install.
 
-**Díly:** 6 × U059; 6 × úsek LED po 200 mm; samostatné pohyblivé rezervy.
+**Díly:** 6 × levá + 6 × pravá polovina lůžka; 12 × M3x45 + 12 × tenká M3; 6 × U059/LED/vačka/servo.
 
 **Materiál:**
 - 1 × tenká oboustranná páska pro LED (`LED_TAPE`)
 - 24 × pásek šířky 2,5 mm (`TIE25`)
 - 12 × M2 × 10 spoj vačky (`COUPLER2`)
 - 6 × původní středový šroubek konkrétního serva (`SERVO_CENTRE`)
+- 12 × M3 × 45 ISO7380-1 půlkulatá hlava Ø5,7 × 1,65 mm (`BED_M3x45`)
+- 12 × M3 DIN439 tenká matice; 5,5 mm přes plochy, výška 1,8 mm (`BED_NUT3_THIN`)
 
-**Nástroje:** pájka, smršťovací bužírka, kleště.
+**Nástroje:** pájka, smršťovací bužírka, kleště, imbus 2 mm, pinzeta; klíč 5,5 mm.
 
 **Přístup:**
 - Banka odpojená; žádná síla přes PCB, konektory nebo vodiče.
@@ -287,7 +292,7 @@ Každé lůžko, vačku s pákou a servo sestavit společně na stole: integrál
 **Konektory:**
 - Zapojovat bez napájení; ID a piny jsou v KABELAZ.md.
 
-**Kontrola:** Čep zůstává zachycený ve vačce, servo i obě pohyblivé desky jsou dostupné. LED spoje jsou izolované. Skupina jde bez páčení nasadit na dvojici vodicích dříků.
+**Kontrola:** Čep zůstává zachycený ve vačce, servo i obě pohyblivé desky jsou dostupné. LED spoje jsou izolované. Skupina jde bez páčení nasadit na dvojici vodicích dříků. Obě poloviny mají sevřené příčníky, matice celé v závitu; pásek prochází pod lůžkem a šrouby nepřesahují do sousedních modulů.
 
 **Servis:** Odpojit vývody, sejmout matice a dva servo pásky; lůžko, vačku a servo vyjmout společně.
 
@@ -301,7 +306,7 @@ Po dotažení holých základen sejmout shora obě dočasně nasazené podložky
 
 **Již připravené kroky:** fit, frame, carriers, electronics, power, signals, anchors, bases, install, moving.
 
-**Díly:** 6 × základna, lůžko s integrálním čepem, vačka a servo; 12 × vodítko; 24 × M3 × 14.
+**Díly:** 6 × základna, dvoudílné sešroubované lůžko s pravým čepem, vačka a servo; 12 × vodítko; 24 × M3 × 14.
 
 **Materiál:**
 - 12 × pásek šířky 2,5 mm (`TIE25`)

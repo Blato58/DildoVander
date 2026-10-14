@@ -37,6 +37,9 @@ jobs:
           python -m venv "$RUNNER_TEMP/cad-venv"
           "$RUNNER_TEMP/cad-venv/bin/python" -m pip install -r kufr/mechanika/final/requirements.txt
           echo "$RUNNER_TEMP/cad-venv/bin" >> "$GITHUB_PATH"
+      - name: Install official pinned PrusaSlicer CLI
+        timeout-minutes: 15
+        run: xvfb-run -a bash scripts/ci/install-cad-slicer.sh
       - name: Validate public-site promotion and archive integrity
         run: |
           python -m unittest discover -s kufr/web -p 'test_*.py'
@@ -44,7 +47,7 @@ jobs:
       - name: Fingerprint CAD sources and runtime
         id: cad-key
         run: |
-          cad_key=$(python kufr/mechanika/final/regenerate.py --cache-key)
+          cad_key=$(xvfb-run -a python kufr/mechanika/final/regenerate.py --cache-key)
           echo "key=$cad_key" >> "$GITHUB_OUTPUT"
       - name: Restore verified manufacturing outputs
         id: cad-cache

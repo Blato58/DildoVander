@@ -50,6 +50,7 @@ def verify_fixture(root, sources, during_audit=None):
         stack.enter_context(patch.multiple(verify, OUT=out, PARAMS={'revision': 'F2'}))
         stack.enter_context(patch.object(verify, 'source_hashes', side_effect=sources))
         stack.enter_context(patch.object(verify, 'export_checks', return_value=[part]))
+        stack.enter_context(patch.object(verify, 'print_checks', return_value={}))
         stack.enter_context(patch.object(verify, 'mechanical_checks', side_effect=mechanical_check))
         stack.enter_context(patch.object(verify.harness, 'validate', return_value={}))
         stack.enter_context(patch.object(verify.validate_assembly, 'validate', return_value={}))

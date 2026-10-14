@@ -88,6 +88,10 @@ bez dostatečné fyzicky ověřené délky pro odpojení vývodů kazetu nezveda
 LED nemají nový rychlokonektor. Pinout, sítě, průřezy a potvrzené zapojení
 zůstávají stejné; nové mechanické příruby podléhají plnému CAD auditu
 135 konečných vodičů včetně ohybů. Před střihem ověřit skutečné kabely.
+Kondenzátor 1 má dva samostatné zadní kanály Y110,2 (+) a Y112,9 (−)
+v Z58,5 kolem svěrného šroubu kazety. Kondenzátor 2 zachovává přední
+výstupy. Vývody jsou krátce pod tělem kondenzátoru; skutečný ohyb,
+izolaci a odlehčení je nutné ověřit před zapojením.
 
 
 | Pořadí | ID v řezném seznamu | Montáž a kontrola |
@@ -122,8 +126,18 @@ včetně aliasů společné země měniče. `harness.routes()` je jediným zdroj
 lomených tras ve vieweru i výkresu kabeláže; středy součástek nenahrazují
 trasy fyzických pinů. Napájení a signály mají nad rámem oddělenou výšku trasy.
 Pevné zadní desky vedou do zadního koridoru; mikrofon prochází přední částí
-a potom pevným pravým servisním koridorem. Každá ze šesti kabelových smyček
-přihrádek má místní rezervu X17…41, Y52…78 a Z(rovina rámu+24)…(rovina rámu+48).
+a potom pevným pravým servisním koridorem. `flex_routing.py` definuje vratné
+oblouky R8 před nosnou příčkou: pevná noha Y79, pohyblivá Y63, střed oblouku
+Y71/Z28 v dolní poloze. Tato poloha obchází i pevný držák kondenzátoru 4.
+Při zdvihu 16 mm se střed posune o 8 mm, takže
+součet délek obou nohou zůstává konstantní. Čtyři vodiče Ø2,1 a tři Ø1,2
+mají oddělené roviny X22…35,95 relativně k počátku modulu a vzájemnou
+mezírku 0,6 mm; poslední modul nepotřebuje nezapojený DOUT a má šest větví.
+Společná rezervace pokrývá celý pohyb vratného oblouku včetně Ø/2 + 0,3 mm
+a chyby tětivy 0,031 mm. Horní nohy a přístupy se kontrolují proti lůžku
+ve stejné poloze, nikoli proti nepohyblivému lůžku v jiné poloze.
+Viewer používá stejné váhy pohybu: pevný kabel 0, oblouk 0,5 a pohyblivá
+část 1. Kabelová smyčka neplní nosnou funkci.
 Vodiče serv jsou pevné a nedostávají rezervu pro zdvih.
 
 Odhad délky k ustřižení = délka lomené trasy + 40 mm servisní rezerva
@@ -132,7 +146,8 @@ se zaokrouhluje nahoru na 10 mm. RGB-2…6 mají pohybovou rezervu 128 mm;
 RGB-1 a samostatné napájecí větve LED/U059 mají 64 mm. Každý pohyblivý konec
 má vlastní smyčku, pevné uchycení a pohyblivé uchycení. Spoje, rezistory
 a bužírky patří mimo úseky, které se ohýbají. Ověřit pohyb sousedních přihrádek
-v opačných krajních polohách. Lom trasy nedokládá poloměr ohybu: ohyb vodiče
+v opačných krajních polohách. Mimo definovaný vratný oblouk R8 jsou body
+trasy montážní kotvy a lom trasy nedokládá poloměr ohybu: ohyb vodiče
 8 mm a zdrojového USB kabelu 20 mm jsou předběžné hodnoty ke kontrole při
 fyzickém sestavení, nikoli potvrzené poloměry.
 
@@ -153,9 +168,16 @@ v osách Y/Z VEDLE vyjímatelné powerbanky; `harness.USB_COIL` vymezuje
 předběžnou rezervu 18×80×65 mm v bodě [49,165,20]. Tři závity tvoří
 průběžnou spirálu s bočním posunem a postupným růstem poloměru;
 nejmenší návrhový oblouk je přibližně R20 mm, vzorkovaný po 10°.
-Celá trasa měří 939,0 mm; s 40 mm servisní rezervy a 20 mm na konce
-se požadavek po zaokrouhlení rovná celému 1 m koupeného kabelu.
-Další délkovou rezervu tedy nezapočítávat. Obálka počítá s průměrem
+Výstup banky zachovává plnou 20mm obálku zástrčky. `flex_routing.usb_bank_tail`
+vytváří tečné oblouky R20: snížení o 4 mm, vratný oblouk a boční návrat do
+pevného koridoru X68,6. `geometry.curve_tube` tvoří skutečný objem Ø5,1 mm
+pro CAD průchody i kontrolu sestavy; samotné body po 5° tuto kontrolu
+nenahrazují. Původní pásky jističe i polohy desek zůstávají stejné.
+Tři závity mají rovné poloviny 1,5 mm místo 6,9 mm, aby delší výstup banky
+zůstal v délce zakoupeného kabelu. Geometrická aproximace celé trasy měří
+929,9 mm; s 40 mm servisní rezervy a 20 mm na konce je zaokrouhlený
+požadavek 990 mm. Zbylých nominálních 10 mm není doklad tolerance skutečné
+délky nebo koncovek. Obálka počítá s průměrem
 nejvýše 4,5 mm a kontrola nepřipouští návrat kabelu přes vlastní závit.
 Tyto návrhové hodnoty nedokládají skutečnou délku tuhých koncovek ani
 dovolený ohyb koupeného kabelu. Kabel

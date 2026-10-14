@@ -22,6 +22,10 @@ import follower_load
 import validate_assembly
 import assembly_access
 import verify_harness_geometry
+from slicer_validation import inspect_project, assert_saved_evidence
+import manufacturing
+from dataclasses import asdict
+from printability import Profile
 from artifacts import (export_names, assert_generation_snapshot, export_hashes,
                        assert_export_hashes, GENERATION_SNAPSHOT, VERIFICATION_EXPORTS,
                        AUDIT_EXPORTS)
@@ -62,7 +66,11 @@ def stl_check(path,reference):
     assert volume>0 and abs(volume-expected)/expected<0.005,f"STL volume mismatch: {path.name}"
     actual=np.r_[tri.min(axis=(0,1)),tri.max(axis=(0,1))]
     assert max(abs(actual-np.array(bounds(reference))))<0.08
+    from mesh_quality import self_intersections
+    crossing=self_intersections(tri)
+    assert crossing['status']=='PASS_SELF_INTERSECTION',f"Self-intersecting STL: {path.name}: {crossing}"
     return {"triangles":count,"closed":True,"consistent_winding":True,"connected":True,
+            "self_intersection_screen":crossing,
             "volume_mm3":round(volume,3),"volume_error_percent":round(abs(volume-expected)/expected*100,5),
             "sha256":hashlib.sha256(data).hexdigest()}
 
@@ -79,6 +87,7 @@ def export_checks():
         assert s.isValid() and len(s.Solids())==1 and s.Volume()>0
         assert size[0]+2*PARAMS["print"]["brim"]<=PARAMS["print"]["bed_x"]+.001
         assert size[1]+2*PARAMS["print"]["brim"]<=PARAMS["print"]["bed_y"]+.001
+        assert size[2]<=PARAMS["print"]["bed_z"]+.001
         assert abs(b[2])<1e-5
         step=cq.importers.importStep(str(OUT/"step"/(p.name+".step"))).val()
         assert step.isValid() and len(step.Solids())==1
@@ -93,6 +102,97 @@ def export_checks():
     return results
 
 
+def print_checks():
+    """Accept only complete reports for the exact manufactured meshes/profiles."""
+    manifest=json.loads((OUT/"manifest.json").read_bytes())
+    expected={part["name"]:part for part in manifest["parts"]}
+    digest=hashlib.sha256((OUT/"manifest.json").read_bytes()).hexdigest()
+    analytical=json.loads((OUT/"printability.json").read_bytes())
+    slicing=json.loads((OUT/"slicer-validation.json").read_bytes())
+    assert analytical["status"]=="PASS_ANALYTICAL","Geometric support-free gate failed"
+    assert slicing["status"] in ("PASS_SLICER","SKIP_SLICER_UNAVAILABLE"),"Slicer gate failed"
+    for report in (analytical,slicing):
+        assert report["manifest_sha256"]==digest,"Print report belongs to a stale manifest"
+        names=[part["name"] for part in report["parts"]]
+        assert len(names)==len(expected) and set(names)==set(expected),"Incomplete print report inventory"
+        for part in report["parts"]:
+            stl=OUT/"stl"/f"{part['name']}.stl"
+            assert part["stl_sha256"]==hashlib.sha256(stl.read_bytes()).hexdigest(),"Print report STL changed"
+    for part in analytical["parts"]:
+        assert part["status"]=="PASS" and part["issue_count"]==0
+        assert not part["issues"] and not any(part[key] for key in ("unsupported_count","floating_start_count","thin_wall_count"))
+        assert part["flat_bed_contact"] and not part["issues_truncated"]
+        assert part["profile"]==json.loads(json.dumps(asdict(Profile(**manufacturing.ANALYTICAL_PROFILE)))),"Analytical process profile differs from required contract"
+    for part in slicing["parts"]:
+        assert part["status"]==slicing["status"],"Mixed slicer evidence statuses"
+        contract=expected[part["name"]]["manufacturing"]
+        path=(OUT/contract["slicer_profile"]).resolve()
+        assert path.is_relative_to(OUT.resolve()) and path.suffix==".ini"
+        profile_hash=hashlib.sha256(path.read_bytes()).hexdigest()
+        assert profile_hash==part["profile_sha256"]==contract["slicer_profile_sha256"]
+        manufacturing.validate_profile(path.read_text(encoding="utf-8"),contract)
+        allowed_brim=3 if part["name"] in ("carrier_microphone","left_service_carrier_frame_left","left_service_carrier_frame_right") else 0
+        assert contract["supports"]=="NONE" and contract["brim_mm"]==allowed_brim and contract["raft_layers"]==0
+        project=OUT/contract["project_3mf"]
+        assert inspect_project(project,OUT/"stl"/f"{part['name']}.stl")["status"]=="PASS_ORIENTED_3MF"
+        if slicing["status"]=="PASS_SLICER":
+            assert_saved_evidence(OUT,part)
+            assert part["status"]=="PASS_SLICER"
+            assert part["project_sha256"]==hashlib.sha256(project.read_bytes()).hexdigest()
+            assert part["toolpath"]["status"]=="PASS_TOOLPATH_AUDIT"
+            assert part["effective_profile"]["status"]=="PASS_EFFECTIVE_PROFILE"
+            if part.get("slice",{}).get("warnings"):
+                resolution=part.get("warning_resolution",{})
+                assert resolution.get("status")=="PASS_LONG_WARNING_REVIEW"
+                assert resolution["long_bridge_audit"]["status"]=="PASS_LONG_BRIDGE_AUDIT"
+                assert resolution["long_bridge_audit"]["failed_segment_count"]==0
+    if slicing['status']=='PASS_SLICER':
+        assert hashlib.sha256((OUT/'slicing/tool.log').read_bytes()).hexdigest()==slicing['tool']['log_sha256']
+    return {"geometry":analytical["status"],"slicing":slicing["status"],
+            "tool":slicing.get("tool"),"physical_print_performed":False,
+            "stl_types":len(expected),"evidence":"Generic-profile CAD/mesh/slicer checks; owner printer and physical fit unverified"}
+
+
+def safe_box_violations(items):
+    low=PARAMS['case']['safe_origin']
+    high=[a+b for a,b in zip(low,PARAMS['case']['safe_zone'])]
+    failures=[]
+    for item in items:
+        if item.group=='case' or item.group.startswith('lid'):
+            continue
+        bb=bounds(item.shape)
+        if any(bb[k]<low[k]-.001 or bb[k+3]>high[k]+.001 for k in range(3)):
+            failures.append([item.name,list(bb)])
+    return failures
+
+
+def reservation_intersections(items):
+    """Only a connector's purchased mating owner is exempted."""
+    complete=[i for i in items if not i.group.startswith('lid')]
+    item_bounds={i.name:bounds(i.shape) for i in complete}
+    mating={'esp_usb':{'esp32'},'pd_usb':{'pd_trigger'},'bank_usb':{'powerbank'}}
+    hits=[]
+    for reservation in layout.reservations():
+        envelope=bounds(reservation.shape)
+        for item in complete:
+            if item.name in mating.get(reservation.name,set()) or not overlaps(envelope,item_bounds[item.name]):
+                continue
+            volume=reservation.shape.intersect(item.shape).Volume()
+            if volume>.03:
+                hits.append([reservation.name,item.name,round(volume,4)])
+    return hits
+
+
+def assembly_preflight(items=None):
+    items=scene() if items is None else items
+    failures={}
+    outside=safe_box_violations(items)
+    if outside: failures['safe_box_rest']=outside
+    hits=reservation_intersections(items)
+    if hits: failures['connector_and_bundle_paths']=hits
+    return failures
+
+
 def mechanical_checks(report_path=None):
     """Source-derived sampled solid checks; never imply physical qualification."""
     M,W,F,C=PARAMS["mechanism"],PARAMS["wand"],PARAMS["frame"],PARAMS["case"]
@@ -103,18 +203,14 @@ def mechanical_checks(report_path=None):
     assert sum(p.name.startswith("frame_panel_") for p in chassis.parts())==4
     assert sum(p.name.startswith("floor_anchor_") for p in chassis.parts())==4
     assert not any(p.name.startswith(("body_","lid_")) for p in all_parts())
-    errors={}
-    safe_low=C["safe_origin"]
-    safe_high=[a+b for a,b in zip(safe_low,C["safe_zone"])]
+    errors=assembly_preflight()
+    if errors:
+        if report_path is not None:
+            report_path.write_text(json.dumps(errors,indent=2),encoding='utf-8')
+        raise AssertionError('Assembly preflight failed: '+json.dumps(errors)[:3000])
     def check_safe_box(items,label):
-        for item in items:
-            # Printed floor anchors and adhesive must fit the same guaranteed
-            # volume as the insert; only the reference suitcase is excluded.
-            if item.group=="case" or item.group.startswith("lid"):
-                continue
-            bb=bounds(item.shape)
-            if any(bb[k]<safe_low[k]-.001 or bb[k+3]>safe_high[k]+.001 for k in range(3)):
-                errors.setdefault("safe_box_"+label,[]).append([item.name,list(bb)])
+        outside=safe_box_violations(items)
+        if outside: errors['safe_box_'+label]=outside
     for name,items in (("rest",scene()),("raised",scene(160)),("transport",scene(lid=0,transport=True))):
         check_safe_box(items,name)
         hit=collisions(items)
@@ -179,13 +275,6 @@ def mechanical_checks(report_path=None):
     bank_offsets=list(range(0,181,5))
     for z in bank_offsets:
         compare([Item("bank_extraction",bank.shape.translate((0,0,z)),"access","black")],service,service_bounds,f"bank_removal_{z}")
-    complete=[i for i in scene() if not i.group.startswith("lid")]
-    complete_bounds={i.name:bounds(i.shape) for i in complete}
-    mating={"esp_usb":{"esp32"},"pd_usb":{"pd_trigger"},"bank_usb":{"powerbank"}}
-    for reservation in layout.reservations():
-        owners=mating.get(reservation.name,set())
-        targets=[i for i in complete if i.name not in owners]
-        compare([reservation],targets,complete_bounds,"connector_and_bundle_paths")
     # Remove the owning tray before its base screws; adjacent modules and all
     # purchased hardware stay installed. The full driver diameter is checked.
     tool_count=0
@@ -236,6 +325,7 @@ def require_complete_wire_audit(result):
     assert coverage.get("rest_covers") is True and coverage.get("transport") is True
     assert coverage.get("motion_angles")==[0,80,160] and coverage.get("modules")==list(range(1,7))
     assert coverage.get("capsule_elbows") is True
+    assert coverage.get('bank_tail_exact_R20') is True
     assert result.get("sources_unchanged_during_audit") is True and result.get("truncated") is False
     assert result.get("collisions")==[] and result.get("bounds_failures")==[]
     assert result.get("bundle_fit",{}).get("status")=="PASS"
@@ -244,6 +334,11 @@ def require_complete_wire_audit(result):
     self_coverage=self_geometry.get("coverage",{})
     assert self_coverage.get("rest_wire_count")==135 and self_coverage.get("transport_wire_count")==135
     assert self_coverage.get("motion_angles")==[0,80,160] and self_coverage.get("modules")==list(range(1,7))
+    continuous=result.get('continuous_new_tray_joints',{})
+    assert continuous.get('status')=='PASS' and continuous.get('collisions')==[] and continuous.get('truncated') is False
+    assert continuous.get('lift_mm')==16 and continuous.get('clearance_mm')==.3 and continuous.get('pairs_checked',0)>0
+    assert continuous.get('coverage')=={'rest_wire_count':135,'transport_wire_count':135,
+                                      'modules':list(range(1,7)),'obstacle_count':48}
 
 
 def require_anchor_assumption_screen(result):
@@ -258,6 +353,7 @@ def main():
     generation_digest=export_hashes(OUT,[GENERATION_SNAPSHOT])[GENERATION_SNAPSHOT]
     initial_cad=cad_hashes()
     parts=export_checks()
+    print_result=print_checks()
     strength_result=strength.calculate()
     require_anchor_assumption_screen(strength_result)
     mech_result=mechanical_checks(OUT/"collision-details.json")
@@ -278,7 +374,7 @@ def main():
     report={"result":"PASS_CAD_NOT_PHYSICAL_ACCEPTANCE","revision":PARAMS["revision"],
             "physical_test_performed":False,"stl_types":len(parts),"print_count":sum(p["quantity"] for p in parts),
             "parts":parts,"mechanics":mech_result,"harness":harness_result,"strength":strength_result,
-            "assembly":assembly_result,"wire_geometry":wire_geometry,"cad_sha256":initial_cad,
+            "assembly":assembly_result,"printing":print_result,"wire_geometry":wire_geometry,"cad_sha256":initial_cad,
             "export_sha256":verified_exports,"sources":initial_sources}
     (OUT/"verification.json").write_text(json.dumps(report,indent=2,ensure_ascii=False,allow_nan=False),encoding="utf-8")
     print(json.dumps({k:v for k,v in report.items() if k not in ("parts","sources","cad_sha256","export_sha256","wire_geometry")},indent=2),flush=True)

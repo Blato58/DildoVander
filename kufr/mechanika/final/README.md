@@ -15,11 +15,11 @@ otevřené v [předání](STAV.md) a [montážním návodu](MONTÁŽ.md).
 
 Výstupy lze přijmout pouze s ověřením, jehož zdrojové SHA-256 odpovídají
 aktuálním souborům; starší ověření nepokrývá zjednodušení montáže. Návrh má
-37 typů STL / 52 výtisků včetně dvoudílné zkušební měrky pro čep, drážku
-a boční kapsy matic M3/M4 i epoxidový zámek s odvzdušněním. Skutečné počty
+51 typů STL / 71 výtisků včetně tří samostatných zkušebních měrek pro čep, drážku
+a boční kapsy matic M3/M4 i epoxidový zámek s odvzdušněním. Každý typ má svůj orientovaný STL, STEP, modelový 3MF a ověřovaný profil v [tiskovém manifestu](exports/printing-manifest.csv). [Výrobní návod](TISK.md) uvádí podporu NONE, rozebíratelné spoje a omezení kontroly. Skutečné počty
 exportovaných dílů uvádí aktuální tiskový seznam.
 
-## Montážní revize DFA — 12. 10. 2026
+## Výrobní revize F2-SF-DFA — 13. 10. 2026
 
 Elektronika a pevné svazky vznikají na stole před vložením rámu a před
 pohyblivými lůžky. Dvě boční kazety mají sedm šroubů přístupných shora;
@@ -63,8 +63,7 @@ Zvoleno šest modulů na rozteči 48 mm, s délkou 212 mm a zdvihem 16 mm.
 Majitel 10. 10. 2026 potvrdil délku hůlky do 200 mm a šířku hlavice 38 mm
 včetně případného pouzdra. Ostatní tvarové rozměry zůstávají předpoklady.
 Zachycená vačka řídí zdvih i návrat přes integrální PETG kluzný čep Ø6
-na lůžku. Lůžko se tiskne otočené +90° kolem Y, čep vzhůru bez podpory
-na kluzné ploše. Nevyhovující vůli řeší změna profilu/parametru a nový tisk;
+na lůžku. Lůžko má dvě polohy pro tisk: levou polovinu vnější X stranou dolů (−90° Y), pravou vnější X stranou dolů (+90° Y), čep vzhůru. Dvojice klíčů a dva M3×45 / DIN439 spojují každé lůžko na stole. Otvory vodítek mají tisknutelné rohové úkosy; pracovní obálka sloupku 8×10 zůstává volná. Nevyhovující vůli řeší změna profilu/parametru a nový tisk;
 montáž nepotřebuje pilník, pilku ani vrtačku. Brusný papír patří pouze
 k odstranění povrchové úpravy v lepených stopách dřeva. Dole lůžko spočívá na pevných
 podpěrách; firmware vypne impulzy serva. Pro přepravu každé prázdné lůžko
@@ -108,7 +107,9 @@ Zdroje CAD a prohlížeče jsou v této složce. `parameters.json` řídí rozm�
 `harness.py` jednotlivé vodiče, `assembly-guide.json` postup a `effects.json`
 choreografii. Exportovaný plášť je referenční STEP; nemá žádné STL k tisku.
 STL jsou orientované pro tisk, sestavy STEP v souřadnicích celého kufru.
-X doprava, Y k pantům, Z nahoru; počátek na vnitřním dně vpředu vlevo.
+X doprava, Y k pantům, Z nahoru. XY nula je přední levý roh volného
+horního obdélníku mezi výztuhami; přední stěna je pod hranou o 15 mm
+dál v záporném Y. Z=0 je vnitřní rovina dna.
 
 Použity jsou Python 3.11, CadQuery 2.8.0, OCP 7.9.3.1.1, VTK 9.6.2,
 Node.js a závislosti z `requirements.txt`. OCP a VTK jsou připnuté také
@@ -126,6 +127,10 @@ nesmí ovlivnit referenční geometrii ověřovacích kontrol. Každý krok vypi
 své trvání. Opakovaný běh použije hotový ověřený balíček pouze při shodě
 všech zdrojových otisků, Pythonu/OS a instalovaných závislostí a SHA-256
 všech exportů, ověřovacího reportu, ZIPu a jeho kontrolního součtu.
+Identita zahrnuje také dostupný PrusaSlicer, jeho spouštěč a nativní
+provenienci. Před použitím cache se znovu ověří místní G-code, účinné
+profily a logy všech dílů. Tyto auditní soubory zůstávají mimo výrobní ZIP;
+obnova cache nesmí přeskočit kontrolu skutečného řezání bez podpor.
 Chybějící, změněný nebo neúplný výstup vyvolá plnou regeneraci.
 Firmware choreografie a JavaScriptové testy se kontrolují při každém běhu.
 V CI se stejný balíček obnovuje přes Actions cache s přesným klíčem;

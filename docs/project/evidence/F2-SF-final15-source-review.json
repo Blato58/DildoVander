@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "F2-SF-final15-source-review",
+  "observedAtUtc": "2026-10-14T05:38:23.556259Z",
+  "kind": "source_review",
+  "result": "pass",
+  "subject": {
+    "cadSourceArtifactDigest": "3caafc8a9e52af5ce296d7236dbaf80b5942a7f5a9c3006ba686c77002461d42"
+  },
+  "claims": [
+    {
+      "workItemId": "KUFR-F2-SUPPORTFREE",
+      "criterionId": "SOURCE",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "method": "Independent Sol6.1/high mechanical/core/service/cache reviews transfer only for unchanged bytes; independently reviewed five-file portable profile fix and parent combined diff inspection.",
+  "environment": "Windows; Python3.11.3; Node25.9.0; pinned CadQuery2.8.0/OCP7.9.3.1.1/VTK9.6.2/numpy2.4.6/shapely2.1.2; official Windows PrusaSlicer2.9.4; actual Codex in-app Chromium browser.",
+  "limitations": [
+    "No physical print or fit test. Owner printer is unknown; generic220x220x250 PETG/.4nozzle/.2layer profile.",
+    "Digital gates do not qualify adhesive, wood condition, creep/fatigue, transport loads, actual servo torque, cables/FPC, hand dexterity or electrical operation.",
+    "Cam/material motion is sampled every10degrees; finite-wire checks use0/80/160degrees. Continuous conservative envelopes qualify new tray joints/beams only.",
+    "Control removal and USB manual dressing are sampled digital sweeps. Actual soldered leads, terminal bends and retention require physical acceptance.",
+    "Linux PrusaSlicer2.9.6 CI and the final Git/PR endpoint are checked separately. Local receipt completion does not claim unfinished remote runs."
+  ],
+  "observation": "No remaining actionable source finding. Mechanical source, joints, bought hardware poses,135electrical IDs/nets/endpoints and service sequence are byte-identical to14. Corrected one-empty-entry filament vector serialization survives per-part generation; expected profile and each effective source reject unsafe zero/multiple/nonempty entries independently.",
+  "supersedes": [
+    "F2-SF-final14-source-review"
+  ],
+  "supersedesReason": "The final integrated89-source artifact changed. Actual gates were repeated against its exact digest; earlier evidence and truthful failures remain immutable.",
+  "resolution": "Three new regressions reproduced original quote/cardinality and savedINI masking failures, then independent47tests and real generated-profile Windows cube passed. Actual complete15production repeated all gates on the new89-source map. Linux gate is recorded separately with exact current commit and runner evidence.",
+  "priorUnchangedGeometryReview": "F2-SF-final14-source-review",
+  "sourceCount": 89,
+  "changedSourceDigests": {
+    "manufacturing.py": "740415a19773f4903d6ab0c4fa8f60c3d81392641f9094a74f1e000b50c44232",
+    "slicer_validation.py": "651f325ec94df1336da06dc0cfb2a050e6a78cf2a1a8d5c9de68e73299a4c044",
+    "support-free-petg.ini": "408764c6f9a2e8db0143ab6902c0bcbbe1eca5e5fed584f2288c605387ce11a3",
+    "test_manufacturing.py": "fb6ed973467f8baf50a50071b834e270a578cbe5a905b9e388d19f7cb54dd4fb",
+    "test_slicer_validation.py": "719991e70a2d551f8fb9a68380909aa81390d6e8f39ab00ef97405270204f833"
+  },
+  "reviewSourceMapSha256": "202ae9c6b1bf717902a381052ad2629c007a0da53440fe32e8f479d078308fb7",
+  "independentReviewers": [
+    {
+      "name": "final_contract_review",
+      "model": "Sol6.1/high",
+      "status": "completed",
+      "observation": "No remaining actionable finding. Prior core contract review transfers only for identical file bytes. Independently reviewed the seven-file control release/service delta and four-file cache integration. The stale left-power Inspector removal instruction was corrected before the freeze. Independently reviewed the five-file P1 correction: prior deposition must be within configured nominal.2mm step plus1e-5mm dedicatedZtolerance. HEIGHT flow-thickness tags do not widen it. 39tests PASS1.830s/exit0; actual savedcoupon re-resolution PASS with10strokes/0failures/maxgap8.500001mm. No actionable finding. Prior review transfers only for exact unchanged bytes in15; no repeat of physical or Linux acceptance is claimed. Independently reviewed allfivecurrentprofile/audit/test files; savedINI masking finding resolved.47testsPASS1.911s/exit0 plus direct reverse/missing/bare/scalar probes. Quoted one-entry vectors survive generation and both effective sources; no open finding."
+    },
+    {
+      "name": "mechanical_constraints",
+      "model": "Sol6.1/high",
+      "status": "completed",
+      "observation": "All89 frozen hashes and canonical digest independently verified. Private backup layout/parameters match frozen12 hashes and current13 after CRLF to LF normalization. Prior geometry, receiving keys, positive backing, C1 duct/bearing and load-path conclusions transfer. Final helper/tests/guide agree: controls, four top screws, plate with cover nuts, right ladder with its nuts; actual case and bolted left ladder remain. No actionable finding. Final14 independently rehashed89files and its canonical1030f733 digest; exactfivechanges/84byte-identical sources confirmed. Prior mechanical/key/backing/C1/service conclusions explicitly transfer. New TISK66..69 correctly limits nominal layer reach with dedicatedZtolerance. No finding, writes, tests, builds or slicing; full14 and physical acceptance remain parent/owner gates. Prior review transfers only for exact unchanged bytes in15; no repeat of physical or Linux acceptance is claimed."
+    }
+  ],
+  "profileMacroReview": {
+    "tests": 47,
+    "findingResolved": true,
+    "reviewReceiptSha256": "e8a123718ef3ce8dd0745bbba210c188cc16666342e319a3b3f4513b9b1dc935",
+    "generatedProfileProbeSha256": "0bbfbc50c030ce07f00d4706602042391ffcbd67f23c882562c67e4516850a9a",
+    "generatedProfileSlicerStatus": "PASS_SLICER",
+    "supports": 0
+  },
+  "sourceDelta": "Exactly five profile/serialization/audit/test files changed from14; all84other sources including all CAD geometry, assembly, wiring, guide, viewer and printing instructions are byte-identical. Independent profile review and generated-profile real slicing bind the five changed files to frozen15.",
+  "finalFrozenRunLogSha256": "c617bd6ed05667914ff7bf6ce97b6784315ae8633a413b2f7d0b704d73f18ff6"
+}

@@ -1,9 +1,12 @@
 """The fast path must retain external gates and failed runs cannot bless outputs."""
 from contextlib import ExitStack
 import io
+import json
 from pathlib import Path
 import tempfile
 import subprocess
+import sys
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -17,7 +20,9 @@ class RegenerationTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.out = self.root / "exports"
         self.out.mkdir()
-        self.identity = {"sources": {"input.py": "a" * 64}, "environment": {"python": "3.11"}}
+        (self.out / "slicer-validation.json").write_text('{"status":"PASS_SLICER"}', encoding="utf-8")
+        self.identity = {"sources": {"input.py": "a" * 64},
+                         "environment": {"python": "3.11", "slicer": {"status": "AVAILABLE"}}}
         self.events = []
 
     def environment(self, *, hit=False, failure=None, identities=None):
@@ -29,7 +34,9 @@ class RegenerationTests(unittest.TestCase):
         def run_command(args, **kwargs):
             self.assertTrue(kwargs.get("check"))
             self.events.append(args)
-            if Path(args[1]).name in ("regenerate.py", "artifacts.py", "verify.py", "package.py"):
+            if args[0] != "node":
+                self.assertEqual(args[1:3], ["-X", "utf8"])
+            if args[0] != "node" and Path(args[3]).name in ("regenerate.py", "artifacts.py", "verify.py", "package.py"):
                 self.assertEqual(kwargs.get("cwd"), self.root)
             if len(args) > 2 and args[-1] == "--python-checks":
                 self.assertFalse((self.out / "regeneration-cache.json").exists())
@@ -51,7 +58,8 @@ class RegenerationTests(unittest.TestCase):
         self.assertFalse((self.out / ".regeneration-lock").exists())
 
     def assert_external_gates(self):
-        self.assertIn("generate_effects.py", self.events[0][1])
+        self.assertIn("generate_effects.py", self.events[0][3])
+        self.assertEqual(self.events[0][1:3], ["-X", "utf8"])
         self.assertEqual(self.events[0][-1], "--check")
         for index, flag, filename in (
             (1, "--check", "viewer.js"), (2, "--test", "test_viewer.cjs"),
@@ -67,8 +75,9 @@ class RegenerationTests(unittest.TestCase):
                 self.environment(hit=hit)
                 regenerate.regenerate(force)
                 self.assert_external_gates()
-                self.assertEqual([Path(command[1]).name for command in self.events[5:9]],
+                self.assertEqual([Path(command[3]).name for command in self.events[5:9]],
                                  ["regenerate.py", "artifacts.py", "verify.py", "package.py"])
+                self.assertTrue(all(command[1:3] == ["-X", "utf8"] for command in self.events[5:9]))
                 self.assertEqual(self.events[5][-1], "--python-checks")
                 self.assertEqual(self.events[6][-1], "--generate")
                 self.assertEqual(self.events[9], "cache")
@@ -107,7 +116,7 @@ class RegenerationTests(unittest.TestCase):
         def run_command(args, **kwargs):
             self.assertTrue(kwargs.get("check"))
             self.events.append(args)
-            if Path(args[1]).name == "verify.py":
+            if args[0] != "node" and Path(args[3]).name == "verify.py":
                 self.assertEqual(kwargs.get("cwd"), self.root)
                 raise subprocess.CalledProcessError(1, args)
         with patch.object(regenerate.subprocess, "run", side_effect=run_command):
@@ -116,6 +125,22 @@ class RegenerationTests(unittest.TestCase):
         self.assertNotIn("cache", self.events)
         self.assertFalse((self.out / "regeneration-cache.json").exists())
         self.assertFalse((self.out / ".regeneration-lock").exists())
+
+    def test_uncached_analytical_run_keeps_all_cold_gates_without_publishing(self):
+        for availability in ("UNAVAILABLE", "AVAILABLE"):
+            with self.subTest(availability=availability):
+                self.events.clear()
+                self.identity["environment"]["slicer"]["status"] = availability
+                (self.out / "slicer-validation.json").write_text(
+                    json.dumps({"status": "SKIP_SLICER_UNAVAILABLE"}), encoding="utf-8")
+                (self.out / "regeneration-cache.json").write_text("old", encoding="utf-8")
+                self.environment()
+                regenerate.regenerate()
+                self.assertEqual([Path(command[3]).name for command in self.events[5:]],
+                                 ["regenerate.py", "artifacts.py", "verify.py", "package.py"])
+                self.assertNotIn("cache", self.events)
+                self.assertFalse((self.out / "regeneration-cache.json").exists())
+                self.assertFalse((self.out / ".regeneration-lock").exists())
 
     def test_sources_changing_during_hit_or_cold_run_are_rejected(self):
         changed = {**self.identity, "sources": {"input.py": "b" * 64}}
@@ -140,6 +165,39 @@ class RegenerationTests(unittest.TestCase):
                 self.assertRaisesRegex(RuntimeError, "already running"):
             regenerate.regenerate()
         self.assertTrue((self.out / ".regeneration-lock").is_dir())
+
+    def test_current_support_free_suites_keep_order_and_upstream_gates(self):
+        expected = (
+            "test_effects", "test_viewer_style", "test_viewer_document",
+            "test_packaging", "test_verification_gate", "test_printing_gate",
+            "test_printability", "test_slicer_validation", "test_bridge_audit",
+            "test_mesh_quality", "test_manufacturing", "test_support_free",
+            "test_split_mounts", "test_layout_printing", "test_tray_joint_clearance",
+            "test_flex_routing", "test_inspect_data", "test_harness", "test_f2_cad",
+            "test_sliding_follower", "test_floor_anchors", "test_follower_load",
+            "test_strength", "test_assembly_access", "test_regeneration_cache", "test_regenerate",
+        )
+        self.assertEqual(regenerate.TEST_MODULES, expected)
+
+    def test_assembly_validation_runs_only_after_all_python_suites_pass(self):
+        events = []
+        assembly = SimpleNamespace(validate=lambda: events.append("validate_assembly"))
+        def load(name):
+            events.append(name)
+            return name
+        success = SimpleNamespace(wasSuccessful=lambda: True)
+        runner = SimpleNamespace(run=lambda suite: success)
+        with patch.dict(sys.modules, {"validate_assembly": assembly}), \
+                patch.object(regenerate.unittest.defaultTestLoader, "loadTestsFromName", side_effect=load), \
+                patch.object(regenerate.unittest, "TextTestRunner", return_value=runner), \
+                patch.object(regenerate, "stage", side_effect=lambda name, action: action()):
+            regenerate.python_checks()
+            self.assertEqual(events, [*regenerate.TEST_MODULES, "validate_assembly"])
+            events.clear()
+            runner.run = lambda suite: SimpleNamespace(wasSuccessful=lambda: False)
+            with self.assertRaises(RuntimeError):
+                regenerate.python_checks()
+            self.assertEqual(events, [regenerate.TEST_MODULES[0]])
 
     def test_output_symlinks_cannot_send_regeneration_outside_exports(self):
         destination = self.root / "outside"

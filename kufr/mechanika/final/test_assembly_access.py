@@ -3,7 +3,7 @@ import csv
 import json
 import unittest
 
-from geometry import ROOT, PARAMS, bounds, cylinder
+from geometry import ROOT, PARAMS, Item, bounds, box, cylinder
 from service_geometry import SERVICE_MOUNTS, NUT_Z, SEAT_Z, HEAD_RADIUS, SERVICE_LIFT
 from validate_assembly import validate_contract
 import layout
@@ -46,8 +46,51 @@ class AssemblyContractTests(unittest.TestCase):
         from verify_harness_geometry import source_fingerprint
         self.assertIn('service_geometry.py',source_fingerprint())
 
+    def test_left_cassette_service_matches_step_and_viewer_inspector(self):
+        step=next(step for step in self.guide['steps'] if step['id']=='power')
+        inspector=next(group for group in self.guide['subassemblies'] if group['id']=='left_power')
+        self.assertEqual(step['removal'],inspector['removal'])
+        self.assertIn('všechny čtyři horní spoje ovladačů',inspector['removal'])
+        self.assertIn('Levý rám a jeho spodní spoje zůstávají',inspector['removal'])
+
 
 class ServiceMountTests(unittest.TestCase):
+    def test_controls_release_and_cassette_extraction_keep_bolted_left_ladder(self):
+        from assembly_access import (cassette_items,control_panel_service_paths,intersection_errors,
+                                     service_fixture,service_obstacles)
+        items=service_fixture()
+        result=control_panel_service_paths(items)
+        self.assertEqual(result['status'],'PASS')
+        self.assertIn('switch_frame_left',result['retained_original_deck_fixture'])
+        fixed=service_obstacles('left_service_carrier',items)
+        self.assertIn('switch_frame_left',{item.name for item in fixed})
+        self.assertIn('carrier_shaft_switch_shelf_1',{item.name for item in fixed})
+        moving=cassette_items('left_service_carrier',items)
+        for offset in range(0,121,5):
+            shifted=[Item(item.name,item.shape.translate((0,0,offset)),item.group,item.color) for item in moving]
+            self.assertEqual(intersection_errors(shifted,fixed),[],offset)
+
+    def test_left_cassette_cannot_skip_control_plate_release(self):
+        from assembly_access import cassette_items,intersection_errors,service_fixture,service_obstacles
+        items=service_fixture()
+        fixed=service_obstacles('left_service_carrier',items)
+        fixed += [item for item in items if item.name=='switch_shelf']
+        moving=[Item(item.name,item.shape.translate((0,0,30)),item.group,item.color)
+                for item in cassette_items('left_service_carrier',items)]
+        self.assertTrue(any(hit[1]=='switch_shelf' for hit in intersection_errors(moving,fixed)))
+
+    def test_blocked_control_plate_service_is_rejected(self):
+        from assembly_access import control_panel_service_paths,service_fixture
+        items=service_fixture()+[Item('blocked_control_release',box(8,8,2,(36,31,109)),'fixed','white')]
+        with self.assertRaisesRegex(AssertionError,'Controls service intersections'):
+            control_panel_service_paths(items)
+
+    def test_blocked_open_usb_edge_is_rejected(self):
+        from assembly_access import usb_tail_installation_paths
+        obstruction=Item('blocked_fore_usb_edge',box(1,1,1,(67,64,41.5)),'fixed','white')
+        with self.assertRaisesRegex(AssertionError,'Blocked USB edge insertion'):
+            usb_tail_installation_paths([obstruction])
+
     def test_rear_left_screw_head_leaves_one_mm_to_amplifier_straps(self):
         x,y=SERVICE_MOUNTS['left_service_carrier'][-1]
         sweep=cylinder(HEAD_RADIUS,SERVICE_LIFT,(x,y,SEAT_Z))

@@ -129,6 +129,6 @@
       "role": "majitel a implementátor"
     }
   ],
-  "currentNote": "F2 DFA 12.10 má PASS_CAD_NOT_PHYSICAL_ACCEPTANCE; geometrie 430×269 / nová rozměrová revize ruší přenos starších CAD závěrů. Není uvolněno k finálnímu tisku.",
-  "nextAction": "Připravit konkrétní fyzickou zkoušku podle kritérií; provedení vyžaduje zadání majitele."
+  "currentNote": "Výrobní návrh F2-SF-DFA-2026-10-13 má samostatnou software-only položku KUFR-F2-SUPPORTFREE: 51 typů / 71 výtisků bez podpor. Digitální výsledky nenahrazují žádné zdejší fyzické kritérium; geometrie 430×269, skutečný kufr, lepení, servis, kabely a zatížený pohyb vyžadují prototyp. Není fyzicky uvolněno k finálnímu provozu.",
+  "nextAction": "Po digitálním předání KUFR-F2-SUPPORTFREE vytisknout tři výrobní měrky, změřit PETG vůle a provést suchou montáž podle TISK.md/MONTÁŽ.md; fyzické výsledky musí doložit majitel s prototypem."
 }

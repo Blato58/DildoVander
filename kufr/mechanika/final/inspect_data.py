@@ -144,7 +144,18 @@ _MECHANICAL = {
     "floor_anchor_": ("Tištěná podlahová kotva", "PETG opora s bočním vložením matic pod souvislý strop a tvarovými dutinami pro epoxid."),
     "wood_bond_": ("Epoxidový spoj na dno", "Film na holém dřevě a odlité tvarové zámky v kotvě; vytvrzení a únosnost vyžadují fyzickou zkoušku."),
     "anchor_": ("Kotevní spoj rámu", "M4 × 10 do zachycené matice tištěné podlahové kotvy; rám drží i bez zdvihových modulů."),
-    "frame_seam_": ("Spoj dílů rámu", "Samostatný M3 spoj přeplátovaných dílů."),
+    "frame_seam_": ("Spoj dílů rámu", "Planární rybiny s vůlí 0,25 mm; osm samostatných M3 spojů."),
+    "left_service_carrier_joint_": ("Spoj levé kazety", "Metrický šroub a vnější matice svírají klíčované patro; délku určuje výrobní manifest."),
+    "right_service_carrier_joint_": ("Spoj pravé kazety", "Metrický šroub a vnější matice svírají klíčované patro; délku určuje výrobní manifest."),
+    "left_service_carrier_frame_": ("Boční rám levé kazety", "Samostatný výtisk, polohovací pera a otevřené kapsy matic; montáž pater na stole."),
+    "right_service_carrier_frame_": ("Boční rám pravé kazety", "Samostatný výtisk a vlastní šrouby do nosného rámu kufru."),
+    "left_service_carrier_tier_": ("Patro levé kazety", "Klíčované rozebíratelné spojení s bočními rámy; elektronika se váže po utažení spojů."),
+    "right_service_carrier_tier_": ("Patro pravé kazety", "Plochý výtisk, dvě dvojice polohovacích per; neměněná pozice zakoupených desek."),
+    "camera_post_": ("Boční sloupek kamery", "Samostatný boční tisk; původní zadní osa M3, nová horní deska se dvěma M3×10."),
+    "camera_joint_": ("Rozebíratelný spoj kamery", "M3×10 ISO7380; matice se vkládá z vnitřní strany před připojením kamery."),
+    "switch_frame_": ("Boční rám ovladačů", "Samostatný boční tisk; levý rám je přišroubovaný k podlaze, deska váže oba boční rámy."),
+    "switch_shelf": ("Deska ovládacích prvků", "Plochý výtisk se čtyřmi rohovými spoji; vypínače osadit až po utažení zadních spojů."),
+    "switch_joint_": ("Rozebíratelný spoj ovladačů", "Vpředu dva ISO7380, vzadu dva zapuštěné DIN7991 M3×10; dotáhnout na stole před vypínači."),
     "carrier_": ("Nosič zakoupeného dílu", "Pevné dorazy a dva pásky; upevnění k rámu nezávisle na bance."),
     "component_tie_": ("Uvolnitelný pásek komponenty", "Pásek drží součástku v nosiči s pevnými dorazy."),
     "esp_usb_supply": ("Pasivní USB-A napájecí zásuvka", "Doplnit jednu zásuvku nebo pigtail ≥3 A; pouze MAIN5/GND, datové kontakty izolované."),
@@ -159,13 +170,15 @@ _MECHANICAL = {
     "latch_": ("Uzávěr kufru", "Referenční obálka uzávěru; upevnění ověřit při sestavení."),
     "keeper_": ("Protikus uzávěru kufru", "Referenční obálka protikusu, do kterého se uzávěr zachytí."),
     "hinge_pin_": ("Ocelový závěs víka", "Referenční obálka původního závěsu; kování kufru se neupravuje."),
-    "camera_angle": ("Nastavitelný držák kamery", "Drážkovaný držák; přesná kamera a její upevnění čekají na doručení."),
+    "camera_angle": ("Plochá deska kamery", "Tisk podlahou dolů; dvě široké dosedací plochy na samostatných sloupcích. Přesná kamera/FPC čekají na fyzickou kontrolu."),
     "control_cover": ("Kryt ovládacích prvků", "Neprůhledný odnímatelný kryt s předním lemem."),
     "bank_cover": ("Kryt powerbanky", "Odnímatelný kryt nad vyjímatelnou powerbankou."),
     "red_membrane": ("Textilní membrána hlavního vypínače", "Volný samet s mezerou nad kolébkou; jde o textilní referenci."),
     "green_membrane": ("Textilní membrána vypínače pohonů", "Volný samet umožní stisk obou polovin kolébky."),
     "base_": ("Pevná základna zdvihu", "Tištěné vedení, servo lůžko a kotevní body transportního pásku."),
-    "tray_": ("Pohyblivé lůžko hůlky", "Jeden výtisk včetně kluzného čepu Ø6; vodicí pouzdra, dorazy U059 a samostatná transportní aretace."),
+    "tray_left_": ("Levá polovina lůžka", "Samostatný výtisk bez podpěr; přední vedení, klíče a dva příčníky spojené s pravou polovinou M3×45 a tenkými maticemi."),
+    "tray_joint_": ("Spoj polovin lůžka", "Dva příčné M3×45 ISO7380-1 a tenké DIN439 matice; přístup na stole před elektronikou. Nenahrazovat vyšší maticí."),
+    "tray_": ("Pravá polovina lůžka hůlky", "Samostatný výtisk s integrálním čepem Ø6 a zadním vedením; krátké klíče a dva svěrné spoje s levou polovinou."),
     "cam_": ("Drážková zdvihová vačka", "Integrovaný kluzný čep lůžka přenáší zdvih i návrat; tření a opotřebení ověřit na výtisku."),
     "coupler_head_": ("Hlava šroubu spojky servopáky", "Šroub M2 spojuje koupenou páku s vačkou v nastavitelných drážkách."),
     "coupler_nut_": ("Matice spojky servopáky", "Matice M2 leží v zapuštěné kapse vačky."),
@@ -175,6 +188,7 @@ _MECHANICAL = {
     "guide_washer_": ("Podložka vodicího šroubu", "Široká podložka vodicího spoje."),
     "fit_coupon": ("Zkušební tisk vůlí", "Ověření otvorů, vedení a kluzného čepu před tiskem celé sestavy; nevyhovující tisk se přetiskne."),
     "follower_groove_coupon": ("Měrka kluzné drážky", "Samostatný protikus k čepu měrky; ověřit volný kluz bez pilování."),
+    "floor_anchor_coupon": ("Měrka podlahové kotvy", "Třetí měrka, tisknutá obráceně jako skutečné kotvy; kapsy matic, 45° krček epoxidu, výrobní můstky a odvzdušnění."),
     "bank_removal": ("Prostor pro vyjmutí powerbanky", "Volná cesta vzhůru pro powerbanku a prsty po uvolnění pásků."),
     "esp_usb": ("Rezerva servisního USB ESP32", "Prostor konektoru a ohybu kabelu za deskou."),
     "pd_usb": ("Rezerva USB-C PD triggeru", "Prostor kabelu; přesná obálka zástrčky není změřená."),
@@ -264,6 +278,18 @@ def connection_data(names: set[str]):
         if start in names and end in names:
             result.append({"from": start, "to": end, "label": label,
                            "kind": kind, "note": note})
+
+    for index in range(1,7):
+        add(f"tray_left_{index}",f"tray_{index}","Klíče + 2× M3×45 / DIN439","mechanical",
+            "Rozebíratelný spoj příčníků; montovat na stole před U059/LED. Vůle 0,25 mm, hůlka je odnímatelný obsah.")
+    if any(name.startswith(("left_service_carrier_","right_service_carrier_")) for name in names):
+        from layout import service_components
+        for joint in service_components()[1]:
+            add(joint['frame'],joint['tier'],"2 pera + "+joint['bolt'],"mechanical",
+                "Montáž na stole; vůle 0,25 mm; vnější kapsa M3; demontovat před vyjmutím patra.")
+    for side in ('left','right'):
+        add('camera_post_'+side,'camera_angle','M3×10 + matice','mechanical','Dosedací plocha nese kameru; matice z vnitřní strany.')
+        add('switch_frame_'+side,'switch_shelf','2× M3×10','mechanical','Zadní spoje jsou zapuštěné a utahují se před vypínači.')
 
     add("powerbank", "pd_trigger", "USB-C1 PD 12 V / 3 A", "power", "Koupený C–C kabel 60 W / 3 A; trigger nastavit na 12 V.")
     add("pd_trigger", "buck", "12 V → vstup 9–35 V", "power", "12 V vede pouze do vstupu měniče.")

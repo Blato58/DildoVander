@@ -2,6 +2,7 @@
 from functools import lru_cache
 import math
 import cadquery as cq
+from shapely.geometry import Polygon
 from geometry import PARAMS, Part, Item, box, cylinder, fuse, cut, hole_z
 from mechanism import MOUNT_HOLES, GUIDES, M
 
@@ -9,6 +10,10 @@ C = PARAMS["case"]
 F = PARAMS["frame"]
 X, Y = C["inside_x"], C["inside_y"]
 HINGE = (0, Y + (C["outer_y"]-Y)/2, C["base_height"])
+HEAD_RELIEF_RADIUS=3.1
+HEAD_RELIEF_TOP_Z=6.35
+HEAD_RELIEF_END_RADIUS=.3
+HEAD_RELIEF_END_Z=HEAD_RELIEF_TOP_Z-(HEAD_RELIEF_RADIUS-HEAD_RELIEF_END_RADIUS)
 
 
 def module_holes():
@@ -48,9 +53,19 @@ def carrier_holes():
     return holes
 
 
-def carrier_head_clearance(x,y):
+def carrier_head_clearance(x,y,pilot=True):
     """Actual underside M3 head relief tool, including 0.1 mm overrun."""
-    return hole_z(x,y,6.2,z=6.35,height=1.75)
+    relief=hole_z(x,y,6.2,z=6.35,height=1.75)
+    if pilot:
+        # The full purchased-head envelope remains open. Below it a 45-degree
+        # blind cone closes continuously in the inverted anchor print. A flat
+        # slit left unsupported circular wings beside some adjoining cavities.
+        # A 0.6 mm flat closure avoids degenerate STL facets at a zero-radius
+        # apex. The preceding taper remains 45 degrees and needs no finishing.
+        relief=relief.fuse(cq.Solid.makeCone(HEAD_RELIEF_END_RADIUS,HEAD_RELIEF_RADIUS,
+                            HEAD_RELIEF_TOP_Z-HEAD_RELIEF_END_Z,
+                            cq.Vector(x,y,HEAD_RELIEF_END_Z),cq.Vector(0,0,1)))
+    return relief
 
 
 def frame_head_clearance(x,y):
@@ -71,10 +86,20 @@ def rail_shape(spec):
         sw=PARAMS["components"]["microphone"]["size"][0]
         holes += [cylinder(1.7,6,(xx,13,24),(0,1,0)) for xx in (sx+3,sx+sw-3)]
         holes += [cq.Solid.makeCone(3.1,1.5,1.6,cq.Vector(xx,14,24),cq.Vector(0,1,0)) for xx in (sx+3,sx+sw-3)]
+        holes += [bore_roof(xx,19,6) for xx in (sx+3,sx+sw-3)]
     else:
         holes += [cylinder(1.7,6,(xx,248,24),(0,1,0)) for xx in (184,247)]
         holes += [cq.Solid.makeCone(3.1,1.5,1.6,cq.Vector(xx,253,24),cq.Vector(0,-1,0)) for xx in (184,247)]
+        holes += [bore_roof(xx,254,7) for xx in (184,247)]
     return cut(result,holes)
+
+
+def bore_roof(x,y,depth):
+    # Join the shank and countersink roofs continuously. Two disjoint roof
+    # triangles leave an 0.088 mm horizontal membrane between their circles.
+    small,big=1.7/math.sqrt(2),3.1/math.sqrt(2)
+    points=[(-small,small),(-big,big),(0,3.1*math.sqrt(2)),(big,big),(small,small)]
+    return cq.Workplane("XZ",origin=(x,y,24)).polyline(points).close().extrude(depth).val()
 
 
 def rounded_case_volume(width, x, front, rear, floor, radius, top):
@@ -136,6 +161,17 @@ def frame():
     from service_geometry import mount_points, NUT_Z
     for xx,yy in mount_points():
         holes.append(hex_prism(xx,yy,NUT_Z-.1,6.7,2.5))
+        if xx-3.35 < x+.4:
+            # The edge-adjacent cassette pocket otherwise leaves a 0.325 mm
+            # vertical sliver. Open its side below the unchanged bridge roof.
+            holes.append(box(xx-x+1,6.7,2.5,(x-1,yy-3.35,NUT_Z-.1)))
+        # Permanent two-stage bridge roof: first bridge along X over the nut,
+        # then along Y over a 3.4mm square pilot. No sacrificial diaphragm.
+        if xx-3.35 < x+.4:
+            holes.append(box(3.4,6.7,.4,(xx-1.7,yy-3.35,NUT_Z+2.4)))
+        else:
+            holes.append(box(6.7,3.4,.4,(xx-3.35,yy-1.7,NUT_Z+2.4)))
+        holes.append(box(3.4,3.4,t-2.8,(xx-1.7,yy-1.7,NUT_Z+2.8)))
     for xx,yy in seam_floor_holes():
         holes.append(cq.Solid.makeCone(3.3,1.7,1.6,cq.Vector(xx,yy,z+t),cq.Vector(0,0,-1)))
     for xx,yy in rack_holes():
@@ -146,30 +182,55 @@ def frame():
 
 
 @lru_cache
+def seam_tab(x, y, vertical=True, clearance=0):
+    shapes=[]
+    # Keep the seam through the screw axis: each head/nut must bear on both
+    # panels. Two flanking teeth locate XY without claiming a Z-retaining fit.
+    for offset in (-7.5,7.5):
+        points=[(-6,offset-2),(6,offset-3),(6,offset+3),(-6,offset+2)]
+        points=[(x+a,y+b) if vertical else (x+b,y+a) for a,b in points]
+        polygon=Polygon(points).buffer(clearance,join_style="mitre")
+        shapes.append(cq.Workplane("XY",origin=(0,0,F["origin"][2])).polyline(
+            list(polygon.exterior.coords)[:-1]).close().extrude(F["size"][2]).val())
+    return fuse(shapes)
+
+
+@lru_cache
 def tiles(lid=False):
     if lid:
         return [shell(True)]
     x,y,z = F["origin"]
     w,d,t = F["size"]
-    lap, gap = F["joint_lap"], F["joint_clearance"]
+    gap = F["joint_clearance"]
     panels=[]
     for iy in range(2):
         for ix in range(2):
-            chunks=[]
-            for layer,shift in ((0,-lap/2),(1,lap/2)):
-                x0=x if ix==0 else x+w/2+shift+gap/2
-                x1=x+w if ix==1 else x+w/2+shift-gap/2
-                y0=y if iy==0 else y+d/2+shift+gap/2
-                y1=y+d if iy==1 else y+d/2+shift-gap/2
-                chunks.append(frame().intersect(box(x1-x0,y1-y0,t/2,(x0,y0,z+layer*t/2))))
-            # The integral uprights butt at the central gap; floor cradles carry
-            # the module load directly, without an unsupported plastic beam.
             x0=x if ix==0 else x+w/2+gap/2
             x1=x+w if ix==1 else x+w/2-gap/2
             y0=y if iy==0 else y+d/2+gap/2
             y1=y+d if iy==1 else y+d/2-gap/2
-            chunks.append(frame().intersect(box(x1-x0,y1-y0,30,(x0,y0,z+t))))
-            panels.append(fuse(chunks))
+            mask=box(x1-x0,y1-y0,30,(x0,y0,z))
+            # Alternating planar dovetails drop together from above. They have
+            # vertical walls throughout the four-mm deck, eliminating the old
+            # twelve-mm cantilevered half-laps. Existing eight M3 fasteners and
+            # four floor anchors retain Z; contents are never structural.
+            for j,(tx,ty) in enumerate(seam_floor_holes()):
+                vertical=j<4
+                active=(iy==int(ty>=y+d/2)) if vertical else (ix==int(tx>=x+w/2))
+                if not active:
+                    continue
+                male=(ix if vertical else iy)==j%2
+                tab=seam_tab(tx,ty,vertical,gap/2 if not male else 0)
+                if j%2:
+                    tab=tab.rotate((tx,ty,0),(tx,ty,1),180)
+                # Keep every integral upright on its original deck support.
+                # Teeth underneath a neighbour's upright create a shelf at Z12.
+                for rail in F["stiffeners"]:
+                    rx0,rx1=rail["upright_x"]
+                    tab=tab.cut(box(rx1-rx0,rail["thickness"],t,
+                                    (rx0,rail["upright_y"],z)))
+                mask=mask.fuse(tab) if male else mask.cut(tab)
+            panels.append(frame().intersect(mask).clean())
     return panels
 
 
@@ -233,13 +294,26 @@ def anchor_nut_clearances(nut, edge):
     similar pocket, so printer fit and unsupported roof bridges match anchors.
     """
     x,y=nut["x"],nut["y"]
-    bottom=nut["z"]-.1
+    bottom=1.0
     roof=F["floor_anchors"]["nut_roof_z"]
     diameter=nut["pocket"]
     # Tunnel ends at the nut centre so the far hex half prevents rotation.
-    return (hex_prism(x,y,bottom,diameter,roof-bottom),
-            box(diameter,abs(y-edge),roof-bottom,
-                (x-diameter/2,min(y,edge),bottom)),
+    # In the inverted print this cavity closes as one short two-ended bridge.
+    # A narrower blind cylindrical recess below it made an unsupported annular
+    # ledge. The continuous load-bearing roof stays at Z5; a temporary screw
+    # seats each loose nut against that roof before bonding the anchor.
+    floor=case_floor_space(1)
+    tunnel=box(diameter,abs(y-edge),roof-bottom,
+               (x-diameter/2,min(y,edge),bottom)).intersect(floor)
+    # The entry outside the final nut cell is open below. A floor clipped to
+    # the rising wood curve blocks horizontal insertion; a flat ledge under
+    # it starts an unsupported annulus in the inverted print. Keep the blind
+    # curved floor under the actual seated nut, and open the outer approach.
+    cell_edge=y-diameter/2 if edge<y else y+diameter/2
+    entrance=box(diameter,abs(cell_edge-edge),roof+1,
+                 (x-diameter/2,min(cell_edge,edge),-1))
+    return (hex_prism(x,y,bottom,diameter,roof-bottom).intersect(floor),
+            tunnel.fuse(entrance),
             hole_z(x,y,nut["bore"],z=1.0,height=7.1).intersect(case_floor_space(1)))
 
 
@@ -253,7 +327,31 @@ def floor_anchor_clearances(name):
         tools.extend(anchor_nut_clearances(nut,edge))
     # Carriers/guide bolts are preassembled outside the case. These cavities
     # allow their real heads/nuts without opening any module/frame nut roof.
-    tools += [carrier_head_clearance(x,y) for x,y in carrier_holes()]
+    for x,y in carrier_holes():
+        tools.append(carrier_head_clearance(x,y))
+        x0,x1=spec['x_range']
+        if not x0<=x<=x1:
+            continue
+        a=F['floor_anchors']
+        y0,y1=(spec['y_range'] if spec['leg_x']<=x<=spec['leg_x']+a['side_width']
+               else spec['cross_range'])
+        if not y0<=y<=y1:
+            continue
+        for boundary in (y0,y1):
+            if abs(y-boundary)>=3.1:
+                continue
+            # Keep the edge entry open and taper its lower width at 45 degrees.
+            # A flat-bottom slot would leave a one-ended ledge where it meets
+            # a neighbouring nut tunnel or the curved wood-facing surface.
+            start=min(y,boundary)-(1 if boundary<y else 0)
+            depth=abs(y-boundary)+1
+            taper=(cq.Workplane('XZ',origin=(0,start+depth,0))
+                   .polyline([(x-HEAD_RELIEF_END_RADIUS,HEAD_RELIEF_END_Z),
+                              (x+HEAD_RELIEF_END_RADIUS,HEAD_RELIEF_END_Z),
+                              (x+HEAD_RELIEF_RADIUS,HEAD_RELIEF_TOP_Z),
+                              (x-HEAD_RELIEF_RADIUS,HEAD_RELIEF_TOP_Z)])
+                   .close().extrude(depth).val())
+            tools.append(taper.fuse(box(6.2,depth,1.75,(x-3.1,start,6.35))))
     from service_geometry import mount_points, NUT_Z
     tools += [hex_prism(x,y,NUT_Z-.1,6.7,.2) for x,y in mount_points()]
     tools += [hole_z(x,y,8.2,z=5.2,height=2.9) for x,y in guide_holes()]
@@ -264,7 +362,13 @@ def floor_anchor_clearances(name):
 def floor_anchor_key_shape(x,y):
     """Production epoxy key void, shared with the printer-fit coupon."""
     a=F["floor_anchors"]
-    neck=cylinder(a["key_neck_diameter"]/2,a["key_head_bottom"]-a["z"],(x,y,a["z"]))
+    neck_radius=a["key_neck_diameter"]/2
+    head_radius=a["key_head_diameter"]/2
+    slope_height=head_radius-neck_radius
+    cone_z=a["key_head_bottom"]-slope_height
+    neck=fuse([cylinder(neck_radius,cone_z-a["z"],(x,y,a["z"])),
+               cq.Solid.makeCone(neck_radius,head_radius,slope_height,
+                                cq.Vector(x,y,cone_z),cq.Vector(0,0,1))])
     head=cylinder(a["key_head_diameter"]/2,a["key_head_top"]-a["key_head_bottom"],(x,y,a["key_head_bottom"]))
     # Two 2.5 mm vents/witnesses reach the top. Paste is prepacked through
     # the open underside neck, never syringe-injected.
@@ -373,7 +477,7 @@ def floor_anchor_metrics():
 
 
 def parts():
-    return [Part(f"frame_panel_{i+1}",s,1,"12 mm bolted half-lap; independent four-M3 module anchors")
+    return [Part(f"frame_panel_{i+1}",s,1,"Planar dovetails, 0.25 mm seam clearance; flat underside down; original eight M3 and four floor anchors")
             for i,s in enumerate(tiles())] + [
                 Part(name,floor_anchor_shape(name),1,"100% infill PETG; flat top on bed, curved underside upward; captive nuts and cast epoxy keys; inspect internal bridges",((1,0,0),180))
                 for name in floor_anchor_specs()]

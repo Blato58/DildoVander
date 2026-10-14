@@ -1,3 +1,76 @@
+# Výrobní revize F2-SF-DFA — 14. 10. 2026
+
+Implementované CAD zdroje: `chassis.py`, `mechanism.py`, `layout.py`.
+Rám má rovinné rybiny, kotvy tisknutelné kuželové epoxidové zámky;
+každé lůžko dvě klíčované poloviny, každá kazeta dva rámy a tři patra,
+kamera i ovladače dva boční nosiče a desku. Tři měrky mají samostatné
+výrobní orientace. Výrobní sada má 51 typů / 71 výtisků, z toho
+48 typů / 68 instalovaných výtisků. Navíc 29 standardních šroubů a
+29 matic podle `mechanicky-material.csv`; jejich nákup není potvrzený.
+
+`manufacturing.py` generuje manifest, orientovaný STL/STEP/modelový 3MF
+a konkrétní profil každého dílu. Podpory NONE, raft 0; pouze mikrofonní
+držák a oba levé kazetové rámy mají 3mm brim po skutečném varování adheze.
+40 M3 střech má dvě 0,4mm vrstvy, lokálně nejvýše 0,8 mm k otevření
+hladkým ručním šídlem. Trvalé piloty jsou i v instalovaném CAD; nejmenší
+revidované dosednutí zadní matice levého reproduktoru má 9,718 mm².
+Levé patro 2 se dotahuje před patrem 1; při servisu opačné pořadí.
+Pro vyjmutí levé kazety z kufru se předem odpojí tři ovladače,
+uvolní čtyři horní spoje a vyjme deska a volný pravý rám ovladačů.
+Levý rám s původními spodními šrouby zůstává. Každý krok má vlastní
+objemovou servisní kontrolu; původní přímá cesta bez těchto kroků koliduje.
+Pravý rám levé kazety má odstraněný slabý zadní výběžek; zadní pero
+horního patra se přesouvá z Y92 do pevné oblasti Y82. Pět částí kazety
+i původní PCB/pásky zůstávají. USB se pokládá otevřenými hranami až po
+dotažení svěrných spojů, s oběma konektory odpojenými a cívkou dosud
+nesvinutou. Vzorkované místní cesty ověřuje `assembly_access.py`.
+Uzavřené dutiny montážních kanálů odstraňují průchozí podlahové otvory
+a malé boční kanály se šikmou střechou. Čtyři horní matice krytů mají
+boční vložení a 0,3mm celkovou výškovou vůli; kryty se osazují až poté.
+PCA a Pixel mají v konkrétních profilech směr mostů 90° po krátké ose
+páskových tunelů; skutečné oddělené řezání a kontrola drah odstranily
+plovoucí kotvy při zachování identických STL. Úplné ověření celé revize
+musí tento profil použít znovu pro všech 51 typů.
+
+Kabelové trasy zachovávají všech 135 připojení a deklarované prostorové
+průměry včetně neověřených předpokladů. Průměry nejsou fyzicky změřené.
+Nová otevřená USB klenba a obnovené vývody kondenzátorů zachovávají
+pevné konce. Kondenzátor 1 obchází svěrný šroub dvěma oddělenými zadními
+kanály; kondenzátor 2 používá původní přední vstupy.
+Horní otevření kanálu snižuje opěrnou plochu C1 z 36,69679 na
+21,86511 mm² a C2 na 29,30932 mm²; pružné opory a přední dosednutí
+zůstávají celé. Fyzické držení kondenzátorů vyžaduje samostatnou zkoušku.
+Tečný R20 výstup USB u banky má vlastní skutečné objemové těleso.
+Vratné R8 smyčky mají pevnou
+nohu Y79, pohyblivou Y63 a poloviční pohyb oblouku; délka zůstává
+konstantní při nezávislém zdvihu všech šesti modulů. První společná kontrola
+odhalila staré jednodílné testy a kolize vodičů s novými spoji;
+skutečné výrobní díly mají vlastní testy
+a přesměrované trasy se kontrolují konečnými objemovými kapslemi.
+Žádné kolizní filtry ani elektrické zapojení se tím neuvolňují.
+`tray_joint_clearance.py` navíc prokazuje spojitý zdvih 0–16 mm proti
+novým dolním příčkám a spojovacím prvkům konzervativními obálkami
+z CAD. Nenahrazuje skutečný tvar ohybu kabelů ani spojitou rotaci vaček.
+
+Reprodukovatelná brána: `Regenerate.ps1 -Python ../.venv/Scripts/python.exe`
+s `KUFR_SLICER` pro PrusaSlicer 2.9.4. Zahrnuje regresní testy, uzavřenost
+a křížení STL, STEP round-trip, vrstevnou analýzu, skutečné řezání, objem
+tiskárny včetně brimu, servisní dráhy, sestavu, pohyb, kabeláž a ZIP.
+Aktuální výsledek, přesné počty/vzorky a zdrojové/výstupní SHA-256 určují
+`exports/verification.json`, `printability.json`, `slicer-validation.json`
+a `generation-snapshot.json`. ZIP se vydává pouze po těchto branách;
+historické výsledky níže nepotvrzují tuto revizi. Celkové ověření a Git
+předání této práce vede také `../../../docs/project/work-items/KUFR-F2-SUPPORTFREE.json`.
+
+Fyzický tisk a montáž nejsou provedené. Konkrétní tiskárna, PETG
+tečení/vrstvy, dotažení matic, kluzný čep, reálné konektory/FPC, prsty,
+kabelové rezervy, dřevo/epoxid, servo a přeprava nejsou přijaté.
+Další krok: tři PETG měrky, jeden celý modul a kazetový spoj; ověřit
+vůle, celý zdvih a servis, potom vzorek kotvy a zátěž podle `MONTÁŽ.md`.
+Návrh zůstává bez fyzického uvolnění k sériové výrobě.
+
+---
+
 # Rozměrová revize kufru — 12. 10. 2026
 
 Nové měření nahrazuje původní pravoúhlý plášť a odhad polohy výztuhy.
@@ -47,7 +120,7 @@ Fyzická přejímka a uvolnění k tisku zůstávají otevřené.
 
 ---
 
-# Aktuální systém F2
+# Historický systém F2 před revizí bez podpěr
 
 F2 je vložka do skutečného dřevěného kufru se šesti přihrádkami,
 potvrzeným inventářem a elektrickým zapojením. Kufr se nevrtá ani neřeže.

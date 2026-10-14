@@ -8,6 +8,8 @@ import os
 from pathlib import Path, PurePosixPath
 import platform
 import re
+import shutil
+import subprocess
 import tempfile
 import zipfile
 import zlib
@@ -15,6 +17,7 @@ import zlib
 from artifacts import (assert_cad_hashes, assert_verified_exports, export_names,
                        file_sha256, generated_export_names, GENERATION_SNAPSHOT,
                        VERIFICATION_EXPORTS)
+from slicer_validation import assert_saved_evidence
 
 
 CACHE_NAME = "regeneration-cache.json"
@@ -24,6 +27,53 @@ SHA256_PATTERN = re.compile(r"[a-f0-9]{64}")
 
 class CacheValidationError(ValueError):
     """An incomplete or altered saved result cannot be reused."""
+
+
+def _tool_header(text):
+    versions = [line for line in text.splitlines() if line.startswith("PrusaSlicer-")]
+    _require(len(versions) == 1, "Missing or ambiguous PrusaSlicer version")
+    provenance = {}
+    prefixes = {
+        "app_commit": "Kufr Flatpak app commit: ",
+        "runtime": "Kufr Flatpak runtime: ",
+        "native_sha256": "Kufr native executable SHA-256: ",
+    }
+    for key, prefix in prefixes.items():
+        values = [line[len(prefix):] for line in text.splitlines() if line.startswith(prefix)]
+        _require(len(values) <= 1, "Ambiguous Flatpak tool provenance")
+        if values:
+            provenance[key] = values[0]
+    if provenance:
+        _require(set(provenance) == set(prefixes), "Incomplete Flatpak tool provenance")
+        _require(SHA256_PATTERN.fullmatch(provenance["app_commit"])
+                 and SHA256_PATTERN.fullmatch(provenance["native_sha256"])
+                 and re.fullmatch(r"[A-Za-z0-9._-]+/x86_64/[A-Za-z0-9._-]+@[a-f0-9]{64}",
+                                  provenance["runtime"]), "Invalid Flatpak tool provenance")
+    return versions[0], provenance
+
+
+def _slicer_identity():
+    """Probe the configured entry point without writing or slicing anything."""
+    configured = os.environ.get("KUFR_SLICER")
+    executable = shutil.which(configured) if configured else None
+    if not executable:
+        return {"status": "UNAVAILABLE", "configured": configured}
+    path = Path(executable).resolve()
+    digest = file_sha256(path)
+    try:
+        probe = subprocess.run([str(path), "--help"], capture_output=True, text=True,
+                               encoding="utf-8", errors="replace", timeout=30, check=False)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise CacheValidationError("Cannot probe current PrusaSlicer") from error
+    _require(probe.returncode == 0, "Current PrusaSlicer probe failed")
+    header, provenance = _tool_header(probe.stdout)
+    _require(file_sha256(path) == digest, "Slicer executable changed during probe")
+    # Same normalized text as saved tool.log; raw file hashes remain separate.
+    help_text = probe.stdout + "\nSTDERR:\n" + probe.stderr
+    return {"status": "AVAILABLE", "path": str(path), "version": header,
+            "executable_sha256": digest,
+            "help_sha256": hashlib.sha256(help_text.encode("utf-8")).hexdigest(),
+            "flatpak": provenance}
 
 
 def runtime_environment():
@@ -40,6 +90,7 @@ def runtime_environment():
         "system": platform.system(),
         "machine": platform.machine(),
         "distributions": distributions,
+        "slicer": _slicer_identity(),
         "ci_image": {name: os.environ[name] for name in ("ImageOS", "ImageVersion")
                      if name in os.environ},
     }
@@ -131,6 +182,85 @@ def _artifact_gates(root, out, manifest, report):
         raise CacheValidationError(str(error)) from error
 
 
+def _slicer_evidence(out, manifest, report, identity):
+    """Keep local audit bytes in the cache receipt, outside the shipping ZIP."""
+    current = identity["environment"].get("slicer")
+    _require(isinstance(current, dict) and current.get("status") == "AVAILABLE",
+             "A cache hit requires an available slicer")
+    _require(_slicer_identity() == current, "Current slicer runtime identity changed")
+    metadata = {}
+    slicing = _read_json(_safe_path(out, "slicer-validation.json"), metadata)
+    printing = report.get("printing")
+    _require(slicing.get("status") == "PASS_SLICER"
+             and isinstance(printing, dict) and printing.get("slicing") == "PASS_SLICER",
+             "Cached package lacks actual slicer acceptance")
+    _require(slicing.get("manifest_sha256") == file_sha256(_safe_path(out, "manifest.json")),
+             "Slicer evidence belongs to a different manifest")
+    tool = slicing.get("tool")
+    _require(isinstance(tool, dict) and tool.get("name") == "PrusaSlicer"
+             and isinstance(tool.get("probe"), dict) and tool["probe"].get("exit_code") == 0
+             and tool.get("version") == current.get("version")
+             and tool.get("executable_sha256") == current.get("executable_sha256"),
+             "Saved slicer differs from current executable")
+    parts = slicing.get("parts")
+    expected_parts = {part["name"]: part for part in manifest["parts"]}
+    expected = set(expected_parts)
+    _require(isinstance(parts, list) and len(parts) == len(expected)
+             and all(isinstance(part, dict) and isinstance(part.get("name"), str) for part in parts)
+             and {part["name"] for part in parts} == expected,
+             "Slicer evidence inventory differs from manifest")
+    evidence = {**metadata, "slicing/tool.log": tool.get("log_sha256")}
+    for part in parts:
+        _require(part.get("status") == "PASS_SLICER", "Nonpassing saved slicer part")
+        _require(all(isinstance(part.get(key), dict) for key in
+                     ("toolpath", "effective_profile", "warning_resolution", "slice", "project")),
+                 "Invalid saved slicing audit metadata")
+        _require(part.get("toolpath", {}).get("status") == "PASS_TOOLPATH_AUDIT"
+                 and part.get("effective_profile", {}).get("status") == "PASS_EFFECTIVE_PROFILE"
+                 and part.get("warning_resolution", {}).get("status")
+                 in ("PASS_NO_WARNINGS", "PASS_LONG_WARNING_REVIEW")
+                 and part.get("slice", {}).get("exit_code") == 0
+                 and part.get("project", {}).get("exit_code") == 0,
+                 "Saved part has a failed slicing audit")
+        contract = expected_parts[part["name"]].get("manufacturing")
+        _require(isinstance(contract, dict)
+                 and part.get("profile") == contract.get("slicer_profile")
+                 and part.get("profile_sha256") == contract.get("slicer_profile_sha256"),
+                 "Slicer profile differs from its manufacturing contract")
+        profile_path = _safe_path(out, part.get("profile"))
+        _require(file_sha256(profile_path) == part.get("profile_sha256"),
+                 "Saved slicer profile changed")
+        stl_name = "stl/" + part["name"] + ".stl"
+        project_name = "3mf/" + part["name"] + ".3mf"
+        _require(part.get("stl") == stl_name
+                 and part.get("stl_sha256") == file_sha256(_safe_path(out, stl_name))
+                 and part.get("project_3mf") == contract.get("project_3mf") == project_name
+                 and part.get("project_sha256") == file_sha256(_safe_path(out, project_name)),
+                 "Saved slicer model differs from manufacturing inventory")
+        evidence[part["profile"]] = part["profile_sha256"]
+        for key, suffix in (("gcode_sha256", ".gcode"),
+                            ("effective_profile_sha256", "-effective.ini"),
+                            ("slice_log_sha256", "-slice.log"),
+                            ("project_log_sha256", "-project.log")):
+            evidence["slicing/" + part["name"] + suffix] = part.get(key)
+    _hash_inventory(evidence)
+    before = {name: file_sha256(_safe_path(out, name)) for name in evidence}
+    _require(before == evidence, "Missing or changed saved slicer bytes")
+    saved_help = _safe_path(out, "slicing/tool.log").read_text(encoding="utf-8")
+    version, provenance = _tool_header(saved_help)
+    _require(version == current["version"] and provenance == current["flatpak"]
+             and hashlib.sha256(saved_help.encode("utf-8")).hexdigest() == current["help_sha256"],
+             "Saved slicer help/provenance differs from current tool")
+    try:
+        for part in parts:
+            assert_saved_evidence(out, part)
+    except (ValueError, KeyError, TypeError) as error:
+        raise CacheValidationError("Invalid saved slicer audit: " + str(error)) from error
+    _require(all(file_sha256(_safe_path(out, name)) == digest for name, digest in before.items()),
+             "Saved slicer evidence changed during re-audit")
+    return before
+
+
 def _accepted_inventory(root, out, identity):
     sources = _identity_sources(identity, root)
     parameters = _read_json(_safe_path(root, "parameters.json"))
@@ -175,6 +305,7 @@ def _accepted_inventory(root, out, identity):
              "Invalid generated snapshot")
     _hash_inventory(snapshot.get("sha256"), generated_export_names(manifest))
     _artifact_gates(root, out, manifest, report)
+    audit_hashes = _slicer_evidence(out, manifest, report, identity)
     hashes = {name: file_sha256(_safe_path(out, name)) for name in names}
     _require({name: hashes[name] for name in export_hashes} == export_hashes,
              "Verified output changed while reading cache inventory")
@@ -193,6 +324,9 @@ def _accepted_inventory(root, out, identity):
     _require(checksum_path.read_text(encoding="ascii")
              == f"{hashes[archive_name]}  {archive_name}\n", "Package checksum differs from ZIP")
     hashes["package-sha256.txt"] = file_sha256(checksum_path)
+    _require(all(file_sha256(_safe_path(out, name)) == digest for name, digest in audit_hashes.items()),
+             "Slicer evidence changed while validating package")
+    hashes.update(audit_hashes)
     return hashes
 
 

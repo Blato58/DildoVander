@@ -389,6 +389,15 @@ function routePoints(route) {
   const parked = bankAbsent && (route.transport_points || route.disconnected_points);
   const points = (parked || route.points).map(point => [...point]);
   if (parked) return points;
+  if (route.point_lift_weights) {
+    for (const [module,weights] of Object.entries(route.point_lift_weights)) {
+      const mesh = meshesByName.get('tray_left_'+module);
+      const lift = mesh ? movement(mesh)[14] : 0;
+      if (weights.length !== points.length) throw new Error('Neplatný model kabelové smyčky');
+      for (let i=0;i<points.length;i++) points[i][2] += weights[i]*lift;
+    }
+    return points;
+  }
   // Fixed trunks stay in CAD coordinates. Only declared moving points deform.
   const transforms = route.moving_points || {};
   for (let i = 0; i < points.length; i++) {
@@ -435,7 +444,7 @@ function drawRoutes(selected) {
         const neighbour = index === 0 ? 1 : index-1;
         svgElement('line',{x1:points[index][0],y1:points[index][1],x2:points[neighbour][0],y2:points[neighbour][1],
           stroke:'#b79852','stroke-width':4,'stroke-dasharray':'4 3','data-flexible':route.id});
-        label(route.id+' · pohyblivý konec, aproximace smyčky',points[neighbour][0]+5,points[neighbour][1]-16);
+        label(route.id+' · pohyblivý konec, '+(route.point_lift_weights ? 'vratný oblouk R8' : 'aproximace smyčky'),points[neighbour][0]+5,points[neighbour][1]-16);
       }
     }
     if (!active && !inspecting()) continue;
@@ -515,7 +524,7 @@ function updatePanel(mesh) {
   el('connections').replaceChildren();
   const edges = scopedRoutes(mesh);
   el('empty-connections').hidden = edges.length > 0;
-  el('empty-connections').textContent = mesh.name.startsWith('spare_') ? 'Rezervní díl není zapojený.' : 'Pro tento díl není v podkladech přiřazeno kabelové spojení.';
+  el('empty-connections').textContent = mesh.name.startsWith('spare_') ? 'Rezervní díl není zapojený.' : 'Pro tento díl nejsou v podkladech přiřazená spojení.';
   for (const edge of edges) {
     const li = document.createElement('li');
     li.textContent = edge.id+': '+edge.from+' → '+edge.to+' · '+edge.net+' · svazek '+(edge.bundle || 'neuveden');
@@ -910,7 +919,10 @@ el('motion-close').onclick = () => setMotionOpen(false);
 el('assembly-step').onchange = () => jumpAssembly(+el('assembly-step').value);
 el('assembly-focus').onclick = focusAssembly;
 el('assembly-exit').onclick = () => { setMode('operation'); el('assembly-mode').focus({preventScroll:true}); };
-function readableItems(value) { return Array.isArray(value) ? value.join('\n') : value || ''; }
+function readableItems(value) {
+  const label = item => typeof item === 'string' ? item : item?.text || item?.pattern || '';
+  return Array.isArray(value) ? value.map(label).join('\n') : label(value);
+}
 function updateAssembly() {
   const active = mode === 'assembly', step = currentStep(), count = assemblyGuide.steps.length;
   el('assembly-panel').hidden = !active; el('assembly-controls').hidden = !active;

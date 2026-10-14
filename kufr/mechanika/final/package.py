@@ -6,6 +6,7 @@ import zipfile
 from geometry import ROOT, PARAMS
 from build import OUT,source_hashes
 from artifacts import package_files, assert_cad_hashes, assert_verified_exports
+from slicer_validation import assert_saved_evidence
 
 
 def main():
@@ -18,6 +19,11 @@ def main():
     assert manifest["sources"]==report["sources"],"Export and verification source manifests differ"
     assert_cad_hashes(ROOT,manifest,report)
     assert_verified_exports(OUT,manifest,report)
+    if report.get('printing',{}).get('slicing')=='PASS_SLICER':
+        slicing=json.loads((OUT/'slicer-validation.json').read_bytes())
+        for part in slicing['parts']:
+            assert_saved_evidence(OUT,part)
+        assert hashlib.sha256((OUT/'slicing/tool.log').read_bytes()).hexdigest()==slicing['tool']['log_sha256']
     hashes={**report['export_sha256'],'verification.json':hashlib.sha256(report_bytes).hexdigest()}
     assert hashes['manifest.json']==hashlib.sha256(manifest_bytes).hexdigest(), 'Manifest changed while packaging'
     index_bytes=(json.dumps(hashes,indent=2)+'\n').encode('utf-8')

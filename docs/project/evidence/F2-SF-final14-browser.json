@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "F2-SF-final14-browser",
+  "observedAtUtc": "2026-10-14T04:51:10.358389Z",
+  "kind": "browser",
+  "result": "pass",
+  "subject": {
+    "cadSourceArtifactDigest": "1030f7336e963e2e6c00ea0cf3b5c04fc95449e07b1456e34d87b65b93b67115"
+  },
+  "claims": [
+    {
+      "workItemId": "KUFR-F2-SUPPORTFREE",
+      "criterionId": "VIEWER",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "method": "Fresh regenerated viewer exercised in the actual Codex in-app browser: split object Inspector, guide text/navigation, control service instructions, motion, empty transport and desktop/narrow layouts.",
+  "environment": "Windows; Python3.11.3; Node25.9.0; pinned CadQuery2.8.0/OCP7.9.3.1.1/VTK9.6.2/numpy2.4.6/shapely2.1.2; official Windows PrusaSlicer2.9.4; actual Codex in-app Chromium browser.",
+  "limitations": [
+    "No physical print or fit test. Owner printer is unknown; generic220x220x250 PETG/.4nozzle/.2layer profile.",
+    "Digital gates do not qualify adhesive, wood condition, creep/fatigue, transport loads, actual servo torque, cables/FPC, hand dexterity or electrical operation.",
+    "Cam/material motion is sampled every10degrees; finite-wire checks use0/80/160degrees. Continuous conservative envelopes qualify new tray joints/beams only.",
+    "Control removal and USB manual dressing are sampled digital sweeps. Actual soldered leads, terminal bends and retention require physical acceptance.",
+    "Linux PrusaSlicer2.9.6 CI and the final Git/PR endpoint are checked separately. Local receipt completion does not claim unfinished remote runs."
+  ],
+  "observation": "Final14 freshly regenerated viewer is byte-identical (exact SHA25630092f94...) to the independently exercised final13 viewer. All84 other source files including geometry/guide/viewer are identical; prior four split-part selections, motion1/6, emptytransport, timeline and mobile-panel checks explicitly transfer from F2-SF-final13-browser, with their original observation time preserved. Fresh final14 in-app browser reload rendered639objects; step3of16,3->4->3navigation and the full control-release-before-leftcassette instructions are readable. Actual new desktop1280x720/390x844/320x568 checks show no horizontal overflow and buttons at least44px; console warning/error list empty. New WebGL screenshots saved. Desktop emulation does not qualify physical iPhone, printing, fit or strength.",
+  "supersedes": [
+    "F2-SF-final13-browser"
+  ],
+  "supersedesReason": "The final integrated89-source artifact changed. Actual gates were repeated against its exact digest; earlier evidence and truthful failures remain immutable.",
+  "resolution": "The structured guide is readable and the control service instructions agree with the Inspector. All checks target the final89source bundle and its exact viewer hash.",
+  "browserResults": {
+    "status": "PASS",
+    "sourceArtifactDigest": "1030f7336e963e2e6c00ea0cf3b5c04fc95449e07b1456e34d87b65b93b67115",
+    "observedAtUtc": "2026-10-14T04:30:38.373Z",
+    "url": "http://127.0.0.1:8915/viewer.html",
+    "selections": [
+      {
+        "label": "Levá polovina lůžka · tray_left_1",
+        "proof": [
+          "  - heading \"Kouzelný kufr\" [level=1]",
+          "      - heading \"Levá polovina lůžka\" [level=2]",
+          "      - generic: tray_left_1",
+          "      - paragraph: Samostatný výtisk bez podpěr; přední vedení, klíče a dva příčníky spojené s pravou polovinou M3×45 a tenkými maticemi."
+        ]
+      },
+      {
+        "label": "Boční sloupek kamery · camera_post_left",
+        "proof": [
+          "  - heading \"Kouzelný kufr\" [level=1]",
+          "      - heading \"Boční sloupek kamery\" [level=2]",
+          "      - generic: camera_post_left",
+          "      - paragraph: Samostatný boční tisk; původní zadní osa M3, nová horní deska se dvěma M3×10."
+        ]
+      },
+      {
+        "label": "Patro levé kazety · left_service_carrier_tier_2",
+        "proof": [
+          "  - heading \"Kouzelný kufr\" [level=1]",
+          "      - heading \"Patro levé kazety\" [level=2]",
+          "      - generic: left_service_carrier_tier_2"
+        ]
+      },
+      {
+        "label": "Boční rám ovladačů · switch_frame_right",
+        "proof": [
+          "  - heading \"Kouzelný kufr\" [level=1]",
+          "      - heading \"Boční rám ovladačů\" [level=2]",
+          "      - generic: switch_frame_right",
+          "      - paragraph: Samostatný boční tisk; levý rám je přišroubovaný k podlaze, deska váže oba boční rámy."
+        ]
+      }
+    ],
+    "motion": [
+      [
+        "    - option \"Přihrádka 1\" [selected]",
+        "  - slider \"Zdvih\" [active]: \"160\""
+      ],
+      [
+        "  - slider \"Zdvih\" [active]: \"0\"",
+        "  - status: 0.0 mm"
+      ],
+      [
+        "    - option \"Přihrádka 6\" [selected]",
+        "  - slider \"Zdvih\" [active]: \"160\"",
+        "  - status: 16.0 mm"
+      ]
+    ],
+    "viewports": [
+      {
+        "height": 720,
+        "minVisibleButtonHeight": 44,
+        "scrollWidth": 1280,
+        "width": 1280
+      },
+      {
+        "height": 844,
+        "minVisibleButtonHeight": 44,
+        "scrollWidth": 390,
+        "width": 390
+      },
+      {
+        "height": 568,
+        "minVisibleButtonHeight": 44,
+        "scrollWidth": 320,
+        "width": 320
+      }
+    ],
+    "step3Proof": [
+      "    - strong: 3/16 · Nosiče a odnímatelné boční kazety na stole",
+      "    - paragraph: \"Na stole osadit spodní matice nosičů a sedm matic kazet do rámu. Každou kazetu sestavit z pěti výtisků: do levého bočního rámu nasunout tři patra na dvojice klíčů; přiložit pravý rám a patra stáhnout šrouby do vnějších kapes matic. Levá kazeta: prostřední patro 2 a jeho svěrný spoj dotáhnout před uzavřením spodního patra 1; jinak spodní doraz blokuje 25mm přímý nástroj. Spodní PCB zapojit na samostatném patře, rámy ponechat volné pro boční vložení; nakonec kazetu stáhnout. Pro servis prostředního spoje nejprve odpojit a vyjmout patro 1 na stole. Všechny kazetové svěrné spoje dotáhnout ještě bez USB kabelu v jeho konečné trase. Potom na stole bez banky a reproduktoru položit neporušený C–C kabel: oba konektory odpojené, kabel dosud bez cívky. Místní přední průchod vložit otevřeným okrajem −Y a zadní +Y do pravého rámu, pod spodním patrem využít otevřenou drážku. Vidlice se neprotahují malým otvorem. Tři závity cívky vytvořit a stáhnout až nakonec při napájecí kabeláži; při práci lze volný kabel odložit mimo dráhu imbusu. Pravou kazetu zapojovat odspodu nahoru; všechny spoje zůstávají rozebíratelné. Desku kamery spojit se dvěma samostatnými sloupky dvěma M3×10; matice vkládat z vnitřní strany mezi sloupky. Ovládací desku spojit se dvěma bočními rámy: vpředu dva ISO7380 M3×10, vzadu dva DIN7991 M3×10 zapuštěné do Z105. Zadní spoje dotáhnout před instalací vypínačů. Všechny vyjmenované tištěné díly mají vlastní nosnou cestu do rámu; banka, reproduktory a hůlky nejsou spojovací prvky. Dvoustupňové M3 střechy: 0,4mm pilot plus 0,4mm uzávěr, lokálně nejvýše 0,8 mm. Všech 40 míst podle manifestu otevřít ručním hladkým šídlem před osazením šroubů; nerozšiřovat kapsy ani dosedací plochy. Čtyři horní matice krytů banky a pravého reproduktoru zasunout bočními Y vstupy před kryty a textilem: přední vstup −Y, zadní +Y. Kapsa 2,7 mm pro 2,4mm matici má 0,3mm celkovou výškovou vůli. Dočasně přidržet existujícím M3×6, nebo M3×10 se skutečným 3mm krytem či 3mm distancí; M3×10 v holém sloupku může narazit na dno. Slepé montážní kanály mají průchozí podlahové otvory nebo malé boční kanály, žádnou uzavřenou vnitřní dutinu.\"",
+      "    - paragraph: \"Servis a demontáž: Odpojit napájení, sejmout kryty a uvolnit pásky obsluhované elektroniky. Pro servis levé kazety vyjmout banku a levý reproduktor, odpojit a vytáhnout všechny tři ovladače. Vyšroubovat čtyři horní spoje, zvednout ovládací desku i s maticemi krytu a potom volný pravý rám s maticemi spojů 2 a 4. Levý rám, matice spojů 1 a 3 a původní spodní šrouby zůstávají. Teprve pak povolit tři kazetové M3 a kazetu svisle vytáhnout. Obnovit v opačném pořadí, spínače až po dotažení spojů. U pájených přívodů odpájet a obnovit izolaci, nevymýšlet rychlokonektor. Patra kazet rozebírat na stole po jejich vyjmutí; pravý boční rám uvolnit před vysunutím pater. Na stole před rozebráním prostředního spoje levé kazety vyjmout spodní patro 1.\""
+    ],
+    "step3Readable": true,
+    "controlServiceReadable": true,
+    "guideNavigation": [
+      [
+        "    - strong: 4/16 · Osadit elektroniku na otevřené vložce"
+      ],
+      [
+        "    - strong: 3/16 · Nosiče a odnímatelné boční kazety na stole"
+      ]
+    ],
+    "controlServiceProof": "    - paragraph: \"Servis a demontáž: Odpojit napájení, sejmout kryty a uvolnit pásky obsluhované elektroniky. Pro servis levé kazety vyjmout banku a levý reproduktor, odpojit a vytáhnout všechny tři ovladače. Vyšroubovat čtyři horní spoje, zvednout ovládací desku i s maticemi krytu a potom volný pravý rám s maticemi spojů 2 a 4. Levý rám, matice spojů 1 a 3 a původní spodní šrouby zůstávají. Teprve pak povolit tři kazetové M3 a kazetu svisle vytáhnout. Obnovit v opačném pořadí, spínače až po dotažení spojů. U pájených přívodů odpájet a obnovit izolaci, nevymýšlet rychlokonektor. Patra kazet rozebírat na stole po jejich vyjmutí; pravý boční rám uvolnit před vysunutím pater. Na stole před rozebráním prostředního spoje levé kazety vyjmout spodní patro 1.\"",
+    "transportProof": [
+      "  - button \"Přeprava\" [active] [pressed]",
+      "    - paragraph: \"Ruční přepravní sestava: všech šest pásků, prázdná lůžka, odpojená banka, parkovaný USB kabel. Stav pásků nelze elektronicky potvrdit.\"",
+      "    - checkbox \"Lůžka\" [checked]",
+      "    - checkbox \"Hůlky\"",
+      "    - checkbox \"Powerbanka\"",
+      "    - checkbox \"Textil\"",
+      "        - listitem: Zaparkovat odpojený USB konektor v klipu, zkontrolovat uchycení ostatních kabelů.",
+      "        - listitem: Odstranit všech šest přepravních pásků; elektronika to neumí potvrdit.",
+      "    - paragraph: Návrh není fyzicky přijatý. Model neprokazuje moment serva, vypnutí držení, lepený spoj ani bezpečnost přepravy. Rozměry kamery, pinů a tvar hůlek vyžadují kontrolu."
+    ],
+    "timelineOpen": true,
+    "timelineClosed": true,
+    "desktopScreenshot": "C:/Users/vojtech.petrik/.codex/worktrees/6d2b/DildoVander/kufr/mechanika/.venv/support-free-final14-browser-desktop.jpg",
+    "screenshotSha256": {
+      "desktop": "79751d43c1a182374a3435ef2d0943ccf3b470156e4bc20f33a3fc946a2719aa",
+      "mobile": "6994f05d8bf1e23dc7ecc15419b278940fd11a9a0a014e4e8cb12390ab3080bd"
+    },
+    "mobileScreenshot": "C:/Users/vojtech.petrik/.codex/worktrees/6d2b/DildoVander/kufr/mechanika/.venv/support-free-final14-browser-mobile.jpg",
+    "mobilePartsPanel": true,
+    "mobileDetailsPanel": true,
+    "consoleErrors": [],
+    "viewerSha256": "30092f9477822782a9cf93873e25a574b569674fef9f0d01b93940897167504b",
+    "finishedAtUtc": "2026-10-14T04:32:39.269Z",
+    "observation": "Final14 freshly regenerated viewer is byte-identical (exact SHA25630092f94...) to the independently exercised final13 viewer. All84 other source files including geometry/guide/viewer are identical; prior four split-part selections, motion1/6, emptytransport, timeline and mobile-panel checks explicitly transfer from F2-SF-final13-browser, with their original observation time preserved. Fresh final14 in-app browser reload rendered639objects; step3of16,3->4->3navigation and the full control-release-before-leftcassette instructions are readable. Actual new desktop1280x720/390x844/320x568 checks show no horizontal overflow and buttons at least44px; console warning/error list empty. New WebGL screenshots saved. Desktop emulation does not qualify physical iPhone, printing, fit or strength.",
+    "priorActualBrowserEvidence": "F2-SF-final13-browser",
+    "priorActualBrowserObservedAtUtc": "2026-10-14T03:29:20.327Z",
+    "byteIdenticalViewerTransfer": {
+      "sha256": "30092f9477822782a9cf93873e25a574b569674fef9f0d01b93940897167504b",
+      "reason": "Final14 actual generated viewer.html is byte-identical to final13. All84 CAD/guide/viewer/source files outside the five audit/test/TISK changes are byte-identical; prior four-selection/motion/transport/timeline checks transfer explicitly."
+    }
+  },
+  "viewerSha256": "30092f9477822782a9cf93873e25a574b569674fef9f0d01b93940897167504b"
+}

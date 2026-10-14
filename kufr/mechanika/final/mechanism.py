@@ -15,6 +15,8 @@ M = PARAMS["mechanism"]
 W = PARAMS["wand"]
 GUIDES = ((8.0, 87.0), (38.0, 191.0))
 MOUNT_HOLES = ((8.0, 9.0), (38.0, 9.0), (8.0, 203.0), (38.0, 203.0))
+U059_TIE_ROWS = (29.0, 42.5)
+LED_TIE_ROWS = (29.0, 180.0)
 
 
 def smooth(t):
@@ -80,12 +82,12 @@ def retaining_ties(kind):
             inner=box(4,27.8,17.25,(x-2,104,24.5))
             ties.append(outer.cut(inner))
     elif kind=="u059":
-        for y in (30,43):
+        for y in U059_TIE_ROWS:
             outer=box(35.5,2.5,9,(6,y-1.25,-10.5))
             inner=box(34.5,4,8,(6.5,y-2,-10))
             ties.append(outer.cut(inner))
     else:
-        for y in (30,182):
+        for y in LED_TIE_ROWS:
             outer=box(7,2.5,14,(41.5,y-1.25,-10.5))
             inner=box(6,4,13,(42,y-2,-10))
             ties.append(outer.cut(inner))
@@ -99,15 +101,20 @@ def cam():
     floor = M["cam_thickness"]-M["groove_depth"]
     groove = cq.Solid.extrudeLinear(cam_wire(M["groove_width"]/2,floor),[cam_wire(-M["groove_width"]/2,floor)],(M["groove_depth"]+1,0,0))
     through = M["cam_thickness"]+2
-    cutters = [groove, cylinder(3.2, through, (-1, 0, 0), (1, 0, 0))]
+    cutters = [groove, box(through,6.4,6.4,(-1,-3.2,-3.2))]
+    # Successive anchored bridges close the horn/hub pocket without roofing
+    # an annulus around a round bore. The final square clearance still admits
+    # the original 6.4mm circular envelope and needs no puncturing or support.
+    cutters += [box(.4,36,6.4,(2.4,-18,-3.2)),
+                box(.4,6.4,10,(2.8,-3.2,-5))]
     # Through slots accept actual holes on the purchased 35 mm double horn.
     # These are adjustable slots, not an invented horn drilling pattern.
     for sign in (-1, 1):
         inner, outer = M["horn_slot_inner_radius"], M["horn_slot_outer_radius"]
         y0 = inner if sign > 0 else -outer
-        cutters.append(box(through, outer-inner, M["horn_screw_clearance"], (-1, y0, -1.2)))
-        for y in (sign*inner, sign*outer):
-            cutters.append(cylinder(1.2, through, (-1, y, 0), (1, 0, 0)))
+        y0 = inner-1.2 if sign>0 else -outer-1.2
+        cutters.append(box(through,outer-inner+2.4,M["horn_screw_clearance"],(-1,y0,-1.2)))
+        cutters.append(box(.4,outer-inner+2.4,6.4,(2.8,y0,-3.2)))
         # Nut sits below the front face and cannot sweep into the follower lug.
         cutters.append(cylinder(2.4,1.9,(M["cam_thickness"]-1.8,sign*M["horn_fastener_radius"],0),(1,0,0)))
     # Stock horn on the rear side; the groove is on the opposite face.
@@ -129,6 +136,11 @@ def base():
     pieces.append(box(27.3, 27.6, 26.0, (0.2, 104.2, 4)))
     pieces.append(box(27.3, 2.5, 15.5, (0.2, 103.5, 29)))
     pieces.append(box(27.3, 2.5, 15.5, (0.2, 129.5, 29)))
+    # Grow the cradle lips at 45 degrees from the solid pedestal. Their old
+    # abrupt 0.7/0.2 mm ledges started unsupported above the servo tie tunnels.
+    for points in (((103.5,29),(104.2,28.3),(104.2,29)),
+                   ((131.8,28.8),(132,29),(131.8,29))):
+        pieces.append(cq.Workplane("YZ", origin=(.2,0,0)).polyline(points).close().extrude(27.3).val())
     # Raised edge ribs stiffen the thin floor without intersecting the cam.
     pieces.extend([box(3, length, 4, (0, 0, 4)), box(3, length, 4, (width-3, 0, 4))])
     # Sleeve bottoms bear directly on these broad feet at the lower dwell.
@@ -157,8 +169,11 @@ def base():
             xx=gx-M["origin_x"]-index*M["pitch"]
             yy=gy-M["origin_y"]
             if 0<xx<width and 0<yy<length:
-                holes.append(hole_z(xx,yy,7.2,z=-1,height=6))
-                holes.append(hole_z(xx,yy,12.2,z=3.9,height=4.3))
+                # The independent holder's permanent foot is wider than its
+                # shaft. Use the existing upper clearance through the floor
+                # too; the removable module never carries the capacitor.
+                holes.append(hole_z(xx,yy,12.2,z=-1,height=6))
+                holes.append(hole_z(xx,yy,13.1,z=3.9,height=4.3))
     holes += retaining_ties("servo")
     # Real rear-face wire opening; three finite native leads clear the cradle.
     holes.append(box(8,4,5,(10,129,34)))
@@ -185,7 +200,7 @@ def sliding_follower():
 
 
 @lru_cache
-def tray():
+def tray_blank():
     """Top at z=3; print on the x45 side so the integral peg points upward.
 
     Guide bridges and PETG fit need coupon/slicer validation and reprinting;
@@ -197,7 +212,7 @@ def tray():
         sleeve_y = 24 if y == 87 else 16
         pieces.append(box(14, sleeve_y, M["sleeve_length"], (x-7, y-sleeve_y/2, -M["sleeve_length"])))
         c = M["guide_clearance"]
-        holes.append(box(8+2*c, 10+2*c, 32, (x-4-c, y-5-c, -25)))
+        holes.append(guide_opening(x,y,c,32,-25))
     # Positive head/side retention stays outside the padded wand envelope.
     pieces.extend([box(2,M["length"],6,(1,0,3)),
                    box(2,M["length"],6,(43,0,3)),
@@ -224,6 +239,111 @@ def tray():
     return cut(result, holes)
 
 
+def guide_opening(x,y,clearance,height,z):
+    """Original 8x10 guide, unchanged face clearances, printable corner roofs.
+
+    At c=.45 the bounding opening is8.9x10.9 and the .6 mm corner chamfer
+    retains .212 mm diagonal clearance to the actual rectangular column.
+    """
+    a,b=4+clearance,5+clearance
+    chamfer=4*clearance/3
+    return (cq.Workplane("XY",origin=(x,y,z)).polyline([
+        (-a+chamfer,-b),(a-chamfer,-b),(a,-b+chamfer),(a,b-chamfer),
+        (a-chamfer,b),(-a+chamfer,b),(-a,b-chamfer),(-a,-b+chamfer)])
+        .close().extrude(height).val())
+
+
+TRAY_SEAM_X = 16.0
+TRAY_JOINTS = (74.0, 205.0)
+TRAY_LOWER_BEAMS = ((59,20),(196,16))
+
+
+def lower_beam_solids(start,depth):
+    """Source stock for the added lower joint beam and both deck webs."""
+    return (box(44,depth,11,(1,start,-20)),
+            box(2,depth,20,(1,start,-20)),box(3,depth,20,(42,start,-20)))
+
+
+def tray_joint_tools():
+    tools = []
+    for y in TRAY_JOINTS:
+        tools.append(box(50,3.4,3.4,(0,y-1.7,-16.2)))
+        # Two open nut bays, each only 6.8mm wide, retain a bridge anchor
+        # between lanes. A full through-bolt stays inside its module footprint.
+        tools.append(box(3,6.8,9,(0,y-3.4,-19)))
+        # A permanent pilot at the first nut-bay roof bridges along Z, then
+        # the final slot closes its ends across Y. Both spans have real anchors.
+        tools.append(box(.4,3.4,9,(3,y-1.7,-19)))
+    return tools
+
+
+@lru_cache
+def tray_halves():
+    """Two full-depth side prints, joined on the bench across a keyed seam.
+
+    The peg and rear guide stay integral with the right half; the front guide
+    stays integral with the left. Bolts clamp broad bosses, never the 3mm deck.
+    """
+    shape = tray_blank()
+    # Extend the peg root to the actual right build face. It remains outside
+    # the cam's X39 face and below the LED mounting surface.
+    shape = shape.fuse(box(1,12,23,(44,106,-23)))
+    # A full left root carries the U059 edge stop without a floating shelf.
+    shape = shape.fuse(box(6,28,11,(1,22,-11)))
+    # Self-supporting spine and joint roots; these ramps grow at 45 degrees
+    # in the two opposing side-print directions.
+    shape = shape.fuse(cq.Workplane("XZ",origin=(0,204,0)).polyline(
+        [(24,-8),(32,0),(24,0)]).close().extrude(142).val())
+    shape = shape.fuse(cq.Workplane("XZ",origin=(0,23,0)).polyline(
+        [(24,-8),(32,0),(24,0)]).close().extrude(15).val())
+    shape = shape.fuse(cq.Workplane("XZ",origin=(0,50,0)).polyline(
+        [(42,-11),(43,-10),(42,0)]).close().extrude(28).val(),box(2,2,11,(40,22,-11)))
+    shape = shape.fuse(cq.Workplane("XZ",origin=(0,24,0)).polyline(
+        [(44,-11),(45,-10),(44,0)]).close().extrude(2).val())
+    for start,depth in TRAY_LOWER_BEAMS:
+        shape = shape.fuse(*lower_beam_solids(start,depth))
+    # Relief preserves the actual purchased U059 envelope and retaining ties.
+    shape = shape.cut(box(33,39,12,(7,23,-12))).clean()
+    shape = cut(shape, retaining_ties("u059")+retaining_ties("led"))
+    # Open the half-mm remnants below the U059 tie passages instead of
+    # retaining unprintable skins. The real tie still threads through the deck.
+    shape = cut(shape,[box(35.5,2.5,1.1,(6,y-1.25,-11.1)) for y in U059_TIE_ROWS])
+    shape = cut(shape,[box(1.1,2.5,11,(6,y-1.25,-11)) for y in U059_TIE_ROWS])
+    shape = cut(shape,[box(2,2.5,34,(41,y-1.25,-24)) for y in LED_TIE_ROWS])
+    shape = cut(shape,[cq.Workplane("XY",origin=(0,0,-24)).polyline(
+        [(41,y-1.25),(39.75,y),(41,y+1.25)]).close().extrude(34).val()
+        for y in LED_TIE_ROWS])
+    shape = cut(shape,[box(3,wide,17,(40,y-wide/2,-12))
+                       for y,wide in ((16,8),(64,8),(167,8),(38,12))])
+    # The existing empty-bed transport wrap needs a through path through the
+    # new lower beam as well. Its roof is kept open across the whole print.
+    shape = cut(shape,[box(width,8,29,(x,60,-24)) for x,width in ((3.25,2.5),(40,3))])
+    # Slicer infill clipped the ends of the rectangular strap-roof bridge.
+    # Directional teardrop roofs close at 45 degrees in each side print while
+    # retaining the complete original 2.5 x 8 mm transport-wrap passage.
+    shape = cut(shape,[cq.Workplane("XY",origin=(0,0,-24)).polyline(points)
+                       .close().extrude(29).val() for points in (
+                           [(5.75,60),(9.75,64),(5.75,68)],
+                           [(40,60),(36,64),(40,68)])])
+    shape = shape.cut(box(44,8,12,(1,60,-12)))
+    shape = cut(shape,tray_joint_tools())
+    gap = .25
+    left = shape.intersect(box(TRAY_SEAM_X-1-gap/2,212,40,(1,0,-24)))
+    right = shape.intersect(box(45-TRAY_SEAM_X-gap/2,212,40,(TRAY_SEAM_X+gap/2,0,-24)))
+    # Two short locating tongues transfer shear. The sockets have 0.25mm
+    # clearance per face and the halves approach directly along X.
+    for y in TRAY_JOINTS:
+        tongue = box(2.5,4,1.2,(TRAY_SEAM_X-.5,y-2,-18.6))
+        left = left.fuse(tongue)
+        right = right.cut(box(2.8,4.5,1.7,(TRAY_SEAM_X-.5,y-2.25,-18.85)))
+    return left.clean(),right.clean()
+
+
+@lru_cache
+def tray():
+    return fuse(tray_halves())
+
+
 def wand():
     """Conservative silhouette envelope, not a reconstructed ornament."""
     head = box(W["head_width"], W["head_length"], W["head_height"],
@@ -235,7 +355,8 @@ def wand():
 
 def parts():
     return [Part("lift_base", base(), 6, "100% infill; servo cradle, two guides and transport strap anchors in one print"),
-            Part("wand_bed", tray(), 6, "100% infill; integral sliding peg: print +90 deg about Y on x45 side with wide brim; support only non-sliding surfaces; coupon/guide bridges provisional", ((0,1,0),90)),
+            Part("wand_bed_left", tray_halves()[0], 6, "Keyed left bed half; front guide integral; print left edge down; join with two M3x45 button screws and thin nuts", ((0,1,0),-90)),
+            Part("wand_bed_right", tray_halves()[1], 6, "Keyed right bed half; peg and rear guide integral; print right edge down; supports NONE", ((0,1,0),90)),
             Part("dwell_cam", cam(), 6, "100% infill; captured integral sliding peg drives both directions; two circular dwells", ((0,1,0),-90))]
 
 
@@ -245,12 +366,19 @@ def module(index=0, angle=0, with_wand=True):
     radius = cam_law(angle)[0]
     tray_z = M["cam_z"] + radius + M["follower_drop"]
     shapes = [Item(f"base_{index+1}", base(), "fixed", "mechanism"),
-              Item(f"tray_{index+1}", tray().translate((0,0,tray_z)), "moving", "tray"),
+              Item(f"tray_{index+1}", tray_halves()[1].translate((0,0,tray_z)), "moving", "tray"),
+              Item(f"tray_left_{index+1}", tray_halves()[0].translate((0,0,tray_z)), "moving", "tray"),
               Item(f"cam_{index+1}", cam().rotate((0,0,0),(1,0,0),angle).translate((M["cam_x"],M["cam_y"],M["cam_z"])), "moving", "metal"),
               Item(f"servo_{index+1}", box(27,22,11.5,(0.5,106.5,30.25)), "hardware", "black", "22 x 11.5 x 27 catalog; shaft offset provisional"),
               Item(f"stock_horn_{index+1}", cut(fuse([box(2,35,6,(0.2,-17.5,-3)),cylinder(4.5,2,(0.2,0,0),(1,0,0))]),[cylinder(1.2,4,(-1,sign*M["horn_fastener_radius"],0),(1,0,0)) for sign in (-1,1)]).rotate((0,0,0),(1,0,0),angle).translate((29,112,36)), "moving_hw", "white", "35 mm double horn; width/hub/thickness and slotted fastener location pending measured fit"),
               Item(f"u059_{index+1}", box(32,24,8,(7.5,24,tray_z-10)), "moving_hw", "pcb", "32 x 24 x 8 catalog"),
               Item(f"led_{index+1}", box(3,200,10,(45,6,tray_z-7)), "moving_hw", "light", "10 x 200; thickness 3 provisional")]
+    for j,y in enumerate(TRAY_JOINTS,start=1):
+        nut = cq.Workplane("YZ",origin=(1.2,y,tray_z-14.5)).polygon(6,5.5/math.cos(math.pi/6)).extrude(1.8).val()
+        nut = nut.cut(cylinder(1.5,2,(1.1,y,tray_z-14.5),(1,0,0)))
+        shapes += [Item(f"tray_joint_shaft_{j}_{index+1}",cylinder(1.5,45,(0,y,tray_z-14.5),(1,0,0)),"moving_hw","metal","M3x45 ISO7380-1; no protrusion into neighbouring modules; bench assembly"),
+                   Item(f"tray_joint_head_{j}_{index+1}",cylinder(2.85,1.65,(45,y,tray_z-14.5),(1,0,0)),"moving_hw","metal","ISO7380-1 M3 head envelope diameter5.7 height1.65"),
+                   Item(f"tray_joint_nut_{j}_{index+1}",nut,"moving_hw","metal","M3 DIN439 thin nut AF5.5 H1.8; low-strength threadlocker")]
     for sign in (-1,1):
         y = sign*M["horn_fastener_radius"]
         for name,shape,group in (

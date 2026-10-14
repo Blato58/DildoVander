@@ -8,6 +8,7 @@ from __future__ import annotations
 import csv
 import json
 import math
+import flex_routing
 from copy import deepcopy
 from pathlib import Path
 
@@ -52,6 +53,9 @@ CORRIDORS = {
     "power": {"y": M["origin_y"] + M["length"] - 9, "z": FRAME_TOP + 28},
     "signal": {"y": M["origin_y"] + M["length"] - 9, "z": FRAME_TOP + 24},
 }
+MOVING_LOOP_Y = M["origin_y"] + 58
+RIGHT_FRONT_Y = PARAMS["components"]["degson_1"]["origin"][1] - 22
+RIGHT_LOWER_X = M["origin_x"] + M["pitch"]*M["count"] - 1
 ANCHORS = {name: tuple(row["origin"]) for name, row in PARAMS["components"].items()}
 ANCHORS.update({name: tuple(point) for name, point in PARAMS["panel"].items()})
 # Supply is a passive socket on the fixed rear carrier, never on the powerbank.
@@ -199,10 +203,7 @@ def _moving_end_count(start, end):
 
 
 def loop_reserve(index):
-    x = M["origin_x"] + M["pitch"] * (index - 1)
-    return {"id": f"moving_loop_{index}", "origin": [x+17, M["origin_y"]+52, FRAME_TOP+24],
-            "size": [24,26,24], "lift_mm": M["lift"],
-            "status": "swept cable reserve; unverified elastic geometry and bend radius"}
+    return flex_routing.loop_reservation(index, M['origin_x'], M['pitch'])
 
 
 def _endpoint_path(endpoint, corridor):
@@ -225,34 +226,53 @@ def _endpoint_path(endpoint, corridor):
         return [a,(a[0],a[1]+2,a[2]),(left_back,a[1]+2,a[2]),(left_back,a[1]+2,z),(left_back,y,z)]
     if part.startswith("degson_"):
         exterior_x = 365
-        front_y = PARAMS["components"]["degson_1"]["origin"][1]-5
-        return [a,(a[0],a[1]-3,a[2]),(exterior_x,a[1]-3,a[2]),
-                (exterior_x,front_y,a[2]),(exterior_x,front_y,z),(exterior_x,y,z)]
+        # Rise in each block's own front terminal clearance before passing
+        # the other Degson blocks and the third tier's clamp tabs.
+        return [a,(a[0],a[1],96),(exterior_x,a[1],96),(exterior_x,RIGHT_FRONT_Y,96),
+                (exterior_x,RIGHT_FRONT_Y,z),(RIGHT_LOWER_X,RIGHT_FRONT_Y,z),(RIGHT_LOWER_X,y,z)]
     if part.startswith("F_") and not part.startswith("F_LOGIC"):
-        front_y = PARAMS["components"]["degson_1"]["origin"][1]-5
-        return [a,(a[0],front_y,a[2]),(a[0],front_y,z),(a[0],y,z)]
+        return [a,(a[0],RIGHT_FRONT_Y,a[2]),(a[0],RIGHT_FRONT_Y,z),
+                (RIGHT_LOWER_X,RIGHT_FRONT_Y,z),(RIGHT_LOWER_X,y,z)]
     if part.startswith("perfboard_"):
-        front_y = PARAMS["components"]["perfboard_1"]["origin"][1]-4
-        return [a,(a[0],front_y,a[2]),(365,front_y,a[2]),(365,front_y,z),(365,y,z)]
+        portal_y=PARAMS["components"][part]["origin"][1]-4
+        travel_z=34 if part=="perfboard_1" else 58
+        return [a,(a[0],portal_y,a[2]),(a[0],portal_y,travel_z),
+                (a[0],RIGHT_FRONT_Y,travel_z),(365,RIGHT_FRONT_Y,travel_z),
+                (365,RIGHT_FRONT_Y,z),(RIGHT_LOWER_X,RIGHT_FRONT_Y,z),(RIGHT_LOWER_X,y,z)]
     if part in ("red_main","green_drives","white_ptt"):
         escape_z = a[2]-5
-        return left_lane([a,(a[0],a[1],escape_z),(left_x,a[1],escape_z)])
+        # Go inboard of the controls' continuous right leg before crossing it.
+        return left_lane([a,(a[0],a[1],escape_z),(63,a[1],escape_z),
+                          (63,60,escape_z),(left_x,60,escape_z)])
     if part.startswith("amplifier_"):
         exit_x = M["origin_x"]+1 if part.endswith("left") else 411
         if part.endswith("left"):
             return left_lane([a,(left_x,a[1],a[2])])
-        return [a,(exit_x,a[1],a[2]),(exit_x,a[1],z),(exit_x,y,z)]
+        return [a,(exit_x,a[1],a[2]),(exit_x,RIGHT_FRONT_Y,a[2]),(exit_x,RIGHT_FRONT_Y,z),
+                (RIGHT_LOWER_X,RIGHT_FRONT_Y,z),(RIGHT_LOWER_X,y,z)]
     if part.startswith("speaker_"):
-        exit_y = PARAMS["components"][part]["origin"][1] + PARAMS["components"][part]["size"][1]+3
+        exit_y = PARAMS["components"][part]["origin"][1] + PARAMS["components"][part]["size"][1]+(2 if part.endswith("left") else 3)
         exit_x = M["origin_x"]+1 if part.endswith("left") else 410
         if part.endswith("left"):
             return left_lane([a,(a[0],exit_y,a[2]),(left_x,exit_y,a[2])])
-        return [a,(a[0],exit_y,a[2]),(exit_x,exit_y,a[2]),(exit_x,exit_y,z),(exit_x,y,z)]
+        return [a,(a[0],exit_y,a[2]),(exit_x,exit_y,a[2]),(exit_x,RIGHT_FRONT_Y,a[2]),
+                (exit_x,RIGHT_FRONT_Y,z),(RIGHT_LOWER_X,RIGHT_FRONT_Y,z),(RIGHT_LOWER_X,y,z)]
     if part.startswith("capacitor_"):
+        if part=='capacitor_1':
+            # Separate rear rows clear the cassette clamp head and the fixed
+            # C2 front exits. Corresponding short ducts preserve the PCB floor.
+            rear_y=110.2 if endpoint.endswith(':+') else 112.9
+            escape_x=M['origin_x']-2.6
+            return left_lane([a,(a[0],a[1],a[2]-1.5),
+                              (a[0],rear_y,a[2]-1.5),(escape_x,rear_y,a[2]-1.5),
+                              (escape_x,rear_y,z)])
         prefix=[a,(a[0],a[1],a[2]-1.5),(a[0],a[1]-7,a[2]-1.5)]
         if a[0]<M["origin_x"]:
-            # Leave room ahead of the amplifier's retaining strap.
-            return left_lane(prefix+[(a[0],95.5,a[2]-1.5),(left_x,95.5,a[2]-1.5)])
+            # Lower the lead outside the new bed beam before entering its
+            # packed lane. The original capacitor lead bores stay unchanged.
+            escape_x=M["origin_x"]-2.6
+            return left_lane(prefix+[(a[0],95.5,a[2]-1.5),(escape_x,95.5,a[2]-1.5),
+                                     (escape_x,95.5,z),(left_x,95.5,z)])
         index=int(part.split("_")[-1])
         module=int((a[0]-M["origin_x"])/M["pitch"])
         escape_x=M["origin_x"]+module*M["pitch"]+46.65
@@ -261,13 +281,15 @@ def _endpoint_path(endpoint, corridor):
     if part.startswith(("u059_", "led_")):
         index = int(part.split("_")[-1])
         x = M["origin_x"] + M["pitch"]*(index-1)
-        loop_x,loop_y = x+29, M["origin_y"]+73
+        loop_x,loop_y = x+29, MOVING_LOOP_Y
         exit_y = a[1]+5 if part.startswith("u059_") or endpoint.endswith(":DOUT") else a[1]-5
         if endpoint.endswith(":DOUT"):
             exit_y=a[1]+3
-            return [a,(a[0],exit_y,a[2]),(a[0],exit_y,FRAME_TOP+60.5),
-                    (loop_x,exit_y,FRAME_TOP+60.5),(loop_x,loop_y,FRAME_TOP+60.5),
-                    (loop_x,loop_y,FRAME_TOP+47),(loop_x,loop_y,FRAME_TOP+33),
+            # Stay outside the rear beam in X while dropping below it. Only
+            # then turn forward and enter the clear front flex-loop reserve.
+            return [a,(a[0],exit_y,a[2]),(a[0],exit_y,FRAME_TOP+39),
+                    (a[0],loop_y,FRAME_TOP+39),(loop_x,loop_y,FRAME_TOP+39),
+                    (loop_x,loop_y,FRAME_TOP+33),
                     (x+46.65,loop_y,FRAME_TOP+33),(x+46.65,y,FRAME_TOP+33),(x+46.65,y,z)]
         return [a,(a[0],exit_y,a[2]), (a[0],exit_y,FRAME_TOP+47), (a[0],loop_y,FRAME_TOP+47),
                 (loop_x,loop_y,FRAME_TOP+47), (loop_x,loop_y,FRAME_TOP+33),
@@ -281,7 +303,7 @@ def _endpoint_path(endpoint, corridor):
     rear_y = y
     right_x = M["origin_x"] + M["pitch"]*M["count"] + 2
     if part in ("esp32", "esp_usb_supply", "pca9685", "mcp23017", "F_LOGIC-", "F_LOGIC3"):
-        escape_y = PARAMS["components"][part]["origin"][1]-3.5 if part in PARAMS["components"] else a[1]-3.5
+        escape_y = a[1] if part=="esp_usb_supply" else PARAMS["components"][part]["origin"][1]-3.5 if part in PARAMS["components"] else a[1]-3.5
         points = [a,(a[0],escape_y,a[2]),(a[0],escape_y,z),(a[0],rear_y,z)]
         return points + [(points[-1][0],y,z)]
     if a[0] < M["origin_x"]:
@@ -292,7 +314,13 @@ def _endpoint_path(endpoint, corridor):
         right_x=PARAMS["frame"]["origin"][0]+PARAMS["frame"]["size"][0]-4.9
         escape_x=PARAMS["components"]["microphone"]["origin"][0]-3
         return [a,(escape_x,a[1],a[2]),(escape_x,a[1],56),(escape_x,front_y,56),
-                (right_x,front_y,56),(right_x,151,56),(right_x,151,z),(right_x,y,z)]
+                (right_x,front_y,56),(right_x,RIGHT_FRONT_Y,56),(right_x,RIGHT_FRONT_Y,z),
+                (RIGHT_LOWER_X,RIGHT_FRONT_Y,z),(RIGHT_LOWER_X,y,z)]
+    if part=="pixel_shifter":
+        # The rear pin escapes behind its ties, rises between the first two
+        # tiers, then joins the shared front approach above the bought boards.
+        return [a,(a[0],158,a[2]),(365,158,a[2]),(365,158,34),(365,RIGHT_FRONT_Y,34),
+                (365,RIGHT_FRONT_Y,z),(RIGHT_LOWER_X,RIGHT_FRONT_Y,z),(RIGHT_LOWER_X,y,z)]
     return [a, (a[0],a[1],z), (a[0],y,z)]
 
 
@@ -306,7 +334,7 @@ def _helical_coil_turns():
     cy=USB_COIL["origin"][1]+40
     cz=USB_COIL["origin"][2]+32.5
     radius=20.1
-    half_straight=6.9
+    half_straight=1.5
     base=[(cy-half_straight-radius,cz,-1,0)]
     def arc(y,z,first,last):
         for angle in range(first+10,last+1,10):
@@ -345,13 +373,12 @@ def _route(start, end, corridor):
         coil_side_x=USB_COIL["origin"][0]+USB_COIL["size"][0]+3.35
         coil=_helical_coil_turns()
         entry,exit=coil[0],coil[-1]
-        points=[a,(a[0],a[1]-20,a[2]),(a[0],a[1]-20,42),
-                (a[0],a[1]-17.35,42),(side_x,a[1]-17.35,42),
-                (side_x,y,42),(coil_side_x,y,42),(coil_side_x,y+40,42),(entry[0],y+40,42),
+        tail=flex_routing.usb_bank_tail(a,side_x,y)
+        points=tail['points']+[(coil_side_x,y,42),(coil_side_x,y+40,42),(entry[0],y+40,42),
                 (entry[0],y+40,entry[2])] + coil
         points += [(exit[0],y-2,exit[2]),(side_x,y-2,exit[2]),(side_x,y-2,86),
                    (side_x,b[1]-1.85,86),(side_x,b[1]-1.85,b[2]),
-                   (side_x,b[1]-20,b[2]),(b[0],b[1]-20,b[2]),b]
+                   (side_x,b[1]-18,b[2]),(b[0],b[1]-18,b[2]),b]
         return [list(point) for point in points]
     elif start == "esp_usb_supply:USB-A":
         a,b = endpoint_anchor(start),endpoint_anchor(end)
@@ -417,7 +444,7 @@ def _wire(identifier, start, end, net, area=0.5, corridor="power", native=0,
                          "component": _component(endpoint),
                          "loop": loop_reserve(int(_component(endpoint).split("_")[-1])),
                          "fixed_point": [M["origin_x"] + M["pitch"]*(int(_component(endpoint).split("_")[-1])-1) + 29,
-                                         M["origin_y"]+73, FRAME_TOP+33],
+                                         MOVING_LOOP_Y, FRAME_TOP+33],
                          "moving_point": list(endpoint_anchor(endpoint)),
                          "axis": [0,0,1], "lift_mm": LIFT_MM}
                         for endpoint in (start,end) if _component(endpoint).startswith(("led_", "u059_"))]
@@ -435,13 +462,14 @@ def _wire(identifier, start, end, net, area=0.5, corridor="power", native=0,
         "transport_from": "usb_park_clip:unplugged_C" if identifier == "USB-PD" else None,
         "transport_connection": "disconnected; powerbank removed; insulated USB plug clipped" if identifier == "USB-PD" else "unchanged fixed wiring",
         "coil_reserve": USB_COIL if identifier == "USB-PD" else None,
+        "bank_tail": flex_routing.usb_bank_tail(endpoint_anchor(start),M['origin_x']-2.4,USB_COIL['origin'][1]) if identifier=='USB-PD' else None,
         "curve_sampling_degrees": 10 if identifier == "USB-PD" else None,
         "coil_turns": 3 if identifier == "USB-PD" else None,
         "coil_pitch_x_mm": 4.2 if identifier == "USB-PD" else None,
         "coil_radial_growth_mm_per_turn": 3.25 if identifier == "USB-PD" else None,
         "excess_stock_mm": max(0, (stock or native) - required),
-        "bend_radius_mm": PARAMS["clearances"]["wire_min_bend_radius"],
-        "bend_status": "polyline corners are routing anchors; fillet and dry-fit required, not a proven cable curve",
+        "bend_radius_mm": 20 if identifier=='USB-PD' else PARAMS["clearances"]["wire_min_bend_radius"],
+        "bend_status": 'exact nominal R20 bank exit; coil and PD/park approaches require physical bend/connector dry fit' if identifier=='USB-PD' else "polyline corners are routing anchors; fillet and dry-fit required, not a proven cable curve",
         "service_mm": SERVICE_MM, "termination_mm": TERMINATION_MM,
         "motion_mm": motion_mm, "lift_mm": LIFT_MM if moving else 0,
         "native_lead_mm": native, "stock_mm": stock,
@@ -476,10 +504,15 @@ def terminal_termination(endpoint):
 
 
 def _transport_pd(points):
-    # Replace the detached source tail; the coil and PD end remain fixed.
+    # Exit the parking clip before bending into the tier-one USB tunnel.
+    # The common tunnel, coil and PD end retain their installed route.
     park = list(USB_PARK_POINT)
-    join = points[2]
-    return [park, [park[0],join[1],park[2]], [join[0],join[1],park[2]], join] + deepcopy(points[3:])
+    side_x=M['origin_x']-2.4
+    side_join=[side_x,USB_COIL['origin'][1],42]
+    join_index=points.index(side_join)
+    tunnel_x=endpoint_anchor('powerbank:C1')[0]
+    return [park,[tunnel_x,park[1],park[2]],[tunnel_x,park[1],42],
+            [tunnel_x,97,42],[side_x,97,42]]+deepcopy(points[join_index:])
 
 
 def _make_harnesses():
@@ -644,7 +677,7 @@ def _pack_corridors(wires):
             level+=(previous+diameter)/2+.1
             previous=diameter
             for point in wire["points"]:
-                if point[2]==FRAME_TOP+33 and x+28.9<=point[0]<=x+46.8 and point[1]>=M["origin_y"]+73:
+                if point[2]==FRAME_TOP+33 and x+28.9<=point[0]<=x+46.8 and point[1]>=MOVING_LOOP_Y:
                     point[2]=round(level,3)
             row["fixed_point"][2]=round(level,3)
             wire.setdefault("local_corridor_slots",[]).append({"module":module,"z":round(level,3),
@@ -671,6 +704,10 @@ def _pack_corridors(wires):
     for wire in sorted(left_wires,key=lambda row:(-row["outer_diameter_mm"],row["id"])):
         diameter=wire["outer_diameter_mm"]
         level+=(previous_diameter+diameter)/2+.15
+        # The first bed's through-shaft sweeps Z59..78 at the left approach.
+        # Keep the lower bank below it and put remaining conductors above it.
+        if level+diameter/2+.3>59 and level<80:
+            level=80+diameter/2
         previous_diameter=diameter
         wire["left_corridor_z"]=round(level,3)
         for point in wire["points"]:
@@ -684,13 +721,20 @@ def _pack_corridors(wires):
                if a[1]==b[1]==rear_y and abs(a[0]-b[0])>20]
         if spans:
             candidates.append((wire,min(a for a,b in spans)-7,max(b for a,b in spans)+7))
-    slots=[(round(M["origin_y"]+200.4+column*.4,3),round(z+row*.4,3))
-           for z in (25.7,53.7) for row in range(40) for column in range(28)]
+    # The reinforced rear bed beam starts at Z52. Pack the entire transverse
+    # field below it, including the finite insulation and clearance envelope.
+    slots=[(round(M["origin_y"]+198.8+column*.4,3),round(22.1+row*.4,3))
+           for row in range(71) for column in range(32)]
     allocated=[]
     for wire,minimum,maximum in sorted(candidates,key=lambda row:(-row[0]["outer_diameter_mm"],-(row[2]-row[1]),row[0]["id"])):
         diameter=wire["outer_diameter_mm"]
         selected=None
         for y,z in slots:
+            if any(_component(endpoint) in ("amplifier_right","speaker_right","microphone","pixel_shifter")
+                   for endpoint in (wire["from"],wire["to"])) and z<34:
+                continue
+            if z-wire["outer_diameter_mm"]/2-.3<24 and y+wire["outer_diameter_mm"]/2+.3>233.5:
+                continue
             # Rear guide sleeves end at Y(origin+199); LED strips at Y+206.
             if z>66 and y<M["origin_y"]+208:
                 continue
@@ -711,7 +755,7 @@ def _pack_corridors(wires):
         # The right board stack changes level at its clear front edge, before
         # entering the rear column window, never through a perfboard shelf.
         for point in original:
-            if point[0]>=365 and point[2] in (36,40) and 118<=point[1]<=rear_y:
+            if point[0]>=RIGHT_LOWER_X and point[2] in (36,40) and 118<=point[1]<=rear_y:
                 point[2]=new_z
         adjusted=[original[0]]
         for start,end in zip(original,original[1:]):
@@ -751,7 +795,54 @@ def _pack_corridors(wires):
     return wires
 
 
-HARNESSES = _pack_corridors(_make_harnesses())
+def _rolling_returns(wires):
+    """Replace obsolete straight flex spans after fixed-trunk slot packing."""
+    if MOVING_LOOP_Y != flex_routing.FIXED_Y or LIFT_MM != flex_routing.LIFT_MM:
+        raise ValueError('Cable bend contract does not match the mechanism')
+    for module in range(1, M['count']+1):
+        members = [(wire,row) for wire in wires for row in wire['moving_endpoints']
+                   if int(row['component'].rsplit('_',1)[1]) == module]
+        lane = M['origin_x']+(module-1)*M['pitch']+20.95
+        for wire,row in sorted(members, key=lambda pair:(-pair[0]['outer_diameter_mm'],pair[0]['id'])):
+            diameter = wire['outer_diameter_mm']
+            lane += diameter/2
+            points = wire['points']
+            anchor = points.index(row['fixed_point'])
+            is_from = row['endpoint'] == wire['from']
+            top = points[anchor-1 if is_from else anchor+1]
+            curve, weights = flex_routing.rolling_return(lane, row['fixed_point'][2], top[2])
+            stored = wire.setdefault('point_lift_weights', {})
+            if is_from:
+                tail = [list(point) for point in points[:anchor-1]]
+                tail[-1][1] = flex_routing.MOVING_Y
+                wire['points'] = tail+list(reversed(curve))+points[anchor+1:]
+                for key, values in stored.items():
+                    stored[key] = values[:anchor-1]+[0.0]*len(curve)+values[anchor+1:]
+                stored[str(module)] = [1.0]*len(tail)+list(reversed(weights))+[0.0]*(len(points)-anchor-1)
+            else:
+                tail = [list(point) for point in points[anchor+2:]]
+                tail[0][1] = flex_routing.MOVING_Y
+                wire['points'] = points[:anchor]+curve+tail
+                for key, values in stored.items():
+                    stored[key] = values[:anchor]+[0.0]*len(curve)+values[anchor+2:]
+                stored[str(module)] = [0.0]*anchor+weights+[1.0]*len(tail)
+            row['fixed_point'] = list(curve[0])
+            row['loop'] = loop_reserve(module)
+            row['return_radius_mm'] = flex_routing.RADIUS_MM
+            row['return_lane_x_mm'] = lane
+            wire['curve_chord_error_mm'] = flex_routing.CHORD_ERROR_MM
+            wire['bend_status'] = 'R8 constant-length rolling return; terminal approach anchors and actual flexible wire require dry fit'
+            lane += diameter/2+flex_routing.LANE_GAP_MM
+    for wire in wires:
+        wire['route_mm'] = round(route_length(wire['points']),1)
+        required = math.ceil((route_length(wire['points'])+wire['service_mm']+
+                              wire['termination_mm']+wire['motion_mm'])/10)*10
+        wire['estimated_total_mm'] = required
+        wire['estimated_cut_mm'] = max(0,required-(wire['stock_mm'] or wire['native_lead_mm']))
+    return wires
+
+
+HARNESSES = _rolling_returns(_pack_corridors(_make_harnesses()))
 
 
 def _physical_loads(endpoint, trail=(), visited=()):

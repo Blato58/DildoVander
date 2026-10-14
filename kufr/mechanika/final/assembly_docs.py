@@ -5,6 +5,12 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parent
 
 
+def readable_summary(value):
+    if not isinstance(value, list):
+        return str(value)
+    return '; '.join(item if isinstance(item, str) else item['text'] for item in value)
+
+
 def document(guide):
     lines=['# Postup sestavení F2', '',
            'Generováno z `assembly-guide.json`; stejná data používá Workshop.',
@@ -16,7 +22,7 @@ def document(guide):
                   '**Místo:** '+step['location']+'; '+step['direction']+'.', '',
                   '**Předchůdci:** '+(', '.join(step['depends']) or 'žádní')+'.', '',
                   '**Již připravené kroky:** '+(', '.join(prior) or 'žádné')+'.', '',
-                  '**Díly:** '+str(step['partSummary'])+'.', '', '**Materiál:**']
+                  '**Díly:** '+readable_summary(step['partSummary'])+'.', '', '**Materiál:**']
         for material in step['materials']:
             label=guide['materialCatalog'][material['id']]
             if isinstance(label,dict): label=label.get('label',label.get('name',material['id']))

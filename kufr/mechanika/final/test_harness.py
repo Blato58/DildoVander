@@ -148,16 +148,22 @@ class HarnessTests(unittest.TestCase):
                 self.assertTrue(wire['from_termination'] and wire['to_termination'])
                 self.assertGreater(wire['outer_diameter_mm'],0)
                 self.assertIn('provisional', registry[wire['from']]['position_status'])
-                for a,b in zip(wire['points'],wire['points'][1:]):
+                for index,(a,b) in enumerate(zip(wire['points'],wire['points'][1:])):
                     if sum(x!=y for x,y in zip(a,b))>1:
-                        self.assertEqual("USB-PD",wire["id"])
-                        self.assertEqual(10,wire["curve_sampling_degrees"])
-                        self.assertLessEqual(math.dist(a,b),14.5)
+                        if wire['id']=='USB-PD':
+                            self.assertEqual(10,wire["curve_sampling_degrees"])
+                            self.assertLessEqual(math.dist(a,b),14.5)
+                        else:
+                            self.assertGreater(wire['curve_chord_error_mm'],0)
+                            self.assertTrue(any(row[index]==row[index+1]==.5
+                                                for row in wire['point_lift_weights'].values()))
+                            self.assertLessEqual(math.dist(a,b),1.4)
 
     def test_component_parameter_change_moves_pin_and_routes_without_topology_change(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "harness.py").write_bytes(Path(harness.__file__).read_bytes())
+            (root / "flex_routing.py").write_bytes(Path(harness.flex_routing.__file__).read_bytes())
             params = deepcopy(harness.PARAMS)
             params["components"]["esp32"]["origin"][0] += 1
             (root / "parameters.json").write_text(json.dumps(params), encoding="utf-8")
@@ -179,6 +185,38 @@ class HarnessTests(unittest.TestCase):
                     self.assertTrue(0 <= point[1] <= case['inside_y'])
                     self.assertTrue(harness.FRAME_TOP <= point[2] <= case['inside_z'])
 
+    def test_packed_rear_field_stays_below_lowest_reinforced_bed_beam(self):
+        for wire in harness.HARNESSES:
+            slot=wire.get('rear_corridor_slot')
+            if slot:
+                with self.subTest(wire=wire['id']):
+                    self.assertLess(slot['z']+wire['outer_diameter_mm']/2+.3,52)
+
+    def test_left_approach_skips_complete_tray_shaft_lift(self):
+        low=harness.REST_TRAY_Z-14.5-1.5
+        high=low+3+harness.LIFT_MM
+        for wire in harness.HARNESSES:
+            if 'left_corridor_z' not in wire:
+                continue
+            centre=wire['left_corridor_z']
+            radius=wire['outer_diameter_mm']/2+.3
+            with self.subTest(wire=wire['id']):
+                self.assertTrue(centre+radius<low or centre-radius>high)
+
+    def test_moving_front_loop_fixed_ties_clear_joint_beam_throughout_lift(self):
+        import mechanism
+        from geometry import bounds
+        start,depth=mechanism.TRAY_LOWER_BEAMS[0]
+        lowest_beam_z=harness.REST_TRAY_Z+min(bounds(shape)[2] for shape in mechanism.lower_beam_solids(start,depth))
+        for wire in harness.HARNESSES:
+            for moving in wire['moving_endpoints']:
+                with self.subTest(wire=wire['id'],endpoint=moving['endpoint']):
+                    # The fixed leg stays below the beam even when their Y
+                    # envelopes overlap; raising the tray only grows this gap.
+                    radius=wire['outer_diameter_mm']/2+.3+harness.flex_routing.CHORD_ERROR_MM
+                    self.assertLess(moving['fixed_point'][2]+radius,lowest_beam_z)
+                    self.assertIn(moving['fixed_point'],wire['points'])
+
     def test_transport_pd_is_parked_disconnected_and_coil_stays_beside_bank(self):
         wire = next(w for w in harness.routes() if w['id']=='USB-PD')
         self.assertEqual('usb_park_clip:unplugged_C', wire['transport_from'])
@@ -189,6 +227,17 @@ class HarnessTests(unittest.TestCase):
         bank = harness.PARAMS['components']['powerbank']
         self.assertGreater(harness.USB_COIL['origin'][0],bank['origin'][0]+bank['size'][0])
         self.assertLess(harness.USB_COIL['origin'][0]+harness.USB_COIL['size'][0],harness.M['origin_x'])
+
+    def test_parked_pd_enters_same_usb_tunnel_after_leaving_clip(self):
+        wire = next(w for w in harness.routes() if w['id']=='USB-PD')
+        transport=wire['transport_points']
+        join=[harness.M['origin_x']-2.4,harness.USB_COIL['origin'][1],42]
+        join_index=wire['points'].index(join)
+        # The parked source keeps its existing Y97 tunnel. Coil/PD stay fixed.
+        self.assertEqual(transport[0][1:],transport[1][1:])
+        self.assertEqual(join[2],transport[2][2])
+        self.assertEqual(transport[3][1:], [97,42])
+        self.assertEqual(wire['points'][join_index:],transport[5:])
 
     def test_all_six_modules_reserve_independent_moving_endpoint_loops(self):
         modules = set()
@@ -291,6 +340,28 @@ class HarnessTests(unittest.TestCase):
 
 
 class FiniteGeometryContractTests(unittest.TestCase):
+    def test_declared_curve_error_cannot_hide_a_near_return(self):
+        wire={'id':'curve-error','outer_diameter_mm':1.2,
+              'points':[[0,0,0],[10,0,0],[10,10,0],[0,10,0],[0,1.801,0],[8,1.801,0]]}
+        self.assertEqual(self.verifier.self_clearance(wire)['status'],'PASS')
+        wire['curve_chord_error_mm']=harness.flex_routing.CHORD_ERROR_MM
+        self.assertEqual(self.verifier.self_clearance(wire)['status'],'FAIL')
+
+    def test_exact_curve_cache_distinguishes_same_endpoints_with_different_bends(self):
+        from geometry import Item,box
+        from flex_routing import usb_bank_tail
+        obstacle=Item('probe',box(.4,.4,1,(75.6,80.8,41.5)),'fixed','metal')
+        def cable(radius):
+            curve=usb_bank_tail((33.25,114.35,46),68.6,165,radius)
+            return {'id':'USB-PD','from':'powerbank:C1','to':'pd_trigger:USB-C',
+                    'outer_diameter_mm':4.5,'points':curve['points'],'bank_tail':curve}
+        cache={}
+        self.assertEqual(self.verifier.audit([cable(20)],[obstacle],cache=cache)['status'],'PASS')
+        for candidate in (cache,{}):
+            result=self.verifier.audit([cable(21)],[obstacle],cache=candidate)
+            self.assertEqual(result['status'],'FAIL')
+            self.assertGreater(result['collisions'][0]['volume_mm3'],0)
+
     @classmethod
     def setUpClass(cls):
         try:
@@ -304,6 +375,19 @@ class FiniteGeometryContractTests(unittest.TestCase):
         sphere=v.tube((30,40,20),(30,40,20),2)
         self.assertAlmostEqual(4*math.pi*8/3,sphere.Volume(),places=6)
         self.assertTrue(sphere.isInside(v.cq.Vector(30,40,18.5)))
+
+    def test_parked_usb_first_bend_clears_actual_clip_without_endpoint_exemption(self):
+        v=self.verifier
+        wire=next(row for row in harness.HARNESSES if row['id']=='USB-PD')
+        radius=wire['outer_diameter_mm']/2+v.CLEARANCE_MM
+        clip=v.layout.usb_clip()
+        points=wire['transport_points'][:4]
+        for index,point in enumerate(points[1:],1):
+            with self.subTest(corner=index):
+                self.assertLess(v.tube(point,point,radius).intersect(clip).Volume(),1e-5)
+        for index,(start,end) in enumerate(zip(points[1:],points[2:]),1):
+            with self.subTest(segment=index):
+                self.assertLess(v.tube(start,end,radius).intersect(clip).Volume(),1e-5)
 
     def test_segment_distance_handles_crossing_parallel_and_finite_ends(self):
         distance=self.verifier.segment_distance

@@ -34,7 +34,8 @@ def calculate():
     """Sample the source cam every 0.1 degree; report friction sensitivity."""
     m, wand = PARAMS["mechanism"], PARAMS["wand"]
     printed_mass_g = mechanism.tray().Volume()/1000*PARAMS["print"]["density_g_cm3"]
-    moving_mass_kg = (printed_mass_g+wand["design_payload_g"]+25)/1000
+    joint_hardware_g = 8.0  # Two M3x45 screws plus thin nuts; conservative allowance, unweighed.
+    moving_mass_kg = (printed_mass_g+wand["design_payload_g"]+25+joint_hardware_g)/1000
     gravity = moving_mass_kg*9.81
     guide_allowance = .5*gravity
     axial_load = gravity+guide_allowance
@@ -71,7 +72,8 @@ def calculate():
             "nominal_root_max_shear_MPa": None if singular_angles else 4*resultant/(3*area)})
     return {"sample_step_degrees": .1, "sample_count": len(samples),
         "printed_tray_mass_g": printed_mass_g, "payload_design_g": wand["design_payload_g"],
-        "moving_hardware_allowance_g": 25, "moving_mass_design_kg": moving_mass_kg,
+        "moving_hardware_allowance_g": 25+joint_hardware_g, "moving_mass_design_kg": moving_mass_kg,
+        "joint_hardware_mass_allowance_g": joint_hardware_g,
         "gravity_N": gravity, "guide_friction_allowance_N": guide_allowance,
         "guide_friction_allowance_assumed_not_measured": True,
         "axial_lifting_load_N": axial_load,

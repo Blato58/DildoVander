@@ -20,7 +20,7 @@ def validate_tool(tool, wood_bonding=False):
 
 def validate_contract(guide, material_list):
     """Keep purchasing and first-install order independent of scene coverage."""
-    forbidden={'FOLLOWER3','ROLLER','SLEEVE','SPACER','ANGLE40','RAIL20','M4x12'}
+    forbidden={'FOLLOWER3','ROLLER','SLEEVE','SPACER','ANGLE40','RAIL20','M4x12','M3x16'}
     assert not forbidden.intersection(guide['materialCatalog']), 'Obsolete material catalog'
     assert not forbidden.intersection(material_list), 'Obsolete purchased material'
     steps={step['id']:step for step in guide['steps']}
@@ -37,8 +37,10 @@ def validate_contract(guide, material_list):
     assert quantities('anchors')['NUT3']==24 and quantities('anchors')['NUT4']==4, 'Load captive nuts before frame'
     assert quantities('install')['M4x10']==4 and quantities('install')['NUT4']==0
     assert quantities('install')['M3x14']==24 and quantities('mechanisms')['M3x14']==0
-    assert quantities('covers')['M3x10']==8 and material_list['M3x10']==8
-    assert material_list['NUT3']==88 and material_list['NUT4']==4
+    assert quantities('covers')['M3x10']==8 and material_list['M3x10']==13
+    assert quantities('carriers')['M3x10']==5 and quantities('carriers')['M3CSK10']==2
+    assert quantities('carriers')['M3x12']==10 and quantities('carriers')['M3x16']==0
+    assert material_list['NUT3']==105 and material_list['NUT4']==4
     return {'no_fitting_tools':'PASS','printed_floor_anchor_order':'PASS','bench_wiring_before_upper_groups':'PASS'}
 
 
@@ -110,9 +112,9 @@ def validate():
             assert all(first_install[name]==step_id for name in names), 'Part installed out of order: '+pattern
     # Purchased bulk stock may include spare ties or labels. Fastener counts
     # must agree exactly, so the illustrated assembly cannot omit hardware.
-    exact=('M3x6','M3x8','M3CSK8','M3x10','M3x14','NUT3','M4x10','NUT4',
+    exact=('M3x6','M3x8','M3CSK8','M3x10','M3CSK10','M3x12','M3x14','NUT3','M4x10','NUT4',
            'GUIDE4','GUIDE_NUT','GUIDE_WASHER','COUPLER2',
-           'SERVO_CENTRE','BANK_WRAP','COIL_TIE')
+           'SERVO_CENTRE','BANK_WRAP','COIL_TIE','BED_M3x45','BED_NUT3_THIN')
     for name in exact:
         assert materials[name]==material_list[name], f'Assembly/BOM quantity differs: {name}'
     assert materials['TIE25']<=material_list['TIE25']

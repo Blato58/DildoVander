@@ -13,12 +13,15 @@ ASSEMBLY_NAMES = (
 FIXED_EXPORTS = (
     "manifest.json", "verification.json", "collision-details.json", "artifact-sha256.json",
     "generation-snapshot.json", "wire-collision-details.json",
-    "print-bom.csv", "installed-hardware.csv", "viewer.html", "reference-sources.html",
+    "print-bom.csv", "printing-manifest.csv", "printability.json", "slicer-validation.json",
+    "support-free-petg.ini", "installed-hardware.csv", "viewer.html", "reference-sources.html",
     "layout.svg", "layout.png", "kinematika.svg",
     "cable-plan.json", "cable-cut-list.csv", "cable-layout.svg", "cable-layout.png",
     "images/open.png", "images/service.png", "images/transport.png",
     "images/mechanism.png", "images/cam.png",
     "images/top.png", "images/wiring.png", "images/anchors.png",
+    "images/bed-exploded.png", "images/left_service_carrier-exploded.png",
+    "images/right_service_carrier-exploded.png", "images/camera-exploded.png", "images/controls-exploded.png",
 )
 VERIFICATION_EXPORTS = {"verification.json", "artifact-sha256.json"}
 AUDIT_EXPORTS = {"collision-details.json", "wire-collision-details.json"}
@@ -39,7 +42,7 @@ def export_names(manifest):
         *FIXED_EXPORTS,
         *(f"assembly/{name}.step" for name in ASSEMBLY_NAMES),
         *(f"{folder}/{name}.{suffix}" for name in parts
-          for folder, suffix in (("stl", "stl"), ("step", "step"))),
+          for folder, suffix in (("stl", "stl"), ("step", "step"), ("3mf", "3mf"), ("profiles", "ini"))),
     ])
 
 
@@ -123,10 +126,36 @@ def generate_exports(root, out, generators, source_hashes):
             if source_hashes() != initial_sources or manifest["sources"] != initial_sources:
                 raise ValueError("Sources changed during export generation; regenerate")
             hashes = export_hashes(staging, generated_export_names(manifest))
+            # Delete only retired parts previously registered by this pipeline.
+            # A fresh staging directory cannot remove old files in published OUT.
+            old_manifest = out / "manifest.json"
+            if old_manifest.is_file():
+                old = json.loads(old_manifest.read_bytes())
+                current = {part["name"] for part in manifest["parts"]}
+                for part in old.get("parts", []):
+                    name = part["name"]
+                    if not re.fullmatch(r"[a-z][a-z0-9_]*", name):
+                        raise ValueError("Unsafe retired printable part name")
+                    if name not in current:
+                        for folder, extension in (("stl", "stl"), ("step", "step"), ("3mf", "3mf"), ("profiles", "ini")):
+                            retired = (out / folder / f"{name}.{extension}").resolve()
+                            if not retired.is_relative_to(out.resolve()):
+                                raise ValueError("Retired manufacturing file escapes output directory")
+                            retired.unlink(missing_ok=True)
             for name in hashes:
                 destination = out / name
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(staging / name, destination)
+            # Preserve current local audit bytes, without shipping generic G-code.
+            # Only names belonging to this manifest are copied from fresh staging.
+            if (staging/'slicing').is_dir():
+                (out/'slicing').mkdir(exist_ok=True)
+                audit_names=['tool.log']+[part['name']+suffix for part in manifest['parts']
+                    for suffix in ('.gcode','-effective.ini','-slice.log','-project.log')]
+                for name in audit_names:
+                    source=staging/'slicing'/name
+                    if source.is_file():
+                        shutil.copyfile(source,out/'slicing'/name)
             if source_hashes() != initial_sources:
                 raise ValueError("Sources changed while publishing generated exports; regenerate")
             assert_export_hashes(out, hashes, generated_export_names(manifest))

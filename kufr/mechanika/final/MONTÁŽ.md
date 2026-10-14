@@ -3,7 +3,7 @@
 Návod používat s [materiálem](mechanicky-material.csv),
 [kabeláží](KABELAZ.md), [řezným seznamem](exports/cable-cut-list.csv)
 a [úplným postupem](POSTUP.md) generovaným ze stejných dat jako montážní režim vieweru. Dokud nejsou potvrzené níže uvedené vstupy,
-tisknout dvoudílnou měrku a jeden zkušební modul. Otvory, kapsy a kluzný
+tisknout tři výrobní měrky a jeden zkušební modul. Otvory, kapsy a kluzný
 čep vznikají tiskem. Kufr, plastové díly ani kovové šrouby se nepilují,
 neřežou a nevrtají. Návrh není fyzicky přijatý.
 
@@ -17,47 +17,35 @@ kameru s FPC. Nasucho vložit šablonu 400 × 240 mm přes volný horní obdéln
 45 × 45 mm šablonou a tvarované kotvy; potom celý chod víka. [PODKLADY.md](PODKLADY.md) rozlišuje měření
 a odhady. Překročenou obálku řešit parametry a regenerací.
 
-PETG: STL již mají tiskovou orientaci. Kotvy mají plochou HORNÍ stranu na podložce a zakřivený spodek vzhůru. První zkušební kotvu vytisknout a prohlédnout v této orientaci; vzpřímená měrka ověřuje rozměrové vůle, nenahrazuje kontrolu výrobních můstků a vrstev obrácené kotvy. Použít vrstvu 0,2 mm, nejméně
-4 perimetry a 5 plných horních i spodních vrstev. Čtyři podlahové kotvy,
-`lift_base`, `wand_bed`, `dwell_cam` a zkušební `fit_coupon` tisknout se 100% výplní, aby nominální
-nosné průřezy nebyly nahrazené řídkou výplní. Ostatní díly přibližně 40 %.
-Přemostění vnitřních kapes matic a epoxidových zámků nejprve zkontrolovat
-v náhledu sliceru a na zkušebním výtisku; uvnitř těchto dutin nezavřít podpory.
-Připravit 3 kg PETG. Součet plných CAD objemů všech 52 výtisků při hustotě
-1,27 g/cm³ odpovídá přibližně 2,46 kg; samotné povinně plné díly přibližně
-1,53 kg. Skutečnou spotřebu ostatních dílů, podpor, lemů a zkoušek určí
-slicer. Původní 1kg položka pro tuto variantu nestačí.
-Namáhaná vodítka, vačky, kluzný čep a střechy matic nesmějí mít nedotisky.
-Lůžko je otočené +90° kolem Y; integrální čep Ø6 směřuje vzhůru. Kluzná
-plocha čepu ani drážky nesmí mít kontaktní plochy podpor. Nejdříve ověřit
-čep a odpovídající drážku dvoudílnou měrkou. Ještě před tiskem velkých
-kotev do měrky z boku zasunout skutečné M3 a M4 matice, vyzkoušet
-zachycení závitu šroubem a matice opět vyjmout pro finální sestavu.
-Tunely, šestihranné kapsy, slepé dno a uzavřené střechy měrky mají stejný
-profil a tiskovou orientaci jako kotvy. Vůli řešit profilem nebo
-parametrem a novým tiskem, nikdy pilníkem, vrtákem nebo měřítkem STL.
-Měrka obsahuje také jeden skutečný epoxidový zámek: spodní Ø7,5 vstup,
-Ø10,5 komoru a dvě horní Ø2,5 odvzdušnění. Před tiskem kotev ověřit čisté
-přemostění komory a průchodnost vstupu/obou odvzdušnění. Po vyjmutí
-zkušebních matic předplnit komoru odspodu malou dávkou epoxidu z rezervy;
-obě horní ústí musí ukázat naplnění. Uvnitř nezavřít podpory. Neúspěch
-řešit profilem a novým tiskem. Tato zkouška nenahrazuje přejímku lepení ke dřevu.
-Nad průchozími otvory M3/M4 jsou také skutečná zahloubení pro hlavy
-šroubů Ø6,2 × 1,65 mm a Ø7,5 × 0,5 mm; standardní hlavy se musí
-usadit bez dopilování, stejně jako ve finálních dílech.
+Veškeré finální STL/3MF jsou již orientované na Z=0. Použít [TISK.md](TISK.md) a per-part profily z `exports/profiles/`; podpory NONE, raft 0. Pouze mikrofonní držák a dva úzké levé kazetové rámy mají doložený 3mm brim kvůli skutečnému varování Prusa o adhezi vysokého dílu. Ostatní díly brim 0. Konzervativní společný předpoklad: PETG, tryska 0,4 mm, vrstva 0,2 mm, prostor 220×220×250 mm; konkrétní domácí tiskárna není známá. Kotvy a díly zdvihu/měrky mají šest perimetrů a 100% výplň; ostatní čtyři perimetry/40% gyroid. Skutečnou spotřebu a čas uvádí slicování, 3kg položka je zásoba s rezervou pro fyzické zkoušky.
+
+Nejprve vytisknout `fit_coupon`, `follower_groove_coupon`, `floor_anchor_coupon` a jeden kompletní dvoudílný modul. Obrácená podlahová měrka prověřuje skutečnou orientaci kotev, tunely matic, mosty a kuželové epoxidové zámky. Vložit/vyjmout skutečné matice a hlavy bez opracování. Neúspěch řešit profilem/parametrem a novým tiskem. Uvnitř dutin nepoužít podporu. Rohově zkosený otvor vodítka zachovává čelní vůli 0,45 mm a úkosy 0,6 mm nechávají minimální diagonální vůli 0,212 mm k obdélníkovému sloupku 8×10. Vybrat vůli podle měrky.
+
+Každé lůžko spojit ze `wand_bed_left` a `wand_bed_right`: nasunout klíče, dvěma příčníky vést standardní M3×45 ISO7380 a vložit dvě tenké M3 DIN439 (1,8 mm). Hlavy jsou vpravo, matice vlevo; nepoužít vyšší DIN934. Teprve potom upevnit U059/LED a nasadit skupinu na vodítka. Integrální čep patří pravé polovině, další váleček ani kovový kolík se nepřidává.
+
+Ve 40 M3 otvorech jsou dvoustupňové střechy: pilot 0,4 mm a uzávěr 0,4 mm, lokálně nejvýše 0,8 mm. Na stole je otevřít hladkým ručním šídlem a odstranit drobný úlomek; přesné polohy/počet uvádí výrobní manifest. Kapsy ani nosné dosedací plochy neupravovat. Vyžaduje-li spoj sílu, změnit profil a přetisknout. Standardní hlavy/nuty mají vlastní navržené vůle; šrouby se nezkracují.
+
 Brusný papír se smí použít jen k přípravě skutečných lepených stop dřeva.
 
 ## Rám mimo kufr a podlahové kotvy
 
 Nejprve na stole spojit čtyři rámové PETG panely osmi M3 × 6 a osadit
-všechny pevné nosiče včetně jejich spodních šroubů a matic. Sedm matic bočních kazet vložit zespodu do rámu; levou kazetu upevnit třemi a pravou čtyřmi M3 × 8 shora. Kazety, osazení desek a kabeláž dokončit na stole. Spodní PCB zapojit před horní policí; reproduktory až po utažení kazetových šroubů. Přední a
+všechny pevné nosiče včetně jejich spodních šroubů a matic. Sedm matic bočních kazet vložit zespodu do rámu; levou kazetu upevnit třemi a pravou čtyřmi M3 × 8 shora. Kazety nejprve sestavit ze dvou bočních rámů a tří pater podle [výrobního návodu](TISK.md). Dvě pera u každé spojky určují polohu; vůle 0,25 mm není lisovaný spoj. Potom osadit desky a dokončit kabeláž na stole. Spodní PCB zapojit před horní policí; reproduktory až po utažení kazetových šroubů. Přední a
 zadní příčná žebra jsou integrální součásti panelů. Spodní hlavy nosičů
 mají v kotvách odlehčovací kapsy. Nosiče se v kufru odspodu nemontují.
 Moduly v této fázi nejsou připojené.
 
+Svěrné kazetové spoje dotáhnout bez USB v konečné trase. Potom na stole
+bez banky a reproduktoru položit neporušený C–C kabel: oba konektory
+odpojené, kabel ještě nesvinutý. Místní přední průchod vložit otevřeným
+okrajem −Y a zadní +Y, pod spodním patrem použít otevřenou drážku.
+Konektory neprotahovat malým otvorem. Cívku sestavit až nakonec; skutečný
+ohyb a prostor pro prsty ověřit na dodaném kabelu. Pravý přední kryt má
+malý zadní výřez lemu pro kazetové matice, horní deska a uchycení zůstávají celé.
+
 Čtyři tištěné kotvy `floor_anchor_front_left`, `floor_anchor_front_right`,
 `floor_anchor_rear_left` a `floor_anchor_rear_right` podpírají rám a
-modulové úchyty přímo z podlahy. Zakřivený spodek kopíruje dno se svislou spárou 0,5 mm. Matice 24 M3 a 4 M4 vložit ZBOKU na stole PŘED lepením, protože oblouk po přilepení omezuje vstupy. Chránit závity a kapsy před lepidlem. Při lepení spáru na rovné části dna určit čtyřmi dočasnými měřenými 0,5mm PET podložkami pod přístupnými vnějšími okraji každé kotvy na rovném dně (přední kolem Y60, zadní kolem Y200). Otisky podložek po vytvrzení vyjmout; nesmějí zaplnit zámky ani kapsy. Kotvy leží mezi Z0,5 a 8 mm, rám mezi
+modulové úchyty přímo z podlahy. Zakřivený spodek kopíruje dno se svislou spárou 0,5 mm. Matice 24 M3 a 4 M4 vložit ZBOKU na stole PŘED lepením, protože oblouk po přilepení omezuje vstupy. Před lepením dočasnými šrouby přitáhnout matice k nosným střechám: v kapsách mají svislou vůli. Odstranit dočasné šrouby, chránit závity i otevřené spodní přístupy před epoxidem. Při lepení spáru na rovné části dna určit čtyřmi dočasnými měřenými 0,5mm PET podložkami pod přístupnými vnějšími okraji každé kotvy na rovném dně (přední kolem Y60, zadní kolem Y200). Otisky podložek po vytvrzení vyjmout; nesmějí zaplnit zámky ani kapsy. Kotvy leží mezi Z0,5 a 8 mm, rám mezi
 Z8 a 12 mm. Kotvy se lepí na holé dřevo DNA, nikoli na boční stěny.
 Nasucho je ustavit podle sestaveného rámu a zkontrolovat skutečnou polohu
 výztuhy; potvrzený středový pás je Y94,5–174,5 mm.
@@ -84,9 +72,9 @@ Nenamáčet lak ani původní spoje kufru rozpouštědlem.
 Geometrické metriky čtyř kotev: přední levá/pravá mají každá stopu
 10293,300 mm² a 27/30 zámků; zadní levá/pravá každá 11609,8625 mm² a 22/24
 zámků. Celkem jde o 43 806,325 mm² projektovaných stop a 103 zámků. Zakřivený
-film má svislou tloušťku 0,5 mm a objem 21,903 ml; zámky přidají 30,478 ml.
-CAD minimum je 52,381 ml bez ztrát. Tři balení po 24 ml dávají 72 ml;
-rozdíl přibližně 19,619 ml
+film má svislou tloušťku 0,5 mm a objem 21,903 ml; zámky přidají 33,572 ml.
+CAD minimum je 55,475 ml bez ztrát. Tři balení po 24 ml dávají 72 ml;
+rozdíl přibližně 16,525 ml
 je rezerva pro zkušební vzorek, přebytky a ztráty při míchání/nanášení.
 Původní výpočet 4 × 2000 mm² / 4 ml patřil odstraněnému návrhu a neplatí.
 Dřevo s odlupujícími se vrstvami nebo spoj na laku nepřijmout. Katalogových
@@ -95,7 +83,7 @@ Dřevo s odlupujícími se vrstvami nebo spoj na laku nepřijmout. Katalogových
 Po přejímce dřeva, epoxidových zámků a tištěných kotev ověřit čistotu
 závitů 24 matic M3 a 4 matic M4, které byly vložené PŘED lepením. M3 jsou
 v Z2,6–5 mm a M4 v Z1,8–5 mm, pod souvislou 3mm střechou mezi Z5 a 8 mm.
-Matice nejsou volné ani v kapsách otevřených shora. Potom vložit rám s
+Matice jsou zachycené proti vytržení, mají však svislou montážní vůli; jejich přístupové chodby jsou zespodu otevřené až k vlastnímu slepému dnu buňky. Před lepením musí být dočasně přitažené k nosné střeše a chráněné před epoxidem. Potom vložit rám s
 nosiči a upevnit čtyřmi standardními M4 × 10 ISO4762: hlava Ø7 × 4 mm,
 imbus 3 mm, hlava zapuštěná 0,5 mm. Nepřitahovat deformovaný rám silou.
 
@@ -151,7 +139,7 @@ podepřít a kontrolovat. Návrh neslibuje mezilehlou brzdu ani návrat bez prou
 
 Moment v novém `exports/verification.json` musí vycházet z aktuálního CAD
 objemu lůžka a předpokladů hmotnosti/tření kluzného čepu. Pro předpokládané
-μ = 0,4 vychází 0,11282 N·m a s násobkem 1,5 požadavek 0,16923 N·m;
+μ = 0,4 vychází přibližně 0,12794 N·m a s násobkem 1,5 zkušební cíl 0,19191 N·m;
 maximální tlakový úhel je 41,22°. Tato čísla nedokládají zaručený moment
 serva, bezpečné namáhání PETG ani skutečné tření. Starší výsledek se nepoužije. Hustota PETG 1,27 g/cm³, hůlka 150 g i další zatížení jsou
 návrhové vstupy; katalogový stall moment není bezpečný provozní moment.
@@ -186,8 +174,20 @@ kazetového šroubu. Rozměry desky a zapojení zůstávají stejné.
 Odpojit zdroj a označené konektory, sejmout servisní kryty. Pravá kazeta
 má čtyři M3 přístupné shora. Pro levou nejprve uvolnit oba pásky levého
 reproduktoru, vyjmout banku a vyparkovat odpojený USB konektor. Klip je
-přišroubovaný přímo ke kazetě a zvedne se s ní. Kazeta se uvolní třemi
-M3 shora a zvedne svisle. Matice zůstanou v rámu.
+přišroubovaný přímo ke kazetě a zvedne se s ní.
+Před zvednutím levé kazety odpojit a vyjmout červený/zelený spínač a PTT
+z horní desky. U skutečně pájeného přívodu použít odpájení a obnovu
+izolace; nevymýšlet rychlokonektor. Vyšroubovat všechny čtyři horní M3
+spoje ovladačů, zvednout `switch_shelf` i s jeho dvěma maticemi krytu,
+potom vyjmout `switch_frame_right` s maticemi spojů 2 a 4. Levý boční
+rám, jeho matice spojů 1 a 3 i oba původní spodní šrouby zůstávají
+v rámu kufru. Pravý boční rám drží horní deska; nemá vlastní spodní
+šroub. Samotné odstranění spínačů bez desky a pravého rámu nestačí.
+Teprve pak uvolnit tři kazetové M3 shora a kazetu zvednout svisle.
+Její matice zůstanou v rámu. Při obnově nejprve vložit kazetu, potom
+pravý rám a horní desku ovladačů, dotáhnout čtyři spoje a až nakonec
+osadit a připojit spínače. Prostor západek spínačů a skutečnou rukojeť
+nástroje ověřit na prototypu; digitální kontrola nezahrnuje prsty.
 Pevný nosič reproduktoru i banky má tiskové přístupové drážky pro skutečné
 nohy kazety. Použít rovný 2mm imbus se stopkou nejvýše Ø3,4 mm, rukojeť
 nad hranou kufru; objem rukojeti v úzkém bočním prostoru není předpokládán.

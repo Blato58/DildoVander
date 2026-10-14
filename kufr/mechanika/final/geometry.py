@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import cadquery as cq
+from OCP.Bnd import Bnd_Box
+from OCP.BRepBndLib import BRepBndLib
 
 ROOT = Path(__file__).resolve().parent
 PARAMS = json.loads((ROOT / "parameters.json").read_text(encoding="utf-8"))
@@ -30,8 +32,11 @@ def cut(shape, tools):
 
 
 def bounds(shape):
-    b = shape.BoundingBox()
-    return [b.xmin, b.ymin, b.zmin, b.xmax, b.ymax, b.zmax]
+    # Cached display triangles can enlarge a trimmed surface's bounds. Derive
+    # manufacturing/clearance limits from geometry, independently of meshing.
+    b = Bnd_Box()
+    BRepBndLib.AddOptimal_s(shape.wrapped,b,False,False)
+    return list(b.Get())
 
 
 def print_position(shape, rotation=None):
@@ -43,6 +48,23 @@ def print_position(shape, rotation=None):
 
 def hole_z(x, y, diameter, z=-1, height=140):
     return cylinder(diameter / 2, height, (x, y, z))
+
+
+def curve_tube(primitives, radius):
+    """Exact circular finite tube through connected line/three-point arc stock."""
+    edges=[]
+    for piece in primitives:
+        if piece['kind']=='line':
+            edge=cq.Edge.makeLine(cq.Vector(*piece['start']),cq.Vector(*piece['end']))
+        elif piece['kind']=='arc':
+            edge=cq.Edge.makeThreePointArc(cq.Vector(*piece['start']),cq.Vector(*piece['mid']),cq.Vector(*piece['end']))
+        else:
+            raise ValueError('Unknown cable curve primitive')
+        edges.append(edge)
+    start=cq.Vector(*primitives[0]['start'])
+    direction=cq.Vector(*primitives[0]['end'])-start
+    path=cq.Wire.assembleEdges(edges)
+    return cq.Solid.sweep(cq.Wire.makeCircle(radius,start,direction.normalized()),[],path)
 
 
 def strap_slots(x, y, spacing, width=14, z=-1, height=8):

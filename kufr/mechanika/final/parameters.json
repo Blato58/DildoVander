@@ -38,7 +38,8 @@
   "print": {
     "bed_x": 220.0,
     "bed_y": 220.0,
-    "brim": 3.0,
+    "bed_z": 250.0,
+    "brim": 0.0,
     "layer": 0.2,
     "material": "PETG",
     "density_g_cm3": 1.27
@@ -700,5 +701,6 @@
     ],
     "fit_policy": "Calibrate coupon and reprint; never enlarge holes by drilling or filing",
     "surface_preparation": "Sandpaper only for local bare-wood adhesive preparation; no power tools"
-  }
+  },
+  "manufacturing_revision": "F2-SF-DFA-2026-10-13"
 }
