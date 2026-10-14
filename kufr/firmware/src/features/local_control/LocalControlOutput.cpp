@@ -25,6 +25,15 @@ std::string DanceStatusJson(const kufr::dance::DanceStatus& status) {
   return json + "}";
 }
 
+std::string KeepsakeStatusJson(const LocalKeepsakeStatus& status) {
+  if (status.url.empty()) return "null";
+  std::string json = "{\"outcomeId\":\"" + status.outcomeId + "\",\"sessionEpoch\":"
+      + std::to_string(status.sessionEpoch) + ",\"physicalOperationId\":\"" + status.physicalOperationId
+      + "\",\"expiresAtEpochMs\":" + std::to_string(status.expiresAtEpochMs) + ",\"url\":";
+  AppendJsonString(status.url, json);
+  return json + "}";
+}
+
 bool ValidDeviceId(const std::string& value) {
   if (value.empty() || value.size() > 64 || value[0] < 'a' || value[0] > 'z') {
     return false;
@@ -218,6 +227,7 @@ bool LocalControlOutput::BuildSnapshot(
       "\",\"generation\":" + std::to_string(conversation_.Generation()) +
       ",\"activeTurnId\":" + NullableUuid(conversation_.ActiveTurnId()) + "}" +
       (voice_ ? ",\"voice\":" + VoiceStatusJson(voiceStatus) : "") +
+      (voice_ ? ",\"keepsake\":" + KeepsakeStatusJson(voice_->KeepsakeStatus(conversation_.Generation())) : "") +
       (dance_ ? ",\"dance\":" + DanceStatusJson(dance_->DanceState()) : "") + "}";
   return true;
 }

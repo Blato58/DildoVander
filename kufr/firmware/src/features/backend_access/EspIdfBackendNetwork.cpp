@@ -88,9 +88,10 @@ void WaitMs(uint32_t durationMs) {
 
 EspIdfBackendNetwork::EspIdfBackendNetwork(
     DeviceIdentity& identity, ConversationRuntimeState& runtimeState,
-    const std::string& bootId, EspIdfStationNetwork& station)
+    const std::string& bootId, EspIdfStationNetwork& station,
+    const CommandJournal& ownerJournal, JournalStorage& journalStorage)
     : identity_(identity), runtimeState_(runtimeState), station_(station),
-      settings_(station.Settings()), bootId_(bootId) {}
+      settings_(station.Settings()), keepsake_(identity, station, online_, ownerJournal, journalStorage), bootId_(bootId) {}
 
 bool EspIdfBackendNetwork::QueueTextTurn(
     const std::string& text, const std::string& conversationId,
@@ -124,6 +125,7 @@ bool EspIdfBackendNetwork::QueueTextTurn(
   }
   admittedLocalConversationId_ = normalizedId;
   admittedSnapshotVersion_ = expectedSnapshot.version;
+  keepsake_.Hide();
   return true;
 }
 
@@ -153,10 +155,12 @@ bool EspIdfBackendNetwork::QueueOpening(
   admittedLocalConversationId_ = normalizedId;
   admittedSnapshotVersion_ = expectedSnapshot.version;
   DiscardTextUnless(conversationId);
+  keepsake_.Hide();
   return true;
 }
 
 void EspIdfBackendNetwork::QueueCancel() {
+  keepsake_.Hide();
   StopVoice();
   cancelRequested_.store(true);
   textInbox_.Clear();
@@ -179,6 +183,7 @@ bool EspIdfBackendNetwork::QueueCancelFor(
       admittedSnapshotVersion_ != snapshotVersion) {
     return false;
   }
+  keepsake_.Hide();
   // Keep admission and cancellation under one lock: a delayed old socket
   // must not clear a newer owner's accepted turn.
   cancelRequested_.store(true);
@@ -255,9 +260,16 @@ bool EspIdfBackendNetwork::FinishPresentation(
   }
   presentationActive_ = false;
   terminalProposalOutstanding_ = false;
+  const auto completedOutcome = keepsakeCandidate_;
+  keepsakeCandidate_ = {};
   // Admission also takes presentationMutex_ first. Keep it closed until
   // cancellation is queued, so a new text turn cannot be cleared here.
   QueueCancel();
+  if (presentation.State() == WandPresentationState::Idle && !completedOutcome.operationId.empty()) {
+    // No HTTP or flash writes on the control owner. Background persistence precedes send.
+    if (keepsake_.Queue(completedOutcome) == KeepsakeQueueResult::Rejected)
+      ESP_LOGW(LogTag, "Keepsake completed-outcome outbox unavailable");
+  }
   return true;
 }
 
@@ -266,6 +278,7 @@ bool EspIdfBackendNetwork::Start(bool nvsInitialized) {
       !identity_.IsProvisioned() || !settings_.IsConfigured()) {
     return false;
   }
+  keepsake_.Start(nvsInitialized);
 
   if (xTaskCreate(TaskEntry, "backend_network", 16384, this, 4, &task_) !=
       pdPASS) {
@@ -636,6 +649,11 @@ void EspIdfBackendNetwork::RunTurn(
         }
         // The guard already checked UTC expiry. Local monotonic TTL is capped
         // independently and the control owner must check the live snapshot.
+        KeepsakeOutcome keepsakeCandidate{accepted.operationId, GenerateEspIdfConversationUuid(), result.proposal.proposalId,
+            result.proposal.proposalId, result.proposal.bootId, result.proposal.generation, result.proposal.deviceRevision, 0};
+        keepsakeCandidate.compartment = result.proposal.compartment;
+        const bool keepsakePrepared = keepsake_.Prepare(keepsakeCandidate);
+        if (!keepsakePrepared) ESP_LOGW(LogTag, "Keepsake preparation unavailable; physical proposal continues");
         const bool stored = pendingProposal_.Store(
             result.proposal, snapshot, runtimeState_, completedAtMs,
             ProposalRemainingMs(
@@ -646,6 +664,7 @@ void EspIdfBackendNetwork::RunTurn(
         if (stored) {
           std::lock_guard<std::mutex> lock(presentationMutex_);
           terminalProposalOutstanding_ = true;
+          keepsakeCandidate_ = keepsakePrepared ? keepsakeCandidate : KeepsakeOutcome{};
           FailQueuedText();
           {
             std::lock_guard<std::mutex> openingLock(openingMutex_);
@@ -836,10 +855,12 @@ bool EspIdfBackendNetwork::StartVoiceWithImageConsent(const std::string& request
   voiceQueuedAtMs_ = MonotonicMs();
   voiceBusy_.store(true);
   voicePending_.store(true);
+  keepsake_.Hide();
   return true;
 }
 
 void EspIdfBackendNetwork::StopVoice() {
+  keepsake_.Hide();
   std::lock_guard<std::mutex> lock(voiceMutex_);
   CancelVoiceOutput(voiceEpoch_, voicePending_, voiceBusy_, voiceAudio_);
   if (voiceBusy_.load()) voiceStatus_.phase = "stopping";
@@ -947,10 +968,16 @@ void EspIdfBackendNetwork::RunVoice(DeviceTokenSession& tokens,
   if (succeeded && current() && final.hasProposal) {
     const auto utc = std::time(nullptr);
     const uint64_t remaining = utc > 0 ? ProposalRemainingMs(final.proposal, static_cast<uint64_t>(utc)) : 0;
+    KeepsakeOutcome keepsakeCandidate{final.operationId, GenerateEspIdfConversationUuid(), final.proposal.proposalId,
+        final.proposal.proposalId, final.proposal.bootId, final.proposal.generation, final.proposal.deviceRevision, 0};
+    keepsakeCandidate.compartment = final.proposal.compartment;
+    const bool keepsakePrepared = remaining && keepsake_.Prepare(keepsakeCandidate);
+    if (remaining && !keepsakePrepared) ESP_LOGW(LogTag, "Keepsake preparation unavailable; physical proposal continues");
     proposalStored = remaining && pendingProposal_.Store(final.proposal, snapshot, runtimeState_, MonotonicMs(), remaining);
     if (proposalStored) {
       std::lock_guard<std::mutex> lock(presentationMutex_);
       terminalProposalOutstanding_ = true;
+      keepsakeCandidate_ = keepsakePrepared ? keepsakeCandidate : KeepsakeOutcome{};
     }
   }
   if (!proposalStored) CloseConversation(coordinator, cleanup, tokens, startRequest);

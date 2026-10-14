@@ -32,7 +32,8 @@ internal static class PartyWandCatalog
             || !catalog.Wands.Select(wand => wand.Compartment)
                 .OrderBy(number => number)
                 .SequenceEqual(Enumerable.Range(1, 6))
-            || catalog.Wands.Any(wand => string.IsNullOrWhiteSpace(wand.DisplayName)
+            || catalog.Wands.Select(w => w.StableId).Distinct(StringComparer.Ordinal).Count() != 6
+            || catalog.Wands.Any(wand => string.IsNullOrWhiteSpace(wand.StableId) || string.IsNullOrWhiteSpace(wand.DisplayName)
                 || string.IsNullOrWhiteSpace(wand.Description)
                 || wand.Traits is not { Length: > 0 }
                 || wand.Traits.Any(string.IsNullOrWhiteSpace)))
@@ -49,5 +50,5 @@ internal static class PartyWandCatalog
         int Compartment,
         string DisplayName,
         string Description,
-        string[] Traits);
+        string[] Traits, string StableId = "");
 }

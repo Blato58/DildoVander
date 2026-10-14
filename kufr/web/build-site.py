@@ -1,5 +1,6 @@
 """Build the public site only from source-bound, verified CAD exports."""
 import argparse
+import base64
 import hashlib
 import html
 import json
@@ -71,6 +72,7 @@ def build(repo, destination, web_dist):
     shutil.copyfile(workshop / 'viewer.html', workshop / 'index.html')
     shutil.copytree(repo / 'kufr/design-system', destination / 'design-system',
                     ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+    build_keepsake(repo, destination)
     shutil.copytree(web_dist, destination / 'companion')
     companion_index = destination / 'companion/index.html'
     companion_html = companion_index.read_text(encoding='utf-8')
@@ -101,9 +103,51 @@ def build(repo, destination, web_dist):
     print(f'Built {manifest["revision"]} site from {source_sha}: {len(hashes)} files')
 
 
+def build_keepsake(repo, destination):
+    """Package the canonical guest shell; personal assets remain behind guest API."""
+    portal = destination / 'keepsake'
+    portal.mkdir()
+    source = repo / 'kufr/web/keepsake'
+    for name in ('index.html', 'app.js', 'keepsake.css'):
+        shutil.copyfile(source / name, portal / name)
+    index = portal / 'index.html'
+    markup = index.read_text(encoding='utf-8')
+    capture = re.search(r'<script>(.*?)</script>', markup, re.DOTALL)
+    if not capture or capture.start() > markup.index('<link '):
+        raise ValueError('Guest fragment capture must precede asset loading')
+    expected = "'sha256-" + base64.b64encode(hashlib.sha256(capture.group(1).encode()).digest()).decode() + "'"
+    if expected not in markup:
+        raise ValueError('Guest fragment capture CSP hash differs')
+
+
+def build_keepsake_only(repo, destination):
+    """Independent DV10 artifact, from the same source, without CAD or Node."""
+    if destination.exists():
+        raise ValueError('Standalone keepsake destination must be new')
+    destination.mkdir(parents=True)
+    build_keepsake(repo, destination)
+    shutil.copytree(repo / 'kufr/design-system', destination / 'design-system',
+                    ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+    shutil.copyfile(destination / 'keepsake/index.html', destination / 'index.html')
+    hashes = {p.relative_to(destination).as_posix(): digest(p)
+              for p in sorted(destination.rglob('*')) if p.is_file()}
+    source = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo, text=True).strip()
+    dirty = bool(subprocess.check_output(['git', 'status', '--porcelain', '--',
+                 'kufr/web/keepsake', 'kufr/web/build-site.py', 'kufr/design-system'], cwd=repo, text=True).strip())
+    manifest = {'schemaVersion': 1, 'sourceRevision': source, 'sourceDirty': dirty, 'sha256': hashes}
+    (destination / 'keepsake-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
+    print(f'Built standalone DV10: {len(hashes)} files; sourceDirty={dirty}; no CAD, Sites or provider calls')
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--destination', type=Path, required=True)
-    parser.add_argument('--web-dist', type=Path, required=True)
+    parser.add_argument('--web-dist', type=Path)
+    parser.add_argument('--keepsake-only', action='store_true')
     args = parser.parse_args()
-    build(Path(__file__).resolve().parents[2], args.destination.resolve(), args.web_dist.resolve())
+    if args.keepsake_only:
+        build_keepsake_only(Path(__file__).resolve().parents[2], args.destination.resolve())
+    elif args.web_dist is None:
+        parser.error('--web-dist is required for the complete project site')
+    else:
+        build(Path(__file__).resolve().parents[2], args.destination.resolve(), args.web_dist.resolve())

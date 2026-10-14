@@ -1,0 +1,5 @@
+# Include once in nginx http scope (e.g. /etc/nginx/conf.d/keepsake-upgrade.conf).
+map $http_upgrade $keepsake_connection_upgrade {
+    default upgrade;
+    '' close;
+}

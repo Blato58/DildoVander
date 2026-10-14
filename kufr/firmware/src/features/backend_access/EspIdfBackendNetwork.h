@@ -4,6 +4,7 @@
 #include <mutex>
 #include "../voice_turn/LocalVoicePort.h"
 #include "../voice_turn/EspIdfVoiceAudio.h"
+#include "../keepsake/EspIdfKeepsakeNotifier.h"
 #include "../costume_photo/EspIdfCostumeCamera.h"
 
 #include "freertos/FreeRTOS.h"
@@ -29,12 +30,14 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
   EspIdfBackendNetwork(DeviceIdentity& identity,
                        ConversationRuntimeState& runtimeState,
                        const std::string& bootId,
-                       EspIdfStationNetwork& station);
+                       EspIdfStationNetwork& station,
+                       const CommandJournal& ownerJournal, JournalStorage& journalStorage);
   bool InitializeVoice(bool nvsInitialized, AudioBoardPort* board = nullptr);
   PresentationAudioPort& PresentationAudio() { return voiceAudio_; }
   VoiceAudioPort& DanceAudio() { return voiceAudio_; }
   void InitializeCamera(bool nvsInitialized, bool profileBVerified);
   LocalVoiceStatus VoiceStatus() const override;
+  LocalKeepsakeStatus KeepsakeStatus(uint64_t generation) const override { return keepsake_.Status(generation); }
   bool ConfigureVoice(const std::string& mode, const std::string& voice) override;
   bool StartVoice(const std::string& requestId,
                   const ConversationRuntimeSnapshot& snapshot) override;
@@ -134,6 +137,8 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
   std::string admittedLocalConversationId_;
   uint64_t admittedSnapshotVersion_ = 0;
   std::atomic<bool> online_{false};
+  EspIdfKeepsakeNotifier keepsake_;
+  KeepsakeOutcome keepsakeCandidate_;
   std::atomic<bool> cancelRequested_{false};
   std::string bootId_;
   // Only the network task mutates this binding. Local and backend IDs differ.

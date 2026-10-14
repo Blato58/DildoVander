@@ -27,6 +27,8 @@ class PersistentCommandJournal final : public CommandJournal {
   size_t HistoryCount() const { return state_.historyCount; }
   bool Resolve(uint8_t readyMask) override;
   bool ResolveRestored(uint8_t compartment) override;
+  bool ConfirmTimedPresentation(const std::string& id, uint8_t compartment, uint64_t fingerprint) override;
+  bool WasTimedPresentationCompleted(const std::string& id, uint8_t compartment) const override;
   bool PersistReadyMask(uint8_t readyMask) override;
 
  private:
@@ -34,7 +36,7 @@ class PersistentCommandJournal final : public CommandJournal {
     uint8_t readyMask = 0;
     uint8_t pendingCompartment = 0;
     std::string commandId;
-    struct Entry { std::string id; uint8_t compartment = 0; uint64_t fingerprint = 0; };
+    struct Entry { std::string id; uint8_t compartment = 0; uint64_t fingerprint = 0; bool timedCompleted = false; };
     std::array<Entry, HistoryCapacity> history{};
     uint8_t historyCount = 0;
   };

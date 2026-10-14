@@ -327,6 +327,9 @@ bool DeviceControl::BeginAutonomousPresentation(
     return false;
   }
   autonomousCompartment_ = compartment;
+  autonomousOperationId_ = proposalId;
+  autonomousFingerprint_ = fingerprint;
+  lastCompletedAutonomousCompartment_ = 0;
   ++revision_;
   return true;
 }
@@ -344,8 +347,16 @@ bool DeviceControl::CompleteAutonomousPresentation(uint8_t compartment) {
     return false;
   }
   autonomousCompartment_ = 0;
+  lastCompletedAutonomousCompartment_ = compartment;
   ++revision_;
   return true;
+}
+
+bool DeviceControl::ConfirmTimedPresentation() {
+  if (lastCompletedAutonomousCompartment_ == 0) return false;
+  const uint8_t compartment = lastCompletedAutonomousCompartment_;
+  lastCompletedAutonomousCompartment_ = 0;
+  return journal_.ConfirmTimedPresentation(autonomousOperationId_, compartment, autonomousFingerprint_);
 }
 
 void DeviceControl::FaultAutonomousPresentation() {

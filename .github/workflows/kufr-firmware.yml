@@ -53,6 +53,13 @@ jobs:
             src/features/backend_access/TokenResponseParser.cpp \
             tests/espidf_token_exchange_transport_test.cpp -o "$RUNNER_TEMP/token-transport-test"
           "$RUNNER_TEMP/token-transport-test"
+      - name: DV10 bounded outcome mailbox and QR generation fencing
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++14 -Wall -Wextra -Werror tests/keepsake_outbox_test.cpp -o "$RUNNER_TEMP/keepsake-outbox-test"
+          "$RUNNER_TEMP/keepsake-outbox-test"
       - name: Optional costume photo consent and HTTPS upload
         working-directory: kufr/firmware
         shell: bash
@@ -197,6 +204,15 @@ jobs:
             tests/device_control_runtime_test.cpp \
             -o "$RUNNER_TEMP/device-control-runtime-test"
           "$RUNNER_TEMP/device-control-runtime-test"
+          g++ -std=c++14 -Wall -Wextra -Werror \
+            "${sources[@]}" \
+            src/features/device_control/DeviceControlRuntime.cpp \
+            src/features/device_control/PersistentCommandJournal.cpp \
+            src/features/conversation/ConversationRuntimeState.cpp \
+            src/features/conversation/PendingProposal.cpp \
+            src/features/wand_presentation/WandPresentation.cpp \
+            tests/keepsake_durability_test.cpp -o "$RUNNER_TEMP/keepsake-durability-test"
+          "$RUNNER_TEMP/keepsake-durability-test"
       - name: Shared STA network lifecycle
         working-directory: kufr/firmware
         shell: bash

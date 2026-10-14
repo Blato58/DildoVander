@@ -162,3 +162,6 @@ label:has(input[type="checkbox"]) { display: flex; align-items: center; min-heig
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+/* The QR is local, opt-in to the exact outcome, and has no network image URL. */
+.keepsake-qr-panel { margin: 16px; max-width: 640px; }
+.keepsake-qr-panel canvas { display: block; background: white; width: min(256px, 100%); height: auto; margin: 16px auto; }

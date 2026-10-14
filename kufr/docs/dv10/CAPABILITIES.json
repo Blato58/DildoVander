@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "profile": "DV10 local A-H, production OFF",
+  "observedAtUtc": "2026-10-14T16:45:00Z",
+  "implementation_A_H": true,
+  "offline_verified": true,
+  "vps_runtime_verified": false,
+  "provider_quality_verified": false,
+  "iphone_guest_verified": false,
+  "manual_retention_verified": true,
+  "privacy_cleanup_verified": true,
+  "backup_restore_verified": false,
+  "public_deployment_verified": false,
+  "event_ready": false,
+  "scope": {
+    "implementation_A_H": "Local source, APIs, ESP outcome handoff, mobile QR, exports, admin, skills and prepared delivery tooling.",
+    "offline_verified": "Synthetic core/HTTP/browser/restore tests, mobile build and host/firmware builds. No paid inference. Standalone portal built; complete public-site build requires absent verified CAD exports and was not claimed.",
+    "vps_runtime_verified": "Read-only baseline preflight succeeded; DV10 runtime not deployed or exercised on VPS.",
+    "manual_retention_verified": "Local synthetic year-advance and lifecycle tests; production storage policy not activated.",
+    "privacy_cleanup_verified": "Local primary-store closure and orphan cleanup verified; provider deletion unknown, backup reconciliation pending.",
+    "backup_restore_verified": "Isolated synthetic SQLite/archive/key evidence verifier passed; real encrypted off-VPS backup and restore not performed."
+  },
+  "supported_portrait_variant": "portrait_only",
+  "unsupported_portrait_variant": "portrait_with_wand returns explicit 409",
+  "credential_decision": "Owner approved reuse of existing backend OpenAI key; no key copied or printed.",
+  "remaining_gates": [
+    "Authorized paid OpenAI quality pilot with consented photos and verified account model availability.",
+    "Real iPhone guest and native CI, plus hardware power-loss/network timing verification.",
+    "Approved production deployment, real nginx validation/TLS/route smoke and rollback.",
+    "Independent encrypted off-VPS backup destination, actual key persistence and isolated restore rehearsal."
+  ]
+}

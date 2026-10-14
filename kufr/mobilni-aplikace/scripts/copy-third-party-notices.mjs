@@ -10,6 +10,8 @@ const notices = [
   ['../../design-system/icons/LICENSE.txt', 'icons/LICENSE.txt'],
   ['../node_modules/@capacitor/core/LICENSE', 'capacitor/core-LICENSE.txt'],
   ['../node_modules/@capacitor/ios/LICENSE', 'capacitor/ios-LICENSE.txt'],
+  ['../node_modules/qrcode/license', 'qrcode/LICENSE.txt'],
+  ['../node_modules/dijkstrajs/LICENSE.md', 'qrcode/dijkstrajs-LICENSE.txt'],
 ];
 
 for (const [source, name] of notices) {

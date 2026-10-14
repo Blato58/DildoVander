@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "id": "DV10",
+  "initiative": "DV10",
+  "title": "Wand Keepsake Portal na stávajícím VPS",
+  "state": "blocked",
+  "priority": "P1",
+  "sequence": 1,
+  "scope": [
+    "kufr/backend/Features/Keepsakes",
+    "kufr/web/keepsake",
+    "kufr/firmware",
+    "kufr/mobilni-aplikace",
+    "kufr/docs/dv10",
+    ".agents/skills"
+  ],
+  "dependencies": [],
+  "acceptance": [
+    {
+      "id": "LOCAL",
+      "revision": 1,
+      "expected": "A–H: skutečný outcome, soukromý guest portál, oddělené scopes, manual-only archiv, durable fake/OpenAI adaptér, portrét z fotografie, exporty, ruční mazání a projektové skills; syntetické integrační ověření.",
+      "requiredEvidenceKinds": [
+        "integration",
+        "source_review",
+        "browser"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "e56704a5935a54d7fc74cf4c244008ea3c63967c48138ad69c737f06c884962d"
+      },
+      "evidenceRefs": [
+        "DV10-local-integration-v1",
+        "DV10-local-source_review-v1",
+        "DV10-local-browser-v1"
+      ]
+    },
+    {
+      "id": "PROVIDER",
+      "revision": 1,
+      "expected": "Schválený placený pilot ověří kvalitu unikátních hůlek, příběhů a portrétů ze souhlasných fotografií.",
+      "requiredEvidenceKinds": [
+        "integration"
+      ],
+      "appliesTo": {
+        "artifactDigest": "e56704a5935a54d7fc74cf4c244008ea3c63967c48138ad69c737f06c884962d"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "PRODUCTION",
+      "revision": 1,
+      "expected": "Schválené nasazení na VPS, přesná guest proxy a iPhone guest smoke zachovají existující zařízení a Live.",
+      "requiredEvidenceKinds": [
+        "production_deploy",
+        "native_ios"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "e56704a5935a54d7fc74cf4c244008ea3c63967c48138ad69c737f06c884962d"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "RECOVERY",
+      "revision": 1,
+      "expected": "Nezávislá šifrovaná záloha mimo VPS a skutečná izolovaná obnova použijí nejnovější deletion/revocation ledger bez resurrection.",
+      "requiredEvidenceKinds": [
+        "integration"
+      ],
+      "appliesTo": {
+        "artifactDigest": "e56704a5935a54d7fc74cf4c244008ea3c63967c48138ad69c737f06c884962d"
+      },
+      "evidenceRefs": []
+    }
+  ],
+  "blockers": [
+    {
+      "id": "DV10-PAID",
+      "problem": "Zadání neautorizuje placený provider pilot.",
+      "severity": "high",
+      "blocks": [
+        "PROVIDER"
+      ],
+      "unblockCondition": "Majitel schválí konkrétní pilot a souhlasné foto vstupy."
+    },
+    {
+      "id": "DV10-PROD",
+      "problem": "Zadání neautorizuje zapnutí DV10 v produkci a změnu veřejné proxy; skutečný iPhone guest smoke dosud nebyl proveden.",
+      "severity": "high",
+      "blocks": [
+        "PRODUCTION"
+      ],
+      "unblockCondition": "Schválený reviewovaný deploy a iPhone ověření."
+    },
+    {
+      "id": "DV10-BACKUP",
+      "problem": "Není ověřen nezávislý backup cíl mimo VPS ani skutečná izolovaná obnova.",
+      "severity": "high",
+      "blocks": [
+        "RECOVERY"
+      ],
+      "unblockCondition": "Majitel určí oprávněný off-VPS cíl; doložený encrypted backup a isolated restore."
+    }
+  ],
+  "nextAction": "Schválit konkrétní placený OpenAI pilot se souhlasnými fotografiemi; produkci, iPhone a nezávislou obnovu přijmout oddělenými receipts.",
+  "currentNote": "VPS-first, OpenAI from-scratch hůlka, image-edit portrét a manual_only retence podle revize 2.2 ze zadání 14. 10. 2026. Stávající OpenAI klíč backendu potvrzen vlastníkem; placená volání nejsou součást offline ověření. Lokální A–H implementované a offline ověřené, bez otevřeného P1/P2 v nezávislém review. Produkční flags zůstávají OFF; event_ready=false.",
+  "implementedSubject": {
+    "artifactDigest": "e56704a5935a54d7fc74cf4c244008ea3c63967c48138ad69c737f06c884962d"
+  }
+}

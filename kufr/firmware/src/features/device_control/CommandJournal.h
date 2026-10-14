@@ -22,6 +22,10 @@ class CommandJournal {
   // Close a presentation only after its prop is confirmed back at rest.
   // Legacy selection journals fail closed until they support this transition.
   virtual bool ResolveRestored(uint8_t) { return false; }
+  // DV10 historical evidence: record only after autonomous completion and its
+  // existing post-persist timing validation. Legacy admission/ready state is not proof.
+  virtual bool ConfirmTimedPresentation(const std::string&, uint8_t, uint64_t) { return false; }
+  virtual bool WasTimedPresentationCompleted(const std::string&, uint8_t) const { return false; }
   // Persist a confirmed reload without opening or closing a selection record.
   virtual bool PersistReadyMask(uint8_t readyMask) = 0;
 };

@@ -379,7 +379,7 @@ extern "C" void app_main() {
   static EspIdfStationNetwork station;
   station.SetChangeGate({MaintenanceGate::AcquireNetwork, MaintenanceGate::ReleaseNetwork, &maintenance});
   const bool stationStarted = station.Start(nvsStatus == ESP_OK);
-  static EspIdfBackendNetwork backendNetwork(identity, runtimeState, bootId, station);
+  static EspIdfBackendNetwork backendNetwork(identity, runtimeState, bootId, station, journal, journalStorage);
   backendNetwork.InitializeVoice(nvsStatus == ESP_OK, hardware.ProfileSelected() ? &hardware : nullptr);
   presentationPort.BindAudio(backendNetwork.PresentationAudio());
   backendNetwork.InitializeCamera(nvsStatus == ESP_OK, hardware.Available());

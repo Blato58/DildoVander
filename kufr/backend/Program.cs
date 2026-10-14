@@ -7,6 +7,10 @@ using Kufr.Backend.Features.Diagnostics;
 using Kufr.Backend.Features.Memory;
 using Kufr.Backend.Features.Firmware;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
+using System.Threading.RateLimiting;
+using Kufr.Backend.Features.Keepsakes;
 
 var provisioning = args.Contains("--memory-provision");
 var builder = WebApplication.CreateBuilder(args.Where(a => a is not ("--memory-provision" or "--execute" or "--create")).ToArray());
@@ -22,6 +26,9 @@ builder.Services.AddRateLimiter(options =>
         policy.PermitLimit = 4;
         policy.QueueLimit = 0;
     });
+    options.AddPolicy("keepsake", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 120, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
 builder.Services.AddSingleton<ServerAdminAccess>();
 builder.Services.AddSingleton<LogReadAccess>();
@@ -42,6 +49,26 @@ builder.Services.AddSingleton<HybridMemoryService>();
 builder.Services.AddHostedService<MemoryIndexWorker>();
 builder.Services.AddSingleton<ConversationStore>();
 builder.Services.AddHostedService<RetentionWorker>();
+var keepsakesEnabled = builder.Configuration.GetValue<bool>("Keepsake:Enabled");
+if (keepsakesEnabled)
+{
+    var dataRoot = builder.Configuration["Keepsake:DataRoot"]
+        ?? throw new InvalidOperationException("Keepsake:DataRoot must be configured.");
+    builder.Services.AddDataProtection().SetApplicationName("DildoVander.DV10")
+        .PersistKeysToFileSystem(new DirectoryInfo(builder.Configuration["Keepsake:DataProtectionRoot"] ?? dataRoot + ".keys"));
+    builder.Services.AddSingleton<KeepsakeStore>();
+    builder.Services.AddSingleton(sp => KeepsakeProviderFactory.Create(sp.GetRequiredService<IConfiguration>()));
+    builder.Services.AddHostedService<KeepsakeWorker>();
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedFor;
+        options.ForwardLimit = 1;
+        options.KnownIPNetworks.Clear();
+        options.KnownProxies.Clear();
+        options.KnownProxies.Add(System.Net.IPAddress.Loopback);
+        options.KnownProxies.Add(System.Net.IPAddress.IPv6Loopback);
+    });
+}
 
 var app = builder.Build();
 if (provisioning)
@@ -61,13 +88,17 @@ logs.Write("info", "server_started");
 app.Lifetime.ApplicationStopping.Register(() => logs.Write("info", "server_stopping"));
 
 app.Use((context, next) => ServerLogEvents.RequestAsync(context, next, logs));
+if (keepsakesEnabled) { app.UseForwardedHeaders(); }
 app.UseRateLimiter();
 
 app.Use(async (context, next) =>
 {
-    if (context.Request.Path.StartsWithSegments("/v1"))
+    if (context.Request.Path.StartsWithSegments("/v1") || context.Request.Path.StartsWithSegments("/guest")
+        || context.Request.Path.StartsWithSegments("/keepsake"))
     {
         context.Response.Headers.CacheControl = "no-store";
+        context.Response.Headers["Referrer-Policy"] = "no-referrer";
+        context.Response.Headers["X-Content-Type-Options"] = "nosniff";
     }
 
     await next(context);
@@ -83,6 +114,8 @@ app.MapGptLive();
 app.MapMemoryAdministration();
 app.MapServerModes();
 app.MapServerLogs();
+if (keepsakesEnabled) { app.MapKeepsakes(); app.MapKeepsakeAdministration(); }
+app.Map("/guest/{**path}", () => Results.Json(new { errorCode = "access_unavailable" }, statusCode: 404));
 app.MapGet("/v1/diagnostics", (HttpContext context, DeviceAccessStore access,
     ConversationStore conversations, GptLiveOptions live, HybridMemoryService memory) =>
 {
