@@ -5,8 +5,10 @@ namespace Kufr.Backend.Features.DigitalTwin;
 internal sealed class TwinFakeInputPolicy
 {
     private readonly HashSet<string> devices = new(StringComparer.Ordinal);
-    public TwinFakeInputPolicy(IConfiguration configuration)
+    private readonly TwinMediaSettingsStore? settings;
+    public TwinFakeInputPolicy(IConfiguration configuration, TwinMediaSettingsStore? settings = null)
     {
+        this.settings = settings;
         var entries = configuration.GetSection("DigitalTwin:Instances").GetChildren()
             .Where(entry => entry["Mode"] == "simulation" && entry["Profile"] == "integration").ToArray();
         if (entries.Length == 0) { return; }
@@ -28,8 +30,8 @@ internal sealed class TwinFakeInputPolicy
             {
                 throw new InvalidOperationException("Synthetic integration identity must be separate from live devices.");
             }
-            if (configuration["Backend:Dialog:Mode"] is null or "fake") { devices.Add(entry.Key); }
+            if (configuration["Backend:Dialog:Mode"] is null or "fake" || settings is not null) { devices.Add(entry.Key); }
         }
     }
-    public bool Allows(string deviceId) => devices.Contains(deviceId);
+    public bool Allows(string deviceId) => devices.Contains(deviceId) && (settings is null || settings.IsFake(deviceId));
 }

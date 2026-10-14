@@ -12,13 +12,15 @@ namespace Kufr.Backend.Features.DigitalTwin;
 internal sealed record TwinCommand(string Action, int? Slot = null, string? Variant = null,
     string? OperationId = null, string? Text = null, bool? Paused = null, double? Speed = null,
     int? StepMs = null, string? Fault = null);
-internal sealed record TwinCommandResult(bool Accepted, string Code, TwinSnapshot? Snapshot = null, JsonElement? ExternalRequest = null);
+internal sealed record TwinCommandResult(bool Accepted, string Code, TwinSnapshot? Snapshot = null, JsonElement? ExternalRequest = null,
+    TwinPrivateReply? Private = null);
 
 // This adapter schedules injected time and forwards inputs; all device decisions
 // and output timing remain in the production C++ owners in the child process.
-internal sealed class TwinHost : BackgroundService
+internal sealed partial class TwinHost : BackgroundService
 {
-    private sealed record Pending(string Line, TaskCompletionSource<TwinCommandResult> Result, TwinCommand? Clock = null);
+    private sealed record Pending(string Line, TaskCompletionSource<TwinCommandResult> Result, TwinCommand? Clock = null,
+        byte[]? Attachment = null);
     private sealed class Host(string id, string executable, string journal, string build, string profile, string? cad)
     {
         public readonly string Id = id, Executable = executable, Journal = journal, Build = build;
@@ -42,11 +44,14 @@ internal sealed class TwinHost : BackgroundService
     private readonly TimeProvider clock;
     private readonly DeviceAccessStore devices;
     private readonly Uri? integrationUrl;
-    public TwinHost(IConfiguration configuration, TwinStore store, TimeProvider clock, DeviceAccessStore devices)
+    private readonly TwinMediaSettingsStore? mediaSettings;
+    public TwinHost(IConfiguration configuration, TwinStore store, TimeProvider clock, DeviceAccessStore devices,
+        TwinMediaSettingsStore? mediaSettings = null)
     {
         this.store = store;
         this.clock = clock;
         this.devices = devices;
+        this.mediaSettings = mediaSettings;
         var root = configuration["DigitalTwin:DataRoot"];
         foreach (var entry in configuration.GetSection("DigitalTwin:Instances").GetChildren())
         {
@@ -99,6 +104,8 @@ internal sealed class TwinHost : BackgroundService
             return new(false, "control_forbidden");
         }
         string? line = null;
+        // Settings storage may be syncing; keep that wait outside the owner gate.
+        var mediaConfiguration = command.Action == "integrationText" ? mediaSettings?.Read(id) : null;
         var completion = new TaskCompletionSource<TwinCommandResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         lock (host.Gate)
         {
@@ -136,6 +143,8 @@ internal sealed class TwinHost : BackgroundService
             else if (command.Action == "integrationText" && host.Profile == "integration"
                 && command.Text is { Length: > 0 and <= 1024 } && Guid.TryParseExact(command.OperationId, "D", out _))
             {
+                if (mediaConfiguration is { Engine: not "fake", Availability.Realtime: false })
+                { return new(false, "provider_not_authorized_or_configured"); }
                 if (host.IntegrationBusy) { return new(false, "integration-busy"); }
                 host.IntegrationBusy = true;
                 line = "SNAPSHOT";
@@ -178,15 +187,15 @@ internal sealed class TwinHost : BackgroundService
         if (command.Action != "integrationText")
         {
             var result = await completion.Task.WaitAsync(TimeSpan.FromSeconds(5), cancellation);
-            return result with { ExternalRequest = null };
+            return result with { ExternalRequest = null, Private = null };
         }
         // Once admitted, a closing tab cannot abandon the pending device input.
         // Network work still has its own bounded wall-clock deadline.
         try
         {
             var accepted = await completion.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            if (!accepted.Accepted || accepted.Snapshot is null) { return accepted with { ExternalRequest = null }; }
-            return await IntegrationAsync(host, command, accepted.Snapshot);
+            if (!accepted.Accepted || accepted.Snapshot is null) { return accepted with { ExternalRequest = null, Private = null }; }
+            return (await IntegrationAsync(host, command, accepted.Snapshot)) with { ExternalRequest = null, Private = null };
         }
         finally
         {
@@ -275,19 +284,20 @@ internal sealed class TwinHost : BackgroundService
             // Restart is explicit service restart and retains the durable journal.
         }
     }
-    private async Task<TwinCommandResult> ExchangeAsync(Host host, Process process, string line, CancellationToken cancellation, bool publish = true)
+    private async Task<TwinCommandResult> ExchangeAsync(Host host, Process process, string line, CancellationToken cancellation, bool publish = true,
+        byte[]? attachment = null)
     {
-        await process.StandardInput.WriteLineAsync(line.AsMemory(), cancellation);
-        await process.StandardInput.FlushAsync(cancellation);
-        var output = await process.StandardOutput.ReadLineAsync(cancellation).AsTask().WaitAsync(TimeSpan.FromSeconds(3), cancellation);
-        if (output is null || output.Length > 32768) { throw new InvalidDataException("Invalid host response."); }
+        await TwinNativeFraming.WriteAsync(process.StandardInput.BaseStream, line, attachment, cancellation);
+        var framed = await TwinNativeFraming.ReadAsync(process.StandardOutput.BaseStream, cancellation)
+            .WaitAsync(TimeSpan.FromSeconds(3), cancellation);
         // Native commandResult is a transport acknowledgement, not a measured result.
-        using var document = JsonDocument.Parse(output);
+        using var document = framed.Document;
         var root = document.RootElement;
-        var snapshotJson = root.TryGetProperty("snapshot", out var nested) ? nested.GetRawText() : output;
-        if (!root.TryGetProperty("snapshot", out _) && (root.TryGetProperty("commandResult", out _) || root.TryGetProperty("externalRequest", out _)))
+        var snapshotJson = root.TryGetProperty("snapshot", out var nested) ? nested.GetRawText() : root.GetRawText();
+        if (!root.TryGetProperty("snapshot", out _))
         {
-            var fields = root.EnumerateObject().Where(field => field.Name is not ("commandResult" or "externalRequest"))
+            var fields = root.EnumerateObject().Where(field => field.Name is not ("commandResult" or "externalRequest"
+                or "media" or "mediaState" or "mediaServiceRequest"))
                 .ToDictionary(field => field.Name, field => field.Value.Clone());
             snapshotJson = JsonSerializer.Serialize(fields);
         }
@@ -300,6 +310,8 @@ internal sealed class TwinHost : BackgroundService
         TwinSnapshot.Decimal(snapshot.TimeMs, out var observedTime);
         lock (host.Gate) { host.TimeMs = observedTime; }
         if (publish && store.Accept(snapshot) is not null) { throw new InvalidDataException("Host sequence rejected."); }
+        var privateReply = ParsePrivate(root, framed.Attachment);
+        if (privateReply is not null) { MediaReply?.Invoke(host.Id, privateReply); }
         bool accepted = true;
         var code = "accepted";
         if (root.TryGetProperty("commandResult", out var result))
@@ -311,7 +323,7 @@ internal sealed class TwinHost : BackgroundService
             }
             else if (result.ValueKind is JsonValueKind.True or JsonValueKind.False) { accepted = result.GetBoolean(); }
         }
-        return new(accepted, code, snapshot, root.TryGetProperty("externalRequest", out var external) ? external.Clone() : null);
+        return new(accepted, code, snapshot, root.TryGetProperty("externalRequest", out var external) ? external.Clone() : null, privateReply);
     }
     private async Task<TwinCommandResult> InternalAsync(Host host, string line)
     {
@@ -336,7 +348,7 @@ internal sealed class TwinHost : BackgroundService
                 line = step > 0 ? "TICK " + (host.TimeMs + step).ToString(CultureInfo.InvariantCulture) : "SNAPSHOT";
             }
         }
-        return ExchangeAsync(host, process, line, cancellation);
+        return ExchangeAsync(host, process, line, cancellation, attachment: pending.Attachment);
     }
     private async Task<TwinCommandResult> IntegrationAsync(Host host, TwinCommand command, TwinSnapshot initial)
     {

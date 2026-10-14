@@ -1,0 +1,98 @@
+{
+  "origin": "https://2.28.202.220",
+  "buildId": "bfa57a8849aaea6b72f30da3c5e5ecea0c6ff259b0965c9aeb71ca90d39b4366",
+  "bootId": "19a8f4a9-c12a-474f-a03e-5a0c586075b5",
+  "selectedSlot": 6,
+  "cadRevision": "eb942d229435984eaeaecd47661ebaf37e1f87c3587bad5ef64ec15cb206387c",
+  "matrices": [
+    {
+      "name": "tray_1",
+      "z": 0
+    },
+    {
+      "name": "tray_2",
+      "z": 0
+    },
+    {
+      "name": "tray_3",
+      "z": 0
+    },
+    {
+      "name": "tray_4",
+      "z": 0
+    },
+    {
+      "name": "tray_5",
+      "z": 0
+    },
+    {
+      "name": "tray_6",
+      "z": 16
+    }
+  ],
+  "fakeBrowserDevices": true,
+  "providerMode": "fake",
+  "providerAvailability": {
+    "fake": true,
+    "realtime": true,
+    "gptLive": true,
+    "mic": true,
+    "speaker": true,
+    "camera": true
+  },
+  "microphoneInputs": [
+    9600,
+    9600,
+    9600,
+    9600
+  ],
+  "photoBytes": 4361,
+  "photoWarning": null,
+  "pcmBytes": [
+    4800,
+    4800,
+    4800,
+    4800,
+    4800
+  ],
+  "drains": [
+    {
+      "epoch": "3",
+      "outputEpoch": "4",
+      "pcmBytes": "4800"
+    },
+    {
+      "epoch": "3",
+      "outputEpoch": "4",
+      "pcmBytes": "9600"
+    },
+    {
+      "epoch": "3",
+      "outputEpoch": "4",
+      "pcmBytes": "14400"
+    },
+    {
+      "epoch": "3",
+      "outputEpoch": "4",
+      "pcmBytes": "19200"
+    },
+    {
+      "epoch": "3",
+      "outputEpoch": "4",
+      "pcmBytes": "24000"
+    }
+  ],
+  "bootPreserved": true,
+  "reloadNoReplay": true,
+  "stopNoAutoLower": true,
+  "physicalVerification": "unavailable",
+  "pageErrors": [],
+  "desktopViewport": [
+    1400,
+    900
+  ],
+  "mobileViewport": [
+    390,
+    844
+  ]
+}

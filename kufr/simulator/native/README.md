@@ -3,8 +3,9 @@
 The long-lived offline host composes production `SafetyController`,
 `SelectionSequence`, `DeviceControlRuntime`, `PersistentCommandJournal`,
 `PendingProposal`/`TurnPollGuard`, `WandPresentation`/`PhysicalPresentation`,
-`PhysicalEffects` and `DanceCoordinator`. No provider, network, GPIO, speaker,
-camera or SD device is contacted. It supports deterministic synthetic proposals,
+`PhysicalEffects`, `DanceCoordinator`, shared `RealtimeSessionEngine` and
+`VoiceWorkflow`. The process uses private HTTP/media ports rather than contacting
+a provider, network, GPIO, speaker, camera or SD device itself. It supports deterministic synthetic proposals,
 accepted driver writes, synthetic tone enqueue evidence and a synthetic dance
 media cursor. This proves software behavior only; it never proves hardware,
 audible speech, external service integration or measured position.
@@ -140,10 +141,73 @@ explicitly establishes the simulated model at rest. Only the journal, not
 physical position, persists across process restart; no command is replayed.
 
 `audio` reports `simulated-tone-enqueued`, `simulated-tone-idle`,
-`simulated-track-enqueued` or `simulated-track-drained`. No audio samples are
-rendered. Native presentation/dance diagnostics retain their original
+`simulated-track-enqueued` or `simulated-track-drained`. The synthetic presentation/dance peripherals render no audio samples. Native presentation/dance diagnostics retain their original
 `ExportPresentationTrace` schema, evidence, sequence and drop count. Dance
 trace time is the synthetic media cursor, distinct from device monotonic time.
 The source uses the generated score's bundle hash; unavailable CAD revision
-stays null. External speech, STT, live conversations and camera commands fail
-explicitly as unsupported; their success is never simulated.
+stays null. Browser voice uses the private media HAL below; external speech/STT and SD media
+remain unsupported by the native adapters. No hardware success is simulated.
+
+## Private browser media HAL
+
+[The shared contract](../../contracts/twin-browser-media.md) defines the private
+framed channel. `MEDIA_START sessionUUID requestUUID realtime|gpt-live voice
+speed photoConsent main|short micAvailable speakerAvailable cameraAvailable`
+uses explicit booleans `true|false` for photo consent and `0|1` availability.
+It requires a UUID boot identity, healthy inspected runtime and available audio.
+The native worker creates/parses production conversation requests, performs
+production photo validation and no-photo fallback, and executes the same
+Realtime event/input engine as ESP. Only the control owner takes a completed
+proposal and calls `PendingProposal`/`WandPresentation`.
+
+`MEDIA_RESULT requestId status contentType byteLength`, `MEDIA_EVENT sessionId
+epoch byteLength` and `MEDIA_FRAME sessionId epoch inputEpoch sequence pcm|jpeg
+byteLength` have exact binary attachments followed by LF. Header lines remain
+bounded to16384 bytes. Event/result payloads are at most65536; PCM input at most
+9600 even bytes (PCM16 LE mono24kHz); JPEG chunks at most32768 with262144 total.
+A zero-length JPEG frame explicitly reports denied/failed capture. Oversize or
+truncated binary framing exits fail closed; its payload is never reinterpreted
+as a control command.
+
+Replies include private `mediaState`, and may include one `mediaServiceRequest`
+or `media` descriptor plus exactly its declared bytes and LF (also for zero
+bytes). Whole image-upload attachments have the bounded262144 JPEG exception;
+other outgoing attachments are at most32768. Ordinary owner ticks automatically
+take one queued service action; `MEDIA_TAKE sessionId epoch` takes one HAL frame.
+All private descriptors/attachments must be stripped before telemetry or logs.
+`inputEnabled` reflects actual `VoiceAudioPort.Listen` state; phase alone does
+not grant microphone input. Private captions are transient and never technical
+telemetry.
+
+`MEDIA_PLAYED sessionId epoch outputEpoch sequence pcmBytes drained` must report
+actual browser scheduling completion. A successful drain requires the exact
+current drain notification sequence and cumulative byte count, with `drained`
+`true`. It never substitutes elapsed time for an ACK. Drain waits at most30s;
+HTTP waits are at most5s (3s for input/played/checkpoint), on an independent
+worker. Input buffering is bounded to400ms. `MEDIA_CANCEL sessionId` and owner
+Stop clear/wake queues and invalidate epochs immediately. They cannot revive
+old frames or proposals. Media cancellation preserves an already admitted
+physical scene; owner Stop remains the physical safety transition. Deletion
+queued during cancellation is best effort; process exit cannot dispatch it, so
+the platform adapter must close its owned stream/session during disposal.
+
+Offline checks against fake HTTP/media fixtures:
+
+```sh
+python kufr/simulator/native/test_media.py --executable /path/to/native-twin
+python kufr/firmware/tests/run_show_tests.py --only realtime_session_engine_test --only espidf_realtime_transport_test
+```
+
+These check production codec correlation, uncertain photo fallback, bounded
+input, epoch cancellation, browser drain/played ordering and owner proposal
+handoff. They make no provider calls and do not prove audible sound, camera
+hardware, deployed network integration or physical actuator acceptance.
+
+After actual browser audio `Begin`, observer `reported.audio` prefers the
+synchronized native `VoiceAudioPort` observation: `browser-playback-idle`,
+`browser-pcm-enqueued`, `browser-playback-drained`,
+`browser-playback-unknown` or `browser-playback-cancelled`. Drained requires the
+actual current browser ACK; time advancement cannot create it. Stop with pending
+PCM loses drain certainty, and cancellation invalidates its output epoch. These
+are software media observations and make no audible/hardware claim. Before any
+browser audio port begins, the existing simulated tone/dance fallback remains.

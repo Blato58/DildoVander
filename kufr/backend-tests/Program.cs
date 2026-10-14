@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 // Paid provider diagnostic is explicit and never part of normal offline CI.
 if (args is ["--twin"]) { await TwinTests.RunAsync(); return; }
+if (args is ["--twin-media"]) { await TwinMediaTests.RunAsync(); return; }
 if (args is ["--character"])
 {
     CharacterDirectorTests.Run();

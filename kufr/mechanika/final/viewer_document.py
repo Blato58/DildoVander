@@ -33,7 +33,8 @@ def render_document(payload):
     for placeholder, content in replacements.items():
         document = document.replace(placeholder, content)
     document = document.replace("</head>", "<style>" + (ROOT / "twin-viewer.css").read_text(encoding="utf-8") + "</style></head>")
+    document = document.replace("</head>", "<style>" + (ROOT / "twin_media.css").read_text(encoding="utf-8") + "</style></head>")
     # Load before the main renderer so its optional runtime hooks exist at mount.
-    twin_script = (ROOT / "twin_viewer.js").read_text(encoding="utf-8")
+    twin_script = (ROOT / "twin_media.js").read_text(encoding="utf-8") + "\n" + (ROOT / "twin_viewer.js").read_text(encoding="utf-8")
     document = document.replace("<script>const model=", "<script>" + twin_script + "</script>\n<script>const model=")
     return document

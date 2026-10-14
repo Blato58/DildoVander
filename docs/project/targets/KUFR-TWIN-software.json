@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "targetId": "KUFR-TWIN-software",
+  "purpose": "Verified shared native firmware text/effects/voice runtime, browser microphone/photo/playback HAL, CAD observer and protected VPS transport. Excludes physical ESP and paid provider acceptance; full work item retains PHYSICAL blocker.",
+  "components": {
+    "artifactDigest": "bfa57a8849aaea6b72f30da3c5e5ecea0c6ff259b0965c9aeb71ca90d39b4366",
+    "policyVersion": "twin-v2"
+  },
+  "requiredCriteria": [
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "HOST"
+    },
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "VIEWER"
+    },
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "LIVE"
+    },
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "ISOLATION"
+    },
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "DEPLOY"
+    },
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "MEDIA"
+    }
+  ]
+}
