@@ -53,12 +53,54 @@ class BridgeAuditTests(unittest.TestCase):
         self.assertEqual(report["positive_bridge_segment_count"],1)
         self.assertEqual(report["findings"][0]["kind"],"no_qualifying_bridge")
 
-    def test_last_actual_layer_is_used_after_thick_bridge_z_jump(self):
+    def test_skipped_nominal_layer_cannot_provide_bridge_anchors(self):
         text = supported_stroke().replace("Z.4","Z.6")
         report = audit_long_bridges(text)
-        self.assertEqual(report["status"],"PASS_LONG_BRIDGE_AUDIT")
+        self.assertEqual(report["status"],"FAIL_LONG_BRIDGE_AUDIT")
         self.assertAlmostEqual(report["evidence"][0]["previous_deposition_z_mm"],.2)
         self.assertAlmostEqual(report["evidence"][0]["layer_step_mm"],.4)
+        self.assertFalse(report["evidence"][0]["previous_layer_reaches_bridge"])
+        self.assertTrue(report["evidence"][0]["xy_supported_start"])
+        self.assertEqual(report["findings"][0]["kind"],"unsupported_vertical_gap")
+
+    def test_thick_height_annotation_cannot_allow_skipped_nominal_layer(self):
+        text = supported_stroke().replace("Z.4","Z.6").replace(
+            ";TYPE:Bridge infill",";TYPE:Bridge infill\n;HEIGHT:.4")
+        self.assertEqual(audit_long_bridges(text)["status"],"FAIL_LONG_BRIDGE_AUDIT")
+
+    def test_explicit_profile_layer_height_controls_vertical_reach(self):
+        self.assertEqual(audit_long_bridges(supported_stroke(),layer_height_mm=.1)["status"],
+                         "FAIL_LONG_BRIDGE_AUDIT")
+        text = supported_stroke().replace("Z.4","Z.3")
+        report = audit_long_bridges(text,layer_height_mm=.1)
+        self.assertEqual(report["status"],"PASS_LONG_BRIDGE_AUDIT")
+        self.assertEqual(report["evidence"][0]["nominal_layer_height_mm"],.1)
+
+    def test_vertical_limit_uses_tight_tolerance_instead_of_xy_tolerance(self):
+        for z,status in ((".400001","PASS_LONG_BRIDGE_AUDIT"),(".40002","FAIL_LONG_BRIDGE_AUDIT")):
+            with self.subTest(z=z):
+                report = audit_long_bridges(supported_stroke().replace("Z.4","Z"+z))
+                self.assertEqual(report["status"],status)
+                self.assertEqual(report["profile"]["vertical_tolerance_mm"],1e-5)
+
+    def test_nonextruding_z_hop_does_not_supply_missing_support(self):
+        text = supported_stroke().replace("G0 X0 Y0 Z.4","G0 Z.4\nG0 X0 Y0 Z.6")
+        report = audit_long_bridges(text)
+        self.assertEqual(report["status"],"FAIL_LONG_BRIDGE_AUDIT")
+        self.assertAlmostEqual(report["evidence"][0]["previous_deposition_z_mm"],.2)
+
+    def test_first_deposition_bridge_has_no_previous_anchors(self):
+        text = "\n".join(("G21","G90","M83","G0 X0 Y0 Z.2",
+                           ";TYPE:Bridge infill",";WIDTH:.4","G1 X20 E1"))
+        report = audit_long_bridges(text)
+        self.assertEqual(report["status"],"FAIL_LONG_BRIDGE_AUDIT")
+        self.assertIsNone(report["evidence"][0]["previous_deposition_z_mm"])
+
+    def test_g92_z_reset_keeps_physical_previous_layer_coordinates(self):
+        text = supported_stroke().replace("G0 X0 Y0 Z.4","G92 Z100\nG0 X0 Y0 Z100.2")
+        report = audit_long_bridges(text)
+        self.assertEqual(report["status"],"PASS_LONG_BRIDGE_AUDIT")
+        self.assertAlmostEqual(report["evidence"][0]["layer_step_mm"],.2)
 
     def test_relative_xyz_absolute_e_and_coordinate_reset(self):
         text = "\n".join([
@@ -142,7 +184,9 @@ class BridgeAuditTests(unittest.TestCase):
 
     def test_profile_and_empty_input_fail_closed(self):
         for profile in ({"max_gap_mm":float("nan")},{"nozzle_width_mm":0},
-                        {"tolerance_mm":.2},{"tolerance_mm":-1}):
+                        {"tolerance_mm":.2},{"tolerance_mm":-1},
+                        {"layer_height_mm":0},{"layer_height_mm":float("nan")},
+                        {"layer_height_mm":.5}):
             with self.subTest(profile=profile):
                 report = audit_long_bridges(supported_stroke(),**profile)
                 self.assertEqual(report["status"],"FAIL_LONG_BRIDGE_AUDIT")

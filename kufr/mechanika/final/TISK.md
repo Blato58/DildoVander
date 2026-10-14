@@ -62,7 +62,10 @@ Geometrický most je mezera bez kotev. Délka extrudované dráhy sliceru
 obsahuje také kotvení, takže údaj `max_bridge_toolpath_segment_mm` může
 být větší. Pouze varování `Long bridging extrusions` lze přijmout po
 samostatné kontrole skutečně uložených drah předchozí vrstvy: oba konce
-musí být na materiálu a každá jednotlivá mezera nejvýše 12 mm. Výsledek,
+musí být na materiálu a každá jednotlivá mezera nejvýše 12 mm.
+Předchozí uložený materiál navíc musí dosahovat nejvýše jednu nominální
+vrstvu 0,2 mm pod most; kontrola Z má vlastní toleranci 0,00001 mm.
+Údaj HEIGHT o tloušťce extruzního toku nepovoluje přeskočené vrstvy. Výsledek,
 původní varování a mezery zůstávají v protokolu. `Floating bridge anchors`,
 `Loose extrusions`, neznámá či neúplná varování vždy kontrolu zastaví.
 Samotné vypnutí podpor v sliceru není důkaz tisknutelnosti; obě brány

@@ -17,6 +17,7 @@ from shapely.geometry import LineString, Point
 
 _MAX_SAMPLES = 40
 _MAX_GAPS = 10
+_Z_TOLERANCE_MM = 1e-5
 _WORD = re.compile(r"([A-Za-z])\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)|[+-]?(?:nan|inf(?:inity)?))", re.I)
 _KNOWN_TYPES = {
     "Perimeter", "External perimeter", "Internal infill", "Solid infill",
@@ -270,7 +271,7 @@ def _line_components(geometry):
             yield from _line_components(child)
 
 
-def _audit_stroke(stroke, support, max_gap, tolerance):
+def _audit_stroke(stroke, support, max_gap, tolerance, layer_height):
     line = LineString([stroke.start[:2],stroke.end[:2]])
     gap_pieces = list(_line_components(line.difference(support)))
     intervals = []
@@ -281,8 +282,13 @@ def _audit_stroke(stroke, support, max_gap, tolerance):
     intervals.sort()
     max_length = max((end-start for start,end in intervals),default=0.0)
     expanded = support.buffer(tolerance)
-    supported_start = expanded.covers(Point(stroke.start[:2]))
-    supported_end = expanded.covers(Point(stroke.end[:2]))
+    layer_step = None if stroke.previous_z is None else stroke.end[2]-stroke.previous_z
+    previous_layer_reaches = (layer_step is not None
+                              and 0 < layer_step <= layer_height+_Z_TOLERANCE_MM)
+    xy_supported_start = expanded.covers(Point(stroke.start[:2]))
+    xy_supported_end = expanded.covers(Point(stroke.end[:2]))
+    supported_start = previous_layer_reaches and xy_supported_start
+    supported_end = previous_layer_reaches and xy_supported_end
     accepted = supported_start and supported_end and max_length <= max_gap+tolerance
     samples = []
     for start,end in intervals[:_MAX_GAPS]:
@@ -292,10 +298,13 @@ def _audit_stroke(stroke, support, max_gap, tolerance):
         "line":stroke.line,"layer_z_mm":stroke.end[2],
         "previous_deposition_z_mm":stroke.previous_z,
         "previous_deposition_segment_count":stroke.previous_count,
-        "layer_step_mm":None if stroke.previous_z is None else stroke.end[2]-stroke.previous_z,
+        "layer_step_mm":layer_step,"nominal_layer_height_mm":layer_height,
+        "minimum_support_z_mm":stroke.end[2]-layer_height,
+        "previous_layer_reaches_bridge":previous_layer_reaches,
         "start_mm":list(stroke.start),"end_mm":list(stroke.end),
         "xy_length_mm":stroke.length,"width_mm":stroke.width,
         "supported_start":bool(supported_start),"supported_end":bool(supported_end),
+        "xy_supported_start":bool(xy_supported_start),"xy_supported_end":bool(xy_supported_end),
         "start_support_distance_mm":Point(stroke.start[:2]).distance(support) if not support.is_empty else None,
         "end_support_distance_mm":Point(stroke.end[:2]).distance(support) if not support.is_empty else None,
         "gap_count":len(intervals),"max_unsupported_gap_mm":max_length,
@@ -304,26 +313,30 @@ def _audit_stroke(stroke, support, max_gap, tolerance):
     }
 
 
-def audit_long_bridges(gcodeText, max_gap_mm=12, nozzle_width_mm=.4, tolerance_mm=.03):
+def audit_long_bridges(gcodeText, max_gap_mm=12, nozzle_width_mm=.4, tolerance_mm=.03,
+                      layer_height_mm=.2):
     """Measure every positive Bridge infill segment longer than ``max_gap_mm``.
 
-    Paths are buffered by their declared WIDTH/2, using the nearest lower Z
-    that actually received deposition. Thick bridge layer jumps are recorded.
+    Paths are buffered by their declared WIDTH/2. The nearest lower deposited Z
+    must be within the configured nominal layer step; skipped layers cannot
+    provide anchors. HEIGHT flow-thickness tags cannot widen this profile limit.
     This result cannot override Floating/unknown warnings or profile/mesh gates.
     ``nozzle_width_mm`` validates the numerical tolerance; declared WIDTH is
     mandatory, so no missing path width is silently replaced with nozzle size.
     """
     findings = _Findings()
     try:
-        max_gap, nozzle, tolerance = map(float,(max_gap_mm,nozzle_width_mm,tolerance_mm))
-        if not all(math.isfinite(value) for value in (max_gap,nozzle,tolerance)):
+        max_gap, nozzle, tolerance, layer_height = map(
+            float,(max_gap_mm,nozzle_width_mm,tolerance_mm,layer_height_mm))
+        if not all(math.isfinite(value) for value in (max_gap,nozzle,tolerance,layer_height)):
             raise ValueError()
-        if max_gap<=0 or nozzle<=0 or not 0<=tolerance<=nozzle/10:
+        if (max_gap<=0 or nozzle<=0 or not 0<=tolerance<=nozzle/10
+                or not 0<layer_height<=nozzle):
             raise ValueError()
     except (TypeError,ValueError):
         return {"status":"FAIL_LONG_BRIDGE_AUDIT","physical_validation":False,
                 "findings":[{"kind":"invalid_profile","line":None,
-                             "detail":"Finite positive gap/nozzle and tolerance no larger than nozzle/10 required"}],
+                             "detail":"Finite positive gap/nozzle/layer; layer no larger than nozzle; tolerance no larger than nozzle/10 required"}],
                 "findings_count":1,"findings_truncated":False,"evidence":[],"evidence_truncated":False}
     if not isinstance(gcodeText,str):
         gcodeText = ""
@@ -341,7 +354,7 @@ def audit_long_bridges(gcodeText, max_gap_mm=12, nozzle_width_mm=.4, tolerance_m
             if cache_key not in cache:
                 previous = layers.get(stroke.previous_z,[])[:stroke.previous_count]
                 cache[cache_key] = _support_geometry(previous) if previous else shapely.GeometryCollection()
-            item = _audit_stroke(stroke,cache[cache_key],max_gap,tolerance)
+            item = _audit_stroke(stroke,cache[cache_key],max_gap,tolerance,layer_height)
         except (shapely.GEOSException,ValueError,OverflowError) as error:
             findings.add("invalid_support_geometry",stroke.line,str(error))
             failures += 1
@@ -349,10 +362,14 @@ def audit_long_bridges(gcodeText, max_gap_mm=12, nozzle_width_mm=.4, tolerance_m
         max_measured_gap = max(max_measured_gap,item["max_unsupported_gap_mm"])
         if item["status"] == "FAIL":
             failures += 1
-            detail = ("Both endpoints require previous-layer deposition support" if
-                      not item["supported_start"] or not item["supported_end"] else
-                      f"Unsupported gap {item['max_unsupported_gap_mm']:.6f} mm exceeds limit")
-            findings.add("unsupported_long_bridge",stroke.line,detail)
+            if not item["previous_layer_reaches_bridge"]:
+                findings.add("unsupported_vertical_gap",stroke.line,
+                             "Previous deposited material must reach within the configured nominal layer step")
+            else:
+                detail = ("Both endpoints require previous-layer deposition support" if
+                          not item["supported_start"] or not item["supported_end"] else
+                          f"Unsupported gap {item['max_unsupported_gap_mm']:.6f} mm exceeds limit")
+                findings.add("unsupported_long_bridge",stroke.line,detail)
         if len(evidence)<_MAX_SAMPLES:
             evidence.append(item)
         elif item["status"] == "FAIL":
@@ -367,11 +384,12 @@ def audit_long_bridges(gcodeText, max_gap_mm=12, nozzle_width_mm=.4, tolerance_m
         "status":"PASS_LONG_BRIDGE_AUDIT" if not findings.count else "FAIL_LONG_BRIDGE_AUDIT",
         "physical_validation":False,
         "warning_scope":"Long bridging extrusions only; Floating and unknown warnings remain failures",
-        "profile":{"max_gap_mm":max_gap,"nozzle_width_mm":nozzle,"tolerance_mm":tolerance},
+        "profile":{"max_gap_mm":max_gap,"nozzle_width_mm":nozzle,"tolerance_mm":tolerance,
+                   "layer_height_mm":layer_height,"vertical_tolerance_mm":_Z_TOLERANCE_MM},
         "positive_bridge_segment_count":bridge_count,"long_bridge_segment_count":len(strokes),
         "failed_segment_count":failures,"max_bridge_segment_mm":max_length,
         "max_unsupported_gap_mm":max_measured_gap,"deposited_layer_count":len(layers),
-        "support_layer_rule":"Nearest actually deposited Z below bridge Z; declared widths buffered by half width",
+        "support_layer_rule":"Previously deposited material within the configured nominal layer step; HEIGHT tags cannot allow skipped nominal layers",
         "support_buffer":"Nominal WIDTH/2 round buffers, inscribed 32-sided end caps; no filled material assumed between paths",
         "extrusion_dialect":"RepRap: independent XYZ and E modes; G92 preserves unretracted filament debt",
         "evidence":sorted(evidence,key=lambda item:item["line"]),"evidence_truncated":len(strokes)>len(evidence),

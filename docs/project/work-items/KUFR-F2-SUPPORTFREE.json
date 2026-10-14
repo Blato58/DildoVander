@@ -14,7 +14,7 @@
     "KUFR-F2"
   ],
   "implementedSubject": {
-    "cadSourceArtifactDigest": "8ff51faf28fc95615c38cccd7743096769e682ca22f7abb2bbb0616886d7b424"
+    "cadSourceArtifactDigest": "1030f7336e963e2e6c00ea0cf3b5c04fc95449e07b1456e34d87b65b93b67115"
   },
   "acceptance": [
     {
@@ -25,11 +25,9 @@
         "source_review"
       ],
       "appliesTo": {
-        "cadSourceArtifactDigest": "8ff51faf28fc95615c38cccd7743096769e682ca22f7abb2bbb0616886d7b424"
+        "cadSourceArtifactDigest": "1030f7336e963e2e6c00ea0cf3b5c04fc95449e07b1456e34d87b65b93b67115"
       },
-      "evidenceRefs": [
-        "F2-SF-final13-source-review"
-      ]
+      "evidenceRefs": []
     },
     {
       "id": "PRINT",
@@ -39,11 +37,9 @@
         "integration"
       ],
       "appliesTo": {
-        "cadSourceArtifactDigest": "8ff51faf28fc95615c38cccd7743096769e682ca22f7abb2bbb0616886d7b424"
+        "cadSourceArtifactDigest": "1030f7336e963e2e6c00ea0cf3b5c04fc95449e07b1456e34d87b65b93b67115"
       },
-      "evidenceRefs": [
-        "F2-SF-final13-printing"
-      ]
+      "evidenceRefs": []
     },
     {
       "id": "ASSEMBLY",
@@ -53,11 +49,9 @@
         "integration"
       ],
       "appliesTo": {
-        "cadSourceArtifactDigest": "8ff51faf28fc95615c38cccd7743096769e682ca22f7abb2bbb0616886d7b424"
+        "cadSourceArtifactDigest": "1030f7336e963e2e6c00ea0cf3b5c04fc95449e07b1456e34d87b65b93b67115"
       },
-      "evidenceRefs": [
-        "F2-SF-final13-assembly"
-      ]
+      "evidenceRefs": []
     },
     {
       "id": "REGRESSION",
@@ -67,11 +61,9 @@
         "unit"
       ],
       "appliesTo": {
-        "cadSourceArtifactDigest": "8ff51faf28fc95615c38cccd7743096769e682ca22f7abb2bbb0616886d7b424"
+        "cadSourceArtifactDigest": "1030f7336e963e2e6c00ea0cf3b5c04fc95449e07b1456e34d87b65b93b67115"
       },
-      "evidenceRefs": [
-        "F2-SF-final13-regression"
-      ]
+      "evidenceRefs": []
     },
     {
       "id": "VIEWER",
@@ -81,14 +73,12 @@
         "browser"
       ],
       "appliesTo": {
-        "cadSourceArtifactDigest": "8ff51faf28fc95615c38cccd7743096769e682ca22f7abb2bbb0616886d7b424"
+        "cadSourceArtifactDigest": "1030f7336e963e2e6c00ea0cf3b5c04fc95449e07b1456e34d87b65b93b67115"
       },
-      "evidenceRefs": [
-        "F2-SF-final13-browser"
-      ]
+      "evidenceRefs": []
     }
   ],
   "blockers": [],
-  "currentNote": "Digitální návrh ověřen na 89 zdrojích: 343 Python + 56 Node testů, skutečné řezání všech 51 typů bez podpor, STL/STEP/3MF, sestava, kabeláž, 16 kroků, ZIP a skutečný cache HIT prošly. Čerstvý browser a nezávislé kontroly bez otevřeného nálezu. 71 výtisků včetně 3 měrek; 29 dalších šroubů a 29 matic. Implementační commit 3be94343c3eb68f308085e4779390963899509e4 byl úspěšně pushnutý a vzdálená větev byla ověřena helperem Push-CurrentBranch.ps1. Fyzický tisk, fit, epoxid, zatížení, servo a kabely nebyly ověřené. Položka zůstává aktivní do všech PR reviews a Linux CI.",
-  "nextAction": "Otevřít PR a dokončit všechna reviews a skutečné Linux CI s PrusaSlicerem 2.9.6; po ověřeném Git předání připravit fyzické měrky a jeden zatížený modul."
+  "currentNote": "PR #187: Codex P1 o přeskočené vrstvě opraven a nezávisle ověřen 39 testy i skutečným G-code kotevní měrky. Nový zmrazený bundle14 má 89 zdrojů; změnilo se jen pět souborů auditu/testů/TISK, všech 84 ostatních včetně celé geometrie jsou totožné. Úplný nový výrobní běh ještě není přijatý. Přesných 20 výjimek pro historické SHA-256 ve scanneru prošlo cílenou kontrolou s nulou nálezů; nový syntetický údaj byl nadále detekován. Implementace 3be94343c3eb68f308085e4779390963899509e4 byla úspěšně pushnutá. Fyzický tisk, fit, lepení, servo, zatížení a kabely nejsou ověřené.",
+  "nextAction": "Dokončit celý zmrazený bundle14, jeho cache a browser/provenanci, zaznamenat nové důkazy; pushnout opravy, dokončit všechna reviews a Linux CI PR #187 a autorizovaný merge."
 }

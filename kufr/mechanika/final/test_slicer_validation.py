@@ -63,6 +63,9 @@ class SlicerValidationTests(unittest.TestCase):
                          'G0 X0 Y0 Z.4',';TYPE:Bridge infill','G1 X20 E1'])
         run={'warnings':[header,'Long bridging extrusions'],'stability_types':stability_types(output)}
         self.assertEqual(resolve_warnings(run,text)['status'],'PASS_LONG_WARNING_REVIEW')
+        skipped = resolve_warnings(run,text.replace('Z.4','Z.6'))
+        self.assertEqual(skipped['status'],'FAIL_UNRESOLVED_WARNINGS')
+        self.assertEqual(skipped['long_bridge_audit']['findings'][0]['kind'],'unsupported_vertical_gap')
         for changed in (output.replace('Consider enabling supports.',''),
                         output.replace('Long bridging extrusions','Long bridging extrusions\nUnknown defect')):
             run['stability_types']=stability_types(changed)

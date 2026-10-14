@@ -315,7 +315,7 @@ def resolve_warnings(run, gcode):
             or kinds!=['Long bridging extrusions']):
         return {"status":"FAIL_UNRESOLVED_WARNINGS","raw_warnings":warnings,
                 "stability_types":kinds}
-    audit=audit_long_bridges(gcode,max_gap_mm=12,nozzle_width_mm=.4,tolerance_mm=.03)
+    audit=audit_long_bridges(gcode,max_gap_mm=12,nozzle_width_mm=.4,tolerance_mm=.03,layer_height_mm=.2)
     return {"status":"PASS_LONG_WARNING_REVIEW" if audit["status"]=="PASS_LONG_BRIDGE_AUDIT" else "FAIL_UNRESOLVED_WARNINGS",
             "raw_warnings":warnings,"long_bridge_audit":audit,
             "explanation":"Full strokes cross supported islands; audit measures each nominal deposited-material gap and both endpoints. Floating/unknown warnings never qualify."}
