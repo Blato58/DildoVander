@@ -24,11 +24,68 @@ class ProxyTests(unittest.TestCase):
         supplied = {(method, route) for method, route, source in proxy.CONTRACT["routes"]}
         actual = set()
         for path in [backend / "Program.cs", *sorted((backend / "Features").rglob("*.cs"))]:
-            for method, route in re.findall(r'\.Map(Get|Post|Put|Delete|Patch)\("(/(?:v1/|healthz)[^"\n]*)"', path.read_text(encoding="utf-8")):
+            for method, route in re.findall(r'\.Map(Get|Post|Put|Delete|Patch)\("(/(?:v1/|healthz|twin)[^"\n]*)"', path.read_text(encoding="utf-8")):
                 actual.add((method.upper(), route))
         self.assertEqual(supplied, actual, "Current backend routes must all be reviewed in the compatibility contract")
         for method, route, source in proxy.CONTRACT["routes"]:
             self.assertIn('Map' + method.title() + '("' + route + '"', (backend / source).read_text(encoding="utf-8"))
+
+    def test_twin_ingress_keeps_its_isolated_listener_and_exact_methods(self):
+        twin_source = "Features/DigitalTwin/TwinEndpoints.cs"
+        self.assertEqual(49, sum(source != twin_source for method, route, source in proxy.CONTRACT["routes"]))
+        self.assertEqual(11, sum(source == twin_source for method, route, source in proxy.CONTRACT["routes"]))
+        paths = [
+            ("GET", "/twin"), ("GET", "/healthz/twin"),
+            ("POST", "/v1/twin/session"), ("DELETE", "/v1/twin/session"),
+            ("GET", "/v1/twin/instances"), ("GET", "/v1/twin/health"),
+            ("POST", "/v1/twin/device-token"),
+        ]
+        for instance in ("sim-development", "sim-integration", "kufr-68ee8f4b6048", "Twin_1.2", "a" * 96):
+            paths.extend([
+                ("GET", f"/v1/twin/instances/{instance}"),
+                ("GET", f"/v1/twin/instances/{instance}/recording"),
+                ("POST", f"/v1/twin/instances/{instance}/commands"),
+                ("POST", f"/v1/twin/ingest/{instance}"),
+            ])
+        for method, path in paths:
+            self.assertTrue(proxy.allowed_backend(method, path), (method, path))
+            self.assertFalse(proxy.allowed(method, path), "Twin credentials must not become guest grants")
+        for method, path in [
+            ("POST", "/twin"), ("POST", "/healthz/twin"), ("GET", "/twin/"),
+            ("GET", "/v1/twin/session"), ("GET", "/v1/twin/device-token"),
+            ("GET", "/v1/twin/ingest/sim-development"),
+            ("GET", "/v1/twin/instances/sim-development/commands"),
+            ("POST", "/v1/twin/instances/live-device/recording"),
+            ("GET", "/v1/twin/unknown"),
+            ("GET", "/v1/twin/instances/" + "a" * 97),
+            ("GET", "/v1/twin/instances/sim-development/recording/extra"),
+            ("POST", "/v1/twin/ingest/sim-development/commands"),
+            ("GET", "/v1/twin/instances/non%20canonical"),
+            ("GET", "/guest/v1/twin/instances/sim-development"),
+        ]:
+            self.assertFalse(proxy.allowed_backend(method, path), (method, path))
+            self.assertFalse(proxy.allowed(method, path), (method, path))
+
+        config = proxy.render_compatibility("keepsake.example.invalid")
+        blocks = config.split("\n}\n")
+        for method, route, source in proxy.CONTRACT["routes"]:
+            location = 'location ~ "^' + proxy.route_pattern(route) + '$" {'
+            block = next(block for block in blocks if location in block)
+            twin = source == twin_source
+            upstream = "http://127.0.0.1:5082" if twin else "http://127.0.0.1:5080"
+            self.assertIn("proxy_pass " + upstream + ";", block)
+            if twin:
+                self.assertIn("client_max_body_size 32k;", block)
+                self.assertIn("proxy_read_timeout 30s;", block)
+        self.assertNotIn("location ^~ /v1/twin/", config)
+        self.assertNotIn("dildovander-twin.conf", config)
+
+    def test_checked_in_examples_are_current_generator_outputs(self):
+        deploy = Path(__file__).resolve().parent
+        self.assertEqual(proxy.render_compatibility("keepsake.example.invalid"),
+                         (deploy / "keepsake-compatibility.conf.example").read_text(encoding="utf-8"))
+        self.assertEqual(proxy.render_http_map(),
+                         (deploy / "keepsake-upgrade.conf.example").read_text(encoding="utf-8"))
 
     def test_compatibility_preserves_live_ota_and_operator_auth_boundaries(self):
         paths = [

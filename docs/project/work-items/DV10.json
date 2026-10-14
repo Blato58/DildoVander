@@ -18,7 +18,7 @@
   "acceptance": [
     {
       "id": "LOCAL",
-      "revision": 2,
+      "revision": 3,
       "expected": "A–H a statické vyzvednutí: přesný durable outcome bez individuálního QR, veřejná poslední hotová hůlka a přehled hůlek/příběhů aktivního večera; oddělené soukromé foto/portrét/owner/admin scopes, manual-only archiv, exporty, mazání a skills; syntetické integrační a browser ověření.",
       "requiredEvidenceKinds": [
         "integration",
@@ -27,14 +27,12 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "5d53c276f653bbcb84f2fd2fc2bcb0c3a668118712e3a3e3954177546c92b1db"
+        "artifactDigest": "4e24c5876a0702b834f03325bf80446fd1db51996400e706d4a857bb89c52f7d"
       },
       "evidenceRefs": [
-        "DV10-local-integration-v2",
-        "DV10-local-browser-v2",
-        "DV10-local-source_review-v2",
-        "DV10-code-package-v2",
-        "DV10-hosted-ci-v2"
+        "DV10-local-integration-v3",
+        "DV10-local-browser-v3",
+        "DV10-local-source_review-v3"
       ]
     },
     {
@@ -45,7 +43,7 @@
         "integration"
       ],
       "appliesTo": {
-        "artifactDigest": "5d53c276f653bbcb84f2fd2fc2bcb0c3a668118712e3a3e3954177546c92b1db"
+        "artifactDigest": "4e24c5876a0702b834f03325bf80446fd1db51996400e706d4a857bb89c52f7d"
       },
       "evidenceRefs": []
     },
@@ -59,7 +57,7 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "5d53c276f653bbcb84f2fd2fc2bcb0c3a668118712e3a3e3954177546c92b1db"
+        "artifactDigest": "4e24c5876a0702b834f03325bf80446fd1db51996400e706d4a857bb89c52f7d"
       },
       "evidenceRefs": []
     },
@@ -71,7 +69,7 @@
         "integration"
       ],
       "appliesTo": {
-        "artifactDigest": "5d53c276f653bbcb84f2fd2fc2bcb0c3a668118712e3a3e3954177546c92b1db"
+        "artifactDigest": "4e24c5876a0702b834f03325bf80446fd1db51996400e706d4a857bb89c52f7d"
       },
       "evidenceRefs": []
     }
@@ -106,8 +104,8 @@
     }
   ],
   "nextAction": "Schválit konkrétní placený OpenAI pilot se souhlasnými fotografiemi; produkci, iPhone a nezávislou obnovu přijmout oddělenými receipts.",
-  "currentNote": "Majitel schválil veřejné hůlky a příběhy aktivního večera za jedním statickým QR; fotografie/portréty zůstávají soukromé. Vazba na večer se zachytí při návrhu, ne při pozdějším ACK. Firmware a mobil nepředávají individuální QR. Lokální aktuální software ověřen bez otevřeného P1/P2; produkční flags OFF, event_ready=false. Implementace dc84f0c0cdcdd23f810acc7ac1ecca6bb673dc11 a integrace současného main 7aba8c8c27f9fa2eaf0ba7a1fd17cab05dd616ce push ověřeny pomocí Push-CurrentBranch. Clean-source Linux+standalone ZIP 78c9acfcc76ef804cc6f151b946428c1364cabd6ebefecefef177cf4eb8861d1. PR190 hosted CI38613273980 na 9760f5ffab78c4a39ae0ddf5dc30fd87a6259247 prošlo všemi 13 jobs, včetně nativního iOS a úplného webu; stejné source bytes doloženy fingerprintem. Žádné nasazení.",
+  "currentNote": "Jeden statický QR otevírá společné hůlky/příběhy aktivního večera; fotografie/portréty soukromé. DV10 lokálně ověřeno po integraci main Digital Twin fe39e4b48f6aee4a6328ba3003fb7518813c4e0a: backend/HTTP/browser/firmware/native/proxy PASS, nezávislý review bez P1/P2. Proxy60 přesných metod/cest zachovává služby5080/5082. Předchozí CI38620505788 na e8ce3334af305021ff288339bb5792e50f8f741a prošlo13jobs; aktuální kombinovaný CI a nový clean-source balík dosud nejsou doloženy. Produkce OFF,event_ready=false; bez nasazení/placených volání.",
   "implementedSubject": {
-    "artifactDigest": "5d53c276f653bbcb84f2fd2fc2bcb0c3a668118712e3a3e3954177546c92b1db"
+    "artifactDigest": "4e24c5876a0702b834f03325bf80446fd1db51996400e706d4a857bb89c52f7d"
   }
 }

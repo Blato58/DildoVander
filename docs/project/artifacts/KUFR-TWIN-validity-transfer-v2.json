@@ -1,0 +1,13 @@
+{
+  "baselineArtifactDigest": "611164ada409925ec84de8fab4eaa5b5d0c5a5bcdfe4946529ac44d333252cdd",
+  "currentArtifactDigest": "6da66c79a2bf8f99ab428bf5ed3ca2563abfb173ab5104d78ad52330494daa13",
+  "changedProductionInputs": [
+    "kufr/backend/deploy/twin/install-twin.py",
+    "kufr/backend/Features/DigitalTwin/TwinEndpoints.cs",
+    "kufr/backend/Features/DigitalTwin/TwinHost.cs",
+    "kufr/backend/Features/DigitalTwin/TwinStore.cs",
+    "kufr/mechanika/final/twin_viewer.js"
+  ],
+  "unchangedFirmwareNativeSourceInputs": true,
+  "reason": "Only backend Stop/age, installer upgrade merge and viewer urgent Stop changed. Existing native/firmware evidence retains original observation date and exact input hashes. New delta tests and VPSv5/browser runs below are freshly executed."
+}

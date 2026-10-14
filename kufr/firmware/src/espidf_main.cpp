@@ -18,6 +18,7 @@
 #include "features/device_control/DeviceControlRuntime.h"
 #include "features/device_control/PersistentCommandJournal.h"
 #include "features/show_diagnostics/ShowTraceMailbox.h"
+#include "features/twin_telemetry/EspIdfTwinTelemetry.h"
 #include "features/backend_access/EspIdfBackendNetwork.h"
 #include "features/backend_access/EspIdfStationNetwork.h"
 #include "features/conversation/ConversationRuntimeState.h"
@@ -306,7 +307,8 @@ class HardwareSteps final : public LocalControlStepPort {
 
 extern "C" void app_main() {
   static EspIdfPhysicalIo hardware;
-  static PhysicalEffects effects(hardware);
+  static TwinObservedIo observedHardware(hardware);
+  static PhysicalEffects effects(observedHardware);
   static HardwareSafetyPort safetyPort(effects);
   static SafetyController safetyController(safetyPort);
   static SelectionSequence selectionSequence(safetyController, true);
@@ -321,6 +323,9 @@ extern "C" void app_main() {
   bootloader_random_disable();
   const esp_err_t nvsStatus = nvs_flash_init();
   const bool hardwareStarted = hardware.Initialize(nvsStatus == ESP_OK);
+  // Successful initialization includes an accepted dark LED frame. Failure
+  // leaves that driver state unknown rather than inventing a zero frame.
+  observedHardware.ledKnown_ = hardwareStarted;
   std::array<ServoCalibration, 6> calibration{};
   uint64_t calibrationRevision = 0;
   const bool calibrated = hardwareStarted && hardware.LoadCalibration(calibration, calibrationRevision) &&
@@ -379,9 +384,13 @@ extern "C" void app_main() {
   static EspIdfStationNetwork station;
   station.SetChangeGate({MaintenanceGate::AcquireNetwork, MaintenanceGate::ReleaseNetwork, &maintenance});
   const bool stationStarted = station.Start(nvsStatus == ESP_OK);
+  static TwinTelemetryMailbox twinMailbox;
+  static EspIdfTwinTelemetry twinNetwork(twinMailbox, identity, station, bootId);
+  if (stationStarted) twinNetwork.Start();
   static EspIdfBackendNetwork backendNetwork(identity, runtimeState, bootId, station, journal, journalStorage);
   backendNetwork.InitializeVoice(nvsStatus == ESP_OK, hardware.ProfileSelected() ? &hardware : nullptr);
-  presentationPort.BindAudio(backendNetwork.PresentationAudio());
+  static TwinObservedAudio observedAudio(backendNetwork.PresentationAudio());
+  presentationPort.BindAudio(observedAudio);
   backendNetwork.InitializeCamera(nvsStatus == ESP_OK, hardware.Available());
   if (!stationStarted || !backendNetwork.Start(nvsStatus == ESP_OK)) {
     ESP_LOGW(LogTag, "Backend network not configured; stays offline");
@@ -546,6 +555,43 @@ extern "C" void app_main() {
     }
     if (dance.Reserved()) lastTraceWasDance = true;
     showTrace.Publish(lastTraceWasDance ? dance.Diagnostics() : presentationTrace, clock.NowMs());
+    static TwinTelemetrySnapshot twinSnapshot;
+    static uint64_t twinSequence = 0, twinPublishedAt = 0;
+    const uint64_t twinNow = clock.NowMs();
+    if (twinNow - twinPublishedAt >= 500) {
+      twinPublishedAt = twinNow;
+      twinSnapshot.trace = lastTraceWasDance ? dance.Diagnostics() : presentationTrace;
+      twinSnapshot.sequence = ++twinSequence;
+      twinSnapshot.timeMs = twinNow;
+      twinSnapshot.revision = deviceControl.Revision();
+      twinSnapshot.generation = controlRuntime.Generation();
+      twinSnapshot.calibration = effects.CalibrationRevision();
+      twinSnapshot.recovery = selectionSequence.NeedsRecovery() || !effects.Healthy() ||
+          (!controlRuntime.HasAutonomousPresentation() && deviceControl.NeedsRecovery());
+      twinSnapshot.readyMask = deviceControl.ReadyMask();
+      twinSnapshot.slot = presentation.Compartment();
+      switch (presentation.State()) {
+        case WandPresentationState::Idle:
+          twinSnapshot.state = dance.Reserved() ? "dance" : selectionSequence.IsBusy() ? "manual-selection" : "idle";
+          twinSnapshot.slot = selectionSequence.IsBusy() ? selectionSequence.SelectedCompartment() : 0;
+          break;
+        case WandPresentationState::Raising: twinSnapshot.state = "raising"; break;
+        case WandPresentationState::Showing: twinSnapshot.state = "showing"; break;
+        case WandPresentationState::Lowering: twinSnapshot.state = "lowering"; break;
+        case WandPresentationState::Fault: twinSnapshot.state = "fault"; break;
+      }
+      twinSnapshot.pulse = observedHardware.pulse_;
+      twinSnapshot.led = observedHardware.led_;
+      twinSnapshot.ledKnown = observedHardware.ledKnown_;
+      twinSnapshot.enabled = observedHardware.enabled_;
+      twinSnapshot.vibrationMask = observedHardware.vibrationMask_;
+      twinSnapshot.audio = backendNetwork.IsVoiceBusy() ? "voice-busy-reported" : observedAudio.Status();
+      for (uint8_t slot = 1; slot <= 6; ++slot) {
+        twinSnapshot.estimate[slot - 1] = effects.IsResting(slot) ? 1 : effects.IsRaised(slot) ? 2 :
+            effects.Healthy() && observedHardware.enabled_ ? 3 : 0;
+      }
+      twinMailbox.Publish(twinSnapshot);
+    }
     // Publish idle only after all admissions in this iteration have completed.
     maintenance.safeIdle = !deviceControl.HasManualControl() && !selectionSequence.IsBusy() &&
         !controlRuntime.HasAutonomousPresentation() && !controlRuntime.HasDecoration() && !conversation.HasActiveTurn() &&

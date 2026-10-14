@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-TWIN-integration-v2",
+  "observedAtUtc": "2026-10-14T17:31:02.808849+00:00",
+  "kind": "integration",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "HOST",
+      "criterionRevision": 2,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "LIVE",
+      "criterionRevision": 2,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "ISOLATION",
+      "criterionRevision": 2,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "6da66c79a2bf8f99ab428bf5ed3ca2563abfb173ab5104d78ad52330494daa13",
+    "policyVersion": "twin-v1"
+  },
+  "method": "Delta regression and explicit unchanged-input validity comparison to v1; Actual HTTP tests, isolated synthetic producer HTTPS and measured VPS read/control path.",
+  "environment": "Windows PowerShell/MSVC/.NET10; native Linux g++15.2 VPS; actual CAD generator pinned environment; Brave headless Playwright for repeatability. No paid provider calls.",
+  "limitations": [
+    "No physical ESP/runtime, iPhone or mechanical/electrical/acoustic acceptance.",
+    "Host microphone, camera, real SD/PCM speech playback remain unsupported; Dance uses real coordinator with labeled synthetic cursor.",
+    "Measured timing is synthetic host/VPS environment, not ESP control latency.",
+    "Rollback preflight/unit cases verified; deliberately failed production rollback was not exercised."
+  ],
+  "observation": "Fresh --twin Kestrel HTTP with real MSVCnative passes, including reauthenticated second-session urgent Stop without owner transfer and fakeclock0/3/11s matching picker/detail availability. ActualVPSv5 ordinary409, Stop200, second inspect409, original owner200; synthetic-live picker/detail offline/onlinefalse. Actual firmware serializer fake-I/O HTTPS204.20HTTPS polls50ms with10B/s slow reader:median5.857ms,p958.378ms,simStop23.566ms,4.652updates/s; no-viewer895ms progress/sameboot; slowreader didnotblockcontrol.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-TWIN-source-v2.json",
+    "docs/project/artifacts/KUFR-TWIN-release-v2.json",
+    "docs/project/artifacts/KUFR-TWIN-validity-transfer-v2.json",
+    "docs/project/evidence/KUFR-TWIN-integration-v1.json",
+    "docs/project/artifacts/KUFR-TWIN-performance-v2.json",
+    "docs/project/artifacts/KUFR-TWIN-ingest-v2.json",
+    "docs/project/artifacts/KUFR-TWIN-review-regression-v2.json"
+  ],
+  "supersedes": [
+    "KUFR-TWIN-integration-v1"
+  ],
+  "supersedesReason": "PR191 changes bind revision2 to actualV5 bytes. Exact unchanged native/firmware inputs retain v1 date and scope; new delta checks are separately stated."
+}

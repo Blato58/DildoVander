@@ -117,11 +117,15 @@ python3 kufr/web/deploy/keepsake_proxy.py --host VERIFIED_CANONICAL_HOST \
 
 The source generator is the exact guest method/route allowlist, and
 [backend-route-contract.json](../../web/deploy/backend-route-contract.json)
-records every existing backend route/method with its actual source declaration.
-The tests compare this inventory with every literal current source `/v1/*` and
-`/healthz` mapping, including the operator outcome/claim and admin owner-restoration endpoints.
-Identifiers are
-canonical lowercase GUIDs. It serves only compiled `/keepsake/`, disables access
+records all 60 existing backend route/method pairs with their actual source
+declarations and listener split: the prior 49 on `127.0.0.1:5080` plus 11
+DigitalTwin mappings on its isolated `127.0.0.1:5082` service. The tests compare
+this inventory with every literal current source `/v1/*`, `/healthz`,
+`/healthz/twin` and `/twin` mapping, including the operator outcome/claim and admin
+owner-restoration endpoints. GUIDs remain canonical lowercase; Twin instance IDs
+use the source's 1-96 ASCII letter/digit, underscore, hyphen or dot rule. Firmware
+channels and artifact hashes keep their existing bounded patterns.
+It serves only compiled `/keepsake/`, disables access
 logs and cache for guest paths, forwards to the existing private listener, sets
 the canonical upstream Host, and overwrites forwarded host/protocol/client data.
 Unknown `/guest/*`, `/api/*`, `/v1/*`, and other paths return 404; wrong methods
@@ -134,7 +138,14 @@ The compatibility map preserves device-token issuance, diagnostics, logs, server
 modes, memory administration, evening management, conversation/text/speech/image,
 operations/audio, Live/GPT-Live streams and their subroutes, OTA stable/development
 manifests and exact SHA-256 binaries, authenticated keepsake producer/claim, and
-admin owner restoration.
+admin owner restoration. It also preserves exact DigitalTwin viewer/health,
+session, instance/snapshot/recording, simulation-command, ingest and provisioned
+device-token routes, keeping Twin roles and origin/cookie checks in .NET. Replace
+the old `dildovander-twin.conf` include along with the old site include and
+catch-all; its broad `^~ /v1/twin/` prefix would override the exact method guards.
+Twin inbound uses ordinary HTTP, with its existing 32 KiB proxy body limit and
+30-second read timeout. Its isolated outbound conversation/turn/operation calls
+use configured loopback HTTP and introduce no ingress route or WebSocket.
 It preserves backend auth rather than translating guest grants into those schemes.
 Existing Live ingress is POST `application/x-ndjson`, not a backend WebSocket
 GET endpoint: request/response buffering is disabled on those stream roots and

@@ -86,3 +86,36 @@ a2ad89aeacd0e5df102c577c7661c8b380ca05f5:docs/project/artifacts/DV10-source-bund
 a2ad89aeacd0e5df102c577c7661c8b380ca05f5:docs/project/artifacts/DV10-source-bundle-v1.json:generic-api-key:453
 a2ad89aeacd0e5df102c577c7661c8b380ca05f5:docs/project/artifacts/DV10-source-bundle-v1.json:generic-api-key:476
 a2ad89aeacd0e5df102c577c7661c8b380ca05f5:docs/project/artifacts/DV10-source-bundle-v1.json:generic-api-key:483
+
+
+
+
+# Independently reviewed exact SHA256 source/package inventory findings (PR191).
+# These immutable file hashes are not credentials; no path or rule is excluded.
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-release-v1.json:generic-api-key:130
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-release-v1.json:generic-api-key:131
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-release-v1.json:generic-api-key:226
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-release-v1.json:generic-api-key:234
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-release-v1.json:generic-api-key:300
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-release-v1.json:generic-api-key:324
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-release-v1.json:generic-api-key:33
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-release-v1.json:generic-api-key:35
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-release-v1.json:generic-api-key:36
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-release-v1.json:generic-api-key:37
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-release-v1.json:generic-api-key:50
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-release-v1.json:generic-api-key:78
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-source-v1.json:generic-api-key:102
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-source-v1.json:generic-api-key:11
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-source-v1.json:generic-api-key:111
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-source-v1.json:generic-api-key:112
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-source-v1.json:generic-api-key:113
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-source-v1.json:generic-api-key:12
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-source-v1.json:generic-api-key:13
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-source-v1.json:generic-api-key:194
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-source-v1.json:generic-api-key:195
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-source-v1.json:generic-api-key:248
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-source-v1.json:generic-api-key:249
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-source-v1.json:generic-api-key:43
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-source-v1.json:generic-api-key:48
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-source-v1.json:generic-api-key:93
+4b0a4c882e82698311ad04fcf4288ff2821d3d71:docs/project/artifacts/KUFR-TWIN-source-v1.json:generic-api-key:94

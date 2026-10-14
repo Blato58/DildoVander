@@ -34,11 +34,9 @@ def check():
     digest = base64.b64encode(hashlib.sha256(capture.group(1).encode()).digest()).decode()
     if "'sha256-" + digest + "'" not in shell:
         raise ValueError("Fragment bootstrap CSP hash mismatch")
-    bundle_path = ROOT / "docs/project/artifacts/DV10-source-bundle-v1.json"
-    revised_bundle = bundle_path.with_name("DV10-source-bundle-v2.json")
-    if revised_bundle.exists():
-        bundle_path = revised_bundle
-    if bundle_path.exists():
+    bundles = list((ROOT / "docs/project/artifacts").glob("DV10-source-bundle-v*.json"))
+    bundle_path = max(bundles, key=lambda path: int(re.search(r"-v(\d+)\.json$", path.name).group(1))) if bundles else None
+    if bundle_path is not None:
         bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
         identity = hashlib.sha256()
         for name, expected in sorted(bundle["inputDigests"].items()):

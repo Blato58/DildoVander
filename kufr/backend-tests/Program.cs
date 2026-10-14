@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 // Paid provider diagnostic is explicit and never part of normal offline CI.
 if (args is ["--keepsake-fixture"]) { KeepsakeHttpFixture.Run(); return; }
 if (args is ["--keepsake"]) { KeepsakeOutcomeJournalTests.Run(); await KeepsakeCoreTests.RunAsync(); return; }
+if (args is ["--twin"]) { await TwinTests.RunAsync(); return; }
 if (args is ["--character"])
 {
     CharacterDirectorTests.Run();

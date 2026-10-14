@@ -23,6 +23,7 @@ server {
 
     # Optional managed extensions; bracket globs also allow initial bootstrap.
     include /etc/nginx/snippets/dildovander-site.con[f];
+    include /etc/nginx/snippets/dildovander-twin.con[f];
     include /etc/nginx/snippets/cloudvpsbridge-location.con[f];
 
     location ^~ /ios/ {

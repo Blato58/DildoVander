@@ -30,6 +30,9 @@ CONTRACT = json.loads(Path(__file__).with_name("backend-route-contract.json").re
 def route_pattern(template):
     parts = re.split(r"(\{[^}]+\})", template)
     variables = {"channel": "(?:stable|development)", "hash": "[0-9a-f]{64}"}
+    # Twin instance IDs follow TwinSnapshot.Id, rather than conversation GUIDs.
+    if template.startswith("/v1/twin/"):
+        variables["id"] = "[A-Za-z0-9_.-]{1,96}"
     return "".join(variables.get(part[1:-1].split(":")[0], GUID) if part.startswith("{") else re.escape(part) for part in parts)
 
 
@@ -48,15 +51,17 @@ def render_compatibility(host):
              Path(__file__).with_name("site-locations.conf").read_text(encoding="utf-8")]
     grouped = {}
     for method, template, source in CONTRACT["routes"]:
-        grouped.setdefault(template, set()).add(method)
-    for template, methods in grouped.items():
+        grouped.setdefault((template, source), set()).add(method)
+    for (template, source), methods in grouped.items():
         streaming = template.endswith(("/realtime-turns", "/realtime-live", "/gpt-live"))
+        twin = source == "Features/DigitalTwin/TwinEndpoints.cs"
+        upstream = CONTRACT["upstreams"].get(source, CONTRACT["upstreams"]["default"])
         lines.extend([
             'location ~ "^' + route_pattern(template) + '$" {',
             '    if ($request_method !~ "^(?:' + "|".join(sorted(methods)) + ')$") { return 405; }',
-            "    client_max_body_size 4m;",
+            "    client_max_body_size " + ("32k;" if twin else "4m;"),
             "    access_log off;",
-            "    proxy_pass http://127.0.0.1:5080;",
+            "    proxy_pass " + upstream + ";",
             "    proxy_http_version 1.1;",
             "    proxy_set_header Host " + host + ";",
             "    proxy_set_header X-Forwarded-Proto https;",
@@ -67,7 +72,7 @@ def render_compatibility(host):
             "    proxy_set_header Connection $keepsake_connection_upgrade;",
             "    proxy_cache off;",
             "    proxy_connect_timeout 10s;",
-            "    proxy_read_timeout " + ("900s;" if streaming else "65s;"),
+            "    proxy_read_timeout " + ("900s;" if streaming else "30s;" if twin else "65s;"),
             "    proxy_send_timeout 65s;",
         ])
         if streaming:

@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-TWIN-integration-v1",
+  "observedAtUtc": "2026-10-14T17:07:30.263744+00:00",
+  "kind": "integration",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "HOST",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "LIVE",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "ISOLATION",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "611164ada409925ec84de8fab4eaa5b5d0c5a5bcdfe4946529ac44d333252cdd",
+    "policyVersion": "twin-v1"
+  },
+  "method": "Actual HTTP tests, isolated synthetic producer HTTPS and measured VPS read/control path.",
+  "environment": "Windows PowerShell/MSVC/.NET10; native Linux g++15.2 VPS; actual CAD generator pinned environment; Brave headless Playwright for repeatability. No paid provider calls.",
+  "limitations": [
+    "No physical ESP/runtime, iPhone or mechanical/electrical/acoustic acceptance.",
+    "Host microphone, camera, real SD/PCM speech playback remain unsupported; Dance uses real coordinator with labeled synthetic cursor.",
+    "Measured timing is synthetic host/VPS environment, not ESP control latency.",
+    "Rollback preflight/unit cases verified; deliberately failed production rollback was not exercised."
+  ],
+  "observation": "dotnet BackendTests.dll --twin real Kestrel HTTP tests pass: scope/origin/ingest separation, no normal device-token ingestion, Twin grant cannot command normal backend, strict snapshot epochs/duplicates/time/provenance/null LED and calibration/uint64 precision/bounded128 history, fake service invariant and explicit real provider optin policy. VPS actual C++ serializer with fake I/O posted via HTTPS204 to synthetic-live; not a real ESP test. Native Linux process remains running without viewer; measured no-viewer837ms progress/same boot.20 HTTPS polls50ms with10B/s slow reader: median5.252ms,p95 9.113ms, simStop11.593ms,4.674 snapshot updates/sec; slow reader did not block control.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-TWIN-source-v1.json",
+    "docs/project/artifacts/KUFR-TWIN-release-v1.json",
+    "docs/project/artifacts/KUFR-TWIN-performance-v1.json",
+    "docs/project/artifacts/KUFR-TWIN-ingest-v1.json"
+  ]
+}

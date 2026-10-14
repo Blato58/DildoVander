@@ -22,12 +22,17 @@ contains only the approved HTTPS origin and `/keepsake/evening/`, without a toke
 ## Exact ingress inventory
 
 [backend-route-contract.json](../../web/deploy/backend-route-contract.json)
-contains all 49 current literal backend route/method mappings, including the
-seven authenticated keepsake administration routes. Guest generation and portrait
-cancellation are explicit POST-only paths. The public evening listing and its
-exact base-asset route are GET-only. The six proxy tests compare the
-contract against current source declarations, test admin/guest separation,
-wrong methods, unknown paths, canonical Host and streaming controls.
+contains all 60 current literal backend route/method mappings: the existing 49,
+including seven authenticated keepsake administration routes, and 11 DigitalTwin
+mappings. Twin routes use the isolated `127.0.0.1:5082` listener; the other
+services and guest routes keep `127.0.0.1:5080`. Twin instance names follow the
+source's 1-96 ASCII letter/digit, underscore, hyphen or dot rule; other parameter
+identifiers retain their GUID or firmware channel/hash rules. Guest generation
+and portrait cancellation are explicit POST-only paths. The public evening listing and its
+exact base-asset route are GET-only. The eight proxy tests compare the
+contract against current source declarations and generated examples, test admin,
+Twin and guest separation, wrong methods, unknown paths, isolated upstreams,
+canonical Host and streaming controls.
 
 Regenerate the prepared configurations with the verified deployment host:
 
@@ -39,8 +44,14 @@ python3 kufr/web/deploy/keepsake_proxy.py --host VERIFIED_CANONICAL_HOST \
 
 The tracked examples use `keepsake.example.invalid`, which must never be
 installed as a production origin. The complete profile replaces the old site
-include and catch-all proxy, preserving `/` and `/keepsake/` static roots and
-the exact legacy/API services. Unknown APIs receive 404 rather than SPA HTML.
+include, the legacy `dildovander-twin.conf` include and catch-all proxy, preserving
+`/` and `/keepsake/` static roots and the exact legacy/API services. Unknown APIs
+receive 404 rather than SPA HTML.
+Keeping the old Twin `^~ /v1/twin/` prefix would bypass the exact route/method
+guards. The replacement preserves `/twin`, `/healthz/twin`, sessions,
+instances/snapshots/recordings, simulation commands, ingest, device-token exchange
+and authenticated Twin health with their existing .NET authorization. Twin uses
+ordinary HTTP; it adds no inbound WebSocket route or new listener.
 The existing HTTPS shell, certificates, ACME, iOS and CloudVPSBridge locations
 remain subject to the separately authorized deployment procedure. Actual
 `nginx -t`, public ingress, streaming and existing-service checks remain gates.

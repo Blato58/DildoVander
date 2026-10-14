@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-TWIN-production_deploy-v2",
+  "observedAtUtc": "2026-10-14T17:31:02.808849+00:00",
+  "kind": "production_deploy",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "DEPLOY",
+      "criterionRevision": 2,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "6da66c79a2bf8f99ab428bf5ed3ca2563abfb173ab5104d78ad52330494daa13",
+    "policyVersion": "twin-v1"
+  },
+  "method": "Delta regression and explicit unchanged-input validity comparison to v1; package-twin.py with actual Linux .NET publish/native executable/generated CAD; exact manifest verified by install-twin.py over existing authorized SSH alias.",
+  "environment": "Windows PowerShell/MSVC/.NET10; native Linux g++15.2 VPS; actual CAD generator pinned environment; Brave headless Playwright for repeatability. No paid provider calls.",
+  "limitations": [
+    "No physical ESP/runtime, iPhone or mechanical/electrical/acoustic acceptance.",
+    "Host microphone, camera, real SD/PCM speech playback remain unsupported; Dance uses real coordinator with labeled synthetic cursor.",
+    "Measured timing is synthetic host/VPS environment, not ESP control latency.",
+    "Rollback preflight/unit cases verified; deliberately failed production rollback was not exercised."
+  ],
+  "observation": "Actual authorized VPSv5 installed at /opt/kufr-twin/releases/twin-20261014-v5; backup /var/backups/kufr-twin-1791998870365523543. Native Linux ELF unchanged from verifiedV4; new .NETpublish and regeneratedCAD installed. Readiness/original backendhealth,TLS/browser/VPSsecondSession regression and syntheticingest pass. Deployed original manifest SHA256 a7f7b2785ef2b849991b0a7ae53015a5d130709ae18551875e4540cb9e4c17cd. Rootcredentials preserved; explicitly requested existingphysicalID applied idempotently; no flash/physicalcommands/paidprovider.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-TWIN-source-v2.json",
+    "docs/project/artifacts/KUFR-TWIN-release-v2.json",
+    "docs/project/artifacts/KUFR-TWIN-validity-transfer-v2.json",
+    "docs/project/evidence/KUFR-TWIN-production_deploy-v1.json"
+  ],
+  "supersedes": [
+    "KUFR-TWIN-production_deploy-v1"
+  ],
+  "supersedesReason": "PR191 changes bind revision2 to actualV5 bytes. Exact unchanged native/firmware inputs retain v1 date and scope; new delta checks are separately stated."
+}

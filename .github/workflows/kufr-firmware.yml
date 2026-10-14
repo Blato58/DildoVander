@@ -40,6 +40,7 @@ jobs:
           python3 kufr/mechanika/final/generate_effects.py --check
           python3 kufr/mechanika/final/test_effects.py
           python3 kufr/firmware/tests/run_show_tests.py
+          python3 kufr/simulator/native/test_host.py
           python3 kufr/firmware/tests/compare_legacy_show.py
           node --test kufr/mechanika/final/test_show_timeline.cjs
       - name: Bodyless backend token exchange

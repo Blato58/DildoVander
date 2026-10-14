@@ -12,6 +12,13 @@ uint64_t ScoreFingerprint(bool repeat) {
 }
 
 
+bool PhysicalPresentation::SelectVariant(bool shortVariant) {
+  if (phase_ != Phase::Idle || runtime_.HasAutonomousPresentation() ||
+      runtime_.HasDecoration()) return false;
+  repeat_ = shortVariant;
+  return true;
+}
+
 bool PhysicalPresentation::Raise(uint8_t compartment, const std::string& proposalId,
                                   const ConversationRuntimeSnapshot& snapshot) {
   const uint64_t acceptedAtMs = nowMs_;
