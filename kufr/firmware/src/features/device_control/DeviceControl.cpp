@@ -309,7 +309,7 @@ bool DeviceControl::BeginAcceptedSelection(uint64_t nowMs,
 
 bool DeviceControl::BeginAutonomousPresentation(
     const std::string& proposalId, uint8_t compartment,
-    uint64_t expectedRevision) {
+    uint64_t expectedRevision, uint64_t fingerprint) {
   if (proposalId.empty() || compartment < 1 ||
       compartment > SelectionSequence::CompartmentCount ||
       expectedRevision != revision_ || calibrationRevision_ == 0 ||
@@ -321,7 +321,7 @@ bool DeviceControl::BeginAutonomousPresentation(
   }
 
   // The durable record must exist before a servo port may request motion.
-  if (!journal_.Begin(proposalId, compartment)) {
+  if (!journal_.BeginWithIdentity(proposalId, compartment, fingerprint)) {
     SelectionStep step;
     selection_.ReportFault(step);
     return false;

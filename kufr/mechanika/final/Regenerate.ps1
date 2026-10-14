@@ -11,7 +11,11 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'F2 regeneration failed: viewer JavaScript syntax' }
     & node --test test_viewer.cjs
     if ($LASTEXITCODE -ne 0) { throw 'F2 regeneration failed: viewer regression tests' }
-    foreach ($taskStep in @('test_effects.py', 'test_viewer_style.py', 'test_packaging.py', 'test_verification_gate.py', 'test_inspect_data.py', 'test_harness.py', 'test_f2_cad.py', 'test_sliding_follower.py', 'test_floor_anchors.py', 'test_follower_load.py', 'test_strength.py', 'test_assembly_access.py', 'validate_assembly.py')) {
+    & node --check show_timeline.js
+    if ($LASTEXITCODE -ne 0) { throw 'F2 regeneration failed: DV02 timeline JavaScript syntax' }
+    & node --test test_show_timeline.cjs
+    if ($LASTEXITCODE -ne 0) { throw 'F2 regeneration failed: DV02 timeline regression tests' }
+    foreach ($taskStep in @('test_effects.py', 'test_viewer_style.py', 'test_viewer_document.py', 'test_packaging.py', 'test_verification_gate.py', 'test_inspect_data.py', 'test_harness.py', 'test_f2_cad.py', 'test_sliding_follower.py', 'test_floor_anchors.py', 'test_follower_load.py', 'test_strength.py', 'test_assembly_access.py', 'validate_assembly.py')) {
         & $taskPython $taskStep
         if ($LASTEXITCODE -ne 0) { throw "F2 regeneration failed: $taskStep" }
     }

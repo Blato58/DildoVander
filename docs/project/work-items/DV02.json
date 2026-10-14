@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "id": "DV02",
+  "initiative": "DV02",
+  "title": "Deklarativní scény, deterministické provedení a pravdivá timeline",
+  "state": "blocked",
+  "priority": "P1",
+  "sequence": 0,
+  "scope": [
+    "kufr/mechanika/final",
+    "kufr/firmware",
+    "kufr/docs",
+    ".agents/skills"
+  ],
+  "dependencies": [],
+  "acceptance": [
+    {
+      "id": "COMPILER",
+      "revision": 1,
+      "expected": "Jediný autorský zdroj, uzavřený bounded překlad obou legacy variant, deterministické identity a nezávislé parity testy.",
+      "requiredEvidenceKinds": [
+        "unit",
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "7e21dffe5b8af969b548fbdf7be0bf3fc5366e00231dcaf05249a36ba079c885",
+        "policyVersion": "dv02-phase-1"
+      },
+      "evidenceRefs": [
+        "DV02-local-unit-v3",
+        "DV02-local-source_review-v3"
+      ]
+    },
+    {
+      "id": "CORE",
+      "revision": 1,
+      "expected": "Existující presentation owner provádí plán s deadline, snapshotem, scoped cancel a perzistentní deduplikací; Dance zachovává vlastní audio.",
+      "requiredEvidenceKinds": [
+        "unit",
+        "integration",
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "7e21dffe5b8af969b548fbdf7be0bf3fc5366e00231dcaf05249a36ba079c885",
+        "policyVersion": "dv02-phase-1"
+      },
+      "evidenceRefs": [
+        "DV02-local-unit-v3",
+        "DV02-local-integration-v3",
+        "DV02-local-source_review-v3"
+      ]
+    },
+    {
+      "id": "TIMELINE",
+      "revision": 1,
+      "expected": "Omezená pravdivá diagnostika, core replay a read-only timeline s importem a diffem.",
+      "requiredEvidenceKinds": [
+        "unit",
+        "integration",
+        "browser",
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "7e21dffe5b8af969b548fbdf7be0bf3fc5366e00231dcaf05249a36ba079c885",
+        "policyVersion": "dv02-phase-1"
+      },
+      "evidenceRefs": [
+        "DV02-local-unit-v3",
+        "DV02-local-integration-v3",
+        "DV02-local-source_review-v3",
+        "DV02-local-browser-v3"
+      ]
+    },
+    {
+      "id": "WORKFLOW",
+      "revision": 1,
+      "expected": "Mapa R01–R48/T01–T80, authoring/debug skills, capability audit a rollout/rollback s ověřenými příkazy.",
+      "requiredEvidenceKinds": [
+        "unit",
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "7e21dffe5b8af969b548fbdf7be0bf3fc5366e00231dcaf05249a36ba079c885",
+        "policyVersion": "dv02-phase-1"
+      },
+      "evidenceRefs": [
+        "DV02-local-unit-v3",
+        "DV02-local-source_review-v3"
+      ]
+    },
+    {
+      "id": "PHYSICAL",
+      "revision": 1,
+      "expected": "Identifikovaná ESP/iPhone sestava: výkon, skutečné audio, pohyb, Stop a event-ready akceptace G.",
+      "requiredEvidenceKinds": [
+        "esp_runtime",
+        "physical_inspection",
+        "native_ios"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "policyVersion": "dv02-phase-1"
+      },
+      "evidenceRefs": []
+    }
+  ],
+  "blockers": [
+    {
+      "id": "PHYSICAL-G",
+      "problem": "Není dostupná autorizovaná připravená fyzická sestava pro nové DV02 měření a iPhone akceptaci.",
+      "severity": "high",
+      "blocks": [
+        "PHYSICAL"
+      ],
+      "unblockCondition": "Identifikovaná bezpečně připravená sestava, kalibrace a samostatně autorizované fyzické/nativní ověření."
+    }
+  ],
+  "nextAction": "Samostatně připravit a autorizovat G: identifikovaná ESP/audio/iPhone sestava, provozní plán pro32journal ID a fyzické měření Stop/časování/heap/stack. Software A–F ověřen offline.",
+  "currentNote": "A–F dokončeno v omezeném phase/LED profilu: exactlegacy12cases, compiler29, host14+HTTP, timeline54Node/7Python, actualviewer/browser, pio build. Bez nasazení/flash/signing/paidAI. Commit a skutečný push doplní ověřené git předání.",
+  "implementedSubject": {
+    "artifactDigest": "7e21dffe5b8af969b548fbdf7be0bf3fc5366e00231dcaf05249a36ba079c885",
+    "policyVersion": "dv02-phase-1"
+  }
+}

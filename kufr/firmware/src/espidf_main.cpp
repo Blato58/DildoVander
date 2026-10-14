@@ -1,6 +1,7 @@
 #include <stdint.h>
 
 #include <array>
+#include <cstring>
 #include <string>
 #include <mutex>
 
@@ -16,6 +17,7 @@
 #include "features/device_control/DeviceControl.h"
 #include "features/device_control/DeviceControlRuntime.h"
 #include "features/device_control/PersistentCommandJournal.h"
+#include "features/show_diagnostics/ShowTraceMailbox.h"
 #include "features/backend_access/EspIdfBackendNetwork.h"
 #include "features/backend_access/EspIdfStationNetwork.h"
 #include "features/conversation/ConversationRuntimeState.h"
@@ -290,7 +292,7 @@ class HardwareSteps final : public LocalControlStepPort {
       case SelectionEffect::Stopped:
         effects_.Highlight(0, 0, 0, 0); break;
       case SelectionEffect::Idle:
-        if (!runtime_.HasAutonomousPresentation()) effects_.Highlight(0, 0, 0, 0);
+        if (!runtime_.HasAutonomousPresentation() && !runtime_.HasDecoration()) effects_.Highlight(0, 0, 0, 0);
         break;
       default: break;
     }
@@ -368,6 +370,7 @@ extern "C" void app_main() {
   static DeviceControlRuntime controlRuntime(
       deviceControl, selectionSequence, runtimeState, CatalogVersion);
   static PhysicalPresentation presentationPort(effects, controlRuntime);
+  presentationPort.BindBootIdentity(bootId);
   static WandPresentation presentation(presentationPort);
   controlRuntime.BindPresentation(presentation);
   controlRuntime.PublishCurrent();
@@ -390,6 +393,7 @@ extern "C" void app_main() {
   static kufr::dance::EspIdfDancePlayer dancePlayer(sdAssets, backendNetwork.DanceAudio());
   dancePlayer.Begin();
   static kufr::dance::DanceCoordinator dance(dancePlayer, effects);
+  dance.BindBootIdentity(bootId);
   static LocalBearerAuthenticator authenticator(pairing);
   static LocalSocketAdmission admission(authenticator);
   static LocalControlInbox inbox(identity.DeviceId(), bootId);
@@ -401,6 +405,8 @@ extern "C" void app_main() {
       {BleStatusBridge::Status, BleStatusBridge::Command, &bleBridge,
        BleStatusBridge::PairLocal, BleStatusBridge::RecoverLocal});
   static EspIdfLocalControlServer server(tlsIdentity, pairing, admission, inbox);
+  static ShowTraceMailbox showTrace;
+  server.BindShowTrace(showTrace);
   static EspIdfLocalServiceAdvertisement advertisement(station, hasher);
   static LocalControlOutput output(
       identity.DeviceId(), bootId, deviceControl, journal, safetyController,
@@ -419,6 +425,9 @@ extern "C" void app_main() {
   bool rawButton = false, button = false, gestureConsumed = false;
   bool hardwareFaultHandled = false;
   uint64_t buttonChangedAt = 0, buttonPressedAt = 0;
+  bool lastTraceWasDance = false;
+  PresentationIdentity<97> observedPresentationId;
+  uint32_t observedPresentationSequence = 0;
   ESP_LOGI(LogTag, "ESP-IDF control loop started; physical outputs require verified service configuration");
   static_assert(CONFIG_ESP_MAIN_TASK_STACK_SIZE >= 16384,
                 "TLS identity startup requires at least 16 KiB of main task stack");
@@ -431,7 +440,7 @@ extern "C" void app_main() {
     const uint64_t nowMs = clock.NowMs();
     TurnProposal pendingProposal;
     maintenance.safeIdle = !deviceControl.HasManualControl() && !selectionSequence.IsBusy() &&
-        !controlRuntime.HasAutonomousPresentation() && !conversation.HasActiveTurn() &&
+        !controlRuntime.HasAutonomousPresentation() && !controlRuntime.HasDecoration() && !conversation.HasActiveTurn() &&
         !journal.HasPending() && !backendNetwork.IsVoiceBusy() && !dance.Reserved() &&
         !backendNetwork.ReadPendingProposal(pendingProposal, nowMs);
     // The whole-cycle deadline precedes physical output processing, even when
@@ -484,7 +493,7 @@ extern "C" void app_main() {
       if (button) {
         buttonPressedAt = nowMs;
         gestureConsumed = false;
-        if (controlRuntime.HasAutonomousPresentation() || selectionSequence.IsBusy() || dance.Reserved()) {
+        if (controlRuntime.HasAutonomousPresentation() || controlRuntime.HasDecoration() || selectionSequence.IsBusy() || dance.Reserved()) {
           SelectionStep stopped;
           dance.StopDance();
           controlRuntime.Stop(stopped);
@@ -506,7 +515,7 @@ extern "C" void app_main() {
     }
     if (!maintaining && button && !gestureConsumed && nowMs - buttonPressedAt >= 2000) {
       gestureConsumed = true;
-      if (!selectionSequence.IsBusy() && !controlRuntime.HasAutonomousPresentation() && !dance.Reserved() &&
+      if (!selectionSequence.IsBusy() && !controlRuntime.HasAutonomousPresentation() && !controlRuntime.HasDecoration() && !dance.Reserved() &&
           effects.RecoverAfterInspection()) controlRuntime.RecoverAfterInspection();
     }
     server.Pump();
@@ -525,9 +534,18 @@ extern "C" void app_main() {
         backendNetwork.BeginPendingPresentation(presentation, clock.NowMs());
     });
     backendNetwork.FinishPresentation(presentation);
+    const auto& presentationTrace = presentationPort.Diagnostics();
+    if (std::strcmp(observedPresentationId.data(), presentationTrace.operationId.data()) != 0 ||
+        observedPresentationSequence != presentationTrace.lastSequence) {
+      observedPresentationId = presentationTrace.operationId;
+      observedPresentationSequence = presentationTrace.lastSequence;
+      lastTraceWasDance = false;
+    }
+    if (dance.Reserved()) lastTraceWasDance = true;
+    showTrace.Publish(lastTraceWasDance ? dance.Diagnostics() : presentationTrace, clock.NowMs());
     // Publish idle only after all admissions in this iteration have completed.
     maintenance.safeIdle = !deviceControl.HasManualControl() && !selectionSequence.IsBusy() &&
-        !controlRuntime.HasAutonomousPresentation() && !conversation.HasActiveTurn() &&
+        !controlRuntime.HasAutonomousPresentation() && !controlRuntime.HasDecoration() && !conversation.HasActiveTurn() &&
         !journal.HasPending() && !backendNetwork.IsVoiceBusy() && !dance.Reserved() &&
         !backendNetwork.ReadPendingProposal(pendingProposal, clock.NowMs());
     maintenanceLock.unlock();

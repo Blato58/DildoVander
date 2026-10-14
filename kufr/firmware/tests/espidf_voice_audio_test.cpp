@@ -8,6 +8,13 @@ namespace {
 bool verified=false, profileB=false;
 int mute=0, writes=0, gpioWrites=0;
 std::function<void()> writing;
+int captureIterations = 0;
+struct CaptureFinished {};
+void PumpOnce() {
+ captureIterations = 1;
+ try { CapturedAudioTask().run(CapturedAudioTask().context); }
+ catch (const CaptureFinished&) {}
+}
 }
 int gpio_set_direction(int pin,int mode) { assert(pin==16 && mode==GPIO_MODE_OUTPUT); return 0; }
 int gpio_set_level(int pin,int level) { assert(pin==16); ++gpioWrites; mute=level; return 0; }
@@ -25,7 +32,10 @@ int i2s_channel_init_std_mode(i2s_chan_handle_t,const i2s_std_config_t* config) 
  return ESP_OK;
 }
 int i2s_channel_enable(i2s_chan_handle_t) { return ESP_OK; }
-int i2s_channel_read(i2s_chan_handle_t,void*,size_t,size_t*,unsigned) { return ESP_FAIL; }
+int i2s_channel_read(i2s_chan_handle_t,void*,size_t,size_t*,unsigned) {
+ if (captureIterations-- == 0) throw CaptureFinished{};
+ return ESP_FAIL;
+}
 int i2s_channel_write(i2s_chan_handle_t,const void*,size_t size,size_t* used,unsigned) {
  ++writes; *used=size; if(writing)writing(); return ESP_OK;
 }
@@ -62,6 +72,24 @@ int main() {
  assert(!audioB.Initialize(true, &expander)); // Never falls back onto camera pins.
  expander.ready=true;
  assert(audioB.Initialize(true, &expander)); const int hardwareMute = mute;
+ assert(audioB.TryCue(220, 100) == PresentationAudioPort::CueResult::Requested);
+ const int beforeCue = writes;
+ PumpOnce(); assert(writes == beforeCue + 1);
+ // Stop during an admitted <=20ms block revokes future blocks. Identical new
+ // requests cannot enter until this old worker releases its ownership gate.
+ writing = [&] {
+   audioB.StopCues();
+   assert(audioB.TryCue(220, 100) == PresentationAudioPort::CueResult::Unavailable);
+ };
+ PumpOnce(); writing = {};
+ const int afterStopCue = writes;
+ PumpOnce(); assert(writes == afterStopCue);
+ assert(audioB.TryCue(220, 100) == PresentationAudioPort::CueResult::Requested);
+ PumpOnce(); assert(writes == afterStopCue + 1);
+ audioB.Begin();
+ assert(audioB.TryCue(220, 100) == PresentationAudioPort::CueResult::Unavailable);
+ const int speakingWrites = writes;
+ PumpOnce(); assert(writes == speakingWrites); // Refusal cannot cancel speech.
  audioB.Begin(); assert(audioB.Play(pcm)); assert(mute==hardwareMute);
  audioB.Stop(); assert(mute==hardwareMute && !audioB.Play(pcm));
  audioB.Begin(); expander.ready=false; assert(!audioB.Play(pcm) && audioB.Failed());

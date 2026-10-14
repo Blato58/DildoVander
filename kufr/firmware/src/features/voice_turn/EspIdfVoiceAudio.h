@@ -26,6 +26,7 @@ class EspIdfVoiceAudio final : public VoiceAudioPort, public PresentationAudioPo
   bool CancelPlayback() override;
   bool Failed() const override { return failed_.load(); }
   void Cue(uint16_t frequencyHz, uint16_t durationMs) override;
+  CueResult TryCue(uint16_t frequencyHz, uint16_t durationMs) override;
   void StopCues() override;
  private:
   static void CaptureTask(void* argument);
@@ -44,6 +45,9 @@ class EspIdfVoiceAudio final : public VoiceAudioPort, public PresentationAudioPo
   // from the control task only updates atomics; synthesis runs on capture task.
   std::mutex outputGate_;
   std::atomic<uint32_t> cue_{0};
+  // Producer uses try-acquire; an in-flight capture write cannot accept a new
+  // identically packed cue and later overwrite it through an ABA completion.
+  std::atomic_flag cueGate_ = ATOMIC_FLAG_INIT;
   uint32_t cueSample_ = 0;
   std::array<int32_t, 1280> cuePcm_{}; // Capture-owned; never double the task stack.
   AudioBoardPort* board_ = nullptr;

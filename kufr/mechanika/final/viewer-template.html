@@ -20,6 +20,7 @@
 
   <div class="mode-tabs"><button id="open" aria-pressed="true">Provoz</button><button id="service" aria-pressed="false">Servis</button><button id="closed" aria-pressed="false">Přeprava</button><button id="assembly-mode" aria-pressed="false">Montáž</button></div>
   <span class="toolbar-caption">3D sestava · lokální náhled</span>
+  <button id="show-open" aria-label="DV02 · Timeline / replay" aria-expanded="false" aria-controls="show-inspector">DV02<span class="show-open-caption"> · Timeline / replay</span></button>
 
 </nav>
 <main id="workspace">
@@ -102,7 +103,7 @@
   <button id="inspector-toggle" aria-expanded="false" aria-controls="inspector-rail">Detaily</button>
 </nav>
 <footer id="motion-panel" class="motion-panel" data-open="false" aria-label="Pohyb a prezentace modelu">
-  <div class="motion-heading"><span class="eyebrow">MOTION STUDIO</span><button id="motion-close" aria-label="Sbalit simulaci">Sbalit</button><span class="simulation-tag">POUZE SIMULACE</span><span id="effect-phase" aria-live="polite"></span><output id="timeline-time" aria-label="Čas sekvence">0.0 / 0.0 s</output></div>
+  <div class="motion-heading"><span class="eyebrow">MOTION STUDIO</span><button id="motion-close" aria-label="Sbalit simulaci">Sbalit</button><span class="simulation-tag">ILUSTRAČNÍ RENDERER · CORE REPLAY V DV02</span><span id="effect-phase" aria-live="polite"></span><output id="timeline-time" aria-label="Čas sekvence">0.0 / 0.0 s</output></div>
   <div class="motion-controls"><div class="sequence-actions"><button id="play-main">▶ Hlavní výběr</button><button id="play-short">▶ Krátké opakování</button><button id="effect-stop">■ Stop</button></div>
     <label>Víko <input id="lid" type="range" min="0" max="105" value="105"><output id="lidvalue">105°</output></label>
     <label for="tray">Přihrádka <select id="tray"></select></label>
@@ -112,8 +113,30 @@
   <div id="effect-timeline" role="group" aria-label="Fáze ilustrační sekvence"></div>
   <div class="motion-notes"><p id="effect-status" role="status">Časování zdvihu je ilustrační do kalibrace. Světlo vychází pouze ze šesti skutečných LED skupin. Zvuk je lokální syntéza, žádná cloudová služba.</p><button id="service-reset" disabled>Servisní reset po ruční kontrole</button></div>
 </footer>
+<section id="show-inspector" class="show-inspector" role="dialog" aria-modal="true" hidden aria-labelledby="show-heading">
+  <div class="show-heading"><h2 id="show-heading">DV02 · Timeline / replay</h2><button id="show-close">Zavřít timeline</button></div>
+  <p id="show-mode" class="simulation-tag"></p>
+  <p>Jen místní čtení. Seek, přehrávání a rychlost mění pouze tento seznam; nevydávají povely zařízení. Syntetický replay načtěte z hostitelského C++ core, nikoli z ilustračního rendereru.</p>
+  <p id="show-identity" class="show-identity"></p>
+  <p id="show-warning" role="status"></p><p id="show-error" role="alert"></p>
+  <div class="show-controls">
+    <label for="show-scene">Kompilovaný plán<select id="show-scene" aria-label="Kompilovaný plán"></select></label>
+    <label for="show-track">Stopa<select id="show-track" aria-label="Stopa"><option value="all">Všechny stopy / fáze</option><option value="led">LED</option><option value="vibration">Vibrace</option><option value="motion">Pohyb</option><option value="audio">Audio</option><option value="owner">Owner / Stop / deadline</option></select></label>
+    <label for="show-baseline">Baseline JSON (nejvýše 1 MiB)<input id="show-baseline" type="file" accept=".json,application/json"></label>
+    <label for="show-candidate">Kandidát JSON (nejvýše 1 MiB)<input id="show-candidate" type="file" accept=".json,application/json"></label>
+    <button id="show-reset">Zpět na plán / vymazat importy</button>
+    <button id="show-play" disabled>Přehrát záznam</button>
+    <label for="show-speed">Rychlost záznamu<select id="show-speed" aria-label="Rychlost záznamu"><option value="0.25">0.25×</option><option value="1" selected>1×</option><option value="4">4×</option></select></label>
+  </div>
+  <label for="show-seek">Seek v záznamu<input id="show-seek" type="range" min="0" max="0" value="0" disabled></label>
+  <output id="show-time"></output>
+  <ol id="show-events" class="show-events" tabindex="0" aria-label="Plánované nebo doložené události"></ol>
+  <h3>Baseline / kandidát</h3><div id="show-diff" class="show-diff" tabindex="0"></div>
+</section>
+<script>__SHOW_TIMELINE_SCRIPT__</script>
 <script>const model=__MODEL_DATA__;
 __VIEWER_SCRIPT__
+ShowTimeline.mount(document, model.showPlan, model.showManifest);
 </script>
 </body>
 </html>

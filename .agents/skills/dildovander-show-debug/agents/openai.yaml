@@ -1,0 +1,4 @@
+interface:
+  display_name: "DildoVander show debug"
+  short_description: "Inspect DV02 core traces and read-only replay differences"
+  default_prompt: "Use $dildovander-show-debug to diagnose this DV02 operation with truthful clock and physical evidence boundaries."

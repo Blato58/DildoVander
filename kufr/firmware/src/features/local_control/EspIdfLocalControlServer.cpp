@@ -10,6 +10,8 @@
 #include "LocalControlCodec.h"
 #include "LocalControlInbox.h"
 #include "../provisioning/LocalPairingCredential.h"
+#include "LocalBearerAuthenticator.h"
+#include "../show_diagnostics/ShowTracePort.h"
 #include "../provisioning/LocalTlsIdentity.h"
 #include "../../protocol/JsonCursor.h"
 
@@ -154,7 +156,7 @@ bool EspIdfLocalControlServer::Start() {
   config.prvtkey_len = identity_.PrivateKeyLength();
   config.tls_handshake_timeout_ms = 5000;
   config.httpd.max_open_sockets = 2;
-  config.httpd.max_uri_handlers = 2;
+  config.httpd.max_uri_handlers = 3;
   config.httpd.lru_purge_enable = false;
   config.httpd.recv_wait_timeout = 1;
   config.httpd.send_wait_timeout = 1;
@@ -186,7 +188,46 @@ bool EspIdfLocalControlServer::Start() {
     Stop();
     return false;
   }
+  httpd_uri_t trace = {};
+  trace.uri = "/v1/show-trace";
+  trace.method = HTTP_GET;
+  trace.handler = ShowTrace;
+  trace.user_ctx = this;
+  if (httpd_register_uri_handler(server_, &trace) != ESP_OK) {
+    Stop();
+    return false;
+  }
   return true;
+}
+
+esp_err_t EspIdfLocalControlServer::ShowTrace(httpd_req_t* request) {
+  auto* server = static_cast<EspIdfLocalControlServer*>(request->user_ctx);
+  if (server == nullptr || std::strcmp(request->uri, "/v1/show-trace") != 0 ||
+      request->content_len != 0 ||
+      httpd_req_get_hdr_value_len(request, "Transfer-Encoding") != 0) {
+    return Reject(request, "400 Bad Request");
+  }
+  constexpr size_t HeaderLength = 71;
+  char authorization[HeaderLength + 1] = {};
+  LocalBearerAuthenticator authenticator(server->credential_);
+  const bool authorized =
+      httpd_req_get_hdr_value_len(request, "Authorization") == HeaderLength &&
+      httpd_req_get_hdr_value_str(request, "Authorization", authorization,
+                                 sizeof(authorization)) == ESP_OK &&
+      authenticator.Authenticate(authorization, HeaderLength);
+  Wipe(authorization, sizeof(authorization));
+  if (!authorized) {
+    return Reject(request, "401 Unauthorized");
+  }
+  const std::string json = server->showTrace_ ? server->showTrace_->ReadTrace(NowMs()) : "";
+  if (json.empty() || json.size() > 65536) {
+    return Reject(request, "503 Service Unavailable");
+  }
+  if (httpd_resp_set_hdr(request, "Cache-Control", "no-store") != ESP_OK ||
+      httpd_resp_set_type(request, "application/json") != ESP_OK) {
+    return ESP_FAIL;
+  }
+  return httpd_resp_send(request, json.data(), static_cast<int>(json.size()));
 }
 
 esp_err_t EspIdfLocalControlServer::Pair(httpd_req_t* request) {

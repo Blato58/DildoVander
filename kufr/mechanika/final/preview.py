@@ -16,6 +16,7 @@ import chassis
 import inspect_data
 import harness
 from viewer_style import snapshot_styles
+from viewer_document import render_document
 
 
 def mesh(shape):
@@ -157,7 +158,6 @@ def viewer():
                        "info":inspect_data.describe(item),
                        "vertices":[round(float(x),4) for vertex in vertices for x in vertex],
                        "triangles":[int(index) for face in faces for index in face]})
-    template=(ROOT/"viewer-template.html").read_text(encoding="utf-8")
     names = {item.name for item in items}
     def optional_json(name,default):
         path=ROOT/name
@@ -172,12 +172,7 @@ def viewer():
                            [edge for edge in harness.CONNECTIONS if edge["from"] in names and edge["to"] in names],
              "sources":inspect_data.source_evidence()}
     OUT.mkdir(parents=True,exist_ok=True)
-    script=(ROOT/"viewer.js").read_text(encoding="utf-8")
-    shared_styles=snapshot_styles().read_text(encoding="utf-8")
-    viewer_styles=(ROOT/"viewer-workshop.css").read_text(encoding="utf-8-sig")
-    viewer_html=template.replace("__WORKSHOP_DESIGN_SYSTEM__",shared_styles).replace("__WORKSHOP_VIEWER_STYLE__",viewer_styles)
-    viewer_html=viewer_html.replace("__VIEWER_SCRIPT__",script).replace("__MODEL_DATA__",json.dumps(payload,separators=(",",":")))
-    (OUT/"viewer.html").write_text(viewer_html,encoding="utf-8")
+    (OUT/"viewer.html").write_text(render_document(payload),encoding="utf-8")
 
 
 def main():

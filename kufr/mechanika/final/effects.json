@@ -471,5 +471,363 @@
       "led_first": 30,
       "led_count": 6
     }
+  ],
+  "schemaVersion": 1,
+  "sceneVersion": 1,
+  "scenes": [
+    {
+      "schemaVersion": 1,
+      "sceneId": "choice-accent",
+      "sceneVersion": 1,
+      "variant": "default",
+      "kind": "accent",
+      "maxDurationMs": 500,
+      "resourcePolicy": "profile-b-single",
+      "requiredCapabilities": [
+        "led"
+      ],
+      "optionalCapabilities": [],
+      "phases": [
+        {
+          "id": "accent",
+          "completion": {
+            "kind": "elapsed",
+            "durationMs": 250
+          },
+          "cues": [
+            {
+              "id": "choice-light",
+              "kind": "led.solid",
+              "group": {
+                "binding": "selection"
+              },
+              "rgb": [
+                255,
+                170,
+                30
+              ],
+              "level": 64,
+              "timing": {
+                "offsetMs": 0,
+                "end": {
+                  "kind": "phase-end"
+                }
+              },
+              "importance": "required",
+              "onUnavailable": "reject",
+              "latePolicy": "sample-current"
+            }
+          ]
+        }
+      ],
+      "trigger": "explicit-only",
+      "defaultEnabled": false
+    },
+    {
+      "schemaVersion": 1,
+      "sceneId": "wake",
+      "sceneVersion": 1,
+      "variant": "default",
+      "kind": "accent",
+      "maxDurationMs": 500,
+      "resourcePolicy": "profile-b-single",
+      "requiredCapabilities": [
+        "led"
+      ],
+      "optionalCapabilities": [],
+      "phases": [
+        {
+          "id": "wake",
+          "completion": {
+            "kind": "elapsed",
+            "durationMs": 250
+          },
+          "cues": [
+            {
+              "id": "wake-light",
+              "kind": "led.solid",
+              "group": {
+                "slot": 1
+              },
+              "rgb": [
+                255,
+                170,
+                30
+              ],
+              "level": 64,
+              "timing": {
+                "offsetMs": 0,
+                "end": {
+                  "kind": "phase-end"
+                }
+              },
+              "importance": "required",
+              "onUnavailable": "reject",
+              "latePolicy": "sample-current"
+            }
+          ]
+        }
+      ],
+      "trigger": "explicit-only",
+      "defaultEnabled": false
+    },
+    {
+      "schemaVersion": 1,
+      "sceneId": "consider",
+      "sceneVersion": 1,
+      "variant": "default",
+      "kind": "accent",
+      "maxDurationMs": 500,
+      "resourcePolicy": "profile-b-single",
+      "requiredCapabilities": [
+        "led"
+      ],
+      "optionalCapabilities": [
+        "audio.tone"
+      ],
+      "phases": [
+        {
+          "id": "consider",
+          "completion": {
+            "kind": "elapsed",
+            "durationMs": 250
+          },
+          "cues": [
+            {
+              "id": "consider-light",
+              "kind": "led.solid",
+              "group": {
+                "slot": 1
+              },
+              "rgb": [
+                255,
+                170,
+                30
+              ],
+              "level": 64,
+              "timing": {
+                "offsetMs": 0,
+                "end": {
+                  "kind": "phase-end"
+                }
+              },
+              "importance": "required",
+              "onUnavailable": "reject",
+              "latePolicy": "sample-current"
+            },
+            {
+              "id": "consider-tone",
+              "kind": "audio.tone",
+              "frequencyHz": 523,
+              "timing": {
+                "offsetMs": 0,
+                "end": {
+                  "kind": "duration",
+                  "durationMs": 100
+                }
+              },
+              "importance": "optional",
+              "onUnavailable": "skip",
+              "latePolicy": "skip-if-late"
+            }
+          ]
+        }
+      ],
+      "trigger": "explicit-only",
+      "defaultEnabled": false
+    },
+    {
+      "schemaVersion": 1,
+      "sceneId": "farewell",
+      "sceneVersion": 1,
+      "variant": "default",
+      "kind": "accent",
+      "maxDurationMs": 500,
+      "resourcePolicy": "profile-b-single",
+      "requiredCapabilities": [
+        "led"
+      ],
+      "optionalCapabilities": [],
+      "phases": [
+        {
+          "id": "farewell",
+          "completion": {
+            "kind": "elapsed",
+            "durationMs": 250
+          },
+          "cues": [
+            {
+              "id": "farewell-light",
+              "kind": "led.solid",
+              "group": {
+                "slot": 1
+              },
+              "rgb": [
+                255,
+                170,
+                30
+              ],
+              "level": 64,
+              "timing": {
+                "offsetMs": 0,
+                "end": {
+                  "kind": "phase-end"
+                }
+              },
+              "importance": "required",
+              "onUnavailable": "reject",
+              "latePolicy": "sample-current"
+            }
+          ]
+        }
+      ],
+      "trigger": "explicit-only",
+      "defaultEnabled": false
+    },
+    {
+      "schemaVersion": 1,
+      "sceneId": "ambient",
+      "sceneVersion": 1,
+      "variant": "default",
+      "kind": "accent",
+      "maxDurationMs": 500,
+      "resourcePolicy": "profile-b-single",
+      "requiredCapabilities": [
+        "led"
+      ],
+      "optionalCapabilities": [],
+      "phases": [
+        {
+          "id": "ambient",
+          "completion": {
+            "kind": "elapsed",
+            "durationMs": 250
+          },
+          "cues": [
+            {
+              "id": "ambient-light",
+              "kind": "led.solid",
+              "group": {
+                "slot": 1
+              },
+              "rgb": [
+                255,
+                170,
+                30
+              ],
+              "level": 64,
+              "timing": {
+                "offsetMs": 0,
+                "end": {
+                  "kind": "phase-end"
+                }
+              },
+              "importance": "required",
+              "onUnavailable": "reject",
+              "latePolicy": "sample-current"
+            }
+          ]
+        }
+      ],
+      "trigger": "explicit-only",
+      "defaultEnabled": false
+    },
+    {
+      "schemaVersion": 1,
+      "sceneId": "error",
+      "sceneVersion": 1,
+      "variant": "default",
+      "kind": "accent",
+      "maxDurationMs": 500,
+      "resourcePolicy": "profile-b-single",
+      "requiredCapabilities": [
+        "led"
+      ],
+      "optionalCapabilities": [],
+      "phases": [
+        {
+          "id": "error",
+          "completion": {
+            "kind": "elapsed",
+            "durationMs": 250
+          },
+          "cues": [
+            {
+              "id": "error-light",
+              "kind": "led.solid",
+              "group": {
+                "slot": 1
+              },
+              "rgb": [
+                255,
+                170,
+                30
+              ],
+              "level": 64,
+              "timing": {
+                "offsetMs": 0,
+                "end": {
+                  "kind": "phase-end"
+                }
+              },
+              "importance": "required",
+              "onUnavailable": "reject",
+              "latePolicy": "sample-current"
+            }
+          ]
+        }
+      ],
+      "trigger": "explicit-only",
+      "defaultEnabled": false
+    },
+    {
+      "schemaVersion": 1,
+      "sceneId": "special-referral",
+      "sceneVersion": 1,
+      "variant": "default",
+      "kind": "accent",
+      "maxDurationMs": 500,
+      "resourcePolicy": "profile-b-single",
+      "requiredCapabilities": [
+        "led",
+        "upstream-dv11"
+      ],
+      "optionalCapabilities": [],
+      "phases": [
+        {
+          "id": "special-referral",
+          "completion": {
+            "kind": "elapsed",
+            "durationMs": 250
+          },
+          "cues": [
+            {
+              "id": "special-referral-light",
+              "kind": "led.solid",
+              "group": {
+                "slot": 1
+              },
+              "rgb": [
+                255,
+                170,
+                30
+              ],
+              "level": 64,
+              "timing": {
+                "offsetMs": 0,
+                "end": {
+                  "kind": "phase-end"
+                }
+              },
+              "importance": "required",
+              "onUnavailable": "reject",
+              "latePolicy": "sample-current"
+            }
+          ]
+        }
+      ],
+      "trigger": "explicit-only",
+      "defaultEnabled": false
+    }
   ]
 }

@@ -9,6 +9,7 @@
 #include "../src/features/local_control/EspIdfLocalControlServer.h"
 #include "../src/features/local_control/LocalBearerAuthenticator.h"
 #include "../src/features/local_control/LocalControlInbox.h"
+#include "../src/features/show_diagnostics/ShowTracePort.h"
 #include "../src/features/provisioning/LocalPairingCredential.h"
 #include "../src/features/provisioning/LocalTlsIdentity.h"
 
@@ -16,6 +17,7 @@ namespace {
 
 httpd_uri_t endpoint{};
 httpd_uri_t pairingEndpoint{};
+httpd_uri_t traceEndpoint{};
 httpd_ssl_config_t configuration{};
 std::string authorization;
 std::string extensions;
@@ -42,6 +44,13 @@ int shutdowns = 0;
 httpd_ws_type_t lastSentType = HTTPD_WS_TYPE_TEXT;
 std::map<int, httpd_req_t*> sessions;
 std::deque<std::pair<httpd_work_fn_t, void*>> work;
+
+class Trace final : public ShowTraceReadPort {
+ public:
+  std::string ReadTrace(uint64_t) override { ++reads; return json; }
+  int reads = 0;
+  std::string json = "{\"schemaVersion\":1}";
+};
 
 void DrainWork() {
   while (!work.empty()) {
@@ -153,7 +162,9 @@ esp_err_t httpd_ssl_stop(httpd_handle_t) {
   return ESP_OK;
 }
 esp_err_t httpd_register_uri_handler(httpd_handle_t, const httpd_uri_t* uri) {
-  if (uri->method == HTTP_GET) {
+  if (std::strcmp(uri->uri, "/v1/show-trace") == 0) {
+    traceEndpoint = *uri;
+  } else if (uri->method == HTTP_GET) {
     endpoint = *uri;
   } else {
     pairingEndpoint = *uri;
@@ -303,7 +314,7 @@ int main(int argc, char** argv) {
   assert(configuration.prvtkey_pem == identity.PrivateKey());
   assert(!configuration.httpd.lru_purge_enable);
   assert(configuration.httpd.max_open_sockets == 2);
-  assert(configuration.httpd.max_uri_handlers == 2);
+  assert(configuration.httpd.max_uri_handlers == 3);
   assert(endpoint.is_websocket && endpoint.handle_ws_control_frames);
   auto pairRequest = Request();
   pairRequest.uri = pairingEndpoint.uri;
@@ -359,6 +370,37 @@ int main(int argc, char** argv) {
   assert(endpoint.ws_pre_handshake_cb(&rejected) == ESP_FAIL);
   assert(status == "401 Unauthorized" && rejected.sess_ctx == nullptr);
   authorization = validAuthorization;
+  // Diagnostics authenticate independently of WebSocket/manual admission.
+  Trace trace;
+  server.BindShowTrace(trace);
+  httpd_req_t traceRequest{};
+  traceRequest.uri = traceEndpoint.uri;
+  traceRequest.user_ctx = traceEndpoint.user_ctx;
+  assert(!traceEndpoint.is_websocket);
+  assert(traceEndpoint.handler(&traceRequest) == ESP_OK);
+  assert(responseBody == trace.json && trace.reads == 1);
+  authorization.clear();
+  assert(traceEndpoint.handler(&traceRequest) == ESP_FAIL);
+  assert(status == "401 Unauthorized" && trace.reads == 1);
+  authorization = validAuthorization;
+  traceRequest.uri = "/v1/show-trace?token=forbidden";
+  assert(traceEndpoint.handler(&traceRequest) == ESP_FAIL);
+  assert(status == "400 Bad Request" && trace.reads == 1);
+  traceRequest.uri = traceEndpoint.uri;
+  traceRequest.content_len = 1;
+  assert(traceEndpoint.handler(&traceRequest) == ESP_FAIL && trace.reads == 1);
+  traceRequest.content_len = 0;
+  transferEncoding = "chunked";
+  assert(traceEndpoint.handler(&traceRequest) == ESP_FAIL && trace.reads == 1);
+  transferEncoding.clear();
+  trace.json.clear();
+  assert(traceEndpoint.handler(&traceRequest) == ESP_FAIL && status == "503 Service Unavailable");
+  trace.json.assign(65537, 'x');
+  assert(traceEndpoint.handler(&traceRequest) == ESP_FAIL && status == "503 Service Unavailable");
+  trace.json = "{\"schemaVersion\":1}";
+  failHeader = true;
+  assert(traceEndpoint.handler(&traceRequest) == ESP_FAIL);
+  failHeader = false;
   rejected.uri = "/v1/control?token=forbidden";
   assert(endpoint.ws_pre_handshake_cb(&rejected) == ESP_FAIL);
   rejected.uri = endpoint.uri;

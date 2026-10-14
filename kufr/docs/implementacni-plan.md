@@ -291,6 +291,13 @@ engine. Výchozí Blocked, explicitní Limited, nedostupný Named, image purpose
 Live chování a fyzická akceptace mají oddělené gates; softwarové slice je
 nenahrazuje. Stav vede `docs/project/work-items/DV01.json`, nikoli historická inventura níže.
 
+DV02 rozšiřuje existující presentation/effects core podle [specifikace revize 2.0](dv02-spec.md).
+[Implementace a evidence](dv02.md) zavádí jeden build-time překlad choreografie,
+stejného physical ownera, bounded trace a read-only timeline. Main/short baseline,
+Dance audio owner, kalibrace a safety/Stop se zachovávají; nový obecný orchestrátor
+ani síťové nahrávání scén nevznikají. Software A–F a fyzickou bránu G odděluje
+`docs/project/work-items/DV02.json`; host replay nedokládá fyzické přijetí.
+
 Následující inventura zachycuje výchozí stav při návrhu 29. 9. 2026. Aktuální implementaci ověřuj podle stavového souboru a živého kódu; tento historický popis není překážkou zahájení dalších etap.
 
 Přečtené místní podklady:

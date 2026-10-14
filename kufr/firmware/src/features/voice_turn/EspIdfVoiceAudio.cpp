@@ -187,16 +187,32 @@ bool EspIdfVoiceAudio::Drain() {
 
 
 void EspIdfVoiceAudio::Cue(uint16_t frequencyHz, uint16_t durationMs) {
+  (void)TryCue(frequencyHz, durationMs);
+}
+
+PresentationAudioPort::CueResult EspIdfVoiceAudio::TryCue(uint16_t frequencyHz, uint16_t durationMs) {
   // Optional sound never acquires a mutex on the control loop. Voice owns TX
   // whenever active; effects cannot interrupt listening or remote speech.
   if (!board_ || !available_ || active_.load() || failed_.load() || frequencyHz < 80 ||
-      frequencyHz > 2000 || durationMs == 0 || durationMs > 200) return;
+      frequencyHz > 2000 || durationMs == 0 || durationMs > 200) return CueResult::Unavailable;
+  if (cueGate_.test_and_set(std::memory_order_acquire)) return CueResult::Unavailable;
+  if (active_.load() || failed_.load()) {
+    cueGate_.clear(std::memory_order_release);
+    return CueResult::Unavailable;
+  }
   cue_.store((static_cast<uint32_t>(durationMs) << 16) | frequencyHz);
+  cueGate_.clear(std::memory_order_release);
+  return CueResult::Requested; // Enqueue evidence only; DMA/acoustics unknown.
 }
 
 void EspIdfVoiceAudio::StopCues() { cue_.store(0); }
 
 void EspIdfVoiceAudio::PumpCue() {
+  if (cueGate_.test_and_set(std::memory_order_acquire)) return;
+  struct ReleaseCueGate {
+    std::atomic_flag& gate;
+    ~ReleaseCueGate() { gate.clear(std::memory_order_release); }
+  } release{cueGate_};
   std::lock_guard<std::mutex> outputLock(outputGate_);
   uint32_t cue = cue_.load();
   if (!cue || active_.load() || failed_.load()) { cueSample_ = 0; return; }

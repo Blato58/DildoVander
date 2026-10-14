@@ -36,7 +36,7 @@ class DeviceControlRuntime final {
   bool BeginAcceptedSelection(uint64_t nowMs, SelectionStep& step);
   bool BeginAutonomousPresentation(
       const std::string& proposalId, uint8_t compartment,
-      const ConversationRuntimeSnapshot& expectedSnapshot);
+      const ConversationRuntimeSnapshot& expectedSnapshot, uint64_t fingerprint = 0);
   bool CompleteAutonomousPresentation(uint8_t compartment);
   void FaultAutonomousPresentation();
   bool Tick(uint64_t nowMs, SelectionStep& step);
@@ -46,6 +46,11 @@ class DeviceControlRuntime final {
   void SetExternalActivity(bool active);
   uint64_t Generation() const;
   bool HasAutonomousPresentation() const;
+  bool ReserveDecoration(uint64_t generation);
+  bool ReleaseDecoration(uint64_t generation);
+  bool HasDecoration() const { return decorationActive_; }
+  CommandJournal::Lookup FindOperation(const std::string& id, uint8_t slot,
+                                      uint64_t fingerprint) const { return control_.FindOperation(id, slot, fingerprint); }
 
  private:
   void RecordLeaseLoss(bool hadManualControl);
@@ -60,5 +65,7 @@ class DeviceControlRuntime final {
   uint8_t publishedReadyMask_ = 0;
   bool published_ = false;
   bool externalActivity_ = false;
+  bool decorationActive_ = false;
+  uint64_t decorationGeneration_ = 0;
   WandPresentation* presentation_ = nullptr;
 };

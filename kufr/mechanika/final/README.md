@@ -133,6 +133,9 @@ otisky všech exportů. Balení porovná každý soubor s tímto ověřeným zá
 změněný obrázek, CSV nebo viewer odmítne stejně jako CAD.
 Starší ZIP/STL nejsou součástí F2. Samostatné `preview.py --viewer-only`
 nepotvrzuje nové ověření ani neobnovuje výrobní balíček.
+Panel **DV02** ve vieweru zobrazuje zdrojově svázaný plán a read-only import
+core stop s replay/diff; postup a nové lokální testy jsou ve
+[VIEWER.md](VIEWER.md#dv02-timeline-a-core-replay) a [DV02](../../docs/dv02.md).
 
 Pro spolehlivé otevření používat místní HTTP server v `exports/`, například
 `python -m http.server 8915 --bind 127.0.0.1`, a adresu

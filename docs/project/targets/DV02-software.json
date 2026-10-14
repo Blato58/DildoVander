@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "targetId": "DV02-software",
+  "purpose": "Offline A–F source bundle and observer acceptance. Does not claim live DV01 transport, physical G, event-ready, release or deployment.",
+  "components": {
+    "artifactDigest": "7e21dffe5b8af969b548fbdf7be0bf3fc5366e00231dcaf05249a36ba079c885",
+    "policyVersion": "dv02-phase-1"
+  },
+  "requiredCriteria": [
+    {
+      "workItemId": "DV02",
+      "criterionId": "COMPILER"
+    },
+    {
+      "workItemId": "DV02",
+      "criterionId": "CORE"
+    },
+    {
+      "workItemId": "DV02",
+      "criterionId": "TIMELINE"
+    },
+    {
+      "workItemId": "DV02",
+      "criterionId": "WORKFLOW"
+    }
+  ]
+}
