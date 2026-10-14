@@ -24,6 +24,8 @@ CAD_INPUTS = {
     "kufr/docs/zapojeni-potvrzeneho-hardwaru.md",
     "kufr/mechanika/rozmery-nakoupenych-soucastek.md",
     "scripts/ci/install-cad-slicer.sh",
+    "scripts/ci/cad_cache.py",
+    "scripts/ci/test_cad_cache.py",
     "kufr/mobilni-aplikace/.nvmrc",
 }
 

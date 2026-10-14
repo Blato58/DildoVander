@@ -67,11 +67,12 @@ class PublicWorkflowTests(unittest.TestCase):
     def test_shared_cad_action_never_trusts_restore_alone(self):
         source = (ROOT / '.github/actions/verified-cad/action.yml').read_text()
         restore = source.index('      uses: actions/cache/restore@')
-        verify = source.index('Regenerate.ps1')
+        verify = source.index('run: xvfb-run -a python scripts/ci/cad_cache.py\n')
         save = source.index('      uses: actions/cache/save@')
         self.assertLess(restore, verify)
         self.assertLess(verify, save)
-        self.assertNotIn('restore-keys:', source)
+        self.assertIn('key: cad-verified-v2-', source)
+        self.assertIn('restore-keys: cad-verified-v1-', source)
         verify_block = source.split('    - name: Regenerate and verify', 1)[1].split('    - name:', 1)[0]
         self.assertNotIn('if:', verify_block)
         workflow = (WORKFLOWS / 'kufr-cad.yml').read_text()

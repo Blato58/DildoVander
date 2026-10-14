@@ -45,10 +45,18 @@ je dostupna jen temuz PR, ne jinym PR ani main. Cache main mohou cist dalsi PR
 ([pravidla GitHub cache](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache)).
 Proto samotne opakovane ukladani PR cache nezajisti sdileni napric PR.
 
-Sdilena composite action `verified-cad` obnovuje balicek pouze pro presnou
-shodu zdroju a runtime. Spolecny `Regenerate.ps1` pak znovu kontroluje zdroje
-a SHA-256 vsech vystupu; neplatna cache spusti kompletni testy, regeneraci
-a overeni. Python testy sdili memoizovanou geometrii v jednom procesu;
+Sdilena composite action `verified-cad` pouziva CI wrapper `scripts/ci/cad_cache.py`.
+Klic v2 zachovava presne zdroje, Python, vsechny distribuce, architekturu,
+Ubuntu 24, glibc ABI a slicer vcetne native/Flatpak hash. Vynechava pouze cislo
+kernelu a datum image rollout: GitHub pridelil stejnym vstupum soubezne image
+`20261004.327.1` a `20261012.334.1`, coz drive vytvorilo ruzne klice i pri
+identickych nastrojich. Skutecne host metadata zustavaji v diagnostice CI.
+Fallback na v1 se smi adoptovat jen pri shode teto identity a po puvodni
+uplne kontrole zdroju, sliceru, SHA-256 vsech vystupu a kazdeho clena ZIPu.
+Wrapper zmeni pouze cache receipt; vyrobni vystupy ani jejich overeni neupravuje.
+Zmena zdroju, knihoven, sliceru nebo ABI stale vyzaduje celou regeneraci.
+Lokalni `Regenerate.ps1` zachovava puvodni prisnou host identitu.
+Python testy sdili memoizovanou geometrii v jednom procesu;
 generovani, overeni a baleni zachovavaji oddelene ciste CAD procesy.
 Lokalne lze vynutit vsechny kroky parametrem `-Force`.
 

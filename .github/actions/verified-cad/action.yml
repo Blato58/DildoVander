@@ -21,20 +21,22 @@ runs:
       id: cad-key
       shell: bash
       run: |
-        cad_key=$(xvfb-run -a python kufr/mechanika/final/regenerate.py --cache-key)
+        cad_key=$(xvfb-run -a python scripts/ci/cad_cache.py --cache-key)
         echo "key=$cad_key" >> "$GITHUB_OUTPUT"
     - name: Restore verified manufacturing outputs
       id: cad-cache
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: kufr/mechanika/final/exports
-        key: cad-verified-v1-${{ steps.cad-key.outputs.key }}
+        key: cad-verified-v2-${{ steps.cad-key.outputs.key }}
+        # Legacy outputs are adopted only after full source/tool/ABI/hash checks.
+        restore-keys: cad-verified-v1-
     - name: Regenerate and verify the complete manufacturing package
       shell: bash
-      run: xvfb-run -a pwsh -NoProfile -File ./kufr/mechanika/final/Regenerate.ps1 -Python python
+      run: xvfb-run -a python scripts/ci/cad_cache.py
     - name: Save verified manufacturing outputs
       if: steps.cad-cache.outputs.cache-hit != 'true'
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: kufr/mechanika/final/exports
-        key: cad-verified-v1-${{ steps.cad-key.outputs.key }}
+        key: cad-verified-v2-${{ steps.cad-key.outputs.key }}

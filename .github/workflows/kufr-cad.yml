@@ -11,6 +11,8 @@ on:
       - 'kufr/docs/zapojeni-potvrzeneho-hardwaru.md'
       - 'kufr/design-system/**'
       - 'scripts/ci/install-cad-slicer.sh'
+      - 'scripts/ci/cad_cache.py'
+      - 'scripts/ci/test_cad_cache.py'
       - 'kufr/mobilni-aplikace/.nvmrc'
       - '.github/actions/verified-cad/**'
       - '.github/workflows/kufr-cad.yml'

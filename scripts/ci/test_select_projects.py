@@ -60,6 +60,7 @@ class ProjectSelectionTests(unittest.TestCase):
                      "kufr/docs/zapojeni-potvrzeneho-hardwaru.md",
                      "kufr/mechanika/rozmery-nakoupenych-soucastek.md",
                      "scripts/ci/install-cad-slicer.sh",
+                     "scripts/ci/cad_cache.py",
                      ".github/actions/verified-cad/action.yml",
                      "kufr/mobilni-aplikace/.nvmrc"]:
             with self.subTest(path=path):
