@@ -3,7 +3,7 @@
   "targetId": "DV02-software",
   "purpose": "Offline A–F source bundle and observer acceptance. Does not claim live DV01 transport, physical G, event-ready, release or deployment.",
   "components": {
-    "artifactDigest": "7e21dffe5b8af969b548fbdf7be0bf3fc5366e00231dcaf05249a36ba079c885",
+    "artifactDigest": "3affd6caca1f4b26dd365c27c0b2e94653048b10f9f1b6b0c3d5054c61133ed9",
     "policyVersion": "dv02-phase-1"
   },
   "requiredCriteria": [

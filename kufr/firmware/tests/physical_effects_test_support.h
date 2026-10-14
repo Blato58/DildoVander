@@ -11,6 +11,8 @@ class FakeIo final : public PhysicalIo {
   uint8_t channel = 0;
   uint16_t pulse = 0;
   std::array<uint8_t, 108> pixels{};
+  void (*lightsCallback)(void*) = nullptr;
+  void* lightsContext = nullptr;
   void EnableOutputs(bool enabled) override { run = enabled; }
   bool FullOff() override { assert(!run); ++clears; return !fail; }
   bool Servo(uint8_t selected, uint16_t us) override {
@@ -29,6 +31,7 @@ class FakeIo final : public PhysicalIo {
     assert(litSegments <= 1);
     ++lightWrites;
     pixels = frame;
+    if (lightsCallback) lightsCallback(lightsContext);
     return !fail;
   }
   bool ReadInputs(PhysicalInputs& value) override { value = inputs; return !fail; }

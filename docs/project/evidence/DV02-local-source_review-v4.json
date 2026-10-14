@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "DV02-local-source_review-v4",
+  "observedAtUtc": "2026-10-14T00:24:29.213906+00:00",
+  "kind": "source_review",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "DV02",
+      "criterionId": "COMPILER",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "DV02",
+      "criterionId": "CORE",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "DV02",
+      "criterionId": "TIMELINE",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "DV02",
+      "criterionId": "WORKFLOW",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "3affd6caca1f4b26dd365c27c0b2e94653048b10f9f1b6b0c3d5054c61133ed9",
+    "policyVersion": "dv02-phase-1"
+  },
+  "method": "Independent read-only bounded clock/tail-order peer review plus parent combined source/diff inspection; compiler --check, git diff --check and coverage check. Original broad v3 review transfers only for unchanged sources.",
+  "environment": "Windows x64; Python3.14, MSVC19.51 C++14, Node, PlatformIO7.1.3 ESP-IDF6.1; existing CADvenv and browser. Host fakeports, no livehardware/provider.",
+  "limitations": [
+    "No ESP boot/flash, runtime heap/stack/tick measurement, actual sound/motion/Stop, iPhone signing/native run, deployment or paid provider calls.",
+    "Audio is phase-only / enqueue-proxy; already admitted <=20ms cue block and queued DMA may drain. No acoustic proof.",
+    "The local synthetic SceneIntent bridge is tested; existing nullable backend DV01 intent has no live device adapter.",
+    "Journal v2 retains32 durable IDs and fails closed when full; safe service rotation is an explicit operational gate. V1 completed IDs were not stored and cannot be reconstructed.",
+    "New-session skill discovery/reload and exact200percent browser zoom not observed. Final level-bearing filechooser blocked when IAB disappeared/Brave lacked permission; final DOM handler and export parsing passed."
+  ],
+  "observation": "Independent peer found no remaining material clock/tail-order issue: original epoch, postjournal fresh time, bound Tick caller freshness, cleanup/postpersist validation before Publish, direct control.Stop avoiding Wand recursion, tombstone/recovery retained. GitHub Codex review4265468810 P2 was valid: motion tail validation now precedes all phase outputs, with zero non-black frame Raise/Lower regressions. Nominal accepted phase output order is preserved and historical12case parity repeats exactly. Earlier broad compiler/viewer/owner review remains scoped to unchanged source.",
+  "artifactRefs": [
+    "docs/project/artifacts/DV02-source-bundle-v4.json",
+    "kufr/docs/dv02-coverage.json",
+    "kufr/docs/dv02-performance-v3.json"
+  ],
+  "supersedes": [
+    "DV02-local-source_review-v3"
+  ],
+  "supersedesReason": "Clock freshness around synchronous journal/output cleanup and pre-LED motion admission fixes. Final14 host checks,12 exact historical cases, ESP build, generated --check, coverage and independent bounded review pass. Unchanged compiler/viewer/skills observations explicitly transfer from v3 within their original limitations."
+}

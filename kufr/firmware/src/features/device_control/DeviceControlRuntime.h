@@ -37,7 +37,8 @@ class DeviceControlRuntime final {
   bool BeginAutonomousPresentation(
       const std::string& proposalId, uint8_t compartment,
       const ConversationRuntimeSnapshot& expectedSnapshot, uint64_t fingerprint = 0);
-  bool CompleteAutonomousPresentation(uint8_t compartment);
+  bool CompleteAutonomousPresentation(uint8_t compartment,
+      bool (*postPersistCheck)(void*) = nullptr, void* context = nullptr);
   void FaultAutonomousPresentation();
   bool Tick(uint64_t nowMs, SelectionStep& step);
   bool Stop(SelectionStep& step);

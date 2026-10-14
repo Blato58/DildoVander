@@ -1463,6 +1463,10 @@
         {
           "path": "kufr/firmware/tests/physical_effects_test.cpp",
           "symbol": "MaximumTravelStillHonorsAbsoluteDeadline"
+        },
+        {
+          "path": "kufr/firmware/tests/show_runtime_test.cpp",
+          "symbol": "JournalLatencyUsesActualOwnerClock"
         }
       ],
       "command": "python kufr/firmware/tests/run_show_tests.py",
@@ -1492,6 +1496,10 @@
         {
           "path": "kufr/firmware/tests/physical_effects_test.cpp",
           "symbol": "MaximumTravelStillHonorsAbsoluteDeadline"
+        },
+        {
+          "path": "kufr/firmware/tests/show_runtime_test.cpp",
+          "symbol": "JournalLatencyUsesActualOwnerClock"
         }
       ],
       "command": "python kufr/firmware/tests/run_show_tests.py",
@@ -2341,6 +2349,10 @@
         {
           "path": "kufr/firmware/tests/persistent_command_journal_test.cpp",
           "symbol": "TestUncertainCommitRemainsFailClosed"
+        },
+        {
+          "path": "kufr/firmware/tests/show_runtime_test.cpp",
+          "symbol": "JournalLatencyUsesActualOwnerClock"
         }
       ],
       "command": "python kufr/firmware/tests/run_show_tests.py",

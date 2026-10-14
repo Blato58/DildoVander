@@ -412,6 +412,9 @@ extern "C" void app_main() {
       identity.DeviceId(), bootId, deviceControl, journal, safetyController,
       selectionSequence, conversation, server, &backendNetwork, &dance);
   static RuntimeClock clock;
+  presentationPort.BindClock([](void* context) -> uint64_t {
+    return static_cast<RuntimeClock*>(context)->NowMs();
+  }, &clock);
   static RuntimeLeaseIds leaseIds(random);
   static PhysicalInspection inspection(effects);
   static HardwareSteps steps(effects, controlRuntime);

@@ -14,6 +14,7 @@ uint64_t ScoreFingerprint(bool repeat) {
 
 bool PhysicalPresentation::Raise(uint8_t compartment, const std::string& proposalId,
                                   const ConversationRuntimeSnapshot& snapshot) {
+  const uint64_t acceptedAtMs = nowMs_;
   replayRejected_ = runtime_.FindOperation(proposalId, compartment, ScoreFingerprint(repeat_))
       != CommandJournal::Lookup::Missing;
   if (replayRejected_) return false;
@@ -36,9 +37,16 @@ bool PhysicalPresentation::Raise(uint8_t compartment, const std::string& proposa
   compartment_ = compartment;
   scoreIndex_ = 0;
   phase_ = Phase::Score;
-  phaseAt_ = startedAt_ = lastObservedAt_ = nowMs_;
+  phaseAt_ = startedAt_ = lastObservedAt_ = acceptedAtMs;
+  faultReason_ = "recovery-required";
+  const bool fresh = RefreshExecutionClock(acceptedAtMs);
   Trace("accepted", nowMs_, "commanded", "journal-persisted");
-  if (!EnterScoreStep(nowMs_)) { DisableAndFault(); return false; }
+  if (!fresh) { DisableAndFault(); return false; }
+  if (nowMs_ - phaseAt_ >= CurrentStep().durationMs) {
+    faultReason_ = "journal-expired-first-cue";
+    DisableAndFault(); return false;
+  }
+  if (!EnterScoreStep(phaseAt_)) { DisableAndFault(); return false; }
   return true;
 }
 
@@ -85,7 +93,21 @@ void PhysicalPresentation::Trace(const char* kind, uint64_t dueAt,
 }
 
 bool PhysicalPresentation::EnterScoreStep(uint64_t dueAt) {
+  if (!RefreshExecutionClock(nowMs_)) return false;
   const auto& step = CurrentStep();
+  if (step.stage == PresentationScore::Stage::Prepare && nowMs_ - dueAt >= step.durationMs) return false;
+  // Admission covers the whole phase: a denied move must not flash its
+  // lights or submit any optional cue before fault cleanup.
+  if (step.stage == PresentationScore::Stage::Raise ||
+      step.stage == PresentationScore::Stage::Lower) {
+    // A late phase cannot begin motion whose mandatory normal tail no longer
+    // fits. Calibration is immutable for this execution, never a JSON duration.
+    const uint64_t tailMs = repeat_ ? PresentationScore::ShortRemainingMs[scoreIndex_]
+                                    : PresentationScore::MainRemainingMs[scoreIndex_];
+    const uint64_t deadline = repeat_ ? PresentationScore::ShortDeadlineMs : PresentationScore::MainDeadlineMs;
+    if (nowMs_ < startedAt_ || nowMs_ - startedAt_ >= deadline ||
+        tailMs >= deadline - (nowMs_ - startedAt_)) return false;
+  }
   vibrationCommanded_ = false;
   uint8_t target = compartment_;
   if (step.target > 0) target = static_cast<uint8_t>(step.target);
@@ -105,13 +127,6 @@ bool PhysicalPresentation::EnterScoreStep(uint64_t dueAt) {
   }
   if (step.stage == PresentationScore::Stage::Raise ||
       step.stage == PresentationScore::Stage::Lower) {
-    // A late phase cannot begin motion whose mandatory normal tail no longer
-    // fits. Calibration is immutable for this execution, never a JSON duration.
-    const uint64_t tailMs = repeat_ ? PresentationScore::ShortRemainingMs[scoreIndex_]
-                                    : PresentationScore::MainRemainingMs[scoreIndex_];
-    const uint64_t deadline = repeat_ ? PresentationScore::ShortDeadlineMs : PresentationScore::MainDeadlineMs;
-    if (nowMs_ < startedAt_ || nowMs_ - startedAt_ >= deadline ||
-        tailMs >= deadline - (nowMs_ - startedAt_)) return false;
     if (!effects_.Move(compartment_, step.stage == PresentationScore::Stage::Raise)) return false;
     diagnostics_.none = false;
   }
@@ -131,6 +146,9 @@ bool PhysicalPresentation::EnterScoreStep(uint64_t dueAt) {
 }
 
 void PhysicalPresentation::Tick(uint64_t nowMs) {
+  // A synchronous admission/completion may have sampled a newer time than
+  // the caller captured earlier in the same owner pass.
+  if (clockNowMs_) nowMs = clockNowMs_(clockContext_);
   nowMs_ = nowMs;
   if (phase_ == Phase::Idle) return;
   if (phase_ == Phase::Accent) {
@@ -216,9 +234,12 @@ bool PhysicalPresentation::Lower(uint8_t compartment) {
 }
 bool PhysicalPresentation::Complete(uint8_t compartment) {
   if (!IsResting(compartment)) return false;
+  completionIoStartedAtMs_ = nowMs_;
+  if (!RefreshExecutionClock(completionIoStartedAtMs_)) return false;
   effects_.Disable();
-  if (!effects_.Highlight(0, 0, 0, 0) || !effects_.Healthy() ||
-      !runtime_.CompleteAutonomousPresentation(compartment)) return false;
+  const bool cleared = effects_.Highlight(0, 0, 0, 0);
+  if (!RefreshExecutionClock(completionIoStartedAtMs_) || !cleared || !effects_.Healthy() ||
+      !runtime_.CompleteAutonomousPresentation(compartment, ValidateCompletionClock, this)) return false;
   Trace("completed", nowMs_, "timed-complete", "calibrated-position-unmeasured");
   diagnostics_.state = "completed";
   diagnostics_.evidence = "timed-complete";
@@ -236,7 +257,7 @@ bool PhysicalPresentation::CancelOperation(const std::string& operationId, uint6
 
 void PhysicalPresentation::DisableAndFault() {
   if (phase_ != Phase::Idle) {
-    Trace("fault", nowMs_, "unknown", "recovery-required");
+    Trace("fault", nowMs_, "unknown", faultReason_);
     diagnostics_.state = "fault";
     diagnostics_.evidence = "unknown";
   }
@@ -247,6 +268,32 @@ void PhysicalPresentation::DisableAndFault() {
   phase_ = Phase::Idle;
   if (wasAccent) runtime_.ReleaseDecoration(diagnostics_.generation);
   else runtime_.FaultAutonomousPresentation();
+}
+
+bool PhysicalPresentation::RefreshExecutionClock(uint64_t ioStartedAtMs) {
+  const uint64_t sampledAtMs = clockNowMs_ ? clockNowMs_(clockContext_) : nowMs_;
+  const uint64_t previouslyObservedAtMs = nowMs_;
+  nowMs_ = sampledAtMs;
+  const uint64_t deadline = repeat_ ? PresentationScore::ShortDeadlineMs : PresentationScore::MainDeadlineMs;
+  if (sampledAtMs < previouslyObservedAtMs || sampledAtMs < lastObservedAt_ || sampledAtMs < startedAt_) {
+    faultReason_ = "journal-clock-reversed";
+    return false;
+  }
+  if (sampledAtMs - startedAt_ >= deadline) {
+    faultReason_ = "journal-deadline-exceeded";
+    return false;
+  }
+  if (sampledAtMs - ioStartedAtMs >= 250) {
+    faultReason_ = "journal-owner-stall";
+    return false;
+  }
+  lastObservedAt_ = sampledAtMs;
+  return true;
+}
+
+bool PhysicalPresentation::ValidateCompletionClock(void* context) {
+  auto& presentation = *static_cast<PhysicalPresentation*>(context);
+  return presentation.RefreshExecutionClock(presentation.completionIoStartedAtMs_);
 }
 
 bool PhysicalPresentation::StartAccent(const char* sceneId, const std::string& intentId,

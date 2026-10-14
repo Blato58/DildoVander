@@ -17,6 +17,9 @@ class PhysicalPresentation final : public WandPresentationPort {
   void ObserveOwnerTime(uint64_t nowMs) override { nowMs_ = nowMs; }
   bool AdmissionWasDuplicateOrConflict() const override { return replayRejected_; }
   void BindAudio(PresentationAudioPort& audio) { audio_ = &audio; }
+  void BindClock(uint64_t (*nowMs)(void*), void* context) {
+    if (phase_ == Phase::Idle) { clockNowMs_ = nowMs; clockContext_ = context; }
+  }
   // Set at boot while idle; the accepted execution retains its copy.
   void BindBootIdentity(const std::string& bootId) { if (phase_ == Phase::Idle) bootId_ = bootId; }
   const PresentationDiagnostics& Diagnostics() const { return diagnostics_; }
@@ -48,6 +51,8 @@ class PhysicalPresentation final : public WandPresentationPort {
              const char* reason = "");
   bool TickAccent();
   void EndAccent(bool cancelled);
+  bool RefreshExecutionClock(uint64_t ioStartedAtMs);
+  static bool ValidateCompletionClock(void* context);
   const PresentationScore::Step& CurrentStep() const;
   unsigned StepCount() const;
   uint16_t RestDurationMs() const;
@@ -66,4 +71,8 @@ class PhysicalPresentation final : public WandPresentationPort {
   uint8_t accentCueSeen_ = 0, accentCueSkipped_ = 0;
   bool replayRejected_ = false;
   bool vibrationCommanded_ = false;
+  uint64_t (*clockNowMs_)(void*) = nullptr;
+  void* clockContext_ = nullptr;
+  uint64_t completionIoStartedAtMs_ = 0;
+  const char* faultReason_ = "recovery-required";
 };

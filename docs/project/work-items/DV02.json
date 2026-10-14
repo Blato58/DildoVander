@@ -24,12 +24,12 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "7e21dffe5b8af969b548fbdf7be0bf3fc5366e00231dcaf05249a36ba079c885",
+        "artifactDigest": "3affd6caca1f4b26dd365c27c0b2e94653048b10f9f1b6b0c3d5054c61133ed9",
         "policyVersion": "dv02-phase-1"
       },
       "evidenceRefs": [
-        "DV02-local-unit-v3",
-        "DV02-local-source_review-v3"
+        "DV02-local-unit-v4",
+        "DV02-local-source_review-v4"
       ]
     },
     {
@@ -43,13 +43,13 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "7e21dffe5b8af969b548fbdf7be0bf3fc5366e00231dcaf05249a36ba079c885",
+        "artifactDigest": "3affd6caca1f4b26dd365c27c0b2e94653048b10f9f1b6b0c3d5054c61133ed9",
         "policyVersion": "dv02-phase-1"
       },
       "evidenceRefs": [
-        "DV02-local-unit-v3",
-        "DV02-local-integration-v3",
-        "DV02-local-source_review-v3"
+        "DV02-local-unit-v4",
+        "DV02-local-integration-v4",
+        "DV02-local-source_review-v4"
       ]
     },
     {
@@ -64,14 +64,14 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "7e21dffe5b8af969b548fbdf7be0bf3fc5366e00231dcaf05249a36ba079c885",
+        "artifactDigest": "3affd6caca1f4b26dd365c27c0b2e94653048b10f9f1b6b0c3d5054c61133ed9",
         "policyVersion": "dv02-phase-1"
       },
       "evidenceRefs": [
-        "DV02-local-unit-v3",
-        "DV02-local-integration-v3",
-        "DV02-local-source_review-v3",
-        "DV02-local-browser-v3"
+        "DV02-local-unit-v4",
+        "DV02-local-integration-v4",
+        "DV02-local-source_review-v4",
+        "DV02-local-browser-v4"
       ]
     },
     {
@@ -84,12 +84,12 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "7e21dffe5b8af969b548fbdf7be0bf3fc5366e00231dcaf05249a36ba079c885",
+        "artifactDigest": "3affd6caca1f4b26dd365c27c0b2e94653048b10f9f1b6b0c3d5054c61133ed9",
         "policyVersion": "dv02-phase-1"
       },
       "evidenceRefs": [
-        "DV02-local-unit-v3",
-        "DV02-local-source_review-v3"
+        "DV02-local-unit-v4",
+        "DV02-local-source_review-v4"
       ]
     },
     {
@@ -120,9 +120,9 @@
     }
   ],
   "nextAction": "Samostatně připravit a autorizovat G: identifikovaná ESP/audio/iPhone sestava, provozní plán pro32journal ID a fyzické měření Stop/časování/heap/stack. Software A–F ověřen offline.",
-  "currentNote": "A–F offline software verified; implementation commit d1e997232edf5305df7abfd575685a802c4c30e0. Integrated current main76b98723b722647889e0a0c35857ea4f00c2fde1 without changing tested DV02 source digest. Push-CurrentBranch.ps1 verified remote codex/dv02-unified-show at 538b2e36a750522f0574ef1bfb4f4cee7e3cf446. Software target ready; G, live DV01 transport, real audio/iPhone/ESP acceptance remain open. Journal32 IDs fail closed. No release, deployment, flash, signing or paid AI.",
+  "currentNote": "A–F offline verified for source 3affd6caca1f4b26dd365c27c0b2e94653048b10f9f1b6b0c3d5054c61133ed9. PR185: final monotonic clock/NVS cleanup fix and review4265468810 pre-LED tail admission fix pass full14 host checks,12 exact historical cases, firmware build and independent peer review. Previous branch890c8f11bcf962859da1abec70c48e132c54f288 push verified; final fix commit/push pending. Physical G, live DV01 transport and acoustic/native acceptance remain open. Journal32 IDs fail closed. No release, deployment, flash, signing or paid AI.",
   "implementedSubject": {
-    "artifactDigest": "7e21dffe5b8af969b548fbdf7be0bf3fc5366e00231dcaf05249a36ba079c885",
+    "artifactDigest": "3affd6caca1f4b26dd365c27c0b2e94653048b10f9f1b6b0c3d5054c61133ed9",
     "policyVersion": "dv02-phase-1"
   }
 }

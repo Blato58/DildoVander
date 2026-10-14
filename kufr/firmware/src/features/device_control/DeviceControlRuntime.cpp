@@ -137,11 +137,21 @@ bool DeviceControlRuntime::BeginAutonomousPresentation(
 }
 
 bool DeviceControlRuntime::CompleteAutonomousPresentation(
-    uint8_t compartment) {
+    uint8_t compartment, bool (*postPersistCheck)(void*), void* context) {
   const bool completed =
       control_.CompleteAutonomousPresentation(compartment);
+  const bool timely = postPersistCheck == nullptr || postPersistCheck(context);
+  if (!timely) {
+    // The durable close may already have succeeded. Keep its tombstone, but
+    // reject normal completion and retain inspection before publishing state.
+    // Call the control safety owner directly; calling Runtime.Stop here would
+    // recursively reenter WandPresentation while its Complete call is active.
+    SelectionStep step;
+    control_.Stop(step);
+    ++generation_;
+  }
   PublishCurrent();
-  return completed;
+  return completed && timely;
 }
 
 void DeviceControlRuntime::FaultAutonomousPresentation() {

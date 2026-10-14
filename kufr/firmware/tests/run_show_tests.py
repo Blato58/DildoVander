@@ -55,7 +55,7 @@ def main():
     compiler, env, msvc = compiler_environment()
     checks = [
         ("physical_effects_test", CORE, []),
-        ("show_runtime_test", CORE, []),
+        ("show_runtime_test", CORE + ["device_control/PersistentCommandJournal"], []),
         ("autonomous_presentation_lifecycle_test", CORE, []),
         ("device_control_runtime_test", CORE, []),
         ("persistent_command_journal_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl", "device_control/PersistentCommandJournal"], []),
