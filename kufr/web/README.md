@@ -5,6 +5,21 @@ CAD viewer a úplný výrobní ZIP; `/ios/` zachovává podepsanou Safari instal
 `/companion/` je webový vývojový frontend, `/simulator/` odpojený veřejný náhled
 pozorovací konzole. Veřejný web neposkytuje simulátoru WSS facade ani token.
 
+`/keepsake/` je kanonický návštěvnický portál DV10. `build-site.py` kopíruje
+jeho tři zdrojové soubory a společný lokální design systém do téhož inventáře.
+Owner URL je `/keepsake/?k=<locator>`; `&view=share` vždy vynucuje omezený
+sdílený pohled. Locator sám neuděluje přístup. Fragmenty `#c=`, `#r=` a `#s=`
+se odstraní před načtením stylů; výměna klíče vyžaduje klepnutí návštěvníka.
+Osobní data používají pouze same-origin `/guest/v1/`, serverovou cookie,
+CSRF a idempotentní mutace. Fotografie se nejdřív zobrazí lokálně a odešle
+až po výslovném souhlasu. GET ani polling nespouští generování.
+
+Syntetické browser kontroly: `node kufr/web/keepsake/test-browser.cjs`
+(Playwright z dostupného runtime, případně `NODE_PATH`). Kontrola zdrojů
+a izolovaného balení: `python -m unittest discover -s kufr/web/keepsake -p 'test_*.py'`.
+Fake odpovědi jsou pouze v testu; nejsou součástí publikovaného balíčku.
+Browser výsledek neprokazuje přijetí na fyzickém iPhonu ani kvalitu OpenAI.
+
 `build-site.py` přijímá pouze aktuálně ověřené exporty, kontroluje otisky
 zdrojů, výstupů a ZIPu a sestaví výslovný inventář bez starých exportů.
 `publish-site.py` ověří všechny soubory a atomicky přepne symlink `current`;

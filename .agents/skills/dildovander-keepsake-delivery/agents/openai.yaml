@@ -1,0 +1,4 @@
+interface:
+  display_name: "DildoVander keepsake delivery"
+  short_description: "Prepare DV10 VPS delivery and isolated archive recovery"
+  default_prompt: "Use $dildovander-keepsake-delivery to prepare or verify DV10 delivery with manual-only retention and truthful production gates."

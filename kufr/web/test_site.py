@@ -3,6 +3,7 @@ import io
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -286,6 +287,8 @@ class PublicReadbackTests(unittest.TestCase):
             web.mkdir()
             (web / 'index.html').write_text('__REVISION__ __PACKAGE_NAME__')
             (web / 'site.css').write_text('css')
+            shutil.copytree(Path(__file__).with_name('keepsake'), web / 'keepsake',
+                            ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
             dist = repo / 'dist'
             dist.mkdir()
             (dist / 'index.html').write_text('<head></head><body>companion</body>')
@@ -298,6 +301,8 @@ class PublicReadbackTests(unittest.TestCase):
                           (destination / 'simulator/index.html').read_text())
             self.assertIn('name="kufr-browser-mode" content="local-fake"',
                           (destination / 'companion/index.html').read_text())
+            self.assertEqual({'index.html', 'app.js', 'keepsake.css', 'evening'},
+                             {path.name for path in (destination / 'keepsake').iterdir()})
 
 
 if __name__ == '__main__':

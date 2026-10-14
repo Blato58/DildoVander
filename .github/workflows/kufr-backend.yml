@@ -30,7 +30,7 @@ jobs:
             kufr/backend/packages.lock.json
             kufr/backend-tests/packages.lock.json
       - name: Restore test and self-contained runtime dependencies
-        run: dotnet restore kufr/backend-tests/BackendTests.csproj -r linux-x64 -p:SelfContained=true --locked-mode
+        run: dotnet restore kufr/backend-tests/BackendTests.csproj -p:SelfContained=true --locked-mode
       - name: Build backend and tests once in Release
         run: dotnet build kufr/backend-tests/BackendTests.csproj -c Release -r linux-x64 -p:SelfContained=true --no-restore
       - name: Backend tests
@@ -46,6 +46,11 @@ jobs:
         env:
           KUFR_BACKEND_DLL: ${{ runner.temp }}/kufr-publish/backend.dll
         run: node kufr/backend/tests/smoke.mjs
+      - name: DV10 isolated guest integration without provider credentials
+        env:
+          KUFR_BACKEND_DLL: ${{ runner.temp }}/kufr-publish/backend.dll
+          KUFR_TESTS_DLL: kufr/backend-tests/bin/Release/net10.0/linux-x64/BackendTests.dll
+        run: node kufr/backend/tests/keepsake-http.mjs
       - name: Interactive client offline tests
         run: python3 -m unittest discover -s kufr/backend/tests -p 'test_*.py'
       - name: Deployment configuration tests

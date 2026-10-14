@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'sha256-REtUNCPpq1e+tPfl2EaVsGjYwrrAB1Rtf/cl2HyXjsQ='; style-src 'self'; font-src 'self'; img-src 'self' blob:; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <script>window.dv10Entry=(()=>{const p=new URLSearchParams(location.hash.slice(1));const keys=['c','r','s'].filter(k=>p.has(k));const entry=keys.length===1?{kind:keys[0],token:p.get(keys[0])}:null;history.replaceState(null,'',location.pathname+location.search);return entry;})();</script>
+  <title>Památka z kufru · DildoVander</title>
+  <link rel="stylesheet" href="/design-system/arcane-workshop.css">
+  <link rel="stylesheet" href="/keepsake/keepsake.css">
+  <script src="/keepsake/app.js" type="module"></script>
+</head>
+<body class="aw-root">
+  <a href="#main" class="skip">Přejít k památce</a>
+  <header class="archive-header"><a href="/" class="archive-brand">DildoVander <span>Archiv nepravděpodobného</span></a><button class="text-button" data-privacy>Soukromí</button></header>
+  <main id="main" tabindex="-1">
+    <section id="entry" class="entry-panel" aria-labelledby="entry-title">
+      <div class="archive-seal" aria-hidden="true">DV<span>ARCHIV</span></div>
+      <p class="eyebrow">Jeden večer. Jedna hůlka. Tvůj příběh.</p>
+      <h1 id="entry-title">Soukromá část archivu</h1>
+      <p id="entry-copy">Tady otevřeš vlastní památku pomocí soukromého návratového odkazu. Hůlky a příběhy dnešního večera najdeš ve společném přehledu.</p>
+      <a id="public-overview" class="aw-button aw-button--secondary" href="/keepsake/evening/">Hůlky tohoto večera</a>
+      <button id="exchange" class="aw-button" hidden>Otevřít památku</button>
+      <p class="muted">Bez přihlašovacího účtu. Žádný další výběr hůlky.</p>
+    </section>
+    <div id="feedback" class="aw-notice" role="status" aria-live="polite" hidden></div>
+    <button id="retry" class="aw-button aw-button--secondary" hidden>Obnovit spojení</button>
+    <article id="keepsake" hidden>
+      <div class="leaf-heading"><span class="eyebrow">Osobní archivní list</span><span id="scope" class="aw-badge"></span></div>
+      <div class="edition-layout">
+        <div class="art-column">
+          <button id="art-open" class="art-frame" aria-label="Zvětšit obraz hůlky" disabled><img id="wand-art" alt="Osobní digitální interpretace vybrané hůlky" hidden><span id="art-status">Obraz se připravuje</span></button>
+          <p class="art-caption">Osobní AI interpretace · fantasy obraz, nikoli fotografie rekvizity</p>
+        </div>
+        <div class="edition-copy">
+          <p id="catalog-label" class="eyebrow">Hůlka, která si tě vybrala</p>
+          <h1 id="wand-name"></h1>
+          <p id="edition-title" class="edition-title"></p>
+          <p id="summary" class="summary"></p>
+          <p id="generation-status" class="muted" aria-live="polite"></p>
+          <button id="cancel-base" class="text-button" hidden>Zastavit přípravu příběhu a obrazu</button>
+          <button id="save-main" class="aw-button" data-export="bundle">Uložit památku</button>
+          <p class="muted small">ZIP obsahuje dostupný příběh, obraz a kartičku. Portrét se přidává jen samostatnou volbou.</p>
+          <div class="downloads" aria-label="Jednotlivé soubory"><button class="text-button" data-export="story">Příběh TXT</button><button class="text-button" data-export="art">Obraz hůlky</button><button class="text-button" data-export="card">Kartička PNG</button></div>
+        </div>
+      </div>
+      <section class="story-leaf" aria-labelledby="story-heading"><p class="eyebrow">Z knihy drobných katastrof</p><h2 id="story-heading">Její příběh. A trochu tvůj.</h2><p class="fiction-label">Kouzelnická fikce pro tento večer</p><div id="story-body"></div></section>
+      <section id="portrait-section" class="owner-section" aria-labelledby="portrait-heading" hidden>
+        <p class="eyebrow">Dobrovolný soukromý dodatek</p><h2 id="portrait-heading">A teď kouzelník.</h2>
+        <p>Vlastní fotografii můžeš proměnit v kouzelnický portrét. Základní památka funguje i bez ní.</p>
+        <div id="portrait-current"></div><p id="portrait-status" class="muted" aria-live="polite"></p>
+        <label class="aw-field" for="photo">Vybrat vlastní fotografii</label><input id="photo" class="aw-input" type="file" accept="image/jpeg,image/png,image/webp" aria-describedby="photo-help">
+        <p id="photo-help" class="muted small">JPEG, PNG nebo WebP, nejvýše 10 MB. HEIC převeď na JPEG. Výběrem souboru se nic neodesílá.</p>
+        <img id="photo-preview" class="photo-preview" alt="Místní náhled vybrané fotografie" hidden>
+        <label class="consent"><input id="photo-consent" type="checkbox"> <span>Smím tuto fotografii použít. Souhlasím s jejím odesláním na server a do OpenAI pro vytvoření soukromého portrétu. Originál, zpracované kopie a výsledky zůstanou uloženy do mého ručního smazání.</span></label>
+        <button id="generate-portrait" class="aw-button" disabled>Odeslat a vytvořit portrét</button>
+        <div class="downloads"><button id="cancel-portrait" class="text-button" hidden>Zastavit rozpracovaný portrét</button><button id="revoke-consent" class="text-button">Odvolat souhlas a smazat fotografie</button><button class="text-button" data-export="portrait">Uložit portrét</button></div>
+        <label class="consent"><input id="include-portrait" type="checkbox"> <span>Přidat hotový portrét do mého soukromého ZIPu</span></label>
+        <details id="history-panel"><summary>Dřívější verze portrétu</summary><div id="portrait-history"></div><button id="load-history" class="text-button">Načíst historii</button></details>
+      </section>
+      <section id="owner-tools" class="owner-section" aria-labelledby="owner-heading" hidden><p class="eyebrow">Klíče jsou ve tvých rukou</p><h2 id="owner-heading">Vrátit se. Sdílet. Rozhodnout.</h2>
+        <p>Památka ani fotografie se automaticky nemažou. Přístupový odkaz může vypršet; uložený obsah zůstává do ručního smazání.</p>
+        <div class="actions"><button id="recovery" class="aw-button aw-button--secondary">Uložit soukromý návratový odkaz</button><button id="share-preview" class="aw-button aw-button--secondary">Sdílet hůlku a příběh</button></div>
+        <p class="muted small">Návratový odkaz je soukromý klíč ke správě i portrétu. Posílej jej jen sobě. Sdílený odkaz ukazuje základní edici bez fotografií a portrétu.</p>
+        <div id="issued-link" hidden><label class="aw-field" for="link-value">Vydaný odkaz</label><input id="link-value" class="aw-input" readonly><p id="link-purpose"></p><button id="copy-link" class="text-button">Kopírovat odkaz</button><button id="native-share" class="text-button" hidden>Sdílet veřejný odkaz</button></div>
+        <details><summary>Správa přístupů</summary><button id="revoke-shares" class="text-button">Odvolat sdílené odkazy</button><button id="revoke-recovery" class="text-button">Odvolat návratové odkazy</button><button id="revoke-access" class="text-button">Odvolat všechny přístupy</button></details>
+        <details class="delete-panel"><summary>Ruční smazání uložených dat</summary><p>Odvolání souhlasu zastaví další použití fotografie; uložené kopie smaže až tato samostatná akce. Stažené soubory na cizích zařízeních nelze odvolat.</p><button id="delete-portrait" class="aw-button aw-button--danger">Smazat fotografie a portréty</button><button id="delete-all" class="aw-button aw-button--danger">Smazat celou památku</button></details>
+      </section>
+    </article>
+    <section id="deletion" class="entry-panel" hidden><h1>Přístup byl odvolán</h1><p id="deletion-copy"></p><p id="deletion-status" role="status" aria-live="polite"></p><button id="deletion-refresh" class="aw-button aw-button--secondary">Ověřit stav odstranění</button></section>
+    <dialog id="privacy" aria-labelledby="privacy-title"><h2 id="privacy-title">Soukromí v archivu</h2><p>Příběh a digitální obraz vznikají z výběru hůlky a dovolených motivů večera. Fotografie je dobrovolná a odesílá se až po tvém souhlasu a potvrzení.</p><p>Originály, příběhy, obrázky a jejich historie zůstávají na soukromém serveru do ručního smazání. Vypršení přístupu obsah nemaže. OpenAI zpracovává vstupy při generování; pravidla poskytovatele jsou oddělená od odstranění kopií našeho archivu.</p><p>Veřejné sdílení obsahuje pouze hůlku a příběh. Návratový odkaz naproti tomu poskytuje správu soukromé památky. Nekopíruj jej do veřejného sdílení.</p><p>Tento web nepoužívá analytiku ani ukládání osobních dat do úložiště prohlížeče. Oprávnění drží serverová cookie. Se správou nebo ztraceným přístupem se obrať přímo na obsluhu kufru.</p><button class="text-button" data-close>Zpět k archivu</button></dialog>
+  </main>
+  <footer>Digitální památka z jednoho nepravděpodobného večera.<br><button class="text-button" data-privacy>Soukromí a uchování dat</button></footer>
+  <dialog id="art-dialog"><button class="text-button" data-close>Zavřít obraz</button><img id="full-art" alt="Zvětšená osobní digitální interpretace hůlky"></dialog>
+  <dialog id="share-dialog"><h2>Co ostatní uvidí</h2><p id="share-description"></p><p>Hůlka, příběh a základní kartička této edice. Žádný portrét, fotografie ani oprávnění ke správě. Přístupový odkaz je platný 7 dní a můžeš jej odvolat.</p><button id="issue-share" class="aw-button">Vytvořit sdílený odkaz</button><button class="text-button" data-close>Pokračovat bez sdílení</button></dialog>
+  <dialog id="delete-dialog"><h2 id="delete-title"></h2><p>Nejprve se odvolá přístup, potom server odstraní uložené kopie. Dokončení potvrdí skutečný stav odstranění.</p><label class="aw-field" for="delete-confirm">Pro potvrzení napiš SMAZAT</label><input id="delete-confirm" class="aw-input" autocomplete="off"><button id="delete-submit" class="aw-button aw-button--danger" disabled>Potvrdit smazání</button><button class="text-button" data-close>Ponechat data</button></dialog>
+  <noscript><p class="aw-notice">Památka vyžaduje JavaScript pro bezpečné předání přístupu. Osobní klíč nikam neposílej; požádej obsluhu o pomoc.</p></noscript>
+</body>
+</html>

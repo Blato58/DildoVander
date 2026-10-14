@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "sourceRevision": "9760f5ffab78c4a39ae0ddf5dc30fd87a6259247",
+  "sourceArtifactDigest": "5d53c276f653bbcb84f2fd2fc2bcb0c3a668118712e3a3e3954177546c92b1db",
+  "observedAtUtc": "2026-10-14T19:02:43.930834Z",
+  "runUrl": "https://github.com/Blato58/DildoVander/actions/runs/38613273980",
+  "checks": [
+    {
+      "id": 116022175738,
+      "head_sha": "9760f5ffab78c4a39ae0ddf5dc30fd87a6259247",
+      "name": "Project tracking (windows-2025)",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 116022175893,
+      "head_sha": "9760f5ffab78c4a39ae0ddf5dc30fd87a6259247",
+      "name": "Secret scan",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 116022175939,
+      "head_sha": "9760f5ffab78c4a39ae0ddf5dc30fd87a6259247",
+      "name": "Project tracking (ubuntu-24.04)",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 116022176245,
+      "head_sha": "9760f5ffab78c4a39ae0ddf5dc30fd87a6259247",
+      "name": "Select changed projects",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 116022253358,
+      "head_sha": "9760f5ffab78c4a39ae0ddf5dc30fd87a6259247",
+      "name": "Repository checks",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 116022253417,
+      "head_sha": "9760f5ffab78c4a39ae0ddf5dc30fd87a6259247",
+      "name": "ios / ios",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 116022253450,
+      "head_sha": "9760f5ffab78c4a39ae0ddf5dc30fd87a6259247",
+      "name": "site / build",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 116022253519,
+      "head_sha": "9760f5ffab78c4a39ae0ddf5dc30fd87a6259247",
+      "name": "firmware / host-tests",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 116022253524,
+      "head_sha": "9760f5ffab78c4a39ae0ddf5dc30fd87a6259247",
+      "name": "firmware / firmware-build",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 116022253555,
+      "head_sha": "9760f5ffab78c4a39ae0ddf5dc30fd87a6259247",
+      "name": "web / web",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 116022253675,
+      "head_sha": "9760f5ffab78c4a39ae0ddf5dc30fd87a6259247",
+      "name": "ai-eval / offline",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 116022253704,
+      "head_sha": "9760f5ffab78c4a39ae0ddf5dc30fd87a6259247",
+      "name": "backend / build",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 116045392968,
+      "head_sha": "9760f5ffab78c4a39ae0ddf5dc30fd87a6259247",
+      "name": "CI required",
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ],
+  "scope": "Hosted software CI only; no production, paid provider, real iPhone/hardware or independent backup acceptance."
+}

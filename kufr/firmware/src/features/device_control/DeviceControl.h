@@ -117,6 +117,7 @@ class DeviceControl {
                                    uint8_t compartment,
                                    uint64_t expectedRevision, uint64_t fingerprint = 0);
   bool CompleteAutonomousPresentation(uint8_t compartment);
+  bool ConfirmTimedPresentation();
   void FaultAutonomousPresentation();
   bool Tick(uint64_t nowMs, SelectionStep& step);
   bool Stop(SelectionStep& step);
@@ -168,5 +169,8 @@ class DeviceControl {
   uint8_t pendingCompartment_ = 0;
   bool executionStarted_ = false;
   uint8_t autonomousCompartment_ = 0;
+  std::string autonomousOperationId_;
+  uint64_t autonomousFingerprint_ = 0;
+  uint8_t lastCompletedAutonomousCompartment_ = 0;
   LastSelectionResult lastResult_;
 };
