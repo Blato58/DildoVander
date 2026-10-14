@@ -26,6 +26,13 @@ zverejneni vypne controller. Fork PR se nemeni.
 | `kufr-ios-sign.yml` | Rucni podepsane Ad Hoc IPA na macOS |
 | `pr-sync.yml` | API-only synchronizace vlastnich PR za private podminky |
 
+Site build obnovuje overeny CAD balicek z Actions cache pouze pro presnou
+shodu zdroju a runtime. Spolecny `Regenerate.ps1` pak znovu kontroluje zdroje
+a SHA-256 vsech vystupu; neplatna cache spusti kompletni testy, regeneraci
+a overeni. Python testy sdili memoizovanou geometrii v jednom procesu;
+generovani, overeni a baleni zachovavaji oddelene ciste CAD procesy.
+Lokalne lze vynutit vsechny kroky parametrem `-Force`.
+
 Od rozhodnuti majitele 14. 10. 2026 se zmeny mobilu, contracts, simulatoru,
 design-systemu a iOS workflow overuji i na macOS s Xcode 26.3. `kufr-ios.yml`
 spousti existujici nativni Swift harnessy a nepodepsany Simulator build po

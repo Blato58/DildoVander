@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "observedAtUtc": "2026-10-13T23:26:24.223054+00:00",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-CAD-SPEED",
+      "criterionId": "CACHE",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "1288a50c03a93ac5f9abc1fda99f40fc6eec0967e6d54487af0fde9321873bb9"
+  },
+  "environment": "Windows task checkout; Python 3.14 stdlib unit checks and Python 3.11 pinned CadQuery environment; code digest covers ordered listed source paths with NUL + exact file bytes + NUL.",
+  "evidenceId": "KUFR-CAD-SPEED-unit",
+  "kind": "unit",
+  "method": "python -m unittest discover -s kufr/mechanika/final -p test_regenerate.py; independent worker python -m unittest test_regeneration_cache -v; both suites also executed successfully in shared Python 3.11 full runner. actionlint1.7.12 -shellcheck= -pyflakes=; PowerShell AST parsing; git diff --check.",
+  "limitations": [
+    "Full generation/verification/packaging is still running and is not claimed by this unit receipt.",
+    "Symlink tests ran without skips. Code digest recipe paths: .github/workflows/kufr-site.yml, kufr/mechanika/final/Regenerate.ps1, kufr/mechanika/final/regenerate.py, kufr/mechanika/final/regeneration_cache.py, kufr/mechanika/final/artifacts.py, kufr/mechanika/final/test_regenerate.py, kufr/mechanika/final/test_regeneration_cache.py, kufr/mechanika/final/README.md"
+  ],
+  "observation": "7 runner tests and16 cache tests passed. Cold runner completed161 Python tests before generators. All workflows and Regenerate.ps1 syntax valid. Invalid/missing/changed records, byte integrity, ZIP/index, source/runtime mutations, atomic failure, escaped symlinks, locks and force/cold/hit orchestration covered."
+}

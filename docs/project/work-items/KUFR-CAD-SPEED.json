@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "id": "KUFR-CAD-SPEED",
+  "initiative": "KUFR",
+  "title": "Rychlá opakovaná regenerace a site CAD build",
+  "state": "closed",
+  "priority": "P1",
+  "sequence": 19,
+  "scope": [
+    "kufr/mechanika/final",
+    "kufr/web/build-site.py",
+    ".github/workflows/kufr-site.yml"
+  ],
+  "dependencies": [],
+  "acceptance": [
+    {
+      "id": "CACHE",
+      "revision": 1,
+      "expected": "Cache se použije jen pro shodné zdroje/runtime a kompletní ověřené výstupy; změna, poškození, selhání či souběžná regenerace ji nesmí potvrdit.",
+      "requiredEvidenceKinds": [
+        "unit",
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "2e94cc46451d9949e1cca5d3eacf3c4494797b9c8b396e6ff89b458bf9295f02"
+      },
+      "evidenceRefs": [
+        "KUFR-CAD-SPEED-unit-final",
+        "KUFR-CAD-SPEED-isolated-review"
+      ]
+    },
+    {
+      "id": "REGEN",
+      "revision": 1,
+      "expected": "Skutečný plný CAD běh zachová všechny testy/generační/ověřovací/balicí brány; změřený opakovaný běh i CI cache obnoví stejný ověřený výrobní balíček rychleji.",
+      "requiredEvidenceKinds": [
+        "integration"
+      ],
+      "appliesTo": {
+        "artifactDigest": "2e94cc46451d9949e1cca5d3eacf3c4494797b9c8b396e6ff89b458bf9295f02"
+      },
+      "evidenceRefs": [
+        "KUFR-CAD-SPEED-integration"
+      ]
+    }
+  ],
+  "blockers": [],
+  "currentNote": "Kód 0abfdae a synchronizace 4b28d1b úspěšně pushnuty s ověřením remote SHA. Windows opakovaná regenerace 25m06s→9.16s; CI Site/build20m12s→1m28s, CAD1121.75s→5.06s. Všechny exportní/provenance brány a skutečný site prošly. PR183 je připraven pro reviews/merge; první main build následně naplní výchozí cache pro další PR. Podpis, nasazení a fyzická akceptace nejsou součástí.",
+  "implementedSubject": {
+    "artifactDigest": "2e94cc46451d9949e1cca5d3eacf3c4494797b9c8b396e6ff89b458bf9295f02"
+  },
+  "closure": {
+    "outcome": "accepted",
+    "reason": "Zdrojově i runtime vázaná cache a nezměněné izolované CAD brány prokázány skutečnými cold/warm běhy na Windows i Linuxu. Aktualizovaný site skutečně sestaven; CI required prošlo.",
+    "subject": {
+      "artifactDigest": "2e94cc46451d9949e1cca5d3eacf3c4494797b9c8b396e6ff89b458bf9295f02"
+    },
+    "evidenceRefs": [
+      "KUFR-CAD-SPEED-unit-final",
+      "KUFR-CAD-SPEED-isolated-review",
+      "KUFR-CAD-SPEED-integration"
+    ],
+    "acceptedCriteria": [
+      {
+        "id": "CACHE",
+        "revision": 1,
+        "expected": "Cache se použije jen pro shodné zdroje/runtime a kompletní ověřené výstupy; změna, poškození, selhání či souběžná regenerace ji nesmí potvrdit.",
+        "requiredEvidenceKinds": [
+          "unit",
+          "source_review"
+        ],
+        "rule": "allOf",
+        "appliesTo": {
+          "artifactDigest": "2e94cc46451d9949e1cca5d3eacf3c4494797b9c8b396e6ff89b458bf9295f02"
+        },
+        "evidenceRefs": [
+          "KUFR-CAD-SPEED-unit-final",
+          "KUFR-CAD-SPEED-isolated-review"
+        ]
+      },
+      {
+        "id": "REGEN",
+        "revision": 1,
+        "expected": "Skutečný plný CAD běh zachová všechny testy/generační/ověřovací/balicí brány; změřený opakovaný běh i CI cache obnoví stejný ověřený výrobní balíček rychleji.",
+        "requiredEvidenceKinds": [
+          "integration"
+        ],
+        "appliesTo": {
+          "artifactDigest": "2e94cc46451d9949e1cca5d3eacf3c4494797b9c8b396e6ff89b458bf9295f02"
+        },
+        "evidenceRefs": [
+          "KUFR-CAD-SPEED-integration"
+        ]
+      }
+    ]
+  }
+}
