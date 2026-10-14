@@ -204,12 +204,14 @@
       audio=null; speakerReady=false; workletReady=false; actor=null; admission=null; pendingStart=false; saving=false; activationBusy=false; uploading=false; inFlightBytes=0; reading=false; pollCount=0;
       ackTail=Promise.resolve();
     }
-    async function cancel(reason='Média zastavena.') {
+    async function cancel(reason='Média zastavena.', keepalive=false) {
       const previous=actor, pendingAdmission=admission, instance=context?.instanceId;
       localStop(); notice=reason; render();
       if ((previous || pendingAdmission) && instance) {
         const body=previous ? {sessionId:previous.sessionId,bootId:previous.bootId,epoch:previous.epoch} : pendingAdmission;
-        try { await transport.request(instance,'/media/cancel',json(body)); }
+        // Unload sends only bounded, correlated IDs; no audio/photo bytes.
+        const options=json(body); if (keepalive) options.keepalive=true;
+        try { await transport.request(instance,'/media/cancel',options); }
         catch { /* Local capture/playback already ended; server epochs/deadlines remain authoritative. */ }
       }
     }
@@ -512,7 +514,7 @@
         if (own===generation && actor===selected && selected.inputEpoch===requested.inputEpoch) { notice='Jedna schválená fotka předána nativnímu validátoru.'; render(); }
       } catch(error) { if (own===generation && actor===selected && selected.inputEpoch===requested.inputEpoch) fail(error); }
     };
-    root.addEventListener('pagehide',()=>{ void cancel('Stránka zavřena; média zastavena.'); });
+    root.addEventListener('pagehide',()=>{ void cancel('Stránka zavřena; média zastavena.',true); });
     root.navigator?.mediaDevices?.addEventListener?.('devicechange',async()=>{
       if (!actor) return;
       const own=generation;

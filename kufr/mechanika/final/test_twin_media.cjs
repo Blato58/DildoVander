@@ -12,7 +12,7 @@ function output(kind,sequence='1',fields={}) {
   return {sessionId:SESSION,bootId:BOOT,epoch:'9007199254740993',inputEpoch:'1',outputEpoch:'1',sequence,kind,byteLength:0,phase:kind,inputEnabled:kind==='listening',drainedRequested:false,...fields};
 }
 function mounted() {
-  const elements=new Map(), requests=[], permissions=[], streams=[], contexts=[], worklets=[], timers=[], canvases=[];
+  const elements=new Map(), events=new Map(), requests=[], permissions=[], streams=[], contexts=[], worklets=[], timers=[], canvases=[];
   let pendingRequest=null, pendingPermission=null, pendingResume=null, currentState=null;
   class Element {
     constructor(tag='div') { this.tag=tag;this.children=[];this.value='';this.checked=false;this.hidden=false;this.disabled=false;this.videoWidth=1280;this.videoHeight=720; }
@@ -63,7 +63,7 @@ function mounted() {
     Uint8Array,Float32Array,DataView,Blob,AbortController,console,URL:{createObjectURL:()=> 'blob:test',revokeObjectURL(){}},
     atob:text=>Buffer.from(text,'base64').toString('binary'),crypto:{randomUUID:()=>BOOT},
     Option:function(text,value){this.textContent=text;this.value=value;},
-    addEventListener(){},setTimeout:callback=>{timers.push(callback);return timers.length;},clearTimeout(){}};
+    addEventListener:(name,callback)=>events.set(name,callback),setTimeout:callback=>{timers.push(callback);return timers.length;},clearTimeout(){}};
   context.window=context;vm.runInNewContext(fs.readFileSync(require.resolve('./twin_media.js'),'utf8'),context);
   const api=context.TwinMedia.mount(document,new Element(),{request:async(id,path,options={})=>{
     const request={id,path,...options};requests.push(request);
@@ -75,7 +75,7 @@ function mounted() {
   }});
   const get=key=>elements.get(key),flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
   const activate=async()=>{api.sync({...source});await flush();await get('speaker').onclick();await get('mic').onclick();};
-  return {api,get,requests,permissions,streams,contexts,worklets,timers,canvases,flush,activate,
+  return {api,get,requests,permissions,streams,contexts,worklets,timers,canvases,flush,activate,event:name=>events.get(name)?.(),
     hold:path=>{let resolve,reject;const promise=new Promise((done,fail)=>{resolve=done;reject=fail;});pendingRequest={path,promise};resolve.reject=reject;return resolve;},
     holdResume:()=>{let resolve;pendingResume=new Promise(done=>{resolve=done;});return resolve;},
     setMediaState:state=>{currentState=state;},
@@ -180,6 +180,27 @@ test('Stop during pending start cancels exact admission, and late start response
   await app.get('stop').onclick();const cancellation=JSON.parse(app.requests.find(item=>item.path==='/media/cancel').body);
   assert.deepEqual(cancellation,{operationId:BOOT,expectedBootId:BOOT});finish();await starting;await app.flush();
   assert.equal(app.api.state().actor,null);assert.equal(app.requests.filter(item=>item.path==='/media/output').length,0);
+});
+
+test('pagehide immediately stops HAL and sends only small scoped cancellation with keepalive',async()=>{
+  const app=mounted();await app.activate();await app.get('start').onclick();await app.flush();
+  const finish=app.hold('/media/cancel');app.event('pagehide');
+  assert.equal(app.api.state().actor,null);assert.equal(app.streams[0].getTracks()[0].stopped,true);assert.equal(app.contexts[0].state,'closed');
+  const cancel=app.requests.find(item=>item.path==='/media/cancel');
+  assert.equal(cancel.keepalive,true);assert.equal(cancel.signal,undefined);assert.equal(cancel.id,source.instanceId);
+  assert.deepEqual(JSON.parse(cancel.body),{sessionId:SESSION,bootId:BOOT,epoch:'9007199254740993'});assert.ok(Buffer.byteLength(cancel.body)<256);
+  app.event('pagehide');assert.equal(app.requests.filter(item=>item.path==='/media/cancel').length,1);finish();await app.flush();
+  assert.ok(app.requests.every(item=>item.path==='/media/cancel'||item.keepalive===undefined));
+});
+
+test('pagehide pending admission uses keepalive IDs and replay/observer invoke no cancel',async()=>{
+  const app=mounted();await app.activate();const finish=app.hold('/media/start');const starting=app.get('start').onclick();await app.flush();
+  app.event('pagehide');const cancel=app.requests.find(item=>item.path==='/media/cancel');
+  assert.equal(cancel.keepalive,true);assert.deepEqual(JSON.parse(cancel.body),{operationId:BOOT,expectedBootId:BOOT});assert.ok(Buffer.byteLength(cancel.body)<256);
+  finish();await starting;await app.flush();assert.equal(app.api.state().actor,null);
+  for(const change of [{role:'observe'},{replay:true}]){const isolated=mounted();isolated.api.sync({...source,...change});await isolated.flush();isolated.event('pagehide');assert.equal(isolated.requests.some(item=>item.path==='/media/cancel'),false);}
+  const manual=mounted();await manual.activate();await manual.get('start').onclick();await manual.flush();await manual.get('stop').onclick();
+  assert.equal(manual.requests.find(item=>item.path==='/media/cancel').keepalive,undefined);
 });
 test('late permission resolves after source switch with stopped track and no private new-source requests',async()=>{
   const app=mounted();app.api.sync({...source});await app.flush();const finish=app.holdPermission();const activating=app.get('mic').onclick();await app.flush();

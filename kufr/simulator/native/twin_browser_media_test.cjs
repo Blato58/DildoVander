@@ -109,13 +109,41 @@ async function main(){
     const stopped=await (await context.request.get(origin+route)).json();
     assert.equal(stopped.snapshot.reported.needsRecovery,true);assert.equal(stopped.snapshot.reported.physicalVerification,'unavailable');
     assert.equal(stopped.snapshot.model.slots[slot-1].position,1,'Stop never invents return to rest');
+    // Explicit service recovery sets the virtual rest assumption for a new test.
+    // Reload during pending photo must close only that media actor, not the host.
+    await command({action:'inspect'});
+    await page.locator('[data-media-speaker]').click();await page.locator('[data-media-mic]').click();
+    await page.locator('[data-media-start]').click();
+    await page.locator('[data-media-camera]').waitFor({state:'visible'});
+    const activeReloadStarted=performance.now();
+    await page.reload();
+    let cancelledState;
+    for(let attempt=0;attempt<100;attempt++){
+      cancelledState=await (await context.request.get(origin+route+'/media/state')).json();
+      if(!cancelledState.active)break;
+      await page.waitForTimeout(50);
+    }
+    assert.equal(cancelledState.active,false,'keepalive cancels actual native actor after active reload');
+    const activeReloadCancelMs=performance.now()-activeReloadStarted;
+    const activeReloadSnapshot=await (await context.request.get(origin+route)).json();
+    assert.equal(activeReloadSnapshot.snapshot.source.bootId,boot,'active reload never reboots native device');
+    assert.equal(activeReloadSnapshot.snapshot.reported.slot,0,'cancelled photo workflow never admits presentation');
+    await page.locator('#twin-details > summary').click();await page.locator('#twin-refresh').click();
+    await page.locator('#twin-source').selectOption('sim-integration');
+    await page.locator('[data-media-speaker]').click();await page.locator('[data-media-mic]').click();
+    await page.locator('[data-media-start]').click();
+    await page.locator('[data-media-camera]').waitFor({state:'visible'});
+    const finalCancelResponse=page.waitForResponse(response=>response.url().endsWith('/media/cancel'));
+    await page.locator('[data-media-stop]').click();
+    assert.equal((await finalCancelResponse).status(),204,'new explicit media start succeeds after reload cancellation');
     assert.deepEqual(errors,[]);
     fs.writeFileSync(path.join(output,'browser-media-result.json'),JSON.stringify({origin,buildId:current.snapshot.source.buildId,
       bootId:boot,selectedSlot:slot,cadRevision:current.snapshot.source.cadManifestRevision,matrices:changes,
       fakeBrowserDevices:true,providerMode:'fake',providerAvailability:savedSettings.availability,
       microphoneInputs:requests.filter(request=>request.path.endsWith('/media/input')).map(request=>request.bytes),
       photoBytes:photos[0],photoWarning:mediaState.photoWarning,pcmBytes:pcm,drains,
-      bootPreserved:true,reloadNoReplay:true,stopNoAutoLower:true,physicalVerification:'unavailable',pageErrors:errors,
+      bootPreserved:true,reloadNoReplay:true,stopNoAutoLower:true,activeReloadCancelsMedia:true,activeReloadCancelMs,
+      newConversationAfterActiveReload:true,physicalVerification:'unavailable',pageErrors:errors,
       desktopViewport:[1400,900],mobileViewport:[390,844]},null,2));
     console.log('PASS actual CAD + native firmware + isolated fake microphone/photo/audio/drain/proposal; mobile/reload/Stop; no paid calls');
   }catch(error){

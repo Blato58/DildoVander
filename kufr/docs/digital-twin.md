@@ -54,7 +54,7 @@ dotnet build kufr/backend-tests/BackendTests.csproj --no-restore -p:RuntimeIdent
 dotnet kufr/backend-tests/bin/Debug/net10.0/BackendTests.dll --twin
 $env:KUFR_TWIN_TEST_NATIVE = "$env:TEMP/kufr-twin/native-twin.exe"
 dotnet kufr/backend-tests/bin/Debug/net10.0/BackendTests.dll --twin-media
-node --test kufr/mechanika/final/test_twin_viewer.cjs kufr/mechanika/final/test_viewer.cjs kufr/mechanika/final/test_viewer_runtime.cjs kufr/mechanika/final/test_show_timeline.cjs
+node --test kufr/mechanika/final/test_twin_viewer.cjs kufr/mechanika/final/test_twin_media.cjs kufr/mechanika/final/test_viewer.cjs kufr/mechanika/final/test_show_timeline.cjs
 ```
 
 Viewer generuje v existujícím CAD prostředí skutečný `preview.py --viewer-only`;
@@ -132,6 +132,8 @@ Elapsed virtual time nikdy nenahrazuje ACK. Suspended/disconnected playback,
 overflow, změna zdroje nebo Stop ruší lokální média a staré výsledky. Zrušení
 již dokončené voice relace neukončí přijatou fyzickou prezentaci; Stop kufru je
 samostatný runtime příkaz. Replay žádné media/control endpointy nevolá.
+Při zavření nebo navigaci stránky se odesílá pouze omezený `keepalive` cancel
+aktuální hlasové admission; PCM ani fotografie se při unloadu neposílají.
 
 Fake profil používá skutečné `ConversationStore` transcription/turn/speech
 ownery: testovací přepis, existující syntetický dialog/proposal a100ms tichou
@@ -270,8 +272,8 @@ identity jsou v receipts; build/screenshot nejsou fyzickou akceptací.
 NASAZENO NA VPS: oddělená služba a skutečně běžící host procesy, chráněný viewer
 a ingest. Testy používají fake provider; Realtime/GPT-Live jsou připravené
 v nastavení se schváleným existujícím serverovým klíčem. Fyzický kufr nebyl
-ovládán ani flashován. Aktuální ověřený release je `twin-20261014-v11`;
-source/build ID `bfa57a8849aaea6b72f30da3c5e5ecea0c6ff259b0965c9aeb71ca90d39b4366`.
+ovládán ani flashován. Aktuální nasazený release je `twin-20261014-v12`;
+source/build ID `ccb70eeb2eaa2640e69d6c3bb69c9c0baa9cb3d1132515999cf800fa2a6fb36c`.
 Aktuální [softwarový target](../../docs/project/targets/KUFR-TWIN-software.json)
 zahrnuje i browser média; fyzickou akceptaci dál blokuje PHYSICAL.
 
@@ -284,11 +286,21 @@ zpracoval na Linuxu 100000 publikací za 16977 µs, sloučil 99999 nahraditelný
 stavů. Jde o host/VPS cestu; ESP režie ani odezva tím změřena není. Podklady jsou
 v [měřeních](../../docs/project/artifacts/KUFR-TWIN-performance-v3.json).
 
-Plný VPS Chrome E2E přijal 4361 B JPEG bez photo fallbacku, čtyři 9600 B mikrofonní
+Plný VPS Chrome E2E verze v11 přijal 4361 B JPEG bez photo fallbacku, čtyři 9600 B mikrofonní
 vstupy a pět 4800 B drain výstupů; návrh z backendu vysunul skutečné CAD lůžko 6
 o 16 mm a ostatní zůstala na 0. Reload, Stop a viewport 390×844 prošly. Součástí regresí
 je Stop před/po registraci hlasového požadavku, následná inspekce a ztracený
 ACK již přijatého startu. Starý požadavek nemůže oživit novou relaci.
+
+V12 přidává omezený `keepalive` při `pagehide` a paměť 64 zrušených admission
+na simulovanou instanci podle vlastníka, bootu a operation ID až do vypršení
+vlastníka. Zaplnění blokuje nové starty; aktivní odpovídající session lze zrušit
+i při zaplnění. Prošlo 98 JS testů, dva skutečné Chrome HAL testy a backendové
+offline/twin/media regrese. Poslední plný VPS browser test přerušila syntetická
+kamera Chromu, která sama ukončila stream; aplikace pravdivě předala unavailable.
+Aktivní reload v tomto testu nebyl dosažen. Na výslovný pokyn majitele se další
+browser testy zastavily a aktuální browser akceptace je ponechána jeho kontrole;
+starší v11 důkazy nejsou vydávány za nový v12 průchod.
 
 OVĚŘENO NA SKUTEČNÉM KUFRU: **ne**. Browser PCM/JPEG adaptéry a sdílený hlasový
 runtime jsou přeneseny do hostu; skutečné provider volání ani fyzické ESP hlasové/SD

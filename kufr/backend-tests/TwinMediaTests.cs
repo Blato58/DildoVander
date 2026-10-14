@@ -18,6 +18,7 @@ internal static class TwinMediaTests
     {
         await FramingAsync();
         ProviderSource();
+        CancellationMemory();
         var native = Environment.GetEnvironmentVariable("KUFR_TWIN_TEST_NATIVE")
             ?? throw new InvalidOperationException("Browser media acceptance requires KUFR_TWIN_TEST_NATIVE.");
         var root = Path.Combine(Path.GetTempPath(), "twin-media-api-" + Guid.NewGuid().ToString("N"));
@@ -75,7 +76,7 @@ internal static class TwinMediaTests
             TimeProvider.System, app.Services.GetRequiredService<ConversationStore>()))
         {
             var blocked = await revoked.StartAsync("sim-media", app.Services.GetRequiredService<TwinAccess>().Session(owner.Split('=', 2)[1])!,
-                new TwinMediaStart(Guid.NewGuid().ToString("D"), Guid.NewGuid().ToString("D"), true, false, true, true));
+                new TwinMediaStart(Guid.NewGuid().ToString("D"), app.Services.GetRequiredService<TwinStore>().Read("sim-media")!.Snapshot.Source.BootId, true, false, true, true));
             Check(blocked.Error == "provider_not_authorized_or_configured", "revoked authorization overrides persisted real engine and key presence before native/network admission");
         }
         foreach (var route in new[] { "/settings", "/media/state", "/media/output" })
@@ -99,6 +100,17 @@ internal static class TwinMediaTests
         var operation = Guid.NewGuid().ToString("D");
         var start = new { operationId = operation, expectedBootId = snapshot.Source.BootId, audioConsent = true,
             photoConsent = false, micAvailable = true, speakerAvailable = true, cameraAvailable = false };
+        var cancelledBeforeActor = Guid.NewGuid().ToString("D");
+        using (var earlyCancel = await SendAsync(HttpMethod.Post, prefix + "/media/cancel", owner,
+            new { operationId = cancelledBeforeActor, expectedBootId = snapshot.Source.BootId }))
+        { Check(earlyCancel.IsSuccessStatusCode, "cancellation is remembered before any actor exists"); }
+        using (var lateStart = await SendAsync(HttpMethod.Post, prefix + "/media/start", owner,
+            start with { operationId = cancelledBeforeActor }))
+        {
+            var problem = await lateStart.Content.ReadFromJsonAsync<JsonElement>();
+            Check(lateStart.StatusCode == HttpStatusCode.Conflict && problem.GetProperty("code").GetString() == "media_cancelled",
+                "cancel before first Start blocks delayed HTTP arrival");
+        }
         using var admitted = await SendAsync(HttpMethod.Post, prefix + "/media/start", owner, start);
         var state = await admitted.Content.ReadFromJsonAsync<JsonElement>();
         Check(admitted.IsSuccessStatusCode, "native media admission: " + state);
@@ -172,6 +184,10 @@ internal static class TwinMediaTests
         await PendingStartStopAsync("before-reservation");
         await PendingStartStopAsync("before-admission");
         await LostAdmissionAsync();
+        await PendingAdmissionCancelAsync(false);
+        await PendingAdmissionCancelAsync(true);
+        await OwnerExpiresDuringAdmissionAsync();
+        await CancelIsolationAndCapacityAsync();
         await app.StopAsync();
         Check(new TwinMediaSettingsStore(builder.Configuration).Read("sim-media")?.Revision == "1", "settings survive service restart");
         Console.WriteLine("PASS Twin browser media HTTP: scoped ownership, settings, native fake voice/input/drain/proposal, privacy and no physical feedback");
@@ -207,6 +223,117 @@ internal static class TwinMediaTests
                     "pending Stop leaves no busy actor or physical proposal at " + checkpoint);
             }
             finally { resume.TrySetResult(); media.StartCheckpoint = null; }
+        }
+        async Task PendingAdmissionCancelAsync(bool pauseBeforeRegistration)
+        {
+            var request = new { operationId = Guid.NewGuid().ToString("D"), expectedBootId = store.Read("sim-media")!.Snapshot.Source.BootId,
+                audioConsent = true, photoConsent = false, micAvailable = true, speakerAvailable = true, cameraAvailable = false };
+            var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var resume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            media.StartCheckpoint = async stage =>
+            {
+                if (pauseBeforeRegistration && stage == "before-reservation")
+                { entered.TrySetResult(); await resume.Task.WaitAsync(TimeSpan.FromSeconds(5)); }
+            };
+            try
+            {
+                Task<HttpResponseMessage>? pending = null;
+                if (pauseBeforeRegistration)
+                {
+                    pending = SendAsync(HttpMethod.Post, prefix + "/media/start", owner, request);
+                    await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                }
+                using (var cancelled = await SendAsync(HttpMethod.Post, prefix + "/media/cancel", owner,
+                    new { request.operationId, request.expectedBootId }))
+                { Check(cancelled.IsSuccessStatusCode, "cancel pending admission with previous inactive actor"); }
+                resume.TrySetResult();
+                using var response = await (pending ?? SendAsync(HttpMethod.Post, prefix + "/media/start", owner, request)).WaitAsync(TimeSpan.FromSeconds(5));
+                var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+                Check(response.StatusCode == HttpStatusCode.Conflict && problem.GetProperty("code").GetString() == "media_cancelled",
+                    pauseBeforeRegistration ? "cancelled pre-registration request cannot revive" : "cancel arriving before Start cannot revive");
+                Check(!media.Busy("sim-media") && store.Read("sim-media")!.Snapshot.Reported.Slot == 0,
+                    "pending cancellation does not admit media or a physical proposal");
+            }
+            finally { resume.TrySetResult(); media.StartCheckpoint = null; }
+        }
+        async Task OwnerExpiresDuringAdmissionAsync()
+        {
+            var ownerSession = app.Services.GetRequiredService<TwinAccess>().Session(owner.Split('=', 2)[1])!;
+            var temporaryOwner = ownerSession with { Expires = DateTimeOffset.UtcNow.AddSeconds(1) };
+            var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var resume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            media.StartCheckpoint = async stage =>
+            {
+                if (stage == "before-admission") { entered.TrySetResult(); await resume.Task.WaitAsync(TimeSpan.FromSeconds(5)); }
+            };
+            try
+            {
+                var pending = media.StartAsync("sim-media", temporaryOwner,
+                    new TwinMediaStart(Guid.NewGuid().ToString("D"), store.Read("sim-media")!.Snapshot.Source.BootId, true, false, true, true));
+                await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                await Task.Delay(temporaryOwner.Expires - DateTimeOffset.UtcNow + TimeSpan.FromMilliseconds(50));
+                resume.TrySetResult();
+                var result = await pending.WaitAsync(TimeSpan.FromSeconds(5));
+                Check(result.Error == "media_owner_required" && !media.Busy("sim-media")
+                    && store.Read("sim-media")!.Snapshot.Reported.Slot == 0, "owner expiry is rechecked before native enqueue");
+            }
+            finally { resume.TrySetResult(); media.StartCheckpoint = null; }
+        }
+        async Task CancelIsolationAndCapacityAsync()
+        {
+            var request = new { operationId = Guid.NewGuid().ToString("D"), expectedBootId = store.Read("sim-media")!.Snapshot.Source.BootId,
+                audioConsent = true, photoConsent = false, micAvailable = true, speakerAvailable = true, cameraAvailable = false };
+            using (var admitted = await SendAsync(HttpMethod.Post, prefix + "/media/start", owner, request))
+            { Check(admitted.IsSuccessStatusCode, "capacity fixture active admission"); }
+            using (var wrongOwner = await SendAsync(HttpMethod.Post, prefix + "/media/cancel", second,
+                new { request.operationId, request.expectedBootId }))
+            { Check(wrongOwner.IsSuccessStatusCode && media.Busy("sim-media"), "other owner's cancellation cannot cancel current actor"); }
+            using (var wrongBoot = await SendAsync(HttpMethod.Post, prefix + "/media/cancel", owner,
+                new { request.operationId, expectedBootId = Guid.NewGuid().ToString("D") }))
+            {
+                var problem = await wrongBoot.Content.ReadFromJsonAsync<JsonElement>();
+                Check(wrongBoot.StatusCode == HttpStatusCode.Conflict && problem.GetProperty("code").GetString() == "media_boot_mismatch"
+                    && media.Busy("sim-media"), "wrong boot cannot poison or cancel current actor");
+            }
+            using (var unrelated = await SendAsync(HttpMethod.Post, prefix + "/media/cancel", owner,
+                new { operationId = Guid.NewGuid().ToString("D"), request.expectedBootId }))
+            { Check(unrelated.IsSuccessStatusCode && media.Busy("sim-media"), "unrelated operation cannot cancel current actor"); }
+            var ownerSession = app.Services.GetRequiredService<TwinAccess>().Session(owner.Split('=', 2)[1])!;
+            var expired = ownerSession with { Expires = DateTimeOffset.UtcNow.AddSeconds(-1) };
+            var invalidUuid = await media.CancelAsync("sim-media", ownerSession,
+                new TwinMediaCancel(OperationId: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA", ExpectedBootId: request.expectedBootId));
+            Check(invalidUuid == "media_admission_mismatch", "cancellation rejects noncanonical UUIDs");
+            var wrongScope = await media.CancelAsync("sim-media", ownerSession with { Principal = new("control", "other-sim", "simulation") },
+                new TwinMediaCancel(OperationId: request.operationId, ExpectedBootId: request.expectedBootId));
+            Check(wrongScope == "media_owner_required", "cancellation rejects wrong instance scope");
+            var expiredCancel = await media.CancelAsync("sim-media", expired,
+                new TwinMediaCancel(OperationId: request.operationId, ExpectedBootId: request.expectedBootId));
+            Check(expiredCancel == "media_owner_required" && media.Busy("sim-media"), "expired owner cannot cancel active media");
+            var denied = await media.StartAsync("sim-media", expired,
+                new TwinMediaStart(Guid.NewGuid().ToString("D"), request.expectedBootId, true, false, true, true));
+            Check(denied.Error == "media_owner_required" && media.Busy("sim-media"), "expired owner cannot admit or disturb active media");
+            var saturated = false;
+            for (var count = 0; count <= 64; count++)
+            {
+                using var cancellation = await SendAsync(HttpMethod.Post, prefix + "/media/cancel", owner,
+                    new { operationId = Guid.NewGuid().ToString("D"), request.expectedBootId });
+                if (cancellation.StatusCode == HttpStatusCode.Conflict)
+                {
+                    var problem = await cancellation.Content.ReadFromJsonAsync<JsonElement>();
+                    Check(problem.GetProperty("code").GetString() == "media_cancellation_capacity", "bounded cancellation memory reports saturation");
+                    saturated = true; break;
+                }
+                Check(cancellation.IsSuccessStatusCode, "bounded cancellation memory records admission");
+            }
+            Check(saturated && media.Busy("sim-media"), "memory saturates without cancelling unrelated active media");
+            using (var cancelled = await SendAsync(HttpMethod.Post, prefix + "/media/cancel", owner,
+                new { request.operationId, request.expectedBootId }))
+            { Check(cancelled.IsSuccessStatusCode && !media.Busy("sim-media"), "matching active actor cancels even with full memory"); }
+            using var fresh = await SendAsync(HttpMethod.Post, prefix + "/media/start", owner,
+                request with { operationId = Guid.NewGuid().ToString("D") });
+            var blocked = await fresh.Content.ReadFromJsonAsync<JsonElement>();
+            Check(fresh.StatusCode == HttpStatusCode.Conflict && blocked.GetProperty("code").GetString() == "media_cancellation_capacity",
+                "fresh admission fails closed at capacity");
         }
         async Task LostAdmissionAsync()
         {
@@ -271,6 +398,29 @@ internal static class TwinMediaTests
         try { await TwinNativeFraming.ReadAsync(truncated, CancellationToken.None); } catch (EndOfStreamException) { rejected = true; }
         Check(rejected, "truncated frame rejected");
         Console.WriteLine("PASS Twin binary framing bounds/truncation");
+    }
+    private static void CancellationMemory()
+    {
+        var now = DateTimeOffset.Parse("2026-10-14T12:00:00Z");
+        var boot = Guid.NewGuid();
+        var memory = new TwinAdmissionCancellations();
+        var first = new TwinAdmissionIdentity("owner", boot, Guid.NewGuid());
+        Check(!memory.Record(first, now, now), "expired owner cannot allocate cancellation memory");
+        Check(memory.Record(first, now.AddMinutes(1), now), "first cancellation remembered");
+        Check(memory.Error(first, now, fresh: true) == "media_cancelled", "exact cancellation denied");
+        Check(memory.Error(first with { OwnerId = "other-owner" }, now, fresh: true) is null, "cancellation owner isolation");
+        for (var count = 1; count < 64; count++)
+        { Check(memory.Record(new("owner", boot, Guid.NewGuid()), now.AddMinutes(1), now), "cancellation capacity entry " + count); }
+        var overflow = new TwinAdmissionIdentity("later-owner", boot, Guid.NewGuid());
+        Check(!memory.Record(overflow, now.AddMinutes(2), now), "65th cancellation does not evict an entry");
+        Check(memory.Error(first, now, fresh: true) == "media_cancelled", "saturation preserves exact tombstones");
+        Check(memory.Error(overflow, now.AddMinutes(1), fresh: true) == "media_cancellation_capacity",
+            "overflow barrier prevents revival after earlier tombstones expire");
+        Check(memory.Error(overflow, now.AddMinutes(2), fresh: true) is null, "expired owner releases overflow barrier");
+        Check(memory.Record(first, now.AddMinutes(3), now.AddMinutes(2)), "expired slots can be reused");
+        Check(memory.Error(first with { BootId = Guid.NewGuid() }, now.AddMinutes(2), fresh: true) is null, "old-boot cancellation does not match new boot");
+        Check(memory.Error(first, now.AddMinutes(2), fresh: true) == "media_cancelled", "new boot lookup cannot erase an unexpired cancellation");
+        Console.WriteLine("PASS Twin cancellation memory: owner/boot isolation, 64 entries, no eviction, expiry and overflow barrier");
     }
     private static void ProviderSource()
     {

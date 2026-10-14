@@ -81,9 +81,11 @@ internal sealed partial class TwinMediaSessions : IDisposable
     }
     internal async Task<(TwinMediaState? State, string? Error)> StartAsync(string id, TwinSession owner, TwinMediaStart start)
     {
-        if (!Guid.TryParseExact(start.OperationId, "D", out _) || !Guid.TryParseExact(start.ExpectedBootId, "D", out _)
+        if (!CanonicalAdmissionUuid(start.OperationId, out var operation) || !CanonicalAdmissionUuid(start.ExpectedBootId, out var boot)
             || !start.AudioConsent || !start.MicAvailable || !start.SpeakerAvailable)
         { return (null, "media_consent_and_devices_required"); }
+        var admissionError = AdmissionError(id, owner, start.ExpectedBootId, boot, operation, fresh: false);
+        if (admissionError is not null) { return (null, admissionError); }
         var fence = StopFence(id);
         await CheckpointAsync("before-reservation");
         TwinMediaSettings selected;
@@ -91,6 +93,8 @@ internal sealed partial class TwinMediaSessions : IDisposable
         lock (gate)
         {
             if (StopFence(id) != fence) { return (null, "media_cancelled"); }
+            admissionError = AdmissionError(id, owner, start.ExpectedBootId, boot, operation, fresh: false);
+            if (admissionError is not null) { return (null, admissionError); }
             var available = settings.Read(id);
             if (available is null) { return (null, "media_unavailable"); }
             selected = available;
@@ -109,8 +113,10 @@ internal sealed partial class TwinMediaSessions : IDisposable
                 { return previous.Cancelled ? (null, "media_cancelled") : (previous.State, previous.State is null ? "media_start_pending" : null); }
                 if (!previous.Cancelled && (previous.Starting || previous.State?.Active == true)) { return (null, "media_owned"); }
                 previousConversation = previous.ConversationId;
-                previous.Lifetime.Cancel(); previous.Http.Dispose();
             }
+            admissionError = AdmissionError(id, owner, start.ExpectedBootId, boot, operation, fresh: true);
+            if (admissionError is not null) { return (null, admissionError); }
+            if (previous is not null) { previous.Lifetime.Cancel(); previous.Http.Dispose(); }
             var token = devices.IssueToken(id);
             if (token is null) { return (null, "isolated_device_unavailable"); }
             var url = new Uri(configuration["DigitalTwin:IntegrationBackendUrl"]!);
@@ -128,10 +134,11 @@ internal sealed partial class TwinMediaSessions : IDisposable
             Task<TwinCommandResult> admission;
             lock (actor.Gate)
             {
-                if (actor.Cancelled || StopFence(id) != fence)
+                admissionError = AdmissionError(id, owner, start.ExpectedBootId, boot, operation, fresh: true);
+                if (actor.Cancelled || StopFence(id) != fence || admissionError is not null)
                 {
                     actor.Cancelled = true;
-                    admission = Task.FromResult(new TwinCommandResult(false, "media_cancelled"));
+                    admission = Task.FromResult(new TwinCommandResult(false, admissionError ?? "media_cancelled"));
                 }
                 else
                 {
@@ -173,13 +180,10 @@ internal sealed partial class TwinMediaSessions : IDisposable
     }
     internal async Task<string?> CancelAsync(string id, TwinSession owner, TwinMediaCancel cancel)
     {
+        if (cancel.OperationId is not null) { return await CancelAdmissionAsync(id, owner, cancel); }
         var actor = Owned(id, owner);
         if (actor is null) { return "media_owner_required"; }
-        if (cancel.OperationId is not null)
-        {
-            if (cancel.OperationId != actor.OperationId || cancel.ExpectedBootId != actor.BootId) { return "media_admission_mismatch"; }
-        }
-        else if (!Bound(actor, cancel.SessionId, cancel.BootId, cancel.Epoch)) { return "media_epoch_mismatch"; }
+        if (!Bound(actor, cancel.SessionId, cancel.BootId, cancel.Epoch)) { return "media_epoch_mismatch"; }
         await CancelActorAsync(actor);
         return null;
     }

@@ -105,3 +105,56 @@ test('real Chromium fake devices: explicit activation, bounded JPEG, actual PCM 
     throw error;
   }finally{await browser?.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
 });
+
+test('Chrome navigation preserves scoped unload cancellation through a delayed response',async()=>{
+  const requests=[],errors=[];let receiveCancel,finishCancel;
+  const cancelled=new Promise(resolve=>{receiveCancel=resolve;}),responded=new Promise(resolve=>{finishCancel=resolve;});
+  const actor={sessionId:SESSION,bootId:BOOT,epoch:'18446744073709551615',inputEpoch:'0',outputEpoch:'0',phase:'listening',active:true,inputEnabled:false};
+  const settings={revision:'1',engine:'fake',voice:'marin',speed:1,photoConsent:false,presentationVariant:'main',
+    availability:{fake:true,realtime:false,gptLive:false,mic:true,speaker:true,camera:true}};
+  const server=http.createServer(async(req,res)=>{
+    const chunks=[];for await(const chunk of req)chunks.push(chunk);const body=Buffer.concat(chunks);
+    const entry={url:req.url,method:req.method,body};requests.push(entry);
+    const json=value=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value));};
+    if(req.url==='/'){
+      res.setHeader('Content-Type','text/html; charset=utf-8');res.end(`<!doctype html><html><body><div id="host"></div>
+        <script src="/twin_media.js"></script><script>
+        window.hal=TwinMedia.mount(document,document.getElementById('host'),{request:async(id,route,options={})=>{
+          const response=await fetch('/v1/twin/instances/'+encodeURIComponent(id)+route,options);
+          if(!response.ok)throw new Error('Fixture HTTP '+response.status);return response.status===204?null:response.json();}});
+        hal.sync({active:true,replay:false,role:'control',instanceId:'sim-unload',mode:'simulation',profile:'integration',bootId:'${BOOT}',status:'online'});
+        </script></body></html>`);return;
+    }
+    if(req.url==='/exit'){res.setHeader('Content-Type','text/html');res.end('<!doctype html><title>Departed media page</title>');return;}
+    if(req.url==='/twin_media.js'){res.setHeader('Content-Type','text/javascript');res.end(fs.readFileSync(path.join(__dirname,'twin_media.js')));return;}
+    if(req.url?.endsWith('/settings')){json(settings);return;}
+    if(req.url?.endsWith('/media/start')||req.url?.endsWith('/media/state')){json(actor);return;}
+    if(req.url?.endsWith('/media/cancel')){
+      receiveCancel(entry);
+      // Finish after navigation; the departed document cannot await this.
+      await new Promise(resolve=>setTimeout(resolve,300));const responseAborted=res.destroyed;
+      res.statusCode=204;res.end();finishCancel(responseAborted);return;
+    }
+    res.statusCode=204;res.end();
+  });
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));let browser,timeout;
+  try{
+    browser=await chromium.launch({channel:process.env.PLAYWRIGHT_CHANNEL,headless:true,args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream']});
+    const page=await browser.newPage();page.on('pageerror',error=>errors.push(error.message));
+    const base='http://127.0.0.1:'+server.address().port;await page.goto(base);
+    await page.waitForFunction(()=>document.querySelector('[data-media-revision]').textContent.includes('Revision 1'));
+    await page.getByRole('button',{name:'Aktivovat reproduktor',exact:true}).click();
+    await page.getByRole('button',{name:'Aktivovat mikrofon',exact:true}).click();
+    await page.waitForFunction(()=>hal.state().mic&&hal.state().speaker);
+    await page.getByRole('button',{name:'Spustit rozhovor',exact:true}).click();await page.waitForFunction(()=>hal.state().actor!==null);
+    await page.goto(base+'/exit');
+    const entry=await Promise.race([cancelled,new Promise((_,reject)=>{timeout=setTimeout(()=>reject(new Error('Unload cancellation was not received')),5000);})]);
+    clearTimeout(timeout);assert.equal(await responded,false,'Keepalive request must survive until the delayed response');
+    await page.close();
+    assert.equal(entry.method,'POST');assert.equal(entry.url,'/v1/twin/instances/sim-unload/media/cancel');
+    assert.deepEqual(JSON.parse(entry.body),{sessionId:SESSION,bootId:BOOT,epoch:'18446744073709551615'});assert.ok(entry.body.length<256);
+    assert.equal(requests.filter(item=>item.url.endsWith('/media/cancel')).length,1);
+    assert.equal(requests.some(item=>item.url.endsWith('/commands')||item.url.endsWith('/media/input')||item.url.endsWith('/media/photo')),false);
+    assert.deepEqual(errors,[]);
+  }finally{clearTimeout(timeout);await browser?.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
+});
