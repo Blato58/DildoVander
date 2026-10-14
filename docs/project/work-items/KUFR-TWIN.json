@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 1,
+  "id": "KUFR-TWIN",
+  "initiative": "KUFR-TWIN",
+  "title": "Sdílený firmware Digital Twin a odchozí observer telemetrie",
+  "state": "active",
+  "priority": "P1",
+  "sequence": 0,
+  "scope": [
+    "kufr/simulator",
+    "kufr/firmware",
+    "kufr/backend",
+    "kufr/mechanika/final",
+    "kufr/contracts"
+  ],
+  "dependencies": [],
+  "acceptance": [
+    {
+      "id": "HOST",
+      "revision": 1,
+      "expected": "Dlouhodobý Linux host skutečných runtime ownerů, všech šest slotů a variant, Stop, journal a izolovaný integrační text.",
+      "requiredEvidenceKinds": [
+        "unit",
+        "integration",
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "611164ada409925ec84de8fab4eaa5b5d0c5a5bcdfe4946529ac44d333252cdd",
+        "policyVersion": "twin-v1"
+      },
+      "evidenceRefs": [
+        "KUFR-TWIN-unit-v1",
+        "KUFR-TWIN-integration-v1",
+        "KUFR-TWIN-source_review-v1"
+      ]
+    },
+    {
+      "id": "VIEWER",
+      "revision": 1,
+      "expected": "Společný generovaný CAD mapping, runtime pohyb správného dílu, mobil, bounded replay bez povelů.",
+      "requiredEvidenceKinds": [
+        "unit",
+        "browser",
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "611164ada409925ec84de8fab4eaa5b5d0c5a5bcdfe4946529ac44d333252cdd",
+        "policyVersion": "twin-v1"
+      },
+      "evidenceRefs": [
+        "KUFR-TWIN-unit-v1",
+        "KUFR-TWIN-browser-v1",
+        "KUFR-TWIN-source_review-v1"
+      ]
+    },
+    {
+      "id": "LIVE",
+      "revision": 1,
+      "expected": "Firmware snapshot a bounded odchozí autentizovaný transport; syntetický producent ověří VPS cestu.",
+      "requiredEvidenceKinds": [
+        "unit",
+        "integration",
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "611164ada409925ec84de8fab4eaa5b5d0c5a5bcdfe4946529ac44d333252cdd",
+        "policyVersion": "twin-v1"
+      },
+      "evidenceRefs": [
+        "KUFR-TWIN-unit-v1",
+        "KUFR-TWIN-integration-v1",
+        "KUFR-TWIN-source_review-v1"
+      ]
+    },
+    {
+      "id": "ISOLATION",
+      "revision": 1,
+      "expected": "Negativní HTTP testy observe/control/ingest, epochy a přesné decimal strings.",
+      "requiredEvidenceKinds": [
+        "integration",
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "611164ada409925ec84de8fab4eaa5b5d0c5a5bcdfe4946529ac44d333252cdd",
+        "policyVersion": "twin-v1"
+      },
+      "evidenceRefs": [
+        "KUFR-TWIN-integration-v1",
+        "KUFR-TWIN-source_review-v1"
+      ]
+    },
+    {
+      "id": "DEPLOY",
+      "revision": 1,
+      "expected": "Reprodukovatelný host/backend/viewer na VPS s izolovaným úložištěm a health/rollback.",
+      "requiredEvidenceKinds": [
+        "production_deploy"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "611164ada409925ec84de8fab4eaa5b5d0c5a5bcdfe4946529ac44d333252cdd",
+        "policyVersion": "twin-v1"
+      },
+      "evidenceRefs": [
+        "KUFR-TWIN-production_deploy-v1"
+      ]
+    },
+    {
+      "id": "PHYSICAL",
+      "revision": 1,
+      "expected": "Konkrétní schválený ESP build a zařízení prokáže telemetrii; poloha nikdy nevydávána za měřenou.",
+      "requiredEvidenceKinds": [
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "611164ada409925ec84de8fab4eaa5b5d0c5a5bcdfe4946529ac44d333252cdd",
+        "policyVersion": "twin-v1"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "MEDIA",
+      "revision": 1,
+      "expected": "Host adaptéry přenesou existující speech/PCM a SD media ownery s epoch cancellation a bounded vstupem; vědomý browser capture bez falešných úspěchů.",
+      "requiredEvidenceKinds": [
+        "integration",
+        "browser"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "611164ada409925ec84de8fab4eaa5b5d0c5a5bcdfe4946529ac44d333252cdd",
+        "policyVersion": "twin-v1"
+      },
+      "evidenceRefs": []
+    }
+  ],
+  "blockers": [
+    {
+      "id": "PHYSICAL-TWIN",
+      "problem": "Skutečná připravená ESP sestava nebyla dostupná ani flashována; syntetický producent ověřuje pouze software transportu.",
+      "severity": "high",
+      "blocks": [
+        "PHYSICAL"
+      ],
+      "unblockCondition": "Identifikovaná bezpečná sestava, kalibrace a samostatně autorizovaný fyzický běh s build/wiring/mechanics identitami."
+    }
+  ],
+  "nextAction": "Přenést SpeechOutputCoordinator/SpeechAudioBuffer a skutečné SD/PCM adaptéry do hostu; fyzickou akceptaci provést samostatně na identifikované sestavě.",
+  "relatedItems": [
+    "DV02",
+    "KUFR-E5"
+  ],
+  "implementedSubject": {
+    "artifactDigest": "611164ada409925ec84de8fab4eaa5b5d0c5a5bcdfe4946529ac44d333252cdd",
+    "policyVersion": "twin-v1"
+  },
+  "currentNote": "Textový/CAD/telemetry slice implementován a softwarově ověřen; VPSv4 nasazen, build611164ada409925ec84de8fab4eaa5b5d0c5a5bcdfe4946529ac44d333252cdd. HOST/VIEWER/LIVE/ISOLATION/DEPLOY mají aktuální scoped receipts; MEDIA a PHYSICAL zůstávají otevřené. Žádný placený model, flash ani zásah do fyzického kufru."
+}

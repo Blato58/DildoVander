@@ -58,6 +58,7 @@ idf_component_register(
         "features/conversation/EspIdfSpeechTransport.cpp"
         "features/conversation/SpeechOutputCoordinator.cpp"
         "features/device_control/EspIdfJournalStorage.cpp"
+        "features/twin_telemetry/EspIdfTwinTelemetry.cpp"
         "features/device_control/DeviceControl.cpp"
         "features/device_control/DeviceControlRuntime.cpp"
         "features/device_control/PersistentCommandJournal.cpp"

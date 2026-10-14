@@ -6,6 +6,7 @@ using Kufr.Backend.Features.VoiceTurns;
 using Kufr.Backend.Features.GptLive;
 using Kufr.Backend.Features.Memory;
 using Kufr.Backend.Features.Character;
+using Kufr.Backend.Features.DigitalTwin;
 
 namespace Kufr.Backend.Features.Conversations;
 
@@ -16,7 +17,8 @@ internal sealed partial class ConversationStore(
     ILogger<ConversationStore>? logger = null,
     EveningMemoryStore? eveningMemory = null,
     VoiceProviderRunner? voiceRunner = null,
-    GptLiveOptions? liveOptions = null)
+    GptLiveOptions? liveOptions = null,
+    TwinFakeInputPolicy? twinFakeInputs = null)
 {
     private readonly Lock gate = new();
     private CharacterPolicy characterPolicy = liveOptions?.Character ?? new();
@@ -160,7 +162,7 @@ internal sealed partial class ConversationStore(
                 return new SubmitTurnResult(409, null, "duplicate_turn_id");
             }
 
-            var paid = dialogRunner?.Enabled == true;
+            var paid = dialogRunner?.Enabled == true && twinFakeInputs?.Allows(deviceId) != true;
             if ((paid && activePaidCalls.Count != 0) || HasActiveCall(conversationId))
             {
                 return paid
@@ -237,7 +239,8 @@ internal sealed partial class ConversationStore(
                     return new SubmitTurnResult(202, operationId, null);
                 }
 
-                var turnResult = deviceId == "debug-server-admin"
+                var syntheticDialogue = deviceId == "debug-server-admin" || twinFakeInputs?.Allows(deviceId) == true;
+                var turnResult = syntheticDialogue
                     ? BuildAdminFakeTurn(conversation, request, conversationId, opening, now)
                     : new TurnResult(
                         opening ? "Jak ti říkají?" : "Toto je testovací odpověď bez AI.",
@@ -259,7 +262,7 @@ internal sealed partial class ConversationStore(
 
                 operations.Add(operationId, operation);
                 RecordAcceptedTurn(conversation, request.ClientTurnId, now);
-                if (deviceId == "debug-server-admin")
+                if (syntheticDialogue)
                 {
                     if (turnResult.Decision == "ask")
                     {

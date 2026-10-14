@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-TWIN-source_review-v1",
+  "observedAtUtc": "2026-10-14T17:07:30.263744+00:00",
+  "kind": "source_review",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "HOST",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "VIEWER",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "LIVE",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "ISOLATION",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "611164ada409925ec84de8fab4eaa5b5d0c5a5bcdfe4946529ac44d333252cdd",
+    "policyVersion": "twin-v1"
+  },
+  "method": "Independent bounded worker reviews plus parent integration/source review; no compiler-reference claim.",
+  "environment": "Windows PowerShell/MSVC/.NET10; native Linux g++15.2 VPS; actual CAD generator pinned environment; Brave headless Playwright for repeatability. No paid provider calls.",
+  "limitations": [
+    "No physical ESP/runtime, iPhone or mechanical/electrical/acoustic acceptance.",
+    "Host microphone, camera, real SD/PCM speech playback remain unsupported; Dance uses real coordinator with labeled synthetic cursor.",
+    "Measured timing is synthetic host/VPS environment, not ESP control latency.",
+    "Rollback preflight/unit cases verified; deliberately failed production rollback was not exercised."
+  ],
+  "observation": "Independent Sol6.1/high read-only review of native/server/deploy and reciprocal viewer/native review completed. Findings fixed and retested: owner-only clock queue, urgent Stop, integration cleanup/cancellation and body timeout, immutable boot provenance, retired epochs, bounded grant/session issuance, installer exact files/symlinks/rollback and explicit live allowlist, CAD geometry identity, unsupported audio evidence, nullable LED/calibration, replay physicalVerification and UTF8 text bound. Final follow-up reports no material findings; native boot LED write explicit/tested; model remains unknown. Parent inspected combined diff and unchanged hardware boundaries.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-TWIN-source-v1.json",
+    "docs/project/artifacts/KUFR-TWIN-release-v1.json"
+  ]
+}

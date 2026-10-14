@@ -18,6 +18,7 @@ import harness
 import layout
 from viewer_style import snapshot_styles
 from viewer_document import render_document
+from twin_manifest import build_manifest, geometry_digest
 
 
 def mesh(shape):
@@ -173,6 +174,9 @@ def viewer():
                            [edge for edge in harness.CONNECTIONS if edge["from"] in names and edge["to"] in names],
              "sources":inspect_data.source_evidence()}
     OUT.mkdir(parents=True,exist_ok=True)
+    payload["twinManifest"] = build_manifest(PARAMS, mechanism, payload["effects"], names,
+                                           geometry_digest=geometry_digest(meshes))
+    (OUT/"twin.manifest.json").write_text(json.dumps(payload["twinManifest"],ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
     (OUT/"viewer.html").write_text(render_document(payload),encoding="utf-8")
 
 
