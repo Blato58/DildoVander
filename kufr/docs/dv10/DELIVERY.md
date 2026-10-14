@@ -126,3 +126,12 @@ the revised public evening standalone build has 45 files. Neither
 supplies the missing complete project site. Do not regenerate unrelated CAD to
 close this delivery gate. Obtain the verified canonical exports or separately
 authorize and verify the preserved-release overlay before whole-site deployment.
+
+Hosted [CI 38613273980](https://github.com/Blato58/DildoVander/actions/runs/38613273980)
+subsequently passed all 13 jobs for `9760f5ffab78c4a39ae0ddf5dc30fd87a6259247`,
+including the complete canonical site/manufacturing build and unsigned native
+iOS build. This verifies the builder; no production artifact was uploaded by
+that PR run. Local verified CAD exports are still absent, and the local code ZIP
+still contains the standalone preview. Deployment and real iPhone/physical
+acceptance remain separate gates. Exact hosted check metadata is retained in
+the immutable project CI artifact and receipt.
