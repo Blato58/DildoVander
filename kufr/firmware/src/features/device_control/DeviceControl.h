@@ -115,7 +115,7 @@ class DeviceControl {
   bool BeginAcceptedSelection(uint64_t nowMs, SelectionStep& step);
   bool BeginAutonomousPresentation(const std::string& proposalId,
                                    uint8_t compartment,
-                                   uint64_t expectedRevision);
+                                   uint64_t expectedRevision, uint64_t fingerprint = 0);
   bool CompleteAutonomousPresentation(uint8_t compartment);
   void FaultAutonomousPresentation();
   bool Tick(uint64_t nowMs, SelectionStep& step);
@@ -132,6 +132,8 @@ class DeviceControl {
   bool OwnsManualLease(const std::string& leaseId) const;
   bool OwnsLiveManualLease(const std::string& leaseId, uint64_t nowMs) const;
   bool HasAutonomousPresentation() const;
+  CommandJournal::Lookup FindOperation(const std::string& id, uint8_t slot,
+                                      uint64_t fingerprint) const { return journal_.Find(id, slot, fingerprint); }
 
  private:
   struct CachedResult {

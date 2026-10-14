@@ -1,5 +1,17 @@
 # Firmware AI kufru
 
+## DV02: source-bound scény a read-only diagnostika
+
+Obě původní presentation varianty používají jediný překlad `effects.json`;
+stávající physical owner, kalibrace, Stop a oddělený Dance owner zůstávají.
+[DV02 návod](../docs/dv02.md) popisuje authoring, skutečný host replay,
+`GET /v1/show-trace`, kompatibilitu a omezení audia. Z kořene repozitáře spusť
+`python kufr/firmware/tests/run_show_tests.py` a pro přesné porovnání původních
+I/O stop `python kufr/firmware/tests/compare_legacy_show.py`. Host runner vyžaduje
+C++14 compiler, Node a `npm ci` v `kufr/contracts` pro původní přísný wire verifier.
+Hostitelské důkazy nejsou akceptace ESP/audio/iPhone; tu vede brána G v
+[DV02 work itemu](../../docs/project/work-items/DV02.json).
+
 > **D167 – Dance for me:** vlastní 1–12 skladeb na ověřené SD, náhodný
 > výběr bez bezprostředního opakování, WAV PCM16/mono/24 kHz po 960 B,
 > LED a volitelné krátké vibrace podle BPM/offsetu. Telefon pouze spouští

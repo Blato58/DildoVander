@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "DV02-local-integration-v5",
+  "observedAtUtc": "2026-10-14T00:36:40.051188+00:00",
+  "kind": "integration",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "DV02",
+      "criterionId": "CORE",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "DV02",
+      "criterionId": "TIMELINE",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "773f091287082f802c54f4a0a4fa6441c744bf3f48a5e4169b98d64425df88ff",
+    "policyVersion": "dv02-phase-1"
+  },
+  "method": "python kufr/firmware/tests/run_show_tests.py --fixtures OS-temp/dv02-runtime/fixtures; python kufr/firmware/tests/compare_legacy_show.py --output OS-temp/dv02-runtime/legacy-v5-integration-parity.json; pio run in kufr/firmware; existing CADvenv preview.py --viewer-only and independent emittedHTML parse",
+  "environment": "Windows x64; Python3.14, MSVC19.51 C++14, Node, PlatformIO7.1.3 ESP-IDF6.1; existing CADvenv and browser. Host fakeports, no livehardware/provider.",
+  "limitations": [
+    "No ESP boot/flash, runtime heap/stack/tick measurement, actual sound/motion/Stop, iPhone signing/native run, deployment or paid provider calls.",
+    "Audio is phase-only / enqueue-proxy; already admitted <=20ms cue block and queued DMA may drain. No acoustic proof.",
+    "The local synthetic SceneIntent bridge is tested; existing nullable backend DV01 intent has no live device adapter.",
+    "Journal v2 retains32 durable IDs and fails closed when full; safe service rotation is an explicit operational gate. V1 completed IDs were not stored and cannot be reconstructed.",
+    "New-session skill discovery/reload and exact200percent browser zoom not observed. Final level-bearing filechooser blocked when IAB disappeared/Brave lacked permission; final DOM handler and export parsing passed."
+  ],
+  "observation": "Final14 host checks pass;54 strictv1 messages validated.12 actual historical/current corecases retain identical I/O commands and timestamps,delta0ms main9790ms/short6970ms. Fresh success56event and Stop51event fixtures carry finalbundle7b0e2488ee4bfff9130c5d3c67652e4a7287728af8f9f5e4a1b64e85a732246d/main. PIO pass RAM112684B/program1930001B/image1930432B SHA256b2c8c5c275e36092793d3bbed32d9f33d44350c3b59678e73b1c49d91fbf4102. Actual551mesh viewer regenerated and parsed exactmanifest/plan/JS/hash consistency. Full manufacturing pipeline is separate PR185 CI, not claimed as a local full regeneration. No flash/hardware.",
+  "artifactRefs": [
+    "docs/project/artifacts/DV02-source-bundle-v5.json",
+    "kufr/docs/dv02-coverage.json",
+    "kufr/docs/dv02-performance-v4.json"
+  ],
+  "supersedes": [
+    "DV02-local-integration-v4"
+  ],
+  "supersedesReason": "Integrate concurrent main CAD runner417bb71, preserve DV02 gates on cachehit, and restore standalone manufacturing ZIP compiler check without weakening repository header validation. Compiler30, cache25, packaging11, Node55/Python7, final14 host checks/12 exact historical cases, actual551mesh viewer, PIO and independent integration review pass."
+}

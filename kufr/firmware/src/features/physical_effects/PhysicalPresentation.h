@@ -3,6 +3,7 @@
 #include "PhysicalEffects.h"
 #include "PresentationAudioPort.h"
 #include "PresentationScore.h"
+#include "PresentationDiagnostics.h"
 #include "../device_control/DeviceControlRuntime.h"
 #include "../wand_presentation/WandPresentation.h"
 
@@ -13,7 +14,19 @@ class PhysicalPresentation final : public WandPresentationPort {
   PhysicalPresentation(PhysicalEffects& effects, DeviceControlRuntime& runtime)
       : effects_(effects), runtime_(runtime) {}
   void Tick(uint64_t nowMs);
+  void ObserveOwnerTime(uint64_t nowMs) override { nowMs_ = nowMs; }
+  bool AdmissionWasDuplicateOrConflict() const override { return replayRejected_; }
   void BindAudio(PresentationAudioPort& audio) { audio_ = &audio; }
+  void BindClock(uint64_t (*nowMs)(void*), void* context) {
+    if (phase_ == Phase::Idle) { clockNowMs_ = nowMs; clockContext_ = context; }
+  }
+  // Set at boot while idle; the accepted execution retains its copy.
+  void BindBootIdentity(const std::string& bootId) { if (phase_ == Phase::Idle) bootId_ = bootId; }
+  const PresentationDiagnostics& Diagnostics() const { return diagnostics_; }
+  bool CancelOperation(const std::string& operationId, uint64_t generation);
+  bool StartAccent(const char* sceneId, const std::string& intentId,
+                   uint64_t generation, uint64_t expiresAtMs, uint64_t nowMs);
+  bool CancelAccent(const std::string& intentId, uint64_t generation);
   bool IsReady(uint8_t compartment) const override { return effects_.Ready(compartment); }
   bool IsSafeToContinue() const override { return effects_.Healthy(); }
   uint64_t RaiseTimeoutMs(uint8_t n) const override {
@@ -32,16 +45,34 @@ class PhysicalPresentation final : public WandPresentationPort {
   bool Complete(uint8_t compartment) override;
   void DisableAndFault() override;
  private:
-  enum class Phase { Idle, Score, Raise, Raised, Lower, Rest };
-  bool EnterScoreStep();
+  enum class Phase { Idle, Score, Raise, Raised, Lower, Rest, Accent };
+  bool EnterScoreStep(uint64_t dueAt);
+  void Trace(const char* kind, uint64_t dueAt, const char* evidence,
+             const char* reason = "");
+  bool TickAccent();
+  void EndAccent(bool cancelled);
+  bool RefreshExecutionClock(uint64_t ioStartedAtMs);
+  static bool ValidateCompletionClock(void* context);
   const PresentationScore::Step& CurrentStep() const;
   unsigned StepCount() const;
   uint16_t RestDurationMs() const;
   PhysicalEffects& effects_;
   DeviceControlRuntime& runtime_;
   Phase phase_ = Phase::Idle;
-  uint64_t nowMs_ = 0, phaseAt_ = 0;
+  uint64_t nowMs_ = 0, phaseAt_ = 0, startedAt_ = 0, lastObservedAt_ = 0;
   uint8_t compartment_ = 0, scoreIndex_ = 0;
   bool repeat_ = false;
   PresentationAudioPort* audio_ = nullptr;
+  std::string bootId_ = "unavailable";
+  PresentationDiagnostics diagnostics_;
+  const PresentationScore::AccentScene* accent_ = nullptr;
+  uint64_t accentExpiresAt_ = 0;
+  bool accentLit_ = false;
+  uint8_t accentCueSeen_ = 0, accentCueSkipped_ = 0;
+  bool replayRejected_ = false;
+  bool vibrationCommanded_ = false;
+  uint64_t (*clockNowMs_)(void*) = nullptr;
+  void* clockContext_ = nullptr;
+  uint64_t completionIoStartedAtMs_ = 0;
+  const char* faultReason_ = "recovery-required";
 };

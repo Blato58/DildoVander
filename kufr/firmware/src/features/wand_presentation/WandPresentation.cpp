@@ -45,7 +45,12 @@ bool WandPresentation::Start(
   phaseStartedAtMs_ = nowMs;
   presentationStartedAtMs_ = nowMs;
   lastObservedAtMs_ = nowMs;
+  port_.ObserveOwnerTime(nowMs);
   if (!port_.Raise(compartment_, proposal.proposalId, snapshot)) {
+    if (port_.AdmissionWasDuplicateOrConflict()) {
+      compartment_ = 0;
+      return false;
+    }
     Fault();
     return false;
   }
@@ -75,6 +80,7 @@ void WandPresentation::Tick(uint64_t nowMs) {
       return;
     case WandPresentationState::Showing:
       if (Elapsed(nowMs, phaseStartedAtMs_, ShowDurationMs)) {
+        port_.ObserveOwnerTime(nowMs);
         if (!port_.Lower(compartment_)) {
           Fault();
           return;
@@ -87,6 +93,7 @@ void WandPresentation::Tick(uint64_t nowMs) {
       if (Elapsed(nowMs, phaseStartedAtMs_, port_.LowerTimeoutMs(compartment_))) {
         Fault();
       } else if (port_.IsResting(compartment_)) {
+        port_.ObserveOwnerTime(nowMs);
         if (!port_.Complete(compartment_)) {
           Fault();
           return;

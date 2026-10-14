@@ -10,6 +10,7 @@
 class LocalTlsIdentity;
 class LocalPairingCredential;
 class LocalControlInbox;
+class ShowTraceReadPort;
 
 // Start/Stop/Pump belong to the control owner. Callbacks only validate/enqueue;
 // they never invoke the control runtime or any actuator port.
@@ -28,6 +29,8 @@ class EspIdfLocalControlServer final : public LocalControlTransport {
 
   // Wi-Fi/netif lifecycle and service provisioning are owned elsewhere.
   bool Start();
+  // Bind at startup; callbacks only read a published observer snapshot.
+  void BindShowTrace(ShowTraceReadPort& trace) { showTrace_ = &trace; }
   void Stop();
   void Pump();
   bool Send(const LocalSocketAdmission::Handle& handle,
@@ -48,6 +51,7 @@ class EspIdfLocalControlServer final : public LocalControlTransport {
   static esp_err_t AfterUpgrade(httpd_req_t* request);
   static esp_err_t Receive(httpd_req_t* request);
   static esp_err_t Pair(httpd_req_t* request);
+  static esp_err_t ShowTrace(httpd_req_t* request);
   static void FreeSession(void* context);
   static void Work(void* context);
   bool MatchesSession(const LocalSocketAdmission::Handle& handle) const;
@@ -58,6 +62,7 @@ class EspIdfLocalControlServer final : public LocalControlTransport {
   LocalPairingCredential& credential_;
   LocalSocketAdmission& admission_;
   LocalControlInbox& inbox_;
+  ShowTraceReadPort* showTrace_ = nullptr;
   httpd_handle_t server_ = nullptr;
   std::mutex mutex_;
   std::array<Output, OutputCapacity> output_;

@@ -12,7 +12,8 @@ import unittest
 
 ROOT = Path(__file__).resolve().parent
 TEST_MODULES = (
-    "test_effects", "test_viewer_style", "test_packaging", "test_verification_gate",
+    "test_effects", "test_viewer_style", "test_viewer_document",
+    "test_packaging", "test_verification_gate",
     "test_inspect_data", "test_harness", "test_f2_cad", "test_sliding_follower",
     "test_floor_anchors", "test_follower_load", "test_strength", "test_assembly_access",
     "test_regeneration_cache", "test_regenerate",
@@ -74,6 +75,8 @@ def regenerate(force=False):
         subprocess.run([sys.executable, str(ROOT / "generate_effects.py"), "--check"], check=True)
         subprocess.run(["node", "--check", str(ROOT / "viewer.js")], check=True)
         subprocess.run(["node", "--test", str(ROOT / "test_viewer.cjs")], check=True)
+        subprocess.run(["node", "--check", str(ROOT / "show_timeline.js")], check=True)
+        subprocess.run(["node", "--test", str(ROOT / "test_show_timeline.cjs")], check=True)
         if not force and check_cache(ROOT, out, identity):
             if prepared_identity() != identity:
                 raise RuntimeError("Sources changed while checking cached F2 outputs")

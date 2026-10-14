@@ -12,6 +12,8 @@
 class WandPresentationPort {
  public:
   virtual ~WandPresentationPort() = default;
+  virtual void ObserveOwnerTime(uint64_t) {}
+  virtual bool AdmissionWasDuplicateOrConflict() const { return false; }
   virtual bool IsReady(uint8_t compartment) const = 0;
   virtual bool IsSafeToContinue() const = 0;
   virtual uint64_t RaiseTimeoutMs(uint8_t) const { return 3000; }

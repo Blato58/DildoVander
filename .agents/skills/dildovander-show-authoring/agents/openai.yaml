@@ -1,0 +1,4 @@
+interface:
+  display_name: "DildoVander show authoring"
+  short_description: "Author and validate source-bound DV02 choreography"
+  default_prompt: "Use $dildovander-show-authoring to edit or validate the requested DV02 scene and review its generated plan."

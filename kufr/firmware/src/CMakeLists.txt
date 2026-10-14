@@ -17,6 +17,8 @@ idf_component_register(
         "espidf_main.cpp"
         "features/physical_effects/PhysicalEffects.cpp"
         "features/physical_effects/PhysicalPresentation.cpp"
+        "features/physical_effects/PresentationDiagnostics.cpp"
+        "features/scene_intent/SceneIntentBridge.cpp"
         "features/physical_effects/EspIdfPhysicalIo.cpp"
         "features/voice_turn/EspIdfVoiceAudio.cpp"
         "features/voice_turn/EspIdfRealtimeTransport.cpp"

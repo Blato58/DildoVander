@@ -1,4 +1,9 @@
 * text=auto
+kufr/mechanika/final/effects.json text eol=lf
+kufr/mechanika/final/effects.schema.json text eol=lf
+kufr/mechanika/final/effects.plan.json text eol=lf
+kufr/mechanika/final/effects.manifest.json text eol=lf
+kufr/firmware/src/features/physical_effects/PresentationScore.h text eol=lf
 *.sh text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf

@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "DV02-local-unit-v5",
+  "observedAtUtc": "2026-10-14T00:36:40.051188+00:00",
+  "kind": "unit",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "DV02",
+      "criterionId": "COMPILER",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "DV02",
+      "criterionId": "CORE",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "DV02",
+      "criterionId": "TIMELINE",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "DV02",
+      "criterionId": "WORKFLOW",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "773f091287082f802c54f4a0a4fa6441c744bf3f48a5e4169b98d64425df88ff",
+    "policyVersion": "dv02-phase-1"
+  },
+  "method": "python kufr/mechanika/final/test_effects.py; python -m unittest discover -s kufr/mechanika/final -p test_regenerate.py and test_regeneration_cache.py; existing CADvenv Python -m unittest discover -s kufr/mechanika/final -p test_packaging.py; node --test test_viewer.cjs/test_show_timeline.cjs; Python document/style tests; compiler --check; PowerShell wrapper parse; coverage checks. Skill validator results transfer from unchanged v3 sources.",
+  "environment": "Windows x64; Python3.14, MSVC19.51 C++14, Node, PlatformIO7.1.3 ESP-IDF6.1; existing CADvenv and browser. Host fakeports, no livehardware/provider.",
+  "limitations": [
+    "No ESP boot/flash, runtime heap/stack/tick measurement, actual sound/motion/Stop, iPhone signing/native run, deployment or paid provider calls.",
+    "Audio is phase-only / enqueue-proxy; already admitted <=20ms cue block and queued DMA may drain. No acoustic proof.",
+    "The local synthetic SceneIntent bridge is tested; existing nullable backend DV01 intent has no live device adapter.",
+    "Journal v2 retains32 durable IDs and fails closed when full; safe service rotation is an explicit operational gate. V1 completed IDs were not stored and cannot be reconstructed.",
+    "New-session skill discovery/reload and exact200percent browser zoom not observed. Final level-bearing filechooser blocked when IAB disappeared/Brave lacked permission; final DOM handler and export parsing passed."
+  ],
+  "observation": "Compiler30 pass including actual isolated standalone subprocess/no-write/missingplan/firmwaretree/worktree.git rejection. Cache+orchestration25 pass; both DV02 JS gates precede cachelookup including hits and failures cannot reuse cache. Packaging11 pass in existing CADvenv; initial basePython attempt lacked cadquery and was resolved by using that environment with no source fix. Node55 and document/style3+4 pass against finalbundle. All earlier adversarial/compiler/skills invariants retained.",
+  "artifactRefs": [
+    "docs/project/artifacts/DV02-source-bundle-v5.json",
+    "kufr/docs/dv02-coverage.json",
+    "kufr/docs/dv02-performance-v4.json"
+  ],
+  "supersedes": [
+    "DV02-local-unit-v4"
+  ],
+  "supersedesReason": "Integrate concurrent main CAD runner417bb71, preserve DV02 gates on cachehit, and restore standalone manufacturing ZIP compiler check without weakening repository header validation. Compiler30, cache25, packaging11, Node55/Python7, final14 host checks/12 exact historical cases, actual551mesh viewer, PIO and independent integration review pass."
+}

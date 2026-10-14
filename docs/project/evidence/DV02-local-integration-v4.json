@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "DV02-local-integration-v4",
+  "observedAtUtc": "2026-10-14T00:24:29.213906+00:00",
+  "kind": "integration",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "DV02",
+      "criterionId": "CORE",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "DV02",
+      "criterionId": "TIMELINE",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "3affd6caca1f4b26dd365c27c0b2e94653048b10f9f1b6b0c3d5054c61133ed9",
+    "policyVersion": "dv02-phase-1"
+  },
+  "method": "python kufr/firmware/tests/run_show_tests.py --fixtures OS-temp/dv02-runtime/fixtures; python kufr/firmware/tests/compare_legacy_show.py --output OS-temp/dv02-runtime/legacy-tail-admission-parity.json; pio run in kufr/firmware",
+  "environment": "Windows x64; Python3.14, MSVC19.51 C++14, Node, PlatformIO7.1.3 ESP-IDF6.1; existing CADvenv and browser. Host fakeports, no livehardware/provider.",
+  "limitations": [
+    "No ESP boot/flash, runtime heap/stack/tick measurement, actual sound/motion/Stop, iPhone signing/native run, deployment or paid provider calls.",
+    "Audio is phase-only / enqueue-proxy; already admitted <=20ms cue block and queued DMA may drain. No acoustic proof.",
+    "The local synthetic SceneIntent bridge is tested; existing nullable backend DV01 intent has no live device adapter.",
+    "Journal v2 retains32 durable IDs and fails closed when full; safe service rotation is an explicit operational gate. V1 completed IDs were not stored and cannot be reconstructed.",
+    "New-session skill discovery/reload and exact200percent browser zoom not observed. Final level-bearing filechooser blocked when IAB disappeared/Brave lacked permission; final DOM handler and export parsing passed."
+  ],
+  "observation": "Final14 host checks pass. Actual compiled historical/current cores12slot/variant cases have identical I/O payloads and timestamps, zero deltas: main9790ms/short6970ms. Main binds the existing RuntimeClock after synchronous journal I/O; completion validates before publishing and preserves inspection after durable close. Final ESP-IDF6.1/PlatformIO7.1.3 pio run pass: RAM112684B/program1930001B; image1930432B SHA2566df9d6649be6740c4c4dfb0480d291d092a828a12ae1e5d5da8ff5669670fce5. No flash or physical measurement.",
+  "artifactRefs": [
+    "docs/project/artifacts/DV02-source-bundle-v4.json",
+    "kufr/docs/dv02-coverage.json",
+    "kufr/docs/dv02-performance-v3.json"
+  ],
+  "supersedes": [
+    "DV02-local-integration-v3"
+  ],
+  "supersedesReason": "Clock freshness around synchronous journal/output cleanup and pre-LED motion admission fixes. Final14 host checks,12 exact historical cases, ESP build, generated --check, coverage and independent bounded review pass. Unchanged compiler/viewer/skills observations explicitly transfer from v3 within their original limitations."
+}

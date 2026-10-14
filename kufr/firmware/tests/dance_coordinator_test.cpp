@@ -33,6 +33,41 @@ struct Io final : PhysicalIo {
   }
 };
 int main() {
+  {
+    Player longPlayer; Io longIo; PhysicalEffects longEffects(longIo);
+    DanceCoordinator longDance(longPlayer, longEffects);
+    std::array<ServoCalibration, 6> values;
+    values.fill({700, 1700, 20});
+    assert(longEffects.Configure(values, 1)); longEffects.Tick(0);
+    assert(longEffects.RecoverAfterInspection());
+    longDance.BindBootIdentity("synthetic-dance");
+    assert(longDance.StartDance("awkward-bpm"));
+    assert(std::string(longDance.Diagnostics().sceneHash).empty());
+    assert(std::string(longDance.Diagnostics().variant) == "delegated-owner");
+    longPlayer.state.phase = "playing"; longPlayer.state.bpm = 137;
+    longPlayer.state.vibrationEveryBeats = 0;
+    // Absolute media arithmetic across one hour, never rounded beat periods.
+    for (uint32_t position = 0; position < 3600000; position += 173) {
+      longPlayer.state.positionMs = position;
+      longEffects.Tick(position); longDance.Tick(position);
+      assert(longDance.Diagnostics().beatIndex == static_cast<uint64_t>(position) * 137 / 60000);
+      assert(longIo.servos == 0 && longIo.vibrations == 0);
+    }
+    assert(longDance.Diagnostics().droppedEvents > 0);
+    const uint32_t generation = longDance.Diagnostics().audioGeneration;
+    longPlayer.state.positionMs = 0; longDance.Tick(3600000);
+    assert(longDance.Diagnostics().audioGeneration == generation + 1);
+    assert(longDance.Diagnostics().beatIndex == 0);
+    assert(longDance.Diagnostics().count <= 2);
+    for (size_t index = 0; index < longDance.Diagnostics().count; ++index)
+      assert(std::string(longDance.Diagnostics().events[index].clockDomain) == "audio-media");
+    longDance.StopDance();
+    assert(longPlayer.state.phase == "stopping" && longIo.LitSegments() == 0);
+    assert(std::string(longDance.Diagnostics().state) == "running" && longDance.Reserved());
+    longPlayer.state.phase = "idle"; longPlayer.state.positionMs = 0;
+    longDance.Tick(3600010);
+    assert(std::string(longDance.Diagnostics().state) == "cancelled" && !longDance.Reserved());
+  }
   Player player; Io io; PhysicalEffects effects(io); DanceCoordinator dance(player, effects);
   assert(!dance.StartDance("first") && player.starts == 0);
   std::array<ServoCalibration, 6> calibration;

@@ -77,11 +77,37 @@ zůstává v liště dostupný i po sbalení běžící simulace. Přepnutí re�
 pohybu stále vyvolá bezpečný modelový Stop. Žádné ovládání nepotvrzuje polohu
 skutečného serva, provoz iPhonu, moment, lepený spoj nebo bezpečnost přepravy.
 
+## DV02 timeline a core replay
+
+Tlačítko **DV02** otevře read-only plán ze stejného překladu jako firmware.
+Volba stopy oddělí LED, vibrace, pohyb, audio a owner/deadline. Detail cue
+ukazuje parametry ze zdroje; časy pohybu v plánu jsou ilustrační kalibrace.
+Původní panel Simulace zůstává ilustrační renderer, nikoli autorita core.
+
+Pro syntetické záznamy spusťte z kořene repozitáře:
+
+```powershell
+python kufr/firmware/tests/run_show_tests.py --only show_trace_replay --fixtures "$env:TEMP/dv02-replay"
+```
+
+Načtěte `show-trace-success.json` jako baseline a `show-trace-stop.json` jako
+kandidáta. Soubory vznikají v C++ owneru s fake clock a porty; viewer je pouze
+čte. Seek, přehrávání, pauza a rychlost mění místní seznam. Porovnání ukáže
+pořadí a relativní časy řídicích akcí, sloty, masky, RGB, pulzy a důvody.
+Skutečný řídicí zápis, modelový konec a měření mají rozdílnou sílu důkazu;
+chybějící časy zůstanou `unknown`. Import je historický i s observer metadaty.
+Mezery, drop a neshoda bundle se zobrazí samostatně. Import přijme nejvýše
+1 MiB a 4096 událostí; neznámá pole a nepřesně reprezentovatelné časy odmítne.
+Detaily a seznam fungují klávesnicí; Escape vrátí focus na tlačítko DV02.
+
+Podrobnosti kontraktů a fyzických bran jsou v [DV02](../../docs/dv02.md).
+
 ## Zdroj, generování a kontrola
 
 Upravují se `viewer.js`, `viewer-template.html`, `viewer-workshop.css`, nikoli
-samotný export. [preview.py](preview.py) vloží CAD payload, sdílený styl,
-fonty i lokální skript do `exports/viewer.html`. Indexovaný payload obsahuje
+samotný export. [preview.py](preview.py) přes `viewer_document.py` vloží CAD
+payload, sdílený styl, fonty, `show_timeline.js` a zdrojově ověřený compiler
+plán/manifest do `exports/viewer.html`. Neaktuální hashe odmítne. Indexovaný payload obsahuje
 pro každý mesh sdílené `vertices` (ploché XYZ) a `triangles` (ploché indexy).
 Viewer před uploadem spočítá jednotkovou normálu každé facety a rozbalí
 pozice/normály do GPU bufferu; původní pole pak uvolní. Tessellace a pořadí
@@ -96,6 +122,11 @@ Automatická kontrola z kořene repozitáře:
 ```powershell
 node --check kufr/mechanika/final/viewer.js
 node --test kufr/mechanika/final/test_viewer.cjs
+node --check kufr/mechanika/final/show_timeline.js
+node --test kufr/mechanika/final/test_show_timeline.cjs
+Push-Location kufr/mechanika/final
+python -m unittest test_viewer_document.py test_viewer_style.py
+Pop-Location
 ```
 
 Fake GPU testy ověřují reálné event handlery, stavy, matematiku kamery,

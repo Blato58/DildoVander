@@ -260,9 +260,52 @@ void TestPendingRestartRequiresInspectionAndClearsInventory() {
   assert(port.latchCount == 0);
 }
 
+
+void TestDurableDedupeConflictCapacityAndLegacyMigration() {
+  MemoryJournalStorage storage;
+  PersistentCommandJournal journal(storage);
+  assert(journal.PersistReadyMask(63));
+  assert(journal.BeginWithIdentity(FirstCommandId, 3, 1234));
+  assert(journal.ResolveRestored(3));
+  PersistentCommandJournal rebooted(storage);
+  assert(rebooted.Find(FirstCommandId, 3, 1234) == CommandJournal::Lookup::Same);
+  assert(rebooted.Find(FirstCommandId, 4, 1234) == CommandJournal::Lookup::Conflict);
+  assert(rebooted.Find(FirstCommandId, 3, 1235) == CommandJournal::Lookup::Conflict);
+  const size_t writes = storage.writeCount;
+  assert(!rebooted.BeginWithIdentity(FirstCommandId, 3, 1234));
+  assert(storage.writeCount == writes && !rebooted.HasPending());
+  for (size_t index = 1; index < PersistentCommandJournal::HistoryCapacity; ++index) {
+    std::string id = "00000000-0000-0000-0000-000000000000";
+    const char hex[] = "0123456789abcdef";
+    id[34] = hex[index / 16]; id[35] = hex[index % 16];
+    assert(rebooted.Begin(id, 3));
+    assert(rebooted.ResolveRestored(3));
+  }
+  PersistentCommandJournal full(storage);
+  assert(full.HistoryCount() == PersistentCommandJournal::HistoryCapacity);
+  assert(!full.Begin(SecondCommandId, 3));
+  assert(full.Find(FirstCommandId, 3, 1234) == CommandJournal::Lookup::Same);
+  assert(full.IsHealthy() && !full.HasPending()); // No silent tombstone eviction.
+
+  MemoryJournalStorage legacy;
+  legacy.present = true; legacy.storedLength = 44;
+  legacy.data[0] = 'K'; legacy.data[1] = 'J'; legacy.data[2] = 'R'; legacy.data[3] = '1';
+  legacy.data[4] = 1; legacy.data[5] = 63; legacy.data[6] = 3;
+  std::copy(FirstCommandId, FirstCommandId + 36, legacy.data.begin() + 8);
+  PersistentCommandJournal migrated(legacy);
+  assert(migrated.IsHealthy() && migrated.HasPending());
+  assert(migrated.Find(FirstCommandId, 3, 0) == CommandJournal::Lookup::Same);
+  assert(migrated.Resolve(59)); // Inspection removes uncertain slot.
+  assert(legacy.storedLength == PersistentCommandJournal::RecordSize && legacy.data[4] == 2);
+  PersistentCommandJournal afterInspection(legacy);
+  assert(!afterInspection.Begin(FirstCommandId, 3));
+  assert(afterInspection.Find(FirstCommandId, 3, 0) == CommandJournal::Lookup::Same);
+}
+
 }  // namespace
 
 int main() {
+  TestDurableDedupeConflictCapacityAndLegacyMigration();
   TestEmptyAndReloadPersistAcrossRestart();
   TestPendingRestartAndAtomicResolve();
   TestRestoredPresentationKeepsAvailability();

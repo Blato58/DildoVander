@@ -5,6 +5,10 @@ namespace PresentationScore {
 enum class Stage : uint8_t { Prepare, Raise, Show, Lower, Rest };
 // Raise/Lower durationMs is viewer-only; firmware motion uses servo calibration.
 struct Step { Stage stage; uint16_t durationMs; int8_t target; uint8_t red, green, blue; bool vibration; uint16_t toneHz; };
+constexpr char SourceHash[] = "efd9ecdf662ecdc3cfa86da37d080e1679254fbff14ada6bb6270376a3961ae0";
+constexpr char CompiledHash[] = "a520f980f1ecca29d36a61deab3e237480bfbb75ea935aa08cc6747ee606a525";
+constexpr char BundleHash[] = "7b0e2488ee4bfff9130c5d3c67652e4a7287728af8f9f5e4a1b64e85a732246d";
+constexpr char SemanticsVersion[] = "dv02-phase-1";
 constexpr Step Main[] = {
   {Stage::Prepare, 600, 0, 60, 12, 90, false, 220},
   {Stage::Prepare, 120, 1, 90, 30, 220, false, 385},
@@ -29,6 +33,14 @@ constexpr Step Main[] = {
   {Stage::Rest, 250, 0, 0, 0, 0, false, 0},
 };
 constexpr uint32_t MainPreparationMs = 3520;
+constexpr const char* MainPhaseIds[] = {"main-000", "main-001", "main-002", "main-003", "main-004", "main-005", "main-006", "main-007", "main-008", "main-009", "main-010", "main-011", "main-012", "main-013", "main-014", "main-015", "main-016", "main-017", "main-018", "main-019", "main-020"};
+constexpr uint32_t MainRemainingMs[] = {14790, 14190, 14070, 13950, 13830, 13710, 13590, 13470, 13170, 12870, 12370, 12220, 12070, 11920, 11770, 11620, 11470, 11270, 8270, 3270, 270};
+constexpr char MainSceneId[] = "legacy-presentation";
+constexpr char MainSceneHash[] = "ea98a4b496b3cc5172bafbaedc479cd2e7d68f2aa1df2c3014550f69f65ec028";
+constexpr uint32_t MainSceneVersion = 1;
+constexpr uint32_t MainWorstCaseMs = 14790;
+constexpr uint32_t MainDeadlineMs = 15000;
+constexpr uint32_t MainPhaseCount = 21;
 constexpr Step Short[] = {
   {Stage::Prepare, 400, 0, 255, 170, 30, false, 523},
   {Stage::Prepare, 150, 0, 255, 170, 30, true, 110},
@@ -39,5 +51,48 @@ constexpr Step Short[] = {
   {Stage::Rest, 250, 0, 0, 0, 0, false, 0},
 };
 constexpr uint32_t ShortPreparationMs = 700;
+constexpr const char* ShortPhaseIds[] = {"short-000", "short-001", "short-002", "short-003", "short-004", "short-005", "short-006"};
+constexpr uint32_t ShortRemainingMs[] = {11970, 11570, 11420, 11270, 8270, 3270, 270};
+constexpr char ShortSceneId[] = "legacy-presentation";
+constexpr char ShortSceneHash[] = "e8f82e08a1605bf7f71038c61284432086c26ec869b2ab04df877c8dc73b5aaa";
+constexpr uint32_t ShortSceneVersion = 1;
+constexpr uint32_t ShortWorstCaseMs = 11970;
+constexpr uint32_t ShortDeadlineMs = 15000;
+constexpr uint32_t ShortPhaseCount = 7;
 constexpr uint32_t ShowMs = 5000;
+enum class CueKind : uint8_t { LedSolid, LedFade, VibrationPulse, AudioTone };
+enum class LatePolicy : uint8_t { SampleCurrent, SkipIfLate, AbortShow };
+struct SceneCue { CueKind kind; uint16_t offsetMs, durationMs; bool phaseEnd; int8_t target; uint8_t red, green, blue, fromRed, fromGreen, fromBlue, level; uint16_t frequencyHz; bool required; LatePolicy latePolicy; };
+struct ScenePhase { uint16_t durationMs; uint16_t cueOffset; uint8_t cueCount; const char* phaseId; };
+struct AccentScene { const char* sceneId; const char* variant; uint32_t sceneVersion; uint16_t maxDurationMs; uint16_t phaseOffset; uint8_t phaseCount; uint8_t requiredCapabilities, optionalCapabilities; const char* sceneHash; };
+constexpr uint8_t CapabilityLed = 1, CapabilityVibration = 2, CapabilityAudioTone = 4, CapabilityCalibratedMotion = 8, CapabilityUpstreamDv11 = 16;
+constexpr SceneCue AccentCues[] = {
+  {CueKind::LedSolid, 0, 0, true, 0, 255, 170, 30, 255, 170, 30, 64, 0, true, LatePolicy::SampleCurrent},
+  {CueKind::LedSolid, 0, 0, true, 1, 255, 170, 30, 255, 170, 30, 64, 0, true, LatePolicy::SampleCurrent},
+  {CueKind::LedSolid, 0, 0, true, 1, 255, 170, 30, 255, 170, 30, 64, 0, true, LatePolicy::SampleCurrent},
+  {CueKind::AudioTone, 0, 100, false, 0, 0, 0, 0, 0, 0, 0, 0, 523, false, LatePolicy::SkipIfLate},
+  {CueKind::LedSolid, 0, 0, true, 1, 255, 170, 30, 255, 170, 30, 64, 0, true, LatePolicy::SampleCurrent},
+  {CueKind::LedSolid, 0, 0, true, 1, 255, 170, 30, 255, 170, 30, 64, 0, true, LatePolicy::SampleCurrent},
+  {CueKind::LedSolid, 0, 0, true, 1, 255, 170, 30, 255, 170, 30, 64, 0, true, LatePolicy::SampleCurrent},
+  {CueKind::LedSolid, 0, 0, true, 1, 255, 170, 30, 255, 170, 30, 64, 0, true, LatePolicy::SampleCurrent},
+};
+constexpr ScenePhase AccentPhases[] = {
+  {250, 0, 1, "accent"},
+  {250, 1, 1, "wake"},
+  {250, 2, 2, "consider"},
+  {250, 4, 1, "farewell"},
+  {250, 5, 1, "ambient"},
+  {250, 6, 1, "error"},
+  {250, 7, 1, "special-referral"},
+};
+constexpr AccentScene Accents[] = {
+  {"choice-accent", "default", 1, 500, 0, 1, 1, 0, "bde6d7b348009830f766d29f0786d528249752eb29a5d10cc49f10996cbf4302"},
+  {"wake", "default", 1, 500, 1, 1, 1, 0, "bada67a5c59ac8a088032bbbe6370754d62621c5d67159ccf070febf2dc79ba3"},
+  {"consider", "default", 1, 500, 2, 1, 1, 4, "9073ca9b97a1d30372f74935947fea45cd1a6dc9e9b44a6ece2695874150307a"},
+  {"farewell", "default", 1, 500, 3, 1, 1, 0, "fc5511c32dfbbea72dae43d2d0a0bc6c48f803c283b3d610f58655a7b8484a67"},
+  {"ambient", "default", 1, 500, 4, 1, 1, 0, "64bebc5825174ec5b29d6a613459da2a3d840f1dd902a6a06dfea8ed2714dc77"},
+  {"error", "default", 1, 500, 5, 1, 1, 0, "4d6a79eeab57ecaa559be1ee5f37a36cedd0684c95322b735b16293576fbd753"},
+  {"special-referral", "default", 1, 500, 6, 1, 17, 0, "f9653a0d7c2d900f0ae557c5c39868c4be9f43fe9229de20ccdd2fe89b7c0f0b"},
+};
+constexpr uint8_t AccentCount = 7;
 }

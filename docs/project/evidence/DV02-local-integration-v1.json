@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "DV02-local-integration-v1",
+  "observedAtUtc": "2026-10-13T23:58:28.563333+00:00",
+  "kind": "integration",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "DV02",
+      "criterionId": "CORE",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "DV02",
+      "criterionId": "TIMELINE",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "4cfcfac95ce0fbf00bce609b14eeeab16ebf9aa600305f16a3dfea3b4bfcff8c",
+    "policyVersion": "dv02-phase-1"
+  },
+  "method": "python kufr/firmware/tests/run_show_tests.py --fixtures OS-temp/dv02-runtime/fixtures; python kufr/firmware/tests/run_show_tests.py --only local_control_server_test; python kufr/firmware/tests/compare_legacy_show.py --output OS-temp/dv02-legacy-parity.json; pio run in kufr/firmware",
+  "environment": "Windows x64; Python3.14, MSVC19.51 C++14, Node, PlatformIO7.1.3 ESP-IDF6.1; existing CADvenv and browser. Host fakeports, no livehardware/provider.",
+  "limitations": [
+    "No ESP boot/flash, runtime heap/stack/tick measurement, actual sound/motion/Stop, iPhone signing/native run, deployment or paid provider calls.",
+    "Audio is phase-only / enqueue-proxy; already admitted <=20ms cue block and queued DMA may drain. No acoustic proof.",
+    "The local synthetic SceneIntent bridge is tested; existing nullable backend DV01 intent has no live device adapter.",
+    "Journal v2 retains32 durable IDs and fails closed when full; safe service rotation is an explicit operational gate. V1 completed IDs were not stored and cannot be reconstructed.",
+    "New-session skill discovery/reload and exact200percent browser zoom not observed. Final level-bearing filechooser blocked when IAB disappeared/Brave lacked permission; final DOM handler and export parsing passed."
+  ],
+  "observation": "All14 host checks passed after parity/level changes, latest Transfer-Encoding HTTPS regression passed separately.54 firmware messages validated against unchanged strictv1 schema.208 Stop boundaries, one-hour137BPM Dance, journalv1 migration/32 durable-ID saturation, actual old/new cores12slot/variant cases exact I/O payload+timestamp parity (main9790ms/short6970ms), synthetic success56events/Stop51events. pio run passed; final linkedRAM112636B/program1928829B; generatedimage1929248B SHA2564e60eb9fbceb0da8e396be58503c77ed009e7436bb57ef95e2991e2065e1ee15.",
+  "artifactRefs": [
+    "docs/project/artifacts/DV02-source-bundle.json",
+    "kufr/docs/dv02-coverage.json",
+    "kufr/docs/dv02-performance.json"
+  ]
+}
