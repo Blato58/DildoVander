@@ -159,5 +159,5 @@
     "artifactDigest": "611164ada409925ec84de8fab4eaa5b5d0c5a5bcdfe4946529ac44d333252cdd",
     "policyVersion": "twin-v1"
   },
-  "currentNote": "Textový/CAD/telemetry slice implementován a softwarově ověřen; VPSv4 nasazen, build611164ada409925ec84de8fab4eaa5b5d0c5a5bcdfe4946529ac44d333252cdd. HOST/VIEWER/LIVE/ISOLATION/DEPLOY mají aktuální scoped receipts; MEDIA a PHYSICAL zůstávají otevřené. Žádný placený model, flash ani zásah do fyzického kufru."
+  "currentNote": "Textový/CAD/telemetry slice implementován a softwarově ověřen; VPSv4 nasazen, build611164ada409925ec84de8fab4eaa5b5d0c5a5bcdfe4946529ac44d333252cdd. HOST/VIEWER/LIVE/ISOLATION/DEPLOY mají aktuální scoped receipts; MEDIA a PHYSICAL zůstávají otevřené. Žádný placený model, flash ani zásah do fyzického kufru. Implementace4b0a4c882e82698311ad04fcf4288ff2821d3d71; Push-CurrentBranch.ps1 ověřil stejný remote SHA. PR191 otevřen; CI/review právě běží."
 }
