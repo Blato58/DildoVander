@@ -2,18 +2,60 @@
 import unittest
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 import cadquery as cq
 
 import chassis
 import layout
 import mechanism
-from geometry import PARAMS, bounds, print_position, box
+from geometry import PARAMS, Item, bounds, print_position, box
 from build import all_parts
-from check_fit import collisions, overlaps
+from check_fit import collisions, overlaps, scene
 
 
 class InsertCadTests(unittest.TestCase):
+    def test_exact_usb_return_tube_preserves_radius_length_and_one_closed_solid(self):
+        import math
+        import flex_routing
+        from geometry import curve_tube
+        curve=flex_routing.usb_bank_tail((33.25,114.35,46),68.6,165)
+        tube=curve_tube(curve['primitives'],2.55)
+        self.assertTrue(tube.isValid())
+        self.assertEqual(len(tube.Solids()),1)
+        self.assertEqual(len(tube.Shells()),1)
+        self.assertAlmostEqual(tube.Volume(),curve['exact_length_mm']*math.pi*2.55**2,places=5)
+
+    def test_exact_trimmed_speaker_bounds_are_stable_after_export_meshing(self):
+        part=next(p for p in layout.parts() if p.name=='carrier_speaker_right')
+        shape=print_position(part.shape,part.rotation)
+        before=bounds(shape)
+        shape.tessellate(.03,.08)
+        for original,meshed in zip(before,bounds(shape)):
+            self.assertAlmostEqual(original,meshed,places=6)
+        self.assertAlmostEqual(before[3]-before[0],49.9,places=5)
+
+    def test_complete_assembly_safe_box_and_connector_flex_regions(self):
+        from verify import assembly_preflight
+        items=scene()
+        self.assertEqual(assembly_preflight(items),{})
+        self.assertEqual(collisions(items),[])
+
+    def test_preflight_rejects_screw_tip_outside_safe_box(self):
+        from verify import safe_box_violations
+        low=PARAMS['case']['safe_origin']
+        screw=Item('boundary_screw',box(1,1,1,(low[0]-.2,low[1]+1,low[2]+1)),'fastener','metal')
+        self.assertEqual([row[0] for row in safe_box_violations([screw])],['boundary_screw'])
+
+    def test_reservation_rejects_printed_body_even_beside_mating_owner(self):
+        from verify import reservation_intersections
+        region=Item('bank_usb',box(2,2,2,(30,100,40)),'reservation','metal')
+        bank=Item('powerbank',region.shape,'hardware','metal')
+        mount=Item('left_service_carrier_tier_2',region.shape,'fixed','metal')
+        with patch('layout.reservations',return_value=[region]):
+            hits=reservation_intersections([bank,mount])
+        self.assertEqual(hits,[['bank_usb','left_service_carrier_tier_2',8.0]])
+
     def test_left_cassette_wires_clear_installed_scene_after_service_moves(self):
         import harness
         from verify_harness_geometry import audit
@@ -83,6 +125,7 @@ class InsertCadTests(unittest.TestCase):
             with self.subTest(part=part.name):
                 self.assertTrue(part.shape.isValid())
                 self.assertEqual(len(part.shape.Solids()),1)
+                self.assertEqual(len(part.shape.Shells()),1,"Sealed internal cavity: "+part.name)
                 printed=print_position(part.shape,part.rotation)
                 extent=bounds(printed)
                 self.assertLessEqual(extent[3]+2*PARAMS["print"]["brim"],PARAMS["print"]["bed_x"]+.001)
@@ -152,11 +195,12 @@ class InsertCadTests(unittest.TestCase):
 
     def test_service_cassettes_export_closed_connected_meshes(self):
         from verify import stl_check
-        holders=layout.carrier_shapes()
+        printable,_=layout.service_components()
+        self.assertEqual(len(printable),10)
         with tempfile.TemporaryDirectory(prefix="f2-cassette-stl-") as directory:
-            for name in ("left_service_carrier","right_service_carrier"):
+            for name,part in printable.items():
                 with self.subTest(part=name):
-                    shape=print_position(holders[name])
+                    shape=print_position(part.shape,part.rotation)
                     self.assertTrue(shape.isValid())
                     self.assertEqual(len(shape.Solids()),1)
                     path=Path(directory)/(name+".stl")

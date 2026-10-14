@@ -120,8 +120,10 @@ def calculate():
             for i in (0,1)]
         neck_each=neck_area/count
         shoulder_each=data["key_head_retaining_area_mm2"]/count
-        # Upward cradle load bears on the bottom lip below the epoxy head.
-        # Its 2 mm depth is derived from the actual neck/chamber transition.
+        # Nominal outer-diameter punching screen only. The printed retention
+        # face now tapers 45 degrees; this cylinder does not qualify radial
+        # splitting, cone bending, creep or adhesion. Prototype pull testing
+        # remains required even when the nominal screen passes.
         key_lip_mm=PARAMS["frame"]["floor_anchors"]["key_head_bottom"]-PARAMS["frame"]["floor_anchors"]["z"]
         key_lip_shear_area=math.pi*PARAMS["frame"]["floor_anchors"]["key_head_diameter"]*key_lip_mm
         wood_shear=reaction/data["wood_bond_area_mm2"]
@@ -183,6 +185,7 @@ def calculate():
         "limitations":[
             "Printed/epoxy/wood allowables are explicit design assumptions, not material certification",
             "Nominal roof shear excludes local bending, tunnel notches, print defects and preload",
+            "The 45-degree epoxy-key retention cone uses a nominal cylindrical punching screen; radial splitting and cone flexure are unqualified",
             "PETG creep, layer orientation, hot-car exposure and cyclic load remain unmeasured",
             "Key filling, voids, bare wood cohesion, edge peel and adhesion require physical proof",
             "Discrete key moment model assumes elastic sharing; lip bending and redistribution after gaps/creep are unverified",

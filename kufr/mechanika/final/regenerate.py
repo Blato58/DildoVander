@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import gc
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -13,7 +14,11 @@ import unittest
 ROOT = Path(__file__).resolve().parent
 TEST_MODULES = (
     "test_effects", "test_viewer_style", "test_viewer_document",
-    "test_packaging", "test_verification_gate",
+    "test_packaging", "test_verification_gate", "test_printing_gate",
+    "test_printability", "test_slicer_validation", "test_bridge_audit",
+    "test_mesh_quality", "test_manufacturing", "test_support_free",
+    "test_split_mounts", "test_layout_printing", "test_tray_joint_clearance",
+    "test_flex_routing",
     "test_inspect_data", "test_harness", "test_f2_cad", "test_sliding_follower",
     "test_floor_anchors", "test_follower_load", "test_strength", "test_assembly_access",
     "test_regeneration_cache", "test_regenerate",
@@ -72,7 +77,7 @@ def regenerate(force=False):
     try:
         identity = prepared_identity()
         # This header is outside the manufacturing package, so check it even on cache hits.
-        subprocess.run([sys.executable, str(ROOT / "generate_effects.py"), "--check"], check=True)
+        subprocess.run([sys.executable, "-X", "utf8", str(ROOT / "generate_effects.py"), "--check"], check=True)
         subprocess.run(["node", "--check", str(ROOT / "viewer.js")], check=True)
         subprocess.run(["node", "--test", str(ROOT / "test_viewer.cjs")], check=True)
         subprocess.run(["node", "--check", str(ROOT / "show_timeline.js")], check=True)
@@ -96,9 +101,14 @@ def regenerate(force=False):
         )
         for name, script, *arguments in commands:
             stage(name, lambda script=script, arguments=arguments: subprocess.run(
-                [sys.executable, str(ROOT / script), *arguments], cwd=ROOT, check=True))
+                [sys.executable, "-X", "utf8", str(ROOT / script), *arguments], cwd=ROOT, check=True))
         if prepared_identity() != identity:
             raise RuntimeError("Sources or runtime changed during F2 regeneration")
+        slicing = json.loads((out / "slicer-validation.json").read_text(encoding="utf-8"))
+        if (identity["environment"].get("slicer", {}).get("status") != "AVAILABLE"
+                or slicing.get("status") != "PASS_SLICER"):
+            print("F2 cache unpublished: this run has no actual slicer acceptance.", flush=True)
+            return
         write_cache(ROOT, out, identity)
         if prepared_identity() != identity:
             stamp.unlink(missing_ok=True)

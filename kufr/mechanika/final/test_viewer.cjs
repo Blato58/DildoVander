@@ -202,6 +202,18 @@ test('moving cable endpoint follows lift while fixed trunk stays fixed; absent b
   assert.ok(app.api.routes.includes('USB'),'Removing bank preserves topology');
 });
 
+test('rolling return deforms half a lift while its fixed trunk and other module stay fixed', () => {
+  const wire={...route('rolling'),points:[[100,76,38],[100,68,20],[100,60,59],[117,27,71]],
+    point_lift_weights:{'1':[0,.5,1,1],'2':[0,0,0,0]}};
+  const app=viewer([wire],[{name:'tray_left_1',group:'moving'},{name:'tray_left_2',group:'moving'}]);
+  app.get('tray').value='1'; app.get('lift').value='160'; app.get('lift').oninput(); app.flush();
+  assert.deepEqual(Array.from(app.api.routePoints(wire),p=>Array.from(p)),
+    [[100,76,38],[100,68,28],[100,60,75],[117,27,87]]);
+  app.get('tray').value='2'; app.get('lift').value='160'; app.get('lift').oninput(); app.flush();
+  assert.deepEqual(Array.from(app.api.routePoints(wire),p=>Array.from(p)),
+    [[100,76,38],[100,68,28],[100,60,75],[117,27,87]]);
+});
+
 test('pin, branch, bundle and net scopes resolve stable IDs even after hiding the selected part', () => {
   const wires=[route('one','VCC','a'),{...route('two','SDA','a'),from:'esp32:SDA'},
     {...route('three','VCC','b'),from:'other:VCC',to:'third:VCC'}];
@@ -848,6 +860,11 @@ test('actual authored guide retains bench deck context and transfers it to case 
     assert.equal(shown('case'),false,id+': bench operation is outside case');
     assert.equal(shown('frame_panel_1'),true,id+': complete supporting deck stays visible');
     if(id!=='frame') assert.equal(shown('carrier_pca9685'),true,id+': carrier context stays visible');
+    if(id==='carriers') {
+      assert.match(app.get('assembly-parts').textContent,/Levá kazeta: dva boční rámy a tři patra/);
+      assert.match(app.get('assembly-parts').textContent,/Dva boční sloupky/);
+      assert.doesNotMatch(app.get('assembly-parts').textContent,/\[object Object\]/);
+    }
     if(['electronics','power','signals'].includes(id)) assert.equal(shown('pca9685'),true,id+': electronics stays on deck');
     if(['power','signals'].includes(id)) assert.equal(shown('usb_coil_wrap_1'),true,id+': prepared power context stays visible');
   }

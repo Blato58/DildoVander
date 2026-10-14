@@ -23,12 +23,16 @@ class WireAcceptanceTests(unittest.TestCase):
             "status": "PASS", "collisions": [], "bounds_failures": [],
             "sources_unchanged_during_audit": True, "truncated": False,
             "bundle_fit": {"status": "PASS"},
+            "continuous_new_tray_joints":{'status':'PASS','collisions':[],'truncated':False,
+                'lift_mm':16,'clearance_mm':.3,'pairs_checked':366048,
+                'coverage':{'rest_wire_count':135,'transport_wire_count':135,
+                            'modules':list(range(1,7)),'obstacle_count':48}},
             "self_geometry": {"status": "PASS", "collisions": [],
                               "coverage": {"rest_wire_count": 135, "transport_wire_count": 135,
                                            "motion_angles": [0, 80, 160], "modules": list(range(1, 7))}},
             "coverage": {"rest_covers": True, "transport": True,
                          "motion_angles": [0, 80, 160], "modules": list(range(1, 7)),
-                         "capsule_elbows": True},
+                         "capsule_elbows": True,'bank_tail_exact_R20':True},
         }
 
     def test_complete_sampled_audit_is_accepted(self):
@@ -41,6 +45,7 @@ class WireAcceptanceTests(unittest.TestCase):
             ("sources_unchanged_during_audit", False), ("truncated", True),
             ("bundle_fit", {"status": "FAIL"}),
             ("self_geometry", {"status": "FAIL"}),
+            ('continuous_new_tray_joints',{'status':'PASS','collisions':[]}),
         ]
         for key, value in changes:
             with self.subTest(key=key):
@@ -59,7 +64,7 @@ class WireAcceptanceTests(unittest.TestCase):
                     require_complete_wire_audit(result)
         for key, value in [("rest_covers", False), ("transport", False),
                            ("motion_angles", [0]), ("modules", [1]),
-                           ("capsule_elbows", False)]:
+                           ("capsule_elbows", False),('bank_tail_exact_R20',False)]:
             with self.subTest(coverage=key):
                 result = deepcopy(self.complete())
                 result["coverage"][key] = value

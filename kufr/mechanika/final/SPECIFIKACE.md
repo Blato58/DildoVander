@@ -90,17 +90,20 @@ nesmí tlačit proti podpěrám. Na dolním úseku není potřebný moment serva
 Rolničku, pouzdro, distanční kroužek, šroub, hlavu, podložku a matici
 nahrazuje kruhový PETG kluzný čep Ø6 integrovaný do lůžka. V drážce
 široké 6,8 mm zůstává celková vůle 0,8 mm; čep zabírá 3,5 mm do hloubky
-drážky. Tisková orientace lůžka otočená o 90° kolem Y staví čep svisle,
-aby jeho kluzná plocha nevyžadovala odstraňování podpěr pilníkem.
+drážky. Lůžko je nyní dvoudílné: levá polovina se tiskne po −90° kolem Y,
+pravá po +90° kolem Y; integrální čep pravé poloviny je svislý.
+Kluzná plocha nevyžaduje odstraňování podpěr pilníkem.
 Vyšší kluzné tření a opotřebení musí projít zkouškou měrky a jednoho
 zatíženého modulu; dřívější výpočet pro rolničku není jejich ověřením.
 `follower_load.py` počítá citlivost na předpokládané tření 0 / 0,2 / 0,4
 a oddělenou rezervu tření vodítek. Při μ=0,4 vychází kvazistatický moment
-0,113 Nm a cíl prototypové zkoušky s násobkem 1,5 přibližně 0,169 Nm.
+0,128 Nm a cíl prototypové zkoušky s násobkem 1,5 přibližně 0,192 Nm.
 Nejde o potvrzenou únosnost PETG ani provozní moment konkrétního serva.
 Kotvy, základny, lůžka a vačky mají předepsanou 100% výplň; tím se ovšem
 neprokazuje pevnost vrstev, kvalita přemostění ani teplotní odolnost výtisku.
-Zkušební `fit_coupon` se tiskne také plně. Obsahuje shodné boční tunely,
+Všechny tři výrobní měrky se tisknou také plně. `fit_coupon` ověřuje
+čep/vedení/hlavy, `follower_groove_coupon` drážku a samostatná obrácená
+`floor_anchor_coupon` obsahuje shodné boční tunely,
 šestihranné kapsy M3/M4, slepé dno a střechy podlahových kotev; skutečné
 matice musí jít zasunout a vyjmout před tiskem celé sady kotev.
 Stejná měrka reprodukuje také produkční epoxidový zámek Ø7,5/Ø10,5 se dvěma
@@ -126,7 +129,8 @@ M3 × 8 do předem vložených matic rámu. Příruby a přístupové drážky v
 vedlejších nosičích jsou skutečná CAD geometrie. Kazety se celé osazují
 a zapojují mimo kufr; spodní deska/police vždy před horní. Při servisu
 se vyjme kazeta po odpojení rozhraní; ostatní elektronika a zdvihy zůstávají.
-Nevzniká další typ výtisku ani kovový výrobek; počet šroubů klesá o jeden.
+Tento popis je původní revize DFA 12. 10. Aktuální dělení F2-SF-DFA
+13. 10. přidává rozebíratelné spoje vyjmenované v [TISK.md](TISK.md).
 
 Montáž je definovaná v `assembly-guide.json`: připravené části na stole,
 části skutečně vložené do kufru a samostatně připravené horní skupiny
@@ -199,3 +203,9 @@ tisková obálka, průběh každého mechanismu se sousedy, víko, vyjmutí bank
 montážní spoje, dráhy a napájecí větve. Parametrické a fyzicky neověřené
 vstupy brání označení připraveno k výrobě. Samostatně uvést výpočet momentu,
 nosných spojů a praktickou zkoušku přepravy; nic z toho nepředstírat renderem.
+
+## Výrobní revize F2-SF-DFA (13. 10. 2026)
+
+Aktuální výrobní rozdělení a profily určuje [TISK.md](TISK.md) a [manifest](exports/printing-manifest.csv). Lůžko se skládá ze dvou klíčovaných polovin; každá kazeta ze dvou rámů/tří pater; kamera ze dvou samostatných sloupků/desky; ovladače ze dvou rámů/desky. Původní popis jednodílných nosičů není výrobní rozdělení této revize. Nové spoje používají standardní metrický materiál z BOM; polohy nakoupené elektroniky, osy serv, zdvih 16 a potvrzené zapojení se nemění. Rámové panely mají planární rybiny s 0,25mm vůlí, kotvy otevřený spodní přístup a kuželové 45° krčky epoxidových zámků. Plné profily zachovávají nominální nosné průřezy; fyzickou pevnost neprokazují.
+
+Sada má 51 typů / 71 výtisků včetně 3 samostatných měrek. Podpory NONE; tři úzké vysoké díly mají 3mm brim, ostatní 0. Softwarové protokoly oddělují validitu CAD/STL, analytické přemostění a skutečné Prusa slicování. Veškerá fyzická přejímka, konkrétní tiskárna, PETG tečení, lepení a doručená kamera/FPC zůstávají neověřené.

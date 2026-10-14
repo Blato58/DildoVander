@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "F2-SF-final6-slicer-failure",
+  "observedAtUtc": "2026-10-13T22:17:00.486330Z",
+  "kind": "integration",
+  "result": "fail",
+  "claims": [
+    {
+      "workItemId": "KUFR-F2-SUPPORTFREE",
+      "criterionId": "PRINT",
+      "criterionRevision": 1,
+      "result": "fail"
+    }
+  ],
+  "subject": {
+    "cadSourceArtifactDigest": "6344f95b9631d7dbec9b7c512be55017ac411ce7bc3bc48f82e3e4be90c3232f"
+  },
+  "method": "Composite Regenerate unit/assembly checks, then python -X utf8 artifacts.py --generate with actual KUFR_SLICER PrusaSlicer2.9.4",
+  "environment": "Windows; actual CAD venv Python3.11.3; pinned CadQuery2.8/OCP7.9.3.1.1/VTK9.6.2; PrusaSlicer2.9.4",
+  "limitations": [
+    "No physical print or fit validation.",
+    "Temporary staging cleanup removed per-part failure report; failing part and exact cause cannot be inferred from the retained parent log. A new diagnostic run is required."
+  ],
+  "observation": "All255Python/47Node regression checks passed. All51fresh parts exported and passed analytical layer checks; the source-bound manifest used the exact6344 bundle. All51slicer/project commands were attempted, then global slicer gate reported FAIL and artifacts.py exited1. No current package or final integration acceptance was issued. Build now preserves failed reports/logs outside manufacturing exports and adds bounded error details; targeted12-part replay and complete diagnostic replay are running.",
+  "localLogDigest": "e6fdbb7215cbe139c2ca24b37f3ef3fdd4cfe58d8a32a627673b4d6300ff6c0a"
+}

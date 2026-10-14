@@ -61,6 +61,14 @@ class InspectDataTests(unittest.TestCase):
             self.assertIn(edge["kind"], ("signal", "power", "ground"))
         self.assertEqual([], data.connection_data(set()))
 
+    def test_split_bed_has_explicit_mechanical_joint_without_electrical_edges(self):
+        names={"tray_1","tray_left_1"}
+        edges=data.connection_data(names)
+        self.assertEqual(len(edges),1)
+        self.assertEqual(edges[0]["kind"],"mechanical")
+        self.assertIn("M3",edges[0]["label"])
+        self.assertEqual(data.connection_data({"tray_1"}),[])
+
     def test_spares_unassigned_nets_and_mechanical_parts_are_disconnected(self):
         disconnected = {"spare_pca", "spare_red_rocker", "spare_degson_1", "spare_capacitor_1", "degson_1", "degson_2", "degson_3", "capacitor_1", "tray_1", "body_1", "power_trunk"}
         names = disconnected | {"esp32", "pca9685", "red_main"}

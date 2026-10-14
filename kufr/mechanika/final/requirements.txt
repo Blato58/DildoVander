@@ -3,3 +3,4 @@ cadquery-ocp==7.9.3.1.1
 vtk==9.6.2
 numpy==2.4.6
 matplotlib==3.10.8
+shapely==2.1.2

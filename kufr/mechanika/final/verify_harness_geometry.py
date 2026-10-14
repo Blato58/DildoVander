@@ -12,12 +12,14 @@ from pathlib import Path
 import cadquery as cq
 
 import harness
+import flex_routing
 from check_fit import scene, overlaps
 import chassis
 import layout
 import retention
 import mechanism
-from geometry import bounds
+import tray_joint_clearance
+from geometry import bounds, curve_tube
 
 
 ROOT = Path(__file__).resolve().parent
@@ -56,11 +58,25 @@ def audit(wires=None, items=None, clearance=CLEARANCE_MM, max_collisions=None, s
     solids=obstacles(items)
     collisions=[]
     contacts=[]
+    exact_curves=[]
     checked=0
     bounds_failures=[]
     for wire in wires:
         points=wire["points"]
-        radius=wire["outer_diameter_mm"]/2+clearance
+        radius=wire["outer_diameter_mm"]/2+clearance+wire.get('curve_chord_error_mm',0)
+        bank_curve=wire.get('bank_tail') if wire['from']=='powerbank:C1' else None
+        prefix=len(bank_curve['points']) if bank_curve else 0
+        if bank_curve and points[:prefix]!=bank_curve['points']:
+            raise ValueError('Exact bank cable curve does not match routed points')
+        bank_shape=curve_tube(bank_curve['primitives'],radius) if bank_curve else None
+        curve_key=tuple((piece['kind'],tuple(piece['start']),tuple(piece.get('mid',())),tuple(piece['end']))
+                        for piece in bank_curve['primitives']) if bank_curve else ()
+        if bank_curve:
+            if bank_curve['minimum_radius_mm']<20 or not bank_shape.isValid() or len(bank_shape.Solids())!=1:
+                raise ValueError('Invalid exact R20 bank cable body')
+            exact_curves.append({'wire':wire['id'],'kind':'bank-tail-R20',
+                                 'minimum_radius_mm':bank_curve['minimum_radius_mm'],
+                                 'radius_mm':radius,'status':'PASS_EXACT_FINITE_BODY'})
         limits=(harness.PARAMS["frame"]["origin"][0]+harness.PARAMS["frame"]["size"][0],
                 harness.PARAMS["frame"]["origin"][1]+harness.PARAMS["frame"]["size"][1],
                 harness.PARAMS["case"]["safe_origin"][2]+harness.PARAMS["case"]["safe_zone"][2])
@@ -68,17 +84,19 @@ def audit(wires=None, items=None, clearance=CLEARANCE_MM, max_collisions=None, s
             if any(point[i]+radius>limits[i]+1e-7 or point[i]-radius<(harness.PARAMS["frame"]["origin"][i] if i<2 else 0) for i in range(3)):
                 bounds_failures.append({"wire":wire["id"],"point":point,"radius_mm":radius,"limits":limits})
         primitives=[(index,start,end,({"from"} if index==0 else set()) | ({"to"} if index==len(points)-2 else set()))
-                    for index,(start,end) in enumerate(zip(points,points[1:]))]
+                    for index,(start,end) in enumerate(zip(points,points[1:])) if not bank_curve or index>=prefix-1]
         primitives += [(f"corner-{index}",point,point,{"from"} if index==0 else {"to"} if index==len(points)-1 else set())
-                       for index,point in enumerate(points)]
+                       for index,point in enumerate(points) if not bank_curve or index==0 or index>=prefix-1]
+        if bank_curve:
+            primitives.insert(0,('bank-tail-R20',points[0],points[prefix-1],{'from'}))
         for index,start,end,incident in primitives:
-            shape=tube(start,end,radius)
+            shape=bank_shape if index=='bank-tail-R20' else tube(start,end,radius)
             envelope=bounds(shape)
             for name,body,body_bounds in solids:
                 if not overlaps(envelope,body_bounds):
                     continue
                 checked+=1
-                key=(tuple(start),tuple(end),radius,id(body))
+                key=(curve_key if index=='bank-tail-R20' else (),tuple(start),tuple(end),radius,id(body))
                 cached=cache.get(key)
                 if cached is None or cached[0] is not body:
                     hit=shape.intersect(body)
@@ -101,12 +119,12 @@ def audit(wires=None, items=None, clearance=CLEARANCE_MM, max_collisions=None, s
                                        "obstacle_bounds":body_bounds,"radius_mm":radius})
                     if max_collisions and len(collisions)>=max_collisions:
                         return {"status":"FAIL","collisions":collisions,"endpoint_contacts":contacts,
-                                "brep_pairs_checked":checked,"truncated":True,"scope":scope}
+                                "brep_pairs_checked":checked,"truncated":True,"scope":scope,'exact_curves':exact_curves}
     return {"status":"PASS" if not collisions and not bounds_failures else "FAIL","collisions":collisions,
             "bounds_failures":bounds_failures,
             "endpoint_contacts":contacts,"brep_pairs_checked":checked,"truncated":False,
             "wire_count":len(wires),"clearance_mm":clearance,"scope":scope,
-            "physical_verification":"NOT PERFORMED"}
+            "physical_verification":"NOT PERFORMED",'exact_curves':exact_curves}
 
 
 def search_route(start, end, items, radius, step=3.0, max_nodes=50000):
@@ -210,7 +228,11 @@ def self_clearance(wire,clearance=.3):
     cables; complete turns and folded-back tails are always nonlocal.
     """
     points=wire["points"]
-    needed=wire["outer_diameter_mm"]+2*clearance
+    curve_error=wire.get('curve_chord_error_mm',0)
+    bank_curve=wire.get('bank_tail')
+    if bank_curve:
+        curve_error=max(curve_error,bank_curve['minimum_radius_mm']*(1-math.cos(math.radians(bank_curve['sample_degrees_max']/2))))
+    needed=wire["outer_diameter_mm"]+2*(clearance+curve_error)
     cumulative=[0]
     for a,b in zip(points,points[1:]):
         cumulative.append(cumulative[-1]+math.dist(a,b))
@@ -227,7 +249,7 @@ def self_clearance(wire,clearance=.3):
                                  "required_mm":needed,"along_cable_separation_mm":round(cumulative[j]-cumulative[i+1],3)})
     return {"status":"FAIL" if failures else "PASS","collisions":failures,
             "minimum_nonlocal_distance_mm":round(minimum,5) if math.isfinite(minimum) else None,"required_distance_mm":needed,
-            "local_neighbour_exclusion_mm":2*needed}
+            "local_neighbour_exclusion_mm":2*needed,'known_curve_chord_error_mm':curve_error}
 
 
 def verify_self_geometry():
@@ -254,19 +276,21 @@ def verify_self_geometry():
                         "wire_ids":[wire["id"] for wire in harness.HARNESSES],
                         "motion_angles":[0,80,160],"modules":list(range(1,7))},
             "collisions":[dict(hit,state=row["state"]) for row in results for hit in row["collisions"]],
-            "results":results,"scope":"same-wire nonlocal capsule separation; local continuous neighbours excluded by arc distance"}
+            "results":results,"scope":"same-wire nonlocal capsule separation with known R8/R20 chord-error enclosure; local continuous neighbours excluded by arc distance; coil/terminal curves remain unqualified"}
 
 
 def source_fingerprint():
     return {name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest()
-            for name in ("parameters.json","harness.py","mechanism.py","layout.py","chassis.py","service_geometry.py","retention.py",
-                         "verify_harness_geometry.py","geometry.py","check_fit.py")}
+            for name in ("parameters.json","harness.py","flex_routing.py","mechanism.py","layout.py","chassis.py","service_geometry.py","retention.py",
+                         "verify_harness_geometry.py","tray_joint_clearance.py","geometry.py","check_fit.py")}
 
 
 def points_for_pose(wire, module, angle):
     """Move the tray-side route to each sampled cam height, keeping its tie fixed."""
-    points=deepcopy(wire["points"])
     lift=mechanism.cam_law(angle)[0]-mechanism.cam_law(0)[0]
+    if wire.get('point_lift_weights'):
+        return flex_routing.posed_points(wire,{module:lift})
+    points=deepcopy(wire["points"])
     for moving in wire["moving_endpoints"]:
         if int(moving["component"].split("_")[-1])!=module:
             continue
@@ -353,11 +377,17 @@ def verify_all_states():
     stable=initial==source_fingerprint()
     packing=bundle_fit(harness.HARNESSES)
     self_geometry=verify_self_geometry()
-    return {"status":"PASS" if all(result["status"]=="PASS" for result in results) and stable and packing["status"]=="PASS" and self_geometry["status"]=="PASS" else "FAIL",
+    continuous=tray_joint_clearance.verify()
+    stable=initial==source_fingerprint()
+    print(f"continuous new bed joints: {len(continuous['collisions'])} envelope overlaps",flush=True)
+    return {"status":"PASS" if all(result["status"]=="PASS" for result in results) and stable and packing["status"]=="PASS" and self_geometry["status"]=="PASS" and continuous['status']=='PASS' else "FAIL",
             "coverage":{"rest_covers":True,"transport":True,"motion_angles":[0,80,160],"modules":list(range(1,7)),
                         "motion":"sampled positions, not a continuous cable bend or swept-curve proof",
-                        "capsule_elbows":True},
-            "collisions":collision_rows,"bundle_fit":packing,"self_geometry":self_geometry,"sources":initial,
+                        "capsule_elbows":True,'bank_tail_exact_R20':any(
+                            row['wire']=='USB-PD' and row['kind']=='bank-tail-R20' and row['minimum_radius_mm']>=20
+                            for row in results[0]['exact_curves'])},
+            "collisions":collision_rows,"bundle_fit":packing,"self_geometry":self_geometry,
+            "continuous_new_tray_joints":continuous,"sources":initial,
             "bounds_failures":[dict(row,state=result["scope"]) for result in results for row in result["bounds_failures"]],
             "sources_unchanged_during_audit":stable,"truncated":False,
             "endpoint_contacts":[dict(row,state=result["scope"]) for result in results for row in result["endpoint_contacts"]],

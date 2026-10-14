@@ -15,6 +15,7 @@ import mechanism
 import chassis
 import inspect_data
 import harness
+import layout
 from viewer_style import snapshot_styles
 from viewer_document import render_document
 
@@ -198,6 +199,30 @@ def main():
     detail.append(Item("tray_lug_cutaway",lug,"moving","tray"))
     render(detail,OUT/"images"/"cam.png","F2 | Bed cutaway: integral sliding peg in captured cam",(360,80,140),(100,145,45),105)
     print("Rendered mechanism and transport",flush=True)
+    left,right=mechanism.tray_halves()
+    render([Item('bed_left',left.translate((-12,0,0)),'fixed','mechanism'),
+            Item('bed_right',right.translate((12,0,0)),'fixed','tray')],
+           OUT/'images'/'bed-exploded.png','CAD exploded bed | 2 keyed halves; offsets illustrative',
+           (230,-170,200),(23,106,-5),120)
+    for carrier,centre in (('left_service_carrier',(42,88,55)),('right_service_carrier',(388,194,55))):
+        exploded=[]
+        for name,part in layout.service_components()[0].items():
+            if not name.startswith(carrier+'_'): continue
+            offset=(-15,0,0) if name.endswith('frame_left') else (15,0,0) if name.endswith('frame_right') else (0,0,16*int(name[-1]))
+            exploded.append(Item(name,part.shape.translate(offset),'fixed','mechanism' if '_frame_' in name else 'tray'))
+        render(exploded,OUT/'images'/f'{carrier}-exploded.png',
+               'CAD exploded cassette | 2 frames + 3 tiers; bench assembly',
+               (centre[0]+180,centre[1]-190,210),centre,80)
+    for group,shapes,centre,filename in (
+        ('camera',layout.camera_parts(),(215.5,248,60),'camera-exploded.png'),
+        ('controls',layout.switch_parts(),(44,39,67),'controls-exploded.png')):
+        exploded=[]
+        for name,shape in shapes.items():
+            offset=(-12,0,0) if name.endswith('left') else (12,0,0) if name.endswith('right') else (0,0,18)
+            exploded.append(Item(name,shape.translate(offset),'fixed','mechanism' if name.endswith(('left','right')) else 'tray'))
+        render(exploded,OUT/'images'/filename,f'CAD exploded {group} | 2 sides + plate; offsets illustrative',
+               (centre[0]+160,centre[1]-170,205),centre,72)
+    print('Rendered five split-assembly illustrations',flush=True)
     viewer()
     print("Standalone viewer written",flush=True)
 

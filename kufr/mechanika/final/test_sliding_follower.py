@@ -12,7 +12,8 @@ class SlidingFollowerTests(unittest.TestCase):
         tray = mechanism.tray()
         peg = mechanism.sliding_follower()
         self.assertTrue(tray.isValid())
-        self.assertEqual(len(tray.Solids()), 1)
+        self.assertEqual(len(tray.Solids()), 2)
+        self.assertEqual(len(mechanism.tray_halves()[1].Solids()), 1)
         self.assertAlmostEqual(tray.intersect(peg).Volume(), peg.Volume(), places=5)
         removed = ("roller_", "follower_head_", "follower_sleeve_", "follower_spacer_",
                    "follower_washer_", "follower_nut_", "follower_pin_")
@@ -57,7 +58,7 @@ class SlidingFollowerTests(unittest.TestCase):
         self.assertGreater(contact_area, 80)
 
     def test_side_print_puts_peg_axis_up_and_fits_bed(self):
-        part = next(part for part in mechanism.parts() if part.name == "wand_bed")
+        part = next(part for part in mechanism.parts() if part.name == "wand_bed_right")
         self.assertEqual(part.rotation, ((0, 1, 0), 90))
         rotated_peg = mechanism.sliding_follower().rotate((0, 0, 0), *part.rotation)
         # The rounded entry cap faces upward. This is evidence for the peg's
