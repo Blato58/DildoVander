@@ -8,11 +8,13 @@ import re
 import subprocess
 
 
-PROJECTS = ("repository", "backend", "firmware", "web", "ai-eval", "site")
+PROJECTS = ("repository", "backend", "firmware", "web", "ios", "ai-eval", "site")
 BUILD_WORKFLOWS = {
     ".github/workflows/kufr-backend.yml": "backend",
     ".github/workflows/kufr-firmware.yml": "firmware",
     ".github/workflows/kufr-web.yml": "web",
+    ".github/workflows/kufr-ios.yml": "ios",
+    ".github/workflows/kufr-ios-sign.yml": "ios",
     ".github/workflows/kufr-ai-eval.yml": "ai-eval",
     ".github/workflows/kufr-site.yml": "site",
 }
@@ -39,18 +41,20 @@ def select_projects(paths):
             selected["firmware"] = True
         if path.startswith("kufr/mobilni-aplikace/"):
             selected["web"] = True
+            selected["ios"] = True
             selected["site"] = True
         if path.startswith(("kufr/web/", "kufr/mechanika/", "kufr/design-system/")):
             selected["site"] = True
         if path.startswith("kufr/design-system/"):
             selected["web"] = True
+            selected["ios"] = True
         if path.startswith("kufr/ai-eval/"):
             selected["ai-eval"] = True
         if path.startswith("kufr/contracts/"):
-            for name in ("backend", "firmware", "web", "site"):
+            for name in ("backend", "firmware", "web", "ios", "site"):
                 selected[name] = True
         if path.startswith("kufr/simulator/"):
-            selected["firmware"] = selected["web"] = True
+            selected["firmware"] = selected["web"] = selected["ios"] = True
             if PurePosixPath(path).name.startswith("dashboard"):
                 selected["site"] = True
     return selected

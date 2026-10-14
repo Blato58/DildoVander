@@ -1,0 +1,52 @@
+name: Check Kufr iOS
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 25
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    defaults:
+      run:
+        working-directory: kufr/mobilni-aplikace
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check Xcode
+        run: test "$(xcodebuild -version | head -n 1)" = "Xcode 26.3"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: kufr/mobilni-aplikace/.nvmrc
+          cache: npm
+          cache-dependency-path: |
+            kufr/mobilni-aplikace/package-lock.json
+            kufr/contracts/package-lock.json
+            kufr/simulator/package-lock.json
+      - run: npm ci
+      - run: npm ci --prefix ../contracts
+      - run: npm ci --prefix ../simulator
+      - run: npm run build
+      - run: npx cap sync ios
+      - name: Generate original native assets
+        run: node scripts/generate-native-assets.mjs
+      - name: Resolve Swift packages
+        run: xcodebuild -resolvePackageDependencies -project ios/App/App.xcodeproj -scheme App
+      - name: Test native pinned LAN transport
+        run: bash scripts/test-native-transport.sh
+      - name: Test native debug backend client and voice sessions
+        run: bash scripts/test-native-debug.sh
+      - name: Test secure BLE status and secret whitelist
+        run: bash scripts/test-native-provisioning.sh
+      - name: Build unsigned iOS Simulator app
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App \
+            -configuration Debug -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/ios-derived-data" \
+            CODE_SIGNING_ALLOWED=NO build
