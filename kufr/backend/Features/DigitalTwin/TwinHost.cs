@@ -102,7 +102,7 @@ internal sealed class TwinHost : BackgroundService
         var completion = new TaskCompletionSource<TwinCommandResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         lock (host.Gate)
         {
-            if (host.Owner is not null && host.Owner != session.Id && host.OwnerExpires > clock.GetUtcNow())
+            if (command.Action != "stop" && host.Owner is not null && host.Owner != session.Id && host.OwnerExpires > clock.GetUtcNow())
             {
                 return new(false, "control_owned");
             }
@@ -166,8 +166,13 @@ internal sealed class TwinHost : BackgroundService
                 if (command.Action == "integrationText") { host.IntegrationBusy = false; }
                 return new(false, "command_queue_full");
             }
-            host.Owner = session.Id;
-            host.OwnerExpires = session.Expires;
+            // Any scoped controller may stop this virtual device. Stop does not
+            // transfer ordinary command ownership to a newly signed-in session.
+            if (command.Action != "stop")
+            {
+                host.Owner = session.Id;
+                host.OwnerExpires = session.Expires;
+            }
         }
         // A disconnected HTTP observer cannot cancel an already admitted input.
         if (command.Action != "integrationText")

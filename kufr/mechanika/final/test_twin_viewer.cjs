@@ -86,7 +86,7 @@ test('accepted vibration and audio map only declared CAD parts, without physical
 /* Minimal DOM models real event handlers; layout and WebGL remain browser checks. */
 function mounted(role='observer', location={origin:'https://twin.example',protocol:'https:',hostname:'twin.example',pathname:'/twin'}, profile='deterministic') {
   const elements = new Map(), actions = [], posts = [], applies = [], grbFrames = [], reports = [], selections = [], timers = [];
-  let current = frame(), now = 0, sourceMode='simulation', unavailable=false, postHold=null;
+  let current = frame(), now = 0, sourceMode='simulation', sourceStatus='online', unavailable=false, postHold=null;
   class Element {
     constructor(tag='div') { this.tag=tag; this.children=[]; this.dataset={}; this.value=''; this.files=[]; this.hidden=false; }
     set id(value) { this.identifier=value; elements.set(value,this); }
@@ -128,7 +128,7 @@ function mounted(role='observer', location={origin:'https://twin.example',protoc
         return {ok:true,json:async()=> url.endsWith('/session') ? {role} : {accepted:true}};
       }
       if (unavailable && !url.endsWith('/instances')) return {ok:false,status:404};
-      return {ok:true,json:async()=> url.endsWith('/instances') ? {role,instances:[{instanceId:'sim',mode:sourceMode,profile,online:true}]} : current};
+      return {ok:true,json:async()=> url.endsWith('/instances') ? {role,instances:[{instanceId:'sim',mode:sourceMode,profile,status:sourceStatus,online:sourceStatus==='online'}]} : current};
     }};
   context.window=context;
   vm.runInNewContext(fs.readFileSync(require.resolve('./twin_viewer.js'),'utf8'),context);
@@ -137,7 +137,7 @@ function mounted(role='observer', location={origin:'https://twin.example',protoc
   const get=id=>elements.get(id);
   const flush=async()=>{ for (let i=0;i<6;i++) await Promise.resolve(); };
   return {get,api,posts,actions,applies,grbFrames,reports,selections,timers,flush,setFrame:value=>{current=value;},setNow:value=>{now=value;},
-    setMode:value=>{sourceMode=value;},setUnavailable:value=>{unavailable=value;},
+    setMode:value=>{sourceMode=value;},setStatus:value=>{sourceStatus=value;},setUnavailable:value=>{unavailable=value;},
     holdNextPost:()=>{let resolve;postHold=new Promise(done=>{resolve=done;});return resolve;}};
 }
 test('mounted observer cannot command even if disabled handler is invoked; stale only updates badge',async()=>{
@@ -252,4 +252,46 @@ test('nullable unknown LED frame remains unknown rather than assumed accepted ze
   assert.equal(app.reports.at(-1).ledGrb,null); assert.equal(app.grbFrames.at(-1).length,0); assert.equal(app.posts.length,0);
   const parsed=twin.parseRecording(JSON.stringify({schemaVersion:1,snapshots:[frame('1','0',{reported:{ledGrb:null}})]}));
   assert.equal(parsed.snapshots[0].snapshot.reported.ledGrb,null);
+});
+test('urgent Stop posts during unresolved integration, without duplicate Stop flood',async()=>{
+  const app=mounted('control',undefined,'integration'); await app.get('twin-refresh').onclick();
+  app.get('twin-source').value='sim'; app.get('twin-source').onchange(); await app.flush();
+  const text=app.actions.find(button=>button.dataset.twinAction==='text');
+  const stop=app.actions.find(button=>button.dataset.twinAction==='stop');
+  const finishIntegration=app.holdNextPost(); app.get('twin-text').value='Vyber hůlku.'; text.onclick(); await app.flush();
+  assert.equal(app.posts[0].body.action,'integrationText'); assert.equal(app.api.state().pendingOrdinary,true);
+  assert.equal(text.disabled,true); assert.equal(stop.disabled,false);
+  // Stop remains reachable even when a stalled integration lets receipt age expire.
+  app.setNow(2500); app.timers[0](); assert.equal(stop.disabled,false);
+  const finishStop=app.holdNextPost(); stop.onclick(); await app.flush();
+  assert.equal(app.posts.length,2); assert.equal(app.posts[1].body.action,'stop');
+  assert.equal(app.api.state().pendingOrdinary,true); assert.equal(app.api.state().pendingStop,true);
+  stop.onclick(); text.onclick(); await app.flush(); assert.equal(app.posts.length,2);
+  finishIntegration(); await app.flush();
+  assert.equal(app.api.state().pendingOrdinary,false); assert.equal(app.api.state().pendingStop,true); assert.equal(stop.disabled,true);
+  finishStop(); await app.flush(); assert.equal(app.api.state().pending,false); assert.equal(stop.disabled,false);
+});
+test('previous-source ordinary and urgent Stop completions cannot clear new-source pending flags',async()=>{
+  const app=mounted('control',undefined,'integration'); await app.get('twin-refresh').onclick();
+  app.get('twin-source').value='sim'; app.get('twin-source').onchange(); await app.flush();
+  const text=app.actions.find(button=>button.dataset.twinAction==='text');
+  const stop=app.actions.find(button=>button.dataset.twinAction==='stop'); app.get('twin-text').value='Text';
+  const oldIntegration=app.holdNextPost(); text.onclick(); await app.flush();
+  const oldStop=app.holdNextPost(); stop.onclick(); await app.flush();
+  app.get('twin-source').onchange(); await app.flush(); assert.equal(app.api.state().pending,false);
+  const newIntegration=app.holdNextPost(); text.onclick(); await app.flush();
+  const newStop=app.holdNextPost(); stop.onclick(); await app.flush();
+  oldIntegration(); oldStop(); await app.flush();
+  assert.equal(app.api.state().pendingOrdinary,true); assert.equal(app.api.state().pendingStop,true);
+  newStop(); await app.flush();
+  assert.equal(app.api.state().pendingOrdinary,true); assert.equal(app.api.state().pendingStop,false);
+  newIntegration(); await app.flush(); assert.equal(app.api.state().pending,false);
+});
+test('source picker shows server connecting/stale/offline status instead of boolean online fallback',async()=>{
+  const app=mounted();
+  for (const status of ['connecting','stale','offline']) {
+    app.setStatus(status); await app.get('twin-refresh').onclick();
+    const option=app.get('twin-source').children.find(item=>item.value==='sim');
+    assert.ok(option.textContent.endsWith(' · '+status));
+  }
 });

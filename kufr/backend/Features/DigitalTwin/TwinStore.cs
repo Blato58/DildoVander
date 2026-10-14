@@ -113,9 +113,15 @@ internal sealed class TwinStore : BackgroundService
     {
         var age = Math.Max(0, (clock.GetUtcNow() - envelope.ReceivedAtUtc).TotalMilliseconds);
         return new { envelope.Snapshot, envelope.ReceivedAtUtc, ageMs = age,
-            status = age > 10000 ? "offline" : age > 2000 ? "stale" : "online",
+            status = Status(envelope),
             serverDroppedSnapshots = Interlocked.Read(ref dropped).ToString(),
             storageErrors = Interlocked.Read(ref storageErrors).ToString() };
+    }
+    public string Status(TwinEnvelope? envelope)
+    {
+        if (envelope is null) { return "connecting"; }
+        var age = Math.Max(0, (clock.GetUtcNow() - envelope.ReceivedAtUtc).TotalMilliseconds);
+        return age > 10000 ? "offline" : age > 2000 ? "stale" : "online";
     }
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {

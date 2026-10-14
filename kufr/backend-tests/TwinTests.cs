@@ -42,7 +42,8 @@ internal static class TwinTests
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Configuration.AddInMemoryCollection(settings);
-        builder.Services.AddSingleton(TimeProvider.System);
+        var testClock = new AdjustableTimeProvider(DateTimeOffset.UtcNow);
+        builder.Services.AddSingleton<TimeProvider>(testClock);
         builder.Services.AddSingleton<DeviceAccessStore>();
         builder.Services.AddSingleton<TwinAccess>();
         builder.Services.AddSingleton<TwinStore>();
@@ -88,6 +89,16 @@ internal static class TwinTests
         Assert((await IngestAsync(http, "live-test", Snapshot("live-test", "live", "boot-real", "2", "101"), sourceToken)).StatusCode == HttpStatusCode.NoContent, "scoped firmware ingest");
         Assert((await SendAsync(http, HttpMethod.Get, "/v1/twin/instances/live-test", observeCookie)).StatusCode == HttpStatusCode.OK, "observer read live");
         Assert((await SendAsync(http, HttpMethod.Get, "/v1/twin/instances/live-test", controlCookie)).StatusCode == HttpStatusCode.Forbidden, "sim principal cannot read live");
+        foreach (var (advance, expected) in new[] { (0, "online"), (3, "stale"), (8, "offline") })
+        {
+            testClock.Advance(TimeSpan.FromSeconds(advance));
+            using var availability = await SendAsync(http, HttpMethod.Get, "/v1/twin/instances", observeCookie);
+            var list = await availability.Content.ReadFromJsonAsync<JsonElement>();
+            var live = list.GetProperty("instances").EnumerateArray().Single(item => item.GetProperty("instanceId").GetString() == "live-test");
+            Assert(live.GetProperty("status").GetString() == expected && live.GetProperty("online").GetBoolean() == (expected == "online"), "picker uses receipt age: " + expected);
+            using var current = await SendAsync(http, HttpMethod.Get, "/v1/twin/instances/live-test", observeCookie);
+            Assert((await current.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("status").GetString() == expected, "picker/detail age agreement");
+        }
         Assert((await SendAsync(http, HttpMethod.Post, "/v1/twin/instances/live-test/commands", observeCookie, new { action = "stop" })).StatusCode == HttpStatusCode.Forbidden, "observer cannot command live");
         Assert((await SendAsync(http, HttpMethod.Post, "/v1/twin/instances/sim-test/commands", observeCookie, new { action = "text" })).StatusCode == HttpStatusCode.Forbidden, "observer cannot command simulation");
         Assert((await SendAsync(http, HttpMethod.Post, "/v1/twin/instances/live-test/commands", controlCookie, new { action = "inspect" })).StatusCode == HttpStatusCode.Forbidden, "simulation cannot command live");
@@ -101,7 +112,53 @@ internal static class TwinTests
         Assert(view.Contains("serverDroppedSnapshots") && !view.Contains("transcript"), "overflow visible");
         await app.StopAsync();
         TestFakeIsolation(directory);
+        if (Environment.GetEnvironmentVariable("KUFR_TWIN_TEST_NATIVE") is { Length: > 0 } native)
+        {
+            await TestNativeStopOwnershipAsync(directory, native);
+        }
         Console.WriteLine("PASS Twin HTTP authorization, epoch, decimal precision, privacy and bounded buffer checks");
+    }
+    private static async Task TestNativeStopOwnershipAsync(string directory, string native)
+    {
+        var credential = new string('f', 64);
+        var builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["DigitalTwin:DataRoot"] = Path.Combine(directory, "native-stop"), ["DigitalTwin:Origin"] = "https://twin.test",
+            ["DigitalTwin:Instances:sim-test:Mode"] = "simulation", ["DigitalTwin:Instances:sim-test:DeviceId"] = "sim-test",
+            ["DigitalTwin:Instances:sim-test:Executable"] = native, ["DigitalTwin:Instances:sim-test:BuildId"] = "ownership-test",
+            ["DigitalTwin:Credentials:0:Role"] = "control", ["DigitalTwin:Credentials:0:Mode"] = "simulation",
+            ["DigitalTwin:Credentials:0:InstanceId"] = "sim-test", ["DigitalTwin:Credentials:0:Sha256"] = Hash(credential)
+        });
+        builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddSingleton<DeviceAccessStore>();
+        builder.Services.AddSingleton<TwinAccess>();
+        builder.Services.AddSingleton<TwinStore>();
+        builder.Services.AddSingleton<TwinHost>();
+        builder.Services.AddHostedService(provider => provider.GetRequiredService<TwinHost>());
+        await using var app = builder.Build();
+        app.MapDigitalTwin();
+        await app.StartAsync();
+        var hosts = app.Services.GetRequiredService<TwinHost>();
+        for (var attempt = 0; attempt < 100 && !hosts.IsReady(); attempt++) { await Task.Delay(20); }
+        Assert(hosts.IsReady(), "native owner ready");
+        using var http = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
+        var first = await LoginAsync(http, credential);
+        var second = await LoginAsync(http, credential);
+        const string route = "/v1/twin/instances/sim-test/commands";
+        Assert((await SendAsync(http, HttpMethod.Post, route, first, new { action = "clock", paused = true })).IsSuccessStatusCode, "first owner clock");
+        Assert((await SendAsync(http, HttpMethod.Post, route, first, new { action = "inspect" })).IsSuccessStatusCode, "first owner inspect");
+        Assert((await SendAsync(http, HttpMethod.Post, route, second, new { action = "clock", paused = false })).StatusCode == HttpStatusCode.Conflict, "second cannot take owner");
+        Assert((await SendAsync(http, HttpMethod.Post, route, first, new { action = "text", slot = 3, variant = "main", operationId = Guid.NewGuid().ToString("D"), text = "synthetic" })).IsSuccessStatusCode, "native presentation admission");
+        using var stopped = await SendAsync(http, HttpMethod.Post, route, second, new { action = "stop" });
+        Assert(stopped.IsSuccessStatusCode, "second scoped session can urgent Stop");
+        var result = await stopped.Content.ReadFromJsonAsync<JsonElement>();
+        Assert(result.GetProperty("accepted").GetBoolean() && result.GetProperty("snapshot").GetProperty("reported").GetProperty("needsRecovery").GetBoolean(), "native Stop recovery");
+        Assert((await SendAsync(http, HttpMethod.Post, route, second, new { action = "inspect" })).StatusCode == HttpStatusCode.Conflict, "Stop does not steal owner");
+        Assert((await SendAsync(http, HttpMethod.Post, route, first, new { action = "clock", paused = true, stepMs = 10 })).IsSuccessStatusCode, "first retains owner after second Stop");
+        await app.StopAsync();
+        Console.WriteLine("PASS real native owner: reauthenticated scoped session urgent Stop, owner preserved");
     }
     private static void TestFakeIsolation(string directory)
     {

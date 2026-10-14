@@ -216,10 +216,10 @@ identity jsou v receipts; build/screenshot nejsou fyzickou akceptací.
 
 NASAZENO NA VPS: oddělená služba a skutečně běžící host procesy, chráněný viewer
 a ingest. Provider je fake; fyzický kufr nebyl ovládán ani flashován.
-Aktuální ověřený release je `twin-20261014-v4`; source/build ID
-`611164ada409925ec84de8fab4eaa5b5d0c5a5bcdfe4946529ac44d333252cdd`.
+Aktuální ověřený release je `twin-20261014-v5`; source/build ID
+`6da66c79a2bf8f99ab428bf5ed3ca2563abfb173ab5104d78ad52330494daa13`.
 VPS test s 20 HTTPS polls po 50 ms a pomalým čtenářem 10 B/s naměřil median
-5,25 ms, p95 9,11 ms, simulační Stop 11,59 ms a 4,67 snapshot updates/s.
+5,86 ms, p95 8,38 ms, simulační Stop 23,57 ms a 4,65 snapshot updates/s.
 Jde o host/VPS cestu; ESP režie ani odezva tím změřena není.
 
 OVĚŘENO NA SKUTEČNÉM KUFRU: **ne**. Host mikrofon/kamera, plné ESP hlasové/SD

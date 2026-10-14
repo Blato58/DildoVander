@@ -178,7 +178,7 @@
     let selectedProfile = 'unknown', selectedMode = 'unknown', commandNotice = '';
     let recording = [], recordingBytes = 0, recordingDrops = 0, currentIndex = 0;
     let replayPlaying = false, replayFrame = null, replayStarted = 0, replayOffset = 0;
-    let pending = false, failure = '', remoteCapabilities = [], lastTraceKey = '';
+    let pending = false, pendingStop = false, failure = '', remoteCapabilities = [], lastTraceKey = '';
     const offline = root.location?.protocol === 'file:';
     const privatePath = /^\/twin(?:\/|$)/.test(root.location?.pathname || '');
     const local = !offline && !/^\/workshop(?:\/|$)/.test(root.location?.pathname || '') &&
@@ -227,7 +227,7 @@
       stopPolling(); stopReplay(); projection.select(null); selectedSlot = null;
       recording = []; recordingBytes = 0; recordingDrops = 0; currentIndex = 0;
       failure = ''; lastTraceKey = ''; remoteCapabilities = []; selectedProfile = 'unknown'; selectedMode = 'unknown';
-      pending = false; commandNotice = ''; hooks.clear();
+      pending = false; pendingStop = false; commandNotice = ''; hooks.clear();
     }
     function display() {
       const snapshot = projection.current?.snapshot, status = replay ? 'replay' : projection.status(root.performance.now());
@@ -242,11 +242,13 @@
       get('twin-capabilities').textContent = `Session: ${role}. Profile: ${selectedProfile}${selectedProfile === 'integration' ? ' · wall-clock; fake clock unavailable; návrh vybírá skutečný backend' : selectedProfile === 'deterministic' ? ' · injected fake clock; syntetický vstup' : ''}. Capabilities: ${(snapshot?.capabilities || remoteCapabilities).join(', ') || 'unavailable'}. ${commandNotice} ${replay ? 'Historický záznam; žádné povely.' : ''}`;
       get('twin-controls').hidden = !active || replay || snapshot?.source.mode !== 'simulation' || role !== 'control';
       for (const button of get('twin-controls').querySelectorAll('button')) {
-        button.disabled = pending || (button.dataset.twinAction !== 'release' && status !== 'online');
+        const urgentStop = button.dataset.twinAction === 'stop';
+        button.disabled = urgentStop ? pendingStop : pending || pendingStop ||
+          (button.dataset.twinAction !== 'release' && status !== 'online');
         if (button.dataset.twinAction === 'text') button.textContent = selectedProfile === 'integration' ? 'Odeslat integrační text' : 'Syntetický textový vstup';
       }
       for (const id of ['twin-speed','twin-pause','twin-resume','twin-step']) {
-        get(id).disabled = pending || status !== 'online' || selectedProfile !== 'deterministic';
+        get(id).disabled = pending || pendingStop || status !== 'online' || selectedProfile !== 'deterministic';
       }
       get('twin-variant').disabled = selectedProfile !== 'deterministic';
       get('twin-text').disabled = selectedProfile !== 'integration';
@@ -309,7 +311,7 @@
         for (const item of value.instances || []) {
           sourceProfiles.set(item.instanceId, ['deterministic','integration'].includes(item.profile) ? item.profile : 'unknown');
           sourceModes.set(item.instanceId, ['live','simulation'].includes(item.mode) ? item.mode : 'unknown');
-          get('twin-source').add(new Option(`${item.mode} · ${item.profile || 'unknown'} · ${item.instanceId} · ${item.online ? 'online' : 'offline'}`, item.instanceId));
+          get('twin-source').add(new Option(`${item.mode} · ${item.profile || 'unknown'} · ${item.instanceId} · ${item.status || (item.online ? 'online' : 'offline')}`, item.instanceId));
         }
         if (active && !replay) {
           selectedProfile = sourceProfiles.get(projection.instanceId) || selectedProfile;
@@ -331,8 +333,9 @@
       if (ownGeneration === generation && !replay) timer = root.setTimeout(() => poll(ownGeneration), 250);
     }
     async function command(body) {
-      if (pending || replay || role !== 'control' || projection.current?.snapshot.source.mode !== 'simulation' ||
-          (body.action !== 'release' && projection.status(root.performance.now()) !== 'online') ||
+      const urgentStop = body.action === 'stop';
+      if ((urgentStop ? pendingStop : pending || pendingStop) || replay || role !== 'control' || projection.current?.snapshot.source.mode !== 'simulation' ||
+          (!urgentStop && body.action !== 'release' && projection.status(root.performance.now()) !== 'online') ||
           (body.action === 'clock' && selectedProfile !== 'deterministic') ||
           (body.action === 'integrationText' && selectedProfile !== 'integration') ||
           (body.action === 'text' && selectedProfile !== 'deterministic')) return;
@@ -340,7 +343,11 @@
       if (new TextEncoder().encode(commandJson).length > 2048) {
         failure = 'Povel přesahuje 2048 bajtů UTF-8 JSON.'; display(); return;
       }
-      pending = true; failure = ''; commandNotice = ''; display();
+      // The server admits urgent Stop independently of long integration work.
+      // Keep one request of each kind, with no ordinary commands during Stop.
+      if (urgentStop) pendingStop = true;
+      else pending = true;
+      failure = ''; commandNotice = ''; display();
       const ownGeneration = generation;
       try {
         const result = await request('/v1/twin/instances/' + encodeURIComponent(projection.instanceId) + '/commands', {
@@ -348,7 +355,13 @@
         if (ownGeneration === generation && !result.accepted) failure = 'Povel odmítnut: ' + (result.code || 'unknown');
         if (ownGeneration === generation && result.accepted && body.action === 'release') commandNotice = 'Ovládání uvolněno; další povel může znovu požádat o vlastnictví.';
       } catch (error) { if (ownGeneration === generation) failure = error.message; }
-      finally { if (ownGeneration === generation) { pending = false; display(); } }
+      finally {
+        if (ownGeneration === generation) {
+          if (urgentStop) pendingStop = false;
+          else pending = false;
+          display();
+        }
+      }
     }
     get('twin-source').onchange = () => {
       const instance = get('twin-source').value; reset(); active = !!instance; replay = false;
@@ -446,7 +459,7 @@
     return {active:() => active, angle:slot => projection.angle(slot),
       selection:name => { if (selectedMesh === name) return; selectedMesh = name; selectedSlot = model.twinManifest?.slots.find(slot => Object.values(slot.components).includes(name) || slot.liftComponents.includes(name) || slot.rotationComponents.includes(name))?.slot || null; display(); },
       uncertainty:slot => projection.estimates[slot - 1] === 'unknown' || projection.estimates[slot - 1] === 'moving',
-      state:() => ({active,replay,pending,mode:selectedMode,profile:selectedProfile,instanceId:projection.instanceId,status:projection.status(root.performance.now()),selectedSlot,positions:[...projection.positions]})};
+      state:() => ({active,replay,pending:pending || pendingStop,pendingOrdinary:pending,pendingStop,mode:selectedMode,profile:selectedProfile,instanceId:projection.instanceId,status:projection.status(root.performance.now()),selectedSlot,positions:[...projection.positions]})};
   }
   const api = {Projection, decimal, validateSnapshot, parseRecording, traceSummary, reportedOutputs, ageStatus, mount, MAX_BYTES, MAX_SNAPSHOTS};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

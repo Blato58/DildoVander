@@ -34,7 +34,10 @@ jobs:
       - name: Build backend and tests once in Release
         run: dotnet build kufr/backend-tests/BackendTests.csproj -c Release -r linux-x64 -p:SelfContained=true --no-restore
       - name: Backend tests
+        env:
+          KUFR_TWIN_TEST_NATIVE: ${{ runner.temp }}/native-twin
         run: |
+          python3 kufr/simulator/native/build_host.py --output "$KUFR_TWIN_TEST_NATIVE"
           dotnet run --project kufr/backend-tests/BackendTests.csproj -c Release -r linux-x64 --no-build --no-restore
           dotnet run --project kufr/backend-tests/BackendTests.csproj -c Release -r linux-x64 --no-build --no-restore -- --twin
       - name: Publish self-contained Linux binary

@@ -46,9 +46,10 @@ internal static class TwinEndpoints
                 .Where(id => CanObserve(session, id)).Select(id =>
                 {
                     var latest = store.Read(id);
+                    var status = store.Status(latest);
                     return new { instanceId = id, mode = configuration[$"DigitalTwin:Instances:{id}:Mode"],
                         profile = configuration[$"DigitalTwin:Instances:{id}:Profile"]
-                            ?? (configuration[$"DigitalTwin:Instances:{id}:Mode"] == "live" ? "device" : "deterministic"), online = latest is not null,
+                            ?? (configuration[$"DigitalTwin:Instances:{id}:Mode"] == "live" ? "device" : "deterministic"), online = status == "online", status,
                         capabilities = latest?.Snapshot.Capabilities ?? ["awaiting-snapshot"] };
                 }) });
         });

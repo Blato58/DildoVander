@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Install an already verified Twin release. Root-only; no provider or hardware calls."""
 import argparse
+import copy
 import hashlib
 import json
 import os
@@ -34,6 +35,84 @@ def verify_release(release):
     return manifest
 
 
+def read_provisioned_devices(root):
+    # Match the existing backend's environment-file precedence without importing
+    # unrelated secrets or treating an unrequested identity as an allowlist.
+    environment = {}
+    for name in ("backend.env", "device-identities.env"):
+        path = root / name
+        if not path.exists():
+            continue
+        for line in path.read_text().splitlines():
+            if "=" not in line or line.lstrip().startswith("#"):
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            if re.fullmatch(r"Devices__\d+__(DeviceId|CredentialSha256)", key):
+                environment[key] = value.strip().strip('"').strip("'")
+    return [{"DeviceId": device_id,
+             "CredentialSha256": environment.get(key.removesuffix("DeviceId") + "CredentialSha256", "")}
+            for key, device_id in environment.items() if key.endswith("__DeviceId")]
+
+
+def merge_live_devices(config, requested, provisioned):
+    """Validate the complete requested merge before changing even the input dict."""
+    for device_id in requested:
+        if not isinstance(device_id, str) or not re.fullmatch(r"[a-zA-Z0-9._-]{1,64}", device_id) or \
+                device_id in (".", "..", "debug-server-admin") or device_id.startswith("sim-"):
+            raise ValueError("Invalid requested physical device identity")
+    merged = copy.deepcopy(config)
+    devices = merged.get("Devices")
+    instances = merged.get("DigitalTwin", {}).get("Instances")
+    if not isinstance(devices, list) or not all(isinstance(device, dict) for device in devices) or \
+            not isinstance(instances, dict) or not all(isinstance(instance, dict) for instance in instances.values()):
+        raise ValueError("Existing device configuration must contain a Devices array and Instances object")
+    for device_id in dict.fromkeys(requested):
+        candidates = [device for device in provisioned if device.get("DeviceId") == device_id]
+        if len(candidates) != 1:
+            raise ValueError("Requested physical identity is missing or ambiguously provisioned")
+        credential = candidates[0].get("CredentialSha256")
+        if not isinstance(credential, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", credential):
+            raise ValueError("Requested physical identity has an invalid provisioned credential hash")
+        existing = [device for device in devices if device.get("DeviceId") == device_id]
+        if len(existing) > 1:
+            raise ValueError("Requested physical identity collides with duplicate configured devices")
+        if existing and str(existing[0].get("CredentialSha256", "")).lower() != credential.lower():
+            raise ValueError("Requested physical identity conflicts with its existing credential")
+        if any(device.get("DeviceId") != device_id and
+               str(device.get("CredentialSha256", "")).lower() == credential.lower() for device in devices):
+            raise ValueError("Requested physical credential is already assigned to another device")
+        if device_id in instances and (instances[device_id].get("Mode") != "live" or
+                                      instances[device_id].get("DeviceId") != device_id):
+            raise ValueError("Requested physical identity collides with another instance")
+        if any(name != device_id and instance.get("DeviceId") == device_id for name, instance in instances.items()):
+            raise ValueError("Requested physical device is already assigned to another instance")
+        if not existing:
+            devices.append({"DeviceId": device_id, "CredentialSha256": credential})
+        if device_id not in instances:
+            instances[device_id] = {"Mode": "live", "DeviceId": device_id}
+    return merged
+
+
+def initial_configuration(origin, data_root, build_id, cad_revision):
+    credentials = {role: secrets.token_hex(32) for role in ("observe", "control", "integration")}
+    config = {
+        "Backend": {"DatabasePath": str(data_root / "backend.sqlite"), "Dialog": {"Mode": "fake"}, "Memory": {"Enabled": False}},
+        "Devices": [{"DeviceId": "sim-integration", "CredentialSha256": hashlib.sha256(secrets.token_bytes(32)).hexdigest()}],
+        "DigitalTwin": {"Origin": origin, "DataRoot": str(data_root),
+            "ViewerPath": "/opt/kufr-twin/current/viewer.html", "IntegrationBackendUrl": "http://127.0.0.1:5082/",
+            "Instances": {name: {"Mode": "simulation", "DeviceId": name, "Profile": profile,
+                "Executable": "/opt/kufr-twin/current/native-twin", "BuildId": build_id, "CadManifestRevision": cad_revision}
+                for name, profile in (("sim-development", "deterministic"), ("sim-integration", "integration"))},
+            "Credentials": [{"Role": "observe", "Sha256": hashlib.sha256(credentials["observe"].encode()).hexdigest()}]
+        }
+    }
+    for role, instance in (("control", "sim-development"), ("integration", "sim-integration")):
+        config["DigitalTwin"]["Credentials"].append({"Role": "control", "InstanceId": instance,
+            "Mode": "simulation", "Sha256": hashlib.sha256(credentials[role].encode()).hexdigest()})
+    return config, credentials
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--release", type=Path, required=True)
@@ -49,16 +128,30 @@ def main():
     cad_revision = json.loads((release / "twin.manifest.json").read_text())["revision"]
     if not re.fullmatch(r"https://[a-zA-Z0-9.-]+", args.origin):
         raise SystemExit("Origin must be the existing HTTPS origin without a path")
-    for name in ("backend", "native-twin"):
-        (release / name).chmod(0o755)
-    import pwd
-    account = pwd.getpwnam("kufr-backend")
     config_root = Path("/etc/kufr-twin")
     data_root = Path("/var/lib/kufr-twin")
+    config_path = config_root / "config.json"
     managed = (config_root, data_root, config_root / "config.json", config_root / "operator-credentials.json",
                Path("/etc/systemd/system/kufr-twin.service"), Path("/etc/nginx/snippets/dildovander-twin.conf"))
     if any(path.is_symlink() for path in managed):
         raise SystemExit("Refusing symlinked managed Twin targets")
+    credentials = None
+    if config_path.exists():
+        config = json.loads(config_path.read_text())
+    else:
+        config, credentials = initial_configuration(args.origin, data_root, manifest["buildId"], cad_revision)
+    provisioned = read_provisioned_devices(Path("/etc/kufr-backend")) if args.live_device_id else []
+    config = merge_live_devices(config, args.live_device_id, provisioned)
+    for instance in config["DigitalTwin"]["Instances"].values():
+        if instance.get("Mode") == "simulation":
+            instance["BuildId"] = manifest["buildId"]
+            instance["CadManifestRevision"] = cad_revision
+    # Requested identities are fully validated before chmod, mkdir, backup or
+    # any persistent configuration/service mutation, for fresh and upgrade paths.
+    for name in ("backend", "native-twin"):
+        (release / name).chmod(0o755)
+    import pwd
+    account = pwd.getpwnam("kufr-backend")
     config_root.mkdir(mode=0o750, exist_ok=True)
     data_root.mkdir(mode=0o750, exist_ok=True)
     os.chown(config_root, 0, account.pw_gid)
@@ -68,7 +161,6 @@ def main():
     site = Path("/etc/nginx/sites-available/kufr-ip")
     unit = Path("/etc/systemd/system/kufr-twin.service")
     snippet = Path("/etc/nginx/snippets/dildovander-twin.conf")
-    config_path = config_root / "config.json"
     site_text = site.read_text()
     include = "    include /etc/nginx/snippets/dildovander-twin.con[f];"
     anchor = "    include /etc/nginx/snippets/dildovander-site.con[f];"
@@ -89,51 +181,10 @@ def main():
     if current.exists() and not current.is_symlink():
         raise SystemExit("Refusing non-symlink current release")
     try:
-        if not config_path.exists():
-            credentials = {role: secrets.token_hex(32) for role in ("observe", "control", "integration")}
-            config = {
-                "Backend": {"DatabasePath": str(data_root / "backend.sqlite"), "Dialog": {"Mode": "fake"}, "Memory": {"Enabled": False}},
-                "Devices": [{"DeviceId": "sim-integration", "CredentialSha256": hashlib.sha256(secrets.token_bytes(32)).hexdigest()}],
-                "DigitalTwin": {"Origin": args.origin, "DataRoot": str(data_root),
-                    "ViewerPath": "/opt/kufr-twin/current/viewer.html", "IntegrationBackendUrl": "http://127.0.0.1:5082/",
-                    "Instances": {name: {"Mode": "simulation", "DeviceId": name, "Profile": profile,
-                        "Executable": "/opt/kufr-twin/current/native-twin", "BuildId": manifest["buildId"], "CadManifestRevision": cad_revision}
-                        for name, profile in (("sim-development", "deterministic"), ("sim-integration", "integration"))},
-                    "Credentials": [{"Role": "observe", "Sha256": hashlib.sha256(credentials["observe"].encode()).hexdigest()}]
-                }
-            }
-            for role, instance in (("control", "sim-development"), ("integration", "sim-integration")):
-                config["DigitalTwin"]["Credentials"].append({"Role": "control", "InstanceId": instance,
-                    "Mode": "simulation", "Sha256": hashlib.sha256(credentials[role].encode()).hexdigest()})
-            # Existing device credential hashes are reused only to mint scoped ingest
-            # grants. No plaintext device secret or ordinary device token is copied.
-            environment = {}
-            for name in ("backend.env", "device-identities.env"):
-                path = Path("/etc/kufr-backend") / name
-                if not path.exists():
-                    continue
-                for line in path.read_text().splitlines():
-                    if "=" in line and not line.lstrip().startswith("#"):
-                        key, value = line.split("=", 1)
-                        if re.fullmatch(r"Devices__\d+__(DeviceId|CredentialSha256)", key):
-                            environment[key] = value.strip().strip('"').strip("'")
-            for key, device_id in environment.items():
-                if not key.endswith("__DeviceId") or device_id not in args.live_device_id:
-                    continue
-                hash_value = environment.get(key.removesuffix("DeviceId") + "CredentialSha256", "")
-                if not re.fullmatch(r"[a-zA-Z0-9._-]{1,64}", device_id) or not re.fullmatch(r"[0-9a-fA-F]{64}", hash_value):
-                    continue
-                config["Devices"].append({"DeviceId": device_id, "CredentialSha256": hash_value})
-                config["DigitalTwin"]["Instances"][device_id] = {"Mode": "live", "DeviceId": device_id}
+        if credentials is not None:
             private_credentials = config_root / "operator-credentials.json"
             private_credentials.write_text(json.dumps(credentials, indent=2) + "\n")
             private_credentials.chmod(0o600)
-        else:
-            config = json.loads(config_path.read_text())
-            for instance in config["DigitalTwin"]["Instances"].values():
-                if instance["Mode"] == "simulation":
-                    instance["BuildId"] = manifest["buildId"]
-                    instance["CadManifestRevision"] = cad_revision
         config_path.write_text(json.dumps(config, indent=2) + "\n")
         config_path.chmod(0o640)
         os.chown(config_path, 0, account.pw_gid)
