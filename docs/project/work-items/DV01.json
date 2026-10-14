@@ -95,7 +95,9 @@
         "policyVersion": "dv01-director-v1",
         "nativeFixtureArtifactDigest": "43bef0c7739b2786877c791b4534d6fc67d4c653c0af3449d3db32476db5fb8a"
       },
-      "evidenceRefs": []
+      "evidenceRefs": [
+        "DV01-native-ios-v1"
+      ]
     }
   ],
   "blockers": [
@@ -126,22 +128,12 @@
       "blocks": [
         "PHYSICAL"
       ],
-      "unblockCondition": "Run existing macOS native tests and authorized iPhone/ESP listening + journal/reveal tests on identified assembly; document firmware/config/wiring/mechanics identities.",
+      "unblockCondition": "Native fake tests and signed build passed; run authorized iPhone/ESP listening + journal/reveal tests on identified assembly and document firmware/config/wiring/mechanics identities.",
       "role": "majitel a implementátor"
-    },
-    {
-      "id": "B-NATIVE",
-      "problem": "Prepared cancellation fixture is not compiled/executed on macOS. Supported workflow requires merged main and a retained verified web-dist artifact.",
-      "severity": "medium",
-      "blocks": [
-        "NATIVE"
-      ],
-      "unblockCondition": "After verified merge, run existing manual CI web build and kufr-ios-sign.yml with its run ID; inspect actual native tests and signed package result.",
-      "role": "implementátor"
     }
   ],
-  "nextAction": "Finish PR181 CI/review/merge, then existing main-only native workflow; resolve remaining B-LIVE/B-VISION/B-PHYSICAL through authorized capability-specific acceptance. DV01 off and finale blocked by default.",
-  "currentNote": "Offline A–E implemented; named blocked, limited explicit opt-in, production visual permission_pending, live/audio hardware/physical/event_ready false. Final production/scope868008053f56b8c45b4569572ed0f93894ecec7e; fake-clock test fix7503f98253fbec461a96cf66434ac07e14bae722. Each pushed with Push-CurrentBranch.ps1 and verified remote HEAD. All five PR181 Codex findings fixed and resolved; independent code review clear. Local Release plus5 repeats and latest replay passed. Historical v4 Linux timeout retained; final hosted recheck and Git delivery inspectable in PR181. Production/UI/firmware/skill inputs unchanged by clock-only fix, original scoped evidence retained. No paid calls, deployment or flash. Native cancellation fixture0defce6cac18458114dadeb60d1ee15873493af7 pushed and remote HEAD verified; Node syntax/source review passed, macOS execution waits for supported main workflow.",
+  "nextAction": "Resolve B-LIVE/B-VISION/B-PHYSICAL through authorized capability-specific acceptance. No further independent A–E software gate remains; DV01 off and finale blocked by default.",
+  "currentNote": "Feasible A–E implemented and offline verified. Implementation/source push 1c85159ba279aa31abdd8d2c8fec98a125b88a6b verified via Push-CurrentBranch.ps1; PR #181 merged 944607bad5665ba8d616771f1fdee203a150b325 after full CI 38484534383 and final reread of all reviews/threads (five fixed/resolved, no running review). Verified identical Git tree 47c9ee26e542b52570e9d0dfd542b9c089fcab6f. Concurrent main iOS PR checks preserved; independent integration source review clear after one wording correction. Native PR Swift/Simulator and main signing 38486542190 passed using webCI 38486387087. Downloaded signed IPA checksum/provenance verified. Historical Linux failure and preparation receipts remain immutable; current scoped evidence identifies unchanged core/fixture bytes. Named blocked, limited explicit opt-in, production visual permission_pending, live/audio hardware/physical/event_ready false. No paid provider calls, publication, deployment, installation or flash. Native evidence follow-up PR #184: STATUS digest finding fixed in df48419cccbb28c06fd2d08f5b64d0a273e8dcf6 by regeneration from canonical LF bytes; both hosted tracking jobs and CI required passed in 38487583176. Existing receipts were unchanged, review thread resolved.",
   "implementedSubject": {
     "artifactDigest": "c49f1b6ad1cc42a12dedc94fa9daa5d73bf53be918deb0b7924d48c1e90009c1",
     "policyVersion": "dv01-director-v1"
