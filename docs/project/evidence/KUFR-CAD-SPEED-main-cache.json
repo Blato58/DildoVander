@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-CAD-SPEED-main-cache",
+  "observedAtUtc": "2026-10-14T00:49:49.585108+00:00",
+  "kind": "integration",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-CAD-SPEED",
+      "criterionId": "REGEN",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "2e94cc46451d9949e1cca5d3eacf3c4494797b9c8b396e6ff89b458bf9295f02",
+    "mainCadPackageArtifactDigest": "86b7941f461f6ea67c770d5cab4235f5f49392d3fcf643343413aad4d691df2b"
+  },
+  "method": "gh workflow run ci.yml --ref main -f project=site; inspect successful run38490308766 job115613723896 logs and GitHub actions/caches API ref/key/size.",
+  "environment": "GitHub-hosted ubuntu24.04, Python3.11.17, pinned CAD dependencies; merged main417bb71.",
+  "limitations": [
+    "A new source/runtime identity still needs full regeneration. Cache expiry/eviction can require a cold run.",
+    "This is build/cache verification, not site deployment or physical acceptance."
+  ],
+  "artifactRefs": [
+    "https://github.com/Blato58/DildoVander/actions/runs/38490308766/job/115613723896"
+  ],
+  "observation": "Full main site CI SUCCESS, CAD total1096.22s; verified ZIP and162-file site packed. Default-branch cache confirmed by API at refs/heads/main, key cad-verified-v1-668cc3152e6e2cd2c471fef2011ee4210b9cdacd66a2ff4eb532f5e135d3eb59, size 74986681bytes. Key equals PR cold/warm proof; future PRs may read default-branch entry under normal GitHub scope. Original code PR183 squash417bb71 tree matches tested source. Physical flag/gates unchanged."
+}

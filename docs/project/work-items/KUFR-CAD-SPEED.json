@@ -41,12 +41,13 @@
         "artifactDigest": "2e94cc46451d9949e1cca5d3eacf3c4494797b9c8b396e6ff89b458bf9295f02"
       },
       "evidenceRefs": [
-        "KUFR-CAD-SPEED-integration"
+        "KUFR-CAD-SPEED-integration",
+        "KUFR-CAD-SPEED-main-cache"
       ]
     }
   ],
   "blockers": [],
-  "currentNote": "Kód 0abfdae a synchronizace 4b28d1b úspěšně pushnuty s ověřením remote SHA. Windows opakovaná regenerace 25m06s→9.16s; CI Site/build20m12s→1m28s, CAD1121.75s→5.06s. Všechny exportní/provenance brány a skutečný site prošly. PR183 je připraven pro reviews/merge; první main build následně naplní výchozí cache pro další PR. Podpis, nasazení a fyzická akceptace nejsou součástí.",
+  "currentNote": "Implementace PR183 sloučena jako417bb7153f5bac39e065af4b59b0dc8a073785c0 (main tree ověřen). Windows25m06s→9.16s; CI Site/build20m12s→1m28s, CAD1121.75s→5.06s. Main build38490308766 prošel a API potvrzuje výchozí cache refs/heads/main se stejným vstupním klíčem; dostupná pro další PR. F2 zdroje, izolované CAD brány i aktuální DV01 tracking zachovány. Podpis/nasazení/fyzická přejímka nebyly součástí.",
   "implementedSubject": {
     "artifactDigest": "2e94cc46451d9949e1cca5d3eacf3c4494797b9c8b396e6ff89b458bf9295f02"
   },
