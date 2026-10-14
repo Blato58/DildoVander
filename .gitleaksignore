@@ -29,3 +29,25 @@ ea40e0ffbda959256109ff524deb0194f3192eee:kufr/firmware/tests/conversation_start_
 3be94343c3eb68f308085e4779390963899509e4:docs/project/evidence/F2-SF-sealed-cavities-failure-runtime-corrected.json:generic-api-key:69
 3be94343c3eb68f308085e4779390963899509e4:docs/project/evidence/F2-SF-sealed-cavities-failure.json:generic-api-key:29
 3be94343c3eb68f308085e4779390963899509e4:docs/project/evidence/F2-SF-sealed-cavities-failure.json:generic-api-key:69
+
+# Same reviewed CAD inventories after PR #187 squash merge to main.
+8952a076d6fe76f5df4769b6369f9dd3cc5c3f34:docs/project/evidence/F2-SF-final-regression.json:generic-api-key:41
+8952a076d6fe76f5df4769b6369f9dd3cc5c3f34:docs/project/evidence/F2-SF-final-regression.json:generic-api-key:72
+8952a076d6fe76f5df4769b6369f9dd3cc5c3f34:docs/project/evidence/F2-SF-final11-assembly-failure.json:generic-api-key:28
+8952a076d6fe76f5df4769b6369f9dd3cc5c3f34:docs/project/evidence/F2-SF-final11-assembly-failure.json:generic-api-key:68
+8952a076d6fe76f5df4769b6369f9dd3cc5c3f34:docs/project/evidence/F2-SF-final11-source-review.json:generic-api-key:34
+8952a076d6fe76f5df4769b6369f9dd3cc5c3f34:docs/project/evidence/F2-SF-final11-source-review.json:generic-api-key:74
+8952a076d6fe76f5df4769b6369f9dd3cc5c3f34:docs/project/evidence/F2-SF-final12-assembly-failure.json:generic-api-key:28
+8952a076d6fe76f5df4769b6369f9dd3cc5c3f34:docs/project/evidence/F2-SF-final12-assembly-failure.json:generic-api-key:69
+8952a076d6fe76f5df4769b6369f9dd3cc5c3f34:docs/project/evidence/F2-SF-final13-source-review.json:generic-api-key:123
+8952a076d6fe76f5df4769b6369f9dd3cc5c3f34:docs/project/evidence/F2-SF-final13-source-review.json:generic-api-key:170
+8952a076d6fe76f5df4769b6369f9dd3cc5c3f34:docs/project/evidence/F2-SF-final13-source-review.json:generic-api-key:61
+8952a076d6fe76f5df4769b6369f9dd3cc5c3f34:docs/project/evidence/F2-SF-final13-source-review.json:generic-api-key:62
+8952a076d6fe76f5df4769b6369f9dd3cc5c3f34:docs/project/evidence/F2-SF-final13-source-review.json:generic-api-key:89
+8952a076d6fe76f5df4769b6369f9dd3cc5c3f34:docs/project/evidence/F2-SF-final13-source-review.json:generic-api-key:90
+8952a076d6fe76f5df4769b6369f9dd3cc5c3f34:docs/project/evidence/F2-SF-final9-source-review.json:generic-api-key:34
+8952a076d6fe76f5df4769b6369f9dd3cc5c3f34:docs/project/evidence/F2-SF-final9-source-review.json:generic-api-key:74
+8952a076d6fe76f5df4769b6369f9dd3cc5c3f34:docs/project/evidence/F2-SF-sealed-cavities-failure-runtime-corrected.json:generic-api-key:29
+8952a076d6fe76f5df4769b6369f9dd3cc5c3f34:docs/project/evidence/F2-SF-sealed-cavities-failure-runtime-corrected.json:generic-api-key:69
+8952a076d6fe76f5df4769b6369f9dd3cc5c3f34:docs/project/evidence/F2-SF-sealed-cavities-failure.json:generic-api-key:29
+8952a076d6fe76f5df4769b6369f9dd3cc5c3f34:docs/project/evidence/F2-SF-sealed-cavities-failure.json:generic-api-key:69
