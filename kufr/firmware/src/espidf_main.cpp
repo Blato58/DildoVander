@@ -387,7 +387,7 @@ extern "C" void app_main() {
   static TwinTelemetryMailbox twinMailbox;
   static EspIdfTwinTelemetry twinNetwork(twinMailbox, identity, station, bootId);
   if (stationStarted) twinNetwork.Start();
-  static EspIdfBackendNetwork backendNetwork(identity, runtimeState, bootId, station);
+  static EspIdfBackendNetwork backendNetwork(identity, runtimeState, bootId, station, journal, journalStorage);
   backendNetwork.InitializeVoice(nvsStatus == ESP_OK, hardware.ProfileSelected() ? &hardware : nullptr);
   static TwinObservedAudio observedAudio(backendNetwork.PresentationAudio());
   presentationPort.BindAudio(observedAudio);

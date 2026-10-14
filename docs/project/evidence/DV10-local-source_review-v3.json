@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "DV10-local-source_review-v3",
+  "observedAtUtc": "2026-10-14T20:00:09.268802Z",
+  "kind": "source_review",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "DV10",
+      "criterionId": "LOCAL",
+      "criterionRevision": 3,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "4e24c5876a0702b834f03325bf80446fd1db51996400e706d4a857bb89c52f7d"
+  },
+  "method": "Independent Sol6.1/high read-only source/diff/test review plus parent integration inspection; follow-up reread after fixes.",
+  "environment": "Independent read-only reviewer; no child builds/writes; parent final source integration.",
+  "limitations": [
+    "Offline synthetic software evidence does not prove paid OpenAI quality, real iPhone/hardware, DV10 production runtime/nginx -t, provider cleanup or independent encrypted off-VPS recovery.",
+    "Broad Linux-only existing memory provisioning tests cannot run on Windows (os.getuid absent/NTFS permissions); no affected memory provisioning source edits. Focused Keepsake/Twin deployment tests passed. Earlier unrelated full deployment invocation reported1failure11errors1skip.",
+    "Initial parallel DV10 host compilation failed on transient cJSON header refresh during PIO build; sequential fresh rerun passed all7. No managed dependency edits.",
+    "Current-source hosted CI and clean committed-source package are separate subsequent records."
+  ],
+  "observation": "Independent Sol6.1/high read-only combined source review plus parent diff inspection found no material integration defect: captured evening retained through fake/paid selection completion, disabled archive eager startup/admin and double generation flags preserved, firmware durable journal+ACK retained with Twin observed audio/mailboxes, exact proxy methods/IDs/upstreams preserve60 source declarations. Original v2 full-DV10 review remains valid for unchanged code. No outstanding P1/P2; optional direct synthetic Twin selection+EveningMemory intersection test is absent, separate runtime/provider isolation and journal/realHTTP tests passed.",
+  "artifactRefs": [
+    "docs/project/artifacts/DV10-source-bundle-v3.json",
+    "kufr/docs/dv10/CAPABILITIES.json"
+  ],
+  "supersedes": [
+    "DV10-local-source_review-v2"
+  ],
+  "supersedesReason": "Main advanced with Digital Twin; merged backend/firmware/native and ingress source identities, repeated bounded integration/browser checks and independent review."
+}

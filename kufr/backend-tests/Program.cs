@@ -7,6 +7,8 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 
 // Paid provider diagnostic is explicit and never part of normal offline CI.
+if (args is ["--keepsake-fixture"]) { KeepsakeHttpFixture.Run(); return; }
+if (args is ["--keepsake"]) { KeepsakeOutcomeJournalTests.Run(); await KeepsakeCoreTests.RunAsync(); return; }
 if (args is ["--twin"]) { await TwinTests.RunAsync(); return; }
 if (args is ["--twin-media"]) { await TwinMediaTests.RunAsync(); return; }
 if (args is ["--character"])
@@ -32,6 +34,8 @@ if (args is ["--autonomous-memory"])
 }
 
 if (args is ["--image"]) { await CostumeImageTests.RunAsync(); return; }
+await KeepsakeCoreTests.RunAsync();
+KeepsakeOutcomeJournalTests.Run();
 FirmwareReleaseTests.Run();
 CharacterDirectorTests.Run();
 CharacterOperationTests.Run();

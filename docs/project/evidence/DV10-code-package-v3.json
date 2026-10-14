@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "DV10-code-package-v3",
+  "observedAtUtc": "2026-10-14T20:02:13.082832Z",
+  "kind": "integration",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "DV10",
+      "criterionId": "LOCAL",
+      "criterionRevision": 3,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "4e24c5876a0702b834f03325bf80446fd1db51996400e706d4a857bb89c52f7d"
+  },
+  "method": "Clean committed standalone build, actual dotnet publish Linux self-contained, keepsake_release.py and independent file rehash/ZIP.",
+  "environment": "Windows local build against exact committed source; Linux executable prepared, not executed locally.",
+  "limitations": [
+    "Standalone public root is a preview; production must preserve complete current project site. Full site build requires absent verified CAD exports.",
+    "No GitHub build provenance is fabricated for this local package; mandatory PR CI remains separate.",
+    "No production activation, nginx runtime, paid provider, real iPhone/hardware or off-VPS encrypted restore."
+  ],
+  "observation": "Clean source 23a1caefc842ed7906f040d8f85f4db122f80c2f dotnet publish Release/linux-x64 self-contained PASS under pinned10.0.303; standalone45files sourceDirty=false PASS; actual package builder PASS and all394 files plus ZIP entries rehashed PASS. ZIP SHA256f04467c92b10e2d4975871be2aba4d30e0be8164d34a4ca32159b626f5a411d2,bytes59006096; no production write or activation.",
+  "artifactRefs": [
+    "docs/project/artifacts/DV10-code-package-v3.json",
+    "docs/project/artifacts/DV10-source-bundle-v3.json"
+  ],
+  "supersedes": [
+    "DV10-code-package-v2"
+  ],
+  "supersedesReason": "Rebuild exact clean merged Digital Twin and DV10 source; changed backend compiled bytes and route inventory."
+}

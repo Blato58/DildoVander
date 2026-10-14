@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "DV10-local-browser-v2",
+  "observedAtUtc": "2026-10-14T18:08:40.628253Z",
+  "kind": "browser",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "DV10",
+      "criterionId": "LOCAL",
+      "criterionRevision": 2,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "5d53c276f653bbcb84f2fd2fc2bcb0c3a668118712e3a3e3954177546c92b1db"
+  },
+  "method": "Repeatable Edge Playwright synthetic DTO/browser harness plus portal/site unittest fixtures.",
+  "environment": "Windows installed Edge, bundled Playwright; synthetic assets and mocked guest API.",
+  "limitations": [
+    "Synthetic offline checks do not prove paid OpenAI quality, real iPhone/hardware, DV10 production TLS/runtime, provider cleanup or independent encrypted off-VPS recovery.",
+    "Complete project-site build needs absent verified CAD exports; standalone public evening is a preview and cannot replace the whole public root.",
+    "Current-source mandatory PR CI and clean committed-source package are separate subsequent records."
+  ],
+  "observation": "Actual Edge Playwright public and private synthetic harnesses PASS: public latest/prior selection, two evenings/cursor409/stale/deletion isolation, GET-only/no cookies/storage, four base assets, TXT charset MIME, slow ZIP across stable polls/new exports, removed selection blob/dialog revocation, XSS/private sentinel exclusion; private owner/share/consent/recovery unchanged. 320/390/430/landscape/desktop, keyboard/200percentzoom/reducedmotion PASS. Site+portal18 tests with3 explicit Windows skips.",
+  "artifactRefs": [
+    "docs/project/artifacts/DV10-source-bundle-v2.json",
+    "kufr/docs/dv10/CAPABILITIES.json"
+  ],
+  "supersedes": [
+    "DV10-local-browser-v1"
+  ],
+  "supersedesReason": "Owner changed pickup to one static QR and public active-evening wands/stories; new exact source includes correlated evening, QR removal and review/CI fixes."
+}

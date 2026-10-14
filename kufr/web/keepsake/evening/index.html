@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src blob:; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <title>Hůlky tohoto večera · DildoVander</title>
+  <link rel="stylesheet" href="/design-system/arcane-workshop.css">
+  <link rel="stylesheet" href="/keepsake/keepsake.css">
+  <link rel="stylesheet" href="/keepsake/evening/evening.css">
+  <script src="/keepsake/evening/evening.js" type="module"></script>
+</head>
+<body class="aw-root">
+  <a href="#main" class="skip">Přejít k hůlkám</a>
+  <header class="archive-header"><a href="/" class="archive-brand">DildoVander <span>Archiv nepravděpodobného</span></a><a href="/keepsake/?privacy=1">Soukromí</a></header>
+  <main id="main" tabindex="-1">
+    <div class="evening-heading"><div><p class="eyebrow">Společná památka · jeden večer</p><h1>Hůlky, které si vás vybraly.</h1><p class="muted">Každý výběr má svůj příběh. Najdi svoji hůlku a odnes si trochu dnešního kouzla.</p></div><button id="refresh-evening" class="text-button">Obnovit přehled</button></div>
+    <p id="evening-status" class="aw-notice" role="status" aria-live="polite">Otevíráme archiv aktivního večera…</p>
+    <section id="evening-empty" class="entry-panel" hidden><div class="archive-seal" aria-hidden="true">DV<span>ARCHIV</span></div><h2 id="empty-title">První příběh je ještě před námi</h2><p id="empty-copy">Jakmile kufr dokončí výběr a připraví edici, objeví se tady. Tenhle odkaz si můžeš nechat otevřený.</p></section>
+    <article id="public-edition" hidden>
+      <div class="leaf-heading"><span id="selected-label" class="eyebrow">Nejnovější připravená hůlka</span><button id="select-latest" class="text-button" hidden>Zobrazit nejnovější</button></div>
+      <div class="edition-layout"><div class="art-column"><button id="public-art-open" class="art-frame" disabled aria-label="Zvětšit digitální obraz hůlky"><img id="public-art" alt="Osobní digitální interpretace vybrané hůlky" hidden><span id="public-art-status">Obraz se připravuje</span></button><p class="art-caption">Osobní AI interpretace · fantasy obraz, nikoli fotografie rekvizity</p></div><div class="edition-copy"><p id="public-catalog" class="eyebrow">Hůlka z tohoto večera</p><h2 id="public-name" class="public-name"></h2><p id="public-title" class="edition-title"></p><p id="public-summary" class="summary"></p><p id="public-provenance" class="muted small"></p><div class="actions"><button class="aw-button" data-public-download="export_zip">Uložit památku ZIP</button></div><p id="export-status" class="muted small"></p><div class="downloads" aria-label="Jednotlivé soubory"><button class="text-button" data-public-download="export_story">Příběh TXT</button><button class="text-button" data-public-download="base_image">Obraz hůlky</button><button class="text-button" data-public-download="export_card">Kartička PNG</button></div></div></div>
+      <section class="story-leaf" aria-labelledby="public-story-heading"><p class="eyebrow">Z knihy drobných katastrof</p><h2 id="public-story-heading">Příběh jedné nepravděpodobné hůlky</h2><p class="fiction-label">Kouzelnická fikce pro tento večer</p><div id="public-story"></div></section>
+    </article>
+    <section id="evening-list-section" class="owner-section" aria-labelledby="list-heading" hidden><div class="list-heading"><div><p id="evening-label" class="eyebrow">Aktivní večer</p><h2 id="list-heading">Další příběhy dnešního večera</h2></div><p id="item-count" class="muted small"></p></div><ol id="evening-list" class="evening-list"></ol><div class="actions"><button id="load-more" class="aw-button aw-button--secondary" hidden>Načíst další hůlky</button><button id="first-page" class="text-button" hidden>Zpět na nejnovější přehled</button></div></section>
+    <aside class="public-privacy"><p>Hůlky a příběhy jsou společný přehled tohoto večera. Fotografie a kouzelnické portréty zůstávají soukromé a nejsou součástí těchto souborů.</p></aside>
+  </main>
+  <footer>Digitální památky z jednoho nepravděpodobného večera.<br><a href="/keepsake/?privacy=1">Soukromí a uchování dat</a></footer>
+  <dialog id="public-art-dialog"><button id="close-public-art" class="text-button">Zavřít obraz</button><img id="public-full-art" alt="Zvětšená digitální interpretace hůlky"></dialog>
+  <noscript><p class="aw-notice">Pro aktuální přehled hůlek zapni JavaScript. Soukromý přístupový klíč do veřejného přehledu nevkládej.</p></noscript>
+</body>
+</html>

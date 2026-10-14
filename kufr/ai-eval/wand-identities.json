@@ -1,0 +1,29 @@
+{
+  "catalogVersion": "ollivander-private-party-v1",
+  "wands": [
+    {
+      "compartment": 1,
+      "stableId": "wand-last-word"
+    },
+    {
+      "compartment": 2,
+      "stableId": "wand-dance-compass"
+    },
+    {
+      "compartment": 3,
+      "stableId": "wand-bad-ideas-committee"
+    },
+    {
+      "compartment": 4,
+      "stableId": "wand-velvet-alibi"
+    },
+    {
+      "compartment": 5,
+      "stableId": "wand-seers-hangover"
+    },
+    {
+      "compartment": 6,
+      "stableId": "wand-library-storm"
+    }
+  ]
+}

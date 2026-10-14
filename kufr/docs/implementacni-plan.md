@@ -1,5 +1,12 @@
 # Implementační plán AI kufru
 
+> **DV10 – vyzvednutí, rozhodnutí majitele 14. 10. 2026:** jeden statický QR
+> vedle kufru otevírá veřejný přehled poslední vygenerované hůlky a hůlek
+> aktivního večera. Obslužný telefon ani individuální QR nejsou potřebné.
+> Vazba na večer vzniká při návrhu a zůstává neměnná; veřejné čtení je omezené
+> na základní hůlky, příběhy a exporty. Fotografie a portréty zůstávají soukromé.
+> Přijaté kontrakty a migrace jsou v [rozhodnutí DV10](dv10/STATIC_EVENING.md).
+
 > **D167 – Dance for me, zadání majitele 13. 10. 2026:** mobil explicitně
 > spouští samostatnou hudební show kufru z vlastních skladeb na SD. ESP
 > náhodně vybere validovanou skladbu, streamuje PCM a řídí LED/volitelné
