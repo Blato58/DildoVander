@@ -24,7 +24,7 @@ def command(*args):
 
 def verify_release(release):
     manifest = json.loads((release / "twin-release.json").read_text())
-    mandatory = {"backend", "native-twin", "viewer.html", "twin.manifest.json", "kufr-twin.service", "twin-locations.conf", "install-twin.py"}
+    mandatory = {"backend", "backend.deps.json", "backend.runtimeconfig.json", "libe_sqlite3.so", "native-twin", "viewer.html", "twin.manifest.json", "kufr-twin.service", "twin-locations.conf", "install-twin.py"}
     actual = {str(path.relative_to(release)) for path in release.rglob("*") if path.is_file() and path.name != "twin-release.json"}
     if not mandatory.issubset(manifest["files"]) or actual != set(manifest["files"]) or any(path.is_symlink() for path in release.rglob("*")):
         raise ValueError("Release inventory must be complete, exact and free of symlinks")
@@ -113,11 +113,33 @@ def initial_configuration(origin, data_root, build_id, cad_revision):
     return config, credentials
 
 
+def reuse_provider_source(config, path):
+    """Select an existing source; never copy a key or production configuration."""
+    merged = copy.deepcopy(config)
+    if path is None:
+        return merged
+    if not path.is_absolute() or path.is_symlink() or not path.is_file() or path.stat().st_size > 65536:
+        raise ValueError("Provider source must be a bounded existing absolute regular file")
+    root = Path(merged["DigitalTwin"]["DataRoot"])
+    database = Path(merged["Backend"]["DatabasePath"])
+    if not root.is_absolute() or not database.is_absolute() or root.resolve() not in database.resolve().parents or \
+            merged["Backend"].get("Memory", {}).get("Enabled", False):
+        raise ValueError("Provider source requires isolated database and disabled guest memory")
+    values = [line.split("=", 1)[1].strip().strip('"').strip("'")
+              for line in path.read_text().splitlines() if line.startswith("OPENAI_API_KEY=")]
+    if len(values) != 1 or not values[0] or any(ord(byte) < 32 for byte in values[0]):
+        raise ValueError("Provider source does not contain one usable credential")
+    merged["DigitalTwin"]["ProviderEnvFile"] = str(path)
+    merged["DigitalTwin"]["ExternalServicesAuthorized"] = True
+    return merged
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--release", type=Path, required=True)
     parser.add_argument("--origin", required=True)
     parser.add_argument("--live-device-id", action="append", default=[], help="Explicit physical identity allowlist; never import old simulators")
+    parser.add_argument("--reuse-provider-env", type=Path, help="Explicit existing server key source; no secret copied and no API call")
     args = parser.parse_args()
     if os.geteuid() != 0:
         raise SystemExit("Root required")
@@ -142,6 +164,7 @@ def main():
         config, credentials = initial_configuration(args.origin, data_root, manifest["buildId"], cad_revision)
     provisioned = read_provisioned_devices(Path("/etc/kufr-backend")) if args.live_device_id else []
     config = merge_live_devices(config, args.live_device_id, provisioned)
+    config = reuse_provider_source(config, args.reuse_provider_env)
     for instance in config["DigitalTwin"]["Instances"].values():
         if instance.get("Mode") == "simulation":
             instance["BuildId"] = manifest["buildId"]

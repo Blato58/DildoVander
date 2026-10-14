@@ -16,7 +16,7 @@ class ReleaseTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name).resolve()
         self.files = {name: name.encode() for name in
-                      ("backend", "native-twin", "viewer.html", "twin.manifest.json", "kufr-twin.service", "twin-locations.conf", "install-twin.py")}
+                      ("backend", "backend.deps.json", "backend.runtimeconfig.json", "libe_sqlite3.so", "native-twin", "viewer.html", "twin.manifest.json", "kufr-twin.service", "twin-locations.conf", "install-twin.py")}
         for name, data in self.files.items():
             (self.root / name).write_bytes(data)
         self.manifest()
@@ -30,6 +30,41 @@ class ReleaseTests(unittest.TestCase):
 
     def test_exact_release(self):
         self.assertEqual(module.verify_release(self.root)["buildId"], "test")
+
+    def test_missing_sqlite_runtime_rejected_before_install(self):
+        (self.root / "libe_sqlite3.so").unlink()
+        self.files.pop("libe_sqlite3.so")
+        self.manifest()
+        with self.assertRaises(ValueError):
+            module.verify_release(self.root)
+
+    def test_reuse_provider_reads_only_existing_source_and_preserves_config(self):
+        source = self.root / "existing-server.env"
+        source.write_text("OPENAI_API_KEY=offline-placeholder\nDevices__0__DeviceId=physical-private\nBackend__DatabasePath=/production.sqlite\n")
+        config, _ = module.initial_configuration("https://twin.test", self.root / "isolated", "test", "a" * 64)
+        original = copy.deepcopy(config)
+        selected = module.reuse_provider_source(config, source)
+        self.assertEqual(config, original)
+        self.assertTrue(selected["DigitalTwin"]["ExternalServicesAuthorized"])
+        self.assertEqual(selected["DigitalTwin"]["ProviderEnvFile"], str(source))
+        self.assertNotIn("offline-placeholder", json.dumps(selected))
+        self.assertNotIn("physical-private", json.dumps(selected))
+        self.assertEqual(source.read_text().count("OPENAI_API_KEY="), 1)
+
+    def test_provider_reuse_refuses_guest_storage_and_invalid_source(self):
+        source = self.root / "existing-server.env"
+        source.write_text("OPENAI_API_KEY=offline-placeholder\n")
+        config, _ = module.initial_configuration("https://twin.test", self.root / "isolated", "test", "a" * 64)
+        for invalid in (Path("relative.env"), self.root / "missing.env"):
+            with self.assertRaises(ValueError):
+                module.reuse_provider_source(config, invalid)
+        config["Backend"]["Memory"]["Enabled"] = True
+        with self.assertRaises(ValueError):
+            module.reuse_provider_source(config, source)
+        config["Backend"]["Memory"]["Enabled"] = False
+        config["Backend"]["DatabasePath"] = str(self.root / "production.sqlite")
+        with self.assertRaises(ValueError):
+            module.reuse_provider_source(config, source)
 
     def test_missing_inventory(self):
         self.manifest({"viewer.html": hashlib.sha256(self.files["viewer.html"]).hexdigest()})

@@ -20,10 +20,13 @@ if (twinConfiguration is not null)
 {
     if (!Path.IsPathFullyQualified(twinConfiguration)) { throw new InvalidOperationException("KUFR_TWIN_CONFIG must be absolute."); }
     builder.Configuration.AddJsonFile(twinConfiguration, optional: false, reloadOnChange: false);
+    TwinProviderCredentials.Load(builder.Configuration);
 }
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 4096);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<TwinAccess>();
+builder.Services.AddSingleton<TwinMediaSettingsStore>();
+builder.Services.AddSingleton<TwinMediaSessions>();
 builder.Services.AddSingleton<TwinFakeInputPolicy>();
 builder.Services.AddSingleton<TwinStore>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<TwinStore>());
@@ -111,6 +114,12 @@ if (keepsakeArchiveConfigured) { app.Services.GetRequiredService<KeepsakeStore>(
 if (keepsakesEnabled) { app.Services.GetRequiredService<EveningMemoryStore>(); }
 app.Services.GetRequiredService<TextDialogRunner>();
 app.Services.GetRequiredService<VoiceProviderRunner>();
+// Per-instance settings enforce the fake/real boundary even when the isolated
+// provider runner is available. Loading a key alone never starts an API call.
+if (twinConfiguration is not null && builder.Configuration.GetValue<bool>("DigitalTwin:ExternalServicesAuthorized"))
+{
+    app.Services.GetRequiredService<TextDialogRunner>().SetEnabled(true);
+}
 var logs = app.Services.GetRequiredService<ServerLogStore>();
 app.Services.GetRequiredService<LogReadAccess>();
 logs.Write("info", "server_started");
@@ -135,6 +144,7 @@ app.Use(async (context, next) =>
 
 app.MapDeviceAccess();
 app.MapDigitalTwin();
+app.MapTwinMedia();
 app.MapFirmwareReleases();
 app.MapConversations();
 app.MapCostumeImages();

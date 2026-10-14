@@ -23,6 +23,8 @@ idf_component_register(
         "features/voice_turn/EspIdfVoiceAudio.cpp"
         "features/voice_turn/EspIdfRealtimeTransport.cpp"
         "features/voice_turn/RealtimeEventCodec.cpp"
+        "features/voice_turn/RealtimeSessionEngine.cpp"
+        "features/voice_turn/VoiceWorkflow.cpp"
         "features/backend_access/BuildDate.cpp"
         "features/backend_access/DeviceTokenSession.cpp"
         "features/backend_access/EspIdfBackendNetwork.cpp"

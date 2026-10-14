@@ -1,0 +1,33 @@
+{
+  "windowsClient": {
+    "environment": "VPS HTTPS client using Python urllib; 20 polls at 50ms with one 10B/s slow reader",
+    "httpMedianMs": 110.02865000045858,
+    "httpP95Ms": 247.3465000075521,
+    "simulationStopRoundTripMs": 166.80570000607986,
+    "observedSnapshotUpdatesPerSecond": 4.18069324087651,
+    "viewerAbsentTimeAdvanceMs": 1046,
+    "bootPreserved": true,
+    "slowReaderBlockedControl": false,
+    "physicalVerification": "unavailable",
+    "clientLocation": "Windows client over external HTTPS"
+  },
+  "vpsLocalTlsClient": {
+    "environment": "VPS HTTPS client using Python urllib; 20 polls at 50ms with one 10B/s slow reader",
+    "httpMedianMs": 7.908368541393429,
+    "httpP95Ms": 10.188570013269782,
+    "simulationStopRoundTripMs": 32.451960956677794,
+    "observedSnapshotUpdatesPerSecond": 4.495596366960144,
+    "viewerAbsentTimeAdvanceMs": 955,
+    "bootPreserved": true,
+    "slowReaderBlockedControl": false,
+    "physicalVerification": "unavailable",
+    "clientLocation": "Same Linux VPS via its own public HTTPS origin"
+  },
+  "firmwareSerializerMailbox": {
+    "publications": 100000,
+    "elapsedMicroseconds": 16977,
+    "coalesced": 99999,
+    "environment": "Linux x86_64 VPS g++15.2; actual firmware serializer/mailbox with fake I/O",
+    "notRealESP": true
+  }
+}

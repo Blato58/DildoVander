@@ -4,7 +4,7 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(FEATURES "${CMAKE_CURRENT_SOURCE_DIR}/../../firmware/src/features")
 add_executable(kufr-native-twin
-  main.cpp VirtualHardware.cpp FileJournal.cpp
+  main.cpp VirtualHardware.cpp FileJournal.cpp BrowserMedia.cpp
   ${FEATURES}/safety/SafetyController.cpp
   ${FEATURES}/wand_selection/SelectionSequence.cpp
   ${FEATURES}/device_control/DeviceControl.cpp
@@ -21,7 +21,11 @@ add_executable(kufr-native-twin
   ${FEATURES}/physical_effects/PhysicalEffects.cpp
   ${FEATURES}/physical_effects/PhysicalPresentation.cpp
   ${FEATURES}/physical_effects/PresentationDiagnostics.cpp
-  ${FEATURES}/dance/DanceCoordinator.cpp)
+  ${FEATURES}/dance/DanceCoordinator.cpp
+  ${FEATURES}/voice_turn/RealtimeEventCodec.cpp
+  ${FEATURES}/voice_turn/RealtimeSessionEngine.cpp
+  ${FEATURES}/voice_turn/VoiceWorkflow.cpp
+  ${FEATURES}/costume_photo/CostumePhoto.cpp)
 target_include_directories(kufr-native-twin PRIVATE ${FEATURES})
 if(MSVC)
   target_compile_options(kufr-native-twin PRIVATE /W4 /WX /wd4244 /utf-8)

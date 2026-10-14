@@ -26,7 +26,8 @@ Práce a skutečné receipts: [KUFR-TWIN](../../docs/project/work-items/KUFR-TWI
 | Rozhodnutí | ConversationRuntimeState, TurnPollGuard, PendingProposal, WandPresentation | syntetická služba nebo produkční HTTP kontrakty | placená AI bez explicitního oprávnění |
 | Scény | PhysicalPresentation, PhysicalEffects, generovaný PresentationScore | VirtualHardware přijímá skutečné driver writes | proud, tření, moment, mechanická bezpečnost |
 | Journal | PersistentCommandJournal v2 | FileJournal: exclusive lock, atomic replace, POSIX fsync | NVS/power-loss akceptace ESP |
-| Média | DanceCoordinator, PresentationAudioPort | syntetický media cursor a tone enqueue | host speech capture, kamera, SD/I2S/DMA a slyšitelný zvuk |
+| Hlas/foto | VoiceWorkflow, RealtimeSessionEngine, RealtimeEventCodec, CostumePhoto | ESP drivery nebo browser PCM/JPEG HAL přes bounded binární IPC | AEC, I2S/DMA, kvalita kamery a fyzická slyšitelnost |
+| Dance | DanceCoordinator, PresentationAudioPort | syntetický media cursor a tone enqueue | skutečný SD obsah a audio periferie |
 | JSON | ConversationTextCodec, TurnOperationCodec, production correlation/expiry guards | isolated HTTP handoff | síťový jitter skutečného ESP |
 | Telemetrie | skutečné accepted PhysicalIo writes a ExportPresentationTrace | bounded latest mailbox, samostatný HTTPS worker | optické/akustické/polohové měření |
 | CAD | parameters, mechanism.cam_law, skutečné tessellované díly | verzovaný manifest a observer projekce | fyzická vůle a ověření spojů |
@@ -44,13 +45,16 @@ Z kořene checkoutu:
 ```powershell
 python kufr/simulator/native/build_host.py --output "$env:TEMP/kufr-twin/native-twin.exe"
 python kufr/simulator/native/test_host.py
+python kufr/simulator/native/test_media.py --executable "$env:TEMP/kufr-twin/native-twin.exe"
 npm ci --prefix kufr/contracts
 python kufr/firmware/tests/run_show_tests.py
 pio run -d kufr/firmware
 dotnet restore kufr/backend-tests/BackendTests.csproj --locked-mode -p:RuntimeIdentifiers=linux-x64
 dotnet build kufr/backend-tests/BackendTests.csproj --no-restore -p:RuntimeIdentifiers=linux-x64 -p:SelfContained=false
 dotnet kufr/backend-tests/bin/Debug/net10.0/BackendTests.dll --twin
-node --test kufr/mechanika/final/test_twin_viewer.cjs kufr/mechanika/final/test_viewer.cjs kufr/mechanika/final/test_viewer_runtime.cjs kufr/mechanika/final/test_show_timeline.cjs
+$env:KUFR_TWIN_TEST_NATIVE = "$env:TEMP/kufr-twin/native-twin.exe"
+dotnet kufr/backend-tests/bin/Debug/net10.0/BackendTests.dll --twin-media
+node --test kufr/mechanika/final/test_twin_viewer.cjs kufr/mechanika/final/test_twin_media.cjs kufr/mechanika/final/test_viewer.cjs kufr/mechanika/final/test_show_timeline.cjs
 ```
 
 Viewer generuje v existujícím CAD prostředí skutečný `preview.py --viewer-only`;
@@ -97,12 +101,47 @@ starou instanci ani její úložiště nemažte. V konfiguraci jsou nejvýše dv
 hosty. Integrační instanci doplňte také do izolovaných `Devices`. Po změně
 konfigurace restartujte službu; reload vieweru tyto úkony nikdy neprovádí.
 
-Fake integrační profil zůstává fake i při změně globálního provider režimu.
-Skutečný Responses adaptér je možný jen s izolovanou databází, vypnutou pamětí,
-`Backend.Dialog.Mode=responses`, existujícím správně provisionovaným klíčem a
-`DigitalTwin.ExternalServicesAuthorized=true`. Tento příznak smí nastavit
-provozovatel až po příslušném oprávnění. V tomto slice nebyl použit ani testován
-placený provider. Pro reálnou síť se injektovaný clock ovládat nedá.
+Fake integrační nastavení zůstává fake i při změně globálního provider režimu.
+Skutečné služby vyžadují izolovanou databázi, vypnutou paměť, existující serverový
+klíč a `DigitalTwin.ExternalServicesAuthorized=true`. Provozovatel explicitně
+vybere existující soubor přes `--reuse-provider-env`; loader přečte pouze
+`OPENAI_API_KEY`, nikoli produkční identity, cestu DB či paměť. Hodnotu nekopíruje
+do browseru, repozitáře ani nového credential souboru. Majitel tuto volbu schválil
+14.10.2026. Testy služeb zůstávají fake; žádný placený provider nebyl volán.
+Pro reálnou síť se injektovaný clock ovládat nedá.
+
+## Rozhovor s browser mikrofonem, reproduktorem a kamerou
+
+Přihlaste **integration** scoped credential a zvolte `sim-integration`. Po
+vědomé servisní inspekci otevřete **Nastavení nativního rozhovoru**. Na stránce
+vyberte Fake/Realtime/GPT-Live, hlas, rychlost, main/short a foto consent; změna
+je verzovaná a perzistentní. Aktivní operace změnu odmítá. Dostupnost poskytovatele
+znamená konfiguraci/oprávnění, nikoli úspěšně otestované placené spojení. Odvolané
+serverové oprávnění zablokuje i dříve uložené real nastavení.
+
+Výslovně aktivujte reproduktor a mikrofon, potom **Spustit rozhovor**. Kamera se
+aktivuje až na nativní photo request. Náhled zůstává lokální, dokud nepotvrdíte
+jediný JPEG; limit je640×640/262144B bez metadata. Odmítnutí dovoluje pokračovat
+bez fotky. Výběr browser zařízení zůstává lokální a jeho identifikátory se
+nezaznamenávají do technické telemetrie.
+
+Browser posílá PCM16 mono24kHz pouze při skutečném native inputEnabled gate;
+fronta včetně in-flight je400ms. Audio drain potvrzuje dokončený `onended`
+aktuálního výstupu při běžícím AudioContext, správné epochě a přesné délce.
+Elapsed virtual time nikdy nenahrazuje ACK. Suspended/disconnected playback,
+overflow, změna zdroje nebo Stop ruší lokální média a staré výsledky. Zrušení
+již dokončené voice relace neukončí přijatou fyzickou prezentaci; Stop kufru je
+samostatný runtime příkaz. Replay žádné media/control endpointy nevolá.
+Při zavření nebo navigaci stránky se odesílá pouze omezený `keepalive` cancel
+aktuální hlasové admission; PCM ani fotografie se při unloadu neposílají.
+
+Fake profil používá skutečné `ConversationStore` transcription/turn/speech
+ownery: testovací přepis, existující syntetický dialog/proposal a100ms tichou
+speech fixture. Nepředstírá rozpoznání skutečného hlasu ani mluvenou AI odpověď.
+Realtime/GPT-Live používají existující produkční HTTP/NDJSON poskytovatele;
+interpretace událostí, guards, foto fallback a návrh před prezentací zůstávají
+ve stejných C++ modulech na ESP a Linuxu. Hlasové timeouty používají wall-clock.
+Soukromý kontrakt: [twin-browser-media](../contracts/twin-browser-media.md).
 
 ## VPS a oprávnění
 
@@ -139,7 +178,8 @@ Linux publish a balení ze skutečně ověřených bytes:
 
 ```sh
 dotnet restore kufr/backend/backend.csproj -r linux-x64 -p:SelfContained=true --locked-mode
-dotnet publish kufr/backend/backend.csproj -c Release -r linux-x64 --self-contained true --no-restore -o /tmp/twin-publish
+dotnet publish kufr/backend/backend.csproj -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=false --no-restore -o /tmp/twin-publish
+python3 kufr/backend/deploy/twin/source-identity.py --output /tmp/twin-source.json
 python3 kufr/backend/deploy/twin/package-twin.py --publish /tmp/twin-publish --native /tmp/kufr-native-twin --viewer kufr/mechanika/final/exports/viewer.html --output /tmp/twin-release --build-id SOURCE_DIGEST
 ```
 
@@ -147,6 +187,8 @@ Přeneste nový ověřený balíček do nového přímého release adresáře. N
 
 ```sh
 python3 /opt/kufr-twin/releases/RELEASE_ID/install-twin.py --release /opt/kufr-twin/releases/RELEASE_ID --origin https://2.28.202.220 --live-device-id kufr-68ee8f4b6048
+# Jen po oprávnění k použití existujícího serverového klíče:
+python3 /opt/kufr-twin/releases/RELEASE_ID/install-twin.py --release /opt/kufr-twin/releases/RELEASE_ID --origin https://2.28.202.220 --reuse-provider-env /etc/kufr-backend/backend.env
 systemctl status kufr-twin.service
 curl --fail http://127.0.0.1:5082/healthz/twin
 systemctl stop kufr-twin.service
@@ -203,11 +245,24 @@ Použijte již dostupný Playwright/browser a soukromý testovací credential so
 VPS proof vyžaduje explicitní `KUFR_TEST_VPS_PROOF=true`; skript smí adresovat
 jen pevně zvolené simulační instance.
 
+Plný media E2E na skutečně běžícím Twin serveru používá stejný CAD viewer a
+Chromium fake zařízení (neužívá osobní mikrofon/kameru a nevolá poskytovatele):
+
+```sh
+KUFR_TEST_VPS_PROOF=true node kufr/simulator/native/twin_browser_media_test.cjs https://2.28.202.220 /private/operator-credentials.json /private/media-proof
+```
+
+Nastavení je před testem vynuceno na fake. Test kontroluje skutečný JPEG,
+mikrofonní PCM, pět drain ACK, návrh z produkčního fake backendu, pohyb výhradně
+vybraného skutečného CAD lůžka, reload bez opakování vstupu, Stop a mobil.
+
 ## Omezení a akceptace
 
-IMPLEMENTOVÁNO: text, aktuální produkční host ownery, šest slotů/main/short,
-syntetický Dance/audio enqueue, persistent journal, observer snapshot/transport,
-CAD projekce, autorizační izolace, bounded záznam a replay, VPS balení.
+IMPLEMENTOVÁNO: text a sdílený produkční VoiceWorkflow/RealtimeSessionEngine,
+browser mikrofon/JPEG/playback jako virtuální HAL, nastavení Fake/Realtime/GPT-Live
+na stránce, šest slotů/main/short, syntetický Dance/audio enqueue, persistent
+journal, observer snapshot/transport, CAD projekce, autorizační izolace, bounded
+záznam a replay, VPS balení. Reuse existujícího klíče je pouze serverová konfigurace.
 
 SOFTWAROVĚ OVĚŘENO: native Windows/Linux regrese, původní backend a firmware
 testy, ESP-IDF build, negativní HTTP testy, skutečný CAD browser E2E a syntetický
@@ -215,15 +270,41 @@ producent skutečného firmware serializeru přes VPS HTTPS. Přesné výsledky 
 identity jsou v receipts; build/screenshot nejsou fyzickou akceptací.
 
 NASAZENO NA VPS: oddělená služba a skutečně běžící host procesy, chráněný viewer
-a ingest. Provider je fake; fyzický kufr nebyl ovládán ani flashován.
-Aktuální ověřený release je `twin-20261014-v5`; source/build ID
-`6da66c79a2bf8f99ab428bf5ed3ca2563abfb173ab5104d78ad52330494daa13`.
-VPS test s 20 HTTPS polls po 50 ms a pomalým čtenářem 10 B/s naměřil median
-5,86 ms, p95 8,38 ms, simulační Stop 23,57 ms a 4,65 snapshot updates/s.
-Jde o host/VPS cestu; ESP režie ani odezva tím změřena není.
+a ingest. Testy používají fake provider; Realtime/GPT-Live jsou připravené
+v nastavení se schváleným existujícím serverovým klíčem. Fyzický kufr nebyl
+ovládán ani flashován. Aktuální nasazený release je `twin-20261014-v12`;
+source/build ID `ccb70eeb2eaa2640e69d6c3bb69c9c0baa9cb3d1132515999cf800fa2a6fb36c`.
+Aktuální [softwarový target](../../docs/project/targets/KUFR-TWIN-software.json)
+zahrnuje i browser média; fyzickou akceptaci dál blokuje PHYSICAL.
 
-OVĚŘENO NA SKUTEČNÉM KUFRU: **ne**. Host mikrofon/kamera, plné ESP hlasové/SD
-periferie a skutečné provider volání nejsou v tomto slice ověřeny/přeneseny do
-hostu. Viewer o nich nevrací falešný úspěch. Virtuální kalibrace 1100/1900 µs a
+Test s 20 HTTPS polls po 50 ms a pomalým čtenářem 10 B/s naměřil z VPS na jeho
+vlastní TLS origin median 7,91 ms, p95 10,19 ms, simulační Stop 32,45 ms a
+4,50 snapshot updates/s. Z externího Windows klienta byl median 110,03 ms,
+p95 247,35 ms a Stop 166,81 ms. Oba běhy zachovaly boot a průběh bez vieweru;
+pomalý čtenář neblokoval řízení. Skutečný firmware mailbox se syntetickým I/O
+zpracoval na Linuxu 100000 publikací za 16977 µs, sloučil 99999 nahraditelných
+stavů. Jde o host/VPS cestu; ESP režie ani odezva tím změřena není. Podklady jsou
+v [měřeních](../../docs/project/artifacts/KUFR-TWIN-performance-v3.json).
+
+Plný VPS Chrome E2E verze v11 přijal 4361 B JPEG bez photo fallbacku, čtyři 9600 B mikrofonní
+vstupy a pět 4800 B drain výstupů; návrh z backendu vysunul skutečné CAD lůžko 6
+o 16 mm a ostatní zůstala na 0. Reload, Stop a viewport 390×844 prošly. Součástí regresí
+je Stop před/po registraci hlasového požadavku, následná inspekce a ztracený
+ACK již přijatého startu. Starý požadavek nemůže oživit novou relaci.
+
+V12 přidává omezený `keepalive` při `pagehide` a paměť 64 zrušených admission
+na simulovanou instanci podle vlastníka, bootu a operation ID až do vypršení
+vlastníka. Zaplnění blokuje nové starty; aktivní odpovídající session lze zrušit
+i při zaplnění. Prošlo 98 JS testů, dva skutečné Chrome HAL testy a backendové
+offline/twin/media regrese. Poslední plný VPS browser test přerušila syntetická
+kamera Chromu, která sama ukončila stream; aplikace pravdivě předala unavailable.
+Aktivní reload v tomto testu nebyl dosažen. Na výslovný pokyn majitele se další
+browser testy zastavily a aktuální browser akceptace je ponechána jeho kontrole;
+starší v11 důkazy nejsou vydávány za nový v12 průchod.
+
+OVĚŘENO NA SKUTEČNÉM KUFRU: **ne**. Browser PCM/JPEG adaptéry a sdílený hlasový
+runtime jsou přeneseny do hostu; skutečné provider volání ani fyzické ESP hlasové/SD
+periferie nebyly testovány. Viewer o nich nevrací falešný úspěch.
+Virtuální kalibrace 1100/1900 µs a
 500 ms je testovací předpoklad, nikoli měření aktuální sestavy. Časový/kinematický
 model neověřuje servo moment, odběr, tření, akustiku ani mechanickou bezpečnost.

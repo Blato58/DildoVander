@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 if (args is ["--keepsake-fixture"]) { KeepsakeHttpFixture.Run(); return; }
 if (args is ["--keepsake"]) { KeepsakeOutcomeJournalTests.Run(); await KeepsakeCoreTests.RunAsync(); return; }
 if (args is ["--twin"]) { await TwinTests.RunAsync(); return; }
+if (args is ["--twin-media"]) { await TwinMediaTests.RunAsync(); return; }
 if (args is ["--character"])
 {
     CharacterDirectorTests.Run();

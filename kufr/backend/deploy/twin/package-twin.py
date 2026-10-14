@@ -17,6 +17,8 @@ def main():
         raise SystemExit("Use a new output directory; existing releases are immutable")
     if not (args.publish / "backend").is_file() or not args.native.is_file() or not args.viewer.is_file():
         raise SystemExit("Actual Linux publish, native executable and generated viewer required")
+    if not all((args.publish / name).is_file() for name in ("backend.deps.json", "backend.runtimeconfig.json", "libe_sqlite3.so")):
+        raise SystemExit("Use the standard self-contained Linux publish including the native SQLite runtime")
     cad_path = args.viewer.with_name("twin.manifest.json")
     cad = json.loads(cad_path.read_text(encoding="utf-8"))
     html = args.viewer.read_text(encoding="utf-8")

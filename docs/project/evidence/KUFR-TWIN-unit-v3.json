@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-TWIN-unit-v3",
+  "observedAtUtc": "2026-10-14T19:55:38.300808+00:00",
+  "kind": "unit",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "HOST",
+      "criterionRevision": 3,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "VIEWER",
+      "criterionRevision": 3,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "LIVE",
+      "criterionRevision": 3,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "bfa57a8849aaea6b72f30da3c5e5ecea0c6ff259b0965c9aeb71ca90d39b4366",
+    "policyVersion": "twin-v2"
+  },
+  "method": "python test_host.py --executable native-twin + variant; python test_media.py --executable native-twin on Windows/MSVC and Linux/g++15.2; firmware run_show_tests.py; node --test test_viewer.cjs test_twin_viewer.cjs test_twin_media.cjs; unittest CAD manifest/style/document and test_twin_release.py.",
+  "environment": "Windows PowerShell/MSVC/.NET10, Chrome headless Playwright; Linux VPS x86_64 g++15.2/Python3.14; actual pinned CAD generator. No paid calls or physical device execution.",
+  "limitations": [
+    "No physical ESP, iPhone, electrical/mechanical or audible-sound acceptance; no flash or physical commands.",
+    "All new end-to-end provider tests use production fake services and Chromium fake devices; real Realtime/GPT-Live configuration is enabled but paid provider calls were not performed.",
+    "Virtual 1100/1900us and500ms calibration remains an assumption; no position feedback. Real SD/DMA/AEC/acoustics remain outside host fidelity.",
+    "Measured timing describes the stated Linux/Windows environment, not ESP latency. Persistent records are not silently deleted."
+  ],
+  "observation": "18 host+variant,15 media,18 firmware offline,96 JS,13 CAD/style/document,15 installer checks pass. Actual ESP-IDF6.1 pio run succeeded (no flash). Linux test source comparison matches206 current C++ inputs; no mismatches. Exact unchanged production JPEG validator rejects original APP2 ICC fixture and accepts stripped/actual browser upload.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-TWIN-source-v3.json",
+    "docs/project/artifacts/KUFR-TWIN-release-v3.json",
+    "docs/project/artifacts/KUFR-TWIN-native-inputs-v3.json",
+    "docs/project/artifacts/KUFR-TWIN-live-ingest-v3.json",
+    "docs/project/artifacts/KUFR-TWIN-performance-v3.json",
+    "docs/project/artifacts/KUFR-TWIN-validation-v3.json"
+  ],
+  "supersedes": [
+    "KUFR-TWIN-unit-v2"
+  ],
+  "supersedesReason": "Shared production voice/session extraction and browser HAL expand the software slice; fresh current VPSv11 and regression evidence replace dated text-onlyV5 scope. Prior receipts remain immutable."
+}

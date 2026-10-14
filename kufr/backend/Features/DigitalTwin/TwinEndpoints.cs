@@ -83,6 +83,7 @@ internal static class TwinEndpoints
             if (command is null) { return ApiProblem.Create(context, 400, "invalid_twin_command"); }
             try
             {
+                if (command.Action == "stop") { context.RequestServices.GetService<TwinMediaSessions>()?.StopMedia(id, session); }
                 var result = await hosts.CommandAsync(id, session, command, context.RequestAborted);
                 return Results.Json(result, statusCode: result.Accepted ? 200 : 409);
             }

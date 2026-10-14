@@ -559,7 +559,7 @@ internal sealed partial class ConversationStore(
                 upload.ClientTurnId,
                 upload.Generation,
                 upload.DeviceRevision);
-            if (voiceRunner?.Enabled == true)
+            if (voiceRunner?.Enabled == true && twinFakeInputs?.Allows(deviceId) != true)
             {
                 return QueueVoiceCall(
                     deviceId, route, key, bodyHash, correlation,
@@ -666,7 +666,7 @@ internal sealed partial class ConversationStore(
                 return new SubmitTurnResult(404, null, "turn_not_found");
             }
 
-            if (voiceRunner?.Enabled == true)
+            if (voiceRunner?.Enabled == true && twinFakeInputs?.Allows(deviceId) != true)
             {
                 return QueueVoiceCall(
                     deviceId, route, key, bodyHash, source.Correlation,

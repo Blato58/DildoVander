@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-TWIN-browser-v3",
+  "observedAtUtc": "2026-10-14T19:55:38.301758+00:00",
+  "kind": "browser",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "VIEWER",
+      "criterionRevision": 3,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "MEDIA",
+      "criterionRevision": 3,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "bfa57a8849aaea6b72f30da3c5e5ecea0c6ff259b0965c9aeb71ca90d39b4366",
+    "policyVersion": "twin-v2"
+  },
+  "method": "KUFR_TEST_VPS_PROOF=true node twin_browser_test.cjs and twin_browser_media_test.cjs https://2.28.202.220 with private simulation credentials, Chrome/Playwright fake media devices; separate real Chrome HAL test.",
+  "environment": "Windows PowerShell/MSVC/.NET10, Chrome headless Playwright; Linux VPS x86_64 g++15.2/Python3.14; actual pinned CAD generator. No paid calls or physical device execution.",
+  "limitations": [
+    "No physical ESP, iPhone, electrical/mechanical or audible-sound acceptance; no flash or physical commands.",
+    "All new end-to-end provider tests use production fake services and Chromium fake devices; real Realtime/GPT-Live configuration is enabled but paid provider calls were not performed.",
+    "Virtual 1100/1900us and500ms calibration remains an assumption; no position feedback. Real SD/DMA/AEC/acoustics remain outside host fidelity.",
+    "Measured timing describes the stated Linux/Windows environment, not ESP latency. Persistent records are not silently deleted."
+  ],
+  "observation": "Actual generated639-part CAD viewer: text path tray3 lift16mm; voice path slot6 lift16mm, other five trays0. Browser sends4x9600B microphone PCM, one4361B JPEG accepted without native photoWarning/fallback, drains5x4800B software outputs before proposal. Provider settings Realtime/GPT-Live available with server key, test engine=fake. Reload preserves boot/no repeat; Stop freezes raised model;390x844 badge visible/no overflow; no page errors. Separate Chrome HAL capture/upload regression passes1/1.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-TWIN-source-v3.json",
+    "docs/project/artifacts/KUFR-TWIN-release-v3.json",
+    "docs/project/artifacts/KUFR-TWIN-native-inputs-v3.json",
+    "docs/project/artifacts/KUFR-TWIN-live-ingest-v3.json",
+    "docs/project/artifacts/KUFR-TWIN-performance-v3.json",
+    "docs/project/artifacts/KUFR-TWIN-validation-v3.json",
+    "docs/project/artifacts/KUFR-TWIN-browser-v3/text/browser-result.json",
+    "docs/project/artifacts/KUFR-TWIN-browser-v3/text/desktop-raised.png",
+    "docs/project/artifacts/KUFR-TWIN-browser-v3/text/mobile-stop.png",
+    "docs/project/artifacts/KUFR-TWIN-browser-v3/media/browser-media-result.json",
+    "docs/project/artifacts/KUFR-TWIN-browser-v3/media/desktop-native-voice-raised.png",
+    "docs/project/artifacts/KUFR-TWIN-browser-v3/media/mobile-native-voice-raised.png"
+  ],
+  "supersedes": [
+    "KUFR-TWIN-browser-v2"
+  ],
+  "supersedesReason": "Shared production voice/session extraction and browser HAL expand the software slice; fresh current VPSv11 and regression evidence replace dated text-onlyV5 scope. Prior receipts remain immutable."
+}

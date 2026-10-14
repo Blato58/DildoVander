@@ -41,6 +41,8 @@ jobs:
           python3 kufr/mechanika/final/test_effects.py
           python3 kufr/firmware/tests/run_show_tests.py
           python3 kufr/simulator/native/test_host.py
+          python3 kufr/simulator/native/build_host.py --output "$RUNNER_TEMP/native-media-twin"
+          python3 kufr/simulator/native/test_media.py --executable "$RUNNER_TEMP/native-media-twin"
           python3 kufr/firmware/tests/compare_legacy_show.py
           node --test kufr/mechanika/final/test_show_timeline.cjs
       - name: Bodyless backend token exchange
@@ -156,6 +158,7 @@ jobs:
           "$RUNNER_TEMP/realtime-voice-test"
           g++ -std=c++14 -Wall -Wextra -Werror -pthread -I tests/realtime_stubs \
             "${common[@]}" src/features/voice_turn/EspIdfRealtimeTransport.cpp \
+            src/features/voice_turn/RealtimeSessionEngine.cpp \
             src/features/backend_access/NetworkSettings.cpp \
             tests/espidf_realtime_transport_test.cpp -o "$RUNNER_TEMP/realtime-transport-test"
           "$RUNNER_TEMP/realtime-transport-test"
