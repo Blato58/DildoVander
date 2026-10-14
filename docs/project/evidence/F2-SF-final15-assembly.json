@@ -1,0 +1,4070 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "F2-SF-final15-assembly",
+  "observedAtUtc": "2026-10-14T05:38:23.559878Z",
+  "kind": "integration",
+  "result": "pass",
+  "subject": {
+    "cadSourceArtifactDigest": "3caafc8a9e52af5ce296d7236dbaf80b5942a7f5a9c3006ba686c77002461d42"
+  },
+  "claims": [
+    {
+      "workItemId": "KUFR-F2-SUPPORTFREE",
+      "criterionId": "ASSEMBLY",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "method": "Regenerated fiveSTEP scenes and16step guide; strict material/bounds/reservation, sampled cam/lid/extraction/tool, actual control release and USB installation sweeps; complete finite-wire audit and continuous new tray-joint envelopes.",
+  "environment": "Windows; Python3.11.3; Node25.9.0; pinned CadQuery2.8.0/OCP7.9.3.1.1/VTK9.6.2/numpy2.4.6/shapely2.1.2; official Windows PrusaSlicer2.9.4; actual Codex in-app Chromium browser.",
+  "limitations": [
+    "No physical print or fit test. Owner printer is unknown; generic220x220x250 PETG/.4nozzle/.2layer profile.",
+    "Digital gates do not qualify adhesive, wood condition, creep/fatigue, transport loads, actual servo torque, cables/FPC, hand dexterity or electrical operation.",
+    "Cam/material motion is sampled every10degrees; finite-wire checks use0/80/160degrees. Continuous conservative envelopes qualify new tray joints/beams only.",
+    "Control removal and USB manual dressing are sampled digital sweeps. Actual soldered leads, terminal bends and retention require physical acceptance.",
+    "Linux PrusaSlicer2.9.6 CI and the final Git/PR endpoint are checked separately. Local receipt completion does not claim unfinished remote runs."
+  ],
+  "observation": "Digital assembly passed with no unapproved solid/reservation/bounds or finite-wire collision. All6mechanisms pass17angles0..160with adjacent endpoint states. Key receiving/insertion, full nut engagement, accessible11cassette clamps, independent floor anchors/frame and removable contents are checked. Left service now removes three controls, four top screws, plate with its cover nuts, then right ladder with its joint nuts; actual suitcase, bolted left ladder and its nuts remain. USB installation uses both unplugged/uncoiled full plug envelopes through open mouths before forming the coil; no connector is threaded through the small cable duct. 68installed printed copies plus3gauges;29additional screws/29nuts are specified, not claimed purchased.",
+  "supersedes": [
+    "F2-SF-final14-assembly"
+  ],
+  "supersedesReason": "The final integrated89-source artifact changed. Actual gates were repeated against its exact digest; earlier evidence and truthful failures remain immutable.",
+  "resolution": "Corrected clamp/collar/tie/key intersections and actual R8/R20/C1 paths. Final12 extraction failure is resolved by an independently checked accessible release/removal sequence and guide/Inspector regression; no collision threshold or retained-owner exemption was relaxed.",
+  "verifiedReportSha256": "952fe9f1a7b4589ae349fe771bafede1d1fe3bbf3270f880bacdc8a43bba4c0a",
+  "assemblyResults": {
+    "mechanics": {
+      "case_geometry": {
+        "clear_rim_rectangle_mm": [
+          430.0,
+          269.0
+        ],
+        "wall_mm": 5.0,
+        "rim_total_width_mm": 20.0,
+        "rim_heights_down_mm": [
+          40.0,
+          30.0
+        ],
+        "bottom_tangent_mm": [
+          45.0,
+          45.0
+        ],
+        "brace_width_height_mm": [
+          80.0,
+          5.0
+        ],
+        "owner_measurement_date": "2026-10-12",
+        "status": "Owner measured clear rectangle between rim reinforcements 430x269; wall 5; total rim width including wall 20, front/rear heights 40/30 down from rim; bottom tangents 45/45 modeled as circular arcs; centered full-width brace 80x5. Floor thickness 5, lid partition and hinge axis remain assumptions. Outer 440x309 is derived, replacing the vendor envelope; no shell manufacturing."
+      },
+      "static_assemblies": 3,
+      "motion_material_samples": 102,
+      "all_six_modules": true,
+      "neighbour_states_degrees": [
+        0,
+        160.0
+      ],
+      "lid_material_samples": 36,
+      "bank_removal_samples": 37,
+      "collisions": [],
+      "frame_anchor_count": 4,
+      "case_holes_added": 0,
+      "module_tool_paths": 24,
+      "lift_mm": 16.0,
+      "sliding_follower_load": {
+        "sample_step_degrees": 0.1,
+        "sample_count": 1601,
+        "printed_tray_mass_g": 91.92985660643537,
+        "payload_design_g": 150.0,
+        "moving_hardware_allowance_g": 33.0,
+        "moving_mass_design_kg": 0.2749298566064354,
+        "joint_hardware_mass_allowance_g": 8.0,
+        "gravity_N": 2.6970618933091313,
+        "guide_friction_allowance_N": 1.3485309466545656,
+        "guide_friction_allowance_assumed_not_measured": true,
+        "axial_lifting_load_N": 4.045592839963697,
+        "max_pressure_angle_degrees": 41.22250606792464,
+        "max_pressure_angle_at_degrees": 66.9,
+        "peg_diameter_mm": 6.0,
+        "conservative_root_to_tip_lever_mm": 4.5,
+        "scenarios": [
+          {
+            "friction_coefficient": 0.0,
+            "singularity": false,
+            "singularity_angles_degrees": [],
+            "max_torque_Nm": 0.05794884883956613,
+            "max_torque_angle_degrees": 80.0,
+            "minimum_test_torque_with_1_5_margin_Nm": 0.08692327325934919,
+            "max_peg_resultant_N": 5.378661108748461,
+            "max_peg_load_angle_degrees": 66.9,
+            "max_normal_force_N": 5.378661108748461,
+            "nominal_root_bending_MPa": 1.1413873368979361,
+            "nominal_root_max_shear_MPa": 0.2536416304217636
+          },
+          {
+            "friction_coefficient": 0.2,
+            "singularity": false,
+            "singularity_angles_degrees": [],
+            "max_torque_Nm": 0.0862392256147184,
+            "max_torque_angle_degrees": 80.2,
+            "minimum_test_torque_with_1_5_margin_Nm": 0.1293588384220776,
+            "max_peg_resultant_N": 6.650520997471412,
+            "max_peg_load_angle_degrees": 66.9,
+            "max_normal_force_N": 6.52137237339717,
+            "nominal_root_bending_MPa": 1.411284387845357,
+            "nominal_root_max_shear_MPa": 0.3136187528545238
+          },
+          {
+            "friction_coefficient": 0.4,
+            "singularity": false,
+            "singularity_angles_degrees": [],
+            "max_torque_Nm": 0.12793796085035758,
+            "max_torque_angle_degrees": 78.3,
+            "minimum_test_torque_with_1_5_margin_Nm": 0.19190694127553637,
+            "max_peg_resultant_N": 8.918490755349598,
+            "max_peg_load_angle_degrees": 66.9,
+            "max_normal_force_N": 8.280610784217771,
+            "nominal_root_bending_MPa": 1.89256251817768,
+            "nominal_root_max_shear_MPa": 0.4205694484839289
+          }
+        ],
+        "selected_scenario": {
+          "friction_coefficient": 0.4,
+          "singularity": false,
+          "singularity_angles_degrees": [],
+          "max_torque_Nm": 0.12793796085035758,
+          "max_torque_angle_degrees": 78.3,
+          "minimum_test_torque_with_1_5_margin_Nm": 0.19190694127553637,
+          "max_peg_resultant_N": 8.918490755349598,
+          "max_peg_load_angle_degrees": 66.9,
+          "max_normal_force_N": 8.280610784217771,
+          "nominal_root_bending_MPa": 1.89256251817768,
+          "nominal_root_max_shear_MPa": 0.4205694484839289
+        },
+        "material_allowable_MPa": null,
+        "physical_verified": false,
+        "qualification": "NOT PHYSICALLY ACCEPTED",
+        "limitations": [
+          "Quasistatic adverse lifting model; no inertia, wear, stick-slip or return-flank qualification",
+          "Sliding friction 0/0.2/0.4 and separate 0.5-gravity guide allowance are unmeasured assumptions",
+          "Nominal root stress excludes fillets/notches, layer defects, creep, heat and cyclic fatigue",
+          "No qualified anisotropic PETG allowable or servo torque curve is available",
+          "The 1.5 torque margin is a prototype test target, not acceptance or a guarantee"
+        ]
+      },
+      "physical_test_performed": false,
+      "limitations": [
+        "10 degree sampled BREP motion is not a continuous collision proof",
+        "Circular interpolation of measured tangents, floor thickness, lid and hinge axis need dry-fit acceptance",
+        "Actual harness bend radius, glue/wood strength, creep, loaded torque and pulse-off untested",
+        "Intermediate power loss requires manual support/inspection; no automatic descent",
+        "Camera/FPC and horn details provisional; no manufacturing qualification"
+      ]
+    },
+    "assembly": {
+      "steps": 16,
+      "installed_meshes": 630,
+      "wires": 135,
+      "dependencies": "PASS",
+      "final_scene_coverage": "PASS",
+      "fastener_bom_counts": "PASS",
+      "first_hardware_install": "PASS",
+      "no_fitting_tools": "PASS",
+      "printed_floor_anchor_order": "PASS",
+      "bench_wiring_before_upper_groups": "PASS",
+      "installation_access": {
+        "cassette_top_tool_paths": 7,
+        "cassette_removal_samples_per_module": 25,
+        "cassette_bench_clamps": {
+          "continuous_tool_paths": 11,
+          "shaft_diameter_mm": 3.4,
+          "shaft_length_mm": 25,
+          "remove_before_access": {
+            "left_service_carrier_tier_2_left": [
+              "left_service_carrier_tier_1"
+            ]
+          },
+          "sequence": "Tighten left tier 2 before closing tier 1; remove tier 1 before middle-clamp service",
+          "physical_tool_handle_clearance_verified": false
+        },
+        "cassette_usb_insertion": {
+          "status": "PASS",
+          "local_R20_sections": 2,
+          "samples_per_section": 41,
+          "sample_spacing_mm": 0.5,
+          "approach_distance_mm": 20,
+          "finite_radius_mm": 2.55,
+          "closed_cassette_obstacles": 15,
+          "comparisons": 1260,
+          "brep_pairs_checked": 117,
+          "plug_reservations": [
+            "bank_usb",
+            "pd_usb"
+          ],
+          "sequence": "Tighten bench clamps first; dress both unplugged cable ends through open edges; form coil last",
+          "physical_assembly_performed": false,
+          "limitations": [
+            "Sampled local crossings do not prove simultaneous rigid placement of the whole preformed U",
+            "Actual flexible cable dressing, plug dimensions and supplier bend limits require dry fit"
+          ]
+        },
+        "controls_release_before_left_cassette": {
+          "status": "PASS",
+          "continuous_driver_paths": 4,
+          "driver_diameter_mm": 3.4,
+          "driver_length_mm": 25,
+          "screw_withdrawal_samples_per_joint": 13,
+          "screw_withdrawal_distance_mm": 12,
+          "translation_samples": {
+            "red_control": 10,
+            "green_control": 10,
+            "ptt_control": 10,
+            "plate": 25,
+            "right_ladder": 25
+          },
+          "removed_before_left_cassette": [
+            "cover_nut_control_cover_1",
+            "cover_nut_control_cover_2",
+            "green_drives",
+            "red_main",
+            "switch_frame_right",
+            "switch_joint_nut_2",
+            "switch_joint_nut_4",
+            "switch_joint_screw_1",
+            "switch_joint_screw_2",
+            "switch_joint_screw_3",
+            "switch_joint_screw_4",
+            "switch_shelf",
+            "white_ptt"
+          ],
+          "retained_original_deck_fixture": [
+            "carrier_head_switch_shelf_1",
+            "carrier_head_switch_shelf_2",
+            "carrier_nut_switch_shelf_1",
+            "carrier_nut_switch_shelf_2",
+            "carrier_shaft_switch_shelf_1",
+            "carrier_shaft_switch_shelf_2",
+            "switch_frame_left",
+            "switch_joint_nut_1",
+            "switch_joint_nut_3"
+          ],
+          "physical_assembly_performed": false,
+          "sequence": "Disconnect leads; remove cover/bank/left speaker; extract three controls; undo four top joints; lift plate then free right ladder; release cassette",
+          "limitations": [
+            "Purchased-control latch release, actual tool handles and flexible leads need physical qualification",
+            "Translation is sampled every 5 mm; screw withdrawal every 1 mm"
+          ]
+        },
+        "cassette_screw_head_continuous_paths": 7,
+        "deck_insertion_samples": 25,
+        "case_holes_added": 0,
+        "frame_anchor_top_tool_paths": 4,
+        "upper_group_paths": 6,
+        "upper_group_samples_per_path": 25,
+        "evidence": "BREP tools continuous; translation sampled every 5 mm",
+        "physical_assembly_performed": false,
+        "limitations": [
+          "Actual plugs, fingers, cable slack, wood/epoxy and transport need prototype checks",
+          "Disconnect inter-module leads and remove stated obstacles before service"
+        ]
+      }
+    },
+    "harness": {
+      "status": "PASS",
+      "motion_allowance_mm": 64.0,
+      "physical_verification": "NOT PERFORMED"
+    },
+    "strength": {
+      "design_mass_kg": 5.0,
+      "acceleration_g": 3.0,
+      "force_N": 147.15,
+      "adverse_two_support_reaction_N": 73.575,
+      "load_path": "modules -> 24 M3 bolts/captive nuts -> floor cradles -> cast epoxy keys/film -> bare wooden floor; frame/electronics -> four M4 bolts -> same cradles",
+      "directions_screened": [
+        "upright compression",
+        "inverted uplift",
+        "sideways shear and 170 mm overturning moment"
+      ],
+      "assumed_allowables_not_measured": {
+        "petg_bearing_MPa": 10.0,
+        "petg_layer_shear_MPa": 3.0,
+        "epoxy_neck_tensile_MPa": 3.0,
+        "wood_bond_average_MPa": 0.3,
+        "steel_screw_shear_MPa": 80.0
+      },
+      "normal_load_assumption_screen_passed": true,
+      "bond_minimum_film_and_keys_ml": 55.475006994423865,
+      "proof_mass_kg": 10.0,
+      "qualification": "NOT PHYSICALLY ACCEPTED",
+      "limitations": [
+        "Printed/epoxy/wood allowables are explicit design assumptions, not material certification",
+        "Nominal roof shear excludes local bending, tunnel notches, print defects and preload",
+        "The 45-degree epoxy-key retention cone uses a nominal cylindrical punching screen; radial splitting and cone flexure are unqualified",
+        "PETG creep, layer orientation, hot-car exposure and cyclic load remain unmeasured",
+        "Key filling, voids, bare wood cohesion, edge peel and adhesion require physical proof",
+        "Discrete key moment model assumes elastic sharing; lip bending and redistribution after gaps/creep are unverified",
+        "Signed elastic key forces include compression; actual cradle-floor contact has different stiffness and needs validation",
+        "Horizontal torsion/shear sharing is not qualified by the normal-traction envelope",
+        "Keys avoid relying on PETG chemical adhesion but do not establish wood adhesion",
+        "5 kg at 3g with two active supports is an estimate; no crash/drop qualification"
+      ]
+    }
+  },
+  "wireResults": {
+    "status": "PASS",
+    "coverage": {
+      "rest_covers": true,
+      "transport": true,
+      "motion_angles": [
+        0,
+        80,
+        160
+      ],
+      "modules": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "motion": "sampled positions, not a continuous cable bend or swept-curve proof",
+      "capsule_elbows": true,
+      "bank_tail_exact_R20": true
+    },
+    "brep_pairs_checked": 50785,
+    "truncated": false,
+    "sources_unchanged_during_audit": true,
+    "continuous_new_tray_joints": {
+      "status": "PASS",
+      "pairs_checked": 521088,
+      "scope": "Continuous independent translation of new lower joint beams and joint hardware; conservative envelopes",
+      "clearance_mm": 0.3,
+      "lift_mm": 16.0,
+      "minimum": {
+        "wire": "U1-DIN",
+        "segment": 11,
+        "obstacle": "joint_beam_1_1",
+        "state": "rest",
+        "co_moving_relative_proof": false,
+        "clearance_beyond_inflated_capsule_mm": 0.06955758473397111,
+        "capsule_radius_mm": 0.9304424152660355,
+        "cable_envelope": [
+          106.01955758473397,
+          78.06955758473397,
+          27.069557584733964,
+          107.88044241526603,
+          79.93044241526603,
+          57.330442415266035
+        ],
+        "obstacle_envelope": [
+          72.0,
+          80.0,
+          55.0,
+          116.0,
+          100.0,
+          94.0
+        ]
+      },
+      "collisions": [],
+      "truncated": false,
+      "physical_verification": "NOT PERFORMED",
+      "coverage": {
+        "rest_wire_count": 135,
+        "transport_wire_count": 135,
+        "modules": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "obstacle_count": 48
+      },
+      "limitations": [
+        "Does not prove cam swept motion, cable bending or actual fastening of service loops"
+      ]
+    },
+    "collision_count": 0,
+    "self_geometry": {
+      "status": "PASS",
+      "coverage": {
+        "rest_wire_count": 135,
+        "transport_wire_count": 135,
+        "wire_ids": [
+          "USB-PD",
+          "P12+",
+          "P12-",
+          "P5-FUSE",
+          "P5-MAIN",
+          "USB-ESP",
+          "D1-1",
+          "D1-2",
+          "D1-3",
+          "D1-4",
+          "D1-5",
+          "D2-1",
+          "D2-2",
+          "D2-3",
+          "D2-4",
+          "D3-1",
+          "D3-2",
+          "D3-3",
+          "D3-4",
+          "D3-5",
+          "F_LED+-01",
+          "F_LED+-02",
+          "F_LED+-03",
+          "F_LED+-04",
+          "F_LED+-05",
+          "F_LED+-06",
+          "F_LED+-07",
+          "F_AUDIO+-01",
+          "F_AUDIO+-02",
+          "F_AUDIO+-03",
+          "F_PANEL+-01",
+          "F_U123+-01",
+          "F_U123+-02",
+          "F_U123+-03",
+          "F_U456+-01",
+          "F_U456+-02",
+          "F_U456+-03",
+          "F_LED--01",
+          "F_LED--02",
+          "F_LED--03",
+          "F_LED--04",
+          "F_LED--05",
+          "F_LED--06",
+          "F_LED--07",
+          "F_U--01",
+          "F_U--02",
+          "F_U--03",
+          "F_U--04",
+          "F_U--05",
+          "F_U--06",
+          "F_AUDIO_PANEL--01",
+          "F_AUDIO_PANEL--02",
+          "F_AUDIO_PANEL--03",
+          "F_AUDIO_PANEL--04",
+          "F_AUDIO_PANEL--05",
+          "F_AUDIO_PANEL--06",
+          "F_AUDIO_PANEL--07",
+          "F_LOGIC--01",
+          "F_LOGIC--02",
+          "F_LOGIC3-01",
+          "F_LOGIC3-02",
+          "F_LOGIC3-03",
+          "L3-FEED",
+          "C1+",
+          "C1-",
+          "C2+",
+          "C2-",
+          "C3+",
+          "C3-",
+          "C4+",
+          "C4-",
+          "C5+",
+          "C5-",
+          "C6+",
+          "C6-",
+          "MCP-A0",
+          "MCP-A1",
+          "MCP-A2",
+          "MIC-LR",
+          "S1-+",
+          "S1--",
+          "S1-S",
+          "U1-DIN",
+          "S2-+",
+          "S2--",
+          "S2-S",
+          "U2-DIN",
+          "S3-+",
+          "S3--",
+          "S3-S",
+          "U3-DIN",
+          "S4-+",
+          "S4--",
+          "S4-S",
+          "U4-DIN",
+          "S5-+",
+          "S5--",
+          "S5-S",
+          "U5-DIN",
+          "S6-+",
+          "S6--",
+          "S6-S",
+          "U6-DIN",
+          "SIG-SDA-IN",
+          "SIG-SDA-pca9685",
+          "SIG-SDA-mcp23017",
+          "SIG-SCL-IN",
+          "SIG-SCL-pca9685",
+          "SIG-SCL-mcp23017",
+          "SIG-BCLK-IN",
+          "SIG-BCLK-microphone",
+          "SIG-BCLK-amplifier_left",
+          "SIG-BCLK-amplifier_right",
+          "SIG-WS-IN",
+          "SIG-WS-microphone",
+          "SIG-WS-amplifier_left",
+          "SIG-WS-amplifier_right",
+          "SIG-DIN-IN",
+          "SIG-DIN-amplifier_left",
+          "SIG-DIN-amplifier_right",
+          "SIG-OE",
+          "SIG-RGB",
+          "SIG-MIC",
+          "SIG-PTT",
+          "PTT-GND",
+          "RGB-1",
+          "RGB-2",
+          "RGB-3",
+          "RGB-4",
+          "RGB-5",
+          "RGB-6",
+          "SPK-left-+",
+          "SPK-left--",
+          "SPK-right-+",
+          "SPK-right--"
+        ],
+        "motion_angles": [
+          0,
+          80,
+          160
+        ],
+        "modules": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      "collisions": [],
+      "results": [
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.29007,
+          "required_distance_mm": 5.138071136725688,
+          "local_neighbour_exclusion_mm": 10.276142273451375,
+          "known_curve_chord_error_mm": 0.019035568362844035,
+          "wire": "USB-PD",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 12.5,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "P12+",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 9.5,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "P12-",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 9.2,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "P5-FUSE",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 7.2,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "P5-MAIN",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": null,
+          "required_distance_mm": 5.1,
+          "local_neighbour_exclusion_mm": 10.2,
+          "known_curve_chord_error_mm": 0,
+          "wire": "USB-ESP",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D1-1",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D1-2",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 24.0,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D1-3",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 31.0,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D1-4",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 38.0,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D1-5",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.26418,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D2-1",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 7.0,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D2-2",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 24.0,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D2-3",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 31.0,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D2-4",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 7.0,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D3-1",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D3-2",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 24.0,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D3-3",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 31.0,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D3-4",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 38.0,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D3-5",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 10.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_LED+-01",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED+-02",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED+-03",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.20743,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED+-04",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.4,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED+-05",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED+-06",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED+-07",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_AUDIO+-01",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 18.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_AUDIO+-02",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_AUDIO+-03",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_PANEL+-01",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U123+-01",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U123+-02",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.94588,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U123+-03",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.00899,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U456+-01",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U456+-02",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.0651,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U456+-03",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 10.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_LED--01",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED--02",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED--03",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED--04",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED--05",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED--06",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED--07",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U--01",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U--02",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.92037,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U--03",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U--04",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U--05",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U--06",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_AUDIO_PANEL--01",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 18.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_AUDIO_PANEL--02",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_AUDIO_PANEL--03",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_AUDIO_PANEL--04",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_AUDIO_PANEL--05",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_AUDIO_PANEL--06",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_AUDIO_PANEL--07",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.1,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_LOGIC--01",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_LOGIC--02",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.5,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_LOGIC3-01",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.10483,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_LOGIC3-02",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.63028,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_LOGIC3-03",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "L3-FEED",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "C1+",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "C1-",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "C2+",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.07962,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "C2-",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.5,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "C3+",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.65,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "C3-",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 8.3,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "C4+",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.8,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "C4-",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.93573,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "C5+",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.65,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "C5-",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.60977,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "C6+",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.9,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "C6-",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 25.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "MCP-A0",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 28.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "MCP-A1",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 31.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "MCP-A2",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 10.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "MIC-LR",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.9,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S1-+",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.65,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S1--",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.3,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S1-S",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 2.3,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "U1-DIN",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.65,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S2-+",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.60109,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S2--",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S2-S",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.1,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "U2-DIN",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.65,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S3-+",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.65,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S3--",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S3-S",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.0,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "U3-DIN",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.5,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S4-+",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.5,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S4--",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.9,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S4-S",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 1.9,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "U4-DIN",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.65,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S5-+",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.65,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S5--",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S5-S",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.0,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "U5-DIN",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.65296,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S6-+",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.65,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S6--",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.7,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S6-S",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.0,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "U6-DIN",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 1.9,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-SDA-IN",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.4,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-SDA-pca9685",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-SDA-mcp23017",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.2,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-SCL-IN",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.7,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-SCL-pca9685",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-SCL-mcp23017",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-BCLK-IN",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-BCLK-microphone",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.2,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-BCLK-amplifier_left",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-BCLK-amplifier_right",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-WS-IN",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-WS-microphone",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-WS-amplifier_left",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-WS-amplifier_right",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-DIN-IN",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-DIN-amplifier_left",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-DIN-amplifier_right",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 8.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-OE",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-RGB",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-MIC",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.7,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-PTT",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.9,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "PTT-GND",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.1411,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-1",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.9,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-2",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.9,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-3",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.9,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-4",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.9,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-5",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.9,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-6",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 10.2,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SPK-left-+",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 7.2,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SPK-left--",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": null,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SPK-right-+",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": null,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SPK-right--",
+          "state": "rest"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.29007,
+          "required_distance_mm": 5.138071136725688,
+          "local_neighbour_exclusion_mm": 10.276142273451375,
+          "known_curve_chord_error_mm": 0.019035568362844035,
+          "wire": "USB-PD",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 12.5,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "P12+",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 9.5,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "P12-",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 9.2,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "P5-FUSE",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 7.2,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "P5-MAIN",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": null,
+          "required_distance_mm": 5.1,
+          "local_neighbour_exclusion_mm": 10.2,
+          "known_curve_chord_error_mm": 0,
+          "wire": "USB-ESP",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D1-1",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D1-2",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 24.0,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D1-3",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 31.0,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D1-4",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 38.0,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D1-5",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.26418,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D2-1",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 7.0,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D2-2",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 24.0,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D2-3",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 31.0,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D2-4",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 7.0,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D3-1",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D3-2",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 24.0,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D3-3",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 31.0,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D3-4",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 38.0,
+          "required_distance_mm": 3.3000000000000003,
+          "local_neighbour_exclusion_mm": 6.6000000000000005,
+          "known_curve_chord_error_mm": 0,
+          "wire": "D3-5",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 10.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_LED+-01",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED+-02",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED+-03",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.20743,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED+-04",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.4,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED+-05",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED+-06",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED+-07",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_AUDIO+-01",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 18.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_AUDIO+-02",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_AUDIO+-03",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_PANEL+-01",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U123+-01",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U123+-02",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.94588,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U123+-03",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.00899,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U456+-01",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U456+-02",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.0651,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U456+-03",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 10.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_LED--01",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED--02",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED--03",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED--04",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED--05",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED--06",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED--07",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U--01",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U--02",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.92037,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U--03",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U--04",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U--05",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U--06",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_AUDIO_PANEL--01",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 18.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_AUDIO_PANEL--02",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_AUDIO_PANEL--03",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_AUDIO_PANEL--04",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_AUDIO_PANEL--05",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_AUDIO_PANEL--06",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_AUDIO_PANEL--07",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.1,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_LOGIC--01",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_LOGIC--02",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.5,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_LOGIC3-01",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.10483,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_LOGIC3-02",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.63028,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "F_LOGIC3-03",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "L3-FEED",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "C1+",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "C1-",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "C2+",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.07962,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "C2-",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.5,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "C3+",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.65,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "C3-",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 8.3,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "C4+",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.8,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "C4-",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.93573,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "C5+",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.65,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "C5-",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.60977,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "C6+",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.9,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "C6-",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 25.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "MCP-A0",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 28.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "MCP-A1",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 31.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "MCP-A2",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 10.0,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "MIC-LR",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.9,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S1-+",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.65,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S1--",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.3,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S1-S",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 2.3,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "U1-DIN",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.65,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S2-+",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.60109,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S2--",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S2-S",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.1,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "U2-DIN",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.65,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S3-+",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.65,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S3--",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S3-S",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.0,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "U3-DIN",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.5,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S4-+",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.5,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S4--",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.9,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S4-S",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 1.9,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "U4-DIN",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.65,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S5-+",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.65,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S5--",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S5-S",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.0,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "U5-DIN",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.65296,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S6-+",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.65,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S6--",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.7,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "S6-S",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.0,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "U6-DIN",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 1.9,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-SDA-IN",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.4,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-SDA-pca9685",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-SDA-mcp23017",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.2,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-SCL-IN",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.7,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-SCL-pca9685",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-SCL-mcp23017",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-BCLK-IN",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-BCLK-microphone",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.2,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-BCLK-amplifier_left",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-BCLK-amplifier_right",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-WS-IN",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-WS-microphone",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-WS-amplifier_left",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-WS-amplifier_right",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-DIN-IN",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-DIN-amplifier_left",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-DIN-amplifier_right",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 8.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-OE",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-RGB",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.0,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-MIC",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 6.7,
+          "required_distance_mm": 1.7999999999999998,
+          "local_neighbour_exclusion_mm": 3.5999999999999996,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SIG-PTT",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.9,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "PTT-GND",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.1411,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-1",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.9,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-2",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.9,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-3",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.9,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-4",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.9,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-5",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.9,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-6",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 10.2,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SPK-left-+",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 7.2,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SPK-left--",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": null,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SPK-right-+",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": null,
+          "required_distance_mm": 2.7,
+          "local_neighbour_exclusion_mm": 5.4,
+          "known_curve_chord_error_mm": 0,
+          "wire": "SPK-right--",
+          "state": "transport"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED+-02",
+          "state": "module 1 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U123+-01",
+          "state": "module 1 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED--02",
+          "state": "module 1 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U--01",
+          "state": "module 1 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 2.3,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "U1-DIN",
+          "state": "module 1 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.1411,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-1",
+          "state": "module 1 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.1411,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-2",
+          "state": "module 1 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED+-02",
+          "state": "module 1 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U123+-01",
+          "state": "module 1 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED--02",
+          "state": "module 1 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U--01",
+          "state": "module 1 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 2.3,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "U1-DIN",
+          "state": "module 1 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.1411,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-1",
+          "state": "module 1 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.1411,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-2",
+          "state": "module 1 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED+-03",
+          "state": "module 2 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U123+-02",
+          "state": "module 2 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED--03",
+          "state": "module 2 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U--02",
+          "state": "module 2 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.1,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "U2-DIN",
+          "state": "module 2 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.9,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-2",
+          "state": "module 2 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.1411,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-3",
+          "state": "module 2 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED+-03",
+          "state": "module 2 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U123+-02",
+          "state": "module 2 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED--03",
+          "state": "module 2 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U--02",
+          "state": "module 2 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.1,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "U2-DIN",
+          "state": "module 2 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.9,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-2",
+          "state": "module 2 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.1411,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-3",
+          "state": "module 2 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.20743,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED+-04",
+          "state": "module 3 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.94588,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U123+-03",
+          "state": "module 3 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED--04",
+          "state": "module 3 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.92037,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U--03",
+          "state": "module 3 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.0,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "U3-DIN",
+          "state": "module 3 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.9,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-3",
+          "state": "module 3 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.1411,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-4",
+          "state": "module 3 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.20743,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED+-04",
+          "state": "module 3 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.94588,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U123+-03",
+          "state": "module 3 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED--04",
+          "state": "module 3 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.92037,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U--03",
+          "state": "module 3 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.0,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "U3-DIN",
+          "state": "module 3 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.9,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-3",
+          "state": "module 3 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.1411,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-4",
+          "state": "module 3 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.4,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED+-05",
+          "state": "module 4 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.00899,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U456+-01",
+          "state": "module 4 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED--05",
+          "state": "module 4 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U--04",
+          "state": "module 4 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 1.9,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "U4-DIN",
+          "state": "module 4 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.9,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-4",
+          "state": "module 4 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.1411,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-5",
+          "state": "module 4 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.4,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED+-05",
+          "state": "module 4 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.00899,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U456+-01",
+          "state": "module 4 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED--05",
+          "state": "module 4 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U--04",
+          "state": "module 4 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 1.9,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "U4-DIN",
+          "state": "module 4 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.9,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-4",
+          "state": "module 4 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.1411,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-5",
+          "state": "module 4 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED+-06",
+          "state": "module 5 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U456+-02",
+          "state": "module 5 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED--06",
+          "state": "module 5 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U--05",
+          "state": "module 5 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.0,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "U5-DIN",
+          "state": "module 5 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.9,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-5",
+          "state": "module 5 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.1411,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-6",
+          "state": "module 5 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED+-06",
+          "state": "module 5 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U456+-02",
+          "state": "module 5 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED--06",
+          "state": "module 5 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U--05",
+          "state": "module 5 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.0,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "U5-DIN",
+          "state": "module 5 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.9,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-5",
+          "state": "module 5 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.1411,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-6",
+          "state": "module 5 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED+-07",
+          "state": "module 6 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.0651,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U456+-03",
+          "state": "module 6 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED--07",
+          "state": "module 6 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U--06",
+          "state": "module 6 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.0,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "U6-DIN",
+          "state": "module 6 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.9,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-6",
+          "state": "module 6 at 80 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED+-07",
+          "state": "module 6 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.0651,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U456+-03",
+          "state": "module 6 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_LED--07",
+          "state": "module 6 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 5.47232,
+          "required_distance_mm": 2.7608848305320715,
+          "local_neighbour_exclusion_mm": 5.521769661064143,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "F_U--06",
+          "state": "module 6 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 4.0,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "U6-DIN",
+          "state": "module 6 at 160 degrees"
+        },
+        {
+          "status": "PASS",
+          "collisions": [],
+          "minimum_nonlocal_distance_mm": 3.9,
+          "required_distance_mm": 1.860884830532071,
+          "local_neighbour_exclusion_mm": 3.721769661064142,
+          "known_curve_chord_error_mm": 0.03044241526603564,
+          "wire": "RGB-6",
+          "state": "module 6 at 160 degrees"
+        }
+      ],
+      "scope": "same-wire nonlocal capsule separation with known R8/R20 chord-error enclosure; local continuous neighbours excluded by arc distance; coil/terminal curves remain unqualified"
+    }
+  }
+}

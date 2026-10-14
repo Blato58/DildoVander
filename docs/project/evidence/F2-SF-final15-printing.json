@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "F2-SF-final15-printing",
+  "observedAtUtc": "2026-10-14T05:38:23.558891Z",
+  "kind": "integration",
+  "result": "pass",
+  "subject": {
+    "cadSourceArtifactDigest": "3caafc8a9e52af5ce296d7236dbaf80b5942a7f5a9c3006ba686c77002461d42"
+  },
+  "claims": [
+    {
+      "workItemId": "KUFR-F2-SUPPORTFREE",
+      "criterionId": "PRINT",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "method": "Actual all-part PrusaSlicer2.9.4 slicing plus independent canonical mesh/STEP/3MF, orientation, analytical layer/bridge/wall, toolpath/profile/warning and complete package gates.",
+  "environment": "Windows; Python3.11.3; Node25.9.0; pinned CadQuery2.8.0/OCP7.9.3.1.1/VTK9.6.2/numpy2.4.6/shapely2.1.2; official Windows PrusaSlicer2.9.4; actual Codex in-app Chromium browser.",
+  "limitations": [
+    "No physical print or fit test. Owner printer is unknown; generic220x220x250 PETG/.4nozzle/.2layer profile.",
+    "Digital gates do not qualify adhesive, wood condition, creep/fatigue, transport loads, actual servo torque, cables/FPC, hand dexterity or electrical operation.",
+    "Cam/material motion is sampled every10degrees; finite-wire checks use0/80/160degrees. Continuous conservative envelopes qualify new tray joints/beams only.",
+    "Control removal and USB manual dressing are sampled digital sweeps. Actual soldered leads, terminal bends and retention require physical acceptance.",
+    "Linux PrusaSlicer2.9.6 CI and the final Git/PR endpoint are checked separately. Local receipt completion does not claim unfinished remote runs."
+  ],
+  "observation": "51types/71prints regenerated and actually sliced with zero support deposition and no raft. Every solid is valid; actual mesh connectivity, manifoldness, oriented facets, degeneracy, self-intersections, dimensions/volume and STEP/3MF roundtrip passed. All orientations pass the conservative45degree/.4mm process-wall/12mm two-ended bridge checks with.03mm numerical tolerance. Only microphone and two left cassette frames use3mm brim. Forty short pilot closures need the documented smoothØ3.4hand awl. Floating/loose/weak/unknown warnings are fatal; legitimate anchored bridge warnings require geometric gap proof.",
+  "supersedes": [
+    "F2-SF-final14-printing",
+    "F2-SF-PR187-linux-filament-vector-failure"
+  ],
+  "supersedesReason": "The final integrated89-source artifact changed. Actual gates were repeated against its exact digest; earlier evidence and truthful failures remain immutable.",
+  "resolution": "Through-bores/vents and accessible nut slots replace enclosed cavities. Short-axis bridges are explicit. The weak rear prong was removed, its key relocated to supported material and C1 duct roof opened. Every final export was resliced.",
+  "verifiedReportSha256": "952fe9f1a7b4589ae349fe771bafede1d1fe3bbf3270f880bacdc8a43bba4c0a",
+  "linuxEvidence": {
+    "status": "PASS",
+    "sourceArtifactDigest": "3caafc8a9e52af5ce296d7236dbaf80b5942a7f5a9c3006ba686c77002461d42",
+    "headRevision": "02644e11dac9d8c335bdf7895dd960a5e275a194",
+    "observedAtUtc": "2026-10-14T05:38:18.947Z",
+    "runId": 38514562663,
+    "jobId": 115690363353,
+    "jobConclusion": "success",
+    "jobUrl": "https://github.com/Blato58/DildoVander/actions/runs/38514562663/job/115690363353",
+    "realSlicingPerformed": true,
+    "partCount": 51,
+    "geometryStatus": "PASS_ANALYTICAL",
+    "slicingStatus": "PASS_SLICER",
+    "toolVersion": "PrusaSlicer-2.9.6+flathub.org based on Slic3r (with GUI support)",
+    "toolLauncherSha256": "38c119b0b93f43d111ae4ec44a9755bdee364199ef98db21ebecbcd7a9496fd9",
+    "applicationCommit": "bf3534e4ffc688bbaf625206f27f9333b1b8820d3425dae19d3083b47e08ce79",
+    "linuxPackageBytes": 57277842,
+    "linuxPackageSha256": "4e7a0a14817a75ba24bfae9aafea03a3e20132580101b5c7e34c742f2a25bad9",
+    "logSha256": "98b5b73542c586e85e9f441b39306bc5aacf3b434f1a152fb952679477cf12e4",
+    "logTruncated": true,
+    "allAvailableChecksComplete": true,
+    "allAvailableChecksSucceededOrSkipped": true,
+    "sourceMatchBasis": "Actual CI head is the pushed five-file fix; canonical Git CAD sources equal frozen15, with unchanged base a023bb76815d2baca17b68522a3decc69383f1e4. The Windows raw source map was stable before/after full regeneration.",
+    "method": "Code Review typed successful job/current checks and retained terminal log: full regeneration total, PASS_ANALYTICAL/PASS_SLICER for51STLs under real2.9.6, and verified ZIP. Successful source-bound slicer gate requires zero support extrusion and all per-part profile/toolpath/3MF checks.",
+    "limitations": [
+      "Code Review returns only the last120000characters; full Linux per-part report/raw source map was not retained as a downloadable artifact. No untruncated-log claim.",
+      "Cross-platform raw source digests and package bytes are not asserted equal; generated POSTUP line endings and tool versions differ.",
+      "Physical printing, fit and loads remain unverified."
+    ]
+  },
+  "slicerReportSha256": "10683d0e30beb8bddc13d29069ba8ec1b384409eacd06f55e2929462cea0b0bc",
+  "analyticalReportSha256": "c18b10089c878d0704c59b33ef5a1850048069181882b4f194583f1e52f55b0e",
+  "manifestSha256": "4ec2415d688c291986c2802fc1980a66f59d40b5ebbb9dee4719825b0e0aa741",
+  "packageSha256": "d0f205356fae68f82a561b5b5a3e39e58a50c9a07db7933376fdc09a6b953424",
+  "packageBytes": 57263732,
+  "printingResults": {
+    "geometry": "PASS_ANALYTICAL",
+    "slicing": "PASS_SLICER",
+    "tool": {
+      "name": "PrusaSlicer",
+      "version": "PrusaSlicer-2.9.4 based on Slic3r (with GUI support)",
+      "executable_sha256": "aba609d51a345d049846bc7d59b4b571c74c85e38d2326d8baffed4a00852d37",
+      "probe": {
+        "exit_code": 0,
+        "stdout_summary": "ings at the given directory. This is useful for maintaining\n                     different profiles or including configurations from a network storage.\n --delete-after-load ABCD\n                     Delete files after loading.\n --ignore-nonexistent-config\n                     Do not fail if a file supplied to --load does not exist.\n --loglevel N        Sets logging sensitivity. 0:fatal, 1:error, 2:warning, 3:info, 4:debug, 5:trace\n                     For example. loglevel=2 logs fatal, error and warning level messages.\n --opengl-aa         Automatically select the highest number of samples for OpenGL antialiasing.\n --opengl-compatibility\n                     Enable OpenGL compatibility profile\n --opengl-debug      Activate OpenGL debug output on graphic cards which support it (OpenGL 4.3 or\n                     higher)\n --opengl-version ABCD\n                     Select a specific version of OpenGL\n --output ABCD, -o ABCD\n                     The file where the output will be written (if not specified, it will be based on\n                     the input file).\n --single-instance   If enabled, the command line arguments are sent to an existing instance of GUI\n                     PrusaSlicer, or an existing PrusaSlicer window is activated. Overrides the\n                     \"single_instance\" configuration value from application preferences.\n --sw-renderer       Render with a software renderer. The bundled MESA software renderer is loaded\n                     instead of the default OpenGL driver.\n --threads N         Sets the maximum number of threads the slicing process will use. If not defined,\n                     it will be decided automatically.\n\nPrint options are processed in the following order:\n\t1) Config keys from the command line, for example --fill-pattern=stars\n\t   (highest priority, overwrites everything below)\n\t2) Config files loaded with --load\n\t3) Config values loaded from 3mf files\n\nRun --help-fff / --help-sla to see the full listing of print options.\n",
+        "stderr_summary": "",
+        "warnings": [],
+        "warnings_truncated": false,
+        "stability_types": []
+      },
+      "log_sha256": "5b1e08392cfaa9448f78ecb692aca4dc8c8d0709f6c145eec8ad950110894d9e"
+    },
+    "physical_print_performed": false,
+    "stl_types": 51,
+    "evidence": "Generic-profile CAD/mesh/slicer checks; owner printer and physical fit unverified"
+  },
+  "slicerTool": {
+    "name": "PrusaSlicer",
+    "version": "PrusaSlicer-2.9.4 based on Slic3r (with GUI support)",
+    "executable_sha256": "aba609d51a345d049846bc7d59b4b571c74c85e38d2326d8baffed4a00852d37",
+    "probe": {
+      "exit_code": 0,
+      "stdout_summary": "ings at the given directory. This is useful for maintaining\n                     different profiles or including configurations from a network storage.\n --delete-after-load ABCD\n                     Delete files after loading.\n --ignore-nonexistent-config\n                     Do not fail if a file supplied to --load does not exist.\n --loglevel N        Sets logging sensitivity. 0:fatal, 1:error, 2:warning, 3:info, 4:debug, 5:trace\n                     For example. loglevel=2 logs fatal, error and warning level messages.\n --opengl-aa         Automatically select the highest number of samples for OpenGL antialiasing.\n --opengl-compatibility\n                     Enable OpenGL compatibility profile\n --opengl-debug      Activate OpenGL debug output on graphic cards which support it (OpenGL 4.3 or\n                     higher)\n --opengl-version ABCD\n                     Select a specific version of OpenGL\n --output ABCD, -o ABCD\n                     The file where the output will be written (if not specified, it will be based on\n                     the input file).\n --single-instance   If enabled, the command line arguments are sent to an existing instance of GUI\n                     PrusaSlicer, or an existing PrusaSlicer window is activated. Overrides the\n                     \"single_instance\" configuration value from application preferences.\n --sw-renderer       Render with a software renderer. The bundled MESA software renderer is loaded\n                     instead of the default OpenGL driver.\n --threads N         Sets the maximum number of threads the slicing process will use. If not defined,\n                     it will be decided automatically.\n\nPrint options are processed in the following order:\n\t1) Config keys from the command line, for example --fill-pattern=stars\n\t   (highest priority, overwrites everything below)\n\t2) Config files loaded with --load\n\t3) Config values loaded from 3mf files\n\nRun --help-fff / --help-sla to see the full listing of print options.\n",
+      "stderr_summary": "",
+      "warnings": [],
+      "warnings_truncated": false,
+      "stability_types": []
+    },
+    "log_sha256": "5b1e08392cfaa9448f78ecb692aca4dc8c8d0709f6c145eec8ad950110894d9e"
+  }
+}
