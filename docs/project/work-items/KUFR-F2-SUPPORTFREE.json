@@ -89,6 +89,6 @@
     }
   ],
   "blockers": [],
-  "currentNote": "Digitální návrh ověřen na89zdrojích:343Python+56Node, všech51typů skutečně řezáno bez podpor, STL/STEP/3MF,sestava,kabeláž,16kroků,ZIP a skutečnýcacheHIT prošly. Čerstvýbrowser a nezávislé kontroly bez otevřeného nálezu. 71výtisků včetně3měrek;29dalších šroubů/29matic. Fyzický tisk,fit,epoxid,zatížení,servo a kabely nebyly ověřené. Položka zůstává aktivní do dokončení Git/PR reviews a LinuxCI.",
-  "nextAction": "Dokončit autorizovanýcommit/push/PR se všemi reviews a skutečnýmLinuxCI; potom připravit fyzické měrky a jeden zatížený modul."
+  "currentNote": "Digitální návrh ověřen na 89 zdrojích: 343 Python + 56 Node testů, skutečné řezání všech 51 typů bez podpor, STL/STEP/3MF, sestava, kabeláž, 16 kroků, ZIP a skutečný cache HIT prošly. Čerstvý browser a nezávislé kontroly bez otevřeného nálezu. 71 výtisků včetně 3 měrek; 29 dalších šroubů a 29 matic. Implementační commit 3be94343c3eb68f308085e4779390963899509e4 byl úspěšně pushnutý a vzdálená větev byla ověřena helperem Push-CurrentBranch.ps1. Fyzický tisk, fit, epoxid, zatížení, servo a kabely nebyly ověřené. Položka zůstává aktivní do všech PR reviews a Linux CI.",
+  "nextAction": "Otevřít PR a dokončit všechna reviews a skutečné Linux CI s PrusaSlicerem 2.9.6; po ověřeném Git předání připravit fyzické měrky a jeden zatížený modul."
 }
