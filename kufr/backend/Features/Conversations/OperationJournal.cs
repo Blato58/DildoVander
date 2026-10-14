@@ -14,6 +14,7 @@ internal sealed partial class OperationJournal : IDisposable
     public OperationJournal(IConfiguration configuration, TimeProvider clock)
     {
         this.clock = clock;
+        keepsakesEnabled = configuration.GetValue<bool>("Keepsake:Enabled");
         var databasePath = configuration["Backend:DatabasePath"];
         if (string.IsNullOrWhiteSpace(databasePath))
         {

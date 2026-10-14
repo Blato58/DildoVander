@@ -150,6 +150,9 @@ bool DeviceControlRuntime::CompleteAutonomousPresentation(
     control_.Stop(step);
     ++generation_;
   }
+  // DV10 bookkeeping is historical evidence after the existing physical and
+  // post-persist timing gates. Failure never turns a failed sequence into success.
+  if (completed && timely) control_.ConfirmTimedPresentation();
   PublishCurrent();
   return completed && timely;
 }

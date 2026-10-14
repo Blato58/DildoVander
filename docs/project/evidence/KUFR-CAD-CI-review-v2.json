@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "observedAtUtc": "2026-10-14T21:17:27.719954+00:00",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-CAD-CI",
+      "criterionId": "ISOLATION",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "b6d4b07f7deffeed841ad2943ff65b0009db1f5d6913054eec4dde28540e972d"
+  },
+  "evidenceId": "KUFR-CAD-CI-review-v2",
+  "kind": "source_review",
+  "method": "Independent Sol6.1/high risk_reviewer integration follow-up inspected only parent-owned diff against origin/main, current builder smoke behavior, conflict resolution and guards; diff whitespace check.",
+  "environment": "Same integrated checkout; child ci_review, fresh integration brief; upstream approved feature implementation excluded.",
+  "limitations": [
+    "Source review; hosted concurrency/cache behavior not executed by reviewer."
+  ],
+  "observation": "Pass; no actionable integration regression. New test_twin_media remains in site gate; smoke copies all real gallery inputs. Full recovery verification, artifact packaging and main restriction intact; no conflict markers in reviewed files."
+}

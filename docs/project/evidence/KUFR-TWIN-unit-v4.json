@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-TWIN-unit-v4",
+  "observedAtUtc": "2026-10-14T20:52:44.108533+00:00",
+  "kind": "unit",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "HOST",
+      "criterionRevision": 4,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "VIEWER",
+      "criterionRevision": 4,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "LIVE",
+      "criterionRevision": 4,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "ccb70eeb2eaa2640e69d6c3bb69c9c0baa9cb3d1132515999cf800fa2a6fb36c",
+    "policyVersion": "twin-v2"
+  },
+  "method": "Fresh node --test test_viewer.cjs test_twin_viewer.cjs test_twin_media.cjs (98/98) and test_twin_media_browser.cjs (2/2 real Chrome); existing v3 native/PIO/CAD/installer evidence transferred only for unchanged fingerprint inputs.",
+  "environment": "Windows PowerShell/MSVC/.NET10, Chrome headless Playwright; Linux VPS x86_64 g++15.2/Python3.14; actual pinned CAD generator. No paid calls or physical device execution.",
+  "limitations": [
+    "No physical ESP, iPhone, electrical/mechanical or audible-sound acceptance; no flash or physical commands.",
+    "All new end-to-end provider tests use production fake services and Chromium fake devices; real Realtime/GPT-Live configuration is enabled but paid provider calls were not performed.",
+    "Virtual 1100/1900us and500ms calibration remains an assumption; no position feedback. Real SD/DMA/AEC/acoustics remain outside host fidelity.",
+    "Measured timing describes the stated Linux/Windows environment, not ESP latency. Persistent records are not silently deleted.",
+    "Latest full VPS browser camera fixture ended spontaneously before capture; active-reload E2E not reached. No fresh full-browser acceptance claim. Owner will check their actual browser."
+  ],
+  "observation": "Keepalive only for bounded pagehide cancellation; navigation keeps request/response alive; forced-close test proves delivered request body only. No media payload sent with keepalive. Native/firmware/effects/CAD inputs unchanged; original v3 validation dates retained.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-TWIN-source-v4.json",
+    "docs/project/artifacts/KUFR-TWIN-release-v4.json",
+    "docs/project/artifacts/KUFR-TWIN-live-ingest-v4.json",
+    "docs/project/artifacts/KUFR-TWIN-validation-v4.json",
+    "docs/project/artifacts/KUFR-TWIN-native-inputs-v3.json",
+    "docs/project/artifacts/KUFR-TWIN-performance-v3.json",
+    "docs/project/artifacts/KUFR-TWIN-validation-v3.json"
+  ],
+  "supersedes": [
+    "KUFR-TWIN-unit-v3"
+  ],
+  "supersedesReason": "Verified scoped cancellation fix; product input comparison supports explicitly dated transfer of unchanged native/firmware/CAD evidence. Fresh browser acceptance remains pending at owner request."
+}

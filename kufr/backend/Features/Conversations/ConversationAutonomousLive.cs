@@ -80,7 +80,7 @@ internal sealed partial class ConversationStore
             if (motif.Length > 0) eveningMemory.WriteMemory(access, new(Guid.NewGuid().ToString("D"), MemoryScope.EveningMotif,
                 MemoryKind.TopicUsed, motif, call.OperationId, ExpectedEpoch: epoch));
         }
-        if (!journal.MarkCompleted(call.OperationId)) return null;
+        if (!journal.MarkSelectionCompleted(call.OperationId, proposal, call.EveningId)) return null;
         operations.Add(call.OperationId, new(call.OperationId, "turn", "completed", correlation, result, null));
         conversations[correlation.ConversationId].TerminalReplyPublished = true;
         return result;

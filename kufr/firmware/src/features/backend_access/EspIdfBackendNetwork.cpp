@@ -1,3 +1,4 @@
+#include "../voice_turn/VoiceWorkflow.h"
 #include "EspIdfBackendNetwork.h"
 
 #include <algorithm>
@@ -88,9 +89,10 @@ void WaitMs(uint32_t durationMs) {
 
 EspIdfBackendNetwork::EspIdfBackendNetwork(
     DeviceIdentity& identity, ConversationRuntimeState& runtimeState,
-    const std::string& bootId, EspIdfStationNetwork& station)
+    const std::string& bootId, EspIdfStationNetwork& station,
+    const CommandJournal& ownerJournal, JournalStorage& journalStorage)
     : identity_(identity), runtimeState_(runtimeState), station_(station),
-      settings_(station.Settings()), bootId_(bootId) {}
+      settings_(station.Settings()), keepsake_(identity, station, online_, ownerJournal, journalStorage), bootId_(bootId) {}
 
 bool EspIdfBackendNetwork::QueueTextTurn(
     const std::string& text, const std::string& conversationId,
@@ -157,7 +159,19 @@ bool EspIdfBackendNetwork::QueueOpening(
 }
 
 void EspIdfBackendNetwork::QueueCancel() {
-  StopVoice();
+  std::lock_guard<std::mutex> lock(presentationMutex_);
+  QueueCancelLocked();
+}
+
+void EspIdfBackendNetwork::RetireCandidateLocked(const char* reason) {
+  if (keepsakeCandidate_.outcomeId.empty()) return;
+  keepsake_.Retire(keepsakeCandidate_, reason);
+  keepsakeCandidate_ = {};
+}
+
+void EspIdfBackendNetwork::QueueCancelLocked() {
+  if (!presentationActive_) RetireCandidateLocked("proposal_cancelled");
+  StopVoiceOutput();
   cancelRequested_.store(true);
   textInbox_.Clear();
   replyInbox_.Clear();
@@ -174,11 +188,13 @@ bool EspIdfBackendNetwork::QueueCancelFor(
   if (!NormalizeConversationUuid(conversationId, normalizedId)) {
     return false;
   }
+  std::lock_guard<std::mutex> presentationLock(presentationMutex_);
   std::lock_guard<std::mutex> lock(openingMutex_);
   if (admittedLocalConversationId_ != normalizedId ||
       admittedSnapshotVersion_ != snapshotVersion) {
     return false;
   }
+  if (!presentationActive_) RetireCandidateLocked("proposal_cancelled");
   // Keep admission and cancellation under one lock: a delayed old socket
   // must not clear a newer owner's accepted turn.
   cancelRequested_.store(true);
@@ -237,8 +253,13 @@ bool EspIdfBackendNetwork::BeginPendingPresentation(
   std::lock_guard<std::mutex> lock(presentationMutex_);
   if (!terminalProposalOutstanding_ || presentationActive_ ||
       cancelRequested_.load() ||
-      replyInbox_.HasPending(runtimeState_) ||
-      !presentation.Start(pendingProposal_, runtimeState_, nowMs)) {
+      replyInbox_.HasPending(runtimeState_)) {
+    return false;
+  }
+  if (!presentation.Start(pendingProposal_, runtimeState_, nowMs)) {
+    RetireCandidateLocked("proposal_start_rejected");
+    pendingProposal_.Clear();
+    terminalProposalOutstanding_ = false;
     return false;
   }
   presentationActive_ = true;
@@ -255,9 +276,20 @@ bool EspIdfBackendNetwork::FinishPresentation(
   }
   presentationActive_ = false;
   terminalProposalOutstanding_ = false;
+  const auto completedOutcome = keepsakeCandidate_;
+  keepsakeCandidate_ = {};
   // Admission also takes presentationMutex_ first. Keep it closed until
   // cancellation is queued, so a new text turn cannot be cleared here.
-  QueueCancel();
+  QueueCancelLocked();
+  if (presentation.State() == WandPresentationState::Idle && !completedOutcome.operationId.empty()) {
+    // No HTTP or flash writes on the control owner. Background persistence precedes send.
+    if (keepsake_.Queue(completedOutcome) == KeepsakeQueueResult::Rejected) {
+      ESP_LOGW(LogTag, "Keepsake completed-outcome outbox unavailable");
+      keepsake_.Retire(completedOutcome, "completion_unconfirmed");
+    }
+  } else if (!completedOutcome.outcomeId.empty()) {
+    keepsake_.Retire(completedOutcome, "presentation_fault");
+  }
   return true;
 }
 
@@ -266,6 +298,7 @@ bool EspIdfBackendNetwork::Start(bool nvsInitialized) {
       !identity_.IsProvisioned() || !settings_.IsConfigured()) {
     return false;
   }
+  keepsake_.Start(nvsInitialized);
 
   if (xTaskCreate(TaskEntry, "backend_network", 16384, this, 4, &task_) !=
       pdPASS) {
@@ -308,6 +341,19 @@ void EspIdfBackendNetwork::Run() {
   bool revokedLogged = false;
   uint64_t lastTurnAtMs = 0;
   while (true) {
+    // Local expiry must retire preparation even when WAN/time/token checks fail.
+    bool proposalExpired = false;
+    {
+      std::lock_guard<std::mutex> lock(presentationMutex_);
+      TurnProposal candidate;
+      proposalExpired = terminalProposalOutstanding_ && !presentationActive_
+          && !pendingProposal_.Read(candidate, runtimeState_, MonotonicMs());
+      if (proposalExpired) {
+        RetireCandidateLocked("proposal_stale_or_expired");
+        pendingProposal_.Clear();
+        terminalProposalOutstanding_ = false;
+      }
+    }
     if (!station.HasIp()) {
       StopVoice();
       online_.store(false);
@@ -380,15 +426,6 @@ void EspIdfBackendNetwork::Run() {
         WaitMs(TokenCheckPeriodMs);
         continue;
       }
-    }
-    bool proposalExpired = false;
-    {
-      std::lock_guard<std::mutex> lock(presentationMutex_);
-      TurnProposal candidate;
-      proposalExpired = terminalProposalOutstanding_ &&
-                        !presentationActive_ &&
-                        !pendingProposal_.Read(candidate, runtimeState_,
-                                               MonotonicMs());
     }
     if (proposalExpired) {
       CloseConversation(coordinator, sessionTransport, tokens, startRequest);
@@ -636,16 +673,27 @@ void EspIdfBackendNetwork::RunTurn(
         }
         // The guard already checked UTC expiry. Local monotonic TTL is capped
         // independently and the control owner must check the live snapshot.
-        const bool stored = pendingProposal_.Store(
-            result.proposal, snapshot, runtimeState_, completedAtMs,
-            ProposalRemainingMs(
-                result.proposal,
-                ConservativeUtcSeconds(
-                    static_cast<uint64_t>(trustedUtcAtStart),
-                    turnStartedAtMs, completedAtMs)));
-        if (stored) {
+        KeepsakeOutcome keepsakeCandidate{accepted.operationId, GenerateEspIdfConversationUuid(), result.proposal.proposalId,
+            result.proposal.proposalId, result.proposal.bootId, result.proposal.generation, result.proposal.deviceRevision, 0};
+        keepsakeCandidate.compartment = result.proposal.compartment;
+        const bool keepsakePrepared = keepsake_.Prepare(keepsakeCandidate);
+        if (!keepsakePrepared) ESP_LOGW(LogTag, "Keepsake preparation unavailable; physical proposal continues");
+        bool stored = false;
+        {
           std::lock_guard<std::mutex> lock(presentationMutex_);
-          terminalProposalOutstanding_ = true;
+          stored = !cancelRequested_.load() && pendingProposal_.Store(
+              result.proposal, snapshot, runtimeState_, completedAtMs,
+              ProposalRemainingMs(
+                  result.proposal,
+                  ConservativeUtcSeconds(
+                      static_cast<uint64_t>(trustedUtcAtStart),
+                      turnStartedAtMs, completedAtMs)));
+          if (stored) {
+            terminalProposalOutstanding_ = true;
+            keepsakeCandidate_ = keepsakePrepared ? keepsakeCandidate : KeepsakeOutcome{};
+          }
+        }
+        if (stored) {
           FailQueuedText();
           {
             std::lock_guard<std::mutex> openingLock(openingMutex_);
@@ -653,6 +701,7 @@ void EspIdfBackendNetwork::RunTurn(
           }
           ESP_LOGI(LogTag, "Validated proposal held for presentation owner");
         } else {
+          if (keepsakePrepared) keepsake_.Retire(keepsakeCandidate, "proposal_store_rejected");
           replyInbox_.Clear();
           CloseConversation(coordinator, textTransport, tokens, startRequest);
         }
@@ -771,6 +820,7 @@ bool EspIdfBackendNetwork::CloseConversation(
   pendingProposal_.Clear();
   {
     std::lock_guard<std::mutex> lock(presentationMutex_);
+    if (!presentationActive_) RetireCandidateLocked("conversation_closed");
     terminalProposalOutstanding_ = false;
   }
   startRequest.idempotencyKey = GenerateEspIdfConversationUuid();
@@ -840,6 +890,18 @@ bool EspIdfBackendNetwork::StartVoiceWithImageConsent(const std::string& request
 }
 
 void EspIdfBackendNetwork::StopVoice() {
+  {
+    std::lock_guard<std::mutex> lock(presentationMutex_);
+    if (!presentationActive_) {
+      RetireCandidateLocked("proposal_stopped");
+      pendingProposal_.Clear();
+      terminalProposalOutstanding_ = false;
+    }
+  }
+  StopVoiceOutput();
+}
+
+void EspIdfBackendNetwork::StopVoiceOutput() {
   std::lock_guard<std::mutex> lock(voiceMutex_);
   CancelVoiceOutput(voiceEpoch_, voicePending_, voiceBusy_, voiceAudio_);
   if (voiceBusy_.load()) voiceStatus_.phase = "stopping";
@@ -873,85 +935,68 @@ void EspIdfBackendNetwork::RunVoice(DeviceTokenSession& tokens,
   bool succeeded = false;
   TurnOperationObservation final;
   std::string error = "ai_unavailable";
-  if (MonotonicMs() - queuedAtMs <= 5000 && current() && CloseConversation(coordinator, cleanup, tokens, startRequest)) {
-    startRequest.audioConsent = true;
-    startRequest.imageConsent = imageConsent;
-    startRequest.generation = snapshot.generation;
-    startRequest.catalogVersion = snapshot.catalogVersion;
-    startRequest.idempotencyKey = requestId;
-    const auto started = coordinator.Start(startRequest, MonotonicMs());
-    if ((started == ConversationStartOutcome::Started || started == ConversationStartOutcome::AlreadyStarted) && current()) {
-      TurnCorrelation correlation;
-      correlation.deviceId = identity_.DeviceId();
-      correlation.bootId = bootId_;
-      correlation.conversationId = coordinator.ConversationId();
-      correlation.clientTurnId = GenerateEspIdfConversationUuid();
-      correlation.generation = snapshot.generation;
-      correlation.deviceRevision = snapshot.deviceRevision;
-      bool photoConversationReady = true;
-      if (imageConsent) {
-        EspIdfCostumeUpload upload(settings_.BackendHost(), tokens, correlation,
-            snapshot.catalogVersion, GenerateEspIdfConversationUuid(), current);
-        const PhotoOutcome photo = PrepareCostumePhoto(true, camera_, upload, current,
-            MonotonicMs, []() { WaitMs(250); },
-            [this](const char* phase) { SetVoicePhase(phase); });
-        {
-          std::lock_guard<std::mutex> lock(voiceMutex_);
-          voiceStatus_.cameraAvailable = camera_.Available();
-          voiceStatus_.photoWarning = photo == PhotoOutcome::Unavailable ? "photo_unavailable" :
-              photo == PhotoOutcome::Failed ? "photo_failed" : "";
-        }
-        if (photo == PhotoOutcome::Failed) {
-          // The upload may have been accepted despite a lost response. Cancel
-          // that owned conversation and continue without a photo in a new one;
-          // never replay the JPEG or let an uncertain old result enter voice.
-          photoConversationReady = current() && CloseConversation(coordinator, cleanup, tokens, startRequest);
-          if (photoConversationReady) {
-            startRequest.imageConsent = false;
-            startRequest.idempotencyKey = GenerateEspIdfConversationUuid();
-            const auto fresh = coordinator.Start(startRequest, MonotonicMs());
-            photoConversationReady = (fresh == ConversationStartOutcome::Started ||
-                fresh == ConversationStartOutcome::AlreadyStarted) && current();
-            if (photoConversationReady) correlation.conversationId = coordinator.ConversationId();
-          }
-        }
-      }
-      // No microphone/output start precedes terminal photo handling. A Stop or
-      // changed snapshot during capture/poll cannot open a newer voice stream.
-      if (!current() || !photoConversationReady) {
-        CloseConversation(coordinator, cleanup, tokens, startRequest);
-      } else {
-        correlation.clientTurnId = GenerateEspIdfConversationUuid();
-        voiceAudio_.Continuous(mode == "gpt-live");
-        voiceAudio_.Begin();
-        const std::string body = "{\"clientTurnId\":\"" + correlation.clientTurnId +
-            "\",\"bootId\":\"" + bootId_ + "\",\"generation\":" + std::to_string(snapshot.generation) +
-            ",\"readyMask\":" + std::to_string(snapshot.readyMask) +
-            ",\"deviceRevision\":" + std::to_string(snapshot.deviceRevision) +
-            ",\"catalogVersion\":\"" + snapshot.catalogVersion +
-            "\",\"opening\":true,\"text\":\"\",\"wav\":null,\"voice\":\"" + voice + "\",\"speed\":1}";
-        const char* token = tokens.AccessToken(MonotonicMs());
-        EspIdfRealtimeTransport transport(settings_.BackendHost(), token ? token : "", voiceAudio_,
-            current, [this](const char* phase) { SetVoicePhase(phase); }, mode == "gpt-live");
-        succeeded = transport.Run(body, GenerateEspIdfConversationUuid(), correlation, snapshot,
-            [&final, &current](const TurnOperationObservation& operation) {
-              if (!current()) return false;
-              final = operation; return true;
-            });
-        if (!transport.Error().empty()) error = transport.Error();
-      }
-    }
+  if (MonotonicMs() - queuedAtMs <= 5000 && current()) {
+    VoiceWorkflowRequest request;
+    request.snapshot = snapshot; request.requestId = requestId; request.voice = voice;
+    request.imageConsent = imageConsent;
+    request.correlation.deviceId = identity_.DeviceId(); request.correlation.bootId = bootId_;
+    request.correlation.generation = snapshot.generation; request.correlation.deviceRevision = snapshot.deviceRevision;
+    VoiceWorkflowPorts ports;
+    ports.current = current; ports.uuid = GenerateEspIdfConversationUuid;
+    ports.close = [&]() { return CloseConversation(coordinator, cleanup, tokens, startRequest); };
+    ports.create = [&](bool photoConsent, const std::string& key, std::string& conversation) {
+      startRequest.audioConsent = true; startRequest.imageConsent = photoConsent;
+      startRequest.generation = snapshot.generation; startRequest.catalogVersion = snapshot.catalogVersion;
+      startRequest.idempotencyKey = key;
+      const auto started = coordinator.Start(startRequest, MonotonicMs());
+      conversation = coordinator.ConversationId();
+      return started == ConversationStartOutcome::Started || started == ConversationStartOutcome::AlreadyStarted;
+    };
+    ports.photo = [&](const TurnCorrelation& correlation) {
+      EspIdfCostumeUpload upload(settings_.BackendHost(), tokens, correlation,
+          snapshot.catalogVersion, GenerateEspIdfConversationUuid(), current);
+      const auto photo = PrepareCostumePhoto(true, camera_, upload, current, MonotonicMs,
+          []() { WaitMs(250); }, [this](const char* phase) { SetVoicePhase(phase); });
+      std::lock_guard<std::mutex> lock(voiceMutex_);
+      voiceStatus_.cameraAvailable = camera_.Available();
+      voiceStatus_.photoWarning = photo == PhotoOutcome::Unavailable ? "photo_unavailable" :
+          photo == PhotoOutcome::Failed ? "photo_failed" : "";
+      return photo;
+    };
+    ports.beginAudio = [&]() { voiceAudio_.Continuous(mode == "gpt-live"); voiceAudio_.Begin(); };
+    ports.realtime = [&](const std::string& body, const std::string& key, const TurnCorrelation& correlation,
+        const std::function<bool(const TurnOperationObservation&)>& completed) {
+      const char* token = tokens.AccessToken(MonotonicMs());
+      EspIdfRealtimeTransport transport(settings_.BackendHost(), token ? token : "", voiceAudio_,
+          current, [this](const char* phase) { SetVoicePhase(phase); }, mode == "gpt-live");
+      const bool succeeded = transport.Run(body, key, correlation, snapshot, completed);
+      if (!transport.Error().empty()) error = transport.Error();
+      return succeeded;
+    };
+    auto result = RunVoiceWorkflow(request, ports);
+    succeeded = result.succeeded;
+    final = std::move(result.final);
   }
   voiceAudio_.Stop();
   bool proposalStored = false;
   if (succeeded && current() && final.hasProposal) {
     const auto utc = std::time(nullptr);
     const uint64_t remaining = utc > 0 ? ProposalRemainingMs(final.proposal, static_cast<uint64_t>(utc)) : 0;
-    proposalStored = remaining && pendingProposal_.Store(final.proposal, snapshot, runtimeState_, MonotonicMs(), remaining);
-    if (proposalStored) {
+    KeepsakeOutcome keepsakeCandidate{final.operationId, GenerateEspIdfConversationUuid(), final.proposal.proposalId,
+        final.proposal.proposalId, final.proposal.bootId, final.proposal.generation, final.proposal.deviceRevision, 0};
+    keepsakeCandidate.compartment = final.proposal.compartment;
+    const bool keepsakePrepared = remaining && keepsake_.Prepare(keepsakeCandidate);
+    if (remaining && !keepsakePrepared) ESP_LOGW(LogTag, "Keepsake preparation unavailable; physical proposal continues");
+    {
       std::lock_guard<std::mutex> lock(presentationMutex_);
-      terminalProposalOutstanding_ = true;
+      proposalStored = remaining && current()
+          && pendingProposal_.Store(final.proposal, snapshot, runtimeState_, MonotonicMs(), remaining);
+      if (proposalStored) {
+        terminalProposalOutstanding_ = true;
+        keepsakeCandidate_ = keepsakePrepared ? keepsakeCandidate : KeepsakeOutcome{};
+      }
     }
+    if (!proposalStored && keepsakePrepared) keepsake_.Retire(keepsakeCandidate, "proposal_store_rejected");
   }
   if (!proposalStored) CloseConversation(coordinator, cleanup, tokens, startRequest);
   startRequest.audioConsent = false;

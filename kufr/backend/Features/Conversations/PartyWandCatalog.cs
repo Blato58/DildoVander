@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Kufr.Backend.Features.Conversations;
 
@@ -40,14 +41,32 @@ internal static class PartyWandCatalog
             throw new InvalidOperationException("Party wand catalog is invalid.");
         }
 
-        return catalog;
+        using var identityStream = typeof(PartyWandCatalog).Assembly
+            .GetManifestResourceStream("Kufr.Backend.PartyWandIdentities")
+            ?? throw new InvalidOperationException("Embedded wand identities are missing.");
+        var identities = JsonSerializer.Deserialize<IdentityData>(identityStream,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        if (identities is null || identities.CatalogVersion != catalog.CatalogVersion
+            || identities.Wands is not { Length: 6 }
+            || !identities.Wands.Select(w => w.Compartment).OrderBy(n => n).SequenceEqual(Enumerable.Range(1, 6))
+            || identities.Wands.Any(w => string.IsNullOrWhiteSpace(w.StableId))
+            || identities.Wands.Select(w => w.StableId).Distinct(StringComparer.Ordinal).Count() != 6)
+        {
+            throw new InvalidOperationException("Party wand identities are invalid.");
+        }
+        // Additive metadata lives separately so the immutable DV01 catalog and
+        // its persona/provider baseline remain byte-for-byte unchanged.
+        return catalog with { Wands = catalog.Wands.Select(w => w with
+        { StableId = identities.Wands.Single(identity => identity.Compartment == w.Compartment).StableId }).ToArray() };
     }
 
     private sealed record CatalogData(string CatalogVersion, WandEntry[] Wands);
+    private sealed record IdentityData(string CatalogVersion, WandIdentity[] Wands);
+    private sealed record WandIdentity(int Compartment, string StableId);
 
     internal sealed record WandEntry(
         int Compartment,
         string DisplayName,
         string Description,
-        string[] Traits);
+        string[] Traits, [property: JsonIgnore] string StableId = "");
 }

@@ -1,0 +1,9 @@
+{
+  "producer": "actual unchanged firmware C++ serializer / fake I/O",
+  "httpStatus": 204,
+  "bootId": "synthetic-media-final-be5cd64a6e9f43848cbec96d6366b5bc",
+  "calibrationRevision": null,
+  "cadManifestRevision": null,
+  "physicalVerification": "unavailable",
+  "notRealESP": true
+}

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "DV10-code-package-v1",
+  "observedAtUtc": "2026-10-14T16:54:35.929818+00:00",
+  "kind": "integration",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "DV10",
+      "criterionId": "LOCAL",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "e56704a5935a54d7fc74cf4c244008ea3c63967c48138ad69c737f06c884962d",
+    "codeArtifactDigest": "2c3264c62f30bb05975a91260acbaa98b48533054d3c7a60f986ed0ce751351c"
+  },
+  "method": "Clean committed standalone build, actual dotnet publish Linux self-contained, keepsake_release.py and independent file rehash/ZIP.",
+  "environment": "Windows local build against exact committed source; Linux executable prepared, not executed locally.",
+  "limitations": [
+    "Standalone public root is a preview; production must preserve complete current project site. Full site build requires absent verified CAD exports.",
+    "No GitHub build provenance is fabricated for this local package; mandatory PR CI remains separate.",
+    "No production activation, nginx runtime, paid provider, real iPhone/hardware or off-VPS encrypted restore."
+  ],
+  "observation": "391 actual code files verified, ZIP 58942871 bytes SHA256 2c3264c62f30bb05975a91260acbaa98b48533054d3c7a60f986ed0ce751351c, source a2ad89aeacd0e5df102c577c7661c8b380ca05f5. Original OpenAI/provider/admin/device credentials and visitor data are absent.",
+  "artifactRefs": [
+    "docs/project/artifacts/DV10-code-package-v1.json",
+    "kufr/docs/dv10/DELIVERY.md"
+  ]
+}

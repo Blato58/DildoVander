@@ -171,6 +171,7 @@
 
   function mount(document, model, hooks) {
     const projection = new Projection(model.twinManifest);
+    let browserMedia = null;
     let active = false, replay = false, selectedSlot = null, selectedMesh = null;
     let role = 'observer', base = root.location?.origin || '', timer = null, generation = 0;
     const sourceProfiles = new Map();
@@ -224,6 +225,7 @@
     }
     function stopPolling() { generation++; if (timer !== null) root.clearTimeout(timer); timer = null; }
     function reset() {
+      void browserMedia?.invalidate('Zdroj nebo session se mění; lokální média zastavena.');
       stopPolling(); stopReplay(); projection.select(null); selectedSlot = null;
       recording = []; recordingBytes = 0; recordingDrops = 0; currentIndex = 0;
       failure = ''; lastTraceKey = ''; remoteCapabilities = []; selectedProfile = 'unknown'; selectedMode = 'unknown';
@@ -232,6 +234,8 @@
     function display() {
       const snapshot = projection.current?.snapshot, status = replay ? 'replay' : projection.status(root.performance.now());
       const mode = snapshot?.source.mode || selectedMode;
+      browserMedia?.sync({active,replay,role,instanceId:projection.instanceId,mode,profile:selectedProfile,
+        bootId:snapshot?.source.bootId || null,status});
       const sourceMode = mode === 'live' ? 'ŽIVÝ KUFR · LIVE · ODHAD' : mode === 'simulation' ? 'SIMULACE' : 'ZDROJ';
       const cadState = !snapshot?.source.cadManifestRevision ? 'CAD unknown' : snapshot.source.cadManifestRevision !== model.twinManifest?.revision ? 'CAD NESHODA' : 'CAD match';
       badge.textContent = !active ? 'NÁVRHOVÝ NÁHLED · bez runtime' :
@@ -300,6 +304,7 @@
       if (offline) throw new Error('Offline export: pro session otevřete /twin na originu serveru');
       const response = await root.fetch(base + path, {...options, credentials:'include', cache:'no-store'});
       if (!response.ok) throw new Error(`Twin HTTP ${response.status}: ${response.status === 401 || response.status === 403 ? 'session/oprávnění' : 'požadavek odmítnut'}`);
+      if (response.status === 204) return null;
       return response.json();
     }
     async function list() {
@@ -348,6 +353,7 @@
       if (urgentStop) pendingStop = true;
       else pending = true;
       failure = ''; commandNotice = ''; display();
+      if (urgentStop) void browserMedia?.invalidate('Stop: mikrofon, kamera a lokální přehrávání zastaveny.');
       const ownGeneration = generation;
       try {
         const result = await request('/v1/twin/instances/' + encodeURIComponent(projection.instanceId) + '/commands', {
@@ -455,6 +461,9 @@
       if (event.key === 'Escape') { get('twin-details').open = false; get('twin-details').querySelector('summary').focus(); }
     });
     root.addEventListener('pagehide', () => { stopPolling(); stopReplay(); root.clearInterval(ageTimer); });
+    if (typeof root.TwinMedia !== 'undefined') browserMedia = root.TwinMedia.mount(document, get('twin-details'), {
+      request:(instanceId,path,options) => request('/v1/twin/instances/'+encodeURIComponent(instanceId)+path,options)
+    });
     display();
     return {active:() => active, angle:slot => projection.angle(slot),
       selection:name => { if (selectedMesh === name) return; selectedMesh = name; selectedSlot = model.twinManifest?.slots.find(slot => Object.values(slot.components).includes(name) || slot.liftComponents.includes(name) || slot.rotationComponents.includes(name))?.slot || null; display(); },

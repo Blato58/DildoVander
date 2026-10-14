@@ -5,7 +5,7 @@
 namespace {
 
 constexpr uint8_t Magic[] = {'K', 'J', 'R', '1'};
-constexpr uint8_t RecordVersion = 2;
+constexpr uint8_t RecordVersion = 3;
 constexpr size_t CommandIdOffset = 8;
 constexpr size_t CommandIdLength = 36;
 constexpr uint8_t AllCompartmentsMask = 0x3f;
@@ -117,6 +117,30 @@ bool PersistentCommandJournal::ResolveRestored(uint8_t compartment) {
   return Persist(next);
 }
 
+bool PersistentCommandJournal::ConfirmTimedPresentation(const std::string& id,
+                                                       uint8_t compartment, uint64_t fingerprint) {
+  if (!healthy_ || HasPending() || fingerprint == 0) return false;
+  State next = state_;
+  for (size_t i = 0; i < next.historyCount; ++i) {
+    auto& entry = next.history[i];
+    if (SameUuid(entry.id, id) && entry.compartment == compartment && entry.fingerprint == fingerprint) {
+      if (entry.timedCompleted) return true;
+      entry.timedCompleted = true;
+      return Persist(next);
+    }
+  }
+  return false;
+}
+
+bool PersistentCommandJournal::WasTimedPresentationCompleted(const std::string& id, uint8_t compartment) const {
+  if (!healthy_) return false;
+  for (size_t i = 0; i < state_.historyCount; ++i) {
+    const auto& entry = state_.history[i];
+    if (SameUuid(entry.id, id) && entry.compartment == compartment && entry.fingerprint != 0 && entry.timedCompleted) return true;
+  }
+  return false;
+}
+
 bool PersistentCommandJournal::PersistReadyMask(uint8_t readyMask) {
   if (HasPending() || readyMask > AllCompartmentsMask) {
     return false;
@@ -144,7 +168,7 @@ bool PersistentCommandJournal::Decode(const uint8_t* data, size_t length,
   const bool legacy = length == 44 && data[4] == 1;
   if ((!legacy && length != RecordSize) ||
       !std::equal(Magic, Magic + sizeof(Magic), data) ||
-      (!legacy && data[4] != RecordVersion) || data[5] > AllCompartmentsMask ||
+      (!legacy && data[4] != RecordVersion && data[4] != 2) || data[5] > AllCompartmentsMask ||
       data[6] > 6 || (legacy ? data[7] != 0 : data[7] > HistoryCapacity)) {
     return false;
   }
@@ -184,7 +208,8 @@ bool PersistentCommandJournal::Decode(const uint8_t* data, size_t length,
       }
       auto& entry = decoded.history[i];
       entry.id.assign(reinterpret_cast<const char*>(data + offset), CommandIdLength);
-      entry.compartment = data[offset + 36];
+      entry.compartment = static_cast<uint8_t>(data[offset + 36] & (data[4] == 3 ? 0x7f : 0xff));
+      entry.timedCompleted = data[4] == 3 && (data[offset + 36] & 0x80) != 0;
       if (!IsCanonicalUuid(entry.id) || entry.compartment < 1 || entry.compartment > 6) return false;
       for (unsigned byte = 0; byte < 8; ++byte)
         entry.fingerprint |= static_cast<uint64_t>(data[offset + 37 + byte]) << (8 * byte);
@@ -194,7 +219,7 @@ bool PersistentCommandJournal::Decode(const uint8_t* data, size_t length,
       bool found = false;
       for (size_t i = 0; i < decoded.historyCount; ++i)
         found |= SameUuid(decoded.history[i].id, decoded.commandId) &&
-                 decoded.history[i].compartment == decoded.pendingCompartment;
+                 decoded.history[i].compartment == decoded.pendingCompartment && !decoded.history[i].timedCompleted;
       if (!found) return false;
     }
   }
@@ -213,7 +238,7 @@ void PersistentCommandJournal::Encode(
     const size_t offset = 44 + i * 45;
     const auto& entry = state.history[i];
     std::copy(entry.id.begin(), entry.id.end(), data.begin() + offset);
-    data[offset + 36] = entry.compartment;
+    data[offset + 36] = static_cast<uint8_t>(entry.compartment | (entry.timedCompleted ? 0x80 : 0));
     for (unsigned byte = 0; byte < 8; ++byte)
       data[offset + 37 + byte] = static_cast<uint8_t>(entry.fingerprint >> (8 * byte));
   }

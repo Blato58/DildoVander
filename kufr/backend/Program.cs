@@ -8,6 +8,10 @@ using Kufr.Backend.Features.Memory;
 using Kufr.Backend.Features.Firmware;
 using Kufr.Backend.Features.DigitalTwin;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
+using System.Threading.RateLimiting;
+using Kufr.Backend.Features.Keepsakes;
 
 var provisioning = args.Contains("--memory-provision");
 var builder = WebApplication.CreateBuilder(args.Where(a => a is not ("--memory-provision" or "--execute" or "--create")).ToArray());
@@ -16,10 +20,13 @@ if (twinConfiguration is not null)
 {
     if (!Path.IsPathFullyQualified(twinConfiguration)) { throw new InvalidOperationException("KUFR_TWIN_CONFIG must be absolute."); }
     builder.Configuration.AddJsonFile(twinConfiguration, optional: false, reloadOnChange: false);
+    TwinProviderCredentials.Load(builder.Configuration);
 }
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 4096);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<TwinAccess>();
+builder.Services.AddSingleton<TwinMediaSettingsStore>();
+builder.Services.AddSingleton<TwinMediaSessions>();
 builder.Services.AddSingleton<TwinFakeInputPolicy>();
 builder.Services.AddSingleton<TwinStore>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<TwinStore>());
@@ -35,6 +42,12 @@ builder.Services.AddRateLimiter(options =>
         policy.PermitLimit = 4;
         policy.QueueLimit = 0;
     });
+    options.AddPolicy("keepsake", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 120, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    options.AddPolicy("keepsake-public", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 600, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
 builder.Services.AddSingleton<ServerAdminAccess>();
 builder.Services.AddSingleton<LogReadAccess>();
@@ -55,6 +68,35 @@ builder.Services.AddSingleton<HybridMemoryService>();
 builder.Services.AddHostedService<MemoryIndexWorker>();
 builder.Services.AddSingleton<ConversationStore>();
 builder.Services.AddHostedService<RetentionWorker>();
+var keepsakesEnabled = builder.Configuration.GetValue<bool>("Keepsake:Enabled");
+var keepsakeDataRoot = builder.Configuration["Keepsake:DataRoot"];
+var keepsakeArchiveConfigured = !string.IsNullOrWhiteSpace(keepsakeDataRoot);
+if (keepsakesEnabled && !keepsakeArchiveConfigured)
+{
+    throw new InvalidOperationException("Keepsake:DataRoot must be configured.");
+}
+if (keepsakeArchiveConfigured)
+{
+    var dataRoot = keepsakeDataRoot!;
+    builder.Services.AddDataProtection().SetApplicationName("DildoVander.DV10")
+        .PersistKeysToFileSystem(new DirectoryInfo(builder.Configuration["Keepsake:DataProtectionRoot"] ?? dataRoot + ".keys"));
+    builder.Services.AddSingleton<KeepsakeStore>();
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedFor;
+        options.ForwardLimit = 1;
+        options.KnownIPNetworks.Clear();
+        options.KnownProxies.Clear();
+        options.KnownProxies.Add(System.Net.IPAddress.Loopback);
+        options.KnownProxies.Add(System.Net.IPAddress.IPv6Loopback);
+    });
+}
+if (keepsakesEnabled && builder.Configuration.GetValue<bool>("Keepsake:GenerationEnabled"))
+{
+    builder.Services.AddSingleton(sp => KeepsakeProviderFactory.Create(sp.GetRequiredService<IConfiguration>()));
+    builder.Services.AddHostedService<KeepsakeWorker>();
+}
+if (keepsakesEnabled) { builder.Services.AddHostedService<KeepsakeExportWorker>(); }
 
 var app = builder.Build();
 if (provisioning)
@@ -66,21 +108,35 @@ if (provisioning)
     return;
 }
 app.Services.GetRequiredService<OperationJournal>();
+// A configured private archive remains an authority even while guest production is
+// disabled. Resolve it eagerly so confirmed deletion cleanup resumes before serving.
+if (keepsakeArchiveConfigured) { app.Services.GetRequiredService<KeepsakeStore>(); }
+if (keepsakesEnabled) { app.Services.GetRequiredService<EveningMemoryStore>(); }
 app.Services.GetRequiredService<TextDialogRunner>();
 app.Services.GetRequiredService<VoiceProviderRunner>();
+// Per-instance settings enforce the fake/real boundary even when the isolated
+// provider runner is available. Loading a key alone never starts an API call.
+if (twinConfiguration is not null && builder.Configuration.GetValue<bool>("DigitalTwin:ExternalServicesAuthorized"))
+{
+    app.Services.GetRequiredService<TextDialogRunner>().SetEnabled(true);
+}
 var logs = app.Services.GetRequiredService<ServerLogStore>();
 app.Services.GetRequiredService<LogReadAccess>();
 logs.Write("info", "server_started");
 app.Lifetime.ApplicationStopping.Register(() => logs.Write("info", "server_stopping"));
 
 app.Use((context, next) => ServerLogEvents.RequestAsync(context, next, logs));
+if (keepsakeArchiveConfigured) { app.UseForwardedHeaders(); }
 app.UseRateLimiter();
 
 app.Use(async (context, next) =>
 {
-    if (context.Request.Path.StartsWithSegments("/v1"))
+    if (context.Request.Path.StartsWithSegments("/v1") || context.Request.Path.StartsWithSegments("/guest")
+        || context.Request.Path.StartsWithSegments("/keepsake"))
     {
         context.Response.Headers.CacheControl = "no-store";
+        context.Response.Headers["Referrer-Policy"] = "no-referrer";
+        context.Response.Headers["X-Content-Type-Options"] = "nosniff";
     }
 
     await next(context);
@@ -88,6 +144,7 @@ app.Use(async (context, next) =>
 
 app.MapDeviceAccess();
 app.MapDigitalTwin();
+app.MapTwinMedia();
 app.MapFirmwareReleases();
 app.MapConversations();
 app.MapCostumeImages();
@@ -97,6 +154,9 @@ app.MapGptLive();
 app.MapMemoryAdministration();
 app.MapServerModes();
 app.MapServerLogs();
+if (keepsakesEnabled) { app.MapKeepsakes(); app.MapKeepsakeGallery(); }
+if (keepsakeArchiveConfigured) { app.MapKeepsakeAdministration(); }
+app.Map("/guest/{**path}", () => Results.Json(new { errorCode = "access_unavailable" }, statusCode: 404));
 app.MapGet("/v1/diagnostics", (HttpContext context, DeviceAccessStore access,
     ConversationStore conversations, GptLiveOptions live, HybridMemoryService memory) =>
 {

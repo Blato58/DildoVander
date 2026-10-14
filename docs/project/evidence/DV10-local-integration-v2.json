@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "DV10-local-integration-v2",
+  "observedAtUtc": "2026-10-14T18:08:40.628253Z",
+  "kind": "integration",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "DV10",
+      "criterionId": "LOCAL",
+      "criterionRevision": 2,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "5d53c276f653bbcb84f2fd2fc2bcb0c3a668118712e3a3e3954177546c92b1db"
+  },
+  "method": "Actual local .NET build/core+outcome tests and real HTTP listener; full backend suite; mobile npm tests/build, contract verifier; worker MSVC/pio; deployment fixtures and actual Linux publish.",
+  "environment": "Windows local .NET10/Node25/Python3.14/MSVC/PlatformIO; all temporary synthetic private DBs.",
+  "limitations": [
+    "Synthetic offline checks do not prove paid OpenAI quality, real iPhone/hardware, DV10 production TLS/runtime, provider cleanup or independent encrypted off-VPS recovery.",
+    "Complete project-site build needs absent verified CAD exports; standalone public evening is a preview and cannot replace the whole public root.",
+    "Current-source mandatory PR CI and clean committed-source package are separate subsequent records."
+  ],
+  "observation": "Pinned SDK10.0.303 build 0 warnings/errors; full backend suite and --keepsake core/gallery/admin/outcome PASS. Actual HTTP listener PASS public listing/streaming/pagination/switch/delete, private isolation, consent/export/recovery, disabled-portal startup cleanup/admin and secret-free logs. Mobile62 tests/build PASS; contracts30valid44invalid and54 actual firmware messages PASS; seven MSVC host suites and pio PASS. Six proxy and twelve delivery/recovery fixtures PASS. Isolated Linux10.0.303 locked restore PASS. Catalog ai-eval29 offline tests PASS.",
+  "artifactRefs": [
+    "docs/project/artifacts/DV10-source-bundle-v2.json",
+    "kufr/docs/dv10/CAPABILITIES.json"
+  ],
+  "supersedes": [
+    "DV10-local-integration-v1"
+  ],
+  "supersedesReason": "Owner changed pickup to one static QR and public active-evening wands/stories; new exact source includes correlated evening, QR removal and review/CI fixes."
+}

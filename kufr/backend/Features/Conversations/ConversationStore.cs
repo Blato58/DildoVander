@@ -255,7 +255,7 @@ internal sealed partial class ConversationStore(
 
                 eveningMemory?.Append(deviceId, memory!.EveningId, operationId,
                     conversationId, request.Text, turnResult.Reply);
-                if (!journal.MarkCompleted(operationId))
+                if (!journal.MarkSelectionCompleted(operationId, turnResult.Proposal, memory?.EveningId))
                 {
                     return new SubmitTurnResult(409, null, "operation_cancelled");
                 }
@@ -421,7 +421,7 @@ internal sealed partial class ConversationStore(
                         correlation,
                         new TurnResult(response.Reply, response.Decision, response.Reason, proposal),
                         null));
-                if (!journal.MarkCompleted(operationId))
+                if (!journal.MarkSelectionCompleted(operationId, proposal, memory?.EveningId))
                 {
                     operations.Remove(operationId);
                     return;
@@ -559,7 +559,7 @@ internal sealed partial class ConversationStore(
                 upload.ClientTurnId,
                 upload.Generation,
                 upload.DeviceRevision);
-            if (voiceRunner?.Enabled == true)
+            if (voiceRunner?.Enabled == true && twinFakeInputs?.Allows(deviceId) != true)
             {
                 return QueueVoiceCall(
                     deviceId, route, key, bodyHash, correlation,
@@ -666,7 +666,7 @@ internal sealed partial class ConversationStore(
                 return new SubmitTurnResult(404, null, "turn_not_found");
             }
 
-            if (voiceRunner?.Enabled == true)
+            if (voiceRunner?.Enabled == true && twinFakeInputs?.Allows(deviceId) != true)
             {
                 return QueueVoiceCall(
                     deviceId, route, key, bodyHash, source.Correlation,

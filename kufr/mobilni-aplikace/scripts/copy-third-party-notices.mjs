@@ -1,4 +1,4 @@
-import { copyFile, mkdir } from 'node:fs/promises';
+import { copyFile, mkdir, unlink } from 'node:fs/promises';
 
 // Vite copies public/ into dist, including builds with a custom --base.
 // Keep the original notices authoritative instead of maintaining duplicate text.
@@ -19,3 +19,9 @@ for (const [source, name] of notices) {
 }
 
 console.log('Copied original third-party notices for the mobile bundle.');
+
+// These two generated files belonged to the removed individual QR panel.
+for (const name of ['LICENSE.txt', 'dijkstrajs-LICENSE.txt']) {
+  await unlink(new URL(`../public/third-party-notices/qrcode/${name}`, import.meta.url))
+    .catch(error => { if (error.code !== 'ENOENT') { throw error; } });
+}

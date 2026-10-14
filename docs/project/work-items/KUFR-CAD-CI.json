@@ -30,18 +30,18 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "bde780829a707fe9050d87a71693572617c9ad8dac41409174133691bf040bc8"
+        "artifactDigest": "b6d4b07f7deffeed841ad2943ff65b0009db1f5d6913054eec4dde28540e972d"
       },
       "evidenceRefs": [
-        "KUFR-CAD-CI-local",
-        "KUFR-CAD-CI-review"
+        "KUFR-CAD-CI-local-v2",
+        "KUFR-CAD-CI-review-v2"
       ]
     }
   ],
   "blockers": [],
-  "nextAction": "Run hosted PR CI and verify actual lightweight site build, CAD gate and cache reuse before merge.",
+  "nextAction": "Finish current main recovery38638670895, then push integrated branch and verify PR cache hit, CI and reviews before merge.",
   "implementedSubject": {
-    "artifactDigest": "bde780829a707fe9050d87a71693572617c9ad8dac41409174133691bf040bc8"
+    "artifactDigest": "b6d4b07f7deffeed841ad2943ff65b0009db1f5d6913054eec4dde28540e972d"
   },
-  "currentNote": "Local targeted checks passed; independent review found and prompted real-asset assembly smoke coverage and event-isolated concurrency. Full scripts/ci discovery has the existing Windows POSIX executable-mode failure; hosted Linux CI is required. Historical run38620505788 spent34m09s in regeneration after exact cache miss; most current CAD caches are PR-scoped. No CAD fingerprint/acceptance relaxation. Implementation7c4c97f36368fae206dcce967998cdbd5aae8a65 pushed and remote SHA verified by Push-CurrentBranch.ps1; PR194. Initial hosted run38632738148 passed secret scan, repository checks and real-asset site job in seconds, but both tracking platforms rejected STATUS due to new local JSON CRLF bytes differing from committed LF. New files restored to canonical committed LF before render; no immutable receipt content changes."
+  "currentNote": "Implementation7c4c97f and canonical STATUS fix656614b pushed and verified. Initial hosted site job passed in13s, repository/secret scan and both tracking platforms passed; full CAD was still running when main advanced through approved DV10 and Twin media merges. Superseded runs38632994304 and38635034193 cancelled. Integrated current main3367277 preserving incoming media test and gallery assets; independent integration review passed. Main recovery38638670895 seeds current CAD cache before pushing merged PR to avoid duplicate cold regeneration. Deleted13 caches scoped only to confirmed closed PR140/187/174/172, freeing3779122917bytes; verified no entries for those refs, inventory74 caches/6975662703bytes."
 }

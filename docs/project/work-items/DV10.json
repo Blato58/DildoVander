@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "id": "DV10",
+  "initiative": "DV10",
+  "title": "Wand Keepsake Portal na stávajícím VPS",
+  "state": "blocked",
+  "priority": "P1",
+  "sequence": 1,
+  "scope": [
+    "kufr/backend/Features/Keepsakes",
+    "kufr/web/keepsake",
+    "kufr/firmware",
+    "kufr/mobilni-aplikace",
+    "kufr/docs/dv10",
+    ".agents/skills"
+  ],
+  "dependencies": [],
+  "acceptance": [
+    {
+      "id": "LOCAL",
+      "revision": 3,
+      "expected": "A–H a statické vyzvednutí: přesný durable outcome bez individuálního QR, veřejná poslední hotová hůlka a přehled hůlek/příběhů aktivního večera; oddělené soukromé foto/portrét/owner/admin scopes, manual-only archiv, exporty, mazání a skills; syntetické integrační a browser ověření.",
+      "requiredEvidenceKinds": [
+        "integration",
+        "source_review",
+        "browser"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "4e24c5876a0702b834f03325bf80446fd1db51996400e706d4a857bb89c52f7d"
+      },
+      "evidenceRefs": [
+        "DV10-local-integration-v3",
+        "DV10-local-browser-v3",
+        "DV10-local-source_review-v3",
+        "DV10-code-package-v3"
+      ]
+    },
+    {
+      "id": "PROVIDER",
+      "revision": 1,
+      "expected": "Schválený placený pilot ověří kvalitu unikátních hůlek, příběhů a portrétů ze souhlasných fotografií.",
+      "requiredEvidenceKinds": [
+        "integration"
+      ],
+      "appliesTo": {
+        "artifactDigest": "4e24c5876a0702b834f03325bf80446fd1db51996400e706d4a857bb89c52f7d"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "PRODUCTION",
+      "revision": 1,
+      "expected": "Schválené nasazení na VPS, přesná guest proxy a iPhone guest smoke zachovají existující zařízení a Live.",
+      "requiredEvidenceKinds": [
+        "production_deploy",
+        "native_ios"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "4e24c5876a0702b834f03325bf80446fd1db51996400e706d4a857bb89c52f7d"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "RECOVERY",
+      "revision": 1,
+      "expected": "Nezávislá šifrovaná záloha mimo VPS a skutečná izolovaná obnova použijí nejnovější deletion/revocation ledger bez resurrection.",
+      "requiredEvidenceKinds": [
+        "integration"
+      ],
+      "appliesTo": {
+        "artifactDigest": "4e24c5876a0702b834f03325bf80446fd1db51996400e706d4a857bb89c52f7d"
+      },
+      "evidenceRefs": []
+    }
+  ],
+  "blockers": [
+    {
+      "id": "DV10-PAID",
+      "problem": "Zadání neautorizuje placený provider pilot.",
+      "severity": "high",
+      "blocks": [
+        "PROVIDER"
+      ],
+      "unblockCondition": "Majitel schválí konkrétní pilot a souhlasné foto vstupy."
+    },
+    {
+      "id": "DV10-PROD",
+      "problem": "Zadání neautorizuje zapnutí DV10 v produkci a změnu veřejné proxy; skutečný iPhone guest smoke dosud nebyl proveden.",
+      "severity": "high",
+      "blocks": [
+        "PRODUCTION"
+      ],
+      "unblockCondition": "Schválený reviewovaný deploy a iPhone ověření."
+    },
+    {
+      "id": "DV10-BACKUP",
+      "problem": "Není ověřen nezávislý backup cíl mimo VPS ani skutečná izolovaná obnova.",
+      "severity": "high",
+      "blocks": [
+        "RECOVERY"
+      ],
+      "unblockCondition": "Majitel určí oprávněný off-VPS cíl; doložený encrypted backup a isolated restore."
+    }
+  ],
+  "nextAction": "Schválit konkrétní placený OpenAI pilot se souhlasnými fotografiemi; produkci, iPhone a nezávislou obnovu přijmout oddělenými receipts.",
+  "currentNote": "Jeden statický QR otevírá společné hůlky/příběhy aktivního večera; fotografie/portréty soukromé. DV10 lokálně ověřeno po integraci main Digital Twin fe39e4b48f6aee4a6328ba3003fb7518813c4e0a: backend/HTTP/browser/firmware/native/proxy PASS, nezávislý review bez P1/P2. Proxy60 přesných metod/cest zachovává služby5080/5082. Předchozí CI38620505788 na e8ce3334af305021ff288339bb5792e50f8f741a prošlo13jobs; Aktuální clean-source balík 23a1caefc842ed7906f040d8f85f4db122f80c2f ZIPf04467c92b10e2d4975871be2aba4d30e0be8164d34a4ca32159b626f5a411d2 ověřen; hosted CI společné verze vede PR190. Merge slice23a1caefc842ed7906f040d8f85f4db122f80c2f a balík2f8b470dc0b20863bf98ad6a30942321c2458f38 push ověřen pomocí Push-CurrentBranch (remote přesně2f8b470dc0b20863bf98ad6a30942321c2458f38). Produkce OFF,event_ready=false; bez nasazení/placených volání.",
+  "implementedSubject": {
+    "artifactDigest": "4e24c5876a0702b834f03325bf80446fd1db51996400e706d4a857bb89c52f7d"
+  }
+}

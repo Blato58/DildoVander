@@ -42,6 +42,15 @@
 
 ## Vizuální styl všech UI
 
+- Pro návštěvnickou památku DV10 čti [kanonický kontrakt a stav](kufr/docs/dv10/README.md).
+  Používej tracked skills [design](.agents/skills/dildovander-keepsake-design/SKILL.md),
+  [privacy eval](.agents/skills/dildovander-keepsake-eval/SKILL.md) a
+  [VPS recovery](.agents/skills/dildovander-keepsake-delivery/SKILL.md).
+  Archiv DV10 je manual-only; expirace přístupu ani deploy cleanup nemažou obsah.
+  Jeden statický QR otevírá veřejný přehled hůlek a příběhů aktivního večera;
+  fotografie, portréty a owner/admin oprávnění zůstávají soukromé. Telefon obsluhy
+  ani individuální QR nejsou podmínkou vyzvednutí. Viz [rozhodnutí](kufr/docs/dv10/STATIC_EVENING.md).
+
 - Pro DV01 personu, dramaturgii a lore používej projektový skill
   [.agents/skills/dildovander-character-design/SKILL.md](.agents/skills/dildovander-character-design/SKILL.md).
   Pro regrese postavy, revizí, issued/restart a audia používej

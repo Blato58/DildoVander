@@ -296,7 +296,7 @@ void TestDurableDedupeConflictCapacityAndLegacyMigration() {
   assert(migrated.IsHealthy() && migrated.HasPending());
   assert(migrated.Find(FirstCommandId, 3, 0) == CommandJournal::Lookup::Same);
   assert(migrated.Resolve(59)); // Inspection removes uncertain slot.
-  assert(legacy.storedLength == PersistentCommandJournal::RecordSize && legacy.data[4] == 2);
+  assert(legacy.storedLength == PersistentCommandJournal::RecordSize && legacy.data[4] == 3);
   PersistentCommandJournal afterInspection(legacy);
   assert(!afterInspection.Begin(FirstCommandId, 3));
   assert(afterInspection.Find(FirstCommandId, 3, 0) == CommandJournal::Lookup::Same);

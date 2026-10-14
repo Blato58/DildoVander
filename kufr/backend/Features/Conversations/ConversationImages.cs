@@ -56,7 +56,7 @@ internal sealed partial class ConversationStore
             if (conversation.ManualCostume && conversation.Costume is null)
             { return new(409, null, "costume_context_expired"); }
             if (conversation.TurnCount != 0 || HasActiveCall(id)) { return new(409, null, "image_before_dialogue_required"); }
-            var paid = dialogRunner?.Enabled == true;
+            var paid = dialogRunner?.Enabled == true && twinFakeInputs?.Allows(deviceId) != true;
             if (paid && (activePaidCalls.Count != 0 || !dialogRunner!.TryAcquire()))
             { return new(503, null, "dialogue_busy"); }
             var queued = false;

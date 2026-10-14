@@ -42,7 +42,7 @@ jobs:
           python -m unittest discover -s kufr/web -p 'test_*.py'
           python -m unittest discover -s kufr/mechanika/final -p test_viewer_style.py
           python -m unittest discover -s kufr/mechanika/final -p test_twin_manifest.py
-          node --test kufr/mechanika/final/test_viewer.cjs kufr/mechanika/final/test_twin_viewer.cjs
+          node --test kufr/mechanika/final/test_viewer.cjs kufr/mechanika/final/test_twin_viewer.cjs kufr/mechanika/final/test_twin_media.cjs
       - name: Verify source-bound CAD outputs for a complete site package
         if: inputs.verify-manufacturing
         uses: ./.github/actions/verified-cad

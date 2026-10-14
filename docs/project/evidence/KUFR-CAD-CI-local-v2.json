@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "observedAtUtc": "2026-10-14T21:17:27.719954+00:00",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-CAD-CI",
+      "criterionId": "ISOLATION",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "b6d4b07f7deffeed841ad2943ff65b0009db1f5d6913054eec4dde28540e972d"
+  },
+  "evidenceId": "KUFR-CAD-CI-local-v2",
+  "kind": "unit",
+  "method": "After integration:10 test_select_projects,8 test_site_workflow,20 kufr/web tests(3 skips),4 test_viewer_style,6 test_twin_manifest,98 Node viewer/Twin/media tests; actionlint1.7.12 and scoped diff checks. Earlier unchanged helper checks:45 CI Node tests,58 tracking tests and2 tracking-workflow tests in local-v1.",
+  "environment": "Windows checkout integrated with main33672774ef524cd4ac99cfe0419be26035a1a531; scope digest framed paths and LF-normalized contents.",
+  "limitations": [
+    "Hosted current-tree cache/gate verification pending.",
+    "Existing Windows POSIX package-mode failure; a transient publication WinError5 on first combined run cleared on targeted rerun and complete20-test rerun.",
+    "No deployment, publishing, hardware or paid AI tests."
+  ],
+  "observation": "All current targeted checks passed. Real-source assembly includes current gallery52files; missing CSS regression passes. Preserved98 viewer/media Node checks and existing source changes from merged features."
+}

@@ -2,13 +2,16 @@
 #include <array>
 #include <ctime>
 #include <cstring>
+#ifdef _WIN32
+#define strcasecmp _stricmp
+#else
 #include <strings.h>
+#endif
 #include "esp_crt_bundle.h"
 #include "esp_http_client.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "mbedtls/base64.h"
 #include "../backend_access/NetworkSettings.h"
 #include "../conversation/ConversationStartCodec.h"
 
@@ -61,8 +64,7 @@ EspIdfRealtimeTransport::EspIdfRealtimeTransport(
 EspIdfRealtimeTransport::~EspIdfRealtimeTransport() { Wipe(token_); }
 
 bool EspIdfRealtimeTransport::Current() const {
-  return !stop_.load() && !failed_.load() && !audio_.Failed() && current_() &&
-      NowMs() - startedAtMs_ < 480000 && NowMs() - lastTurnAtMs_ < (gptLive_ ? 190000 : 80000);
+  return engine_ && engine_->Current();
 }
 
 int EspIdfRealtimeTransport::Post(const std::string& path, const void* data, size_t size,
@@ -91,17 +93,10 @@ void EspIdfRealtimeTransport::UploadTask(void* argument) {
 void EspIdfRealtimeTransport::Upload() {
   std::vector<uint8_t> pcm;
   while (Current()) {
-    if (!uploading_.load()) { vTaskDelay(pdMS_TO_TICKS(10)); continue; }
-    const uint32_t inputEpoch = inputEpoch_.load();
-    if (!audio_.TakeInput(pcm)) { failed_.store(true); break; }
-    if (pcm.empty()) continue;
-    std::lock_guard<std::mutex> lock(inputMutex_);
-    if (uploading_.load() && inputEpoch_.load() == inputEpoch && Current()) {
-      const std::string path = "/v1/conversations/" + conversationId_ + "/" + endpoint_ + "/" + streamId_ + "/audio";
-      inputBytes_ += pcm.size();
-      if (inputBytes_ > (gptLive_ ? 8640000u : 1440000u) || Post(path, pcm.data(), pcm.size(), "application/octet-stream", inputId_, sequence_++) != 204)
-        failed_.store(true);
-    }
+    if (!engine_->Uploading()) { vTaskDelay(pdMS_TO_TICKS(10)); continue; }
+    const uint32_t epoch = engine_->InputEpoch();
+    if (!audio_.TakeInput(pcm)) { engine_->Fail(); break; }
+    if (!pcm.empty()) (void)engine_->SendInput(pcm, epoch);
     std::fill(pcm.begin(), pcm.end(), 0);
   }
   std::fill(pcm.begin(), pcm.end(), 0);
@@ -112,12 +107,13 @@ bool EspIdfRealtimeTransport::Run(const std::string& body, const std::string& ke
                                  const ConversationRuntimeSnapshot& snapshot,
                                  const std::function<bool(const TurnOperationObservation&)>& completed) {
   if (root_.empty() || body.size() > 4096 || !IsConversationUuid(key) || !audio_.Available()) return false;
-  expected_ = opening;
-  conversationId_ = opening.conversationId;
-  startedAtMs_.store(NowMs());
-  lastTurnAtMs_.store(NowMs());
+  engine_.reset(new RealtimeSessionEngine(audio_, gptLive_, current_, NowMs,
+      []() { const auto utc = std::time(nullptr); return utc > 0 ? static_cast<uint64_t>(utc) : 0; },
+      phase_, [this](const std::string& path, const void* data, size_t size, const char* type,
+          const std::string& inputId, unsigned sequence) { return Post(path, data, size, type, inputId, sequence); },
+      opening, snapshot, completed));
   Client client;
-  const std::string url = root_ + "/v1/conversations/" + conversationId_ + "/" + endpoint_;
+  const std::string url = root_ + "/v1/conversations/" + opening.conversationId + "/" + endpoint_;
   if (!Open(client, url, token_, 5000) ||
       esp_http_client_set_header(client.value, "Content-Type", "application/json") != ESP_OK ||
       esp_http_client_set_header(client.value, "Idempotency-Key", key.c_str()) != ESP_OK ||
@@ -139,8 +135,8 @@ bool EspIdfRealtimeTransport::Run(const std::string& body, const std::string& ke
   line.reserve(65536);
   size_t total = 0;
   bool valid = true;
-  while (Current() && !closed_ && valid) {
-    const int count = esp_http_client_read(client.value, buffer.data(), buffer.size());
+  while (Current() && !engine_->Closed() && valid) {
+    const int count = esp_http_client_read(client.value, buffer.data(), static_cast<int>(buffer.size()));
     if (count == -ESP_ERR_HTTP_EAGAIN) continue;
     if (count <= 0) { valid = false; break; }
     total += static_cast<size_t>(count);
@@ -148,133 +144,24 @@ bool EspIdfRealtimeTransport::Run(const std::string& body, const std::string& ke
     for (int i = 0; i < count; ++i) {
       if (buffer[i] == '\n') {
         RealtimeEvent event;
-        valid = Current() && ParseRealtimeEvent(line, event) && Event(event, snapshot, completed);
+        valid = Current() && ParseRealtimeEvent(line, event) && engine_->Event(event);
         Wipe(line);
         Wipe(event.delta);
         Wipe(event.operation.reply);
-        if (!valid || closed_) break;
+        if (!valid || engine_->Closed()) break;
       } else if (line.size() >= 65535) { valid = false; break; }
       else line.push_back(buffer[i]);
     }
   }
-  stop_.store(true);
-  uploading_.store(false);
+  engine_->Stop();
   audio_.Stop();
   // Upload HTTP has a bounded deadline; keep this object's task arguments alive
   // until the worker leaves. The independent safety owner continues running.
   while (!uploadDone_.load()) vTaskDelay(pdMS_TO_TICKS(10));
   Wipe(line);
-  if (!valid || !closed_ || failed_.load() || audio_.Failed()) {
-    if (error_.empty()) error_ = "audio_failed";
+  if (!valid || !engine_->Closed() || engine_->Failed() || audio_.Failed()) {
+    if (error_.empty()) error_ = engine_->Error().empty() ? "audio_failed" : engine_->Error();
     return false;
   }
   return true;
-}
-
-bool EspIdfRealtimeTransport::Event(const RealtimeEvent& event,
-                                   const ConversationRuntimeSnapshot& snapshot,
-                                   const std::function<bool(const TurnOperationObservation&)>& completed) {
-  if (event.type == "failed") {
-    error_ = event.code == "cost_limit" ? "cost_limit" : "ai_unavailable";
-    return false;
-  }
-  if (event.type == "heartbeat") return sessionSeen_;
-  if (event.type == "session") {
-    if (sessionSeen_) return false;
-    sessionSeen_ = true; streamId_ = event.streamId; return true;
-  }
-  if (!sessionSeen_) return false;
-  if (event.type == "listening") {
-    if (terminal_ || (!gptLive_ && !operationId_.empty()) || uploading_.load()) return false;
-    std::lock_guard<std::mutex> lock(inputMutex_);
-    expected_.clientTurnId = event.inputId;
-    inputId_ = event.inputId; sequence_ = 0; inputBytes_ = 0;
-    inputEpoch_.fetch_add(1);
-    lastTurnAtMs_ = NowMs();
-    audio_.Listen(true); uploading_.store(true); phase_("listening"); return true;
-  }
-  if (event.type == "speech_started") return uploading_.load() && event.inputId == inputId_;
-  if (event.type == "speech_stopped") {
-    if (!uploading_.load() || event.inputId != inputId_) return false;
-    uploading_.store(false); inputEpoch_.fetch_add(1);
-    audio_.Listen(false); phase_("thinking"); return true;
-  }
-  if (event.type == "started") {
-    if (terminal_ || !operationId_.empty() || uploading_.load() || ++turns_ > 10) return false;
-    const auto decision = EvaluateTurnOperation(event.operationId, expected_, snapshot.generation,
-                                               snapshot.deviceRevision, event.operation);
-    if (decision != TurnPollDecision::ReplyReady) return false;
-    operationId_ = event.operationId; audioBytes_ = 0; phase_("thinking"); return true;
-  }
-  if (event.type == "visitor") return !operationId_.empty();
-  if (event.type == "audio_cancel") {
-    if (!gptLive_ || operationId_.empty() || !Current()) return false;
-    if (event.responseGeneration <= responseGeneration_) return true;
-    if (!audio_.CancelPlayback()) return false;
-    responseGeneration_ = event.responseGeneration;
-    inputEpoch_.fetch_add(1);
-    segmentPlaying_ = false;
-    audio_.Listen(uploading_.load());
-    phase_("listening");
-    return true;
-  }
-  if (event.type == "audio") {
-    if (operationId_.empty()) return false;
-    std::vector<uint8_t> pcm(32768);
-    size_t size = 0;
-    const bool decoded = mbedtls_base64_decode(pcm.data(), pcm.size(), &size,
-        reinterpret_cast<const unsigned char*>(event.delta.data()), event.delta.size()) == 0;
-    audioBytes_ += size;
-    if (!decoded || !size || size % 2 || audioBytes_ > (gptLive_ ? 9120000u : 1440000u)) {
-      std::fill(pcm.begin(), pcm.end(), 0); return false;
-    }
-    pcm.resize(size); segmentPlaying_ = true; phase_("speaking");
-    const bool played = Current() && audio_.Play(pcm);
-    std::fill(pcm.begin(), pcm.end(), 0);
-    return played;
-  }
-  if (event.type == "pause") {
-    if (!gptLive_ || operationId_.empty()) return false;
-    if (segmentPlaying_) {
-      if (!audio_.Drain() || !Current()) return false;
-      segmentPlaying_ = false;
-    }
-    audio_.Listen(uploading_.load());
-    phase_("listening"); return true;
-  }
-  if (event.type == "completed") {
-    if (operationId_.empty() || event.operationId != operationId_ || audioBytes_ == 0 || !Current()) return false;
-    const std::time_t utc = std::time(nullptr);
-    if (utc <= 0) return false;
-    const auto decision = EvaluateTurnOperationWithProposal(operationId_, expected_, snapshot.generation,
-        snapshot.deviceRevision, snapshot.catalogVersion, snapshot.readyMask, static_cast<uint64_t>(utc), event.operation);
-    if (decision != TurnPollDecision::ReplyReady && decision != TurnPollDecision::ProposalReady) return false;
-    if ((!gptLive_ || segmentPlaying_) && !audio_.Drain()) return false;
-    if (!Current() || !completed(event.operation)) return false;
-    const std::string body = "{\"operationId\":\"" + operationId_ + "\"}";
-    const std::string path = "/v1/conversations/" + conversationId_ + "/" + endpoint_ + "/" + streamId_ + "/played";
-    if (Post(path, body.data(), body.size(), "application/json") != 204) return false;
-    terminal_ = event.operation.decision != "ask" || turns_ == 10;
-    operationId_.clear(); phase_(terminal_ ? "completed" : "thinking"); return true;
-  }
-  if (event.type == "playback_checkpoint") {
-    if (!gptLive_ || operationId_.empty() || event.pcmBytes != audioBytes_ || !Current()) return false;
-    if (segmentPlaying_) {
-      if (!audio_.Drain() || !Current()) return false;
-      segmentPlaying_ = false;
-    }
-    // Drain confirms the local DMA tail, not a physical presentation. Keep the
-    // safe microphone gate until Drain; ordinary pause never authorizes a servo.
-    const std::string body = "{\"playbackId\":\"" + event.playbackId + "\",\"pcmBytes\":" +
-        std::to_string(event.pcmBytes) + ",\"drained\":true}";
-    const std::string path = "/v1/conversations/" + conversationId_ + "/gpt-live/" + streamId_ + "/playback";
-    if (Post(path, body.data(), body.size(), "application/json") != 204)
-      (void)Post(path, body.data(), body.size(), "application/json"); // same idempotent ACK, no operation replay
-    phase_("listening"); return Current();
-  }
-  if (event.type == "closed") {
-    if (!terminal_ || !operationId_.empty()) return false;
-    closed_ = true; return true;
-  }
-  return false;
 }
