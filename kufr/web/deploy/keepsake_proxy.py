@@ -10,6 +10,8 @@ import re
 GUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 ROOT = "/guest/v1/keepsakes/" + GUID
 ROUTES = [
+    ("/guest/v1/evening", {"GET"}),
+    ("/guest/v1/evenings/" + GUID + "/keepsakes/" + GUID + "/editions/" + GUID + "/assets/" + GUID, {"GET"}),
     ("/guest/v1/(?:bootstrap|claim|recover|share-claim)", {"POST"}),
     (ROOT, {"GET", "DELETE"}),
     (ROOT + "/assets/" + GUID, {"GET"}),

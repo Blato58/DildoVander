@@ -229,6 +229,7 @@ async function route() {
   const query = new URLSearchParams(location.search);
   locator = query.get('k'); readOnly = query.get('view') === 'share'; sharedEditionId = query.get('editionId'); pollStarted = Date.now();
   if (entry?.token) {
+    visible('public-overview', false);
     locator = undefined;
     const messages = {
       c: ['Památka čeká za pečetí', 'Otevři osobní příběh a digitální obraz hůlky z tohoto večera.', 'Otevřít moji památku'],
@@ -236,7 +237,7 @@ async function route() {
       s: ['Někdo ti posílá trochu kouzel', 'Otevřeš sdílenou hůlku a příběh. Fotografie a soukromý portrét zůstávají u autora.', 'Otevřít sdílenou edici']
     };
     const copy = messages[entry.kind]; text('entry-title', copy[0]); text('entry-copy', copy[1]); text('exchange', copy[2]); visible('exchange', true);
-  } else { visible('exchange', false); if (locator) { text('entry-title', 'Otevíráme archivní list'); text('entry-copy', 'Ověřujeme přístup v tomto prohlížeči.'); await load(); } }
+  } else { visible('exchange', false); visible('public-overview', !locator); if (locator) { text('entry-title', 'Otevíráme archivní list'); text('entry-copy', 'Ověřujeme přístup v tomto prohlížeči.'); await load(); } }
   if (query.has('privacy')) $('privacy').showModal();
 }
 $('exchange').addEventListener('click', event => action(event.currentTarget, async () => {

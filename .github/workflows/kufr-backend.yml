@@ -30,7 +30,7 @@ jobs:
             kufr/backend/packages.lock.json
             kufr/backend-tests/packages.lock.json
       - name: Restore test and self-contained runtime dependencies
-        run: dotnet restore kufr/backend-tests/BackendTests.csproj -r linux-x64 -p:RuntimeIdentifiers=linux-x64 -p:SelfContained=true --locked-mode
+        run: dotnet restore kufr/backend-tests/BackendTests.csproj -p:SelfContained=true --locked-mode
       - name: Build backend and tests once in Release
         run: dotnet build kufr/backend-tests/BackendTests.csproj -c Release -r linux-x64 -p:SelfContained=true --no-restore
       - name: Backend tests

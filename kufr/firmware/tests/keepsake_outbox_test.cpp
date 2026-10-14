@@ -6,19 +6,73 @@ KeepsakeOutcome Outcome(const char* id = "outcome") {
   return {"backend-operation", id, "proposal", "physical-operation", "boot", 12, 41, 0};
 }
 
+void ExactAcknowledgementPersistsBeforeRemoval() {
+  KeepsakeOutbox outbox;
+  for (size_t i = 0; i < KeepsakeOutbox::Capacity; ++i) {
+    auto candidate = Outcome();
+    candidate.operationId += std::to_string(i);
+    candidate.outcomeId += std::to_string(i);
+    assert(outbox.Prepare(candidate));
+    assert(outbox.Queue(candidate) == KeepsakeQueueResult::VolatilePendingPersistence);
+  }
+  const auto accepted = outbox.Snapshot().front();
+  auto foreign = accepted;
+  foreign.physicalOperationId = "foreign-physical-operation";
+  assert(!outbox.RequestDeliveryAcknowledgement(foreign));
+  assert(outbox.RequestDeliveryAcknowledgement(accepted));
+  assert(outbox.RequestDeliveryAcknowledgement(accepted));
+  KeepsakeOutcome ready;
+  assert(outbox.NextReady(0, ready) && ready.outcomeId != accepted.outcomeId);
+  assert(!outbox.ProcessDeliveryAcknowledgements([](const KeepsakeOutboxState&) { return false; }));
+  assert(outbox.Snapshot().size() == KeepsakeOutbox::Capacity);
+  KeepsakeOutboxState durableAck;
+  unsigned writes = 0;
+  assert(!outbox.ProcessDeliveryAcknowledgements([&](const KeepsakeOutboxState& state) {
+    if (++writes == 2) return false;
+    durableAck = state;
+    return true;
+  }));
+  assert(durableAck.pending.size() == KeepsakeOutbox::Capacity && durableAck.prepared.size() == KeepsakeOutbox::Capacity);
+  assert(durableAck.quarantined.size() == 1 && durableAck.quarantined.front().reason == "outcome_delivered");
+  assert(outbox.Snapshot().size() == KeepsakeOutbox::Capacity - 1);
+  auto next = Outcome("new-outcome");
+  next.operationId = "new-operation";
+  assert(!outbox.Prepare(next));  // Failed removal commit still owns the eighth slot.
+  KeepsakeOutbox rebooted;
+  assert(rebooted.Restore(durableAck.pending, durableAck.quarantined, durableAck.prepared));
+  assert(rebooted.Snapshot().size() == KeepsakeOutbox::Capacity - 1);
+  for (const auto& retained : rebooted.Snapshot()) assert(retained.outcomeId != accepted.outcomeId);
+  assert(outbox.ProcessDeliveryAcknowledgements([](const KeepsakeOutboxState&) { return true; }));
+  assert(outbox.State().quarantined.empty() && outbox.Prepare(next));
+  assert(!outbox.RequestDeliveryAcknowledgement(accepted));  // Repeated ACK cannot retire another guest.
+  assert(outbox.Snapshot().size() == KeepsakeOutbox::Capacity - 1);
+
+  // Reset before any ACK commit retries the same identity; it cannot mint another outcome.
+  KeepsakeOutbox beforeAckCrash;
+  assert(beforeAckCrash.Restore({accepted}, {}, {accepted}));
+  assert(beforeAckCrash.Queue(accepted) == KeepsakeQueueResult::AlreadyQueued);
+  assert(beforeAckCrash.Snapshot().size() == 1 && beforeAckCrash.Snapshot().front().outcomeId == accepted.outcomeId);
+  assert(beforeAckCrash.RequestDeliveryAcknowledgement(accepted));
+  assert(beforeAckCrash.ProcessDeliveryAcknowledgements([](const KeepsakeOutboxState&) { return true; }));
+  assert(beforeAckCrash.Snapshot().empty() && beforeAckCrash.State().prepared.empty());
+  KeepsakeOutbox evening;
+  for (size_t i = 0; i < KeepsakeOutbox::QuarantineCapacity * 3; ++i) {
+    auto candidate = Outcome();
+    candidate.operationId += std::to_string(i);
+    candidate.outcomeId += std::to_string(i);
+    assert(evening.Prepare(candidate));
+    assert(evening.Queue(candidate) == KeepsakeQueueResult::VolatilePendingPersistence);
+    assert(evening.RequestDeliveryAcknowledgement(candidate));
+    assert(evening.ProcessDeliveryAcknowledgements([](const KeepsakeOutboxState&) { return true; }));
+    assert(evening.Snapshot().empty() && evening.State().prepared.empty() && evening.State().quarantined.empty());
+  }
+}
+
 int main() {
+  ExactAcknowledgementPersistsBeforeRemoval();
   KeepsakeOutbox outbox;
   assert(outbox.Queue(Outcome()) == KeepsakeQueueResult::VolatilePendingPersistence);
   const auto queued = outbox.Snapshot().front();
-  LocalKeepsakeStatus status{"outcome", "physical-operation", "https://example.invalid/keepsake/#c=synthetic", 12, 100000};
-  assert(outbox.Publish(queued, status));
-  assert(!outbox.Read(12, 99999).url.empty());
-  assert(outbox.Read(13, 1).url.empty());
-  assert(outbox.Read(12, 100000).url.empty());
-  outbox.Hide();
-  assert(outbox.Read(12, 1).url.empty());
-  assert(!outbox.Publish(queued, status));
-  assert(outbox.Snapshot().size() == 1);  // Hide/cancel does not erase completed facts.
   outbox.Complete("foreign-outcome");
   assert(outbox.Snapshot().size() == 1);
   outbox.Complete("outcome");
@@ -26,7 +80,6 @@ int main() {
 
   KeepsakeOutbox rebooted;
   assert(rebooted.Restore({queued}));
-  assert(!rebooted.Publish(rebooted.Snapshot().front(), status));  // Old boot never shows a new QR.
   assert(rebooted.Queue(Outcome()) == KeepsakeQueueResult::AlreadyQueued);
   assert(rebooted.Queue(Outcome("conflicting-outcome")) == KeepsakeQueueResult::Rejected);
   assert(rebooted.Snapshot().size() == 1);

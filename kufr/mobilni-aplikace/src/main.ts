@@ -10,7 +10,6 @@ import {
 import { SimulatorDeviceConnection } from './features/device_connection/SimulatorDeviceConnection';
 import { DebugPanel } from './features/debug/DebugPanel';
 import { ProvisioningPanel } from './features/provisioning/ProvisioningPanel';
-import { KeepsakePanel } from './features/keepsake/KeepsakePanel';
 
 type PendingAction = {
   kind: 'select' | 'reload';
@@ -63,8 +62,6 @@ controlPanel.setAttribute('aria-labelledby', 'tab-control');
 app.before(controlPanel);
 controlPanel.append(app, conversationPanel);
 const voicePanel = new VoicePanel(() => connection instanceof NativeDeviceConnection ? connection : null);
-const keepsakePanel = new KeepsakePanel();
-conversationPanel.after(keepsakePanel.element);
 conversationPanel.before(voicePanel.element);
 const dancePanel = new DancePanel(() => connection instanceof NativeDeviceConnection ? connection : null);
 voicePanel.element.after(dancePanel.element);
@@ -207,7 +204,6 @@ function render(snapshot: DeviceSnapshot): void {
     pendingAction = null;
   }
   currentSnapshot = snapshot;
-  keepsakePanel.update(snapshot);
   debugPanel.update(snapshot);
   renderConversation(snapshot);
   voicePanel.update(snapshot);

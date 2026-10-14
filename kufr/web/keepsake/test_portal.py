@@ -36,9 +36,23 @@ class PortalSourceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             output = Path(folder)
             module.build_keepsake(REPO, output)
-            self.assertEqual({'index.html', 'app.js', 'keepsake.css'}, {p.name for p in (output / 'keepsake').iterdir()})
-            for path in (output / 'keepsake').iterdir():
-                self.assertEqual(path.read_bytes(), (PORTAL / path.name).read_bytes())
+            expected = {'index.html', 'app.js', 'keepsake.css', 'evening/index.html', 'evening/evening.js', 'evening/evening.css'}
+            runtime = output / 'keepsake'
+            self.assertEqual(expected, {p.relative_to(runtime).as_posix() for p in runtime.rglob('*') if p.is_file()})
+            for name in expected:
+                self.assertEqual((runtime / name).read_bytes(), (PORTAL / name).read_bytes())
+
+    def test_public_page_has_only_get_and_base_allowlist(self):
+        js = (PORTAL / 'evening/evening.js').read_text(encoding='utf-8')
+        self.assertIn("credentials: 'omit'", js)
+        for forbidden in ('localStorage', 'sessionStorage', 'indexedDB', 'serviceWorker', 'innerHTML', '/bootstrap', 'Idempotency-Key', 'X-DV10-CSRF', "method: 'POST'"):
+            self.assertNotIn(forbidden, js)
+        self.assertIn("['base_image', 'export_story', 'export_card', 'export_zip']", js)
+        self.assertIn("/guest/v1/evening?limit=24", js)
+
+    def test_standalone_root_is_public_evening(self):
+        source = (REPO / 'kufr/web/build-site.py').read_text(encoding='utf-8')
+        self.assertIn("shutil.copyfile(destination / 'keepsake/evening/index.html', destination / 'index.html')", source)
 
 
 if __name__ == '__main__':

@@ -6,6 +6,10 @@ jsou připravené pro stejný HTTPS origin na stávajícím VPS. Produkční DV1
 není zapnuté. [Závazná specifikace 2.2](SPEC.md) a [VPS handoff](VPS_HANDOFF.md)
 oddělují implementaci od placené, iPhone, hardware a produkční akceptace.
 
+## Vyzvednutí jedním QR
+
+[Upřesnění majitele](STATIC_EVENING.md) zavádí společný přehled `/keepsake/evening/`: poslední hotová hůlka a seznam aktivního večera. Hůlky a příběhy jsou veřejné pro návštěvníky; fotografie, portréty a správa zůstávají soukromé. Firmware i mobil přestávají vydávat individuální QR.
+
 ## Co je implementované
 
 | Etapa | Zdroj a chování |
@@ -16,7 +20,7 @@ oddělují implementaci od placené, iPhone, hardware a produkční akceptace.
 | D | Trvalá fronta a attempts, flags/backpressure, story před obrazem, skutečný SDK generate z textu, nejistý attempt bez slepého retry. Fake je zřetelně syntetický. |
 | E | Mobilní archivní list, přístupný český text, PNG karta s kanonickým Interem, obraz, bounded ZIP s manifestem a soukromé/read-only sdílení. |
 | F | Samostatný souhlas, lokální foto preview, plný bounded decode/orientace/normalizace, zachovaný originál, skutečný SDK image edit, historie a scoped ruční mazání. |
-| G | ESP32 samostatně vydává outcome; telefon pouze zobrazuje odpovídající soukromý QR z autentizovaného LAN snapshotu. Nový host, Stop a expirace QR jej skryjí. [Firmware evidence](FIRMWARE_OUTCOME.md). |
+| G | ESP32 samostatně vydává outcome; společný přehled aktivního večera nepoužívá telefon obsluhy ani individuální QR v LAN snapshotu. [Firmware evidence](FIRMWARE_OUTCOME.md). |
 | H | Tři tracked skills, přesná kompatibilní proxy, code-only release packager, consistent SQLite backup, klíče a fail-closed restore verifier. |
 
 Žádný guest GET negeneruje, neclaimuje ani nemaže. Hůlka je nový digitální návrh
@@ -32,10 +36,11 @@ obsah zůstávají; re-enable nevymaže data a neřeší nejasné placené attem
 
 | Nastavení | Účel |
 |---|---|
-| `Keepsake:Enabled` | Guest a producer routy. Při false odpověď 404; původní backend funguje dál. |
+| `Keepsake:Enabled` | Guest, veřejná galerie a producer routy. False vrací 404; nakonfigurovaný archiv/admin a potvrzený cleanup zůstávají dostupné. |
 | `Keepsake:GenerationEnabled` | Přijetí a dispatch generování; false pozastaví trvalou frontu. |
 | `Keepsake:PortraitEnabled` | Samostatná foto/edit cesta, bez vlivu na dokončený základ. |
 | `Keepsake:ProviderMode` | `fake` nebo explicitní `openai`. Fake nikdy nepoužije ambient OpenAI credential. |
+| `Keepsake:PublicDeviceId` | Výslovně vybraný kufr pro statický přehled, jeho aktivní večer z existujícího evening store. Bez konfigurace přehled 404. |
 | `Keepsake:Origin` | Ověřený HTTPS origin bez cesty, query, userinfo a fragmentu; nikdy se neodvozuje z Host/forwarded vstupu. |
 | `Keepsake:DataRoot` | Soukromý persistentní archiv mimo webroot, checkout a releases. |
 | `Keepsake:DataProtectionRoot` | Persistentní key ring; výchozí `DataRoot + ".keys"`. Zahrnout do šifrované obnovy. |
@@ -50,7 +55,7 @@ autorizované kroky. [Přesné deployment a restore kroky](VPS_HANDOFF.md).
 
 ## Přístup a správa dat
 
-QR je `/keepsake/#c=…`. Nejčasnější inline skript zahodí fragment před načtením
+Statický QR je `/keepsake/evening/` bez tokenu. Oddělený soukromý claim link má `/keepsake/#c=…`. Nejčasnější inline skript zahodí fragment před načtením
 assetů. Explicitní kliknutí vymění token přes POST; .NET vydá host-only
 `__Host-dv10` cookie, Secure/HttpOnly/SameSite=Lax. Bootstrap je mezi záložkami
 serializovaný Web Locks; podporovaný secure-context browser je podmínkou claimu.
@@ -97,8 +102,8 @@ nejnovější nezávislé deletion/revocation evidence a hashů.
 Z kořene `kufr/` po restore podle pinned lockfile:
 
 ```powershell
-dotnet restore backend-tests/BackendTests.csproj -r linux-x64 -p:RuntimeIdentifiers=linux-x64 -p:SelfContained=true --locked-mode
-dotnet build backend-tests/BackendTests.csproj --no-restore -p:RuntimeIdentifiers=linux-x64
+dotnet restore backend-tests/BackendTests.csproj -p:SelfContained=true --locked-mode
+dotnet build backend-tests/BackendTests.csproj --no-restore
 dotnet run --project backend-tests/BackendTests.csproj --no-build -- --keepsake
 node backend/tests/keepsake-http.mjs
 ```
@@ -117,6 +122,7 @@ python -m unittest discover -s kufr/web -p test*.py
 python -m unittest discover -s kufr/web/deploy -p test_keepsake*.py
 python -m unittest discover -s kufr/backend/deploy -p test_keepsake*.py
 node kufr/web/keepsake/test-browser.cjs
+node kufr/web/keepsake/test-evening-browser.cjs
 ```
 
 Browser harness potřebuje Playwright a Edge; opakované scénáře používají
@@ -128,7 +134,7 @@ MIT licencované native assets; PNG karta vkládá existující OFL Inter font.
 
 Samostatný webový build ze stejného zdroje nepotřebuje CAD ani mobilní build:
 `python kufr/web/build-site.py --keepsake-only --destination NOVY_ADRESAR`.
-Obsahuje `/keepsake/` i lokální design-system/fonty; manifest přiznává dirty
+Obsahuje `/keepsake/`, `/keepsake/evening/` i lokální design-system/fonty; manifest přiznává dirty
 zdroj. Linux backend vytvoří `dotnet publish` podle workflow. Code-only packager
 a adresářové předání jsou v [delivery návodu](DELIVERY.md); sestavení není deploy.
 

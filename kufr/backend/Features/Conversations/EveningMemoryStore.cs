@@ -103,6 +103,20 @@ internal sealed partial class EveningMemoryStore
         }
     }
 
+    public string? ReadActiveEveningId(string deviceId)
+    {
+        lock (gate)
+        {
+            using var connection = new SqliteConnection(new SqliteConnectionStringBuilder(connectionString)
+                { Mode = SqliteOpenMode.ReadOnly }.ToString());
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT evening_id FROM evenings WHERE device_id=$device";
+            command.Parameters.AddWithValue("$device", deviceId);
+            return command.ExecuteScalar() as string;
+        }
+    }
+
     public EveningsList List(string deviceId)
     {
         lock (gate)

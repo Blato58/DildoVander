@@ -37,7 +37,6 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
   VoiceAudioPort& DanceAudio() { return voiceAudio_; }
   void InitializeCamera(bool nvsInitialized, bool profileBVerified);
   LocalVoiceStatus VoiceStatus() const override;
-  LocalKeepsakeStatus KeepsakeStatus(uint64_t generation) const override { return keepsake_.Status(generation); }
   bool ConfigureVoice(const std::string& mode, const std::string& voice) override;
   bool StartVoice(const std::string& requestId,
                   const ConversationRuntimeSnapshot& snapshot) override;
@@ -79,6 +78,9 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
   bool FinishPresentation(const WandPresentation& presentation);
 
  private:
+  void RetireCandidateLocked(const char* reason);
+  void QueueCancelLocked();
+  void StopVoiceOutput();
   static void TaskEntry(void* argument);
   void Run();
   void RunTurn(const std::string& text,

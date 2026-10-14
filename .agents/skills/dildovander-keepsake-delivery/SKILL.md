@@ -57,3 +57,5 @@ activate compatible backend before dependent web, verify existing services and
 public guest isolation, and retain a compatible rollback pair. Record exact
 commands/results and subject hashes with project tracking. Explicit production
 authorization is separate from artifact preparation and synthetic tests.
+
+The owner approved static pickup at `/keepsake/evening/`; read `kufr/docs/dv10/STATIC_EVENING.md` for precedence. Shared wands/stories are scoped to the configured device and captured active evening. Public browsing never grants owner/photo/admin rights. Preserve manual retention and read-only GET behavior.

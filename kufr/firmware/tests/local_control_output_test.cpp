@@ -242,6 +242,8 @@ void TestVoiceWireStatus() {
   fixture.voice.status.voice = "cedar";
   fixture.voice.status.phase = "listening";
   assert(fixture.Snapshot());
+  assert(fixture.transport.messages.back().find("\"keepsake\"") == std::string::npos);
+  assert(fixture.transport.messages.back().find("expiresAtEpochMs") == std::string::npos);
   assert(fixture.transport.messages.back().find("\"microphoneState\":\"recording\"") != std::string::npos);
   LocalControlMessage request;
   request.messageId = Command;

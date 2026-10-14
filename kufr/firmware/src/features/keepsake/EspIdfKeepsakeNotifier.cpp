@@ -1,8 +1,7 @@
 #include "EspIdfKeepsakeNotifier.h"
+#include "KeepsakePersistenceCodec.h"
 
 #include <array>
-#include <cmath>
-#include <ctime>
 #include <cstring>
 #include "cJSON.h"
 #include "esp_crt_bundle.h"
@@ -38,14 +37,6 @@ bool Text(cJSON* root, const char* name, std::string& target, size_t maximum = 3
   auto* value = cJSON_GetObjectItemCaseSensitive(root, name);
   if (!cJSON_IsString(value) || !value->valuestring || std::strlen(value->valuestring) > maximum) return false;
   target = value->valuestring;
-  return true;
-}
-
-bool Number(cJSON* root, const char* name, uint64_t& target) {
-  auto* value = cJSON_GetObjectItemCaseSensitive(root, name);
-  if (!cJSON_IsNumber(value) || !std::isfinite(value->valuedouble) || value->valuedouble < 0
-      || value->valuedouble > INT32_MAX || std::floor(value->valuedouble) != value->valuedouble) return false;
-  target = static_cast<uint64_t>(value->valuedouble);
   return true;
 }
 
@@ -104,15 +95,6 @@ int Post(const std::string& host, const std::string& path, const std::string& bo
   return !response.overflow && (status == 401 || (error == ESP_OK && complete)) ? status : 0;
 }
 
-bool SafeClaimUrl(const std::string& url, const std::string& host) {
-  const std::string prefix = "https://" + host + "/keepsake/#c=";
-  if (url.compare(0, prefix.size(), prefix) != 0 || url.size() < prefix.size() + 32 || url.size() > prefix.size() + 128) return false;
-  for (size_t i = prefix.size(); i < url.size(); ++i) {
-    const char c = url[i];
-    if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_')) return false;
-  }
-  return true;
-}
 }  // namespace
 
 EspIdfKeepsakeNotifier::EspIdfKeepsakeNotifier(DeviceIdentity& identity, EspIdfStationNetwork& station,
@@ -126,6 +108,8 @@ bool EspIdfKeepsakeNotifier::Start(bool initialized) {
   // Boot-only persisted snapshot, before the physical control owner runs.
   PersistentCommandJournal savedJournal(journalStorage_);
   if (!outbox_.RecoverPrepared(savedJournal) || !PersistCurrent()) return false;
+  outbox_.CompactPreparationDispositions();
+  if (!PersistCurrent()) return false;
   healthy_.store(true);
   if (xTaskCreate(TaskEntry, "keepsake_outbox", 8192, this, 2, &task_) != pdPASS) {
     task_ = nullptr;
@@ -154,9 +138,24 @@ KeepsakeQueueResult EspIdfKeepsakeNotifier::Queue(const KeepsakeOutcome& outcome
   return result;
 }
 
-LocalKeepsakeStatus EspIdfKeepsakeNotifier::Status(uint64_t generation) const {
-  const auto utc = std::time(nullptr);
-  return utc > 0 ? outbox_.Read(generation, static_cast<uint64_t>(utc) * 1000) : LocalKeepsakeStatus{};
+void EspIdfKeepsakeNotifier::Retire(const KeepsakeOutcome& outcome, const char* reason) {
+  if (outbox_.RequestRetirement(outcome, reason) && task_) xTaskNotifyGive(task_);
+}
+
+bool EspIdfKeepsakeNotifier::ProcessRetirements() {
+  if (!outbox_.HasRetirements()) return true;
+  std::lock_guard<std::mutex> lock(persistenceMutex_);
+  // Read committed bytes: a failed marker ACK does not prove that its validated
+  // completion bytes were absent. No physical journal writes occur here.
+  PersistentCommandJournal savedJournal(journalStorage_);
+  return savedJournal.IsHealthy() && outbox_.ProcessRetirements(savedJournal,
+      [this](const KeepsakeOutboxState& state) { return Persist(state); });
+}
+
+bool EspIdfKeepsakeNotifier::ProcessDeliveryAcknowledgements() {
+  std::lock_guard<std::mutex> lock(persistenceMutex_);
+  return outbox_.ProcessDeliveryAcknowledgements(
+      [this](const KeepsakeOutboxState& state) { return Persist(state); });
 }
 
 bool EspIdfKeepsakeNotifier::Load() {
@@ -170,57 +169,9 @@ bool EspIdfKeepsakeNotifier::Load() {
       && nvs_get_blob(nvs, "completed", bytes.data(), &length) == ESP_OK;
   nvs_close(nvs);
   if (!loaded) return false;
-  auto* root = cJSON_ParseWithLength(bytes.data(), length);
-  auto* pending = cJSON_IsArray(root) ? root : cJSON_GetObjectItemCaseSensitive(root, "pending");
-  auto* quarantined = cJSON_GetObjectItemCaseSensitive(root, "quarantined");
-  auto* prepared = cJSON_GetObjectItemCaseSensitive(root, "prepared");
-  std::vector<KeepsakeOutcome> outcomes;
-  std::vector<KeepsakeDisposition> dispositions;
-  std::vector<KeepsakeOutcome> preparations;
-  uint64_t version = 0;
-  bool valid = (cJSON_IsArray(root) || (Number(root, "schemaVersion", version) && (version == 1 || version == 2) && cJSON_IsArray(quarantined)))
-      && cJSON_IsArray(pending) && cJSON_GetArraySize(pending) <= static_cast<int>(KeepsakeOutbox::Capacity);
-  for (int i = 0; valid && i < cJSON_GetArraySize(pending); ++i) {
-    auto* entry = cJSON_GetArrayItem(pending, i);
-    KeepsakeOutcome item;
-    valid = Text(entry, "operationId", item.operationId) && Text(entry, "outcomeId", item.outcomeId)
-        && Text(entry, "proposalId", item.proposalId) && Text(entry, "physicalOperationId", item.physicalOperationId)
-        && Text(entry, "bootId", item.bootId) && Number(entry, "generation", item.generation)
-        && Number(entry, "deviceRevision", item.deviceRevision) && Valid(item);
-    uint64_t compartment = 0;
-    if (cJSON_GetObjectItemCaseSensitive(entry, "compartment")) {
-      valid = valid && Number(entry, "compartment", compartment) && compartment <= 6;
-      item.compartment = static_cast<uint8_t>(compartment);
-    }
-    if (valid) outcomes.push_back(std::move(item));
-  }
-  if (quarantined && cJSON_GetArraySize(quarantined) > static_cast<int>(KeepsakeOutbox::QuarantineCapacity)) valid = false;
-  for (int i = 0; valid && quarantined && i < cJSON_GetArraySize(quarantined); ++i) {
-    auto* entry = cJSON_GetArrayItem(quarantined, i);
-    KeepsakeDisposition disposition;
-    valid = Text(entry, "operationId", disposition.operationId) && IsConversationUuid(disposition.operationId)
-        && Text(entry, "outcomeId", disposition.outcomeId) && IsConversationUuid(disposition.outcomeId)
-        && Text(entry, "reason", disposition.reason, 64)
-        && (PermanentKeepsakeFailure(410, disposition.reason) || PermanentKeepsakeFailure(409, disposition.reason)
-            || PermanentKeepsakeFailure(404, disposition.reason) || disposition.reason == "physical_outcome_unknown");
-    if (valid) dispositions.push_back(std::move(disposition));
-  }
-  if (prepared && (!cJSON_IsArray(prepared) || cJSON_GetArraySize(prepared) > static_cast<int>(KeepsakeOutbox::Capacity))) valid = false;
-  if (version == 2 && !prepared) valid = false;
-  for (int i = 0; valid && prepared && i < cJSON_GetArraySize(prepared); ++i) {
-    auto* entry = cJSON_GetArrayItem(prepared, i);
-    KeepsakeOutcome item;
-    uint64_t compartment = 0;
-    valid = Text(entry, "operationId", item.operationId) && Text(entry, "outcomeId", item.outcomeId)
-        && Text(entry, "proposalId", item.proposalId) && Text(entry, "physicalOperationId", item.physicalOperationId)
-        && Text(entry, "bootId", item.bootId) && Number(entry, "generation", item.generation)
-        && Number(entry, "deviceRevision", item.deviceRevision) && Number(entry, "compartment", compartment)
-        && compartment >= 1 && compartment <= 6 && Valid(item);
-    item.compartment = static_cast<uint8_t>(compartment);
-    if (valid) preparations.push_back(std::move(item));
-  }
-  cJSON_Delete(root);
-  if (!valid || !outbox_.Restore(std::move(outcomes), std::move(dispositions), std::move(preparations))) return false;
+  KeepsakeOutboxState state;
+  if (!keepsake_persistence::Decode(bytes.data(), length, state)
+      || !outbox_.Restore(std::move(state.pending), std::move(state.quarantined), std::move(state.prepared))) return false;
   persisted_ = bytes.data();
   return true;
 }
@@ -231,24 +182,7 @@ bool EspIdfKeepsakeNotifier::PersistCurrent() {
 }
 
 bool EspIdfKeepsakeNotifier::Persist(const KeepsakeOutboxState& state) {
-  std::string bytes = "{\"schemaVersion\":2,\"pending\":[";
-  for (size_t i = 0; i < state.pending.size(); ++i) {
-    if (i) bytes += ',';
-    bytes += Body(state.pending[i], true);
-  }
-  bytes += "],\"quarantined\":[";
-  for (size_t i = 0; i < state.quarantined.size(); ++i) {
-    if (i) bytes += ',';
-    const auto& item = state.quarantined[i];
-    bytes += "{\"operationId\":\"" + item.operationId + "\",\"outcomeId\":\"" + item.outcomeId
-        + "\",\"reason\":\"" + item.reason + "\"}";
-  }
-  bytes += "],\"prepared\":[";
-  for (size_t i = 0; i < state.prepared.size(); ++i) {
-    if (i) bytes += ',';
-    bytes += Body(state.prepared[i], true);
-  }
-  bytes += "]}";
+  const std::string bytes = keepsake_persistence::Encode(state);
   if (bytes.size() >= 16384) return false;
   if (bytes == persisted_) return true;
   nvs_handle_t nvs;
@@ -265,33 +199,7 @@ bool EspIdfKeepsakeNotifier::Deliver(const KeepsakeOutcome& outcome, const char*
   Response received;
   status = Post(host, "/v1/keepsakes/outcomes/" + outcome.operationId, Body(outcome, false), outcome.outcomeId, token, received);
   if (status != 201 && status != 200) { errorCode = ErrorCode(received); return false; }
-  auto* root = cJSON_ParseWithLength(received.bytes.data(), received.length);
-  std::string locator, resultOutcome, physical;
-  uint64_t epoch = 0;
-  const bool matching = Text(root, "locator", locator) && IsConversationUuid(locator)
-      && Text(root, "outcomeId", resultOutcome) && resultOutcome == outcome.outcomeId
-      && Text(root, "physicalOperationId", physical) && physical == outcome.physicalOperationId
-      && Number(root, "sessionEpoch", epoch) && epoch == outcome.generation;
-  cJSON_Delete(root);
-  if (!matching) return false;
-  Response claim;
-  status = Post(host, "/v1/keepsakes/" + locator + "/claim", "{}", outcome.outcomeId, token, claim);
-  if (status != 200) { errorCode = ErrorCode(claim); return false; }
-  root = cJSON_ParseWithLength(claim.bytes.data(), claim.length);
-  LocalKeepsakeStatus visible;
-  visible.outcomeId = outcome.outcomeId;
-  visible.sessionEpoch = outcome.generation;
-  visible.physicalOperationId = outcome.physicalOperationId;
-  std::string expires, claimLocator;
-  uint64_t expiry = 0;
-  const bool accepted = Text(root, "locator", claimLocator) && claimLocator == locator
-      && Text(root, "url", visible.url, 512) && SafeClaimUrl(visible.url, host)
-      && Text(root, "expiresAt", expires, 35) && ParseConversationUtcExpiry(expires, expiry);
-  cJSON_Delete(root);
-  if (!accepted) return false;
-  visible.expiresAtEpochMs = expiry * 1000;
-  outbox_.Publish(outcome, std::move(visible));
-  return true;
+  return keepsake_persistence::MatchesOutcomeAcknowledgement(received.bytes.data(), received.length, outcome);
 }
 
 void EspIdfKeepsakeNotifier::TaskEntry(void* context) {
@@ -304,13 +212,14 @@ void EspIdfKeepsakeNotifier::Run() {
   uint64_t disabledUntilMs = 0;
   while (true) {
     // Notifications wake this persistence pass even while HTTP is backed off/disabled.
-    const bool persisted = PersistCurrent();
+    const bool persisted = ProcessDeliveryAcknowledgements() && ProcessRetirements() && PersistCurrent();
     KeepsakeOutcome outcome;
     const uint64_t nowMs = NowMs();
     if (persisted && outbox_.NextReady(nowMs, outcome) && nowMs >= disabledUntilMs
         && backendOnline_.load() && station_.HasIp() && tokens.EnsureToken(nowMs)) {
       if (outbox_.HasDisposition(outcome.outcomeId)) {
         outbox_.Complete(outcome.outcomeId);
+        outbox_.RemovePrepared(outcome.outcomeId);
         if (!PersistCurrent()) healthy_.store(false);
         continue;
       }
@@ -321,9 +230,9 @@ void EspIdfKeepsakeNotifier::Run() {
         completed = Deliver(outcome, tokens.AccessToken(NowMs()), status, errorCode);
       }
       if (completed) {
-        outbox_.Complete(outcome.outcomeId);
-        outbox_.RemovePrepared(outcome.outcomeId);
-        if (!PersistCurrent()) healthy_.store(false);
+        // The validated outcome ACK is the whole producer handoff. The backend
+        // owns evening association; no phone pickup or private claim is fetched.
+        if (!outbox_.RequestDeliveryAcknowledgement(outcome) || !ProcessDeliveryAcknowledgements()) healthy_.store(false);
       } else if (PermanentKeepsakeFailure(status, errorCode)) {
         // Commit terminal evidence before advancing: a reboot cannot resurrect this send.
         if (outbox_.RecordDisposition(outcome, errorCode) && PersistCurrent()) {

@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def check():
     checked = 0
     files = [ROOT / "kufr/docs/dv10/README.md", ROOT / "kufr/docs/dv10/VPS_HANDOFF.md",
-             ROOT / "kufr/docs/dv10/FIRMWARE_OUTCOME.md", ROOT / "kufr/docs/dv10/DELIVERY.md"]
+             ROOT / "kufr/docs/dv10/FIRMWARE_OUTCOME.md", ROOT / "kufr/docs/dv10/DELIVERY.md", ROOT / "kufr/docs/dv10/STATIC_EVENING.md"]
     skills = [ROOT / ".agents/skills" / ("dildovander-keepsake-" + name) / "SKILL.md"
               for name in ("design", "eval", "delivery")]
     for path in files + skills:
@@ -35,6 +35,9 @@ def check():
     if "'sha256-" + digest + "'" not in shell:
         raise ValueError("Fragment bootstrap CSP hash mismatch")
     bundle_path = ROOT / "docs/project/artifacts/DV10-source-bundle-v1.json"
+    revised_bundle = bundle_path.with_name("DV10-source-bundle-v2.json")
+    if revised_bundle.exists():
+        bundle_path = revised_bundle
     if bundle_path.exists():
         bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
         identity = hashlib.sha256()

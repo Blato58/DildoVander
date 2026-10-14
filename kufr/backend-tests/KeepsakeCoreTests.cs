@@ -17,7 +17,9 @@ internal static class KeepsakeCoreTests
         {
             await LifecycleAsync(directory);
             await AdmissionBoundsAsync(directory);
+            await UploadAdmissionAsync(directory);
             await KeepsakeAdministrationTests.RunAsync(directory);
+            await KeepsakeGalleryTests.RunAsync(directory);
             await ProviderBoundaryAsync();
             CardLayout();
             Console.WriteLine("Keepsake core tests passed (synthetic offline fixtures; no paid calls).");
@@ -27,6 +29,58 @@ internal static class KeepsakeCoreTests
             SqliteConnection.ClearAllPools();
             Directory.Delete(directory, recursive: true);
         }
+    }
+
+    private static async Task UploadAdmissionAsync(string directory)
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Backend:DatabasePath"] = Path.Combine(directory, "upload-admission.db"),
+            ["Keepsake:DataRoot"] = Path.Combine(directory, "upload-admission-content"),
+            ["Keepsake:Enabled"] = "true", ["Keepsake:PortraitEnabled"] = "true"
+        }).Build();
+        var store = new KeepsakeStore(configuration, new Clock());
+        var issue = store.Issue(Snapshot("upload-admission"));
+        var owner = store.Bootstrap();
+        var claim = store.IssueClaim(issue.Id, "device");
+        store.Claim(claim.Token, owner.Token, "upload-admission-claim");
+        var consent = store.SetPortraitConsent(issue.Id, owner.Token, true, "dv10-portrait-v1", "upload-admission-consent");
+        var otherStore = new KeepsakeStore(configuration, new Clock());
+        using var paused = new PausedReadStream();
+        using var cancellation = new CancellationTokenSource();
+        var first = store.AcceptPhotoAsync(issue.Id, owner.Token, paused, "image/png", "paused-upload", consent, cancellation.Token);
+        using var rejected = new CountingReadStream(Png());
+        var cancelled = false;
+        try
+        {
+            await paused.ReadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            try
+            {
+                await otherStore.AcceptPhotoAsync(issue.Id, owner.Token, rejected, "image/png", "rejected-upload", consent);
+                throw new InvalidOperationException("Expected process-wide upload backpressure.");
+            }
+            catch (KeepsakeException exception) when (exception.Code == "upload_backpressure")
+            {
+                Check(exception.Status == 429 && rejected.ReadCalls == 0,
+                    "second authorized upload is rejected across store instances before touching its stream");
+            }
+        }
+        finally
+        {
+            cancellation.Cancel();
+            try { await first; }
+            catch (OperationCanceledException) { cancelled = true; }
+        }
+        Check(cancelled && store.Read(issue.Id, owner.Token).Uploads.Count == 0,
+            "cancellation releases buffered upload admission without accepting or deleting content");
+        using var subsequent = new CountingReadStream(Png());
+        var accepted = await otherStore.AcceptPhotoAsync(issue.Id, owner.Token, subsequent, "image/png", "subsequent-upload", consent);
+        Check(subsequent.ReadCalls > 0 && otherStore.Read(issue.Id, owner.Token).Uploads.Single().Id == accepted.Id,
+            "later upload succeeds after the cancelled request releases its process-wide slot");
+        using var afterSuccess = new MemoryStream(Png());
+        var next = await store.AcceptPhotoAsync(issue.Id, owner.Token, afterSuccess, "image/png", "after-success-upload", consent);
+        Check(store.Read(issue.Id, owner.Token).Uploads.Count == 2 && next.Id != accepted.Id,
+            "successful completion also releases admission while preserving accepted upload history");
     }
 
     private static async Task AdmissionBoundsAsync(string directory)
@@ -147,6 +201,7 @@ internal static class KeepsakeCoreTests
         using (var codec = SKCodec.Create(new MemoryStream(normal)))
         {
             Check(codec is not null && codec.EncodedFormat == SKEncodedImageFormat.Png, "real decoded normalized PNG");
+            Check(codec!.Info.ColorSpace is { IsSrgb: true }, "normalized model copy declares verified sRGB");
         }
         using var bad = new MemoryStream([137, 80, 78, 71, 13, 10, 26, 10]);
         await ExpectAsync(() => store.AcceptPhotoAsync(first.Id, owner.Token, bad, "image/png", "broken", consent), "photo_decode_failed");
@@ -383,6 +438,35 @@ internal static class KeepsakeCoreTests
         private DateTimeOffset time = new(2026, 10, 14, 12, 0, 0, TimeSpan.Zero);
         public override DateTimeOffset GetUtcNow() => time;
         public void Advance(TimeSpan elapsed) => time += elapsed;
+    }
+    private sealed class PausedReadStream : Stream
+    {
+        public TaskCompletionSource<bool> ReadStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            ReadStarted.TrySetResult(true);
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+            return 0;
+        }
+        public override void Flush() => throw new NotSupportedException();
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+    private sealed class CountingReadStream(byte[] bytes) : MemoryStream(bytes, writable: false)
+    {
+        public int ReadCalls { get; private set; }
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            ReadCalls++;
+            return base.ReadAsync(buffer, cancellationToken);
+        }
     }
     private sealed class ProviderHandler(byte[] png) : HttpMessageHandler
     {

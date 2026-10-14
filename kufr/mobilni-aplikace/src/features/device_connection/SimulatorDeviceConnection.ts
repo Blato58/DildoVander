@@ -7,7 +7,6 @@ interface ProtocolSnapshot extends ConversationDeviceState {
   type: 'state.snapshot';
   voice?: VoiceSettings;
   dance?: DanceSettings;
-  keepsake?: DeviceSnapshot['keepsake'];
   deviceId: string;
   bootId: string;
   deviceUptimeMs: number;
@@ -819,8 +818,6 @@ export class ProtocolDeviceConnection {
     const snapshot = {
       ...this.state,
       busy: this.state.busy || dance.pending,
-      keepsake: this.state.phase === 'disconnected' ? null : this.device?.keepsake,
-      conversationGeneration: this.device?.conversation?.generation,
       phase: this.state.phase === 'ready' && danceActive(dance.phase) ? 'running' as const : this.state.phase,
       diagnostics: this.device === null ? undefined : {
         bootId: this.device.bootId,

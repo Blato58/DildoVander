@@ -1,7 +1,8 @@
 namespace Kufr.Backend.Features.Keepsakes;
 
 internal sealed record KeepsakeIssueSnapshot(string OutcomeId, string DeviceId, int Slot, string CatalogId,
-    string OfficialName, string CatalogFacts, string PhysicalEvidence, string CatalogVersion = "ollivander-private-party-v1");
+    string OfficialName, string CatalogFacts, string PhysicalEvidence, string CatalogVersion = "ollivander-private-party-v1",
+    string? EveningId = null);
 internal sealed record IssuedKeepsake(string Id);
 internal sealed record KeepsakeSession(string Token, string CsrfToken);
 internal sealed record KeepsakeLink(string Token, DateTimeOffset ExpiresAt, string KeepsakeId, string? EditionId = null);

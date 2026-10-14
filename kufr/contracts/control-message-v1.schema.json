@@ -636,26 +636,6 @@
         "requiresReload": { "type": "boolean" }
       }
     },
-    "keepsakeStatus": {
-      "anyOf": [
-        { "type": "null" },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["outcomeId", "sessionEpoch", "physicalOperationId", "url", "expiresAtEpochMs"],
-          "properties": {
-            "outcomeId": { "$ref": "#/$defs/uuid" },
-            "sessionEpoch": { "$ref": "#/$defs/safeInteger" },
-            "physicalOperationId": { "$ref": "#/$defs/uuid" },
-            "expiresAtEpochMs": { "$ref": "#/$defs/safeInteger" },
-            "url": {
-              "type": "string", "maxLength": 512,
-              "pattern": "^https://[A-Za-z0-9.-]+/keepsake/#c=[A-Za-z0-9_-]{32,128}$"
-            }
-          }
-        }
-      ]
-    },
     "stateSnapshot": {
       "type": "object",
       "additionalProperties": false,
@@ -682,7 +662,6 @@
       "properties": {
         "voice": { "$ref": "#/$defs/voiceStatus" },
         "dance": { "$ref": "#/$defs/danceStatus" },
-        "keepsake": { "$ref": "#/$defs/keepsakeStatus" },
         "protocolVersion": { "const": 1 },
         "type": { "const": "state.snapshot" },
         "deviceId": { "$ref": "#/$defs/deviceId" },

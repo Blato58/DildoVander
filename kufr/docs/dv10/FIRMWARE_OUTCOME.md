@@ -32,8 +32,27 @@ the new reader rather than erase or downgrade persistent evidence.
 At boot the notifier reads a separate persisted journal snapshot before the
 control loop starts. A prepared candidate with the exact confirmed physical
 marker reconstructs the same original outcome. Other candidates are quarantined
-as `physical_outcome_unknown`. Reconstructed facts always have visibility epoch
-zero and cannot populate a prior guest's QR on a new boot.
+as `physical_outcome_unknown`. Reconstruction retains the original technical
+identity and never creates a new physical action or backend operation.
+
+Prepared proposals also have an exact-identity retirement mailbox. Text/Live
+store rejection, stale or expired snapshots, failed admission, pending Stop or
+cancel, conversation closure and terminal presentation Fault signal the notifier
+task. Local expiry runs before WAN/time/token checks. The control loop only
+queues technical identity; it performs no outbox flash or network writes.
+Active presentation cancellation waits for physical terminal bookkeeping rather
+than prematurely rejecting a candidate that can still gain a valid timed marker.
+The worker reads committed physical journal bytes and gives a validated matching
+completion precedence over late cancellation, preserving the same outcome UUID.
+
+For an uncompleted proposal, the worker first commits a technical disposition
+while the prepared slot remains occupied, then commits prepared/pending removal.
+Only after that second commit may it compact the temporary preparation disposition.
+These are technical proposals without retained guest content; compaction does not
+delete accepted/completed guest facts and uses no TTL/LRU. Backend terminal
+dispositions and boot `physical_outcome_unknown` remain retained. Failed commits
+keep the retirement pending and cannot release its slot. Boot repeats durable
+removal before compaction, so reset at either boundary cannot resurrect issuance.
 
 The control-owner handoff returns `VolatilePendingPersistence`, explicitly an
 in-memory mailbox acknowledgement rather than durable acceptance. Task
@@ -41,8 +60,8 @@ notification wakes persistence immediately even during HTTP backoff. The
 background task persists a bounded eight-entry NVS outbox before sending any request. The same
 outcome UUID, backend operation UUID and body are used for every network/reboot
 retry. Failed persistence prevents send. Already-acknowledged facts may retry
-after a crash between server acknowledgement and NVS removal; backend outcome
-idempotency must return the same stored keepsake. Claim issuance cannot perform
+after a crash before the delivery ACK is durably fenced; backend outcome
+idempotency must return the same stored keepsake. Delivery cannot perform
 another physical action or inference.
 
 NVS namespace `dv10_outbox`, blob `completed`, contains only technical completion
@@ -66,56 +85,89 @@ service intervention and rejects intake, rather than dropping recorded facts.
 Unknown or malformed error responses remain pending with backoff. This device
 outbox never deletes keepsake content or calls an image provider.
 
-QR links exist only in RAM, are validated against the configured
-HTTPS backend host and `/keepsake/#c=` shape, and are never logged or persisted.
+The producer performs only `POST /v1/keepsakes/outcomes/{operationId}`. A successful
+201 (or compatible idempotent 200) must return the exact outcome UUID, physical
+operation UUID and original generation, with a valid locator. The notifier then
+commits an `outcome_delivered` ACK fence before removing the exact prepared/pending
+candidate, commits that removal, and only then compacts the local ACK fence.
+Failed ACK/removal persistence retains mailbox capacity and retries local
+persistence without resending while that acknowledgment is in memory. Reset
+before the ACK commit may resend the same idempotent outcome UUID. Reset after
+that commit restores a delivery fence and cannot reissue the outcome.
+The fence is technical delivery bookkeeping; accepted guest content stays owned
+by the backend and is never deleted by local ACK compaction.
 
-The optional `state.snapshot.keepsake` LAN field is:
-
-```text
-null | {
-  outcomeId: UUID,
-  sessionEpoch: nonnegative integer,
-  physicalOperationId: UUID,
-  url: HTTPS claim link with secret in fragment,
-  expiresAtEpochMs: nonnegative integer
-}
-```
-
-It is sent only through the existing authenticated LAN/WSS transport. The
-firmware's `LocalVoicePort::KeepsakeStatus(generation)` default returns empty so
-existing adapters and test fakes remain compatible. `LocalControlOutput` publishes
-null unless the notifier has a matching current-generation, unexpired claim.
-Explicit accepted start/cancel/Stop hides QR and fences any late network result.
-Replayed outbox facts from an earlier boot cannot populate the current QR panel.
-Phone UI must also hide on Stop/disconnect/new generation and label simulator
-outcomes as simulations; the optional schema is not proof of iPhone behavior.
+The backend associates the outcome with its stored evening. The device does not
+choose or relabel an evening and does not request a private `/claim` capability.
+Visitors use the website's shared static public evening link to view public wand
+stories. There are no individual guest QR URLs, expiry fields or claim state in
+firmware, `LocalVoicePort`, LAN snapshots or the control schema. Conversation and
+control generation semantics remain unchanged. Private owner flows remain on the
+server; neither a phone nor the public page mediates generation or actuator control.
 
 ## Validation and remaining gates
 
-The pure host test exercises exact retry identity, capacity, completion matching,
-expiry, generation mismatch, immediate hiding, late-result fencing, duplicate
-restore rejection, hiding earlier-boot outcomes, explicit volatile admission,
+The proposal-retirement change adds host cases for eight rejected proposals,
+failed disposition commit retaining all eight slots, exact-identity rejection,
+96 sequential ordinary retirements without cumulative exhaustion, and a valid
+completed marker winning cancellation across interrupted cleanup. Its host and
+firmware builds passed after independent review. The shared production NVS codec
+test uses actual serialization plus cJSON decoding for all eight retirement reasons
+at both persisted interruption boundaries, and rejects unapproved reasons.
+
+The pure host test exercises exact retry identity, capacity, exact acknowledged
+candidate matching, duplicate restore rejection, explicit volatile admission,
 terminal disposition before queue removal, replay fencing after that crash
 boundary, per-item fair backoff, and no TTL discard. The durability suite exercises
 reset after confirmed physical completion before the RAM/outbox handoff, exact
 original correlation recovery, wrong-slot rejection, Stop, failed post-check,
 marker write failure, legacy/manual records, and a valid committed marker with
 an uncertain write acknowledgement. The existing `persistent_command_journal`,
-`device_control`, and `device_control_runtime` suites also passed. All five suites
+`device_control`, and `device_control_runtime` suites also passed. All six suites
 were compiled with installed Visual Studio BuildTools MSVC C++14 `/W4 /WX`.
-Contract
-fixtures include a synthetic valid QR snapshot and HTTP-origin rejection and pass
-the existing verifier (31 valid and 45 invalid messages). `pio run` passed with
-ESP-IDF 6.1 / PlatformIO 7.1.3 in 27.26 seconds after durability integration:
-RAM 113356/327680 bytes (34.6%), flash 1946225/6553600 bytes (29.7%).
-The resulting local `firmware.bin` is 1946656 bytes, SHA-256
-`e5954bfaaaa6ae28ae2eb34cecc28b0f9cdf4396f8c19c245e5dba84b368366e`.
+The related `local_control_output_test` also passed with those flags; its 54
+actual serialized firmware messages passed the shared v1 schema verifier.
+The external managed cJSON C source was compiled separately with `/TC /W3`;
+the project C++ codec test retained `/W4 /WX`. Both cJSON 1.7.19 source/header
+are byte-identical to the official upstream tag. The source SHA-256 is
+`298581a04a36c0165da4b0aade235c23088cb2faa58651d720ea2f3706ed0b0d`, and header
+SHA-256 is `25b0145150d500498e4d209cec69c18c42cf818bffcc54690be3b895a2a16dee`.
+
+From a Visual Studio x64 developer command environment, the new codec check uses:
+
+```text
+cl /nologo /TC /W3 /D_CRT_SECURE_NO_WARNINGS /c managed_components/espressif__cjson/cJSON/cJSON.c /Fo:<private-host-dir>/cJSON.obj
+cl /nologo /EHsc /std:c++14 /W4 /WX /Imanaged_components/espressif__cjson/cJSON tests/keepsake_persistence_codec_test.cpp src/features/conversation/ConversationStartCodec.cpp <private-host-dir>/cJSON.obj /Fo:<private-host-dir>/ /Fe:<private-host-dir>/keepsake_persistence_codec_test.exe
+<private-host-dir>/keepsake_persistence_codec_test.exe
+node ../contracts/verify-firmware-output.mjs <private-host-dir>/local_control_output_test-run.log
+node ../contracts/verify-fixtures.mjs
+pio run
+```
+
+The individual QR snapshot fixtures were removed with the unreleased LAN field.
+The static-evening source passed independent review and the current checks on
+2026-10-14 (receipt captured 17:50 UTC). All seven host suites passed; the protocol
+fixture verifier passed 30 valid and 44 invalid messages. ACK cases cover exact
+candidate matching, wrong physical/generation/outcome responses, failed first and
+second commits, same-UUID reset replay, unrelated candidates retained, both actual
+serialized ACK interruption boundaries, and 96 successive successful ACKs without
+quarantine exhaustion. No source fixes were needed during this validation.
+`pio run` passed with ESP-IDF 6.1 / PlatformIO 7.1.3 in 28.70 seconds:
+RAM 113244/327680 bytes (34.6%), flash 1948993/6553600 bytes (29.7%).
+The current local `firmware.bin` is 1949424 bytes, SHA-256
+`4963479e83a2f120ca85ca1d3094e58aa6ec11dedaf6c9e1145346dd08fa6a6e`.
+
+Earlier receipt, 2026-10-14, retirement/codec integration before the static-evening
+change: six host suites passed and `pio run` completed in 272.71 seconds:
+RAM 113372/327680 bytes (34.6%), flash 1951109/6553600 bytes (29.8%).
+That preceding `firmware.bin` was 1951536 bytes, SHA-256
+`393f7fd5e86625aba7f9544d78891fdc1782dc84da702c8b2f6ad0e78e677ebd`.
 
 **Evidence boundary:** reset before the final confirmed marker remains an unknown
 outcome and cannot produce a guest keepsake. Reset after the confirmed marker but
 before the completed-outbox handoff recovers the durably prepared exact candidate.
 An NVS write error does not prove that bytes were absent: the current owner
-suppresses QR on its unhealthy journal, while a subsequent boot may accept valid
+suppresses unconfirmed delivery on its unhealthy journal, while a subsequent boot may accept valid
 committed version 3 marker bytes for the already validated historical timed fact.
 It never restarts motion, creates a different outcome, or infers measured position.
 No firmware was flashed, no live keepsake was created, no paid AI ran, and no

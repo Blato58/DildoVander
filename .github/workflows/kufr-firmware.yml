@@ -53,13 +53,32 @@ jobs:
             src/features/backend_access/TokenResponseParser.cpp \
             tests/espidf_token_exchange_transport_test.cpp -o "$RUNNER_TEMP/token-transport-test"
           "$RUNNER_TEMP/token-transport-test"
-      - name: DV10 bounded outcome mailbox and QR generation fencing
+      - name: DV10 bounded outcome mailbox and durable delivery acknowledgement
         working-directory: kufr/firmware
         shell: bash
         run: |
           set -euo pipefail
           g++ -std=c++14 -Wall -Wextra -Werror tests/keepsake_outbox_test.cpp -o "$RUNNER_TEMP/keepsake-outbox-test"
           "$RUNNER_TEMP/keepsake-outbox-test"
+      - name: DV10 real persistence checkpoint codec
+        working-directory: kufr/firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          cjson="$RUNNER_TEMP/dv10-cjson"
+          mkdir -p "$cjson"
+          curl --fail --silent --show-error --location --retry 3 \
+            https://raw.githubusercontent.com/DaveGamble/cJSON/v1.7.19/cJSON.c -o "$cjson/cJSON.c"
+          curl --fail --silent --show-error --location --retry 3 \
+            https://raw.githubusercontent.com/DaveGamble/cJSON/v1.7.19/cJSON.h -o "$cjson/cJSON.h"
+          echo "298581a04a36c0165da4b0aade235c23088cb2faa58651d720ea2f3706ed0b0d  $cjson/cJSON.c" | sha256sum -c -
+          echo "25b0145150d500498e4d209cec69c18c42cf818bffcc54690be3b895a2a16dee  $cjson/cJSON.h" | sha256sum -c -
+          gcc -std=c99 -Wall -Wextra -I "$cjson" -c "$cjson/cJSON.c" -o "$cjson/cJSON.o"
+          g++ -std=c++14 -Wall -Wextra -Werror -I "$cjson" \
+            src/features/conversation/ConversationStartCodec.cpp \
+            tests/keepsake_persistence_codec_test.cpp "$cjson/cJSON.o" \
+            -o "$RUNNER_TEMP/keepsake-codec-test"
+          "$RUNNER_TEMP/keepsake-codec-test"
       - name: Optional costume photo consent and HTTPS upload
         working-directory: kufr/firmware
         shell: bash

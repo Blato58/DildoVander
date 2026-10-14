@@ -70,6 +70,7 @@ internal sealed partial class KeepsakeStore
             Execute(connection, transaction, "DELETE FROM dv10_grants WHERE keepsake_id=$id", ("$id", id));
             Execute(connection, transaction,
                 "UPDATE dv10_jobs SET state='deleted',request_json='{}',error_code=NULL WHERE keepsake_id=$id", ("$id", id));
+            Execute(connection, transaction, "DELETE FROM dv10_derivatives WHERE keepsake_id=$id", ("$id", id));
             Execute(connection, transaction, "DELETE FROM dv10_idempotency WHERE instr(scope,$id)>0 OR result=$id", ("$id", id));
         }
         else

@@ -6,7 +6,7 @@ description: Author or change DV10 visitor keepsake story, wand design, generate
 # DV10 keepsake design
 
 Use for DV10 content, image prompts, card composition and visitor UX. Read the
-current DV10 specification in `kufr/docs/dv10.md` if present, the actual contracts
+current DV10 specification in `kufr/docs/dv10/README.md` if present, the actual contracts
 in `kufr/backend/Features/Keepsakes/`, the relevant catalog and the tracked UI skill.
 If a referenced specification is absent, report that gap and use the owner's
 current supplied specification; never invent acceptance.
@@ -39,3 +39,5 @@ Tracked skills become available through the session's skill catalog. If this new
 added skill is absent there, read this file directly for the current task and
 start a fresh task/reload the repository's instruction catalog for discovery.
 Do not claim that writing the file hot-reloads an already running session.
+
+The owner approved static pickup at `/keepsake/evening/`; read `kufr/docs/dv10/STATIC_EVENING.md` for precedence. Shared wands/stories are scoped to the configured device and captured active evening. Public browsing never grants owner/photo/admin rights. Preserve manual retention and read-only GET behavior.

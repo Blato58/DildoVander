@@ -252,7 +252,7 @@ internal sealed partial class ConversationStore(
 
                 eveningMemory?.Append(deviceId, memory!.EveningId, operationId,
                     conversationId, request.Text, turnResult.Reply);
-                if (!journal.MarkCompleted(operationId))
+                if (!journal.MarkSelectionCompleted(operationId, turnResult.Proposal, memory?.EveningId))
                 {
                     return new SubmitTurnResult(409, null, "operation_cancelled");
                 }
@@ -418,7 +418,7 @@ internal sealed partial class ConversationStore(
                         correlation,
                         new TurnResult(response.Reply, response.Decision, response.Reason, proposal),
                         null));
-                if (!journal.MarkCompleted(operationId))
+                if (!journal.MarkSelectionCompleted(operationId, proposal, memory?.EveningId))
                 {
                     operations.Remove(operationId);
                     return;

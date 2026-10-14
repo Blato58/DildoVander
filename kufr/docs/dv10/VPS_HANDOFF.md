@@ -43,6 +43,11 @@ health-checks loopback. Keepsake configuration is therefore a separate root-owne
 `/etc/kufr-backend/keepsake.env` (0640, group `kufr-backend`) loaded through the
 reviewable [systemd drop-in](../../web/deploy/keepsake-systemd.conf). The
 [template](../../web/deploy/keepsake.env.example) keeps `Keepsake__Enabled=false`.
+The public pickup page is `/keepsake/evening/`; its GET-only gallery uses the
+configured `Keepsake__PublicDeviceId` and existing per-device active evening.
+Only generated base wands/stories/exports are public. Photos, portraits and
+owner/admin actions require separate private authority. The static QR contains
+no credential. See [the accepted pickup change](STATIC_EVENING.md).
 Data Protection encrypts session/link replay material in persistent SQLite.
 `Keepsake__DataProtectionRoot` must be a persistent private directory, separate
 from archive, webroot and releases. Its key ring must survive deploy/rollback and

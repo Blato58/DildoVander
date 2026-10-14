@@ -110,6 +110,10 @@ def build_keepsake(repo, destination):
     source = repo / 'kufr/web/keepsake'
     for name in ('index.html', 'app.js', 'keepsake.css'):
         shutil.copyfile(source / name, portal / name)
+    evening = portal / 'evening'
+    evening.mkdir()
+    for name in ('index.html', 'evening.js', 'evening.css'):
+        shutil.copyfile(source / 'evening' / name, evening / name)
     index = portal / 'index.html'
     markup = index.read_text(encoding='utf-8')
     capture = re.search(r'<script>(.*?)</script>', markup, re.DOTALL)
@@ -128,7 +132,7 @@ def build_keepsake_only(repo, destination):
     build_keepsake(repo, destination)
     shutil.copytree(repo / 'kufr/design-system', destination / 'design-system',
                     ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
-    shutil.copyfile(destination / 'keepsake/index.html', destination / 'index.html')
+    shutil.copyfile(destination / 'keepsake/evening/index.html', destination / 'index.html')
     hashes = {p.relative_to(destination).as_posix(): digest(p)
               for p in sorted(destination.rglob('*')) if p.is_file()}
     source = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo, text=True).strip()

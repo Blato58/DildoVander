@@ -44,7 +44,8 @@ internal sealed partial class KeepsakeStore
             CREATE TABLE IF NOT EXISTS dv10_keepsakes (
                 id TEXT PRIMARY KEY, outcome_key TEXT NOT NULL UNIQUE, device_id TEXT NOT NULL,
                 epoch INTEGER NOT NULL DEFAULT 0, photo_epoch INTEGER NOT NULL DEFAULT 0,
-                deleted INTEGER NOT NULL DEFAULT 0, claimed INTEGER NOT NULL DEFAULT 0, document TEXT);
+                deleted INTEGER NOT NULL DEFAULT 0, claimed INTEGER NOT NULL DEFAULT 0, evening_id TEXT,
+                published_at_ticks INTEGER, published_edition_id TEXT, document TEXT);
             CREATE TABLE IF NOT EXISTS dv10_sessions (
                 secret_hash TEXT PRIMARY KEY, csrf_hash TEXT NOT NULL, csrf_protected TEXT NOT NULL, expires INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS dv10_links (
@@ -86,8 +87,15 @@ internal sealed partial class KeepsakeStore
                 id TEXT PRIMARY KEY, preview_id TEXT NOT NULL UNIQUE, scope TEXT NOT NULL,
                 count INTEGER NOT NULL, total_bytes INTEGER NOT NULL,
                 receipt_ids_json TEXT NOT NULL, created INTEGER NOT NULL, actor TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS dv10_derivatives (
+                edition_id TEXT PRIMARY KEY, keepsake_id TEXT NOT NULL, state TEXT NOT NULL,
+                retry_after INTEGER NOT NULL DEFAULT 0, attempts INTEGER NOT NULL DEFAULT 0);
             """);
         EnsureColumn(connection, "dv10_keepsakes", "claimed", "INTEGER NOT NULL DEFAULT 0");
+        EnsureColumn(connection, "dv10_keepsakes", "evening_id", "TEXT");
+        EnsureColumn(connection, "dv10_keepsakes", "published_at_ticks", "INTEGER");
+        EnsureColumn(connection, "dv10_keepsakes", "published_edition_id", "TEXT");
+        Execute(connection, null, "CREATE INDEX IF NOT EXISTS dv10_public_evening ON dv10_keepsakes(device_id,evening_id,deleted,published_at_ticks DESC,id DESC)");
         Execute(connection, null, "UPDATE dv10_keepsakes SET claimed=1 WHERE EXISTS "
             + "(SELECT 1 FROM dv10_grants g WHERE g.keepsake_id=dv10_keepsakes.id AND g.kind='owner') "
             + "OR EXISTS(SELECT 1 FROM dv10_links l WHERE l.keepsake_id=dv10_keepsakes.id AND l.kind='claim' AND l.consumed_session IS NOT NULL) "
@@ -167,7 +175,8 @@ internal sealed partial class KeepsakeStore
             || string.IsNullOrWhiteSpace(snapshot.DeviceId) || snapshot.DeviceId.Length > 128
             || snapshot.Slot is < 1 or > 6 || string.IsNullOrWhiteSpace(snapshot.CatalogId)
             || snapshot.CatalogId.Length > 128 || snapshot.OfficialName.Length > 160
-            || snapshot.CatalogFacts.Length > 4000 || snapshot.PhysicalEvidence.Length > 1000)
+            || snapshot.CatalogFacts.Length > 4000 || snapshot.PhysicalEvidence.Length > 1000
+            || (snapshot.EveningId is not null && !Guid.TryParseExact(snapshot.EveningId, "D", out _)))
         {
             throw new KeepsakeException("invalid_outcome_snapshot");
         }
@@ -189,9 +198,9 @@ internal sealed partial class KeepsakeStore
             reader.Close();
             var id = NewId();
             Execute(connection, transaction,
-                "INSERT INTO dv10_keepsakes(id,outcome_key,device_id,document) VALUES($id,$o,$d,$j)",
+                "INSERT INTO dv10_keepsakes(id,outcome_key,device_id,document,evening_id) VALUES($id,$o,$d,$j,$evening)",
                 ("$id", id), ("$o", outcomeKey), ("$d", snapshot.DeviceId),
-                ("$j", JsonSerializer.Serialize(new Document(snapshot), Json)));
+                ("$j", JsonSerializer.Serialize(new Document(snapshot), Json)), ("$evening", snapshot.EveningId));
             var issuedDocument = Load(connection, transaction, id);
             TryAdmitAutomaticBase(connection, transaction, id, issuedDocument);
             transaction.Commit();

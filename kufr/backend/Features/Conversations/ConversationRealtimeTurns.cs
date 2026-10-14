@@ -233,7 +233,7 @@ internal sealed partial class ConversationStore
             }
             // A memory write failure must leave the operation fail-able rather
             // than publish a completed journal entry without its result.
-            if (!journal.MarkSelectionCompleted(call.OperationId, proposal))
+            if (!journal.MarkSelectionCompleted(call.OperationId, proposal, call.EveningId))
             {
                 return null;
             }

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "profile": "DV10 local A-H, production OFF",
-  "observedAtUtc": "2026-10-14T16:45:00Z",
+  "profile": "DV10 local A-H + static public evening pickup, production OFF",
+  "observedAtUtc": "2026-10-14T18:06:57.863671Z",
   "implementation_A_H": true,
   "offline_verified": true,
   "vps_runtime_verified": false,
@@ -13,8 +13,8 @@
   "public_deployment_verified": false,
   "event_ready": false,
   "scope": {
-    "implementation_A_H": "Local source, APIs, ESP outcome handoff, mobile QR, exports, admin, skills and prepared delivery tooling.",
-    "offline_verified": "Synthetic core/HTTP/browser/restore tests, mobile build and host/firmware builds. No paid inference. Standalone portal built; complete public-site build requires absent verified CAD exports and was not claimed.",
+    "implementation_A_H": "Local source, exact ESP outcome handoff without individual QR, public active-evening wands/stories/base exports, separate private photo/portrait/owner/admin APIs, manual-only archive, skills and prepared delivery tooling.",
+    "offline_verified": "Pinned .NET SDK10.0.303 build/core/gallery/admin/outcome and actual HTTP integration; synthetic public/private browser and mobile62 tests/build; seven firmware host suites and ESP-IDF build. No paid inference. Standalone public evening built (45 files); full project-site build still needs verified CAD exports.",
     "vps_runtime_verified": "Read-only baseline preflight succeeded; DV10 runtime not deployed or exercised on VPS.",
     "manual_retention_verified": "Local synthetic year-advance and lifecycle tests; production storage policy not activated.",
     "privacy_cleanup_verified": "Local primary-store closure and orphan cleanup verified; provider deletion unknown, backup reconciliation pending.",
@@ -25,8 +25,9 @@
   "credential_decision": "Owner approved reuse of existing backend OpenAI key; no key copied or printed.",
   "remaining_gates": [
     "Authorized paid OpenAI quality pilot with consented photos and verified account model availability.",
-    "Real iPhone guest and native CI, plus hardware power-loss/network timing verification.",
+    "Real iPhone guest and hardware power-loss/network timing verification; current PR native CI is tracked separately and does not prove either.",
     "Approved production deployment, real nginx validation/TLS/route smoke and rollback.",
     "Independent encrypted off-VPS backup destination, actual key persistence and isolated restore rehearsal."
-  ]
+  ],
+  "static_evening_pickup_implemented": true
 }

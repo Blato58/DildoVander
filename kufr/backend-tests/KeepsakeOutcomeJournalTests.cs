@@ -1,6 +1,7 @@
 using Kufr.Backend.Features.Conversations;
 using Kufr.Backend.Features.Keepsakes;
 using Microsoft.Extensions.Configuration;
+using System.Text.Json;
 
 internal static class KeepsakeOutcomeJournalTests
 {
@@ -19,7 +20,13 @@ internal static class KeepsakeOutcomeJournalTests
                 correlation.ClientTurnId, PartyWandCatalog.Version, 10, 2, "Private reasoning must not enter outcome.",
                 correlation.BootId, 3, clock.GetUtcNow().AddMinutes(1));
             var reservation = journal.Reserve("device-a", "/fixture", Guid.NewGuid(), new string('a', 64), correlation);
-            Check(journal.MarkSelectionCompleted(reservation.OperationId, proposal), "proposal completion committed");
+            var eveningId = Guid.NewGuid().ToString("D");
+            Check(journal.MarkSelectionCompleted(reservation.OperationId, proposal, eveningId), "proposal completion committed");
+            Check(journal.ReadKeepsakeEvening("device-a", reservation.OperationId) == eveningId,
+                "captured evening is private immutable outbox metadata");
+            Check(journal.ReadKeepsakeEvening("device-b", reservation.OperationId) is null, "evening metadata obeys producer isolation");
+            Check(!JsonSerializer.Serialize(proposal).Contains("EveningId", StringComparison.Ordinal),
+                "public selection proposal contract does not gain private evening metadata");
             Check(journal.ReadKeepsakeSelection("device-a", reservation.OperationId) == proposal with { Reason = "" }, "only technical proposal archived");
             Check(journal.ReadKeepsakeSelection("device-b", reservation.OperationId) is null, "producer owner is enforced");
             var outcome = Guid.NewGuid().ToString("D");
@@ -36,6 +43,8 @@ internal static class KeepsakeOutcomeJournalTests
             Check(!journal.MarkSelectionCompleted(cancelled.OperationId, proposal), "cancelled proposal cannot enter outcome outbox");
             Check(journal.ReadKeepsakeSelection("device-a", cancelled.OperationId) is null, "no cancelled issuance");
             Check(PartyWandCatalog.Available(63).Select(w => w.StableId).Distinct().Count() == 6, "explicit independent wand identities");
+            Check(!JsonSerializer.Serialize(PartyWandCatalog.Available(63)).Contains("StableId", StringComparison.Ordinal),
+                "DV10 identities do not change the DV01 candidate provider payload");
             Console.WriteLine("Keepsake outcome journal tests passed: correlation, atomic outbox, producer isolation, replay, cancellation and independent retention.");
         }
         finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); Directory.Delete(root, recursive: true); }

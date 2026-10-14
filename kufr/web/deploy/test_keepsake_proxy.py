@@ -11,6 +11,14 @@ ID = "12345678-1234-1234-1234-123456789abc"
 
 
 class ProxyTests(unittest.TestCase):
+    def test_public_evening_is_get_only_and_not_an_owner_alias(self):
+        self.assertTrue(proxy.allowed("GET", "/guest/v1/evening"))
+        self.assertFalse(proxy.allowed("POST", "/guest/v1/evening"))
+        asset = f"/guest/v1/evenings/{ID}/keepsakes/{ID}/editions/{ID}/assets/{ID}"
+        self.assertTrue(proxy.allowed("GET", asset))
+        self.assertFalse(proxy.allowed("DELETE", asset))
+        self.assertFalse(proxy.allowed("POST", asset + "/claim"))
+
     def test_compatibility_map_matches_real_source_declarations(self):
         backend = Path(__file__).resolve().parents[2] / "backend"
         supplied = {(method, route) for method, route, source in proxy.CONTRACT["routes"]}

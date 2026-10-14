@@ -18,8 +18,8 @@
   "acceptance": [
     {
       "id": "LOCAL",
-      "revision": 1,
-      "expected": "A–H: skutečný outcome, soukromý guest portál, oddělené scopes, manual-only archiv, durable fake/OpenAI adaptér, portrét z fotografie, exporty, ruční mazání a projektové skills; syntetické integrační ověření.",
+      "revision": 2,
+      "expected": "A–H a statické vyzvednutí: přesný durable outcome bez individuálního QR, veřejná poslední hotová hůlka a přehled hůlek/příběhů aktivního večera; oddělené soukromé foto/portrét/owner/admin scopes, manual-only archiv, exporty, mazání a skills; syntetické integrační a browser ověření.",
       "requiredEvidenceKinds": [
         "integration",
         "source_review",
@@ -27,13 +27,12 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "e56704a5935a54d7fc74cf4c244008ea3c63967c48138ad69c737f06c884962d"
+        "artifactDigest": "5d53c276f653bbcb84f2fd2fc2bcb0c3a668118712e3a3e3954177546c92b1db"
       },
       "evidenceRefs": [
-        "DV10-local-integration-v1",
-        "DV10-local-source_review-v1",
-        "DV10-local-browser-v1",
-        "DV10-code-package-v1"
+        "DV10-local-integration-v2",
+        "DV10-local-browser-v2",
+        "DV10-local-source_review-v2"
       ]
     },
     {
@@ -44,7 +43,7 @@
         "integration"
       ],
       "appliesTo": {
-        "artifactDigest": "e56704a5935a54d7fc74cf4c244008ea3c63967c48138ad69c737f06c884962d"
+        "artifactDigest": "5d53c276f653bbcb84f2fd2fc2bcb0c3a668118712e3a3e3954177546c92b1db"
       },
       "evidenceRefs": []
     },
@@ -58,7 +57,7 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "e56704a5935a54d7fc74cf4c244008ea3c63967c48138ad69c737f06c884962d"
+        "artifactDigest": "5d53c276f653bbcb84f2fd2fc2bcb0c3a668118712e3a3e3954177546c92b1db"
       },
       "evidenceRefs": []
     },
@@ -70,7 +69,7 @@
         "integration"
       ],
       "appliesTo": {
-        "artifactDigest": "e56704a5935a54d7fc74cf4c244008ea3c63967c48138ad69c737f06c884962d"
+        "artifactDigest": "5d53c276f653bbcb84f2fd2fc2bcb0c3a668118712e3a3e3954177546c92b1db"
       },
       "evidenceRefs": []
     }
@@ -105,8 +104,8 @@
     }
   ],
   "nextAction": "Schválit konkrétní placený OpenAI pilot se souhlasnými fotografiemi; produkci, iPhone a nezávislou obnovu přijmout oddělenými receipts.",
-  "currentNote": "VPS-first, OpenAI from-scratch hůlka, image-edit portrét a manual_only retence podle revize 2.2 ze zadání 14. 10. 2026. Stávající OpenAI klíč backendu potvrzen vlastníkem; placená volání nejsou součást offline ověření. Lokální A–H implementované a offline ověřené, bez otevřeného P1/P2 v nezávislém review. Produkční flags zůstávají OFF; event_ready=false. Code commit a2ad89aeacd0e5df102c577c7661c8b380ca05f5 push ověřen pomocí Push-CurrentBranch; clean-source Linux+standalone code ZIP 2c3264c62f30bb05975a91260acbaa98b48533054d3c7a60f986ed0ce751351c. Žádné nasazení.",
+  "currentNote": "Majitel schválil veřejné hůlky a příběhy aktivního večera za jedním statickým QR; fotografie/portréty zůstávají soukromé. Vazba na večer se zachytí při návrhu, ne při pozdějším ACK. Firmware a mobil nepředávají individuální QR. Lokální aktuální software ověřen; produkční flags OFF, event_ready=false. Nový code commit/push/package a současné PR CI budou doplněny podle skutečného výsledku.",
   "implementedSubject": {
-    "artifactDigest": "e56704a5935a54d7fc74cf4c244008ea3c63967c48138ad69c737f06c884962d"
+    "artifactDigest": "5d53c276f653bbcb84f2fd2fc2bcb0c3a668118712e3a3e3954177546c92b1db"
   }
 }

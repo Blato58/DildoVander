@@ -18,14 +18,15 @@ class EspIdfKeepsakeNotifier final {
   bool Prepare(const KeepsakeOutcome& outcome);
   // This acknowledges only the RAM handoff, never durable completion of NVS.
   KeepsakeQueueResult Queue(const KeepsakeOutcome& outcome);
-  void Hide() { outbox_.Hide(); }
-  LocalKeepsakeStatus Status(uint64_t generation) const;
+  void Retire(const KeepsakeOutcome& outcome, const char* reason);
  private:
   static void TaskEntry(void* context);
   void Run();
   bool Load();
   bool Persist(const KeepsakeOutboxState& state);
   bool PersistCurrent();
+  bool ProcessRetirements();
+  bool ProcessDeliveryAcknowledgements();
   bool Deliver(const KeepsakeOutcome& outcome, const char* accessToken, int& status, std::string& errorCode);
   DeviceIdentity& identity_;
   EspIdfStationNetwork& station_;

@@ -138,7 +138,8 @@ internal static class KeepsakeEndpoints
         group.MapPost("/keepsakes/{id:guid}/portraits", async (HttpContext c, string id, KeepsakeStore store) =>
         {
             var request = await BodyAsync<PortraitRequest>(c);
-            if (request.Variant != "portrait_only") { return Error(400, "portrait_variant_unsupported"); }
+            if (request.Variant == "portrait_with_wand") { return Error(409, "portrait_variant_unsupported"); }
+            if (request.Variant != "portrait_only") { return Error(400, "portrait_variant_invalid"); }
             var view = store.Read(id, Session(c));
             if (!view.PortraitConsent || view.PortraitConsentVersion != request.ConsentVersion) { return Error(409, "consent_required"); }
             var job = store.EnqueuePortrait(id, Session(c), request.UploadId, request.EditionId,

@@ -311,8 +311,18 @@ internal sealed partial class KeepsakeStore
             {
                 if (output.Story is null) { throw new KeepsakeException("provider_story_missing"); }
                 document.Editions.RemoveAll(edition => edition.Id == editionId);
+                var completedAt = Now;
                 document.Editions.Add(new(editionId, job.Id, output.Story, asset.Id, output.Synthetic,
-                    output.Provider, output.Model, output.Prompt, Now, publish ? "ready" : "private_history"));
+                    output.Provider, output.Model, output.Prompt, completedAt, publish ? "ready" : "private_history"));
+                if (publish)
+                {
+                    Execute(connection, transaction,
+                        "UPDATE dv10_keepsakes SET published_at_ticks=$time,published_edition_id=$edition WHERE id=$id AND deleted=0",
+                        ("$time", completedAt.UtcTicks), ("$edition", editionId), ("$id", job.KeepsakeId));
+                    Execute(connection, transaction,
+                        "INSERT OR IGNORE INTO dv10_derivatives(edition_id,keepsake_id,state) VALUES($edition,$id,'queued')",
+                        ("$edition", editionId), ("$id", job.KeepsakeId));
+                }
             }
             else
             {

@@ -9,7 +9,7 @@ internal sealed partial class OperationJournal
 {
     private bool keepsakesEnabled;
 
-    public bool MarkSelectionCompleted(string operationId, object? value)
+    public bool MarkSelectionCompleted(string operationId, object? value, string? eveningId = null)
     {
         if (!keepsakesEnabled || value is not SelectionProposal proposal)
         {
@@ -30,14 +30,27 @@ internal sealed partial class OperationJournal
             return false;
         }
         command.CommandText = """
-            INSERT INTO keepsake_selection_outbox(operation_id, device_id, proposal_json)
-            SELECT operation_id, device_id, $proposal FROM turn_operations
+            INSERT INTO keepsake_selection_outbox(operation_id, device_id, proposal_json, evening_id)
+            SELECT operation_id, device_id, $proposal, $evening FROM turn_operations
             WHERE operation_id = $operation;
             """;
         command.Parameters.AddWithValue("$proposal", JsonSerializer.Serialize(proposal with { Reason = "" }));
+        command.Parameters.AddWithValue("$evening", eveningId is null ? DBNull.Value : eveningId);
         command.ExecuteNonQuery();
         transaction.Commit();
         return true;
+    }
+
+    public string? ReadKeepsakeEvening(string deviceId, string operationId)
+    {
+        if (!keepsakesEnabled) { return null; }
+        using var connection = Open();
+        EnsureKeepsakeOutbox(connection);
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT evening_id FROM keepsake_selection_outbox WHERE operation_id=$op AND device_id=$device AND deleted=0";
+        command.Parameters.AddWithValue("$op", operationId);
+        command.Parameters.AddWithValue("$device", deviceId);
+        return command.ExecuteScalar() as string;
     }
 
     public SelectionProposal? ReadKeepsakeSelection(string deviceId, string operationId)
@@ -89,8 +102,18 @@ internal sealed partial class OperationJournal
             CREATE TABLE IF NOT EXISTS keepsake_selection_outbox (
                 operation_id TEXT PRIMARY KEY, device_id TEXT NOT NULL,
                 proposal_json TEXT NOT NULL, outcome_id TEXT, evidence TEXT,
-                body_hash TEXT, deleted INTEGER NOT NULL DEFAULT 0);
+                body_hash TEXT, deleted INTEGER NOT NULL DEFAULT 0, evening_id TEXT);
             """;
         command.ExecuteNonQuery();
+        command.CommandText = "PRAGMA table_info(keepsake_selection_outbox)";
+        using var reader = command.ExecuteReader();
+        var hasEvening = false;
+        while (reader.Read()) { hasEvening |= reader.GetString(1) == "evening_id"; }
+        reader.Close();
+        if (!hasEvening)
+        {
+            command.CommandText = "ALTER TABLE keepsake_selection_outbox ADD COLUMN evening_id TEXT";
+            command.ExecuteNonQuery();
+        }
     }
 }

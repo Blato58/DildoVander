@@ -1,7 +1,6 @@
 import type { LocalVoiceState } from './LocalVoiceClient';
 import type { LocalDanceState } from './LocalDanceClient';
 import type { LocalConversationState } from './LocalConversationClient';
-import type { KeepsakeReceipt } from '../keepsake/KeepsakePanel';
 
 export type ControlMode = 'observer' | 'manual';
 export type DevicePhase = 'ready' | 'running' | 'stopped' | 'disconnected';
@@ -18,8 +17,6 @@ export interface DeviceSnapshot {
   conversation?: LocalConversationState;
   voice?: LocalVoiceState;
   dance?: LocalDanceState;
-  keepsake?: KeepsakeReceipt | null;
-  conversationGeneration?: number;
   diagnostics?: {
     bootId: string;
     devicePhase: string;

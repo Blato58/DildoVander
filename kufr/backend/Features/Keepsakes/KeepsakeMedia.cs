@@ -5,6 +5,9 @@ namespace Kufr.Backend.Features.Keepsakes;
 
 internal sealed partial class KeepsakeStore
 {
+    // One upload owns buffering and normalization on the single-CPU VPS. Admission
+    // is process-wide and fail-fast, before request bytes enter application buffers.
+    private static readonly SemaphoreSlim UploadAdmission = new(1, 1);
     private static readonly SemaphoreSlim DecodeGate = new(1, 1);
     private static void ValidateGeneratedImage(KeepsakeProviderOutput output)
     {
@@ -35,7 +38,8 @@ internal sealed partial class KeepsakeStore
             throw new KeepsakeException("photo_pixel_limit", 413);
         }
         if (codec.FrameCount > 1) { throw new KeepsakeException("animated_photo_not_supported", 415); }
-        using var decoded = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        using var srgb = SKColorSpace.CreateSrgb();
+        using var decoded = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul, srgb));
         if (codec.GetPixels(decoded.Info, decoded.GetPixels()) != SKCodecResult.Success)
         {
             throw new KeepsakeException("photo_decode_failed", 415);
@@ -48,7 +52,7 @@ internal sealed partial class KeepsakeStore
         var factor = Math.Min(1f, 2048f / Math.Max(displayWidth, displayHeight));
         var normalizedWidth = Math.Max(1, (int)Math.Round(displayWidth * factor));
         var normalizedHeight = Math.Max(1, (int)Math.Round(displayHeight * factor));
-        using var normalized = new SKBitmap(new SKImageInfo(normalizedWidth, normalizedHeight, SKColorType.Rgba8888, SKAlphaType.Premul));
+        using var normalized = new SKBitmap(new SKImageInfo(normalizedWidth, normalizedHeight, SKColorType.Rgba8888, SKAlphaType.Premul, srgb));
         using var canvas = new SKCanvas(normalized);
         var (sx, kx, tx, ky, sy, ty) = codec.EncodedOrigin switch
         {
@@ -119,6 +123,18 @@ internal sealed partial class KeepsakeStore
         {
             throw new KeepsakeException("photo_format_not_supported", 415);
         }
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!UploadAdmission.Wait(0)) { throw new KeepsakeException("upload_backpressure", 429); }
+        try
+        {
+            return await AcceptAdmittedPhotoAsync(id, session, stream, mediaType, key, consentVersion, cancellationToken);
+        }
+        finally { UploadAdmission.Release(); }
+    }
+
+    private async Task<KeepsakeUpload> AcceptAdmittedPhotoAsync(string id, string session, Stream stream,
+        string mediaType, string key, int consentVersion, CancellationToken cancellationToken)
+    {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(TimeSpan.FromSeconds(20));
         using var originalBuffer = new MemoryStream();

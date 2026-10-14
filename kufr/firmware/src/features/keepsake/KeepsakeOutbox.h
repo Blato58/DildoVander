@@ -10,7 +10,7 @@
 
 struct KeepsakeOutcome {
   std::string operationId, outcomeId, proposalId, physicalOperationId, bootId;
-  uint64_t generation = 0, deviceRevision = 0, visibilityEpoch = 0;
+  uint64_t generation = 0, deviceRevision = 0;
   uint64_t retryAtMs = 0;
   uint32_t retryDelayMs = 1000;
   uint8_t compartment = 0;
@@ -21,6 +21,24 @@ enum class KeepsakeQueueResult : uint8_t { Rejected, VolatilePendingPersistence,
 struct KeepsakeDisposition {
   std::string operationId, outcomeId, reason;
 };
+
+struct KeepsakeRetirement {
+  KeepsakeOutcome outcome;
+  std::string reason;
+};
+
+inline bool SameKeepsakeCandidate(const KeepsakeOutcome& left, const KeepsakeOutcome& right) {
+  return left.operationId == right.operationId && left.outcomeId == right.outcomeId
+      && left.proposalId == right.proposalId && left.physicalOperationId == right.physicalOperationId
+      && left.bootId == right.bootId && left.generation == right.generation
+      && left.deviceRevision == right.deviceRevision && left.compartment == right.compartment;
+}
+
+inline bool PreparationDisposition(const std::string& reason) {
+  return reason == "proposal_store_rejected" || reason == "proposal_stale_or_expired"
+      || reason == "proposal_stopped" || reason == "proposal_cancelled" || reason == "presentation_fault"
+      || reason == "proposal_start_rejected" || reason == "conversation_closed" || reason == "completion_unconfirmed";
+}
 
 struct KeepsakeOutboxState {
   std::vector<KeepsakeOutcome> pending;
@@ -34,11 +52,6 @@ inline bool PermanentKeepsakeFailure(int status, const std::string& code) {
           || code == "operator_restore_required" || code == "idempotency_conflict"))
       || (status == 404 && code == "keepsake_not_found");
 }
-
-struct LocalKeepsakeStatus {
-  std::string outcomeId, physicalOperationId, url;
-  uint64_t sessionEpoch = 0, expiresAtEpochMs = 0;
-};
 
 // Completed physical facts only. Publication cannot trigger a physical action.
 class KeepsakeOutbox final {
@@ -63,7 +76,79 @@ class KeepsakeOutbox final {
     }), prepared_.end());
   }
 
-  KeepsakeQueueResult Queue(KeepsakeOutcome outcome, bool visible = true) {
+  // Control/network producers only signal exact technical identity. Persistence
+  // and slot release are performed by the notifier worker, never the control loop.
+  bool RequestRetirement(const KeepsakeOutcome& outcome, const std::string& reason) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (const auto& prepared : prepared_) {
+      if (!SameKeepsakeCandidate(prepared, outcome)) continue;
+      for (const auto& request : retirements_) if (request.outcome.outcomeId == outcome.outcomeId) return true;
+      if (retirements_.size() >= Capacity) return false;
+      retirements_.push_back({outcome, reason});
+      return true;
+    }
+    return false;
+  }
+
+  bool HasRetirements() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (const auto& request : retirements_) if (request.reason != "outcome_delivered") return true;
+    return false;
+  }
+
+  bool RequestDeliveryAcknowledgement(const KeepsakeOutcome& outcome) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (const auto& pending : pending_) {
+      if (!SameKeepsakeCandidate(pending, outcome)) continue;
+      for (auto& request : retirements_) if (request.outcome.outcomeId == outcome.outcomeId) {
+        request.reason = "outcome_delivered";
+        return true;
+      }
+      if (retirements_.size() >= Capacity) return false;
+      retirements_.push_back({outcome, "outcome_delivered"});
+      return true;
+    }
+    return false;
+  }
+
+  template <typename PersistState>
+  bool ProcessDeliveryAcknowledgements(PersistState persist) {
+    const auto requests = RetirementSnapshot();
+    for (const auto& request : requests) {
+      if (request.reason != "outcome_delivered") continue;
+      if (!RecordDisposition(request.outcome, request.reason) || !CommitRetirement(request.outcome, persist)) return false;
+    }
+    return true;
+  }
+
+  template <typename PersistState>
+  bool ProcessRetirements(const CommandJournal& journal, PersistState persist) {
+    const auto requests = RetirementSnapshot();
+    for (const auto& request : requests) {
+      if (request.reason == "outcome_delivered") continue;
+      const auto& outcome = request.outcome;
+      // A validated historical completion wins over a late cancellation signal.
+      if (journal.WasTimedPresentationCompleted(outcome.physicalOperationId, outcome.compartment)) {
+        if (Queue(outcome) == KeepsakeQueueResult::Rejected) return false;
+      } else if (!RecordDisposition(outcome, request.reason)) {
+        return false;
+      }
+      if (!CommitRetirement(outcome, persist)) return false;
+    }
+    return true;
+  }
+
+  void CompactPreparationDispositions() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    quarantined_.erase(std::remove_if(quarantined_.begin(), quarantined_.end(), [&](const KeepsakeDisposition& item) {
+      if (!PreparationDisposition(item.reason) && item.reason != "outcome_delivered") return false;
+      for (const auto& prepared : prepared_) if (prepared.outcomeId == item.outcomeId) return false;
+      for (const auto& pending : pending_) if (pending.outcomeId == item.outcomeId) return false;
+      return true;
+    }), quarantined_.end());
+  }
+
+  KeepsakeQueueResult Queue(KeepsakeOutcome outcome) {
     std::lock_guard<std::mutex> lock(mutex_);
     if (outcome.operationId.empty() || outcome.outcomeId.empty()) return KeepsakeQueueResult::Rejected;
     for (const auto& item : pending_) {
@@ -75,7 +160,6 @@ class KeepsakeOutbox final {
     for (const auto& item : prepared_) prepared |= item.outcomeId == outcome.outcomeId;
     if ((!prepared && Occupied() >= Capacity)
         || pending_.size() >= Capacity || quarantined_.size() >= QuarantineCapacity) return KeepsakeQueueResult::Rejected;
-    outcome.visibilityEpoch = visible ? visibilityEpoch_ : 0;
     pending_.push_back(std::move(outcome));
     return KeepsakeQueueResult::VolatilePendingPersistence;
   }
@@ -93,6 +177,10 @@ class KeepsakeOutbox final {
   bool NextReady(uint64_t nowMs, KeepsakeOutcome& outcome) const {
     std::lock_guard<std::mutex> lock(mutex_);
     for (const auto& item : pending_) {
+      bool acknowledged = false;
+      for (const auto& request : retirements_)
+        acknowledged |= request.reason == "outcome_delivered" && request.outcome.outcomeId == item.outcomeId;
+      if (acknowledged) continue;
       if (item.retryAtMs <= nowMs) { outcome = item; return true; }
     }
     return false;
@@ -130,7 +218,6 @@ class KeepsakeOutbox final {
       for (size_t j = 0; j < i; ++j) {
         if (entries[i].operationId == entries[j].operationId || entries[i].outcomeId == entries[j].outcomeId) return false;
       }
-      entries[i].visibilityEpoch = 0;
     }
     for (size_t i = 0; i < dispositions.size(); ++i) {
       for (size_t j = 0; j < i; ++j) if (dispositions[i].outcomeId == dispositions[j].outcomeId
@@ -164,7 +251,7 @@ class KeepsakeOutbox final {
     const auto saved = State();
     for (const auto& outcome : saved.prepared) {
       if (journal.WasTimedPresentationCompleted(outcome.physicalOperationId, outcome.compartment)) {
-        if (Queue(outcome, false) == KeepsakeQueueResult::Rejected) return false;
+        if (Queue(outcome) == KeepsakeQueueResult::Rejected) return false;
       } else if (!RecordDisposition(outcome, "physical_outcome_unknown")) {
         return false;
       }
@@ -180,28 +267,31 @@ class KeepsakeOutbox final {
     }), pending_.end());
   }
 
-  void Hide() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    ++visibilityEpoch_;
-    published_ = {};
-  }
-
-  bool Publish(const KeepsakeOutcome& outcome, LocalKeepsakeStatus status) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (outcome.visibilityEpoch == 0 || outcome.visibilityEpoch != visibilityEpoch_
-        || status.outcomeId != outcome.outcomeId || status.physicalOperationId != outcome.physicalOperationId
-        || status.sessionEpoch != outcome.generation) return false;
-    published_ = std::move(status);
-    return true;
-  }
-
-  LocalKeepsakeStatus Read(uint64_t generation, uint64_t nowEpochMs) const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (published_.sessionEpoch != generation || published_.expiresAtEpochMs <= nowEpochMs) return {};
-    return published_;
-  }
-
  private:
+  std::vector<KeepsakeRetirement> RetirementSnapshot() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return retirements_;
+  }
+
+  template <typename PersistState>
+  bool CommitRetirement(const KeepsakeOutcome& outcome, PersistState persist) {
+    // Commit the ACK/disposition before removal. Until removal is committed the
+    // RAM mailbox keeps capacity occupied, including across failed NVS writes.
+    if (!persist(State())) return false;
+    RemovePrepared(outcome.outcomeId);
+    if (HasDisposition(outcome.outcomeId)) Complete(outcome.outcomeId);
+    if (!persist(State())) return false;
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      retirements_.erase(std::remove_if(retirements_.begin(), retirements_.end(), [&](const KeepsakeRetirement& item) {
+        return item.outcome.outcomeId == outcome.outcomeId;
+      }), retirements_.end());
+    }
+    // The server owns delivered content. Only temporary local ACK/preparation
+    // fences are compacted after durable removal; terminal failures remain.
+    CompactPreparationDispositions();
+    return persist(State());
+  }
   size_t Occupied() const {
     size_t count = pending_.size();
     for (const auto& prepared : prepared_) {
@@ -209,12 +299,18 @@ class KeepsakeOutbox final {
       for (const auto& item : pending_) pending |= item.outcomeId == prepared.outcomeId;
       if (!pending) ++count;
     }
+    // A failed removal commit still owns capacity through its retirement mailbox.
+    for (const auto& request : retirements_) {
+      bool occupied = false;
+      for (const auto& item : pending_) occupied |= item.outcomeId == request.outcome.outcomeId;
+      for (const auto& item : prepared_) occupied |= item.outcomeId == request.outcome.outcomeId;
+      if (!occupied) ++count;
+    }
     return count;
   }
   mutable std::mutex mutex_;
   std::vector<KeepsakeOutcome> pending_;
   std::vector<KeepsakeDisposition> quarantined_;
   std::vector<KeepsakeOutcome> prepared_;
-  LocalKeepsakeStatus published_;
-  uint64_t visibilityEpoch_ = 1;
+  std::vector<KeepsakeRetirement> retirements_;
 };

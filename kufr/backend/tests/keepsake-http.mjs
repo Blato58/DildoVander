@@ -1,7 +1,7 @@
 // Synthetic integration against the real .NET listener. No provider credentials.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
@@ -25,6 +25,7 @@ const env = { ...process.env, OPENAI_API_KEY: '', ASPNETCORE_ENVIRONMENT: 'Produ
   Keepsake__GenerationEnabled: 'true', Keepsake__PortraitEnabled: 'true', Keepsake__ProviderMode: 'fake',
   Keepsake__DataRoot: join(root, 'archive'), Keepsake__DataProtectionRoot: join(root, 'keys'),
   Keepsake__Origin: 'https://guest.test',
+  Keepsake__PublicDeviceId: 'fixture-device',
   Devices__0__DeviceId: 'fixture-device',
   Devices__0__CredentialSha256: createHash('sha256').update('synthetic-device-only').digest('hex'),
   Backend__Admin__CredentialSha256: createHash('sha256').update('synthetic-admin-only').digest('hex') };
@@ -37,9 +38,10 @@ async function run(cmd, args, options = {}) {
     child.once('exit', code => code === 0 ? resolveRun(out) : reject(new Error(`fixture exit ${code}: ${err}`)));
   });
 }
-function launch() {
+function launch(overrides = {}) {
   serverLog = '';
-  processHandle = spawn('dotnet', [backend, '--urls', `http://127.0.0.1:${port}`], { env, windowsHide: true, cwd: backendRoot });
+  processHandle = spawn('dotnet', [backend, '--urls', `http://127.0.0.1:${port}`],
+    { env: { ...env, ...overrides }, windowsHide: true, cwd: backendRoot });
   processHandle.stdout.on('data', b => serverLog += b); processHandle.stderr.on('data', b => serverLog += b);
 }
 async function stop() {
@@ -99,7 +101,45 @@ try {
   const seeded = JSON.parse((await run('dotnet', [tests, '--keepsake-fixture'])).trim().split(/\r?\n/).at(-1));
   const [first, second] = seeded.items; const photo = Buffer.from(seeded.png, 'base64');
   launch(); await ready();
-  const a = new Browser(), b = new Browser(), viewer = new Browser();
+  const a = new Browser(), b = new Browser(), viewer = new Browser(), publicVisitor = new Browser();
+  let gallery;
+  for (let n = 0; n < 100; n++) {
+    const response = await publicVisitor.request('GET', '/guest/v1/evening', undefined, { expected: 200 });
+    assert.equal(response.headers.get('set-cookie'), null, 'public gallery does not create an owner session');
+    gallery = await response.json();
+    if (gallery.items.length === 2 && gallery.items.every(item => item.assets.length === 4)) { break; }
+    await new Promise(r => setTimeout(r, 100));
+  }
+  assert.equal(gallery.schemaVersion, 1); assert.equal(gallery.evening.id, seeded.eveningId);
+  assert.equal(gallery.items.length, 2); assert.equal(gallery.latest.locator, gallery.items[0].locator);
+  assert.ok(gallery.items.every(item => item.synthetic && item.story.text && item.assets.length === 4));
+  assert.doesNotMatch(JSON.stringify(gallery), /"prompt":|"deviceId":|"outcomeId":|"token":|"uploadId":/);
+  const firstPage = await (await publicVisitor.request('GET', '/guest/v1/evening?limit=1', undefined, { expected: 200 })).json();
+  const nextPage = await (await publicVisitor.request('GET', '/guest/v1/evening?limit=1&cursor=' + encodeURIComponent(firstPage.nextCursor), undefined, { expected: 200 })).json();
+  assert.equal(firstPage.items.length, 1); assert.equal(nextPage.items.length, 1);
+  assert.notEqual(firstPage.items[0].locator, nextPage.items[0].locator); assert.equal(nextPage.nextCursor, null);
+  await publicVisitor.request('GET', '/guest/v1/evening?deviceId=other-device', undefined, { expected: 400 });
+  await publicVisitor.request('GET', '/guest/v1/evening', undefined, { headers: { Host: 'other.test' }, expected: 404 });
+  await publicVisitor.request('GET', '/guest/v1/evening', undefined, { headers: { 'X-Forwarded-Proto': 'http' }, expected: 404 });
+  const publicItem = gallery.items.find(item => item.locator === first.locator);
+  const publicAssetPath = (item, asset, eveningId = seeded.eveningId) => `/guest/v1/evenings/${eveningId}/keepsakes/${item.locator}/editions/${item.editionId}/assets/${asset.id}`;
+  for (const asset of publicItem.assets) {
+    const response = await publicVisitor.request('GET', publicAssetPath(publicItem, asset), undefined, { expected: 200 });
+    const bytes = Buffer.from(await response.arrayBuffer());
+    assert.equal(bytes.length, asset.length); assert.equal(createHash('sha256').update(bytes).digest('hex').toUpperCase(), asset.sha256);
+    assert.equal(response.headers.get('set-cookie'), null);
+  }
+  let deviceToken = (await (await publicVisitor.request('POST', '/v1/device-access/token', undefined,
+    { headers: { Authorization: 'Bearer synthetic-device-only' }, expected: 200 })).json()).accessToken;
+  const switched = await (await publicVisitor.request('POST', '/v1/evenings',
+    { name: 'Synthetic second evening', expectedEveningId: seeded.eveningId },
+    { headers: { Authorization: 'Bearer ' + deviceToken }, expected: 201 })).json();
+  const activeSecondEvening = switched.activeEveningId;
+  assert.equal((await (await publicVisitor.request('GET', '/guest/v1/evening', undefined, { expected: 200 })).json()).items.length, 0);
+  await publicVisitor.request('GET', publicAssetPath(publicItem, publicItem.assets[0]), undefined, { expected: 404 });
+  await publicVisitor.request('PUT', `/v1/evenings/${seeded.eveningId}/active`,
+    { expectedEveningId: activeSecondEvening }, { headers: { Authorization: 'Bearer ' + deviceToken }, expected: 200 });
+  assert.equal((await (await publicVisitor.request('GET', '/guest/v1/evening', undefined, { expected: 200 })).json()).items.length, 2);
   await a.bootstrap(); await b.bootstrap(); await viewer.bootstrap();
   await a.request('GET', '/guest/v1/claim', undefined, { expected: 404 });
   await a.request('POST', '/guest/v1/claim', { schemaVersion: 1, token: first.token }, { origin: 'https://evil.test', expected: 403 });
@@ -145,6 +185,10 @@ try {
   const retryUpload = await (await a.request('POST', `${prefix(first.locator)}/portrait-uploads`, photo,
     { json: false, key: uploadKey, headers: { 'X-DV10-Consent': String(consent.consentVersion) }, expected: 201 })).json();
   assert.equal(upload.upload.id, retryUpload.upload.id);
+  await a.request('POST', `${prefix(first.locator)}/portraits`,
+    { schemaVersion: 1, uploadId: upload.upload.id, editionId, variant: 'portrait_with_wand', consentVersion: consent.consentVersion }, { expected: 409 });
+  await a.request('POST', `${prefix(first.locator)}/portraits`,
+    { schemaVersion: 1, uploadId: upload.upload.id, editionId, variant: 'invented', consentVersion: consent.consentVersion }, { expected: 400 });
   const portrait = await (await a.request('POST', `${prefix(first.locator)}/portraits`,
     { schemaVersion: 1, uploadId: upload.upload.id, editionId, variant: 'portrait_only', consentVersion: consent.consentVersion }, { expected: 202 })).json();
   assert.equal(portrait.job.kind, 'portrait');
@@ -153,6 +197,11 @@ try {
     if (view.portraits.length) { break; } await new Promise(r => setTimeout(r, 100));
   }
   assert.equal(view.portraits.length, 1, JSON.stringify(view.jobs));
+  for (const privateAsset of view.assets.filter(asset => !publicItem.assets.some(publicAsset => publicAsset.id === asset.id))) {
+    await publicVisitor.request('GET', publicAssetPath(publicItem, privateAsset), undefined, { expected: 404 });
+  }
+  assert.equal((await (await publicVisitor.request('GET', '/guest/v1/evening', undefined, { expected: 200 })).json())
+    .items.find(item => item.locator === first.locator).assets.length, 4, 'portrait does not enter public gallery');
   await viewer.request('GET', `${prefix(first.locator)}/assets/${view.portraits[0].assetId}`, undefined, { expected: 404 });
   for (const format of ['story', 'card', 'zip']) {
     const exported = await (await a.request('POST', `${prefix(first.locator)}/exports`, { schemaVersion: 1, editionId, format }, { expected: 201 })).json();
@@ -161,12 +210,12 @@ try {
   }
   const recovery = await (await a.request('POST', `${prefix(first.locator)}/recovery-links`, { schemaVersion: 1 }, { expected: 200 })).json();
   await stop(); launch(); await ready();
+  deviceToken = (await (await publicVisitor.request('POST', '/v1/device-access/token', undefined,
+    { headers: { Authorization: 'Bearer synthetic-device-only' }, expected: 200 })).json()).accessToken;
   let recovered = new Browser(); await recovered.bootstrap();
   await recovered.request('POST', '/guest/v1/recover', { schemaVersion: 1, token: new URL(recovery.url).hash.slice(3) }, { expected: 200 });
   view = await (await recovered.request('GET', prefix(first.locator), undefined, { expected: 200 })).json();
   assert.equal(view.editions[0].id, editionId); assert.equal(view.portraits.length, 1);
-  const deviceToken = (await (await b.request('POST', '/v1/device-access/token', undefined,
-    { headers: { Authorization: 'Bearer synthetic-device-only' }, expected: 200 })).json()).accessToken;
   await b.request('POST', `/v1/keepsakes/${first.locator}/claim`, undefined,
     { headers: { Authorization: 'Bearer ' + deviceToken }, expected: 409 });
   await b.request('POST', `/v1/keepsakes/${first.locator}/restore-owner`, { schemaVersion: 1, confirm: 'revoke_prior_access' },
@@ -191,6 +240,8 @@ try {
   await b.request('GET', `/guest/v1/deletions/${deleted.receipt.id}`, undefined, { expected: 404 });
   view = await (await recovered.request('GET', prefix(first.locator), undefined, { expected: 200 })).json();
   assert.equal(view.portraits.length, 0); assert.equal(view.uploads.length, 0);
+  assert.equal((await (await publicVisitor.request('GET', '/guest/v1/evening', undefined, { expected: 200 })).json())
+    .items.find(item => item.locator === first.locator).assets.length, 4, 'manual photo deletion retains public base derivatives');
   const deletionKey = randomUUID();
   const whole = await (await recovered.request('DELETE', prefix(first.locator),
     { schemaVersion: 1, confirm: 'delete', expectedRevision: view.revision }, { key: deletionKey, expected: 202 })).json();
@@ -198,6 +249,9 @@ try {
     { schemaVersion: 1, confirm: 'delete', expectedRevision: view.revision }, { key: deletionKey, expected: 202 })).json();
   assert.equal(wholeReplay.receipt.id, whole.receipt.id);
   await recovered.request('GET', prefix(first.locator), undefined, { expected: 404 });
+  assert.ok((await (await publicVisitor.request('GET', '/guest/v1/evening', undefined, { expected: 200 })).json())
+    .items.every(item => item.locator !== first.locator), 'full deletion immediately removes public content');
+  await publicVisitor.request('GET', publicAssetPath(publicItem, publicItem.assets[0]), undefined, { expected: 404 });
   await viewer.request('GET', `${prefix(first.locator)}?view=share&editionId=${editionId}`, undefined, { expected: 404 });
   await recovered.request('GET', `/guest/v1/deletions/${whole.receipt.id}`, undefined, { expected: 200 });
   const adminHeaders = { Authorization: 'Bearer synthetic-admin-only' };
@@ -233,5 +287,34 @@ try {
   for (const forbidden of [first.token, shareToken, new URL(recovery.url).hash.slice(3), a.csrf]) {
     assert.ok(!serverLog.includes(forbidden), 'secret leaked into technical logs');
   }
-  console.log('DV10 HTTP integration passed: isolation, claim replay, CSRF/origin, share scope, consent/upload, fake jobs, exports, restart/recovery, deletion receipts and secret-free logs.');
+  await stop();
+  const interrupted = JSON.parse((await run('dotnet', [tests, '--keepsake-fixture'],
+    { env: { ...env, KUFR_KEEPSAKE_FIXTURE_ACTION: 'pending-cleanup' } })).trim().split(/\r?\n/).at(-1));
+  const pendingDirectory = join(env.Keepsake__DataRoot, interrupted.pendingId);
+  assert.ok((await stat(pendingDirectory)).isDirectory(), 'confirmed interrupted cleanup still has scoped files before restart');
+  launch({ Keepsake__Enabled: 'false', Keepsake__GenerationEnabled: 'true', Keepsake__PortraitEnabled: 'true',
+    Keepsake__ProviderMode: 'openai', Keepsake__StoryModel: '', Keepsake__ImageModel: '', OPENAI_API_KEY: '' });
+  await ready();
+  // Startup must resolve retained storage without constructing the unconfigured paid
+  // adapter. Cleanup is proven before the first admin/guest request can trigger it.
+  await assert.rejects(stat(pendingDirectory), { code: 'ENOENT' });
+  await b.request('GET', '/v1/admin/keepsakes', undefined, { expected: 401 });
+  const disabledInventory = await (await b.request('GET', '/v1/admin/keepsakes', undefined,
+    { headers: adminHeaders, expected: 200 })).json();
+  const retained = disabledInventory.items.find(item => item.id === interrupted.retainedId);
+  assert.ok(retained, 'retained admin inventory survives disabled portal');
+  assert.equal(retained.jobs.length, 1); assert.equal(retained.jobs[0].state, 'queued');
+  assert.equal(retained.assetCount, 0, 'disabled production never dispatches retained queued generation');
+  await b.request('GET', prefix(interrupted.retainedId), undefined, { expected: 404 });
+  await publicVisitor.request('GET', '/guest/v1/evening', undefined, { expected: 404 });
+  await b.request('POST', '/guest/v1/bootstrap', { schemaVersion: 1 }, { expected: 404 });
+  await b.request('POST', `/v1/keepsakes/${interrupted.retainedId}/claim`, undefined,
+    { headers: { Authorization: 'Bearer ' + deviceToken }, expected: 404 });
+  const resumedBatch = (await (await b.request('POST', `/v1/admin/keepsake-deletions/${interrupted.previewId}/confirm`,
+    { schemaVersion: 1, confirm: 'delete', previewDigest: interrupted.previewDigest },
+    { key: interrupted.confirmationKey, headers: adminHeaders, expected: 202 })).json()).batch;
+  assert.equal(resumedBatch.state, 'local_cleanup_complete');
+  await b.request('GET', `/v1/admin/keepsake-deletions/receipts/${resumedBatch.deletionReceiptIds[0]}`, undefined,
+    { headers: adminHeaders, expected: 200 });
+  console.log('DV10 HTTP integration passed: public evening gallery/streaming/paging/switch/deletion, private isolation, claim replay, CSRF/origin, share scope, consent/upload, fake jobs, exports, restart/recovery, deletion receipts, disabled-portal startup cleanup/admin, and secret-free logs.');
 } finally { await stop(); await rm(root, { recursive: true, force: true }); }

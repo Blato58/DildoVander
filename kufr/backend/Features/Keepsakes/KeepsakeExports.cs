@@ -23,78 +23,96 @@ internal sealed partial class KeepsakeStore
             var scope = "export:" + id;
             var replay = Replay(connection, transaction, scope, key, body);
             if (replay is not null) { return document.Assets.Single(item => item.Id == replay); }
-            var edition = document.Editions.SingleOrDefault(item => item.Id == editionId);
-            if (edition is null) { throw new KeepsakeException("edition_not_found", 404); }
-            if (edition.PublicationState == "private_history") { throw new KeepsakeException("edition_not_published", 409); }
-            var artwork = document.Assets.SingleOrDefault(item => item.Id == edition.ArtworkAssetId);
-            if (artwork is not null && artwork.Kind != "base_image") { throw new KeepsakeException("edition_not_published", 409); }
-            if (format == "card" && artwork is null) { throw new KeepsakeException("artwork_not_ready", 409); }
-            KeepsakePortrait? portrait = null;
-            byte[]? portraitBytes = null;
-            KeepsakeAsset? portraitAsset = null;
-            if (portraitId is not null)
-            {
-                portrait = document.Portraits.SingleOrDefault(item => item.Id == portraitId && item.EditionId == editionId);
-                if (portrait is null) { throw new KeepsakeException("portrait_not_found", 404); }
-                var asset = document.Assets.Single(item => item.Id == portrait.AssetId);
-                if (asset.Kind != "portrait_image") { throw new KeepsakeException("portrait_not_published", 409); }
-                portraitAsset = asset;
-            }
-            // Reject large source bundles before allocating their bytes or a ZIP buffer.
-            if ((artwork?.Length ?? 0) + (portraitAsset?.Length ?? 0) > 32L * 1024 * 1024)
-            {
-                throw new KeepsakeException("export_size_limit", 413);
-            }
-            if (portraitAsset is not null) { portraitBytes = ReadBytes(id, portraitAsset); }
-            var artworkBytes = artwork is null ? null : ReadBytes(id, artwork);
-            var storyBytes = Encoding.UTF8.GetBytes(StoryText(document.Snapshot, edition));
-            var cardBytes = artworkBytes is null ? null : BuildPngCard(document.Snapshot, edition, artworkBytes, portraitBytes);
-            byte[] output;
-            string mime;
-            switch (format)
-            {
-                case "story": output = storyBytes; mime = "text/plain; charset=utf-8"; break;
-                case "card": output = cardBytes!; mime = "image/png"; break;
-                default:
-                    var components = new Dictionary<string, byte[]>
-                    {
-                        ["story.txt"] = storyBytes
-                    };
-                    if (cardBytes is not null) { components["keepsake-card.png"] = cardBytes; }
-                    if (artworkBytes is not null) { components["wand.png"] = artworkBytes; }
-                    if (portraitBytes is not null) { components["portrait.png"] = portraitBytes; }
-                    var manifest = JsonSerializer.SerializeToUtf8Bytes(new
-                    {
-                        schema = "dv10-export-v1", synthetic = edition.Synthetic, portraitIncluded = portraitBytes is not null,
-                        partial = artworkBytes is null, missingComponents = artworkBytes is null ? new[] { "wand.png", "keepsake-card.png" } : [],
-                        components = components.Select(item => new
-                        {
-                            filename = item.Key, length = item.Value.LongLength,
-                            sha256 = Convert.ToHexString(SHA256.HashData(item.Value))
-                        })
-                    });
-                    components["manifest.json"] = manifest;
-                    if (components.Count > 8 || components.Sum(item => item.Value.LongLength) > 40L * 1024 * 1024)
-                    {
-                        throw new KeepsakeException("export_size_limit", 413);
-                    }
-                    using (var stream = new MemoryStream())
-                    {
-                        using (var zip = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
-                        {
-                            foreach (var item in components) { AddEntry(zip, item.Key, item.Value); }
-                        }
-                        output = stream.ToArray();
-                    }
-                    mime = "application/zip";
-                    break;
-            }
-            var result = StoreAsset(id, document, "export_" + format, mime, output, editionId, portrait?.UploadId);
-            Save(connection, transaction, id, document);
+            var result = CreateExportInternal(connection, transaction, id, document, editionId, format, portraitId);
             Remember(connection, transaction, scope, key, body, result.Id);
             transaction.Commit();
             return result;
         }
+    }
+
+    private KeepsakeAsset CreateExportInternal(Microsoft.Data.Sqlite.SqliteConnection connection,
+        Microsoft.Data.Sqlite.SqliteTransaction transaction, string id, Document document,
+        string editionId, string format, string? portraitId)
+    {
+        var edition = document.Editions.SingleOrDefault(item => item.Id == editionId);
+        if (edition is null) { throw new KeepsakeException("edition_not_found", 404); }
+        if (edition.PublicationState == "private_history") { throw new KeepsakeException("edition_not_published", 409); }
+        if (portraitId is null)
+        {
+            var existing = document.Assets.FirstOrDefault(asset => asset.EditionId == editionId
+                && asset.Kind == "export_" + format && asset.UploadId is null);
+            if (existing is not null) { return existing; }
+        }
+        var artwork = document.Assets.SingleOrDefault(item => item.Id == edition.ArtworkAssetId);
+        if (artwork is not null && artwork.Kind != "base_image") { throw new KeepsakeException("edition_not_published", 409); }
+        if (format == "card" && artwork is null) { throw new KeepsakeException("artwork_not_ready", 409); }
+        KeepsakePortrait? portrait = null;
+        byte[]? portraitBytes = null;
+        KeepsakeAsset? portraitAsset = null;
+        if (portraitId is not null)
+        {
+            portrait = document.Portraits.SingleOrDefault(item => item.Id == portraitId && item.EditionId == editionId);
+            if (portrait is null) { throw new KeepsakeException("portrait_not_found", 404); }
+            var asset = document.Assets.Single(item => item.Id == portrait.AssetId);
+            if (asset.Kind != "portrait_image") { throw new KeepsakeException("portrait_not_published", 409); }
+            portraitAsset = asset;
+        }
+        // Reject large source bundles before allocating their bytes or a ZIP buffer.
+        if ((artwork?.Length ?? 0) + (portraitAsset?.Length ?? 0) > 32L * 1024 * 1024)
+        {
+            throw new KeepsakeException("export_size_limit", 413);
+        }
+        if (portraitAsset is not null) { portraitBytes = ReadBytes(id, portraitAsset); }
+        var artworkBytes = artwork is null ? null : ReadBytes(id, artwork);
+        var storyBytes = Encoding.UTF8.GetBytes(StoryText(document.Snapshot, edition));
+        var storedCard = portraitId is null ? document.Assets.FirstOrDefault(asset => asset.EditionId == editionId
+            && asset.Kind == "export_card" && asset.UploadId is null) : null;
+        var cardBytes = format == "story" || artworkBytes is null ? null
+            : storedCard is null ? BuildPngCard(document.Snapshot, edition, artworkBytes, portraitBytes) : ReadBytes(id, storedCard);
+        byte[] output;
+        string mime;
+        switch (format)
+        {
+            case "story": output = storyBytes; mime = "text/plain; charset=utf-8"; break;
+            case "card": output = cardBytes!; mime = "image/png"; break;
+            default:
+                var components = new Dictionary<string, byte[]>
+                {
+                    ["story.txt"] = storyBytes
+                };
+                if (cardBytes is not null) { components["keepsake-card.png"] = cardBytes; }
+                if (artworkBytes is not null) { components["wand.png"] = artworkBytes; }
+                if (portraitBytes is not null) { components["portrait.png"] = portraitBytes; }
+                var manifest = JsonSerializer.SerializeToUtf8Bytes(new
+                {
+                    schema = "dv10-export-v1", synthetic = edition.Synthetic, portraitIncluded = portraitBytes is not null,
+                    partial = artworkBytes is null, missingComponents = artworkBytes is null ? new[] { "wand.png", "keepsake-card.png" } : [],
+                    components = components.Select(item => new
+                    {
+                        filename = item.Key, length = item.Value.LongLength,
+                        sha256 = Convert.ToHexString(SHA256.HashData(item.Value))
+                    })
+                });
+                components["manifest.json"] = manifest;
+                if (components.Count > 8 || components.Sum(item => item.Value.LongLength) > 40L * 1024 * 1024)
+                {
+                    throw new KeepsakeException("export_size_limit", 413);
+                }
+                using (var stream = new MemoryStream())
+                {
+                    using (var zip = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+                    {
+                        foreach (var item in components) { AddEntry(zip, item.Key, item.Value); }
+                    }
+                    output = stream.ToArray();
+                }
+                mime = "application/zip";
+                break;
+        }
+        var kind = format == "zip" && artworkBytes is null ? "export_partial_zip" : "export_" + format;
+        var result = StoreAsset(id, document, kind, mime, output, editionId, portrait?.UploadId);
+        Save(connection, transaction, id, document);
+        return result;
     }
 
     private static void AddEntry(ZipArchive zip, string name, byte[] content)

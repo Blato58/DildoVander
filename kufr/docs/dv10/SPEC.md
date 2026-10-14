@@ -1,3 +1,5 @@
+> Pozdější výslovný pokyn majitele ze 14. 10. 2026 mění vyzvednutí na statický QR a veřejný přehled aktivního večera; viz [STATIC_EVENING](STATIC_EVENING.md). Ostatní hranice, soukromé fotografie a oddělené akceptační brány zůstávají.
+
 # DV10 — Wand Keepsake Portal na vlastním VPS
 ## Finální specifikace · revize 2.2 FINAL · 14. 10. 2026
 

@@ -40,7 +40,7 @@ internal static partial class KeepsakeOutcomeEndpoints
             var wand = PartyWandCatalog.Available(63).Single(w => w.Compartment == proposal.Compartment);
             var result = store.Issue(new KeepsakeIssueSnapshot(outcome, device, proposal.Compartment,
                 wand.StableId, wand.DisplayName, wand.Description, request.PresentationEvidence,
-                proposal.CatalogVersion));
+                proposal.CatalogVersion, journal.ReadKeepsakeEvening(device, operationId)));
             return Results.Json(new { schemaVersion = 1, locator = result.Id, outcomeId = outcome,
                 sessionEpoch = proposal.Generation, physicalOperationId = request.PhysicalOperationId }, statusCode: 201);
         }

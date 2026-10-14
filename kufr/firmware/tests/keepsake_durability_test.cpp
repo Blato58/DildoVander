@@ -113,7 +113,6 @@ void RecoveryRequiresConfirmedPhysicalJournal() {
   assert(recovered.size() == 1 && recovered.front().outcomeId == "exact-outcome");
   assert(recovered.front().operationId == "backend-operation" && recovered.front().bootId == "original-boot");
   assert(recovered.front().generation == 9 && recovered.front().deviceRevision == 24);
-  assert(recovered.front().visibilityEpoch == 0);
   assert(rebooted.State().prepared.empty());
   auto wrongSlot = Prepared();
   wrongSlot.compartment = 4;
@@ -135,7 +134,6 @@ void CommittedMarkerDespiteAckFailureIsHistoricalEvidence() {
   assert(outbox.Restore({}, {}, {Prepared()}));
   assert(outbox.RecoverPrepared(rebootedJournal));
   assert(outbox.Snapshot().size() == 1 && outbox.Snapshot().front().outcomeId == "exact-outcome");
-  assert(outbox.Snapshot().front().visibilityEpoch == 0);
   assert(outbox.RecoverPrepared(rebootedJournal) && outbox.Snapshot().size() == 1);
 }
 
@@ -170,11 +168,89 @@ void LateFailedStoppedAndLegacyNeverRecover() {
   assert(selection.PersistReadyMask(63) && selection.Begin(PhysicalId, 3) && selection.ResolveRestored(3));
   assert(!selection.ConfirmTimedPresentation(PhysicalId, 3, 0));
 }
+
+void TerminalProposalRetirementReleasesAllEightSlots() {
+  Fixture fixture;
+  KeepsakeOutbox outbox;
+  const char* reasons[] = {"proposal_store_rejected", "proposal_stale_or_expired", "proposal_stopped",
+      "proposal_cancelled", "presentation_fault", "proposal_start_rejected", "conversation_closed",
+      "proposal_store_rejected"};
+  for (size_t i = 0; i < KeepsakeOutbox::Capacity; ++i) {
+    auto candidate = Prepared();
+    candidate.operationId += std::to_string(i);
+    candidate.outcomeId += std::to_string(i);
+    assert(outbox.Prepare(candidate));
+    assert(outbox.RequestRetirement(candidate, reasons[i]));
+    auto wrong = candidate;
+    wrong.physicalOperationId = "foreign-physical-operation";
+    assert(!outbox.RequestRetirement(wrong, "proposal_cancelled"));
+  }
+  auto next = Prepared();
+  next.operationId = "new-operation";
+  next.outcomeId = "new-outcome";
+  assert(!outbox.Prepare(next));
+  assert(!outbox.ProcessRetirements(fixture.journal, [](const KeepsakeOutboxState&) { return false; }));
+  assert(outbox.State().prepared.size() == KeepsakeOutbox::Capacity);  // Failed commit cannot free a slot.
+  assert(!outbox.Prepare(next));
+  unsigned interruptedWrites = 0;
+  assert(!outbox.ProcessRetirements(fixture.journal, [&](const KeepsakeOutboxState&) {
+    return ++interruptedWrites != 2;
+  }));
+  assert(outbox.State().prepared.size() == KeepsakeOutbox::Capacity - 1);
+  assert(!outbox.Prepare(next));  // Mailbox retains capacity until removal itself commits.
+  KeepsakeOutboxState committed;
+  assert(outbox.ProcessRetirements(fixture.journal, [&](const KeepsakeOutboxState& state) {
+    committed = state;
+    return true;
+  }));
+  assert(!outbox.HasRetirements() && outbox.State().prepared.empty());
+  assert(outbox.Snapshot().empty() && outbox.State().quarantined.empty());
+  assert(outbox.Prepare(next));
+  KeepsakeOutbox restarted;
+  assert(restarted.Restore(committed.pending, committed.quarantined, committed.prepared));
+  assert(restarted.State().prepared.empty() && restarted.Snapshot().empty());
+  assert(restarted.Prepare(next));
+  KeepsakeOutbox repeated;
+  for (size_t i = 0; i < KeepsakeOutbox::QuarantineCapacity * 3; ++i) {
+    auto candidate = Prepared();
+    candidate.operationId += std::to_string(i);
+    candidate.outcomeId += std::to_string(i);
+    assert(repeated.Prepare(candidate));
+    assert(repeated.RequestRetirement(candidate, reasons[i % KeepsakeOutbox::Capacity]));
+    assert(repeated.ProcessRetirements(fixture.journal, [](const KeepsakeOutboxState&) { return true; }));
+    assert(repeated.State().prepared.empty() && repeated.State().quarantined.empty());
+  }
+}
+
+void CompletedMarkerWinsLateRetirementAndInterruptedCleanup() {
+  Fixture fixture;
+  fixture.Begin();
+  KeepsakeOutbox outbox;
+  assert(outbox.Prepare(Prepared()));
+  assert(fixture.runtime.CompleteAutonomousPresentation(3, Timely));
+  assert(outbox.RequestRetirement(Prepared(), "proposal_cancelled"));
+  KeepsakeOutboxState committed;
+  unsigned writes = 0;
+  assert(!outbox.ProcessRetirements(fixture.journal, [&](const KeepsakeOutboxState& state) {
+    if (++writes == 2) return false;  // Crash after terminal replacement, before cleanup commit.
+    committed = state;
+    assert(state.pending.size() == 1 && state.prepared.size() == 1 && state.quarantined.empty());
+    return true;
+  }));
+  assert(outbox.Snapshot().size() == 1 && outbox.State().quarantined.empty());
+  KeepsakeOutbox restarted;
+  assert(restarted.Restore(committed.pending, committed.quarantined, committed.prepared));
+  PersistentCommandJournal journal(fixture.storage);
+  assert(restarted.RecoverPrepared(journal));
+  assert(restarted.Snapshot().size() == 1 && restarted.Snapshot().front().outcomeId == "exact-outcome");
+}
 }  // namespace
 
 int main() {
   RecoveryRequiresConfirmedPhysicalJournal();
   CommittedMarkerDespiteAckFailureIsHistoricalEvidence();
   LateFailedStoppedAndLegacyNeverRecover();
+  TerminalProposalRetirementReleasesAllEightSlots();
+  CompletedMarkerWinsLateRetirementAndInterruptedCleanup();
   std::cout << "Prepared keepsake recovery across physical-completion reset and rejection gates passed\n";
 }

@@ -29,6 +29,9 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("keepsake", context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 120, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    options.AddPolicy("keepsake-public", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 600, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
 builder.Services.AddSingleton<ServerAdminAccess>();
 builder.Services.AddSingleton<LogReadAccess>();
@@ -50,15 +53,18 @@ builder.Services.AddHostedService<MemoryIndexWorker>();
 builder.Services.AddSingleton<ConversationStore>();
 builder.Services.AddHostedService<RetentionWorker>();
 var keepsakesEnabled = builder.Configuration.GetValue<bool>("Keepsake:Enabled");
-if (keepsakesEnabled)
+var keepsakeDataRoot = builder.Configuration["Keepsake:DataRoot"];
+var keepsakeArchiveConfigured = !string.IsNullOrWhiteSpace(keepsakeDataRoot);
+if (keepsakesEnabled && !keepsakeArchiveConfigured)
 {
-    var dataRoot = builder.Configuration["Keepsake:DataRoot"]
-        ?? throw new InvalidOperationException("Keepsake:DataRoot must be configured.");
+    throw new InvalidOperationException("Keepsake:DataRoot must be configured.");
+}
+if (keepsakeArchiveConfigured)
+{
+    var dataRoot = keepsakeDataRoot!;
     builder.Services.AddDataProtection().SetApplicationName("DildoVander.DV10")
         .PersistKeysToFileSystem(new DirectoryInfo(builder.Configuration["Keepsake:DataProtectionRoot"] ?? dataRoot + ".keys"));
     builder.Services.AddSingleton<KeepsakeStore>();
-    builder.Services.AddSingleton(sp => KeepsakeProviderFactory.Create(sp.GetRequiredService<IConfiguration>()));
-    builder.Services.AddHostedService<KeepsakeWorker>();
     builder.Services.Configure<ForwardedHeadersOptions>(options =>
     {
         options.ForwardedHeaders = ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedFor;
@@ -69,6 +75,12 @@ if (keepsakesEnabled)
         options.KnownProxies.Add(System.Net.IPAddress.IPv6Loopback);
     });
 }
+if (keepsakesEnabled && builder.Configuration.GetValue<bool>("Keepsake:GenerationEnabled"))
+{
+    builder.Services.AddSingleton(sp => KeepsakeProviderFactory.Create(sp.GetRequiredService<IConfiguration>()));
+    builder.Services.AddHostedService<KeepsakeWorker>();
+}
+if (keepsakesEnabled) { builder.Services.AddHostedService<KeepsakeExportWorker>(); }
 
 var app = builder.Build();
 if (provisioning)
@@ -80,6 +92,10 @@ if (provisioning)
     return;
 }
 app.Services.GetRequiredService<OperationJournal>();
+// A configured private archive remains an authority even while guest production is
+// disabled. Resolve it eagerly so confirmed deletion cleanup resumes before serving.
+if (keepsakeArchiveConfigured) { app.Services.GetRequiredService<KeepsakeStore>(); }
+if (keepsakesEnabled) { app.Services.GetRequiredService<EveningMemoryStore>(); }
 app.Services.GetRequiredService<TextDialogRunner>();
 app.Services.GetRequiredService<VoiceProviderRunner>();
 var logs = app.Services.GetRequiredService<ServerLogStore>();
@@ -88,7 +104,7 @@ logs.Write("info", "server_started");
 app.Lifetime.ApplicationStopping.Register(() => logs.Write("info", "server_stopping"));
 
 app.Use((context, next) => ServerLogEvents.RequestAsync(context, next, logs));
-if (keepsakesEnabled) { app.UseForwardedHeaders(); }
+if (keepsakeArchiveConfigured) { app.UseForwardedHeaders(); }
 app.UseRateLimiter();
 
 app.Use(async (context, next) =>
@@ -114,7 +130,8 @@ app.MapGptLive();
 app.MapMemoryAdministration();
 app.MapServerModes();
 app.MapServerLogs();
-if (keepsakesEnabled) { app.MapKeepsakes(); app.MapKeepsakeAdministration(); }
+if (keepsakesEnabled) { app.MapKeepsakes(); app.MapKeepsakeGallery(); }
+if (keepsakeArchiveConfigured) { app.MapKeepsakeAdministration(); }
 app.Map("/guest/{**path}", () => Results.Json(new { errorCode = "access_unavailable" }, statusCode: 404));
 app.MapGet("/v1/diagnostics", (HttpContext context, DeviceAccessStore access,
     ConversationStore conversations, GptLiveOptions live, HybridMemoryService memory) =>

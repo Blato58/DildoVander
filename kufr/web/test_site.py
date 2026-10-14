@@ -301,7 +301,7 @@ class PublicReadbackTests(unittest.TestCase):
                           (destination / 'simulator/index.html').read_text())
             self.assertIn('name="kufr-browser-mode" content="local-fake"',
                           (destination / 'companion/index.html').read_text())
-            self.assertEqual({'index.html', 'app.js', 'keepsake.css'},
+            self.assertEqual({'index.html', 'app.js', 'keepsake.css', 'evening'},
                              {path.name for path in (destination / 'keepsake').iterdir()})
 
 

@@ -1,7 +1,6 @@
 #pragma once
 #include <string>
 #include "../conversation/ConversationRuntimeState.h"
-#include "../keepsake/KeepsakeOutbox.h"
 
 struct LocalVoiceStatus {
   bool available = false;
@@ -21,7 +20,6 @@ class LocalVoicePort {
   virtual bool StartVoice(const std::string& requestId,
                           const ConversationRuntimeSnapshot& snapshot) = 0;
   virtual void StopVoice() = 0;
-  virtual LocalKeepsakeStatus KeepsakeStatus(uint64_t) const { return {}; }
   virtual bool StartVoiceWithImageConsent(const std::string& requestId,
       const ConversationRuntimeSnapshot& snapshot, bool imageConsent) {
     return !imageConsent && StartVoice(requestId, snapshot);

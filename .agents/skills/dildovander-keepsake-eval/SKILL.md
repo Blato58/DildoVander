@@ -36,3 +36,5 @@ provenance, findings and remaining acceptance gaps. Never mark an unrun test PAS
 
 New tracked skills require a fresh task/catalog reload to appear in discovery.
 During the current task read the file directly; writing it does not prove hot reload.
+
+The owner approved static pickup at `/keepsake/evening/`; read `kufr/docs/dv10/STATIC_EVENING.md` for precedence. Shared wands/stories are scoped to the configured device and captured active evening. Public browsing never grants owner/photo/admin rights. Preserve manual retention and read-only GET behavior.
