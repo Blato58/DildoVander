@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-CAD-CI-review-v4",
+  "observedAtUtc": "2026-10-14T22:26:06.201186+00:00",
+  "kind": "source_review",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-CAD-CI",
+      "criterionId": "ISOLATION",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "6b6b9c91e9f4d4767075d546cdce809ec4714c76b3891bb8b6191b0a01487fe1"
+  },
+  "method": "Independent Sol6.1/high follow-up reviewed stdout correction,64hex workflow guard and noisy-generator actual main() regression; prior v3 review covers unchanged normalization/adoption safety.",
+  "environment": "Same Windows integrated checkout; child ci_review.",
+  "limitations": [
+    "Hosted adoption and exact hit still pending."
+  ],
+  "observation": "Pass; no remaining findings. Cache-key preparation sends progress to stderr and stdout is a single validated hash. Original complete source/export/archive/tool checks preserved."
+}

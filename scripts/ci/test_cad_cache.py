@@ -1,13 +1,16 @@
 """Host rollout metadata must not discard a validated, tool-identical package."""
 import copy
 import json
+import io
 from pathlib import Path
 import tempfile
+import sys
 from types import SimpleNamespace
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
+from contextlib import redirect_stdout, redirect_stderr
 
-from cad_cache import normalize_identity, promote_legacy_cache
+from cad_cache import main, normalize_identity, promote_legacy_cache
 
 
 def identity():
@@ -23,6 +26,22 @@ def identity():
 
 
 class CadCachePolicyTests(unittest.TestCase):
+    def test_key_command_emits_only_hash_despite_source_generator_progress(self):
+        cache = SimpleNamespace(runtime_environment=lambda: identity()['environment'],
+                                cache_key=lambda value: 'f' * 64)
+        def prepare():
+            print('Generated assembly guides')
+            return {'sources': identity()['sources'], 'environment': cache.runtime_environment()}
+        out, errors = io.StringIO(), io.StringIO()
+        with patch.dict(sys.modules, {'regenerate': SimpleNamespace(prepared_identity=prepare),
+                                     'regeneration_cache': cache}), \
+                patch.object(sys, 'argv', ['cad_cache.py', '--cache-key']), \
+                patch.object(sys, 'path', list(sys.path)), redirect_stdout(out), redirect_stderr(errors):
+            main()
+        self.assertEqual(out.getvalue(), 'f' * 64 + '\n')
+        self.assertIn('Generated assembly guides', errors.getvalue())
+        self.assertIn('CAD host diagnostics', errors.getvalue())
+
     def test_runner_rollout_and_kernel_only_share_identity(self):
         before = identity()
         after = copy.deepcopy(before)

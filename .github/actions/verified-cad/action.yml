@@ -22,6 +22,7 @@ runs:
       shell: bash
       run: |
         cad_key=$(xvfb-run -a python scripts/ci/cad_cache.py --cache-key)
+        [[ $cad_key =~ ^[a-f0-9]{64}$ ]] || { echo 'Invalid CAD cache key' >&2; exit 1; }
         echo "key=$cad_key" >> "$GITHUB_OUTPUT"
     - name: Restore verified manufacturing outputs
       id: cad-cache

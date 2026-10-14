@@ -1,6 +1,7 @@
 """Use CAD tool and OS ABI identity instead of hosted runner image revisions."""
 import argparse
 import copy
+from contextlib import redirect_stdout
 import json
 from pathlib import Path
 import re
@@ -72,7 +73,9 @@ def main():
 
     # This policy is CI-only. Local Regenerate.ps1 retains its full host identity.
     regeneration_cache.runtime_environment = stable_environment
-    identity = regenerate.prepared_identity()
+    # Source preparation prints progress; the cache-key command must emit only a hash.
+    with redirect_stdout(sys.stderr):
+        identity = regenerate.prepared_identity()
     if args.cache_key:
         print(regeneration_cache.cache_key(identity))
         return
