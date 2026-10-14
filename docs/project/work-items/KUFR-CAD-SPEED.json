@@ -44,8 +44,8 @@
     }
   ],
   "blockers": [],
-  "nextAction": "Ověřit CI cache hit nad synchronizovaným main944607b; pak uzavřít evidenci, ready PR a merge po reviews/CI.",
-  "currentNote": "Implementace0abfdae04b92f91751ced3b38c5ae95a4f97b3cd úspěšně pushnuta (remote SHA ověřeno). Windows full1506.295s a cache hit9.159s, ZIP/cache bytes beze změny; skutečný site162souborů. První Linux CI38485386880/attempt1 prošlo a uložilo cache (F2 total1121.75s). Attempt2 odmítl zastaralý základ po mergeDV01, nešlo o regresi CAD; lokální merge zachovává oba trackingy a beze změny F2zdrojů.",
+  "nextAction": "Ověřit CI cache hit nad main 76b9872; pak uzavřít evidenci, ready PR a merge po reviews/CI.",
+  "currentNote": "Implementace 0abfdae04b92f91751ced3b38c5ae95a4f97b3cd úspěšně pushnuta (remote SHA ověřeno). Windows full 1506.295s a cache hit 9.159s, ZIP/cache bytes beze změny; skutečný site obsahuje 162 souborů. První Linux CI 38485386880/attempt1 prošlo a uložilo cache (F2 total 1121.75s). Attempt2 odmítl zastaralý základ po DV01; následná synchronizace zachovala také nové native DV01 receipts z main 76b9872. F2 zdroje a vlastní pipeline bytes zůstávají stejné.",
   "implementedSubject": {
     "artifactDigest": "2e94cc46451d9949e1cca5d3eacf3c4494797b9c8b396e6ff89b458bf9295f02"
   }

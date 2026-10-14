@@ -1,0 +1,101 @@
+{
+  "observedAtUtc": "2026-10-13T23:53:43Z",
+  "sourceCommit": "944607bad5665ba8d616771f1fdee203a150b325",
+  "sourceTree": "47c9ee26e542b52570e9d0dfd542b9c089fcab6f",
+  "coreArtifactDigest": "c49f1b6ad1cc42a12dedc94fa9daa5d73bf53be918deb0b7924d48c1e90009c1",
+  "nativeFixtureArtifactDigest": "43bef0c7739b2786877c791b4534d6fc67d4c653c0af3449d3db32476db5fb8a",
+  "prCi": {
+    "runId": 38484534383,
+    "headCommit": "1c85159ba279aa31abdd8d2c8fec98a125b88a6b",
+    "conclusion": "success",
+    "jobUrl": "https://github.com/Blato58/DildoVander/actions/runs/38484534383/job/115595189492",
+    "steps": [
+      {
+        "name": "Test native pinned LAN transport",
+        "conclusion": "success"
+      },
+      {
+        "name": "Test native debug backend client and voice sessions",
+        "conclusion": "success"
+      },
+      {
+        "name": "Test secure BLE status and secret whitelist",
+        "conclusion": "success"
+      },
+      {
+        "name": "Build unsigned iOS Simulator app",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "webCiRunId": 38486387087,
+  "signedCi": {
+    "runId": 38486542190,
+    "conclusion": "success",
+    "jobUrl": "https://github.com/Blato58/DildoVander/actions/runs/38486542190/job/115601513715",
+    "steps": [
+      {
+        "name": "Test native pinned LAN transport",
+        "conclusion": "success"
+      },
+      {
+        "name": "Test native debug backend client",
+        "conclusion": "success"
+      },
+      {
+        "name": "Test secure BLE status and secret whitelist",
+        "conclusion": "success"
+      },
+      {
+        "name": "Build signed IPA",
+        "conclusion": "success"
+      },
+      {
+        "name": "Package signed IPA with provenance",
+        "conclusion": "success"
+      },
+      {
+        "name": "Save signed IPA and checksum",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "runner": {
+    "prImage": "macos-15-arm64",
+    "prImageVersion": "20260907.0337.1",
+    "signingRequestedRunner": "macos-15",
+    "signingImageLog": "Partly masked by existing secret redaction; exact signing image revision is not claimed.",
+    "xcodeBothWorkflows": "26.3 (workflow checks passed)"
+  },
+  "packageManifest": {
+    "schema": 1,
+    "repository": "Blato58/DildoVander",
+    "run_id": 38486542190,
+    "run_attempt": 1,
+    "event": "workflow_dispatch",
+    "source_sha": "944607bad5665ba8d616771f1fdee203a150b325",
+    "source_tree": "47c9ee26e542b52570e9d0dfd542b9c089fcab6f",
+    "head_sha": "944607bad5665ba8d616771f1fdee203a150b325",
+    "base_sha": null,
+    "pr_number": null,
+    "payload_sha256": "b96e81eaa176558eb54728f2049285f5c6fa01aa021203be0d81ac3c0f9fb6d9",
+    "signing_kind": "ad_hoc"
+  },
+  "signedArtifact": {
+    "id": 11860107419,
+    "digest": "sha256:1ab222b3dd2918197d3050c0e33b6d1985cb73c13578b9c6ed9281b25f8db359",
+    "retentionDays": 3,
+    "ipaSha256": "2c1dd2a9469a09da6ad6c1fc3501a94458eed29409afb82ce9be19f99cba056b"
+  },
+  "checks": [
+    "Full PR CI including backend HTTP smoke, firmware profiles/host tests, web, ai-eval, native Swift and Simulator build: success.",
+    "Supported main signing workflow reran transport/debug/handsfree/provisioning tests; cancellation/dedupe preserved input and checkpoint assertions passed.",
+    "Existing package.py unpack validated payload checksum and archive entries; downloaded IPA matches emitted SHA-256.",
+    "Package source SHA/tree matches merged main; every core/fixture input hash matches worktree and main Git blob.",
+    "Read-only private deployment workflow inspection confirmed workflow_dispatch only (no workflow_run/repository_dispatch); latest IPA deployment38251362604 was2026-10-12T12:48:27Z, before this signing, with no post-sign deployment run at receipt preparation."
+  ],
+  "limitations": [
+    "Fake peers and native build do not prove physical iPhone playback or ESP hardware.",
+    "No publication, phone installation, deployment, firmware flash or paid provider call."
+  ]
+}
