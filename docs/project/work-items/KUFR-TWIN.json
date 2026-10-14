@@ -162,5 +162,5 @@
     "artifactDigest": "bfa57a8849aaea6b72f30da3c5e5ecea0c6ff259b0965c9aeb71ca90d39b4366",
     "policyVersion": "twin-v2"
   },
-  "currentNote": "VPS twin-20261014-v11 / build bfa57a8849aaea6b72f30da3c5e5ecea0c6ff259b0965c9aeb71ca90d39b4366. Shared C++ voice/session runtime, browser PCM/JPEG/playback, page settings and key reuse implemented. Actual VPS Chrome fake-device E2E:4x9600B microphone,4361B accepted JPEG/no fallback,5x4800B drained outputs,slot6 CAD lift16mm; other slots0, reload/mobile/Stop pass. Real provider calls and physical ESP not tested. PR191 merged as fe39e4b; media slice pending commit/push."
+  "currentNote": "VPS twin-20261014-v11 / build bfa57a8849aaea6b72f30da3c5e5ecea0c6ff259b0965c9aeb71ca90d39b4366. Shared C++ voice/session runtime, browser PCM/JPEG/playback, page settings and key reuse implemented. Actual VPS Chrome fake-device E2E:4x9600B microphone,4361B accepted JPEG/no fallback,5x4800B drained outputs,slot6 CAD lift16mm; other slots0, reload/mobile/Stop pass. Real provider calls and physical ESP not tested. PR191 merged as fe39e4b; media implementation commit1f5ae18083f46d4a6d9fce0e70023f64c49bfb7e pushed and remoteHEAD verified on codex/twin-browser-media; scoped Gitleaks8.30.1 scan passes with no findings."
 }
