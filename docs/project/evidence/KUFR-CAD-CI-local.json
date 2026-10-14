@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-CAD-CI-local",
+  "observedAtUtc": "2026-10-14T20:30:01.500481+00:00",
+  "kind": "unit",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-CAD-CI",
+      "criterionId": "ISOLATION",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "bde780829a707fe9050d87a71693572617c9ad8dac41409174133691bf040bc8"
+  },
+  "method": "python unittest: scripts/ci test_select_projects.py(10), test_site_workflow.py(8), test_tracking_workflow.py(2); kufr/web test_*.py(15), final test_viewer_style.py(4), test_twin_manifest.py(6); node --test scripts/ci/*.test.cjs(45), final/test_viewer.cjs and test_twin_viewer.cjs(71); scripts/test_project_status.py(58); actionlint1.7.12 -shellcheck= -pyflakes=; git diff --check.",
+  "environment": "Windows task checkout at fe39e4b48f6aee4a6328ba3003fb7518813c4e0a; Python3.14 and Node25.9. Sources normalized LF in ordered scope digest.",
+  "limitations": [
+    "Full scripts/ci discovery fails the pre-existing Windows executable mode test (438 vs493);10 tests skip without Linux/Gitleaks. Web suite has3 Linux-only skips.",
+    "Hosted Linux CAD regeneration, cache hit and actual built Companion assembly pending.",
+    "No publishing, deployment, hardware, signing or paid AI tests."
+  ],
+  "observation": "All targeted checks above passed. Includes mandatory CAD result gate, no manufacturing steps for lightweight PR site checks, no artifact upload with manufacturing disabled, main warming input coverage, manual recovery group isolation, and real static assembly with synthetic CAD fixtures plus deleted CSS regression."
+}

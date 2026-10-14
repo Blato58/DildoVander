@@ -10,7 +10,7 @@ on:
         description: Project to rebuild for an artifact on the current tree
         type: choice
         default: all
-        options: [all, repository, backend, firmware, web, ios, ai-eval, site]
+        options: [all, repository, backend, firmware, web, ios, ai-eval, site, cad]
       pr_number:
         description: Internal synchronized PR number (empty for recovery builds)
         type: string
@@ -67,6 +67,7 @@ jobs:
       ios: ${{ steps.projects.outputs.ios }}
       ai-eval: ${{ steps.projects.outputs.ai-eval }}
       site: ${{ steps.projects.outputs.site }}
+      cad: ${{ steps.projects.outputs.cad }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -204,11 +205,18 @@ jobs:
       contents: read
       actions: read
     uses: ./.github/workflows/kufr-site.yml
+    with:
+      verify-manufacturing: ${{ github.event_name == 'workflow_dispatch' && inputs.pr_number == '' }}
+
+  cad:
+    needs: changes
+    if: needs.changes.outputs.cad == 'true'
+    uses: ./.github/workflows/kufr-cad.yml
 
   required:
     name: CI required
     if: always()
-    needs: [secret-scan, changes, repository, tracking, backend, firmware, web, ios, ai-eval, site]
+    needs: [secret-scan, changes, repository, tracking, backend, firmware, web, ios, ai-eval, site, cad]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     env:

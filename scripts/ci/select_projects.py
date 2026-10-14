@@ -8,7 +8,7 @@ import re
 import subprocess
 
 
-PROJECTS = ("repository", "backend", "firmware", "web", "ios", "ai-eval", "site")
+PROJECTS = ("repository", "backend", "firmware", "web", "ios", "ai-eval", "site", "cad")
 BUILD_WORKFLOWS = {
     ".github/workflows/kufr-backend.yml": "backend",
     ".github/workflows/kufr-firmware.yml": "firmware",
@@ -17,6 +17,14 @@ BUILD_WORKFLOWS = {
     ".github/workflows/kufr-ios-sign.yml": "ios",
     ".github/workflows/kufr-ai-eval.yml": "ai-eval",
     ".github/workflows/kufr-site.yml": "site",
+    ".github/workflows/kufr-cad.yml": "cad",
+}
+
+CAD_INPUTS = {
+    "kufr/docs/zapojeni-potvrzeneho-hardwaru.md",
+    "kufr/mechanika/rozmery-nakoupenych-soucastek.md",
+    "scripts/ci/install-cad-slicer.sh",
+    "kufr/mobilni-aplikace/.nvmrc",
 }
 
 
@@ -24,8 +32,13 @@ def select_projects(paths):
     selected = dict.fromkeys(PROJECTS, False)
     for path in paths:
         parts = PurePosixPath(path).parts
-        if "docs" in parts or PurePosixPath(path).suffix.lower() in {".md", ".mdx", ".rst"}:
+        cad_input = path.startswith((
+            "kufr/mechanika/final/", "kufr/design-system/", ".github/actions/verified-cad/",
+        )) or path in CAD_INPUTS
+        if not cad_input and ("docs" in parts or PurePosixPath(path).suffix.lower() in {".md", ".mdx", ".rst"}):
             continue
+        if cad_input:
+            selected["cad"] = True
         if path.startswith((".github/", "scripts/ci/")):
             selected["repository"] = True
         if path in BUILD_WORKFLOWS:
@@ -83,6 +96,14 @@ def check_results(selected, jobs):
         raise ValueError("Unexpected CI results: " + ", ".join(failed))
 
 
+def select_recovery_projects(project):
+    selected = {name: project in ("all", name) for name in PROJECTS}
+    # Recovery site builds already run full CAD verification before packaging.
+    if project == "all":
+        selected["cad"] = False
+    return selected
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", choices=("select", "check"))
@@ -95,7 +116,7 @@ def main():
         print("Every selected project passed; unrelated projects were skipped")
         return
     if args.project:
-        selected = {name: args.project in ("all", name) for name in PROJECTS}
+        selected = select_recovery_projects(args.project)
     else:
         selected = select_projects(changed_paths(args.base, args.head))
     print(json.dumps(selected, sort_keys=True))

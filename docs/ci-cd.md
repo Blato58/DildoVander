@@ -8,7 +8,7 @@ Priprava hranice sama nemeni viditelnost zdrojoveho repozitare.
 
 ## Zdrojove buildy
 
-Vsech deset zdrojovych workflow pouziva GitHub-hosted runners. PR CI nema
+Zdrojova workflow pouzivaji GitHub-hosted runners. PR CI nema
 produkcni prostredi, SSH ani provider credentials. `pr-sync.yml` pouziva pouze
 API a duveryhodny kod vychozi vetve; jeho private guard po skutecnem
 zverejneni vypne controller. Fork PR se nemeni.
@@ -20,13 +20,32 @@ zverejneni vypne controller. Fork PR se nemeni.
 | `kufr-firmware.yml` | ESP-IDF host testy a firmware build |
 | `kufr-web.yml` | Web a offline testy |
 | `kufr-ios.yml` | Nativni Swift testy a nepodepsany iOS Simulator build na macOS |
-| `kufr-site.yml` | Regenerace CAD, Companion a arcane-site na hosted Linuxu |
+| `kufr-site.yml` | Rychle PR kontroly webu/vieweru a Companion; rucni main build celeho arcane-site |
+| `kufr-cad.yml` | Samostatna CAD gate a naplneni sdilene cache po zmene CAD vstupu na main |
 | `kufr-ai-eval.yml` | Pouze offline synteticky corpus a parser |
 | `reuse-build.yml` | Overeni aktualniho main artefaktu pred podpisem |
 | `kufr-ios-sign.yml` | Rucni podepsane Ad Hoc IPA na macOS |
 | `pr-sync.yml` | API-only synchronizace vlastnich PR za private podminky |
 
-Site build obnovuje overeny CAD balicek z Actions cache pouze pro presnou
+PR zmeny mobilu, backendu, kontraktu a verejneho webu nespousteji CAD regeneraci.
+Samostatny job `cad` je povinny pro zmeny `kufr/mechanika/final/`, sdileneho
+design-systemu, pripnuteho sliceru, Node verze a dvou dokumentu pouzitych ve
+zdrojovem snapshotu (rozmery soucastek a potvrzene zapojeni). To zahrnuje i
+Markdown uvnitr vyrobniho balicku. Job `site` v PR testuje sestaveni Companionu,
+viewer a sestaveni skutecnych statickych zdroju builderem s izolovanymi
+syntetickymi CAD fixtures; kompletni vyrobni ZIP nevytvari. Po sestaveni
+Companionu pouziva i jeho skutecne `dist`, nikoli pouze HTML fixture.
+Rucni recovery `project=site` nebo `all` stale regeneruje a overuje cely CAD
+balicek pred sestavenim publikovatelneho artefaktu. `project=cad` spusti pouze
+CAD gate. Kontrola `CI required` vyzaduje uspech vsech vybranych jobs.
+
+CAD workflow po relevantnim push na `main` naplni cache vychozi vetve;
+nic nepublikuje ani nenasazuje. GitHub cache vytvorena pro `refs/pull/N/merge`
+je dostupna jen temuz PR, ne jinym PR ani main. Cache main mohou cist dalsi PR
+([pravidla GitHub cache](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache)).
+Proto samotne opakovane ukladani PR cache nezajisti sdileni napric PR.
+
+Sdilena composite action `verified-cad` obnovuje balicek pouze pro presnou
 shodu zdroju a runtime. Spolecny `Regenerate.ps1` pak znovu kontroluje zdroje
 a SHA-256 vsech vystupu; neplatna cache spusti kompletni testy, regeneraci
 a overeni. Python testy sdili memoizovanou geometrii v jednom procesu;

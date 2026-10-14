@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from select_projects import changed_paths, check_results, PROJECTS, select_projects
+from select_projects import changed_paths, check_results, PROJECTS, select_projects, select_recovery_projects
 
 
 class ProjectSelectionTests(unittest.TestCase):
@@ -32,8 +32,8 @@ class ProjectSelectionTests(unittest.TestCase):
             (["kufr/mobilni-aplikace/tests/native_debug/main.swift"], {"web", "ios", "site"}),
             (["kufr/ai-eval/cases.json"], {"ai-eval"}),
             (["kufr/firmware/src/espidf_main.cpp", "kufr/backend/Program.cs"], {"firmware", "backend"}),
-            (["kufr/mechanika/final/mechanism.py", "obludarium/docs/a.md"], {"site"}),
-            (["kufr/design-system/tokens/colors.css"], {"web", "ios", "site"}),
+            (["kufr/mechanika/final/mechanism.py", "obludarium/docs/a.md"], {"site", "cad"}),
+            (["kufr/design-system/tokens/colors.css"], {"web", "ios", "site", "cad"}),
             (["kufr/web/index.html"], {"site"}),
         ]:
             with self.subTest(paths=paths):
@@ -50,8 +50,29 @@ class ProjectSelectionTests(unittest.TestCase):
         self.assertEqual(self.selected(".github/workflows/ci.yml"), {"repository"})
         self.assertEqual(self.selected("scripts/ci/select_projects.py"), {"repository"})
         self.assertEqual(self.selected(".github/workflows/kufr-site.yml"), {"repository", "site"})
+        self.assertEqual(self.selected(".github/workflows/kufr-cad.yml"), {"repository", "cad"})
         self.assertEqual(self.selected(".github/workflows/kufr-ios.yml"), {"repository", "ios"})
         self.assertEqual(self.selected(".github/workflows/kufr-ios-sign.yml"), {"repository", "ios"})
+
+    def test_cad_runs_only_for_manufacturing_inputs(self):
+        for path in ["kufr/mechanika/final/SPECIFIKACE.md",
+                     "kufr/mechanika/final/reference/inspect-sources.json",
+                     "kufr/docs/zapojeni-potvrzeneho-hardwaru.md",
+                     "kufr/mechanika/rozmery-nakoupenych-soucastek.md",
+                     "scripts/ci/install-cad-slicer.sh",
+                     ".github/actions/verified-cad/action.yml",
+                     "kufr/mobilni-aplikace/.nvmrc"]:
+            with self.subTest(path=path):
+                self.assertIn("cad", self.selected(path))
+        for path in ["kufr/mobilni-aplikace/src/main.ts", "kufr/web/index.html",
+                     "kufr/contracts/package-lock.json", "kufr/backend/Program.cs"]:
+            with self.subTest(path=path):
+                self.assertNotIn("cad", self.selected(path))
+
+    def test_recovery_site_covers_cad_without_a_duplicate_job(self):
+        self.assertFalse(select_recovery_projects("all")["cad"])
+        self.assertTrue(select_recovery_projects("all")["site"])
+        self.assertEqual({name for name, enabled in select_recovery_projects("cad").items() if enabled}, {"cad"})
 
     def test_git_diff_includes_both_sides_of_a_rename(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -101,6 +122,15 @@ class ProjectSelectionTests(unittest.TestCase):
                 check_results(selected, {**jobs, "ios": {"result": result}})
         with self.assertRaises(ValueError):
             check_results(selected, {name: value for name, value in jobs.items() if name != "ios"})
+
+    def test_selected_cad_is_a_required_gate(self):
+        selected = {name: "true" if name == "cad" else "false" for name in PROJECTS}
+        jobs = {name: {"result": "success" if name == "cad" else "skipped"} for name in PROJECTS}
+        jobs["changes"] = {"result": "success"}
+        check_results(selected, jobs)
+        for result in ("skipped", "failure", "cancelled"):
+            with self.subTest(result=result), self.assertRaises(ValueError):
+                check_results(selected, {**jobs, "cad": {"result": result}})
 
 
 if __name__ == "__main__":
