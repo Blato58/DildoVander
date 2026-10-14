@@ -51,6 +51,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fixtures", type=Path, help="Write reproducible synthetic trace JSON into this directory")
     parser.add_argument("--only", action="append", help="Run only a named host check (repeatable)")
+    parser.add_argument("--telemetry-fixture", type=Path, help="Export actual firmware Twin serializer output from fake I/O")
     args = parser.parse_args()
     compiler, env, msvc = compiler_environment()
     checks = [
@@ -61,6 +62,7 @@ def main():
         ("persistent_command_journal_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl", "device_control/PersistentCommandJournal"], []),
         ("dance_coordinator_test", ["dance/DanceCoordinator", "physical_effects/PhysicalEffects"], []),
         ("show_trace_mailbox_test", ["physical_effects/PresentationDiagnostics"], []),
+        ("twin_telemetry_test", CORE, []),
         ("espidf_voice_audio_test", ["voice_turn/EspIdfVoiceAudio"], ["tests/audio_stubs"]),
         ("local_control_server_test", ["local_control/EspIdfLocalControlServer", "local_control/LocalControlCodec", "local_control/LocalControlInbox", "local_control/LocalSocketAdmission", "local_control/LocalBearerAuthenticator", "provisioning/LocalTlsIdentity", "provisioning/LocalPairingCredential", "conversation/ConversationSession", "conversation/ConversationStartCodec"], ["tests/server_stubs"]),
         ("wand_presentation_test", CORE, []),
@@ -116,6 +118,11 @@ def main():
                     if not node:
                         raise SystemExit("Node.js is required to verify the unchanged strict control envelope")
                     subprocess.run([node, str(ROOT.parent / "contracts/verify-firmware-output.mjs"), str(emitted)], env=env, check=True)
+                elif name == "twin_telemetry_test" and args.telemetry_fixture:
+                    data = subprocess.check_output([str(executable), "--export"], cwd=output, env=env, text=True, encoding="utf-8")
+                    args.telemetry_fixture.parent.mkdir(parents=True, exist_ok=True)
+                    args.telemetry_fixture.write_text(data, encoding="utf-8", newline="\n")
+                    print("PASS actual firmware telemetry serializer fixture", flush=True)
                 else:
                     subprocess.run(arguments, cwd=output, env=env, check=True)
             print(f"PASS {name}", flush=True)

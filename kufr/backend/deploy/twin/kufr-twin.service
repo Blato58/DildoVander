@@ -1,0 +1,24 @@
+[Unit]
+Description=DildoVander firmware Digital Twin (isolated simulation and observer ingest)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=kufr-backend
+Group=kufr-backend
+WorkingDirectory=/opt/kufr-twin/current
+Environment=ASPNETCORE_URLS=http://127.0.0.1:5082
+Environment=KUFR_TWIN_CONFIG=/etc/kufr-twin/config.json
+ExecStart=/opt/kufr-twin/current/backend
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/kufr-twin
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

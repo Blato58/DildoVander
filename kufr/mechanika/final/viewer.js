@@ -1,5 +1,6 @@
 /* Embedded by preview.py: the exported viewer needs no server or network. */
 const el = id => document.getElementById(id);
+let twinViewer = null;
 const canvas = el('view');
 const gl = canvas.getContext('webgl', {antialias: true});
 if (!gl) throw new Error('WebGL není dostupné');
@@ -169,6 +170,7 @@ let selectedWire = '', selectedEndpoint = '';
 let hoveredConnection = null;
 let effect = null, effectFault = false;
 const lightStates = Array(trayAngles.length).fill(null);
+const twinOutputStates = new Map();
 function inspecting() { return shiftDown || inspectEnabled; }
 function matchesPart(name, part) {
   return name === part || name.startsWith(part.endsWith('*') ? part.slice(0,-1) : part.endsWith('_') ? part : part + '_');
@@ -210,7 +212,8 @@ function motionFor(mesh) {
 }
 function movement(mesh) {
   if (mesh.group.startsWith('lid')) return rotX(-el('lid').value*Math.PI/180, model.hinge);
-  const motion = motionFor(mesh), angle = motion ? trayAngles[motion.index-1] : 0;
+  const motion = motionFor(mesh);
+  const angle = motion ? (twinViewer?.active() ? twinViewer.angle(motion.index) ?? 0 : trayAngles[motion.index-1]) : 0;
   if (motion?.type === 'lift') return translate(lift(angle));
   if (motion?.type === 'cam') {
     return rotX(angle*Math.PI/180, [0, model.mechanism.origin_y+model.mechanism.cam_y, model.mechanism.origin_z+model.mechanism.cam_z]);
@@ -261,13 +264,17 @@ function renderMeshes(picking, selected) {
     const id = mesh.pickId;
     const ledIndex = +(mesh.name.match(/^led_([1-6])$/)?.[1] || 0);
     const effectColor = ledIndex && lightStates[ledIndex-1];
-    const contextOpacity = visualMode === 'electronics' && !['hardware','moving_hw'].includes(mesh.group) ? .12 : ['case','lid'].includes(mesh.group) ? +el('case-opacity').value : 1;
+    const reportedOutput = twinViewer?.active() ? twinOutputStates.get(mesh.name) : null;
+    const outputColor = reportedOutput === 'cancel' ? [.906,.502,.486] :
+      reportedOutput === 'voice-busy' ? [.549,.733,.867] : reportedOutput ? [.851,.718,.467] : null;
+    const motion = motionFor(mesh), uncertain = twinViewer?.active() && motion && twinViewer.uncertainty(motion.index);
+    const contextOpacity = uncertain ? .28 : visualMode === 'electronics' && !['hardware','moving_hw'].includes(mesh.group) ? .12 : ['case','lid'].includes(mesh.group) ? +el('case-opacity').value : 1;
     const translucent = !picking && contextOpacity < 1;
     gl.uniform1f(loc.opacity,translucent ? contextOpacity : 1);
     if (translucent) { gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); }
     else { gl.disable(gl.BLEND); gl.depthMask(true); }
-    gl.uniform3fv(loc.color, picking ? [(id & 255)/255, ((id >> 8) & 255)/255, ((id >> 16) & 255)/255] : effectColor || mesh.color);
-    gl.uniform1f(loc.highlight, !picking && selected === mesh ? .65 : !picking && newlyInstalled(mesh) ? .45 : 0);
+    gl.uniform3fv(loc.color, picking ? [(id & 255)/255, ((id >> 8) & 255)/255, ((id >> 16) & 255)/255] : effectColor || outputColor || mesh.color);
+    gl.uniform1f(loc.highlight, !picking && selected === mesh ? .65 : !picking && newlyInstalled(mesh) ? .45 : !picking && reportedOutput ? .35 : 0);
     gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffer);
     gl.vertexAttribPointer(pa, 3, gl.FLOAT, false, 24, 0);
     gl.vertexAttribPointer(na, 3, gl.FLOAT, false, 24, 12);
@@ -584,6 +591,7 @@ function draw() {
   el('inspect-hint').textContent = pinned ? `Připnuto: ${pinned.name}. Klik na jiný objekt změní výběr; klik do prázdna nebo Zrušit výběr jej zruší.` : selected ? 'Klik na objekt připne jeho kartu a umožní změnit barvu.' : 'Inspect: názvy všech objektů zapnutých vrstev. Najeďte na díl; Servis odkryje elektroniku.';
   canvas.style.cursor = inspecting() ? 'crosshair' : drag ? 'grabbing' : 'grab';
   updatePanel(selected);
+  twinViewer?.selection(pinned?.name || null);
   updateWireDetails();
   updateOverlay(selected);
   el('selection-bar').hidden = !pinned;
@@ -751,7 +759,7 @@ el('reset-color').onclick = () => {
 };
 el('lid').oninput = requestDraw;
 el('lift').oninput = () => {
-  if (effect || effectFault || mode === 'transport' || mode === 'assembly') return;
+  if (twinViewer?.active() || effect || effectFault || mode === 'transport' || mode === 'assembly') return;
   trayAngles[+el('tray').value-1] = +el('lift').value; requestDraw();
 };
 el('tray').onchange = () => { el('lift').value = trayAngles[+el('tray').value-1]; requestDraw(); };
@@ -792,7 +800,7 @@ el('play-short').onclick = () => startEffect('short');
 el('effect-stop').onclick = stopEffect;
 el('dock-effect-stop').onclick = stopEffect;
 el('service-reset').onclick = () => {
-  if (mode !== 'service') return;
+  if (twinViewer?.active() || mode !== 'service') return;
   effect = null; effectFault = false; trayAngles.fill(0); lightStates.fill(null);
   el('effect-phase').textContent = '';
   el('lift').disabled = false; el('lift').value = 0;
@@ -878,10 +886,10 @@ function setMode(value) {
   el('wands').checked = !transport && !service; el('bank').checked = !transport; el('textile').checked = !transport && !service;
   el('wires').checked = service; el('case-opacity').value = service ? .2 : 1;
   el('dimensions').checked = false;
-  if (transport || mode === 'assembly') trayAngles.fill(0);
+  if (!twinViewer?.active() && (transport || mode === 'assembly')) trayAngles.fill(0);
   el('lift').value = trayAngles[+el('tray').value-1] || 0;
-  el('lift').disabled = transport || mode === 'assembly' || effectFault;
-  el('service-reset').disabled = !service;
+  el('lift').disabled = !!twinViewer?.active() || transport || mode === 'assembly' || effectFault;
+  el('service-reset').disabled = !!twinViewer?.active() || !service;
   el('mode-note').textContent = transport ? 'Ruční přepravní sestava: všech šest pásků, prázdná lůžka, odpojená banka, parkovaný USB kabel. Stav pásků nelze elektronicky potvrdit.' : 'Jde o náhled sestavy. Přepnutí režimu nepohybuje fyzickým mechanismem.';
   if (mode === 'assembly') { assemblyIndex = -1; setGuideOpen(true); }
   if (!effectFault) {
@@ -1036,8 +1044,8 @@ function updateEffectTimeline(index, fraction) {
   }
 }
 function updateEffectControls() {
-  el('play-main').disabled = mode !== 'operation' || effectFault || !!effect;
-  el('play-short').disabled = mode !== 'operation' || effectFault || !!effect;
+  el('play-main').disabled = !!twinViewer?.active() || mode !== 'operation' || effectFault || !!effect;
+  el('play-short').disabled = !!twinViewer?.active() || mode !== 'operation' || effectFault || !!effect;
   el('effect-stop').disabled = !effect;
   el('dock-effect-stop').hidden = !effect;
   el('dock-effect-stop').disabled = !effect;
@@ -1052,7 +1060,7 @@ function playTone(frequency) {
   toneOscillator.frequency.value = frequency; toneOscillator.connect(gain); gain.connect(audioContext.destination); toneOscillator.start();
 }
 function startEffect(kind) {
-  if (mode !== 'operation' || effectFault || effect) return;
+  if (twinViewer?.active() || mode !== 'operation' || effectFault || effect) return;
   const phases = model.effects?.[kind];
   if (!Array.isArray(phases) || !phases.length) { updateEffectStatus('Sdílená data efektů nejsou dostupná.'); return; }
   // Include audio setup in the budget, using the live monotonic clock.
@@ -1129,6 +1137,40 @@ for (const endpoint of [...new Set([...Object.keys(model.endpoints || {}),...rou
 el('mode').value = mode; el('wire-scope').value = 'branch'; el('case-opacity').value = 1;
 el('envelope-note').textContent = 'Meze návrhu (nejsou zaručený volný kvádr): '+(model.case?.safe_zone || [400,240,170]).join(' × ')+' mm. Zdvih '+model.mechanism.lift+' mm, '+trayAngles.length+' modulů. Korpus není určen k tisku.';
 updateObjectOptions(); buildTree(); updateAssembly(); updateTransportInstructions(); updateEffectControls(); showEffectTimeline(model.effects?.main || []); draw();
+if (typeof DigitalTwin !== 'undefined') twinViewer = DigitalTwin.mount(document, model, {
+  clear:() => { trayAngles.fill(0); lightStates.fill(null); twinOutputStates.clear(); pinned = null; requestDraw(); },
+  activate:() => {
+    effect = null; stopTone(); lightStates.fill(null); twinOutputStates.clear();
+    el('lift').disabled = true; el('service-reset').disabled = true;
+    updateEffectControls(); updateEffectStatus('Digital Twin: polohy a LED pouze ze snapshotu. Návrhový přehrávač je pozastaven.');
+    requestDraw();
+  },
+  deactivate:() => {
+    twinOutputStates.clear();
+    el('lift').disabled = mode === 'transport' || mode === 'assembly' || effectFault;
+    el('service-reset').disabled = mode !== 'service'; updateEffectControls();
+    updateEffectStatus('Návrhový náhled bez runtime snapshotu.'); requestDraw();
+  },
+  apply:(angles,grb,reported = {}) => {
+    angles.forEach((angle,index) => { trayAngles[index] = angle ?? 0; });
+    const outputs = DigitalTwin.reportedOutputs(model.twinManifest, reported);
+    twinOutputStates.clear();
+    for (const name of outputs.vibrationMeshes) twinOutputStates.set(name, 'vibration-commanded');
+    for (const name of outputs.audioMeshes) twinOutputStates.set(name, outputs.audioKind);
+    for (let slot=0; slot<6; slot++) {
+      const pixels = model.twinManifest?.slots[slot]?.channels;
+      if (!pixels || grb.length !== 108) { lightStates[slot] = null; continue; }
+      const sum = [0,0,0];
+      for (let pixel=0; pixel<pixels.ledCount; pixel++) {
+        const offset = (pixels.ledStart+pixel)*3;
+        sum[0] += grb[offset+1]; sum[1] += grb[offset]; sum[2] += grb[offset+2];
+      }
+      lightStates[slot] = sum.map(value => value/(255*pixels.ledCount));
+    }
+    requestDraw();
+  },
+  select:name => { pinned = meshesByName.get(name) || null; inspectEnabled = true; clearWireSelection(); setWorkshopPanel('inspector',true); requestDraw(); },
+});
 window.addEventListener('resize',requestDraw);
 window.visualViewport?.addEventListener('resize',requestDraw);
 if (typeof ResizeObserver !== 'undefined') new ResizeObserver(requestDraw).observe(canvas);

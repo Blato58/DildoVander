@@ -1,5 +1,9 @@
 # Hostitelský simulátor výběru
 
+Aktuální DV02 Digital Twin používá [nativní host](native/README.md) a
+[společný chráněný CAD viewer](../docs/digital-twin.md). Níže popsané E2 CLI/WSS
+zůstává starším kompatibilním harnessem; jeho fake odpověď není dnešní show runtime.
+
 Simulátor E2.3 spouští čistý C++ model `DeviceControl` a `SelectionSequence`
 proti fake portu a journalu. Každý řádek časové osy začíná `SIMULACE`.
 Požadavky na motor a západku neovládají hardware.

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "targetId": "KUFR-TWIN-text-software",
+  "purpose": "Verified native text/effects, CAD observer and VPS transport slice. Does not accept MEDIA or PHYSICAL; the full work item remains active.",
+  "components": {
+    "artifactDigest": "6da66c79a2bf8f99ab428bf5ed3ca2563abfb173ab5104d78ad52330494daa13",
+    "policyVersion": "twin-v1"
+  },
+  "requiredCriteria": [
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "HOST"
+    },
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "VIEWER"
+    },
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "LIVE"
+    },
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "ISOLATION"
+    },
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "DEPLOY"
+    }
+  ]
+}

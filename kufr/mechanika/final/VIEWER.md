@@ -102,6 +102,68 @@ Detaily a seznam fungují klávesnicí; Escape vrátí focus na tlačítko DV02.
 
 Podrobnosti kontraktů a fyzických bran jsou v [DV02](../../docs/dv02.md).
 
+## Digital Twin runtime
+
+Panel **Digital Twin** používá stejný CAD model pro nativní simulaci a živého
+ESP32 pozorovatele podle [wire kontraktu](../../contracts/digital-twin.md).
+Trvalý štítek odlišuje návrhový náhled, SIMULACI, LIVE a REPLAY i při sbaleném
+panelu. Živá data jsou kalibrované odhady; `unknown`/`moving` zachovají poslední
+zaznamenanou polohu s průhledným dílem. Na začátku bootu je průhledná referenční
+CAD poloha `unknown`, nikoli hlášení návratu. Stop nepohybuje modelem do klidu.
+
+Soukromý `/twin` nebo lokální HTTP origin umožňuje observer/control scoped
+Digital Twin session credential. Přihlášení používá vždy stejný origin.
+Credential se po odeslání vymaže,
+není uložen ve vieweru ani v záznamu; server vrátí HttpOnly session cookie.
+Publikovaný `/workshop` pole pro credential nemá a používá pouze existující
+observer session svého originu. Offline file export podporuje návrh a replay;
+pro runtime otevřete soukromý `/twin`, cross-origin cookie není podporována.
+Tlačítko **Načíst zdroje** čte `/v1/twin/instances`.
+Výběr zdroje zruší předchozí stav a polling čte plné snapshoty každých 250 ms.
+Přijetí serverem určuje age; zařízení má oddělené přesné decimal string clocks.
+Po 2 s je zdroj stale, po 10 s offline; geometrie se sama dál neposouvá.
+
+Control session smí posílat typované povely jen simulaci: syntetický text
+1–6/main/short, Stop, inspect, dance, fake clock a fault. Observer session a
+LIVE ani replay nemají příkazy. Chyby a capabilities zůstávají viditelné.
+Přijatý `vibrationMask` s `outputsEnabled` zvýrazní odpovídající CAD `u059_n`;
+jako commanded output bez fyzického třesení či tvrzení měření. Audio evidence
+enqueue/cancel/voice-busy zvýrazní skutečné reproduktory/zesilovače z manifestu.
+Inspector vždy odlišuje frontu/cancel/busy od slyšitelného zvuku.
+Profil `deterministic` používá syntetický text a injected clock. Profil
+`integration` odesílá skutečný vstup jako `integrationText` s klientským request
+UUID; slot/variant vybírá backend. Integrační běh používá wall-clock a nemá
+pauzu, krok ani změnu rychlosti. Typovaný povel `release` výslovně uvolní
+výhradní vlastnictví ovládání; následující povel může o vlastnictví znovu požádat.
+Profil je viditelný ve výběru zdroje, trvalém štítku, capabilities a exportu.
+Návrhový přehrávač efektů je při runtime projekci pozastaven. Výběr CAD objektu
+aktualizuje runtime inspector; tlačítko doložené trace události vybere příslušný
+mesh a slot. Události se nepřevádějí na nové povely.
+
+Export obsahuje nejvýše 2048 plných snapshotů / 8 MiB, jejich source versions,
+trace, device clocks a server receipt. Po dosažení limitu odstraní nejstarší
+snapshot a ukazuje drop counter. Import stejného formátu umožňuje seek,
+přehrávání, pauzu a rychlost; rekonstruuje pouze zaznamenané snapshoty, bez
+časové interpolace či síťového ovládání. Nový boot zahájí samostatnou epochu.
+
+`twin_manifest.py` odvozuje stabilní mesh IDs, sloty, kanály PCA/LED, osy,
+pivoty a vzorky kinematiky ze skutečných parameters, mechanism.cam_law a effects
+layoutu. `preview.py --viewer-only` vytváří `exports/twin.manifest.json` a stejný
+manifest vloží do vieweru. CAD hash je oddělený od provozní kalibrace; chybějící
+nebo neodpovídající revision má trvale čitelné upozornění. Parametrové testy
+spouštějí skutečný mechanism.cam_law přes AST bez CAD závislostí.
+Audio mapování obsahuje pouze existující mesh IDs dodané skutečnou CAD
+generací. Provenance `geometryDigest` váže revizi na úplná vygenerovaná mesh
+data, kanonicky seřazená podle názvu; změna stejnojmenné geometrie změní hash.
+
+```powershell
+node --check kufr/mechanika/final/twin_viewer.js
+node --test kufr/mechanika/final/test_twin_viewer.cjs
+Push-Location kufr/mechanika/final
+python -m unittest test_twin_manifest.py
+Pop-Location
+```
+
 ## Zdroj, generování a kontrola
 
 Upravují se `viewer.js`, `viewer-template.html`, `viewer-workshop.css`, nikoli

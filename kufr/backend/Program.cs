@@ -6,12 +6,25 @@ using Kufr.Backend.Features.Realtime;
 using Kufr.Backend.Features.Diagnostics;
 using Kufr.Backend.Features.Memory;
 using Kufr.Backend.Features.Firmware;
+using Kufr.Backend.Features.DigitalTwin;
 using Microsoft.AspNetCore.RateLimiting;
 
 var provisioning = args.Contains("--memory-provision");
 var builder = WebApplication.CreateBuilder(args.Where(a => a is not ("--memory-provision" or "--execute" or "--create")).ToArray());
+var twinConfiguration = Environment.GetEnvironmentVariable("KUFR_TWIN_CONFIG");
+if (twinConfiguration is not null)
+{
+    if (!Path.IsPathFullyQualified(twinConfiguration)) { throw new InvalidOperationException("KUFR_TWIN_CONFIG must be absolute."); }
+    builder.Configuration.AddJsonFile(twinConfiguration, optional: false, reloadOnChange: false);
+}
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 4096);
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<TwinAccess>();
+builder.Services.AddSingleton<TwinFakeInputPolicy>();
+builder.Services.AddSingleton<TwinStore>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<TwinStore>());
+builder.Services.AddSingleton<TwinHost>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<TwinHost>());
 builder.Services.AddSingleton<DeviceAccessStore>();
 builder.Services.AddSingleton<FirmwareReleases>();
 builder.Services.AddRateLimiter(options =>
@@ -74,6 +87,7 @@ app.Use(async (context, next) =>
 });
 
 app.MapDeviceAccess();
+app.MapDigitalTwin();
 app.MapFirmwareReleases();
 app.MapConversations();
 app.MapCostumeImages();

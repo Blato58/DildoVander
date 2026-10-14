@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-TWIN-production_deploy-v1",
+  "observedAtUtc": "2026-10-14T17:07:30.263744+00:00",
+  "kind": "production_deploy",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "DEPLOY",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "611164ada409925ec84de8fab4eaa5b5d0c5a5bcdfe4946529ac44d333252cdd",
+    "policyVersion": "twin-v1"
+  },
+  "method": "package-twin.py with actual Linux .NET publish/native executable/generated CAD; exact manifest verified by install-twin.py over existing authorized SSH alias.",
+  "environment": "Windows PowerShell/MSVC/.NET10; native Linux g++15.2 VPS; actual CAD generator pinned environment; Brave headless Playwright for repeatability. No paid provider calls.",
+  "limitations": [
+    "No physical ESP/runtime, iPhone or mechanical/electrical/acoustic acceptance.",
+    "Host microphone, camera, real SD/PCM speech playback remain unsupported; Dance uses real coordinator with labeled synthetic cursor.",
+    "Measured timing is synthetic host/VPS environment, not ESP control latency.",
+    "Rollback preflight/unit cases verified; deliberately failed production rollback was not exercised."
+  ],
+  "observation": "Authorized SSH install of /opt/kufr-twin/releases/twin-20261014-v4 succeeded, current symlink v4; private backup /var/backups/kufr-twin-1791997485611213337. Linux7.0.0-34-generic x86_64, g++15.2.0; kufr-twin.service active with2 native processes,5082 readiness ready,5080 existing backend health ok and TLS viewer/browser pass. Manifest SHA256 fc681d0df08d93ca2c0deb1bcffb51ac2c2155e63147039149c43cc48d89fec2. Deployment includes isolated DB/journals, own5082/TLS routes; cloned credential hashes only explicit physical allowlist. Root-only operator credentials remain on VPS; none in repository or public viewer.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-TWIN-source-v1.json",
+    "docs/project/artifacts/KUFR-TWIN-release-v1.json"
+  ]
+}

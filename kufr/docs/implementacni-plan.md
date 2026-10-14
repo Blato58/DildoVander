@@ -1387,3 +1387,14 @@ Oficiální dokumentace byla otevřena při přípravě plánu 29. 9. 2026. Odka
 - **H8:** [Microchip MCP23017 datasheet](https://ww1.microchip.com/downloads/en/DeviceDoc/20001952C.pdf) – expander, resetové vstupy a registr výstupů; ověřit konkrétní breakout a jeho pull rezistory.
 
 Místní obrázek, produktové označení v nákupním seznamu a předběžné tabulky tohoto plánu zůstávají návrhovými podklady do ověření skutečného kusu.
+
+### Vývojová a pozorovatelská větev Digital Twin
+
+Digital Twin používá stejné přenositelné C++ ownery jako ESP, samostatné platformní
+adaptéry a stávající generovaný CAD viewer. Host není emulací ESP32. Virtuální
+mechanika nepřidává polohové snímače do firmware a živý viewer nemá řídicí oprávnění.
+Odchozí ESP telemetrie je volitelný pozorovatel mimo control loop. Identita,
+credentials, journal a backendová data simulace jsou oddělené od kufru.
+Provoz, rozsah skutečně přenesených modulů a zbývající média/fyzická akceptace jsou
+v [Digital Twin](digital-twin.md) a aktuální důkazy v KUFR-TWIN. Toto rozšíření
+nemění hardware, mechaniku ani fyzickou bránu G.

@@ -12,7 +12,7 @@
 class EspIdfTokenExchangeTransport final : public TokenExchangePort {
  public:
   explicit EspIdfTokenExchangeTransport(const std::string& backendHost,
-                                        uint16_t port = 443);
+                                        uint16_t port = 443, bool twinTelemetry = false);
 
   TokenExchangeResponse Exchange(const char* credentialHex) override;
   bool IsConfigured() const;

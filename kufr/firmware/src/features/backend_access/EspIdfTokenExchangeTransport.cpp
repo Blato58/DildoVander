@@ -23,7 +23,7 @@ void Wipe(char* data, size_t length) {
 }  // namespace
 
 EspIdfTokenExchangeTransport::EspIdfTokenExchangeTransport(
-    const std::string& backendHost, uint16_t port) {
+    const std::string& backendHost, uint16_t port, bool twinTelemetry) {
   if (!NetworkSettings::IsValidBackendHost(backendHost) || port == 0) {
     return;
   }
@@ -31,7 +31,7 @@ EspIdfTokenExchangeTransport::EspIdfTokenExchangeTransport(
   if (port != 443) {
     url_ += ":" + std::to_string(port);
   }
-  url_ += TokenPath;
+  url_ += twinTelemetry ? "/v1/twin/device-token" : TokenPath;
 }
 
 bool EspIdfTokenExchangeTransport::IsConfigured() const {

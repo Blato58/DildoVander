@@ -14,6 +14,9 @@ class PhysicalPresentation final : public WandPresentationPort {
   PhysicalPresentation(PhysicalEffects& effects, DeviceControlRuntime& runtime)
       : effects_(effects), runtime_(runtime) {}
   void Tick(uint64_t nowMs);
+  // Explicit command selection is idle-only; callers that do not select retain
+  // the normal first/main and subsequent/short behavior.
+  bool SelectVariant(bool shortVariant);
   void ObserveOwnerTime(uint64_t nowMs) override { nowMs_ = nowMs; }
   bool AdmissionWasDuplicateOrConflict() const override { return replayRejected_; }
   void BindAudio(PresentationAudioPort& audio) { audio_ = &audio; }
