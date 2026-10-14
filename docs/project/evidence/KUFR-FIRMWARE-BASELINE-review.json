@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-FIRMWARE-BASELINE-review",
+  "observedAtUtc": "2026-10-14T10:22:45.349341+00:00",
+  "kind": "source_review",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-FIRMWARE-BASELINE",
+      "criterionId": "FETCH",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "347f12146c97951273e1e5e0033c40959776c0d12d7888dd1b22b2b582865c66"
+  },
+  "method": "Independent Sol6.1/high risk_reviewer: workflow diff, YAML parse and assertions, comparator Git object-read/failure contracts, git diff --check.",
+  "environment": "Read-only local task checkout.",
+  "limitations": [
+    "No fetch/compile run by reviewer; separate parent receipt records those checks.",
+    "GitHub must keep serving pinned historical commit; unavailability fails closed before regression tests."
+  ],
+  "observation": "No material findings. Fixed40hex SHA, depth1fetch placement, read-only permissions and persist-credentials=false preserved. Fetch does not change checkout. Baseline tree/blobs suffice; comparator constant and gates unchanged.",
+  "artifactRefs": [
+    ".github/workflows/kufr-firmware.yml",
+    "kufr/firmware/tests/compare_legacy_show.py"
+  ]
+}
