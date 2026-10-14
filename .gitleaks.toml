@@ -36,3 +36,11 @@ condition = "AND"
 paths = ['''^kufr/firmware/tests/conversation_(text_codec|start_coordinator)_test\.cpp$''']
 regexTarget = "line"
 regexes = ['''^\s*request\.idempotencyKey = "7731ce10-a53c-4934-8909-06870fc86a12";\s*$''']
+
+[[allowlists]]
+description = "The scanner regression embeds the three reviewed non-secret values"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^scripts/ci/test_secret_scan\.py$''']
+regexTarget = "secret"
+regexes = ['''^DFR0954_amplifier$''', '''^body=conversation_body$''', '''^7731ce10-a53c-4934-8909-06870fc86a12$''']

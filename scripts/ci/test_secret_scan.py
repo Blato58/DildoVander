@@ -124,6 +124,15 @@ class SecretScanIntegrationTests(unittest.TestCase):
         findings = self.scan(1)
         self.assertIn("sentry-access-token", {finding["RuleID"] for finding in findings})
 
+    def test_regression_source_only_allows_the_reviewed_non_secret_values(self):
+        path = "scripts/ci/test_secret_scan.py"
+        self.write(path, (ROOT / path).read_text(encoding="utf-8"))
+        self.commit("Scanner regression source")
+        self.assertEqual([], self.scan(0))
+        self.write(path, 'api_key = "' + self.synthetic_token() + '"')
+        self.commit("Synthetic credential in regression source")
+        self.assertTrue(self.scan(1))
+
     def test_removed_secret_remains_blocking_in_checkout_history(self):
         self.write("settings.txt", "api_key = " + self.synthetic_token())
         self.commit("Synthetic leak")
