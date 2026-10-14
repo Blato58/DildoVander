@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-MAIN-SCAN-review",
+  "observedAtUtc": "2026-10-14T10:07:19.004059+00:00",
+  "kind": "source_review",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-MAIN-SCAN",
+      "criterionId": "SCAN",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "32c52954dacff566dc7bd2c8a0ef27260e32d31c19c7983e8ab7bebf94570b67"
+  },
+  "method": "Independent Sol6.1/high risk_reviewer: redacted report, git show byte comparison, exact allowlist membership and source SHA256 verification.",
+  "environment": "Read-only review of task checkout and original3be94343/squash8952a076 commits.",
+  "limitations": [
+    "Other18 stale local-remote findings excluded; deployment and physical acceptance remain separate."
+  ],
+  "observation": "All20 squash findings uniquely map to existing original-commit exceptions. Eight complete evidence files are byte-identical. All20 lines are64-hex SHA256 inventories; final13 values match exact CAD source bytes. Appended20 entries only; no wildcard or rule exclusion. No material findings.",
+  "artifactRefs": [
+    ".gitleaksignore"
+  ]
+}
