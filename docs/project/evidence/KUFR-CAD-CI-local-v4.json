@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-CAD-CI-local-v4",
+  "observedAtUtc": "2026-10-14T22:25:31.854200+00:00",
+  "kind": "unit",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-CAD-CI",
+      "criterionId": "ISOLATION",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "6b6b9c91e9f4d4767075d546cdce809ec4714c76b3891bb8b6191b0a01487fe1"
+  },
+  "method": "python unittest discover scripts/ci test_cad_cache.py(7) and test_site_workflow.py(8); actionlint1.7.12; git diff --check. Unchanged selection and site checks remain dated in v3/v2 receipts.",
+  "environment": "Windows current3367277 integrated checkout; LF-normalized scope digest.",
+  "limitations": [
+    "Hosted adoption and exact v2 hit pending.",
+    "Existing Windows POSIX package-mode test remains unsupported; hosted Linux repository checks passed v3."
+  ],
+  "observation": "7 policy regressions pass, including actual main() cache-key path with noisy preparation: stdout contains exactly one64hex hash, while progress/host diagnostics go to stderr. Action guards output format.8 workflow checks and actionlint pass."
+}

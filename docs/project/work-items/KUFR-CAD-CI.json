@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "id": "KUFR-CAD-CI",
+  "initiative": "KUFR",
+  "title": "Separate CAD verification and share main cache across PRs",
+  "state": "closed",
+  "priority": "P1",
+  "sequence": 25,
+  "scope": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/kufr-site.yml",
+    ".github/workflows/kufr-cad.yml",
+    ".github/actions/verified-cad/action.yml",
+    "scripts/ci/select_projects.py",
+    "scripts/ci/test_select_projects.py",
+    "scripts/ci/test_site_workflow.py",
+    "docs/ci-cd.md",
+    "kufr/web/test_site_inputs.py",
+    "kufr/web/README.md",
+    "scripts/ci/cad_cache.py",
+    "scripts/ci/test_cad_cache.py"
+  ],
+  "dependencies": [],
+  "acceptance": [
+    {
+      "id": "ISOLATION",
+      "revision": 1,
+      "expected": "PR changes outside manufacturing inputs skip full CAD regeneration; CAD changes have a required independent gate. Main warms exact source/runtime cache; full site recovery still verifies and packages manufacturing outputs.",
+      "requiredEvidenceKinds": [
+        "unit",
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "16cfe26fb2b5190b7a644c89fb9d2101bef60361e8a80d966c37223922fe060d"
+      },
+      "evidenceRefs": [
+        "KUFR-CAD-CI-local-v5",
+        "KUFR-CAD-CI-review-v5",
+        "KUFR-CAD-CI-hosted-v5",
+        "KUFR-CAD-CI-exact-v5"
+      ]
+    }
+  ],
+  "blockers": [],
+  "implementedSubject": {
+    "artifactDigest": "16cfe26fb2b5190b7a644c89fb9d2101bef60361e8a80d966c37223922fe060d"
+  },
+  "currentNote": "Implementation7a704996781dd9c3942ad5a34df3a8955b2cf871 and evidence deliverybd87352cfed03714a4c9a03ed2b6e55596a5515e pushed/remote verified. PR194 hosted38648471556 passed legacy adoption/HIT (CAD3m24s/site13s);38649205974 passed exact v2 restore/HIT (CAD2m46s/site19s). Cold canonical main needed46min. Independent v5 source review passed, no inline review findings. Freed3779122917bytes from13 confirmed closed-PR caches. Same exact source/tools/Ubuntu24/glibc ABI required; local regeneration stays strict. Final metadata CI/review reread and merge/main warm-up remain integration checks.",
+  "closure": {
+    "outcome": "accepted",
+    "reason": "Scoped implementation, independent review, actual legacy adoption and exact v2 replay with all required CI gates passed. Only Git integration/main warm-up follow-ups remain.",
+    "subject": {
+      "artifactDigest": "16cfe26fb2b5190b7a644c89fb9d2101bef60361e8a80d966c37223922fe060d"
+    },
+    "evidenceRefs": [
+      "KUFR-CAD-CI-local-v5",
+      "KUFR-CAD-CI-review-v5",
+      "KUFR-CAD-CI-hosted-v5",
+      "KUFR-CAD-CI-exact-v5"
+    ],
+    "acceptedCriteria": [
+      {
+        "id": "ISOLATION",
+        "revision": 1,
+        "expected": "PR changes outside manufacturing inputs skip full CAD regeneration; CAD changes have a required independent gate. Main warms exact source/runtime cache; full site recovery still verifies and packages manufacturing outputs.",
+        "requiredEvidenceKinds": [
+          "unit",
+          "source_review"
+        ],
+        "rule": "allOf",
+        "appliesTo": {
+          "artifactDigest": "16cfe26fb2b5190b7a644c89fb9d2101bef60361e8a80d966c37223922fe060d"
+        },
+        "evidenceRefs": [
+          "KUFR-CAD-CI-local-v5",
+          "KUFR-CAD-CI-review-v5",
+          "KUFR-CAD-CI-hosted-v5",
+          "KUFR-CAD-CI-exact-v5"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-CAD-CI-local-v3",
+  "observedAtUtc": "2026-10-14T22:20:02.586011+00:00",
+  "kind": "unit",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-CAD-CI",
+      "criterionId": "ISOLATION",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "a14121b9df55f5102edc0fc452550611e8b5fdbffbb6edd301df339f3860f324"
+  },
+  "method": "python unittest discover scripts/ci: test_cad_cache.py(6), test_site_workflow.py(8), test_select_projects.py(10); actionlint1.7.12 -shellcheck= -pyflakes=; git diff --check. Unchanged web/viewer checks remain dated local-v2.",
+  "environment": "Windows current main3367277 integrated checkout; LF-normalized framed scope digest. Hosted logs compared canonical38638670895 and PR38645207337.",
+  "limitations": [
+    "Independent v3 review and hosted migration/HIT pending.",
+    "CI policy retains OS ABI rather than whole hosted image build ID; local regeneration keeps original full identity.",
+    "No source changes in final/, manufacturing output rewrites, deployment, signing, hardware or paid AI tests."
+  ],
+  "observation": "6 semantic cache-policy regressions passed: only runner/kernel rollout aliases; source/architecture/glibc/Python/distribution/slicer changes invalidate; unknown/non-hosted OS rejected; legacy validator runs before receipt write; stale/corrupt exports never promote; path escape rejected. Workflow/gate tests and actionlint passed."
+}
