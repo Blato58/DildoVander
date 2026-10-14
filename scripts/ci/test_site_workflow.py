@@ -80,7 +80,8 @@ class PublicWorkflowTests(unittest.TestCase):
         self.assertIn('gitleaks/releases/download/v8.30.1/', scan)
         self.assertIn('sha256sum -c -', scan)
         self.assertIn('--redact=100', scan)
-        self.assertIn('--log-opts=--all', scan)
+        self.assertIn('--log-opts=HEAD', scan)
+        self.assertIn('--config=.gitleaks.toml', scan)
         self.assertIn('needs: [secret-scan,', workflow.split('  required:', 1)[1])
 
 
