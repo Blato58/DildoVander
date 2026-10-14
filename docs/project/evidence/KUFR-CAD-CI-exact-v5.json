@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-CAD-CI-exact-v5",
+  "observedAtUtc": "2026-10-14T22:46:29.634067+00:00",
+  "kind": "unit",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-CAD-CI",
+      "criterionId": "ISOLATION",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "16cfe26fb2b5190b7a644c89fb9d2101bef60361e8a80d966c37223922fe060d"
+  },
+  "method": "gh run view38649205974 metadata; gh api actions/jobs/116143841059/logs; current hosted replay on bd87352cfed03714a4c9a03ed2b6e55596a5515e (same scoped source digest as7a70499).",
+  "environment": "Hosted Ubuntu24 PR194; current main3367277. Both Linux/Windows tracking and complete required CI passed.",
+  "limitations": [
+    "Main push warm-up is still an integration follow-up; no publication/deployment."
+  ],
+  "observation": "Whole CI success. CAD job2m46s and site19s. Log22:42:50 restored exact cad-verified-v2-c20b4bd2518d91692f857e83d8e24f84f3b59744f8a33db65715f894ead6106d;22:43:40 logged F2 cache HIT with all sources/runtime/outputs matching. No legacy promotion or full regeneration occurred. Code review had no inline findings; review threads empty.",
+  "artifactRefs": [
+    "https://github.com/Blato58/DildoVander/actions/runs/38649205974"
+  ]
+}

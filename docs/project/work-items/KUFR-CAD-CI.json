@@ -37,7 +37,8 @@
       "evidenceRefs": [
         "KUFR-CAD-CI-local-v5",
         "KUFR-CAD-CI-review-v5",
-        "KUFR-CAD-CI-hosted-v5"
+        "KUFR-CAD-CI-hosted-v5",
+        "KUFR-CAD-CI-exact-v5"
       ]
     }
   ],
@@ -45,17 +46,18 @@
   "implementedSubject": {
     "artifactDigest": "16cfe26fb2b5190b7a644c89fb9d2101bef60361e8a80d966c37223922fe060d"
   },
-  "currentNote": "Implementation7a704996781dd9c3942ad5a34df3a8955b2cf871 committed/pushed and remote SHA verified. PR194 hosted CI38648471556 passed: site13s, CAD3m24s, legacy main cache fully validated and adopted with F2 HIT; cold canonical main took46min. Current CI policy ignores only image/kernel rollout while preserving exact sources/tools/Ubuntu24/glibc ABI. Independent v5 review passed. Freed3779122917bytes from13 caches on confirmed closed PRs. Current main3367277 integrated. Final exact-v2 rerun and review reread remain merge checks; no publication/deployment.",
+  "currentNote": "Implementation7a704996781dd9c3942ad5a34df3a8955b2cf871 and evidence deliverybd87352cfed03714a4c9a03ed2b6e55596a5515e pushed/remote verified. PR194 hosted38648471556 passed legacy adoption/HIT (CAD3m24s/site13s);38649205974 passed exact v2 restore/HIT (CAD2m46s/site19s). Cold canonical main needed46min. Independent v5 source review passed, no inline review findings. Freed3779122917bytes from13 confirmed closed-PR caches. Same exact source/tools/Ubuntu24/glibc ABI required; local regeneration stays strict. Final metadata CI/review reread and merge/main warm-up remain integration checks.",
   "closure": {
     "outcome": "accepted",
-    "reason": "Current scoped implementation, independent source review and actual hosted legacy adoption/HIT plus complete CI passed. Exact-v2 replay and main warming are publication/integration follow-ups.",
+    "reason": "Scoped implementation, independent review, actual legacy adoption and exact v2 replay with all required CI gates passed. Only Git integration/main warm-up follow-ups remain.",
     "subject": {
       "artifactDigest": "16cfe26fb2b5190b7a644c89fb9d2101bef60361e8a80d966c37223922fe060d"
     },
     "evidenceRefs": [
       "KUFR-CAD-CI-local-v5",
       "KUFR-CAD-CI-review-v5",
-      "KUFR-CAD-CI-hosted-v5"
+      "KUFR-CAD-CI-hosted-v5",
+      "KUFR-CAD-CI-exact-v5"
     ],
     "acceptedCriteria": [
       {
@@ -73,7 +75,8 @@
         "evidenceRefs": [
           "KUFR-CAD-CI-local-v5",
           "KUFR-CAD-CI-review-v5",
-          "KUFR-CAD-CI-hosted-v5"
+          "KUFR-CAD-CI-hosted-v5",
+          "KUFR-CAD-CI-exact-v5"
         ]
       }
     ]
