@@ -117,6 +117,28 @@ class SlicerValidationTests(unittest.TestCase):
         for changed in (valid.replace("= 0", "= 1"), valid.replace("start_gcode = ", "start_gcode = G28")):
             self.assertEqual(audit_profile(changed, profile)["status"], "FAIL_EFFECTIVE_PROFILE")
 
+    def test_empty_filament_macro_vector_requires_one_empty_string(self):
+        profile = 'start_filament_gcode = ""\nend_filament_gcode = ""\n'
+        valid = '; start_filament_gcode = ""\n; end_filament_gcode = ""\n'
+        self.assertEqual(audit_profile(valid, profile)["status"], "PASS_EFFECTIVE_PROFILE")
+        for key in ("start_filament_gcode", "end_filament_gcode"):
+            for value in ("", '"";""', "G28"):
+                changed = valid.replace(f'{key} = ""', f'{key} = {value}')
+                with self.subTest(key=key, value=value):
+                    self.assertEqual(audit_profile(changed, profile)["status"], "FAIL_EFFECTIVE_PROFILE")
+
+    def test_conflicting_saved_macro_vectors_cannot_be_hidden_by_gcode_footer(self):
+        profile = 'start_filament_gcode = ""\nend_filament_gcode = ""\n'
+        footer = '; start_filament_gcode = ""\n; end_filament_gcode = ""\n'
+        for key in ("start_filament_gcode", "end_filament_gcode"):
+            for value in ("", '"";""', "G28"):
+                changed = profile.replace(f'{key} = ""', f'{key} = {value}')
+                with self.subTest(key=key, value=value):
+                    self.assertEqual(audit_profile(footer, profile, changed)["status"], "FAIL_EFFECTIVE_PROFILE")
+        self.assertEqual(audit_profile(footer, profile, 'support_material = 0\n')["status"], "FAIL_EFFECTIVE_PROFILE")
+        bare = profile.replace('""', '')
+        self.assertEqual(audit_profile('', bare, bare)["status"], "FAIL_EFFECTIVE_PROFILE")
+
     def test_3mf_requires_mesh_and_preserves_rotation(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "model.3mf"

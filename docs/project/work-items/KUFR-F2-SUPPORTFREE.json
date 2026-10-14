@@ -14,7 +14,7 @@
     "KUFR-F2"
   ],
   "implementedSubject": {
-    "cadSourceArtifactDigest": "1030f7336e963e2e6c00ea0cf3b5c04fc95449e07b1456e34d87b65b93b67115"
+    "cadSourceArtifactDigest": "3caafc8a9e52af5ce296d7236dbaf80b5942a7f5a9c3006ba686c77002461d42"
   },
   "acceptance": [
     {
@@ -25,7 +25,7 @@
         "source_review"
       ],
       "appliesTo": {
-        "cadSourceArtifactDigest": "1030f7336e963e2e6c00ea0cf3b5c04fc95449e07b1456e34d87b65b93b67115"
+        "cadSourceArtifactDigest": "3caafc8a9e52af5ce296d7236dbaf80b5942a7f5a9c3006ba686c77002461d42"
       },
       "evidenceRefs": []
     },
@@ -37,7 +37,7 @@
         "integration"
       ],
       "appliesTo": {
-        "cadSourceArtifactDigest": "1030f7336e963e2e6c00ea0cf3b5c04fc95449e07b1456e34d87b65b93b67115"
+        "cadSourceArtifactDigest": "3caafc8a9e52af5ce296d7236dbaf80b5942a7f5a9c3006ba686c77002461d42"
       },
       "evidenceRefs": []
     },
@@ -49,7 +49,7 @@
         "integration"
       ],
       "appliesTo": {
-        "cadSourceArtifactDigest": "1030f7336e963e2e6c00ea0cf3b5c04fc95449e07b1456e34d87b65b93b67115"
+        "cadSourceArtifactDigest": "3caafc8a9e52af5ce296d7236dbaf80b5942a7f5a9c3006ba686c77002461d42"
       },
       "evidenceRefs": []
     },
@@ -61,7 +61,7 @@
         "unit"
       ],
       "appliesTo": {
-        "cadSourceArtifactDigest": "1030f7336e963e2e6c00ea0cf3b5c04fc95449e07b1456e34d87b65b93b67115"
+        "cadSourceArtifactDigest": "3caafc8a9e52af5ce296d7236dbaf80b5942a7f5a9c3006ba686c77002461d42"
       },
       "evidenceRefs": []
     },
@@ -73,12 +73,12 @@
         "browser"
       ],
       "appliesTo": {
-        "cadSourceArtifactDigest": "1030f7336e963e2e6c00ea0cf3b5c04fc95449e07b1456e34d87b65b93b67115"
+        "cadSourceArtifactDigest": "3caafc8a9e52af5ce296d7236dbaf80b5942a7f5a9c3006ba686c77002461d42"
       },
       "evidenceRefs": []
     }
   ],
   "blockers": [],
-  "currentNote": "PR #187: Codex P1 o přeskočené vrstvě opraven a nezávisle ověřen 39 testy i skutečným G-code kotevní měrky. Nový zmrazený bundle14 má 89 zdrojů; změnilo se jen pět souborů auditu/testů/TISK, všech 84 ostatních včetně celé geometrie jsou totožné. Úplný nový výrobní běh ještě není přijatý. Přesných 20 výjimek pro historické SHA-256 ve scanneru prošlo cílenou kontrolou s nulou nálezů; nový syntetický údaj byl nadále detekován. Implementace 3be94343c3eb68f308085e4779390963899509e4 byla úspěšně pushnutá. Fyzický tisk, fit, lepení, servo, zatížení a kabely nejsou ověřené.",
-  "nextAction": "Dokončit celý zmrazený bundle14, jeho cache a browser/provenanci, zaznamenat nové důkazy; pushnout opravy, dokončit všechna reviews a Linux CI PR #187 a autorizovaný merge."
+  "currentNote": "Windows bundle14:349Python+56Node,51realPrusa2.9.4slices,mesh,completeassembly,ZIPandcache passed. ActualLinuxCI8bd720d failed filament macro parsing; retained as immutable failure. Three new regression tests failed original vector/precedence cases, then all47targeted tests passed after quoted-vector serialization, generated-profile validation and independent effective-source audit. Onlyfiveprofile/audit/testsources changed; all84other files includinggeometryare byte-identical. New89source bundle15 and independent review/actualLinuxrerun pending. Commit8bd720ded0a869c7399828150d32d61b82c18657 was successfully pushed. Physical print, fit, adhesive, servo, load and cables remain unverified.",
+  "nextAction": "Complete frozen15production, independent profile review, realWindows/Linux slicing, cache and browser provenance; record final evidence, resolve reviews, verifyCIandauthorizedmergePR187."
 }

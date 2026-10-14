@@ -106,7 +106,8 @@ def validate_profile(text, contract):
               "support_material":"0","support_material_auto":"0",
               "support_material_enforce_layers":"0","raft_layers":"0","brim_width":str(contract.get("brim_mm",0)),"skirts":"0",
               "perimeters":str(contract["perimeters"]),"fill_density":contract["infill"],
-              "fill_pattern":contract["infill_pattern"],"top_solid_layers":"5","bottom_solid_layers":"5"}
+              "fill_pattern":contract["infill_pattern"],"top_solid_layers":"5","bottom_solid_layers":"5",
+              "start_filament_gcode":'""',"end_filament_gcode":'""'}
     expected["bridge_angle"]=str(contract.get("bridge_angle_degrees",0))
     actual=profile_values(text)
     if any(actual.get(key)!=value for key,value in expected.items()):

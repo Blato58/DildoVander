@@ -3,7 +3,7 @@
   "targetId": "F2-SF-DFA-2026-10-13",
   "purpose": "Digitální výrobní návrh F2 pro tisk bez podpor: přesný bundle89zdrojů/referencí podlemanifest.sources. Nejde o fyzickou,elektrickou,servo ani provozní přejímku kufru a target nemění aktuální fyzický fokus projektu.",
   "components": {
-    "cadSourceArtifactDigest": "1030f7336e963e2e6c00ea0cf3b5c04fc95449e07b1456e34d87b65b93b67115"
+    "cadSourceArtifactDigest": "3caafc8a9e52af5ce296d7236dbaf80b5942a7f5a9c3006ba686c77002461d42"
   },
   "requiredCriteria": [
     {

@@ -10,6 +10,18 @@ import manufacturing
 
 
 class ManufacturingTests(unittest.TestCase):
+    def test_generated_profiles_preserve_filament_macro_vector_cardinality(self):
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory)
+            part = SimpleNamespace(name='lift_base', quantity=6, rotation=None, reason='test')
+            contract = manufacturing.record(part, out)
+            text = (out / contract['slicer_profile']).read_text(encoding='utf-8')
+            for key in ('start_filament_gcode', 'end_filament_gcode'):
+                with self.subTest(key=key):
+                    self.assertIn(f'{key} = ""\n', text)
+                    with self.assertRaises(ValueError):
+                        manufacturing.validate_profile(text.replace(f'{key} = ""', f'{key} ='), contract)
+
     def test_base_format_and_density_cannot_weaken_structural_profile(self):
         original=manufacturing.BASE_PROFILE.read_text(encoding='utf-8')
         for line in ('fill_density = 39%','fill_density=40%'):

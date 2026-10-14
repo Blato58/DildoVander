@@ -22,10 +22,17 @@ ROOT = Path(__file__).resolve().parent
 PROFILE = ROOT / "support-free-petg.ini"
 WARNING = re.compile(r"\b(?:warning|error|floating|empty|no layers detected|no printable|long bridging extrusions|loose extrusions|low bed adhesion)\b", re.I)
 WORDS = re.compile(r"([XYZEF])([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?)")
+STRING_VECTOR_MACROS = frozenset(("start_filament_gcode", "end_filament_gcode"))
 
 
 def _hash(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _profile_value(key, value):
+    value = value.strip()
+    # Prusa coStrings: blank is zero entries; '""' is one empty entry.
+    return value if key in STRING_VECTOR_MACROS else value.strip('"')
 
 
 def profile_values(text):
@@ -36,7 +43,7 @@ def profile_values(text):
             key = key.strip()
             if key in values:
                 raise ValueError(f"Duplicate profile setting: {key}")
-            values[key] = value.strip().strip('"')
+            values[key] = _profile_value(key, value)
     return values
 
 
@@ -66,21 +73,29 @@ def equivalent_triangles(reference, actual, tolerance=.0003):
 def audit_profile(gcode, profile_text, saved_configuration=""):
     """Verify effective G-code settings, including empty custom machine macros."""
     expected = {}
-    actual = {}
+    saved = {}
+    footer = {}
     for line in profile_text.splitlines():
         if "=" in line and not line.strip().startswith("#"):
             key, value = line.split("=", 1)
-            expected[key.strip()] = value.strip().strip('"')
+            expected[key.strip()] = _profile_value(key.strip(), value)
     for line in saved_configuration.splitlines():
         if "=" in line and not line.strip().startswith("#"):
             key, value = line.split("=", 1)
-            actual[key.strip()] = value.strip().strip('"')
+            saved[key.strip()] = _profile_value(key.strip(), value)
     for line in gcode.splitlines():
         if line.startswith("; ") and "=" in line:
             key, value = line[2:].split("=", 1)
-            actual[key.strip()] = value.strip().strip('"')
+            footer[key.strip()] = _profile_value(key.strip(), value)
+    actual = saved | footer
     mismatches = {key: {"expected": value, "actual": actual.get(key)}
                   for key, value in expected.items() if actual.get(key) != value}
+    # Neither effective source may hide an unsafe empty vector in the other.
+    for origin, values in (("profile", expected), ("saved_configuration", saved), ("gcode", footer)):
+        if values:
+            for key in STRING_VECTOR_MACROS & expected.keys():
+                if values.get(key) != '""':
+                    mismatches[f"{key}@{origin}"] = {"expected": '""', "actual": values.get(key)}
     return {"status": "PASS_EFFECTIVE_PROFILE" if not mismatches else "FAIL_EFFECTIVE_PROFILE",
             "settings": {key: actual.get(key) for key in expected}, "mismatches": mismatches}
 

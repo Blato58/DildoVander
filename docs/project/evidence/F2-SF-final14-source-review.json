@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "F2-SF-final14-source-review",
+  "observedAtUtc": "2026-10-14T04:51:10.328392Z",
+  "kind": "source_review",
+  "result": "pass",
+  "subject": {
+    "cadSourceArtifactDigest": "1030f7336e963e2e6c00ea0cf3b5c04fc95449e07b1456e34d87b65b93b67115"
+  },
+  "claims": [
+    {
+      "workItemId": "KUFR-F2-SUPPORTFREE",
+      "criterionId": "SOURCE",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "method": "Independent Sol6.1/high core/geometry, control release and cache integration reviews; exact byte rebind to the frozen map and parent combined diff inspection.",
+  "environment": "Windows; Python3.11.3; Node25.9.0; pinned CadQuery2.8.0/OCP7.9.3.1.1/VTK9.6.2/numpy2.4.6/shapely2.1.2; official Windows PrusaSlicer2.9.4; actual Codex in-app Chromium browser.",
+  "limitations": [
+    "No physical print or fit test. Owner printer is unknown; generic220x220x250 PETG/.4nozzle/.2layer profile.",
+    "Digital gates do not qualify adhesive, wood condition, creep/fatigue, transport loads, actual servo torque, cables/FPC, hand dexterity or electrical operation.",
+    "Cam/material motion is sampled every10degrees; finite-wire checks use0/80/160degrees. Continuous conservative envelopes qualify new tray joints/beams only.",
+    "Control removal and USB manual dressing are sampled digital sweeps. Actual soldered leads, terminal bends and retention require physical acceptance.",
+    "Linux PrusaSlicer2.9.6 CI and the final Git/PR endpoint are checked separately. Local receipt completion does not claim unfinished remote runs."
+  ],
+  "observation": "No remaining actionable source finding. Support-free bodies have receiving joints, positive clamp backing, independent load paths and explicit physical limits. Bought hardware poses and135electrical IDs/nets/endpoints are retained. Current main cache/DV02 integration is preserved; actual slicer identity, saved audit bytes and UTF8 child commands are guarded.",
+  "supersedes": [
+    "F2-SF-final13-source-review",
+    "F2-SF-PR187-bridge-layer-failure"
+  ],
+  "supersedesReason": "The final integrated89-source artifact changed. Actual gates were repeated against its exact digest; earlier evidence and truthful failures remain immutable.",
+  "resolution": "Corrected the reproduced PR187 P1: anchors require previously deposited material within nominal.2mm plus1e-5mm Z tolerance. HEIGHT cannot waive skipped nominal layers. Independent39test and actual10stroke coupon reviews passed. All84 unchanged sources transfer by exact byte equality, and the complete new pipeline was repeated.",
+  "priorUnchangedGeometryReview": "F2-SF-final13-source-review",
+  "sourceCount": 89,
+  "changedSourceDigests": {
+    "bridge_audit.py": "34e829d836b45e39cb1f7e90d13f518a19af05db7747e6a27ec1dea2870c6b40",
+    "test_bridge_audit.py": "23819bb3f3b7692bd68a25f2b62e89d7b5c5d426cc031128f8c5b3f1e606eb2b",
+    "slicer_validation.py": "b7d32dd0eaeeead5d0b9e4e32c719fc3ddfe292db93186d0b136b2ca9fffb30b",
+    "test_slicer_validation.py": "cd164da69dc4b47a0b1dd4e85320770bfeea22e685e2a66f146aa92d18a139f9",
+    "TISK.md": "581d67f32c8eeb259dc4e59fa362475f874ed3279ff6a59cb58a59d77a674279"
+  },
+  "reviewSourceMapSha256": "f28cf304a6788a303a92a502777aae0c599eb904aebefba64e208dd9c3f202bf",
+  "independentReviewers": [
+    {
+      "name": "final_contract_review",
+      "model": "Sol6.1/high",
+      "status": "completed",
+      "observation": "No remaining actionable finding. Prior core contract review transfers only for identical file bytes. Independently reviewed the seven-file control release/service delta and four-file cache integration. The stale left-power Inspector removal instruction was corrected before the freeze. Independently reviewed the five-file P1 correction: prior deposition must be within configured nominal.2mm step plus1e-5mm dedicatedZtolerance. HEIGHT flow-thickness tags do not widen it. 39tests PASS1.830s/exit0; actual savedcoupon re-resolution PASS with10strokes/0failures/maxgap8.500001mm. No actionable finding."
+    },
+    {
+      "name": "mechanical_constraints",
+      "model": "Sol6.1/high",
+      "status": "completed",
+      "observation": "All89 frozen hashes and canonical digest independently verified. Private backup layout/parameters match frozen12 hashes and current13 after CRLF to LF normalization. Prior geometry, receiving keys, positive backing, C1 duct/bearing and load-path conclusions transfer. Final helper/tests/guide agree: controls, four top screws, plate with cover nuts, right ladder with its nuts; actual case and bolted left ladder remain. No actionable finding. Final14 independently rehashed89files and its canonical1030f733 digest; exactfivechanges/84byte-identical sources confirmed. Prior mechanical/key/backing/C1/service conclusions explicitly transfer. New TISK66..69 correctly limits nominal layer reach with dedicatedZtolerance. No finding, writes, tests, builds or slicing; full14 and physical acceptance remain parent/owner gates."
+    }
+  ],
+  "sourceDelta": "Exactly five audit/test/printing-doc files changed. All84 other frozen sources, including every CAD geometry, fixture, wiring, guide and viewer file, are byte-identical.",
+  "finalFrozenRunLogSha256": "04375ac3c644ee6ff947d57a8c524c9e3a3c1014a9f73238c00af221afaf6bdd"
+}
