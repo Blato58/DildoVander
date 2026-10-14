@@ -120,7 +120,7 @@
     }
   ],
   "nextAction": "Samostatně připravit a autorizovat G: identifikovaná ESP/audio/iPhone sestava, provozní plán pro32journal ID a fyzické měření Stop/časování/heap/stack. Software A–F ověřen offline.",
-  "currentNote": "A–F dokončeno v omezeném phase/LED profilu: exactlegacy12cases, compiler29, host14+HTTP, timeline54Node/7Python, actualviewer/browser, pio build. Bez nasazení/flash/signing/paidAI. Commit a skutečný push doplní ověřené git předání.",
+  "currentNote": "A–F offline software verified; implementation commit d1e997232edf5305df7abfd575685a802c4c30e0. Integrated current main76b98723b722647889e0a0c35857ea4f00c2fde1 without changing tested DV02 source digest. Push-CurrentBranch.ps1 verified remote codex/dv02-unified-show at 538b2e36a750522f0574ef1bfb4f4cee7e3cf446. Software target ready; G, live DV01 transport, real audio/iPhone/ESP acceptance remain open. Journal32 IDs fail closed. No release, deployment, flash, signing or paid AI.",
   "implementedSubject": {
     "artifactDigest": "7e21dffe5b8af969b548fbdf7be0bf3fc5366e00231dcaf05249a36ba079c885",
     "policyVersion": "dv02-phase-1"
