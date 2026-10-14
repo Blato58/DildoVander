@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-CAD-CI-hosted-v5",
+  "observedAtUtc": "2026-10-14T22:38:54.770566+00:00",
+  "kind": "unit",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-CAD-CI",
+      "criterionId": "ISOLATION",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "16cfe26fb2b5190b7a644c89fb9d2101bef60361e8a80d966c37223922fe060d"
+  },
+  "method": "gh run view38648471556 metadata/job116141171122 log; compare main recovery38638670895. Actual GitHub-hosted workflow execution on implementation7a704996781dd9c3942ad5a34df3a8955b2cf871.",
+  "environment": "Hosted Ubuntu24.04, Python3.11.17; PR194 against main3367277. Logged host image20261012.334.1, kernel6.17.0-1022-azure, glibc2.39.",
+  "limitations": [
+    "Subsequent exact v2 restoration and main push warming not yet exercised.",
+    "No publication/deployment, hardware, signing or paid AI tests."
+  ],
+  "observation": "Whole CI passed including secret scan, repository checks, Windows/Linux tracking, site and required CAD. Site13s, CAD3m24s. Restore fetched main v1 key51007; original validators accepted all actual source/export/ZIP/slicer evidence, normalized receipt adoption occurred and F2 cache HIT logged. Saved v2 keyc20b4bd2518d91692f857e83d8e24f84f3b59744f8a33db65715f894ead6106d on PR ref. Canonical cold main needed46min and passed manufacturing verification. Actual Companion/real asset fixture assembly passed; no deployable PR artifact uploaded.",
+  "artifactRefs": [
+    "https://github.com/Blato58/DildoVander/actions/runs/38648471556",
+    "https://github.com/Blato58/DildoVander/actions/runs/38638670895"
+  ]
+}

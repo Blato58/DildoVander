@@ -3,7 +3,7 @@
   "id": "KUFR-CAD-CI",
   "initiative": "KUFR",
   "title": "Separate CAD verification and share main cache across PRs",
-  "state": "active",
+  "state": "closed",
   "priority": "P1",
   "sequence": 25,
   "scope": [
@@ -36,14 +36,46 @@
       },
       "evidenceRefs": [
         "KUFR-CAD-CI-local-v5",
-        "KUFR-CAD-CI-review-v5"
+        "KUFR-CAD-CI-review-v5",
+        "KUFR-CAD-CI-hosted-v5"
       ]
     }
   ],
   "blockers": [],
-  "nextAction": "Finish independent v3 cache policy review, push, and verify actual adoption/HIT plus required CI before merge.",
   "implementedSubject": {
     "artifactDigest": "16cfe26fb2b5190b7a644c89fb9d2101bef60361e8a80d966c37223922fe060d"
   },
-  "currentNote": "CI graph, real static assembly and required gates verified; independent v5 review and8 policy tests pass. Main recovery38638670895 passed and saved v1 key51007 after46min regeneration. Identical source/tools missed on different GitHub images20261004.327.1/20261012.334.1. CI v2 policy now retains exact sources/tools/Ubuntu24/architecture/glibc ABI and validates every legacy source/export/ZIP/slicer before receipt adoption. Latest pushed implementation202d6bbcffc9ccfa455265d8635fb4bbe4a5bb5f remote verified; v5 fixes stdout/stderr capture and awaits hosted verification. Closed-PR cache cleanup freed3779122917bytes from13 entries, checked absent afterward. Current main3367277 integrated; local regeneration remains strict. No publication/deployment/paid AI."
+  "currentNote": "Implementation7a704996781dd9c3942ad5a34df3a8955b2cf871 committed/pushed and remote SHA verified. PR194 hosted CI38648471556 passed: site13s, CAD3m24s, legacy main cache fully validated and adopted with F2 HIT; cold canonical main took46min. Current CI policy ignores only image/kernel rollout while preserving exact sources/tools/Ubuntu24/glibc ABI. Independent v5 review passed. Freed3779122917bytes from13 caches on confirmed closed PRs. Current main3367277 integrated. Final exact-v2 rerun and review reread remain merge checks; no publication/deployment.",
+  "closure": {
+    "outcome": "accepted",
+    "reason": "Current scoped implementation, independent source review and actual hosted legacy adoption/HIT plus complete CI passed. Exact-v2 replay and main warming are publication/integration follow-ups.",
+    "subject": {
+      "artifactDigest": "16cfe26fb2b5190b7a644c89fb9d2101bef60361e8a80d966c37223922fe060d"
+    },
+    "evidenceRefs": [
+      "KUFR-CAD-CI-local-v5",
+      "KUFR-CAD-CI-review-v5",
+      "KUFR-CAD-CI-hosted-v5"
+    ],
+    "acceptedCriteria": [
+      {
+        "id": "ISOLATION",
+        "revision": 1,
+        "expected": "PR changes outside manufacturing inputs skip full CAD regeneration; CAD changes have a required independent gate. Main warms exact source/runtime cache; full site recovery still verifies and packages manufacturing outputs.",
+        "requiredEvidenceKinds": [
+          "unit",
+          "source_review"
+        ],
+        "rule": "allOf",
+        "appliesTo": {
+          "artifactDigest": "16cfe26fb2b5190b7a644c89fb9d2101bef60361e8a80d966c37223922fe060d"
+        },
+        "evidenceRefs": [
+          "KUFR-CAD-CI-local-v5",
+          "KUFR-CAD-CI-review-v5",
+          "KUFR-CAD-CI-hosted-v5"
+        ]
+      }
+    ]
+  }
 }
