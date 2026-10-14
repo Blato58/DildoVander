@@ -32,7 +32,8 @@
       "evidenceRefs": [
         "DV10-local-integration-v2",
         "DV10-local-browser-v2",
-        "DV10-local-source_review-v2"
+        "DV10-local-source_review-v2",
+        "DV10-code-package-v2"
       ]
     },
     {
@@ -104,7 +105,7 @@
     }
   ],
   "nextAction": "Schválit konkrétní placený OpenAI pilot se souhlasnými fotografiemi; produkci, iPhone a nezávislou obnovu přijmout oddělenými receipts.",
-  "currentNote": "Majitel schválil veřejné hůlky a příběhy aktivního večera za jedním statickým QR; fotografie/portréty zůstávají soukromé. Vazba na večer se zachytí při návrhu, ne při pozdějším ACK. Firmware a mobil nepředávají individuální QR. Lokální aktuální software ověřen; produkční flags OFF, event_ready=false. Nový code commit/push/package a současné PR CI budou doplněny podle skutečného výsledku.",
+  "currentNote": "Majitel schválil veřejné hůlky a příběhy aktivního večera za jedním statickým QR; fotografie/portréty zůstávají soukromé. Vazba na večer se zachytí při návrhu, ne při pozdějším ACK. Firmware a mobil nepředávají individuální QR. Lokální aktuální software ověřen bez otevřeného P1/P2; produkční flags OFF, event_ready=false. Implementace dc84f0c0cdcdd23f810acc7ac1ecca6bb673dc11 a integrace současného main 7aba8c8c27f9fa2eaf0ba7a1fd17cab05dd616ce push ověřeny pomocí Push-CurrentBranch. Clean-source Linux+standalone ZIP 78c9acfcc76ef804cc6f151b946428c1364cabd6ebefecefef177cf4eb8861d1. PR190 aktuální CI ještě vyhodnocuje; žádné nasazení.",
   "implementedSubject": {
     "artifactDigest": "5d53c276f653bbcb84f2fd2fc2bcb0c3a668118712e3a3e3954177546c92b1db"
   }
