@@ -15,7 +15,7 @@ zverejneni vypne controller. Fork PR se nemeni.
 
 | Workflow | Ucel |
 | --- | --- |
-| `ci.yml` | PR kontroly, secret scan vsech fetched refs, rucni main build |
+| `ci.yml` | PR kontroly, secret scan historie checkoutu, rucni main build |
 | `kufr-backend.yml` | Backend/testy, backend-publish a backend-diagnostics |
 | `kufr-firmware.yml` | ESP-IDF host testy a firmware build |
 | `kufr-web.yml` | Web a offline testy |
@@ -32,6 +32,20 @@ a SHA-256 vsech vystupu; neplatna cache spusti kompletni testy, regeneraci
 a overeni. Python testy sdili memoizovanou geometrii v jednom procesu;
 generovani, overeni a baleni zachovavaji oddelene ciste CAD procesy.
 Lokalne lze vynutit vsechny kroky parametrem `-Force`.
+
+Secret scan pouziva pripnuty Gitleaks 8.30.1 a kontroluje celou historii `HEAD`:
+u PR oba rodice merge checkoutu, u rucniho buildu historii vybrane vetve.
+Zachyti i credential odstraneny v pozdejsim commitu. Nesouvisejici stazene
+vetve a tagy neblokuji cizi PR. [Konfigurace](../.gitleaks.toml) zachovava
+vsechny vychozi detektory; pouze `generic-api-key` ma vyjimky kombinujici
+presnou cestu a podobu zname necredential hodnoty. SHA-256 inventare souboru
+v projektovych JSON nejsou API klice; nove commity ani squash pro ne
+nepotrebuji dalsi fingerprint v `.gitleaksignore`. Historicke fingerprinty
+zustavaji pro drive posouzene nalezy. Cele soubory ani detektory se nevypinaji.
+Kazdy scan nejprve spusti [regresni testy](../scripts/ci/test_secret_scan.py)
+se skutecnym binary: nove/squash inventare projdou, synteticke credentialy ve
+stejnych souborech a v odstranene historii selzou. Lokalni prikaz:
+`GITLEAKS_BINARY=/cesta/gitleaks python -m unittest discover -s scripts/ci -p 'test_secret_scan.py'`.
 
 Od rozhodnuti majitele 14. 10. 2026 se zmeny mobilu, contracts, simulatoru,
 design-systemu a iOS workflow overuji i na macOS s Xcode 26.3. `kufr-ios.yml`
