@@ -97,6 +97,16 @@
       if (bytes.length + this.bytes > CAPTURE_BYTES) throw new Error('Mikrofon překročil 400 ms frontu; session se zastavuje');
       this.parts.push(bytes); this.bytes += bytes.length;
     }
+    trim(limit) {
+      const discarded=Math.max(0,this.bytes-limit);
+      let remaining=discarded;
+      while (remaining>0) {
+        const part=this.parts[0], count=Math.min(part.length,remaining);
+        remaining-=count; this.bytes-=count;
+        if (count===part.length) this.parts.shift(); else this.parts[0]=part.subarray(count);
+      }
+      return discarded;
+    }
     take() {
       if (this.bytes < CHUNK_BYTES) return null;
       const result = new Uint8Array(CHUNK_BYTES); let offset=0;
@@ -391,9 +401,14 @@
     function capture(samples) {
       if (!listen || !actor || !eligible()) return;
       try {
-        const bytes=pcm16(samples);
-        if (queue.bytes+inFlightBytes+bytes.length>CAPTURE_BYTES) throw new Error('Mikrofon překročil 400 ms frontu; session se zastavuje');
+        const captured=pcm16(samples), capacity=CAPTURE_BYTES-inFlightBytes;
+        const bytes=captured.length>capacity ? captured.slice(captured.length-capacity) : captured;
+        // Keep the newest unsent samples during network jitter. In-flight PCM
+        // cannot be recalled; sequence numbers belong only to submitted blocks.
+        const discarded=queue.trim(capacity-bytes.length)+captured.length-bytes.length;
         queue.push(bytes); void upload();
+        const warning='Mikrofonní přenos nestíhá; část neodeslaného zvuku byla přeskočena. Rozhovor pokračuje.';
+        if (discarded && notice!==warning) { notice=warning; render(); }
       }
       catch (error) { fail(error); }
     }
