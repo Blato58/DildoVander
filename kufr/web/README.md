@@ -34,8 +34,11 @@ a symlinky zachová. iOS releases do této retence nespadají.
 Všechny CLI mutace sdílejí trvalý Linux flock `.publication.lock`;
 retence navíc odmítne změněnou aktivaci od posledního veřejného ověření.
 
-CI projekt `site` regeneruje CAD přes `final/Regenerate.ps1`, sestaví webový
-Companion a kontroluje balíček na GitHub-hosted `ubuntu-24.04`.
+CI projekt `site` v PR sestaví Companion a ověří skutečné statické zdroje
+builderem s izolovanými syntetickými CAD fixtures; ty se nepublikují a neprokazují
+výrobní ověření. Samostatná povinná gate `cad` regeneruje výrobní výstupy pouze
+při změně CAD vstupů. Ruční main build projektu `site` nebo `all` dál regeneruje
+CAD přes `final/Regenerate.ps1` a sestaví celý balíček na hosted `ubuntu-24.04`.
 Primy rucni CI build aktualniho `main` bez PR vstupu ulozi `arcane-site`
 na jeden den. Publikace `kufr-site-deploy.yml` patri do privatniho
 `Blato58/DildoVander-deploy`; maintainer ji spusti rucne na `main` s ID CI.

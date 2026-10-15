@@ -1,0 +1,42 @@
+name: Verify CAD manufacturing package
+
+on:
+  workflow_call:
+  # PR caches are scoped to their merge ref. Warm main so later PRs can reuse it.
+  push:
+    branches: [main]
+    paths:
+      - 'kufr/mechanika/final/**'
+      - 'kufr/mechanika/rozmery-nakoupenych-soucastek.md'
+      - 'kufr/docs/zapojeni-potvrzeneho-hardwaru.md'
+      - 'kufr/design-system/**'
+      - 'scripts/ci/install-cad-slicer.sh'
+      - 'scripts/ci/cad_cache.py'
+      - 'scripts/ci/test_cad_cache.py'
+      - 'kufr/mobilni-aplikace/.nvmrc'
+      - '.github/actions/verified-cad/**'
+      - '.github/workflows/kufr-cad.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  # Background main warming must not cancel a requested recovery verification.
+  group: cad-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    env:
+      MPLBACKEND: Agg
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: kufr/mobilni-aplikace/.nvmrc
+      - name: Verify source-bound CAD outputs
+        uses: ./.github/actions/verified-cad

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-CAD-CI-local-v5",
+  "observedAtUtc": "2026-10-14T22:32:55.309431+00:00",
+  "kind": "unit",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-CAD-CI",
+      "criterionId": "ISOLATION",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "16cfe26fb2b5190b7a644c89fb9d2101bef60361e8a80d966c37223922fe060d"
+  },
+  "method": "python unittest discover scripts/ci test_cad_cache.py(8) and test_site_workflow.py(8); actionlint1.7.12; git diff --check. Unchanged10 selection tests passed v3,20 web/98 viewer tests passed v2.",
+  "environment": "Windows current3367277 integrated checkout; LF-normalized scope digest.",
+  "limitations": [
+    "Hosted migration and exact v2 hit pending.",
+    "Local legacy POSIX package-mode failure remains; hosted Linux checks passed in earlier runs."
+  ],
+  "observation": "8 policy tests pass, including actual main() noisy key preparation with stdout/stderr sharing one capture sink; emits only64hex hash/newline. Full output validator and ABI/tool/source policy unchanged.8 workflow tests and actionlint pass."
+}
