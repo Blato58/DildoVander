@@ -25,3 +25,8 @@ run passed. Optional active reload/UI Stop checks were disabled. Completed reloa
 cleanup Stop/inspect/idle and subsequent independent original-settings/native-state
 readback passed. No real provider call, acoustic, physical or fresh CAD motion
 acceptance is claimed. Existing full v16 software evidence remains dated v16.
+
+Repository delivery checks: pinned Gitleaks8.30.1 passed9 regressions and the
+full256-commit ancestry scan after an exact path/content-bound generic hash
+exception for this nested manifest. Generic/PAT/Sentry credentials still fail
+and unrelated nested inventory paths remain blocked. No detector was disabled.
