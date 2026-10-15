@@ -234,12 +234,31 @@ void BrowserMedia::Listen(bool enabled) {
   ++inputEpoch_; inputSequence_ = 0; listening_ = enabled && Current();
   for (auto& input : input_) Wipe(input);
   input_.clear(); inputBytes_ = 0;
+  changed_.notify_all();
 }
 bool BrowserMedia::TakeInput(std::vector<uint8_t>& pcm) {
   std::unique_lock<std::mutex> lock(mutex_);
   changed_.wait_for(lock, std::chrono::milliseconds(10), [&]() { return !input_.empty() || !Current(); });
   if (!Current()) return false;
   pcm.clear();
+  if (!input_.empty()) { pcm = std::move(input_.front()); input_.pop_front(); inputBytes_ -= pcm.size(); }
+  return true;
+}
+bool BrowserMedia::TakeInputForEpoch(std::vector<uint8_t>& pcm,
+    const RealtimeSessionEngine& engine, uint32_t engineEpoch) {
+  std::unique_lock<std::mutex> lock(mutex_);
+  pcm.clear();
+  if (!Current()) return false;
+  if (engine.InputEpoch() != engineEpoch) return true;
+  const uint64_t halEpoch = inputEpoch_;
+  changed_.wait_for(lock, std::chrono::milliseconds(10), [&]() {
+    return !input_.empty() || !Current() || inputEpoch_ != halEpoch || engine.InputEpoch() != engineEpoch;
+  });
+  if (!Current()) return false;
+  // Engine and HAL epochs are distinct: GPT pauses may refresh
+  // Listen without changing the production engine's input turn. A stale wait
+  // must leave the next HAL gate's first frame queued for its own iteration.
+  if (inputEpoch_ != halEpoch || engine.InputEpoch() != engineEpoch) return true;
   if (!input_.empty()) { pcm = std::move(input_.front()); input_.pop_front(); inputBytes_ -= pcm.size(); }
   return true;
 }
@@ -332,6 +351,30 @@ bool BrowserMedia::Handle(const std::vector<std::string>& words, const std::vect
     }
     return true;
   }
+  if (command == "MEDIA_FRAME" && words.size() == 7 && words[5] == "pcm") {
+    uint64_t inputEpoch = 0, sequence = 0;
+    if (!Decimal(words[3], inputEpoch) || !Decimal(words[4], sequence)
+        || body.empty() || body.size() > 9600 || body.size() % 2
+        || cancelled_.load() || failed_.load()) return false;
+    // A microphone request can already be in flight when VAD closes Listen.
+    // Retired input is discarded without admitting bytes or advancing sequence;
+    // a current listening gate still requires an exact, uninterrupted sequence.
+    if ((!busy_.load() && done_ && phase_ == "completed" && inputEpoch <= inputEpoch_)
+        || (Current() && busy_.load() && (inputEpoch < inputEpoch_ || (inputEpoch == inputEpoch_ && !listening_)))) {
+      if (rejectionCode) *rejectionCode = "media-input-retired";
+      return false;
+    }
+    if (!Current() || !busy_.load() || inputEpoch != inputEpoch_) return false;
+    if (sequence != inputSequence_) {
+      if (rejectionCode) *rejectionCode = "media-input-sequence-mismatch";
+      return false;
+    }
+    if (inputBytes_ + body.size() > 19200) {
+      if (rejectionCode) *rejectionCode = "media-input-overflow";
+      failed_.store(true); changed_.notify_all(); return false;
+    }
+    ++inputSequence_; inputBytes_ += body.size(); input_.push_back(body); changed_.notify_all(); return true;
+  }
   if (!Current() || !busy_.load()) return false;
   if (command == "MEDIA_EVENT" && words.size() == 4) {
     if (body.empty() || body.size() > 65536) return false;
@@ -344,11 +387,6 @@ bool BrowserMedia::Handle(const std::vector<std::string>& words, const std::vect
   if (command == "MEDIA_FRAME" && words.size() == 7) {
     uint64_t inputEpoch = 0, sequence = 0;
     if (!Decimal(words[3], inputEpoch) || !Decimal(words[4], sequence)) return false;
-    if (words[5] == "pcm") {
-      if (!listening_ || inputEpoch != inputEpoch_ || sequence != inputSequence_ || body.empty() || body.size() > 9600 || body.size() % 2) return false;
-      if (inputBytes_ + body.size() > 19200) { failed_.store(true); changed_.notify_all(); return false; }
-      ++inputSequence_; inputBytes_ += body.size(); input_.push_back(body); changed_.notify_all(); return true;
-    }
     if (words[5] == "jpeg") {
       if (!photoRequested_ || photoReady_ || inputEpoch != inputEpoch_ || sequence != jpegSequence_ ||
           body.size() > 32768 || jpeg_.size() + body.size() > 262144) return false;
@@ -431,7 +469,7 @@ void BrowserMedia::Worker(VoiceWorkflowRequest request) {
           while (engine.Current()) {
             if (!engine.Uploading()) { std::unique_lock<std::mutex> lock(mutex_); changed_.wait_for(lock, std::chrono::milliseconds(10)); continue; }
             const uint32_t inputEpoch = engine.InputEpoch();
-            if (!TakeInput(pcm)) { engine.Fail(); break; }
+            if (!TakeInputForEpoch(pcm, engine, inputEpoch)) { engine.Fail(); break; }
             if (!pcm.empty()) (void)engine.SendInput(pcm, inputEpoch);
             Wipe(pcm);
           }

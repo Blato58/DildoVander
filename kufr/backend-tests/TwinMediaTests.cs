@@ -127,7 +127,8 @@ internal static class TwinMediaTests
         }
         Check((await SendAsync(HttpMethod.Get, prefix + "/media/state", second)).StatusCode == HttpStatusCode.Conflict, "second actor cannot read media");
         Check((await SendAsync(HttpMethod.Post, prefix + "/media/start", second, start)).StatusCode == HttpStatusCode.Conflict, "second actor cannot own media");
-        var inputs = 0; var drains = 0; var captions = 0; var staleAckChecked = false;
+        var inputs = 0; var drains = 0; var captions = 0; var staleAckChecked = false; var retiredInputChecked = false;
+        JsonElement? previousInput = null;
         string? lastInputEpoch = null;
         var deadline = DateTime.UtcNow.AddSeconds(25);
         while (DateTime.UtcNow < deadline)
@@ -155,22 +156,43 @@ internal static class TwinMediaTests
                 }
             }
             state = await ReadAsync(prefix + "/media/state", owner);
+            if (!retiredInputChecked && previousInput is { } captured
+                && state.GetProperty("inputEpoch").GetString() != captured.GetProperty("inputEpoch").GetString())
+            {
+                using var retired = await MicrophoneAsync(captured, "1");
+                var problem = await retired.Content.ReadFromJsonAsync<JsonElement>();
+                Check(retired.StatusCode == HttpStatusCode.Conflict && problem.GetProperty("code").GetString() == "media-input-retired",
+                    "in-flight audio from a retired gate is explicitly discarded");
+                Check(!retired.Headers.Contains("X-Twin-Media-Accepted-Bytes")
+                    && app.Services.GetRequiredService<TwinMediaSessions>().Busy("sim-media"),
+                    "retired audio has no accepted-byte evidence and does not cancel the native conversation");
+                retiredInputChecked = true;
+            }
             if (state.GetProperty("inputEnabled").GetBoolean() && state.GetProperty("inputEpoch").GetString() != lastInputEpoch)
             {
                 lastInputEpoch = state.GetProperty("inputEpoch").GetString();
-                using var request = new HttpRequestMessage(HttpMethod.Post, prefix + "/media/input") { Content = new ByteArrayContent(new byte[9600]) };
-                request.Content.Headers.ContentType = new("application/octet-stream"); request.Headers.Add("Cookie", owner); request.Headers.Add("Origin", "https://twin.test");
-                foreach (var header in new[] { ("Session-Id", "sessionId"), ("Boot-Id", "bootId"), ("Media-Epoch", "epoch"), ("Input-Epoch", "inputEpoch") })
-                { request.Headers.Add(header.Item1, state.GetProperty(header.Item2).GetString()); }
-                request.Headers.Add("Input-Sequence", "0");
-                using var uploaded = await http.SendAsync(request);
+                if (inputs == 0)
+                {
+                    using var wrongSequence = await MicrophoneAsync(state, "1");
+                    var problem = await wrongSequence.Content.ReadFromJsonAsync<JsonElement>();
+                    Check(wrongSequence.StatusCode == HttpStatusCode.Conflict
+                        && problem.GetProperty("code").GetString() == "media-input-sequence-mismatch",
+                        "current-gate sequence mismatch remains a hard rejection");
+                    using var future = await MicrophoneAsync(state, "0", (ulong.Parse(lastInputEpoch!) + 1).ToString());
+                    var futureProblem = await future.Content.ReadFromJsonAsync<JsonElement>();
+                    Check(future.StatusCode == HttpStatusCode.Conflict
+                        && futureProblem.GetProperty("code").GetString() == "media_epoch_or_sequence_mismatch",
+                        "future epoch is never treated as retired audio");
+                }
+                previousInput = state.Clone();
+                using var uploaded = await MicrophoneAsync(state, "0");
                 Check(uploaded.IsSuccessStatusCode, "actual native microphone input"); inputs++;
                 Check(uploaded.Headers.GetValues("X-Twin-Media-Accepted-Bytes").Single() == "9600", "accepted input bytes are explicit transport evidence");
             }
             if (!state.GetProperty("active").GetBoolean()) { break; }
             await Task.Delay(15);
         }
-        Check(inputs == 4 && drains == 5 && captions > 0 && !state.GetProperty("active").GetBoolean()
+        Check(inputs == 4 && drains == 5 && captions > 0 && retiredInputChecked && !state.GetProperty("active").GetBoolean()
             && (!state.TryGetProperty("error", out var mediaError) || mediaError.ValueKind == JsonValueKind.Null), "full production fake dialogue completion");
         var store = app.Services.GetRequiredService<TwinStore>();
         for (var count = 0; count < 50 && store.Read("sim-media")!.Snapshot.Reported.Slot == 0; count++) { await Task.Delay(20); }
@@ -419,6 +441,17 @@ internal static class TwinMediaTests
         {
             var request = new HttpRequestMessage(method, route); request.Headers.Add("Cookie", cookie); request.Headers.Add("Origin", "https://twin.test");
             if (body is not null) { request.Content = JsonContent.Create(body); }
+            return http.SendAsync(request);
+        }
+        Task<HttpResponseMessage> MicrophoneAsync(JsonElement captured, string sequence, string? inputEpoch = null)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, prefix + "/media/input") { Content = new ByteArrayContent(new byte[9600]) };
+            request.Content.Headers.ContentType = new("application/octet-stream");
+            request.Headers.Add("Cookie", owner); request.Headers.Add("Origin", "https://twin.test");
+            foreach (var header in new[] { ("Session-Id", "sessionId"), ("Boot-Id", "bootId"), ("Media-Epoch", "epoch") })
+            { request.Headers.Add(header.Item1, captured.GetProperty(header.Item2).GetString()); }
+            request.Headers.Add("Input-Epoch", inputEpoch ?? captured.GetProperty("inputEpoch").GetString());
+            request.Headers.Add("Input-Sequence", sequence);
             return http.SendAsync(request);
         }
         async Task<JsonElement> ReadAsync(string route, string cookie)

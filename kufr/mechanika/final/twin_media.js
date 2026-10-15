@@ -139,7 +139,7 @@
     const get=key=>section.querySelector(`[data-media-${key}]`);
     let context=null, sourceKey='', configuration=null, actor=null, generation=0, failure='', notice='Média nejsou aktivovaná.';
     let audio=null, mic=null, camera=null, captureNode=null, captureSource=null, silentGain=null, speakerReady=false, workletReady=false;
-    let listen=false, uploading=false, inFlightBytes=0, inputSequence=0n, lastSequence=null, timer=null, reading=false, pollCount=0;
+    let listen=false, uploading=false, inFlightBytes=0, inputSequence=0n, retiredInputEpoch=null, lastSequence=null, timer=null, reading=false, pollCount=0;
     let queue=new CaptureQueue(), queuedOutputBytes=0, consumedBytes=0n, scheduledUntil=0, drainFrame=null;
     let photoRequest=null, photoBlob=null, photoUrl=null, pendingStart=false, admission=null, saving=false, activationBusy=false, ackTail=Promise.resolve();
     const sources=new Set(), controllers=new Set();
@@ -193,7 +193,7 @@
       sources.clear(); queuedOutputBytes=0; scheduledUntil=0; consumedBytes=0n; drainFrame=null;
     }
     function localStop() {
-      generation++; listen=false; queue.reset(); inputSequence=0n; lastSequence=null; photoRequest=null; clearPhoto();
+      generation++; listen=false; queue.reset(); inputSequence=0n; retiredInputEpoch=null; lastSequence=null; photoRequest=null; clearPhoto();
       if (timer!==null) root.clearTimeout(timer); timer=null;
       for (const controller of controllers) controller.abort(); controllers.clear();
       stopOutput(); captureNode?.disconnect(); captureSource?.disconnect(); silentGain?.disconnect();
@@ -331,7 +331,8 @@
         }
       }
       // Phase labels are not VoiceAudioPort.Listen evidence (notably GPT-Live).
-      listen=value.inputEnabled===true; actor.inputEnabled=listen;
+      listen=value.inputEnabled===true && (retiredInputEpoch===null || decimal(value.inputEpoch)>decimal(retiredInputEpoch));
+      actor.inputEnabled=listen;
       if (!listen) queue.reset();
     }
     async function poll(own) {
@@ -375,7 +376,16 @@
       uploading=true; inFlightBytes=bytes.length;
       try {
         await request(context.instanceId,'/media/input',{method:'POST',headers:{...headers(selected,inputEpoch,sequence),'Content-Type':'application/octet-stream'},body:bytes});
-      } catch (error) { if (own===generation && selected===actor && inputEpoch===actor.inputEpoch) fail(error); }
+      } catch (error) {
+        if (own===generation && selected===actor && inputEpoch===actor.inputEpoch) {
+          if (error.status===409 && error.code==='media-input-retired') {
+            // VAD may close the native gate while a captured block is in flight.
+            // Drop it; only a newer native gate may enable capture again.
+            retiredInputEpoch=inputEpoch; listen=false; actor.inputEnabled=false;
+            queue.reset(); pollCount=9;
+          } else fail(error);
+        }
+      }
       finally { if (own===generation) { uploading=false; inFlightBytes=0; void upload(); } }
     }
     function capture(samples) {
