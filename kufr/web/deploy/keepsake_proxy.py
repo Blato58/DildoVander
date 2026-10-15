@@ -54,12 +54,16 @@ def render_compatibility(host):
         grouped.setdefault((template, source), set()).add(method)
     for (template, source), methods in grouped.items():
         streaming = template.endswith(("/realtime-turns", "/realtime-live", "/gpt-live"))
-        twin = source == "Features/DigitalTwin/TwinEndpoints.cs"
+        twin = source.startswith("Features/DigitalTwin/")
+        # Only the JPEG upload needs the larger existing Twin media body cap.
+        body_limit = "256k;" if template == "/v1/twin/instances/{id}/media/photo" else "32k;" if twin else "4m;"
         upstream = CONTRACT["upstreams"].get(source, CONTRACT["upstreams"]["default"])
         lines.extend([
             'location ~ "^' + route_pattern(template) + '$" {',
+            # nginx locations match a decoded path; reject escapes in the raw path.
+            '    if ($request_uri ~ "^[^?]*%") { return 404; }',
             '    if ($request_method !~ "^(?:' + "|".join(sorted(methods)) + ')$") { return 405; }',
-            "    client_max_body_size " + ("32k;" if twin else "4m;"),
+            "    client_max_body_size " + body_limit,
             "    access_log off;",
             "    proxy_pass " + upstream + ";",
             "    proxy_http_version 1.1;",
@@ -113,6 +117,7 @@ def render(host, guest_only=True):
         # Quoting is required because nginx otherwise treats GUID {n} braces as blocks.
         lines.extend([
             'location ~ "^' + pattern + '$" {',
+            '    if ($request_uri ~ "^[^?]*%") { return 404; }',
             '    if ($request_method !~ "^(?:' + "|".join(sorted(methods)) + ')$") { return 405; }',
             "    client_max_body_size 16m;",
             "    access_log off;",

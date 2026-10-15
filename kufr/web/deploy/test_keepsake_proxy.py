@@ -11,6 +11,30 @@ ID = "12345678-1234-1234-1234-123456789abc"
 
 
 class ProxyTests(unittest.TestCase):
+    def test_raw_path_escapes_are_rejected_only_inside_api_locations(self):
+        config = proxy.render_compatibility("keepsake.example.invalid")
+        guard = '    if ($request_uri ~ "^[^?]*%") { return 404; }'
+        locations = re.findall(r'location ~ "\^[^\n]+\n(.*?)\n}', config, re.DOTALL)
+        expected_locations = len(proxy.ROUTES) + len({route for method, route, source in proxy.CONTRACT["routes"]})
+        self.assertEqual(expected_locations, len(locations))
+        self.assertEqual(expected_locations, config.count(guard))
+        for block in locations:
+            self.assertTrue(block.startswith(guard + "\n"), "Raw paths must be checked before method/proxy handling")
+
+        # Exercise the generated nginx condition against raw request targets.
+        pattern = re.search(r'\$request_uri ~ "([^"]+)"', locations[0]).group(1)
+        for target in (
+            "/he%61lthz", "/v1/twin/instances/sim-development/media%2fphoto",
+            "/guest/v1/%65vening", "/guest/v1/keepsakes/%252e%252e",
+            "/guest/v1/evening%3fignored",
+        ):
+            self.assertIsNotNone(re.search(pattern, target), target)
+        for target in (
+            "/healthz", "/healthz?probe=%61", "/guest/v1/evening?value=%2F",
+            "/v1/twin/instances/sim-development/media/state?value=%25",
+        ):
+            self.assertIsNone(re.search(pattern, target), target)
+
     def test_public_evening_is_get_only_and_not_an_owner_alias(self):
         self.assertTrue(proxy.allowed("GET", "/guest/v1/evening"))
         self.assertFalse(proxy.allowed("POST", "/guest/v1/evening"))
@@ -21,19 +45,22 @@ class ProxyTests(unittest.TestCase):
 
     def test_compatibility_map_matches_real_source_declarations(self):
         backend = Path(__file__).resolve().parents[2] / "backend"
-        supplied = {(method, route) for method, route, source in proxy.CONTRACT["routes"]}
+        supplied = {tuple(route) for route in proxy.CONTRACT["routes"]}
         actual = set()
         for path in [backend / "Program.cs", *sorted((backend / "Features").rglob("*.cs"))]:
-            for method, route in re.findall(r'\.Map(Get|Post|Put|Delete|Patch)\("(/(?:v1/|healthz|twin)[^"\n]*)"', path.read_text(encoding="utf-8")):
-                actual.add((method.upper(), route))
+            text = path.read_text(encoding="utf-8")
+            groups = dict(re.findall(r'var\s+(\w+)\s*=\s*\w+\.MapGroup\("([^"\n]+)"\)', text))
+            for receiver, method, route in re.findall(r'(\w+)\.Map(Get|Post|Put|Delete|Patch)\("([^"\n]*)"', text):
+                route = groups.get(receiver, "") + route
+                if route.startswith(("/v1/", "/healthz", "/twin")):
+                    actual.add((method.upper(), route, path.relative_to(backend).as_posix()))
         self.assertEqual(supplied, actual, "Current backend routes must all be reviewed in the compatibility contract")
-        for method, route, source in proxy.CONTRACT["routes"]:
-            self.assertIn('Map' + method.title() + '("' + route + '"', (backend / source).read_text(encoding="utf-8"))
 
     def test_twin_ingress_keeps_its_isolated_listener_and_exact_methods(self):
         twin_source = "Features/DigitalTwin/TwinEndpoints.cs"
-        self.assertEqual(49, sum(source != twin_source for method, route, source in proxy.CONTRACT["routes"]))
+        self.assertEqual(49, sum(not source.startswith("Features/DigitalTwin/") for method, route, source in proxy.CONTRACT["routes"]))
         self.assertEqual(11, sum(source == twin_source for method, route, source in proxy.CONTRACT["routes"]))
+        self.assertEqual(9, sum(source == "Features/DigitalTwin/TwinMediaEndpoints.cs" for method, route, source in proxy.CONTRACT["routes"]))
         paths = [
             ("GET", "/twin"), ("GET", "/healthz/twin"),
             ("POST", "/v1/twin/session"), ("DELETE", "/v1/twin/session"),
@@ -46,7 +73,13 @@ class ProxyTests(unittest.TestCase):
                 ("GET", f"/v1/twin/instances/{instance}/recording"),
                 ("POST", f"/v1/twin/instances/{instance}/commands"),
                 ("POST", f"/v1/twin/ingest/{instance}"),
+                ("GET", f"/v1/twin/instances/{instance}/settings"),
+                ("PUT", f"/v1/twin/instances/{instance}/settings"),
+                ("GET", f"/v1/twin/instances/{instance}/media/state"),
+                ("GET", f"/v1/twin/instances/{instance}/media/output"),
             ])
+            paths.extend(("POST", f"/v1/twin/instances/{instance}/media/{action}")
+                         for action in ("start", "cancel", "played", "input", "photo"))
         for method, path in paths:
             self.assertTrue(proxy.allowed_backend(method, path), (method, path))
             self.assertFalse(proxy.allowed(method, path), "Twin credentials must not become guest grants")
@@ -62,6 +95,13 @@ class ProxyTests(unittest.TestCase):
             ("POST", "/v1/twin/ingest/sim-development/commands"),
             ("GET", "/v1/twin/instances/non%20canonical"),
             ("GET", "/guest/v1/twin/instances/sim-development"),
+            ("POST", "/v1/twin/instances/sim-development/settings"),
+            ("GET", "/v1/twin/instances/sim-development/media/start"),
+            ("POST", "/v1/twin/instances/sim-development/media/output"),
+            ("GET", "/v1/twin/instances/sim-development/media/photo"),
+            ("POST", "/v1/twin/instances/sim-development/media/photo/extra"),
+            ("POST", "/v1/twin/instances/non%20canonical/media/input"),
+            ("POST", "/guest/v1/twin/instances/sim-development/media/photo"),
         ]:
             self.assertFalse(proxy.allowed_backend(method, path), (method, path))
             self.assertFalse(proxy.allowed(method, path), (method, path))
@@ -71,11 +111,12 @@ class ProxyTests(unittest.TestCase):
         for method, route, source in proxy.CONTRACT["routes"]:
             location = 'location ~ "^' + proxy.route_pattern(route) + '$" {'
             block = next(block for block in blocks if location in block)
-            twin = source == twin_source
+            twin = source.startswith("Features/DigitalTwin/")
             upstream = "http://127.0.0.1:5082" if twin else "http://127.0.0.1:5080"
             self.assertIn("proxy_pass " + upstream + ";", block)
             if twin:
-                self.assertIn("client_max_body_size 32k;", block)
+                body_limit = "256k" if route.endswith("/media/photo") else "32k"
+                self.assertIn("client_max_body_size " + body_limit + ";", block)
                 self.assertIn("proxy_read_timeout 30s;", block)
         self.assertNotIn("location ^~ /v1/twin/", config)
         self.assertNotIn("dildovander-twin.conf", config)

@@ -2,9 +2,13 @@
 
 Kanonický mobilní web je v `kufr/web/keepsake/`. Relativní `/guest/v1` API,
 SQLite autorita a bounded worker žijí v existujícím .NET backendu. Web i API
-jsou připravené pro stejný HTTPS origin na stávajícím VPS. Produkční DV10 zatím
-není zapnuté. [Závazná specifikace 2.2](SPEC.md) a [VPS handoff](VPS_HANDOFF.md)
-oddělují implementaci od placené, iPhone, hardware a produkční akceptace.
+běží na stejném HTTPS originu stávajícího VPS. Majitel 15. 10. 2026 autorizoval
+nasazení a zapnutí placeného generování se stávajícím backendovým klíčem;
+[veřejný přehled](https://2.28.202.220/keepsake/evening/) je nasazený a ověřený.
+Příběhy používají `gpt-6.1-sol`, obrazy `gpt-image-2`. Přesné releasy, konfiguraci
+a kontroly uvádí [produkční záznam](../../../docs/project/artifacts/DV10-production-v1.json)
+a [VPS handoff](VPS_HANDOFF.md). [Specifikace 2.2](SPEC.md) nadále odděluje
+implementaci a nasazení od ověření kvality, iPhonu, hardware a obnovy.
 
 ## Vyzvednutí jedním QR
 
@@ -30,7 +34,8 @@ polohy nebo předání rekvizity návštěvníkovi. Backend nikdy nespíná aktu
 
 ## Konfigurace a bezpečné vypnutí
 
-Všechny tři flags jsou ve výchozím nastavení vypnuté. Pro čtení již uložených
+Všechny tři flags jsou ve výchozím nastavení vypnuté; v nasazené produkci jsou
+`Enabled`, `GenerationEnabled` a `PortraitEnabled` zapnuté. Pro čtení již uložených
 památek lze nechat `Enabled=true` a vypnout nové generování. Čekající práce a
 obsah zůstávají; re-enable nevymaže data a neřeší nejasné placené attempty retry.
 
@@ -148,6 +153,8 @@ jsou tracked repo skills. Skutečné `codex app-server` `skills/list` s
 integraci nenahrazuje. Tento již běžící chat se automaticky nepřepíše.
 
 Aktuální výsledky jsou v [projektové položce DV10](../../../docs/project/work-items/DV10.json)
-a [capability scorecard](CAPABILITIES.json). Placená kvalita OpenAI, skutečný
-iPhone guest, schválené veřejné nasazení a nezávislý encrypted backup/restore
-nejsou nahrazené lokálními syntetickými testy. `event_ready` zůstává false.
+a [capability scorecard](CAPABILITIES.json). Veřejné nasazení a zapnutí placeného
+generování jsou dokončené. Při ověření byl přehled prázdný a neproběhla skutečná
+inference. Kvalita výstupů a portrétu ze souhlasné fotografie, skutečný iPhone
+guest, fyzická akceptace a nezávislý encrypted backup/restore zůstávají neověřené;
+lokální syntetické testy je nenahrazují. `event_ready` zůstává false.

@@ -2,7 +2,8 @@
   "schemaVersion": 1,
   "upstreams": {
     "default": "http://127.0.0.1:5080",
-    "Features/DigitalTwin/TwinEndpoints.cs": "http://127.0.0.1:5082"
+    "Features/DigitalTwin/TwinEndpoints.cs": "http://127.0.0.1:5082",
+    "Features/DigitalTwin/TwinMediaEndpoints.cs": "http://127.0.0.1:5082"
   },
   "routes": [
     ["GET", "/healthz/twin", "Features/DigitalTwin/TwinEndpoints.cs"],
@@ -16,6 +17,15 @@
     ["POST", "/v1/twin/ingest/{id}", "Features/DigitalTwin/TwinEndpoints.cs"],
     ["POST", "/v1/twin/device-token", "Features/DigitalTwin/TwinEndpoints.cs"],
     ["GET", "/v1/twin/health", "Features/DigitalTwin/TwinEndpoints.cs"],
+    ["GET", "/v1/twin/instances/{id}/settings", "Features/DigitalTwin/TwinMediaEndpoints.cs"],
+    ["PUT", "/v1/twin/instances/{id}/settings", "Features/DigitalTwin/TwinMediaEndpoints.cs"],
+    ["POST", "/v1/twin/instances/{id}/media/start", "Features/DigitalTwin/TwinMediaEndpoints.cs"],
+    ["POST", "/v1/twin/instances/{id}/media/cancel", "Features/DigitalTwin/TwinMediaEndpoints.cs"],
+    ["GET", "/v1/twin/instances/{id}/media/state", "Features/DigitalTwin/TwinMediaEndpoints.cs"],
+    ["GET", "/v1/twin/instances/{id}/media/output", "Features/DigitalTwin/TwinMediaEndpoints.cs"],
+    ["POST", "/v1/twin/instances/{id}/media/played", "Features/DigitalTwin/TwinMediaEndpoints.cs"],
+    ["POST", "/v1/twin/instances/{id}/media/input", "Features/DigitalTwin/TwinMediaEndpoints.cs"],
+    ["POST", "/v1/twin/instances/{id}/media/photo", "Features/DigitalTwin/TwinMediaEndpoints.cs"],
     ["POST", "/v1/device-access/token", "Features/Access/DeviceAccessEndpoints.cs"],
     ["GET", "/v1/diagnostics", "Program.cs"],
     ["GET", "/healthz", "Program.cs"],
