@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "KUFR-TWIN-MIC-DEPLOY",
   "initiative": "KUFR-TWIN",
-  "title": "Nasazení a ověření opravy mikrofonní fronty Twin na VPS",
+  "title": "NasazenÃ­ a ovÄ›Å™enÃ­ opravy mikrofonnÃ­ fronty Twin na VPS",
   "state": "closed",
   "priority": "P1",
   "sequence": 2,
@@ -40,7 +40,7 @@
     "artifactDigest": "a7ee2cf3740efc92912cfe450e7c7637d98eb0596d35b2111c41db987fb86148",
     "policyVersion": "twin-v2"
   },
-  "currentNote": "2026-10-15: v17 deployed from merged main68967546cffa0179fb8959dfdc7a677f029a6157. Focused fake-device/provider VPS test passed; original settings read back after control release, native idle and needsRecovery false. No paid provider or physical test. Source PR202 push/merge verified.",
+  "currentNote": "2026-10-15: v17 deployed from merged main68967546cffa0179fb8959dfdc7a677f029a6157. Focused fake-device/provider VPS test passed; original settings read back after control release, native idle and needsRecovery false. No paid provider or physical test. Source PR202 push/merge verified. Deployment evidence commit0e9235acb1c92cbee5583f99e3d96526ab5e3f6f pushed successfully via Push-CurrentBranch.ps1; remote branch SHA verified.",
   "nextAction": "Owner can reload the Twin viewer and use the existing provider configuration; physical/acoustic and real-provider acceptance remain outside this software check.",
   "closure": {
     "outcome": "accepted",
