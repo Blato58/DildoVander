@@ -272,8 +272,8 @@ identity jsou v receipts; build/screenshot nejsou fyzickou akceptací.
 NASAZENO NA VPS: oddělená služba a skutečně běžící host procesy, chráněný viewer
 a ingest. Testy používají fake provider; Realtime/GPT-Live jsou připravené
 v nastavení se schváleným existujícím serverovým klíčem. Fyzický kufr nebyl
-ovládán ani flashován. Aktuální nasazený release je `twin-20261015-v14`;
-source/build ID `35b158f851e24de2546071cce2a279b2cfb8c2f451b4cca31dce1a068fda4b8f`.
+ovládán ani flashován. Aktuální nasazený release je `twin-20261015-v15`;
+source/build ID `f4735375d8b422d3d0d3a290a5c40a381b1d22d26c76a7a648fcbd4b47a1cae5`.
 Aktuální [softwarový target](../../docs/project/targets/KUFR-TWIN-software.json)
 zahrnuje i browser média; fyzickou akceptaci dál blokuje PHYSICAL.
 
@@ -320,3 +320,13 @@ zachová vlastníka řízení. V5 receipts:19native Windows/Linux,103JS/Chrome,
 HTTP/native260x4800B s pomalým čtenářem a CAD desktop/mobile/reload/Stop.
 Placená AI vynechána; GPT-Live rozhovor ověří majitel. Výkonnostní čísla výše
 patří staršímu běhu a nebyla znovu měřena pro v14.
+
+
+V15 doplňuje nejvýše3 pokusy o úklid konverzace (4s každý, stejný idempotentní
+klíč;204/404 ukončí opakování). Úspěšné přihlášení stejným credentialem a cookie
+obnoví8h platnost téhož ID i dosud platného vlastnictví médií/hostu a paměti
+zrušených operací. Jiný browser nebo scope původní řízení nepřebírá.
+
+Paměť zrušení je omezená na64 operací a64 vlastníků overflow bariéry na instanci.
+Při dalším zaplnění blokuje nové vstupy až do explicitního restartu služby;
+nezahazuje neexpirované záznamy. Deadline sleduje obnovenou autentizovanou relaci.

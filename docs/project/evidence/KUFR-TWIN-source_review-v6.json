@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-TWIN-source_review-v6",
+  "observedAtUtc": "2026-10-15T12:37:08.929362+00:00",
+  "kind": "source_review",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "HOST",
+      "criterionRevision": 6,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "VIEWER",
+      "criterionRevision": 6,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "LIVE",
+      "criterionRevision": 6,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-TWIN",
+      "criterionId": "ISOLATION",
+      "criterionRevision": 6,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "f4735375d8b422d3d0d3a290a5c40a381b1d22d26c76a7a648fcbd4b47a1cae5",
+    "policyVersion": "twin-v2"
+  },
+  "method": "Independent Sol6.1/high worker and parent combined diff review. Capacity-only bounded retry, independent queues, exact ACK/epochs, cleanup and scoped session reuse. InvalidDataException and missing field findings fixed with regressions; final review no material findings. PR199 completed Codex review40cb78f found cleanup retry and session renewal P2s; corrected with regression checks. Worker/parent reviewed renewal across session, host, media and tombstones; no unresolved relevant findings at integration.",
+  "environment": "Windows .NET10/MSVC/Chrome Playwright; Linux VPS g++15.2; fake upstream/browser devices.",
+  "limitations": [
+    "No paid provider call or physical ESP/iPhone/audio/acoustic/mechanical acceptance.",
+    "Actual owner browser GPT-Live remains to be checked. CAD browser, Chrome HAL and HTTP/native stream are separate software checks, not fresh full voice+CAD acceptance.",
+    "Only unchanged twin_telemetry firmware evidence transferred; prior performance/board build keeps original date/scope."
+  ],
+  "observation": "PR199 follow-up fixes transient DELETE retry with stable key and bounded3attempts, plus authenticated same-browser renewal for matching unexpired owners. V15 source/deployment identified by new fingerprint. Historical v5 and negative receipts unchanged.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-TWIN-source-v6.json",
+    "docs/project/artifacts/KUFR-TWIN-release-v6.json",
+    "docs/project/artifacts/KUFR-TWIN-validation-v6.json",
+    "docs/project/artifacts/KUFR-TWIN-browser-v6/browser-result.json"
+  ]
+}

@@ -15,7 +15,8 @@ internal sealed partial class TwinMediaSessions : IDisposable
     {
         internal readonly string InstanceId = id, OwnerId = owner.Id, OperationId = start.OperationId,
             BootId = start.ExpectedBootId, SessionId = Guid.NewGuid().ToString("D");
-        internal readonly DateTimeOffset Expires = owner.Expires;
+        internal readonly TwinPrincipal Principal = owner.Principal;
+        internal DateTimeOffset Expires = owner.Expires;
         internal readonly TwinMediaSettings Settings = settings;
         internal readonly HttpClient Http = http;
         internal readonly CancellationTokenSource Lifetime = new(TimeSpan.FromMinutes(11));
@@ -68,6 +69,27 @@ internal sealed partial class TwinMediaSessions : IDisposable
     internal bool Busy(string id)
     {
         lock (gate) { return actors.TryGetValue(id, out var actor) && !actor.Cancelled && (actor.Starting || actor.State?.Active == true); }
+    }
+    internal void RenewOwner(TwinSession owner)
+    {
+        var principal = owner.Principal;
+        if (principal.Role != "control" || principal.Mode != "simulation" || principal.InstanceId is not { } id
+            || !hosts.IsSimulation(id) || owner.Expires <= clock.GetUtcNow()) { return; }
+        // Serialize with reservation: either its actor is already registered,
+        // or the later reservation reads the renewed session reference.
+        lock (gate)
+        {
+            if (actors.TryGetValue(id, out var actor))
+            {
+                lock (actor.Gate)
+                {
+                    if (actor.OwnerId == owner.Id && actor.Principal == principal && actor.Expires > clock.GetUtcNow()
+                        && owner.Expires > actor.Expires)
+                    { actor.Expires = owner.Expires; }
+                }
+            }
+            if (cancellations.TryGetValue(id, out var memory)) { memory.RenewOwner(owner.Id, owner.Expires, clock.GetUtcNow()); }
+        }
     }
     internal (TwinMediaSettings? Settings, string? Error) ChangeSettings(string id, TwinSession owner, TwinMediaSettingsChange change)
     {
@@ -210,8 +232,13 @@ internal sealed partial class TwinMediaSessions : IDisposable
     }
     private Actor? Owned(string id, TwinSession owner)
     {
-        if (owner.Principal.Role != "control" || owner.Principal.Mode != "simulation" || owner.Principal.InstanceId != id) { return null; }
-        lock (gate) { return actors.TryGetValue(id, out var actor) && actor.OwnerId == owner.Id && actor.Expires > clock.GetUtcNow() ? actor : null; }
+        if (owner.Principal.Role != "control" || owner.Principal.Mode != "simulation" || owner.Principal.InstanceId != id
+            || !actors.TryGetValue(id, out var actor)) { return null; }
+        lock (actor.Gate)
+        {
+            return actor.OwnerId == owner.Id && actor.Principal == owner.Principal && actor.Expires > clock.GetUtcNow()
+                ? actor : null;
+        }
     }
     private static bool Bound(Actor actor, string? session, string? boot, string? epoch) => !actor.Cancelled
         && session == actor.SessionId && boot == actor.BootId && epoch == actor.State?.Epoch;

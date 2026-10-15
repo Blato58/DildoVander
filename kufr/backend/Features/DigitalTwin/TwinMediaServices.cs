@@ -228,14 +228,27 @@ internal sealed partial class TwinMediaSessions
             conversation = actor.ConversationId;
             actor.ClosingConversationId = conversation;
         }
-        try
+        await DeleteConversationAsync(actor.Http, conversation);
+    }
+    internal static async Task DeleteConversationAsync(HttpClient http, string conversation)
+    {
+        // One cleanup owner, at most three attempts, and one idempotency key:
+        // transient failure remains retryable without a per-poll DELETE storm.
+        var key = Guid.NewGuid().ToString("D");
+        for (var attempt = 0; attempt < 3; attempt++)
         {
-            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(4));
-            using var request = new HttpRequestMessage(HttpMethod.Delete, "v1/conversations/" + conversation);
-            request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("D"));
-            using var response = await actor.Http.SendAsync(request, deadline.Token);
+            try
+            {
+                using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+                using var request = new HttpRequestMessage(HttpMethod.Delete, "v1/conversations/" + conversation);
+                request.Headers.Add("Idempotency-Key", key);
+                using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, deadline.Token);
+                if (response.StatusCode is System.Net.HttpStatusCode.NoContent or System.Net.HttpStatusCode.NotFound) { return; }
+            }
+            catch (ObjectDisposedException) { return; }
+            catch (Exception error) when (error is HttpRequestException or OperationCanceledException) { }
+            if (attempt < 2) { await Task.Delay(100); }
         }
-        catch (Exception error) when (error is HttpRequestException or OperationCanceledException or ObjectDisposedException) { }
     }
     internal static async Task<byte[]> ReadBoundedAsync(Stream stream, int maximum, CancellationToken cancellation)
     {

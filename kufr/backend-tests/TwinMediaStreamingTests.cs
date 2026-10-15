@@ -22,11 +22,40 @@ internal static class TwinMediaStreamingTests
     private enum StreamFault { None, Truncated, MissingType, MissingStreamId }
     internal static async Task RunAsync(string native)
     {
+        await CleanupRetryAsync();
         await RunCaseAsync(native, StreamFault.None);
         await RunCaseAsync(native, StreamFault.Truncated);
         await RunCaseAsync(native, StreamFault.MissingType);
         await RunCaseAsync(native, StreamFault.MissingStreamId);
         Console.WriteLine("PASS Twin HTTP streaming/native: burst backpressure, exact PCM/drain and malformed-stream bounded cleanup");
+    }
+
+    private static async Task CleanupRetryAsync()
+    {
+        foreach (var scenario in new[] { "transient", "timeout", "unavailable" })
+        {
+            using var handler = new CleanupHandler(scenario);
+            using var http = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1/") };
+            await TwinMediaSessions.DeleteConversationAsync(http, Guid.NewGuid().ToString("D"));
+            Check(handler.Attempts == (scenario == "unavailable" ? 3 : 2), "bounded cleanup retry count");
+            Check(handler.Keys.Distinct().Count() == 1 && Guid.TryParse(handler.Keys[0], out _), "stable cleanup idempotency key");
+        }
+        Console.WriteLine("PASS Twin cleanup retries transient failure/timeout, stops on204/404, caps attempts and retains one key");
+    }
+
+    private sealed class CleanupHandler(string scenario) : HttpMessageHandler
+    {
+        internal int Attempts;
+        internal readonly List<string> Keys = [];
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Attempts++;
+            Keys.Add(request.Headers.GetValues("Idempotency-Key").Single());
+            if (scenario == "timeout" && Attempts == 1) { throw new TaskCanceledException("Synthetic timeout"); }
+            var code = scenario == "unavailable" || Attempts == 1 ? HttpStatusCode.ServiceUnavailable
+                : scenario == "timeout" ? HttpStatusCode.NotFound : HttpStatusCode.NoContent;
+            return Task.FromResult(new HttpResponseMessage(code));
+        }
     }
 
     private static async Task RunCaseAsync(string native, StreamFault fault)

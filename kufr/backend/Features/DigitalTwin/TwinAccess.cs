@@ -4,7 +4,18 @@ using System.Text;
 namespace Kufr.Backend.Features.DigitalTwin;
 
 internal sealed record TwinPrincipal(string Role, string? InstanceId, string? Mode);
-internal sealed record TwinSession(string Id, TwinPrincipal Principal, DateTimeOffset Expires);
+internal sealed record TwinSession(string Id, TwinPrincipal Principal, DateTimeOffset Expires)
+{
+    private long expiryTicks = Expires.UtcTicks;
+    public DateTimeOffset Expires
+    {
+        get => new(Interlocked.Read(ref expiryTicks), TimeSpan.Zero);
+        init => Interlocked.Exchange(ref expiryTicks, value.UtcTicks);
+    }
+    // In-flight requests retain this authenticated session reference. Updating
+    // its deadline prevents a delayed reservation from copying the old expiry.
+    internal void Renew(DateTimeOffset expires) => Interlocked.Exchange(ref expiryTicks, expires.UtcTicks);
+}
 
 // These credentials are independent of device-control credentials and never
 // grant access to conversations, inventory, manual leases or physical commands.
@@ -94,7 +105,11 @@ internal sealed class TwinAccess
             // Another browser still receives a distinct session, and changing
             // credentials to another scope never reuses the previous authority.
             if (existingSessionId is not null && sessions.TryGetValue(existingSessionId, out var existing)
-                && existing.Principal == principal) { return existing; }
+                && existing.Principal == principal)
+            {
+                existing.Renew(clock.GetUtcNow().AddHours(8));
+                return existing;
+            }
             if (sessions.Count >= 64) { return null; }
             var id = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
             var session = new TwinSession(id, principal, clock.GetUtcNow().AddHours(8));
