@@ -17,14 +17,17 @@ internal static class TwinMediaTests
     internal static async Task RunAsync()
     {
         await FramingAsync();
+        await EventDeliveryAsync();
         ProviderSource();
         CancellationMemory();
         var native = Environment.GetEnvironmentVariable("KUFR_TWIN_TEST_NATIVE")
             ?? throw new InvalidOperationException("Browser media acceptance requires KUFR_TWIN_TEST_NATIVE.");
+        await TwinMediaStreamingTests.RunAsync(native);
         var root = Path.Combine(Path.GetTempPath(), "twin-media-api-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         const string control = "offline-control-credential-00000000000000000000000000000001";
         const string observe = "offline-observe-credential-00000000000000000000000000000002";
+        var testClock = new AdjustableTimeProvider(DateTimeOffset.UtcNow);
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
@@ -42,7 +45,7 @@ internal static class TwinMediaTests
             ["DigitalTwin:Credentials:0:InstanceId"] = "sim-media", ["DigitalTwin:Credentials:0:Sha256"] = Hash(control),
             ["DigitalTwin:Credentials:1:Role"] = "observe", ["DigitalTwin:Credentials:1:Sha256"] = Hash(observe)
         });
-        builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddSingleton<TimeProvider>(testClock);
         builder.Services.AddSingleton<DeviceAccessStore>(); builder.Services.AddSingleton<TwinAccess>();
         builder.Services.AddSingleton<TwinStore>(); builder.Services.AddSingleton<TwinHost>();
         builder.Services.AddHostedService(services => services.GetRequiredService<TwinHost>());
@@ -60,6 +63,10 @@ internal static class TwinMediaTests
         var owner = await LoginAsync(http, control);
         var spectator = await LoginAsync(http, observe);
         var second = await LoginAsync(http, control);
+        var resumed = await LoginAsync(http, control, owner);
+        Check(resumed == owner && second != owner, "browser reauthentication preserves owner; another browser stays distinct");
+        var switched = await LoginAsync(http, observe, owner);
+        Check(switched != owner && switched != spectator, "different credential scope cannot reuse controller session");
         const string prefix = "/v1/twin/instances/sim-media";
         var revokedRoot = Path.Combine(root, "revoked");
         Directory.CreateDirectory(Path.Combine(revokedRoot, "simulation", "sim-media"));
@@ -188,6 +195,7 @@ internal static class TwinMediaTests
         await PendingAdmissionCancelAsync(true);
         await OwnerExpiresDuringAdmissionAsync();
         await CancelIsolationAndCapacityAsync();
+        await ReauthenticateNearExpiryAsync();
         await app.StopAsync();
         Check(new TwinMediaSettingsStore(builder.Configuration).Read("sim-media")?.Revision == "1", "settings survive service restart");
         Console.WriteLine("PASS Twin browser media HTTP: scoped ownership, settings, native fake voice/input/drain/proposal, privacy and no physical feedback");
@@ -259,7 +267,7 @@ internal static class TwinMediaTests
         async Task OwnerExpiresDuringAdmissionAsync()
         {
             var ownerSession = app.Services.GetRequiredService<TwinAccess>().Session(owner.Split('=', 2)[1])!;
-            var temporaryOwner = ownerSession with { Expires = DateTimeOffset.UtcNow.AddSeconds(1) };
+            var temporaryOwner = ownerSession with { Expires = testClock.GetUtcNow().AddSeconds(1) };
             var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var resume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             media.StartCheckpoint = async stage =>
@@ -271,7 +279,7 @@ internal static class TwinMediaTests
                 var pending = media.StartAsync("sim-media", temporaryOwner,
                     new TwinMediaStart(Guid.NewGuid().ToString("D"), store.Read("sim-media")!.Snapshot.Source.BootId, true, false, true, true));
                 await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
-                await Task.Delay(temporaryOwner.Expires - DateTimeOffset.UtcNow + TimeSpan.FromMilliseconds(50));
+                testClock.Advance(TimeSpan.FromSeconds(2));
                 resume.TrySetResult();
                 var result = await pending.WaitAsync(TimeSpan.FromSeconds(5));
                 Check(result.Error == "media_owner_required" && !media.Busy("sim-media")
@@ -299,7 +307,7 @@ internal static class TwinMediaTests
                 new { operationId = Guid.NewGuid().ToString("D"), request.expectedBootId }))
             { Check(unrelated.IsSuccessStatusCode && media.Busy("sim-media"), "unrelated operation cannot cancel current actor"); }
             var ownerSession = app.Services.GetRequiredService<TwinAccess>().Session(owner.Split('=', 2)[1])!;
-            var expired = ownerSession with { Expires = DateTimeOffset.UtcNow.AddSeconds(-1) };
+            var expired = ownerSession with { Expires = testClock.GetUtcNow().AddSeconds(-1) };
             var invalidUuid = await media.CancelAsync("sim-media", ownerSession,
                 new TwinMediaCancel(OperationId: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA", ExpectedBootId: request.expectedBootId));
             Check(invalidUuid == "media_admission_mismatch", "cancellation rejects noncanonical UUIDs");
@@ -334,6 +342,42 @@ internal static class TwinMediaTests
             var blocked = await fresh.Content.ReadFromJsonAsync<JsonElement>();
             Check(fresh.StatusCode == HttpStatusCode.Conflict && blocked.GetProperty("code").GetString() == "media_cancellation_capacity",
                 "fresh admission fails closed at capacity");
+        }
+        async Task ReauthenticateNearExpiryAsync()
+        {
+            var access = app.Services.GetRequiredService<TwinAccess>();
+            var original = access.Session(owner.Split('=', 2)[1])!;
+            var originalExpiry = original.Expires;
+            testClock.Advance(original.Expires - testClock.GetUtcNow() - TimeSpan.FromMinutes(1));
+            Check(access.CreateSession("invalid-credential", original.Id) is null
+                && access.Session(original.Id)!.Expires == original.Expires, "invalid credential cannot extend a session");
+            var renewedCookie = await LoginAsync(http, control, owner);
+            var renewed = access.Session(original.Id)!;
+            Check(renewedCookie == owner && renewed.Expires == testClock.GetUtcNow().AddHours(8)
+                && renewed.Expires > originalExpiry && ReferenceEquals(original, renewed),
+                "near-expiry reauthentication renews the same reference and ID for eight hours");
+            testClock.Advance(TimeSpan.FromMinutes(2));
+            using (var actorState = await SendAsync(HttpMethod.Get, prefix + "/media/state", owner))
+            { Check(actorState.IsSuccessStatusCode, "matching actor ownership survives the old session deadline"); }
+            var newBrowser = await LoginAsync(http, control);
+            Check(newBrowser != owner, "new browser remains a separate renewed-session owner");
+            using (var denied = await SendAsync(HttpMethod.Get, prefix + "/media/state", newBrowser))
+            { Check(denied.StatusCode == HttpStatusCode.Conflict, "renewal does not transfer private actor ownership"); }
+            using (var denied = await SendAsync(HttpMethod.Post, prefix + "/commands", newBrowser, new { action = "inspect" }))
+            { Check(denied.StatusCode == HttpStatusCode.Conflict, "ordinary host ownership survives the old deadline"); }
+            var observerCookie = await LoginAsync(http, observe, owner);
+            Check(observerCookie != owner, "cross-scope reauthentication cannot renew the controller ID");
+            using (var denied = await SendAsync(HttpMethod.Get, prefix + "/media/state", observerCookie))
+            { Check(denied.StatusCode == HttpStatusCode.Forbidden, "cross-scope session cannot read the renewed actor"); }
+            using var replay = await SendAsync(HttpMethod.Post, prefix + "/media/start", owner, new
+            {
+                operationId = cancelledBeforeActor, expectedBootId = store.Read("sim-media")!.Snapshot.Source.BootId,
+                audioConsent = true, photoConsent = false, micAvailable = true, speakerAvailable = true, cameraAvailable = false
+            });
+            var problem = await replay.Content.ReadFromJsonAsync<JsonElement>();
+            Check(replay.StatusCode == HttpStatusCode.Conflict && problem.GetProperty("code").GetString() == "media_cancelled",
+                "renewed session cannot revive a cancellation after its original expiry");
+            Console.WriteLine("PASS Twin fake-clock reauthentication: same ID/actor/host renewed, browser and scope isolation, tombstone retained");
         }
         async Task LostAdmissionAsync()
         {
@@ -379,9 +423,10 @@ internal static class TwinMediaTests
         }
         async Task<JsonElement> ReadAsync(string route, string cookie)
         { using var response = await SendAsync(HttpMethod.Get, route, cookie); Check(response.IsSuccessStatusCode, "read " + route); return await response.Content.ReadFromJsonAsync<JsonElement>(); }
-        async Task<string> LoginAsync(HttpClient client, string credential)
+        async Task<string> LoginAsync(HttpClient client, string credential, string? cookie = null)
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, "/v1/twin/session") { Content = JsonContent.Create(new { credential }) };
+            if (cookie is not null) { request.Headers.Add("Cookie", cookie); }
             request.Headers.Add("Origin", "https://twin.test"); using var response = await client.SendAsync(request);
             Check(response.IsSuccessStatusCode, "login"); return response.Headers.GetValues("Set-Cookie").Single().Split(';')[0];
         }
@@ -398,6 +443,35 @@ internal static class TwinMediaTests
         try { await TwinNativeFraming.ReadAsync(truncated, CancellationToken.None); } catch (EndOfStreamException) { rejected = true; }
         Check(rejected, "truncated frame rejected");
         Console.WriteLine("PASS Twin binary framing bounds/truncation");
+    }
+    private static async Task EventDeliveryAsync()
+    {
+        var attempts = 0;
+        await TwinMediaSessions.DeliverEventAsync(() => Task.FromResult(++attempts < 3
+            ? new TwinCommandResult(false, "media-event-backpressure") : new TwinCommandResult(true, "media-accepted")), CancellationToken.None);
+        Check(attempts == 3, "only capacity rejection retries; accepted event never repeats");
+        attempts = 0;
+        var rejected = false;
+        try
+        {
+            await TwinMediaSessions.DeliverEventAsync(() =>
+            { attempts++; return Task.FromResult(new TwinCommandResult(false, "media-rejected")); }, CancellationToken.None);
+        }
+        catch (InvalidDataException) { rejected = true; }
+        Check(rejected && attempts == 1, "invalid event is never retried");
+        using var cancellation = new CancellationTokenSource();
+        attempts = 0;
+        var cancelled = false;
+        try
+        {
+            await TwinMediaSessions.DeliverEventAsync(() =>
+            {
+                attempts++; cancellation.Cancel();
+                return Task.FromResult(new TwinCommandResult(false, "media-event-backpressure"));
+            }, cancellation.Token);
+        }
+        catch (OperationCanceledException) { cancelled = true; }
+        Check(cancelled && attempts == 1, "capacity wait cancels without another admission");
     }
     private static void CancellationMemory()
     {
@@ -420,6 +494,21 @@ internal static class TwinMediaTests
         Check(memory.Record(first, now.AddMinutes(3), now.AddMinutes(2)), "expired slots can be reused");
         Check(memory.Error(first with { BootId = Guid.NewGuid() }, now.AddMinutes(2), fresh: true) is null, "old-boot cancellation does not match new boot");
         Check(memory.Error(first, now.AddMinutes(2), fresh: true) == "media_cancelled", "new boot lookup cannot erase an unexpired cancellation");
+        var renewing = new TwinSession("renewing", new("control", "sim-media", "simulation"), now.AddMinutes(1));
+        var renewable = new TwinAdmissionCancellations();
+        var cancelled = new TwinAdmissionIdentity(renewing.Id, boot, Guid.NewGuid());
+        Check(renewable.Record(cancelled, () => renewing.Expires, now), "live owner deadline remembered");
+        renewing.Renew(now.AddHours(8));
+        Check(renewable.Error(cancelled, now.AddMinutes(2), true) == "media_cancelled",
+            "renewal cannot prune cancellation before owner callback");
+        for (var count = 1; count < 64; count++)
+        { renewable.Record(new("short-owner", boot, Guid.NewGuid()), now.AddMinutes(3), now); }
+        var overflowOwner = new TwinSession("overflow-owner", renewing.Principal, now.AddMinutes(4));
+        var overflowCancellation = new TwinAdmissionIdentity(overflowOwner.Id, boot, Guid.NewGuid());
+        Check(!renewable.Record(overflowCancellation, () => overflowOwner.Expires, now), "renewable overflow barrier allocated");
+        overflowOwner.Renew(now.AddHours(8));
+        Check(renewable.Error(overflowCancellation, now.AddMinutes(5), true) == "media_cancellation_capacity",
+            "renewal cannot prune overflow barrier before owner callback");
         Console.WriteLine("PASS Twin cancellation memory: owner/boot isolation, 64 entries, no eviction, expiry and overflow barrier");
     }
     private static void ProviderSource()

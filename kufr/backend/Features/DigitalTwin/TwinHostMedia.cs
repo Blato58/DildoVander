@@ -18,8 +18,8 @@ internal sealed partial class TwinHost
             if (host.IntegrationBusy) { return "integration_busy"; }
             if (host.Owner is not null && host.Owner != session.Id && host.OwnerExpires > clock.GetUtcNow())
             { return "control_owned"; }
+            if (host.Owner != session.Id || session.Expires > host.OwnerExpires) { host.OwnerExpires = session.Expires; }
             host.Owner = session.Id;
-            host.OwnerExpires = session.Expires;
             return null;
         }
     }

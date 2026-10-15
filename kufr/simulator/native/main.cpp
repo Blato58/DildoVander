@@ -191,8 +191,9 @@ class Host final {
       media_.Cancel(); return Snapshot(true, "media-cancelled");
     }
     if (command.compare(0, 6, "MEDIA_") == 0) {
-      const bool accepted = media_.Handle(words, payload, extension_, attachment_);
-      return Snapshot(accepted, accepted ? "media-accepted" : "media-rejected");
+      std::string rejectionCode;
+      const bool accepted = media_.Handle(words, payload, extension_, attachment_, &rejectionCode);
+      return Snapshot(accepted, accepted ? "media-accepted" : rejectionCode.empty() ? "media-rejected" : rejectionCode);
     }
     if (media_.Busy() && (command == "TEXT" || command == "DANCE" || command == "INTEGRATION_PREPARE"))
       return Snapshot(false, "media-busy");

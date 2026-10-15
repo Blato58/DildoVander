@@ -3,6 +3,17 @@
   'use strict';
   const MAX_BYTES = 8 * 1024 * 1024, MAX_SNAPSHOTS = 2048, MAX_EVENTS = 4096;
   const UINT64_MAX = 18446744073709551615n;
+  async function httpFailure(response, path) {
+    let code = '';
+    try {
+      const body = await response.json();
+      if (typeof body?.code === 'string' && /^[a-z][a-z0-9_-]{0,95}$/.test(body.code)) code = body.code;
+    } catch (_) { /* A proxy may return an empty or non-JSON error body. */ }
+    const route = path.split('?')[0].split('/').slice(-2).join('/');
+    const error = new Error(`Twin HTTP ${response.status} (${route}): ${code || (response.status === 401 || response.status === 403 ? 'session/oprávnění' : 'požadavek odmítnut')}`);
+    error.status = response.status; error.code = code;
+    return error;
+  }
   function decimal(value, label) {
     if (typeof value !== 'string' || !/^(0|[1-9][0-9]*)$/.test(value) || BigInt(value) > UINT64_MAX) {
       throw new Error(label + ': očekávána přesná uint64 decimal string');
@@ -303,7 +314,7 @@
     async function request(path, options = {}) {
       if (offline) throw new Error('Offline export: pro session otevřete /twin na originu serveru');
       const response = await root.fetch(base + path, {...options, credentials:'include', cache:'no-store'});
-      if (!response.ok) throw new Error(`Twin HTTP ${response.status}: ${response.status === 401 || response.status === 403 ? 'session/oprávnění' : 'požadavek odmítnut'}`);
+      if (!response.ok) throw await httpFailure(response, path);
       if (response.status === 204) return null;
       return response.json();
     }
@@ -470,7 +481,7 @@
       uncertainty:slot => projection.estimates[slot - 1] === 'unknown' || projection.estimates[slot - 1] === 'moving',
       state:() => ({active,replay,pending:pending || pendingStop,pendingOrdinary:pending,pendingStop,mode:selectedMode,profile:selectedProfile,instanceId:projection.instanceId,status:projection.status(root.performance.now()),selectedSlot,positions:[...projection.positions]})};
   }
-  const api = {Projection, decimal, validateSnapshot, parseRecording, traceSummary, reportedOutputs, ageStatus, mount, MAX_BYTES, MAX_SNAPSHOTS};
+  const api = {Projection, decimal, validateSnapshot, parseRecording, traceSummary, reportedOutputs, ageStatus, httpFailure, mount, MAX_BYTES, MAX_SNAPSHOTS};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.DigitalTwin = api;
 })(typeof window === 'undefined' ? globalThis : window);

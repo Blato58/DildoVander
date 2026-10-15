@@ -3,6 +3,18 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const twin = require('./twin_viewer.js');
+test('HTTP diagnostics retain only bounded technical code and route, never raw response details',async()=>{
+  const error=await twin.httpFailure({status:409,json:async()=>({code:'media_epoch_or_playback_mismatch',detail:'private payload',credential:'secret'})},'/v1/twin/instances/sim/media/played?credential=secret');
+  assert.equal(error.status,409);assert.equal(error.code,'media_epoch_or_playback_mismatch');
+  assert.match(error.message,/media\/played/);assert.match(error.message,/media_epoch_or_playback_mismatch/);
+  assert.equal(error.message.includes('secret'),false);assert.equal(error.message.includes('private payload'),false);
+});
+test('HTTP diagnostics tolerate proxy HTML and reject arbitrary server error text',async()=>{
+  const proxy=await twin.httpFailure({status:502,json:async()=>{throw new Error('HTML');}},'/media/output');
+  assert.match(proxy.message,/502/);assert.equal(proxy.code,'');
+  const unsafe=await twin.httpFailure({status:409,json:async()=>({code:'token: private-value'})},'/media/input');
+  assert.equal(unsafe.code,'');assert.equal(unsafe.message.includes('private-value'),false);
+});
 const manifest = {revision:'cad-1', hardwareProfile:'B-effects', kinematics:{liftMaxMm:16,angleMinDegrees:0,angleMaxDegrees:160,
   samples:[{angleDegrees:0,liftMm:0},{angleDegrees:80,liftMm:8},{angleDegrees:160,liftMm:16}]}};
 function frame(sequence='1', timeMs='0', options={}) {

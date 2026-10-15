@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 
@@ -27,6 +28,15 @@ internal sealed partial class TwinMediaSessions
         async Task DispatchAsync(TwinPrivateReply reply)
         {
             try { await ServiceAsync(actor, reply); }
+            catch (OperationCanceledException) when (actor.Lifetime.IsCancellationRequested) { }
+            catch (Exception)
+            {
+                // Never abandon a failed service task while native is still
+                // waiting for it. Technical status contains no upstream payload.
+                InvalidateActor(actor, "media_service_failed");
+                try { await CleanupActorAsync(actor); }
+                catch (Exception) { /* Actor is already fenced; cleanup is best effort. */ }
+            }
             finally { slots.Release(); }
         }
     }
@@ -34,6 +44,7 @@ internal sealed partial class TwinMediaSessions
     {
         var request = reply.Service!;
         var bytes = reply.Attachment ?? [];
+        var streamAdmitted = false;
         try
         {
             if (!ValidService(actor, request, bytes))
@@ -54,6 +65,7 @@ internal sealed partial class TwinMediaSessions
             if (request.Kind == "realtime-start" && response.IsSuccessStatusCode
                 && response.Content.Headers.ContentType?.MediaType == "application/x-ndjson")
             {
+                streamAdmitted = true;
                 await ResultAsync(actor, request.RequestId, (int)response.StatusCode, "application/x-ndjson", []);
                 await StreamEventsAsync(actor, response, lifetime.Token);
                 return;
@@ -63,13 +75,23 @@ internal sealed partial class TwinMediaSessions
             await ResultAsync(actor, request.RequestId, (int)response.StatusCode, "application/json", body);
             Array.Clear(body);
         }
-        catch (Exception error) when (error is HttpRequestException or IOException or JsonException or OperationCanceledException
+        catch (Exception error) when (error is HttpRequestException or IOException or InvalidDataException or JsonException or OperationCanceledException
             or InvalidOperationException or TimeoutException or FormatException)
         {
             if (!actor.Cancelled)
             {
-                try { await ResultAsync(actor, request.RequestId, 503, "application/json", []); }
-                catch (TimeoutException) { }
+                if (streamAdmitted)
+                {
+                    // The initial 200 was already handed to native. Its request
+                    // ID cannot receive a second result; retire this stream now.
+                    InvalidateActor(actor, "media_stream_failed");
+                    await CleanupActorAsync(actor);
+                }
+                else
+                {
+                    try { await ResultAsync(actor, request.RequestId, 503, "application/json", []); }
+                    catch (TimeoutException) { }
+                }
             }
         }
         finally { Array.Clear(bytes); }
@@ -128,6 +150,7 @@ internal sealed partial class TwinMediaSessions
         using var line = new MemoryStream();
         var buffer = new byte[4096];
         var total = 0;
+        var closed = false;
         while (true)
         {
             var count = await stream.ReadAsync(buffer, cancellation);
@@ -139,7 +162,7 @@ internal sealed partial class TwinMediaSessions
                 if (buffer[index] == 10)
                 {
                     var bytes = line.ToArray(); line.SetLength(0);
-                    if (bytes.Length > 0) { await EventAsync(actor, bytes); }
+                    if (bytes.Length > 0) { closed |= await EventAsync(actor, bytes); }
                     Array.Clear(bytes);
                 }
                 else
@@ -150,34 +173,82 @@ internal sealed partial class TwinMediaSessions
             }
         }
         if (line.Length != 0) { throw new InvalidDataException("Truncated media event."); }
+        if (!closed) { throw new InvalidDataException("Media stream ended without terminal event."); }
     }
-    private async Task EventAsync(Actor actor, byte[] bytes)
+    private async Task<bool> EventAsync(Actor actor, byte[] bytes)
     {
-        if (actor.Cancelled || actor.State is null) { return; }
+        if (actor.Cancelled || actor.State is null) { return false; }
         using var json = JsonDocument.Parse(bytes);
-        if (json.RootElement.GetProperty("type").GetString() == "session")
+        if (json.RootElement.ValueKind != JsonValueKind.Object
+            || !json.RootElement.TryGetProperty("type", out var typeValue)
+            || typeValue.ValueKind != JsonValueKind.String)
+        { throw new InvalidDataException("Invalid media event type."); }
+        var type = typeValue.GetString();
+        if (type == "session")
         {
-            var stream = json.RootElement.GetProperty("streamId").GetString();
+            if (!json.RootElement.TryGetProperty("streamId", out var streamValue)
+                || streamValue.ValueKind != JsonValueKind.String)
+            { throw new InvalidDataException("Invalid stream identity."); }
+            var stream = streamValue.GetString();
             if (!Guid.TryParseExact(stream, "D", out _)) { throw new InvalidDataException("Invalid stream identity."); }
             actor.StreamId = stream;
         }
-        var result = await hosts.MediaCommandAsync(actor.InstanceId,
-            $"MEDIA_EVENT {actor.SessionId} {actor.State.Epoch} {bytes.Length}", bytes);
-        if (!result.Accepted) { throw new InvalidDataException("Native media event rejected."); }
+        var command = $"MEDIA_EVENT {actor.SessionId} {actor.State.Epoch} {bytes.Length}";
+        await DeliverEventAsync(() => hosts.MediaCommandAsync(actor.InstanceId, command, bytes), actor.Lifetime.Token);
+        return type == "closed";
+    }
+    internal static async Task DeliverEventAsync(Func<Task<TwinCommandResult>> send, CancellationToken cancellation)
+    {
+        var started = Stopwatch.GetTimestamp();
+        while (true)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            var remaining = TimeSpan.FromSeconds(5) - Stopwatch.GetElapsedTime(started);
+            if (remaining <= TimeSpan.Zero) { throw new TimeoutException("Native media event capacity deadline."); }
+            // A timeout has an uncertain native outcome, so it is never retried.
+            var result = await send().WaitAsync(remaining, cancellation);
+            if (result.Accepted) { return; }
+            // Only a capacity rejection guarantees the event was not queued.
+            // The wait belongs to the media stream reader, never the control loop.
+            if (result.Code != "media-event-backpressure")
+            { throw new InvalidDataException("Native media event rejected."); }
+            if (Stopwatch.GetElapsedTime(started) >= TimeSpan.FromSeconds(5))
+            { throw new TimeoutException("Native media event capacity deadline."); }
+            await Task.Delay(10, cancellation);
+        }
     }
     private Task ResultAsync(Actor actor, string requestId, int status, string contentType, byte[] bytes) =>
         hosts.MediaCommandAsync(actor.InstanceId, $"MEDIA_RESULT {requestId} {status} {contentType} {bytes.Length}", bytes);
     private static async Task CloseCancelledAsync(Actor actor)
     {
-        if (actor.ConversationId is null) { return; }
-        try
+        string conversation;
+        lock (actor.Gate)
         {
-            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(4));
-            using var request = new HttpRequestMessage(HttpMethod.Delete, "v1/conversations/" + actor.ConversationId);
-            request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("D"));
-            using var response = await actor.Http.SendAsync(request, deadline.Token);
+            if (actor.ConversationId is null || actor.ClosingConversationId == actor.ConversationId) { return; }
+            conversation = actor.ConversationId;
+            actor.ClosingConversationId = conversation;
         }
-        catch (Exception error) when (error is HttpRequestException or OperationCanceledException or ObjectDisposedException) { }
+        await DeleteConversationAsync(actor.Http, conversation);
+    }
+    internal static async Task DeleteConversationAsync(HttpClient http, string conversation)
+    {
+        // One cleanup owner, at most three attempts, and one idempotency key:
+        // transient failure remains retryable without a per-poll DELETE storm.
+        var key = Guid.NewGuid().ToString("D");
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            try
+            {
+                using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+                using var request = new HttpRequestMessage(HttpMethod.Delete, "v1/conversations/" + conversation);
+                request.Headers.Add("Idempotency-Key", key);
+                using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, deadline.Token);
+                if (response.StatusCode is System.Net.HttpStatusCode.NoContent or System.Net.HttpStatusCode.NotFound) { return; }
+            }
+            catch (ObjectDisposedException) { return; }
+            catch (Exception error) when (error is HttpRequestException or OperationCanceledException) { }
+            if (attempt < 2) { await Task.Delay(100); }
+        }
     }
     internal static async Task<byte[]> ReadBoundedAsync(Stream stream, int maximum, CancellationToken cancellation)
     {
