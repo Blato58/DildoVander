@@ -11,6 +11,7 @@ location ^~ /keepsake/ {
     add_header X-Content-Type-Options "nosniff" always;
 }
 location ~ "^/guest/v1/evening$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:GET)$") { return 405; }
     client_max_body_size 16m;
     access_log off;
@@ -29,6 +30,7 @@ location ~ "^/guest/v1/evening$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/guest/v1/evenings/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/editions/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/assets/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:GET)$") { return 405; }
     client_max_body_size 16m;
     access_log off;
@@ -47,6 +49,7 @@ location ~ "^/guest/v1/evenings/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/guest/v1/(?:bootstrap|claim|recover|share-claim)$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 16m;
     access_log off;
@@ -65,6 +68,7 @@ location ~ "^/guest/v1/(?:bootstrap|claim|recover|share-claim)$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/guest/v1/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:DELETE|GET)$") { return 405; }
     client_max_body_size 16m;
     access_log off;
@@ -83,6 +87,7 @@ location ~ "^/guest/v1/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/guest/v1/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/assets/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:GET)$") { return 405; }
     client_max_body_size 16m;
     access_log off;
@@ -101,6 +106,7 @@ location ~ "^/guest/v1/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/guest/v1/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/history$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:GET)$") { return 405; }
     client_max_body_size 16m;
     access_log off;
@@ -119,6 +125,7 @@ location ~ "^/guest/v1/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/guest/v1/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/(?:recovery-links|share-links)$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:DELETE|POST)$") { return 405; }
     client_max_body_size 16m;
     access_log off;
@@ -137,6 +144,7 @@ location ~ "^/guest/v1/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/guest/v1/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/(?:exports|portrait-consents|portrait-uploads|portraits|revoke-access)$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 16m;
     access_log off;
@@ -155,6 +163,7 @@ location ~ "^/guest/v1/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/guest/v1/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/(?:recovery-links|share-links)/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:DELETE)$") { return 405; }
     client_max_body_size 16m;
     access_log off;
@@ -173,6 +182,7 @@ location ~ "^/guest/v1/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/guest/v1/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/portrait$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:DELETE)$") { return 405; }
     client_max_body_size 16m;
     access_log off;
@@ -191,6 +201,7 @@ location ~ "^/guest/v1/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/guest/v1/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/(?:portraits|generation)/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/cancel$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 16m;
     access_log off;
@@ -209,6 +220,7 @@ location ~ "^/guest/v1/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/guest/v1/deletions/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:GET)$") { return 405; }
     client_max_body_size 16m;
     access_log off;
@@ -281,6 +293,7 @@ location ^~ /design-system/ {
 }
 
 location ~ "^/healthz/twin$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:GET)$") { return 405; }
     client_max_body_size 32k;
     access_log off;
@@ -301,6 +314,7 @@ location ~ "^/healthz/twin$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/twin$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:GET)$") { return 405; }
     client_max_body_size 32k;
     access_log off;
@@ -321,6 +335,7 @@ location ~ "^/twin$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/twin/session$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:DELETE|POST)$") { return 405; }
     client_max_body_size 32k;
     access_log off;
@@ -341,6 +356,7 @@ location ~ "^/v1/twin/session$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/twin/instances$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:GET)$") { return 405; }
     client_max_body_size 32k;
     access_log off;
@@ -361,6 +377,7 @@ location ~ "^/v1/twin/instances$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/twin/instances/[A-Za-z0-9_.-]{1,96}$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:GET)$") { return 405; }
     client_max_body_size 32k;
     access_log off;
@@ -381,6 +398,7 @@ location ~ "^/v1/twin/instances/[A-Za-z0-9_.-]{1,96}$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/twin/instances/[A-Za-z0-9_.-]{1,96}/recording$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:GET)$") { return 405; }
     client_max_body_size 32k;
     access_log off;
@@ -401,6 +419,7 @@ location ~ "^/v1/twin/instances/[A-Za-z0-9_.-]{1,96}/recording$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/twin/instances/[A-Za-z0-9_.-]{1,96}/commands$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 32k;
     access_log off;
@@ -421,6 +440,7 @@ location ~ "^/v1/twin/instances/[A-Za-z0-9_.-]{1,96}/commands$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/twin/ingest/[A-Za-z0-9_.-]{1,96}$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 32k;
     access_log off;
@@ -441,6 +461,7 @@ location ~ "^/v1/twin/ingest/[A-Za-z0-9_.-]{1,96}$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/twin/device\-token$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 32k;
     access_log off;
@@ -461,6 +482,7 @@ location ~ "^/v1/twin/device\-token$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/twin/health$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:GET)$") { return 405; }
     client_max_body_size 32k;
     access_log off;
@@ -480,7 +502,176 @@ location ~ "^/v1/twin/health$" {
     add_header Cache-Control "no-store" always;
     add_header Referrer-Policy "no-referrer" always;
 }
+location ~ "^/v1/twin/instances/[A-Za-z0-9_.-]{1,96}/settings$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:GET|PUT)$") { return 405; }
+    client_max_body_size 32k;
+    access_log off;
+    proxy_pass http://127.0.0.1:5082;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 30s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/twin/instances/[A-Za-z0-9_.-]{1,96}/media/start$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:POST)$") { return 405; }
+    client_max_body_size 32k;
+    access_log off;
+    proxy_pass http://127.0.0.1:5082;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 30s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/twin/instances/[A-Za-z0-9_.-]{1,96}/media/cancel$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:POST)$") { return 405; }
+    client_max_body_size 32k;
+    access_log off;
+    proxy_pass http://127.0.0.1:5082;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 30s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/twin/instances/[A-Za-z0-9_.-]{1,96}/media/state$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:GET)$") { return 405; }
+    client_max_body_size 32k;
+    access_log off;
+    proxy_pass http://127.0.0.1:5082;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 30s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/twin/instances/[A-Za-z0-9_.-]{1,96}/media/output$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:GET)$") { return 405; }
+    client_max_body_size 32k;
+    access_log off;
+    proxy_pass http://127.0.0.1:5082;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 30s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/twin/instances/[A-Za-z0-9_.-]{1,96}/media/played$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:POST)$") { return 405; }
+    client_max_body_size 32k;
+    access_log off;
+    proxy_pass http://127.0.0.1:5082;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 30s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/twin/instances/[A-Za-z0-9_.-]{1,96}/media/input$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:POST)$") { return 405; }
+    client_max_body_size 32k;
+    access_log off;
+    proxy_pass http://127.0.0.1:5082;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 30s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/twin/instances/[A-Za-z0-9_.-]{1,96}/media/photo$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:POST)$") { return 405; }
+    client_max_body_size 256k;
+    access_log off;
+    proxy_pass http://127.0.0.1:5082;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 30s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
 location ~ "^/v1/device\-access/token$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -501,6 +692,7 @@ location ~ "^/v1/device\-access/token$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/diagnostics$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:GET)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -521,6 +713,7 @@ location ~ "^/v1/diagnostics$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/healthz$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:GET)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -541,6 +734,7 @@ location ~ "^/healthz$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/admin/logs$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:GET)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -561,6 +755,7 @@ location ~ "^/v1/admin/logs$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/admin/logs/status$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:GET)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -581,6 +776,7 @@ location ~ "^/v1/admin/logs/status$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/admin/modes$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:GET|PUT)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -601,6 +797,7 @@ location ~ "^/v1/admin/modes$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/admin/memory$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:GET)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -621,6 +818,7 @@ location ~ "^/v1/admin/memory$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/admin/memory/verify$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -641,6 +839,7 @@ location ~ "^/v1/admin/memory/verify$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/admin/memory/guest$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:PUT)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -661,6 +860,7 @@ location ~ "^/v1/admin/memory/guest$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/admin/memory/records/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:DELETE|PUT)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -681,6 +881,7 @@ location ~ "^/v1/admin/memory/records/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/firmware/manifests/(?:stable|development)\.json$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:GET)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -701,6 +902,7 @@ location ~ "^/v1/firmware/manifests/(?:stable|development)\.json$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/firmware/artifacts/[0-9a-f]{64}\.bin$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:GET)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -721,6 +923,7 @@ location ~ "^/v1/firmware/artifacts/[0-9a-f]{64}\.bin$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/conversations$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -741,6 +944,7 @@ location ~ "^/v1/conversations$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/turns$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -761,6 +965,7 @@ location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/opening$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -781,6 +986,7 @@ location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/transcriptions$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -801,6 +1007,7 @@ location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/speech$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -821,6 +1028,7 @@ location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:DELETE)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -841,6 +1049,7 @@ location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/evening\-memory$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:GET)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -861,6 +1070,7 @@ location ~ "^/v1/evening\-memory$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/evening\-memory/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:DELETE)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -881,6 +1091,7 @@ location ~ "^/v1/evening\-memory/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/evenings$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:GET|POST)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -901,6 +1112,7 @@ location ~ "^/v1/evenings$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/evenings/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/active$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:PUT)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -921,6 +1133,7 @@ location ~ "^/v1/evenings/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/operations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:DELETE|GET)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -941,6 +1154,7 @@ location ~ "^/v1/operations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/audio/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:GET)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -961,6 +1175,7 @@ location ~ "^/v1/audio/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/image$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -981,6 +1196,7 @@ location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/costume\-context$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:PUT)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -1001,6 +1217,7 @@ location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/realtime\-turns$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -1023,6 +1240,7 @@ location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/realtime\-live$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -1045,6 +1263,7 @@ location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/realtime\-live/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/audio$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -1065,6 +1284,7 @@ location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/realtime\-live/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/played$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -1085,6 +1305,7 @@ location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gpt\-live/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/audio$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -1105,6 +1326,7 @@ location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gpt\-live/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/played$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -1125,6 +1347,7 @@ location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gpt\-live$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -1147,6 +1370,7 @@ location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gpt\-live/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/playback$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -1167,6 +1391,7 @@ location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gpt\-live/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/availability$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -1187,6 +1412,7 @@ location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/keepsakes/outcomes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -1207,6 +1433,7 @@ location ~ "^/v1/keepsakes/outcomes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/claim$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -1227,6 +1454,7 @@ location ~ "^/v1/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/restore\-owner$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -1247,6 +1475,7 @@ location ~ "^/v1/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/admin/keepsakes$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:GET)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -1267,6 +1496,7 @@ location ~ "^/v1/admin/keepsakes$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/admin/keepsake\-deletions/preview$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -1287,6 +1517,7 @@ location ~ "^/v1/admin/keepsake\-deletions/preview$" {
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/admin/keepsake\-deletions/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/confirm$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -1307,6 +1538,7 @@ location ~ "^/v1/admin/keepsake\-deletions/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/admin/keepsake\-deletions/batches/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:GET)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -1327,6 +1559,7 @@ location ~ "^/v1/admin/keepsake\-deletions/batches/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/admin/keepsake\-deletions/receipts/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:GET)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -1347,6 +1580,7 @@ location ~ "^/v1/admin/keepsake\-deletions/receipts/[0-9a-f]{8}-[0-9a-f]{4}-[0-9
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/admin/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/jobs/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/cancel$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
@@ -1367,6 +1601,7 @@ location ~ "^/v1/admin/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}
     add_header Referrer-Policy "no-referrer" always;
 }
 location ~ "^/v1/admin/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/revoke\-shares$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 4m;
     access_log off;
