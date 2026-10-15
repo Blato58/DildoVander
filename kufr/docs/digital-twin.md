@@ -272,10 +272,19 @@ identity jsou v receipts; build/screenshot nejsou fyzickou akceptací.
 NASAZENO NA VPS: oddělená služba a skutečně běžící host procesy, chráněný viewer
 a ingest. Testy používají fake provider; Realtime/GPT-Live jsou připravené
 v nastavení se schváleným existujícím serverovým klíčem. Fyzický kufr nebyl
-ovládán ani flashován. Aktuální nasazený release je `twin-20261015-v16`;
-source/build ID `741947360f86ac8802eb1bcab9f832027bce6d7872c3a1cf1a3b66bcf41c9e38`.
-Aktuální [softwarový target](../../docs/project/targets/KUFR-TWIN-software.json)
-zahrnuje i browser média; fyzickou akceptaci dál blokuje PHYSICAL.
+ovládán ani flashován. Aktuální nasazený release je `twin-20261015-v17`;
+source/build ID `a7ee2cf3740efc92912cfe450e7c7637d98eb0596d35b2111c41db987fb86148`.
+[Cílený target v17](../../docs/project/targets/KUFR-TWIN-mic-v17.json) ověřuje
+opravu mikrofonní fronty na skutečném VPS: při zpoždění 603 ms rozhovor pokračoval,
+fronta zůstala do 400 ms, prošly JPEG, PCM/drain a reload bez opakování. Použit byl
+fake provider a fake zařízení Chrome; původní nastavení bylo obnoveno a ověřeno.
+[Plný softwarový baseline v16](../../docs/project/targets/KUFR-TWIN-software.json)
+zůstává historickým důkazem; fyzickou akceptaci dál blokuje PHYSICAL.
+
+Standardní installer odmítl aktuální Nginx layout před aktivací. V17 byl aktivován
+atomickým přepnutím se soukromou zálohou a rollbackem přes existující ověřenou
+route/unit; jejich konfigurace i credentials zůstaly stejné. Obě služby jsou zdravé.
+Podrobnosti a omezení jsou v [důkazech v17](../../docs/project/artifacts/KUFR-TWIN-MIC-QUEUE-deploy-v1/README.md).
 
 Test s 20 HTTPS polls po 50 ms a pomalým čtenářem 10 B/s naměřil z VPS na jeho
 vlastní TLS origin median 7,91 ms, p95 10,19 ms, simulační Stop 32,45 ms a

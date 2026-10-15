@@ -153,14 +153,14 @@
       "unblockCondition": "Identifikovaná bezpečná sestava, kalibrace a samostatně autorizovaný fyzický běh s build/wiring/mechanics identitami."
     }
   ],
-  "nextAction": "Deploy KUFR-TWIN-MIC-QUEUE only after separate authorization; owner then verifies actual browser/provider microphone conversation. Physical acceptance still requires identified hardware and authorization.",
+  "nextAction": "V17 is deployed and verified for microphone jitter with fake media/provider; owner may reload the viewer and use existing settings. Physical and real-provider acceptance remain separate.",
   "relatedItems": [
     "DV02",
     "KUFR-E5"
   ],
   "implementedSubject": {
-    "artifactDigest": "741947360f86ac8802eb1bcab9f832027bce6d7872c3a1cf1a3b66bcf41c9e38",
+    "artifactDigest": "a7ee2cf3740efc92912cfe450e7c7637d98eb0596d35b2111c41db987fb86148",
     "policyVersion": "twin-v2"
   },
-  "currentNote": "2026-10-15: deployed v16 remains healthy at build741947360f86ac8802eb1bcab9f832027bce6d7872c3a1cf1a3b66bcf41c9e38 (prior retired-input409 fix). New microphone400ms overflow report is addressed in KUFR-TWIN-MIC-QUEUE: bounded newest-unsent audio shedding plus visible warning;58unit and2Chrome checks pass. This new source fix is not deployed; no paid or physical call made."
+  "currentNote": "2026-10-15: v17 is active, build a7ee2cf3740efc92912cfe450e7c7637d98eb0596d35b2111c41db987fb86148. Source fix merged through PR202 (68967546cffa0179fb8959dfdc7a677f029a6157); user-authorized deployment and scoped603ms browser regression passed in KUFR-TWIN-MIC-DEPLOY. Original settings/credentials preserved, native idle after cleanup. Historical acceptance snapshots remain unchanged."
 }

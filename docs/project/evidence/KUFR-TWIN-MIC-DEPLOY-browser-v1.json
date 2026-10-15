@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "observedAtUtc": "2026-10-15T16:34:24.034847+00:00",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-TWIN-MIC-DEPLOY",
+      "criterionId": "VPS",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "a7ee2cf3740efc92912cfe450e7c7637d98eb0596d35b2111c41db987fb86148",
+    "policyVersion": "twin-v2"
+  },
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-TWIN-MIC-QUEUE-deploy-v1/deploy-proof.json",
+    "docs/project/artifacts/KUFR-TWIN-MIC-QUEUE-deploy-v1/twin-release.json",
+    "docs/project/artifacts/KUFR-TWIN-MIC-QUEUE-deploy-v1/browser-media-result.json",
+    "docs/project/artifacts/KUFR-TWIN-MIC-QUEUE-deploy-v1/post-test-proof.json",
+    "docs/project/artifacts/KUFR-TWIN-MIC-QUEUE-deploy-v1/README.md"
+  ],
+  "evidenceId": "KUFR-TWIN-MIC-DEPLOY-browser-v1",
+  "kind": "browser",
+  "method": "KUFR_TEST_VPS_PROOF=true NODE_PATH=bundled/playwright node docs/project/artifacts/KUFR-TWIN-MIC-QUEUE-deploy-v1/verify-deployed.cjs with private scoped integration credential and private output paths; Chrome fake camera/microphone; fake engine asserted before start. Separate authenticated readback after cleanup.",
+  "environment": "Windows installed Chrome, actual HTTPS deployed viewer/native workflow on sim-integration; fake provider and fake browser devices.",
+  "limitations": [
+    "No real-provider speech, acoustic audibility, iPhone, hardware or fresh CAD motion acceptance. Optional active reload/UI Stop extension not run; normal completed reload and cleanup stop/inspect/idle were verified.",
+    "Earlier harness attempts were inconclusive: original test cleanup409 masked primary failure; next run passed core media but optional inspect409 raced presentation; third run timed out observing transient warning. Original settings recovered/verified, and each new verifier cleanup restored/released. Final focused verifier uses fetch-only mic delay and MutationObserver for transient active warning; all required checks and cleanup passed.",
+    "Persistent slow transport may drop speech, disclosed by visible warning."
+  ],
+  "observation": "Delay603.2ms, capture maximum19200B, warning while microphone/actor active, native completed without prematurecancel. Four9600B inputs accepted; one known retired epoch409 safely ignored. JPEG3920B accepted without fallback; five4800B PCM frames/drains total24000B, zero page errors. Correct CAD revision/profile/six trays, desktop1400x900/mobile390x844 and normal reload no replay/sameboot. Settings match original before all attempts after release, idle and needsRecoveryfalse, browser closed."
+}
