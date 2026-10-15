@@ -153,7 +153,7 @@
       "unblockCondition": "Identifikovaná bezpečná sestava, kalibrace a samostatně autorizovaný fyzický běh s build/wiring/mechanics identitami."
     }
   ],
-  "nextAction": "Owner verifies actual GPT-Live conversation/audio in their browser after Ctrl+F5 and reauthentication. Physical acceptance requires identified hardware and separate authorization.",
+  "nextAction": "Deploy KUFR-TWIN-MIC-QUEUE only after separate authorization; owner then verifies actual browser/provider microphone conversation. Physical acceptance still requires identified hardware and authorization.",
   "relatedItems": [
     "DV02",
     "KUFR-E5"
@@ -162,5 +162,5 @@
     "artifactDigest": "741947360f86ac8802eb1bcab9f832027bce6d7872c3a1cf1a3b66bcf41c9e38",
     "policyVersion": "twin-v2"
   },
-  "currentNote": "2026-10-15: prior PR199 verified merged asf3ead6079d88c6a39c34a3d0303b3c30dce844a4. New user/media-input409 reproduced onv15: ordinary VAD retirement was treated as fatal. V16/build 741947360f86ac8802eb1bcab9f832027bce6d7872c3a1cf1a3b66bcf41c9e38 deployed and healthy with preserved settings/data. Fresh21native Windows/Linux,18host+variant,105JS/Chrome, nativeHTTP retired/currentseq/futureepoch and existing regressions pass; realCAD desktop/mobile/reload/Stop passes. Independent review has no material finding. Historical v6 failure kept; agent made no paid/physical call. Source5375a620e90f81c7dbf70a022d13ba7800049779 committed and successfully pushed via Push-CurrentBranch.ps1; deployed source fingerprint matches this slice."
+  "currentNote": "2026-10-15: deployed v16 remains healthy at build741947360f86ac8802eb1bcab9f832027bce6d7872c3a1cf1a3b66bcf41c9e38 (prior retired-input409 fix). New microphone400ms overflow report is addressed in KUFR-TWIN-MIC-QUEUE: bounded newest-unsent audio shedding plus visible warning;58unit and2Chrome checks pass. This new source fix is not deployed; no paid or physical call made."
 }

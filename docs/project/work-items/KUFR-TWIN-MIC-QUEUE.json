@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "id": "KUFR-TWIN-MIC-QUEUE",
+  "initiative": "KUFR-TWIN",
+  "title": "Mikrofon Twin pokračuje při krátkém zahlcení přenosu",
+  "state": "closed",
+  "priority": "P1",
+  "sequence": 1,
+  "scope": [
+    "kufr/contracts/twin-browser-media.md",
+    "kufr/mechanika/final/twin_media.js",
+    "kufr/mechanika/final/test_twin_media.cjs",
+    "kufr/mechanika/final/test_twin_media_browser.cjs"
+  ],
+  "dependencies": [],
+  "acceptance": [
+    {
+      "id": "CAPTURE",
+      "revision": 1,
+      "expected": "Browser microphone jitter keeps in-flight plus unsent PCM within400ms, discards oldest unsent samples with visible warning, preserves sequential transmitted blocks and epoch/transport cancellation, and continues the session after a600ms upload delay.",
+      "requiredEvidenceKinds": [
+        "unit",
+        "browser",
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "b8e9c881e7f6329e2bc86c760cd8de40c993a04cb4142245fb501c24f9b0c53a"
+      },
+      "evidenceRefs": [
+        "KUFR-TWIN-MIC-QUEUE-unit-v1",
+        "KUFR-TWIN-MIC-QUEUE-browser-v1",
+        "KUFR-TWIN-MIC-QUEUE-source_review-v1"
+      ]
+    }
+  ],
+  "blockers": [],
+  "nextAction": "Deploy only with separate authorization, then owner verifies actual microphone/provider conversation.",
+  "relatedItems": [
+    "KUFR-TWIN"
+  ],
+  "implementedSubject": {
+    "artifactDigest": "b8e9c881e7f6329e2bc86c760cd8de40c993a04cb4142245fb501c24f9b0c53a"
+  },
+  "currentNote": "2026-10-15: source commit478b6f1134fb967551ee6207cff4402491239933 successfully pushed and remote SHA verified by Push-CurrentBranch.ps1.58unit and2Chrome checks, regenerated offline CAD viewer, baseline rejection and independent review passed. Deployment remains v16; no paid/provider or physical test.",
+  "closure": {
+    "outcome": "accepted",
+    "reason": "Scoped software resilience verified by unit, Chrome fake-device and independent review evidence; deployment and paid/provider acceptance are separate.",
+    "subject": {
+      "artifactDigest": "b8e9c881e7f6329e2bc86c760cd8de40c993a04cb4142245fb501c24f9b0c53a"
+    },
+    "evidenceRefs": [
+      "KUFR-TWIN-MIC-QUEUE-unit-v1",
+      "KUFR-TWIN-MIC-QUEUE-browser-v1",
+      "KUFR-TWIN-MIC-QUEUE-source_review-v1"
+    ],
+    "acceptedCriteria": [
+      {
+        "id": "CAPTURE",
+        "revision": 1,
+        "expected": "Browser microphone jitter keeps in-flight plus unsent PCM within400ms, discards oldest unsent samples with visible warning, preserves sequential transmitted blocks and epoch/transport cancellation, and continues the session after a600ms upload delay.",
+        "requiredEvidenceKinds": [
+          "unit",
+          "browser",
+          "source_review"
+        ],
+        "rule": "allOf",
+        "appliesTo": {
+          "artifactDigest": "b8e9c881e7f6329e2bc86c760cd8de40c993a04cb4142245fb501c24f9b0c53a"
+        },
+        "evidenceRefs": [
+          "KUFR-TWIN-MIC-QUEUE-unit-v1",
+          "KUFR-TWIN-MIC-QUEUE-browser-v1",
+          "KUFR-TWIN-MIC-QUEUE-source_review-v1"
+        ]
+      }
+    ]
+  }
+}

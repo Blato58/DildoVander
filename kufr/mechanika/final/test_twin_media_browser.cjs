@@ -8,10 +8,13 @@ const media=require('./twin_media.js');
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright');
 const ROOT=path.resolve(__dirname,'../../..');
 const BOOT='00000000-0000-4000-8000-000000000001', SESSION='00000000-0000-4000-8000-000000000002';
-test('real Chromium fake devices: explicit activation, bounded JPEG, actual PCM drain and mobile layout',async()=>{
-  const requests=[], outputs=[], errors=[]; let active=false,inputEnabled=false;
+test('real Chromium fake devices: delayed microphone recovery, JPEG, PCM drain and mobile layout',async()=>{
+  const requests=[], outputs=[], errors=[]; let active=false,inputEnabled=false,drained=false,inputCount=0;
   const make=(kind,sequence,extra={})=>({sessionId:SESSION,bootId:BOOT,epoch:'9007199254740993',inputEpoch:'1',outputEpoch:'1',sequence,
     kind,byteLength:0,phase:kind,inputEnabled:['listening','pcm','drain'].includes(kind),drainedRequested:false,...extra});
+  const complete=()=>{
+    if(active && drained && inputCount>=2){active=false;inputEnabled=false;outputs.push(make('completed','5'));}
+  };
   const settings={revision:'9007199254740993',engine:'fake',voice:'marin',speed:1,photoConsent:true,presentationVariant:'main',
     availability:{fake:true,realtime:false,gptLive:false,mic:true,speaker:true,camera:true}};
   const server=http.createServer(async(req,res)=>{
@@ -54,9 +57,14 @@ test('real Chromium fake devices: explicit activation, bounded JPEG, actual PCM 
       res.statusCode=204;res.end();return;
     }
     if(req.url?.endsWith('/media/played')){
-      const value=JSON.parse(body);if(value.drained){active=false;inputEnabled=false;outputs.push(make('completed','5'));}res.statusCode=204;res.end();return;
+      const value=JSON.parse(body);if(value.drained){drained=true;complete();}res.statusCode=204;res.end();return;
     }
-    if(req.url?.endsWith('/media/input')||req.url?.endsWith('/media/cancel')){res.statusCode=204;res.end();return;}
+    if(req.url?.endsWith('/media/input')){
+      inputCount++;assert.equal(req.headers['input-sequence'],String(inputCount-1));
+      if(inputCount===1)await new Promise(resolve=>setTimeout(resolve,600));
+      complete();res.statusCode=204;res.end();return;
+    }
+    if(req.url?.endsWith('/media/cancel')){res.statusCode=204;res.end();return;}
     if(req.url==='/favicon.ico'){res.statusCode=204;res.end();return;}
     res.statusCode=404;res.end();
   });
@@ -86,11 +94,14 @@ test('real Chromium fake devices: explicit activation, bounded JPEG, actual PCM 
     await page.locator('[data-media-preview]').waitFor({state:'visible'});
     assert.equal(requests.filter(item=>item.url.endsWith('/media/photo')).length,0);
     await page.getByRole('button',{name:'Přijmout a předat jednu fotku',exact:true}).click();
+    await page.locator('[data-media-status]').filter({hasText:'část neodeslaného zvuku byla přeskočena'}).waitFor({state:'visible'});
+    const recovering=await page.evaluate(()=>hal.state());assert.ok(recovering.actor);assert.ok(recovering.captureBytes<=media.CAPTURE_BYTES);
+    assert.equal(await page.locator('[data-media-error]').textContent(),'');
     await page.waitForFunction(()=>hal.state().actor===null);
     const played=requests.filter(item=>item.url.endsWith('/media/played')).map(item=>JSON.parse(item.body));
     assert.equal(played.at(-1).pcmBytes,'14400');assert.equal(played.at(-1).drained,true);
     const inputs=requests.filter(item=>item.url.endsWith('/media/input'));
-    assert.ok(inputs.length>0);assert.ok(inputs.every(item=>item.body.length===9600));
+    assert.ok(inputs.length>=2);assert.ok(inputs.every(item=>item.body.length===9600));
     assert.equal(requests.filter(item=>item.url.endsWith('/media/photo')).length,1);
     assert.equal(requests.filter(item=>item.url.endsWith('/media/cancel')).length,0);
     const start=JSON.parse(requests.find(item=>item.url.endsWith('/media/start')).body);
@@ -99,7 +110,7 @@ test('real Chromium fake devices: explicit activation, bounded JPEG, actual PCM 
       await page.setViewportSize(viewport);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
     }
     assert.deepEqual(errors,[]);assert.ok(requests.every(item=>!item.url.includes('openai')));
-    console.log('PASS fake Chromium microphone/speaker/camera, native fixture JPEG/PCM drain, 390/320/1280px; no provider requests');
+    console.log('PASS fake Chromium microphone recovers from600ms upload, bounded capture and sequential input; speaker/camera JPEG/PCM drain, 390/320/1280px; no provider requests');
   }catch(error){
     if(page&&!page.isClosed())console.log('HAL diagnostic',await page.evaluate(()=>({state:hal.state(),status:document.querySelector('[data-media-status]').textContent,error:document.querySelector('[data-media-error]').textContent})),errors);
     throw error;
