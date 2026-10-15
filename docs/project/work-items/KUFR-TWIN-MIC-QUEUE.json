@@ -42,7 +42,7 @@
   "implementedSubject": {
     "artifactDigest": "b8e9c881e7f6329e2bc86c760cd8de40c993a04cb4142245fb501c24f9b0c53a"
   },
-  "currentNote": "2026-10-15: verified source fix; deployment remains v16. Commit/push/PR identity will be added after publication.",
+  "currentNote": "2026-10-15: source commit478b6f1134fb967551ee6207cff4402491239933 successfully pushed and remote SHA verified by Push-CurrentBranch.ps1.58unit and2Chrome checks, regenerated offline CAD viewer, baseline rejection and independent review passed. Deployment remains v16; no paid/provider or physical test.",
   "closure": {
     "outcome": "accepted",
     "reason": "Scoped software resilience verified by unit, Chrome fake-device and independent review evidence; deployment and paid/provider acceptance are separate.",
