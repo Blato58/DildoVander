@@ -27,7 +27,7 @@ internal sealed partial class TwinMediaSessions : IDisposable
         internal readonly SemaphoreSlim Inputs = new(1, 1);
         internal readonly Lock Gate = new();
         internal TwinMediaState? State;
-        internal string? ConversationId, StreamId, CancellationError;
+        internal string? ConversationId, StreamId, CancellationError, ClosingConversationId;
         internal bool Cancelled, Starting = true;
         internal TwinFakeVoiceStream? Fake;
     }
@@ -222,7 +222,7 @@ internal sealed partial class TwinMediaSessions : IDisposable
         bool overflow = false, invalidated = false;
         lock (actor.Gate)
         {
-            if (reply.State is { } incoming && incoming.BootId != actor.BootId)
+            if (!actor.Cancelled && reply.State is { } incoming && incoming.BootId != actor.BootId)
             {
                 actor.Cancelled = true; actor.Frames.Clear(); invalidated = true;
                 if (actor.State is { } oldState) { actor.State = oldState with { Active = false, Phase = "failed", Error = "media_boot_changed" }; }
@@ -244,7 +244,8 @@ internal sealed partial class TwinMediaSessions : IDisposable
                     Active = false, Phase = actor.State?.Phase ?? "idle",
                     Error = actor.CancellationError ?? actor.State?.Error ?? "media_cancelled"
                 } : reply.State;
-                if (!reply.State.Active && reply.State.Phase == "failed") { actor.Cancelled = true; actor.Frames.Clear(); invalidated = true; }
+                if (!actor.Cancelled && !reply.State.Active && reply.State.Phase == "failed")
+                { actor.Cancelled = true; actor.Frames.Clear(); invalidated = true; }
             }
             if (reply.Media is { } media && Bound(actor, media.SessionId, media.BootId, media.Epoch)
                 && media.OutputEpoch == actor.State?.OutputEpoch)

@@ -80,7 +80,7 @@ internal sealed class TwinAccess
             return sourceTokens.TryGetValue(hash, out var grant) && grant.Expires > clock.GetUtcNow() ? grant.Principal : null;
         }
     }
-    public TwinSession? CreateSession(string? credential)
+    public TwinSession? CreateSession(string? credential, string? existingSessionId = null)
     {
         var principal = Verify(credential);
         if (principal is null || principal.Role == "ingest") { return null; }
@@ -90,6 +90,11 @@ internal sealed class TwinAccess
             {
                 sessions.Remove(expiredId);
             }
+            // Reauthenticating this browser must not orphan its command owner.
+            // Another browser still receives a distinct session, and changing
+            // credentials to another scope never reuses the previous authority.
+            if (existingSessionId is not null && sessions.TryGetValue(existingSessionId, out var existing)
+                && existing.Principal == principal) { return existing; }
             if (sessions.Count >= 64) { return null; }
             var id = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
             var session = new TwinSession(id, principal, clock.GetUtcNow().AddHours(8));

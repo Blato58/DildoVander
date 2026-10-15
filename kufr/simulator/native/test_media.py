@@ -73,6 +73,11 @@ class Wire:
         return self.command(f"MEDIA_RESULT {request['requestId']} {status} {mime} {len(body)}", body)
 
     def event(self, event):
+        result = self.event_result(event)
+        assert result["commandResult"]["accepted"], result
+        return result
+
+    def event_result(self, event):
         body = json.dumps(event, separators=(",", ":")).encode()
         return self.command(f"MEDIA_EVENT {self.session} {self.state['epoch']} {len(body)}", body)
 
@@ -150,11 +155,172 @@ class MediaTests(unittest.TestCase):
         self.assertEqual(self.wire.snapshot["reported"]["audio"], "browser-playback-drained")
         self.assertEqual(json.loads(body), {"operationId": self.wire.operation})
         self.wire.result(played, 204)
+        dialogue, _ = self.wire.output("dialogue")
+        self.assertEqual(dialogue["text"], "Ahoj")
         self.wire.event({"type": "closed", "reason": "conversation_terminal"})
         delete, _ = self.wire.service("conversation-delete")
         self.wire.result(delete, 204)
         self.wire.output("completed")
         self.assertEqual(self.wire.state["phase"], "completed")
+
+    def test_started_never_publishes_pending_dialogue(self):
+        self.wire.start(engine="gpt-live")
+        self.wire.stream()
+        for _ in range(5):
+            self.wire.command(f"MEDIA_TAKE {self.wire.session} {self.wire.state['epoch']}")
+            time.sleep(.005)
+        self.assertFalse(any(header["kind"] == "dialogue" for header, _ in self.wire.media))
+        self.wire.command(f"MEDIA_CANCEL {self.wire.session}")
+
+    def test_real_size_burst_with_slow_consumer_preserves_bytes_and_ack(self):
+        self.wire.start(engine="gpt-live")
+        self.wire.stream()
+        frames = [bytes([index % 251]) * 4800 for index in range(260)]
+        received = bytearray()
+        headers = []
+        kinds = []
+
+        def consume():
+            self.wire.command(f"MEDIA_TAKE {self.wire.session} {self.wire.state['epoch']}")
+            while self.wire.media:
+                header, body = self.wire.media.pop(0)
+                kinds.append(header["kind"])
+                if header["kind"] == "pcm":
+                    self.assertLessEqual(len(body), 32768)
+                    self.assertGreater(len(body), 0)
+                    if headers:
+                        self.assertGreater(int(header["sequence"]), int(headers[-1]["sequence"]))
+                    received.extend(body)
+                    self.assertEqual(int(header["pcmBytes"]), len(received))
+                    headers.append(header)
+            time.sleep(.005)
+
+        backpressure = False
+        for index, frame in enumerate(frames):
+            event = {"type": "audio", "delta": base64.b64encode(frame).decode()}
+            deadline = time.monotonic() + 4
+            while True:
+                result = self.wire.event_result(event)
+                if result["commandResult"]["accepted"]:
+                    break
+                self.assertEqual(result["commandResult"]["code"], "media-event-backpressure")
+                self.assertTrue(self.wire.state["active"])
+                self.assertNotIn("error", self.wire.state)
+                backpressure = True
+                self.assertLess(time.monotonic(), deadline)
+                consume()
+            # Let the worker consume events without draining browser output.
+            # Once full, consume slowly; retry only rejected events.
+            time.sleep(.005)
+            if index > 210:
+                consume()
+        expected = b"".join(frames)
+        deadline = time.monotonic() + 4
+        while len(received) < len(expected):
+            self.assertLess(time.monotonic(), deadline)
+            consume()
+        self.assertTrue(backpressure, "burst exercises worker/event queue backpressure")
+        self.assertEqual(bytes(received), expected)
+        self.assertLess(len(headers), len(frames), "queued PCM tail was coalesced")
+        self.assertEqual(kinds.count("speaking"), 1)
+        self.assertNotIn("dialogue", kinds)
+        self.wire.event({"type": "playback_checkpoint", "playbackId": str(uuid.uuid4()),
+            "pcmBytes": len(expected), "decisionRevision": 1})
+        drain, _ = self.wire.output("drain")
+        self.assertEqual(int(drain["pcmBytes"]), len(expected))
+        self.assertFalse(self.wire.ack(drain, pcmBytes=str(len(expected) - 2))["commandResult"]["accepted"])
+        self.assertEqual(self.wire.snapshot["reported"]["audio"], "browser-pcm-enqueued")
+        self.assertTrue(self.wire.ack(drain)["commandResult"]["accepted"])
+        playback, _ = self.wire.service("realtime-playback")
+        self.wire.result(playback, 204)
+        self.assertEqual(self.wire.snapshot["reported"]["audio"], "browser-playback-drained")
+        self.wire.command(f"MEDIA_CANCEL {self.wire.session}")
+
+    def test_event_capacity_rejection_is_nonmutating_and_only_current_busy(self):
+        self.wire.start(engine="gpt-live")
+        self.wire.stream()
+        self.wire.event({"type": "audio", "delta": base64.b64encode(bytes(4800)).decode()})
+        self.wire.output("pcm")
+        self.wire.event({"type": "playback_checkpoint", "playbackId": str(uuid.uuid4()),
+            "pcmBytes": 4800, "decisionRevision": 1})
+        drain, _ = self.wire.output("drain")
+        for _ in range(8):
+            self.wire.event({"type": "heartbeat"})
+        rejected = self.wire.event_result({"type": "heartbeat"})
+        self.assertFalse(rejected["commandResult"]["accepted"])
+        self.assertEqual(rejected["commandResult"]["code"], "media-event-backpressure")
+        self.assertTrue(rejected["mediaState"]["active"])
+        self.assertNotIn("error", rejected["mediaState"])
+        self.assertEqual(rejected["reported"]["audio"], "browser-pcm-enqueued")
+        wrong = self.wire.command(f"MEDIA_EVENT {self.wire.session} 0 2", b"{}")
+        self.assertEqual(wrong["commandResult"]["code"], "media-rejected")
+        self.assertTrue(self.wire.ack(drain)["commandResult"]["accepted"])
+        playback, _ = self.wire.service("realtime-playback")
+        self.wire.result(playback, 204)
+        # Accepted heartbeats remain valid. A capacity rejection can be
+        # retried after consumption resumes without poisoning the actor.
+        deadline = time.monotonic() + 2
+        while not self.wire.event_result({"type": "heartbeat"})["commandResult"]["accepted"]:
+            self.assertLess(time.monotonic(), deadline)
+            time.sleep(.005)
+        self.assertTrue(self.wire.state["active"])
+        self.wire.command(f"MEDIA_CANCEL {self.wire.session}")
+
+    def test_cancel_wakes_worker_waiting_for_output_capacity(self):
+        self.wire.start(engine="gpt-live")
+        self.wire.stream()
+        input_id = str(uuid.uuid4())
+        self.wire.event({"type": "listening", "inputId": input_id})
+        self.wire.output("listening")
+        self.assertTrue(self.wire.state["inputEnabled"])
+        event = {"type": "audio", "delta": base64.b64encode(bytes(4800)).decode()}
+        blocked = False
+        for _ in range(400):
+            result = self.wire.event_result(event)
+            if not result["commandResult"]["accepted"]:
+                self.assertEqual(result["commandResult"]["code"], "media-event-backpressure")
+                # Give a decoding worker time to consume. Persistent pressure
+                # means it is waiting for output rather than executing a frame.
+                time.sleep(.03)
+                result = self.wire.event_result(event)
+                if not result["commandResult"]["accepted"]:
+                    self.assertEqual(result["commandResult"]["code"], "media-event-backpressure")
+                    blocked = True
+                    break
+            time.sleep(.005)
+        self.assertTrue(blocked)
+        self.assertTrue(self.wire.state["active"])
+        pcm = bytes(4800)
+        input_epoch = self.wire.state["inputEpoch"]
+        uploaded = self.wire.command(f"MEDIA_FRAME {self.wire.session} {self.wire.state['epoch']} {input_epoch} 0 pcm {len(pcm)}", pcm)
+        self.assertTrue(uploaded["commandResult"]["accepted"])
+        began = time.monotonic()
+        upload, body = self.wire.service("realtime-input", timeout=1)
+        self.assertLess(time.monotonic() - began, 1)
+        self.assertEqual(upload["contentType"], "application/octet-stream")
+        self.assertEqual(body, pcm)
+        self.wire.result(upload, 204)
+        began = time.monotonic()
+        cancelled = self.wire.command(f"MEDIA_CANCEL {self.wire.session}")
+        self.assertTrue(cancelled["commandResult"]["accepted"])
+        self.assertLess(time.monotonic() - began, 1)
+        self.assertFalse(self.wire.state["active"])
+        self.assertEqual(self.wire.snapshot["reported"]["audio"], "browser-playback-cancelled")
+        self.assertEqual(self.wire.snapshot["reported"]["slot"], 0)
+        # A new Start joins the cancelled worker; it must not wait for the old
+        # capacity deadline or require any playback acknowledgement.
+        self.wire.session = str(uuid.uuid4())
+        began = time.monotonic()
+        request_id = str(uuid.uuid4())
+        deadline = began + 1
+        while True:
+            restarted = self.wire.command(f"MEDIA_START {self.wire.session} {request_id} gpt-live cedar 1 false main 1 1 0")
+            if restarted["commandResult"]["accepted"]:
+                break
+            self.assertLess(time.monotonic(), deadline)
+            time.sleep(.005)
+        self.assertLess(time.monotonic() - began, 1)
+        self.wire.command(f"MEDIA_CANCEL {self.wire.session}")
 
     def test_stop_during_drain_rejects_old_epoch_and_keeps_owner_responsive(self):
         self.wire.start()

@@ -86,7 +86,7 @@ bool BrowserMedia::Start(const std::string& session, const std::string& requestI
     if (!audioObservation_.empty()) audioObservation_ = "browser-playback-unknown";
     playbackPending_ = false;
     inputEpoch_ = inputSequence_ = jpegSequence_ = sequence_ = pcmBytes_ = 0;
-    phase_ = "starting"; endpoint_ = gptLive ? "gpt-live" : "realtime-live";
+    phase_ = "starting"; lastPhase_.clear(); endpoint_ = gptLive ? "gpt-live" : "realtime-live";
     photoRequested_ = photoReady_ = photoDeclined_ = listening_ = false; drainPending_ = drainAcknowledged_ = false;
     cancelled_.store(false); failed_.store(false); busy_.store(true); done_ = false;
   }
@@ -140,19 +140,48 @@ std::string BrowserMedia::StateHeader() {
       (failed_.load() ? ",\"error\":\"media_failed\"" : "") + "}";
 }
 bool BrowserMedia::Emit(const std::string& kind, const std::vector<uint8_t>& bytes, bool drain, const std::string& text) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::unique_lock<std::mutex> lock(mutex_);
   if (!Current()) return false;
-  if (output_.size() >= 32 || bytes.size() > 32768) { failed_.store(true); changed_.notify_all(); return false; }
+  if (bytes.size() > 32768) { failed_.store(true); changed_.notify_all(); return false; }
+  const auto canMerge = [&]() {
+    return kind == "pcm" && !output_.empty() && output_.back().kind == "pcm"
+        && output_.back().inputEpoch == inputEpoch_ && output_.back().outputEpoch == outputEpoch_
+        && output_.back().bytes.size() + bytes.size() <= 32768;
+  };
+  // Only media workers call Emit. The owner/control path keeps consuming and
+  // cancelling while the worker waits for a bounded browser playback queue.
+  // Private services have their own two-request bound, so microphone upload
+  // never waits for browser playback to make room in this HAL queue.
+  if (!changed_.wait_for(lock, std::chrono::seconds(5), [&]() {
+      return !Current() || std::count_if(output_.begin(), output_.end(), [](const Output& output) {
+        return !output.service;
+      }) < 32 || canMerge();
+  })) { failed_.store(true); changed_.notify_all(); return false; }
+  if (!Current()) return false;
   ++sequence_;
   if (kind == "pcm") {
     pcmBytes_ += bytes.size(); playbackPending_ = true; audioObservation_ = "browser-pcm-enqueued";
   }
-  output_.push_back({HeaderLocked(kind, bytes.size(), drain, text), bytes, false});
+  if (canMerge()) {
+    auto& tail = output_.back();
+    tail.bytes.insert(tail.bytes.end(), bytes.begin(), bytes.end());
+    tail.header = HeaderLocked(kind, tail.bytes.size(), false, text);
+  } else {
+    output_.push_back({HeaderLocked(kind, bytes.size(), drain, text), bytes, false, kind, inputEpoch_, outputEpoch_});
+  }
   if (drain) { drainSequence_ = sequence_; drainAcknowledged_ = false; drainPending_ = true; }
   changed_.notify_all(); return true;
 }
 void BrowserMedia::Phase(const char* phase) {
-  { std::lock_guard<std::mutex> lock(mutex_); if (cancelled_.load()) return; phase_ = phase; }
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (cancelled_.load()) return;
+    phase_ = phase;
+    if (lastPhase_ == phase && lastPhaseInputEpoch_ == inputEpoch_
+        && lastPhaseOutputEpoch_ == outputEpoch_ && lastPhaseListening_ == listening_) return;
+    lastPhase_ = phase; lastPhaseInputEpoch_ = inputEpoch_; lastPhaseOutputEpoch_ = outputEpoch_;
+    lastPhaseListening_ = listening_;
+  }
   // Photo's private phase uses the photo_request HAL event instead.
   const std::string value = phase;
   if (value == "listening" || value == "thinking" || value == "speaking") (void)Emit(value);
@@ -163,7 +192,7 @@ BrowserMedia::Response BrowserMedia::Request(const std::string& kind, const std:
   Response result;
   std::unique_lock<std::mutex> lock(mutex_);
   if (!Current()) return result;
-  if (output_.size() >= 32 || requests_.size() >= 2 || size > (kind == "image-upload" ? 262144u : 32768u)) {
+  if (requests_.size() >= 2 || size > (kind == "image-upload" ? 262144u : 32768u)) {
     failed_.store(true); return result;
   }
   const auto id = MediaUuid();
@@ -182,7 +211,7 @@ BrowserMedia::Response BrowserMedia::Request(const std::string& kind, const std:
   const auto stale = std::find_if(output_.begin(), output_.end(), [&id](const Output& output) {
     return output.service && output.header.find(id) != std::string::npos;
   });
-  if (stale != output_.end()) { Wipe(stale->bytes); output_.erase(stale); }
+  if (stale != output_.end()) { Wipe(stale->bytes); output_.erase(stale); changed_.notify_all(); }
   return result;
 }
 bool BrowserMedia::CloseConversation() {
@@ -278,10 +307,12 @@ bool BrowserMedia::TakeService(std::string& extension, std::vector<uint8_t>& byt
   std::lock_guard<std::mutex> lock(mutex_);
   auto item = std::find_if(output_.begin(), output_.end(), [](const Output& output) { return output.service; });
   if (item == output_.end()) return false;
-  extension = std::move(item->header); bytes = std::move(item->bytes); output_.erase(item); return true;
+  extension = std::move(item->header); bytes = std::move(item->bytes); output_.erase(item);
+  changed_.notify_all(); return true;
 }
 bool BrowserMedia::Handle(const std::vector<std::string>& words, const std::vector<uint8_t>& body,
-    std::string& extension, std::vector<uint8_t>& attachment) {
+    std::string& extension, std::vector<uint8_t>& attachment, std::string* rejectionCode) {
+  if (rejectionCode) rejectionCode->clear();
   std::unique_lock<std::mutex> lock(mutex_);
   const auto& command = words[0];
   if (command == "MEDIA_RESULT" && words.size() == 5) {
@@ -296,13 +327,17 @@ bool BrowserMedia::Handle(const std::vector<std::string>& words, const std::vect
   if (words.size() < 3 || words[1] != session_ || !Decimal(words[2], epoch) || epoch != epoch_) return false;
   if (command == "MEDIA_TAKE" && words.size() == 3) {
     auto item = std::find_if(output_.begin(), output_.end(), [](const Output& output) { return !output.service; });
-    if (item != output_.end()) { extension = std::move(item->header); attachment = std::move(item->bytes); output_.erase(item); }
+    if (item != output_.end()) {
+      extension = std::move(item->header); attachment = std::move(item->bytes); output_.erase(item); changed_.notify_all();
+    }
     return true;
   }
   if (!Current() || !busy_.load()) return false;
   if (command == "MEDIA_EVENT" && words.size() == 4) {
-    if (body.empty() || body.size() > 65536 || events_.size() >= 8 || eventBytes_ + body.size() > 524288) {
-      failed_.store(true); changed_.notify_all(); return false;
+    if (body.empty() || body.size() > 65536) return false;
+    if (events_.size() >= 8 || eventBytes_ + body.size() > 524288) {
+      if (rejectionCode) *rejectionCode = "media-event-backpressure";
+      return false;
     }
     events_.push_back(body); eventBytes_ += body.size(); changed_.notify_all(); return true;
   }
@@ -410,7 +445,7 @@ void BrowserMedia::Worker(VoiceWorkflowRequest request) {
           { std::unique_lock<std::mutex> lock(mutex_);
             changed_.wait_for(lock, std::chrono::milliseconds(100), [&]() { return !events_.empty() || !engine.Current(); });
             if (events_.empty()) continue;
-            payload = std::move(events_.front()); events_.pop_front(); eventBytes_ -= payload.size();
+            payload = std::move(events_.front()); events_.pop_front(); eventBytes_ -= payload.size(); changed_.notify_all();
           }
           total += payload.size();
           std::string line(payload.begin(), payload.end()); Wipe(payload);
@@ -418,7 +453,8 @@ void BrowserMedia::Worker(VoiceWorkflowRequest request) {
           if (!line.empty() && line.back() == '\r') line.pop_back();
           RealtimeEvent event;
           valid = total <= 20000000 && ParseRealtimeEvent(line, event) && engine.Event(event);
-          if (valid && !event.operation.reply.empty()) (void)Emit("dialogue", {}, false, event.operation.reply);
+          if (valid && event.type == "completed" && !event.operation.reply.empty())
+            (void)Emit("dialogue", {}, false, event.operation.reply);
           std::fill(line.begin(), line.end(), '\0'); std::fill(event.delta.begin(), event.delta.end(), '\0');
           std::fill(event.operation.reply.begin(), event.operation.reply.end(), '\0');
         }
@@ -432,7 +468,9 @@ void BrowserMedia::Worker(VoiceWorkflowRequest request) {
   } catch (...) { failed_.store(true); }
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (result.succeeded && Current() && output_.size() < 32) {
+    if (result.succeeded && Current() && std::count_if(output_.begin(), output_.end(), [](const Output& output) {
+        return !output.service;
+    }) < 32) {
       phase_ = "completed"; ++sequence_;
       output_.push_back({HeaderLocked("completed", 0, false, ""), {}, false});
       if (result.final.hasProposal) completion_.reset(new MediaCompletion{snapshot_, std::move(result.final), epoch_});

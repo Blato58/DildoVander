@@ -147,6 +147,19 @@ test('PCM enqueue sends no ACK before actual end; drain confirms consumed bytes 
   assert.equal(acknowledgements.length,2);assert.equal(acknowledgements[0].drained,false);assert.equal(acknowledgements[1].drained,true);
   assert.equal(acknowledgements[1].pcmBytes,'4');assert.equal(acknowledgements[1].outputEpoch,'1');
 });
+test('coalesced32KiB PCM preserves exact cumulative drain across monotonic sequence gaps',async()=>{
+  const app=mounted();await app.activate();await app.get('start').onclick();await app.flush();
+  await app.api.handle(output('pcm','10',{byteLength:32768,pcmBase64:Buffer.alloc(32768).toString('base64'),pcmBytes:'32768'}));
+  await app.api.handle(output('pcm','20',{byteLength:9600,pcmBase64:Buffer.alloc(9600).toString('base64'),pcmBytes:'42368'}));
+  await app.api.handle(output('drain','21',{pcmBytes:'42368',drainedRequested:true}));
+  assert.equal(app.requests.filter(item=>item.path==='/media/played').length,0);
+  app.contexts[0].nodes[0].finish();await app.flush();
+  const first=app.requests.filter(item=>item.path==='/media/played').map(item=>JSON.parse(item.body));
+  assert.equal(first.length,1);assert.equal(first[0].pcmBytes,'32768');assert.equal(first[0].drained,false);
+  app.contexts[0].nodes[1].finish();await app.flush();
+  const acknowledgements=app.requests.filter(item=>item.path==='/media/played').map(item=>JSON.parse(item.body));
+  assert.equal(acknowledgements.length,3);assert.equal(acknowledgements[2].pcmBytes,'42368');assert.equal(acknowledgements[2].sequence,'21');assert.equal(acknowledgements[2].drained,true);
+});
 test('cancel and suspended context never acknowledge scheduled output; old epoch callbacks cannot revive',async()=>{
   const app=mounted();await app.activate();await app.get('start').onclick();await app.flush();
   await app.api.handle(output('pcm','1',{byteLength:4,pcmBase64:'AAAAAA==',drainedRequested:true}));

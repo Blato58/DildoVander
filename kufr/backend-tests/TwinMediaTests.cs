@@ -17,10 +17,12 @@ internal static class TwinMediaTests
     internal static async Task RunAsync()
     {
         await FramingAsync();
+        await EventDeliveryAsync();
         ProviderSource();
         CancellationMemory();
         var native = Environment.GetEnvironmentVariable("KUFR_TWIN_TEST_NATIVE")
             ?? throw new InvalidOperationException("Browser media acceptance requires KUFR_TWIN_TEST_NATIVE.");
+        await TwinMediaStreamingTests.RunAsync(native);
         var root = Path.Combine(Path.GetTempPath(), "twin-media-api-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         const string control = "offline-control-credential-00000000000000000000000000000001";
@@ -60,6 +62,10 @@ internal static class TwinMediaTests
         var owner = await LoginAsync(http, control);
         var spectator = await LoginAsync(http, observe);
         var second = await LoginAsync(http, control);
+        var resumed = await LoginAsync(http, control, owner);
+        Check(resumed == owner && second != owner, "browser reauthentication preserves owner; another browser stays distinct");
+        var switched = await LoginAsync(http, observe, owner);
+        Check(switched != owner && switched != spectator, "different credential scope cannot reuse controller session");
         const string prefix = "/v1/twin/instances/sim-media";
         var revokedRoot = Path.Combine(root, "revoked");
         Directory.CreateDirectory(Path.Combine(revokedRoot, "simulation", "sim-media"));
@@ -379,9 +385,10 @@ internal static class TwinMediaTests
         }
         async Task<JsonElement> ReadAsync(string route, string cookie)
         { using var response = await SendAsync(HttpMethod.Get, route, cookie); Check(response.IsSuccessStatusCode, "read " + route); return await response.Content.ReadFromJsonAsync<JsonElement>(); }
-        async Task<string> LoginAsync(HttpClient client, string credential)
+        async Task<string> LoginAsync(HttpClient client, string credential, string? cookie = null)
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, "/v1/twin/session") { Content = JsonContent.Create(new { credential }) };
+            if (cookie is not null) { request.Headers.Add("Cookie", cookie); }
             request.Headers.Add("Origin", "https://twin.test"); using var response = await client.SendAsync(request);
             Check(response.IsSuccessStatusCode, "login"); return response.Headers.GetValues("Set-Cookie").Single().Split(';')[0];
         }
@@ -398,6 +405,35 @@ internal static class TwinMediaTests
         try { await TwinNativeFraming.ReadAsync(truncated, CancellationToken.None); } catch (EndOfStreamException) { rejected = true; }
         Check(rejected, "truncated frame rejected");
         Console.WriteLine("PASS Twin binary framing bounds/truncation");
+    }
+    private static async Task EventDeliveryAsync()
+    {
+        var attempts = 0;
+        await TwinMediaSessions.DeliverEventAsync(() => Task.FromResult(++attempts < 3
+            ? new TwinCommandResult(false, "media-event-backpressure") : new TwinCommandResult(true, "media-accepted")), CancellationToken.None);
+        Check(attempts == 3, "only capacity rejection retries; accepted event never repeats");
+        attempts = 0;
+        var rejected = false;
+        try
+        {
+            await TwinMediaSessions.DeliverEventAsync(() =>
+            { attempts++; return Task.FromResult(new TwinCommandResult(false, "media-rejected")); }, CancellationToken.None);
+        }
+        catch (InvalidDataException) { rejected = true; }
+        Check(rejected && attempts == 1, "invalid event is never retried");
+        using var cancellation = new CancellationTokenSource();
+        attempts = 0;
+        var cancelled = false;
+        try
+        {
+            await TwinMediaSessions.DeliverEventAsync(() =>
+            {
+                attempts++; cancellation.Cancel();
+                return Task.FromResult(new TwinCommandResult(false, "media-event-backpressure"));
+            }, cancellation.Token);
+        }
+        catch (OperationCanceledException) { cancelled = true; }
+        Check(cancelled && attempts == 1, "capacity wait cancels without another admission");
     }
     private static void CancellationMemory()
     {

@@ -272,7 +272,9 @@
       if (bytes.length!==output.byteLength || queuedOutputBytes+bytes.length>OUTPUT_BYTES) throw new Error('PCM output překročil omezenou frontu');
       const samples=floatPcm(bytes), buffer=audio.createBuffer(1,samples.length,RATE); buffer.copyToChannel(samples,0);
       const node=audio.createBufferSource(); node.buffer=buffer; node.connect(audio.destination);
-      const start=Math.max(audio.currentTime+.01,scheduledUntil), end=start+samples.length/RATE;
+      // A small initial buffer absorbs network jitter. It is never playback ACK.
+      const lead=scheduledUntil>audio.currentTime ? .01 : .15;
+      const start=Math.max(audio.currentTime+lead,scheduledUntil), end=start+samples.length/RATE;
       const selected=actor, own=generation, item={node,cancelled:false}; sources.add(item); queuedOutputBytes+=bytes.length; scheduledUntil=end;
       node.onended=()=>{
         node.disconnect(); sources.delete(item);
@@ -335,6 +337,7 @@
     async function poll(own) {
       if (own!==generation || !actor || !eligible() || reading) return;
       reading=true;
+      let received=false;
       try {
         if (++pollCount%10===0) {
           const state=await request(context.instanceId,'/media/state');
@@ -359,11 +362,11 @@
         if (queuedOutputBytes<=OUTPUT_BYTES-32768) {
           const value=await request(context.instanceId,'/media/output');
           if (own!==generation || !actor) return;
-          if (value) await handle(value);
+          if (value) { received=true; await handle(value); }
         }
       } catch (error) { if (own===generation) fail(error); }
       finally { if (own===generation) reading=false; }
-      if (own===generation && actor) timer=root.setTimeout(()=>poll(own),50);
+      if (own===generation && actor) timer=root.setTimeout(()=>poll(own),received ? 0 : 50);
     }
     async function upload() {
       if (uploading || !listen || !actor || !eligible()) return;

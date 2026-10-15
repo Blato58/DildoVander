@@ -22,7 +22,7 @@ internal static class TwinEndpoints
         {
             if (!SameOrigin(context)) { return ApiProblem.Create(context, 403, "origin_forbidden"); }
             var login = await ReadAsync<Login>(context, 2048);
-            var session = login is null ? null : access.CreateSession(login.Credential);
+            var session = login is null ? null : access.CreateSession(login.Credential, context.Request.Cookies[Cookie]);
             if (session is null) { return ApiProblem.Create(context, 401, "twin_credential_invalid"); }
             context.Response.Cookies.Append(Cookie, session.Id, new CookieOptions
             {
