@@ -272,8 +272,8 @@ identity jsou v receipts; build/screenshot nejsou fyzickou akceptací.
 NASAZENO NA VPS: oddělená služba a skutečně běžící host procesy, chráněný viewer
 a ingest. Testy používají fake provider; Realtime/GPT-Live jsou připravené
 v nastavení se schváleným existujícím serverovým klíčem. Fyzický kufr nebyl
-ovládán ani flashován. Aktuální nasazený release je `twin-20261015-v15`;
-source/build ID `f4735375d8b422d3d0d3a290a5c40a381b1d22d26c76a7a648fcbd4b47a1cae5`.
+ovládán ani flashován. Aktuální nasazený release je `twin-20261015-v16`;
+source/build ID `741947360f86ac8802eb1bcab9f832027bce6d7872c3a1cf1a3b66bcf41c9e38`.
 Aktuální [softwarový target](../../docs/project/targets/KUFR-TWIN-software.json)
 zahrnuje i browser média; fyzickou akceptaci dál blokuje PHYSICAL.
 
@@ -330,3 +330,14 @@ zrušených operací. Jiný browser nebo scope původní řízení nepřebírá.
 Paměť zrušení je omezená na64 operací a64 vlastníků overflow bariéry na instanci.
 Při dalším zaplnění blokuje nové vstupy až do explicitního restartu služby;
 nezahazuje neexpirované záznamy. Deadline sleduje obnovenou autentizovanou relaci.
+
+
+Přechod mikrofonní brány (v16): platný opožděný PCM blok z již uzavřené vstupní
+epochy vrací409 `media-input-retired` bez přijetí bajtů a bez ukončení rozhovoru.
+Browser blok neopakuje, vyčistí čekající mikrofonní vstup a čeká na vyšší epochu
+potvrzenou nativním stavem. Starší FIFO událost nesmí bránu znovu otevřít.
+Nesprávné pořadí v aktuální epoše (`media-input-sequence-mismatch`), budoucí epocha,
+neplatná identita a přeplnění (`media-input-overflow`) zůstávají chybami.
+Nativní upload čeká s oddělenou engine a HAL epochou; staré čekání nespotřebuje
+první blok nově otevřené brány. Pause GPT-Live může obnovit HAL bránu, aniž změní
+vstupní turn sdíleného engine, proto se čítače nesmějí číselně zaměňovat.

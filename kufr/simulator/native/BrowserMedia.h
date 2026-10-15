@@ -52,6 +52,7 @@ class BrowserMedia final : public VoiceAudioPort, public CostumeUploadPort {
   };
   struct Response { bool ready = false; int status = 0; std::string type; std::vector<uint8_t> bytes; };
   bool Current() const;
+  bool TakeInputForEpoch(std::vector<uint8_t>& pcm, const RealtimeSessionEngine& engine, uint32_t engineEpoch);
   void Worker(VoiceWorkflowRequest request);
   void Phase(const char* phase);
   bool Emit(const std::string& kind, const std::vector<uint8_t>& bytes = {}, bool drain = false,

@@ -137,6 +137,32 @@ test('in-flight plus queued capture cannot exceed400ms and overflow immediately 
   assert.equal(app.requests.filter(item=>item.path==='/media/cancel').length,1);finish();await app.flush();
   assert.equal(app.requests.filter(item=>item.path==='/media/input').length,1);
 });
+
+test('retired in-flight microphone epoch waits for a newer gate without cancelling voice or replaying the block',async()=>{
+  const app=mounted();await app.activate();await app.get('start').onclick();await app.flush();
+  await app.api.handle(output('listening'));
+  const finish=app.hold('/media/input');app.worklets[0].port.onmessage({data:new Float32Array(4800)});await app.flush();
+  app.worklets[0].port.onmessage({data:new Float32Array(4800)});
+  finish.reject(Object.assign(new Error('retired microphone gate'),{status:409,code:'media-input-retired'}));await app.flush();
+  assert.ok(app.api.state().actor);assert.equal(app.api.state().mic,true);assert.equal(app.api.state().captureBytes,0);
+  assert.equal(app.requests.filter(item=>item.path==='/media/cancel').length,0);
+  app.setMediaState({...output('listening'),active:true});await app.poll();
+  await app.api.handle(output('listening','2'));app.worklets[0].port.onmessage({data:new Float32Array(4800)});await app.flush();
+  assert.equal(app.requests.filter(item=>item.path==='/media/input').length,1,'stale state/FIFO cannot reopen rejected gate');
+  await app.api.handle(output('listening','3',{inputEpoch:'3'}));
+  app.worklets[0].port.onmessage({data:new Float32Array(4800)});await app.flush();
+  const inputs=app.requests.filter(item=>item.path==='/media/input');assert.equal(inputs.length,2);
+  assert.equal(inputs[1].headers['Input-Epoch'],'3');assert.equal(inputs[1].headers['Input-Sequence'],'0');
+  assert.equal(app.get('error').textContent,'');
+});
+
+test('current gate sequence errors remain fatal and are never retried as retired audio',async()=>{
+  const app=mounted();await app.activate();await app.get('start').onclick();await app.flush();await app.api.handle(output('listening'));
+  const finish=app.hold('/media/input');app.worklets[0].port.onmessage({data:new Float32Array(4800)});await app.flush();
+  finish.reject(Object.assign(new Error('invalid microphone sequence'),{status:409,code:'media-input-sequence-mismatch'}));await app.flush();
+  assert.equal(app.api.state().actor,null);assert.equal(app.requests.filter(item=>item.path==='/media/input').length,1);
+  assert.equal(app.requests.filter(item=>item.path==='/media/cancel').length,1);
+});
 test('PCM enqueue sends no ACK before actual end; drain confirms consumed bytes not audible sound',async()=>{
   const app=mounted();await app.activate();await app.get('start').onclick();await app.flush();
   await app.api.handle(output('pcm','1',{byteLength:4,pcmBase64:Buffer.from([0,0,0,0]).toString('base64')}));
