@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "targetId": "KUFR-TWIN-software",
-  "purpose": "Verified shared native firmware text/effects/voice runtime, browser microphone/photo/playback HAL, CAD observer and protected VPS transport. Excludes physical ESP and paid provider acceptance; full work item retains PHYSICAL blocker.",
+  "purpose": "Dated full v16 software baseline: shared native runtime, browser media HAL, CAD observer and protected transport. Current v17 microphone deployment is separately verified in KUFR-TWIN-mic-v17; excludes physical ESP and paid provider acceptance.",
   "components": {
     "artifactDigest": "741947360f86ac8802eb1bcab9f832027bce6d7872c3a1cf1a3b66bcf41c9e38",
     "policyVersion": "twin-v2"

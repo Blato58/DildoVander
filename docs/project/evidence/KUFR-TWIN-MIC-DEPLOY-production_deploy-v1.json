@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "observedAtUtc": "2026-10-15T16:34:24.034847+00:00",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-TWIN-MIC-DEPLOY",
+      "criterionId": "VPS",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "a7ee2cf3740efc92912cfe450e7c7637d98eb0596d35b2111c41db987fb86148",
+    "policyVersion": "twin-v2"
+  },
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-TWIN-MIC-QUEUE-deploy-v1/deploy-proof.json",
+    "docs/project/artifacts/KUFR-TWIN-MIC-QUEUE-deploy-v1/twin-release.json",
+    "docs/project/artifacts/KUFR-TWIN-MIC-QUEUE-deploy-v1/browser-media-result.json",
+    "docs/project/artifacts/KUFR-TWIN-MIC-QUEUE-deploy-v1/post-test-proof.json",
+    "docs/project/artifacts/KUFR-TWIN-MIC-QUEUE-deploy-v1/README.md"
+  ],
+  "evidenceId": "KUFR-TWIN-MIC-DEPLOY-production_deploy-v1",
+  "kind": "production_deploy",
+  "method": "Canonical viewer_document.render_document and package-twin.py; verify354-file previous release inventory, compare canonical source/input Git diff, install-twin.py preflight, existing-routing atomic config/current activation with private backup and rollback; SSH systemctl/readlink/health and HTTPS exact viewer SHA256 readback.",
+  "environment": "Authorized Windows OpenSSH to VPS; isolated kufr-twin service, existing original backend unchanged.",
+  "limitations": [
+    "Standard installer refused unexpected Nginx layout before activation; existing validated route/unit used for scoped manual activation. Generic installer layout support was not changed.",
+    "Rollback was source-reviewed, not failure-injected. Existing compiled backend/native bytes reused with full inventory and input-diff evidence.",
+    "No provider request, firmware flash or physical acceptance."
+  ],
+  "observation": "Active v17, build a7ee2cf3740efc92912cfe450e7c7637d98eb0596d35b2111c41db987fb86148. Manifest SHA256ba22ee49630cf11693f8632a91c5e001bd2387701ee98cbad7b099de81bbf296; HTTPS viewer SHA2560d18f2d6d68521439a912b9bb486240e226d7c62ea0e49c8d63f5a723ff5477f. All354 runtime file paths unchanged; only viewer.html bytes differ from verified v16. Twin ready, original backend ok. Config differs only BuildId/CadManifestRevision; credentials, Nginx and unit unchanged. Root-only backup recorded in proof. Final independent service/hash/readback checks passed after test."
+}
