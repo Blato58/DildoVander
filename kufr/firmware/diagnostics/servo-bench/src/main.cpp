@@ -1,7 +1,6 @@
 #include "PcaRegisters.h"
 
 #include <cstdio>
-#include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "driver/uart.h"
 #include "esp_rom_sys.h"
@@ -10,16 +9,11 @@
 #include "freertos/task.h"
 
 namespace {
-constexpr gpio_num_t OePin = GPIO_NUM_2;
 constexpr int TransferTimeoutMs = 50;
 
 class PcaOutputs final : public ServoBench::Outputs, private ServoBench::RegisterBus {
  public:
   bool Initialize() {
-    // Preload the latch before enabling the output driver. External pull-up
-    // must hold OE HIGH throughout ROM boot/reset, before this code can run.
-    if (gpio_set_level(OePin, 1) != ESP_OK ||
-        gpio_set_direction(OePin, GPIO_MODE_OUTPUT) != ESP_OK) return false;
     i2c_master_bus_config_t config{};
     config.i2c_port = I2C_NUM_0;
     config.sda_io_num = GPIO_NUM_1;
@@ -35,17 +29,14 @@ class PcaOutputs final : public ServoBench::Outputs, private ServoBench::Registe
         i2c_master_bus_add_device(bus_, &device, &device_) == ESP_OK && Prepare();
   }
 
-  void Disable() override { gpio_set_level(OePin, 1); }
+  bool Disable() override { return ServoBench::DisableAllPca(*this); }
 
   bool Prepare() override {
-    Disable();
     return ServoBench::PreparePca(*this);
   }
 
   bool Pulse(unsigned channel, unsigned ticks) override {
-    Disable();
-    if (!ServoBench::SetPulse(*this, channel, ticks)) return false;
-    return gpio_set_level(OePin, 0) == ESP_OK;
+    return ServoBench::SetPulse(*this, channel, ticks);
   }
 
   void Report(const char* message) override { std::printf("SERVO_BENCH %s\n", message); }
@@ -78,9 +69,9 @@ extern "C" void app_main() {
   // Keep UART0's console pin mapping; use USB-UART, not native USB-OTG.
   const bool uartReady = uart_driver_install(UART_NUM_0, 256, 0, 0, nullptr, 0) == ESP_OK;
   if (!ready || !uartReady) controller.Fault();
-  outputs.Report(ready && uartReady ?
-      "READY outputs disabled; GPIO1=SDA GPIO14=SCL GPIO2=OE PCA=0x40 nominal 50Hz; type help" :
-      "NOT READY outputs disabled; check wiring and restart");
+  outputs.Report(ready && uartReady && !controller.Faulted() ?
+      "READY PWM FULL_OFF; GPIO1=SDA GPIO14=SCL no OE control PCA=0x40 nominal 50Hz; type help" :
+      "NOT READY; PWM state not guaranteed; cut servo power, check wiring and restart");
   for (;;) {
     controller.Tick(static_cast<uint64_t>(esp_timer_get_time()));
     uint8_t byte = 0;

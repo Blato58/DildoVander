@@ -18,7 +18,7 @@ inline unsigned PulseTicks(unsigned microseconds) {
 class Outputs {
  public:
   virtual ~Outputs() = default;
-  virtual void Disable() = 0;
+  virtual bool Disable() = 0;
   virtual bool Prepare() = 0;
   virtual bool Pulse(unsigned channel, unsigned ticks) = 0;
   virtual void Report(const char* message) = 0;
@@ -27,11 +27,13 @@ class Outputs {
 // Single owner, no queued movements. Times are monotonic microseconds.
 class Controller {
  public:
-  explicit Controller(Outputs& outputs) : outputs_(outputs) { outputs_.Disable(); }
+  explicit Controller(Outputs& outputs) : outputs_(outputs) { Stop("PWM FULL_OFF; disarmed"); }
+
+  bool Faulted() const { return faulted_; }
 
   void Tick(uint64_t now) {
     if (active_ && now >= deadline_) {
-      Stop("DONE outputs disabled; arm again for another pulse");
+      Stop("DONE PWM FULL_OFF; arm again for another pulse");
     } else if (armed_ && now >= deadline_) {
       Stop("ARM expired");
     }
@@ -39,14 +41,14 @@ class Controller {
 
   void Fault() {
     faulted_ = true;
-    Stop("FAULT outputs disabled; restart required");
+    Stop("FAULT PWM FULL_OFF; restart required");
   }
 
   void Feed(char byte, uint64_t now) {
     Tick(now);
     // Emergency stop is recognized even inside an incomplete/overflowed line.
     if (byte == '!') {
-      Stop("STOP outputs disabled");
+      Stop("STOP PWM FULL_OFF");
       length_ = 0;
       dropping_ = true;
       return;
@@ -62,7 +64,7 @@ class Controller {
     }
     if (dropping_) return;
     if (byte < 32 || byte > 126 || length_ == sizeof(line_) - 1) {
-      Stop("REJECT invalid/overlong line; outputs disabled");
+      Stop("REJECT invalid/overlong line; PWM FULL_OFF");
       length_ = 0;
       dropping_ = true;
       return;
@@ -71,16 +73,21 @@ class Controller {
   }
 
  private:
-  void Stop(const char* message) {
-    outputs_.Disable();  // No I2C transfer may delay OE HIGH.
+  bool Stop(const char* message) {
     active_ = false;
     armed_ = false;
+    if (!outputs_.Disable()) {
+      faulted_ = true;
+      outputs_.Report("FAULT PWM_OFF_FAILED; PWM may still be active; cut servo power; restart required");
+      return false;
+    }
     outputs_.Report(message);
+    return true;
   }
 
   void Command(uint64_t now) {
     if (std::strcmp(line_, "stop") == 0) {
-      Stop("STOP outputs disabled");
+      Stop("STOP PWM FULL_OFF");
       return;
     }
     if (std::strcmp(line_, "help") == 0) {
@@ -92,11 +99,11 @@ class Controller {
       return;
     }
     if (active_) {
-      Stop("REJECT busy; outputs disabled");
+      Stop("REJECT busy; PWM FULL_OFF");
       return;
     }
     if (std::strcmp(line_, "arm") == 0) {
-      Stop("Preparing PCA with OE HIGH");
+      if (!Stop("Preparing PCA with all PWM off")) return;
       if (!outputs_.Prepare()) {
         Fault();
         return;
@@ -128,7 +135,7 @@ class Controller {
       }
       active_ = true;
       deadline_ = now + PulseDurationUs;
-      outputs_.Report("PULSE 500 ms maximum in running control loop");
+      outputs_.Report("PULSE nominal 500 ms; timeout/Stop writes PCA FULL_OFF");
       return;
     }
     Stop("REJECT unknown command; type help");

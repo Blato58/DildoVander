@@ -348,11 +348,13 @@ Skutečný výsledek a hranice akceptace vede D124 ve
 ## První pohyb volného serva
 
 Samostatný [servo-bench](diagnostics/servo-bench/README.md) používá stejnou
-I2C sběrnici, přímé OE na GPIO2 a oddělené 5V napájení PCA V+.
-Po startu má výstupy vypnuté; explicitní `arm` a `pulse 0 1500` povolí
+I2C sběrnici a oddělené 5V napájení PCA V+. Tato varianta testu neřídí OE
+ani GPIO2: Stop i timeout zapisují FULL_OFF všech kanálů přímo do PCA.
+Po úspěšném startu má PWM vypnuté; explicitní `arm` a `pulse 0 1500` povolí
 jeden krátký pulzní test nezatíženého serva. Obsahuje zapojení pro ESP
 napájené z USB počítače. Test nenahrazuje fyzickou kalibraci přihrádky;
-nahrání vyžaduje samostatnou autorizaci.
+nahrání vyžaduje samostatnou autorizaci. Při nefunkčním I2C nemusí PWM
+přestat; vypni 5V pohony fyzickým vypínačem. Provozní B-effects používá OE beze změny.
 
 ## První aplikační boot na desce (D123)
 

@@ -42,7 +42,8 @@
       },
       "evidenceRefs": [
         "KUFR-E5-servo-bench-unit-20261018",
-        "KUFR-E5-servo-bench-build-20261018"
+        "KUFR-E5-servo-bench-build-20261018",
+        "KUFR-E5-servo-bench-no-oe-20261018"
       ]
     },
     {
@@ -163,6 +164,6 @@
       "role": "majitel a implementátor"
     }
   ],
-  "currentNote": "GPIO adaptéry a časovaná sekvence existují. B1/E5 fyzicky nepřijato. GPIO2 řídí OE; zelená kolébka odpojuje pohony; žádný měřený polohový snímač. Samostatný servo-bench připravuje první zkoušku jednoho volného serva přes USB-UART; provozní NVS nemění. Fyzická měření, kalibrace a nahrání nejsou tímto softwarovým slice doložené. Software servo-bench: commit d1cc5b966fd903e8ac91a395be2a6a24edc90833; Push-CurrentBranch.ps1 úspěšně ověřil shodný vzdálený SHA na origin/codex/servo-bench-test. Firmware sestaven, do desky nenahrán.",
-  "nextAction": "Majitel: podle servo-bench/README ověřit 5V V+, 3V3 VCC, společnou GND a OE HIGH při resetu; po samostatné autorizaci nahrání vyzkoušet jedno nezatížené servo a zaznamenat proud/pulzy. Potom pokračovat fyzickou kalibrací E5."
+  "currentNote": "Provozní B-effects používá GPIO2/OE a zelenou kolébku; B1/E5 fyzicky nepřijato, poloha není měřená. Výslovně vyžádaný samostatný servo-bench pro první volné servo nyní propojuje ESP a PCA jen přes GND/VCC/SDA/SCL. Stop i timeout 500 ms zapisují ALL_LED_OFF_H FULL_OFF; selhání I2C hlásí nejistý stav PWM a blokuje další pohyb do restartu. Provozní firmware a NVS beze změny. Host testy a build prošly; nahrání a fyzická zkouška neprovedeny. Ověřený software commit 20eb13bf32df9f107fb01fdf0d87448c192cae4d; Push-CurrentBranch.ps1 úspěšně ověřil shodný vzdálený SHA na origin/codex/servo-bench-without-oe.",
+  "nextAction": "Majitel: ověřit 5 V V+, 3V3 VCC, společnou GND a OE LOW na PCA; před resetem vypnout servo napájení. Po samostatné autorizaci nahrání ověřit jedno volné servo, skutečné vypnutí PWM po 500 ms a při Stop, proud a chování při poruše I2C. Pro kalibraci přihrádky dále platí provozní B-effects s OE."
 }
