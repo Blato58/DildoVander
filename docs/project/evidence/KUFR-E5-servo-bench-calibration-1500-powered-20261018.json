@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-E5-servo-bench-calibration-1500-powered-20261018",
+  "observedAtUtc": "2026-10-18T19:41:26.477796+00:00",
+  "kind": "integration",
+  "result": "inconclusive",
+  "claims": [
+    {
+      "workItemId": "KUFR-E5",
+      "criterionId": "S45",
+      "criterionRevision": 1,
+      "result": "inconclusive"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "70ca89f88fee78026367a1edb34ff64ca72fc25748696982ce0910e9ef88f850",
+    "firmwareDigest": "f6f8b2dd02ee4876e65fbe810acf96943dc70a97af0eef45c312049cbd1f6932",
+    "assemblyId": "kufr-68ee8f4b6048"
+  },
+  "method": "One owner-authorized powered calibration through native WebMCP: get_state, Arm ACK, exactly one calibrate(channel=0,pulseWidthUs=1500,durationMs=1500), get_log. No reconnect/reset or automatic retry.",
+  "environment": "Owner explicitly reported V+5V, USB connected, one unloaded channel0 servo under observation. Same ESP/PCA wiring and installed calibration=v1 firmware as preceding calibration receipt. Software does not measure power or position.",
+  "observation": "21:40:50 local: Arm acknowledged. Exactly one cal 0 1500 1500 sent. PCA_READBACK ch0 MODE1x20 MODE2x04 PRE_SCALE121 ON0 OFF307 expected307 FULL_ON0 FULL_OFF0 match1. Firmware PULSE nominal1500ms calibration, then21:40:52 DONE PWM FULL_OFF. WebMCP returned oktrue, faultfalse, no pending command and consumed Arm. No I2C_ERROR/FAULT in this test. Owner has not yet reported observed physical motion. Agent instructed owner to switch V+OFF afterward; actual switch-off not yet confirmed.",
+  "limitations": [
+    "Single register/firmware integration result, not physical position, angle, current, waveform or mechanical acceptance. S45 remains inconclusive.",
+    "Firmware nominal1500ms timing is not a measured physical waveform or hard power cutoff. FULL_OFF does not remove5V or guarantee torque release.",
+    "Physical movement and V+OFF after test await owner report. No profile point was saved; no second movement sent.",
+    "PR207 remains closed unmerged; testing is ongoing."
+  ],
+  "artifactRefs": [
+    "docs/project/evidence/KUFR-E5-servo-bench-calibration-20261018.json",
+    "kufr/firmware/diagnostics/servo-bench/web/mcp.mjs"
+  ]
+}

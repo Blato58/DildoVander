@@ -15,8 +15,21 @@ export class SerialTransport {
     this.writesPending = 0;
   }
 
-  async connect() {
-    const port = await this.serial.requestPort({ filters: [{ usbVendorId: 0x1A86, usbProductId: 0x55D3 }] });
+  async connect({ authorizedOnly = false } = {}) {
+    if (!this.serial) throw new Error("Web Serial není dostupné");
+    let port;
+    if (authorizedOnly) {
+      const ports = (await this.serial.getPorts()).filter(candidate => {
+        const info = candidate.getInfo();
+        return info.usbVendorId === 0x1A86 && info.usbProductId === 0x55D3;
+      });
+      if (ports.length !== 1) {
+        throw new Error("Připojení nástrojem vyžaduje právě jeden povolený CH343. Vyberte USB port tlačítkem Připojit USB v panelu.");
+      }
+      [port] = ports;
+    } else {
+      port = await this.serial.requestPort({ filters: [{ usbVendorId: 0x1A86, usbProductId: 0x55D3 }] });
+    }
     this.port = port;
     try {
       await port.open({ baudRate: 115200, dataBits: 8, stopBits: 1, parity: "none",

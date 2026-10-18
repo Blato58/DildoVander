@@ -40,7 +40,8 @@ export class BenchController {
     setTimer = (callback, delay) => setTimeout(callback, delay), clearTimer = id => clearTimeout(id) }) {
     Object.assign(this, { write, onChange, onLog, now, setTimer, clearTimer });
     this.state = { connected: false, baseline: false, fault: false, pending: null, writing: false,
-      armedUntil: 0, message: "Neaktivní · odpojeno", error: "", readback: null };
+      armedUntil: 0, calibrationSupported: false, lastCompleted: null,
+      message: "Neaktivní · odpojeno", error: "", errorKind: "", readback: null };
     this.generation = 0;
   }
 
@@ -48,7 +49,8 @@ export class BenchController {
     const state = this.state;
     const idle = state.connected && state.baseline && !state.fault && !state.pending && !state.writing;
     return { arm: idle && !state.armedUntil,
-      pulse: idle && state.armedUntil > this.now(), stop: state.connected };
+      pulse: idle && state.armedUntil > this.now(),
+      calibrate: idle && state.armedUntil > this.now() && state.calibrationSupported, stop: state.connected };
   }
 
   changed() { this.onChange(this.state, this.capabilities); }
@@ -67,8 +69,9 @@ export class BenchController {
     this.generation++;
     this.clearArm();
     this.clearPending();
+    this.activePulse = null;
     Object.assign(this.state, { connected: true, baseline: false, fault: false, writing: false,
-      error: "", readback: null });
+      error: "", errorKind: "", readback: null, calibrationSupported: false, lastCompleted: null });
     return this.stop("!\n");
   }
 
@@ -76,21 +79,24 @@ export class BenchController {
     this.generation++;
     this.clearArm();
     this.clearPending();
-    Object.assign(this.state, { connected: false, baseline: false, writing: false, message });
+    this.activePulse = null;
+    Object.assign(this.state, { connected: false, baseline: false, writing: false, message,
+      calibrationSupported: false, lastCompleted: null });
     this.changed();
   }
 
-  async command(command, pending, message) {
+  async command(command, pending, message, timeoutMs = 3000) {
     const generation = ++this.generation;
     this.state.pending = pending;
     this.state.writing = true;
     this.state.message = message;
     this.state.error = "";
+    this.state.errorKind = "";
     // Start before write; a stalled transport must never leave Arm usable.
     this.ackTimer = this.setTimer(() => {
       if (generation !== this.generation) return;
-      this.fail("Chybí potvrzení firmwaru. Stav PWM není známý; použijte Stop nebo odpojte napájení serv.");
-    }, 3000);
+      this.fail("Chybí potvrzení firmwaru. Stav PWM není známý; použijte Stop nebo odpojte napájení serv.", false, "ack_timeout");
+    }, timeoutMs);
     this.changed();
     this.onLog(`→ ${command.trim()}`);
     try {
@@ -117,7 +123,21 @@ export class BenchController {
     if (!this.capabilities.pulse || !Number.isInteger(channel) || channel < 0 || channel > 5 ||
       ![1400, 1500, 1600].includes(width)) return false;
     this.clearArm();
+    this.state.lastCompleted = null;
+    this.activePulse = { channel, pulseWidthUs: width, durationMs: 500, calibration: false };
     return this.command(`pulse ${channel} ${width}\n`, "pulse", "Čekám na pulz a potvrzení PWM FULL_OFF…");
+  }
+
+  calibrate(channel, width, durationMs) {
+    if (!this.capabilities.calibrate || !Number.isInteger(channel) || channel < 0 || channel > 5 ||
+      !Number.isInteger(width) || width < 1000 || width > 2000 ||
+      !Number.isInteger(durationMs) || durationMs < 500 || durationMs > 3000) return false;
+    this.clearArm();
+    this.state.lastCompleted = null;
+    this.activePulse = { channel, pulseWidthUs: width, durationMs, calibration: true };
+    const command = `cal ${channel} ${String(width).padStart(4, "0")} ${String(durationMs).padStart(4, "0")}\n`;
+    return this.command(command, "pulse", `Čekám na kalibrační pulz ${durationMs} ms a PWM FULL_OFF…`,
+      Math.max(3000, durationMs + 1500));
   }
 
   stop(command = "!\n") {
@@ -125,17 +145,22 @@ export class BenchController {
     this.clearArm();
     this.clearPending();
     this.state.baseline = false;
+    this.activePulse = null;
+    this.state.lastCompleted = null;
     return this.command(command, "stop", "Stop odesílán · čekám na PWM FULL_OFF…");
   }
 
-  fail(message, fault = false) {
+  fail(message, fault = false, errorKind = "") {
     this.generation++;
     this.clearArm();
     this.clearPending();
     this.state.baseline = false;
     this.state.writing = false;
+    this.activePulse = null;
+    this.state.lastCompleted = null;
     this.state.fault ||= fault;
     this.state.error = message;
+    this.state.errorKind = errorKind;
     this.state.message = "Neaktivní · chyba nebo nepotvrzený stav";
     this.changed();
   }
@@ -161,16 +186,22 @@ export class BenchController {
       this.state.baseline = false;
       this.state.fault = false;
       this.state.readback = null;
+      this.state.calibrationSupported = /(?:^|\s)calibration=v1(?:\s|;|$)/.test(message);
+      this.state.lastCompleted = null;
+      this.activePulse = null;
       this.state.error = "";
+      this.state.errorKind = "";
       this.state.message = "Firmware připraven po startu · vyžaduje potvrzení Stop";
       this.changed();
     } else if (/^STOP PWM FULL_OFF\b/.test(message)) {
       const requested = this.state.pending === "stop";
       this.clearArm();
       this.clearPending();
+      this.activePulse = null;
+      this.state.lastCompleted = null;
       this.state.baseline = requested && !this.state.fault;
       this.state.message = this.state.fault ? "PWM FULL_OFF potvrzeno · chyba vyžaduje kontrolu a restart" :
-        "PWM FULL_OFF potvrzeno · 5 V zůstává připojeno";
+        "PWM FULL_OFF potvrzeno · Stop neodpojuje 5 V";
       if (requested && !this.state.fault) this.state.error = "";
       this.changed();
     } else if (/^ARMED for one pulse\b/.test(message) && this.state.pending === "arm") {
@@ -189,12 +220,14 @@ export class BenchController {
         }, remaining);
       }
       this.changed();
-    } else if (/^PULSE nominal 500 ms\b/.test(message) && this.state.pending === "pulse") {
-      this.state.message = "Firmware hlásí pulz · čekám na PWM FULL_OFF";
+    } else if (/^PULSE nominal \d+ ms\b/.test(message) && this.state.pending === "pulse") {
+      this.state.message = `Firmware hlásí pulz ${this.activePulse?.durationMs ?? "—"} ms · čekám na PWM FULL_OFF`;
       this.changed();
     } else if (/^DONE PWM FULL_OFF\b/.test(message) && this.state.pending === "pulse") {
       this.clearArm();
       this.clearPending();
+      this.state.lastCompleted = this.activePulse ? { ...this.activePulse } : null;
+      this.activePulse = null;
       this.state.message = "PWM FULL_OFF po pulzu potvrzeno · pro další pulz stiskněte Arm";
       this.changed();
     }

@@ -38,7 +38,7 @@ inline bool PreparePca(RegisterBus& bus) {
 }
 
 inline bool SetPulse(RegisterBus& bus, unsigned channel, unsigned ticks) {
-  if (channel > 5 || ticks < PulseTicks(1400) || ticks > PulseTicks(1600) ||
+  if (channel > 5 || ticks < PulseTicks(1000) || ticks > PulseTicks(2000) ||
       !DisableAllPca(bus) || !ClearChannels(bus)) return false;
   const uint8_t values[] = {0, 0, static_cast<uint8_t>(ticks & 0xff),
                           static_cast<uint8_t>((ticks >> 8) & 0x0f)};

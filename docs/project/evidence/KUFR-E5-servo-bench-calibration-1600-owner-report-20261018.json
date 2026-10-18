@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-E5-servo-bench-calibration-1600-owner-report-20261018",
+  "observedAtUtc": "2026-10-18T19:45:46.946889+00:00",
+  "kind": "integration",
+  "result": "inconclusive",
+  "claims": [
+    {
+      "workItemId": "KUFR-E5",
+      "criterionId": "S45",
+      "criterionRevision": 1,
+      "result": "inconclusive"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "70ca89f88fee78026367a1edb34ff64ca72fc25748696982ce0910e9ef88f850",
+    "firmwareDigest": "f6f8b2dd02ee4876e65fbe810acf96943dc70a97af0eef45c312049cbd1f6932",
+    "assemblyId": "kufr-68ee8f4b6048"
+  },
+  "method": "Direct owner report following the recorded single1600us/1500ms calibration; DOM inspection and target-only UI preparation without UART motion.",
+  "environment": "Owner explicitly reported V+5V, USB connected, one unloaded channel0 servo under observation. Same ESP/PCA wiring and installed calibration=v1 firmware as preceding calibration receipt. Software does not measure power or position.",
+  "observation": "Owner confirmed smooth visible movement for channel0/1600us/1500ms and subsequently switchedV+OFF. Panel still shows successful DONE and OFF328 match1 from preceding test. Agent selected channel0, target1500us,duration1500ms to prepare center recording; noArm or motion sent. Manual profile remains empty, Move disabled pendingArm. Owner requested continuation of complete calibration; next powered step awaits owner switchingV+ON under observation.",
+  "limitations": [
+    "Owner-reported movement and switch-off, no independent waveform/current/angle/position measurement.",
+    "No min/center/max profile points saved yet. Full servo range and mechanical drawer calibration remain unverified; S45 inconclusive.",
+    "This turn changed only target UI values, with no device movement or firmware upload. PR207 remains closed unmerged."
+  ],
+  "artifactRefs": [
+    "docs/project/evidence/KUFR-E5-servo-bench-calibration-1600-powered-20261018.json"
+  ]
+}

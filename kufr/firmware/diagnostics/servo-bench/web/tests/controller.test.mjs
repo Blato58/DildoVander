@@ -298,3 +298,81 @@ test("throwing disconnect callback still releases writer and closes port", async
   if (transport.closeTask) await transport.closeTask;
   assert.equal(released && closed, true);
 });
+
+async function calibrationReady(f) {
+  await f.controller.connected();
+  f.controller.receive("SERVO_BENCH READY PWM FULL_OFF; calibration=v1; type help");
+  f.controller.receive("SERVO_BENCH STOP PWM FULL_OFF");
+  await f.controller.arm();
+  f.controller.receive("SERVO_BENCH ARMED for one pulse, 10 seconds");
+}
+
+test("calibration requires advertised support, Arm and strict integer bounds", async () => {
+  const f = fixture();
+  await ready(f);
+  await f.controller.arm();
+  f.controller.receive("SERVO_BENCH ARMED for one pulse, 10 seconds");
+  assert.equal(f.controller.calibrate(0, 1500, 1500), false);
+  await f.controller.stop();
+  f.controller.receive("SERVO_BENCH READY PWM FULL_OFF calibration=v1");
+  f.controller.receive("SERVO_BENCH STOP PWM FULL_OFF");
+  assert.equal(f.controller.calibrate(0, 1500, 1500), false);
+  await f.controller.arm();
+  f.controller.receive("SERVO_BENCH ARMED for one pulse, 10 seconds");
+  for (const args of [[-1, 1500, 1500], [6, 1500, 1500], [0, 999, 1500], [0, 2001, 1500],
+    [0, 1500, 499], [0, 1500, 3001], [0, 1500.1, 1500], [0, 1500, 500.5]]) {
+    assert.equal(f.controller.calibrate(...args), false);
+  }
+  assert.equal(f.controller.capabilities.calibrate, true);
+  await f.controller.calibrate(0, 1000, 500);
+  assert.equal(f.writes.at(-1).text, "cal 0 1000 0500\n");
+  assert.equal(f.writes.at(-1).text.trim().length, 15);
+  assert.equal(f.controller.calibrate(0, 1500, 1500), false);
+});
+
+test("maximum calibration duration stays pending through 3000ms and records only actual DONE", async () => {
+  const f = fixture();
+  await calibrationReady(f);
+  await f.controller.calibrate(5, 2000, 3000);
+  f.controller.receive("SERVO_BENCH PULSE nominal 3000 ms; calibration; timeout/Stop writes PCA FULL_OFF");
+  f.advance(3000);
+  assert.equal(f.controller.state.pending, "pulse");
+  assert.equal(f.controller.state.lastCompleted, null);
+  assert.equal(f.controller.state.error, "");
+  f.controller.receive("SERVO_BENCH DONE PWM FULL_OFF; arm again for another pulse");
+  assert.deepEqual(f.controller.state.lastCompleted, { channel: 5, pulseWidthUs: 2000, durationMs: 3000, calibration: true });
+  f.advance(2000);
+  assert.equal(f.controller.state.error, "");
+});
+
+test("calibration timeout, Stop, fault, restart and disconnect invalidate completed targets", async () => {
+  const f = fixture();
+  await calibrationReady(f);
+  await f.controller.calibrate(0, 1800, 3000);
+  f.advance(4499);
+  assert.equal(f.controller.state.error, "");
+  f.advance(1);
+  assert.equal(f.controller.state.pending, null);
+  assert.equal(f.controller.state.lastCompleted, null);
+  assert.notEqual(f.controller.state.error, "");
+  for (const invalidate of [
+    () => f.controller.stop(),
+    () => f.controller.receive("SERVO_BENCH STOP PWM FULL_OFF"),
+    () => f.controller.receive("SERVO_BENCH FAULT PWM_OFF_FAILED"),
+    () => f.controller.receive("SERVO_BENCH READY PWM FULL_OFF; calibration=v1"),
+    () => f.controller.disconnected(),
+  ]) {
+    await calibrationReady(f);
+    await f.controller.calibrate(0, 1500, 1500);
+    f.controller.receive("SERVO_BENCH DONE PWM FULL_OFF; arm again for another pulse");
+    assert.notEqual(f.controller.state.lastCompleted, null);
+    await invalidate();
+    assert.equal(f.controller.state.lastCompleted, null);
+  }
+  assert.equal(f.controller.state.calibrationSupported, false);
+  await f.controller.connected();
+  f.controller.receive("SERVO_BENCH READY PWM FULL_OFF; calibration=v1");
+  assert.equal(f.controller.state.calibrationSupported, true);
+  f.controller.receive("SERVO_BENCH READY PWM FULL_OFF; type help");
+  assert.equal(f.controller.state.calibrationSupported, false);
+});

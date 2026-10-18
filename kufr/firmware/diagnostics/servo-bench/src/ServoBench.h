@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdio>
 #include <cstdint>
 #include <cstring>
 
@@ -91,7 +92,7 @@ class Controller {
       return;
     }
     if (std::strcmp(line_, "help") == 0) {
-      outputs_.Report("arm | pulse <channel 0-5> <us 1400-1600> | stop | ! | help");
+      outputs_.Report("arm | pulse <channel 0-5> <us 1400-1600> | cal <channel 0-5> <us 1000-2000> <ms 0500-3000> | stop | ! | help");
       return;
     }
     if (faulted_) {
@@ -111,6 +112,34 @@ class Controller {
       armed_ = true;
       deadline_ = now + ArmDurationUs;
       outputs_.Report("ARMED for one pulse, 10 seconds; servo must be unloaded");
+      return;
+    }
+    // Calibration has a separate fixed grammar; legacy pulse keeps its narrow range.
+    if (std::strlen(line_) == 15 && std::memcmp(line_, "cal ", 4) == 0 &&
+        line_[4] >= '0' && line_[4] <= '5' && line_[5] == ' ' && line_[10] == ' ') {
+      unsigned microseconds = 0;
+      unsigned milliseconds = 0;
+      if (!ParseFourDigits(line_ + 6, microseconds) ||
+          !ParseFourDigits(line_ + 11, milliseconds)) {
+        Stop("REJECT cal syntax");
+        return;
+      }
+      if (!armed_ || microseconds < 1000 || microseconds > 2000 ||
+          milliseconds < 500 || milliseconds > 3000) {
+        Stop("REJECT arm first; permitted cal is 1000-2000 us, 0500-3000 ms");
+        return;
+      }
+      armed_ = false;
+      if (!outputs_.Pulse(static_cast<unsigned>(line_[4] - '0'), PulseTicks(microseconds))) {
+        Fault();
+        return;
+      }
+      active_ = true;
+      deadline_ = now + static_cast<uint64_t>(milliseconds) * 1000;
+      char message[96];
+      std::snprintf(message, sizeof(message),
+          "PULSE nominal %u ms; calibration; timeout/Stop writes PCA FULL_OFF", milliseconds);
+      outputs_.Report(message);
       return;
     }
     // Fixed grammar avoids signs, integer overflow, trailing data and channel 6+.
@@ -139,6 +168,15 @@ class Controller {
       return;
     }
     Stop("REJECT unknown command; type help");
+  }
+
+  static bool ParseFourDigits(const char* text, unsigned& value) {
+    value = 0;
+    for (std::size_t i = 0; i < 4; ++i) {
+      if (text[i] < '0' || text[i] > '9') return false;
+      value = value * 10 + static_cast<unsigned>(text[i] - '0');
+    }
+    return true;
   }
 
   Outputs& outputs_;

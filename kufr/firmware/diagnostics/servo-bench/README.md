@@ -1,4 +1,4 @@
-# První zkouška jednoho serva přes PCA9685
+# První zkouška a ruční kalibrace serva přes PCA9685
 
 Samostatný ESP-IDF 6.1 firmware pro doručené ESP32-S3 N16R8 (PlatformIO
 `espressif32@7.1.3`). Používá jen UART a I2C, **bez ovládání OE**; bez Wi-Fi, AI, kamery,
@@ -88,15 +88,82 @@ CH343 / COM7. Panel pošle pouze Stop a čeká na potvrzení z firmware.
 Pokud otevření USB resetuje ESP a úvodní Stop se během startu ztratí,
 po řádku READY stiskni Stop znovu; pohyb zůstává do potvrzení zablokovaný.
 Po ověření zapojení a připraveného stavu zapni napájení volného serva.
-Zvol kanál 0 a šířku 1500 µs, klikni na **Arm** a potom na **Pulz 500 ms**.
-Pro další pokus musíš znovu kliknout na Arm; povolení platí nejvýše 10 sekund.
-K dispozici jsou šířky 1400, 1500 a 1600 µs.
+Zvol kanál 0, šířku 1500 µs a dobu 1500 ms, klikni na **Arm** a potom spusť
+jeden kalibrační pohyb. Pro další pokus musíš znovu kliknout na Arm;
+povolení platí nejvýše 10 sekund. Změna hodnot sama pohyb nespouští.
+
+Kalibrační firmware hlásí při startu `calibration=v1`. Panel dovoluje
+**1000–2000 µs** a dobu generování PWM **500–3000 ms**. Šířka řídí požadovanou
+polohu; doba určuje, jak dlouho servo dostává opakované impulzy přibližně 50 Hz.
+Delší doba sama nezvětšuje požadovaný úhel. Začni 1500 µs, potom zkus jeden
+pohyb na 1600 µs; pro viditelnější posun jsou připravené hodnoty 1200/1500/1800 µs.
+K dalším hodnotám postupuj po malých krocích a sleduj volné servo.
+Rozsah není zárukou dosažení 0–180° ani bezpečných dorazů konkrétního kusu:
+prodejce mezní šířky neuvádí. Při vrčení proti dorazu, drhnutí nebo zahřívání
+vypni V+; nepokoušej se doraz dál přetlačovat.
+
+Pro základní pohyb není předchozí kalibrace nutná. Slouží k nalezení použitelných
+poloh konkrétního kusu; při testu volného serva nepředstírá kalibraci přihrádky.
+Web dovoluje ručně zaznamenat minimum, střed a maximum po dokončeném kalibračním pohybu
+zvoleného kanálu. Jde o lokální profil prohlížeče, nikoli změřenou polohu nebo
+kalibraci uloženou v ESP či provozním firmware. Při výměně serva profil znovu
+ověř; tlačítko **Vymazat profil kanálu** dovoluje začít znovu pro daný kanál.
+Export JSON vytvoří text pro zkopírování jako záznam hodnot pro další práci. Mechanismus
+přihrádky vyžaduje samostatnou kalibraci až po dokončení testu volného serva.
+
+### Asistovaný automatický průchod
+
+Po uložení ručního středu můžeš spustit hledání dolní nebo horní meze.
+Každé spuštění projde **jeden směr**, začíná uloženým středem a mění
+cíl po **25 µs** směrem k softwarové hranici 1000 nebo 2000 µs.
+Každý krok dostává PWM 1500 ms; začátky kroků jsou od sebe nejméně
+**3 sekundy**. Panel před dalším krokem vyčká na Arm a DONE z firmware
+i dokončení USB zápisu. Zpoždění nedohání dávkou povelů. Každému kroku
+automaticky předchází samostatné Arm; průchod začne pouze výslovným tlačítkem.
+
+Servo musí zůstat volné a pod dohledem. **Drhne / vrčí** ukončí průchod,
+zruší čekající kroky a odešle Stop. **Ihned vypni V+**: FULL_OFF vypíná
+signál, ne napájení ani zaručeně sílu serva. Panel nevrací servo automaticky
+zpět. Jako návrh meze může nabídnout předchozí dokončený krok, nikoli právě
+zkoušenou hodnotu. Návrh s rezervou jednoho kroku není měření dorazu ani záruka
+klidného chodu. Uložení vyžaduje samostatné potvrzení a potvrzený Stop.
+Při dosažení 1000/2000 µs jde pouze o konec softwarového rozsahu.
+
+Běžný Stop, odpojení, chyba, restart ESP nebo skrytí stránky průchod ukončí;
+automaticky se neobnovuje. Během průchodu jsou ostatní pohybové povely
+a změny kanálu zablokované, čtení stavu a Stop zůstávají dostupné.
+Při hardwarové chybě panel neopakuje I2C operaci; vypni V+ a řeš chybu.
+Prohlížeč pouze plánuje jednotlivé omezené povely stávajícího firmware
+`calibration=v1`. Zastavení při zamrznutí ESP nebo nefunkčním I2C nezaručuje.
+Napájení, poloha, vrčení ani dorazy se softwarově nesnímají.
 
 **Stop** vypíná PWM přes PCA; neodpojuje 5 V. Panel ukazuje odeslání
 i potvrzení a při chybě nebo ztrátě spojení neslibuje vypnutí. Výpis
 `PCA_READBACK` můžeš zkopírovat pro diagnostiku. Zavření stránky není
 zaručený Stop; před odpojením použij Stop, ověř potvrzení a vypni 5V pohony.
 Poloha ani fyzický signál se samotným výpisem registrů neověřují.
+
+### Místní WebMCP pro asistované testování
+
+Podporovaný prohlížeč zpřístupní na otevřeném panelu osm
+[WebMCP nástrojů](https://developer.chrome.com/docs/ai/webmcp):
+`servo_bench_get_state`, `servo_bench_get_log`, `servo_bench_connect`,
+`servo_bench_disconnect`, `servo_bench_stop`, `servo_bench_arm` a
+`servo_bench_pulse` a `servo_bench_calibrate`. Dostupnost ukazuje panel pod připojením USB.
+Není potřeba další server, plugin ani závislost; ruční tlačítka fungují i bez WebMCP.
+
+Nástroje používají stejný řadič, sériové spojení, časování a fault latch jako
+tlačítka. Připojení nástrojem smí otevřít pouze jediný již povolený CH343;
+první výběr portu nebo více shodných portů vyžaduje ruční tlačítko Připojit USB.
+Otevření portu může resetovat ESP, proto před ním vypni V+.
+Čtecí nástroje vracejí stav a nejvýše 200 řádků logu. Pulz přijímá pouze
+`channel` 0–5 a `pulseWidthUs` 1400/1500/1600; volný UART příkaz není dostupný.
+Povely se neřadí do fronty ani neopakují. Výsledek čeká na odpověď firmwaru
+nejvýše čtyři sekundy, u kalibrace šest sekund; Stop může přerušit čekající povel.
+Kalibrace přijímá `channel` 0–5, `pulseWidthUs` 1000–2000 a `durationMs`
+500–3000. Vyžaduje nový READY s `calibration=v1`, Arm a stejnou bránu jako UI.
+Automatické zkoušky bez serv prováděj s fyzicky odpojenými servy a vypnutým V+.
+Stav napájení, poloha a skutečný pohyb nejsou těmito nástroji měřené.
 
 ## Sestavení a nahrání
 
@@ -142,6 +209,9 @@ pio device monitor -d kufr/firmware/diagnostics/servo-bench --port COM7 --baud 1
    očekávej `mode1=0x20 mode2=0x04 prescale=121 on=0 off=307 full_on=0 full_off=0`
    a `match=1`. Chyba čtení nebo `match=0` vyvolá Stop a blokaci do restartu.
    Shoda registrů neprokazuje frekvenci, šířku ani amplitudu fyzického signálu.
+   Při chybě přenosu se po pokusu vypnout PWM vypíše také `I2C_ERROR`:
+   operace READ/WRITE, registr, přesný kód/název chyby ESP-IDF a okamžité
+   logické úrovně SDA/SCL při selhání. Tyto úrovně nejsou měření průběhu.
    Poloha není změřená ani zaručená. Pokud už servo stojí poblíž středu,
    nemusí být první pohyb patrný.
 4. Pro malý posun znovu `arm` + Enter, potom `pulse 0 1450` + Enter.
@@ -155,8 +225,11 @@ pio device monitor -d kufr/firmware/diagnostics/servo-bench --port COM7 --baud 1
    odpojit oba zdroje a ověřit vybití. Test dalších kusů dělej stejným postupem
    po jednom na kanálu 0; kanály 0–5 lze volit explicitně, nikdy 6–15.
 
-Přípustná šířka je pevně **1400–1600 µs**, nikoli kalibrační rozsah pro
-celou dráhu. Každý pulz spotřebuje `arm`; během pulzu další pohybový příkaz
+Původní příkaz `pulse` nadále přijímá **1400–1600 µs** a vždy trvá 500 ms.
+Nový příkaz `cal 0 1600 1500` přijímá 1000–2000 µs a dobu 0500–3000 ms;
+kanál je jediná číslice 0–5, šířka i doba mají přesně čtyři číslice.
+Například `cal 0 1500 0500` běží 500 ms. Nevkládej dávky příkazů.
+Každý pohyb spotřebuje `arm`; během pulzu další pohybový příkaz
 test zastaví. Stop, `!` i timeout používají jeden I2C zápis `0x10` do
 `ALL_LED_OFF_H` (`0xFD`). Tento zápis nastaví FULL_OFF všem 16 kanálům
 i před konfigurací auto-incrementu. Příprava a nový povel nejdřív také
@@ -168,10 +241,14 @@ Výpočet pulzu používá nominální 25MHz oscilátor PCA; přesnou šířku/f
 potvrdí až měření. Viz [datasheet NXP](https://www.nxp.com/docs/en/data-sheet/PCA9685.pdf).
 
 **FULL_OFF vypíná signál, nikoli napájení ani zaručeně sílu serva.** Servo může
-držet poslední polohu; jistotu odpojení dá vypínač 5 V. Timeout 500 ms řídí
+držet poslední polohu; jistotu odpojení dá vypínač 5 V. Timeout 500 ms u `pulse`
+nebo zvolených 500–3000 ms u `cal` řídí
 jedna smyčka (UART čtení po 10 ms); přičítá se obsluha smyčky a I2C zápisu
 (timeout zápisu 50 ms). Po povolení kanálu proběhne sedm kontrolních čtení,
-každé s timeoutem 10 ms; během nich se UART Stop neobsluhuje. Deadline se
+každé s nakonfigurovaným timeoutem 20 ms; během nich se UART Stop neobsluhuje.
+Při 100Hz ticku ESP-IDF jde o dva ticky místo původního jednoho. Timeout
+se používá v interních čekáních ovladače, nejde o zaručený celkový čas čtení.
+Deadline se
 počítá od přijetí povelu a diagnostika jej neposouvá, ale přidává blokující
 latenci. Úplné zamrznutí ESP nebo nefunkční I2C
 neumožní zaručit automatický Stop. Odpojení terminálu/USB se samostatně nedetekuje.

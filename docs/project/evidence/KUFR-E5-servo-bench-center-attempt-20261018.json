@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-E5-servo-bench-center-attempt-20261018",
+  "observedAtUtc": "2026-10-18T19:47:08.126033+00:00",
+  "kind": "integration",
+  "result": "inconclusive",
+  "claims": [
+    {
+      "workItemId": "KUFR-E5",
+      "criterionId": "S45",
+      "criterionRevision": 1,
+      "result": "inconclusive"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "70ca89f88fee78026367a1edb34ff64ca72fc25748696982ce0910e9ef88f850",
+    "firmwareDigest": "f6f8b2dd02ee4876e65fbe810acf96943dc70a97af0eef45c312049cbd1f6932",
+    "assemblyId": "kufr-68ee8f4b6048"
+  },
+  "method": "Owner-authorized single native WebMCP calibration for center recording: get_state, Arm ACK, cal(channel0,1500us,1500ms), get_log, DOM save eligibility check.",
+  "environment": "Owner explicitly reported V+5V, USB connected, one unloaded channel0 servo under observation. Same ESP/PCA wiring and installed calibration=v1 firmware as preceding calibration receipt. Software does not measure power or position.",
+  "observation": "21:46:38 local: exactly one cal0/1500/1500 sent after Arm ACK. Readback MODE1x20 MODE2x04 PRE_SCALE121 ON0 OFF307 expected307 full flags0 match1;21:46:40 DONE PWM FULL_OFF, MCPoktrue/faultfalse/unarmed. No I2C_ERROR or FAULT. UI Ulozit jako stred enabled; profile not yet saved, pending owner observation of quiet position. Owner instructed to switchV+OFF afterward; switch-off not yet confirmed.",
+  "limitations": [
+    "No physical angle, exact waveform, current or force measurement; current movement quality and subsequent power-off await owner report.",
+    "1500us is a proposed manual reference center, not measured mechanical midpoint. Profile remains unsaved. S45 inconclusive.",
+    "Exactly one movement; no reconnect, reset or retry. PR207 closed unmerged, ongoing local test."
+  ],
+  "artifactRefs": [
+    "docs/project/evidence/KUFR-E5-servo-bench-calibration-20261018.json",
+    "kufr/firmware/diagnostics/servo-bench/web/profiles.mjs"
+  ]
+}
