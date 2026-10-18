@@ -345,6 +345,15 @@ registrů. Nahrání vyžaduje autorizaci a po testu se obnoví aplikační obra
 Skutečný výsledek a hranice akceptace vede D124 ve
 [stavu implementace](../docs/stav-implementace.md).
 
+## První pohyb volného serva
+
+Samostatný [servo-bench](diagnostics/servo-bench/README.md) používá stejnou
+I2C sběrnici, přímé OE na GPIO2 a oddělené 5V napájení PCA V+.
+Po startu má výstupy vypnuté; explicitní `arm` a `pulse 0 1500` povolí
+jeden krátký pulzní test nezatíženého serva. Obsahuje zapojení pro ESP
+napájené z USB počítače. Test nenahrazuje fyzickou kalibraci přihrádky;
+nahrání vyžaduje samostatnou autorizaci.
+
 ## První aplikační boot na desce (D123)
 
 Současný `esp32-s3-idf` byl 2. 10. 2026 nahrán přes USB-UART na doručený

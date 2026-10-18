@@ -9,7 +9,8 @@
   "scope": [
     "kufr/firmware/src/features/safety",
     "kufr/firmware/src/features/wand_selection",
-    "kufr/docs/zapojeni-potvrzeneho-hardwaru.md"
+    "kufr/docs/zapojeni-potvrzeneho-hardwaru.md",
+    "kufr/firmware/diagnostics/servo-bench"
   ],
   "dependencies": [],
   "acceptance": [
@@ -39,7 +40,10 @@
       "appliesTo": {
         "assemblyId": "kufr-68ee8f4b6048"
       },
-      "evidenceRefs": []
+      "evidenceRefs": [
+        "KUFR-E5-servo-bench-unit-20261018",
+        "KUFR-E5-servo-bench-build-20261018"
+      ]
     },
     {
       "id": "POWER",
@@ -159,6 +163,6 @@
       "role": "majitel a implementátor"
     }
   ],
-  "currentNote": "GPIO adaptéry a časovaná sekvence existují. B1/E5 fyzicky nepřijato. GPIO2 řídí OE; zelená kolébka odpojuje pohony; žádný měřený polohový snímač.",
-  "nextAction": "Připravit konkrétní fyzickou zkoušku podle kritérií; provedení vyžaduje zadání majitele."
+  "currentNote": "GPIO adaptéry a časovaná sekvence existují. B1/E5 fyzicky nepřijato. GPIO2 řídí OE; zelená kolébka odpojuje pohony; žádný měřený polohový snímač. Samostatný servo-bench připravuje první zkoušku jednoho volného serva přes USB-UART; provozní NVS nemění. Fyzická měření, kalibrace a nahrání nejsou tímto softwarovým slice doložené. Software servo-bench: commit d1cc5b966fd903e8ac91a395be2a6a24edc90833; Push-CurrentBranch.ps1 úspěšně ověřil shodný vzdálený SHA na origin/codex/servo-bench-test. Firmware sestaven, do desky nenahrán.",
+  "nextAction": "Majitel: podle servo-bench/README ověřit 5V V+, 3V3 VCC, společnou GND a OE HIGH při resetu; po samostatné autorizaci nahrání vyzkoušet jedno nezatížené servo a zaznamenat proud/pulzy. Potom pokračovat fyzickou kalibrací E5."
 }

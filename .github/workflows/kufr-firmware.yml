@@ -28,6 +28,8 @@ jobs:
         run: npm ci
       - name: Test compiler cache pruning
         run: python3 -m unittest discover -s kufr/firmware/ci -p 'test_*.py'
+      - name: Test servo bench command safety
+        run: python3 kufr/firmware/diagnostics/servo-bench/tests/run_tests.py
       - name: Test automatic firmware versions and OTA packaging
         run: python3 -m unittest discover -s kufr/firmware/tools -p 'test_*.py'
       - name: SD dance playback, synchronized effects and cancellation
@@ -579,6 +581,10 @@ jobs:
         shell: bash
         run: |
           "$KUFR_PIO" run -d kufr/firmware/diagnostics/pca9685-logic -s
+      - name: Build single servo bench diagnostic
+        shell: bash
+        run: |
+          "$KUFR_PIO" run -d kufr/firmware/diagnostics/servo-bench -s
       - name: Build hardware service diagnostic with disabled example configuration
         shell: bash
         run: |
