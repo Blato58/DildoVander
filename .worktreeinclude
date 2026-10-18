@@ -1,0 +1,2 @@
+# Desktop-managed local worktrees: copy only this ignored, non-secret note.
+/.codex/personal-routing.md

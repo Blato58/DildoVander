@@ -6,6 +6,7 @@
 - `obludarium/firmware/` je oddělený projekt PlatformIO pro Arduino Nano; neměň ho při práci na kufru bez zadání, které se ho týká.
 - Architekturu, kontrakty, závislosti a kritéria etap určuje [implementační plán](kufr/docs/implementacni-plan.md). Aktuální práci, blokace a ověření vede [generovaný STATUS](docs/project/STATUS.md). README jsou přehled a návod pro aktuálně existující kód, nikoli alternativní roadmapa.
 - Pro zapojení a napájení čti `kufr/docs/efekty-a-napajeni.md`, pro podkladovou pinovou mapu `kufr/docs/pin-mapa-esp32-s3.md` a pro omezení kamery `kufr/docs/kamera.md`. Předběžné profily A/B a bezpečnostní obvod jsou v kapitolách 8 a 10 plánu.
+- Je-li přítomná `.codex/personal-routing.md`, načti ji jako doplněk aktuálních tracked pokynů. Přípravu lokálního kontextu nového worktree popisuje [.codex/environment/README.md](.codex/environment/README.md); Windows checkout, Cloud a VPS nejsou zaměnitelné prostředí.
 
 ## Jak začít nebo pokračovat v implementaci
 
@@ -66,6 +67,7 @@
 - Ilustrace a simulace musí zůstat jasně označené. Vzhled nemění autorizaci,
   bezpečnostní brány, smlouvy ani důkazní hranici hardware/iPhone. Generovaný
   viewer upravuj ve zdroji a přegeneruj skutečným postupem.
+- U významnější UI změny projdi Understand → Explore → Design → Implement → Render → Inspect → Refine → Validate podle skillu. Akceptaci CAD ovládání a simulátoru načti podle rozsahu z jeho [cílených kontrol](.agents/skills/dildovander-ui/references/acceptance.md); nevyžaduj všechny nástroje pro drobnou úpravu.
 
 ## Sestavení a ověření
 
