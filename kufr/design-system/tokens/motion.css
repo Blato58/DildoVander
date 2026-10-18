@@ -2,6 +2,7 @@
   --aw-motion-fast: 150ms;
   --aw-motion-normal: 200ms;
   --aw-motion-slow: 250ms;
+  --aw-ease-out: cubic-bezier(.16, 1, .3, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {

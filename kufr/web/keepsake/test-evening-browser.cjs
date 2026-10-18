@@ -198,7 +198,10 @@ const eveningA = guid(9001); const eveningB = guid(9002);
     await page.getByRole('heading', { name: 'Archiv je právě nedostupný' }).waitFor();
     assert.equal(await page.locator('#public-edition').isVisible(), false);
     unavailable = false; await page.locator('#refresh-evening').click(); await page.locator('#public-art').waitFor({ state: 'visible' });
-    if (process.env.DV10_EVENING_SCREENSHOT) await page.screenshot({ path: process.env.DV10_EVENING_SCREENSHOT, fullPage: true });
+    if (process.env.DV10_EVENING_SCREENSHOT) {
+      if (process.env.DV10_SCREENSHOT_WIDTH) await page.setViewportSize({ width: Number(process.env.DV10_SCREENSHOT_WIDTH), height: 900 });
+      await page.screenshot({ path: process.env.DV10_EVENING_SCREENSHOT, fullPage: true });
+    }
     for (const call of calls) {
       assert.equal(call.method, 'GET', 'Public page must remain read-only');
       assert.equal(call.headers.cookie, undefined, 'Public API must omit an existing private cookie');

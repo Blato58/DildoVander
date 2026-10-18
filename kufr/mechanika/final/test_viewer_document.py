@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import patch
 
 import viewer_document
+import refresh_viewer
 
 
 class ViewerDocumentTests(unittest.TestCase):
@@ -19,6 +20,29 @@ class ViewerDocumentTests(unittest.TestCase):
         self.assertNotIn('__SHOW_TIMELINE_SCRIPT__', result)
         self.assertNotIn('__MODEL_DATA__', result)
         self.assertNotIn('@import', result)
+
+    def test_refresh_uses_existing_meshes_labels_provenance_and_preserves_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source, output = Path(directory) / "viewer.html", Path(directory) / "preview.html"
+            original = '<script>const model={"meshes":[{"name":"actual-part"}]};old renderer</script>'
+            source.write_text(original, encoding="utf-8")
+            self.assertEqual(refresh_viewer.refresh_preview(source, output), 1)
+            self.assertEqual(source.read_text(encoding="utf-8"), original)
+            rendered = output.read_text(encoding="utf-8")
+            self.assertIn('"viewerPreview":{"sourceName":"viewer.html","dataDate":', rendered)
+            self.assertIn('"name":"actual-part"', rendered)
+            self.assertNotIn('old renderer', rendered)
+            with self.assertRaisesRegex(ValueError, "must not overwrite"):
+                refresh_viewer.refresh_preview(source, source)
+
+    def test_refresh_rejects_missing_or_empty_model_payload(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source, output = Path(directory) / "viewer.html", Path(directory) / "preview.html"
+            for content in ['<script>alert(1)</script>', '<script>const model={"meshes":[]};</script>']:
+                source.write_text(content, encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    refresh_viewer.refresh_preview(source, output)
+            self.assertFalse(output.exists())
 
     def test_stale_plan_is_rejected_before_rendering(self):
         with tempfile.TemporaryDirectory() as directory:

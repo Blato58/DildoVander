@@ -32,7 +32,7 @@ class Element {
 }
 
 function viewer(routes = [], extraMeshes = [], data = {}) {
-  const elements = new Map(), frames = [], geometryUploads = [];
+  const elements = new Map(), frames = [], geometryUploads = [], backgroundColors = [];
   let document;
   let labelMeasurements = 0, clockNow = 0, audioStarts = 0;
   const get = id => { if (!elements.has(id)) elements.set(id, new Element(document)); return elements.get(id); };
@@ -46,6 +46,7 @@ function viewer(routes = [], extraMeshes = [], data = {}) {
     getShaderParameter: () => true, getProgramParameter: () => true,
     getAttribLocation: () => 0, getUniformLocation: () => 0,
     checkFramebufferStatus: () => gl.FRAMEBUFFER_COMPLETE,
+    clearColor: (...color) => backgroundColors.push(color),
     readPixels: (x,y,w,h,format,type,pixel) => { pixel[0] = hit; },
     bufferData: (target,data) => geometryUploads.push(Array.from(data)),
   }, {get(target,key) {
@@ -72,7 +73,7 @@ function viewer(routes = [], extraMeshes = [], data = {}) {
     return node;
   }
   document = {
-    activeElement:null,
+    activeElement:null, documentElement:new Element(),
     getElementById:get, createElement, createElementNS:() => new Element(document),
     listeners:{}, addEventListener(name, callback) { this.listeners[name] = callback; },
   };
@@ -96,7 +97,7 @@ function viewer(routes = [], extraMeshes = [], data = {}) {
     document, window, devicePixelRatio:data.devicePixelRatio || 1,
     performance:{now:()=>clockNow},
     model:{meshes,routes,sources:[],hinge:[0,0,0],mechanism:{count:6,origin_y:21,origin_z:12,cam_y:112,cam_z:36,dwell_degrees:20,travel_degrees:160,lift:16},...data},
-    localStorage:{getItem:() => null,setItem() {}},
+    localStorage:{getItem:key => key === 'dildovander.theme' ? data.theme || null : null,setItem() {}},
     Option:class {constructor(text,value) {this.textContent = text; this.value = value;}},
     requestAnimationFrame:callback => frames.push(callback),
   };
@@ -106,7 +107,7 @@ function viewer(routes = [], extraMeshes = [], data = {}) {
   const hover = id => { hit = id; get('view').fire('pointermove',{clientX:400,clientY:300,shiftKey:true}); flush(); };
   const click = () => { get('view').fire('pointerdown',{clientX:400,clientY:300,pointerId:1}); flush(); };
   const lights = () => vm.runInNewContext('lightStates.map(color=>color && [...color])', context);
-  return {get,hover,click,flush,frame,document,window,meshes,geometryUploads,api:window.F2,lights,
+  return {get,hover,click,flush,frame,document,window,meshes,geometryUploads,backgroundColors,api:window.F2,lights,
     now:()=>clockNow,advanceTo:timestamp=>{clockNow=timestamp;},audioStarts:()=>audioStarts,measurements:()=>labelMeasurements};
 }
 
@@ -949,4 +950,81 @@ test('dimension fallbacks label 430 by 269 as clear top opening and safe zone as
   const parameters=JSON.parse(fs.readFileSync(path.join(__dirname,'parameters.json'),'utf8'));
   const actual=viewer([],[],{case:parameters.case});
   assert.match(actual.get('envelope-note').textContent,/400 × 240 × 170 mm/);
+});
+
+
+test('part search matches names and descriptions without changing model visibility or selection', () => {
+  const app = viewer([], [{name:'case_left',group:'case'}]);
+  const initial = app.api.state();
+  app.get('part-search').value = 'PCA'; app.get('part-search').oninput();
+  assert.equal(app.get('part-count').textContent, '1 / 3');
+  assert.equal(app.get('tree').children.length, 1);
+  assert.equal(app.get('tree').children[0].open, true);
+  assert.equal(app.get('tree').children[0].children[1].textContent, 'pca9685');
+  assert.equal(app.get('search-empty').hidden, true);
+  assert.equal(app.api.state().pinned, initial.pinned);
+  assert.equal(app.api.state().visualMode, initial.visualMode);
+  app.get('part-search').value = 'missing'; app.get('part-search').oninput();
+  assert.equal(app.get('tree').children.length, 0);
+  assert.equal(app.get('search-empty').hidden, false);
+  app.get('part-search').value = ''; app.get('part-search').oninput();
+  assert.equal(app.get('part-count').textContent, '3 dílů');
+  assert.equal(app.get('tree').children.length, 2);
+});
+
+test('theme changes the viewer background without modifying physical material colors', () => {
+  const app = viewer();
+  const colors = app.meshes.map(mesh => [...mesh.color]);
+  assert.equal(app.document.documentElement.getAttribute('data-theme'), 'dark');
+  app.get('theme-toggle').onclick(); app.flush();
+  assert.equal(app.document.documentElement.getAttribute('data-theme'), 'light');
+  assert.equal(app.get('theme-toggle').getAttribute('aria-pressed'), 'true');
+  assert.deepEqual(app.backgroundColors.at(-1), [238/255,241/255,245/255,1]);
+  assert.deepEqual(app.meshes.map(mesh => [...mesh.color]), colors);
+  app.get('theme-toggle').onclick(); app.flush();
+  assert.equal(app.document.documentElement.getAttribute('data-theme'), 'dark');
+  assert.deepEqual(app.backgroundColors.at(-1), [27/255,36/255,48/255,1]);
+  assert.equal(viewer([],[],{theme:'light'}).document.documentElement.getAttribute('data-theme'), 'light');
+});
+
+test('opening runtime tools clears competing mobile drawers and other tools can close runtime', () => {
+  const app = viewer([],[],{mobilePanels:true});
+  app.get('explorer-toggle').onclick();
+  app.get('twin-details').open = true;
+  app.get('twin-details').fire('toggle');
+  assert.equal(app.get('sidebar').getAttribute('data-open'), 'false');
+  assert.equal(app.get('inspector-rail').getAttribute('data-open'), 'false');
+  app.get('motion-toggle').onclick();
+  assert.equal(app.get('twin-details').open, false);
+});
+
+
+test('UI-only preview identifies reused CAD data and never offers an unverified package download', () => {
+  const app=viewer([],[],{viewerPreview:{dataDate:'2026-10-10 UTC'}});
+  assert.equal(app.get('download-package').hidden, true);
+  assert.match(app.get('mode-note').textContent,/2026-10-10 UTC/);
+  assert.match(app.get('mode-note').textContent,/nebyla znovu generována/);
+  assert.match(app.get('viewer-status').textContent,/UI náhled/);
+});
+
+
+test('part tree keeps repeated friendly names distinguishable by CAD identity', () => {
+  const app=viewer();
+  app.meshes[0].info.title='Polohovací mikroservo';
+  app.meshes[1].info.title='Polohovací mikroservo';
+  app.get('part-search').value='Polohovací'; app.get('part-search').oninput();
+  const buttons=app.get('tree').children[0].children.slice(1);
+  assert.equal(buttons[0].getAttribute('aria-label'),'Polohovací mikroservo (pca9685)');
+  assert.equal(buttons[1].getAttribute('aria-label'),'Polohovací mikroservo (esp32)');
+  assert.equal(buttons[0].children[0].textContent,'pca9685');
+  assert.equal(buttons[1].children[0].textContent,'esp32');
+});
+
+
+test('lost graphics context gives a visible recovery action instead of stale ready status', () => {
+  const app=viewer();
+  app.get('view').fire('webglcontextlost');
+  assert.equal(app.get('viewer-error').hidden,false);
+  assert.match(app.get('viewer-error').textContent,/Obnovte stránku/);
+  assert.equal(app.get('viewer-status').textContent,'Model není dostupný');
 });

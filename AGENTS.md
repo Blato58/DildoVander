@@ -61,9 +61,17 @@
 - Pro každou změnu uživatelského rozhraní v tomto repozitáři načti tracked skill
   [.agents/skills/dildovander-ui/SKILL.md](.agents/skills/dildovander-ui/SKILL.md).
   Platí pro mobilní aplikaci, simulátor, Workshop/CAD viewer i veřejný přehled.
-- Zdrojem sdíleného vzhledu je [Arcane Workshop](kufr/design-system/README.md):
+- Zdrojem sdíleného vzhledu je [Vapour Chrome](kufr/design-system/README.md):
   používej jeho tokeny, komponenty a pravidla přístupnosti. Lokální styl řeší
   rozložení konkrétního UI; nevytvářej další nezávislou paletu ani fontové CDN.
+- Kanonické barvy jsou `#EEF1F5`, `#1B2430`, `#8A94A6`, `#B8C0FF`.
+  Používej sémantické tokeny, přístupné kontrasty a společné komponenty.
+  Jméno vstupu `arcane-workshop.css` a prefixy `aw-*` zůstávají kompatibilním API,
+  nikoli starou vizuální identitou. Nové i upravované UI patří do Vapour Chrome.
+- Při požadavcích typu „vylepši UI“, „uprav navigaci“, „mobilní layout“ nebo
+  „nový web/dashboard“ vyber podle rozsahu instalované Impeccable, Product Design,
+  frontend-quality-workflow a browser-validation. Discovery je modelové rozhodnutí;
+  významné změny vyžadují skutečný render v desktopové i mobilní šířce.
 - Ilustrace a simulace musí zůstat jasně označené. Vzhled nemění autorizaci,
   bezpečnostní brány, smlouvy ani důkazní hranici hardware/iPhone. Generovaný
   viewer upravuj ve zdroji a přegeneruj skutečným postupem.

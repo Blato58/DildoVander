@@ -82,6 +82,15 @@ const artwork = '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="760
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `Layout must fit ${width}px`);
     }
     await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator('[data-theme-select]').selectOption('dark');
+    assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
+    await page.locator('[data-theme-select]').selectOption('light');
+    assert.equal(await page.locator('html').getAttribute('data-theme'), 'light');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.locator('[data-theme-select]').selectOption('system');
+    assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark', 'System preference drives theme without storage');
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
     await page.evaluate(() => { document.body.style.zoom = '2'; });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, '200% zoom must fit');
     await page.evaluate(() => { document.body.style.zoom = ''; });
@@ -135,7 +144,10 @@ const artwork = '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="760
     delayed = false; view = fixture();
     await page.goto(origin + `/keepsake/?k=${ownerId}`); await page.locator('#wand-name').filter({ hasText: 'Brk bouřlivého archiváře' }).waitFor();
     const screenshot = process.env.DV10_SCREENSHOT;
-    if (screenshot) await page.screenshot({ path: screenshot, fullPage: true });
+    if (screenshot) {
+      if (process.env.DV10_SCREENSHOT_WIDTH) await page.setViewportSize({ width: Number(process.env.DV10_SCREENSHOT_WIDTH), height: 900 });
+      await page.screenshot({ path: screenshot, fullPage: true });
+    }
     await page.locator('.delete-panel summary').click(); await page.locator('#delete-all').click();
     await page.locator('#delete-confirm').fill('SMAZAT'); await page.locator('#delete-submit').click();
     await page.locator('#deletion').waitFor({ state: 'visible' });

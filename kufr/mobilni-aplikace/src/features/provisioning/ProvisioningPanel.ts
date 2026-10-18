@@ -14,12 +14,15 @@ export class ProvisioningPanel {
     this.element.hidden = true;
     this.element.setAttribute('role', 'tabpanel');
     this.element.setAttribute('aria-labelledby', 'tab-provisioning');
+    this.element.tabIndex = -1;
     this.element.innerHTML = `
       <h1>Síť kufru</h1>
-      <p>Bluetooth nastaví Wi-Fi přímo v kufru. Telefon nemusí být připojen k vlastnímu hotspotu.
-         Pozorování a ruční ovládání dál používají místní síť.</p>
+      <p class="page-intro">Nejprve připravte síť, potom ověřte kufr přes Bluetooth a spárujte ovládání.
+         Pozorování a ruční povely pak používají místní Wi-Fi.</p>
+      <nav class="section-nav" aria-label="Kroky připojení"><a href="#network-prepare">Připravit síť</a>
+        <a href="#network-pair">Ověřit kufr</a><a href="#network-manage">Spravovat síť</a></nav>
       <section class="debug-card">
-        <h2>iPhone Osobní hotspot · přednostní síť</h2>
+        <h2 id="network-prepare">Připravit hotspot</h2>
         <ol><li>V Nastavení → Osobní hotspot zapněte Povolit připojení ostatním.</li>
           <li>Zapněte Maximalizovat kompatibilitu (2,4 GHz). ESP32 nepoužívá 5GHz síť.</li>
           <li>Připravte název iPhonu (SSID) a heslo z této obrazovky. Zadejte je do zabezpečeného dialogu.</li></ol>
@@ -28,7 +31,7 @@ export class ProvisioningPanel {
         <button type="button" data-ble="settings">Nastavení aplikace / oprávnění Bluetooth</button>
       </section>
       <section class="debug-card">
-        <h2>Najít a ověřit kufr</h2>
+        <h2 id="network-pair">Najít a ověřit kufr</h2>
         <p>BLE je dostupné jen v omezeném servisním nebo obnovovacím okně. Ověření vyžaduje
           jedinečný PoP z vnitřního servisního štítku; nejde o token místního WSS.</p>
         <div class="actions"><button type="button" data-ble="discover">Vyhledat BLE kufry</button>
@@ -49,7 +52,7 @@ export class ProvisioningPanel {
         </dl>
       </section>
       <section class="debug-card">
-        <h2>Sítě a aktualizace</h2>
+        <h2 id="network-manage">Sítě a aktualizace</h2>
         <p>Hotspot má přednost před záložní Wi-Fi. Nové údaje nahradí staré až po úspěšném připojení;
           při chybě kufr zachová předchozí nastavení. Hesla se v telefonu neukládají.</p>
         <label>Upravovaná síť<select data-profile><option value="hotspot">iPhone Osobní hotspot</option>

@@ -8,7 +8,6 @@ export class DancePanel {
     this.element.className = 'conversation-panel dance-panel';
     this.element.setAttribute('aria-label', 'Dance for me');
     this.element.innerHTML = `
-      <span class="eyebrow">HUDBA A EFEKTY</span>
       <h2>Dance for me</h2>
       <p>Kufr náhodně vybere jednu z nastavených skladeb na SD kartě, přehraje ji
          svým reproduktorem a roztančí světla a krátké vibrace podle jejího tempa.</p>

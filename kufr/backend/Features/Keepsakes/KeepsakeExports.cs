@@ -9,6 +9,12 @@ namespace Kufr.Backend.Features.Keepsakes;
 
 internal sealed partial class KeepsakeStore
 {
+    // Self-contained export chrome follows Vapour Chrome; artwork bytes keep their own colors.
+    private const string CardMidnight = "#1B2430";
+    private const string CardMist = "#EEF1F5";
+    private const string CardSteel = "#8A94A6";
+    private const string CardPeriwinkle = "#B8C0FF";
+
     public KeepsakeAsset CreateExport(string id, string session, string editionId, string format,
         string? portraitId, string key)
     {
@@ -139,9 +145,11 @@ internal sealed partial class KeepsakeStore
             + bodyLines.Length * 36 + (portrait is null ? 0 : 800) + 180;
         using var bitmap = new SKBitmap(1200, height);
         using var canvas = new SKCanvas(bitmap);
-        canvas.Clear(new SKColor(0x0D, 0x12, 0x18));
-        using var ink = new SKPaint { Color = new SKColor(0xF3, 0xEC, 0xE0), IsAntialias = true };
-        using var border = new SKPaint { Color = new SKColor(0xD9, 0xB7, 0x77), Style = SKPaintStyle.Stroke, StrokeWidth = 2 };
+        canvas.Clear(SKColor.Parse(CardMidnight));
+        using var ink = new SKPaint { Color = SKColor.Parse(CardMist), IsAntialias = true };
+        using var accentInk = new SKPaint { Color = SKColor.Parse(CardPeriwinkle), IsAntialias = true };
+        using var captionInk = new SKPaint { Color = SKColor.Parse(CardSteel), IsAntialias = true };
+        using var border = new SKPaint { Color = SKColor.Parse(CardSteel), Style = SKPaintStyle.Stroke, StrokeWidth = 2 };
         canvas.DrawRect(new SKRect(30, 30, 1170, height - 30), border);
         var y = 110f;
         foreach (var line in headingLines)
@@ -150,7 +158,7 @@ internal sealed partial class KeepsakeStore
         }
         foreach (var line in titleLines)
         {
-            canvas.DrawText(line, 70, y, SKTextAlign.Left, titleFont, ink); y += 40;
+            canvas.DrawText(line, 70, y, SKTextAlign.Left, titleFont, accentInk); y += 40;
         }
         using var wand = SKBitmap.Decode(artwork);
         canvas.DrawBitmap(wand, new SKRect(270, y + 20, 930, y + 1010), new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.None));
@@ -165,9 +173,9 @@ internal sealed partial class KeepsakeStore
             canvas.DrawBitmap(photo, new SKRect(230, y + 30, 970, y + 770), new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.None));
             y += 800;
         }
-        canvas.DrawText("Digitální návrh hůlky. Smyšlený příběh; celý text je v story.txt.", 70, height - 100, SKTextAlign.Left, captionFont, ink);
+        canvas.DrawText("Digitální návrh hůlky. Smyšlený příběh; celý text je v story.txt.", 70, height - 100, SKTextAlign.Left, captionFont, captionInk);
         canvas.DrawText(edition.Synthetic ? "SYNTHETICKÝ TEST — BEZ OPENAI" : "Autorská digitální edice vytvořená pomocí OpenAI.",
-            70, height - 65, SKTextAlign.Left, captionFont, ink);
+            70, height - 65, SKTextAlign.Left, captionFont, captionInk);
         canvas.Flush();
         using var image = SKImage.FromBitmap(bitmap);
         using var encoded = image.Encode(SKEncodedImageFormat.Png, 100);
@@ -221,11 +229,10 @@ internal sealed partial class KeepsakeStore
         svg.Append($"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"900\" height=\"{height}\" viewBox=\"0 0 900 {height}\" role=\"img\" aria-labelledby=\"title description\">");
         svg.Append("<title id=\"title\">").Append(Escape(snapshot.OfficialName)).Append(" — digitální památka</title>");
         svg.Append("<desc id=\"description\">").Append(Escape(StoryText(snapshot, edition))).Append("</desc>");
-        // Exact Arcane Workshop void, brass and ivory tokens; SVG stays self-contained.
-        svg.Append("<rect width=\"900\" height=\"100%\" fill=\"#0D1218\"/><rect x=\"24\" y=\"24\" width=\"852\" height=\"" + (height - 48) + "\" fill=\"none\" stroke=\"#D9B777\" stroke-width=\"2\"/>");
-        svg.Append("<g fill=\"#F3ECE0\" font-family=\"Inter,Arial,sans-serif\">");
+        svg.Append($"<rect width=\"900\" height=\"100%\" fill=\"{CardMidnight}\"/><rect x=\"24\" y=\"24\" width=\"852\" height=\"{height - 48}\" fill=\"none\" stroke=\"{CardSteel}\" stroke-width=\"2\"/>");
+        svg.Append($"<g fill=\"{CardMist}\" font-family=\"Inter,Arial,sans-serif\">");
         svg.Append("<text x=\"60\" y=\"85\" font-size=\"30\">").Append(Escape(snapshot.OfficialName)).Append("</text>");
-        svg.Append("<text x=\"60\" y=\"128\" font-size=\"23\">").Append(Escape(edition.Story.Title)).Append("</text>");
+        svg.Append($"<text x=\"60\" y=\"128\" font-size=\"23\" fill=\"{CardPeriwinkle}\">").Append(Escape(edition.Story.Title)).Append("</text>");
         svg.Append("<image x=\"210\" y=\"165\" width=\"480\" height=\"720\" preserveAspectRatio=\"xMidYMid meet\" href=\"data:")
             .Append(Escape(imageMime)).Append(";base64,").Append(Convert.ToBase64String(artwork)).Append("\"/>");
         var y = 940;
@@ -240,8 +247,8 @@ internal sealed partial class KeepsakeStore
                 .Append(Convert.ToBase64String(portrait)).Append("\"/>");
             y += 540;
         }
-        svg.Append($"<text x=\"60\" y=\"{y + 48}\" font-size=\"17\">Digitální návrh; smyšlený příběh. Nejde o fotografii fyzické hůlky.</text>");
-        if (edition.Synthetic) { svg.Append($"<text x=\"60\" y=\"{y + 80}\" font-size=\"17\">SYNTHETICKÝ TEST — BEZ OPENAI</text>"); }
+        svg.Append($"<text x=\"60\" y=\"{y + 48}\" font-size=\"17\" fill=\"{CardSteel}\">Digitální návrh; smyšlený příběh. Nejde o fotografii fyzické hůlky.</text>");
+        if (edition.Synthetic) { svg.Append($"<text x=\"60\" y=\"{y + 80}\" font-size=\"17\" fill=\"{CardSteel}\">SYNTHETICKÝ TEST — BEZ OPENAI</text>"); }
         return svg.Append("</g></svg>").ToString();
     }
 
