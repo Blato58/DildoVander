@@ -4,6 +4,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import os
 from pathlib import Path
 import time
 
@@ -19,6 +20,7 @@ import slicer_validation
 from check_fit import scene
 from artifacts import ASSEMBLY_NAMES
 from viewer_style import snapshot_styles
+from part_cache import PartExportCache
 
 OUT=ROOT/"exports"
 
@@ -27,12 +29,13 @@ def all_parts():
     return chassis.parts()+mechanism.parts()+layout.parts()
 
 
+def part_groups():
+    return [(module.__name__, module.parts()) for module in (chassis, mechanism, layout)]
+
+
 def source_hashes():
-    snapshot_styles()
-    inspect_data.assert_snapshot_current()
-    candidates=list(ROOT.iterdir())+list((ROOT/"reference").glob("*"))
-    return {p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(candidates)
-            if p.is_file() and p.suffix in (".py",".js",".cjs",".json",".md",".txt",".ps1",".html",".css",".csv",".ini") and p.name!="fit-debug.json"}
+    from source_inputs import source_hashes as current_source_hashes
+    return current_source_hashes()
 
 
 def main():
@@ -40,7 +43,14 @@ def main():
     harness.validate()
     for directory in (OUT,OUT/"stl",OUT/"step",OUT/"3mf",OUT/"assembly",OUT/"images"):
         directory.mkdir(exist_ok=True)
-    parts=all_parts()
+    from regeneration_cache import runtime_environment
+    part_cache=PartExportCache(ROOT,runtime_environment(),("chassis","mechanism","layout"),
+                              force=os.environ.get("KUFR_CAD_FORCE")=="1")
+    groups=part_groups()
+    parts=[part for _,group in groups for part in group]
+    owners={part.name:owner for owner,group in groups for part in group}
+    if len(owners)!=len(parts):
+        raise ValueError("Duplicate printable part name")
     expected={p.name for p in parts}
     old_manifest=OUT/"manifest.json"
     if old_manifest.exists():
@@ -56,17 +66,21 @@ def main():
         printed=print_position(p.shape,p.rotation)
         if not printed.isValid() or len(printed.Solids())!=1:
             raise ValueError(f"Invalid or disconnected printable part: {p.name}")
-        cq.exporters.export(printed,str(OUT/"stl"/(p.name+".stl")),tolerance=0.03,angularTolerance=0.08)
-        cq.exporters.export(printed,str(OUT/"step"/(p.name+".step")))
-        cq.exporters.export(printed,str(OUT/"3mf"/(p.name+".3mf")),exportType=cq.exporters.ExportTypes.THREEMF,
-                            tolerance=0.03,angularTolerance=0.08)
+        cache_key=part_cache.key(owners[p.name],p,printed)
+        reused=part_cache.restore(cache_key,p.name,OUT)
+        if not reused:
+            cq.exporters.export(printed,str(OUT/"stl"/(p.name+".stl")),tolerance=0.03,angularTolerance=0.08)
+            cq.exporters.export(printed,str(OUT/"step"/(p.name+".step")))
+            cq.exporters.export(printed,str(OUT/"3mf"/(p.name+".3mf")),exportType=cq.exporters.ExportTypes.THREEMF,
+                                tolerance=0.03,angularTolerance=0.08)
+            part_cache.remember(cache_key,p.name,OUT)
         b=bounds(printed)
         manifest.append({"name":p.name,"quantity":p.quantity,"size_mm":[round(b[i+3]-b[i],4) for i in range(3)],
                          "solid_volume_mm3":printed.Volume(),"purpose":p.reason,
                          "orientation":"Already placed on Z=0 in exported STL", "material":"PETG",
                          "manufacturing":manufacturing.record(p,OUT)})
         printed_parts.append((p,printed))
-        print(f"Exported {p.name}",flush=True)
+        print(f"{'Reused CAD exports' if reused else 'Exported'} {p.name}",flush=True)
     scenes={"open_rest":scene(),"open_presenting":scene(160),"service":scene(covers=False),
             "closed_transport":scene(lid=0,transport=True),"one_module":mechanism.module()}
     assert set(scenes)==set(ASSEMBLY_NAMES),"Update the current assembly inventory"
@@ -126,6 +140,7 @@ def main():
         writer.writerow(["name","min_x","min_y","min_z","max_x","max_y","max_z","dimension_evidence"])
         for item in inventory:
             writer.writerow([item["name"],*item["bounds_mm"],item["source"]])
+    part_cache.publish()
     print(f"Export complete: {len(manifest)} STL types; {sum(p['quantity'] for p in manifest)} prints",flush=True)
 
 

@@ -133,13 +133,66 @@ profily a logy všech dílů. Tyto auditní soubory zůstávají mimo výrobní 
 obnova cache nesmí přeskočit kontrolu skutečného řezání bez podpor.
 Chybějící, změněný nebo neúplný výstup vyvolá plnou regeneraci.
 Firmware choreografie a JavaScriptové testy se kontrolují při každém běhu.
-V CI se stejný balíček obnovuje přes Actions cache s přesným klíčem;
-obnovení samo žádnou kontrolu nenahrazuje. Cache není součástí výrobního ZIPu.
+V CI se ověřený výsledek obnovuje z neměnného artefaktu úspěšného běhu
+na `main`; původ a všechny bytes se kontrolují před použitím. PR nevytváří
+sdílenou výrobní cache. Cache není součástí výrobního ZIPu.
 
 Pro vynucení všech testů a generování použít `-Force` (přímo v Pythonu
 `python regenerate.py --force`). Současné regenerace ve stejné složce
 `exports/` nejsou povolené; po násilně ukončeném procesu odstranit
 `exports/.regeneration-lock` až po ověření, že proces už neběží.
+
+## Inkrementální CAD a CI
+
+Každé PR projde levným výběrem změněných projektů a kontrolou `CI required`.
+Backend, firmware, mobilní UX a běžná dokumentace CAD nespouštějí. Známé
+viewer HTML/CSS/JS a sdílený design spouštějí pouze příslušné web/viewer testy.
+Neznámé soubory pod `final/`, rozměry, `parameters.json`, montážní omezení,
+geometrie, generátory, efekty s rozložením a validační algoritmy jsou mechanické
+vstupy. Autoritativní Markdown s rozměry a zapojením není obecná dokumentace.
+Politiku sdílí `source_inputs.py` a `scripts/ci/cad_impact.py`.
+
+Lokální dopad lze zjistit bez CadQuery, sliceru i renderování z kořene:
+
+```text
+python scripts/ci/cad_impact.py --base HEAD
+python -m unittest discover -s scripts/ci -p test_cad_impact.py
+node --test kufr/mechanika/final/test_viewer.cjs
+python -m unittest discover -s kufr/mechanika/final -p test_refresh_package.py
+```
+
+CI před instalací CAD hledá výsledek podle obsahu mechanických zdrojů,
+rozměrových podkladů, generátorů, kontrol a připnuté konfigurace nástrojů.
+Commit ani větev nejsou součástí klíče. Obnova musí pocházet z úspěšného
+kanonického `main` běhu, nikoli z PR/forku, a musí projít kontrolou úplného
+inventáře SHA-256 i výsledku CAD/sliceru. Při přesné shodě se přeskočí
+instalace, generování, PNG rendery i drahé opakování mechanických kontrol.
+Stejná geometrie s upravenou prezentací použije `refresh_package.py`: zachová
+mesh/CAD bytes, obnoví viewer a ZIP, aktualizuje otisky a výslovně zaznamená
+přenos původního mechanického důkazu; netvrdí nové mechanické ověření.
+
+Při skutečné CAD změně se z důvěryhodného předchozího výsledku mohou převzít
+jednotlivé nezměněné STL/STEP/surové 3MF. Jejich cache v
+`exports/.part-cache/` váže obsah BREP, vlastníka dílu a jeho importované
+zdroje, parametry, exportér a skutečný runtime na přesné bytes exportu.
+Poškození nebo chybějící soubor znamená nové generování. Živé tvary, sestavy,
+tisk a globální kolizní/montážní kontroly se při mechanické změně stále
+ověřují společně; cache dílu sama není mechanická akceptace.
+Změna samotného `verify.py` nebo testů přebírá nepozměněný generovaný snapshot,
+odstraní staré potvrzení a ZIP a spustí nové testy a verifikaci. Geometrie ani
+rendery se při této cestě negenerují. Neznámý mix závislostí použije plnou cestu.
+
+Úspěšné `main` běhy uchovávají výsledky 30 dní a levný push gate ignoruje
+nesouvisející změny. Chybějící či expirovaný výsledek je bezpečný cache miss.
+Pro plný běh použít workflow **Verify CAD manufacturing package** s `force=true`,
+nebo **CI** s `force_cad=true`; lokálně `Regenerate.ps1 -Force`.
+Nucený běh obchází i cache dílů. Žádný pravidelný plný CAD schedule neexistuje.
+
+Při podezření na stale výstup nejprve zkontrolovat výpis dopadu a job summary,
+`trusted-result.json`, zdrojové identity a ID původního main artefaktu.
+Neopravovat hash ručně. Neznámou závislost doplnit do politiky/fingerprintu
+a regresního testu; pak použít cílenou regeneraci nebo výslovný force běh.
+Selhání generátoru/ověření nikdy nevytvoří úspěšný sdílený výsledek.
 
 V samostatně vybaleném ZIPu vytvořit prostředí a instalovat
 `requirements.txt`, potom předat cestu jeho Pythonu.

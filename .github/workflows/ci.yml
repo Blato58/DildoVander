@@ -4,6 +4,8 @@ on:
   pull_request:
     types: [opened, reopened, synchronize, edited, ready_for_review]
     branches: [main]
+  merge_group:
+    types: [checks_requested]
   workflow_dispatch:
     inputs:
       project:
@@ -11,6 +13,10 @@ on:
         type: choice
         default: all
         options: [all, repository, backend, firmware, web, ios, ai-eval, site, cad]
+      force_cad:
+        description: Regenerate complete CAD even when a verified cache exists
+        type: boolean
+        default: false
       pr_number:
         description: Internal synchronized PR number (empty for recovery builds)
         type: string
@@ -82,7 +88,9 @@ jobs:
         with:
           script: |
             if (!process.env.PR_NUMBER && !process.env.PR_HEAD && !process.env.PR_BASE) {
-              if (context.ref !== 'refs/heads/main') throw new Error('Recovery builds must use main');
+              if (context.eventName !== 'merge_group' && context.ref !== 'refs/heads/main') {
+                throw new Error('Recovery builds must use main');
+              }
               return;
             }
             if (context.eventName === 'workflow_dispatch' && context.sha !== process.env.PR_HEAD) {
@@ -100,13 +108,16 @@ jobs:
         id: projects
         env:
           CI_EVENT_NAME: ${{ github.event_name }}
-          CI_BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.expected_base_sha }}
-          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha || inputs.expected_head_sha }}
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || inputs.expected_base_sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || inputs.expected_head_sha }}
           CI_PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
           CI_PROJECT: ${{ inputs.project || 'all' }}
+          FORCE_CAD: ${{ inputs.force_cad && inputs.pr_number == '' }}
         run: |
           if [ "$CI_EVENT_NAME" = workflow_dispatch ] && [ -z "$CI_PR_NUMBER" ]; then
-            python3 scripts/ci/select_projects.py select --project "$CI_PROJECT"
+            extra=()
+            if [ "$FORCE_CAD" = true ]; then extra+=(--force-cad); fi
+            python3 scripts/ci/select_projects.py select --project "$CI_PROJECT" "${extra[@]}"
           else
             python3 scripts/ci/select_projects.py select --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
           fi
@@ -159,7 +170,7 @@ jobs:
         shell: python
         env:
           PYTHONUTF8: '1'
-          TRACKING_BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.expected_base_sha }}
+          TRACKING_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || inputs.expected_base_sha }}
         run: |
           import os
           import subprocess
@@ -207,11 +218,17 @@ jobs:
     uses: ./.github/workflows/kufr-site.yml
     with:
       verify-manufacturing: ${{ github.event_name == 'workflow_dispatch' && inputs.pr_number == '' }}
+      force-cad: ${{ inputs.force_cad && inputs.pr_number == '' }}
 
   cad:
     needs: changes
     if: needs.changes.outputs.cad == 'true'
+    permissions:
+      contents: read
+      actions: read
     uses: ./.github/workflows/kufr-cad.yml
+    with:
+      force: ${{ inputs.force_cad && inputs.pr_number == '' }}
 
   required:
     name: CI required

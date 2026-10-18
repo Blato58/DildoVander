@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "KUFR-CAD-INCREMENTAL",
+  "initiative": "KUFR",
+  "title": "Dependency-driven CAD execution and trusted incremental reuse",
+  "state": "active",
+  "priority": "P1",
+  "sequence": 30,
+  "scope": ["scripts/ci", ".github/actions/verified-cad", ".github/workflows", "kufr/mechanika/final", "AGENTS.md", ".agents/skills/dildovander-ui/references/acceptance.md"],
+  "dependencies": [],
+  "acceptance": [
+    {
+      "id": "IMPACT",
+      "revision": 1,
+      "expected": "Unrelated software/docs and reviewed viewer edits skip CAD setup/generation/verification; mechanical/shared/unknown inputs select required checks and explicit force remains available.",
+      "requiredEvidenceKinds": ["unit"],
+      "appliesTo": {"artifactDigest": "06cc9eb2fae194551fe00aa049dfa3effb3ec8a3487dcbc90a6404efcc4e1186"},
+      "evidenceRefs": ["KUFR-CAD-INCREMENTAL-local"]
+    },
+    {
+      "id": "REUSE",
+      "revision": 1,
+      "expected": "Trusted content-bound results skip unchanged work, corrupt/untrusted results never supply acceptance, per-part exports and validation-only generation reuse preserve mandatory mechanical gates.",
+      "requiredEvidenceKinds": ["unit", "source_review"],
+      "rule": "allOf",
+      "appliesTo": {"artifactDigest": "06cc9eb2fae194551fe00aa049dfa3effb3ec8a3487dcbc90a6404efcc4e1186"},
+      "evidenceRefs": ["KUFR-CAD-INCREMENTAL-local", "KUFR-CAD-INCREMENTAL-review"]
+    },
+    {
+      "id": "HOSTED",
+      "revision": 1,
+      "expected": "Hosted required CI passes and canonical main result is reusable before CAD installation with provenance and complete output inventory checks.",
+      "requiredEvidenceKinds": ["integration"],
+      "appliesTo": {"artifactDigest": "06cc9eb2fae194551fe00aa049dfa3effb3ec8a3487dcbc90a6404efcc4e1186"},
+      "evidenceRefs": []
+    }
+  ],
+  "blockers": [],
+  "implementedSubject": {"artifactDigest": "06cc9eb2fae194551fe00aa049dfa3effb3ec8a3487dcbc90a6404efcc4e1186"},
+  "currentNote": "Local targeted checks and independent review passed; no full suitcase CAD rebuild was run locally. Native CadQuery smoke covers only a small synthetic box. Existing main quality ruleset inspected read-only; stable CI required name preserved.",
+  "nextAction": "Push the verified slice, inspect PR checks/reviews, then verify canonical main artifact reuse before closing hosted acceptance."
+}

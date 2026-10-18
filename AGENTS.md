@@ -71,6 +71,17 @@
 
 ## Sestavení a ověření
 
+- CAD není součást běžného software buildu. Backend, firmware, mobilní UX a
+  nesouvisející dokumentace nespouštějí CAD, slicer ani rendery. Dopad určuje
+  `scripts/ci/cad_impact.py` se sdílenou politikou `source_inputs.py`; neznámé
+  mechanické vstupy posuzuj konzervativně. Viewer HTML/CSS/JS ověř cílenými
+  testy bez regenerace geometrie. Podrobnosti a příkazy jsou v
+  [CAD README](kufr/mechanika/final/README.md#inkrementální-cad-a-ci).
+- Pro mechanické změny použij běžnou inkrementální `Regenerate.ps1` a zachovej
+  kontroly kolizí, montáže a tisku. Ověřené nezměněné výsledky lze znovu použít
+  jen se shodou vstupů a ověřenými bytes/proveniencí. `-Force` a kompletní
+  regeneraci použij pouze na výslovné zadání nebo se zdůvodněním závislosti;
+  samotné PR, změna větve nebo nový Codex task nejsou důvodem.
 - V `kufr/firmware/` spusť `pio run`. Čistou posloupnost lze testovat hostitelským C++ kompilátorem podle příkazu v `kufr/firmware/README.md`; testy jsou v `kufr/firmware/tests/`.
 - V `kufr/mobilni-aplikace/` je lockfile: pro reprodukovatelnou instalaci použij `npm ci`, pro kontrolu `npm test` a `npm run build` (`tsc --noEmit && vite build`). Aplikace obsahuje LAN ovládání ESP32 a nativní backend Debug; browser ani simulátor neprokazují akceptaci na iPhonu. Nativní testy a podpis ověř existujícím macOS workflow výše.
 - V `obludarium/firmware/` je sestavovací příkaz `pio run`; projekt je zatím jen startovní kostra.

@@ -33,7 +33,7 @@ class ProjectSelectionTests(unittest.TestCase):
             (["kufr/ai-eval/cases.json"], {"ai-eval"}),
             (["kufr/firmware/src/espidf_main.cpp", "kufr/backend/Program.cs"], {"firmware", "backend"}),
             (["kufr/mechanika/final/mechanism.py", "obludarium/docs/a.md"], {"site", "cad"}),
-            (["kufr/design-system/tokens/colors.css"], {"web", "ios", "site", "cad"}),
+            (["kufr/design-system/tokens/colors.css"], {"web", "ios", "site"}),
             (["kufr/web/index.html"], {"site"}),
         ]:
             with self.subTest(paths=paths):
@@ -74,6 +74,18 @@ class ProjectSelectionTests(unittest.TestCase):
         self.assertFalse(select_recovery_projects("all")["cad"])
         self.assertTrue(select_recovery_projects("all")["site"])
         self.assertEqual({name for name, enabled in select_recovery_projects("cad").items() if enabled}, {"cad"})
+        for project in ("all", "site"):
+            with self.subTest(project=project):
+                self.assertFalse(select_recovery_projects(project, force_cad=True)["cad"])
+                self.assertTrue(select_recovery_projects(project, force_cad=True)["site"])
+        self.assertTrue(select_recovery_projects("backend", force_cad=True)["cad"])
+
+    def test_presentation_inputs_select_lightweight_site_checks(self):
+        for path in ["viewer.js", "viewer_style.py", "viewer_document.py",
+                     "viewer-template.html", "twin_media.css", "test_viewer_document.py",
+                     "README.md", "VIEWER.md"]:
+            with self.subTest(path=path):
+                self.assertEqual(self.selected("kufr/mechanika/final/" + path), {"site"})
 
     def test_git_diff_includes_both_sides_of_a_rename(self):
         with tempfile.TemporaryDirectory() as folder:

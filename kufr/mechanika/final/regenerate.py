@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import gc
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -21,7 +22,7 @@ TEST_MODULES = (
     "test_flex_routing",
     "test_inspect_data", "test_harness", "test_f2_cad", "test_sliding_follower",
     "test_floor_anchors", "test_follower_load", "test_strength", "test_assembly_access",
-    "test_regeneration_cache", "test_regenerate",
+    "test_regeneration_cache", "test_regenerate", "test_part_cache", "test_refresh_package",
 )
 
 
@@ -57,7 +58,7 @@ def python_checks():
     stage("validate_assembly", validate_assembly.validate)
 
 
-def regenerate(force=False):
+def regenerate(force=False, generation_ready=False):
     from regeneration_cache import check_cache, write_cache
 
     out = ROOT / "exports"
@@ -100,8 +101,12 @@ def regenerate(force=False):
             ("package", "package.py"),
         )
         for name, script, *arguments in commands:
+            if name == "generate_exports" and generation_ready and not force:
+                print("F2 generation SKIP: trusted unchanged geometry; fresh validation required.", flush=True)
+                continue
             stage(name, lambda script=script, arguments=arguments: subprocess.run(
-                [sys.executable, "-X", "utf8", str(ROOT / script), *arguments], cwd=ROOT, check=True))
+                [sys.executable, "-X", "utf8", str(ROOT / script), *arguments], cwd=ROOT, check=True,
+                env={**os.environ, "KUFR_CAD_FORCE": "1" if force else "0"}))
         if prepared_identity() != identity:
             raise RuntimeError("Sources or runtime changed during F2 regeneration")
         slicing = json.loads((out / "slicer-validation.json").read_text(encoding="utf-8"))

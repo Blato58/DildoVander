@@ -1,43 +1,100 @@
 name: Verify manufacturing package
-description: Restore only an exact CAD cache, validate it, or regenerate all outputs
+description: Reuse successful main acceptance before installing CAD, otherwise regenerate incrementally
+inputs:
+  force:
+    description: Bypass all saved generation and verification results
+    default: 'false'
 runs:
   using: composite
   steps:
+    - name: Fingerprint manufacturing inputs without CAD
+      id: cad-key
+      shell: bash
+      run: python3 scripts/ci/cad_result.py key
+    - name: Resolve immutable trusted main result
+      id: trusted
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      env:
+        CAD_KEY: ${{ steps.cad-key.outputs.key }}
+        CAD_FORCE: ${{ inputs.force }}
+      with:
+        script: |
+          await require('./scripts/ci/cad-result.cjs').resolve({ github, context, core }, {
+            key: process.env.CAD_KEY, force: process.env.CAD_FORCE === 'true',
+          });
+    - name: Restore immutable main outputs and acceptance
+      id: download
+      if: steps.trusted.outputs.artifact-id != ''
+      continue-on-error: true
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        artifact-ids: ${{ steps.trusted.outputs.artifact-id }}
+        merge-multiple: true
+        run-id: ${{ steps.trusted.outputs.run-id }}
+        github-token: ${{ github.token }}
+        path: kufr/mechanika/final/exports
+    - name: Validate trusted bytes and refresh presentation without CAD
+      id: accepted
+      if: steps.download.outcome == 'success'
+      shell: bash
+      run: python3 scripts/ci/cad_result.py restore
+    - name: Discard missing or invalid restored output staging
+      if: steps.accepted.outputs.hit != 'true' && steps.accepted.outputs.artifact-valid != 'true'
+      shell: bash
+      run: python3 scripts/ci/cad_result.py discard
     - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+      if: steps.accepted.outputs.hit != 'true'
       with:
         python-version: '3.11'
         cache: pip
         cache-dependency-path: kufr/mechanika/final/requirements.txt
     - name: Install pinned CAD dependencies
+      if: steps.accepted.outputs.hit != 'true'
       shell: bash
       run: |
         python -m venv "$RUNNER_TEMP/cad-venv"
         "$RUNNER_TEMP/cad-venv/bin/python" -m pip install -r kufr/mechanika/final/requirements.txt
         echo "$RUNNER_TEMP/cad-venv/bin" >> "$GITHUB_PATH"
     - name: Install official pinned PrusaSlicer CLI
+      if: steps.accepted.outputs.hit != 'true'
       shell: bash
       run: xvfb-run -a bash scripts/ci/install-cad-slicer.sh
-    - name: Fingerprint CAD sources and runtime
-      id: cad-key
+    - name: Generate missing exports and verify manufacturing package
+      if: steps.accepted.outputs.hit != 'true'
       shell: bash
+      env:
+        CAD_FORCE: ${{ inputs.force }}
       run: |
-        cad_key=$(xvfb-run -a python scripts/ci/cad_cache.py --cache-key)
-        [[ $cad_key =~ ^[a-f0-9]{64}$ ]] || { echo 'Invalid CAD cache key' >&2; exit 1; }
-        echo "key=$cad_key" >> "$GITHUB_OUTPUT"
-    - name: Restore verified manufacturing outputs
-      id: cad-cache
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        force=()
+        if [[ "$CAD_FORCE" == true ]]; then force+=(--force); fi
+        xvfb-run -a python scripts/ci/cad_cache.py "${force[@]}"
+        xvfb-run -a python scripts/ci/cad_result.py publish
+    - name: Retain verified results only from canonical main
+      if: github.repository == 'Blato58/DildoVander' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !github.event.inputs.pr_number))
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
+        name: cad-result-v1-${{ steps.cad-key.outputs.key }}
         path: kufr/mechanika/final/exports
-        key: cad-verified-v2-${{ steps.cad-key.outputs.key }}
-        # Legacy outputs are adopted only after full source/tool/ABI/hash checks.
-        restore-keys: cad-verified-v1-
-    - name: Regenerate and verify the complete manufacturing package
+        include-hidden-files: true
+        if-no-files-found: error
+        retention-days: 30
+    - name: Summarize CAD execution
+      if: always()
       shell: bash
-      run: xvfb-run -a python scripts/ci/cad_cache.py
-    - name: Save verified manufacturing outputs
-      if: steps.cad-cache.outputs.cache-hit != 'true'
-      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-      with:
-        path: kufr/mechanika/final/exports
-        key: cad-verified-v2-${{ steps.cad-key.outputs.key }}
+      env:
+        CAD_HIT: ${{ steps.accepted.outputs.hit }}
+        CAD_FORCE: ${{ inputs.force }}
+        CAD_JOB_STATUS: ${{ job.status }}
+        CAD_ARTIFACT_ID: ${{ steps.trusted.outputs.artifact-id }}
+      run: |
+        {
+          echo '### CAD manufacturing'
+          echo "- Trusted main artifact: ${CAD_ARTIFACT_ID:-none}"
+          echo "- Verified result reused: ${CAD_HIT:-false}; force: $CAD_FORCE"
+          if [[ "$CAD_HIT" == true ]]; then
+            echo '- CAD setup, generation, renders and mechanical re-verification skipped: identical manufacturing inputs and verified bytes.'
+          else
+            echo '- CAD generation/verification path selected; eligible individual exports reused unless forced.'
+          fi
+          echo "- Job outcome: $CAD_JOB_STATUS"
+        } >> "$GITHUB_STEP_SUMMARY"
