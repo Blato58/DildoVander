@@ -38,10 +38,56 @@ inline bool PreparePca(RegisterBus& bus) {
 }
 
 inline bool SetPulse(RegisterBus& bus, unsigned channel, unsigned ticks) {
-  if (channel > 5 || ticks < PulseTicks(1400) || ticks > PulseTicks(1600) ||
+  if (channel > 5 || ticks < PulseTicks(1000) || ticks > PulseTicks(2000) ||
       !DisableAllPca(bus) || !ClearChannels(bus)) return false;
   const uint8_t values[] = {0, 0, static_cast<uint8_t>(ticks & 0xff),
                           static_cast<uint8_t>((ticks >> 8) & 0x0f)};
   return bus.Write(static_cast<uint8_t>(0x06 + channel * 4), values, sizeof(values));
+}
+
+struct PwmSnapshot {
+  uint8_t mode1 = 0;
+  uint8_t mode2 = 0;
+  uint8_t prescale = 0;
+  uint8_t onLow = 0;
+  uint8_t onHigh = 0;
+  uint8_t offLow = 0;
+  uint8_t offHigh = 0;
+
+  unsigned OnTicks() const { return onLow | ((onHigh & 0x0f) << 8); }
+  unsigned OffTicks() const { return offLow | ((offHigh & 0x0f) << 8); }
+  bool FullOn() const { return (onHigh & 0x10) != 0; }
+  bool FullOff() const { return (offHigh & 0x10) != 0; }
+  bool Matches(unsigned ticks) const {
+    // RESTART is self-clearing; all remaining mode bits must match the setup.
+    return (mode1 & 0x7f) == 0x20 && mode2 == 0x04 && prescale == Prescale &&
+        onHigh == 0 && onLow == 0 && offHigh == ((ticks >> 8) & 0x0f) &&
+        offLow == (ticks & 0xff);
+  }
+};
+
+inline bool ReadPwmSnapshot(RegisterBus& bus, unsigned channel, PwmSnapshot& snapshot) {
+  if (channel > 5) return false;
+  const uint8_t reg = static_cast<uint8_t>(0x06 + channel * 4);
+  return bus.Read(0x00, snapshot.mode1) && bus.Read(0x01, snapshot.mode2) &&
+      bus.Read(0xfe, snapshot.prescale) && bus.Read(reg, snapshot.onLow) &&
+      bus.Read(reg + 1, snapshot.onHigh) && bus.Read(reg + 2, snapshot.offLow) &&
+      bus.Read(reg + 3, snapshot.offHigh);
+}
+
+enum class PulseReadbackResult { WriteFailed, ReadFailed, Mismatch, Match };
+
+inline PulseReadbackResult SetVerifiedPulse(
+    RegisterBus& bus, unsigned channel, unsigned ticks, PwmSnapshot& snapshot) {
+  if (!SetPulse(bus, channel, ticks)) return PulseReadbackResult::WriteFailed;
+  if (!ReadPwmSnapshot(bus, channel, snapshot)) {
+    DisableAllPca(bus); // Stop before logging; controller also retries when latching its fault.
+    return PulseReadbackResult::ReadFailed;
+  }
+  if (!snapshot.Matches(ticks)) {
+    DisableAllPca(bus);
+    return PulseReadbackResult::Mismatch;
+  }
+  return PulseReadbackResult::Match;
 }
 }  // namespace ServoBench

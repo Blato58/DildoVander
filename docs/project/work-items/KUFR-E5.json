@@ -44,7 +44,20 @@
         "KUFR-E5-servo-bench-unit-20261018",
         "KUFR-E5-servo-bench-build-20261018",
         "KUFR-E5-servo-bench-no-oe-20261018",
-        "KUFR-E5-servo-bench-usb-install-20261018"
+        "KUFR-E5-servo-bench-usb-install-20261018",
+        "KUFR-E5-servo-bench-readback-panel-20261018",
+        "KUFR-E5-servo-bench-i2c-errors-20261018",
+        "KUFR-E5-servo-bench-webmcp-timeout-20261018",
+        "KUFR-E5-servo-bench-powered-stop-20261018",
+        "KUFR-E5-servo-bench-calibration-20261018",
+        "KUFR-E5-servo-bench-calibration-1500-powered-20261018",
+        "KUFR-E5-servo-bench-calibration-1600-powered-20261018",
+        "KUFR-E5-servo-bench-calibration-1600-owner-report-20261018",
+        "KUFR-E5-servo-bench-center-attempt-20261018",
+        "KUFR-E5-servo-bench-center-saved-20261018",
+        "KUFR-E5-servo-bench-calibration-1400-powered-20261018",
+        "KUFR-E5-servo-bench-assisted-auto-20261018",
+        "KUFR-E5-servo-bench-publication-20261018"
       ]
     },
     {
@@ -165,6 +178,6 @@
       "role": "majitel a implementátor"
     }
   ],
-  "currentNote": "Provozní B-effects používá GPIO2/OE a zelenou kolébku; B1/E5 fyzicky nepřijato, poloha není měřená. Výslovně vyžádaný samostatný servo-bench pro první volné servo nyní propojuje ESP a PCA jen přes GND/VCC/SDA/SCL. Stop i timeout 500 ms zapisují ALL_LED_OFF_H FULL_OFF; selhání I2C hlásí nejistý stav PWM a blokuje další pohyb do restartu. Provozní firmware a NVS beze změny. Host testy a build prošly. Majitel 18. 10. 2026 autorizoval nahrání při vypnutém napájení serva: na desce 68ee8f4b6048 přes COM7 je nyní dočasný servo-bench bez OE, firmware SHA256 2297273c7c1a9f0f60d7fe981c418a41a36898e938c46dfdb9f6d8d614aa2dfe. Soukromá 16MiB záloha vytvořena; bootloader, partition table i aplikace ověřeny readback digestem. UART READY a Stop potvrzeny, žádný pohybový příkaz neposlán. Fyzická servo/PWM/proudová zkouška neprovedena; provozní firmware tím není přijat. Ověřený software commit 20eb13bf32df9f107fb01fdf0d87448c192cae4d; Push-CurrentBranch.ps1 úspěšně ověřil shodný vzdálený SHA na origin/codex/servo-bench-without-oe.",
-  "nextAction": "Majitel: po kontrole zapojení a odpojení mechanické zátěže vyzkoušet jediné servo přes arm a pulse 0 1500 podle servo-bench README, změřit PWM a proud. Před resetem ponechat 5V pohony vypnuté. Pro provozní kalibraci přihrádky obnovit B-effects firmware a jeho OE zapojení; doplnit přesné identity kabeláže/mechaniky před fyzickou akceptací."
+  "currentNote": "B1/E5 fyzicky nepřijato. Majitel potvrdil klidný pohyb1400us/1500ms a V+OFF. Uložený ruční střed1500us kanálu0 zachován. Nově připraven asistovaný automatický průchod po25us/nejméně3s: jeden směr, každý krok1500ms, explicitní start, Drhne/vrčí zastaví další kroky a nabídne předchozí dokončenou hodnotu; uložení samostatně až poStopACK. Bez obnovy poStop/hidden/chybě, bez automatických I2Cretry při fault. 70Node+3Python a nezávislá review prošly; simulovaný browser ověřil kadenci, blokaciMCP pohybu, noiseStop a ruční přijetí návrhu. Skutečný panel obnoven, střed/název zachovány, ESPStopACK, autoactivefalse. Firmwaref6f8b2dd bezezměny, bezflash a skutečného pohybu při přípravě. Poweredauto/noiseStop, úhly/proud/mechanismus neověřeny; S45inconclusive. Na výslovnou žádost majitele publikován implementační commit 0061c205b0d7fffc8e54d7468866bfe9e51ed54c; push ověřen shodným vzdáleným SHA. PR207 znovu otevřen jako draft: https://github.com/Blato58/DildoVander/pull/207, bez auto-merge. CI zatím není označeno za prošlé, fyzický automatický test stále čeká.",
+  "nextAction": "Majitel zapneV+ a sleduje/poslouchá volnéservo0; jedním explicitním startem spustit Hledatdolnímez. Při drhnutí/vrčení tlačítko i fyzickéV+OFF; vyhodnotit předchozí krok, poStopACK samostatně přijmoutmez. Pak samostatně hornísměr, exportprofilu a fyzickéověřeníStop/proudu/PWM. Při fault žádný další pohyb. Průchod se sám neobnovuje, dorazy/úhly nejsouměřené. Draft PR207 je publikovaný; sledovat CI/review, fyzický test pokračuje samostatně. Bez merge do dokončení testu."
 }

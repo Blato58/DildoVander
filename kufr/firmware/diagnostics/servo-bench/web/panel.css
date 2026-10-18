@@ -1,0 +1,23 @@
+.bench { max-width: 920px; }
+.aw-root { padding-bottom: calc(216px + env(safe-area-inset-bottom)); }
+.bench .aw-card { margin-bottom: var(--aw-space-6); }
+.actions, .controls { display: flex; flex-wrap: wrap; gap: var(--aw-space-3); }
+.controls > div { flex: 1 1 180px; min-width: 0; }
+.controls select { width: 100%; }
+.controls input { width: 100%; }
+.cal-range { width: 100%; min-height: 44px; accent-color: var(--aw-brass); }
+.presets button { flex: 1 1 100px; }
+#profile-label, #profile-json { width: 100%; margin-bottom: var(--aw-space-4); }
+.actions { margin-bottom: var(--aw-space-4); }
+.actions button { flex: 1 1 220px; }
+.stop { width: 100%; min-height: 60px; margin-bottom: var(--aw-space-4); font-weight: 700; }
+.stop-bar { position: fixed; inset: auto 0 0; z-index: 10; padding: var(--aw-space-4) var(--aw-space-4) max(var(--aw-space-4), env(safe-area-inset-bottom)); background: var(--aw-surface); border-top: 1px solid var(--aw-border); }
+.stop-actions { display: flex; max-width: 856px; margin-inline: auto; gap: var(--aw-space-3); }
+.stop-bar .stop, .noise { flex: 1; min-width: 0; min-height: 60px; margin: 0; font-weight: 700; }
+.noise-warning { max-width: 856px; margin: var(--aw-space-3) auto 0; color: var(--aw-danger); overflow-wrap: anywhere; }
+#connection, #state { margin-block: var(--aw-space-4); }
+#error { color: var(--aw-danger); overflow-wrap: anywhere; }
+#profile-error { color: var(--aw-danger); overflow-wrap: anywhere; }
+.log { max-height: 320px; min-height: 120px; padding: var(--aw-space-4); overflow: auto; background: var(--aw-void); white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid var(--aw-border-subtle); }
+.bench .aw-notice { overflow-wrap: anywhere; }
+@media (max-width: 480px) { .bench { padding: var(--aw-space-4); } .actions button { flex-basis: 100%; } }

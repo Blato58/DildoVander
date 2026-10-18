@@ -30,6 +30,10 @@ jobs:
         run: python3 -m unittest discover -s kufr/firmware/ci -p 'test_*.py'
       - name: Test servo bench command safety
         run: python3 kufr/firmware/diagnostics/servo-bench/tests/run_tests.py
+      - name: Test servo bench local panel and serial state
+        run: |
+          node --test kufr/firmware/diagnostics/servo-bench/web/tests/*.test.mjs
+          python3 -B -m unittest discover -s kufr/firmware/diagnostics/servo-bench/web/tests -p 'test_*.py' -v
       - name: Test automatic firmware versions and OTA packaging
         run: python3 -m unittest discover -s kufr/firmware/tools -p 'test_*.py'
       - name: SD dance playback, synchronized effects and cancellation
