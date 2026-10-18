@@ -48,7 +48,7 @@
     }
   ],
   "blockers": [],
-  "currentNote": "Vapour Chrome implementován a lokálně ověřen napříč existujícími UI a generátory; bez placeného AI, nasazení, fyzické nebo nativní iPhone akceptace. Commit a push budou zapsány po skutečném Git předání.",
+  "currentNote": "Implementace f2443cb983d46c51e957b2dc9a82d39c069432bc ověřena a úspěšně pushnuta na origin/codex/vapour-chrome-ui; remote SHA ověřeno skriptem Push-CurrentBranch.ps1. Lokální software/render kontroly prošly; nativní iPhone, živý simulator bridge, plný CAD výrobní ZIP a nasazení nejsou touto dodávkou prokázány. PR/CI před merge se posuzují samostatně.",
   "implementedSubject": {
     "artifactDigest": "c5060282d27be38a1102008581273c47401b11e6adb7aeb589e24297c9f55cbb"
   },
