@@ -10,7 +10,14 @@ class RegisterBus {
   virtual void WaitOscillator() = 0;
 };
 
-// Caller must hold OE HIGH throughout these operations.
+inline bool DisableAllPca(RegisterBus& bus) {
+  // ALL_LED_OFF_H fans out FULL_OFF to every LEDn_OFF_H. This single-byte
+  // write works even before MODE1 auto-increment is configured. FULL_OFF
+  // takes precedence over stale FULL_ON bits (NXP section 7.3.3).
+  const uint8_t fullOff = 0x10;
+  return bus.Write(0xfd, &fullOff, 1);
+}
+
 inline bool ClearChannels(RegisterBus& bus) {
   uint8_t off[64]{};
   for (unsigned channel = 0; channel < 16; ++channel) off[channel * 4 + 3] = 0x10;
@@ -20,7 +27,7 @@ inline bool ClearChannels(RegisterBus& bus) {
 inline bool PreparePca(RegisterBus& bus) {
   const uint8_t sleep = 0x30, mode2 = 0x04, prescale = Prescale, wake = 0x20;
   // ALL_LED_* writes would overwrite every channel, not set independent flags.
-  if (!bus.Write(0x00, &sleep, 1) || !bus.Write(0x01, &mode2, 1) ||
+  if (!DisableAllPca(bus) || !bus.Write(0x00, &sleep, 1) || !bus.Write(0x01, &mode2, 1) ||
       !bus.Write(0xfe, &prescale, 1) || !ClearChannels(bus) ||
       !bus.Write(0x00, &wake, 1)) return false;
   bus.WaitOscillator();
@@ -32,7 +39,7 @@ inline bool PreparePca(RegisterBus& bus) {
 
 inline bool SetPulse(RegisterBus& bus, unsigned channel, unsigned ticks) {
   if (channel > 5 || ticks < PulseTicks(1400) || ticks > PulseTicks(1600) ||
-      !ClearChannels(bus)) return false;
+      !DisableAllPca(bus) || !ClearChannels(bus)) return false;
   const uint8_t values[] = {0, 0, static_cast<uint8_t>(ticks & 0xff),
                           static_cast<uint8_t>((ticks >> 8) & 0x0f)};
   return bus.Write(static_cast<uint8_t>(0x06 + channel * 4), values, sizeof(values));
