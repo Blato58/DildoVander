@@ -10,6 +10,7 @@
 
 namespace {
 constexpr int TransferTimeoutMs = 50;
+constexpr int ReadTimeoutMs = 10;
 
 class PcaOutputs final : public ServoBench::Outputs, private ServoBench::RegisterBus {
  public:
@@ -36,7 +37,20 @@ class PcaOutputs final : public ServoBench::Outputs, private ServoBench::Registe
   }
 
   bool Pulse(unsigned channel, unsigned ticks) override {
-    return ServoBench::SetPulse(*this, channel, ticks);
+    ServoBench::PwmSnapshot snapshot;
+    const auto result = ServoBench::SetVerifiedPulse(*this, channel, ticks, snapshot);
+    if (result == ServoBench::PulseReadbackResult::WriteFailed) return false;
+    if (result == ServoBench::PulseReadbackResult::ReadFailed) {
+      Report("PCA_READBACK failed; stopping and latching fault");
+      return false;
+    }
+    const bool matches = result == ServoBench::PulseReadbackResult::Match;
+    std::printf("SERVO_BENCH PCA_READBACK ch=%u mode1=0x%02x mode2=0x%02x "
+                "prescale=%u on=%u off=%u full_on=%u full_off=%u expected_off=%u match=%u\n",
+                channel, snapshot.mode1, snapshot.mode2, snapshot.prescale,
+                snapshot.OnTicks(), snapshot.OffTicks(), static_cast<unsigned>(snapshot.FullOn()),
+                static_cast<unsigned>(snapshot.FullOff()), ticks, static_cast<unsigned>(matches));
+    return matches;
   }
 
   void Report(const char* message) override { std::printf("SERVO_BENCH %s\n", message); }
@@ -52,7 +66,7 @@ class PcaOutputs final : public ServoBench::Outputs, private ServoBench::Registe
 
   bool Read(uint8_t reg, uint8_t& value) override {
     return device_ && i2c_master_transmit_receive(
-        device_, &reg, 1, &value, 1, TransferTimeoutMs) == ESP_OK;
+        device_, &reg, 1, &value, 1, ReadTimeoutMs) == ESP_OK;
   }
 
   void WaitOscillator() override { esp_rom_delay_us(500); }

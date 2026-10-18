@@ -38,8 +38,10 @@ struct FakeRegisterBus : ServoBench::RegisterBus {
   unsigned operations = 0;
   unsigned failAt = 0;
   bool corruptReadback = false;
+  unsigned fullOffWrites = 0;
   bool Write(uint8_t reg, const uint8_t* values, std::size_t size) override {
     if (++operations == failAt) return false;
+    if (reg == 0xfd && size == 1 && values[0] == 0x10) ++fullOffWrites;
     assert(reg + size <= 256);
     const bool autoIncrement = (registers[0] & 0x20) != 0;
     for (std::size_t i = 0; i < size; ++i) {
@@ -74,6 +76,10 @@ static void CheckRegisters() {
   }
   for (unsigned selected = 0; selected < 6; ++selected) {
     assert(ServoBench::SetPulse(bus, selected, ServoBench::PulseTicks(1500)));
+    ServoBench::PwmSnapshot snapshot;
+    assert(ServoBench::ReadPwmSnapshot(bus, selected, snapshot));
+    assert(snapshot.Matches(307) && snapshot.OnTicks() == 0 && snapshot.OffTicks() == 307);
+    assert(!snapshot.FullOn() && !snapshot.FullOff());
     for (unsigned channel = 0; channel < 16; ++channel) {
       const unsigned reg = 0x06 + channel * 4;
       assert(bus.registers[reg + 3] == (channel == selected ? 1 : 0x10));
@@ -92,12 +98,52 @@ static void CheckRegisters() {
   assert(!ServoBench::PreparePca(bus));
 }
 
+static void CheckReadback() {
+  for (unsigned failAt = 1; failAt <= 7; ++failAt) {
+    FakeRegisterBus bus;
+    bus.failAt = failAt;
+    ServoBench::PwmSnapshot snapshot;
+    assert(!ServoBench::ReadPwmSnapshot(bus, 0, snapshot));
+    assert(bus.operations == failAt);
+  }
+  FakeRegisterBus bus;
+  ServoBench::PwmSnapshot snapshot;
+  assert(!ServoBench::ReadPwmSnapshot(bus, 6, snapshot) && bus.operations == 0);
+  assert(ServoBench::PreparePca(bus));
+  for (unsigned microseconds : {1400U, 1500U, 1600U}) {
+    const unsigned ticks = ServoBench::PulseTicks(microseconds);
+    assert(ServoBench::SetPulse(bus, 0, ticks));
+    assert(ServoBench::ReadPwmSnapshot(bus, 0, snapshot) && snapshot.Matches(ticks));
+    for (unsigned field = 0; field < 7; ++field) {
+      auto corrupted = snapshot;
+      switch (field) {
+        case 0: corrupted.mode1 |= 0x10; break; // Sleep.
+        case 1: corrupted.mode2 ^= 0x10; break; // Inverted output.
+        case 2: ++corrupted.prescale; break;
+        case 3: ++corrupted.onLow; break;
+        case 4: corrupted.onHigh |= 0x10; break;
+        case 5: ++corrupted.offLow; break;
+        case 6: corrupted.offHigh |= 0x10; break;
+      }
+      assert(!corrupted.Matches(ticks));
+    }
+    snapshot.mode1 |= 0x80;
+    assert(snapshot.Matches(ticks));
+  }
+  bus.corruptReadback = true;
+  assert(ServoBench::ReadPwmSnapshot(bus, 0, snapshot) && !snapshot.Matches(307));
+}
+
 struct RegisterOutputs : ServoBench::Outputs {
   FakeRegisterBus bus;
   std::string lastReport;
   bool Disable() override { return ServoBench::DisableAllPca(bus); }
   bool Prepare() override { return ServoBench::PreparePca(bus); }
-  bool Pulse(unsigned channel, unsigned ticks) override { return ServoBench::SetPulse(bus, channel, ticks); }
+  bool Pulse(unsigned channel, unsigned ticks) override {
+    ServoBench::PwmSnapshot snapshot;
+    return ServoBench::SetVerifiedPulse(bus, channel, ticks, snapshot) ==
+        ServoBench::PulseReadbackResult::Match;
+  }
   void Report(const char* message) override { lastReport = message; }
 };
 
@@ -155,9 +201,37 @@ static void CheckPcaStop() {
   assert(armedController.Faulted() && armFailure.pulses == 0);
 }
 
+static void CheckVerifiedPulseFailure() {
+  for (unsigned failedRead = 1; failedRead <= 7; ++failedRead) {
+    RegisterOutputs outputs;
+    ServoBench::Controller controller(outputs);
+    Send(controller, "arm\n", 0);
+    const unsigned previousOffWrites = outputs.bus.fullOffWrites;
+    outputs.bus.failAt = outputs.bus.operations + 3 + failedRead;
+    Send(controller, "pulse 0 1500\n", 100);
+    assert(controller.Faulted());
+    AssertAllOff(outputs.bus);
+    // One stop before the pulse, one after read failure and the controller retry.
+    assert(outputs.bus.fullOffWrites == previousOffWrites + 3);
+    Send(controller, "arm\npulse 0 1500\n", 200);
+    AssertAllOff(outputs.bus);
+  }
+  RegisterOutputs outputs;
+  ServoBench::Controller controller(outputs);
+  Send(controller, "arm\n", 0);
+  const unsigned previousOffWrites = outputs.bus.fullOffWrites;
+  outputs.bus.corruptReadback = true;
+  Send(controller, "pulse 0 1500\n", 100);
+  assert(controller.Faulted());
+  AssertAllOff(outputs.bus);
+  assert(outputs.bus.fullOffWrites == previousOffWrites + 3);
+}
+
 int main() {
   CheckRegisters();
+  CheckReadback();
   CheckPcaStop();
+  CheckVerifiedPulseFailure();
   {
     FakeOutputs outputs;
     ServoBench::Controller controller(outputs);

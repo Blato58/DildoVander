@@ -44,7 +44,8 @@
         "KUFR-E5-servo-bench-unit-20261018",
         "KUFR-E5-servo-bench-build-20261018",
         "KUFR-E5-servo-bench-no-oe-20261018",
-        "KUFR-E5-servo-bench-usb-install-20261018"
+        "KUFR-E5-servo-bench-usb-install-20261018",
+        "KUFR-E5-servo-bench-readback-panel-20261018"
       ]
     },
     {
@@ -165,6 +166,6 @@
       "role": "majitel a implementátor"
     }
   ],
-  "currentNote": "Provozní B-effects používá GPIO2/OE a zelenou kolébku; B1/E5 fyzicky nepřijato, poloha není měřená. Výslovně vyžádaný samostatný servo-bench pro první volné servo nyní propojuje ESP a PCA jen přes GND/VCC/SDA/SCL. Stop i timeout 500 ms zapisují ALL_LED_OFF_H FULL_OFF; selhání I2C hlásí nejistý stav PWM a blokuje další pohyb do restartu. Provozní firmware a NVS beze změny. Host testy a build prošly. Majitel 18. 10. 2026 autorizoval nahrání při vypnutém napájení serva: na desce 68ee8f4b6048 přes COM7 je nyní dočasný servo-bench bez OE, firmware SHA256 2297273c7c1a9f0f60d7fe981c418a41a36898e938c46dfdb9f6d8d614aa2dfe. Soukromá 16MiB záloha vytvořena; bootloader, partition table i aplikace ověřeny readback digestem. UART READY a Stop potvrzeny, žádný pohybový příkaz neposlán. Fyzická servo/PWM/proudová zkouška neprovedena; provozní firmware tím není přijat. Ověřený software commit 20eb13bf32df9f107fb01fdf0d87448c192cae4d; Push-CurrentBranch.ps1 úspěšně ověřil shodný vzdálený SHA na origin/codex/servo-bench-without-oe.",
-  "nextAction": "Majitel: po kontrole zapojení a odpojení mechanické zátěže vyzkoušet jediné servo přes arm a pulse 0 1500 podle servo-bench README, změřit PWM a proud. Před resetem ponechat 5V pohony vypnuté. Pro provozní kalibraci přihrádky obnovit B-effects firmware a jeho OE zapojení; doplnit přesné identity kabeláže/mechaniky před fyzickou akceptací."
+  "currentNote": "B1/E5 fyzicky nepřijato; provozní B-effects/OE a NVS beze změny. Dvě serva se podle majitele při1400/1600us nehýbou přes hlášených5V a OE0V; příčina nepotvrzena. Samostatný servo-bench bez OE doplněn o ověřované čtení registrů PCA a jednoduchý český localhost panel přes Web Serial: Arm, jeden nominální500ms pulz, Stop, log. C++ testy,18 Node a3 Python testy, ESP build a nezávislá review prošly. Aktualizace na68ee8f4b6048/COM7 autorizována při vypnutých5V; nahraný firmware SHA256873baa379ddb5bfe2df602e9ff17237b88560827dcd49bb9fd8611ccfc9727cb, všechny3 obrazy ověřeny. Původní soukromá16MiB záloha zachována, před aktualizací uložen i předchozí app obraz. UART i skutečný browser potvrdily READY/Stop; agent neposlal pohybový příkaz. S45 zůstává inconclusive, registrová shoda není měření signálu ani pohybu.",
+  "nextAction": "Majitel: v panelu127.0.0.1:8765 ověřit Stop PWM FULL_OFF, zapnout5V jednoho volného serva, explicitně Arm a Pulz500ms pro kanál0 při1400/1600us a předat PCA_READBACK. Před každým otevřením USB/resetem vypnout5V. Podle registrů pokračovat měřením skutečného PWM/proudu; doplnit identity kabeláže a mechaniky před fyzickou akceptací."
 }

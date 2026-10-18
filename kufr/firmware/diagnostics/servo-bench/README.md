@@ -68,12 +68,44 @@ stolní test jednoho volného serva. Provozní
 [B-effects zapojení](../../../docs/zapojeni-potvrzeneho-hardwaru.md#pca9685-a-světla)
 nadále používá OE na GPIO2; provozní firmware ani jeho brány se nemění.
 
+## Ovládání v prohlížeči
+
+Z kořene repozitáře spusť místní panel:
+
+```powershell
+python kufr/firmware/diagnostics/servo-bench/tools/serve_panel.py
+```
+
+Otevři `http://127.0.0.1:8765` v Edge nebo Chromu. Panel používá
+[Web Serial](https://developer.chrome.com/docs/capabilities/serial) a UART
+115200 baud; server poskytuje jen místní statické soubory. Pokud prohlížeč
+Web Serial nepodporuje, panel to oznámí. Sériový monitor nejdřív ukonči
+pomocí Ctrl+C, protože COM7 může používat jen jedno připojení.
+
+Při prvním připojení nech 5V napájení serva vypnuté: otevření sériového
+portu může resetovat ESP. Klikni na **Připojit USB** a vyber USB Serial
+CH343 / COM7. Panel pošle pouze Stop a čeká na potvrzení z firmware.
+Pokud otevření USB resetuje ESP a úvodní Stop se během startu ztratí,
+po řádku READY stiskni Stop znovu; pohyb zůstává do potvrzení zablokovaný.
+Po ověření zapojení a připraveného stavu zapni napájení volného serva.
+Zvol kanál 0 a šířku 1500 µs, klikni na **Arm** a potom na **Pulz 500 ms**.
+Pro další pokus musíš znovu kliknout na Arm; povolení platí nejvýše 10 sekund.
+K dispozici jsou šířky 1400, 1500 a 1600 µs.
+
+**Stop** vypíná PWM přes PCA; neodpojuje 5 V. Panel ukazuje odeslání
+i potvrzení a při chybě nebo ztrátě spojení neslibuje vypnutí. Výpis
+`PCA_READBACK` můžeš zkopírovat pro diagnostiku. Zavření stránky není
+zaručený Stop; před odpojením použij Stop, ověř potvrzení a vypni 5V pohony.
+Poloha ani fyzický signál se samotným výpisem registrů neověřují.
+
 ## Sestavení a nahrání
 
 Z kořene repozitáře:
 
 ```powershell
 python kufr/firmware/diagnostics/servo-bench/tests/run_tests.py
+node --test kufr/firmware/diagnostics/servo-bench/web/tests/*.test.mjs
+python -B -m unittest discover -s kufr/firmware/diagnostics/servo-bench/web/tests -p 'test_*.py' -v
 pio run -d kufr/firmware/diagnostics/servo-bench -j 2
 ```
 
@@ -105,6 +137,11 @@ pio device monitor -d kufr/firmware/diagnostics/servo-bench --port COM7 --baud 1
 3. Napiš `arm` + Enter. Do deseti sekund napiš `pulse 0 1500` + Enter.
    Firmware generuje asi 50 Hz přibližně 500 ms; při dalším průchodu smyčkou
    zapíše do PCA FULL_OFF pro všech 16 kanálů.
+   Před hláškou PULSE vypíše `PCA_READBACK`: skutečně přečtené MODE1/MODE2,
+   prescale, ON/OFF a FULL příznaky zvoleného kanálu. Pro `pulse 0 1500`
+   očekávej `mode1=0x20 mode2=0x04 prescale=121 on=0 off=307 full_on=0 full_off=0`
+   a `match=1`. Chyba čtení nebo `match=0` vyvolá Stop a blokaci do restartu.
+   Shoda registrů neprokazuje frekvenci, šířku ani amplitudu fyzického signálu.
    Poloha není změřená ani zaručená. Pokud už servo stojí poblíž středu,
    nemusí být první pohyb patrný.
 4. Pro malý posun znovu `arm` + Enter, potom `pulse 0 1450` + Enter.
@@ -133,7 +170,10 @@ potvrdí až měření. Viz [datasheet NXP](https://www.nxp.com/docs/en/data-she
 **FULL_OFF vypíná signál, nikoli napájení ani zaručeně sílu serva.** Servo může
 držet poslední polohu; jistotu odpojení dá vypínač 5 V. Timeout 500 ms řídí
 jedna smyčka (UART čtení po 10 ms); přičítá se obsluha smyčky a I2C zápisu
-(timeout jednoho přenosu 50 ms). Úplné zamrznutí ESP nebo nefunkční I2C
+(timeout zápisu 50 ms). Po povolení kanálu proběhne sedm kontrolních čtení,
+každé s timeoutem 10 ms; během nich se UART Stop neobsluhuje. Deadline se
+počítá od přijetí povelu a diagnostika jej neposouvá, ale přidává blokující
+latenci. Úplné zamrznutí ESP nebo nefunkční I2C
 neumožní zaručit automatický Stop. Odpojení terminálu/USB se samostatně nedetekuje.
 Úspěšný build a host testy nedokládají fyzický pohyb, proud, chování při resetu ani
 bezpečnost mechaniky. Přesné pulzy a proud zaznamenej před kalibrací přihrádky.

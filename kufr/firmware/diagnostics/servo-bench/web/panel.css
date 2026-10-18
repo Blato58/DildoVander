@@ -1,0 +1,16 @@
+.bench { max-width: 920px; }
+.aw-root { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
+.bench .aw-card { margin-bottom: var(--aw-space-6); }
+.actions, .controls { display: flex; flex-wrap: wrap; gap: var(--aw-space-3); }
+.controls > div { flex: 1 1 180px; min-width: 0; }
+.controls select { width: 100%; }
+.actions { margin-bottom: var(--aw-space-4); }
+.actions button { flex: 1 1 220px; }
+.stop { width: 100%; min-height: 60px; margin-bottom: var(--aw-space-4); font-weight: 700; }
+.stop-bar { position: fixed; inset: auto 0 0; z-index: 10; padding: var(--aw-space-4) var(--aw-space-4) max(var(--aw-space-4), env(safe-area-inset-bottom)); background: var(--aw-surface); border-top: 1px solid var(--aw-border); }
+.stop-bar .stop { display: block; max-width: 856px; margin: 0 auto; }
+#connection, #state { margin-block: var(--aw-space-4); }
+#error { color: var(--aw-danger); overflow-wrap: anywhere; }
+.log { max-height: 320px; min-height: 120px; padding: var(--aw-space-4); overflow: auto; background: var(--aw-void); white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid var(--aw-border-subtle); }
+.bench .aw-notice { overflow-wrap: anywhere; }
+@media (max-width: 480px) { .bench { padding: var(--aw-space-4); } .actions button { flex-basis: 100%; } }

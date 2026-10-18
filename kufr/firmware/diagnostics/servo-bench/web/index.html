@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Servo bench · DildoVander</title>
+  <link rel="stylesheet" href="/design-system/arcane-workshop.css">
+  <link rel="stylesheet" href="./panel.css">
+  <script type="module" src="./panel.mjs"></script>
+</head>
+<body class="aw-root">
+  <main class="aw-main bench">
+    <header class="aw-header">
+      <div><p class="aw-eyebrow">DildoVander · servisní diagnostika</p><h1>Servo bench</h1></div>
+      <span class="aw-badge aw-badge--warning">Skutečný hardware</span>
+    </header>
+    <p class="aw-notice">Pouze nezatížené servo. Kanály PCA9685 0–5, 1400–1600 µs, jeden pulz nominálně 500 ms. Připravte fyzické odpojení napájení serv.</p>
+    <section class="aw-card" aria-labelledby="connection-title">
+      <h2 id="connection-title">USB připojení</h2>
+      <p id="support" class="aw-muted">Chrome nebo Edge na počítači, USB–UART CH343 (1A86:55D3), 115200 baud. Zavřete ostatní sériové monitory.</p>
+      <p class="aw-notice">Před připojením vypněte 5 V serv. Otevření USB může resetovat ESP. Napájení zapněte až po potvrzení Stop.</p>
+      <div class="actions"><button id="connect" class="aw-button" type="button">Připojit USB</button><button id="disconnect" class="aw-button aw-button--secondary" type="button" disabled>Odpojit</button></div>
+      <p id="connection" role="status">Odpojeno</p>
+    </section>
+    <section class="aw-card" aria-labelledby="control-title">
+      <h2 id="control-title">Jeden zkušební pulz</h2>
+      <div class="controls">
+        <div><label class="aw-field" for="channel">Kanál PCA9685</label><select id="channel" class="aw-input"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></div>
+        <div><label class="aw-field" for="pulse-width">Šířka pulzu</label><select id="pulse-width" class="aw-input"><option value="1400">1400 µs</option><option value="1500" selected>1500 µs</option><option value="1600">1600 µs</option></select></div>
+      </div>
+      <p id="state" role="status" aria-live="polite">Neaktivní · odpojeno</p>
+      <div class="actions"><button id="arm" class="aw-button aw-button--secondary" type="button" disabled>Arm · připravit jeden pulz</button><button id="pulse" class="aw-button" type="button" disabled>Pulz 500 ms</button></div>
+      <p class="aw-muted">Potvrzení PWM FULL_OFF vypíná PWM. Neodpojuje 5 V a nepotvrzuje polohu ani skutečný pohyb serva.</p>
+      <p id="error" role="alert" hidden></p>
+    </section>
+    <section class="aw-card" aria-labelledby="readback-title">
+      <h2 id="readback-title">Poslední čtení registrů PCA9685</h2>
+      <p id="readback" class="aw-mono">Zatím žádné čtení. Registr není měření polohy serva.</p>
+    </section>
+    <section class="aw-card" aria-labelledby="log-title">
+      <h2 id="log-title">Sériový log</h2>
+      <p class="aw-muted">Posledních 200 řádků. Po odpojení jde o historické údaje.</p>
+      <pre id="log" class="aw-mono log" role="log" aria-live="polite" aria-relevant="additions" tabindex="0"></pre>
+    </section>
+  </main>
+  <footer class="stop-bar" aria-label="Nouzové ovládání PWM">
+    <button id="stop" class="aw-button aw-button--danger stop" type="button" disabled>Stop</button>
+  </footer>
+</body>
+</html>
