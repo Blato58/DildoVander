@@ -144,7 +144,7 @@
     }
   ],
   "blockers": [],
-  "currentNote": "Software prošel finálním buildem, úplnou backendovou regresí,99 mobilními testy/buildem,9 hostitelskými firmware kontrolami, PIO, kontrakty a skutečným browser ověřením. Git commit/push a PR CI/merge se dokončují; přesný source subject je v artifact manifestu. Externí nahrávky/provider/iPhone/hardware nejsou prohlášené za hotové.",
+  "currentNote": "Softwarový source subject prošel finální regresí a review. Implementace commit d897d6f8150902242dc30413a5b81f0b8398784d; Push-CurrentBranch.ps1 ověřil stejný SHA na origin/codex/show-pack. PR: https://github.com/Blato58/DildoVander/pull/219. Nahrávky, placený pilot a fyzická/iPhone akceptace zůstávají výslovně oddělené v SHOW-PACK-OPERATIONS; žádný deploy, podpis ani flash.",
   "implementedSubject": {
     "artifactDigest": "38b1b327b78cfb1667649857a7bb0066c8fcb88d5f6dcfac4c0ab7990bfbab33",
     "policyVersion": "show-pack-2026.10.19.1"
