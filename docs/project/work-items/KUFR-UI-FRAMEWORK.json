@@ -3,7 +3,7 @@
   "id": "KUFR-UI-FRAMEWORK",
   "initiative": "KUFR",
   "title": "Sdílený vykonatelný UI framework Vapour Chrome pro všechny existující plochy",
-  "state": "active",
+  "state": "closed",
   "priority": "P1",
   "sequence": 31,
   "scope": [
@@ -37,12 +37,13 @@
       "evidenceRefs": [
         "KUFR-UI-FRAMEWORK-unit-v4",
         "KUFR-UI-FRAMEWORK-browser-v4",
-        "KUFR-UI-FRAMEWORK-source-review-v4"
+        "KUFR-UI-FRAMEWORK-source-review-v4",
+        "KUFR-UI-FRAMEWORK-ci"
       ]
     }
   ],
   "blockers": [],
-  "currentNote": "Implementace a dosavadní opravy úspěšně pushnuté a ověřené skriptem Push-CurrentBranch.ps1 (ef07324,4277e87,db8b2b8). PR209 dokončil CI a byl sloučen; PR211 nyní cílí na main. Revize3 doplňuje reálnou generovanou iOS instalační stránku a nativní launch RGB z jediného zdroje; lokální testy, skutečné offline/browser rendery a nezávislé review prošly. Historická closure z ef07324 zůstává neměnná. Lifecycle aktivní pouze pro poslední GitHub CI/review a integraci. Bez nasazení, podpisu, placených AI volání a fyzických pohybů.",
+  "currentNote": "Framework integrován PR211 do main jako b44e192cc1ff148dfe73a663f2ddd5c39527d36d; Push-CurrentBranch.ps1 ověřil skutečný push finálního head ec9ebd2. Finální GitHub CI39180599087 prošlo včetně Chromium browser testů, backendu, mobilního webu, Swift testů, nepodepsaného iOS Simulator buildu a ESP-IDF/service variant. Code review na přesném head dokončeno bez nálezů; reviews, inline komentáře a vlákna znovu přečteny před merge. Main Git tree ověřen shodný s testovaným head. Aktuální revize3 je passed; historická closure zůstává neměnná. Bez nasazení, podpisu, placených AI volání, CAD regenerace a fyzických pohybů.",
   "implementedSubject": {
     "artifactDigest": "67367221f323070f5227292479ffbfa428997450bf27360436c2d1fb213a546e"
   },
@@ -78,6 +79,5 @@
         ]
       }
     ]
-  },
-  "nextAction": "Dokončit poslední CI a všechna review PR211 proti main, integrovat ověřený framework a uzavřít lifecycle při zachování historické closure a aktuální evidence."
+  }
 }
