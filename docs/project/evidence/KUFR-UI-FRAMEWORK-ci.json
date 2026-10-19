@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-UI-FRAMEWORK-ci",
+  "kind": "unit",
+  "observedAtUtc": "2026-10-19T00:33:44.567519+00:00",
+  "result": "pass",
+  "subject": {
+    "artifactDigest": "67367221f323070f5227292479ffbfa428997450bf27360436c2d1fb213a546e"
+  },
+  "claims": [
+    {
+      "workItemId": "KUFR-UI-FRAMEWORK",
+      "criterionId": "SHARED-UI",
+      "criterionRevision": 3,
+      "result": "pass"
+    }
+  ],
+  "method": "Read completed GitHub Actions run39180599087 and all PR211 reviews, inline comments and review threads; merge guarded by exact head ec9ebd2; fetch main and compare Git trees.",
+  "environment": "GitHub ubuntu-24.04 and windows-2025 repository/tracking checks; existing Linux backend/web/site/ESP-IDF jobs and macOS iOS workflow; authenticated GitHub CLI readback.",
+  "observation": "Final CI run39180599087 completed SUCCESS on ec9ebd2edbe5049a26833a596c01d1be6ea06b22. Secret scan, tracking on Windows/Linux, project selector, repository checks, site build including Chromium component/mobile/viewer and DV10 browser flows, mobile web, backend, host tests, ESP-IDF firmware/service builds, Swift tests and unsigned iOS Simulator build all SUCCESS; CI required SUCCESS. CAD and paid AI eval intentionally SKIPPED. Earlier canceled duplicate runs are not the final result. Codex code review completed without findings on exact head; inline comments, review threads and submitted reviews were empty at final pre-merge read. PR211 squash merged as b44e192cc1ff148dfe73a663f2ddd5c39527d36d. Fetched main and tested head have identical Git tree d15c961b0e94e1bdde701f74796205f8e82c59e0. All source bytes still match the independently reviewed102-path artifact digest. Implementation push was verified using Push-CurrentBranch.ps1; actual main merge read back from GitHub. Historical accepted closure and receipts remain unchanged; current revision3 verification is independently passed.",
+  "limitations": [
+    "Unsigned Simulator build is not signed IPA or physical iPhone/VoiceOver acceptance. No deployment, firmware upload, physical actuation, paid provider call or production data write occurred.",
+    "CAD manufacturing geometry/full export was intentionally not regenerated for UI-only work. Synthetic browser/viewer fixtures prove UI behavior and packaging, not manufacturing or hardware acceptance.",
+    "Prior local Windows skips and executable-mode limitation remain in v4 receipts; final Linux CI succeeded."
+  ],
+  "artifactRefs": [
+    "https://github.com/Blato58/DildoVander/actions/runs/39180599087",
+    "https://github.com/Blato58/DildoVander/pull/211"
+  ]
+}
