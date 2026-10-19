@@ -1,0 +1,26 @@
+.archive-view { display: grid; gap: 1.5rem; min-width: 0; }
+.archive-view h1, .archive-view h2, .archive-view p { overflow-wrap: anywhere; }
+.archive-actions { display: flex; flex-wrap: wrap; gap: .65rem; align-items: center; }
+.archive-workspace { display: grid; grid-template-columns: minmax(14rem, 1fr) minmax(0, 3fr); gap: 2rem; align-items: start; }
+.archive-index { list-style: none; padding: 0; display: grid; gap: .65rem; }
+.archive-index button { width: 100%; text-align: left; white-space: normal; }
+.archive-edition { display: grid; grid-template-columns: minmax(12rem, 1fr) minmax(0, 1fr); gap: 1.5rem; }
+.archive-art { width: 100%; max-height: 34rem; object-fit: contain; display: block; }
+.archive-art-button { width: 100%; background: var(--aw-surface); border: 1px solid var(--aw-border); border-radius: var(--aw-radius-card); padding: .75rem; }
+.archive-muted, .archive-caption { color: var(--aw-muted); }
+.archive-caption { font-size: .875rem; }
+.archive-story { max-width: 70ch; line-height: 1.75; }
+.archive-story p { white-space: pre-line; }
+.archive-view label { display: block; margin-block: .75rem; }
+.archive-view input[type='checkbox'] { margin-inline-end: .5rem; }
+.archive-private-preview { max-width: 18rem; max-height: 20rem; object-fit: contain; }
+.archive-view .aw-input { max-width: 100%; }
+.archive-identity dl { display: grid; grid-template-columns: minmax(6rem, 1fr) minmax(0, 3fr); gap: .5rem 1rem; }
+.archive-identity dd { margin: 0; overflow-wrap: anywhere; }
+.archive-duel-sides, .archive-counts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.archive-duel-rounds { display: grid; gap: 1rem; padding-inline-start: 1.5rem; }
+.archive-view table { width: 100%; border-collapse: collapse; }
+.archive-view th, .archive-view td { padding: .65rem; text-align: start; border-bottom: 1px solid var(--aw-border); overflow-wrap: anywhere; }
+@media (max-width: 520px) { .archive-duel-sides, .archive-counts, .archive-identity dl { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 780px) { .archive-workspace, .archive-edition { grid-template-columns: minmax(0, 1fr); } .archive-index { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 390px) { .archive-index { grid-template-columns: minmax(0, 1fr); } }

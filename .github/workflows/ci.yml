@@ -187,9 +187,6 @@ jobs:
       contents: read
       actions: read
     uses: ./.github/workflows/kufr-site.yml
-    with:
-      verify-manufacturing: ${{ github.event_name == 'workflow_dispatch' && inputs.pr_number == '' }}
-      force-cad: ${{ inputs.force_cad == true && inputs.pr_number == '' }}
 
   cad:
     needs: changes

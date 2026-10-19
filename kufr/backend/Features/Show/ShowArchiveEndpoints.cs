@@ -1,4 +1,5 @@
 using Kufr.Backend.Features.Access;
+using Kufr.Backend.Features.Identity;
 using Kufr.Backend.Features.Conversations;
 using Kufr.Backend.Features.Keepsakes;
 
@@ -14,9 +15,9 @@ internal static class ShowArchiveEndpoints
         routes.AddEndpointFilter(async (context, next) =>
         {
             var services = context.HttpContext.RequestServices;
-            if (!services.GetRequiredService<ServerAdminAccess>().Authenticate(context.HttpContext))
-            { return Results.Unauthorized(); }
             var device = context.HttpContext.Request.RouteValues["deviceId"]?.ToString();
+            var denied = await AccountShowAuthorization.RequireAsync(context.HttpContext, device ?? "");
+            if (denied is not null) { return denied; }
             if (device is null || !services.GetRequiredService<ShowCoordinator>().IsKnownDevice(device))
             { return Results.NotFound(); }
             context.HttpContext.Response.Headers.CacheControl = "no-store";

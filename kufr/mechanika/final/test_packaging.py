@@ -12,6 +12,9 @@ from io import StringIO
 
 from artifacts import (ASSEMBLY_NAMES, export_names, package_files, assert_cad_hashes,
                        generated_export_names, generate_exports, GENERATION_SNAPSHOT)
+from export_model_bundle import write_model_bundle
+from model_verification import write_generation_receipt
+from preview_ui_fixture import fixture_payload
 
 
 def generate_fixture(root, manifest, omitted=()):
@@ -29,6 +32,12 @@ def generate_fixture(root, manifest, omitted=()):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(b'generated from ' + sources()['input.py'].encode('ascii'))
         (generator.OUT / 'manifest.json').write_text(json.dumps(current_manifest), encoding='utf-8')
+        # Exercise the current independent model-proof boundary with explicitly
+        # synthetic data; the fixture never constitutes actual CAD acceptance.
+        payload = fixture_payload()
+        payload['twinManifest'] = None
+        write_model_bundle(payload, generator.OUT / 'model-release', source_revision='synthetic-packaging-test')
+        write_generation_receipt(generator.OUT / 'model-release', root, generator.OUT / 'model-generation.json')
     generator.main = generate
     generate_exports(root, root / 'exports', [generator], sources)
     return sources
@@ -47,7 +56,7 @@ def verify_fixture(root, sources, during_audit=None):
             during_audit()
         return {}
     with ExitStack() as stack:
-        stack.enter_context(patch.multiple(verify, OUT=out, PARAMS={'revision': 'F2'}))
+        stack.enter_context(patch.multiple(verify, ROOT=root, OUT=out, PARAMS={'revision': 'F2'}))
         stack.enter_context(patch.object(verify, 'source_hashes', side_effect=sources))
         stack.enter_context(patch.object(verify, 'export_checks', return_value=[part]))
         stack.enter_context(patch.object(verify, 'print_checks', return_value={}))
@@ -66,6 +75,19 @@ def verify_fixture(root, sources, during_audit=None):
 class PackageInventoryTests(unittest.TestCase):
     def setUp(self):
         self.manifest = {"assemblies": list(ASSEMBLY_NAMES), "parts": [{"name": "body_1"}]}
+
+    def test_synthetic_generator_carries_exact_independent_model_generation_evidence(self):
+        from model_verification import evidence_for_success
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            sources = generate_fixture(root, self.manifest)
+            evidence = evidence_for_success(root / 'exports', root, sources())
+            manifest = json.loads((root / 'exports/model-release/model-bundle.json').read_bytes())
+            model_bytes = (root / 'exports/model-release/model.json').read_bytes()
+            self.assertEqual(evidence['modelAssetSha256'], hashlib.sha256(model_bytes).hexdigest())
+            self.assertEqual(evidence['sourceHashes'], sources())
+            self.assertEqual(manifest['provenance']['cadVerification'], 'not-verified')
+            self.assertFalse((root / 'exports/model-release/cad-verification.json').exists())
 
     def test_stale_exports_and_unverified_sources_are_not_packaged(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -209,6 +231,9 @@ class PackageInventoryTests(unittest.TestCase):
             out=root/'exports'
             sources=generate_fixture(root,self.manifest)
             verify_fixture(root,sources)
+            model_manifest=json.loads((out/'model-release/model-bundle.json').read_bytes())
+            self.assertEqual(model_manifest['provenance']['cadVerification'],'verified')
+            self.assertTrue((out/'model-release/cad-verification.json').is_file())
             with patch.multiple(package,ROOT=root,OUT=out,PARAMS={'revision':'F2'}), \
                  patch.object(package,'source_hashes',side_effect=sources), redirect_stdout(StringIO()):
                 package.main()

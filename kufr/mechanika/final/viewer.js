@@ -47,14 +47,8 @@ function shader(type, source) {
   return result;
 }
 const program = gl.createProgram();
-gl.attachShader(program, shader(gl.VERTEX_SHADER, `
-  attribute vec3 p,n; uniform mat4 projection,view,move; varying vec3 normal;
-  void main(){gl_Position=projection*view*move*vec4(p,1.);normal=mat3(move)*n;}`));
-gl.attachShader(program, shader(gl.FRAGMENT_SHADER, `
-  precision mediump float; uniform vec3 color; uniform bool picking; uniform float highlight,opacity; varying vec3 normal;
-  void main(){if(picking){gl_FragColor=vec4(color,1.);return;}
-    float l=.48+.42*max(0.,dot(normalize(normal),normalize(vec3(.4,-.7,1.))))+.1*abs(normalize(normal).z);
-    gl_FragColor=vec4(mix(color*l,vec3(.722,.753,1.),highlight),opacity);}`));
+gl.attachShader(program, shader(gl.VERTEX_SHADER, F2GraphicsCore.shaders.vertex));
+gl.attachShader(program, shader(gl.FRAGMENT_SHADER, F2GraphicsCore.shaders.fragment));
 gl.linkProgram(program);
 if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
   reportViewerError('3D model nelze zobrazit: sestavení grafického programu se nezdařilo.');
@@ -91,33 +85,7 @@ function saveColors() {
 }
 
 // The exported payload shares positions; the GPU still gets one flat normal per facet.
-function uploadGeometry(mesh) {
-  if (mesh.vertices === undefined && mesh.triangles === undefined) return new Float32Array(mesh.data);
-  const vertices = mesh.vertices, triangles = mesh.triangles;
-  if (!Array.isArray(vertices) || !Array.isArray(triangles) || vertices.length % 3 || triangles.length % 3 || !vertices.every(Number.isFinite)) {
-    throw new Error('Neplatná indexovaná geometrie: '+mesh.name);
-  }
-  const vertexCount = vertices.length/3;
-  if (!triangles.every(index=>Number.isInteger(index) && index >= 0 && index < vertexCount)) {
-    throw new Error('Neplatný index trojúhelníku: '+mesh.name);
-  }
-  const packed = new Float32Array(triangles.length*6);
-  let written = 0;
-  for (let face=0; face<triangles.length; face+=3) {
-    const a = triangles[face]*3, b = triangles[face+1]*3, c = triangles[face+2]*3;
-    const ux = vertices[b]-vertices[a], uy = vertices[b+1]-vertices[a+1], uz = vertices[b+2]-vertices[a+2];
-    const vx = vertices[c]-vertices[a], vy = vertices[c+1]-vertices[a+1], vz = vertices[c+2]-vertices[a+2];
-    const nx = uy*vz-uz*vy, ny = uz*vx-ux*vz, nz = ux*vy-uy*vx;
-    const length = Math.hypot(nx,ny,nz);
-    // Match the generator's facet rejection; repeated/collinear points never make NaN normals.
-    if (!Number.isFinite(length) || length < 1e-12) continue;
-    for (const position of [a,b,c]) {
-      packed[written++] = vertices[position]; packed[written++] = vertices[position+1]; packed[written++] = vertices[position+2];
-      packed[written++] = nx/length; packed[written++] = ny/length; packed[written++] = nz/length;
-    }
-  }
-  return packed.subarray(0,written);
-}
+const {uploadGeometry,identity,translate,rotX,transform,subtract,dot,cross,norm,look,motionFor}=F2GraphicsCore;
 
 const meshesByName = new Map();
 const treeButtons = new Map();
@@ -135,32 +103,9 @@ for (const [index, mesh] of model.meshes.entries()) {
   meshesByName.set(mesh.name, mesh);
 }
 
-const identity = () => [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
-function translate(z) { const m = identity(); m[14] = z; return m; }
-function rotX(a, c) {
-  const s = Math.sin(a), d = Math.cos(a);
-  return [1,0,0,0, 0,d,s,0, 0,-s,d,0, 0,c[1]*(1-d)+c[2]*s,c[2]*(1-d)-c[1]*s,1];
-}
-function transform(m, v) { return [0,1,2,3].map(i => m[i]*v[0]+m[i+4]*v[1]+m[i+8]*v[2]+m[i+12]*v[3]); }
-function subtract(a,b) { return a.map((x,i) => x-b[i]); }
-function dot(a,b) { return a.reduce((v,x,i) => v+x*b[i],0); }
-function cross(a,b) { return [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]]; }
-function norm(v) { const length = Math.hypot(...v); return v.map(x => x/length); }
-function look(eye,target) {
-  const z = norm(subtract(eye,target)), x = norm(cross([0,0,1],z)), y = cross(z,x);
-  return [x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-dot(x,eye),-dot(y,eye),-dot(z,eye),1];
-}
-function perspective(aspect) {
-  const f = 1/Math.tan(.6/2), near = Math.max(.5,distance*.001), far = Math.max(4000,distance+modelScale*4);
-  return [f/aspect,0,0,0,0,f,0,0,0,0,(far+near)/(near-far),-1,0,0,2*far*near/(near-far),0];
-}
-function lift(a) {
-  const d = model.mechanism.dwell_degrees, t = model.mechanism.travel_degrees;
-  if (a <= d) return 0;
-  if (a >= t-d) return model.mechanism.lift;
-  const x = (a-d)/(t-2*d);
-  return model.mechanism.lift*(10*x**3-15*x**4+6*x**5);
-}
+function perspective(aspect) {return F2GraphicsCore.perspective(aspect,distance,modelScale);}
+function lift(angle) {return F2GraphicsCore.lift(angle,model);}
+
 const trayAngles = Array(model.mechanism.count || 6).fill(0);
 const routes = model.routes || [];
 const routesById = new Map(routes.map(route => [route.id,route]));
@@ -176,8 +121,8 @@ const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
 const modelBounds = [0,1,2].map(axis => [Math.min(...model.meshes.map(mesh=>mesh.bounds[axis])),Math.max(...model.meshes.map(mesh=>mesh.bounds[axis+3]))]);
 const modelScale = Math.max(100,...modelBounds.map(([low,high])=>high-low));
 const modelPivot = modelBounds.map(([low,high])=>(low+high)/2);
-function boundDistance(value) { return Math.max(25,Math.min(modelScale*16,value)); }
-function boundTarget(target) { return target.map((value,axis)=>Math.max(modelBounds[axis][0]-modelScale*.6,Math.min(modelBounds[axis][1]+modelScale*.6,value))); }
+function boundDistance(value) {return F2GraphicsCore.boundDistance(value,modelScale);}
+function boundTarget(target) {return F2GraphicsCore.boundTarget(target,modelBounds,modelScale);}
 function currentStep() { return assemblyGuide.steps[assemblyIndex]; }
 function assemblyPartState(mesh) {
   if ((currentStep()?.preparedParts || []).some(part=>matchesPart(mesh.name,part))) return 'prepared';
@@ -243,59 +188,16 @@ function visible(mesh) {
   }
   return true;
 }
-function motionFor(mesh) {
-  if (mesh.motion) return mesh.motion;
-  const index = +(mesh.name.match(/_([1-6])$/)?.[1] || 0);
-  if (!index) return null;
-  if (/^(cam_|stock_horn_|coupler_)/.test(mesh.name)) return {type:'cam',index};
-  if (/^(tray_|u059_|led_|wand_|soft_liner_|tray_foam_|tray_fabric_)/.test(mesh.name)) return {type:'lift',index};
-  return null;
-}
-function movement(mesh) {
-  if (mesh.group.startsWith('lid')) return rotX(-el('lid').value*Math.PI/180, model.hinge);
-  const motion = motionFor(mesh);
-  const angle = motion ? (twinViewer?.active() ? twinViewer.angle(motion.index) ?? 0 : trayAngles[motion.index-1]) : 0;
-  if (motion?.type === 'lift') return translate(lift(angle));
-  if (motion?.type === 'cam') {
-    return rotX(angle*Math.PI/180, [0, model.mechanism.origin_y+model.mechanism.cam_y, model.mechanism.origin_z+model.mechanism.cam_z]);
-  }
-  return identity();
-}
+function graphicsState() {return {lid:+el('lid').value,angles:trayAngles.map((angle,index)=>twinViewer?.active() ? twinViewer.angle(index+1) ?? 0 : angle),mode,bank:el('bank').checked};}
+function movement(mesh) {return F2GraphicsCore.movement(mesh,model,graphicsState());}
+
 function project(mesh) {
   return projectPoint(transform(movement(mesh),[...mesh.center,1]).slice(0,3));
 }
-function projectPoint(position) {
-  const point = transform(projection, transform(view, [...position, 1]));
-  if (point[3] <= 0 || Math.abs(point[2]/point[3]) > 1) return null;
-  return [(point[0]/point[3]+1)*canvas.clientWidth/2, (1-point[1]/point[3])*canvas.clientHeight/2];
-}
-function visibleCorners() {
-  const points = [];
-  for (const mesh of model.meshes.filter(visible)) {
-    const matrix = movement(mesh);
-    for (let corner=0; corner<8; corner++) {
-      const point = [0,1,2].map(axis => mesh.bounds[axis+((corner >> axis)&1)*3]);
-      points.push(transform(matrix,[...point,1]).slice(0,3));
-    }
-  }
-  return points;
-}
-function fitScene() {
-  const points = visibleCorners();
-  if (!points.length) return;
-  cameraTarget = [0,1,2].map(axis => (Math.min(...points.map(point=>point[axis]))+Math.max(...points.map(point=>point[axis])))/2);
-  const forward = [Math.cos(pitch)*Math.cos(yaw),Math.cos(pitch)*Math.sin(yaw),Math.sin(pitch)];
-  const right = norm(cross([0,0,1],forward)), up = cross(forward,right);
-  const tangent = Math.tan(.6/2), aspect = Math.max(.05,canvas.clientWidth/Math.max(1,canvas.clientHeight));
-  let requiredDistance = 75;
-  // Fit every transformed corner, including an open lid, with screen-space margin.
-  for (const point of points) {
-    const relative = subtract(point,cameraTarget);
-    const extent = Math.max(Math.abs(dot(relative,right))/(tangent*aspect),Math.abs(dot(relative,up))/tangent);
-    requiredDistance = Math.max(requiredDistance,dot(relative,forward)+extent*1.16);
-  }
-  distance = requiredDistance;
-}
+function projectPoint(position) {return F2GraphicsCore.projectPoint(position,projection,view,canvas.clientWidth,canvas.clientHeight);}
+function visibleCorners() {return F2GraphicsCore.corners(model.meshes.filter(visible),model,graphicsState());}
+function fitScene() {const next=F2GraphicsCore.fitScene(model.meshes.filter(visible),model,graphicsState(),yaw,pitch,canvas.clientWidth,canvas.clientHeight);if(next){cameraTarget=next.target;distance=next.distance;}}
+
 function renderMeshes(picking, selected) {
   gl.uniform1i(loc.picking, picking ? 1 : 0);
   const ordered = [...model.meshes].sort((a,b) => Number(['case','lid'].includes(a.group))-Number(['case','lid'].includes(b.group)));
@@ -374,87 +276,22 @@ function label(name, x, y,container='names') {
   return node;
 }
 function allNames() {
-  const width = canvas.clientWidth, height = canvas.clientHeight;
-  // The inspector is docked outside the canvas, so it no longer consumes label space.
-  const exclusion = null;
-  const labels = [];
-  // Append first, then measure together to avoid forcing layout once per object.
-  for (const mesh of model.meshes.filter(visible)) {
-    const point = project(mesh);
-    if (!point || point[0] < 0 || point[0] > width || point[1] < 0 || point[1] > height) continue;
+  const width=canvas.clientWidth,height=canvas.clientHeight,labels=[];
+  for(const mesh of model.meshes.filter(visible)) {
+    const point=project(mesh);if(!point || point[0]<0 || point[0]>width || point[1]<0 || point[1]>height)continue;
     labels.push({node:label(mesh.name,0,0),point});
   }
-  for (const item of labels) { item.w = item.node.offsetWidth; item.h = item.node.offsetHeight; }
-  const cellWidth = 16, rowHeight = Math.max(0,...labels.map(item=>item.h))+3;
-  const columns = Math.max(0,Math.floor((width-8)/cellWidth));
-  const rows = Math.max(0,Math.floor((height-45)/rowHeight));
-  const occupied = Array.from({length:rows},()=>new Uint8Array(columns));
-  if (exclusion) {
-    for (let row = 0; row < rows; row++) {
-      for (let column = 0; column < columns; column++) {
-        const x = 8+column*cellWidth, y = 45+row*rowHeight;
-        if (x < exclusion[0]+exclusion[2]+3 && x+cellWidth+3 > exclusion[0] &&
-            y < exclusion[1]+exclusion[3]+3 && y+rowHeight+3 > exclusion[1]) occupied[row][column] = 1;
-      }
-    }
-  }
-  // Search free row segments, rather than every slot against every previous label.
-  const placements = [];
-  for (const {node,point,w,h} of labels) {
-    const required = Math.ceil((w+3)/cellWidth);
-    const desired = Math.round((point[0]-w/2-8)/cellWidth);
-    let best = null, score = Infinity;
-    for (let row = 0; row < rows; row++) {
-      let start = 0;
-      for (let column = 0; column <= columns; column++) {
-        if (column < columns && !occupied[row][column]) continue;
-        if (column-start >= required) {
-          const candidate = Math.max(start,Math.min(column-required,desired));
-          const x = 8+candidate*cellWidth, y = 45+row*rowHeight;
-          const d = (x+w/2-point[0])**2+(y+h/2-point[1])**2;
-          if (d < score) { best = {x,y,row,column:candidate}; score = d; }
-        }
-        start = column+1;
-      }
-    }
-    // Very small viewports can be dense; every in-frame name is still shown.
-    const {x,y} = best || {x:Math.max(0,Math.min(width-w,point[0])),y:Math.max(45,Math.min(height-h,point[1]))};
-    if (best) occupied[best.row].fill(1,best.column,best.column+required);
-    placements.push({node,point,w,h,x,y});
-  }
-  for (const {node,point,w,h,x,y} of placements) {
-    node.style.left = x+'px'; node.style.top = y+'px';
-    svgElement('line', {x1:point[0],y1:point[1],x2:x+w/2,y2:y+h/2,stroke:'#776c5b','stroke-opacity':'.35'});
+  for(const item of labels){item.w=item.node.offsetWidth;item.h=item.node.offsetHeight;}
+  for(const {node,point,w,h,x,y} of F2GraphicsCore.placeLabels(labels,width,height)) {
+    node.style.left=x+'px';node.style.top=y+'px';
+    svgElement('line',{x1:point[0],y1:point[1],x2:x+w/2,y2:y+h/2,stroke:'#776c5b','stroke-opacity':'.35'});
   }
 }
+
 function componentOf(endpoint) { return model.endpoints?.[endpoint]?.component || (endpoint || '').split(':')[0]; }
-function physicalEndpoint(route,side) {
-  const bankAbsent = mode === 'transport' || !el('bank').checked;
-  return bankAbsent && route['transport_'+side] || route[side];
-}
-function routePoints(route) {
-  const bankAbsent = mode === 'transport' || !el('bank').checked;
-  const parked = bankAbsent && (route.transport_points || route.disconnected_points);
-  const points = (parked || route.points).map(point => [...point]);
-  if (parked) return points;
-  if (route.point_lift_weights) {
-    for (const [module,weights] of Object.entries(route.point_lift_weights)) {
-      const mesh = meshesByName.get('tray_left_'+module);
-      const lift = mesh ? movement(mesh)[14] : 0;
-      if (weights.length !== points.length) throw new Error('Neplatný model kabelové smyčky');
-      for (let i=0;i<points.length;i++) points[i][2] += weights[i]*lift;
-    }
-    return points;
-  }
-  // Fixed trunks stay in CAD coordinates. Only declared moving points deform.
-  const transforms = route.moving_points || {};
-  for (let i = 0; i < points.length; i++) {
-    const endpoint = transforms[i] || (i === 0 ? route.from : i === points.length-1 ? route.to : '');
-    const mesh = meshesByName.get(componentOf(endpoint));
-    if (mesh && motionFor(mesh)) points[i] = transform(movement(mesh),[...points[i],1]).slice(0,3);
-  }
-  return points;
-}
+function physicalEndpoint(route,side) {return F2GraphicsCore.physicalEndpoint(route,side,graphicsState());}
+function routePoints(route) {return F2GraphicsCore.routePoints(route,model,graphicsState());}
+
 function connectionsFor(mesh) {
   return routes.filter(route => componentOf(route.from) === mesh.name || componentOf(route.to) === mesh.name);
 }
@@ -664,12 +501,8 @@ function gestureSnapshot() {
   const [a,b] = points;
   return {x:(a.x+b.x)/2,y:(a.y+b.y)/2,span:Math.hypot(a.x-b.x,a.y-b.y),pan:true};
 }
-function panCamera(dx,dy) {
-  const forward = [Math.cos(pitch)*Math.cos(yaw),Math.cos(pitch)*Math.sin(yaw),Math.sin(pitch)];
-  const right = norm(cross([0,0,1],forward)), up = cross(forward,right);
-  const units = 2*distance*Math.tan(.3)/Math.max(1,canvas.clientHeight);
-  cameraTarget = boundTarget(cameraTarget.map((value,axis)=>value+(-dx*right[axis]+dy*up[axis])*units));
-}
+function panCamera(dx,dy) {cameraTarget=F2GraphicsCore.panCamera(cameraTarget,distance,yaw,pitch,canvas.clientHeight,dx,dy,modelBounds,modelScale);}
+
 canvas.addEventListener('pointerdown', event => {
   event.preventDefault(); pointer = [event.clientX,event.clientY];
   // Desktop Shift picking stays immediate; touch selection waits until a tap is known.
@@ -856,14 +689,7 @@ el('service-reset').onclick = () => {
 function resetView() {
   cameraTransition = null; automaticFit = true; setView('overview');
 }
-const cameraViews = {
-  top: {angles:[-Math.PI/2,Math.PI/2-.001], label:'Shora'},
-  front: {angles:[-Math.PI/2,.01], label:'Zepředu'},
-  back: {angles:[Math.PI/2,.01], label:'Zezadu'},
-  left: {angles:[Math.PI,.01], label:'Zleva'},
-  side: {angles:[0,.01], label:'Zprava'},
-  overview: {angles:[-1.05,.66], label:'Izometrie'},
-};
+const cameraViews=F2GraphicsCore.cameraViews;
 function setView(name) {
   cameraTransition = null;
   [yaw,pitch] = (cameraViews[name] || cameraViews.overview).angles;
@@ -915,14 +741,8 @@ function advanceCamera() {
   distance = transition.fromDistance+(transition.distance-transition.fromDistance)*eased;
   if (progress === 1) cameraTransition = null;
 }
-function focusMeshes(meshes) {
-  if (!meshes.length) return;
-  const points = meshes.flatMap(mesh=>Array.from({length:8},(_,corner)=>transform(movement(mesh),[...[0,1,2].map(axis=>mesh.bounds[axis+((corner>>axis)&1)*3]),1]).slice(0,3)));
-  const low = [0,1,2].map(axis=>Math.min(...points.map(point=>point[axis]))), high = [0,1,2].map(axis=>Math.max(...points.map(point=>point[axis])));
-  const radius = Math.hypot(...high.map((value,axis)=>(value-low[axis])/2));
-  const angle = Math.atan(Math.tan(.3)*Math.min(1,canvas.clientWidth/Math.max(1,canvas.clientHeight)));
-  transitionCamera(low.map((value,axis)=>(value+high[axis])/2),Math.max(75,radius/Math.sin(angle)*1.2));
-}
+function focusMeshes(meshes) {const next=F2GraphicsCore.focusMeshes(meshes,model,graphicsState(),canvas.clientWidth,canvas.clientHeight);if(next)transitionCamera(next.target,next.distance);}
+
 function zoomObject(mesh) { focusMeshes([mesh]); }
 function buildTree() {
   el('tree').replaceChildren();

@@ -144,6 +144,28 @@ class RecoveryTests(unittest.TestCase):
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_shared_application_schema_two_composes_without_legacy_shells(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            backend = root / "backend"
+            web = root / "web"
+            backend.mkdir()
+            web.mkdir()
+            (backend / "backend").write_bytes(b"synthetic backend")
+            (web / "index.html").write_text("synthetic compiled shared application")
+            provenance = {
+                "schemaVersion": 2, "artifactType": "application", "apiContractVersion": 1,
+                "applicationSourceRevision": "a" * 40,
+                "applicationSourceDirty": False,
+                "sha256": {"index.html": hashlib.sha256((web / "index.html").read_bytes()).hexdigest()},
+            }
+            (web / "site-manifest.json").write_text(json.dumps(provenance))
+            release.package(backend, web, root / "release", "a" * 40)
+            self.assertEqual({"index.html", "site-manifest.json"},
+                             {path.name for path in (root / "release/web").iterdir()})
+            with self.assertRaises(ValueError):
+                release.package(backend, web, root / "wrong-revision", "b" * 40)
+
     def test_combines_code_and_excludes_database(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

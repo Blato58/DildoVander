@@ -50,6 +50,8 @@ struct NativeDebugTests {
         }
         do { _ = try DebugBackendProfile(address: "https://example.test", deviceId: "real-esp", credential: "secret"); fatalError("Physical identity accepted") }
         catch DebugBackendError.invalidProfile { }
+        try await verifyAccountTransport()
+        try await verifyShowTransport()
         try await testEngineCapabilities(profile: profile)
         try await testSessionOwnership(profile: profile)
         try await testGuestAndMemoryScopes(profile: profile)
@@ -252,6 +254,188 @@ struct NativeDebugTests {
         catch is CancellationError { }
     }
 
+}
+
+// Exercise the actual client with a native-only authorizer seam. The account
+// fixture has no raw device/admin credential and cannot mint a device token.
+@MainActor private func verifyAccountTransport() async throws {
+    let profile = try DebugBackendProfile(accountOrigin: URL(string: "https://accounts.example.test/")!,
+        deviceId: "physical-kufr-1", binding: "native-session-one")
+    assert(profile.usesAccountSession && profile.credential.isEmpty)
+    let peer = AccountDebugPeer()
+    let client = DebugBackendClient(http: peer.request, accountAuthorizer: peer.authorize)
+    let state = try await client.engineInventory(profile)
+    assert(state.primaryEngine == "gpt-live" && state.engines.count == 2)
+    assert(peer.paths == ["/v1/diagnostics"] && peer.authorizationCount == 1)
+    let conversation = UUID().uuidString.lowercased()
+    let stream = UUID().uuidString.lowercased()
+    for endpoint in ["gpt-live", "realtime-live"] {
+        let upgrade = try await client.audioStreamRequest(profile, conversation: conversation,
+            endpoint: endpoint, streamId: stream, token: "")
+        assert(upgrade.url?.scheme == "wss" && upgrade.httpMethod == "GET")
+        assert(upgrade.url?.path == "/v1/conversations/\(conversation)/\(endpoint)/\(stream)/audio-stream")
+        assert(upgrade.value(forHTTPHeaderField: "Cookie") == "synthetic-native-only-cookie")
+        assert(upgrade.value(forHTTPHeaderField: "X-DV-CSRF") == "synthetic-csrf")
+        assert(upgrade.value(forHTTPHeaderField: "Authorization") == nil)
+    }
+    try await client.revokeConversationImage(profile, token: "", conversation: conversation,
+        boot: UUID().uuidString.lowercased(), revision: 1)
+    assert(peer.paths.count == 2 && peer.authorizationCount == 4)
+    do { _ = try await client.deleteConversationMemory(profile, conversation: conversation, expectedEpoch: 7)
+        fatalError("Unconfirmed account deletion admitted") }
+    catch DebugBackendError.serverCode(let code) { assert(code == "account_admin_confirmation_required") }
+    let guest = DebugGuestMemoryBinding(guestId: "host-042", identityVerified: true,
+        longTermAllowed: true, cloudExportAllowed: false)
+    do { _ = try await client.openHandsFreeSession(profile, readyMask: 63, voice: "cedar", speed: 1,
+        gptLive: true, guestMemory: guest, phase: { _ in }, visitor: { _ in }, reply: { _ in }, audio: { _ in },
+        listening: { _ in }, inputGate: { _ in }, failure: { _ in }); fatalError("Unconfirmed account guest admitted") }
+    catch DebugBackendError.serverCode(let code) { assert(code == "account_admin_confirmation_required") }
+    assert(peer.paths.count == 2 && peer.authorizationCount == 4)
+    let deleted = try await client.deleteConversationMemory(profile, conversation: conversation, expectedEpoch: 7, confirmed: true)
+    assert(deleted["deleted"] as? Bool == true && peer.paths.count == 3 && peer.authorizationCount == 5)
+    peer.binding = "native-session-two"
+    do { _ = try await client.audioStreamRequest(profile, conversation: conversation,
+        endpoint: "gpt-live", streamId: stream, token: ""); fatalError("Previous account upgraded socket") }
+    catch DebugBackendError.invalidProfile { }
+    do { _ = try await client.engineInventory(profile); fatalError("Previous account binding reused") }
+    catch DebugBackendError.invalidProfile { }
+    assert(peer.paths.count == 3)
+    let unconfigured = DebugBackendClient(http: peer.request)
+#if !os(iOS)
+    do { _ = try await unconfigured.engineInventory(profile); fatalError("Account request fell back to bearer transport") }
+    catch DebugBackendError.invalidProfile { }
+#endif
+    do { try DebugBackendKeychain(service: "kufr-native-account-transport-test").write(profile)
+        fatalError("Account binding persisted as developer credential") }
+    catch DebugBackendError.invalidProfile { }
+}
+
+@MainActor private func verifyShowTransport() async throws {
+    var slots = DebugShowRequestSlots()
+    let reads = (0..<4).map { _ in slots.begin(urgent: false)! }
+    assert(slots.begin(urgent: false) == nil)
+    assert(DebugShowRequestSlots.isUrgent(suffix: "/commands", method: "POST", body: "{\"kind\":\"stop\"}"))
+    assert(DebugShowRequestSlots.isUrgent(suffix: "/duels/duel-1/cancel", method: "POST", body: "{}"))
+    assert(!DebugShowRequestSlots.isUrgent(suffix: "/commands", method: "POST", body: "{\"kind\":\"override\"}"))
+    let stop = slots.begin(urgent: true)!
+    assert(slots.begin(urgent: true) == nil)
+    slots.finish(stop)
+    assert(slots.begin(urgent: true) != nil)
+    reads.forEach { slots.finish($0) }
+    slots.clear()
+    assert(slots.begin(urgent: false) != nil)
+    let profile = try DebugBackendProfile(accountOrigin: URL(string: "https://debug.example.test")!,
+        deviceId: "physical-kufr-1", binding: "account-one")
+    let peer = ShowDebugPeer()
+    let client = DebugBackendClient(http: peer.request, accountAuthorizer: peer.authorize)
+    let invalidRequests: [(String, String, String?)] = [("/../admin/modes", "GET", nil), ("/commands?target=other", "POST", "{}"),
+        ("/commands\n", "POST", "{}"), ("/device-cues", "GET", nil), ("/commands", "DELETE", nil),
+        ("/commands", "POST", "[]"), ("", "GET", "{}"), ("/commands", "POST", String(repeating: "x", count: 65_537))]
+    for (suffix, method, body) in invalidRequests {
+        do { _ = try await client.showRequest(profile, deviceId: profile.deviceId, suffix: suffix, method: method, body: body)
+            fatalError("Unsafe Show proxy accepted") } catch { }
+    }
+    do { _ = try await client.showRequest(profile, deviceId: "other-device", suffix: "", method: "GET")
+        fatalError("Account Show scope changed") } catch DebugBackendError.invalidProfile { }
+    for suffix in ["/end-evening", "/offline-outcomes", "/prophecies/outcome-1/reveal", "/duels/duel-1/grants", "/duels/duel-1/grants/revoke"] {
+        do { _ = try await client.showRequest(profile, deviceId: profile.deviceId, suffix: suffix, method: "POST", body: "{}")
+            fatalError("Unconfirmed sensitive Show mutation admitted") }
+        catch DebugBackendError.serverCode(let code) { assert(code == "confirmation_required") }
+    }
+    assert(peer.calls == 0)
+    let state = try await client.showRequest(profile, deviceId: profile.deviceId, suffix: "", method: "GET")
+    assert(state.status == 200 && (state.body as? [String: Any])?["revision"] as? Int == 4)
+    _ = try await client.showRequest(profile, deviceId: profile.deviceId, suffix: "/commands", method: "POST", body: "{}", confirmed: true)
+    assert(peer.confirmation == nil) // routine controls never require recent passkey or inferred consent
+    _ = try await client.showRequest(profile, deviceId: profile.deviceId, suffix: "/end-evening", method: "POST", body: "{}", confirmed: true)
+    assert(peer.confirmation == "yes")
+    peer.status = 409
+    let conflict = try await client.showRequest(profile, deviceId: profile.deviceId, suffix: "/duels", method: "POST", body: "{}")
+    assert(conflict.status == 409 && peer.calls == 4) // mutation conflicts are never retried
+    peer.status = 403; peer.mime = "application/problem+json"; peer.payload = "{\"code\":\"recent_passkey_required\"}"
+    let denied = try await client.showRequest(profile, deviceId: profile.deviceId, suffix: "/end-evening", method: "POST", body: "{}", confirmed: true)
+    assert(denied.status == 403 && (denied.body as? [String: Any])?["code"] as? String == "recent_passkey_required")
+    assert(peer.calls == 5)
+    peer.changeAccountDuringResponse = true
+    do { _ = try await client.showRequest(profile, deviceId: profile.deviceId, suffix: "", method: "GET")
+        fatalError("Previous account private Show response exposed") } catch DebugBackendError.invalidProfile { }
+    assert(peer.calls == 6)
+    let legacy = try DebugBackendProfile(address: "https://debug.example.test", deviceId: "debug-service", credential: "synthetic-service")
+    let service = DebugBackendClient(http: { request, _ in
+        assert(request.value(forHTTPHeaderField: "Authorization") == "Bearer synthetic-service")
+        assert(request.value(forHTTPHeaderField: "Cookie") == nil)
+        return (Data("{}".utf8), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
+            headerFields: ["Content-Type": "application/json"])!)
+    })
+    _ = try await service.showRequest(legacy, deviceId: profile.deviceId, suffix: "/end-evening", method: "POST", body: "{}")
+}
+
+@MainActor private final class ShowDebugPeer {
+    var calls = 0
+    var status = 200
+    var mime = "application/json"
+    var payload = "{\"revision\":4}"
+    var binding = "account-one"
+    var confirmation: String?
+    var changeAccountDuringResponse = false
+    func authorize(_ original: URLRequest, deviceId: String, binding: String) async throws -> URLRequest {
+        guard binding == self.binding else { throw DebugBackendError.invalidProfile }
+        assert(deviceId == "physical-kufr-1" && original.value(forHTTPHeaderField: "Authorization") == nil)
+        assert(original.url?.host == "debug.example.test" && original.url!.path.hasPrefix("/v1/show/devices/physical-kufr-1"))
+        var request = original
+        request.setValue("synthetic-account-cookie", forHTTPHeaderField: "Cookie")
+        request.setValue("synthetic-csrf", forHTTPHeaderField: "X-DV-CSRF")
+        request.setValue(deviceId, forHTTPHeaderField: "X-DV-Device-Id")
+        return request
+    }
+    func request(_ request: URLRequest, limit: Int) async throws -> (Data, HTTPURLResponse) {
+        assert(limit == 1_048_576 && request.value(forHTTPHeaderField: "Cookie") == "synthetic-account-cookie")
+        assert(request.value(forHTTPHeaderField: "X-DV-Device-Id") == "physical-kufr-1")
+        assert(request.value(forHTTPHeaderField: "X-DV-CSRF") == "synthetic-csrf")
+        confirmation = request.value(forHTTPHeaderField: "X-DV-Confirm")
+        calls += 1
+        if changeAccountDuringResponse { binding = "account-two" }
+        return (Data(payload.utf8), HTTPURLResponse(url: request.url!, statusCode: status,
+            httpVersion: nil, headerFields: ["Content-Type": mime])!)
+    }
+}
+
+@MainActor private final class AccountDebugPeer {
+    var binding = "native-session-one"
+    var authorizationCount = 0
+    var paths: [String] = []
+    func authorize(_ original: URLRequest, deviceId: String, binding: String) async throws -> URLRequest {
+        guard binding == self.binding else { throw DebugBackendError.invalidProfile }
+        assert(original.value(forHTTPHeaderField: "Authorization") == nil)
+        assert(deviceId == "physical-kufr-1")
+        assert(original.url?.scheme == "https")
+        authorizationCount += 1
+        var request = original
+        request.setValue("synthetic-native-only-cookie", forHTTPHeaderField: "Cookie")
+        request.setValue(deviceId, forHTTPHeaderField: "X-DV-Device-Id")
+        request.setValue("synthetic-csrf", forHTTPHeaderField: "X-DV-CSRF")
+        return request
+    }
+    func request(_ request: URLRequest, limit: Int) async throws -> (Data, HTTPURLResponse) {
+        assert(request.value(forHTTPHeaderField: "Authorization") == nil)
+        assert(request.value(forHTTPHeaderField: "Cookie") == "synthetic-native-only-cookie")
+        assert(request.value(forHTTPHeaderField: "X-DV-Device-Id") == "physical-kufr-1")
+        paths.append(request.url!.path)
+        if request.url!.path.contains("/admin/memory/scopes/conversation/") {
+            assert(request.httpMethod == "DELETE" && request.value(forHTTPHeaderField: "X-DV-Confirm") == "yes")
+            let body = try JSONSerialization.jsonObject(with: request.httpBody!) as! [String: Any]
+            assert(body["deviceId"] as? String == "physical-kufr-1" && body["expectedEpoch"] as? Int == 7)
+            return (Data(), HTTPURLResponse(url: request.url!, statusCode: 204, httpVersion: "HTTP/1.1", headerFields: nil)!)
+        }
+        if request.url!.path.hasSuffix("/image") {
+            assert(request.httpMethod == "DELETE" && request.value(forHTTPHeaderField: "Image-Revision") == "1")
+            return (Data(), HTTPURLResponse(url: request.url!, statusCode: 204, httpVersion: "HTTP/1.1", headerFields: nil)!)
+        }
+        assert(request.url?.path == "/v1/diagnostics")
+        let data = try JSONSerialization.data(withJSONObject: ["engines": nativeEngineInventory()])
+        return (data, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": "application/json"])!)
+    }
 }
 
 @MainActor

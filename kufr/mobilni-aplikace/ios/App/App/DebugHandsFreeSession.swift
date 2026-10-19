@@ -97,10 +97,12 @@ final class DebugHandsFreeSession {
         var request = URLRequest(url: profile.baseURL.appendingPathComponent("v1/conversations/\(conversation)/\(endpoint)"))
         request.httpMethod = "POST"
         request.httpBody = data
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if !profile.usesAccountSession { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         request.setValue(UUID().uuidString.lowercased(), forHTTPHeaderField: "Idempotency-Key")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/x-ndjson", forHTTPHeaderField: "Accept")
+        request = try await client.authorizedRequest(profile, request)
+        try Task.checkCancellation()
         let live = DebugHandsFreeLiveStream(request: request, gptLive: gptLive)
         stream = live
         phase("opening")
@@ -111,7 +113,7 @@ final class DebugHandsFreeSession {
         }
         do {
             for try await event in live.events() {
-                try handle(event)
+                try await handle(event)
             }
             guard terminalReceived else { throw DebugBackendError.invalidResponse }
         } catch {
@@ -216,7 +218,7 @@ final class DebugHandsFreeSession {
             var request = URLRequest(url: profile.baseURL.appendingPathComponent(
                 "v1/conversations/\(conversation)/gpt-live/\(streamId)/playback"))
             request.httpMethod = "POST"
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            if !profile.usesAccountSession { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONSerialization.data(withJSONObject:
                 ["playbackId": operationId, "pcmBytes": bytes, "drained": true], options: [.sortedKeys])
@@ -224,7 +226,9 @@ final class DebugHandsFreeSession {
             // A lost HTTP response may safely retry the same checkpoint.
             for _ in 0..<2 {
                 do {
-                    let (data, response) = try await requests.perform(request, limit: 4096)
+                    let authorized = try await client.authorizedRequest(profile, request)
+                    try Task.checkCancellation()
+                    let (data, response) = try await requests.perform(authorized, limit: 4096)
                     if response.statusCode == 409 {
                         // Speech or a correction can invalidate this checkpoint
                         // while the local player drains. Wait for current data.
@@ -245,12 +249,14 @@ final class DebugHandsFreeSession {
         var request = URLRequest(url: profile.baseURL.appendingPathComponent(
             "v1/conversations/\(conversation)/\(endpoint)/\(streamId)/played"))
         request.httpMethod = "POST"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if !profile.usesAccountSession { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject:
             ["operationId": operationId, "responseGeneration": responseGeneration], options: [.sortedKeys])
         awaitingPlayedOperation = nil
         phase("waiting_listening")
+        request = try await client.authorizedRequest(profile, request)
+        try Task.checkCancellation()
         let (data, response) = try await requests.perform(request, limit: 4096)
         guard data.isEmpty, response.statusCode == 204 else { throw DebugBackendError.invalidResponse }
     }
@@ -277,17 +283,15 @@ final class DebugHandsFreeSession {
         requests.finish()
     }
 
-    private func handle(_ event: DebugHandsFreeEvent) throws {
+    private func handle(_ event: DebugHandsFreeEvent) async throws {
         switch event {
         case .session(let id):
             guard streamId == nil else { throw DebugBackendError.invalidResponse }
             streamId = id
-            var request = URLRequest(url: profile.baseURL.appendingPathComponent(
-                "v1/conversations/\(conversation)/\(endpoint)/\(id)/audio-stream"))
-            var components = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!
-            components.scheme = components.scheme == "https" ? "wss" : "ws"
-            request.url = components.url
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            let request = try await client.audioStreamRequest(profile, conversation: conversation,
+                endpoint: endpoint, streamId: id, token: token)
+            try Task.checkCancellation()
+            guard !closed, streamId == id else { throw CancellationError() }
             audioSocket = DebugHandsFreeAudioSocket(request: request) { [weak self] code in
                 guard let self, !self.closed else { return }
                 self.inputGate(false)

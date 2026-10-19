@@ -4,7 +4,7 @@
   "packVersion": "2026.10.19.1",
   "manifestSha256": "b841bf04f46dbc73f9262e748a25f27db90dcabdad3efc990c4b04b7e46fdd6a",
   "tracking": "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
-  "meaning": "All86 requirements have implemented software consumers and mapped checks. Software-path status is not a claim of every36 scenario on hardware/provider/iPhone. Selected immutable receipts prove actual checks and identify tested sources; SHOW-PACK-OPERATIONS retains external gates.",
+  "meaning": "Current software consumers and checks for all 86 requirements, including the shared Vue Director, WizardIdentity, private prophecy, Duel and Chronicle migration. Live application delivery and acceptance are in GitHub Issue #227 and PR #218. The tracking field, linked SHOW-PACK work items and earlier PR commit receipts are historical source-bound evidence. Software checks do not establish all 36 scenarios on hardware/provider/iPhone; external gates remain open.",
   "requirements": [
     {
       "id": "ARC-01",
@@ -623,14 +623,17 @@
       "sources": [
         "kufr/firmware/src/features/offline_show/OfflineShow.cpp",
         "kufr/backend/Features/Show/ShowRepertoire.cs",
-        "kufr/mobilni-aplikace/src/features/director/DirectorPanel.ts"
+        "kufr/mobilni-aplikace/src/features/director/DirectorPanel.vue",
+        "kufr/mobilni-aplikace/src/features/director/DirectorSession.ts"
       ],
       "checks": [
         "kufr/firmware/tests/offline_show_test.cpp",
         "kufr/backend-tests/ShowDirectorTests.cs",
         "kufr/backend-tests/ShowDeviceCueTests.cs",
         "kufr/firmware/tests/device_show_cues_test.cpp",
-        "kufr/backend-tests/ShowSpeechProviderTests.cs"
+        "kufr/backend-tests/ShowSpeechProviderTests.cs",
+        "kufr/mobilni-aplikace/src/features/director/DirectorPanel.spec.ts",
+        "kufr/mobilni-aplikace/tests/director.browser.mjs"
       ],
       "state": "implemented_software_verified",
       "externalGates": []
@@ -643,14 +646,17 @@
       "sources": [
         "kufr/firmware/src/features/offline_show/OfflineShow.cpp",
         "kufr/backend/Features/Show/ShowRepertoire.cs",
-        "kufr/mobilni-aplikace/src/features/director/DirectorPanel.ts"
+        "kufr/mobilni-aplikace/src/features/director/DirectorPanel.vue",
+        "kufr/mobilni-aplikace/src/features/director/DirectorSession.ts"
       ],
       "checks": [
         "kufr/firmware/tests/offline_show_test.cpp",
         "kufr/backend-tests/ShowDirectorTests.cs",
         "kufr/backend-tests/ShowDeviceCueTests.cs",
         "kufr/firmware/tests/device_show_cues_test.cpp",
-        "kufr/backend-tests/ShowSpeechProviderTests.cs"
+        "kufr/backend-tests/ShowSpeechProviderTests.cs",
+        "kufr/mobilni-aplikace/src/features/director/DirectorPanel.spec.ts",
+        "kufr/mobilni-aplikace/tests/director.browser.mjs"
       ],
       "state": "implemented_software_verified",
       "externalGates": []
@@ -693,13 +699,16 @@
       "sources": [
         "kufr/firmware/src/features/offline_show/OfflineShow.cpp",
         "kufr/backend/Features/Show/ShowRepertoire.cs",
-        "kufr/mobilni-aplikace/src/features/director/DirectorPanel.ts"
+        "kufr/mobilni-aplikace/src/features/director/DirectorPanel.vue",
+        "kufr/mobilni-aplikace/src/features/director/DirectorSession.ts"
       ],
       "checks": [
         "kufr/firmware/tests/offline_show_test.cpp",
         "kufr/backend-tests/ShowDirectorTests.cs",
         "kufr/backend-tests/ShowDeviceCueTests.cs",
-        "kufr/firmware/tests/device_show_cues_test.cpp"
+        "kufr/firmware/tests/device_show_cues_test.cpp",
+        "kufr/mobilni-aplikace/src/features/director/DirectorPanel.spec.ts",
+        "kufr/mobilni-aplikace/tests/director.browser.mjs"
       ],
       "state": "implemented_software_verified",
       "externalGates": []
@@ -712,12 +721,14 @@
       "sources": [
         "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
         "kufr/backend/Features/Keepsakes/KeepsakeProvider.cs",
-        "kufr/web/keepsake/identity.js"
+        "kufr/mobilni-aplikace/src/features/archive/WizardIdentity.vue",
+        "kufr/mobilni-aplikace/src/features/archive/PrivateProphecy.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
       ],
       "checks": [
         "kufr/backend-tests/WizardIdentityTests.cs",
-        "kufr/web/keepsake/test-browser.cjs",
-        "kufr/web/keepsake/test-evening-browser.cjs"
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
       ],
       "state": "implemented_software_verified",
       "externalGates": []
@@ -730,12 +741,14 @@
       "sources": [
         "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
         "kufr/backend/Features/Keepsakes/KeepsakeProvider.cs",
-        "kufr/web/keepsake/identity.js"
+        "kufr/mobilni-aplikace/src/features/archive/WizardIdentity.vue",
+        "kufr/mobilni-aplikace/src/features/archive/PrivateProphecy.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
       ],
       "checks": [
         "kufr/backend-tests/WizardIdentityTests.cs",
-        "kufr/web/keepsake/test-browser.cjs",
-        "kufr/web/keepsake/test-evening-browser.cjs"
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
       ],
       "state": "implemented_software_verified",
       "externalGates": []
@@ -748,12 +761,14 @@
       "sources": [
         "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
         "kufr/backend/Features/Keepsakes/KeepsakeProvider.cs",
-        "kufr/web/keepsake/identity.js"
+        "kufr/mobilni-aplikace/src/features/archive/WizardIdentity.vue",
+        "kufr/mobilni-aplikace/src/features/archive/PrivateProphecy.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
       ],
       "checks": [
         "kufr/backend-tests/WizardIdentityTests.cs",
-        "kufr/web/keepsake/test-browser.cjs",
-        "kufr/web/keepsake/test-evening-browser.cjs"
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
       ],
       "state": "implemented_software_verified",
       "externalGates": []
@@ -766,12 +781,14 @@
       "sources": [
         "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
         "kufr/backend/Features/Keepsakes/KeepsakeProvider.cs",
-        "kufr/web/keepsake/identity.js"
+        "kufr/mobilni-aplikace/src/features/archive/WizardIdentity.vue",
+        "kufr/mobilni-aplikace/src/features/archive/PrivateProphecy.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
       ],
       "checks": [
         "kufr/backend-tests/WizardIdentityTests.cs",
-        "kufr/web/keepsake/test-browser.cjs",
-        "kufr/web/keepsake/test-evening-browser.cjs"
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
       ],
       "state": "implemented_software_verified",
       "externalGates": []
@@ -784,12 +801,14 @@
       "sources": [
         "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
         "kufr/backend/Features/Keepsakes/KeepsakeProvider.cs",
-        "kufr/web/keepsake/identity.js"
+        "kufr/mobilni-aplikace/src/features/archive/WizardIdentity.vue",
+        "kufr/mobilni-aplikace/src/features/archive/PrivateProphecy.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
       ],
       "checks": [
         "kufr/backend-tests/WizardIdentityTests.cs",
-        "kufr/web/keepsake/test-browser.cjs",
-        "kufr/web/keepsake/test-evening-browser.cjs"
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
       ],
       "state": "implemented_software_verified",
       "externalGates": []
@@ -802,11 +821,14 @@
       "sources": [
         "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
         "kufr/backend/Features/Show/ShowArchiveEndpoints.cs",
-        "kufr/web/keepsake/identity.js"
+        "kufr/mobilni-aplikace/src/features/archive/WizardIdentity.vue",
+        "kufr/mobilni-aplikace/src/features/archive/PrivateProphecy.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
       ],
       "checks": [
         "kufr/backend-tests/WizardIdentityTests.cs",
-        "kufr/web/keepsake/test-browser.cjs"
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
       ],
       "state": "implemented_software_verified",
       "externalGates": []
@@ -819,11 +841,14 @@
       "sources": [
         "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
         "kufr/backend/Features/Show/ShowArchiveEndpoints.cs",
-        "kufr/web/keepsake/identity.js"
+        "kufr/mobilni-aplikace/src/features/archive/WizardIdentity.vue",
+        "kufr/mobilni-aplikace/src/features/archive/PrivateProphecy.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
       ],
       "checks": [
         "kufr/backend-tests/WizardIdentityTests.cs",
-        "kufr/web/keepsake/test-browser.cjs"
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
       ],
       "state": "implemented_software_verified",
       "externalGates": []
@@ -836,11 +861,14 @@
       "sources": [
         "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
         "kufr/backend/Features/Show/ShowArchiveEndpoints.cs",
-        "kufr/web/keepsake/identity.js"
+        "kufr/mobilni-aplikace/src/features/archive/WizardIdentity.vue",
+        "kufr/mobilni-aplikace/src/features/archive/PrivateProphecy.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
       ],
       "checks": [
         "kufr/backend-tests/WizardIdentityTests.cs",
-        "kufr/web/keepsake/test-browser.cjs"
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
       ],
       "state": "implemented_software_verified",
       "externalGates": []
@@ -853,12 +881,14 @@
       "sources": [
         "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
         "kufr/backend/Features/Keepsakes/KeepsakeProvider.cs",
-        "kufr/web/keepsake/identity.js"
+        "kufr/mobilni-aplikace/src/features/archive/WizardIdentity.vue",
+        "kufr/mobilni-aplikace/src/features/archive/PrivateProphecy.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
       ],
       "checks": [
         "kufr/backend-tests/WizardIdentityTests.cs",
-        "kufr/web/keepsake/test-browser.cjs",
-        "kufr/web/keepsake/test-evening-browser.cjs"
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
       ],
       "state": "implemented_software_verified",
       "externalGates": []
@@ -871,11 +901,14 @@
       "sources": [
         "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
         "kufr/backend/Features/Show/ShowArchiveEndpoints.cs",
-        "kufr/web/keepsake/identity.js"
+        "kufr/mobilni-aplikace/src/features/archive/WizardIdentity.vue",
+        "kufr/mobilni-aplikace/src/features/archive/PrivateProphecy.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
       ],
       "checks": [
         "kufr/backend-tests/WizardIdentityTests.cs",
-        "kufr/web/keepsake/test-browser.cjs"
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
       ],
       "state": "implemented_software_verified",
       "externalGates": []
@@ -888,7 +921,7 @@
       "sources": [
         "kufr/backend/Features/Memory/ChronicleMemoryStore.cs",
         "kufr/backend/Features/Memory/EveningLoreStore.cs",
-        "kufr/web/keepsake/chronicle.js"
+        "kufr/mobilni-aplikace/src/features/archive/ChronicleView.vue"
       ],
       "checks": [
         "kufr/backend-tests/ChronicleTests.cs",
@@ -907,7 +940,7 @@
       "sources": [
         "kufr/backend/Features/Memory/ChronicleMemoryStore.cs",
         "kufr/backend/Features/Memory/EveningLoreStore.cs",
-        "kufr/web/keepsake/chronicle.js"
+        "kufr/mobilni-aplikace/src/features/archive/ChronicleView.vue"
       ],
       "checks": [
         "kufr/backend-tests/ChronicleTests.cs",
@@ -926,7 +959,7 @@
       "sources": [
         "kufr/backend/Features/Memory/ChronicleMemoryStore.cs",
         "kufr/backend/Features/Memory/EveningLoreStore.cs",
-        "kufr/web/keepsake/chronicle.js"
+        "kufr/mobilni-aplikace/src/features/archive/ChronicleView.vue"
       ],
       "checks": [
         "kufr/backend-tests/ChronicleTests.cs",
@@ -945,7 +978,7 @@
       "sources": [
         "kufr/backend/Features/Memory/ChronicleMemoryStore.cs",
         "kufr/backend/Features/Memory/EveningLoreStore.cs",
-        "kufr/web/keepsake/chronicle.js"
+        "kufr/mobilni-aplikace/src/features/archive/ChronicleView.vue"
       ],
       "checks": [
         "kufr/backend-tests/ChronicleTests.cs",
@@ -964,7 +997,7 @@
       "sources": [
         "kufr/backend/Features/Memory/ChronicleMemoryStore.cs",
         "kufr/backend/Features/Memory/EveningLoreStore.cs",
-        "kufr/web/keepsake/chronicle.js"
+        "kufr/mobilni-aplikace/src/features/archive/ChronicleView.vue"
       ],
       "checks": [
         "kufr/backend-tests/ChronicleTests.cs",
@@ -983,7 +1016,7 @@
       "sources": [
         "kufr/backend/Features/Memory/ChronicleMemoryStore.cs",
         "kufr/backend/Features/Memory/EveningLoreStore.cs",
-        "kufr/web/keepsake/chronicle.js"
+        "kufr/mobilni-aplikace/src/features/archive/ChronicleView.vue"
       ],
       "checks": [
         "kufr/backend-tests/ChronicleTests.cs",
@@ -1002,7 +1035,7 @@
       "sources": [
         "kufr/backend/Features/Memory/ChronicleMemoryStore.cs",
         "kufr/backend/Features/Memory/EveningLoreStore.cs",
-        "kufr/web/keepsake/chronicle.js"
+        "kufr/mobilni-aplikace/src/features/archive/ChronicleView.vue"
       ],
       "checks": [
         "kufr/backend-tests/ChronicleTests.cs",
@@ -1021,7 +1054,7 @@
       "sources": [
         "kufr/backend/Features/Memory/ChronicleMemoryStore.cs",
         "kufr/backend/Features/Memory/EveningLoreStore.cs",
-        "kufr/web/keepsake/chronicle.js"
+        "kufr/mobilni-aplikace/src/features/archive/ChronicleView.vue"
       ],
       "checks": [
         "kufr/backend-tests/ChronicleTests.cs",
@@ -1041,7 +1074,8 @@
         "kufr/backend/Features/Show/DuelStore.cs",
         "kufr/backend/Features/Show/DuelRules.cs",
         "kufr/backend/Features/Show/DuelCommentary.cs",
-        "kufr/web/keepsake/duel.js"
+        "kufr/mobilni-aplikace/src/features/archive/DuelView.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
       ],
       "checks": [
         "kufr/backend-tests/DuelTests.cs",
@@ -1062,7 +1096,8 @@
         "kufr/backend/Features/Show/DuelStore.cs",
         "kufr/backend/Features/Show/DuelRules.cs",
         "kufr/backend/Features/Show/DuelCommentary.cs",
-        "kufr/web/keepsake/duel.js"
+        "kufr/mobilni-aplikace/src/features/archive/DuelView.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
       ],
       "checks": [
         "kufr/backend-tests/DuelTests.cs",
@@ -1082,7 +1117,8 @@
         "kufr/backend/Features/Show/DuelStore.cs",
         "kufr/backend/Features/Show/DuelRules.cs",
         "kufr/backend/Features/Show/DuelCommentary.cs",
-        "kufr/web/keepsake/duel.js"
+        "kufr/mobilni-aplikace/src/features/archive/DuelView.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
       ],
       "checks": [
         "kufr/backend-tests/DuelTests.cs",
@@ -1102,7 +1138,8 @@
         "kufr/backend/Features/Show/DuelStore.cs",
         "kufr/backend/Features/Show/DuelRules.cs",
         "kufr/backend/Features/Show/DuelCommentary.cs",
-        "kufr/web/keepsake/duel.js"
+        "kufr/mobilni-aplikace/src/features/archive/DuelView.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
       ],
       "checks": [
         "kufr/backend-tests/DuelTests.cs",
@@ -1122,7 +1159,8 @@
         "kufr/backend/Features/Show/DuelStore.cs",
         "kufr/backend/Features/Show/DuelRules.cs",
         "kufr/backend/Features/Show/DuelCommentary.cs",
-        "kufr/web/keepsake/duel.js"
+        "kufr/mobilni-aplikace/src/features/archive/DuelView.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
       ],
       "checks": [
         "kufr/backend-tests/DuelTests.cs",
@@ -1142,7 +1180,8 @@
         "kufr/backend/Features/Show/DuelStore.cs",
         "kufr/backend/Features/Show/DuelRules.cs",
         "kufr/backend/Features/Show/DuelCommentary.cs",
-        "kufr/web/keepsake/duel.js"
+        "kufr/mobilni-aplikace/src/features/archive/DuelView.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
       ],
       "checks": [
         "kufr/backend-tests/DuelTests.cs",
@@ -1162,7 +1201,8 @@
         "kufr/backend/Features/Show/DuelStore.cs",
         "kufr/backend/Features/Show/DuelRules.cs",
         "kufr/backend/Features/Show/DuelCommentary.cs",
-        "kufr/web/keepsake/duel.js"
+        "kufr/mobilni-aplikace/src/features/archive/DuelView.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
       ],
       "checks": [
         "kufr/backend-tests/DuelTests.cs",
@@ -1911,8 +1951,8 @@
       "checks": [
         "kufr/backend-tests/WizardIdentityTests.cs",
         "kufr/backend-tests/KeepsakeCoreTests.cs",
-        "kufr/web/keepsake/test-browser.cjs",
-        "kufr/web/keepsake/test-evening-browser.cjs"
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
       ],
       "state": "software_path_verified",
       "externalGates": []
@@ -1924,8 +1964,8 @@
       "checks": [
         "kufr/backend-tests/WizardIdentityTests.cs",
         "kufr/backend-tests/KeepsakeCoreTests.cs",
-        "kufr/web/keepsake/test-browser.cjs",
-        "kufr/web/keepsake/test-evening-browser.cjs"
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
       ],
       "state": "software_path_verified_external_gate_open",
       "externalGates": [
@@ -1939,8 +1979,8 @@
       "checks": [
         "kufr/backend-tests/WizardIdentityTests.cs",
         "kufr/backend-tests/KeepsakeCoreTests.cs",
-        "kufr/web/keepsake/test-browser.cjs",
-        "kufr/web/keepsake/test-evening-browser.cjs"
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
       ],
       "state": "software_path_verified_external_gate_open",
       "externalGates": [
@@ -1954,8 +1994,8 @@
       "checks": [
         "kufr/backend-tests/WizardIdentityTests.cs",
         "kufr/backend-tests/KeepsakeCoreTests.cs",
-        "kufr/web/keepsake/test-browser.cjs",
-        "kufr/web/keepsake/test-evening-browser.cjs"
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
       ],
       "state": "software_path_verified_external_gate_open",
       "externalGates": [
@@ -1969,8 +2009,8 @@
       "checks": [
         "kufr/backend-tests/WizardIdentityTests.cs",
         "kufr/backend-tests/KeepsakeCoreTests.cs",
-        "kufr/web/keepsake/test-browser.cjs",
-        "kufr/web/keepsake/test-evening-browser.cjs"
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
       ],
       "state": "software_path_verified",
       "externalGates": []
@@ -1982,8 +2022,8 @@
       "checks": [
         "kufr/backend-tests/WizardIdentityTests.cs",
         "kufr/backend-tests/KeepsakeCoreTests.cs",
-        "kufr/web/keepsake/test-browser.cjs",
-        "kufr/web/keepsake/test-evening-browser.cjs"
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
       ],
       "state": "software_path_verified",
       "externalGates": []
@@ -1995,8 +2035,8 @@
       "checks": [
         "kufr/backend-tests/WizardIdentityTests.cs",
         "kufr/backend-tests/KeepsakeCoreTests.cs",
-        "kufr/web/keepsake/test-browser.cjs",
-        "kufr/web/keepsake/test-evening-browser.cjs"
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
       ],
       "state": "software_path_verified",
       "externalGates": []
@@ -2153,8 +2193,8 @@
       "checks": [
         "kufr/backend-tests/WizardIdentityTests.cs",
         "kufr/backend-tests/KeepsakeCoreTests.cs",
-        "kufr/web/keepsake/test-browser.cjs",
-        "kufr/web/keepsake/test-evening-browser.cjs"
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
       ],
       "state": "software_path_verified",
       "externalGates": []

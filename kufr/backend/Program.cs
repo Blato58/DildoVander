@@ -1,4 +1,6 @@
 using Kufr.Backend.Features.GptLive;
+using Kufr.Backend.Features.Identity;
+using Kufr.Backend.Features.ModelReleases;
 using Kufr.Backend.Features.Access;
 using Kufr.Backend.Features.Conversations;
 using Kufr.Backend.Features.VoiceTurns;
@@ -15,7 +17,8 @@ using Kufr.Backend.Features.Keepsakes;
 using Kufr.Backend.Features.Show;
 
 var provisioning = args.Contains("--memory-provision");
-var builder = WebApplication.CreateBuilder(args.Where(a => a is not ("--memory-provision" or "--execute" or "--create")).ToArray());
+var accountProvisioning = AccountProvisioning.IsCommand(args);
+var builder = WebApplication.CreateBuilder(accountProvisioning ? [] : args.Where(a => a is not ("--memory-provision" or "--execute" or "--create")).ToArray());
 var twinConfiguration = Environment.GetEnvironmentVariable("KUFR_TWIN_CONFIG");
 if (twinConfiguration is not null)
 {
@@ -24,6 +27,14 @@ if (twinConfiguration is not null)
     TwinProviderCredentials.Load(builder.Configuration);
 }
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 4096);
+builder.Services.AddAccountIdentity(builder.Configuration);
+if (accountProvisioning)
+{
+    await using var accountApp = builder.Build();
+    Environment.ExitCode = await AccountProvisioning.RunAsync(accountApp, args);
+    return;
+}
+builder.Services.AddModelReleases(builder.Configuration);
 builder.Services.AddSingleton(TimeProvider.System);
 var showOrigins = builder.Configuration.GetSection("Show:AllowedOrigins").Get<string[]>() ?? [];
 if (showOrigins.Any(origin => !Uri.TryCreate(origin, UriKind.Absolute, out var uri)
@@ -96,6 +107,9 @@ if (keepsakeArchiveConfigured)
     builder.Services.AddDataProtection().SetApplicationName("DildoVander.DV10")
         .PersistKeysToFileSystem(new DirectoryInfo(builder.Configuration["Keepsake:DataProtectionRoot"] ?? dataRoot + ".keys"));
     builder.Services.AddSingleton<KeepsakeStore>();
+}
+if (keepsakeArchiveConfigured || builder.Configuration.GetValue<bool>("ApplicationIdentity:Enabled"))
+{
     builder.Services.Configure<ForwardedHeadersOptions>(options =>
     {
         options.ForwardedHeaders = ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedFor;
@@ -142,9 +156,13 @@ logs.Write("info", "server_started");
 app.Lifetime.ApplicationStopping.Register(() => logs.Write("info", "server_stopping"));
 
 app.Use((context, next) => ServerLogEvents.RequestAsync(context, next, logs));
-if (keepsakeArchiveConfigured) { app.UseForwardedHeaders(); }
+if (keepsakeArchiveConfigured || builder.Configuration.GetValue<bool>("ApplicationIdentity:Enabled")) { app.UseForwardedHeaders(); }
 app.UseRateLimiter();
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(20) });
+await app.InitializeAccountsAsync();
+app.UseAccountIdentity();
+app.MapAccountEndpoints();
+app.MapModelReleases();
 
 app.Use(async (context, next) =>
 {

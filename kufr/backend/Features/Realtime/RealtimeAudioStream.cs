@@ -13,7 +13,7 @@ internal static partial class RealtimeLiveEndpoints
     private static async Task AudioStreamAsync(string id, Guid streamId, HttpContext context,
         DeviceAccessStore access, RealtimeLiveRegistry registry)
     {
-        var device = DeviceAccessEndpoints.Authenticate(context, access);
+        var device = await DeviceAccessEndpoints.AuthenticateCurrentAsync(context, access);
         if (device is null)
         {
             await ApiProblem.Create(context, 401, "access_token_required").ExecuteAsync(context);
@@ -43,7 +43,7 @@ internal static partial class RealtimeLiveEndpoints
             socket = await context.WebSockets.AcceptWebSocketAsync();
             while (!lifetime.IsCancellationRequested)
             {
-                if (DeviceAccessEndpoints.Authenticate(context, access) != device)
+                if (await DeviceAccessEndpoints.AuthenticateCurrentAsync(context, access) != device)
                 {
                     await socket.CloseOutputAsync(WebSocketCloseStatus.PolicyViolation, "access_token_expired", lifetime.Token);
                     return;
@@ -69,7 +69,7 @@ internal static partial class RealtimeLiveEndpoints
                 }
                 try
                 {
-                    if (DeviceAccessEndpoints.Authenticate(context, access) != device)
+                    if (await DeviceAccessEndpoints.AuthenticateCurrentAsync(context, access) != device)
                     {
                         await socket.CloseOutputAsync(WebSocketCloseStatus.PolicyViolation, "access_token_expired", lifetime.Token);
                         return;

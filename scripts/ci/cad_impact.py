@@ -30,7 +30,6 @@ EXTERNAL_CAD_INPUTS = frozenset({
     "scripts/ci/cad_cache.py", "scripts/ci/test_cad_cache.py",
     "scripts/ci/cad_result.py", "scripts/ci/cad-result.cjs",
     "scripts/ci/cad_impact.py", "scripts/ci/test_cad_impact.py",
-    "kufr/mobilni-aplikace/.nvmrc",
     ".github/workflows/kufr-cad.yml",
 })
 

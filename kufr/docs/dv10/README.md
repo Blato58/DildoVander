@@ -1,13 +1,14 @@
 # DV10 — soukromá památka z kufru
 
 [Show Pack](../show-pack.md) přidává verzovanou kouzelnickou identitu, veřejnou
-sběratelskou kartu, owner proroctví, souboj a kroniku. Jde o aditivní lokální
-implementaci; následující historický stav nasazení neprokazuje nasazení těchto
-nových funkcí. Starší edice zůstávají čitelné bez identity; explicitní vytvoření
-identity nevyvolá hromadné placené doplňování. Zamčené znění proroctví se neposílá
-do DTO ani exportu. Veřejné QR a oddělená práva k fotografii/portrétu zůstávají.
+sběratelskou kartu, owner proroctví, souboj a kroniku do stejné Vue aplikace.
+Historický stav nasazení níže neprokazuje nasazení těchto nových funkcí. Starší
+edice zůstávají čitelné bez identity; výslovné vytvoření identity nespouští
+hromadné placené doplňování. Zamčené znění proroctví není v DTO ani exportu.
+Veřejné QR a oddělená práva k fotografii a portrétu zůstávají zachovaná.
 
-Kanonický mobilní web je v `kufr/web/keepsake/`. Relativní `/guest/v1` API,
+Kanonický zdroj archivu je v `kufr/mobilni-aplikace/src/features/archive/`;
+hostovaný web i Capacitor používají stejné Vue SFC. Relativní `/guest/v1` API,
 SQLite autorita a bounded worker žijí v existujícím .NET backendu. Web i API
 běží na stejném HTTPS originu stávajícího VPS. Majitel 15. 10. 2026 autorizoval
 nasazení a zapnutí placeného generování se stávajícím backendovým klíčem;
@@ -20,6 +21,24 @@ implementaci a nasazení od ověření kvality, iPhonu, hardware a obnovy.
 ## Vyzvednutí jedním QR
 
 [Upřesnění majitele](STATIC_EVENING.md) zavádí společný přehled `/keepsake/evening/`: poslední hotová hůlka a seznam aktivního večera. Hůlky a příběhy jsou veřejné pro návštěvníky; fotografie, portréty a správa zůstávají soukromé. Firmware i mobil přestávají vydávat individuální QR.
+
+## Výslovné připojení k účtu
+
+Přihlášení samo nepřebírá návštěvnickou památku. Její oprávněný guest owner
+musí v soukromém listu potvrdit připojení ke konkrétnímu přihlášenému účtu,
+včetně soukromých výsledných portrétů. `POST /guest/v1/keepsakes/{id}/account-associations`
+ověří guest owner cookie, CSRF a aktuální přístupovou epochu a vydá krátkodobý
+jednorázový ticket vázaný na cílový účet. `POST /app/v1/archive/associations`
+jej spotřebuje pouze s relací a CSRF tohoto účtu; ticket nepatří do URL ani
+úložiště prohlížeče. Veřejný přehled a share scope ticket nevydají.
+
+Účet čte pouze přesnou připojenou památku a její výsledné portréty; zdrojové
+fotografie, provider prompty a guest správa nejsou součástí tohoto přístupu.
+Každé čtení dokumentu i assetu znovu ověřuje účet, locator a přístupovou epochu.
+Odvolání všech guest přístupů nebo ruční smazání přístup zneplatní. Expirace
+guest relace sama spojení účtu ani obsah nemaže. Odebrání spojení z účtu
+nemaže památku ani původní guest vlastnictví. Přepnutí účtu okamžitě skryje
+předchozí soukromá data a ignoruje opožděné odpovědi.
 
 ## Co je implementované
 
@@ -129,25 +148,28 @@ request, včetně skutečného foto vstupu a nulového automatického retry.
 Z kořene repozitáře:
 
 ```text
-python -m unittest kufr.web.keepsake.test_portal
 python -m unittest discover -s kufr/web -p test*.py
 python -m unittest discover -s kufr/web/deploy -p test_keepsake*.py
 python -m unittest discover -s kufr/backend/deploy -p test_keepsake*.py
-node kufr/web/keepsake/test-browser.cjs
-node kufr/web/keepsake/test-evening-browser.cjs
+node --test kufr/mobilni-aplikace/src/features/archive/client.test.mjs
+npm --prefix kufr/mobilni-aplikace run test:components -- src/features/archive
+npm --prefix kufr/mobilni-aplikace run test:browser
 ```
 
-Browser harness potřebuje Playwright a Edge; opakované scénáře používají
+Browser harness společné aplikace potřebuje dostupný Playwright browser; scénáře používají
 syntetické DTO, aby deterministicky ověřily souběh/stale callbacks a žádné AI
 volání. Neprokazuje OpenAI výtvarnou kvalitu ani iPhone. Mobil: `npm ci`, také
 `npm ci --prefix ../contracts`, `npm test` a `npm run build`. Firmware: `pio run`
 a host test z [firmware handoff](FIRMWARE_OUTCOME.md). SkiaSharp 4.153.1 používá
 MIT licencované native assets; PNG karta vkládá existující OFL Inter font.
 
-Samostatný webový build ze stejného zdroje nepotřebuje CAD ani mobilní build:
-`python kufr/web/build-site.py --keepsake-only --destination NOVY_ADRESAR`.
-Obsahuje `/keepsake/`, `/keepsake/evening/` i lokální design-system/fonty; manifest přiznává dirty
-zdroj. Linux backend vytvoří `dotnet publish` podle workflow. Code-only packager
+Hostovaný archiv používá stejné Vue SFC jako aplikace iOS v
+`kufr/mobilni-aplikace/src/features/archive/`; původní samostatné HTML/JS bylo
+odstraněno. Po `npm --prefix kufr/mobilni-aplikace run build` jej zabalí
+`python kufr/web/build-site.py --web-dist kufr/mobilni-aplikace/dist --destination NOVY_ADRESAR`.
+Build aplikace nepotřebuje CAD. Kompatibilní `/keepsake/` a `/keepsake/evening/`
+obsluhuje společný router; privátní API používá samostatné guest credentials.
+Linux backend vytvoří `dotnet publish` podle workflow. Code-only packager
 a adresářové předání jsou v [delivery návodu](DELIVERY.md); sestavení není deploy.
 
 ## Skills a zbývající gates

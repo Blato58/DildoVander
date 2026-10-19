@@ -51,12 +51,13 @@ a [DV10](dv10/README.md). Nezakládej nový provider projekt ani klíč.
 `GenerationEnabled` a explicitní `ProviderMode=fake|openai`. Vývojové testy používají
 izolovaný fake režim a žádné placené volání.
 
-Pro webový operátorský klient z jiného originu nastav přesný
-`Show:AllowedOrigins` seznam (například vývojové `http://localhost:5174`). Žádný
-wildcard ani cookie credential se nepovoluje. Backend nadále ověřuje bearer
-server-admin na každé operátorské cestě. Seznam `Devices` určuje povolený kufr.
-Na iOS zůstává credential v Keychain a `KufrDebug.showRequest` povoluje jen
-konkrétní show cesty a metody. Web drží credential pouze v paměti do odhlášení.
+Režie používá běžný přihlášený účet, konkrétní oprávněný kufr a stejný HTTPS
+origin jako ostatní aplikace. Nastavení účtu a grantů popisuje
+[návod vlastníka](account-setup.md). Zobrazení ani ovládání nevzniká pouhým
+otevřením routy. Mutace mají ochranu originu a CSRF; citlivé změny vyžadují
+výslovné potvrzení a čerstvé passkey ověření. Běžný Stop nesmí čekat na toto
+dodatečné potvrzení. Nativní transport povoluje jen konkrétní cesty a metody.
+Samostatná servisní bearer integrace zůstává výslovnou provozní výjimkou.
 
 ```text
 dotnet run --project kufr/backend/backend.csproj
@@ -65,8 +66,7 @@ npm ci --prefix kufr/mobilni-aplikace
 npm run dev --prefix kufr/mobilni-aplikace -- --port 5174
 ```
 
-Director otevři přes diagnostickou navigaci aplikace nebo `#director`; skrytý
-vstup neuděluje oprávnění. Zadej backend a identitu zařízení a ověř přístup.
+Režii otevři z Kufru na `/suitcase/director` a vyber oprávněné zařízení.
 Stav serveru není živý stav zařízení. Spárovaný lokální transport zůstává
 samostatnou autoritou pro Stop a offline ovládání.
 
@@ -143,7 +143,7 @@ npm run build --prefix kufr/mobilni-aplikace
 python kufr/firmware/tests/run_show_tests.py
 python -m unittest discover -s kufr/web/keepsake -p test_*.py
 python -m unittest discover -s kufr/web/deploy -p test_keepsake_proxy.py
-python kufr/web/build-site.py --keepsake-only --destination C:/Temp/dildovander-guest-new
+python kufr/web/build-site.py --web-dist kufr/mobilni-aplikace/dist --destination C:/Temp/dildovander-application-new
 python scripts/project_status.py validate
 python scripts/project_status.py render --check
 ```

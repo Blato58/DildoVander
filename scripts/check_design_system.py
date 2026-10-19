@@ -27,7 +27,7 @@ IGNORED = {"node_modules", "dist", "exports", "__pycache__", ".pio"}
 OLD_UI_COLORS = re.compile(r"#(?:D9B777|F3ECE0|0D1218)\b", re.I)
 RUNTIME_CONSUMERS = (
     "kufr/mobilni-aplikace/src/main.ts",
-    "kufr/web/keepsake/app.js", "kufr/web/keepsake/evening/evening.js",
+    "kufr/mobilni-aplikace/src/features/archive/ArchiveDialog.vue",
     "kufr/simulator/dashboard-ui.js",
     "kufr/firmware/diagnostics/servo-bench/web/panel-ui.mjs",
     "kufr/mechanika/final/viewer_ui.js",
@@ -110,7 +110,7 @@ def inspect(root):
         directory = root / relative
         if directory.exists():
             files.extend(p for p in directory.rglob("*")
-                         if p.suffix in {".css", ".html"}
+                         if p.suffix in {".css", ".html", ".vue"}
                          and not IGNORED.intersection(p.parts))
     definitions = set()
     uses = []
@@ -120,7 +120,7 @@ def inspect(root):
         uses.extend((path, token) for token in re.findall(r"var\((--aw-[\w-]+)", text))
         # Only CSS UI chrome is constrained. CAD material/mesh payloads and art
         # are deliberately excluded; their colors encode engineering/content.
-        if path.suffix == ".css" and OLD_UI_COLORS.search(text):
+        if path.suffix in {".css", ".vue"} and OLD_UI_COLORS.search(text):
             problems.append(f"Obsolete UI color in {path.relative_to(root).as_posix()}")
         # Browser startup metadata cannot reference a CSS variable. Keep these
         # declarative dark-theme fallbacks bound to the canonical primitive.

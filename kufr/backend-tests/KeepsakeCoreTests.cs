@@ -22,6 +22,7 @@ internal static class KeepsakeCoreTests
             await UploadAdmissionAsync(directory);
             await KeepsakeAdministrationTests.RunAsync(directory);
             await KeepsakeGalleryTests.RunAsync(directory);
+            await KeepsakeAccountAssociationTests.RunAsync(directory);
             await ProviderBoundaryAsync();
             CardLayout();
             Console.WriteLine("Keepsake core tests passed (synthetic offline fixtures; no paid calls).");

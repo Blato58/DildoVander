@@ -56,33 +56,55 @@ export interface ProtocolConnectionOptions {
   autoConnect?: boolean;
 }
 
+export type OfflineCommandKind = 'offline_preflight' | 'offline_arm' | 'offline_start' | 'quiet'
+  | 'offline_ambient' | 'offline_outbox' | 'offline_sync_ack';
+export interface OfflineCommandOptions { enabled?: boolean; shortVariant?: boolean }
+export interface OfflineShowStatus {
+  state: 'ready' | 'audio_only' | 'missing_assets' | 'incompatible_catalog' | 'calibration_required' | 'recovery_required';
+  armed: boolean; quiet: boolean; generation: number; readyMask: number; outboxCount: number;
+  catalogVersion: string; bankVersion: string; audioBytes: number; audioCapacityBytes: number;
+  streamWorkingBytes: number; missing: string[]; ambientEnabled: boolean; bankVoice: string; voiceCompatible: boolean;
+}
+export interface OfflineOutbox { type: 'offline.outbox'; offline: OfflineShowStatus; records: unknown[] }
+
 // One owner of lease, command retry and uncertain-result reconciliation, shared
 // by the development proxy and the native pinned-TLS transport.
 export class ProtocolDeviceConnection {
-  private offlineGeneration = 0;
-  private offlinePending: { id: string; bootId: string; resolve: (value: unknown) => void;
+  private offlineStatus: OfflineShowStatus | null = null;
+  private offlinePending: { id: string; kind: OfflineCommandKind; bootId: string; resolve: (value: OfflineShowStatus | OfflineOutbox) => void;
     reject: (error: Error) => void; timer: number } | null = null;
 
   private invalidateOffline(message: string): void {
+    this.offlineStatus = null;
     if (!this.offlinePending) return;
     window.clearTimeout(this.offlinePending.timer);
     this.offlinePending.reject(new Error(message));
     this.offlinePending = null;
   }
 
-  requestOffline(kind: string, compartment?: number, commandId?: string,
-    options: { enabled?: boolean; shortVariant?: boolean } = {}): Promise<unknown> {
+  requestOffline(kind: OfflineCommandKind, compartment?: number, commandId?: string,
+    options: OfflineCommandOptions = {}): Promise<OfflineShowStatus | OfflineOutbox> {
     if (!['offline_preflight', 'offline_arm', 'offline_start', 'quiet', 'offline_ambient', 'offline_outbox', 'offline_sync_ack'].includes(kind)
       || this.options.source !== 'native-device' || !this.device || this.state.phase === 'disconnected'
       || this.offlinePending) return Promise.reject(new Error('Místní autentizovaná cesta není připravená.'));
     if (kind === 'offline_arm' && (!this.device.controlLeaseId || this.state.controlMode !== 'manual')) {
       return Promise.reject(new Error('Arm vyžaduje platné ruční řízení; převezměte je v Provozu.'));
     }
+    if ((kind === 'offline_arm' || kind === 'offline_start') && (!this.offlineStatus || this.offlineStatus.state !== 'ready')) {
+      return Promise.reject(new Error('Nejprve obnovte místní preflight; kufr musí potvrdit připravenost.'));
+    }
+    if (kind === 'offline_start' && (!Number.isInteger(compartment) || compartment! < 1 || compartment! > 6
+      || !this.offlineStatus?.armed || this.state.phase !== 'ready' || this.state.busy)) {
+      return Promise.reject(new Error('Start vyžaduje výslovnou přihrádku 1–6, Arm a klidový stav kufru.'));
+    }
+    if (kind === 'offline_sync_ack' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(commandId ?? '')) {
+      return Promise.reject(new Error('Potvrzení synchronizace vyžaduje přesné ID importovaného výsledku.'));
+    }
     const messageId = crypto.randomUUID();
     const message: Record<string, unknown> = { type: kind, messageId,
       deviceId: this.device.deviceId, bootId: this.device.bootId };
     if (kind === 'offline_arm' || kind === 'offline_start') Object.assign(message, {
-      generation: this.offlineGeneration, expectedRevision: this.device.revision,
+      generation: this.offlineStatus!.generation, expectedRevision: this.device.revision,
       ...(kind === 'offline_arm' ? { controlLeaseId: this.device.controlLeaseId }
         : { compartment, shortVariant: options.shortVariant === true }),
     });
@@ -93,10 +115,10 @@ export class ProtocolDeviceConnection {
     if (kind === 'offline_sync_ack') message.commandId = commandId;
     return new Promise((resolve, reject) => {
       const timer = window.setTimeout(() => {
-        this.offlinePending = null;
+        this.offlinePending = null; this.offlineStatus = null;
         reject(new Error('Výsledek místního povelu není známý. Obnovte preflight; povel se neopakuje.'));
       }, 4000);
-      this.offlinePending = { id: messageId, bootId: this.device!.bootId, resolve, reject, timer };
+      this.offlinePending = { id: messageId, kind, bootId: this.device!.bootId, resolve, reject, timer };
       if (!this.send(message)) {
         window.clearTimeout(timer); this.offlinePending = null;
         reject(new Error('Místní spojení není dostupné. Použijte fyzické zastavení kufru.'));
@@ -142,6 +164,7 @@ export class ProtocolDeviceConnection {
   private resultTimer: number | null = null;
   private staleTimer: number | null = null;
   private lastMessageAt = 0;
+  private lastObservedAtMs: number | undefined;
   private lastDeviceSampleAt = 0;
   private lastDeviceUptimeMs = 0;
   private roundTripMs = Number.POSITIVE_INFINITY;
@@ -177,7 +200,7 @@ export class ProtocolDeviceConnection {
   }
 
   submitText(text: string): boolean {
-    return this.viewSnapshot().conversation?.canSubmit === true && this.conversation.submit(text);
+    return this.options.source === 'e2-simulator' && this.viewSnapshot().conversation?.canSubmit === true && this.conversation.submit(text);
   }
 
   configureVoice(mode: VoiceSettings['mode'], voice: VoiceSettings['voice']): boolean {
@@ -189,7 +212,7 @@ export class ProtocolDeviceConnection {
   stopDance(): boolean { return this.dance.stop(); }
 
   cancelConversation(): boolean {
-    return this.conversation.cancel();
+    return this.options.source === 'e2-simulator' && this.conversation.cancel();
   }
 
   connect(): void {
@@ -460,7 +483,7 @@ export class ProtocolDeviceConnection {
       const acquisitionCompleted = this.acquirePending && candidate.controlMode === 'manual';
       if (this.device?.bootId !== candidate.bootId) {
         this.invalidateOffline('Kufr se restartoval. Obnovte místní preflight.');
-        this.offlineGeneration = 0;
+        this.offlineStatus = null;
       }
       this.applySnapshot(candidate);
       if (this.stableSince === null) { this.stableSince = performance.now(); }
@@ -471,12 +494,19 @@ export class ProtocolDeviceConnection {
       }
     } else if (message.type === 'offline.ack' || message.type === 'offline.outbox') {
       const pending = this.offlinePending;
-      if (!pending || pending.id !== message.requestMessageId || pending.bootId !== message.bootId) return;
+      if (!pending || pending.id !== message.requestMessageId || pending.bootId !== message.bootId
+        || message.type !== (pending.kind === 'offline_outbox' ? 'offline.outbox' : 'offline.ack')) return;
+      const offline = message.offline as OfflineShowStatus | undefined;
+      if (typeof message.accepted !== 'boolean' || !offline || !Number.isSafeInteger(offline.generation)
+        || offline.generation < 0 || typeof offline.armed !== 'boolean' || typeof offline.state !== 'string') return;
       window.clearTimeout(pending.timer); this.offlinePending = null;
-      const offline = message.offline as { generation?: number } | undefined;
-      if (Number.isInteger(offline?.generation)) this.offlineGeneration = offline!.generation!;
-      if (message.accepted === false) pending.reject(new Error(`Kufr odmítl povel: ${String(message.errorCode)}.`));
-      else pending.resolve(message.type === 'offline.outbox' ? message : message.offline);
+      if (message.accepted === false) {
+        this.offlineStatus = null;
+        pending.reject(new Error(`Kufr odmítl povel: ${String(message.errorCode)}.`));
+      } else {
+        this.offlineStatus = { ...offline };
+        pending.resolve(message.type === 'offline.outbox' ? message as unknown as OfflineOutbox : offline);
+      }
     } else if (message.type === 'voice.ack') {
       this.voice.receive(message);
     } else if (message.type === 'dance.ack') {
@@ -532,6 +562,7 @@ export class ProtocolDeviceConnection {
           }
           return;
         }
+        this.lastObservedAtMs = Date.now();
         this.roundTripMs = performance.now() - pending.sentAt;
         this.lastDeviceSampleAt = performance.now();
         this.lastDeviceUptimeMs = message.deviceUptimeMs;
@@ -543,6 +574,7 @@ export class ProtocolDeviceConnection {
       if (sentAt !== undefined && message.bootId === this.device.bootId &&
           message.controlLeaseId === this.device.controlLeaseId &&
           typeof message.deviceUptimeMs === 'number') {
+        this.lastObservedAtMs = Date.now();
         this.roundTripMs = performance.now() - sentAt;
         this.lastDeviceSampleAt = performance.now();
         this.lastDeviceUptimeMs = message.deviceUptimeMs;
@@ -560,6 +592,9 @@ export class ProtocolDeviceConnection {
     if (this.device?.bootId === snapshot.bootId && snapshot.eventSequence < this.device.eventSequence) {
       return;
     }
+    // Wall-clock contact evidence changes only after a validated snapshot or a
+    // correlated heartbeat response, never after connect attempts/local actions.
+    this.lastObservedAtMs = Date.now();
     const previousMask = this.device?.readyMask ?? snapshot.readyMask;
     const previousLeaseId = this.device?.controlLeaseId;
     if (this.device && snapshot.bootId !== this.device.bootId) {
@@ -879,6 +914,8 @@ export class ProtocolDeviceConnection {
       busy: this.state.busy || dance.pending,
       phase: this.state.phase === 'ready' && danceActive(dance.phase) ? 'running' as const : this.state.phase,
       diagnostics: this.device === null ? undefined : {
+        deviceId: this.device.deviceId,
+        lastObservedAtMs: this.lastObservedAtMs,
         bootId: this.device.bootId,
         devicePhase: this.device.phase,
         eventSequence: this.device.eventSequence,
@@ -891,7 +928,7 @@ export class ProtocolDeviceConnection {
         canConfigure: voice.canConfigure && !dance.canStop },
       dance: { ...dance, canStart: dance.canStart && !voice.pending && !this.state.busy },
       conversation: this.conversation.snapshot(
-        this.state.controlMode === 'manual' && this.state.phase === 'ready' && !this.state.busy,
+        this.options.source === 'e2-simulator' && this.state.controlMode === 'manual' && this.state.phase === 'ready' && !this.state.busy,
       ),
     };
     if (this.options.source === 'native-device') {

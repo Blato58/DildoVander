@@ -1,9 +1,12 @@
 # Přístupnost Vapour Chrome
 
-Používejte sdílené `field`, `button`, `bindTabs` a `bindDialog` z `ui.js`.
-Pole propojuje label, nápovědu a chybu; taby mají jeden tab stop a šipky,
-Home/End; nativní dialog odděluje pozadí a vrací focus. Test `test:browser`
-ověřuje tyto kontrakty na skutečném DOM, v obou tématech a úzkých šířkách.
+V aplikaci používejte Vue komponenty `AwField`, `AwButton`, `AwNotice` a
+`AwDialog` z `mobilni-aplikace/src/components/` a sémantické HTML. Propojte
+label, nápovědu a chybu přes scoped slot pole; dialog používá nativní modalitu
+a vrací focus. Navigace používá skutečné odkazy Vue Routeru. Testy aplikace
+ověřují stabilitu focusu při telemetrii i skutečné sestavené routy. `ui.js`
+a jeho `test:browser` zachovávají kompatibilní chování lokálních servisních
+nástrojů a archivovaných distribucí; nové obrazovky tam nevytvářejte.
 Vlastník aplikace zůstává odpovědný za viditelné pojmenování, správný zdroj
 stavu a dostupnost akcí. Statické CSS tyto podmínky nenahrazuje.
 

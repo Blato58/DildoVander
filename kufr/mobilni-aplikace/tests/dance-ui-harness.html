@@ -1,56 +1,46 @@
 <!doctype html>
 <html lang="cs">
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dance for me · test UI</title>
-  </head>
+  <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Tanec · Vue test UI</title></head>
   <body>
-    <p class="conversation-panel">SIMULACE UI · syntetický stav, bez SD, zvuku a fyzického kufru</p>
+    <p class="aw-notice">SIMULACE UI · syntetický stav, bez SD, zvuku a fyzického kufru</p>
     <div id="dance-test"></div>
-    <div class="conversation-panel actions">
+    <div class="aw-card">
       <button type="button" data-test="error">Simulovat chybu SD</button>
       <button type="button" data-test="finish">Simulovat dohrání</button>
       <button type="button" data-test="disconnect">Simulovat odpojení</button>
     </div>
     <script type="module">
-      import '../src/style.css';
-      import { DancePanel } from '../src/features/dance/DancePanel';
-      let state = { source: 'native-device', controlMode: 'observer', phase: 'ready', readyMask: 63,
-        activeCompartment: null, busy: false, status: 'Syntetický stav',
+      import { createApp } from 'vue';
+      import { createMemoryHistory, createRouter } from 'vue-router';
+      import '../src/application/application.css';
+      import SuitcaseView from '../src/features/suitcase/SuitcaseView.vue';
+      import { deviceSession } from '../src/features/suitcase/deviceSession';
+      const state = { source: 'native-device', controlMode: 'observer', phase: 'ready', readyMask: 63,
+        activeCompartment: null, busy: false, status: 'Syntetický testovací stav',
         dance: { available: true, phase: 'idle', track: null, positionMs: 0, durationMs: 10000,
           bpm: 120, error: null, pending: false, canStart: true, canStop: false, status: 'Vybere se skladba ze SD.' } };
-      const panel = new DancePanel(() => ({
-        startDance() {
-          state.phase = 'running';
-          Object.assign(state.dance, { phase: 'playing', track: 'test-song.wav', positionMs: 2500,
-            canStart: false, canStop: true, status: 'Simulovaný tanec běží.' });
-          panel.update(state); return true;
-        },
-        stopDance() {
-          state.phase = 'ready';
-          Object.assign(state.dance, { phase: 'idle', canStart: true, canStop: false, status: 'Simulovaný tanec byl zastaven.' });
-          panel.update(state); return true;
-        },
-      }));
-      document.querySelector('#dance-test').append(panel.element);
-      panel.update(state);
+      const publish = () => { deviceSession.snapshot.value = { ...state, dance: state.dance ? { ...state.dance } : undefined }; };
+      deviceSession.startDance = () => {
+        state.phase = 'running';
+        Object.assign(state.dance, { phase: 'playing', track: 'test-song.wav', positionMs: 2500,
+          canStart: false, canStop: true, status: 'Simulovaný tanec běží.' }); publish(); return true;
+      };
+      deviceSession.stopDance = () => {
+        state.phase = 'ready'; Object.assign(state.dance, { phase: 'idle', canStart: true, canStop: false,
+          status: 'Simulovaný tanec zastavený.' }); publish(); return true;
+      };
+      publish();
+      const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: SuitcaseView }] });
+      createApp(SuitcaseView).use(router).mount('#dance-test');
       document.querySelector('[data-test="error"]').onclick = () => {
-        state.phase = 'ready';
-        Object.assign(state.dance, { phase: 'failed', canStart: true, canStop: false, status: 'Seznam skladeb na SD není platný. Připravte kartu znovu.' });
-        panel.update(state);
+        state.phase = 'ready'; Object.assign(state.dance, { phase: 'failed', canStart: true, canStop: false,
+          status: 'Seznam skladeb na SD není platný. Připravte kartu znovu.' }); publish();
       };
       document.querySelector('[data-test="finish"]').onclick = () => {
-        state.phase = 'ready';
-        Object.assign(state.dance, { phase: 'completed', positionMs: 10000, canStart: true,
-          canStop: false, status: 'Skladba dohrála. Kufr je připravený na další tanec.' });
-        panel.update(state);
+        state.phase = 'ready'; Object.assign(state.dance, { phase: 'completed', positionMs: 10000,
+          canStart: true, canStop: false, status: 'Skladba dohrála.' }); publish();
       };
-      document.querySelector('[data-test="disconnect"]').onclick = () => {
-        state.phase = 'disconnected';
-        state.dance = undefined;
-        panel.update(state);
-      };
+      document.querySelector('[data-test="disconnect"]').onclick = () => { state.phase = 'disconnected'; state.dance = undefined; publish(); };
     </script>
   </body>
 </html>

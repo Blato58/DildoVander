@@ -10,6 +10,9 @@ struct DebugBackendProfile {
     let baseURL: URL
     let deviceId: String
     let credential: String
+    // Opaque native-only scope, never a bearer credential or JavaScript field.
+    let accountBinding: String?
+    var usesAccountSession: Bool { accountBinding != nil }
 
 #if !os(iOS)
     // Foundation-only macOS harness uses a synthetic loopback HTTP peer.
@@ -18,6 +21,7 @@ struct DebugBackendProfile {
         self.baseURL = baseURL
         self.deviceId = deviceId
         self.credential = credential
+        self.accountBinding = nil
     }
 #endif
 
@@ -34,6 +38,20 @@ struct DebugBackendProfile {
         self.baseURL = url
         self.deviceId = deviceId
         self.credential = credential
+        self.accountBinding = nil
+    }
+
+    init(accountOrigin: URL, deviceId: String, binding: String) throws {
+        guard accountOrigin.scheme == "https", let host = accountOrigin.host, !host.isEmpty,
+              accountOrigin.user == nil, accountOrigin.password == nil, accountOrigin.query == nil,
+              accountOrigin.fragment == nil, ["", "/"].contains(accountOrigin.path),
+              !deviceId.isEmpty, deviceId.count <= 128,
+              deviceId.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }),
+              !binding.isEmpty, binding.count <= 256 else { throw DebugBackendError.invalidProfile }
+        self.baseURL = accountOrigin
+        self.deviceId = deviceId
+        self.credential = ""
+        self.accountBinding = binding
     }
 }
 
@@ -69,6 +87,7 @@ final class DebugBackendKeychain {
     }
 
     func write(_ profile: DebugBackendProfile) throws {
+        guard !profile.usesAccountSession else { throw DebugBackendError.invalidProfile }
         let data = try JSONEncoder().encode(StoredProfile(address: profile.baseURL.absoluteString,
             deviceId: profile.deviceId, credential: profile.credential))
         let attributes: [String: Any] = [kSecValueData as String: data,
@@ -433,10 +452,36 @@ enum DebugCostumeJPEG {
     }
 }
 
+// A reserved urgent slot keeps Stop available while a Director refresh owns
+// four pending reads. It does not authorize a route or retry a mutation.
+struct DebugShowRequestSlots {
+    private var requests: [UUID: Bool] = [:]
+    mutating func begin(urgent: Bool) -> UUID? {
+        if urgent {
+            guard !requests.values.contains(true) else { return nil }
+        } else {
+            guard requests.values.filter({ !$0 }).count < 4 else { return nil }
+        }
+        let id = UUID()
+        requests[id] = urgent
+        return id
+    }
+    mutating func finish(_ id: UUID) { requests.removeValue(forKey: id) }
+    mutating func clear() { requests.removeAll() }
+    static func isUrgent(suffix: String, method: String, body: String?) -> Bool {
+        guard method == "POST", let body, body.utf8.count <= 65_536,
+              let value = try? JSONSerialization.jsonObject(with: Data(body.utf8)) as? [String: Any] else { return false }
+        if suffix == "/commands" { return ["stop", "cancel-speech"].contains(value["kind"] as? String ?? "") }
+        return suffix.range(of: "^/duels/[A-Za-z0-9_-]+/cancel$", options: .regularExpression) != nil
+    }
+}
+
 @MainActor
 final class DebugBackendClient {
     typealias HTTP = (URLRequest, Int) async throws -> (Data, HTTPURLResponse)
+    typealias AccountAuthorizer = (URLRequest, String, String) async throws -> URLRequest
     private let http: HTTP
+    private let accountAuthorizer: AccountAuthorizer?
     private let transport: DebugHTTPTransport?
     private struct CleanupRecord {
         let profile: DebugBackendProfile
@@ -457,7 +502,18 @@ final class DebugBackendClient {
         }
     }
 
-    init(http: HTTP? = nil) {
+    init(http: HTTP? = nil, accountAuthorizer: AccountAuthorizer? = nil) {
+        if let accountAuthorizer = accountAuthorizer {
+            self.accountAuthorizer = accountAuthorizer
+        } else {
+#if os(iOS)
+            self.accountAuthorizer = { request, deviceId, binding in
+                try await Self.authorizeAccountRequest(request, deviceId: deviceId, binding: binding)
+            }
+#else
+            self.accountAuthorizer = nil
+#endif
+        }
         if let http = http {
             self.http = http
             transport = nil
@@ -470,9 +526,30 @@ final class DebugBackendClient {
 
     deinit { transport?.invalidate() }
 
+#if os(iOS)
+    @MainActor private static func authorizeAccountRequest(_ request: URLRequest, deviceId: String, binding: String) async throws -> URLRequest {
+        guard let identity = KufrIdentityPlugin.active else { throw DebugBackendError.invalidProfile }
+        return try await identity.authorizeDeviceRequest(request, deviceId: deviceId, binding: binding)
+    }
+#endif
+
+    func authorizedRequest(_ profile: DebugBackendProfile, _ request: URLRequest) async throws -> URLRequest {
+        guard profile.usesAccountSession else { return request }
+        guard let binding = profile.accountBinding, let authorize = accountAuthorizer else { throw DebugBackendError.invalidProfile }
+        // Check the binding anew for each upload, stream, poll and cleanup.
+        // Old owned conversations cannot inherit a different signed-in user.
+        return try await authorize(request, profile.deviceId, binding)
+    }
+
+    private func send(_ profile: DebugBackendProfile, _ request: URLRequest, limit: Int) async throws -> (Data, HTTPURLResponse) {
+        let authorized = try await authorizedRequest(profile, request)
+        try Task.checkCancellation()
+        return try await http(authorized, limit)
+    }
+
     @MainActor func openHandsFreeSession(_ profile: DebugBackendProfile, readyMask: Int,
         voice: String, speed: Double, gptLive: Bool = false, costume: DebugCostumeInput? = nil,
-        guestMemory: DebugGuestMemoryBinding? = nil,
+        guestMemory: DebugGuestMemoryBinding? = nil, confirmGuestMemory: Bool = false,
         costumeStatus: (String) -> Void = { _ in }, phase: @escaping DebugHandsFreeSession.Phase,
         visitor: @escaping DebugHandsFreeSession.Visitor, reply: @escaping DebugHandsFreeSession.Reply,
         audio: @escaping DebugHandsFreeSession.Audio, listening: @escaping DebugHandsFreeSession.Listening,
@@ -484,6 +561,9 @@ final class DebugBackendClient {
               speed.isFinite, (0.8...1.2).contains(speed) else { throw DebugBackendError.invalidResponse }
         guard !hasPendingCleanup else { throw DebugBackendError.serverCode("realtime_cleanup_failed") }
         try guestMemory?.validate()
+        guard !profile.usesAccountSession || guestMemory == nil || confirmGuestMemory else {
+            throw DebugBackendError.serverCode("account_admin_confirmation_required")
+        }
         let token = try await accessToken(profile)
         try await requireEngine(profile, token: token, engine: gptLive ? "gpt-live" : "realtime")
         let boot = UUID().uuidString.lowercased()
@@ -511,7 +591,7 @@ final class DebugBackendClient {
         _ = try await json(profile, path: "v1/admin/memory/guest", token: profile.credential, method: "PUT", body: [
             "deviceId": profile.deviceId, "conversationId": conversation, "guestId": binding.guestId,
             "identitySource": "operator", "identityVerified": binding.identityVerified,
-            "longTermAllowed": binding.longTermAllowed, "cloudExportAllowed": binding.cloudExportAllowed, "expectedVersion": 0])
+            "longTermAllowed": binding.longTermAllowed, "cloudExportAllowed": binding.cloudExportAllowed, "expectedVersion": 0], confirmedAdminMutation: true)
     }
 
     func inspectMemory(_ profile: DebugBackendProfile, conversation: String, personality: String) async throws -> [String: Any] {
@@ -531,10 +611,11 @@ final class DebugBackendClient {
         return value
     }
 
-    func deleteConversationMemory(_ profile: DebugBackendProfile, conversation: String, expectedEpoch: Int) async throws -> [String: Any] {
+    func deleteConversationMemory(_ profile: DebugBackendProfile, conversation: String, expectedEpoch: Int, confirmed: Bool = false) async throws -> [String: Any] {
         guard UUID(uuidString: conversation) != nil, expectedEpoch >= 0 else { throw DebugBackendError.invalidResponse }
+        guard !profile.usesAccountSession || confirmed else { throw DebugBackendError.serverCode("account_admin_confirmation_required") }
         let (data, response) = try await request(profile, path: "v1/admin/memory/scopes/conversation/\(conversation)",
-            token: profile.credential, method: "DELETE", body: ["deviceId": profile.deviceId, "expectedEpoch": expectedEpoch], limit: 262_144)
+            token: profile.credential, method: "DELETE", body: ["deviceId": profile.deviceId, "expectedEpoch": expectedEpoch], limit: 262_144, confirmedAdminMutation: confirmed)
         if response.statusCode == 204 { return ["deleted": true] }
         guard response.mimeType == "application/json",
               let value = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw DebugBackendError.invalidResponse }
@@ -564,8 +645,8 @@ final class DebugBackendClient {
         let headers = ["Authorization": "Bearer \(token)", "Idempotency-Key": UUID().uuidString.lowercased(),
             "Client-Turn-Id": UUID().uuidString.lowercased(), "Boot-Id": boot, "Generation": "0", "Device-Revision": "0",
             "Catalog-Version": "ollivander-private-party-v1", "Image-Revision": String(revision)]
-        for (key, value) in headers { request.setValue(value, forHTTPHeaderField: key) }
-        let (data, response) = try await http(request, 4_096)
+        for (key, value) in headers where !profile.usesAccountSession || key != "Authorization" { request.setValue(value, forHTTPHeaderField: key) }
+        let (data, response) = try await send(profile, request, limit: 4_096)
         guard response.statusCode == 204, data.isEmpty else { throw DebugBackendError.invalidResponse }
     }
 
@@ -654,9 +735,10 @@ final class DebugBackendClient {
         let headers = ["Authorization": "Bearer \(token)", "Content-Type": contentType,
             "Idempotency-Key": idempotencyKey ?? UUID().uuidString.lowercased(), "Client-Turn-Id": turn, "Boot-Id": boot,
             "Generation": "0", "Device-Revision": "0", "Catalog-Version": "ollivander-private-party-v1"]
-        for (key, value) in headers.merging(extraHeaders, uniquingKeysWith: { _, new in new }) { request.setValue(value, forHTTPHeaderField: key) }
+        for (key, value) in headers.merging(extraHeaders, uniquingKeysWith: { _, value in value })
+            where !profile.usesAccountSession || key != "Authorization" { request.setValue(value, forHTTPHeaderField: key) }
         // Single attempt: never resend a photo after an ambiguous network error.
-        let (data, response) = try await http(request, 16_384)
+        let (data, response) = try await send(profile, request, limit: 16_384)
         try Task.checkCancellation()
         guard response.statusCode == (method == "POST" ? 202 : 200), data.count <= 16_384,
             response.mimeType == "application/json", let result = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -664,15 +746,85 @@ final class DebugBackendClient {
         return result
     }
 
+    func showRequest(_ profile: DebugBackendProfile, deviceId: String, suffix: String,
+                     method: String, body: String? = nil, confirmed: Bool = false) async throws -> (status: Int, body: Any) {
+        guard deviceId.range(of: "^[A-Za-z0-9_-]{1,128}$", options: .regularExpression) != nil,
+              !profile.usesAccountSession || profile.deviceId == deviceId,
+              !deviceId.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }),
+              suffix.utf8.count <= 1024, !suffix.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }),
+              ["GET", "POST"].contains(method) else { throw DebugBackendError.invalidProfile }
+        let allowedGet = "^(|/(identities|prophecies|duels)(\\?eveningId=[A-Za-z0-9%_-]+)?|/duels/[A-Za-z0-9_-]+)$"
+        let allowedPost = "^/(commands|end-evening|offline-outcomes|prophecies/[A-Za-z0-9_-]+/reveal|duels|duels/[A-Za-z0-9_-]+/(start|cancel|grants|grants/revoke))$"
+        guard suffix.range(of: method == "GET" ? allowedGet : allowedPost, options: .regularExpression) != nil,
+              (method == "GET" && body == nil) || (method == "POST" && body != nil && body!.utf8.count <= 65_536
+                && (try? JSONSerialization.jsonObject(with: Data(body!.utf8))) is [String: Any]),
+              let url = URL(string: "/v1/show/devices/\(deviceId)\(suffix)", relativeTo: profile.baseURL)?.absoluteURL,
+              url.host == profile.baseURL.host, url.scheme == profile.baseURL.scheme, url.port == profile.baseURL.port else {
+            throw DebugBackendError.invalidResponse
+        }
+        let sensitive = method == "POST" && (suffix == "/end-evening" || suffix == "/offline-outcomes"
+            || suffix.hasSuffix("/reveal") || suffix.hasSuffix("/grants") || suffix.hasSuffix("/grants/revoke"))
+        guard !profile.usesAccountSession || !sensitive || confirmed else {
+            throw DebugBackendError.serverCode("confirmation_required")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if profile.usesAccountSession && sensitive { request.setValue("yes", forHTTPHeaderField: "X-DV-Confirm") }
+        if !profile.usesAccountSession { request.setValue("Bearer \(profile.credential)", forHTTPHeaderField: "Authorization") }
+        if let body {
+            request.httpBody = Data(body.utf8)
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+        let (data, response) = try await send(profile, request, limit: 1_048_576)
+        try Task.checkCancellation()
+        // Recheck the native account binding before returning private Show data.
+        // Prepared headers from an earlier account are never reused for a new one.
+        if profile.usesAccountSession { _ = try await authorizedRequest(profile, request) }
+        let jsonResponse = response.mimeType == "application/json"
+            || (response.statusCode >= 400 && response.mimeType == "application/problem+json")
+        guard data.count <= 1_048_576, data.isEmpty || jsonResponse else {
+            throw DebugBackendError.invalidResponse
+        }
+        let object: Any = data.isEmpty ? NSNull() : try JSONSerialization.jsonObject(with: data)
+        return (response.statusCode, object)
+    }
+
     func inspect(_ profile: DebugBackendProfile) async throws -> String {
+        _ = try await engineInventory(profile)
+        return "openai"
+    }
+
+    func engineInventory(_ profile: DebugBackendProfile) async throws -> DebugEngineInventory {
         let token = try await accessToken(profile)
         let diagnostics = try await json(profile, path: "v1/diagnostics", token: token)
         guard let value = diagnostics["engines"] as? [String: Any] else {
             throw DebugBackendError.serverCode("native_upgrade_required")
         }
         let data = try JSONSerialization.data(withJSONObject: value)
-        try JSONDecoder().decode(DebugEngineInventory.self, from: data).validate()
-        return "openai"
+        let inventory = try JSONDecoder().decode(DebugEngineInventory.self, from: data)
+        try inventory.validate()
+        return inventory
+    }
+
+    // Authorize the HTTPS upgrade before converting its transport scheme. The
+    // account helper owns the cookie, CSRF and exact-device scope; none enters JS.
+    func audioStreamRequest(_ profile: DebugBackendProfile, conversation: String,
+                            endpoint: String, streamId: String, token: String) async throws -> URLRequest {
+        guard UUID(uuidString: conversation) != nil, UUID(uuidString: streamId) != nil,
+              ["gpt-live", "realtime-live"].contains(endpoint) else { throw DebugBackendError.invalidResponse }
+        var request = URLRequest(url: profile.baseURL.appendingPathComponent(
+            "v1/conversations/\(conversation)/\(endpoint)/\(streamId)/audio-stream"))
+        if !profile.usesAccountSession { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+        request.httpMethod = "GET"
+        request = try await authorizedRequest(profile, request)
+        try Task.checkCancellation()
+        guard let url = request.url, var components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let scheme = components.scheme, ["https", "http"].contains(scheme) else { throw DebugBackendError.invalidProfile }
+        components.scheme = components.scheme == "https" ? "wss" : "ws"
+        guard let socketURL = components.url else { throw DebugBackendError.invalidProfile }
+        request.url = socketURL
+        return request
     }
 
     func eveningList(_ profile: DebugBackendProfile, action: String = "list", name: String? = nil,
@@ -787,6 +939,9 @@ final class DebugBackendClient {
     }
 
     fileprivate func accessToken(_ profile: DebugBackendProfile) async throws -> String {
+        // Account requests use the existing cookie/CSRF session. No device token
+        // is minted, copied or exchanged; this legacy-only argument is unused.
+        if profile.usesAccountSession { return "" }
         let result = try await json(profile, path: "v1/device-access/token", token: profile.credential, method: "POST")
         guard result["deviceId"] as? String == profile.deviceId,
               let token = result["accessToken"] as? String, !token.isEmpty, token.utf8.count <= 256,
@@ -871,14 +1026,14 @@ final class DebugBackendClient {
     fileprivate func json(_ profile: DebugBackendProfile, path: String, token: String,
                       method: String = "GET", body: [String: Any]? = nil,
                       idempotencyKey: String? = nil, recoverCancelledCreate: Bool = true,
-                      limit: Int = 16_384) async throws -> [String: Any] {
+                      limit: Int = 16_384, confirmedAdminMutation: Bool = false) async throws -> [String: Any] {
         let key = idempotencyKey ?? UUID().uuidString.lowercased()
         // Recover an ambiguously accepted create with the same key and body.
         // Never overwrite/delete a conflicting session belonging to another run.
         for attempt in 0..<2 {
             do {
                 let (data, response) = try await request(profile, path: path, token: token,
-                    method: method, body: body, limit: limit, key: key)
+                    method: method, body: body, limit: limit, key: key, confirmedAdminMutation: confirmedAdminMutation)
                 guard response.mimeType == "application/json",
                       let value = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                     throw DebugBackendError.invalidResponse
@@ -911,23 +1066,33 @@ final class DebugBackendClient {
     fileprivate func request(_ profile: DebugBackendProfile, path: String, token: String,
                          method: String, body: [String: Any]?, limit: Int, key: String? = nil,
                          queryItems: [URLQueryItem]? = nil,
-                         allowUnauthorizedResponse: Bool = false) async throws -> (Data, HTTPURLResponse) {
+                         allowUnauthorizedResponse: Bool = false, confirmedAdminMutation: Bool = false) async throws -> (Data, HTTPURLResponse) {
         try Task.checkCancellation()
         var components = URLComponents(url: profile.baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
         components.queryItems = queryItems
         var request = URLRequest(url: components.url!)
         request.httpMethod = method
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if !profile.usesAccountSession { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         if method != "GET" { request.setValue(key ?? UUID().uuidString.lowercased(), forHTTPHeaderField: "Idempotency-Key") }
+        if profile.usesAccountSession && confirmedAdminMutation { request.setValue("yes", forHTTPHeaderField: "X-DV-Confirm") }
         if let body = body {
             request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
-        let (data, response) = try await http(request, limit)
+        let (data, response) = try await send(profile, request, limit: limit)
         try Task.checkCancellation()
         guard data.count <= limit else { throw DebugBackendError.tooLarge }
         guard (200...299).contains(response.statusCode) ||
-                (allowUnauthorizedResponse && response.statusCode == 401) else { throw DebugBackendError.httpStatus }
+                (allowUnauthorizedResponse && response.statusCode == 401) else {
+            if profile.usesAccountSession, data.count <= 4_096,
+               let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let code = value["code"] as? String,
+               ["account_admin_required", "recent_passkey_required", "confirmation_required",
+                "csrf_required", "account_origin_required"].contains(code) {
+                throw DebugBackendError.serverCode(code)
+            }
+            throw DebugBackendError.httpStatus
+        }
         return (data, response)
     }
 

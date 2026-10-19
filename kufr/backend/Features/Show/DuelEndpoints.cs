@@ -1,4 +1,5 @@
 using Kufr.Backend.Features.Access;
+using Kufr.Backend.Features.Identity;
 
 namespace Kufr.Backend.Features.Show;
 
@@ -11,11 +12,9 @@ internal static class DuelEndpoints
         {
             var context = invocation.HttpContext;
             PrepareResponse(context);
-            if (!context.RequestServices.GetRequiredService<ServerAdminAccess>().Authenticate(context))
-            {
-                return Error(401, "admin_required");
-            }
             var device = context.Request.RouteValues["deviceId"]?.ToString();
+            var denied = await AccountShowAuthorization.RequireAsync(context, device ?? "");
+            if (denied is not null) { return denied; }
             var config = context.RequestServices.GetRequiredService<IConfiguration>();
             if (string.IsNullOrWhiteSpace(device)
                 || !config.GetSection("Devices").GetChildren().Any(section => section["DeviceId"] == device))

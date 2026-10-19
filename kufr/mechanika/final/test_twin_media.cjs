@@ -11,7 +11,7 @@ const JPEG=Uint8Array.from([255,216,255,218,0,8,1,1,0,0,63,0,1,255,0,2,255,208,3
 function output(kind,sequence='1',fields={}) {
   return {sessionId:SESSION,bootId:BOOT,epoch:'9007199254740993',inputEpoch:'1',outputEpoch:'1',sequence,kind,byteLength:0,phase:kind,inputEnabled:kind==='listening',drainedRequested:false,...fields};
 }
-function mounted() {
+function mounted(options={}) {
   const elements=new Map(), events=new Map(), requests=[], permissions=[], streams=[], contexts=[], worklets=[], timers=[], canvases=[];
   let pendingRequest=null, pendingPermission=null, pendingResume=null, currentState=null;
   class Element {
@@ -54,7 +54,7 @@ function mounted() {
   }
   class Worklet extends Node { constructor(){super();this.port={};worklets.push(this);} }
   const document={createElement:tag=>{const element=new Element(tag);if(tag==='canvas')canvases.push(element);return element;}};
-  const navigator={mediaDevices:{addEventListener(){},enumerateDevices:async()=>[],getUserMedia:async constraints=>{
+  const navigator={mediaDevices:{addEventListener:(name,handler)=>events.set('media-'+name,handler),removeEventListener:(name)=>events.delete('media-'+name),enumerateDevices:async()=>[],getUserMedia:async constraints=>{
     permissions.push(constraints);if(pendingPermission){const pending=pendingPermission;pendingPermission=null;await pending;}
     const track={stopped:false,addEventListener(){},stop(){this.stopped=true;}};
     const stream={getTracks:()=>[track]};streams.push(stream);return stream;
@@ -63,19 +63,20 @@ function mounted() {
     Uint8Array,Float32Array,DataView,Blob,AbortController,console,URL:{createObjectURL:()=> 'blob:test',revokeObjectURL(){}},
     atob:text=>Buffer.from(text,'base64').toString('binary'),crypto:{randomUUID:()=>BOOT},
     Option:function(text,value){this.textContent=text;this.value=value;},
-    addEventListener:(name,callback)=>events.set(name,callback),setTimeout:callback=>{timers.push(callback);return timers.length;},clearTimeout(){}};
-  context.window=context;require('./ui_test_runtime.cjs')(context);vm.runInNewContext(fs.readFileSync(require.resolve('./twin_media.js'),'utf8'),context);
-  const api=context.TwinMedia.mount(document,new Element(),{request:async(id,path,options={})=>{
+    addEventListener:(name,callback)=>events.set(name,callback),removeEventListener:name=>events.delete(name),setTimeout:callback=>{timers.push(callback);return timers.length;},clearTimeout(){}};
+  context.window=context;require('./ui_test_runtime.cjs')(context);for(const file of ['./twin_media_core.js','./twin_media_controller.js','./twin_media.js']) vm.runInNewContext(fs.readFileSync(require.resolve(file),'utf8'),context);
+  const transport={request:async(id,path,options={})=>{
     const request={id,path,...options};requests.push(request);
-    if(pendingRequest?.path===path){const pending=pendingRequest;pendingRequest=null;await pending.promise;}
+    if(pendingRequest?.path===path){const pending=pendingRequest;pendingRequest=null;const value=await pending.promise;if(value!==undefined)return value;}
     if(path==='/settings')return configuration;
     if(path==='/media/start')return {sessionId:SESSION,bootId:BOOT,epoch:'9007199254740993',inputEpoch:'0',outputEpoch:'0',phase:'starting',active:true};
     if(path==='/media/state')return currentState;
     return null;
-  }});
+  }};
+  const api=options.parseEngines ? context.TwinMediaController.createMediaController({transport,document,parseEngines:options.parseEngines,onChange:state=>{options.onChange?.(state);}}) : context.TwinMedia.mount(document,new Element(),transport);
   const get=key=>elements.get(key),flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
   const activate=async()=>{api.sync({...source});await flush();await get('speaker').onclick();await get('mic').onclick();};
-  return {api,get,requests,permissions,streams,contexts,worklets,timers,canvases,flush,activate,event:name=>events.get(name)?.(),
+  return {api,get,requests,permissions,streams,contexts,worklets,timers,canvases,flush,activate,events,event:name=>events.get(name)?.(),
     hold:path=>{let resolve,reject;const promise=new Promise((done,fail)=>{resolve=done;reject=fail;});pendingRequest={path,promise};resolve.reject=reject;return resolve;},
     holdResume:()=>{let resolve;pendingResume=new Promise(done=>{resolve=done;});return resolve;},
     setMediaState:state=>{currentState=state;},
@@ -103,6 +104,26 @@ test('settings preserve exact revisions, reject invalid gpt speed and never expo
   assert.throws(()=>media.settings({...configuration,engine:'gpt-live',speed:1.2}));
   assert.throws(()=>media.settings({...configuration,revision:9007199254740993}));
 });
+test('Vue canonical capability injection refuses unavailable engines without fallback or provider requests',async()=>{
+  let state;
+  const caps={schemaVersion:1,primaryEngine:'gpt-live',engines:[{engine:'gpt-live',model:'gpt-live-1',ready:false,voices:['marin'],speed:{supported:false,min:1,max:1,default:1},inputModes:['audio'],cameraSources:['phone','suitcase']}]};
+  const app=mounted({parseEngines:()=>caps,onChange:value=>{state=value;}});
+  app.api.sync({...source});await app.flush();
+  app.api.selection('engine','gpt-live');await app.api.action('save');
+  assert.equal(state.settings.engine,'gpt-live');assert.equal(state.disabled.speed,true);
+  assert.match(state.failure,/nejsou dostupné/);assert.equal(app.requests.filter(request=>request.method==='PUT').length,0);
+  caps.engines[0].ready=true;await app.api.action('save');
+  assert.equal(JSON.parse(app.requests.find(request=>request.method==='PUT').body).engine,'gpt-live');
+  await app.api.action('speaker');await app.api.action('mic');await app.api.action('start');
+  assert.equal(app.requests.filter(request=>request.path==='/media/start').length,0,'unsaved selected engine must never start persisted fake fallback');
+  assert.equal(state.settings.engine,'gpt-live');app.api.dispose();
+});
+test('missing canonical metadata keeps a real engine selected and denies its save',async()=>{
+  let state;const app=mounted({parseEngines:()=>null,onChange:value=>{state=value;}});
+  app.api.sync({...source});await app.flush();app.api.selection('engine','realtime');await app.api.action('save');
+  assert.equal(state.settings.engine,'realtime');assert.equal(app.requests.filter(request=>request.method==='PUT').length,0);
+  assert.match(state.failure,/nejsou dostupné/);app.api.dispose();
+});
 
 test('JPEG adapter removes APP metadata/comments and preserves encoded scans, stuffing and restart markers',()=>{
   const segment=(marker,payload)=>[255,marker,0,payload.length+2,...payload];
@@ -124,6 +145,22 @@ test('settings/source sync never prompts permissions; observer/live/replay/deter
     await app.get('mic').onclick();await app.get('speaker').onclick();await app.get('start').onclick();
     assert.equal(app.permissions.length,0);assert.equal(app.requests.length,count);
   }
+});
+test('disposing canonical HAL removes listeners, clears private dialogue and ends capture before correlated cancellation',async()=>{
+  const app=mounted();await app.activate();await app.get('start').onclick();await app.flush();
+  await app.api.handle(output('dialogue','1',{text:'private transient words'}));
+  assert.equal(app.get('dialogue').children.length,1);
+  assert.equal(app.events.has('pagehide'),true);assert.equal(app.events.has('media-devicechange'),true);
+  app.api.dispose();await app.flush();app.api.dispose();
+  assert.equal(app.events.has('pagehide'),false);assert.equal(app.events.has('media-devicechange'),false);
+  assert.equal(app.api.state().actor,null);assert.equal(app.api.state().captureBytes,0);
+  assert.equal(app.get('dialogue').children.length,0);assert.equal(app.contexts[0].state,'closed');
+  for(const stream of app.streams) assert.equal(stream.getTracks().every(track=>track.stopped),true);
+  const requests=app.requests.length;
+  app.worklets[0].port.onmessage({data:new Float32Array(4800)});await app.flush();
+  assert.equal(app.requests.length,requests,'late capture after disposal cannot upload');
+  const cancellations=app.requests.filter(item=>item.path==='/media/cancel');assert.equal(cancellations.length,1);
+  assert.deepEqual(Object.keys(JSON.parse(cancellations[0].body)).sort(),['bootId','epoch','sessionId']);
 });
 test('actual activation/start handlers send native admission only, input begins only at native listening',async()=>{
   const app=mounted();await app.activate();assert.equal(app.permissions.length,1);assert.equal(app.contexts[0].sampleRate,24000);
@@ -379,14 +416,49 @@ test('native photo timeout closes preview and rejects late old-epoch photo witho
 
 for(const error of ['media_failed','media_boot_changed'])test(`failed native state ${error} closes HAL without awaiting an output frame or physical Stop`,async()=>{
   const app=mounted();await app.activate();await app.get('start').onclick();await app.flush();
+  await app.api.handle(output('dialogue','1',{text:'private visitor'}));
   app.setMediaState({...output('failed'),active:false,error,inputEnabled:false});
   const outputs=app.requests.filter(item=>item.path==='/media/output').length;
   for(let i=0;i<9;i++)await app.poll();
   assert.equal(app.api.state().actor,null);assert.equal(app.streams[0].getTracks()[0].stopped,true);
-  assert.equal(app.contexts[0].state,'closed');assert.equal(app.get('error').textContent,error);assert.equal(app.get('mic').disabled,false);
+  assert.equal(app.contexts[0].state,'closed');assert.equal(app.get('error').textContent,error);assert.equal(app.get('mic').disabled,true);
+  assert.equal(app.get('dialogue').children.length,0);
   assert.equal(app.requests.filter(item=>item.path==='/media/output').length,outputs+8);
   assert.equal(app.requests.some(item=>item.path==='/media/cancel'||item.path==='/commands'),false);
-  await app.get('speaker').onclick();await app.get('mic').onclick();assert.equal(app.get('start').disabled,false);
+  await app.get('reload').onclick();await app.get('speaker').onclick();await app.get('mic').onclick();assert.equal(app.get('start').disabled,false);
+});
+
+test('actual failed media poll clears private dialogue, preview and configuration after grant revocation',async()=>{
+  const app=mounted();await app.activate();const finish=app.hold('/media/output');await app.get('start').onclick();await app.flush();
+  await app.api.handle(output('dialogue','1',{text:'private visitor'}));
+  await app.api.handle(output('photo_request','2'));await app.get('camera').onclick();await app.get('capture').onclick();
+  assert.equal(app.get('dialogue').children.length,1);assert.equal(app.get('preview').hidden,false);
+  finish.reject(Object.assign(new Error('permission revoked'),{status:403}));await app.flush();
+  assert.equal(app.get('dialogue').children.length,0);assert.equal(app.get('preview').hidden,true);assert.equal(app.get('engine').disabled,true);
+  assert.equal(app.api.state().actor,null);assert.equal(app.api.state().captureBytes,0);
+  for(const stream of app.streams)assert.equal(stream.getTracks().every(track=>track.stopped),true);
+  const requests=app.requests.length;app.worklets[0].port.onmessage({data:new Float32Array(4800)});await app.flush();
+  assert.equal(app.requests.length,requests);assert.equal(app.requests.some(request=>request.path==='/commands'),false);
+});
+test('private invalidation fences an old delayed microphone upload and cannot erase the next source dialogue',async()=>{
+  const app=mounted();await app.activate();await app.get('start').onclick();await app.flush();await app.api.handle(output('listening'));
+  const finish=app.hold('/media/input');app.worklets[0].port.onmessage({data:new Float32Array(4800)});await app.flush();
+  await app.api.invalidate('account changed');app.api.sync({...source,instanceId:'sim-other'});await app.flush();
+  await app.get('speaker').onclick();await app.get('mic').onclick();await app.get('start').onclick();await app.flush();
+  await app.api.handle(output('dialogue','1',{text:'new source private visitor'}));
+  finish.reject(Object.assign(new Error('old account expired'),{status:401}));await app.flush();
+  assert.ok(app.api.state().actor);assert.equal(app.get('dialogue').children[0].textContent,'new source private visitor');
+  assert.equal(app.requests.filter(request=>request.path==='/media/cancel'&&request.id==='sim-other').length,0);app.api.dispose();
+});
+test('a delayed private media poll cannot publish old visitor dialogue after ownership invalidation',async()=>{
+  const app=mounted();await app.activate();const finish=app.hold('/media/output');await app.get('start').onclick();await app.flush();
+  await app.api.handle(output('dialogue','1',{text:'old visitor before switch'}));
+  await app.api.invalidate('account changed');assert.equal(app.get('dialogue').children.length,0);
+  app.api.sync({...source,instanceId:'sim-other'});await app.flush();await app.get('speaker').onclick();await app.get('mic').onclick();await app.get('start').onclick();await app.flush();
+  await app.api.handle(output('dialogue','1',{text:'new visitor'}));
+  finish(output('dialogue','2',{text:'late old visitor'}));await app.flush();
+  assert.equal(app.get('dialogue').children.length,1);assert.equal(app.get('dialogue').children[0].textContent,'new visitor');
+  assert.ok(app.api.state().actor);app.api.dispose();
 });
 
 test('old source failed state HTTP completion cannot close a new media actor',async()=>{

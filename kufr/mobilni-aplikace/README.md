@@ -1,81 +1,60 @@
-# Mobilní ovládání kufru
+# DildoVander: společná webová a iOS aplikace
 
-**Director Mode** je v existující aplikaci pod **Diagnostika → Provozní nástroje**,
-případně na `#director`. Vstup neuděluje oprávnění: každé čtení a povel ověřuje
-backend pomocí `ServerAdminAccess` a scope zařízení. Webový administrátorský
-credential zůstává pouze v paměti otevřené stránky; iOS používá již existující
-nativní profil v Keychain přes omezený `showRequest`, bez předání credentialu
-do JavaScriptu. Pro jinou adresu/identitu je nutné znovu nastavit přístup.
+Vue 3 SFC s Composition API, TypeScriptem a Vue Routerem sdílejí stejné
+obrazovky na webu a v Capacitor WKWebView. Vapour Chrome dodává autoritativní
+tokeny a styl; `src/components/` obsahuje typované Vue komponenty.
+`src/application/App.vue` drží navigaci **Domov, Kufr, Dílna, Archiv, Nastavení**
+a dostupný Stop. Feature služby vlastní zařízení, účty, archiv a viewer;
+Swift adaptéry dál vlastní Bluetooth, Keychain, audio a nativní transport.
 
-Režie odděluje místní zařízení, backend a AI, ukazuje revizi, návštěvu, náladu,
-tón, tempo a životní cyklus zásahu. Konflikt nebo ztracená odpověď se neopakuje;
-obnova načítá stav. Stop míří stávající místní cestou, nezávisí na backendu a
-jeho přijetí neprokazuje změřené zastavení. Bez autentizovaného místního spojení
-je místní Stop, řeč a Offline Show nedostupný. Backendové ovládání samo
-nepropůjčuje ruční lease ani oprávnění k pohonům.
+Režie Show Pack je skutečná Vue obrazovka na `/suitcase/director`, dostupná z Provozu.
+Starý vstup `/#director` přesměruje na tuto cestu. Používá přihlášený účet,
+konkrétní nakonfigurovaný kufr a stejný omezený transport na webu i iOS;
+obrazovka nevyžaduje adresu serveru ani raw bearer.
+Backend kontroluje read/operate/manage grant. Citlivé odhalení, herní grant,
+import offline výsledků a konec večera vyžadují potvrzení a čerstvý passkey.
+Běžné zásahy a Stop nečekají na nové přihlášení. Stop má přednostní cestu i při
+čekajícím běžném požadavku a zůstává v globálním Stop po odchodu z režie.
+Přepnutí účtu nebo vybraného zařízení ruší starý kontext synchronně.
 
-Samostatný **Stop přes backend** používá administrátorský přístup a HTTPS backend,
-nevyžaduje AI ani místní LAN spojení telefonu s kufrem. Odesílá jeden přednostní
-povel s vlastním ID i během jiného čekajícího požadavku; pozdní běžná odpověď jeho
-stav nepřepíše. Místní Stop stále vede přímo stávající bezpečnostní cestou.
-Přijetí vzdáleného Stop backendem nepotvrzuje doručení kufru: odpojené zařízení
-jej může převzít až při dalším vlastním HTTPS dotazu po obnově spojení.
-UI čeká na aktuální report zařízení se stejnou `stopRevision` jako požadovaný
-`deviceStopRevision`, pozorovaný až po přijetí povelu. Ani toto potvrzení není
-měření fyzického zastavení. Ztracená odpověď zůstává neznámá a povel se automaticky
-neopakuje; další výslovný stisk vytváří nové ID. Rozlišené cesty ani jejich
-nedostupnost nenahrazují fyzické zastavení a místní zotavení.
+Režie zachovává revize, generaci návštěvy a TTL zásahů 30 s; nejistý výsledek
+se nikdy automaticky neopakuje. Backendové přijetí není potvrzení zvuku nebo
+fyzického účinku. Stop porovnává čerstvý report stejné deviceStopRevision.
+Místní offline preflight/Arm/start/ticho/ambient mají vlastní autentizované WSS;
+Arm vyžaduje výslovně získaný ruční lease v Provozu. Import označuje výsledky
+operator_relay a potvrzuje outbox až po přijetí shodného operationId serverem.
 
-Offline preflight/Arm/start/outbox používají autentizované místní WSS a
-aktuální boot, generaci, revizi a pro Arm také ruční lease. Výsledky lze výslovně
-synchronizovat do backendu; místní outbox se potvrzuje až po serverovém přijetí
-stejného `operationId`. UI nepovažuje časované dokončení za změřenou polohu.
-Soukromé znění proroctví se v režii nezobrazuje; odhalení zpřístupní příslušný
-výsledek jeho návštěvníkovi. Uzavření večera má explicitní potvrzení a nemaže archiv.
+Souboj vyžaduje dvě dokončené identity a souhlas obou hostů. Herní odkazy mají
+jednorázově zachycený fragment a žijí pouze v paměti; opuštění pohledu, změna
+účtu/zařízení/večera nebo ukončení souboje odstraní operátorovy kopie.
+Veřejný přehled grant neobsahuje a jeho origin dodává backend.
+`/archive/duel` a `/archive/chronicle` jsou Vue cesty; staré
+`/keepsake/duel.html` a `/keepsake/chronicle.html` zůstávají přesné aliasy.
+Soukromé znění proroctví zůstává návštěvníkovi. Ukončení večera nemaže archiv.
 
-Souboj je výchozí automatický; volba **Hosté volí na svých telefonech** umožní
-vydat a odvolat samostatný herní odkaz pro levou a pravou stranu. Odkazy používají
-výhradně veřejný origin nastavený na backendu. Grant je pouze ve fragmentu herního
-odkazu a v paměti právě otevřené režie; veřejný odkaz ke sledování grant neobsahuje.
-Změna zařízení/večera/souboje, odhlášení, opuštění režie a ukončení souboje
-odstraní místní kopie. Samotné zavření pohledu neodvolává grant na serveru;
-výslovné odvolání má vlastní potvrzený serverový výsledek. Nové vydání zneplatní
-předchozí odkaz příslušné strany. Operátorský credential se do odkazu nepředává.
+Opakovatelné syntetické browser ověření běží proti sestavenému Vue dist pomocí
+`node scripts/check-director-browser.mjs`; nemění backend, nevolá provider ani
+hardware. `check-director-flows.mjs` a `check-director-remote-stop.mjs` jsou
+kompatibilní vstupy stejné udržované sady. Skutečné account/backend testy vlastní
+izolovaný HTTPS fixture. Žádný browser výsledek neprokazuje přijetí na iPhonu.
 
-Opakovatelné browser ověření: nejprve spusťte izolovaný **fake-mode** backend
-s povoleným originem aplikace a testovacím operátorským credentialem, poté
-`node scripts/check-director-browser.mjs`. Skript přijímá jen loopback cíle;
-`DIRECTOR_TEST_APP`, `DIRECTOR_TEST_BACKEND`, `DIRECTOR_TEST_DEVICE` a
-`DIRECTOR_TEST_CREDENTIAL` mění jeho testovací konfiguraci. Používá již zavedený
-Playwright z `../design-system/` (na Windows nainstalovaný Edge). Browser výsledek
-neprokazuje přijetí na iPhonu, Keychain dialog, audio ani fyzickou bezpečnost.
-`node scripts/check-director-remote-stop.mjs` na izolovaném loopback fixture
-ověřuje skutečný přednostní Stop při zadržené běžné odpovědi a neznámý výsledek při
-ztrátě již přijaté odpovědi. Mění stav fixture na zastavenou režii; spouštějte jej
-až po ostatních provozních browser scénářích.
 
-Rozhraní Vapour Chrome používá sdílené tokeny a komponenty `kufr/design-system/`. Spodní navigace
-odděluje **Provoz**, **Kufr** a **Diagnostiku**; Stop zůstává v horní liště i při posunu.
-Provoz nejprve ukazuje stav spojení, ručního řízení a přihrádek a jeden další krok.
-Živý provoz odděluje hlas kufru, tanec a text pomocí klávesnicově ovladatelných záložek;
-ruční ovládání má samostatný pohled. Přepnutí pohledu neruší probíhající akci ani textový koncept.
-Snapshot zachovává focus dostupné ruční akce; zneplatněné potvrzení přesune focus na aktuální stav.
+`/connections` soustředí uložené zařízení a BLE párování; `/suitcase`
+hlas, tanec, text a ruční řízení. `/suitcase/diagnostics` obsahuje nativní
+testy a místní USB servis. `/workshop` integruje model, montáž, simulaci,
+pozorování a replay. `/archive` a `/keepsake/` zachovávají veřejný a soukromý
+přístup hostů. `/settings` a `/settings/admin` vlastní účty a správu.
 
-Kufr soustředí připojení uloženého zařízení i první párování přes BLE; ruční LAN údaje
-jsou pod rozbalovacím ovládáním. Diagnostika rozděluje technické úlohy do rozbalovacích sekcí.
-Stav a ukončení zkušebního rozhovoru na telefonu zůstávají dostupné i se zavřenou sekcí.
-Zkušební backendový rozhovor má vlastní ukončení a zůstává oddělený od hlasu a Stop kufru.
-Přepínač světlého/tmavého vzhledu ukládá pouze preferenci `aw-theme`.
-Webové harnessy nadále představují syntetický důkaz, nikoli ověření na iPhonu.
+Přepnutí pohledu zachovává aktivní operace; revize a změna cíle ruší čekající
+potvrzení fyzického povelu. Telemetrie zachovává stabilní vstupy a focus.
+Prohlížeč začíná bez připojení: ukázku nebo simulátor volíte výslovně.
+Preference tématu migruje `aw-theme` do `dildovander.theme`; účet ani přístupové
+tokeny se do localStorage neukládají. Oprávnění účtu, lokální párování,
+spojení a ruční lease jsou samostatné hranice. Webové testy neprokazují iPhone
+ani fyzický kufr. [Architektura a migrační mapa](../docs/application-architecture.md).
 
-Panely ovládání, hlasu, tance, sítě i diagnostiky importují vykreslovací funkce
-z [`ui.js`](../design-system/ui.js): tlačítka, označená pole, stavové štítky,
-upozornění, prázdné výsledky a karty přihrádek. Sdílený `bindTabs` řídí klávesnici,
-focus a ARIA navigaci; vlastníci panelů dál řídí obnovování a nativní spojení.
-Stejný webový bundle běží v prohlížeči i v Capacitor WKWebView na iOS.
-Lokální `style.css` skládá mobilní rozložení a safe area; vzhled a stavy prvků
-patří do sdíleného systému. Swift bridge nadále vlastní Bluetooth, Keychain a WSS.
-
+Následující datované záznamy popisují starší předání hardware a zachované
+nativní schopnosti; nedokládají přejímku nové Vue aplikace.
 > **D167 – Dance for me:** panel v Ovládání spouští náhodnou vlastní
 > skladbu ze SD kufru a ukazuje soubor, BPM, průběh a srozumitelné chyby.
 > Zastavit tanec ukončí show, Stop kufru také zachová bezpečnostní zotavení.
@@ -517,14 +496,25 @@ npm run build
 npm test
 ```
 
-Build provádí `tsc --noEmit && vite build`; test kontroluje nové lease, opakování totožného příkazu, chybějící výsledek a rekonciliaci po odpojení. Ani jedna kontrola neověřuje iOS podpis, LAN nebo fyzický kufr. Ve webovém fake režimu lze převzít řízení, potvrdit výběr nebo založení 1–6 a vyzkoušet Stop. Ztráta viditelnosti stránky uvolní fake lease; rozběhnutý výběr skončí jako nejistý a vyžaduje výslovnou simulovanou kontrolu. Stav se neukládá přes reload stránky.
+Build kontroluje shodu generovaného validátoru kontraktu, Vue typy přes
+`vue-tsc --noEmit` a sestaví Vite bundle. `npm test` ověřuje protokoly,
+lease, rekonciliaci a skutečné Vue komponenty; `npm run test:browser` po buildu
+ověří sestavené routy, soukromé odkazy, focus, CSP a responzivní rozložení.
+Tyto kontroly neověřují iOS podpis, LAN ani fyzický kufr.
 
-TypeScript 7 poskytuje CLI pro typovou kontrolu; testovací moduly převádí
+TypeScript 6.0.3 je připnutý kvůli kompatibilitě aktuálního `vue-tsc`;
+TypeScript 7 změnil exporty kompilátoru, které tento nástroj potřebuje.
+Testovací moduly převádí
 Node.js `stripTypeScriptTypes` v režimu `transform`, který podporuje také
 parametrové vlastnosti konstruktorů. Node zatím vypisuje upozornění na
 experimentální API. Deklarace `vite/client` pokrývají import CSS a assetů.
 
-Pro E2 simulátor nejprve sestavte mobilní web pomocí `npm run build`, spusťte E2 WSS server a pak místní most podle [návodu simulátoru](../simulator/README.md). Stránka na `http://127.0.0.1:5174` vybere simulátor podle odpovědi `/dev-mode`; Vite stránka zůstává na fake adaptéru. Web nevidí bearer token ani certifikát upstreamu. Po ztrátě spojení zablokuje povely a ukáže nedostupný stav; nejasný výsledek předchozího výběru vyžaduje kontrolu mimo UI. Snapshot a ACK simulátoru nejsou důkaz fyzického otevření.
+Pro E2 simulátor sestavte aplikaci, spusťte E2 WSS server a místní most podle
+[návodu simulátoru](../simulator/README.md), potom jej výslovně vyberte
+v Připojení. Aplikace se podle `/dev-mode` nepřipojuje automaticky. Web nevidí
+bearer token ani certifikát upstreamu. Po ztrátě spojení zablokuje povely;
+nejasný výsledek vyžaduje kontrolu mimo UI. Snapshot ani ACK nejsou důkaz
+fyzického otevření.
 
 Vzhled **Vapour Chrome** používá společné tokeny a lokálně balené fonty Inter
 a IBM Plex Mono z `../design-system/arcane-workshop.css`. Ovládání, Diagnostika a Síť kufru zachovávají

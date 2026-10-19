@@ -55,3 +55,21 @@ condition = "AND"
 paths = ['''^scripts/ci/test_secret_scan\.py$''']
 regexTarget = "secret"
 regexes = ['''^DFR0954_amplifier$''', '''^body=conversation_body$''', '''^7731ce10-a53c-4934-8909-06870fc86a12$''']
+
+[[allowlists]]
+description = "Reviewed historical TypeScript guest HTTP header allowlist"
+targetRules = ["generic-api-key"]
+condition = "AND"
+commits = ["e5dc9e3df11c7ece97de70afa924357b00d86176"]
+paths = ['''^kufr/mobilni-aplikace/src/features/archive/nativeGuest\.ts$''']
+regexTarget = "line"
+regexes = ['''^\s*if \(!\['accept', 'content-type', 'x-dv10-csrf', 'idempotency-key', 'x-dv10-consent'\]\.includes\(name\)\) throw new GuestError\(400\);\s*$''']
+
+[[allowlists]]
+description = "Reviewed historical Swift guest HTTP header allowlist"
+targetRules = ["generic-api-key"]
+condition = "AND"
+commits = ["e5dc9e3df11c7ece97de70afa924357b00d86176"]
+paths = ['''^kufr/mobilni-aplikace/ios/App/App/KufrIdentityPlugin\.swift$''']
+regexTarget = "line"
+regexes = ['''^\s*let permitted = \["accept", "content-type", "x-dv10-csrf", "idempotency-key", "x-dv10-consent"\]\s*$''']

@@ -16,8 +16,12 @@ the relevant backend contracts and `kufr/web/README.md`. Preserve the actual sou
 artifact and schema versions. Do not treat an older result as a current check.
 
 Default dry-run is offline deterministic fixtures plus the explicitly synthetic
-browser suite: `python -m unittest discover -s kufr/web/keepsake -p 'test_*.py'`
-and `node kufr/web/keepsake/test-browser.cjs` with available Playwright runtime.
+browser suite: `npm test --prefix kufr/mobilni-aplikace` and
+`npm run test:browser --prefix kufr/mobilni-aplikace` after the application build.
+The canonical feature tests are `src/features/archive/`: pure client tests and
+mounted Vue/native bridge tests. The compiled browser suite validates early
+fragment capture, routes and responsive shell. Legacy source receipts remain
+historical; do not transfer their validity to the new application.
 Run relevant backend tests through their existing project command. Keep fake
 payloads in tests, never in published portal files.
 

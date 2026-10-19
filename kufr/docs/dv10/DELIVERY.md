@@ -61,7 +61,7 @@ remain subject to the separately authorized deployment procedure. Actual
 For replacing the existing public release, use the complete canonical project
 builder. It preserves the project homepage, companion, workshop and simulator
 alongside `/keepsake/`. After the parent commits and verifies a clean source tree,
-use the verified CAD exports and already-built mobile dist from that same source
+use the already-built shared application dist from that same source
 to build into a new private staging directory:
 
 ```sh
@@ -77,11 +77,9 @@ do not package a developer build as its replacement. The release layout is:
 
 ```text
 backend/backend and its published runtime files
-web/index.html and site.css (project homepage)
-web/companion/..., workshop/..., simulator/...
-web/keepsake/index.html, app.js, keepsake.css
-web/keepsake/evening/index.html, evening.js, evening.css
-web/design-system/...
+web/index.html and assets/... (shared Vue application)
+web/models/... (optional immutable model bundles)
+web/ios/... and existing distribution files
 web/site-manifest.json
 release-manifest.json
 ```
@@ -91,19 +89,16 @@ Stage only the **contents of web/** under
 Stage the contents of `backend/` separately under the existing private backend
 release directory. Never copy the enclosing combined package/backend into webroot.
 Nesting the public root
-under another `keepsake/` would break the portal's absolute `/keepsake/app.js`
-and `/design-system/arcane-workshop.css` references. Canonical guest links remain
+under another `keepsake/` would break the application's absolute asset and API
+paths. Canonical guest links remain
 `/keepsake/evening/` for the public evening; `/keepsake/` remains the private
 owner/recovery entry.
 
-`build-site.py --keepsake-only` remains an independent build/preview command
-requiring no CAD, Sites or Node BFF. Its root index is the public evening preview;
-installing that entire output as the existing public root would replace the
-project homepage and remove prior routes. Never use it for whole-root production
-replacement. An alternative requires an explicitly authorized overlay of
-`keepsake/` and the reviewed shared `design-system/` onto a copied, verified
-existing public release, preserving its homepage and other routes. That combined
-tree needs its own verified provenance inventory before packaging.
+The former `--keepsake-only` build and standalone guest application have been
+removed. Public `/archive`, compatibility `/keepsake/evening/` and private
+`/keepsake/` use the same compiled application. Build the web dist first; the
+packager never recreates a second guest UI. Existing immutable releases and
+archive recovery fixtures retain their recorded schema and hashes.
 
 The packager verifies either full `site-manifest.json` (`schema`, `source_sha`)
 or standalone `keepsake-manifest.json` against the exact committed revision and

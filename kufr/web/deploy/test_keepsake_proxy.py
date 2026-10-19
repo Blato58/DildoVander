@@ -11,13 +11,30 @@ ID = "12345678-1234-1234-1234-123456789abc"
 
 
 class ProxyTests(unittest.TestCase):
+    def test_show_guest_capabilities_have_exact_routes_and_methods(self):
+        for method, path in [
+            ('GET', '/guest/v1/chronicle'),
+            ('GET', f'/guest/v1/duels/{ID}'),
+            ('POST', f'/guest/v1/duels/{ID}/choices'),
+            ('POST', f'/guest/v1/keepsakes/{ID}/wizard-identity'),
+        ]:
+            self.assertTrue(proxy.allowed(method, path), (method, path))
+            self.assertFalse(proxy.allowed('DELETE', path), path)
+            self.assertFalse(proxy.allowed(method, path + '/other'), path)
+        self.assertFalse(proxy.allowed('POST', '/guest/v1/chronicle'))
+        self.assertFalse(proxy.allowed('POST', f'/guest/v1/duels/{ID}'))
+        self.assertFalse(proxy.allowed('GET', f'/guest/v1/duels/{ID}/choices'))
+        self.assertFalse(proxy.allowed('GET', f'/guest/v1/keepsakes/{ID}/wizard-identity'))
+        self.assertFalse(proxy.allowed('POST', '/guest/v1/duels/not-a-guid/choices'))
+
     def test_raw_path_escapes_are_rejected_only_inside_api_locations(self):
         config = proxy.render_compatibility("keepsake.example.invalid")
         guard = '    if ($request_uri ~ "^[^?]*%") { return 404; }'
         locations = re.findall(r'location ~ "\^[^\n]+\n(.*?)\n}', config, re.DOTALL)
+        locations = [block for block in locations if "proxy_pass " in block]
         expected_locations = len(proxy.ROUTES) + len({route for method, route, source in proxy.CONTRACT["routes"]})
         self.assertEqual(expected_locations, len(locations))
-        self.assertEqual(expected_locations, config.count(guard))
+        self.assertEqual(expected_locations + 1, config.count(guard))  # app API prefix also rejects escaped paths
         for block in locations:
             self.assertTrue(block.startswith(guard + "\n"), "Raw paths must be checked before method/proxy handling")
 
@@ -42,6 +59,13 @@ class ProxyTests(unittest.TestCase):
         self.assertTrue(proxy.allowed("GET", asset))
         self.assertFalse(proxy.allowed("DELETE", asset))
         self.assertFalse(proxy.allowed("POST", asset + "/claim"))
+
+    def test_account_association_keeps_exact_guest_post_capability_boundary(self):
+        path = f"/guest/v1/keepsakes/{ID}/account-associations"
+        self.assertTrue(proxy.allowed("POST", path))
+        self.assertFalse(proxy.allowed("GET", path))
+        self.assertFalse(proxy.allowed("DELETE", path))
+        self.assertFalse(proxy.allowed("POST", path + "/other-account"))
 
     def test_compatibility_map_matches_real_source_declarations(self):
         backend = Path(__file__).resolve().parents[2] / "backend"
@@ -127,6 +151,33 @@ class ProxyTests(unittest.TestCase):
                          (deploy / "keepsake-compatibility.conf.example").read_text(encoding="utf-8"))
         self.assertEqual(proxy.render_http_map(),
                          (deploy / "keepsake-upgrade.conf.example").read_text(encoding="utf-8"))
+
+    def test_persistent_audio_and_memory_routes_keep_exact_boundaries(self):
+        config = proxy.render_compatibility("keepsake.example.invalid")
+        for engine in ("gpt-live", "realtime-live"):
+            template = f"/v1/conversations/{{id}}/{engine}/{{streamId:guid}}/audio-stream"
+            path = f"/v1/conversations/{ID}/{engine}/{ID}/audio-stream"
+            self.assertTrue(proxy.allowed_backend("GET", path))
+            self.assertFalse(proxy.allowed_backend("POST", path))
+            self.assertFalse(proxy.allowed_backend("GET", path + "/extra"))
+            self.assertFalse(proxy.allowed_backend("GET", path.replace(ID, "not-a-guid")))
+            block = next(block for block in config.split("\n}\n")
+                         if 'location ~ "^' + proxy.route_pattern(template) + '$" {' in block)
+            self.assertIn("proxy_read_timeout 900s;", block)
+            self.assertIn("proxy_set_header Upgrade $http_upgrade;", block)
+            self.assertIn("proxy_set_header Connection $keepsake_connection_upgrade;", block)
+            self.assertIn("proxy_buffering off;", block)
+            self.assertNotIn("5082", block)
+        for scope, subject in (("conversation", ID), ("evening", ID), ("guest", "party.guest_1")):
+            path = f"/v1/admin/memory/scopes/{scope}/{subject}"
+            self.assertTrue(proxy.allowed_backend("DELETE", path))
+            self.assertFalse(proxy.allowed_backend("GET", path))
+            self.assertFalse(proxy.allowed("DELETE", path))
+        for scope, subject in (("all", ID), ("guest", "a" * 81), ("guest", ".."), ("guest", "%2e%2e")):
+            self.assertFalse(proxy.allowed_backend("DELETE", f"/v1/admin/memory/scopes/{scope}/{subject}"))
+        self.assertTrue(proxy.allowed_backend("GET", "/v1/admin/memory/context"))
+        self.assertTrue(proxy.allowed_backend("DELETE", f"/v1/admin/conversations/{ID}/media"))
+        self.assertTrue(proxy.allowed_backend("DELETE", f"/v1/conversations/{ID}/image"))
 
     def test_compatibility_preserves_live_ota_and_operator_auth_boundaries(self):
         paths = [

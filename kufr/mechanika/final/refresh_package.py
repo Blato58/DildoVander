@@ -16,6 +16,7 @@ from artifacts import (
     assert_verified_exports, export_names, generated_export_names, package_files,
 )
 from source_inputs import prepared_sources, presentation_only, source_hashes, validation_only
+from model_verification import prepare_validation_refresh
 from viewer_document import render_document
 
 
@@ -147,12 +148,15 @@ def refresh_generation(saved_sources):
                             else generation["sha256"][name]
                             for name in sorted(generated_export_names(manifest))}
     replacements[GENERATION_SNAPSHOT] = _json_bytes(generation)
+    model_replacements = prepare_validation_refresh(out, ROOT, saved_sources, current_sources)
+    replacements.update(model_replacements)
     revision = manifest["revision"]
     if not isinstance(revision, str) or not re.fullmatch(r"[A-Za-z0-9_-]+", revision):
         raise ValueError("Unsafe CAD package revision")
     with tempfile.TemporaryDirectory(prefix="f2-validation-refresh-", dir=out) as directory:
         staging = Path(directory)
         for name, content in replacements.items():
+            (staging / name).parent.mkdir(parents=True, exist_ok=True)
             (staging / name).write_bytes(content)
         if source_hashes() != current_sources:
             raise ValueError("Sources changed during generation refresh")
@@ -162,6 +166,8 @@ def refresh_generation(saved_sources):
         for name in ("verification.json", "artifact-sha256.json", "regeneration-cache.json",
                      "trusted-result.json", revision + "-kouzelny-kufr.zip", "package-sha256.txt"):
             (out / name).unlink(missing_ok=True)
+        if model_replacements:
+            (out / "model-release" / "cad-verification.json").unlink(missing_ok=True)
         for name in replacements:
             (staging / name).replace(out / name)
     assert_generation_snapshot(out, manifest, current_sources)

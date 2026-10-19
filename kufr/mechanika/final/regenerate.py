@@ -15,6 +15,7 @@ import unittest
 ROOT = Path(__file__).resolve().parent
 TEST_MODULES = (
     "test_effects", "test_viewer_style", "test_viewer_document",
+    "test_model_bundle_export", "test_model_verification", "test_source_inputs",
     "test_packaging", "test_verification_gate", "test_printing_gate",
     "test_printability", "test_slicer_validation", "test_bridge_audit",
     "test_mesh_quality", "test_manufacturing", "test_support_free",

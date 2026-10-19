@@ -10,6 +10,11 @@ const notices = [
   ['../../design-system/icons/LICENSE.txt', 'icons/LICENSE.txt'],
   ['../node_modules/@capacitor/core/LICENSE', 'capacitor/core-LICENSE.txt'],
   ['../node_modules/@capacitor/ios/LICENSE', 'capacitor/ios-LICENSE.txt'],
+  ['../node_modules/vue/LICENSE', 'vue/LICENSE.txt'],
+  ['../node_modules/vue-router/LICENSE', 'vue-router/LICENSE.txt'],
+  ['../node_modules/pinia/LICENSE', 'pinia/LICENSE.txt'],
+  ['../../contracts/node_modules/ajv/LICENSE', 'ajv/LICENSE.txt'],
+  ['../../contracts/node_modules/jsonc-parser/LICENSE.md', 'jsonc-parser/LICENSE.txt'],
 ];
 
 for (const [source, name] of notices) {

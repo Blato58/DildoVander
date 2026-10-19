@@ -1,5 +1,3 @@
-import Ajv2020 from 'ajv/dist/2020.js';
-import addFormats from 'ajv-formats';
 import { getNodeValue, parseTree } from 'jsonc-parser';
 
 const decoder = new TextDecoder('utf-8', { fatal: true });
@@ -54,11 +52,7 @@ export function parseStrictJson(bytes, maximumBytes = Infinity) {
   return getNodeValue(root);
 }
 
-export function createControlValidator(schema) {
-  const ajv = new Ajv2020({ allErrors: true, strict: true });
-  addFormats(ajv, ['uuid']);
-  const validateSchema = ajv.compile(schema);
-
+export function createControlValidator(validateSchema) {
   return function validateControlMessage(bytes) {
     const message = parseStrictJson(bytes, maximumConversationTextBytes);
     if (bytes.length > maximumControlMessageBytes &&
@@ -67,7 +61,7 @@ export function createControlValidator(schema) {
       throw new Error(`message exceeds ${maximumControlMessageBytes} UTF-8 bytes`);
     }
     if (!validateSchema(message)) {
-      throw new Error(ajv.errorsText(validateSchema.errors));
+      throw new Error(validateSchema.errors.map(error => `data${error.instancePath} ${error.message}`).join(', '));
     }
 
     return message;

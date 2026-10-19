@@ -39,6 +39,12 @@ class IntegrityTests(unittest.TestCase):
         self.assertTrue(any("Undefined --aw-missing" in issue for issue in issues))
         self.assertTrue(any("Obsolete active" in issue for issue in issues))
 
+    def test_vue_component_styles_are_checked(self):
+        component = self.root / "kufr/mobilni-aplikace/src/features/example/Example.vue"
+        component.parent.mkdir(parents=True)
+        component.write_text('<template><p>Example</p></template><style scoped>p{color:var(--aw-unknown)}</style>')
+        self.assertTrue(any("Undefined --aw-unknown" in issue for issue in inspect(self.root)))
+
     def test_generated_and_material_colors_are_excluded(self):
         export = self.root / "kufr/mechanika/final/exports"
         export.mkdir(parents=True)

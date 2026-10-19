@@ -5,6 +5,7 @@ import hashlib
 import json
 import shutil
 import tempfile
+from model_verification import copy_generated_model
 
 
 ASSEMBLY_NAMES = (
@@ -126,6 +127,7 @@ def generate_exports(root, out, generators, source_hashes):
             if source_hashes() != initial_sources or manifest["sources"] != initial_sources:
                 raise ValueError("Sources changed during export generation; regenerate")
             hashes = export_hashes(staging, generated_export_names(manifest))
+            copy_generated_model(staging, out)
             # Delete only retired parts previously registered by this pipeline.
             # A fresh staging directory cannot remove old files in published OUT.
             old_manifest = out / "manifest.json"

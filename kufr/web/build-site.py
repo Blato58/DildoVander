@@ -1,21 +1,9 @@
-"""Build the public site only from source-bound, verified CAD exports."""
+"""Package the compiled application independently of CAD and model releases."""
 import argparse
-import base64
 import hashlib
-import html
-import importlib.util
 import json
-import re
 from pathlib import Path, PurePosixPath
-import shutil
 import subprocess
-import zipfile
-
-
-POLICY_PATH = Path(__file__).resolve().parents[1] / 'mechanika/final/source_inputs.py'
-POLICY_SPEC = importlib.util.spec_from_file_location('site_cad_sources', POLICY_PATH)
-SOURCE_POLICY = importlib.util.module_from_spec(POLICY_SPEC)
-POLICY_SPEC.loader.exec_module(SOURCE_POLICY)
 
 
 def digest(path):
@@ -32,148 +20,69 @@ def safe_member(root, name):
     return path
 
 
-def verified_exports(root):
-    out = root / 'exports'
-    report = json.loads((out / 'verification.json').read_bytes())
-    manifest = json.loads((out / 'manifest.json').read_bytes())
-    if report['result'] != 'PASS_CAD_NOT_PHYSICAL_ACCEPTANCE' or manifest['sources'] != report['sources']:
-        raise ValueError('CAD source verification is missing')
-    if SOURCE_POLICY.file_hashes(root) != report['sources']:
-        raise ValueError('CAD source inventory changed after verification')
-    for name, expected in report['sources'].items():
-        if digest(safe_member(root, name)) != expected:
-            raise ValueError('CAD sources changed after verification: ' + name)
-    hashes = json.loads((out / 'artifact-sha256.json').read_bytes())
-    verified = report['export_sha256']
-    if hashes != {**verified, 'verification.json': digest(out / 'verification.json')}:
-        raise ValueError('Export index differs from verification snapshot')
-    for name, expected in hashes.items():
-        if digest(safe_member(out, name)) != expected:
-            raise ValueError('Export changed after verification: ' + name)
-    checksum, package_name = (out / 'package-sha256.txt').read_text().split()
-    package = safe_member(out, package_name)
-    if package_name != manifest['revision'] + '-kouzelny-kufr.zip' or digest(package) != checksum:
-        raise ValueError('Manufacturing ZIP checksum or revision differs')
-    expected_members = {**report['sources'], **{'exports/' + key: value for key, value in hashes.items()},
-                        'exports/artifact-sha256.json': digest(out / 'artifact-sha256.json')}
-    with zipfile.ZipFile(package) as archive:
-        if len(archive.namelist()) != len(expected_members) or set(archive.namelist()) != set(expected_members):
-            raise ValueError('Manufacturing ZIP inventory differs')
-        for name, expected in expected_members.items():
-            if hashlib.sha256(archive.read(name)).hexdigest() != expected:
-                raise ValueError('Manufacturing ZIP readback differs: ' + name)
-    return manifest, sorted([*hashes, 'artifact-sha256.json', package_name, 'package-sha256.txt'])
-
-
 def build(repo, destination, web_dist):
+    """Package exactly one compiled application; model releases are independent."""
     if destination.exists():
         raise ValueError('Build destination must be new')
-    root = repo / 'kufr/mechanika/final'
-    manifest, exports = verified_exports(root)
+    if web_dist.is_symlink() or not web_dist.is_dir():
+        raise ValueError('Application dist must be a real directory')
+    if destination.resolve().is_relative_to(web_dist.resolve()):
+        raise ValueError('Build destination must be outside application dist')
+    safe_member(web_dist, 'index.html')
+    files = []
+    for path in sorted(web_dist.rglob('*')):
+        name = path.relative_to(web_dist).as_posix()
+        if path.is_symlink():
+            raise ValueError('Symlinks cannot be published: ' + name)
+        if path.is_dir():
+            continue
+        safe_member(web_dist, name)
+        if any(part.startswith('.') or part in {'node_modules', '__pycache__'}
+               for part in path.relative_to(web_dist).parts):
+            raise ValueError('Private or development file in application dist: ' + name)
+        if path.suffix.lower() in {'.pem', '.key', '.pfx', '.p12', '.sqlite', '.sqlite-wal', '.sqlite-shm', '.db'}:
+            raise ValueError('Private material in application dist: ' + name)
+        if name == 'site-manifest.json':
+            raise ValueError('Compiled dist contains a reserved release manifest')
+        if path.suffix.lower() == '.html' and name != 'index.html':
+            raise ValueError('Hosted release must have one application entry: ' + name)
+        files.append(name)
     source_sha = subprocess.check_output(['git', '-C', str(repo), 'rev-parse', 'HEAD'], text=True).strip()
+    source_dirty = bool(subprocess.check_output([
+        'git', '-C', str(repo), 'status', '--porcelain', '--',
+        'kufr/mobilni-aplikace', 'kufr/contracts', 'kufr/design-system',
+        'kufr/web/build-site.py',
+        'kufr/mechanika/final/twin_core.js', 'kufr/mechanika/final/timeline_core.js',
+        'kufr/mechanika/final/twin_media_core.js', 'kufr/mechanika/final/twin_media_controller.js',
+        'kufr/mechanika/final/viewer_engine_core.js',
+        'kufr/firmware/diagnostics/servo-bench/web/controller.mjs',
+        'kufr/firmware/diagnostics/servo-bench/web/serial.mjs',
+        'kufr/firmware/diagnostics/servo-bench/web/profiles.mjs',
+        'kufr/firmware/diagnostics/servo-bench/web/auto-calibration.mjs',
+        'kufr/firmware/diagnostics/servo-bench/web/mcp.mjs',
+    ], text=True).strip())
+    # Read every input before creating an output. A failed validation never leaves
+    # something that can be mistaken for a complete release.
+    payload = {name: safe_member(web_dist, name).read_bytes() for name in files}
     destination.mkdir(parents=True)
-    workshop = destination / 'workshop'
-    workshop.mkdir()
-    for name in exports:
-        target = workshop / name
+    for name, data in payload.items():
+        target = destination / name
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(root / 'exports' / name, target)
-    shutil.copyfile(workshop / 'viewer.html', workshop / 'index.html')
-    build_design_system(repo, destination)
-    build_keepsake(repo, destination)
-    shutil.copytree(web_dist, destination / 'companion')
-    companion_index = destination / 'companion/index.html'
-    companion_html = companion_index.read_text(encoding='utf-8')
-    companion_index.write_text(companion_html.replace('</head>',
-        '<meta name="kufr-browser-mode" content="local-fake"></head>'), encoding='utf-8')
-    simulator = destination / 'simulator'
-    simulator.mkdir()
-    dashboard = (repo / 'kufr/simulator/dashboard.html').read_text(encoding='utf-8')
-    dashboard, count = re.subn(r'<body\b([^>]*)>', r'<body\1 data-static-preview>', dashboard, count=1)
-    if count != 1:
-        raise ValueError('Simulator preview cannot be safely marked')
-    (simulator / 'index.html').write_text(dashboard, encoding='utf-8')
-    for name in ('dashboard.js', 'dashboard-ui.js'):
-        shutil.copyfile(repo / 'kufr/simulator' / name, simulator / name)
-    package_name = manifest['revision'] + '-kouzelny-kufr.zip'
-    substitutions = {'__REVISION__': manifest['revision'], '__PACKAGE_NAME__': package_name,
-                     '__PACKAGE_SIZE__': f'{(workshop / package_name).stat().st_size / 1048576:.1f}',
-                     '__SOURCE_SHORT__': source_sha[:8]}
-    homepage = (repo / 'kufr/web/index.html').read_text(encoding='utf-8')
-    for marker, value in substitutions.items():
-        homepage = homepage.replace(marker, html.escape(value))
-    (destination / 'index.html').write_text(homepage, encoding='utf-8')
-    shutil.copyfile(repo / 'kufr/web/site.css', destination / 'site.css')
-    hashes = {path.relative_to(destination).as_posix(): digest(path)
-              for path in sorted(destination.rglob('*')) if path.is_file()}
-    receipt = {'schema': 1, 'source_sha': source_sha, 'revision': manifest['revision'],
-               'cad_result': 'PASS_CAD_NOT_PHYSICAL_ACCEPTANCE', 'package': package_name, 'sha256': hashes}
+        target.write_bytes(data)
+    receipt = {
+        'schemaVersion': 2, 'artifactType': 'application',
+        'applicationSourceRevision': source_sha, 'apiContractVersion': 1,
+        'applicationSourceDirty': source_dirty,
+        'modelRelease': 'independent',
+        'sha256': {name: hashlib.sha256(data).hexdigest() for name, data in payload.items()},
+    }
     (destination / 'site-manifest.json').write_text(json.dumps(receipt, indent=2) + '\n', encoding='utf-8')
-    print(f'Built {manifest["revision"]} site from {source_sha}: {len(hashes)} files')
-
-
-def build_design_system(repo, destination):
-    """Ship the real framework and generated tokens used by every hosted shell."""
-    source = repo / 'kufr/design-system'
-    runtime = ('ui.js', 'arcane-workshop.css', 'components/framework.css',
-               'tokens/palette.css', 'tokens/typography.css', 'tokens/layout.css', 'tokens/motion.css')
-    missing = [name for name in runtime if not (source / name).is_file()]
-    if missing:
-        raise ValueError('Shared UI runtime missing: ' + ', '.join(missing))
-    shutil.copytree(source, destination / 'design-system',
-                    ignore=shutil.ignore_patterns('__pycache__', '*.pyc', 'node_modules', 'test-results', 'tests', 'package*.json'))
-
-
-def build_keepsake(repo, destination):
-    """Package the canonical guest shell; personal assets remain behind guest API."""
-    portal = destination / 'keepsake'
-    portal.mkdir()
-    source = repo / 'kufr/web/keepsake'
-    for name in ('index.html', 'app.js', 'keepsake.css', 'theme.js', 'identity.js',
-                 'duel.html', 'duel.js', 'duel.css',
-                 'chronicle.html', 'chronicle.js', 'chronicle.css'):
-        shutil.copyfile(source / name, portal / name)
-    evening = portal / 'evening'
-    evening.mkdir()
-    for name in ('index.html', 'evening.js', 'evening.css'):
-        shutil.copyfile(source / 'evening' / name, evening / name)
-    index = portal / 'index.html'
-    markup = index.read_text(encoding='utf-8')
-    capture = re.search(r'<script>(.*?)</script>', markup, re.DOTALL)
-    if not capture or capture.start() > markup.index('<link '):
-        raise ValueError('Guest fragment capture must precede asset loading')
-    expected = "'sha256-" + base64.b64encode(hashlib.sha256(capture.group(1).encode()).digest()).decode() + "'"
-    if expected not in markup:
-        raise ValueError('Guest fragment capture CSP hash differs')
-
-
-def build_keepsake_only(repo, destination):
-    """Independent DV10 artifact, from the same source, without CAD or Node."""
-    if destination.exists():
-        raise ValueError('Standalone keepsake destination must be new')
-    destination.mkdir(parents=True)
-    build_keepsake(repo, destination)
-    build_design_system(repo, destination)
-    shutil.copyfile(destination / 'keepsake/evening/index.html', destination / 'index.html')
-    hashes = {p.relative_to(destination).as_posix(): digest(p)
-              for p in sorted(destination.rglob('*')) if p.is_file()}
-    source = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo, text=True).strip()
-    dirty = bool(subprocess.check_output(['git', 'status', '--porcelain', '--',
-                 'kufr/web/keepsake', 'kufr/web/build-site.py', 'kufr/design-system'], cwd=repo, text=True).strip())
-    manifest = {'schemaVersion': 1, 'sourceRevision': source, 'sourceDirty': dirty, 'sha256': hashes}
-    (destination / 'keepsake-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
-    print(f'Built standalone DV10: {len(hashes)} files; sourceDirty={dirty}; no CAD, Sites or provider calls')
+    print(f'Built application {source_sha}: {len(files)} files; no CAD dependency')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--destination', type=Path, required=True)
-    parser.add_argument('--web-dist', type=Path)
-    parser.add_argument('--keepsake-only', action='store_true')
+    parser.add_argument('--web-dist', type=Path, required=True)
     args = parser.parse_args()
-    if args.keepsake_only:
-        build_keepsake_only(Path(__file__).resolve().parents[2], args.destination.resolve())
-    elif args.web_dist is None:
-        parser.error('--web-dist is required for the complete project site')
-    else:
-        build(Path(__file__).resolve().parents[2], args.destination.resolve(), args.web_dist.resolve())
+    build(Path(__file__).resolve().parents[2], args.destination.resolve(), args.web_dist.resolve())

@@ -18,7 +18,7 @@ internal static class ShowDeviceCuesEndpoints
     private static IResult Poll(HttpContext context, DeviceAccessStore access, ShowDeviceCueBridge bridge)
     {
         NoCache(context);
-        var device = DeviceAccessEndpoints.Authenticate(context, access);
+        var device = context.Request.Headers.ContainsKey("Authorization") ? DeviceAccessEndpoints.Authenticate(context, access) : null;
         if (device is null) { return ApiProblem.Create(context, 401, "device_access_required"); }
         var query = context.Request.Query;
         var allowed = new[] { "bootId", "generation", "deviceRevision", "deviceTimeMs", "appliedSettingsRevision", "appliedQuiet", "appliedAmbient", "voice", "appliedStopRevision" };
@@ -53,7 +53,7 @@ internal static class ShowDeviceCuesEndpoints
     private static IResult Audio(Guid cueId, HttpContext context, DeviceAccessStore access, ShowDeviceCueBridge bridge)
     {
         NoCache(context);
-        var device = DeviceAccessEndpoints.Authenticate(context, access);
+        var device = context.Request.Headers.ContainsKey("Authorization") ? DeviceAccessEndpoints.Authenticate(context, access) : null;
         if (device is null) { return ApiProblem.Create(context, 401, "device_access_required"); }
         var result = bridge.ReadAudio(device, cueId);
         if (result.Wav is { } wav) { return Results.File(wav, "audio/wav", enableRangeProcessing: false); }
@@ -65,7 +65,7 @@ internal static class ShowDeviceCuesEndpoints
         DeviceAccessStore access, ShowDeviceCueBridge bridge)
     {
         NoCache(context);
-        var device = DeviceAccessEndpoints.Authenticate(context, access);
+        var device = context.Request.Headers.ContainsKey("Authorization") ? DeviceAccessEndpoints.Authenticate(context, access) : null;
         if (device is null) { return ApiProblem.Create(context, 401, "device_access_required"); }
         try
         {

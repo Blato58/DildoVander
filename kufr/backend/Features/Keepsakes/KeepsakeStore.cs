@@ -95,6 +95,7 @@ internal sealed partial class KeepsakeStore
                 retry_after INTEGER NOT NULL DEFAULT 0, attempts INTEGER NOT NULL DEFAULT 0);
             """);
         EnsureColumn(connection, "dv10_keepsakes", "claimed", "INTEGER NOT NULL DEFAULT 0");
+        EnsureColumn(connection, "dv10_keepsakes", "account_access_epoch", "INTEGER NOT NULL DEFAULT 0");
         EnsureColumn(connection, "dv10_keepsakes", "evening_id", "TEXT");
         EnsureColumn(connection, "dv10_keepsakes", "published_at_ticks", "INTEGER");
         EnsureColumn(connection, "dv10_keepsakes", "published_edition_id", "TEXT");

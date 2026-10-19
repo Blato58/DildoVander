@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+        AE9000000000000000000102 /* AccountTransportPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE9000000000000000000002 /* AccountTransportPolicy.swift */; };
+        AE9000000000000000000101 /* KufrIdentityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE9000000000000000000001 /* KufrIdentityPlugin.swift */; };
         AE2000000000000000000101 /* KufrProvisioningPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2000000000000000000001 /* KufrProvisioningPlugin.swift */; };
         AE2000000000000000000102 /* ProvisioningStatusCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2000000000000000000002 /* ProvisioningStatusCodec.swift */; };
         AE2000000000000000000103 /* ESPProvision in Frameworks */ = {isa = PBXBuildFile; productRef = AE2000000000000000000004 /* ESPProvision */; };
@@ -30,6 +32,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+        AE9000000000000000000002 /* AccountTransportPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountTransportPolicy.swift; sourceTree = "<group>"; };
+        AE9000000000000000000001 /* KufrIdentityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KufrIdentityPlugin.swift; sourceTree = "<group>"; };
         AE2000000000000000000001 /* KufrProvisioningPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KufrProvisioningPlugin.swift; sourceTree = "<group>"; };
         AE2000000000000000000002 /* ProvisioningStatusCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProvisioningStatusCodec.swift; sourceTree = "<group>"; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
@@ -90,6 +94,8 @@
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				AE1000000000000000000004 /* KufrBridgeViewController.swift */,
                 AE2000000000000000000001 /* KufrProvisioningPlugin.swift */,
+                AE9000000000000000000001 /* KufrIdentityPlugin.swift */,
+                AE9000000000000000000002 /* AccountTransportPolicy.swift */,
                 AE2000000000000000000002 /* ProvisioningStatusCodec.swift */,
 				AE1000000000000000000003 /* KufrDeviceTransportPlugin.swift */,
 				AE1000000000000000000002 /* LocalDeviceTransport.swift */,
@@ -194,6 +200,8 @@
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
                 AE2000000000000000000101 /* KufrProvisioningPlugin.swift in Sources */,
+                AE9000000000000000000101 /* KufrIdentityPlugin.swift in Sources */,
+                AE9000000000000000000102 /* AccountTransportPolicy.swift in Sources */,
                 AE2000000000000000000102 /* ProvisioningStatusCodec.swift in Sources */,
 				AE1000000000000000000104 /* KufrBridgeViewController.swift in Sources */,
 				AE1000000000000000000103 /* KufrDeviceTransportPlugin.swift in Sources */,
@@ -346,6 +354,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = App/Info.plist;
+				CODE_SIGN_ENTITLEMENTS = App/AccountPasskeys.entitlements;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -368,6 +377,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = App/Info.plist;
+				CODE_SIGN_ENTITLEMENTS = App/AccountPasskeys.entitlements;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

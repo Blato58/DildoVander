@@ -3,17 +3,16 @@ import { readFile } from 'node:fs/promises';
 import { stripTypeScriptTypes } from 'node:module';
 import { test } from 'node:test';
 
-const source = await readFile(new URL('../src/features/director/DirectorPanel.ts', import.meta.url), 'utf8');
-const linksSource = await readFile(new URL('../src/features/director/DuelLinks.ts', import.meta.url), 'utf8');
-const linksModule = `data:text/javascript;base64,${Buffer.from(stripTypeScriptTypes(linksSource, { mode: 'transform' })).toString('base64')}`;
-const { DuelGrantMemory } = await import(linksModule);
-const compiled = stripTypeScriptTypes(source
-  .replace("'../../../../design-system/ui.js'", JSON.stringify(new URL('../../design-system/ui.js', import.meta.url).href))
-  .replace("import { DirectorClient, DirectorRequestError, type ShowState } from './DirectorClient';",
-    'class DirectorRequestError extends Error {} class DirectorClient {}')
-  .replace("'./DuelLinks'", JSON.stringify(linksModule)), { mode: 'transform' });
-const { DirectorPanel, duelNarrationLabel, remoteStopStatus } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
-globalThis.document = { hidden: false };
+const moduleUrl = source => `data:text/javascript;base64,${Buffer.from(stripTypeScriptTypes(source, {mode:'transform'})).toString('base64')}`;
+const read = name => readFile(new URL(`../src/features/director/${name}.ts`, import.meta.url),'utf8');
+const linksModule=moduleUrl(await read('DuelLinks'));
+const clientModule=moduleUrl(await read('DirectorClient'));
+const stateModule=moduleUrl(await read('directorState'));
+const identifiers=new URL('../src/application/identifiers.mjs',import.meta.url).href;
+const sessionSource=(await read('DirectorSession')).replace("'./DirectorClient'",JSON.stringify(clientModule)).replace("'./DuelLinks'",JSON.stringify(linksModule)).replace("'../../application/identifiers.mjs'",JSON.stringify(identifiers));
+const { DirectorSession } = await import(moduleUrl(sessionSource));
+const { duelNarrationLabel,remoteStopStatus }=await import(stateModule);
+globalThis.document={hidden:false};
 
 function deferred() {
   let resolve, reject;
@@ -22,13 +21,8 @@ function deferred() {
 }
 const state = revision => ({ deviceId: 'fixture-device', eveningId: 'one-evening', revision, mood: { dominant: 'amused' } });
 function panel() {
-  const value = Object.create(DirectorPanel.prototype);
-  Object.assign(value, {
-    visible: true, authorized: true, pending: false, generation: 0, readSequence: 0, controlEpoch: 0, refreshedAt: Date.now(),
-    client: { deviceId: 'fixture-device' }, state: state(0), duelGrants: new DuelGrantMemory(),
-    query: () => ({ hidden: false, replaceChildren() {} }), update() {}, feedback() {},
-  });
-  return value;
+ const value=new DirectorSession({deviceId:'fixture-device',forget(){this.deviceId='';}}, {matches:()=>false,stop(){},cancelSpeech(){},nextVisit(){},offline:async()=>({})});
+ value.state=state(0);value.authorized=true;value.refreshedAt=Date.now();return value;
 }
 
 test('duel audio labels require the exact device playback proof and never infer it from completion', () => {
@@ -109,31 +103,13 @@ test('leaving during backend Stop retains an unknown result and ignores the old 
   const value = panel();
   const response = deferred(); value.client.request = () => response.promise;
   const stopping = value.stopThroughBackend();
-  ++value.generation; value.abandonRemoteStop();
+  value.leaveView();
   assert.equal(value.remoteStop.pending, false);
   assert.equal(value.remoteStop.status, 'unknown');
   response.resolve({ status: 'accepted', state: { ...state(8), deviceStopRevision: 2, updatedAt: new Date().toISOString() } });
   await stopping;
   assert.equal(value.state.revision, 0);
   assert.match(remoteStopStatus(value.state, value.remoteStop, Date.now()), /neznámý/);
-});
-
-test('backend and local Stop buttons retain separate command owners', () => {
-  const value = panel();
-  const elements = new Map();
-  value.query = selector => {
-    if (!elements.has(selector)) elements.set(selector, { listeners: {}, addEventListener(name, action) { this.listeners[name] = action; } });
-    return elements.get(selector);
-  };
-  value.element = { querySelectorAll: () => [] };
-  let remote = 0, local = 0;
-  value.stopThroughBackend = async () => { remote++; };
-  value.local = { stop: () => { local++; } };
-  value.bind(false);
-  elements.get('[data-remote-stop]').listeners.click();
-  assert.equal(remote, 1); assert.equal(local, 0);
-  elements.get('[data-director-stop]').listeners.click();
-  assert.equal(remote, 1); assert.equal(local, 1);
 });
 
 test('a late older poll cannot replace the more recent authoritative read', async () => {
@@ -146,17 +122,9 @@ test('a late older poll cannot replace the more recent authoritative read', asyn
   assert.equal(value.state.revision, 2);
 });
 
-test('hiding Director clears the operator grant copies and removes rendered links', () => {
-  const value = panel();
-  value.element = { hidden: false };
-  value.duelGrants.bind('one-evening', 'duel-one');
-  value.duelGrants.remember('left', { token: 'a'.repeat(43), expiresAt: new Date(Date.now() + 60000).toISOString() });
-  let rendered = false;
-  value.renderDuelLinks = () => { rendered = true; };
-  value.show(false);
-  assert.equal(value.duelGrants.get('left'), undefined);
-  assert.equal(value.element.hidden, true);
-  assert.equal(rendered, true);
+test('leaving Director clears grant copies but retains backend Stop authority',()=>{
+ const value=panel();value.duelGrants.bind('evening','duel');value.duelGrants.remember('left',{token:'a'.repeat(43),expiresAt:new Date(Date.now()+60000).toISOString()});
+ value.leaveView();assert.equal(value.duelGrants.get('left'),undefined);assert.equal(value.canRemoteStop(),true);
 });
 
 test('duel replacement, cancellation and evening changes discard old grant copies', async () => {
@@ -188,4 +156,21 @@ test('an accepted operation invalidates a poll already in flight without replay'
   assert.equal(value.state.revision, 3);
   assert.equal(writes, 1);
   assert.equal(value.pending, false);
+});
+
+test('poll cannot start during ordinary mutation, and stale revision cannot regress accepted state',async()=>{
+ const value=panel();let reads=0;const response=deferred();value.client.request=()=>{reads++;return response.promise;};
+ const writing=value.perform('change',async()=>{await response.promise;value.state=state(8);});await value.refresh();assert.equal(reads,0);
+ response.resolve({});await writing;value.client.request=async()=>state(7);await value.refresh();assert.equal(value.state.revision,8);assert.equal(value.refreshedAt,0);
+});
+test('late account response cannot restore identities and offline ACK requires same current account/device',async()=>{
+ const value=panel();value.local.matches=()=>true;value.local.offline=async kind=>kind==='offline_outbox'?{records:[{operationId:'one',deviceId:'fixture-device'}]}:{};
+ const response=deferred();let ack=0;value.local.offline=async kind=>{if(kind==='offline_outbox')return {records:[{operationId:'one',deviceId:'fixture-device'}]};ack++;};value.client.request=()=>response.promise;
+ const importing=value.syncOffline(true);await Promise.resolve();await Promise.resolve();value.clear();response.resolve({operationId:'one'});await importing;assert.equal(ack,0);assert.equal(value.state,undefined);assert.equal(value.feedback,'');
+});
+
+test('selected cloud/local mismatch rejects offline dispatch, while independent offline remains available',async()=>{
+ const value=panel();let calls=0;value.local.offline=async()=>{calls++;return {state:'ready'};};
+ value.selectedDeviceId='cloud-device';await value.offline('offline_start',1,{shortVariant:true});assert.equal(calls,0);
+ value.selectedDeviceId='';value.client.deviceId='';await value.offline('offline_preflight');assert.equal(calls,1);
 });

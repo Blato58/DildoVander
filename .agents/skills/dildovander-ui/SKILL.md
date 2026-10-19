@@ -1,6 +1,6 @@
 ---
 name: dildovander-ui
-description: Implement or improve DildoVander UI using the shared Vapour Chrome runtime and generated tokens across Capacitor, public pages, simulator, viewer and service tools; preserve device contracts and generated provenance.
+description: Implement DildoVander's shared Vue web/Capacitor application and integrated viewer with Vapour Chrome tokens; preserve native, guest, device and model-release boundaries.
 ---
 
 # DildoVander UI
@@ -12,7 +12,9 @@ return another guest's revelation. Verify real API flows, two-operator conflicts
 local short/quiet/ambient and delayed socket close. The mobile
 `scripts/check-director-browser.mjs` uses an isolated fake backend; verify the
 served checkout/port before accepting screenshots. Package identity, duel and
-chronicle assets through the existing `kufr/web/build-site.py`.
+chronicle Vue components through the compiled application consumed by
+`kufr/web/build-site.py --web-dist`. Keep legacy guest URLs as explicit routes,
+without restoring separate HTML applications.
 
 Read the current `AGENTS.md`, applicable nested instructions and component
 README first. Then read `kufr/design-system/README.md` and the relevant
@@ -33,8 +35,15 @@ path; never patch a generated viewer or ZIP as the only source change.
 
 ## Shared framework
 
-Before creating a component inspect `kufr/design-system/ui.js`, `ui.d.ts` and
-the interactive `playground/`. Use real shared renderers and DOM behaviors;
+Before creating a component inspect `kufr/mobilni-aplikace/src/components/`,
+the owning feature and `kufr/docs/application-architecture.md`. Application
+screens use Vue SFCs with Composition API and lazy Vue Router routes inside
+the shared shell. Use typed props, slots, events and composables. Keep local
+state local; Pinia is for shared application preferences/context, never a
+duplicate authoritative device cache. Keep GPU objects outside deep reactivity.
+Do not add HTML-string screens, whole-screen `v-html`, iframes or a second
+online application. `design-system/ui.js`, `ui.d.ts` and `playground/` remain
+compatibility references for local service tools and immutable old distributions;
 do not copy their markup, escaping, tab handling or dialog focus management.
 Read `framework.md` for API changes and `architecture.md` for platform/package
 ownership. The Capacitor app uses the same web UI; Swift owns native adapters.
@@ -45,8 +54,15 @@ Never hand-edit generated CSS, ESM/types or C# token constants. Local CSS
 handles layout. Extend shared primitives for repeated appearance or behavior.
 The same generator owns only native launch RGB and the delimited standalone
 iOS installer CSS block; keep its script-only packaging and offline fallback.
-For offline viewer work use the authored assembler and generated snapshots;
-use a labelled UI-only preview, never regenerate CAD just for chrome.
+For offline viewer work compose the same maintained Vue viewer and a selected
+ModelBundle using the offline packager. Use labelled fixtures for UI checks;
+never regenerate CAD just for chrome or require manufacturing archives for
+application builds. Validate schema, paths, size, checksums and compatibility;
+model source/version and app source/version are independent.
+
+Read `references/application.md` for feature ownership, identity/pairing,
+claim capture, viewer lifecycle and focused validation. Route guards are UX;
+server permission checks, native PoP/pinning and guest capabilities own access.
 
 After shared runtime changes run `npm test --prefix kufr/design-system`,
 the token drift check and affected consumer tests. Use `test:browser` for

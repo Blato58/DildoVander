@@ -18,6 +18,12 @@ PRESENTATION_SOURCES = frozenset({
     "ui_test_runtime.cjs", "preview_ui_fixture.py",
     "viewer-workshop.css", "workshop-design-system.css", "show_timeline.js",
     "twin_media.js", "twin_media.css", "twin_viewer.js", "twin-viewer.css",
+    "viewer_engine_core.js", "twin_core.js", "timeline_core.js",
+    "twin_media_core.js", "twin_media_controller.js",
+    # Data-only bundle packaging/proof tools never create mechanical geometry.
+    # Their exact output bytes and proof are independently validated at publication.
+    "export_model_bundle.py", "model_verification.py", "certify_model_bundle.py",
+    "test_model_bundle_export.py", "test_model_verification.py",
     "README.md", "VIEWER.md", "test_viewer_document.py", "test_viewer_style.py",
     "test_viewer.cjs", "test_show_timeline.cjs", "test_twin_media.cjs",
     "test_twin_media_browser.cjs", "test_twin_viewer.cjs",

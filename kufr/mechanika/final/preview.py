@@ -19,6 +19,8 @@ import layout
 from viewer_style import snapshot_styles
 from viewer_document import render_document
 from twin_manifest import build_manifest, geometry_digest
+from export_model_bundle import write_model_bundle, source_revision
+from model_verification import write_generation_receipt
 
 
 def mesh(shape):
@@ -170,6 +172,8 @@ def viewer():
              "cameraFpc":harness.CAMERA_FPC,"supplyConnector":harness.SUPPLY_CONNECTOR,
              "assemblyGuide":optional_json("assembly-guide.json",{"steps":[]}),
              "effects":optional_json("effects.json",{}),
+             "showPlan":optional_json("effects.plan.json",{"scenes":[]}),
+             "showManifest":optional_json("effects.manifest.json",{}),
              "connections":inspect_data.connection_data(names) +
                            [edge for edge in harness.CONNECTIONS if edge["from"] in names and edge["to"] in names],
              "sources":inspect_data.source_evidence()}
@@ -177,6 +181,8 @@ def viewer():
     payload["twinManifest"] = build_manifest(PARAMS, mechanism, payload["effects"], names,
                                            geometry_digest=geometry_digest(meshes))
     (OUT/"twin.manifest.json").write_text(json.dumps(payload["twinManifest"],ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+    write_model_bundle(payload, OUT / "model-release", source_revision=source_revision())
+    write_generation_receipt(OUT / "model-release", ROOT, OUT / "model-generation.json")
     (OUT/"viewer.html").write_text(render_document(payload),encoding="utf-8")
 
 

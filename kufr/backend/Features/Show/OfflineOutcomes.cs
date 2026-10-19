@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Kufr.Backend.Features.Access;
+using Kufr.Backend.Features.Identity;
 using Kufr.Backend.Features.Conversations;
 using Kufr.Backend.Features.Keepsakes;
 using Microsoft.Data.Sqlite;
@@ -156,8 +157,15 @@ internal static class OfflineOutcomeEndpoints
         DeviceAccessStore access, ServerAdminAccess admin, IConfiguration config, OfflineOutcomeStore store)
     {
             if (!config.GetValue<bool>("Keepsake:Enabled")) { return Results.NotFound(); }
-            var device = DeviceAccessEndpoints.Authenticate(context, access);
-            var isAdmin = admin.Authenticate(context);
+            var account = AccountShowAuthorization.IsAccount(context);
+            if (account)
+            {
+                if (routeDevice is null) { return ApiProblem.Create(context, 403, "device_scope_required"); }
+                var denied = await AccountShowAuthorization.RequireAsync(context, routeDevice);
+                if (denied is not null) { return denied; }
+            }
+            var device = account ? null : DeviceAccessEndpoints.Authenticate(context, access);
+            var isAdmin = account || admin.Authenticate(context);
             if (device is null && !isAdmin) { return Results.Unauthorized(); }
             try
             {

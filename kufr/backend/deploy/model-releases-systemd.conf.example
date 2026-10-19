@@ -1,0 +1,4 @@
+# Optional drop-in for kufr-backend.service. Review/provision before enabling.
+# The existing ProtectSystem=strict must remain enabled.
+[Service]
+ReadWritePaths=/var/lib/dildovander/models

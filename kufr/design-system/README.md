@@ -22,7 +22,11 @@ Příběh hůlek patří do obsahu. Ovládání a bezpečnostní stav mluví dos
 
 ## Integrace a kompatibilita
 
-Importujte `arcane-workshop.css`, komponenty z `ui.js` a použijte kořen `aw-root`. Historický název
+Ve společné web/iOS aplikaci importujte `arcane-workshop.css` jednou přes
+`mobilni-aplikace/src/application/application.css` a používejte Vue komponenty
+v `src/components/` a doménové feature komponenty. `ui.js` zůstává kompatibilitou
+pro lokální servisní nástroje a starší neměnné distribuce. Nové obrazovky patří
+do společného Vue Routeru, nikoli do HTML-string rendereru. Historický název
 vstupního souboru, prefix `--aw-*` a třídy `aw-*` zůstávají integračním
 kontraktem. Název souboru neoznačuje aktuální vizuální identitu. Nový kód
 používá `--aw-accent`; `--aw-brass` je pouze alias `var(--aw-accent)` pro

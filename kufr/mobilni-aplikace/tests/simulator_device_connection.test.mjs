@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 
 import { loadDeviceModule } from './load-test-module.mjs';
+import { validateControlMessage } from '../../contracts/control-validator.mjs';
 
 let now = 0;
 let nextTimer = 1;
@@ -92,7 +93,7 @@ function advance(milliseconds) {
   now = target;
 }
 
-const { SimulatorDeviceConnection } = await loadDeviceModule('SimulatorDeviceConnection');
+const { SimulatorDeviceConnection, ProtocolDeviceConnection } = await loadDeviceModule('SimulatorDeviceConnection');
 
 const bootId = randomUUID();
 const deviceId = 'kufr-001';
@@ -128,6 +129,18 @@ function startConnection() {
   });
   return { connection, socket };
 }
+
+test('real-device transport never sends retired text or cancel frames even when an old snapshot advertises text', () => {
+  const socket = new FakeSocket();
+  const connection = new ProtocolDeviceConnection(() => {}, { source: 'native-device', deviceId, createSocket: () => socket });
+  socket.open();
+  socket.message({ protocolVersion: 1, type: 'welcome', snapshot: snapshot({ controlMode: 'manual', controlLeaseId: randomUUID(),
+    capabilities: ['conversationText'], conversation: { conversationId: randomUUID(), generation: 1, activeTurnId: null } }) });
+  assert.equal(connection.snapshot().conversation.canSubmit, false);
+  assert.equal(connection.submitText('retired text'), false); assert.equal(connection.cancelConversation(), false);
+  assert.equal(socket.sent.some(message => message.type === 'conversation.text' || message.type === 'conversation.cancel'), false);
+  connection.suspend();
+});
 
 test('dance confirmation blocks voice/manual controls and reconnect never replays music', () => {
   const { connection, socket } = startConnection();
@@ -359,4 +372,124 @@ test('changed heartbeat revision pauses commands until a new snapshot', () => {
   assert.equal(connection.snapshot().busy, false);
   assert.equal(connection.snapshot().readyMask, 62);
   connection.suspend();
+});
+
+function startNativeOffline() {
+  const connection = new ProtocolDeviceConnection(() => {}, {
+    source: 'native-device', deviceId, createSocket: () => new FakeSocket(),
+  });
+  const socket = sockets.at(-1);
+  const lease = randomUUID();
+  socket.open();
+  socket.message({ protocolVersion: 1, type: 'welcome', snapshot: snapshot({ controlMode: 'manual', controlLeaseId: lease }) });
+  return { connection, socket, lease };
+}
+function offlineStatus(overrides = {}) {
+  return { state: 'ready', armed: false, quiet: false, generation: 17, readyMask: 63,
+    outboxCount: 0, catalogVersion: 'ollivander-private-party-v1', bankVersion: 'synthetic-fixture',
+    audioBytes: 1, audioCapacityBytes: 2, streamWorkingBytes: 2, missing: [], ambientEnabled: false,
+    bankVoice: 'fixture', voiceCompatible: true, ...overrides };
+}
+function offlineAck(socket, request, overrides = {}) {
+  socket.message({ protocolVersion: 1, type: 'offline.ack', bootId, requestMessageId: request.messageId,
+    accepted: true, errorCode: null, offline: offlineStatus(), ...overrides });
+}
+
+test('native offline Show requires preflight and exact lease/generation/revision without acquiring authority', async () => {
+  const { connection, socket, lease } = startNativeOffline();
+  await assert.rejects(connection.requestOffline('offline_arm'), /preflight/);
+  const preflight = connection.requestOffline('offline_preflight');
+  const request = socket.sent.at(-1);
+  assert.equal(request.type, 'offline_preflight');
+  assert.equal(validateControlMessage(new TextEncoder().encode(JSON.stringify(request))).type, 'offline_preflight');
+  offlineAck(socket, request, { bootId: randomUUID() });
+  assert.equal(socket.sent.filter(frame => frame.type === 'offline_arm').length, 0);
+  // An outbox-shaped reply may not satisfy an unrelated preflight.
+  offlineAck(socket, request, { type: 'offline.outbox', records: [] });
+  offlineAck(socket, request);
+  assert.equal((await preflight).generation, 17);
+  const arm = connection.requestOffline('offline_arm');
+  const armRequest = socket.sent.at(-1);
+  assert.equal(armRequest.controlLeaseId, lease);
+  assert.equal(armRequest.generation, 17);
+  assert.equal(armRequest.expectedRevision, 1);
+  assert.equal(validateControlMessage(new TextEncoder().encode(JSON.stringify(armRequest))).type, 'offline_arm');
+  assert.equal(socket.sent.some(frame => frame.type === 'control.acquire'), false);
+  offlineAck(socket, armRequest, { offline: offlineStatus({ armed: true }) });
+  await arm;
+  for (const compartment of [undefined, 0, 7, 1.5]) await assert.rejects(connection.requestOffline('offline_start', compartment), /1–6/);
+  const started = connection.requestOffline('offline_start', 4, undefined, { shortVariant: true });
+  assert.equal(socket.sent.at(-1).compartment, 4);
+  assert.equal(socket.sent.at(-1).shortVariant, true);
+  assert.equal(validateControlMessage(new TextEncoder().encode(JSON.stringify(socket.sent.at(-1)))).type, 'offline_start');
+  offlineAck(socket, socket.sent.at(-1), { offline: offlineStatus({ armed: true }) });
+  await started;
+  connection.suspend();
+});
+
+test('offline commands reject simulated targets and timeout never retries or preserves Arm authority', async () => {
+  const simulated = startConnection();
+  await assert.rejects(simulated.connection.requestOffline('offline_preflight'), /autentizovaná/);
+  assert.equal(simulated.socket.sent.some(frame => frame.type.startsWith('offline_')), false);
+  simulated.connection.suspend();
+  const { connection, socket, lease } = startNativeOffline();
+  const preflight = connection.requestOffline('offline_preflight');
+  offlineAck(socket, socket.sent.at(-1)); await preflight;
+  const arm = connection.requestOffline('offline_arm');
+  const rejected = assert.rejects(arm, /není známý/);
+  advance(2000);
+  socket.message(snapshot({ controlMode: 'manual', controlLeaseId: lease, eventSequence: 2 }));
+  advance(2001); await rejected;
+  assert.equal(socket.sent.filter(frame => frame.type === 'offline_arm').length, 1);
+  await assert.rejects(connection.requestOffline('offline_arm'), /preflight/);
+  connection.suspend();
+});
+
+test('offline outbox acknowledgement is explicit and Stop invalidates pending results', async () => {
+  const { connection, socket } = startNativeOffline();
+  await assert.rejects(connection.requestOffline('offline_sync_ack', undefined, 'not-an-id'), /přesné ID/);
+  const outbox = connection.requestOffline('offline_outbox');
+  const request = socket.sent.at(-1);
+  offlineAck(socket, request, { type: 'offline.outbox', records: [] });
+  assert.deepEqual((await outbox).records, []);
+  const pending = connection.requestOffline('quiet', undefined, undefined, { enabled: true });
+  const rejected = assert.rejects(pending, /Stop/);
+  connection.stop(); await rejected;
+  offlineAck(socket, socket.sent.findLast(frame => frame.type === 'quiet'));
+  assert.equal(socket.sent.filter(frame => frame.type === 'quiet').length, 1);
+  assert.equal(socket.sent.at(-1).type, 'safety.stop');
+  connection.suspend();
+});
+
+test('last observed local time changes only on accepted snapshots or matched heartbeat replies', () => {
+  const dateNow = Date.now;
+  let wallClock = 1_700_000_000_000;
+  Date.now = () => wallClock;
+  const socket = new FakeSocket();
+  const connection = new ProtocolDeviceConnection(() => {}, {
+    source: 'native-device', deviceId, autoConnect: false, createSocket: () => socket,
+  });
+  try {
+    assert.equal(connection.snapshot().diagnostics, undefined);
+    connection.connect(); socket.open();
+    assert.equal(connection.snapshot().diagnostics, undefined);
+    const lease = randomUUID();
+    socket.message({ protocolVersion: 1, type: 'welcome', snapshot: snapshot({ controlMode: 'manual', controlLeaseId: lease }) });
+    assert.equal(connection.snapshot().diagnostics.deviceId, deviceId);
+    assert.equal(connection.snapshot().diagnostics.lastObservedAtMs, wallClock);
+    const observed = wallClock;
+    wallClock += 1_000;
+    connection.release(); // local intent is not evidence of a fresh device response
+    assert.equal(connection.snapshot().diagnostics.lastObservedAtMs, observed);
+    socket.message(snapshot({ eventSequence: 0, controlMode: 'manual', controlLeaseId: lease })); // delayed, superseded state
+    assert.equal(connection.snapshot().diagnostics.lastObservedAtMs, observed);
+    connection.heartbeat();
+    const heartbeat = socket.sent.at(-1);
+    const reply = { protocolVersion: 1, type: 'heartbeat.ack', requestMessageId: heartbeat.messageId,
+      bootId, controlLeaseId: lease, revision: 1, deviceUptimeMs: now };
+    socket.message({ ...reply, requestMessageId: randomUUID() });
+    assert.equal(connection.snapshot().diagnostics.lastObservedAtMs, observed);
+    socket.message(reply);
+    assert.equal(connection.snapshot().diagnostics.lastObservedAtMs, wallClock);
+  } finally { connection.suspend(); Date.now = dateNow; }
 });

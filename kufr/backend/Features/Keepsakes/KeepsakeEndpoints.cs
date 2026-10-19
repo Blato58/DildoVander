@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Http.Features;
 
 namespace Kufr.Backend.Features.Keepsakes;
 
-internal static class KeepsakeEndpoints
+internal static partial class KeepsakeEndpoints
 {
     internal const string CookieName = "__Host-dv10";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
@@ -44,6 +44,7 @@ internal static class KeepsakeEndpoints
             catch (BadHttpRequestException ex) when (ex.StatusCode == 413) { return Error(413, "request_too_large"); }
         });
 
+        MapAccountAssociations(group);
         group.MapPost("/bootstrap", async (HttpContext context, KeepsakeStore store) =>
         {
             await BodyAsync<EmptyRequest>(context);

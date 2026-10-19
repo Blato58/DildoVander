@@ -53,4 +53,4 @@ if ! nginx -t || ! systemctl reload nginx.service || ! curl --fail --silent --sh
   echo 'Site installation failed; previous configuration restored' >&2
   exit 1
 fi
-echo "Workshop routes installed; private backup=$backup; publication will populate current"
+echo "Application routes installed; private backup=$backup; publication will populate current"
