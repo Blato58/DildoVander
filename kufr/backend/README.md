@@ -94,6 +94,8 @@ Při změně NuGet závislostí regeneruj oba lockfiles společně přes
 Zachovej deklarované `RuntimeIdentifiers` (`linux-x64;win-x64`) a potom ověř
 stejný příkaz s `--locked-mode` místo `--force-evaluate`. Microsoft.Data.Sqlite
 je aktuálně připnutý na10.0.13; OpenAI SDK zůstává2.14.0.
+Dependabot zahrnuje oba projekty; [automatizace generovaných závislostí](../../docs/ci-cd.md#generovane-zavislosti-v-dependabot-pr)
+oba lockfiles přegeneruje a commitne do jeho větve ještě před finálním CI.
 
 ## Nasazení a rollback
 

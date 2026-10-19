@@ -1,0 +1,144 @@
+name: Generate Dependabot dependency artifacts
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - 'kufr/backend/**'
+      - 'kufr/backend-tests/**'
+      - 'kufr/mobilni-aplikace/package*.json'
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Dependabot PR to rehearse without writes (open or closed)
+        required: true
+        type: string
+      revision:
+        description: Optional original PR commit for a historical regeneration rehearsal
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: dependabot-generate-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    if: >-
+      github.repository == 'Blato58/DildoVander' &&
+      ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+       (github.event_name == 'pull_request' &&
+        github.event.pull_request.user.login == 'dependabot[bot]' &&
+        github.event.pull_request.head.repo.full_name == github.repository))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      plan: ${{ steps.plan.outputs.plan }}
+      head: ${{ steps.plan.outputs.head }}
+      base: ${{ steps.plan.outputs.base }}
+      backend: ${{ steps.plan.outputs.backend }}
+      native: ${{ steps.plan.outputs.native }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        id: plan
+        env:
+          REHEARSAL_PR: ${{ inputs.pr_number }}
+          REHEARSAL_REVISION: ${{ inputs.revision }}
+        with:
+          script: |
+            const sync = require('./scripts/ci/dependabot-sync.cjs');
+            const dryRun = context.eventName === 'workflow_dispatch';
+            const plan = await sync.plan({ github, context, core }, {
+              number: dryRun ? process.env.REHEARSAL_PR : undefined,
+              head: dryRun ? process.env.REHEARSAL_REVISION || undefined : undefined,
+              dryRun,
+            });
+            if (!plan) return;
+            core.setOutput('plan', JSON.stringify(plan));
+            for (const key of ['head', 'base', 'backend', 'native']) core.setOutput(key, plan[key]);
+
+  backend:
+    needs: plan
+    if: needs.plan.outputs.backend == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      # The generator is trusted main code; the candidate has no persisted token.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.base }}
+          path: automation
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.head }}
+          path: candidate
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.tool_cache }}/dotnet
+        with:
+          global-json-file: candidate/kufr/global.json
+      - name: Regenerate backend and test locks together
+        env:
+          DEPENDABOT_PLAN: ${{ needs.plan.outputs.plan }}
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+          DOTNET_NOLOGO: 'true'
+        run: >-
+          python3 automation/scripts/ci/dependabot_generate.py backend
+          --checkout candidate --output "$RUNNER_TEMP/dependabot/backend/dependencies.json"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dependabot-backend
+          path: ${{ runner.temp }}/dependabot/backend/dependencies.json
+          if-no-files-found: error
+          retention-days: 1
+
+  native:
+    needs: plan
+    if: needs.plan.outputs.native == 'true'
+    runs-on: macos-15
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.base }}
+          path: automation
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.head }}
+          path: candidate
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: candidate/kufr/mobilni-aplikace/.nvmrc
+          package-manager-cache: false
+      - name: Regenerate Capacitor manifest and resolve native Swift pins
+        env:
+          DEPENDABOT_PLAN: ${{ needs.plan.outputs.plan }}
+          CI: 'true'
+        run: >-
+          python3 automation/scripts/ci/dependabot_generate.py native
+          --checkout candidate --output "$RUNNER_TEMP/dependabot/native/dependencies.json"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dependabot-native
+          path: ${{ runner.temp }}/dependabot/native/dependencies.json
+          if-no-files-found: error
+          retention-days: 1
