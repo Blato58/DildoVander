@@ -1,20 +1,24 @@
-/* Digital Twin layout; colours/type/focus are the shared Arcane Workshop tokens. */
-.twin-panel{position:fixed;right:12px;top:150px;z-index:15;width:min(420px,calc(100vw - 24px));background:var(--aw-surface);color:var(--aw-ivory);border:1px solid var(--aw-border);border-radius:var(--aw-radius-card);box-shadow:0 12px 36px #0008;font-size:12px}
-.twin-panel>details{padding:10px;max-height:calc(100dvh - 215px);overflow:auto;overscroll-behavior:contain}
-.twin-panel summary{min-height:var(--aw-touch);display:flex;align-items:center;cursor:pointer;color:var(--aw-brass);font-weight:600}
-.twin-panel summary::before{content:'▸';margin-right:8px}.twin-panel details[open]>summary::before{content:'▾'}
-.twin-panel p{line-height:1.5;overflow-wrap:anywhere}.twin-panel label{display:flex;flex-direction:column;gap:5px;min-width:0}
-.twin-panel input,.twin-panel select,.twin-panel textarea,.twin-panel button{max-width:100%;min-height:var(--aw-touch);border:1px solid var(--aw-border);border-radius:var(--aw-radius-control);background:var(--aw-void);color:var(--aw-ivory);font:inherit;padding:6px 9px;overflow-wrap:anywhere}
-.twin-text-label{flex-basis:100%!important}.twin-text-label textarea{width:100%;resize:vertical}
-.twin-panel button{cursor:pointer}.twin-panel button:disabled{opacity:.55;cursor:default}.twin-panel button[aria-pressed=true]{border-color:var(--aw-brass);background:var(--aw-elevated)}
-.twin-panel :focus-visible{outline:2px solid var(--aw-info);outline-offset:2px}.twin-row,.twin-controls,.twin-panel form{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.twin-row label,.twin-panel form label{flex:1 1 150px}.twin-controls label{flex:1 1 100px}
-.twin-panel [hidden]{display:none!important}.twin-panel pre{white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--aw-font-mono);max-height:220px;overflow:auto;background:var(--aw-void);padding:8px}
-#twin-error{color:var(--aw-danger)}#twin-warning{color:var(--aw-warning)}#twin-trace{max-height:210px;overflow:auto;padding:0;list-style:none}#twin-trace button{text-align:left;width:100%;margin:3px 0;font-family:var(--aw-font-mono);font-size:11px}
-#twin-seek{width:100%}.twin-badge{position:fixed;bottom:8px;left:8px;z-index:20;max-width:calc(100vw - 16px);padding:8px 11px;background:var(--aw-void);color:var(--aw-warning);border:1px solid var(--aw-warning);border-radius:var(--aw-radius-control);font-family:var(--aw-font-mono);font-size:11px;overflow-wrap:anywhere;pointer-events:none}
-.twin-badge[data-status=stale],.twin-badge[data-status=offline]{border-color:var(--aw-danger);color:var(--aw-danger)}
-@media(max-width:640px){
-  .twin-panel{top:150px;right:8px;width:calc(100vw - 16px)}
-  .twin-panel:has(>details[open]){top:auto;bottom:138px}
-  .twin-panel>details[open]{max-height:36dvh}
-  .twin-badge{font-size:10px}
+/* Runtime tools share the workspace dock; opening them leaves the model visible. */
+.twin-panel{min-width:0;color:var(--aw-ivory);font:12px/1.6 var(--aw-font-ui)}
+.twin-panel>details{border:0}
+.twin-panel>details>summary{min-width:110px;min-height:44px;padding:10px 14px;border:1px solid var(--aw-border);border-radius:8px;background:transparent;font-size:12px;font-weight:500;text-align:center;list-style:none}
+.twin-panel>details>summary::-webkit-details-marker{display:none}
+.twin-panel>details[open]>summary{background:var(--aw-accent-soft);border-color:var(--aw-accent);color:var(--aw-accent)}
+.twin-body{position:fixed;right:20px;bottom:84px;z-index:16;width:min(440px,calc(100vw - 40px));max-height:calc(100dvh - 260px);overflow:auto;overscroll-behavior:contain;padding:24px;background:var(--aw-surface);border:1px solid var(--aw-border);border-radius:14px;scrollbar-width:thin}
+.twin-heading .eyebrow{color:var(--aw-muted)}.twin-heading h2{font:600 24px/1.3 var(--aw-font-display);letter-spacing:-.02em;margin:7px 0 18px}.twin-panel h3{font-size:13px;font-weight:600;border-top:1px solid var(--aw-border-subtle);padding-top:18px;margin:24px 0 14px}.twin-intro{color:var(--aw-muted);font-size:12px}
+.twin-panel p{line-height:1.7;overflow-wrap:anywhere}.twin-panel label{display:flex;flex-direction:column;align-items:stretch;gap:6px;min-width:0;font-size:12px;color:var(--aw-muted)}
+.twin-panel input,.twin-panel select,.twin-panel textarea,.twin-panel button{max-width:100%;min-height:44px;border:1px solid var(--aw-border);border-radius:8px;background:var(--aw-void);color:var(--aw-ivory);font:inherit;padding:9px 10px;overflow-wrap:anywhere}.twin-panel input[type=file]{font-size:11px;padding:8px;width:100%}.twin-text-label{flex-basis:100%!important}.twin-text-label textarea{width:100%;resize:vertical}
+.twin-panel button{cursor:pointer;background:var(--aw-elevated)}.twin-panel button:hover{border-color:var(--aw-accent);background:var(--aw-accent-soft)}.twin-panel button:disabled{opacity:.5;cursor:default}.twin-panel button[aria-pressed=true]{border-color:var(--aw-accent);background:var(--aw-accent-soft)}.twin-panel :focus-visible{outline:3px solid var(--aw-info);outline-offset:4px}
+.twin-row,.twin-controls,.twin-panel form{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0;align-items:end}.twin-row label,.twin-panel form label{flex:1 1 150px}.twin-controls label{flex:1 1 120px}.twin-controls button{flex:1 1 120px}.twin-capabilities{font-size:11px;color:var(--aw-muted)}
+.twin-panel [hidden]{display:none!important}.twin-panel pre{white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.7 var(--aw-font-mono);max-height:220px;overflow:auto;background:var(--aw-void);padding:12px;border-radius:8px}
+#twin-error{color:var(--aw-danger)}#twin-warning{color:var(--aw-warning)}#twin-trace{max-height:210px;overflow:auto;padding:0;list-style:none}#twin-trace button{text-align:left;width:100%;margin:4px 0;font:11px/1.6 var(--aw-font-mono)}#twin-seek{width:100%}
+.twin-badge{position:fixed;bottom:84px;left:284px;z-index:7;max-width:min(520px,calc(100vw - 310px));padding:8px 12px;background:var(--aw-surface);color:var(--aw-warning);border:1px solid var(--aw-warning);border-radius:8px;font:11px/1.5 var(--aw-font-mono);overflow-wrap:anywhere;pointer-events:none}.twin-badge[data-status=stale],.twin-badge[data-status=offline]{border-color:var(--aw-danger);color:var(--aw-danger)}
+@media(max-width:1100px){
+ .twin-panel{flex:1}.twin-panel>details>summary{min-width:44px;font-size:11px;padding:10px 8px;white-space:nowrap}.twin-body{left:12px;right:12px;bottom:80px;width:auto;max-height:42dvh;padding:20px}
+ body:has(#twin-details[open]) #workspace #scene{height:53%}body:has(#twin-details[open]) #sidebar,body:has(#twin-details[open]) #inspector-rail,body:has(#twin-details[open]) .guide-sheet{visibility:hidden}
+ .twin-badge{left:16px;max-width:calc(100vw - 32px);bottom:84px;font-size:10px}
 }
+@media(max-width:640px){.twin-body{bottom:74px;max-height:44dvh;padding:16px}.twin-heading h2{font-size:22px}.twin-panel>details>summary{font-size:10px;padding:10px 6px}.twin-badge{bottom:78px;font-size:9px}}
+@media(max-height:520px) and (max-width:1100px){.twin-body{top:60px;bottom:64px;left:auto;right:8px;width:43%;max-height:none}.twin-panel>details>summary{font-size:11px}body:has(#twin-details[open]) #workspace #scene{height:100%;width:55%}.twin-badge{left:8px;bottom:66px;max-width:50vw}}
+
+@media(max-width:640px) and (min-height:521px){body:has(#assembly-controls:not([hidden])) .twin-body{bottom:126px}}

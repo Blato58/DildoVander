@@ -1,15 +1,27 @@
 <!doctype html>
 <html lang="cs">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Arcane Workshop · ukázkové obrazovky</title><link rel="stylesheet" href="../arcane-workshop.css"></head>
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vapour Chrome · sdílený design systém</title>
+  <link rel="stylesheet" href="../arcane-workshop.css"><link rel="stylesheet" href="preview.css">
+</head>
 <body class="aw-root">
   <p class="aw-preview-label">ILUSTRATIVNÍ UKÁZKY · pevná data · žádné fyzické ovládání</p>
-  <main class="aw-main" style="max-width:1200px">
-    <header class="aw-header"><div><p class="aw-eyebrow">DildoVander / design systém</p><h1>Arcane Workshop</h1><p class="aw-muted">Tři pohledy na jeden kufr. Společný vizuální jazyk od dílny až k telefonu.</p></div><span class="aw-badge aw-badge--warning">Design preview</span></header>
-    <div class="aw-grid">
-      <article class="aw-card aw-span-4"><p class="aw-eyebrow">01 / Desktop</p><h2>Workshop</h2><p class="aw-muted">Sestava kufru, detail objektu a přehled dílny. Prostor pro přesnou technickou práci.</p><a class="aw-button" href="desktop-workshop.html">Otevřít Workshop →</a></article>
-      <article class="aw-card aw-span-4"><p class="aw-eyebrow">02 / Mobil</p><h2>Domov a ovládání</h2><p class="aw-muted">Stav kufru, sezení a šest přihrádek. Přehledná hierarchie pro práci jednou rukou.</p><a class="aw-button" href="mobile-home.html">Otevřít mobilní náhled →</a></article>
-      <article class="aw-card aw-span-4"><p class="aw-eyebrow">03 / Pozorování</p><h2>Simulation Lab</h2><p class="aw-muted">Stav modelu a jeho časová osa. Viditelné rozlišení mezi simulací a fyzickým výsledkem.</p><a class="aw-button" href="simulation-lab.html">Otevřít Simulation Lab →</a></article>
-    </div>
-    <p class="aw-notice" style="margin-top:24px">Obrazovky ukazují styl a uspořádání. Nejsou připojené k zařízení ani backendu. <a href="../README.md">Dokumentace design systému</a></p>
+  <main class="aw-main preview-index">
+    <header class="preview-masthead"><a class="aw-brand" href="index.html">DildoVander</a><span class="aw-mono aw-muted">Design systém / 01</span></header>
+    <section class="preview-intro" aria-labelledby="title">
+      <div><p class="aw-eyebrow">Společný vizuální jazyk</p><h1 id="title">Vapour Chrome</h1><p class="aw-muted aw-prose">Klidný prostor pro přesnou práci. Jeden systém od ovládání kufru po detail jeho mechanismu.</p></div>
+      <div class="preview-palette" aria-label="Základní paleta"><div class="preview-swatch preview-swatch--mist"><span>Vapour Mist</span><code>#EEF1F5</code></div><div class="preview-swatch preview-swatch--midnight"><span>Chrome Midnight</span><code>#1B2430</code></div><div class="preview-swatch preview-swatch--steel"><span>Steel Grey</span><code>#8A94A6</code></div><div class="preview-swatch preview-swatch--periwinkle"><span>Digital Periwinkle</span><code>#B8C0FF</code></div></div>
+    </section>
+    <section class="aw-section" aria-labelledby="surfaces"><div class="aw-section-heading"><h2 id="surfaces">Tři pracovní prostředí</h2><span class="aw-mono aw-muted">Statické náhledy</span></div>
+      <a class="preview-surface" href="desktop-workshop.html"><span class="aw-mono aw-muted">01</span><div><h3>Workshop</h3><p>Sestava kufru, detail objektu a souvislosti mechanismu.</p></div><span aria-hidden="true">↗</span></a>
+      <a class="preview-surface" href="mobile-home.html"><span class="aw-mono aw-muted">02</span><div><h3>Mobilní ovladač</h3><p>Stav kufru, probíhající sezení a snadno dosažitelné akce.</p></div><span aria-hidden="true">↗</span></a>
+      <a class="preview-surface" href="simulation-lab.html"><span class="aw-mono aw-muted">03</span><div><h3>Simulation Lab</h3><p>Pozorování modelu s jasnou hranicí fyzického ověření.</p></div><span aria-hidden="true">↗</span></a>
+    </section>
+    <section class="aw-section" aria-labelledby="themes"><div class="aw-section-heading"><h2 id="themes">Stejná hierarchie. Dvě témata.</h2><span class="aw-mono aw-muted">Sémantické tokeny</span></div><div class="preview-themes">
+      <article class="aw-card" data-theme="dark"><p class="aw-eyebrow">Tmavé / výchozí</p><h3>Připojení zařízení</h3><p class="aw-muted">Neznámé údaje zůstávají označené.</p><div class="aw-status-line"><span>Stav</span><span class="aw-badge">Odpojeno</span></div><div class="aw-row"><button class="aw-button" disabled>Připojit · ukázka</button><button class="aw-button aw-button--danger" disabled>Stop · ukázka</button></div></article>
+      <article class="aw-card" data-theme="light"><p class="aw-eyebrow">Světlé / volitelné</p><h3>Připojení zařízení</h3><p class="aw-muted">Neznámé údaje zůstávají označené.</p><div class="aw-status-line"><span>Stav</span><span class="aw-badge">Odpojeno</span></div><div class="aw-row"><button class="aw-button" disabled>Připojit · ukázka</button><button class="aw-button aw-button--danger" disabled>Stop · ukázka</button></div></article>
+    </div></section>
+    <footer class="preview-footer"><p class="aw-muted">Ukázky neodesílají povely. Webový náhled neprokazuje stav zařízení.</p><a href="../README.md">Dokumentace systému</a></footer>
   </main>
 </body></html>

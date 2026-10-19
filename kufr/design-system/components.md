@@ -1,4 +1,4 @@
-# Komponenty a stavy
+# Komponenty a stavy Vapour Chrome
 
 | Vzor | Třídy | Pravidlo |
 | --- | --- | --- |
@@ -8,7 +8,7 @@
 | Vedlejší akce | `aw-button--secondary` | Zřetelný obrys a text |
 | Stop / chyba | `aw-button--danger` | Explicitní text a skutečný stav aplikace |
 | Vstup | `aw-field`, `aw-input` | Viditelný label, pomocný text přes `aria-describedby` |
-| Upozornění | `aw-notice` | Stručně vysvětluje dopad a další krok |
+| Upozornění | `aw-notice`, `aw-notice--danger`, `aw-notice--info`, `aw-notice--success` | Stručně vysvětluje dopad a další krok |
 | Přihrádky | `aw-slots`, `aw-slot` | 3 sloupce desktop, 2 mobil; číslo a stav slovem |
 | Telemetrie | `aw-facts`, `aw-mono` | Sémantické `dl`; neznámé hodnoty mají pomlčku |
 | Události | `aw-timeline` | Čas, událost, kontext; čas v monospace |
@@ -34,6 +34,23 @@ Příklad skutečného vstupu:
 
 Používejte nativní `button`, `a`, `input`, `select` a `details` podle účelu.
 Klikací `div` a dekorativní ikony bez textu nezavádějte.
+
+## Vizuální hierarchie
+
+Používejte primární tlačítko s `--aw-accent` a textem `--aw-on-accent`.
+Vedlejší akce má neutrální obrys. Stop používá červený obrys i text a vždy
+zůstává doslovně označený. Navigace a výběr používají `--aw-accent-soft`;
+barva je doplněk k popisku, `aria-current` a případnému obrysu.
+
+`aw-status-line` je střídmý řádek stavu bez samostatné karty pro každý údaj.
+`aw-section` a `aw-section-heading` oddělují větší části stránky prostorem.
+`aw-empty` vysvětluje skutečně prázdný výsledek, `aw-field-error` viditelnou
+chybu vstupu propojenou pomocí `aria-describedby`. Vstup používá
+`aria-invalid="true"` při validované chybě. `aria-busy="true"` pouze vykresluje
+čekání; aplikace zajišťuje zákaz duplicitního požadavku.
+
+Stejná struktura funguje v tmavém i světlém tématu. Používejte sémantické
+tokeny pro text a plochy, lokální pevné barvy pro ně nezavádějte.
 
 ## Kontrakt stavů
 

@@ -9,11 +9,19 @@
   <script type="module" src="./panel.mjs"></script>
 </head>
 <body class="aw-root">
-  <main class="aw-main bench">
+  <a class="bench-skip" href="#bench-main">Přejít k diagnostice</a>
+  <main id="bench-main" class="aw-main bench">
     <header class="aw-header">
       <div><p class="aw-eyebrow">DildoVander · servisní diagnostika</p><h1>Servo bench</h1></div>
       <span class="aw-badge aw-badge--warning">Skutečný hardware</span>
     </header>
+    <nav class="bench-nav" aria-label="Servisní postup">
+      <a href="#connection-title">1. Připojení</a>
+      <a href="#calibration-title">2. Ruční kalibrace</a>
+      <a href="#auto-title">3. Hledání meze</a>
+      <a href="#readback-title">Registry</a>
+      <a href="#log-title">Log</a>
+    </nav>
     <p class="aw-notice">Pouze nezatížené servo, kanály PCA9685 0–5. Ruční kalibrační pokus 1000–2000 µs po dobu 500–3000 ms vyžaduje nový firmware. Připravte fyzické odpojení napájení serv.</p>
     <section class="aw-card" aria-labelledby="connection-title">
       <h2 id="connection-title">USB připojení</h2>

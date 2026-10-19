@@ -73,3 +73,16 @@ verification fails, report blocked; never fall back to the main checkout. Keep
 proposed repairs in the worktree and report its path/branch. Do not automatically
 synchronize, commit, push or merge maintenance changes. Preserve intended ignored
 guidance outside a disposable worktree before any authorized cleanup.
+
+Design integrity belongs to the existing weekly check, not a separate schedule.
+Read [Vapour Chrome](../../kufr/design-system/README.md) and the tracked
+[UI skill](../../.agents/skills/dildovander-ui/SKILL.md). Run the read-only
+`python scripts/check_design_system.py` in the verified worktree. Investigate
+obsolete active theme guidance, undefined token references, independent UI palettes,
+inconsistent components, contrast/focus/reduced-motion regressions and design-plugin
+routing drift. Exclude physical CAD materials, artwork and dated evidence from
+branding checks. A static checker cannot prove rendered accessibility or plugin
+invocation: report those limits and any findings requiring browser/application work.
+Repair only isolated guidance/config/reference defects within maintenance's
+existing authority; propose application changes for review. Do not add a scheduler,
+run paid calls, rebuild CAD or silently redesign interfaces during maintenance.

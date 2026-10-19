@@ -246,7 +246,7 @@ location /api/ { return 404; }
 location = /api { return 404; }
 
 if ($host != keepsake.example.invalid) { return 421; }
-# Arcane Workshop routes; leave API, iOS and CloudVPSBridge locations intact.
+# Vapour Chrome routes; leave API, iOS and CloudVPSBridge locations intact.
 location = / {
     root /var/www/dildovander/current;
     try_files /index.html =404;

@@ -59,29 +59,29 @@ def render_page(version: str, build: str, manifest_url: str, ipa_url: str) -> st
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0D1218">
-  <title>Kufr · Arcane Workshop · iPhone</title>
+  <meta name="theme-color" content="#1B2430">
+  <title>DildoVander · Instalace pro iPhone</title>
   <style>
     /* Standalone fallback also keeps archived releases readable offline. */
-    :root {{ --aw-void: #0D1218; --aw-surface: #171F29; --aw-elevated: #25313D; --aw-brass: #D9B777; --aw-ivory: #F3ECE0; --aw-muted: #AAB7C2; --aw-border: #6B7E8E; --aw-font-display: 'Cinzel', Georgia, serif; --aw-font-ui: 'Inter', -apple-system, system-ui, sans-serif; --aw-font-mono: 'IBM Plex Mono', monospace; color-scheme: dark; }}
+    :root {{ --aw-void: #1B2430; --aw-surface: #222D3B; --aw-elevated: #2D394A; --aw-accent: #B8C0FF; --aw-on-accent: #1B2430; --aw-ivory: #EEF1F5; --aw-muted: #B4BECE; --aw-border: #7B899E; --aw-font-ui: 'Inter', -apple-system, system-ui, sans-serif; --aw-font-mono: 'IBM Plex Mono', monospace; color-scheme: dark; }}
     * {{ box-sizing: border-box; }}
     body {{ margin: 0; padding: calc(24px + env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left, 0px)); background: var(--aw-void); color: var(--aw-ivory); min-height: 100vh; font-family: var(--aw-font-ui); }}
     main {{ max-width: 44rem; margin: min(10vh, 80px) auto; }}
     .brand {{ display: flex; align-items: center; gap: 16px; padding-bottom: 24px; border-bottom: 1px solid var(--aw-border); margin-bottom: 40px; }}
-    .mark {{ width: 40px; height: 40px; stroke: var(--aw-brass); stroke-width: 1.5; }}
-    .eyebrow {{ color: var(--aw-brass); font-size: .75rem; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; }}
-    h1 {{ font: 600 clamp(2.25rem, 8vw, 4rem)/1.1 var(--aw-font-display); margin: 16px 0 24px; }}
-    h2 {{ font: 600 1.25rem/1.3 var(--aw-font-display); margin: 0 0 16px; }}
+    .mark {{ width: 32px; height: 32px; stroke: var(--aw-accent); stroke-width: 1.5; }}
+    .brand strong {{ font-size: 1rem; }}
+    h1 {{ font: 600 clamp(2rem, 8vw, 3.5rem)/1.1 var(--aw-font-ui); letter-spacing: -.035em; margin: 16px 0 24px; }}
+    h2 {{ font: 600 1.25rem/1.3 var(--aw-font-ui); margin: 0 0 16px; }}
     p {{ color: var(--aw-muted); line-height: 1.6; }}
-    .card {{ background: var(--aw-surface); border: 1px solid var(--aw-border); border-radius: 12px; padding: clamp(24px, 5vw, 32px); margin-top: 32px; }}
-    .button {{ display: inline-flex; align-items: center; justify-content: center; min-height: 44px; background: var(--aw-brass); color: var(--aw-void); padding: 16px 24px; border-radius: 8px; font-weight: 600; text-decoration: none; margin: 16px 0 8px; }}
+    .card {{ background: var(--aw-surface); border-radius: 14px; padding: clamp(24px, 5vw, 32px); margin-top: 32px; }}
+    .button {{ display: inline-flex; align-items: center; justify-content: center; min-height: 48px; background: var(--aw-accent); color: var(--aw-on-accent); padding: 16px 24px; border-radius: 10px; font-weight: 600; text-decoration: none; margin: 16px 0 8px; }}
     .button:hover {{ background: var(--aw-ivory); }}
-    .button:focus-visible, a:focus-visible {{ outline: 3px solid var(--aw-brass); outline-offset: 4px; }}
+    .button:focus-visible, a:focus-visible {{ outline: 3px solid var(--aw-accent); outline-offset: 4px; }}
     .meta {{ color: var(--aw-muted); font-size: .8125rem; }}
     .diagnostics {{ display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }}
     .diagnostics a {{ display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; padding: 8px 12px; border: 1px solid var(--aw-border); border-radius: 8px; background: var(--aw-elevated); text-decoration: none; }}
     .version {{ font-family: var(--aw-font-mono); }}
-    a {{ color: var(--aw-brass); }}
+    a {{ color: var(--aw-accent); text-underline-offset: 4px; }}
     code {{ overflow-wrap: anywhere; }}
     @media (max-width: 480px) {{ .button {{ width: 100%; }} main {{ margin-top: 24px; }} }}
   </style>
@@ -89,12 +89,11 @@ def render_page(version: str, build: str, manifest_url: str, ipa_url: str) -> st
 </head>
 <body>
   <main>
-    <div class="brand"><svg class="mark" viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M20 3 35 12v16L20 37 5 28V12Z"/><path d="m13 27 14-14M14 12l2 4m8 8 4 2M20 7v4M7 20h4M29 20h4M20 29v4"/></svg><span class="eyebrow">Arcane Workshop · Kufr</span></div>
-    <div class="eyebrow">Soukromý test · iPhone 15 Pro</div>
-    <h1>Vaše ovládací dílna.</h1>
+    <div class="brand"><svg class="mark" viewBox="0 0 32 32" fill="none" aria-hidden="true"><rect x="5" y="9" width="22" height="18" rx="4"/><path d="M11 9V5h10v4M12 17h8M16 13v8"/></svg><strong>DildoVander</strong></div>
+    <h1>Kufr připravený k ovládání.</h1>
     <p>Otevři tuto stránku v Safari na registrovaném iPhonu a nainstaluj podepsanou aplikaci.</p>
     <section class="card" aria-label="Instalace aplikace">
-      <h2>Kufr pro iPhone</h2>
+      <h2>Aplikace pro iPhone</h2>
       <div class="meta version">Verze {version_label} · sestavení {build_label}</div>
       <a class="button" href="{html.escape(install_url, quote=True)}">Nainstalovat na iPhone</a>
       <p>Po klepnutí potvrď instalaci. Pokud ji iPhone odmítne, ověř vývojářský režim a profil zařízení.</p>
