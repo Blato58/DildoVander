@@ -1,3 +1,7 @@
+import { mountDashboardUi, statusBadge, notice, emptyState } from './dashboard-ui.js';
+
+mountDashboardUi(document);
+
 const tokenInput = document.querySelector('#token');
 const connectButton = document.querySelector('#connect');
 const disconnectButton = document.querySelector('#disconnect');
@@ -67,7 +71,10 @@ function renderSlots(state) {
     title.textContent = `Přihrádka ${compartment}`;
     const stateText = document.createElement('span');
     stateText.className = 'slot-state';
-    stateText.textContent = !state ? 'Neznámá' : available ? 'Dostupná' : 'Nedostupná';
+    stateText.innerHTML = statusBadge({
+      label: !state ? 'Neznámá' : available ? 'Dostupná' : 'Nedostupná',
+      tone: state && available && document.body.dataset.modelCurrent === 'true' ? 'success' : 'neutral',
+    });
     item.append(number, title, stateText);
     slots.append(item);
   }
@@ -109,9 +116,10 @@ function renderTimeline() {
     : `${eventHistory.length} událostí · nejvýše 100`;
   clearEventsButton.disabled = eventHistory.length === 0;
   emptyTimeline.hidden = visibleEvents.length > 0;
-  emptyTimeline.textContent = query && eventHistory.length > 0
+  const message = query && eventHistory.length > 0
     ? 'Filtru neodpovídá žádná událost. Zkuste jiný název nebo číslo přihrádky.'
     : 'Po připojení se zde zobrazí události. Nejnovější budou nahoře.';
+  emptyTimeline.innerHTML = emptyState({ title: query ? 'Žádná shoda' : 'Zatím bez událostí', message });
 }
 
 function renderEvent(event) {
@@ -131,9 +139,13 @@ function setConnectionState(state) {
   disconnectButton.disabled = disconnected;
   tokenInput.disabled = !disconnected;
   connectButton.textContent = state === 'connecting' ? 'Připojuji…' : 'Připojit pozorování';
-  statusLabel.textContent = state === 'connected' ? 'Připojeno · pouze pozorování'
-    : state === 'connecting' ? 'Připojuji k simulátoru…' : 'Nepřipojeno';
+  statusLabel.innerHTML = statusBadge({
+    label: state === 'connected' ? 'Připojeno · pouze pozorování'
+      : state === 'connecting' ? 'Připojuji k simulátoru…' : 'Nepřipojeno',
+    tone: state === 'connected' ? 'success' : state === 'connecting' ? 'info' : 'neutral',
+  });
   if (state !== 'connected') {
+    renderSlots(latestSnapshot?.snapshot);
     freshnessLabel.textContent = latestSnapshot
       ? 'Poslední snapshot · není aktuální' : 'Stav není známý';
     if (latestSnapshot) {
@@ -153,7 +165,7 @@ async function connect() {
   tokenInput.value = '';
   errorLabel.textContent = '';
   if (!token) {
-    errorLabel.textContent = 'Zadejte testovací token.';
+    renderError('Zadejte testovací token.');
     tokenInput.focus();
     return;
   }
@@ -179,7 +191,7 @@ async function connect() {
     while (true) {
       const { value, done } = await reader.read();
       if (done) {
-        errorLabel.textContent = 'Pozorování bylo ukončeno. Pro aktuální stav se připojte znovu.';
+        renderError('Pozorování bylo ukončeno. Pro aktuální stav se připojte znovu.');
         break;
       }
       pending += decoder.decode(value, { stream: true });
@@ -203,7 +215,7 @@ async function connect() {
     }
   } catch (error) {
     if (error.name !== 'AbortError') {
-      errorLabel.textContent = `${error.message} Zkontrolujte místní simulátor a připojte se znovu.`;
+      renderError(`${error.message} Zkontrolujte místní simulátor a připojte se znovu.`);
     }
   } finally {
     if (connection === controller) {
@@ -213,13 +225,17 @@ async function connect() {
   }
 }
 
+function renderError(message) {
+  errorLabel.innerHTML = notice({ title: 'Pozorování není připojeno', message, tone: 'danger' });
+}
+
 connectButton.addEventListener('click', connect);
 disconnectButton.addEventListener('click', () => connection?.abort());
 eventFilter.addEventListener('input', renderTimeline);
 clearEventsButton.addEventListener('click', () => {
   eventHistory = [];
   renderTimeline();
-  emptyTimeline.textContent = 'Zobrazení vymazáno. Nové události se budou přidávat dál; model se nezměnil.';
+  emptyTimeline.innerHTML = emptyState({ title: 'Zobrazení vymazáno', message: 'Nové události se budou přidávat dál; model se nezměnil.' });
   eventFilter.focus();
 });
 themeButton.addEventListener('click', () => {
@@ -235,3 +251,4 @@ tokenInput.addEventListener('keydown', (event) => {
 });
 window.addEventListener('beforeunload', () => connection?.abort());
 renderSlots();
+renderTimeline();

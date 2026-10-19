@@ -39,10 +39,17 @@ jobs:
             kufr/contracts/package-lock.json
       - name: Validate public-site promotion and archive integrity
         run: |
+          python scripts/generate_design_tokens.py --check
+          npm test --prefix kufr/design-system
           python -m unittest discover -s kufr/web -p 'test_*.py'
           python -m unittest discover -s kufr/mechanika/final -p test_viewer_style.py
+          python -m unittest discover -s kufr/mechanika/final -p test_viewer_document.py
           python -m unittest discover -s kufr/mechanika/final -p test_twin_manifest.py
-          node --test kufr/mechanika/final/test_viewer.cjs kufr/mechanika/final/test_twin_viewer.cjs kufr/mechanika/final/test_twin_media.cjs
+          node --test kufr/mechanika/final/test_viewer.cjs kufr/mechanika/final/test_twin_viewer.cjs kufr/mechanika/final/test_twin_media.cjs kufr/mechanika/final/test_show_timeline.cjs
+          node --test kufr/firmware/diagnostics/servo-bench/web/tests/*.test.mjs
+          python -m unittest discover -s kufr/firmware/diagnostics/servo-bench/web/tests -p 'test_*.py'
+      - name: Verify simulator UI consumers
+        run: node kufr/simulator/verify-dashboard.mjs
       - name: Verify source-bound CAD outputs for a complete site package
         if: inputs.verify-manufacturing
         uses: ./.github/actions/verified-cad
@@ -52,6 +59,20 @@ jobs:
           npm ci
           npm ci --prefix ../contracts
           npm run build -- --base=/companion/
+      - name: Verify responsive UI and private/public guest flows in Chromium
+        env:
+          NODE_PATH: ${{ github.workspace }}/kufr/design-system/node_modules
+          DV10_BROWSER_CHANNEL: chromium
+          UI_MOBILE_DIST: ${{ github.workspace }}/kufr/mobilni-aplikace/dist
+          UI_VIEWER_HTML: ${{ runner.temp }}/viewer-ui-fixture.html
+          UI_SCREENSHOT_DIR: ${{ runner.temp }}/ui-screenshots
+        run: |
+          npm ci --prefix kufr/design-system
+          npx --prefix kufr/design-system playwright install --with-deps chromium
+          python kufr/mechanika/final/preview_ui_fixture.py --output "$UI_VIEWER_HTML"
+          npm run test:browser --prefix kufr/design-system
+          node kufr/web/keepsake/test-browser.cjs
+          node kufr/web/keepsake/test-evening-browser.cjs
       - name: Check assembly with real site assets and synthetic CAD fixtures
         env:
           KUFR_SITE_WEB_DIST: ${{ github.workspace }}/kufr/mobilni-aplikace/dist

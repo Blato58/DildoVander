@@ -1,5 +1,12 @@
 # Styl a tokeny
 
+Autoritativní hodnoty jsou v `tokens.json`. Soubory pod `tokens/`,
+`tokens.mjs`, jejich typy a backendový C# export jsou generované pomocí
+`scripts/generate_design_tokens.py`; ruční změnu proveďte ve zdrojovém JSON.
+Typografie zahrnuje výšky řádků, váhy a tracking; layout zahrnuje rozestupy,
+dotykové rozměry, vrstvy, safe-area a breakpointy pro adaptéry. Rozložení
+konkrétního nástroje může mít odůvodněný vlastní bod zlomu.
+
 ## Vapour Chrome
 
 Přesná technická práce potřebuje klidné plochy a čitelná rozhodnutí.

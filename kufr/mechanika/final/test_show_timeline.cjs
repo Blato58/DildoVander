@@ -109,6 +109,8 @@ class Element {
   replaceChildren(...nodes) { this.children = nodes; }
   setAttribute(key, value) { this.attributes[key] = value; }
   addEventListener(key, callback) { this[key] = callback; }
+  showModal() { this.open = true; }
+  close(value) { this.open = false; this.returnValue = value; this.closeEvent?.(); }
   focus() { this.focused = true; }
   set innerHTML(_) { throw new Error('Untrusted HTML rendering'); }
 }
@@ -117,10 +119,14 @@ test('real panel handlers import safely, seek locally, display clock/missing evi
   const get = id => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); };
   get('show-speed').value = '1';
   const document = {getElementById:get,createElement:() => new Element()};
+  require('./ui_test_runtime.cjs')(globalThis);
+  get('show-inspector').ownerDocument = document;
+  get('show-inspector').addEventListener = function(key, callback) { this[key === 'close' ? 'closeEvent' : key] = callback; };
+  get('show-open').isConnected = true;
   const plan = {semanticsVersion:'dv02-phase-1', scenes:[{sceneId:'legacy-presentation',sceneVersion:1,sceneHash:'main-hash',variant:'main',maxDurationMs:15000,phases:[{id:'prepare',label:'prepare',illustrativeStartMs:0,illustrativeDurationMs:100,completion:{kind:'elapsed',durationMs:100},cues:[{id:'led-0',kind:'led',timing:{offsetMs:0}}]},{id:'rest',illustrativeStartMs:100,illustrativeDurationMs:100,completion:{kind:'elapsed',durationMs:100},cues:[]}]}]};
   mount(document, plan, {bundleHash:'bundle',sourceHash:'source',compiledHash:'compiled'});
   assert.match(get('show-mode').textContent, /PLÁN/);
-  get('show-open').onclick(); assert.equal(get('show-inspector').hidden, false); assert.equal(get('show-close').focused, true);
+  get('show-open').onclick(); assert.equal(get('show-inspector').open, true); assert.equal(get('show-close').focused, true);
   const trace = fixture(); trace.events[0].reason = '<img src=x onerror=alert(1)>';
   const input = get('show-baseline'); input.files = [{size:1000,text:async () => JSON.stringify(trace)}];
   await input.onchange({target:input});
@@ -156,6 +162,6 @@ test('real panel handlers import safely, seek locally, display clock/missing evi
   } finally {
     globalThis.requestAnimationFrame = previousFrame; globalThis.fetch = previousFetch; globalThis.WebSocket = previousSocket;
   }
-  get('show-inspector').keydown({key:'Escape'}); assert.equal(get('show-inspector').hidden, true); assert.equal(get('show-open').focused, true);
+  get('show-inspector').cancel({preventDefault(){}}); assert.equal(get('show-inspector').open, false); assert.equal(get('show-open').focused, true);
   get('show-reset').onclick(); assert.match(get('show-mode').textContent, /PLÁN/);
 });

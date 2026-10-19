@@ -1,5 +1,6 @@
 /* Embedded by preview.py: the exported viewer needs no server or network. */
 const el = id => document.getElementById(id);
+VapourViewerUi.mountViewerUi(document);
 // Runtime controls are mounted dynamically by TwinViewer, outside the static template.
 const runtimeTools = () => document.getElementById('twin-details');
 let twinViewer = null;
@@ -22,8 +23,7 @@ el('theme-toggle').onclick = () => {
   if (rendererReady) requestDraw();
 };
 function reportViewerError(message) {
-  el('viewer-error').textContent = message;
-  el('viewer-error').hidden = false;
+  VapourViewerUi.renderViewerError(el('viewer-error'), message);
   el('viewer-status').textContent = 'Model není dostupný';
 }
 const gl = canvas.getContext('webgl', {antialias: true});
@@ -898,7 +898,7 @@ function buildTree() {
     visibilityLabel.append(checkbox); summary.append(visibilityLabel);
     const text = document.createElement('span'); text.textContent = ' '+(titles[group] || group); summary.append(text); section.append(summary);
     for (const mesh of matchingMeshes.filter(item=>item.group === group)) {
-      const button = document.createElement('button'); button.textContent = mesh.info?.title || mesh.name;
+      const button = document.createElement('button'); button.className = 'aw-button aw-button--ghost'; button.textContent = mesh.info?.title || mesh.name;
       button.setAttribute('title', mesh.name);
       button.setAttribute('aria-label', (mesh.info?.title || mesh.name)+' ('+mesh.name+')');
       if (mesh.info?.title && mesh.info.title !== mesh.name) {
@@ -1190,9 +1190,10 @@ el('mode').value = mode; el('wire-scope').value = 'branch'; el('case-opacity').v
 el('envelope-note').textContent = 'Meze návrhu (nejsou zaručený volný kvádr): '+(model.case?.safe_zone || [400,240,170]).join(' × ')+' mm. Zdvih '+model.mechanism.lift+' mm, '+trayAngles.length+' modulů. Korpus není určen k tisku.';
 rendererReady = true;
 updateObjectOptions(); buildTree(); updateAssembly(); updateTransportInstructions(); updateEffectControls(); showEffectTimeline(model.effects?.main || []); draw();
-el('viewer-status').textContent = model.meshes.length+' dílů · '+(model.viewerPreview ? 'UI náhled' : 'připraveno');
+el('viewer-status').textContent = model.meshes.length+' dílů · '+(model.viewerPreview?.synthetic ? 'SYNTETICKÁ UI FIXTURE' : model.viewerPreview ? 'UI náhled' : 'připraveno');
 if (model.viewerPreview) el('download-package').hidden = true;
 if (model.viewerPreview) el('mode-note').textContent = 'UI náhled nad existujícím CAD exportem z '+model.viewerPreview.dataDate+'. Geometrie nebyla znovu generována ani ověřena.';
+if (model.viewerPreview?.synthetic) el('mode-note').textContent = 'SYNTETICKÁ UI FIXTURE · Pouze ovládání a offline balení UI. Není to model kufru, CAD ověření ani fyzický důkaz.';
 if (typeof DigitalTwin !== 'undefined') twinViewer = DigitalTwin.mount(document, model, {
   clear:() => { trayAngles.fill(0); lightStates.fill(null); twinOutputStates.clear(); pinned = null; requestDraw(); },
   activate:() => {

@@ -1,6 +1,6 @@
 ---
 name: dildovander-ui
-description: Design, redesign or improve any DildoVander UI, navigation, dashboard, mobile layout, viewer or public page using Vapour Chrome; route design and browser tools automatically while preserving device contracts and generated provenance.
+description: Implement or improve DildoVander UI using the shared Vapour Chrome runtime and generated tokens across Capacitor, public pages, simulator, viewer and service tools; preserve device contracts and generated provenance.
 ---
 
 # DildoVander UI
@@ -18,6 +18,27 @@ canonical `--aw-*` tokens and `aw-*` components; add local layout styles only
 where the owning view needs them. Fonts are self-hosted with OFL licenses.
 Keep offline generated viewers self-contained using their real generation
 path; never patch a generated viewer or ZIP as the only source change.
+
+## Shared framework
+
+Before creating a component inspect `kufr/design-system/ui.js`, `ui.d.ts` and
+the interactive `playground/`. Use real shared renderers and DOM behaviors;
+do not copy their markup, escaping, tab handling or dialog focus management.
+Read `framework.md` for API changes and `architecture.md` for platform/package
+ownership. The Capacitor app uses the same web UI; Swift owns native adapters.
+State, authorization and device availability remain in their feature owners.
+
+Edit `tokens.json`, then run `python scripts/generate_design_tokens.py`.
+Never hand-edit generated CSS, ESM/types or C# token constants. Local CSS
+handles layout. Extend shared primitives for repeated appearance or behavior.
+For offline viewer work use the authored assembler and generated snapshots;
+use a labelled UI-only preview, never regenerate CAD just for chrome.
+
+After shared runtime changes run `npm test --prefix kufr/design-system`,
+the token drift check and affected consumer tests. Use `test:browser` for
+repeatable theme/layout/focus regression checks; its pinned browser dependency
+is development-only. Include relevant private/public synthetic flows for DV10.
+UI-only CI must retain viewer tests without selecting manufacturing work.
 
 ## Character and workflow
 

@@ -1,8 +1,11 @@
 """Read-only Vapour Chrome integrity checks; rendered accessibility remains separate."""
 
 import argparse
+import json
 import re
 from pathlib import Path
+
+from generate_design_tokens import outputs
 
 
 PALETTE = {
@@ -22,10 +25,55 @@ GUIDANCE = (
 )
 IGNORED = {"node_modules", "dist", "exports", "__pycache__", ".pio"}
 OLD_UI_COLORS = re.compile(r"#(?:D9B777|F3ECE0|0D1218)\b", re.I)
+RUNTIME_CONSUMERS = (
+    "kufr/mobilni-aplikace/src/main.ts",
+    "kufr/web/keepsake/app.js", "kufr/web/keepsake/evening/evening.js",
+    "kufr/simulator/dashboard-ui.js",
+    "kufr/firmware/diagnostics/servo-bench/web/panel-ui.mjs",
+    "kufr/mechanika/final/viewer_ui.js",
+)
+
+
+def inspect_runtime_imports(root):
+    """Check the actual framework adapters, not arbitrary domain imports."""
+    problems = []
+    framework = root / "kufr/design-system/ui.js"
+    paths = [root / relative for relative in RUNTIME_CONSUMERS]
+    if framework.exists():
+        paths.append(framework)
+    graph = {}
+    for path in paths:
+        if not path.exists():
+            continue
+        source = path.read_text(encoding="utf-8")
+        if path != framework and re.search(r"(?:function|const)\s+(?:escapeHtml|escapeText|bindTabs|bindDialog)\b", source):
+            problems.append(f"Duplicated shared UI helper: {path.relative_to(root).as_posix()}")
+        dependencies = []
+        for relative in re.findall(r"import\s+(?:[\s\S]*?\s+from\s+)?['\"](\.[^'\"]+)['\"]", source):
+            dependency = (path.parent / relative).resolve()
+            if not dependency.is_file():
+                # TypeScript uses extensionless local imports in the mobile app.
+                dependency = dependency.with_suffix(".ts") if not dependency.suffix else dependency
+            if not dependency.is_file():
+                problems.append(f"Broken UI import {relative}: {path.relative_to(root).as_posix()}")
+            dependencies.append(dependency)
+        graph[path.resolve()] = dependencies
+
+    def visit(path, chain):
+        if path in chain:
+            problems.append(f"Circular shared UI import: {path.relative_to(root).as_posix()}")
+            return
+        for dependency in graph.get(path, []):
+            visit(dependency, chain | {path})
+
+    for path in graph:
+        visit(path, set())
+    return problems
 
 
 def inspect(root):
-    problems = []
+    root = root.resolve()
+    problems = inspect_runtime_imports(root)
     palette_path = root / "kufr/design-system/tokens/palette.css"
     if not palette_path.exists():
         return ["Missing canonical palette: kufr/design-system/tokens/palette.css"]
@@ -36,14 +84,26 @@ def inspect(root):
     for theme in ("light", "dark"):
         if not re.search(rf"data-theme\s*=\s*[\"']?{theme}", palette):
             problems.append(f"Missing explicit {theme} theme")
-    # Offline exports cannot load CSS. Guard their small native palette mirror
-    # against drift without treating generated artwork colors as interface chrome.
+    # Offline exports consume generated C# constants, never a copied palette.
     exports = root / "kufr/backend/Features/Keepsakes/KeepsakeExports.cs"
     if exports.exists():
         export_source = exports.read_text(encoding="utf-8")
-        for name, color in PALETTE.items():
-            if not re.search(rf'Card{name.title()}\s*=\s*"{color}"\s*;', export_source, re.I):
-                problems.append(f"Export Card{name.title()} must equal canonical {color}")
+        for name, generated in {"Midnight": "ChromeMidnight", "Mist": "VapourMist",
+                                "Steel": "SteelGrey", "Periwinkle": "DigitalPeriwinkle"}.items():
+            if not re.search(rf'Card{name}\s*=\s*DesignTokens\.{generated}\s*;', export_source):
+                problems.append(f"Export Card{name} must consume generated DesignTokens.{generated}")
+
+    token_source = root / "kufr/design-system/tokens.json"
+    if not token_source.exists():
+        problems.append("Missing machine-readable design tokens: kufr/design-system/tokens.json")
+    else:
+        try:
+            data = json.loads(token_source.read_text(encoding="utf-8"))
+            for path, expected in outputs(data, root=root).items():
+                if not path.exists() or path.read_text(encoding="utf-8") != expected:
+                    problems.append(f"Generated design token drift: {path.relative_to(root).as_posix()}")
+        except (ValueError, KeyError, TypeError) as error:
+            problems.append(f"Invalid machine-readable design tokens: {error}")
 
     files = []
     for relative in UI_ROOTS:
@@ -84,7 +144,7 @@ def main():
     for problem in problems:
         print(problem)
     print(f"Vapour Chrome integrity: {'FAIL' if problems else 'PASS'}")
-    print("Scope: palette/export mirror, explicit themes, CSS/HTML aw-token references, active guidance.")
+    print("Scope: generated platform tokens, export binding, explicit themes, CSS/HTML aw-token references, active guidance.")
     print("Limits: no rendered contrast, interaction, native/hardware or plugin-invocation proof.")
     return bool(problems)
 

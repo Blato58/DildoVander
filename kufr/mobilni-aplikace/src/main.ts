@@ -1,3 +1,4 @@
+import { bindTabs, button, emptyState, escapeHtml, field, notice, statusBadge, wandCard } from '../../design-system/ui.js';
 import './style.css';
 import { VoicePanel } from './features/voice_control/VoicePanel';
 import { DancePanel } from './features/dance/DancePanel';
@@ -45,11 +46,10 @@ conversationPanel.innerHTML = `
   <h2>Textový rozhovor</h2>
   <p class="conversation-explanation"></p>
   <form>
-    <label for="visitor-text">Vaše odpověď</label>
-    <textarea id="visitor-text" name="text" rows="3" maxlength="2000" autocomplete="off" required></textarea>
+    ${field({ id: 'visitor-text', label: 'Vaše odpověď', control: '<textarea class="aw-input" name="text" rows="3" maxlength="2000" autocomplete="off" required></textarea>' })}
     <div class="actions">
-      <button type="submit" class="primary" disabled>Odeslat text kufru</button>
-      <button type="button" data-conversation="cancel" disabled>Zrušit tah</button>
+      ${button({ label: "Odeslat text kufru", variant: 'primary', type: 'submit', disabled: true })}
+      ${button({ label: "Zrušit tah", disabled: true, attributes: {"data-conversation": "cancel"} })}
     </div>
   </form>
   <p role="status"></p>
@@ -88,12 +88,12 @@ tabs.setAttribute('aria-label', 'Sekce aplikace');
 tabs.innerHTML = `<a class="skip-link" href="#control-panel">Přejít k obsahu</a><div class="workshop-bar">
   <div class="workshop-brand"><svg class="workshop-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true"><rect x="5" y="9" width="22" height="18" rx="4"/><path d="M11 9V5h10v4M12 17h8M16 13v8"/></svg>
     <strong>DildoVander<span>Ovladač kufru</span></strong></div>
-  <div class="shell-actions"><button type="button" class="theme-toggle" data-theme-toggle aria-label="Přepnout na světlý vzhled"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg></button>
-  <button type="button" class="stop shell-stop" data-shell-stop disabled>Stop kufru</button></div>
+  <div class="shell-actions"><button type="button" class="aw-button aw-button--secondary theme-toggle" data-theme-toggle aria-label="Přepnout na světlý vzhled"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg></button>
+  ${button({ label: "Stop kufru", variant: 'danger', disabled: true, attributes: {"class": "shell-stop", 'data-shell-stop': true} })}</div>
   </div><div role="tablist" aria-label="Sekce aplikace">
-  <button type="button" role="tab" id="tab-control" aria-controls="control-panel" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>Ovládání</button>
-  <button type="button" role="tab" id="tab-provisioning" aria-controls="provisioning-panel" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 9a14 14 0 0 1 18 0M6 13a9 9 0 0 1 12 0M9 17a4 4 0 0 1 6 0"/><circle cx="12" cy="21" r=".5"/></svg>Síť kufru</button>
-  <button type="button" role="tab" id="tab-debug" aria-controls="debug-panel" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg>Diagnostika</button></div>
+  <button type="button" class="aw-button aw-button--secondary" role="tab" id="tab-control" aria-controls="control-panel" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>Ovládání</button>
+  <button type="button" class="aw-button aw-button--secondary" role="tab" id="tab-provisioning" aria-controls="provisioning-panel" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 9a14 14 0 0 1 18 0M6 13a9 9 0 0 1 12 0M9 17a4 4 0 0 1 6 0"/><circle cx="12" cy="21" r=".5"/></svg>Síť kufru</button>
+  <button type="button" class="aw-button aw-button--secondary" role="tab" id="tab-debug" aria-controls="debug-panel" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg>Diagnostika</button></div>
   <p class="shell-status" data-shell-status role="status" aria-live="polite" aria-atomic="true"></p>`;
 controlPanel.before(tabs);
 const shellStop = tabs.querySelector<HTMLButtonElement>('[data-shell-stop]')!;
@@ -158,36 +158,18 @@ function stopDevice(): void {
   }
 }
 function selectTab(id: string): void {
+  tabs.querySelector<HTMLButtonElement>(`#${id}`)?.click();
+}
+
+bindTabs(tabs, { onSelect: (tab) => {
+  const id = tab.id;
   controlPanel.hidden = id !== 'tab-control';
   debugPanel.show(id === 'tab-debug');
   provisioningPanel.show(id === 'tab-provisioning');
-  tabs.querySelector<HTMLAnchorElement>('.skip-link')!.href = `#${id === 'tab-control' ? 'control-panel' : id === 'tab-debug' ? 'debug-panel' : 'provisioning-panel'}`;
+  tabs.querySelector<HTMLAnchorElement>('.skip-link')!.href = `#${tab.getAttribute('aria-controls')}`;
   if (currentSnapshot) { updateStopControls(currentSnapshot); }
-  for (const button of Array.from(tabs.querySelectorAll<HTMLButtonElement>('[role="tab"]'))) {
-    const selected = button.id === id;
-    button.setAttribute('aria-selected', String(selected));
-    button.tabIndex = selected ? 0 : -1;
-  }
   window.scrollTo({ top: 0, behavior: 'auto' });
-}
-tabs.addEventListener('click', (event) => {
-  const button = (event.target as HTMLElement).closest('[role="tab"]');
-  if (button) { selectTab(button.id); }
-});
-tabs.addEventListener('keydown', (event) => {
-  if (!(event.target as HTMLElement).closest('[role="tab"]')) {
-    return;
-  }
-  if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
-    event.preventDefault();
-    const buttons = Array.from(tabs.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
-    const current = buttons.findIndex((button) => button.getAttribute('aria-selected') === 'true');
-    const index = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1
-      : (current + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
-    selectTab(buttons[index].id);
-    tabs.querySelector<HTMLButtonElement>('[aria-selected="true"]')!.focus();
-  }
-});
+} });
 const conversationForm = conversationPanel.querySelector<HTMLFormElement>('form')!;
 const visitorText = conversationPanel.querySelector<HTMLTextAreaElement>('textarea')!;
 const sendTextButton = conversationPanel.querySelector<HTMLButtonElement>('[type="submit"]')!;
@@ -211,12 +193,6 @@ function renderConversation(snapshot: DeviceSnapshot): void {
   reply.hidden = conversation?.reply == null;
   reply.querySelector<HTMLElement>('strong')!.textContent = conversation?.simulated ? 'SIMULOVANÁ ODPOVĚĎ' : 'Odpověď kufru';
   reply.querySelector<HTMLElement>('p')!.textContent = conversation?.reply ?? '';
-}
-
-function escapeText(value: string): string {
-  return value.replace(/[&<>"']/g, (character) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[character]!));
 }
 
 function render(snapshot: DeviceSnapshot): void {
@@ -248,18 +224,15 @@ function render(snapshot: DeviceSnapshot): void {
     const disconnected = snapshot.phase === 'disconnected';
     const action = ready ? 'select' : 'reload';
     const label = disconnected ? 'Nedostupné' : ready ? 'Vybrat' : 'Potvrdit založení';
-    return `
-      <article class="compartment ${ready && !disconnected ? '' : 'empty'}">
-        <div class="compartment-number">${compartment}</div>
-        <div class="compartment-info">
-          <h3>Přihrádka ${compartment}</h3>
-          <p>${disconnected ? 'Stav není aktuální' : ready
-    ? physical ? 'Připravena podle kufru' : 'Připravena v simulaci'
-    : physical ? 'Nepřipravená podle kufru' : 'Nedostupná v simulaci'}</p>
-        </div>
-        <button type="button" data-action="${action}" data-compartment="${compartment}"
-          ${canControl ? '' : 'disabled'}>${label}</button>
-      </article>`;
+    const subtitle = disconnected ? 'Stav není aktuální' : ready
+      ? physical ? 'Připravena podle kufru' : 'Připravena v simulaci'
+      : physical ? 'Nepřipravená podle kufru' : 'Nedostupná v simulaci';
+    return `<article class="compartment ${ready && !disconnected ? '' : 'empty'}">
+      ${wandCard({ title: `Přihrádka ${compartment}`, number: compartment, subtitle,
+        interactive: false, selected: snapshot.activeCompartment === compartment, disabled: disconnected || !ready })}
+      ${button({ label, disabled: !canControl,
+        attributes: { 'data-action': action, 'data-compartment': compartment } })}
+    </article>`;
   }).join('');
   const pending = pendingAction === null ? '' : `
     <section class="confirmation" aria-labelledby="confirm-title">
@@ -268,8 +241,8 @@ function render(snapshot: DeviceSnapshot): void {
     ? `Spustit ${physical ? 'ruční' : 'simulovaný'} výběr přihrádky ${pendingAction.compartment}.`
     : `Potvrzuji kontrolu a založení přihrádky ${pendingAction.compartment}${physical ? ' v kufru' : ' pouze v simulaci'}.`}</p>
       <div class="actions">
-        <button type="button" data-action="cancel">Zrušit</button>
-        <button type="button" class="primary" data-action="confirm">Potvrdit</button>
+        ${button({ label: "Zrušit", attributes: {"data-action": "cancel"} })}
+        ${button({ label: "Potvrdit", variant: 'primary', attributes: {"data-action": "confirm"} })}
       </div>
     </section>`;
 
@@ -282,19 +255,19 @@ function render(snapshot: DeviceSnapshot): void {
     </header>
     <main>
       <section class="overview" aria-label="Stav kufru">
-        <div><span>Režim</span><strong>${modeText}</strong></div>
-        <div><span>Stav</span><strong>${phaseText}</strong></div>
+        <div><span>Režim</span>${statusBadge({ label: modeText, tone: snapshot.controlMode === 'manual' ? 'info' : 'neutral' })}</div>
+        <div><span>Stav</span>${statusBadge({ label: phaseText, tone: snapshot.phase === 'stopped' ? 'danger' : snapshot.phase === 'disconnected' ? 'warning' : snapshot.phase === 'running' ? 'info' : 'success' })}</div>
         <div><span>Připraveno</span><strong>${snapshot.phase === 'disconnected'
     ? '? / 6' : snapshot.readyMask.toString(2).replace(/0/g, '').length + ' / 6'}</strong></div>
       </section>
-      <p class="status" role="status">${escapeText(snapshot.status)}</p>
+      <p class="status" role="status">${escapeHtml(snapshot.status)}</p>
       <div class="toolbar">
         ${snapshot.controlMode === 'observer'
-    ? `<button type="button" class="primary" data-action="acquire"
-             ${snapshot.phase !== 'ready' || snapshot.busy ? 'disabled' : ''}>${physical ? 'Převzít ruční řízení' : 'Převzít řízení simulace'}</button>`
-    : '<button type="button" data-action="release">Uvolnit řízení</button>'}
-        <button type="button" class="stop" data-action="stop"
-          ${snapshot.phase === 'stopped' || snapshot.phase === 'disconnected' ? 'disabled' : ''}>${physical ? 'Stop kufru' : 'Stop simulace'}</button>
+    ? button({ label: physical ? 'Převzít ruční řízení' : 'Převzít řízení simulace', variant: 'primary',
+        disabled: snapshot.phase !== 'ready' || snapshot.busy, attributes: { 'data-action': 'acquire' } })
+    : button({ label: 'Uvolnit řízení', attributes: { 'data-action': 'release' } })}
+        ${button({ label: physical ? 'Stop kufru' : 'Stop simulace', variant: 'danger',
+          disabled: snapshot.phase === 'stopped' || snapshot.phase === 'disconnected', attributes: { 'data-action': 'stop' } })}
       </div>
       <p class="control-guidance">${snapshot.phase === 'disconnected'
     ? physical ? 'Připojte spárovaný kufr. Pro první připojení otevřete Síť kufru.'
@@ -308,13 +281,12 @@ function render(snapshot: DeviceSnapshot): void {
       : 'Vyberte přihrádku a potvrďte povel. Po dokončení uvolněte řízení.'}</p>
       ${snapshot.phase === 'stopped' ? `
         <section class="recovery">
-          <strong>Výsledek je nejistý</strong>
-          <p>${snapshot.source === 'local-fake'
+          ${notice({ title: 'Výsledek je nejistý', message: snapshot.source === 'local-fake'
     ? 'Po skutečném Stop by byla nutná místní kontrola kufru. Zde lze obnovit pouze fake stav.'
     : physical ? 'Je nutná místní kontrola kufru. Telefon neověřuje polohu přihrádky a neobchází servisní zotavení.'
-    : 'Simulátor vyžaduje servisní kontrolu mimo mobilní UI. Výsledek otevření není fyzicky ověřen.'}</p>
+    : 'Simulátor vyžaduje servisní kontrolu mimo mobilní UI. Výsledek otevření není fyzicky ověřen.', tone: 'danger' })}
           ${snapshot.source === 'local-fake'
-    ? '<button type="button" data-action="inspect">Simulovat místní kontrolu</button>' : ''}
+    ? `${button({ label: "Simulovat místní kontrolu", attributes: {"data-action": "inspect"} })}` : ''}
         </section>` : ''}
       ${pending}
       <section aria-labelledby="compartments-title">
@@ -452,27 +424,27 @@ async function initializeNativeAsync(): Promise<void> {
   settings.innerHTML = `
     <h2>Připojení ke kufru</h2>
     <p>Uložený kufr připojte ve stejné místní síti. První párování vás provede přes Bluetooth.</p>
-    <button type="button" class="connection-setup" data-open-network>První připojení · nastavit síť kufru</button>
+    ${button({ label: "První připojení · nastavit síť kufru", attributes: {"class": "connection-setup", "data-open-network": true} })}
     <details class="manual-pairing"><summary>Ruční párování a hledání v LAN</summary>
-    <button type="button" data-native="discover">Hledat kufr v síti (5 s)</button>
+    ${button({ label: "Hledat kufr v síti (5 s)", attributes: {"data-native": "discover"} })}
     <p>Telefon a kufr musí být ve stejné místní síti. Nalezené údaje jsou jen vodítko;
       identitu ověřuje uložený otisk. Připojení přes zabezpečené BLE v Síť kufru doplní aktuální IP automaticky.</p>
     <div data-discovery-results></div>
     <form>
-      <label>Adresa v místní síti<input name="host" autocomplete="off" autocapitalize="none" required maxlength="253" placeholder="192.168.1.50"></label>
-      <label>Device ID<input name="deviceId" autocomplete="off" autocapitalize="none" required pattern="[a-z]([a-z0-9]|-){0,63}" maxlength="64"></label>
-      <label>Otisk SPKI (SHA-256, malé hex znaky)<input name="spkiSha256" autocomplete="off" autocapitalize="none" required pattern="[0-9a-f]{64}" minlength="64" maxlength="64"></label>
-      <button type="submit">Spárovat kufr</button>
+      ${field({ id: 'pair-host', label: "Adresa v místní síti", control: `<input class="aw-input" name="host" autocomplete="off" autocapitalize="none" required maxlength="253" placeholder="192.168.1.50">` })}
+      ${field({ id: 'pair-device-id', label: "Device ID", control: `<input class="aw-input" name="deviceId" autocomplete="off" autocapitalize="none" required pattern="[a-z]([a-z0-9]|-){0,63}" maxlength="64">` })}
+      ${field({ id: 'pair-spki-sha256', label: "Otisk SPKI (SHA-256, malé hex znaky)", control: `<input class="aw-input" name="spkiSha256" autocomplete="off" autocapitalize="none" required pattern="[0-9a-f]{64}" minlength="64" maxlength="64">` })}
+      ${button({ label: "Spárovat kufr", type: 'submit' })}
     </form>
     <form data-address hidden>
-      <label>Nová IP nebo DNS adresa uloženého kufru<input name="address" autocomplete="off" autocapitalize="none" required maxlength="253"></label>
-      <button type="submit">Použít adresu</button>
+      ${field({ id: 'saved-device-address', label: "Nová IP nebo DNS adresa uloženého kufru", control: `<input class="aw-input" name="address" autocomplete="off" autocapitalize="none" required maxlength="253">` })}
+      ${button({ label: "Použít adresu", type: 'submit' })}
     </form>
     </details>
     <div class="actions">
-      <button type="button" class="primary" data-native="connect" disabled>Připojit uložený kufr</button>
-      <button type="button" data-native="disconnect" disabled>Odpojit</button>
-      <button type="button" data-native="forget" disabled>Zapomenout párování</button>
+      ${button({ label: "Připojit uložený kufr", variant: 'primary', disabled: true, attributes: {"data-native": "connect"} })}
+      ${button({ label: "Odpojit", disabled: true, attributes: {"data-native": "disconnect"} })}
+      ${button({ label: "Zapomenout párování", disabled: true, attributes: {"data-native": "forget"} })}
     </div>
     <p role="status"></p>`;
   app!.before(settings);
@@ -574,9 +546,14 @@ async function initializeNativeAsync(): Promise<void> {
         : devices.length === 0
           ? 'Za 5 sekund nebyl nalezen odpovídající kufr. Telefon i kufr musí být ve stejné síti; kufr musí mít také servisně nastavenou místní TLS identitu a párování. Samotné BLE nastavení Wi-Fi nestačí. U připraveného kufru lze zadat IP.'
           : 'Nalezené adresy nejsou ověřená identita. Vyberte adresu; připojení potom spustíte výslovně.';
+      if (devices.length === 0) {
+        discoveryResults.innerHTML = emptyState({ title: 'Žádný odpovídající kufr',
+          message: 'Ověřte místní síť a oprávnění aplikace. Adresu lze zadat ručně.' });
+      }
       for (const device of devices) {
         const button = document.createElement('button');
         button.type = 'button';
+        button.className = 'aw-button aw-button--secondary';
         button.textContent = `${device.deviceId} · ${device.host}`;
         button.addEventListener('click', () => {
           if (paired) {

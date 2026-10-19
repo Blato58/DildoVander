@@ -15,10 +15,13 @@ Příběh hůlek patří do obsahu. Ovládání a bezpečnostní stav mluví dos
 - [Simulation Lab](mockups/simulation-lab.html)
 - [Lokální fonty a licence](fonts/README.md)
 - [Offline ikony a licence](icons/README.md)
+- [Architektura a mapa spotřebitelů](architecture.md)
+- [Vykonatelné komponenty a kontrakty](framework.md)
+- [Interaktivní katalog skutečných komponent](playground/index.html)
 
 ## Integrace a kompatibilita
 
-Importujte `arcane-workshop.css` a použijte kořen `aw-root`. Historický název
+Importujte `arcane-workshop.css`, komponenty z `ui.js` a použijte kořen `aw-root`. Historický název
 vstupního souboru, prefix `--aw-*` a třídy `aw-*` zůstávají integračním
 kontraktem. Název souboru neoznačuje aktuální vizuální identitu. Nový kód
 používá `--aw-accent`; `--aw-brass` je pouze alias `var(--aw-accent)` pro
@@ -35,6 +38,26 @@ a fonty svou skutečnou generační cestou. Lokální styly řeší rozložení,
 nikoli další barevnou paletu. Barvy fyzických materiálů modelu se nemění.
 
 ## Ověření
+
+Zdroj tokenů je `tokens.json`; CSS, typované ES moduly i C# export se generují
+pomocí `python scripts/generate_design_tokens.py`. Generované soubory neupravujte.
+Před novou komponentou prohlédněte `ui.js` a interaktivní katalog. Sdílené
+renderery přijímají data a vracejí bezpečně escapované HTML; stav a transport
+zůstávají ve vlastníku funkce. iOS zobrazuje stejné komponenty v Capacitoru.
+
+Z kořene repozitáře:
+
+```text
+python scripts/generate_design_tokens.py --check
+npm test --prefix kufr/design-system
+python scripts/check_design_system.py
+```
+
+Browser regresní kontroly používají uzamčený Playwright v tomto balíčku:
+`npm ci --prefix kufr/design-system`, instalaci Chromium přes jeho CLI a
+`npm run test:browser --prefix kufr/design-system`. Podrobnosti a hranice jsou
+v [architektuře](architecture.md). CI ověřuje skutečné komponenty a dotčené
+spotřebitele; změna UI sama nespouští výrobní CAD generování.
 
 Ukázky jsou statické HTML s pevnými daty. Vždy nesou označení ukázky a
 neodesílají povely ani síťové požadavky. Prohlížejte je přes místní HTTP

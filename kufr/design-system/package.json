@@ -1,0 +1,16 @@
+{
+  "name": "@dildovander/vapour-chrome",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs && python -m unittest discover -s tests -p test_*.py",
+    "test:browser": "node tests/browser.cjs",
+    "tokens:generate": "python ../../scripts/generate_design_tokens.py",
+    "tokens:check": "python ../../scripts/generate_design_tokens.py --check",
+    "preview": "python -m http.server 8765 --bind 127.0.0.1 --directory ../.."
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}

@@ -1,10 +1,18 @@
 # Mobilní ovládání kufru
 
-Rozhraní Vapour Chrome používá sdílené tokeny `kufr/design-system/`. Spodní navigace
+Rozhraní Vapour Chrome používá sdílené tokeny a komponenty `kufr/design-system/`. Spodní navigace
 odděluje Ovládání, Síť kufru a Diagnostiku; Stop zůstává v horní liště i při posunu.
 Přepínač světlého/tmavého vzhledu ukládá pouze preferenci `aw-theme`. První párování
 vede přes BLE v Síti kufru, ruční LAN údaje jsou pod rozbalovacím ovládáním.
 Webové harnessy nadále představují syntetický důkaz, nikoli ověření na iPhonu.
+
+Panely ovládání, hlasu, tance, sítě i diagnostiky importují vykreslovací funkce
+z [`ui.js`](../design-system/ui.js): tlačítka, označená pole, stavové štítky,
+upozornění, prázdné výsledky a karty přihrádek. Sdílený `bindTabs` řídí klávesnici,
+focus a ARIA navigaci; vlastníci panelů dál řídí obnovování a nativní spojení.
+Stejný webový bundle běží v prohlížeči i v Capacitor WKWebView na iOS.
+Lokální `style.css` skládá mobilní rozložení a safe area; vzhled a stavy prvků
+patří do sdíleného systému. Swift bridge nadále vlastní Bluetooth, Keychain a WSS.
 
 > **D167 – Dance for me:** panel v Ovládání spouští náhodnou vlastní
 > skladbu ze SD kufru a ukazuje soubor, BPM, průběh a srozumitelné chyby.

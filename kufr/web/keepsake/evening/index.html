@@ -18,7 +18,7 @@
   <header class="archive-header"><a href="/" class="archive-brand">DildoVander <span>Archiv nepravděpodobného</span></a><nav aria-label="Navigace archivu"><a href="/keepsake/">Soukromá památka</a><a href="/keepsake/?privacy=1">Soukromí</a><label class="theme-control"><span>Vzhled</span><select data-theme-select aria-label="Barevný vzhled"><option value="system">Systém</option><option value="light">Světlý</option><option value="dark">Tmavý</option></select></label></nav></header>
   <main id="main" tabindex="-1">
     <div class="evening-heading"><div><h1>Hůlky, které si<br>vás vybraly.</h1><p class="muted">Najdi svoji hůlku, otevři její příběh a ulož si památku. Tohle je společný archiv dnešního večera.</p></div><div class="evening-actions"><a class="read-story" href="#evening-list-section">Vybrat hůlku z přehledu</a><button id="refresh-evening" class="text-button">Obnovit přehled</button></div></div>
-    <p id="evening-status" class="aw-notice" role="status" aria-live="polite">Otevíráme archiv aktivního večera…</p>
+    <div id="evening-status" role="status" aria-live="polite"><p class="aw-notice">Otevíráme archiv aktivního večera…</p></div>
     <section id="evening-empty" class="entry-panel" hidden><h2 id="empty-title">První příběh je ještě před námi</h2><p id="empty-copy">Jakmile kufr dokončí výběr a připraví edici, objeví se tady. Tenhle odkaz si můžeš nechat otevřený.</p></section>
     <article id="public-edition" hidden>
       <div class="leaf-heading"><span id="selected-label" class="eyebrow">Nejnovější připravená hůlka</span><button id="select-latest" class="text-button" hidden>Zobrazit nejnovější</button></div>
@@ -29,7 +29,7 @@
     <aside class="public-privacy"><p>Hůlky a příběhy jsou společný přehled tohoto večera. Fotografie a kouzelnické portréty zůstávají soukromé a nejsou součástí těchto souborů.</p></aside>
   </main>
   <footer>Digitální památky z jednoho nepravděpodobného večera.<br><a href="/keepsake/?privacy=1">Soukromí a uchování dat</a></footer>
-  <dialog id="public-art-dialog"><button id="close-public-art" class="text-button">Zavřít obraz</button><img id="public-full-art" alt="Zvětšená digitální interpretace hůlky"></dialog>
+  <dialog class="aw-dialog" id="public-art-dialog"><button id="close-public-art" class="aw-button aw-button--ghost">Zavřít obraz</button><img id="public-full-art" alt="Zvětšená digitální interpretace hůlky"></dialog>
   <noscript><p class="aw-notice">Pro aktuální přehled hůlek zapni JavaScript. Soukromý přístupový klíč do veřejného přehledu nevkládej.</p></noscript>
 </body>
 </html>

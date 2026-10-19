@@ -38,6 +38,8 @@ p { line-height: 1.75; }
 .downloads, .actions { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 16px 0; }
 .downloads { gap: 4px 20px; }
 .downloads .text-button { font-size: 12px; }
+/* Inline archive actions keep an underlined, link-like treatment beside story/download links.
+   Dialog actions use the shared ghost button; this local treatment only owns editorial rows. */
 .text-button { background: none; border: 0; color: var(--aw-ivory); font: inherit; min-height: 44px; padding: 8px 0; cursor: pointer; text-align: left; text-decoration: underline; text-decoration-color: var(--aw-border); text-underline-offset: .3em; }
 .text-button:hover { text-decoration-color: currentColor; }
 .text-button:disabled { color: var(--aw-muted); opacity: .6; cursor: default; text-decoration: none; }
@@ -70,8 +72,7 @@ details > .text-button { display: block; font-size: 12px; }
 #issued-link p { font-size: 12px; color: var(--aw-muted); }
 footer { max-width: 1280px; margin: auto; padding: 28px clamp(20px, 5vw, 64px) max(28px, env(safe-area-inset-bottom)); border-top: 1px solid var(--aw-border-subtle); font-size: 12px; color: var(--aw-muted); line-height: 1.8; }
 footer .text-button { font-size: 12px; }
-dialog { background: var(--aw-surface); color: var(--aw-ivory); border: 1px solid var(--aw-border); border-radius: 16px; padding: clamp(24px, 5vw, 40px); width: min(640px, calc(100vw - 32px)); max-height: 90dvh; overflow: auto; }
-dialog::backdrop { background: color-mix(in srgb, var(--aw-void) 85%, transparent); }
+.aw-dialog { padding: clamp(24px, 5vw, 40px); width: min(640px, calc(100vw - 32px)); max-height: 90dvh; overflow: auto; }
 dialog p { font-size: 14px; color: var(--aw-muted); }
 dialog .aw-button { margin: 16px 12px 8px 0; }
 #art-dialog { width: min(1000px, calc(100vw - 24px)); }

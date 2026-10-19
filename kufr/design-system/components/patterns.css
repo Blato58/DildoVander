@@ -1,11 +1,11 @@
 /* Component classes are opt-in; no form or application state is changed here. */
-.aw-root { margin: 0; background: var(--aw-void); color: var(--aw-ivory); font-family: var(--aw-font-ui); font-size: var(--aw-text-body); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+.aw-root { margin: 0; background: var(--aw-void); color: var(--aw-ivory); font-family: var(--aw-font-ui); font-size: var(--aw-text-body); line-height: var(--aw-line-body); -webkit-font-smoothing: antialiased; }
 .aw-root *, .aw-root *::before, .aw-root *::after { box-sizing: border-box; }
 .aw-root a { color: var(--aw-accent); text-underline-offset: 4px; }
 .aw-root :is(button, input, select, textarea) { font: inherit; }
 .aw-root :is(a, button, input, select, textarea, summary, [tabindex]):focus-visible { outline: 3px solid var(--aw-info); outline-offset: 4px; }
 .aw-root :is(h1, h2, h3, p) { margin-top: 0; }
-.aw-root h1 { font: 600 var(--aw-text-title)/1.2 var(--aw-font-display); letter-spacing: -.035em; text-wrap: balance; }
+.aw-root h1 { font: var(--aw-weight-heading) var(--aw-text-title)/var(--aw-line-heading) var(--aw-font-display); letter-spacing: var(--aw-tracking-heading); text-wrap: balance; }
 .aw-root h2 { font-size: var(--aw-text-heading); line-height: 1.4; }
 .aw-root h3 { font-size: var(--aw-text-subheading); line-height: 1.4; }
 .aw-shell { display: grid; grid-template-columns: 224px minmax(0, 1fr); min-height: 100dvh; }

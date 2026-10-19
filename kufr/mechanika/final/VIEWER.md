@@ -179,7 +179,7 @@ Pop-Location
 
 Upravují se `viewer.js`, `viewer-template.html`, `viewer-workshop.css`, nikoli
 samotný export. [preview.py](preview.py) přes `viewer_document.py` vloží CAD
-payload, sdílený styl, fonty, `show_timeline.js` a zdrojově ověřený compiler
+payload, sdílený styl, fonty, kanonický UI runtime, `show_timeline.js` a zdrojově ověřený compiler
 plán/manifest do `exports/viewer.html`. Neaktuální hashe odmítne. Indexovaný payload obsahuje
 pro každý mesh sdílené `vertices` (ploché XYZ) a `triangles` (ploché indexy).
 Viewer před uploadem spočítá jednotkovou normálu každé facety a rozbalí
@@ -189,6 +189,15 @@ Starší payload s rozbaleným `data` je podporovaný. Indexování zmenšuje ex
 a jeho přenos/parsing; nezmenšuje GPU buffer ani počet skutečných facet. Z kořene final ve skutečném
 CAD prostředí lze spustit `python preview.py --viewer-only`; pro změny geometrie
 je potřeba nejprve skutečná kompletní generace a geometrické ověření.
+
+`viewer_ui.js` skládá režimy a akce z nativního ESM modulu
+`kufr/design-system/ui.js`; Twin používá stejné renderery a timeline jeho
+`bindDialog` nad nativním HTML dialogem. `viewer_runtime.py` vloží oba UI moduly
+do offline HTML bez importů a síťových závislostí. Nepodporovaný import/export
+odmítne. Generovaný `workshop-ui-runtime.js` je přesný fallback kanonického
+runtime pro obnovu ze samostatného F2 ZIP, stejně jako CSS snapshot; neupravuje
+se ručně. `viewer_style.snapshot_styles()` obnoví oba sdílené assety před
+zachycením zdrojových hashů, aby pozdější render nezměnil ověřovaný snapshot.
 
 Automatická kontrola z kořene repozitáře:
 
@@ -239,3 +248,14 @@ Výstup je označen **UI náhled** a uvádí UTC datum souboru se vstupní geome
 Datum není potvrzení čerstvosti CAD. Nevytváří ověření, generation snapshot ani
 výrobní ZIP; úplná regenerace a kontrola balíčku nadále vyžaduje `Regenerate.ps1`.
 Náhled vyžaduje pouze Python, nepotřebuje instalovat CAD knihovny.
+
+Když existující export není k dispozici, ovládání a offline balení lze ověřit
+na malém syntetickém bloku přes tutéž cestu `render_document`:
+
+```powershell
+python preview_ui_fixture.py --output "$env:TEMP/dv-ui-framework/viewer.html"
+```
+
+Výstup trvale uvádí **SYNTETICKÁ UI FIXTURE**, nenabízí výrobní ZIP a není
+modelem kufru ani CAD či fyzickým důkazem. Test `test_viewer_document.py`
+ověřuje sestavený runtime v Node a obnovu z fallbacku bez sdíleného stromu.

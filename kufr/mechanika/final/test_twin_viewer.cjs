@@ -104,14 +104,17 @@ function mounted(role='observer', location={origin:'https://twin.example',protoc
     set id(value) { this.identifier=value; elements.set(value,this); }
     get id() { return this.identifier; }
     set innerHTML(value) {
+      this.textContent = value.replace(/<[^>]*>/g, '');
       for (const match of value.matchAll(/<(\w+)[^>]*\bid="([^"]+)"([^>]*)>/g)) {
         const element = new Element(match[1]); element.id=match[2]; element.hidden=match[3].includes('hidden');
       }
       for (const match of value.matchAll(/data-twin-action="([^"]+)"/g)) {
         const button = new Element('button'); button.dataset.twinAction=match[1]; actions.push(button);
       }
-      elements.get('twin-slot').value='1'; elements.get('twin-variant').value='main';
-      elements.get('twin-speed').value='1'; elements.get('twin-replay-speed').value='1';
+      if (value.includes('id="twin-session"')) {
+        elements.get('twin-slot').value='1'; elements.get('twin-variant').value='main';
+        elements.get('twin-speed').value='1'; elements.get('twin-replay-speed').value='1';
+      }
     }
     append(child) { this.children.push(child); }
     add(child) { this.append(child); }
@@ -143,6 +146,7 @@ function mounted(role='observer', location={origin:'https://twin.example',protoc
       return {ok:true,json:async()=> url.endsWith('/instances') ? {role,instances:[{instanceId:'sim',mode:sourceMode,profile,status:sourceStatus,online:sourceStatus==='online'}]} : current};
     }};
   context.window=context;
+  require('./ui_test_runtime.cjs')(context);
   vm.runInNewContext(fs.readFileSync(require.resolve('./twin_viewer.js'),'utf8'),context);
   const api=context.DigitalTwin.mount(document,{twinManifest:{...manifest,slots:[{slot:1,components:{tray:'tray_1'},liftComponents:['tray_1'],rotationComponents:['cam_1']}]}},
     {activate(){},deactivate(){},clear(){},apply:(angles,grb,reported)=>{applies.push(angles);grbFrames.push(grb);reports.push(reported);},select:name=>selections.push(name)});

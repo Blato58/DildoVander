@@ -1,4 +1,7 @@
+import { bindDialog, button as renderButton, element, notice, statusBadge } from '/design-system/ui.js';
+
 const $ = id => document.getElementById(id);
+const dialogs = new Map([...document.querySelectorAll('dialog[id]')].map(dialog => [dialog.id, bindDialog(dialog)]));
 let entry = window.dv10Entry;
 delete window.dv10Entry;
 let csrfToken;
@@ -23,7 +26,10 @@ const mutationKeys = new Map();
 
 function text(id, value) { $(id).textContent = value ?? ''; }
 function visible(id, shown) { $(id).hidden = !shown; }
-function feedback(message) { text('feedback', message); visible('feedback', !!message); }
+function feedback(message) {
+  $('feedback').replaceChildren(...(message ? [element(notice({ message }))] : []));
+  visible('feedback', !!message);
+}
 function owner() { return !!record && !readOnly && record.state !== 'deleted'; }
 function apiPath(suffix = '') { return `/guest/v1/keepsakes/${encodeURIComponent(locator)}${suffix}`; }
 function scoped(path) { return path + (readOnly ? '?view=share&editionId=' + encodeURIComponent(sharedEditionId || '') : ''); }
@@ -106,10 +112,10 @@ async function action(button, work) {
   if (busy) return;
   busy = true;
   const label = button.textContent;
-  button.disabled = true; button.textContent = 'Chvilku…';
+  button.disabled = true; button.textContent = 'Chvilku…'; button.setAttribute('aria-busy', 'true');
   const epoch = routeEpoch;
   try { await work(); } catch (error) { if (epoch === routeEpoch) showError(error, true); }
-  finally { busy = false; button.textContent = label; button.disabled = false; updateActions(); }
+  finally { busy = false; button.textContent = label; button.disabled = false; button.removeAttribute('aria-busy'); updateActions(); }
 }
 function assetUrl(id) { return scoped(apiPath(`/assets/${encodeURIComponent(id)}`)); }
 function stateText(job, fallback) {
@@ -157,7 +163,7 @@ function render(view) {
   lastRender = signature;
   visible('entry', false); visible('keepsake', true); visible('deletion', false);
   visible('owner-tools', owner()); visible('portrait-section', owner());
-  text('scope', readOnly ? 'Sdílená edice · pouze čtení' : 'Soukromá památka');
+  $('scope').replaceChildren(element(statusBadge({ label: readOnly ? 'Sdílená edice · pouze čtení' : 'Soukromá památka', tone: 'neutral' })));
   text('wand-name', view.snapshot?.officialName || 'Název hůlky není potvrzený');
   text('catalog-label', view.snapshot?.slot ? `Hůlka z přihrádky ${view.snapshot.slot}` : 'Hůlka, která si tě vybrala');
   text('edition-title', edition?.story?.title);
@@ -191,7 +197,11 @@ function render(view) {
         : view.state === 'paused_preparing' ? 'Příprava je pozastavená. Záznam hůlky zůstává uložený.'
           : view.state === 'awaiting_capacity' ? 'Příprava čeká na volnou kapacitu. Záznam hůlky zůstává uložený.'
             : stateText(view.jobs?.filter(job => job.kind === 'base').at(-1), 'Hůlku máme. Archivář ještě píše její průšvihy.');
-  text('generation-status', (edition?.synthetic ? 'SYNTETICKÁ UKÁZKA · tento výstup neprokazuje generování OpenAI. ' : '') + generationState);
+  $('generation-status').replaceChildren(element(notice({
+    title: edition?.synthetic ? 'SYNTETICKÁ UKÁZKA' : undefined,
+    message: (edition?.synthetic ? 'Tento výstup neprokazuje generování OpenAI. ' : '') + generationState,
+    tone: edition?.story && hasArt ? 'success' : 'info'
+  })));
   const portrait = activePortrait();
   const holder = $('portrait-current'); holder.replaceChildren();
   if (owner() && portrait) {
@@ -238,7 +248,7 @@ async function route() {
     };
     const copy = messages[entry.kind]; text('entry-title', copy[0]); text('entry-copy', copy[1]); text('exchange', copy[2]); visible('exchange', true);
   } else { visible('exchange', false); visible('public-overview', !locator); if (locator) { text('entry-title', 'Otevíráme archivní list'); text('entry-copy', 'Ověřujeme přístup v tomto prohlížeči.'); await load(); } }
-  if (query.has('privacy')) $('privacy').showModal();
+  if (query.has('privacy')) dialogs.get('privacy').open();
 }
 $('exchange').addEventListener('click', event => action(event.currentTarget, async () => {
   if (!entry?.token) return;
@@ -263,8 +273,8 @@ window.addEventListener('pageshow', event => { if (event.persisted) route(); });
 $('wand-art').addEventListener('error', () => {
   visible('wand-art', false); visible('art-status', true); text('art-status', 'Obraz se nepodařilo načíst. Obnov spojení.'); $('art-open').disabled = true;
 });
-$('art-open').addEventListener('click', () => $('art-dialog').showModal());
-for (const button of document.querySelectorAll('[data-privacy]')) button.addEventListener('click', () => $('privacy').showModal());
+$('art-open').addEventListener('click', () => dialogs.get('art-dialog').open());
+for (const button of document.querySelectorAll('[data-privacy]')) button.addEventListener('click', () => dialogs.get('privacy').open());
 for (const button of document.querySelectorAll('[data-close]')) button.addEventListener('click', () => button.closest('dialog').close());
 
 async function downloadAsset(assetId, filename) {
@@ -279,17 +289,17 @@ async function downloadAsset(assetId, filename) {
   }
   const file = new File([blob], filename, { type: blob.type });
   const url = URL.createObjectURL(blob); objectUrls.add(url);
-  const dialog = document.createElement('dialog');
+  const dialog = document.createElement('dialog'); dialog.className = 'aw-dialog';
   const heading = document.createElement('h2'); heading.textContent = 'Soubor je připravený'; dialog.append(heading);
   const note = document.createElement('p'); note.textContent = 'Na iPhonu použij Sdílet → Uložit do Souborů; u obrázku případně Uložit obrázek. Stažení nepotvrzuje uložení do Fotek.'; dialog.append(note);
   const anchor = document.createElement('a'); anchor.className = 'aw-button'; anchor.href = url; anchor.download = filename; anchor.textContent = 'Stáhnout soubor'; dialog.append(anchor);
   if (navigator.canShare?.({ files: [file] })) {
-    const button = document.createElement('button'); button.className = 'aw-button aw-button--secondary'; button.textContent = 'Sdílet soubor';
+    const button = element(renderButton({ label: 'Sdílet soubor' }));
     button.addEventListener('click', async () => {
       try { await navigator.share({ files: [file] }); } catch (error) { if (error.name !== 'AbortError') feedback('Systémové sdílení není dostupné. Použij stažení souboru.'); }
     }); dialog.append(button);
   }
-  const close = document.createElement('button'); close.className = 'text-button'; close.textContent = 'Zavřít'; close.addEventListener('click', () => dialog.close()); dialog.append(close);
+  const close = element(renderButton({ label: 'Zavřít', variant: 'ghost' })); close.addEventListener('click', () => dialog.close()); dialog.append(close);
   dialog.addEventListener('close', () => { URL.revokeObjectURL(url); objectUrls.delete(url); dialog.remove(); });
   document.body.append(dialog); dialog.showModal();
 }
@@ -322,7 +332,7 @@ $('recovery').addEventListener('click', event => action(event.currentTarget, asy
   if (!owner()) return; await ensureCsrf(); showLink(await request(apiPath('/recovery-links'), { method: 'POST' }), 'recovery');
 }));
 $('share-preview').addEventListener('click', () => {
-  text('share-description', `${record.snapshot.officialName} · ${edition?.story?.title || 'Dostupná základní edice'}`); $('share-dialog').showModal();
+  text('share-description', `${record.snapshot.officialName} · ${edition?.story?.title || 'Dostupná základní edice'}`); dialogs.get('share-dialog').open();
 });
 $('issue-share').addEventListener('click', event => action(event.currentTarget, async () => {
   if (!owner() || !edition) return; await ensureCsrf();
@@ -397,7 +407,7 @@ $('load-history').addEventListener('click', event => action(event.currentTarget,
 }));
 function openDelete(scope) {
   deleteScope = scope; text('delete-title', scope === 'all' ? 'Smazat celou památku?' : 'Odvolat souhlas a smazat fotografie i portréty?');
-  $('delete-confirm').value = ''; $('delete-submit').disabled = true; $('delete-dialog').showModal();
+  $('delete-confirm').value = ''; $('delete-submit').disabled = true; dialogs.get('delete-dialog').open();
 }
 for (const [id, scope] of [['delete-portrait', 'portrait'], ['delete-all', 'all']]) $(id).addEventListener('click', () => openDelete(scope));
 $('delete-confirm').addEventListener('input', () => { $('delete-submit').disabled = $('delete-confirm').value !== 'SMAZAT'; });

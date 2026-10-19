@@ -3,11 +3,16 @@ import json
 import hashlib
 from pathlib import Path
 import tempfile
+import re
+import subprocess
+import zipfile
 import unittest
 from unittest.mock import patch
 
 import viewer_document
 import refresh_viewer
+import viewer_runtime
+from preview_ui_fixture import fixture_payload
 
 
 class ViewerDocumentTests(unittest.TestCase):
@@ -20,6 +25,64 @@ class ViewerDocumentTests(unittest.TestCase):
         self.assertNotIn('__SHOW_TIMELINE_SCRIPT__', result)
         self.assertNotIn('__MODEL_DATA__', result)
         self.assertNotIn('@import', result)
+        self.assertIn('globalThis.VapourUI =', result)
+        self.assertIn('globalThis.VapourViewerUi =', result)
+        self.assertNotIn('__WORKSHOP_UI_RUNTIME__', result)
+        self.assertNotRegex(result, r'<script[^>]+src=')
+        self.assertNotRegex(result, re.compile(r'^\s*(?:import|export)\s', re.MULTILINE))
+
+    def test_actual_offline_bundle_executes_shared_controls_without_network(self):
+        document = viewer_document.render_document({"meshes": []})
+        runtime = next(source for source in re.findall(r'<script>(.*?)</script>', document, re.DOTALL)
+                       if 'globalThis.VapourUI =' in source)
+        checks = """
+const assert = require('node:assert/strict');
+globalThis.fetch = () => { throw new Error('Offline UI requested network'); };
+const elements = new Map();
+const document = {getElementById(id) {
+  if (!elements.has(id)) elements.set(id, {});
+  return elements.get(id);
+}};
+VapourViewerUi.mountViewerUi(document);
+assert.match(elements.get('mode-actions').innerHTML, /data-viewer-mode="operation"/);
+assert.match(elements.get('sequence-actions').innerHTML, /aw-button--danger/);
+assert.match(elements.get('model-status').innerHTML, /aw-badge/);
+VapourViewerUi.renderViewerError(document.getElementById('error'), '<img src=x>');
+assert.match(elements.get('error').innerHTML, /&lt;img src=x&gt;/);
+assert.equal(elements.get('error').hidden, false);
+"""
+        with tempfile.TemporaryDirectory() as directory:
+            script = Path(directory) / 'offline-runtime.cjs'
+            script.write_text(runtime + checks, encoding='utf-8')
+            result = subprocess.run(['node', str(script)], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_packaged_runtime_snapshot_regenerates_without_shared_tree(self):
+        expected = viewer_runtime.bundle_ui_runtime()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive_path = root / 'synthetic-ui-only.zip'
+            with zipfile.ZipFile(archive_path, 'w') as archive:
+                archive.write(viewer_runtime.snapshot_runtime(), 'workshop-ui-runtime.js')
+                archive.write(viewer_runtime.ROOT / 'viewer_ui.js', 'viewer_ui.js')
+                archive.writestr('viewer.html', viewer_document.render_document(fixture_payload()))
+            with zipfile.ZipFile(archive_path) as archive:
+                self.assertIsNone(archive.testzip())
+                self.assertIn(b'SYNTETICK', archive.read('viewer.html'))
+                for filename in ['workshop-ui-runtime.js', 'viewer_ui.js']:
+                    (root / filename).write_bytes(archive.read(filename))
+            snapshot = root / 'workshop-ui-runtime.js'
+            with patch.object(viewer_runtime, 'ROOT', root), \
+                 patch.object(viewer_runtime, 'SHARED_RUNTIME', root / 'missing' / 'ui.js'), \
+                 patch.object(viewer_runtime, 'SNAPSHOT', snapshot):
+                self.assertEqual(viewer_runtime.bundle_ui_runtime(), expected)
+
+    def test_runtime_rejects_unbundled_dependency(self):
+        with tempfile.TemporaryDirectory() as directory:
+            module = Path(directory) / 'unexpected.js'
+            module.write_text("import { other } from './other.js';\nexport function example() {}", encoding='utf-8')
+            with self.assertRaisesRegex(ValueError, 'Unbundled'):
+                viewer_runtime.inline_module(module, 'Example')
 
     def test_refresh_uses_existing_meshes_labels_provenance_and_preserves_source(self):
         with tempfile.TemporaryDirectory() as directory:
