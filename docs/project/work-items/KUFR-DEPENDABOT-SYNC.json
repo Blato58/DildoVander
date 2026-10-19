@@ -3,7 +3,7 @@
   "id": "KUFR-DEPENDABOT-SYNC",
   "initiative": "KUFR",
   "title": "Automatically synchronize Dependabot generated dependency artifacts",
-  "state": "active",
+  "state": "closed",
   "priority": "P1",
   "sequence": 37,
   "scope": [
@@ -51,7 +51,7 @@
         "artifactDigest": "e28318b69d4f6598bf2ace3f7c808ecbce7ae2a80eb3c63d706a0dcb6070e167"
       },
       "evidenceRefs": [
-        "KUFR-DEPENDABOT-SYNC-local-backend"
+        "KUFR-DEPENDABOT-SYNC-hosted-backend-v2"
       ]
     },
     {
@@ -65,14 +65,73 @@
         "artifactDigest": "e28318b69d4f6598bf2ace3f7c808ecbce7ae2a80eb3c63d706a0dcb6070e167"
       },
       "evidenceRefs": [
-        "KUFR-DEPENDABOT-SYNC-native-rehearsal-v1"
+        "KUFR-DEPENDABOT-SYNC-hosted-native-v2"
       ]
     }
   ],
   "blockers": [],
-  "currentNote": "Implementation0ce94d0 pushed and merged as706c3dd via PR221, exact tree/CI verified. Hosted backend39208738448 passed. Native39208741362 exposed missing web assets before cap update; failed receipt preserved. Source correction builds real web bundle and uses canonical cap sync path; focused30 checks pass. Independent correction review passed; new hosted rehearsals pending.",
-  "nextAction": "Merge verified native web-build prerequisite correction; rerun both original-commit rehearsals on main, validate generated payloads and finish scoped tracking.",
+  "currentNote": "Implementation0ce94d05ee061ae10dbbd4ee51c8ae5472e7f18a pushed/remote verified and merged via PR221 as706c3dd (CI39208402370). Native web-build fixb625a05e8d7613c0fe1a5f19fe1498f5bfd4dd45 pushed/remote verified, PR222 merged9bc7c669b672976248e691261c4545f836d85421 (CI39209439978); exact tested/merged trees verified. Corrected backend39209712939 and native39209715389 rehearsals passed; archived real outputs accepted by GET-only publisher dryrun. First live future bot write remains unobserved; API publication/race/retry covered by unit fixtures.",
   "implementedSubject": {
     "artifactDigest": "e28318b69d4f6598bf2ace3f7c808ecbce7ae2a80eb3c63d706a0dcb6070e167"
+  },
+  "closure": {
+    "outcome": "accepted",
+    "reason": "Controller isolation/race/retry checks and independent review passed; actual historical NuGet and macOS/Xcode regeneration plus strict publisher dryrun passed. Corrected source is merged on main; scope does not claim a live future bot event.",
+    "subject": {
+      "artifactDigest": "e28318b69d4f6598bf2ace3f7c808ecbce7ae2a80eb3c63d706a0dcb6070e167"
+    },
+    "evidenceRefs": [
+      "KUFR-DEPENDABOT-SYNC-native-build-unit-v2",
+      "KUFR-DEPENDABOT-SYNC-native-build-review-v2",
+      "KUFR-DEPENDABOT-SYNC-hosted-backend-v2",
+      "KUFR-DEPENDABOT-SYNC-hosted-native-v2"
+    ],
+    "acceptedCriteria": [
+      {
+        "id": "POLICY",
+        "revision": 2,
+        "expected": "Trusted publisher accepts only same-repo bot dependency changes and bounded matching generator outputs; concurrency, replay and dispatch recovery are covered.",
+        "requiredEvidenceKinds": [
+          "unit",
+          "source_review"
+        ],
+        "rule": "allOf",
+        "appliesTo": {
+          "artifactDigest": "e28318b69d4f6598bf2ace3f7c808ecbce7ae2a80eb3c63d706a0dcb6070e167"
+        },
+        "evidenceRefs": [
+          "KUFR-DEPENDABOT-SYNC-native-build-unit-v2",
+          "KUFR-DEPENDABOT-SYNC-native-build-review-v2"
+        ]
+      },
+      {
+        "id": "BACKEND",
+        "revision": 2,
+        "expected": "Real NuGet regeneration repairs original stale backend test lock and passes locked restore preserving both runtime graphs.",
+        "requiredEvidenceKinds": [
+          "integration"
+        ],
+        "appliesTo": {
+          "artifactDigest": "e28318b69d4f6598bf2ace3f7c808ecbce7ae2a80eb3c63d706a0dcb6070e167"
+        },
+        "evidenceRefs": [
+          "KUFR-DEPENDABOT-SYNC-hosted-backend-v2"
+        ]
+      },
+      {
+        "id": "NATIVE",
+        "revision": 2,
+        "expected": "Hosted macOS generation of original stale Capacitor update produces matching manifest and Xcode-resolved pins; manual rehearsal cannot publish.",
+        "requiredEvidenceKinds": [
+          "integration"
+        ],
+        "appliesTo": {
+          "artifactDigest": "e28318b69d4f6598bf2ace3f7c808ecbce7ae2a80eb3c63d706a0dcb6070e167"
+        },
+        "evidenceRefs": [
+          "KUFR-DEPENDABOT-SYNC-hosted-native-v2"
+        ]
+      }
+    ]
   }
 }
