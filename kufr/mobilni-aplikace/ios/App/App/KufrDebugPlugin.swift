@@ -97,7 +97,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
         observers.append(NotificationCenter.default.addObserver(forName: Notification.Name("KufrIdentityAccountChanged"), object: nil, queue: .main) { [weak self] _ in
             DispatchQueue.main.async {
                 guard let self = self, let binding = self.profile?.accountBinding ?? self.accountProfileBinding else { return }
-                if #available(iOS 16.0, *), let identity = KufrIdentityPlugin.active,
+                if let identity = KufrIdentityPlugin.active,
                    (try? identity.accountDeviceBinding()) == binding { return }
                 self.stopWork()
                 let generation = self.generation
@@ -195,8 +195,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
 
     @objc func useAccount(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
-            guard self.canStart(), let deviceId = call.getString("deviceId"),
-                  #available(iOS 16.0, *), let identity = KufrIdentityPlugin.active else {
+            guard self.canStart(), let deviceId = call.getString("deviceId"), let identity = KufrIdentityPlugin.active else {
                 call.reject("Přihlaste se a vyberte povolený kufr.", "account_unavailable"); return
             }
             do {

@@ -569,6 +569,9 @@ location ^~ /models/bundles/ {
     root /var/lib/dildovander;
     try_files $uri =404;
     autoindex off;
+    # Every supported bundle asset is JSON, regardless of its safe filename.
+    types { }
+    default_type application/json;
     add_header Cache-Control "public, max-age=31536000, immutable" always;
     add_header Content-Security-Policy "default-src 'none'; sandbox" always;
     add_header X-Content-Type-Options "nosniff" always;

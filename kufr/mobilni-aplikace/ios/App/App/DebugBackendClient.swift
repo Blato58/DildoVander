@@ -458,7 +458,7 @@ final class DebugBackendClient {
 
 #if os(iOS)
     @MainActor private static func authorizeAccountRequest(_ request: URLRequest, deviceId: String, binding: String) async throws -> URLRequest {
-        guard #available(iOS 16.0, *), let identity = KufrIdentityPlugin.active else { throw DebugBackendError.invalidProfile }
+        guard let identity = KufrIdentityPlugin.active else { throw DebugBackendError.invalidProfile }
         return try await identity.authorizeDeviceRequest(request, deviceId: deviceId, binding: binding)
     }
 #endif

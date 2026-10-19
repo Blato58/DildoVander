@@ -1,9 +1,26 @@
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 
 const localDirectory = relative => fileURLToPath(new URL(relative, import.meta.url));
+
+function captureWorkletAsset() {
+  const { CAPTURE_WORKLET_SOURCE } = createRequire(import.meta.url)('../mechanika/final/twin_media_controller.js');
+  const hash = createHash('sha256').update(CAPTURE_WORKLET_SOURCE).digest('hex').slice(0, 16);
+  const fileName = `assets/twin-capture-worklet-${hash}.js`;
+  return {
+    name: 'capture-worklet-asset', apply: 'build',
+    buildStart() { this.emitFile({ type: 'asset', fileName, source: CAPTURE_WORKLET_SOURCE }); },
+    transformIndexHtml: {
+      order: 'post',
+      handler() {
+        return [{ tag: 'meta', attrs: { name: 'kufr-capture-worklet', content: `/${fileName}` }, injectTo: 'head-prepend' }];
+      },
+    },
+  };
+}
 
 // Vite rewrites asset URLs before this hook. Hash the actual early claim script,
 // retaining a strict policy without an unsafe-inline script exception.
@@ -26,7 +43,7 @@ function applicationCsp() {
 }
 
 export default defineConfig({
-  plugins: [vue(), applicationCsp()],
+  plugins: [vue(), captureWorkletAsset(), applicationCsp()],
   base: '/',
   // The offline entry has a virtual bundle supplied only by its packager.
   optimizeDeps: { entries: ['index.html'] },

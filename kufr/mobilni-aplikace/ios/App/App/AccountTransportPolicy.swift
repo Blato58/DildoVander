@@ -2,6 +2,41 @@ import Foundation
 
 // Shared by the live native bridge and standalone macOS regression tests.
 enum AccountTransportPolicy {
+    static func publicOrigin(_ raw: String) -> URL? {
+        guard raw.count <= 2048, raw.rangeOfCharacter(from: .whitespacesAndNewlines) == nil,
+              !raw.unicodeScalars.contains(where: { $0.value < 32 || $0.value == 127 }),
+              !raw.contains("%"), !raw.contains("$"), !raw.contains("\\"),
+              let parts = URLComponents(string: raw), parts.scheme == "https", let host = parts.host, !host.isEmpty,
+              parts.user == nil, parts.password == nil, parts.path.isEmpty, parts.query == nil, parts.fragment == nil,
+              parts.port == nil || (1...65535).contains(parts.port!), let url = parts.url else { return nil }
+        return url
+    }
+
+    // Mirrors ModelBundle safeAssetPath, including safe non-.json filenames.
+    // The maintained loader verifies JSON content and hashes even when a safe
+    // non-.json asset is served with a generic binary MIME by the static server.
+    static func publicResourceLimit(path: String) -> Int? {
+        if path == "/models/active.json" { return 128 * 1024 }
+        if path == "/downloads/index.json" { return 256 * 1024 }
+        let prefix = "/models/bundles/"
+        guard path.hasPrefix(prefix) else { return nil }
+        let parts = path.dropFirst(prefix.count).split(separator: "/", maxSplits: 1, omittingEmptySubsequences: false)
+        guard parts.count == 2, parts[0].count == 64, parts[0].allSatisfy({ "0123456789abcdef".contains($0) }),
+              !parts[1].isEmpty, parts[1].count <= 240,
+              parts[1].allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" || $0 == "." || $0 == "/") }),
+              String(parts[1]).range(of: "^[A-Za-z0-9_-]+(?:[.][A-Za-z0-9_-]+)*(?:/[A-Za-z0-9_-]+(?:[.][A-Za-z0-9_-]+)*)*$", options: .regularExpression) != nil else { return nil }
+        return parts[1] == "model-bundle.json" ? 128 * 1024 : 96 * 1024 * 1024
+    }
+
+    static func publicResourceMIME(_ contentType: String?, path: String) -> Bool {
+        guard let limit = publicResourceLimit(path: path),
+              let type = contentType?.split(separator: ";", maxSplits: 1).first?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() else { return false }
+        if type == "application/json" || type == "application/problem+json" { return true }
+        // Only the validated immutable bundle data role has this byte policy;
+        // active references, manifests and the download index stay JSON-only.
+        return type == "application/octet-stream" && path.hasPrefix("/models/bundles/") && limit == 96 * 1024 * 1024
+    }
+
     static func device(path: String, method: String, query: [URLQueryItem]) -> Bool {
         guard !path.contains(".."), !path.contains("%"), !path.contains("\\"), path.hasPrefix("/v1/") else { return false }
         if path == "/v1/admin/logs" {

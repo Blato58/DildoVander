@@ -58,6 +58,12 @@ The published reference `/models/active.json` is
 The loader pins both full manifest identity and model ID, follows no redirects
 and sends no credentials to model resources. Publishing and rollback use the
 separate durable release store described in `kufr/web/deploy/APPLICATION-RELEASES.md`.
+
+The immutable `/models/bundles/` location serves every declared JSON-kind asset
+as `application/json` regardless of its safe filename. Extension MIME mappings
+are disabled; `nosniff` and sandbox headers remain required. Capacitor reads these
+public resources through a bounded, credential-free native transport against the
+configured HTTPS application origin, including assets and the download index.
 Missing models produce an honest unavailable state; unrelated app routes work.
 Production loading rejects synthetic fixtures. Development opts in explicitly
 with `/workshop?fixture=1`; a fixture always carries a visible synthetic label.

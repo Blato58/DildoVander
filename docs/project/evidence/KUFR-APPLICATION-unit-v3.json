@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-APPLICATION-unit-v3",
+  "observedAtUtc": "2026-10-19T03:43:54.248237+00:00",
+  "kind": "unit",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "APPLICATION",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "applicationArtifactDigest": "552896ed47cfc10ac13de112ef9e7b1eab248ca51d82d77fcd40e6743dbbefd2"
+  },
+  "method": "Final npm test; npm run build; focused shared media HAL and native public model adapter regressions.",
+  "environment": "Windows 11 checkout; existing Node24.21.0, Chrome/Edge Playwright, .NET10; isolated loopback services/temp stores.",
+  "limitations": [
+    "No production deployment, provider call, credential rotation, firmware flashing or real actuator execution.",
+    "Synthetic WebAuthn/browser devices and portable C++ are software evidence; no signed iPhone, physical BLE/audio/assembly acceptance.",
+    "Canonical source snapshot normalizes UTF-8 text to LF; platform-specific compiled binaries and native signing are separate artifacts."
+  ],
+  "observation": "PASS final88 Node +122 Vue tests across22 files (210 total). Production build passed generated-validator check, Vue typecheck and Vite without CAD. Shared HAL34/34 unchanged epoch/drain tests passed; public adapter verifies canonical origin/paths/caps, abort queue settlement, no account credentials, actual JSON/model hashes and non-json-named asset integrity.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-APPLICATION-source-v4.json",
+    "docs/project/artifacts/KUFR-APPLICATION-runtime-v3.json",
+    "kufr/docs/application-verification.md"
+  ],
+  "supersedes": [
+    "KUFR-APPLICATION-unit-v2"
+  ],
+  "supersedesReason": "Resolve reviewed production worklet CSP/native public model integration and CI fixture failures on exact new source. Prior immutable results retain their original scope; backend digest is unchanged. No production or hardware action."
+}

@@ -2,26 +2,27 @@
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
 import AwNotice from '../../components/AwNotice.vue';
 import { safeModelResources, validateDistributionIndex } from './downloads.mjs';
+import { publicResourceClient } from './public-resources';
 
 const props = defineProps<{ bundle: any; offline: boolean }>();
 const distributions = shallowRef<any[]>([]), loading = ref(false), error = ref('');
+const publicOrigin = ref('');
 let request: AbortController | null = null, generation = 0;
-const resources = computed(() => props.offline ? [] : safeModelResources(props.bundle, location.origin));
+const resources = computed(() => props.offline ? [] : safeModelResources(props.bundle, publicOrigin.value));
 const current = computed(() => distributions.value.filter(item => !item.historical));
 const historical = computed(() => distributions.value.filter(item => item.historical));
 const fixture = computed(() => props.bundle.manifest.provenance.kind === 'synthetic-fixture');
 const size = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
 watch(() => props.bundle.manifest.bundleHash, async () => {
-  const own = ++generation; request?.abort(); distributions.value = []; error.value = '';
+  const own = ++generation; request?.abort(); distributions.value = []; error.value = ''; publicOrigin.value = ''; loading.value = false;
   if (props.offline || fixture.value) return;
   request = new AbortController(); const signal = request.signal; loading.value = true;
   try {
-    const response = await fetch('/downloads/index.json', { credentials: 'omit', redirect: 'error', cache: 'no-cache', signal });
-    if (!response.ok) throw new Error(`Přehled exportů není dostupný (HTTP ${response.status}).`);
-    if (Number(response.headers.get('content-length')) > 262144) throw new Error('Přehled exportů překročil velikostní mez.');
-    const text = await response.text();
-    if (new TextEncoder().encode(text).length > 262144) throw new Error('Přehled exportů překročil velikostní mez.');
-    const items = validateDistributionIndex(JSON.parse(text), props.bundle.manifest, location.origin);
+    const client = await publicResourceClient(signal);
+    if (own !== generation) return;
+    publicOrigin.value = client.origin;
+    const bytes = await client.read(new URL('/downloads/index.json', client.origin), 262144, signal);
+    const items = validateDistributionIndex(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)), props.bundle.manifest, client.origin);
     if (own === generation) distributions.value = items;
   } catch (cause) { if (own === generation && !signal.aborted) error.value = cause instanceof Error ? cause.message : String(cause); }
   finally { if (own === generation) loading.value = false; }

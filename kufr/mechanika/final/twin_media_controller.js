@@ -3,6 +3,21 @@
   'use strict';
   const {RATE,CHUNK_BYTES,CAPTURE_BYTES,CaptureQueue,decimal,pcm16,floatPcm,stripJpegMetadata,settings,session,frame}=typeof module!=='undefined' && module.exports ? require('./twin_media_core.js') : root.TwinMediaCore;
   const OUTPUT_BYTES=RATE*2*4;
+  // The production application emits this exact source as a same-origin asset.
+  // Legacy standalone tools retain their blob fallback without requiring a
+  // second processor implementation or changing capture/lifetime semantics.
+  const CAPTURE_WORKLET_SOURCE=`class TwinCapture extends AudioWorkletProcessor { process(inputs) { const pcm=inputs[0]?.[0]; if(pcm) this.port.postMessage(pcm.slice()); return true; } } registerProcessor('twin-capture',TwinCapture);`;
+  function captureWorkletUrl(installed,baseURI) {
+    const base=new root.URL(baseURI), url=new root.URL(installed,base);
+    const hosted=['http:','https:'].includes(base.protocol);
+    // Capacitor's configured iOS asset origin has an opaque URL.origin. Match
+    // its actual scheme/host instead of treating every opaque origin as equal.
+    const packaged=base.protocol==='capacitor:' && base.hostname==='localhost' && !base.port;
+    if ((!hosted && !packaged) || url.protocol!==base.protocol || url.host!==base.host || url.username || url.password || url.search || url.hash || !/^\/assets\/twin-capture-worklet-[a-f0-9]{16}\.js$/.test(url.pathname)) {
+      throw new Error('Worklet musí být publikovaný soubor ze stejného originu aplikace');
+    }
+    return url.href;
+  }
   function createMediaController({transport,onChange=()=>{},video=()=>null,document=root.document}) {
     let context=null, sourceKey='', configuration=null, actor=null, generation=0, failure='', notice='Média nejsou aktivovaná.';
     let audio=null, mic=null, camera=null, captureNode=null, captureSource=null, silentGain=null, speakerReady=false, workletReady=false;
@@ -305,10 +320,14 @@
         const stream=await root.navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true,...(device?{deviceId:{exact:device}}:{})},video:false});
         if (own!==generation) { stream.getTracks().forEach(track=>track.stop()); return; }
         mic=stream; stream.getTracks().forEach(track=>track.addEventListener('ended',()=>{ if (mic===stream) fail(new Error('Mikrofon se odpojil')); }));
-        const code=`class TwinCapture extends AudioWorkletProcessor { process(inputs) { const pcm=inputs[0]?.[0]; if(pcm) this.port.postMessage(pcm.slice()); return true; } } registerProcessor('twin-capture',TwinCapture);`;
         if (!workletReady) {
-          const url=root.URL.createObjectURL(new Blob([code],{type:'text/javascript'}));
-          try { await selectedAudio.audioWorklet.addModule(url); } finally { root.URL.revokeObjectURL(url); }
+          const installed=document.querySelector?.('meta[name="kufr-capture-worklet"]')?.content;
+          if (installed) {
+            await selectedAudio.audioWorklet.addModule(captureWorkletUrl(installed,document.baseURI));
+          } else {
+            const url=root.URL.createObjectURL(new Blob([CAPTURE_WORKLET_SOURCE],{type:'text/javascript'}));
+            try { await selectedAudio.audioWorklet.addModule(url); } finally { root.URL.revokeObjectURL(url); }
+          }
           if (own===generation) workletReady=true;
         }
         if (own!==generation) return;
@@ -428,7 +447,7 @@
       capture, handle
     };
   }
-  const api={createMediaController};
+  const api={createMediaController,CAPTURE_WORKLET_SOURCE,captureWorkletUrl};
   if (typeof module!=='undefined' && module.exports) module.exports=api;
   else root.TwinMediaController=api;
 })(typeof window==='undefined'?globalThis:window);

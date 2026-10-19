@@ -4,9 +4,11 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
+import tomllib
 import unittest
 
 
@@ -18,6 +20,22 @@ INVENTORY_PATHS = (
     "docs/project/artifacts/fixture.json",
     "docs/project/artifacts/KUFR-TWIN-MIC-QUEUE-deploy-v1/twin-release.json",
 )
+HISTORICAL_HEADER_COMMIT = "e5dc9e3df11c7ece97de70afa924357b00d86176"
+HISTORICAL_HEADER_LINES = (
+    ("kufr/mobilni-aplikace/src/features/archive/nativeGuest.ts", 59),
+    ("kufr/mobilni-aplikace/ios/App/App/KufrIdentityPlugin.swift", 180),
+)
+
+
+def historical_header_statements():
+    statements = {}
+    for path, line in HISTORICAL_HEADER_LINES:
+        source = subprocess.check_output(
+            ["git", "-C", str(ROOT), "show", HISTORICAL_HEADER_COMMIT + ":" + path],
+            text=True, encoding="utf-8",
+        )
+        statements[path] = source.splitlines()[line - 1].strip()
+    return statements
 
 
 class SecretScanWorkflowTests(unittest.TestCase):
@@ -29,6 +47,28 @@ class SecretScanWorkflowTests(unittest.TestCase):
         self.assertIn("fetch-depth: 0", job)
         self.assertIn("GITLEAKS_BINARY=", job)
         self.assertIn("test_secret_scan.py", job)
+
+    def test_header_exceptions_bind_the_exact_historical_commit_paths_and_statements(self):
+        config = tomllib.loads((ROOT / ".gitleaks.toml").read_text(encoding="utf-8"))
+        exceptions = [entry for entry in config["allowlists"] if entry["description"].startswith("Reviewed historical ")]
+        self.assertEqual(2, len(exceptions))
+        statements = historical_header_statements()
+        matched_paths = set()
+        for entry in exceptions:
+            self.assertEqual(["generic-api-key"], entry["targetRules"])
+            self.assertEqual("AND", entry["condition"])
+            self.assertEqual([HISTORICAL_HEADER_COMMIT], entry["commits"])
+            self.assertEqual("line", entry["regexTarget"])
+            self.assertEqual(1, len(entry["paths"]))
+            self.assertEqual(1, len(entry["regexes"]))
+            matching = [path for path in statements if re.fullmatch(entry["paths"][0], path)]
+            self.assertEqual(1, len(matching))
+            path = matching[0]
+            matched_paths.add(path)
+            self.assertIsNotNone(re.fullmatch(entry["regexes"][0], statements[path]))
+            self.assertIsNone(re.fullmatch(entry["regexes"][0], statements[path] + " // changed"))
+            self.assertIsNone(re.fullmatch(entry["paths"][0], "unrelated/" + Path(path).name))
+        self.assertEqual(set(statements), matched_paths)
 
 
 @unittest.skipUnless(BINARY, "Set GITLEAKS_BINARY to run pinned scanner integration tests")
@@ -65,6 +105,15 @@ class SecretScanIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(expected, result.returncode, result.stderr)
         return json.loads(report.read_text(encoding="utf-8"))
+
+    def scope_header_exceptions_to_fixture_commit(self):
+        # A synthetic repository cannot reproduce an immutable production commit
+        # hash. Change only the temporary copied policy, after committing fixture
+        # statements, so the scanner exercises all three AND constraints.
+        path = self.root / ".gitleaks.toml"
+        config = path.read_text(encoding="utf-8")
+        self.assertEqual(2, config.count(HISTORICAL_HEADER_COMMIT))
+        path.write_text(config.replace(HISTORICAL_HEADER_COMMIT, self.git("rev-parse", "HEAD")), encoding="utf-8")
 
     @staticmethod
     def synthetic_token():
@@ -164,6 +213,57 @@ class SecretScanIntegrationTests(unittest.TestCase):
         self.git("switch", "--quiet", "main")
         self.assertEqual([], self.scan(0))
         self.assertTrue(self.scan(1, "--all"))
+
+    def test_historical_header_statements_pass_only_when_all_constraints_match(self):
+        for path, statement in historical_header_statements().items():
+            self.write(path, statement)
+        self.commit("Reviewed header declaration fixtures")
+        self.scope_header_exceptions_to_fixture_commit()
+        self.assertEqual([], self.scan(0))
+        self.assertFalse((self.root / ".gitleaksignore").exists())
+
+    def test_header_exception_does_not_suppress_an_adjacent_generic_credential(self):
+        digest = hashlib.sha256(b"synthetic adjacent generic credential").hexdigest()
+        statements = historical_header_statements()
+        for path, statement in statements.items():
+            self.write(path, statement + '\napi_key = "' + digest + '"')
+        self.commit("Adjacent synthetic credentials")
+        self.scope_header_exceptions_to_fixture_commit()
+        findings = self.scan(1)
+        self.assertEqual(set(statements), {finding["File"] for finding in findings})
+        self.assertTrue(all(finding["RuleID"] == "generic-api-key" and finding["StartLine"] == 2 for finding in findings))
+
+    def test_header_exception_does_not_suppress_a_changed_header_literal(self):
+        digest = hashlib.sha256(b"synthetic substituted header credential").hexdigest()
+        statements = historical_header_statements()
+        for path, statement in statements.items():
+            self.write(path, statement.replace("x-dv10" + "-consent", digest))
+        self.commit("Changed header literal fixtures")
+        self.scope_header_exceptions_to_fixture_commit()
+        findings = self.scan(1)
+        self.assertEqual(set(statements), {finding["File"] for finding in findings})
+        self.assertTrue(all(finding["RuleID"] == "generic-api-key" for finding in findings))
+
+    def test_header_exception_does_not_apply_at_unrelated_paths(self):
+        paths = set()
+        for path, statement in historical_header_statements().items():
+            unrelated = "unrelated/" + Path(path).name
+            paths.add(unrelated)
+            self.write(unrelated, statement)
+        self.commit("Header declarations outside reviewed paths")
+        self.scope_header_exceptions_to_fixture_commit()
+        findings = self.scan(1)
+        self.assertEqual(paths, {finding["File"] for finding in findings})
+        self.assertTrue(all(finding["RuleID"] == "generic-api-key" for finding in findings))
+
+    def test_header_exception_does_not_apply_in_another_commit(self):
+        statements = historical_header_statements()
+        for path, statement in statements.items():
+            self.write(path, statement)
+        self.commit("Same statements in a different commit")
+        findings = self.scan(1)
+        self.assertEqual(set(statements), {finding["File"] for finding in findings})
+        self.assertTrue(all(finding["RuleID"] == "generic-api-key" for finding in findings))
 
 
 if __name__ == "__main__":

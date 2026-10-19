@@ -15,6 +15,7 @@ import { usePreferences } from '../../application/preferences';
 import { createViewerEngine, defaultSceneState, matchesPart } from './engine.mjs';
 import { loadBundle, loadPublishedBundle, loadFileBundle } from './model-bundle.mjs';
 import { projectObservation, twin, timeline, validateObserverBase } from './observation.mjs';
+import { publicResourceClient } from './public-resources';
 
 const props = withDefaults(defineProps<{ bundle?: any; offline?: boolean }>(), { offline: false });
 const preferences = props.offline ? usePreferences() : null;
@@ -51,7 +52,10 @@ async function loadModel() {
       const manifest = (await import('./fixture/model-bundle.json')).default;
       const data = await import('./fixture/model.json?raw');
       result = await loadBundle(manifest, async () => new TextEncoder().encode(data.default), { allowFixture: true });
-    } else result = await loadPublishedBundle('/models/', { signal: loadAbort.signal });
+    } else {
+      const resources = await publicResourceClient(loadAbort.signal);
+      result = await loadPublishedBundle(new URL('/models/', resources.origin).href, { signal: loadAbort.signal, readBytes: resources.read });
+    }
     if (generation !== loadGeneration) return;
     bundle.value = markRaw(result);
     try {

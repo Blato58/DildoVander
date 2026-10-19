@@ -2,6 +2,36 @@ import Foundation
 
 func require(_ value: Bool, _ description: String) { if !value { fatalError(description) } }
 let id = "7fc470e2-e25e-46a2-b51b-97d50275ae77"
+let publicHash = String(repeating: "a", count: 64)
+require(AccountTransportPolicy.publicOrigin("https://public.example:8443")?.host == "public.example", "configured public HTTPS origin unavailable without RP")
+for invalidOrigin in ["http://public.example", "https://user:secret@public.example", "https://public.example/path", "https://public.example?query", "https://public.example#fragment", "https://%70ublic.example", "https://public.example ", "https://$(KUFR_ACCOUNT_ORIGIN)"] {
+    require(AccountTransportPolicy.publicOrigin(invalidOrigin) == nil, "unsafe public origin accepted")
+}
+require(AccountTransportPolicy.publicResourceLimit(path: "/models/active.json") == 131072, "public active reference limit mismatch")
+require(AccountTransportPolicy.publicResourceLimit(path: "/downloads/index.json") == 262144, "public download index limit mismatch")
+require(AccountTransportPolicy.publicResourceLimit(path: "/models/bundles/\(publicHash)/model-bundle.json") == 131072, "public manifest limit mismatch")
+require(AccountTransportPolicy.publicResourceLimit(path: "/models/bundles/\(publicHash)/nested/model.data") == 100663296, "safe JSON-kind asset path or 96MiB limit mismatch")
+require(AccountTransportPolicy.publicResourceLimit(path: "/models/bundles/\(publicHash)/" + String(repeating: "a", count: 240)) != nil, "maximum safe asset path unavailable")
+require(AccountTransportPolicy.publicResourceLimit(path: "/models/bundles/\(publicHash)/model.json\n") == nil, "trailing control character accepted")
+require(AccountTransportPolicy.publicOrigin("https://public.example\u{0}") == nil, "public origin control character accepted")
+for invalidResource in ["/app/v1/session", "/guest/v1/evening", "/models/active.json?x=1", "/downloads/file.zip", "https://public.example/models/active.json", "//public.example/models/active.json", "/models/bundles/\(publicHash)/../model.json", "/models/bundles/\(publicHash)/%2e%2e/model.json", "/models/bundles/\(publicHash)/model.json#fragment", "/models/bundles/\(publicHash)/nested\\model.json", "/models/bundles/\(publicHash)/model..json", "/models/bundles/\(publicHash.uppercased())/model.json", "/models/bundles/\(publicHash)/" + String(repeating: "a", count: 241)] {
+    require(AccountTransportPolicy.publicResourceLimit(path: invalidResource) == nil, "unscoped or unsafe public resource accepted")
+}
+require(AccountTransportPolicy.publicResourceMIME("application/json; charset=utf-8", path: "/models/active.json"), "JSON response MIME rejected")
+require(AccountTransportPolicy.publicResourceMIME("application/problem+json", path: "/downloads/index.json"), "bounded JSON problem response rejected")
+let publicDataPath = "/models/bundles/\(publicHash)/nested/model.data"
+require(AccountTransportPolicy.publicResourceMIME("application/octet-stream", path: publicDataPath), "safe non-.json bundle data MIME rejected")
+for metadataPath in ["/models/active.json", "/downloads/index.json", "/models/bundles/\(publicHash)/model-bundle.json"] {
+    require(!AccountTransportPolicy.publicResourceMIME("application/octet-stream", path: metadataPath), "metadata accepted binary MIME")
+}
+require(!AccountTransportPolicy.publicResourceMIME("application/octet-stream", path: "/models/bundles/\(publicHash)/../model.data"), "unsafe binary asset path accepted")
+require(!AccountTransportPolicy.publicResourceMIME("application/json", path: "/app/v1/session"), "unscoped MIME path accepted")
+for invalidMIME in [nil, "text/html", "application/javascript", "application/octet-stream", "image/svg+xml"] as [String?] {
+    require(!AccountTransportPolicy.publicResourceMIME(invalidMIME, path: "/models/active.json"), "non-JSON public metadata accepted")
+    if invalidMIME != "application/octet-stream" {
+        require(!AccountTransportPolicy.publicResourceMIME(invalidMIME, path: publicDataPath), "HTML/script or unsupported bundle MIME accepted")
+    }
+}
 require(AccountTransportPolicy.device(path: "/v1/conversations/\(id)/realtime-live", method: "POST", query: []), "native account voice admission unavailable")
 require(!AccountTransportPolicy.device(path: "/v1/device-access/token", method: "POST", query: []), "native account flow accepted bearer exchange")
 require(!AccountTransportPolicy.device(path: "/v1/admin/modes", method: "PUT", query: []), "advanced profile bypassed application confirmation")

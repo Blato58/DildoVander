@@ -8,7 +8,6 @@ import UIKit
 // AuthenticationServices performs native WebAuthn. URLSession owns a separate
 // cookie jar: browser/WKWebView cookies and device credentials never enter it.
 @objc(KufrIdentityPlugin)
-@available(iOS 16.0, *)
 public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
     ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
     internal static weak var active: KufrIdentityPlugin?
@@ -75,7 +74,10 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
         CAPPluginMethod(name: "guestRequest", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "shareGuestFile", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "shareGuestLink", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "accountTransport", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "accountTransport", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "publicOrigin", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "publicResource", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "cancelPublicResource", returnType: CAPPluginReturnPromise)
     ]
     private let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
@@ -98,6 +100,55 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
         return URLSession(configuration: configuration, delegate: AccountNoRedirect(), delegateQueue: nil)
     }()
     private var guestCookiesRestored = false
+    private var publicTransfers: [UUID: PublicResourceTransfer] = [:]
+    private var publicCancellationWaiters: [UUID: [CAPPluginCall]] = [:]
+
+    @objc public func publicOrigin(_ call: CAPPluginCall) {
+        do { call.resolve(["origin": try configuredPublicOrigin().absoluteString]) }
+        catch { call.reject(error.localizedDescription) }
+    }
+
+    @objc public func publicResource(_ call: CAPPluginCall) {
+        Task { @MainActor in
+            do {
+                let origin = try configuredPublicOrigin()
+                guard let path = call.getString("path"), let policyLimit = AccountTransportPolicy.publicResourceLimit(path: path),
+                      let requestedLimit = call.getInt("maxBytes"), requestedLimit > 0, requestedLimit <= 96 * 1024 * 1024,
+                      let rawId = call.getString("requestId"), let id = UUID(uuidString: rawId),
+                      let url = URL(string: path, relativeTo: origin)?.absoluteURL,
+                      url.scheme == origin.scheme, url.host == origin.host, url.port == origin.port,
+                      url.user == nil, url.password == nil, url.query == nil, url.fragment == nil else { throw PublicResourceError.invalidRequest }
+                // A single bounded buffer also bounds concurrent base64 bridge work.
+                guard publicTransfers.isEmpty else { throw PublicResourceError.busy }
+                let transfer = PublicResourceTransfer(url: url, limit: min(policyLimit, requestedLimit)) { [weak self] result in
+                    Task { @MainActor in
+                        guard let self = self else { call.reject(PublicResourceError.cancelled.localizedDescription); return }
+                        self.publicTransfers.removeValue(forKey: id)
+                        switch result {
+                        case .success(let (data, response)):
+                            call.resolve(["status": response.statusCode,
+                                "headers": ["content-type": response.value(forHTTPHeaderField: "Content-Type") ?? "application/json", "content-length": String(data.count)],
+                                "bodyBase64": data.base64EncodedString()])
+                        case .failure(let error): call.reject(error.localizedDescription)
+                        }
+                        for waiter in self.publicCancellationWaiters.removeValue(forKey: id) ?? [] { waiter.resolve() }
+                    }
+                }
+                publicTransfers[id] = transfer
+                transfer.start()
+            } catch { call.reject(error.localizedDescription) }
+        }
+    }
+
+    @objc public func cancelPublicResource(_ call: CAPPluginCall) {
+        Task { @MainActor in
+            guard let rawId = call.getString("requestId"), let id = UUID(uuidString: rawId) else { call.reject(PublicResourceError.invalidRequest.localizedDescription); return }
+            guard let transfer = publicTransfers[id] else { call.resolve(); return }
+            guard (publicCancellationWaiters[id]?.count ?? 0) < 8 else { call.reject(PublicResourceError.busy.localizedDescription); return }
+            publicCancellationWaiters[id, default: []].append(call)
+            transfer.cancel()
+        }
+    }
 
     @objc public func accountTransport(_ call: CAPPluginCall) {
         Task { @MainActor in
@@ -280,6 +331,7 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
 
     @objc public func passkey(_ call: CAPPluginCall) {
         Task { @MainActor in
+            guard #available(iOS 16.0, *) else { call.reject("Přístupové klíče vyžadují iOS 16 nebo novější. Veřejný obsah zůstává dostupný."); return }
             guard !requestActive && pending == nil else { call.reject("Probíhá jiné ověření účtu."); return }
             pending = call
             do {
@@ -332,6 +384,7 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
 
     public func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
         Task { @MainActor in
+            guard #available(iOS 16.0, *) else { finish(error: "Přístupové klíče vyžadují iOS 16 nebo novější."); return }
             do {
                 let credential: [String: Any]
                 if let assertion = authorization.credential as? ASAuthorizationPlatformPublicKeyCredentialAssertion {
@@ -369,6 +422,12 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
               let rp = Bundle.main.object(forInfoDictionaryKey: "KufrPasskeyRelyingParty") as? String,
               !rp.isEmpty, (host == rp || host.hasSuffix("." + rp)), !rp.contains("$") else { throw AccountError.notConfigured }
         return (url, rp)
+    }
+
+    private func configuredPublicOrigin() throws -> URL {
+        guard let raw = Bundle.main.object(forInfoDictionaryKey: "KufrAccountOrigin") as? String,
+              let origin = AccountTransportPolicy.publicOrigin(raw) else { throw PublicResourceError.notConfigured }
+        return origin
     }
 
     private func send(path: String, method: String, body: String? = nil, confirmed: Bool = false) async throws -> (Int, String) {
@@ -448,6 +507,117 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
         guard digest != publishedCookieDigest else { return }
         publishedCookieDigest = digest
         NotificationCenter.default.post(name: Notification.Name("KufrIdentityAccountChanged"), object: nil)
+    }
+}
+
+// Own session per transfer: no account/guest jar, shared URL credentials, cache,
+// redirect handling or unbounded data(for:) buffer can enter public downloads.
+private final class PublicResourceTransfer: NSObject, URLSessionDataDelegate, @unchecked Sendable {
+    private let url: URL
+    private let limit: Int
+    private var completion: ((Result<(Data, HTTPURLResponse), Error>) -> Void)?
+    private var ownedSession: URLSession?
+    private var task: URLSessionDataTask?
+    private var response: HTTPURLResponse?
+    private var body = Data()
+    private var failure: Error?
+
+    init(url: URL, limit: Int, completion: @escaping (Result<(Data, HTTPURLResponse), Error>) -> Void) {
+        self.url = url; self.limit = limit; self.completion = completion
+    }
+
+    func start() {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.httpCookieStorage = nil
+        configuration.httpShouldSetCookies = false
+        configuration.httpCookieAcceptPolicy = .never
+        configuration.urlCredentialStorage = nil
+        configuration.urlCache = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.timeoutIntervalForRequest = 30
+        configuration.timeoutIntervalForResource = 60
+        let queue = OperationQueue(); queue.maxConcurrentOperationCount = 1
+        let session = URLSession(configuration: configuration, delegate: self, delegateQueue: queue)
+        ownedSession = session
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
+        request.httpMethod = "GET"
+        request.httpShouldHandleCookies = false
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("no-store", forHTTPHeaderField: "Cache-Control")
+        task = session.dataTask(with: request)
+        task?.resume()
+    }
+
+    func cancel() { task?.cancel() }
+
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
+                    completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+        guard let http = response as? HTTPURLResponse, http.url == url, (200...599).contains(http.statusCode),
+              !(300...399).contains(http.statusCode),
+              AccountTransportPolicy.publicResourceMIME(http.value(forHTTPHeaderField: "Content-Type"), path: url.path),
+              response.expectedContentLength <= Int64(limit) else {
+            failure = PublicResourceError.invalidResponse; completionHandler(.cancel); return
+        }
+        self.response = http
+        completionHandler(.allow)
+    }
+
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        guard failure == nil else { return }
+        guard body.count <= limit, data.count <= limit - body.count else {
+            failure = PublicResourceError.tooLarge; dataTask.cancel(); return
+        }
+        body.append(data)
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        guard let completion = completion else { return }
+        self.completion = nil
+        let result: Result<(Data, HTTPURLResponse), Error>
+        if let failure = failure { result = .failure(failure) }
+        else if let error = error {
+            result = .failure((error as NSError).code == NSURLErrorCancelled ? PublicResourceError.cancelled : error)
+        } else if let response = response { result = .success((body, response)) }
+        else { result = .failure(PublicResourceError.invalidResponse) }
+        body = Data()
+        ownedSession?.finishTasksAndInvalidate(); ownedSession = nil
+        completion(result)
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
+        failure = PublicResourceError.invalidResponse; completionHandler(nil)
+    }
+
+    func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge,
+                    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust {
+            completionHandler(.performDefaultHandling, nil)
+        } else { completionHandler(.cancelAuthenticationChallenge, nil) }
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge,
+                    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust {
+            completionHandler(.performDefaultHandling, nil)
+        } else { completionHandler(.cancelAuthenticationChallenge, nil) }
+    }
+
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, willCacheResponse proposedResponse: CachedURLResponse,
+                    completionHandler: @escaping (CachedURLResponse?) -> Void) { completionHandler(nil) }
+}
+
+private enum PublicResourceError: LocalizedError {
+    case notConfigured, invalidRequest, invalidResponse, tooLarge, busy, cancelled
+    var errorDescription: String? {
+        switch self {
+        case .notConfigured: return "Veřejná HTTPS adresa této instalace není nakonfigurovaná."
+        case .invalidRequest: return "Nepovolený veřejný prostředek."
+        case .invalidResponse: return "Server nevrátil povolený veřejný JSON prostředek."
+        case .tooLarge: return "Veřejný prostředek překročil povolenou velikost."
+        case .busy: return "Ještě probíhá načítání předchozího veřejného prostředku."
+        case .cancelled: return "Načítání veřejného prostředku bylo zrušeno."
+        }
     }
 }
 

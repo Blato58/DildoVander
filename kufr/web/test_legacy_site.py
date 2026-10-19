@@ -25,6 +25,15 @@ builder = module('build-site')
 publisher = module('publish-site')
 reader = module('verify-site')
 SOURCE_SHA = 'a' * 40
+LOCK_WORKER_SCRIPT = """
+import sys
+from pathlib import Path
+from test_legacy_site import publisher
+print('ready', flush=True)
+if len(sys.argv) == 2:
+    with publisher.publication_lock(Path(sys.argv[1])):
+        print('acquired', flush=True)
+"""
 
 
 def payload(root):
@@ -169,22 +178,31 @@ class PublicationTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'manifest shape'):
                     publisher.verify(source, SOURCE_SHA)
 
+    def test_publication_worker_imports_the_retained_publisher(self):
+        # Exercise the exact subprocess startup on every platform, even where
+        # the production fcntl lock itself cannot run.
+        child = subprocess.run([sys.executable, '-c', LOCK_WORKER_SCRIPT],
+                               cwd=Path(__file__).parent, capture_output=True, text=True, timeout=5)
+        self.assertEqual(child.returncode, 0, child.stderr)
+        self.assertEqual(child.stdout.strip(), 'ready')
+
     @unittest.skipIf(os.name != 'posix', 'Production CLI publication lock is a Linux contract')
     def test_publication_lock_serializes_mutations_and_rejects_symlink_lock(self):
         with tempfile.TemporaryDirectory() as directory:
             site = Path(directory)
-            script = ("import sys; from pathlib import Path; from test_site import publisher; "
-                      "print('ready', flush=True); "
-                      "\nwith publisher.publication_lock(Path(sys.argv[1])): print('acquired', flush=True)")
             with publisher.publication_lock(site):
-                child = subprocess.Popen([sys.executable, '-c', script, str(site)],
+                child = subprocess.Popen([sys.executable, '-c', LOCK_WORKER_SCRIPT, str(site)],
                                          cwd=Path(__file__).parent, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                 try:
-                    self.assertEqual(child.stdout.readline().strip(), 'ready')
+                    ready = child.stdout.readline().strip()
+                    if ready != 'ready':
+                        _, errors = child.communicate(timeout=5)
+                        self.fail('Publication lock worker failed before readiness: ' + errors)
                     with self.assertRaises(subprocess.TimeoutExpired):
                         child.communicate(timeout=0.2)
                 except BaseException:
-                    child.kill()
+                    if child.poll() is None:
+                        child.kill()
                     child.communicate()
                     raise
             output, errors = child.communicate(timeout=5)

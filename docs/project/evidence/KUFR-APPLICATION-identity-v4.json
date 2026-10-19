@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-APPLICATION-identity-v4",
+  "observedAtUtc": "2026-10-19T03:43:54.248237+00:00",
+  "kind": "integration",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "IDENTITY",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "applicationArtifactDigest": "552896ed47cfc10ac13de112ef9e7b1eab248ca51d82d77fcd40e6743dbbefd2",
+    "backendArtifactDigest": "cc055d8afc3ed31a473702312cb8c7212b2fbac716f67af16504bfb014f6d79b"
+  },
+  "method": "Backend digest remains exactly v3; complete backend PR CI job passed at edf2238823e61fce019769237133ad25192575a5. Parent repeated npm run test:accounts:fixture against final application dist and unchanged real backend binary.",
+  "environment": "Windows 11 checkout; existing Node24.21.0, Chrome/Edge Playwright, .NET10; isolated loopback services/temp stores.",
+  "limitations": [
+    "No production deployment, provider call, credential rotation, firmware flashing or real actuator execution.",
+    "Synthetic WebAuthn/browser devices and portable C++ are software evidence; no signed iPhone, physical BLE/audio/assembly acceptance.",
+    "Canonical source snapshot normalizes UTF-8 text to LF; platform-specific compiled binaries and native signing are separate artifacts.",
+    "Native policy tests await macOS compile/execution; browser mock evidence cannot establish native Keychain, associated domains or physical pairing."
+  ],
+  "observation": "PASS controlled owner enrollment, real verifier/passkeys and naming, expiring single-use invitations, Viewer server denial, logout/signin with safe return and clean isolated fixture. Previously passed migration/private backup/archive concurrency/recovery/grants/CSRF/last owner checks transfer through exact unchanged backend digest. Native public resources remain separately bounded and credential-free; passkey support16+, HTTP15+.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-APPLICATION-source-v4.json",
+    "docs/project/artifacts/KUFR-APPLICATION-runtime-v3.json",
+    "kufr/docs/application-verification.md"
+  ],
+  "supersedes": [
+    "KUFR-APPLICATION-identity-v3"
+  ],
+  "supersedesReason": "Resolve reviewed production worklet CSP/native public model integration and CI fixture failures on exact new source. Prior immutable results retain their original scope; backend digest is unchanged. No production or hardware action."
+}

@@ -22,7 +22,7 @@ publication are in the [release guide](../web/deploy/APPLICATION-RELEASES.md).
 | Backend | Build with zero warnings/errors; default regression and `--identity`, `--keepsake`, `--model-releases`, `--twin`, `--twin-media`. Tests cover real P256 WebAuthn, roles/grants/CSRF/origins, concurrency, recovery, last-owner/key rules, migration/backup restoration, private archive tickets/assets and revocation. |
 | Portable firmware integration | `python kufr/simulator/native/build_host.py --output …` built the genuine portable C++ twin with MSVC. `--twin-media` used this executable for framing, cancellation, backpressure, input ownership and software drain. No ESP32 was connected or flashed. |
 | Workshop offline | `node tests/workshop-offline.browser.mjs` opened the maintained bundled viewer through `file://` with networking disabled: desktop/mobile, selection, camera, assembly, visibility, source-semantic overlays and cable motion; zero network requests and page errors. Models were explicitly synthetic. |
-| Workshop media | `node tests/workshop-media.browser.mjs`: fake browser devices and isolated API responses, two PCM frames, one accepted photo, software drain, zero external requests/page errors. This is not acoustic or provider evidence. |
+| Workshop media | `node tests/workshop-media.browser.mjs` against compiled production `dist` and its strict CSP: same-origin hashed capture worklet, fake browser devices and isolated API responses, two PCM frames, one accepted photo, software drain, zero CSP violations/external requests/page errors. Packaged Capacitor URL-policy cases are separate assertions. This is not WKWebView, acoustic or provider evidence. |
 | Model and release integrity | Shared browser/.NET rejection corpus, stdlib model export/certification tests, scoped source policy and validation refresh, bounded ZIP binding, immutable storage, idempotent publication and failed-publication protection. No mechanical calculations were substituted with fixtures. |
 | CAD separation | `python scripts/ci/ui_boundary.py`, selector/impact/workflow regressions, actual compiled-site assembly and independent app build without CAD packages. The accepted incremental manufacturing pipeline and its trusted cache rules are retained. |
 | Shared design and guests | Generated-token and design checks, design-system browser checks, Vue token scanning and `check_dv10.py --web-dist …`; historical DV10 source receipts remain separate. |
@@ -33,6 +33,19 @@ execution and manufacturing publication were not part of these checks.
 The final backend `--identity` run includes the final naming/recovery endpoints;
 the broader legacy default, twin and media runs preceded that bounded change.
 They retain their actual scope rather than being presented as new native proof.
+
+PR CI run `39194919939` passed the complete backend checks but exposed failures
+in Linux legacy-site subprocess startup, CAD packaging fixtures, the Swift Debug
+test actor boundary, and two historical header-allowlist false positives in the
+secret scan. Those failures are preserved in the PR run. Corrections retain the
+real locking, CAD proof, actor and secret-detection gates. Independent review also
+found production worklet CSP and packaged-native public model resolution defects;
+their regressions now exercise production `dist` and the native public adapter.
+The updated CI run is recorded separately after it completes.
+
+Native public-resource tests validate paths, size limits, cancellation ordering,
+canonical downloads and actual model hash/JSON parsing with a mocked bridge,
+including non-`.json` assets. They do not execute Foundation TLS/delegate behavior.
 
 ## Unverified boundaries
 

@@ -29,12 +29,12 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "applicationArtifactDigest": "073f8df6aa85d896415acdbdd26f3ccb3a34a11c58aa74525f093ae7002f6ad9"
+        "applicationArtifactDigest": "552896ed47cfc10ac13de112ef9e7b1eab248ca51d82d77fcd40e6743dbbefd2"
       },
       "evidenceRefs": [
-        "KUFR-APPLICATION-unit-v2",
-        "KUFR-APPLICATION-browser-v3",
-        "KUFR-APPLICATION-review-v3"
+        "KUFR-APPLICATION-unit-v3",
+        "KUFR-APPLICATION-browser-v4",
+        "KUFR-APPLICATION-review-v4"
       ]
     },
     {
@@ -47,13 +47,13 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "applicationArtifactDigest": "073f8df6aa85d896415acdbdd26f3ccb3a34a11c58aa74525f093ae7002f6ad9",
+        "applicationArtifactDigest": "552896ed47cfc10ac13de112ef9e7b1eab248ca51d82d77fcd40e6743dbbefd2",
         "backendArtifactDigest": "cc055d8afc3ed31a473702312cb8c7212b2fbac716f67af16504bfb014f6d79b"
       },
       "evidenceRefs": [
-        "KUFR-APPLICATION-identity-v3",
-        "KUFR-APPLICATION-browser-v3",
-        "KUFR-APPLICATION-review-v3"
+        "KUFR-APPLICATION-identity-v4",
+        "KUFR-APPLICATION-browser-v4",
+        "KUFR-APPLICATION-review-v4"
       ]
     },
     {
@@ -67,13 +67,13 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "applicationArtifactDigest": "073f8df6aa85d896415acdbdd26f3ccb3a34a11c58aa74525f093ae7002f6ad9",
-        "releaseArtifactDigest": "9b69b23d50554d62735fd40e4246fd920ee3cfed27a0fdf6930763bcde5f05f4"
+        "applicationArtifactDigest": "552896ed47cfc10ac13de112ef9e7b1eab248ca51d82d77fcd40e6743dbbefd2",
+        "releaseArtifactDigest": "dd3e19fff5ef30c5af5f8c91f674bf7d261a87f11faa3fd691acb54ac131c378"
       },
       "evidenceRefs": [
-        "KUFR-APPLICATION-releases-v2",
-        "KUFR-APPLICATION-browser-v3",
-        "KUFR-APPLICATION-review-v3"
+        "KUFR-APPLICATION-releases-v3",
+        "KUFR-APPLICATION-browser-v4",
+        "KUFR-APPLICATION-review-v4"
       ]
     },
     {
@@ -84,7 +84,7 @@
         "native_ios"
       ],
       "appliesTo": {
-        "iosArtifactDigest": "0b0becfa6130daafb669ef6ee1b342c9034d5f140f5f06c97a9c78dff0aba9bc"
+        "iosArtifactDigest": "4ad457aaf15a2b4c9daab9d58125f7bd10dfdac5c912aa7dc9b1134563689419"
       },
       "evidenceRefs": []
     }
@@ -101,11 +101,11 @@
     }
   ],
   "nextAction": "Run the prepared macOS native harnesses and unsigned Simulator build through PR CI, resolve review findings, then verify signed iPhone associated-domain passkeys, resume/switching and physical pairing with the authorized installation. Production activation remains separate.",
-  "currentNote": "Implementation commit e5dc9e3df11c7ece97de70afa924357b00d86176 pushed and verified on origin/codex/unified-vue-application; PR218 opened. Approved main SQLite update integrated and real account/storage checks rerun. Shared app/release/iOS digests unchanged. macOS CI and signed-device acceptance remain separate. No production/provider/hardware action.",
+  "currentNote": "Verified implementation e5dc9e3 and approved main integration edf2238 pushed on origin/codex/unified-vue-application; PR218. Production CSP, native public model/MIME, iOS15 HTTP/actor, Linux fixture and narrow secret-scan corrections now verified locally on source-v4; new macOS/Linux CI pending. Backend digest unchanged. No production/provider/hardware action.",
   "implementedSubject": {
-    "applicationArtifactDigest": "073f8df6aa85d896415acdbdd26f3ccb3a34a11c58aa74525f093ae7002f6ad9",
+    "applicationArtifactDigest": "552896ed47cfc10ac13de112ef9e7b1eab248ca51d82d77fcd40e6743dbbefd2",
     "backendArtifactDigest": "cc055d8afc3ed31a473702312cb8c7212b2fbac716f67af16504bfb014f6d79b",
-    "releaseArtifactDigest": "9b69b23d50554d62735fd40e4246fd920ee3cfed27a0fdf6930763bcde5f05f4",
-    "iosArtifactDigest": "0b0becfa6130daafb669ef6ee1b342c9034d5f140f5f06c97a9c78dff0aba9bc"
+    "releaseArtifactDigest": "dd3e19fff5ef30c5af5f8c91f674bf7d261a87f11faa3fd691acb54ac131c378",
+    "iosArtifactDigest": "4ad457aaf15a2b4c9daab9d58125f7bd10dfdac5c912aa7dc9b1134563689419"
   }
 }

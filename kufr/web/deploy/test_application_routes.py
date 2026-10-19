@@ -61,6 +61,17 @@ class ApplicationRoutingTests(unittest.TestCase):
         for raw in ('/app/v1/../../suitcase', '/guest/v1/../../suitcase', '/%73uitcase', '//suitcase'):
             self.assertIsNone(re.search(pattern, raw), raw)
 
+    def test_immutable_model_location_serves_json_independently_of_filename(self):
+        config = proxy.render_compatibility('keepsake.example.invalid')
+        match = re.search(r'^location \^~ /models/bundles/ \{\n(.*?)^\}', config, re.MULTILINE | re.DOTALL)
+        self.assertIsNotNone(match)
+        block = match.group(1)
+        self.assertRegex(block, r'(?m)^    types\s*\{\s*\}\s*$')
+        self.assertRegex(block, r'(?m)^    default_type application/json;\s*$')
+        self.assertIn('nosniff', block)
+        self.assertIn("default-src 'none'; sandbox", block)
+        self.assertNotIn('text/html', block)
+
 
 if __name__ == '__main__':
     unittest.main()

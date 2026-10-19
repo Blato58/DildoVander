@@ -358,7 +358,7 @@ struct NativeDebugTests {
 
 // Exercise the actual client with a native-only authorizer seam. The account
 // fixture has no raw device/admin credential and cannot mint a device token.
-private func verifyAccountTransport() async throws {
+@MainActor private func verifyAccountTransport() async throws {
     let profile = try DebugBackendProfile(accountOrigin: URL(string: "https://accounts.example.test/")!,
         deviceId: "physical-kufr-1", binding: "native-session-one")
     assert(profile.usesAccountSession && profile.credential.isEmpty)
@@ -381,7 +381,7 @@ private func verifyAccountTransport() async throws {
     catch DebugBackendError.invalidProfile { }
 }
 
-private final class AccountDebugPeer {
+@MainActor private final class AccountDebugPeer {
     var binding = "native-session-one"
     var authorizationCount = 0
     var paths: [String] = []

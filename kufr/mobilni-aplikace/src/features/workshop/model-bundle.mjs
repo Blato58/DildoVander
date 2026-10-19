@@ -141,11 +141,17 @@ export function canonicalManifest(manifest) {
   const { bundleHash, ...identity } = manifest;
   return JSON.stringify(ordered(identity));
 }
-async function boundedBytes(response, max, signal) {
+export async function boundedBytes(response, max, signal) {
+  signal?.throwIfAborted();
   if (!response.ok) fail(`asset unavailable (HTTP ${response.status})`);
   if (Number(response.headers.get('content-length')) > max) fail('response exceeds size limit');
   const reader = response.body?.getReader();
-  if (!reader) { const bytes = new Uint8Array(await response.arrayBuffer()); if (bytes.length > max) fail('response exceeds size limit'); return bytes; }
+  if (!reader) {
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    signal?.throwIfAborted();
+    if (bytes.length > max) fail('response exceeds size limit');
+    return bytes;
+  }
   const chunks = []; let length = 0;
   try {
     for (;;) {
@@ -156,6 +162,7 @@ async function boundedBytes(response, max, signal) {
   } finally { await reader.cancel().catch(() => {}); }
   const bytes = new Uint8Array(length); let offset = 0;
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+  signal?.throwIfAborted();
   return bytes;
 }
 function parseJson(bytes) {
@@ -206,14 +213,21 @@ export async function loadFileBundle(files, options = {}) {
     return new Uint8Array(await file.arrayBuffer());
   }, options);
 }
-/** @param {string} base @param {{signal?: AbortSignal, fetcher?: typeof fetch}} options */
-export async function loadPublishedBundle(base = '/models/', { signal, fetcher = globalThis.fetch } = {}) {
+/** @param {string} base @param {{signal?: AbortSignal, fetcher?: typeof fetch, readBytes?: (url: URL, max: number, signal: AbortSignal) => Promise<Uint8Array>}} options */
+export async function loadPublishedBundle(base = '/models/', { signal, fetcher = globalThis.fetch, readBytes } = {}) {
   const baseUrl = new URL(base, globalThis.location?.href || 'https://localhost/');
   const controller = new AbortController();
   const abort = () => controller.abort(signal?.reason);
   signal?.throwIfAborted(); signal?.addEventListener('abort', abort, { once: true });
   const deadline = setTimeout(() => controller.abort(new Error('Model load exceeded 30 seconds')), 30000);
   const request = async (url, max) => {
+    if (readBytes) {
+      controller.signal.throwIfAborted();
+      const bytes = await readBytes(url, max, controller.signal);
+      controller.signal.throwIfAborted();
+      if (!(bytes instanceof Uint8Array) || bytes.length > max) fail('response exceeds size limit');
+      return bytes;
+    }
     const response = await fetcher(url, { signal: controller.signal, credentials: 'omit', redirect: 'error', cache: 'no-cache' });
     return boundedBytes(response, max, controller.signal);
   };

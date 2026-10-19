@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-APPLICATION-review-v4",
+  "observedAtUtc": "2026-10-19T03:43:54.248237+00:00",
+  "kind": "source_review",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "APPLICATION",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "IDENTITY",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "RELEASES",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "applicationArtifactDigest": "552896ed47cfc10ac13de112ef9e7b1eab248ca51d82d77fcd40e6743dbbefd2",
+    "backendArtifactDigest": "cc055d8afc3ed31a473702312cb8c7212b2fbac716f67af16504bfb014f6d79b",
+    "releaseArtifactDigest": "dd3e19fff5ef30c5af5f8c91f674bf7d261a87f11faa3fd691acb54ac131c378"
+  },
+  "method": "Parent combined diff/source inspection and independent Sol6.1/high bounded source review of frozen native public transport, JS adapter, production worklet/CSP, MIME serving, iOS availability/actor boundary, narrow historical scan exceptions and packaging/legacy fixtures.",
+  "environment": "Windows 11 checkout; existing Node24.21.0, Chrome/Edge Playwright, .NET10; isolated loopback services/temp stores.",
+  "limitations": [
+    "No production deployment, provider call, credential rotation, firmware flashing or real actuator execution.",
+    "Synthetic WebAuthn/browser devices and portable C++ are software evidence; no signed iPhone, physical BLE/audio/assembly acceptance.",
+    "Canonical source snapshot normalizes UTF-8 text to LF; platform-specific compiled binaries and native signing are separate artifacts.",
+    "Source/policy/mock review does not execute UIKit/URLSession/WKWebView; macOS workflow and signed iPhone acceptance remain separate."
+  ],
+  "observation": "No remaining actionable finding at freeze. Fixed P1 worklet production CSP with same-origin asset without relaxing script policy. Fixed P2 packaged model origin and all asset/download paths with separate credential-free bounded native transport/cancellation. Closed filename/MIME parity via immutable bundle JSON-serving contract and corrupt model hash regression. Retained iOS15 HTTP, guarded only passkeys16, corrected native harness actor context. Gitleaks exceptions bind exact rule+commit+path+full header declaration with negative detection regressions; detector/history unchanged. Synthetic fixture model evidence binds exact source/model and production verifier unchanged. Parent final210tests and production app/account browsers passed.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-APPLICATION-source-v4.json",
+    "docs/project/artifacts/KUFR-APPLICATION-runtime-v3.json",
+    "kufr/docs/application-verification.md"
+  ],
+  "supersedes": [
+    "KUFR-APPLICATION-review-v3"
+  ],
+  "supersedesReason": "Resolve reviewed production worklet CSP/native public model integration and CI fixture failures on exact new source. Prior immutable results retain their original scope; backend digest is unchanged. No production or hardware action."
+}
