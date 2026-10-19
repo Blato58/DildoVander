@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-APPLICATION-identity-v6",
+  "observedAtUtc": "2026-10-19T05:05:15.563810+00:00",
+  "kind": "integration",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "IDENTITY",
+      "criterionRevision": 2,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "applicationArtifactDigest": "e7b13293f289dee99c6f85810300fa523bdb368e851af5702fe93014df5b7af0",
+    "backendArtifactDigest": "28ad047b485de7aa57e5957de4a27428e4876fb577fd310ce0fc7ea70dd2b97c"
+  },
+  "method": "Fresh parent real HTTPS account browser fixture against finaldist and the same real backend binary; optional accountRequest signal/browser/native regression tests. Full backend build/default/identity/twin/twin-media proof transfers through exact unchanged backend digest28ad047b485de7aa57e5957de4a27428e4876fb577fd310ce0fc7ea70dd2b97c from source-v6.",
+  "environment": "Windows 11; Node24.21.0, Chrome Playwright, .NET10, MSVC genuine portable C++ twin; isolated loopback and temporary stores.",
+  "limitations": [
+    "No production deployment, provider call, credential rotation, firmware flashing or real actuator execution.",
+    "Virtual WebAuthn and native bridge fixtures are synthetic; portable C++ is genuine software integration, not signed iPhone or physical BLE/audio/assembly proof.",
+    "Canonical source snapshot normalizes UTF-8 text to LF and retains binary bytes. Compiled artifacts and platform builds have their own evidence."
+  ],
+  "observation": "Fresh HTTPS owner/passkey/invitation/Viewer/logout/signin browser PASS. Optional AbortSignal propagates browserfetch and guards native completion beforelate401; no newrequest onpreabort; no claim ofnative request cancellation. Prior full backend/currentWSS authorization and6revocation proofs retain their actual source-v6 execution; exact backend source records/digest unchanged in source-v7.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-APPLICATION-source-v7.json",
+    "docs/project/artifacts/KUFR-APPLICATION-runtime-v5.json",
+    "kufr/docs/application-verification.md"
+  ],
+  "supersedes": [
+    "KUFR-APPLICATION-identity-v5"
+  ],
+  "supersedesReason": "Fix PR218 P2 account-loss retention plus sibling observation/recording issue. New source-v7 and current validation bind changed frontend/media only; backend source digest remains exactly unchanged from source-v6."
+}

@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-APPLICATION-releases-v6",
+  "observedAtUtc": "2026-10-19T05:05:15.563810+00:00",
+  "kind": "integration",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "RELEASES",
+      "criterionRevision": 2,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "applicationArtifactDigest": "e7b13293f289dee99c6f85810300fa523bdb368e851af5702fe93014df5b7af0",
+    "releaseArtifactDigest": "2736a0a37c114001e5d5fe2a9c18a1c42a7e5fdbc2339a98cd693ebc795e62c1"
+  },
+  "method": "Fresh npmtest/build, actualcompiled47file site-input assembly, design/DV10compiledCSP, strictproductionmedia and maintainedfile:// browser; focused model/import/cancellation tests. Prior deployment/route/CI/model proof transfers only through explicitly unchanged per-file source-v6/v7 records; changed release sharedmedia controller is covered by fresh39headless tests.",
+  "environment": "Windows 11; Node24.21.0, Chrome Playwright, .NET10, MSVC genuine portable C++ twin; isolated loopback and temporary stores.",
+  "limitations": [
+    "No production deployment, provider call, credential rotation, firmware flashing or real actuator execution.",
+    "Virtual WebAuthn and native bridge fixtures are synthetic; portable C++ is genuine software integration, not signed iPhone or physical BLE/audio/assembly proof.",
+    "Canonical source snapshot normalizes UTF-8 text to LF and retains binary bytes. Compiled artifacts and platform builds have their own evidence.",
+    "Windows skips POSIX atomic symlinks; actual nginx/TLS/VPS and first schema1->2 cutover remain deployment checks. CAD toolchain unavailable locally; prior PR39197261673 all CI passed for pre-integration1fa; final merged source requires new Linux CAD/native CI."
+  ],
+  "observation": "PASS independent production appbuild/noCAD; actual47filedist packaging;91Node+160Vue;39headlessmedia; productionstrictCSP media2PCM+1JPEG+drain/0errors; offlinefile://desktop/mobile0network/0errors; design/compiledclaimCSP. Source-v7 release component differs only in twin_media_controller.js+test_twin_media.cjs;37deploy/selector/workflow/model/source proof from source-v6 remains dated there. CADcache/trust/activation/proxy/scanner implementations unchanged. Full currentHEAD secret/CI checks remain finalPR gates.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-APPLICATION-source-v7.json",
+    "docs/project/artifacts/KUFR-APPLICATION-runtime-v5.json",
+    "kufr/docs/application-verification.md"
+  ],
+  "supersedes": [
+    "KUFR-APPLICATION-releases-v5"
+  ],
+  "supersedesReason": "Fix PR218 P2 account-loss retention plus sibling observation/recording issue. New source-v7 and current validation bind changed frontend/media only; backend source digest remains exactly unchanged from source-v6."
+}

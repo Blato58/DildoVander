@@ -67,7 +67,7 @@ function mounted(options={}) {
   context.window=context;require('./ui_test_runtime.cjs')(context);for(const file of ['./twin_media_core.js','./twin_media_controller.js','./twin_media.js']) vm.runInNewContext(fs.readFileSync(require.resolve(file),'utf8'),context);
   const transport={request:async(id,path,options={})=>{
     const request={id,path,...options};requests.push(request);
-    if(pendingRequest?.path===path){const pending=pendingRequest;pendingRequest=null;await pending.promise;}
+    if(pendingRequest?.path===path){const pending=pendingRequest;pendingRequest=null;const value=await pending.promise;if(value!==undefined)return value;}
     if(path==='/settings')return configuration;
     if(path==='/media/start')return {sessionId:SESSION,bootId:BOOT,epoch:'9007199254740993',inputEpoch:'0',outputEpoch:'0',phase:'starting',active:true};
     if(path==='/media/state')return currentState;
@@ -416,14 +416,49 @@ test('native photo timeout closes preview and rejects late old-epoch photo witho
 
 for(const error of ['media_failed','media_boot_changed'])test(`failed native state ${error} closes HAL without awaiting an output frame or physical Stop`,async()=>{
   const app=mounted();await app.activate();await app.get('start').onclick();await app.flush();
+  await app.api.handle(output('dialogue','1',{text:'private visitor'}));
   app.setMediaState({...output('failed'),active:false,error,inputEnabled:false});
   const outputs=app.requests.filter(item=>item.path==='/media/output').length;
   for(let i=0;i<9;i++)await app.poll();
   assert.equal(app.api.state().actor,null);assert.equal(app.streams[0].getTracks()[0].stopped,true);
-  assert.equal(app.contexts[0].state,'closed');assert.equal(app.get('error').textContent,error);assert.equal(app.get('mic').disabled,false);
+  assert.equal(app.contexts[0].state,'closed');assert.equal(app.get('error').textContent,error);assert.equal(app.get('mic').disabled,true);
+  assert.equal(app.get('dialogue').children.length,0);
   assert.equal(app.requests.filter(item=>item.path==='/media/output').length,outputs+8);
   assert.equal(app.requests.some(item=>item.path==='/media/cancel'||item.path==='/commands'),false);
-  await app.get('speaker').onclick();await app.get('mic').onclick();assert.equal(app.get('start').disabled,false);
+  await app.get('reload').onclick();await app.get('speaker').onclick();await app.get('mic').onclick();assert.equal(app.get('start').disabled,false);
+});
+
+test('actual failed media poll clears private dialogue, preview and configuration after grant revocation',async()=>{
+  const app=mounted();await app.activate();const finish=app.hold('/media/output');await app.get('start').onclick();await app.flush();
+  await app.api.handle(output('dialogue','1',{text:'private visitor'}));
+  await app.api.handle(output('photo_request','2'));await app.get('camera').onclick();await app.get('capture').onclick();
+  assert.equal(app.get('dialogue').children.length,1);assert.equal(app.get('preview').hidden,false);
+  finish.reject(Object.assign(new Error('permission revoked'),{status:403}));await app.flush();
+  assert.equal(app.get('dialogue').children.length,0);assert.equal(app.get('preview').hidden,true);assert.equal(app.get('engine').disabled,true);
+  assert.equal(app.api.state().actor,null);assert.equal(app.api.state().captureBytes,0);
+  for(const stream of app.streams)assert.equal(stream.getTracks().every(track=>track.stopped),true);
+  const requests=app.requests.length;app.worklets[0].port.onmessage({data:new Float32Array(4800)});await app.flush();
+  assert.equal(app.requests.length,requests);assert.equal(app.requests.some(request=>request.path==='/commands'),false);
+});
+test('private invalidation fences an old delayed microphone upload and cannot erase the next source dialogue',async()=>{
+  const app=mounted();await app.activate();await app.get('start').onclick();await app.flush();await app.api.handle(output('listening'));
+  const finish=app.hold('/media/input');app.worklets[0].port.onmessage({data:new Float32Array(4800)});await app.flush();
+  await app.api.invalidate('account changed');app.api.sync({...source,instanceId:'sim-other'});await app.flush();
+  await app.get('speaker').onclick();await app.get('mic').onclick();await app.get('start').onclick();await app.flush();
+  await app.api.handle(output('dialogue','1',{text:'new source private visitor'}));
+  finish.reject(Object.assign(new Error('old account expired'),{status:401}));await app.flush();
+  assert.ok(app.api.state().actor);assert.equal(app.get('dialogue').children[0].textContent,'new source private visitor');
+  assert.equal(app.requests.filter(request=>request.path==='/media/cancel'&&request.id==='sim-other').length,0);app.api.dispose();
+});
+test('a delayed private media poll cannot publish old visitor dialogue after ownership invalidation',async()=>{
+  const app=mounted();await app.activate();const finish=app.hold('/media/output');await app.get('start').onclick();await app.flush();
+  await app.api.handle(output('dialogue','1',{text:'old visitor before switch'}));
+  await app.api.invalidate('account changed');assert.equal(app.get('dialogue').children.length,0);
+  app.api.sync({...source,instanceId:'sim-other'});await app.flush();await app.get('speaker').onclick();await app.get('mic').onclick();await app.get('start').onclick();await app.flush();
+  await app.api.handle(output('dialogue','1',{text:'new visitor'}));
+  finish(output('dialogue','2',{text:'late old visitor'}));await app.flush();
+  assert.equal(app.get('dialogue').children.length,1);assert.equal(app.get('dialogue').children[0].textContent,'new visitor');
+  assert.ok(app.api.state().actor);app.api.dispose();
 });
 
 test('old source failed state HTTP completion cannot close a new media actor',async()=>{

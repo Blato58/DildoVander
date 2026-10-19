@@ -1,6 +1,7 @@
 import { ref, readonly } from 'vue';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { isTwinAccountPath } from './accountPaths';
+import { throwIfAborted } from '../../application/cancellation.mjs';
 
 export interface Account { id: string; displayName: string; roles: string[] }
 export interface ResourceGrant { id: string; userId: string; resourceType: string; resourceId: string; permission: string }
@@ -45,7 +46,7 @@ export async function accountTransport(path: string, init: RequestInit = {}): Pr
   const eveningPath = path === '/v1/evenings' && ['GET', 'POST'].includes(init.method ?? 'GET')
     || /^\/v1\/evenings\/[0-9a-f-]{36}\/active$/i.test(path) && init.method === 'PUT';
   if (!path.startsWith('/app/v1/') && !isTwinAccountPath(path) && !eveningPath) throw new Error('Neplatná cesta účtu.');
-  init.signal?.throwIfAborted();
+  throwIfAborted(init.signal);
   const method = init.method ?? 'GET';
   const headers = new Headers(init.headers);
   headers.set('Accept', 'application/json');
@@ -65,15 +66,16 @@ export async function accountTransport(path: string, init: RequestInit = {}): Pr
   const encoded = bytes ? btoa(Array.from(bytes, byte => String.fromCharCode(byte)).join('')) : undefined;
   const response = await nativeIdentity.accountTransport({ path, method, headers: Object.fromEntries(headers), bodyBase64: encoded });
   requireCurrentAuthentication(generation);
-  init.signal?.throwIfAborted();
+  throwIfAborted(init.signal);
   const archiveAsset = /^\/app\/v1\/archive\/associations\/[0-9a-f-]{36}\/assets\/[0-9a-f-]{36}$/i.test(path);
   if (response.bodyBase64.length > (archiveAsset ? 44739244 : 1398104)) throw new Error('Odpověď serveru je příliš velká.');
   const body = Uint8Array.from(atob(response.bodyBase64), char => char.charCodeAt(0));
   return new Response([204, 205, 304].includes(response.status) ? null : body, { status: response.status, headers: response.headers });
 }
 
-export async function accountRequest<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
+export async function accountRequest<T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
   const generation = authGeneration;
+  throwIfAborted(signal);
   if (!path.startsWith('/app/v1/') && !isTwinAccountPath(path)) throw new Error('Neplatná cesta účtu.');
   const serialized = body === undefined ? undefined : JSON.stringify(body);
   const sensitive = method !== 'GET' && path.startsWith('/app/v1/admin/')
@@ -88,13 +90,16 @@ export async function accountRequest<T>(path: string, method = 'GET', body?: unk
     text = response.body;
   } else {
     const response = await fetch(path, {
-      method, credentials: 'same-origin', cache: 'no-store',
+      method, credentials: 'same-origin', cache: 'no-store', signal,
       headers: { Accept: 'application/json', ...(serialized ? { 'Content-Type': 'application/json' } : {}),
         ...(method !== 'GET' ? { 'X-DV-CSRF': csrfToken } : {}), ...(confirmed ? { 'X-DV-Confirm': 'yes' } : {}) }, body: serialized,
     });
     status = response.status;
     text = await response.text();
   }
+  // Native requests cannot cancel an in-flight bridge call. Ignore its result
+  // after cancellation, including a late 401 that would otherwise clear identity.
+  throwIfAborted(signal);
   let value: unknown;
   try { value = text ? JSON.parse(text) : undefined; } catch { throw new Error('Server nevrátil odpověď účtu.'); }
   if (status < 200 || status >= 300) {

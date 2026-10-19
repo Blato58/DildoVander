@@ -114,7 +114,7 @@
         catch { /* Local capture/playback already ended; server epochs/deadlines remain authoritative. */ }
       }
     }
-    function fail(error) { failure=error?.message || 'Média selhala.'; void cancel('Média selhala a lokálně se zastavila.'); }
+    function fail(error) { dialogue=[]; configuration=null; failure=error?.message || 'Média selhala.'; void cancel('Média selhala a lokálně se zastavila.'); }
     async function loadSettings() {
       if (!control()) return;
       const own=generation, id=context.instanceId;
@@ -208,6 +208,7 @@
       if (['completed','failed','closed'].includes(output.kind)) {
         const message=output.kind==='failed' ? output.error || 'Nativní workflow selhal.' : 'Nativní workflow skončil.';
         // Native owns terminal admission/presentation. A normal end is not Stop.
+        if (output.kind==='failed') { dialogue=[]; configuration=null; }
         localStop(); notice=message;
       }
       render();
@@ -241,7 +242,7 @@
             if (current.phase==='failed' || !current.active && current.error) {
               // Failed HTTP actors may have no remaining HAL frames. Preserve
               // normal completed FIFO playback, but close local failed media now.
-              localStop(); failure=current.error || 'Nativní workflow selhal.';
+              dialogue=[]; configuration=null; localStop(); failure=current.error || 'Nativní workflow selhal.';
               notice='Nativní média selhala; lokální zařízení zastavena.'; render(); return;
             }
             if (decimal(current.outputEpoch)>decimal(actor.outputEpoch)) {
@@ -465,7 +466,7 @@
         }
         render();
       },
-      invalidate(reason) { sourceKey=''; return cancel(reason); },
+      invalidate(reason) { sourceKey=''; dialogue=[]; configuration=null; return cancel(reason); },
       state:()=>({actor:actor?{...actor}:null,mic:!!mic,speaker:speakerReady,camera:!!camera,captureBytes:queue.bytes+inFlightBytes,queuedOutputBytes,pendingStart,generation}),
       capture, handle
     };

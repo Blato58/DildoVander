@@ -1,5 +1,6 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { boundedBytes, MAX_MANIFEST_BYTES, MAX_MODEL_BYTES, safeAssetPath } from './model-bundle.mjs';
+import { throwIfAborted } from '../../application/cancellation.mjs';
 
 export interface PublicResourceBridge {
   publicOrigin(): Promise<{ origin: string }>;
@@ -9,6 +10,15 @@ export interface PublicResourceBridge {
 const bridge = registerPlugin<PublicResourceBridge>('KufrIdentity');
 const indexPath = '/downloads/index.json';
 let nativeQueue: Promise<unknown> = Promise.resolve();
+
+function publicRequestId(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
 
 export function validatePublicOrigin(value: string): string {
   const url = new URL(value);
@@ -29,10 +39,10 @@ export function nativePublicReader(native: PublicResourceBridge, origin: string)
   origin = validatePublicOrigin(origin);
   return async (url: string | URL, maxBytes: number, signal: AbortSignal): Promise<Uint8Array> => {
     const path = publicResourcePath(url, origin, maxBytes);
-    signal.throwIfAborted();
+    throwIfAborted(signal);
     const operation = nativeQueue.then(async () => {
-      signal.throwIfAborted();
-      const requestId = crypto.randomUUID();
+      throwIfAborted(signal);
+      const requestId = publicRequestId();
       let cancelled: Promise<void> | undefined;
       let transfer: ReturnType<PublicResourceBridge['publicResource']> | undefined;
       let aborted!: (reason: unknown) => void;
@@ -45,10 +55,10 @@ export function nativePublicReader(native: PublicResourceBridge, origin: string)
       try {
         transfer = native.publicResource({ path, maxBytes, requestId });
         const response = await Promise.race([transfer, cancellation]);
-        signal.throwIfAborted();
+        throwIfAborted(signal);
         if (!Number.isInteger(response.status) || response.status < 200 || response.status > 599 || typeof response.bodyBase64 !== 'string' || response.bodyBase64.length > Math.ceil(maxBytes / 3) * 4) throw new Error('Veřejná odpověď překročila povolený formát nebo velikost.');
         const bytes = Uint8Array.from(atob(response.bodyBase64), char => char.charCodeAt(0));
-        signal.throwIfAborted();
+        throwIfAborted(signal);
         const headers = new Headers();
         for (const [name, value] of Object.entries(response.headers)) if (['content-type', 'content-length'].includes(name.toLowerCase())) headers.set(name, value);
         return boundedBytes(new Response(bytes, { status: response.status, headers }), maxBytes, signal);
@@ -59,10 +69,10 @@ export function nativePublicReader(native: PublicResourceBridge, origin: string)
   };
 }
 export async function publicResourceClient(signal: AbortSignal) {
-  signal.throwIfAborted();
+  throwIfAborted(signal);
   if (Capacitor.isNativePlatform()) {
     const capabilities = await bridge.publicOrigin();
-    signal.throwIfAborted();
+    throwIfAborted(signal);
     const origin = validatePublicOrigin(capabilities.origin);
     return { origin, read: nativePublicReader(bridge, origin) };
   }

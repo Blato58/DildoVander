@@ -15,6 +15,25 @@ beforeEach(() => { vi.clearAllMocks(); bridge.native = true; bridge.publicOrigin
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('native public Workshop resources', () => {
+  it('loads with legacy cancellation and securely generates request IDs when randomUUID is unavailable', async () => {
+    const nativeCrypto = crypto;
+    const random = vi.fn((bytes: Uint8Array<ArrayBuffer>) => nativeCrypto.getRandomValues(bytes));
+    vi.stubGlobal('crypto', { getRandomValues: random });
+    const controller = new AbortController();
+    Object.defineProperties(controller.signal, { throwIfAborted: { value: undefined }, reason: { value: undefined } });
+    bridge.publicResource.mockResolvedValue(response('{}'));
+    const client = await publicResourceClient(controller.signal);
+    await client.read(origin + '/models/active.json', 100, controller.signal);
+    await client.read(origin + '/models/active.json', 100, controller.signal);
+    const ids = bridge.publicResource.mock.calls.map(([request]) => request.requestId);
+    expect(random).toHaveBeenCalledTimes(2);
+    expect(ids[0]).toMatch(/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);
+    expect(ids[1]).not.toBe(ids[0]);
+    controller.abort();
+    await expect(client.read(origin + '/models/active.json', 100, controller.signal)).rejects.toMatchObject({ name: 'AbortError' });
+    expect(bridge.publicResource).toHaveBeenCalledTimes(2);
+  });
+
   it('loads active manifest and every hashed asset from the configured HTTPS origin without account calls or browser fetch', async () => {
     vi.stubGlobal('fetch', vi.fn());
     const manifest = structuredClone(fixtureManifest); manifest.provenance.kind = 'cad-export';

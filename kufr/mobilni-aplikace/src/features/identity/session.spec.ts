@@ -8,6 +8,35 @@ beforeEach(() => { vi.resetModules(); bridge.native = false; bridge.request.mock
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('authentication generation fences', () => {
+  it.each([false, true])('rejects a cancelled observer response without clearing the current account (native=%s)', async native => {
+    bridge.native = native;
+    const identity = await import('./session');
+    const late = deferred<any>();
+    if (native) bridge.request.mockResolvedValueOnce({ status: 200, body: JSON.stringify(user('current')) });
+    else request.mockResolvedValueOnce(Response.json(user('current')));
+    await identity.refreshIdentity();
+    if (native) bridge.request.mockReturnValueOnce(late.promise);
+    else request.mockReturnValueOnce(late.promise);
+    const controller = new AbortController();
+    Object.defineProperties(controller.signal, { throwIfAborted: { value: undefined }, reason: { value: undefined } });
+    const pending = identity.accountRequest('/v1/twin/instances', 'GET', undefined, controller.signal);
+    const rejected = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    if (!native) expect(request.mock.calls.at(-1)![1].signal).toBe(controller.signal);
+    controller.abort();
+    const denied = { code: 'session_revoked' };
+    late.resolve(native ? { status: 401, body: JSON.stringify(denied) } : Response.json(denied, { status: 401 }));
+    await rejected;
+    expect(identity.account.value?.id).toBe('current');
+  });
+
+  it('does not send an observer request whose signal is already aborted', async () => {
+    const identity = await import('./session');
+    const controller = new AbortController(); controller.abort();
+    await expect(identity.accountRequest('/v1/twin/instances', 'GET', undefined, controller.signal))
+      .rejects.toMatchObject({ name: 'AbortError' });
+    expect(request).not.toHaveBeenCalled(); expect(bridge.request).not.toHaveBeenCalled();
+  });
+
   it('clears immediately on logout and ignores a noncooperative older session response and CSRF token', async () => {
     const identity = await import('./session'); const old = deferred<Response>(); const deletion = deferred<Response>();
     let reads = 0;

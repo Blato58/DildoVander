@@ -3,10 +3,11 @@ import { computed, markRaw, onBeforeUnmount, onMounted, ref, shallowRef, watch }
 import AwButton from '../../components/AwButton.vue';
 import AwField from '../../components/AwField.vue';
 import AwNotice from '../../components/AwNotice.vue';
-import { accountTransport, refreshIdentity } from '../identity/session';
+import { account, accountTransport, refreshIdentity } from '../identity/session';
 import { twin } from './observation.mjs';
 import { mediaController } from './media.mjs';
 import { engineLabels, parseEngineCapabilities } from '../debug/conversationCapabilities';
+import { throwIfAborted } from '../../application/cancellation.mjs';
 
 export interface MediaContext {
   active: boolean; replay: boolean; role: string; instanceId: string;
@@ -28,35 +29,67 @@ const speeds = computed<number[]>(() => {
   return speed ? [...new Set<number>(speed.supported ? [speed.min, speed.default, speed.max] : [speed.default])].sort((a, b) => a - b) : [Number(state.value?.settings.speed || 1)];
 });
 let generation = 0;
-const key = () => JSON.stringify([props.context.instanceId, props.context.bootId, props.context.mode, props.context.role, props.context.replay, props.context.profile]);
+let controllerEpoch = 0, disconnectedSinceAccountChange = false;
+const reconnectRequired = ref(false);
+const key = () => JSON.stringify([account.value?.id, props.context.instanceId, props.context.bootId, props.context.mode, props.context.role, props.context.replay, props.context.profile]);
 
-onMounted(() => {
+function disposeController() {
+  ++controllerEpoch;
+  controller.value?.dispose(); controller.value = null; state.value = null;
+}
+function createController() {
+  const owner = account.value?.id;
+  if (!owner) return;
+  const epoch = ++controllerEpoch;
+  const current = () => epoch === controllerEpoch && owner === account.value?.id;
   controller.value = markRaw(mediaController.createMediaController({
     video: () => video.value,
     parseEngines: parseEngineCapabilities,
-    onChange: (value: any) => { state.value = markRaw(value); },
+    onChange: (value: any) => { if (current()) state.value = markRaw(value); },
     transport: {
       async request(instanceId: string, suffix: string, options: RequestInit = {}) {
+        const own = generation;
+        const cleanup = suffix === '/media/cancel' && options.method === 'POST';
+        const check = () => {
+          throwIfAborted(options.signal);
+          if (owner !== account.value?.id || !cleanup && (!current() || own !== generation)) throw new DOMException('Kontext médií se změnil.', 'AbortError');
+        };
+        check();
         const path = `/v1/twin/instances/${encodeURIComponent(instanceId)}${suffix}`;
         const response = await accountTransport(path, options);
+        check();
         if (!response.ok) throw await twin.httpFailure(response, path);
         if (response.status === 204) return null;
         const value = await response.json();
+        check();
         if (suffix !== '/settings') return value;
         const capabilityPath = `/app/v1/workshop/${encodeURIComponent(instanceId)}/engines`;
         const capabilities = await accountTransport(capabilityPath, { signal: options.signal });
+        check();
         if (!capabilities.ok) throw await twin.httpFailure(capabilities, capabilityPath);
-        return { ...value, engines: await capabilities.json() };
+        const engines = await capabilities.json(); check();
+        return { ...value, engines };
       },
     },
   }));
   controller.value.sync({ ...props.context });
-});
+}
+onMounted(createController);
+watch(() => account.value?.id, () => {
+  ++generation; reconnectRequired.value = true; disconnectedSinceAccountChange = !props.context.active;
+  failure.value = ''; disposeController();
+}, { flush: 'sync' });
 watch(() => JSON.stringify(props.context), () => {
-  ++generation; failure.value = ''; controller.value?.sync({ ...props.context });
+  ++generation; failure.value = '';
+  if (reconnectRequired.value) {
+    if (!props.context.active) disconnectedSinceAccountChange = true;
+    if (!disconnectedSinceAccountChange || !props.context.active || !account.value) return;
+    reconnectRequired.value = false;
+  }
+  if (!controller.value) createController(); else controller.value.sync({ ...props.context });
 });
 async function action(name: string) {
-  if (!controller.value) return;
+  if (!controller.value || !account.value) return;
   const own = generation, target = key(); failure.value = '';
   try {
     if (['start', 'save'].includes(name)) await refreshIdentity();
@@ -69,11 +102,12 @@ function selection(name: string, event: Event) {
   controller.value?.selection(name, input.type === 'checkbox' ? input.checked : input.value);
 }
 function invalidate(reason = 'Stop simulace: lokální média zastavena.') { return controller.value?.invalidate(reason); }
-onBeforeUnmount(() => { ++generation; controller.value?.dispose(); controller.value = null; state.value = null; });
+onBeforeUnmount(() => { ++generation; disposeController(); });
 defineExpose({ invalidate });
 </script>
 
 <template>
+  <AwNotice v-if="reconnectRequired" tone="warning">Účet se změnil nebo přístup skončil. Soukromá média byla vymazána; načtěte dostupné zdroje a znovu výslovně připojte pozorování.</AwNotice>
   <section v-if="state?.visible" class="workshop-media" aria-labelledby="workshop-media-title">
     <h3 id="workshop-media-title">Rozhovor v integrační simulaci</h3>
     <p>{{ context.instanceId }} · {{ context.profile }}. Mikrofon, reproduktor i kamera se aktivují samostatně.</p>

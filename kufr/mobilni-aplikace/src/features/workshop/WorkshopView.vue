@@ -10,7 +10,7 @@ import EffectPreview from './EffectPreview.vue';
 import ModelLabels from './ModelLabels.vue';
 import ModelDownloads from './ModelDownloads.vue';
 import type { ViewportOverlay } from './workshop-types';
-import { accountRequest } from '../identity/session';
+import { account, accountRequest } from '../identity/session';
 import { usePreferences } from '../../application/preferences';
 import { createViewerEngine, defaultSceneState, matchesPart } from './engine.mjs';
 import { loadBundle, loadPublishedBundle, loadFileBundle } from './model-bundle.mjs';
@@ -129,6 +129,7 @@ const wantedLiveSource = ref(''), sourcesListed = ref(false);
 const connecting = ref(false), connected = ref(false), runtimeError = ref(''), runtimeStatus = ref('Odpojeno');
 const currentEnvelope = shallowRef<any>(null), receivedAt = ref(''), clock = ref(0), observation = shallowRef<any>(null);
 const recording = shallowRef<any[]>([]), recordingDrops = ref(0), isReplay = ref(false), replayIndex = ref(0), playing = ref(false), speed = ref(1);
+const recordingOrigin = ref<'server' | 'local' | null>(null);
 let observerAbort: AbortController | null = null, observerGeneration = 0, observerTimer: ReturnType<typeof setTimeout> | undefined;
 let projection: any = null, freshnessTimer: ReturnType<typeof setInterval> | undefined, replayTimer: ReturnType<typeof setInterval> | undefined;
 let acceptedAt = 0, recordingBytes = 0;
@@ -141,17 +142,24 @@ const mediaContext = computed(() => ({
 }));
 function resetObservation() { currentEnvelope.value = null; observation.value = null; receivedAt.value = ''; state.angles = Array(6).fill(0); state.uncertain = []; state.ledColors = {}; state.outputs = {}; }
 function stopReplay() { playing.value = false; if (replayTimer) clearInterval(replayTimer); replayTimer = undefined; }
-function disconnect() {
+function disconnect(options: { keepSources?: boolean; preserveLocalReplay?: boolean } = {}) {
+  const localReplay = options.preserveLocalReplay && recordingOrigin.value === 'local' && isReplay.value;
   void mediaPanel.value?.invalidate('Zdroj se mění; lokální média zastavena.');
   ++observerGeneration; observerAbort?.abort(); observerAbort = null;
   if (observerTimer) clearTimeout(observerTimer); observerTimer = undefined;
   if (freshnessTimer) clearInterval(freshnessTimer); freshnessTimer = undefined;
   connected.value = false; connecting.value = false; stopReplay();
-  isReplay.value = false; runtimeStatus.value = 'Odpojeno'; resetObservation();
+  projection = null;
+  if (!options.keepSources) { sources.value = []; sourceId.value = ''; sourcesListed.value = false; }
+  if (!localReplay) { recording.value = []; recordingBytes = 0; recordingDrops.value = 0; recordingOrigin.value = null; replayIndex.value = 0; isReplay.value = false; resetObservation(); }
+  runtimeStatus.value = 'Odpojeno';
 }
+function clearAuthorizedObservation(reason: string) { disconnect({ preserveLocalReplay: true }); runtimeError.value = reason; }
+const authorizationFailure = (cause: unknown) => [401, 403].includes((cause as { status?: number })?.status ?? 0);
+watch(() => account.value?.id, () => { if (!props.offline) clearAuthorizedObservation('Účet se změnil nebo přístup skončil. Načtěte dostupné zdroje znovu.'); }, { flush: 'sync' });
 function changeSource() { disconnect(); sourceId.value = ''; sources.value = []; sourcesListed.value = false; runtimeError.value = ''; }
 async function getObserver(path: string, signal: AbortSignal) {
-  if (!observerBase.value) return accountRequest<any>(path);
+  if (!observerBase.value) return accountRequest<any>(path, 'GET', undefined, signal);
   const base = validateObserverBase(observerBase.value || location.origin);
   const response = await fetch(base + path, { method: 'GET', credentials: 'include', cache: 'no-store', signal, redirect: 'error' });
   if (!response.ok) throw await twin.httpFailure(response, path);
@@ -169,7 +177,7 @@ async function listSources() {
     sourcesListed.value = true;
     sourceId.value = sourceMode.value === 'live' && sources.value.some(source => source.instanceId === wantedLiveSource.value) ? wantedLiveSource.value : '';
     runtimeStatus.value = sourceId.value ? 'Požadovaný živý zdroj je vybrán. Pozorování spustíte tlačítkem Pozorovat.' : sources.value.length ? 'Vyberte konkrétní zdroj.' : 'Žádný dostupný zdroj v tomto režimu.';
-  } catch (cause) { if (generation === observerGeneration) runtimeError.value = message(cause); }
+  } catch (cause) { if (generation === observerGeneration) { if (authorizationFailure(cause)) clearAuthorizedObservation(message(cause)); else runtimeError.value = message(cause); } }
   finally { if (generation === observerGeneration) connecting.value = false; }
 }
 function drawObservation() {
@@ -180,12 +188,12 @@ function drawObservation() {
   runtimeStatus.value = observation.value.status;
 }
 async function connectObserver() {
-  const selectedId = sourceId.value; disconnect(); sourceId.value = selectedId;
+  const selectedId = sourceId.value; disconnect({ keepSources: true }); sourceId.value = selectedId;
   if (!selectedId || !bundle.value || props.offline) return;
   runtimeError.value = ''; observerAbort = new AbortController(); const generation = observerGeneration;
   const signal = observerAbort.signal; connecting.value = true;
   projection = new twin.Projection(bundle.value.model.twinManifest); projection.select(selectedId);
-  recording.value = []; recordingBytes = 0; recordingDrops.value = 0;
+  recording.value = []; recordingBytes = 0; recordingDrops.value = 0; recordingOrigin.value = 'server';
   const poll = async () => {
     try {
       const value = await getObserver('/v1/twin/instances/' + encodeURIComponent(selectedId), signal);
@@ -199,6 +207,7 @@ async function connectObserver() {
       drawObservation();
     } catch (cause) {
       if (generation !== observerGeneration) return;
+      if (authorizationFailure(cause)) { clearAuthorizedObservation(message(cause)); return; }
       runtimeError.value = message(cause); runtimeStatus.value = 'Spojení nedostupné; poslední hodnoty jsou historické.'; connecting.value = false;
     }
     if (generation === observerGeneration) observerTimer = setTimeout(poll, 750);
@@ -218,8 +227,8 @@ async function importRecording(event: Event) {
     if (file.size > twin.MAX_BYTES) throw new Error('Záznam překročil 8 MiB.');
     const value = twin.parseRecording(await file.text());
     if (generation !== observerGeneration) return;
-    recording.value = markRaw(value.snapshots); isReplay.value = true; seek(0);
-  } catch (cause) { runtimeError.value = message(cause); }
+    recording.value = markRaw(value.snapshots); recordingOrigin.value = 'local'; isReplay.value = true; seek(0);
+  } catch (cause) { if (generation === observerGeneration) runtimeError.value = message(cause); }
   finally { (event.target as HTMLInputElement).value = ''; }
 }
 function seek(index: number) {
@@ -624,7 +633,7 @@ onBeforeUnmount(() => { ++loadGeneration; loadAbort?.abort(); disconnect(); stop
                 Načíst dostupné zdroje
               </AwButton>
               <AwField id="observer-source" label="Konkrétní zdroj">
-                <select id="observer-source" v-model="sourceId" class="aw-input" @change="disconnect">
+                <select id="observer-source" v-model="sourceId" class="aw-input" @change="disconnect({ keepSources: true })">
                   <option value="">
                     Vyberte zdroj
                   </option>
@@ -636,7 +645,7 @@ onBeforeUnmount(() => { ++loadGeneration; loadAbort?.abort(); disconnect(); stop
               <AwButton :disabled="!sourceId || connected" :busy="connecting" @click="connectObserver">
                 Pozorovat
               </AwButton>
-              <AwButton :disabled="!connected && !connecting" @click="disconnect">
+              <AwButton :disabled="!connected && !connecting" @click="disconnect()">
                 Odpojit
               </AwButton>
             </template>
