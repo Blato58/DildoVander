@@ -1,3 +1,4 @@
+using Kufr.Backend.Features.Show;
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
@@ -18,7 +19,8 @@ internal sealed partial class ConversationStore(
     EveningMemoryStore? eveningMemory = null,
     VoiceProviderRunner? voiceRunner = null,
     GptLiveOptions? liveOptions = null,
-    TwinFakeInputPolicy? twinFakeInputs = null)
+    TwinFakeInputPolicy? twinFakeInputs = null,
+    ShowCoordinator? show = null)
 {
     private readonly Lock gate = new();
     private CharacterPolicy characterPolicy = liveOptions?.Character ?? new();
@@ -63,9 +65,14 @@ internal sealed partial class ConversationStore(
             var previous = journal.FindExistingCreate(deviceId, key, bodyHash);
             if (previous is not null)
             {
-                return previous.Conflict
-                    ? new CreateResult(409, null)
-                    : new CreateResult(201, previous.Response);
+                if (previous.Conflict) { return new CreateResult(409, null); }
+                if (eveningMemory is not null
+                    && eveningMemory.ReadCapturedShowEvening(deviceId, previous.Response!.ConversationId) is null
+                    && eveningMemory.TryAdmitShowVisit(deviceId, () => previous.Response!.ConversationId) is null)
+                {
+                    return new CreateResult(409, null);
+                }
+                return new CreateResult(201, previous.Response);
             }
 
             if (conversations.Values.Any(entry => entry.DeviceId == deviceId))
@@ -73,8 +80,20 @@ internal sealed partial class ConversationStore(
                 return new CreateResult(409, null);
             }
 
-            var reservation = journal.ReserveCreate(deviceId, key, bodyHash);
-            if (reservation.Conflict)
+            JournalCreateReservation? reservation = null;
+            if (eveningMemory is null)
+            {
+                reservation = journal.ReserveCreate(deviceId, key, bodyHash);
+            }
+            else if (eveningMemory.TryAdmitShowVisit(deviceId, () =>
+            {
+                reservation = journal.ReserveCreate(deviceId, key, bodyHash);
+                return reservation.Conflict ? null : reservation.Response?.ConversationId;
+            }) is null)
+            {
+                return new CreateResult(409, null);
+            }
+            if (reservation!.Conflict)
             {
                 return new CreateResult(409, null);
             }
@@ -255,11 +274,15 @@ internal sealed partial class ConversationStore(
 
                 eveningMemory?.Append(deviceId, memory!.EveningId, operationId,
                     conversationId, request.Text, turnResult.Reply);
-                if (!journal.MarkSelectionCompleted(operationId, turnResult.Proposal, memory?.EveningId))
+                if (!journal.MarkSelectionCompleted(operationId, turnResult.Proposal,
+                    eveningMemory?.ReadCapturedShowEvening(deviceId, conversationId) ?? memory?.EveningId))
                 {
                     return new SubmitTurnResult(409, null, "operation_cancelled");
                 }
 
+                BindFinaleSnapshot(deviceId, operationId, turnResult.Proposal, conversation.LiveGeneration, request.DeviceRevision,
+                    conversation.LivePrompt.Version, null,
+                    eveningMemory?.ReadCapturedShowEvening(deviceId, conversationId) ?? memory?.EveningId);
                 operations.Add(operationId, operation);
                 RecordAcceptedTurn(conversation, request.ClientTurnId, now);
                 if (syntheticDialogue)
@@ -421,12 +444,16 @@ internal sealed partial class ConversationStore(
                         correlation,
                         new TurnResult(response.Reply, response.Decision, response.Reason, proposal),
                         null));
-                if (!journal.MarkSelectionCompleted(operationId, proposal, memory?.EveningId))
+                if (!journal.MarkSelectionCompleted(operationId, proposal,
+                    eveningMemory?.ReadCapturedShowEvening(correlation.DeviceId, correlation.ConversationId) ?? memory?.EveningId))
                 {
                     operations.Remove(operationId);
                     return;
                 }
 
+                BindFinaleSnapshot(correlation.DeviceId, operationId, proposal, conversation.LiveGeneration, correlation.DeviceRevision,
+                    conversation.LivePrompt.Version, null,
+                    eveningMemory?.ReadCapturedShowEvening(correlation.DeviceId, correlation.ConversationId) ?? memory?.EveningId);
                 if (response.Decision == "ask")
                 {
                     conversation.CompletedQuestions++;
@@ -772,9 +799,14 @@ internal sealed partial class ConversationStore(
     {
         lock (gate)
         {
+            var recordedOperation = journal.GetOperation(deviceId, operationId).Operation;
             var result = journal.CancelOperation(deviceId, operationId, key);
             if (result.Status == 204)
             {
+                if (recordedOperation is { Kind: "turn" })
+                {
+                    RecordVisitInterrupted(deviceId, recordedOperation.Correlation.ConversationId);
+                }
                 foreach (var conversation in conversations.Values.Where(entry => entry.ImageOperationId == operationId && !entry.ManualCostume))
                 {
                     conversation.Costume = null;
@@ -964,6 +996,12 @@ internal sealed partial class ConversationStore(
         }
         if (conversations.Remove(conversationId, out var conversation))
         {
+            // Normal/network cleanup after a valid proposal leaves physical
+            // outcome unknown. Only the trusted device may resolve that result.
+            if (!journal.HasPendingKeepsakeSelection(conversation.DeviceId, conversationId))
+            {
+                RecordVisitInterrupted(conversation.DeviceId, conversationId);
+            }
             conversation.History.Clear();
         }
         foreach (var paidCall in activePaidCalls.Values
@@ -985,6 +1023,15 @@ internal sealed partial class ConversationStore(
         {
             operations.Remove(operationId);
         }
+    }
+
+    private void RecordVisitInterrupted(string deviceId, string conversationId)
+    {
+        var captured = eveningMemory?.ReadCapturedShowEvening(deviceId, conversationId);
+        if (captured is null) { return; }
+        eveningMemory!.RecordShowEvent(new("visit-cancel:" + deviceId + ":" + conversationId,
+            ShowMemoryEventKind.VisitInterrupted, deviceId, captured, conversationId, 1,
+            "conversation_cancelled_or_expired", conversationId));
     }
 
     private void RemoveAudio(string audioId, bool expired, DateTimeOffset now)

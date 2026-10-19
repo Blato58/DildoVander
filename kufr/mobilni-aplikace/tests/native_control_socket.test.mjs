@@ -353,3 +353,92 @@ test('route is captured before listener registration and remains bound after BLE
   assert.deepEqual(Object.keys(native.connected[0]).sort(), ['connectionId', 'deviceId', 'host']);
   socket.close();
 });
+
+test('offline handoff requires native authenticated context, current lease and matched boot acknowledgement', async () => {
+  const native = bridge();
+  const connection = new ProtocolDeviceConnection(() => {}, {
+    source: 'native-device', deviceId: fixture.deviceId,
+    createSocket: () => new NativeControlSocket(native),
+  });
+  await settle(); native.emit('open');
+  const hello = JSON.parse(native.sent.at(-1).frame);
+  native.emit('frame', JSON.stringify({ protocolVersion: 1, type: 'welcome', requestMessageId: hello.messageId,
+    snapshot: { ...fixture, controlMode: 'standalone', controlLeaseId: null } }));
+  await assert.rejects(connection.requestOffline('offline_arm'), /ruční řízení/);
+  let completed = false;
+  const preflight = connection.requestOffline('offline_preflight').then(value => { completed = true; return value; });
+  await settle();
+  const sent = JSON.parse(native.sent.at(-1).frame);
+  const offline = { state: 'ready', armed: false, generation: 7, missing: [], readyMask: 63 };
+  native.emit('frame', JSON.stringify({ protocolVersion: 1, type: 'offline.ack', requestMessageId: randomUUID(), bootId: fixture.bootId, accepted: true, offline }));
+  await settle(); assert.equal(completed, false);
+  native.emit('frame', JSON.stringify({ protocolVersion: 1, type: 'offline.ack', requestMessageId: sent.messageId, bootId: fixture.bootId, accepted: true, offline }));
+  assert.equal((await preflight).generation, 7);
+  const leaseId = randomUUID();
+  native.emit('frame', JSON.stringify({ ...fixture, controlMode: 'manual', controlLeaseId: leaseId, eventSequence: fixture.eventSequence + 1 }));
+  const arm = connection.requestOffline('offline_arm');
+  await settle();
+  const armed = JSON.parse(native.sent.at(-1).frame);
+  assert.equal(armed.generation, 7); assert.equal(armed.expectedRevision, fixture.revision); assert.equal(armed.controlLeaseId, leaseId);
+  const rejected = assert.rejects(arm, /přerušena/);
+  connection.suspend(); await rejected;
+});
+
+test('unknown offline command is never replayed after timeout or reconnect', async () => {
+  const native = bridge();
+  const connection = new ProtocolDeviceConnection(() => {}, {
+    source: 'native-device', deviceId: fixture.deviceId,
+    createSocket: () => new NativeControlSocket(native),
+  });
+  await settle(); native.emit('open');
+  const hello = JSON.parse(native.sent.at(-1).frame);
+  native.emit('frame', JSON.stringify({ protocolVersion: 1, type: 'welcome', requestMessageId: hello.messageId,
+    snapshot: { ...fixture, controlMode: 'standalone', controlLeaseId: null } }));
+  const command = connection.requestOffline('offline_start', 2, undefined, { shortVariant: true });
+  const failure = assert.rejects(command, /není známý/);
+  await settle();
+  const start = JSON.parse(native.sent.at(-1).frame);
+  assert.equal(start.compartment, 2);
+  assert.equal(start.shortVariant, true);
+  const timeout = [...timers.values()].find(timer => timer.milliseconds === 4000);
+  timeout.callback(); await failure;
+  assert.equal(native.sent.map(value => JSON.parse(value.frame)).filter(value => value.type === 'offline_start').length, 1);
+  connection.suspend();
+});
+
+test('old socket close cannot invalidate a pending offline command on its replacement', async () => {
+  const sockets = [];
+  const makeSocket = () => {
+    const listeners = new Map();
+    const socket = { readyState: 1, sent: [],
+      addEventListener(type, callback) { listeners.set(type, callback); },
+      send(frame) { socket.sent.push(JSON.parse(frame)); },
+      close() { socket.readyState = 3; listeners.get('close')?.({}); },
+      emit(type, data) { listeners.get(type)?.(data); },
+    };
+    sockets.push(socket); return socket;
+  };
+  const connection = new ProtocolDeviceConnection(() => {}, {
+    source: 'native-device', deviceId: fixture.deviceId, createSocket: makeSocket,
+  });
+  const old = sockets[0]; old.emit('open', {});
+  old.emit('message', { data: JSON.stringify({ ...fixture, controlMode: 'standalone', controlLeaseId: null }) });
+  connection.suspend(); connection.connect();
+  const current = sockets[1]; current.emit('open', {});
+  current.emit('message', { data: JSON.stringify({ ...fixture, controlMode: 'standalone', controlLeaseId: null }) });
+  await assert.rejects(connection.requestOffline('quiet'), /výslovné/);
+  const quiet = connection.requestOffline('quiet', undefined, undefined, { enabled: false });
+  const command = current.sent.at(-1); assert.equal(command.enabled, false);
+  old.emit('close', {});
+  current.emit('message', { data: JSON.stringify({ protocolVersion: 1, type: 'offline.ack',
+    requestMessageId: command.messageId, bootId: fixture.bootId, accepted: true,
+    offline: { quiet: false, ambientEnabled: false, generation: 2 } }) });
+  assert.equal((await quiet).quiet, false);
+  const ambient = connection.requestOffline('offline_ambient', undefined, undefined, { enabled: true });
+  const ambientCommand = current.sent.at(-1); assert.equal(ambientCommand.enabled, true);
+  current.emit('message', { data: JSON.stringify({ protocolVersion: 1, type: 'offline.ack',
+    requestMessageId: ambientCommand.messageId, bootId: fixture.bootId, accepted: true,
+    offline: { quiet: false, ambientEnabled: true, generation: 2 } }) });
+  assert.equal((await ambient).ambientEnabled, true);
+  connection.suspend();
+});

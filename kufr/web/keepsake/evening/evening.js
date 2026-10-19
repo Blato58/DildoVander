@@ -1,3 +1,4 @@
+import { publicIdentity, renderWizardIdentity } from '/keepsake/identity.js';
 import { bindDialog, button as renderButton, element, emptyState, notice, statusBadge, wandCard } from '/design-system/ui.js';
 
 const $ = id => document.getElementById(id);
@@ -68,7 +69,8 @@ function projectItem(raw) {
     officialName: safeText(raw.officialName, 240), catalogId: safeText(raw.catalogId, 120),
     slot: Number.isInteger(raw.slot) && raw.slot >= 1 && raw.slot <= 6 ? raw.slot : null,
     createdAt: safeText(raw.createdAt, 40), synthetic: raw.synthetic === true,
-    story: { title: safeText(raw.story?.title, 240), text: safeText(raw.story?.text, 32000) }, assets
+    story: { title: safeText(raw.story?.title, 240), text: safeText(raw.story?.text, 32000) },
+    wizardIdentity: publicIdentity(raw.wizardIdentity), assets
   };
 }
 function assetPath(item, asset) {
@@ -114,6 +116,7 @@ function clearScope() {
   $('evening-list').replaceChildren(); listNodes.clear();
   for (const id of ['public-name', 'public-title', 'public-summary', 'public-story']) $(id).replaceChildren();
   delete $('public-story').dataset.content;
+  $('public-wizard-identity').replaceChildren();
   visible('public-edition', false); visible('evening-list-section', false); visible('load-more', false); visible('first-page', false);
 }
 async function renderArtwork(item) {
@@ -146,6 +149,7 @@ function renderSelection() {
   text('selected-label', latest && itemKey(selected) === itemKey(latest) ? 'Nejnovější připravená hůlka' : 'Vybraný příběh tohoto večera');
   text('public-catalog', selected.slot ? `Hůlka z přihrádky ${selected.slot}` : 'Hůlka z tohoto večera');
   text('public-name', selected.officialName || 'Název hůlky není potvrzený');
+  renderWizardIdentity($('public-wizard-identity'), selected.wizardIdentity);
   text('public-title', selected.story.title);
   text('public-summary', selected.story.text.split(/\n\s*\n/)[0]);
   text('public-provenance', selected.synthetic

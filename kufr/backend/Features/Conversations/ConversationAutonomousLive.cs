@@ -53,6 +53,8 @@ internal sealed partial class ConversationStore
     {
         var availability = LiveAvailability(call);
         var decision = outcome.Decision;
+        if (call.Context.LivePrompt is { Version: "dv01-adult-v1" } && show is not null
+            && !show.CanPublishCharacterFinale(call.Correlation.DeviceId, call.SessionGeneration)) { return null; }
         if (call.Context.LivePrompt is { Version: "dv01-adult-v1" } characterSnapshot
             && (characterSnapshot.CatalogVersion != call.Context.Request.CatalogVersion
                 || characterSnapshot.CatalogVersion != PartyWandCatalog.Version)) { return null; }
@@ -80,7 +82,16 @@ internal sealed partial class ConversationStore
             if (motif.Length > 0) eveningMemory.WriteMemory(access, new(Guid.NewGuid().ToString("D"), MemoryScope.EveningMotif,
                 MemoryKind.TopicUsed, motif, call.OperationId, ExpectedEpoch: epoch));
         }
-        if (!journal.MarkSelectionCompleted(call.OperationId, proposal, call.EveningId)) return null;
+        var capturedEvening = eveningMemory?.ReadCapturedShowEvening(correlation.DeviceId, correlation.ConversationId) ?? call.EveningId;
+        bool CommitProposal() => journal.MarkSelectionCompleted(call.OperationId, proposal, capturedEvening);
+        var published = call.Context.LivePrompt is { Version: "dv01-adult-v1" } && show is not null
+            ? show.TryCommitCharacterFinale(correlation.DeviceId, call.SessionGeneration, CommitProposal)
+            : CommitProposal();
+        if (!published) { return null; }
+        BindFinaleSnapshot(correlation.DeviceId, call.OperationId, proposal, call.SessionGeneration,
+            decision.DecisionRevision, call.Context.LivePrompt?.Version ?? "live-existing",
+            call.Context.LivePrompt is { Version: "dv01-adult-v1" } frozen ? frozen.Options.Character.FinaleProfile : null,
+            eveningMemory?.ReadCapturedShowEvening(correlation.DeviceId, correlation.ConversationId) ?? call.EveningId);
         operations.Add(call.OperationId, new(call.OperationId, "turn", "completed", correlation, result, null));
         conversations[correlation.ConversationId].TerminalReplyPublished = true;
         return result;

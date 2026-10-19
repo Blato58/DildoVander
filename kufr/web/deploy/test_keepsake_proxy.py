@@ -58,7 +58,7 @@ class ProxyTests(unittest.TestCase):
 
     def test_twin_ingress_keeps_its_isolated_listener_and_exact_methods(self):
         twin_source = "Features/DigitalTwin/TwinEndpoints.cs"
-        self.assertEqual(49, sum(not source.startswith("Features/DigitalTwin/") for method, route, source in proxy.CONTRACT["routes"]))
+        self.assertEqual(72, sum(not source.startswith("Features/DigitalTwin/") for method, route, source in proxy.CONTRACT["routes"]))
         self.assertEqual(11, sum(source == twin_source for method, route, source in proxy.CONTRACT["routes"]))
         self.assertEqual(9, sum(source == "Features/DigitalTwin/TwinMediaEndpoints.cs" for method, route, source in proxy.CONTRACT["routes"]))
         paths = [

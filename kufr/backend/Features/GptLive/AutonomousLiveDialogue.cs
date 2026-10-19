@@ -5,11 +5,16 @@ using Kufr.Backend.Features.Conversations;
 using Kufr.Backend.Features.Memory;
 using Kufr.Backend.Features.Realtime;
 using Kufr.Backend.Features.Character;
+using Kufr.Backend.Features.Show;
 
 namespace Kufr.Backend.Features.GptLive;
 
 internal sealed record LivePlaybackRequest(Guid PlaybackId, int PcmBytes, long DecisionRevision);
 internal sealed record LivePlaybackConfirmation(Guid PlaybackId, int PcmBytes, bool Drained);
+internal sealed record OperatorSelectionOverride(int Slot, string Fingerprint, DateTimeOffset ExpiresAt)
+{
+    internal bool IsCurrent(string fingerprint, DateTimeOffset now) => Fingerprint == fingerprint && now < ExpiresAt;
+}
 
 internal sealed class LiveCommandTracker(GptLiveConnection connection)
 {
@@ -37,7 +42,7 @@ internal sealed class LiveCommandTracker(GptLiveConnection connection)
 }
 
 internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandDecisionService decisions, TimeProvider clock,
-    HybridMemoryService? memory = null)
+    HybridMemoryService? memory = null, ShowCoordinator? show = null)
 {
     internal async Task<LiveOutcome> RunAsync(RealtimeCall call, Func<byte[], CancellationToken, Task> audio,
         Func<string, CancellationToken, Task> visitor, Func<CancellationToken, Task> pause,
@@ -56,6 +61,8 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         var inputActivity = new LiveInputActivity(clock, options.SpeechAmplitudeThreshold);
         var projection = new LiveConversationProjection(options);
         var character = snapshot.Version == "dv01-adult-v1" ? new CharacterSession(call.SessionGeneration, options.Character, recentStyles) : null;
+        using var showVisit = character is null ? null : show?.BeginVisit(call.Correlation.DeviceId, call.EveningId,
+            call.Correlation.ConversationId, call.SessionGeneration);
         CharacterDirective? directive = null;
         var deliveredMemory = new HashSet<string>(turn.LiveMemoryReferences, StringComparer.Ordinal);
         var tracker = new LiveCommandTracker(connection);
@@ -130,13 +137,30 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         var inputRepairSources = new HashSet<string>(StringComparer.Ordinal);
         bool silencePrompted = false, finishPrompted = false;
         var characterCorrectionPending = false;
+        var operatorFinishRequested = false;
+        OperatorSelectionOverride? operatorOverride = null;
+        var terminalDrained = false;
         using var workLifetime = CancellationTokenSource.CreateLinkedTokenSource(token);
         using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(50), clock);
         Task<bool>? tick = null;
 
         string Key() => projection.Fingerprint + ":" + availability().Revision + ":" + availability().ReadyMask + ":" + excluded;
+        void ClearOverride()
+        {
+            operatorOverride = null;
+            foreach (var key in equivalent.Where(item => item.Value.OperationState == "operator_proposal_only").Select(item => item.Key).ToArray())
+            { equivalent.Remove(key); }
+        }
+        int? CurrentOverride()
+        {
+            if (operatorOverride is null) { return null; }
+            if (operatorOverride.IsCurrent(Key(), clock.GetUtcNow())) { return operatorOverride.Slot; }
+            ClearOverride();
+            return null;
+        }
         bool Valid(WandDecisionResult result) => availability() is { Current: true } a && result.AvailabilityRevision == a.Revision
-            && (result.Compartment is null || (a.ReadyMask & (1 << (result.Compartment.Value - 1))) != 0);
+            && (result.Compartment is null || (a.ReadyMask & (1 << (result.Compartment.Value - 1))) != 0)
+            && (result.OperationState != "operator_proposal_only" || CurrentOverride() == result.Compartment);
         void Report(string state)
         {
             if (reportedState == state) return;
@@ -148,13 +172,29 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
             var started = System.Diagnostics.Stopwatch.GetTimestamp();
             directive = CharacterDirector.Evaluate(character, phase, projection.AnswerCandidates,
                 microphoneActive: !closing, inputSpeaking: !inputActivity.QuietFor(options.InputQuietMs));
+            if (phase is CharacterPhase.Ready or CharacterPhase.Closing)
+            {
+                show?.CaptureFinaleAnchors(call.Correlation.DeviceId, call.SessionGeneration,
+                    directive.Anchor is { } anchor ? [new FinaleAnchorReference(anchor.Id, anchor.SourceId,
+                        anchor.SourceRevision, anchor.EvidenceRevision, anchor.PermissionRevision)] : []);
+            }
             directorTiming?.Invoke(System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
             directiveCommand = await tracker.AppendAsync("instructions", directive.PromptText, null, token);
             directiveAccepted = false;
+            if (show is not null && showVisit is not null && directive.PromptText.Length > 0)
+            {
+                var direction = show.Direction(call.Correlation.DeviceId, call.SessionGeneration, phase,
+                    character.Tempo == CharacterTempo.Express, options.Character.FinaleProfile);
+                if (direction.Length > 0) { await tracker.AppendAsync("instructions", direction, null, token); }
+            }
         }
         async Task CancelResponse()
         {
             if (character is null) { return; }
+            ClearOverride();
+            show?.CancelScene(call.Correlation.DeviceId, call.SessionGeneration);
+            show?.CancelWandRepertoire(call.Correlation.DeviceId, call.SessionGeneration);
+            terminalDrained = false;
             character.CancelResponse();
             audioSuppressed = true; minimumOutputStart = projection.LatestInputEnd;
             directiveAccepted = false; directiveCommand = null;
@@ -166,18 +206,50 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
             if (cancelAudio is not null) { await cancelAudio(character.ResponseGeneration, token); }
             Report("character_response_cancelled");
         }
+        async Task EnsureShowNotStoppedAsync()
+        {
+            if (showVisit is null || show is null) { return; }
+            if (show.IsCurrentShowVisit(call.Correlation.DeviceId, call.SessionGeneration)) { return; }
+            await CancelResponse();
+            throw new OperationCanceledException("Current show was stopped or replaced.", token);
+        }
         void RecordPlayedStyle()
         {
+            show?.ConfirmSpeechProxy(call.Correlation.DeviceId, call.SessionGeneration);
+            if (terminal is not null)
+            {
+                terminalDrained = false;
+                show?.OnTerminalAudioStarted(call.Correlation.DeviceId, call.SessionGeneration, terminal.DecisionRevision);
+            }
             if (directive is null || directive.StyleId.Length == 0) { return; }
             var key = $"{directive.Phase}:{directive.SourceRevision}:{character!.ResponseGeneration}";
             if (!playedStyles.Add(key)) { return; }
             stylePlayed?.Invoke(directive.StyleId, directive.Phase == CharacterPhase.Opening);
+            if (directive.Phase == CharacterPhase.Ready && showVisit is not null)
+            { show?.RecordSceneSpeechProxy(call.Correlation.DeviceId, call.SessionGeneration); }
             if (directive.Phase == CharacterPhase.Ready && terminal?.Compartment is { } slot)
-            { stylePlayed?.Invoke("lore-" + slot, false); }
+            {
+                stylePlayed?.Invoke("lore-" + slot, false);
+            }
         }
         async Task Deliver(WandDecisionResult result, string? delegation)
         {
+            // Operator quick finish uses the existing decision service and all
+            // publication gates, without inventing a provider delegation ID.
+            if (delegation?.StartsWith("operator:", StringComparison.Ordinal) == true)
+            {
+                delegation = null;
+                if (result.Status == WandDecisionStatus.NeedsInformation)
+                { result = result with { Status = WandDecisionStatus.Cancelled, Compartment = null }; }
+            }
             if (!Valid(result)) return;
+            terminalDrained = false;
+            if (character is not null && result.Status != WandDecisionStatus.NeedsInformation)
+            {
+                show?.BeginFinale(call.Correlation.DeviceId, call.SessionGeneration,
+                    character.Tempo == CharacterTempo.Express, options.Character.FinaleProfile,
+                    result.Status == WandDecisionStatus.ValidProposal, result.DecisionRevision, result.Compartment);
+            }
             waiting = null;
             var text = character is null ? ResultContext(result) : CharacterResultContext(result, options.Character.FinaleProfile);
             await Direct(result.Status == WandDecisionStatus.NeedsInformation ? CharacterPhase.Responding : CharacterPhase.Ready);
@@ -186,6 +258,12 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
             {
                 await tracker.AppendAsync("thinking", "Autorská lore fikce pro potvrzený výběr, nikoli vlastnost či nová identita: "
                     + lore.Premise + " Nikde nevyslovuj název ani slot; lore nemění scoring, původní hlas nebo pohyb.", delegation, token);
+                var profile = ShowRepertoire.Wands.Single(wand => wand.SlotId == slot);
+                var lines = show?.OfferWandRepertoire(call.Correlation.DeviceId, call.SessionGeneration, slot, result.DecisionRevision)
+                    ?? profile.Lines.Where(line => line.Kind == "acceptance").Take(1).ToArray();
+                await tracker.AppendAsync("thinking", "Volitelný autorský repertoár hůlky v pořadí úvod, reakce, závěr: "
+                    + string.Join(" / ", lines.Select(line => line.Text))
+                    + " Styl: " + profile.SpeechStyle + ". Jde o fikci; nevyslovuj název ani slot a netvrď provedený pohyb.", delegation, token);
             }
             if (result.Status != WandDecisionStatus.NeedsInformation)
             {
@@ -208,8 +286,10 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         {
             var state = availability();
             if (!state.Current) throw new OperationCanceledException(token);
+            var forcedForWork = CurrentOverride();
             var key = Key();
             if (character is not null && projection.LatestIsCharacterControl
+                && !operatorFinishRequested
                 && CharacterSession.ClassifyExplicitControl(projection.LatestInput) != CharacterSignalKind.RequestExpress)
             { waiting = null; tasks[task.DelegationId] = task with { State = "character_control" }; return; }
             if (projection.Intent is LiveRequestIntent.Memory or LiveRequestIntent.Remember or LiveRequestIntent.Forget
@@ -228,7 +308,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                 waiting = null;
                 await Deliver(new(WandDecisionStatus.Cancelled, null, [], "", projection.Revision, state.Revision), task.DelegationId); return;
             }
-            var directSelection = projection.DirectSelection || character?.Tempo == CharacterTempo.Express;
+            var directSelection = projection.DirectSelection || character?.Tempo == CharacterTempo.Express || operatorFinishRequested;
             if (equivalent.TryGetValue(key, out var cached)
                 && !(character is not null && cached.Status == WandDecisionStatus.NeedsInformation
                     && directSelection && snapshot.Policy.AllowEarlySelection))
@@ -248,8 +328,8 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                 projection.AnswerCandidates, directSelection,
                 excluded, character is null ? turn.EveningContext : "", character is null ? turn.CostumeContext : "");
             await Direct(CharacterPhase.Deciding);
-            reserved = decisions.Reservation(workInput);
-            if (++paidCalls > 10)
+            reserved = forcedForWork is null ? decisions.Reservation(workInput) : 0;
+            if (forcedForWork is null && ++paidCalls > 10)
                 throw new InvalidDataException("Live decision count exhausted.");
             workFingerprint = key;
             workStartedAt = Elapsed();
@@ -264,7 +344,9 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                 if (character is null && memory is not null && memoryAccess is not null)
                     await memory.PersistContextAsync(memoryAccess, call.SessionGeneration, capturedSegments,
                         capturedInput.Evidence, capturedEpoch, workLifetime.Token);
-                return await decisions.DecideAsync(capturedInput, workLifetime.Token);
+                return forcedForWork is { } forced
+                    ? WandDecisionService.OperatorOverride(capturedInput, forced)
+                    : await decisions.DecideAsync(capturedInput, workLifetime.Token);
             }, workLifetime.Token);
         }
         if (availability().ReadyMask == 0)
@@ -276,6 +358,79 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         {
             while (true)
             {
+                if (character is not null && showVisit is not null && show is not null)
+                {
+                    show.ReportSelectionState(call.Correlation.DeviceId, call.SessionGeneration,
+                        availability().ReadyMask, terminal is not null || closing, terminal?.Compartment,
+                        character.Tone, character.Tempo);
+                    foreach (var control in show.TakeControls(call.Correlation.DeviceId, call.SessionGeneration))
+                    {
+                        switch (control.Kind)
+                        {
+                            case "override":
+                                if (terminal is null && int.TryParse(control.Value, out var forcedSlot)
+                                    && forcedSlot is >= 1 and <= 6
+                                    && (availability().ReadyMask & (1 << (forcedSlot - 1))) != 0)
+                                {
+                                    operatorOverride = new(forcedSlot, Key(), control.ExpiresAt);
+                                    operatorFinishRequested = true;
+                                    equivalent.Clear();
+                                    if (readyResult is not null && workInput is not null)
+                                    { readyResult = WandDecisionService.OperatorOverride(workInput, forcedSlot); }
+                                }
+                                break;
+                            case "stop":
+                                await CancelResponse();
+                                throw new OperationCanceledException("Operator ended the current show dialogue.", token);
+                            case "guest-leave":
+                                showVisit.Leave();
+                                await CancelResponse();
+                                throw new OperationCanceledException("Guest left the current show dialogue.", token);
+                            case "cancel-speech":
+                                await CancelResponse();
+                                await Direct(CharacterPhase.Listening);
+                                break;
+                            case "tone":
+                                character.ApplyOperatorStyle(tone: control.Value);
+                                await CancelResponse();
+                                await Direct(CharacterPhase.Responding);
+                                break;
+                            case "tempo":
+                                character.ApplyOperatorStyle(tempo: control.Value);
+                                await Direct(CharacterPhase.Responding);
+                                break;
+                            case "quick-finale":
+                                character.ApplyOperatorStyle(tempo: "express");
+                                operatorFinishRequested = true;
+                                if (terminal is not null && Valid(terminal)) { await Deliver(terminal, null); }
+                                break;
+                            case "scene-twist":
+                                if (terminal is not null)
+                                {
+                                    show.BeginFinale(call.Correlation.DeviceId, call.SessionGeneration,
+                                        character.Tempo == CharacterTempo.Express, options.Character.FinaleProfile,
+                                        terminal.Status == WandDecisionStatus.ValidProposal, terminal.DecisionRevision);
+                                }
+                                await Direct(terminal is null ? CharacterPhase.Responding : CharacterPhase.Ready);
+                                break;
+                            case "mood":
+                                await Direct(terminal is null ? CharacterPhase.Responding : CharacterPhase.Ready);
+                                break;
+                        }
+                    }
+                    if (operatorFinishRequested && !closing && terminal is null && work is null && readyResult is null
+                        && waiting is null && inputActivity.QuietFor(options.InputQuietMs))
+                    {
+                        var id = "operator:" + Guid.NewGuid().ToString("N");
+                        var task = new LiveBackendTask(id, Guid.NewGuid(), call.Correlation.ConversationId,
+                            memoryAccess?.Guest?.GuestId, call.SessionGeneration, projection.Revision,
+                            availability().Revision, "awaiting_context", call.OperationId, 0);
+                        if (tasks.Count >= 64) { throw new InvalidDataException("Delegation limit."); }
+                        tasks.Add(id, task);
+                        await StartWork(task);
+                        operatorFinishRequested = false;
+                    }
+                }
                 token.ThrowIfCancellationRequested(); receive ??= connection.ReceiveAsync(token); tick ??= timer.WaitForNextTickAsync(token).AsTask();
                 var active = new List<Task> { receive, tick };
                 if (work is not null) active.Add(work);
@@ -427,7 +582,9 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                             {
                                 if (!closing || terminal is null || value.GetProperty("reason").GetString() != "close_requested"
                                     || GptLiveProtocol.RequiredString(value, "client_event_id", 128) != closeId) throw new InvalidDataException("Unexpected Live close.");
+                                await EnsureShowNotStoppedAsync();
                                 var actual = ActualTerminal();
+                                showVisit?.Complete();
                                 return new(new(LiveConversationProjection.Tail(projection.LatestInput, 900), actual.Length <= 500 ? actual : actual[^500..],
                                     terminal.Status == WandDecisionStatus.ValidProposal ? "propose" : "no_selection",
                                     LiveTextBudget.Bound(string.Join("; ", terminal.Reasons.Select(r => r.Fact)), 190), terminal.Compartment,
@@ -454,6 +611,8 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                     }
                     finally { work = null; }
                     cost = checked(cost + result.CostMicroUsd);
+                    if (CurrentOverride() is { } forcedSlot && workInput is not null)
+                    { result = WandDecisionService.OperatorOverride(workInput, forcedSlot); }
                     decisionTiming?.Invoke((Elapsed() - workStartedAt).TotalMilliseconds, result.Status);
                     var task = tasks.Values.LastOrDefault(t => t.State == "running")!;
                     if (workFingerprint != Key() || !Valid(result))
@@ -510,11 +669,34 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                         && inputActivity.QuietFor(options.InputQuietMs)
                         && Elapsed() - lastSpeech >= TimeSpan.FromMilliseconds(options.TerminalQuietMs))
                     {
-                        Report("closing");
-                        await stopInput(token); closeId = Guid.NewGuid().ToString("N"); await connection.CloseAsync(token, closeId); closing = true; closeAt = Elapsed();
+                        terminalDrained = true;
+                        show?.OnPlaybackConfirmed(call.Correlation.DeviceId, call.SessionGeneration, terminal.DecisionRevision);
+                        if (terminal.Compartment is { } playedSlot)
+                        {
+                            show?.RecordWandSpeechProxy(call.Correlation.DeviceId, call.SessionGeneration,
+                                playedSlot, terminal.DecisionRevision, ActualTerminal());
+                        }
                     }
                 }
                 if (winner == tick) { await tick!; tick = null; }
+                var sceneProgress = show?.TickScene(call.Correlation.DeviceId, call.SessionGeneration);
+                show?.DispatchSceneCues(call.Correlation.DeviceId, call.SessionGeneration);
+                sceneProgress = show?.TickScene(call.Correlation.DeviceId, call.SessionGeneration);
+                await EnsureShowNotStoppedAsync();
+                if (terminalDrained && terminal is not null && !closing && !terminalInputPending && Valid(terminal)
+                    && inputActivity.QuietFor(options.InputQuietMs) && sceneProgress?.PausePending != true
+                    && sceneProgress?.Cancelled != true
+                    && sceneProgress?.Cues.Any(cue => cue.Kind == "PlayLocalClip"
+                        && cue.Status is "planned" or "ready_for_adapter" or "submitted" or "accepted") != true)
+                {
+                    Report("closing");
+                    await stopInput(token);
+                    await EnsureShowNotStoppedAsync();
+                    closeId = Guid.NewGuid().ToString("N");
+                    await connection.CloseAsync(token, closeId);
+                    closing = true;
+                    closeAt = Elapsed();
+                }
                 if (audioSuppressed && recoveryBytes > 0 && Elapsed() - recoveryStartedAt > TimeSpan.FromSeconds(8))
                 {
                     throw new InvalidDataException("DV01 recovery transcript unavailable.");
@@ -660,7 +842,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                     await tracker.AppendAsync("instructions", "Dokonči verdikt jednou krátkou větou vlastními slovy. Vyslov jen potvrzený název hůlky: "
                         + name + ". Použij oznamovací větu a pak mlč. Nežádej souhlas a nepokládej žádnou otázku, ani řečnickou. Fyzická prezentace zatím není potvrzená.", null, token);
                 }
-                if (terminal is not null && !closing && !terminalInputPending && player is null && resultAccepted && terminalSpeech
+                if (terminal is not null && !closing && !terminalDrained && !terminalInputPending && player is null && resultAccepted && terminalSpeech
                     && ActualTerminal().Length > 0 && TerminalMentionsResult()
                     && inputActivity.QuietFor(options.InputQuietMs)
                     && Elapsed() - lastSpeech >= TimeSpan.FromMilliseconds(options.TerminalQuietMs)

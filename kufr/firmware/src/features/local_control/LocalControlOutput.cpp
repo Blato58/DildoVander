@@ -337,6 +337,22 @@ bool LocalControlOutput::VoiceAck(const LocalSocketAdmission::Handle& handle,
       (accepted ? "true" : "false") + ",\"voice\":" + VoiceStatusJson(voice_ ? voice_->VoiceStatus() : LocalVoiceStatus{}) + "}");
 }
 
+bool LocalControlOutput::OfflineAck(const LocalSocketAdmission::Handle& handle,
+    const LocalControlMessage& request, bool accepted, const std::string& error,
+    const std::string& status, const std::string& records) {
+  if (!IsConversationUuid(request.messageId) || !AdvanceEvent()) return false;
+  std::string json = "{\"protocolVersion\":1,\"type\":\"" +
+      std::string(records.empty() ? "offline.ack" : "offline.outbox") + "\",\"bootId\":\"" + bootId_ +
+      "\",\"requestMessageId\":\"" + request.messageId + "\",\"accepted\":" + (accepted ? "true" : "false") +
+      ",\"errorCode\":";
+  if (error.empty()) json += "null";
+  else AppendJsonString(error, json);
+  json += ",\"offline\":" + status;
+  if (!records.empty()) json += ",\"records\":" + records;
+  json += "}";
+  return ValidDeviceId(deviceId_) && IsConversationUuid(bootId_) && json.size() <= 8192 && transport_.Send(handle, json);
+}
+
 bool LocalControlOutput::DanceAck(const LocalSocketAdmission::Handle& handle,
                                  const LocalControlMessage& request, bool accepted) {
   if (!IsConversationUuid(request.messageId) || !AdvanceEvent()) return false;

@@ -42,12 +42,14 @@ class Journal final : public CommandJournal {
   bool pending = false, fail = false;
   uint8_t selected = 0, mask = 63;
   int begins = 0, restores = 0;
+  std::string operationId, completedId;
+  uint8_t completedSlot = 0;
   bool HasPending() const override { return pending; }
   uint8_t PendingCompartment() const override { return selected; }
   uint8_t ReadyMask() const override { return mask; }
-  bool Begin(const std::string&, uint8_t compartment) override {
+  bool Begin(const std::string& id, uint8_t compartment) override {
     if (fail) return false;
-    ++begins; pending = true; selected = compartment; return true;
+    ++begins; pending = true; selected = compartment; operationId = id; return true;
   }
   bool Resolve(uint8_t value) override { mask = value; pending = false; return !fail; }
   bool ResolveRestored(uint8_t value) override {
@@ -55,6 +57,13 @@ class Journal final : public CommandJournal {
     ++restores; pending = false; selected = 0; return true;
   }
   bool PersistReadyMask(uint8_t value) override { mask = value; return !fail; }
+  bool ConfirmTimedPresentation(const std::string& id, uint8_t slot, uint64_t) override {
+    if (fail || pending || operationId != id) return false;
+    completedId = id; completedSlot = slot; return true;
+  }
+  bool WasTimedPresentationCompleted(const std::string& id, uint8_t slot) const override {
+    return completedId == id && completedSlot == slot;
+  }
 };
 
 class SafetyAdapter final : public SafetyPort {

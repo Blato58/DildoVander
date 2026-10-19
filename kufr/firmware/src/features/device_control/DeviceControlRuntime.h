@@ -8,6 +8,7 @@
 #include "../conversation/ConversationRuntimeState.h"
 
 class WandPresentation;
+class PendingProposal;
 
 // Sole control-task entry point for journal/control transitions and the
 // coherent snapshot consumed by the backend network task. The runtime state
@@ -46,8 +47,13 @@ class DeviceControlRuntime final {
   bool PublishCurrent();
   void SetExternalActivity(bool active);
   uint64_t Generation() const;
+  uint64_t CurrentRevision() const { return control_.Revision(); }
   bool HasAutonomousPresentation() const;
-  bool ReserveDecoration(uint64_t generation);
+  bool SetOfflineAuthority(bool active);
+  bool HandoffToOffline(const std::string& leaseId, uint64_t nowMs);
+  bool OfflineAuthority() const { return offlineAuthority_; }
+  bool StartOfflinePresentation(PendingProposal& pending, uint64_t nowMs);
+  bool ReserveDecoration(uint64_t generation, bool preserveConversationSnapshot = false);
   bool ReleaseDecoration(uint64_t generation);
   bool HasDecoration() const { return decorationActive_; }
   CommandJournal::Lookup FindOperation(const std::string& id, uint8_t slot,
@@ -66,7 +72,8 @@ class DeviceControlRuntime final {
   uint8_t publishedReadyMask_ = 0;
   bool published_ = false;
   bool externalActivity_ = false;
-  bool decorationActive_ = false;
+  bool offlineAuthority_ = false, offlineAdmission_ = false;
+  bool decorationActive_ = false, decorationPreservesSnapshot_ = false;
   uint64_t decorationGeneration_ = 0;
   WandPresentation* presentation_ = nullptr;
 };

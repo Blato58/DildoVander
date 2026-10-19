@@ -53,7 +53,7 @@ internal static class EveningMemoryTests
                     && legacy.Evenings.Single().DroppedCount == 3
                     && legacy.Evenings.Single().ExchangeCount == 1,
                     "legacy evening ID, content and dropped count migrate");
-                Check(memory.ReadContext("legacy-device", "return", "Legacy").Transcript.Contains("Legacy visitor"),
+                Check(memory.ReadContext("legacy-device", "legacy-conversation", "Legacy").Transcript.Contains("Legacy visitor"),
                     "legacy story remains readable");
                 Check(!memory.Append("legacy-device", legacyEveningId, "legacy-op", "duplicate", "x", "y"),
                     "legacy operation ID remains unique");
@@ -68,9 +68,11 @@ internal static class EveningMemoryTests
                         new string('x', 900), new string('y', 450));
                 }
 
-                var recalled = memory.ReadContext("device-a", "return", "Petr je zpatky.");
+                Check(memory.ReadContext("device-a", "return", "Petr je zpatky.").Transcript == "",
+                    "same stated name never grants another conversation's personal context");
+                var recalled = memory.ReadContext("device-a", "petr-first", "Petr je zpatky.");
                 Check(recalled.Transcript.Contains("taxik", StringComparison.Ordinal),
-                    "matching old name survives beyond recent context window");
+                    "own conversation remains available beyond other visitors' recent context window");
                 Check(recalled.Transcript.Length <= EveningMemoryStore.MaxContextCharacters,
                     "context is bounded");
                 using var parsed = JsonDocument.Parse(recalled.Transcript);
@@ -82,7 +84,7 @@ internal static class EveningMemoryTests
             using (var journal = new OperationJournal(configuration, TimeProvider.System))
             {
                 var memory = new EveningMemoryStore(configuration, journal);
-                Check(memory.ReadContext("device-a", "return", "Petr").Transcript.Contains("taxik"),
+                Check(memory.ReadContext("device-a", "petr-first", "Petr").Transcript.Contains("taxik"),
                     "evening survives backend restart");
                 var first = memory.GetStatus("device-a");
                 Check(memory.Clear("device-a", first.EveningId), "clear expected evening");
@@ -420,7 +422,7 @@ internal static class EveningMemoryTests
         var returning = store.SubmitTurn("device-a", conversation, Guid.NewGuid(), "returning"u8,
             Turn("Petr, uz jsem tu byl."));
         await CompletedAsync(store, runner, returning.OperationId!);
-        Check(calls[^1].Context.Contains("sousedum"), "next visitor session recalls earlier answers");
+        Check(!calls[^1].Context.Contains("sousedum"), "new visitor session cannot recall an earlier guest through a stated name");
         var oldEvening = memory.GetStatus("device-a").EveningId;
         delayed = new(TaskCreationOptions.RunContinuationsAsynchronously);
         var pending = store.SubmitTurn("device-a", conversation, Guid.NewGuid(), "pending"u8, Turn("late secret"));

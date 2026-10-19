@@ -18,6 +18,7 @@ uint64_t SceneIntentBridge::Fingerprint(const SceneIntent& intent) {
   Mix(hash, intent.decisionId); Mix(hash, static_cast<uint64_t>(intent.kind));
   Mix(hash, intent.sessionEpoch); Mix(hash, intent.responseGeneration);
   Mix(hash, intent.phaseRevision); Mix(hash, intent.issuedAtDeviceMs);
+  Mix(hash, intent.compartment);
   Mix(hash, intent.validUntilDeviceMs);
   return hash;
 }
@@ -40,7 +41,7 @@ SceneIntentResult SceneIntentBridge::Accept(const SceneIntent& intent, uint64_t 
       intent.bootId != context_.bootId || intent.sessionId != context_.sessionId ||
       intent.sessionEpoch != context_.sessionEpoch || intent.responseId != context_.responseId ||
       intent.responseGeneration != context_.responseGeneration ||
-      intent.phaseRevision != context_.phaseRevision) return SceneIntentResult::Stale;
+      intent.phaseRevision != context_.phaseRevision || intent.compartment != context_.compartment || intent.compartment > 6) return SceneIntentResult::Stale;
   // Absolute device time only: a repeated delivery cannot restart its TTL.
   if (nowMs < intent.issuedAtDeviceMs || nowMs >= intent.validUntilDeviceMs ||
       intent.validUntilDeviceMs > context_.validUntilDeviceMs ||
@@ -51,6 +52,12 @@ SceneIntentResult SceneIntentBridge::Accept(const SceneIntent& intent, uint64_t 
         ? SceneIntentResult::Duplicate : SceneIntentResult::Conflict;
   if (count_ == seen_.size()) return SceneIntentResult::CapacityExceeded;
   seen_[count_].id = intent.intentId; seen_[count_++].fingerprint = fingerprint;
+  if (intent.kind == SceneIntentKind::Vibrate) {
+    if (!owner_.StartVibrationPreset("presentation-search-pulse", intent.intentId, context_.deviceGeneration,
+        intent.validUntilDeviceMs, nowMs, intent.compartment, context_.preserveConversationSnapshot)) return SceneIntentResult::BusyOrUnsupported;
+    activeIntentId_ = intent.intentId;
+    return SceneIntentResult::Started;
+  }
   if (intent.kind == SceneIntentKind::ChoiceAccent) {
     // Only the existing prepared selection authority can later issue Raise.
     // Its authored presentation already owns the matching decorative LEDs.
@@ -63,11 +70,12 @@ SceneIntentResult SceneIntentBridge::Accept(const SceneIntent& intent, uint64_t 
     case SceneIntentKind::Wake: scene = "wake"; break;
     case SceneIntentKind::Consider: scene = "consider"; break;
     case SceneIntentKind::Farewell: scene = "farewell"; break;
+    case SceneIntentKind::Ambient: scene = "ambient"; break;
     case SceneIntentKind::ChoiceAccent: return SceneIntentResult::Stale;
     default: return SceneIntentResult::BusyOrUnsupported;
   }
   if (!owner_.StartAccent(scene, intent.intentId, context_.deviceGeneration,
-                          intent.validUntilDeviceMs, nowMs)) return SceneIntentResult::BusyOrUnsupported;
+                          intent.validUntilDeviceMs, nowMs, intent.compartment, context_.preserveConversationSnapshot)) return SceneIntentResult::BusyOrUnsupported;
   activeIntentId_ = intent.intentId;
   return SceneIntentResult::Started;
 }

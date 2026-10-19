@@ -93,6 +93,15 @@ bool DeviceControl::DisconnectManualControl(SelectionStep& step) {
   return LoseManualControl(step);
 }
 
+bool DeviceControl::ReleaseIdleManualControl(const std::string& leaseId, uint64_t nowMs) {
+  if (!OwnsLiveManualLease(leaseId, nowMs) || NeedsRecovery() ||
+      HasPendingSelection() || HasAutonomousPresentation() || selection_.IsBusy()) return false;
+  manualLeaseId_.clear();
+  leaseExpiresAtMs_ = 0;
+  ++revision_;
+  return true;
+}
+
 bool DeviceControl::OwnsManualLease(const std::string& leaseId) const {
   return !leaseId.empty() && manualLeaseId_ == leaseId;
 }

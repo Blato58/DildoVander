@@ -8,7 +8,7 @@ internal sealed record KeepsakeGalleryEvening(string Id, string Label = "Aktivn√
 internal sealed record KeepsakeGalleryStory(string Title, string Text);
 internal sealed record KeepsakeGalleryAsset(string Id, string Kind, string MediaType, long Length, string Sha256);
 internal sealed record KeepsakeGalleryItem(string Locator, string EditionId, string OfficialName, string CatalogId,
-    int Slot, DateTimeOffset CreatedAt, KeepsakeGalleryStory Story, bool Synthetic, IReadOnlyList<KeepsakeGalleryAsset> Assets);
+    int Slot, DateTimeOffset CreatedAt, KeepsakeGalleryStory Story, bool Synthetic, IReadOnlyList<KeepsakeGalleryAsset> Assets, WizardIdentityCard? WizardIdentity = null);
 internal sealed record KeepsakeGalleryPage(int SchemaVersion, KeepsakeGalleryEvening? Evening,
     KeepsakeGalleryItem? Latest, IReadOnlyList<KeepsakeGalleryItem> Items, string? NextCursor);
 
@@ -74,7 +74,7 @@ internal sealed partial class KeepsakeStore
                 .Select(asset => new KeepsakeGalleryAsset(asset.Id, asset.Kind, asset.MediaType, asset.Length, asset.Sha256)).ToArray();
             results.Add(new(reader.GetString(0), edition.Id, document.Snapshot.OfficialName, document.Snapshot.CatalogId,
                 document.Snapshot.Slot, new DateTimeOffset(reader.GetInt64(3), TimeSpan.Zero),
-                new(edition.Story.Title, edition.Story.Text), edition.Synthetic, assets));
+                new(edition.Story.Title, edition.Story.Text), edition.Synthetic, assets, document.WizardIdentities.Where(item => item.EditionId == edition.Id).Select(ToCard).SingleOrDefault()));
         }
         return results;
     }

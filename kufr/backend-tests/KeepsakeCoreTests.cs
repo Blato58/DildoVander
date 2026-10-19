@@ -16,6 +16,7 @@ internal static class KeepsakeCoreTests
         Directory.CreateDirectory(directory);
         try
         {
+            await WizardIdentityTests.RunAsync(directory);
             await LifecycleAsync(directory);
             await AdmissionBoundsAsync(directory);
             await UploadAdmissionAsync(directory);
@@ -317,8 +318,9 @@ internal static class KeepsakeCoreTests
         var partialZip = store.CreateExport(partial.Id, returned.Token, partialEdition.Id, "zip", null, "partial-export");
         using (var zip = new ZipArchive(new MemoryStream(store.ReadAsset(partial.Id, returned.Token, partialZip.Id).Bytes)))
         {
-            Check(zip.Entries.Count == 2 && zip.Entries.Any(item => item.FullName == "story.txt")
-                && zip.Entries.Any(item => item.FullName == "manifest.json"), "partial ZIP contains actual ready story and honest manifest only");
+            Check(zip.Entries.Count == 3 && zip.Entries.Any(item => item.FullName == "story.txt")
+                && zip.Entries.Any(item => item.FullName == "keepsake-card.png")
+                && zip.Entries.Any(item => item.FullName == "manifest.json"), "partial ZIP contains ready identity card, story and honest manifest without invented artwork");
         }
         var restoreKeepsake = store.Issue(Snapshot("restore"));
         var restoreInitialClaim = store.IssueClaim(restoreKeepsake.Id, "device", "restore-initial");

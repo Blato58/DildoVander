@@ -66,6 +66,21 @@ internal sealed partial class OperationJournal
         return json is null ? null : JsonSerializer.Deserialize<SelectionProposal>(json);
     }
 
+    internal bool HasPendingKeepsakeSelection(string deviceId, string conversationId)
+    {
+        if (!keepsakesEnabled) { return false; }
+        using var connection = Open();
+        EnsureKeepsakeOutbox(connection);
+        using var command = connection.CreateCommand();
+        // A committed device outcome can still be in flight to the separate
+        // memory store. Cleanup must not interrupt that narrow delivery gap.
+        command.CommandText = "SELECT 1 FROM keepsake_selection_outbox WHERE device_id=$device AND deleted=0 "
+            + "AND json_extract(proposal_json,'$.ConversationId')=$conversation LIMIT 1";
+        command.Parameters.AddWithValue("$device", deviceId);
+        command.Parameters.AddWithValue("$conversation", conversationId);
+        return command.ExecuteScalar() is not null;
+    }
+
     public string ConfirmKeepsakeOutcome(string deviceId, string operationId, string outcomeId,
         string evidence, string bodyHash)
     {

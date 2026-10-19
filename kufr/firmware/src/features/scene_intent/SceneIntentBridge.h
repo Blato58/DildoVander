@@ -4,17 +4,20 @@
 
 // This is a local, opt-in DV01 boundary, not a second director or a wire API.
 // The existing session owner supplies its current trusted correlation context.
-enum class SceneIntentKind { Wake, Consider, ChoiceAccent, Farewell };
+enum class SceneIntentKind { Wake, Consider, ChoiceAccent, Farewell, Ambient, Vibrate };
 struct SceneIntentContext {
   std::string bootId, sessionId, responseId, decisionId, selectionOperationId;
   uint64_t sessionEpoch = 0, responseGeneration = 0, phaseRevision = 0;
   uint64_t deviceGeneration = 0, validUntilDeviceMs = 0;
+  uint8_t compartment = 0;
+  bool preserveConversationSnapshot = false;
 };
 struct SceneIntent {
   std::string intentId, bootId, sessionId, responseId, decisionId;
   SceneIntentKind kind = SceneIntentKind::Consider;
   uint64_t sessionEpoch = 0, responseGeneration = 0, phaseRevision = 0;
   uint64_t issuedAtDeviceMs = 0, validUntilDeviceMs = 0;
+  uint8_t compartment = 0;
 };
 enum class SceneIntentResult {
   Started, AttachedToSelection, Duplicate, Conflict, Stale, Expired,

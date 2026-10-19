@@ -125,7 +125,7 @@ bool DeviceControlRuntime::BeginAcceptedSelection(uint64_t nowMs,
 bool DeviceControlRuntime::BeginAutonomousPresentation(
     const std::string& proposalId, uint8_t compartment,
     const ConversationRuntimeSnapshot& expectedSnapshot, uint64_t fingerprint) {
-  if (externalActivity_ || decorationActive_ || presentation_ == nullptr ||
+  if ((offlineAuthority_ && !offlineAdmission_) || externalActivity_ || decorationActive_ || presentation_ == nullptr ||
       presentation_->State() != WandPresentationState::Idle ||
       !runtime_.Matches(expectedSnapshot)) {
     return false;
@@ -210,7 +210,7 @@ bool DeviceControlRuntime::Stop(SelectionStep& step) {
 }
 
 bool DeviceControlRuntime::PublishCurrent() {
-  if (externalActivity_ || decorationActive_ || control_.NeedsRecovery() || control_.HasPendingSelection() ||
+  if (externalActivity_ || (decorationActive_ && !decorationPreservesSnapshot_) || control_.NeedsRecovery() || control_.HasPendingSelection() ||
       control_.HasAutonomousPresentation() || selection_.IsBusy() ||
       (presentation_ != nullptr &&
        presentation_->State() != WandPresentationState::Idle)) {
@@ -254,19 +254,50 @@ bool DeviceControlRuntime::HasAutonomousPresentation() const {
   return control_.HasAutonomousPresentation();
 }
 
+bool DeviceControlRuntime::SetOfflineAuthority(bool active) {
+  if (control_.NeedsRecovery() || externalActivity_ || decorationActive_ ||
+      control_.HasManualControl() || control_.HasPendingSelection() ||
+      control_.HasAutonomousPresentation() || selection_.IsBusy() ||
+      !presentation_ || presentation_->State() != WandPresentationState::Idle) return false;
+  if (offlineAuthority_ != active) {
+    offlineAuthority_ = active;
+    ++generation_; // Old online snapshots/callbacks can never acquire this epoch.
+    runtime_.Invalidate();
+    published_ = false;
+    PublishCurrent();
+  }
+  return true;
+}
+
+bool DeviceControlRuntime::StartOfflinePresentation(PendingProposal& pending, uint64_t nowMs) {
+  if (!offlineAuthority_ || offlineAdmission_ || !presentation_) return false;
+  offlineAdmission_ = true;
+  const bool started = presentation_->Start(pending, runtime_, nowMs);
+  offlineAdmission_ = false;
+  return started;
+}
+
+bool DeviceControlRuntime::HandoffToOffline(const std::string& leaseId, uint64_t nowMs) {
+  if (externalActivity_ || decorationActive_ || !presentation_ ||
+      presentation_->State() != WandPresentationState::Idle ||
+      !control_.ReleaseIdleManualControl(leaseId, nowMs)) return false;
+  return SetOfflineAuthority(true);
+}
+
 void DeviceControlRuntime::RecordLeaseLoss(bool hadManualControl) {
   if (hadManualControl && !control_.HasManualControl()) {
     ++generation_;
   }
 }
 
-bool DeviceControlRuntime::ReserveDecoration(uint64_t generation) {
+bool DeviceControlRuntime::ReserveDecoration(uint64_t generation, bool preserveConversationSnapshot) {
   if (generation != generation_ || externalActivity_ || decorationActive_ ||
       control_.NeedsRecovery() || control_.HasManualControl() ||
       control_.HasPendingSelection() || control_.HasAutonomousPresentation() ||
       selection_.IsBusy() || (presentation_ && presentation_->State() != WandPresentationState::Idle)) return false;
   decorationGeneration_ = generation;
   decorationActive_ = true;
+  decorationPreservesSnapshot_ = preserveConversationSnapshot;
   PublishCurrent();
   return true;
 }
@@ -274,6 +305,7 @@ bool DeviceControlRuntime::ReserveDecoration(uint64_t generation) {
 bool DeviceControlRuntime::ReleaseDecoration(uint64_t generation) {
   if (!decorationActive_ || generation != decorationGeneration_) return false;
   decorationActive_ = false;
+  decorationPreservesSnapshot_ = false;
   PublishCurrent();
   return true;
 }

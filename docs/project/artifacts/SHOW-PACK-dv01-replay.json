@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "initiative": "DV01",
+  "layer": "A/B",
+  "synthetic": true,
+  "recordedAt": "2026-10-19T03:42:40.158075+00:00",
+  "sourceDigest": "840c56ea1bef4fb510192173e7e5cae6d4c4b3661349fe853007c702ce169847",
+  "baselineCommit": "d34eacedca9011ac1c0f048e2f1acdfb9d986678",
+  "requirements": 34,
+  "scenarios": 80,
+  "mapping": "dv01-coverage.json",
+  "providerCalls": 0,
+  "actuatorCommands": 0,
+  "offline_verified": true,
+  "live_behavior_verified": false,
+  "audio_hardware_verified": false,
+  "physical_reveal_verified": false,
+  "event_ready": false,
+  "visual_roast": "permission_pending",
+  "named_finale": "blocked",
+  "limited_finale": "prepared_explicit_opt_in; live acceptance pending",
+  "checks": [
+    {
+      "command": [
+        "dotnet",
+        "run",
+        "--no-restore",
+        "--project",
+        "backend-tests",
+        "--",
+        "--character"
+      ],
+      "cwd": "kufr",
+      "exitCode": 0,
+      "stdout": "Character director offline tests passed (no Live/audio/hardware claims).\n{\"metric\":\"director_overhead\",\"iterations\":10000,\"medianMs\":0.0055,\"p95Ms\":0.0208,\"maximumMs\":2.5619,\"source\":\"synthetic local CPU, no Live latency\"}\nDV01 snapshot/publication/anonymous history tests passed.\nDV01 fake Live integration passed (no provider/audio hardware).\nAutonomous Live: frozen prompts/policy, numeric timelines, timed long Czech input, delegation ordering/duplicates, stale correction, playback, failure diagnostics and native wire passed.\nServer mode tests passed.\n",
+      "stderr": ""
+    }
+  ],
+  "director_overhead": {
+    "metric": "director_overhead",
+    "iterations": 10000,
+    "medianMs": 0.0055,
+    "p95Ms": 0.0208,
+    "maximumMs": 2.5619,
+    "source": "synthetic local CPU, no Live latency"
+  },
+  "input_structure_verified": true
+}

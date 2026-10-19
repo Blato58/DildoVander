@@ -1,0 +1,2138 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "DildoVander Show Pack HTTP extension",
+    "version": "2026.10.19.1",
+    "description": "Extends backend-openapi-v1.json. Physical authority stays in local control-message-v1. No GET generates content."
+  },
+  "paths": {
+    "/v1/show/content": {
+      "get": {
+        "operationId": "get_v1_show_content",
+        "x-source": "Features/Show/ShowEndpoints.cs",
+        "security": [
+          {
+            "ServerAdmin": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored authoritative result; never a physical actuator acknowledgement."
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Required credential absent or invalid"
+          },
+          "404": {
+            "description": "Resource unavailable in scope"
+          },
+          "409": {
+            "description": "Revision, scope or lifecycle conflict"
+          }
+        },
+        "parameters": []
+      }
+    },
+    "/v1/show/devices/{deviceId}": {
+      "get": {
+        "operationId": "get_v1_show_devices__deviceId_",
+        "x-source": "Features/Show/ShowEndpoints.cs",
+        "security": [
+          {
+            "ServerAdmin": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored authoritative result; never a physical actuator acknowledgement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShowState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Required credential absent or invalid"
+          },
+          "404": {
+            "description": "Resource unavailable in scope"
+          },
+          "409": {
+            "description": "Revision, scope or lifecycle conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ]
+      }
+    },
+    "/v1/show/devices/{deviceId}/commands": {
+      "post": {
+        "operationId": "post_v1_show_devices__deviceId__commands",
+        "x-source": "Features/Show/ShowEndpoints.cs",
+        "security": [
+          {
+            "ServerAdmin": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored authoritative result; never a physical actuator acknowledgement."
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Required credential absent or invalid"
+          },
+          "404": {
+            "description": "Resource unavailable in scope"
+          },
+          "409": {
+            "description": "Revision, scope or lifecycle conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShowCommand"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/show/devices/{deviceId}/identities": {
+      "get": {
+        "operationId": "get_v1_show_devices__deviceId__identities",
+        "x-source": "Features/Show/ShowArchiveEndpoints.cs",
+        "security": [
+          {
+            "ServerAdmin": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored authoritative result; never a physical actuator acknowledgement."
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Required credential absent or invalid"
+          },
+          "404": {
+            "description": "Resource unavailable in scope"
+          },
+          "409": {
+            "description": "Revision, scope or lifecycle conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "eveningId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ]
+      }
+    },
+    "/v1/show/devices/{deviceId}/prophecies": {
+      "get": {
+        "operationId": "get_v1_show_devices__deviceId__prophecies",
+        "x-source": "Features/Show/ShowArchiveEndpoints.cs",
+        "security": [
+          {
+            "ServerAdmin": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored authoritative result; never a physical actuator acknowledgement."
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Required credential absent or invalid"
+          },
+          "404": {
+            "description": "Resource unavailable in scope"
+          },
+          "409": {
+            "description": "Revision, scope or lifecycle conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "eveningId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ]
+      }
+    },
+    "/v1/show/devices/{deviceId}/prophecies/{outcomeId}/reveal": {
+      "post": {
+        "operationId": "post_v1_show_devices__deviceId__prophecies__outcomeId__reveal",
+        "x-source": "Features/Show/ShowArchiveEndpoints.cs",
+        "security": [
+          {
+            "ServerAdmin": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored authoritative result; never a physical actuator acknowledgement."
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Required credential absent or invalid"
+          },
+          "404": {
+            "description": "Resource unavailable in scope"
+          },
+          "409": {
+            "description": "Revision, scope or lifecycle conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "outcomeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevealProphecy"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/show/devices/{deviceId}/end-evening": {
+      "post": {
+        "operationId": "post_v1_show_devices__deviceId__end_evening",
+        "x-source": "Features/Show/ShowArchiveEndpoints.cs",
+        "security": [
+          {
+            "ServerAdmin": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored authoritative result; never a physical actuator acknowledgement."
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Required credential absent or invalid"
+          },
+          "404": {
+            "description": "Resource unavailable in scope"
+          },
+          "409": {
+            "description": "Revision, scope or lifecycle conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EndEvening"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/show/offline-outcomes": {
+      "post": {
+        "operationId": "post_v1_show_offline_outcomes",
+        "x-source": "Features/Show/OfflineOutcomes.cs",
+        "security": [
+          {
+            "ServerAdmin": []
+          },
+          {
+            "DeviceAccess": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored authoritative result; never a physical actuator acknowledgement."
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Required credential absent or invalid"
+          },
+          "404": {
+            "description": "Resource unavailable in scope"
+          },
+          "409": {
+            "description": "Revision, scope or lifecycle conflict"
+          }
+        },
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OfflineOutcomeRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/show/devices/{deviceId}/offline-outcomes": {
+      "post": {
+        "operationId": "post_v1_show_devices__deviceId__offline_outcomes",
+        "x-source": "Features/Show/OfflineOutcomes.cs",
+        "security": [
+          {
+            "ServerAdmin": []
+          },
+          {
+            "DeviceAccess": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored authoritative result; never a physical actuator acknowledgement."
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Required credential absent or invalid"
+          },
+          "404": {
+            "description": "Resource unavailable in scope"
+          },
+          "409": {
+            "description": "Revision, scope or lifecycle conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OfflineOutcomeRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/show/devices/{deviceId}/duels": {
+      "get": {
+        "operationId": "get_v1_show_devices__deviceId__duels",
+        "x-source": "Features/Show/DuelEndpoints.cs",
+        "security": [
+          {
+            "ServerAdmin": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored authoritative result; never a physical actuator acknowledgement."
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Required credential absent or invalid"
+          },
+          "404": {
+            "description": "Resource unavailable in scope"
+          },
+          "409": {
+            "description": "Revision, scope or lifecycle conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "eveningId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "post_v1_show_devices__deviceId__duels",
+        "x-source": "Features/Show/DuelEndpoints.cs",
+        "security": [
+          {
+            "ServerAdmin": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored authoritative result; never a physical actuator acknowledgement."
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Required credential absent or invalid"
+          },
+          "404": {
+            "description": "Resource unavailable in scope"
+          },
+          "409": {
+            "description": "Revision, scope or lifecycle conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DuelCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/show/devices/{deviceId}/duels/{id}": {
+      "get": {
+        "operationId": "get_v1_show_devices__deviceId__duels__id_",
+        "x-source": "Features/Show/DuelEndpoints.cs",
+        "security": [
+          {
+            "ServerAdmin": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored authoritative result; never a physical actuator acknowledgement."
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Required credential absent or invalid"
+          },
+          "404": {
+            "description": "Resource unavailable in scope"
+          },
+          "409": {
+            "description": "Revision, scope or lifecycle conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ]
+      }
+    },
+    "/v1/show/devices/{deviceId}/duels/{id}/start": {
+      "post": {
+        "operationId": "post_v1_show_devices__deviceId__duels__id__start",
+        "x-source": "Features/Show/DuelEndpoints.cs",
+        "security": [
+          {
+            "ServerAdmin": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored authoritative result; never a physical actuator acknowledgement."
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Required credential absent or invalid"
+          },
+          "404": {
+            "description": "Resource unavailable in scope"
+          },
+          "409": {
+            "description": "Revision, scope or lifecycle conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DuelCommand"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/show/devices/{deviceId}/duels/{id}/cancel": {
+      "post": {
+        "operationId": "post_v1_show_devices__deviceId__duels__id__cancel",
+        "x-source": "Features/Show/DuelEndpoints.cs",
+        "security": [
+          {
+            "ServerAdmin": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored authoritative result; never a physical actuator acknowledgement."
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Required credential absent or invalid"
+          },
+          "404": {
+            "description": "Resource unavailable in scope"
+          },
+          "409": {
+            "description": "Revision, scope or lifecycle conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DuelCommand"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/show/devices/{deviceId}/duels/{id}/grants": {
+      "post": {
+        "operationId": "post_v1_show_devices__deviceId__duels__id__grants",
+        "x-source": "Features/Show/DuelEndpoints.cs",
+        "security": [
+          {
+            "ServerAdmin": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored authoritative result; never a physical actuator acknowledgement."
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Required credential absent or invalid"
+          },
+          "404": {
+            "description": "Resource unavailable in scope"
+          },
+          "409": {
+            "description": "Revision, scope or lifecycle conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DuelGrantRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/show/devices/{deviceId}/duels/{id}/grants/revoke": {
+      "post": {
+        "operationId": "post_v1_show_devices__deviceId__duels__id__grants_revoke",
+        "x-source": "Features/Show/DuelEndpoints.cs",
+        "security": [
+          {
+            "ServerAdmin": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored authoritative result; never a physical actuator acknowledgement."
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Required credential absent or invalid"
+          },
+          "404": {
+            "description": "Resource unavailable in scope"
+          },
+          "409": {
+            "description": "Revision, scope or lifecycle conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DuelGrantRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/show/chronicle": {
+      "get": {
+        "operationId": "get_v1_admin_show_chronicle",
+        "x-source": "Features/Show/ChronicleEndpoints.cs",
+        "security": [
+          {
+            "ServerAdmin": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored authoritative result; never a physical actuator acknowledgement."
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Required credential absent or invalid"
+          },
+          "404": {
+            "description": "Resource unavailable in scope"
+          },
+          "409": {
+            "description": "Revision, scope or lifecycle conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "eveningId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "deviceId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ]
+      }
+    },
+    "/v1/admin/show/evenings/{eveningId}/end": {
+      "post": {
+        "operationId": "post_v1_admin_show_evenings__eveningId__end",
+        "x-source": "Features/Show/ChronicleEndpoints.cs",
+        "security": [
+          {
+            "ServerAdmin": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored authoritative result; never a physical actuator acknowledgement."
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Required credential absent or invalid"
+          },
+          "404": {
+            "description": "Resource unavailable in scope"
+          },
+          "409": {
+            "description": "Revision, scope or lifecycle conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "eveningId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChronicleCommand"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/show/evenings/{eveningId}/chronicle-editions": {
+      "post": {
+        "operationId": "post_v1_admin_show_evenings__eveningId__chronicle_editions",
+        "x-source": "Features/Show/ChronicleEndpoints.cs",
+        "security": [
+          {
+            "ServerAdmin": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored authoritative result; never a physical actuator acknowledgement."
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Required credential absent or invalid"
+          },
+          "404": {
+            "description": "Resource unavailable in scope"
+          },
+          "409": {
+            "description": "Revision, scope or lifecycle conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "eveningId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChronicleCommand"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/show/chronicle/sources/{sourceId}": {
+      "delete": {
+        "operationId": "delete_v1_admin_show_chronicle_sources__sourceId_",
+        "x-source": "Features/Show/ChronicleEndpoints.cs",
+        "security": [
+          {
+            "ServerAdmin": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored authoritative result; never a physical actuator acknowledgement."
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Required credential absent or invalid"
+          },
+          "404": {
+            "description": "Resource unavailable in scope"
+          },
+          "409": {
+            "description": "Revision, scope or lifecycle conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChronicleCommand"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/guest/v1/chronicle": {
+      "get": {
+        "operationId": "get_guest_v1_chronicle",
+        "x-source": "Features/Show/ChronicleEndpoints.cs",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Stored authoritative result; never a physical actuator acknowledgement."
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Required credential absent or invalid"
+          },
+          "404": {
+            "description": "Resource unavailable in scope"
+          },
+          "409": {
+            "description": "Revision, scope or lifecycle conflict"
+          }
+        },
+        "parameters": []
+      }
+    },
+    "/guest/v1/duels/{id}": {
+      "get": {
+        "operationId": "get_guest_v1_duels__id_",
+        "x-source": "Features/Show/DuelEndpoints.cs",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Stored authoritative result; never a physical actuator acknowledgement."
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Required credential absent or invalid"
+          },
+          "404": {
+            "description": "Resource unavailable in scope"
+          },
+          "409": {
+            "description": "Revision, scope or lifecycle conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ]
+      }
+    },
+    "/guest/v1/duels/{id}/choices": {
+      "post": {
+        "operationId": "post_guest_v1_duels__id__choices",
+        "x-source": "Features/Show/DuelEndpoints.cs",
+        "security": [
+          {
+            "DuelSideGrant": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored authoritative result; never a physical actuator acknowledgement."
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Required credential absent or invalid"
+          },
+          "404": {
+            "description": "Resource unavailable in scope"
+          },
+          "409": {
+            "description": "Revision, scope or lifecycle conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DuelChoice"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/show/device-cues": {
+      "get": {
+        "operationId": "get_v1_show_device-cues",
+        "x-source": "Features/Show/ShowDeviceCuesEndpoints.cs",
+        "security": [
+          {
+            "DeviceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "bootId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "generation",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "deviceRevision",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "deviceTimeMs",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "appliedSettingsRevision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "appliedQuiet",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "appliedAmbient",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "voice",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 32
+            }
+          },
+          {
+            "name": "appliedStopRevision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current device-scoped result; no measured acoustic evidence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceCueEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid bounded request"
+          },
+          "401": {
+            "description": "Device token required"
+          },
+          "404": {
+            "description": "Cue unavailable"
+          },
+          "409": {
+            "description": "Correlation, lifecycle or cancellation conflict"
+          }
+        }
+      }
+    },
+    "/v1/show/device-cues/{cueId}/audio": {
+      "get": {
+        "operationId": "get_v1_show_device-cues_cueId_audio",
+        "x-source": "Features/Show/ShowDeviceCuesEndpoints.cs",
+        "security": [
+          {
+            "DeviceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cueId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Read-only cached canonical PCM16 mono32kHz WAV, at most8s; GET never starts or retries provider work",
+            "content": {
+              "audio/wav": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid bounded request"
+          },
+          "401": {
+            "description": "Device token required"
+          },
+          "404": {
+            "description": "Cue unavailable"
+          },
+          "409": {
+            "description": "Correlation, lifecycle or cancellation conflict"
+          },
+          "202": {
+            "description": "Already claimed generation pending; Retry-After1; no new attempt"
+          },
+          "503": {
+            "description": "Generation unavailable or failed; no automatic rebilling"
+          }
+        }
+      }
+    },
+    "/v1/show/device-cues/{cueId}/ack": {
+      "post": {
+        "operationId": "post_v1_show_device-cues_cueId_ack",
+        "x-source": "Features/Show/ShowDeviceCuesEndpoints.cs",
+        "security": [
+          {
+            "DeviceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cueId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current device-scoped result; no measured acoustic evidence"
+          },
+          "400": {
+            "description": "Invalid bounded request"
+          },
+          "401": {
+            "description": "Device token required"
+          },
+          "404": {
+            "description": "Cue unavailable"
+          },
+          "409": {
+            "description": "Correlation, lifecycle or cancellation conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceCueAck"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ServerAdmin": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "DeviceAccess": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "DuelSideGrant": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "DeviceToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Existing expiring device access token; server derives device scope from token."
+      }
+    },
+    "schemas": {
+      "ShowCommand": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "commandId",
+          "expectedStateRevision",
+          "kind"
+        ],
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "expectedStateRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "kind": {
+            "enum": [
+              "mood",
+              "mood-auto",
+              "tone",
+              "tempo",
+              "quiet",
+              "ambient",
+              "ambient-trigger",
+              "scene-twist",
+              "quick-finale",
+              "guest-leave",
+              "cancel-speech",
+              "cancel-cue",
+              "stop",
+              "recover",
+              "next-visit",
+              "override"
+            ]
+          },
+          "sessionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sessionGeneration": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ttlSeconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 120
+          }
+        }
+      },
+      "DuelCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eveningId",
+          "leftIdentityId",
+          "rightIdentityId",
+          "mode",
+          "consentConfirmed",
+          "operationKey"
+        ],
+        "properties": {
+          "eveningId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "leftIdentityId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "rightIdentityId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "mode": {
+            "enum": [
+              "autoplay",
+              "interactive",
+              "exhibition"
+            ]
+          },
+          "consentConfirmed": {
+            "const": true
+          },
+          "operationKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      },
+      "DuelCommand": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "revision",
+          "operationKey"
+        ],
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "operationKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      },
+      "DuelGrantRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "side",
+          "revision",
+          "operationKey"
+        ],
+        "properties": {
+          "side": {
+            "enum": [
+              "left",
+              "right"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "operationKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      },
+      "DuelChoice": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "side",
+          "round",
+          "revision",
+          "action",
+          "operationKey"
+        ],
+        "properties": {
+          "side": {
+            "enum": [
+              "left",
+              "right"
+            ]
+          },
+          "round": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "action": {
+            "enum": [
+              "strike",
+              "trick",
+              "shield"
+            ]
+          },
+          "operationKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      },
+      "EndEvening": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eveningId",
+          "expectedStateRevision"
+        ],
+        "properties": {
+          "eveningId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "expectedStateRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        }
+      },
+      "RevealProphecy": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eveningId"
+        ],
+        "properties": {
+          "eveningId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      },
+      "ChronicleCommand": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "deviceId"
+        ],
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      },
+      "offlineOutcome": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "operationId",
+          "deviceId",
+          "bootId",
+          "generation",
+          "localEveningId",
+          "eveningId",
+          "sourceMode",
+          "compartment",
+          "catalogVersion",
+          "startedAtDeviceMs",
+          "completedAtDeviceMs",
+          "timeConfidence",
+          "outcome"
+        ],
+        "properties": {
+          "operationId": {
+            "$ref": "#/components/schemas/uuid"
+          },
+          "deviceId": {
+            "$ref": "#/components/schemas/deviceId"
+          },
+          "bootId": {
+            "$ref": "#/components/schemas/uuid"
+          },
+          "generation": {
+            "$ref": "#/components/schemas/safeInteger"
+          },
+          "localEveningId": {
+            "$ref": "#/components/schemas/uuid"
+          },
+          "eveningId": {
+            "type": "null"
+          },
+          "sourceMode": {
+            "enum": [
+              "offline_scripted",
+              "operator"
+            ]
+          },
+          "compartment": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 6
+          },
+          "catalogVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "startedAtDeviceMs": {
+            "$ref": "#/components/schemas/safeInteger"
+          },
+          "completedAtDeviceMs": {
+            "$ref": "#/components/schemas/safeInteger"
+          },
+          "timeConfidence": {
+            "const": "boot_monotonic"
+          },
+          "outcome": {
+            "const": "completed_by_timing"
+          }
+        }
+      },
+      "uuid": {
+        "type": "string",
+        "format": "uuid",
+        "maxLength": 36
+      },
+      "deviceId": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]{0,63}$"
+      },
+      "safeInteger": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 9007199254740991
+      },
+      "OfflineOutcomeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schemaVersion",
+          "outcome"
+        ],
+        "properties": {
+          "schemaVersion": {
+            "const": 1
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/offlineOutcome"
+          }
+        }
+      },
+      "ShowState": {
+        "type": "object",
+        "required": [
+          "deviceId",
+          "eveningId",
+          "revision",
+          "phase",
+          "mood",
+          "tone",
+          "tempo",
+          "quiet",
+          "ambientEnabled",
+          "updatedAt"
+        ],
+        "description": "Versioned projection defined by the same-named C# record; optional fields are additive.",
+        "properties": {
+          "deviceId": {
+            "type": "string"
+          },
+          "eveningId": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "phase": {
+            "type": "string"
+          },
+          "mood": {
+            "type": "object"
+          },
+          "tone": {
+            "type": "string"
+          },
+          "tempo": {
+            "type": "string"
+          },
+          "quiet": {
+            "type": "boolean"
+          },
+          "ambientEnabled": {
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "DuelView": {
+        "type": "object",
+        "required": [
+          "id",
+          "deviceId",
+          "eveningId",
+          "rulesVersion",
+          "mode",
+          "revision",
+          "state",
+          "left",
+          "right",
+          "round",
+          "rounds"
+        ],
+        "description": "Versioned projection defined by the same-named C# record; optional fields are additive.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "deviceId": {
+            "type": "string"
+          },
+          "eveningId": {
+            "type": "string"
+          },
+          "rulesVersion": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "state": {
+            "type": "string"
+          },
+          "left": {
+            "type": "object"
+          },
+          "right": {
+            "type": "object"
+          },
+          "round": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "rounds": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "ChronicleSnapshot": {
+        "type": "object",
+        "required": [
+          "schemaVersion",
+          "eveningId",
+          "revision",
+          "provisional",
+          "createdAt",
+          "completedVisits",
+          "confirmedPresentations",
+          "completedDuels",
+          "interruptedVisits",
+          "unresolvedVisits",
+          "wands",
+          "mostPopularSlots",
+          "narrative",
+          "retention"
+        ],
+        "description": "Versioned projection defined by the same-named C# record; optional fields are additive.",
+        "properties": {
+          "schemaVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "eveningId": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "provisional": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completedVisits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "confirmedPresentations": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "completedDuels": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "interruptedVisits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unresolvedVisits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "wands": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "mostPopularSlots": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 6
+            }
+          },
+          "narrative": {
+            "type": "string"
+          },
+          "retention": {
+            "type": "string"
+          }
+        }
+      },
+      "DeviceCueAck": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "bootId",
+          "generation",
+          "deviceRevision",
+          "outcome",
+          "evidence"
+        ],
+        "properties": {
+          "bootId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "generation": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "deviceRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "outcome": {
+            "enum": [
+              "accepted",
+              "completed",
+              "rejected",
+              "cancelled"
+            ]
+          },
+          "evidence": {
+            "enum": [
+              "commanded",
+              "playback_finished",
+              "missing_assets"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 128
+          }
+        }
+      },
+      "DeviceCue": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "cueId",
+          "duelId",
+          "round",
+          "bootId",
+          "generation",
+          "deviceRevision",
+          "issuedAtDeviceMs",
+          "validUntilDeviceMs",
+          "sceneId",
+          "compartment",
+          "speechText",
+          "audioPath"
+        ],
+        "properties": {
+          "cueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "duelId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "round": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          },
+          "bootId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "generation": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "deviceRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "issuedAtDeviceMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "validUntilDeviceMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sceneId": {
+            "enum": [
+              "wake",
+              "consider",
+              "farewell",
+              "ambient"
+            ]
+          },
+          "compartment": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 6
+          },
+          "speechText": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "audioPath": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^/v1/show/device-cues/[0-9a-fA-F-]{36}/audio$"
+          },
+          "clipId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 128
+          },
+          "cueType": {
+            "enum": [
+              "NarratedBeat",
+              "Combined",
+              "LedPreset",
+              "PlayLocalClip",
+              "VibratePreset"
+            ]
+          },
+          "preset": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "wake",
+              "consider",
+              "ambient",
+              "farewell",
+              "presentation-search-pulse",
+              null
+            ]
+          },
+          "voice": {
+            "type": "string",
+            "maxLength": 32
+          }
+        }
+      },
+      "DeviceCueEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "quiet",
+          "ambientEnabled",
+          "settingsRevision",
+          "cue",
+          "stopRevision"
+        ],
+        "properties": {
+          "quiet": {
+            "type": "boolean"
+          },
+          "ambientEnabled": {
+            "type": "boolean"
+          },
+          "settingsRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          },
+          "cue": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeviceCue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cancelledCueId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "stopRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295,
+            "description": "Explicit physical Stop command revision, independent of quiet and settings."
+          }
+        }
+      }
+    }
+  }
+}

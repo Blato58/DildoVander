@@ -1,0 +1,33 @@
+.chronicle-header, #chronicle-main, .chronicle-footer { width: min(100% - 40px, 1000px); margin-inline: auto; }
+.chronicle-header { display: flex; justify-content: space-between; gap: 24px; padding-block: 24px; border-bottom: 1px solid var(--aw-border-subtle); }
+.chronicle-heading { padding-block: 48px 24px; max-width: 70ch; }
+.chronicle-heading h1 { font-size: clamp(36px, 7vw, 64px); line-height: 1.08; margin-block: 12px 24px; }
+.chronicle-heading p { color: var(--aw-muted); }
+#chronicle-actions { margin-block: 0 24px; }
+#chronicle-status { margin-block: 16px; }
+#chronicle-edition { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
+.chronicle-counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; padding-block: 24px; border-bottom: 1px solid var(--aw-border-subtle); }
+.chronicle-counts dt { color: var(--aw-muted); font-size: var(--aw-text-caption); }
+.chronicle-counts dd { font-size: clamp(32px, 5vw, 48px); margin: 12px 0 0; font-variant-numeric: tabular-nums; }
+.chronicle-story { max-width: 75ch; padding-block: 24px; }
+#narrative { font-size: var(--aw-text-body); line-height: 1.85; }
+.chronicle-note, .chronicle-footer { color: var(--aw-muted); font-size: var(--aw-text-caption); line-height: 1.7; }
+.aw-table caption { text-align: left; color: var(--aw-muted); padding-block: 12px; }
+.aw-table th:last-child, .aw-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+.aw-table th:last-child { white-space: nowrap; width: 7rem; }
+.chronicle-admin { margin-block: 40px; padding-block: 24px; border-top: 1px solid var(--aw-border-subtle); }
+.chronicle-admin summary { cursor: pointer; padding-block: 12px; }
+#admin-form { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 700px; }
+#admin-form .aw-field { display: grid; gap: 8px; }
+#admin-actions { align-self: end; }
+.chronicle-footer { padding-block: 24px 40px; border-top: 1px solid var(--aw-border-subtle); }
+@media (max-width: 600px) {
+  .chronicle-header, #chronicle-main, .chronicle-footer { width: min(100% - 32px, 1000px); }
+  .chronicle-header { flex-wrap: wrap; gap: 12px; }
+  .chronicle-heading { padding-top: 32px; }
+  .chronicle-counts { grid-template-columns: 1fr; gap: 16px; }
+  .chronicle-counts > div { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+  .chronicle-counts dd { margin: 0; }
+  #admin-form { grid-template-columns: 1fr; }
+  .aw-table th, .aw-table td { overflow-wrap: anywhere; }
+}

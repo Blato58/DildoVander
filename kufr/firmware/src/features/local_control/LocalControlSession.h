@@ -27,6 +27,7 @@ class LocalControlSession final {
   bool Release(const std::string& bootId, const std::string& leaseId,
                SelectionStep& step);
   void Disconnect(SelectionStep& step);
+  bool HandoffToOffline(const std::string& bootId, const std::string& leaseId, uint64_t nowMs);
   const std::string& LeaseId() const;
 
  private:

@@ -1,5 +1,59 @@
 # Mobilní ovládání kufru
 
+**Director Mode** je v existující aplikaci pod **Diagnostika → Provozní nástroje**,
+případně na `#director`. Vstup neuděluje oprávnění: každé čtení a povel ověřuje
+backend pomocí `ServerAdminAccess` a scope zařízení. Webový administrátorský
+credential zůstává pouze v paměti otevřené stránky; iOS používá již existující
+nativní profil v Keychain přes omezený `showRequest`, bez předání credentialu
+do JavaScriptu. Pro jinou adresu/identitu je nutné znovu nastavit přístup.
+
+Režie odděluje místní zařízení, backend a AI, ukazuje revizi, návštěvu, náladu,
+tón, tempo a životní cyklus zásahu. Konflikt nebo ztracená odpověď se neopakuje;
+obnova načítá stav. Stop míří stávající místní cestou, nezávisí na backendu a
+jeho přijetí neprokazuje změřené zastavení. Bez autentizovaného místního spojení
+je místní Stop, řeč a Offline Show nedostupný. Backendové ovládání samo
+nepropůjčuje ruční lease ani oprávnění k pohonům.
+
+Samostatný **Stop přes backend** používá administrátorský přístup a HTTPS backend,
+nevyžaduje AI ani místní LAN spojení telefonu s kufrem. Odesílá jeden přednostní
+povel s vlastním ID i během jiného čekajícího požadavku; pozdní běžná odpověď jeho
+stav nepřepíše. Místní Stop stále vede přímo stávající bezpečnostní cestou.
+Přijetí vzdáleného Stop backendem nepotvrzuje doručení kufru: odpojené zařízení
+jej může převzít až při dalším vlastním HTTPS dotazu po obnově spojení.
+UI čeká na aktuální report zařízení se stejnou `stopRevision` jako požadovaný
+`deviceStopRevision`, pozorovaný až po přijetí povelu. Ani toto potvrzení není
+měření fyzického zastavení. Ztracená odpověď zůstává neznámá a povel se automaticky
+neopakuje; další výslovný stisk vytváří nové ID. Rozlišené cesty ani jejich
+nedostupnost nenahrazují fyzické zastavení a místní zotavení.
+
+Offline preflight/Arm/start/outbox používají autentizované místní WSS a
+aktuální boot, generaci, revizi a pro Arm také ruční lease. Výsledky lze výslovně
+synchronizovat do backendu; místní outbox se potvrzuje až po serverovém přijetí
+stejného `operationId`. UI nepovažuje časované dokončení za změřenou polohu.
+Soukromé znění proroctví se v režii nezobrazuje; odhalení zpřístupní příslušný
+výsledek jeho návštěvníkovi. Uzavření večera má explicitní potvrzení a nemaže archiv.
+
+Souboj je výchozí automatický; volba **Hosté volí na svých telefonech** umožní
+vydat a odvolat samostatný herní odkaz pro levou a pravou stranu. Odkazy používají
+výhradně veřejný origin nastavený na backendu. Grant je pouze ve fragmentu herního
+odkazu a v paměti právě otevřené režie; veřejný odkaz ke sledování grant neobsahuje.
+Změna zařízení/večera/souboje, odhlášení, opuštění režie a ukončení souboje
+odstraní místní kopie. Samotné zavření pohledu neodvolává grant na serveru;
+výslovné odvolání má vlastní potvrzený serverový výsledek. Nové vydání zneplatní
+předchozí odkaz příslušné strany. Operátorský credential se do odkazu nepředává.
+
+Opakovatelné browser ověření: nejprve spusťte izolovaný **fake-mode** backend
+s povoleným originem aplikace a testovacím operátorským credentialem, poté
+`node scripts/check-director-browser.mjs`. Skript přijímá jen loopback cíle;
+`DIRECTOR_TEST_APP`, `DIRECTOR_TEST_BACKEND`, `DIRECTOR_TEST_DEVICE` a
+`DIRECTOR_TEST_CREDENTIAL` mění jeho testovací konfiguraci. Používá již zavedený
+Playwright z `../design-system/` (na Windows nainstalovaný Edge). Browser výsledek
+neprokazuje přijetí na iPhonu, Keychain dialog, audio ani fyzickou bezpečnost.
+`node scripts/check-director-remote-stop.mjs` na izolovaném loopback fixture
+ověřuje skutečný přednostní Stop při zadržené běžné odpovědi a neznámý výsledek při
+ztrátě již přijaté odpovědi. Mění stav fixture na zastavenou režii; spouštějte jej
+až po ostatních provozních browser scénářích.
+
 Rozhraní Vapour Chrome používá sdílené tokeny a komponenty `kufr/design-system/`. Spodní navigace
 odděluje **Provoz**, **Kufr** a **Diagnostiku**; Stop zůstává v horní liště i při posunu.
 Provoz nejprve ukazuje stav spojení, ručního řízení a přihrádek a jeden další krok.

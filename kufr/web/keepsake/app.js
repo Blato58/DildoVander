@@ -1,3 +1,4 @@
+import { renderWizardIdentity, renderProphecy } from '/keepsake/identity.js';
 import { bindDialog, button as renderButton, element, notice, statusBadge } from '/design-system/ui.js';
 
 const $ = id => document.getElementById(id);
@@ -43,6 +44,7 @@ function releaseObjectUrls() {
 function clearPrivateView() {
   record = undefined; edition = undefined; localPhoto = undefined; lastRender = undefined;
   delete $('story-body').dataset.content;
+  $('wizard-identity').replaceChildren(); $('wizard-prophecy').replaceChildren(); $('wizard-prophecy').hidden = true;
   releaseObjectUrls();
   for (const id of ['wand-art', 'full-art', 'photo-preview']) $(id).removeAttribute('src');
   for (const id of ['wand-name', 'edition-title', 'summary', 'story-body', 'portrait-current', 'portrait-history', 'link-value']) {
@@ -108,6 +110,10 @@ function showError(error, mutation = false) {
     text('entry-copy', 'Použij platný osobní nebo návratový odkaz. Pokud jej nemáš, požádej obsluhu kufru.');
     visible('exchange', false); visible('retry', false);
     feedback('Přístup se nepodařilo ověřit.');
+    return;
+  }
+  if (error.code === 'new_edition_required') {
+    feedback('Tato edice už má sdílené soubory. Nový profil vyžaduje novou edici; požádej obsluhu.');
     return;
   }
   feedback(error.status === 429
@@ -187,7 +193,7 @@ function updateActions() {
     button.disabled = busy || !edition || (format === 'art' && !edition.artworkAssetId)
       || (format === 'portrait' && (!owner() || !activePortrait()))
       || (readOnly && format !== 'art' && !sharedExport(format))
-      || (format === 'card' && (!edition.story || !edition.artworkAssetId));
+      || (format === 'card' && (!edition.story || (!edition.artworkAssetId && !record.wizardIdentities?.some(item => item.editionId === edition.id))));
   }
   $('generate-portrait').disabled = busy || !owner() || !edition || !localPhoto || !$('photo-consent').checked;
   $('include-portrait').disabled = !owner() || !activePortrait();
@@ -207,6 +213,10 @@ function render(view) {
   $('scope').replaceChildren(element(statusBadge({ label: readOnly ? 'Sdílená edice · pouze čtení' : 'Soukromá památka', tone: 'neutral' })));
   text('wand-name', view.snapshot?.officialName || 'Název hůlky není potvrzený');
   text('catalog-label', view.snapshot?.slot ? `Hůlka z přihrádky ${view.snapshot.slot}` : 'Hůlka, která si tě vybrala');
+  const identity = view.wizardIdentities?.find(item => item.editionId === edition?.id);
+  renderWizardIdentity($('wizard-identity'), identity);
+  renderProphecy($('wizard-prophecy'), readOnly ? null : view.prophecies?.find(item => item.editionId === edition?.id));
+  visible('create-wizard-identity', owner() && !!edition && !identity);
   text('edition-title', edition?.story?.title);
   text('summary', edition?.story?.text?.split(/\n\s*\n/)[0]);
   const story = $('story-body');
@@ -258,7 +268,8 @@ function schedulePoll(delay) {
   clearTimeout(timer);
   if (document.hidden || !locator || !record) return;
   const pending = record.jobs?.some(job => !['completed', 'ready', 'failed', 'cancelled', 'archived_private'].includes(job.state));
-  if (pending) timer = setTimeout(load, Math.min(30000, Math.max(3000, delay || (Date.now() - pollStarted < 30000 ? 3000 : 10000))) + Math.random() * 700);
+  const prophecyLocked = !readOnly && record.prophecies?.some(item => item.state === 'locked');
+  if (pending || prophecyLocked) timer = setTimeout(load, Math.min(30000, Math.max(3000, delay || (Date.now() - pollStarted < 30000 ? 3000 : 10000))) + Math.random() * 700);
 }
 async function load() {
   if (!locator || document.hidden) return;
@@ -484,3 +495,10 @@ $('deletion-refresh').addEventListener('click', event => action(event.currentTar
   const result = await request(`/guest/v1/deletions/${encodeURIComponent(deletionReceipt.id)}`); renderDeletion(result.receipt);
 }));
 await route();
+
+$('create-wizard-identity').addEventListener('click', event => action(event.currentTarget, async ({ request, apiPath, ensureCsrf }) => {
+  if (!owner() || !edition) return;
+  await ensureCsrf();
+  await request(apiPath('/wizard-identity'), { method: 'POST', data: { editionId: edition.id } });
+  await load();
+}));

@@ -51,12 +51,60 @@ private final class DebugCostumeCamera: NSObject, UIImagePickerControllerDelegat
 public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate, AVSpeechSynthesizerDelegate {
     public let identifier = "KufrDebugPlugin"
     public let jsName = "KufrDebug"
-    public let pluginMethods: [CAPPluginMethod] = ["status", "configure", "forgetProfile", "inspectEvenings", "createEvening", "activateEvening", "inspectBackend", "inspectServer", "changeServerModes", "runOpeningSpeech", "startConversation", "answerConversation", "startRecording", "finishRecording", "speakSystem", "stop", "shareLog", "readServerLogs", "captureCostumePhoto", "discardCostumePhoto"].map {
+    public let pluginMethods: [CAPPluginMethod] = ["status", "configure", "forgetProfile", "inspectEvenings", "createEvening", "activateEvening", "inspectBackend", "inspectServer", "changeServerModes", "runOpeningSpeech", "startConversation", "answerConversation", "startRecording", "finishRecording", "speakSystem", "stop", "shareLog", "readServerLogs", "captureCostumePhoto", "discardCostumePhoto", "showRequest"].map {
         CAPPluginMethod(name: $0, returnType: CAPPluginReturnPromise)
     }
     private var profile: DebugBackendProfile?
     private var logTask: Task<Void, Never>?
     private let profileKeychain = DebugBackendKeychain()
+
+    // Director uses the existing private profile. Neither its credential nor a
+    // destination URL can be supplied by web content to this bounded bridge.
+    @objc func showRequest(_ call: CAPPluginCall) {
+        guard let deviceId = call.getString("deviceId"),
+              deviceId.range(of: "^[A-Za-z0-9_-]{1,128}$", options: .regularExpression) != nil,
+              let suffix = call.getString("suffix"), suffix.utf8.count <= 1024,
+              let method = call.getString("method"), ["GET", "POST"].contains(method),
+              let profile = try? profileKeychain.read() else {
+            call.reject("Neplatný nebo chybějící operátorský profil.", "invalid_profile"); return
+        }
+        let allowedGet = "^(|/(identities|prophecies|duels)(\\?eveningId=[A-Za-z0-9%_-]+)?|/duels/[A-Za-z0-9_-]+)$"
+        let allowedPost = "^/(commands|end-evening|offline-outcomes|prophecies/[A-Za-z0-9_-]+/reveal|duels|duels/[A-Za-z0-9_-]+/(start|cancel|grants|grants/revoke))$"
+        guard suffix.range(of: method == "GET" ? allowedGet : allowedPost, options: .regularExpression) != nil else {
+            call.reject("Nepovolená cesta režie.", "invalid_path"); return
+        }
+        let body = call.getString("body")
+        guard (method == "GET" && body == nil) ||
+              (method == "POST" && body != nil && body!.utf8.count <= 65536 &&
+               (try? JSONSerialization.jsonObject(with: Data(body!.utf8))) is [String: Any]) else {
+            call.reject("Neplatné tělo požadavku.", "invalid_body"); return
+        }
+        guard let url = URL(string: "/v1/show/devices/\(deviceId)\(suffix)", relativeTo: profile.baseURL)?.absoluteURL,
+              url.host == profile.baseURL.host, url.scheme == profile.baseURL.scheme,
+              url.port == profile.baseURL.port else {
+            call.reject("Neplatný cíl režie.", "invalid_path"); return
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("Bearer \(profile.credential)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let body = body {
+            request.httpBody = Data(body.utf8)
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+        Task {
+            do {
+                let transport = DebugHTTPTransport()
+                defer { transport.invalidate() }
+                let (data, response) = try await transport.request(request, limit: 1048576)
+                let object: Any = data.isEmpty ? NSNull() : try JSONSerialization.jsonObject(with: data)
+                call.resolve(["status": response.statusCode, "body": object])
+            } catch {
+                // Never include URLRequest, headers or response bodies in errors.
+                call.reject("Server neodpověděl; výsledek povelu není ověřený.", "show_request_failed")
+            }
+        }
+    }
     private var evenings: DebugEveningList?
     private var task: Task<Void, Never>?
     private var player: AVAudioPlayer?

@@ -19,6 +19,7 @@ Jde o rozpracovaný prototyp pro soukromou party 18+: persony obsahují dospěl�
 
 - [Implementační plán](kufr/docs/implementacni-plan.md) určuje architekturu, kontrakty a akceptační kritéria etap E0–E13 včetně E3a.
 - [Aktuální práce, blokace a ověření](docs/project/STATUS.md) obsahuje dokončené části, důkazy ověření, blokace a nejbližší proveditelný krok.
+- [Show Pack](kufr/docs/show-pack.md) popisuje živou režii, identity a proroctví, kroniku, souboje, Director iOS/web a místní offline režim včetně připravenosti audio banky.
 - [AGENTS.md](AGENTS.md) určuje postup další AI; [README kufru](kufr/README.md) odkazuje na jednotlivé komponenty a technické podklady.
 
 Pro zahájení další práce stačí: **„Začni implementovat aplikaci podle implementačního plánu.“** Pro navázání: **„Pokračuj v implementaci podle implementačního plánu.“** AI nejprve porovná stav s kódem, pokračuje v nejbližším malém kroku a zapíše ověření i předání. Rozsah lze omezit například na mobilní aplikaci; chybějící hardware neblokuje nezávislou simulaci. Stav se vede v repozitáři, není potřeba dohledávat tento chat.

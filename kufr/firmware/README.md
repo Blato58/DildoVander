@@ -31,6 +31,101 @@ Hostitelské důkazy nejsou akceptace ESP/audio/iPhone; tu vede brána G v
 > disconnect clear the hint. Bonjour failure remains visible; BLE can supply an
 > address independently. Hardware service/calibration gates remain unchanged.
 
+## Show Pack: lokální režie, offline banka a ambient
+
+`features/offline_show/` používá existující `DeviceControlRuntime`,
+`PendingProposal`, `WandPresentation`, `PhysicalPresentation`, kalibraci a NVS
+journal. Změna autority má novou generation; návrat WAN nepovolí online scénu.
+`OfflineArmed` se připravuje autentizovaným místním povelem po fyzické kontrole.
+Jeho uložený opt-in lze po restartu obnovit až po stejném místním zotavení.
+Krátký stisk v připraveném klidu volí další dostupný slot 1–6; stisk při
+prezentaci dál znamená Stop, přidržení v klidu dál místní kontrolu.
+Stop trvale vypne armed i ambient a nastaví quiet; nové zotavení samo ambient
+nezapne. Stejně jako ostatní kontroly ani host test neprokazuje pohyb na desce.
+
+Lokální TLS/pairing transport přidává `offline_preflight`, `offline_arm`,
+`offline_start`, `offline_outbox`, `offline_sync_ack`, `offline_ambient` a `quiet`.
+Poslední dva povely mají povinné `enabled: boolean`; výsledek potvrzuje
+`offline.ack` s aktuálním místním stavem. Ambient je ve výchozím stavu vypnutý.
+Po výslovném zapnutí funguje v idle: online plánuje backend, offline nebo
+OfflineArmed místní koordinátor. Sdílejí meze: světlo nejdříve 45 s,
+řeč 120 s, další řeč nejméně po 180 s a nejvýše tři vstupy za klouzavých 10 min.
+Nespouští servo ani Live. Nový přijatý vlastník před playbackem čeká na ukončení
+zrušeného lokálního playeru; starý callback nepřebírá nový hlas.
+
+`offline-bank/manifest.json` dodává 24 českých textů: dva úvody, šest reakcí
+vázaných na skutečný katalog, dvě zakončení, dvě provozní věty a dvanáct ambientů.
+**Skutečné nahrávky nejsou součástí tohoto slice.** Dodaný bank má 0 audio bytů
+se stavem `missing_assets`; nenahrazuje hlas tóny a nepovoluje offline pohyb.
+Banka je vázána na hlas `marin`; nastavený jiný hlas znamená chybějící odpovídající
+voice profil. Zvuková a fyzická akceptace zůstávají oddělené.
+
+Příprava bez provider volání:
+
+1. Dodej schválené nahrávky správného hlasu jako `<clip-id>.wav`, PCM16 mono
+   24 kHz, každou nejvýše 8 s. Zkontroluj práva, skutečný hlas a obsah.
+2. Spusť `python kufr/firmware/scripts/prepare_offline_bank.py --audio-dir C:/private/offline-audio --inspect-recordings`.
+   Po kontrole přenes navržené délky, počty vzorků, velikosti a SHA-256 do manifestu.
+   Hash se počítá nad skutečným IMA ADPCM4 payloadem, nikoli WAV kontejnerem.
+3. Spusť stejný příkaz s `--audio-dir` bez `--inspect-recordings`; poté s `--check`.
+   Generátor nejprve ověří celou banku a až pak atomicky nahradí generovaný header.
+   Chyba ponechá předchozí výstup. Celá banka je součástí firmware image a používá
+   existující autentizované OTA se dvěma původními sloty po `0x640000`.
+4. Spusť `python kufr/firmware/tests/test_offline_bank.py`,
+   `python kufr/firmware/tests/run_show_tests.py --only offline_show_test` a `pio run`
+   ve firmware. Ověř skutečnou velikost image; neměň partition table kvůli bance.
+
+Interní limit encoded banky je 1 500 000 bytů (přibližně 125 s řeči).
+Player ověří SHA-256, streamuje dekódované bloky nejvýše 960 bytů stávajícím
+PCM/I2S portem a má samostatný 12 KiB stack kvůli konverzi existujícího playeru.
+SD ani SPIFFS nejsou podmínkou. Původní SPIFFS `0x360000`, OTA i rezervované piny
+zůstávají zachované; NVS outbox obsahuje nejvýše osm minimálních technických
+záznamů, bez fotek či příběhů. Rezervace předchází akci; jen potvrzený journal
+`completed_by_timing` vytvoří exportovatelný výsledek. Pending záznam se nemaže
+kvůli kapacitě. Také původní journal má konečných 32 operation ID a plnou
+kapacitu preflight hlásí. `offline_sync_ack` uvolní pouze dokončený výsledek,
+až po potvrzeném backend ingestu s výslovným mapováním `localEveningId`.
+Čas je `boot_monotonic`, nikoli vymyšlené UTC. Síťová synchronizace nepřenáší
+motorické povely. NVS či pending chyba znamená požadavek na zotavení.
+
+### Online duel a typované cues
+
+`features/show_cues/` propojuje autentizovaný idle HTTPS poll
+`GET /v1/show/device-cues` s řídicí smyčkou. Samostatný poll worker má pevný
+8 KiB stack a pouze mutexem chráněnou kopii access tokenu a skutečné expirace
+od původního vlastníka; neobnovuje identitu ani token a přestane při expiraci. Nabídka je vázaná na boot,
+generaci, revizi a původní monotónní čas; dvousekundová lhůta přijetí se
+opakováním neobnovuje. Jedna mailbox nabídka a čtyři ACK mají pevnou kapacitu.
+`accepted` potvrzuje místní přijetí; `completed/playback_finished` vzniká až po
+skutečném vyprázdnění existujícího playeru. Ani jeden výsledek nepotvrzuje
+měřenou fyzickou polohu. Za běžícího Live smí LED a konečný vibrační puls projít stejnou fyzickou
+bránou bez zneplatnění aktuálního rozhovoru. Zvukové cue vrací `audio_busy`,
+aby Live zůstal jediným vlastníkem zvuku. Jiná fyzická rezervace nabídku odmítne;
+pozdní efekt se nezařazuje do dalšího rozhovoru.
+
+`NarratedBeat` přehrává skutečný backendem připravený hlas: read-only audio GET
+vrací 202 při přípravě a 200 s cachovaným PCM16 mono 32 kHz WAV do 8 s.
+Firmware před přijetím ověří alokaci nejvýše 512 044 bytů v PSRAM, kontejner
+pak ověří celý a přehrává přes stejný `VoiceAudioPort` a pracovní úlohu jako
+lokální banka. Chybějící offline nahrávky neblokují tento online hlas. Hlas cue
+musí odpovídat skutečnému nastavení. Poll a ACK pokračují během přehrávání;
+stažené audio a síť nikdy přímo nespínají výstupy.
+
+`LedPreset` používá pouze existující `wake`, `consider`, `ambient`, `farewell`
+přes `SceneIntentBridge`, vždy jeden segment a původní limit RGB. `PlayLocalClip`
+vyžaduje schválený klip správného hlasu a skutečný drain; dodaná prázdná banka
+hlásí `missing_assets`. `VibratePreset` přijímá jen `presentation-search-pulse`,
+tedy původní krátký Prepare puls z kompilované hlavní prezentace, s kontrolou
+kalibrace, klidu a stejné rezervace výstupů. Nespouští servo. `PresentSelected`
+nadále používá původní návrh, operation ID a fyzický journal.
+
+Envelope přenáší quiet/ambient s trvalou `settingsRevision` a samostatnou
+`stopRevision`. Nová revize Stop prochází stejným sticky Stop vlastníků pohybu,
+tance a audia. Uložené revize chrání před replay po reconnectu nebo restartu;
+quiet samo není fyzický Stop. Poll vrací skutečně aplikované revize a přepínače.
+Lokální Stop a obsluha mají přednost. GET/audio nespouští generování ani placený
+test; online TTS připravuje stávající backendová cesta po explicitním požadavku.
+
 ## Aktuální předání D166
 
 Majitel zadal ručně `192.168.0.59` a obdržel servisní stav, který UI ukazuje

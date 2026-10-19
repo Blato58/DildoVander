@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "targetId": "SHOW-PACK-software",
+  "purpose": "Show Pack86 požadavků: ověřené softwarové cesty. Neprohlašuje schválené nahrávky, paid provider pilot, iPhone/hardware ani nasazení.",
+  "components": {
+    "artifactDigest": "38b1b327b78cfb1667649857a7bb0066c8fcb88d5f6dcfac4c0ab7990bfbab33",
+    "policyVersion": "show-pack-2026.10.19.1"
+  },
+  "requiredCriteria": [
+    {
+      "workItemId": "SHOW-PACK",
+      "criterionId": "DIRECTOR"
+    },
+    {
+      "workItemId": "SHOW-PACK",
+      "criterionId": "IDENTITY"
+    },
+    {
+      "workItemId": "SHOW-PACK",
+      "criterionId": "MEMORY"
+    },
+    {
+      "workItemId": "SHOW-PACK",
+      "criterionId": "DUEL"
+    },
+    {
+      "workItemId": "SHOW-PACK",
+      "criterionId": "OPERATOR"
+    },
+    {
+      "workItemId": "SHOW-PACK",
+      "criterionId": "OFFLINE"
+    }
+  ]
+}

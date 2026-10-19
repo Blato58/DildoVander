@@ -1,5 +1,19 @@
 # Backend kufru (E7)
 
+## Show Pack
+
+[Provoz a společné kontrakty](../docs/show-pack.md) rozšiřují současné DV01/DV10,
+nikoli vlastnictví zařízení. `Features/Show` obsahuje deterministickou režii,
+immutable finále svázané s opravdovým proposal ID, duel a příjem offline výsledků.
+Paměť/kronika používají stávající evening store; identita a soukromé proroctví
+stávající DV10 dokument. [HTTP rozšíření](../contracts/show-openapi-v1.json)
+odděluje admin/device/public/duel-side scopes. Aditivní migrace probíhá při
+otevření stejných SQLite; ruční archivní retence a nejisté provider pokusy zůstávají.
+Z adresáře `kufr/` použij pinned SDK přes `global.json` a
+`dotnet run --project backend-tests/BackendTests.csproj -- --show`.
+Pro cross-origin webového operátora nastav přesný `Show:AllowedOrigins` seznam.
+`Show:DuelCommentaryEnabled` má default false; běžné testy nepoužívají poskytovatele.
+
 ## DV01 · opt-in roast postava
 
 [DV01 provozní návod](../docs/dv01.md) popisuje `AutonomousActor` pro

@@ -5,6 +5,7 @@ using Kufr.Backend.Features.Conversations;
 using Kufr.Backend.Features.Diagnostics;
 using Kufr.Backend.Features.Realtime;
 using Kufr.Backend.Features.Memory;
+using Kufr.Backend.Features.Show;
 
 namespace Kufr.Backend.Features.GptLive;
 
@@ -105,7 +106,8 @@ internal static class GptLiveEndpoints
                 inputStopped = true;
             }
             var outcome = call.Context.LivePrompt?.Options.Mode == LiveActorMode.AutonomousActor
-                ? await new AutonomousLiveDialogue(connection, decisions, clock, memory).RunAsync(call,
+                ? await new AutonomousLiveDialogue(connection, decisions, clock, memory,
+                    context.RequestServices.GetService<ShowCoordinator>()).RunAsync(call,
                     (pcm, token) => Write(new { type = "audio", delta = Convert.ToBase64String(pcm) }, token),
                     (text, token) => Write(new { type = "visitor", text }, token), token => Write(new { type = "pause" }, token),
                     async (checkpoint, token) =>

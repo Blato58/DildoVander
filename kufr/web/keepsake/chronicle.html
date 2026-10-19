@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="cs" data-theme="system">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <title>Kronika katastrof · DildoVander</title>
+  <link rel="stylesheet" href="/design-system/arcane-workshop.css">
+  <link rel="stylesheet" href="/keepsake/chronicle.css">
+  <script type="module" src="/keepsake/theme.js"></script>
+  <script type="module" src="/keepsake/chronicle.js"></script>
+</head>
+<body class="aw-root">
+  <a class="aw-skip-link" href="#chronicle-main">Přejít na kroniku</a>
+  <header class="chronicle-header"><a href="/keepsake/evening/">← Hůlky tohoto večera</a><span>DildoVander</span></header>
+  <main id="chronicle-main">
+    <div class="chronicle-heading"><p class="aw-eyebrow">Večerní kniha nepravděpodobností</p><h1>Kronika katastrof</h1><p>Co se opravdu dokončilo. Co ještě čeká na výsledek. A co na to fiktivní ministerstvo.</p></div>
+    <div id="chronicle-actions"></div>
+    <div id="chronicle-status" aria-live="polite"></div>
+    <article id="chronicle" hidden>
+      <div id="chronicle-edition"></div>
+      <dl class="chronicle-counts"><div><dt>Dokončené návštěvy</dt><dd id="completed-visits"></dd></div><div><dt>Potvrzené prezentace</dt><dd id="confirmed-presentations"></dd></div><div><dt>Dokončené duely</dt><dd id="completed-duels"></dd></div></dl>
+      <section class="chronicle-story" aria-labelledby="story-title"><h2 id="story-title">Zápis do knihy</h2><p id="narrative"></p><p class="chronicle-note">Autorská fikce vychází z doložených počtů. Nejde o citace hostů.</p></section>
+      <section aria-labelledby="wands-title"><h2 id="wands-title">Hůlky a jejich večer</h2><p id="popular-wands"></p><div class="aw-table-wrap"><table class="aw-table"><caption>Počítají se pouze potvrzené dokončené prezentace.</caption><thead><tr><th scope="col">Katalogová hůlka</th><th scope="col">Prezentace</th></tr></thead><tbody id="chronicle-wands"></tbody></table></div></section>
+      <p id="unresolved" class="chronicle-note"></p>
+      <p class="chronicle-note">Změna večera archiv nemaže. Přijaté záznamy se uchovávají do ručního smazání; odvolané zdroje se do veřejných počtů nezahrnují.</p>
+    </article>
+    <details class="chronicle-admin"><summary>Soukromý přehled pro obsluhu</summary><p>Administrátorský klíč se použije jen pro tento požadavek. Neukládá se v prohlížeči ani do odkazu.</p><form id="admin-form"><label class="aw-field">ID zařízení<input class="aw-input" name="device" required maxlength="240" autocomplete="off"></label><label class="aw-field">ID večera<input class="aw-input" name="evening" required maxlength="240" autocomplete="off"></label><label class="aw-field">Administrátorský klíč<input class="aw-input" name="credential" type="password" required autocomplete="off"></label><div id="admin-actions"></div></form><p id="admin-detail" aria-live="polite"></p></details>
+  </main>
+  <footer class="chronicle-footer">Veřejná kronika neobsahuje soukromá proroctví, fotografie ani osobní rozhovory.</footer>
+</body>
+</html>

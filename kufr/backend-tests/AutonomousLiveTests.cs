@@ -7,6 +7,13 @@ using Kufr.Backend.Features.GptLive;
 using Kufr.Backend.Features.Realtime;
 using Microsoft.Extensions.Configuration;
 using Kufr.Backend.Features.Character;
+using Kufr.Backend.Features.Show;
+using Microsoft.Data.Sqlite;
+using Kufr.Backend.Features.Access;
+using Kufr.Backend.Features.Keepsakes;
+using Kufr.Backend.Features.VoiceTurns;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 
 internal static class AutonomousLiveTests
 {
@@ -51,7 +58,342 @@ internal static class AutonomousLiveTests
         foreach (var control in new[] { "To řekl kamarád.", "To není pravda.", "To byl vtip." })
         { await VerifyCharacterEvidenceWithdrawal(options, control); }
         await VerifyCharacterEvidenceWithdrawal(options, "To řekl kamarád.", sameReference: true);
+        await VerifyOperatorOverrideInvalidatedByCorrection(options with
+        { Character = options.Character with { FinaleProfile = FinaleProfile.Limited } });
+        foreach (var clipOutcome in new[] { "completed", "expired", "stopped" })
+        { await VerifyLocalFinaleClipBoundary(options with
+            { Character = options.Character with { FinaleProfile = FinaleProfile.Limited } }, clipOutcome); }
         Console.WriteLine("DV01 fake Live integration passed (no provider/audio hardware).");
+    }
+
+    private static async Task VerifyOperatorOverrideInvalidatedByCorrection(GptLiveOptions options)
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "live-director-override-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            using var clock = new ManualClock();
+            var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Backend:DatabasePath"] = Path.Combine(directory, "journal.sqlite"),
+                ["Devices:0:DeviceId"] = "device"
+            }).Build();
+            using var journal = new OperationJournal(configuration, clock);
+            var memory = new EveningMemoryStore(configuration, journal, clock);
+            var show = new ShowCoordinator(configuration, journal, memory, clock);
+            using var socket = new SocketFixture();
+            socket.BeforeDelivery = () => clock.Advance(50);
+            await using var connection = new GptLiveConnection(socket);
+            using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            var call = Call(options, lifetime) with { EveningId = memory.GetStatus("device").EveningId };
+            using var player = new RealtimeLiveSession("device", call.Correlation.ConversationId,
+                connection, lifetime, continuous: true);
+            var firstStarted = new TaskCompletionSource<WandDecisionInput>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var refreshedStarted = new TaskCompletionSource<WandDecisionInput>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var staleResult = new TaskCompletionSource<WandDecisionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var correctionSeen = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var decisionCalls = 0;
+            using var decisions = new WandDecisionService((input, _) =>
+            {
+                if (Interlocked.Increment(ref decisionCalls) == 1)
+                { firstStarted.TrySetResult(input); return staleResult.Task.WaitAsync(lifetime.Token); }
+                Check(input.Evidence.Last().Text.Contains("improvizuji", StringComparison.Ordinal),
+                    "fresh actual decision service receives corrected evidence after override invalidation");
+                refreshedStarted.TrySetResult(input);
+                return Task.FromResult(Proposal(input, 2));
+            });
+            var consumed = Channel.CreateUnbounded<string>();
+            var chunks = Channel.CreateUnbounded<int>();
+            var checkpoints = Channel.CreateUnbounded<LivePlaybackRequest>();
+            var pcmBytes = 0;
+            var run = new AutonomousLiveDialogue(connection, decisions, clock, show: show).RunAsync(call,
+                (pcm, _) => { pcmBytes += pcm.Length; chunks.Writer.TryWrite(pcm.Length); return Task.CompletedTask; },
+                (text, _) =>
+                {
+                    consumed.Writer.TryWrite(text);
+                    if (text.Contains("improvizuji", StringComparison.Ordinal)) { correctionSeen.TrySetResult(); }
+                    return Task.CompletedTask;
+                }, _ => Task.CompletedTask,
+                (checkpoint, _) =>
+                {
+                    var drain = player.PrepareCheckpoint(checkpoint);
+                    checkpoints.Writer.TryWrite(checkpoint);
+                    return drain;
+                }, () => (63, 7, true), _ => Task.CompletedTask, lifetime.Token,
+                cancelAudio: (_, _) => { player.CancelCheckpoint(); return Task.CompletedTask; });
+            await socket.Command("session.instructions.append", lifetime.Token);
+            socket.Transcript(false, "Co děláš, když se plán rozpadne?", 0, 1000);
+            socket.Transcript(true, "Plánuji všechno.", 1100, 2000);
+            await consumed.Reader.ReadAsync(lifetime.Token);
+            socket.Delegate("director-inflight", 2000);
+            clock.Advance(1300);
+            await AdvanceUntilAsync(firstStarted.Task, run, clock, lifetime.Token);
+            var oldInput = await firstStarted.Task;
+            var current = show.Read("device");
+            var accepted = show.Command("device", new("force-six", current.Revision, "override",
+                call.Correlation.ConversationId, call.SessionGeneration, "6"));
+            Check(accepted.Status == "accepted", "real coordinator accepts scoped prepublication override during in-flight decision");
+            var express = show.Command("device", new("override-consumption-barrier", show.Read("device").Revision,
+                "tempo", call.Correlation.ConversationId, call.SessionGeneration, "express"));
+            Check(express.Status == "accepted", "ordered harmless style command supplies observable owner-consumption barrier");
+            async Task WaitForConsumedControlsAsync()
+            {
+                while (true)
+                {
+                    var command = await socket.Command("session.instructions.append", lifetime.Token);
+                    using var document = JsonDocument.Parse(command);
+                    var content = document.RootElement.GetProperty("content").GetString()!;
+                    if (content.Contains("fáze=Responding", StringComparison.Ordinal)
+                        && content.Contains("tempo=Express", StringComparison.Ordinal)) { return; }
+                }
+            }
+            var controlsConsumed = WaitForConsumedControlsAsync();
+            await AdvanceUntilAsync(controlsConsumed, run, clock, lifetime.Token);
+            // Keep device revision7: changing that physical correlation correctly
+            // requires a new turn. This scenario changes the guest evidence revision.
+            socket.Transcript(true, " Oprava, improvizuji.", 2100, 2600);
+            await correctionSeen.Task.WaitAsync(lifetime.Token);
+            staleResult.SetResult(Proposal(oldInput, 1));
+            await AdvanceUntilAsync(refreshedStarted.Task, run, clock, lifetime.Token);
+            var freshInput = await refreshedStarted.Task;
+            var commentary = socket.Command("session.commentary.append", lifetime.Token);
+            await AdvanceUntilAsync(commentary, run, clock, lifetime.Token);
+            await commentary;
+            Check(freshInput.Revision > oldInput.Revision && freshInput.AvailabilityRevision == 7,
+                "corrected evidence keeps the authoritative current physical snapshot");
+            socket.Transcript(false, "Výběr mám. Mechanika není potvrzená. Tohle bude slavnostní průšvih.", 3000, 4000);
+            socket.Audio();
+            await chunks.Reader.ReadAsync(lifetime.Token);
+            clock.Advance(2000);
+            var checkpointRead = checkpoints.Reader.ReadAsync(lifetime.Token).AsTask();
+            await AdvanceUntilAsync(checkpointRead, run, clock, lifetime.Token);
+            var checkpoint = await checkpointRead;
+            Check(checkpoint.DecisionRevision == freshInput.Revision && checkpoint.PcmBytes == pcmBytes && pcmBytes > 0,
+                "single player checkpoint correlates only the refreshed decision and submitted audio");
+            Check(!player.ConfirmCheckpoint(Guid.NewGuid(), checkpoint.PcmBytes, true)
+                && !player.ConfirmCheckpoint(checkpoint.PlaybackId, checkpoint.PcmBytes + 2, true)
+                && !player.ConfirmCheckpoint(checkpoint.PlaybackId, checkpoint.PcmBytes, false),
+                "wrong identity, wrong byte count and undrained audio cannot publish an override result");
+            clock.Advance(1000);
+            await Task.Delay(1, lifetime.Token);
+            Check(!run.IsCompleted && !socket.Sent.Any(s => s.Contains("session.close", StringComparison.Ordinal)),
+                "provider append acknowledgment never substitutes for correlated player drain");
+            Check(player.ConfirmCheckpoint(checkpoint.PlaybackId, checkpoint.PcmBytes, true), "exact local player drain accepted");
+            await AdvanceUntilAsync(run, run, clock, lifetime.Token);
+            var outcome = await run;
+            Check(outcome.PlaybackVerified && outcome.Reply.Decision == "propose"
+                && outcome.Decision is { Compartment: 2, AvailabilityRevision: 7 }
+                && outcome.Decision.DecisionRevision == freshInput.Revision
+                && outcome.Decision.OperationState != "operator_proposal_only" && decisionCalls == 2,
+                "stale forced slot6 and old result1 are discarded; refreshed authoritative result2 is the sole proposal");
+            Check(!checkpoints.Reader.TryRead(out _) && socket.Sent.Count(s => s.Contains("session.commentary.append", StringComparison.Ordinal)) == 1
+                && socket.Sent.Count(s => s.Contains("session.close", StringComparison.Ordinal)) == 1,
+                "one terminal commentary, one correlated drain and one close after override invalidation");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(directory, true);
+        }
+    }
+
+    private static async Task VerifyLocalFinaleClipBoundary(GptLiveOptions options, string clipOutcome)
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "live-local-finale-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            using var clock = new ManualClock();
+            var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Backend:DatabasePath"] = Path.Combine(directory, "journal.sqlite"),
+                ["Devices:0:DeviceId"] = "device", ["Devices:0:CredentialSha256"] = new string('a', 64),
+                ["Keepsake:Enabled"] = "true", ["Keepsake:DataRoot"] = Path.Combine(directory, "archive"),
+                ["Show:DeviceCueSpeechMode"] = "off"
+            }).Build();
+            using var journal = new OperationJournal(configuration, clock);
+            var memory = new EveningMemoryStore(configuration, journal, clock);
+            var show = new ShowCoordinator(configuration, journal, memory, clock);
+            using var dialog = new TextDialogRunner((_, _, _, _, _) => throw new Exception("Local clip test must not call legacy Sol."));
+            using var voice = new VoiceProviderRunner((_, _) => throw new Exception("Local clip test must not call STT."),
+                (_, _) => throw new Exception("Local clip test must not call TTS."));
+            var store = new ConversationStore(clock, journal, dialog, eveningMemory: memory,
+                voiceRunner: voice, liveOptions: options, show: show);
+            var modes = store.ReadServerModes();
+            Check(store.ChangeServerModes(new(modes.Revision, "responses", "openai", PersonalityCatalog.OllivanderId,
+                CharacterEnabled: true, CharacterTone: "Adult", CharacterFinaleProfile: "Limited")).Status == 200,
+                "actual owner enables frozen limited character profile");
+            using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            var boot = Guid.NewGuid();
+            var created = store.Create("device", Guid.NewGuid(), "local-finale-create"u8,
+                new("device", boot, 0, PartyWandCatalog.Version, "cs-CZ", new(true, false)));
+            Check(created.Status == 201, "actual common conversation admission succeeds");
+            var request = new RealtimeTurnRequest(Guid.NewGuid(), boot, 0, 63, 7,
+                PartyWandCatalog.Version, true, "", null, "marin", 1);
+            var admission = store.BeginRealtimeTurn("device", created.Response!.ConversationId, Guid.NewGuid(),
+                "local-finale-call"u8.ToArray(), request, true, lifetime.Token, CancellationToken.None,
+                handsFree: true, gptLive: true);
+            var call = admission.Call ?? throw new Exception(admission.Code);
+            Check(store.StartRealtimeTurn(call), "actual journal starts Live operation");
+            var bridge = new ShowDeviceCueBridge(configuration, show, journal, voice, clock);
+            ShowDeviceCueEnvelope Poll() => bridge.Poll("device", new(boot, 0, 7, clock.GetTimestamp(),
+                show.Read("device").DeviceSettingsRevision, false, false, "marin"));
+            ShowDeviceCueAck Ack(string outcome, string evidence) => new(boot, 0, 7, outcome, evidence);
+            Poll();
+            using var socket = new SocketFixture();
+            socket.BeforeDelivery = () => clock.Advance(50);
+            await using var connection = new GptLiveConnection(socket);
+            using var player = new RealtimeLiveSession("device", call.Correlation.ConversationId,
+                connection, lifetime, continuous: true);
+            var decisionStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var decisions = new WandDecisionService((input, _) =>
+            { decisionStarted.TrySetResult(); return Task.FromResult(Proposal(input, 2)); });
+            var consumed = Channel.CreateUnbounded<string>();
+            var chunks = Channel.CreateUnbounded<int>();
+            var checkpoints = Channel.CreateUnbounded<LivePlaybackRequest>();
+            var cancellations = 0;
+            var run = new AutonomousLiveDialogue(connection, decisions, clock, show: show).RunAsync(call,
+                (pcm, _) => { chunks.Writer.TryWrite(pcm.Length); return Task.CompletedTask; },
+                (text, _) => { consumed.Writer.TryWrite(text); return Task.CompletedTask; },
+                _ => Task.CompletedTask,
+                (checkpoint, _) =>
+                {
+                    var drain = player.PrepareCheckpoint(checkpoint);
+                    checkpoints.Writer.TryWrite(checkpoint);
+                    return drain;
+                }, () => store.LiveAvailability(call), _ => Task.CompletedTask, lifetime.Token,
+                cancelAudio: (_, _) => { Interlocked.Increment(ref cancellations); player.CancelCheckpoint(); return Task.CompletedTask; });
+            async Task WaitUntil(Func<bool> condition)
+            {
+                for (var tick = 0; tick < 500; tick++)
+                {
+                    if (condition()) { return; }
+                    if (run.IsCompleted) { await run; throw new Exception("Live closed before the local-clip test boundary."); }
+                    clock.Advance(50);
+                    await Task.Delay(1, lifetime.Token);
+                }
+                throw new Exception("Local-clip test boundary was not reached.");
+            }
+            async Task<ShowDeviceCue> ReadNextCue()
+            {
+                ShowDeviceCue? cue = null;
+                await WaitUntil(() => (cue = Poll().Cue) is not null);
+                return cue!;
+            }
+            await socket.Command("session.instructions.append", lifetime.Token);
+            socket.Transcript(false, "Co děláš, když se plán rozpadne?", 0, 1000);
+            socket.Transcript(true, "Plánuji všechno.", 1100, 2000);
+            await consumed.Reader.ReadAsync(lifetime.Token);
+            socket.Delegate("local-finale", 2000);
+            clock.Advance(1300);
+            await AdvanceUntilAsync(decisionStarted.Task, run, clock, lifetime.Token);
+            var commentary = socket.Command("session.commentary.append", lifetime.Token);
+            await AdvanceUntilAsync(commentary, run, clock, lifetime.Token);
+            await commentary;
+            // These are the actual compiled scene's finite non-speech cues.
+            for (var index = 0; index < 2; index++)
+            {
+                var cue = await ReadNextCue();
+                Check(cue.CueType is "LedPreset" or "VibratePreset" && cue.Compartment == 2,
+                    "actual scene adapters retain selected compartment before terminal audio");
+                Check(bridge.Acknowledge("device", cue.CueId, Ack("accepted", "commanded")).Status == 200
+                    && bridge.Acknowledge("device", cue.CueId, Ack("completed", "commanded")).Status == 200,
+                    "bounded local non-speech cues drain through actual mailbox");
+            }
+            socket.Transcript(false, "Výběr mám. Mechanika není potvrzená. Tohle bude slavnostní průšvih.", 3000, 4000);
+            socket.Audio();
+            await chunks.Reader.ReadAsync(lifetime.Token);
+            clock.Advance(2000);
+            var checkpointRead = checkpoints.Reader.ReadAsync(lifetime.Token).AsTask();
+            await AdvanceUntilAsync(checkpointRead, run, clock, lifetime.Token);
+            var checkpoint = await checkpointRead;
+            Check(player.ConfirmCheckpoint(checkpoint.PlaybackId, checkpoint.PcmBytes, true), "primary terminal audio drain is exact");
+            await WaitUntil(() => show.Read("device").SceneExecution?.Cues
+                .Any(cue => cue.Kind == "PlayLocalClip" && cue.Status == "submitted") == true);
+            // Let every authored pause elapse while the device has not polled
+            // the ending clip. A primary player drain alone cannot close Live.
+            clock.Advance(1300);
+            await WaitUntil(() => show.Read("device").SceneExecution?.PausePending == false);
+            Check(!run.IsCompleted && !socket.Sent.Any(value => value.Contains("session.close", StringComparison.Ordinal))
+                && show.Read("device").SceneExecution?.PausePending == false,
+                "closing waits for local clip independently of the expired stage pause");
+            if (clipOutcome == "stopped")
+            {
+                var state = show.Read("device");
+                Check(show.Command("device", new("stop-local-clip", state.Revision, "stop")).Status == "accepted", "operator Stop accepted during local clip wait");
+                var cancelled = false;
+                try { await AdvanceUntilAsync(run, run, clock, lifetime.Token); await run; }
+                catch (OperationCanceledException) { cancelled = true; }
+                Check(cancelled && cancellations > 0 && !socket.Sent.Any(value => value.Contains("session.close", StringComparison.Ordinal))
+                    && journal.ReadKeepsakeSelection("device", call.OperationId) is null,
+                    $"Stop stays responsive during pending local clip and cannot publish a proposal (cancelled={cancelled}, audioCancellations={cancellations}, "
+                    + $"closeCount={socket.Sent.Count(value => value.Contains("session.close", StringComparison.Ordinal))}, "
+                    + $"proposal={journal.ReadKeepsakeSelection("device", call.OperationId) is not null}, phase={show.Read("device").Phase})");
+                store.ReleaseRealtimeTurn(call, dispatched: true, completed: false);
+                bridge.CancelAll();
+                return;
+            }
+            if (clipOutcome == "completed")
+            {
+                var cue = await ReadNextCue();
+                Check(cue.CueType == "PlayLocalClip" && cue.ClipId == "ending-1" && cue.AudioPath is null,
+                    "actual post-primary ending uses approved local clip without TTS");
+                Check(bridge.Acknowledge("device", cue.CueId, Ack("accepted", "commanded")).Status == 200,
+                    "ending clip is admitted by actual device mailbox");
+                clock.Advance(300);
+                await WaitUntil(() => show.Read("device").SceneExecution?.Cues
+                    .Any(item => item.Kind == "PlayLocalClip" && item.Status == "accepted") == true);
+                Check(!run.IsCompleted && !socket.Sent.Any(value => value.Contains("session.close", StringComparison.Ordinal)),
+                    "admitted clip remains pending until actual local player finish");
+                Check(bridge.Acknowledge("device", cue.CueId, Ack("completed", "playback_finished")).Status == 200,
+                    "local clip finishes with actual player evidence");
+            }
+            else { clock.Advance(8100); }
+            await AdvanceUntilAsync(run, run, clock, lifetime.Token);
+            var outcome = await run;
+            Check(outcome.PlaybackVerified && socket.Sent.Count(value => value.Contains("session.close", StringComparison.Ordinal)) == 1
+                && show.Read("device").SessionGeneration is null,
+                "clip completion or bounded fallback closes once and releases Live visit");
+            var result = store.CompleteGptLive(call, outcome);
+            var proposal = result?.Proposal as SelectionProposal;
+            var plan = show.ReadFinalePlan("device", call.OperationId);
+            Check(proposal is { Compartment: 2 } && plan?.ProposalId == proposal.ProposalId && plan.SessionGeneration == call.SessionGeneration
+                && show.Read("device").SceneExecution?.Cues.Single(cue => cue.Kind == "PresentSelected").Status == "accepted",
+                "actual returned Live result binds one original proposal after session disposal using retained scene generation");
+            if (clipOutcome == "expired")
+            {
+                Check(show.Read("device").SceneExecution?.Cues.Single(cue => cue.Kind == "PlayLocalClip").Status == "dropped",
+                    "unpolled local ending has bounded explicit drop fallback");
+            }
+            else
+            {
+                var access = new DeviceAccessStore(configuration, clock);
+                using var services = new ServiceCollection().AddSingleton(show).BuildServiceProvider();
+                var context = new DefaultHttpContext { RequestServices = services };
+                context.Request.Headers.Authorization = "Bearer " + access.IssueToken("device")!.AccessToken;
+                context.Request.Headers["Idempotency-Key"] = Guid.NewGuid().ToString("D");
+                var physical = new KeepsakeOutcomeEndpoints.OutcomeRequest(1, Guid.NewGuid().ToString("D"),
+                    proposal!.ProposalId, Guid.NewGuid().ToString("D"), boot.ToString("D"), 0, 7, "completed_by_timing");
+                var body = JsonSerializer.SerializeToUtf8Bytes(physical, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                context.Request.ContentType = "application/json";
+                context.Request.ContentLength = body.Length;
+                context.Request.Body = new MemoryStream(body);
+                var keepsakes = new KeepsakeStore(configuration, clock);
+                var published = await KeepsakeOutcomeEndpoints.PublishAsync(context, call.OperationId, access, journal, keepsakes, configuration, memory);
+                Check((published as IStatusCodeHttpResult)?.StatusCode == 201
+                    && show.ReadFinalePlan("device", call.OperationId) is { Locked: true, PresentationEvidence: "completed_by_timing" }
+                    && show.Read("device").SceneExecution?.Cues.Single(cue => cue.Kind == "PresentSelected").Status == "completed"
+                    && show.Read("device").SceneExecution?.Cues.Single(cue => cue.Kind == "WaitForEvent").Status == "completed",
+                    "actual timing-outcome endpoint completes retained presentation cues without creating another physical command");
+            }
+            store.ReleaseRealtimeTurn(call, dispatched: true, completed: true);
+            bridge.CancelAll();
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(directory, true);
+        }
     }
 
     private static void VerifyCharacterControlEvidence(GptLiveOptions options)

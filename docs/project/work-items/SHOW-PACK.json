@@ -1,0 +1,288 @@
+{
+  "schemaVersion": 1,
+  "id": "SHOW-PACK",
+  "initiative": "DV02",
+  "title": "Integrovaný Show Pack 2026.10.19.1",
+  "state": "closed",
+  "priority": "P1",
+  "sequence": 1,
+  "scope": [
+    "kufr/backend",
+    "kufr/firmware",
+    "kufr/mobilni-aplikace",
+    "kufr/web/keepsake",
+    "kufr/docs",
+    ".agents/skills"
+  ],
+  "dependencies": [],
+  "relatedItems": [
+    "DV01",
+    "DV02",
+    "DV10",
+    "SHOW-PACK-OPERATIONS"
+  ],
+  "acceptance": [
+    {
+      "id": "DIRECTOR",
+      "revision": 1,
+      "expected": "SHOW/FIN/WAND/MOOD/AMB: katalogově svázaný repertoár, skutečná session integrace, rušení a fyzické/audio brány.",
+      "requiredEvidenceKinds": [
+        "unit",
+        "integration",
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "38b1b327b78cfb1667649857a7bb0066c8fcb88d5f6dcfac4c0ab7990bfbab33",
+        "policyVersion": "show-pack-2026.10.19.1"
+      },
+      "evidenceRefs": [
+        "SHOW-PACK-local-unit-v1",
+        "SHOW-PACK-local-integration-v1",
+        "SHOW-PACK-local-source_review-v1"
+      ]
+    },
+    {
+      "id": "IDENTITY",
+      "revision": 1,
+      "expected": "ID/PRO: uložená identita, karta a serverově odemykané soukromé proroctví v existující DV10 pipeline.",
+      "requiredEvidenceKinds": [
+        "integration",
+        "browser",
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "38b1b327b78cfb1667649857a7bb0066c8fcb88d5f6dcfac4c0ab7990bfbab33",
+        "policyVersion": "show-pack-2026.10.19.1"
+      },
+      "evidenceRefs": [
+        "SHOW-PACK-local-integration-v1",
+        "SHOW-PACK-local-browser-v1",
+        "SHOW-PACK-local-source_review-v1"
+      ]
+    },
+    {
+      "id": "MEMORY",
+      "revision": 1,
+      "expected": "MEM: oddělení hostů, anonymní lore, deduplikované původní večery a skutečná kronika bez soukromého obsahu.",
+      "requiredEvidenceKinds": [
+        "integration",
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "38b1b327b78cfb1667649857a7bb0066c8fcb88d5f6dcfac4c0ab7990bfbab33",
+        "policyVersion": "show-pack-2026.10.19.1"
+      },
+      "evidenceRefs": [
+        "SHOW-PACK-local-integration-v1",
+        "SHOW-PACK-local-source_review-v1"
+      ]
+    },
+    {
+      "id": "DUEL",
+      "revision": 1,
+      "expected": "DUEL: dvě identity, deterministická pravidla, uložené tahy, scoped grants, timeout a skutečný webový výsledek.",
+      "requiredEvidenceKinds": [
+        "unit",
+        "integration",
+        "browser",
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "38b1b327b78cfb1667649857a7bb0066c8fcb88d5f6dcfac4c0ab7990bfbab33",
+        "policyVersion": "show-pack-2026.10.19.1"
+      },
+      "evidenceRefs": [
+        "SHOW-PACK-local-unit-v1",
+        "SHOW-PACK-local-integration-v1",
+        "SHOW-PACK-local-browser-v1",
+        "SHOW-PACK-local-source_review-v1"
+      ]
+    },
+    {
+      "id": "OPERATOR",
+      "revision": 1,
+      "expected": "OPS: skutečný Director panel iOS/web s autorizovanými cestami, konflikty a lokálním Stop.",
+      "requiredEvidenceKinds": [
+        "integration",
+        "browser",
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "38b1b327b78cfb1667649857a7bb0066c8fcb88d5f6dcfac4c0ab7990bfbab33",
+        "policyVersion": "show-pack-2026.10.19.1"
+      },
+      "evidenceRefs": [
+        "SHOW-PACK-local-integration-v1",
+        "SHOW-PACK-local-browser-v1",
+        "SHOW-PACK-local-source_review-v1"
+      ]
+    },
+    {
+      "id": "OFFLINE",
+      "revision": 1,
+      "expected": "OFF: lokální scény ve stejném runtime, preflight, fencing, durable outbox a idempotentní archivní synchronizace.",
+      "requiredEvidenceKinds": [
+        "unit",
+        "integration",
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "38b1b327b78cfb1667649857a7bb0066c8fcb88d5f6dcfac4c0ab7990bfbab33",
+        "policyVersion": "show-pack-2026.10.19.1"
+      },
+      "evidenceRefs": [
+        "SHOW-PACK-local-unit-v1",
+        "SHOW-PACK-local-integration-v1",
+        "SHOW-PACK-local-source_review-v1"
+      ]
+    }
+  ],
+  "blockers": [],
+  "currentNote": "Software prošel finálním buildem, úplnou backendovou regresí,99 mobilními testy/buildem,9 hostitelskými firmware kontrolami, PIO, kontrakty a skutečným browser ověřením. Git commit/push a PR CI/merge se dokončují; přesný source subject je v artifact manifestu. Externí nahrávky/provider/iPhone/hardware nejsou prohlášené za hotové.",
+  "implementedSubject": {
+    "artifactDigest": "38b1b327b78cfb1667649857a7bb0066c8fcb88d5f6dcfac4c0ab7990bfbab33",
+    "policyVersion": "show-pack-2026.10.19.1"
+  },
+  "closure": {
+    "outcome": "accepted",
+    "reason": "Všechny funkční softwarové průřezy balíku implementované a ověřené proti přesným zdrojům. Samostatné externí brány vede SHOW-PACK-OPERATIONS; bez placených testů, nasazení, podpisu a flash.",
+    "subject": {
+      "artifactDigest": "38b1b327b78cfb1667649857a7bb0066c8fcb88d5f6dcfac4c0ab7990bfbab33",
+      "policyVersion": "show-pack-2026.10.19.1"
+    },
+    "evidenceRefs": [
+      "SHOW-PACK-local-browser-v1",
+      "SHOW-PACK-local-integration-v1",
+      "SHOW-PACK-local-source_review-v1",
+      "SHOW-PACK-local-unit-v1"
+    ],
+    "acceptedCriteria": [
+      {
+        "id": "DIRECTOR",
+        "revision": 1,
+        "expected": "SHOW/FIN/WAND/MOOD/AMB: katalogově svázaný repertoár, skutečná session integrace, rušení a fyzické/audio brány.",
+        "requiredEvidenceKinds": [
+          "unit",
+          "integration",
+          "source_review"
+        ],
+        "rule": "allOf",
+        "appliesTo": {
+          "artifactDigest": "38b1b327b78cfb1667649857a7bb0066c8fcb88d5f6dcfac4c0ab7990bfbab33",
+          "policyVersion": "show-pack-2026.10.19.1"
+        },
+        "evidenceRefs": [
+          "SHOW-PACK-local-unit-v1",
+          "SHOW-PACK-local-integration-v1",
+          "SHOW-PACK-local-source_review-v1"
+        ]
+      },
+      {
+        "id": "IDENTITY",
+        "revision": 1,
+        "expected": "ID/PRO: uložená identita, karta a serverově odemykané soukromé proroctví v existující DV10 pipeline.",
+        "requiredEvidenceKinds": [
+          "integration",
+          "browser",
+          "source_review"
+        ],
+        "rule": "allOf",
+        "appliesTo": {
+          "artifactDigest": "38b1b327b78cfb1667649857a7bb0066c8fcb88d5f6dcfac4c0ab7990bfbab33",
+          "policyVersion": "show-pack-2026.10.19.1"
+        },
+        "evidenceRefs": [
+          "SHOW-PACK-local-integration-v1",
+          "SHOW-PACK-local-browser-v1",
+          "SHOW-PACK-local-source_review-v1"
+        ]
+      },
+      {
+        "id": "MEMORY",
+        "revision": 1,
+        "expected": "MEM: oddělení hostů, anonymní lore, deduplikované původní večery a skutečná kronika bez soukromého obsahu.",
+        "requiredEvidenceKinds": [
+          "integration",
+          "source_review"
+        ],
+        "rule": "allOf",
+        "appliesTo": {
+          "artifactDigest": "38b1b327b78cfb1667649857a7bb0066c8fcb88d5f6dcfac4c0ab7990bfbab33",
+          "policyVersion": "show-pack-2026.10.19.1"
+        },
+        "evidenceRefs": [
+          "SHOW-PACK-local-integration-v1",
+          "SHOW-PACK-local-source_review-v1"
+        ]
+      },
+      {
+        "id": "DUEL",
+        "revision": 1,
+        "expected": "DUEL: dvě identity, deterministická pravidla, uložené tahy, scoped grants, timeout a skutečný webový výsledek.",
+        "requiredEvidenceKinds": [
+          "unit",
+          "integration",
+          "browser",
+          "source_review"
+        ],
+        "rule": "allOf",
+        "appliesTo": {
+          "artifactDigest": "38b1b327b78cfb1667649857a7bb0066c8fcb88d5f6dcfac4c0ab7990bfbab33",
+          "policyVersion": "show-pack-2026.10.19.1"
+        },
+        "evidenceRefs": [
+          "SHOW-PACK-local-unit-v1",
+          "SHOW-PACK-local-integration-v1",
+          "SHOW-PACK-local-browser-v1",
+          "SHOW-PACK-local-source_review-v1"
+        ]
+      },
+      {
+        "id": "OPERATOR",
+        "revision": 1,
+        "expected": "OPS: skutečný Director panel iOS/web s autorizovanými cestami, konflikty a lokálním Stop.",
+        "requiredEvidenceKinds": [
+          "integration",
+          "browser",
+          "source_review"
+        ],
+        "rule": "allOf",
+        "appliesTo": {
+          "artifactDigest": "38b1b327b78cfb1667649857a7bb0066c8fcb88d5f6dcfac4c0ab7990bfbab33",
+          "policyVersion": "show-pack-2026.10.19.1"
+        },
+        "evidenceRefs": [
+          "SHOW-PACK-local-integration-v1",
+          "SHOW-PACK-local-browser-v1",
+          "SHOW-PACK-local-source_review-v1"
+        ]
+      },
+      {
+        "id": "OFFLINE",
+        "revision": 1,
+        "expected": "OFF: lokální scény ve stejném runtime, preflight, fencing, durable outbox a idempotentní archivní synchronizace.",
+        "requiredEvidenceKinds": [
+          "unit",
+          "integration",
+          "source_review"
+        ],
+        "rule": "allOf",
+        "appliesTo": {
+          "artifactDigest": "38b1b327b78cfb1667649857a7bb0066c8fcb88d5f6dcfac4c0ab7990bfbab33",
+          "policyVersion": "show-pack-2026.10.19.1"
+        },
+        "evidenceRefs": [
+          "SHOW-PACK-local-unit-v1",
+          "SHOW-PACK-local-integration-v1",
+          "SHOW-PACK-local-source_review-v1"
+        ]
+      }
+    ]
+  }
+}

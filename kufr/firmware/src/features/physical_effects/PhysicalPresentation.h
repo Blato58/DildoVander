@@ -28,7 +28,9 @@ class PhysicalPresentation final : public WandPresentationPort {
   const PresentationDiagnostics& Diagnostics() const { return diagnostics_; }
   bool CancelOperation(const std::string& operationId, uint64_t generation);
   bool StartAccent(const char* sceneId, const std::string& intentId,
-                   uint64_t generation, uint64_t expiresAtMs, uint64_t nowMs);
+                   uint64_t generation, uint64_t expiresAtMs, uint64_t nowMs, uint8_t target = 0, bool preserveConversationSnapshot = false);
+  bool StartVibrationPreset(const char* preset, const std::string& intentId,
+      uint64_t generation, uint64_t expiresAtMs, uint64_t nowMs, uint8_t target, bool preserveConversationSnapshot = false);
   bool CancelAccent(const std::string& intentId, uint64_t generation);
   bool IsReady(uint8_t compartment) const override { return effects_.Ready(compartment); }
   bool IsSafeToContinue() const override { return effects_.Healthy(); }
@@ -48,7 +50,8 @@ class PhysicalPresentation final : public WandPresentationPort {
   bool Complete(uint8_t compartment) override;
   void DisableAndFault() override;
  private:
-  enum class Phase { Idle, Score, Raise, Raised, Lower, Rest, Accent };
+  enum class Phase { Idle, Score, Raise, Raised, Lower, Rest, Accent, Pulse };
+  void EndPulse(bool cancelled);
   bool EnterScoreStep(uint64_t dueAt);
   void Trace(const char* kind, uint64_t dueAt, const char* evidence,
              const char* reason = "");
@@ -70,6 +73,8 @@ class PhysicalPresentation final : public WandPresentationPort {
   PresentationDiagnostics diagnostics_;
   const PresentationScore::AccentScene* accent_ = nullptr;
   uint64_t accentExpiresAt_ = 0;
+  uint64_t pulseUntil_ = 0;
+  uint8_t accentTarget_ = 0;
   bool accentLit_ = false;
   uint8_t accentCueSeen_ = 0, accentCueSkipped_ = 0;
   bool replayRejected_ = false;

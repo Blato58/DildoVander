@@ -27,6 +27,7 @@
 #include "../conversation/TurnPollSchedule.h"
 #include "../conversation/TurnPollGuard.h"
 #include "../costume_photo/EspIdfCostumeUpload.h"
+#include "../show_cues/EspIdfDeviceShowTransport.h"
 
 namespace {
 
@@ -305,7 +306,27 @@ bool EspIdfBackendNetwork::Start(bool nvsInitialized) {
     task_ = nullptr;
     return false;
   }
+  // HTTPS/JSON only: no audio frame or device-token exchange lives here. The
+  // independent bounded stack keeps Live's blocking workflow from hiding Stop
+  // settings or non-audio scene cues. Existing audio worker remains unchanged.
+  if (xTaskCreate(ShowTaskEntry, "show_poll", 8192, this, 3, &showTask_) != pdPASS) {
+    showTask_ = nullptr;
+    ESP_LOGE(LogTag, "Show polling unavailable: task allocation failed");
+  }
   return true;
+}
+
+void EspIdfBackendNetwork::ShowTaskEntry(void* argument) {
+  static_cast<EspIdfBackendNetwork*>(argument)->RunShowCues();
+}
+void EspIdfBackendNetwork::RunShowCues() {
+  for (;;) {
+    auto retired = showCues_.TakeRetiredAudio(); retired.reset();
+    BorrowedShowToken::Copy token;
+    if (online_.load() && station_.HasIp() && showToken_.Read(MonotonicMs(), token))
+      PumpShowCues(token.bytes.data());
+    WaitMs(TokenCheckPeriodMs);
+  }
 }
 
 void EspIdfBackendNetwork::TaskEntry(void* argument) {
@@ -313,6 +334,7 @@ void EspIdfBackendNetwork::TaskEntry(void* argument) {
       static_cast<EspIdfBackendNetwork*>(argument);
   network->Run();
   network->online_.store(false);
+  network->showToken_.Clear();
   network->FailQueuedText();
   network->task_ = nullptr;
   vTaskDelete(nullptr);
@@ -357,6 +379,7 @@ void EspIdfBackendNetwork::Run() {
     if (!station.HasIp()) {
       StopVoice();
       online_.store(false);
+      showToken_.Clear();
       FailQueuedText();
       pendingProposal_.Clear();
       {
@@ -384,6 +407,7 @@ void EspIdfBackendNetwork::Run() {
       if (esp_netif_sntp_sync_wait(pdMS_TO_TICKS(10000)) != ESP_OK ||
           !station.HasIp()) {
         online_.store(false);
+      showToken_.Clear();
         FailQueuedText();
         WaitMs(OfflineRetryMs);
         continue;
@@ -395,6 +419,7 @@ void EspIdfBackendNetwork::Run() {
     if (currentTime <= 0 ||
         !trustedTime.CheckAndRecord(static_cast<uint64_t>(currentTime))) {
       online_.store(false);
+      showToken_.Clear();
       FailQueuedText();
       ESP_LOGW(LogTag, "Time not trusted; backend offline");
       WaitMs(OfflineRetryMs);
@@ -402,8 +427,10 @@ void EspIdfBackendNetwork::Run() {
     }
 
     const uint64_t nowMs = MonotonicMs();
+    if (showUnauthorized_.exchange(false)) tokens.HandleUnauthorized(nowMs);
     if (!tokens.EnsureToken(nowMs)) {
       online_.store(false);
+      showToken_.Clear();
       FailQueuedText();
       if (tokens.IsRevoked() && !revokedLogged) {
         ESP_LOGE(LogTag, "Device credential rejected; backend offline");
@@ -412,6 +439,7 @@ void EspIdfBackendNetwork::Run() {
       WaitMs(OfflineRetryMs);
       continue;
     }
+    showToken_.Publish(tokens.AccessToken(nowMs), tokens.AccessTokenExpiresAtMs());
     online_.store(true);
     EspIdfConversationTextTransport sessionTransport(settings_.BackendHost());
     if (cancelRequested_.exchange(false)) {
@@ -490,6 +518,52 @@ void EspIdfBackendNetwork::Run() {
       text.clear();
     }
     WaitMs(TokenCheckPeriodMs);
+  }
+}
+
+void EspIdfBackendNetwork::PumpShowCues(const char* token) {
+  EspIdfDeviceShowTransport transport(settings_.BackendHost());
+  DeviceShowAck ack;
+  // A failed ACK keeps its position. At most four entries can accumulate, and
+  // admission stops before the terminal result would lose its reserved slot.
+  for (unsigned attempt = 0; attempt < 4 && showCues_.ReadAck(ack); ++attempt) {
+    const int status = transport.Ack(ack, token);
+    if (status == 200 || status == 204 || status == 400 || status == 404 || status == 409 || status == 410) {
+      if (status >= 400 && ack.outcome == "accepted") showCues_.Cancel(ack.cue.cueId);
+      showCues_.ConfirmAck(ack.cue.cueId, ack.outcome);
+    }
+    else {
+      if (status == 401) { showToken_.Clear(); showUnauthorized_.store(true); return; }
+      break;
+    }
+  }
+  DeviceShowSettings applied;
+  uint64_t generation = 0, revision = 0;
+  const bool allowed = showCues_.PollState(applied, generation, revision);
+  const uint64_t requestedAtMs = MonotonicMs();
+  DeviceShowEnvelope envelope;
+  const int status = transport.Poll(bootId_, generation, revision, requestedAtMs,
+      applied, VoiceStatus().voice, token, envelope);
+  if (status == 401) { showToken_.Clear(); showUnauthorized_.store(true); return; }
+  if (status == 200) {
+    showCues_.Settings(envelope.settings);
+    if (!envelope.cancelledCueId.empty()) showCues_.Cancel(envelope.cancelledCueId);
+    if (allowed && !envelope.cue.cueId.empty() && envelope.cue.bootId == bootId_ &&
+        envelope.cue.generation == generation && envelope.cue.deviceRevision == revision &&
+        envelope.cue.issuedAtMs == requestedAtMs && !showCues_.IsActive()) {
+      auto audio = envelope.cue.audioPath.empty() ? std::shared_ptr<DeviceShowAudio>{} : EspIdfDeviceShowTransport::AllocateAudio();
+      showCues_.Offer(envelope.cue, std::move(audio));
+    }
+  }
+  DeviceShowCue audioCue;
+  showCues_.TakeAudio(audioCue);
+  const auto view = showCues_.Read();
+  if (view.stage == DeviceShowMailbox::Stage::Playing && view.audio &&
+      showCues_.PlaybackCurrent(view.cue.cueId, MonotonicMs())) {
+    const int downloaded = transport.Download(view.cue, token, *view.audio, showCues_);
+    if (downloaded == 401) { showToken_.Clear(); showUnauthorized_.store(true); }
+    else if (downloaded != 202) showCues_.AudioFinished(view.cue.cueId, downloaded == 200,
+        downloaded == 200 ? "" : "download_rejected");
   }
 }
 
@@ -854,7 +928,7 @@ bool EspIdfBackendNetwork::ConfigureVoice(const std::string& mode, const std::st
   if ((mode != "off" && mode != "realtime" && mode != "gpt-live") ||
       (voice != "cedar" && voice != "marin" && voice != "coral")) return false;
   std::lock_guard<std::mutex> lock(voiceMutex_);
-  if (voiceBusy_.load() || (mode != "off" && !voiceStatus_.available)) return false;
+  if (voiceBusy_.load() || showCues_.IsActive() || (mode != "off" && !voiceStatus_.available)) return false;
   voiceStatus_.mode = mode;
   voiceStatus_.voice = voice;
   voiceStatus_.error.clear();
@@ -874,7 +948,7 @@ bool EspIdfBackendNetwork::StartVoiceWithImageConsent(const std::string& request
   std::lock_guard<std::mutex> presentationLock(presentationMutex_);
   std::lock_guard<std::mutex> openingLock(openingMutex_);
   std::lock_guard<std::mutex> voiceLock(voiceMutex_);
-  if (terminalProposalOutstanding_ || presentationActive_ || openingPending_ || voiceBusy_.load() ||
+  if (terminalProposalOutstanding_ || presentationActive_ || openingPending_ || voiceBusy_.load() || showCues_.IsActive() ||
       requestId == lastVoiceRequestId_ || voiceStatus_.mode == "off" || !voiceStatus_.available) return false;
   voiceSnapshot_ = snapshot;
   voiceRequestId_ = lastVoiceRequestId_ = requestId;
@@ -890,6 +964,7 @@ bool EspIdfBackendNetwork::StartVoiceWithImageConsent(const std::string& request
 }
 
 void EspIdfBackendNetwork::StopVoice() {
+  showCues_.Cancel();
   {
     std::lock_guard<std::mutex> lock(presentationMutex_);
     if (!presentationActive_) {
@@ -967,6 +1042,8 @@ void EspIdfBackendNetwork::RunVoice(DeviceTokenSession& tokens,
     ports.realtime = [&](const std::string& body, const std::string& key, const TurnCorrelation& correlation,
         const std::function<bool(const TurnOperationObservation&)>& completed) {
       const char* token = tokens.AccessToken(MonotonicMs());
+      // Session creation/photo may have refreshed the same authoritative token.
+      showToken_.Publish(token, tokens.AccessTokenExpiresAtMs());
       EspIdfRealtimeTransport transport(settings_.BackendHost(), token ? token : "", voiceAudio_,
           current, [this](const char* phase) { SetVoicePhase(phase); }, mode == "gpt-live");
       const bool succeeded = transport.Run(body, key, correlation, snapshot, completed);

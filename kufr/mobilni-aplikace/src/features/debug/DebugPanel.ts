@@ -1,5 +1,5 @@
 import { button, field } from '../../../../design-system/ui.js';
-import { registerPlugin } from '@capacitor/core';
+import { nativeDebugBridge } from './NativeDebugBridge';
 import type { DeviceSnapshot } from '../device_connection/FakeDeviceConnection';
 import { DebugJournal, type DebugCategory, type DebugCode } from './DebugJournal';
 import { ServerLogBuffer, type ServerLogPage } from './ServerLogs';
@@ -69,7 +69,7 @@ interface DebugBridge {
   stop(): Promise<void>;
   shareLog(options: { json: string }): Promise<void>;
 }
-const bridge = registerPlugin<DebugBridge>('KufrDebug');
+const bridge = nativeDebugBridge<DebugBridge>();
 const phases: Record<VoiceStatus['phase'], string> = {
   idle: 'Připraveno', checking: 'Ověřuji backend', opening: 'Čekám na úvodní repliku',
   awaiting: 'Čekám na vaši odpověď', turn: 'Připravuji odpověď',

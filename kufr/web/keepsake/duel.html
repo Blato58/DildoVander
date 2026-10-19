@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="cs" data-theme="system">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <title>Souboj hostů · DildoVander</title>
+  <link rel="stylesheet" href="/design-system/arcane-workshop.css">
+  <link rel="stylesheet" href="/keepsake/duel.css">
+  <script src="/keepsake/theme.js" type="module"></script>
+  <script src="/keepsake/duel.js" type="module"></script>
+</head>
+<body class="aw-root">
+  <a class="duel-skip" href="#main">Přejít k souboji</a>
+  <header><a href="/keepsake/evening/">DildoVander · Hůlky večera</a></header>
+  <main id="main" tabindex="-1">
+    <p class="duel-eyebrow">Digitální kouzelnické identity</p>
+    <h1>Souboj bez šermování.</h1>
+    <p>Rekvizity zůstávají v přihrádkách. Tři kola rozhodne server podle uložených pravidel.</p>
+    <div id="duel-status" role="status" aria-live="polite"></div>
+    <section id="duel-participants" class="duel-participants" aria-label="Účastníci" hidden>
+      <article><h2 id="left-name"></h2><p id="left-wand"></p><p id="left-stats"></p><p id="left-score" class="duel-score"></p></article>
+      <article><h2 id="right-name"></h2><p id="right-wand"></p><p id="right-stats"></p><p id="right-score" class="duel-score"></p></article>
+    </section>
+    <section id="duel-controls" aria-labelledby="choice-heading" hidden>
+      <h2 id="choice-heading">Tvůj tah</h2><p id="choice-status"></p>
+      <div id="duel-actions" class="duel-actions"></div>
+      <p class="duel-muted">První přijatý tah je uzamčený. Při odpojení server po 15 sekundách použije předem připravený automatický tah.</p>
+    </section>
+    <section aria-labelledby="rounds-heading"><h2 id="rounds-heading">Průběh souboje</h2><ol id="duel-rounds" class="duel-rounds"></ol></section>
+    <section id="duel-result" aria-labelledby="result-heading" hidden><h2 id="result-heading">Výsledek</h2><p id="result-copy"></p></section>
+    <p id="duel-commentary-origin" class="duel-muted" hidden>Komentář sestavila AI z ověřených replik. Skóre a výsledek jsou převzaté z dokončeného souboje.</p>
+    <p id="duel-audience" class="duel-muted">Tento odkaz slouží ke sledování. Právo na tah poskytne samostatný soubojový přístup od obsluhy.</p>
+  </main>
+</body>
+</html>

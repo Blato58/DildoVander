@@ -233,10 +233,14 @@ internal sealed partial class ConversationStore
             }
             // A memory write failure must leave the operation fail-able rather
             // than publish a completed journal entry without its result.
-            if (!journal.MarkSelectionCompleted(call.OperationId, proposal, call.EveningId))
+            if (!journal.MarkSelectionCompleted(call.OperationId, proposal,
+                eveningMemory?.ReadCapturedShowEvening(call.Correlation.DeviceId, call.Correlation.ConversationId) ?? call.EveningId))
             {
                 return null;
             }
+            BindFinaleSnapshot(correlation.DeviceId, call.OperationId, proposal, call.SessionGeneration,
+                call.Context.Request.DeviceRevision, call.Context.LivePrompt?.Version ?? "realtime-existing", null,
+                eveningMemory?.ReadCapturedShowEvening(correlation.DeviceId, correlation.ConversationId) ?? call.EveningId);
             operations.Add(call.OperationId,
                 new TurnOperation(call.OperationId, "turn", "completed", correlation, result, null));
             if (response.Decision == "ask")

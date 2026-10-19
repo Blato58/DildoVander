@@ -1,18 +1,31 @@
 ---
 name: dildovander-show-authoring
-description: Author or validate DV02 effect scenes, migrate presentation choreography, or inspect compiled scene changes in DildoVander. Excludes persona/dialogue writing, servo calibration, wiring, deployment and runtime trace diagnosis.
+description: Author or validate DV02 effect scenes, Show Pack cue plans and offline repertoire/banks, or inspect compiled scenes. Excludes ordinary persona rewriting, servo calibration, wiring, deployment and runtime trace diagnosis.
 ---
 
 Locate the repository with `git rev-parse --show-toplevel`. Read the
 [DV02 guide](../../../kufr/docs/dv02.md) and the relevant language/invariant
 sections of [the specification](../../../kufr/docs/dv02-spec.md).
 
-Edit only the authored [effects.json](../../../kufr/mechanika/final/effects.json).
+For physical choreography edit the authored [effects.json](../../../kufr/mechanika/final/effects.json).
 The schema, compiler, generated header and observer plan are one source-bound
 bundle. Do not copy times or colors into skills, C++ or JavaScript. Legacy main
 and short are migration baselines; artistic changes require an explicit diff.
 New accent entries stay disabled unless their actual owner capability is enabled.
 No scene grants motion authority or changes runtime calibration.
+
+Show Pack narrative cues use Features/Show/ShowSceneLibrary and its one Validate
+entry point; offline clips use firmware/offline-bank/manifest.json and
+prepare_offline_bank.py. Read [the contract](../../../kufr/docs/show-pack.md).
+Optional narrative cues never dispatch actuators. Offline presentation reuses
+the existing sequence/journal. Run backend `--show`, affected firmware host tests
+and the bank generator `--check`. Generate headers through the actual tool;
+missing approved recordings remain missing_assets. Test tones are not repertoire.
+Match the configured voice and existing OTA capacity; installation is separate.
+For live duel/ambient delivery inspect ShowDeviceCueBridge and the firmware
+control-loop mailbox. Require exact boot/generation/revision and playback ACK;
+web-only results and submitted audio never prove audible device narration.
+GET audio reads a claimed result; it must not start another provider attempt.
 
 From the repository root:
 

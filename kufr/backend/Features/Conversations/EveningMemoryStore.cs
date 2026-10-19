@@ -76,6 +76,7 @@ internal sealed partial class EveningMemoryStore
         command.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
         command.ExecuteNonQuery();
         MigrateHybridMemory(connection, migration);
+        MigrateShowChronicle(connection, migration);
         migration.Commit();
     }
 
@@ -285,10 +286,12 @@ internal sealed partial class EveningMemoryStore
             using var command = connection.CreateCommand();
             command.CommandText = """
                 SELECT sequence, conversation_id, visitor_text, reply FROM exchanges
-                WHERE device_id = $device AND evening_id = $evening ORDER BY sequence;
+                WHERE device_id = $device AND evening_id = $evening
+                    AND conversation_id = $conversation ORDER BY sequence;
                 """;
             command.Parameters.AddWithValue("$device", deviceId);
             command.Parameters.AddWithValue("$evening", status.EveningId);
+            command.Parameters.AddWithValue("$conversation", conversationId);
             using var reader = command.ExecuteReader();
             var rows = new List<MemoryExchange>();
             while (reader.Read())
@@ -296,8 +299,8 @@ internal sealed partial class EveningMemoryStore
                 rows.Add(new(reader.GetInt64(0), reader.GetString(1), reader.GetString(2), reader.GetString(3)));
             }
 
-            // Rank whole conversations so a matching answer retains its speaker's
-            // introduction. This is lexical recall, not inferred identity or facts.
+            // A matching alias, voice or wand never authorizes another guest's
+            // transcript. Verified returns use the permission-bound personal store.
             var query = Words(text + " " + string.Join(" ", rows
                 .Where(row => row.ConversationId == conversationId)
                 .Select(row => row.VisitorText)));

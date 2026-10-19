@@ -29,7 +29,7 @@ void PhysicalEffects::Tick(uint64_t nowMs) {
   const uint64_t elapsed = nowMs - activeAt_;
   if (!servo_) {
     if (elapsed >= 250) Fault();
-    else if (elapsed >= 150) Disable();
+    else if (elapsed >= VibrationDurationMs) Disable();
   } else if (elapsed >= MotionTimeoutMs(active_)) {
     Fault();
   } else if (elapsed >= calibration_[active_ - 1].travelMs) {

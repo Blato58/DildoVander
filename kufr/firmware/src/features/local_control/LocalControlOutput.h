@@ -22,6 +22,9 @@ class LocalControlOutput final : public LocalControlOutputPort {
 
   bool VoiceAck(const LocalSocketAdmission::Handle& handle,
                 const LocalControlMessage& request, bool accepted) override;
+  bool OfflineAck(const LocalSocketAdmission::Handle& handle,
+      const LocalControlMessage& request, bool accepted, const std::string& error,
+      const std::string& status, const std::string& records = "") override;
   bool DanceAck(const LocalSocketAdmission::Handle& handle,
                 const LocalControlMessage& request, bool accepted) override;
   bool Welcome(const LocalSocketAdmission::Handle& handle,

@@ -1,4 +1,4 @@
 interface:
   display_name: "DildoVander show authoring"
-  short_description: "Author and validate source-bound DV02 choreography"
-  default_prompt: "Use $dildovander-show-authoring to edit or validate the requested DV02 scene and review its generated plan."
+  short_description: "Author DV02 choreography, Show Pack cues and offline banks"
+  default_prompt: "Use $dildovander-show-authoring to edit or validate the requested DV02/Show Pack scene or offline bank through its canonical schema and generator."

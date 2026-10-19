@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using System.Threading.RateLimiting;
 using Kufr.Backend.Features.Keepsakes;
+using Kufr.Backend.Features.Show;
 
 var provisioning = args.Contains("--memory-provision");
 var builder = WebApplication.CreateBuilder(args.Where(a => a is not ("--memory-provision" or "--execute" or "--create")).ToArray());
@@ -24,6 +25,15 @@ if (twinConfiguration is not null)
 }
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 4096);
 builder.Services.AddSingleton(TimeProvider.System);
+var showOrigins = builder.Configuration.GetSection("Show:AllowedOrigins").Get<string[]>() ?? [];
+if (showOrigins.Any(origin => !Uri.TryCreate(origin, UriKind.Absolute, out var uri)
+    || origin != uri.GetLeftPart(UriPartial.Authority)
+    || uri.Scheme != "https" && !(uri.Scheme == "http" && uri.IsLoopback)))
+{
+    throw new InvalidOperationException("Show:AllowedOrigins must contain exact HTTPS or loopback origins.");
+}
+builder.Services.AddCors(options => options.AddPolicy("show-operator", policy =>
+    policy.WithOrigins(showOrigins).WithMethods("GET", "POST").WithHeaders("Authorization", "Content-Type")));
 builder.Services.AddSingleton<TwinAccess>();
 builder.Services.AddSingleton<TwinMediaSettingsStore>();
 builder.Services.AddSingleton<TwinMediaSessions>();
@@ -60,6 +70,11 @@ builder.Services.AddSingleton<OpenAiRealtimeClient>();
 builder.Services.AddSingleton<GptLiveClient>();
 builder.Services.AddSingleton<RealtimeLiveRegistry>();
 builder.Services.AddSingleton<EveningMemoryStore>();
+builder.Services.AddSingleton(sp => new ShowCoordinator(sp.GetRequiredService<IConfiguration>(),
+    sp.GetRequiredService<OperationJournal>(), sp.GetRequiredService<EveningMemoryStore>(),
+    sp.GetRequiredService<TimeProvider>()));
+builder.Services.AddSingleton<ShowDeviceCueBridge>();
+builder.Services.AddHostedService<ShowDeviceCueWorker>();
 builder.Services.AddSingleton(GptLiveOptions.Read(builder.Configuration));
 builder.Services.AddSingleton(sp => HybridMemoryOptions.Read(builder.Configuration, sp.GetRequiredService<OperationJournal>()));
 builder.Services.AddSingleton<WandDecisionService>();
@@ -96,9 +111,17 @@ if (keepsakesEnabled && builder.Configuration.GetValue<bool>("Keepsake:Generatio
     builder.Services.AddSingleton(sp => KeepsakeProviderFactory.Create(sp.GetRequiredService<IConfiguration>()));
     builder.Services.AddHostedService<KeepsakeWorker>();
 }
-if (keepsakesEnabled) { builder.Services.AddHostedService<KeepsakeExportWorker>(); }
+if (keepsakesEnabled)
+{
+    builder.Services.AddHostedService<KeepsakeExportWorker>();
+    builder.Services.AddHostedService<WizardIdentityMemoryWorker>();
+    builder.Services.AddSingleton<OfflineOutcomeStore>();
+    builder.Services.AddDuels();
+}
 
 var app = builder.Build();
+app.UseWhen(context => context.Request.Path.StartsWithSegments("/v1/show"),
+    branch => branch.UseCors("show-operator"));
 if (provisioning)
 {
     using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
@@ -154,7 +177,17 @@ app.MapGptLive();
 app.MapMemoryAdministration();
 app.MapServerModes();
 app.MapServerLogs();
-if (keepsakesEnabled) { app.MapKeepsakes(); app.MapKeepsakeGallery(); }
+app.MapShowEndpoints();
+app.MapShowDeviceCues();
+if (keepsakesEnabled)
+{
+    app.MapKeepsakes();
+    app.MapKeepsakeGallery();
+    app.MapShowChronicle();
+    app.MapDuels();
+    app.MapOfflineOutcomeEndpoints();
+    app.MapShowArchiveEndpoints();
+}
 if (keepsakeArchiveConfigured) { app.MapKeepsakeAdministration(); }
 app.Map("/guest/{**path}", () => Results.Json(new { errorCode = "access_unavailable" }, statusCode: 404));
 app.MapGet("/v1/diagnostics", (HttpContext context, DeviceAccessStore access,

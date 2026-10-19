@@ -20,6 +20,8 @@
 #include "../local_control/LocalConversationReplyPort.h"
 #include "../wand_presentation/WandPresentation.h"
 #include "../provisioning/DeviceIdentity.h"
+#include "../show_cues/DeviceShowCue.h"
+#include "../show_cues/BorrowedShowToken.h"
 
 class EspIdfStationNetwork;
 
@@ -45,7 +47,9 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
   void StopVoice() override;
   bool Start(bool nvsInitialized);
   bool IsOnline() const { return online_.load(); }
-  bool IsVoiceBusy() const { return voiceBusy_.load() || voicePending_.load(); }
+  bool IsConversationVoiceBusy() const { return voiceBusy_.load() || voicePending_.load(); }
+  bool IsVoiceBusy() const { return IsConversationVoiceBusy() || showCues_.IsActive(); }
+  DeviceShowMailbox& ShowCues() { return showCues_; }
   bool QueueTextTurn(const std::string& text,
                      const std::string& conversationId,
                      const std::string& clientTurnId,
@@ -83,6 +87,9 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
   void StopVoiceOutput();
   static void TaskEntry(void* argument);
   void Run();
+  static void ShowTaskEntry(void* argument);
+  void RunShowCues();
+  void PumpShowCues(const char* token);
   void RunTurn(const std::string& text,
                const std::string& conversationId,
                const std::string& clientTurnId, bool opening,
@@ -151,4 +158,8 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
   uint32_t closeRetryDelayMs_ = 1000;
   std::string deleteIdempotencyKey_;
   TaskHandle_t task_ = nullptr;
+  DeviceShowMailbox showCues_;
+  BorrowedShowToken showToken_;
+  std::atomic<bool> showUnauthorized_{false};
+  TaskHandle_t showTask_ = nullptr;
 };

@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "id": "SHOW-PACK-OPERATIONS",
+  "initiative": "DV02",
+  "title": "Externí akceptace Show Pack 2026.10.19.1",
+  "state": "blocked",
+  "priority": "P1",
+  "sequence": 2,
+  "scope": [
+    "kufr/firmware/offline-bank",
+    "kufr/mobilni-aplikace/ios",
+    "kufr/backend",
+    "kufr/docs/show-pack.md"
+  ],
+  "dependencies": [],
+  "relatedItems": [
+    "SHOW-PACK",
+    "DV01",
+    "DV02",
+    "DV10"
+  ],
+  "acceptance": [
+    {
+      "id": "RECORDINGS",
+      "revision": 1,
+      "expected": "Schválené nahrávky 24 českých klipů, hlasový profil a skutečná připravenost OTA banky.",
+      "requiredEvidenceKinds": [
+        "integration"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "policyVersion": "show-pack-2026.10.19.1"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "PROVIDER",
+      "revision": 1,
+      "expected": "Výslovně autorizovaný pilot reálného Live/TTS a generované identity; poslech, obsah a časování se skutečným poskytovatelem.",
+      "requiredEvidenceKinds": [
+        "integration"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "policyVersion": "show-pack-2026.10.19.1"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "NATIVE",
+      "revision": 1,
+      "expected": "macOS Swift testy a nepodepsaný iOS Simulator build aktuálního softwaru.",
+      "requiredEvidenceKinds": [
+        "native_ios"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "policyVersion": "show-pack-2026.10.19.1"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "PHYSICAL",
+      "revision": 1,
+      "expected": "Akustická a fyzická akceptace identifikované sestavy včetně Stop, napájení, jednoho pohonu, LED a offline restartu.",
+      "requiredEvidenceKinds": [
+        "physical_inspection",
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "policyVersion": "show-pack-2026.10.19.1"
+      },
+      "evidenceRefs": []
+    }
+  ],
+  "blockers": [
+    {
+      "id": "AUDIO",
+      "problem": "Pro 24 autorských textů nejsou dodány schválené hlasové nahrávky; banka má nula audio bytes a pravdivě hlásí missing_assets.",
+      "severity": "medium",
+      "blocks": [
+        "RECORDINGS"
+      ],
+      "unblockCondition": "Dodat majitelem schválené WAV a voice profil; připravit skutečným prepare_offline_bank.py a ověřit připravenou banku."
+    },
+    {
+      "id": "PAID",
+      "problem": "Uživatel výslovně vyloučil placené testy.",
+      "severity": "medium",
+      "blocks": [
+        "PROVIDER"
+      ],
+      "unblockCondition": "Samostatné výslovné oprávnění k provider pilotu; dosavadní fake/replay nejsou živý důkaz."
+    },
+    {
+      "id": "APPLE",
+      "problem": "Windows lokální testy nenahrazují macOS; cílené PR CI se spustí po push.",
+      "severity": "medium",
+      "blocks": [
+        "NATIVE"
+      ],
+      "unblockCondition": "Úspěšné konkrétní macOS PR CI s nativními testy a nepodepsaným Simulator buildem aktuálního source subjectu."
+    },
+    {
+      "id": "HARDWARE",
+      "problem": "Fyzická sestava nebyla během této implementace připojena, flash ani měření nejsou součástí oprávnění.",
+      "severity": "medium",
+      "blocks": [
+        "PHYSICAL"
+      ],
+      "unblockCondition": "Identifikovat sestavu, schválit instalaci a provést skutečnou akustickou/fyzickou akceptaci s firmware/config/wiring/mechanics identitou."
+    }
+  ],
+  "nextAction": "Po softwarovém merge vyhodnotit skutečné macOS CI. Nahrávky, placený pilot a fyzickou sestavu řešit až s odpovídajícími podklady a oprávněním; nyní je nespouštět.",
+  "currentNote": "Oddělené externí brány, nikoli deklarace chybějící funkční softwarové cesty. Nasazení, podpis ani flash neproběhly."
+}
