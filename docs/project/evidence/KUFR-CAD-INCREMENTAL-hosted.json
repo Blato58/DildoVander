@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-CAD-INCREMENTAL-hosted",
+  "observedAtUtc": "2026-10-19T02:30:15Z",
+  "kind": "integration",
+  "result": "pass",
+  "subject": {
+    "artifactDigest": "0315ccb8e1afc7c73b7b9f0464cc9b041aef1404287f9f2fcda5a5b8cbdf11b3"
+  },
+  "claims": [
+    {
+      "workItemId": "KUFR-CAD-INCREMENTAL",
+      "criterionId": "HOSTED",
+      "criterionRevision": 5,
+      "result": "pass"
+    }
+  ],
+  "environment": "GitHub Ubuntu24 pinned Python3.11 CAD/slicer; Linux+Windows tracking; canonical main immutable artifacts; task checkout source/tree verification.",
+  "method": "Read full successful native CI39185947381, cross-commit CI39189746969, main promotion39189939887 and cache-only manual dispatch39190077087. Inspect all reviews/inline comments/threads/status immediately before exact-head squash merge; fetch main and compare full tree with tested de2d72c. Assert hit logs contain authenticated source/output acceptance and contain none of four CAD install/generation commands present in cold-run positive control.",
+  "observation": "Implementation7ce6e7a996786fa9fe1d4574c23840830e57b202 passed full native CAD/slicer verification and CI required in39185947381; CAD job47m09s. Artifact12158624067 (180240864bytes), keye5f0a4ea0b397fe6846c88a9b321c6f5bd5a217915feecc58a4f6e5a5f1c4e29. Tracking-only de2d72c626d845ce675657d3978b3e3138314b27 passed required CI39189746969, restored that artifact as same-pr exact proof, CAD job14s. Latest source review7ce6e7a completed without findings; previous runtime P2 fixed/tested and thread resolved, re-read before merge. PR210 merged ascd8501710add71502d54d1c18b873dab1877b1e6; fetched main tree exactly equals tested head. Main push39189939887 promoted original PR acceptance after source/server merge proof in39s; canonical artifact12159333243 (180241178bytes), same key. Manual force=false dispatch39190077087 restored this main artifact in13s, no new artifact uploaded. All three hits logged CAD_HIT true and skipped CAD dependencies, slicer installation, geometry/export/render generation and mechanical re-verification. Promotion retained original validation/runtime and explicitly recorded no new mechanical validation.",
+  "limitations": [
+    "CAD acceptance is PASS_CAD_NOT_PHYSICAL_ACCEPTANCE with PASS_SLICER; no hardware, deployment, release or paid AI test was performed.",
+    "Main-inheritance fallback:23 unit cases and live GitHub API simulation accepted original tested source plus canonical-main-only changes (treefa5974559ec04a5faf67c9d73b09046d47e94c98, original base d3a97c5 to mainb703ce3), rejected changed PR producer source. Hosted hits exercised exact source proof. Forced/failing/corrupt-cache scenarios used targeted tests, no extra forced full build.",
+    "Changed mechanics still require live shapes, assemblies, slicing and global safety checks. Part export reuse requires exact native runtime; image updates can conservatively miss that narrower cache. Results expire after30days; bounded/inaccessible artifact discovery is a safe miss, never acceptance."
+  ],
+  "artifactRefs": [
+    "https://github.com/Blato58/DildoVander/pull/210",
+    "https://github.com/Blato58/DildoVander/actions/runs/39185947381",
+    "https://github.com/Blato58/DildoVander/actions/runs/39189746969",
+    "https://github.com/Blato58/DildoVander/actions/runs/39189939887",
+    "https://github.com/Blato58/DildoVander/actions/runs/39190077087"
+  ]
+}
