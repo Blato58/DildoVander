@@ -7,10 +7,10 @@ from pathlib import PurePosixPath
 import re
 import subprocess
 
-from cad_impact import classify_path, impact_plan
+from cad_impact import classify_path
 
 
-PROJECTS = ("repository", "backend", "firmware", "web", "ios", "ai-eval", "site", "cad")
+PROJECTS = ("repository", "backend", "firmware", "web", "ios", "ai-eval", "site")
 BUILD_WORKFLOWS = {
     ".github/workflows/kufr-backend.yml": "backend",
     ".github/workflows/kufr-firmware.yml": "firmware",
@@ -28,8 +28,6 @@ def select_projects(paths):
         cad_impact = classify_path(path)
         if cad_impact == "none" and ("docs" in parts or PurePosixPath(path).suffix.lower() in {".md", ".mdx", ".rst"}):
             continue
-        if cad_impact == "manufacturing":
-            selected["cad"] = True
         if path.startswith((".github/", "scripts/ci/")):
             selected["repository"] = True
         if path in BUILD_WORKFLOWS:
@@ -106,36 +104,10 @@ def check_results(selected, jobs):
         raise ValueError("Unexpected CI results: " + ", ".join(failed))
 
 
-def select_recovery_projects(project, force_cad=False):
-    selected = {name: project in ("all", name) for name in PROJECTS}
-    # Application assembly and manufacturing recovery are independent jobs.
-    # An explicit CAD override selects only the separate manufacturing lane.
-    if force_cad:
-        selected["cad"] = True
-    return selected
-
-
-def write_cad_summary(paths, selected, recovery=None):
-    destination = os.environ.get("GITHUB_STEP_SUMMARY")
-    if not destination:
-        return
-    plan = impact_plan(paths)
-    causes = plan["causes"]["manufacturing"]
-    with open(destination, "a", encoding="utf-8") as summary:
-        summary.write("### CAD impact\n\n")
-        summary.write(f"- Manufacturing job selected: {str(selected['cad']).lower()}\n")
-        if recovery:
-            summary.write(f"- Explicit recovery scope: {recovery}; application and manufacturing jobs remain independent.\n")
-        elif causes:
-            summary.write("- Affected owners: " + ", ".join(plan["owners"]) + "\n")
-            for cause in causes[:12]:
-                summary.write("- Input: " + json.dumps(cause["path"], ensure_ascii=True) + "\n")
-            if len(causes) > 12:
-                summary.write(f"- {len(causes) - 12} additional manufacturing inputs.\n")
-        else:
-            summary.write("- No manufacturing dependency changed; CAD setup, geometry, renders, slicer and mechanical verification skipped.\n")
-        if plan["causes"]["viewer"]:
-            summary.write(f"- Viewer inputs: {len(plan['causes']['viewer'])}; focused viewer checks apply.\n")
+def select_recovery_projects(project):
+    if project not in ("all",) + PROJECTS:
+        raise ValueError("Unknown recovery project: " + project)
+    return {name: project in ("all", name) for name in PROJECTS}
 
 
 def main():
@@ -144,7 +116,6 @@ def main():
     parser.add_argument("--base")
     parser.add_argument("--head")
     parser.add_argument("--project", choices=("all",) + PROJECTS)
-    parser.add_argument("--force-cad", action="store_true")
     args = parser.parse_args()
     if args.mode == "check":
         check_results(json.loads(os.environ["SELECTED_PROJECTS"]), json.loads(os.environ["RESULTS"]))
@@ -152,11 +123,10 @@ def main():
         return
     paths = []
     if args.project:
-        selected = select_recovery_projects(args.project, args.force_cad)
+        selected = select_recovery_projects(args.project)
     else:
         paths = changed_paths(args.base, args.head)
         selected = select_projects(paths)
-    write_cad_summary(paths, selected, args.project)
     print(json.dumps(selected, sort_keys=True))
     if os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:

@@ -108,11 +108,7 @@ class CadImpactTests(unittest.TestCase):
         self.assertEqual(classify_path("kufr/design-system/ui.js"), "viewer")
         self.assertEqual(classify_path(FINAL + "future_runtime_dependency.py"), "manufacturing")
 
-    def test_main_warming_uses_policy_before_install_and_required_ci_has_no_path_filter(self):
-        workflow = (ROOT / ".github/workflows/kufr-cad.yml").read_text()
-        self.assertNotIn("    paths:", workflow)
-        self.assertLess(workflow.index("scripts/ci/select_projects.py"), workflow.index("uses: actions/setup-node"))
-        self.assertEqual(workflow.count("if: steps.impact.outputs.cad == 'true'"), 2)
+    def test_required_software_ci_has_no_path_filter(self):
         ci = (ROOT / ".github/workflows/ci.yml").read_text()
         triggers = ci.split("permissions:", 1)[0]
         self.assertNotIn("paths:", triggers)
@@ -121,20 +117,6 @@ class CadImpactTests(unittest.TestCase):
         self.assertIn("github.event.merge_group.head_sha", ci)
         self.assertIn("name: CI required\n    if: always()", ci)
 
-    def test_force_dispatch_is_explicit_and_only_targets_manufacturing(self):
-        ci = (ROOT / ".github/workflows/ci.yml").read_text()
-        cad = (ROOT / ".github/workflows/kufr-cad.yml").read_text()
-        site = (ROOT / ".github/workflows/kufr-site.yml").read_text()
-        self.assertIn("--force-cad", ci)
-        # Missing dispatch inputs on PRs evaluate to an empty string. A typed
-        # reusable boolean must compare explicitly instead of forwarding it.
-        self.assertIn("force: ${{ inputs.force_cad == true && inputs.pr_number == '' }}", ci)
-        self.assertIn("force_cad:", ci)
-        self.assertNotIn("force-cad: ${{ inputs.force_cad", ci)
-        self.assertIn("force: ${{ inputs.force_cad", ci)
-        self.assertIn("force: ${{ inputs.force || false }}", cad)
-        self.assertNotIn("force-cad", site)
-        self.assertNotIn("verified-cad", site)
 
 
 if __name__ == "__main__":

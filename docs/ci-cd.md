@@ -21,7 +21,6 @@ zverejneni vypne controller. Fork PR se nemeni.
 | `kufr-web.yml` | Web a offline testy |
 | `kufr-ios.yml` | Nativni Swift testy a nepodepsany iOS Simulator build na macOS |
 | `kufr-site.yml` | Jedna Vue aplikace a viewer fixtures bez CAD; kompatibilni nazev artefaktu arcane-site |
-| `kufr-cad.yml` | Samostatna CAD gate a naplneni sdilene cache po zmene CAD vstupu na main |
 | `kufr-ai-eval.yml` | Pouze offline synteticky corpus a parser |
 | `reuse-build.yml` | Overeni aktualniho main artefaktu pred podpisem |
 | `kufr-ios-sign.yml` | Rucni podepsane Ad Hoc IPA na macOS |
@@ -72,38 +71,19 @@ HTML/JS balicky. Viewer fixture testy nepotrebuji CAD toolchain. Guard
 `scripts/ci/ui_boundary.py` kontroluje i volane lokalni actions, web/iOS workflow
 a build entry points a odmita vyrobni generovani v UI workflow.
 
-Samostatny job `cad` zustava povinny pro skutecne vyrobni vstupy. Presny seznam
-viewer souboru v `scripts/ci/select_projects.py` je vyjimka; neznamy soubor pod
-`kufr/mechanika/final/` konzervativne vybere plne CAD kontroly. UI tokeny a
-viewer styly samy CAD nevybiraji. Zmeny kontraktu vybiraji jejich producenty a
-konzumenty. Rucni `project=site` sestavuje aplikaci bez CAD; `project=cad` pouze
-CAD; `project=all` spusti oba nezavisle. Kontrola `CI required` vyzaduje uspech
-vsech vybranych jobs. Nativni zmeny dale overuje macOS workflow.
+CAD je od rozhodnuti majitele 20. 10. 2026 z CI/CD odstranen. PR, push na
+`main` ani rucni recovery build nespousteji geometrii, rendery, slicer nebo
+vyrobni overeni a nepublikuji CAD cache. `project=all` zahrnuje pouze softwarove
+jobs; `project=cad` a `force_cad` nejsou podporovany. `CI required` nadale
+vyzaduje uspech vsech vybranych softwarovych kontrol vcetne macOS pro iOS.
+Lokalni CAD nastroje, kontroly zdroju a provenience zustavaji zachovany;
+mechanickou akceptaci je nutne provest lokalne podle
+[CAD README](../kufr/mechanika/final/README.md#inkrementální-cad-a-ci).
+Zelene softwarove CI neprokazuje vyrobni overeni.
 
 Aplikace, ModelBundle a offline distribuce maji oddelenou provenienci a
 aktivaci. Pripraveny postup, cache pravidla, persistence identity a rollback
 jsou v [application releases](../kufr/web/deploy/APPLICATION-RELEASES.md).
-
-CAD workflow po relevantnim push na `main` naplni cache vychozi vetve;
-nic nepublikuje ani nenasazuje. GitHub cache vytvorena pro `refs/pull/N/merge`
-je dostupna jen temuz PR, ne jinym PR ani main. Cache main mohou cist dalsi PR
-([pravidla GitHub cache](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache)).
-Proto samotne opakovane ukladani PR cache nezajisti sdileni napric PR.
-
-Sdilena composite action `verified-cad` pouziva CI wrapper `scripts/ci/cad_cache.py`.
-Klic v2 zachovava presne zdroje, Python, vsechny distribuce, architekturu,
-Ubuntu 24, glibc ABI a slicer vcetne native/Flatpak hash. Vynechava pouze cislo
-kernelu a datum image rollout: GitHub pridelil stejnym vstupum soubezne image
-`20261004.327.1` a `20261012.334.1`, coz drive vytvorilo ruzne klice i pri
-identickych nastrojich. Skutecne host metadata zustavaji v diagnostice CI.
-Fallback na v1 se smi adoptovat jen pri shode teto identity a po puvodni
-uplne kontrole zdroju, sliceru, SHA-256 vsech vystupu a kazdeho clena ZIPu.
-Wrapper zmeni pouze cache receipt; vyrobni vystupy ani jejich overeni neupravuje.
-Zmena zdroju, knihoven, sliceru nebo ABI stale vyzaduje celou regeneraci.
-Lokalni `Regenerate.ps1` zachovava puvodni prisnou host identitu.
-Python testy sdili memoizovanou geometrii v jednom procesu;
-generovani, overeni a baleni zachovavaji oddelene ciste CAD procesy.
-Lokalne lze vynutit vsechny kroky parametrem `-Force`.
 
 Secret scan pouziva pripnuty Gitleaks 8.30.1 a kontroluje celou historii `HEAD`:
 u PR oba rodice merge checkoutu, u rucniho buildu historii vybrane vetve.

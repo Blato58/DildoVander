@@ -92,12 +92,13 @@
 
 ## Sestavení a ověření
 
-- CAD není součást běžného software buildu. Backend, firmware, mobilní UX a
-  nesouvisející dokumentace nespouštějí CAD, slicer ani rendery. Dopad určuje
-  `scripts/ci/cad_impact.py` se sdílenou politikou `source_inputs.py`; neznámé
-  mechanické vstupy posuzuj konzervativně. Viewer HTML/CSS/JS ověř cílenými
-  testy bez regenerace geometrie. Podrobnosti a příkazy jsou v
-  [CAD README](kufr/mechanika/final/README.md#inkrementální-cad-a-ci).
+- Majitel 20. 10. 2026 odstranil CAD z CI/CD do přípravy nového řešení.
+  Žádné PR, push ani ruční GitHub workflow nesmí spouštět CAD, slicer,
+  rendery nebo výrobní ověření. Lokální mechanické kontroly a provenience
+  zůstávají povinné; dopad určuje `scripts/ci/cad_impact.py` se sdílenou
+  politikou `source_inputs.py`. Viewer HTML/CSS/JS ověř cílenými testy bez
+  regenerace geometrie. Zelené softwarové CI neprokazuje mechanickou akceptaci.
+  Podrobnosti jsou v [CAD README](kufr/mechanika/final/README.md#inkrementální-cad-a-ci).
 - Pro mechanické změny použij běžnou inkrementální `Regenerate.ps1` a zachovej
   kontroly kolizí, montáže a tisku. Ověřené nezměněné výsledky lze znovu použít
   jen se shodou vstupů a ověřenými bytes/proveniencí. `-Force` a kompletní

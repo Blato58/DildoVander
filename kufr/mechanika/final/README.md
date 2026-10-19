@@ -147,13 +147,13 @@ Pro vynucení všech testů a generování použít `-Force` (přímo v Pythonu
 
 ## Inkrementální CAD a CI
 
-Každé PR projde levným výběrem změněných projektů a kontrolou `CI required`.
-Backend, firmware, mobilní UX a běžná dokumentace CAD nespouštějí. Známé
-viewer HTML/CSS/JS a sdílený design spouštějí pouze příslušné web/viewer testy.
-Neznámé soubory pod `final/`, rozměry, `parameters.json`, montážní omezení,
-geometrie, generátory, efekty s rozložením a validační algoritmy jsou mechanické
-vstupy. Autoritativní Markdown s rozměry a zapojením není obecná dokumentace.
-Politiku sdílí `source_inputs.py` a `scripts/ci/cad_impact.py`.
+CAD je od rozhodnutí majitele 20. 10. 2026 z CI/CD odstraněn. Automatické
+ani ručně spouštěné GitHub workflow negeneruje geometrii, rendery nebo tiskové
+výstupy, neprovádí výrobní ověření a nepublikuje CAD cache. Softwarové CI
+ponechává cílené viewer testy; jeho úspěch není mechanická akceptace.
+Lokální inkrementální regenerace a bezpečnostní i provenienční kontroly
+zůstávají povinné při mechanických změnách. Politiku vstupů nadále sdílí
+`source_inputs.py` a `scripts/ci/cad_impact.py`.
 
 Lokální dopad lze zjistit bez CadQuery, sliceru i renderování z kořene:
 
@@ -163,31 +163,6 @@ python -m unittest discover -s scripts/ci -p test_cad_impact.py
 node --test kufr/mechanika/final/test_viewer.cjs
 python -m unittest discover -s kufr/mechanika/final -p test_refresh_package.py
 ```
-
-CI před instalací CAD hledá výsledek podle obsahu mechanických zdrojů,
-rozměrových podkladů, generátorů, kontrol a připnuté konfigurace nástrojů.
-Commit ani větev nejsou součástí klíče. Obnova musí pocházet z úspěšného
-kanonického `main` běhu, nikoli z PR/forku, a musí projít kontrolou úplného
-inventáře SHA-256 i výsledku CAD/sliceru. Při přesné shodě se přeskočí
-instalace, generování, PNG rendery i drahé opakování mechanických kontrol.
-Stejná geometrie s upravenou prezentací použije `refresh_package.py`: zachová
-mesh/CAD bytes, obnoví viewer a ZIP, aktualizuje otisky a výslovně zaznamená
-přenos původního mechanického důkazu; netvrdí nové mechanické ověření.
-Opakovaný běh stejného PR může převzít svůj úspěšný výsledek při shodě
-skutečného Git stromu všech spustitelných vstupů celého běhu. Výjimkou jsou
-jen konkrétní pasivní tracking JSON a STATUS; kód jiného CI jobu se také
-porovnává, protože identita artefaktu sama neurčuje jeho nahrávající job.
-Povolené jsou navíc změny převzaté z kanonického `main`: původní PR daný
-soubor nesmělo změnit a aktuální bytes, typ i režim musí odpovídat `main`.
-Serverový merge commit a historie musí prokázat původní base → aktuální main
-→ checkout. Změna vlastního kódu PR tuto výjimku nesplní. Receipt rozlišuje
-přesnou shodu od této ověřené dědičnosti a uchovává příslušná SHA.
-Neúplná provenience nebo změna těchto vstupů znamená bezpečný cache miss.
-Po merge tato kontrola navíc ověří serverový stav PR, cílový `main` a předka
-aktuální větve. Výsledek se potom publikuje jako main artefakt s vazbou na
-původní run, artefakt, spouštěný strom a receipt. Nevykazuje nové mechanické
-ověření; odstraňuje duplicitní plný běh PR → push. Nesloučené nebo zdrojově
-odlišné PR se do main cache nepřenáší.
 
 Při skutečné CAD změně se z důvěryhodného předchozího výsledku mohou převzít
 jednotlivé nezměněné STL/STEP/surové 3MF. Jejich cache v
@@ -200,19 +175,11 @@ Změna samotného `verify.py` nebo testů přebírá nepozměněný generovaný 
 odstraní staré potvrzení a ZIP a spustí nové testy a verifikaci. Geometrie ani
 rendery se při této cestě negenerují. Neznámý mix závislostí použije plnou cestu.
 
-Úspěšné `main` běhy uchovávají výsledky 30 dní a levný push gate ignoruje
-nesouvisející změny. Chybějící či expirovaný výsledek je bezpečný cache miss.
-Pro plný běh použít workflow **Verify CAD manufacturing package** s `force=true`,
-nebo **CI** s `force_cad=true`; lokálně `Regenerate.ps1 -Force`.
-Nucený běh obchází i cache dílů. Žádný pravidelný plný CAD schedule neexistuje.
-
-Při podezření na stale výstup nejprve zkontrolovat výpis dopadu a job summary,
-`trusted-result.json`, zdrojové identity a ID původního main artefaktu.
-Neopravovat hash ručně. Neznámou závislost doplnit do politiky/fingerprintu
-a regresního testu; pak použít cílenou regeneraci nebo výslovný force běh.
-Selhání generátoru/ověření nikdy nevytvoří úspěšný sdílený výsledek.
-Přímé sestavení webu kontroluje i úplnost současného zdrojového inventáře;
-nový neověřený vstup nelze propašovat přes starý report a ZIP.
+Pro lokální inkrementální běh použít `Regenerate.ps1`. Parametr `-Force`
+obchází i cache dílů a vyžaduje výslovné zadání nebo zdůvodnění závislosti.
+Při podezření na stale výstup zkontrolovat zdrojové identity a provenienci;
+neopravovat hash ručně. Neznámou závislost doplnit do politiky/fingerprintu
+a regresního testu, potom provést odpovídající lokální regeneraci.
 
 V samostatně vybaleném ZIPu vytvořit prostředí a instalovat
 `requirements.txt`, potom předat cestu jeho Pythonu.
