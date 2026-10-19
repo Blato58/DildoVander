@@ -89,7 +89,8 @@
         "policyVersion": "show-pack-2026.10.19.1"
       },
       "evidenceRefs": [
-        "SHOW-PACK-validation-harness-v5"
+        "SHOW-PACK-validation-harness-v5",
+        "SHOW-PACK-final-ci-v1"
       ]
     }
   ],
@@ -123,5 +124,5 @@
     }
   ],
   "nextAction": "Dodat schválené hlasové WAV; provider pilot a skutečný iPhone/fyzickou sestavu řešit samostatným oprávněním. Placené testy, deploy ani flash nyní nespouštět.",
-  "currentNote": "Nativní Swift testy a nepodepsaný Simulator build současných163 vstupů splněny (native-v2 receipt). Test-only paritní/procesní/časové/CI linker opravy mají source-v5 validationArtifactDigest; všech1065 ostatních vstupů včetně produkce je shodných se source-v3. Kompletní aktuální GitHub CI je povinná merge brána. Nahrávky/provider/fyzická akceptace zůstávají tři oddělené blokace."
+  "currentNote": "Finální CI39203331992 na8236f92 kompletně PASS: Linux backend/HTTP/host/firmware, web/site, Swift a nepodepsaný Simulator, repository/tracking/secrets. PR219 sloučeno9e62f61, Git tree na main přesně ověřen. Source-v3 runtime a source-v5 validation beze změn; finální CI receipt doplňuje dřívější lokální důkazy. Tři samostatné blokace nadále:24 schválených hlasových nahrávek, vyloučený placený pilot a fyzická/iPhone akceptace. Bez deploy/podpisu/flash."
 }
