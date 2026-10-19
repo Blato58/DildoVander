@@ -321,7 +321,7 @@ export class DebugPanel {
         <p data-engine-status role="status"></p>
         <fieldset data-costume-controls><legend>Volitelná nápověda kostýmu</legend>
           <p>Fotku pořizujte jen se souhlasem hosta. Potvrzením „Použít fotku“ souhlasíte s jejím předáním
-            serveru a OpenAI pro tento rozhovor. Fotka se neukládá do galerie ani paměti večera.</p>
+            serveru a OpenAI pro tento rozhovor. Do galerie se neukládá; soukromý archiv rozhovoru ji uchová do ručního smazání.</p>
           <div class="actions">${button({ label: "Se souhlasem vyfotit kostým", attributes: {"data-debug": "costume-photo"} })}
             ${button({ label: "Odeslat schválenou fotku", attributes: {"data-debug": "costume-attach"} })}
             ${button({ label: "Zrušit fotku", attributes: {"data-debug": "costume-discard"} })}</div>

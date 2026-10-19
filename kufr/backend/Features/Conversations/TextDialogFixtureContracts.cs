@@ -18,4 +18,3 @@ internal sealed record DialogExchange(string VisitorText, string Reply);
 internal sealed class TextDialogUnavailableException(string message) : Exception(message);
 
 internal sealed class TextDialogRequestTooLargeException() : Exception("Dialogue request exceeds its reserved size.");
-

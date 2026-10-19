@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-CAD-INCREMENTAL-merged-review",
+  "observedAtUtc": "2026-10-19T00:28:04Z",
+  "kind": "source_review",
+  "result": "pass",
+  "claims": [{"workItemId": "KUFR-CAD-INCREMENTAL", "criterionId": "REUSE", "criterionRevision": 3, "result": "pass"}],
+  "subject": {"artifactDigest": "802ae634db8be76f6cd1eab1f685fb88cfb284b3a15a62dd02129a765596a306"},
+  "environment": "Independent Sol6.1 read-only final-delta review after main209 integration.",
+  "method": "Inspect canonical historical workflow merge-ref binding, empty/missing/contradictory PR list behavior and existing whole-tree promotion gates; inspect refresh_viewer call path. Resolver18, impact8 and viewer_document5 tests passed.",
+  "observation": "No remaining actionable findings. Server refs/pull/N/merge safely binds the PR when run.pull_requests clears; repository, merge, ancestry and source-mode proof remains mandatory. Preview helper is presentation-only. Parent rendered the STATUS conflict from combined JSON inputs.",
+  "limitations": ["Hosted execution remains pending; concurrent UI behavior was already separately accepted and is outside this infrastructure review."]
+}

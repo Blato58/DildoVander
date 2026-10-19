@@ -57,6 +57,21 @@ class RegenerationTests(unittest.TestCase):
         self.assert_external_gates()
         self.assertFalse((self.out / ".regeneration-lock").exists())
 
+    def test_validation_only_reuse_keeps_fresh_checks_and_force_restores_generation(self):
+        for force in (False, True):
+            with self.subTest(force=force):
+                self.events.clear()
+                self.environment(hit=False)
+                regenerate.regenerate(force=force, generation_ready=True)
+                scripts = [Path(command[3]).name for command in self.events[5:-1]]
+                expected = ["regenerate.py", "verify.py", "package.py"]
+                if force:
+                    expected.insert(1, "artifacts.py")
+                self.assertEqual(scripts, expected)
+                self.assertEqual(self.events[-1], "cache")
+                for command in self.events[5:-1]:
+                    self.assertIsInstance(command, list)
+
     def assert_external_gates(self):
         self.assertIn("generate_effects.py", self.events[0][3])
         self.assertEqual(self.events[0][1:3], ["-X", "utf8"])
@@ -176,6 +191,7 @@ class RegenerationTests(unittest.TestCase):
             "test_flex_routing", "test_inspect_data", "test_harness", "test_f2_cad",
             "test_sliding_follower", "test_floor_anchors", "test_follower_load",
             "test_strength", "test_assembly_access", "test_regeneration_cache", "test_regenerate",
+            "test_part_cache", "test_refresh_package",
         )
         self.assertEqual(regenerate.TEST_MODULES, expected)
 

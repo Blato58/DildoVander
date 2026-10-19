@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-CAD-INCREMENTAL-final-local",
+  "observedAtUtc": "2026-10-19T00:09:09Z",
+  "kind": "unit",
+  "result": "pass",
+  "claims": [
+    {"workItemId": "KUFR-CAD-INCREMENTAL", "criterionId": "IMPACT", "criterionRevision": 1, "result": "pass"},
+    {"workItemId": "KUFR-CAD-INCREMENTAL", "criterionId": "REUSE", "criterionRevision": 1, "result": "pass"}
+  ],
+  "subject": {"artifactDigest": "00ebec6742b2f3e8a60f02750b9f736e0c0c7088ad70b237aa1acec12580b1f0"},
+  "environment": "Windows task checkout, Python 3.14 stdlib, Node 25.9 and actionlint 1.7.12.",
+  "method": "python -m unittest discover -s scripts/ci -p test_cad*.py (24); test_select_projects.py (11); test_site_workflow.py (9); node --test scripts/ci/*.test.cjs (56); python -m unittest discover -s kufr/web -p test_*.py (20, 3 skipped); test_refresh_package.py (18); actionlint -shellcheck= -pyflakes=; git diff --check.",
+  "observation": "Final local checks passed after runtime-compatibility, typed-boolean, same-PR provenance and site completeness corrections. Same-PR forged artifact tests now compare every tracked executable/dependency source, including other jobs; only regular passive tracking data is exempt. Different installed slicer forces regeneration before any transfer. Added unknown nested source blocks site promotion. Native exporter bytes/build/part-cache implementation retain the earlier pinned/native smoke evidence without claiming another full CAD run.",
+  "limitations": [
+    "First hosted run 39178824484 on commit2098863 failed before CAD/site initialization because absent force input became empty string; explicit boolean equality and regression tests now correct it. Hosted rerun remains pending.",
+    "No full suitcase CAD rebuild, actual slicing, publication, deployment or hardware test was run locally.",
+    "Digest recipe: sorted 27 changed implementation/guidance/test paths against d409916 excluding docs/project; UTF-8 path + NUL + exact bytes + NUL. Earlier immutable local/native receipts retain their original subjects."
+  ]
+}

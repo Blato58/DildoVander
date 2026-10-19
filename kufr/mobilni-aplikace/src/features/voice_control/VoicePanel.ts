@@ -22,7 +22,7 @@ export class VoicePanel {
         ${button({ label: "Použít nastavení hlasu", type: 'submit', disabled: true })}
       </form>
       <label><input type="checkbox" data-image-consent> Host souhlasí s jednou fotkou kostýmu z kamery kufru pro tento rozhovor.</label>
-      <p class="footnote">Volitelné. Fotka se předá serveru a OpenAI jako nejistá nápověda a neukládá se do paměti večera.</p>
+      <p class="footnote">Volitelné. Fotka se předá serveru a OpenAI jako nejistá nápověda. Soukromý archiv rozhovoru ji uchová do ručního smazání; fotografie neověřuje identitu.</p>
       <p class="availability-blocker" data-voice-availability></p>
       <div class="actions">
         ${button({ label: "Spustit hlas na kufru", variant: 'primary', disabled: true, attributes: {"data-voice": "start"} })}

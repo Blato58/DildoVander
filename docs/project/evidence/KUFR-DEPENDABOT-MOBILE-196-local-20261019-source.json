@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "observedAtUtc": "2026-10-19T02:34:31Z",
+  "result": "pass",
+  "subject": {
+    "artifactDigest": "7faa569a50fb3bd6fafe6398c5e4b1c7b04514cae9ced69d2cc90caa94543eb0"
+  },
+  "environment": "Windows; Node25.9.0, npm11.12.1, Python3.14.4; Dependabot branch merged origin/main before verification.",
+  "limitations": [
+    "No Swift or Xcode available locally. Native Swift resolver, native tests and unsigned iOS Simulator build remain for macOS PR CI. No iPhone/hardware acceptance, signing, deployment or paid AI tests.",
+    "Digest is SHA-256 over sorted five mobile paths differing from origin/main: UTF-8 path + NUL + staged Git blob bytes + NUL."
+  ],
+  "evidenceId": "KUFR-DEPENDABOT-MOBILE-196-local-20261019-source",
+  "kind": "source_review",
+  "claims": [
+    {
+      "workItemId": "KUFR-DEPENDABOT-MOBILE-196",
+      "criterionId": "PINS",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "method": "Reviewed npm manifest/lock, real npx cap sync ios output, generated Package.swift and native lock. git ls-remote https://github.com/ionic-team/capacitor-swift-pm.git refs/tags/8.5.3 returned4c7f346d16196e21fbe23d4a7a6fc7af62af6742.",
+  "observation": "npm Capacitor core/CLI/iOS and generated exact Swift dependency are8.5.3; native pin8.5.3 revision4c7f346d16196e21fbe23d4a7a6fc7af62af6742 matches upstream. Only Capacitor pin changed; provisioning/protobuf pins retained. Vite8.3.4 remains the Dependabot group update. SwiftPM V3 models originHash as optional; stale hash removed rather than invented. README identifies tag-derived Windows lock update and pending Xcode resolver.",
+  "artifactRefs": [
+    "https://github.com/ionic-team/capacitor-swift-pm/tree/8.5.3",
+    "https://github.com/swiftlang/swift-package-manager/blob/main/Sources/PackageGraph/ResolvedPackagesStore.swift"
+  ]
+}

@@ -43,8 +43,9 @@ internal static class ConversationOrchestrationTests
             PartyWandCatalog.Version, true, "", null, "marin", 1);
         using var lifetime = new CancellationTokenSource();
         var call = store.BeginRealtimeTurn("context-device", created.ConversationId, Guid.NewGuid(), "admit"u8.ToArray(),
-            request, true, lifetime.Token, default, handsFree: true, gptLive: gptLive).Call!;
-        Require(call is not null && call.Context.LivePrompt?.Version == "dv01-adult-v1",
+            request, true, lifetime.Token, default, handsFree: true, gptLive: gptLive).Call
+            ?? throw new Exception("retained engine admission failed");
+        Require(call.Context.LivePrompt?.Version == "dv01-adult-v1",
             "both retained engines admit the actual character without legacy providers");
         Require(store.RegisterRealtimeLifetime(call!, lifetime), "first provider stream owns its lifetime");
         foreach (var (text, index) in new[] { "I collect purple clocks.", "I prefer quiet rooms.", "My name is Ada.", "Correction: my name is Eva." }.Select((text, index) => (text, index)))

@@ -75,6 +75,12 @@ dotnet run --project kufr/backend-tests/BackendTests.csproj -- --character
 Fixture testy nevolají providera a nedokazují skutečný poslech/kameru/pohony.
 Placený test vyžaduje autorizaci. Starý dialogue smoke není akceptace nových enginů.
 
+Při změně NuGet závislostí regeneruj oba lockfiles společně přes
+`dotnet restore kufr/backend-tests/BackendTests.csproj -p:SelfContained=true --force-evaluate`.
+Zachovej deklarované `RuntimeIdentifiers` (`linux-x64;win-x64`) a potom ověř
+stejný příkaz s `--locked-mode` místo `--force-evaluate`. Microsoft.Data.Sqlite
+je aktuálně připnutý na10.0.13; OpenAI SDK zůstává2.14.0.
+
 ## Nasazení a rollback
 
 Používej existující CI a artefakt ověřeného Git tree. Před první aktivací udělej

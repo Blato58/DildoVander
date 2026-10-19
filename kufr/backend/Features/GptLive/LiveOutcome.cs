@@ -11,4 +11,3 @@ internal sealed record LiveOutcome(RealtimeReply Reply, int Questions, IReadOnly
     internal WandDecisionResult? Decision { get; init; }
     internal IReadOnlyList<LiveTranscriptSegment> Segments { get; init; } = [];
 }
-

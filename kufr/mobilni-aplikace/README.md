@@ -320,8 +320,10 @@ Zrušení/selhání fotografie neukončuje rozhovor. Připravený snímek vyprš
 dvě minuty a patří jednomu rozhovoru. V aktivním sezení se schválená fotka
 odesílá ihned; při selhání zůstane tlačítko pro opakování. Úspěch UI ukáže
 až po potvrzení `status=analysed`, image ID a revizi serveru. Změna enginu,
-ukončení nebo nový host starou fotku zneplatní. Fotografie se neukládá do
-galerie ani paměti večera; vzhled je nejistá nápověda a neověřuje identitu.
+ukončení nebo nový host zneplatní její aktivní kontext. Neodeslaný koncept
+se neukládá do galerie; odeslaná fotografie zůstává v soukromém serverovém
+archivu rozhovoru do výslovného ručního smazání. Vzhled je nejistá nápověda
+a neověřuje identitu. Zrušení kontextu a smazání archivu jsou odlišné operace.
 
 Vstupní PCM proudí jedním autentizovaným WebSocket spojením daného
 rozhovoru a streamu. Rámce zůstávají pořadově označené; 200ms rámec už
@@ -490,7 +492,7 @@ insets zůstává základní odsazení.
 
 ## Etapy a vzdálený iOS build
 
-E3a má zdrojový projekt `ios/App/App.xcodeproj`, sdílené scheme `App` a [webový CI workflow](../../.github/workflows/kufr-web.yml). Capacitor `@capacitor/core`, CLI a iOS jsou připnuté na 8.5.2. Po změně webu lze na Macu synchronizovat balíček příkazy:
+E3a má zdrojový projekt `ios/App/App.xcodeproj`, sdílené scheme `App` a [webový CI workflow](../../.github/workflows/kufr-web.yml). Capacitor `@capacitor/core`, CLI a iOS jsou připnuté na 8.5.3. Po změně webu lze na Macu synchronizovat balíček příkazy:
 
 ```text
 npm ci
@@ -503,7 +505,11 @@ CLI používá `xcode`, jehož závislost `uuid` je přes cílené npm override
 připnutá na 11.1.1 kvůli GHSA-w5hq-g745-h8pq. Tato verze zachovává CommonJS
 API `v4`, které parser projektu používá; uuid 12 už CommonJS neposkytuje.
 Swift `Package.swift` generuje `cap sync ios`; `Package.resolved` pochází
-ze skutečného `xcodebuild -resolvePackageDependencies` na macOS.
+ze skutečného `xcodebuild -resolvePackageDependencies` na macOS. Při aktualizaci
+8.5.3 na Windows byl pin Capacitoru v tomto locku srovnán s upstream tagem
+`8.5.3` (`4c7f346d16196e21fbe23d4a7a6fc7af62af6742`); starý volitelný
+`originHash` byl odstraněn. Následující macOS PR CI znovu řeší závislosti
+a ověřuje nativní build; tato lokální úprava není výsledek Xcode resolveru.
 
 Na Windows lze tyto příkazy použít pro kontrolu zdrojů. PR se změnou mobilu
 nebo jeho závislostí spouští přes `ci.yml` mobilní testy a webový build na Linuxu

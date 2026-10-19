@@ -64,32 +64,66 @@ class PublicWorkflowTests(unittest.TestCase):
         self.assertIn("verify-manufacturing: ${{ github.event_name == 'workflow_dispatch' && inputs.pr_number == '' }}", ci)
         self.assertIn('site, cad]', ci.split('  required:', 1)[1])
 
-    def test_shared_cad_action_never_trusts_restore_alone(self):
+    def test_shared_cad_action_validates_trusted_outputs_before_installing_tools(self):
         source = (ROOT / '.github/actions/verified-cad/action.yml').read_text()
-        restore = source.index('      uses: actions/cache/restore@')
-        verify = source.index('run: xvfb-run -a python scripts/ci/cad_cache.py\n')
-        save = source.index('      uses: actions/cache/save@')
-        self.assertLess(restore, verify)
+        key = source.index('python3 scripts/ci/cad_result.py key')
+        restore = source.index('      uses: actions/download-artifact@')
+        validate = source.index('python3 scripts/ci/cad_result.py restore')
+        install = source.index('    - name: Install pinned CAD dependencies')
+        verify = source.index('python scripts/ci/cad_cache.py')
+        save = source.index('      uses: actions/upload-artifact@')
+        self.assertLess(key, restore)
+        self.assertLess(restore, validate)
+        self.assertLess(validate, install)
+        self.assertLess(install, verify)
         self.assertLess(verify, save)
-        self.assertIn('key: cad-verified-v2-', source)
-        self.assertIn('restore-keys: cad-verified-v1-', source)
-        verify_block = source.split('    - name: Regenerate and verify', 1)[1].split('    - name:', 1)[0]
-        self.assertNotIn('if:', verify_block)
+        self.assertNotIn('restore-keys:', source)
+        for name in ['Install pinned CAD dependencies', 'Install official pinned PrusaSlicer CLI',
+                     'Generate missing exports and verify manufacturing package']:
+            block = source.split('    - name: ' + name, 1)[1].split('    - name:', 1)[0]
+            with self.subTest(step=name):
+                self.assertIn("if: steps.accepted.outputs.hit != 'true'", block)
+        self.assertIn('CAD_FORCE: ${{ inputs.force }}', source)
+        self.assertIn('name: cad-result-v1-${{ steps.cad-key.outputs.key }}', source)
         workflow = (WORKFLOWS / 'kufr-cad.yml').read_text()
         self.assertIn('branches: [main]', workflow)
-        for path in ['kufr/mechanika/final/**',
-                     'kufr/docs/zapojeni-potvrzeneho-hardwaru.md',
-                     'kufr/mechanika/rozmery-nakoupenych-soucastek.md',
-                     'scripts/ci/install-cad-slicer.sh', '.github/actions/verified-cad/**',
-                     'kufr/mobilni-aplikace/.nvmrc']:
-            with self.subTest(input=path):
-                self.assertIn("- '" + path + "'", workflow)
-        self.assertNotIn("- 'kufr/design-system/**'", workflow)
-        self.assertIn("- '!kufr/mechanika/final/viewer.js'", workflow)
+        self.assertIn('scripts/ci/select_projects.py select --base "$CAD_BASE" --head "$CAD_HEAD"', workflow)
+        self.assertNotIn('paths:', workflow)
         self.assertNotIn('upload-artifact', workflow)
         self.assertIn('uses: ./.github/actions/verified-cad', workflow)
         self.assertIn('group: cad-${{ github.event_name }}-${{ github.ref }}', workflow)
         self.assertIn("cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}", workflow)
+
+    def test_shared_cad_action_retains_results_only_for_trusted_main_events(self):
+        source = (ROOT / '.github/actions/verified-cad/action.yml').read_text()
+        upload = source.split('    - name: Retain verified results only from canonical main', 1)[1].split('    - name:', 1)[0]
+        condition = re.search(r'^      if: (.+)$', upload, re.MULTILINE).group(1)
+        script = ("const check = new Function('github', 'steps', 'return (' + process.argv[1] + ')'); "
+                  "const steps={accepted:{outputs:{hit:'false'}}}; "
+                  "process.stdout.write(JSON.stringify(JSON.parse(process.argv[2]).map(c => !!check(c, steps))));")
+        cases = [{'repository': repo, 'ref': ref, 'event_name': event,
+                  'event': {'inputs': {'pr_number': pr}}}
+                 for repo, ref, event, pr in [
+                     ('Blato58/DildoVander', 'refs/heads/main', 'push', ''),
+                     ('Blato58/DildoVander', 'refs/heads/main', 'workflow_dispatch', ''),
+                     ('Blato58/DildoVander', 'refs/heads/main', 'workflow_dispatch', '42'),
+                     ('Blato58/DildoVander', 'refs/heads/feature', 'workflow_dispatch', '42'),
+                     ('Blato58/DildoVander', 'refs/pull/42/merge', 'pull_request', ''),
+                     ('Blato58/DildoVander', 'refs/heads/gh-readonly-queue/main/pr-42', 'merge_group', ''),
+                     ('fork/DildoVander', 'refs/heads/main', 'push', ''),
+                 ]]
+        result = subprocess.check_output(['node', '-e', script, condition, json.dumps(cases)], text=True)
+        self.assertEqual(json.loads(result), [True, True, False, False, False, False, False])
+        self.assertIn("steps.accepted.outputs.hit != 'true'", condition)
+        self.assertIn("name: cad-pr-result-v1-${{ steps.cad-key.outputs.key }}", source)
+        # Ordinary hits do not upload duplicates, while authenticated promotion
+        # must retain the result in the canonical main trust domain.
+        promotion_script = ("const check=new Function('github','steps','return ('+process.argv[1]+')'); "
+                            "const github=JSON.parse(process.argv[2]); "
+                            "process.stdout.write(JSON.stringify(['merged-pr','main','same-pr'].map(scope=>!!check(github,"
+                            "{accepted:{outputs:{hit:'true'}},trusted:{outputs:{scope}}}))));")
+        promoted = subprocess.check_output(['node', '-e', promotion_script, condition, json.dumps(cases[0])], text=True)
+        self.assertEqual(json.loads(promoted), [True, False, False])
 
     def test_signing_requires_canonical_main_dispatch_and_separate_environment(self):
         source = (WORKFLOWS / 'kufr-ios-sign.yml').read_text()

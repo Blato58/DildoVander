@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-DEPENDABOT-BACKEND-198-review",
+  "observedAtUtc": "2026-10-19T02:37:20.397679Z",
+  "kind": "source_review",
+  "result": "pass",
+  "subject": {
+    "artifactDigest": "e63e765a5b4de8c62a1fa66bc87437294ecb8ab0eac56468cbaf3614ae573b8d"
+  },
+  "claims": [
+    {
+      "workItemId": "KUFR-DEPENDABOT-BACKEND-198",
+      "criterionId": "REVIEW",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "environment": "Windows task checkout; .NET SDK10.0.303; independent Sol6.1 correctness reviewer.",
+  "method": "Independent read-only comparison against origin/main, parsed lock graph/runtime sections, compared changed content hashes to NuGet cache metadata and checked Linux/Windows native assets.",
+  "observation": "No material findings. Reviewer found README exact pin still10.0.12; parent corrected to10.0.13. Both locks retain net10.0, linux-x64 and win-x64; shared SQLite versions/hashes match. Artifact identity hashes sorted scope paths+NUL+LF-normalized bytes+NUL.",
+  "limitations": [
+    "No production database, deployment, paid AI or physical validation.",
+    "Native Linux runtime/twin/smoke execution remains hosted CI acceptance; local runtime tests used Windows."
+  ]
+}

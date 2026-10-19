@@ -74,5 +74,3 @@ def issue_token(client, credential, device_id):
     token = result.get("accessToken")
     check(isinstance(token, str) and token, "token_exchange_failed")
     return token
-
-
