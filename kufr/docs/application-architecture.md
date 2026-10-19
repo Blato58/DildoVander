@@ -32,6 +32,13 @@ remain the authority for local snapshots, lease and command reconciliation.
   authenticated proxies. The account, guest and local hardware stores remain
   independent. Ordinary route transitions do not cancel active device operations.
 
+Native account requests carry a unique request ID. A feature's AbortSignal must
+reach `cancelAccountRequest` so an obsolete mutation is removed from the native
+queue before HTTP dispatch. Keep response-generation fences as well: cancelling
+an already dispatched request cannot undo a server operation. Ordinary requests
+and passkey ceremonies share admission; exact Stop/cancel commands use isolated
+priority transport with the immutable published account session.
+
 ## Routes and compatibility
 
 | Existing entry | Application destination | Access |

@@ -16,7 +16,7 @@ publication are in the [release guide](../web/deploy/APPLICATION-RELEASES.md).
 
 | Area | Actual checks and boundary |
 | --- | --- |
-| Shared Vue application | `npm ci`, final `npm test`, `npm run build` on Node 24.21.0; final 122 Node regressions and 199 Vue tests across 29 files passed (321 total). The standalone build checked contracts, Vue types and shared lazy feature modules without CAD. Real components, retained protocol regressions, strict compiled CSP and lazy feature routes. |
+| Shared Vue application | `npm ci`, final `npm test`, `npm run build` on Node 24.21.0; final 122 Node regressions and 205 Vue tests across 29 files passed (327 total). The standalone build checked contracts, Vue types and shared lazy feature modules without CAD. Real components, retained protocol regressions, strict compiled CSP and lazy feature routes. |
 | Show Pack Vue | `node tests/director.browser.mjs` and `node scripts/archive-show.browser.mjs`: compiled Director two-operator conflict, scoped grants, urgent/lost Stop, route navigation, guest wizard identity/private prophecy, scoped duel moves, chronicle zero/tie/withdrawn and authorized event selection; actual partial PNG bytes, keyboard and 1440/390 px layouts. All APIs in these suites are synthetic. |
 | Rendered application | `npm run test:browser`: shared navigation, direct reload, legacy destinations, unknown routes, early private claim capture, explicit demo, focus across heartbeats, stale confirmation, Stop, theme, keyboard, 1440/390/320 px layouts and 200% text. The shell measures the bottom navigation so enlarged labels do not conceal the end of the page. |
 | Accounts | `npm run test:accounts:fixture`: actual HTTPS backend, controlled private owner delivery, Chrome virtual WebAuthn authenticator, real passkey verifier and naming, invitation/replay denial, Viewer authorization, logout and safe return. A held real logout response proves that a new sign-in waits for its cookie update. Fixture configuration excludes providers; its normal shutdown removes its private temporary database and keys. |
@@ -139,7 +139,27 @@ and a held same-account session refresh. Old queued scopes cannot use the next
 credential. Delayed native refresh cancellation preserves the account only
 during authentication; current cookie loss and real HTTP401 still clear it.
 A delayed Blob body checks generation and cancellation before bridge dispatch.
-The 15 focused Vue identity tests pass. The Foundation URLSession harness is
+The 21 focused Vue identity tests pass. The Foundation URLSession harness is
 configured to compile the production scheduler and policy; actual macOS execution
 belongs in a source-bound native receipt. These tests do not exercise the
 UIKit passkey dialog or a physical iPhone.
+
+CI `39212241042` compiled the Foundation identity harness but failed its first
+committed-cookie assertion before the Simulator build. That assertion lacked a
+positive precondition: the custom URLProtocol had not modeled ordinary cookie
+installation. The corrected fixture explicitly applies normal response cookies
+through HTTPCookie parsing/storage and asserts renewal, committed/new-login
+cookies before late replies, logout removal and unchanged cookies afterwards.
+Priority replies use the actual nil cookie store. The cookie-fixture correction
+models cookie processing and does not claim a real HTTP/TLS
+cookie pipeline. The failed native-v3 receipt remains immutable; fresh macOS
+execution is required for the corrected source.
+
+Request-scoped native cancellation now carries UUIDs from both account bridge
+methods into a bounded task registry. Abort removes ordinary/priority waiters
+before HTTP dispatch; admission/cancellation races have a final dispatch guard.
+Active HTTP cancellation is best effort and cannot undo a server mutation.
+Fresh 327 app tests, production build, six compiled browser journeys, 55-file
+site assembly, design integrity and compiled DV10/CSP checks pass. Native
+zero-HTTP cancellation/races/queue progress/bounds/401 harness cases have
+independent source review; fresh macOS execution remains required.

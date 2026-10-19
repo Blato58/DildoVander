@@ -1,13 +1,77 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-const bridge = vi.hoisted(() => ({native: false, request: vi.fn(), passkey: vi.fn(), accountTransport: vi.fn()}));
+const bridge = vi.hoisted(() => ({native: false, request: vi.fn(), passkey: vi.fn(), accountTransport: vi.fn(), cancelAccountRequest: vi.fn()}));
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => bridge.native }, registerPlugin: () => bridge }));
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(complete => { resolve = complete; }); return {promise, resolve}; }
 const user = (id: string | null, token = id ?? 'anonymous') => ({ enabled: true, account: id ? {id, displayName: id, roles: ['Viewer']} : null, csrfToken: token, origin: 'https://accounts.invalid' });
 let request: ReturnType<typeof vi.fn>;
-beforeEach(() => { vi.resetModules(); bridge.native = false; bridge.request.mockReset(); bridge.passkey.mockReset(); bridge.accountTransport.mockReset(); request = vi.fn(); vi.stubGlobal('fetch', request); });
+beforeEach(() => { vi.resetModules(); bridge.native = false; bridge.request.mockReset(); bridge.passkey.mockReset(); bridge.accountTransport.mockReset(); bridge.cancelAccountRequest.mockReset().mockResolvedValue({cancelled: true}); request = vi.fn(); vi.stubGlobal('fetch', request); });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('authentication generation fences', () => {
+  it.each(['request', 'transport'])('cancels the exact native %s before its pending result settles', async kind => {
+    bridge.native = true;
+    const identity = await import('./session');
+    bridge.request.mockResolvedValueOnce({status: 200, body: JSON.stringify(user('current'))});
+    await identity.refreshIdentity();
+    let rejectNative!: (error: unknown) => void;
+    const queued = new Promise<any>((_resolve, reject) => { rejectNative = reject; });
+    const method = kind === 'request' ? bridge.request : bridge.accountTransport;
+    method.mockReturnValueOnce(queued);
+    const controller = new AbortController();
+    const operation = kind === 'request'
+      ? identity.accountRequest('/app/v1/account', 'GET', undefined, controller.signal)
+      : identity.accountTransport('/v1/show/devices/kufr-1/commands', {
+        method: 'POST', body: JSON.stringify({kind: 'scene'}), signal: controller.signal,
+        headers: {'X-DV-Device-Id': 'kufr-1'},
+      });
+    const rejected = expect(operation).rejects.toMatchObject({name: 'AbortError'});
+    const requestId = method.mock.calls.at(-1)![0].requestId;
+    expect(requestId).toMatch(/^[0-9a-f-]{36}$/i);
+    bridge.cancelAccountRequest.mockImplementationOnce(async () => {
+      rejectNative(Object.assign(new Error('Queued native request cancelled'), {code: 'ACCOUNT_REQUEST_CANCELLED'}));
+      return {cancelled: true};
+    });
+    controller.abort();
+    expect(bridge.cancelAccountRequest).toHaveBeenCalledExactlyOnceWith({requestId});
+    await rejected;
+    expect(identity.account.value?.id).toBe('current');
+  });
+
+  it.each(['request', 'transport'])('removes the abort listener after a completed native %s', async kind => {
+    bridge.native = true;
+    const identity = await import('./session');
+    const controller = new AbortController();
+    if (kind === 'request') {
+      bridge.request.mockResolvedValueOnce({status: 200, body: '{}'});
+      await identity.accountRequest('/app/v1/account', 'GET', undefined, controller.signal);
+    } else {
+      bridge.accountTransport.mockResolvedValueOnce({status: 200, headers: {'content-type': 'application/json'}, bodyBase64: btoa('{}')});
+      await identity.accountTransport('/v1/show/devices/kufr-1', {signal: controller.signal});
+    }
+    controller.abort();
+    expect(bridge.cancelAccountRequest).not.toHaveBeenCalled();
+  });
+
+  it('uses separate native request ids and never cancels a different device command', async () => {
+    bridge.native = true;
+    const identity = await import('./session');
+    const first = deferred<any>();
+    const second = deferred<any>();
+    bridge.accountTransport.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    const controller = new AbortController();
+    const obsolete = identity.accountTransport('/v1/show/devices/kufr-1/commands', {method: 'POST', signal: controller.signal});
+    const current = identity.accountTransport('/v1/show/devices/kufr-2/commands', {method: 'POST'});
+    const rejected = expect(obsolete).rejects.toMatchObject({name: 'AbortError'});
+    const [firstId, secondId] = bridge.accountTransport.mock.calls.map(call => call[0].requestId);
+    expect(firstId).not.toBe(secondId);
+    controller.abort();
+    expect(bridge.cancelAccountRequest).toHaveBeenCalledExactlyOnceWith({requestId: firstId});
+    first.resolve({status: 204, headers: {}, bodyBase64: ''});
+    second.resolve({status: 204, headers: {}, bodyBase64: ''});
+    await rejected;
+    expect((await current).status).toBe(204);
+  });
+
   it.each(['account-change', 'abort'])('never dispatches a delayed native Blob body after %s', async reason => {
     bridge.native = true;
     const identity = await import('./session');
@@ -45,7 +109,10 @@ describe('authentication generation fences', () => {
     if (native) bridge.request.mockResolvedValueOnce({ status: 200, body: JSON.stringify(user('current')) });
     else request.mockResolvedValueOnce(Response.json(user('current')));
     await identity.refreshIdentity();
-    if (native) bridge.request.mockReturnValueOnce(late.promise);
+    if (native) {
+      bridge.request.mockReturnValueOnce(late.promise);
+      bridge.cancelAccountRequest.mockRejectedValueOnce(new Error('Cancellation bridge unavailable'));
+    }
     else request.mockReturnValueOnce(late.promise);
     const controller = new AbortController();
     Object.defineProperties(controller.signal, { throwIfAborted: { value: undefined }, reason: { value: undefined } });
@@ -59,12 +126,13 @@ describe('authentication generation fences', () => {
     expect(identity.account.value?.id).toBe('current');
   });
 
-  it('does not send an observer request whose signal is already aborted', async () => {
+  it.each([false, true])('does not send an observer request whose signal is already aborted (native=%s)', async native => {
+    bridge.native = native;
     const identity = await import('./session');
     const controller = new AbortController(); controller.abort();
     await expect(identity.accountRequest('/v1/twin/instances', 'GET', undefined, controller.signal))
       .rejects.toMatchObject({ name: 'AbortError' });
-    expect(request).not.toHaveBeenCalled(); expect(bridge.request).not.toHaveBeenCalled();
+    expect(request).not.toHaveBeenCalled(); expect(bridge.request).not.toHaveBeenCalled(); expect(bridge.cancelAccountRequest).not.toHaveBeenCalled();
   });
 
   it('clears immediately on logout and ignores a noncooperative older session response and CSRF token', async () => {

@@ -2,6 +2,7 @@ import { ref, readonly } from 'vue';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { isTwinAccountPath, isShowAccountPath, isChronicleAdminPath } from './accountPaths';
 import { throwIfAborted } from '../../application/cancellation.mjs';
+import { secureUuid } from '../../application/identifiers.mjs';
 
 export interface Account { id: string; displayName: string; roles: string[] }
 export interface ResourceGrant { id: string; userId: string; resourceType: string; resourceId: string; permission: string }
@@ -9,9 +10,10 @@ export interface AccountSession { id: string; expiresAt: number; installationNam
 export interface AccountDeviceAssociation { id: string; deviceId: string; alias: string; installationId: string; createdAt: number }
 export interface AccountDetails { devices?: {deviceId: string; canOperate: boolean}[]; sessions: AccountSession[]; grants: ResourceGrant[]; associations: AccountDeviceAssociation[]; passkeyCount: number; passkeys: {id: string; name: string | null; createdAt: string; isBackedUp: boolean}[] }
 interface IdentityBridge {
-  request(options: { path: string; method: string; body?: string; confirmed?: boolean }): Promise<{ status: number; body: string }>;
+  request(options: { requestId: string; path: string; method: string; body?: string; confirmed?: boolean }): Promise<{ status: number; body: string }>;
   passkey(options: { mode: 'signin' | 'enroll' | 'add' | 'reauth'; token?: string; displayName?: string }): Promise<void>;
-  accountTransport(options: { path: string; method: string; headers: Record<string, string>; bodyBase64?: string }): Promise<{ status: number; headers: Record<string, string>; bodyBase64: string }>;
+  accountTransport(options: { requestId: string; path: string; method: string; headers: Record<string, string>; bodyBase64?: string }): Promise<{ status: number; headers: Record<string, string>; bodyBase64: string }>;
+  cancelAccountRequest(options: { requestId: string }): Promise<{ cancelled: boolean }>;
 }
 const nativeIdentity = registerPlugin<IdentityBridge>('KufrIdentity');
 const native = Capacitor.isNativePlatform();
@@ -36,7 +38,27 @@ function rethrowNativeAccountError(error: unknown): never {
   if (error && typeof error === 'object' && 'code' in error && error.code === 'ACCOUNT_CONTEXT_CHANGED') {
     throw new AccountContextChangedError();
   }
+  if (error && typeof error === 'object' && 'code' in error && error.code === 'ACCOUNT_REQUEST_CANCELLED') {
+    throw new DOMException('Požadavek byl zrušen.', 'AbortError');
+  }
   throw error;
+}
+async function nativeAccountCall<T>(signal: AbortSignal | null | undefined, invoke: (requestId: string) => Promise<T>): Promise<T> {
+  throwIfAborted(signal);
+  const requestId = secureUuid();
+  const cancel = () => {
+    try {
+      void nativeIdentity.cancelAccountRequest({ requestId }).catch(() => {});
+    } catch {
+      // The response fence still rejects aborted results if cancellation fails.
+    }
+  };
+  signal?.addEventListener('abort', cancel, { once: true });
+  try {
+    throwIfAborted(signal);
+    return await invoke(requestId);
+  } catch (error) { return rethrowNativeAccountError(error); }
+  finally { signal?.removeEventListener('abort', cancel); }
 }
 
 function advanceAuthentication(clearAccount = false): number {
@@ -75,7 +97,7 @@ export async function accountTransport(path: string, init: RequestInit = {}): Pr
   const encoded = bytes ? btoa(Array.from(bytes, byte => String.fromCharCode(byte)).join('')) : undefined;
   requireCurrentAuthentication(generation);
   throwIfAborted(init.signal);
-  const response = await nativeIdentity.accountTransport({ path, method, headers: Object.fromEntries(headers), bodyBase64: encoded }).catch(rethrowNativeAccountError);
+  const response = await nativeAccountCall(init.signal, requestId => nativeIdentity.accountTransport({ requestId, path, method, headers: Object.fromEntries(headers), bodyBase64: encoded }));
   requireCurrentAuthentication(generation);
   throwIfAborted(init.signal);
   const archiveAsset = /^\/app\/v1\/archive\/associations\/[0-9a-f-]{36}\/assets\/[0-9a-f-]{36}$/i.test(path);
@@ -96,7 +118,7 @@ export async function accountRequest<T>(path: string, method = 'GET', body?: unk
   let status: number;
   let text: string;
   if (native) {
-    const response = await nativeIdentity.request({ path, method, body: serialized, confirmed }).catch(rethrowNativeAccountError);
+    const response = await nativeAccountCall(signal, requestId => nativeIdentity.request({ requestId, path, method, body: serialized, confirmed }));
     status = response.status;
     text = response.body;
   } else {
@@ -108,8 +130,8 @@ export async function accountRequest<T>(path: string, method = 'GET', body?: unk
     status = response.status;
     text = await response.text();
   }
-  // Native requests cannot cancel an in-flight bridge call. Ignore its result
-  // after cancellation, including a late 401 that would otherwise clear identity.
+  // Cancellation cannot undo a request the server already received. Ignore late
+  // results, including a 401 that belongs to a cancelled observer context.
   throwIfAborted(signal);
   let value: unknown;
   try { value = text ? JSON.parse(text) : undefined; } catch { throw new Error('Server nevrátil odpověď účtu.'); }

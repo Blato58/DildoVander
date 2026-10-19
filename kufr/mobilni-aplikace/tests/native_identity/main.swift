@@ -128,10 +128,19 @@ private final class DelayedIdentityProtocol: URLProtocol, @unchecked Sendable {
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() { Task { @MainActor in Self.received[self.request.url!.path] = self } }
     override func stopLoading() {}
-    @MainActor func complete(cookie: String? = nil, status: Int = 200) {
+    @MainActor func complete(cookie: String? = nil, status: Int = 200, cookieStorage: HTTPCookieStorage? = nil) {
         var headers = ["Content-Type": "application/json"]
         if let cookie = cookie { headers["Set-Cookie"] = cookie }
         let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: headers)!
+        // A custom URLProtocol replaces Apple's HTTP loader; forwarding a
+        // response does not model its cookie-store side effect. Apply response
+        // cookies explicitly to the session's ACTUAL configured jar. Priority
+        // uses the production nil jar, so even a hostile response has no store.
+        if cookie != nil, let storage = cookieStorage {
+            let parsed = HTTPCookie.cookies(withResponseHeaderFields: headers, for: request.url!)
+            require(!parsed.isEmpty, "synthetic ordinary HTTP Set-Cookie was not parsed")
+            storage.setCookies(parsed, for: request.url!, mainDocumentURL: request.url!)
+        }
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         if status != 204 { client?.urlProtocol(self, didLoad: Data("{}".utf8)) }
         client?.urlProtocolDidFinishLoading(self)
@@ -159,10 +168,17 @@ private final class DelayedIdentityProtocol: URLProtocol, @unchecked Sendable {
         "priority response can accept Set-Cookie")
     priorityConfig.protocolClasses = [DelayedIdentityProtocol.self]
     let urgent = URLSession(configuration: priorityConfig)
+    require(urgent.configuration.httpCookieStorage == nil && !urgent.configuration.httpShouldSetCookies
+        && urgent.configuration.httpCookieAcceptPolicy == .never, "priority URLSession did not retain its cookie-isolation configuration")
     defer { normal.invalidateAndCancel(); urgent.invalidateAndCancel() }
     let gate = AccountRequestScheduler()
+    let accountURL = URL(string: "https://native-account.invalid")!
+    @MainActor func accountCookie() -> String? {
+        normal.configuration.httpCookieStorage?.cookies(for: accountURL)?.first(where: { $0.name == "__Host-dv-account" })?.value
+    }
     var entered: [String] = []
     var attempted = Set<String>()
+    var responseStatus: [String: Int] = [:]
     @MainActor func wire(_ name: String, priority: Bool = false) async throws {
         var request = URLRequest(url: URL(string: "https://native-account.invalid/" + name)!)
         request.httpMethod = name.hasPrefix("mutation") ? "POST" : "GET"
@@ -172,11 +188,14 @@ private final class DelayedIdentityProtocol: URLProtocol, @unchecked Sendable {
                 cookieHeaders: ["Cookie": "__Host-dv-account=frozen-existing-session"])
             request = snapshot.authorize(request)
         }
-        _ = try await (priority ? urgent : normal).data(for: request)
+        try Task.checkCancellation()
+        let (_, response) = try await (priority ? urgent : normal).data(for: request)
+        try Task.checkCancellation()
+        responseStatus[name] = (response as? HTTPURLResponse)?.statusCode
     }
-    @MainActor func ordinary(_ name: String, logout: Bool = false) async throws {
+    @MainActor func ordinary(_ name: String, logout: Bool = false, requestId: UUID? = nil) async throws {
         attempted.insert(name)
-        let lease = try await gate.acquire(logout: logout)
+        let lease = try await gate.acquire(logout: logout, requestId: requestId)
         defer { gate.release(lease) }
         try gate.requireCurrent(lease)
         entered.append(name)
@@ -191,8 +210,9 @@ private final class DelayedIdentityProtocol: URLProtocol, @unchecked Sendable {
     let mutation = Task { @MainActor in try await ordinary("mutation-model") }
     await eventually { attempted.contains("mutation-model") }
     require(entered == ["refresh"], "overlapping requests escaped ordinary serialization")
-    DelayedIdentityProtocol.received["/refresh"]!.complete(cookie: "__Host-dv-account=renewed; Path=/; Secure")
+    DelayedIdentityProtocol.received["/refresh"]!.complete(cookie: "__Host-dv-account=renewed; Path=/; Secure", cookieStorage: normal.configuration.httpCookieStorage)
     try await refresh.value
+    require(accountCookie() == "renewed", "ordinary HTTP fixture did not commit its initial renewed account cookie")
     await eventually { DelayedIdentityProtocol.received["/operations"] != nil }
     require(entered == ["refresh", "operations"], "cookie renewal dropped or reordered queued account reads")
     DelayedIdentityProtocol.received["/operations"]!.complete(); try await operations.value
@@ -233,7 +253,7 @@ private final class DelayedIdentityProtocol: URLProtocol, @unchecked Sendable {
     DelayedIdentityProtocol.received["/same-account-reauth"]!.complete(status: 204)
     try await sameAccountHTTP.value
     let cookieAfterReauth = normal.configuration.httpCookieStorage?.cookies(for: URL(string: "https://native-account.invalid")!)?.first(where: { $0.name == "__Host-dv-account" })?.value
-    require(cookieBeforeReauth == cookieAfterReauth, "same-account 204 changed its authenticated cookie")
+    require(cookieBeforeReauth == "renewed" && cookieAfterReauth == "renewed", "same-account 204 lost or changed its authenticated cookie")
     gate.release(sameAccount)
     let freshSession = Task { @MainActor in try await ordinary("fresh-session-after-reauth") }
     await eventually { DelayedIdentityProtocol.received["/fresh-session-after-reauth"] != nil }
@@ -278,19 +298,19 @@ private final class DelayedIdentityProtocol: URLProtocol, @unchecked Sendable {
         try await wire("stop-during-credential", priority: true)
         try gate.requireCurrent(lease)
     }
-    DelayedIdentityProtocol.received["/stop-during-options"]!.complete(cookie: "__Host-dv-account=poison; Path=/; Secure")
+    DelayedIdentityProtocol.received["/stop-during-options"]!.complete(cookie: "__Host-dv-account=poison; Path=/; Secure", cookieStorage: urgent.configuration.httpCookieStorage)
     do { try await stop.value; fatalError("precommit priority result survived credential epoch") }
     catch AccountRequestScheduler.Failure.contextChanged { }
     await eventually { DelayedIdentityProtocol.received["/stop-during-credential"] != nil }
     require(DelayedIdentityProtocol.received["/stop-during-credential"]!.request.value(forHTTPHeaderField: "Cookie") == "__Host-dv-account=frozen-existing-session",
         "commit-window Stop borrowed the mutable credential jar")
-    let accountURL = URL(string: "https://native-account.invalid")!
     require(normal.configuration.httpCookieStorage?.cookies(for: accountURL)?.contains(where: { $0.name == "__Host-dv-account" && $0.value == "poison" }) != true,
         "priority Set-Cookie contaminated ordinary account jar")
-    DelayedIdentityProtocol.received["/held-credential"]!.complete(cookie: "__Host-dv-account=committed-session; Path=/; Secure")
+    DelayedIdentityProtocol.received["/held-credential"]!.complete(cookie: "__Host-dv-account=committed-session; Path=/; Secure", cookieStorage: normal.configuration.httpCookieStorage)
     try await heldCredential.value
+    require(accountCookie() == "committed-session", "ordinary credential fixture did not commit its account cookie BEFORE the late priority reply")
     gate.invalidateQueuedScope() // The bridge retires the old published snapshot on credential publication.
-    DelayedIdentityProtocol.received["/stop-during-credential"]!.complete(cookie: "__Host-dv-account=old-cookie; Path=/; Secure")
+    DelayedIdentityProtocol.received["/stop-during-credential"]!.complete(cookie: "__Host-dv-account=old-cookie; Path=/; Secure", cookieStorage: urgent.configuration.httpCookieStorage)
     do { try await commitStop.value; fatalError("late commit-window Stop result survived new principal publication") }
     catch AccountRequestScheduler.Failure.contextChanged { }
     require(normal.configuration.httpCookieStorage?.cookies(for: accountURL)?.contains(where: { $0.name == "__Host-dv-account" && $0.value == "committed-session" }) == true,
@@ -318,7 +338,8 @@ private final class DelayedIdentityProtocol: URLProtocol, @unchecked Sendable {
     let afterLogout = Task { @MainActor in try await ordinary("after-logout") }
     await eventually { attempted.contains("after-logout") }
     require(DelayedIdentityProtocol.received["/after-logout"] == nil, "duplicate release freed logout lease")
-    DelayedIdentityProtocol.received["/logout"]!.complete(cookie: "__Host-dv-account=; Path=/; Secure; Max-Age=0"); try await logout.value
+    DelayedIdentityProtocol.received["/logout"]!.complete(cookie: "__Host-dv-account=; Path=/; Secure; Max-Age=0", cookieStorage: normal.configuration.httpCookieStorage); try await logout.value
+    require(accountCookie() == nil, "ordinary logout fixture did not remove its account cookie")
     await eventually { DelayedIdentityProtocol.received["/after-logout"] != nil }
     DelayedIdentityProtocol.received["/after-logout"]!.complete(); try await afterLogout.value
     let login = try await gate.acquire(ceremony: true)
@@ -328,15 +349,146 @@ private final class DelayedIdentityProtocol: URLProtocol, @unchecked Sendable {
     try await loginCommit.value
     let loginHTTP = Task { @MainActor in try await wire("credential-complete") }
     await eventually { DelayedIdentityProtocol.received["/credential-complete"] != nil }
-    DelayedIdentityProtocol.received["/credential-complete"]!.complete(cookie: "__Host-dv-account=new-session; Path=/; Secure")
+    DelayedIdentityProtocol.received["/credential-complete"]!.complete(cookie: "__Host-dv-account=new-session; Path=/; Secure", cookieStorage: normal.configuration.httpCookieStorage)
     try await loginHTTP.value
+    require(accountCookie() == "new-session", "ordinary signin fixture did not commit its account cookie BEFORE the late priority reply")
     gate.invalidateQueuedScope()
-    DelayedIdentityProtocol.received["/late-stop"]!.complete(cookie: "__Host-dv-account=old-session; Path=/; Secure")
+    DelayedIdentityProtocol.received["/late-stop"]!.complete(cookie: "__Host-dv-account=old-session; Path=/; Secure", cookieStorage: urgent.configuration.httpCookieStorage)
     do { try await oldStop.value; fatalError("late Stop result survived logout epoch") }
     catch AccountRequestScheduler.Failure.contextChanged { }
     require(normal.configuration.httpCookieStorage?.cookies(for: accountURL)?.contains(where: { $0.name == "__Host-dv-account" && $0.value == "new-session" }) == true,
         "late priority reply replaced the newly committed session")
     gate.release(login)
+
+    // The actual production registry is reserved before scheduling. Removing a
+    // queued command must prevent HTTP, not merely discard its eventual reply.
+    let registry = AccountRequestRegistry()
+    @MainActor func registered(_ name: String, id: UUID = UUID(), priority: Bool = false) throws -> Task<Void, Error> {
+        let ticket = try registry.reserve(id, cancelWaiting: { gate.cancelWaiting(requestId: id) })
+        let work = Task { @MainActor in
+            defer { registry.finish(ticket) }
+            try Task.checkCancellation()
+            if priority {
+                attempted.insert(name)
+                let lease = try await gate.acquirePriority(requestId: id)
+                defer { gate.releasePriority(lease) }
+                try gate.requireCurrent(lease)
+                try await wire(name, priority: true)
+                try gate.requireCurrent(lease)
+            } else { try await ordinary(name, requestId: id) }
+        }
+        registry.attach(ticket, cancel: { work.cancel() })
+        return work
+    }
+    let heldRequest = try registered("registered-hold")
+    await eventually { DelayedIdentityProtocol.received["/registered-hold"] != nil }
+    let obsoleteId = UUID()
+    let obsolete = try registered("mutation-obsolete", id: obsoleteId)
+    await eventually { attempted.contains("mutation-obsolete") }
+    require(registry.cancel(obsoleteId), "registered queued cancellation was not accepted")
+    do { try await obsolete.value; fatalError("obsolete queued mutation succeeded") }
+    catch { require(AccountRequestRegistry.isCancellation(error), "queued cancellation lost its exact cancellation meaning") }
+    require(registry.activeCount == 1 && DelayedIdentityProtocol.received["/mutation-obsolete"] == nil,
+        "canceled queued command consumed capacity or dispatched HTTP")
+    do { _ = try registered("duplicate-obsolete", id: obsoleteId); fatalError("canceled ID was immediately reused") }
+    catch AccountRequestRegistry.Failure.cancelled { }
+    let following = try registered("following-cancelled-command")
+    DelayedIdentityProtocol.received["/registered-hold"]!.complete(); try await heldRequest.value
+    await eventually { DelayedIdentityProtocol.received["/following-cancelled-command"] != nil }
+    require(DelayedIdentityProtocol.received["/mutation-obsolete"] == nil, "obsolete command reached HTTP after predecessor settled")
+    DelayedIdentityProtocol.received["/following-cancelled-command"]!.complete(); try await following.value
+
+    // A lease may be granted just before cancellation reaches the actor. The
+    // canceled Task must check again before calling URLSession.
+    let grantedHold = try await gate.acquire()
+    let grantedId = UUID()
+    let granted = try registered("mutation-granted-cancel", id: grantedId)
+    await eventually { attempted.contains("mutation-granted-cancel") }
+    gate.release(grantedHold); registry.cancel(grantedId)
+    do { try await granted.value; fatalError("canceled granted lease dispatched") }
+    catch { require(AccountRequestRegistry.isCancellation(error), "granted lease cancellation was lost") }
+    require(DelayedIdentityProtocol.received["/mutation-granted-cancel"] == nil, "grant/cancel race dispatched obsolete HTTP")
+
+    let priorityHold = try registered("registered-priority-hold", priority: true)
+    await eventually { DelayedIdentityProtocol.received["/registered-priority-hold"] != nil }
+    let priorityId = UUID()
+    let priorityCancelled = try registered("registered-priority-cancelled", id: priorityId, priority: true)
+    await eventually { attempted.contains("registered-priority-cancelled") }
+    registry.cancel(priorityId)
+    do { try await priorityCancelled.value; fatalError("queued priority cancellation succeeded") }
+    catch { require(AccountRequestRegistry.isCancellation(error), "priority cancellation was lost") }
+    DelayedIdentityProtocol.received["/registered-priority-hold"]!.complete(); try await priorityHold.value
+    require(DelayedIdentityProtocol.received["/registered-priority-cancelled"] == nil, "canceled priority request dispatched HTTP")
+
+    let unaffectedCeremony = try await gate.acquire(ceremony: true)
+    let duringCeremonyId = UUID()
+    let duringCeremony = try registered("cancel-during-ceremony", id: duringCeremonyId)
+    await eventually { attempted.contains("cancel-during-ceremony") }
+    registry.cancel(duringCeremonyId)
+    do { try await duringCeremony.value; fatalError("queued ceremony request ignored cancellation") }
+    catch { require(AccountRequestRegistry.isCancellation(error), "ceremony waiter cancellation was lost") }
+    let retainedCeremony = try registered("after-cancelled-ceremony-request")
+    await eventually { attempted.contains("after-cancelled-ceremony-request") }
+    require(DelayedIdentityProtocol.received["/after-cancelled-ceremony-request"] == nil,
+        "canceling one request released the unrelated whole-passkey lease")
+    gate.release(unaffectedCeremony)
+    await eventually { DelayedIdentityProtocol.received["/after-cancelled-ceremony-request"] != nil }
+    DelayedIdentityProtocol.received["/after-cancelled-ceremony-request"]!.complete(); try await retainedCeremony.value
+
+    let activeId = UUID()
+    let activeHTTP = try registered("registered-active-cancel", id: activeId)
+    await eventually { DelayedIdentityProtocol.received["/registered-active-cancel"] != nil }
+    do { _ = try registered("duplicate-active", id: activeId); fatalError("duplicate active ID replaced its owner") }
+    catch AccountRequestRegistry.Failure.duplicate { }
+    let afterActive = try registered("after-registered-active-cancel")
+    registry.cancel(activeId)
+    do { try await activeHTTP.value; fatalError("active URLSession cancellation succeeded") }
+    catch { require(AccountRequestRegistry.isCancellation(error), "active URLSession cancellation was not recognized") }
+    await eventually { DelayedIdentityProtocol.received["/after-registered-active-cancel"] != nil }
+    DelayedIdentityProtocol.received["/after-registered-active-cancel"]!.complete(); try await afterActive.value
+    require(registry.activeCount == 0, "active cancellation leaked a registry owner or FIFO lease")
+
+    let early = UUID(); require(registry.cancel(early), "early cancellation was not remembered")
+    for _ in 0..<2 {
+        do { _ = try registered("cancel-before-register", id: early); fatalError("early cancellation marker was consumed") }
+        catch AccountRequestRegistry.Failure.cancelled { }
+    }
+    let unattached = UUID()
+    let ticket = try registry.reserve(unattached, cancelWaiting: { gate.cancelWaiting(requestId: unattached) })
+    registry.cancel(unattached)
+    let lateAttach = Task { @MainActor in
+        defer { registry.finish(ticket) }
+        try Task.checkCancellation(); try await ordinary("cancel-before-attach", requestId: unattached)
+    }
+    registry.attach(ticket, cancel: { lateAttach.cancel() })
+    do { try await lateAttach.value; fatalError("cancel-before-attach was lost") }
+    catch { require(AccountRequestRegistry.isCancellation(error), "late attach cancellation was not recognized") }
+    require(DelayedIdentityProtocol.received["/cancel-before-attach"] == nil, "canceled pre-attachment task reached HTTP")
+
+    let current401Id = UUID()
+    let current401 = try registered("current-http-401", id: current401Id)
+    await eventually { DelayedIdentityProtocol.received["/current-http-401"] != nil }
+    DelayedIdentityProtocol.received["/current-http-401"]!.complete(status: 401); try await current401.value
+    require(responseStatus["current-http-401"] == 401 && !registry.cancel(current401Id), "current HTTP 401 was masked as cancellation")
+
+    var ledgerTime: TimeInterval = 100
+    let boundedRegistry = AccountRequestRegistry(now: { ledgerTime })
+    for _ in 0..<128 { boundedRegistry.cancel(UUID()) }
+    let overflowCancel = UUID(); require(boundedRegistry.cancel(overflowCancel), "bounded early cancel was not accepted")
+    require(boundedRegistry.recentCount == 128, "cancellation tombstones are unbounded")
+    do { _ = try boundedRegistry.reserve(overflowCancel, cancelWaiting: {}); fatalError("overflow forgot a cancellation marker") }
+    catch AccountRequestRegistry.Failure.cancelled { }
+    ledgerTime += 61
+    require(boundedRegistry.recentCount == 0, "cancel-before-registration markers never expire")
+    let expiredTicket = try boundedRegistry.reserve(overflowCancel, cancelWaiting: {})
+    boundedRegistry.finish(expiredTicket); boundedRegistry.finish(expiredTicket)
+    require(boundedRegistry.activeCount == 0 && !boundedRegistry.cancel(overflowCancel), "completed request settlement was not once-only")
+    var capacityTickets: [AccountRequestRegistry.Ticket] = []
+    for _ in 0..<128 { capacityTickets.append(try boundedRegistry.reserve(UUID(), cancelWaiting: {})) }
+    do { _ = try boundedRegistry.reserve(UUID(), cancelWaiting: {}); fatalError("active request registry is unbounded") }
+    catch AccountRequestRegistry.Failure.full { }
+    for ticket in capacityTickets { boundedRegistry.finish(ticket) }
+    require(boundedRegistry.activeCount == 0 && boundedRegistry.recentCount <= 128, "registry capacity was not released")
 
     // Bounded admission still reserves logout; errors settle every waiter once.
     let blocked = try await gate.acquire()
@@ -355,7 +507,7 @@ private final class DelayedIdentityProtocol: URLProtocol, @unchecked Sendable {
     }
     gate.release(blocked)
     let logoutLease = try await reservedLogout.value; gate.release(logoutLease)
-    print("PASS native account delayed URLSession FIFO, ceremony/credential-commit Stop, credential scope fence, stale/logout fencing, cookie isolation and bounded admission")
+    print("PASS native account request-scoped cancellation/zero-obsolete-HTTP, delayed URLSession FIFO, ceremony/credential-commit Stop, credential scope fence, stale/logout fencing, cookie isolation and bounded admission")
 }
 
 DispatchQueue.global().asyncAfter(deadline: .now() + 20) { fatalError("Native account scheduling regression timed out") }

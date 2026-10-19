@@ -26,13 +26,15 @@ try {
     const headers = {
       KufrDebug: ['status', 'stop', 'configure', 'forgetProfile', 'useAccount', 'inspectServer', 'inspectBackend', 'changeServerModes', 'startConversation',
         'captureCostumePhoto', 'attachCostumePhoto', 'discardCostumePhoto', 'inspectMemory', 'deleteConversationMemory', 'speakSystem', 'readServerLogs'],
-      KufrDeviceTransport: ['savedDevice'], KufrIdentity: ['request'], KufrProvisioning: [],
+      KufrDeviceTransport: ['savedDevice'], KufrIdentity: ['request', 'cancelAccountRequest'], KufrProvisioning: [],
     };
     window.Capacitor = { PluginHeaders: Object.entries(headers).map(([name, methods]) => ({ name, methods: methods.map(name => ({ name, rtype: 'promise' })) })),
       nativePromise: async (plugin, method, options = {}) => {
         window.__debugCalls.push({ plugin, method, options: structuredClone(options) });
         if (plugin === 'KufrDeviceTransport') return { paired: true, deviceId: 'synthetic-kufr', host: '192.0.2.1' };
         if (plugin === 'KufrIdentity') {
+          if (method === 'cancelAccountRequest') return { cancelled: true };
+          if (method !== 'request') throw new Error('Unexpected synthetic identity method');
           let value;
           if (options.path === '/app/v1/session') value = { enabled: true, account, csrfToken: 'synthetic-csrf', origin: 'https://application.example.invalid' };
           else if (options.path === '/app/v1/account') value = { grants: [], associations: [], sessions: [], passkeys: [] };
@@ -95,6 +97,10 @@ try {
   assert.equal(await page.locator('#operations-dialog,#operations-voice').count(), 0);
   await page.locator('#operations-finale').selectOption('Limited'); await page.getByRole('button', { name: 'Potvrdit změnu osobnosti a postavy', exact: true }).click();
   const calls = await page.evaluate(() => window.__debugCalls);
+  const identityRequests = calls.filter(call => call.plugin === 'KufrIdentity' && call.method === 'request');
+  assert(identityRequests.length > 0 && identityRequests.every(call => /^[0-9a-f-]{36}$/i.test(call.options.requestId)), 'native account calls carry cancellation request ids');
+  assert(calls.filter(call => call.plugin === 'KufrIdentity' && call.method === 'cancelAccountRequest')
+    .every(call => identityRequests.some(request => request.options.requestId === call.options.requestId)), 'native cancellation names only a dispatched request');
   const mutation = calls.find(call => call.plugin === 'KufrIdentity' && call.options.path === '/app/v1/admin/operations/modes');
   const body = JSON.parse(mutation.options.body); assert.equal(body.characterFinaleProfile, 'Limited');
   assert(!('dialogMode' in body)); assert(!('voiceMode' in body));

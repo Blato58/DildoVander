@@ -278,6 +278,7 @@ enum AccountTransportPolicy {
     }
     private struct Waiter {
         let lease: Lease
+        let requestId: UUID?
         let continuation: CheckedContinuation<Lease, Error>
     }
     private(set) var epoch: UInt64 = 0
@@ -288,7 +289,7 @@ enum AccountTransportPolicy {
     private var committing = false
     var credentialCommitActive: Bool { committing }
 
-    func acquire(ceremony: Bool = false, logout: Bool = false) async throws -> Lease {
+    func acquire(ceremony: Bool = false, logout: Bool = false, requestId: UUID? = nil) async throws -> Lease {
         try Task.checkCancellation()
         // No old-view job may acquire the next epoch while a credential response
         // is still in flight. JS treats this exact code as obsolete work.
@@ -298,7 +299,7 @@ enum AccountTransportPolicy {
         if active == nil { active = lease; return lease }
         guard waiting.count < 32 else { throw Failure.queueFull }
         return try await withCheckedThrowingContinuation { continuation in
-            let waiter = Waiter(lease: lease, continuation: continuation)
+            let waiter = Waiter(lease: lease, requestId: requestId, continuation: continuation)
             if logout { waiting.insert(waiter, at: 0) } else { waiting.append(waiter) }
         }
     }
@@ -317,13 +318,22 @@ enum AccountTransportPolicy {
         guard lease.epoch == epoch else { throw Failure.contextChanged }
     }
 
-    func acquirePriority() async throws -> Lease {
+    func acquirePriority(requestId: UUID? = nil) async throws -> Lease {
         try Task.checkCancellation()
         let lease = Lease(epoch: epoch, ceremony: false)
         if priorityActive == nil { priorityActive = lease; return lease }
         guard priorityWaiting.count < 4 else { throw Failure.queueFull }
         return try await withCheckedThrowingContinuation { continuation in
-            priorityWaiting.append(Waiter(lease: lease, continuation: continuation))
+            priorityWaiting.append(Waiter(lease: lease, requestId: requestId, continuation: continuation))
+        }
+    }
+
+    func cancelWaiting(requestId: UUID) {
+        if let index = waiting.firstIndex(where: { $0.requestId == requestId }) {
+            waiting.remove(at: index).continuation.resume(throwing: AccountRequestRegistry.Failure.cancelled)
+        }
+        if let index = priorityWaiting.firstIndex(where: { $0.requestId == requestId }) {
+            priorityWaiting.remove(at: index).continuation.resume(throwing: AccountRequestRegistry.Failure.cancelled)
         }
     }
 
@@ -377,5 +387,91 @@ struct AccountPrioritySessionSnapshot {
         for (name, value) in cookieHeaders { request.setValue(value, forHTTPHeaderField: name) }
         request.setValue(csrf, forHTTPHeaderField: "X-DV-CSRF")
         return request
+    }
+}
+
+// Register before FIFO admission, so cancellation cannot expire while a request
+// waits for a long-running ceremony. No credentials enter this bounded ledger.
+@MainActor final class AccountRequestRegistry {
+    struct Ticket: Equatable { let requestId: UUID; let nonce = UUID() }
+    enum Failure: String, LocalizedError {
+        case cancelled = "ACCOUNT_REQUEST_CANCELLED"
+        case duplicate = "ACCOUNT_REQUEST_DUPLICATE"
+        case full = "ACCOUNT_REQUEST_CAPACITY"
+        case invalidId = "ACCOUNT_REQUEST_INVALID_ID"
+        var errorDescription: String? { rawValue }
+    }
+    private struct Entry {
+        let ticket: Ticket
+        let cancelWaiting: () -> Void
+        var cancelWork: (() -> Void)?
+        var cancelled = false
+    }
+    private struct Recent { let cancelled: Bool; let expires: TimeInterval }
+    private let now: () -> TimeInterval
+    private var active: [UUID: Entry] = [:]
+    private var recent: [UUID: Recent] = [:]
+    private var rejectNewUntil: TimeInterval = 0
+    private let ttl: TimeInterval = 60
+    private let limit = 128
+    var activeCount: Int { active.count }
+    var recentCount: Int { prune(); return recent.count }
+
+    init(now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) { self.now = now }
+
+    func reserve(_ id: UUID, cancelWaiting: @escaping () -> Void) throws -> Ticket {
+        prune()
+        if let prior = recent[id] { throw prior.cancelled ? Failure.cancelled : Failure.duplicate }
+        if active[id] != nil { throw Failure.duplicate }
+        // If cancellation markers overflow, reject ALL new admissions until
+        // their bounded race window expires rather than forgetting a cancel.
+        guard now() >= rejectNewUntil else { throw Failure.cancelled }
+        guard active.count < limit else { throw Failure.full }
+        let ticket = Ticket(requestId: id)
+        active[id] = Entry(ticket: ticket, cancelWaiting: cancelWaiting)
+        return ticket
+    }
+
+    func attach(_ ticket: Ticket, cancel: @escaping () -> Void) {
+        guard var entry = active[ticket.requestId], entry.ticket == ticket else { cancel(); return }
+        entry.cancelWork = cancel; active[ticket.requestId] = entry
+        if entry.cancelled { cancel() }
+    }
+
+    @discardableResult func cancel(_ id: UUID) -> Bool {
+        prune()
+        if var entry = active[id] {
+            entry.cancelled = true; active[id] = entry
+            entry.cancelWork?(); entry.cancelWaiting()
+            return true
+        }
+        if let prior = recent[id] {
+            if prior.cancelled { recent[id] = Recent(cancelled: true, expires: now() + ttl) }
+            return prior.cancelled
+        }
+        if makeRoom() { recent[id] = Recent(cancelled: true, expires: now() + ttl) }
+        else { rejectNewUntil = max(rejectNewUntil, now() + ttl) }
+        return true
+    }
+
+    func finish(_ ticket: Ticket) {
+        guard let entry = active[ticket.requestId], entry.ticket == ticket else { return }
+        active.removeValue(forKey: ticket.requestId)
+        prune()
+        if makeRoom() { recent[ticket.requestId] = Recent(cancelled: entry.cancelled, expires: now() + ttl) }
+        else if entry.cancelled { rejectNewUntil = max(rejectNewUntil, now() + ttl) }
+    }
+
+    private func prune() { let time = now(); recent = recent.filter { $0.value.expires > time } }
+    private func makeRoom() -> Bool {
+        if recent.count < limit { return true }
+        if let oldest = recent.filter({ !$0.value.cancelled }).min(by: { $0.value.expires < $1.value.expires })?.key {
+            recent.removeValue(forKey: oldest); return true
+        }
+        return false
+    }
+
+    nonisolated static func isCancellation(_ error: Error) -> Bool {
+        error as? Failure == .cancelled || error is CancellationError || (error as? URLError)?.code == .cancelled
     }
 }

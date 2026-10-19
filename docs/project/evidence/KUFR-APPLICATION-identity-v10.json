@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-APPLICATION-identity-v10",
+  "observedAtUtc": "2026-10-19T07:13:32.893459+00:00",
+  "kind": "integration",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "IDENTITY",
+      "criterionRevision": 6,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "applicationArtifactDigest": "d3be30b605e7c4160bbc416e0e4552d45c9645430de1933acb3c64f043be7014",
+    "backendArtifactDigest": "303435d6804c5fd493bd42cabbddc6915afa2701a289eb85cb93bfdf20ebe0ea"
+  },
+  "method": "Fresh real HTTPS account browser and 21 focused Vue identity regressions. Exact unchanged backend source component303435d6804c5fd493bd42cabbddc6915afa2701a289eb85cb93bfdf20ebe0ea and retained binary hashes explicitly transfer full backend build/default/identity/Show/live-boundary/twin/media execution from source-v8.",
+  "environment": "Windows11; Node24.21.0, Chrome Playwright, .NET10; isolated real HTTPS account fixture, synthetic API/native browser fixtures. No local Swift compiler.",
+  "limitations": [
+    "No production deployment, paid provider call, credential rotation, signing, flashing or physical actuator execution.",
+    "Virtual WebAuthn and browser/native bridge fixtures are synthetic. Portable C++ checks prove software integration, not signed iPhone, BLE possession, acoustic output or assembly.",
+    "Current Foundation/native queue harness has source review and portable wiring checks only on Windows. Its real Swift compilation, delayed URLSession execution and unsigned Simulator build require fresh macOS CI.",
+    "Source-v11 normalizes UTF-8 text to LF and retains binary bytes/Git modes; runtime-v9 records the fresh compiled browser bytes. Backend/release components are exactly unchanged from source-v10; earlier execution retains its original scope."
+  ],
+  "observation": "Current real account browser and 327 combined tests pass. Real HTTP401 remains an authentication failure; request-context cancellation does not impersonate a logout. Native queued-command zero-HTTP, cancellation races, priority lane, active progress, bounds and 401 regressions are source-reviewed but await actual Swift CI. Request UUIDs and AbortSignal cancellation now reach the production native registry and admission queues. Cancelled waiters are removed before HTTP dispatch; an active HTTP mutation cannot be rolled back by cancellation. Context cancellation remains distinct from genuine 401. Corrected Foundation fixture models ordinary cookie installation with positive preconditions and retains strict late-priority cookie isolation assertions. Windows cannot compile/run Swift; fresh macOS CI remains required, and no current native pass is claimed.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-APPLICATION-source-v11.json",
+    "docs/project/artifacts/KUFR-APPLICATION-runtime-v9.json",
+    "docs/project/evidence/KUFR-APPLICATION-native-v3.json",
+    "docs/project/artifacts/KUFR-APPLICATION-source-v10.json",
+    "docs/project/artifacts/KUFR-APPLICATION-runtime-v8.json",
+    "docs/project/artifacts/KUFR-APPLICATION-source-v9.json",
+    "docs/project/artifacts/KUFR-APPLICATION-source-v8.json",
+    "kufr/docs/application-verification.md"
+  ],
+  "supersedes": [
+    "KUFR-APPLICATION-identity-v9"
+  ],
+  "supersedesReason": "Current request-scoped JS/native cancellation and corrected cookie fixture, fresh combined app/browser execution and independent source review; unchanged backend/release proof transfers explicitly. Actual macOS remains pending."
+}

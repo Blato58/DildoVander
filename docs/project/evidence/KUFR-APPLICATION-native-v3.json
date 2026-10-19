@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-APPLICATION-native-v3",
+  "observedAtUtc": "2026-10-19T06:54:28.978297+00:00",
+  "kind": "native_ios",
+  "result": "fail",
+  "claims": [
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "NATIVE",
+      "criterionRevision": 5,
+      "result": "fail"
+    }
+  ],
+  "subject": {
+    "iosArtifactDigest": "bb9b47e502b14c426fe6da7fb3fc01956c10598abb53b561ba2a894bd34cb304"
+  },
+  "method": "Actual macOS Xcode26.3 PR CI39212241042, job117928062001, scripts/test-native-identity.sh. Foundation-only production scheduler/policy harness compiled and executed; unsigned Simulator application build was not reached.",
+  "environment": "GitHub-hosted macOS/Xcode26.3; isolated Foundation URLProtocol fixture, no physical iPhone/provider.",
+  "observation": "FAIL exit133: late priority Set-Cookie replaced committed account cookie. This is a failed harness assertion; production-vs-fixture cookie handling requires diagnosis. No successful native queue or current Simulator acceptance is claimed. Parent cancelled the obsolete remaining CAD job after this failure; other completed job results retain their actual source scope.",
+  "limitations": [
+    "Foundation URLProtocol execution does not exercise the UIKit passkey dialog, real TLS, Keychain lifecycle or physical device.",
+    "This failed receipt remains immutable; a corrected source/harness needs fresh macOS execution."
+  ],
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-APPLICATION-source-v10.json",
+    "https://github.com/Blato58/DildoVander/actions/runs/39212241042/job/117928062001"
+  ]
+}

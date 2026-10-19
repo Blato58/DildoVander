@@ -85,6 +85,7 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
         CAPPluginMethod(name: "shareGuestFile", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "shareGuestLink", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "accountTransport", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "cancelAccountRequest", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "publicOrigin", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "publicResource", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "cancelPublicResource", returnType: CAPPluginReturnPromise)
@@ -102,6 +103,7 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
     private var controller: ASAuthorizationController?
     private var restoredCookies = false
     @MainActor private lazy var requestScheduler = AccountRequestScheduler()
+    @MainActor private lazy var requestRegistry = AccountRequestRegistry()
     private var passkeyQueued = false
     private var ceremonyLease: AccountRequestScheduler.Lease?
     private var credentialCompletionActive = false
@@ -176,64 +178,65 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
     }
 
     @objc public func accountTransport(_ call: CAPPluginCall) {
-        Task { @MainActor in
-            do {
-                let (origin, _) = try configuration()
-                let path = call.getString("path") ?? "", method = call.getString("method") ?? "GET"
-                guard Self.allowed(path: path, method: method), let url = URL(string: path, relativeTo: origin)?.absoluteURL,
-                      url.scheme == "https", url.host == origin.host, url.port == origin.port else { throw AccountError.invalidPath }
-                var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
-                request.httpMethod = method
-                request.setValue(origin.absoluteString, forHTTPHeaderField: "Origin")
-                let permitted = ["accept", "content-type", "x-dv-csrf", "x-dv-confirm", "x-dv-device-id", "idempotency-key", "session-id", "boot-id", "media-epoch", "input-epoch", "input-sequence"]
-                for (name, value) in call.getObject("headers") ?? [:] {
-                    guard permitted.contains(name.lowercased()), let text = value as? String, text.count <= 1024,
-                          !text.contains("\r"), !text.contains("\n") else { throw AccountError.invalidPath }
-                    if name.lowercased() != "x-dv-csrf" { request.setValue(text, forHTTPHeaderField: name) }
-                }
-                if let encoded = call.getString("bodyBase64") {
-                    guard encoded.utf8.count <= 349528, let data = Data(base64Encoded: encoded), data.count <= 262144 else { throw AccountError.invalidResponse }
-                    request.httpBody = data
-                }
-                let device = request.value(forHTTPHeaderField: "X-DV-Device-Id") ?? ""
-                let result: (Data, URLResponse)
-                var ordinaryLease: AccountRequestScheduler.Lease?
-                defer { if let lease = ordinaryLease { requestScheduler.release(lease) } }
-                let priority = AccountTransportPolicy.priorityCancellation(path: path, method: method, deviceId: device, body: request.httpBody ?? Data())
-                if priority {
-                    result = try await sendPriorityCancellation(request)
-                } else {
-                    let commit = AccountTransportPolicy.credentialCommit(path: path, method: method)
-                    let lease = try await requestScheduler.acquire(ceremony: commit, logout: path == "/app/v1/session" && method == "DELETE")
-                    ordinaryLease = lease
-                    try requestScheduler.requireCurrent(lease)
-                    if commit { try await requestScheduler.beginCredentialCommit(lease) }
-                    restoreCookies(origin: origin)
-                    if method != "GET" { request.setValue(csrf, forHTTPHeaderField: "X-DV-CSRF") }
-                    result = try await session.data(for: request)
-                }
-                let archiveAsset = path.hasPrefix("/app/v1/archive/associations/") && path.contains("/assets/")
-                guard let http = result.1 as? HTTPURLResponse, result.0.count <= (archiveAsset ? 33554432 : 1048576),
-                      http.url?.host == origin.host, http.url?.scheme == origin.scheme, http.url?.port == origin.port else { throw AccountError.invalidResponse }
-                if !priority { try persistAccountCookie(origin: origin) }
-                var headers: [String: String] = [:]
-                for name in ["Content-Type", "X-Twin-Media-Accepted-Bytes", "Retry-After"] {
-                    if let value = http.value(forHTTPHeaderField: name) { headers[name.lowercased()] = value }
-                }
-                call.resolve(["status": http.statusCode, "headers": headers, "bodyBase64": result.0.base64EncodedString()])
-            } catch { rejectAccountCall(call, error: error) }
+        performAccountRequest(call) { [self] requestId in
+            let (origin, _) = try configuration()
+            let path = call.getString("path") ?? "", method = call.getString("method") ?? "GET"
+            guard Self.allowed(path: path, method: method), let url = URL(string: path, relativeTo: origin)?.absoluteURL,
+                  url.scheme == "https", url.host == origin.host, url.port == origin.port else { throw AccountError.invalidPath }
+            var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
+            request.httpMethod = method
+            request.setValue(origin.absoluteString, forHTTPHeaderField: "Origin")
+            let permitted = ["accept", "content-type", "x-dv-csrf", "x-dv-confirm", "x-dv-device-id", "idempotency-key", "session-id", "boot-id", "media-epoch", "input-epoch", "input-sequence"]
+            for (name, value) in call.getObject("headers") ?? [:] {
+                guard permitted.contains(name.lowercased()), let text = value as? String, text.count <= 1024,
+                      !text.contains("\r"), !text.contains("\n") else { throw AccountError.invalidPath }
+                if name.lowercased() != "x-dv-csrf" { request.setValue(text, forHTTPHeaderField: name) }
+            }
+            if let encoded = call.getString("bodyBase64") {
+                guard encoded.utf8.count <= 349528, let data = Data(base64Encoded: encoded), data.count <= 262144 else { throw AccountError.invalidResponse }
+                request.httpBody = data
+            }
+            let device = request.value(forHTTPHeaderField: "X-DV-Device-Id") ?? ""
+            let result: (Data, URLResponse)
+            var ordinaryLease: AccountRequestScheduler.Lease?
+            defer { if let lease = ordinaryLease { requestScheduler.release(lease) } }
+            let priority = AccountTransportPolicy.priorityCancellation(path: path, method: method, deviceId: device, body: request.httpBody ?? Data())
+            if priority {
+                result = try await sendPriorityCancellation(request, requestId: requestId)
+            } else {
+                let commit = AccountTransportPolicy.credentialCommit(path: path, method: method)
+                let lease = try await requestScheduler.acquire(ceremony: commit, logout: path == "/app/v1/session" && method == "DELETE", requestId: requestId)
+                ordinaryLease = lease
+                try requestScheduler.requireCurrent(lease)
+                if commit { try await requestScheduler.beginCredentialCommit(lease) }
+                restoreCookies(origin: origin)
+                if method != "GET" { request.setValue(csrf, forHTTPHeaderField: "X-DV-CSRF") }
+                try Task.checkCancellation()
+                result = try await session.data(for: request)
+                try Task.checkCancellation()
+            }
+            let archiveAsset = path.hasPrefix("/app/v1/archive/associations/") && path.contains("/assets/")
+            guard let http = result.1 as? HTTPURLResponse, result.0.count <= (archiveAsset ? 33554432 : 1048576),
+                  http.url?.host == origin.host, http.url?.scheme == origin.scheme, http.url?.port == origin.port else { throw AccountError.invalidResponse }
+            if !priority { try persistAccountCookie(origin: origin) }
+            var headers: [String: String] = [:]
+            for name in ["Content-Type", "X-Twin-Media-Accepted-Bytes", "Retry-After"] {
+                if let value = http.value(forHTTPHeaderField: name) { headers[name.lowercased()] = value }
+            }
+            call.resolve(["status": http.statusCode, "headers": headers, "bodyBase64": result.0.base64EncodedString()])
         }
     }
 
-    @MainActor private func sendPriorityCancellation(_ original: URLRequest) async throws -> (Data, URLResponse) {
+    @MainActor private func sendPriorityCancellation(_ original: URLRequest, requestId: UUID) async throws -> (Data, URLResponse) {
         // URLSession can apply a completion response's Set-Cookie before the
         // MainActor validates it. Only the immutable published principal is safe
         // here; never read the mutable jar or fetch CSRF during a ceremony.
         guard let snapshot = publishedPrioritySession else { throw AccountError.verificationFailed }
-        let lease = try await requestScheduler.acquirePriority()
+        let lease = try await requestScheduler.acquirePriority(requestId: requestId)
         defer { requestScheduler.releasePriority(lease) }
         try requestScheduler.requireCurrent(lease)
         guard publishedPrioritySession?.binding == snapshot.binding else { throw AccountRequestScheduler.Failure.contextChanged }
+        try Task.checkCancellation()
         let result = try await prioritySession.data(for: snapshot.authorize(original))
         try requestScheduler.requireCurrent(lease)
         guard publishedPrioritySession?.binding == snapshot.binding else { throw AccountRequestScheduler.Failure.contextChanged }
@@ -251,8 +254,40 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
             cookieHeaders: HTTPCookie.requestHeaderFields(with: cookies))
     }
 
+    // Reserve synchronously before spawning work: cancellation can arrive before
+    // registration, while queued, after lease grant, or during URLSession HTTP.
+    private func performAccountRequest(_ call: CAPPluginCall, operation: @escaping @MainActor (UUID) async throws -> Void) {
+        Task { @MainActor in
+            guard let raw = call.getString("requestId"), let id = UUID(uuidString: raw), raw.count == 36 else {
+                rejectAccountCall(call, error: AccountRequestRegistry.Failure.invalidId); return
+            }
+            let ticket: AccountRequestRegistry.Ticket
+            do { ticket = try requestRegistry.reserve(id, cancelWaiting: { self.requestScheduler.cancelWaiting(requestId: id) }) }
+            catch { rejectAccountCall(call, error: error); return }
+            let work = Task { @MainActor in
+                defer { self.requestRegistry.finish(ticket) }
+                do { try Task.checkCancellation(); try await operation(id) }
+                catch { self.rejectAccountCall(call, error: error) }
+            }
+            requestRegistry.attach(ticket, cancel: { work.cancel() })
+        }
+    }
+
+    @objc public func cancelAccountRequest(_ call: CAPPluginCall) {
+        Task { @MainActor in
+            guard let raw = call.getString("requestId"), let id = UUID(uuidString: raw), raw.count == 36 else {
+                rejectAccountCall(call, error: AccountRequestRegistry.Failure.invalidId); return
+            }
+            call.resolve(["cancelled": requestRegistry.cancel(id)])
+        }
+    }
+
     private func rejectAccountCall(_ call: CAPPluginCall, error: Error) {
-        if let scheduling = error as? AccountRequestScheduler.Failure {
+        if AccountRequestRegistry.isCancellation(error) {
+            call.reject(AccountRequestRegistry.Failure.cancelled.localizedDescription, AccountRequestRegistry.Failure.cancelled.rawValue)
+        } else if let registration = error as? AccountRequestRegistry.Failure {
+            call.reject(registration.localizedDescription, registration.rawValue)
+        } else if let scheduling = error as? AccountRequestScheduler.Failure {
             call.reject(scheduling.localizedDescription, scheduling.rawValue)
         } else { call.reject(error.localizedDescription) }
     }
@@ -381,23 +416,21 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
     }
 
     @objc public func request(_ call: CAPPluginCall) {
-        Task { @MainActor in
-            do {
-                let path = call.getString("path") ?? ""
-                let method = call.getString("method") ?? "GET"
-                guard Self.allowed(path: path, method: method) else { throw AccountError.invalidPath }
-                let commit = AccountTransportPolicy.credentialCommit(path: path, method: method)
-                let lease = try await requestScheduler.acquire(ceremony: commit, logout: path == "/app/v1/session" && method == "DELETE")
-                defer { requestScheduler.release(lease) }
-                try requestScheduler.requireCurrent(lease)
-                if commit { try await requestScheduler.beginCredentialCommit(lease) }
-                let result = try await send(path: path, method: method, body: call.getString("body"), confirmed: call.getBool("confirmed") == true)
-                if path == "/app/v1/session", let data = result.1.data(using: .utf8),
-                   let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    try publishSessionResponse(object, origin: configuration().0)
-                }
-                call.resolve(["status": result.0, "body": result.1])
-            } catch { rejectAccountCall(call, error: error) }
+        performAccountRequest(call) { [self] requestId in
+            let path = call.getString("path") ?? ""
+            let method = call.getString("method") ?? "GET"
+            guard Self.allowed(path: path, method: method) else { throw AccountError.invalidPath }
+            let commit = AccountTransportPolicy.credentialCommit(path: path, method: method)
+            let lease = try await requestScheduler.acquire(ceremony: commit, logout: path == "/app/v1/session" && method == "DELETE", requestId: requestId)
+            defer { requestScheduler.release(lease) }
+            try requestScheduler.requireCurrent(lease)
+            if commit { try await requestScheduler.beginCredentialCommit(lease) }
+            let result = try await send(path: path, method: method, body: call.getString("body"), confirmed: call.getBool("confirmed") == true)
+            if path == "/app/v1/session", let data = result.1.data(using: .utf8),
+               let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                try publishSessionResponse(object, origin: configuration().0)
+            }
+            call.resolve(["status": result.0, "body": result.1])
         }
     }
 
@@ -536,7 +569,9 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
             request.httpBody = Data(body.utf8)
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
+        try Task.checkCancellation()
         let (data, response) = try await session.data(for: request)
+        try Task.checkCancellation()
         guard let http = response as? HTTPURLResponse, data.count <= 1048576,
               http.url?.host == origin.host else { throw AccountError.invalidResponse }
         try persistAccountCookie(origin: origin)
