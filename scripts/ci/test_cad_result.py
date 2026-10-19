@@ -126,7 +126,8 @@ class TrustedResultTests(unittest.TestCase):
 
     def test_promotion_preserves_original_validation_and_records_server_provenance(self):
         environment = {'CAD_SOURCE_RUN': '123', 'CAD_SOURCE_ARTIFACT': '456', 'CAD_SOURCE_PR': '42',
-                       'CAD_SOURCE_MERGE': 'a' * 40, 'CAD_SOURCE_BUILT': 'b' * 40, 'CAD_MAIN_SHA': 'c' * 40}
+                       'CAD_SOURCE_MERGE': 'a' * 40, 'CAD_SOURCE_BUILT': 'b' * 40, 'CAD_MAIN_SHA': 'c' * 40,
+                       'CAD_SOURCE_BASIS': 'exact'}
         before = cad_result.digest(self.out / cad_result.RECEIPT)
         report = (self.out / 'verification.json').read_bytes()
         cad_result.promote(self.out, self.identity, self.sources, environment)
@@ -135,7 +136,24 @@ class TrustedResultTests(unittest.TestCase):
         self.assertEqual(saved['promotion']['original_receipt_sha256'], before)
         self.assertFalse(saved['promotion']['mechanical_validation_performed'])
         self.assertEqual(saved['promotion']['main_sha'], 'c' * 40)
+        self.assertEqual(saved['promotion']['source_proof'], 'exact')
         self.assertEqual((self.out / 'verification.json').read_bytes(), report)
+
+    def test_promotion_records_authenticated_main_inheritance_without_claiming_exact_sources(self):
+        environment = {'CAD_SOURCE_RUN': '123', 'CAD_SOURCE_ARTIFACT': '456', 'CAD_SOURCE_PR': '42',
+                       'CAD_SOURCE_MERGE': 'a' * 40, 'CAD_SOURCE_BUILT': 'b' * 40, 'CAD_MAIN_SHA': 'c' * 40,
+                       'CAD_SOURCE_BASIS': 'inherited-main', 'CAD_SOURCE_BASE': 'd' * 40,
+                       'CAD_SOURCE_AUTH_MAIN': 'e' * 40}
+        for missing in ('CAD_SOURCE_BASIS', 'CAD_SOURCE_BASE', 'CAD_SOURCE_AUTH_MAIN'):
+            with self.subTest(missing=missing), self.assertRaises(ValueError):
+                cad_result.promote(self.out, self.identity, self.sources,
+                                  {name: value for name, value in environment.items() if name != missing})
+        cad_result.promote(self.out, self.identity, self.sources, environment)
+        proof = cad_result.read_receipt(self.out)['promotion']
+        self.assertEqual(proof['source_proof'], 'inherited-main')
+        self.assertEqual(proof['original_base_sha'], 'd' * 40)
+        self.assertEqual(proof['authenticated_main_sha'], 'e' * 40)
+        self.assertFalse(proof['mechanical_validation_performed'])
 
     def test_promotion_rejects_missing_metadata_or_nonexact_identity(self):
         before = (self.out / cad_result.RECEIPT).read_bytes()

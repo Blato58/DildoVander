@@ -20,21 +20,21 @@
   "acceptance": [
     {
       "id": "IMPACT",
-      "revision": 4,
+      "revision": 5,
       "expected": "Unrelated software/docs and reviewed viewer edits skip CAD setup/generation/verification; mechanical/shared/unknown inputs select required checks and explicit force remains available.",
       "requiredEvidenceKinds": [
         "unit"
       ],
       "appliesTo": {
-        "artifactDigest": "516ba92f703449af10934d51f072cf484309c69d1780922abe8bd05f83d448e7"
+        "artifactDigest": "0315ccb8e1afc7c73b7b9f0464cc9b041aef1404287f9f2fcda5a5b8cbdf11b3"
       },
       "evidenceRefs": [
-        "KUFR-CAD-INCREMENTAL-main211-local"
+        "KUFR-CAD-INCREMENTAL-inheritance-local"
       ]
     },
     {
       "id": "REUSE",
-      "revision": 4,
+      "revision": 5,
       "expected": "Trusted content-bound results skip unchanged work, corrupt/untrusted results never supply acceptance, per-part exports and validation-only generation reuse preserve mandatory mechanical gates.",
       "requiredEvidenceKinds": [
         "unit",
@@ -42,30 +42,30 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "516ba92f703449af10934d51f072cf484309c69d1780922abe8bd05f83d448e7"
+        "artifactDigest": "0315ccb8e1afc7c73b7b9f0464cc9b041aef1404287f9f2fcda5a5b8cbdf11b3"
       },
       "evidenceRefs": [
-        "KUFR-CAD-INCREMENTAL-main211-local",
-        "KUFR-CAD-INCREMENTAL-main211-review"
+        "KUFR-CAD-INCREMENTAL-inheritance-local",
+        "KUFR-CAD-INCREMENTAL-inheritance-review"
       ]
     },
     {
       "id": "HOSTED",
-      "revision": 4,
+      "revision": 5,
       "expected": "Hosted required CI passes and canonical main result is reusable before CAD installation with provenance and complete output inventory checks.",
       "requiredEvidenceKinds": [
         "integration"
       ],
       "appliesTo": {
-        "artifactDigest": "516ba92f703449af10934d51f072cf484309c69d1780922abe8bd05f83d448e7"
+        "artifactDigest": "0315ccb8e1afc7c73b7b9f0464cc9b041aef1404287f9f2fcda5a5b8cbdf11b3"
       },
       "evidenceRefs": []
     }
   ],
   "blockers": [],
   "implementedSubject": {
-    "artifactDigest": "516ba92f703449af10934d51f072cf484309c69d1780922abe8bd05f83d448e7"
+    "artifactDigest": "0315ccb8e1afc7c73b7b9f0464cc9b041aef1404287f9f2fcda5a5b8cbdf11b3"
   },
-  "currentNote": "31ce3fb0ae9ed809d7d356c99484db10673a14f6 pushed/remote verified. Hosted CI39181940875 passed all selected jobs and CI required; native CAD42m44s, PASS_CAD_NOT_PHYSICAL_ACCEPTANCE and PASS_SLICER. Verified artifact12157827058, key176694e063630eef5244ef171afcf6cfb4feef9ae49b1b9428796a813ac1c98f. Testing source-identical tracking-only PR reuse before merge; main promotion pending.",
-  "nextAction": "Verify same-PR hit skips toolchain/generation, recheck all reviews, merge, then verify main promotion and exact main hit."
+  "currentNote": "Full CI39181940875 at31ce3fb passed native CAD/slicer and required gate42m44s; artifact12157827058. Concurrent UX213/214 on main caused conflicts and exact whole-tree cache miss. Integrated main b703ce3; added source-proof fallback only for untouched original PR paths inherited exactly from authenticated main, with ancestry and basis/SHA receipts. Final local suites/review pass; new trust-policy key requires fresh hosted verification, no old result claimed for changed policy.",
+  "nextAction": "Run final policy CI, verify source-identical tracking-only reuse and any main-inherited refresh, merge after reviews, verify main promotion/exact hit, then close with hosted receipt."
 }

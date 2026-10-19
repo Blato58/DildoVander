@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-UX-JOURNEYS-ci",
+  "kind": "unit",
+  "observedAtUtc": "2026-10-19T01:15:05.560954+00:00",
+  "result": "pass",
+  "subject": {
+    "artifactDigest": "dbd9ac1c6bdf8535dcd4023104c9d9f7862280bc2c543b98b8f60e2f666f7749"
+  },
+  "claims": [
+    {
+      "workItemId": "KUFR-UX-JOURNEYS",
+      "criterionId": "ACTIVE-JOURNEYS",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "method": "Read completed GitHub CI run39184013608 and latest PR213 code/security state, all submitted reviews, inline comments and review threads immediately before exact-head guarded squash merge. Fetch main and compare its entire Git tree with tested head.",
+  "environment": "GitHub Linux repository/backend/web/site, Windows+Linux tracking, macOS15 Xcode26.3 Swift/BLE/unsigned iOS Simulator; authenticated scoped GitHub CLI reads and merge.",
+  "observation": "CI required SUCCESS on bc9057f5470fbff106f982230bdc04601c8095a3. Secret scan, selector, both tracking jobs, repository checks, backend build/tests/HTTP smoke/isolated guest integration, mobile web, site package/browser suites, native Swift debug/transport/BLE and unsigned iOS Simulator build all SUCCESS. Firmware, CAD and paid AI eval correctly SKIPPED for UI-only scope. Code review on exact final head completed without findings. Earlier valid P2 review4309547041 was fixed with a dedicated BLE feedback hook and 80-test/build verification; its thread was read as resolved before merge. Security review completed without findings on initial head 1ff5e2e; later test-only and feedback-selector deltas were independently inspected. PR213 merged as 36fa4298a8d3535ea4dd4b14ad10096efb62f283. Fetched main and tested head have identical tree e2df1c862427d5df4df40d723767d6be77409a8f. Source digest dbd9ac1c6bdf8535dcd4023104c9d9f7862280bc2c543b98b8f60e2f666f7749 still identifies all 56 changed implementation paths. Push-CurrentBranch.ps1 verified final branch head before PR merge. Tracking-only closure preserves those runtime bytes.",
+  "limitations": [
+    "Unsigned Simulator/Swift tests do not establish signed iPhone/VoiceOver, real media, physical suitcase/servo or production acceptance. No deployment, signing, hardware actuation, paid AI or production visitor-data write was performed.",
+    "Viewer geometry and guide browser fixtures are labelled synthetic. No CAD/STL/manufacturing regeneration or physical assembly validation occurred.",
+    "Three local Windows-dependent site test skips remain dated in local receipts; final Linux site and backend integration CI passed. Initial failures and their corrected reruns remain visible in Git history/CI."
+  ],
+  "artifactRefs": [
+    "https://github.com/Blato58/DildoVander/actions/runs/39184013608",
+    "https://github.com/Blato58/DildoVander/pull/213"
+  ]
+}

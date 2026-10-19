@@ -23,7 +23,7 @@ function relevantSource(entry) {
   return !(entry.type === 'blob' && entry.mode === '100644' && trackingData.test(entry.path));
 }
 
-function sourceInventory(tree) {
+function sourceInventory(tree, requireCadSources = true) {
   if (!Array.isArray(tree)) throw new Error('Missing source tree');
   const inventory = new Map();
   for (const entry of tree) {
@@ -38,8 +38,8 @@ function sourceInventory(tree) {
       || inventory.has(entry.path)) throw new Error('Incomplete source metadata');
     inventory.set(entry.path, `${entry.mode} ${entry.type} ${entry.sha}`);
   }
-  if (!requiredSources.every(path => inventory.has(path))
-    || ![...inventory.keys()].some(path => path.startsWith('kufr/mechanika/final/'))) {
+  if (requireCadSources && (!requiredSources.every(path => inventory.has(path))
+    || ![...inventory.keys()].some(path => path.startsWith('kufr/mechanika/final/')))) {
     throw new Error('Incomplete CAD source tree');
   }
   return [...inventory].sort(([a], [b]) => a.localeCompare(b));
@@ -69,20 +69,59 @@ function cadReference(repo, run) {
   return { sha: references[0].sha, number };
 }
 
-async function authenticatedBuiltSha(github, repo, reference, currentInventory) {
-  const sha = reference.sha;
+async function serverCommitInventory(github, repo, sha, requireCadSources = true) {
   const { data: commit } = await github.rest.git.getCommit({ ...repo, commit_sha: sha });
-  if (commit.sha !== sha || !/^[a-f0-9]{40}$/.test(commit.tree?.sha)) return;
+  if (commit.sha !== sha || !/^[a-f0-9]{40}$/.test(commit.tree?.sha)) throw new Error('Missing commit tree');
   const { data: tree } = await github.rest.git.getTree({
     ...repo, tree_sha: commit.tree.sha, recursive: 'true',
   });
-  if (tree.truncated !== false || tree.sha !== commit.tree.sha) return;
-  if (JSON.stringify(sourceInventory(tree.tree)) === JSON.stringify(await currentInventory())) return sha;
+  if (tree.truncated !== false || tree.sha !== commit.tree.sha) throw new Error('Incomplete commit tree');
+  return { commit, inventory: sourceInventory(tree.tree, requireCadSources) };
 }
 
-function isAncestorOfHead(sha) {
+async function inheritedMainChanges(github, repo, run, built, current, isAncestor) {
+  if (`${repo.owner}/${repo.repo}` !== 'Blato58/DildoVander') return false;
+  const parents = built.commit.parents;
+  if (!Array.isArray(parents) || parents.length !== 2
+    || !parents.every(parent => /^[a-f0-9]{40}$/.test(parent.sha))
+    || parents[1].sha !== run.head_sha || parents[0].sha === parents[1].sha) return false;
+  const { data: mainRef } = await github.rest.git.getRef({ ...repo, ref: 'heads/main' });
+  if (mainRef.ref !== 'refs/heads/main' || mainRef.object?.type !== 'commit'
+    || !/^[a-f0-9]{40}$/.test(mainRef.object.sha)) return false;
+  const mainSha = mainRef.object.sha;
+  const baseSha = parents[0].sha;
+  if (await isAncestor(baseSha, mainSha) !== true || await isAncestor(mainSha) !== true) return false;
+  // Main may not yet contain this PR's new CAD tooling. Missing paths are part
+  // of the proof, so these two complete historical trees need no CAD manifest.
+  const base = await serverCommitInventory(github, repo, baseSha, false);
+  const main = await serverCommitInventory(github, repo, mainSha, false);
+  const builtEntries = new Map(built.inventory);
+  const currentEntries = new Map(current);
+  const baseEntries = new Map(base.inventory);
+  const mainEntries = new Map(main.inventory);
+  for (const path of new Set([...builtEntries.keys(), ...currentEntries.keys()])) {
+    if (builtEntries.get(path) === currentEntries.get(path)) continue;
+    // A differing path must have been untouched by the original PR and now
+    // match trusted main exactly, including absence, file type and mode.
+    if (builtEntries.get(path) !== baseEntries.get(path)
+      || currentEntries.get(path) !== mainEntries.get(path)) return false;
+  }
+  return { baseSha, mainSha };
+}
+
+async function authenticatedSource(github, repo, run, reference, currentInventory, isAncestor) {
+  const built = await serverCommitInventory(github, repo, reference.sha);
+  const current = await currentInventory();
+  if (JSON.stringify(built.inventory) === JSON.stringify(current)) {
+    return { builtSha: reference.sha, basis: 'exact' };
+  }
+  const inherited = await inheritedMainChanges(github, repo, run, built, current, isAncestor);
+  if (inherited) return { builtSha: reference.sha, basis: 'inherited-main', ...inherited };
+}
+
+function isAncestorOfHead(sha, descendant = 'HEAD') {
   try {
-    execFileSync('git', ['merge-base', '--is-ancestor', sha, 'HEAD'], { stdio: 'pipe' });
+    execFileSync('git', ['merge-base', '--is-ancestor', sha, descendant], { stdio: 'pipe' });
     return true;
   } catch (error) {
     if (error.status === 1) return false;
@@ -107,8 +146,8 @@ async function prProvenance({ github, context }, repo, run, currentInventory, is
       || typeof pr.head?.repo?.full_name !== 'string' || !pr.head.repo.full_name
       || pr.head.repo.full_name !== run.head_repository?.full_name
       || await isAncestor(pr.merge_commit_sha) !== true) return;
-    const builtSha = await authenticatedBuiltSha(github, repo, reference, currentInventory);
-    if (builtSha) return { scope: 'merged-pr', number: pr.number, mergeSha: pr.merge_commit_sha, builtSha };
+    const source = await authenticatedSource(github, repo, run, reference, currentInventory, isAncestor);
+    if (source) return { scope: 'merged-pr', number: pr.number, mergeSha: pr.merge_commit_sha, ...source };
     return;
   }
   const pr = context.payload?.pull_request;
@@ -116,8 +155,8 @@ async function prProvenance({ github, context }, repo, run, currentInventory, is
     || typeof pr.head?.repo?.full_name !== 'string' || !pr.head.repo.full_name
     || run.head_repository?.full_name !== pr.head.repo.full_name
     || reference.number !== pr.number) return;
-  const builtSha = await authenticatedBuiltSha(github, repo, reference, currentInventory);
-  if (builtSha) return { scope: 'same-pr', number: pr.number, builtSha };
+  const source = await authenticatedSource(github, repo, run, reference, currentInventory, isAncestor);
+  if (source) return { scope: 'same-pr', number: pr.number, ...source };
 }
 
 // PR results require independently authenticated source bytes. Promotion into
@@ -179,6 +218,9 @@ async function resolve({ github, context, core }, {
     if (provenance.number) core.setOutput('source-pr', String(provenance.number));
     if (provenance.mergeSha) core.setOutput('source-merge-sha', provenance.mergeSha);
     if (provenance.builtSha) core.setOutput('source-built-sha', provenance.builtSha);
+    if (provenance.basis) core.setOutput('source-basis', provenance.basis);
+    if (provenance.baseSha) core.setOutput('source-base-sha', provenance.baseSha);
+    if (provenance.mainSha) core.setOutput('source-main-sha', provenance.mainSha);
     core.info(`CAD trusted result: ${provenance.scope} run ${id}, artifact ${artifact.id}`);
     return;
   }

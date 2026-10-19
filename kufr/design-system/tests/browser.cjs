@@ -10,6 +10,7 @@ const { chromium } = require('playwright');
 const root = path.resolve(__dirname, '../../..');
 const mobileDist = process.env.UI_MOBILE_DIST ? path.resolve(process.env.UI_MOBILE_DIST) : null;
 const viewerHtml = process.env.UI_VIEWER_HTML ? path.resolve(process.env.UI_VIEWER_HTML) : null;
+const installerHtml = process.env.UI_INSTALLER_HTML ? path.resolve(process.env.UI_INSTALLER_HTML) : null;
 const screenshotDirectory = process.env.UI_SCREENSHOT_DIR ? path.resolve(process.env.UI_SCREENSHOT_DIR) : null;
 const mime = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.ttf': 'font/ttf', '.svg': 'image/svg+xml', '.png': 'image/png' };
 
@@ -32,6 +33,10 @@ async function startServer() {
       let companion = false;
       if (pathname === '/viewer/' && viewerHtml) {
         file = viewerHtml;
+      } else if (pathname === '/ios-preview/' && installerHtml) {
+        file = installerHtml;
+      } else if (pathname === '/ios-unavailable/') {
+        file = path.join(root, 'kufr/backend/deploy/ip-https/ios-placeholder.html');
       } else if (pathname.startsWith('/companion/') && mobileDist) {
         file = confined(mobileDist, pathname.slice('/companion/'.length) || 'index.html');
         companion = pathname === '/companion/' || pathname.endsWith('/index.html');
@@ -84,6 +89,7 @@ async function noOverflow(page, label) {
 async function screenshot(page, name) {
   if (!screenshotDirectory) return;
   await page.screenshot({ path: path.join(screenshotDirectory, `${name}.png`), fullPage: true });
+  await page.screenshot({ path: path.join(screenshotDirectory, `${name}-viewport.png`) });
 }
 
 async function assertOffline(page, label) {
@@ -214,9 +220,10 @@ async function simulator(page, origin) {
   assert.equal(await page.locator('#connect').isDisabled(), true);
   assert.equal(await page.locator('#disconnect').isDisabled(), true);
   await assertOffline(page, 'static simulator click/Enter guard');
-  for (const width of [390, 1280]) {
+  for (const width of [320, 390, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     await noOverflow(page, `simulator ${width}`);
+    assert.ok((await page.locator('#model-guidance').textContent()).includes('Veřejný náhled simulace'));
     await screenshot(page, `simulator-static-${width}`);
   }
   await page.locator('#theme-toggle').click();
@@ -232,14 +239,38 @@ async function servo(page, origin) {
   assert.equal(await page.locator('#cal-move').isDisabled(), true);
   assert.equal(await page.locator('#stop').isDisabled(), true);
   assert.ok((await page.locator('#connection').textContent()).includes('Odpojeno'));
-  for (const width of [390, 1280]) {
+  for (const width of [320, 390, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     await noOverflow(page, `servo ${width}`);
+    assert.equal(await page.locator('#bench-readiness').isVisible(), true);
     assert.equal(await page.locator('#stop').evaluate((control) => getComputedStyle(control).minHeight), '60px');
     await screenshot(page, `servo-disconnected-${width}`);
   }
   await assertOffline(page, 'disconnected servo');
   console.log('PASS servo: shared modules/styles and disabled disconnected safety controls; no serial action');
+}
+
+async function installer(page, origin) {
+  const routes = ['/ios-unavailable/', ...(installerHtml ? ['/ios-preview/'] : [])];
+  for (const route of routes) {
+    await page.goto(origin + route);
+    assert.equal(await page.locator('h1').textContent(), 'DildoVander pro iPhone');
+    for (const width of [320, 390, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      await noOverflow(page, `installer ${route} ${width}`);
+      await screenshot(page, `installer-${route.includes('unavailable') ? 'unavailable' : 'ready'}-${width}`);
+    }
+    if (route === '/ios-preview/') {
+      await page.locator('summary').click();
+      assert.ok((await page.locator('details').textContent()).includes('Safari'));
+      assert.ok((await page.locator('[href^="itms-services:"]').getAttribute('href')).includes('download-manifest'));
+      await noOverflow(page, 'installer recovery expanded');
+    } else {
+      assert.equal(await page.locator('[href^="itms-services:"]').count(), 0, 'unavailable build cannot promise installation');
+    }
+    await assertOffline(page, `installer ${route}`);
+  }
+  console.log('PASS installer: truthful unavailable/ready states, Safari recovery and 320/390/1280 layout; no install invoked');
 }
 
 async function mobile(page, origin) {
@@ -250,9 +281,17 @@ async function mobile(page, origin) {
   for (const width of [320, 390, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(`${origin}/companion/`);
-    await page.locator('[data-action="acquire"]').waitFor();
+    await page.locator('[data-workspace="live"]').waitFor();
     assert.ok((await page.locator('.simulation').textContent()).includes('Místní fake'));
+    assert.equal(await page.locator('.operator-readiness').isVisible(), true);
+    assert.equal(await page.locator('[data-manual-controls]').isVisible(), false, 'operator starts with live readiness, not actuator cards');
     await noOverflow(page, `mobile fake ${width}`);
+    await screenshot(page, `mobile-overview-${width}`);
+    await page.locator('#live-tab-voice').focus();
+    await page.keyboard.press('ArrowRight');
+    assert.equal(await page.locator('#live-panel-dance').isVisible(), true);
+    assert.equal(await page.locator('#live-panel-voice').isVisible(), false);
+    assert.equal(await page.locator('#live-panel-text').isVisible(), false);
     await page.locator('#tab-control').focus();
     await page.keyboard.press('ArrowRight');
     assert.equal(await page.locator('#tab-provisioning').getAttribute('aria-selected'), 'true');
@@ -260,6 +299,7 @@ async function mobile(page, origin) {
     assert.equal(await page.locator('#tab-debug').getAttribute('aria-selected'), 'true');
     await page.keyboard.press('Home');
     assert.equal(await page.locator('#tab-control').getAttribute('aria-selected'), 'true');
+    await page.locator('[data-workspace="manual"]').click();
     await page.locator('[data-action="acquire"]').click();
     assert.equal(await page.locator('[data-action="select"]').first().isEnabled(), true);
     await page.locator('[data-shell-stop]').click();
@@ -269,6 +309,9 @@ async function mobile(page, origin) {
     await page.locator('[data-action="inspect"]').click();
     assert.equal(await page.locator('[data-shell-stop]').isEnabled(), true);
     await screenshot(page, `mobile-fake-recovered-${width}`);
+    await page.locator('[data-workspace="live"]').click();
+    assert.equal(await page.locator('#live-panel-dance').isVisible(), true, 'selected live task survives manual workspace and snapshot updates');
+    assert.equal(await page.locator('#live-panel-text').isVisible(), false);
     await assertOffline(page, `mobile fake ${width}`);
   }
   console.log('PASS mobile production /companion/: fake mode, keyboard tabs, Stop/recovery at 320/390/1280; no provider/device transport');
@@ -285,7 +328,7 @@ async function viewer(page, origin) {
   };
   page.on('request', requestListener);
   try {
-    for (const width of [390, 1280]) {
+    for (const width of [320, 390, 1280]) {
       await page.setViewportSize({ width, height: 900 });
       await page.goto(`${origin}/viewer/`);
       await page.waitForFunction(() => Boolean(window.F2?.projectPoint));
@@ -304,12 +347,14 @@ async function viewer(page, origin) {
       const overview = await projection();
       await page.locator('#camera-menu > summary').click();
       await page.locator('#view-top').click();
+      await page.waitForFunction(() => document.getElementById('view-top').getAttribute('aria-pressed') === 'true');
       assert.equal(await page.locator('#view-top').getAttribute('aria-pressed'), 'true');
       await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       const top = await projection();
       assert.notDeepEqual(top, overview, 'top camera changes the real projected geometry');
       await page.locator('#camera-menu > summary').click();
       await page.locator('#view-reset').click();
+      await page.waitForFunction(() => document.getElementById('view-overview').getAttribute('aria-pressed') === 'true');
       assert.equal(await page.locator('#view-overview').getAttribute('aria-pressed'), 'true');
       await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       assert.notDeepEqual(await projection(), top, 'reset restores the overview projection');
@@ -344,9 +389,27 @@ async function viewer(page, origin) {
       await noOverflow(page, `offline viewer after controls ${width}`);
       await assertOffline(page, `offline viewer ${width}`);
       await screenshot(page, `viewer-synthetic-${width}`);
+      await page.locator('#assembly-mode').click();
+      await page.locator('#assembly-next').click();
+      const stepTitle = await page.locator('#assembly-current-title').textContent();
+      assert.ok(stepTitle.includes('1 / 2'), 'assembly context comes from the current guide step');
+      await page.locator('#guide-toggle').click();
+      assert.equal(await page.locator('#assembly-panel').isVisible(), false);
+      assert.equal(await page.locator('#assembly-current').isVisible(), true, 'current step stays visible with instructions collapsed');
+      const explorerToggle = page.locator('#explorer-toggle');
+      if (await explorerToggle.isVisible()) await explorerToggle.click();
+      await page.locator('.layers-panel > summary').click();
+      await page.locator('#cover').uncheck();
+      if (await page.locator('#explorer-close').isVisible()) await page.locator('#explorer-close').click();
+      await page.locator('#restore-view').click();
+      await page.locator('#restore-view').waitFor({ state: 'hidden' });
+      assert.equal(await page.locator('#cover').isChecked(), true, 'recovery restores geometry toggles');
+      assert.equal(await page.locator('#assembly-current-title').textContent(), stepTitle, 'visibility recovery preserves assembly progress');
+      await noOverflow(page, `assembly context ${width}`);
+      await screenshot(page, `assembly-context-${width}`);
     }
-    assert.deepEqual(requests, [`${origin}/viewer/`, `${origin}/viewer/`], 'each offline viewer document requires zero additional network resources');
-    console.log('PASS generated offline viewer: synthetic label, shared toolbar, actual camera/reset, mobile docks, native timeline focus/close at 390/1280; zero extra resources');
+    assert.deepEqual(requests, Array(3).fill(`${origin}/viewer/`), 'each offline viewer document requires zero additional network resources');
+    console.log('PASS generated offline viewer: camera, mobile docks, timeline focus, persistent assembly context and visibility recovery at 320/390/1280; zero extra resources');
   } finally {
     page.off('request', requestListener);
   }
@@ -406,6 +469,7 @@ async function main() {
     await playground(page, origin);
     await simulator(page, origin);
     await servo(page, origin);
+    await installer(page, origin);
     await mobile(page, origin);
     await viewer(page, origin);
     assert.deepEqual(blocked, [], 'all resources remain confined to this loopback static server');

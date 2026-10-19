@@ -12,18 +12,21 @@
   <a class="bench-skip" href="#bench-main">Přejít k diagnostice</a>
   <main id="bench-main" class="aw-main bench">
     <header class="aw-header">
-      <div><p class="aw-eyebrow">DildoVander · servisní diagnostika</p><h1>Servo bench</h1></div>
-      <span class="aw-badge aw-badge--warning">Skutečný hardware</span>
+      <div><h1>Servo bench</h1><p class="aw-muted">DildoVander · ruční kalibrace jednoho volného serva</p></div>
+      <span class="aw-badge aw-badge--warning">REAL USB · skutečný hardware</span>
     </header>
+    <p class="bench-boundary">Příkazy ovládají skutečný PWM signál. Napájení ani poloha serva se neměří. Připravte fyzické odpojení 5 V serv.</p>
+    <div id="bench-readiness" class="bench-readiness"></div>
     <nav class="bench-nav" aria-label="Servisní postup">
-      <a href="#connection-title">1. Připojení</a>
-      <a href="#calibration-title">2. Ruční kalibrace</a>
-      <a href="#auto-title">3. Hledání meze</a>
-      <a href="#readback-title">Registry</a>
-      <a href="#log-title">Log</a>
+      <a href="#connection-title">Připojení a kanál</a>
+      <a href="#calibration-title">Ruční pokus</a>
+      <a href="#profile-title">Uložit profil</a>
+      <a href="#auto-title">Hledání meze</a>
+      <a href="#diagnostics">Diagnostika</a>
     </nav>
-    <p class="aw-notice">Pouze nezatížené servo, kanály PCA9685 0–5. Ruční kalibrační pokus 1000–2000 µs po dobu 500–3000 ms vyžaduje nový firmware. Připravte fyzické odpojení napájení serv.</p>
-    <section class="aw-card" aria-labelledby="connection-title">
+    <div class="bench-workspace">
+    <div class="bench-setup">
+    <section class="bench-section" aria-labelledby="connection-title">
       <h2 id="connection-title">USB připojení</h2>
       <p id="support" class="aw-muted">Chrome nebo Edge na počítači, USB–UART CH343 (1A86:55D3), 115200 baud. Zavřete ostatní sériové monitory.</p>
       <p class="aw-notice">Před připojením vypněte 5 V serv. Otevření USB může resetovat ESP. Napájení zapněte až po potvrzení Stop.</p>
@@ -31,21 +34,28 @@
       <p id="connection" role="status">Odpojeno</p>
       <p id="mcp" class="aw-muted" role="status">WebMCP: zjišťuji dostupnost místních nástrojů…</p>
     </section>
-    <section class="aw-card" aria-labelledby="control-title">
-      <h2 id="control-title">Jeden zkušební pulz</h2>
+    <section class="bench-section" aria-labelledby="control-title">
+      <h2 id="control-title">Vybraný kanál</h2>
       <div class="controls">
         <div><label class="aw-field" for="channel">Kanál PCA9685</label><select id="channel" class="aw-input"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></div>
-        <div><label class="aw-field" for="pulse-width">Šířka pulzu</label><select id="pulse-width" class="aw-input"><option value="1400">1400 µs</option><option value="1500" selected>1500 µs</option><option value="1600">1600 µs</option></select></div>
       </div>
+      <p class="aw-muted">Společný pro ruční pokus, místní profil i asistované hledání. Připojte pouze jedno volné, nezatížené servo.</p>
+      <div id="error" hidden></div>
+      <details class="bench-details">
+        <summary>Krátký zkušební pulz · 500 ms</summary>
+        <p class="aw-muted">Samostatný test signálu. Pro cílenou kalibraci použijte ruční pokus.</p>
+        <div><label class="aw-field" for="pulse-width">Šířka pulzu</label><select id="pulse-width" class="aw-input"><option value="1400">1400 µs</option><option value="1500" selected>1500 µs</option><option value="1600">1600 µs</option></select></div>
       <p id="state" role="status" aria-live="polite">Neaktivní · odpojeno</p>
       <div id="pulse-actions" class="actions"></div>
       <p class="aw-muted">Potvrzení PWM FULL_OFF vypíná PWM. Neodpojuje 5 V a nepotvrzuje polohu ani skutečný pohyb serva.</p>
-      <div id="error" hidden></div>
+      </details>
     </section>
-    <section class="aw-card" aria-labelledby="calibration-title">
-      <h2 id="calibration-title">Ruční kalibrace</h2>
+    </div>
+    <div class="bench-tasks">
+    <section class="bench-section" aria-labelledby="calibration-title">
+      <h2 id="calibration-title">Ruční kalibrační pokus</h2>
       <p id="calibration-support" role="status">Podpora kalibrace zatím není potvrzena firmwarem.</p>
-      <p class="aw-muted">Používá kanál zvolený výše. Hodnoty jsou ruční záznamy, poloha není měřena. Nejde o úhly, potvrzení dorazů ani produkční kalibraci.</p>
+      <p class="aw-muted">Zvolte cíl, připravte jeden pokus pomocí Arm a spusťte jej samostatně. Hodnoty jsou ruční záznamy; poloha, úhel ani doraz se neměří.</p>
       <div id="calibration-fields" class="controls"></div>
       <label class="aw-field" for="cal-range">Cílová šířka posuvníkem (µs)</label>
       <input id="cal-range" class="cal-range" type="range" min="1000" max="2000" step="25" value="1500" aria-describedby="cal-help">
@@ -60,7 +70,10 @@
       <div id="calibration-actions" class="actions"></div>
       <p id="cal-state" role="status" aria-live="polite">Neaktivní · odpojeno</p>
       <p id="cal-validation" class="aw-muted" role="status"></p>
-      <h3 id="profile-title">Místní ruční profil · kanál 0</h3>
+    </section>
+    <section class="bench-section" aria-labelledby="profile-title">
+      <h2 id="profile-title">Místní ruční profil · kanál 0</h2>
+      <p class="aw-muted">Profil se ukládá jen v tomto prohlížeči. Export je ruční podklad, nikoli nasazení do provozního firmware.</p>
       <label class="aw-field" for="profile-label">Název serva / poznámka</label><input id="profile-label" class="aw-input" maxlength="80" type="text">
       <div class="actions"><button id="profile-save-label" class="aw-button aw-button--secondary" type="button">Uložit název</button><button id="profile-clear" class="aw-button aw-button--secondary" type="button">Vymazat profil kanálu</button></div>
       <p id="profile-values" class="aw-mono">Min — · střed — · max —</p>
@@ -71,7 +84,7 @@
       <button id="profile-export" class="aw-button aw-button--secondary" type="button">Exportovat profily JSON</button>
       <label class="aw-field" for="profile-json">JSON pro zkopírování</label><textarea id="profile-json" class="aw-input aw-mono" rows="8" readonly aria-label="Export ručních profilů JSON"></textarea>
     </section>
-    <section class="aw-card" aria-labelledby="auto-title">
+    <section class="bench-section" aria-labelledby="auto-title">
       <h2 id="auto-title">Asistované hledání jedné meze</h2>
       <p class="aw-notice">Zůstaňte u serva a poslouchejte. Při drhnutí nebo vrčení okamžitě stiskněte Drhne / vrčí a vypněte V+. Panel zvuk ani doraz nerozpoznává.</p>
       <p class="aw-muted">Každý směr začíná uloženým středem vybraného kanálu. Krok 25 µs, pulz 1500 ms, začátky nejméně 3 s od sebe, pouze 1000–2000 µs. Pro každý krok proběhne samostatné Arm. Druhý směr se sám nespustí.</p>
@@ -82,19 +95,26 @@
       <p class="aw-muted">Po Drhne / vrčí se nabízí předchozí dokončený krok, současný se vyřadí. Návrh se uloží jen vaším potvrzením po novém Stop ACK. Je to ruční úsudek obsluhy, nikoli měření koncového dorazu, polohy nebo síly.</p>
       <button id="auto-save" class="aw-button aw-button--secondary" type="button" disabled>Uložit navrženou mez</button>
     </section>
-    <section class="aw-card" aria-labelledby="readback-title">
+    </div>
+    </div>
+    <details id="diagnostics" class="bench-details bench-diagnostics">
+      <summary>Diagnostika · registry a sériový log</summary>
+      <p class="aw-muted">Technická hlášení firmwaru. Čtení registrů neověřuje mechanickou polohu, sílu ani odpojení napájení.</p>
+    <section class="bench-section" aria-labelledby="readback-title">
       <h2 id="readback-title">Poslední čtení registrů PCA9685</h2>
       <div id="readback" class="aw-mono"></div>
     </section>
-    <section class="aw-card" aria-labelledby="log-title">
+    <section class="bench-section" aria-labelledby="log-title">
       <h2 id="log-title">Sériový log</h2>
       <p class="aw-muted">Posledních 200 řádků. Po odpojení jde o historické údaje.</p>
       <div id="log-empty"></div>
       <pre id="log" class="aw-mono log" role="log" aria-live="polite" aria-relevant="additions" tabindex="0"></pre>
     </section>
+    </details>
   </main>
   <footer class="stop-bar" aria-label="Nouzové ovládání PWM">
     <div id="stop-actions" class="stop-actions"></div>
+    <p class="stop-help">Stop vypíná PWM signál. Při potížích vypněte také fyzické napájení 5 V serv.</p>
     <p id="noise-warning" class="noise-warning" role="alert" hidden>Vypněte V+; Stop vypíná signál, ne napájení ani zaručeně sílu serva.</p>
   </footer>
 </body>

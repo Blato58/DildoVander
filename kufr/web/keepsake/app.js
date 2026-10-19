@@ -14,6 +14,8 @@ let sharedEditionId;
 let record;
 let edition;
 let busy = false;
+let activeAction;
+let loadSequence = 0;
 let localPhoto;
 let previewUrl;
 let deletionReceipt;
@@ -56,6 +58,7 @@ class GuestError extends Error {
 }
 async function request(path, { method = 'GET', data, bytes, mediaType, consentVersion, signal } = {}) {
   const epoch = routeEpoch;
+  assertCurrent(epoch);
   const body = method === 'GET' ? undefined : bytes || JSON.stringify({ schemaVersion: 1, ...data });
   const mutationIdentity = method === 'GET' ? undefined : `${method}:${path}:${bytes ? `${bytes.name}:${bytes.size}:${bytes.lastModified}:${consentVersion}` : body}`;
   const headers = { Accept: 'application/json' };
@@ -70,7 +73,7 @@ async function request(path, { method = 'GET', data, bytes, mediaType, consentVe
     method, headers, credentials: 'same-origin', cache: 'no-store', redirect: 'error',
     body, signal: signal || controller?.signal
   });
-  if (epoch !== routeEpoch) throw new DOMException('Route changed', 'AbortError');
+  assertCurrent(epoch);
   if (!response.ok) {
     if (response.status < 500) mutationKeys.delete(mutationIdentity);
     let error = {};
@@ -78,15 +81,20 @@ async function request(path, { method = 'GET', data, bytes, mediaType, consentVe
     throw new GuestError(response.status, error.errorCode || error.code, Number(response.headers.get('Retry-After')) * 1000);
   }
   const result = response.status === 204 ? {} : await response.json();
-  if (epoch !== routeEpoch) throw new DOMException('Route changed', 'AbortError');
+  assertCurrent(epoch);
   mutationKeys.delete(mutationIdentity);
   return result;
 }
+function assertCurrent(epoch) {
+  if (epoch !== routeEpoch || document.hidden) throw new DOMException('Route changed', 'AbortError');
+}
 async function bootstrap() {
+  const epoch = routeEpoch;
   // Fresh tabs share a cookie jar. Serializing cookie initialization prevents
   // one tab from consuming a claim into a session replaced by another tab.
   if (!navigator.locks) throw new GuestError(503, 'browser_session_lock_unavailable');
   await navigator.locks.request('dv10-browser-session', async () => {
+    assertCurrent(epoch);
     const result = await request('/guest/v1/bootstrap', { method: 'POST' });
     if (result.schemaVersion !== 1 || !result.csrfToken) throw new GuestError(503);
     csrfToken = result.csrfToken;
@@ -95,7 +103,7 @@ async function bootstrap() {
 function showError(error, mutation = false) {
   if (error.name === 'AbortError') return;
   if ([401, 403, 404, 410].includes(error.status)) {
-    clearPrivateView(); visible('entry', true);
+    invalidateView(); controller = new AbortController(); visible('entry', true);
     text('entry-title', 'Odkaz není dostupný');
     text('entry-copy', 'Použij platný osobní nebo návratový odkaz. Pokud jej nemáš, požádej obsluhu kufru.');
     visible('exchange', false); visible('retry', false);
@@ -108,14 +116,47 @@ function showError(error, mutation = false) {
       : 'Archiv je teď nedostupný. Zkus obnovit spojení.');
   visible('retry', !!locator);
 }
+function invalidateView() {
+  routeEpoch++; loadSequence++; controller?.abort(); clearTimeout(timer);
+  if (activeAction) {
+    activeAction.button.textContent = activeAction.label;
+    activeAction.button.disabled = false;
+    activeAction.button.removeAttribute('aria-busy');
+  }
+  activeAction = undefined; busy = false;
+  clearPrivateView();
+}
+function operationContext(epoch) {
+  // Every continuation belongs to the route that started the operation.
+  // In particular, bootstrap may wait for another tab's session lock.
+  const path = apiPath();
+  const check = () => assertCurrent(epoch);
+  const run = async work => { check(); const result = await work(); check(); return result; };
+  return {
+    request: (path, options) => run(() => request(path, options)),
+    bootstrap: () => run(bootstrap),
+    ensureCsrf: () => run(ensureCsrf),
+    load: () => run(load),
+    downloadAsset: (id, filename) => run(() => downloadAsset(id, filename)),
+    apiPath: (suffix = '') => { check(); return path + suffix; }
+  };
+}
 async function action(button, work) {
-  if (busy) return;
-  busy = true;
+  if (busy || document.hidden) return;
   const label = button.textContent;
-  button.disabled = true; button.textContent = 'Chvilku…'; button.setAttribute('aria-busy', 'true');
+  const actionId = { button, label }; activeAction = actionId; busy = true;
+  button.disabled = true; button.textContent = 'Probíhá…'; button.setAttribute('aria-busy', 'true');
   const epoch = routeEpoch;
-  try { await work(); } catch (error) { if (epoch === routeEpoch) showError(error, true); }
-  finally { busy = false; button.textContent = label; button.disabled = false; button.removeAttribute('aria-busy'); updateActions(); }
+  updateActions();
+  try { await work(operationContext(epoch)); }
+  catch (error) { if (epoch === routeEpoch) showError(error, true); }
+  finally {
+    if (activeAction === actionId) {
+      activeAction = undefined; busy = false;
+      button.textContent = label; button.disabled = false; button.removeAttribute('aria-busy');
+      updateActions();
+    }
+  }
 }
 function assetUrl(id) { return scoped(apiPath(`/assets/${encodeURIComponent(id)}`)); }
 function stateText(job, fallback) {
@@ -222,18 +263,19 @@ function schedulePoll(delay) {
 async function load() {
   if (!locator || document.hidden) return;
   const epoch = routeEpoch;
+  const sequence = ++loadSequence;
   try {
     const view = await request(scoped(apiPath()), { signal: controller.signal });
-    if (epoch !== routeEpoch) return;
+    if (epoch !== routeEpoch || sequence !== loadSequence || document.hidden) return;
     render(view); feedback(''); visible('retry', false); schedulePoll(view.nextPollAfterMs);
   } catch (error) {
-    if (epoch !== routeEpoch) return;
+    if (epoch !== routeEpoch || sequence !== loadSequence || document.hidden) return;
     showError(error);
     if (error.status === 429 && record) schedulePoll(error.delay || 30000);
   }
 }
 async function route() {
-  routeEpoch++; controller?.abort(); controller = new AbortController(); clearTimeout(timer);
+  invalidateView(); controller = new AbortController();
   mutationKeys.clear();
   clearPrivateView(); $('privacy').close(); visible('deletion', false); visible('entry', true); feedback('');
   const query = new URLSearchParams(location.search);
@@ -250,7 +292,7 @@ async function route() {
   } else { visible('exchange', false); visible('public-overview', !locator); if (locator) { text('entry-title', 'Otevíráme archivní list'); text('entry-copy', 'Ověřujeme přístup v tomto prohlížeči.'); await load(); } }
   if (query.has('privacy')) dialogs.get('privacy').open();
 }
-$('exchange').addEventListener('click', event => action(event.currentTarget, async () => {
+$('exchange').addEventListener('click', event => action(event.currentTarget, async ({ bootstrap, request }) => {
   if (!entry?.token) return;
   await bootstrap();
   const kind = entry.kind;
@@ -265,10 +307,10 @@ $('retry').addEventListener('click', () => load());
 window.addEventListener('popstate', () => { entry = undefined; route(); });
 document.addEventListener('visibilitychange', () => {
   clearTimeout(timer);
-  if (document.hidden) { controller?.abort(); clearPrivateView(); }
+  if (document.hidden) invalidateView();
   else { controller = new AbortController(); load(); }
 });
-window.addEventListener('pagehide', () => { routeEpoch++; controller?.abort(); clearTimeout(timer); clearPrivateView(); entry = undefined; });
+window.addEventListener('pagehide', () => { invalidateView(); entry = undefined; });
 window.addEventListener('pageshow', event => { if (event.persisted) route(); });
 $('wand-art').addEventListener('error', () => {
   visible('wand-art', false); visible('art-status', true); text('art-status', 'Obraz se nepodařilo načíst. Obnov spojení.'); $('art-open').disabled = true;
@@ -282,7 +324,7 @@ async function downloadAsset(assetId, filename) {
   const response = await fetch(assetUrl(assetId), { credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal: controller.signal });
   if (!response.ok) throw new GuestError(response.status);
   const blob = await response.blob();
-  if (epoch !== routeEpoch) throw new DOMException('Route changed', 'AbortError');
+  assertCurrent(epoch);
   if (filename.endsWith('.png')) {
     const extension = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/svg+xml': '.svg' }[blob.type];
     if (extension) filename = filename.slice(0, -4) + extension;
@@ -303,9 +345,11 @@ async function downloadAsset(assetId, filename) {
   dialog.addEventListener('close', () => { URL.revokeObjectURL(url); objectUrls.delete(url); dialog.remove(); });
   document.body.append(dialog); dialog.showModal();
 }
-for (const button of document.querySelectorAll('[data-export]')) button.addEventListener('click', event => action(event.currentTarget, async () => {
+for (const button of document.querySelectorAll('[data-export]')) button.addEventListener('click', event => action(event.currentTarget, async ({ request, apiPath, ensureCsrf, downloadAsset }) => {
   if (!edition) return;
   const format = button.dataset.export;
+  const editionId = edition.id;
+  const portraitId = owner() && format === 'bundle' && $('include-portrait').checked ? activePortrait()?.id : null;
   if (format === 'art') return downloadAsset(edition.artworkAssetId, 'wand-art.png');
   if (format === 'portrait') return downloadAsset(activePortrait().assetId, 'magical-portrait.png');
   if (readOnly) {
@@ -315,8 +359,7 @@ for (const button of document.querySelectorAll('[data-export]')) button.addEvent
   }
   await ensureCsrf();
   const result = await request(scoped(apiPath('/exports')), { method: 'POST', data: {
-    editionId: edition.id, format: format === 'bundle' ? 'zip' : format,
-    portraitId: owner() && format === 'bundle' && $('include-portrait').checked ? activePortrait()?.id : null
+    editionId, format: format === 'bundle' ? 'zip' : format, portraitId
   } });
   await downloadAsset(result.asset.id, { bundle: 'bundle.zip', card: 'keepsake-card.png', story: 'story.txt' }[format]);
 }));
@@ -328,15 +371,16 @@ function showLink(result, kind) {
   text('link-purpose', kind === 'share' ? 'Pouze hůlka a příběh. Tento odkaz můžeš poslat ostatním.' : 'Soukromý klíč ke správě a portrétu. Ulož jej pouze pro sebe.');
   visible('issued-link', true); visible('native-share', kind === 'share' && !!navigator.share);
 }
-$('recovery').addEventListener('click', event => action(event.currentTarget, async () => {
+$('recovery').addEventListener('click', event => action(event.currentTarget, async ({ request, apiPath, ensureCsrf }) => {
   if (!owner()) return; await ensureCsrf(); showLink(await request(apiPath('/recovery-links'), { method: 'POST' }), 'recovery');
 }));
 $('share-preview').addEventListener('click', () => {
   text('share-description', `${record.snapshot.officialName} · ${edition?.story?.title || 'Dostupná základní edice'}`); dialogs.get('share-dialog').open();
 });
-$('issue-share').addEventListener('click', event => action(event.currentTarget, async () => {
-  if (!owner() || !edition) return; await ensureCsrf();
-  showLink(await request(apiPath('/share-links'), { method: 'POST', data: { editionId: edition.id } }), 'share'); $('share-dialog').close();
+$('issue-share').addEventListener('click', event => action(event.currentTarget, async ({ request, apiPath, ensureCsrf }) => {
+  if (!owner() || !edition) return;
+  const editionId = edition.id; await ensureCsrf();
+  showLink(await request(apiPath('/share-links'), { method: 'POST', data: { editionId } }), 'share'); $('share-dialog').close();
 }));
 $('copy-link').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText($('link-value').value); feedback('Odkaz byl zkopírován.'); }
@@ -348,16 +392,16 @@ $('native-share').addEventListener('click', async () => {
   catch (error) { if (error.name !== 'AbortError') feedback('Sdílení není dostupné. Zkopíruj odkaz.'); }
 });
 for (const [id, suffix] of [['revoke-shares', '/share-links'], ['revoke-recovery', '/recovery-links']]) {
-  $(id).addEventListener('click', event => action(event.currentTarget, async () => {
+  $(id).addEventListener('click', event => action(event.currentTarget, async ({ request, apiPath, ensureCsrf }) => {
     if (!owner()) return; await ensureCsrf(); await request(apiPath(suffix), { method: 'DELETE' });
     $('link-value').value = ''; visible('issued-link', false); feedback('Příslušné odkazy byly odvolány.');
   }));
 }
-$('revoke-access').addEventListener('click', event => action(event.currentTarget, async () => {
+$('revoke-access').addEventListener('click', event => action(event.currentTarget, async ({ request, apiPath, ensureCsrf }) => {
   if (!owner() || !confirm('Odvolat všechny přístupy včetně tohoto prohlížeče a návratových odkazů? Památka zůstane uložená. Nový přístup pak musí obnovit obsluha kufru.')) return;
-  await ensureCsrf();
-  await request(apiPath('/revoke-access'), { method: 'POST', data: { confirm: 'delete', expectedRevision: record.revision } });
-  clearPrivateView(); clearTimeout(timer); visible('entry', true);
+  const expectedRevision = record.revision; await ensureCsrf();
+  await request(apiPath('/revoke-access'), { method: 'POST', data: { confirm: 'delete', expectedRevision } });
+  invalidateView(); controller = new AbortController(); visible('entry', true);
   text('entry-title', 'Přístupy byly odvolány'); text('entry-copy', 'Památka zůstává uložená. Pro nový přístup požádej obsluhu kufru.');
 }));
 $('photo').addEventListener('change', () => {
@@ -374,7 +418,7 @@ $('photo').addEventListener('change', () => {
   updateActions();
 });
 $('photo-consent').addEventListener('change', updateActions);
-$('generate-portrait').addEventListener('click', event => action(event.currentTarget, async () => {
+$('generate-portrait').addEventListener('click', event => action(event.currentTarget, async ({ request, apiPath, ensureCsrf, load }) => {
   if (!owner() || !localPhoto || !$('photo-consent').checked || !edition) return;
   const photo = localPhoto; const editionId = edition.id; await ensureCsrf();
   const consent = await request(apiPath('/portrait-consents'), { method: 'POST', data: { accepted: true, policyVersion: 'dv10-portrait-v1' } });
@@ -384,24 +428,24 @@ $('generate-portrait').addEventListener('click', event => action(event.currentTa
   if (previewUrl) { URL.revokeObjectURL(previewUrl); objectUrls.delete(previewUrl); previewUrl = undefined; }
   feedback('Fotografie byla přijata. Portrét se připravuje.'); await load();
 }));
-$('cancel-portrait').addEventListener('click', event => action(event.currentTarget, async () => {
+$('cancel-portrait').addEventListener('click', event => action(event.currentTarget, async ({ request, apiPath, ensureCsrf, load }) => {
   if (!owner()) return; const job = record.jobs.filter(item => item.kind === 'portrait').at(-1); if (!job) return;
   await ensureCsrf(); await request(apiPath(`/portraits/${encodeURIComponent(job.id)}/cancel`), { method: 'POST' }); await load();
 }));
-$('cancel-base').addEventListener('click', event => action(event.currentTarget, async () => {
+$('cancel-base').addEventListener('click', event => action(event.currentTarget, async ({ request, apiPath, ensureCsrf, load }) => {
   if (!owner()) return; const job = record.jobs.filter(j => j.kind === 'base').at(-1); if (!job) return;
   await ensureCsrf(); await request(apiPath(`/generation/${encodeURIComponent(job.id)}/cancel`), { method: 'POST' });
   feedback('Příprava byla zastavena. Již vytvořený obsah zůstává uložený.'); await load();
 }));
 $('revoke-consent').addEventListener('click', () => { if (owner()) openDelete('portrait'); });
-$('load-history').addEventListener('click', event => action(event.currentTarget, async () => {
+$('load-history').addEventListener('click', event => action(event.currentTarget, async ({ request, apiPath }) => {
   if (!owner()) return;
   const history = await request(apiPath('/history'));
   const holder = $('portrait-history'); holder.replaceChildren();
   for (const portrait of history.portraits || []) {
     const button = document.createElement('button'); button.className = 'text-button';
     button.textContent = `${portrait.synthetic ? 'Syntetická ukázka · ' : ''}Portrét ${new Date(portrait.createdAt).toLocaleString('cs')}`;
-    button.addEventListener('click', event => action(event.currentTarget, () => downloadAsset(portrait.assetId, 'magical-portrait.png'))); holder.append(button);
+    button.addEventListener('click', event => action(event.currentTarget, ({ downloadAsset }) => downloadAsset(portrait.assetId, 'magical-portrait.png'))); holder.append(button);
   }
   if (!holder.childNodes.length) holder.textContent = 'Žádné dřívější portréty.';
 }));
@@ -425,14 +469,17 @@ function renderDeletion(receipt) {
   text('deletion-status', `Místní kopie: ${label(receipt.localState)}. Poskytovatel: ${label(receipt.providerState)}. Zálohy: ${label(receipt.backupState)}.`);
   visible('deletion', true); visible('entry', false);
 }
-$('delete-submit').addEventListener('click', event => action(event.currentTarget, async () => {
+$('delete-submit').addEventListener('click', event => action(event.currentTarget, async ({ request, apiPath, ensureCsrf }) => {
   if (!owner() || $('delete-confirm').value !== 'SMAZAT') return;
-  await ensureCsrf(); const expectedRevision = record.revision;
-  const result = await request(apiPath(deleteScope === 'portrait' ? '/portrait' : ''), { method: 'DELETE', data: { confirm: 'delete', expectedRevision } });
-  $('delete-dialog').close(); clearPrivateView(); clearTimeout(timer); renderDeletion(result.receipt);
-  if (deleteScope === 'portrait') { await load(); renderDeletion(result.receipt); }
+  const expectedRevision = record.revision; const scope = deleteScope; await ensureCsrf();
+  const result = await request(apiPath(scope === 'portrait' ? '/portrait' : ''), { method: 'DELETE', data: { confirm: 'delete', expectedRevision } });
+  invalidateView(); controller = new AbortController(); renderDeletion(result.receipt);
+  if (scope === 'portrait') {
+    const epoch = routeEpoch; await load();
+    if (epoch === routeEpoch) renderDeletion(result.receipt);
+  }
 }));
-$('deletion-refresh').addEventListener('click', event => action(event.currentTarget, async () => {
+$('deletion-refresh').addEventListener('click', event => action(event.currentTarget, async ({ request }) => {
   if (!deletionReceipt?.id) return;
   const result = await request(`/guest/v1/deletions/${encodeURIComponent(deletionReceipt.id)}`); renderDeletion(result.receipt);
 }));

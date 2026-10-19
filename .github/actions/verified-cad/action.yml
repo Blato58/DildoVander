@@ -47,6 +47,9 @@ runs:
         CAD_SOURCE_PR: ${{ steps.trusted.outputs.source-pr }}
         CAD_SOURCE_MERGE: ${{ steps.trusted.outputs.source-merge-sha }}
         CAD_SOURCE_BUILT: ${{ steps.trusted.outputs.source-built-sha }}
+        CAD_SOURCE_BASIS: ${{ steps.trusted.outputs.source-basis }}
+        CAD_SOURCE_BASE: ${{ steps.trusted.outputs.source-base-sha }}
+        CAD_SOURCE_AUTH_MAIN: ${{ steps.trusted.outputs.source-main-sha }}
         CAD_MAIN_SHA: ${{ github.sha }}
       run: python3 scripts/ci/cad_result.py promote
     - name: Discard missing or invalid restored output staging
@@ -109,11 +112,13 @@ runs:
         CAD_SOURCE_SCOPE: ${{ steps.trusted.outputs.scope }}
         CAD_SOURCE_RUN: ${{ steps.trusted.outputs.run-id }}
         CAD_SOURCE_PR: ${{ steps.trusted.outputs.source-pr }}
+        CAD_SOURCE_BASIS: ${{ steps.trusted.outputs.source-basis }}
       run: |
         {
           echo '### CAD manufacturing'
           echo "- Trusted CAD artifact: ${CAD_ARTIFACT_ID:-none}"
           echo "- Verification source: ${CAD_SOURCE_SCOPE:-fresh}; original run: ${CAD_SOURCE_RUN:-current}"
+          echo "- Source proof: ${CAD_SOURCE_BASIS:-canonical-main-or-fresh}"
           echo "- Verified result reused: ${CAD_HIT:-false}; force: $CAD_FORCE"
           if [[ "$CAD_HIT" == true && "$CAD_SOURCE_SCOPE" == merged-pr ]]; then
             echo "- Promoted verified PR #$CAD_SOURCE_PR result to main after server merge and source-tree authentication; original CAD verification retained."

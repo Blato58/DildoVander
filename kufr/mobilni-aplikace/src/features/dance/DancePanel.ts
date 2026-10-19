@@ -1,5 +1,6 @@
 import { button } from '../../../../design-system/ui.js';
 import type { DeviceSnapshot } from '../device_connection/FakeDeviceConnection';
+import { liveActionBlocker } from '../device_connection/OperatorReadiness';
 
 interface DanceConnection { startDance(): boolean; stopDance(): boolean; }
 
@@ -17,6 +18,7 @@ export class DancePanel {
         <progress aria-label="Průběh skladby" max="1" value="0"></progress>
         <span data-dance-time></span>
       </div>
+      <p class="availability-blocker" data-dance-availability></p>
       <div class="actions">
         ${button({ label: "Dance for me", variant: 'primary', disabled: true, attributes: {"data-dance": "start"} })}
         ${button({ label: "Zastavit tanec", disabled: true, attributes: {"data-dance": "stop"} })}
@@ -31,6 +33,9 @@ export class DancePanel {
   update(snapshot: DeviceSnapshot): void {
     const dance = snapshot.dance;
     const native = snapshot.source === 'native-device';
+    const blocker = this.element.querySelector<HTMLElement>('[data-dance-availability]')!;
+    blocker.textContent = liveActionBlocker(snapshot, 'dance');
+    blocker.hidden = !blocker.textContent;
     const start = this.element.querySelector<HTMLButtonElement>('[data-dance="start"]')!;
     start.disabled = !native || dance?.canStart !== true || snapshot.busy;
     start.setAttribute('aria-busy', String(dance?.pending === true));

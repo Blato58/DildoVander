@@ -29,7 +29,11 @@ const pendingDownloads = new Set();
 
 function text(id, value) { $(id).textContent = value ?? ''; }
 function visible(id, shown) { $(id).hidden = !shown; }
+let lastStatus;
 function status(message, tone = 'info') {
+  const signature = `${tone}:${message}`;
+  if (lastStatus === signature) return;
+  lastStatus = signature;
   $('evening-status').replaceChildren(element(notice({ message, tone })));
 }
 function empty(title, message) {
@@ -162,9 +166,16 @@ function renderSelection() {
   renderArtwork(selected);
   for (const [key, node] of listNodes) node.firstElementChild.setAttribute('aria-pressed', String(key === itemKey(selected)));
 }
-function select(item, manual = true) {
+function select(item, manual = true, reveal = false) {
   if (!item || !eveningId) return;
   setSelected(item); followsLatest = !manual; renderSelection();
+  if (manual) {
+    status(`Vybraná hůlka: ${item.officialName}. Příběh a soubory jsou připravené níže.`);
+    if (reveal) {
+      $('public-name').focus({ preventScroll: true });
+      $('public-edition').scrollIntoView({ block: 'start', behavior: 'auto' });
+    }
+  }
 }
 function renderList() {
   const wanted = new Set(items.map(itemKey));
@@ -177,7 +188,7 @@ function renderList() {
       const button = element(wandCard({ title: item.officialName, subtitle: item.story.title || 'Příběh se připravuje', number: item.slot ?? undefined }));
       button.classList.add('evening-item');
       button.append(element(statusBadge({ label: '', tone: 'neutral' })));
-      button.addEventListener('click', () => select(items.find(candidate => itemKey(candidate) === key)));
+      button.addEventListener('click', event => select(items.find(candidate => itemKey(candidate) === key), true, event.detail > 0));
       node.append(button); listNodes.set(key, node);
     }
     const button = node.firstElementChild;
@@ -189,8 +200,10 @@ function renderList() {
     if (position !== node) $('evening-list').insertBefore(node, position || null);
   });
   visible('evening-list-section', items.length > 0);
-  text('item-count', `Zobrazeno ${items.length} příběhů`);
-  visible('load-more', !!nextCursor); $('load-more').disabled = paging;
+  text('item-count', `${items.length} ${olderPage ? 'dřívějších' : 'nejnovějších'} příběhů · výběrem otevřeš detail`);
+  visible('load-more', !!nextCursor); $('load-more').disabled = paging || refreshing;
+  $('load-more').textContent = paging ? 'Načítáme další…' : 'Načíst další hůlky';
+  if (paging) $('load-more').setAttribute('aria-busy', 'true'); else $('load-more').removeAttribute('aria-busy');
   visible('first-page', olderPage);
 }
 function schedule(delay = 10000) {
@@ -206,6 +219,8 @@ function handleUnavailable(error) {
 async function refresh() {
   if (document.hidden || refreshing) return;
   refreshing = true; paging = false;
+  $('refresh-evening').textContent = 'Obnovujeme…';
+  $('load-more').textContent = 'Načíst další hůlky'; $('load-more').removeAttribute('aria-busy');
   $('refresh-evening').disabled = true; $('refresh-evening').setAttribute('aria-busy', 'true'); $('load-more').disabled = true;
   controller?.abort(); controller = new AbortController();
   const epoch = ++requestEpoch;
@@ -242,12 +257,12 @@ async function refresh() {
     }
     handleUnavailable(error); schedule(error.retryAfterMs || 15000);
   } finally {
-    if (epoch === requestEpoch) { refreshing = false; $('refresh-evening').disabled = false; $('refresh-evening').removeAttribute('aria-busy'); $('load-more').disabled = false; }
+    if (epoch === requestEpoch) { refreshing = false; $('refresh-evening').textContent = 'Obnovit přehled'; $('refresh-evening').disabled = false; $('refresh-evening').removeAttribute('aria-busy'); $('load-more').disabled = false; }
   }
 }
 async function loadMore() {
   if (!nextCursor || paging || refreshing || !eveningId) return;
-  paging = true; $('load-more').disabled = true;
+  paging = true; $('load-more').disabled = true; $('load-more').textContent = 'Načítáme další…'; $('load-more').setAttribute('aria-busy', 'true');
   const epoch = requestEpoch; const previousEvening = eveningId;
   const requestedCursor = nextCursor;
   try {
@@ -264,7 +279,7 @@ async function loadMore() {
     if (epoch !== requestEpoch || error.name === 'AbortError') return;
     if (error.status === 409) { clearScope(); eveningId = undefined; followsLatest = true; await refresh(); }
     else status('Další příběhy se nepodařilo načíst. Zkus načtení znovu.');
-  } finally { if (epoch === requestEpoch) { paging = false; $('load-more').disabled = false; } }
+  } finally { if (epoch === requestEpoch) { paging = false; $('load-more').disabled = false; $('load-more').textContent = 'Načíst další hůlky'; $('load-more').removeAttribute('aria-busy'); } }
 }
 async function download(button) {
   const item = selected; const asset = assetOf(item, button.dataset.publicDownload);

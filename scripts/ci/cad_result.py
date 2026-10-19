@@ -174,8 +174,9 @@ def output(name, value):
 def promote(out, identity, sources, environment):
     """Record server-authenticated source promotion; preserve original acceptance.
 
-    Only the composite's merged-pr state may invoke this after whole-run source
-    equality and the full receipt checks. These fields are diagnostics, never
+    Only the composite's merged-pr state may invoke this after exact whole-run
+    source proof or authenticated main inheritance and full receipt checks.
+    These fields are diagnostics, never
     a replacement for the resolver's independent GitHub provenance checks.
     """
     saved = read_receipt(out)
@@ -194,9 +195,21 @@ def promote(out, identity, sources, environment):
         if not re.fullmatch('[a-f0-9]{40}', value):
             raise ValueError('Missing promotion source ' + field)
         provenance[field] = value
+    basis = environment.get('CAD_SOURCE_BASIS', '')
+    if basis not in ('exact', 'inherited-main'):
+        raise ValueError('Missing promotion source proof')
+    provenance['source_proof'] = basis
+    if basis == 'inherited-main':
+        for field, variable in (('original_base_sha', 'CAD_SOURCE_BASE'),
+                                ('authenticated_main_sha', 'CAD_SOURCE_AUTH_MAIN')):
+            value = environment.get(variable, '')
+            if not re.fullmatch('[a-f0-9]{40}', value):
+                raise ValueError('Missing promotion source ' + field)
+            provenance[field] = value
     provenance['original_receipt_sha256'] = digest(out / RECEIPT)
     provenance['mechanical_validation_performed'] = False
-    provenance['basis'] = 'Merged PR; complete executed source tree matches canonical main; accepted bytes verified'
+    provenance['basis'] = ('Merged PR; executed sources match exactly or differ only by '
+                           'authenticated changes inherited from canonical main; accepted bytes verified')
     saved['promotion'] = provenance
     temporary = out / '.trusted-result.tmp'
     temporary.write_text(json.dumps(saved, sort_keys=True) + '\n', encoding='utf-8')

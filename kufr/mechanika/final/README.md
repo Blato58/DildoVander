@@ -177,6 +177,11 @@ Opakovaný běh stejného PR může převzít svůj úspěšný výsledek při s
 skutečného Git stromu všech spustitelných vstupů celého běhu. Výjimkou jsou
 jen konkrétní pasivní tracking JSON a STATUS; kód jiného CI jobu se také
 porovnává, protože identita artefaktu sama neurčuje jeho nahrávající job.
+Povolené jsou navíc změny převzaté z kanonického `main`: původní PR daný
+soubor nesmělo změnit a aktuální bytes, typ i režim musí odpovídat `main`.
+Serverový merge commit a historie musí prokázat původní base → aktuální main
+→ checkout. Změna vlastního kódu PR tuto výjimku nesplní. Receipt rozlišuje
+přesnou shodu od této ověřené dědičnosti a uchovává příslušná SHA.
 Neúplná provenience nebo změna těchto vstupů znamená bezpečný cache miss.
 Po merge tato kontrola navíc ověří serverový stav PR, cílový `main` a předka
 aktuální větve. Výsledek se potom publikuje jako main artefakt s vazbou na
