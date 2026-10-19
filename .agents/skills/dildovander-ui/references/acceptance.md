@@ -43,7 +43,11 @@ include `parameters.json`, `assembly-guide.json`, `effects.json` and `harness.py
 
 Run focused viewer checks when relevant: `node --check viewer.js` and
 `node --test test_viewer.cjs` from `kufr/mechanika/final`. When viewer/generation
-source changes, use `Regenerate.ps1 -Python <prepared-python>` from that directory
+source changes, first use the dependency policy in `scripts/ci/cad_impact.py`.
+Reviewed viewer HTML/CSS/JS changes use the focused tests and the CAD-free
+`refresh_package.py` path over trusted mesh data; they do not require CAD,
+slicing, exports or PNG rendering. For geometry-producing inputs only, use
+`Regenerate.ps1 -Python <prepared-python>` from that directory
 with its documented requirements. It runs source checks, generates artifacts,
 verifies them and packages the result. Inspect the generated offline viewer and
 its provenance; a source test alone does not prove the HTML/ZIP output. Do not

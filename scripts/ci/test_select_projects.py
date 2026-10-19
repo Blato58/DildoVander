@@ -50,9 +50,9 @@ class ProjectSelectionTests(unittest.TestCase):
         self.assertEqual(self.selected(".github/workflows/ci.yml"), {"repository"})
         self.assertEqual(self.selected("scripts/ci/select_projects.py"), {"repository"})
         self.assertEqual(self.selected(".github/workflows/kufr-site.yml"), {"repository", "site"})
-        # This wrapper/filter is covered by repository/actionlint checks. Actual
-        # manufacturing commands live in the separately selected verified-cad action.
-        self.assertEqual(self.selected(".github/workflows/kufr-cad.yml"), {"repository"})
+        # The wrapper selects the hosted runtime and composite inputs, so its
+        # changes conservatively require manufacturing validation as well.
+        self.assertEqual(self.selected(".github/workflows/kufr-cad.yml"), {"repository", "cad"})
         self.assertEqual(self.selected(".github/workflows/kufr-ios.yml"), {"repository", "ios"})
         self.assertEqual(self.selected(".github/workflows/kufr-ios-sign.yml"), {"repository", "ios"})
 
@@ -84,16 +84,30 @@ class ProjectSelectionTests(unittest.TestCase):
         self.assertEqual(self.selected("kufr/firmware/diagnostics/servo-bench/web/panel.css"), {"site"})
         self.assertEqual(self.selected("kufr/firmware/diagnostics/servo-bench/src/main.cpp"), {"firmware"})
 
-    def test_main_cad_workflow_exclusions_match_the_pr_selector(self):
-        from select_projects import VIEWER_UI_FILES
-        workflow = (Path(__file__).resolve().parents[2] / '.github/workflows/kufr-cad.yml').read_text()
-        for name in VIEWER_UI_FILES:
-            self.assertIn("- '!kufr/mechanika/final/" + name + "'", workflow)
+    def test_presentation_policy_matches_the_pr_selector(self):
+        from cad_impact import SOURCE_POLICY
+        for name in SOURCE_POLICY.PRESENTATION_SOURCES:
+            with self.subTest(name=name):
+                self.assertEqual(self.selected("kufr/mechanika/final/" + name), {"site"})
 
     def test_recovery_site_covers_cad_without_a_duplicate_job(self):
         self.assertFalse(select_recovery_projects("all")["cad"])
         self.assertTrue(select_recovery_projects("all")["site"])
         self.assertEqual({name for name, enabled in select_recovery_projects("cad").items() if enabled}, {"cad"})
+        for project in ("all", "site"):
+            with self.subTest(project=project):
+                self.assertFalse(select_recovery_projects(project, force_cad=True)["cad"])
+                self.assertTrue(select_recovery_projects(project, force_cad=True)["site"])
+        self.assertTrue(select_recovery_projects("backend", force_cad=True)["cad"])
+
+    def test_presentation_inputs_select_lightweight_site_checks(self):
+        for path in ["viewer.js", "viewer_style.py", "viewer_document.py",
+                     "viewer-template.html", "twin_media.css", "test_viewer_document.py",
+                     "viewer_ui.js", "viewer_runtime.py", "workshop-ui-runtime.js",
+                     "ui_test_runtime.cjs", "preview_ui_fixture.py", "refresh_viewer.py",
+                     "README.md", "VIEWER.md"]:
+            with self.subTest(path=path):
+                self.assertEqual(self.selected("kufr/mechanika/final/" + path), {"site"})
 
     def test_git_diff_includes_both_sides_of_a_rename(self):
         with tempfile.TemporaryDirectory() as folder:

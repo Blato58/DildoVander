@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "observedAtUtc": "2026-10-19T00:39:35Z",
+  "result": "pass",
+  "subject": {
+    "artifactDigest": "516ba92f703449af10934d51f072cf484309c69d1780922abe8bd05f83d448e7"
+  },
+  "evidenceId": "KUFR-CAD-INCREMENTAL-main211-local",
+  "kind": "unit",
+  "claims": [
+    {
+      "workItemId": "KUFR-CAD-INCREMENTAL",
+      "criterionId": "IMPACT",
+      "criterionRevision": 4,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-CAD-INCREMENTAL",
+      "criterionId": "REUSE",
+      "criterionRevision": 4,
+      "result": "pass"
+    }
+  ],
+  "environment": "Windows task checkout integrated origin/main b44e192cc1ff148dfe73a663f2ddd5c39527d36d; existing pinned6d2b CAD environment.",
+  "method": "Pinned seven unittest modules117 passed; scripts/ci test_cad*.py27, selector13, workflow9, Node63, web23 with3 platform skips; shared UI npm+Python9, token check, design integrity and actionlint passed.",
+  "observation": "No full local CAD rebuild. Tiny native cache serialization/roundtrip fixture only. Concurrent UI211 preserved; snapshots prepared before hash, exact presentation policy shared by selection and trusted refresh.",
+  "limitations": [
+    "Hosted acceptance remains pending. Digest: sorted27 nontracking paths differing from origin/main b44e192, UTF-8 path+NUL+staged Git blob bytes+NUL."
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "observedAtUtc": "2026-10-19T01:33:53Z",
+  "result": "pass",
+  "subject": {
+    "artifactDigest": "0315ccb8e1afc7c73b7b9f0464cc9b041aef1404287f9f2fcda5a5b8cbdf11b3"
+  },
+  "environment": "Windows task checkout integrated origin/main b703ce3886636159fb602b48384fe2ebbbdb6a2f; Python3.14/Node/actionlint.",
+  "limitations": [
+    "New policy hosted acceptance pending. Earlier full native run39181940875 passed previous source identity; it is not reused as current acceptance.",
+    "Digest: sorted27 nontracking paths differing from origin/main b703ce3, UTF-8 path+NUL+staged Git blob bytes+NUL."
+  ],
+  "evidenceId": "KUFR-CAD-INCREMENTAL-inheritance-review",
+  "kind": "source_review",
+  "claims": [
+    {
+      "workItemId": "KUFR-CAD-INCREMENTAL",
+      "criterionId": "REUSE",
+      "criterionRevision": 5,
+      "result": "pass"
+    }
+  ],
+  "method": "Independent Sol6.1/high fallback/metadata review: resolver23+result11+workflow9 =43 passed; parent inspected combined diff.",
+  "observation": "No actionable findings after correcting exact-tree wording. API/ancestry and complete path proof sound; exact key boundary unchanged. Original receipt/runtime/acceptance retained; source proof basis/base/main SHA recorded, no fresh mechanical claim on promotion."
+}

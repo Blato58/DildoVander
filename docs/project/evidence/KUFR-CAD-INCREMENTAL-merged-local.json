@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-CAD-INCREMENTAL-merged-local",
+  "observedAtUtc": "2026-10-19T00:27:18Z",
+  "kind": "unit",
+  "result": "pass",
+  "claims": [
+    {"workItemId": "KUFR-CAD-INCREMENTAL", "criterionId": "IMPACT", "criterionRevision": 3, "result": "pass"},
+    {"workItemId": "KUFR-CAD-INCREMENTAL", "criterionId": "REUSE", "criterionRevision": 3, "result": "pass"}
+  ],
+  "subject": {"artifactDigest": "802ae634db8be76f6cd1eab1f685fb88cfb284b3a15a62dd02129a765596a306"},
+  "environment": "Windows task checkout integrated with main ea63d4c7bec8c64210c470a5f9789534e3613f63; existing pinned 6d2b CAD Python; default Python3.14/Node/actionlint.",
+  "method": "Pinned seven targeted unittest modules:114 passed including native cache stability and export roundtrip. scripts/ci test_cad*.py:26; test_site_workflow:9; Node scripts/ci/*.test.cjs:63; kufr/web unittest20 with3 platform skips; scripts/check_design_system.py and actionlint passed. Live GitHub run39177006132 metadata inspected read-only.",
+  "observation": "Preserved concurrent UI209; resolved only generated STATUS conflict with renderer. Existing new refresh_viewer.py is CAD-free preview and now presentation-classified. Live merged run metadata has empty pull_requests; resolver derives PR from its authenticated canonical referenced-workflow refs/pull/N/merge and validates optional nonempty lists for consistency. New rejection/acceptance matrices pass without weakening source/merge/ancestry checks.",
+  "limitations": ["No full suitcase CAD, deployment or hardware run locally. Final hosted checks/promotion remain pending.", "Digest recipe is sorted27 implementation/guidance/test paths changed relative to integrated origin/main ea63d4c, excluding docs/project: UTF-8 path + NUL + exact bytes + NUL."]
+}

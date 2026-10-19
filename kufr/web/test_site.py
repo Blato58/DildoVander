@@ -223,6 +223,14 @@ class CadPromotionTests(unittest.TestCase):
                     archive.write(root / name, name)
             (out / 'package-sha256.txt').write_text(builder.digest(package) + '  ' + package.name)
             self.assertEqual(builder.verified_exports(root)[0]['revision'], 'F2')
+            # Added unknown/nested inputs must invalidate promotion, even when
+            # every previously recorded source and export still matches.
+            extra = root / 'nested/new-dimensions.yaml'
+            extra.parent.mkdir()
+            extra.write_bytes(b'width: 42')
+            with self.assertRaisesRegex(ValueError, 'source inventory changed'):
+                builder.verified_exports(root)
+            extra.unlink()
             (out / 'old.zip').write_bytes(b'unverified old export')
             self.assertNotIn('old.zip', builder.verified_exports(root)[1])
             (out / 'viewer.html').write_bytes(b'changed viewer')

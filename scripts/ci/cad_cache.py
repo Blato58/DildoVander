@@ -84,7 +84,11 @@ def main():
     identity = regenerate.prepared_identity()
     if not args.force:
         promote_legacy_cache(FINAL, FINAL / 'exports', identity, regeneration_cache)
-    regenerate.regenerate(force=args.force)
+    generation_ready = False
+    if not args.force and (FINAL / 'exports/trusted-result.json').is_file():
+        from cad_result import reuse_generation
+        generation_ready = reuse_generation(FINAL / 'exports', identity['environment'])
+    regenerate.regenerate(force=args.force, generation_ready=generation_ready)
 
 
 if __name__ == '__main__':

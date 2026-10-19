@@ -2,48 +2,24 @@ name: Verify CAD manufacturing package
 
 on:
   workflow_call:
-  # PR caches are scoped to their merge ref. Warm main so later PRs can reuse it.
+    inputs:
+      force:
+        description: Regenerate complete CAD without reusing verified outputs
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Regenerate complete CAD without reusing verified outputs
+        type: boolean
+        default: false
+  # Main warms trusted results. Irrelevant pushes stop before any tool setup.
   push:
     branches: [main]
-    paths:
-      - 'kufr/mechanika/final/**'
-      # Viewer chrome consumes existing geometry; it has a separate site gate.
-      - '!kufr/mechanika/final/viewer.js'
-      - '!kufr/mechanika/final/viewer-template.html'
-      - '!kufr/mechanika/final/viewer-workshop.css'
-      - '!kufr/mechanika/final/viewer_style.py'
-      - '!kufr/mechanika/final/viewer_document.py'
-      - '!kufr/mechanika/final/viewer_ui.py'
-      - '!kufr/mechanika/final/viewer_ui.js'
-      - '!kufr/mechanika/final/refresh_viewer.py'
-      - '!kufr/mechanika/final/workshop-design-system.css'
-      - '!kufr/mechanika/final/twin_viewer.js'
-      - '!kufr/mechanika/final/twin_media.js'
-      - '!kufr/mechanika/final/twin_media.css'
-      - '!kufr/mechanika/final/twin-viewer.css'
-      - '!kufr/mechanika/final/test_viewer.cjs'
-      - '!kufr/mechanika/final/test_viewer_style.py'
-      - '!kufr/mechanika/final/test_viewer_document.py'
-      - '!kufr/mechanika/final/test_twin_viewer.cjs'
-      - '!kufr/mechanika/final/test_twin_media.cjs'
-      - '!kufr/mechanika/final/test_twin_media_browser.cjs'
-      - '!kufr/mechanika/final/viewer_runtime.py'
-      - '!kufr/mechanika/final/workshop-ui-runtime.js'
-      - '!kufr/mechanika/final/ui_test_runtime.cjs'
-      - '!kufr/mechanika/final/preview_ui_fixture.py'
-      - '!kufr/mechanika/final/show_timeline.js'
-      - '!kufr/mechanika/final/test_show_timeline.cjs'
-      - '!kufr/mechanika/final/VIEWER.md'
-      - 'kufr/mechanika/rozmery-nakoupenych-soucastek.md'
-      - 'kufr/docs/zapojeni-potvrzeneho-hardwaru.md'
-      - 'scripts/ci/install-cad-slicer.sh'
-      - 'scripts/ci/cad_cache.py'
-      - 'scripts/ci/test_cad_cache.py'
-      - 'kufr/mobilni-aplikace/.nvmrc'
-      - '.github/actions/verified-cad/**'
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   # Background main warming must not cancel a requested recovery verification.
@@ -60,8 +36,25 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
+      - name: Select manufacturing impact before installing tools
+        id: impact
+        env:
+          CAD_EVENT: ${{ github.event_name }}
+          CAD_BASE: ${{ github.event.before }}
+          CAD_HEAD: ${{ github.sha }}
+        run: |
+          if [ "$CAD_EVENT" = push ] && [ "$CAD_BASE" != 0000000000000000000000000000000000000000 ]; then
+            python3 scripts/ci/select_projects.py select --base "$CAD_BASE" --head "$CAD_HEAD"
+          else
+            echo 'cad=true' >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: steps.impact.outputs.cad == 'true'
         with:
           node-version-file: kufr/mobilni-aplikace/.nvmrc
       - name: Verify source-bound CAD outputs
+        if: steps.impact.outputs.cad == 'true'
         uses: ./.github/actions/verified-cad
+        with:
+          force: ${{ inputs.force || false }}

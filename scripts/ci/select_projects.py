@@ -7,6 +7,8 @@ from pathlib import PurePosixPath
 import re
 import subprocess
 
+from cad_impact import classify_path, impact_plan
+
 
 PROJECTS = ("repository", "backend", "firmware", "web", "ios", "ai-eval", "site", "cad")
 BUILD_WORKFLOWS = {
@@ -19,45 +21,14 @@ BUILD_WORKFLOWS = {
     ".github/workflows/kufr-site.yml": "site",
 }
 
-CAD_INPUTS = {
-    "kufr/docs/zapojeni-potvrzeneho-hardwaru.md",
-    "kufr/mechanika/rozmery-nakoupenych-soucastek.md",
-    "scripts/ci/install-cad-slicer.sh",
-    "scripts/ci/cad_cache.py",
-    "scripts/ci/test_cad_cache.py",
-    "kufr/mobilni-aplikace/.nvmrc",
-}
-
-# These files render an existing model; none changes manufacturing geometry.
-# Keep this exact allowlist conservative: an unknown mechanical file still
-# selects the manufacturing gate.
-VIEWER_UI_FILES = {
-    "viewer.js", "viewer-template.html", "viewer-workshop.css", "viewer_style.py",
-    "viewer_document.py", "viewer_ui.py", "viewer_ui.js", "refresh_viewer.py", "workshop-design-system.css",
-    "twin_viewer.js", "twin_media.js", "twin_media.css", "twin-viewer.css",
-    "test_viewer.cjs", "test_viewer_style.py", "test_viewer_document.py",
-    "test_twin_viewer.cjs", "test_twin_media.cjs", "test_twin_media_browser.cjs",
-    "viewer_runtime.py", "workshop-ui-runtime.js", "ui_test_runtime.cjs", "preview_ui_fixture.py",
-    "show_timeline.js", "test_show_timeline.cjs",
-    "VIEWER.md",
-}
-
-
-def is_manufacturing_input(path):
-    if path.startswith("kufr/mechanika/final/"):
-        relative = path.removeprefix("kufr/mechanika/final/")
-        return relative not in VIEWER_UI_FILES
-    return path.startswith(".github/actions/verified-cad/") or path in CAD_INPUTS
-
-
 def select_projects(paths):
     selected = dict.fromkeys(PROJECTS, False)
     for path in paths:
         parts = PurePosixPath(path).parts
-        cad_input = is_manufacturing_input(path)
-        if not cad_input and ("docs" in parts or PurePosixPath(path).suffix.lower() in {".md", ".mdx", ".rst"}):
+        cad_impact = classify_path(path)
+        if cad_impact == "none" and ("docs" in parts or PurePosixPath(path).suffix.lower() in {".md", ".mdx", ".rst"}):
             continue
-        if cad_input:
+        if cad_impact == "manufacturing":
             selected["cad"] = True
         if path.startswith((".github/", "scripts/ci/")):
             selected["repository"] = True
@@ -129,12 +100,37 @@ def check_results(selected, jobs):
         raise ValueError("Unexpected CI results: " + ", ".join(failed))
 
 
-def select_recovery_projects(project):
+def select_recovery_projects(project, force_cad=False):
     selected = {name: project in ("all", name) for name in PROJECTS}
     # Recovery site builds already run full CAD verification before packaging.
     if project == "all":
         selected["cad"] = False
+    if force_cad and not selected["site"]:
+        selected["cad"] = True
     return selected
+
+
+def write_cad_summary(paths, selected, recovery=None):
+    destination = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not destination:
+        return
+    plan = impact_plan(paths)
+    causes = plan["causes"]["manufacturing"]
+    with open(destination, "a", encoding="utf-8") as summary:
+        summary.write("### CAD impact\n\n")
+        summary.write(f"- Manufacturing job selected: {str(selected['cad']).lower()}\n")
+        if recovery:
+            summary.write(f"- Explicit recovery scope: {recovery}; site recovery verifies manufacturing once.\n")
+        elif causes:
+            summary.write("- Affected owners: " + ", ".join(plan["owners"]) + "\n")
+            for cause in causes[:12]:
+                summary.write("- Input: " + json.dumps(cause["path"], ensure_ascii=True) + "\n")
+            if len(causes) > 12:
+                summary.write(f"- {len(causes) - 12} additional manufacturing inputs.\n")
+        else:
+            summary.write("- No manufacturing dependency changed; CAD setup, geometry, renders, slicer and mechanical verification skipped.\n")
+        if plan["causes"]["viewer"]:
+            summary.write(f"- Viewer inputs: {len(plan['causes']['viewer'])}; focused viewer checks apply.\n")
 
 
 def main():
@@ -143,15 +139,19 @@ def main():
     parser.add_argument("--base")
     parser.add_argument("--head")
     parser.add_argument("--project", choices=("all",) + PROJECTS)
+    parser.add_argument("--force-cad", action="store_true")
     args = parser.parse_args()
     if args.mode == "check":
         check_results(json.loads(os.environ["SELECTED_PROJECTS"]), json.loads(os.environ["RESULTS"]))
         print("Every selected project passed; unrelated projects were skipped")
         return
+    paths = []
     if args.project:
-        selected = select_recovery_projects(args.project)
+        selected = select_recovery_projects(args.project, args.force_cad)
     else:
-        selected = select_projects(changed_paths(args.base, args.head))
+        paths = changed_paths(args.base, args.head)
+        selected = select_projects(paths)
+    write_cad_summary(paths, selected, args.project)
     print(json.dumps(selected, sort_keys=True))
     if os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
