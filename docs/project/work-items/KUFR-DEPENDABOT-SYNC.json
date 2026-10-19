@@ -33,11 +33,11 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "03aab8fa00f74ffbd081501e117fae83f823590ece17d3917de5f4629a2993e1"
+        "artifactDigest": "e28318b69d4f6598bf2ace3f7c808ecbce7ae2a80eb3c63d706a0dcb6070e167"
       },
       "evidenceRefs": [
-        "KUFR-DEPENDABOT-SYNC-local-unit",
-        "KUFR-DEPENDABOT-SYNC-local-review"
+        "KUFR-DEPENDABOT-SYNC-native-build-unit",
+        "KUFR-DEPENDABOT-SYNC-native-build-review"
       ]
     },
     {
@@ -48,7 +48,7 @@
         "integration"
       ],
       "appliesTo": {
-        "artifactDigest": "03aab8fa00f74ffbd081501e117fae83f823590ece17d3917de5f4629a2993e1"
+        "artifactDigest": "e28318b69d4f6598bf2ace3f7c808ecbce7ae2a80eb3c63d706a0dcb6070e167"
       },
       "evidenceRefs": [
         "KUFR-DEPENDABOT-SYNC-local-backend"
@@ -62,15 +62,17 @@
         "integration"
       ],
       "appliesTo": {
-        "artifactDigest": "03aab8fa00f74ffbd081501e117fae83f823590ece17d3917de5f4629a2993e1"
+        "artifactDigest": "e28318b69d4f6598bf2ace3f7c808ecbce7ae2a80eb3c63d706a0dcb6070e167"
       },
-      "evidenceRefs": []
+      "evidenceRefs": [
+        "KUFR-DEPENDABOT-SYNC-native-rehearsal-v1"
+      ]
     }
   ],
   "blockers": [],
-  "currentNote": "Implemented read-only PR generation and trusted API-only workflow_run publication. Node88, focused Python19, mobile115/build, actionlint and original stale NuGet repair passed; independent review clean. Native guard proves original PR196 mismatch fails before cap sync. Hosted native rehearsal remains pending.",
-  "nextAction": "Complete source regression/PR CI and merge, run read-only historical backend/native generator rehearsals on main, then record actual activation evidence.",
+  "currentNote": "Implementation0ce94d0 pushed and merged as706c3dd via PR221, exact tree/CI verified. Hosted backend39208738448 passed. Native39208741362 exposed missing web assets before cap update; failed receipt preserved. Source correction builds real web bundle and uses canonical cap sync path; focused30 checks pass. Independent correction review passed; new hosted rehearsals pending.",
+  "nextAction": "Merge verified native web-build prerequisite correction; rerun both original-commit rehearsals on main, validate generated payloads and finish scoped tracking.",
   "implementedSubject": {
-    "artifactDigest": "03aab8fa00f74ffbd081501e117fae83f823590ece17d3917de5f4629a2993e1"
+    "artifactDigest": "e28318b69d4f6598bf2ace3f7c808ecbce7ae2a80eb3c63d706a0dcb6070e167"
   }
 }
