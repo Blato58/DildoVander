@@ -143,7 +143,7 @@
     }
   ],
   "blockers": [],
-  "currentNote": "Produkční integrační commit950d4a108a62de39a262976198317859c68decdb a test-only commit666f47e3d12f06943b137c5a7d5e4bad46212997 byly push ověřeny na origin/codex/show-pack; PR219. Source-v3 je neměnný ověřený runtime; source-v4 a validationArtifactDigest identifikují aktuální testovací kohortu, všech1068 ostatních vstupů včetně produkce je shodných. Historické closure/receipts zachovány. Nativní CI současných zdrojů prošlo. Kompletní aktuální GitHub CI a opětovné načtení reviews jsou povinné před merge. Žádný placený test/deploy/podpis/flash.",
+  "currentNote": "Produkční commit950d4a108a62de39a262976198317859c68decdb a test-only commit666f47e3d12f06943b137c5a7d5e4bad46212997 byly push ověřeny; PR219. Source-v3 je neměnný ověřený runtime; source-v5 identifikuje aktuální validační kohortu. Všech1065 ostatních vstupů včetně produkce je shodných. Historické closure/receipts zachovány. Nativní CI splněno; kompletní aktuální CI a opětovné načtení reviews zůstávají povinné před merge. Žádný placený test/deploy/podpis/flash.",
   "implementedSubject": {
     "artifactDigest": "421a9dc1b8928480915f0f18cdf8f64e58faf62348d29f51fa48545cf5716d41",
     "policyVersion": "show-pack-2026.10.19.1"

@@ -64,10 +64,25 @@ internal static class AutonomousLiveTests
         await VerifyCharacterEvidenceWithdrawal(options, "To řekl kamarád.", sameReference: true);
         await VerifyOperatorOverrideInvalidatedByCorrection(options with
         { Character = options.Character with { FinaleProfile = FinaleProfile.Limited } });
+        await RunShowLiveBoundariesAsync(options);
+        Console.WriteLine("DV01 fake Live integration passed (no provider/audio hardware).");
+    }
+
+    internal static Task RunShowLiveBoundariesAsync()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Backend:GptLive:ActorMode"] = "AutonomousActor", ["Backend:GptLive:Character:Enabled"] = "true"
+        }).Build();
+        return RunShowLiveBoundariesAsync(GptLiveOptions.Read(configuration) with
+            { DelegationContextWaitMs = 0, OutputPauseMs = 500, TerminalQuietMs = 1000 });
+    }
+
+    private static async Task RunShowLiveBoundariesAsync(GptLiveOptions options)
+    {
         foreach (var clipOutcome in new[] { "completed", "expired", "stopped", "thanks", "repeat", "empty" })
         { await VerifyLocalFinaleClipBoundary(options with
             { Character = options.Character with { FinaleProfile = FinaleProfile.Limited } }, clipOutcome); }
-        Console.WriteLine("DV01 fake Live integration passed (no provider/audio hardware).");
     }
 
     private static async Task VerifyOperatorOverrideInvalidatedByCorrection(GptLiveOptions options)
@@ -264,6 +279,7 @@ internal static class AutonomousLiveTests
             var chunks = Channel.CreateUnbounded<int>();
             var checkpoints = Channel.CreateUnbounded<LivePlaybackRequest>();
             var cancellations = 0;
+            string? lastTerminalState = null;
             TurnResult? finalizedResult = null;
             var run = new AutonomousLiveDialogue(connection, decisions, clock, show: show).RunAsync(call,
                 (pcm, _) => { chunks.Writer.TryWrite(pcm.Length); return Task.CompletedTask; },
@@ -275,6 +291,7 @@ internal static class AutonomousLiveTests
                     checkpoints.Writer.TryWrite(checkpoint);
                     return drain;
                 }, () => store.LiveAvailability(call), _ => Task.CompletedTask, lifetime.Token,
+                terminalState: state => Volatile.Write(ref lastTerminalState, state),
                 cancelAudio: (_, _) => { Interlocked.Increment(ref cancellations); player.CancelCheckpoint(); return Task.CompletedTask; },
                 finalize: clipOutcome == "completed" ? (outcome, _) =>
                 {
@@ -283,26 +300,48 @@ internal static class AutonomousLiveTests
                         "shared native publication commits the show result before retiring its owner visit");
                     return Task.CompletedTask;
                 } : null);
-            async Task WaitUntil(Func<bool> condition)
+            string BoundaryDetails(string boundary)
+            {
+                var state = show.Read("device");
+                return $"mode={clipOutcome}, boundary={boundary}, clockMs={clock.GetTimestamp()}, run={run.Status}, "
+                    + $"terminal={Volatile.Read(ref lastTerminalState)}, phase={state.Phase}, cancellations={cancellations}, "
+                    + $"sceneCancelled={state.SceneExecution?.Cancelled}, pause={state.SceneExecution?.PausePending}, cues="
+                    + string.Join(";", state.SceneExecution?.Cues.Select(cue => $"{cue.Kind}:{cue.Status}:{cue.Reason}") ?? []);
+            }
+            async Task WaitUntil(Func<bool> condition, string boundary)
             {
                 for (var tick = 0; tick < 500; tick++)
                 {
                     if (condition()) { return; }
-                    if (run.IsCompleted) { await run; throw new Exception("Live closed before the local-clip test boundary."); }
-                    clock.Advance(50);
+                    if (run.IsCompleted)
+                    {
+                        if (condition()) { return; } // The expected task may be this newly completed run.
+                        try { await run; }
+                        catch (Exception error) { throw new Exception("Live ended before boundary: " + BoundaryDetails(boundary), error); }
+                        throw new Exception("Live closed before boundary: " + BoundaryDetails(boundary));
+                    }
+                    // These are asynchronous acknowledgments, not elapsed show
+                    // time. Pumping 50 virtual ms per scheduler yield could
+                    // expire a cue before its owner consumed the player drain.
                     await Task.Delay(1, lifetime.Token);
                 }
-                throw new Exception("Local-clip test boundary was not reached.");
+                if (condition()) { return; }
+                throw new Exception("Local-clip boundary was not reached: " + BoundaryDetails(boundary));
+            }
+            async Task WaitForTask(Task expected, string boundary)
+            {
+                await WaitUntil(() => expected.IsCompleted, boundary);
+                await expected.WaitAsync(lifetime.Token);
             }
             async Task<ShowDeviceCue> ReadNextCue()
             {
                 ShowDeviceCue? cue = null;
-                await WaitUntil(() => (cue = Poll().Cue) is not null);
+                await WaitUntil(() => (cue = Poll().Cue) is not null, "device-cue-available");
                 return cue!;
             }
             await socket.Command("session.instructions.append", lifetime.Token);
             if (empty)
-            { await WaitUntil(() => show.Read("device").SceneExecution is not null); }
+            { await WaitUntil(() => show.Read("device").SceneExecution is not null, "initial-empty-scene"); }
             else
             {
                 socket.Transcript(false, "Co děláš, když se plán rozpadne?", 0, 1000);
@@ -310,9 +349,9 @@ internal static class AutonomousLiveTests
                 await consumed.Reader.ReadAsync(lifetime.Token);
                 socket.Delegate("local-finale", 2000);
                 clock.Advance(1300);
-                await AdvanceUntilAsync(decisionStarted.Task, run, clock, lifetime.Token);
+                await WaitForTask(decisionStarted.Task, "decision-started");
                 var commentary = socket.Command("session.commentary.append", lifetime.Token);
-                await AdvanceUntilAsync(commentary, run, clock, lifetime.Token);
+                await WaitForTask(commentary, "initial-commentary");
                 await commentary;
             }
             // These are the actual compiled scene's finite non-speech cues.
@@ -331,17 +370,17 @@ internal static class AutonomousLiveTests
             await chunks.Reader.ReadAsync(lifetime.Token);
             clock.Advance(2000);
             var checkpointRead = checkpoints.Reader.ReadAsync(lifetime.Token).AsTask();
-            await AdvanceUntilAsync(checkpointRead, run, clock, lifetime.Token);
+            await WaitForTask(checkpointRead, "initial-player-checkpoint");
             var checkpoint = await checkpointRead;
             if (clipOutcome is "thanks" or "repeat")
             {
                 var guest = clipOutcome == "thanks" ? "Díky." : "Zopakuj to.";
                 socket.Transcript(true, guest, 4100, 4400);
                 while ((await consumed.Reader.ReadAsync(lifetime.Token)) != guest) { }
-                await WaitUntil(() => cancellations > 0);
+                await WaitUntil(() => cancellations > 0, "retained-response-cancelled");
                 var resumedCommentary = socket.Command("session.commentary.append", lifetime.Token);
                 clock.Advance(1300);
-                await AdvanceUntilAsync(resumedCommentary, run, clock, lifetime.Token);
+                await WaitForTask(resumedCommentary, "retained-commentary");
                 await resumedCommentary;
                 Check(!player.ConfirmCheckpoint(checkpoint.PlaybackId, checkpoint.PcmBytes, true)
                     && decisionCalls == 1 && show.Read("device").SceneExecution is { Cancelled: false },
@@ -353,16 +392,16 @@ internal static class AutonomousLiveTests
                 await chunks.Reader.ReadAsync(lifetime.Token);
                 clock.Advance(2000);
                 checkpointRead = checkpoints.Reader.ReadAsync(lifetime.Token).AsTask();
-                await AdvanceUntilAsync(checkpointRead, run, clock, lifetime.Token);
+                await WaitForTask(checkpointRead, "retained-player-checkpoint");
                 checkpoint = await checkpointRead;
             }
             Check(player.ConfirmCheckpoint(checkpoint.PlaybackId, checkpoint.PcmBytes, true), "primary terminal audio drain is exact");
             await WaitUntil(() => show.Read("device").SceneExecution?.Cues
-                .Any(cue => cue.Kind == "PlayLocalClip" && cue.Status == "submitted") == true);
+                .Any(cue => cue.Kind == "PlayLocalClip" && cue.Status == "submitted") == true, "primary-drain-consumed-clip-submitted");
             // Let every authored pause elapse while the device has not polled
             // the ending clip. A primary player drain alone cannot close Live.
             clock.Advance(1300);
-            await WaitUntil(() => show.Read("device").SceneExecution?.PausePending == false);
+            await WaitUntil(() => show.Read("device").SceneExecution?.PausePending == false, "authored-pause-elapsed");
             Check(!run.IsCompleted && !socket.Sent.Any(value => value.Contains("session.close", StringComparison.Ordinal))
                 && show.Read("device").SceneExecution?.PausePending == false,
                 "closing waits for local clip independently of the expired stage pause");
@@ -371,7 +410,8 @@ internal static class AutonomousLiveTests
                 var state = show.Read("device");
                 Check(show.Command("device", new("stop-local-clip", state.Revision, "stop")).Status == "accepted", "operator Stop accepted during local clip wait");
                 var cancelled = false;
-                try { await AdvanceUntilAsync(run, run, clock, lifetime.Token); await run; }
+                clock.Advance(50); // One director tick consumes the queued Stop.
+                try { await WaitForTask(run, "stop-consumed"); await run; }
                 catch (OperationCanceledException) { cancelled = true; }
                 Check(cancelled && cancellations > 0 && !socket.Sent.Any(value => value.Contains("session.close", StringComparison.Ordinal))
                     && journal.ReadKeepsakeSelection("device", call.OperationId) is null,
@@ -391,14 +431,15 @@ internal static class AutonomousLiveTests
                     "ending clip is admitted by actual device mailbox");
                 clock.Advance(300);
                 await WaitUntil(() => show.Read("device").SceneExecution?.Cues
-                    .Any(item => item.Kind == "PlayLocalClip" && item.Status == "accepted") == true);
+                    .Any(item => item.Kind == "PlayLocalClip" && item.Status == "accepted") == true, "device-admission-consumed");
                 Check(!run.IsCompleted && !socket.Sent.Any(value => value.Contains("session.close", StringComparison.Ordinal)),
                     "admitted clip remains pending until actual local player finish");
                 Check(bridge.Acknowledge("device", cue.CueId, Ack("completed", "playback_finished")).Status == 200,
                     "local clip finishes with actual player evidence");
             }
             else { clock.Advance(8100); }
-            await AdvanceUntilAsync(run, run, clock, lifetime.Token);
+            clock.Advance(50); // One director tick consumes the final cue ACK/drop.
+            await WaitForTask(run, "final-publication");
             var outcome = await run;
             Check(outcome.PlaybackVerified && socket.Sent.Count(value => value.Contains("session.close", StringComparison.Ordinal)) == 1
                 && show.Read("device").SessionGeneration is null,

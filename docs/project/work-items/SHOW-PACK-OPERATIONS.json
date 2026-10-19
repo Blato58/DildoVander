@@ -78,18 +78,18 @@
     },
     {
       "id": "HARNESS",
-      "revision": 1,
+      "revision": 2,
       "expected": "Aktuální historický paritní a HTTP procesní testovací harness zachovává přísné kontroly a je svázán s přesnými zdroji bez změny produkčního runtime.",
       "requiredEvidenceKinds": [
         "integration"
       ],
       "rule": "allOf",
       "appliesTo": {
-        "validationArtifactDigest": "aecd861467f84452fe5180b4ecebc74e3deb5aa1bc408cdf2351d53844dfbaf3",
+        "validationArtifactDigest": "5d3d25209aae2a103e4d44a16a3f3022c42637202f1d9ffb21bbce5079049722",
         "policyVersion": "show-pack-2026.10.19.1"
       },
       "evidenceRefs": [
-        "SHOW-PACK-validation-harness-v4"
+        "SHOW-PACK-validation-harness-v5"
       ]
     }
   ],
@@ -123,5 +123,5 @@
     }
   ],
   "nextAction": "Dodat schválené hlasové WAV; provider pilot a skutečný iPhone/fyzickou sestavu řešit samostatným oprávněním. Placené testy, deploy ani flash nyní nespouštět.",
-  "currentNote": "Nové nativní Swift testy a nepodepsaný Simulator build současných163 vstupů prošly v run39200591623/job117892611227. Test-only paritní/procesní opravy mají vlastní validationArtifactDigest; všechny produkční vstupy a ESP obraz zůstaly stejné. Nahrávky/provider/fyzická akceptace zůstávají tři oddělené blokace; kompletní aktuální GitHub CI je povinná merge brána."
+  "currentNote": "Nativní Swift testy a nepodepsaný Simulator build současných163 vstupů splněny (native-v2 receipt). Test-only paritní/procesní/časové/CI linker opravy mají source-v5 validationArtifactDigest; všech1065 ostatních vstupů včetně produkce je shodných se source-v3. Kompletní aktuální GitHub CI je povinná merge brána. Nahrávky/provider/fyzická akceptace zůstávají tři oddělené blokace."
 }

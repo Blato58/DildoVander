@@ -7,6 +7,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 
 // Paid provider diagnostic is explicit and never part of normal offline CI.
+if (args is ["--show-live-boundary"]) { await AutonomousLiveTests.RunShowLiveBoundariesAsync(); return; }
 if (args is ["--show"])
 {
     ShowDirectorTests.Run();
