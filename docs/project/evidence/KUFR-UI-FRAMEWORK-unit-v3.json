@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-UI-FRAMEWORK-unit-v3",
+  "kind": "unit",
+  "observedAtUtc": "2026-10-19T00:11:32.321262+00:00",
+  "result": "pass",
+  "subject": {
+    "artifactDigest": "e00cc96819e8d82e2ae52392e418642c05eaf2b093a4c3464684ed8feb4c0ed7"
+  },
+  "claims": [
+    {
+      "workItemId": "KUFR-UI-FRAMEWORK",
+      "criterionId": "SHARED-UI",
+      "criterionRevision": 2,
+      "result": "pass"
+    }
+  ],
+  "method": "npm test and tokens:check in design-system; mobile npm test and build -- --base=/companion/; simulator npm test with pinned Node24.21.0, local OpenSSL and compiled native bridge; servo Node+Python HTTP tests; viewer/Twin/media/timeline Node tests and document/style Python tests; web Python test suites and real-dist site input tests; generated-token/import guard and CI-selector/workflow tests; tracking tests; dotnet run --project backend-tests -- --keepsake.",
+  "environment": "Windows11 local checkout; locked existing dependencies; pinned Node24.21.0 for simulator/browser and selected final checks; Python3.14.4; .NET10.0.401; synthetic loopback/file browser fixtures only.",
+  "observation": "Evidence transfer from v1: application/runtime/browser bytes are unchanged from ef07324. Additional PASS: CI selection12 and workflow8 tests; full current slice selects backend,firmware,web,ios,site,repository and explicitly cad=false. Independent Sol6.1/high review approved filter-only wrapper selection; geometry and verified-cad action edits plus explicit manual recovery still select manufacturing. Canceled initial own CI39179443606 when it unnecessarily selected CAD; baseline PR209 run untouched. PASS: shared core7 Node+3 Python; mobile65 tests and production build123 modules; viewer/Twin/media/timeline120 Node plus document/style12 Python; servo71 Node+3 Python HTTP; all5 simulator checks including real HTTPS shared asset delivery; web23 Python with3 existing skips, final real-dist site-input5 including dev-dependency exclusion; design integrity8, CI selector12 and workflow8; tracking58; offline .NET keepsake suites. Token generation drift check, local Markdown links and diff whitespace passed. Real keepsake-only package and full-site assembly use canonical runtime; full-site CAD boundary explicitly synthetic. One unrelated POSIX-mode test fails only in broader Windows CI suite as recorded in limitations. Source identity: 100 sorted changed/untracked repository-relative source paths excluding docs/project, each UTF8 path+NUL+LF-normalized bytes+NUL, relative to a4d9f32862e263e6c45d87a227fe8f4d24ea401d. Final source identity e00cc96819e8d82e2ae52392e418642c05eaf2b093a4c3464684ed8feb4c0ed7, 100 paths under the same sorted path+NUL+LF-bytes+NUL algorithm relative to a4d9f32862e263e6c45d87a227fe8f4d24ea401d.",
+  "limitations": [
+    "Synthetic/offline browser evidence does not establish physical device, signed iPhone, VoiceOver, audio/camera quality, deployment or paid provider acceptance. Swift files, signing and device protocols remain unchanged; macOS CI is assessed separately.",
+    "No CAD/STL/mesh regeneration or full source-bound manufacturing ZIP verification. Actual offline assembler, synthetic geometry/ZIP fallback and literal file loading were tested.",
+    "Three existing platform-dependent web Python skips. Full scripts/ci Windows suite: 51 tests, 10 skips and one pre-existing Unix executable-mode assertion failure (438 versus 493); targeted changed CI suites pass. Linux CI remains the Unix permission authority.",
+    "Repository has zero solution files; exact-root Roslyn reported cold/missing syntax cache and no solutions. Narrow C# constants migration used scoped source inspection and successful actual .NET10.0.401 offline keepsake tests; no compiler-reference completeness claim.",
+    "Impeccable mechanical detector warnings include unresolved imported-style hierarchy/padding and absent raw-source image assets; actual theme/layout/font/dialog browser checks and source CSS resolve changed UI concerns. Existing public inline editorial text-button remains intentionally distinct from toolbar buttons."
+  ],
+  "supersedes": [
+    "KUFR-UI-FRAMEWORK-unit-v2"
+  ],
+  "supersedesReason": "Acceptance revision2 explicitly binds the final CI-adjusted source identity; tracking requires revision increase for a used criterion identity change. All tested runtime/CI bytes and the v2 artifactDigest are unchanged. This correction changes claim revision only and preserves original command results and limitations."
+}
