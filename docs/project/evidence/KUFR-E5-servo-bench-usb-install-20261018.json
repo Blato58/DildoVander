@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-E5-servo-bench-usb-install-20261018",
+  "observedAtUtc": "2026-10-18T16:21:59.382039+00:00",
+  "kind": "integration",
+  "result": "inconclusive",
+  "claims": [
+    {
+      "workItemId": "KUFR-E5",
+      "criterionId": "S45",
+      "criterionRevision": 1,
+      "result": "inconclusive"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "2297273c7c1a9f0f60d7fe981c418a41a36898e938c46dfdb9f6d8d614aa2dfe",
+    "firmwareDigest": "2297273c7c1a9f0f60d7fe981c418a41a36898e938c46dfdb9f6d8d614aa2dfe",
+    "assemblyId": "kufr-68ee8f4b6048"
+  },
+  "method": "Owner-authorized USB programming and serial-protocol integration: esptool flash_id; complete read_flash 0 0x1000000 backup; PlatformIO nobuild/upload application plus esptool write_flash bootloader and partition table; esptool verify_flash all three images; UART115200 boot capture and stop command.",
+  "environment": "Physical ESP32-S3 revision0.2, 16MiB quad flash3.3V and 8MiB PSRAM; COM7 CH343 USB-UART. Servo supply OFF explicitly reported by owner. Windows OpenAI Codex local service operation.",
+  "limitations": [
+    "Integration verifies installed software bytes and UART/PCA command acknowledgements only; no formal physical boot/runtime, wiring or mechanical acceptance is asserted.",
+    "Wiring and mechanics revisions were not physically inspected; S45 remains inconclusive and target gates unchanged.",
+    "No arm, pulse or other movement command sent; no current, waveform, servo motion or physical power-disconnect measurement.",
+    "Without OE, failed I2C, ESP reset or a frozen loop can leave old PWM active."
+  ],
+  "observation": "Private full16MiB pre-flash backup completed at460800baud with SHA256 recorded outside Git; the921600baud attempt had corrupt serial data and was retained as incomplete. Existing verified no-OE firmware SHA256 matches subject. Initial PlatformIO nobuild/upload wrote only application; bootloader at0x0 and partition table at0x8000 were explicitly completed with esptool using generated DIO/80m/16MB settings. verify_flash then returned digest matched for all three: bootloader22560 bytes, partition table3072 bytes, application201920 bytes at0x10000. UART after reset emitted SERVO_BENCH READY PWM FULL_OFF; GPIO1=SDA GPIO14=SCL no OE control PCA=0x40 nominal50Hz. Sent only stop newline; received SERVO_BENCH STOP PWM FULL_OFF. No motion commands. Private raw backup/logs remain outside repository.",
+  "artifactRefs": [
+    "kufr/firmware/diagnostics/servo-bench/README.md",
+    "docs/project/evidence/KUFR-E5-servo-bench-no-oe-20261018.json"
+  ]
+}

@@ -97,6 +97,16 @@
       if (bytes.length + this.bytes > CAPTURE_BYTES) throw new Error('Mikrofon překročil 400 ms frontu; session se zastavuje');
       this.parts.push(bytes); this.bytes += bytes.length;
     }
+    trim(limit) {
+      const discarded=Math.max(0,this.bytes-limit);
+      let remaining=discarded;
+      while (remaining>0) {
+        const part=this.parts[0], count=Math.min(part.length,remaining);
+        remaining-=count; this.bytes-=count;
+        if (count===part.length) this.parts.shift(); else this.parts[0]=part.subarray(count);
+      }
+      return discarded;
+    }
     take() {
       if (this.bytes < CHUNK_BYTES) return null;
       const result = new Uint8Array(CHUNK_BYTES); let offset=0;
@@ -110,6 +120,7 @@
   }
 
   function mount(document, container, transport) {
+    const { button } = root.VapourUI;
     const section = document.createElement('section'); section.className='twin-media'; section.id='twin-media';
     section.setAttribute('aria-labelledby','twin-media-heading');
     section.innerHTML=`<h3 id="twin-media-heading">Normální AI kufr · browser HAL</h3>
@@ -120,26 +131,26 @@
         <label>Rychlost<select data-media-speed><option>0.8</option><option selected>1</option><option>1.2</option></select></label>
         <label>Prezentace<select data-media-variant><option>main</option><option>short</option></select></label>
         <label class="twin-media-checkbox"><input data-media-consent type="checkbox"> Souhlasím s jednou náhledovou fotkou</label>
-        <button data-media-save>Uložit nastavení</button><button data-media-reload type="button">Načíst nastavení</button>
+        ${button({"label": "Uložit nastavení", "attributes": {"data-media-save": ""}, "type": "submit"})}${button({"label": "Načíst nastavení", "attributes": {"data-media-reload": ""}})}
         <p data-media-revision></p>
       </form></details>
       <div class="twin-media-devices"><label>Mikrofon<select data-media-mic-device><option value="">Systémový mikrofon</option></select></label>
         <label>Reproduktor<select data-media-speaker-device><option value="">Systémový výstup</option></select></label>
         <label>Kamera<select data-media-camera-device><option value="">Systémová kamera</option></select></label>
-        <button data-media-devices>Načíst lokální zařízení</button><button data-media-mic>Aktivovat mikrofon</button><button data-media-speaker>Aktivovat reproduktor</button>
+        ${button({"label": "Načíst lokální zařízení", "attributes": {"data-media-devices": ""}})}${button({"label": "Aktivovat mikrofon", "attributes": {"data-media-mic": ""}})}${button({"label": "Aktivovat reproduktor", "attributes": {"data-media-speaker": ""}})}
       </div>
-      <div class="twin-media-actions"><button data-media-start>Spustit rozhovor</button><button data-media-stop class="aw-button aw-button--danger">Stop médií</button></div>
+      <div class="twin-media-actions">${button({"label": "Spustit rozhovor", "attributes": {"data-media-start": ""}, "variant": "primary"})}${button({"label": "Stop médií", "attributes": {"data-media-stop": ""}, "variant": "danger"})}</div>
       <p>Zvuk ukazuje software enqueue/drain evidence, nikoli potvrzení slyšitelnosti. Rozhoduje nativní core.</p>
       <div data-media-photo hidden><p>Nativní core žádá jednu fotku. Aktivujte kameru, prohlédněte náhled a výslovně přijměte.</p>
-        <button data-media-camera>Aktivovat kameru</button><video data-media-video autoplay playsinline muted></video>
-        <button data-media-capture>Pořídit náhled</button><img data-media-preview alt="Lokální náhled fotky před předáním" hidden>
-        <button data-media-accept>Přijmout a předat jednu fotku</button><button data-media-retake>Vymazat náhled</button><button data-media-skip-photo>Pokračovat bez fotky</button></div>
+        ${button({"label": "Aktivovat kameru", "attributes": {"data-media-camera": ""}})}<video data-media-video autoplay playsinline muted></video>
+        ${button({"label": "Pořídit náhled", "attributes": {"data-media-capture": ""}})}<img data-media-preview alt="Lokální náhled fotky před předáním" hidden>
+        ${button({"label": "Přijmout a předat jednu fotku", "attributes": {"data-media-accept": ""}, "variant": "primary"})}${button({"label": "Vymazat náhled", "attributes": {"data-media-retake": ""}})}${button({"label": "Pokračovat bez fotky", "attributes": {"data-media-skip-photo": ""}})}</div>
       <ol data-media-dialogue aria-label="Transientní nativní dialog" tabindex="0"></ol>`;
     container.append(section);
     const get=key=>section.querySelector(`[data-media-${key}]`);
     let context=null, sourceKey='', configuration=null, actor=null, generation=0, failure='', notice='Média nejsou aktivovaná.';
     let audio=null, mic=null, camera=null, captureNode=null, captureSource=null, silentGain=null, speakerReady=false, workletReady=false;
-    let listen=false, uploading=false, inFlightBytes=0, inputSequence=0n, lastSequence=null, timer=null, reading=false, pollCount=0;
+    let listen=false, uploading=false, inFlightBytes=0, inputSequence=0n, retiredInputEpoch=null, lastSequence=null, timer=null, reading=false, pollCount=0;
     let queue=new CaptureQueue(), queuedOutputBytes=0, consumedBytes=0n, scheduledUntil=0, drainFrame=null;
     let photoRequest=null, photoBlob=null, photoUrl=null, pendingStart=false, admission=null, saving=false, activationBusy=false, ackTail=Promise.resolve();
     const sources=new Set(), controllers=new Set();
@@ -193,7 +204,7 @@
       sources.clear(); queuedOutputBytes=0; scheduledUntil=0; consumedBytes=0n; drainFrame=null;
     }
     function localStop() {
-      generation++; listen=false; queue.reset(); inputSequence=0n; lastSequence=null; photoRequest=null; clearPhoto();
+      generation++; listen=false; queue.reset(); inputSequence=0n; retiredInputEpoch=null; lastSequence=null; photoRequest=null; clearPhoto();
       if (timer!==null) root.clearTimeout(timer); timer=null;
       for (const controller of controllers) controller.abort(); controllers.clear();
       stopOutput(); captureNode?.disconnect(); captureSource?.disconnect(); silentGain?.disconnect();
@@ -272,7 +283,9 @@
       if (bytes.length!==output.byteLength || queuedOutputBytes+bytes.length>OUTPUT_BYTES) throw new Error('PCM output překročil omezenou frontu');
       const samples=floatPcm(bytes), buffer=audio.createBuffer(1,samples.length,RATE); buffer.copyToChannel(samples,0);
       const node=audio.createBufferSource(); node.buffer=buffer; node.connect(audio.destination);
-      const start=Math.max(audio.currentTime+.01,scheduledUntil), end=start+samples.length/RATE;
+      // A small initial buffer absorbs network jitter. It is never playback ACK.
+      const lead=scheduledUntil>audio.currentTime ? .01 : .15;
+      const start=Math.max(audio.currentTime+lead,scheduledUntil), end=start+samples.length/RATE;
       const selected=actor, own=generation, item={node,cancelled:false}; sources.add(item); queuedOutputBytes+=bytes.length; scheduledUntil=end;
       node.onended=()=>{
         node.disconnect(); sources.delete(item);
@@ -329,12 +342,14 @@
         }
       }
       // Phase labels are not VoiceAudioPort.Listen evidence (notably GPT-Live).
-      listen=value.inputEnabled===true; actor.inputEnabled=listen;
+      listen=value.inputEnabled===true && (retiredInputEpoch===null || decimal(value.inputEpoch)>decimal(retiredInputEpoch));
+      actor.inputEnabled=listen;
       if (!listen) queue.reset();
     }
     async function poll(own) {
       if (own!==generation || !actor || !eligible() || reading) return;
       reading=true;
+      let received=false;
       try {
         if (++pollCount%10===0) {
           const state=await request(context.instanceId,'/media/state');
@@ -359,11 +374,11 @@
         if (queuedOutputBytes<=OUTPUT_BYTES-32768) {
           const value=await request(context.instanceId,'/media/output');
           if (own!==generation || !actor) return;
-          if (value) await handle(value);
+          if (value) { received=true; await handle(value); }
         }
       } catch (error) { if (own===generation) fail(error); }
       finally { if (own===generation) reading=false; }
-      if (own===generation && actor) timer=root.setTimeout(()=>poll(own),50);
+      if (own===generation && actor) timer=root.setTimeout(()=>poll(own),received ? 0 : 50);
     }
     async function upload() {
       if (uploading || !listen || !actor || !eligible()) return;
@@ -372,15 +387,29 @@
       uploading=true; inFlightBytes=bytes.length;
       try {
         await request(context.instanceId,'/media/input',{method:'POST',headers:{...headers(selected,inputEpoch,sequence),'Content-Type':'application/octet-stream'},body:bytes});
-      } catch (error) { if (own===generation && selected===actor && inputEpoch===actor.inputEpoch) fail(error); }
+      } catch (error) {
+        if (own===generation && selected===actor && inputEpoch===actor.inputEpoch) {
+          if (error.status===409 && error.code==='media-input-retired') {
+            // VAD may close the native gate while a captured block is in flight.
+            // Drop it; only a newer native gate may enable capture again.
+            retiredInputEpoch=inputEpoch; listen=false; actor.inputEnabled=false;
+            queue.reset(); pollCount=9;
+          } else fail(error);
+        }
+      }
       finally { if (own===generation) { uploading=false; inFlightBytes=0; void upload(); } }
     }
     function capture(samples) {
       if (!listen || !actor || !eligible()) return;
       try {
-        const bytes=pcm16(samples);
-        if (queue.bytes+inFlightBytes+bytes.length>CAPTURE_BYTES) throw new Error('Mikrofon překročil 400 ms frontu; session se zastavuje');
+        const captured=pcm16(samples), capacity=CAPTURE_BYTES-inFlightBytes;
+        const bytes=captured.length>capacity ? captured.slice(captured.length-capacity) : captured;
+        // Keep the newest unsent samples during network jitter. In-flight PCM
+        // cannot be recalled; sequence numbers belong only to submitted blocks.
+        const discarded=queue.trim(capacity-bytes.length)+captured.length-bytes.length;
         queue.push(bytes); void upload();
+        const warning='Mikrofonní přenos nestíhá; část neodeslaného zvuku byla přeskočena. Rozhovor pokračuje.';
+        if (discarded && notice!==warning) { notice=warning; render(); }
       }
       catch (error) { fail(error); }
     }

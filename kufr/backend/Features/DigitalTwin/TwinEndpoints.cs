@@ -18,12 +18,14 @@ internal static class TwinEndpoints
             return path is not null && Path.IsPathFullyQualified(path) && File.Exists(path)
                 ? Results.File(path, "text/html; charset=utf-8") : Results.StatusCode(503);
         });
-        endpoints.MapPost("/v1/twin/session", async (HttpContext context, TwinAccess access) =>
+        endpoints.MapPost("/v1/twin/session", async (HttpContext context, TwinAccess access, TwinHost hosts) =>
         {
             if (!SameOrigin(context)) { return ApiProblem.Create(context, 403, "origin_forbidden"); }
             var login = await ReadAsync<Login>(context, 2048);
-            var session = login is null ? null : access.CreateSession(login.Credential);
+            var session = login is null ? null : access.CreateSession(login.Credential, context.Request.Cookies[Cookie]);
             if (session is null) { return ApiProblem.Create(context, 401, "twin_credential_invalid"); }
+            hosts.RenewOwner(session);
+            context.RequestServices.GetService<TwinMediaSessions>()?.RenewOwner(session);
             context.Response.Cookies.Append(Cookie, session.Id, new CookieOptions
             {
                 HttpOnly = true, Secure = true, SameSite = SameSiteMode.Strict, Path = "/", Expires = session.Expires

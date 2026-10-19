@@ -1,4 +1,11 @@
-# Přístupnost
+# Přístupnost Vapour Chrome
+
+Používejte sdílené `field`, `button`, `bindTabs` a `bindDialog` z `ui.js`.
+Pole propojuje label, nápovědu a chybu; taby mají jeden tab stop a šipky,
+Home/End; nativní dialog odděluje pozadí a vrací focus. Test `test:browser`
+ověřuje tyto kontrakty na skutečném DOM, v obou tématech a úzkých šířkách.
+Vlastník aplikace zůstává odpovědný za viditelné pojmenování, správný zdroj
+stavu a dostupnost akcí. Statické CSS tyto podmínky nenahrazuje.
 
 - Běžný text má kontrast nejméně 4,5 : 1, velký text 3 : 1. Aktivní hranice
   ovládání a focus mají nejméně 3 : 1 vůči sousední ploše. Ověřujte konkrétní
@@ -18,6 +25,10 @@
   záviset na pohybu. Změny bezpečnostního stavu se zobrazí okamžitě.
 - Na iOS respektujte horní/dolní safe area a dynamické zvětšení textu.
   Webový screenshot neprokazuje VoiceOver ani akceptaci skutečného iPhonu.
+
+Ověřujte tmavé i světlé téma. Steel Grey slouží jako primitivum; čitelný
+pomocný text používá sémantický `--aw-muted`. Hlavní tlačítko používá
+`--aw-on-accent`, nikoli předpoklad tmavého nebo bílého textu.
 
 Před předáním ověřte široký desktop, úzký desktop, 390px mobil a 320px šířku,
 klávesnici, čitelnost všech skutečně použitých stavů a reduced motion.

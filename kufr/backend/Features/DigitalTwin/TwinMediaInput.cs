@@ -7,17 +7,19 @@ internal sealed partial class TwinMediaSessions
     {
         var actor = Owned(id, owner);
         if (actor is null) { return "media_owner_required"; }
-        if (!Bound(actor, session, boot, epoch) || inputEpoch != actor.State?.InputEpoch
-            || !TwinSnapshot.Decimal(sequence, out var firstSequence) || !TwinSnapshot.Decimal(inputEpoch, out _))
+        if (!TwinSnapshot.Decimal(sequence, out var firstSequence) || !TwinSnapshot.Decimal(inputEpoch, out _))
         { return "media_epoch_or_sequence_mismatch"; }
         if (photo ? bytes.Length > 262144 : bytes.Length is < 2 or > 9600 || bytes.Length % 2 != 0)
         { return "media_input_size"; }
+        var identityError = InputEpochError(actor, session, boot, epoch, inputEpoch, photo);
+        if (identityError is not null) { return identityError; }
         if (!await actor.Inputs.WaitAsync(0)) { return "media_input_busy"; }
         try
         {
             for (var offset = 0; offset < bytes.Length || offset == 0; offset += 32768)
             {
-                if (!Bound(actor, session, boot, epoch) || actor.State?.InputEpoch != inputEpoch) { return "media_epoch_changed"; }
+                identityError = InputEpochError(actor, session, boot, epoch, inputEpoch, photo);
+                if (identityError is not null) { return identityError; }
                 var length = Math.Min(32768, bytes.Length - offset);
                 if (firstSequence > ulong.MaxValue - (ulong)(offset / 32768)) { return "media_sequence_limit"; }
                 var sequencePart = firstSequence + (ulong)(offset / 32768);
@@ -31,6 +33,19 @@ internal sealed partial class TwinMediaSessions
             return null;
         }
         finally { actor.Inputs.Release(); Array.Clear(bytes); }
+    }
+    private static string? InputEpochError(Actor actor, string session, string boot, string epoch, string inputEpoch, bool photo)
+    {
+        lock (actor.Gate)
+        {
+            if (!Bound(actor, session, boot, epoch) || actor.State is not { } state)
+            { return "media_epoch_or_sequence_mismatch"; }
+            if (!photo && TwinSnapshot.Decimal(inputEpoch, out var captured)
+                && TwinSnapshot.Decimal(state.InputEpoch, out var current)
+                && (captured < current || captured == current && !state.InputEnabled))
+            { return "media-input-retired"; }
+            return inputEpoch == state.InputEpoch ? null : "media_epoch_or_sequence_mismatch";
+        }
     }
     internal async Task<string?> PlayedAsync(string id, TwinSession owner, TwinMediaPlayed played)
     {

@@ -5,6 +5,7 @@ import base64
 import mimetypes
 from pathlib import Path
 import re
+from viewer_runtime import snapshot_runtime
 
 
 ROOT = Path(__file__).resolve().parent
@@ -44,15 +45,18 @@ def flatten_stylesheet(path: Path, root: Path, ancestors: tuple[Path, ...] = ())
 
 
 def snapshot_styles() -> Path:
+    # F2 source hashes call this before capture. Refresh both canonical assets
+    # here so a later HTML render cannot change the accepted source snapshot.
+    snapshot_runtime()
     if SHARED_ENTRY.is_file():
-        content = "/* Generated shared Arcane Workshop styles; retained for standalone regeneration. */\n"
+        content = "/* Generated shared Vapour Chrome styles; retained for standalone regeneration. */\n"
         content += flatten_stylesheet(SHARED_ENTRY, SHARED_ENTRY.parent)
         for license in sorted((SHARED_ENTRY.parent / "fonts").glob("*-OFL.txt")):
             content += "\n/* " + license.name + "\n" + license.read_text(encoding="utf-8").replace("*/", "* /") + "\n*/\n"
         if not SNAPSHOT.is_file() or SNAPSHOT.read_text(encoding="utf-8") != content:
             SNAPSHOT.write_text(content, encoding="utf-8")
     if not SNAPSHOT.is_file():
-        raise FileNotFoundError("Missing standalone Arcane Workshop style snapshot")
+        raise FileNotFoundError("Missing standalone Vapour Chrome style snapshot")
     return SNAPSHOT
 
 

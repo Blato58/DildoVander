@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-TWIN-MIC-QUEUE-unit-v1",
+  "observedAtUtc": "2026-10-15T15:27:34.194483+00:00",
+  "kind": "unit",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-TWIN-MIC-QUEUE",
+      "criterionId": "CAPTURE",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "b8e9c881e7f6329e2bc86c760cd8de40c993a04cb4142245fb501c24f9b0c53a"
+  },
+  "method": "node --test kufr/mechanika/final/test_twin_media.cjs kufr/mechanika/final/test_twin_viewer.cjs",
+  "environment": "Windows; Node.js; installed Chrome with fake media devices; no provider requests",
+  "limitations": [
+    "No deployment, paid AI, physical microphone/acoustic or hardware acceptance.",
+    "Persistent slow transport can lose speech; the visible warning discloses dropped unsent samples.",
+    "Offline generated viewer and browser HAL fixture are separate software checks, not a full real-provider voice session."
+  ],
+  "observation": "58 passed (33 media and25 viewer),0 failed. New regressions verify newest PCM retention,400ms aggregate bound, contiguous submitted sequence numbers, oversized callback, retired gate after shedding, and fatal transport failure. Baseline HEAD isolated copy rejects4 new regressions.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-TWIN-MIC-QUEUE-source-v1.json"
+  ]
+}

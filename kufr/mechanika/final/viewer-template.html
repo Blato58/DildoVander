@@ -1,46 +1,50 @@
 <!doctype html>
-<html lang="cs">
+<html lang="cs" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0D1218">
+<meta name="theme-color" content="#1B2430">
 <link rel="icon" href="data:,">
-<title>Arcane Workshop · F2 kouzelný kufr</title>
+<title>DildoVander · F2 Assembly Studio</title>
 <style>__WORKSHOP_DESIGN_SYSTEM__</style>
 <style>__WORKSHOP_VIEWER_STYLE__</style>
 </head>
 <body class="aw-workshop">
+<a class="workspace-skip" href="#view">Přejít na model</a>
 <header class="workshop-header">
-  <a id="workshop-home" class="brand" href="/" aria-label="Úvod projektu DildoVander"><span class="brand-mark" aria-hidden="true">✦</span><span>DILDO<span class="brand-accent">VANDER</span><small>ARCANE WORKSHOP</small></span></a>
-  <div class="project-heading"><span class="eyebrow">MECHANIKA / F2</span><h1>Kouzelný kufr</h1></div>
-  <span class="status-badge"><span aria-hidden="true">●</span> Návrhový model</span>
-  <a class="download-package" href="./F2-kouzelny-kufr.zip" download>↓ <span>Stáhnout F2 balíček</span></a>
+  <a id="workshop-home" class="brand" href="/" aria-label="Úvod projektu DildoVander"><svg class="brand-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M8 6h10l7 10-7 10H8V6Z M13 11h3l4 5-4 5h-3V11Z" stroke="currentColor" stroke-width="1.5"/></svg><span>DILDO<span class="brand-accent">VANDER</span><small>ASSEMBLY STUDIO</small></span></a>
+  <div class="project-heading"><span class="eyebrow">F2 / MECHANIKA</span><h1>Kouzelný kufr</h1></div>
+  <span id="model-status" class="status-badge"></span>
+  <button id="theme-toggle" class="aw-button aw-button--secondary theme-toggle" aria-pressed="false" aria-label="Světlý vzhled">Světlý vzhled</button>
+  <a id="download-package" class="download-package" aria-label="Stáhnout F2 balíček" href="./F2-kouzelny-kufr.zip" download><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M5 16v4h14v-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span>F2 balíček</span></a>
 </header>
 <nav class="workshop-toolbar" aria-label="Pracovní režimy">
 
-  <div class="mode-tabs"><button id="open" aria-pressed="true">Provoz</button><button id="service" aria-pressed="false">Servis</button><button id="closed" aria-pressed="false">Přeprava</button><button id="assembly-mode" aria-pressed="false">Montáž</button></div>
-  <span class="toolbar-caption">3D sestava · lokální náhled</span>
-  <button id="show-open" aria-label="DV02 · Timeline / replay" aria-expanded="false" aria-controls="show-inspector">DV02<span class="show-open-caption"> · Timeline / replay</span></button>
+  <span class="toolbar-label">Pracovní režim</span><div id="mode-actions" class="mode-tabs" role="group" aria-label="Režim sestavy"></div>
+  <span class="toolbar-caption">Orbit / inspekce / montáž</span>
+  <button id="show-open" aria-label="DV02 · Timeline / replay" aria-expanded="false" aria-controls="show-inspector" class="aw-button aw-button--secondary">DV02<span class="show-open-caption"> · Timeline / replay</span></button>
 
 </nav>
 <main id="workspace">
   <aside id="sidebar" aria-label="Sestava a ovládání">
-    <div class="panel-heading"><span class="eyebrow">EXPLORER</span><strong>Sestava kufru</strong><button id="explorer-close" class="mobile-toggle" aria-label="Zavřít seznam dílů">✕</button></div>
+    <div class="panel-heading"><span class="eyebrow">PROHLÍŽENÍ</span><strong>Sestava kufru</strong><button id="explorer-close" class="aw-button aw-button--secondary mobile-toggle" aria-label="Zavřít seznam dílů"><svg class="control-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button></div>
     <div class="panel-content">
       <label for="mode">Režim sestavy</label>
       <select id="mode"><option value="operation">Provoz</option><option value="service">Servis</option><option value="transport">Přeprava</option><option value="assembly">Montáž krok za krokem</option></select>
       <label for="visual-mode">Zobrazení modelu</label><select id="visual-mode"><option value="complete">Celá sestava</option><option value="structure">Nosná konstrukce</option><option value="electronics">Elektronika</option><option value="cutaway">Odkrytý vnitřek</option></select>
       <p id="mode-note" class="panel-note">Náhled není potvrzení skutečné polohy ani fyzická přejímka.</p>
-      <details open class="layers-panel"><summary>Viditelnost vrstev</summary>
+      <details class="layers-panel"><summary>Viditelnost vrstev</summary>
         <div class="layer-grid"><label><input id="cover" type="checkbox" checked>Kryty</label><label><input id="case" type="checkbox" checked>Korpus</label>
           <label><input id="beds" type="checkbox" checked>Lůžka</label><label><input id="hardware" type="checkbox" checked>Elektronika</label>
           <label><input id="wands" type="checkbox" checked>Hůlky</label><label><input id="bank" type="checkbox" checked>Powerbanka</label>
           <label><input id="textile" type="checkbox" checked>Textil</label><label><input id="wires" type="checkbox">Kabelové trasy</label>
           <label><input id="dimensions" type="checkbox">Rozměry</label></div>
         <label for="case-opacity">Průhlednost korpusu</label><input id="case-opacity" type="range" min="0.1" max="1" step="0.1" value="1">
-        <button id="show-all" class="quiet-button">Obnovit vrstvy / izolaci</button>
+        <button id="show-all" class="aw-button aw-button--secondary quiet-button">Obnovit vrstvy / izolaci</button>
       </details>
-      <div class="tree-heading"><span class="eyebrow">DÍLY A SKUPINY</span><span id="part-count"></span></div><div id="tree"></div>
+      <div class="tree-heading"><h2>Díly a skupiny</h2><span id="part-count"></span></div>
+      <label class="search-label" for="part-search">Najít díl</label><input id="part-search" type="search" placeholder="Název nebo CAD ID…" autocomplete="off" aria-controls="tree">
+      <p id="search-empty" class="panel-note" role="status" hidden>Žádný díl neodpovídá. Zkuste kratší název.</p><div id="tree"></div>
       <section id="transport-panel" hidden aria-label="Přeprava a opětovné uvedení do provozu">
         <h2>Příprava k přepravě</h2><ol id="transport-instructions"></ol><h2>Opětovné uvedení do provozu</h2><ol id="recommission-instructions"></ol>
       </section>
@@ -48,25 +52,26 @@
     </div>
   </aside>
   <section id="scene" aria-label="3D model">
-    <div class="viewport-heading"><span class="eyebrow">F2 / INTERAKTIVNÍ SESTAVA</span><span class="viewport-unit">JEDNOTKY: mm</span></div>
+    <div class="viewport-heading"><div class="viewport-context"><strong id="view-name">Izometrie</strong><span id="visibility-summary"></span></div><div class="viewport-status"><span id="viewer-status" role="status">Načítání modelu…</span><button id="restore-view" class="aw-button aw-button--secondary" hidden>Obnovit zobrazení</button></div></div>
+    <div id="viewer-error" class="viewer-error" hidden></div>
     <canvas id="view" tabindex="0" aria-label="3D model kufru. Jeden prst nebo levé tlačítko otáčí, dva prsty nebo pravé tlačítko posouvají. Šipky otáčí, plus a minus přibližují, Home obnoví celek. Díly jsou dostupné také v seznamu."></canvas>
     <svg id="overlay" aria-hidden="true"></svg><div id="names" aria-hidden="true"></div><div id="orientation" aria-hidden="true"></div><div id="inspect-hint" role="status" hidden></div>
-    <details id="camera-menu" class="camera-menu"><summary>Pohled</summary><div class="view-controls" aria-label="Pohled na model"><button id="view-overview" aria-pressed="true">Izometrie</button><button id="view-top" aria-pressed="false">Shora</button><button id="view-front" aria-pressed="false">Zepředu</button><button id="view-back" aria-pressed="false">Zezadu</button><button id="view-left" aria-pressed="false">Zleva</button><button id="view-side" aria-pressed="false">Zprava</button><button id="view-fit">Celá sestava</button><button id="view-reset">Reset pohledu</button></div></details>
-    <button id="inspect" class="inspect-button" aria-pressed="false">Vybrat díl</button>
-    <div id="selection-bar" class="selection-bar" hidden><strong id="selection-title"></strong><button id="selection-focus">Zaměřit</button><button id="selection-details">Detaily</button><button id="selection-clear" aria-label="Zrušit výběr dílu">✕</button></div>
+    <details id="camera-menu" class="camera-menu"><summary>Pohled a ovládání</summary><div class="view-controls" aria-label="Pohled na model"><button id="view-overview" aria-pressed="true" class="aw-button aw-button--secondary">Izometrie</button><button id="view-top" aria-pressed="false" class="aw-button aw-button--secondary">Shora</button><button id="view-front" aria-pressed="false" class="aw-button aw-button--secondary">Zepředu</button><button id="view-back" aria-pressed="false" class="aw-button aw-button--secondary">Zezadu</button><button id="view-left" aria-pressed="false" class="aw-button aw-button--secondary">Zleva</button><button id="view-side" aria-pressed="false" class="aw-button aw-button--secondary">Zprava</button><button id="view-fit" class="aw-button aw-button--secondary">Vše do záběru</button><button id="view-reset" class="aw-button aw-button--secondary">Reset kamery</button></div><p class="camera-help">Dotyk: jeden prst otáčí, dva posouvají a přibližují. Myš: tažení otáčí, pravé tlačítko posouvá, kolečko přibližuje. Klávesnice na modelu: šipky otáčí, + / − přibližují, Home obnoví pohled. Výběr dílu je dostupný také v seznamu Díly.</p></details>
+    <button id="inspect" class="aw-button aw-button--secondary inspect-button" aria-pressed="false">Vybrat díl</button>
+    <div id="selection-bar" class="selection-bar" hidden><strong id="selection-title"></strong><button id="selection-focus" class="aw-button aw-button--secondary">Zaměřit</button><button id="selection-details" class="aw-button aw-button--secondary">Detaily</button><button id="selection-clear" aria-label="Zrušit výběr dílu" class="aw-button aw-button--secondary"><svg class="control-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button></div>
     <div class="viewport-bottom"><span>1 prst: otáčení · 2 prsty: posun / zoom</span><span class="cad-stamp">CAD · NENÍ FYZICKÁ PŘEJÍMKA</span></div>
   </section>
   <aside id="inspector-rail" aria-label="Inspekce a kabeláž">
-    <div class="panel-heading"><span class="eyebrow">INSPECTOR</span><strong>Podrobnosti objektu</strong><button id="inspector-close" class="mobile-toggle" aria-label="Zavřít podrobnosti">✕</button></div>
+    <div class="panel-heading"><span class="eyebrow">INSPEKCE</span><strong>Detail objektu</strong><button id="inspector-close" class="aw-button aw-button--secondary mobile-toggle" aria-label="Zavřít podrobnosti"><svg class="control-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button></div>
     <div class="panel-content">
-      <div id="inspector-empty" class="inspector-empty"><span aria-hidden="true">⌖</span><strong>Prozkoumejte sestavu</strong><p>Vyberte díl ve stromu. Inspect nebo Shift ukáže povrch a skutečné návrhové kabelové trasy.</p><button id="begin-inspect">Vybrat objekt</button></div>
+      <div id="inspector-empty" class="inspector-empty"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="m24 5 16 9v20l-16 9-16-9V14l16-9Zm0 19 16-10M24 24 8 14m16 10v19" stroke="currentColor" stroke-width="1.5"/></svg><strong>Prozkoumejte sestavu</strong><p>Vyberte díl v modelu nebo seznamu. Zde najdete jeho rozměry, zapojení a návrhové podklady.</p><button id="begin-inspect" class="aw-button aw-button--secondary">Vybrat objekt</button></div>
       <section id="inspector" aria-label="Informace o objektu" hidden>
-        <div class="panel-toolbar"><strong>Výběr objektu</strong><button id="unpin">Zrušit výběr</button><button id="close-inspect" aria-label="Zavřít inspektor">✕</button></div>
+        <div class="panel-toolbar"><strong>Výběr objektu</strong><button id="unpin" class="aw-button aw-button--secondary">Zrušit výběr</button><button id="close-inspect" aria-label="Zavřít inspektor" class="aw-button aw-button--secondary"><svg class="control-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button></div>
         <label for="object">Objekt (včetně skrytých)</label><select id="object"><option value="">Vyberte objekt…</option></select>
-        <div class="panel-toolbar"><button id="hide-object">Skrýt</button><button id="isolate-object">Izolovat</button><button id="zoom-object">Přiblížit</button></div>
+        <div class="panel-toolbar"><button id="hide-object" class="aw-button aw-button--secondary">Skrýt</button><button id="isolate-object" class="aw-button aw-button--secondary">Izolovat</button><button id="zoom-object" class="aw-button aw-button--secondary">Přiblížit</button></div>
         <div id="object-details" hidden>
           <h2 id="object-title"></h2><div id="mesh-id"></div><p id="description"></p><ul id="details"></ul>
-          <div class="color-control"><label for="color">Barva objektu</label><input id="color" type="color"><button id="reset-color">Původní</button></div><small id="storage-status" role="status"></small>
+          <div class="color-control"><label for="color">Barva objektu</label><input id="color" type="color"><button id="reset-color" class="aw-button aw-button--secondary">Původní</button></div><small id="storage-status" role="status"></small>
           <p id="wire-note" class="panel-note">Lomené čáry jsou skutečné návrhové trasy z kabelového plánu. Červená: napájení · modrá: signál · šedá: GND. Souřadnice pinů nejsou změřené; deformace pohyblivé smyčky je aproximace. Skrytí dílu nemaže jeho zapojení.</p>
           <strong>Kabelové propojení</strong><ul id="connections"></ul><p id="empty-connections" hidden></p>
           <details><summary>Zdrojové podklady</summary><p id="evidence"></p></details>
@@ -82,7 +87,7 @@
     </div>
   </aside>
   <aside id="assembly-panel" class="guide-sheet" hidden aria-label="Montážní průvodce">
-    <div class="guide-heading"><strong id="assembly-title" aria-live="polite"></strong><button id="guide-close" aria-label="Sbalit montážní instrukce">Sbalit</button></div>
+    <div class="guide-heading"><strong id="assembly-title" aria-live="polite"></strong><button id="guide-close" aria-label="Sbalit montážní instrukce" class="aw-button aw-button--secondary">Sbalit</button></div>
     <div class="guide-content">
       <label for="assembly-step">Přejít na krok</label><select id="assembly-step"></select>
       <progress id="assembly-progress" value="0" max="1" aria-label="Postup montážním průvodcem"></progress>
@@ -90,31 +95,32 @@
       <p id="assembly-location"></p><p id="assembly-access"></p><p id="assembly-connectors"></p><p id="assembly-parts"></p><p id="assembly-next-parts"></p>
       <details><summary>Materiál, nástroje a předpoklady</summary><p id="assembly-materials"></p><p id="assembly-depends"></p></details>
       <p id="assembly-check"></p><p id="assembly-removal"></p>
-      <div class="guide-actions"><button id="assembly-focus">Zaměřit pracovní oblast</button><button id="assembly-restart">Od začátku</button><button id="assembly-exit">Ukončit průvodce</button></div>
+      <div class="guide-actions"><button id="assembly-focus" class="aw-button aw-button--secondary">Zaměřit pracovní oblast</button><button id="assembly-restart" class="aw-button aw-button--secondary">Od začátku</button><button id="assembly-exit" class="aw-button aw-button--secondary">Ukončit průvodce</button></div>
       <p class="panel-note">Krok je návod a návrhový stav, nikoli potvrzení provedené montáže. Pohyb vložení se nesimuluje; přístup vyžaduje ověření prototypem.</p>
     </div>
   </aside>
 </main>
-<nav class="compact-dock" aria-label="Panely a montáž">
-  <button id="explorer-toggle" aria-expanded="false" aria-controls="sidebar">Díly</button>
-  <div id="assembly-controls" hidden><button id="assembly-prev" aria-label="Předchozí montážní krok">←</button><button id="guide-toggle" aria-expanded="false" aria-controls="assembly-panel">Instrukce <span id="assembly-counter"></span></button><button id="assembly-next" aria-label="Další montážní krok">→</button></div>
-  <button id="dock-effect-stop" hidden>Stop simulace</button>
-  <button id="motion-toggle" aria-expanded="false" aria-controls="motion-panel">Simulace</button>
-  <button id="inspector-toggle" aria-expanded="false" aria-controls="inspector-rail">Detaily</button>
+<nav id="workspace-dock" class="compact-dock" aria-label="Panely a montáž">
+  <div id="assembly-current" class="assembly-current" hidden aria-label="Aktuální montážní krok"><div><strong id="assembly-current-title"></strong><span id="assembly-current-context"></span></div><p id="assembly-current-parts"></p></div>
+  <button id="explorer-toggle" aria-expanded="false" aria-controls="sidebar" class="aw-button aw-button--secondary">Díly</button>
+  <div id="assembly-controls" hidden><button id="assembly-prev" aria-label="Předchozí montážní krok" class="aw-button aw-button--secondary"><svg class="control-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m14 6-6 6 6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button id="guide-toggle" aria-expanded="false" aria-controls="assembly-panel" class="aw-button aw-button--secondary">Instrukce <span id="assembly-counter"></span></button><button id="assembly-next" aria-label="Další montážní krok" class="aw-button aw-button--secondary"><svg class="control-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m10 6 6 6-6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+  <button id="dock-effect-stop" hidden class="aw-button aw-button--danger">Stop simulace</button>
+  <button id="motion-toggle" aria-expanded="false" aria-controls="motion-panel" class="aw-button aw-button--secondary">Simulace</button>
+  <button id="inspector-toggle" aria-expanded="false" aria-controls="inspector-rail" class="aw-button aw-button--secondary">Detaily</button>
 </nav>
 <footer id="motion-panel" class="motion-panel" data-open="false" aria-label="Pohyb a prezentace modelu">
-  <div class="motion-heading"><span class="eyebrow">MOTION STUDIO</span><button id="motion-close" aria-label="Sbalit simulaci">Sbalit</button><span class="simulation-tag">ILUSTRAČNÍ RENDERER · CORE REPLAY V DV02</span><span id="effect-phase" aria-live="polite"></span><output id="timeline-time" aria-label="Čas sekvence">0.0 / 0.0 s</output></div>
-  <div class="motion-controls"><div class="sequence-actions"><button id="play-main">▶ Hlavní výběr</button><button id="play-short">▶ Krátké opakování</button><button id="effect-stop">■ Stop</button></div>
+  <div class="motion-heading"><span class="eyebrow">POHYBOVÁ STUDIE</span><button id="motion-close" aria-label="Sbalit simulaci" class="aw-button aw-button--secondary">Sbalit</button><span class="simulation-tag">ILUSTRAČNÍ RENDERER · CORE REPLAY V DV02</span><span id="effect-phase" aria-live="polite"></span><output id="timeline-time" aria-label="Čas sekvence">0.0 / 0.0 s</output></div>
+  <div class="motion-controls"><div id="sequence-actions" class="sequence-actions"></div>
     <label>Víko <input id="lid" type="range" min="0" max="105" value="105"><output id="lidvalue">105°</output></label>
     <label for="tray">Přihrádka <select id="tray"></select></label>
     <label>Zdvih <input id="lift" type="range" min="0" max="160" value="0"><output id="liftvalue">0 mm</output></label>
     <label class="audio-toggle"><input id="audio-preview" type="checkbox">Poslech tónů</label>
   </div>
   <div id="effect-timeline" role="group" aria-label="Fáze ilustrační sekvence"></div>
-  <div class="motion-notes"><p id="effect-status" role="status">Časování zdvihu je ilustrační do kalibrace. Světlo vychází pouze ze šesti skutečných LED skupin. Zvuk je lokální syntéza, žádná cloudová služba.</p><button id="service-reset" disabled>Servisní reset po ruční kontrole</button></div>
+  <div class="motion-notes"><p id="effect-status" role="status">Časování zdvihu je ilustrační do kalibrace. Světlo vychází pouze ze šesti skutečných LED skupin. Zvuk je lokální syntéza, žádná cloudová služba.</p><button id="service-reset" disabled class="aw-button aw-button--secondary">Servisní reset po ruční kontrole</button></div>
 </footer>
-<section id="show-inspector" class="show-inspector" role="dialog" aria-modal="true" hidden aria-labelledby="show-heading">
-  <div class="show-heading"><h2 id="show-heading">DV02 · Timeline / replay</h2><button id="show-close">Zavřít timeline</button></div>
+<dialog id="show-inspector" class="show-inspector aw-dialog" aria-labelledby="show-heading">
+  <div class="show-heading"><h2 id="show-heading">DV02 · Timeline / replay</h2><button id="show-close" class="aw-button aw-button--secondary">Zavřít timeline</button></div>
   <p id="show-mode" class="simulation-tag"></p>
   <p>Jen místní čtení. Seek, přehrávání a rychlost mění pouze tento seznam; nevydávají povely zařízení. Syntetický replay načtěte z hostitelského C++ core, nikoli z ilustračního rendereru.</p>
   <p id="show-identity" class="show-identity"></p>
@@ -124,15 +130,16 @@
     <label for="show-track">Stopa<select id="show-track" aria-label="Stopa"><option value="all">Všechny stopy / fáze</option><option value="led">LED</option><option value="vibration">Vibrace</option><option value="motion">Pohyb</option><option value="audio">Audio</option><option value="owner">Owner / Stop / deadline</option></select></label>
     <label for="show-baseline">Baseline JSON (nejvýše 1 MiB)<input id="show-baseline" type="file" accept=".json,application/json"></label>
     <label for="show-candidate">Kandidát JSON (nejvýše 1 MiB)<input id="show-candidate" type="file" accept=".json,application/json"></label>
-    <button id="show-reset">Zpět na plán / vymazat importy</button>
-    <button id="show-play" disabled>Přehrát záznam</button>
+    <button id="show-reset" class="aw-button aw-button--secondary">Zpět na plán / vymazat importy</button>
+    <button id="show-play" disabled class="aw-button aw-button--secondary">Přehrát záznam</button>
     <label for="show-speed">Rychlost záznamu<select id="show-speed" aria-label="Rychlost záznamu"><option value="0.25">0.25×</option><option value="1" selected>1×</option><option value="4">4×</option></select></label>
   </div>
   <label for="show-seek">Seek v záznamu<input id="show-seek" type="range" min="0" max="0" value="0" disabled></label>
   <output id="show-time"></output>
   <ol id="show-events" class="show-events" tabindex="0" aria-label="Plánované nebo doložené události"></ol>
   <h3>Baseline / kandidát</h3><div id="show-diff" class="show-diff" tabindex="0"></div>
-</section>
+</dialog>
+<script>__WORKSHOP_UI_RUNTIME__</script>
 <script>__SHOW_TIMELINE_SCRIPT__</script>
 <script>const model=__MODEL_DATA__;
 __VIEWER_SCRIPT__

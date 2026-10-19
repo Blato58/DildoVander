@@ -1,0 +1,20 @@
+{
+  "sourceCommit": "68967546cffa0179fb8959dfdc7a677f029a6157",
+  "previousReleaseSourceCommit": "5375a620e90f81c7dbf70a022d13ba7800049779",
+  "previousBuildId": "741947360f86ac8802eb1bcab9f832027bce6d7872c3a1cf1a3b66bcf41c9e38",
+  "buildId": "a7ee2cf3740efc92912cfe450e7c7637d98eb0596d35b2111c41db987fb86148",
+  "fileCount": 354,
+  "changedRuntimeFiles": [
+    "viewer.html"
+  ],
+  "sourceIdentityDifference": [
+    "kufr/mechanika/final/twin_media.js"
+  ],
+  "supplementalGitInputDiff": [
+    "kufr/mechanika/final/twin_media.js",
+    "kufr/mechanika/final/test_twin_media.cjs",
+    "kufr/mechanika/final/test_twin_media_browser.cjs"
+  ],
+  "buildMethod": "Canonical render_document from unchanged verified CAD payload; canonical package-twin.py with verified unchanged backend/native publish bytes; embedded personas/fonts/template/styles and build configuration unchanged by supplemental Git diff.",
+  "cadRevision": "eb942d229435984eaeaecd47661ebaf37e1f87c3587bad5ef64ec15cb206387c"
+}

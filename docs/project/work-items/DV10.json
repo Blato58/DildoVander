@@ -18,7 +18,7 @@
   "acceptance": [
     {
       "id": "LOCAL",
-      "revision": 3,
+      "revision": 4,
       "expected": "A–H a statické vyzvednutí: přesný durable outcome bez individuálního QR, veřejná poslední hotová hůlka a přehled hůlek/příběhů aktivního večera; oddělené soukromé foto/portrét/owner/admin scopes, manual-only archiv, exporty, mazání a skills; syntetické integrační a browser ověření.",
       "requiredEvidenceKinds": [
         "integration",
@@ -27,13 +27,12 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "4e24c5876a0702b834f03325bf80446fd1db51996400e706d4a857bb89c52f7d"
+        "artifactDigest": "ebcb962f3c86dcda1bea326c59d93f6111086639bb94bfdaf6cbb91ce250a03f"
       },
       "evidenceRefs": [
-        "DV10-local-integration-v3",
-        "DV10-local-browser-v3",
-        "DV10-local-source_review-v3",
-        "DV10-code-package-v3"
+        "DV10-local-integration-v4",
+        "DV10-local-browser-v4",
+        "DV10-local-source_review-v4"
       ]
     },
     {
@@ -44,13 +43,13 @@
         "integration"
       ],
       "appliesTo": {
-        "artifactDigest": "4e24c5876a0702b834f03325bf80446fd1db51996400e706d4a857bb89c52f7d"
+        "artifactDigest": "ebcb962f3c86dcda1bea326c59d93f6111086639bb94bfdaf6cbb91ce250a03f"
       },
       "evidenceRefs": []
     },
     {
       "id": "PRODUCTION",
-      "revision": 1,
+      "revision": 2,
       "expected": "Schválené nasazení na VPS, přesná guest proxy a iPhone guest smoke zachovají existující zařízení a Live.",
       "requiredEvidenceKinds": [
         "production_deploy",
@@ -58,9 +57,11 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "4e24c5876a0702b834f03325bf80446fd1db51996400e706d4a857bb89c52f7d"
+        "artifactDigest": "ebcb962f3c86dcda1bea326c59d93f6111086639bb94bfdaf6cbb91ce250a03f"
       },
-      "evidenceRefs": []
+      "evidenceRefs": [
+        "DV10-production_deploy-v1"
+      ]
     },
     {
       "id": "RECOVERY",
@@ -70,29 +71,20 @@
         "integration"
       ],
       "appliesTo": {
-        "artifactDigest": "4e24c5876a0702b834f03325bf80446fd1db51996400e706d4a857bb89c52f7d"
+        "artifactDigest": "ebcb962f3c86dcda1bea326c59d93f6111086639bb94bfdaf6cbb91ce250a03f"
       },
       "evidenceRefs": []
     }
   ],
   "blockers": [
     {
-      "id": "DV10-PAID",
-      "problem": "Zadání neautorizuje placený provider pilot.",
-      "severity": "high",
-      "blocks": [
-        "PROVIDER"
-      ],
-      "unblockCondition": "Majitel schválí konkrétní pilot a souhlasné foto vstupy."
-    },
-    {
       "id": "DV10-PROD",
-      "problem": "Zadání neautorizuje zapnutí DV10 v produkci a změnu veřejné proxy; skutečný iPhone guest smoke dosud nebyl proveden.",
+      "problem": "VPS rollout i zapnutí placeného generování dokončeny a ověřeny; skutečný iPhone guest smoke dosud neproveden.",
       "severity": "high",
       "blocks": [
         "PRODUCTION"
       ],
-      "unblockCondition": "Schválený reviewovaný deploy a iPhone ověření."
+      "unblockCondition": "Doložený skutečný iPhone guest smoke proti nasazené službě."
     },
     {
       "id": "DV10-BACKUP",
@@ -102,11 +94,20 @@
         "RECOVERY"
       ],
       "unblockCondition": "Majitel určí oprávněný off-VPS cíl; doložený encrypted backup a isolated restore."
+    },
+    {
+      "id": "DV10-QUALITY",
+      "problem": "Placené generování je autorizované a zapnuté; kvalita skutečných výstupů a portrétu ze souhlasné fotografie dosud nebyla ověřena.",
+      "severity": "high",
+      "blocks": [
+        "PROVIDER"
+      ],
+      "unblockCondition": "Schválený pilot se souhlasnou fotografií a hodnocením skutečných hůlek/příběhů/portrétů."
     }
   ],
-  "nextAction": "Schválit konkrétní placený OpenAI pilot se souhlasnými fotografiemi; produkci, iPhone a nezávislou obnovu přijmout oddělenými receipts.",
-  "currentNote": "Jeden statický QR otevírá společné hůlky/příběhy aktivního večera; fotografie/portréty soukromé. DV10 lokálně ověřeno po integraci main Digital Twin fe39e4b48f6aee4a6328ba3003fb7518813c4e0a: backend/HTTP/browser/firmware/native/proxy PASS, nezávislý review bez P1/P2. Proxy60 přesných metod/cest zachovává služby5080/5082. Předchozí CI38620505788 na e8ce3334af305021ff288339bb5792e50f8f741a prošlo13jobs; Aktuální clean-source balík 23a1caefc842ed7906f040d8f85f4db122f80c2f ZIPf04467c92b10e2d4975871be2aba4d30e0be8164d34a4ca32159b626f5a411d2 ověřen; hosted CI společné verze vede PR190. Merge slice23a1caefc842ed7906f040d8f85f4db122f80c2f a balík2f8b470dc0b20863bf98ad6a30942321c2458f38 push ověřen pomocí Push-CurrentBranch (remote přesně2f8b470dc0b20863bf98ad6a30942321c2458f38). Produkce OFF,event_ready=false; bez nasazení/placených volání.",
+  "nextAction": "Ověřit první skutečnou památku a iPhone guest se souhlasnou fotografií; určit oprávněný off-VPS backup cíl a provést izolovanou obnovu.",
+  "currentNote": "15.10.2026 nasazeno z čistého main9850715 přes CI38748013953 a privátní deploy38755345896/38755728034. Veřejná URL https://2.28.202.220/keepsake/evening/ vrací200; generation/portrait ON se zachovaným backendovým klíčem, Sol6.1 a GPTImage2. Nginx69metod/cest zachovává Twin5082 a původní režimy, APIencoded-path404, HTTPS21+wrongHost testů PASS. Archiv/keyring0700, env0600, umask0077; soukromá lokální konfigurace/onlineSQLite záloha. Bez skutečné inference, iPhone a off-VPS recovery. Přehled je zatím prázdný. Implementační commit c89e52a39910a14a1202493825cb74c5b9a11e48 byl úspěšně pushnut a remote SHA ověřeno přes Push-CurrentBranch.ps1. PR201 review P2 (4284781408): kanonický DV10 README synchronizován s dokončeným rolloutem; zachovány neověřené quality/iPhone/recovery gates. Ověřeny odkazy a soulad README s CAPABILITIES/production receipt.",
   "implementedSubject": {
-    "artifactDigest": "4e24c5876a0702b834f03325bf80446fd1db51996400e706d4a857bb89c52f7d"
+    "artifactDigest": "ebcb962f3c86dcda1bea326c59d93f6111086639bb94bfdaf6cbb91ce250a03f"
   }
 }

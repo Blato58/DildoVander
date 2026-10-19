@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-TWIN-MIC-DEPLOY-unit-v1",
+  "observedAtUtc": "2026-10-15T16:38:54.807974+00:00",
+  "kind": "unit",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-TWIN-MIC-DEPLOY",
+      "criterionId": "VPS",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "a7ee2cf3740efc92912cfe450e7c7637d98eb0596d35b2111c41db987fb86148",
+    "policyVersion": "twin-v2"
+  },
+  "method": "GITLEAKS_BINARY=<checksum-verified8.30.1 Windows binary> python -m unittest discover -s scripts/ci -p test_secret_scan.py; pinned gitleaks git --config=.gitleaks.toml --redact=100 --no-banner --log-opts=HEAD; JSON/local-link checks and node --check of retained verifier.",
+  "environment": "Windows Python3.14; pinned Gitleaks8.30.1 release archive checksum verified; local branch ancestry.",
+  "limitations": [
+    "Ancillary validation of the deployment records and scanner configuration; does not independently establish runtime behavior. Production/browser acceptance uses separate selected receipts.",
+    "Initial CI scan reported12 generic-api-key matches for SHA256 inventory values. Only exact nested v17 manifest path was added to existing content-bound generic-rule exception; no provider detector or whole file suppressed."
+  ],
+  "observation": "9 scanner regressions passed in12.761s, including exactnested inventory positives, generic/PAT/Sentry negatives and unrelatednestedpath negative. Full256-commit ancestry scan passed with zero findings. Retained proof JSON and3updatedlocal links valid; JS syntax and diff checks passed.",
+  "artifactRefs": [
+    ".gitleaks.toml",
+    "scripts/ci/test_secret_scan.py",
+    "docs/project/artifacts/KUFR-TWIN-MIC-QUEUE-deploy-v1/twin-release.json"
+  ]
+}

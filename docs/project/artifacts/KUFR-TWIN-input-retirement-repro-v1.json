@@ -1,0 +1,21 @@
+{
+  "release": "twin-20261015-v15",
+  "sourceDigest": "f4735375d8b422d3d0d3a290a5c40a381b1d22d26c76a7a648fcbd4b47a1cae5",
+  "serverEvidence": [
+    {
+      "timeUtc": "2026-10-15T13:32:09.0111920+00:00",
+      "route": "/media/input",
+      "status": 409,
+      "code": "media-rejected"
+    },
+    {
+      "timeUtc": "2026-10-15T13:33:47.5370664+00:00",
+      "route": "/media/input",
+      "status": 409,
+      "code": "media_epoch_or_sequence_mismatch"
+    }
+  ],
+  "offlineReproduction": "Native GPT fixture: gate listening epoch1 -> speech_stopped closes to epoch2; old epoch1 PCM rejected generically while actor remains active/thinking, error null, slot0. Current wrong sequence and true buffer overflow also previously shared media-rejected.",
+  "paidAgentCalls": 0,
+  "physicalVerification": "unavailable"
+}

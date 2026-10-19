@@ -4,6 +4,7 @@ import hashlib
 import json
 
 from viewer_style import snapshot_styles
+from viewer_runtime import bundle_ui_runtime
 
 ROOT = Path(__file__).resolve().parent
 
@@ -26,6 +27,7 @@ def render_document(payload):
     replacements = {
         "__WORKSHOP_DESIGN_SYSTEM__": snapshot_styles().read_text(encoding="utf-8"),
         "__WORKSHOP_VIEWER_STYLE__": (ROOT / "viewer-workshop.css").read_text(encoding="utf-8-sig"),
+        "__WORKSHOP_UI_RUNTIME__": bundle_ui_runtime(),
         "__SHOW_TIMELINE_SCRIPT__": (ROOT / "show_timeline.js").read_text(encoding="utf-8"),
         "__VIEWER_SCRIPT__": (ROOT / "viewer.js").read_text(encoding="utf-8"),
         "__MODEL_DATA__": json.dumps(payload, separators=(",", ":")).replace("<", "\\u003c"),

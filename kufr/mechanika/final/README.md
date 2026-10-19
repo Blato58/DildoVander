@@ -133,13 +133,86 @@ profily a logy všech dílů. Tyto auditní soubory zůstávají mimo výrobní 
 obnova cache nesmí přeskočit kontrolu skutečného řezání bez podpor.
 Chybějící, změněný nebo neúplný výstup vyvolá plnou regeneraci.
 Firmware choreografie a JavaScriptové testy se kontrolují při každém běhu.
-V CI se stejný balíček obnovuje přes Actions cache s přesným klíčem;
-obnovení samo žádnou kontrolu nenahrazuje. Cache není součástí výrobního ZIPu.
+V CI se ověřený výsledek obnovuje z neměnného artefaktu úspěšného běhu
+na `main`; původ a všechny bytes se kontrolují před použitím. Oddělené PR
+artefakty se mohou použít ve stejném PR po ověření skutečného stromu
+úspěšného běhu. Po potvrzeném merge může `main` tentýž výsledek převzít
+pouze se shodou celého spustitelného stromu, přesných vstupů a bytes; provenience
+zachová původní ověření. Cache není součástí výrobního ZIPu.
 
 Pro vynucení všech testů a generování použít `-Force` (přímo v Pythonu
 `python regenerate.py --force`). Současné regenerace ve stejné složce
 `exports/` nejsou povolené; po násilně ukončeném procesu odstranit
 `exports/.regeneration-lock` až po ověření, že proces už neběží.
+
+## Inkrementální CAD a CI
+
+Každé PR projde levným výběrem změněných projektů a kontrolou `CI required`.
+Backend, firmware, mobilní UX a běžná dokumentace CAD nespouštějí. Známé
+viewer HTML/CSS/JS a sdílený design spouštějí pouze příslušné web/viewer testy.
+Neznámé soubory pod `final/`, rozměry, `parameters.json`, montážní omezení,
+geometrie, generátory, efekty s rozložením a validační algoritmy jsou mechanické
+vstupy. Autoritativní Markdown s rozměry a zapojením není obecná dokumentace.
+Politiku sdílí `source_inputs.py` a `scripts/ci/cad_impact.py`.
+
+Lokální dopad lze zjistit bez CadQuery, sliceru i renderování z kořene:
+
+```text
+python scripts/ci/cad_impact.py --base HEAD
+python -m unittest discover -s scripts/ci -p test_cad_impact.py
+node --test kufr/mechanika/final/test_viewer.cjs
+python -m unittest discover -s kufr/mechanika/final -p test_refresh_package.py
+```
+
+CI před instalací CAD hledá výsledek podle obsahu mechanických zdrojů,
+rozměrových podkladů, generátorů, kontrol a připnuté konfigurace nástrojů.
+Commit ani větev nejsou součástí klíče. Obnova musí pocházet z úspěšného
+kanonického `main` běhu, nikoli z PR/forku, a musí projít kontrolou úplného
+inventáře SHA-256 i výsledku CAD/sliceru. Při přesné shodě se přeskočí
+instalace, generování, PNG rendery i drahé opakování mechanických kontrol.
+Stejná geometrie s upravenou prezentací použije `refresh_package.py`: zachová
+mesh/CAD bytes, obnoví viewer a ZIP, aktualizuje otisky a výslovně zaznamená
+přenos původního mechanického důkazu; netvrdí nové mechanické ověření.
+Opakovaný běh stejného PR může převzít svůj úspěšný výsledek při shodě
+skutečného Git stromu všech spustitelných vstupů celého běhu. Výjimkou jsou
+jen konkrétní pasivní tracking JSON a STATUS; kód jiného CI jobu se také
+porovnává, protože identita artefaktu sama neurčuje jeho nahrávající job.
+Povolené jsou navíc změny převzaté z kanonického `main`: původní PR daný
+soubor nesmělo změnit a aktuální bytes, typ i režim musí odpovídat `main`.
+Serverový merge commit a historie musí prokázat původní base → aktuální main
+→ checkout. Změna vlastního kódu PR tuto výjimku nesplní. Receipt rozlišuje
+přesnou shodu od této ověřené dědičnosti a uchovává příslušná SHA.
+Neúplná provenience nebo změna těchto vstupů znamená bezpečný cache miss.
+Po merge tato kontrola navíc ověří serverový stav PR, cílový `main` a předka
+aktuální větve. Výsledek se potom publikuje jako main artefakt s vazbou na
+původní run, artefakt, spouštěný strom a receipt. Nevykazuje nové mechanické
+ověření; odstraňuje duplicitní plný běh PR → push. Nesloučené nebo zdrojově
+odlišné PR se do main cache nepřenáší.
+
+Při skutečné CAD změně se z důvěryhodného předchozího výsledku mohou převzít
+jednotlivé nezměněné STL/STEP/surové 3MF. Jejich cache v
+`exports/.part-cache/` váže obsah BREP, vlastníka dílu a jeho importované
+zdroje, parametry, exportér a skutečný runtime na přesné bytes exportu.
+Poškození nebo chybějící soubor znamená nové generování. Živé tvary, sestavy,
+tisk a globální kolizní/montážní kontroly se při mechanické změně stále
+ověřují společně; cache dílu sama není mechanická akceptace.
+Změna samotného `verify.py` nebo testů přebírá nepozměněný generovaný snapshot,
+odstraní staré potvrzení a ZIP a spustí nové testy a verifikaci. Geometrie ani
+rendery se při této cestě negenerují. Neznámý mix závislostí použije plnou cestu.
+
+Úspěšné `main` běhy uchovávají výsledky 30 dní a levný push gate ignoruje
+nesouvisející změny. Chybějící či expirovaný výsledek je bezpečný cache miss.
+Pro plný běh použít workflow **Verify CAD manufacturing package** s `force=true`,
+nebo **CI** s `force_cad=true`; lokálně `Regenerate.ps1 -Force`.
+Nucený běh obchází i cache dílů. Žádný pravidelný plný CAD schedule neexistuje.
+
+Při podezření na stale výstup nejprve zkontrolovat výpis dopadu a job summary,
+`trusted-result.json`, zdrojové identity a ID původního main artefaktu.
+Neopravovat hash ručně. Neznámou závislost doplnit do politiky/fingerprintu
+a regresního testu; pak použít cílenou regeneraci nebo výslovný force běh.
+Selhání generátoru/ověření nikdy nevytvoří úspěšný sdílený výsledek.
+Přímé sestavení webu kontroluje i úplnost současného zdrojového inventáře;
+nový neověřený vstup nelze propašovat přes starý report a ZIP.
 
 V samostatně vybaleném ZIPu vytvořit prostředí a instalovat
 `requirements.txt`, potom předat cestu jeho Pythonu.

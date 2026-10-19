@@ -1,12 +1,22 @@
-# Veřejný Arcane Workshop
+# Veřejný web · Vapour Chrome
 
-Kořen HTTPS webu je rozcestník. `/workshop/` obsahuje aktuální generovaný
+Kořen HTTPS webu vede návštěvníka nejprve k památce z večera; dílna a její
+nástroje tvoří samostatný přehled níže. `/workshop/` obsahuje aktuální generovaný
 CAD viewer a úplný výrobní ZIP; `/ios/` zachovává podepsanou Safari instalaci.
 `/companion/` je webový vývojový frontend, `/simulator/` odpojený veřejný náhled
 pozorovací konzole. Veřejný web neposkytuje simulátoru WSS facade ani token.
 
 `/keepsake/` je kanonický návštěvnický portál DV10. `build-site.py` kopíruje
-jeho tři zdrojové soubory a společný lokální design systém do téhož inventáře.
+jeho runtime soubory včetně `theme.js`, veřejný přehled večera a společný
+lokální design systém do téhož inventáře. Vzhled Vapour Chrome používá
+historický vstup `arcane-workshop.css` a sémantické `--aw-*` tokeny.
+Soukromý portál i veřejný přehled používají nativní komponenty z
+`/design-system/ui.js` pro hlášení, stav, výběr hůlky a akce. Builder ověřuje
+přítomnost společného runtime a generovaných tokenů i v samostatném balíčku
+`--keepsake-only`; chybějící framework odmítne před publikací.
+Volba vzhledu respektuje systémové nastavení (bez preference je tmavý)
+a umožňuje světlý či tmavý režim pomocí `data-theme`. Změna platí jen pro
+aktuální stránku; preference se neukládá do úložiště prohlížeče.
 Owner URL je `/keepsake/?k=<locator>`; `&view=share` vždy vynucuje omezený
 sdílený pohled. Locator sám neuděluje přístup. Fragmenty `#c=`, `#r=` a `#s=`
 se odstraní před načtením stylů; výměna klíče vyžaduje klepnutí návštěvníka.
@@ -19,6 +29,10 @@ Syntetické browser kontroly: `node kufr/web/keepsake/test-browser.cjs`
 a izolovaného balení: `python -m unittest discover -s kufr/web/keepsake -p 'test_*.py'`.
 Fake odpovědi jsou pouze v testu; nejsou součástí publikovaného balíčku.
 Browser výsledek neprokazuje přijetí na fyzickém iPhonu ani kvalitu OpenAI.
+Veřejný přehled se ověřuje samostatně přes
+`node kufr/web/keepsake/test-evening-browser.cjs`. Obě sady používají pouze
+syntetické odpovědi; ověřují také úzké displeje, 200% zoom, klávesnici,
+omezený pohyb, oddělení veřejných a soukromých dat a částečné výsledky.
 
 `build-site.py` přijímá pouze aktuálně ověřené exporty, kontroluje otisky
 zdrojů, výstupů a ZIPu a sestaví výslovný inventář bez starých exportů.

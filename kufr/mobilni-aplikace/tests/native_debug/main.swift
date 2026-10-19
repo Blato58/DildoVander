@@ -27,6 +27,7 @@ struct NativeDebugTests {
             }
             return
         }
+        checkpoint("profile, WAV and server modes")
         let profile = try DebugBackendProfile(address: "https://debug.example.test", deviceId: "debug-test", credential: "test-secret")
         let retained = try DebugProfileDraft.resolve(address: "https://DEBUG.example.test:443/",
             deviceId: "debug-test", credential: "", saved: profile)
@@ -70,6 +71,7 @@ struct NativeDebugTests {
             do { _ = try await DebugBackendClient(http: bad.request).serverModes(profile); fatalError("Invalid admin response accepted") }
             catch { }
         }
+        checkpoint("opening, failure and idempotent cleanup")
         let audio = try await client.run(profile, expectedMode: "fake", phase: { _ in })
         assert(audio == wav && peer.cleaned && peer.mask == 0)
         assert(peer.paths.allSatisfy { !$0.contains("secret") })
@@ -104,6 +106,7 @@ struct NativeDebugTests {
         do { _ = try await DebugBackendClient(http: failedCleanup.request).run(profile, expectedMode: "fake", phase: { _ in }); fatalError("Failed cleanup accepted") }
         catch { }
         assert(!failedCleanup.cleaned && failedCleanup.deleteAttempts == 2)
+        checkpoint("cancellation while polling")
         let blocked = Peer(wav: wav, failure: "blocked")
         let cancelledRun = Task { @MainActor in
             try await DebugBackendClient(http: blocked.request).run(profile, expectedMode: "fake", phase: { _ in })
@@ -117,6 +120,7 @@ struct NativeDebugTests {
         do { _ = try await cancelledRun.value; fatalError("Cancelled run returned audio") }
         catch { }
         assert(blocked.cleaned && !blocked.paths.contains(where: { $0.hasSuffix("/speech") }))
+        checkpoint("cancellation during create")
         let createBlocked = Peer(wav: wav, failure: "blocked-create")
         let cancelledCreate = Task { @MainActor in
             try await DebugBackendClient(http: createBlocked.request).run(profile, expectedMode: "fake", phase: { _ in })
@@ -131,11 +135,20 @@ struct NativeDebugTests {
         catch { }
         assert(createBlocked.cleaned && createBlocked.createAttempts == 2)
         assert(!createBlocked.paths.contains(where: { $0.hasSuffix("/opening") }))
+        checkpoint("interactive sessions")
         try await testInteractiveSessions(profile: profile, wav: wav)
+        checkpoint("evenings")
         try await testEvenings(profile: profile)
+        checkpoint("server logs")
         try await testServerLogs(profile: profile)
+        checkpoint("HTTP transport")
         try await testHTTPTransport()
         print("Native debug profile, mode, correlation, WAV, cancellation and cleanup tests passed")
+    }
+
+    private static func checkpoint(_ label: String) {
+        // stderr remains available when an assertion traps before stdout flushes.
+        FileHandle.standardError.write(Data("native-debug: \(label)\n".utf8))
     }
 
     @MainActor static func testServerLogs(profile: DebugBackendProfile) async throws {
@@ -408,6 +421,9 @@ final class EveningPeer {
     }
 }
 
+// Cancellation tests inspect this mutable fake while its async request is
+// suspended. Keep both sides on the same actor, as the other test peers do.
+@MainActor
 final class Peer {
     let wav: Data
     let failure: String

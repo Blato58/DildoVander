@@ -19,7 +19,7 @@ approved design traits. No generic illustration may replace a failed individual
 generation. Synthetic output remains visibly labelled.
 
 Use the canonical `kufr/web/keepsake/` sources and real `build-site.py` path.
-Read Arcane Workshop style/accessibility rules. The order is artwork, official
+Read Vapour Chrome style/accessibility rules in `kufr/design-system/`. The order is artwork, official
 name, smaller edition title, summary, save action, readable story, optional private
 portrait, access and manual deletion controls. Preserve partial/error states.
 

@@ -5,6 +5,7 @@ const path = require('node:path');
 const http = require('node:http');
 const zlib = require('node:zlib');
 const { chromium } = require('playwright');
+const { assertSharedDialog } = require('./test-dialog.cjs');
 const repo = path.resolve(__dirname, '../../..');
 const guid = number => `00000000-0000-4000-8000-${String(number).padStart(12, '0')}`;
 
@@ -105,9 +106,16 @@ const eveningA = guid(9001); const eveningB = guid(9002);
     await page.goto(origin + '/keepsake/evening/');
     await page.locator('#public-name').filter({ hasText: 'Hůlka číslo 3' }).waitFor();
     await page.locator('#public-art').waitFor({ state: 'visible' });
+    await page.locator('#public-art-open').click();
+    await page.locator('#public-art-dialog').waitFor({ state: 'visible' });
+    await assertSharedDialog(page, '#public-art-dialog');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('#public-art-dialog').open
+      && document.activeElement.id === 'public-art-open');
     assert.equal(calls.filter(c => c.path.includes('/assets/')).length, 1, 'Initial page loads one selected image, no thumbnail burst');
     assert.equal(await page.locator('#evening-list img').count(), 0);
     assert.equal(await page.locator('#evening-list button').count(), 3);
+    assert.equal(await page.evaluate(() => !!(document.querySelector('#evening-list-section').compareDocumentPosition(document.querySelector('#public-edition')) & Node.DOCUMENT_POSITION_FOLLOWING)), true, 'Pickup selection precedes long edition content');
     assert.equal(await page.locator('[type="file"]').count(), 0);
     assert.doesNotMatch(await page.locator('body').textContent(), /PRIVATE-(PORTRAIT|PHOTO|PROMPT)-SENTINEL/);
     for (const width of [320, 390, 430, 844, 1280]) {
@@ -119,6 +127,8 @@ const eveningA = guid(9001); const eveningB = guid(9002);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, '200% zoom must fit');
     await page.evaluate(() => { document.body.style.zoom = ''; });
     assert.equal(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches), true);
+    await page.locator('#evening-list button').first().click();
+    assert.equal(await page.locator('#public-name').evaluate(node => node === document.activeElement), true, 'Pointer selection reveals and focuses the selected edition');
     const prior = page.locator('#evening-list button').nth(1);
     await prior.focus(); await page.keyboard.press('Enter');
     await page.locator('#public-name').filter({ hasText: '<img src=x' }).waitFor();
@@ -133,6 +143,7 @@ const eveningA = guid(9001); const eveningB = guid(9002);
     for (const kind of ['export_story', 'base_image', 'export_card', 'export_zip']) {
       await page.locator(`[data-public-download="${kind}"]`).click();
       await page.getByRole('heading', { name: 'Památka je připravená k uložení' }).waitFor();
+      await assertSharedDialog(page, '[data-public-file]');
       assert.match(await page.locator('[data-public-file] a').getAttribute('download'), kind === 'export_story' ? /\.txt$/ : kind === 'export_zip' ? /\.zip$/ : /\.png$/);
       if (kind === 'export_story') {
         const pendingDownload = page.waitForEvent('download');
@@ -188,6 +199,8 @@ const eveningA = guid(9001); const eveningB = guid(9002);
     active = eveningB; latestNumber = 102; await page.locator('#refresh-evening').click();
     await page.locator('#public-name').filter({ hasText: 'Hůlka číslo 102' }).waitFor(); await page.waitForTimeout(600);
     assert.equal(await page.locator('#public-name').textContent(), 'Hůlka číslo 102', 'Stale page cannot restore old evening');
+    assert.equal(await page.locator('#load-more').textContent(), 'Načíst další hůlky', 'Cancelled paging must restore its action label');
+    assert.equal(await page.locator('#load-more').getAttribute('aria-busy'), null);
     delayedPage = false; preparing = true; await page.locator('#refresh-evening').click();
     await page.locator('#public-art-status').filter({ hasText: 'Obraz ještě není připravený' }).waitFor();
     assert.equal(await page.locator('[data-public-download="export_zip"]').isDisabled(), true);
@@ -198,7 +211,10 @@ const eveningA = guid(9001); const eveningB = guid(9002);
     await page.getByRole('heading', { name: 'Archiv je právě nedostupný' }).waitFor();
     assert.equal(await page.locator('#public-edition').isVisible(), false);
     unavailable = false; await page.locator('#refresh-evening').click(); await page.locator('#public-art').waitFor({ state: 'visible' });
-    if (process.env.DV10_EVENING_SCREENSHOT) await page.screenshot({ path: process.env.DV10_EVENING_SCREENSHOT, fullPage: true });
+    if (process.env.DV10_EVENING_SCREENSHOT) {
+      if (process.env.DV10_SCREENSHOT_WIDTH) await page.setViewportSize({ width: Number(process.env.DV10_SCREENSHOT_WIDTH), height: 900 });
+      await page.screenshot({ path: process.env.DV10_EVENING_SCREENSHOT, fullPage: true });
+    }
     for (const call of calls) {
       assert.equal(call.method, 'GET', 'Public page must remain read-only');
       assert.equal(call.headers.cookie, undefined, 'Public API must omit an existing private cookie');

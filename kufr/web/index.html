@@ -1,32 +1,37 @@
 <!doctype html>
-<html lang="cs">
+<html lang="cs" data-theme="system">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0D1218">
-  <title>DildoVander · Arcane Workshop</title>
+  <meta name="theme-color" content="#1B2430">
+  <title>DildoVander · Hůlky, příběhy a dílna</title>
   <link rel="stylesheet" href="/design-system/arcane-workshop.css">
   <link rel="stylesheet" href="/site.css">
+  <script src="/keepsake/theme.js" type="module"></script>
 </head>
-<body>
+<body class="aw-root">
   <a class="skip-link" href="#main">Přejít na obsah</a>
   <header class="site-header">
-    <a class="brand" href="/" aria-label="DildoVander, úvod"><span class="brand-mark" aria-hidden="true">✧</span><span>DildoVander<small>ARCANE WORKSHOP</small></span></a>
-    <nav aria-label="Hlavní navigace"><a href="/workshop/">3D Workshop</a><a href="/ios/">iOS Companion</a><a href="/simulator/">Simulation Lab</a></nav>
-    <span class="site-state">CAD / SOFTWARE</span>
+    <a class="brand" href="/" aria-label="DildoVander, úvod">DildoVander<span>Hůlky mají vlastní názor.</span></a>
+    <nav aria-label="Hlavní navigace"><a href="/keepsake/evening/">Památka z večera</a><a href="#dilna">Dílna</a><a href="/ios/">Aplikace</a></nav>
+    <label class="theme-control"><span>Vzhled</span><select data-theme-select aria-label="Barevný vzhled"><option value="system">Systém</option><option value="light">Světlý</option><option value="dark">Tmavý</option></select></label>
   </header>
-  <main id="main">
+  <main id="main" tabindex="-1">
     <section class="hero" aria-labelledby="hero-title">
-      <div class="hero-copy"><p class="eyebrow">MAGIC MEETS MACHINERY</p><h1 id="hero-title">Kouzlo na povrchu.<br><em>Preciznost uvnitř.</em></h1><p class="intro">Dřevěný kufr, šest hůlek a vlastní názor. Prozkoumej mechaniku, stáhni výrobní podklady nebo otevři ovladač pro iPhone.</p><div class="actions"><a class="primary" href="/workshop/">Prozkoumat model <span aria-hidden="true">↗</span></a><a class="secondary" href="/ios/">Instalovat iOS aplikaci</a></div><p class="caption">Revize __REVISION__ · CAD ověřeno · fyzická přejímka zůstává otevřená</p></div>
-      <figure class="hero-model"><img src="/workshop/images/open.png" width="1600" height="1100" alt="Skutečný CAD render vložky se šesti přihrádkami a elektronikou"><figcaption><span>MODEL __REVISION__</span><span>SKUTEČNÁ GEOMETRIE CAD</span></figcaption></figure>
+      <div class="hero-copy"><h1 id="hero-title">Jeden kufr.<br>Šest hůlek.<br><em>Tvůj příběh.</em></h1><p class="intro">Některá setkání stojí za uchování. Najdi hůlku, která si tě vybrala, přečti si její příběh a vezmi si kousek večera s sebou.</p><div class="actions"><a class="aw-button aw-button--primary" href="/keepsake/evening/">Najít svoji památku <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></a><a class="aw-button aw-button--secondary" href="#dilna">Nahlédnout do dílny</a></div><p class="caption">Společný přehled hůlek a příběhů. Fotografie a portréty zůstávají soukromé.</p></div>
+      <figure class="hero-model"><div class="model-image"><img src="/workshop/images/open.png" width="1600" height="1100" alt="CAD render vložky kufru se šesti přihrádkami a elektronikou"></div><figcaption><span>Uvnitř DildoVanderu</span><span>CAD · __REVISION__</span></figcaption></figure>
     </section>
-    <section class="tools" aria-label="Nástroje projektu">
-      <article class="tool-card"><span class="tool-number">01 / EXPLORE</span><h2>3D Workshop</h2><p>Sestava, pohyby, kabeláž a montáž. Inspector vysvětlí, co je změřené a co je návrhový předpoklad.</p><a href="/workshop/">Otevřít viewer <span aria-hidden="true">↗</span></a><a class="sub-link" href="/workshop/__PACKAGE_NAME__" download>Stáhnout celý balíček · __PACKAGE_SIZE__ MB</a></article>
-      <article class="tool-card"><span class="tool-number">02 / CONTROL</span><h2>iOS Companion</h2><p>Ovládání, hlas a servis kufru. Podepsaná aplikace pro registrovaný iPhone; instalaci otevři v Safari.</p><a href="/ios/">Instalovat na iPhone <span aria-hidden="true">↗</span></a><a class="sub-link" href="/companion/">Webový vývojový režim</a></article>
-      <article class="tool-card"><span class="tool-number">03 / OBSERVE</span><h2>Simulation Lab</h2><p>Stavy a časová osa hostitelského modelu. Veřejný náhled je odpojený a neovládá fyzické pohony.</p><a href="/simulator/">Otevřít konzoli <span aria-hidden="true">↗</span></a><a class="sub-link" href="/design-system/mockups/">Prohlédnout UI specifikaci</a></article>
+    <section class="visitor-note" aria-labelledby="visitor-title"><h2 id="visitor-title">Kouzlo zůstává i po zavření kufru.</h2><div><p>Ve společném přehledu najdeš připravené příběhy, digitální obrazy a soubory ke stažení. Otevři svou hůlku a ulož si památku bez zakládání účtu.</p><a href="/keepsake/">Soukromá památka a informace o přístupu</a></div></section>
+    <section id="dilna" class="workshop-directory" aria-labelledby="workshop-title">
+      <div class="directory-heading"><h2 id="workshop-title">Za kouzlem je dílna.</h2><p>Mechanika, software a nástroje pro ty, kdo chtějí vidět dovnitř.</p></div>
+      <div class="tool-list">
+        <article class="tool-row"><div><h3><a href="/workshop/">3D Workshop <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg></a></h3><p>Sestava, pohyby, kabeláž a montáž. Prozkoumej skutečnou geometrii i návrhové předpoklady.</p></div><a class="sub-link" href="/workshop/__PACKAGE_NAME__" download>Výrobní balíček <span>ZIP · __PACKAGE_SIZE__ MB</span></a></article>
+        <article class="tool-row"><div><h3><a href="/ios/">iOS Companion <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg></a></h3><p>Ovládání, hlas a servis kufru. Podepsanou aplikaci pro registrovaný iPhone instaluj v Safari.</p></div><a class="sub-link" href="/companion/">Webový vývojový režim <span>Pro vývoj a simulaci</span></a></article>
+        <article class="tool-row"><div><h3><a href="/simulator/">Simulation Lab <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg></a></h3><p>Stavy a časová osa hostitelského modelu. Veřejný náhled je odpojený od fyzických pohonů.</p></div><a class="sub-link" href="/design-system/mockups/">Vizuální specifikace <span>Sdílený design systém</span></a></article>
+      </div>
     </section>
-    <aside class="acceptance"><strong>Model není fyzická akceptace.</strong><p>Simulace pohybu a geometrické kontroly neprokazují sílu serv, kvalitu tisku, skutečné zapojení ani bezpečný provoz sestavy.</p></aside>
+    <aside class="acceptance"><strong>Model není fyzická akceptace.</strong><p>Simulace a geometrické kontroly neprokazují sílu serv, kvalitu tisku, skutečné zapojení ani bezpečný provoz sestavy.</p></aside>
   </main>
-  <footer class="site-footer"><span>DILDOVANDER / ARCANE WORKSHOP</span><span>Zdroj __SOURCE_SHORT__ · <a href="/site-manifest.json">Verze a otisky souborů</a></span></footer>
+  <footer class="site-footer"><a href="/">DildoVander</a><span>Zdroj __SOURCE_SHORT__ · <a href="/site-manifest.json">Verze a otisky souborů</a></span></footer>
 </body>
 </html>

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-UX-JOURNEYS-browser-v3",
+  "kind": "browser",
+  "observedAtUtc": "2026-10-19T01:09:01.539659+00:00",
+  "result": "pass",
+  "subject": {
+    "artifactDigest": "dbd9ac1c6bdf8535dcd4023104c9d9f7862280bc2c543b98b8f60e2f666f7749"
+  },
+  "claims": [
+    {
+      "workItemId": "KUFR-UX-JOURNEYS",
+      "criterionId": "ACTIVE-JOURNEYS",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "method": "UI_BROWSER_CHANNEL=msedge UI_MOBILE_DIST=actual /companion/ dist UI_VIEWER_HTML=real generated synthetic fixture UI_INSTALLER_HTML=real publisher render_page output UI_SCREENSHOT_DIR=local evidence npm run test:browser --prefix kufr/design-system; NODE_PATH=design-system/node_modules node keepsake/test-browser.cjs and test-evening-browser.cjs; PLAYWRIGHT_CHANNEL=msedge node --test final/test_twin_media_browser.cjs; visible in-app Browser on local Companion/viewer/assembly/servo/installer.",
+  "environment": "Windows local checkout; existing locked npm dependencies; Edge real browser with confined loopback/file and synthetic fixtures; no provider or actuator calls.",
+  "observation": "All successful v2 real-browser results transfer: only a nonvisual data-provisioning-status hook and its scoped query changed since those captures; markup order, layout, styles, shared runtime, transport and async guest/device behavior are unchanged. New meaningful component regressions reproduce the native nested LAN/BLE composition and prove independent feedback. Operator/public/private/viewer/assembly/simulator/USB/installer screenshots and strict loopback/file tests remain applicable. Native Swift/unsigned Simulator CI passed separately; no signed iPhone or physical evidence is claimed. Current complete source digest dbd9ac1c6bdf8535dcd4023104c9d9f7862280bc2c543b98b8f60e2f666f7749, 56 sorted changed source paths from ec9ebd2 excluding docs/project; UTF8 path+NUL+LF-normalized bytes+NUL.",
+  "limitations": [
+    "Software and labelled synthetic browser evidence only. No signed iPhone, VoiceOver, physical suitcase/servo, real audio/camera, production deployment or paid provider acceptance.",
+    "UI-only offline viewer was generated through preview_ui_fixture.py/render_document with explicit synthetic geometry and guide steps. No CAD/STL/manufacturing ZIP regeneration or physical assembly acceptance.",
+    "Backend API/persistence, native adapters and firmware command/controller semantics are unchanged. Existing consent, static public evening QR, manual-only archive deletion and actuator gates are preserved.",
+    "Native Swift/iOS Simulator CI and GitHub delivery are assessed separately after push. Three existing Windows-dependent web tests skip; they are not counted as passed."
+  ],
+  "supersedes": [
+    "KUFR-UX-JOURNEYS-browser-v2"
+  ],
+  "supersedesReason": "PR review found a valid nested feedback ownership defect. The dedicated BLE hook and regression tests are verified; all other runtime/style/build inputs are unchanged, supporting explicit transfer of prior evidence."
+}

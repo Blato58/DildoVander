@@ -86,6 +86,24 @@ fázi, režim, journal a posledních 100 událostí C++ modelu. Neobsahuje
 ovládání výběru ani pohonů. Prohlížeč musí důvěřovat místnímu vývojovému
 certifikátu; neobcházejte jeho bezpečnostní upozornění.
 
+`dashboard-ui.js` skládá pole, akce, stavové značky a prázdné/chybové stavy
+ze sdíleného `../design-system/ui.js`. Server poskytuje oba moduly explicitně;
+statický veřejný balíček musí zachovat oba i s příznakem `data-static-preview`.
+
+Pohled odděluje místní připojení od stavu modelu. Před prvním snapshotem
+jsou přihrádky neznámé; po odpojení je poslední snapshot výslovně označen
+jako neaktuální. Historii lze filtrovat podle názvu nebo čísla přihrádky
+a tlačítkem **Vymazat zobrazení** vyčistit pouze v této stránce. Tyto akce
+neposílají žádný povel modelu a nemění journal. Nové události se nadále
+přidávají, nejnovější nahoře, nejvýše 100. Tlačítko v záhlaví přepíná
+světlý a tmavý vzhled; stránka začíná v tmavém režimu.
+
+Každé nové připojení vyčistí místní historii, aby se nemíchaly relativní
+časy různých běhů modelu. Snapshot ukazuje čas přijetí podle prohlížeče;
+proud nemá pravidelný heartbeat, takže ticho nepotvrzuje funkční spojení
+ani poruchu. Při odpojení nesou přihrádky historické označení. Doporučení
+dalšího kroku vychází z fáze a journalu modelu; samo nevydává žádný povel.
+
 Testovací token z `KUFR_SIMULATOR_TOKEN` zadejte do pole stránky. Stránka
 jej po zahájení spojení vymaže z pole a použije jen v `Authorization: Bearer`
 hlavičce požadavku na `GET /v1/observe`. Tento místní HTTPS NDJSON proud

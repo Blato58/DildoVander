@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-UX-JOURNEYS-unit-v1",
+  "kind": "unit",
+  "observedAtUtc": "2026-10-19T00:52:07.160962+00:00",
+  "result": "pass",
+  "subject": {
+    "artifactDigest": "b381ea075d9c9b04f6800c3661f097987c93100d2d51b19b9e5fd94a05a5496c"
+  },
+  "claims": [
+    {
+      "workItemId": "KUFR-UX-JOURNEYS",
+      "criterionId": "ACTIVE-JOURNEYS",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "method": "npm test --prefix kufr/design-system; npm test --prefix kufr/mobilni-aplikace; npm run build --prefix kufr/mobilni-aplikace -- --base=/companion/; node --test final/test_viewer.cjs final/test_twin_viewer.cjs final/test_twin_media.cjs final/test_show_timeline.cjs; Python viewer_document/viewer_style; node simulator/verify-dashboard.mjs; servo-bench web Node and HTTP Python tests; Python web test_site_inputs/test_site/keepsake, test_publish_ios_install and scripts/test_design_system; generator --check and check_design_system.py; git diff --check.",
+  "environment": "Windows local checkout; existing locked npm dependencies; Edge real browser with confined loopback/file and synthetic fixtures; no provider or actuator calls.",
+  "observation": "PASS: shared 8 Node + 9 Python; mobile 78 Node and TypeScript/Vite production build (125 modules); viewer/Twin/media/timeline 122 Node + 12 Python; dashboard verifier; servo 72 Node + 3 Python; web site inputs 5, site 13 with 3 Windows skips, keepsake 5; standalone iOS publisher 7; design integrity 9. New regressions cover guest/session generation ownership, canceled newer-action unlocks, route/background/bootstrap-lock isolation, same-route out-of-order reads, delete/revoke invalidation, live tab visibility, readiness, focus, historical snapshot labels and mode-aware visibility recovery. An additional media browser check first exposed a pre-existing fixture omission of shared UI; the fixture now imports the actual ESM snapshot before mounting and the corrected real-browser tests pass. No production code workaround was used. Source identity: b381ea075d9c9b04f6800c3661f097987c93100d2d51b19b9e5fd94a05a5496c, 53 sorted source paths changed from ec9ebd2, excluding docs/project. Digest is UTF8 path+NUL+LF-normalized file bytes+NUL.",
+  "limitations": [
+    "Software and labelled synthetic browser evidence only. No signed iPhone, VoiceOver, physical suitcase/servo, real audio/camera, production deployment or paid provider acceptance.",
+    "UI-only offline viewer was generated through preview_ui_fixture.py/render_document with explicit synthetic geometry and guide steps. No CAD/STL/manufacturing ZIP regeneration or physical assembly acceptance.",
+    "Backend API/persistence, native adapters and firmware command/controller semantics are unchanged. Existing consent, static public evening QR, manual-only archive deletion and actuator gates are preserved.",
+    "Native Swift/iOS Simulator CI and GitHub delivery are assessed separately after push. Three existing Windows-dependent web tests skip; they are not counted as passed."
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-E5-servo-bench-assisted-auto-20261018",
+  "observedAtUtc": "2026-10-18T20:04:26.603609+00:00",
+  "kind": "integration",
+  "result": "inconclusive",
+  "claims": [
+    {
+      "workItemId": "KUFR-E5",
+      "criterionId": "S45",
+      "criterionRevision": 1,
+      "result": "inconclusive"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "ef8c24fdba82fcfa1ee91e2c9af8a0b279be781fad3ef81ece2d05daec07b63e",
+    "firmwareDigest": "f6f8b2dd02ee4876e65fbe810acf96943dc70a97af0eef45c312049cbd1f6932",
+    "assemblyId": "kufr-68ee8f4b6048"
+  },
+  "method": "node --test kufr/firmware/diagnostics/servo-bench/web/tests/*.test.mjs (70/70); Python HTTP-handler unittest suite (3/3); independent source review; real browser with isolated simulated WebSerial/profile storage for automatic-run/noise/proposal path; actual localhost panel profile-preservation, layout and ESP Stop checks only.",
+  "environment": "Windows local. Installed calibration=v1 ESP32-S3 COM7 firmware unchanged; no new flash. Owner confirmed smooth1400us movement and V+OFF before this implementation. Actual panel127.0.0.1:8765, temporary explicitly labelledSIMULACE snapshot127.0.0.1:8766 with fake WebSerial and isolated storage; temporary test has no physical SerialPort access.",
+  "observation": "Added explicit one-direction automatic calibration from saved center:25us steps,1500ms PWM, target starts >=3000ms apart, Arm/DONE plus resolved writes required. Bounded1000-2000us and<=41targets, no catch-up/queued motion/automatic next leg. Noise cancels epoch beforeStop and proposes prior completed target excluding last audible target even during nextArm wait. FreshStopACK/write proof, unchanged channel/profile and explicit approval required to save. Fault handling skips automatic I2C retry; ordinaryStop/hidden/pagehide/reset/error/disconnect invalidate proposals and no automatic resume. Independent review resolved target-ledger and fault-visibility retry findings; regression tests pass. Simulated browser22:01:18/21/24 local sent1500,1475,1450 with3s cadence; nativeMCPArm rejected duringauto; noise during1450 caused! thenSTOP, noDONE for1450 and no further command. Proposal1475 became available onlyafterStopACK, explicit save affected simulatedmin1475 and retainedcenter1500. No consolewarnings/errors. Final actual panel reloaded with original center1500/name intact; connectStop lostduringboot asknown, separateStopACK established baseline=true,fault=false,calibrationSupported=true,autoactive=false. No actualArm or movement sent during this preparation. Real UI320/390/1024/1440 nooverflow, allcontrols>=44px; fixedStop/noise60px visible, reducedmotion0s. Source digest frames 26 sorted source/doc/testfiles with4-byteBEpathlength/path/8-byteBEcontentlength/content excluding.pio/cache/generatedsdkconfig. Final wording correction after simulated run only changes saved-confirmation text; final70test suite and actual panel use finalsource.",
+  "limitations": [
+    "Actual powered automatic traversal and real noise-button intervention remain untested. Browser simulation does not prove hardware movement, stop latency, angle, current or mechanical endpoints; S45 remains inconclusive.",
+    "Operator hears grinding; software cannot sense sound, position, torque or power. A proposed preceding step is not a guaranteed safe endpoint.",
+    "FULL_OFF does not remove5V or guarantee torque release. Browser freeze/USB loss/ESP freeze/I2C failure may prevent immediate Stop; operator must cutV+ on grinding/fault.",
+    "Automatic targets are separate bounded commands through existing firmware; timing is approximate and not an enforced physical real-time guarantee.",
+    "Manual local profiles remain unmeasured and nonproduction. Actual profile min/max were not changed by simulated tests.",
+    "No firmware change or upload in this slice. Earlier firmware build/host evidence is historical, not rerun here.",
+    "User testing continues; PR207 remains closed unmerged and changes remain local."
+  ],
+  "artifactRefs": [
+    "kufr/firmware/diagnostics/servo-bench/web/auto-calibration.mjs",
+    "kufr/firmware/diagnostics/servo-bench/web/tests/auto-calibration.test.mjs",
+    "kufr/firmware/diagnostics/servo-bench/web/tests/panel.test.mjs",
+    "kufr/firmware/diagnostics/servo-bench/README.md",
+    "docs/project/evidence/KUFR-E5-servo-bench-calibration-1400-powered-20261018.json"
+  ]
+}

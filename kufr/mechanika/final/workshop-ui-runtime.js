@@ -1,0 +1,197 @@
+/** Dependency-free Vapour Chrome markup and native DOM behavior. */
+export function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[character]);
+}
+
+function choice(value, allowed, fallback) {
+  return allowed.includes(value) ? value : fallback;
+}
+
+function toneClass(tone) {
+  return choice(tone, ['neutral', 'info', 'success', 'warning', 'danger'], 'neutral');
+}
+
+function attributesHtml(attributes = {}) {
+  return Object.entries(attributes).filter(([key, value]) =>
+    value !== undefined && value !== null &&
+    (/^(?:data|aria)-[a-z][a-z0-9-]*$/.test(key) || ['name', 'value', 'title', 'form'].includes(key)),
+  ).map(([key, value]) => ` ${key}="${escapeHtml(value)}"`).join('');
+}
+
+export function button({ label, variant = 'secondary', size = 'normal', disabled = false, loading = false, type = 'button', id, attributes = {} }) {
+  const style = choice(variant, ['primary', 'secondary', 'danger', 'ghost'], 'secondary');
+  const scale = choice(size, ['normal', 'small'], 'normal');
+  const classes = `aw-button aw-button--${style} aw-button--${scale}${attributes.class ? ` ${attributes.class}` : ''}`;
+  const safeAttributes = { ...attributes };
+  delete safeAttributes['aria-busy'];
+  return `<button class="${escapeHtml(classes)}" type="${choice(type, ['button', 'submit', 'reset'], 'button')}"${id ? ` id="${escapeHtml(id)}"` : ''}${disabled || loading ? ' disabled' : ''}${loading ? ' aria-busy="true"' : ''}${attributesHtml(safeAttributes)}>${escapeHtml(label)}</button>`;
+}
+
+export function statusBadge({ label, tone = 'neutral' }) {
+  return `<span class="aw-badge aw-badge--${toneClass(tone)}">${escapeHtml(label)}</span>`;
+}
+
+/** action is trusted application/framework markup; detail is escaped text.
+ * Use live:false for persistent snapshot-driven state to avoid repeated announcements. */
+export function notice({ title, message, detail, action = '', tone = 'info', live = true }) {
+  const style = toneClass(tone);
+  return `<div class="aw-notice aw-notice--${style}"${live ? ` role="${style === 'danger' ? 'alert' : 'status'}"` : ''}>${title ? `<strong>${escapeHtml(title)}</strong>` : ''}<p>${escapeHtml(message)}</p>${detail ? `<p class="aw-notice-detail">${escapeHtml(detail)}</p>` : ''}${action ? `<div class="aw-notice-action">${action}</div>` : ''}</div>`;
+}
+
+/** action is trusted application/framework markup, never visitor text. */
+export function emptyState({ title, message, action = '' }) {
+  return `<div class="aw-empty"><h3>${escapeHtml(title)}</h3><p>${escapeHtml(message)}</p>${action ? `<div class="aw-empty-action">${action}</div>` : ''}</div>`;
+}
+
+function safeImageUrl(value) {
+  const url = String(value ?? '').trim();
+  if (!url || /[\u0000-\u0020\u007f\\]/.test(url)) return '';
+  // Images may be local/relative or HTTPS; active and opaque URL schemes are excluded.
+  return /^(?:https?:\/\/|blob:)/i.test(url) || !/^[a-z][a-z0-9+.-]*:/i.test(url) ? url : '';
+}
+
+export function wandCard({ title, subtitle, number, imageUrl, selected = false, disabled = false, interactive = true }) {
+  const image = safeImageUrl(imageUrl);
+  const tag = interactive ? 'button' : 'article';
+  const state = interactive ? ` type="button" aria-pressed="${Boolean(selected)}"${disabled ? ' disabled' : ''}` : ` data-selected="${Boolean(selected)}" data-disabled="${Boolean(disabled)}"`;
+  return `<${tag} class="aw-card aw-wand-card"${state}>${image ? `<img class="aw-wand-image" src="${escapeHtml(image)}" alt="" loading="lazy">` : ''}<span class="aw-wand-copy">${number !== undefined ? `<span class="aw-wand-number aw-mono">${escapeHtml(number)}</span>` : ''}<strong class="aw-wand-card__title">${escapeHtml(title)}</strong>${subtitle ? `<span class="aw-muted aw-wand-card__subtitle">${escapeHtml(subtitle)}</span>` : ''}</span></${tag}>`;
+}
+
+function withControlAttributes(control, values) {
+  return control.replace(/<(input|select|textarea)\b([^>]*)>/i, (tag, name, attributes) => {
+    let merged = attributes;
+    for (const [key, value] of Object.entries(values)) {
+      const existing = new RegExp(`\\s${key}=(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i');
+      const match = merged.match(existing);
+      let next = value;
+      if (key === 'aria-describedby' && match) next = `${match[1] ?? match[2] ?? match[3]} ${value}`;
+      merged = merged.replace(existing, '');
+      merged += ` ${key}="${escapeHtml(next)}"`;
+    }
+    return `<${name}${merged}>`;
+  });
+}
+
+/** control is trusted application-authored HTML; label/description/error are plain text. */
+export function field({ id, label, control, description, error }) {
+  const descriptions = [description ? `${id}-description` : '', error ? `${id}-error` : ''].filter(Boolean).join(' ');
+  const values = { id };
+  if (descriptions) values['aria-describedby'] = descriptions;
+  if (error) values['aria-invalid'] = 'true';
+  const input = withControlAttributes(control, values);
+  return `<div class="aw-field"><label for="${escapeHtml(id)}">${escapeHtml(label)}</label>${input}${description ? `<p class="aw-field-description" id="${escapeHtml(id)}-description">${escapeHtml(description)}</p>` : ''}${error ? `<p class="aw-field-error" id="${escapeHtml(id)}-error">${escapeHtml(error)}</p>` : ''}</div>`;
+}
+
+/** Mount only markup returned by the shared renderers or trusted application code. */
+export function element(markup, ownerDocument = document) {
+  const template = ownerDocument.createElement('template');
+  template.innerHTML = markup.trim();
+  if (template.content.childElementCount !== 1) throw new TypeError('Expected one shared UI root element.');
+  return template.content.firstElementChild;
+}
+
+function isDisabled(tab) {
+  return tab.disabled || tab.getAttribute('aria-disabled') === 'true';
+}
+
+/** Automatic-activation tabs. Cleanup removes listeners before an owning rerender. */
+export function bindTabs(root, { onSelect } = {}) {
+  const tabs = Array.from(root.querySelectorAll('[role="tab"]'));
+  const enabled = () => tabs.filter((tab) => !isDisabled(tab));
+  function select(tab, notify = true) {
+    if (!tab || isDisabled(tab)) return;
+    for (const item of tabs) {
+      const selected = item === tab;
+      item.setAttribute('aria-selected', String(selected));
+      item.tabIndex = selected ? 0 : -1;
+      const panelId = item.getAttribute('aria-controls');
+      const panel = panelId && root.ownerDocument.getElementById(panelId);
+      if (panel) {
+        panel.hidden = !selected;
+        if (item.id) panel.setAttribute('aria-labelledby', item.id);
+      }
+    }
+    if (notify) onSelect?.(tab);
+  }
+  function targetTab(event) {
+    const tab = event.target.closest?.('[role="tab"]');
+    return tabs.includes(tab) ? tab : undefined;
+  }
+  function click(event) {
+    const tab = targetTab(event);
+    if (tab && !isDisabled(tab)) select(tab);
+  }
+  function keydown(event) {
+    const tab = targetTab(event);
+    if (!tab || isDisabled(tab)) return;
+    const candidates = enabled();
+    const index = candidates.indexOf(tab);
+    const vertical = (tab.closest?.('[role="tablist"]') ?? root).getAttribute('aria-orientation') === 'vertical';
+    let next;
+    if (event.key === 'Home') next = candidates[0];
+    else if (event.key === 'End') next = candidates.at(-1);
+    else if (event.key === (vertical ? 'ArrowDown' : 'ArrowRight')) next = candidates[(index + 1) % candidates.length];
+    else if (event.key === (vertical ? 'ArrowUp' : 'ArrowLeft')) next = candidates[(index - 1 + candidates.length) % candidates.length];
+    if (next) {
+      event.preventDefault();
+      select(next);
+      next.focus();
+    }
+  }
+  const initial = enabled().find((tab) => tab.getAttribute('aria-selected') === 'true') ?? enabled()[0];
+  if (initial) select(initial, false);
+  else for (const tab of tabs) {
+    tab.tabIndex = -1;
+    tab.setAttribute('aria-selected', 'false');
+  }
+  root.addEventListener('click', click);
+  root.addEventListener('keydown', keydown);
+  return () => {
+    root.removeEventListener('click', click);
+    root.removeEventListener('keydown', keydown);
+  };
+}
+
+/** Native showModal supplies focus containment; cancel/Escape restores the invoker. */
+export function bindDialog(dialog, { onClose, initialFocus } = {}) {
+  let invoker;
+  let active = false;
+  function restore() {
+    // Native close events are queued; a previous close must not steal a reopened dialog's focus.
+    if (!active || dialog.open) return;
+    active = false;
+    if (invoker?.isConnected) invoker.focus();
+    invoker = undefined;
+    onClose?.(dialog.returnValue);
+  }
+  function close(returnValue = '') {
+    if (dialog.open) dialog.close(returnValue);
+  }
+  function cancel(event) {
+    event.preventDefault();
+    close();
+  }
+  dialog.addEventListener('close', restore);
+  dialog.addEventListener('cancel', cancel);
+  return {
+    open(trigger = dialog.ownerDocument.activeElement) {
+      if (dialog.open) return;
+      invoker = trigger;
+      dialog.showModal();
+      active = true;
+      const focus = typeof initialFocus === 'string' ? dialog.querySelector(initialFocus) : initialFocus;
+      (focus ?? dialog.querySelector('[autofocus], [data-dialog-cancel], button, input, select, textarea, [tabindex="0"]'))?.focus();
+    },
+    close,
+    destroy() {
+      if (dialog.open) {
+        dialog.close();
+        restore();
+      }
+      dialog.removeEventListener('close', restore);
+      dialog.removeEventListener('cancel', cancel);
+    },
+  };
+}

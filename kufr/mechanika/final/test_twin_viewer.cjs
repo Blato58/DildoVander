@@ -3,6 +3,18 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const twin = require('./twin_viewer.js');
+test('HTTP diagnostics retain only bounded technical code and route, never raw response details',async()=>{
+  const error=await twin.httpFailure({status:409,json:async()=>({code:'media_epoch_or_playback_mismatch',detail:'private payload',credential:'secret'})},'/v1/twin/instances/sim/media/played?credential=secret');
+  assert.equal(error.status,409);assert.equal(error.code,'media_epoch_or_playback_mismatch');
+  assert.match(error.message,/media\/played/);assert.match(error.message,/media_epoch_or_playback_mismatch/);
+  assert.equal(error.message.includes('secret'),false);assert.equal(error.message.includes('private payload'),false);
+});
+test('HTTP diagnostics tolerate proxy HTML and reject arbitrary server error text',async()=>{
+  const proxy=await twin.httpFailure({status:502,json:async()=>{throw new Error('HTML');}},'/media/output');
+  assert.match(proxy.message,/502/);assert.equal(proxy.code,'');
+  const unsafe=await twin.httpFailure({status:409,json:async()=>({code:'token: private-value'})},'/media/input');
+  assert.equal(unsafe.code,'');assert.equal(unsafe.message.includes('private-value'),false);
+});
 const manifest = {revision:'cad-1', hardwareProfile:'B-effects', kinematics:{liftMaxMm:16,angleMinDegrees:0,angleMaxDegrees:160,
   samples:[{angleDegrees:0,liftMm:0},{angleDegrees:80,liftMm:8},{angleDegrees:160,liftMm:16}]}};
 function frame(sequence='1', timeMs='0', options={}) {
@@ -92,14 +104,17 @@ function mounted(role='observer', location={origin:'https://twin.example',protoc
     set id(value) { this.identifier=value; elements.set(value,this); }
     get id() { return this.identifier; }
     set innerHTML(value) {
+      this.textContent = value.replace(/<[^>]*>/g, '');
       for (const match of value.matchAll(/<(\w+)[^>]*\bid="([^"]+)"([^>]*)>/g)) {
         const element = new Element(match[1]); element.id=match[2]; element.hidden=match[3].includes('hidden');
       }
       for (const match of value.matchAll(/data-twin-action="([^"]+)"/g)) {
         const button = new Element('button'); button.dataset.twinAction=match[1]; actions.push(button);
       }
-      elements.get('twin-slot').value='1'; elements.get('twin-variant').value='main';
-      elements.get('twin-speed').value='1'; elements.get('twin-replay-speed').value='1';
+      if (value.includes('id="twin-session"')) {
+        elements.get('twin-slot').value='1'; elements.get('twin-variant').value='main';
+        elements.get('twin-speed').value='1'; elements.get('twin-replay-speed').value='1';
+      }
     }
     append(child) { this.children.push(child); }
     add(child) { this.append(child); }
@@ -131,6 +146,7 @@ function mounted(role='observer', location={origin:'https://twin.example',protoc
       return {ok:true,json:async()=> url.endsWith('/instances') ? {role,instances:[{instanceId:'sim',mode:sourceMode,profile,status:sourceStatus,online:sourceStatus==='online'}]} : current};
     }};
   context.window=context;
+  require('./ui_test_runtime.cjs')(context);
   vm.runInNewContext(fs.readFileSync(require.resolve('./twin_viewer.js'),'utf8'),context);
   const api=context.DigitalTwin.mount(document,{twinManifest:{...manifest,slots:[{slot:1,components:{tray:'tray_1'},liftComponents:['tray_1'],rotationComponents:['cam_1']}]}},
     {activate(){},deactivate(){},clear(){},apply:(angles,grb,reported)=>{applies.push(angles);grbFrames.push(grb);reports.push(reported);},select:name=>selections.push(name)});

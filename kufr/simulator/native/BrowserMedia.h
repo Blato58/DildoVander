@@ -25,7 +25,7 @@ class BrowserMedia final : public VoiceAudioPort, public CostumeUploadPort {
   bool OwnsSession(const std::string& session);
   bool Busy() const { return busy_.load(); }
   bool Handle(const std::vector<std::string>& words, const std::vector<uint8_t>& body,
-      std::string& extension, std::vector<uint8_t>& attachment);
+      std::string& extension, std::vector<uint8_t>& attachment, std::string* rejectionCode = nullptr);
   std::string StateHeader();
   std::string AudioObservation();
   bool TakeService(std::string& extension, std::vector<uint8_t>& bytes);
@@ -43,9 +43,16 @@ class BrowserMedia final : public VoiceAudioPort, public CostumeUploadPort {
   bool Upload(const std::vector<uint8_t>& jpeg, std::string& operationId) override;
   PhotoPoll Poll(const std::string& operationId) override;
  private:
-  struct Output { std::string header; std::vector<uint8_t> bytes; bool service = false; };
+  struct Output {
+    std::string header;
+    std::vector<uint8_t> bytes;
+    bool service = false;
+    std::string kind = "";
+    uint64_t inputEpoch = 0, outputEpoch = 0;
+  };
   struct Response { bool ready = false; int status = 0; std::string type; std::vector<uint8_t> bytes; };
   bool Current() const;
+  bool TakeInputForEpoch(std::vector<uint8_t>& pcm, const RealtimeSessionEngine& engine, uint32_t engineEpoch);
   void Worker(VoiceWorkflowRequest request);
   void Phase(const char* phase);
   bool Emit(const std::string& kind, const std::vector<uint8_t>& bytes = {}, bool drain = false,
@@ -58,6 +65,9 @@ class BrowserMedia final : public VoiceAudioPort, public CostumeUploadPort {
   void ClearLocked();
   void QueueDeleteLocked();
   std::string device_, boot_, session_, conversation_, phase_ = "idle", endpoint_, photoKey_, lastRequestId_, photoWarning_, audioObservation_;
+  std::string lastPhase_;
+  uint64_t lastPhaseInputEpoch_ = 0, lastPhaseOutputEpoch_ = 0;
+  bool lastPhaseListening_ = false;
   TurnCorrelation photoCorrelation_;
   ConversationRuntimeSnapshot snapshot_;
   ConversationRuntimeState& runtime_;

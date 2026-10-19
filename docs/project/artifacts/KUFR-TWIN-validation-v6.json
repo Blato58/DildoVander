@@ -1,0 +1,19 @@
+{
+  "nativeWindowsTests": 19,
+  "nativeLinuxTests": 19,
+  "hostTests": 18,
+  "effectVariant": "pass",
+  "jsChecksIncludingChrome": 103,
+  "realChromeHalTests": 2,
+  "backendBuild": "fresh pass0warnings0errors",
+  "backendTwin": "fresh pass",
+  "backendTwinMedia": "fresh pass:260x4800B exact bytes/drain; stream faults/cleanup; stable-key cleanup retry3max; reauthentication renews same-ID session/media/host/tombstone ownership",
+  "matchingLinuxCppHeaders": 210,
+  "linuxPublish": "locked self-contained including SQLite",
+  "cad": "actual639parts generated, manifest eb942d229435984eaeaecd47661ebaf37e1f87c3587bad5ef64ec15cb206387c",
+  "liveIngest": "actual unchanged firmware serializer/fake I/O HTTPS204, not ESP",
+  "transfer": "Only3 unchanged twin_telemetry files transfer dated v3/v4 evidence. Concurrent DV10 firmware changes do not gain fresh board-build acceptance.",
+  "paidProviderCalls": 0,
+  "physicalVerification": "unavailable",
+  "v5Transfer": "Native/JS/CAD/firmware inputs unchanged since v14; dated v5 results transferred explicitly, not rerun."
+}

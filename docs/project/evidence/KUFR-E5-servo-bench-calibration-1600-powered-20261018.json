@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-E5-servo-bench-calibration-1600-powered-20261018",
+  "observedAtUtc": "2026-10-18T19:44:16.876025+00:00",
+  "kind": "integration",
+  "result": "inconclusive",
+  "claims": [
+    {
+      "workItemId": "KUFR-E5",
+      "criterionId": "S45",
+      "criterionRevision": 1,
+      "result": "inconclusive"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "70ca89f88fee78026367a1edb34ff64ca72fc25748696982ce0910e9ef88f850",
+    "firmwareDigest": "f6f8b2dd02ee4876e65fbe810acf96943dc70a97af0eef45c312049cbd1f6932",
+    "assemblyId": "kufr-68ee8f4b6048"
+  },
+  "method": "Owner-authorized native WebMCP get_state, Arm ACK, exactly one calibrate(channel=0,pulseWidthUs=1600,durationMs=1500), get_log. No reconnect/reset or retry.",
+  "environment": "Owner explicitly reported V+5V, USB connected, one unloaded channel0 servo under observation. Same ESP/PCA wiring and installed calibration=v1 firmware as preceding calibration receipt. Software does not measure power or position.",
+  "observation": "Owner confirmed physical movement and V+OFF following the previous1500us/1500ms test, then explicitly reported V+5V and observation for this1600us test.21:43:46 local: Arm ACK and exactly one cal0/1600/1500 submitted. PCA_READBACK MODE1x20 MODE2x04 prescale121 ON0 OFF328 expected328 FULL flags0 match1.21:43:48 DONE PWM FULL_OFF; MCPoktrue,faultfalse,unarmed,no pending. No I2C_ERROR/FAULT in this test. Initialstate alreadycontainedcompleted1800us target (not submitted by this agent turn); no physical inference from that state. Owner movement and V+OFF after current1600test remain unconfirmed; owner instructed to switchV+OFF. No profile saved.",
+  "limitations": [
+    "Single firmware/register result; current1600us physical movement and subsequent V+OFF await owner report.",
+    "Earlier1500us movement and switch-off are owner reports, not measurements. No waveform, current, force, angle or mechanical acceptance; S45 inconclusive.",
+    "FULL_OFF does not remove5V or guarantee torque release. No second movement or retry sent.",
+    "PR207 remains closed unmerged; testing ongoing."
+  ],
+  "artifactRefs": [
+    "docs/project/evidence/KUFR-E5-servo-bench-calibration-20261018.json",
+    "docs/project/evidence/KUFR-E5-servo-bench-calibration-1500-powered-20261018.json"
+  ]
+}

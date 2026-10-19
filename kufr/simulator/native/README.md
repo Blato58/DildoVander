@@ -211,3 +211,25 @@ actual current browser ACK; time advancement cannot create it. Stop with pending
 PCM loses drain certainty, and cancellation invalidates its output epoch. These
 are software media observations and make no audible/hardware claim. Before any
 browser audio port begins, the existing simulated tone/dance fallback remains.
+
+
+PCM flow control uses a bounded32-entry HAL output queue and a separate2-entry
+service queue. Adjacent PCM blocks with identical input/output epochs coalesce
+up to32768 bytes; sequence and cumulative-byte drain evidence remain exact.
+Only the media worker waits for HAL capacity (at most5 wall-clock seconds);
+Stop and native control do not wait. The input-event queue remains8 entries /
+512KiB. `media-event-backpressure` guarantees no enqueue and may be retried by
+the server for at most5 seconds. Other rejection/timeout results are not retried.
+Cancellation wakes queue waits and fences stale epochs. Browser startup buffering
+is150ms, independent of actual playback ACK. A stream without a valid terminal
+event fails and retires its actor; cleanup is once per conversation.
+
+The targeted offline HTTP/native burst test is part of:
+
+```sh
+KUFR_TWIN_TEST_NATIVE=/path/to/native-twin dotnet run --project kufr/backend-tests -- --twin-media
+```
+
+It sends260 distinct4800-byte PCM blocks through a loopback provider fixture,
+holds output consumption for5s, and checks exact bytes/drain, malformed/truncated
+stream cleanup, and bounded DELETEs. The fixture uses no provider or user media.

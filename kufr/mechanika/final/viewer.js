@@ -1,15 +1,49 @@
 /* Embedded by preview.py: the exported viewer needs no server or network. */
 const el = id => document.getElementById(id);
+VapourViewerUi.mountViewerUi(document);
+// Runtime controls are mounted dynamically by TwinViewer, outside the static template.
+const runtimeTools = () => document.getElementById('twin-details');
 let twinViewer = null;
 const canvas = el('view');
+const themeKey = 'dildovander.theme';
+let viewerTheme = 'dark', rendererReady = false;
+try { viewerTheme = localStorage.getItem(themeKey) === 'light' ? 'light' : 'dark'; } catch { /* The viewer also works without storage. */ }
+function applyViewerTheme() {
+  document.documentElement?.setAttribute('data-theme', viewerTheme);
+  const light = viewerTheme === 'light';
+  el('theme-toggle').setAttribute('aria-pressed', String(light));
+  el('theme-toggle').setAttribute('aria-label', light ? 'Tmavý vzhled' : 'Světlý vzhled');
+  el('theme-toggle').textContent = light ? 'Tmavý vzhled' : 'Světlý vzhled';
+}
+applyViewerTheme();
+el('theme-toggle').onclick = () => {
+  viewerTheme = viewerTheme === 'light' ? 'dark' : 'light';
+  applyViewerTheme();
+  try { localStorage.setItem(themeKey, viewerTheme); } catch { /* Theme remains available for this session. */ }
+  if (rendererReady) requestDraw();
+};
+function reportViewerError(message) {
+  VapourViewerUi.renderViewerError(el('viewer-error'), message);
+  el('viewer-status').textContent = 'Model není dostupný';
+}
 const gl = canvas.getContext('webgl', {antialias: true});
-if (!gl) throw new Error('WebGL není dostupné');
+if (!gl) {
+  reportViewerError('3D model nelze zobrazit: WebGL není dostupné. Otevřete viewer v prohlížeči s podporou WebGL.');
+  throw new Error('WebGL není dostupné');
+}
+canvas.addEventListener('webglcontextlost', event => {
+  event.preventDefault();
+  reportViewerError('Grafický kontext byl přerušen. Obnovte stránku pro opětovné načtení modelu.');
+});
 
 function shader(type, source) {
   const result = gl.createShader(type);
   gl.shaderSource(result, source);
   gl.compileShader(result);
-  if (!gl.getShaderParameter(result, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(result));
+  if (!gl.getShaderParameter(result, gl.COMPILE_STATUS)) {
+    reportViewerError('3D model nelze zobrazit: grafický ovladač nepodporuje shader vieweru.');
+    throw new Error(gl.getShaderInfoLog(result));
+  }
   return result;
 }
 const program = gl.createProgram();
@@ -20,9 +54,12 @@ gl.attachShader(program, shader(gl.FRAGMENT_SHADER, `
   precision mediump float; uniform vec3 color; uniform bool picking; uniform float highlight,opacity; varying vec3 normal;
   void main(){if(picking){gl_FragColor=vec4(color,1.);return;}
     float l=.48+.42*max(0.,dot(normalize(normal),normalize(vec3(.4,-.7,1.))))+.1*abs(normalize(normal).z);
-    gl_FragColor=vec4(mix(color*l,vec3(1.,.69,.12),highlight),opacity);}`));
+    gl_FragColor=vec4(mix(color*l,vec3(.722,.753,1.),highlight),opacity);}`));
 gl.linkProgram(program);
-if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
+if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+  reportViewerError('3D model nelze zobrazit: sestavení grafického programu se nezdařilo.');
+  throw new Error(gl.getProgramInfoLog(program));
+}
 gl.useProgram(program);
 const loc = {};
 for (const name of ['projection', 'view', 'move', 'color', 'picking', 'highlight', 'opacity']) loc[name] = gl.getUniformLocation(program, name);
@@ -152,6 +189,10 @@ function assemblyPartState(mesh) {
   return 'future';
 }
 function isBenchStep() { return mode === 'assembly' && currentStep()?.installation?.kind === 'bench'; }
+function assemblyWorkLabel() {
+  if (!currentStep()) return 'Příprava průvodce';
+  return {bench:'Na stole mimo kufr',inspection:'Kontrola podkladů a sestavy',wiring:'Zapojení v návrhové sestavě'}[currentStep().installation?.kind] || 'Návrhový stav v kufru';
+}
 function currentPartPatterns(step = currentStep()) { return [...(step?.parts || []),...(step?.preparedParts || [])]; }
 function casePartPatterns(step) { return step?.caseParts ?? step?.parts ?? []; }
 function benchPreviewPatterns() {
@@ -582,12 +623,13 @@ function draw() {
   hovered = inspecting() && !drag ? pick() : null;
   hoveredConnection = inspecting() && !drag && !selectedWire && !selectedEndpoint ? wireHit() : null;
   const selected = pinned || hovered;
-  gl.clearColor(13/255,18/255,24/255,1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  const background = viewerTheme === 'light' ? [238,241,245] : [27,36,48];
+  gl.clearColor(...background.map(channel => channel/255),1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   renderMeshes(false, hovered || selected);
   el('liftvalue').textContent = lift(trayAngles[+el('tray').value-1] || 0).toFixed(1)+' mm';
   el('lidvalue').textContent = el('lid').value+'°';
   el('inspect').setAttribute('aria-pressed', String(inspectEnabled));
-  el('inspect-hint').hidden = !inspecting();
+  el('inspect-hint').hidden = !inspecting() || !!pinned;
   el('inspect-hint').textContent = pinned ? `Připnuto: ${pinned.name}. Klik na jiný objekt změní výběr; klik do prázdna nebo Zrušit výběr jej zruší.` : selected ? 'Klik na objekt připne jeho kartu a umožní změnit barvu.' : 'Inspect: názvy všech objektů zapnutých vrstev. Najeďte na díl; Servis odkryje elektroniku.';
   canvas.style.cursor = inspecting() ? 'crosshair' : drag ? 'grabbing' : 'grab';
   updatePanel(selected);
@@ -596,6 +638,7 @@ function draw() {
   updateOverlay(selected);
   el('selection-bar').hidden = !pinned;
   el('selection-title').textContent = pinned?.info?.title || pinned?.name || '';
+  updateViewportContext();
   if (cameraTransition) requestDraw();
 }
 function requestDraw() {
@@ -706,6 +749,7 @@ function setWorkshopPanel(name, open) {
   const toggle = el(name+'-toggle');
   toggle.setAttribute('aria-expanded', String(open));
   if (open) {
+    if (runtimeTools()) runtimeTools().open = false;
     if (mode === 'assembly') setGuideOpen(false);
     setMotionOpen(false);
     const other = name === 'explorer' ? 'inspector' : 'explorer';
@@ -714,7 +758,7 @@ function setWorkshopPanel(name, open) {
     otherPanel.setAttribute('data-open', 'false');
     el(other+'-toggle').setAttribute('aria-expanded', 'false');
     const closeButton = el(name+'-close');
-    if (focusWasInOther && !otherPanel.getClientRects().length && closeButton.getClientRects().length) {
+    if (closeButton.getClientRects().length && (activeElement === toggle || (focusWasInOther && !otherPanel.getClientRects().length))) {
       closeButton.focus({preventScroll:true});
     }
   } else if (focusWasInside && !panel.getClientRects().length && toggle.getClientRects().length) {
@@ -779,7 +823,8 @@ el('selection-details').onclick = () => setWorkshopPanel('inspector',true);
 el('selection-clear').onclick = () => { pinned = null; clearWireSelection(); requestDraw(); };
 el('hide-object').onclick = () => { if (pinned) hiddenMeshes.has(pinned.name) ? hiddenMeshes.delete(pinned.name) : hiddenMeshes.add(pinned.name); layersChanged(); };
 el('isolate-object').onclick = () => { isolateName = pinned?.name || null; layersChanged(); };
-el('show-all').onclick = () => { hiddenMeshes.clear(); hiddenGroups.clear(); isolateName = null; visualMode = 'complete'; el('visual-mode').value = 'complete'; resetView(); buildTree(); layersChanged(); };
+el('show-all').onclick = restoreVisibility;
+el('restore-view').onclick = () => { restoreVisibility(); canvas.focus({preventScroll:true}); };
 el('zoom-object').onclick = () => { if (pinned) zoomObject(pinned); };
 el('wire').onchange = () => {
   pinned = null; hovered = null; hoveredConnection = null; pointer = null;
@@ -811,12 +856,50 @@ el('service-reset').onclick = () => {
 function resetView() {
   cameraTransition = null; automaticFit = true; setView('overview');
 }
+const cameraViews = {
+  top: {angles:[-Math.PI/2,Math.PI/2-.001], label:'Shora'},
+  front: {angles:[-Math.PI/2,.01], label:'Zepředu'},
+  back: {angles:[Math.PI/2,.01], label:'Zezadu'},
+  left: {angles:[Math.PI,.01], label:'Zleva'},
+  side: {angles:[0,.01], label:'Zprava'},
+  overview: {angles:[-1.05,.66], label:'Izometrie'},
+};
 function setView(name) {
   cameraTransition = null;
-  const views = {top:[-Math.PI/2,Math.PI/2-.001],front:[-Math.PI/2,.01],back:[Math.PI/2,.01],left:[Math.PI,.01],side:[0,.01],overview:[-1.05,.66],iso:[-1.05,.66]};
-  [yaw,pitch] = views[name] || views.overview;
+  [yaw,pitch] = (cameraViews[name] || cameraViews.overview).angles;
   automaticFit = true; el('camera-menu').open = false; requestDraw();
-  for (const viewName of ['top','front','back','left','side','overview']) el('view-'+viewName).setAttribute('aria-pressed',String(viewName === name));
+}
+function geometryDefaults() {
+  const service = mode === 'service', transport = mode === 'transport';
+  return {cover:!service,case:true,beds:true,hardware:true,wands:!transport && !service,bank:!transport,textile:!transport && !service};
+}
+function resetGeometryVisibility() {
+  hiddenMeshes.clear(); hiddenGroups.clear(); isolateName = null;
+  visualMode = 'complete'; el('visual-mode').value = 'complete';
+  for (const [id,checked] of Object.entries(geometryDefaults())) el(id).checked = checked;
+  el('case-opacity').value = mode === 'service' ? .2 : 1;
+}
+function restoreVisibility() {
+  // Restore only model visibility: assembly progress, simulation faults and overlays are independent.
+  resetGeometryVisibility(); resetView(); buildTree(); layersChanged();
+}
+function updateViewportContext() {
+  const viewEntry = Object.entries(cameraViews).find(([,preset]) => {
+    const delta = yaw-preset.angles[0];
+    return Math.abs(Math.atan2(Math.sin(delta),Math.cos(delta))) < .002 && Math.abs(pitch-preset.angles[1]) < .002;
+  });
+  el('view-name').textContent = viewEntry?.[1].label || 'Volný pohled';
+  for (const name of Object.keys(cameraViews)) el('view-'+name).setAttribute('aria-pressed',String(name === viewEntry?.[0]));
+  const changed = hiddenMeshes.size > 0 || hiddenGroups.size > 0 || isolateName !== null || visualMode !== 'complete'
+    || Object.entries(geometryDefaults()).some(([id,checked])=>el(id).checked !== checked)
+    || +el('case-opacity').value !== (mode === 'service' ? .2 : 1);
+  const visibleCount = model.meshes.reduce((count,mesh)=>count+Number(visible(mesh)),0);
+  const modeLabel = mode === 'assembly' ? assemblyWorkLabel() : {operation:'Provoz',service:'Servis',transport:'Přeprava'}[mode];
+  const visibilityLabel = isolateName ? 'izolovaný díl' : changed ? 'upravené vrstvy' : 'výchozí vrstvy';
+  el('visibility-summary').textContent = modeLabel+' · '+visibleCount+' / '+model.meshes.length+' dílů · '+visibilityLabel;
+  el('restore-view').hidden = !changed;
+  el('selection-bar').setAttribute('data-hidden-selection',String(!!pinned && !visible(pinned)));
+  if (pinned && !visible(pinned)) el('selection-title').textContent += ' · skrytý díl';
 }
 function transitionCamera(target,newDistance) {
   automaticFit = false;
@@ -844,18 +927,28 @@ function zoomObject(mesh) { focusMeshes([mesh]); }
 function buildTree() {
   el('tree').replaceChildren();
   treeButtons.clear();
-  el('part-count').textContent = model.meshes.length+' dílů';
+  const query = String(el('part-search').value || '').trim().toLocaleLowerCase('cs');
+  const matchingMeshes = model.meshes.filter(mesh => !query || [mesh.name,mesh.info?.title,mesh.info?.description].filter(Boolean).join(' ').toLocaleLowerCase('cs').includes(query));
+  el('part-count').textContent = query ? matchingMeshes.length+' / '+model.meshes.length : model.meshes.length+' dílů';
+  el('search-empty').hidden = matchingMeshes.length > 0;
   const titles = {case:'Dřevěný kufr',lid:'Víko',fixed:'Rám a nosiče',moving:'Mechanismy',moving_hw:'Pohyblivé díly',hardware:'Elektronika a spoje',cover:'Kryty',fabric:'Textil',lid_fabric:'Textil víka',bond:'Lepené spoje',fastener:'Spojovací materiál',wand:'Vyjímatelné hůlky',restraint:'Přepravní zajištění'};
-  for (const group of [...new Set(model.meshes.map(mesh=>mesh.group))]) {
+  for (const group of [...new Set(matchingMeshes.map(mesh=>mesh.group))]) {
     const section = document.createElement('details'), summary = document.createElement('summary');
+    section.open = !!query;
     const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = !hiddenGroups.has(group);
     checkbox.setAttribute('aria-label','Zobrazit vrstvu '+(titles[group] || group));
     checkbox.onchange = () => { checkbox.checked ? hiddenGroups.delete(group) : hiddenGroups.add(group); layersChanged(); };
     const visibilityLabel = document.createElement('label'); visibilityLabel.className = 'tree-visibility';
     visibilityLabel.append(checkbox); summary.append(visibilityLabel);
     const text = document.createElement('span'); text.textContent = ' '+(titles[group] || group); summary.append(text); section.append(summary);
-    for (const mesh of model.meshes.filter(item=>item.group === group)) {
-      const button = document.createElement('button'); button.textContent = mesh.name;
+    for (const mesh of matchingMeshes.filter(item=>item.group === group)) {
+      const button = document.createElement('button'); button.className = 'aw-button aw-button--ghost'; button.textContent = mesh.info?.title || mesh.name;
+      button.setAttribute('title', mesh.name);
+      button.setAttribute('aria-label', (mesh.info?.title || mesh.name)+' ('+mesh.name+')');
+      if (mesh.info?.title && mesh.info.title !== mesh.name) {
+        const identifier = document.createElement('small'); identifier.textContent = mesh.name;
+        identifier.setAttribute('aria-hidden','true'); button.append(identifier);
+      }
       button.setAttribute('aria-pressed', String(mesh === pinned)); treeButtons.set(mesh.name, button);
       button.onclick = () => { pinned = mesh; inspectEnabled = true; pointer = null; clearWireSelection(); requestDraw(); };
       section.append(button);
@@ -863,6 +956,7 @@ function buildTree() {
     el('tree').append(section);
   }
 }
+el('part-search').oninput = buildTree;
 function setMode(value) {
   if (effect) stopEffect();
   if (effectFault) {
@@ -879,12 +973,10 @@ function setMode(value) {
   pinned = null; hovered = null; hoveredConnection = null; pointer = null;
   clearWireSelection(); displayedMesh = undefined;
   el('object').value = ''; el('wire').value = ''; el('endpoint').value = ''; el('wire-scope').value = 'branch';
-  hiddenMeshes.clear(); hiddenGroups.clear(); isolateName = null;
+  resetGeometryVisibility();
   const transport = mode === 'transport', service = mode === 'service';
   el('lid').value = transport ? 0 : 105;
-  el('cover').checked = !service; el('case').checked = true; el('beds').checked = true; el('hardware').checked = true;
-  el('wands').checked = !transport && !service; el('bank').checked = !transport; el('textile').checked = !transport && !service;
-  el('wires').checked = service; el('case-opacity').value = service ? .2 : 1;
+  el('wires').checked = service;
   el('dimensions').checked = false;
   if (!twinViewer?.active() && (transport || mode === 'assembly')) trayAngles.fill(0);
   el('lift').value = trayAngles[+el('tray').value-1] || 0;
@@ -905,6 +997,7 @@ function materialLabel(id) {
   return typeof material === 'string' ? material : material?.label || material?.name || id;
 }
 function setGuideOpen(open) {
+  if (open && runtimeTools()) runtimeTools().open = false;
   el('assembly-panel').setAttribute('data-open',String(open));
   if (open) { setWorkshopPanel('explorer',false); setWorkshopPanel('inspector',false); setMotionOpen(false); }
   el('guide-toggle').setAttribute('aria-expanded',String(open));
@@ -913,6 +1006,7 @@ function setGuideOpen(open) {
   requestDraw();
 }
 function setMotionOpen(open) {
+  if (open && runtimeTools()) runtimeTools().open = false;
   el('motion-panel').setAttribute('data-open',String(open));
   if (open) { setWorkshopPanel('explorer',false); setWorkshopPanel('inspector',false); setGuideOpen(false); }
   el('motion-toggle').setAttribute('aria-expanded',String(open));
@@ -934,6 +1028,7 @@ function readableItems(value) {
 function updateAssembly() {
   const active = mode === 'assembly', step = currentStep(), count = assemblyGuide.steps.length;
   el('assembly-panel').hidden = !active; el('assembly-controls').hidden = !active;
+  el('assembly-current').hidden = !active;
   el('motion-toggle').hidden = active;
   el('assembly-counter').textContent = (assemblyIndex+1)+' / '+count;
   el('assembly-title').textContent = step ? (assemblyIndex+1)+'/'+count+' · '+step.title : 'Začátek montáže';
@@ -942,7 +1037,10 @@ function updateAssembly() {
   for (const [index,item] of assemblyGuide.steps.entries()) el('assembly-step').add(new Option((index+1)+'. '+item.title,String(index)));
   el('assembly-step').value = String(assemblyIndex);
   el('assembly-text').textContent = step?.instruction || (count ? 'Vyberte první krok nebo přejděte tlačítkem Další. Kroky neoznačují fyzické dokončení.' : 'Montážní data nejsou dostupná.');
-  el('assembly-context').textContent = isBenchStep() ? 'PRÁCE NA STOLE MIMO KUFR · Zobrazené díly v návrhovém vzájemném uspořádání; korpus je skrytý. Nejde o dráhu zasouvání.' : step ? 'STAV V KUFŘÍKU · Fyzicky vložené díly + mosazně zvýrazněné díly umístěné tímto krokem. Podsestavy připravené na stole se objeví až v kroku vložení. Vložení není animované.' : 'NÁVRHOVÝ PRŮVODCE · Postup ověřte na skutečném prototypu.';
+  el('assembly-context').textContent = isBenchStep() ? 'PRÁCE NA STOLE MIMO KUFR · Zobrazené díly v návrhovém vzájemném uspořádání; korpus je skrytý. Nejde o dráhu zasouvání.' : step ? 'STAV V KUFŘÍKU · Návrhově osazené díly + zvýrazněné díly umístěné tímto krokem. Podsestavy připravené na stole se objeví až v kroku vložení. Vložení není animované.' : 'NÁVRHOVÝ PRŮVODCE · Postup ověřte na skutečném prototypu.';
+  el('assembly-current-title').textContent = step ? (assemblyIndex+1)+' / '+count+' · '+step.title : 'Montáž · příprava';
+  el('assembly-current-context').textContent = step ? [assemblyWorkLabel(),step.location,step.direction].filter(Boolean).join(' · ') : 'Pozice v návodu není potvrzení fyzického dokončení.';
+  el('assembly-current-parts').textContent = step ? (step.preparedParts?.length ? 'Připravit: ' : 'V tomto kroku: ')+readableItems(step.partSummary || currentPartPatterns(step)).replaceAll('\n',' · ') : count ? count+' kroků · Další otevře první krok.' : 'Montážní data nejsou dostupná.';
   el('assembly-location').textContent = step ? ['Podsestava: '+readableItems((Array.isArray(step.subassembly) ? step.subassembly : [step.subassembly]).filter(Boolean).map(id=>(assemblyGuide.subassemblies || []).find(item=>item.id===id)?.title || id)),step.location && 'Pracoviště / poloha: '+step.location,step.direction && 'Směr vložení: '+step.direction,step.installation?.clearance_mm && 'Požadovaný přístup: '+step.installation.clearance_mm+' mm'].filter(Boolean).join('\n') : '';
   el('assembly-access').textContent = step?.access?.length ? 'Přístup rukou a nástroje:\n'+readableItems(step.access) : '';
   el('assembly-connectors').textContent = step?.connectors?.length ? 'Konektory / kabely:\n'+readableItems(step.connectors) : '';
@@ -1136,7 +1234,12 @@ for (const route of routes) el('wire').add(new Option(route.id+' · '+route.from
 for (const endpoint of [...new Set([...Object.keys(model.endpoints || {}),...routes.flatMap(route=>[route.from,route.to,route.transport_from])])].filter(Boolean).sort()) el('endpoint').add(new Option(endpoint,endpoint));
 el('mode').value = mode; el('wire-scope').value = 'branch'; el('case-opacity').value = 1;
 el('envelope-note').textContent = 'Meze návrhu (nejsou zaručený volný kvádr): '+(model.case?.safe_zone || [400,240,170]).join(' × ')+' mm. Zdvih '+model.mechanism.lift+' mm, '+trayAngles.length+' modulů. Korpus není určen k tisku.';
+rendererReady = true;
 updateObjectOptions(); buildTree(); updateAssembly(); updateTransportInstructions(); updateEffectControls(); showEffectTimeline(model.effects?.main || []); draw();
+el('viewer-status').textContent = model.meshes.length+' dílů · '+(model.viewerPreview?.synthetic ? 'SYNTETICKÁ UI FIXTURE' : model.viewerPreview ? 'UI náhled' : 'připraveno');
+if (model.viewerPreview) el('download-package').hidden = true;
+if (model.viewerPreview) el('mode-note').textContent = 'UI náhled nad existujícím CAD exportem z '+model.viewerPreview.dataDate+'. Geometrie nebyla znovu generována ani ověřena.';
+if (model.viewerPreview?.synthetic) el('mode-note').textContent = 'SYNTETICKÁ UI FIXTURE · Pouze ovládání a offline balení UI. Není to model kufru, CAD ověření ani fyzický důkaz.';
 if (typeof DigitalTwin !== 'undefined') twinViewer = DigitalTwin.mount(document, model, {
   clear:() => { trayAngles.fill(0); lightStates.fill(null); twinOutputStates.clear(); pinned = null; requestDraw(); },
   activate:() => {
@@ -1170,6 +1273,11 @@ if (typeof DigitalTwin !== 'undefined') twinViewer = DigitalTwin.mount(document,
     requestDraw();
   },
   select:name => { pinned = meshesByName.get(name) || null; inspectEnabled = true; clearWireSelection(); setWorkshopPanel('inspector',true); requestDraw(); },
+});
+runtimeTools()?.addEventListener('toggle', () => {
+  if (!runtimeTools().open) return;
+  setWorkshopPanel('explorer',false); setWorkshopPanel('inspector',false);
+  setGuideOpen(false); setMotionOpen(false);
 });
 window.addEventListener('resize',requestDraw);
 window.visualViewport?.addEventListener('resize',requestDraw);

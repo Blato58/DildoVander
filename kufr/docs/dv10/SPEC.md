@@ -631,7 +631,7 @@ Routy mapovat na současný frontendový router a oddělenou guest surface backe
 
 ### 11.2 Vizuální směr
 
-Navázat na `Arcane Workshop`, ale guest web nesmí vypadat jako servisní dashboard. Temný inkoustový podklad, pergamen pro dlouhé čtení, jemné mosazné akcenty, čitelná sazba a velmi omezený pohyb. Hůlka je hlavní objekt, ne dekorace pod šesti stavovými kartami.
+Použít společný [Vapour Chrome](../../design-system/README.md), ale guest web má vlastní návštěvnickou hierarchii. Čitelné světlé i tmavé plochy, přesná sazba a střídmé periwinkle akcenty vycházejí ze společných sémantických tokenů. Hůlka je hlavní objekt, ne dekorace pod šesti stavovými kartami. Osobní obsah se neukládá do browser storage; volba tématu platí jen pro aktuální návštěvu.
 
 Mobilní pořadí: drobná značka archivu → artwork → oficiální jméno → podtitul edice → anotace → **Uložit památku** → příběh → dobrovolný portrét → soukromí a ruční správa uložených dat. Desktop zachová tutéž hierarchii, může mít art vlevo a čtení vpravo.
 
@@ -953,7 +953,7 @@ Neznámý/starý mobilní klient musí pokračovat ve výběru hůlek, i když n
 
 ### 17.1 Jeden zdroj a stávající workflow
 
-Najít existující webový stack a frontend rozšířit ve vhodné části `kufr/web` nebo jiné skutečné kanonické složce. Znovu použít styl Arcane Workshop a ověřené assety. Nenutit nový framework. Ověřený build obsahuje pouze aplikaci, veřejné assety a bezpečnou konfiguraci; ne osobní data, produkční databázi nebo privátní klíče.
+Najít existující webový stack a frontend rozšířit ve vhodné části `kufr/web` nebo jiné skutečné kanonické složce. Znovu použít Vapour Chrome a ověřené assety. Nenutit nový framework. Ověřený build obsahuje pouze aplikaci, veřejné assety a bezpečnou konfiguraci; ne osobní data, produkční databázi nebo privátní klíče.
 
 Při předchozích zadáních se používal SSH alias `vps-dildovander` a oddělené produkční nasazení. Jsou to navigační vodítka, nikoli garantovaná existence či autorizace v tomto běhu. Ověřit skutečný source/deploy vztah. Pokud deploy orchestrace žije v odděleném soukromém repozitáři, zachovat tuto hranici a použít ji jen s dostupným oprávněním. Produkční server může mít pouze nasazenou aplikaci, ne celý Git checkout; neklonovat tam zbytečně zdroje ani credentials.
 

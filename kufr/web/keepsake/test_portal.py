@@ -23,8 +23,10 @@ class PortalSourceTests(unittest.TestCase):
 
     def test_no_persistent_storage_or_untrusted_html(self):
         js = (PORTAL / 'app.js').read_text(encoding='utf-8')
-        for forbidden in ('localStorage', 'sessionStorage', 'indexedDB', 'serviceWorker', 'innerHTML', 'console.'):
-            self.assertNotIn(forbidden, js)
+        theme = (PORTAL / 'theme.js').read_text(encoding='utf-8')
+        for script in (js, theme):
+            for forbidden in ('localStorage', 'sessionStorage', 'indexedDB', 'serviceWorker', 'innerHTML', 'console.'):
+                self.assertNotIn(forbidden, script)
         self.assertIn("cache: 'no-store'", js)
         self.assertIn('mutationKeys.set(mutationIdentity, crypto.randomUUID())', js)
         self.assertIn("headers['X-DV10-CSRF'] = csrfToken", js)
@@ -36,7 +38,7 @@ class PortalSourceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             output = Path(folder)
             module.build_keepsake(REPO, output)
-            expected = {'index.html', 'app.js', 'keepsake.css', 'evening/index.html', 'evening/evening.js', 'evening/evening.css'}
+            expected = {'index.html', 'app.js', 'keepsake.css', 'theme.js', 'evening/index.html', 'evening/evening.js', 'evening/evening.css'}
             runtime = output / 'keepsake'
             self.assertEqual(expected, {p.relative_to(runtime).as_posix() for p in runtime.rglob('*') if p.is_file()})
             for name in expected:
