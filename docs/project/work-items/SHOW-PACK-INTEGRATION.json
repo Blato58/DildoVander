@@ -143,7 +143,7 @@
     }
   ],
   "blockers": [],
-  "currentNote": "PR219 aktuální integrace main09a7cb3 a Show Pack. Finální build/regrese/HTTP/browser/firmware/SDK a nezávislé review prošly; source-v3 identifikuje přesné bytes. V2fixcommit bbfb65d355f047daea1c3224ee6eb3e83dbb268f byl push ověřen; následný integrační merge je připraven k push/CI. Historická SHOW-PACK closure i receipts zůstávají beze změny; target používá tuto aktuální akceptaci. Žádný placený test/deploy/podpis/flash.",
+  "currentNote": "Produkční integrační commit950d4a108a62de39a262976198317859c68decdb push ověřen na origin/codex/show-pack; PR219. Source-v3 je neměnný ověřený runtime. Následné test-only opravy a přesnou aktuální zdrojovou kohortu identifikuje source-v4 / validationArtifactDigest; všech1068 ostatních vstupů včetně produkce je shodných. Historické closure/receipts zachovány. Nativní CI současných zdrojů prošlo; před merge musí projít celé aktuální CI a nová kontrola reviews. Žádný placený test/deploy/podpis/flash.",
   "implementedSubject": {
     "artifactDigest": "421a9dc1b8928480915f0f18cdf8f64e58faf62348d29f51fa48545cf5716d41",
     "policyVersion": "show-pack-2026.10.19.1"

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "SHOW-PACK-OPERATIONS",
   "initiative": "DV02",
-  "title": "Externí akceptace Show Pack 2026.10.19.1",
+  "title": "Provozní a externí akceptace Show Pack 2026.10.19.1",
   "state": "blocked",
   "priority": "P1",
   "sequence": 2,
@@ -58,7 +58,9 @@
         "iosArtifactDigest": "3eeda531dc4aab756f058be77401025adec9a1b76238d7d8f6234d2ef9fee9b8",
         "policyVersion": "show-pack-2026.10.19.1"
       },
-      "evidenceRefs": []
+      "evidenceRefs": [
+        "SHOW-PACK-PR-native-ios-v2"
+      ]
     },
     {
       "id": "PHYSICAL",
@@ -73,6 +75,22 @@
         "policyVersion": "show-pack-2026.10.19.1"
       },
       "evidenceRefs": []
+    },
+    {
+      "id": "HARNESS",
+      "revision": 1,
+      "expected": "Aktuální historický paritní a HTTP procesní testovací harness zachovává přísné kontroly a je svázán s přesnými zdroji bez změny produkčního runtime.",
+      "requiredEvidenceKinds": [
+        "integration"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "validationArtifactDigest": "aecd861467f84452fe5180b4ecebc74e3deb5aa1bc408cdf2351d53844dfbaf3",
+        "policyVersion": "show-pack-2026.10.19.1"
+      },
+      "evidenceRefs": [
+        "SHOW-PACK-validation-harness-v4"
+      ]
     }
   ],
   "blockers": [
@@ -102,17 +120,8 @@
         "PHYSICAL"
       ],
       "unblockCondition": "Identifikovat sestavu, schválit instalaci a provést skutečnou akustickou/fyzickou akceptaci s firmware/config/wiring/mechanics identitou."
-    },
-    {
-      "id": "APPLE",
-      "problem": "Předchozí nativní CI ověřilo starší zdroje. Souběžná integrace GPT-OVERHAUL změnila nativní hlasové API; je nutné nové macOS CI.",
-      "severity": "medium",
-      "blocks": [
-        "NATIVE"
-      ],
-      "unblockCondition": "Úspěšné nativní testy a nepodepsaný Simulator build přesného nového iosArtifactDigest."
     }
   ],
-  "nextAction": "Po finálním integračním push ověřit nové macOS CI; schválené nahrávky, provider pilot a fyzickou akceptaci řešit odděleně. Placené testy, deploy a flash nespouštět.",
-  "currentNote": "Historický native-v1 receipt zůstává platný pro svůj původní otisk. Aktuální nativní zdroje po integraci main mají nový otisk a čekají na vlastní CI; žádná přenesená fyzická/iPhone akceptace."
+  "nextAction": "Dodat schválené hlasové WAV; provider pilot a skutečný iPhone/fyzickou sestavu řešit samostatným oprávněním. Placené testy, deploy ani flash nyní nespouštět.",
+  "currentNote": "Nové nativní Swift testy a nepodepsaný Simulator build současných163 vstupů prošly v run39200591623/job117892611227. Test-only paritní/procesní opravy mají vlastní validationArtifactDigest; všechny produkční vstupy a ESP obraz zůstaly stejné. Nahrávky/provider/fyzická akceptace zůstávají tři oddělené blokace; kompletní aktuální GitHub CI je povinná merge brána."
 }

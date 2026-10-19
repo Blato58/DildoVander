@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { stopChildProcess } from './child-process-lifecycle.mjs';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -39,11 +40,11 @@ function start() {
   for (const stream of [server.stdout, server.stderr]) { stream.on('data', chunk => { output += chunk.toString(); }); }
 }
 async function stop() {
-  if (server?.exitCode === null) { const ended = new Promise(resolve => server.once('exit', resolve)); server.kill(); await ended; }
+  await stopChildProcess(server);
 }
 async function ready() {
   for (let index = 0; index < 120; index++) {
-    if (server.exitCode !== null) { throw new Error(`Backend exited: ${output}`); }
+    if (server.exitCode !== null || server.signalCode !== null) { throw new Error(`Backend exited: ${output}`); }
     try { if ((await fetch(`${baseUrl}/healthz`)).ok) { return; } } catch { }
     await new Promise(resolve => setTimeout(resolve, 50));
   }

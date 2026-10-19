@@ -4,7 +4,9 @@
   "purpose": "Show Pack86 požadavků: ověřené softwarové cesty. Neprohlašuje schválené nahrávky, paid provider pilot, iPhone/hardware ani nasazení.",
   "components": {
     "artifactDigest": "421a9dc1b8928480915f0f18cdf8f64e58faf62348d29f51fa48545cf5716d41",
-    "policyVersion": "show-pack-2026.10.19.1"
+    "policyVersion": "show-pack-2026.10.19.1",
+    "validationArtifactDigest": "aecd861467f84452fe5180b4ecebc74e3deb5aa1bc408cdf2351d53844dfbaf3",
+    "iosArtifactDigest": "3eeda531dc4aab756f058be77401025adec9a1b76238d7d8f6234d2ef9fee9b8"
   },
   "requiredCriteria": [
     {
@@ -30,6 +32,14 @@
     {
       "workItemId": "SHOW-PACK-INTEGRATION",
       "criterionId": "OFFLINE"
+    },
+    {
+      "workItemId": "SHOW-PACK-OPERATIONS",
+      "criterionId": "HARNESS"
+    },
+    {
+      "workItemId": "SHOW-PACK-OPERATIONS",
+      "criterionId": "NATIVE"
     }
   ]
 }
