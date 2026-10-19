@@ -4,7 +4,7 @@
   "packVersion": "2026.10.19.1",
   "manifestSha256": "b841bf04f46dbc73f9262e748a25f27db90dcabdad3efc990c4b04b7e46fdd6a",
   "tracking": "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
-  "meaning": "Current software consumers and checks for all86 requirements, including the shared Vue Director, WizardIdentity, private prophecy, Duel and Chronicle migration. Historical SHOW-PACK receipts identify their original source; KUFR-APPLICATION receipts bind the integrated Vue source. Software checks do not establish every36 scenario on hardware/provider/iPhone; SHOW-PACK-OPERATIONS retains external gates.",
+  "meaning": "Current software consumers and checks for all 86 requirements, including the shared Vue Director, WizardIdentity, private prophecy, Duel and Chronicle migration. Live application delivery and acceptance are in GitHub Issue #227 and PR #218. The tracking field, linked SHOW-PACK work items and earlier PR commit receipts are historical source-bound evidence. Software checks do not establish all 36 scenarios on hardware/provider/iPhone; external gates remain open.",
   "requirements": [
     {
       "id": "ARC-01",
