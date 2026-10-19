@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-DEPENDABOT-SYNC-native-build-review",
+  "observedAtUtc": "2026-10-19T06:20:02.238147Z",
+  "kind": "source_review",
+  "result": "pass",
+  "subject": {
+    "artifactDigest": "e28318b69d4f6598bf2ace3f7c808ecbce7ae2a80eb3c63d706a0dcb6070e167"
+  },
+  "claims": [
+    {
+      "workItemId": "KUFR-DEPENDABOT-SYNC",
+      "criterionId": "POLICY",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "environment": "Independent Sol6.1 read-only review of the exact correction diff.",
+  "method": "Inspect native install/build/sync/Xcode ordering, compare initial reviewed controller/workflow source and run focused10 Python checks.",
+  "observation": "No actionable findings. Complete CI generation path now supplies real dist before Capacitor; all three dependency roots installed, no lifecycle hooks; publisher/API/artifact boundaries unchanged. Rendered UI source unchanged; no browser acceptance implied.",
+  "limitations": [
+    "Hosted macOS generation remains pending; mocked ordering checks do not prove native output behavior."
+  ]
+}
