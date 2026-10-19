@@ -53,6 +53,7 @@ internal static class AccountIdentityTests
     {
         ServiceCredentialBoundaries();
         await PersistentAccountAuthorizationAsync();
+        await AdditionalPasskeyRecentAuthenticationAsync();
         await ModelReleaseTests.RunAsync();
         await using var fixture = await Fixture.StartAsync();
         using var owner = fixture.Client();
@@ -403,6 +404,70 @@ internal static class AccountIdentityTests
         await client.PostAsJsonAsync("/app/v1/passkeys/request-options", new { });
         await SeedAsync(fixture.App, db => db.Ceremonies.ExecuteUpdateAsync(update => update.SetProperty(x => x.ExpiresAt, AccountEndpoints.Now() - 1)));
         Check((await client.PostAsJsonAsync("/app/v1/passkeys/sign-in", new { credential })).StatusCode == HttpStatusCode.BadRequest, "expired server challenge denied");
+    }
+
+    private static async Task AdditionalPasskeyRecentAuthenticationAsync()
+    {
+        await using var fixture = await Fixture.StartAsync();
+        using var client = fixture.Client();
+        using var anonymous = fixture.Client();
+        using var ownerKey = new VirtualPasskey();
+        await EnrollAsync(client, ownerKey, Fixture.Bootstrap, "Owner");
+        var session = await CsrfAsync(client);
+        var ownerId = session.GetProperty("account").GetProperty("id").GetString()!;
+        await CsrfAsync(anonymous);
+        var failures = new List<string>();
+        foreach (var (optionsPath, completePath) in new[]
+        {
+            ("/app/v1/passkeys/options", "/app/v1/passkeys/complete"),
+            ("/APP/V1/PASSKEYS/OPTIONS", "/APP/V1/PASSKEYS/COMPLETE"),
+            ("/app/v1/passkeys/options/", "/app/v1/passkeys/complete/"),
+            ("/App/v1/Passkeys/Options/", "/App/v1/Passkeys/Complete/")
+        })
+        {
+            Check((await anonymous.PostAsJsonAsync(optionsPath, new { })).StatusCode == HttpStatusCode.Unauthorized,
+                "anonymous additional passkey options denied: " + optionsPath);
+            Check((await anonymous.PostAsJsonAsync(completePath, new { credential = new { } })).StatusCode == HttpStatusCode.Unauthorized,
+                "anonymous additional passkey completion denied: " + completePath);
+            await SeedAsync(fixture.App, db => db.Sessions.Where(x => x.UserId == ownerId)
+                .ExecuteUpdateAsync(update => update.SetProperty(x => x.AuthenticatedAt, AccountEndpoints.Now() - 601)));
+            string[] ceremonyIds = [];
+            await SeedAsync(fixture.App, async db => { ceremonyIds = await db.Ceremonies.OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync(); });
+            using var staleOptions = await client.PostAsJsonAsync(optionsPath, new { });
+            if (staleOptions.StatusCode != HttpStatusCode.Forbidden
+                || !(await staleOptions.Content.ReadAsStringAsync()).Contains("recent_passkey_required", StringComparison.Ordinal))
+            { failures.Add($"stale options {optionsPath}: HTTP {(int)staleOptions.StatusCode}"); }
+            await SeedAsync(fixture.App, async db =>
+            {
+                var currentIds = await db.Ceremonies.OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync();
+                if (!currentIds.SequenceEqual(ceremonyIds)) { failures.Add("stale options changed ceremonies: " + optionsPath); }
+            });
+
+            await SignInAsync(client, ownerKey);
+            await CsrfAsync(client);
+            using var additionalKey = new VirtualPasskey();
+            var options = await JsonAsync(await client.PostAsJsonAsync(optionsPath, new { }));
+            var credential = additionalKey.Create(options);
+            var countBefore = (await JsonAsync(await client.GetAsync("/app/v1/account"))).GetProperty("passkeys").GetArrayLength();
+            await SeedAsync(fixture.App, db => db.Sessions.Where(x => x.UserId == ownerId)
+                .ExecuteUpdateAsync(update => update.SetProperty(x => x.AuthenticatedAt, AccountEndpoints.Now() - 601)));
+            using var staleCompletion = await client.PostAsJsonAsync(completePath, new { credential });
+            if (staleCompletion.StatusCode != HttpStatusCode.Forbidden
+                || !(await staleCompletion.Content.ReadAsStringAsync()).Contains("recent_passkey_required", StringComparison.Ordinal))
+            { failures.Add($"stale completion {completePath}: HTTP {(int)staleCompletion.StatusCode}"); }
+            var countAfter = (await JsonAsync(await client.GetAsync("/app/v1/account"))).GetProperty("passkeys").GetArrayLength();
+            if (countAfter != countBefore) { failures.Add("stale completion enrolled a passkey: " + completePath); }
+
+            // Restore only the session timestamp so the same attestation proves
+            // the rejected completion did not consume its pending ceremony.
+            await SeedAsync(fixture.App, db => db.Sessions.Where(x => x.UserId == ownerId)
+                .ExecuteUpdateAsync(update => update.SetProperty(x => x.AuthenticatedAt, AccountEndpoints.Now())));
+            using var freshCompletion = await client.PostAsJsonAsync(completePath, new { credential });
+            if (freshCompletion.StatusCode != HttpStatusCode.NoContent)
+            { failures.Add($"fresh completion {completePath}: HTTP {(int)freshCompletion.StatusCode}"); }
+        }
+        Check(failures.Count == 0, "additional passkey recent authentication: " + string.Join("; ", failures));
+        Console.WriteLine("PASS additional passkey canonical/case/slash routes: anonymous rejection, recent authentication, no stale ceremony issuance/consumption or enrollment, fresh P256 completion");
     }
 
     private static async Task EnrollAsync(HttpClient client, VirtualPasskey key, string token, string name)

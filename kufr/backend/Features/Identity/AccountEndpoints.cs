@@ -34,8 +34,7 @@ internal static partial class AccountEndpoints
                 if (http.Request.Headers["X-DV-Confirm"] != "yes") { return ApiProblem.Create(http, 409, "confirmation_required"); }
             }
             if (http.Request.Path.StartsWithSegments("/app/v1/installations") && http.Request.Method == "PUT"
-                || http.Request.Path.StartsWithSegments("/app/v1/passkeys") && (http.Request.Method is "DELETE" or "PUT"
-                    || http.Request.Path.Value is "/app/v1/passkeys/options" or "/app/v1/passkeys/complete"))
+                || http.Request.Path.StartsWithSegments("/app/v1/passkeys") && (http.Request.Method is "DELETE" or "PUT"))
             {
                 var recent = await AccountAuthorization.RequireRecentAsync(http);
                 if (recent is not null) { return recent; }
@@ -65,8 +64,10 @@ internal static partial class AccountEndpoints
         group.MapPost("/passkeys/reauthenticate", ReauthenticateAsync).RequireAuthorization();
         group.MapPost("/enrollment/options", EnrollmentOptionsAsync);
         group.MapPost("/enrollment/complete", CompleteEnrollmentAsync);
-        group.MapPost("/passkeys/options", AdditionalPasskeyOptionsAsync).RequireAuthorization();
-        group.MapPost("/passkeys/complete", CompleteAdditionalPasskeyAsync).RequireAuthorization();
+        group.MapPost("/passkeys/options", AdditionalPasskeyOptionsAsync).RequireAuthorization()
+            .AddEndpointFilter(RequireRecentPasskeyAsync);
+        group.MapPost("/passkeys/complete", CompleteAdditionalPasskeyAsync).RequireAuthorization()
+            .AddEndpointFilter(RequireRecentPasskeyAsync);
         group.MapDelete("/passkeys/{credentialId}", DeletePasskeyAsync).RequireAuthorization();
         group.MapPut("/passkeys/{credentialId}", RenamePasskeyAsync).RequireAuthorization();
         group.MapGet("/account", AccountDetailsAsync).RequireAuthorization();
@@ -95,6 +96,12 @@ internal static partial class AccountEndpoints
         {
             app.MapAccountArchives();
         }
+    }
+
+    private static async ValueTask<object?> RequireRecentPasskeyAsync(EndpointFilterInvocationContext invocation, EndpointFilterDelegate next)
+    {
+        var recent = await AccountAuthorization.RequireRecentAsync(invocation.HttpContext);
+        return recent is not null ? recent : await next(invocation);
     }
 
     private static async Task<IResult> SessionAsync(HttpContext context, AccountConfiguration config, IAntiforgery csrf)
