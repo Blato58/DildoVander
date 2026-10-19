@@ -44,8 +44,11 @@ async function stop(): Promise<void> {
   if (results.some(result => result.status === 'rejected')) notify('Stop se nepodařilo potvrdit. Zkontrolujte spojení a bezpečný stav zařízení.', 'danger');
 }
 watch(() => account.value?.id, (next, previous) => {
-  if (previous && next !== previous) void Promise.resolve(deviceSession.clearUserGrants()).catch(() => notify('Oprávnění této instalace se nepodařilo vyčistit. Odpojte ji před změnou uživatele.', 'danger'));
-});
+  if (previous && next !== previous) {
+    nativeDebug.invalidatePrivateState();
+    void Promise.resolve(deviceSession.clearUserGrants()).catch(() => notify('Oprávnění této instalace se nepodařilo vyčistit. Odpojte ji před změnou uživatele.', 'danger'));
+  }
+}, { flush: 'sync' });
 watch(() => route.path, () => {
   viewError.value = '';
   // Announce route changes while leaving same-route form/telemetry focus intact.

@@ -38,11 +38,28 @@ enum AccountTransportPolicy {
     }
 
     static func device(path: String, method: String, query: [URLQueryItem]) -> Bool {
-        guard !path.contains(".."), !path.contains("%"), !path.contains("\\"), path.hasPrefix("/v1/") else { return false }
+        guard !path.split(separator: "/").contains(where: { $0 == "." || $0 == ".." }),
+              !path.contains("%"), !path.contains("\\"), path.hasPrefix("/v1/") else { return false }
         if path == "/v1/admin/logs" {
             return method == "GET" && query.allSatisfy { ["after", "limit", "level", "traceId", "operationId"].contains($0.name) && ($0.value?.count ?? 0) <= 128 }
         }
+        if path == "/v1/admin/memory/context" {
+            guard method == "GET", query.count == 3, Set(query.map { $0.name }) == Set(["deviceId", "conversationId", "personalityId"]) else { return false }
+            return query.allSatisfy { item in
+                guard let value = item.value, !value.isEmpty else { return false }
+                if item.name == "conversationId" { return UUID(uuidString: value) != nil }
+                return value.count <= (item.name == "deviceId" ? 128 : 80)
+                    && value.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" || $0 == ".") }
+            }
+        }
         guard query.isEmpty else { return false }
+        if path == "/v1/admin/memory/guest" { return method == "PUT" }
+        let memory = path.split(separator: "/").map(String.init)
+        if memory.count == 6, Array(memory.prefix(4)) == ["v1", "admin", "memory", "scopes"], method == "DELETE" {
+            if ["conversation", "evening"].contains(memory[4]) { return UUID(uuidString: memory[5]) != nil }
+            return memory[4] == "guest" && !memory[5].isEmpty && memory[5].count <= 80
+                && memory[5].allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" || $0 == ".") }
+        }
         if path == "/v1/admin/modes" || path == "/v1/diagnostics" || path == "/v1/evening-memory" { return method == "GET" }
         if path == "/v1/evenings" { return ["GET", "POST"].contains(method) }
         if path == "/v1/conversations" { return method == "POST" }
@@ -54,9 +71,12 @@ enum AccountTransportPolicy {
         guard parts[1] == "conversations" else { return false }
         if parts.count == 3 { return method == "DELETE" }
         if parts.count == 4 {
+            if parts[3] == "image" && method == "DELETE" { return true }
             if parts[3] == "costume-context" { return method == "PUT" }
-            return method == "POST" && ["turns", "opening", "transcriptions", "speech", "realtime-turns", "realtime-live", "gpt-live", "image"].contains(parts[3])
+            return method == "POST" && ["realtime-live", "gpt-live", "image"].contains(parts[3])
         }
+        if parts.count == 6 && method == "GET" && ["realtime-live", "gpt-live"].contains(parts[3])
+            && UUID(uuidString: parts[4]) != nil && parts[5] == "audio-stream" { return true }
         return parts.count == 6 && method == "POST" && ["realtime-live", "gpt-live"].contains(parts[3])
             && UUID(uuidString: parts[4]) != nil && ["audio", "played", "playback", "availability"].contains(parts[5])
     }
@@ -120,6 +140,10 @@ enum AccountTransportPolicy {
                 || (operations.count == 9 && operations[6] == "jobs" && UUID(uuidString: operations[7]) != nil && operations[8] == "cancel")
         }
         let archive = path.split(separator: "/").map(String.init)
+        if archive.count == 5, Array(archive.prefix(3)) == ["app", "v1", "workshop"], archive[4] == "engines" {
+            return method == "GET" && !archive[3].isEmpty && archive[3].count <= 96
+                && archive[3].allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" || $0 == ".") }
+        }
         if Array(archive.prefix(4)) == ["app", "v1", "archive", "associations"] {
             if archive.count == 4 { return ["GET", "POST"].contains(method) }
             guard archive.count >= 5, UUID(uuidString: archive[4]) != nil else { return false }

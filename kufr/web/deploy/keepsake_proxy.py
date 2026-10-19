@@ -34,6 +34,10 @@ def route_pattern(template):
     # Twin instance IDs follow TwinSnapshot.Id, rather than conversation GUIDs.
     if template.startswith("/v1/twin/"):
         variables["id"] = "[A-Za-z0-9_.-]{1,96}"
+    if template == "/v1/admin/memory/scopes/{scope}/{subject}":
+        variables["scope"] = "(?:conversation|guest|evening)"
+        # Guest IDs are bounded ASCII names; conversation/evening UUIDs fit too.
+        variables["subject"] = "(?![.]{1,2}$)[A-Za-z0-9_.-]{1,80}"
     return "".join(variables.get(part[1:-1].split(":")[0], GUID) if part.startswith("{") else re.escape(part) for part in parts)
 
 
@@ -54,7 +58,7 @@ def render_compatibility(host):
     for method, template, source in CONTRACT["routes"]:
         grouped.setdefault((template, source), set()).add(method)
     for (template, source), methods in grouped.items():
-        streaming = template.endswith(("/realtime-turns", "/realtime-live", "/gpt-live"))
+        streaming = template.endswith(("/realtime-turns", "/realtime-live", "/gpt-live", "/audio-stream"))
         twin = source.startswith("Features/DigitalTwin/")
         # Only the JPEG upload needs the larger existing Twin media body cap.
         body_limit = "256k;" if template == "/v1/twin/instances/{id}/media/photo" else "32k;" if twin else "4m;"

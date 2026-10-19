@@ -66,7 +66,7 @@ class ProxyTests(unittest.TestCase):
 
     def test_twin_ingress_keeps_its_isolated_listener_and_exact_methods(self):
         twin_source = "Features/DigitalTwin/TwinEndpoints.cs"
-        self.assertEqual(49, sum(not source.startswith("Features/DigitalTwin/") for method, route, source in proxy.CONTRACT["routes"]))
+        self.assertEqual(55, sum(not source.startswith("Features/DigitalTwin/") for method, route, source in proxy.CONTRACT["routes"]))
         self.assertEqual(11, sum(source == twin_source for method, route, source in proxy.CONTRACT["routes"]))
         self.assertEqual(9, sum(source == "Features/DigitalTwin/TwinMediaEndpoints.cs" for method, route, source in proxy.CONTRACT["routes"]))
         paths = [
@@ -135,6 +135,33 @@ class ProxyTests(unittest.TestCase):
                          (deploy / "keepsake-compatibility.conf.example").read_text(encoding="utf-8"))
         self.assertEqual(proxy.render_http_map(),
                          (deploy / "keepsake-upgrade.conf.example").read_text(encoding="utf-8"))
+
+    def test_persistent_audio_and_memory_routes_keep_exact_boundaries(self):
+        config = proxy.render_compatibility("keepsake.example.invalid")
+        for engine in ("gpt-live", "realtime-live"):
+            template = f"/v1/conversations/{{id}}/{engine}/{{streamId:guid}}/audio-stream"
+            path = f"/v1/conversations/{ID}/{engine}/{ID}/audio-stream"
+            self.assertTrue(proxy.allowed_backend("GET", path))
+            self.assertFalse(proxy.allowed_backend("POST", path))
+            self.assertFalse(proxy.allowed_backend("GET", path + "/extra"))
+            self.assertFalse(proxy.allowed_backend("GET", path.replace(ID, "not-a-guid")))
+            block = next(block for block in config.split("\n}\n")
+                         if 'location ~ "^' + proxy.route_pattern(template) + '$" {' in block)
+            self.assertIn("proxy_read_timeout 900s;", block)
+            self.assertIn("proxy_set_header Upgrade $http_upgrade;", block)
+            self.assertIn("proxy_set_header Connection $keepsake_connection_upgrade;", block)
+            self.assertIn("proxy_buffering off;", block)
+            self.assertNotIn("5082", block)
+        for scope, subject in (("conversation", ID), ("evening", ID), ("guest", "party.guest_1")):
+            path = f"/v1/admin/memory/scopes/{scope}/{subject}"
+            self.assertTrue(proxy.allowed_backend("DELETE", path))
+            self.assertFalse(proxy.allowed_backend("GET", path))
+            self.assertFalse(proxy.allowed("DELETE", path))
+        for scope, subject in (("all", ID), ("guest", "a" * 81), ("guest", ".."), ("guest", "%2e%2e")):
+            self.assertFalse(proxy.allowed_backend("DELETE", f"/v1/admin/memory/scopes/{scope}/{subject}"))
+        self.assertTrue(proxy.allowed_backend("GET", "/v1/admin/memory/context"))
+        self.assertTrue(proxy.allowed_backend("DELETE", f"/v1/admin/conversations/{ID}/media"))
+        self.assertTrue(proxy.allowed_backend("DELETE", f"/v1/conversations/{ID}/image"))
 
     def test_compatibility_preserves_live_ota_and_operator_auth_boundaries(self):
         paths = [

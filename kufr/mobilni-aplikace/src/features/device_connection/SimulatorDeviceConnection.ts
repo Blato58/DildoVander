@@ -133,7 +133,7 @@ export class ProtocolDeviceConnection {
   }
 
   submitText(text: string): boolean {
-    return this.viewSnapshot().conversation?.canSubmit === true && this.conversation.submit(text);
+    return this.options.source === 'e2-simulator' && this.viewSnapshot().conversation?.canSubmit === true && this.conversation.submit(text);
   }
 
   configureVoice(mode: VoiceSettings['mode'], voice: VoiceSettings['voice']): boolean {
@@ -145,7 +145,7 @@ export class ProtocolDeviceConnection {
   stopDance(): boolean { return this.dance.stop(); }
 
   cancelConversation(): boolean {
-    return this.conversation.cancel();
+    return this.options.source === 'e2-simulator' && this.conversation.cancel();
   }
 
   connect(): void {
@@ -832,7 +832,7 @@ export class ProtocolDeviceConnection {
         canConfigure: voice.canConfigure && !dance.canStop },
       dance: { ...dance, canStart: dance.canStart && !voice.pending && !this.state.busy },
       conversation: this.conversation.snapshot(
-        this.state.controlMode === 'manual' && this.state.phase === 'ready' && !this.state.busy,
+        this.options.source === 'e2-simulator' && this.state.controlMode === 'manual' && this.state.phase === 'ready' && !this.state.busy,
       ),
     };
     if (this.options.source === 'native-device') {

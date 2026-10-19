@@ -17,6 +17,7 @@ internal static class TwinTests
     {
         var directory = Path.Combine(Path.GetTempPath(), "kufr-twin-tests-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
+        await VerifyRetiredIntegrationTextAsync(directory);
         var observer = new string('a', 64);
         var control = new string('b', 64);
         var uploader = new string('c', 64);
@@ -118,6 +119,33 @@ internal static class TwinTests
         }
         Console.WriteLine("PASS Twin HTTP authorization, epoch, decimal precision, privacy and bounded buffer checks");
     }
+    private static async Task VerifyRetiredIntegrationTextAsync(string directory)
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["DigitalTwin:DataRoot"] = Path.Combine(directory, "retired-text"),
+            ["DigitalTwin:Instances:sim-compat:Mode"] = "simulation",
+            // A real file is sufficient: this test must never start a process.
+            ["DigitalTwin:Instances:sim-compat:Executable"] = typeof(TwinTests).Assembly.Location,
+            ["DigitalTwin:Instances:sim-compat:BuildId"] = "compatibility-test"
+        }).Build();
+        using var store = new TwinStore(configuration, TimeProvider.System);
+        var devices = new DeviceAccessStore(configuration, TimeProvider.System);
+        using var hosts = new TwinHost(configuration, store, TimeProvider.System, devices);
+        var session = new TwinSession("compat-session", new("control", "sim-compat", "simulation"), DateTimeOffset.UtcNow.AddHours(1));
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+        var command = new TwinCommand("integrationText", OperationId: Guid.NewGuid().ToString("D"), Text: "Private guest input");
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var result = await hosts.CommandAsync("sim-compat", session, command, cancelled.Token);
+            Assert(!result.Accepted && result.Code == "conversation_engine_upgrade_required"
+                && result.ExternalRequest is null && result.Private is null && result.Snapshot is null,
+                "retired integration text rejects before native readiness, preparation, credentials or cloud requests");
+        }
+        Assert(!hosts.IsReady(), "rejected text never starts the native process");
+    }
+
     private static async Task TestNativeStopOwnershipAsync(string directory, string native)
     {
         var credential = new string('f', 64);

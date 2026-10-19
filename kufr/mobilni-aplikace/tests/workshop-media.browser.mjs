@@ -58,10 +58,14 @@ try {
     if (pathname === manifestPath) return json(manifest);
     if (pathname === manifestPath.replace('model-bundle.json', 'model.json')) return route.fulfill({ status: 200, contentType: 'application/json', body: modelBytes });
     if (pathname === '/app/v1/session') return json({ enabled: true, account: { id: 'synthetic-owner', displayName: 'Syntetický testovací vlastník', roles: ['Owner'] }, csrfToken: 'synthetic-csrf', origin });
-    if (!pathname.startsWith('/v1/twin/')) return route.continue();
+    if (!pathname.startsWith('/v1/twin/') && pathname !== '/app/v1/workshop/sim-integration/engines') return route.continue();
     requests.push({ path: pathname, method: request.method(), body: request.postDataBuffer(), headers: request.headers() });
     if (pathname === '/v1/twin/instances') return json({ instances: [{ instanceId: 'sim-integration', mode: 'simulation', profile: 'integration', canControl: true }] });
     if (pathname === '/v1/twin/instances/sim-integration') return json({ status: 'online', ageMs: 0, receivedAtUtc: new Date().toISOString(), snapshot: { schemaVersion: 1, sequence: String(++snapshotSequence), timeMs: String(snapshotSequence * 750), revision: String(snapshotSequence), source: { instanceId: 'sim-integration', deviceId: 'synthetic', bootId: BOOT, mode: 'simulation', cadManifestRevision: null, hardwareProfile: 'B-effects' }, reported: { physicalVerification: 'unavailable', servo: [] }, model: { evidence: 'simulated', slots: [] }, trace: { events: [] }, capabilities: ['observe'] } });
+    if (pathname === '/app/v1/workshop/sim-integration/engines') return json({ schemaVersion: 1, primaryEngine: 'gpt-live', engines: [
+      { engine: 'gpt-live', model: 'gpt-live-1', ready: false, unavailableReason: 'synthetic-test-no-provider', voices: ['marin'], speed: { supported: false, min: 1, max: 1, default: 1 }, inputModes: ['audio'], cameraSources: ['phone', 'suitcase'] },
+      { engine: 'realtime', model: 'gpt-realtime-2.1', ready: false, unavailableReason: 'synthetic-test-no-provider', voices: ['marin'], speed: { supported: true, min: .8, max: 1.2, default: 1 }, inputModes: ['audio'], cameraSources: ['phone', 'suitcase'] },
+    ] });
     if (pathname.endsWith('/settings')) return json({ revision: '1', engine: 'fake', voice: 'marin', speed: 1, photoConsent: true, presentationVariant: 'main', availability: { fake: true, realtime: false, gptLive: false, mic: true, speaker: true, camera: true } });
     if (request.method() !== 'GET') assert.equal(request.headers()['x-dv-csrf'], 'synthetic-csrf');
     if (pathname.endsWith('/media/start')) { active = true; photo = false; drained = false; inputCount = 0; outputs.push(frame('photo_request', { text: 'Syntetická žádost o jednu fotku.' })); return json(session()); }
@@ -101,6 +105,7 @@ try {
   await page.getByText('Nativní workflow skončil.', { exact: true }).waitFor({ timeout: 15000 });
   assert.ok(inputCount >= 2); assert.equal(drained, true); assert.equal(photo, true);
   assert.ok(workletRequests.includes(worklet.href), 'the actual AudioWorklet must load the compiled same-origin asset');
+  assert.equal(requests.filter(request => request.path === '/app/v1/workshop/sim-integration/engines').length, 1, 'the compiled media panel must read exact-instance canonical capabilities');
   await page.getByRole('link', { name: /Domov/ }).first().click();
   await page.getByRole('heading', { name: 'Rozhovor v integrační simulaci' }).waitFor({ state: 'detached' });
   assert.equal(await page.getByRole('heading', { name: 'Rozhovor v integrační simulaci' }).count(), 0);

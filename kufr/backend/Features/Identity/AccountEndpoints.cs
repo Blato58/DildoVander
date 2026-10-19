@@ -70,6 +70,17 @@ internal static partial class AccountEndpoints
         group.MapDelete("/passkeys/{credentialId}", DeletePasskeyAsync).RequireAuthorization();
         group.MapPut("/passkeys/{credentialId}", RenamePasskeyAsync).RequireAuthorization();
         group.MapGet("/account", AccountDetailsAsync).RequireAuthorization();
+        group.MapGet("/workshop/{id}/engines", async (string id, HttpContext context, IConfiguration configuration) =>
+        {
+            if (!Kufr.Backend.Features.DigitalTwin.TwinSnapshot.Id(id))
+            { return ApiProblem.Create(context, 404, "instance_not_found"); }
+            if (!await AccountResourceAuthorization.HasPermissionAsync(context, "workshop", id, "read"))
+            { return ApiProblem.Create(context, 403, "workshop_observe_required"); }
+            if (!configuration.GetSection("DigitalTwin:Instances").GetChildren().Any(instance => instance.Key == id))
+            { return ApiProblem.Create(context, 404, "instance_not_found"); }
+            var store = context.RequestServices.GetService<Kufr.Backend.Features.Conversations.ConversationStore>();
+            return store is null ? ApiProblem.Create(context, 503, "server_modes_unavailable") : Results.Ok(store.ReadServerModes().Engines);
+        }).RequireAuthorization();
         group.MapDelete("/sessions/{id}", RevokeSessionAsync).RequireAuthorization();
         group.MapPut("/installations/{id}", UpdateInstallationAsync).RequireAuthorization();
         group.MapPost("/devices/{id}/association", AssociateDeviceAsync).RequireAuthorization();

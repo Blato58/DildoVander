@@ -11,7 +11,7 @@ const JPEG=Uint8Array.from([255,216,255,218,0,8,1,1,0,0,63,0,1,255,0,2,255,208,3
 function output(kind,sequence='1',fields={}) {
   return {sessionId:SESSION,bootId:BOOT,epoch:'9007199254740993',inputEpoch:'1',outputEpoch:'1',sequence,kind,byteLength:0,phase:kind,inputEnabled:kind==='listening',drainedRequested:false,...fields};
 }
-function mounted() {
+function mounted(options={}) {
   const elements=new Map(), events=new Map(), requests=[], permissions=[], streams=[], contexts=[], worklets=[], timers=[], canvases=[];
   let pendingRequest=null, pendingPermission=null, pendingResume=null, currentState=null;
   class Element {
@@ -65,14 +65,15 @@ function mounted() {
     Option:function(text,value){this.textContent=text;this.value=value;},
     addEventListener:(name,callback)=>events.set(name,callback),removeEventListener:name=>events.delete(name),setTimeout:callback=>{timers.push(callback);return timers.length;},clearTimeout(){}};
   context.window=context;require('./ui_test_runtime.cjs')(context);for(const file of ['./twin_media_core.js','./twin_media_controller.js','./twin_media.js']) vm.runInNewContext(fs.readFileSync(require.resolve(file),'utf8'),context);
-  const api=context.TwinMedia.mount(document,new Element(),{request:async(id,path,options={})=>{
+  const transport={request:async(id,path,options={})=>{
     const request={id,path,...options};requests.push(request);
     if(pendingRequest?.path===path){const pending=pendingRequest;pendingRequest=null;await pending.promise;}
     if(path==='/settings')return configuration;
     if(path==='/media/start')return {sessionId:SESSION,bootId:BOOT,epoch:'9007199254740993',inputEpoch:'0',outputEpoch:'0',phase:'starting',active:true};
     if(path==='/media/state')return currentState;
     return null;
-  }});
+  }};
+  const api=options.parseEngines ? context.TwinMediaController.createMediaController({transport,document,parseEngines:options.parseEngines,onChange:state=>{options.onChange?.(state);}}) : context.TwinMedia.mount(document,new Element(),transport);
   const get=key=>elements.get(key),flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
   const activate=async()=>{api.sync({...source});await flush();await get('speaker').onclick();await get('mic').onclick();};
   return {api,get,requests,permissions,streams,contexts,worklets,timers,canvases,flush,activate,events,event:name=>events.get(name)?.(),
@@ -102,6 +103,26 @@ test('settings preserve exact revisions, reject invalid gpt speed and never expo
   const result=media.settings({...configuration,providerKey:'secret'});assert.equal(result.revision,'9007199254740993');assert.equal(result.providerKey,undefined);
   assert.throws(()=>media.settings({...configuration,engine:'gpt-live',speed:1.2}));
   assert.throws(()=>media.settings({...configuration,revision:9007199254740993}));
+});
+test('Vue canonical capability injection refuses unavailable engines without fallback or provider requests',async()=>{
+  let state;
+  const caps={schemaVersion:1,primaryEngine:'gpt-live',engines:[{engine:'gpt-live',model:'gpt-live-1',ready:false,voices:['marin'],speed:{supported:false,min:1,max:1,default:1},inputModes:['audio'],cameraSources:['phone','suitcase']}]};
+  const app=mounted({parseEngines:()=>caps,onChange:value=>{state=value;}});
+  app.api.sync({...source});await app.flush();
+  app.api.selection('engine','gpt-live');await app.api.action('save');
+  assert.equal(state.settings.engine,'gpt-live');assert.equal(state.disabled.speed,true);
+  assert.match(state.failure,/nejsou dostupné/);assert.equal(app.requests.filter(request=>request.method==='PUT').length,0);
+  caps.engines[0].ready=true;await app.api.action('save');
+  assert.equal(JSON.parse(app.requests.find(request=>request.method==='PUT').body).engine,'gpt-live');
+  await app.api.action('speaker');await app.api.action('mic');await app.api.action('start');
+  assert.equal(app.requests.filter(request=>request.path==='/media/start').length,0,'unsaved selected engine must never start persisted fake fallback');
+  assert.equal(state.settings.engine,'gpt-live');app.api.dispose();
+});
+test('missing canonical metadata keeps a real engine selected and denies its save',async()=>{
+  let state;const app=mounted({parseEngines:()=>null,onChange:value=>{state=value;}});
+  app.api.sync({...source});await app.flush();app.api.selection('engine','realtime');await app.api.action('save');
+  assert.equal(state.settings.engine,'realtime');assert.equal(app.requests.filter(request=>request.method==='PUT').length,0);
+  assert.match(state.failure,/nejsou dostupné/);app.api.dispose();
 });
 
 test('JPEG adapter removes APP metadata/comments and preserves encoded scans, stuffing and restart markers',()=>{

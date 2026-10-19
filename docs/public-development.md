@@ -1,5 +1,11 @@
 # Vývoj bez kompletního kufru
 
+Aktuální produkční rozhovor má pouze Live `gpt-live-1` a Realtime
+`gpt-realtime-2.1`; [kontrakt a migrace](../kufr/docs/autonomous-live-memory.md).
+Offline test doubles jsou výslovně testovací. Staré textové route vracejí410;
+legacy dialog/voice přepínače se nepoužívají. Lokální testy nikdy nevolají AI.
+
+
 Příkazy níže nepotřebují produkční credentialy ani volání OpenAI. Používej
 syntetická data. Verze vybírej podle `kufr/global.json`, jednotlivých `.nvmrc`,
 lockfiles a `platformio.ini`; aktualizace se provádí společně s ověřením.
@@ -36,7 +42,7 @@ npm ci
 npm test
 ```
 
-## Backend v režimu fake
+## Backend bez provider credentialu
 
 CLI spouštěj z `kufr/`, aby našlo jeho `global.json`. Komitované NuGet
 lockfiles zahrnují CI profil `linux-x64`; obecný Windows locked restore může
@@ -63,8 +69,6 @@ Při ručním spuštění služby z `kufr/backend/` nejprve nastav lokální ces
 $databaseDirectory = Join-Path ([IO.Path]::GetTempPath()) ('kufr-dev-' + [guid]::NewGuid())
 New-Item -ItemType Directory -Path $databaseDirectory | Out-Null
 $env:Backend__DatabasePath = Join-Path $databaseDirectory 'journal.sqlite'
-$env:Backend__Dialog__Mode = 'fake'
-$env:Backend__Voice__Mode = 'fake'
 $env:OPENAI_API_KEY = ''
 $env:Backend__Memory__Enabled = 'false'
 $env:Backend__Memory__CloudIndexingEnabled = 'false'
@@ -81,7 +85,7 @@ i po ukončení služby; nepatří do gitu.
 
 [backend/.env.example](../kufr/backend/.env.example) je referenční seznam
 proměnných, nikoli soubor automaticky načítaný ASP.NET Core. Skutečné lokální
-hodnoty nastav ve vlastním prostředí mimo git; provider klíč fake režim nepotřebuje.
+hodnoty nastav ve vlastním prostředí mimo git; bez provider klíče server hlásí oba produkční enginy nedostupné; nehraje úspěšný fake rozhovor.
 
 ## Firmware, simulátor a mechanika
 

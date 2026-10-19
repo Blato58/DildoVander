@@ -21,7 +21,7 @@ let generation = 0;
 const enabled = computed(() => props.canControl && props.mode === 'simulation' && !props.replay && !!props.instanceId);
 const ordinaryDisabled = computed(() => !enabled.value || !props.online || pending.value || pendingStop.value);
 const newOperationId = () => crypto.randomUUID();
-watch(() => [props.instanceId, props.mode, props.replay, props.canControl], () => {
+watch(() => [props.instanceId, props.mode, props.replay, props.canControl, props.profile], () => {
   ++generation; pending.value = false; pendingStop.value = false; notice.value = ''; error.value = '';
 });
 onBeforeUnmount(() => { ++generation; });
@@ -30,6 +30,7 @@ async function command(action: string, body: Record<string, unknown> = {}) {
   const urgent = action === 'stop';
   if (!enabled.value || (urgent ? pendingStop.value : ordinaryDisabled.value && action !== 'release')) return;
   if (action === 'clock' && props.profile !== 'deterministic') return;
+  if (action === 'integrationText' || action === 'text' && props.profile !== 'deterministic') return;
   const own = generation, instance = props.instanceId;
   if (urgent) { pendingStop.value = true; emit('stop'); } else pending.value = true;
   error.value = ''; notice.value = '';
@@ -47,8 +48,8 @@ async function command(action: string, body: Record<string, unknown> = {}) {
   finally { if (own === generation) { if (urgent) pendingStop.value = false; else pending.value = false; } }
 }
 function submitText() {
-  if (!text.value.trim()) return;
-  void command(props.profile === 'integration' ? 'integrationText' : 'text', {
+  if (props.profile !== 'deterministic' || !text.value.trim()) return;
+  void command('text', {
     operationId: crypto.randomUUID(), slot: slot.value, variant: variant.value, text: text.value,
   });
 }
@@ -58,18 +59,18 @@ function submitText() {
   <section v-if="enabled" class="simulation-controls" aria-labelledby="simulation-controls-title">
     <h3 id="simulation-controls-title">Ovládání vybrané simulace</h3>
     <p>{{ instanceId }} · {{ profile }}. Oprávnění ověřuje server; tyto povely nejsou dostupné pro živý kufr ani replay.</p>
-    <AwNotice v-if="profile === 'integration'" tone="warning">Integrační vstup používá skutečný backend a může volat placené AI. Vyžaduje samostatnou autorizaci vlastníka.</AwNotice>
+    <AwNotice v-if="profile === 'integration'">Textový backend byl ukončen. Rozhovor spustíte ve hlasovém panelu přes GPT Live nebo Realtime 2.1. Provider vyžaduje samostatnou autorizaci vlastníka.</AwNotice>
     <AwField id="simulation-slot" label="Přihrádka">
       <select id="simulation-slot" v-model.number="slot" class="aw-input"><option v-for="index in 6" :key="index" :value="index">{{ index }}</option></select>
     </AwField>
     <AwField id="simulation-variant" label="Varianta">
       <select id="simulation-variant" v-model="variant" class="aw-input"><option value="main">main</option><option value="short">short</option></select>
     </AwField>
-    <AwField id="simulation-text" label="Syntetický textový vstup">
+    <AwField v-if="profile === 'deterministic'" id="simulation-text" label="Syntetický textový vstup">
       <textarea id="simulation-text" v-model="text" class="aw-input" maxlength="1024" rows="3" />
     </AwField>
     <div class="simulation-actions">
-      <AwButton :disabled="ordinaryDisabled || !['deterministic', 'integration'].includes(profile)" :busy="pending" @click="submitText">{{ profile === 'integration' ? 'Odeslat integrační vstup (AI)' : 'Spustit syntetický vstup' }}</AwButton>
+      <AwButton v-if="profile === 'deterministic'" :disabled="ordinaryDisabled" :busy="pending" @click="submitText">Spustit syntetický vstup</AwButton>
       <AwButton variant="danger" :disabled="!enabled" :busy="pendingStop" @click="command('stop')">Stop simulace</AwButton>
       <AwButton :disabled="ordinaryDisabled" @click="command('inspect')">Servisní inspekce simulace</AwButton>
       <AwButton :disabled="ordinaryDisabled" @click="command('dance', { operationId: newOperationId() })">Dance</AwButton>

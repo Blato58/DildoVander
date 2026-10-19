@@ -74,6 +74,12 @@
     ["GET", "/v1/admin/keepsake-deletions/batches/{batchId:guid}", "Features/Keepsakes/KeepsakeAdminEndpoints.cs"],
     ["GET", "/v1/admin/keepsake-deletions/receipts/{receiptId:guid}", "Features/Keepsakes/KeepsakeAdminEndpoints.cs"],
     ["POST", "/v1/admin/keepsakes/{id:guid}/jobs/{jobId:guid}/cancel", "Features/Keepsakes/KeepsakeAdminEndpoints.cs"],
-    ["POST", "/v1/admin/keepsakes/{id:guid}/revoke-shares", "Features/Keepsakes/KeepsakeAdminEndpoints.cs"]
+    ["POST", "/v1/admin/keepsakes/{id:guid}/revoke-shares", "Features/Keepsakes/KeepsakeAdminEndpoints.cs"],
+    ["DELETE", "/v1/admin/conversations/{id}/media", "Features/Conversations/CostumeImageEndpoints.cs"],
+    ["DELETE", "/v1/admin/memory/scopes/{scope}/{subject}", "Features/Memory/MemoryAdministration.cs"],
+    ["DELETE", "/v1/conversations/{id}/image", "Features/Conversations/CostumeImageEndpoints.cs"],
+    ["GET", "/v1/admin/memory/context", "Features/Memory/MemoryAdministration.cs"],
+    ["GET", "/v1/conversations/{id}/gpt-live/{streamId:guid}/audio-stream", "Features/Realtime/RealtimeLiveEndpoints.cs"],
+    ["GET", "/v1/conversations/{id}/realtime-live/{streamId:guid}/audio-stream", "Features/Realtime/RealtimeLiveEndpoints.cs"]
   ]
 }

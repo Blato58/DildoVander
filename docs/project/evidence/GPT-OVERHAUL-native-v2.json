@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "GPT-OVERHAUL-native-v2",
+  "observedAtUtc": "2026-10-19T04:02:37.016765+00:00",
+  "kind": "native_ios",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "GPT-OVERHAUL",
+      "criterionId": "NATIVE",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "36e6c0078bdd60e7d3dce4430226bf144674bb200f13e75d0cb8d2e4225394c3",
+    "policyVersion": "two-engine-v1",
+    "commit": "d59d69abb72fa821652b8239342a153346500ba5",
+    "dirty": false
+  },
+  "method": "CI39196789717 ios/ios on macos-15, Xcode26.3; npm ci/build, Capacitor sync, package resolution; test-native-transport.sh, test-native-debug.sh, test-native-provisioning.sh; xcodebuild Debug generic iOS Simulator CODE_SIGNING_ALLOWED=NO.",
+  "environment": "Hosted GitHub Actions ubuntu-24.04/windows-2025/macOS15-Xcode26.3; exact PR merge-ref tree c0802c70ed14a79102040147d061442af584708c equals candidate HEAD tree (git fetch refs/pull/217/merge plus rev-parse compared).",
+  "limitations": [
+    "Provider/network/media peers are deterministic fixtures; no paid Live/Realtime inference or acoustic-quality evidence.",
+    "Unsigned Simulator compile and host Swift harnesses do not prove installed iPhone permissions, orientation, AEC, real audio routes/network recovery or physical suitcase media/selection.",
+    "No deploy, signed IPA publication/install, firmware flash, CAD regeneration or real guest-data mutation.",
+    "Aborted provider usage may remain a conservative reservation; actual billed usage belongs to the OpenAI account."
+  ],
+  "supersedes": [
+    "GPT-OVERHAUL-native-first-v1"
+  ],
+  "supersedesReason": "Retained-engine error parser restored; photo retry/revocation and full provider-control generation fixes added to this candidate; actual macOS rerun replaces failed compile on historical source.",
+  "resolution": "Native discovery/SPKI/Keychain/HTTPS/WSS, profiles/two-engine capabilities, session cleanup, continuous audio conversion/bounded backlog/VAD/playback, generation/cancellation/causal revocation, immutable image retry/provenance/retake and BLE codec harnesses all passed. Unsigned Simulator app BUILD SUCCEEDED at2026-10-19T03:57:14Z. Reviewed P1 photo-playback and P2 retry identity threads resolved after regression/native success.",
+  "observation": "Native discovery/SPKI/Keychain/HTTPS/WSS, profiles/two-engine capabilities, session cleanup, continuous audio conversion/bounded backlog/VAD/playback, generation/cancellation/causal revocation, immutable image retry/provenance/retake and BLE codec harnesses all passed. Unsigned Simulator app BUILD SUCCEEDED at2026-10-19T03:57:14Z. Reviewed P1 photo-playback and P2 retry identity threads resolved after regression/native success.",
+  "artifactRefs": [
+    "https://github.com/Blato58/DildoVander/actions/runs/39196789717",
+    "docs/project/artifacts/GPT-OVERHAUL-source-v2.json"
+  ]
+}

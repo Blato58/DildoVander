@@ -12,7 +12,7 @@ internal static class TextDialogRuntimeTests
         Directory.CreateDirectory(directory);
         try
         {
-            CheckModeConfiguration(directory);
+            CheckFixtureConfiguration();
             await RunSuccessfulTurnAsync(directory);
             await RunMultiTurnDialogueAsync(directory);
             await RunTerminalReplyAsync(directory);
@@ -28,61 +28,18 @@ internal static class TextDialogRuntimeTests
         }
     }
 
-    private static void CheckModeConfiguration(string directory)
+    private static void CheckFixtureConfiguration()
     {
-        var lifetime = new TestLifetime();
-        var fakeConfiguration = new ConfigurationBuilder().Build();
-        using (var fake = new TextDialogRunner(fakeConfiguration, lifetime))
-        {
-            Require(!fake.Enabled, "keyless default mode remains fake");
-        }
-
-        var missingKey = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Backend:Dialog:Mode"] = "responses"
-            })
-            .Build();
-        try
-        {
-            using var _ = new TextDialogRunner(missingKey, lifetime);
-            throw new Exception("Responses mode started without a key or caps.");
-        }
-        catch (InvalidOperationException)
-        {
-        }
-
-        var enabled = new ConfigurationBuilder()
-            .AddConfiguration(BuildConfiguration(Path.Combine(directory, "config.sqlite"), 500_000))
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Backend:Dialog:Mode"] = "responses",
-                ["OPENAI_API_KEY"] = "sk-test-only"
-            })
-            .Build();
-        enabled["Backend:Dialog:Model"] = ResponsesTextDialogBudget.Model;
-        using var configured = new TextDialogRunner(enabled, lifetime);
-        Require(configured.Model == ResponsesTextDialogBudget.Model, "configured Sol model is retained");
-        foreach (var unsupportedModel in new[] { "gpt-6-astra", "gpt-6-luna" })
-        {
-            enabled["Backend:Dialog:Model"] = unsupportedModel;
-            try
-            {
-                using var unsupported = new TextDialogRunner(enabled, lifetime);
-                throw new Exception("Disallowed model started.");
-            }
-            catch (InvalidOperationException)
-            {
-            }
-        }
-        Require(configured.Enabled, "explicit Responses mode accepts provider key");
-        var keyOnly = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["Backend:Dialog:Mode"] = "responses", ["OPENAI_API_KEY"] = "fixture-key",
-            ["Backend:Usage:SessionCapMicroUsd"] = "invalid-ignored"
-        }).Build();
-        using var capless = new TextDialogRunner(keyOnly, lifetime);
-        Require(capless.Enabled, "explicit mode and key need no valid monetary cap");
+        using var fixture = new TextDialogRunner((_, _, _, _, _) =>
+            Task.FromResult(new TextDialogResponse("fixture", "ask", "", null,
+                ResponsesTextDialogBudget.Model, 0, 0, "default")));
+        Require(fixture.Enabled, "delegate fixture is deterministic and available");
+        fixture.SetEnabled(false);
+        Require(!fixture.Enabled, "fixture enable control is local test state");
+        Require(typeof(TextDialogRunner).GetConstructors(System.Reflection.BindingFlags.Instance
+            | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)
+            .All(constructor => constructor.GetParameters().All(parameter => parameter.ParameterType != typeof(IConfiguration))),
+            "retired dialogue cannot construct a provider from application configuration");
     }
 
     private static async Task RunSuccessfulTurnAsync(string directory)

@@ -29,12 +29,12 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "applicationArtifactDigest": "552896ed47cfc10ac13de112ef9e7b1eab248ca51d82d77fcd40e6743dbbefd2"
+        "applicationArtifactDigest": "cc3076a283b839baacb210deade4f03193782b744e63da86c3644b0863f09fe3"
       },
       "evidenceRefs": [
-        "KUFR-APPLICATION-unit-v3",
-        "KUFR-APPLICATION-browser-v4",
-        "KUFR-APPLICATION-review-v4"
+        "KUFR-APPLICATION-unit-v4",
+        "KUFR-APPLICATION-browser-v6",
+        "KUFR-APPLICATION-review-v6"
       ]
     },
     {
@@ -47,13 +47,13 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "applicationArtifactDigest": "552896ed47cfc10ac13de112ef9e7b1eab248ca51d82d77fcd40e6743dbbefd2",
-        "backendArtifactDigest": "cc055d8afc3ed31a473702312cb8c7212b2fbac716f67af16504bfb014f6d79b"
+        "applicationArtifactDigest": "cc3076a283b839baacb210deade4f03193782b744e63da86c3644b0863f09fe3",
+        "backendArtifactDigest": "28ad047b485de7aa57e5957de4a27428e4876fb577fd310ce0fc7ea70dd2b97c"
       },
       "evidenceRefs": [
-        "KUFR-APPLICATION-identity-v4",
-        "KUFR-APPLICATION-browser-v4",
-        "KUFR-APPLICATION-review-v4"
+        "KUFR-APPLICATION-identity-v5",
+        "KUFR-APPLICATION-browser-v6",
+        "KUFR-APPLICATION-review-v6"
       ]
     },
     {
@@ -67,13 +67,13 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "applicationArtifactDigest": "552896ed47cfc10ac13de112ef9e7b1eab248ca51d82d77fcd40e6743dbbefd2",
-        "releaseArtifactDigest": "1874b31b332e00686f4aa68630f60286a94c05ebdab34119655e9f2a4e58d71f"
+        "applicationArtifactDigest": "cc3076a283b839baacb210deade4f03193782b744e63da86c3644b0863f09fe3",
+        "releaseArtifactDigest": "4b38c9433e689c613f846a09f8897d3f7f4ffd4580f12ada00a20df1464d4746"
       },
       "evidenceRefs": [
-        "KUFR-APPLICATION-releases-v4",
-        "KUFR-APPLICATION-browser-v5",
-        "KUFR-APPLICATION-review-v5"
+        "KUFR-APPLICATION-releases-v5",
+        "KUFR-APPLICATION-browser-v6",
+        "KUFR-APPLICATION-review-v6"
       ]
     },
     {
@@ -84,17 +84,15 @@
         "native_ios"
       ],
       "appliesTo": {
-        "iosArtifactDigest": "4ad457aaf15a2b4c9daab9d58125f7bd10dfdac5c912aa7dc9b1134563689419"
+        "iosArtifactDigest": "619bd446e6c9c914b724f5bbd7b6ee6c1df51e2164d09277223766fc3aa17890"
       },
-      "evidenceRefs": [
-        "KUFR-APPLICATION-native-v1"
-      ]
+      "evidenceRefs": []
     }
   ],
   "blockers": [
     {
       "id": "SIGNED-NATIVE",
-      "problem": "Signed iPhone associated-domain passkeys, Keychain resume/switching, actual native public/media behavior and physical BLE possession are not yet accepted; macOS native software checks passed.",
+      "problem": "Signed iPhone associated-domain passkeys, Keychain resume/switching, actual native public/media behavior and physical BLE possession are not accepted. Merged Swift source awaits fresh macOS software CI; earlier native evidence remains immutable.",
       "severity": "high",
       "blocks": [
         "NATIVE"
@@ -103,11 +101,11 @@
     }
   ],
   "nextAction": "Verify signed iPhone associated-domain passkeys, Keychain resume/switching, native public model/media and physical pairing on the authorized installation. Source handoff uses PR218 CI/review gates; production activation remains separate.",
-  "currentNote": "Application fix9afff2fa0497a566e2250e9ec4ba4b8e0af3f58c pushed and verified; PR218. macOS native harnesses and unsigned Simulator build passed. source-v5 records the self-contained shallow-checkout regression and LF STATUS correction; production app/backend/iOS bytes are unchanged. Current CI and review outcomes are retained on PR218. No production/provider/hardware action.",
+  "currentNote": "Verified pushed implementation1fa76d632eb63b381e6381f9440074a2b7d00d7d, PR218 CI39197261673 passed all jobs. Integrated concurrent accepted main09a7cb32c7148b812ebbcd1326d3e16ba8d4ba9a locally with fresh final237app tests, full backend, HTTPS accounts/browser/media/offline and independent clean review. source-v6 binds current software; final merge commit/push/CI/review remain required. No production/provider/hardware action.",
   "implementedSubject": {
-    "applicationArtifactDigest": "552896ed47cfc10ac13de112ef9e7b1eab248ca51d82d77fcd40e6743dbbefd2",
-    "backendArtifactDigest": "cc055d8afc3ed31a473702312cb8c7212b2fbac716f67af16504bfb014f6d79b",
-    "releaseArtifactDigest": "1874b31b332e00686f4aa68630f60286a94c05ebdab34119655e9f2a4e58d71f",
-    "iosArtifactDigest": "4ad457aaf15a2b4c9daab9d58125f7bd10dfdac5c912aa7dc9b1134563689419"
+    "applicationArtifactDigest": "cc3076a283b839baacb210deade4f03193782b744e63da86c3644b0863f09fe3",
+    "backendArtifactDigest": "28ad047b485de7aa57e5957de4a27428e4876fb577fd310ce0fc7ea70dd2b97c",
+    "releaseArtifactDigest": "4b38c9433e689c613f846a09f8897d3f7f4ffd4580f12ada00a20df1464d4746",
+    "iosArtifactDigest": "619bd446e6c9c914b724f5bbd7b6ee6c1df51e2164d09277223766fc3aa17890"
   }
 }

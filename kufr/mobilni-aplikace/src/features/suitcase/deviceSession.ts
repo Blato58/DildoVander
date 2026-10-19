@@ -5,6 +5,7 @@ import { NativeDeviceConnection, nativeBridge, type SavedNativeDevice } from '..
 import { SimulatorDeviceConnection } from '../device_connection/SimulatorDeviceConnection';
 import { ProvisioningClient, type ProvisioningBridge, type ProvisioningDevice, type ProvisioningStatus } from '../provisioning/ProvisioningClient';
 import { DebugJournal } from '../debug/DebugJournal';
+import { nativeDebug } from './nativeDebug';
 
 type Connection = FakeDeviceConnection | SimulatorDeviceConnection | NativeDeviceConnection;
 export type DeviceTarget = 'unavailable' | 'demo' | 'simulator' | 'native';
@@ -226,12 +227,12 @@ export const deviceSession = {
   },
   async clearUserGrants(): Promise<void> {
     // Account logout must not erase the device's independent Keychain identity.
+    nativeDebug.invalidatePrivateState();
     disconnect();
-    const { servoBench } = await import('./servoBench');
-    await servoBench.disconnect();
-    if (native) {
-      const { nativeDebug } = await import('./nativeDebug');
-      await nativeDebug.revokeUserGrants();
-    }
+    // Begin scoped native cleanup before awaiting unrelated USB work. A slow
+    // bench or native Stop must never leave old account content in the VM.
+    const phoneCleanup = native ? nativeDebug.revokeUserGrants() : Promise.resolve();
+    const benchCleanup = import('./servoBench').then(({ servoBench }) => servoBench.disconnect());
+    await Promise.all([benchCleanup, phoneCleanup]);
   },
 };

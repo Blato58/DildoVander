@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { markRaw, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
+import { computed, markRaw, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import AwButton from '../../components/AwButton.vue';
 import AwField from '../../components/AwField.vue';
 import AwNotice from '../../components/AwNotice.vue';
 import { accountTransport, refreshIdentity } from '../identity/session';
 import { twin } from './observation.mjs';
 import { mediaController } from './media.mjs';
+import { engineLabels, parseEngineCapabilities } from '../debug/conversationCapabilities';
 
 export interface MediaContext {
   active: boolean; replay: boolean; role: string; instanceId: string;
@@ -15,12 +16,24 @@ const props = defineProps<{ context: MediaContext }>();
 const video = ref<HTMLVideoElement>();
 const state = shallowRef<any>(null), controller = shallowRef<any>(null);
 const failure = ref('');
+const selectedEngine = computed(() => state.value?.configuration?.engines?.engines.find((item: any) => item.engine === state.value?.settings.engine));
+const engineOptions = computed(() => [
+  { value: 'fake', label: 'Syntetická fixture · bez poskytovatele', disabled: state.value?.configuration?.availability.fake !== true },
+  ...(['gpt-live', 'realtime'] as const).map(value => ({ value, label: engineLabels[value], disabled: !state.value?.configuration?.engines?.engines.some((item: any) => item.engine === value && item.ready && item.inputModes.includes('audio')) || state.value?.configuration?.availability[value === 'gpt-live' ? 'gptLive' : value] !== true })),
+]);
+const voices = computed<string[]>(() => state.value?.settings.engine === 'fake' ? ['cedar', 'marin', 'coral'] : selectedEngine.value?.voices || [state.value?.settings.voice].filter(Boolean));
+const speeds = computed<number[]>(() => {
+  if (state.value?.settings.engine === 'fake') return [.8, 1, 1.2];
+  const speed = selectedEngine.value?.speed;
+  return speed ? [...new Set<number>(speed.supported ? [speed.min, speed.default, speed.max] : [speed.default])].sort((a, b) => a - b) : [Number(state.value?.settings.speed || 1)];
+});
 let generation = 0;
 const key = () => JSON.stringify([props.context.instanceId, props.context.bootId, props.context.mode, props.context.role, props.context.replay, props.context.profile]);
 
 onMounted(() => {
   controller.value = markRaw(mediaController.createMediaController({
     video: () => video.value,
+    parseEngines: parseEngineCapabilities,
     onChange: (value: any) => { state.value = markRaw(value); },
     transport: {
       async request(instanceId: string, suffix: string, options: RequestInit = {}) {
@@ -28,7 +41,12 @@ onMounted(() => {
         const response = await accountTransport(path, options);
         if (!response.ok) throw await twin.httpFailure(response, path);
         if (response.status === 204) return null;
-        return response.json();
+        const value = await response.json();
+        if (suffix !== '/settings') return value;
+        const capabilityPath = `/app/v1/workshop/${encodeURIComponent(instanceId)}/engines`;
+        const capabilities = await accountTransport(capabilityPath, { signal: options.signal });
+        if (!capabilities.ok) throw await twin.httpFailure(capabilities, capabilityPath);
+        return { ...value, engines: await capabilities.json() };
       },
     },
   }));
@@ -67,17 +85,17 @@ defineExpose({ invalidate });
       <form @submit.prevent="action('save')">
         <AwField id="media-engine" label="Engine">
           <select id="media-engine" :value="state.settings.engine" :disabled="state.disabled.engine" class="aw-input" @change="selection('engine', $event)">
-            <option value="fake">Fake služby</option><option value="realtime">Realtime</option><option value="gpt-live">GPT-Live</option>
+            <option v-for="engine in engineOptions" :key="engine.value" :value="engine.value" :disabled="engine.disabled">{{ engine.label }}</option>
           </select>
         </AwField>
         <AwField id="media-voice" label="Hlas">
           <select id="media-voice" :value="state.settings.voice" :disabled="state.disabled.voice" class="aw-input" @change="selection('voice', $event)">
-            <option v-for="voice in ['cedar', 'marin', 'coral']" :key="voice">{{ voice }}</option>
+            <option v-for="voice in voices" :key="voice">{{ voice }}</option>
           </select>
         </AwField>
         <AwField id="media-speed" label="Rychlost hlasu">
           <select id="media-speed" :value="state.settings.speed" :disabled="state.disabled.speed" class="aw-input" @change="selection('speed', $event)">
-            <option v-for="speed in ['0.8', '1', '1.2']" :key="speed">{{ speed }}</option>
+            <option v-for="speed in speeds" :key="speed" :value="String(speed)">{{ speed }}</option>
           </select>
         </AwField>
         <AwField id="media-variant" label="Prezentace">
@@ -91,6 +109,8 @@ defineExpose({ invalidate });
           <AwButton :disabled="state.disabled.reload" @click="action('reload')">Načíst nastavení</AwButton>
         </div>
         <p v-if="state.configuration">Revision {{ state.configuration.revision }} · dostupnost providerů: {{ state.configuration.availability }}</p>
+        <p v-if="selectedEngine">Model {{ selectedEngine.model }} · {{ selectedEngine.ready ? 'konfigurace připravena; přístup ověří provider handshake' : selectedEngine.unavailableReason || 'engine není připraven' }} · vstup {{ selectedEngine.inputModes.join(', ') }} · kamery {{ selectedEngine.cameraSources.join(', ') }}</p>
+        <AwNotice v-else-if="state.settings.engine !== 'fake'" tone="warning">Metadata vybraného enginu nejsou dostupná. Výběr se nemění; provider nelze spustit.</AwNotice>
       </form>
     </details>
     <AwField v-for="device in (['mic', 'speaker', 'camera'] as const)" :id="`media-device-${device}`" :key="device" :label="{mic:'Mikrofon',speaker:'Reproduktor',camera:'Kamera'}[device]">

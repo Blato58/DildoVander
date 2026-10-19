@@ -33,6 +33,18 @@ for invalidMIME in [nil, "text/html", "application/javascript", "application/oct
     }
 }
 require(AccountTransportPolicy.device(path: "/v1/conversations/\(id)/realtime-live", method: "POST", query: []), "native account voice admission unavailable")
+require(AccountTransportPolicy.device(path: "/v1/conversations/\(id)/gpt-live/\(id)/audio-stream", method: "GET", query: []), "persistent phone socket admission unavailable")
+require(!AccountTransportPolicy.device(path: "/v1/conversations/\(id)/gpt-live/\(id)/audio-stream", method: "POST", query: []), "socket method broadened")
+require(AccountTransportPolicy.device(path: "/v1/conversations/\(id)/image", method: "DELETE", query: []), "explicit image revocation unavailable")
+require(!AccountTransportPolicy.device(path: "/v1/conversations/\(id)/turns", method: "POST", query: []), "retired dialog route exposed")
+let memoryContext = [URLQueryItem(name: "deviceId", value: "device-a"), URLQueryItem(name: "conversationId", value: id), URLQueryItem(name: "personalityId", value: "ollivander-trunk")]
+require(AccountTransportPolicy.device(path: "/v1/admin/memory/context", method: "GET", query: memoryContext), "scoped memory context unavailable")
+require(!AccountTransportPolicy.device(path: "/v1/admin/memory/context", method: "GET", query: memoryContext + [URLQueryItem(name: "token", value: "forbidden")]), "memory query credential accepted")
+require(AccountTransportPolicy.device(path: "/v1/admin/memory/guest", method: "PUT", query: []), "explicit admin guest permission update unavailable")
+require(AccountTransportPolicy.device(path: "/v1/admin/memory/scopes/conversation/\(id)", method: "DELETE", query: []), "confirmed scoped memory deletion unavailable")
+require(!AccountTransportPolicy.device(path: "/v1/admin/memory/scopes/arbitrary/\(id)", method: "DELETE", query: []), "memory scope broadened")
+require(AccountTransportPolicy.account(path: "/app/v1/workshop/case.s3/engines", method: "GET"), "scoped canonical engine metadata unavailable")
+require(!AccountTransportPolicy.account(path: "/app/v1/workshop/case.s3/engines", method: "PUT"), "read-only engine metadata became mutable")
 require(!AccountTransportPolicy.device(path: "/v1/device-access/token", method: "POST", query: []), "native account flow accepted bearer exchange")
 require(!AccountTransportPolicy.device(path: "/v1/admin/modes", method: "PUT", query: []), "advanced profile bypassed application confirmation")
 require(AccountTransportPolicy.account(path: "/app/v1/session", method: "GET"), "session unavailable")

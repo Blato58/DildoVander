@@ -15,19 +15,23 @@ internal sealed class GptLiveClient(IConfiguration configuration) : IDisposable
     internal async Task<GptLiveConnection> ConnectAsync(CancellationToken token)
     {
         if (!Available) throw new InvalidOperationException("GPT-Live is unavailable.");
+        return new GptLiveConnection(await ConnectSocketAsync(token), ConnectSocketAsync);
+    }
+    private async Task<WebSocket> ConnectSocketAsync(CancellationToken token)
+    {
         var socket = new ClientWebSocket();
         socket.Options.SetRequestHeader("Authorization", "Bearer " + configuration["OPENAI_API_KEY"]);
         try
         {
             await socket.ConnectAsync(new Uri("wss://api.openai.com/v1/live/sessions"), transport, token);
-            return new GptLiveConnection(socket);
+            return socket;
         }
         catch { socket.Dispose(); throw; }
     }
     public void Dispose() => transport.Dispose();
 }
 
-internal sealed class GptLiveConnection(WebSocket socket) : IStreamingAudioInput, IAsyncDisposable
+internal sealed class GptLiveConnection(WebSocket socket, Func<CancellationToken, Task<WebSocket>>? reconnect = null) : IStreamingAudioInput, IAsyncDisposable
 {
     private readonly SemaphoreSlim writes = new(1, 1);
     private bool closing;
@@ -35,20 +39,23 @@ internal sealed class GptLiveConnection(WebSocket socket) : IStreamingAudioInput
     private Action<byte[]>? inputObserver;
     internal long InputPcmBytes => Interlocked.Read(ref inputPcmBytes);
     internal void ObserveInput(Action<byte[]>? observer) => Volatile.Write(ref inputObserver, observer);
-    private readonly TaskCompletionSource ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    internal long VisualGeneration { get; set; }
+    private long inputGeneration;
+    private TaskCompletionSource ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal void AudioReady() => ready.TrySetResult();
     public async Task SendAudioAsync(byte[] pcm, CancellationToken token)
     {
+        var generation = Interlocked.Read(ref inputGeneration);
         await ready.Task.WaitAsync(token);
         Volatile.Read(ref inputObserver)?.Invoke(pcm);
-        await SendAsync(new { type = "session.input_audio.append", audio = Convert.ToBase64String(pcm) }, token, audio: true, audioBytes: pcm.Length);
+        await SendAsync(new { type = "session.input_audio.append", audio = Convert.ToBase64String(pcm) }, token, audio: true, audioBytes: pcm.Length, expectedInputGeneration: generation);
     }
 
     internal Task CloseAsync(CancellationToken token, string? eventId = null) => eventId is null
         ? SendAsync(new { type = "session.close" }, token, close: true)
         : SendAsync(new { type = "session.close", event_id = eventId }, token, close: true);
 
-    internal async Task SendAsync(object value, CancellationToken token, bool audio = false, bool close = false, int audioBytes = 0)
+    internal async Task SendAsync(object value, CancellationToken token, bool audio = false, bool close = false, int audioBytes = 0, long? expectedInputGeneration = null)
     {
         var bytes = JsonSerializer.SerializeToUtf8Bytes(value, RealtimeProtocol.JsonOptions);
         if (bytes.Length > 65_536) throw new InvalidDataException("Live command too large.");
@@ -57,7 +64,7 @@ internal sealed class GptLiveConnection(WebSocket socket) : IStreamingAudioInput
         {
             // Serialize close with uploads; acknowledge late device chunks without
             // sending illegal input after the provider close request.
-            if (audio && closing) return;
+            if (audio && (closing || expectedInputGeneration != inputGeneration)) return;
             if (close) closing = true;
             await socket.SendAsync(bytes, WebSocketMessageType.Text, true, token);
             if (audio) Interlocked.Add(ref inputPcmBytes, audioBytes);
@@ -65,15 +72,34 @@ internal sealed class GptLiveConnection(WebSocket socket) : IStreamingAudioInput
         finally { CryptographicOperations.ZeroMemory(bytes); writes.Release(); }
     }
 
+    internal async Task RestartAsync(long generation, CancellationToken token)
+    {
+        if (reconnect is null) { throw new InvalidOperationException("Live provider reconnect unavailable."); }
+        await writes.WaitAsync(token);
+        try
+        {
+            Interlocked.Increment(ref inputGeneration);
+            var previousReady = ready;
+            ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            previousReady.TrySetResult();
+            socket.Abort(); socket.Dispose();
+            socket = await reconnect(token);
+            closing = false;
+            VisualGeneration = generation;
+        }
+        finally { writes.Release(); }
+    }
+
     internal async Task<JsonDocument> ReceiveAsync(CancellationToken token)
     {
+        var source = socket;
         var bytes = System.Buffers.ArrayPool<byte>.Shared.Rent(262_144);
         var used = 0;
         try
         {
             while (used < bytes.Length)
             {
-                var part = await socket.ReceiveAsync(bytes.AsMemory(used), token);
+                var part = await source.ReceiveAsync(bytes.AsMemory(used), token);
                 if (part.MessageType != WebSocketMessageType.Text) throw new InvalidDataException("Live closed without final usage.");
                 used += part.Count;
                 if (part.EndOfMessage)

@@ -92,7 +92,7 @@ function advance(milliseconds) {
   now = target;
 }
 
-const { SimulatorDeviceConnection } = await loadDeviceModule('SimulatorDeviceConnection');
+const { SimulatorDeviceConnection, ProtocolDeviceConnection } = await loadDeviceModule('SimulatorDeviceConnection');
 
 const bootId = randomUUID();
 const deviceId = 'kufr-001';
@@ -128,6 +128,18 @@ function startConnection() {
   });
   return { connection, socket };
 }
+
+test('real-device transport never sends retired text or cancel frames even when an old snapshot advertises text', () => {
+  const socket = new FakeSocket();
+  const connection = new ProtocolDeviceConnection(() => {}, { source: 'native-device', deviceId, createSocket: () => socket });
+  socket.open();
+  socket.message({ protocolVersion: 1, type: 'welcome', snapshot: snapshot({ controlMode: 'manual', controlLeaseId: randomUUID(),
+    capabilities: ['conversationText'], conversation: { conversationId: randomUUID(), generation: 1, activeTurnId: null } }) });
+  assert.equal(connection.snapshot().conversation.canSubmit, false);
+  assert.equal(connection.submitText('retired text'), false); assert.equal(connection.cancelConversation(), false);
+  assert.equal(socket.sent.some(message => message.type === 'conversation.text' || message.type === 'conversation.cancel'), false);
+  connection.suspend();
+});
 
 test('dance confirmation blocks voice/manual controls and reconnect never replays music', () => {
   const { connection, socket } = startConnection();

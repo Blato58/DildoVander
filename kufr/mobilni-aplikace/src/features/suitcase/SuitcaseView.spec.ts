@@ -35,12 +35,20 @@ describe('Vue suitcase journeys', () => {
     expect(wrapper.text()).not.toContain('Potvrzení může spustit fyzický pohyb'); expect(select).not.toHaveBeenCalled();
   });
   it('preserves a text draft across heartbeats and clears it on lease revocation', async () => {
-    device.snapshot.value = state({ controlMode: 'manual', conversation: { canSubmit: true, canCancel: false, pending: false, reply: null, simulated: false, status: '' } });
+    device.snapshot.value = state({ source: 'e2-simulator', controlMode: 'manual', conversation: { canSubmit: true, canCancel: false, pending: false, reply: null, simulated: false, status: '' } });
     wrapper = mount(SuitcaseView, mountOptions); await button('Text').trigger('click');
     await wrapper.get('textarea').setValue('Rozepsaný host'); const element = wrapper.get('textarea').element;
     element.focus(); device.snapshot.value = { ...device.snapshot.value! }; await nextTick();
     expect(wrapper.get('textarea').element).toBe(element); expect(element.value).toBe('Rozepsaný host'); expect(document.activeElement).toBe(element);
     device.snapshot.value = { ...device.snapshot.value!, controlMode: 'observer' }; await nextTick(); expect(element.value).toBe('');
+  });
+  it('does not offer or send retired text turns for a real device', () => {
+    device.snapshot.value = state({ controlMode: 'manual', conversation: { canSubmit: true, canCancel: true, pending: false, reply: null, simulated: false, status: '' } });
+    const submit = vi.spyOn(device, 'submitText');
+    wrapper = mount(SuitcaseView, mountOptions);
+    expect(wrapper.findAll('button').some(item => item.text() === 'Text')).toBe(false);
+    expect(wrapper.find('textarea').exists()).toBe(false);
+    expect(submit).not.toHaveBeenCalled();
   });
   it('requires device voice availability and consumes one photo consent only for an explicit start', async () => {
     device.snapshot.value = state({ voice: { available: true, cameraAvailable: true, mode: 'realtime', voice: 'cedar',

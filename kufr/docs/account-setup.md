@@ -143,6 +143,20 @@ Relace mají pevnou platnost 12 hodin, lze je jednotlivě odvolat; označení
 Změna role či blokace účtu ukončí jeho dosavadní relace. Role, odvolání a granty
 se znovu kontrolují na každém chráněném požadavku.
 
+Test telefonu nabízí jen aktuální GPT Live a výslovnou alternativu GPT Realtime
+2.1. Hlasy, tempo, kamera a připravenost pocházejí z backendu; nepřístupný engine
+se sám nenahradí jiným. Běžné přihlášení používá účet i pro nativní audio
+WebSocket. Další audio vstup znovu ověřuje relaci, aktuální roli a grant.
+Textový rozhovor skutečného kufru byl vyřazen; text v označené simulaci je pouze
+deterministická fixture. Podrobnosti určuje [aktuální hlasový kontrakt](autonomous-live-memory.md).
+
+Soukromá paměť rozhovoru má samostatné ověření identity a samostatné souhlasy
+s dlouhodobou pamětí a cloudovým exportem. Jméno, hlas ani fotografie hosta
+identitu neověřují. Kontrolu a mazání paměti v diagnostice provádí vlastník či
+správce; citlivá změna vyžaduje čerstvé passkey ověření a výslovné potvrzení.
+Zobrazené příznaky souhlasu nejsou odvozené jen z přítomnosti identifikátoru.
+Tato vazba se nevytváří automaticky propojením návštěvnické památky s účtem.
+
 V Provozu serveru jsou skutečné režimy/persona a revize, technická připravenost,
 stránkované logy a dostupné úlohy archivu. Čtení nevolá AI. Režimy se mění proti
 aktuální revizi; dostupnost poskytovatele a pravidla běžících rozhovorů dál

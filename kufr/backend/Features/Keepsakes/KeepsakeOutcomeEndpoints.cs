@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Kufr.Backend.Features.Access;
 using Kufr.Backend.Features.Conversations;
+using Kufr.Backend.Features.Memory;
 
 namespace Kufr.Backend.Features.Keepsakes;
 
@@ -11,7 +12,8 @@ internal static partial class KeepsakeOutcomeEndpoints
         string PresentationEvidence);
 
     internal static async Task<IResult> PublishAsync(HttpContext c, string operationId,
-        DeviceAccessStore access, OperationJournal journal, KeepsakeStore store, IConfiguration config)
+        DeviceAccessStore access, OperationJournal journal, KeepsakeStore store, IConfiguration config,
+        EveningMemoryStore memoryStore, HybridMemoryService memory)
     {
         if (!config.GetValue<bool>("Keepsake:Enabled")) { return Results.NotFound(); }
         var device = DeviceAccessEndpoints.Authenticate(c, access);
@@ -41,6 +43,14 @@ internal static partial class KeepsakeOutcomeEndpoints
             var result = store.Issue(new KeepsakeIssueSnapshot(outcome, device, proposal.Compartment,
                 wand.StableId, wand.DisplayName, wand.Description, request.PresentationEvidence,
                 proposal.CatalogVersion, journal.ReadKeepsakeEvening(device, operationId)));
+            if (journal.ReadKeepsakeEvening(device, operationId) is { } evening
+                && journal.ReadSelectionMemoryEpoch(device, operationId) is { } deletionEpoch)
+            {
+                var permission = memoryStore.GuestPermission(device, proposal.ConversationId);
+                memory.RecordConfirmedOutcome(new(device, evening, proposal.ConversationId,
+                    journal.ReadSelectionPersonality(device, operationId), permission), operationId, outcome, wand.DisplayName,
+                    request.PresentationEvidence, deletionEpoch);
+            }
             return Results.Json(new { schemaVersion = 1, locator = result.Id, outcomeId = outcome,
                 sessionEpoch = proposal.Generation, physicalOperationId = request.PhysicalOperationId }, statusCode: 201);
         }

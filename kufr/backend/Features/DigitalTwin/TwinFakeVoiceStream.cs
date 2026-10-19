@@ -107,7 +107,7 @@ internal sealed partial class TwinMediaSessions
                 {
                     current = opening with { ClientTurnId = Guid.NewGuid(), Opening = false };
                     var capture = live.Listen(current.ClientTurnId.ToString("D"));
-                    await EmitAsync(new { type = "listening", inputId = current.ClientTurnId });
+                    await EmitAsync(new { type = "listening", inputId = current.ClientTurnId, responseGeneration = 0 });
                     var pcm = await capture.WaitAsync(TimeSpan.FromSeconds(30), cancellation);
                     await EmitAsync(new { type = "speech_stopped", inputId = current.ClientTurnId });
                     var wav = PcmSpeechAudio.ToDeviceWav(pcm);
@@ -127,7 +127,7 @@ internal sealed partial class TwinMediaSessions
                 Array.Clear(body);
                 var operation = submitted.OperationId is null ? null : conversations.GetOperation(actor.InstanceId, submitted.OperationId).Operation;
                 if (operation is not { Status: "completed", Result: TurnResult result }) { throw new InvalidDataException("Fake dialogue rejected."); }
-                await EmitAsync(new { type = "started", operationId = operation.OperationId, correlation = operation.Correlation });
+                await EmitAsync(new { type = "started", operationId = operation.OperationId, correlation = operation.Correlation, responseGeneration = 0 });
                 var speechRequest = new SpeechRequest(current.ClientTurnId, "device", current.Voice, current.Speed);
                 var speechBody = JsonSerializer.SerializeToUtf8Bytes(speechRequest, RealtimeProtocol.JsonOptions);
                 var speech = conversations.SubmitSpeech(actor.InstanceId, actor.ConversationId!, Guid.NewGuid(), speechBody, speechRequest);
@@ -138,15 +138,15 @@ internal sealed partial class TwinMediaSessions
                     ?? throw new InvalidDataException("Fake audio missing.");
                 var output = TwinFakeVoiceStream.FixturePcm(outputWav);
                 Array.Clear(outputWav);
-                await EmitAsync(new { type = "audio", delta = Convert.ToBase64String(output) });
+                await EmitAsync(new { type = "audio", delta = Convert.ToBase64String(output), responseGeneration = 0 });
                 Array.Clear(output);
                 var drained = live.Drain(operation.OperationId);
-                await EmitAsync(new { type = "completed", operationId = operation.OperationId, correlation = operation.Correlation, result, costMicroUsd = 0 });
+                await EmitAsync(new { type = "completed", operationId = operation.OperationId, correlation = operation.Correlation, result, costMicroUsd = 0, responseGeneration = 0 });
                 await drained.WaitAsync(TimeSpan.FromSeconds(35), cancellation);
                 conversations.CancelOperation(actor.InstanceId, speech.OperationId!, Guid.NewGuid());
                 if (result.Decision != "ask")
                 {
-                    await EmitAsync(new { type = "closed", reason = "conversation_terminal" });
+                    await EmitAsync(new { type = "closed", reason = "conversation_terminal", responseGeneration = 0 });
                     return;
                 }
             }

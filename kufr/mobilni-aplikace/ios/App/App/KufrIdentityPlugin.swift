@@ -40,7 +40,7 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
             csrf = current["csrfToken"] as? String ?? ""
         }
         guard try accountDeviceBinding() == binding else { throw AccountError.verificationFailed }
-        let permitted = ["accept", "content-type", "idempotency-key", "client-turn-id", "boot-id", "generation", "device-revision", "catalog-version", "input-id", "input-sequence"]
+        let permitted = ["accept", "content-type", "idempotency-key", "client-turn-id", "boot-id", "generation", "device-revision", "catalog-version", "input-id", "input-sequence", "captured-at", "image-id", "image-source", "image-revision", "image-consent", "x-dv-confirm"]
         var request = original
         request.allHTTPHeaderFields = [:]
         for (name, value) in original.allHTTPHeaderFields ?? [:] {
@@ -53,7 +53,7 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
         for (name, value) in HTTPCookie.requestHeaderFields(with: cookies) { request.setValue(value, forHTTPHeaderField: name) }
         request.setValue(origin.absoluteString, forHTTPHeaderField: "Origin")
         request.setValue(deviceId, forHTTPHeaderField: "X-DV-Device-Id")
-        if request.httpMethod != "GET" { request.setValue(csrf, forHTTPHeaderField: "X-DV-CSRF") }
+        if request.httpMethod != "GET" || url.path.hasSuffix("/audio-stream") { request.setValue(csrf, forHTTPHeaderField: "X-DV-CSRF") }
         return request
     }
 

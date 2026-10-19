@@ -7,12 +7,13 @@ const identity = vi.hoisted(() => ({ accountTransport: vi.fn(), refreshIdentity:
 vi.mock('./media.mjs', () => ({ mediaController: media }));
 vi.mock('../identity/session', () => identity);
 const context = { active: true, replay: false, role: 'control', instanceId: 'sim-integration', mode: 'simulation', profile: 'integration', bootId: 'boot', status: 'online' };
-let controller: any, transport: any;
+let controller: any, transport: any, publish: (value: any) => void;
 beforeEach(() => {
   vi.resetAllMocks(); identity.refreshIdentity.mockResolvedValue(undefined);
   controller = { sync: vi.fn(), action: vi.fn(), dispose: vi.fn(), invalidate: vi.fn(), selection: vi.fn() };
   media.createMediaController.mockImplementation(options => {
     transport = options.transport;
+    publish = options.onChange;
     options.onChange({ visible: true, settings: { engine: 'fake', voice: 'marin', speed: '1', variant: 'main', consent: false }, disabled: {}, devices: { mic: [], speaker: [], camera: [] }, dialogue: ['<script>untrusted dialogue</script>'], notice: 'Média nejsou aktivovaná.' });
     return controller;
   });
@@ -40,6 +41,29 @@ describe('Vue media lifecycle', () => {
     const options = { method: 'POST', headers: { 'Session-Id': 'scoped-session' }, body: new Uint8Array([0,1]) };
     expect(await transport.request('sim-integration', '/media/input', options)).toBeNull();
     expect(identity.accountTransport).toHaveBeenCalledWith('/v1/twin/instances/sim-integration/media/input', options);
+    wrapper.unmount();
+  });
+  it('reads canonical capabilities only through the exact instance account endpoint with the cancellation signal', async () => {
+    const wrapper = mount(MediaPanel, { props: { context } }); await flushPromises();
+    const signal = new AbortController().signal;
+    const engines = { schemaVersion: 1, primaryEngine: 'gpt-live', engines: [] };
+    identity.accountTransport.mockResolvedValueOnce(new Response(JSON.stringify({ revision: '4', engine: 'fake' }))).mockResolvedValueOnce(new Response(JSON.stringify(engines)));
+    expect(await transport.request('sim-integration', '/settings', { signal })).toEqual({ revision: '4', engine: 'fake', engines });
+    expect(identity.accountTransport).toHaveBeenNthCalledWith(2, '/app/v1/workshop/sim-integration/engines', { signal });
+    wrapper.unmount();
+  });
+  it('shows exact canonical model, voice and speed without replacing an unavailable selected engine', async () => {
+    const wrapper = mount(MediaPanel, { props: { context } }); await flushPromises();
+    const settings = { engine: 'gpt-live', voice: 'marin', speed: '1', variant: 'main', consent: false };
+    const capability = { engine: 'gpt-live', model: 'gpt-live-1', ready: false, unavailableReason: 'provider_credential_missing', voices: ['marin'], speed: { supported: false, min: 1, max: 1, default: 1 }, inputModes: ['audio'], cameraSources: ['phone', 'suitcase'] };
+    publish({ visible: true, settings, disabled: { speed: true }, devices: { mic: [], speaker: [], camera: [] }, dialogue: [], configuration: { revision: '4', availability: { fake: true, gptLive: true }, engines: { schemaVersion: 1, primaryEngine: 'gpt-live', engines: [capability] } } });
+    await flushPromises();
+    expect(wrapper.get<HTMLSelectElement>('#media-engine').element.value).toBe('gpt-live');
+    expect(wrapper.get('#media-engine option[value="gpt-live"]').attributes('disabled')).toBeDefined();
+    expect(wrapper.findAll('#media-voice option').map(option => option.text())).toEqual(['marin']);
+    expect(wrapper.findAll('#media-speed option').map(option => option.text())).toEqual(['1']);
+    expect(wrapper.text()).toContain('gpt-live-1'); expect(wrapper.text()).toContain('provider_credential_missing');
+    expect(controller.selection).not.toHaveBeenCalled(); expect(controller.action).not.toHaveBeenCalled();
     wrapper.unmount();
   });
   it('preserves typed retired-input errors and cancels all controller ownership on unmount', async () => {

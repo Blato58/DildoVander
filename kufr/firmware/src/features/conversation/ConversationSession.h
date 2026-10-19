@@ -23,6 +23,7 @@ enum class ConversationCommandError : uint8_t {
   IdConflict,
   TurnAlreadySeen,
   TurnLimitReached,
+  EngineUpgradeRequired,
 };
 
 struct ConversationTextCommand {

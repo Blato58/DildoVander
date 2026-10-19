@@ -144,11 +144,14 @@ internal static class AccountIdentity
             var existingAccountRequest = context.Request.Path.StartsWithSegments("/v1")
                 && context.User.HasClaim(c => c.Type == SessionClaim)
                 && !context.Request.Headers.ContainsKey("Authorization");
+            // A WebSocket GET carries state-changing microphone frames after
+            // admission; it needs operate permission and mutation CSRF/origin.
+            var accountSocket = existingAccountRequest && context.WebSockets.IsWebSocketRequest;
             if (existingAccountRequest && context.Request.Headers["X-DV-Device-Id"].ToString() is { Length: > 0 and <= 128 } target)
             {
                 var configuration = context.RequestServices.GetRequiredService<IConfiguration>();
                 var provisioned = configuration.GetSection("Devices").GetChildren().Any(x => x["DeviceId"] == target);
-                var permission = context.Request.Method is "GET" or "HEAD" ? "read" : "operate";
+                var permission = !accountSocket && (context.Request.Method is "GET" or "HEAD") ? "read" : "operate";
                 if (provisioned && await AccountResourceAuthorization.HasPermissionAsync(context, "device", target, permission))
                 {
                     context.Items["dv-account-device"] = target;
@@ -163,7 +166,7 @@ internal static class AccountIdentity
                 {
                     bodySize.MaxRequestBodySize = 65536;
                 }
-                if (context.Request.Method is not ("GET" or "HEAD" or "OPTIONS"))
+                if (accountSocket || context.Request.Method is not ("GET" or "HEAD" or "OPTIONS"))
                 {
                     var config = context.RequestServices.GetRequiredService<AccountConfiguration>();
                     if (!config.Enabled)
@@ -178,6 +181,15 @@ internal static class AccountIdentity
                     catch (AntiforgeryValidationException)
                     {
                         await ApiProblem.Create(context, 400, "csrf_required").ExecuteAsync(context); return;
+                    }
+                    if (existingAccountRequest && context.Request.Path.StartsWithSegments("/v1/admin"))
+                    {
+                        if (!AccountRoles.IsAdmin(context.User))
+                        { await ApiProblem.Create(context, 403, "account_admin_required").ExecuteAsync(context); return; }
+                        var recent = await AccountAuthorization.RequireRecentAsync(context);
+                        if (recent is not null) { await recent.ExecuteAsync(context); return; }
+                        if (context.Request.Headers["X-DV-Confirm"] != "yes")
+                        { await ApiProblem.Create(context, 409, "confirmation_required").ExecuteAsync(context); return; }
                     }
                 }
             }
@@ -194,7 +206,8 @@ internal static class AccountIdentity
         var session = id is null ? null : await db.Sessions.FindAsync(id);
         var users = context.HttpContext.RequestServices.GetRequiredService<UserManager<AccountUser>>();
         var user = session is null ? null : await users.FindByIdAsync(session.UserId);
-        if (session is null || session.ExpiresAt <= DateTimeOffset.UtcNow.ToUnixTimeSeconds() || user is null || user.Disabled)
+        if (session is null || session.ExpiresAt <= DateTimeOffset.UtcNow.ToUnixTimeSeconds() || user is null || user.Disabled
+            || user.SecurityStamp != context.Principal?.FindFirstValue(users.Options.ClaimsIdentity.SecurityStampClaimType))
         {
             context.RejectPrincipal(); return;
         }

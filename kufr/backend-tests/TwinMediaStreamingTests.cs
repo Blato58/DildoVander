@@ -19,7 +19,7 @@ using Microsoft.Extensions.Logging;
 // supplies protocol data only; no provider, dialogue or physical engine runs here.
 internal static class TwinMediaStreamingTests
 {
-    private enum StreamFault { None, Truncated, MissingType, MissingStreamId }
+    private enum StreamFault { None, Truncated, MissingType, MissingStreamId, StaleGeneration }
     internal static async Task RunAsync(string native)
     {
         await CleanupRetryAsync();
@@ -27,6 +27,8 @@ internal static class TwinMediaStreamingTests
         await RunCaseAsync(native, StreamFault.Truncated);
         await RunCaseAsync(native, StreamFault.MissingType);
         await RunCaseAsync(native, StreamFault.MissingStreamId);
+        await RunCaseAsync(native, StreamFault.StaleGeneration);
+        await RunCaseAsync(native, StreamFault.StaleGeneration, gptLive: false);
         Console.WriteLine("PASS Twin HTTP streaming/native: burst backpressure, exact PCM/drain and malformed-stream bounded cleanup");
     }
 
@@ -58,13 +60,14 @@ internal static class TwinMediaStreamingTests
         }
     }
 
-    private static async Task RunCaseAsync(string native, StreamFault fault)
+    private static async Task RunCaseAsync(string native, StreamFault fault, bool gptLive = true)
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         var cancellation = deadline.Token;
         var root = Path.Combine(Path.GetTempPath(), "twin-stream-http-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
-        var fixture = new Upstream(fault);
+        var fixture = new Upstream(fault, gptLive);
+        var engine = gptLive ? "gpt-live" : "realtime";
         var upstreamBuilder = WebApplication.CreateBuilder();
         upstreamBuilder.Logging.ClearProviders();
         upstreamBuilder.WebHost.UseUrls("http://127.0.0.1:0");
@@ -114,7 +117,7 @@ internal static class TwinMediaStreamingTests
             using (var inspection = await SendAsync(HttpMethod.Post, "/commands", new { action = "inspect" }))
             { Check(inspection.IsSuccessStatusCode, "stream inspection"); }
             using (var settings = await SendAsync(HttpMethod.Put, "/settings", new
-                { expectedRevision = "0", engine = "gpt-live", voice = "cedar", speed = 1, photoConsent = false, presentationVariant = "main" }))
+                { expectedRevision = "0", engine, voice = "cedar", speed = 1, photoConsent = false, presentationVariant = "main" }))
             { Check(settings.IsSuccessStatusCode, "dummy-key availability selects real HTTP bridge"); }
             var store = app.Services.GetRequiredService<TwinStore>();
             using var start = await SendAsync(HttpMethod.Post, "/media/start", new
@@ -124,7 +127,7 @@ internal static class TwinMediaStreamingTests
             });
             Check(start.IsSuccessStatusCode, "HTTP streaming media admission");
             await fixture.StreamStarted.Task.WaitAsync(cancellation);
-            if (fault != StreamFault.None)
+            if (fault is not (StreamFault.None or StreamFault.StaleGeneration))
             {
                 JsonElement state;
                 var invalidationDeadline = DateTimeOffset.UtcNow.AddSeconds(4);
@@ -213,7 +216,7 @@ internal static class TwinMediaStreamingTests
                 "burst finishes without a hidden actor or stream failure");
             Check(store.Read(instance)!.Snapshot.Reported.Slot == 0 && !store.Read(instance)!.Snapshot.Reported.NeedsRecovery,
                 "no-selection fixture does not admit a physical proposal or claim hardware feedback");
-            Console.WriteLine("PASS Twin HTTP native stream: 260 PCM frames, slow consumer, exact bytes/drain and completed result");
+            Console.WriteLine($"PASS Twin HTTP {engine} {fault} stream: 260 PCM frames, exact bytes/drain and generation-bound completion");
 
             async Task<HttpResponseMessage> SendAsync(HttpMethod method, string route, object? body = null)
             {
@@ -246,7 +249,7 @@ internal static class TwinMediaStreamingTests
         }
     }
 
-    private sealed class Upstream(StreamFault fault)
+    private sealed class Upstream(StreamFault fault, bool gptLive)
     {
         internal const string Reply = "Offline stream completed.";
         internal readonly TaskCompletionSource StreamStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -273,7 +276,7 @@ internal static class TwinMediaStreamingTests
                 await context.Response.WriteAsJsonAsync(new { conversationId = conversation, expiresAt = "2099-01-01T00:00:00Z",
                     limits = new { maxTurns = 10, maxTextCharacters = 1000, idleSeconds = 900, maxLifetimeSeconds = 1800 } }, context.RequestAborted);
             });
-            app.MapPost("/v1/conversations/{conversationId}/gpt-live", async (HttpContext context) =>
+            app.MapPost("/v1/conversations/{conversationId}/" + (gptLive ? "gpt-live" : "realtime-live"), async (HttpContext context) =>
             {
                 Check(context.Request.RouteValues["conversationId"]?.ToString() == conversation, "fixture conversation route");
                 using var body = await JsonDocument.ParseAsync(context.Request.Body, cancellationToken: context.RequestAborted);
@@ -284,7 +287,7 @@ internal static class TwinMediaStreamingTests
                     deviceRevision = actual.GetProperty("deviceRevision").Clone() };
                 context.Response.ContentType = "application/x-ndjson";
                 await EmitAsync(new { type = "session", streamId = stream, audioFormat = "pcm16-mono-24000" });
-                await EmitAsync(new { type = "started", operationId = operation, correlation });
+                await EmitAsync(new { type = "started", operationId = operation, correlation, responseGeneration = 0 });
                 StreamStarted.TrySetResult();
                 if (fault == StreamFault.Truncated)
                 {
@@ -302,17 +305,39 @@ internal static class TwinMediaStreamingTests
                     await EmitAsync(new { type = "session", audioFormat = "pcm16-mono-24000" });
                     return;
                 }
+                var responseGeneration = fault == StreamFault.StaleGeneration ? 1 : 0;
+                if (fault == StreamFault.StaleGeneration)
+                {
+                    await EmitAsync(new { type = "audio_cancel", responseGeneration });
+                    // Late work from the same operation must not restart audio,
+                    // publish a result or satisfy the replacement playback.
+                    await EmitAsync(new { type = "started", operationId = operation, correlation, responseGeneration = 0 });
+                    await EmitAsync(new { type = "audio", delta = Convert.ToBase64String(Frame(999)), responseGeneration = 0 });
+                    await EmitAsync(new { type = "completed", operationId = operation, correlation, responseGeneration = 0,
+                        result = new { reply = "Obsolete source must not publish.", decision = "no_selection", reason = "", proposal = (object?)null }, costMicroUsd = 0 });
+                    await EmitAsync(new { type = "visitor", text = "Obsolete visitor.", responseGeneration = 0 });
+                    await EmitAsync(new { type = "pause", responseGeneration = 0 });
+                    await EmitAsync(new { type = "playback_checkpoint", playbackId = Guid.NewGuid().ToString("D"),
+                        pcmBytes = 6, decisionRevision = 0, responseGeneration = 0 });
+                    await EmitAsync(new { type = "speech_started", inputId = Guid.NewGuid().ToString("D"), responseGeneration = 0 });
+                    await EmitAsync(new { type = "speech_stopped", inputId = Guid.NewGuid().ToString("D"), responseGeneration = 0 });
+                    await EmitAsync(new { type = "closed", reason = "conversation_terminal", responseGeneration = 0 });
+                    if (!gptLive)
+                    {
+                        await EmitAsync(new { type = "started", operationId = operation, correlation, responseGeneration });
+                    }
+                }
                 for (var index = 0; index < 260; index++)
                 {
-                    await EmitAsync(new { type = "audio", delta = Convert.ToBase64String(Frame(index)) });
+                    await EmitAsync(new { type = "audio", delta = Convert.ToBase64String(Frame(index)), responseGeneration });
                     // Twenty times realtime, matching the reported provider
                     // burst while leaving room before the five-second stall cap.
                     await Task.Delay(5, context.RequestAborted);
                 }
                 await EmitAsync(new { type = "completed", operationId = operation, correlation,
-                    result = new { reply = Reply, decision = "no_selection", reason = "", proposal = (object?)null }, costMicroUsd = 0 });
+                    result = new { reply = Reply, decision = "no_selection", reason = "", proposal = (object?)null }, costMicroUsd = 0, responseGeneration });
                 await played.Task.WaitAsync(TimeSpan.FromSeconds(25), context.RequestAborted);
-                await EmitAsync(new { type = "closed", reason = "conversation_terminal" });
+                await EmitAsync(new { type = "closed", reason = "conversation_terminal", responseGeneration });
 
                 async Task EmitAsync(object value)
                 {
@@ -320,10 +345,13 @@ internal static class TwinMediaStreamingTests
                     await context.Response.Body.FlushAsync(context.RequestAborted);
                 }
             });
-            app.MapPost("/v1/conversations/{conversationId}/gpt-live/{streamId}/played", (HttpContext context) =>
+            app.MapPost("/v1/conversations/{conversationId}/" + (gptLive ? "gpt-live" : "realtime-live") + "/{streamId}/played", async (HttpContext context) =>
             {
                 Check(context.Request.RouteValues["conversationId"]?.ToString() == conversation
                     && context.Request.RouteValues["streamId"]?.ToString() == stream, "fixture played route");
+                using var body = await JsonDocument.ParseAsync(context.Request.Body, cancellationToken: context.RequestAborted);
+                Check(body.RootElement.GetProperty("responseGeneration").GetInt64() == (fault == StreamFault.StaleGeneration ? 1 : 0),
+                    "native ACK binds the current response generation");
                 Interlocked.Increment(ref playedCount); played.TrySetResult(); return Results.NoContent();
             });
             app.MapDelete("/v1/conversations/{conversationId}", (HttpContext context) =>

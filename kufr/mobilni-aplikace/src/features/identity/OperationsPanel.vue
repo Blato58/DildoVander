@@ -3,7 +3,9 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AwButton from '../../components/AwButton.vue';
 import AwNotice from '../../components/AwNotice.vue';
 import { account, accountRequest, hasRole } from './session';
-interface Modes { revision: string; dialogMode: string; voiceMode: string; dialogAvailable: boolean; voiceAvailable: boolean; activeConversations: number; personalityId: string; personalities: {id:string;name:string}[]; characterEnabled:boolean;characterTone:string;characterFinaleProfile:string;characterVersion:string }
+import ConversationCapabilities from '../debug/ConversationCapabilities.vue';
+import type { EngineCapabilities } from '../debug/conversationCapabilities';
+interface Modes { revision: string; engines?: EngineCapabilities; activeConversations: number; personalityId: string; personalities: {id:string;name:string}[]; characterEnabled:boolean;characterTone:string;characterFinaleProfile:string;characterVersion:string }
 interface Job { id:string;kind:string;state:string }
 interface ArchiveItem { id:string;officialName:string;assetCount:number;storedBytes:number;jobs:Job[] }
 interface Status {modes:Modes|null;readiness:{accounts:boolean;keepsakes:boolean;keepsakeGeneration:boolean;passkeyRelyingParty:string;nativeAssociationConfigured:boolean};archive:ArchiveItem[]|null}
@@ -29,17 +31,22 @@ async function readLogs(next = false) {
   } catch (e) { if (request === epoch) error.value = (e as Error).message; }
 }
 async function mutate(path:string, method:string, body:object) {
+  const request = epoch;
   error.value=''; busy.value=true;
-  try { await accountRequest(path, method, body); await load(); }
-  catch(e) {error.value=(e as Error).message;}
-  finally {busy.value=false;}
+  try { await accountRequest(path, method, body); if (request === epoch) await load(); }
+  catch(e) {if (request === epoch) error.value=(e as Error).message;}
+  finally {if (request === epoch) busy.value=false;}
 }
 function saveModes() {
-  const modes=status.value?.modes; if(!modes) return;
-  void mutate('/app/v1/admin/operations/modes','PUT',{expectedRevision:modes.revision,dialogMode:modes.dialogMode,voiceMode:modes.voiceMode,personalityId:modes.personalityId,
+  const modes=status.value?.modes; if(!modes || busy.value || modes.activeConversations > 0) return;
+  void mutate('/app/v1/admin/operations/modes','PUT',{expectedRevision:modes.revision,personalityId:modes.personalityId,
     characterEnabled:modes.characterEnabled,characterTone:modes.characterTone,characterFinaleProfile:modes.characterFinaleProfile});
 }
-watch(()=>account.value?.id,()=>{++epoch;status.value=null;logs.value=null;error.value='';},{flush:'sync'});
+function resetVariety() {
+  const modes = status.value?.modes; if (!modes || busy.value || modes.activeConversations > 0) return;
+  void mutate('/app/v1/admin/operations/modes','PUT',{expectedRevision:modes.revision,resetCharacterVariety:true});
+}
+watch(()=>`${account.value?.id}:${account.value?.roles.join(',')}`,()=>{++epoch;status.value=null;logs.value=null;error.value='';busy.value=false;},{flush:'sync'});
 onMounted(load);onBeforeUnmount(()=>{++epoch;status.value=null;logs.value=null;});
 </script>
 <template>
@@ -52,11 +59,14 @@ onMounted(load);onBeforeUnmount(()=>{++epoch;status.value=null;logs.value=null;}
       <dl><dt>Účty</dt><dd>{{status.readiness.accounts?'připravené':'nenakonfigurované'}}</dd><dt>Archiv</dt><dd>{{status.readiness.keepsakes?'zapnutý':'vypnutý'}}</dd><dt>Generování památek</dt><dd>{{status.readiness.keepsakeGeneration?'zapnuté':'vypnuté'}}</dd><dt>Nativní asociace domény</dt><dd>{{status.readiness.nativeAssociationConfigured?'konfigurace dostupná, zařízení vyžaduje ověření':'nenakonfigurovaná'}}</dd></dl>
       <form v-if="status.modes" class="mode-form" @submit.prevent="saveModes">
         <h3>Rozhovor a hlas</h3><p>Aktivní rozhovory: {{status.modes.activeConversations}}. Revize {{status.modes.revision}}.</p>
-        <label for="operations-dialog">Dialog</label><select id="operations-dialog" v-model="status.modes.dialogMode" class="aw-select"><option value="fake">Místní testovací odpovědi</option><option value="responses" :disabled="!status.modes.dialogAvailable">OpenAI Responses</option></select>
-        <label for="operations-voice">Hlas</label><select id="operations-voice" v-model="status.modes.voiceMode" class="aw-select"><option value="fake">Místní testovací hlas</option><option value="openai" :disabled="!status.modes.voiceAvailable">OpenAI hlas</option></select>
+        <ConversationCapabilities :capabilities="status.modes.engines" />
         <label for="operations-persona">Osobnost</label><select id="operations-persona" v-model="status.modes.personalityId" class="aw-select"><option v-for="persona in status.modes.personalities" :key="persona.id" :value="persona.id">{{persona.name}}</option></select>
-        <p>Postava {{status.modes.characterVersion}} · {{status.modes.characterEnabled?'zapnutá':'vypnutá'}} · tón {{status.modes.characterTone}} · finále {{status.modes.characterFinaleProfile}}.</p>
-        <AwButton type="submit" :busy="busy">Potvrdit změnu režimů a osobnosti</AwButton>
+        <p>Postava {{status.modes.characterVersion}}. Osobnost a pravidla se uchovávají přes restart; engine se volí při začátku rozhovoru.</p>
+        <label><input v-model="status.modes.characterEnabled" type="checkbox"> Zapnout DV01 pro nové rozhovory</label>
+        <label for="operations-tone">Hostitelský tón</label><select id="operations-tone" v-model="status.modes.characterTone" class="aw-select"><option>Reserved</option><option>Dry</option><option>Adult</option><option>Chaos</option></select>
+        <label for="operations-finale">Publikační profil finále</label><select id="operations-finale" v-model="status.modes.characterFinaleProfile" class="aw-select"><option value="Blocked">Blokované · bez fyzického reveal</option><option value="Limited">Omezené · bez vysloveného názvu hůlky</option></select>
+        <AwButton type="submit" :busy="busy" :disabled="status.modes.activeConversations > 0">Potvrdit změnu osobnosti a postavy</AwButton>
+        <AwButton :disabled="busy || status.modes.activeConversations > 0" @click="resetVariety">Resetovat anonymní pestrost</AwButton>
       </form>
       <p v-else>Režimy rozhovoru nejsou v tomto prostředí dostupné.</p>
       <h3>Technické logy</h3><label for="operations-log-level">Úroveň</label><select id="operations-log-level" v-model="level" class="aw-select"><option value="warning">Varování a chyby</option><option value="error">Chyby</option><option value="info">Všechny technické události</option></select><div class="operations-actions"><AwButton @click="readLogs()">Načíst logy</AwButton><AwButton v-if="logs?.hasMore" @click="readLogs(true)">Další stránka</AwButton></div>

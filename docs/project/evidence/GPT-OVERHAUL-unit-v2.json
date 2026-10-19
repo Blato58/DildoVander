@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "GPT-OVERHAUL-unit-v2",
+  "observedAtUtc": "2026-10-19T03:51:51.908239+00:00",
+  "kind": "unit",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "GPT-OVERHAUL",
+      "criterionId": "SOFTWARE",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "36e6c0078bdd60e7d3dce4430226bf144674bb200f13e75d0cb8d2e4225394c3",
+    "policyVersion": "two-engine-v1"
+  },
+  "method": "dotnet build kufr/backend-tests/BackendTests.csproj --no-restore -v minimal (0 warnings/errors); dotnet run --project kufr/backend-tests/BackendTests.csproj --no-build -- --conversation-engines; same --character; full default suite after literal-only recovery correction. npm test --prefix kufr/contracts; pio run; python kufr/firmware/tests/run_show_tests.py --only realtime_session_engine_test --only espidf_realtime_transport_test; MSVC codec /W4 /WX; pinned Gitleaks scanner regression10tests.",
+  "environment": "Windows PowerShell; .NET10/OpenAI SDK2.14.0, locked SQLite10.0.13/Capacitor8.5.3, ESP-IDF6.1/PlatformIO7.1.3. No paid inference.",
+  "limitations": [
+    "macOS Swift/native harnesses and unsigned Simulator await hosted CI.",
+    "No real provider conversation, iPhone camera/audio/AEC/routes, suitcase media/physical selection, deployment, signed release/install or firmware flash.",
+    "Aborted provider socket usage remains a conservative audit reservation, not observed billed cost."
+  ],
+  "observation": "All listed checks passed on final frozen source. Provider reset regressions cover blocked response, revoke before session.started, queued atomic completion rejection, Live provider-close recovery without stopping app input, literal-only recovery, stale PCM/control/checkpoints, old playback ACKs and manual deletion before quiet. Firmware build41.49s RAM121756/327680 flash1961709/6553600. Local Windows text line endings are Git-clean LF equivalent; hosted CI will compile exact Git bytes.",
+  "artifactRefs": [
+    "docs/project/artifacts/GPT-OVERHAUL-source-v2.json"
+  ]
+}

@@ -3,12 +3,15 @@ import json
 import os
 from pathlib import Path
 import ssl
+import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from unittest.mock import patch
+from diagnostic_test_fixtures import capabilities
 
 MODULE = Path(__file__).resolve().parents[1] / 'codex/server_logs_mcp.py'
 spec = importlib.util.spec_from_file_location('server_logs_mcp', MODULE)
@@ -19,11 +22,24 @@ PAGE = {'storeId': '00000000-0000-4000-8000-000000000001', 'oldestCursor': 1, 'l
         'nextCursor': 1, 'hasMore': False, 'truncated': False, 'droppedWrites': 0,
         'entries': [{'id': 1, 'timestamp': '2026-10-01T12:00:00+00:00', 'level': 'warning',
                      'eventCode': 'realtime_failed', 'code': 'cost_limit', 'privateExtra': 'private-secret'}]}
-STATUS = {'revision': PAGE['storeId'], 'dialogMode': 'fake', 'voiceMode': 'fake', 'dialogAvailable': False,
-          'voiceAvailable': False, 'activeConversations': 0, 'lifetime': 'until_restart'}
+STATUS = {'revision': PAGE['storeId'], 'engines': capabilities(False),
+          'activeConversations': 0, 'lifetime': 'until_restart'}
 
 
 class MCPTests(unittest.TestCase):
+    def test_status_projects_only_the_two_retained_engine_contracts(self):
+        source = {**STATUS, 'engines': capabilities(False), 'privateGuest': 'private-secret'}
+        source['engines']['engines'][0]['providerRaw'] = 'private-secret'
+        projected = mcp.project('/v1/admin/logs/status', source)
+        self.assertEqual(projected['engines']['primaryEngine'], 'gpt-live')
+        self.assertEqual(len(projected['engines']['engines']), 2)
+        self.assertNotIn('private-secret', json.dumps(projected))
+        for field, value in [('model', 'retired-model'), ('ready', 'true'), ('unavailableReason', 'private-secret')]:
+            invalid = {**STATUS, 'engines': capabilities(False)}
+            invalid['engines']['engines'][0][field] = value
+            with self.subTest(field=field), self.assertRaises(mcp.DiagnosticError):
+                mcp.project('/v1/admin/logs/status', invalid)
+
     def test_constrained_audio_route_from_deployed_server(self):
         route = '/v1/conversations/{id}/gpt-live/{streamId:guid}/audio'
         page = {**PAGE, 'entries': [{**PAGE['entries'][0], 'route': route, 'status': 204}]}
@@ -57,7 +73,7 @@ class MCPTests(unittest.TestCase):
                  json.dumps({'jsonrpc': '2.0', 'method': 'notifications/initialized'}),
                  json.dumps({'jsonrpc': '2.0', 'id': 2, 'method': 'tools/call', 'params': {'name': 'read_server_logs'}})]
         env = {**os.environ, 'KUFR_LOG_TOKEN': ''}
-        output = subprocess.run(['python3', str(MODULE)], input='\n'.join(lines) + '\n', text=True,
+        output = subprocess.run([sys.executable, str(MODULE)], input='\n'.join(lines) + '\n', text=True,
                                 capture_output=True, env=env, check=True)
         responses = [json.loads(line) for line in output.stdout.splitlines()]
         self.assertEqual(len(responses), 2)
@@ -68,7 +84,14 @@ class MCPTests(unittest.TestCase):
     def test_https_auth_redirect_size_and_snapshot(self):
         with tempfile.TemporaryDirectory(prefix='kufr-mcp-') as directory:
             root = Path(directory)
-            subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
+            openssl = shutil.which('openssl')
+            if openssl is None and os.name == 'nt' and shutil.which('git'):
+                bundled = Path(shutil.which('git')).resolve().parent.parent / 'usr/bin/openssl.exe'
+                if bundled.is_file():
+                    openssl = str(bundled)
+            if openssl is None:
+                self.skipTest('OpenSSL is required for the local HTTPS transport fixture')
+            subprocess.run([openssl, 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
                             '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost',
                             '-keyout', str(root / 'key.pem'), '-out', str(root / 'cert.pem')],
                            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -121,10 +144,10 @@ class MCPTests(unittest.TestCase):
                     self.assertNotIn('/credential-leak', paths)
                     Peer.mode = 'ok'
                     output = root / 'snapshot.json'
-                    process = subprocess.run(['python3', str(MODULE), '--snapshot', str(output)],
+                    process = subprocess.run([sys.executable, str(MODULE), '--snapshot', str(output)],
                                              capture_output=True, text=True, check=True)
                     self.assertNotIn('secret', process.stdout + process.stderr + output.read_text())
-                    self.assertEqual(json.loads(output.read_text())['status']['voiceMode'], 'fake')
+                    self.assertEqual(json.loads(output.read_text())['status']['engines']['primaryEngine'], 'gpt-live')
                 for address in ['http://localhost/', 'https://user@localhost/', 'https://localhost/path', 'https://localhost/?token=secret']:
                     with patch.dict(os.environ, {**environment, 'KUFR_BACKEND_URL': address}):
                         with self.assertRaises(mcp.DiagnosticError):

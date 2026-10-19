@@ -18,6 +18,9 @@ const manualReady = computed(() => snapshot.value?.controlMode === 'manual' && s
 const voiceBlocker = computed(() => snapshot.value ? liveActionBlocker(snapshot.value, 'voice') : 'Nejprve připojte skutečný kufr.');
 const danceBlocker = computed(() => snapshot.value ? liveActionBlocker(snapshot.value, 'dance') : 'Nejprve připojte skutečný kufr.');
 const compartments = [1, 2, 3, 4, 5, 6];
+const fixtureText = computed(() => snapshot.value?.source === 'e2-simulator');
+const workspaces = computed(() => (['voice', 'dance', ...(fixtureText.value ? ['text'] : []), 'manual'] as Array<'voice' | 'dance' | 'text' | 'manual'>));
+const workspaceLabels = { voice: 'Hlas', dance: 'Tanec', text: 'Text', manual: 'Ruční ovládání' };
 function clearIntent(): void { intent.value = null; imageConsent.value = false; }
 function visibility(): void { if (document.hidden) { clearIntent(); text.value = ''; } }
 document.addEventListener('visibilitychange', visibility);
@@ -28,6 +31,7 @@ watch(snapshot, (state, previous) => {
   if (!state || !manualReady.value || intent.value?.revision !== state.revision) intent.value = null;
   if (!state || state.phase === 'disconnected' || state.phase === 'stopped' || (previous?.controlMode === 'manual' && state.controlMode !== 'manual')) text.value = '';
   if (!state?.voice?.cameraAvailable) imageConsent.value = false;
+  if (workspace.value === 'text' && !fixtureText.value) { workspace.value = 'voice'; text.value = ''; }
   if (!voiceDraft.value && state?.voice) { mode.value = state.voice.mode; voice.value = state.voice.voice; }
 });
 watch(workspace, clearIntent);
@@ -40,7 +44,7 @@ function confirm(): void {
 }
 function configure(): void { if (device.configureVoice(mode.value, voice.value)) voiceDraft.value = false; }
 function startVoice(): void { const consent = imageConsent.value; imageConsent.value = false; device.startVoice(consent); }
-function submit(): void { if (text.value.trim() && device.submitText(text.value)) text.value = ''; }
+function submit(): void { if (fixtureText.value && text.value.trim() && device.submitText(text.value)) text.value = ''; }
 </script>
 
 <template>
@@ -60,16 +64,17 @@ function submit(): void { if (text.value.trim() && device.submitText(text.value)
         <h2 id="readiness-title">{{ readiness?.title }}</h2><p>{{ readiness?.message }}</p><p role="status">{{ snapshot.status }}</p>
         <dl class="suitcase-metrics"><div><dt>Spojení</dt><dd>{{ snapshot.phase }}</dd></div><div><dt>Řízení</dt><dd>{{ snapshot.controlMode === 'manual' ? 'Ruční' : 'Pozorování' }}</dd></div><div><dt>Přihrádky připravené</dt><dd>{{ compartments.filter(n => snapshot!.readyMask & (1 << (n - 1))).length }} / 6</dd></div></dl>
       </section>
-      <nav class="suitcase-modes" aria-label="Způsob provozu"><AwButton v-for="item in ([['voice', 'Hlas'], ['dance', 'Tanec'], ['text', 'Text'], ['manual', 'Ruční ovládání']] as const)" :key="item[0]" :variant="workspace === item[0] ? 'primary' : 'secondary'" :aria-pressed="workspace === item[0]" @click="workspace = item[0]">{{ item[1] }}</AwButton></nav>
+      <nav class="suitcase-modes" aria-label="Způsob provozu"><AwButton v-for="item in workspaces" :key="item" :variant="workspace === item ? 'primary' : 'secondary'" :aria-pressed="workspace === item" @click="workspace = item">{{ workspaceLabels[item] }}</AwButton></nav>
       <section v-if="workspace === 'voice'" class="aw-card" aria-labelledby="voice-heading">
         <h2 id="voice-heading">Hlas kufru</h2><p>Kufr poslouchá svým mikrofonem a odpovídá reproduktorem. Spuštění používá AI a OpenAI účet; přepis uchovává paměť večera.</p>
         <form class="suitcase-form" @submit.prevent="configure">
-          <label class="aw-field">Hlasový režim<select v-model="mode" class="aw-input" :disabled="!snapshot.voice?.canConfigure" @change="voiceDraft = true"><option value="off">Vypnutý</option><option value="realtime" :disabled="!snapshot.voice?.available">Realtime</option><option value="gpt-live" :disabled="!snapshot.voice?.available">GPT-Live + Sol · test kvality</option></select></label>
+          <label class="aw-field">Hlasový režim<select v-model="mode" class="aw-input" :disabled="!snapshot.voice?.canConfigure" @change="voiceDraft = true"><option value="off">Vypnutý</option><option value="gpt-live" :disabled="!snapshot.voice?.available">GPT Live · gpt-live-1</option><option value="realtime" :disabled="!snapshot.voice?.available">GPT Realtime 2.1 · gpt-realtime-2.1</option></select></label>
           <label class="aw-field">Hlas<select v-model="voice" class="aw-input" :disabled="!snapshot.voice?.canConfigure" @change="voiceDraft = true"><option value="marin">Marin</option><option value="cedar">Cedar</option><option value="coral">Coral</option></select></label>
           <AwButton type="submit" :disabled="!snapshot.voice?.canConfigure || snapshot.source !== 'native-device'">Použít nastavení hlasu</AwButton>
         </form>
         <label><input v-model="imageConsent" type="checkbox" :disabled="!snapshot.voice?.cameraAvailable || !snapshot.voice?.canStart || snapshot.busy"> Host souhlasí s jednou fotkou kostýmu pro tento rozhovor.</label>
-        <p class="aw-help">Volitelné. Fotka se předá serveru a OpenAI jako nejistá nápověda; neukládá se do paměti večera.</p>
+        <p class="aw-help">Volitelné. Fotka se předá serveru a OpenAI jako nejistá nápověda. Soukromý archiv rozhovoru ji uchová do výslovného ručního smazání.</p>
+        <p v-if="snapshot.source === 'native-device'">Textové tahy, STT/TTS a PTT byly vyřazeny. Skutečný kufr používá podporovaný audio engine; ruční řízení funguje i bez AI.</p>
         <p v-if="voiceBlocker" class="aw-notice">{{ voiceBlocker }}</p><p role="status">{{ snapshot.voice?.status }}</p>
         <div class="suitcase-actions"><AwButton variant="primary" :disabled="!!voiceBlocker || !snapshot.voice?.canStart" @click="startVoice">Spustit hlas na kufru</AwButton><AwButton :disabled="!snapshot.voice?.canStop" @click="device.stopVoice">Zastavit hlas</AwButton></div>
       </section>
@@ -78,8 +83,8 @@ function submit(): void { if (text.value.trim() && device.submitText(text.value)
         <progress v-if="snapshot.dance?.track" :max="Math.max(1, snapshot.dance.durationMs)" :value="Math.min(snapshot.dance.durationMs, snapshot.dance.positionMs)" aria-label="Průběh skladby" /><p v-if="snapshot.dance?.track">{{ snapshot.dance.track }} · {{ Math.round(snapshot.dance.positionMs / 1000) }} / {{ Math.round(snapshot.dance.durationMs / 1000) }} s · {{ snapshot.dance.bpm }} BPM</p>
         <div class="suitcase-actions"><AwButton variant="primary" :disabled="!!danceBlocker || !snapshot.dance?.canStart" @click="device.startDance">Spustit tanec</AwButton><AwButton :disabled="!snapshot.dance?.canStop" @click="device.stopDance">Zastavit tanec</AwButton></div>
       </section>
-      <section v-if="workspace === 'text'" class="aw-card" aria-labelledby="text-heading">
-        <h2 id="text-heading">Textový rozhovor přes kufr</h2><p>{{ snapshot.source === 'native-device' ? 'Kufr předá text cloudové AI službě. Výměny uchovává paměť večera na backendu. Telefon komunikuje pouze s kufrem.' : 'E2 simulátor poskytuje pevnou označenou odpověď; místní ukázka text nepodporuje.' }}</p>
+      <section v-if="workspace === 'text' && fixtureText" class="aw-card" aria-labelledby="text-heading">
+        <h2 id="text-heading">Textová fixture simulátoru</h2><p>E2 simulátor poskytuje pevnou označenou odpověď bez provideru. Skutečný kufr textové tahy nepodporuje.</p>
         <p v-if="snapshot.controlMode !== 'manual'" class="aw-notice">Pro textový rozhovor převezměte ruční řízení.</p>
         <form @submit.prevent="submit"><label class="aw-field">Vaše odpověď<textarea v-model="text" class="aw-input" rows="3" maxlength="2000" required :disabled="!snapshot.conversation?.canSubmit" /></label><div class="suitcase-actions"><AwButton type="submit" variant="primary" :disabled="!snapshot.conversation?.canSubmit || !text.trim()">Odeslat text kufru</AwButton><AwButton :disabled="!snapshot.conversation?.canCancel" @click="text = ''; device.cancelText()">Zrušit tah</AwButton></div></form>
         <p role="status">{{ snapshot.conversation?.status }}</p><blockquote v-if="snapshot.conversation?.reply"><strong>{{ snapshot.conversation.simulated ? 'SIMULOVANÁ ODPOVĚĎ' : 'Odpověď kufru' }}</strong><p>{{ snapshot.conversation.reply }}</p></blockquote>

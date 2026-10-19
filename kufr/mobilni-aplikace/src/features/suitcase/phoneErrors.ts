@@ -1,4 +1,11 @@
 const errors: Record<string, string> = {
+      conversation_engine_upgrade_required: 'Starý rozhovorový režim byl vyřazen. Obnovte aplikaci a zvolte GPT Live nebo GPT Realtime 2.1.',
+      account_admin_required: 'Tato akce vyžaduje správce účtu. Běžný test může pokračovat anonymně.',
+      account_admin_confirmation_required: 'Potvrďte správní akci a znovu ověřte účet ve správě aplikace.',
+      recent_passkey_required: 'Znovu ověřte účet passkey v nastavení účtu před správní akcí.',
+      confirmation_required: 'Správní akce vyžaduje výslovné potvrzení.',
+      csrf_required: 'Obnovte přihlášení účtu; ochrana požadavku nebyla ověřena.',
+      account_origin_required: 'Otevřete aplikaci na ověřené adrese a znovu ověřte účet.',
       cost_limit: 'OpenAI účet omezil dostupnost AI. Ověřte jeho kredit a limity.',
       turn_limit: 'Rozhovor dosáhl maximálního počtu odpovědí. Spusťte nový rozhovor.',
       dialogue_busy: 'Server právě zpracovává jiný rozhovor. Zkuste to za chvíli.',

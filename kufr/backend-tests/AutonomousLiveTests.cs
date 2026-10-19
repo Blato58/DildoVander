@@ -7,6 +7,8 @@ using Kufr.Backend.Features.GptLive;
 using Kufr.Backend.Features.Realtime;
 using Microsoft.Extensions.Configuration;
 using Kufr.Backend.Features.Character;
+using Kufr.Backend.Features.Memory;
+using Microsoft.Data.Sqlite;
 
 internal static class AutonomousLiveTests
 {
@@ -45,6 +47,9 @@ internal static class AutonomousLiveTests
         await VerifyCharacterFlow(options, interrupted: true);
         await VerifyCharacterFlow(options, express: true);
         await VerifyConversation(options, correction: true);
+        await VerifyConversation(options, correction: true, withMemory: true);
+        await VerifyMemoryBeforeDelegationAsync(options);
+        await VerifyDeletionBeforeQuietAsync(options);
         await VerifyCharacterCancellation(options);
         await VerifySplitVoiceControl(options);
         await VerifyPcmCancellationFence(options);
@@ -74,6 +79,41 @@ internal static class AutonomousLiveTests
                 && !projection.LatestIsCharacterControl && !projection.LatestCharacterControlInvalidatesEvidence
                 && projection.LatestInputReference == controlReference, "same-source substantive replacement remains evidence");
         }
+    }
+
+    private static async Task VerifyVisualResetAsync(GptLiveOptions options, bool beforeReady = false)
+    {
+        using var clock = new ManualClock(); using var old = new SocketFixture(); using var fresh = new SocketFixture();
+        old.BeforeDelivery = () => clock.Advance(50); fresh.BeforeDelivery = () => clock.Advance(50);
+        old.DelayStarted = beforeReady;
+        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await using var connection = new GptLiveConnection(old, _ => Task.FromResult<WebSocket>(fresh));
+        using var decisions = new WandDecisionService((_, _) => throw new Exception("Reset-only fixture must not select"));
+        var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        long generation = 0;
+        var audio = Channel.CreateUnbounded<long>();
+        var run = new AutonomousLiveDialogue(connection, decisions, clock).RunAsync(Call(options, lifetime),
+            (_, _) => { audio.Writer.TryWrite(connection.VisualGeneration); return Task.CompletedTask; },
+            (_, _) => Task.CompletedTask, _ => Task.CompletedTask,
+            (_, _) => throw new Exception("Reset fixture must remain conversational"), () => (63, 7, true), _ => Task.CompletedTask, lifetime.Token,
+            visualContext: () => generation == 0 ? (1, "revoked cloak") : (1, ""),
+            visualRevision: () => new(generation, changed.Task));
+        if (beforeReady) { await old.Command("session.start", lifetime.Token); }
+        else
+        {
+            await old.Command("session.instructions.append", lifetime.Token);
+            old.Audio();
+            Check(await audio.Reader.ReadAsync(lifetime.Token) == 0, "Live initial audio belongs to original provider");
+        }
+        var previous = changed; changed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        generation = 1; previous.TrySetResult();
+        await fresh.Command("session.start", lifetime.Token);
+        await fresh.Command("session.instructions.append", lifetime.Token);
+        old.Audio(); fresh.Audio();
+        Check(await audio.Reader.ReadAsync(lifetime.Token) == 1 && !run.IsCompleted,
+            "blocked Live provider resets without ending application voice session and late old audio never reappears");
+        Check(!fresh.Sent.Any(item => item.Contains("revoked cloak")), "Live restart does not replay revoked admission costume");
+        lifetime.Cancel(); try { await run; } catch (OperationCanceledException) { }
     }
 
     private static async Task VerifyExpressWithoutEvidence(GptLiveOptions options, string control)
@@ -375,7 +415,7 @@ internal static class AutonomousLiveTests
     internal static async Task RunAsync()
     {
         var defaults = GptLiveOptions.Read(new ConfigurationBuilder().Build());
-        Check(defaults.Mode == LiveActorMode.LegacyBackendScripted, "safe legacy default");
+        Check(defaults.Mode == LiveActorMode.AutonomousActor, "only autonomous production engine");
         var options = defaults with { Mode = LiveActorMode.AutonomousActor, DelegationContextWaitMs = 0, OutputPauseMs = 500, TerminalQuietMs = 1000 };
         var olli = LivePromptSnapshot.Create(PersonalityCatalog.OllivanderId, options);
         var party = LivePromptSnapshot.Create(PersonalityCatalog.DefaultId, options);
@@ -387,6 +427,8 @@ internal static class AutonomousLiveTests
         var overrideOptions = options with { UsualAnswersOverride = 3, MaximumAnswersOverride = 4 };
         Check(LivePromptSnapshot.Create(PersonalityCatalog.OllivanderId, overrideOptions).Instructions.Contains("otázek: 3; nejvýše 4")
             && overrideOptions.Policy(PersonalityCatalog.OllivanderId).MaximumAnswers == 4, "one documented admin-policy priority");
+        await VerifyVisualResetAsync(options);
+        await VerifyVisualResetAsync(options, beforeReady: true);
         VerifyProjection(options);
         VerifyTimeline(options);
         VerifySpeechGuards(options);
@@ -414,7 +456,9 @@ internal static class AutonomousLiveTests
             try { await tooManyQuestions.DecideAsync(i, CancellationToken.None); throw new Exception("Endless diagnostic question"); }
             catch (InvalidDataException) { }
         }
+        await VerifyPcmCancellationFence(options);
         await VerifyConversation(options, correction: false, fractionalTimeline: true);
+        await VerifyConversation(options, correction: false, revokeAtPublication: true);
         await VerifyConversation(options, correction: true);
         await VerifyConversation(options, correction: false, interrupt: true);
         await VerifyConversation(options with { DelegationTimeoutMs = 2000, DelegationContextWaitMs = 350 }, correction: false,
@@ -575,13 +619,20 @@ internal static class AutonomousLiveTests
 
     private static async Task VerifyConversation(GptLiveOptions options, bool correction, bool interrupt = false,
         bool naturalVerdict = false, bool visitorStillSpeaking = false, bool acknowledge = false,
-        bool resumeDuringDecision = false, bool repairVerdict = false, bool fractionalTimeline = false)
+        bool resumeDuringDecision = false, bool repairVerdict = false, bool fractionalTimeline = false, bool withMemory = false, bool revokeAtPublication = false)
     {
         using var clock = new ManualClock();
         using var socket = new SocketFixture();
+        using var resetSocket = new SocketFixture();
         socket.BeforeDelivery = () => clock.Advance(50);
-        await using var connection = new GptLiveConnection(socket);
+        resetSocket.BeforeDelivery = () => clock.Advance(50);
+        await using var connection = new GptLiveConnection(socket, _ => Task.FromResult<WebSocket>(resetSocket));
         using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var publication = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releasePublication = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var visualChanged = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        long visualGeneration = 0;
+        var inputStopped = false;
         var calls = 0;
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var correctionSeen = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -590,26 +641,53 @@ internal static class AutonomousLiveTests
         using var decisions = new WandDecisionService((i, _) =>
         {
             calls++; entered.TrySetResult();
+            if (withMemory)
+            {
+                Check(i.MemoryContext.Contains("fialove hodiny") && i.CostumeContext == "latest grounded blue cloak",
+                    "actual DV01 decision receives canonical memory and latest grounded image context");
+            }
             if ((correction || resumeDuringDecision) && calls == 1) { capturedInput = i; return first.Task; }
             var evidence = i.Evidence.Last();
             Check(!correction || evidence.Text.Contains("improvizuji"), "corrected input reaches decision service");
             return Task.FromResult(Proposal(i, correction ? 2 : 1));
         });
-        var call = Call(options, lifetime);
+        using var integrated = withMemory ? new MemoryConversationFixture(options) : null;
+        var call = integrated?.Admit(lifetime.Token) ?? Call(options, lifetime);
+        if (withMemory) { call = call with { Context = call.Context with { EveningContext = "bound memory: opravuji fialove hodiny", CostumeContext = "stale admission image" } }; }
         var playerRequests = Channel.CreateUnbounded<LivePlaybackRequest>();
         var playerDone = new TaskCompletionSource<LivePlaybackConfirmation>(TaskCreationOptions.RunContinuationsAsynchronously);
         var consumed = Channel.CreateUnbounded<string>();
         var audioConsumed = Channel.CreateUnbounded<int>();
         var states = Channel.CreateUnbounded<string>();
         var pcmBytes = 0;
-        var run = new AutonomousLiveDialogue(connection, decisions, clock).RunAsync(call,
+        var run = new AutonomousLiveDialogue(connection, decisions, clock, integrated?.Memory).RunAsync(call,
             (bytes, _) => { pcmBytes += bytes.Length; audioConsumed.Writer.TryWrite(bytes.Length); return Task.CompletedTask; },
             (text, _) => { consumed.Writer.TryWrite(text); if (text.Contains("improvizuji")) correctionSeen.TrySetResult(); return Task.CompletedTask; },
             _ => Task.CompletedTask,
             (r, _) => { playerRequests.Writer.TryWrite(r); return playerDone.Task; },
-            () => (63, 7, true), _ => Task.CompletedTask, lifetime.Token,
-            terminalState: state => states.Writer.TryWrite(state));
+            () => (63, 7, true), _ => { inputStopped = true; return Task.CompletedTask; }, lifetime.Token,
+            memoryAccess: integrated?.Conversations.LiveMemoryAccess(call),
+            terminalState: state => states.Writer.TryWrite(state),
+            transcript: integrated is null ? null : segment => integrated.Conversations.AppendRealtimeTranscript(call, segment),
+            visualContext: withMemory ? () => (2, "latest grounded blue cloak") : null,
+            visualRevision: revokeAtPublication ? () => new(visualGeneration, visualChanged.Task) : null,
+            finalize: revokeAtPublication ? async (_, token) =>
+            {
+                publication.TrySetResult();
+                await releasePublication.Task.WaitAsync(token);
+                if (connection.VisualGeneration != visualGeneration) { throw new VisualResponseRevokedException(); }
+            } : null);
         await socket.Command("session.instructions.append", lifetime.Token);
+        if (withMemory)
+        {
+            socket.Transcript(false, "Co mas rad?", 0, 100);
+            socket.Transcript(true, "Fialove hodiny.", 200, 300);
+            await consumed.Reader.ReadAsync(lifetime.Token);
+            socket.Transcript(false, "Kdo je opravuje?", 400, 500);
+            socket.Transcript(true, "Muj dedecek.", 600, 700);
+            await consumed.Reader.ReadAsync(lifetime.Token);
+            socket.TimelineOffset = 4000;
+        }
         socket.Transcript(false, "Co děláš, když se plán rozpadne?", 0, 1000);
         socket.Transcript(true, "Plánuji všechno.", fractionalTimeline ? 1100.25 : 1100, fractionalTimeline ? 2000.5 : 2000);
         await consumed.Reader.ReadAsync(lifetime.Token);
@@ -653,9 +731,11 @@ internal static class AutonomousLiveTests
         {
             socket.Transcript(true, " Oprava, improvizuji.", 2100, 2500);
             await correctionSeen.Task.WaitAsync(lifetime.Token);
-            first.SetResult(Proposal(new(1, 63, 7, [new("answer-0", "Plánuji všechno.")], options.Policy(PersonalityCatalog.OllivanderId), 1, false), 6));
+            first.SetResult(Proposal(capturedInput!, 6));
         }
-        var result = await socket.Command("session.commentary.append", lifetime.Token);
+        var resultPending = socket.Command("session.commentary.append", lifetime.Token);
+        if (await Task.WhenAny(resultPending, run) == run) { await run; }
+        var result = await resultPending;
         Check(calls == (correction ? 2 : 1) && !result.Contains("ZASTARALÝ"), "duplicate/late stale work is not published or replayed");
         var name = PartyWandCatalog.Available(63).Single(w => w.Compartment == (correction ? 2 : 1)).DisplayName;
         if (options.Character.Enabled) { name = "Výběr mám"; }
@@ -692,12 +772,20 @@ internal static class AutonomousLiveTests
             socket.Transcript(true, "bře, ukaž ji.", 6200, 6400);
             await consumed.Reader.ReadAsync(lifetime.Token);
         }
+        if (acknowledge)
+        {
+            clock.Advance(1500);
+            await socket.Command("session.commentary.append", lifetime.Token);
+            socket.Transcript(false, name + " sedí k tvé odpovědi. Tak už nezdržuj.", 7000, 8000);
+            socket.Audio();
+            await audioConsumed.Reader.ReadAsync(lifetime.Token);
+        }
         socket.Emit(new { type = "session.usage.updated", usage = new { seconds = 12 } });
         // A provider context ACK has already arrived; only local drain may allow close.
         clock.Advance(1500);
         var checkpoint = await playerRequests.Reader.ReadAsync(lifetime.Token);
         Check(!socket.Sent.Any(s => s.Contains("session.close")), "append ACK and silence are not playback-done");
-        Check(checkpoint.PcmBytes == pcmBytes && pcmBytes == (repairVerdict ? 12 : 8), "checkpoint covers actual transported PCM including a repaired announcement");
+        Check(checkpoint.PcmBytes == pcmBytes && pcmBytes == (repairVerdict || acknowledge ? 12 : 8), "checkpoint covers actual transported PCM including a repaired announcement");
         if (interrupt)
         {
             await connection.SendAudioAsync(new byte[] { 0, 32, 0, 32 }, lifetime.Token);
@@ -712,9 +800,23 @@ internal static class AutonomousLiveTests
             Check(!socket.Sent.Any(s => s.Contains("session.close")), "late local drain cannot finalize an interrupted verdict"); return;
         }
         playerDone.SetResult(new(checkpoint.PlaybackId, checkpoint.PcmBytes, true));
+        if (revokeAtPublication)
+        {
+            await publication.Task.WaitAsync(lifetime.Token);
+            Check(socket.Sent.Any(item => item.Contains("session.close")) && !inputStopped,
+                "provider close does not retire app input before guarded publication");
+            var previousVisual = visualChanged; visualChanged = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            visualGeneration = 1; previousVisual.TrySetResult(); releasePublication.TrySetResult();
+            await resetSocket.Command("session.start", lifetime.Token);
+            await resetSocket.Command("session.instructions.append", lifetime.Token);
+            Check(!run.IsCompleted && !inputStopped,
+                "revoked terminal queued for publication recovers within same application session without stopping microphone");
+            lifetime.Cancel(); try { await run; } catch (OperationCanceledException) { }
+            return;
+        }
         var outcome = await run.WaitAsync(lifetime.Token);
         Check(outcome.Autonomous && outcome.PlaybackVerified && outcome.Decision!.Compartment == (correction ? 2 : 1)
-            && outcome.Reply.Reply.Contains("nezdržuj") && outcome.Segments.Any(s => s.Speaker == "user" && s.StartMs == (fractionalTimeline ? 1100.25 : 1100)), "actual spoken transcript and timed raw user speech retained separately");
+            && outcome.Reply.Reply.Contains("nezdržuj") && outcome.Segments.Any(s => s.Speaker == "user" && s.StartMs == (fractionalTimeline ? 1100.25 : 1100) + socket.TimelineOffset), "actual spoken transcript and timed raw user speech retained separately");
         Check(calls == (correction ? 2 : 1) && outcome.Decision!.DecisionRevision == outcome.DecisionRevision,
             "a split acknowledgment preserves the valid decision and its publication revision without another model call");
         Check(!socket.Sent.Any(s => s.Contains("response.create") || s.Contains("Replika ")), "native Live voice, no scripted response command");
@@ -842,12 +944,185 @@ internal static class AutonomousLiveTests
     { using var doc = JsonDocument.Parse(JsonSerializer.Serialize(new { type = input ? "session.input_transcript.delta" : "session.output_transcript.delta", delta = text, start_ms = start, end_ms = end, event_id = Guid.NewGuid().ToString("N") })); p.Append(doc.RootElement, input); }
     private static void Check(bool result, string detail) { if (!result) throw new Exception("Autonomous Live: " + detail); }
 
+    private static async Task VerifyMemoryBeforeDelegationAsync(GptLiveOptions options)
+    {
+        using var fixture = new MemoryConversationFixture(options);
+        using var clock = new ManualClock();
+        using var socket = new SocketFixture();
+        socket.BeforeDelivery = () => clock.Advance(50);
+        await using var connection = new GptLiveConnection(socket);
+        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var decisions = new WandDecisionService((_, _) => throw new Exception("Early-ended interaction must not delegate"));
+        var call = fixture.Admit(lifetime.Token);
+        var consumed = Channel.CreateUnbounded<string>();
+        var persisted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var run = new AutonomousLiveDialogue(connection, decisions, clock, fixture.Memory).RunAsync(call,
+            (_, _) => Task.CompletedTask, (text, _) => { consumed.Writer.TryWrite(text); return Task.CompletedTask; },
+            _ => Task.CompletedTask, (_, _) => throw new Exception("No physical outcome before delegation"),
+            () => (63, 7, true), _ => Task.CompletedTask, lifetime.Token,
+            memoryAccess: fixture.Conversations.LiveMemoryAccess(call),
+            transcript: segment => fixture.Conversations.AppendRealtimeTranscript(call, segment),
+            terminalState: state => { if (state == "memory_batch_finished") { persisted.TrySetResult(); } });
+        await socket.Command("session.instructions.append", lifetime.Token);
+        socket.Transcript(false, "Co rad opravujes?", 0, 100);
+        socket.Transcript(true, "Mam doma fialove hodiny po dedeckovi.", 200, 900);
+        await consumed.Reader.ReadAsync(lifetime.Token);
+        // End immediately, before the ordinary quiet timer or any delegation.
+        socket.Transcript(false, "Co dalsiho?", 1000, 1100);
+        socket.Transcript(true, "Stop.", 1200, 1300);
+        await consumed.Reader.ReadAsync(lifetime.Token);
+        clock.Advance(1500);
+        try { await run.WaitAsync(lifetime.Token); throw new Exception("Stop ignored"); }
+        catch (OperationCanceledException) { }
+        var recalled = await fixture.ReturningContextAsync();
+        Check(recalled.Text.Contains("fialove hodiny"),
+            "explicit returning guest recalls finalized ordinary answer after Stop before any delegation");
+    }
+
+    private static async Task VerifyDeletionBeforeQuietAsync(GptLiveOptions options)
+    {
+        // Keep a deterministic quiet interval even when the caller tests the
+        // zero-wait director configuration. Delete before advancing this clock.
+        options = options with { DelegationContextWaitMs = 350 };
+        using var fixture = new MemoryConversationFixture(options);
+        using var clock = new ManualClock();
+        using var socket = new SocketFixture();
+        socket.BeforeDelivery = () => clock.Advance(50);
+        await using var connection = new GptLiveConnection(socket);
+        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var decisions = new WandDecisionService((_, _) => throw new Exception("No delegation during deletion race"));
+        var call = fixture.Admit(lifetime.Token);
+        await ConversationStartupMemory.ProcessInputAsync(call, fixture.Conversations, fixture.Memory,
+            "Puvodni ulozena vzpominka.", lifetime.Token);
+        var consumed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var quietFinished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var run = new AutonomousLiveDialogue(connection, decisions, clock, fixture.Memory).RunAsync(call,
+            (_, _) => Task.CompletedTask, (_, _) => { consumed.TrySetResult(); return Task.CompletedTask; },
+            _ => Task.CompletedTask, (_, _) => throw new Exception("Deleted context cannot publish a physical outcome"),
+            () => (63, 7, true), _ => Task.CompletedTask, lifetime.Token,
+            memoryAccess: fixture.Conversations.LiveMemoryAccess(call),
+            transcript: segment => fixture.Conversations.AppendRealtimeTranscript(call, segment),
+            terminalState: state => { if (state == "memory_batch_finished") { quietFinished.TrySetResult(); } });
+        await socket.Command("session.instructions.append", lifetime.Token);
+        socket.Transcript(false, "Co mas doma?", 0, 100);
+        socket.Transcript(true, "Mam soukrome tyrkysove hodiny.", 200, 900);
+        await consumed.Task.WaitAsync(lifetime.Token);
+        fixture.DeleteFirstPersonal(call);
+        Check(!fixture.Conversations.IsRealtimeTurnCurrent(call), "manual deletion retires the runtime context");
+        clock.Advance(1500);
+        if (await Task.WhenAny(quietFinished.Task, run) == run) { await run; }
+        await quietFinished.Task.WaitAsync(lifetime.Token);
+        lifetime.Cancel();
+        try { await run; } catch (OperationCanceledException) { }
+        var returning = await fixture.ReturningContextAsync();
+        Check(!returning.Text.Contains("tyrkysove hodiny") && !returning.Text.Contains("Puvodni ulozena"),
+            "delete between accepted input and quiet cannot rebase stale text into new personal facts");
+    }
+
+    internal static void VerifyLiveSpeedAdmission()
+    {
+        foreach (var speed in new[] { 0.8, 1.2 })
+        {
+            using var fixture = new MemoryConversationFixture(new GptLiveOptions());
+            var rejected = fixture.TryAdmit(CancellationToken.None, gptLive: true, speed: speed);
+            Check(rejected.Status == 400 && rejected.Call is null && fixture.Conversations.ActiveProviderCallCount == 0,
+                "unsupported Live speed is rejected before any provider reservation");
+        }
+        using var realtime = new MemoryConversationFixture(new GptLiveOptions());
+        Check(realtime.TryAdmit(CancellationToken.None, gptLive: false, speed: 0.8).Status == 200,
+            "Realtime retains its supported speed capability");
+    }
+
+    internal static async Task VerifyRealtimeMemoryBoundaryAsync()
+    {
+        using var fixture = new MemoryConversationFixture(new GptLiveOptions());
+        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var call = fixture.Admit(lifetime.Token, gptLive: false);
+        await ConversationStartupMemory.ProcessInputAsync(call, fixture.Conversations, fixture.Memory,
+            "Sbiram oranzove figurky.", lifetime.Token);
+        await ConversationStartupMemory.ProcessInputAsync(call, fixture.Conversations, fixture.Memory,
+            "Oprava, sbiram fialove hodiny.", lifetime.Token);
+        Check(fixture.Conversations.IsRealtimeTurnCurrent(call), "Realtime correction supersedes facts without ending its runtime session");
+        var returning = await fixture.ReturningContextAsync();
+        Check(returning.Text.Contains("fialove hodiny") && !returning.Text.Contains("oranzove figurky"),
+            "Realtime approved returning continuity exposes the correction and excludes superseded facts");
+    }
+
+    private sealed class MemoryConversationFixture : IDisposable
+    {
+        private readonly string path = Path.Combine(Path.GetTempPath(), "kufr-live-memory-" + Guid.NewGuid().ToString("N"));
+        private readonly OperationJournal journal;
+        private readonly OpenAiVectorMemoryProvider provider;
+        private readonly EveningMemoryStore archive;
+        private readonly string guestId = Guid.NewGuid().ToString("D");
+        private RealtimeCall? admittedCall;
+        internal HybridMemoryService Memory { get; }
+        internal ConversationStore Conversations { get; }
+        internal MemoryConversationFixture(GptLiveOptions options)
+        {
+            Directory.CreateDirectory(path);
+            var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Backend:DatabasePath"] = Path.Combine(path, "journal.sqlite"),
+                ["Backend:Memory:Enabled"] = "true",
+                ["Backend:Memory:LongTermPersonalEnabled"] = "true"
+            }).Build();
+            journal = new(configuration, TimeProvider.System);
+            archive = new(configuration, journal, TimeProvider.System);
+            var memoryOptions = HybridMemoryOptions.Read(configuration);
+            provider = new(new HttpClient(), null, memoryOptions);
+            Memory = new(archive, provider, memoryOptions, TimeProvider.System);
+            Conversations = new(TimeProvider.System, journal, eveningMemory: archive, liveOptions: options);
+            var mode = Conversations.ReadServerModes();
+            Check(Conversations.ChangeServerModes(new(mode.Revision, PersonalityId: PersonalityCatalog.OllivanderId)).Status == 200,
+                "memory integration persona configured");
+        }
+        internal RealtimeCall Admit(CancellationToken token, bool gptLive = true)
+        {
+            var admitted = TryAdmit(token, gptLive, 1);
+            Check(admitted.Call is not null && Conversations.StartRealtimeTurn(admitted.Call), "memory integration provider call admitted");
+            return admitted.Call!;
+        }
+        internal RealtimeAdmission TryAdmit(CancellationToken token, bool gptLive, double speed)
+        {
+            var boot = Guid.NewGuid();
+            var created = Conversations.Create("device", Guid.NewGuid(), "memory-create"u8,
+                new("device", boot, 0, PartyWandCatalog.Version, "cs-CZ", new(true, false))).Response!;
+            archive.SetGuestPermission("device", created.ConversationId, guestId, "explicit-test-operator", true, true, false, 0);
+            var request = new RealtimeTurnRequest(Guid.NewGuid(), boot, 0, 63, 7, PartyWandCatalog.Version, true, "", null, "marin", speed);
+            var admitted = Conversations.BeginRealtimeTurn("device", created.ConversationId, Guid.NewGuid(), "memory-opening"u8.ToArray(),
+                request, true, token, default, gptLive: gptLive);
+            admittedCall = admitted.Call;
+            return admitted;
+        }
+        internal void DeleteFirstPersonal(RealtimeCall call)
+        {
+            var access = Conversations.LiveMemoryAccess(call)!;
+            var record = archive.LocalMemory(access, MemoryScope.Personal).First();
+            Check(archive.DeleteMemory(access.DeviceId, record.MemoryId, record.Revision), "manual record deletion applied");
+        }
+        internal Task<LiveMemoryContext> ReturningContextAsync()
+        {
+            var conversation = Guid.NewGuid().ToString("D");
+            var permission = archive.SetGuestPermission("device", conversation, guestId, "explicit-return-operator", true, true, false, 0);
+            return Memory.StartupContextAsync(new("device", archive.GetStatus("device").EveningId,
+                conversation, PersonalityCatalog.OllivanderId, permission), CancellationToken.None);
+        }
+        public void Dispose()
+        {
+            if (admittedCall is not null) { Conversations.ReleaseRealtimeTurn(admittedCall, true, false); }
+            provider.Dispose(); journal.Dispose(); SqliteConnection.ClearAllPools(); Directory.Delete(path, true);
+        }
+    }
+
     private sealed class SocketFixture : WebSocket
     {
         private readonly Channel<byte[]> events = Channel.CreateUnbounded<byte[]>();
         private readonly Channel<string> commands = Channel.CreateUnbounded<string>();
         internal readonly ConcurrentQueue<string> Sent = new();
         internal Action? BeforeDelivery;
+        internal double TimelineOffset;
+        internal bool DelayStarted;
         public override WebSocketCloseStatus? CloseStatus => null;
         public override string? CloseStatusDescription => null;
         public override WebSocketState State => WebSocketState.Open;
@@ -857,8 +1132,8 @@ internal static class AutonomousLiveTests
         public override Task CloseAsync(WebSocketCloseStatus s, string? d, CancellationToken t) => Task.CompletedTask;
         public override Task CloseOutputAsync(WebSocketCloseStatus s, string? d, CancellationToken t) => Task.CompletedTask;
         internal void Emit(object item) => events.Writer.TryWrite(JsonSerializer.SerializeToUtf8Bytes(item));
-        internal void Transcript(bool input, string text, double start, double end) => Emit(new { type = input ? "session.input_transcript.delta" : "session.output_transcript.delta", delta = text, start_ms = start, end_ms = end, event_id = Guid.NewGuid().ToString("N") });
-        internal void Delegate(string id, double ms) => Emit(new { type = "session.delegation.created", delegation = new { id, target = "client" }, offset_ms = ms });
+        internal void Transcript(bool input, string text, double start, double end) => Emit(new { type = input ? "session.input_transcript.delta" : "session.output_transcript.delta", delta = text, start_ms = start + TimelineOffset, end_ms = end + TimelineOffset, event_id = Guid.NewGuid().ToString("N") });
+        internal void Delegate(string id, double ms) => Emit(new { type = "session.delegation.created", delegation = new { id, target = "client" }, offset_ms = ms + TimelineOffset });
         internal void Audio() => Emit(new { type = "session.output_audio.delta", delta = Convert.ToBase64String(new byte[] { 0, 32, 0, 32 }) });
         internal async Task<string> Command(string type, CancellationToken token)
         { while (true) { var text = await commands.Reader.ReadAsync(token); using var doc = JsonDocument.Parse(text); if (doc.RootElement.GetProperty("type").GetString() == type) return text; } }
@@ -866,7 +1141,7 @@ internal static class AutonomousLiveTests
         {
             var text = System.Text.Encoding.UTF8.GetString(bytes); Sent.Enqueue(text); commands.Writer.TryWrite(text);
             using var doc = JsonDocument.Parse(text); var root = doc.RootElement; var kind = root.GetProperty("type").GetString()!;
-            if (kind == "session.start") Emit(new { type = "session.started", client_event_id = root.GetProperty("event_id").GetString(), session = new { model = "gpt-live-1" } });
+            if (kind == "session.start" && !DelayStarted) Emit(new { type = "session.started", client_event_id = root.GetProperty("event_id").GetString(), session = new { model = "gpt-live-1" } });
             else if (kind.EndsWith(".append") && kind != "session.input_audio.append") Emit(new { type = kind.Replace(".append", ".appended"), client_event_id = root.GetProperty("event_id").GetString() });
             else if (kind == "session.close") Emit(new { type = "session.closed", client_event_id = root.GetProperty("event_id").GetString(), reason = "close_requested", usage = new { seconds = 12 } });
             return Task.CompletedTask;

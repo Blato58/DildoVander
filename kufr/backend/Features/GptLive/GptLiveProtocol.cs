@@ -19,27 +19,8 @@ internal static class GptLiveProtocol
         return checked((long)Math.Ceiling(seconds * 50_000 / 60));
     }
 
-    internal static object Start(RealtimeTurnContext turn) => new
-    {
-        type = "session.start",
-        session = new
-        {
-            model = Model, store = false,
-            input = Array.Empty<object>(),
-            audio = new { format = new { type = "audio/pcm", rate = 24000 }, output = new { voice = turn.Request.Voice } },
-            delegation = new { type = "client" },
-            instructions = PersonalityCatalog.Persona(turn.PersonalityId) + (turn.CostumeContext.Length == 0 ? "" : "\n" + turn.CostumeContext) + "\n\n" + """
-                Delegation policy:
-                Backend tools: Backend připravuje další roast s otázkou a ověřuje výběr dostupné hůlky nebo konec hry.
-                Delegate to the backend when: Host dokončí novou odpověď na otázku, opraví ji nebo žádá skončit.
-                Do not delegate to the backend when: Host ještě mluví, stejná odpověď se už řeší, dorazí výsledek,
-                host jen pozdraví nebo chce zopakovat právě dodanou repliku. Výsledek neopakuj znovu jako novou práci.
-                Vyslov dodanou repliku přirozeně, zachovej ostrost, konkrétní pointu, název hůlky a právě dodanou otázku.
-                Během delegace nevytvářej další otázku ani vlastní výběr.
-                Hůlku nikdy nevybírej sám. Jakmile backend dodá výběr, vyslov dodanou závěrečnou repliku.
-                """ + "\n" + PersonalityCatalog.OpeningInstructions(turn.PersonalityId, turn.OpeningVariation)
-        }
-    };
+    internal static object Start(RealtimeTurnContext turn) =>
+        AutonomousStart(turn with { LivePrompt = turn.LivePrompt ?? LivePromptSnapshot.Create(turn.PersonalityId, new GptLiveOptions()) }, Guid.NewGuid().ToString("N"));
 
     internal static object AutonomousStart(RealtimeTurnContext turn, string eventId)
     {
@@ -50,7 +31,7 @@ internal static class GptLiveProtocol
         return new { type = "session.start", event_id = eventId, session = new
         {
             model = Model, store = false, input = turn.LiveInput, instructions = snapshot.Instructions
-                + (snapshot.Version == "dv01-adult-v1" ? "" : "\n" + turn.CostumeContext),
+                + "\n" + turn.CostumeContext,
             audio = new { format = new { type = "audio/pcm", rate = 24000 }, output = new { voice = turn.Request.Voice } },
             delegation = new { type = "client" }
         } };

@@ -56,6 +56,20 @@ Only an exact returned authorized source can be selected; listing and observatio
 remain explicit. Settings manages evenings for an exact granted device through
 the existing evening API, with confirmation and stable idempotent retries.
 
+Conversation controls consume the canonical two-engine capabilities described
+in `autonomous-live-memory.md`: GPT Live is primary and Realtime 2.1 is an
+explicit alternative. Retired text/STT/PTT modes are never restored by this UI;
+labelled deterministic simulation text remains separate. Native phone audio
+uses the maintained authenticated WebSocket. Account admission requires device
+operate authority and CSRF; the stream revalidates the persisted session, current
+role and exact grant before further audio input.
+
+Canonical conversation memory is distinct from the keepsake account association.
+Its UI displays actual identity verification and separate long-term/cloud consent
+flags. Private inspection and confirmed deletion retain administrator authority,
+recent passkey authentication, CSRF and generation/epoch fences. Route changes
+and user switching clear those private views without deleting the archive.
+
 ## Releases
 
 ModelBundle schema and hashes identify immutable model data independently of

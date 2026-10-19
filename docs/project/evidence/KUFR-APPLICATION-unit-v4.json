@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-APPLICATION-unit-v4",
+  "observedAtUtc": "2026-10-19T04:48:06.468656+00:00",
+  "kind": "unit",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "APPLICATION",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "applicationArtifactDigest": "cc3076a283b839baacb210deade4f03193782b744e63da86c3644b0863f09fe3"
+  },
+  "method": "Final npm test; npm run build; mounted App account-switch regression and late-poll/native facade tests.",
+  "environment": "Windows 11; Node24.21.0, Chrome Playwright, .NET10, MSVC genuine portable C++ twin; isolated loopback and temporary stores.",
+  "limitations": [
+    "No production deployment, provider call, credential rotation, firmware flashing or real actuator execution.",
+    "Virtual WebAuthn and native bridge fixtures are synthetic; portable C++ is genuine software integration, not signed iPhone or physical BLE/audio/assembly proof.",
+    "Canonical source snapshot normalizes UTF-8 text to LF and retains binary bytes. Compiled artifacts and platform builds have their own evidence."
+  ],
+  "observation": "PASS89 Node+148 Vue tests across27files (237 total). Standalone production build checked generated contracts, Vue types and172 Vite modules without CAD. Final dist47files. Private cache redacts synchronously before delayed cleanup; blocked-era and in-admission status polls cannot restore previous account content.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-APPLICATION-source-v6.json",
+    "docs/project/artifacts/KUFR-APPLICATION-runtime-v4.json",
+    "kufr/docs/application-verification.md"
+  ],
+  "supersedes": [
+    "KUFR-APPLICATION-unit-v3"
+  ],
+  "supersedesReason": "Accepted main09a7cb engine/audio/memory integration changes source identities. Fresh final checks and bounded independent review replace prior software receipts; old evidence remains immutable."
+}

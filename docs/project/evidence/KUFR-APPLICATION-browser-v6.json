@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-APPLICATION-browser-v6",
+  "observedAtUtc": "2026-10-19T04:48:06.468656+00:00",
+  "kind": "browser",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "APPLICATION",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "IDENTITY",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "RELEASES",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "applicationArtifactDigest": "cc3076a283b839baacb210deade4f03193782b744e63da86c3644b0863f09fe3",
+    "backendArtifactDigest": "28ad047b485de7aa57e5957de4a27428e4876fb577fd310ce0fc7ea70dd2b97c",
+    "releaseArtifactDigest": "4b38c9433e689c613f846a09f8897d3f7f4ffd4580f12ada00a20df1464d4746",
+    "iosArtifactDigest": "619bd446e6c9c914b724f5bbd7b6ee6c1df51e2164d09277223766fc3aa17890"
+  },
+  "method": "Parent npm run test:browser and npm run test:accounts:fixture against final dist/real HTTPS backend; worker compiled debug.browser, workshop-media.browser and file:// workshop-offline.browser.",
+  "environment": "Windows 11; Node24.21.0, Chrome Playwright, .NET10, MSVC genuine portable C++ twin; isolated loopback and temporary stores.",
+  "limitations": [
+    "No production deployment, provider call, credential rotation, firmware flashing or real actuator execution.",
+    "Virtual WebAuthn and native bridge fixtures are synthetic; portable C++ is genuine software integration, not signed iPhone or physical BLE/audio/assembly proof.",
+    "Canonical source snapshot normalizes UTF-8 text to LF and retains binary bytes. Compiled artifacts and platform builds have their own evidence.",
+    "Native bridge is mocked; Foundation, WKWebView, Keychain and hardware behavior require native acceptance."
+  ],
+  "observation": "PASS canonical navigation/deep links/compatibility/early claim capture/focus/theme/keyboard/Stop/demo/1440-390-320 widths/200%text. Real P256 passkey owner/invitation/replay/Viewer/logout-cookie barrier/safe return passed with normal fixture cleanup. Synthetic native facade proved exact two-engine voices/tempo, actual revoked consent and supported admin fields. Production worklet2PCM+1JPEG+drain, exact-instance capability read, zero CSP/page/external errors. Offline desktop/mobile0network/0page errors. Parent visually inspected mobile home and clean phone viewport.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-APPLICATION-source-v6.json",
+    "docs/project/artifacts/KUFR-APPLICATION-runtime-v4.json",
+    "kufr/docs/application-verification.md"
+  ],
+  "supersedes": [
+    "KUFR-APPLICATION-browser-v5"
+  ],
+  "supersedesReason": "Accepted main09a7cb engine/audio/memory integration changes source identities. Fresh final checks and bounded independent review replace prior software receipts; old evidence remains immutable."
+}

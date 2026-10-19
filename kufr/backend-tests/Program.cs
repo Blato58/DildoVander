@@ -24,6 +24,8 @@ if (args is ["--character"])
     return;
 }
 if (args is ["--firmware"]) { FirmwareReleaseTests.Run(); return; }
+if (args is ["--conversation-engines"]) { await RealtimeTests.RunAsync(); await GptLiveTests.RunAsync(); return; }
+if (args is ["--memory"]) { await HybridMemoryTests.RunAsync(); await EveningMemoryTests.RunAsync(); return; }
 if (args is ["--gpt-live-smoke"])
 {
     Environment.ExitCode = await GptLiveSmoke.RunAsync();
@@ -49,7 +51,6 @@ await GptLiveTests.RunAsync();
 await PersonalityTests.RunAsync();
 await AutonomousLiveTests.RunAsync();
 await HybridMemoryTests.RunAsync();
-await ResponsesTextDialogClientTests.RunAsync();
 ResponsesTextDialogBudgetTests.Run();
 await TextDialogRuntimeTests.RunAsync();
 await EveningMemoryTests.RunAsync();

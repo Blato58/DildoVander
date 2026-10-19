@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Net.WebSockets;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -50,6 +51,7 @@ internal static class AccountIdentityTests
     public static async Task RunAsync()
     {
         ServiceCredentialBoundaries();
+        await PersistentAccountAuthorizationAsync();
         await ModelReleaseTests.RunAsync();
         await using var fixture = await Fixture.StartAsync();
         using var owner = fixture.Client();
@@ -149,6 +151,7 @@ internal static class AccountIdentityTests
         await SignInAsync(stranger, operatorKey);
         var fresh = await CsrfAsync(stranger);
         Check(fresh.GetProperty("account").GetProperty("roles")[0].GetString() == "Viewer", "signin reads current role");
+        Check((await stranger.GetAsync("/app/v1/workshop/granted-twin/engines")).IsSuccessStatusCode, "Viewer retains scoped read-only canonical engine metadata");
         await ModelReleaseTests.RunDeniedAsync(stranger);
         Check((await stranger.DeleteAsync("/app/v1/session")).StatusCode == HttpStatusCode.NoContent, "signout succeeds");
         Check((await stranger.GetAsync("/app/v1/account")).StatusCode == HttpStatusCode.Unauthorized, "signout revokes session");
@@ -177,6 +180,104 @@ internal static class AccountIdentityTests
         Check(new ServerAdminAccess(explicitService).Verify(service)
             && new TwinAccess(explicitService, TimeProvider.System).CreateSession(service) is not null,
             "explicit advanced service harness compatibility remains available");
+    }
+
+    private static async Task PersistentAccountAuthorizationAsync()
+    {
+        await using var fixture = await Fixture.StartAsync();
+        using var owner = fixture.Client(); using var actor = fixture.Client();
+        using var ownerKey = new VirtualPasskey(); using var actorKey = new VirtualPasskey();
+        await EnrollAsync(owner, ownerKey, Fixture.Bootstrap, "Stream owner"); var ownerIdentity = await CsrfAsync(owner);
+        var ownerId = ownerIdentity.GetProperty("account").GetProperty("id").GetString();
+        var invite = await JsonAsync(await owner.PostAsJsonAsync("/app/v1/admin/invitations", new {role = "Operator", recoveryUserId = (string?)null}));
+        await EnrollAsync(actor, actorKey, invite.GetProperty("token").GetString()!, "Stream operator");
+        var identity = await CsrfAsync(actor); var userId = identity.GetProperty("account").GetProperty("id").GetString()!;
+        await SeedAsync(fixture.App, async db =>
+        {
+            db.ResourceGrants.Add(new AccountResourceGrant {Id = "stream-device", UserId = userId, ResourceType = "device", ResourceId = "granted-device", Permission = "read"});
+            db.ResourceGrants.Add(new AccountResourceGrant {Id = "stream-workshop", UserId = userId, ResourceType = "workshop", ResourceId = "granted-twin", Permission = "read"});
+            await db.SaveChangesAsync();
+        });
+        var engines = await JsonAsync(await actor.GetAsync("/app/v1/workshop/granted-twin/engines"));
+        Check(engines.GetProperty("schemaVersion").GetInt32() == 1 && engines.GetProperty("engines").GetArrayLength() == 2
+            && engines.GetProperty("engines")[0].GetProperty("model").GetString() == "gpt-live-1"
+            && engines.GetProperty("engines")[1].GetProperty("model").GetString() == "gpt-realtime-2.1", "scoped Workshop capabilities expose exactly canonical engines");
+        Check(!engines.TryGetProperty("personalities", out _), "Workshop capabilities expose no admin metadata");
+        Check((await actor.GetAsync("/app/v1/workshop/denied-twin/engines")).StatusCode == HttpStatusCode.Forbidden, "Workshop capabilities enforce exact read grant");
+        Check((await actor.GetAsync("/app/v1/workshop/missing/engines")).StatusCode == HttpStatusCode.Forbidden, "Workshop capability visibility does not expose ungranted instance existence");
+        Check((await owner.GetAsync("/app/v1/workshop/missing/engines")).StatusCode == HttpStatusCode.NotFound, "Workshop capabilities require existing instance even for owner");
+        Check((await actor.PutAsJsonAsync("/v1/admin/test-account-confirmation", new {})).StatusCode == HttpStatusCode.Forbidden, "device Operator cannot bind verified guest memory through admin role");
+        Check((await actor.GetAsync("/v1/admin/test-account-read")).StatusCode == HttpStatusCode.Unauthorized, "device Operator cannot inspect admin memory");
+        owner.DefaultRequestHeaders.Remove("X-DV-Confirm");
+        Check((await owner.PutAsJsonAsync("/v1/admin/test-account-confirmation", new {})).StatusCode == HttpStatusCode.Conflict, "raw admin account mutation requires explicit confirmation");
+        owner.DefaultRequestHeaders.Add("X-DV-Confirm", "yes");
+        Check((await owner.PutAsJsonAsync("/v1/admin/test-account-confirmation", new {})).IsSuccessStatusCode, "recent owner can use confirmed raw admin operation");
+        await SeedAsync(fixture.App, db => db.Sessions.Where(x => x.UserId == ownerId).ExecuteUpdateAsync(u => u.SetProperty(x => x.AuthenticatedAt, AccountEndpoints.Now() - 601)));
+        Check((await owner.PutAsJsonAsync("/v1/admin/test-account-confirmation", new {})).StatusCode == HttpStatusCode.Forbidden, "raw admin mutation requires recent account verification");
+        var reauthentication = await JsonAsync(await owner.PostAsJsonAsync("/app/v1/passkeys/reauthentication-options", new {}));
+        Check((await owner.PostAsJsonAsync("/app/v1/passkeys/reauthenticate", new {credential = ownerKey.Assert(reauthentication)})).IsSuccessStatusCode, "owner renews verification before raw admin changes");
+        var modes = (await JsonAsync(await owner.GetAsync("/app/v1/admin/operations/status"))).GetProperty("modes");
+        Check(!modes.TryGetProperty("dialogMode", out _) && !modes.TryGetProperty("voiceMode", out _), "account operations exposes no retired engine choices");
+        Check((await owner.PutAsJsonAsync("/app/v1/admin/operations/modes", new {expectedRevision = modes.GetProperty("revision").GetString(), dialogMode = "fake"})).StatusCode == HttpStatusCode.Gone,
+            "account operations never resurrect retired engine knobs");
+        foreach (var retired in new[] {"turns", "opening", "transcriptions", "speech"})
+        { Check((await actor.PostAsJsonAsync($"/v1/conversations/{Guid.NewGuid():D}/{retired}", new {})).StatusCode == HttpStatusCode.Gone, "retired conversation endpoint stays 410"); }
+        await ExpectSocketDeniedAsync(fixture, actor, HttpStatusCode.Unauthorized);
+        await SeedAsync(fixture.App, db => db.ResourceGrants.Where(x => x.Id == "stream-device").ExecuteUpdateAsync(update => update.SetProperty(x => x.Permission, "operate")));
+        await ExpectSocketDeniedAsync(fixture, actor, HttpStatusCode.Forbidden, origin: "https://evil.invalid");
+        await ExpectSocketDeniedAsync(fixture, actor, HttpStatusCode.BadRequest, includeCsrf: false);
+
+        async Task RevokeAndClose(Func<AccountDatabase, Task> revoke, Func<AccountDatabase, Task>? restore = null)
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            using var socket = AccountSocket(fixture, actor);
+            await socket.ConnectAsync(SocketUri(actor), timeout.Token);
+            await socket.SendAsync(new ArraySegment<byte>(new byte[] {1}), WebSocketMessageType.Binary, true, timeout.Token);
+            var buffer = new byte[8]; var accepted = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), timeout.Token);
+            Check(accepted.MessageType == WebSocketMessageType.Binary, "authenticated account socket admits operate frame");
+            await SeedAsync(fixture.App, revoke);
+            await socket.SendAsync(new ArraySegment<byte>(new byte[] {2}), WebSocketMessageType.Binary, true, timeout.Token);
+            var rejected = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), timeout.Token);
+            Check(rejected.MessageType == WebSocketMessageType.Close && rejected.CloseStatus == WebSocketCloseStatus.PolicyViolation,
+                "persistent account socket closes before accepting revoked authority frame");
+            if (restore is not null) await SeedAsync(fixture.App, restore);
+        }
+        await RevokeAndClose(db => db.ResourceGrants.Where(x => x.Id == "stream-device").ExecuteUpdateAsync(u => u.SetProperty(x => x.Permission, "read")),
+            db => db.ResourceGrants.Where(x => x.Id == "stream-device").ExecuteUpdateAsync(u => u.SetProperty(x => x.Permission, "operate")));
+        string operatorRole = "", viewerRole = "";
+        await SeedAsync(fixture.App, async db => { operatorRole = (await db.Roles.SingleAsync(x => x.Name == "Operator")).Id; viewerRole = (await db.Roles.SingleAsync(x => x.Name == "Viewer")).Id; });
+        await RevokeAndClose(async db => { await db.UserRoles.Where(x => x.UserId == userId).ExecuteDeleteAsync(); db.UserRoles.Add(new IdentityUserRole<string> {UserId = userId, RoleId = viewerRole}); await db.SaveChangesAsync(); },
+            async db => { await db.UserRoles.Where(x => x.UserId == userId).ExecuteDeleteAsync(); db.UserRoles.Add(new IdentityUserRole<string> {UserId = userId, RoleId = operatorRole}); await db.SaveChangesAsync(); });
+        await RevokeAndClose(db => db.Users.Where(x => x.Id == userId).ExecuteUpdateAsync(u => u.SetProperty(x => x.Disabled, true)),
+            db => db.Users.Where(x => x.Id == userId).ExecuteUpdateAsync(u => u.SetProperty(x => x.Disabled, false)));
+        string? securityStamp = null;
+        await SeedAsync(fixture.App, async db => securityStamp = (await db.Users.SingleAsync(x => x.Id == userId)).SecurityStamp);
+        await RevokeAndClose(db => db.Users.Where(x => x.Id == userId).ExecuteUpdateAsync(u => u.SetProperty(x => x.SecurityStamp, Guid.NewGuid().ToString("N"))),
+            db => db.Users.Where(x => x.Id == userId).ExecuteUpdateAsync(u => u.SetProperty(x => x.SecurityStamp, securityStamp)));
+        var details = await JsonAsync(await actor.GetAsync("/app/v1/account"));
+        var sessionId = details.GetProperty("sessions").EnumerateArray().Single(x => x.GetProperty("current").GetBoolean()).GetProperty("id").GetString();
+        await RevokeAndClose(db => db.Sessions.Where(x => x.Id == sessionId).ExecuteUpdateAsync(u => u.SetProperty(x => x.ExpiresAt, AccountEndpoints.Now() - 1)),
+            db => db.Sessions.Where(x => x.Id == sessionId).ExecuteUpdateAsync(u => u.SetProperty(x => x.ExpiresAt, AccountEndpoints.Now() + 3600)));
+        await RevokeAndClose(db => db.Sessions.Where(x => x.Id == sessionId).ExecuteDeleteAsync());
+        Console.WriteLine("PASS persistent account socket operate/origin/CSRF admission, grant/role/disable/expiry/session revocation, canonical Workshop capabilities and retired-route/admin boundaries");
+    }
+
+    private static Uri SocketUri(HttpClient client) => new UriBuilder(client.BaseAddress!) {Scheme = "wss", Path = "/v1/test-account-stream"}.Uri;
+    private static ClientWebSocket AccountSocket(Fixture fixture, HttpClient client, string origin = "https://localhost", bool includeCsrf = true)
+    {
+        var socket = new ClientWebSocket(); socket.Options.Cookies = fixture.Cookies(client);
+        socket.Options.RemoteCertificateValidationCallback = (_, _, _, _) => true;
+        socket.Options.CollectHttpResponseDetails = true;
+        socket.Options.SetRequestHeader("Origin", origin); socket.Options.SetRequestHeader("X-DV-Device-Id", "granted-device");
+        if (includeCsrf) socket.Options.SetRequestHeader("X-DV-CSRF", client.DefaultRequestHeaders.GetValues("X-DV-CSRF").Single());
+        return socket;
+    }
+    private static async Task ExpectSocketDeniedAsync(Fixture fixture, HttpClient client, HttpStatusCode expected, string origin = "https://localhost", bool includeCsrf = true)
+    {
+        using var socket = AccountSocket(fixture, client, origin, includeCsrf);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        try { await socket.ConnectAsync(SocketUri(client), timeout.Token); throw new InvalidOperationException("Unauthorized socket admitted"); }
+        catch (WebSocketException) { Check(socket.HttpStatusCode == expected, $"account socket admission expected {(int)expected}, got {(int)socket.HttpStatusCode}"); }
     }
 
     private static async Task EveningScopeAsync(Fixture fixture, HttpClient client)
@@ -395,6 +496,7 @@ internal static class AccountIdentityTests
             builder.Services.AddModelReleases(builder.Configuration);
             builder.Services.AddSingleton(TimeProvider.System);
             builder.Services.AddSingleton<DeviceAccessStore>();
+            builder.Services.AddSingleton<ServerAdminAccess>();
             builder.Services.AddSingleton<OperationJournal>(); builder.Services.AddSingleton<EveningMemoryStore>();
             builder.Services.AddSingleton(services => new ConversationStore(TimeProvider.System,
                 services.GetRequiredService<OperationJournal>(), eveningMemory: services.GetRequiredService<EveningMemoryStore>()));
@@ -403,11 +505,29 @@ internal static class AccountIdentityTests
             var app = builder.Build();
             await AccountProvisioning.MigrateAsync(app.Services);
             await app.InitializeAccountsAsync();
-            app.UseRateLimiter(); app.UseAccountIdentity(); app.MapAccountEndpoints(); app.MapDigitalTwin(); app.MapModelReleases();
+            app.UseWebSockets(); app.UseRateLimiter(); app.UseAccountIdentity(); app.MapAccountEndpoints(); app.MapDigitalTwin(); app.MapModelReleases();
             app.MapConversations();
             app.MapGet("/v1/test-device", (HttpContext context, DeviceAccessStore access) =>
                 DeviceAccessEndpoints.Authenticate(context, access) is { } id ? Results.Text(id) : Results.Unauthorized());
             app.MapPost("/guest/v1/test", () => Results.NoContent());
+            app.MapGet("/v1/admin/test-account-read", (HttpContext context, ServerAdminAccess admin) => admin.Authenticate(context) ? Results.Ok(new {safe = true}) : Results.Unauthorized());
+            app.MapPut("/v1/admin/test-account-confirmation", (HttpContext context, ServerAdminAccess admin) => admin.Authenticate(context) ? Results.NoContent() : Results.Unauthorized());
+            // Isolated transport harness exercises the same production live
+            // authority helper over real HTTPS/WebSocket without any provider.
+            app.MapGet("/v1/test-account-stream", async (HttpContext context, DeviceAccessStore access) =>
+            {
+                var deviceId = await DeviceAccessEndpoints.AuthenticateCurrentAsync(context, access);
+                if (deviceId is null) { context.Response.StatusCode = 401; return; }
+                using var socket = await context.WebSockets.AcceptWebSocketAsync(); var bytes = new byte[8];
+                while (true)
+                {
+                    var frame = await socket.ReceiveAsync(new ArraySegment<byte>(bytes), context.RequestAborted);
+                    if (frame.MessageType == WebSocketMessageType.Close) return;
+                    if (await DeviceAccessEndpoints.AuthenticateCurrentAsync(context, access) != deviceId)
+                    { await socket.CloseOutputAsync(WebSocketCloseStatus.PolicyViolation, "account_access_revoked", CancellationToken.None); return; }
+                    await socket.SendAsync(new ArraySegment<byte>(bytes, 0, frame.Count), WebSocketMessageType.Binary, true, context.RequestAborted);
+                }
+            });
             app.MapGet("/v1/test-account-simulation/{id}", async (string id, HttpContext context, TwinAccess access) =>
             {
                 var authorization = await TwinMediaEndpoints.ControlAsync(context, access, id, false);

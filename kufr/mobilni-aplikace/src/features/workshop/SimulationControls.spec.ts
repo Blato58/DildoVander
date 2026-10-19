@@ -15,6 +15,18 @@ describe('Workshop simulation command boundary', () => {
     expect(identity.refreshIdentity).not.toHaveBeenCalled();
     wrapper.unmount();
   });
+  it('offers text only as a labelled deterministic fixture and never posts retired integration text', async () => {
+    const wrapper = mount(SimulationControls, { props });
+    await wrapper.findAll('button').find(button => button.text() === 'Spustit syntetický vstup')!.trigger('click'); await flushPromises();
+    expect(identity.accountRequest).toHaveBeenCalledWith('/v1/twin/instances/sim-one/commands', 'POST', expect.objectContaining({ action: 'text' }));
+    identity.accountRequest.mockClear(); identity.refreshIdentity.mockClear();
+    await wrapper.setProps({ profile: 'integration' });
+    expect(wrapper.find('#simulation-text').exists()).toBe(false);
+    expect(wrapper.text()).toContain('Textový backend byl ukončen');
+    expect(wrapper.findAll('button').some(button => /vstup/.test(button.text()))).toBe(false);
+    expect(identity.accountRequest).not.toHaveBeenCalled(); expect(identity.refreshIdentity).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
   it.each([{ mode: 'live' }, { replay: true }, { canControl: false }])('hides controls across the %o boundary', async changed => {
     const wrapper = mount(SimulationControls, { props: { ...props, ...changed } });
     expect(wrapper.find('button').exists()).toBe(false);
@@ -34,6 +46,14 @@ describe('Workshop simulation command boundary', () => {
     const wrapper = mount(SimulationControls, { props });
     await wrapper.findAll('button').find(button => button.text() === 'Servisní inspekce simulace')!.trigger('click');
     await wrapper.setProps({ instanceId: 'sim-two' }); finish(); await flushPromises();
+    expect(identity.accountRequest).not.toHaveBeenCalled(); wrapper.unmount();
+  });
+  it('drops a pending deterministic text intent when the profile becomes integration', async () => {
+    let finish!: () => void;
+    identity.refreshIdentity.mockImplementation(() => new Promise<void>(resolve => { finish = resolve; }));
+    const wrapper = mount(SimulationControls, { props });
+    await wrapper.findAll('button').find(button => button.text() === 'Spustit syntetický vstup')!.trigger('click');
+    await wrapper.setProps({ profile: 'integration' }); finish(); await flushPromises();
     expect(identity.accountRequest).not.toHaveBeenCalled(); wrapper.unmount();
   });
   it('keeps urgent Stop usable while ordinary requests are pending or stale', async () => {

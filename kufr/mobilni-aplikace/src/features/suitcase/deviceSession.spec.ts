@@ -4,7 +4,7 @@ import type { DeviceSnapshot } from '../device_connection/FakeDeviceConnection';
 const harness = vi.hoisted(() => ({
   platform: 'web',
   saved: vi.fn(), forget: vi.fn(), pair: vi.fn(), setAddress: vi.fn(), discover: vi.fn(),
-  refreshBle: vi.fn(), stopDebug: vi.fn(), forgetProfile: vi.fn(),
+  refreshBle: vi.fn(), stopDebug: vi.fn(), forgetProfile: vi.fn(), disconnectBench: vi.fn(),
   adapters: [] as Array<{ connect: ReturnType<typeof vi.fn>; acquire: ReturnType<typeof vi.fn>;
     release: ReturnType<typeof vi.fn>; suspend: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn>; uncertain: string;
     publish: (value: DeviceSnapshot) => void }>,
@@ -24,12 +24,14 @@ vi.mock('../device_connection/NativeDeviceConnection', () => ({
 vi.mock('../provisioning/ProvisioningClient', () => ({
   ProvisioningClient: class { refreshLocalAddress = harness.refreshBle; show = vi.fn(); },
 }));
+vi.mock('./servoBench', () => ({ servoBench: { disconnect: harness.disconnectBench } }));
 let session: (typeof import('./deviceSession'))['deviceSession'];
 beforeEach(async () => {
   vi.resetModules(); vi.useFakeTimers(); vi.clearAllMocks(); harness.adapters = []; harness.platform = 'ios';
   harness.saved.mockResolvedValue({ paired: true, deviceId: 'kufr-1', host: '192.168.0.62' });
   harness.refreshBle.mockResolvedValue(true);
   harness.stopDebug.mockResolvedValue(undefined); harness.forgetProfile.mockResolvedValue(undefined);
+  harness.disconnectBench.mockResolvedValue(undefined);
   session = (await import('./deviceSession')).deviceSession;
 });
 afterEach(() => { session.dispose(); vi.useRealTimers(); vi.unstubAllGlobals(); });
@@ -74,6 +76,23 @@ describe('explicit device connection boundary', () => {
     await session.clearUserGrants(); expect(adapter.release).toHaveBeenCalled(); expect(adapter.suspend).toHaveBeenCalled();
     expect(harness.stopDebug).toHaveBeenCalledOnce(); expect(harness.forgetProfile).toHaveBeenCalledOnce();
     expect(harness.forget).not.toHaveBeenCalled(); expect(session.savedDevice.value.paired).toBe(true);
+  });
+  it('clears prior account content before a noncooperative bench disconnect or phone Stop completes', async () => {
+    await session.connectSaved();
+    const debug = (await import('./nativeDebug')).nativeDebug;
+    debug.status.value = { configured: true, running: true, session: true, phase: 'listening', mode: 'openai',
+      accessMode: 'account', transcript: [{ role: 'visitor', text: 'previous account guest' }], lastConversationId: 'private-id' };
+    const bench = deferred<void>(); const stop = deferred<void>();
+    harness.disconnectBench.mockReturnValue(bench.promise); harness.stopDebug.mockReturnValue(stop.promise);
+    const clearing = session.clearUserGrants();
+    expect(debug.status.value.transcript).toEqual([]); expect(debug.status.value.lastConversationId).toBeUndefined();
+    expect(debug.status.value.configured).toBe(false); expect(harness.stopDebug).toHaveBeenCalledOnce();
+    // A dynamic USB adapter load cannot delay native cancellation or redaction.
+    await Promise.resolve(); await Promise.resolve();
+    expect(harness.forgetProfile).not.toHaveBeenCalled();
+    bench.resolve(); stop.resolve(); await clearing;
+    expect(harness.disconnectBench).toHaveBeenCalledOnce(); expect(harness.forgetProfile).toHaveBeenCalledOnce();
+    expect(session.savedDevice.value.paired).toBe(true); expect(harness.forget).not.toHaveBeenCalled();
   });
   it('Stop is submitted once and remains pending across unrelated heartbeats until terminal evidence', async () => {
     await session.connectSaved(); const adapter = harness.adapters[0];

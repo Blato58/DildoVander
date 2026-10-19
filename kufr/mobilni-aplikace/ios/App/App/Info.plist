@@ -35,7 +35,7 @@
     <key>NSBluetoothPeripheralUsageDescription</key>
     <string>Bluetooth bezpečně nastaví Wi-Fi kufru přímo z iPhonu.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Po spuštění Realtime rozhovoru mikrofon průběžně posílá váš hlas serveru. Rozhovor můžete kdykoli zastavit.</string>
+    <string>Po spuštění vybraného rozhovoru mikrofon průběžně posílá váš hlas serveru. Rozhovor můžete kdykoli zastavit.</string>
     <key>NSCameraUsageDescription</key>
     <string>Jen po vašem souhlasu pořídíme fotku kostýmu. Schválenou fotku předáme serveru pro dočasnou nápovědu rozhovoru; neukládáme ji do galerie.</string>
     <key>NSBonjourServices</key>

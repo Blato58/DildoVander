@@ -22,6 +22,7 @@ vi.mock('../device_connection/NativeDeviceConnection', () => ({
 let wrapper: VueWrapper;
 const options = { global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } } };
 function button(label: string) { const found = wrapper.findAll('button').find(item => item.text() === label); if (!found) throw new Error(`Missing ${label}`); return found; }
+const engines = { schemaVersion: 1, primaryEngine: 'gpt-live', engines: ['gpt-live', 'realtime'].map(engine => ({engine, model: engine === 'gpt-live' ? 'gpt-live-1' : 'gpt-realtime-2.1', ready: true, voices: ['cedar', 'marin'], speed: {supported: engine === 'realtime', min: 1, max: 1, default: 1}, inputModes: ['audio'], cameraSources: ['phone']})) };
 const provisioningStatus = {
   v: 1, ok: true, deviceId: 'kufr-1', firmwareVersion: 'test',
   network: { phase: 'connected', ipv4: '192.168.0.62', activeProfile: 'hotspot', lastSuccessfulProfile: 'hotspot', result: 'ok',
@@ -42,7 +43,7 @@ beforeEach(async () => {
   harness.provisioning.disconnect.mockResolvedValue(undefined);
   harness.provisioning.pairLocal.mockImplementation(async () => { harness.paired = true; return { deviceId: 'kufr-1', host: '192.168.0.62' }; });
   harness.debug.status.mockResolvedValue({ configured: true, running: false, phase: 'idle', mode: 'fake',
-    server: { revision: 'rev-7', dialogMode: 'fake', voiceMode: 'fake', dialogAvailable: true, voiceAvailable: true,
+    engines, server: { revision: 'rev-7', engines,
       activeConversations: 0, lifetime: 'until_restart', personalityId: 'ollivander-trunk', characterEnabled: false,
       characterTone: 'Adult', characterFinaleProfile: 'Blocked', personalities: [] } });
   await deviceSession.disconnectBle(); deviceSession.snapshot.value = null;
@@ -80,7 +81,7 @@ describe('native Vue connection and service journeys', () => {
     expect(finale.findAll('option').map(item => item.attributes('value'))).toEqual(['Blocked', 'Limited']);
     await finale.setValue('Limited'); await button('Použít DV01 pro nové rozhovory').trigger('click'); await flushPromises();
     expect(harness.debug.changeServerModes).toHaveBeenCalledWith(expect.objectContaining({ expectedRevision: 'rev-7',
-      dialogMode: 'fake', voiceMode: 'fake', characterFinaleProfile: 'Limited', personalityId: 'ollivander-trunk' }));
+      characterFinaleProfile: 'Limited', personalityId: 'ollivander-trunk' }));
     expect(deviceSession.snapshot.value).toBeNull();
   });
   it('normal native diagnostics uses the signed-in exact-device account without a service credential or admin modes', async () => {
@@ -88,7 +89,7 @@ describe('native Vue connection and service journeys', () => {
     harness.debug.status.mockResolvedValue({ configured: false, running: false, phase: 'idle', mode: 'unknown', accessMode: 'none', server: null });
     harness.debug.useAccount.mockImplementation(async ({ deviceId }) => {
       harness.debug.status.mockResolvedValue({ configured: true, running: false, phase: 'idle', mode: 'openai',
-        accessMode: 'account', deviceId, dialogMode: 'responses', server: null });
+        accessMode: 'account', deviceId, engines, server: null });
     });
     wrapper = mount(DiagnosticsView, options); await flushPromises();
     expect(harness.debug.useAccount).not.toHaveBeenCalled();

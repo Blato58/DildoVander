@@ -2,11 +2,11 @@ import { computed, ref, shallowRef } from 'vue';
 import { registerPlugin } from '@capacitor/core';
 import { ServerLogBuffer, type ServerLogPage } from '../debug/ServerLogs';
 import { deviceSession } from './deviceSession';
+import type { ConversationEngine, EngineCapabilities, GuestMemoryBinding, MemoryInspection } from '../debug/conversationCapabilities';
 
 export interface ServerModes {
-  revision: string; dialogMode: 'fake' | 'responses'; voiceMode: 'fake' | 'openai';
-  dialogAvailable: boolean; voiceAvailable: boolean; activeConversations: number;
-  lifetime: 'until_restart'; personalityId?: string;
+  revision: string; engines?: EngineCapabilities; activeConversations: number;
+  lifetime: string; personalityId?: string;
   characterEnabled?: boolean; characterTone?: 'Reserved' | 'Dry' | 'Adult' | 'Chaos';
   characterFinaleProfile?: 'Limited' | 'Blocked';
   personalities?: Array<{ id: string; name: string; description: string; promptSha256: string }>;
@@ -14,7 +14,9 @@ export interface ServerModes {
 export interface DebugStatus {
   configured: boolean; running: boolean; session?: boolean; recording?: boolean; handsFree?: boolean;
   phase: string; mode: 'unknown' | 'fake' | 'openai'; errorCode?: string | null; costumeStatus?: string | null;
-  accessMode?: 'none' | 'account' | 'legacy-service'; deviceId?: string | null; dialogMode?: 'fake' | 'responses' | null;
+  accessMode?: 'none' | 'account' | 'legacy-service'; deviceId?: string | null; engines?: EngineCapabilities;
+  cameraActive?: boolean; imagePending?: boolean; inputActive?: boolean; outputActive?: boolean; toolActive?: boolean;
+  effectiveEngine?: string; effectiveModel?: string; sessionGeneration?: number; conversationId?: string; lastConversationId?: string;
   previousAccountCleanupPending?: boolean;
   transcript?: Array<{ role: 'kufr' | 'visitor'; text: string }>; selected?: number | null;
   audioOutput?: { route: string; volume: number; receivedSeconds: number; renderedSeconds: number; engineRunning: boolean } | null;
@@ -29,13 +31,14 @@ export interface DebugBridge {
   inspectEvenings(): Promise<void>; createEvening(options: { name: string; expectedEveningId: string }): Promise<void>;
   activateEvening(options: { eveningId: string; expectedEveningId: string }): Promise<void>;
   inspectBackend(): Promise<void>; inspectServer(): Promise<void>;
-  changeServerModes(options: { expectedRevision: string; dialogMode: string; voiceMode: string; personalityId?: string;
+  changeServerModes(options: { expectedRevision: string; personalityId?: string;
     characterEnabled?: boolean; characterTone?: string; characterFinaleProfile?: string; resetCharacterVariety?: boolean }): Promise<void>;
-  runOpeningSpeech(options: { expectedMode: 'fake' | 'openai' }): Promise<void>;
   captureCostumePhoto(): Promise<{ draftId: string | null }>; discardCostumePhoto(): Promise<void>;
-  startConversation(options: { expectedMode: 'fake' | 'openai'; readyMask: number; photoDraftId?: string; costumeDescription?: string;
-    voice: 'cedar' | 'marin' | 'onyx' | 'coral'; speed: number; engine: 'realtime' | 'gpt-live' | 'realtime-ptt' | 'chained' }): Promise<void>;
-  answerConversation(options: { text: string }): Promise<void>; startRecording(): Promise<void>; finishRecording(): Promise<void>;
+  attachCostumePhoto(options: { draftId: string }): Promise<{ status: string; imageId: string; revision: number }>;
+  inspectMemory(options: { conversationId: string }): Promise<MemoryInspection>;
+  deleteConversationMemory(options: { conversationId: string; expectedEpoch: number; confirm: true }): Promise<{ localDeletion: 'complete'; remoteDeletion: 'complete' | 'pending' }>;
+  startConversation(options: { expectedMode: 'openai'; readyMask: number; costumeDescription?: string;
+    voice: string; speed: number; engine: ConversationEngine; guestMemory?: GuestMemoryBinding; confirmGuestMemory?: true }): Promise<void>;
   speakSystem(): Promise<void>; stop(): Promise<void>; shareLog(options: { json: string }): Promise<void>;
 }
 export const debugBridge = registerPlugin<DebugBridge>('KufrDebug');
@@ -52,9 +55,16 @@ let generation = 0;
 let logGeneration = 0;
 let cancelling: Promise<void> | null = null;
 let listening = false;
+let privateStateBlocked = false;
 
 function redactGuest(value: DebugStatus): DebugStatus {
-  return { ...value, transcript: [], selected: null, timings: undefined, evenings: null, costumeStatus: null };
+  return { ...value, transcript: [], selected: null, timings: undefined, evenings: null, costumeStatus: null,
+    conversationId: undefined, lastConversationId: undefined };
+}
+function invalidatePrivateState(): void {
+  ++generation; privateStateBlocked = true;
+  status.value = { ...redactGuest(status.value), configured: false, accessMode: 'none', deviceId: null, engines: undefined, server: null };
+  clearLogs();
 }
 function visibility(): void {
   if (!document.hidden || !deviceSession.native) return;
@@ -70,7 +80,14 @@ async function refresh(): Promise<void> {
   if (!deviceSession.native) return;
   startLifecycle();
   const requested = generation;
-  try { const next = await debugBridge.status(); if (requested === generation) status.value = document.hidden ? redactGuest(next) : next; }
+  const blockedAtRequest = privateStateBlocked;
+  try {
+    const next = await debugBridge.status();
+    if (blockedAtRequest && !privateStateBlocked) return;
+    if (requested === generation) status.value = privateStateBlocked
+      ? { ...redactGuest(next), configured: false, accessMode: 'none', deviceId: null, engines: undefined, server: null }
+      : document.hidden ? redactGuest(next) : next;
+  }
   catch (error) { if (requested === generation) message.value = error instanceof Error ? error.message : 'Stav není dostupný.'; }
 }
 
@@ -101,19 +118,27 @@ function cancel(): Promise<void> {
 
 async function revokeUserGrants(): Promise<void> {
   if (!deviceSession.native) return;
+  invalidatePrivateState();
   await cancel();
-  ++generation; pending.value = true;
+  ++generation; pending.value = true; cancellationPending.value = false;
   status.value = { configured: false, running: false, phase: 'idle', mode: 'unknown' };
   clearLogs();
   try { await debugBridge.forgetProfile(); message.value = 'Testovací přístup odebraný. Párování kufru zůstává v Keychain.'; }
   finally { pending.value = false; }
 }
 
+function admitGrant(action: () => Promise<void>): Promise<void> {
+  if (!deviceSession.native || pending.value) return Promise.resolve();
+  const requested = ++generation;
+  return run(async () => { await action(); if (requested === generation) privateStateBlocked = false; });
+}
+
 export const nativeDebug = {
   status, pending, cancellationPending, message, logEntries, logGap, hasMore, droppedWrites, refresh, run, cancel,
-  useAccount: (deviceId: string) => run(() => debugBridge.useAccount({ deviceId })),
+  useAccount: (deviceId: string) => admitGrant(() => debugBridge.useAccount({ deviceId })),
+  configure: () => admitGrant(() => debugBridge.configure()),
   idle: computed(() => deviceSession.native && status.value.configured && !pending.value && !status.value.running && !status.value.session),
-  clearLogs, revokeUserGrants,
+  clearLogs, revokeUserGrants, invalidatePrivateState,
   dispose(): void { document.removeEventListener('visibilitychange', visibility); listening = false; },
   async readLogs(level: string): Promise<void> {
     const requested = generation;

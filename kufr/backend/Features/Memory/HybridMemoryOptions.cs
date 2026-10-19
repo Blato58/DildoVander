@@ -4,9 +4,9 @@ namespace Kufr.Backend.Features.Memory;
 
 internal sealed record HybridMemoryOptions
 {
-    public bool Enabled { get; init; }
+    public bool Enabled { get; init; } = true;
     public bool CloudIndexingEnabled { get; init; }
-    public bool LongTermPersonalEnabled { get; init; }
+    public bool LongTermPersonalEnabled { get; init; } = true;
     public string AppNamespace { get; init; } = "kufr";
     public string Environment { get; init; } = "Development";
     public string PersonalStoreId { get; init; } = "";
@@ -19,6 +19,8 @@ internal sealed record HybridMemoryOptions
     public int RetryBaseSeconds { get; init; } = 2;
     public int IndexPollSeconds { get; init; } = 2;
     public int IndexTimeoutSeconds { get; init; } = 120;
+    // Accepted only for compatibility with existing deployment configuration.
+    // User content has no automatic retention deadline.
     public int ConversationRetentionHours { get; init; } = 24;
     public int MotifRetentionDays { get; init; } = 1;
     public int PersonalRetentionDays { get; init; } = 30;
@@ -36,6 +38,11 @@ internal sealed record HybridMemoryOptions
         var result = config.GetSection("Backend:Memory").Get<HybridMemoryOptions>() ?? new();
         result = result with
         {
+            // Local persistence and explicitly permitted returning-guest recall
+            // are application invariants. Old deployment flags must not revive
+            // the dormant-memory architecture; cloud indexing remains opt-in.
+            Enabled = true,
+            LongTermPersonalEnabled = true,
             Environment = config["Backend:Memory:Environment"] ?? config["ASPNETCORE_ENVIRONMENT"] ?? config["DOTNET_ENVIRONMENT"] ?? "Production",
             PersonalStoreId = result.PersonalStoreId.Length > 0 ? result.PersonalStoreId : journal?.ReadSetting("memory_personal_store") ?? "",
             MotifStoreId = result.MotifStoreId.Length > 0 ? result.MotifStoreId : journal?.ReadSetting("memory_motif_store") ?? ""
@@ -51,8 +58,7 @@ internal sealed record HybridMemoryOptions
             || result.TimeoutSeconds is < 1 or > 60 || result.Concurrency is < 1 or > 4
             || result.MaxAttempts is < 1 or > 20 || result.RetryBaseSeconds is < 1 or > 60
             || result.IndexPollSeconds is < 1 or > 30 || result.IndexTimeoutSeconds is < 10 or > 600
-            || result.ConversationRetentionHours is < 1 or > 720 || result.MotifRetentionDays is < 1 or > 30
-            || result.PersonalRetentionDays is < 1 or > 365 || result.MaxWritesPerDay is < 1 or > 2_000
+            || result.MaxWritesPerDay is < 1 or > 2_000
             || result.MaxSearchesPerDay is < 1 or > 1_000 || result.MaxUploadsPerDay is < 1 or > 2_000
             || result.MaxStoredBytes is < 2_000 or > 2_000_000 || result.MaxRecordBytes is < 200 or > 2_000
             || result.MaxPendingJobs is < 1 or > 10_000)
@@ -62,7 +68,7 @@ internal sealed record HybridMemoryOptions
 }
 
 internal enum MemoryScope { Conversation, EveningMotif, Personal }
-internal enum MemoryKind { UserReportedFact, ConfirmedSelection, TopicUsed, FictionalJoke, LegacyUnverified }
+internal enum MemoryKind { UserReportedFact, ConfirmedSelection, TopicUsed, FictionalJoke, LegacyUnverified, ModelInterpretation, VisualObservation, ProposedChoice, PendingQuestion }
 internal sealed record GuestMemoryPermission(string DeviceId, string ConversationId, string GuestId,
     bool IdentityVerified, bool LongTermAllowed, bool CloudExportAllowed, long Version);
 internal sealed record MemoryAccess(string DeviceId, string EveningId, string ConversationId,
@@ -72,11 +78,13 @@ internal sealed record MemoryRecord(string MemoryId, MemoryScope Scope, string D
     string SourceReference, DateTimeOffset CreatedAt, DateTimeOffset ExpiresAt, long Revision,
     bool IsActive, string? Supersedes, bool UseAllowed, bool ExportAllowed, long PermissionVersion, string AppNamespace = "");
 internal sealed record MemoryWrite(string MemoryId, MemoryScope Scope, MemoryKind Kind, string Text,
-    string SourceReference, long ExpectedRevision = 0, long? ExpectedEpoch = null);
+    string SourceReference, long ExpectedRevision = 0, long? ExpectedEpoch = null, long? ExpectedDeletionEpoch = null,
+    long? ExpectedFactEpoch = null);
 internal sealed record MemoryIndexJob(long Id, string MemoryId, long Revision, string StoreId, string Action,
     int Attempts, string Filename, string? FileId, string State);
 internal sealed record MemoryProviderStatus(string Provider, bool Configured, bool Degraded,
-    string ConfigurationStatus, DateTimeOffset? LastVerifiedAt, int Pending, int Failed, int Deleting);
+    string ConfigurationStatus, DateTimeOffset? LastVerifiedAt, int Pending, int Failed, int Deleting,
+    long StoredBytes = 0, long CapacityBytes = 0, long RejectedWrites = 0);
 
 internal static class AnonymousMotifs
 {

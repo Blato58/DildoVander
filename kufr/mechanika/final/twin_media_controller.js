@@ -18,7 +18,7 @@
     }
     return url.href;
   }
-  function createMediaController({transport,onChange=()=>{},video=()=>null,document=root.document}) {
+  function createMediaController({transport,onChange=()=>{},video=()=>null,document=root.document,parseEngines}) {
     let context=null, sourceKey='', configuration=null, actor=null, generation=0, failure='', notice='Média nejsou aktivovaná.';
     let audio=null, mic=null, camera=null, captureNode=null, captureSource=null, silentGain=null, speakerReady=false, workletReady=false;
     let listen=false, uploading=false, inFlightBytes=0, inputSequence=0n, retiredInputEpoch=null, lastSequence=null, timer=null, reading=false, pollCount=0;
@@ -30,19 +30,38 @@
     const selections = {engine:'fake',voice:'cedar',speed:'1',variant:'main',consent:false,micDevice:'',speakerDevice:'',cameraDevice:''};
     let deviceOptions={mic:[],speaker:[],camera:[]}, dialogue=[];
     const actions={}; let disposed=false;
+    function readSettings(value) {
+      const parsed=settings(value);
+      if (parseEngines) parsed.engines=parseEngines(value.engines);
+      return parsed;
+    }
+    function capability(engine) { return configuration?.engines?.engines.find(item=>item.engine===engine); }
+    function providerReady(value) {
+      const name=value.engine==='gpt-live'?'gptLive':value.engine;
+      if (!configuration?.availability[name]) return false;
+      if (!parseEngines || value.engine==='fake') return true; // Legacy standalone compatibility; Vue always supplies the canonical parser.
+      const selected=capability(value.engine);
+      return selected?.ready===true && selected.inputModes.includes('audio') && selected.voices.includes(value.voice) &&
+        +value.speed>=selected.speed.min && +value.speed<=selected.speed.max && (selected.speed.supported || +value.speed===selected.speed.default);
+    }
+    function unsavedSettings() {
+      return !configuration || selections.engine!==configuration.engine || selections.voice!==configuration.voice || +selections.speed!==configuration.speed ||
+        selections.variant!==configuration.presentationVariant || selections.consent!==configuration.photoConsent;
+    }
+    function cameraSupported() { return !parseEngines || configuration?.engine==='fake' || capability(configuration?.engine)?.cameraSources.includes('phone')===true; }
     function render() {
       const busy=!!actor || pendingStart || saving || activationBusy;
       const disabled={save:!eligible() || busy || !configuration,reload:!control() || busy,
         engine:!eligible() || busy || !configuration,voice:!eligible() || busy || !configuration,
         variant:!eligible() || busy || !configuration,consent:!eligible() || busy || !configuration,
-        speed:!eligible() || busy || !configuration || selections.engine==='gpt-live',
+        speed:!eligible() || busy || !configuration || (parseEngines && selections.engine!=='fake' ? capability(selections.engine)?.speed.supported!==true : selections.engine==='gpt-live'),
         mic:!eligible() || busy || !!mic || configuration?.availability.mic!==true,
         speaker:!eligible() || busy || speakerReady || configuration?.availability.speaker!==true,
         devices:!eligible() || busy,micDevice:!eligible() || busy,cameraDevice:!eligible() || busy,
         speakerDevice:!eligible() || busy || !audio?.setSinkId,
-        start:!eligible() || busy || !mic || !speakerReady || !configuration || audio?.state!=='running',
+        start:!eligible() || busy || !mic || !speakerReady || !configuration || audio?.state!=='running' || unsavedSettings() || !providerReady(configuration),
         stop:!actor && !pendingStart && !activationBusy && !mic && !camera && !audio,
-        camera:!eligible() || !photoRequest || !!camera || activationBusy || configuration?.availability.camera!==true,
+        camera:!eligible() || !photoRequest || !!camera || activationBusy || configuration?.availability.camera!==true || !cameraSupported(),
         capture:!photoRequest || !camera,accept:!photoRequest || !photoBlob,retake:!photoBlob,skipPhoto:!photoRequest};
       if (!disposed) onChange({visible:control(),eligible:eligible(),disabled,settings:{...selections},devices:deviceOptions,
         configuration,dialogue:[...dialogue],previewUrl:photoUrl,photoRequested:!!photoRequest,
@@ -100,7 +119,7 @@
       if (!control()) return;
       const own=generation, id=context.instanceId;
       try {
-        const value=settings(await request(id,'/settings'));
+        const value=readSettings(await request(id,'/settings'));
         if (own!==generation) return;
         configuration=value;
         selections.engine=value.engine; selections.voice=value.voice; selections.speed=String(value.speed);
@@ -284,16 +303,21 @@
       captureNode=null; captureSource=null; silentGain=null;
       const previous=mic; mic=null; for (const track of previous?.getTracks() || []) track.stop(); render();
     };
-    actions['engine-change']=()=>{ if (selections.engine==='gpt-live') selections.speed='1'; render(); };
+    actions['engine-change']=()=>{
+      const selected=capability(selections.engine);
+      if (selected && !selected.speed.supported) selections.speed=String(selected.speed.default);
+      else if (selections.engine==='gpt-live') selections.speed='1';
+      render();
+    };
     actions['save']=async event=>{
       event?.preventDefault?.(); if (!eligible() || actor || pendingStart || saving || !configuration) return;
-      const selectedEngine=selections.engine, capability=selectedEngine==='gpt-live'?'gptLive':selectedEngine;
-      if (!configuration.availability[capability]) { failure='Zvolený provider není dostupný.'; render(); return; }
+      const selectedEngine=selections.engine;
+      if (!providerReady(selections)) { failure='Zvolený engine, hlas nebo tempo nejsou dostupné. Ověřte schopnosti a autorizaci serveru.'; render(); return; }
       const own=generation; saving=true; render();
       try {
         const value=await request(context.instanceId,'/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({expectedRevision:configuration.revision,
           engine:selectedEngine,voice:selections.voice,speed:+selections.speed,photoConsent:selections.consent,presentationVariant:selections.variant})});
-        if (own===generation) { configuration=settings(value); failure=''; notice='Nativní nastavení uloženo.'; }
+        if (own===generation) { configuration=readSettings(value); failure=''; notice='Nativní nastavení uloženo.'; }
       } catch(error) { if (own===generation) failure=error.message; }
       finally { if (own===generation) { saving=false; render(); } }
     };
@@ -342,11 +366,10 @@
     };
     actions['start']=async()=>{
       if (!eligible() || actor || pendingStart || !mic || !speakerReady || !configuration || audio?.state!=='running') return;
-      const capability=configuration.engine==='gpt-live'?'gptLive':configuration.engine;
-      if (!configuration.availability[capability]) { failure='Provider není dostupný.'; render(); return; }
+      if (unsavedSettings() || !providerReady(configuration)) { failure='Nejdříve uložte podporované nastavení; vybraný engine se automaticky nemění.'; render(); return; }
       const own=generation; admission={operationId:root.crypto.randomUUID(),expectedBootId:context.bootId}; pendingStart=true; render();
       try {
-        const cameraCapable=configuration.photoConsent && configuration.availability.camera && !!root.navigator?.mediaDevices?.getUserMedia &&
+        const cameraCapable=configuration.photoConsent && configuration.availability.camera && cameraSupported() && !!root.navigator?.mediaDevices?.getUserMedia &&
           typeof document.createElement('canvas').getContext==='function';
         const value=await request(context.instanceId,'/media/start',json({...admission,audioConsent:true,photoConsent:configuration.photoConsent,
           micAvailable:true,speakerAvailable:true,cameraAvailable:cameraCapable}));
@@ -357,7 +380,7 @@
     };
     actions['stop']=()=>cancel();
     actions['camera']=async()=>{
-      if (!eligible() || !photoRequest || camera || activationBusy || configuration?.availability.camera!==true) return;
+      if (!eligible() || !photoRequest || camera || activationBusy || configuration?.availability.camera!==true || !cameraSupported()) return;
       const own=generation, requested=photoRequest; activationBusy=true; render();
       try {
         const device=selections.cameraDevice;

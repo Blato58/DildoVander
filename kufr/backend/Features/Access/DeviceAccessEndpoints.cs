@@ -39,6 +39,14 @@ internal static class DeviceAccessEndpoints
             : null;
     }
 
+    public static async Task<string?> AuthenticateCurrentAsync(HttpContext context, DeviceAccessStore access)
+    {
+        var deviceId = Authenticate(context, access);
+        if (deviceId is null || context.Request.Headers.ContainsKey("Authorization")) { return deviceId; }
+        return await Kufr.Backend.Features.Identity.AccountResourceAuthorization.HasCurrentDevicePermissionAsync(context, deviceId)
+            ? deviceId : null;
+    }
+
     private static bool TryReadBearer(HttpContext context, out string token)
     {
         token = string.Empty;

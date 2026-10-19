@@ -56,7 +56,7 @@ internal sealed class OpenAiRealtimeClient : IDisposable
         {
             throw new InvalidOperationException("Realtime is unavailable.");
         }
-        return new OpenAiRealtimeConnection(await connect(token), token);
+        return new OpenAiRealtimeConnection(await connect(token), token, connect);
     }
 
     internal async Task<RealtimeReply> GenerateAsync(

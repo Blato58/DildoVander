@@ -16,7 +16,7 @@ publication are in the [release guide](../web/deploy/APPLICATION-RELEASES.md).
 
 | Area | Actual checks and boundary |
 | --- | --- |
-| Shared Vue application | `npm ci`, `npm test`, `npm run build` on Node 24.21.0; final 88 Node regressions and 122 Vue tests passed. Real components, retained protocol regressions, strict compiled CSP and lazy feature routes. |
+| Shared Vue application | `npm ci`, final `npm test`, `npm run build` on Node 24.21.0; final 89 Node regressions and 148 Vue tests across 27 files passed. The standalone build checked contracts, Vue types and 172 Vite modules without CAD. Real components, retained protocol regressions, strict compiled CSP and lazy feature routes. |
 | Rendered application | `npm run test:browser`: shared navigation, direct reload, legacy destinations, unknown routes, early private claim capture, explicit demo, focus across heartbeats, stale confirmation, Stop, theme, keyboard, 1440/390/320 px layouts and 200% text. The shell measures the bottom navigation so enlarged labels do not conceal the end of the page. |
 | Accounts | `npm run test:accounts:fixture`: actual HTTPS backend, controlled private owner delivery, Chrome virtual WebAuthn authenticator, real passkey verifier and naming, invitation/replay denial, Viewer authorization, logout and safe return. A held real logout response proves that a new sign-in waits for its cookie update. Fixture configuration excludes providers; its normal shutdown removes its private temporary database and keys. |
 | Backend | Build with zero warnings/errors; default regression and `--identity`, `--keepsake`, `--model-releases`, `--twin`, `--twin-media`. Tests cover real P256 WebAuthn, roles/grants/CSRF/origins, concurrency, recovery, last-owner/key rules, migration/backup restoration, private archive tickets/assets and revocation. |
@@ -30,9 +30,22 @@ publication are in the [release guide](../web/deploy/APPLICATION-RELEASES.md).
 
 The browser suites block external traffic. Paid providers, real actuator
 execution and manufacturing publication were not part of these checks.
-The final backend `--identity` run includes the final naming/recovery endpoints;
-the broader legacy default, twin and media runs preceded that bounded change.
-They retain their actual scope rather than being presented as new native proof.
+The final integration preserves main revision
+`09a7cb32c7148b812ebbcd1326d3e16ba8d4ba9a`: the canonical GPT Live and
+Realtime engines, persistent native audio WebSockets and scoped conversation
+memory. After this integration, the backend build, full default regressions,
+`--identity`, `--twin` and `--twin-media` passed against the rebuilt genuine
+portable C++ executable. Account WebSockets revalidate persisted sessions,
+roles and device grants before further audio. Retired modes remain rejected.
+These checks do not contact an AI provider or establish native device acceptance.
+
+The combined source review found no remaining actionable findings. Delayed
+cleanup and delayed status responses have dedicated regressions: changing an
+account synchronously redacts private phone state before awaiting USB/native
+cleanup, and old responses cannot populate the next account. A compiled native
+bridge fixture exercises both current engines, actual consent flags, photo
+attach/discard and administration at desktop/mobile widths. Its native bridge
+is synthetic and does not establish UIKit or microphone acceptance.
 
 PR CI run `39194919939` passed the complete backend checks but exposed failures
 in Linux legacy-site subprocess startup, CAD packaging fixtures, the Swift Debug
@@ -52,7 +65,8 @@ including non-`.json` assets. They do not execute Foundation TLS/delegate behavi
 - Windows cannot run Xcode or the Swift harnesses. The macOS job in PR run
   `39196137977` passed native transport, Debug, BLE policy, Identity and the
   unsigned iOS Simulator build. `KUFR-APPLICATION-native-v1` records that software
-  result separately; signed-device acceptance remains inconclusive.
+  result separately for the earlier source; the merged native changes require
+  a fresh macOS run. Signed-device acceptance remains inconclusive.
 - Actual passkey associated domains, signing, Keychain upgrade/resume behavior,
   physical BLE possession, LAN reachability, iPhone audio/camera and real hardware
   remain device acceptance steps. Browser and portable C++ tests do not prove them.

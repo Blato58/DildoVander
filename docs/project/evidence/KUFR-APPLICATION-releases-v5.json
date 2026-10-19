@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-APPLICATION-releases-v5",
+  "observedAtUtc": "2026-10-19T04:48:06.468656+00:00",
+  "kind": "integration",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "RELEASES",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "applicationArtifactDigest": "cc3076a283b839baacb210deade4f03193782b744e63da86c3644b0863f09fe3",
+    "releaseArtifactDigest": "4b38c9433e689c613f846a09f8897d3f7f4ffd4580f12ada00a20df1464d4746"
+  },
+  "method": "Final deployment unittest discovery; compiled site+actual dist inputs; select/site-workflow/UI-boundary/CAD-impact regressions; model export/proof/source/generation fixtures; contract differential checks; pinned Gitleaks regressions and merged-ancestry scan.",
+  "environment": "Windows 11; Node24.21.0, Chrome Playwright, .NET10, MSVC genuine portable C++ twin; isolated loopback and temporary stores.",
+  "limitations": [
+    "No production deployment, provider call, credential rotation, firmware flashing or real actuator execution.",
+    "Virtual WebAuthn and native bridge fixtures are synthetic; portable C++ is genuine software integration, not signed iPhone or physical BLE/audio/assembly proof.",
+    "Canonical source snapshot normalizes UTF-8 text to LF and retains binary bytes. Compiled artifacts and platform builds have their own evidence.",
+    "Windows skips POSIX atomic symlinks; actual nginx/TLS/VPS and first schema1->2 cutover remain deployment checks. CAD toolchain unavailable locally; prior PR39197261673 all CI passed for pre-integration1fa; final merged source requires new Linux CAD/native CI."
+  ],
+  "observation": "PASS37deployment(1Windows atomic-symlink skip),5site+1actual47filedist;15selector+9workflow+2boundary+9CADimpact;14entrypoint noCAD check;13focused model/proof/source/generation tests. Contracts31valid44invalid2136differential passed including actual conversation.ack410 fixture/CSP noeval. Tokens/design/compiledDV10claimCSP passed. Tracking58PASS. PinnedGitleaks8.30.1 17regressions passed and both merged ancestries1fa+09a zero findings; final mergeHEAD scan is a separate gate. Exact six added proxy routes,900s audio upgrades,narrow scope/subject constraints preserve no blanket APIproxy.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-APPLICATION-source-v6.json",
+    "docs/project/artifacts/KUFR-APPLICATION-runtime-v4.json",
+    "kufr/docs/application-verification.md"
+  ],
+  "supersedes": [
+    "KUFR-APPLICATION-releases-v4"
+  ],
+  "supersedesReason": "Accepted main09a7cb engine/audio/memory integration changes source identities. Fresh final checks and bounded independent review replace prior software receipts; old evidence remains immutable."
+}

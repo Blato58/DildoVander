@@ -52,6 +52,7 @@ class PublicWorkflowTests(unittest.TestCase):
         validate(ROOT)
         source = (WORKFLOWS / 'kufr-site.yml').read_text()
         self.assertIn('npm run build', source)
+        self.assertIn('node tests/debug.browser.mjs', source)
         self.assertNotIn('--base=/companion/', source)
         self.assertNotIn('verify-manufacturing', source)
         self.assertIn('site, cad]', (WORKFLOWS / 'ci.yml').read_text().split('  required:', 1)[1])
