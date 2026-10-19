@@ -183,6 +183,20 @@ vstupní formát do24kHz mono. Generace oplocují pozdní callbacky. Interruptio
 route změna, background a modal kamery jsou rozlišené; po neobnovitelné změně
 je dostupný výslovný restart. Kamera permission/capture/retake/analýza jsou
 volitelné a nesmí ukončit zdravý hlas. Staré audio se po cancel neobnoví.
+Odebrání fotografie ruší probíhající odpověď a posílá oběma enginům společný
+`audio_cancel` s rostoucí `responseGeneration` a příslušnou `visualRevision`.
+Obyčejné přerušení řeči bez visualRevision nesmí předčasně uvolnit čekání
+na odebrání fotografie. Klient vyprázdní playback a
+odmítne starší audio/started/completed; `/played` potvrzuje stejnou generaci.
+Backend obnoví pouze provider spojení bez odvolané fotografie a odvozených
+odpovědí; app relace hosta a vstupní transport zůstávají. Samotná změna
+instrukcí není zárukou odstranění již připravené řeči. Opakování uploadu
+stejného schváleného konceptu používá nový immutable image ID a vyšší revizi,
+přičemž zachová původní capture time a soukromý archiv předchozího pokusu.
+Při vynuceném resetu nemusí staré provider spojení doručit závěrečné usage.
+Audit v takovém případě ponechá konzervativní rezervaci za přerušené spojení;
+`costMicroUsd` není doklad skutečně vyúčtované částky. Skutečnou spotřebu
+určuje OpenAI účet. Tento odhad nezavádí místní peněžní limit.
 Playback ACK popisuje klientské dohrání. Přesné zarovnání každého textového
 slova se skutečně slyšeným PCM není prokázané; generovaný přepis není doklad
 celého poslechu ani fyzické akce.
@@ -200,6 +214,48 @@ retake→orientation→analysis→využití správné fotky, speaker/headphones/
 background/lock/network a dlouhé opakované cykly. Kufr má vlastní nezávislý
 audio/camera/presentation test; simulovaná dostupnost není fyzické měření.
 Přesné příkazy, výsledek běhů, release a mezery jsou v aktuálním tracking receipt.
+
+## Dokončení externí přejímky
+
+Následující postup čeká na samostatně autorizované nasazení, podepsání/instalaci
+na iPhone a placené provider relace. Metadata modelu ani zelené CI tyto kroky
+nenahrazují. Zapiš Git tree backendu, verzi/build nainstalované aplikace,
+model/hlas, iOS/model telefonu, audio route a u kufru firmware digest/revizi
+zapojení. Použij výhradně syntetického hosta a zaznamenej UTC a technické ID
+relace; credentialy, audio ani fotografie nepatří do diagnostického reportu.
+
+1. V iOS **Debug** obnov stav serveru a zvol **GPT Live**. Zahaj nový rozhovor,
+   proveď nejméně čtyři výměny, sděl syntetický fakt, oprav ho a ověř pozdější
+   odpověď. Opakuj po výslovném přepnutí na **Realtime 2.1**; ověř efektivní
+   model, žádný automatický fallback a srozumitelnou chybu při nedostupnosti.
+   V obou případech ověř skutečný katalog a zamítnutí neplatné/nedostupné hůlky.
+2. S výslovně ověřeným testovacím guest ID a souhlasem ukonči relaci a vrať
+   stejného hosta; v inspektoru ověř opravený fakt. Nový anonymní host nesmí
+   obdržet jeho osobní obsah. Ručně smaž testovací paměť/archiv a ověř po
+   restartu backendu i po dokončení dříve čekající práce, že se obsah nevrátil.
+3. V každém enginu pořiď fotku před i během řeči: první souhlas, zamítnutí a
+   návrat ze Settings, přední/zadní kamera, portrét/krajina, retake a Cancel.
+   Ověř postup uploading→analysing→available a použití právě této revize.
+   Přeruš přenos, opakuj stejný koncept a odeber fotku při mluvení: stará řeč
+   musí skončit, hlasová relace zůstat použitelná a pozdní výsledek nesmí
+   přejít k novému hostovi. Soukromý archiv smaž samostatnou ruční operací.
+4. Proveď přerušení vlastní řečí, delší pauzu, šum a zpoždění nástroje;
+   opakuj se speakerem, sluchátky a Bluetooth. Během běžící relace vyvolej
+   camera modal, background/foreground, lock/unlock, změnu route, ztrátu
+   sítě a latenci nad200ms. Ověř bounded recovery nebo výslovný restart,
+   žádné obnovení zrušeného audia, duplicitní tah ani záměnu hosta. Opakuj
+   deset cyklů start/stop/nový host a porovnej počty otevřených relací,
+   audio resources a velikost front; zaznamenej délku a pozorovaný výsledek.
+5. Samostatně na identifikovaném ESP32 ověř přímý backend audio/camera tok,
+   poloduplex bez AEC a výběr1–6 proti aktuálnímu snapshotu a kalibraci.
+   Odpoj pozorovatelský telefon; kufr má pokračovat autonomně. Stop/chyba
+   nesmí být vydávány za dokončenou prezentaci. Fyzický výsledek a časované,
+   neměřené polohy zapisuj odděleně od simulátoru a provider přepisu.
+
+Kroky1–2 pokrývají scénáře1–6 původního zadání, kroky3–4 scénáře7–11 a13,
+krok5 scénář12. Každý neprovedený bod zůstává neověřený; výsledek musí
+uvést konkrétní engine a zařízení. Přesné přiřazení slyšených slov k PCM se
+netvrdí, pokud bylo zjištěno pouze vygenerování nebo zařazení do fronty.
 
 ## Ověřené oficiální kontrakty (19.10.2026)
 

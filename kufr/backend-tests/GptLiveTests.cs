@@ -41,8 +41,27 @@ internal static class GptLiveTests
         AutonomousLiveTests.VerifyLiveSpeedAdmission();
         VerifyAudioFrames();
         await VerifyOrderedAudioAsync();
+        await VerifyResetBeforeReadyAsync();
         await VerifyAttachedStreamAsync();
         Console.WriteLine("Live production selection, startup and persistent audio frame tests passed.");
+    }
+
+    private static async Task VerifyResetBeforeReadyAsync()
+    {
+        using var first = new AudioSocket(); using var second = new AudioSocket(); using var third = new AudioSocket();
+        var sockets = new Queue<WebSocket>([second, third]);
+        await using var connection = new GptLiveConnection(first, _ => Task.FromResult(sockets.Dequeue()));
+        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var old = connection.SendAudioAsync(new byte[2], lifetime.Token);
+        await connection.RestartAsync(1, lifetime.Token);
+        await old.WaitAsync(lifetime.Token);
+        var middle = connection.SendAudioAsync(new byte[2], lifetime.Token);
+        await connection.RestartAsync(2, lifetime.Token);
+        await middle.WaitAsync(lifetime.Token);
+        connection.AudioReady();
+        await connection.SendAudioAsync(new byte[2], lifetime.Token);
+        Check(first.Sent.Count == 0 && second.Sent.Count == 0 && third.Sent.Count == 1,
+            "rapid revoke before readiness retires queued PCM and releases old readiness waiters");
     }
 
     private static void VerifyAudioFrames()

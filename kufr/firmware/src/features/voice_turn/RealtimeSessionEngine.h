@@ -23,6 +23,7 @@ class RealtimeSessionEngine final {
   bool SendInput(const std::vector<uint8_t>& pcm, uint32_t capturedEpoch);
   bool Uploading() const { return uploading_.load(); }
   uint32_t InputEpoch() const { return inputEpoch_.load(); }
+  uint64_t ResponseGeneration() const { return responseGeneration_; }
   bool Failed() const { return failed_.load(); }
   bool Closed() const { return closed_; }
   void Fail() { failed_.store(true); }
@@ -45,6 +46,7 @@ class RealtimeSessionEngine final {
   std::atomic<bool> stop_{false}, uploading_{false}, failed_{false};
   std::atomic<uint32_t> inputEpoch_{0};
   bool sessionSeen_ = false, terminal_ = false, closed_ = false;
+  bool responseRestartPending_ = false;
   unsigned sequence_ = 0, turns_ = 0;
   size_t audioBytes_ = 0, inputBytes_ = 0;
   uint64_t responseGeneration_ = 0;

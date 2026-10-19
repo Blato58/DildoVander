@@ -269,12 +269,13 @@ internal sealed class HybridMemoryService(EveningMemoryStore store, OpenAiVector
 
     internal void ClearCache() => cache.Clear();
     internal string BuildContext(MemoryAccess access, IEnumerable<MemoryRecord>? retrieved = null, ISet<string>? delivered = null,
-        int? tokenBudget = null)
+        int? tokenBudget = null, bool literalOnly = false)
     {
         var limit = Math.Min(options.ContextTokens, tokenBudget ?? options.ContextTokens);
         var rows = store.LocalMemory(access, MemoryScope.Conversation)
             .Concat(retrieved ?? store.LocalMemory(access)).DistinctBy(r => (r.MemoryId, r.Revision))
-            .Where(r => store.CurrentMemory(r.MemoryId) is { } current && current.Revision == r.Revision && store.IsPermitted(current, access));
+            .Where(r => (!literalOnly || r.Kind is MemoryKind.UserReportedFact or MemoryKind.ConfirmedSelection)
+                && store.CurrentMemory(r.MemoryId) is { } current && current.Revision == r.Revision && store.IsPermitted(current, access));
         var selected = new List<string>(); var used = 32;
         foreach (var row in rows)
         {
@@ -302,6 +303,15 @@ internal sealed class HybridMemoryService(EveningMemoryStore store, OpenAiVector
         }
         return string.Join("\n", selected);
     }
+    internal LiveMemoryContext RecoveryContext(MemoryAccess access)
+    {
+        if (!options.Enabled) { return new("", []); }
+        var records = store.LocalMemory(access).Where(record => record.Kind is
+            MemoryKind.UserReportedFact or MemoryKind.ConfirmedSelection);
+        var delivered = new HashSet<string>(StringComparer.Ordinal);
+        return new(BuildContext(access, records, delivered, literalOnly: true), delivered.ToArray());
+    }
+
     internal Task<LiveMemoryContext> StartupContextAsync(MemoryAccess access, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();

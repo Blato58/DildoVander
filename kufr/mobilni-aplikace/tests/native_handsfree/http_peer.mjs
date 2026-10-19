@@ -16,6 +16,7 @@ const ids = {
 let stream; let played = 0; let uploads = 0; let cleanup = 0;
 let livePlayed = 0; let liveUploads = 0;
 let actorActive = false; let actorCheckpoints = 0;
+let revocationPlayed = 0; let revocationOpening; let revocationStream;
 let regressionUploads = 0; let redirected = 0;
 const regressionSockets = new Set();
 function correlation(clientTurnId) { return { deviceId: 'debug-test', bootId: ids.boot, conversationId: ids.conversation, clientTurnId, generation: 0, deviceRevision: 0 }; }
@@ -28,6 +29,64 @@ function answer(input, operation, terminal) {
     result: { reply: `reply-${uploads}`, decision: terminal ? 'no_selection' : 'ask', reason: '', proposal: null } });
 }
 const server = createServer((request, response) => {
+  if (request.url.startsWith('/revocation/')) {
+    const emit = value => revocationStream.write(`${JSON.stringify(value)}\n`);
+    const scope = input => ({ ...correlation(input), clientTurnId: input });
+    const start = (operation, input, generation, sample) => {
+      emit({ type: 'started', operationId: operation, correlation: scope(input), responseGeneration: generation });
+      emit({ type: 'audio', delta: Buffer.from([sample, 0]).toString('base64'), responseGeneration: generation });
+    };
+    const complete = (operation, input, generation, terminal) => emit({ type: 'completed', operationId: operation,
+      correlation: scope(input), responseGeneration: generation, costMicroUsd: 1,
+      result: { reply: `revocation-${generation}`, decision: terminal ? 'no_selection' : 'ask', reason: '', proposal: null } });
+    if (request.method === 'POST' && request.url.endsWith('/realtime-live')) {
+      const chunks = []; request.on('data', chunk => chunks.push(chunk)); request.on('end', () => {
+        revocationOpening = JSON.parse(Buffer.concat(chunks)).clientTurnId;
+        revocationStream = response; response.writeHead(200, { 'Content-Type': 'application/x-ndjson' });
+        emit({ type: 'session', streamId: ids.stream, audioFormat: 'pcm16-mono-24000' });
+        start(ids.operation0, revocationOpening, 0, 1);
+      }); return;
+    }
+    if (request.method === 'DELETE' && request.url.endsWith('/image')) {
+      request.resume();
+      // An ordinary barge-in marker can arrive after local mute but before the
+      // DELETE barrier. It must not release photo-dependent output.
+      emit({ type: 'audio_cancel', responseGeneration: 1 });
+      start(ids.operation0, revocationOpening, 1, 97);
+      complete(ids.operation0, revocationOpening, 1, true);
+      emit({ type: 'audio_cancel', responseGeneration: 2, visualRevision: 1 });
+      emit({ type: 'audio_cancel', responseGeneration: 2, visualRevision: 1 });
+      emit({ type: 'visitor', text: 'revoked visitor', responseGeneration: 0 });
+      emit({ type: 'speech_started', inputId: ids.input2, responseGeneration: 0 });
+      emit({ type: 'speech_stopped', inputId: ids.input2, responseGeneration: 0 });
+      emit({ type: 'closed', reason: 'conversation_terminal', responseGeneration: 0 });
+      // Delayed chunks and completed metadata from the revoked provider cannot
+      // become playback or a transcript in the replacement response.
+      emit({ type: 'started', operationId: ids.operation0, correlation: scope(revocationOpening), responseGeneration: 0 });
+      emit({ type: 'audio', delta: Buffer.from([99, 0]).toString('base64'), responseGeneration: 0 });
+      complete(ids.operation0, revocationOpening, 0, true);
+      start(ids.operation0, revocationOpening, 2, 2);
+      complete(ids.operation0, revocationOpening, 2, false);
+      response.writeHead(204).end(); return;
+    }
+    if (request.method === 'POST' && request.url.endsWith('/played')) {
+      const chunks = []; request.on('data', chunk => chunks.push(chunk)); request.on('end', () => {
+        const body = JSON.parse(Buffer.concat(chunks)); revocationPlayed++;
+        if (body.responseGeneration !== revocationPlayed + 1) throw new Error('Playback generation mismatch');
+        if (revocationPlayed === 1) {
+          emit({ type: 'listening', inputId: ids.input1, responseGeneration: 2 });
+          emit({ type: 'audio_cancel', responseGeneration: 3 });
+          emit({ type: 'listening', inputId: ids.input2, responseGeneration: 0 });
+          emit({ type: 'listening', inputId: ids.input1, responseGeneration: 3 });
+          start(ids.operation1, ids.input1, 3, 3);
+          complete(ids.operation1, ids.input1, 3, true);
+        } else { emit({ type: 'closed', reason: 'conversation_terminal', responseGeneration: 3 }); revocationStream.end(); }
+        response.writeHead(204).end();
+      }); return;
+    }
+    if (request.method === 'DELETE') { request.resume(); response.writeHead(204).end(); return; }
+    request.resume(); response.writeHead(404).end(); return;
+  }
   const actor = request.url.startsWith('/actor/');
   if (actor) request.url = request.url.slice('/actor'.length);
   if (request.url === '/test/upload') {
@@ -53,8 +112,10 @@ const server = createServer((request, response) => {
   if (request.url.startsWith('/failure/')) {
     if (request.method === 'DELETE') { response.writeHead(204).end(); return; }
     request.resume();
-    if (request.url.startsWith('/failure/problem/')) {
-      response.writeHead(503, { 'Content-Type': 'application/problem+json' }).end(JSON.stringify({ code: 'realtime_unavailable' }));
+    if (request.url.startsWith('/failure/problem/') || request.url.startsWith('/failure/live-problem/') || request.url.startsWith('/failure/unknown-problem/')) {
+      const code = request.url.startsWith('/failure/live-problem/') ? 'gpt_live_unavailable'
+        : request.url.startsWith('/failure/unknown-problem/') ? 'private_arbitrary_text' : 'realtime_unavailable';
+      response.writeHead(503, { 'Content-Type': 'application/problem+json' }).end(JSON.stringify({ code }));
     } else if (request.url.startsWith('/failure/mime/')) {
       response.writeHead(200, { 'Content-Type': 'text/html' }).end('<html>proxy response</html>');
     } else {
@@ -74,7 +135,7 @@ const server = createServer((request, response) => {
       event({ type: 'started', operationId: ids.operation0, correlation: correlation(ids.opening) });
       event({ type: 'listening', inputId: ids.opening });
       event({ type: 'audio', delta: Buffer.from([0, 0, 1, 0]).toString('base64') });
-      event({ type: 'pause' });
+      event({ type: 'pause', responseGeneration: 0 });
     }); return;
   }
   if (request.method === 'POST' && request.url.includes('/gpt-live/') && request.url.endsWith('/audio')) {
@@ -85,11 +146,21 @@ const server = createServer((request, response) => {
       if (actorActive) {
         event({ type: 'audio_cancel', responseGeneration: 1 });
         event({ type: 'audio_cancel', responseGeneration: 1 }); // duplicate cannot cancel the fresh response
+        event({ type: 'audio', delta: Buffer.from([99, 0]).toString('base64'), responseGeneration: 0 });
+        event({ type: 'audio', delta: Buffer.from([98, 0]).toString('base64') });
+        event({ type: 'visitor', text: 'obsolete visitor', responseGeneration: 0 });
+        event({ type: 'speech_started', inputId: ids.input2, responseGeneration: 0 });
+        event({ type: 'speech_stopped', inputId: ids.input2, responseGeneration: 0 });
+        event({ type: 'pause', responseGeneration: 0 });
+        event({ type: 'playback_checkpoint', playbackId: ids.operation2, pcmBytes: 99, decisionRevision: 1, responseGeneration: 0 });
+        event({ type: 'closed', reason: 'conversation_terminal', responseGeneration: 0 });
       }
-      event({ type: 'audio', delta: Buffer.from([0, 0, 1, 0]).toString('base64') });
-      event({ type: 'pause' });
+      event({ type: 'audio', delta: Buffer.from([0, 0, 1, 0]).toString('base64'), responseGeneration: actorActive ? 1 : 0 });
+      if (actorActive) event({ type: 'playback_checkpoint', playbackId: ids.operation2, pcmBytes: 99, decisionRevision: 1, responseGeneration: 0 });
+      if (actorActive) event({ type: 'visitor', text: 'fresh visitor', responseGeneration: 1 });
+      event({ type: 'pause', responseGeneration: actorActive ? 1 : 0 });
       if (actorActive) {
-        event({ type: 'playback_checkpoint', playbackId: ids.checkpoint, pcmBytes: 8, decisionRevision: 2 });
+        event({ type: 'playback_checkpoint', playbackId: ids.checkpoint, pcmBytes: 8, decisionRevision: 2, responseGeneration: 1 });
       } else {
         event({ type: 'speech_stopped', inputId: ids.opening });
         event({ type: 'completed', operationId: ids.operation0, correlation: correlation(ids.opening), costMicroUsd: 50000,
@@ -107,15 +178,15 @@ const server = createServer((request, response) => {
       actorCheckpoints++;
       if (actorCheckpoints === 1) { request.socket.destroy(); return; } // accepted ACK, lost response
       if (actorCheckpoints !== 2) throw new Error('Checkpoint replay was not bounded');
-      event({ type: 'speech_stopped', inputId: ids.opening });
+      event({ type: 'speech_stopped', inputId: ids.opening, responseGeneration: 1 });
       event({ type: 'completed', operationId: ids.operation0, correlation: correlation(ids.opening), costMicroUsd: 50000,
-        result: { reply: 'Actor závěr', decision: 'no_selection', reason: '', proposal: null } });
+        responseGeneration: 1, result: { reply: 'Actor závěr', decision: 'no_selection', reason: '', proposal: null } });
       response.writeHead(204).end();
     }); return;
   }
   if (request.method === 'POST' && request.url.includes('/gpt-live/') && request.url.endsWith('/played')) {
     livePlayed++;
-    event({ type: 'closed', reason: 'conversation_terminal' }); stream.end(); response.writeHead(204).end(); return;
+    event({ type: 'closed', reason: 'conversation_terminal', responseGeneration: actorActive ? 1 : 0 }); stream.end(); response.writeHead(204).end(); return;
   }
   if (request.method === 'POST' && request.url === `/v1/conversations/${ids.conversation}/realtime-live`) {
     const chunks = [];

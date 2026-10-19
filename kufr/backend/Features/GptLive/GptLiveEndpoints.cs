@@ -33,17 +33,36 @@ internal static class GptLiveEndpoints
         RealtimeCall? call = null;
         RealtimeLiveSession? session = null;
         Task? heartbeat = null;
+        Task? visualWatcher = null;
         var dispatched = false;
         var completed = false;
         var registered = false;
-        async Task Write(object item, CancellationToken token)
+        async Task Write(object item, CancellationToken token, long? generation = null, long? visualGeneration = null)
         {
             await writes.WaitAsync(token);
             try
             {
+                if (generation is { } expected && session?.OutputGeneration != expected
+                    || visualGeneration is { } visual && conversations.ReadVisualResponseRevision(device, id).Generation != visual)
+                { throw new VisualResponseRevokedException(); }
                 ServerLogEvents.Stream(context, item);
                 await context.Response.WriteAsync(JsonSerializer.Serialize(item, RealtimeProtocol.JsonOptions) + "\n", token);
                 await context.Response.Body.FlushAsync(token);
+            }
+            finally { writes.Release(); }
+        }
+        async Task<long> CancelOutputAsync(int? revision, CancellationToken token)
+        {
+            await writes.WaitAsync(token);
+            try
+            {
+                var generation = session!.CancelOutput();
+                object item = revision is { } visual
+                    ? new { type = "audio_cancel", responseGeneration = generation, visualRevision = visual }
+                    : new { type = "audio_cancel", responseGeneration = generation };
+                await context.Response.WriteAsync(JsonSerializer.Serialize(item, RealtimeProtocol.JsonOptions) + "\n", token);
+                await context.Response.Body.FlushAsync(token);
+                return generation;
             }
             finally { writes.Release(); }
         }
@@ -84,29 +103,61 @@ internal static class GptLiveEndpoints
             context.Response.ContentType = "application/x-ndjson";
             context.Response.Headers["X-Accel-Buffering"] = "no";
             await Write(new { type = "session", streamId = live.Id, audioFormat = "pcm16-mono-24000" }, lifetime.Token);
-            await Write(new { type = "started", operationId = call.OperationId, correlation = call.Correlation }, lifetime.Token);
+            await Write(new { type = "started", operationId = call.OperationId, correlation = call.Correlation, responseGeneration = live.OutputGeneration }, lifetime.Token);
             live.Listen(call);
-            await Write(new { type = "listening", inputId = request.ClientTurnId }, lifetime.Token);
-            heartbeat = Heartbeat(Write, lifetime);
+            await Write(new { type = "listening", inputId = request.ClientTurnId, responseGeneration = live.OutputGeneration }, lifetime.Token);
+            heartbeat = Heartbeat((item, token) => Write(item, token), lifetime);
+            visualWatcher = VisualResponseWatcher.RunAsync(conversations, live, (item, token) => Write(item, token), lifetime.Token, (revision, token) => CancelOutputAsync(revision, token));
             var inputStopped = false;
             async Task StopInput(CancellationToken token)
             {
                 live.StopListening();
-                await Write(new { type = "speech_stopped", inputId = request.ClientTurnId }, token);
+                await Write(new { type = "speech_stopped", inputId = request.ClientTurnId, responseGeneration = live.OutputGeneration }, token);
                 inputStopped = true;
             }
+            async Task SourceEventAsync(Func<long, object> item, CancellationToken token)
+            {
+                var visual = connection.VisualGeneration;
+                await live.WaitForVisualBarrierAsync(visual, token);
+                var generation = live.OutputGeneration;
+                await Write(item(generation), token, generation, visual);
+            }
+            Task? played = null;
+            long finalizedGeneration = 0, finalizedVisual = 0;
+            async Task FinalizeAsync(LiveOutcome outcome, CancellationToken token)
+            {
+                var visual = connection.VisualGeneration;
+                await live.WaitForVisualBarrierAsync(visual, token);
+                var generation = live.OutputGeneration;
+                await VisualResponsePublisher.PublishAsync(conversations, live, writes, visual, generation, () =>
+                {
+                    var result = conversations.CompleteGptLive(call, outcome) ?? throw new InvalidDataException();
+                    completed = true; finalizedGeneration = generation; finalizedVisual = visual;
+                    played = live.PreparePlayback(call.OperationId);
+                    return new { type = "completed", operationId = call.OperationId, correlation = call.Correlation,
+                        result, costMicroUsd = outcome.Reply.CostMicroUsd, responseGeneration = generation };
+                }, async (item, writeToken) =>
+                {
+                    ServerLogEvents.Stream(context, item);
+                    await context.Response.WriteAsync(JsonSerializer.Serialize(item, RealtimeProtocol.JsonOptions) + "\n", writeToken);
+                    await context.Response.Body.FlushAsync(writeToken);
+                }, token);
+            }
             var outcome = await new AutonomousLiveDialogue(connection, decisions, clock, memory).RunAsync(call,
-                    (pcm, token) =>
+                    async (pcm, token) =>
                     {
                         if (!conversations.IsRealtimeTurnCurrent(call)) { throw new OperationCanceledException(token); }
-                        return Write(new { type = "audio", delta = Convert.ToBase64String(pcm) }, token);
+                        var visual = connection.VisualGeneration;
+                        await live.WaitForVisualBarrierAsync(visual, token);
+                        var generation = live.OutputGeneration;
+                        await Write(new { type = "audio", delta = Convert.ToBase64String(pcm), responseGeneration = generation }, token, generation, visual);
                     },
-                    (text, token) => Write(new { type = "visitor", text }, token), token => Write(new { type = "pause" }, token),
+                    (text, token) => SourceEventAsync(generation => new { type = "visitor", text, responseGeneration = generation }, token), token => SourceEventAsync(generation => new { type = "pause", responseGeneration = generation }, token),
                     async (checkpoint, token) =>
                     {
                         var confirmation = live.PrepareCheckpoint(checkpoint);
-                        await Write(new { type = "playback_checkpoint", playbackId = checkpoint.PlaybackId,
-                            pcmBytes = checkpoint.PcmBytes, decisionRevision = checkpoint.DecisionRevision }, token);
+                        await SourceEventAsync(generation => new { type = "playback_checkpoint", playbackId = checkpoint.PlaybackId,
+                            pcmBytes = checkpoint.PcmBytes, decisionRevision = checkpoint.DecisionRevision, responseGeneration = generation }, token);
                         return await confirmation.WaitAsync(token);
                     }, () => conversations.LiveAvailability(call), StopInput, call.Cancellation.Token, memoryAccess,
                     (ms, status) => context.RequestServices.GetService<ServerLogStore>()?.Write("info", "live_decision_completed",
@@ -115,28 +166,30 @@ internal static class GptLiveEndpoints
                     state => context.RequestServices.GetService<ServerLogStore>()?.Write("info", "live_terminal_state",
                         context.TraceIdentifier, "/v1/conversations/{id}/gpt-live", "POST",
                         operationId: call.OperationId, conversationId: id, code: state),
-                    cancelAudio: (generation, token) =>
-                    {
-                        live.CancelCheckpoint();
-                        return Write(new { type = "audio_cancel", responseGeneration = generation }, token);
-                    },
+                    cancelAudio: async (generation, token) => { await CancelOutputAsync(null, token); },
                     recentStyles: conversations.CharacterStyles(call),
                     stylePlayed: (style, opening) => conversations.RecordCharacterStyle(call, style, opening),
                     directorTiming: ms => context.RequestServices.GetService<ServerLogStore>()?.Write("info", "character_director",
                         context.TraceIdentifier, "/v1/conversations/{id}/gpt-live", "POST", durationMs: Math.Round(ms, 3),
                         operationId: call.OperationId, conversationId: id, code: "dv01_v1"),
                     transcript: segment => conversations.AppendRealtimeTranscript(call, segment),
-                    visualContext: () => conversations.ReadVisualContext(device, id));
+                    visualContext: () => conversations.ReadVisualContext(device, id),
+                    visualRevision: () => conversations.ReadVisualResponseRevision(device, id),
+                    finalize: FinalizeAsync,
+                    resumeInput: async token =>
+                    {
+                        live.Listen(call); inputStopped = false;
+                        var visual = connection.VisualGeneration;
+                        await live.WaitForVisualBarrierAsync(visual, token);
+                        var generation = live.OutputGeneration;
+                        await Write(new { type = "listening", inputId = request.ClientTurnId, responseGeneration = generation }, token, generation, visual);
+                    });
             await live.StopListeningAsync(lifetime.Token);
             if (!inputStopped)
-                await Write(new { type = "speech_stopped", inputId = request.ClientTurnId }, lifetime.Token);
-            var result = conversations.CompleteGptLive(call, outcome) ?? throw new InvalidDataException();
-            completed = true;
-            var played = live.PreparePlayback(call.OperationId);
-            await Write(new { type = "completed", operationId = call.OperationId, correlation = call.Correlation,
-                result, costMicroUsd = outcome.Reply.CostMicroUsd }, lifetime.Token);
-            await played.WaitAsync(TimeSpan.FromSeconds(35), lifetime.Token);
-            await Write(new { type = "closed", reason = "conversation_terminal" }, lifetime.Token);
+                await Write(new { type = "speech_stopped", inputId = request.ClientTurnId, responseGeneration = finalizedGeneration }, lifetime.Token, finalizedGeneration, finalizedVisual);
+            await played!.WaitAsync(TimeSpan.FromSeconds(35), lifetime.Token);
+            await Write(new { type = "closed", reason = "conversation_terminal", responseGeneration = finalizedGeneration }, lifetime.Token,
+                finalizedGeneration, finalizedVisual);
         }
         catch (Exception error) when (error is not OutOfMemoryException)
         {
@@ -161,6 +214,7 @@ internal static class GptLiveEndpoints
             if (registered) conversations.ReleaseRealtimeLifetime(id);
             if (session is not null) registry.Remove(session.Id);
             if (call is not null) conversations.ReleaseRealtimeTurn(call, dispatched, completed);
+            if (visualWatcher is not null) { try { await visualWatcher; } catch (Exception) { } }
             if (heartbeat is not null) { try { await heartbeat; } catch (Exception) { } }
         }
     }

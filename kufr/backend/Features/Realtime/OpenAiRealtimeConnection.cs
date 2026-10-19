@@ -16,20 +16,38 @@ internal interface IStreamingAudioInput
 
 internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAudioInput
 {
-    private readonly WebSocket socket;
-    private readonly BackendRealtimeSession session;
-    private readonly IAsyncEnumerator<RealtimeServerUpdate> events;
+    private WebSocket socket;
+    private BackendRealtimeSession session;
+    private IAsyncEnumerator<RealtimeServerUpdate> events;
+    private readonly Func<CancellationToken, Task<WebSocket>>? reconnect;
+    internal long VisualGeneration { get; set; }
+    private int visualResets;
     private readonly HashSet<string> items = new(StringComparer.Ordinal);
     private bool initialized;
     private string? inputItemId;
     private string? visualItemId;
     private string? visualImageId;
 
-    internal OpenAiRealtimeConnection(WebSocket socket, CancellationToken token)
+    internal OpenAiRealtimeConnection(WebSocket socket, CancellationToken token, Func<CancellationToken, Task<WebSocket>>? reconnect = null)
     {
         this.socket = socket;
+        this.reconnect = reconnect;
         session = new BackendRealtimeSession(socket);
         events = session.ReceiveUpdatesAsync(token).GetAsyncEnumerator(token);
+    }
+
+    private async Task RestartAsync(long generation, CancellationToken token)
+    {
+        if (reconnect is null) { throw new InvalidOperationException("Realtime provider reconnect unavailable."); }
+        socket.Abort();
+        try { await events.DisposeAsync(); } catch (Exception) { }
+        session.Dispose();
+        socket = await reconnect(token);
+        session = new BackendRealtimeSession(socket);
+        events = session.ReceiveUpdatesAsync(token).GetAsyncEnumerator(token);
+        initialized = false;
+        items.Clear(); visualItemId = null; visualImageId = null; inputItemId = null;
+        VisualGeneration = generation;
     }
 
     public Task SendAudioAsync(byte[] pcm, CancellationToken token) =>
@@ -46,13 +64,78 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
         Func<string, string, string, bool>? transcript = null,
         Func<VisualMediaRecord?>? visualImage = null,
         Func<string, CancellationToken, Task<string>>? inputContext = null,
-        Func<(int Revision, string Context)>? visualContext = null)
+        Func<(int Revision, string Context)>? visualContext = null,
+        Func<VisualResponseRevision>? visualRevision = null,
+        Func<string>? recoveryContext = null,
+        Func<RealtimeReply, CancellationToken, Task>? finalize = null)
+    {
+        var original = turn;
+        var latestInput = turn.Request.Text;
+        var acceptedInput = !turn.LiveAudio && inputPcm is null;
+        long retiredCost = 0;
+        var progress = new RealtimeTurnProgress();
+        if (!initialized)
+        {
+            VisualGeneration = visualRevision?.Invoke().Generation ?? 0;
+            turn = turn with { CostumeContext = visualContext?.Invoke().Context ?? turn.CostumeContext };
+            if (VisualGeneration > 0)
+            { turn = turn with { EveningContext = recoveryContext?.Invoke() ?? "", History = turn.History.Select(item => new DialogExchange(item.VisitorText, "")).ToArray() }; }
+            original = turn;
+        }
+        while (true)
+        {
+            try
+            {
+                var result = await GenerateTurnCoreAsync(turn, inputPcm, audio,
+                    async (text, token) => { latestInput = text; acceptedInput = true; await visitor(text, token); }, cancellationToken,
+                    listening, speech, responseReady, transcript, visualImage, inputContext, visualContext, visualRevision, progress);
+                result = result with { CostMicroUsd = checked(result.CostMicroUsd + retiredCost) };
+                if (finalize is not null) { await finalize(result, cancellationToken); }
+                return result;
+            }
+            catch (VisualResponseRevokedException) when (visualRevision is not null)
+            {
+                if (++visualResets > 8) { throw new InvalidDataException("Visual response reset limit."); }
+                var current = visualRevision();
+                if (current.Generation < 0) { throw new OperationCanceledException(cancellationToken); }
+                retiredCost = checked(retiredCost + RealtimeProtocol.ReservationMicroUsd(original));
+                await RestartAsync(current.Generation, cancellationToken);
+                progress = new RealtimeTurnProgress();
+                // Keep the application operation and committed canonical outcomes. A
+                // new provider gets literal guest statements, never assistant
+                // text or image-derived context from the revoked generation.
+                turn = original with
+                {
+                    Request = original.Request with { Text = latestInput, Wav = null }, LiveAudio = original.LiveAudio && !acceptedInput,
+                    EveningContext = recoveryContext?.Invoke() ?? "", CostumeContext = visualContext?.Invoke().Context ?? "",
+                    History = original.History.Where(item => item.VisitorText.Length > 0)
+                        .Select(item => new DialogExchange(item.VisitorText, "")).ToArray()
+                };
+                inputPcm = null;
+            }
+        }
+    }
+
+    internal async Task<RealtimeReply> GenerateTurnCoreAsync(
+        RealtimeTurnContext turn,
+        byte[]? inputPcm,
+        Func<byte[], CancellationToken, Task> audio,
+        Func<string, CancellationToken, Task> visitor,
+        CancellationToken cancellationToken,
+        Func<CancellationToken, Task>? listening = null,
+        Func<string, CancellationToken, Task>? speech = null,
+        Func<CancellationToken, Task>? responseReady = null,
+        Func<string, string, string, bool>? transcript = null,
+        Func<VisualMediaRecord?>? visualImage = null,
+        Func<string, CancellationToken, Task<string>>? inputContext = null,
+        Func<(int Revision, string Context)>? visualContext = null,
+        Func<VisualResponseRevision>? visualRevision = null, RealtimeTurnProgress? progress = null)
     {
         using var abort = cancellationToken.Register(socket.Abort);
         var continuing = initialized;
         if (!initialized)
         {
-            if (await NextAsync(cancellationToken) is not RealtimeServerUpdateSessionCreated created
+            if (await NextResponseAsync(visualRevision, cancellationToken) is not RealtimeServerUpdateSessionCreated created
                 || created.Session is not RealtimeConversationSession createdSession
                 || createdSession.Model != RealtimeProtocol.Model)
             {
@@ -65,7 +148,7 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
             await session.ClearInputAudioAsync(cancellationToken);
         }
         await session.ConfigureConversationSessionAsync(RealtimeProtocol.SessionOptions(turn), cancellationToken);
-        var configuration = await ConfigurationAsync(cancellationToken);
+        var configuration = await ConfigurationAsync(cancellationToken, visualRevision);
         if (configuration is not RealtimeServerUpdateSessionUpdated updated
             || updated.Session is not RealtimeConversationSession updatedSession
             || updatedSession.Model != RealtimeProtocol.Model)
@@ -172,20 +255,28 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
             {
                 await session.ConfigureConversationSessionAsync(
                     RealtimeProtocol.SessionOptions(turn with { CostumeContext = currentVisual.Context }), cancellationToken);
-                if (await ConfigurationAsync(cancellationToken) is not RealtimeServerUpdateSessionUpdated)
+                if (await ConfigurationAsync(cancellationToken, visualRevision) is not RealtimeServerUpdateSessionUpdated)
                 {
                     throw new InvalidDataException("Realtime visual context update failed.");
                 }
             }
         }
         if (visualImage is not null) { await RefreshVisualAsync(visualImage(), cancellationToken); }
-        await session.StartResponseAsync(cancellationToken);
+        if (visualRevision is not null && visualRevision().Generation != VisualGeneration) { throw new VisualResponseRevokedException(); }
+        if (progress is { Decision: not "ask" })
+        {
+            await session.AddItemAsync(RealtimeItem.CreateUserMessageItem("Aplikace uz overila vysledek: "
+                + JsonSerializer.Serialize(new { progress.Decision, progress.Compartment, progress.Reason })
+                + ". Oznam pouze tento potvrzeny navrh vlastnimi slovy. Fyzicky pohyb nebyl potvrzen. Novy vyber nedelej."), cancellationToken);
+            await session.StartResponseAsync(new RealtimeResponseOptions { ToolChoice = RealtimeDefaultToolChoice.None }, cancellationToken);
+        }
+        else { await session.StartResponseAsync(cancellationToken); }
 
         var hasAudio = inputPcm is not null || turn.LiveAudio;
         var reply = new StringBuilder();
-        var decision = "ask";
-        var reason = "";
-        int? compartment = null;
+        var decision = progress?.Decision ?? "ask";
+        var reason = progress?.Reason ?? "";
+        int? compartment = progress?.Compartment;
         string? responseId = null;
         var responses = 0;
         var completed = false;
@@ -193,7 +284,7 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
         var cost = hasAudio ? 10_000L : 0L;
         for (var count = 0; count < 1024 && (!completed || visitorText is null); count++)
         {
-            switch (await NextAsync(cancellationToken))
+            switch (await NextResponseAsync(visualRevision, cancellationToken))
             {
                 case RealtimeServerUpdateResponseCreated responseCreated:
                     if (++responses > 2 || responseId is not null || completed)
@@ -294,6 +385,7 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
                     if (function is not null)
                     {
                         (decision, reason, compartment) = OpenAiRealtimeClient.ValidateTool(function, turn);
+                        if (progress is not null) { progress.Decision = decision; progress.Reason = reason; progress.Compartment = compartment; }
                         var toolResult = JsonSerializer.Serialize(new
                         {
                             accepted = true,
@@ -368,11 +460,11 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
         }
     }
 
-    private async Task<RealtimeServerUpdate> ConfigurationAsync(CancellationToken token)
+    private async Task<RealtimeServerUpdate> ConfigurationAsync(CancellationToken token, Func<VisualResponseRevision>? revision = null)
     {
         for (var count = 0; count < 128; count++)
         {
-            var update = await NextAsync(token);
+            var update = await NextResponseAsync(revision, token);
             if (update is RealtimeServerUpdateSessionUpdated)
             {
                 return update;
@@ -385,13 +477,29 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
         throw new InvalidDataException("Realtime configuration acknowledgement missing.");
     }
 
+    private async Task<RealtimeServerUpdate> NextResponseAsync(Func<VisualResponseRevision>? revision, CancellationToken token)
+    {
+        if (revision is null) { return await NextAsync(token); }
+        var current = revision();
+        var pending = NextAsync(token);
+        if (current.Generation != VisualGeneration || await Task.WhenAny(pending, current.Changed) != pending
+            || revision().Generation != VisualGeneration)
+        {
+            socket.Abort();
+            try { await pending; } catch (Exception) { }
+            throw new VisualResponseRevokedException();
+        }
+        return await pending;
+    }
+
     private async Task<RealtimeServerUpdate> NextAsync(CancellationToken token)
     {
-        if (!await events.MoveNextAsync().AsTask().WaitAsync(token))
+        var source = events;
+        if (!await source.MoveNextAsync().AsTask().WaitAsync(token))
         {
             throw new InvalidDataException("Realtime stream ended early.");
         }
-        var update = events.Current;
+        var update = source.Current;
         var item = update switch
         {
             RealtimeServerUpdateConversationItemAdded added => added.Item,
@@ -429,3 +537,11 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
             : throw new InvalidDataException("Invalid Realtime event field.");
 }
 #pragma warning restore OPENAI002
+
+internal sealed class RealtimeTurnProgress
+{
+    internal string Decision { get; set; } = "ask";
+    internal string Reason { get; set; } = "";
+    internal int? Compartment { get; set; }
+}
+internal sealed class VisualResponseRevokedException : Exception;

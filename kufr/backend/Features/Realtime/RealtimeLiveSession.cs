@@ -35,6 +35,11 @@ internal sealed class RealtimeLiveSession : IDisposable
     private int bytes;
     private string? playbackOperation;
     private TaskCompletionSource? playback;
+    private long playbackGeneration;
+    private long outputGeneration;
+    private long appliedVisualGeneration;
+    private TaskCompletionSource visualBarrier = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly HashSet<(string Operation, long Generation)> retiredPlayback = [];
     private LivePlaybackRequest? checkpoint;
     private TaskCompletionSource<LivePlaybackConfirmation>? checkpointDone;
     private readonly Dictionary<Guid, int> acknowledgedCheckpoints = [];
@@ -77,6 +82,7 @@ internal sealed class RealtimeLiveSession : IDisposable
     {
         lock (gate)
         {
+            if (accepting && input?.Context.Request.ClientTurnId == call.Context.Request.ClientTurnId) { return; }
             input = call;
             accepting = true;
             sequence = 0;
@@ -170,20 +176,64 @@ internal sealed class RealtimeLiveSession : IDisposable
         }
     }
 
+    internal long OutputGeneration { get { lock (gate) { return outputGeneration; } } }
+    internal Guid? ListeningInput { get { lock (gate) { return accepting ? input?.Context.Request.ClientTurnId : null; } } }
+
+    internal long CancelOutput()
+    {
+        lock (gate)
+        {
+            outputGeneration++;
+            if (playbackOperation is not null && playback is not null)
+            {
+                retiredPlayback.Add((playbackOperation, playbackGeneration));
+                playback.TrySetResult();
+            }
+            CancelCheckpoint();
+            return outputGeneration;
+        }
+    }
+    internal void ApplyVisualBarrier(long generation)
+    {
+        lock (gate)
+        {
+            appliedVisualGeneration = generation;
+            var previous = visualBarrier;
+            visualBarrier = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            previous.TrySetResult();
+        }
+    }
+    internal async Task WaitForVisualBarrierAsync(long generation, CancellationToken token)
+    {
+        while (true)
+        {
+            Task changed;
+            lock (gate)
+            {
+                if (appliedVisualGeneration >= generation) { return; }
+                changed = visualBarrier.Task;
+            }
+            await changed.WaitAsync(token);
+        }
+    }
+
     internal Task PreparePlayback(string operation)
     {
         lock (gate)
         {
             playbackOperation = operation;
+            playbackGeneration = outputGeneration;
             playback = new(TaskCreationOptions.RunContinuationsAsynchronously);
             return playback.Task;
         }
     }
 
-    internal bool Played(string operation)
+    internal bool Played(string operation, long? generation = null)
     {
         lock (gate)
         {
+            if (generation is { } retired && retiredPlayback.Contains((operation, retired))) { return true; }
+            if (generation is null && outputGeneration != 0 || generation is { } value && value != playbackGeneration) { return false; }
             return playbackOperation == operation && playback is not null
                 && (playback.TrySetResult() || playback.Task.IsCompletedSuccessfully);
         }

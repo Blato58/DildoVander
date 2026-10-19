@@ -325,7 +325,8 @@
           "409": {
             "$ref": "#/components/responses/Problem"
           }
-        }
+        },
+        "description": " Revocation invalidates provider visual context and pending spoken output, emits audio_cancel with a monotonically increasing responseGeneration, and keeps the application voice session open. Clients flush queued PCM and reject older generations; archived media remains until explicit manual deletion."
       }
     },
     "/v1/conversations/{id}/costume-context": {
@@ -1137,7 +1138,7 @@
       "post": {
         "operationId": "acknowledgeGptLivePlayback",
         "summary": "Acknowledge actual completion of native audio playback",
-        "description": "A body of at most 512 bytes identifies the exact completed operation. Duplicate acknowledgements are harmless. The next listening event can arrive before this HTTP response, so clients must reset their input state before sending.",
+        "description": "A body of at most 512 bytes identifies the exact completed operation. Duplicate acknowledgements are harmless. The next listening event can arrive before this HTTP response, so clients must reset their input state before sending. Include responseGeneration from the audio/cancellation stream; after audio_cancel a prior generation cannot complete a newer response using the same operationId.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ConversationId"
@@ -1324,7 +1325,7 @@
       "post": {
         "operationId": "acknowledgeRealtimePlayback",
         "summary": "Acknowledge actual completion of native audio playback",
-        "description": "A body of at most 512 bytes identifies the exact completed operation. Duplicate acknowledgements are harmless. The next listening event can arrive before this HTTP response, so clients must reset their input state before sending.",
+        "description": "A body of at most 512 bytes identifies the exact completed operation. Duplicate acknowledgements are harmless. The next listening event can arrive before this HTTP response, so clients must reset their input state before sending. Include responseGeneration from the audio/cancellation stream; after audio_cancel a prior generation cannot complete a newer response using the same operationId.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ConversationId"
@@ -2767,6 +2768,12 @@
             "properties": {
               "type": {
                 "const": "pause"
+              },
+              "responseGeneration": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Current server labels provider output/control with its response generation. A legacy unlabelled event is usable only before the first cancellation; stale control events cannot mutate current playback."
               }
             }
           },
@@ -2796,6 +2803,12 @@
               "decisionRevision": {
                 "type": "integer",
                 "minimum": 0
+              },
+              "responseGeneration": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Current server labels provider output/control with its response generation. A legacy unlabelled event is usable only before the first cancellation; stale control events cannot mutate current playback."
               }
             }
           }
@@ -2875,8 +2888,14 @@
           "operationId": {
             "type": "string",
             "format": "uuid"
+          },
+          "responseGeneration": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
           }
-        }
+        },
+        "description": "Acknowledges locally drained audio for an exact operation and response generation. Omitted generation is accepted only before the first cancellation (generation0). A retired older generation is acknowledged idempotently without releasing current playback."
       },
       "RealtimeLiveEvent": {
         "oneOf": [
@@ -2886,7 +2905,8 @@
             "required": [
               "type",
               "operationId",
-              "correlation"
+              "correlation",
+              "responseGeneration"
             ],
             "properties": {
               "type": {
@@ -2898,6 +2918,11 @@
               },
               "correlation": {
                 "$ref": "#/components/schemas/TurnCorrelation"
+              },
+              "responseGeneration": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
               }
             }
           },
@@ -2906,7 +2931,8 @@
             "additionalProperties": false,
             "required": [
               "type",
-              "delta"
+              "delta",
+              "responseGeneration"
             ],
             "properties": {
               "type": {
@@ -2917,6 +2943,11 @@
                 "minLength": 4,
                 "maxLength": 43692,
                 "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+              },
+              "responseGeneration": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
               }
             }
           },
@@ -2934,6 +2965,12 @@
               "text": {
                 "type": "string",
                 "maxLength": 1000
+              },
+              "responseGeneration": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Current server labels provider output/control with its response generation. A legacy unlabelled event is usable only before the first cancellation; stale control events cannot mutate current playback."
               }
             }
           },
@@ -2945,7 +2982,8 @@
               "operationId",
               "correlation",
               "result",
-              "costMicroUsd"
+              "costMicroUsd",
+              "responseGeneration"
             ],
             "properties": {
               "type": {
@@ -2963,7 +3001,13 @@
               },
               "costMicroUsd": {
                 "type": "integer",
-                "minimum": 1
+                "minimum": 1,
+                "description": "Application usage accounting. May include a conservative reservation when interrupted provider usage cannot be settled; this is not an invoice or proof of billed usage."
+              },
+              "responseGeneration": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
               }
             }
           },
@@ -3023,7 +3067,8 @@
             "additionalProperties": false,
             "required": [
               "type",
-              "inputId"
+              "inputId",
+              "responseGeneration"
             ],
             "properties": {
               "type": {
@@ -3032,6 +3077,11 @@
               "inputId": {
                 "type": "string",
                 "format": "uuid"
+              },
+              "responseGeneration": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
               }
             }
           },
@@ -3049,6 +3099,12 @@
               "inputId": {
                 "type": "string",
                 "format": "uuid"
+              },
+              "responseGeneration": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Current server labels provider output/control with its response generation. A legacy unlabelled event is usable only before the first cancellation; stale control events cannot mutate current playback."
               }
             }
           },
@@ -3066,6 +3122,12 @@
               "inputId": {
                 "type": "string",
                 "format": "uuid"
+              },
+              "responseGeneration": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Current server labels provider output/control with its response generation. A legacy unlabelled event is usable only before the first cancellation; stale control events cannot mutate current playback."
               }
             }
           },
@@ -3094,6 +3156,36 @@
               },
               "reason": {
                 "const": "conversation_terminal"
+              },
+              "responseGeneration": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Current server labels provider output/control with its response generation. A legacy unlabelled event is usable only before the first cancellation; stale control events cannot mutate current playback."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "responseGeneration"
+            ],
+            "properties": {
+              "type": {
+                "const": "audio_cancel"
+              },
+              "responseGeneration": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "visualRevision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000000,
+                "description": "Present only for a completed visual revocation barrier. A client waiting for photo revision R may unmute only after this value is at least R; an ordinary speech interruption marker cannot release that mute."
               }
             }
           }

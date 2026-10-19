@@ -41,6 +41,14 @@ regexTarget = "line"
 regexes = ['''^\s*request\.idempotencyKey = "7731ce10-a53c-4934-8909-06870fc86a12";\s*$''']
 
 [[allowlists]]
+description = "RFC 6455 public example nonce in the synthetic WebSocket handshake"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^kufr/mobilni-aplikace/tests/native_handsfree/socket_peer\.test\.mjs$''']
+regexTarget = "secret"
+regexes = ['''^dGhlIHNhbXBsZSBub25jZQ==$''']
+
+[[allowlists]]
 description = "The scanner regression embeds the three reviewed non-secret values"
 targetRules = ["generic-api-key"]
 condition = "AND"

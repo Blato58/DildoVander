@@ -18,13 +18,13 @@ const server = createServer(async (request, response) => {
   const authorization = request.headers.authorization ?? '';
   if (request.url === '/v1/device-access/token') {
     const device = authorization.slice('Bearer synthetic-'.length);
-    if (!states.has(device)) states.set(device, { device, events: [], barrier: 0, operations: new Map() });
+    if (!states.has(device)) states.set(device, { device, events: [], barrier: 0, operations: new Map(), images: new Map(), capturedTimes: [] });
     json(response, 200, { deviceId: device, accessToken: `access-${device}` }); return;
   }
   const device = authorization.slice('Bearer access-'.length);
   const state = states.get(device);
   if (!state) { json(response, 401, {}); return; }
-  if (request.url === '/receipt') { json(response, 200, { events: state.events, barrier: state.barrier, visualRevision: state.visualRevision ?? null }); return; }
+  if (request.url === '/receipt') { json(response, 200, { events: state.events, barrier: state.barrier, visualRevision: state.visualRevision ?? null, imageIds: [...state.images.keys()], capturedTimes: state.capturedTimes }); return; }
   if (request.url === '/v1/diagnostics') { json(response, 200, { catalogVersion: 'ollivander-private-party-v1', engines: inventory }); return; }
   if (request.url === '/v1/conversations') {
     state.conversation = crypto.randomUUID(); state.boot = body.bootId; state.events.push('create');
@@ -45,6 +45,11 @@ const server = createServer(async (request, response) => {
     assert.equal(request.headers['image-consent'], 'true'); assert.equal(request.headers['image-source'], 'phone');
     assert.match(request.headers['image-id'], /^[a-f0-9-]{36}$/); assert.ok(Number.isFinite(Date.parse(request.headers['captured-at'])));
     assert.deepEqual(bytes, fixture); state.events.push(`image-${revision}`);
+    const imageId = request.headers['image-id'];
+    if (state.images.has(imageId) && state.images.get(imageId) !== revision) {
+      json(response, 409, { code: 'image_identity_conflict' }); return;
+    }
+    state.images.set(imageId, revision); state.capturedTimes.push(request.headers['captured-at']);
     if (device.includes('lost')) { response.destroy(); return; }
     if (device.includes('failed')) { json(response, 503, { code: 'image_unavailable' }); return; }
     if (device.includes('race')) await new Promise(resolve => setTimeout(resolve, 200));
@@ -60,6 +65,7 @@ const server = createServer(async (request, response) => {
   if (request.url.startsWith('/v1/operations/')) {
     const operation = state.operations.get(request.url.split('/').at(-1));
     assert.ok(operation); state.events.push(`poll-${operation.revision}`);
+    if (device.includes('retry') && operation.revision === 1) { json(response, 503, { code: 'ai_unavailable' }); return; }
     if (operation.status === 'completed' && operation.revision > state.barrier) state.visualRevision = operation.revision;
     json(response, 200, operation); return;
   }

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "observedAtUtc": "2026-10-19T03:24:53.983188+00:00",
+  "result": "fail",
+  "subject": {
+    "commit": "d0965bc6f94a5e442dcec238b734b1929e1aed8c",
+    "dirty": false,
+    "policyVersion": "two-engine-v1"
+  },
+  "environment": "GitHub Actions CI39193745619, PR217 merge candidate d0965bc",
+  "limitations": [
+    "First CI attempt on historical candidate; no provider inference, signed iPhone installation or physical suitcase test."
+  ],
+  "evidenceId": "GPT-OVERHAUL-native-first-v1",
+  "kind": "native_ios",
+  "claims": [
+    {
+      "workItemId": "GPT-OVERHAUL",
+      "criterionId": "NATIVE",
+      "criterionRevision": 1,
+      "result": "fail"
+    }
+  ],
+  "method": "CI39193745619 ios/ios on macos-15 Xcode26.3; native debug harness compilation.",
+  "observation": "Native pinned LAN tests passed. Swift compilation failed DebugHandsFreeSession.swift520: DebugBackendClient has no member realtimeError. Unsigned Simulator build did not run. Narrow shared retained-engine error parser restored with typed error fixtures; rerun pending.",
+  "artifactRefs": [
+    "https://github.com/Blato58/DildoVander/actions/runs/39193745619"
+  ]
+}

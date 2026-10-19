@@ -253,12 +253,37 @@ validate('RealtimeLiveStart', { ...realtime, opening: false, text: 'Petr' }, fal
 validate('RealtimeLiveStart', { ...realtime, accessToken: 'secret' }, false);
 validate('RealtimePlayback', { operationId: bootId }, true);
 validate('RealtimePlayback', { operationId: 'other-operation' }, false);
+validate('RealtimePlayback', { operationId: bootId, responseGeneration: 0 }, true);
+validate('RealtimePlayback', { operationId: bootId, responseGeneration: 2 }, true);
+validate('RealtimePlayback', { operationId: bootId, responseGeneration: -1 }, false);
+validate('RealtimePlayback', { operationId: bootId, responseGeneration: 0.5 }, false);
+for (const schema of ['RealtimeLiveEvent', 'GptLiveEvent']) {
+  validate(schema, { type: 'audio', delta: 'AAAA', responseGeneration: 0 }, true);
+  validate(schema, { type: 'audio', delta: 'AAAA' }, false);
+  validate(schema, { type: 'audio', delta: 'AAAA', responseGeneration: -1 }, false);
+  validate(schema, { type: 'audio_cancel', responseGeneration: 1 }, true);
+  validate(schema, { type: 'audio_cancel', responseGeneration: 2, visualRevision: 3 }, true);
+  validate(schema, { type: 'audio_cancel', responseGeneration: 2, visualRevision: 0 }, false);
+  validate(schema, { type: 'audio_cancel', responseGeneration: 2, visualRevision: 1000001 }, false);
+  validate(schema, { type: 'audio_cancel', responseGeneration: 0 }, false);
+}
+
 validate('RealtimeLiveEvent', { type: 'session', streamId: bootId, audioFormat: 'pcm16-mono-24000' }, true);
-validate('RealtimeLiveEvent', { type: 'listening', inputId: clientTurnId }, true);
+validate('RealtimeLiveEvent', { type: 'listening', inputId: clientTurnId, responseGeneration: 0 }, true);
+validate('RealtimeLiveEvent', { type: 'listening', inputId: clientTurnId, responseGeneration: -1 }, false);
 validate('RealtimeLiveEvent', { type: 'speech_stopped', inputId: clientTurnId }, true);
 validate('RealtimeLiveEvent', { type: 'heartbeat' }, true);
+validate('RealtimeLiveEvent', { type: 'visitor', text: 'Host', responseGeneration: 2 }, true);
+validate('RealtimeLiveEvent', { type: 'speech_stopped', inputId: clientTurnId, responseGeneration: 2 }, true);
+validate('RealtimeLiveEvent', { type: 'closed', reason: 'conversation_terminal', responseGeneration: 2 }, true);
+validate('GptLiveEvent', { type: 'pause', responseGeneration: 2 }, true);
+validate('GptLiveEvent', { type: 'playback_checkpoint', playbackId: bootId, pcmBytes: 2, decisionRevision: 0, responseGeneration: 2 }, true);
+validate('GptLiveEvent', { type: 'pause', responseGeneration: -1 }, false);
+
 validate('RealtimeLiveEvent', { type: 'completed', operationId: 'op-1', correlation: operation.correlation,
-  result, costMicroUsd: 12345 }, true);
+  responseGeneration: 0, result, costMicroUsd: 12345 }, true);
+validate('RealtimeLiveEvent', { type: 'started', operationId: 'op-1', correlation: operation.correlation, responseGeneration: 0 }, true);
+validate('RealtimeLiveEvent', { type: 'started', operationId: 'op-1', correlation: operation.correlation }, false);
 validate('RealtimeLiveEvent', { type: 'failed', code: 'cost_limit' }, true);
 validate('RealtimeLiveEvent', { type: 'failed', code: 'provider secret message' }, false);
 validate('TurnOperation', { ...operation, status: 'completed', result }, true);

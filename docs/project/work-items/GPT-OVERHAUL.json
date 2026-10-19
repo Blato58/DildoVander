@@ -29,10 +29,13 @@
       ],
       "rule": "allOf",
       "evidenceRefs": [
-        "GPT-OVERHAUL-local-v1"
+        "GPT-OVERHAUL-unit-v2",
+        "GPT-OVERHAUL-integration-local-v2",
+        "GPT-OVERHAUL-source-review-v2",
+        "GPT-OVERHAUL-browser-v2"
       ],
       "appliesTo": {
-        "artifactDigest": "f7b25784ce3f8225ed460f048358c63de3a5eda2107a5bd79b2dc64e70c3581e",
+        "artifactDigest": "36e6c0078bdd60e7d3dce4430226bf144674bb200f13e75d0cb8d2e4225394c3",
         "policyVersion": "two-engine-v1"
       }
     },
@@ -45,6 +48,7 @@
       ],
       "evidenceRefs": [],
       "appliesTo": {
+        "artifactDigest": "36e6c0078bdd60e7d3dce4430226bf144674bb200f13e75d0cb8d2e4225394c3",
         "policyVersion": "two-engine-v1"
       }
     },
@@ -57,11 +61,27 @@
       ],
       "evidenceRefs": [],
       "appliesTo": {
+        "artifactDigest": "36e6c0078bdd60e7d3dce4430226bf144674bb200f13e75d0cb8d2e4225394c3",
         "policyVersion": "two-engine-v1"
       }
     }
   ],
-  "blockers": [],
-  "nextAction": "Integrate latest main without CAD regeneration, recheck inherited mobile dependencies, push PR and run macOS native/Simulator + Linux CI; resolve all reviews before merge.",
-  "currentNote": "Implementation checkpoint671a27cdc4466e53c9c6214092e1ba3cb2f782e3 pushed and exact remoteSHA verified via Push-CurrentBranch.ps1. Integrating main7916723b029fafdc241af810e24b5d9e943c9331 preserves CADpipeline and dependency work (SQLite10.0.13, Capacitor8.5.3). Postintegration lockedrestore, zero-warning backendbuild+character+autonomous-memory, mobile95tests+webbuild pass; parent rerendered1280x720 and390x844, Live/Realtime start/end and photoCancel preservesvoice, no consolewarnings/errors. Stagecheck exposed3newfileEOF blanklines missed by precommit unstagedcheck; removed in integration. Initial source receipt remains historical. No paid inference, deployment, signing/publication/installation, flash, CADregeneration or realdata mutation."
+  "blockers": [
+    {
+      "id": "EXTERNAL-ACCEPTANCE",
+      "problem": "Both real provider conversations and installed iPhone/suitcase scenarios have no current acceptance evidence; implementation authorization does not include paid inference, deploy, signing/install or firmware flash.",
+      "severity": "high",
+      "blocks": [
+        "EXTERNAL"
+      ],
+      "unblockCondition": "Separately authorize required activation/tests, identify installed backend/app/firmware and device revisions, then execute and record the thirteen-scenario procedure in kufr/docs/autonomous-live-memory.md.",
+      "role": "owner"
+    }
+  ],
+  "nextAction": "Push verified photo-revocation/retry and first-CI fixes to PR217, run exact Git bytes through Linux/macOS CI, resolve both review threads and reread reviews before authorized merge.",
+  "currentNote": "Implementation671a27c and main-integrationd0965bc pushed/verified; PR217 attached. FirstCI failures retained in immutable receipts. Final local full backend/default+engines+character, Twin/Twin-media, native media21, host engine/transport2, MSVC codec, firmware build41.49s, contracts and scanner10 pass. Independent final provider/native/firmware event matrix review has no actionable findings. Parent rerendered desktop/mobile and exercised both engines+photo revoke preserving synthetic voice, no consolewarnings/overflow. Allsource frozen and canonical Git-source manifestv2 recorded. macOS/Linux CI rerun pending; no paid inference, deploy/sign/install/flash, CAD regeneration or realdata mutation.",
+  "implementedSubject": {
+    "artifactDigest": "36e6c0078bdd60e7d3dce4430226bf144674bb200f13e75d0cb8d2e4225394c3",
+    "policyVersion": "two-engine-v1"
+  }
 }

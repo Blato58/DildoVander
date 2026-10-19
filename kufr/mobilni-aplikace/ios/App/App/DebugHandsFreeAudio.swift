@@ -226,7 +226,7 @@ enum DebugHandsFreePlayback {
 @MainActor
 final class DebugHandsFreeAudio {
     typealias Upload = (String, Int, Data) async throws -> Void
-    typealias PlaybackDrained = (String) -> Void
+    typealias PlaybackDrained = (String, UUID) -> Void
     typealias Failure = (String) -> Void
 
     private let fullDuplex: Bool
@@ -427,7 +427,11 @@ final class DebugHandsFreeAudio {
         let shouldNotify = playbackProgress.pending == 0
         if shouldNotify { awaitingDrainOperation = nil }
         lock.unlock()
-        if shouldNotify { playbackDrained(operationId) }
+        if shouldNotify { playbackDrained(operationId, generation) }
+    }
+
+    func isCurrentPlayback(_ callbackGeneration: UUID) -> Bool {
+        generation == callbackGeneration && audioActive
     }
 
     func cancelPlayback() {
@@ -537,7 +541,7 @@ final class DebugHandsFreeAudio {
         let operation = playbackProgress.pending == 0 ? awaitingDrainOperation : nil
         if operation != nil { awaitingDrainOperation = nil }
         lock.unlock()
-        if let operation { playbackDrained(operation) }
+        if let operation { playbackDrained(operation, callbackGeneration) }
     }
 
     private func observeAudioSession() {

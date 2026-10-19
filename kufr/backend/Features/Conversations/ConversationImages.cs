@@ -17,6 +17,38 @@ internal sealed partial class ConversationStore
         }
     }
 
+    internal VisualResponseRevision ReadVisualResponseRevision(string deviceId, string conversationId)
+    {
+        lock (gate)
+        {
+            return conversations.TryGetValue(conversationId, out var conversation) && conversation.DeviceId == deviceId
+                ? new(conversation.VisualResponseGeneration, conversation.VisualResponseChanged.Task, conversation.RevokedVisualRevision)
+                : new(-1, Task.CompletedTask);
+        }
+    }
+
+    // The caller holds the stream writer. Check, commit and begin publication
+    // atomically with DELETE, before its cancellation marker can run.
+    internal Task PublishVisualResponse(string deviceId, string conversationId, long generation, Func<Task> publish)
+    {
+        lock (gate)
+        {
+            if (!conversations.TryGetValue(conversationId, out var conversation)
+                || conversation.DeviceId != deviceId || conversation.VisualResponseGeneration != generation)
+            { throw new Kufr.Backend.Features.Realtime.VisualResponseRevokedException(); }
+            return publish();
+        }
+    }
+
+    private static void RevokeVisualResponses(ConversationEntry conversation, int revision)
+    {
+        var previous = conversation.VisualResponseChanged;
+        conversation.VisualResponseGeneration++;
+        conversation.RevokedVisualRevision = Math.Max(conversation.RevokedVisualRevision, revision);
+        conversation.VisualResponseChanged = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        previous.TrySetResult();
+    }
+
     internal MutationResult DiscardVisualRevision(string deviceId, string conversationId, CostumeImageUpload correlation)
     {
         lock (gate)
@@ -25,6 +57,10 @@ internal sealed partial class ConversationStore
             if (error is not null) { return new(error.Status, false); }
             var conversation = conversations[conversationId];
             if (correlation.Revision is not { } revision || revision > 1_000_000) { return new(400, false); }
+            // Every successful DELETE emits a playback barrier, including a
+            // retry whose prior response was lost. A stale revision never clears
+            // a newer image, but still lets the client release its local mute.
+            RevokeVisualResponses(conversation, revision);
             if (revision < conversation.VisualRevision) { return new(204, false); }
             // Also fence a DELETE that overtakes the corresponding upload.
             conversation.VisualRevision = revision;
@@ -180,6 +216,7 @@ internal sealed partial class ConversationStore
             var context = new CostumeContext(description, "", "high", "manual", conversation.AbsoluteExpiresAt);
             // The empty manual receipt acknowledges a clear; it is never an active prompt cue.
             conversation.Costume = conversation.CostumeCleared ? null : context;
+            if (conversation.CostumeCleared) { RevokeVisualResponses(conversation, conversation.VisualRevision); }
             if (conversation.ImageOperationId is { } imageId)
             {
                 if (conversation.CostumeCleared)
@@ -355,3 +392,5 @@ internal sealed partial class ConversationStore
 
     private sealed record ImageCompletion(string DeviceId, TaskCompletionSource Completion);
 }
+
+internal sealed record VisualResponseRevision(long Generation, Task Changed, int VisualRevision = 0);

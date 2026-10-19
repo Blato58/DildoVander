@@ -36,6 +36,19 @@ struct NativeCostumeTests {
             assert(receipt["barrier"] as? Int == 1) // Ambiguous POST was fenced without ending voice.
             try await session.close()
         }
+        let (_, retry) = try await open(address, device: "debug-retry")
+        let capturedAt = Date()
+        do { _ = try await retry.attachPhoto(fixture, capturedAt: capturedAt, revision: 1)
+            fatalError("Failed analysis reported success") } catch { }
+        let retriedImage = try await retry.attachPhoto(fixture, capturedAt: capturedAt, revision: 2)
+        let retryReceipt = try await readReceipt(address, device: "debug-retry")
+        let imageIds = retryReceipt["imageIds"] as! [String]
+        let capturedTimes = retryReceipt["capturedTimes"] as! [String]
+        assert(imageIds.count == 2 && Set(imageIds).count == 2 && imageIds[1] == retriedImage)
+        assert(capturedTimes.count == 2 && capturedTimes[0] == capturedTimes[1])
+        assert(retryReceipt["visualRevision"] as? Int == 2)
+        assert(retryReceipt["events"] as? [String] == ["create", "image-1", "poll-1", "revoke-1", "image-2", "poll-2"])
+        try await retry.close()
         let (_, blocked) = try await open(address, device: "debug-blocked")
         let pending = Task { @MainActor in
             try await blocked.attachImage(fixture, imageId: UUID().uuidString.lowercased(), capturedAt: Date(), revision: 1)

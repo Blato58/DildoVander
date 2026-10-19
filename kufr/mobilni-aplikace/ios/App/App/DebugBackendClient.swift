@@ -400,11 +400,10 @@ struct DebugGuestMemoryBinding {
 final class DebugCostumeInput {
     var jpeg: Data?
     var description: String?
-    let imageId: String
     let capturedAt: Date
-    init(jpeg: Data?, description: String?, imageId: String = UUID().uuidString.lowercased(), capturedAt: Date = Date()) {
+    init(jpeg: Data?, description: String?, capturedAt: Date = Date()) {
         self.jpeg = jpeg; self.description = description
-        self.imageId = imageId; self.capturedAt = capturedAt
+        self.capturedAt = capturedAt
     }
 }
 
@@ -936,6 +935,25 @@ final class DebugBackendClient {
         guard let value = object[key] as? String, let parsed = UUID(uuidString: value),
               parsed.uuidString.lowercased() == value.lowercased() else { throw DebugBackendError.invalidResponse }
         return value.lowercased()
+    }
+
+    // Shared by the retained streaming engines before an event stream opens.
+    // Project only known machine codes; never surface arbitrary response text.
+    nonisolated static func realtimeError(data: Data, status: Int) -> DebugBackendError {
+        let allowed: Set<String> = [
+            "turn_limit", "dialogue_busy", "realtime_unavailable", "gpt_live_unavailable",
+            "access_token_required", "audio_consent_required", "device_scope_mismatch",
+            "conversation_not_found", "conversation_finished", "conversation_version_mismatch",
+            "realtime_stream_not_replayable", "invalid_request", "request_too_large",
+            "ai_unavailable", "operation_cancelled", "invalid_audio_frame", "realtime_input_mismatch",
+            "realtime_session_not_found", "realtime_playback_mismatch", "invalid_idempotency_key",
+            "idempotency_conflict", "opening_required_or_already_started", "duplicate_turn_id",
+            "invalid_input", "timeout"
+        ]
+        guard (400...599).contains(status), data.count <= 4_096,
+              let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let code = value["code"] as? String, allowed.contains(code) else { return .httpStatus }
+        return .serverCode(code)
     }
 
     static func date(_ value: String) -> Date? {

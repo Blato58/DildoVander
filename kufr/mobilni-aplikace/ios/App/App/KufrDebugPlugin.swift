@@ -402,13 +402,13 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizerDe
             self.costumeStatus = "Nahrávám a vyhodnocuji fotku…"
             self.imageTask = Task { @MainActor in
                 do {
-                    try await session.attachImage(draft.jpeg, imageId: draft.id, capturedAt: draft.capturedAt, revision: revision)
+                    let imageId = try await session.attachPhoto(draft.jpeg, capturedAt: draft.capturedAt, revision: revision)
                     try self.requireCurrent(generation)
                     guard self.handsFreeSession === session, self.imageRequest == imageRequest else { throw CancellationError() }
                     self.costumeStatus = "Fotka byla vyhodnocena pro tento rozhovor."
                     self.discardPhotoDraft()
                     self.imageTask = nil
-                    call.resolve(["status": "analysed", "imageId": draft.id, "revision": revision])
+                    call.resolve(["status": "analysed", "imageId": imageId, "revision": revision])
                 } catch {
                     if self.generation == generation, self.imageRequest == imageRequest {
                         self.imageTask = nil
@@ -438,17 +438,16 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizerDe
             self.costumeStatus = nil
             var jpeg: Data?
             var capturedAt = Date()
-            var imageId = UUID().uuidString.lowercased()
             if let id = call.getString("photoDraftId") {
                 if let draft = self.photoDraft, draft.id == id, draft.expiry > Date() {
-                    jpeg = draft.jpeg; capturedAt = draft.capturedAt; imageId = draft.id
+                    jpeg = draft.jpeg; capturedAt = draft.capturedAt
                 }
                 else { self.costumeStatus = "Fotka vypršela nebo byla zrušena. Pokračuji bez fotky." }
             }
             if call.getString("photoDraftId") != nil { self.discardPhotoDraft() }
             let description = call.getString("costumeDescription")?.trimmingCharacters(in: .whitespacesAndNewlines)
             let costume = DebugCostumeInput(jpeg: jpeg, description: description?.isEmpty == false ? description : nil,
-                imageId: imageId, capturedAt: capturedAt)
+                capturedAt: capturedAt)
             let client = DebugBackendClient()
             self.conversationClient = client
             self.task = Task { @MainActor in
@@ -492,9 +491,10 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizerDe
                 throw CancellationError()
             }
             try await session.upload(inputId: input, sequence: sequence, pcm: pcm)
-        }, playbackDrained: { [weak self] operation in
+        }, playbackDrained: { [weak self] operation, playbackGeneration in
             Task { @MainActor in
-                guard let self = self, self.generation == generation, let session = self.handsFreeSession else { return }
+                guard let self = self, self.generation == generation, let session = self.handsFreeSession,
+                      self.handsFreeAudio?.isCurrentPlayback(playbackGeneration) == true else { return }
                 do { try await session.played(operationId: operation) }
                 catch { self.lastError = DebugHandsFreeSession.failureCode(for: error); self.stopWork(); self.phase = "failed" }
             }

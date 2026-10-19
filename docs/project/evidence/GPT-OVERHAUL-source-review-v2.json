@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "GPT-OVERHAUL-source-review-v2",
+  "observedAtUtc": "2026-10-19T03:51:51.908239+00:00",
+  "kind": "source_review",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "GPT-OVERHAUL",
+      "criterionId": "SOFTWARE",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "36e6c0078bdd60e7d3dce4430226bf144674bb200f13e75d0cb8d2e4225394c3",
+    "policyVersion": "two-engine-v1"
+  },
+  "method": "Independent Sol6.1/high review of combined followup against d0965bc, with repeated provider/Swift/C++/outer simulator event-matrix review; parent inspected staged scope and critical atomic publisher, literal-only canonical memory recovery filter and new regression assertions.",
+  "environment": "Windows PowerShell; .NET10/OpenAI SDK2.14.0, locked SQLite10.0.13/Capacitor8.5.3, ESP-IDF6.1/PlatformIO7.1.3. No paid inference.",
+  "limitations": [
+    "macOS Swift/native harnesses and unsigned Simulator await hosted CI.",
+    "No real provider conversation, iPhone camera/audio/AEC/routes, suitcase media/physical selection, deployment, signed release/install or firmware flash.",
+    "Aborted provider socket usage remains a conservative audit reservation, not observed billed cost."
+  ],
+  "observation": "All actionable findings corrected. Image retry mints immutable identity per attempt. Causal visualRevision marker prevents ordinary barge-in unmuting revoked photo output. Serialized writer and conversation lock reject stale completion before domain commit; reconnect drops photo-derived memory/assistant reasons, preserves app identity/state and literal facts. All ten generation-bound event types match Swift and C++ consumers. Independent reviewer found no remaining actionable issue; final narrow literal-only filter checked by parent and fixture. External native/provider behavior remains separate.",
+  "artifactRefs": [
+    "docs/project/artifacts/GPT-OVERHAUL-source-v2.json"
+  ]
+}

@@ -18,6 +18,8 @@ internal static class RealtimeTests
         VerifyResampling();
         VerifyOpeningContext();
         await VerifyProgressiveAudioAsync();
+        await VerifyVisualRevocationAsync();
+        await VisualResponseTests.RunAsync();
         await VerifyPersistentVoiceAsync();
         await AutonomousLiveTests.VerifyRealtimeMemoryBoundaryAsync();
         await VerifyToolValidationAsync();
@@ -184,6 +186,34 @@ internal static class RealtimeTests
             delta = Convert.ToBase64String(new byte[RealtimeProtocol.MaxChunkBytes])
         });
         Require(Encoding.UTF8.GetByteCount(encoded) < 65536, "largest audio envelope fits native line cap");
+    }
+
+    private static async Task VerifyVisualRevocationAsync()
+    {
+        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var blocked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        long generation = 0;
+        using var old = new ScriptSocket([Created(), Updated(), ResponseCreated(), Audio(new byte[2]), Done("revoked photograph")], 4, blocked.Task);
+        using var fresh = new ScriptSocket([Created(), Updated(), ResponseCreated(), Audio(new byte[2]), Done("safe continuation")]);
+        var reconnects = 0;
+        await using var connection = new OpenAiRealtimeConnection(old, lifetime.Token,
+            _ => { reconnects++; return Task.FromResult<WebSocket>(fresh); });
+        var heard = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var audioGenerations = new List<long>();
+        var pending = connection.GenerateTurnAsync(new(Request(), true, "approved fact", []) { CostumeContext = "revoked cloak" }, null,
+            (_, _) => { audioGenerations.Add(connection.VisualGeneration); heard.TrySetResult(); return Task.CompletedTask; },
+            (_, _) => Task.CompletedTask, lifetime.Token,
+            visualRevision: () => new(generation, changed.Task), recoveryContext: () => "approved fact");
+        await heard.Task.WaitAsync(lifetime.Token);
+        var previous = changed; changed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        generation = 1; previous.TrySetResult();
+        var result = await pending.WaitAsync(lifetime.Token);
+        Require(reconnects == 1 && result.Reply == "safe continuation" && audioGenerations.SequenceEqual(new long[] { 0, 1 }),
+            "blocked Realtime response is aborted on revoke and continues through a fresh provider generation");
+        Require(!fresh.Sent.Any(item => item.Contains("revoked cloak") || item.Contains("revoked photograph"))
+            && fresh.Sent.Any(item => item.Contains("approved fact")), "provider reset retains canonical facts and removes visual/assistant context");
+        blocked.TrySetResult();
     }
 
     private static async Task VerifyProgressiveAudioAsync()
@@ -545,20 +575,22 @@ internal static class RealtimeTests
     {
         private int index;
         private int fragmentOffset;
+        private readonly CancellationTokenSource aborted = new();
         public List<string> Sent { get; } = [];
         public override WebSocketCloseStatus? CloseStatus => null;
         public override string? CloseStatusDescription => null;
         public override WebSocketState State => WebSocketState.Open;
         public override string? SubProtocol => null;
-        public override void Abort() { }
-        public override void Dispose() { }
+        public override void Abort() => aborted.Cancel();
+        public override void Dispose() => aborted.Cancel();
         public override Task CloseAsync(WebSocketCloseStatus status, string? description, CancellationToken token) => Task.CompletedTask;
         public override Task CloseOutputAsync(WebSocketCloseStatus status, string? description, CancellationToken token) => Task.CompletedTask;
         public override async Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> buffer, CancellationToken token)
         {
             if (index == pauseAt)
             {
-                await released!.WaitAsync(token);
+                using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, aborted.Token);
+                await released!.WaitAsync(linked.Token);
             }
             if (index >= events.Length)
             {

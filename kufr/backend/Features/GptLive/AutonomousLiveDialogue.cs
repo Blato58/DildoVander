@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Kufr.Backend.Features.Conversations;
 using Kufr.Backend.Features.Memory;
 using Kufr.Backend.Features.Realtime;
@@ -50,9 +51,58 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         Action<string, bool>? stylePlayed = null,
         Action<double>? directorTiming = null,
         Func<LiveTranscriptSegment, bool>? transcript = null,
-        Func<(int Revision, string Context)>? visualContext = null)
+        Func<(int Revision, string Context)>? visualContext = null,
+        Func<VisualResponseRevision>? visualRevision = null,
+        Func<LiveOutcome, CancellationToken, Task>? finalize = null,
+        Func<CancellationToken, Task>? resumeInput = null)
     {
-        var turn = call.Context;
+        var turn = call.Context with { CostumeContext = visualContext?.Invoke().Context ?? call.Context.CostumeContext };
+        connection.VisualGeneration = visualRevision?.Invoke().Generation ?? 0;
+        var visualState = visualRevision?.Invoke();
+        if (connection.VisualGeneration > 0)
+        {
+            var safe = memory is not null && memoryAccess is not null ? memory.RecoveryContext(memoryAccess).Text : "";
+            turn = turn with { EveningContext = safe, LiveInput = new object[] {
+                new { type = "message", role = "developer", content = new[] { new { type = "input_text", text = safe.Length > 0 ? safe : "Historicky fotograficky kontext byl odvolan." } } } } };
+        }
+
+        var providerTimelineOffset = 0d;
+        var visualResets = 0;
+        long retiredVoiceCost = 0;
+        async Task StartProviderAsync(RealtimeTurnContext context)
+        {
+            while (true)
+            {
+                var state = visualRevision?.Invoke();
+                var id = Guid.NewGuid().ToString("N");
+                await connection.SendAsync(GptLiveProtocol.AutonomousStart(context, id), token);
+                var pending = connection.ReceiveAsync(token);
+                if (state is not null && (state.Generation != connection.VisualGeneration
+                    || await Task.WhenAny(pending, state.Changed) != pending
+                    || visualRevision!().Generation != connection.VisualGeneration))
+                {
+                    if (++visualResets > 8) { throw new InvalidDataException("Visual response reset limit."); }
+                    var current = visualRevision!();
+                    if (current.Generation < 0 || !availability().Current) { throw new OperationCanceledException(token); }
+                    retiredVoiceCost = checked(retiredVoiceCost + GptLiveProtocol.VoiceReservation);
+                    await connection.RestartAsync(current.Generation, token);
+                    try { using var retired = await pending; } catch (Exception) { }
+                    var safe = memory is not null && memoryAccess is not null ? memory.RecoveryContext(memoryAccess).Text : "";
+                    context = context with { CostumeContext = visualContext?.Invoke().Context ?? "", EveningContext = safe,
+                        LiveInput = new object[] { new { type = "message", role = "developer", content = new[] {
+                            new { type = "input_text", text = safe.Length > 0 ? safe : "Fotograficky kontext byl odvolan." } } } } };
+                    continue;
+                }
+                using var started = await pending;
+                if (GptLiveProtocol.RequiredString(started.RootElement, "type", 100) != "session.started"
+                    || GptLiveProtocol.RequiredString(started.RootElement, "client_event_id", 128) != id
+                    || started.RootElement.GetProperty("session").GetProperty("model").GetString() != GptLiveProtocol.Model)
+                { throw new InvalidDataException("Live startup correlation failed."); }
+                visualState = visualRevision?.Invoke();
+                turn = context;
+                return;
+            }
+        }
         (int Revision, string Context) deliveredVisual = (-1, "");
         var snapshot = turn.LivePrompt ?? throw new InvalidOperationException("Missing frozen Live prompt.");
         var options = snapshot.Options;
@@ -62,13 +112,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         CharacterDirective? directive = null;
         var deliveredMemory = new HashSet<string>(turn.LiveMemoryReferences, StringComparer.Ordinal);
         var tracker = new LiveCommandTracker(connection);
-        var startId = Guid.NewGuid().ToString("N");
-        await connection.SendAsync(GptLiveProtocol.AutonomousStart(turn, startId), token);
-        using (var started = await connection.ReceiveAsync(token))
-            if (GptLiveProtocol.RequiredString(started.RootElement, "type", 100) != "session.started"
-                || started.RootElement.GetProperty("session").GetProperty("model").GetString() != GptLiveProtocol.Model
-                || GptLiveProtocol.RequiredString(started.RootElement, "client_event_id", 128) != startId)
-                throw new InvalidDataException("Live startup correlation failed.");
+        await StartProviderAsync(turn);
         connection.ObserveInput(inputActivity.Observe);
         connection.AudioReady();
         if (character is not null)
@@ -141,7 +185,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(50), clock);
         Task<bool>? tick = null;
 
-        string Key() => projection.Fingerprint + ":" + availability().Revision + ":" + availability().ReadyMask + ":" + excluded
+        string Key() => projection.Fingerprint + ":" + availability().Revision + ":" + availability().ReadyMask + ":" + excluded + ":visual:" + (visualRevision?.Invoke().Generation ?? 0)
             + ":visual:" + (visualContext?.Invoke().ToString() ?? turn.CostumeContext);
         bool Valid(WandDecisionResult result) => availability() is { Current: true } a && result.AvailabilityRevision == a.Revision
             && (result.Compartment is null || (a.ReadyMask & (1 << (result.Compartment.Value - 1))) != 0);
@@ -175,6 +219,51 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
             if (cancelAudio is not null) { await cancelAudio(character?.ResponseGeneration ?? responseGeneration, token); }
             Report("character_response_cancelled");
         }
+        async Task ResetVisualProviderAsync()
+        {
+            if (visualRevision is null) { throw new VisualResponseRevokedException(); }
+            if (++visualResets > 8) { throw new InvalidDataException("Visual response reset limit."); }
+            var current = visualRevision();
+            if (current.Generation < 0) { throw new OperationCanceledException(token); }
+            await CancelResponse(newInput: true);
+            var retiredReceive = receive;
+            receive = null;
+            retiredVoiceCost = checked(retiredVoiceCost + GptLiveProtocol.VoiceReservation);
+            seconds = 0;
+            await connection.RestartAsync(current.Generation, token);
+            if (retiredReceive is not null)
+            {
+                try { using var retired = await retiredReceive; } catch (Exception) { }
+            }
+            tracker = new LiveCommandTracker(connection);
+            providerTimelineOffset = projection.Segments.Select(segment => segment.EndMs).DefaultIfEmpty(0).Max() + 100;
+            var recovery = memory is not null && memoryAccess is not null ? memory.RecoveryContext(memoryAccess) : new LiveMemoryContext("", []);
+            var literal = projection.Segments.Where(segment => segment.Speaker == "user")
+                .Select(segment => segment.Text).ToArray();
+            var input = new List<object>();
+            if (recovery.Text.Length > 0) { input.Add(new { type = "message", role = "developer", content = new[] { new { type = "input_text", text = recovery.Text } } }); }
+            if (literal.Length > 0) { input.Add(new { type = "message", role = "user", content = new[] { new { type = "input_text", text = LiveTextBudget.Bound(string.Join("", literal), 5_000) } } }); }
+            var restart = turn with { CostumeContext = visualContext?.Invoke().Context ?? "", EveningContext = recovery.Text,
+                History = turn.History.Select(item => new DialogExchange(item.VisitorText, "")).ToArray(), LiveInput = input };
+            await StartProviderAsync(restart);
+            connection.AudioReady();
+            audioSuppressed = false; directiveAccepted = true; directiveCommand = null;
+            recoveryBoundary = false;
+            deliveredVisual = (-1, "");
+            visualState = visualRevision();
+            await tracker.AppendAsync("instructions", "Pokračuj ve stejné interakci podle dosavadních výroků hosta a platného stavu aplikace. Fotografický kontext byl odvolán; nepoužívej předchozí fotografii ani její popis. Nezačínej novým pozdravem ani znovu nevykonávej nástroje.", null, token);
+            // Pending decisions may contain revoked visual reasoning; revalidate them.
+            terminal = null; readyResult = null; readyTask = null; readyFingerprint = null;
+            equivalent.Clear(); resultAccepted = false; resultCommand = null;
+            closing = false; closeId = null; terminalInputPending = false;
+            var pending = tasks.Values.LastOrDefault();
+            if (pending is not null && work is null)
+            { waiting = pending with { State = "awaiting_context" }; waitingSince = Elapsed(); }
+            if (resumeInput is not null) { await resumeInput(token); }
+            await Direct(CharacterPhase.Responding);
+            Report("visual_provider_reset");
+        }
+
         void RecordPlayedStyle()
         {
             if (directive is null || directive.StyleId.Length == 0) { return; }
@@ -286,16 +375,26 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         {
             while (true)
             {
-                token.ThrowIfCancellationRequested(); receive ??= connection.ReceiveAsync(token); tick ??= timer.WaitForNextTickAsync(token).AsTask();
+                try
+                {
+                token.ThrowIfCancellationRequested();
+                if (visualRevision is not null && visualRevision().Generation != connection.VisualGeneration)
+                { await ResetVisualProviderAsync(); continue; }
+                receive ??= connection.ReceiveAsync(token); tick ??= timer.WaitForNextTickAsync(token).AsTask();
                 var active = new List<Task> { receive, tick };
+                if (visualState is not null) { active.Add(visualState.Changed); }
                 if (work is not null) active.Add(work);
                 if (memoryWork is not null) active.Add(memoryWork);
                 if (localPersistence is not null) active.Add(localPersistence);
                 if (player is not null) active.Add(player);
                 var winner = await Task.WhenAny(active);
+                if (visualRevision is not null && visualRevision().Generation != connection.VisualGeneration)
+                { await ResetVisualProviderAsync(); continue; }
                 if (winner == receive)
                 {
-                    using var document = await receive; receive = null; var value = document.RootElement;
+                    using var document = await receive; receive = null;
+                    using var adjusted = providerTimelineOffset == 0 ? null : AdjustTimeline(document.RootElement, providerTimelineOffset);
+                    var value = adjusted?.RootElement ?? document.RootElement;
                     if (audioSuppressed && directiveAccepted && inputActivity.QuietFor(options.InputQuietMs)
                         && Elapsed() - lastProviderAudio >= TimeSpan.FromMilliseconds(options.OutputPauseMs))
                     {
@@ -447,11 +546,13 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                                 if (!closing || terminal is null || value.GetProperty("reason").GetString() != "close_requested"
                                     || GptLiveProtocol.RequiredString(value, "client_event_id", 128) != closeId) throw new InvalidDataException("Unexpected Live close.");
                                 var actual = ActualTerminal();
-                                return new(new(LiveConversationProjection.Tail(projection.LatestInput, 900), actual.Length <= 500 ? actual : actual[^500..],
+                                var outcome = new LiveOutcome(new(LiveConversationProjection.Tail(projection.LatestInput, 900), actual.Length <= 500 ? actual : actual[^500..],
                                     terminal.Status == WandDecisionStatus.ValidProposal ? "propose" : "no_selection",
                                     LiveTextBudget.Bound(string.Join("; ", terminal.Reasons.Select(r => r.Fact)), 190), terminal.Compartment,
-                                    cost + GptLiveProtocol.VoiceCost(seconds)), projection.AnswerCandidates, [])
+                                    cost + retiredVoiceCost + GptLiveProtocol.VoiceCost(seconds)), projection.AnswerCandidates, [])
                                 { Autonomous = true, PlaybackVerified = true, Decision = terminal, DecisionRevision = projection.Revision, Segments = projection.Segments.ToArray() };
+                                if (finalize is not null) { await finalize(outcome, token); }
+                                return outcome;
                             }
                             break;
                         case "info": break;
@@ -537,7 +638,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                         && Elapsed() - lastSpeech >= TimeSpan.FromMilliseconds(options.TerminalQuietMs))
                     {
                         Report("closing");
-                        await stopInput(token); closeId = Guid.NewGuid().ToString("N"); await connection.CloseAsync(token, closeId); closing = true; closeAt = Elapsed();
+                        closeId = Guid.NewGuid().ToString("N"); await connection.CloseAsync(token, closeId); closing = true; closeAt = Elapsed();
                     }
                 }
                 if (winner == tick) { await tick!; tick = null; }
@@ -743,6 +844,8 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                     || terminal is not null && !closing && !terminalInputPending && inputActivity.QuietFor(options.InputQuietMs)
                         && Elapsed() - terminalAt > TimeSpan.FromSeconds(options.TerminalTimeoutSeconds))
                     throw new InvalidDataException("Live playback/finalization unverified.");
+                }
+                catch (VisualResponseRevokedException) { await ResetVisualProviderAsync(); }
             }
         }
         finally
@@ -763,6 +866,15 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                 await memory.PersistContextAsync(memoryAccess, call.SessionGeneration, projection.Segments.ToArray(),
                     accepted, inputFactEpoch, CancellationToken.None, expectedDeletionEpoch: call.MemoryDeletionEpoch);
             }
+        }
+        static JsonDocument AdjustTimeline(JsonElement value, double offset)
+        {
+            var item = JsonNode.Parse(value.GetRawText())!.AsObject();
+            foreach (var field in new[] { "start_ms", "end_ms", "offset_ms" })
+            {
+                if (item[field] is { } time) { item[field] = time.GetValue<double>() + offset; }
+            }
+            return JsonDocument.Parse(item.ToJsonString());
         }
         string ActualTerminal() => string.Concat(projection.Segments.Skip(terminalSegment).Where(s => s.Speaker == "assistant").Select(s => s.Text)).Trim();
         bool TerminalMentionsResult()

@@ -960,6 +960,7 @@ internal sealed partial class ConversationStore(
         }
         if (conversations.Remove(conversationId, out var conversation))
         {
+            conversation.VisualResponseChanged.TrySetResult();
             conversation.History.Clear();
         }
         foreach (var paidCall in activePaidCalls.Values
@@ -1040,6 +1041,9 @@ internal sealed partial class ConversationStore(
         public bool ImageConsented { get; set; }
         public string? VisualImageId { get; set; }
         public int VisualRevision { get; set; }
+        public long VisualResponseGeneration { get; set; }
+        public int RevokedVisualRevision { get; set; }
+        public TaskCompletionSource VisualResponseChanged { get; set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public string? ImageOperationId { get; set; }
         public CostumeContext? Costume { get; set; }
         public bool ManualCostume { get; set; }

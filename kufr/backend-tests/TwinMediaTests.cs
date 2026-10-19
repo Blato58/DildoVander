@@ -46,6 +46,7 @@ internal static class TwinMediaTests
             ["DigitalTwin:Credentials:1:Role"] = "observe", ["DigitalTwin:Credentials:1:Sha256"] = Hash(observe)
         });
         builder.Services.AddSingleton<TimeProvider>(testClock);
+        builder.Services.AddSingleton<ServerAdminAccess>();
         builder.Services.AddSingleton<DeviceAccessStore>(); builder.Services.AddSingleton<TwinAccess>();
         builder.Services.AddSingleton<TwinStore>(); builder.Services.AddSingleton<TwinHost>();
         builder.Services.AddHostedService(services => services.GetRequiredService<TwinHost>());
@@ -54,11 +55,18 @@ internal static class TwinMediaTests
         builder.Services.AddSingleton<TwinMediaSessions>();
         await using var app = builder.Build();
         app.MapDigitalTwin(); app.MapTwinMedia(); app.MapConversations(); app.MapCostumeImages();
+        // Materialize route binding up front: a newly mapped admin service must
+        // never become an inferred DELETE body and break every request at runtime.
+        _ = ((Microsoft.AspNetCore.Routing.IEndpointRouteBuilder)app).DataSources
+            .SelectMany(source => source.Endpoints).ToArray();
         await app.StartAsync();
         builder.Configuration["DigitalTwin:IntegrationBackendUrl"] = app.Urls.Single() + "/";
         var host = app.Services.GetRequiredService<TwinHost>();
         for (var count = 0; count < 100 && !host.IsReady(); count++) { await Task.Delay(20); }
         Check(host.IsReady(), "native readiness");
+        Check(app.Services.GetRequiredService<TwinAccess>().Verify(control) is { Role: "control", InstanceId: "sim-media" },
+            "configured media controller identity");
+        _ = app.Services.GetRequiredService<TwinMediaSessions>();
         using var http = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
         var owner = await LoginAsync(http, control);
         var spectator = await LoginAsync(http, observe);
@@ -461,7 +469,24 @@ internal static class TwinMediaTests
             using var request = new HttpRequestMessage(HttpMethod.Post, "/v1/twin/session") { Content = JsonContent.Create(new { credential }) };
             if (cookie is not null) { request.Headers.Add("Cookie", cookie); }
             request.Headers.Add("Origin", "https://twin.test"); using var response = await client.SendAsync(request);
-            Check(response.IsSuccessStatusCode, "login"); return response.Headers.GetValues("Set-Cookie").Single().Split(';')[0];
+            if (!response.IsSuccessStatusCode)
+            {
+                var code = "unexpected_response";
+                try
+                {
+                    using var problem = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+                    if (problem.RootElement.ValueKind == JsonValueKind.Object
+                        && problem.RootElement.TryGetProperty("code", out var field)
+                        && field.ValueKind == JsonValueKind.String
+                        && field.GetString() is "origin_forbidden" or "twin_credential_invalid")
+                    {
+                        code = field.GetString()!;
+                    }
+                }
+                catch (JsonException) { }
+                Check(false, $"login HTTP {(int)response.StatusCode} {code}");
+            }
+            return response.Headers.GetValues("Set-Cookie").Single().Split(';')[0];
         }
     }
     private static async Task FramingAsync()

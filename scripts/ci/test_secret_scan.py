@@ -1,5 +1,6 @@
 """Exercise the pinned Gitleaks binary, without real credentials or ignore entries."""
 
+import base64
 import hashlib
 import json
 import os
@@ -110,14 +111,29 @@ class SecretScanIntegrationTests(unittest.TestCase):
         self.write("kufr/mechanika/cad/scripts/generate.py", f'key = "{token}"')
         self.write("kufr/firmware/tests/conversation_text_codec_test.cpp",
                    f'request.idempotencyKey = "{token}";')
+        self.write("kufr/mobilni-aplikace/tests/native_handsfree/socket_peer.test.mjs",
+                   f'const api_key = "{token}";')
         self.commit("Synthetic leaked credentials")
         findings = self.scan(1)
         self.assertIn("github-pat", {finding["RuleID"] for finding in findings})
         self.assertIn("generic-api-key", {finding["RuleID"] for finding in findings})
-        self.assertEqual(6, len({finding["File"] for finding in findings}))
+        self.assertEqual(7, len({finding["File"] for finding in findings}))
         for path in INVENTORY_PATHS:
             self.assertEqual({"github-pat", "generic-api-key"},
                              {finding["RuleID"] for finding in findings if finding["File"] == path})
+
+    def test_public_websocket_nonce_exception_requires_exact_value_and_fixture(self):
+        path = "kufr/mobilni-aplikace/tests/native_handsfree/socket_peer.test.mjs"
+        handshake = next(line for line in (ROOT / path).read_text(encoding="utf-8").splitlines()
+                         if "Sec-WebSocket-Key:" in line)
+        nonce = base64.b64encode(b"the sample nonce").decode("ascii")
+        self.assertIn(nonce, handshake)
+        self.write(path, handshake)
+        self.commit("Public protocol example nonce")
+        self.assertEqual([], self.scan(0))
+        self.write("other-socket.mjs", handshake)
+        self.commit("Same value outside its reviewed fixture")
+        self.assertEqual({"other-socket.mjs"}, {item["File"] for item in self.scan(1)})
 
     def test_hash_exception_requires_inventory_path(self):
         digest = hashlib.sha256(b"synthetic bytes").hexdigest()
