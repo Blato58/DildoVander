@@ -3,7 +3,7 @@
   "id": "KUFR-DEPENDABOT-MOBILE-196",
   "initiative": "KUFR",
   "title": "Dependabot PR 196 mobile dependency and native pin alignment",
-  "state": "active",
+  "state": "closed",
   "priority": "P2",
   "sequence": 36,
   "scope": [
@@ -50,13 +50,70 @@
       "appliesTo": {
         "artifactDigest": "7faa569a50fb3bd6fafe6398c5e4b1c7b04514cae9ced69d2cc90caa94543eb0"
       },
-      "evidenceRefs": []
+      "evidenceRefs": [
+        "KUFR-DEPENDABOT-MOBILE-196-native-20261019"
+      ]
     }
   ],
   "blockers": [],
   "implementedSubject": {
     "artifactDigest": "7faa569a50fb3bd6fafe6398c5e4b1c7b04514cae9ced69d2cc90caa94543eb0"
   },
-  "currentNote": "Implementation ed88b18f58d91d0195b99463108f56ba0b69de1f pushed successfully with scripts/Push-CurrentBranch.ps1 to the original Dependabot branch; helper verified the remote SHA. Review comment4281160615 fixed by real cap sync manifest regeneration and upstream-tag native lock alignment. Windows local checks passed; parent reports independent correctness review found no actionable defects. Required macOS CI remains pending. Integrated concurrent tracking-only main 2257551 without source changes.",
-  "nextAction": "Obtain required macOS CI result; parent resolves review and merges PR196."
+  "currentNote": "Implementationed88b18f58d91d0195b99463108f56ba0b69de1f and finalhead93f7bfb0ba9435c80af2c9e510a56af7905370c5 pushed and remote verified. All CI39190872992 passed, including macOS native tests/unsigned Simulator. Review resolved; PR196 squash merged4850660d7b6526abf5f6d26c54d681e9658bd9de, fetched main tree exactly equals tested head. Native acceptance receipt delivered alongside remaining backend PR198 tracking integration.",
+  "closure": {
+    "outcome": "accepted",
+    "reason": "Local checks, independent review and required macOS native CI passed; PR196 merged and exact Git tree verified on main.",
+    "subject": {
+      "artifactDigest": "7faa569a50fb3bd6fafe6398c5e4b1c7b04514cae9ced69d2cc90caa94543eb0"
+    },
+    "evidenceRefs": [
+      "KUFR-DEPENDABOT-MOBILE-196-local-20261019-source",
+      "KUFR-DEPENDABOT-MOBILE-196-local-20261019-tests",
+      "KUFR-DEPENDABOT-MOBILE-196-native-20261019"
+    ],
+    "acceptedCriteria": [
+      {
+        "id": "PINS",
+        "revision": 1,
+        "expected": "Capacitor npm core/CLI/iOS, generated Package.swift and tracked native lock use 8.5.3; Vite dependency group remains consistent and lock provenance is explicit.",
+        "requiredEvidenceKinds": [
+          "source_review"
+        ],
+        "appliesTo": {
+          "artifactDigest": "7faa569a50fb3bd6fafe6398c5e4b1c7b04514cae9ced69d2cc90caa94543eb0"
+        },
+        "evidenceRefs": [
+          "KUFR-DEPENDABOT-MOBILE-196-local-20261019-source"
+        ]
+      },
+      {
+        "id": "LOCAL",
+        "revision": 1,
+        "expected": "Mobile/contract tests, production web build, real Capacitor sync and relevant packaging/site checks pass for the dependency update.",
+        "requiredEvidenceKinds": [
+          "unit"
+        ],
+        "appliesTo": {
+          "artifactDigest": "7faa569a50fb3bd6fafe6398c5e4b1c7b04514cae9ced69d2cc90caa94543eb0"
+        },
+        "evidenceRefs": [
+          "KUFR-DEPENDABOT-MOBILE-196-local-20261019-tests"
+        ]
+      },
+      {
+        "id": "NATIVE",
+        "revision": 1,
+        "expected": "Required macOS PR CI resolves Swift packages and passes native tests plus unsigned iOS Simulator build for this dependency update.",
+        "requiredEvidenceKinds": [
+          "integration"
+        ],
+        "appliesTo": {
+          "artifactDigest": "7faa569a50fb3bd6fafe6398c5e4b1c7b04514cae9ced69d2cc90caa94543eb0"
+        },
+        "evidenceRefs": [
+          "KUFR-DEPENDABOT-MOBILE-196-native-20261019"
+        ]
+      }
+    ]
+  }
 }
