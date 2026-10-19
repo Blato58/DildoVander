@@ -3,13 +3,13 @@ import { SerialTransport, flushStopBeforeClose } from "./serial.mjs";
 import { registerBenchTools } from "./mcp.mjs";
 import { ManualProfiles, canSaveTarget } from "./profiles.mjs";
 import { AutoCalibration } from "./auto-calibration.mjs";
-import { mountBenchUi, statusBadge, notice, emptyState } from "./panel-ui.mjs";
+import { mountBenchUi, benchGuidance, statusBadge, notice, emptyState } from "./panel-ui.mjs";
 
 mountBenchUi(document);
 
 const elements = Object.fromEntries([
   "connect", "disconnect", "connection", "support", "channel", "pulse-width", "arm", "pulse",
-  "stop", "state", "error", "readback", "log", "log-empty", "mcp",
+  "stop", "state", "error", "readback", "log", "log-empty", "mcp", "bench-readiness",
   "calibration-support", "cal-width", "cal-duration", "cal-range", "cal-minus", "cal-plus",
   "cal-1200", "cal-1500", "cal-1800", "cal-arm", "cal-move", "cal-validation", "profile-title",
   "profile-label", "profile-save-label", "profile-values", "profile-min", "profile-center", "profile-max",
@@ -70,13 +70,17 @@ function log(line) {
 
 function render(state, capabilities) {
   const automatic = !!autoCalibration?.state.active;
+  elements["bench-readiness"].innerHTML = notice({
+    ...benchGuidance(state, capabilities, { supported, connecting, closing, automatic }),
+    live: false,
+  });
   elements.connect.disabled = !supported || connecting || closing || state.connected;
   elements.connect.textContent = connecting ? "Připojuji…" : "Připojit USB";
   elements.disconnect.disabled = !state.connected || closing;
   elements.connection.innerHTML = statusBadge({
-    label: state.connected ? "USB připojeno · CH343 · 115200 baud" :
+    label: state.connected ? "USB otevřeno · CH343 · 115200 baud" :
       connecting ? "Výběr a otevření USB…" : "Odpojeno · log a registry jsou historické",
-    tone: state.connected ? "success" : connecting ? "info" : "neutral",
+    tone: state.connected || connecting ? "info" : "neutral",
   });
   elements.arm.disabled = automatic || !capabilities.arm || closing;
   elements.pulse.disabled = automatic || !capabilities.pulse || closing;

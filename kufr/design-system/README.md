@@ -9,6 +9,7 @@ Příběh hůlek patří do obsahu. Ovládání a bezpečnostní stav mluví dos
 - [Komponenty a stavy](components.md)
 - [Přístupnost](accessibility.md)
 - [Specifikace obrazovek](screens.md)
+- [Aktivní cesty a vlastnictví stavů](journeys.md)
 - [Přehled ukázek](mockups/index.html)
 - [Desktop Workshop](mockups/desktop-workshop.html)
 - [Mobilní ovladač](mockups/mobile-home.html)

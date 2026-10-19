@@ -763,6 +763,54 @@ test('all named camera views fit the scene and remain finite', () => {
   }
 });
 
+test('camera label follows actual orientation and free orbit clears preset state', () => {
+  const app=viewer();
+  app.api.setView('front'); app.flush();
+  assert.equal(app.get('view-name').textContent,'Zepředu');
+  assert.equal(app.get('view-front').getAttribute('aria-pressed'),'true');
+  app.get('view').fire('keydown',{key:'ArrowLeft'}); app.flush();
+  assert.equal(app.get('view-name').textContent,'Volný pohled');
+  assert.equal(app.get('view-front').getAttribute('aria-pressed'),'false');
+  app.get('view').fire('keydown',{key:'Home'}); app.flush();
+  assert.equal(app.get('view-name').textContent,'Izometrie');
+});
+
+test('visible recovery restores mode geometry without changing assembly, overlays or fault', () => {
+  const steps=[{title:'Bench deck',parts:['deck'],installation:{kind:'bench'},location:'Work table',direction:'From above',partSummary:'One deck'}];
+  const app=viewer([],[{name:'deck',group:'fixed'},{name:'case',group:'case'}],{assemblyGuide:{steps}});
+  app.api.setMode('assembly'); app.api.moveAssembly(1); app.flush();
+  app.get('wires').checked=true; app.get('dimensions').checked=true;
+  app.get('case').checked=false; app.get('case').oninput();
+  app.get('object').value='deck'; app.get('object').onchange();
+  app.get('isolate-object').onclick(); app.get('hide-object').onclick(); app.flush();
+  assert.equal(app.get('restore-view').hidden,false);
+  assert.match(app.get('selection-title').textContent,/skrytý díl/);
+  app.get('restore-view').onclick(); app.flush();
+  assert.equal(app.document.activeElement,app.get('view'),'Recovery returns focus before its action disappears');
+  assert.equal(app.api.state().assemblyIndex,0);
+  assert.equal(app.get('case').checked,true);
+  assert.equal(app.api.visible(app.meshes.find(mesh=>mesh.name==='case')),false,'Bench truth survives visibility recovery');
+  assert.equal(app.api.visible(app.meshes.find(mesh=>mesh.name==='deck')),true);
+  assert.equal(app.get('wires').checked,true); assert.equal(app.get('dimensions').checked,true);
+  assert.equal(app.get('restore-view').hidden,true);
+  app.get('guide-close').onclick(); app.flush();
+  assert.equal(app.get('assembly-current').hidden,false);
+  assert.match(app.get('assembly-current-title').textContent,/1 \/ 1 · Bench deck/);
+  assert.match(app.get('assembly-current-context').textContent,/Na stole mimo kufr · Work table · From above/);
+  assert.match(app.get('assembly-current-parts').textContent,/One deck/);
+  app.api.setMode('service'); app.get('cover').checked=true; app.get('show-all').onclick(); app.flush();
+  assert.equal(app.get('cover').checked,false,'Service recovery retains exposed electronics');
+  assert.equal(+app.get('case-opacity').value,.2);
+  assert.equal(app.get('assembly-current').hidden,true);
+
+  const motion=viewer([],[],{effects:{main:[{duration_ms:1000,target:'selected',motion:'raise'}]}});
+  motion.api.startEffect('main'); motion.frame(0); motion.frame(300); motion.api.stopEffect();
+  const angles=Array.from(motion.api.state().trayAngles);
+  motion.get('case').checked=false; motion.get('restore-view').onclick(); motion.flush();
+  assert.equal(motion.api.state().effectFault,true);
+  assert.deepEqual(Array.from(motion.api.state().trayAngles),angles);
+});
+
 test('guide picker supports variable steps and bench context, metadata, next state and destination', () => {
   const steps=[
     {id:'deck',title:'Deck on bench',parts:['deck'],instruction:'Wire outside case',subassembly:'electronics',location:'bench',direction:'from above',access:['driver top'],connectors:['USB slack'],removal:'Disconnect USB',installation:{kind:'bench',targets:['esp32'],clearance_mm:60,absent:['frame']},tools:['key'],materials:[]},

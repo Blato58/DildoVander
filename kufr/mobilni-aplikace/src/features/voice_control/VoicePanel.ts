@@ -1,5 +1,6 @@
 import { button, field } from '../../../../design-system/ui.js';
 import type { DeviceSnapshot } from '../device_connection/FakeDeviceConnection';
+import { liveActionBlocker } from '../device_connection/OperatorReadiness';
 import type { NativeDeviceConnection } from '../device_connection/NativeDeviceConnection';
 
 export class VoicePanel {
@@ -22,6 +23,7 @@ export class VoicePanel {
       </form>
       <label><input type="checkbox" data-image-consent> Host souhlasí s jednou fotkou kostýmu z kamery kufru pro tento rozhovor.</label>
       <p class="footnote">Volitelné. Fotka se předá serveru a OpenAI jako nejistá nápověda a neukládá se do paměti večera.</p>
+      <p class="availability-blocker" data-voice-availability></p>
       <div class="actions">
         ${button({ label: "Spustit hlas na kufru", variant: 'primary', disabled: true, attributes: {"data-voice": "start"} })}
         ${button({ label: "Zastavit hlas", disabled: true, attributes: {"data-voice": "stop"} })}
@@ -52,6 +54,9 @@ export class VoicePanel {
   update(snapshot: DeviceSnapshot): void {
     const voice = snapshot.voice;
     const native = snapshot.source === 'native-device';
+    const blocker = this.element.querySelector<HTMLElement>('[data-voice-availability]')!;
+    blocker.textContent = liveActionBlocker(snapshot, 'voice');
+    blocker.hidden = !blocker.textContent;
     const consent = this.element.querySelector<HTMLInputElement>('[data-image-consent]')!;
     consent.disabled = !native || voice?.canStart !== true || voice?.cameraAvailable !== true || snapshot.busy;
     if (!native || voice?.cameraAvailable !== true) consent.checked = false;

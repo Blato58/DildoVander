@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
-import { mountBenchUi } from "../panel-ui.mjs";
+import { mountBenchUi, benchGuidance } from "../panel-ui.mjs";
 
 const ids = ["connection-actions", "pulse-actions", "calibration-actions", "auto-actions", "stop-actions", "calibration-fields", "log-empty", "connect", "disconnect", "connection", "support", "channel", "pulse-width", "arm",
-  "pulse", "stop", "state", "error", "readback", "log", "mcp",
+  "pulse", "stop", "state", "error", "readback", "log", "mcp", "bench-readiness",
   "calibration-support", "cal-width", "cal-duration", "cal-range", "cal-minus", "cal-plus", "cal-1200", "cal-1500", "cal-1800",
   "cal-arm", "cal-move", "cal-validation", "profile-title", "profile-label", "profile-save-label", "profile-values",
   "profile-min", "profile-center", "profile-max", "profile-status", "profile-error", "profile-export", "profile-json", "profile-clear", "cal-state",
@@ -21,6 +21,36 @@ test("shared markup preserves every panel hook and calibrated input boundary", a
   assert.match(fragments.join(""), /min="1000" max="2000"/);
   assert.match(fragments.join(""), /min="500" max="3000"/);
   assert.match(fragments.join(""), /id="stop" disabled>Stop<\/button>/);
+  assert.match(html, /REAL USB · skutečný hardware/);
+  assert.match(html, /<details id="diagnostics"/);
+});
+
+test("readiness separates USB, requested commands, acknowledged gates and physical uncertainty", () => {
+  const context = { supported: true, connecting: false, closing: false, automatic: false };
+  const state = { connected: false, baseline: false, calibrationSupported: false };
+  assert.match(benchGuidance(state, {}, context).title, /připojením USB/);
+  state.connected = true;
+  assert.match(benchGuidance(state, {}, context).title, /chybí potvrzení Stop/);
+  assert.equal(benchGuidance(state, {}, context).tone, "warning");
+  state.pending = "stop";
+  assert.match(benchGuidance(state, {}, context).message, /samotné odeslání nepotvrzuje/);
+  state.pending = "arm";
+  assert.match(benchGuidance(state, {}, context).message, /teprve po potvrzení/);
+  state.pending = "pulse";
+  assert.match(benchGuidance(state, {}, context).message, /nepotvrzuje fyzický pohyb/);
+  state.pending = null;
+  state.baseline = true;
+  assert.match(benchGuidance(state, { arm: true }, context).message, /calibration=v1/);
+  state.calibrationSupported = true;
+  assert.match(benchGuidance(state, { arm: true }, context).message, /Arm připraví jediný pokus/);
+  assert.match(benchGuidance(state, { pulse: true }, context).title, /Arm potvrzen/);
+  state.lastCompleted = { widthUs: 1500, calibration: true };
+  assert.match(benchGuidance(state, { arm: true }, context).message, /neměří polohu/);
+  state.lastCompleted.calibration = false;
+  assert.match(benchGuidance(state, { arm: true }, context).message, /se neukládá/);
+  assert.match(benchGuidance(state, {}, { ...context, automatic: true }).message, /Drhne \/ vrčí/);
+  state.fault = true;
+  assert.equal(benchGuidance(state, {}, { ...context, automatic: true }).tone, "danger");
 });
 
 function fakePage(serial, modelContext, localStorage) {
@@ -70,6 +100,8 @@ test("real panel button handlers require explicit Arm and Pulse and disconnect f
     assert.equal(el.pulse.disabled, true);
     await el.connect.click();
     assert.deepEqual(writes, ["!\n"]);
+    assert.match(el["bench-readiness"].textContent, /Čeká na potvrzení firmwaru/);
+    assert.doesNotMatch(el.connection.markup, /aw-badge--success/);
     assert.equal(el.arm.disabled, true);
     await receive("SERVO_BENCH STOP PWM FULL_OFF");
     assert.equal(el.arm.disabled, false);
@@ -79,6 +111,7 @@ test("real panel button handlers require explicit Arm and Pulse and disconnect f
     assert.equal(el.pulse.disabled, true);
     await receive("SERVO_BENCH ARMED for one pulse, 10 seconds");
     assert.equal(el.pulse.disabled, false);
+    assert.match(el["bench-readiness"].textContent, /Arm potvrzen/);
     await el.pulse.click();
     await tick();
     assert.equal(el.pulse.disabled, true);

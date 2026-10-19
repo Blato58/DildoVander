@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
-import { mountDashboardUi, statusBadge, notice, emptyState } from './dashboard-ui.js';
+import { mountDashboardUi, modelGuidance, statusBadge, notice, emptyState } from './dashboard-ui.js';
 
 const script = (await readFile(new URL('./dashboard.js', import.meta.url), 'utf8')).replace(/^import .*;\r?\n/, '');
 
@@ -25,7 +25,7 @@ function createPage(staticPreview, fetchResponse) {
   for (const id of [
     'token', 'connect', 'disconnect', 'connection-status', 'connection-error', 'slots',
     'timeline', 'token-help', 'static-preview-help', 'event-filter', 'event-count',
-    'clear-events', 'timeline-empty', 'model-freshness', 'theme-toggle', 'mode',
+    'clear-events', 'timeline-empty', 'model-freshness', 'model-guidance', 'theme-toggle', 'mode',
     'phase', 'journal', 'revision', 'event-announcement', 'connection-controls', 'timeline-tools', 'theme-control',
   ]) {
     nodes.set(`#${id}`, createNode());
@@ -37,7 +37,7 @@ function createPage(staticPreview, fetchResponse) {
   const context = {
     document: { body, documentElement, querySelector: (selector) => nodes.get(selector), createElement: createNode },
     window: { addEventListener() {} },
-    AbortController, TextDecoder, mountDashboardUi, statusBadge, notice, emptyState,
+    AbortController, TextDecoder, mountDashboardUi, modelGuidance, statusBadge, notice, emptyState,
     fetch: async (path, options) => {
       requests.push({ path, options });
       return fetchResponse ? fetchResponse(options) : { ok: false, status: 401 };
@@ -63,6 +63,7 @@ assert.match(local.nodes.get('#connection-controls').markup, /type="password"/);
 assert.match(local.nodes.get('#connection-controls').markup, /id="disconnect" disabled/);
 assert.match(local.nodes.get('#timeline-tools').markup, /for="event-filter"/);
 assert.equal(local.nodes.get('#slots').children.length, 6);
+assert.match(local.nodes.get('#model-guidance').textContent, /není připojeno/);
 assert.ok(local.nodes.get('#slots').children.every((slot) => slot.className === 'unknown'));
 await local.nodes.get('#connect').listeners.click();
 assert.equal(local.nodes.get('#token').focused, true);
@@ -113,6 +114,8 @@ await new Promise((resolve) => setImmediate(resolve));
 assert.equal(streamed.body.dataset.connection, 'connected');
 assert.equal(streamed.nodes.get('#token').disabled, true);
 assert.equal(streamed.nodes.get('#phase').textContent, 'Připraveno');
+assert.match(streamed.nodes.get('#model-guidance').textContent, /Model čeká na výběr/);
+assert.match(streamed.nodes.get('#model-freshness').textContent, /čas prohlížeče/);
 assert.equal(streamed.nodes.get('#journal').textContent, 'Uzavřený');
 assert.equal(streamed.nodes.get('#slots').children[1].className, 'unavailable');
 assert.equal(streamed.nodes.get('#timeline').children.length, 100);
@@ -143,5 +146,37 @@ assert.ok(streamed.nodes.get('#slots').children.every((slot) =>
   slot.children[2].markup.includes('aw-badge--neutral')), 'Historical availability must not retain a current success badge');
 assert.match(streamed.nodes.get('#model-freshness').textContent, /není aktuální/);
 assert.match(streamed.nodes.get('#phase').textContent, /Poslední:/);
+assert.match(streamed.nodes.get('#slots').children[0].children[2].textContent, /Dříve dostupná/);
+assert.match(streamed.nodes.get('#model-guidance').textContent, /historické/);
 assert.equal(streamed.nodes.get('#token').disabled, false);
+
+for (const phase of ['stopped', 'recoveryRequired']) {
+  assert.match(modelGuidance({ connected: true, current: true, snapshot: { phase } }).title, /zotavení/);
+}
+assert.equal(modelGuidance({ connected: true, current: true, snapshot: { phase: 'ready' }, journalPending: true }).tone, 'warning');
+assert.equal(modelGuidance({ connected: true, current: true, snapshot: { phase: 'fault' }, journalPending: true }).tone, 'danger');
+assert.match(modelGuidance({ connected: true, current: false, snapshot: { phase: 'ready' } }).message, /historické/);
+
+// Reconnecting must clear the previous model-relative timeline before any new messages.
+let connectionNumber = 0;
+const reconnecting = createPage(false, async () => ({
+  ok: true,
+  body: { getReader: () => {
+    let sent = false;
+    const firstConnection = connectionNumber++ === 0;
+    return { read: async () => {
+      if (!sent && firstConnection) {
+        sent = true;
+        return { value: new TextEncoder().encode(JSON.stringify({ kind: 'timeline', event: { timeMs: 9999, event: 'completed', compartment: 1 } }) + '\n'), done: false };
+      }
+      return { done: true };
+    } };
+  } },
+}));
+reconnecting.nodes.get('#token').value = 'local';
+await reconnecting.nodes.get('#connect').listeners.click();
+assert.equal(reconnecting.nodes.get('#timeline').children.length, 1);
+reconnecting.nodes.get('#token').value = 'local';
+await reconnecting.nodes.get('#connect').listeners.click();
+assert.equal(reconnecting.nodes.get('#timeline').children.length, 0);
 console.log('Dashboard preview guard, token privacy, snapshot freshness, bounded history, filter and themes: PASS');

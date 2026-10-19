@@ -11,6 +11,9 @@ README first. Then read `kufr/design-system/README.md` and the relevant
 repository-relative; locate the repository from this tracked skill rather
 than assuming a checkout or runtime. Verify manifests, locks, routes, state
 owners, styling and scripts in this branch before choosing checks.
+For navigation, asynchronous work and recovery use the implemented journey
+contract in `kufr/design-system/journeys.md`; preserve its feature ownership
+and truth boundaries rather than creating a parallel workflow in each surface.
 
 Vapour Chrome is authoritative for new and modified UI. The existing filename
 `kufr/design-system/arcane-workshop.css` remains the shared entry point. Reuse

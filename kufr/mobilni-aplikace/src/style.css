@@ -182,6 +182,31 @@ main, .debug-panel { max-width: 72rem; margin: auto; padding: 0 24px 32px; }
 .compartment:has([data-selected="true"]) { border-color: var(--aw-accent); }
 .compartment .aw-wand-copy strong, .compartment .aw-wand-copy > .aw-muted { overflow-wrap: anywhere; }
 .overview .aw-badge { max-width: 100%; white-space: normal; }
+.operator-readiness { display: flex; align-items: center; justify-content: space-between; gap: 32px; margin: 0 0 32px; padding: 28px; background: var(--aw-surface); border-radius: var(--aw-radius-card); }
+.operator-readiness h2 { margin: 16px 0 10px; font-size: var(--aw-text-heading); }
+.operator-readiness p { max-width: 66ch; color: var(--aw-muted); margin: 0; line-height: 1.7; }
+.operator-readiness > button { flex: 0 0 auto; max-width: 18rem; white-space: normal; }
+.page-intro { color: var(--aw-muted); max-width: 70ch; line-height: 1.7; }
+.workspace-nav, .live-tabs [role="tablist"] { display: flex; flex-wrap: wrap; gap: 8px; }
+.workspace-nav { margin: 28px 0 0; padding-bottom: 20px; border-bottom: 1px solid var(--aw-border-subtle); }
+.workspace-nav [aria-pressed="true"], .live-tabs [aria-selected="true"] { background: var(--aw-accent-soft); color: var(--aw-accent); border-color: var(--aw-accent); }
+.performance-tools { display: block; margin-top: 0; }
+.live-tabs { padding-top: 4px; }
+.live-tabs [role="tab"] { flex: 1; min-width: 0; }
+.performance-tools > .conversation-panel { max-width: 52rem; margin-top: 24px; padding-top: 8px; border-top: 0; }
+.performance-tools > .conversation-panel form { max-width: 40rem; }
+.performance-tools > .conversation-panel > p { max-width: 70ch; }
+.debug-panel .connection-settings { margin: 28px 0 32px; max-width: none; }
+.diagnostic-group { border-top: 1px solid var(--aw-border); }
+.diagnostic-group:last-child { border-bottom: 1px solid var(--aw-border); }
+.diagnostic-group > summary { min-height: 64px; padding: 20px 4px; cursor: pointer; color: var(--aw-ivory); }
+.diagnostic-group > summary h2 { display: inline; margin: 0; font-size: var(--aw-text-subheading); }
+.diagnostic-group .debug-card { border: 0; margin: 0; padding-top: 4px; }
+.debug-session-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 24px; padding: 20px; margin: 24px 0 32px; background: var(--aw-surface); border-radius: var(--aw-radius-card); }
+.debug-session-bar strong { flex: 1 1 15rem; }
+.debug-session-bar [data-conversation-status] { flex: 1 1 26rem; color: var(--aw-muted); margin: 0; font-size: var(--aw-text-caption); }
+.debug-session-bar button { white-space: normal; }
+.workspace-nav button, .live-tabs button, summary { touch-action: manipulation; }
 .recovery { padding: 0; border: 0; background: transparent; }
 .recovery > .aw-button { margin-top: 16px; }
 .actions > .aw-field { flex: 1 1 11rem; }
@@ -191,4 +216,12 @@ main, .debug-panel { max-width: 72rem; margin: auto; padding: 0 24px 32px; }
   .app-tabs { padding-inline: max(20px, env(safe-area-inset-left, 0px)) max(20px, env(safe-area-inset-right, 0px)); }
   header, main, .debug-panel, .performance-tools { padding-inline: max(20px, env(safe-area-inset-left, 0px)) max(20px, env(safe-area-inset-right, 0px)); }
   .debug-conversation-options > .aw-field { min-width: 0; }
+  .operator-readiness { align-items: stretch; flex-direction: column; gap: 20px; padding: 20px; margin-bottom: 24px; }
+  .operator-readiness > button { max-width: none; width: 100%; }
+  .workspace-nav > button { flex: 1; min-width: 0; white-space: normal; }
+  .live-tabs [role="tab"] { padding-inline: 8px; white-space: normal; }
+  .debug-panel .connection-settings { padding: 20px; margin-inline: 0; }
+  .debug-session-bar button { width: 100%; }
 }
+
+.availability-blocker { padding: 14px 16px; background: var(--aw-elevated); border-radius: var(--aw-radius-card); color: var(--aw-ivory) !important; }

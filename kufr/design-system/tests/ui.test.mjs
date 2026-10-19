@@ -3,6 +3,16 @@ import { test } from 'node:test';
 import { button, escapeHtml, field, notice, statusBadge, emptyState, wandCard, bindTabs, bindDialog } from '../ui.js';
 import { primitives, themes, motion } from '../tokens.mjs';
 
+test('persistent recovery notices keep actions and preserved progress without repeated live announcements', () => {
+  const html = notice({ title: 'Disconnected', message: 'Reconnect to refresh.', detail: '<draft is preserved>', action: button({ label: 'Reconnect' }), tone: 'warning', live: false });
+  assert.ok(!html.includes('role='));
+  assert.ok(html.includes('&lt;draft is preserved&gt;'));
+  assert.ok(html.includes('aw-notice-action'));
+  assert.ok(html.includes('Reconnect</button>'));
+  assert.ok(notice({ message: 'Failed', tone: 'danger' }).includes('role="alert"'));
+  assert.ok(notice({ message: 'Saved' }).includes('role="status"'));
+});
+
 test('renderers escape untrusted text and reject executable attribute names and URLs', () => {
   const attack = '<img src=x onerror="alert(1)">&\'';
   assert.equal(escapeHtml(attack), '&lt;img src=x onerror=&quot;alert(1)&quot;&gt;&amp;&#39;');

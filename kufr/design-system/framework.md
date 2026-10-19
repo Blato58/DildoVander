@@ -28,7 +28,7 @@ and keeps state, transport, authorization and event ownership.
 | --- | --- |
 | `button` | `label`, `variant` (`primary`, `secondary`, `danger`, `ghost`), `size` (`normal`, `small`), `disabled`, `loading`, `type`, `id`, `attributes` |
 | `statusBadge` | `label`, `tone` |
-| `notice` | `title`, `message`, `tone` |
+| `notice` | `title`, `message`, `tone`, optional escaped `detail`, trusted HTML `action`, `live` (default true) |
 | `emptyState` | `title`, `message`, optional trusted HTML `action` |
 | `wandCard` | `title`, `subtitle`, `number`, `imageUrl`, `selected`, `disabled`, `interactive` |
 | `field` | `id`, `label`, trusted HTML `control`, `description`, `error` |
@@ -37,6 +37,10 @@ Tone is `neutral`, `info`, `success`, `warning` or `danger`. Notices announce
 danger as an alert, other tones as status. Badges are static text; they do not
 create repeated live announcements. Loading buttons are natively disabled and
 expose `aria-busy`; their label remains the caller's explicit status text.
+Persistent readiness rendered on every snapshot uses `live: false`; announce
+meaningful transitions separately. Put the next supported action in `action`
+and what remains preserved or usable in `detail`. Do not promise cancellation,
+retries or physical completion that the owning feature cannot establish.
 TypeScript checks the option unions. At runtime unknown variant/size/type values
 fall back to secondary/normal/button, and unknown tones fall back to neutral;
 raw strings never become class names or button types.

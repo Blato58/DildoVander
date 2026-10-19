@@ -69,25 +69,22 @@ Pro skutečné UI ověřte `loading`, `empty`, `ready`, `pending`, `error`,
 Při chybě odezvy fyzického povelu nesmí UI zaměnit přijetí, dokončení a
 změřenou polohu. Browser ani hostitelský model neprokazují fyzickou akceptaci.
 
-## Následné obrazovky — v této dodávce neimplementováno
+## Implementované cesty
 
-Následující cílová informační architektura je návrh pro další slices.
-Neprohlašuje nové routy, kompletní produktové obrazovky nebo backend funkce
-za hotové. Existující aplikace má Ovládání, Debug a Síť kufru; jejich současné
-části hlasu/diagnostiky mohou být později použity, nikoli nahrazeny jen kvůli
-novým názvům. Závislosti určuje implementační plán, nikoli tento vizuální návrh.
+Aktivní aplikace používají následující členění. Podrobné vlastnictví stavu,
+přerušení a návratu určuje [kontrakt cest](journeys.md), nikoli statické mockupy.
 
-| Budoucí pohled | Zamýšlený účel a hranice |
+| Plocha | Vstup a další krok |
 | --- | --- |
-| `Home` | Stav kufru, připojení, právě probíhající sezení a další bezpečný krok; nevytváří sezení pouhým otevřením. |
-| `Control` | Ruční akce 1–6, dostupnost, lease a potvrzení již schválených operací. Zachová offline ruční řízení a bezpečnostní bránu zařízení. |
-| `Voice` | Poslech/promluva/čekání s jednoznačnou mikrofonní autorizací, zdrojem a cancel. Provozní stav nemá vypadat jako nahrávání při nedostupném mikrofonu. |
-| `Service` | Párování, síť, kalibrace a zotavení s doloženým stavem; reset neprohlašuje fyzickou kontrolu bez jejího skutečného potvrzení. |
-| `AI Studio` | Přehled konfigurace a testovacího kontextu AI oddělený od fyzických povelů. Náhled nespouští placené volání a neukazuje provider secret. |
-| `Diagnostics` | Technické logy, runtime verze, filtry a korelační ID; oprávnění a redakce podle existujícího diagnostického kontraktu. |
-| `Sessions` | Sezení a paměť večera s jasným původem, uchováním a oprávněnými akcemi. Historie není živý bezpečnostní snapshot. |
-| `ShowMode` | Návštěvnický prezentační pohled na skutečné provozní stavy a spojení, bez administrace a ovládacích povelů. Obslužný Stop zůstává dostupný v ovladači; pohled nevytváří nový autonomní hardware režim. |
+| Companion · Provoz | Připravenost a její skutečný zdroj, další podporovaná akce, Živý provoz nebo Ruční ovládání. Hlas, text a tanec zachovávají vlastní řízení; Stop je společně dostupný. |
+| Companion · Kufr | Připojení zařízení a příprava sítě; postup vychází z dostupného nativního adaptéru. Webový fake nepředstírá iPhone ani ESP. |
+| Companion · Diagnostika | Testovací rozhovor a jeho kontext, konfigurace backendu, servisní kontroly a logy. Aktivní test a jeho ukončení zůstávají viditelné mimo zavřené detaily. |
+| Veřejný večer | Výběr hůlky, vybraný obraz, stažení a příběh. Přehled neobsahuje portréty ani administraci. |
+| Soukromá památka | Autorizovaný výsledek, uložení a volitelné portrétní/přístupové operace; navigace a skrytí invalidují starý soukromý kontext. |
+| Workshop a montáž | Model, aktuální pohled a viditelnost; montážní krok, pracoviště, orientace a relevantní díly zůstávají čitelné i se zavřeným návodem. |
+| Pozorování simulátoru | Výslovně označený zdroj, poslední přijatý snapshot a historie tohoto připojení. Odpojené hodnoty jsou historické, ne aktuální. |
+| USB servis | Připojení, Stop ACK a jednorázový Arm jsou samostatné brány. Ruční pohyb předchází profilům a pokročilé diagnostice. |
 
-Každý nový pohled vyžaduje vlastní rozsah, skutečný model stavů, odkazy z
-navigace, relevantní test a ověření zařízení tam, kde na něm funkce závisí.
-Dokumentace ani mockup nenahrazují tuto implementaci.
+Samostatné obrazovky AI Studio/Sessions/ShowMode nejsou aktivními routami.
+Jejich historické návrhy nevytvářejí implementační závazek. Podpis iPhone,
+nasazení a fyzická akceptace zůstávají samostatnými důkazními hranicemi.

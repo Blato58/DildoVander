@@ -85,3 +85,14 @@ a:focus-visible, button:focus-visible, select:focus-visible, summary:focus-visib
 @media (max-width: 900px) { .archive-header { gap: 16px; } .archive-header nav { gap: 18px; } .theme-control > span { display: none; } .edition-layout { gap: 32px; } .art-frame { min-height: 340px; } .edition-copy h1 { font-size: 34px; } .owner-section, .story-leaf { grid-template-columns: .75fr 1.25fr; gap: 32px; } }
 @media (max-width: 680px) { main { padding-top: 24px; padding-bottom: 48px; } .archive-header { padding-top: 20px; padding-bottom: 16px; } .archive-header nav { width: 100%; justify-content: space-between; gap: 12px; } .archive-header nav > a, .archive-header .text-button { font-size: 11px; } .archive-brand { font-size: 22px; } .edition-layout, .story-leaf, .owner-section { grid-template-columns: 1fr; gap: 28px; } .art-frame { min-height: 280px; padding: 16px; } .art-frame img { max-height: 460px; } .leaf-heading { margin-bottom: 24px; } .edition-copy h1 { font-size: clamp(32px, 9vw, 44px); } .edition-copy .aw-button { width: 100%; } .story-leaf { margin-top: 40px; padding: 32px 0; gap: 24px; } .story-intro h2 { max-width: 22ch; } .story-leaf .fiction-label { max-width: none; } .owner-section { margin-top: 32px; padding-top: 32px; } .section-intro p { max-width: 56ch; } .entry-panel { padding: 36px 0 48px; } .actions { flex-direction: column; } .actions .aw-button { white-space: normal; } .portrait-workspace { padding: 20px; } dialog .aw-button { width: 100%; margin-right: 0; } }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { animation: none !important; transition: none !important; } }
+
+/* Guest reading and private ownership share the same calm archive surfaces. */
+::selection { background: var(--aw-accent); color: var(--aw-on-accent); }
+input, textarea { caret-color: var(--aw-accent); }
+main { scroll-margin-top: 24px; }
+.story-leaf p { text-wrap: pretty; }
+.edition-copy .summary { font-size: var(--aw-text-body); }
+.consent-panel { padding: 16px; border: 1px solid var(--aw-border-subtle); border-radius: var(--aw-radius-card); background: var(--aw-void); }
+.portrait-management { padding-top: 16px; border-top: 1px solid var(--aw-border-subtle); }
+#wand-name, #public-name { overflow-wrap: anywhere; }
+@media (max-width: 680px) { .consent-panel { padding: 12px; } }

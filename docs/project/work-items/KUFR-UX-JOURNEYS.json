@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "id": "KUFR-UX-JOURNEYS",
+  "initiative": "KUFR",
+  "title": "Souvislé cesty obsluhy, návštěvníka, modelu a servisních nástrojů",
+  "state": "active",
+  "priority": "P1",
+  "sequence": 32,
+  "scope": [
+    "kufr/design-system",
+    "kufr/mobilni-aplikace",
+    "kufr/web",
+    "kufr/simulator",
+    "kufr/mechanika/final",
+    "kufr/firmware/diagnostics/servo-bench/web",
+    ".agents/skills/dildovander-ui",
+    "kufr/backend/deploy/ip-https/ios-placeholder.html"
+  ],
+  "dependencies": [],
+  "acceptance": [
+    {
+      "id": "ACTIVE-JOURNEYS",
+      "revision": 1,
+      "expected": "Provoz začíná připraveností a dalším krokem; aktivní nástroje zachovávají kontext. Veřejné vyzvednutí začíná výběrem hůlky, soukromé operace neovlivní novou cestu po navigaci nebo skrytí. CAD zobrazuje kontext montáže a obnovuje viditelnost; simulace a USB servis pravdivě rozlišují původ, historii, brány a fyzické důkazy. Sdílený Vapour Chrome a skutečné desktopové/mobilní rendery jsou ověřené bez CAD regenerace, placených volání a ovládání hardware.",
+      "requiredEvidenceKinds": [
+        "unit",
+        "browser",
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "dbd9ac1c6bdf8535dcd4023104c9d9f7862280bc2c543b98b8f60e2f666f7749"
+      },
+      "evidenceRefs": [
+        "KUFR-UX-JOURNEYS-unit-v3",
+        "KUFR-UX-JOURNEYS-browser-v3",
+        "KUFR-UX-JOURNEYS-source-review-v3"
+      ]
+    }
+  ],
+  "blockers": [],
+  "nextAction": "Pushnout opravu review4309547041, ověřit aktuální CI a všechna review/vlákna PR213, poté autorizovaný merge na main a závěrečný CI/Git receipt.",
+  "currentNote": "PR213: d28f357 úspěšně prošel všemi požadovanými CI včetně Swift a nepodepsaného iOS Simulatoru. Review4309547041 správně odhalilo kolizi LAN/BLE statusu po vnoření nastavení. Opravený vlastní BLE hook a regrese discovery/pair/network zachovávají LAN zprávu; mobile 80 testů/build a nezávislá rodičovská kontrola prošly. Čeká push opravy, aktuální CI/review a merge. Source digest dbd9ac1c6bdf8535dcd4023104c9d9f7862280bc2c543b98b8f60e2f666f7749.",
+  "implementedSubject": {
+    "artifactDigest": "dbd9ac1c6bdf8535dcd4023104c9d9f7862280bc2c543b98b8f60e2f666f7749"
+  }
+}

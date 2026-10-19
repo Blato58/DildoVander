@@ -11,7 +11,7 @@ document.querySelector('#badges').innerHTML = [
   statusBadge({ label: 'Připraveno', tone: 'success' }),
   statusBadge({ label: 'Poloha není změřená', tone: 'warning' }),
 ].join('');
-document.querySelector('#notice').innerHTML = notice({ title: 'Bez připojení', message: 'Náhled slouží k ověření vzhledu a ovládání. Neprokazuje fyzický stav kufru.', tone: 'info' });
+document.querySelector('#notice').innerHTML = notice({ title: 'Bez připojení', message: 'Pro aktuální stav znovu připojte kufr.', detail: 'Rozepsaný text zůstává v této stránce. Náhled neprokazuje fyzický stav.', tone: 'warning', live: false, action: button({ label: 'Připojit · ukázka', disabled: true }) });
 document.querySelector('#wands').innerHTML = [
   wandCard({ title: 'První hůlka', subtitle: 'Ukázková přihrádka', number: 1, selected: true }),
   wandCard({ title: 'Druhá hůlka', subtitle: 'Výběr pouze v náhledu', number: 2 }),
