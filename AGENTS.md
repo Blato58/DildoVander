@@ -64,6 +64,12 @@
 - Zdrojem sdíleného vzhledu je [Vapour Chrome](kufr/design-system/README.md):
   používej jeho tokeny, komponenty a pravidla přístupnosti. Lokální styl řeší
   rozložení konkrétního UI; nevytvářej další nezávislou paletu ani fontové CDN.
+- Před novou komponentou prohlédni `kufr/design-system/ui.js` a jeho interaktivní
+  `playground/`; sdílej vykonatelný renderer a chování, ne kopii HTML/CSS.
+  Zdrojem tokenů je `tokens.json`, výstupy generuje `scripts/generate_design_tokens.py`.
+  Platformové a balicí hranice popisuje [UI architektura](kufr/design-system/architecture.md).
+  Zachovej vlastnictví autorizace a zařízeníových stavů ve funkci; iOS Capacitor
+  spotřebovává stejný UI bundle. UI-only změny ověř cíleně bez regenerace CAD.
 - Kanonické barvy jsou `#EEF1F5`, `#1B2430`, `#8A94A6`, `#B8C0FF`.
   Používej sémantické tokeny, přístupné kontrasty a společné komponenty.
   Jméno vstupu `arcane-workshop.css` a prefixy `aw-*` zůstávají kompatibilním API,

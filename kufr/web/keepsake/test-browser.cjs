@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
 const { chromium } = require('playwright');
+const { assertSharedDialog } = require('./test-dialog.cjs');
 const repo = path.resolve(__dirname, '../../..');
 const ownerId = '11111111-1111-4111-8111-111111111111';
 const otherId = '22222222-2222-4222-8222-222222222222';
@@ -63,7 +64,14 @@ const artwork = '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="760
       const originalUrl = page.url();
       await page.locator('header [data-privacy]').click();
       await page.locator('#privacy').waitFor({ state: 'visible' });
+      await assertSharedDialog(page, '#privacy');
       await page.getByRole('button', { name: 'Zpět k archivu', exact: true }).click();
+      await page.waitForFunction(() => document.activeElement.matches('header [data-privacy]'));
+      await page.keyboard.press('Enter');
+      await page.locator('#privacy').waitFor({ state: 'visible' });
+      await page.keyboard.press('Escape');
+      await page.waitForFunction(() => !document.querySelector('#privacy').open
+        && document.activeElement.matches('header [data-privacy]'));
       assert.equal(page.url(), originalUrl, 'Privacy must preserve locator, scope and in-memory entry');
     }
     await privacyRoundTrip();
@@ -149,6 +157,7 @@ const artwork = '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="760
       await page.screenshot({ path: screenshot, fullPage: true });
     }
     await page.locator('.delete-panel summary').click(); await page.locator('#delete-all').click();
+    await assertSharedDialog(page, '#delete-dialog');
     await page.locator('#delete-confirm').fill('SMAZAT'); await page.locator('#delete-submit').click();
     await page.locator('#deletion').waitFor({ state: 'visible' });
     assert.equal(await page.locator('#keepsake').isVisible(), false);

@@ -1,3 +1,4 @@
+import { button, field } from '../../../../design-system/ui.js';
 import type { DeviceSnapshot } from '../device_connection/FakeDeviceConnection';
 import type { NativeDeviceConnection } from '../device_connection/NativeDeviceConnection';
 
@@ -15,15 +16,15 @@ export class VoicePanel {
       <p>Kufr poslouchá svým mikrofonem a odpovídá reproduktorem. Hlasové režimy používají AI a čerpají OpenAI účet.
          Spuštěním souhlasíte se zpracováním audia; přepis uchovává paměť večera. Nastavení platí do restartu kufru.</p>
       <form>
-        <label>Hlasový režim<select name="mode"><option value="off">Vypnutý</option><option value="realtime">Realtime · průběžný rozhovor</option><option value="gpt-live">GPT-Live + Sol · test kvality</option></select></label>
-        <label>Hlas<select name="voice"><option value="marin">Marin</option><option value="cedar">Cedar</option><option value="coral">Coral</option></select></label>
-        <button type="submit" disabled>Použít nastavení hlasu</button>
+        ${field({ id: 'device-voice-mode', label: "Hlasový režim", control: `<select class="aw-input" name="mode"><option value="off">Vypnutý</option><option value="realtime">Realtime · průběžný rozhovor</option><option value="gpt-live">GPT-Live + Sol · test kvality</option></select>` })}
+        ${field({ id: 'device-voice-name', label: "Hlas", control: `<select class="aw-input" name="voice"><option value="marin">Marin</option><option value="cedar">Cedar</option><option value="coral">Coral</option></select>` })}
+        ${button({ label: "Použít nastavení hlasu", type: 'submit', disabled: true })}
       </form>
       <label><input type="checkbox" data-image-consent> Host souhlasí s jednou fotkou kostýmu z kamery kufru pro tento rozhovor.</label>
       <p class="footnote">Volitelné. Fotka se předá serveru a OpenAI jako nejistá nápověda a neukládá se do paměti večera.</p>
       <div class="actions">
-        <button type="button" class="primary" data-voice="start" disabled>Spustit hlas na kufru</button>
-        <button type="button" data-voice="stop" disabled>Zastavit hlas</button>
+        ${button({ label: "Spustit hlas na kufru", variant: 'primary', disabled: true, attributes: {"data-voice": "start"} })}
+        ${button({ label: "Zastavit hlas", disabled: true, attributes: {"data-voice": "stop"} })}
       </div>
       <p role="status"></p>
       <p class="footnote">Pro samostatný hlas uvolněte ruční řízení. Během odpovědi kufr neposlouchá;

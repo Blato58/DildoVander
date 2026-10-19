@@ -100,6 +100,14 @@ class CadImpactTests(unittest.TestCase):
         self.assertFalse(requires_manufacturing(paths))
         self.assertTrue(requires_manufacturing([*paths, FINAL + "mechanism.py"]))
 
+    def test_shared_executable_ui_runtime_and_helpers_are_presentation_only(self):
+        for name in ("viewer_runtime.py", "viewer_ui.js", "workshop-ui-runtime.js",
+                     "ui_test_runtime.cjs", "preview_ui_fixture.py", "refresh_viewer.py"):
+            with self.subTest(name=name):
+                self.assertEqual(classify_path(FINAL + name), "viewer")
+        self.assertEqual(classify_path("kufr/design-system/ui.js"), "viewer")
+        self.assertEqual(classify_path(FINAL + "future_runtime_dependency.py"), "manufacturing")
+
     def test_main_warming_uses_policy_before_install_and_required_ci_has_no_path_filter(self):
         workflow = (ROOT / ".github/workflows/kufr-cad.yml").read_text()
         self.assertNotIn("    paths:", workflow)

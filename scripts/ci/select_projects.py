@@ -19,7 +19,6 @@ BUILD_WORKFLOWS = {
     ".github/workflows/kufr-ios-sign.yml": "ios",
     ".github/workflows/kufr-ai-eval.yml": "ai-eval",
     ".github/workflows/kufr-site.yml": "site",
-    ".github/workflows/kufr-cad.yml": "cad",
 }
 
 def select_projects(paths):
@@ -42,7 +41,9 @@ def select_projects(paths):
             "kufr/global.json", "kufr/Directory.Build.props", "NuGet.Config"
         }:
             selected["backend"] = True
-        if path.startswith("kufr/firmware/"):
+        if path.startswith("kufr/firmware/diagnostics/servo-bench/web/") or path == "kufr/firmware/diagnostics/servo-bench/tools/serve_panel.py":
+            selected["site"] = True
+        elif path.startswith("kufr/firmware/"):
             selected["firmware"] = True
         if path.startswith("kufr/mobilni-aplikace/"):
             selected["web"] = True
@@ -51,14 +52,25 @@ def select_projects(paths):
         if path.startswith(("kufr/web/", "kufr/mechanika/", "kufr/design-system/")):
             selected["site"] = True
         if path.startswith("kufr/design-system/"):
+            selected["repository"] = True
             selected["web"] = True
             selected["ios"] = True
+            # The self-contained archival card consumes generated C# tokens.
+            if path.endswith("tokens.json"):
+                selected["backend"] = True
+        if path in {"scripts/generate_design_tokens.py", "scripts/check_design_system.py",
+                    "scripts/test_design_system.py"}:
+            selected["repository"] = True
         if path.startswith("kufr/ai-eval/"):
             selected["ai-eval"] = True
         if path.startswith("kufr/contracts/"):
             for name in ("backend", "firmware", "web", "ios", "site"):
                 selected[name] = True
-        if path.startswith("kufr/simulator/"):
+        if path.startswith("kufr/simulator/") and PurePosixPath(path).name in {
+            "dashboard.html", "dashboard.js", "dashboard-ui.js", "verify-dashboard.mjs",
+        }:
+            selected["site"] = True
+        elif path.startswith("kufr/simulator/"):
             selected["firmware"] = selected["web"] = selected["ios"] = True
             if PurePosixPath(path).name.startswith("dashboard"):
                 selected["site"] = True

@@ -86,6 +86,10 @@ fázi, režim, journal a posledních 100 událostí C++ modelu. Neobsahuje
 ovládání výběru ani pohonů. Prohlížeč musí důvěřovat místnímu vývojovému
 certifikátu; neobcházejte jeho bezpečnostní upozornění.
 
+`dashboard-ui.js` skládá pole, akce, stavové značky a prázdné/chybové stavy
+ze sdíleného `../design-system/ui.js`. Server poskytuje oba moduly explicitně;
+statický veřejný balíček musí zachovat oba i s příznakem `data-static-preview`.
+
 Pohled odděluje místní připojení od stavu modelu. Před prvním snapshotem
 jsou přihrádky neznámé; po odpojení je poslední snapshot výslovně označen
 jako neaktuální. Historii lze filtrovat podle názvu nebo čísla přihrádky

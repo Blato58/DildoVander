@@ -1,3 +1,4 @@
+import { button, emptyState, field } from '../../../../design-system/ui.js';
 import { registerPlugin } from '@capacitor/core';
 import { ProvisioningClient, errorMessage, type NetworkProfile, type ProvisioningBridge, type ProvisioningStatus } from './ProvisioningClient';
 
@@ -28,17 +29,17 @@ export class ProvisioningPanel {
           <li>Připravte název iPhonu (SSID) a heslo z této obrazovky. Zadejte je do zabezpečeného dialogu.</li></ol>
         <p>Aplikace hotspot sama nezapíná a jeho heslo nečte. Při prvním připojení nechte obrazovku
           Osobního hotspotu otevřenou; poté se vraťte k ověření stavu kufru.</p>
-        <button type="button" data-ble="settings">Nastavení aplikace / oprávnění Bluetooth</button>
+        ${button({ label: "Nastavení aplikace / oprávnění Bluetooth", attributes: {"data-ble": "settings"} })}
       </section>
       <section class="debug-card">
         <h2 id="network-pair">Najít a ověřit kufr</h2>
         <p>BLE je dostupné jen v omezeném servisním nebo obnovovacím okně. Ověření vyžaduje
           jedinečný PoP z vnitřního servisního štítku; nejde o token místního WSS.</p>
-        <div class="actions"><button type="button" data-ble="discover">Vyhledat BLE kufry</button>
-          <button type="button" data-ble="disconnect" disabled>Odpojit BLE</button></div>
+        <div class="actions">${button({ label: "Vyhledat BLE kufry", attributes: {"data-ble": "discover"} })}
+          ${button({ label: "Odpojit BLE", disabled: true, attributes: {"data-ble": "disconnect"} })}</div>
         <p>Po ověření BLE spárujte místní ovládání jedním tlačítkem. Adresa, otisk a token se
           převezmou automaticky; přístup zůstane v Keychain tohoto iPhonu i při aktualizaci aplikace.</p>
-        <button type="button" data-ble="pair-local" disabled>Spárovat ovládání přes Wi-Fi</button>
+        ${button({ label: "Spárovat ovládání přes Wi-Fi", disabled: true, attributes: {"data-ble": "pair-local"} })}
         <ul class="ble-devices" aria-label="Nalezené BLE kufry"></ul>
         <p class="status" role="status" aria-live="polite">${nativeMode ? 'Vyhledejte zapnutý kufr.' : 'BLE provisioning je dostupný v nativní iPhone aplikaci. Web nemá přístup k Bluetooth.'}</p>
         <dl class="debug-metrics ble-metrics" hidden>
@@ -55,17 +56,17 @@ export class ProvisioningPanel {
         <h2 id="network-manage">Sítě a aktualizace</h2>
         <p>Hotspot má přednost před záložní Wi-Fi. Nové údaje nahradí staré až po úspěšném připojení;
           při chybě kufr zachová předchozí nastavení. Hesla se v telefonu neukládají.</p>
-        <label>Upravovaná síť<select data-profile><option value="hotspot">iPhone Osobní hotspot</option>
-          <option value="fallback">Záložní Wi-Fi</option></select></label>
+        ${field({ id: 'network-profile', label: "Upravovaná síť", control: `<select class="aw-input" data-profile><option value="hotspot">iPhone Osobní hotspot</option>
+          <option value="fallback">Záložní Wi-Fi</option></select>` })}
         <div class="actions ble-network-actions">
-          <button type="button" data-ble="configure" disabled>Nastavit / nahradit údaje</button>
-          <button type="button" data-ble="test" disabled>Otestovat připojení sítě</button>
-          <button type="button" data-ble="delete" disabled>Smazat vybranou síť…</button>
-          <button type="button" data-ble="status" disabled>Obnovit stav</button>
-          <button type="button" data-ble="ota-check" disabled>Zkontrolovat firmware</button>
-          <button type="button" data-ble="ota-install" disabled>Nainstalovat ověřenou aktualizaci…</button>
-          <button type="button" data-ble="ota-enable" disabled>Povolit automatickou instalaci…</button>
-          <button type="button" data-ble="ota-disable" disabled>Vypnout automatickou instalaci…</button>
+          ${button({ label: "Nastavit / nahradit údaje", disabled: true, attributes: {"data-ble": "configure"} })}
+          ${button({ label: "Otestovat připojení sítě", disabled: true, attributes: {"data-ble": "test"} })}
+          ${button({ label: "Smazat vybranou síť…", disabled: true, attributes: {"data-ble": "delete"} })}
+          ${button({ label: "Obnovit stav", disabled: true, attributes: {"data-ble": "status"} })}
+          ${button({ label: "Zkontrolovat firmware", disabled: true, attributes: {"data-ble": "ota-check"} })}
+          ${button({ label: "Nainstalovat ověřenou aktualizaci…", disabled: true, attributes: {"data-ble": "ota-install"} })}
+          ${button({ label: "Povolit automatickou instalaci…", disabled: true, attributes: {"data-ble": "ota-enable"} })}
+          ${button({ label: "Vypnout automatickou instalaci…", disabled: true, attributes: {"data-ble": "ota-disable"} })}
         </div>
         <p>Instalaci kufr povolí pouze v bezpečném klidu. Po restartu znovu vyhledejte BLE kufr;
           Wi-Fi a jeho samostatný provoz pokračují i po odpojení telefonu.</p>
@@ -106,10 +107,17 @@ export class ProvisioningPanel {
       list.replaceChildren();
       try {
         const result = await bridge.discover();
+        if (result.devices.length === 0) {
+          const item = document.createElement('li');
+          item.innerHTML = emptyState({ title: 'Žádný BLE kufr',
+            message: 'Ověřte Bluetooth, vzdálenost a servisní okno kufru. Pak hledání zopakujte.' });
+          list.append(item);
+        }
         for (const device of result.devices) {
           const item = document.createElement('li');
           const button = document.createElement('button');
           button.type = 'button';
+          button.className = 'aw-button aw-button--secondary';
           button.textContent = `Připojit a ověřit ${device.name}`;
           button.dataset.ble = 'connect';
           button.dataset.name = device.name;

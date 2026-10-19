@@ -25,10 +25,10 @@
       <button id="exchange" class="aw-button" hidden>Otevřít památku</button>
       </div><p class="muted small">Soukromý odkaz otevři přímo z místa, kde sis ho uložil. Přístup ověříme v tomto prohlížeči.</p>
     </section>
-    <div id="feedback" class="aw-notice" role="status" aria-live="polite" hidden></div>
+    <div id="feedback" role="status" aria-live="polite" hidden></div>
     <button id="retry" class="aw-button aw-button--secondary" hidden>Obnovit spojení</button>
     <article id="keepsake" hidden>
-      <div class="leaf-heading"><a class="back-link" href="/keepsake/evening/">Zpět na hůlky večera</a><span id="scope" class="aw-badge"></span></div>
+      <div class="leaf-heading"><a class="back-link" href="/keepsake/evening/">Zpět na hůlky večera</a><span id="scope"></span></div>
       <div class="edition-layout">
         <div class="art-column">
           <button id="art-open" class="art-frame" aria-label="Zvětšit obraz hůlky" disabled><img id="wand-art" alt="Osobní digitální interpretace vybrané hůlky" hidden><span id="art-status">Obraz se připravuje</span></button>
@@ -39,7 +39,7 @@
           <p id="catalog-label" class="catalog-label">Hůlka, která si tě vybrala</p>
           <p id="edition-title" class="edition-title"></p>
           <p id="summary" class="summary"></p>
-          <p id="generation-status" class="muted" aria-live="polite"></p>
+          <div id="generation-status" aria-live="polite"></div>
           <button id="cancel-base" class="text-button" hidden>Zastavit přípravu příběhu a obrazu</button>
           <div class="download-shelf"><button id="save-main" class="aw-button" data-export="bundle">Uložit památku</button>
           <p class="muted small">ZIP obsahuje dostupný příběh, obraz a kartičku. Portrét se přidává jen samostatnou volbou.</p>
@@ -68,12 +68,12 @@
       </section>
     </article>
     <section id="deletion" class="entry-panel" hidden><h1>Přístup byl odvolán</h1><p id="deletion-copy"></p><p id="deletion-status" role="status" aria-live="polite"></p><button id="deletion-refresh" class="aw-button aw-button--secondary">Ověřit stav odstranění</button></section>
-    <dialog id="privacy" aria-labelledby="privacy-title"><h2 id="privacy-title">Soukromí v archivu</h2><p>Příběh a digitální obraz vznikají z výběru hůlky a dovolených motivů večera. Fotografie je dobrovolná a odesílá se až po tvém souhlasu a potvrzení.</p><p>Originály, příběhy, obrázky a jejich historie zůstávají na soukromém serveru do ručního smazání. Vypršení přístupu obsah nemaže. OpenAI zpracovává vstupy při generování; pravidla poskytovatele jsou oddělená od odstranění kopií našeho archivu.</p><p>Veřejné sdílení obsahuje pouze hůlku a příběh. Návratový odkaz naproti tomu poskytuje správu soukromé památky. Nekopíruj jej do veřejného sdílení.</p><p>Tento web nepoužívá analytiku ani ukládání osobních dat do úložiště prohlížeče. Oprávnění drží serverová cookie. Se správou nebo ztraceným přístupem se obrať přímo na obsluhu kufru.</p><button class="text-button" data-close>Zpět k archivu</button></dialog>
+    <dialog class="aw-dialog" id="privacy" aria-labelledby="privacy-title"><h2 id="privacy-title">Soukromí v archivu</h2><p>Příběh a digitální obraz vznikají z výběru hůlky a dovolených motivů večera. Fotografie je dobrovolná a odesílá se až po tvém souhlasu a potvrzení.</p><p>Originály, příběhy, obrázky a jejich historie zůstávají na soukromém serveru do ručního smazání. Vypršení přístupu obsah nemaže. OpenAI zpracovává vstupy při generování; pravidla poskytovatele jsou oddělená od odstranění kopií našeho archivu.</p><p>Veřejné sdílení obsahuje pouze hůlku a příběh. Návratový odkaz naproti tomu poskytuje správu soukromé památky. Nekopíruj jej do veřejného sdílení.</p><p>Tento web nepoužívá analytiku ani ukládání osobních dat do úložiště prohlížeče. Oprávnění drží serverová cookie. Se správou nebo ztraceným přístupem se obrať přímo na obsluhu kufru.</p><button class="aw-button aw-button--ghost" data-close>Zpět k archivu</button></dialog>
   </main>
   <footer>Digitální památka z jednoho nepravděpodobného večera.<br><button class="text-button" data-privacy>Soukromí a uchování dat</button></footer>
-  <dialog id="art-dialog"><button class="text-button" data-close>Zavřít obraz</button><img id="full-art" alt="Zvětšená osobní digitální interpretace hůlky"></dialog>
-  <dialog id="share-dialog"><h2>Co ostatní uvidí</h2><p id="share-description"></p><p>Hůlka, příběh a základní kartička této edice. Žádný portrét, fotografie ani oprávnění ke správě. Přístupový odkaz je platný 7 dní a můžeš jej odvolat.</p><button id="issue-share" class="aw-button">Vytvořit sdílený odkaz</button><button class="text-button" data-close>Pokračovat bez sdílení</button></dialog>
-  <dialog id="delete-dialog"><h2 id="delete-title"></h2><p>Nejprve se odvolá přístup, potom server odstraní uložené kopie. Dokončení potvrdí skutečný stav odstranění.</p><label class="aw-field" for="delete-confirm">Pro potvrzení napiš SMAZAT</label><input id="delete-confirm" class="aw-input" autocomplete="off"><button id="delete-submit" class="aw-button aw-button--danger" disabled>Potvrdit smazání</button><button class="text-button" data-close>Ponechat data</button></dialog>
+  <dialog class="aw-dialog" id="art-dialog"><button class="aw-button aw-button--ghost" data-close>Zavřít obraz</button><img id="full-art" alt="Zvětšená osobní digitální interpretace hůlky"></dialog>
+  <dialog class="aw-dialog" id="share-dialog"><h2>Co ostatní uvidí</h2><p id="share-description"></p><p>Hůlka, příběh a základní kartička této edice. Žádný portrét, fotografie ani oprávnění ke správě. Přístupový odkaz je platný 7 dní a můžeš jej odvolat.</p><button id="issue-share" class="aw-button">Vytvořit sdílený odkaz</button><button class="aw-button aw-button--ghost" data-close>Pokračovat bez sdílení</button></dialog>
+  <dialog class="aw-dialog" id="delete-dialog"><h2 id="delete-title"></h2><p>Nejprve se odvolá přístup, potom server odstraní uložené kopie. Dokončení potvrdí skutečný stav odstranění.</p><label class="aw-field" for="delete-confirm">Pro potvrzení napiš SMAZAT</label><input id="delete-confirm" class="aw-input" autocomplete="off"><button id="delete-submit" class="aw-button aw-button--danger" disabled>Potvrdit smazání</button><button class="aw-button aw-button--ghost" data-close>Ponechat data</button></dialog>
   <noscript><p class="aw-notice">Památka vyžaduje JavaScript pro bezpečné předání přístupu. Osobní klíč nikam neposílej; požádej obsluhu o pomoc.</p></noscript>
 </body>
 </html>

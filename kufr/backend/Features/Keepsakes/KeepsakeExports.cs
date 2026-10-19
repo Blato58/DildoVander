@@ -4,16 +4,17 @@ using System.Text;
 using System.Text.Json;
 using System.Security.Cryptography;
 using SkiaSharp;
+using Kufr.Backend.Shared;
 
 namespace Kufr.Backend.Features.Keepsakes;
 
 internal sealed partial class KeepsakeStore
 {
     // Self-contained export chrome follows Vapour Chrome; artwork bytes keep their own colors.
-    private const string CardMidnight = "#1B2430";
-    private const string CardMist = "#EEF1F5";
-    private const string CardSteel = "#8A94A6";
-    private const string CardPeriwinkle = "#B8C0FF";
+    private const string CardMidnight = DesignTokens.ChromeMidnight;
+    private const string CardMist = DesignTokens.VapourMist;
+    private const string CardSteel = DesignTokens.SteelGrey;
+    private const string CardPeriwinkle = DesignTokens.DigitalPeriwinkle;
 
     public KeepsakeAsset CreateExport(string id, string session, string editionId, string format,
         string? portraitId, string key)

@@ -7,6 +7,7 @@ const clientSource = await readFile(new URL('../src/features/provisioning/Provis
 const clientUrl = `data:text/javascript;base64,${Buffer.from(stripTypeScriptTypes(clientSource, { mode: 'transform' })).toString('base64')}`;
 const panelSource = await readFile(new URL('../src/features/provisioning/ProvisioningPanel.ts', import.meta.url), 'utf8');
 const panelCode = stripTypeScriptTypes(panelSource, { mode: 'transform' })
+  .replace(/'\.\.\/\.\.\/\.\.\/\.\.\/design-system\/ui\.js'/, JSON.stringify(new URL('../../design-system/ui.js', import.meta.url).href))
   .replace(/import \{ registerPlugin \} from '@capacitor\/core';/, 'const registerPlugin = () => ({});')
   .replace(/'\.\/ProvisioningClient'/, JSON.stringify(clientUrl));
 const { ProvisioningPanel, bridge } = await import(`data:text/javascript;base64,${Buffer.from(panelCode + '\nexport { bridge };').toString('base64')}`);

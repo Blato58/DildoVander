@@ -64,7 +64,7 @@ function mounted() {
     atob:text=>Buffer.from(text,'base64').toString('binary'),crypto:{randomUUID:()=>BOOT},
     Option:function(text,value){this.textContent=text;this.value=value;},
     addEventListener:(name,callback)=>events.set(name,callback),setTimeout:callback=>{timers.push(callback);return timers.length;},clearTimeout(){}};
-  context.window=context;vm.runInNewContext(fs.readFileSync(require.resolve('./twin_media.js'),'utf8'),context);
+  context.window=context;require('./ui_test_runtime.cjs')(context);vm.runInNewContext(fs.readFileSync(require.resolve('./twin_media.js'),'utf8'),context);
   const api=context.TwinMedia.mount(document,new Element(),{request:async(id,path,options={})=>{
     const request={id,path,...options};requests.push(request);
     if(pendingRequest?.path===path){const pending=pendingRequest;pendingRequest=null;await pending.promise;}

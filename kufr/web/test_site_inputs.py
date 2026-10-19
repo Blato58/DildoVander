@@ -19,7 +19,7 @@ class SiteInputTests(unittest.TestCase):
         self.repo = Path(temporary.name) / 'repo'
         for folder in ['web', 'design-system', 'simulator']:
             shutil.copytree(ROOT / 'kufr' / folder, self.repo / 'kufr' / folder,
-                            ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+                            ignore=shutil.ignore_patterns('__pycache__', '*.pyc', 'node_modules'))
         out = self.repo / 'kufr/mechanika/final/exports'
         out.mkdir(parents=True)
         (out / 'viewer.html').write_text('Synthetic CAD fixture', encoding='utf-8')
@@ -48,6 +48,8 @@ class SiteInputTests(unittest.TestCase):
             self.assertNotIn(marker, homepage)
         self.assertIn('data-static-preview',
                       (self.destination / 'simulator/index.html').read_text(encoding='utf-8'))
+        self.assertEqual((self.destination / 'simulator/dashboard-ui.js').read_bytes(),
+                         (ROOT / 'kufr/simulator/dashboard-ui.js').read_bytes())
         self.assertIn('name="kufr-browser-mode" content="local-fake"',
                       (self.destination / 'companion/index.html').read_text(encoding='utf-8'))
 
@@ -55,6 +57,27 @@ class SiteInputTests(unittest.TestCase):
         (self.repo / 'kufr/web/site.css').unlink()
         with self.assertRaises(FileNotFoundError):
             self.assemble()
+
+    def test_shared_framework_and_generated_tokens_ship_with_real_site(self):
+        self.assemble()
+        for name in ['ui.js', 'arcane-workshop.css', 'components/framework.css',
+                     'tokens/palette.css', 'tokens/typography.css', 'tokens/layout.css', 'tokens/motion.css']:
+            self.assertEqual((self.destination / 'design-system' / name).read_bytes(),
+                             (ROOT / 'kufr/design-system' / name).read_bytes())
+
+    def test_missing_framework_fails_before_publishing_incomplete_shell(self):
+        (self.repo / 'kufr/design-system/ui.js').unlink()
+        with self.assertRaisesRegex(ValueError, 'Shared UI runtime missing: ui.js'):
+            self.assemble()
+
+    def test_development_dependencies_are_never_published(self):
+        dependency = self.repo / 'kufr/design-system/node_modules/development-only'
+        dependency.mkdir(parents=True)
+        (dependency / 'index.js').write_text('development-only', encoding='utf-8')
+        self.assemble()
+        self.assertFalse((self.destination / 'design-system/node_modules').exists())
+        self.assertFalse((self.destination / 'design-system/tests').exists())
+        self.assertFalse((self.destination / 'design-system/package-lock.json').exists())
 
 
 if __name__ == '__main__':

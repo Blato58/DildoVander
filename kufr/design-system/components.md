@@ -1,5 +1,11 @@
 # Komponenty a stavy Vapour Chrome
 
+Vykonatelná implementace je `ui.js` s typovým kontraktem `ui.d.ts`.
+Před vlastní komponentou použijte [sdílené API](framework.md) a
+[interaktivní katalog](playground/index.html). Níže uvedené třídy jsou CSS
+kontrakt rendererů a statických sémantických struktur, nikoli důvod kopírovat
+implementaci rendereru nebo obsluhu událostí.
+
 | Vzor | Třídy | Pravidlo |
 | --- | --- | --- |
 | Karta | `aw-card`, `aw-card-heading` | Jeden účel, vlastní nadpis |
@@ -24,13 +30,21 @@ Neznámé, odpojené a chybové hodnoty musí být rozlišeny od „Připraveno�
 Nedostupná přihrádka má popisek a přerušovaný obrys; samotná barva nestačí.
 Ilustrativní ukázky mají akční tlačítka disabled a trvalé označení UKÁZKA.
 
-Příklad skutečného vstupu:
+Příklad skutečného vstupu v JavaScriptu/TypeScriptu:
 
-```html
-<label class="aw-field" for="device">Adresa kufru</label>
-<input class="aw-input" id="device" aria-describedby="device-help">
-<p id="device-help" class="aw-muted">Použijte adresu z místního připojení.</p>
+```js
+import { field } from '../design-system/ui.js'; // cesta podle vlastníka aplikace
+
+const html = field({
+  id: 'device',
+  label: 'Adresa kufru',
+  control: '<input class="aw-input" autocomplete="url">',
+  description: 'Použijte adresu z místního připojení.',
+});
 ```
+
+`control` je důvěryhodný aplikační HTML fragment. Hodnoty z dat do něj
+nevkládejte bez escapování; label, description a error escapuje renderer.
 
 Používejte nativní `button`, `a`, `input`, `select` a `details` podle účelu.
 Klikací `div` a dekorativní ikony bez textu nezavádějte.

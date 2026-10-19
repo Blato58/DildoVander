@@ -1,14 +1,19 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
+import { mountDashboardUi, statusBadge, notice, emptyState } from './dashboard-ui.js';
 
-const script = await readFile(new URL('./dashboard.js', import.meta.url), 'utf8');
+const script = (await readFile(new URL('./dashboard.js', import.meta.url), 'utf8')).replace(/^import .*;\r?\n/, '');
 
 function createPage(staticPreview, fetchResponse) {
   const nodes = new Map();
   function createNode() {
     return {
-      value: '', textContent: '', disabled: false, hidden: true, children: [], attributes: {},
+      value: '', _text: '',
+      get textContent() { return this._text; },
+      set textContent(value) { this._text = value; },
+      set innerHTML(value) { this.markup = value; this._text = value.replace(/<[^>]*>/g, ''); },
+      disabled: false, hidden: true, children: [], attributes: {},
       listeners: {}, focused: false,
       addEventListener(type, handler) { this.listeners[type] = handler; },
       focus() { this.focused = true; },
@@ -21,7 +26,7 @@ function createPage(staticPreview, fetchResponse) {
     'token', 'connect', 'disconnect', 'connection-status', 'connection-error', 'slots',
     'timeline', 'token-help', 'static-preview-help', 'event-filter', 'event-count',
     'clear-events', 'timeline-empty', 'model-freshness', 'theme-toggle', 'mode',
-    'phase', 'journal', 'revision', 'event-announcement',
+    'phase', 'journal', 'revision', 'event-announcement', 'connection-controls', 'timeline-tools', 'theme-control',
   ]) {
     nodes.set(`#${id}`, createNode());
   }
@@ -32,7 +37,7 @@ function createPage(staticPreview, fetchResponse) {
   const context = {
     document: { body, documentElement, querySelector: (selector) => nodes.get(selector), createElement: createNode },
     window: { addEventListener() {} },
-    AbortController, TextDecoder,
+    AbortController, TextDecoder, mountDashboardUi, statusBadge, notice, emptyState,
     fetch: async (path, options) => {
       requests.push({ path, options });
       return fetchResponse ? fetchResponse(options) : { ok: false, status: 401 };
@@ -54,6 +59,9 @@ preview.nodes.get('#token').listeners.keydown({ key: 'Enter' });
 assert.equal(preview.requests.length, 0);
 
 const local = createPage(false);
+assert.match(local.nodes.get('#connection-controls').markup, /type="password"/);
+assert.match(local.nodes.get('#connection-controls').markup, /id="disconnect" disabled/);
+assert.match(local.nodes.get('#timeline-tools').markup, /for="event-filter"/);
 assert.equal(local.nodes.get('#slots').children.length, 6);
 assert.ok(local.nodes.get('#slots').children.every((slot) => slot.className === 'unknown'));
 await local.nodes.get('#connect').listeners.click();
@@ -131,6 +139,8 @@ assert.equal(streamed.documentElement.dataset.theme, 'dark');
 finishStream();
 await observing;
 assert.equal(streamed.body.dataset.connection, 'disconnected');
+assert.ok(streamed.nodes.get('#slots').children.every((slot) =>
+  slot.children[2].markup.includes('aw-badge--neutral')), 'Historical availability must not retain a current success badge');
 assert.match(streamed.nodes.get('#model-freshness').textContent, /není aktuální/);
 assert.match(streamed.nodes.get('#phase').textContent, /Poslední:/);
 assert.equal(streamed.nodes.get('#token').disabled, false);

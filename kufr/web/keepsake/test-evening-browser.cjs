@@ -5,6 +5,7 @@ const path = require('node:path');
 const http = require('node:http');
 const zlib = require('node:zlib');
 const { chromium } = require('playwright');
+const { assertSharedDialog } = require('./test-dialog.cjs');
 const repo = path.resolve(__dirname, '../../..');
 const guid = number => `00000000-0000-4000-8000-${String(number).padStart(12, '0')}`;
 
@@ -105,6 +106,12 @@ const eveningA = guid(9001); const eveningB = guid(9002);
     await page.goto(origin + '/keepsake/evening/');
     await page.locator('#public-name').filter({ hasText: 'Hůlka číslo 3' }).waitFor();
     await page.locator('#public-art').waitFor({ state: 'visible' });
+    await page.locator('#public-art-open').click();
+    await page.locator('#public-art-dialog').waitFor({ state: 'visible' });
+    await assertSharedDialog(page, '#public-art-dialog');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('#public-art-dialog').open
+      && document.activeElement.id === 'public-art-open');
     assert.equal(calls.filter(c => c.path.includes('/assets/')).length, 1, 'Initial page loads one selected image, no thumbnail burst');
     assert.equal(await page.locator('#evening-list img').count(), 0);
     assert.equal(await page.locator('#evening-list button').count(), 3);
@@ -133,6 +140,7 @@ const eveningA = guid(9001); const eveningB = guid(9002);
     for (const kind of ['export_story', 'base_image', 'export_card', 'export_zip']) {
       await page.locator(`[data-public-download="${kind}"]`).click();
       await page.getByRole('heading', { name: 'Památka je připravená k uložení' }).waitFor();
+      await assertSharedDialog(page, '[data-public-file]');
       assert.match(await page.locator('[data-public-file] a').getAttribute('download'), kind === 'export_story' ? /\.txt$/ : kind === 'export_zip' ? /\.zip$/ : /\.png$/);
       if (kind === 'export_story') {
         const pendingDownload = page.waitForEvent('download');

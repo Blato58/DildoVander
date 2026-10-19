@@ -20,21 +20,21 @@
   "acceptance": [
     {
       "id": "IMPACT",
-      "revision": 3,
+      "revision": 4,
       "expected": "Unrelated software/docs and reviewed viewer edits skip CAD setup/generation/verification; mechanical/shared/unknown inputs select required checks and explicit force remains available.",
       "requiredEvidenceKinds": [
         "unit"
       ],
       "appliesTo": {
-        "artifactDigest": "802ae634db8be76f6cd1eab1f685fb88cfb284b3a15a62dd02129a765596a306"
+        "artifactDigest": "516ba92f703449af10934d51f072cf484309c69d1780922abe8bd05f83d448e7"
       },
       "evidenceRefs": [
-        "KUFR-CAD-INCREMENTAL-merged-local"
+        "KUFR-CAD-INCREMENTAL-main211-local"
       ]
     },
     {
       "id": "REUSE",
-      "revision": 3,
+      "revision": 4,
       "expected": "Trusted content-bound results skip unchanged work, corrupt/untrusted results never supply acceptance, per-part exports and validation-only generation reuse preserve mandatory mechanical gates.",
       "requiredEvidenceKinds": [
         "unit",
@@ -42,30 +42,30 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "802ae634db8be76f6cd1eab1f685fb88cfb284b3a15a62dd02129a765596a306"
+        "artifactDigest": "516ba92f703449af10934d51f072cf484309c69d1780922abe8bd05f83d448e7"
       },
       "evidenceRefs": [
-        "KUFR-CAD-INCREMENTAL-merged-local",
-        "KUFR-CAD-INCREMENTAL-merged-review"
+        "KUFR-CAD-INCREMENTAL-main211-local",
+        "KUFR-CAD-INCREMENTAL-main211-review"
       ]
     },
     {
       "id": "HOSTED",
-      "revision": 3,
+      "revision": 4,
       "expected": "Hosted required CI passes and canonical main result is reusable before CAD installation with provenance and complete output inventory checks.",
       "requiredEvidenceKinds": [
         "integration"
       ],
       "appliesTo": {
-        "artifactDigest": "802ae634db8be76f6cd1eab1f685fb88cfb284b3a15a62dd02129a765596a306"
+        "artifactDigest": "516ba92f703449af10934d51f072cf484309c69d1780922abe8bd05f83d448e7"
       },
       "evidenceRefs": []
     }
   ],
   "blockers": [],
   "implementedSubject": {
-    "artifactDigest": "802ae634db8be76f6cd1eab1f685fb88cfb284b3a15a62dd02129a765596a306"
+    "artifactDigest": "516ba92f703449af10934d51f072cf484309c69d1780922abe8bd05f83d448e7"
   },
-  "currentNote": "b587bd2ba39c1119bf13b5a5caebc5db3589329f pushed/remote verified. Concurrent main209 ea63d4c integrated; preserved UI and rendered STATUS conflict. Fixed real empty historical PR metadata binding. Final merged pinned114/Node63/CI26/web20 checks and independent delta review pass. PR210 hosted run pending; no deployment/release/hardware mutation.",
-  "nextAction": "Run final PR CI, verify tracking-only PR result reuse, merge after all reviews/checks, then confirm canonical main promotion without duplicate CAD."
+  "currentNote": "Integrated concurrent main211 b44e192. Preserved shared executable UI consumers; exact reviewed runtime/helpers presentation-only, unknown/toolchain changes remain mechanical. Combined pinned117/CI27/selector13/Node63/web23 checks and independent review pass. Obsolete hosted runs cancelled safely; final hosted acceptance pending.",
+  "nextAction": "Run integrated PR CI, prove trusted reuse across tracking-only commits, merge after reviews/checks, confirm main promotion without duplicate CAD."
 }

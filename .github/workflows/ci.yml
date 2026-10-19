@@ -154,6 +154,8 @@ jobs:
         run: git diff --check HEAD^ HEAD
       - name: Verify Vapour Chrome design integrity
         run: |
+          python3 scripts/generate_design_tokens.py --check
+          npm test --prefix kufr/design-system
           python3 -m unittest discover -s scripts -p 'test_design_system.py'
           python3 scripts/check_design_system.py
 

@@ -27,7 +27,7 @@
       <h2 id="connection-title">USB připojení</h2>
       <p id="support" class="aw-muted">Chrome nebo Edge na počítači, USB–UART CH343 (1A86:55D3), 115200 baud. Zavřete ostatní sériové monitory.</p>
       <p class="aw-notice">Před připojením vypněte 5 V serv. Otevření USB může resetovat ESP. Napájení zapněte až po potvrzení Stop.</p>
-      <div class="actions"><button id="connect" class="aw-button" type="button">Připojit USB</button><button id="disconnect" class="aw-button aw-button--secondary" type="button" disabled>Odpojit</button></div>
+      <div id="connection-actions" class="actions"></div>
       <p id="connection" role="status">Odpojeno</p>
       <p id="mcp" class="aw-muted" role="status">WebMCP: zjišťuji dostupnost místních nástrojů…</p>
     </section>
@@ -38,18 +38,15 @@
         <div><label class="aw-field" for="pulse-width">Šířka pulzu</label><select id="pulse-width" class="aw-input"><option value="1400">1400 µs</option><option value="1500" selected>1500 µs</option><option value="1600">1600 µs</option></select></div>
       </div>
       <p id="state" role="status" aria-live="polite">Neaktivní · odpojeno</p>
-      <div class="actions"><button id="arm" class="aw-button aw-button--secondary" type="button" disabled>Arm · připravit jeden pulz</button><button id="pulse" class="aw-button" type="button" disabled>Pulz 500 ms</button></div>
+      <div id="pulse-actions" class="actions"></div>
       <p class="aw-muted">Potvrzení PWM FULL_OFF vypíná PWM. Neodpojuje 5 V a nepotvrzuje polohu ani skutečný pohyb serva.</p>
-      <p id="error" role="alert" hidden></p>
+      <div id="error" hidden></div>
     </section>
     <section class="aw-card" aria-labelledby="calibration-title">
       <h2 id="calibration-title">Ruční kalibrace</h2>
       <p id="calibration-support" role="status">Podpora kalibrace zatím není potvrzena firmwarem.</p>
       <p class="aw-muted">Používá kanál zvolený výše. Hodnoty jsou ruční záznamy, poloha není měřena. Nejde o úhly, potvrzení dorazů ani produkční kalibraci.</p>
-      <div class="controls">
-        <div><label class="aw-field" for="cal-width">Cílová šířka pulzu (µs)</label><input id="cal-width" class="aw-input" type="number" min="1000" max="2000" step="1" value="1500" aria-describedby="cal-help"></div>
-        <div><label class="aw-field" for="cal-duration">Doba pokusu (ms)</label><input id="cal-duration" class="aw-input" type="number" min="500" max="3000" step="100" value="1500" aria-describedby="cal-help"></div>
-      </div>
+      <div id="calibration-fields" class="controls"></div>
       <label class="aw-field" for="cal-range">Cílová šířka posuvníkem (µs)</label>
       <input id="cal-range" class="cal-range" type="range" min="1000" max="2000" step="25" value="1500" aria-describedby="cal-help">
       <div class="actions presets" aria-label="Změnit cílovou hodnotu bez pohybu">
@@ -60,7 +57,7 @@
         <button id="cal-plus" class="aw-button aw-button--secondary" type="button">+25 µs</button>
       </div>
       <p id="cal-help" class="aw-muted">Změna vstupů ani předvolba nikdy neposílá povel. Zvolte hodnoty, stiskněte Arm a poté jednou Spustit pokus.</p>
-      <div class="actions"><button id="cal-arm" class="aw-button aw-button--secondary" type="button" disabled>Arm pro kalibraci</button><button id="cal-move" class="aw-button" type="button" disabled>Spustit jeden pokus</button></div>
+      <div id="calibration-actions" class="actions"></div>
       <p id="cal-state" role="status" aria-live="polite">Neaktivní · odpojeno</p>
       <p id="cal-validation" class="aw-muted" role="status"></p>
       <h3 id="profile-title">Místní ruční profil · kanál 0</h3>
@@ -79,7 +76,7 @@
       <p class="aw-notice">Zůstaňte u serva a poslouchejte. Při drhnutí nebo vrčení okamžitě stiskněte Drhne / vrčí a vypněte V+. Panel zvuk ani doraz nerozpoznává.</p>
       <p class="aw-muted">Každý směr začíná uloženým středem vybraného kanálu. Krok 25 µs, pulz 1500 ms, začátky nejméně 3 s od sebe, pouze 1000–2000 µs. Pro každý krok proběhne samostatné Arm. Druhý směr se sám nespustí.</p>
       <p id="auto-context" class="aw-mono">Vyžaduje uložený ruční střed.</p>
-      <div class="actions"><button id="auto-min" class="aw-button" type="button" disabled>Hledat dolní mez</button><button id="auto-max" class="aw-button" type="button" disabled>Hledat horní mez</button></div>
+      <div id="auto-actions" class="actions"></div>
       <p id="auto-state" role="status" aria-live="polite">Automatické kroky nejsou spuštěny.</p>
       <p id="auto-candidate" class="aw-mono">Žádná navržená mez.</p>
       <p class="aw-muted">Po Drhne / vrčí se nabízí předchozí dokončený krok, současný se vyřadí. Návrh se uloží jen vaším potvrzením po novém Stop ACK. Je to ruční úsudek obsluhy, nikoli měření koncového dorazu, polohy nebo síly.</p>
@@ -87,16 +84,17 @@
     </section>
     <section class="aw-card" aria-labelledby="readback-title">
       <h2 id="readback-title">Poslední čtení registrů PCA9685</h2>
-      <p id="readback" class="aw-mono">Zatím žádné čtení. Registr není měření polohy serva.</p>
+      <div id="readback" class="aw-mono"></div>
     </section>
     <section class="aw-card" aria-labelledby="log-title">
       <h2 id="log-title">Sériový log</h2>
       <p class="aw-muted">Posledních 200 řádků. Po odpojení jde o historické údaje.</p>
+      <div id="log-empty"></div>
       <pre id="log" class="aw-mono log" role="log" aria-live="polite" aria-relevant="additions" tabindex="0"></pre>
     </section>
   </main>
   <footer class="stop-bar" aria-label="Nouzové ovládání PWM">
-    <div class="stop-actions"><button id="stop" class="aw-button aw-button--danger stop" type="button" disabled>Stop</button><button id="noise" class="aw-button aw-button--danger noise" type="button" disabled>Drhne / vrčí</button></div>
+    <div id="stop-actions" class="stop-actions"></div>
     <p id="noise-warning" class="noise-warning" role="alert" hidden>Vypněte V+; Stop vypíná signál, ne napájení ani zaručeně sílu serva.</p>
   </footer>
 </body>

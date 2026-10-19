@@ -79,8 +79,7 @@ def build(repo, destination, web_dist):
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(root / 'exports' / name, target)
     shutil.copyfile(workshop / 'viewer.html', workshop / 'index.html')
-    shutil.copytree(repo / 'kufr/design-system', destination / 'design-system',
-                    ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+    build_design_system(repo, destination)
     build_keepsake(repo, destination)
     shutil.copytree(web_dist, destination / 'companion')
     companion_index = destination / 'companion/index.html'
@@ -94,7 +93,8 @@ def build(repo, destination, web_dist):
     if count != 1:
         raise ValueError('Simulator preview cannot be safely marked')
     (simulator / 'index.html').write_text(dashboard, encoding='utf-8')
-    shutil.copyfile(repo / 'kufr/simulator/dashboard.js', simulator / 'dashboard.js')
+    for name in ('dashboard.js', 'dashboard-ui.js'):
+        shutil.copyfile(repo / 'kufr/simulator' / name, simulator / name)
     package_name = manifest['revision'] + '-kouzelny-kufr.zip'
     substitutions = {'__REVISION__': manifest['revision'], '__PACKAGE_NAME__': package_name,
                      '__PACKAGE_SIZE__': f'{(workshop / package_name).stat().st_size / 1048576:.1f}',
@@ -110,6 +110,18 @@ def build(repo, destination, web_dist):
                'cad_result': 'PASS_CAD_NOT_PHYSICAL_ACCEPTANCE', 'package': package_name, 'sha256': hashes}
     (destination / 'site-manifest.json').write_text(json.dumps(receipt, indent=2) + '\n', encoding='utf-8')
     print(f'Built {manifest["revision"]} site from {source_sha}: {len(hashes)} files')
+
+
+def build_design_system(repo, destination):
+    """Ship the real framework and generated tokens used by every hosted shell."""
+    source = repo / 'kufr/design-system'
+    runtime = ('ui.js', 'arcane-workshop.css', 'components/framework.css',
+               'tokens/palette.css', 'tokens/typography.css', 'tokens/layout.css', 'tokens/motion.css')
+    missing = [name for name in runtime if not (source / name).is_file()]
+    if missing:
+        raise ValueError('Shared UI runtime missing: ' + ', '.join(missing))
+    shutil.copytree(source, destination / 'design-system',
+                    ignore=shutil.ignore_patterns('__pycache__', '*.pyc', 'node_modules', 'test-results', 'tests', 'package*.json'))
 
 
 def build_keepsake(repo, destination):
@@ -139,8 +151,7 @@ def build_keepsake_only(repo, destination):
         raise ValueError('Standalone keepsake destination must be new')
     destination.mkdir(parents=True)
     build_keepsake(repo, destination)
-    shutil.copytree(repo / 'kufr/design-system', destination / 'design-system',
-                    ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+    build_design_system(repo, destination)
     shutil.copyfile(destination / 'keepsake/evening/index.html', destination / 'index.html')
     hashes = {p.relative_to(destination).as_posix(): digest(p)
               for p in sorted(destination.rglob('*')) if p.is_file()}

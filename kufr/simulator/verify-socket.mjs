@@ -147,10 +147,13 @@ try {
   const script = await requestPage(simulator.port, certificate, '/simulator/dashboard.js');
   assert.equal(script.status, 200);
   assert.match(script.body, /v1\/observe/);
+  const dashboardUi = await requestPage(simulator.port, certificate, '/simulator/dashboard-ui.js');
+  assert.equal(dashboardUi.status, 200);
+  assert.match(dashboardUi.body, /design-system\/ui\.js/);
   const sharedStyles = await requestPage(simulator.port, certificate, '/design-system/arcane-workshop.css');
   assert.equal(sharedStyles.status, 200);
   assert.match(sharedStyles.body, /tokens\/palette\.css/);
-  for (const assetPath of ['tokens/palette.css', 'tokens/typography.css', 'tokens/layout.css', 'components/patterns.css', 'fonts/cinzel.ttf', 'fonts/inter.ttf', 'fonts/ibmplexmono.ttf']) {
+  for (const assetPath of ['ui.js', 'tokens/palette.css', 'tokens/typography.css', 'tokens/layout.css', 'components/patterns.css', 'components/framework.css', 'fonts/cinzel.ttf', 'fonts/inter.ttf', 'fonts/ibmplexmono.ttf']) {
     const asset = await requestPage(simulator.port, certificate, `/design-system/${assetPath}`);
     assert.equal(asset.status, 200, `public design asset ${assetPath}`);
     assert.ok(asset.body.length > 0);

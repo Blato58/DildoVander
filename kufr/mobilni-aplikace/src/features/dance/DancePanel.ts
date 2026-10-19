@@ -1,3 +1,4 @@
+import { button } from '../../../../design-system/ui.js';
 import type { DeviceSnapshot } from '../device_connection/FakeDeviceConnection';
 
 interface DanceConnection { startDance(): boolean; stopDance(): boolean; }
@@ -17,8 +18,8 @@ export class DancePanel {
         <span data-dance-time></span>
       </div>
       <div class="actions">
-        <button type="button" class="primary" data-dance="start" disabled>Dance for me</button>
-        <button type="button" data-dance="stop" disabled>Zastavit tanec</button>
+        ${button({ label: "Dance for me", variant: 'primary', disabled: true, attributes: {"data-dance": "start"} })}
+        ${button({ label: "Zastavit tanec", disabled: true, attributes: {"data-dance": "stop"} })}
       </div>
       <p role="status" aria-live="polite"></p>
       <p class="footnote">Pro tanec uvolněte ruční řízení a ukončete rozhovor.
