@@ -69,9 +69,9 @@ def main():
         ("twin_telemetry_test", CORE, []),
         ("voice_workflow_test", ["voice_turn/VoiceWorkflow", "conversation/ConversationStartCodec"], []),
         ("realtime_session_engine_test", ["voice_turn/RealtimeSessionEngine", "conversation/TurnPollGuard"], []),
-        ("espidf_realtime_transport_test", ["voice_turn/EspIdfRealtimeTransport", "voice_turn/RealtimeSessionEngine", "voice_turn/RealtimeEventCodec", "conversation/TurnOperationCodec", "conversation/TurnPollGuard", "conversation/ConversationStartCodec", "conversation/ConversationSession", "backend_access/NetworkSettings"], ["tests/realtime_stubs"]),
+        ("espidf_realtime_transport_test", ["voice_turn/EspIdfRealtimeTransport", "voice_turn/RealtimeSessionEngine", "voice_turn/RealtimeEventCodec", "conversation/TurnOperationCodec", "conversation/TurnPollGuard", "conversation/ConversationStartCodec", "conversation/ConversationSession", "lib/device_configuration/NetworkSettings"], ["tests/realtime_stubs", "lib/device_configuration/include"]),
         ("espidf_voice_audio_test", ["voice_turn/EspIdfVoiceAudio"], ["tests/audio_stubs"]),
-        ("local_control_server_test", ["local_control/EspIdfLocalControlServer", "local_control/LocalControlCodec", "local_control/LocalControlInbox", "local_control/LocalSocketAdmission", "local_control/LocalBearerAuthenticator", "provisioning/LocalTlsIdentity", "provisioning/LocalPairingCredential", "conversation/ConversationSession", "conversation/ConversationStartCodec"], ["tests/server_stubs"]),
+        ("local_control_server_test", ["local_control/EspIdfLocalControlServer", "local_control/LocalControlCodec", "local_control/LocalControlInbox", "local_control/LocalSocketAdmission", "local_control/LocalBearerAuthenticator", "provisioning/LocalTlsIdentity", "provisioning/LocalPairingCredential", "conversation/ConversationSession", "conversation/ConversationStartCodec"], ["tests/server_stubs", "lib/device_configuration/include"]),
         ("wand_presentation_test", CORE, []),
         ("local_control_owner_test", CORE + ["conversation/ConversationSession", "conversation/ConversationStartCodec", "local_control/LocalControlSession", "local_control/LocalConversationGateway", "local_control/LocalControlInbox", "local_control/LocalControlOwner"], []),
         ("local_control_codec_test", ["conversation/ConversationSession", "conversation/ConversationStartCodec", "local_control/LocalControlCodec"], []),
@@ -87,7 +87,12 @@ def main():
             if args.only and name not in args.only:
                 continue
             executable = output / (name + (".exe" if msvc else ""))
-            files = [str(ROOT / "src/features" / (source + ".cpp")) for source in sources]
+            files = [
+                str(ROOT / (source + ".cpp"))
+                if source.startswith("lib/")
+                else str(ROOT / "src/features" / (source + ".cpp"))
+                for source in sources
+            ]
             files.append(str(ROOT / "tests" / (name + ".cpp")))
             if msvc:
                 flags = ["/nologo", "/std:c++14", "/utf-8", "/EHsc", "/W4", "/WX", "/wd4244", "/Fe:" + str(executable)]
