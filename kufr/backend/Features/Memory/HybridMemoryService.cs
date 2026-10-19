@@ -20,34 +20,74 @@ internal sealed class HybridMemoryService(EveningMemoryStore store, OpenAiVector
     private volatile bool degraded;
     private readonly SemaphoreSlim localWrites = new(1, 1);
     internal HybridMemoryOptions Options => options;
-    internal long StoreEpoch => store.MemoryEpoch;
+    internal long StoreEpochFor(MemoryAccess access) => store.MemoryFactEpochFor(access);
+    internal bool RecordConfirmedOutcome(MemoryAccess access, string operationId, string outcomeId,
+        string wandLabel, string source, long expectedDeletionEpoch)
+    {
+        if (!Guid.TryParseExact(operationId, "D", out _) || !Guid.TryParseExact(outcomeId, "D", out _)
+            || string.IsNullOrWhiteSpace(wandLabel) || Encoding.UTF8.GetByteCount(wandLabel) > 256
+            || source != "completed_by_timing")
+        {
+            throw new ArgumentException("Confirmed memory requires a validated timed outcome receipt.");
+        }
+        if (store.MemoryDeletionEpochFor(access.DeviceId, access.ConversationId) != expectedDeletionEpoch) { return false; }
+        var text = "Zařízení potvrdilo dokončení kalibrované časované posloupnosti pro hůlku " + wandLabel
+            + ". Fyzická poloha nebyla změřena; předání do ruky není potvrzeno.";
+        var scopes = access.Guest is { IdentityVerified: true, LongTermAllowed: true }
+            ? new[] { MemoryScope.Conversation, MemoryScope.Personal } : [MemoryScope.Conversation];
+        foreach (var scope in scopes)
+        {
+            var hash = SHA256.HashData(Encoding.UTF8.GetBytes(options.Namespace + ":" + access.DeviceId
+                + ":" + access.ConversationId + ":outcome:" + operationId + ":" + outcomeId + ":" + scope));
+            var id = new Guid(hash.AsSpan(0, 16)).ToString("D");
+            var existing = store.CurrentMemory(id);
+            if (existing is not null)
+            {
+                if (!store.IsPermitted(existing, access)) { return false; }
+                continue;
+            }
+            if (store.WriteMemory(access, new(id, scope, MemoryKind.ConfirmedSelection, text,
+                "outcome:" + outcomeId + ":operation:" + operationId + ":" + source,
+                ExpectedDeletionEpoch: expectedDeletionEpoch)) is null) { return false; }
+        }
+        ClearCache();
+        return true;
+    }
     internal async Task<MemoryRetrieval> ChangePersonalMemoryAsync(MemoryAccess access, LiveRequestIntent intent,
-        DecisionEvidence source, CancellationToken token)
+        DecisionEvidence source, CancellationToken token, long? expectedFactEpoch = null, long? expectedDeletionEpoch = null)
     {
         if (!options.Enabled || !options.LongTermPersonalEnabled || access.Guest is not { IdentityVerified: true, LongTermAllowed: true })
             return new("memory_not_permitted", []);
+        var capturedFactEpoch = expectedFactEpoch ?? store.MemoryFactEpochFor(access);
+        var capturedDeletionEpoch = expectedDeletionEpoch ?? store.MemoryDeletionEpochFor(access.DeviceId, access.ConversationId);
         await localWrites.WaitAsync(token);
         try
         {
             return await Task.Run(() =>
             {
                 token.ThrowIfCancellationRequested();
+                if (store.MemoryFactEpochFor(access) != capturedFactEpoch
+                    || store.MemoryDeletionEpochFor(access.DeviceId, access.ConversationId) != capturedDeletionEpoch)
+                {
+                    return new MemoryRetrieval("memory_write_unavailable", []);
+                }
                 if (intent == LiveRequestIntent.Forget)
                 {
-                    var deleted = store.ForgetOwnPersonalMemory(access); ClearCache();
+                    var deleted = store.ForgetOwnPersonalMemory(access, capturedFactEpoch, capturedDeletionEpoch); ClearCache();
                     return new MemoryRetrieval(deleted ? "memory_deleted" : "memory_not_permitted", []);
                 }
                 if (intent != LiveRequestIntent.Remember) throw new ArgumentException("Unsupported memory change.");
                 var text = Regex.Replace(source.Text, @"(?i)^\s*(zapamatuj si|ulož si|pamatuj si)\s*[:,]?\s*", "");
                 if (string.IsNullOrWhiteSpace(text)) return new MemoryRetrieval("memory_information_missing", []);
                 var bounded = LiveTextBudget.Bound(text, options.MaxRecordBytes);
-                var hash = SHA256.HashData(Encoding.UTF8.GetBytes(access.ConversationId + ":personal:" + access.Guest.Version + ":" + source.Reference + ":" + source.Text));
+                var hash = SHA256.HashData(Encoding.UTF8.GetBytes(options.Namespace + ":" + access.DeviceId + ":" + access.ConversationId + ":personal:" + access.Guest.Version + ":" + source.Reference + ":" + source.Text));
                 var id = new Guid(hash.AsSpan(0, 16)).ToString("D");
                 var existing = store.CurrentMemory(id);
                 if (existing is not null)
-                    return new MemoryRetrieval(store.IsPermitted(existing, access) ? "memory_saved" : "memory_write_unavailable", []);
+                    return new MemoryRetrieval(store.IsCurrentMemoryPermitted(id, access, capturedFactEpoch, capturedDeletionEpoch)
+                        ? "memory_saved" : "memory_write_unavailable", []);
                 var written = store.WriteMemory(access, new(id, MemoryScope.Personal, MemoryKind.UserReportedFact, bounded, source.Reference,
-                    ExpectedEpoch: store.MemoryEpoch));
+                    ExpectedFactEpoch: capturedFactEpoch, ExpectedDeletionEpoch: capturedDeletionEpoch));
                 ClearCache();
                 return new MemoryRetrieval(written is null ? "memory_write_unavailable" : text == bounded ? "memory_saved" : "memory_saved_partial", []);
             }, token);
@@ -59,29 +99,52 @@ internal sealed class HybridMemoryService(EveningMemoryStore store, OpenAiVector
         store.InvalidateConversationFacts(access); ClearCache();
     }
     internal async Task PersistContextAsync(MemoryAccess access, string generation,
-        IReadOnlyList<LiveTranscriptSegment> segments, IReadOnlyList<DecisionEvidence> evidence, long epoch, CancellationToken token)
+        IReadOnlyList<LiveTranscriptSegment> segments, IReadOnlyList<DecisionEvidence> evidence, long epoch, CancellationToken token,
+        long? expectedDeletionEpoch = null)
     {
         if (!options.Enabled) return;
+        var capturedDeletionEpoch = expectedDeletionEpoch ?? store.MemoryDeletionEpochFor(access.DeviceId, access.ConversationId);
         await localWrites.WaitAsync(token);
         try
         {
             await Task.Run(() =>
             {
-                if (store.MemoryEpoch != epoch) return;
-                store.AppendTimedTranscripts(access, generation, segments);
+                if (store.MemoryFactEpochFor(access) != epoch
+                    || store.MemoryDeletionEpochFor(access.DeviceId, access.ConversationId) != capturedDeletionEpoch) return;
+                store.AppendTimedTranscripts(access, generation, segments,
+                    expectedDeletionEpoch: capturedDeletionEpoch, expectedFactEpoch: epoch);
                 foreach (var item in evidence)
                 {
                     token.ThrowIfCancellationRequested();
-                    if (store.MemoryEpoch != epoch) return;
-                    var hash = SHA256.HashData(Encoding.UTF8.GetBytes(access.ConversationId + ":" + item.Reference + ":" + item.Text));
+                    if (store.MemoryFactEpochFor(access) != epoch) return;
+                    var hash = SHA256.HashData(Encoding.UTF8.GetBytes(options.Namespace + ":" + access.DeviceId + ":" + access.ConversationId + ":" + item.Reference + ":" + item.Text));
                     var id = new Guid(hash.AsSpan(0, 16)).ToString("D");
-                    if (store.CurrentMemory(id) is not null) continue;
+                    var existing = store.CurrentMemory(id);
+                    if (existing is { IsActive: false }) { continue; }
                     var text = LiveTextBudget.Bound(item.Text, options.MaxRecordBytes);
                     if (text.Length == 0) continue;
-                    var written = store.WriteMemory(access, new(id, MemoryScope.Conversation, MemoryKind.UserReportedFact,
-                        text, item.Reference, ExpectedEpoch: epoch));
-                    if (written is null) return;
-                    epoch = store.MemoryEpoch;
+                    if (existing is null)
+                    {
+                        var written = store.WriteMemory(access, new(id, MemoryScope.Conversation, MemoryKind.UserReportedFact,
+                            text, item.Reference, ExpectedFactEpoch: epoch, ExpectedDeletionEpoch: capturedDeletionEpoch));
+                        if (written is null) { return; }
+                    }
+                    // Stable identity and explicit continuity permission are the
+                    // authority. A name, voice, photograph or assistant joke
+                    // never establishes this permission.
+                    if (access.Guest is { IdentityVerified: true, LongTermAllowed: true }
+                        && LiveConversationProjection.Classify(item.Text) is not
+                            (LiveRequestIntent.Remember or LiveRequestIntent.Forget or LiveRequestIntent.Memory))
+                    {
+                        var personalHash = SHA256.HashData(Encoding.UTF8.GetBytes(options.Namespace + ":" + access.DeviceId + ":" + access.ConversationId + ":continuity:"
+                            + access.Guest.GuestId + ":" + item.Reference + ":" + item.Text));
+                        var personalId = new Guid(personalHash.AsSpan(0, 16)).ToString("D");
+                        if (store.CurrentMemory(personalId) is null)
+                        {
+                            store.WriteMemory(access, new(personalId, MemoryScope.Personal, MemoryKind.UserReportedFact,
+                                text, item.Reference, ExpectedFactEpoch: epoch, ExpectedDeletionEpoch: capturedDeletionEpoch));
+                        }
+                    }
                 }
             }, token);
         }
@@ -92,9 +155,10 @@ internal sealed class HybridMemoryService(EveningMemoryStore store, OpenAiVector
         get
         {
             var b = store.MemoryBacklog();
+            var storage = store.MemoryStorageStatus();
             return new("openai_vector_store", provider.Configured, degraded,
                 !options.Enabled ? "disabled" : !provider.HasKey ? "key_missing" : !provider.Configured ? "store_ids_missing" : configurationStatus,
-                verifiedAt, b.Pending, b.Failed, b.Deleting);
+                verifiedAt, b.Pending, b.Failed, b.Deleting, storage.StoredBytes, options.MaxStoredBytes, storage.RejectedWrites);
         }
     }
     internal async Task VerifyAsync(CancellationToken token)
@@ -119,7 +183,7 @@ internal sealed class HybridMemoryService(EveningMemoryStore store, OpenAiVector
         var filters = new List<object>();
         void Add(string key, object value, string type = "eq") => filters.Add(new { type, key, value });
         Add("app_namespace", options.Namespace); Add("device_id", access.DeviceId); Add("scope", scope.ToString());
-        Add("active", true); Add("expires_at", now.ToUnixTimeSeconds(), "gt");
+        Add("active", true);
         if (scope == MemoryScope.Personal)
         {
             if (access.Guest is not { IdentityVerified: true, LongTermAllowed: true, CloudExportAllowed: true })
@@ -141,42 +205,77 @@ internal sealed class HybridMemoryService(EveningMemoryStore store, OpenAiVector
         if (!options.Enabled) return new("memory_unavailable", []);
         if (scope == MemoryScope.Personal && (!options.LongTermPersonalEnabled || access.Guest is not { IdentityVerified: true, LongTermAllowed: true }))
             return new("memory_not_found", []);
-        var local = store.LocalMemory(access, scope).Where(r => !conversationOnly || r.ConversationId == access.ConversationId).Take(options.SearchResults).ToArray();
-        if (!options.CloudIndexingEnabled || !provider.Configured
+        IReadOnlyList<MemoryRecord> EligibleLocal() => store.LocalMemory(access, scope)
+            .Where(record => !conversationOnly || record.ConversationId == access.ConversationId).ToArray();
+        MemoryRecord[] Merge(IEnumerable<MemoryRecord> cloudRecords)
+        {
+            // Canonical eligibility is checked again after every asynchronous
+            // search/cache lookup. Deleted or superseded snapshots never escape.
+            var words = Regex.Matches(query.ToLowerInvariant(), @"\p{L}{3,}")
+                .Select(match => match.Value).ToHashSet(StringComparer.Ordinal);
+            return EligibleLocal().Concat(cloudRecords)
+                .Select(record => store.CurrentMemory(record.MemoryId))
+                .OfType<MemoryRecord>()
+                .Where(record => record.Scope == scope && store.IsPermitted(record, access)
+                    && (!conversationOnly || record.ConversationId == access.ConversationId))
+                .DistinctBy(record => (record.MemoryId, record.Revision))
+                .OrderByDescending(record => words.Count(word => record.Text.Contains(word, StringComparison.OrdinalIgnoreCase)))
+                .ThenByDescending(record => record.CreatedAt)
+                .ThenBy(record => record.MemoryId, StringComparer.Ordinal)
+                .Take(options.SearchResults).ToArray();
+        }
+        MemoryRetrieval Local(string emptyStatus = "memory_not_found")
+        {
+            var rows = Merge([]);
+            return new(rows.Length > 0 ? "local_context" : emptyStatus, rows);
+        }
+        if (scope == MemoryScope.Conversation || !options.CloudIndexingEnabled || !provider.Configured
             || scope == MemoryScope.Personal && access.Guest is not { CloudExportAllowed: true })
-            return new(local.Length > 0 ? "local_context" : "memory_unavailable", local);
+        {
+            return Local();
+        }
         var epoch = store.MemoryEpoch;
         var cacheKey = JsonSerializer.Serialize(new { options.Namespace, access, scope, query, epoch, conversationOnly });
         if (cache.TryGetValue(cacheKey, out var saved) && saved.Expires > clock.GetUtcNow())
-            return saved.Result with { Records = saved.Result.Records.Where(r => store.CurrentMemory(r.MemoryId) is { } current
-                && current.Revision == r.Revision && store.IsPermitted(current, access, cloud: true)).ToArray() };
-        if (!store.SpendMemoryQuota("search")) return new("memory_unavailable", local);
+        {
+            var merged = Merge(saved.Result.Records);
+            return new(merged.Length > 0 ? saved.Result.Status : "memory_not_found", merged);
+        }
+        if (!store.SpendMemoryQuota("search")) { return Local("memory_unavailable"); }
         try
         {
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
+            deadline.CancelAfter(TimeSpan.FromSeconds(options.TimeoutSeconds));
             var hits = await provider.SearchAsync(options.StoreFor(scope), LiveTextBudget.Bound(query, 1900),
-                Filters(options, access, scope, clock.GetUtcNow(), conversationOnly), token);
-            var resolved = hits.Where(h => double.IsFinite(h.Score) && h.Score >= 0)
-                .Select(h => store.ResolveFile(options.StoreFor(scope), h.FileId, access, scope)).OfType<MemoryRecord>()
-                .Where(r => !conversationOnly || r.ConversationId == access.ConversationId)
-                .DistinctBy(r => (r.MemoryId, r.Revision)).Take(options.SearchResults).ToArray();
-            // Every hit, including its text, is rehydrated from SQLite. A foreign
-            // hit/unknown FileId contributes no data even if the provider erred.
-            var result = new MemoryRetrieval(resolved.Length > 0 ? "memory_found" : "memory_not_found", resolved);
-            if (cache.Count >= 64) cache.Clear();
-            if (epoch == store.MemoryEpoch) cache[cacheKey] = (clock.GetUtcNow().AddSeconds(10), result);
-            degraded = false; return result;
+                Filters(options, access, scope, clock.GetUtcNow(), conversationOnly), deadline.Token);
+            var resolved = hits.Where(hit => double.IsFinite(hit.Score) && hit.Score >= 0)
+                .Select(hit => store.ResolveFile(options.StoreFor(scope), hit.FileId, access, scope))
+                .OfType<MemoryRecord>().ToArray();
+            var merged = Merge(resolved);
+            var result = new MemoryRetrieval(merged.Length > 0 ? "memory_found" : "memory_not_found", merged);
+            if (cache.Count >= 64) { cache.Clear(); }
+            if (epoch == store.MemoryEpoch) { cache[cacheKey] = (clock.GetUtcNow().AddSeconds(10), result); }
+            degraded = false;
+            return result;
         }
-        catch (Exception e) when (e is MemoryProviderException or InvalidOperationException or KeyNotFoundException or ArgumentException)
-        { degraded = true; return new("memory_unavailable", local); }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+        catch (Exception error) when (error is MemoryProviderException or InvalidOperationException
+            or KeyNotFoundException or ArgumentException or HttpRequestException or OperationCanceledException)
+        {
+            degraded = true;
+            return Local("memory_unavailable");
+        }
     }
+
     internal void ClearCache() => cache.Clear();
     internal string BuildContext(MemoryAccess access, IEnumerable<MemoryRecord>? retrieved = null, ISet<string>? delivered = null,
-        int? tokenBudget = null)
+        int? tokenBudget = null, bool literalOnly = false)
     {
         var limit = Math.Min(options.ContextTokens, tokenBudget ?? options.ContextTokens);
         var rows = store.LocalMemory(access, MemoryScope.Conversation)
             .Concat(retrieved ?? store.LocalMemory(access)).DistinctBy(r => (r.MemoryId, r.Revision))
-            .Where(r => store.CurrentMemory(r.MemoryId) is { } current && current.Revision == r.Revision && store.IsPermitted(current, access));
+            .Where(r => (!literalOnly || r.Kind is MemoryKind.UserReportedFact or MemoryKind.ConfirmedSelection)
+                && store.CurrentMemory(r.MemoryId) is { } current && current.Revision == r.Revision && store.IsPermitted(current, access));
         var selected = new List<string>(); var used = 32;
         foreach (var row in rows)
         {
@@ -188,7 +287,12 @@ internal sealed class HybridMemoryService(EveningMemoryStore store, OpenAiVector
                 MemoryKind.UserReportedFact => row.Scope == MemoryScope.Conversation
                     ? "Tvrzení aktuálního hosta (neověřená skutečnost)" : "Historické tvrzení povoleného hosta (neověřená skutečnost)",
                 MemoryKind.FictionalJoke => "Fiktivní vtip, není osobní fakt",
-                _ => "Dřívější potvrzený aplikační výsledek"
+                MemoryKind.ModelInterpretation => "Modelová interpretace, není potvrzený fakt",
+                MemoryKind.VisualObservation => "Pozorování obrazu, neurčuje identitu hosta",
+                MemoryKind.ProposedChoice => "Dřívější návrh, nepotvrzuje vydání hůlky",
+                MemoryKind.PendingQuestion => "Dosud nezodpovězená otázka",
+                MemoryKind.ConfirmedSelection => "Dřívější potvrzený aplikační výsledek",
+                _ => "Neověřený archivní záznam"
             };
             // JSON quoting prevents data from forging the framing delimiter.
             if (limit - used <= 130) break;
@@ -199,20 +303,29 @@ internal sealed class HybridMemoryService(EveningMemoryStore store, OpenAiVector
         }
         return string.Join("\n", selected);
     }
-    internal async Task<LiveMemoryContext> StartupContextAsync(MemoryAccess access, CancellationToken token)
+    internal LiveMemoryContext RecoveryContext(MemoryAccess access)
     {
-        if (!options.Enabled) return new("", []);
-        var records = new List<MemoryRecord>();
-        // Lookup happens only at a meaningful boundary, never before every reply.
-        if (access.Guest is { IdentityVerified: true, LongTermAllowed: true })
-            records.AddRange((await RetrieveAsync(access, MemoryScope.Personal, "Předchozí potvrzený výběr a dobrovolně uložené preference hosta.", token)).Records);
-        records.AddRange((await RetrieveAsync(access, MemoryScope.EveningMotif, "Nedávno použité abstraktní motivy vtipů a témata, kterým se vyhnout.", token)).Records);
-        // Indexing is asynchronous. Recent permitted motifs are already known
-        // locally and must not disappear while Files attachment is still pending.
-        records.AddRange(store.LocalMemory(access, MemoryScope.EveningMotif));
+        if (!options.Enabled) { return new("", []); }
+        var records = store.LocalMemory(access).Where(record => record.Kind is
+            MemoryKind.UserReportedFact or MemoryKind.ConfirmedSelection);
         var delivered = new HashSet<string>(StringComparer.Ordinal);
-        return new(BuildContext(access, records, delivered), delivered.ToArray());
+        return new(BuildContext(access, records, delivered, literalOnly: true), delivered.ToArray());
     }
+
+    internal Task<LiveMemoryContext> StartupContextAsync(MemoryAccess access, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        if (!options.Enabled) { return Task.FromResult(new LiveMemoryContext("", [])); }
+        store.RegisterMemoryContext(access);
+        // Starting audio must never wait for optional search/index infrastructure.
+        // Explicit recall tools can enrich this compact, immediately usable local
+        // context through RetrieveAsync; every cloud reference is rehydrated there.
+        var records = store.LocalMemory(access, MemoryScope.Personal).Take(options.SearchResults)
+            .Concat(store.LocalMemory(access, MemoryScope.EveningMotif).Take(options.SearchResults));
+        var delivered = new HashSet<string>(StringComparer.Ordinal);
+        return Task.FromResult(new LiveMemoryContext(BuildContext(access, records, delivered), delivered.ToArray()));
+    }
+
 }
 
 internal sealed class MemoryIndexWorker(EveningMemoryStore store, OpenAiVectorMemoryProvider provider,

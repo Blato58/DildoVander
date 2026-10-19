@@ -491,8 +491,14 @@ void BrowserMedia::Worker(VoiceWorkflowRequest request) {
           if (!line.empty() && line.back() == '\r') line.pop_back();
           RealtimeEvent event;
           valid = total <= 20000000 && ParseRealtimeEvent(line, event) && engine.Event(event);
-          if (valid && event.type == "completed" && !event.operation.reply.empty())
-            (void)Emit("dialogue", {}, false, event.operation.reply);
+          const bool currentResponse = event.hasResponseGeneration
+              ? event.responseGeneration == engine.ResponseGeneration() : engine.ResponseGeneration() == 0;
+          // Ignored old provider events still return true. Fence every outward
+          // projection here; visitor text is never projected by this adapter.
+          if (valid && currentResponse) {
+            if (event.type == "completed" && !event.operation.reply.empty())
+              (void)Emit("dialogue", {}, false, event.operation.reply);
+          }
           std::fill(line.begin(), line.end(), '\0'); std::fill(event.delta.begin(), event.delta.end(), '\0');
           std::fill(event.operation.reply.begin(), event.operation.reply.end(), '\0');
         }

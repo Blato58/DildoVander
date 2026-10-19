@@ -31,11 +31,11 @@ internal static class CharacterOperationTests
                 var options = new GptLiveOptions { Mode = LiveActorMode.AutonomousActor };
                 var store = new ConversationStore(TimeProvider.System, journal, dialog, voiceRunner: voice, liveOptions: options);
                 var modes = store.ReadServerModes();
-                var changed = store.ChangeServerModes(new(modes.Revision, "responses", "openai", PersonalityCatalog.OllivanderId,
+                var changed = store.ChangeServerModes(new(modes.Revision, PersonalityId: PersonalityCatalog.OllivanderId,
                     CharacterEnabled: true, CharacterTone: "Chaos", CharacterFinaleProfile: profile.ToString()));
                 Require(changed.Status == 200, "admin explicit profile accepted before start");
                 var enabledModes = store.ReadServerModes();
-                var incompatible = store.ChangeServerModes(new(enabledModes.Revision, "responses", "openai", PersonalityCatalog.DefaultId));
+                var incompatible = store.ChangeServerModes(new(enabledModes.Revision, PersonalityId: PersonalityCatalog.DefaultId));
                 Require(incompatible.Status == 409 && incompatible.Error == "character_requires_autonomous_ollivander"
                     && store.ReadServerModes().PersonalityId == PersonalityCatalog.OllivanderId
                     && store.ReadServerModes().Revision == enabledModes.Revision,
@@ -44,7 +44,7 @@ internal static class CharacterOperationTests
                 var created = store.Create(device, Guid.NewGuid(), "create"u8,
                     new(device, boot, 0, PartyWandCatalog.Version, "cs-CZ", new(true, false))).Response!;
                 var active = store.ReadServerModes();
-                Require(store.ChangeServerModes(new(active.Revision, "responses", "openai", CharacterEnabled: false)).Status == 200,
+                Require(store.ChangeServerModes(new(active.Revision, CharacterEnabled: false)).Status == 200,
                     "ordinary disabling applies to next session even with active conversation");
                 var request = new RealtimeTurnRequest(Guid.NewGuid(), boot, 0, 63, 7, PartyWandCatalog.Version, true, "", null, "marin", 1);
                 var admission = store.BeginRealtimeTurn(device, created.ConversationId, Guid.NewGuid(), "call"u8.ToArray(),
@@ -58,7 +58,7 @@ internal static class CharacterOperationTests
                 for (var i = 0; i < 30; i++) { store.RecordCharacterStyle(call, "bureaucracy"); }
                 Require(store.CharacterStyles(call).Count == 12, "anonymous scope is bounded");
                 var latest = store.ReadServerModes();
-                Require(store.ChangeServerModes(new(latest.Revision, "responses", "openai", ResetCharacterVariety: true)).Status == 200
+                Require(store.ChangeServerModes(new(latest.Revision, ResetCharacterVariety: true)).Status == 200
                     && store.CharacterStyles(call).Count == 0, "variety reset has no operation effects");
                 var decision = new WandDecisionResult(WandDecisionStatus.ValidProposal, 1, [], "", 2, 7);
                 var outcome = new LiveOutcome(new("synthetic input", "Výběr mám.", "propose", "", 1, 10), 2, [])

@@ -15,7 +15,6 @@ internal sealed partial class TwinHost
         {
             if (host.Profile != "integration") { return "media_requires_wall_clock_profile"; }
             if (!host.Ready) { return "host_unavailable"; }
-            if (host.IntegrationBusy) { return "integration_busy"; }
             if (host.Owner is not null && host.Owner != session.Id && host.OwnerExpires > clock.GetUtcNow())
             { return "control_owned"; }
             if (host.Owner != session.Id || session.Expires > host.OwnerExpires) { host.OwnerExpires = session.Expires; }

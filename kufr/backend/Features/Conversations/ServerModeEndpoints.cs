@@ -1,4 +1,5 @@
 using Kufr.Backend.Features.Access;
+using System.Text.Json.Serialization;
 
 namespace Kufr.Backend.Features.Conversations;
 
@@ -36,14 +37,14 @@ internal static class ServerModeEndpoints
     }
 }
 
-internal sealed record ServerModeChange(string ExpectedRevision, string DialogMode, string VoiceMode, string? PersonalityId = null,
+internal sealed record ServerModeChange(string ExpectedRevision, string? DialogMode = null, string? VoiceMode = null, string? PersonalityId = null,
     bool? CharacterEnabled = null, string? CharacterTone = null, string? CharacterFinaleProfile = null, bool ResetCharacterVariety = false);
 internal sealed record ServerModes(
     string Revision,
-    string DialogMode,
-    string VoiceMode,
-    bool DialogAvailable,
-    bool VoiceAvailable,
+    [property: JsonIgnore] string DialogMode,
+    [property: JsonIgnore] string VoiceMode,
+    [property: JsonIgnore] bool DialogAvailable,
+    [property: JsonIgnore] bool VoiceAvailable,
     int ActiveConversations,
     string PersonalityId,
     IReadOnlyList<PersonalityInfo> Personalities,
@@ -52,5 +53,10 @@ internal sealed record ServerModes(
     bool CharacterEnabled = false,
     string CharacterTone = "Adult",
     string CharacterFinaleProfile = "Blocked",
-    string CharacterVersion = "dv01-v1");
+    string CharacterVersion = "dv01-v1",
+    ConversationEngineCapabilities? Engines = null);
+internal sealed record ConversationEngineCapabilities(int SchemaVersion, string PrimaryEngine, IReadOnlyList<ConversationEngineCapability> Engines);
+internal sealed record ConversationEngineCapability(string Engine, string Model, bool Ready, string? UnavailableReason,
+    IReadOnlyList<string> Voices, ConversationEngineSpeed Speed, IReadOnlyList<string> InputModes, IReadOnlyList<string> CameraSources);
+internal sealed record ConversationEngineSpeed(bool Supported, double Min, double Max, double Default);
 internal sealed record ServerModeResult(int Status, ServerModes? State, string? Error);

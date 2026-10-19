@@ -285,10 +285,11 @@ internal sealed partial class EveningMemoryStore
             using var command = connection.CreateCommand();
             command.CommandText = """
                 SELECT sequence, conversation_id, visitor_text, reply FROM exchanges
-                WHERE device_id = $device AND evening_id = $evening ORDER BY sequence;
+                WHERE device_id = $device AND evening_id = $evening AND conversation_id = $conversation ORDER BY sequence;
                 """;
             command.Parameters.AddWithValue("$device", deviceId);
             command.Parameters.AddWithValue("$evening", status.EveningId);
+            command.Parameters.AddWithValue("$conversation", conversationId);
             using var reader = command.ExecuteReader();
             var rows = new List<MemoryExchange>();
             while (reader.Read())
@@ -296,15 +297,9 @@ internal sealed partial class EveningMemoryStore
                 rows.Add(new(reader.GetInt64(0), reader.GetString(1), reader.GetString(2), reader.GetString(3)));
             }
 
-            // Rank whole conversations so a matching answer retains its speaker's
-            // introduction. This is lexical recall, not inferred identity or facts.
-            var query = Words(text + " " + string.Join(" ", rows
-                .Where(row => row.ConversationId == conversationId)
-                .Select(row => row.VisitorText)));
-            var groups = rows.GroupBy(row => row.ConversationId)
-                .OrderByDescending(group => group.Key == conversationId)
-                .ThenByDescending(group => group.Sum(row => Words(row.VisitorText).Intersect(query).Count()))
-                .ThenByDescending(group => group.Max(row => row.Sequence));
+            // Archived dialogue belongs only to its original conversation. A
+            // similar name/story never establishes a returning guest identity.
+            var groups = rows.GroupBy(row => row.ConversationId);
             var selected = new List<MemoryExchange>();
             var remaining = MaxContextCharacters - 2;
             foreach (var group in groups)
@@ -334,7 +329,7 @@ internal sealed partial class EveningMemoryStore
     }
 
     public bool Append(string deviceId, string eveningId, string operationId,
-        string conversationId, string visitorText, string reply)
+        string conversationId, string visitorText, string reply, long? expectedDeletionEpoch = null)
     {
         if (visitorText.Length > 1000 || reply.Length > 500)
         {
@@ -345,53 +340,30 @@ internal sealed partial class EveningMemoryStore
         {
             using var connection = Open();
             using var transaction = connection.BeginTransaction();
+            if (expectedDeletionEpoch is { } epoch)
+            {
+                if (ConversationEpoch(connection, transaction, deviceId, conversationId, facts: false) != epoch) { return false; }
+            }
             using var command = connection.CreateCommand();
             command.Transaction = transaction;
             command.CommandText = """
                 INSERT OR IGNORE INTO exchanges
                     (device_id, evening_id, operation_id, conversation_id, visitor_text, reply, content_bytes)
                 SELECT $device, $evening, $operation, $conversation, $visitor, $reply, $bytes
-                WHERE EXISTS (SELECT 1 FROM evenings WHERE device_id = $device AND evening_id = $evening);
+                WHERE EXISTS (SELECT 1 FROM evenings WHERE device_id = $device AND evening_id = $evening)
+                    AND NOT EXISTS (SELECT 1 FROM memory_deleted_evenings WHERE app_namespace=$namespace AND device_id=$device AND evening_id=$evening)
+                    AND NOT EXISTS (SELECT 1 FROM memory_deleted_conversations
+                        WHERE app_namespace=$namespace AND device_id=$device AND conversation_id=$conversation);
                 """;
             command.Parameters.AddWithValue("$device", deviceId);
             command.Parameters.AddWithValue("$evening", eveningId);
             command.Parameters.AddWithValue("$operation", operationId);
+            command.Parameters.AddWithValue("$namespace", memoryOptions.Namespace);
             command.Parameters.AddWithValue("$conversation", conversationId);
             command.Parameters.AddWithValue("$visitor", visitorText);
             command.Parameters.AddWithValue("$reply", reply);
             command.Parameters.AddWithValue("$bytes", Encoding.UTF8.GetByteCount(visitorText + reply));
             var inserted = command.ExecuteNonQuery() == 1;
-            if (inserted)
-            {
-                using var trim = connection.CreateCommand();
-                trim.Transaction = transaction;
-                trim.CommandText = """
-                    DELETE FROM exchanges WHERE sequence IN (
-                        SELECT sequence FROM (
-                            SELECT sequence, ROW_NUMBER() OVER (ORDER BY sequence DESC) AS row_number,
-                                SUM(content_bytes) OVER (ORDER BY sequence DESC) AS running_bytes
-                            FROM exchanges WHERE device_id = $device AND evening_id = $evening
-                        ) WHERE row_number > $maxRows OR running_bytes > $maxBytes
-                    );
-                    """;
-                trim.Parameters.AddWithValue("$device", deviceId);
-                trim.Parameters.AddWithValue("$evening", eveningId);
-                trim.Parameters.AddWithValue("$maxRows", MaxExchanges);
-                trim.Parameters.AddWithValue("$maxBytes", MaxContentBytes);
-                var dropped = trim.ExecuteNonQuery();
-                using var update = connection.CreateCommand();
-                update.Transaction = transaction;
-                update.CommandText = """
-                    UPDATE evening_catalog SET dropped_count = dropped_count + $count
-                    WHERE device_id = $device AND evening_id = $evening;
-                    UPDATE evenings SET dropped_count = dropped_count + $count
-                    WHERE device_id = $device AND evening_id = $evening;
-                    """;
-                update.Parameters.AddWithValue("$count", dropped);
-                update.Parameters.AddWithValue("$device", deviceId);
-                update.Parameters.AddWithValue("$evening", eveningId);
-                update.ExecuteNonQuery();
-            }
 
             transaction.Commit();
             return inserted;

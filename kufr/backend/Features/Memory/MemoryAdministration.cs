@@ -16,6 +16,48 @@ internal static class MemoryAdministration
     {
         routes.MapGet("/v1/admin/memory", (HttpContext c, ServerAdminAccess admin, HybridMemoryService service) =>
             admin.Authenticate(c) ? Results.Ok(service.Status) : ApiProblem.Create(c, 401, "admin_credential_required"));
+        routes.MapGet("/v1/admin/memory/context", (HttpContext c, ServerAdminAccess admin, EveningMemoryStore store, HybridMemoryService service,
+            string deviceId, string conversationId, string personalityId) =>
+        {
+            if (!admin.Authenticate(c)) { return ApiProblem.Create(c, 401, "admin_credential_required"); }
+            if (string.IsNullOrWhiteSpace(deviceId) || string.IsNullOrWhiteSpace(conversationId)
+                || !PersonalityCatalog.Contains(personalityId)) { return ApiProblem.Create(c, 400, "invalid_request"); }
+            var permission = store.GuestPermission(deviceId, conversationId);
+            var access = new MemoryAccess(deviceId, store.GetStatus(deviceId).EveningId, conversationId, personalityId, permission);
+            var records = store.LocalMemory(access);
+            return Results.Json(new { identity = permission, epoch = store.MemoryEpoch,
+                deletionEpoch = store.MemoryDeletionEpochFor(deviceId, conversationId),
+                records = records.Take(50).ToArray(), totalRecords = records.Count, hasMore = records.Count > 50,
+                memoryStatus = service.Status }, Json);
+        });
+        routes.MapDelete("/v1/admin/memory/scopes/{scope}/{subject}", async (string scope, string subject, HttpContext c,
+            ServerAdminAccess admin, EveningMemoryStore store, ConversationStore conversations, HybridMemoryService service) =>
+        {
+            if (!admin.Authenticate(c)) { return ApiProblem.Create(c, 401, "admin_credential_required"); }
+            try
+            {
+                var request = await Read<ScopeDeleteRequest>(c);
+                if (string.IsNullOrWhiteSpace(request.DeviceId) || request.ExpectedEpoch < 0)
+                {
+                    return ApiProblem.Create(c, 400, "invalid_request");
+                }
+                if (!store.DeleteScopedMemory(request.DeviceId, scope, subject, request.ExpectedEpoch, out var affectedConversations))
+                {
+                    return ApiProblem.Create(c, 409, "memory_revision_mismatch");
+                }
+                service.ClearCache();
+                conversations.DeleteArchivedVisualScope(request.DeviceId, scope, subject);
+                foreach (var conversationId in affectedConversations)
+                {
+                    conversations.DeleteVisualContext(request.DeviceId, conversationId);
+                }
+                return Results.Ok(new { localDeletion = "complete", remoteDeletion = store.MemoryBacklog().Deleting > 0 ? "pending" : "complete" });
+            }
+            catch (Exception error) when (error is JsonException or ArgumentException or InvalidDataException)
+            {
+                return ApiProblem.Create(c, 400, "invalid_request");
+            }
+        });
         routes.MapPost("/v1/admin/memory/verify", async (HttpContext c, ServerAdminAccess admin, HybridMemoryService service) =>
         {
             if (!admin.Authenticate(c)) return ApiProblem.Create(c, 401, "admin_credential_required");
@@ -79,7 +121,7 @@ internal static class MemoryAdministration
                 if (string.IsNullOrWhiteSpace(r.DeviceId) || r.ExpectedRevision < 1) return ApiProblem.Create(c, 400, "invalid_request");
                 if (!store.DeleteMemory(r.DeviceId, id, r.ExpectedRevision)) return ApiProblem.Create(c, 409, "memory_revision_mismatch");
                 service.ClearCache(); conversations.InvalidateMemoryContext(r.DeviceId);
-                return Results.NoContent();
+                return Results.Ok(new { localDeletion = "complete", remoteDeletion = store.MemoryBacklog().Deleting > 0 ? "pending" : "complete" });
             }
             catch (Exception e) when (e is JsonException or ArgumentException or InvalidDataException)
             { return ApiProblem.Create(c, 400, "invalid_request"); }
@@ -101,6 +143,7 @@ internal static class MemoryAdministration
     private sealed record RecordRequest([property: JsonRequired] string DeviceId, [property: JsonRequired] string EveningId, [property: JsonRequired] string ConversationId, [property: JsonRequired] string PersonalityId,
         [property: JsonRequired] MemoryScope Scope, [property: JsonRequired] MemoryKind Kind, [property: JsonRequired] string Text, [property: JsonRequired] string SourceReference, [property: JsonRequired] long ExpectedRevision, long? ExpectedEpoch);
     private sealed record DeleteRequest([property: JsonRequired] string DeviceId, [property: JsonRequired] long ExpectedRevision);
+    private sealed record ScopeDeleteRequest([property: JsonRequired] string DeviceId, [property: JsonRequired] long ExpectedEpoch);
 }
 
 internal static class MemoryProvisioning

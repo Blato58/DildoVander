@@ -67,8 +67,8 @@
         debugStatus.phase = 'failed';
         debugStatus.errorCode = 'realtime_live_audio_interrupted';
       });
-      let serverState = { revision: 'test-revision', dialogMode: 'fake', voiceMode: 'fake',
-        dialogAvailable: true, voiceAvailable: true, activeConversations: 0, lifetime: 'until_restart', personalityId: 'party-original',
+      let serverState = { revision: 'test-revision',
+         activeConversations: 0, lifetime: 'until_restart', personalityId: 'party-original',
         personalityLifetime: 'persistent', personalities: [
           { id: 'party-original', name: 'Původní party kufr', description: 'Původní personalita; 4–7 otázek.', promptSha256: 'a'.repeat(64) },
           { id: 'ollivander-trunk', name: 'Ollivanderův kouzelný kufr', description: 'Dodaná personalita; obvykle 2 odpovědi.', promptSha256: 'b'.repeat(64) }] };
@@ -78,6 +78,13 @@
         exchangeCount: 42, droppedCount: 0,
       }] };
       window.CapacitorCustomPlatform = { name: 'ios' };
+      serverState.engines = { schemaVersion: 1, primaryEngine: 'gpt-live', engines: ['gpt-live', 'realtime'].map(engine => ({
+        engine, model: engine === 'gpt-live' ? 'gpt-live-1' : 'gpt-realtime-2.1',
+        ready: new URLSearchParams(location.search).get('engineUnavailable') !== engine,
+        unavailableReason: 'provider_credential_missing', voices: ['cedar', 'marin', 'coral'],
+        speed: { supported: engine === 'realtime', min: engine === 'realtime' ? 0.8 : 1, max: engine === 'realtime' ? 1.2 : 1, default: 1 },
+        inputModes: ['text', 'audio'], cameraSources: ['phone', 'suitcase'],
+      })) };
       let bleConnected = false;
       const bleStatus = { v: 1, ok: true, deviceId: snapshot.deviceId, firmwareVersion: 'test',
         network: { phase: 'connected', result: 'connected', activeProfile: 'fallback', lastSuccessfulProfile: 'fallback',
@@ -90,9 +97,9 @@
           ...['savedDevice', 'discover', 'setAddress', 'pair', 'connect', 'send', 'close', 'forget', 'removeListener'].map((name) => ({ name, rtype: 'promise' })),
           { name: 'addListener', rtype: 'callback' },
         ] }, { name: 'KufrDebug', methods: ['status', 'configure', 'inspectBackend', 'inspectServer', 'changeServerModes',
-          'runOpeningSpeech', 'startConversation', 'answerConversation', 'startRecording', 'finishRecording',
+          'startConversation',
           'speakSystem', 'stop', 'shareLog', 'forgetProfile', 'inspectEvenings', 'createEvening',
-          'activateEvening', 'readServerLogs', 'captureCostumePhoto', 'discardCostumePhoto'].map((name) => ({ name, rtype: 'promise' })) }],
+          'activateEvening', 'readServerLogs', 'captureCostumePhoto', 'discardCostumePhoto', 'attachCostumePhoto', 'inspectMemory', 'deleteConversationMemory'].map((name) => ({ name, rtype: 'promise' })) }],
         nativeCallback(_plugin, method, _options, callback) {
           if (method === 'addListener') { listener = callback; return Promise.resolve('listener-1'); }
         },
@@ -151,17 +158,28 @@
               }
               debugStatus.evenings = structuredClone(eveningState); return;
             }
-            if (method === 'inspectBackend') { debugStatus.mode = 'fake'; return; }
-            if (method === 'inspectServer') { debugStatus.server = { ...serverState }; debugStatus.mode = serverState.voiceMode; return; }
+            if (method === 'inspectBackend') { debugStatus.mode = 'openai'; return; }
+            if (method === 'inspectServer') { debugStatus.server = { ...serverState }; debugStatus.mode = 'openai'; return; }
             if (method === 'changeServerModes') {
               if (new URLSearchParams(location.search).has('serverConflict')) { debugStatus.server = null; throw new Error('synthetic conflict'); }
-              serverState = { ...serverState, revision: serverState.revision + '-next', dialogMode: options.dialogMode, voiceMode: options.voiceMode, personalityId: options.personalityId ?? serverState.personalityId };
-              debugStatus.server = { ...serverState }; debugStatus.mode = serverState.voiceMode; return;
+              serverState = { ...serverState, revision: serverState.revision + '-next', personalityId: options.personalityId ?? serverState.personalityId };
+              debugStatus.server = { ...serverState }; debugStatus.mode = 'openai'; return;
             }
-            if (method === 'speakSystem' || method === 'runOpeningSpeech') {
+            if (method === 'speakSystem') {
               debugStatus.running = true; debugStatus.phase = 'playing';
               setTimeout(() => { if (debugStatus.phase === 'playing') { debugStatus.running = false; debugStatus.phase = 'completed'; } }, 1500);
               return;
+            }
+            if (method === 'inspectMemory') {
+              return { identity: debugStatus.guestMemory ? { ...debugStatus.guestMemory, version: 1,
+                  deviceId: 'debug-server-admin', conversationId: options.conversationId } : null,
+                epoch: 1, deletionEpoch: 0, records: [], totalRecords: 0, hasMore: false,
+                memoryStatus: { provider: 'synthetic', configured: true, degraded: false, configurationStatus: 'configured',
+                  pending: 0, failed: 0, deleting: 0, storedBytes: 0, capacityBytes: 200000, rejectedWrites: 0 } };
+            }
+            if (method === 'deleteConversationMemory') {
+              debugStatus.guestMemory = null;
+              return { localDeletion: 'complete', remoteDeletion: 'complete' };
             }
             if (method === 'captureCostumePhoto') {
               const scenario = document.querySelector('[data-harness-photo]').value;
@@ -170,10 +188,19 @@
               return { draftId: photoDraft?.id ?? null };
             }
             if (method === 'discardCostumePhoto') { photoDraft = undefined; return; }
+            if (method === 'attachCostumePhoto') {
+              const generation = stopGeneration;
+              if (!debugStatus.session || !photoDraft || photoDraft.id !== options.draftId) throw new Error('No photo');
+              const scenario = document.querySelector('[data-harness-photo]').value;
+              if (scenario === 'wait') await new Promise(resolve => setTimeout(resolve, 3000));
+              if (generation !== stopGeneration || scenario === 'failed') throw new Error('Synthetic image failure');
+              photoDraft = undefined;
+              return { status: 'analysed', imageId: crypto.randomUUID(), revision: 1 };
+            }
             if (method === 'startConversation') {
               const generation = stopGeneration;
               const hasPhoto = Boolean(photoDraft && photoDraft.id === options.photoDraftId && photoDraft.expiry > Date.now());
-              photoDraft = undefined;
+              if (options.photoDraftId) photoDraft = undefined;
               const scenario = document.querySelector('[data-harness-photo]').value;
               debugStatus.costumeStatus = null;
               if (hasPhoto && scenario === 'wait') {
@@ -189,6 +216,14 @@
               if (debugStatus.session) { throw new Error('Session active'); }
               simulatedMask = options.readyMask;
               askedQuestions = simulatedMask ? 1 : 0;
+              debugStatus.effectiveEngine = options.engine;
+              debugStatus.effectiveModel = options.engine === 'gpt-live' ? 'gpt-live-1' : 'gpt-realtime-2.1';
+              debugStatus.conversationId = crypto.randomUUID();
+              debugStatus.lastConversationId = debugStatus.conversationId;
+              debugStatus.guestMemory = options.guestMemory ?? null;
+              debugStatus.sessionGeneration = stopGeneration + 1;
+              debugStatus.inputActive = simulatedMask !== 0;
+              debugStatus.outputActive = false;
               debugStatus.session = simulatedMask !== 0;
               debugStatus.handsFree = ['realtime', 'gpt-live'].includes(options.engine) && options.expectedMode === 'openai';
               debugStatus.running = debugStatus.session && debugStatus.handsFree;
@@ -201,21 +236,11 @@
               debugStatus.phase = simulatedMask ? (debugStatus.handsFree ? 'listening' : 'awaiting') : 'completed';
               return;
             }
-            if (method === 'answerConversation') { simulateAnswer(options.text); return; }
-            if (method === 'startRecording') {
-              if (!debugStatus.session || debugStatus.phase !== 'awaiting') { throw new Error('No recording turn'); }
-              debugStatus.recording = true; debugStatus.phase = 'recording'; return;
-            }
-            if (method === 'finishRecording') {
-              if (!debugStatus.recording) { throw new Error('No recording'); }
-              debugStatus.recording = false; debugStatus.phase = 'awaiting';
-              simulateAnswer('Moje odpověď nahraná mikrofonem'); return;
-            }
             if (method === 'stop') {
               stopGeneration++; photoDraft = undefined; debugStatus.costumeStatus = null;
               debugStatus.running = false; debugStatus.session = false; debugStatus.recording = false;
               debugStatus.transcript = []; debugStatus.selected = null; debugStatus.timings = null;
-              debugStatus.phase = 'cancelled'; return;
+              debugStatus.conversationId = null; debugStatus.phase = 'cancelled'; return;
             }
             if (method === 'shareLog') { return; }
           }

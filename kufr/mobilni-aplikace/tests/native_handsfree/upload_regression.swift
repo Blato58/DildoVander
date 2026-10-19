@@ -8,12 +8,50 @@ struct NativeHandsFreeUploadTests {
     static func main() async throws {
         testBatchingAndEpoch()
         testBoundedBacklog()
+        try testAcknowledgements()
         guard let address = ProcessInfo.processInfo.environment["KUFR_DEBUG_HTTP_PEER"], let baseURL = URL(string: address) else {
             fatalError("Missing HTTP peer")
         }
         try await testContinuousUpload(baseURL: baseURL)
         try await testRedirectAndCancellation(baseURL: baseURL)
+        try await testPersistentSocket(baseURL: baseURL)
         print("Hands-free 200ms batching, bounded backlog, input epoch, connection reuse and cancellation passed.")
+    }
+
+    static func testAcknowledgements() throws {
+        var ledger = DebugAudioAcknowledgements()
+        for sequence in 0..<20 {
+            try ledger.enqueue(inputId: "a", sequence: sequence, bytes: 9_600, now: Double(sequence) * 0.2)
+        }
+        assert(ledger.bytes == 192_000 && !ledger.timedOut(now: 9.9) && ledger.timedOut(now: 10))
+        do { try ledger.enqueue(inputId: "a", sequence: 20, bytes: 9_600, now: 4); fatalError("Unbounded socket queue") }
+        catch DebugBackendError.serverCode(let code) { assert(code == "realtime_live_audio_overflow") }
+        do { try ledger.acknowledge(inputId: "b", sequence: 0); fatalError("Cross-input ACK") }
+        catch DebugBackendError.serverCode(let code) { assert(code == "realtime_live_protocol_failed") }
+        try ledger.acknowledge(inputId: "a", sequence: 0)
+        assert(ledger.bytes == 182_400 && !ledger.timedOut(now: 10))
+        for sequence in 1..<20 { try ledger.acknowledge(inputId: "a", sequence: sequence) }
+        assert(ledger.pending.isEmpty && ledger.bytes == 0)
+    }
+
+    @MainActor static func testPersistentSocket(baseURL: URL) async throws {
+        var url = URLComponents(url: baseURL.appendingPathComponent("test/audio-stream"), resolvingAgainstBaseURL: false)!
+        url.scheme = "ws"
+        var request = URLRequest(url: url.url!)
+        request.setValue("Bearer access", forHTTPHeaderField: "Authorization")
+        let socket = DebugHandsFreeAudioSocket(request: request, failure: { code in fatalError("Socket failed: \(code)") })
+        defer { socket.close() }
+        // HTTP test already sent ten frames. ACKs take 350ms, exceeding the old
+        // 200ms request budget. Capture remains ordered for a four-second turn.
+        for sequence in 10..<30 {
+            try await socket.send(inputId: "socket-regression", sequence: sequence,
+                pcm: Data(repeating: UInt8(sequence % 251), count: 9_600))
+            try await Task.sleep(nanoseconds: 200_000_000)
+        }
+        try await Task.sleep(nanoseconds: 500_000_000)
+        let (data, _) = try await URLSession.shared.data(from: baseURL.appendingPathComponent("test/metrics"))
+        let metrics = try JSONSerialization.jsonObject(with: data) as! [String: Int]
+        assert(metrics["regressionUploads"] == 30)
     }
 
     static func testBatchingAndEpoch() {

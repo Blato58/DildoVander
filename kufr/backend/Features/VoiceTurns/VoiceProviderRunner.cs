@@ -3,6 +3,8 @@ using System.Security.Cryptography;
 
 namespace Kufr.Backend.Features.VoiceTurns;
 
+// Delegate-only deterministic fixture adapter. No configuration or provider
+// constructor exists; production audio belongs to the two retained engines.
 internal sealed class VoiceProviderRunner : IDisposable
 {
     // Binary speech responses do not expose billable token usage. Retain these
@@ -12,41 +14,8 @@ internal sealed class VoiceProviderRunner : IDisposable
     private readonly Func<byte[], CancellationToken, Task<string>>? transcribe;
     private readonly Func<string, SpeechOptions, CancellationToken, Task<byte[]>>? speak;
     private readonly SemaphoreSlim slot = new(1, 1);
-    private readonly HttpClient? httpClient;
     private readonly TimeSpan timeout = TimeSpan.FromSeconds(15);
     private volatile bool enabled = true;
-
-    public VoiceProviderRunner(
-        IConfiguration configuration,
-        IHostApplicationLifetime lifetime,
-        ILoggerFactory? loggerFactory = null)
-    {
-        var mode = configuration["Backend:Voice:Mode"] ?? "fake";
-        if (mode is not ("fake" or "openai"))
-        {
-            throw new InvalidOperationException("Unsupported backend voice mode.");
-        }
-
-        var apiKey = configuration["OPENAI_API_KEY"];
-        if (string.IsNullOrWhiteSpace(apiKey))
-        {
-            if (mode == "fake")
-            {
-                return;
-            }
-
-            throw new InvalidOperationException("OpenAI voice requires an explicit mode and key.");
-        }
-
-        httpClient = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false });
-        transcribe = new OpenAiTranscriptionClient(httpClient, apiKey).TranscribeAsync;
-        speak = new OpenAiSpeechClient(
-            httpClient,
-            apiKey,
-            loggerFactory?.CreateLogger<OpenAiSpeechClient>()).GenerateAsync;
-        enabled = mode == "openai";
-        Stopping = lifetime.ApplicationStopping;
-    }
 
     internal VoiceProviderRunner(
         Func<byte[], CancellationToken, Task<string>> transcribe,
@@ -108,5 +77,5 @@ internal sealed class VoiceProviderRunner : IDisposable
         return wav;
     }
 
-    public void Dispose() => httpClient?.Dispose();
+    public void Dispose() { }
 }

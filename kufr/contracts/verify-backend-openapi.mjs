@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-import Ajv from 'ajv';
+import Ajv from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 
 const document = JSON.parse(await readFile(new URL('./backend-openapi-v1.json', import.meta.url), 'utf8'));
@@ -46,6 +46,9 @@ assert.deepEqual(Object.keys(document.paths).sort(), [
   '/v1/admin/logs/status',
   '/v1/admin/modes',
   '/v1/admin/memory',
+  '/v1/admin/memory/context',
+  '/v1/admin/memory/scopes/{scope}/{subject}',
+  '/v1/admin/conversations/{id}/media',
   '/v1/admin/memory/guest',
   '/v1/admin/memory/records/{id}',
   '/v1/admin/memory/verify',
@@ -56,12 +59,14 @@ assert.deepEqual(Object.keys(document.paths).sort(), [
   '/v1/conversations/{id}/image',
   '/v1/conversations/{id}/gpt-live',
   '/v1/conversations/{id}/gpt-live/{streamId}/audio',
+  '/v1/conversations/{id}/gpt-live/{streamId}/audio-stream',
   '/v1/conversations/{id}/gpt-live/{streamId}/played',
   '/v1/conversations/{id}/gpt-live/{streamId}/playback',
   '/v1/conversations/{id}/gpt-live/{streamId}/availability',
   '/v1/conversations/{id}/opening',
   '/v1/conversations/{id}/realtime-live',
   '/v1/conversations/{id}/realtime-live/{streamId}/audio',
+  '/v1/conversations/{id}/realtime-live/{streamId}/audio-stream',
   '/v1/conversations/{id}/realtime-live/{streamId}/played',
   '/v1/conversations/{id}/realtime-turns',
   '/v1/conversations/{id}/speech',
@@ -88,25 +93,52 @@ validate('FirmwareEnvelope', { schemaVersion: 0, payload: 'e30=', signature: 'ME
 validate('FirmwareEnvelope', { schemaVersion: 1, payload: 'e30=', signature: 'MEYCIQD12345', privateKey: 'secret' }, false);
 assert.deepEqual(document.paths['/v1/admin/modes'].get.security, [{ ServerAdmin: [] }]);
 assert.deepEqual(document.paths['/v1/admin/modes'].put.security, [{ ServerAdmin: [] }]);
-const serverModes = { revision: '00000000-0000-4000-8000-000000000001', dialogMode: 'fake', voiceMode: 'fake',
-  dialogAvailable: true, voiceAvailable: true, activeConversations: 0, lifetime: 'until_restart', personalityId: 'party-original', personalityLifetime: 'persistent',
+const engines = { schemaVersion: 1, primaryEngine: 'gpt-live', engines: [
+  { engine: 'gpt-live', model: 'gpt-live-1', ready: true, unavailableReason: null,
+    voices: ['cedar','marin','coral'], speed: {supported:false,min:1,max:1,default:1}, inputModes:['audio'], cameraSources:['phone','suitcase'] },
+  { engine: 'realtime', model: 'gpt-realtime-2.1', ready: true, unavailableReason: null,
+    voices: ['cedar','marin','coral'], speed: {supported:true,min:0.8,max:1.2,default:1}, inputModes:['audio'], cameraSources:['phone','suitcase'] },
+] };
+const serverModes = { revision: '00000000-0000-4000-8000-000000000001', engines,
+  activeConversations: 0, lifetime: 'until_restart', personalityId: 'party-original', personalityLifetime: 'persistent',
+  characterEnabled:false,characterTone:'Adult',characterFinaleProfile:'Blocked',characterVersion:'dv01-v1',
   personalities: [{ id: 'party-original', name: 'Původní party kufr', description: 'Původní personalita', promptSha256: 'a'.repeat(64) }] };
 validate('ServerModes', serverModes, true);
 validate('ServerModes', { ...serverModes, personalityLifetime: 'until_restart' }, false);
+validate('ServerModes', { ...serverModes, dialogMode: 'responses', voiceMode: 'openai' }, false);
 validate('PersonalityInfo', { ...serverModes.personalities[0], promptSha256: 'bad' }, false);
-validate('ServerModeChange', { expectedRevision: serverModes.revision, dialogMode: 'fake', voiceMode: 'fake', personalityId: 'ollivander-trunk' }, true);
-validate('ServerModes', { ...serverModes, voiceMode: 'unknown' }, false);
+validate('ServerModeChange', { expectedRevision: serverModes.revision, personalityId: 'ollivander-trunk' }, true);
+validate('ServerModeChange', { expectedRevision: serverModes.revision, dialogMode: 'responses', voiceMode: 'openai' }, false);
+validate('ServerModeChange', { expectedRevision: 'stale' }, false);
 validate('ServerModes', { ...serverModes, credential: 'secret' }, false);
-validate('ServerModeChange', { expectedRevision: serverModes.revision, dialogMode: 'responses', voiceMode: 'openai' }, true);
-validate('ServerModeChange', { expectedRevision: 'stale', dialogMode: 'responses', voiceMode: 'openai' }, false);
-const diagnosticSchema = document.paths['/v1/diagnostics'].get.responses['200'].content['application/json'].schema;
-const validateDiagnostics = ajv.compile(JSON.parse(JSON.stringify(diagnosticSchema).replaceAll('#/components/schemas/', 'https://kufr.local/schemas/')));
-const diagnostics = { voiceMode: 'fake', dialogMode: 'fake', catalogVersion: 'test-1', audioFormat: 'pcm16-mono-32000-wav' };
-assert(validateDiagnostics(diagnostics));
-assert(validateDiagnostics({ ...diagnostics, voiceMode: 'openai', dialogMode: 'responses' }));
-assert(!validateDiagnostics({ ...diagnostics, credential: 'secret' }));
-assert(!validateDiagnostics({ ...diagnostics, voiceMode: 'unknown' }));
-assert.equal(document.paths['/v1/conversations/{id}/transcriptions'].post.requestBody.content['multipart/form-data'].encoding.wav.contentType, 'audio/wav');
+validate('ConversationEngineCapabilities', engines, true);
+validate('ConversationEngineCapabilities', { ...engines, schemaVersion: 2 }, false);
+validate('ConversationEngineCapabilities', { ...engines, engines: [...engines.engines, engines.engines[0]] }, false);
+validate('ConversationEngineCapabilities', { ...engines, engines: [engines.engines[0],engines.engines[0]] }, false);
+validate('GptLiveCapability', {...engines.engines[0],ready:false,unavailableReason:'provider_credential_missing'}, true);
+validate('GptLiveCapability', {...engines.engines[0],model:'retired-model'}, false);
+validate('GptLiveCapability', {...engines.engines[0],ready:false}, false);
+validate('GptLiveCapability', {...engines.engines[0],inputModes:['text','audio']}, false);
+validate('RealtimeCapability', {...engines.engines[1],ready:'true'}, false);
+const memoryProvider = {provider:'openai_vector_store',configured:true,degraded:false,configurationStatus:'configured',
+  lastVerifiedAt:null,pending:0,failed:0,deleting:0,storedBytes:0,capacityBytes:1000000,rejectedWrites:0};
+const diagnostics = { engines,conversationContractVersion:2,catalogVersion:'ollivander-private-party-v1',audioFormat:'pcm16-mono-24000',
+  liveActorMode:'AutonomousActor',personalityId:'party-original',liveDecisionModel:'gpt-6.1-sol',liveTerminalQuietMs:1500,
+  characterEnabled:false,characterTone:'Adult',characterFinaleProfile:'Blocked',characterVersion:'dv01-v1',
+  characterVisualRoast:'costume_observations_only',characterNamedFinale:'blocked',characterAudio:'unsegmented_live_stream',characterEventReady:false,
+  memoryEnabled:true,cloudIndexingEnabled:true,longTermPersonalEnabled:true,memoryProvider};
+validate('BackendDiagnostics', diagnostics, true);
+validate('BackendDiagnostics', {...diagnostics,liveActorMode:'LegacyBackendScripted'}, false);
+validate('BackendDiagnostics', {...diagnostics,credential:'secret'}, false);
+validate('BackendDiagnostics', {...diagnostics,privateSource:'guest detail'}, false);
+const retiredRoutes = ['opening','turns','transcriptions','speech','realtime-turns'];
+for (const route of retiredRoutes) {
+  const endpoint = document.paths['/v1/conversations/{id}/'+route].post;
+  assert.equal(endpoint.deprecated,true);
+  assert.deepEqual(Object.keys(endpoint.responses),['410']);
+  assert.equal(endpoint.requestBody,undefined);
+  assert.equal(endpoint.responses['410'].content['application/problem+json'].schema.$ref,'#/components/schemas/EngineUpgradeProblem');
+}
 const imageEndpoint = document.paths['/v1/conversations/{id}/image'].post;
 const correctionEndpoint = document.paths['/v1/conversations/{id}/costume-context'].put;
 assert.equal(imageEndpoint.requestBody.required, true);
@@ -146,7 +178,8 @@ for (const [path, operations] of Object.entries(document.paths)) {
     assert.ok(operation.operationId, `missing operationId on ${path}`);
     assert.ok(operation.responses, `missing responses on ${path}`);
     if ((method === 'post' || method === 'put' || method === 'delete')
-      && path !== '/v1/device-access/token' && path !== '/v1/admin/modes' && !path.startsWith('/v1/admin/memory')
+      && path !== '/v1/device-access/token' && !path.startsWith('/v1/admin/')
+      && !retiredRoutes.some(route => path === '/v1/conversations/{id}/'+route)
       && !path.endsWith('/{streamId}/audio') && !path.endsWith('/{streamId}/played')
       && !path.endsWith('/{streamId}/playback') && !path.endsWith('/{streamId}/availability')) {
       assert.ok(operation.parameters?.some((parameter) => parameter.$ref === '#/components/parameters/IdempotencyKey'), `missing idempotency on ${path}`);
@@ -174,31 +207,6 @@ validate('CreateConversation', conversation, true);
 validate('CreateConversation', { ...conversation, locale: 'en-US' }, false);
 validate('CreateConversation', { ...conversation, consent: { audio: true } }, false);
 validate('CreateConversation', { ...conversation, accessToken: 'secret' }, false);
-
-const turn = {
-  clientTurnId, bootId, generation: 1, text: 'Rád bych hůlku.',
-  readyMask: 63, deviceRevision: 2, catalogVersion: 'test-1',
-};
-validate('TextTurn', turn, true);
-const { text: omittedOpeningText, ...opening } = turn;
-validate('OpeningTurn', opening, true);
-validate('OpeningTurn', turn, false);
-validate('OpeningTurn', { ...opening, readyMask: 64 }, false);
-validate('TextTurn', { ...turn, text: 'x'.repeat(1001) }, false);
-validate('TextTurn', { ...turn, readyMask: 64 }, false);
-validate('TextTurn', { ...turn, deviceRevision: -1 }, false);
-validate('TextTurn', { ...turn, clientTurnId: 'not-a-uuid' }, false);
-
-const upload = { clientTurnId, bootId, generation: 1, deviceRevision: 2, wav: 'binary WAV placeholder' };
-validate('TranscriptionUpload', upload, true);
-validate('TranscriptionUpload', { ...upload, deviceRevision: -1 }, false);
-validate('TranscriptionUpload', { ...upload, text: 'not part of this request' }, false);
-validate('SpeechRequest', { turnId: 'turn-1', outputTarget: 'device' }, true);
-validate('SpeechRequest', { turnId: 'turn-1', outputTarget: 'phone', voice: 'cedar', speed: 1.15 }, true);
-validate('SpeechRequest', { turnId: 'turn-1', outputTarget: 'phone', voice: 'other' }, false);
-validate('SpeechRequest', { turnId: 'turn-1', outputTarget: 'phone', speed: 1.3 }, false);
-validate('SpeechRequest', { turnId: 'turn-1', outputTarget: 'both' }, false);
-validate('SpeechRequest', { turnId: 'turn-1', outputTarget: 'phone', text: 'inject this' }, false);
 
 const operation = {
   operationId: 'op-1', kind: 'turn', status: 'pending',
@@ -240,33 +248,44 @@ const result = { reply: 'Navrhuji další otázku.', decision: 'ask', reason: ''
 const realtime = { clientTurnId: operation.correlation.clientTurnId, bootId: operation.correlation.bootId,
   generation: 0, readyMask: 63, deviceRevision: 0, catalogVersion: 'ollivander-private-party-v1',
   opening: true, text: '', wav: null, voice: 'marin', speed: 1 };
-validate('RealtimeTurn', realtime, true);
-validate('RealtimeTurn', { ...realtime, text: 'Petr' }, false);
-validate('RealtimeTurn', { ...realtime, opening: false, text: 'Petr' }, true);
-validate('RealtimeTurn', { ...realtime, opening: false, wav: 'UklGRg==' }, true);
-validate('RealtimeTurn', { ...realtime, opening: false, text: 'Petr', wav: 'UklGRg==' }, false);
-validate('RealtimeTurn', { ...realtime, voice: 'onyx' }, false);
-validate('RealtimeTurn', { ...realtime, speed: 1.21 }, false);
 validate('RealtimeLiveStart', realtime, true);
 validate('RealtimeLiveStart', { ...realtime, opening: false, text: 'Petr' }, false);
 validate('RealtimeLiveStart', { ...realtime, accessToken: 'secret' }, false);
 validate('RealtimePlayback', { operationId: bootId }, true);
 validate('RealtimePlayback', { operationId: 'other-operation' }, false);
+validate('RealtimePlayback', { operationId: bootId, responseGeneration: 0 }, true);
+validate('RealtimePlayback', { operationId: bootId, responseGeneration: 2 }, true);
+validate('RealtimePlayback', { operationId: bootId, responseGeneration: -1 }, false);
+validate('RealtimePlayback', { operationId: bootId, responseGeneration: 0.5 }, false);
+for (const schema of ['RealtimeLiveEvent', 'GptLiveEvent']) {
+  validate(schema, { type: 'audio', delta: 'AAAA', responseGeneration: 0 }, true);
+  validate(schema, { type: 'audio', delta: 'AAAA' }, false);
+  validate(schema, { type: 'audio', delta: 'AAAA', responseGeneration: -1 }, false);
+  validate(schema, { type: 'audio_cancel', responseGeneration: 1 }, true);
+  validate(schema, { type: 'audio_cancel', responseGeneration: 2, visualRevision: 3 }, true);
+  validate(schema, { type: 'audio_cancel', responseGeneration: 2, visualRevision: 0 }, false);
+  validate(schema, { type: 'audio_cancel', responseGeneration: 2, visualRevision: 1000001 }, false);
+  validate(schema, { type: 'audio_cancel', responseGeneration: 0 }, false);
+}
+
 validate('RealtimeLiveEvent', { type: 'session', streamId: bootId, audioFormat: 'pcm16-mono-24000' }, true);
-validate('RealtimeLiveEvent', { type: 'listening', inputId: clientTurnId }, true);
+validate('RealtimeLiveEvent', { type: 'listening', inputId: clientTurnId, responseGeneration: 0 }, true);
+validate('RealtimeLiveEvent', { type: 'listening', inputId: clientTurnId, responseGeneration: -1 }, false);
 validate('RealtimeLiveEvent', { type: 'speech_stopped', inputId: clientTurnId }, true);
 validate('RealtimeLiveEvent', { type: 'heartbeat' }, true);
+validate('RealtimeLiveEvent', { type: 'visitor', text: 'Host', responseGeneration: 2 }, true);
+validate('RealtimeLiveEvent', { type: 'speech_stopped', inputId: clientTurnId, responseGeneration: 2 }, true);
+validate('RealtimeLiveEvent', { type: 'closed', reason: 'conversation_terminal', responseGeneration: 2 }, true);
+validate('GptLiveEvent', { type: 'pause', responseGeneration: 2 }, true);
+validate('GptLiveEvent', { type: 'playback_checkpoint', playbackId: bootId, pcmBytes: 2, decisionRevision: 0, responseGeneration: 2 }, true);
+validate('GptLiveEvent', { type: 'pause', responseGeneration: -1 }, false);
+
 validate('RealtimeLiveEvent', { type: 'completed', operationId: 'op-1', correlation: operation.correlation,
-  result, costMicroUsd: 12345 }, true);
+  responseGeneration: 0, result, costMicroUsd: 12345 }, true);
+validate('RealtimeLiveEvent', { type: 'started', operationId: 'op-1', correlation: operation.correlation, responseGeneration: 0 }, true);
+validate('RealtimeLiveEvent', { type: 'started', operationId: 'op-1', correlation: operation.correlation }, false);
 validate('RealtimeLiveEvent', { type: 'failed', code: 'cost_limit' }, true);
 validate('RealtimeLiveEvent', { type: 'failed', code: 'provider secret message' }, false);
-validate('RealtimeEvent', { type: 'started', operationId: 'op-1', correlation: operation.correlation,
-  audioFormat: 'pcm16-mono-24000' }, true);
-validate('RealtimeEvent', { type: 'audio', delta: Buffer.alloc(32768).toString('base64') }, true);
-validate('RealtimeEvent', { type: 'audio', delta: Buffer.alloc(49152).toString('base64') }, false);
-validate('RealtimeEvent', { type: 'completed', operationId: 'op-1', correlation: operation.correlation, result }, true);
-validate('RealtimeEvent', { type: 'failed', code: 'ai_unavailable' }, true);
-validate('RealtimeEvent', { type: 'failed', code: 'provider secret message' }, false);
 validate('TurnOperation', { ...operation, status: 'completed', result }, true);
 validate('Operation', { ...operation, status: 'failed', error: { code: 'provider_unavailable' } }, true);
 validate('Operation', { ...operation, status: 'failed' }, false);
@@ -280,7 +299,7 @@ validate('TurnResult', { ...result, proposal: { compartment: 7 } }, false);
 validate('Problem', { type: 'about:blank', title: 'Conflict', status: 409, code: 'idempotency_conflict', traceId: 'trace-1' }, true);
 validate('Problem', { type: 'about:blank', title: 'Conflict', status: 409, code: 'idempotency_conflict', traceId: 'trace-1', prompt: 'secret' }, false);
 
-console.log('Backend OpenAPI E2.6: paths, security, references and request/result boundaries passed');
+console.log('Backend OpenAPI conversation v2: retained engines, upgrades, security and request/result boundaries passed');
 
 assert.deepEqual(document.paths['/v1/admin/logs'].get.security, [{ ServerAdmin: [] }, { LogReader: [] }]);
 const logEntry = { id: 1, timestamp: '2026-10-01T12:00:00Z', level: 'warning', eventCode: 'realtime_failed',
@@ -303,3 +322,49 @@ validate('LivePlaybackCheckpoint', { playbackId: bootId, pcmBytes: 48000, draine
 validate('LivePlaybackCheckpoint', { playbackId: bootId, pcmBytes: 48000, drained: false }, false);
 assert.deepEqual(document.paths['/v1/admin/memory'].get.security, [{ ServerAdmin: [] }]);
 assert.deepEqual(document.paths['/v1/admin/memory/guest'].put.security, [{ ServerAdmin: [] }]);
+
+for (const engine of ['gpt-live','realtime-live']) {
+  const stream = document.paths['/v1/conversations/{id}/'+engine+'/{streamId}/audio-stream'].get;
+  assert(stream.responses['101']);
+  assert.equal(stream.requestBody,undefined);
+  assert.equal(stream['x-input-schema'].$ref,'#/components/schemas/AudioStreamFrame');
+}
+const frame = {inputId:bootId,sequence:0,audio:Buffer.alloc(9600).toString('base64')};
+validate('AudioStreamFrame',frame,true);
+validate('AudioStreamFrame',{...frame,sequence:-1},false);
+validate('AudioStreamFrame',{...frame,audio:Buffer.alloc(9602).toString('base64')},false);
+validate('AudioStreamFrame',{...frame,accessToken:'secret'},false);
+validate('AudioStreamAck',{type:'ack',inputId:bootId,sequence:0},true);
+validate('AudioStreamAck',{type:'ack',inputId:bootId,sequence:0,private:'secret'},false);
+const revoke = document.paths['/v1/conversations/{id}/image'].delete;
+assert(revoke.parameters.some(parameter => parameter.name === 'Image-Revision' && parameter.required));
+for (const name of ['Image-Id','Image-Source','Captured-At','Image-Revision','Image-Consent']) {
+  assert(imageEndpoint.parameters.some(parameter => parameter.name === name),name);
+}
+const imageSource = ajv.compile(imageEndpoint.parameters.find(parameter => parameter.name === 'Image-Source').schema);
+assert(imageSource('phone')); assert(imageSource('suitcase')); assert(!imageSource('unknown'));
+assert.deepEqual(document.paths['/v1/admin/conversations/{id}/media'].delete.security,[{ServerAdmin:[]}]);
+assert.deepEqual(document.paths['/v1/admin/memory/context'].get.security,[{ServerAdmin:[]}]);
+assert.deepEqual(document.paths['/v1/admin/memory/scopes/{scope}/{subject}'].delete.security,[{ServerAdmin:[]}]);
+const identity = {deviceId:'kufr-001',conversationId:bootId,guestId:'returning-guest',identityVerified:true,
+  longTermAllowed:true,cloudExportAllowed:false,version:1};
+validate('GuestMemoryPermission',identity,true);
+validate('GuestMemoryPermission',{...identity,identityVerified:false},false);
+validate('GuestMemoryPermission',{...identity,longTermAllowed:false,cloudExportAllowed:true},false);
+const source = {memoryId:bootId,scope:'Personal',deviceId:'kufr-001',eveningId,conversationId:bootId,
+  guestId:'returning-guest',personalityId:null,kind:'UserReportedFact',text:'synthetic source fact',sourceReference:'input-1',
+  createdAt:'2026-10-19T10:00:00Z',expiresAt:'9999-12-31T23:59:59Z',revision:1,isActive:true,supersedes:null,
+  useAllowed:true,exportAllowed:false,permissionVersion:1,appNamespace:'development'};
+const privateContext = {identity,epoch:3,deletionEpoch:1,records:[source],totalRecords:1,hasMore:false,memoryStatus:memoryProvider};
+validate('PrivateMemoryContext',privateContext,true);
+validate('PrivateMemoryContext',{...privateContext,records:Array(51).fill(source)},false);
+validate('PrivateMemoryRecord',{...source,providerRaw:'private'},false);
+validate('MemoryProviderStatus',{...memoryProvider,records:[source]},false);
+validate('MemoryScopeDelete',{deviceId:'kufr-001',expectedEpoch:3},true);
+validate('MemoryScopeDelete',{deviceId:'kufr-001',expectedEpoch:-1},false);
+validate('MemoryScopeDelete',{deviceId:'kufr-001',expectedEpoch:3,text:'private'},false);
+validate('MemoryDeletionResult',{localDeletion:'complete',remoteDeletion:'pending'},true);
+validate('EngineUpgradeProblem',{type:'about:blank',title:'Gone',status:410,
+  code:'conversation_engine_upgrade_required',traceId:'trace-1'},true);
+validate('EngineUpgradeProblem',{type:'about:blank',title:'Accepted',status:202,
+  code:'conversation_engine_upgrade_required',traceId:'trace-1'},false);

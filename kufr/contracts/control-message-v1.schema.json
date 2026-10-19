@@ -285,6 +285,7 @@
         "wrong_session",
         "wrong_generation",
         "turn_limit_reached",
+        "conversation_engine_upgrade_required",
         "lease_expired",
         "expired",
         "stale_revision",

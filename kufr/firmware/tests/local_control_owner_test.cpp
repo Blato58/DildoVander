@@ -340,20 +340,19 @@ void TestHelloAndObserver() {
   assert(repeated.transport.closes == 1);
 }
 
-void TestLeaseAndText() {
+void TestLegacyTextRequiresUpgrade() {
   Fixture fixture;
   fixture.Connect();
   fixture.Submit(LocalControlMessageKind::Acquire);
   assert(fixture.control.HasManualControl() && fixture.output.lastLease == Lease);
   fixture.Submit(LocalControlMessageKind::Text);
-  assert(fixture.network.queued == 1 && fixture.conversation.HasActiveTurn());
+  assert(fixture.output.lastConversation.error == ConversationCommandError::EngineUpgradeRequired);
+  assert(fixture.network.queued == 0 && !fixture.conversation.HasActiveTurn());
   fixture.Submit(LocalControlMessageKind::Text);
-  assert(fixture.network.queued == 1 && fixture.output.lastConversation.duplicate);
+  assert(fixture.output.lastConversation.error == ConversationCommandError::EngineUpgradeRequired);
+  assert(fixture.network.queued == 0 && !fixture.output.lastConversation.duplicate);
   fixture.Submit(LocalControlMessageKind::Heartbeat, 200);
-  assert(fixture.output.heartbeats == 1);
-  assert(!fixture.owner.CompleteTurn(Command, fixture.runtime.Generation()));
-  assert(fixture.owner.CompleteTurn(Turn, fixture.runtime.Generation()));
-  assert(!fixture.conversation.HasActiveTurn());
+  assert(fixture.output.heartbeats == 1 && fixture.control.HasManualControl());
   fixture.Submit(LocalControlMessageKind::Release, 201);
   assert(!fixture.control.HasManualControl());
   assert(fixture.runtime.Generation() == 1);
@@ -362,7 +361,7 @@ void TestLeaseAndText() {
   failedOutput.Submit(LocalControlMessageKind::Acquire);
   failedOutput.output.accept = false;
   failedOutput.Submit(LocalControlMessageKind::Text);
-  assert(failedOutput.network.queued == 1 && failedOutput.network.cancels == 1);
+  assert(failedOutput.network.queued == 0 && failedOutput.network.cancels == 0);
   assert(!failedOutput.control.HasManualControl());
   assert(!failedOutput.conversation.HasActiveTurn());
 }
@@ -374,20 +373,6 @@ void TestExpiryCancelFailureAndReset() {
   expiry.Submit(LocalControlMessageKind::Text, 6100);
   assert(expiry.network.queued == 0 && !expiry.control.HasManualControl());
   assert(expiry.transport.closes == 1);
-  Fixture cancel;
-  cancel.Connect();
-  cancel.Submit(LocalControlMessageKind::Acquire);
-  cancel.Submit(LocalControlMessageKind::Text);
-  cancel.Submit(LocalControlMessageKind::Cancel);
-  assert(cancel.network.cancels == 1 && !cancel.conversation.HasActiveTurn());
-  assert(cancel.runtime.Generation() == 1);
-  Fixture networkFailure;
-  networkFailure.Connect();
-  networkFailure.Submit(LocalControlMessageKind::Acquire);
-  networkFailure.Submit(LocalControlMessageKind::Text);
-  networkFailure.network.failed = true;
-  networkFailure.Poll(101);
-  assert(!networkFailure.conversation.HasActiveTurn());
   Fixture blockedReset;
   blockedReset.Connect();
   blockedReset.Submit(LocalControlMessageKind::Acquire);
@@ -450,57 +435,16 @@ void TestStopBetweenAckAndBegin() {
   assert(!tick.sequence.IsBusy() && tick.port.vibrations == 0);
 }
 
-void TestReplyDelivery() {
-  Fixture delivered;
-  delivered.Connect();
-  delivered.Submit(LocalControlMessageKind::Acquire);
-  delivered.Submit(LocalControlMessageKind::Text);
-  Replies replies;
-  assert(delivered.state.Read(replies.snapshot));
-  delivered.owner.PumpReply(replies);
-  assert(delivered.output.results == 1 && replies.finished == 1);
-  assert(!delivered.conversation.HasActiveTurn());
-  delivered.owner.PumpReply(replies);
-  assert(delivered.output.results == 1 && replies.finished == 1);
-
-  for (int scenario = 0; scenario < 5; ++scenario) {
-    Fixture dropped;
-    dropped.Connect();
-    dropped.Submit(LocalControlMessageKind::Acquire);
-    dropped.Submit(LocalControlMessageKind::Text);
-    Replies stale;
-    assert(dropped.state.Read(stale.snapshot));
-    if (scenario == 0) {
-      ++stale.snapshot.version;
-    } else if (scenario == 1) {
-      stale.current = false;
-    } else if (scenario == 2) {
-      dropped.inbox.Disconnect(dropped.handle);
-    } else if (scenario == 3) {
-      assert(dropped.inbox.Submit(dropped.handle,
-                                 dropped.Message(LocalControlMessageKind::Stop)));
-    } else {
-      dropped.output.accept = false;
-    }
-    dropped.owner.PumpReply(stale);
-    assert(stale.finished == 1);
-    assert(dropped.output.results == (scenario == 4 ? 1 : 0));
-    if (scenario == 4) {
-      assert(!dropped.conversation.HasActiveTurn());
-      assert(dropped.network.cancels == 1);
-    }
-  }
-  Fixture canceledDuringSend;
-  canceledDuringSend.Connect();
-  canceledDuringSend.Submit(LocalControlMessageKind::Acquire);
-  canceledDuringSend.Submit(LocalControlMessageKind::Text);
-  Replies canceled;
-  assert(canceledDuringSend.state.Read(canceled.snapshot));
-  canceledDuringSend.output.injectStop = true;
-  canceledDuringSend.owner.PumpReply(canceled);
-  assert(canceled.finished == 1 && canceledDuringSend.conversation.HasActiveTurn());
-  canceledDuringSend.owner.Poll();
-  assert(!canceledDuringSend.conversation.HasActiveTurn());
+void TestRetiredTextHasNoReply() {
+  Fixture fixture;
+  fixture.Connect();
+  fixture.Submit(LocalControlMessageKind::Acquire);
+  fixture.Submit(LocalControlMessageKind::Text);
+  Replies reply;
+  assert(fixture.state.Read(reply.snapshot));
+  fixture.owner.PumpReply(reply);
+  assert(fixture.output.results == 0 && reply.finished == 1);
+  assert(!fixture.conversation.HasActiveTurn());
 }
 
 void TestStandaloneVoice() {
@@ -594,8 +538,8 @@ int main() {
   TestMaintenanceReservation();
   TestStandaloneVoice();
   TestHelloAndObserver();
-  TestLeaseAndText();
+  TestLegacyTextRequiresUpgrade();
   TestExpiryCancelFailureAndReset();
   TestStopBetweenAckAndBegin();
-  TestReplyDelivery();
+  TestRetiredTextHasNoReply();
 }

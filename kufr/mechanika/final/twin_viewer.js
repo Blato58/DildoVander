@@ -260,20 +260,23 @@
       get('twin-warning').hidden = !compatibility;
       get('twin-error').innerHTML = failure ? notice({title:'Twin není dostupný',message:failure,tone:'danger'}) : '';
       get('twin-error').hidden = !failure;
-      get('twin-capabilities').textContent = `Session: ${role}. Profile: ${selectedProfile}${selectedProfile === 'integration' ? ' · wall-clock; fake clock unavailable; návrh vybírá skutečný backend' : selectedProfile === 'deterministic' ? ' · injected fake clock; syntetický vstup' : ''}. Capabilities: ${(snapshot?.capabilities || remoteCapabilities).join(', ') || 'unavailable'}. ${commandNotice} ${replay ? 'Historický záznam; žádné povely.' : ''}`;
+      get('twin-capabilities').textContent = `Session: ${role}. Profile: ${selectedProfile}${selectedProfile === 'integration' ? ' · wall-clock; textový backend byl ukončen. Aktualizujte klienta a použijte GPT-Live nebo Realtime 2.1 v hlasovém panelu.' : selectedProfile === 'deterministic' ? ' · injected fake clock; syntetický vstup' : ''}. Capabilities: ${(snapshot?.capabilities || remoteCapabilities).join(', ') || 'unavailable'}. ${commandNotice} ${replay ? 'Historický záznam; žádné povely.' : ''}`;
       get('twin-controls').hidden = !active || replay || snapshot?.source.mode !== 'simulation' || role !== 'control';
       for (const button of get('twin-controls').querySelectorAll('button')) {
         const urgentStop = button.dataset.twinAction === 'stop';
         button.disabled = urgentStop ? pendingStop : pending || pendingStop ||
           (button.dataset.twinAction !== 'release' && status !== 'online');
-        if (button.dataset.twinAction === 'text') button.textContent = selectedProfile === 'integration' ? 'Odeslat integrační text' : 'Syntetický textový vstup';
+        if (button.dataset.twinAction === 'text') {
+          button.disabled = button.disabled || selectedProfile !== 'deterministic';
+          button.textContent = selectedProfile === 'integration' ? 'Text vyžaduje aktualizaci klienta' : 'Syntetický textový vstup';
+        }
       }
       for (const id of ['twin-speed','twin-pause','twin-resume','twin-step']) {
         get(id).disabled = pending || pendingStop || status !== 'online' || selectedProfile !== 'deterministic';
       }
       get('twin-variant').disabled = selectedProfile !== 'deterministic';
-      get('twin-text').disabled = selectedProfile !== 'integration';
-      if (get('twin-text').parentElement) get('twin-text').parentElement.hidden = selectedProfile !== 'integration';
+      get('twin-text').disabled = true;
+      if (get('twin-text').parentElement) get('twin-text').parentElement.hidden = true;
       get('twin-replay').hidden = !replay;
       get('twin-export').disabled = recording.length === 0;
       get('twin-recording-status').textContent = `${recording.length} plných snapshotů, ${recordingDrops} vyřazených z lokálního bufferu. Limit 2048 / 8 MiB.`;
@@ -356,11 +359,14 @@
       if (ownGeneration === generation && !replay) timer = root.setTimeout(() => poll(ownGeneration), 250);
     }
     async function command(body) {
+      if (body.action === 'integrationText') {
+        failure = 'Textový backend byl ukončen (conversation_engine_upgrade_required). Aktualizujte klienta a použijte GPT-Live nebo Realtime 2.1 v hlasovém panelu.';
+        display(); return;
+      }
       const urgentStop = body.action === 'stop';
       if ((urgentStop ? pendingStop : pending || pendingStop) || replay || role !== 'control' || projection.current?.snapshot.source.mode !== 'simulation' ||
           (!urgentStop && body.action !== 'release' && projection.status(root.performance.now()) !== 'online') ||
           (body.action === 'clock' && selectedProfile !== 'deterministic') ||
-          (body.action === 'integrationText' && selectedProfile !== 'integration') ||
           (body.action === 'text' && selectedProfile !== 'deterministic')) return;
       const commandJson = JSON.stringify(body);
       if (new TextEncoder().encode(commandJson).length > 2048) {
@@ -410,9 +416,7 @@
     for (const button of panel.querySelectorAll('[data-twin-action]')) button.onclick = () => {
       const action = button.dataset.twinAction, body = {action};
       if (action === 'text' && selectedProfile === 'integration') {
-        const text = get('twin-text').value.trim();
-        if (!text || text.length > 1024) { failure = 'Integrační text musí mít 1–1024 znaků.'; display(); return; }
-        body.action = 'integrationText'; body.text = text;
+        command({action:'integrationText'}); return;
       } else if (action === 'text') {
         body.slot = +get('twin-slot').value; body.variant = get('twin-variant').value; body.text = 'synthetic service input';
       }

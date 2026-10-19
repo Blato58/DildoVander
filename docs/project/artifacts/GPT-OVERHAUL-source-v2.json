@@ -1,0 +1,818 @@
+{
+  "baseline": "b703ce3886636159fb602b48384fe2ebbbdb6a2f",
+  "artifactDigest": "36e6c0078bdd60e7d3dce4430226bf144674bb200f13e75d0cb8d2e4225394c3",
+  "method": "SHA256 of compact sorted ASCII JSON [{path,sha256}] from exact Git index bytes (canonical LF for text), changed application source/config/tests and CI secret scanner versus baseline; deleted files use deleted marker. Markdown, project tracking, CAD geometry and build outputs excluded. uiArtifactDigest separately hashes all listed current tracked shared/mobile UI inputs and synthetic harness.",
+  "files": [
+    {
+      "path": ".gitleaks.toml",
+      "sha256": "34381ff7bc54dbaa52459f3a225eb64e62debc7098c0328ca2ca3e914a48986c"
+    },
+    {
+      "path": "kufr/backend-tests/AutonomousLiveTests.cs",
+      "sha256": "583ebcd751ebcbd617a94707d9c031750ee96dc80e98353ed8fe6e872170cfb1"
+    },
+    {
+      "path": "kufr/backend-tests/CharacterOperationTests.cs",
+      "sha256": "f5e644004decb0bfb3503aaff7c6ae2c32a79feb7ab7f001486d06e5316a3e09"
+    },
+    {
+      "path": "kufr/backend-tests/ConversationMediaLifecycleTests.cs",
+      "sha256": "e14b32234ca14ee14ed243a181884b1eee7632c7ff7f3e0a5b0177c7af7e5661"
+    },
+    {
+      "path": "kufr/backend-tests/ConversationOrchestrationTests.cs",
+      "sha256": "02f80e0f44bcb73d8f174a40866c64db7df5921cb49d5350864156c838bc47b4"
+    },
+    {
+      "path": "kufr/backend-tests/CostumeImageTests.cs",
+      "sha256": "c02f405ca19a98fdab6ff1bfea71268aefbaa460354ff0e1ff26ce5529383b0c"
+    },
+    {
+      "path": "kufr/backend-tests/DependableMemoryTests.cs",
+      "sha256": "ac5236fcde04049bf72964e1baa581a8fa6f14ec6d37cbace23b6595211e1d92"
+    },
+    {
+      "path": "kufr/backend-tests/EveningMemoryTests.cs",
+      "sha256": "58dd7dea010a827ad39cdbf4ccdb34106d91e42a184c28155815fb1b64988e8b"
+    },
+    {
+      "path": "kufr/backend-tests/GptLiveTests.cs",
+      "sha256": "aa9e27e585779b95a641838b2c09eb8ef4e1e6340b932dc06423c77a29672405"
+    },
+    {
+      "path": "kufr/backend-tests/HybridMemoryTests.cs",
+      "sha256": "92fd672feab7663d230215fa363747010b3e1abda68a69bfdcc5620a2cd3535c"
+    },
+    {
+      "path": "kufr/backend-tests/PersonalityTests.cs",
+      "sha256": "439328932dd0b9ed8bb3ebdb6e9414b2f0bfd31f560656658cb898e2cf98cccb"
+    },
+    {
+      "path": "kufr/backend-tests/Program.cs",
+      "sha256": "59c1dbc5d87c8b10609d0ba10b8af2825985cd38bb24049cabdfb0590ea0c6ed"
+    },
+    {
+      "path": "kufr/backend-tests/RealtimeTests.cs",
+      "sha256": "4506d16d5dc0a5e4d32f685757438f5b0f61f0f41237ede268c63220881bc442"
+    },
+    {
+      "path": "kufr/backend-tests/ResponsesTextDialogClientTests.cs",
+      "sha256": "deleted"
+    },
+    {
+      "path": "kufr/backend-tests/ServerModeTests.cs",
+      "sha256": "ffa0922fb7c874a67d68db4c90c40834f4f02905aeedc68981905de0f18d488f"
+    },
+    {
+      "path": "kufr/backend-tests/TextDialogRuntimeTests.cs",
+      "sha256": "6ee19b1a9356dd200d89dc87343c4de5a02c39d4efaf7212fa859eadbcdac728"
+    },
+    {
+      "path": "kufr/backend-tests/TwinMediaStreamingTests.cs",
+      "sha256": "008d49b1c3266f8f01745f7edc819388a042c2407dd66f8419b8a035689657f0"
+    },
+    {
+      "path": "kufr/backend-tests/TwinMediaTests.cs",
+      "sha256": "71699ce2e2bfe87ce2e85366bfd1fb43248bbde6a1a0d886813a3db47f247292"
+    },
+    {
+      "path": "kufr/backend-tests/TwinTests.cs",
+      "sha256": "353e7a19b11fb8c527e66f1a761e49b3a241ff4a13e961b9add714d99feeeb08"
+    },
+    {
+      "path": "kufr/backend-tests/VisualResponseTests.cs",
+      "sha256": "df1a5b78cc2a83c15d13b4c7758761ea7b96760f0d5c406a72961f3d85ad9446"
+    },
+    {
+      "path": "kufr/backend-tests/VoiceProviderTests.cs",
+      "sha256": "424448680e13d54dfa0207bc49f2cef0811f583089a1b326a6bdfa5be20b075f"
+    },
+    {
+      "path": "kufr/backend-tests/packages.lock.json",
+      "sha256": "10750858b3fbffa2a0219764949e0a058deabb229895ad4b2110b5a0ae3c4ac0"
+    },
+    {
+      "path": "kufr/backend/.env.example",
+      "sha256": "25d6e0250e6939f2f743561c574872e70c95e118254bdcf89fcabc6de2b0c0e7"
+    },
+    {
+      "path": "kufr/backend/Features/Conversations/ConversationAutonomousLive.cs",
+      "sha256": "e1cb603faea009226df0924f13b3ad73d87259021aac702fc49e2f110a99bd41"
+    },
+    {
+      "path": "kufr/backend/Features/Conversations/ConversationEndpoints.cs",
+      "sha256": "3908c27a92eb2f9d1674f36b239e1bfc5f0f65b21b3f500143b1c63207243315"
+    },
+    {
+      "path": "kufr/backend/Features/Conversations/ConversationImages.cs",
+      "sha256": "a83f0401fc3abf11bc9d7144e4d118d816df8be7631fd9c3f08fdc9ffecd480c"
+    },
+    {
+      "path": "kufr/backend/Features/Conversations/ConversationRealtimeTurns.cs",
+      "sha256": "8f481b251e4a59122190de0b2629f120f37d6cd97e5272ef050b1f3f2cea9215"
+    },
+    {
+      "path": "kufr/backend/Features/Conversations/ConversationServerModes.cs",
+      "sha256": "0a458a40c4fea07355957ad3f7d5a9d021d03c43fe524a8ef0e972c12aa168cb"
+    },
+    {
+      "path": "kufr/backend/Features/Conversations/ConversationStore.cs",
+      "sha256": "1b26e8ca710147fd29ba72171dc85a6106ee587516cd31e57cff4f8193ed0468"
+    },
+    {
+      "path": "kufr/backend/Features/Conversations/ConversationTranscripts.cs",
+      "sha256": "057cd1d7241b8cd30303305f4ac30a2e852696f27cecd6fc6541512b465e98b8"
+    },
+    {
+      "path": "kufr/backend/Features/Conversations/CostumeImage.cs",
+      "sha256": "67987d82853c845cc033a99c1d0570ed22c107028757677f1933f5458ac226c8"
+    },
+    {
+      "path": "kufr/backend/Features/Conversations/CostumeImageEndpoints.cs",
+      "sha256": "fbc36c3b6959f8cfeced183aa8c083afb65e79cc3f0aee1da34a9cb7fd55bb79"
+    },
+    {
+      "path": "kufr/backend/Features/Conversations/CostumeVisionService.cs",
+      "sha256": "1c5471d9d07ec64895e3b454ac3d33ed9a368067eeedd71da8a94449f3384adf"
+    },
+    {
+      "path": "kufr/backend/Features/Conversations/EveningMemoryStore.cs",
+      "sha256": "f0dd429dcc44d83792997b3c59d754d097ede98f4fc89d27cd5dbac44093c92f"
+    },
+    {
+      "path": "kufr/backend/Features/Conversations/HybridMemoryStore.cs",
+      "sha256": "5ea636131fc29448079ef1fb83ed8b20221183a1831cbf0c80f086cdc4268b83"
+    },
+    {
+      "path": "kufr/backend/Features/Conversations/OperationJournal.Keepsakes.cs",
+      "sha256": "1c580784d7fe40bd83837fd90ae21d8938f9a9b3e126574f561fe347c03f3003"
+    },
+    {
+      "path": "kufr/backend/Features/Conversations/OperationJournal.VisualMedia.cs",
+      "sha256": "fe12a77082c0a4036cde97d1dc46d417682cc8ef5cc38e3271f076393f0a3270"
+    },
+    {
+      "path": "kufr/backend/Features/Conversations/OperationJournal.cs",
+      "sha256": "ce75022f8b857ce15cdc4c5452b29d21c53c3e66c81e56abb905a848a47a60ac"
+    },
+    {
+      "path": "kufr/backend/Features/Conversations/ResponsesTextDialogClient.cs",
+      "sha256": "deleted"
+    },
+    {
+      "path": "kufr/backend/Features/Conversations/ServerModeEndpoints.cs",
+      "sha256": "7c3bb6f140b5e54f4fdc5b271edc69e51e86506779aa38ac82fe9bfd20b8e098"
+    },
+    {
+      "path": "kufr/backend/Features/Conversations/TextDialogFixtureContracts.cs",
+      "sha256": "ba9b8a0132fc4825461fef9d5e71961523b108a9eca433d9d6860a251356bdc5"
+    },
+    {
+      "path": "kufr/backend/Features/Conversations/TextDialogRunner.cs",
+      "sha256": "7d37db18d4ac0c8ee15f9679e32126c2fd39dd41c6371f89a07000a6b9992908"
+    },
+    {
+      "path": "kufr/backend/Features/DigitalTwin/TwinFakeVoiceStream.cs",
+      "sha256": "6831d8432fa7df134e755d1eb02959b44cddad0e9109adf4560f71579652b7ad"
+    },
+    {
+      "path": "kufr/backend/Features/DigitalTwin/TwinHost.cs",
+      "sha256": "0f641b81f3ac33cfcd7f5707648e267c39e1764ae118bdf6fe4b3168d61d1164"
+    },
+    {
+      "path": "kufr/backend/Features/DigitalTwin/TwinHostMedia.cs",
+      "sha256": "38711806528ad6df081bfe734eada385f495c4530b990fd884c1d11594242515"
+    },
+    {
+      "path": "kufr/backend/Features/GptLive/AutonomousLiveDialogue.cs",
+      "sha256": "4db2781bda0fcedfe7cc1f4b25f421d458dd6c41c3ce37a7636066422924568a"
+    },
+    {
+      "path": "kufr/backend/Features/GptLive/CharacterConfiguration.cs",
+      "sha256": "e53487a1ebec1b077b97ea515bc7dc7efb8ad906859f5cbf322df37713c081cb"
+    },
+    {
+      "path": "kufr/backend/Features/GptLive/GptLiveConnection.cs",
+      "sha256": "ea0c844e654ae632cc60047868e4bf43cf7ce1443bb39d5eccf077255bcb6631"
+    },
+    {
+      "path": "kufr/backend/Features/GptLive/GptLiveDialogue.cs",
+      "sha256": "deleted"
+    },
+    {
+      "path": "kufr/backend/Features/GptLive/GptLiveEndpoints.cs",
+      "sha256": "7bc059ca8b646c484d0f1cdf93a9362f98b1f89724a3c3d65adf43c89c90b76a"
+    },
+    {
+      "path": "kufr/backend/Features/GptLive/GptLiveOptions.cs",
+      "sha256": "c4947668b1c24aa9bb66fbd83b3ed4af3a5bc132068175337018d1b774b05dec"
+    },
+    {
+      "path": "kufr/backend/Features/GptLive/GptLiveProtocol.cs",
+      "sha256": "269641c8ad908241f7a5758e26d874337d583bf836495706cb6e02003045f8dd"
+    },
+    {
+      "path": "kufr/backend/Features/GptLive/LiveOutcome.cs",
+      "sha256": "d534f2c99e80536387ba63633a2fddb92f3c3551f039bf78dda9ace999171503"
+    },
+    {
+      "path": "kufr/backend/Features/Keepsakes/KeepsakeOutcomeEndpoints.cs",
+      "sha256": "ef867d46f23d58a68ca21a7dc0d431b3c3d3cfa02fcebcc408cfc045fcd2b5dc"
+    },
+    {
+      "path": "kufr/backend/Features/Memory/HybridMemoryOptions.cs",
+      "sha256": "7dc0eb081a0afef3c83297f05ef2caad22228d30d649d938c31fa7e7f2c16935"
+    },
+    {
+      "path": "kufr/backend/Features/Memory/HybridMemoryService.cs",
+      "sha256": "b0a95b19b3b88c36b459ffddc75caff3c8947acb97eb2e4ec197916372ff549c"
+    },
+    {
+      "path": "kufr/backend/Features/Memory/MemoryAdministration.cs",
+      "sha256": "b6efbb64bccb649d63236ee6f92044e2d5a0f3a129be8d8a5fb0a19384ba9e46"
+    },
+    {
+      "path": "kufr/backend/Features/Realtime/ConversationStartupMemory.cs",
+      "sha256": "93beab3c96871a8045fd4a625e75186b23c67dd664be3ab5ceb3080a00e0c6ed"
+    },
+    {
+      "path": "kufr/backend/Features/Realtime/OpenAiRealtimeClient.cs",
+      "sha256": "7fb18b344643ec52b5c97fbc42e26d078cbda172ee84c92e1f8bc1b62a4c6d86"
+    },
+    {
+      "path": "kufr/backend/Features/Realtime/OpenAiRealtimeConnection.cs",
+      "sha256": "12de506c3ebfe076c8befaffa698282eafa282293e9d78a8ab6e95fa2a85685b"
+    },
+    {
+      "path": "kufr/backend/Features/Realtime/RealtimeAudioStream.cs",
+      "sha256": "2a0cfe528d33500b51c59e2094bb2f3bd01be5ff1eb29b3b1bcdc3809989e871"
+    },
+    {
+      "path": "kufr/backend/Features/Realtime/RealtimeEndpoints.cs",
+      "sha256": "ff8c826ae4ad6e48e6b76a3f6444426668e469fe822bb5f075f42c3c942e0a99"
+    },
+    {
+      "path": "kufr/backend/Features/Realtime/RealtimeLiveEndpoints.cs",
+      "sha256": "8ef294e5b59e10774b4cadf7f8586fcdd349095c917f3fc488dd7850e09593ce"
+    },
+    {
+      "path": "kufr/backend/Features/Realtime/RealtimeLiveSession.cs",
+      "sha256": "4f77d8739ca4a77edecc165854ac61a03f403a92b93a576f62208c3c087021f6"
+    },
+    {
+      "path": "kufr/backend/Features/Realtime/RealtimeProtocol.cs",
+      "sha256": "75340d7191a3c753e3154c3b320401c5eecbaa55b15b225c0e32114021d91e57"
+    },
+    {
+      "path": "kufr/backend/Features/Realtime/VisualResponsePublisher.cs",
+      "sha256": "c5a66d43e3e3217dd4f40a91920e1dd1e7b140d89a1ca8d8259caf3e09602aab"
+    },
+    {
+      "path": "kufr/backend/Features/Realtime/VisualResponseWatcher.cs",
+      "sha256": "2acda1c7fe327d327ced2690529c91c21d894b697f7b226aaaa8ca7a967902ff"
+    },
+    {
+      "path": "kufr/backend/Features/Speech/OpenAiSpeechClient.cs",
+      "sha256": "deleted"
+    },
+    {
+      "path": "kufr/backend/Features/VoiceTurns/VoiceProviderRunner.cs",
+      "sha256": "6c2cfd2784ce8eb7b649af7dbadc4e0023587218f43e8f7336190b05df430caf"
+    },
+    {
+      "path": "kufr/backend/Program.cs",
+      "sha256": "c64cbb6d228d7dbef6b8b70222e7d855a6251d133e3470f844dfef8195eac3f5"
+    },
+    {
+      "path": "kufr/backend/appsettings.json",
+      "sha256": "50f2d54d4a987c069d79ca56557c25b3e9ccebb303a5ed69661c12f26818d8eb"
+    },
+    {
+      "path": "kufr/backend/backend.csproj",
+      "sha256": "cc2f1698e705a11ecaf57f0a09428cb8232d728e6d0ebee9d246badae8acb2ee"
+    },
+    {
+      "path": "kufr/backend/codex/server_logs_mcp.py",
+      "sha256": "6b7d123b7988e0b14cd46cadd8eda02f5d1c39db42c695ef30477e9f4e8e6010"
+    },
+    {
+      "path": "kufr/backend/packages.lock.json",
+      "sha256": "72824b0fd2a3b7d955f3cb372733205e813fa74ddf0e2e28279d30744fb542fa"
+    },
+    {
+      "path": "kufr/backend/tests/backend_api_client.py",
+      "sha256": "94fbb0cc75bc08bbe1915ed1bb169d0a0f9f6031d2bbf3d3fc198d5d10868d81"
+    },
+    {
+      "path": "kufr/backend/tests/deployed_smoke.py",
+      "sha256": "ffb4f1036290fd9de9c47e6365c20622b23c82e49427eea6ccfe6e5d8d800b37"
+    },
+    {
+      "path": "kufr/backend/tests/diagnostic_test_fixtures.py",
+      "sha256": "803422316f7d94a75e20ccab742f3f630a079f801eea1e402f75e94478505d50"
+    },
+    {
+      "path": "kufr/backend/tests/engine_capabilities.py",
+      "sha256": "fb6f87859623ba5787b08257886cc29cbff46fa1ccb3cf0d87b44c37d3ecf8c1"
+    },
+    {
+      "path": "kufr/backend/tests/interactive_dialogue.py",
+      "sha256": "969f67b8d60494a9812b468356a737008c6ce825fc82ce43f004f7cc878a5425"
+    },
+    {
+      "path": "kufr/backend/tests/realtime_live_smoke.py",
+      "sha256": "986fe6317d52786ecc17f72ea8064b73ef4af182a65980056d835292554ab5a5"
+    },
+    {
+      "path": "kufr/backend/tests/server_mode_smoke.py",
+      "sha256": "74924c28ca0e6655022d766d251fc786da255f26873769230a31cb210d5ef2d8"
+    },
+    {
+      "path": "kufr/backend/tests/smoke.mjs",
+      "sha256": "b38f9cc0ff15657b77965058a046b8a6410a5c2a642649d9a9c5784539df7b55"
+    },
+    {
+      "path": "kufr/backend/tests/test_backend_api_client.py",
+      "sha256": "585954fca3cccc729c7a777aa09362c2f15f94b4db34cc7d692203ac25f57528"
+    },
+    {
+      "path": "kufr/backend/tests/test_deployed_smoke.py",
+      "sha256": "48d9b45eb73c6b453eb04a1cf75dd91da4dc4e8d583f18d5d24c78ef26a34770"
+    },
+    {
+      "path": "kufr/backend/tests/test_interactive_dialogue.py",
+      "sha256": "0274ab1de1ea870d379436762f56a9f99d5c4820a7f10cf229fe264a83ffa2d2"
+    },
+    {
+      "path": "kufr/backend/tests/test_server_logs_mcp.py",
+      "sha256": "21400e518550513c73430f95e71078caafbbfbb500372b80e9dbca97b775b1f3"
+    },
+    {
+      "path": "kufr/backend/tests/test_server_mode_smoke.py",
+      "sha256": "efd8b0fd7ba07f2f9f4b506a491be97c27ba15b1928500bedcb57d7c4c5f6857"
+    },
+    {
+      "path": "kufr/contracts/backend-openapi-v1.json",
+      "sha256": "e7a27f81aaf57bd8141abd73b1bb73f685da80e04c0d0d4f33324a3c8cedef73"
+    },
+    {
+      "path": "kufr/contracts/control-message-v1.schema.json",
+      "sha256": "0071fbc16322f37921cf575d27c3b1647272307af3e02c687af4678c50a227ba"
+    },
+    {
+      "path": "kufr/contracts/verify-backend-openapi.mjs",
+      "sha256": "e594483d9b47884d6925b2df8c5577d1ed67a14dd5d6be7ab874b298745cfb2a"
+    },
+    {
+      "path": "kufr/firmware/src/features/conversation/ConversationSession.h",
+      "sha256": "d1ef0db3dc3fd0bf86715425c1ddaf3c9bb400a9a6cfa9d57e70a203f4ef7984"
+    },
+    {
+      "path": "kufr/firmware/src/features/local_control/LocalControlCapabilities.h",
+      "sha256": "f06a195437bd132510d8962b4972060697ed65c0ca2532618fcf5381c9763530"
+    },
+    {
+      "path": "kufr/firmware/src/features/local_control/LocalControlOutput.cpp",
+      "sha256": "3c76392e1e41fde8f48805e70e074bf8ffe04fa45bb1be2dfbb7b142313db2f7"
+    },
+    {
+      "path": "kufr/firmware/src/features/local_control/LocalControlOwner.cpp",
+      "sha256": "bd31f6f1fa911e83fb6baad37d2a8b0e5604622a6cd34bf9e6f704449c910af7"
+    },
+    {
+      "path": "kufr/firmware/src/features/voice_turn/RealtimeEventCodec.cpp",
+      "sha256": "855ed094882630c08ad6e26078ff1fb56eeefd95ee0d3e7ea165045543cee427"
+    },
+    {
+      "path": "kufr/firmware/src/features/voice_turn/RealtimeEventCodec.h",
+      "sha256": "72f8bf8adfd731e0a3a0216eb4b6c36c188414afe44423c8b310c6927e42580a"
+    },
+    {
+      "path": "kufr/firmware/src/features/voice_turn/RealtimeSessionEngine.cpp",
+      "sha256": "262ad526777fe3cc38449a14f1cbc8da5f8e221a7a84171b5512660c76e886fc"
+    },
+    {
+      "path": "kufr/firmware/src/features/voice_turn/RealtimeSessionEngine.h",
+      "sha256": "74a55d849c69bc517e4fdbb51149ab3f88ed82d6721912000290c3f6590ab717"
+    },
+    {
+      "path": "kufr/firmware/tests/espidf_local_service_advertisement_test.cpp",
+      "sha256": "cfc74593bf5700113fd5c44ff2fc2c6395032acdaba1aa1b9a26636d0fd5a6ba"
+    },
+    {
+      "path": "kufr/firmware/tests/espidf_realtime_transport_test.cpp",
+      "sha256": "9bfa0506a43b45e2ec88f45c1219191afd0d5318839959b9c9ce045700c09222"
+    },
+    {
+      "path": "kufr/firmware/tests/local_control_output_test.cpp",
+      "sha256": "eb46d45bf70e13f5976330cc06db3438172c7037a2528fb21d5407ccfe495642"
+    },
+    {
+      "path": "kufr/firmware/tests/local_control_owner_test.cpp",
+      "sha256": "911352ae751c354cb9a1b3f120aaf94451f094f9f8d24817f923f91383feb1bd"
+    },
+    {
+      "path": "kufr/firmware/tests/realtime_session_engine_test.cpp",
+      "sha256": "6ac80b3f5c86efd1a2efcb586e0ed25b922bbceb64efeefda2d36fbc97298554"
+    },
+    {
+      "path": "kufr/firmware/tests/realtime_voice_test.cpp",
+      "sha256": "65b3a83d8ad193db39939405fe152659a7560cf3b7fcdb516668f0b278fde719"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/ios/App/App.xcodeproj/project.pbxproj",
+      "sha256": "ea142f9de62c98b3252d311a828a1102190fa0428920707ad0584e9a7f5602b1"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
+      "sha256": "1c892cda1d696f842697a0270a0e7ab40981b5499b4d24f5558970bc73307119"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/ios/App/App/DebugBackendClient.swift",
+      "sha256": "19fbb1e37ac15be2eab69c88c47fa49e811fd8372aeed49286c2f94b15df918f"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/ios/App/App/DebugHandsFreeAudio.swift",
+      "sha256": "9feaffa475eb1402b086f2eb3ceaebdcd4a9792c36742e376cfd99798ab54a11"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/ios/App/App/DebugHandsFreeSession.swift",
+      "sha256": "16bd28adf225ba1b4fb1d2d62de33db6f84f8a0a4303893b6b36ed795c6dc1e4"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/ios/App/App/DebugRealtimeSession.swift",
+      "sha256": "deleted"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/ios/App/App/Info.plist",
+      "sha256": "7beec241292366771f369844ac96e43e6e8734ec7e294a0c6b7af16013288fb8"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/ios/App/App/KufrDebugPlugin.swift",
+      "sha256": "633a86cfdd3757de000735b432a862f251f904d39050e40af8f23bb1ab445c09"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/ios/App/CapApp-SPM/Package.swift",
+      "sha256": "4dd62aeb951f9e7645377f0d4b0c1a1c3bf3270617258338a941d88e851bed55"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/package-lock.json",
+      "sha256": "6cc0cc570d5dee7918d8b4a71042cfdd3ef6dc493fab878a24b03aea153b56e8"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/package.json",
+      "sha256": "419da43f650a83b0bdd139120ccae7e24e8009624650281e05f5944c74930311"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/scripts/test-native-debug.sh",
+      "sha256": "adfe07d56f862bd1095f62fdf3f0b10ba391b4e6c4313d352c512eb774f504b7"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/src/features/debug/DebugPanel.ts",
+      "sha256": "8c928097a9d12804657590f022e4c68dab039993a7c02af5f96996636534937b"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/src/features/voice_control/VoicePanel.ts",
+      "sha256": "0fd29c2cffdb31501ceecbdf8fd35dc26c395506cdfa316056fa272b716b587f"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/src/style.css",
+      "sha256": "700e3597bc2091f73df3856864db1cda663f3a86f8a6eedbf5876f7fb279634c"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/tests/debug_session_ownership.test.mjs",
+      "sha256": "6aa450dbd4140f6480cd61a721f6139003aff85a2b0268bde676634e0ea1e091"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/tests/native-ui-harness.html",
+      "sha256": "392a5f4ab6d90ad7e2b7f4c77e7c22b4030c4d90bb8c16c508ad30b59c887ed3"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/tests/native_costume/http_peer.mjs",
+      "sha256": "9e8f2c406c200096c5bd846639212756c0255732611e1faf3c6a90bb2ee55785"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/tests/native_costume/main.swift",
+      "sha256": "6132ae4f1dd024474196e6ae61b5e572f150f4358cd8f244e171f3eda4270bcc"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/tests/native_debug/http_peer.mjs",
+      "sha256": "3f15eb35feed4105d95847e85b5a48b5e65512980b8bf2750afae82b3567068a"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/tests/native_debug/main.swift",
+      "sha256": "4b30e67f4f5b10b80026dbc26b6df5aea1dcdf3891589129a191eb52138505d0"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/tests/native_handsfree/http_peer.mjs",
+      "sha256": "4b3c6b993117751ccce36a4e5f63646ae3d2a45424b598244ad7ed5851c47d2d"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/tests/native_handsfree/main.swift",
+      "sha256": "3f218cd5916f591e33ae4a2a40432a6b3702f23abf27b148fba91aab8bad9533"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/tests/native_handsfree/socket_peer.test.mjs",
+      "sha256": "27456ff2abfec6cef734645666b76c4859e80bad95cdc0df4e39e076429534f1"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/tests/native_handsfree/upload_regression.swift",
+      "sha256": "9e2815383e83fdb8f5d21baef3ac6e145606d56b29ebdbbe6aa2337eb30b7084"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/tests/native_realtime/main.swift",
+      "sha256": "deleted"
+    },
+    {
+      "path": "kufr/simulator/native/BrowserMedia.cpp",
+      "sha256": "ac601bfd3fa731ee8c9397cc65cbf882cd4e8a31087ad80d6339f87e53a8c75e"
+    },
+    {
+      "path": "kufr/simulator/native/test_media.py",
+      "sha256": "a0c5c734761f04dab612884648f3d6a989b3c97776f4014fb0aa239c8a358a32"
+    },
+    {
+      "path": "kufr/simulator/native/twin_browser_test.cjs",
+      "sha256": "30c6e2a83f0b83882ed8bee7fcbb0dab4f5e8a4b5b13cd982cdac11530af6bad"
+    },
+    {
+      "path": "scripts/ci/test_secret_scan.py",
+      "sha256": "48ce329d2e7519ed52c51b97f31a2070537f62d9adbf8b770de772b7f682bae7"
+    }
+  ],
+  "uiArtifactDigest": "f15002cabeb8c972ba13a29161e28b5c8814057bd72bf3077882aae075d14b01",
+  "uiFiles": [
+    {
+      "path": "kufr/design-system/arcane-workshop.css",
+      "sha256": "1142d85c0d7c83bc93aa5e14f2f5ee9e941f733e283cdd40d4565fcc7fc63196"
+    },
+    {
+      "path": "kufr/design-system/components/framework.css",
+      "sha256": "ea1171d65bc3f4b07748b0b342ccc763a56274a0d886650cc4fbcc324f16d5c0"
+    },
+    {
+      "path": "kufr/design-system/components/patterns.css",
+      "sha256": "5ae662beec4f4f19a7627b12173ca3b24191aee07154fc4075738597c06fb3b4"
+    },
+    {
+      "path": "kufr/design-system/fonts/cinzel-OFL.txt",
+      "sha256": "f5a242cf68ad6ebd0603b3359a74c593ca080318a681035be5296ba2c6b04ae6"
+    },
+    {
+      "path": "kufr/design-system/fonts/cinzel.ttf",
+      "sha256": "f4d83d34d1f6c741193e4acf4b3dff9531e5a67b6aa65228d00a7db72a4e0f34"
+    },
+    {
+      "path": "kufr/design-system/fonts/ibmplexmono-OFL.txt",
+      "sha256": "d741e57d5f865e294df801f96b7b5161a88b211df65887e4358d271c9fc5fb4f"
+    },
+    {
+      "path": "kufr/design-system/fonts/ibmplexmono.ttf",
+      "sha256": "6a3412f058c7d8dfd9170c41e85ade48e5156ecb89356110ca57a0a27734af46"
+    },
+    {
+      "path": "kufr/design-system/fonts/inter-OFL.txt",
+      "sha256": "5dd548d31a85f756e01d63e00d7faf1e324103ed3e9102fcbbabf2cc2db6dd39"
+    },
+    {
+      "path": "kufr/design-system/fonts/inter.ttf",
+      "sha256": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031"
+    },
+    {
+      "path": "kufr/design-system/icons/LICENSE.txt",
+      "sha256": "3c57143f22dac950efebf84002e360bba5458c7b90fe583b0667aaaef1a7256e"
+    },
+    {
+      "path": "kufr/design-system/icons/boxes.svg",
+      "sha256": "7e301f6c38337389f5a96675d14cb9d8ef8a613329e99c3dfcf7c635bdd1faae"
+    },
+    {
+      "path": "kufr/design-system/icons/circle-alert.svg",
+      "sha256": "ce3e98b7a03b78c0071131df42466e4e1ff5187fccad30e739ec9ce951cf685a"
+    },
+    {
+      "path": "kufr/design-system/icons/circle-check.svg",
+      "sha256": "3e519680ab8e2a8ad8f56a340c10d61957d872237aaa868cf324b0900a74f384"
+    },
+    {
+      "path": "kufr/design-system/icons/flask-conical.svg",
+      "sha256": "a2ce857c159bef4c128a6d9f0b6dcbd6504ecf1a2a670ee220efd14fd032b561"
+    },
+    {
+      "path": "kufr/design-system/icons/house.svg",
+      "sha256": "28216c479005731ef5e382e7d8627eda2b129b019eb1f3d9de9f5915576d448e"
+    },
+    {
+      "path": "kufr/design-system/icons/mic.svg",
+      "sha256": "9b940cd735d1ffa270ba670c4e677d9a09400f3fa81d6b3f405b12a3b67a59a8"
+    },
+    {
+      "path": "kufr/design-system/icons/octagon-x.svg",
+      "sha256": "6ca17c136a1a8ae4c62449cfaf36b432f49f43c57d3f25b8ac61cfc60673c116"
+    },
+    {
+      "path": "kufr/design-system/icons/provenance.json",
+      "sha256": "72efb0593c26a3cdeec9598bf1b7187a4d4906354ad2b5352203cd75b33d44a3"
+    },
+    {
+      "path": "kufr/design-system/icons/scroll-text.svg",
+      "sha256": "57739b59816cedf5b2fd92559784431ce59f3d14eb77eabb659591b6789e223d"
+    },
+    {
+      "path": "kufr/design-system/icons/sliders-horizontal.svg",
+      "sha256": "e43a00e5eb684e6cbb61083bed2528d7a3fa5f265693eb2b5f314cd432aa65f4"
+    },
+    {
+      "path": "kufr/design-system/icons/wifi-off.svg",
+      "sha256": "318b290106e55c3505933f434d3663524206c7a44165a89508774fba4fdbaadd"
+    },
+    {
+      "path": "kufr/design-system/icons/wifi.svg",
+      "sha256": "5c4c795d014fa95d1e1038362df44a0f0f32ded9cb08c833ae72419ebadc9a91"
+    },
+    {
+      "path": "kufr/design-system/icons/wrench.svg",
+      "sha256": "b5f3bf792743edb9e81b543dd1b13ccc26d3afe1d33500a1cd8dee2e052d6197"
+    },
+    {
+      "path": "kufr/design-system/mockups/desktop-workshop.html",
+      "sha256": "06b79754834960881e0172cbfbfa3caea501c670af97543d9d524643cbd79a81"
+    },
+    {
+      "path": "kufr/design-system/mockups/index.html",
+      "sha256": "6008ff5b5d3df2016cf274a18d590e2b7fd51965d3233c4b3d96c4b4b986b123"
+    },
+    {
+      "path": "kufr/design-system/mockups/mobile-home.html",
+      "sha256": "4ec2e35fd70c73092685061bcfc8e121fdd6c9db0dbfc38133a833e177b090f0"
+    },
+    {
+      "path": "kufr/design-system/mockups/preview.css",
+      "sha256": "0b6aa320d221053157b68e813bd70d897fc63b34085839ab275018da5f171ca8"
+    },
+    {
+      "path": "kufr/design-system/mockups/simulation-lab.html",
+      "sha256": "355b5faa7a963dbac81134bc9e40b4788c38de384952b7961125196a39b5e544"
+    },
+    {
+      "path": "kufr/design-system/mockups/workshop-mockup.css",
+      "sha256": "d2a6ace91edceb3fab1223e49bbc69041bfa9bf3d50ae04cba09c30fcb18cb5e"
+    },
+    {
+      "path": "kufr/design-system/package-lock.json",
+      "sha256": "bb49d956c6aa080d0d3ee3a00ea8feb79766012e49e4f2d87d59749fb2d9f582"
+    },
+    {
+      "path": "kufr/design-system/package.json",
+      "sha256": "1c647aae98471e81179f77fb0ccf5103d31c0bd8edc102eb5f73d0f18054bba1"
+    },
+    {
+      "path": "kufr/design-system/playground/index.html",
+      "sha256": "46b0feeac25e0ab9db057fcccc1fe1b3e4ee994a4bf3dafb200bd4ddfcdd609e"
+    },
+    {
+      "path": "kufr/design-system/playground/playground.css",
+      "sha256": "92c8036418469e2e119562c64befc94f8dac9488f3e19bca002e18019af9591a"
+    },
+    {
+      "path": "kufr/design-system/playground/playground.js",
+      "sha256": "75b6b610cf20271f847c76645f0de726a8f0ddf0e3a4182b679eb7f2255f596c"
+    },
+    {
+      "path": "kufr/design-system/tests/browser.cjs",
+      "sha256": "126e81b4fd46dc99efbd04f4ffb2492d401479928a45d94fe256a0193d342d3f"
+    },
+    {
+      "path": "kufr/design-system/tests/test_generate_design_tokens.py",
+      "sha256": "0d2933dccdfbdc0c7c6751f112e44de36f6df3fa196ef3e61faf7613a1c2fb88"
+    },
+    {
+      "path": "kufr/design-system/tests/ui.test.mjs",
+      "sha256": "d99ac1b5043b33862ff61163e0e7cc6118ac0ba37ef6b27aeb2f529e76d018dc"
+    },
+    {
+      "path": "kufr/design-system/tokens.d.mts",
+      "sha256": "9a34f9c1382f82c0792129da8fa1a59d117d877b6023132744c40b90a3d84dcf"
+    },
+    {
+      "path": "kufr/design-system/tokens.json",
+      "sha256": "421f1c9eba6baea253b0139d6ccd6cd4897674df88f1323ebc8015de11cb4151"
+    },
+    {
+      "path": "kufr/design-system/tokens.mjs",
+      "sha256": "525482068142f245e453410b45d68fd1a653f06719de4df6499193c24212a8b4"
+    },
+    {
+      "path": "kufr/design-system/tokens/layout.css",
+      "sha256": "677e39068e3fe8cb7c13bfe0d378cb44b6804e816c94679288e11321e35cbd8e"
+    },
+    {
+      "path": "kufr/design-system/tokens/motion.css",
+      "sha256": "e05278eb2debe3752491d48b572c666ed776b18889b31ecdcd72e66922c2ce32"
+    },
+    {
+      "path": "kufr/design-system/tokens/palette.css",
+      "sha256": "2e6dc91ab63dfae831701c7691ab0ac7a981e1b9dcf0667f2ba7c8a783e197a0"
+    },
+    {
+      "path": "kufr/design-system/tokens/typography.css",
+      "sha256": "0588237d094bfc268b7f46ef0cfa07f496049999d86c5ecb0bc23470d0631b8e"
+    },
+    {
+      "path": "kufr/design-system/ui.d.ts",
+      "sha256": "76a3b192368c8bb24b39c497468651f50b63dc49c436eb4a2aa9394dc65a6a04"
+    },
+    {
+      "path": "kufr/design-system/ui.js",
+      "sha256": "55d6a6587151fe48432a5989ea60f2a6c5995fefcbc5e70a481992808a10a6fc"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/index.html",
+      "sha256": "4dd8f9516b8deec44826aa804e73ed795a0740fb99a9ed2ea1e2bc066878f4cf"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/package-lock.json",
+      "sha256": "6cc0cc570d5dee7918d8b4a71042cfdd3ef6dc493fab878a24b03aea153b56e8"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/package.json",
+      "sha256": "419da43f650a83b0bdd139120ccae7e24e8009624650281e05f5944c74930311"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/src/features/dance/DancePanel.ts",
+      "sha256": "2f968bde0af23bc18a2ace90ca762ecd698658894fb38f18abb886c38a7094d7"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/src/features/debug/DebugJournal.ts",
+      "sha256": "c045b39c59f10baf42272311db076d1faa9bb67c96816620d8043c041d7fefa1"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/src/features/debug/DebugPanel.ts",
+      "sha256": "8c928097a9d12804657590f022e4c68dab039993a7c02af5f96996636534937b"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/src/features/debug/ServerLogs.ts",
+      "sha256": "02738c90075a29f862114094244083b999e512b851f36b117ceb3b83d9a348c1"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/src/features/device_connection/FakeDeviceConnection.ts",
+      "sha256": "c54a515f55c86f11425dc2fd9cdf8d3a3c2de35fdfdc44052923eef1e0428f29"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/src/features/device_connection/LocalConversationClient.ts",
+      "sha256": "675feff45d0f83dba13a801f0173c985cca0b7ba61baea04ef9bf1fdb32b409d"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/src/features/device_connection/LocalDanceClient.ts",
+      "sha256": "3630f981dcf95d46bd05b38225e47d4d6a3f69b758ab3a1f76d3221fb2dce18d"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/src/features/device_connection/LocalVoiceClient.ts",
+      "sha256": "3bf3e99d68df80a9447a37419d924ffa0b67a4db5264ed9518c4326b47da5609"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/src/features/device_connection/NativeControlSocket.ts",
+      "sha256": "6d01f7ae3b1a482c31124e627e06bc5629aea05edd48db491ce33c6c502e0b08"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/src/features/device_connection/NativeDeviceConnection.ts",
+      "sha256": "66203f9ba48c39eeccdf76d924bd96c911ac4606f64941064fd20df59b997eeb"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/src/features/device_connection/OperatorReadiness.ts",
+      "sha256": "0c2ff0d66d5f53abe70d374463c2ad149e998e4a9065e91590ad3893a5906cd8"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/src/features/device_connection/SimulatorDeviceConnection.ts",
+      "sha256": "b7612bb76f42ca9313057a168fe807e14fd6c0ef449d0937e00217ee9cbe2d3a"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/src/features/provisioning/ProvisioningClient.ts",
+      "sha256": "acac8563926993089594e5fe9b47c40db55215bbd3cbd8e0db445b8505c770af"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/src/features/provisioning/ProvisioningPanel.ts",
+      "sha256": "4e9bfbe1e1d24b7be49e2b05e87599a04476f47358db8342b1830ea6b5d0293b"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/src/features/voice_control/VoicePanel.ts",
+      "sha256": "0fd29c2cffdb31501ceecbdf8fd35dc26c395506cdfa316056fa272b716b587f"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/src/main.ts",
+      "sha256": "f54b2caa14b2d164957c933fcace83899bdcd16bae794c675e009274e42488f3"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/src/style.css",
+      "sha256": "700e3597bc2091f73df3856864db1cda663f3a86f8a6eedbf5876f7fb279634c"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/src/vite-env.d.ts",
+      "sha256": "65996936fbb042915f7b74a200fcdde7e410f32a669b1ab9597cfaa4b0faddb5"
+    },
+    {
+      "path": "kufr/mobilni-aplikace/tests/native-ui-harness.html",
+      "sha256": "392a5f4ab6d90ad7e2b7f4c77e7c22b4030c4d90bb8c16c508ad30b59c887ed3"
+    }
+  ]
+}

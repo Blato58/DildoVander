@@ -107,13 +107,14 @@ class Wire:
         self.result(request, 200, mime="application/x-ndjson")
         self.event({"type": "session", "streamId": self.stream_id, "audioFormat": "pcm16-mono-24000"})
         if opening:
-            self.event({"type": "started", "operationId": self.operation, "correlation": self.correlation})
+            self.event({"type": "started", "operationId": self.operation, "correlation": self.correlation,
+                "responseGeneration": 0})
         return actual
 
     def audio_complete(self, proposal=None):
-        self.event({"type": "audio", "delta": base64.b64encode(bytes(6)).decode()})
+        self.event({"type": "audio", "delta": base64.b64encode(bytes(6)).decode(), "responseGeneration": 0})
         decision = "propose" if proposal else "no_selection"
-        self.event({"type": "completed", "operationId": self.operation, "correlation": self.correlation,
+        self.event({"type": "completed", "operationId": self.operation, "correlation": self.correlation, "responseGeneration": 0,
             "result": {"reply": "Ahoj", "decision": decision, "reason": "", "proposal": proposal}, "costMicroUsd": 100})
         self.output("pcm")
         return self.output("drain")
@@ -153,7 +154,7 @@ class MediaTests(unittest.TestCase):
         self.assertTrue(self.wire.ack(drain)["commandResult"]["accepted"])
         played, body = self.wire.service("realtime-played")
         self.assertEqual(self.wire.snapshot["reported"]["audio"], "browser-playback-drained")
-        self.assertEqual(json.loads(body), {"operationId": self.wire.operation})
+        self.assertEqual(json.loads(body), {"operationId": self.wire.operation, "responseGeneration": 0})
         self.wire.result(played, 204)
         dialogue, _ = self.wire.output("dialogue")
         self.assertEqual(dialogue["text"], "Ahoj")
@@ -598,13 +599,14 @@ class MediaTests(unittest.TestCase):
         self.wire.event({"type": "audio", "delta": "AAAAAAAA"})
         self.wire.output("pcm")
         playback_id = str(uuid.uuid4())
-        self.wire.event({"type": "playback_checkpoint", "playbackId": playback_id, "pcmBytes": 6, "decisionRevision": 1})
+        self.wire.event({"type": "playback_checkpoint", "playbackId": playback_id, "pcmBytes": 6,
+            "decisionRevision": 1, "responseGeneration": 0})
         drain, _ = self.wire.output("drain")
         self.wire.ack(drain)
         request, body = self.wire.service("realtime-playback")
         self.assertEqual(json.loads(body), {"playbackId": playback_id, "pcmBytes": 6, "drained": True})
         self.wire.result(request, 204)
-        self.wire.event({"type": "audio_cancel", "responseGeneration": 1})
+        self.wire.event({"type": "audio_cancel", "responseGeneration": 1, "visualRevision": 3})
         cancelled, _ = self.wire.output("audio_cancel")
         self.assertNotEqual(cancelled["outputEpoch"], drain["outputEpoch"])
         self.assertEqual(self.wire.snapshot["reported"]["audio"], "browser-playback-cancelled")

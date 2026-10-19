@@ -71,23 +71,15 @@ internal static class VoiceProviderTests
 
     private static void CheckConfiguration()
     {
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection().Build();
-        using var fake = new VoiceProviderRunner(configuration, new Lifetime());
-        Require(!fake.Enabled, "voice is keyless fake by default");
-        configuration["Backend:Voice:Mode"] = "openai";
-        Reject<InvalidOperationException>(() => new VoiceProviderRunner(configuration, new Lifetime()));
-        configuration["OPENAI_API_KEY"] = "test-only";
-        using var defaultBudget = new VoiceProviderRunner(configuration, new Lifetime());
-        Require(defaultBudget.Enabled, "provider key uses the approved default 3 USD session cap");
-        foreach (var cap in new[] { "Session", "Daily", "Monthly" })
-        {
-            configuration[$"Backend:Usage:{cap}CapMicroUsd"] = "1000000";
-        }
-
-        using var real = new VoiceProviderRunner(configuration, new Lifetime());
-        Require(real.Enabled, "explicit audio mode requires key and a session cap");
-        configuration["Backend:Voice:Mode"] = "realtime";
-        Reject<InvalidOperationException>(() => new VoiceProviderRunner(configuration, new Lifetime()));
+        using var fixture = new VoiceProviderRunner((_, _) => Task.FromResult("fixture"),
+            (_, _) => Task.FromResult(DeviceWav()));
+        Require(fixture.Enabled, "delegate-only voice fixture is available");
+        fixture.SetEnabled(false);
+        Require(!fixture.Enabled, "voice fixture mode remains deterministic local state");
+        Require(typeof(VoiceProviderRunner).GetConstructors(System.Reflection.BindingFlags.Instance
+            | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)
+            .All(constructor => constructor.GetParameters().All(parameter => parameter.ParameterType != typeof(IConfiguration))),
+            "retired voice pipeline cannot construct providers from application configuration");
     }
 
     private static async Task CheckProviderContractsAsync()
@@ -97,23 +89,6 @@ internal static class VoiceProviderTests
         {
             calls++;
             Require(request.Headers.Authorization?.ToString() == "Bearer test-only", "key is in the header");
-            if (request.RequestUri!.AbsolutePath.EndsWith("/speech", StringComparison.Ordinal))
-            {
-                using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellation));
-                Require(body.RootElement.GetProperty("model").GetString() == OpenAiSpeechClient.Model,
-                    "speech uses the pinned model");
-                var expectedVoice = calls == 1 ? "marin" : "cedar";
-                var expectedSpeed = calls == 1 ? 1.0 : 1.15;
-                Require(body.RootElement.GetProperty("voice").GetString() == expectedVoice
-                    && body.RootElement.GetProperty("speed").GetDouble() == expectedSpeed
-                    && body.RootElement.GetProperty("response_format").GetString() == "pcm"
-                    && body.RootElement.GetProperty("input").GetString() == "Ahoj, kouzelníku!",
-                    "speech uses the chosen voice and exactly the validated text");
-                Require(body.RootElement.GetProperty("instructions").GetString()!.Contains("bez dlouhých umělých pauz"),
-                    "server owns brisk Czech speech instructions");
-                return Response(Tone(24_000, 800, 24_000), "application/octet-stream");
-            }
-
             var upload = await request.Content!.ReadAsStringAsync(cancellation);
             Require(request.Content.Headers.ContentType!.MediaType == "multipart/form-data"
                 && upload.Contains("name=model\r\n\r\ngpt-transcribe")
@@ -123,30 +98,13 @@ internal static class VoiceProviderTests
                 "provider receives WAV without identity or history");
             return Response(Encoding.UTF8.GetBytes("{\"text\":\"Jmenuju se Marek.\",\"languages\":[]}"), "application/json");
         }));
-        var output = await new OpenAiSpeechClient(http, "test-only").GenerateAsync("Ahoj, kouzelníku!", default);
-        Require(output.Length == 64_044, "actual PCM response is converted to device WAV");
-        output = await new OpenAiSpeechClient(http, "test-only").GenerateAsync(
-            "Ahoj, kouzelníku!", new SpeechOptions("cedar", 1.15), default);
-        Require(output.Length == 64_044, "selected voice and speed preserve the WAV contract");
         var text = await new OpenAiTranscriptionClient(http, "test-only")
             .TranscribeAsync(DeviceWav(), default);
-        Require(text == "Jmenuju se Marek." && calls == 3, "transcript is parsed without rewriting it");
+        Require(text == "Jmenuju se Marek." && calls == 1, "transcript is parsed without rewriting it");
     }
 
     private static async Task CheckRejectedProviderResponsesAsync()
     {
-        foreach (var response in new[]
-        {
-            Response(new byte[3], "audio/pcm"),
-            Response(new byte[PcmSpeechAudio.MaxProviderBytes + 2], "audio/pcm"),
-            Response(new byte[100], "audio/mpeg"),
-            new HttpResponseMessage(HttpStatusCode.TemporaryRedirect)
-        })
-        {
-            using var http = new HttpClient(new Handler((_, _) => Task.FromResult(response)));
-            await RejectAsync(() => new OpenAiSpeechClient(http, "test-only").GenerateAsync("Ahoj", default));
-        }
-
         foreach (var body in new[] { "{}", "{\"text\":\"\"}", "{\"text\":\"a\",\"text\":\"b\"}",
                      JsonSerializer.Serialize(new { text = new string('a', 1001) }), new string('x', 16_385) })
         {
@@ -165,10 +123,9 @@ internal static class VoiceProviderTests
             });
         })))
         {
-            await RejectAsync(() => new OpenAiSpeechClient(unavailableHttp, "test-only").GenerateAsync("Ahoj", default));
             await RejectAsync(() => new OpenAiTranscriptionClient(unavailableHttp, "test-only").TranscribeAsync(DeviceWav(), default));
         }
-        Require(unavailableCalls == 2, "SDK does not retry failed speech or transcription requests");
+        Require(unavailableCalls == 1, "SDK does not retry failed transcription requests");
 
         using var cancelled = new CancellationTokenSource();
         cancelled.Cancel();
@@ -177,8 +134,8 @@ internal static class VoiceProviderTests
             await Task.Delay(Timeout.InfiniteTimeSpan, token);
             return Response([], "audio/pcm");
         }));
-        await RejectAsync(() => new OpenAiSpeechClient(blockedHttp, "test-only")
-            .GenerateAsync("Ahoj", cancelled.Token));
+        await RejectAsync(() => new OpenAiTranscriptionClient(blockedHttp, "test-only")
+            .TranscribeAsync(DeviceWav(), cancelled.Token));
     }
 
     private static async Task CheckRuntimeAsync()
@@ -361,12 +318,9 @@ internal static class VoiceProviderTests
             "a provider ignoring its deadline cannot publish audio");
         speech.RequireReservation(accepted.OperationId!, VoiceProviderRunner.SpeechReservationMicroUsd);
 
-        using var http = new HttpClient(new Handler((_, _) => Task.FromResult(
-            Response(new byte[PcmSpeechAudio.MaxProviderBytes + 2], "audio/pcm"))));
         using var oversizedRunner = new VoiceProviderRunner(
             (_, _) => Task.FromResult("ahoj"),
-            (reply, cancellationToken) =>
-                new OpenAiSpeechClient(http, "test-only").GenerateAsync(reply, cancellationToken));
+            (_, _) => Task.FromResult(new byte[31 * 32_000 * 2 + 44]));
         using var oversized = new Fixture(directory, "oversized-tts", oversizedRunner);
         turn = oversized.Turn();
         oversized.Store.SubmitTurn("device-a", oversized.Id, Guid.NewGuid(), "turn"u8, turn);

@@ -248,29 +248,18 @@ a skutečné audio zůstávají samostatnou akceptací. Přesný rozsah a důkaz
 [stavu implementace](../docs/stav-implementace.md) a
 [BLE návodu](../../docs/ios-ble-provisioning.md).
 
-## Autonomní Live a playback checkpoint (D143)
+## Postava a přehrávání Live
 
-DV01 přidává do stávající Debug správy serveru zapnutí pro nové session,
-Reserved/Dry/Adult/Chaos, explicitní Blocked/Limited a reset anonymní pestrosti.
-Vyžaduje `ollivander-trunk` a backendový `AutonomousActor`; neaktivuje placený test.
-`audio_cancel` ve Swift Live transportu ruší jen playback/checkpoint callbacks a
-zachovává capture/session. [DV01 návod a mezera unsegmented audia](../docs/dv01.md)
-odděluje offline guards od Live/iPhone/physical akceptace. Named ani vizuální roast
-nejsou touto správou označované jako ověřené. Obyčejné vypnutí nemění živou personu;
-okamžité ukončení a nouzový Stop mají dosavadní samostatné ovládání.
+Debug správa zachovává DV01 Reserved/Dry/Adult/Chaos, Blocked/Limited a reset
+anonymní pestrosti pro nové rozhovory. Používá personalitu `ollivander-trunk`;
+není zde přepínač legacy/scripted enginu. [DV01 návod](../docs/dv01.md)
+odděluje deterministické kontroly od skutečné Live/iPhone/fyzické akceptace.
 
-Katalog a výběr personality dál načítá dosavadní Debug → Server. Novou
-autonomní větev aktivuje backendová konfigurace, nikoli nový seznam
-postav v telefonu. Swift Live transport přijme `playback_checkpoint`,
-ověří přesný počet PCM bajtů a potvrdí jej až po skutečném
-`dataPlayedBack` drain. Reader při tom dál běží a GPT-Live zachovává
-současný capture/playback s původním Apple voice processing. Starý
-klient bez checkpointu patří k legacy režimu. Nový nativní fixture
-obsahuje explicitní drain i ztracený ACK; jeho běh vyžaduje macOS.
-
-[D143 návod](../docs/autonomous-live-memory.md) rozlišuje konfiguraci,
-lokální testy a dosud neprovedený poslech/iPhone/HW. Tato změna sama
-nepublikuje novou IPA, nepřepíná server a nedokládá změřené AEC.
+`audio_cancel` ruší přehrávání a související checkpoint callbacks při zachování
+mikrofonu a session. `playback_checkpoint` se potvrzuje až po skutečném
+`dataPlayedBack` drain. Reader přitom pokračuje. Lokální/macOS test grafu
+neprokazuje fyzickou slyšitelnost ani změřené AEC. Tato změna sama nepublikuje
+novou IPA ani nepřepíná nasazení.
 
 ## Hlas kufru v Ovládání (D119)
 
@@ -300,152 +289,77 @@ ESP32 samo komunikuje s backendem; aplikace není cloudový prostředník a nem�
 
 Nativní adaptér vlastní TLS pin, oprávnění LAN a Keychain. E10.1 používá ručně zadané údaje z vnitřního QR; E10.2 přidává text/cancel/result a E10.3 Bonjour hledání i ruční změnu adresy. Audio navazuje po E9. UI nesmí přímo časovat motory ani přijímat AI text jako povel. Konkrétní slices a kontrakty jsou v kapitolách 3–5 plánu.
 
-## Debug D108/D109/D110/D112 a Realtime
+## Rozhovor v nativní aplikaci
 
-**Historické předání D162:** [Safari instalace](https://2.28.202.220/ios/) nabízela verzi 1.0,
-build **1000.0.20** ([podpis 9. 10. 2026](https://github.com/Blato58/DildoVander/actions/runs/37923948887),
-[publikace](https://github.com/Blato58/DildoVander/actions/runs/37924314161)).
-D161 přidává tlačítko Wi-Fi párování přes ověřené BLE a nativní Keychain;
-nativní harnessy prošly v podpisovém workflow. Odpovídající development
-OTA firmware je0.1.157. Majitel po publikaci potvrdil scan a párování;
-na stejné Wi-Fi v Ovládání selhává LAN spojení a opakuje připojování.
-Přesné instalované verze nejsou doložené; WSS a Keychain retention zůstávají otevřené.
-D158 přidává nativní bezpečný BLE provisioning/hotspot/fallback a OTA ovládání;
-GPT-Live a stávající hlas zůstávají zachované. Nativní testy, skutečný Xcode
-archive/export, Ad Hoc podpis a veřejná kontrola manifestu/IPA/SHA-256 prošly.
-D159 ověřilo skutečné BLE/PoP a domácí Wi-Fi/status backendu na iPhonu.
-Řízená aktualizace aplikace s Keychain retention, hotspot/failover, LAN
-párování/lifecycle a poslech zůstávají neověřené.
-První uložení credentialu po přechodu z RAM-only verze
-je potřeba zopakovat. Profil uložený od 1000.0.2 se dál načítá ze stejného
-Keychain; skutečnou aktualizaci a její zachování ověří registrovaný iPhone.
+Produkční nabídka má právě **GPT Live (`gpt-live-1`)**, hlavní zkušenost,
+a **GPT Realtime 2.1 (`gpt-realtime-2.1`)**, záměrnou alternativu. Volba se
+ukládá v `localStorage` pod `kufr.conversation.engine.v1`. Retained hodnoty
+`gpt-live` a `realtime` zůstávají zachované; staré `realtime-ptt` se výslovně
+převádí na `realtime` s oznámením. `chained`, neznámá nebo prázdná uložená
+hodnota vyžaduje novou volbu. Nedostupný engine se nikdy nenahrazuje druhým.
 
-Samostatný podpisový workflow čísluje nové IPA `1000.x.y` (vyšší než původní
-build 37); stejné Bundle ID a tým umožňují aktualizaci s uloženým profilem.
+V Diagnostice nastavte samostatný servisní backend profil a obnovte stav
+serveru. Credential zůstává v Keychain; webový režim ho nedostává. Server
+vrací `engines.schemaVersion=1`, model, místní připravenost konfigurace,
+dostupné hlasy, podporu tempa, zdroje kamer a vstupní režimy. UI blokuje
+neznámou verzi, chybějící konfiguraci i nepodporované nastavení. Místní
+připravenost nepotvrzuje vzdálený přístup účtu k modelu: ten ověří spojení.
+Při neúspěchu operátor dostane chybu a může obnovit stav nebo vědomě zvolit
+jiný engine. Live má pevné tempo 1×; Realtime nabízí podporovaný rozsah.
+Staré přepínače Sol/fake a STT/TTS už nejsou produkčními režimy.
 
-Sekce **Večery a paměť rozhovorů** načte pojmenované večery samostatné debug
-identity. **Založit a aktivovat nový večer** začne s prázdnou pamětí a zachová
-staré rozhovory. Vyberte uložený večer a stiskněte **Přepnout aktivní večer**
-pro návrat k jeho paměti. Seznam obsahuje jen názvy, datum a počty výměn.
-Přepínání je možné mezi rozhovory; při souběžné změně obnovte seznam.
-Platí nejvýše 100 večerů, název 1–80 Unicode znaků. Samotná správa nevolá AI.
+**Zahájit rozhovor s novým hostem** vytvoří nové sezení. **Ukončit rozhovor**
+je oddělené od **Stop kufru**, které vlastní fyzickou bezpečnost. UI zachovává
+generaci akcí a serializuje start, úklid i čtení stavu; pozdní odpověď starého
+hosta nepřepíše nového. Skutečný engine/model a souběžná aktivita vstupu,
+výstupu a nástrojů pocházejí z nativního stavu, nikoli z odhadu UI.
 
-**Zkušební rozhovor a výběr hůlky** drží samostatné virtuální sezení.
-Nastavte dostupné přihrádky (výchozí všech šest), hlas Cedar/Marin/Onyx/Coral
-a tempo, obnovte režimy serveru a spusťte AI nebo fake rozhovor. Odpovídejte
-ve výchozím **Realtime · bez tlačítek** prostě nahlas: mikrofon vyžaduje
-povolení iOS a během poslechu průběžně odesílá PCM16 mono 24 kHz backendu.
-Upload používá jedno síťové sezení pro celý rozhovor a přesné 200ms dávky;
-hardwarové mikrofonní bloky se průběžně skládají bez změny pořadí. Fronta
-zůstává omezená na 1 s. Kód `realtime_live_audio_overflow` označuje zaplnění
-této fronty, sám nedokazuje nestabilní připojení. Pozdní blok z předchozího
-poslechu se zahodí a neoznačí jako další odpověď. D137 navíc přiřazuje
-asynchronní overflow chybu k epoše vstupu: po zavření mikrofonu nebo novém
-poslechu stará notifikace nesmí ukončit závěr ani další rozhovor. Aktuální
-nezvládnutý backlog stále končí chybou; limit ani pořadí audia se nemění.
-Tato nativní ochrana vyžaduje novou IPA. Backendové dřívější zavření
-mikrofonu na závěru GPT-Live funguje i se stávající aplikací.
-Po 650 ms ticha odpoví kufr, během jeho řeči je vstup zavřený a po skutečném
-dohrání se automaticky otevře další poslech. Telefon začne přehrávat první
-bloky před dokončením odpovědi. Hands-free audio používá běžný režim iOS
-s výchozím výstupem do reproduktoru; telefonní režim `voiceChat` mohl výstup
-zeslabovat. Hlasitost nastavujte bočními tlačítky při přehrávání odpovědi.
-Spouští se jeden rozhovor, nejvýše 8 min/10
-tahů; Stop, pozadí, zamčení nebo audio přerušení ukončí mikrofon i provider.
-Bez přerušování právě mluvícího kufru. Vlastní přepnutí audio session při
-startu nepřerušuje rozhovor, pokud běžící engine, aktivní cesta a formát
-zůstávají stejné. To platí i pro oznámení nově dostupného zařízení při
-startu GPT-Live. Před otevřením AI streamu aplikace čeká na živé mikrofonní
-buffery a 300 ms stabilního běhu. Engine zastavený během počáteční
-konfigurace obnoví nejvýše třikrát do 3 s při nezměněné zvukové cestě.
-Po zahájení hovoru se zastavený engine automaticky neobnovuje.
-Odpojení zařízení nebo skutečná změna konfigurace hovor
-bezpečně ukončí. Debug rozlišuje kódy změny cesty, režimu, PCM formátu,
-zastaveného enginu, přerušení a resetu zvukové služby. Prázdný výstup při rozběhu převodníku není chyba.
-Problém včetně nákladového limitu má viditelnou hlášku a technický kód
-pro předání při diagnostice. **Realtime · tlačítka** a **Řetězený** umožňují text
-nebo nahrávání nejvýše 30 s do RAM. Fake STT vrací syntetický přepis;
-skutečná vlastní hlasová odpověď potřebuje OpenAI režim hlasu.
-Volba Řetězený zachovává původní Sol/fake tok; Realtime nepodporuje hlas
-Onyx. V Debug se ukazují zvlášť čas do prvního audia a celkový čas tahu. Celý přepis je přechodný a nepatří do logu. Backend může
-text zachovat v paměti testovacího večera; Ukončit a smazat rozhovor maže pouze
-přepis telefonu a ukončuje sezení, nikoli paměť večera na serveru.
+Fotka je volitelná, jen po souhlasu a potvrzení nativního náhledu. Je možné ji
+pořídit i během aktivního hlasu; fotoaparát má vlastní čekání a zrušení.
+Zrušení/selhání fotografie neukončuje rozhovor. Připravený snímek vyprší za
+dvě minuty a patří jednomu rozhovoru. V aktivním sezení se schválená fotka
+odesílá ihned; při selhání zůstane tlačítko pro opakování. Úspěch UI ukáže
+až po potvrzení `status=analysed`, image ID a revizi serveru. Změna enginu,
+ukončení nebo nový host zneplatní její aktivní kontext. Neodeslaný koncept
+se neukládá do galerie; odeslaná fotografie zůstává v soukromém serverovém
+archivu rozhovoru do výslovného ručního smazání. Vzhled je nejistá nápověda
+a neověřuje identitu. Zrušení kontextu a smazání archivu jsou odlišné operace.
 
-Po čtyřech otázkách fake `debug-server-admin` navrhne dostupnou hůlku;
-AI ji vybírá z odpovědí. Maska i návrh jsou simulované a nespouští pohon.
-Časy posledního tahu rozlišují dialog, TTS a stažení. WAV se přijímá po blocích,
-přehrává se před úklidem serverové audio operace. Skutečné TTS stále čeká na
-celý provider výstup. Výběr hlasu a tempo platí pro interaktivní rozhovor;
-původní úvodní test zachovává marin/1.0. Kvalitu, latenci a permission dialog
-musí potvrdit registrovaný iPhone; syntetický browser bridge je nenahrazuje.
+Vstupní PCM proudí jedním autentizovaným WebSocket spojením daného
+rozhovoru a streamu. Rámce zůstávají pořadově označené; 200ms rámec už
+nečeká na samostatné HTTP potvrzení před odesláním dalšího. Nativní vrstva
+vlastní zvukovou frontu, tlak na přenos, přerušení a úklid. Technický limit
+fronty není důkaz fyzické slyšitelnosti.
 
-Záložka **Debug** je dostupná vedle Ovládání. Ukazuje zdroj spojení, skutečnou
-fázi přijatého snapshotu, masku, revizi, eventSequence, boot ID, uptime vzorku,
-poslední zprávu a naměřené heartbeat RTT. Při odpojení telemetrie zmizí;
-web fake a hostitelský simulátor jsou označené. Pouhé zobrazení nepřebírá lease.
-Stop zůstává dostupný také v Debug. Log má nejvýše 200 událostí, filtr,
-pozastavení zobrazení (sběr pokračuje), smazání a JSON export; na iOS se otevře
-nativní sdílení textu JSON. Zaznamenává pouze stavové metadata a pevné kódy akcí,
-nikoli syrové rámce, rozhovory, credential, párovací tajemství ani audio.
-Není to sériový log firmware.
+**Identita a souhlas pro nového hosta** umožňuje vracejícímu se hostovi
+použít stejné stálé evidenční ID. ID rozlišuje velikost písmen a má přesně
+1–80 znaků ze sady `[A-Za-z0-9._-]`; mezery ani Unicode se nenormalizují
+a musí se opravit. Nejde o odhadnuté jméno. Obsluha výslovně ověří identitu; dlouhodobá osobní
+paměť a cloudový export mají oddělené souhlasy. Nativní vrstva sváže nově
+vytvořený rozhovor před prvním provider spojením. Chyba vazby zastaví start;
+nevznikne anonymní náhradní rozhovor. Pole se po startu nebo ukončení smažou,
+a další host proto nepřebírá identitu. Bez vyplněného ID začne anonymní host.
 
-Sekce **Server** (D109) používá stejný nativní profil se samostatným credential
-správce a ID `debug-server-admin`. **Obnovit stav serveru** čte autorizované
-`GET /v1/admin/modes`; volby Dialog Fake / AI Sol a Hlas Fake / AI STT-TTS
-se odešlou tlačítkem **Použít režimy serveru**. Změna platí pro celý backend
-do jeho restartu, kdy se obnoví konfigurace nasazení. Během rozhovoru je změna
-odmítnuta; zastavte/ukončete jeho vlastní sezení a znovu obnovte stav.
-Revize brání přepsání změny z jiného telefonu. Při ztrátě odpovědi se režim
-nepředpokládá a je nutné ho obnovit. Nedostupný provider nelze zapnout.
-Běžný device credential ani access token nesmí spravovat server. Samotné
-přepnutí nespouští AI a neovládá žádný pohon. Web nabízí pouze označený harness.
+Sekce **Paměť hosta** ukazuje aktuální/poslední ID rozhovoru a dovoluje
+načíst jiný konkrétní rozhovor pod stejným servisním profilem. Zobrazí
+nejvýše 50 oprávněných záznamů, jejich zdroj a revizi, skutečnou vazbu
+identity a stav místní/cloudové paměti. Nevydává lokálně nakonfigurovanou
+službu za vzdáleně ověřenou dostupnost. Před smazáním je nutné ukončit
+rozhovor, načíst aktuální revizi a zaškrtnout potvrzení pro tento rozhovor.
+Při změně revize je třeba čtení a potvrzení opakovat. UI rozlišuje potvrzené
+místní odstranění a dosud čekající cloudové odstranění; nemaže jiné osobní
+scope ani archiv památek. Text paměti se nezapisuje do technického logu.
 
-Hlasové testy fungují v nativní iOS aplikaci:
+Pro reproduktor zůstává samostatný český systémový test bez AI. Testovací
+simulované přihrádky ani návrh v Diagnostice nespouštějí pohon. Přechodný
+přepis telefonu se neukládá do technického logu. Ukončení sezení nemaže
+historii večera na serveru.
 
-1. **Test reproduktoru telefonu** použije český systémový hlas bez sítě.
-2. **Nastavit serverový / testovací přístup** otevře nativní secure dialog: HTTPS kořenová
-   adresa, předem registrované samostatné device ID `debug-*` a jeho backend
-   credential. Výchozí URL je `https://2.28.202.220/` a ID `debug-server-admin`.
-   Lokální WSS bearer se nikdy nepoužívá. D112 ukládá profil do samostatného
-   nesynchronizovaného Keychain přístupného při odemčení; stejná podpisová
-   identita ho zachová při aktualizaci. V nové verzi credential jednou uložte:
-   starší verze držela přístup jen v RAM. Dialog předvyplní poslední URL/ID;
-   prázdný credential zachová uložený jen pro stejný server a identitu.
-   **Zapomenout uložený přístup** smaže Debug profil, nikoli ESP párování.
-3. **Ověřit backend** vymění credential za access token a čte
-   `GET /v1/diagnostics`, bez volání AI. Starší nasazený backend bez D108 vrací
-   chybu; musí se nejprve aktualizovat. Nasazení a novou IPA D109 eviduje stav
-   implementace; podpis/publicace se automaticky nespouštějí každým push.
-4. **Test AI hlasu** se zpřístupní pouze pro `voiceMode=openai`. Použije stávající
-   sezení/opening/speech/poll/audio API, consent audio, readyMask 0 a výstup
-   `phone`. Backend zachovává svůj AI limit a trvalou paměť testovacího večera.
-   **Test fake audio toku** vyžaduje fake dialog i hlas a přehraje tiché WAV bez
-   volání provideru. Režimy se ověří před create i po něm, kdy už jsou pro
-   existující rozhovor neměnné. AI test může čerpat serverové limity.
-5. **Zastavit hlas**, pozadí, uzamčení nebo audio přerušení zruší práci a playback.
-   Opožděná odpověď nesmí začít hrát. Aplikace uklízí jen své získané sezení,
-   nesmaže večerní paměť ani nepřebere cizí aktivní sezení. Create a cleanup mají
-   jedno opakování se stejným klíčem; při nevyřešené ztrátě odpovědi/úklidu
-   může být další test odmítnut 409 až do expirace.
-
-Vstupní WAV je omezen na 30 s, PCM16 mono 32 kHz, standardní 44B hlavičku a žije pouze
-v RAM. HTTPS používá systémové PKI, nepovoluje redirect ani ATS výjimku.
-JavaScript spouští akce a čte jen režim/fázi; nečte credential ani audio.
-Tento test nepřehrává přes ESP32/I2S a neověřuje B1 ani nativní iPhone akceptaci.
-`bash scripts/test-native-debug.sh` na macOS ověřuje Keychain mezi procesy,
-bezpečné ponechání credentialu, režim, celý výběr/STT, večery a retry,
-korelaci, WAV, zrušení a cleanup bez placeného provideru. Syntetický HTTP
-adaptér doplňuje skutečný loopback test omezeného příjmu a redirect/cancel.
-Stejný harness ověřuje NDJSON Realtime parser s prvním PCM blokem před `completed`,
-chybnou korelací a limitem dekódovaného audio bloku.
-Hands-free loopback harness ověřuje úvod a dvě hlasové odpovědi v jednom
-streamu, obnovení vstupu, konec a cleanup. Záměrně pošle další `listening`
-před HTTP odpovědí `/played`. AVAudioEngine a skutečný mikrofon musí
-ověřit Xcode/iPhone; Foundation harness je nenahrazuje.
-Samostatný upload harness navíc zachytává 50ms bloky při zpožděných HTTP
-odpovědích, ověřuje skutečné 200ms PCM dávky/pořadí a opětovné použití
-jednoho TCP spojení. Pokrývá limit fronty, pozdní conversion po změně
-poslechu, odmítnutí redirectu a zrušení rozpracovaného požadavku.
+`tests/native-ui-harness.html` je výslovně označený syntetický bridge bez
+sítě, mikrofonu, kamery a kufru. Podporuje nedostupný engine pomocí
+`?engineUnavailable=gpt-live` nebo `realtime` a scénáře zrušení, zamítnutí,
+selhání a zpožděné fotografie. Browser a unit testy neprokazují iPhone,
+povolení kamery, skutečnou latenci ani fyzický výstup; ty vyžadují zařízení.
 
 ## Nativní připojení E10.1
 
@@ -645,15 +559,9 @@ se mezi rozhovory s existujícím admin přístupem; změna sama AI nevolá.
 Seznam, popis a kontrolní hash promptu dodává server. Starší backend
 vyžaduje aktualizaci; starší aplikace při změně režimů volbu zachová.
 
-**Zkušební rozhovor → Otestovat personalitu · AI / fake** ukazuje aktivní
-jméno a používá stávající hlasový tok. Změnu personality nejprve použijte
-v nastavení serveru. Fake test má pro nový kufr dvě otázky a pro původní
-čtyři; neověřuje humor ani nesyntetizuje skutečný hlas. AI používá stejný
-vybraný prompt v Solu, Realtime i GPT-Live a dosavadní technické meze.
-Softwarové peněžní limity byly v D157 zrušené; náklady řídí OpenAI účet.
-[Inventář, přesné zdroje a postup](../ai-eval/personalities.md).
-K použití na telefonu je nutná nová IPA a backend s D142; webový harness
-ani offline provider testy nejsou fyzický poslech.
+**Zkušební rozhovor → Zahájit rozhovor s novým hostem** používá právě vybraný
+Live nebo Realtime engine se stejnou aktivní personalitou. Tón, skutečnou
+latenci a poslech ověřuje samostatná zkouška na iPhonu. [Inventář zdrojů](../ai-eval/personalities.md).
 
 ## D146: historický doklad publikace
 
@@ -668,84 +576,6 @@ ověřila manifest, MIME a checksum stažené IPA přes HTTPS.
 Aktualizaci spusťte v Safari; instalace této verze a živý poslech ještě
 nejsou ověřené. Stávající Bundle ID zachovává identitu aplikace a Keychain.
 
-Tato verze umí D143 `playback_checkpoint`: potvrzuje přesný PCM drain
-po skutečných `dataPlayedBack` callbacks, idempotentně opakuje ztracený ACK
-a při poslechu i řeči zachovává full duplex. Nativní fixture je zelený;
-neprokazuje fyzickou slyšitelnost nebo změřené AEC na iPhonu. Backend po
-D145 stále používá `LegacyBackendScripted`; autonomní Live adaptace se
-zapíná serverovou konfigurací, nikoli samotnou instalací nové IPA.
-[Konfigurace a A/B postup](../docs/autonomous-live-memory.md).
-
-## D128: porovnání GPT-Live + Sol
-
-Debug nabízí vedle Realtime a řetězeného hlasu **GPT-Live + Sol**.
-Používá mikrofon a reproduktor telefonu s Apple voice processing; rychlost
-je 1×. Režim přepínej před zahájením nového rozhovoru. **Hlas kufru** má
-stejnou novou volbu a posílá `voice.configure mode:gpt-live` přímo do ESP.
-Nastavení kufru je do restartu; během probíhajícího hovoru ho nelze měnit.
-Aplikace ani server neomezují peněžní rozpočet sezení. Náklady, kredit a limity dostupnosti řídí OpenAI účet; technické meze audia a délky tahu zůstávají.
-Nová funkce vyžaduje nasazený D128 backend a novou aplikaci/firmware;
-webový build sám neověřuje nativní iPhone audio.
-[Postup a omezení testování](../docs/hlas-a-humor-research.md#d128-testovaci-gpt-live-rezim).
-
-### Zvuk při hands-free testu
-
-Debug při hovoru ukazuje výstup (reproduktor, telefonní sluchátko nebo
-externí zařízení), aktuální systémovou hlasitost a délku přijatého audia
-oproti bufferům potvrzeným přehrávačem. „Přehrávám“ samotné znamená příjem
-audia, nikoli ověřenou slyšitelnost. Hlasitost zvyšte bočním tlačítkem během
-hovoru; hlasový režim může mít jinou úroveň než běžná média. Při startupu
-aplikace převádí vestavěné sluchátko na reproduktor a respektuje externí
-výstup. Žádné audio se kvůli těmto údajům neukládá.
-
-D134 ověřuje před otevřením AI streamu také skutečný průchod tichého 200ms
-bufferu přehrávačem. Při startu/restartu obnoví výstupní spojení v aktuálním
-formátu a resetuje clock přehrávače. Vstup s běžícím enginem sám o sobě
-nestačí. Za hovoru ukončí frontu bez potvrzeného přehrávání po 2,5 s kódem
-`realtime_live_audio_output_stalled`; příchozí audio tento timeout neoddaluje.
-Test grafu používá macOS offline render, takže fyzický poslech na iOS je
-stále samostatná akceptace.
-
-
-### Volitelná fotka kostýmu
-
-Debug nabízí **Se souhlasem vyfotit kostým** před každým ze čtyř režimů.
-iOS požádá o fotoaparát teprve při této akci. Systémová kamera umožňuje
-náhled, opakování, Použít fotku a Zrušit. Schválená fotka se překreslí na
-nejvýše 640×640, převede na JPEG do 256 KiB a zbaví APP1–15/COM metadat.
-Zůstává v RAM; do webu přejde jen jednorázové UUID platné 120 sekund.
-Spotřebování, zrušení, Stop, pozadí nebo expirace ji odstraní. Fotka ani
-odhad vzhledu nepoužívají galerii, soubory, Keychain ani localStorage.
-
-Po vytvoření rozhovoru s explicitním `consent.image:true` se odešle JPEG
-na `/image`, vyčká na výsledek a případně předá ruční popis na `/costume-context`.
-Popis má přednost a funguje i bez fotky. Poté začne úvod/hlas. Chyba fotky
-ukáže varování. Nejprve se potvrdí úklid starého sezení (včetně rozpracovaného image
-provideru), pak vznikne nové sezení bez souhlasu k fotce a použije se případný
-ruční popis. Neúspěšný nebo nepotvrzený úklid nový hlas nespustí; upload se neopakuje.
-Klient si v RAM ponechá vlastněné ID i stejný idempotency klíč DELETE až do
-potvrzeného 204. Neúspěšný úklid zablokuje Start a ponechá Stop dostupný pro
-opakování, i když příprava ještě nevrátila objekt sezení. Po potvrzení úklidu
-se záznam s přístupovými údaji odstraní. Již potvrzený úklid se neposílá znovu.
-Odmítne-li server token při úklidu jako neplatný (401), klient obnoví device
-access a zopakuje stejné DELETE ID a klíč. Selhání obnovy zachová čekající
-úklid pro další Stop; úspěšně obnovený token zůstane v RAM do potvrzeného 204.
-Ztracené či neplatné potvrzení ručního popisu se jednou obnoví přes stejný
-klíč, payload a korelaci PUT. Opakovaný nejednoznačný výsledek zobrazí chybu,
-zablokuje tento začátek hlasu a uklidí vlastněné sezení; netvrdí, že popis
-nebyl uložen. Tato obnova neopakuje fotku ani provider práci.
-Stop během přípravy zruší práci a smaže právě vytvořené sezení, takže
-opožděný výsledek nespustí hlas. Odhad je nejistá nápověda s TTL 120 sekund,
-není identifikací osoby. Běžný přepis se dále uchovává v paměti večera;
-surová fotka ani strukturovaný odhad do ní nevstupují. Již použitá nápověda
-může zůstat ve stávajícím provider spojení do jeho uzavření.
-
-**Hlas kufru** má samostatný nezaškrtnutý souhlas k jedné fotce z kamery kufru,
-povolený jen pro `cameraAvailable:true`. Po každém Start a při pozadí se
-souhlas resetuje. Bez souhlasu se posílá původní `voice.start` bez dalšího pole.
-Foto fáze a varování se ukazují odděleně od hlasové chyby; selhání fotky
-nezastaví dialog. Vývojový web reálnou fotku nepořizuje. Syntetický nativní
-harness `tests/native-ui-harness.html` nabízí schválení/zrušení/permission/chybu/čekání.
-`./scripts/test-native-debug.sh` na macOS testuje HTTP pořadí a cleanup offline.
-Systémový náhled, práva kamery a nativní audio vyžadují podepsaný iPhone build
-přes přijaté workflow a fyzickou akceptaci.
+Původní provozní postupy D128/D145 se současného rozhovorového systému
+netýkají. Aktuální dva enginy, transport, kamera a operátorská paměť jsou
+popsané výše; historické provozní detaily zůstávají v historii Git.

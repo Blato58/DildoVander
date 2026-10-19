@@ -53,7 +53,7 @@ internal static class EveningMemoryTests
                     && legacy.Evenings.Single().DroppedCount == 3
                     && legacy.Evenings.Single().ExchangeCount == 1,
                     "legacy evening ID, content and dropped count migrate");
-                Check(memory.ReadContext("legacy-device", "return", "Legacy").Transcript.Contains("Legacy visitor"),
+                Check(memory.ReadContext("legacy-device", "legacy-conversation", "Legacy").Transcript.Contains("Legacy visitor"),
                     "legacy story remains readable");
                 Check(!memory.Append("legacy-device", legacyEveningId, "legacy-op", "duplicate", "x", "y"),
                     "legacy operation ID remains unique");
@@ -68,9 +68,9 @@ internal static class EveningMemoryTests
                         new string('x', 900), new string('y', 450));
                 }
 
-                var recalled = memory.ReadContext("device-a", "return", "Petr je zpatky.");
+                var recalled = memory.ReadContext("device-a", "petr-first", "Petr je zpatky.");
                 Check(recalled.Transcript.Contains("taxik", StringComparison.Ordinal),
-                    "matching old name survives beyond recent context window");
+                    "same conversation retains its older statement beyond recent context window");
                 Check(recalled.Transcript.Length <= EveningMemoryStore.MaxContextCharacters,
                     "context is bounded");
                 using var parsed = JsonDocument.Parse(recalled.Transcript);
@@ -82,7 +82,7 @@ internal static class EveningMemoryTests
             using (var journal = new OperationJournal(configuration, TimeProvider.System))
             {
                 var memory = new EveningMemoryStore(configuration, journal);
-                Check(memory.ReadContext("device-a", "return", "Petr").Transcript.Contains("taxik"),
+                Check(memory.ReadContext("device-a", "petr-first", "Petr").Transcript.Contains("taxik"),
                     "evening survives backend restart");
                 var first = memory.GetStatus("device-a");
                 Check(memory.Clear("device-a", first.EveningId), "clear expected evening");
@@ -102,8 +102,8 @@ internal static class EveningMemoryTests
                 }
 
                 var bounded = memory.GetStatus("device-a");
-                Check(bounded.ExchangeCount == EveningMemoryStore.MaxExchanges
-                    && bounded.DroppedExchangeCount == 1, "row cap drops only oldest exchange");
+                Check(bounded.ExchangeCount == EveningMemoryStore.MaxExchanges + 1
+                    && bounded.DroppedExchangeCount == 0, "archive survives the former row trimming threshold");
                 memory.Clear("device-a", bounded.EveningId);
                 var byteEvening = memory.GetStatus("device-a");
                 for (var index = 0; index < 450; index++)
@@ -113,8 +113,8 @@ internal static class EveningMemoryTests
                 }
 
                 var byteBounded = memory.GetStatus("device-a");
-                Check(byteBounded.ContentBytes <= EveningMemoryStore.MaxContentBytes
-                    && byteBounded.DroppedExchangeCount > 0, "UTF-8 byte cap is enforced");
+                Check(byteBounded.ContentBytes > EveningMemoryStore.MaxContentBytes
+                    && byteBounded.DroppedExchangeCount == 0, "archive survives the former UTF-8 byte trimming threshold");
                 memory.Clear("device-a", byteBounded.EveningId);
                 CheckProfiles(journal, memory);
                 CheckMutationRetention(directory, memory);
@@ -420,7 +420,7 @@ internal static class EveningMemoryTests
         var returning = store.SubmitTurn("device-a", conversation, Guid.NewGuid(), "returning"u8,
             Turn("Petr, uz jsem tu byl."));
         await CompletedAsync(store, runner, returning.OperationId!);
-        Check(calls[^1].Context.Contains("sousedum"), "next visitor session recalls earlier answers");
+        Check(!calls[^1].Context.Contains("sousedum"), "a claimed name does not expose another visitor session");
         var oldEvening = memory.GetStatus("device-a").EveningId;
         delayed = new(TaskCreationOptions.RunContinuationsAsynchronously);
         var pending = store.SubmitTurn("device-a", conversation, Guid.NewGuid(), "pending"u8, Turn("late secret"));

@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "GPT-OVERHAUL-local-v1",
+  "observedAtUtc": "2026-10-19T03:06:27.044328+00:00",
+  "kind": "unit",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "GPT-OVERHAUL",
+      "criterionId": "SOFTWARE",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "f7b25784ce3f8225ed460f048358c63de3a5eda2107a5bd79b2dc64e70c3581e",
+    "policyVersion": "two-engine-v1"
+  },
+  "method": "dotnet run backend-tests full default PASS; after final generation fixes dotnet build + --character + --conversation-engines + --autonomous-memory PASS. Mobile npm test95/95 + build PASS. Contracts npm test PASS. pio run PASS (418.59s, RAM121756/327680, flash1960917/6553600); targeted owner/output/service advertisement host tests PASS; actual55 outputmessages validated. Python diagnostics19 PASS; DV01 offline4 PASS; native socket fixture1 PASS with350ms ACK. Design integrity/diff/tracking checks PASS. Independent Sol6.1/high review findings fixed and rereviewed.",
+  "environment": "Windows PowerShell, .NET10/OpenAI SDK2.14.0, Node locked dependencies, ESP-IDF6.1/PlatformIO7.1.3. No inference/provider sessions.",
+  "limitations": [
+    "Synthetic fixtures and native wire peer do not prove Swift execution, AEC, camera or physical hardware.",
+    "macOS native harnesses/Simulator build pending PR CI.",
+    "Linux deployment unittest suite attempted on Windows:11 errors from missing os.getuid/private-mode semantics and1 short-vs-long temp-path mismatch; not a software success claim; Linux CI required.",
+    "Actual account metadata GET only: VPS configured credential returnedHTTP200 matching IDs for both models. No paid inference or provider/audio handshake.",
+    "No production mutation/deployment, signed IPA publication, installation, firmware flash, CAD regeneration or real-data migration/backup performed.",
+    "Full default suite preceded final narrow epoch/speed fixes; those exact changes were compiled and covered by final character/engine/memory suites."
+  ],
+  "observation": "Two production engines, canonical scoped local memory and manual archive retention; old real Responses/TTS/scripted/standalone PTT implementations removed. Regression fixtures cover returning guest past240 unrelated records, corrections, cloud-zero/timeouts/disabled, archive/restart/tombstones, earlyStop/no-delegation Personal continuity, queued Remember/Forget races, active image/late work/privacy and WS bounded ordered input. Browser synthetic desktop1280x720/mobile390x844 exercised two engines, unavailable-no-fallback, guest binding, memory inspection/deletion and optionalcamera cancellation/failure/retry/revocation without voice loss; final UI narrow overflow fixed.",
+  "artifactRefs": [
+    "docs/project/artifacts/GPT-OVERHAUL-source-v1.json"
+  ]
+}

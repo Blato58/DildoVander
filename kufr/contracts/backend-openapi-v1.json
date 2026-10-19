@@ -3,7 +3,7 @@
   "info": {
     "title": "Kufr device backend API",
     "version": "1.0.0-draft",
-    "description": "Device authentication, conversations, transcription, text turns, operation polling/cancellation, speech, audio and cleanup. This API returns data and never commands physical actuators. Sensitive responses use Cache-Control: no-store."
+    "description": "Device authentication and exactly two continuous production conversation engines: GPT-Live and Realtime 2.1. Conversation contract version 2 advertises versioned configured capabilities, ordered audio transport, private revisioned images and manual-only memory archives. Retired standalone/scripted entry points return an explicit 410 upgrade requirement. The backend returns validated data and never commands physical actuators. Sensitive responses use Cache-Control: no-store."
   },
   "servers": [{ "url": "https://localhost:7043", "description": "Local development only" }],
   "security": [{ "DeviceAccess": [] }],
@@ -38,8 +38,8 @@
     "/v1/conversations/{id}/image": {
       "post": {
         "operationId": "submitCostumeImage",
-        "summary": "One separately consented costume JPEG before dialogue",
-        "description": "Single JPEG at most 262144 bytes, baseline/progressive 8-bit, dimensions 1..640 each. No EXIF/GPS/other metadata or thumbnails. Re-encode after preview. One admission per conversation, before opening or a voice stream. An expired manual cue rejects a later first image with 409 costume_context_expired before charging; an already-pending photo cannot revive the expired manual cue. Requires consent.image. Upload timeout 60s; provider timeout 45s. Fake remains default. The provider gets input_image detail low; no face identity, age, gender, embeddings or actuator decision. Idempotent operation polling; ambiguous paid calls are never repeated. Owned photo buffers erased; no-store. RAM result and local prompt lookup expire after 120s; already-started provider context may retain the cue until conversation closes. Optional failure leaves dialogue usable.",
+        "summary": "Attach an explicitly consented revisioned JPEG to the current conversation",
+        "description": "JPEG at most 262144 bytes, decoded dimensions 1..640, stripped of EXIF/GPS/thumbnails. Existing correlation headers bind the current device, boot, conversation, generation and catalog. Image-Id, Image-Source, Captured-At and Image-Revision identify the attachment; a higher explicit revision permits retake/replacement during an active session. Image-Consent:true permits consent granted after voice starts. Missing revision is bounded older-client attachment compatibility; it does not restore any retired conversational engine. Duplicate idempotency keys never repeat analysis. Late analyses publish only if conversation and visual revision are still current. Vision failure leaves voice usable; analysis has its own bounded slot. Active metadata is conversation-scoped; archival JPEG/description remain private and manual-only until explicitly deleted. Phone/browser and suitcase sources remain distinguishable; this route does not prove camera hardware availability or authorize appearance roast.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ConversationId"
@@ -91,6 +91,57 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 128
+            }
+          },
+          {
+            "name": "Image-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Image-Source",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "enum": [
+                "phone",
+                "browser",
+                "suitcase"
+              ]
+            }
+          },
+          {
+            "name": "Captured-At",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "Image-Revision",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "Image-Consent",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
             }
           }
         ],
@@ -145,13 +196,144 @@
             "$ref": "#/components/responses/Problem"
           }
         }
+      },
+      "delete": {
+        "operationId": "discardConversationImageRevision",
+        "summary": "Revoke or supersede the active visual revision while preserving voice and archive",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConversationId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "name": "Client-Turn-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Boot-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Generation",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "Device-Revision",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "Catalog-Version",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "Image-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Image-Source",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "enum": [
+                "phone",
+                "browser",
+                "suitcase"
+              ]
+            }
+          },
+          {
+            "name": "Captured-At",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "Image-Revision",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000
+            }
+          },
+          {
+            "name": "Image-Consent",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Active cue revoked; stale revocation cannot clear a replacement. Retained engines receive the effective empty/replaced visual context. Previously consumed material cannot be unsaid. This does not delete archived content or require voice shutdown."
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "description": " Revocation invalidates provider visual context and pending spoken output, emits audio_cancel with a monotonically increasing responseGeneration, and keeps the application voice session open. Clients flush queued PCM and reject older generations; archived media remains until explicit manual deletion."
       }
     },
     "/v1/conversations/{id}/costume-context": {
       "put": {
         "operationId": "correctCostumeContext",
-        "summary": "Optional manual costume correction before dialogue",
-        "description": "No paid call. Explicit text needs no image consent. Maximum 240 characters, no control characters; empty text discards the active cue and returns an empty manual context-shaped receipt. The receipt is not added to prompts. Clearing cancels any image poll result; an in-flight provider still settles usage and cleans up without publishing. A later first image is rejected with 409 costume_context_discarded until a nonempty correction. Manual correction takes precedence over a pending or later photo. Before opening or voice start; use a new idempotency key for a changed correction. At most eight corrections per conversation protect RAM. RAM-only structured context and operation result; local lookup expires after 120s. Regular voluntarily spoken/text dialogue memory remains unchanged.",
+        "summary": "Correct or discard the current conversation visual cue",
+        "description": "No provider call. Explicit description is at most 240 characters without control characters; empty text clears the active cue and returns an empty manual receipt. A correction may occur during voice and increments the visual revision. Manual correction wins over pending analyses; late photo work cannot restore a cleared cue. At most eight corrections per conversation. This active cue is conversation-scoped, not a global personality setting. Existing archive content is manual-only; explicit scoped deletion is separate.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ConversationId"
@@ -405,11 +587,11 @@
     "/v1/admin/modes": {
       "get": {
         "operationId": "readServerModes",
-        "summary": "Read global modes, personality inventory and provider availability without provider calls",
+        "summary": "Read versioned retained engines, persona settings and configured readiness without provider calls",
         "security": [{ "ServerAdmin": [] }],
         "responses": {
           "200": {
-            "description": "Confirmed state; modes last until restart; personality selection persists in SQLite",
+            "description": "Confirmed persona settings and configured engine capabilities; persona selection persists in SQLite. Configured readiness does not prove provider model access.",
             "headers": { "Cache-Control": { "schema": { "type": "string", "const": "no-store" } } },
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ServerModes" } } }
           },
@@ -418,7 +600,7 @@
       },
       "put": {
         "operationId": "changeServerModes",
-        "summary": "Change modes and optional personality using an observed revision when idle",
+        "summary": "Change persona settings using an observed revision; no engine selectors",
         "security": [{ "ServerAdmin": [] }],
         "requestBody": {
           "required": true,
@@ -432,80 +614,35 @@
           },
           "400": { "$ref": "#/components/responses/Problem" },
           "401": { "$ref": "#/components/responses/Problem" },
-          "409": { "$ref": "#/components/responses/Problem", "description": "mode_revision_mismatch, conversations_active or provider_unavailable; refresh before another change" }
-        }
+          "409": {
+            "$ref": "#/components/responses/Problem",
+            "description": "mode_revision_mismatch, conversations_active or character policy conflict; refresh before another change."
+          },
+          "410": {
+            "description": "Legacy mode selectors require a client upgrade.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineUpgradeProblem"
+                }
+              }
+            }
+          }
+        },
+        "description": "Omitted settings retain their values. Persona selection persists in SQLite. A legacy non-null dialogMode or voiceMode is rejected with 410 conversation_engine_upgrade_required; these fields are absent from the current request contract. Changing persona requires an idle conversation boundary; engine choice is made through the retained session route."
       }
     },
     "/v1/diagnostics": {
       "get": {
         "operationId": "getBackendDiagnostics",
-        "summary": "Read configured provider modes without invoking AI",
+        "summary": "Read conversation contract version 2 and engine configuration without inference",
         "responses": {
           "200": {
             "description": "Authenticated metadata only; no secrets or conversation content",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "voiceMode",
-                    "dialogMode",
-                    "catalogVersion",
-                    "audioFormat"
-                  ],
-                  "properties": {
-                    "voiceMode": {
-                      "enum": [
-                        "fake",
-                        "openai"
-                      ]
-                    },
-                    "dialogMode": {
-                      "enum": [
-                        "fake",
-                        "responses"
-                      ]
-                    },
-                    "catalogVersion": {
-                      "type": "string"
-                    },
-                    "audioFormat": {
-                      "const": "pcm16-mono-32000-wav"
-                    },
-                    "liveActorMode": {
-                      "enum": [
-                        "LegacyBackendScripted",
-                        "AutonomousActor"
-                      ]
-                    },
-                    "liveDecisionModel": {
-                      "enum": ["gpt-6.1-sol", "gpt-6-luna"]
-                    },
-                    "liveTerminalQuietMs": {
-                      "type": "integer",
-                      "minimum": 500,
-                      "maximum": 10000
-                    },
-                    "memoryEnabled": {
-                      "type": "boolean"
-                    },
-                    "cloudIndexingEnabled": {
-                      "type": "boolean"
-                    },
-                    "longTermPersonalEnabled": {
-                      "type": "boolean"
-                    },
-                    "personalityId": {
-                      "enum": [
-                        "party-original",
-                        "ollivander-trunk"
-                      ]
-                    },
-                    "memoryProvider": {
-                      "$ref": "#/components/schemas/MemoryProviderStatus"
-                    }
-                  }
+                  "$ref": "#/components/schemas/BackendDiagnostics"
                 }
               }
             }
@@ -557,121 +694,105 @@
     "/v1/conversations/{id}/turns": {
       "post": {
         "operationId": "submitTextTurn",
-        "summary": "Submit one text turn for asynchronous processing",
+        "summary": "Retired conversation entry; client upgrade required",
         "parameters": [
-          { "$ref": "#/components/parameters/ConversationId" },
-          { "$ref": "#/components/parameters/IdempotencyKey" }
+          {
+            "$ref": "#/components/parameters/ConversationId"
+          }
         ],
-        "requestBody": {
-          "required": true,
-          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TextTurn" } } }
-        },
         "responses": {
-          "202": {
-            "description": "Existing or newly accepted operation; the same idempotency key and body return the same operation",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OperationAccepted" } } }
-          },
-          "400": { "$ref": "#/components/responses/Problem" },
-          "401": { "$ref": "#/components/responses/Problem" },
-          "403": { "$ref": "#/components/responses/Problem" },
-          "409": { "$ref": "#/components/responses/Problem" },
-          "413": { "$ref": "#/components/responses/Problem" },
-          "429": { "$ref": "#/components/responses/Problem" },
-          "502": { "$ref": "#/components/responses/Problem" },
-          "503": { "$ref": "#/components/responses/Problem" },
-          "504": { "$ref": "#/components/responses/Problem" }
-        }
+          "410": {
+            "description": "Explicit client upgrade requirement; no inference or physical input is admitted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineUpgradeProblem"
+                }
+              }
+            }
+          }
+        },
+        "description": "This endpoint always returns 410 conversation_engine_upgrade_required before authentication, body parsing, provider work or conversation creation. Upgrade to one continuous /gpt-live or /realtime-live session. No retired conversational engine is used as a compatibility shim.",
+        "deprecated": true,
+        "security": []
       }
     },
     "/v1/conversations/{id}/transcriptions": {
       "post": {
         "operationId": "submitTranscription",
-        "summary": "Submit one PCM16 mono 32 kHz WAV recording for transcription",
-        "description": "At most 30 seconds and 1.92 MiB of samples plus a small WAV header; upload is streamed without base64. The operation is tied to the current device, conversation and generation.",
+        "summary": "Retired conversation entry; client upgrade required",
+        "description": "This endpoint always returns 410 conversation_engine_upgrade_required before authentication, body parsing, provider work or conversation creation. Upgrade to one continuous /gpt-live or /realtime-live session. No retired conversational engine is used as a compatibility shim.",
         "parameters": [
-          { "$ref": "#/components/parameters/ConversationId" },
-          { "$ref": "#/components/parameters/IdempotencyKey" }
+          {
+            "$ref": "#/components/parameters/ConversationId"
+          }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": { "$ref": "#/components/schemas/TranscriptionUpload" },
-              "encoding": { "wav": { "contentType": "audio/wav" } }
+        "responses": {
+          "410": {
+            "description": "Explicit client upgrade requirement; no inference or physical input is admitted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineUpgradeProblem"
+                }
+              }
             }
           }
         },
-        "responses": {
-          "202": { "$ref": "#/components/responses/AcceptedOperation" },
-          "400": { "$ref": "#/components/responses/Problem" },
-          "401": { "$ref": "#/components/responses/Problem" },
-          "403": { "$ref": "#/components/responses/Problem" },
-          "409": { "$ref": "#/components/responses/Problem" },
-          "413": { "$ref": "#/components/responses/Problem" },
-          "429": { "$ref": "#/components/responses/Problem" },
-          "502": { "$ref": "#/components/responses/Problem" },
-          "503": { "$ref": "#/components/responses/Problem" },
-          "504": { "$ref": "#/components/responses/Problem" }
-        }
+        "deprecated": true,
+        "security": []
       }
     },
     "/v1/conversations/{id}/realtime-turns": {
       "post": {
         "operationId": "streamRealtimeTurn",
-        "summary": "Stream a bounded PTT voice turn through the authenticated backend",
-        "description": "Requires responses/openai modes and audio consent. JSON body up to 2600000 bytes; input WAV is PCM16 mono 32 kHz, 100 ms to 30 s. The provider receives resampled 24 kHz PCM. NDJSON starts with started, then audio/visitor events, then exactly one completed/failed event. Each line is below 64 KiB; output PCM is at most 1440000 bytes. No replay of paid sound; retry returns 409. Audio is provisional; only completed carries an accepted proposal. Stop, disconnect or the 45 s deadline cancels generation.",
+        "summary": "Retired conversation entry; client upgrade required",
+        "description": "This endpoint always returns 410 conversation_engine_upgrade_required before authentication, body parsing, provider work or conversation creation. Upgrade to one continuous /gpt-live or /realtime-live session. No retired conversational engine is used as a compatibility shim.",
         "parameters": [
-          { "$ref": "#/components/parameters/ConversationId" },
-          { "$ref": "#/components/parameters/IdempotencyKey" }
+          {
+            "$ref": "#/components/parameters/ConversationId"
+          }
         ],
-        "requestBody": {
-          "required": true,
-          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RealtimeTurn" } } }
-        },
         "responses": {
-          "200": {
-            "description": "Newline-delimited JSON events; each event conforms to RealtimeEvent",
-            "headers": {
-              "Cache-Control": { "schema": { "type": "string", "const": "no-store" } },
-              "X-Accel-Buffering": { "schema": { "type": "string", "const": "no" } }
-            },
-            "content": { "application/x-ndjson": { "schema": { "$ref": "#/components/schemas/RealtimeEvent" } } }
-          },
-          "400": { "$ref": "#/components/responses/Problem" },
-          "401": { "$ref": "#/components/responses/Problem" },
-          "403": { "$ref": "#/components/responses/Problem" },
-          "404": { "$ref": "#/components/responses/Problem" },
-          "409": { "$ref": "#/components/responses/Problem", "description": "Includes realtime_unavailable and realtime_stream_not_replayable" },
-          "413": { "$ref": "#/components/responses/Problem" },
-          "429": { "$ref": "#/components/responses/Problem" },
-          "503": { "$ref": "#/components/responses/Problem" }
-        }
+          "410": {
+            "description": "Explicit client upgrade requirement; no inference or physical input is admitted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineUpgradeProblem"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true,
+        "security": []
       }
     },
     "/v1/conversations/{id}/speech": {
       "post": {
         "operationId": "submitSpeech",
-        "summary": "Synthesize the server-validated reply from an existing turn",
-        "description": "Client text is never accepted by this operation. Only one output target plays at a time.",
+        "summary": "Retired conversation entry; client upgrade required",
+        "description": "This endpoint always returns 410 conversation_engine_upgrade_required before authentication, body parsing, provider work or conversation creation. Upgrade to one continuous /gpt-live or /realtime-live session. No retired conversational engine is used as a compatibility shim.",
         "parameters": [
-          { "$ref": "#/components/parameters/ConversationId" },
-          { "$ref": "#/components/parameters/IdempotencyKey" }
+          {
+            "$ref": "#/components/parameters/ConversationId"
+          }
         ],
-        "requestBody": {
-          "required": true,
-          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SpeechRequest" } } }
-        },
         "responses": {
-          "202": { "$ref": "#/components/responses/AcceptedOperation" },
-          "400": { "$ref": "#/components/responses/Problem" },
-          "401": { "$ref": "#/components/responses/Problem" },
-          "403": { "$ref": "#/components/responses/Problem" },
-          "409": { "$ref": "#/components/responses/Problem" },
-          "429": { "$ref": "#/components/responses/Problem" },
-          "502": { "$ref": "#/components/responses/Problem" },
-          "503": { "$ref": "#/components/responses/Problem" },
-          "504": { "$ref": "#/components/responses/Problem" }
-        }
+          "410": {
+            "description": "Explicit client upgrade requirement; no inference or physical input is admitted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineUpgradeProblem"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true,
+        "security": []
       }
     },
     "/v1/operations/{id}": {
@@ -726,7 +847,9 @@
           "403": { "$ref": "#/components/responses/Problem" },
           "404": { "$ref": "#/components/responses/Problem" },
           "410": { "$ref": "#/components/responses/Problem" }
-        }
+        },
+        "deprecated": true,
+        "description": "Read compatibility for an already-existing short-lived historical audio artifact. Retired speech endpoints cannot generate new standalone audio. Active engine output belongs to its continuous session."
       }
     },
     "/v1/conversations/{id}": {
@@ -750,64 +873,27 @@
     "/v1/conversations/{id}/opening": {
       "post": {
         "operationId": "startSuitcaseDialogue",
-        "summary": "Suitcase speaks first without a visitor message; only before the first turn",
+        "summary": "Retired conversation entry; client upgrade required",
         "parameters": [
           {
             "$ref": "#/components/parameters/ConversationId"
-          },
-          {
-            "$ref": "#/components/parameters/IdempotencyKey"
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/OpeningTurn"
+        "responses": {
+          "410": {
+            "description": "Explicit client upgrade requirement; no inference or physical input is admitted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineUpgradeProblem"
+                }
               }
             }
           }
         },
-        "responses": {
-          "202": {
-            "description": "Existing or newly accepted operation; the same idempotency key and body return the same operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OperationAccepted"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "403": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "409": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "413": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "429": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "502": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "503": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "504": {
-            "$ref": "#/components/responses/Problem"
-          }
-        }
+        "description": "This endpoint always returns 410 conversation_engine_upgrade_required before authentication, body parsing, provider work or conversation creation. Upgrade to one continuous /gpt-live or /realtime-live session. No retired conversational engine is used as a compatibility shim.",
+        "deprecated": true,
+        "security": []
       }
     },
     "/v1/evening-memory": {
@@ -910,7 +996,7 @@
       "post": {
         "operationId": "streamGptLiveConversation",
         "summary": "GPT-Live + Sol continuous voice test",
-        "description": "Fresh session with gpt-live-1 client delegation to the existing Sol backend. Reserve 3 USD for the entire session before connecting; maximum 180 seconds. speed must be 1. Continuous input uses one inputId and sequence for the entire session, including while output plays. Events: session, started, listening, audio/visitor/pause/heartbeat, speech_stopped, completed, closed. pause is output PCM segmentation, not provider audio-done. completed follows validated final backend selection and session.closed with final cumulative duration usage. Caller confirms playback before closed. Stop/disconnect cancels all work. No replay; uncertain final usage retains reservation. Opt-in AutonomousActor creates ordinary voice replies natively; only delegated factual decisions use Sol. playback_checkpoint requires /playback after actual local drain before session.close and publication of a validated proposal. Context acceptance is not playback. /played remains the terminal stream acknowledgement. /availability invalidates a changed device snapshot. The backend actor mode is separate from personality; both are frozen at conversation creation. Default LegacyBackendScripted stays compatible.",
+        "description": "Continuous primary gpt-live-1 autonomous session with delegated application decisions through the configured Sol/Luna decision service. Maximum 180 seconds; speed must be 1. Provider credential readiness is independent of retired dialog/voice flags. Persona, current guest binding, history and source-fenced memory are shared application state. Incremental timed transcripts survive interruption; Stop/deletion/rebinding fence obsolete tasks. Input is continuous audio including overlap with output. Use authenticated WebSocket audio-stream for phone input; bounded /audio remains the ordered firmware transport for this same engine. pause cancels obsolete audible output. playback_checkpoint requires /playback after actual local drain; /played acknowledges terminal output. /availability invalidates stale physical snapshots. No replay or direct actuation. Usage reservations are audit accounting, never local monetary caps. Old scripted actor configuration requires migration; no scripted production engine remains.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ConversationId"
@@ -1052,7 +1138,7 @@
       "post": {
         "operationId": "acknowledgeGptLivePlayback",
         "summary": "Acknowledge actual completion of native audio playback",
-        "description": "A body of at most 512 bytes identifies the exact completed operation. Duplicate acknowledgements are harmless. The next listening event can arrive before this HTTP response, so clients must reset their input state before sending.",
+        "description": "A body of at most 512 bytes identifies the exact completed operation. Duplicate acknowledgements are harmless. The next listening event can arrive before this HTTP response, so clients must reset their input state before sending. Include responseGeneration from the audio/cancellation stream; after audio_cancel a prior generation cannot complete a newer response using the same operationId.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ConversationId"
@@ -1097,7 +1183,7 @@
       "post": {
         "operationId": "streamRealtimeConversation",
         "summary": "Stream a bounded hands-free conversation with automatic voice activity detection",
-        "description": "A fresh conversation and opening=true are required. JSON start is at most 4096 bytes. One provider connection stays open for at most 8 minutes and 10 turns, with a 45 second turn deadline. The server reserves each turn before accepting input; VAD uses 650 ms silence without automatic provider responses. NDJSON session carries streamId; listening carries a new inputId. Upload ordered PCM16 mono 24 kHz to audio. speech_stopped closes input, started/audio/visitor/completed follow. After playback, acknowledge the exact operationId at played within 35 seconds; only then is the next turn reserved. Audio is provisional and completed carries the validated result and conservative cost. Heartbeats occur every 10 seconds. DELETE conversation, stream disconnect or background cancels all work. No paid stream/audio replay, no direct actuation. PTT clients keep realtime-turns.",
+        "description": "Continuous gpt-realtime-2.1 session using the official SDK and the same application persona, guest identity, durable history, image context and validated physical-selection boundary. Fresh conversation/opening=true start; at most 4096 start bytes. Each listening event carries its inputId; ordered audio-stream frames or firmware /audio chunks bind to that input. Visitor transcript, audio, pause, completed and heartbeat events are application events. /played acknowledges the exact completed operation before the next turn. Stop, expired auth, disconnect or context deletion cancels obsolete work. No input/audio replay after unknown outcome. Retired realtime-turns is HTTP410, never a production text/PTT adapter.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ConversationId"
@@ -1239,7 +1325,7 @@
       "post": {
         "operationId": "acknowledgeRealtimePlayback",
         "summary": "Acknowledge actual completion of native audio playback",
-        "description": "A body of at most 512 bytes identifies the exact completed operation. Duplicate acknowledgements are harmless. The next listening event can arrive before this HTTP response, so clients must reset their input state before sending.",
+        "description": "A body of at most 512 bytes identifies the exact completed operation. Duplicate acknowledgements are harmless. The next listening event can arrive before this HTTP response, so clients must reset their input state before sending. Include responseGeneration from the audio/cancellation stream; after audio_cancel a prior generation cannot complete a newer response using the same operationId.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ConversationId"
@@ -1394,7 +1480,8 @@
           {
             "ServerAdmin": []
           }
-        ]
+        ],
+        "description": "Read capacity, indexing backlog and provider configuration only; no guest content, source text or image bytes. Archives survive retention horizons and provider/index switching until explicit deletion. Namespace separates development/production index data."
       }
     },
     "/v1/admin/memory/verify": {
@@ -1474,7 +1561,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Explicit administrator binding of a verified returning guest and independent long-term-use/cloud-export permissions. New identity is bound before speech; revocation may end active context immediately. Changing permissions preserves archive content and invalidates obsolete provider access. No name or voice similarity silently binds identity."
       }
     },
     "/v1/admin/memory/records/{id}": {
@@ -1579,6 +1667,248 @@
           }
         }
       }
+    },
+    "/v1/admin/conversations/{id}/media": {
+      "delete": {
+        "operationId": "deleteConversationMedia",
+        "summary": "Explicitly delete private archived media and invalidate active visual context",
+        "security": [
+          {
+            "ServerAdmin": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConversationId"
+          },
+          {
+            "name": "deviceId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Private content removed with deletion tombstones; late completion/upload cannot restore it."
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/v1/conversations/{id}/gpt-live/{streamId}/audio-stream": {
+      "get": {
+        "operationId": "streamGptLiveInputAudio",
+        "summary": "Open one authenticated ordered input WebSocket for this engine session",
+        "description": "Bearer device access stays in the Authorization header, never the URL. One attached WebSocket per session. Text frames at most 14000 bytes contain inputId, nonnegative sequence and base64 audio. PCM16 mono24kHz payload is 2..9600 bytes and even-sized; base64 at most12800 characters. Ack binds inputId and sequence. Auth is rechecked for each frame. A duplicate/out-of-order input, expired auth or unknown send outcome ends bounded recovery; audio is never replayed. This transport does not create another conversational engine.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConversationId"
+          },
+          {
+            "$ref": "#/components/parameters/RealtimeStreamId"
+          }
+        ],
+        "responses": {
+          "101": {
+            "description": "WebSocket upgrade; frames follow AudioStreamFrame and AudioStreamAck schemas."
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-input-schema": {
+          "$ref": "#/components/schemas/AudioStreamFrame"
+        },
+        "x-ack-schema": {
+          "$ref": "#/components/schemas/AudioStreamAck"
+        }
+      }
+    },
+    "/v1/conversations/{id}/realtime-live/{streamId}/audio-stream": {
+      "get": {
+        "operationId": "streamRealtimeInputAudio",
+        "summary": "Open one authenticated ordered input WebSocket for this engine session",
+        "description": "Bearer device access stays in the Authorization header, never the URL. One attached WebSocket per session. Text frames at most 14000 bytes contain inputId, nonnegative sequence and base64 audio. PCM16 mono24kHz payload is 2..9600 bytes and even-sized; base64 at most12800 characters. Ack binds inputId and sequence. Auth is rechecked for each frame. A duplicate/out-of-order input, expired auth or unknown send outcome ends bounded recovery; audio is never replayed. This transport does not create another conversational engine.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConversationId"
+          },
+          {
+            "$ref": "#/components/parameters/RealtimeStreamId"
+          }
+        ],
+        "responses": {
+          "101": {
+            "description": "WebSocket upgrade; frames follow AudioStreamFrame and AudioStreamAck schemas."
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-input-schema": {
+          "$ref": "#/components/schemas/AudioStreamFrame"
+        },
+        "x-ack-schema": {
+          "$ref": "#/components/schemas/AudioStreamAck"
+        }
+      }
+    },
+    "/v1/admin/memory/context": {
+      "get": {
+        "operationId": "readPrivateConversationMemoryContext",
+        "summary": "Inspect explicit identity binding and permitted source records for one conversation",
+        "description": "Administrator only; never a guest/public retrieval route. Bounded to50 records with totalRecords/hasMore. SourceReference is evidence provenance, not an instruction; facts, corrections, visual observations and fiction retain separate kinds. Unbound guest receives no other guest personal facts.",
+        "security": [
+          {
+            "ServerAdmin": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          },
+          {
+            "name": "conversationId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          },
+          {
+            "name": "personalityId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Private permitted context and source identity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivateMemoryContext"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/v1/admin/memory/scopes/{scope}/{subject}": {
+      "delete": {
+        "operationId": "deletePrivateMemoryScope",
+        "summary": "Manually delete conversation, guest or evening archive scope",
+        "description": "Administrator only, requires observed content epoch. Deletes raw transcripts, canonical records and associated private visual sources while preserving tombstones. Late indexing, summarization, upload and retries cannot restore deleted content; active affected provider contexts stop. Remote index deletion may remain pending. No retention sweep or permission rebinding implies this action.",
+        "security": [
+          {
+            "ServerAdmin": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "conversation",
+                "guest",
+                "evening"
+              ]
+            }
+          },
+          {
+            "name": "subject",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemoryScopeDelete"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Local deletion complete, remote index deletion tracked separately.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryDeletionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
     }
 },
   "components": {
@@ -1666,7 +1996,7 @@
       "CostumeContext": {
         "type": "object",
         "additionalProperties": false,
-        "description": "Photo and fake results have a nonempty description. An empty manual receipt acknowledges a discarded cue and is never included in provider prompts.",
+        "description": "Active structured visual cue scoped to the current conversation. It expires with that conversation; archived source media has a separate manual-only lifecycle. An empty manual receipt acknowledges a clear and is never a provider cue.",
         "required": [
           "description",
           "possibleCharacter",
@@ -1982,13 +2312,56 @@
       },
       "ServerModeChange": {
         "type": "object",
-        "required": ["expectedRevision", "dialogMode", "voiceMode"],
+        "required": [
+          "expectedRevision"
+        ],
         "properties": {
-          "expectedRevision": { "type": "string", "format": "uuid" },
-          "dialogMode": { "enum": ["fake", "responses"] },
-          "voiceMode": { "enum": ["fake", "openai"] },
-          "personalityId": { "type": ["string", "null"], "pattern": "^[a-z0-9-]{1,64}$", "description": "Omitted or null retains the current selection; unknown ID returns invalid_personality" }
-        }
+          "expectedRevision": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personalityId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[a-z0-9-]{1,64}$"
+          },
+          "characterEnabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "characterTone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "Reserved",
+              "Dry",
+              "Adult",
+              "Chaos",
+              null
+            ]
+          },
+          "characterFinaleProfile": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "Blocked",
+              "Limited",
+              null
+            ]
+          },
+          "resetCharacterVariety": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
       },
       "PersonalityInfo": {
         "type": "object", "additionalProperties": false,
@@ -2002,18 +2375,54 @@
       },
       "ServerModes": {
         "type": "object", "additionalProperties": false,
-        "required": ["revision", "dialogMode", "voiceMode", "dialogAvailable", "voiceAvailable", "activeConversations", "lifetime", "personalityId", "personalities", "personalityLifetime"],
+        "required": [
+          "revision",
+          "activeConversations",
+          "lifetime",
+          "personalityId",
+          "personalities",
+          "personalityLifetime",
+          "engines",
+          "characterEnabled",
+          "characterTone",
+          "characterFinaleProfile",
+          "characterVersion"
+        ],
         "properties": {
-          "revision": { "type": "string", "format": "uuid" },
-          "dialogMode": { "enum": ["fake", "responses"] },
-          "voiceMode": { "enum": ["fake", "openai"] },
-          "dialogAvailable": { "type": "boolean" },
-          "voiceAvailable": { "type": "boolean" },
+          "revision": {
+            "type": "string",
+            "format": "uuid"
+          },
           "activeConversations": { "type": "integer", "minimum": 0 },
           "personalityId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
           "personalities": { "type": "array", "minItems": 1, "maxItems": 32, "items": { "$ref": "#/components/schemas/PersonalityInfo" } },
           "personalityLifetime": { "const": "persistent" },
-          "lifetime": { "const": "until_restart" }
+          "lifetime": {
+            "const": "until_restart"
+          },
+          "engines": {
+            "$ref": "#/components/schemas/ConversationEngineCapabilities"
+          },
+          "characterEnabled": {
+            "type": "boolean"
+          },
+          "characterTone": {
+            "enum": [
+              "Reserved",
+              "Dry",
+              "Adult",
+              "Chaos"
+            ]
+          },
+          "characterFinaleProfile": {
+            "enum": [
+              "Blocked",
+              "Limited"
+            ]
+          },
+          "characterVersion": {
+            "const": "dv01-v1"
+          }
         }
       },
       "DeviceToken": {
@@ -2062,102 +2471,6 @@
           "maxLifetimeSeconds": { "type": "integer", "const": 1800 }
         }
       },
-      "RealtimeTurn": {
-        "type": "object", "additionalProperties": false,
-        "required": ["clientTurnId", "bootId", "generation", "readyMask", "deviceRevision", "catalogVersion", "opening", "text", "wav", "voice", "speed"],
-        "properties": {
-          "clientTurnId": { "type": "string", "format": "uuid" },
-          "bootId": { "type": "string", "format": "uuid" },
-          "generation": { "type": "integer", "minimum": 0 },
-          "readyMask": { "type": "integer", "minimum": 0, "maximum": 63 },
-          "deviceRevision": { "type": "integer", "minimum": 0 },
-          "catalogVersion": { "const": "ollivander-private-party-v1" },
-          "opening": { "type": "boolean" },
-          "text": { "type": "string", "maxLength": 1000 },
-          "wav": { "type": ["string", "null"], "minLength": 1, "maxLength": 2561000 },
-          "voice": { "enum": ["cedar", "marin", "coral"] },
-          "speed": { "type": "number", "minimum": 0.8, "maximum": 1.2 }
-        },
-        "oneOf": [
-          { "properties": { "opening": { "const": true }, "text": { "const": "" }, "wav": { "type": "null" } } },
-          { "properties": { "opening": { "const": false }, "text": { "type": "string", "minLength": 1 }, "wav": { "type": "null" } } },
-          { "properties": { "opening": { "const": false }, "text": { "const": "" }, "wav": { "type": "string" } } }
-        ]
-      },
-      "RealtimeEvent": {
-        "oneOf": [
-          {
-            "type": "object", "additionalProperties": false,
-            "required": ["type", "operationId", "correlation", "audioFormat"],
-            "properties": {
-              "type": { "const": "started" }, "operationId": { "type": "string", "minLength": 1 },
-              "correlation": { "$ref": "#/components/schemas/TurnCorrelation" },
-              "audioFormat": { "const": "pcm16-mono-24000" }
-            }
-          },
-          {
-            "type": "object", "additionalProperties": false,
-            "required": ["type", "delta"],
-            "properties": {
-              "type": { "const": "audio" },
-              "delta": { "type": "string", "minLength": 4, "maxLength": 43692, "pattern": "^[A-Za-z0-9+/]+={0,2}$" }
-            }
-          },
-          {
-            "type": "object", "additionalProperties": false,
-            "required": ["type", "text"],
-            "properties": { "type": { "const": "visitor" }, "text": { "type": "string", "maxLength": 1000 } }
-          },
-          {
-            "type": "object", "additionalProperties": false,
-            "required": ["type", "operationId", "correlation", "result"],
-            "properties": {
-              "type": { "const": "completed" }, "operationId": { "type": "string", "minLength": 1 },
-              "correlation": { "$ref": "#/components/schemas/TurnCorrelation" },
-              "result": { "$ref": "#/components/schemas/TurnResult" }
-            }
-          },
-          {
-            "type": "object", "additionalProperties": false,
-            "required": ["type", "code"],
-            "properties": { "type": { "const": "failed" }, "code": { "enum": ["ai_unavailable", "operation_cancelled"] } }
-          }
-        ]
-      },
-      "TextTurn": {
-        "type": "object", "additionalProperties": false,
-        "required": ["clientTurnId", "bootId", "generation", "text", "readyMask", "deviceRevision", "catalogVersion"],
-        "properties": {
-          "clientTurnId": { "type": "string", "format": "uuid" },
-          "bootId": { "type": "string", "format": "uuid" },
-          "generation": { "type": "integer", "minimum": 0 },
-          "text": { "type": "string", "minLength": 1, "maxLength": 1000 },
-          "readyMask": { "type": "integer", "minimum": 0, "maximum": 63 },
-          "deviceRevision": { "type": "integer", "minimum": 0 },
-          "catalogVersion": { "type": "string", "minLength": 1 }
-        }
-      },
-      "TranscriptionUpload": {
-        "type": "object", "additionalProperties": false,
-        "required": ["clientTurnId", "bootId", "generation", "deviceRevision", "wav"],
-        "properties": {
-          "clientTurnId": { "type": "string", "format": "uuid" },
-          "bootId": { "type": "string", "format": "uuid" },
-          "generation": { "type": "integer", "minimum": 0 },
-          "deviceRevision": { "type": "integer", "minimum": 0 },
-          "wav": { "type": "string", "format": "binary", "description": "PCM16 mono 32 kHz, at most 30 seconds; reject oversized or malformed WAV before provider use" }
-        }
-      },
-      "SpeechRequest": {
-        "type": "object", "additionalProperties": false,
-        "required": ["turnId", "outputTarget"],
-        "properties": {
-          "turnId": { "type": "string", "minLength": 1 },
-          "outputTarget": { "type": "string", "enum": ["device", "phone"] },
-          "voice": { "type": "string", "enum": ["cedar", "marin", "onyx", "coral"], "default": "marin" },
-          "speed": { "type": "number", "minimum": 0.85, "maximum": 1.25, "default": 1.0 }
-        }
-      },
       "OperationAccepted": {
         "type": "object", "additionalProperties": false,
         "required": ["operationId"],
@@ -2186,7 +2499,9 @@
           { "if": { "properties": { "status": { "const": "completed" } } }, "then": { "properties": { "result": { "$ref": "#/components/schemas/TranscriptionResult" }, "error": { "type": "null" } } } },
           { "if": { "properties": { "status": { "enum": ["pending", "running", "cancelled", "unknown"] } } }, "then": { "properties": { "result": { "type": "null" } } } },
           { "if": { "properties": { "status": { "const": "failed" } } }, "then": { "properties": { "result": { "type": "null" }, "error": { "$ref": "#/components/schemas/OperationError" } } } }
-        ]
+        ],
+        "description": "Historical operation read compatibility only. No production route generates this standalone operation kind.",
+        "deprecated": true
       },
       "TurnOperation": {
         "type": "object", "additionalProperties": false,
@@ -2220,7 +2535,9 @@
           { "if": { "properties": { "status": { "const": "completed" } } }, "then": { "properties": { "result": { "$ref": "#/components/schemas/SpeechResult" }, "error": { "type": "null" } } } },
           { "if": { "properties": { "status": { "enum": ["pending", "running", "cancelled", "unknown"] } } }, "then": { "properties": { "result": { "type": "null" } } } },
           { "if": { "properties": { "status": { "const": "failed" } } }, "then": { "properties": { "result": { "type": "null" }, "error": { "$ref": "#/components/schemas/OperationError" } } } }
-        ]
+        ],
+        "description": "Historical operation read compatibility only. No production route generates this standalone operation kind.",
+        "deprecated": true
       },
       "OperationStatus": {
         "type": "string", "enum": ["pending", "running", "completed", "failed", "cancelled", "unknown"]
@@ -2256,7 +2573,9 @@
         "properties": {
           "transcript": { "type": "string", "maxLength": 1000 },
           "source": { "type": "string", "enum": ["deviceMicrophone", "phoneMicrophone"] }
-        }
+        },
+        "description": "Historical operation read compatibility only. No production route generates this standalone operation kind.",
+        "deprecated": true
       },
       "SpeechResult": {
         "type": "object", "additionalProperties": false,
@@ -2265,7 +2584,9 @@
           "audioId": { "type": "string", "minLength": 1 },
           "expiresAt": { "type": "string", "format": "date-time" },
           "outputTarget": { "type": "string", "enum": ["device", "phone"] }
-        }
+        },
+        "description": "Historical operation read compatibility only. No production route generates this standalone operation kind.",
+        "deprecated": true
       },
       "Proposal": {
         "type": "object", "additionalProperties": false,
@@ -2298,45 +2619,6 @@
           "detail": { "type": "string" },
           "code": { "type": "string", "minLength": 1 },
           "traceId": { "type": "string", "minLength": 1 }
-        }
-      },
-      "OpeningTurn": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "clientTurnId",
-          "bootId",
-          "generation",
-          "readyMask",
-          "deviceRevision",
-          "catalogVersion"
-        ],
-        "properties": {
-          "clientTurnId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "bootId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "generation": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "readyMask": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 63
-          },
-          "deviceRevision": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "catalogVersion": {
-            "type": "string",
-            "minLength": 1
-          }
         }
       },
       "CreateEvening": {
@@ -2486,6 +2768,12 @@
             "properties": {
               "type": {
                 "const": "pause"
+              },
+              "responseGeneration": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Current server labels provider output/control with its response generation. A legacy unlabelled event is usable only before the first cancellation; stale control events cannot mutate current playback."
               }
             }
           },
@@ -2515,6 +2803,12 @@
               "decisionRevision": {
                 "type": "integer",
                 "minimum": 0
+              },
+              "responseGeneration": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Current server labels provider output/control with its response generation. A legacy unlabelled event is usable only before the first cancellation; stale control events cannot mutate current playback."
               }
             }
           }
@@ -2594,8 +2888,14 @@
           "operationId": {
             "type": "string",
             "format": "uuid"
+          },
+          "responseGeneration": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
           }
-        }
+        },
+        "description": "Acknowledges locally drained audio for an exact operation and response generation. Omitted generation is accepted only before the first cancellation (generation0). A retired older generation is acknowledged idempotently without releasing current playback."
       },
       "RealtimeLiveEvent": {
         "oneOf": [
@@ -2605,7 +2905,8 @@
             "required": [
               "type",
               "operationId",
-              "correlation"
+              "correlation",
+              "responseGeneration"
             ],
             "properties": {
               "type": {
@@ -2617,6 +2918,11 @@
               },
               "correlation": {
                 "$ref": "#/components/schemas/TurnCorrelation"
+              },
+              "responseGeneration": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
               }
             }
           },
@@ -2625,7 +2931,8 @@
             "additionalProperties": false,
             "required": [
               "type",
-              "delta"
+              "delta",
+              "responseGeneration"
             ],
             "properties": {
               "type": {
@@ -2636,6 +2943,11 @@
                 "minLength": 4,
                 "maxLength": 43692,
                 "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+              },
+              "responseGeneration": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
               }
             }
           },
@@ -2653,6 +2965,12 @@
               "text": {
                 "type": "string",
                 "maxLength": 1000
+              },
+              "responseGeneration": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Current server labels provider output/control with its response generation. A legacy unlabelled event is usable only before the first cancellation; stale control events cannot mutate current playback."
               }
             }
           },
@@ -2664,7 +2982,8 @@
               "operationId",
               "correlation",
               "result",
-              "costMicroUsd"
+              "costMicroUsd",
+              "responseGeneration"
             ],
             "properties": {
               "type": {
@@ -2682,7 +3001,13 @@
               },
               "costMicroUsd": {
                 "type": "integer",
-                "minimum": 1
+                "minimum": 1,
+                "description": "Application usage accounting. May include a conservative reservation when interrupted provider usage cannot be settled; this is not an invoice or proof of billed usage."
+              },
+              "responseGeneration": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
               }
             }
           },
@@ -2742,7 +3067,8 @@
             "additionalProperties": false,
             "required": [
               "type",
-              "inputId"
+              "inputId",
+              "responseGeneration"
             ],
             "properties": {
               "type": {
@@ -2751,6 +3077,11 @@
               "inputId": {
                 "type": "string",
                 "format": "uuid"
+              },
+              "responseGeneration": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
               }
             }
           },
@@ -2768,6 +3099,12 @@
               "inputId": {
                 "type": "string",
                 "format": "uuid"
+              },
+              "responseGeneration": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Current server labels provider output/control with its response generation. A legacy unlabelled event is usable only before the first cancellation; stale control events cannot mutate current playback."
               }
             }
           },
@@ -2785,6 +3122,12 @@
               "inputId": {
                 "type": "string",
                 "format": "uuid"
+              },
+              "responseGeneration": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Current server labels provider output/control with its response generation. A legacy unlabelled event is usable only before the first cancellation; stale control events cannot mutate current playback."
               }
             }
           },
@@ -2813,6 +3156,36 @@
               },
               "reason": {
                 "const": "conversation_terminal"
+              },
+              "responseGeneration": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Current server labels provider output/control with its response generation. A legacy unlabelled event is usable only before the first cancellation; stale control events cannot mutate current playback."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "responseGeneration"
+            ],
+            "properties": {
+              "type": {
+                "const": "audio_cancel"
+              },
+              "responseGeneration": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "visualRevision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000000,
+                "description": "Present only for a completed visual revocation barrier. A client waiting for photo revision R may unmute only after this value is at least R; an ordinary speech interruption marker cannot release that mute."
               }
             }
           }
@@ -2882,7 +3255,10 @@
           "lastVerifiedAt",
           "pending",
           "failed",
-          "deleting"
+          "deleting",
+          "storedBytes",
+          "capacityBytes",
+          "rejectedWrites"
         ],
         "properties": {
           "provider": {
@@ -2917,6 +3293,18 @@
           "deleting": {
             "type": "integer",
             "minimum": 0
+          },
+          "storedBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "capacityBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "rejectedWrites": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       },
@@ -2944,7 +3332,9 @@
           },
           "guestId": {
             "type": "string",
-            "format": "uuid"
+            "minLength": 1,
+            "maxLength": 80,
+            "pattern": "^[A-Za-z0-9._-]+$"
           },
           "identityVerified": {
             "type": "boolean"
@@ -2959,7 +3349,44 @@
             "type": "integer",
             "minimum": 1
           }
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "longTermAllowed": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "identityVerified": {
+                  "const": true
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "cloudExportAllowed": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "longTermAllowed": {
+                  "const": true
+                },
+                "identityVerified": {
+                  "const": true
+                }
+              }
+            }
+          }
+        ]
       },
       "GuestMemoryPermissionChange": {
         "type": "object",
@@ -2986,7 +3413,9 @@
           },
           "guestId": {
             "type": "string",
-            "format": "uuid"
+            "minLength": 1,
+            "maxLength": 80,
+            "pattern": "^[A-Za-z0-9._-]+$"
           },
           "identitySource": {
             "type": "string",
@@ -3006,7 +3435,44 @@
             "type": "integer",
             "minimum": 0
           }
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "longTermAllowed": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "identityVerified": {
+                  "const": true
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "cloudExportAllowed": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "longTermAllowed": {
+                  "const": true
+                },
+                "identityVerified": {
+                  "const": true
+                }
+              }
+            }
+          }
+        ]
       },
       "MemoryRecordChange": {
         "type": "object",
@@ -3055,7 +3521,11 @@
               "ConfirmedSelection",
               "TopicUsed",
               "FictionalJoke",
-              "LegacyUnverified"
+              "LegacyUnverified",
+              "ModelInterpretation",
+              "VisualObservation",
+              "ProposedChoice",
+              "PendingQuestion"
             ]
           },
           "text": {
@@ -3125,6 +3595,677 @@
           },
           "isActive": {
             "type": "boolean"
+          }
+        }
+      },
+      "EngineUpgradeProblem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code",
+          "traceId"
+        ],
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "const": 410
+          },
+          "detail": {
+            "type": "string"
+          },
+          "code": {
+            "const": "conversation_engine_upgrade_required"
+          },
+          "traceId": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "GptLiveCapability": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "engine",
+          "model",
+          "ready",
+          "unavailableReason",
+          "voices",
+          "inputModes",
+          "cameraSources",
+          "speed"
+        ],
+        "properties": {
+          "engine": {
+            "const": "gpt-live"
+          },
+          "model": {
+            "const": "gpt-live-1"
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "unavailableReason": {
+            "enum": [
+              null,
+              "provider_credential_missing"
+            ]
+          },
+          "voices": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "const": "cedar"
+              },
+              {
+                "const": "marin"
+              },
+              {
+                "const": "coral"
+              }
+            ],
+            "items": false,
+            "minItems": 3,
+            "maxItems": 3
+          },
+          "inputModes": {
+            "type": "array",
+            "items": {
+              "const": "audio"
+            },
+            "minItems": 1,
+            "maxItems": 1
+          },
+          "cameraSources": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "const": "phone"
+              },
+              {
+                "const": "suitcase"
+              }
+            ],
+            "items": false,
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "speed": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "supported",
+              "min",
+              "max",
+              "default"
+            ],
+            "properties": {
+              "supported": {
+                "const": false
+              },
+              "min": {
+                "const": 1
+              },
+              "max": {
+                "const": 1
+              },
+              "default": {
+                "const": 1
+              }
+            }
+          }
+        },
+        "description": "Readiness describes configured provider credentials only; model access and audible device behavior require separate checks. Camera sources describe supported attachment contracts, never physical availability.",
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "ready": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unavailableReason": {
+                  "type": "null"
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "unavailableReason": {
+                  "const": "provider_credential_missing"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "RealtimeCapability": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "engine",
+          "model",
+          "ready",
+          "unavailableReason",
+          "voices",
+          "inputModes",
+          "cameraSources",
+          "speed"
+        ],
+        "properties": {
+          "engine": {
+            "const": "realtime"
+          },
+          "model": {
+            "const": "gpt-realtime-2.1"
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "unavailableReason": {
+            "enum": [
+              null,
+              "provider_credential_missing"
+            ]
+          },
+          "voices": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "const": "cedar"
+              },
+              {
+                "const": "marin"
+              },
+              {
+                "const": "coral"
+              }
+            ],
+            "items": false,
+            "minItems": 3,
+            "maxItems": 3
+          },
+          "inputModes": {
+            "type": "array",
+            "items": {
+              "const": "audio"
+            },
+            "minItems": 1,
+            "maxItems": 1
+          },
+          "cameraSources": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "const": "phone"
+              },
+              {
+                "const": "suitcase"
+              }
+            ],
+            "items": false,
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "speed": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "supported",
+              "min",
+              "max",
+              "default"
+            ],
+            "properties": {
+              "supported": {
+                "const": true
+              },
+              "min": {
+                "const": 0.8
+              },
+              "max": {
+                "const": 1.2
+              },
+              "default": {
+                "const": 1
+              }
+            }
+          }
+        },
+        "description": "Readiness describes configured provider credentials only; model access and audible device behavior require separate checks. Camera sources describe supported attachment contracts, never physical availability.",
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "ready": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unavailableReason": {
+                  "type": "null"
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "unavailableReason": {
+                  "const": "provider_credential_missing"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ConversationEngineCapabilities": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schemaVersion",
+          "primaryEngine",
+          "engines"
+        ],
+        "properties": {
+          "schemaVersion": {
+            "const": 1
+          },
+          "primaryEngine": {
+            "const": "gpt-live"
+          },
+          "engines": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "$ref": "#/components/schemas/GptLiveCapability"
+              },
+              {
+                "$ref": "#/components/schemas/RealtimeCapability"
+              }
+            ],
+            "items": false,
+            "minItems": 2,
+            "maxItems": 2
+          }
+        }
+      },
+      "BackendDiagnostics": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "engines",
+          "conversationContractVersion",
+          "catalogVersion",
+          "audioFormat",
+          "liveActorMode",
+          "personalityId",
+          "liveDecisionModel",
+          "liveTerminalQuietMs",
+          "characterEnabled",
+          "characterTone",
+          "characterFinaleProfile",
+          "characterVersion",
+          "characterVisualRoast",
+          "characterNamedFinale",
+          "characterAudio",
+          "characterEventReady",
+          "memoryEnabled",
+          "cloudIndexingEnabled",
+          "longTermPersonalEnabled",
+          "memoryProvider"
+        ],
+        "properties": {
+          "engines": {
+            "$ref": "#/components/schemas/ConversationEngineCapabilities"
+          },
+          "conversationContractVersion": {
+            "const": 2
+          },
+          "catalogVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "audioFormat": {
+            "const": "pcm16-mono-24000"
+          },
+          "liveActorMode": {
+            "const": "AutonomousActor"
+          },
+          "personalityId": {
+            "enum": [
+              "party-original",
+              "ollivander-trunk"
+            ]
+          },
+          "liveDecisionModel": {
+            "enum": [
+              "gpt-6.1-sol",
+              "gpt-6-luna"
+            ]
+          },
+          "liveTerminalQuietMs": {
+            "type": "integer",
+            "minimum": 500,
+            "maximum": 10000
+          },
+          "characterEnabled": {
+            "type": "boolean"
+          },
+          "characterTone": {
+            "enum": [
+              "Reserved",
+              "Dry",
+              "Adult",
+              "Chaos"
+            ]
+          },
+          "characterFinaleProfile": {
+            "enum": [
+              "Blocked",
+              "Limited"
+            ]
+          },
+          "characterVersion": {
+            "const": "dv01-v1"
+          },
+          "characterVisualRoast": {
+            "const": "costume_observations_only"
+          },
+          "characterNamedFinale": {
+            "const": "blocked"
+          },
+          "characterAudio": {
+            "const": "unsegmented_live_stream"
+          },
+          "characterEventReady": {
+            "const": false
+          },
+          "memoryEnabled": {
+            "type": "boolean"
+          },
+          "cloudIndexingEnabled": {
+            "type": "boolean"
+          },
+          "longTermPersonalEnabled": {
+            "type": "boolean"
+          },
+          "memoryProvider": {
+            "$ref": "#/components/schemas/MemoryProviderStatus"
+          }
+        }
+      },
+      "AudioStreamFrame": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "inputId",
+          "sequence",
+          "audio"
+        ],
+        "properties": {
+          "inputId": {
+            "type": "string",
+            "format": "uuid",
+            "not": {
+              "const": "00000000-0000-0000-0000-000000000000"
+            }
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "audio": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 12800,
+            "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+          }
+        }
+      },
+      "AudioStreamAck": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "inputId",
+          "sequence"
+        ],
+        "properties": {
+          "type": {
+            "const": "ack"
+          },
+          "inputId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "PrivateMemoryRecord": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "memoryId",
+          "scope",
+          "deviceId",
+          "eveningId",
+          "conversationId",
+          "guestId",
+          "personalityId",
+          "kind",
+          "text",
+          "sourceReference",
+          "createdAt",
+          "expiresAt",
+          "revision",
+          "isActive",
+          "supersedes",
+          "useAllowed",
+          "exportAllowed",
+          "permissionVersion",
+          "appNamespace"
+        ],
+        "properties": {
+          "memoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "scope": {
+            "enum": [
+              "Conversation",
+              "EveningMotif",
+              "Personal"
+            ]
+          },
+          "deviceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "eveningId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "guestId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 80
+          },
+          "personalityId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "enum": [
+              "UserReportedFact",
+              "ConfirmedSelection",
+              "TopicUsed",
+              "FictionalJoke",
+              "LegacyUnverified",
+              "ModelInterpretation",
+              "VisualObservation",
+              "ProposedChoice",
+              "PendingQuestion"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "sourceReference": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "supersedes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "useAllowed": {
+            "type": "boolean"
+          },
+          "exportAllowed": {
+            "type": "boolean"
+          },
+          "permissionVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "appNamespace": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "description": "Private administrator-authorized source/provenance record. Kind separates user-reported facts, interpretations, visual observations, proposed/confirmed choices and pending questions. Never returned by public diagnostics."
+      },
+      "PrivateMemoryContext": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "identity",
+          "epoch",
+          "deletionEpoch",
+          "records",
+          "totalRecords",
+          "hasMore",
+          "memoryStatus"
+        ],
+        "properties": {
+          "identity": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/GuestMemoryPermission"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "epoch": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "deletionEpoch": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrivateMemoryRecord"
+            },
+            "maxItems": 50
+          },
+          "totalRecords": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "memoryStatus": {
+            "$ref": "#/components/schemas/MemoryProviderStatus"
+          }
+        }
+      },
+      "MemoryScopeDelete": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "deviceId",
+          "expectedEpoch"
+        ],
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "expectedEpoch": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "MemoryDeletionResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "localDeletion",
+          "remoteDeletion"
+        ],
+        "properties": {
+          "localDeletion": {
+            "const": "complete"
+          },
+          "remoteDeletion": {
+            "enum": [
+              "pending",
+              "complete"
+            ]
           }
         }
       }

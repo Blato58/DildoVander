@@ -71,7 +71,7 @@ esp_err_t mdns_service_add(const char* instance, const char* service, const char
   txtValues.clear();
   for (size_t index = 0; index < count; ++index) { txtValues[txt[index].key] = txt[index].value; }
   assert(txtValues.size() == 3 && txtValues["protocol"] == "1");
-  assert(txtValues["capabilities"] == "manualControl,inventoryReload,conversationText,voiceRealtime,dance");
+  assert(txtValues["capabilities"] == "manualControl,inventoryReload,voiceRealtime,dance");
   ++serviceCalls;
   return failService ? -1 : ESP_OK;
 }
