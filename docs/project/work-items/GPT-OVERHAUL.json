@@ -3,7 +3,7 @@
   "id": "GPT-OVERHAUL",
   "initiative": "DV01",
   "title": "Two-engine conversation, durable scoped memory and native iOS media overhaul",
-  "state": "active",
+  "state": "blocked",
   "priority": "P0",
   "sequence": 1,
   "scope": [
@@ -32,7 +32,8 @@
         "GPT-OVERHAUL-unit-v2",
         "GPT-OVERHAUL-integration-local-v2",
         "GPT-OVERHAUL-source-review-v2",
-        "GPT-OVERHAUL-browser-v2"
+        "GPT-OVERHAUL-browser-v2",
+        "GPT-OVERHAUL-ci-v2"
       ],
       "appliesTo": {
         "artifactDigest": "36e6c0078bdd60e7d3dce4430226bf144674bb200f13e75d0cb8d2e4225394c3",
@@ -46,7 +47,9 @@
       "requiredEvidenceKinds": [
         "native_ios"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "GPT-OVERHAUL-native-v2"
+      ],
       "appliesTo": {
         "artifactDigest": "36e6c0078bdd60e7d3dce4430226bf144674bb200f13e75d0cb8d2e4225394c3",
         "policyVersion": "two-engine-v1"
@@ -78,8 +81,8 @@
       "role": "owner"
     }
   ],
-  "nextAction": "Push verified photo-revocation/retry and first-CI fixes to PR217, run exact Git bytes through Linux/macOS CI, resolve both review threads and reread reviews before authorized merge.",
-  "currentNote": "Implementation671a27c and main-integrationd0965bc pushed/verified; PR217 attached. FirstCI failures retained in immutable receipts. Final local full backend/default+engines+character, Twin/Twin-media, native media21, host engine/transport2, MSVC codec, firmware build41.49s, contracts and scanner10 pass. Independent final provider/native/firmware event matrix review has no actionable findings. Parent rerendered desktop/mobile and exercised both engines+photo revoke preserving synthetic voice, no consolewarnings/overflow. Allsource frozen and canonical Git-source manifestv2 recorded. macOS/Linux CI rerun pending; no paid inference, deploy/sign/install/flash, CAD regeneration or realdata mutation.",
+  "nextAction": "For EXTERNAL acceptance separately authorize required deployment, signed iPhone install/firmware flash and paid provider sessions; record installed identities then execute the thirteen scenarios in kufr/docs/autonomous-live-memory.md. Preserve manual archives and private backup/rollback procedure.",
+  "currentNote": "Verified implementation d59d69abb72fa821652b8239342a153346500ba5 committed and pushed through Push-CurrentBranch.ps1 with exact remoteSHA verification. Source bundle36e6c0078bdd60e7d3dce4430226bf144674bb200f13e75d0cb8d2e4225394c3; main7916723 dependency/CAD work preserved. CI39196789717 fully successful, including Linux default/Twin/Twin-media/HTTP/DV10/deployment, web, firmware profiles/host tests, actual macOS Swift harnesses and unsigned Simulator build. Independent provider/native/firmware review accepted and both PR217 findings fixed/tested/resolved. Final receipt-only delivery retains identical application source; PR217 follows authorized final CI/review/merge workflow. SOFTWARE and NATIVE verified; EXTERNAL remains blocked. VPS model metadata only returned200 for both exactIDs; no provider conversation, production deploy, signed release/install, flash, CAD regeneration or realdata mutation.",
   "implementedSubject": {
     "artifactDigest": "36e6c0078bdd60e7d3dce4430226bf144674bb200f13e75d0cb8d2e4225394c3",
     "policyVersion": "two-engine-v1"
