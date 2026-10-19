@@ -3,7 +3,7 @@
   "targetId": "SHOW-PACK-software",
   "purpose": "Show Pack86 požadavků: ověřené softwarové cesty. Neprohlašuje schválené nahrávky, paid provider pilot, iPhone/hardware ani nasazení.",
   "components": {
-    "artifactDigest": "38b1b327b78cfb1667649857a7bb0066c8fcb88d5f6dcfac4c0ab7990bfbab33",
+    "artifactDigest": "8bf7d44c4982a31ec36d4d6e79a61e8f6a89ded51f4d62db0dcaeb051b5ece72",
     "policyVersion": "show-pack-2026.10.19.1"
   },
   "requiredCriteria": [

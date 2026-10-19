@@ -24,7 +24,7 @@
   "acceptance": [
     {
       "id": "DIRECTOR",
-      "revision": 1,
+      "revision": 2,
       "expected": "SHOW/FIN/WAND/MOOD/AMB: katalogově svázaný repertoár, skutečná session integrace, rušení a fyzické/audio brány.",
       "requiredEvidenceKinds": [
         "unit",
@@ -33,18 +33,18 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "38b1b327b78cfb1667649857a7bb0066c8fcb88d5f6dcfac4c0ab7990bfbab33",
+        "artifactDigest": "8bf7d44c4982a31ec36d4d6e79a61e8f6a89ded51f4d62db0dcaeb051b5ece72",
         "policyVersion": "show-pack-2026.10.19.1"
       },
       "evidenceRefs": [
-        "SHOW-PACK-local-unit-v1",
-        "SHOW-PACK-local-integration-v1",
-        "SHOW-PACK-local-source_review-v1"
+        "SHOW-PACK-local-unit-v2",
+        "SHOW-PACK-local-integration-v2",
+        "SHOW-PACK-local-source_review-v2"
       ]
     },
     {
       "id": "IDENTITY",
-      "revision": 1,
+      "revision": 2,
       "expected": "ID/PRO: uložená identita, karta a serverově odemykané soukromé proroctví v existující DV10 pipeline.",
       "requiredEvidenceKinds": [
         "integration",
@@ -53,18 +53,18 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "38b1b327b78cfb1667649857a7bb0066c8fcb88d5f6dcfac4c0ab7990bfbab33",
+        "artifactDigest": "8bf7d44c4982a31ec36d4d6e79a61e8f6a89ded51f4d62db0dcaeb051b5ece72",
         "policyVersion": "show-pack-2026.10.19.1"
       },
       "evidenceRefs": [
-        "SHOW-PACK-local-integration-v1",
-        "SHOW-PACK-local-browser-v1",
-        "SHOW-PACK-local-source_review-v1"
+        "SHOW-PACK-local-integration-v2",
+        "SHOW-PACK-local-browser-v2",
+        "SHOW-PACK-local-source_review-v2"
       ]
     },
     {
       "id": "MEMORY",
-      "revision": 1,
+      "revision": 2,
       "expected": "MEM: oddělení hostů, anonymní lore, deduplikované původní večery a skutečná kronika bez soukromého obsahu.",
       "requiredEvidenceKinds": [
         "integration",
@@ -72,17 +72,17 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "38b1b327b78cfb1667649857a7bb0066c8fcb88d5f6dcfac4c0ab7990bfbab33",
+        "artifactDigest": "8bf7d44c4982a31ec36d4d6e79a61e8f6a89ded51f4d62db0dcaeb051b5ece72",
         "policyVersion": "show-pack-2026.10.19.1"
       },
       "evidenceRefs": [
-        "SHOW-PACK-local-integration-v1",
-        "SHOW-PACK-local-source_review-v1"
+        "SHOW-PACK-local-integration-v2",
+        "SHOW-PACK-local-source_review-v2"
       ]
     },
     {
       "id": "DUEL",
-      "revision": 1,
+      "revision": 2,
       "expected": "DUEL: dvě identity, deterministická pravidla, uložené tahy, scoped grants, timeout a skutečný webový výsledek.",
       "requiredEvidenceKinds": [
         "unit",
@@ -92,19 +92,19 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "38b1b327b78cfb1667649857a7bb0066c8fcb88d5f6dcfac4c0ab7990bfbab33",
+        "artifactDigest": "8bf7d44c4982a31ec36d4d6e79a61e8f6a89ded51f4d62db0dcaeb051b5ece72",
         "policyVersion": "show-pack-2026.10.19.1"
       },
       "evidenceRefs": [
-        "SHOW-PACK-local-unit-v1",
-        "SHOW-PACK-local-integration-v1",
-        "SHOW-PACK-local-browser-v1",
-        "SHOW-PACK-local-source_review-v1"
+        "SHOW-PACK-local-unit-v2",
+        "SHOW-PACK-local-integration-v2",
+        "SHOW-PACK-local-browser-v2",
+        "SHOW-PACK-local-source_review-v2"
       ]
     },
     {
       "id": "OPERATOR",
-      "revision": 1,
+      "revision": 2,
       "expected": "OPS: skutečný Director panel iOS/web s autorizovanými cestami, konflikty a lokálním Stop.",
       "requiredEvidenceKinds": [
         "integration",
@@ -113,18 +113,18 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "38b1b327b78cfb1667649857a7bb0066c8fcb88d5f6dcfac4c0ab7990bfbab33",
+        "artifactDigest": "8bf7d44c4982a31ec36d4d6e79a61e8f6a89ded51f4d62db0dcaeb051b5ece72",
         "policyVersion": "show-pack-2026.10.19.1"
       },
       "evidenceRefs": [
-        "SHOW-PACK-local-integration-v1",
-        "SHOW-PACK-local-browser-v1",
-        "SHOW-PACK-local-source_review-v1"
+        "SHOW-PACK-local-integration-v2",
+        "SHOW-PACK-local-browser-v2",
+        "SHOW-PACK-local-source_review-v2"
       ]
     },
     {
       "id": "OFFLINE",
-      "revision": 1,
+      "revision": 2,
       "expected": "OFF: lokální scény ve stejném runtime, preflight, fencing, durable outbox a idempotentní archivní synchronizace.",
       "requiredEvidenceKinds": [
         "unit",
@@ -133,20 +133,20 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "38b1b327b78cfb1667649857a7bb0066c8fcb88d5f6dcfac4c0ab7990bfbab33",
+        "artifactDigest": "8bf7d44c4982a31ec36d4d6e79a61e8f6a89ded51f4d62db0dcaeb051b5ece72",
         "policyVersion": "show-pack-2026.10.19.1"
       },
       "evidenceRefs": [
-        "SHOW-PACK-local-unit-v1",
-        "SHOW-PACK-local-integration-v1",
-        "SHOW-PACK-local-source_review-v1"
+        "SHOW-PACK-local-unit-v2",
+        "SHOW-PACK-local-integration-v2",
+        "SHOW-PACK-local-source_review-v2"
       ]
     }
   ],
   "blockers": [],
-  "currentNote": "Softwarový source subject prošel finální regresí a review. Implementace commit d897d6f8150902242dc30413a5b81f0b8398784d; Push-CurrentBranch.ps1 ověřil stejný SHA na origin/codex/show-pack. PR: https://github.com/Blato58/DildoVander/pull/219. Nahrávky, placený pilot a fyzická/iPhone akceptace zůstávají výslovně oddělené v SHOW-PACK-OPERATIONS; žádný deploy, podpis ani flash.",
+  "currentNote": "PR219: opraveny oba Live nálezy, neznámý katalog odmítnut před zápisem a odstraněny čtyři příčiny selhání prvního CI. V2 přesně identifikuje ověřené opravené zdroje; úplný backend/HTTP a9host kontrol prošly. Původní implementace d897d6f8150902242dc30413a5b81f0b8398784d byla push ověřena; opravy čekají na následný push/CI. Nativní iOS CI splněno samostatným receipt. Nahrávky, provider a fyzická akceptace zůstávají SHOW-PACK-OPERATIONS; deploy, podpis a flash neproběhly.",
   "implementedSubject": {
-    "artifactDigest": "38b1b327b78cfb1667649857a7bb0066c8fcb88d5f6dcfac4c0ab7990bfbab33",
+    "artifactDigest": "8bf7d44c4982a31ec36d4d6e79a61e8f6a89ded51f4d62db0dcaeb051b5ece72",
     "policyVersion": "show-pack-2026.10.19.1"
   },
   "closure": {

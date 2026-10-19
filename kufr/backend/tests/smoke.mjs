@@ -78,6 +78,29 @@ async function waitForServer() {
   throw new Error(`Backend did not start: ${serverOutput}`);
 }
 
+function parseJsonResponse(text, { method, path, status, contentType }) {
+  try { return JSON.parse(text); }
+  catch {
+    // Response bodies may contain visitor content. Report transport metadata
+    // without echoing the body, credentials or query parameters into CI logs.
+    const diagnostics = serverOutput.slice(-20_000).split(/\r?\n/).map(line => line.trim());
+    const exceptionTypes = diagnostics.filter(line => /^(?:System|Microsoft|Kufr)\.[\w.]+Exception:/.test(line))
+      .map(line => line.slice(0, line.indexOf(':')));
+    const frames = diagnostics.filter(line => line.startsWith('at Kufr.Backend.')).slice(-5);
+    throw new Error(`Expected JSON from ${method} ${path}: HTTP ${status}, `
+      + `content-type=${contentType ?? 'none'}, bytes=${Buffer.byteLength(text)}`
+      + (exceptionTypes.length ? `; server exceptions=${[...new Set(exceptionTypes)].join(',')}` : '')
+      + (frames.length ? `\n${frames.join('\n')}` : ''));
+  }
+}
+
+async function readJsonResponse(response, method = 'GET') {
+  return parseJsonResponse(await response.text(), {
+    method, path: new URL(response.url).pathname, status: response.status,
+    contentType: response.headers.get('content-type')
+  });
+}
+
 async function call(path, { credential, token, key, body } = {}) {
   const headers = {};
   if (credential || token) headers.Authorization = `Bearer ${credential ?? token}`;
@@ -88,7 +111,7 @@ async function call(path, { credential, token, key, body } = {}) {
     headers,
     body: body && JSON.stringify(body)
   });
-  const result = await response.json();
+  const result = await readJsonResponse(response, 'POST');
   assert.equal(response.headers.get('cache-control'), 'no-store');
   return { status: response.status, result };
 }
@@ -98,7 +121,7 @@ async function read(path, token) {
     headers: { Authorization: `Bearer ${token}` }
   });
   assert.equal(response.headers.get('cache-control'), 'no-store');
-  return { status: response.status, result: await response.json() };
+  return { status: response.status, result: await readJsonResponse(response) };
 }
 
 async function activateEvening(path, token, key, body) {
@@ -112,7 +135,7 @@ async function activateEvening(path, token, key, body) {
     body: JSON.stringify(body)
   });
   assert.equal(response.headers.get('cache-control'), 'no-store');
-  return { status: response.status, result: await response.json() };
+  return { status: response.status, result: await readJsonResponse(response, 'PUT') };
 }
 
 async function remove(path, token, key, body) {
@@ -157,7 +180,7 @@ async function transcribe(path, token, key, fields, wav = makeWav()) {
     body: form
   });
   assert.equal(response.headers.get('cache-control'), 'no-store');
-  return { status: response.status, result: await response.json() };
+  return { status: response.status, result: await readJsonResponse(response, 'POST') };
 }
 
 async function downloadAudio(path, token) {
@@ -170,7 +193,7 @@ async function downloadAudio(path, token) {
     contentType: response.headers.get('content-type'),
     sampleRate: response.headers.get('x-audio-sample-rate-hz'),
     channels: response.headers.get('x-audio-channels'),
-    body: response.status === 200 ? Buffer.from(await response.arrayBuffer()) : await response.json()
+    body: response.status === 200 ? Buffer.from(await response.arrayBuffer()) : await readJsonResponse(response)
   };
 }
 
@@ -184,7 +207,7 @@ async function imageRequest(id, token, headers, jpeg = costumeJpeg, correction =
     body: correction === null ? jpeg : JSON.stringify({ description: correction })
   });
   assert.equal(response.headers.get('cache-control'), 'no-store');
-  return { status: response.status, result: await response.json(), connection: response.headers.get('connection') };
+  return { status: response.status, result: await readJsonResponse(response, correction === null ? 'POST' : 'PUT'), connection: response.headers.get('connection') };
 }
 
 // Do not eagerly upload after a declared-size rejection: Undici can report
@@ -207,7 +230,10 @@ async function declaredOversizeRequest(path, headers, byteCount) {
         try {
           assert.equal(response.headers['cache-control'], 'no-store');
           resolve({ status: response.statusCode,
-            result: JSON.parse(Buffer.concat(chunks).toString('utf8')),
+            result: parseJsonResponse(Buffer.concat(chunks).toString('utf8'), {
+              method: 'POST', path: new URL(path, baseUrl).pathname, status: response.statusCode,
+              contentType: response.headers['content-type']
+            }),
             connection: response.headers.connection });
         } catch (error) { reject(error); }
         finally { oversizedRequest.destroy(); }
@@ -290,7 +316,7 @@ try {
       body: JSON.stringify(body),
     });
     assert.equal(response.headers.get('cache-control'), 'no-store');
-    return { status: response.status, result: await response.json() };
+    return { status: response.status, result: await readJsonResponse(response, 'PUT') };
   };
   const modeBody = { expectedRevision: modes.revision, dialogMode: 'fake', voiceMode: 'fake' };
   assert.equal((await changeModes(modeBody, tokenA)).status, 401);
@@ -310,7 +336,11 @@ try {
   assert.equal(adminToken.result.deviceId, 'debug-server-admin');
   const virtualDevice = adminToken.result.deviceId;
   const virtualToken = adminToken.result.accessToken;
-  const virtualBody = { ...body, deviceId: virtualDevice };
+  // The virtual fake path publishes a real scoped finale snapshot, so its
+  // proposal must use the backend's current catalog rather than the arbitrary
+  // fixture version used for non-selection transport checks above.
+  const virtualBody = { ...body, deviceId: virtualDevice,
+    catalogVersion: (await read('/v1/diagnostics', virtualToken)).result.catalogVersion };
   const virtualSession = await call('/v1/conversations', {
     token: virtualToken, key: randomUUID(), body: virtualBody,
   });
@@ -350,6 +380,51 @@ try {
     body: { ...virtualTurn, clientTurnId: randomUUID(), text: 'Ještě něco' },
   })).status, 409);
   assert.equal(await remove(`/v1/conversations/${virtualId}`, virtualToken, randomUUID()), 204);
+
+  // Accepted opaque catalog versions still support questions, but cannot
+  // publish an unbound selection or reserve a poisoned idempotent completion.
+  const opaqueBody = { ...virtualBody, catalogVersion: 'fixture-opaque-catalog' };
+  const opaqueSession = await call('/v1/conversations', {
+    token: virtualToken, key: randomUUID(), body: opaqueBody,
+  });
+  assert.equal(opaqueSession.status, 201);
+  const opaqueId = opaqueSession.result.conversationId;
+  const opaqueTurn = { ...virtualTurn, catalogVersion: opaqueBody.catalogVersion };
+  const opaqueOpening = await call(`/v1/conversations/${opaqueId}/opening`, {
+    token: virtualToken, key: randomUUID(), body: { ...opaqueTurn, clientTurnId: randomUUID() },
+  });
+  assert.equal(opaqueOpening.status, 202);
+  assert.equal((await read(`/v1/operations/${opaqueOpening.result.operationId}`, virtualToken)).result.result.decision, 'ask');
+  for (const answer of ['Jsem Eva', 'Ráda kreslím', 'Zkusila jsem tanec']) {
+    const next = await call(`/v1/conversations/${opaqueId}/turns`, {
+      token: virtualToken, key: randomUUID(),
+      body: { ...opaqueTurn, clientTurnId: randomUUID(), text: answer },
+    });
+    assert.equal(next.status, 202);
+    assert.equal((await read(`/v1/operations/${next.result.operationId}`, virtualToken)).result.result.decision, 'ask');
+  }
+  const opaqueKey = randomUUID();
+  const opaqueSelection = { ...opaqueTurn, clientTurnId: randomUUID(), text: 'Přátelé říkají, že jsem zvědavá' };
+  for (let retry = 0; retry < 2; retry++) {
+    const rejected = await call(`/v1/conversations/${opaqueId}/turns`, {
+      token: virtualToken, key: opaqueKey, body: opaqueSelection,
+    });
+    assert.equal(rejected.status, 409);
+    assert.equal(rejected.result.code, 'unsupported_catalog_version');
+    assert.equal(rejected.result.operationId, undefined);
+  }
+  const opaqueNoSelection = await call(`/v1/conversations/${opaqueId}/turns`, {
+    token: virtualToken, key: opaqueKey, body: { ...opaqueSelection, readyMask: 0 },
+  });
+  assert.equal(opaqueNoSelection.status, 202, 'rejected selection did not reserve its key or consume its client turn ID');
+  const opaqueResult = (await read(`/v1/operations/${opaqueNoSelection.result.operationId}`, virtualToken)).result.result;
+  assert.equal(opaqueResult.decision, 'no_selection');
+  assert.equal(opaqueResult.proposal, null);
+  assert.equal((await call(`/v1/conversations/${opaqueId}/turns`, {
+    token: virtualToken, key: opaqueKey, body: opaqueSelection,
+  })).status, 409, 'a rejected selection cannot replay the safe no_selection operation');
+  assert.equal(await remove(`/v1/conversations/${opaqueId}`, virtualToken, randomUUID()), 204);
+
   const emptySession = await call('/v1/conversations', {
     token: virtualToken, key: randomUUID(), body: virtualBody,
   });

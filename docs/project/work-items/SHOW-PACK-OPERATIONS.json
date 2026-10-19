@@ -48,16 +48,19 @@
     },
     {
       "id": "NATIVE",
-      "revision": 1,
+      "revision": 2,
       "expected": "macOS Swift testy a nepodepsaný iOS Simulator build aktuálního softwaru.",
       "requiredEvidenceKinds": [
         "native_ios"
       ],
       "rule": "allOf",
       "appliesTo": {
+        "iosArtifactDigest": "fdab6caca0e3b75fb79d1b9fb2c62252119a8b7961f3a199a622c7896a7ef30c",
         "policyVersion": "show-pack-2026.10.19.1"
       },
-      "evidenceRefs": []
+      "evidenceRefs": [
+        "SHOW-PACK-PR-native-ios-v1"
+      ]
     },
     {
       "id": "PHYSICAL",
@@ -94,15 +97,6 @@
       "unblockCondition": "Samostatné výslovné oprávnění k provider pilotu; dosavadní fake/replay nejsou živý důkaz."
     },
     {
-      "id": "APPLE",
-      "problem": "Windows lokální testy nenahrazují macOS; cílené PR CI se spustí po push.",
-      "severity": "medium",
-      "blocks": [
-        "NATIVE"
-      ],
-      "unblockCondition": "Úspěšné konkrétní macOS PR CI s nativními testy a nepodepsaným Simulator buildem aktuálního source subjectu."
-    },
-    {
       "id": "HARDWARE",
       "problem": "Fyzická sestava nebyla během této implementace připojena, flash ani měření nejsou součástí oprávnění.",
       "severity": "medium",
@@ -112,6 +106,6 @@
       "unblockCondition": "Identifikovat sestavu, schválit instalaci a provést skutečnou akustickou/fyzickou akceptaci s firmware/config/wiring/mechanics identitou."
     }
   ],
-  "nextAction": "Po softwarovém merge vyhodnotit skutečné macOS CI. Nahrávky, placený pilot a fyzickou sestavu řešit až s odpovídajícími podklady a oprávněním; nyní je nespouštět.",
-  "currentNote": "Oddělené externí brány, nikoli deklarace chybějící funkční softwarové cesty. Nasazení, podpis ani flash neproběhly."
+  "nextAction": "Nativní macOS CI splněno. Dodat schválené nahrávky a samostatně autorizovat provider pilot či fyzickou akceptaci; nyní placené testy, deploy ani flash nespouštět.",
+  "currentNote": "PR219 macOS CI ověřilo nativní testy a nepodepsaný Simulator build přesných aktuálních iOS zdrojů. Schválené nahrávky, provider pilot a fyzická/iPhone akceptace zůstávají oddělené externí brány. Nasazení, podpis ani flash neproběhly."
 }

@@ -150,8 +150,10 @@ Browser skript `mobilni-aplikace/scripts/check-director-browser.mjs` je opakovat
 test skutečné aplikace proti izolovanému lokálnímu fake backendu, nikoli produkční
 mock. Vyžaduje stávající testovací Playwright a dostupný Edge/Chromium. Přesné
 provedené příkazy a jejich limity jsou v immutable receipts, nikoli odhadnuté v této
-příručce. Nativní Swift/macOS workflow, skutečný iPhone, poslech Live, nová hlasová
-banka, nasazení a měření mechaniky zůstávají samostatné brány.
+příručce. [PR219 macOS CI](https://github.com/Blato58/DildoVander/actions/runs/39197061597/job/117882363878)
+ověřilo nativní Swift testy a nepodepsaný iOS Simulator build; přesné shodné zdroje
+identifikuje receipt `SHOW-PACK-PR-native-ios-v1`. Skutečný iPhone, poslech Live,
+nová hlasová banka, nasazení a měření mechaniky zůstávají samostatné brány.
 
 `Show:DuelCommentaryEnabled=false` ponechává deterministického českého komentátora.
 Zapnutí používá stávající Responses model/credential pro jedinou bounded kompozici

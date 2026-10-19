@@ -60,7 +60,7 @@ internal static class AutonomousLiveTests
         await VerifyCharacterEvidenceWithdrawal(options, "To řekl kamarád.", sameReference: true);
         await VerifyOperatorOverrideInvalidatedByCorrection(options with
         { Character = options.Character with { FinaleProfile = FinaleProfile.Limited } });
-        foreach (var clipOutcome in new[] { "completed", "expired", "stopped" })
+        foreach (var clipOutcome in new[] { "completed", "expired", "stopped", "thanks", "repeat", "empty" })
         { await VerifyLocalFinaleClipBoundary(options with
             { Character = options.Character with { FinaleProfile = FinaleProfile.Limited } }, clipOutcome); }
         Console.WriteLine("DV01 fake Live integration passed (no provider/audio hardware).");
@@ -224,11 +224,12 @@ internal static class AutonomousLiveTests
                 CharacterEnabled: true, CharacterTone: "Adult", CharacterFinaleProfile: "Limited")).Status == 200,
                 "actual owner enables frozen limited character profile");
             using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            var empty = clipOutcome == "empty";
             var boot = Guid.NewGuid();
             var created = store.Create("device", Guid.NewGuid(), "local-finale-create"u8,
                 new("device", boot, 0, PartyWandCatalog.Version, "cs-CZ", new(true, false)));
             Check(created.Status == 201, "actual common conversation admission succeeds");
-            var request = new RealtimeTurnRequest(Guid.NewGuid(), boot, 0, 63, 7,
+            var request = new RealtimeTurnRequest(Guid.NewGuid(), boot, 0, empty ? 0 : 63, 7,
                 PartyWandCatalog.Version, true, "", null, "marin", 1);
             var admission = store.BeginRealtimeTurn("device", created.Response!.ConversationId, Guid.NewGuid(),
                 "local-finale-call"u8.ToArray(), request, true, lifetime.Token, CancellationToken.None,
@@ -246,8 +247,14 @@ internal static class AutonomousLiveTests
             using var player = new RealtimeLiveSession("device", call.Correlation.ConversationId,
                 connection, lifetime, continuous: true);
             var decisionStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var decisionCalls = 0;
             using var decisions = new WandDecisionService((input, _) =>
-            { decisionStarted.TrySetResult(); return Task.FromResult(Proposal(input, 2)); });
+            {
+                Check(!empty, "empty physical ready mask must not invoke a model decision");
+                Interlocked.Increment(ref decisionCalls);
+                decisionStarted.TrySetResult();
+                return Task.FromResult(Proposal(input, 2));
+            });
             var consumed = Channel.CreateUnbounded<string>();
             var chunks = Channel.CreateUnbounded<int>();
             var checkpoints = Channel.CreateUnbounded<LivePlaybackRequest>();
@@ -281,32 +288,61 @@ internal static class AutonomousLiveTests
                 return cue!;
             }
             await socket.Command("session.instructions.append", lifetime.Token);
-            socket.Transcript(false, "Co děláš, když se plán rozpadne?", 0, 1000);
-            socket.Transcript(true, "Plánuji všechno.", 1100, 2000);
-            await consumed.Reader.ReadAsync(lifetime.Token);
-            socket.Delegate("local-finale", 2000);
-            clock.Advance(1300);
-            await AdvanceUntilAsync(decisionStarted.Task, run, clock, lifetime.Token);
-            var commentary = socket.Command("session.commentary.append", lifetime.Token);
-            await AdvanceUntilAsync(commentary, run, clock, lifetime.Token);
-            await commentary;
+            if (empty)
+            { await WaitUntil(() => show.Read("device").SceneExecution is not null); }
+            else
+            {
+                socket.Transcript(false, "Co děláš, když se plán rozpadne?", 0, 1000);
+                socket.Transcript(true, "Plánuji všechno.", 1100, 2000);
+                await consumed.Reader.ReadAsync(lifetime.Token);
+                socket.Delegate("local-finale", 2000);
+                clock.Advance(1300);
+                await AdvanceUntilAsync(decisionStarted.Task, run, clock, lifetime.Token);
+                var commentary = socket.Command("session.commentary.append", lifetime.Token);
+                await AdvanceUntilAsync(commentary, run, clock, lifetime.Token);
+                await commentary;
+            }
             // These are the actual compiled scene's finite non-speech cues.
-            for (var index = 0; index < 2; index++)
+            for (var index = 0; index < (empty ? 1 : 2); index++)
             {
                 var cue = await ReadNextCue();
-                Check(cue.CueType is "LedPreset" or "VibratePreset" && cue.Compartment == 2,
+                Check(cue.CueType is "LedPreset" or "VibratePreset" && cue.Compartment == (empty ? 1 : 2),
                     "actual scene adapters retain selected compartment before terminal audio");
                 Check(bridge.Acknowledge("device", cue.CueId, Ack("accepted", "commanded")).Status == 200
                     && bridge.Acknowledge("device", cue.CueId, Ack("completed", "commanded")).Status == 200,
                     "bounded local non-speech cues drain through actual mailbox");
             }
-            socket.Transcript(false, "Výběr mám. Mechanika není potvrzená. Tohle bude slavnostní průšvih.", 3000, 4000);
+            socket.Transcript(false, empty ? "Žádná fyzická hůlka není dostupná. Nechám kufr odpočívat."
+                : "Výběr mám. Mechanika není potvrzená. Tohle bude slavnostní průšvih.", 3000, 4000);
             socket.Audio();
             await chunks.Reader.ReadAsync(lifetime.Token);
             clock.Advance(2000);
             var checkpointRead = checkpoints.Reader.ReadAsync(lifetime.Token).AsTask();
             await AdvanceUntilAsync(checkpointRead, run, clock, lifetime.Token);
             var checkpoint = await checkpointRead;
+            if (clipOutcome is "thanks" or "repeat")
+            {
+                var guest = clipOutcome == "thanks" ? "Díky." : "Zopakuj to.";
+                socket.Transcript(true, guest, 4100, 4400);
+                while ((await consumed.Reader.ReadAsync(lifetime.Token)) != guest) { }
+                await WaitUntil(() => cancellations > 0);
+                var resumedCommentary = socket.Command("session.commentary.append", lifetime.Token);
+                clock.Advance(1300);
+                await AdvanceUntilAsync(resumedCommentary, run, clock, lifetime.Token);
+                await resumedCommentary;
+                Check(!player.ConfirmCheckpoint(checkpoint.PlaybackId, checkpoint.PcmBytes, true)
+                    && decisionCalls == 1 && show.Read("device").SceneExecution is { Cancelled: false },
+                    "guest Thanks/Repeat invalidates the old player drain and rebuilds the retained finale without another decision");
+                socket.Emit(new { type = "session.usage.updated", usage = new { seconds = 2 } });
+                clock.Advance(1000);
+                socket.Transcript(false, "Výběr platí. Mechanika není potvrzená. Slavnostní průšvih pokračuje.", 5000, 6000);
+                socket.Audio();
+                await chunks.Reader.ReadAsync(lifetime.Token);
+                clock.Advance(2000);
+                checkpointRead = checkpoints.Reader.ReadAsync(lifetime.Token).AsTask();
+                await AdvanceUntilAsync(checkpointRead, run, clock, lifetime.Token);
+                checkpoint = await checkpointRead;
+            }
             Check(player.ConfirmCheckpoint(checkpoint.PlaybackId, checkpoint.PcmBytes, true), "primary terminal audio drain is exact");
             await WaitUntil(() => show.Read("device").SceneExecution?.Cues
                 .Any(cue => cue.Kind == "PlayLocalClip" && cue.Status == "submitted") == true);
@@ -333,7 +369,7 @@ internal static class AutonomousLiveTests
                 bridge.CancelAll();
                 return;
             }
-            if (clipOutcome == "completed")
+            if (clipOutcome != "expired")
             {
                 var cue = await ReadNextCue();
                 Check(cue.CueType == "PlayLocalClip" && cue.ClipId == "ending-1" && cue.AudioPath is null,
@@ -355,11 +391,26 @@ internal static class AutonomousLiveTests
                 && show.Read("device").SessionGeneration is null,
                 "clip completion or bounded fallback closes once and releases Live visit");
             var result = store.CompleteGptLive(call, outcome);
+            if (empty)
+            {
+                Check(result is { Decision: "no_selection", Proposal: null }
+                    && outcome.Decision is { Status: WandDecisionStatus.NoAvailableWand, Compartment: null }
+                    && decisionCalls == 0 && journal.ReadKeepsakeSelection("device", call.OperationId) is null
+                    && show.ReadFinalePlan("device", call.OperationId) is null,
+                    "verified initial empty-ready finale completes the actual owner with no selection or physical proposal");
+                store.ReleaseRealtimeTurn(call, dispatched: true, completed: true);
+                bridge.CancelAll();
+                return;
+            }
             var proposal = result?.Proposal as SelectionProposal;
             var plan = show.ReadFinalePlan("device", call.OperationId);
             Check(proposal is { Compartment: 2 } && plan?.ProposalId == proposal.ProposalId && plan.SessionGeneration == call.SessionGeneration
                 && show.Read("device").SceneExecution?.Cues.Single(cue => cue.Kind == "PresentSelected").Status == "accepted",
                 "actual returned Live result binds one original proposal after session disposal using retained scene generation");
+            Check(decisionCalls == 1 && !checkpoints.Reader.TryRead(out _)
+                && socket.Sent.Count(value => value.Contains("session.commentary.append", StringComparison.Ordinal))
+                    == (clipOutcome is "thanks" or "repeat" ? 2 : 1),
+                "retained-result recovery publishes exactly one proposal after the fresh correlated drain");
             if (clipOutcome == "expired")
             {
                 Check(show.Read("device").SceneExecution?.Cues.Single(cue => cue.Kind == "PlayLocalClip").Status == "dropped",

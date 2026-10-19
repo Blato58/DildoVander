@@ -1,5 +1,9 @@
 #include "DeviceShowAudio.h"
 #include <cstring>
+
+// C++14 requires storage when callers bind the constexpr member by reference.
+constexpr size_t DeviceShowAudio::MaximumBytes;
+
 namespace {
 uint32_t U32(const uint8_t* bytes) {
   return bytes[0] | (uint32_t(bytes[1]) << 8) | (uint32_t(bytes[2]) << 16) | (uint32_t(bytes[3]) << 24);

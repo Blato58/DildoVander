@@ -181,7 +181,18 @@ internal sealed partial class ConversationStore(
                 return new SubmitTurnResult(409, null, "duplicate_turn_id");
             }
 
+            var syntheticDialogue = deviceId == "debug-server-admin" || twinFakeInputs?.Allows(deviceId) == true;
             var paid = dialogRunner?.Enabled == true && twinFakeInputs?.Allows(deviceId) != true;
+            var selectionQuestions = paid ? PersonalityCatalog.MinimumQuestions(conversation.PersonalityId)
+                : syntheticDialogue ? PersonalityCatalog.FakeQuestions(conversation.PersonalityId) : int.MaxValue;
+            // Opaque catalog versions remain valid for transport-only questions.
+            // Once this turn can select a wand, its finale must bind to the real
+            // catalog. Reject before reserving a turn or completing its journal.
+            if (show is not null && request.ReadyMask != 0 && conversation.CompletedQuestions >= selectionQuestions
+                && request.CatalogVersion != PartyWandCatalog.Version)
+            {
+                return new SubmitTurnResult(409, null, "unsupported_catalog_version");
+            }
             if ((paid && activePaidCalls.Count != 0) || HasActiveCall(conversationId))
             {
                 return paid
@@ -258,7 +269,6 @@ internal sealed partial class ConversationStore(
                     return new SubmitTurnResult(202, operationId, null);
                 }
 
-                var syntheticDialogue = deviceId == "debug-server-admin" || twinFakeInputs?.Allows(deviceId) == true;
                 var turnResult = syntheticDialogue
                     ? BuildAdminFakeTurn(conversation, request, conversationId, opening, now)
                     : new TurnResult(

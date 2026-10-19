@@ -232,6 +232,13 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                 stylePlayed?.Invoke("lore-" + slot, false);
             }
         }
+        void BeginTerminalFinale(WandDecisionResult result)
+        {
+            if (character is null || result.Status == WandDecisionStatus.NeedsInformation) { return; }
+            show?.BeginFinale(call.Correlation.DeviceId, call.SessionGeneration,
+                character.Tempo == CharacterTempo.Express, options.Character.FinaleProfile,
+                result.Status == WandDecisionStatus.ValidProposal, result.DecisionRevision, result.Compartment);
+        }
         async Task Deliver(WandDecisionResult result, string? delegation)
         {
             // Operator quick finish uses the existing decision service and all
@@ -244,12 +251,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
             }
             if (!Valid(result)) return;
             terminalDrained = false;
-            if (character is not null && result.Status != WandDecisionStatus.NeedsInformation)
-            {
-                show?.BeginFinale(call.Correlation.DeviceId, call.SessionGeneration,
-                    character.Tempo == CharacterTempo.Express, options.Character.FinaleProfile,
-                    result.Status == WandDecisionStatus.ValidProposal, result.DecisionRevision, result.Compartment);
-            }
+            BeginTerminalFinale(result);
             waiting = null;
             var text = character is null ? ResultContext(result) : CharacterResultContext(result, options.Character.FinaleProfile);
             await Direct(result.Status == WandDecisionStatus.NeedsInformation ? CharacterPhase.Responding : CharacterPhase.Ready);
@@ -353,6 +355,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         {
             terminal = new(WandDecisionStatus.NoAvailableWand, null, [], "", projection.Revision, availability().Revision);
             terminalAt = Elapsed(); terminalSegment = 0; resultAccepted = true;
+            BeginTerminalFinale(terminal);
         }
         try
         {
@@ -782,8 +785,20 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                         // An acknowledgment is not new selection evidence. A
                         // split first fragment may have advanced the projection
                         // revision; rebind the unchanged, validated decision.
-                        terminal = terminal with { DecisionRevision = projection.Revision };
-                        terminalAt = Elapsed();
+                        var retained = terminal with { DecisionRevision = projection.Revision };
+                        if (showVisit is not null)
+                        {
+                            await EnsureShowNotStoppedAsync();
+                            // Cancellation retired this visit's scene and its
+                            // publication source. Resume through fresh scene
+                            // and audio gates without another model decision.
+                            if (Valid(retained)) { await Deliver(retained, null); }
+                        }
+                        else
+                        {
+                            terminal = retained;
+                            terminalAt = Elapsed();
+                        }
                     }
                     else
                     {
