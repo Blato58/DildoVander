@@ -33,7 +33,8 @@ CONTRACT = json.loads(Path(__file__).with_name("backend-route-contract.json").re
 def route_pattern(template):
     parts = re.split(r"(\{[^}]+\})", template)
     variables = {"channel": "(?:stable|development)", "hash": "[0-9a-f]{64}",
-                 "deviceId": "[A-Za-z0-9_-]{1,128}", "sourceId": "[A-Za-z0-9_.:-]{1,240}"}
+                 "deviceId": "[A-Za-z0-9_-]{1,128}", "sourceId": "[A-Za-z0-9_.:-]{1,240}",
+                 "scope": "(?:conversation|guest|evening)", "subject": "[A-Za-z0-9_.:-]{1,240}"}
     # Twin instance IDs follow TwinSnapshot.Id, rather than conversation GUIDs.
     if template.startswith("/v1/twin/"):
         variables["id"] = "[A-Za-z0-9_.-]{1,96}"
@@ -57,7 +58,7 @@ def render_compatibility(host):
     for method, template, source in CONTRACT["routes"]:
         grouped.setdefault((template, source), set()).add(method)
     for (template, source), methods in grouped.items():
-        streaming = template.endswith(("/realtime-turns", "/realtime-live", "/gpt-live"))
+        streaming = template.endswith(("/realtime-turns", "/realtime-live", "/gpt-live", "/audio-stream"))
         twin = source.startswith("Features/DigitalTwin/")
         # Only the JPEG upload needs the larger existing Twin media body cap.
         body_limit = "256k;" if template == "/v1/twin/instances/{id}/media/photo" else "32k;" if twin else "4m;"

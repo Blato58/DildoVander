@@ -34,14 +34,18 @@ struct NativeHandsFreeTests {
         assert(metrics["played"] == 3 && metrics["uploads"] == 2 && metrics["cleanup"] == 1)
         try await testGptLive(client: client, profile: profile)
         try await testAutonomousCheckpoint(client: client, profile: profile)
+        try await testRealtimeVisualRevocation(baseURL: baseURL)
         try testPlaybackConversion()
         try testPlaybackRendering()
         testPlaybackProgress()
         try testMicrophoneConversion()
         testAudioRouteChanges()
         testEngineStartup()
+        try testProviderProblems()
         for (path, expectedCode) in [
             ("problem", "realtime_unavailable"),
+            ("live-problem", "gpt_live_unavailable"),
+            ("unknown-problem", "realtime_live_http_failed"),
             ("mime", "realtime_live_protocol_failed"),
             ("eof", "realtime_live_protocol_failed")
         ] {
@@ -52,6 +56,48 @@ struct NativeHandsFreeTests {
         assert(DebugHandsFreeSession.failureCode(for: URLError(.serverCertificateUntrusted)) == "realtime_live_tls_failed")
         print("Hands-free native multi-turn, VAD gate, early acknowledgement and cleanup passed.")
         print("Hands-free audio startup, route changes, 48kHz conversion and early HTTP failures passed.")
+    }
+
+    @MainActor static func testRealtimeVisualRevocation(baseURL: URL) async throws {
+        let profile = DebugBackendProfile(baseURL: baseURL.appendingPathComponent("revocation"), deviceId: "debug-test", credential: "test")
+        var session: DebugHandsFreeSession!
+        var received: [UInt8] = []
+        var queued: [UInt8] = []
+        var replies = 0
+        var cancellations = 0
+        var listeningInputs: [String] = []
+        session = DebugHandsFreeSession(client: DebugBackendClient(), profile: profile, token: "access",
+            conversation: "00000000-0000-4000-8000-000000000002", boot: "00000000-0000-4000-8000-000000000001",
+            readyMask: 63, voice: "cedar", speed: 1, phase: { _ in }, visitor: { text in fatalError("Stale visitor projected: \(text)") }, reply: { reply in
+                replies += 1
+                assert(reply.text == "revocation-\(replies + 1)")
+                Task { try await session.played(operationId: reply.operationId) }
+            }, audio: { pcm in
+                received.append(pcm[0]); queued.append(pcm[0])
+                if received.count == 1 { Task { try await session.revokeImage(revision: 1) } }
+            }, listening: { listeningInputs.append($0) }, inputGate: { _ in }, failure: { code in
+                fatalError("Unexpected revocation failure: \(code)")
+            }, cancelAudio: { cancellations += 1; queued.removeAll() })
+        let timeout = Task { try await Task.sleep(nanoseconds: 10_000_000_000); fatalError("Visual revocation timeout") }
+        try await session.run()
+        timeout.cancel()
+        try await session.close()
+        assert(received == [1, 2, 3] && queued == [3])
+        assert(cancellations == 4 && replies == 2 && listeningInputs.count == 1)
+        print("Realtime visual revoke flushed queued PCM, fenced stale output/metadata, retained voice and deduplicated input.")
+    }
+
+    static func testProviderProblems() throws {
+        for code in ["realtime_unavailable", "gpt_live_unavailable", "access_token_required", "invalid_audio_frame"] {
+            let body = try JSONSerialization.data(withJSONObject: ["code": code, "detail": "never projected"])
+            assert(DebugHandsFreeSession.failureCode(for: DebugBackendClient.realtimeError(data: body, status: 503)) == code)
+        }
+        for body in [Data(), Data("not JSON".utf8), Data("{\"code\":\"private_arbitrary_text\"}".utf8),
+                     Data("{\"code\":false}".utf8), Data(repeating: 0, count: 4_097)] {
+            assert(DebugHandsFreeSession.failureCode(for: DebugBackendClient.realtimeError(data: body, status: 429)) == "realtime_live_http_failed")
+        }
+        let success = try JSONSerialization.data(withJSONObject: ["code": "realtime_unavailable"])
+        assert(DebugHandsFreeSession.failureCode(for: DebugBackendClient.realtimeError(data: success, status: 200)) == "realtime_live_http_failed")
     }
 
     static func testPlaybackConversion() throws {
@@ -176,11 +222,12 @@ struct NativeHandsFreeTests {
         var checkpoints = 0
         var replies = 0
         var cancellations = 0
+        var visitorTexts: [String] = []
         var session: DebugHandsFreeSession!
         session = DebugHandsFreeSession(client: client, profile: actorProfile, token: "access",
             conversation: "00000000-0000-4000-8000-000000000002", boot: "00000000-0000-4000-8000-000000000001",
             readyMask: 63, voice: "cedar", speed: 1, gptLive: true,
-            phase: { _ in }, visitor: { _ in }, reply: { reply in
+            phase: { _ in }, visitor: { text in assert(text != "obsolete visitor"); visitorTexts.append(text) }, reply: { reply in
                 assert(checkpoints == 1 && reply.terminal && reply.text == "Actor závěr")
                 replies += 1
                 Task { try? await session.played(operationId: reply.operationId) }
@@ -209,6 +256,7 @@ struct NativeHandsFreeTests {
         let metrics = try JSONSerialization.jsonObject(with: data) as! [String: Int]
         assert(audioBlocks == 2 && checkpoints == 1 && replies == 1 && cancellations == 1 && !gate)
         assert(metrics["actorCheckpoints"] == 2 && metrics["livePlayed"] == 2)
+        assert(visitorTexts == ["Live odpověď", "fresh visitor"])
         print("Autonomous native response cancellation/dedupe, preserved input, checkpoint drain and lost-ACK retry passed.")
     }
 

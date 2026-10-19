@@ -25,6 +25,7 @@ std::string stream;
 std::atomic<int> uploads{0}, played{0}, drains{0};
 std::atomic<int> checkpoints{0};
 bool loseCheckpointAck = false;
+unsigned playedResponseGeneration = 0;
 std::atomic<bool> listening{false};
 bool wrongMime = false, rejectAck = false, delayedInput = false, gptLive = false;
 std::atomic<bool> heldInput{false}, releaseInput{false};
@@ -59,11 +60,11 @@ std::string Correlation(const std::string& turn) {
 }
 std::string Reply(const std::string& turn, bool terminal) {
   const std::string correlation = Correlation(turn);
-  return "{\"type\":\"started\",\"operationId\":\"" + Operation + "\",\"correlation\":" + correlation + "}\n" +
-      "{\"type\":\"audio\",\"delta\":\"AAAAAAAA\"}\n" +
+  return "{\"type\":\"started\",\"operationId\":\"" + Operation + "\",\"correlation\":" + correlation + ",\"responseGeneration\":0}\n" +
+      "{\"type\":\"audio\",\"delta\":\"AAAAAAAA\",\"responseGeneration\":0}\n" +
       "{\"type\":\"completed\",\"operationId\":\"" + Operation + "\",\"correlation\":" + correlation +
       ",\"result\":{\"reply\":\"Ahoj\",\"decision\":\"" + (terminal ? "no_selection" : "ask") +
-      "\",\"reason\":\"\",\"proposal\":null},\"costMicroUsd\":100}\n";
+      "\",\"reason\":\"\",\"proposal\":null},\"costMicroUsd\":100,\"responseGeneration\":0}\n";
 }
 std::string Input(const std::string& turn) {
   return "{\"type\":\"listening\",\"inputId\":\"" + turn + "\"}\n" +
@@ -73,6 +74,7 @@ std::string Input(const std::string& turn) {
 void Reset() {
   uploads = played = drains = 0; wrongMime = rejectAck = delayedInput = gptLive = false; listening = false;
   checkpoints = 0; loseCheckpointAck = false;
+  playedResponseGeneration = 0;
   heldInput = releaseInput = false; inputCalls = listenStarts = 0;
 }
 }
@@ -115,7 +117,7 @@ int64_t esp_http_client_fetch_headers(esp_http_client_handle_t client) {
   } else {
     assert(client->url.find("/played") != std::string::npos);
     assert(drains.load() > played.load()); // ACK follows the hardware drain.
-    assert(client->body == "{\"operationId\":\"" + Operation + "\"}");
+    assert(client->body == "{\"operationId\":\"" + Operation + "\",\"responseGeneration\":" + std::to_string(playedResponseGeneration) + "}");
     ++played;
   }
   return 0;
@@ -174,17 +176,17 @@ int main() {
   const auto audioStart = liveReply.find("{\"type\":\"audio\"");
   const auto completionStart = liveReply.find("{\"type\":\"completed\"");
   stream = session + liveReply.substr(0, audioStart) +
-      "{\"type\":\"listening\",\"inputId\":\"" + Turn + "\"}\n" +
+      "{\"type\":\"listening\",\"inputId\":\"" + Turn + "\",\"responseGeneration\":0}\n" +
       liveReply.substr(audioStart, completionStart - audioStart) +
-      "{\"type\":\"pause\"}\n" +
-      "{\"type\":\"speech_stopped\",\"inputId\":\"" + Turn + "\"}\n" +
-      liveReply.substr(completionStart) + "{\"type\":\"closed\",\"reason\":\"conversation_terminal\"}\n";
+      "{\"type\":\"pause\",\"responseGeneration\":0}\n" +
+      "{\"type\":\"speech_stopped\",\"inputId\":\"" + Turn + "\",\"responseGeneration\":0}\n" +
+      liveReply.substr(completionStart) + "{\"type\":\"closed\",\"reason\":\"conversation_terminal\",\"responseGeneration\":0}\n";
   Audio liveAudio;
   EspIdfRealtimeTransport live("example.test", "testtoken", liveAudio, [] { return true; }, [](const char*) {}, true);
   assert(live.Run("{}", Boot, opening, snapshot, [](const TurnOperationObservation&) { return true; }));
   assert(played == 1 && drains == 1 && liveAudio.blocks == 1 && !listening);
   const auto stopOffset = stream.find("{\"type\":\"speech_stopped\"");
-  stream.insert(stopOffset, "{\"type\":\"playback_checkpoint\",\"playbackId\":\"" + Boot + "\",\"pcmBytes\":6,\"decisionRevision\":2}\n");
+  stream.insert(stopOffset, "{\"type\":\"playback_checkpoint\",\"playbackId\":\"" + Boot + "\",\"pcmBytes\":6,\"decisionRevision\":2,\"responseGeneration\":0}\n");
   for (const bool lostAck : {false, true}) {
     Reset(); gptLive = true; loseCheckpointAck = lostAck;
     Audio autonomousAudio;
@@ -193,9 +195,15 @@ int main() {
     assert(checkpoints == (lostAck ? 2 : 1) && drains == 1 && played == 1 && !listening);
   }
   const auto beforeAudio = stream.find("{\"type\":\"audio\"");
+  const std::string generationField = "\"responseGeneration\":0";
+  for (size_t offset = beforeAudio; (offset = stream.find(generationField, offset)) != std::string::npos;) {
+    stream.replace(offset, generationField.size(), "\"responseGeneration\":2");
+    offset += generationField.size();
+  }
   stream.insert(beforeAudio, "{\"type\":\"audio_cancel\",\"responseGeneration\":2}\n"
       "{\"type\":\"audio_cancel\",\"responseGeneration\":2}\n");
   Reset(); gptLive = true;
+  playedResponseGeneration = 2;
   Audio cancelledAudio;
   EspIdfRealtimeTransport scopedCancel("example.test", "testtoken", cancelledAudio, [] { return true; }, [](const char*) {}, true);
   assert(scopedCancel.Run("{}", Boot, opening, snapshot, [](const TurnOperationObservation&) { return true; }));

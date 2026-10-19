@@ -34,14 +34,19 @@ final class DebugHandsFreeSession {
     private let checkpoint: Checkpoint
     private let cancelAudio: CancelAudio
     private var responseGeneration = 0
+    private var visualRevocationPending = false
+    private var pendingVisualRevision: Int?
     private var retiredCheckpoints: Set<String> = []
     private var checkpointBytes: [String: Int] = [:]
     private var receivedPcmBytes = 0
     private let requests = DebugHandsFreeRequest()
     private var stream: DebugHandsFreeLiveStream?
     private var streamId: String?
+    private var audioSocket: DebugHandsFreeAudioSocket?
+    var conversationId: String { conversation }
     private var currentInputId: String?
     private var previousInputId: String?
+    private var listeningInputId: String?
     private var currentOperationId: String?
     private var awaitingPlayedOperation: String?
     private var turnStartedAt: Date?
@@ -101,6 +106,7 @@ final class DebugHandsFreeSession {
         phase("opening")
         defer {
             live.cancel()
+            audioSocket?.close(); audioSocket = nil
             if stream === live { stream = nil }
         }
         do {
@@ -143,20 +149,63 @@ final class DebugHandsFreeSession {
     // Audio owns its strictly increasing per-input sequence; this method only
     // accepts a currently listening input or a just-ended in-flight frame.
     func upload(inputId: String, sequence: Int, pcm: Data) async throws {
-        guard !closed, let streamId, sequence >= 0, pcm.count > 0, pcm.count <= 9_600,
+        guard !closed, streamId != nil, sequence >= 0, pcm.count > 0, pcm.count <= 9_600,
               pcm.count % 2 == 0, inputId == currentInputId || inputId == previousInputId else {
             throw DebugBackendError.invalidResponse
         }
-        var request = URLRequest(url: profile.baseURL.appendingPathComponent(
-            "v1/conversations/\(conversation)/\(endpoint)/\(streamId)/audio"))
-        request.httpMethod = "POST"
-        request.httpBody = pcm
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
-        request.setValue(inputId, forHTTPHeaderField: "Input-Id")
-        request.setValue(String(sequence), forHTTPHeaderField: "Input-Sequence")
-        let (data, response) = try await requests.perform(request, limit: 4096)
-        guard data.isEmpty, response.statusCode == 204 else { throw DebugBackendError.invalidResponse }
+        guard let audioSocket else { throw DebugBackendError.serverCode("audio_stream_unavailable") }
+        try await audioSocket.send(inputId: inputId, sequence: sequence, pcm: pcm)
+    }
+
+    func attachVisual(_ input: DebugCostumeInput, status: (String) -> Void) async throws {
+        let jpeg = input.jpeg
+        let description = input.description
+        input.jpeg = nil; input.description = nil
+        if let jpeg {
+            status("Nahrávám a vyhodnocuji schválenou fotku…")
+            do {
+                _ = try await attachPhoto(jpeg, capturedAt: input.capturedAt, revision: 1)
+                status("Fotka byla vyhodnocena pro tento rozhovor.")
+            } catch {
+                try Task.checkCancellation()
+                guard !closed else { throw CancellationError() }
+                status("Fotku se nepodařilo zpracovat. Rozhovor pokračuje bez fotky.")
+                if description == nil { throw error }
+            }
+        }
+        if let description {
+            guard !closed else { throw CancellationError() }
+            try await client.correctCostume(profile, token: token, conversation: conversation, boot: boot, description: description)
+            guard !closed else { throw CancellationError() }
+            status("Používám schválený ruční popis kostýmu.")
+        }
+    }
+
+    func revokeImage(revision: Int) async throws {
+        guard !closed, revision >= 1 else { return }
+        visualRevocationPending = true
+        pendingVisualRevision = max(pendingVisualRevision ?? revision, revision)
+        cancelAudio()
+        do { try await client.revokeConversationImage(profile, token: token, conversation: conversation, boot: boot, revision: revision) }
+        catch {
+            if pendingVisualRevision == revision { visualRevocationPending = false; pendingVisualRevision = nil }
+            throw error
+        }
+    }
+
+    // A photo draft survives failed attempts. Archive upload identity does not:
+    // each revision must receive a new immutable media record, even on retry.
+    func attachPhoto(_ jpeg: Data, capturedAt: Date, revision: Int) async throws -> String {
+        let imageId = UUID().uuidString.lowercased()
+        try await attachImage(jpeg, imageId: imageId, capturedAt: capturedAt, revision: revision)
+        return imageId
+    }
+
+    func attachImage(_ jpeg: Data, imageId: String, capturedAt: Date, revision: Int) async throws {
+        guard !closed else { throw CancellationError() }
+        try await client.attachConversationImage(profile, token: token, conversation: conversation, boot: boot,
+            jpeg: jpeg, imageId: imageId, capturedAt: capturedAt, revision: revision)
+        guard !closed else { throw CancellationError() }
     }
 
     // Called exactly once after all dataPlayedBack callbacks for an operation.
@@ -198,7 +247,8 @@ final class DebugHandsFreeSession {
         request.httpMethod = "POST"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: ["operationId": operationId], options: [.sortedKeys])
+        request.httpBody = try JSONSerialization.data(withJSONObject:
+            ["operationId": operationId, "responseGeneration": responseGeneration], options: [.sortedKeys])
         awaitingPlayedOperation = nil
         phase("waiting_listening")
         let (data, response) = try await requests.perform(request, limit: 4096)
@@ -207,6 +257,7 @@ final class DebugHandsFreeSession {
 
     func stop() async {
         inputGate(false)
+        audioSocket?.close(); audioSocket = nil
         stream?.cancel()
         requests.cancel()
         if let operation = currentOperationId {
@@ -217,6 +268,7 @@ final class DebugHandsFreeSession {
     func close() async throws {
         guard !closed else { return }
         inputGate(false)
+        audioSocket?.close(); audioSocket = nil
         stream?.cancel()
         try await client.cleanup(profile, token: token, conversation: conversation)
         closed = true
@@ -230,30 +282,62 @@ final class DebugHandsFreeSession {
         case .session(let id):
             guard streamId == nil else { throw DebugBackendError.invalidResponse }
             streamId = id
-        case .started(let operation, let correlation):
+            var request = URLRequest(url: profile.baseURL.appendingPathComponent(
+                "v1/conversations/\(conversation)/\(endpoint)/\(id)/audio-stream"))
+            var components = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!
+            components.scheme = components.scheme == "https" ? "wss" : "ws"
+            request.url = components.url
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            audioSocket = DebugHandsFreeAudioSocket(request: request) { [weak self] code in
+                guard let self, !self.closed else { return }
+                self.inputGate(false)
+                self.failure(code)
+                self.stream?.cancel()
+            }
+        case .started(let operation, let correlation, let generation):
+            guard !visualRevocationPending else { return }
+            guard try acceptsResponse(generation) else { return }
             guard currentOperationId == nil, correlation == expectedCorrelation(clientTurnId: currentInputId ?? "") else { throw DebugBackendError.invalidResponse }
             currentOperationId = operation
+            if !gptLive { listeningInputId = nil }
             inputGate(false)
             phase("thinking")
-        case .audio(let pcm):
+        case .audio(let pcm, let generation):
+            // Unlabelled frames are compatible only before the first cancellation.
+            // A revoked image must never be spoken by a delayed old audio frame.
+            guard try acceptsResponse(generation) else { return }
             receivedPcmBytes += pcm.count
+            guard !visualRevocationPending else { return }
             guard currentOperationId != nil else { throw DebugBackendError.invalidResponse }
             if firstAudioAt == nil { firstAudioAt = Date() }
             if !gptLive { inputGate(false) }
             phase("playing")
             try audio(pcm)
-        case .visitor(let text): visitor(text)
-        case .audioCancelled(let generation):
-            guard gptLive, currentOperationId != nil else { throw DebugBackendError.invalidResponse }
+        case .visitor(let text, let generation):
+            guard try acceptsResponse(generation) else { return }
+            visitor(text)
+        case .audioCancelled(let generation, let visualRevision):
             if generation > responseGeneration {
                 responseGeneration = generation
+                // Ordinary barge-in markers can already be in flight when a
+                // photo revoke starts. Only its causal visual barrier unmutes.
+                if let visualRevision, let pending = pendingVisualRevision, visualRevision >= pending {
+                    visualRevocationPending = false
+                    pendingVisualRevision = nil
+                }
                 for id in checkpointBytes.keys { retiredCheckpoints.insert(id) }
-                guard retiredCheckpoints.count <= 64 else { throw DebugBackendError.invalidResponse }
+                if let operation = awaitingPlayedOperation { retiredCheckpoints.insert(operation) }
                 checkpointBytes.removeAll()
+                let hadPendingResponse = currentOperationId != nil || awaitingPlayedOperation != nil
+                awaitingPlayedOperation = nil
+                if !gptLive { currentOperationId = nil }
                 cancelAudio()
-                phase("listening")
+                if gptLive { phase("listening") }
+                else if hadPendingResponse { phase("thinking") }
             }
-        case .completed(let operation, let correlation, let result, let cost):
+        case .completed(let operation, let correlation, let result, let cost, let generation):
+            guard !visualRevocationPending else { return }
+            guard try acceptsResponse(generation) else { return }
             guard operation == currentOperationId, correlation == expectedCorrelation(clientTurnId: currentInputId ?? ""), cost > 0 else {
                 throw DebugBackendError.invalidResponse
             }
@@ -271,33 +355,47 @@ final class DebugHandsFreeSession {
                                           "firstAudioMs": firstAudio.timeIntervalSince(started) * 1_000,
                                           "totalMs": now.timeIntervalSince(started) * 1_000
                                       ]))
-        case .listening(let input):
+        case .listening(let input, let generation):
+            guard try acceptsResponse(generation) else { return }
+            guard gptLive || currentOperationId == nil else { return }
             guard awaitingPlayedOperation == nil, UUID(uuidString: input) != nil else { throw DebugBackendError.invalidResponse }
             previousInputId = currentInputId
             currentInputId = input
             if !gptLive { turnStartedAt = nil; firstAudioAt = nil }
-            listening(input)
+            if listeningInputId != input {
+                listeningInputId = input
+                listening(input)
+            }
             inputGate(true)
             phase("listening")
-        case .speechStarted(let input):
+        case .speechStarted(let input, let generation):
+            guard try acceptsResponse(generation) else { return }
             guard input == currentInputId else { throw DebugBackendError.invalidResponse }
             phase("recording")
-        case .speechStopped(let input):
+        case .speechStopped(let input, let generation):
+            guard try acceptsResponse(generation) else { return }
+            guard !gptLive || !visualRevocationPending else { return }
             guard input == currentInputId else { throw DebugBackendError.invalidResponse }
+            listeningInputId = nil
             inputGate(false)
             phase("thinking")
             if !gptLive { turnStartedAt = Date(); firstAudioAt = nil }
         case .heartbeat: break
-        case .pause:
+        case .pause(let generation):
+            guard try acceptsResponse(generation) else { return }
             guard gptLive else { throw DebugBackendError.invalidResponse }
             phase("listening")
-        case .checkpoint(let id, let bytes, _):
+        case .checkpoint(let id, let bytes, _, let generation):
+            guard try acceptsResponse(generation) else { return }
+            guard !visualRevocationPending else { return }
             guard gptLive, bytes == receivedPcmBytes else { throw DebugBackendError.invalidResponse }
             if checkpointBytes[id] == nil {
                 checkpointBytes[id] = bytes
                 checkpoint(id) // schedule local drain; keep the stream reader active
             }
-        case .closed:
+        case .closed(let generation):
+            guard try acceptsResponse(generation) else { return }
+            guard !visualRevocationPending else { return }
             guard !gptLive || finalReplyReceived else { throw DebugBackendError.invalidResponse }
             terminalReceived = true
             inputGate(false)
@@ -306,6 +404,13 @@ final class DebugHandsFreeSession {
             inputGate(false)
             throw DebugBackendError.serverCode(code)
         }
+    }
+
+    private func acceptsResponse(_ generation: Int?) throws -> Bool {
+        guard let generation else { return responseGeneration == 0 }
+        guard generation >= responseGeneration else { return false }
+        guard generation == responseGeneration else { throw DebugBackendError.invalidResponse }
+        return true
     }
 
     private func expectedCorrelation(clientTurnId: String) -> [String: AnyHashable] {
@@ -350,18 +455,18 @@ struct DebugHandsFreeReply {
 
 private enum DebugHandsFreeEvent {
     case session(String)
-    case started(String, [String: AnyHashable])
-    case audio(Data)
-    case visitor(String)
-    case completed(String, [String: AnyHashable], [String: Any], Int)
-    case listening(String)
-    case speechStarted(String)
-    case speechStopped(String)
+    case started(String, [String: AnyHashable], Int?)
+    case audio(Data, Int?)
+    case visitor(String, Int?)
+    case completed(String, [String: AnyHashable], [String: Any], Int, Int?)
+    case listening(String, Int?)
+    case speechStarted(String, Int?)
+    case speechStopped(String, Int?)
     case heartbeat
-    case pause
-    case audioCancelled(Int)
-    case checkpoint(String, Int, Int)
-    case closed
+    case pause(Int?)
+    case audioCancelled(Int, Int?)
+    case checkpoint(String, Int, Int, Int?)
+    case closed(Int?)
     case failed(String)
 }
 
@@ -375,6 +480,7 @@ private final class DebugHandsFreeLiveStream: NSObject, URLSessionDataDelegate {
     private var wire = 0
     private var eventCount = 0
     private var turnPcm = 0
+    private var streamResponseGeneration = 0
     private var responseStatus: Int?
     private var responseBody = Data()
     private var finished = false
@@ -489,45 +595,67 @@ private final class DebugHandsFreeLiveStream: NSObject, URLSessionDataDelegate {
             return .session(id)
         case "started":
             guard let operation = uuid(object, "operationId"), let correlation = correlation(object) else { throw DebugBackendError.invalidResponse }
-            turnPcm = 0
-            return .started(operation, correlation)
+            let generation = try responseGeneration(object)
+            if generation == streamResponseGeneration || (generation == nil && streamResponseGeneration == 0) { turnPcm = 0 }
+            return .started(operation, correlation, generation)
         case "audio":
             guard let encoded = object["delta"] as? String, encoded.utf8.count <= 65_536,
                   let pcm = Data(base64Encoded: encoded), !pcm.isEmpty, pcm.count <= 49_152, pcm.count % 2 == 0 else { throw DebugBackendError.invalidResponse }
-            turnPcm += pcm.count
+            let generation = try responseGeneration(object)
+            if generation == streamResponseGeneration || (generation == nil && streamResponseGeneration == 0) { turnPcm += pcm.count }
             guard turnPcm <= (gptLive ? 9_120_000 : 1_440_000) else { throw DebugBackendError.tooLarge }
-            return .audio(pcm)
+            return .audio(pcm, generation)
         case "visitor":
             guard let text = object["text"] as? String, text.unicodeScalars.count <= 1000 else { throw DebugBackendError.invalidResponse }
-            return .visitor(text)
+            return .visitor(text, try responseGeneration(object))
         case "completed":
             guard let operation = uuid(object, "operationId"), let correlation = correlation(object),
                   let result = object["result"] as? [String: Any], let cost = object["costMicroUsd"] as? NSNumber,
                   cost.intValue > 0, cost.doubleValue == Double(cost.intValue) else { throw DebugBackendError.invalidResponse }
-            return .completed(operation, correlation, result, cost.intValue)
-        case "listening": guard let id = uuid(object, "inputId") else { throw DebugBackendError.invalidResponse }; return .listening(id)
-        case "speech_started": guard let id = uuid(object, "inputId") else { throw DebugBackendError.invalidResponse }; return .speechStarted(id)
-        case "speech_stopped": guard let id = uuid(object, "inputId") else { throw DebugBackendError.invalidResponse }; return .speechStopped(id)
+            return .completed(operation, correlation, result, cost.intValue, try responseGeneration(object))
+        case "listening":
+            guard let id = uuid(object, "inputId") else { throw DebugBackendError.invalidResponse }
+            return .listening(id, try responseGeneration(object))
+        case "speech_started":
+            guard let id = uuid(object, "inputId") else { throw DebugBackendError.invalidResponse }
+            return .speechStarted(id, try responseGeneration(object))
+        case "speech_stopped":
+            guard let id = uuid(object, "inputId") else { throw DebugBackendError.invalidResponse }
+            return .speechStopped(id, try responseGeneration(object))
         case "heartbeat": return .heartbeat
         case "pause":
-            guard gptLive, object.count == 1 else { throw DebugBackendError.invalidResponse }
-            return .pause
+            guard gptLive, Set(object.keys).isSubset(of: ["type", "responseGeneration"]) else { throw DebugBackendError.invalidResponse }
+            return .pause(try responseGeneration(object))
         case "audio_cancel":
-            guard gptLive, object.count == 2, let generation = object["responseGeneration"] as? NSNumber,
+            guard Set(object.keys).isSubset(of: ["type", "responseGeneration", "visualRevision"]),
+                  let generation = object["responseGeneration"] as? NSNumber,
                   CFGetTypeID(generation) != CFBooleanGetTypeID(), generation.intValue > 0,
                   generation.doubleValue <= 9_007_199_254_740_991,
                   generation.doubleValue == Double(generation.intValue) else { throw DebugBackendError.invalidResponse }
-            return .audioCancelled(generation.intValue)
+            var visualRevision: Int?
+            if let raw = object["visualRevision"] {
+                guard let number = raw as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(),
+                      number.intValue > 0, number.intValue <= 1_000_000,
+                      number.doubleValue == Double(number.intValue) else { throw DebugBackendError.invalidResponse }
+                visualRevision = number.intValue
+            }
+            streamResponseGeneration = max(streamResponseGeneration, generation.intValue)
+            return .audioCancelled(generation.intValue, visualRevision)
         case "playback_checkpoint":
-            guard gptLive, object.count == 4, let id = uuid(object, "playbackId"),
+            let generation = try responseGeneration(object)
+            let isCurrent = generation == streamResponseGeneration || (generation == nil && streamResponseGeneration == 0)
+            guard gptLive, Set(object.keys).isSubset(of: ["type", "playbackId", "pcmBytes", "decisionRevision", "responseGeneration"]), let id = uuid(object, "playbackId"),
                   let bytes = object["pcmBytes"] as? NSNumber, bytes.intValue > 0,
-                  CFGetTypeID(bytes) != CFBooleanGetTypeID(),
-                  bytes.doubleValue == Double(bytes.intValue), bytes.intValue == turnPcm,
+                  CFGetTypeID(bytes) != CFBooleanGetTypeID(), bytes.doubleValue <= 9_007_199_254_740_991,
+                  bytes.doubleValue == Double(bytes.intValue), (!isCurrent || bytes.intValue == turnPcm),
                   let revision = object["decisionRevision"] as? NSNumber, revision.intValue >= 0,
                   CFGetTypeID(revision) != CFBooleanGetTypeID(), revision.doubleValue <= 9_007_199_254_740_991,
                   revision.doubleValue == Double(revision.intValue) else { throw DebugBackendError.invalidResponse }
-            return .checkpoint(id, bytes.intValue, revision.intValue)
-        case "closed": guard object["reason"] as? String == "conversation_terminal" else { throw DebugBackendError.invalidResponse }; return .closed
+            return .checkpoint(id, bytes.intValue, revision.intValue, generation)
+        case "closed":
+            guard Set(object.keys).isSubset(of: ["type", "reason", "responseGeneration"]),
+                  object["reason"] as? String == "conversation_terminal" else { throw DebugBackendError.invalidResponse }
+            return .closed(try responseGeneration(object))
         case "failed":
             guard let code = object["code"] as? String, [
                 "cost_limit", "turn_limit", "dialogue_busy", "realtime_unavailable",
@@ -541,6 +669,13 @@ private final class DebugHandsFreeLiveStream: NSObject, URLSessionDataDelegate {
             return .failed(code)
         default: throw DebugBackendError.invalidResponse
         }
+    }
+
+    private func responseGeneration(_ object: [String: Any]) throws -> Int? {
+        guard let raw = object["responseGeneration"] else { return nil }
+        guard let number = raw as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(), number.intValue >= 0,
+              number.doubleValue <= 9_007_199_254_740_991, number.doubleValue == Double(number.intValue) else { throw DebugBackendError.invalidResponse }
+        return number.intValue
     }
 
     private func correlation(_ object: [String: Any]) -> [String: AnyHashable]? {
@@ -605,5 +740,122 @@ private final class DebugHandsFreeNoRedirects: NSObject, URLSessionTaskDelegate 
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
                     newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
         completionHandler(nil)
+    }
+}
+
+// Track provider acceptance independently from the socket send callback. The OS
+// may accept writes while a mobile connection is stalled. Never replay old PCM.
+struct DebugAudioAcknowledgements {
+    struct Pending {
+        let inputId: String
+        let sequence: Int
+        let bytes: Int
+        let sentAt: TimeInterval
+    }
+    private(set) var pending: [Pending] = []
+    private(set) var bytes = 0
+
+    mutating func enqueue(inputId: String, sequence: Int, bytes: Int, now: TimeInterval) throws {
+        guard bytes > 0, bytes <= 9_600, bytes % 2 == 0,
+              self.bytes + bytes <= 192_000, pending.count < 64 else {
+            throw DebugBackendError.serverCode("realtime_live_audio_overflow")
+        }
+        pending.append(Pending(inputId: inputId, sequence: sequence, bytes: bytes, sentAt: now))
+        self.bytes += bytes
+    }
+
+    mutating func acknowledge(inputId: String, sequence: Int) throws {
+        guard let first = pending.first, first.inputId == inputId, first.sequence == sequence else {
+            throw DebugBackendError.serverCode("realtime_live_protocol_failed")
+        }
+        bytes -= first.bytes
+        pending.removeFirst()
+    }
+
+    func timedOut(now: TimeInterval) -> Bool {
+        pending.first.map { now - $0.sentAt >= 10 } ?? false
+    }
+}
+
+@MainActor
+final class DebugHandsFreeAudioSocket {
+    private let session: URLSession
+    private let socket: URLSessionWebSocketTask
+    private let failure: (String) -> Void
+    private var acknowledgements = DebugAudioAcknowledgements()
+    private var receiving: Task<Void, Never>?
+    private var watchdog: Task<Void, Never>?
+    private var closed = false
+
+    init(request: URLRequest, failure: @escaping (String) -> Void) {
+        self.failure = failure
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.urlCache = nil
+        configuration.httpCookieStorage = nil
+        configuration.timeoutIntervalForRequest = 10
+        configuration.timeoutIntervalForResource = 3_600
+        session = URLSession(configuration: configuration, delegate: DebugHandsFreeNoRedirects(), delegateQueue: nil)
+        socket = session.webSocketTask(with: request)
+        socket.maximumMessageSize = 4_096
+        socket.resume()
+        receiving = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self, !self.closed else { return }
+                do {
+                    let message = try await self.socket.receive()
+                    let data: Data
+                    switch message {
+                    case .string(let text): data = Data(text.utf8)
+                    case .data(let value): data = value
+                    @unknown default: throw DebugBackendError.invalidResponse
+                    }
+                    guard data.count <= 4_096,
+                          let ack = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                          ack["type"] as? String == "ack", let input = ack["inputId"] as? String,
+                          let sequence = ack["sequence"] as? Int else { throw DebugBackendError.invalidResponse }
+                    try self.acknowledgements.acknowledge(inputId: input, sequence: sequence)
+                } catch {
+                    self.fail(DebugHandsFreeSession.failureCode(for: error))
+                    return
+                }
+            }
+        }
+        watchdog = Task { [weak self] in
+            while !Task.isCancelled {
+                do { try await Task.sleep(nanoseconds: 250_000_000) } catch { return }
+                guard let self, !self.closed else { return }
+                if self.acknowledgements.timedOut(now: ProcessInfo.processInfo.systemUptime) {
+                    self.fail("realtime_live_connection_timeout")
+                    return
+                }
+            }
+        }
+    }
+
+    func send(inputId: String, sequence: Int, pcm: Data) async throws {
+        guard !closed else { throw CancellationError() }
+        try acknowledgements.enqueue(inputId: inputId, sequence: sequence, bytes: pcm.count,
+            now: ProcessInfo.processInfo.systemUptime)
+        let data = try JSONSerialization.data(withJSONObject:
+            ["inputId": inputId, "sequence": sequence, "audio": pcm.base64EncodedString()])
+        guard let text = String(data: data, encoding: .utf8) else { throw DebugBackendError.invalidResponse }
+        do { try await socket.send(.string(text)) }
+        catch { fail(DebugHandsFreeSession.failureCode(for: error)); throw error }
+    }
+
+    private func fail(_ code: String) {
+        guard !closed else { return }
+        close()
+        failure(code)
+    }
+
+    func close() {
+        guard !closed else { return }
+        closed = true
+        receiving?.cancel(); receiving = nil
+        watchdog?.cancel(); watchdog = nil
+        socket.cancel(with: .goingAway, reason: nil)
+        session.invalidateAndCancel()
+        acknowledgements = DebugAudioAcknowledgements()
     }
 }

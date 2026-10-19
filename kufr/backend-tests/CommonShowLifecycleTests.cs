@@ -1,3 +1,4 @@
+using Kufr.Backend.Features.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using System.Security.Cryptography;
 using System.Text;
@@ -33,6 +34,9 @@ internal static class CommonShowLifecycleTests
         using var services = new ServiceCollection().BuildServiceProvider();
         using var journal = new OperationJournal(config, TimeProvider.System);
         var memory = new EveningMemoryStore(config, journal);
+        var memoryOptions = HybridMemoryOptions.Read(config, journal);
+        using var provider = new OpenAiVectorMemoryProvider(config, memoryOptions);
+        var hybridMemory = new HybridMemoryService(memory, provider, memoryOptions, TimeProvider.System);
         var conversations = new ConversationStore(TimeProvider.System, journal, eveningMemory: memory);
         var request = new CreateConversationRequest("unused", Guid.NewGuid(), 0, PartyWandCatalog.Version,
             "cs-CZ", new(false, false));
@@ -87,7 +91,7 @@ internal static class CommonShowLifecycleTests
             context.Request.ContentType = "application/json";
             context.Request.ContentLength = body.Length;
             var result = await KeepsakeOutcomeEndpoints.PublishAsync(context, operation.OperationId, access,
-                journal, keepsakes, config, memory);
+                journal, keepsakes, config, memory, hybridMemory);
             return (result as IStatusCodeHttpResult)?.StatusCode;
         }
         Check(await PublishAsync() == 201 && await PublishAsync() == 201, "actual authenticated outcome endpoint is idempotent");
@@ -141,7 +145,7 @@ internal static class CommonShowLifecycleTests
                 context.Request.ContentType = "application/json";
                 context.Request.ContentLength = body.Length;
                 var result = await KeepsakeOutcomeEndpoints.PublishAsync(context, legacyOperation.OperationId, access,
-                    journal, keepsakes, config, memory);
+                    journal, keepsakes, config, memory, hybridMemory);
                 return (result as IStatusCodeHttpResult)?.StatusCode;
             }
             if (deleted)

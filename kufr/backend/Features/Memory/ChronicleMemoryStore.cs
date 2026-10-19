@@ -71,7 +71,8 @@ internal sealed partial class EveningMemoryStore
             using var connection = Open();
             EnsureEvening(connection, deviceId);
             using var transaction = connection.BeginTransaction();
-            if (ShowSourceRevoked(connection, transaction, deviceId, conversationId))
+            if (ShowSourceRevoked(connection, transaction, deviceId, conversationId)
+                || ShowMemoryScopeDeleted(connection, transaction, deviceId, "", conversationId))
             {
                 return null;
             }
@@ -83,7 +84,8 @@ internal sealed partial class EveningMemoryStore
                 return captured;
             }
             var evening = ReadActiveEvening(connection, transaction, deviceId);
-            if (ShowClosed(connection, transaction, deviceId, evening))
+            if (ShowClosed(connection, transaction, deviceId, evening)
+                || ShowMemoryScopeDeleted(connection, transaction, deviceId, evening, conversationId))
             {
                 return null;
             }
@@ -108,9 +110,11 @@ internal sealed partial class EveningMemoryStore
             EnsureEvening(connection, deviceId);
             using var transaction = connection.BeginTransaction();
             var evening = ReadActiveEvening(connection, transaction, deviceId);
-            if (ShowClosed(connection, transaction, deviceId, evening)) { return null; }
+            if (ShowClosed(connection, transaction, deviceId, evening)
+                || ShowMemoryScopeDeleted(connection, transaction, deviceId, evening)) { return null; }
             var conversationId = reserveConversation();
-            if (!ValidShowIdentifier(conversationId) || ShowSourceRevoked(connection, transaction, deviceId, conversationId!)) { return null; }
+            if (!ValidShowIdentifier(conversationId) || ShowSourceRevoked(connection, transaction, deviceId, conversationId!)
+                || ShowMemoryScopeDeleted(connection, transaction, deviceId, evening, conversationId)) { return null; }
             using var existing = Command(connection, transaction,
                 "SELECT evening_id FROM show_visits WHERE device_id=$device AND conversation_id=$conversation",
                 ("$device", deviceId), ("$conversation", conversationId));
@@ -155,7 +159,8 @@ internal sealed partial class EveningMemoryStore
                 "SELECT evening_id FROM show_visits WHERE device_id=$device AND conversation_id=$conversation",
                 ("$device", deviceId), ("$conversation", conversationId));
             var captured = capture.ExecuteScalar() as string;
-            if (ShowSourceRevoked(connection, transaction, deviceId, conversationId)
+            if (ShowMemoryScopeDeleted(connection, transaction, deviceId, eveningId, conversationId)
+                || ShowSourceRevoked(connection, transaction, deviceId, conversationId)
                 || ShowSourceRevoked(connection, transaction, deviceId, outcomeId)
                 || captured is not null && captured != eveningId) { return false; }
             if (captured is null)
@@ -219,7 +224,8 @@ internal sealed partial class EveningMemoryStore
             using var catalog = Command(connection, transaction,
                 "SELECT 1 FROM evening_catalog WHERE device_id=$device AND evening_id=$evening",
                 ("$device", entry.DeviceId), ("$evening", entry.EveningId));
-            if (catalog.ExecuteScalar() is null || ShowSourceRevoked(connection, transaction, entry.DeviceId, entry.SourceId))
+            if (catalog.ExecuteScalar() is null || ShowSourceRevoked(connection, transaction, entry.DeviceId, entry.SourceId)
+                || ShowMemoryScopeDeleted(connection, transaction, entry.DeviceId, entry.EveningId, entry.ConversationId))
             {
                 return false;
             }
@@ -364,38 +370,81 @@ internal sealed partial class EveningMemoryStore
         {
             using var connection = Open();
             using var transaction = connection.BeginTransaction();
-            if (ShowSourceRevoked(connection, transaction, deviceId, sourceId))
-            {
-                return;
-            }
-            using var affected = Command(connection, transaction,
-                "SELECT DISTINCT evening_id FROM show_memory_events WHERE device_id=$device AND (source_id=$source OR conversation_id=$source)",
-                ("$device", deviceId), ("$source", sourceId));
-            var evenings = new List<string>();
-            using (var reader = affected.ExecuteReader())
-            {
-                while (reader.Read()) { evenings.Add(reader.GetString(0)); }
-            }
-            using var revoke = Command(connection, transaction, """
-                INSERT OR IGNORE INTO show_source_tombstones VALUES($device,$source,$now);
-                UPDATE show_memory_events SET revoked=1 WHERE device_id=$device AND (source_id=$source OR conversation_id=$source);
-                """, ("$device", deviceId), ("$source", sourceId), ("$now", memoryClock.GetUtcNow().ToUnixTimeMilliseconds()));
-            revoke.ExecuteNonQuery();
-            foreach (var evening in evenings)
-            {
-                // Every old edition can contain revoked derived counts; withdraw all
-                // before publishing the replacement under this same transaction.
-                using var withdraw = Command(connection, transaction,
-                    "UPDATE show_chronicle_editions SET withdrawn=1 WHERE device_id=$device AND evening_id=$evening",
-                    ("$device", deviceId), ("$evening", evening));
-                withdraw.ExecuteNonQuery();
-                if (ShowClosed(connection, transaction, deviceId, evening))
-                {
-                    SaveChronicleEdition(connection, transaction, deviceId, evening);
-                }
-            }
+            RevokeShowSources(connection, transaction, deviceId, [sourceId]);
             transaction.Commit();
         }
+    }
+
+    // Reuses the caller's memory transaction: canonical raw-memory deletion and
+    // withdrawal of all derived show facts become visible together.
+    private void RevokeShowSources(SqliteConnection connection, SqliteTransaction transaction,
+        string deviceId, IEnumerable<string> sourceIds)
+    {
+        var sources = sourceIds.ToHashSet(StringComparer.Ordinal);
+        var evenings = new HashSet<string>(StringComparer.Ordinal);
+        var pendingSources = new Queue<string>(sources);
+        var inspectedSources = new HashSet<string>(StringComparer.Ordinal);
+        while (pendingSources.TryDequeue(out var sourceId))
+        {
+            if (!inspectedSources.Add(sourceId)) { continue; }
+            using var affected = Command(connection, transaction,
+                "SELECT DISTINCT evening_id,source_id FROM show_memory_events WHERE device_id=$device AND revoked=0 AND (source_id=$source OR conversation_id=$source)",
+                ("$device", deviceId), ("$source", sourceId));
+            using var reader = affected.ExecuteReader();
+            while (reader.Read())
+            {
+                evenings.Add(reader.GetString(0));
+                if (sources.Add(reader.GetString(1))) { pendingSources.Enqueue(reader.GetString(1)); }
+            }
+        }
+        foreach (var sourceId in sources)
+        {
+            using var revoke = Command(connection, transaction,
+                "INSERT OR IGNORE INTO show_source_tombstones VALUES($device,$source,$now); "
+                + "UPDATE show_memory_events SET revoked=1 WHERE device_id=$device AND (source_id=$source OR conversation_id=$source);",
+                ("$device", deviceId), ("$source", sourceId), ("$now", memoryClock.GetUtcNow().ToUnixTimeMilliseconds()));
+            revoke.ExecuteNonQuery();
+        }
+        foreach (var evening in evenings)
+        {
+            using var withdraw = Command(connection, transaction,
+                "UPDATE show_chronicle_editions SET withdrawn=1 WHERE device_id=$device AND evening_id=$evening",
+                ("$device", deviceId), ("$evening", evening));
+            withdraw.ExecuteNonQuery();
+            if (ShowClosed(connection, transaction, deviceId, evening))
+            {
+                SaveChronicleEdition(connection, transaction, deviceId, evening);
+            }
+        }
+    }
+
+    private void RevokeDeletedShowEvening(SqliteConnection connection, SqliteTransaction transaction,
+        string deviceId, string eveningId)
+    {
+        using var deleted = Command(connection, transaction,
+            "INSERT OR IGNORE INTO memory_deleted_evenings VALUES($namespace,$device,$evening)",
+            ("$namespace", memoryOptions.Namespace), ("$device", deviceId), ("$evening", eveningId));
+        deleted.ExecuteNonQuery();
+        using var command = Command(connection, transaction,
+            "SELECT source_id FROM show_memory_events WHERE device_id=$device AND evening_id=$evening "
+            + "UNION SELECT conversation_id FROM show_visits WHERE device_id=$device AND evening_id=$evening",
+            ("$device", deviceId), ("$evening", eveningId));
+        var sources = new HashSet<string>(StringComparer.Ordinal) { eveningId };
+        using (var reader = command.ExecuteReader())
+        {
+            while (reader.Read()) { sources.Add(reader.GetString(0)); }
+        }
+        RevokeShowSources(connection, transaction, deviceId, sources);
+    }
+
+    private bool ShowMemoryScopeDeleted(SqliteConnection connection, SqliteTransaction? transaction,
+        string deviceId, string eveningId, string? conversationId = null)
+    {
+        using var command = Command(connection, transaction,
+            "SELECT 1 FROM memory_deleted_evenings WHERE app_namespace=$namespace AND device_id=$device AND evening_id=$evening "
+            + "UNION ALL SELECT 1 FROM memory_deleted_conversations WHERE app_namespace=$namespace AND device_id=$device AND conversation_id=$conversation LIMIT 1",
+            ("$namespace", memoryOptions.Namespace), ("$device", deviceId), ("$evening", eveningId), ("$conversation", conversationId));
+        return command.ExecuteScalar() is not null;
     }
 
     private static bool ValidShowIdentifier(string? value) => !string.IsNullOrWhiteSpace(value)

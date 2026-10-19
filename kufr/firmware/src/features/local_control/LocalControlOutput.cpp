@@ -80,6 +80,7 @@ const char* ErrorName(ConversationCommandError error) {
     case ConversationCommandError::IdConflict: return "id_conflict";
     case ConversationCommandError::TurnAlreadySeen: return "already_seen_result_unavailable";
     case ConversationCommandError::TurnLimitReached: return "turn_limit_reached";
+    case ConversationCommandError::EngineUpgradeRequired: return "conversation_engine_upgrade_required";
   }
   return "invalid_message";
 }

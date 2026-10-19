@@ -124,6 +124,8 @@ main, .debug-panel { max-width: 72rem; margin: auto; padding: 0 24px 32px; }
 .debug-transcript li { padding: 16px; border-bottom: 1px solid var(--aw-border-subtle); }
 .debug-transcript li:last-child { border-bottom: 0; }
 .debug-transcript p { margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.debug-transcript small, [data-conversation-identity], [data-memory-identity] { overflow-wrap: anywhere; }
+[data-guest-memory] > label { display: flex; align-items: flex-start; gap: 8px; min-height: 44px; padding-block: 8px; }
 .debug-answer-label { display: block; margin-bottom: 8px; }
 .dance-track { display: grid; gap: 8px; margin: 20px 0; overflow-wrap: anywhere; }
 .dance-track progress { width: 100%; height: 8px; accent-color: var(--aw-accent); }
@@ -216,6 +218,8 @@ main, .debug-panel { max-width: 72rem; margin: auto; padding: 0 24px 32px; }
   .app-tabs { padding-inline: max(20px, env(safe-area-inset-left, 0px)) max(20px, env(safe-area-inset-right, 0px)); }
   header, main, .debug-panel, .performance-tools { padding-inline: max(20px, env(safe-area-inset-left, 0px)) max(20px, env(safe-area-inset-right, 0px)); }
   .debug-conversation-options > .aw-field { min-width: 0; }
+  .debug-conversation-options { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .debug-conversation-options label { min-width: 0; }
   .operator-readiness { align-items: stretch; flex-direction: column; gap: 20px; padding: 20px; margin-bottom: 24px; }
   .operator-readiness > button { max-width: none; width: 100%; }
   .workspace-nav > button { flex: 1; min-width: 0; white-space: normal; }

@@ -199,7 +199,7 @@ internal sealed partial class KeepsakeStore
     }
 
     private sealed record PendingIdentityEvent(string KeepsakeId, string IdentityId, string EditionId,
-        string DeviceId, string EveningId);
+        string DeviceId, string EveningId, string? ConversationId);
 
     internal void PublishIdentityEvents(EveningMemoryStore memory)
     {
@@ -209,7 +209,7 @@ internal sealed partial class KeepsakeStore
         {
             var accepted = memory.RecordShowEvent(new("identity:" + pending.KeepsakeId,
                 ShowMemoryEventKind.IdentityCompleted, pending.DeviceId, pending.EveningId,
-                pending.KeepsakeId, 1, "confirmed_outcome_identity"));
+                pending.KeepsakeId, 1, "confirmed_outcome_identity", ConversationId: pending.ConversationId));
             if (accepted) { AcknowledgeIdentityEvent(pending); }
             if (memory.ReadChronicle(pending.DeviceId, pending.EveningId) is { Provisional: false })
             {
@@ -239,7 +239,7 @@ internal sealed partial class KeepsakeStore
                 {
                     if (document.PublishedIdentityEvents.Contains(identity.IdentityId)) { continue; }
                     if (!document.Editions.Any(edition => edition.Id == identity.EditionId && edition.PublicationState != "private_history")) { continue; }
-                    pending.Add(new(id, identity.IdentityId, identity.EditionId, document.Snapshot.DeviceId, document.Snapshot.EveningId!));
+                    pending.Add(new(id, identity.IdentityId, identity.EditionId, document.Snapshot.DeviceId, document.Snapshot.EveningId!, document.Snapshot.SourceConversationId));
                 }
             }
             return pending;

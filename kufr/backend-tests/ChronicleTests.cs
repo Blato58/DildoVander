@@ -10,6 +10,7 @@ internal static class ChronicleTests
     internal static void Run()
     {
         CommonShowLifecycleTests.Run();
+        MemoryShowDeletionTests.RunAsync().GetAwaiter().GetResult();
         var directory = Path.Combine(Path.GetTempPath(), "kufr-chronicle-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         var database = Path.Combine(directory, "journal.sqlite");

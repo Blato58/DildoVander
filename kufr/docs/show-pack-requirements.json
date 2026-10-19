@@ -3,13 +3,13 @@
   "packId": "dildovander-show-pack",
   "packVersion": "2026.10.19.1",
   "manifestSha256": "b841bf04f46dbc73f9262e748a25f27db90dcabdad3efc990c4b04b7e46fdd6a",
-  "tracking": "docs/project/work-items/SHOW-PACK.json",
+  "tracking": "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
   "meaning": "All86 requirements have implemented software consumers and mapped checks. Software-path status is not a claim of every36 scenario on hardware/provider/iPhone. Selected immutable receipts prove actual checks and identify tested sources; SHOW-PACK-OPERATIONS retains external gates.",
   "requirements": [
     {
       "id": "ARC-01",
       "specification": "specs/01-ARCHITEKTURA-A-KONTRAKTY.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show",
@@ -32,7 +32,7 @@
     {
       "id": "ARC-02",
       "specification": "specs/01-ARCHITEKTURA-A-KONTRAKTY.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show",
@@ -55,7 +55,7 @@
     {
       "id": "ARC-03",
       "specification": "specs/01-ARCHITEKTURA-A-KONTRAKTY.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show",
@@ -78,7 +78,7 @@
     {
       "id": "ARC-04",
       "specification": "specs/01-ARCHITEKTURA-A-KONTRAKTY.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show",
@@ -101,7 +101,7 @@
     {
       "id": "ARC-05",
       "specification": "specs/01-ARCHITEKTURA-A-KONTRAKTY.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show",
@@ -124,7 +124,7 @@
     {
       "id": "ARC-06",
       "specification": "specs/01-ARCHITEKTURA-A-KONTRAKTY.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show",
@@ -147,7 +147,7 @@
     {
       "id": "ARC-07",
       "specification": "specs/01-ARCHITEKTURA-A-KONTRAKTY.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show",
@@ -170,7 +170,7 @@
     {
       "id": "ARC-08",
       "specification": "specs/01-ARCHITEKTURA-A-KONTRAKTY.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show",
@@ -193,7 +193,7 @@
     {
       "id": "ARC-09",
       "specification": "specs/01-ARCHITEKTURA-A-KONTRAKTY.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show",
@@ -216,7 +216,7 @@
     {
       "id": "ARC-10",
       "specification": "specs/01-ARCHITEKTURA-A-KONTRAKTY.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show",
@@ -239,7 +239,7 @@
     {
       "id": "ARC-11",
       "specification": "specs/01-ARCHITEKTURA-A-KONTRAKTY.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show",
@@ -262,7 +262,7 @@
     {
       "id": "ARC-12",
       "specification": "specs/01-ARCHITEKTURA-A-KONTRAKTY.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show",
@@ -285,7 +285,7 @@
     {
       "id": "SHOW-01",
       "specification": "specs/02-REZIE-A-PROCEDURALNI-FINALE.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show/ShowCoordinator.cs",
@@ -308,7 +308,7 @@
     {
       "id": "SHOW-02",
       "specification": "specs/02-REZIE-A-PROCEDURALNI-FINALE.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show/ShowCoordinator.cs",
@@ -331,7 +331,7 @@
     {
       "id": "SHOW-03",
       "specification": "specs/02-REZIE-A-PROCEDURALNI-FINALE.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show/ShowCoordinator.cs",
@@ -354,7 +354,7 @@
     {
       "id": "SHOW-04",
       "specification": "specs/02-REZIE-A-PROCEDURALNI-FINALE.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show/ShowCoordinator.cs",
@@ -377,7 +377,7 @@
     {
       "id": "SHOW-05",
       "specification": "specs/02-REZIE-A-PROCEDURALNI-FINALE.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show/ShowCoordinator.cs",
@@ -400,7 +400,7 @@
     {
       "id": "FIN-01",
       "specification": "specs/02-REZIE-A-PROCEDURALNI-FINALE.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show/ShowSceneLibrary.cs",
@@ -421,7 +421,7 @@
     {
       "id": "FIN-02",
       "specification": "specs/02-REZIE-A-PROCEDURALNI-FINALE.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show/ShowSceneLibrary.cs",
@@ -442,7 +442,7 @@
     {
       "id": "FIN-03",
       "specification": "specs/02-REZIE-A-PROCEDURALNI-FINALE.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show/ShowSceneLibrary.cs",
@@ -463,7 +463,7 @@
     {
       "id": "FIN-04",
       "specification": "specs/02-REZIE-A-PROCEDURALNI-FINALE.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show/ShowSceneLibrary.cs",
@@ -484,7 +484,7 @@
     {
       "id": "SHOW-06",
       "specification": "specs/02-REZIE-A-PROCEDURALNI-FINALE.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show/ShowCoordinator.cs",
@@ -507,7 +507,7 @@
     {
       "id": "FIN-05",
       "specification": "specs/02-REZIE-A-PROCEDURALNI-FINALE.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show/ShowSceneLibrary.cs",
@@ -528,7 +528,7 @@
     {
       "id": "WAND-01",
       "specification": "specs/03-OSOBNOSTI-NALADY-A-AMBIENT.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show/ShowRepertoire.cs",
@@ -543,7 +543,7 @@
     {
       "id": "WAND-02",
       "specification": "specs/03-OSOBNOSTI-NALADY-A-AMBIENT.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show/ShowRepertoire.cs",
@@ -558,7 +558,7 @@
     {
       "id": "WAND-03",
       "specification": "specs/03-OSOBNOSTI-NALADY-A-AMBIENT.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show/ShowRepertoire.cs",
@@ -573,7 +573,7 @@
     {
       "id": "MOOD-01",
       "specification": "specs/03-OSOBNOSTI-NALADY-A-AMBIENT.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show/ShowContracts.cs",
@@ -588,7 +588,7 @@
     {
       "id": "MOOD-02",
       "specification": "specs/03-OSOBNOSTI-NALADY-A-AMBIENT.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show/ShowContracts.cs",
@@ -603,7 +603,7 @@
     {
       "id": "MOOD-03",
       "specification": "specs/03-OSOBNOSTI-NALADY-A-AMBIENT.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show/ShowContracts.cs",
@@ -618,7 +618,7 @@
     {
       "id": "AMB-01",
       "specification": "specs/03-OSOBNOSTI-NALADY-A-AMBIENT.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/firmware/src/features/offline_show/OfflineShow.cpp",
@@ -629,7 +629,8 @@
         "kufr/firmware/tests/offline_show_test.cpp",
         "kufr/backend-tests/ShowDirectorTests.cs",
         "kufr/backend-tests/ShowDeviceCueTests.cs",
-        "kufr/firmware/tests/device_show_cues_test.cpp"
+        "kufr/firmware/tests/device_show_cues_test.cpp",
+        "kufr/backend-tests/ShowSpeechProviderTests.cs"
       ],
       "state": "implemented_software_verified",
       "externalGates": []
@@ -637,7 +638,7 @@
     {
       "id": "AMB-02",
       "specification": "specs/03-OSOBNOSTI-NALADY-A-AMBIENT.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/firmware/src/features/offline_show/OfflineShow.cpp",
@@ -648,7 +649,8 @@
         "kufr/firmware/tests/offline_show_test.cpp",
         "kufr/backend-tests/ShowDirectorTests.cs",
         "kufr/backend-tests/ShowDeviceCueTests.cs",
-        "kufr/firmware/tests/device_show_cues_test.cpp"
+        "kufr/firmware/tests/device_show_cues_test.cpp",
+        "kufr/backend-tests/ShowSpeechProviderTests.cs"
       ],
       "state": "implemented_software_verified",
       "externalGates": []
@@ -656,7 +658,7 @@
     {
       "id": "WAND-04",
       "specification": "specs/03-OSOBNOSTI-NALADY-A-AMBIENT.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show/ShowRepertoire.cs",
@@ -671,7 +673,7 @@
     {
       "id": "MOOD-04",
       "specification": "specs/03-OSOBNOSTI-NALADY-A-AMBIENT.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/backend/Features/Show/ShowContracts.cs",
@@ -686,7 +688,7 @@
     {
       "id": "AMB-03",
       "specification": "specs/03-OSOBNOSTI-NALADY-A-AMBIENT.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "sources": [
         "kufr/firmware/src/features/offline_show/OfflineShow.cpp",
@@ -705,7 +707,7 @@
     {
       "id": "ID-01",
       "specification": "specs/04-MAGICKA-IDENTITA-A-PROROCTVI.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "IDENTITY",
       "sources": [
         "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
@@ -723,7 +725,7 @@
     {
       "id": "ID-02",
       "specification": "specs/04-MAGICKA-IDENTITA-A-PROROCTVI.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "IDENTITY",
       "sources": [
         "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
@@ -741,7 +743,7 @@
     {
       "id": "ID-03",
       "specification": "specs/04-MAGICKA-IDENTITA-A-PROROCTVI.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "IDENTITY",
       "sources": [
         "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
@@ -759,7 +761,7 @@
     {
       "id": "ID-04",
       "specification": "specs/04-MAGICKA-IDENTITA-A-PROROCTVI.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "IDENTITY",
       "sources": [
         "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
@@ -777,7 +779,7 @@
     {
       "id": "ID-05",
       "specification": "specs/04-MAGICKA-IDENTITA-A-PROROCTVI.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "IDENTITY",
       "sources": [
         "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
@@ -795,7 +797,7 @@
     {
       "id": "PRO-01",
       "specification": "specs/04-MAGICKA-IDENTITA-A-PROROCTVI.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "IDENTITY",
       "sources": [
         "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
@@ -812,7 +814,7 @@
     {
       "id": "PRO-02",
       "specification": "specs/04-MAGICKA-IDENTITA-A-PROROCTVI.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "IDENTITY",
       "sources": [
         "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
@@ -829,7 +831,7 @@
     {
       "id": "PRO-03",
       "specification": "specs/04-MAGICKA-IDENTITA-A-PROROCTVI.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "IDENTITY",
       "sources": [
         "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
@@ -846,7 +848,7 @@
     {
       "id": "ID-06",
       "specification": "specs/04-MAGICKA-IDENTITA-A-PROROCTVI.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "IDENTITY",
       "sources": [
         "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
@@ -864,7 +866,7 @@
     {
       "id": "PRO-04",
       "specification": "specs/04-MAGICKA-IDENTITA-A-PROROCTVI.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "IDENTITY",
       "sources": [
         "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
@@ -881,7 +883,7 @@
     {
       "id": "MEM-01",
       "specification": "specs/05-PAMET-A-KRONIKA-VECERA.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "MEMORY",
       "sources": [
         "kufr/backend/Features/Memory/ChronicleMemoryStore.cs",
@@ -891,7 +893,8 @@
       "checks": [
         "kufr/backend-tests/ChronicleTests.cs",
         "kufr/backend-tests/CommonShowLifecycleTests.cs",
-        "kufr/backend-tests/EveningMemoryTests.cs"
+        "kufr/backend-tests/EveningMemoryTests.cs",
+        "kufr/backend-tests/MemoryShowDeletionTests.cs"
       ],
       "state": "implemented_software_verified",
       "externalGates": []
@@ -899,7 +902,7 @@
     {
       "id": "MEM-02",
       "specification": "specs/05-PAMET-A-KRONIKA-VECERA.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "MEMORY",
       "sources": [
         "kufr/backend/Features/Memory/ChronicleMemoryStore.cs",
@@ -909,7 +912,8 @@
       "checks": [
         "kufr/backend-tests/ChronicleTests.cs",
         "kufr/backend-tests/CommonShowLifecycleTests.cs",
-        "kufr/backend-tests/EveningMemoryTests.cs"
+        "kufr/backend-tests/EveningMemoryTests.cs",
+        "kufr/backend-tests/MemoryShowDeletionTests.cs"
       ],
       "state": "implemented_software_verified",
       "externalGates": []
@@ -917,7 +921,7 @@
     {
       "id": "MEM-03",
       "specification": "specs/05-PAMET-A-KRONIKA-VECERA.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "MEMORY",
       "sources": [
         "kufr/backend/Features/Memory/ChronicleMemoryStore.cs",
@@ -927,7 +931,8 @@
       "checks": [
         "kufr/backend-tests/ChronicleTests.cs",
         "kufr/backend-tests/CommonShowLifecycleTests.cs",
-        "kufr/backend-tests/EveningMemoryTests.cs"
+        "kufr/backend-tests/EveningMemoryTests.cs",
+        "kufr/backend-tests/MemoryShowDeletionTests.cs"
       ],
       "state": "implemented_software_verified",
       "externalGates": []
@@ -935,7 +940,7 @@
     {
       "id": "MEM-04",
       "specification": "specs/05-PAMET-A-KRONIKA-VECERA.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "MEMORY",
       "sources": [
         "kufr/backend/Features/Memory/ChronicleMemoryStore.cs",
@@ -945,7 +950,8 @@
       "checks": [
         "kufr/backend-tests/ChronicleTests.cs",
         "kufr/backend-tests/CommonShowLifecycleTests.cs",
-        "kufr/backend-tests/EveningMemoryTests.cs"
+        "kufr/backend-tests/EveningMemoryTests.cs",
+        "kufr/backend-tests/MemoryShowDeletionTests.cs"
       ],
       "state": "implemented_software_verified",
       "externalGates": []
@@ -953,7 +959,7 @@
     {
       "id": "MEM-05",
       "specification": "specs/05-PAMET-A-KRONIKA-VECERA.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "MEMORY",
       "sources": [
         "kufr/backend/Features/Memory/ChronicleMemoryStore.cs",
@@ -963,7 +969,8 @@
       "checks": [
         "kufr/backend-tests/ChronicleTests.cs",
         "kufr/backend-tests/CommonShowLifecycleTests.cs",
-        "kufr/backend-tests/EveningMemoryTests.cs"
+        "kufr/backend-tests/EveningMemoryTests.cs",
+        "kufr/backend-tests/MemoryShowDeletionTests.cs"
       ],
       "state": "implemented_software_verified",
       "externalGates": []
@@ -971,7 +978,7 @@
     {
       "id": "MEM-06",
       "specification": "specs/05-PAMET-A-KRONIKA-VECERA.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "MEMORY",
       "sources": [
         "kufr/backend/Features/Memory/ChronicleMemoryStore.cs",
@@ -981,7 +988,8 @@
       "checks": [
         "kufr/backend-tests/ChronicleTests.cs",
         "kufr/backend-tests/CommonShowLifecycleTests.cs",
-        "kufr/backend-tests/EveningMemoryTests.cs"
+        "kufr/backend-tests/EveningMemoryTests.cs",
+        "kufr/backend-tests/MemoryShowDeletionTests.cs"
       ],
       "state": "implemented_software_verified",
       "externalGates": []
@@ -989,7 +997,7 @@
     {
       "id": "MEM-07",
       "specification": "specs/05-PAMET-A-KRONIKA-VECERA.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "MEMORY",
       "sources": [
         "kufr/backend/Features/Memory/ChronicleMemoryStore.cs",
@@ -999,7 +1007,8 @@
       "checks": [
         "kufr/backend-tests/ChronicleTests.cs",
         "kufr/backend-tests/CommonShowLifecycleTests.cs",
-        "kufr/backend-tests/EveningMemoryTests.cs"
+        "kufr/backend-tests/EveningMemoryTests.cs",
+        "kufr/backend-tests/MemoryShowDeletionTests.cs"
       ],
       "state": "implemented_software_verified",
       "externalGates": []
@@ -1007,7 +1016,7 @@
     {
       "id": "MEM-08",
       "specification": "specs/05-PAMET-A-KRONIKA-VECERA.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "MEMORY",
       "sources": [
         "kufr/backend/Features/Memory/ChronicleMemoryStore.cs",
@@ -1017,7 +1026,8 @@
       "checks": [
         "kufr/backend-tests/ChronicleTests.cs",
         "kufr/backend-tests/CommonShowLifecycleTests.cs",
-        "kufr/backend-tests/EveningMemoryTests.cs"
+        "kufr/backend-tests/EveningMemoryTests.cs",
+        "kufr/backend-tests/MemoryShowDeletionTests.cs"
       ],
       "state": "implemented_software_verified",
       "externalGates": []
@@ -1025,7 +1035,7 @@
     {
       "id": "DUEL-01",
       "specification": "specs/06-SOUBOJ-HOSTU.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DUEL",
       "sources": [
         "kufr/backend/Features/Show/DuelStore.cs",
@@ -1037,7 +1047,8 @@
         "kufr/backend-tests/DuelTests.cs",
         "kufr/backend-tests/DuelCommentaryTests.cs",
         "kufr/backend-tests/ShowDeviceCueTests.cs",
-        "kufr/firmware/tests/device_show_cues_test.cpp"
+        "kufr/firmware/tests/device_show_cues_test.cpp",
+        "kufr/backend-tests/ShowSpeechProviderTests.cs"
       ],
       "state": "implemented_software_verified",
       "externalGates": []
@@ -1045,7 +1056,7 @@
     {
       "id": "DUEL-02",
       "specification": "specs/06-SOUBOJ-HOSTU.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DUEL",
       "sources": [
         "kufr/backend/Features/Show/DuelStore.cs",
@@ -1065,7 +1076,7 @@
     {
       "id": "DUEL-03",
       "specification": "specs/06-SOUBOJ-HOSTU.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DUEL",
       "sources": [
         "kufr/backend/Features/Show/DuelStore.cs",
@@ -1085,7 +1096,7 @@
     {
       "id": "DUEL-04",
       "specification": "specs/06-SOUBOJ-HOSTU.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DUEL",
       "sources": [
         "kufr/backend/Features/Show/DuelStore.cs",
@@ -1105,7 +1116,7 @@
     {
       "id": "DUEL-05",
       "specification": "specs/06-SOUBOJ-HOSTU.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DUEL",
       "sources": [
         "kufr/backend/Features/Show/DuelStore.cs",
@@ -1125,7 +1136,7 @@
     {
       "id": "DUEL-06",
       "specification": "specs/06-SOUBOJ-HOSTU.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DUEL",
       "sources": [
         "kufr/backend/Features/Show/DuelStore.cs",
@@ -1145,7 +1156,7 @@
     {
       "id": "DUEL-07",
       "specification": "specs/06-SOUBOJ-HOSTU.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DUEL",
       "sources": [
         "kufr/backend/Features/Show/DuelStore.cs",
@@ -1165,7 +1176,7 @@
     {
       "id": "OPS-01",
       "specification": "specs/07-DIRECTOR-MODE-IOS-A-WEB.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OPERATOR",
       "sources": [
         "kufr/mobilni-aplikace/src/features/director",
@@ -1188,7 +1199,7 @@
     {
       "id": "OPS-02",
       "specification": "specs/07-DIRECTOR-MODE-IOS-A-WEB.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OPERATOR",
       "sources": [
         "kufr/mobilni-aplikace/src/features/director",
@@ -1211,7 +1222,7 @@
     {
       "id": "OPS-03",
       "specification": "specs/07-DIRECTOR-MODE-IOS-A-WEB.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OPERATOR",
       "sources": [
         "kufr/mobilni-aplikace/src/features/director",
@@ -1234,7 +1245,7 @@
     {
       "id": "OPS-04",
       "specification": "specs/07-DIRECTOR-MODE-IOS-A-WEB.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OPERATOR",
       "sources": [
         "kufr/mobilni-aplikace/src/features/director",
@@ -1257,7 +1268,7 @@
     {
       "id": "OPS-05",
       "specification": "specs/07-DIRECTOR-MODE-IOS-A-WEB.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OPERATOR",
       "sources": [
         "kufr/mobilni-aplikace/src/features/director",
@@ -1280,7 +1291,7 @@
     {
       "id": "OPS-06",
       "specification": "specs/07-DIRECTOR-MODE-IOS-A-WEB.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OPERATOR",
       "sources": [
         "kufr/mobilni-aplikace/src/features/director",
@@ -1303,7 +1314,7 @@
     {
       "id": "OPS-07",
       "specification": "specs/07-DIRECTOR-MODE-IOS-A-WEB.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OPERATOR",
       "sources": [
         "kufr/mobilni-aplikace/src/features/director",
@@ -1326,7 +1337,7 @@
     {
       "id": "OPS-08",
       "specification": "specs/07-DIRECTOR-MODE-IOS-A-WEB.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OPERATOR",
       "sources": [
         "kufr/mobilni-aplikace/src/features/director",
@@ -1349,7 +1360,7 @@
     {
       "id": "OPS-09",
       "specification": "specs/07-DIRECTOR-MODE-IOS-A-WEB.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OPERATOR",
       "sources": [
         "kufr/mobilni-aplikace/src/features/director",
@@ -1372,7 +1383,7 @@
     {
       "id": "OFF-01",
       "specification": "specs/08-OFFLINE-SHOW.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OFFLINE",
       "sources": [
         "kufr/firmware/src/features/offline_show",
@@ -1394,7 +1405,7 @@
     {
       "id": "OFF-02",
       "specification": "specs/08-OFFLINE-SHOW.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OFFLINE",
       "sources": [
         "kufr/firmware/src/features/offline_show",
@@ -1416,7 +1427,7 @@
     {
       "id": "OFF-03",
       "specification": "specs/08-OFFLINE-SHOW.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OFFLINE",
       "sources": [
         "kufr/firmware/src/features/offline_show",
@@ -1438,7 +1449,7 @@
     {
       "id": "OFF-04",
       "specification": "specs/08-OFFLINE-SHOW.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OFFLINE",
       "sources": [
         "kufr/firmware/src/features/offline_show",
@@ -1460,7 +1471,7 @@
     {
       "id": "OFF-05",
       "specification": "specs/08-OFFLINE-SHOW.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OFFLINE",
       "sources": [
         "kufr/firmware/src/features/offline_show",
@@ -1482,7 +1493,7 @@
     {
       "id": "OFF-06",
       "specification": "specs/08-OFFLINE-SHOW.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OFFLINE",
       "sources": [
         "kufr/firmware/src/features/offline_show",
@@ -1504,7 +1515,7 @@
     {
       "id": "OFF-07",
       "specification": "specs/08-OFFLINE-SHOW.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OFFLINE",
       "sources": [
         "kufr/firmware/src/features/offline_show",
@@ -1526,7 +1537,7 @@
     {
       "id": "OFF-08",
       "specification": "specs/08-OFFLINE-SHOW.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OFFLINE",
       "sources": [
         "kufr/firmware/src/features/offline_show",
@@ -1548,11 +1559,11 @@
     {
       "id": "QA-01",
       "specification": "specs/09-INTEGRACE-TESTY-A-PREDANI.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OPERATOR",
       "sources": [
         "kufr/docs/show-pack.md",
-        "docs/project/work-items/SHOW-PACK.json",
+        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
         ".agents/skills"
       ],
       "checks": [
@@ -1565,11 +1576,11 @@
     {
       "id": "QA-02",
       "specification": "specs/09-INTEGRACE-TESTY-A-PREDANI.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OPERATOR",
       "sources": [
         "kufr/docs/show-pack.md",
-        "docs/project/work-items/SHOW-PACK.json",
+        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
         ".agents/skills"
       ],
       "checks": [
@@ -1582,11 +1593,11 @@
     {
       "id": "QA-03",
       "specification": "specs/09-INTEGRACE-TESTY-A-PREDANI.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OPERATOR",
       "sources": [
         "kufr/docs/show-pack.md",
-        "docs/project/work-items/SHOW-PACK.json",
+        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
         ".agents/skills"
       ],
       "checks": [
@@ -1599,11 +1610,11 @@
     {
       "id": "QA-04",
       "specification": "specs/09-INTEGRACE-TESTY-A-PREDANI.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OPERATOR",
       "sources": [
         "kufr/docs/show-pack.md",
-        "docs/project/work-items/SHOW-PACK.json",
+        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
         ".agents/skills"
       ],
       "checks": [
@@ -1616,11 +1627,11 @@
     {
       "id": "QA-05",
       "specification": "specs/09-INTEGRACE-TESTY-A-PREDANI.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OPERATOR",
       "sources": [
         "kufr/docs/show-pack.md",
-        "docs/project/work-items/SHOW-PACK.json",
+        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
         ".agents/skills"
       ],
       "checks": [
@@ -1633,11 +1644,11 @@
     {
       "id": "QA-06",
       "specification": "specs/09-INTEGRACE-TESTY-A-PREDANI.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OPERATOR",
       "sources": [
         "kufr/docs/show-pack.md",
-        "docs/project/work-items/SHOW-PACK.json",
+        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
         ".agents/skills"
       ],
       "checks": [
@@ -1650,11 +1661,11 @@
     {
       "id": "QA-07",
       "specification": "specs/09-INTEGRACE-TESTY-A-PREDANI.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OPERATOR",
       "sources": [
         "kufr/docs/show-pack.md",
-        "docs/project/work-items/SHOW-PACK.json",
+        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
         ".agents/skills"
       ],
       "checks": [
@@ -1667,11 +1678,11 @@
     {
       "id": "QA-08",
       "specification": "specs/09-INTEGRACE-TESTY-A-PREDANI.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OPERATOR",
       "sources": [
         "kufr/docs/show-pack.md",
-        "docs/project/work-items/SHOW-PACK.json",
+        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
         ".agents/skills"
       ],
       "checks": [
@@ -1684,11 +1695,11 @@
     {
       "id": "QA-09",
       "specification": "specs/09-INTEGRACE-TESTY-A-PREDANI.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OPERATOR",
       "sources": [
         "kufr/docs/show-pack.md",
-        "docs/project/work-items/SHOW-PACK.json",
+        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
         ".agents/skills"
       ],
       "checks": [
@@ -1701,11 +1712,11 @@
     {
       "id": "QA-10",
       "specification": "specs/09-INTEGRACE-TESTY-A-PREDANI.md",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OPERATOR",
       "sources": [
         "kufr/docs/show-pack.md",
-        "docs/project/work-items/SHOW-PACK.json",
+        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
         ".agents/skills"
       ],
       "checks": [
@@ -1719,7 +1730,7 @@
   "acceptanceScenarios": [
     {
       "id": "E2E-01",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "MEMORY",
       "checks": [
         "kufr/backend-tests/CommonShowLifecycleTests.cs",
@@ -1732,7 +1743,7 @@
     },
     {
       "id": "E2E-02",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "checks": [
         "kufr/backend-tests/ShowDirectorTests.cs",
@@ -1746,7 +1757,7 @@
     },
     {
       "id": "E2E-03",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "checks": [
         "kufr/backend-tests/ShowDirectorTests.cs",
@@ -1758,7 +1769,7 @@
     },
     {
       "id": "E2E-04",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "checks": [
         "kufr/backend-tests/ShowDirectorTests.cs",
@@ -1770,7 +1781,7 @@
     },
     {
       "id": "E2E-05",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "checks": [
         "kufr/backend-tests/ShowDirectorTests.cs",
@@ -1782,7 +1793,7 @@
     },
     {
       "id": "E2E-06",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OFFLINE",
       "checks": [
         "kufr/firmware/tests/offline_show_test.cpp",
@@ -1796,7 +1807,7 @@
     },
     {
       "id": "E2E-07",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "checks": [
         "kufr/backend-tests/ShowDirectorTests.cs",
@@ -1808,7 +1819,7 @@
     },
     {
       "id": "E2E-08",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "checks": [
         "kufr/backend-tests/ShowDirectorTests.cs",
@@ -1820,7 +1831,7 @@
     },
     {
       "id": "E2E-09",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OPERATOR",
       "checks": [
         "kufr/mobilni-aplikace/scripts/check-director-browser.mjs"
@@ -1830,7 +1841,7 @@
     },
     {
       "id": "E2E-10",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DUEL",
       "checks": [
         "kufr/backend-tests/DuelTests.cs",
@@ -1841,7 +1852,7 @@
     },
     {
       "id": "E2E-11",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OFFLINE",
       "checks": [
         "kufr/firmware/tests/offline_show_test.cpp",
@@ -1855,7 +1866,7 @@
     },
     {
       "id": "E2E-12",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OFFLINE",
       "checks": [
         "kufr/firmware/tests/offline_show_test.cpp",
@@ -1869,7 +1880,7 @@
     },
     {
       "id": "E2E-13",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "checks": [
         "kufr/backend-tests/ShowDirectorTests.cs",
@@ -1883,7 +1894,7 @@
     },
     {
       "id": "E2E-14",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "checks": [
         "kufr/backend-tests/ShowDirectorTests.cs",
@@ -1895,7 +1906,7 @@
     },
     {
       "id": "E2E-15",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "IDENTITY",
       "checks": [
         "kufr/backend-tests/WizardIdentityTests.cs",
@@ -1908,7 +1919,7 @@
     },
     {
       "id": "E2E-16",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "IDENTITY",
       "checks": [
         "kufr/backend-tests/WizardIdentityTests.cs",
@@ -1923,7 +1934,7 @@
     },
     {
       "id": "E2E-17",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "IDENTITY",
       "checks": [
         "kufr/backend-tests/WizardIdentityTests.cs",
@@ -1938,7 +1949,7 @@
     },
     {
       "id": "E2E-18",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "IDENTITY",
       "checks": [
         "kufr/backend-tests/WizardIdentityTests.cs",
@@ -1953,7 +1964,7 @@
     },
     {
       "id": "E2E-19",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "IDENTITY",
       "checks": [
         "kufr/backend-tests/WizardIdentityTests.cs",
@@ -1966,7 +1977,7 @@
     },
     {
       "id": "E2E-20",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "IDENTITY",
       "checks": [
         "kufr/backend-tests/WizardIdentityTests.cs",
@@ -1979,7 +1990,7 @@
     },
     {
       "id": "E2E-21",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "IDENTITY",
       "checks": [
         "kufr/backend-tests/WizardIdentityTests.cs",
@@ -1992,7 +2003,7 @@
     },
     {
       "id": "E2E-22",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "MEMORY",
       "checks": [
         "kufr/backend-tests/CommonShowLifecycleTests.cs",
@@ -2003,7 +2014,7 @@
     },
     {
       "id": "E2E-23",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "MEMORY",
       "checks": [
         "kufr/backend-tests/CommonShowLifecycleTests.cs",
@@ -2014,7 +2025,7 @@
     },
     {
       "id": "E2E-24",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "MEMORY",
       "checks": [
         "kufr/backend-tests/CommonShowLifecycleTests.cs",
@@ -2025,7 +2036,7 @@
     },
     {
       "id": "E2E-25",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OFFLINE",
       "checks": [
         "kufr/firmware/tests/offline_show_test.cpp",
@@ -2037,7 +2048,7 @@
     },
     {
       "id": "E2E-26",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DIRECTOR",
       "checks": [
         "kufr/backend-tests/ShowDirectorTests.cs",
@@ -2049,7 +2060,7 @@
     },
     {
       "id": "E2E-27",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DUEL",
       "checks": [
         "kufr/backend-tests/DuelTests.cs",
@@ -2060,7 +2071,7 @@
     },
     {
       "id": "E2E-28",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DUEL",
       "checks": [
         "kufr/backend-tests/DuelTests.cs",
@@ -2071,7 +2082,7 @@
     },
     {
       "id": "E2E-29",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OFFLINE",
       "checks": [
         "kufr/firmware/tests/offline_show_test.cpp",
@@ -2085,7 +2096,7 @@
     },
     {
       "id": "E2E-30",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OFFLINE",
       "checks": [
         "kufr/firmware/tests/offline_show_test.cpp",
@@ -2099,7 +2110,7 @@
     },
     {
       "id": "E2E-31",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OFFLINE",
       "checks": [
         "kufr/firmware/tests/offline_show_test.cpp",
@@ -2113,7 +2124,7 @@
     },
     {
       "id": "E2E-32",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OFFLINE",
       "checks": [
         "kufr/firmware/tests/offline_show_test.cpp",
@@ -2125,7 +2136,7 @@
     },
     {
       "id": "E2E-33",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OPERATOR",
       "checks": [
         "kufr/mobilni-aplikace/scripts/check-director-browser.mjs"
@@ -2137,7 +2148,7 @@
     },
     {
       "id": "E2E-34",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "IDENTITY",
       "checks": [
         "kufr/backend-tests/WizardIdentityTests.cs",
@@ -2150,7 +2161,7 @@
     },
     {
       "id": "E2E-35",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "DUEL",
       "checks": [
         "kufr/backend-tests/DuelTests.cs",
@@ -2163,7 +2174,7 @@
     },
     {
       "id": "E2E-36",
-      "workItem": "SHOW-PACK",
+      "workItem": "SHOW-PACK-INTEGRATION",
       "criterion": "OPERATOR",
       "checks": [
         "kufr/mobilni-aplikace/scripts/check-director-browser.mjs"

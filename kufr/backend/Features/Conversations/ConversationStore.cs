@@ -20,6 +20,8 @@ internal sealed partial class ConversationStore(
     VoiceProviderRunner? voiceRunner = null,
     GptLiveOptions? liveOptions = null,
     TwinFakeInputPolicy? twinFakeInputs = null,
+    IConfiguration? configuration = null,
+    CostumeVisionService? vision = null,
     ShowCoordinator? show = null)
 {
     private readonly Lock gate = new();
@@ -471,13 +473,7 @@ internal sealed partial class ConversationStore(
 
                 // Preserve the final poll result until the device acknowledges closure with DELETE.
                 conversation.TerminalReplyPublished = response.Decision is "propose" or "no_selection";
-                conversation.History.Add(new DialogExchange(
-                    visitorText[..Math.Min(visitorText.Length, 500)],
-                    response.Reply[..Math.Min(response.Reply.Length, 300)]));
-                if (conversation.History.Count > 2)
-                {
-                    conversation.History.RemoveAt(0);
-                }
+                conversation.History.Add(new DialogExchange(visitorText, response.Reply));
             }
         }
         catch (TextDialogRequestTooLargeException)
@@ -1012,6 +1008,7 @@ internal sealed partial class ConversationStore(
             {
                 RecordVisitInterrupted(conversation.DeviceId, conversationId);
             }
+            conversation.VisualResponseChanged.TrySetResult();
             conversation.History.Clear();
         }
         foreach (var paidCall in activePaidCalls.Values
@@ -1098,7 +1095,12 @@ internal sealed partial class ConversationStore(
         public int Generation { get; } = generation;
         public string CatalogVersion { get; } = catalogVersion;
         public bool AudioConsented { get; } = audioConsented;
-        public bool ImageConsented { get; init; }
+        public bool ImageConsented { get; set; }
+        public string? VisualImageId { get; set; }
+        public int VisualRevision { get; set; }
+        public long VisualResponseGeneration { get; set; }
+        public int RevokedVisualRevision { get; set; }
+        public TaskCompletionSource VisualResponseChanged { get; set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public string? ImageOperationId { get; set; }
         public CostumeContext? Costume { get; set; }
         public bool ManualCostume { get; set; }
@@ -1173,7 +1175,7 @@ internal sealed record SpeechResult(string AudioId, DateTimeOffset ExpiresAt, st
 internal sealed record AudioReadResult(int Status, byte[]? Wav);
 internal sealed record AudioEntry(string DeviceId, string ConversationId, string OperationId, DateTimeOffset ExpiresAt, byte[] Wav);
 internal sealed record AudioTombstone(string DeviceId, DateTimeOffset RemoveAt);
-internal sealed record PaidCall(string DeviceId, string ConversationId, CancellationTokenSource Cancellation);
+internal sealed record PaidCall(string DeviceId, string ConversationId, CancellationTokenSource Cancellation, bool IsImageAnalysis = false);
 internal sealed record TurnOperation(
     string OperationId,
     string Kind,

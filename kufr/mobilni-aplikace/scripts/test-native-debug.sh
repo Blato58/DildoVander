@@ -33,16 +33,13 @@ for ((attempt = 0; attempt < 50; attempt++)); do
 done
 if [[ ! -s "$test_directory/http-address" ]]; then echo 'HTTP test peer did not start' >&2; exit 1; fi
 swiftc -g -swift-version 5 -warnings-as-errors -parse-as-library \
-  ios/App/App/DebugBackendClient.swift ios/App/App/DebugRealtimeSession.swift ios/App/App/DebugHandsFreeSession.swift tests/native_debug/main.swift \
+  ios/App/App/DebugBackendClient.swift ios/App/App/DebugHandsFreeSession.swift tests/native_debug/main.swift \
   -o "$test_directory/native-debug-tests"
-swiftc -swift-version 5 -warnings-as-errors -parse-as-library \
-  ios/App/App/DebugBackendClient.swift ios/App/App/DebugRealtimeSession.swift ios/App/App/DebugHandsFreeSession.swift tests/native_realtime/main.swift \
-  -o "$test_directory/native-realtime-tests"
 KUFR_DEBUG_KEYCHAIN_SERVICE="$keychain_service" "$test_directory/native-debug-tests" --profile-write
 KUFR_DEBUG_KEYCHAIN_SERVICE="$keychain_service" "$test_directory/native-debug-tests" --profile-read
 KUFR_DEBUG_KEYCHAIN_SERVICE="$keychain_service" "$test_directory/native-debug-tests" --profile-remove
 KUFR_DEBUG_HTTP_PEER="$(cat "$test_directory/http-address")" "$test_directory/native-debug-tests"
-KUFR_DEBUG_HTTP_PEER="$(cat "$test_directory/http-address")" "$test_directory/native-realtime-tests"
+node --test tests/native_handsfree/socket_peer.test.mjs
 node tests/native_handsfree/http_peer.mjs "$test_directory/handsfree-address" &
 handsfree_peer_pid=$!
 for ((attempt = 0; attempt < 50; attempt++)); do
@@ -52,11 +49,11 @@ for ((attempt = 0; attempt < 50; attempt++)); do
 done
 test -s "$test_directory/handsfree-address"
 swiftc -swift-version 5 -warnings-as-errors -parse-as-library \
-  ios/App/App/DebugBackendClient.swift ios/App/App/DebugRealtimeSession.swift ios/App/App/DebugHandsFreeSession.swift ios/App/App/DebugHandsFreeAudio.swift tests/native_handsfree/main.swift \
+  ios/App/App/DebugBackendClient.swift ios/App/App/DebugHandsFreeSession.swift ios/App/App/DebugHandsFreeAudio.swift tests/native_handsfree/main.swift \
   -o "$test_directory/native-handsfree-tests"
 KUFR_DEBUG_HTTP_PEER="$(cat "$test_directory/handsfree-address")" "$test_directory/native-handsfree-tests"
 swiftc -swift-version 5 -warnings-as-errors -parse-as-library \
-  ios/App/App/DebugBackendClient.swift ios/App/App/DebugRealtimeSession.swift ios/App/App/DebugHandsFreeSession.swift ios/App/App/DebugHandsFreeAudio.swift tests/native_handsfree/upload_regression.swift \
+  ios/App/App/DebugBackendClient.swift ios/App/App/DebugHandsFreeSession.swift ios/App/App/DebugHandsFreeAudio.swift tests/native_handsfree/upload_regression.swift \
   -o "$test_directory/native-handsfree-upload-tests"
 KUFR_DEBUG_HTTP_PEER="$(cat "$test_directory/handsfree-address")" "$test_directory/native-handsfree-upload-tests"
 
@@ -69,6 +66,6 @@ for ((attempt = 0; attempt < 50; attempt++)); do
 done
 test -s "$test_directory/costume-address"
 swiftc -swift-version 5 -warnings-as-errors -parse-as-library \
-  ios/App/App/DebugBackendClient.swift ios/App/App/DebugRealtimeSession.swift ios/App/App/DebugHandsFreeSession.swift tests/native_costume/main.swift \
+  ios/App/App/DebugBackendClient.swift ios/App/App/DebugHandsFreeSession.swift tests/native_costume/main.swift \
   -o "$test_directory/native-costume-tests"
 KUFR_DEBUG_HTTP_PEER="$(cat "$test_directory/costume-address")" "$test_directory/native-costume-tests"

@@ -1,3 +1,4 @@
+using Kufr.Backend.Features.Speech;
 using System.Diagnostics;
 using System.ClientModel;
 using System.ClientModel.Primitives;
@@ -9,12 +10,12 @@ using System.Text;
 
 // Experimental surface of the pinned official SDK.
 #pragma warning disable OPENAI001
-namespace Kufr.Backend.Features.Speech;
+namespace Kufr.Backend.Features.Show;
 
-internal sealed class OpenAiSpeechClient(
+internal sealed class ShowCueSpeechClient(
     HttpClient httpClient,
     string apiKey,
-    ILogger<OpenAiSpeechClient>? logger = null)
+    ILogger<ShowCueSpeechClient>? logger = null)
 {
     internal const string Model = "gpt-4o-mini-tts-2025-12-15";
 

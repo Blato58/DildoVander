@@ -4,7 +4,8 @@ using Microsoft.Data.Sqlite;
 
 namespace Kufr.Backend.Features.Conversations;
 
-// This journal stores only technical identities and body hashes, never visitor text.
+// Operation tables contain technical identities/body hashes. The explicitly
+// named visual_media archive is consent-scoped content with manual deletion.
 internal sealed partial class OperationJournal : IDisposable
 {
     private readonly string connectionString;

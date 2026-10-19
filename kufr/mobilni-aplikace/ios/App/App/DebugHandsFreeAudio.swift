@@ -8,6 +8,7 @@ struct DebugHandsFreeUploadBuffer {
         let inputId: String
         let sequence: Int
         let data: Data
+        let epoch: UUID
     }
 
     static let chunkBytes = 9_600
@@ -49,7 +50,7 @@ struct DebugHandsFreeUploadBuffer {
         guard isReady, let inputId else { return nil }
         let data = Data(pcm.prefix(Self.chunkBytes))
         pcm.removeFirst(Self.chunkBytes)
-        let frame = Frame(inputId: inputId, sequence: sequence, data: data)
+        let frame = Frame(inputId: inputId, sequence: sequence, data: data, epoch: epoch)
         sequence += 1
         return frame
     }
@@ -225,7 +226,7 @@ enum DebugHandsFreePlayback {
 @MainActor
 final class DebugHandsFreeAudio {
     typealias Upload = (String, Int, Data) async throws -> Void
-    typealias PlaybackDrained = (String) -> Void
+    typealias PlaybackDrained = (String, UUID) -> Void
     typealias Failure = (String) -> Void
 
     private let fullDuplex: Bool
@@ -265,34 +266,34 @@ final class DebugHandsFreeAudio {
 
     func start() async throws {
         guard !engine.isRunning else { return }
-        let audioSession = AVAudioSession.sharedInstance()
-        // Realtime uses half duplex with normal speaker audio. GPT-Live
-        // keeps capture running and enables Apple voice processing for echo
-        // cancellation; its speaker level still requires device acceptance.
-        try audioSession.setCategory(.playAndRecord, mode: fullDuplex ? .voiceChat : .default, options: [.defaultToSpeaker])
-        try audioSession.setActive(true)
-
-        let input = engine.inputNode
-        if fullDuplex { try input.setVoiceProcessingEnabled(true) }
-        // Voice-processing setup can select the built-in receiver. This is a
-        // hands-free conversation; retain external outputs but use the loudspeaker
-        // for the phone's own route before recording the stable configuration.
-        if audioSession.currentRoute.outputs.contains(where: { $0.portType == .builtInReceiver }) {
-            try audioSession.overrideOutputAudioPort(.speaker)
-        }
-
-        let source = input.outputFormat(forBus: 0)
-        let converter = try DebugHandsFreePCMConverter(sourceFormat: source)
-        self.converter = converter
-        input.installTap(onBus: 0, bufferSize: 2_400, format: source) { [weak self] buffer, _ in
-            self?.capture(buffer, converter: converter)
-        }
-        tapInstalled = true
-        audioActive = true
-        activeRoute = routeIdentifiers(audioSession.currentRoute)
-        startup = DebugHandsFreeAudioStartup(now: ProcessInfo.processInfo.systemUptime)
-        observeAudioSession()
         do {
+            let audioSession = AVAudioSession.sharedInstance()
+            // Realtime uses half duplex with normal speaker audio. GPT-Live
+            // keeps capture running and enables Apple voice processing for echo
+            // cancellation; its speaker level still requires device acceptance.
+            try audioSession.setCategory(.playAndRecord, mode: fullDuplex ? .voiceChat : .default, options: [.defaultToSpeaker, .allowBluetoothHFP])
+            try audioSession.setActive(true)
+
+            let input = engine.inputNode
+            if fullDuplex { try input.setVoiceProcessingEnabled(true) }
+            // Voice-processing setup can select the built-in receiver. This is a
+            // hands-free conversation; retain external outputs but use the loudspeaker
+            // for the phone's own route before recording the stable configuration.
+            if audioSession.currentRoute.outputs.contains(where: { $0.portType == .builtInReceiver }) {
+                try audioSession.overrideOutputAudioPort(.speaker)
+            }
+
+            let source = input.outputFormat(forBus: 0)
+            let converter = try DebugHandsFreePCMConverter(sourceFormat: source)
+            self.converter = converter
+            input.installTap(onBus: 0, bufferSize: 2_400, format: source) { [weak self] buffer, _ in
+                self?.capture(buffer, converter: converter)
+            }
+            tapInstalled = true
+            audioActive = true
+            activeRoute = routeIdentifiers(audioSession.currentRoute)
+            startup = DebugHandsFreeAudioStartup(now: ProcessInfo.processInfo.systemUptime)
+            observeAudioSession()
             try startPlaybackAttempt()
             try await finishStartup()
             startPlaybackWatchdog()
@@ -368,6 +369,13 @@ final class DebugHandsFreeAudio {
         throw CancellationError()
     }
 
+    var isInputActive: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return audioActive && inputEnabled
+    }
+
+    var isOutputActive: Bool { playbackProgress.pending > 0 }
+
     func beginListening(inputId: String) {
         lock.lock()
         uploadBuffer.begin(inputId: inputId)
@@ -419,7 +427,11 @@ final class DebugHandsFreeAudio {
         let shouldNotify = playbackProgress.pending == 0
         if shouldNotify { awaitingDrainOperation = nil }
         lock.unlock()
-        if shouldNotify { playbackDrained(operationId) }
+        if shouldNotify { playbackDrained(operationId, generation) }
+    }
+
+    func isCurrentPlayback(_ callbackGeneration: UUID) -> Bool {
+        generation == callbackGeneration && audioActive
     }
 
     func cancelPlayback() {
@@ -460,6 +472,7 @@ final class DebugHandsFreeAudio {
         observers.removeAll()
         converter = nil
         activeRoute = []
+        if engine.inputNode.isVoiceProcessingEnabled { try? engine.inputNode.setVoiceProcessingEnabled(false) }
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
@@ -474,7 +487,7 @@ final class DebugHandsFreeAudio {
             guard let data = try converter.convert(source) else { return }
             enqueueCaptured(data, epoch: epoch)
         } catch {
-            DispatchQueue.main.async { [weak self] in self?.audioConversionFailed() }
+            DispatchQueue.main.async { [weak self] in self?.audioConversionFailed(epoch: epoch) }
         }
     }
 
@@ -508,6 +521,10 @@ final class DebugHandsFreeAudio {
             do {
                 try await upload(frame.inputId, frame.sequence, frame.data)
             } catch {
+                lock.lock()
+                let current = uploadBuffer.isCurrent(epoch: frame.epoch)
+                lock.unlock()
+                guard current, !Task.isCancelled else { continue }
                 stopUploading()
                 let code = DebugHandsFreeSession.failureCode(for: error)
                 failure(code == "realtime_live_failed" ? "realtime_live_audio_failed" : code)
@@ -524,7 +541,7 @@ final class DebugHandsFreeAudio {
         let operation = playbackProgress.pending == 0 ? awaitingDrainOperation : nil
         if operation != nil { awaitingDrainOperation = nil }
         lock.unlock()
-        if let operation { playbackDrained(operation) }
+        if let operation { playbackDrained(operation, callbackGeneration) }
     }
 
     private func observeAudioSession() {
@@ -600,10 +617,10 @@ final class DebugHandsFreeAudio {
         failure("realtime_live_audio_overflow")
     }
 
-    private func audioConversionFailed() {
+    private func audioConversionFailed(epoch: UUID) {
         guard audioActive else { return }
         lock.lock()
-        let acceptingInput = inputEnabled
+        let acceptingInput = inputEnabled && uploadBuffer.isCurrent(epoch: epoch)
         lock.unlock()
         guard acceptingInput else { return }
         stopUploading()

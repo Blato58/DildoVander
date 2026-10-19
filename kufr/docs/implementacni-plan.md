@@ -7,6 +7,15 @@
 > a [akceptace](../../docs/project/work-items/SHOW-PACK.json) rozlišují software,
 > chybějící mluvenou banku, skutečný provider, nativní iOS a fyzické brány.
 > Nemění se vlastník pohonů, katalog, `manual_only` ani Limited/Blocked audio brána.
+> **Platná architektura od19.10.2026:** zadání GPT-OVERHAUL nahrazuje staré
+> D128/D143 větve a příslušné konfigurační návody v historických poznámkách níže.
+> Produkční enginy jsou pouze GPT Live gpt-live-1 (primární) a Realtime
+> gpt-realtime-2.1. Starý scripted/Responses/STT→dialog→TTS/PTT runtime se
+> neobnovuje. Kanonická místní paměť platí pro obě cesty a DV01; obsah se
+> nemaže automatickou retencí. [Aktuální kontrakt a migrace](autonomous-live-memory.md),
+> [tracking](../../docs/project/work-items/GPT-OVERHAUL.json). Historické receipts
+> prokazují jen svůj datovaný rozsah, nikoli současnou architekturu.
+
 
 > **DV10 – vyzvednutí, rozhodnutí majitele 14. 10. 2026:** jeden statický QR
 > vedle kufru otevírá veřejný přehled poslední vygenerované hůlky a hůlek
@@ -213,7 +222,7 @@
 > D143 backend je v produkci, dvě OpenAI stores byly vytvořené a ověřené;
 > žádná data hostů nebyla exportovaná. Tehdejší Ad Hoc IPA 1.0/1000.0.16
 > je podepsaná a publikovaná po macOS nativních testech a HTTPS kontrole.
-> Server zůstává LegacyBackendScripted, hybrid memory=true, cloud indexing
+> Historický stav před GPT-OVERHAUL: server byl LegacyBackendScripted, hybrid memory=true, cloud indexing
 > a long-term personal=false. Instalace této IPA, poslech a hardware nejsou
 > tímto akceptované; [D145–D146](stav-implementace.md#předání-další-ai)
 > uvádí skutečné běhy, konfiguraci a zbývající ověření. Architektura níže
@@ -224,7 +233,7 @@
 > **D143, 6. 10. 2026: opt-in autonomní GPT-Live a hybridní paměť.**
 > `Backend:GptLive:ActorMode=AutonomousActor` odděluje hlasového herce od
 > faktického výběru stávajícím Solem. Pozdrav, roast, otázka a běžná reakce
-> nepotřebují backendový dialogový model. Výchozí `LegacyBackendScripted`,
+> nepotřebují backendový dialogový model. Tehdejší výchozí `LegacyBackendScripted`,
 > Sol/text a Realtime zůstávají porovnávací a kompatibilní větve.
 > `ollivander-trunk` má dedikovanou Live adaptaci 2/3 odpovědi, party vlastní
 > politiku 4–7; původní zdroje/hashy, katalog a uložená volba zůstávají.

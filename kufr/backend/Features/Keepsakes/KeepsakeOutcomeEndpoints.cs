@@ -2,6 +2,7 @@ using Kufr.Backend.Features.Show;
 using System.Security.Cryptography;
 using Kufr.Backend.Features.Access;
 using Kufr.Backend.Features.Conversations;
+using Kufr.Backend.Features.Memory;
 
 namespace Kufr.Backend.Features.Keepsakes;
 
@@ -12,7 +13,8 @@ internal static partial class KeepsakeOutcomeEndpoints
         string PresentationEvidence);
 
     internal static async Task<IResult> PublishAsync(HttpContext c, string operationId,
-        DeviceAccessStore access, OperationJournal journal, KeepsakeStore store, IConfiguration config, EveningMemoryStore memory)
+        DeviceAccessStore access, OperationJournal journal, KeepsakeStore store, IConfiguration config,
+        EveningMemoryStore memoryStore, HybridMemoryService memory)
     {
         if (!config.GetValue<bool>("Keepsake:Enabled")) { return Results.NotFound(); }
         var device = DeviceAccessEndpoints.Authenticate(c, access);
@@ -39,13 +41,13 @@ internal static partial class KeepsakeOutcomeEndpoints
             var outcome = journal.ConfirmKeepsakeOutcome(device, operationId, request.OutcomeId,
                 request.PresentationEvidence, bodyHash);
             store.RequireOutcomeNotDeleted(device, outcome);
-            var originalCapture = memory.ReadCapturedShowEvening(device, proposal.ConversationId);
+            var originalCapture = memoryStore.ReadCapturedShowEvening(device, proposal.ConversationId);
             var journalEvening = journal.ReadKeepsakeEvening(device, operationId);
             var capturedEvening = originalCapture ?? journalEvening;
             var recorded = originalCapture is not null
-                ? memory.RecordConfirmedShowOutcome(device, proposal.ConversationId, originalCapture,
+                ? memoryStore.RecordConfirmedShowOutcome(device, proposal.ConversationId, originalCapture,
                     outcome, proposal.Compartment, request.PresentationEvidence)
-                : journalEvening is null || memory.RecordJournalConfirmedShowOutcome(journal, device,
+                : journalEvening is null || memoryStore.RecordJournalConfirmedShowOutcome(journal, device,
                     operationId, outcome, request.PresentationEvidence);
             if (!recorded)
             {
@@ -57,6 +59,14 @@ internal static partial class KeepsakeOutcomeEndpoints
             var result = store.Issue(new KeepsakeIssueSnapshot(outcome, device, proposal.Compartment,
                 wand.StableId, wand.DisplayName, wand.Description, request.PresentationEvidence,
                 proposal.CatalogVersion, capturedEvening, proposal.ConversationId));
+            if (capturedEvening is { } evening
+                && journal.ReadSelectionMemoryEpoch(device, operationId) is { } deletionEpoch)
+            {
+                var permission = memoryStore.GuestPermission(device, proposal.ConversationId);
+                memory.RecordConfirmedOutcome(new(device, evening, proposal.ConversationId,
+                    journal.ReadSelectionPersonality(device, operationId), permission), operationId, outcome, wand.DisplayName,
+                    request.PresentationEvidence, deletionEpoch);
+            }
             return Results.Json(new { schemaVersion = 1, locator = result.Id, outcomeId = outcome,
                 sessionEpoch = proposal.Generation, physicalOperationId = request.PhysicalOperationId }, statusCode: 201);
         }

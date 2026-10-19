@@ -97,6 +97,12 @@
     ["DELETE", "/v1/admin/show/chronicle/sources/{sourceId}", "Features/Show/ChronicleEndpoints.cs"],
     ["GET", "/v1/show/device-cues", "Features/Show/ShowDeviceCuesEndpoints.cs"],
     ["GET", "/v1/show/device-cues/{cueId:guid}/audio", "Features/Show/ShowDeviceCuesEndpoints.cs"],
-    ["POST", "/v1/show/device-cues/{cueId:guid}/ack", "Features/Show/ShowDeviceCuesEndpoints.cs"]
+    ["POST", "/v1/show/device-cues/{cueId:guid}/ack", "Features/Show/ShowDeviceCuesEndpoints.cs"],
+    ["DELETE", "/v1/conversations/{id}/image", "Features/Conversations/CostumeImageEndpoints.cs"],
+    ["DELETE", "/v1/admin/conversations/{id}/media", "Features/Conversations/CostumeImageEndpoints.cs"],
+    ["DELETE", "/v1/admin/memory/scopes/{scope}/{subject}", "Features/Memory/MemoryAdministration.cs"],
+    ["GET", "/v1/admin/memory/context", "Features/Memory/MemoryAdministration.cs"],
+    ["GET", "/v1/conversations/{id}/gpt-live/{streamId:guid}/audio-stream", "Features/Realtime/RealtimeLiveEndpoints.cs"],
+    ["GET", "/v1/conversations/{id}/realtime-live/{streamId:guid}/audio-stream", "Features/Realtime/RealtimeLiveEndpoints.cs"]
   ]
 }

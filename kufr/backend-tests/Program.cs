@@ -12,6 +12,7 @@ if (args is ["--show"])
     ShowDirectorTests.Run();
     OperatorOverrideTests.Run();
     await ShowDeviceCueTests.RunAsync();
+    await ShowSpeechProviderTests.RunAsync();
     ChronicleTests.Run();
     OfflineOutcomeTests.Run();
     await DuelTests.RunAsync();
@@ -20,6 +21,7 @@ if (args is ["--show"])
     return;
 }
 if (args is ["--duel"]) { await DuelTests.RunAsync(); return; }
+if (args is ["--show-speech"]) { await ShowSpeechProviderTests.RunAsync(); return; }
 if (args is ["--keepsake-fixture"]) { KeepsakeHttpFixture.Run(); return; }
 if (args is ["--keepsake"]) { KeepsakeOutcomeJournalTests.Run(); await KeepsakeCoreTests.RunAsync(); return; }
 if (args is ["--twin"]) { await TwinTests.RunAsync(); return; }
@@ -34,6 +36,8 @@ if (args is ["--character"])
     return;
 }
 if (args is ["--firmware"]) { FirmwareReleaseTests.Run(); return; }
+if (args is ["--conversation-engines"]) { await RealtimeTests.RunAsync(); await GptLiveTests.RunAsync(); return; }
+if (args is ["--memory"]) { await HybridMemoryTests.RunAsync(); await EveningMemoryTests.RunAsync(); return; }
 if (args is ["--gpt-live-smoke"])
 {
     Environment.ExitCode = await GptLiveSmoke.RunAsync();
@@ -50,6 +54,7 @@ if (args is ["--image"]) { await CostumeImageTests.RunAsync(); return; }
 ShowDirectorTests.Run();
 OperatorOverrideTests.Run();
 await ShowDeviceCueTests.RunAsync();
+await ShowSpeechProviderTests.RunAsync();
 ChronicleTests.Run();
 OfflineOutcomeTests.Run();
 await DuelTests.RunAsync();
@@ -65,7 +70,6 @@ await GptLiveTests.RunAsync();
 await PersonalityTests.RunAsync();
 await AutonomousLiveTests.RunAsync();
 await HybridMemoryTests.RunAsync();
-await ResponsesTextDialogClientTests.RunAsync();
 ResponsesTextDialogBudgetTests.Run();
 await TextDialogRuntimeTests.RunAsync();
 await EveningMemoryTests.RunAsync();

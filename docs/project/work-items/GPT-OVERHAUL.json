@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "id": "GPT-OVERHAUL",
+  "initiative": "DV01",
+  "title": "Two-engine conversation, durable scoped memory and native iOS media overhaul",
+  "state": "blocked",
+  "priority": "P0",
+  "sequence": 1,
+  "scope": [
+    "kufr/backend",
+    "kufr/backend-tests",
+    "kufr/mobilni-aplikace",
+    "kufr/firmware",
+    "kufr/simulator",
+    "docs/project",
+    ".agents/skills"
+  ],
+  "dependencies": [],
+  "acceptance": [
+    {
+      "id": "SOFTWARE",
+      "revision": 1,
+      "expected": "Exactly GPT Live gpt-live-1 and Realtime gpt-realtime-2.1 share authoritative identity, scoped context, manual-only archive and validated domain behavior; legacy production routes are retired with explicit upgrade status. Regression and failure fixtures pass.",
+      "requiredEvidenceKinds": [
+        "unit",
+        "integration",
+        "source_review",
+        "browser"
+      ],
+      "rule": "allOf",
+      "evidenceRefs": [
+        "GPT-OVERHAUL-unit-v2",
+        "GPT-OVERHAUL-integration-local-v2",
+        "GPT-OVERHAUL-source-review-v2",
+        "GPT-OVERHAUL-browser-v2",
+        "GPT-OVERHAUL-ci-v2"
+      ],
+      "appliesTo": {
+        "artifactDigest": "36e6c0078bdd60e7d3dce4430226bf144674bb200f13e75d0cb8d2e4225394c3",
+        "policyVersion": "two-engine-v1"
+      }
+    },
+    {
+      "id": "NATIVE",
+      "revision": 1,
+      "expected": "Native Swift media/camera/lifecycle compiles and passes regression fixtures plus unsigned Simulator CI.",
+      "requiredEvidenceKinds": [
+        "native_ios"
+      ],
+      "evidenceRefs": [
+        "GPT-OVERHAUL-native-v2"
+      ],
+      "appliesTo": {
+        "artifactDigest": "36e6c0078bdd60e7d3dce4430226bf144674bb200f13e75d0cb8d2e4225394c3",
+        "policyVersion": "two-engine-v1"
+      }
+    },
+    {
+      "id": "EXTERNAL",
+      "revision": 1,
+      "expected": "Both providers, real iPhone camera/audio recovery and independent suitcase media/physical selection meet the thirteen request scenarios on identified installed builds.",
+      "requiredEvidenceKinds": [
+        "esp_runtime"
+      ],
+      "evidenceRefs": [],
+      "appliesTo": {
+        "artifactDigest": "36e6c0078bdd60e7d3dce4430226bf144674bb200f13e75d0cb8d2e4225394c3",
+        "policyVersion": "two-engine-v1"
+      }
+    }
+  ],
+  "blockers": [
+    {
+      "id": "EXTERNAL-ACCEPTANCE",
+      "problem": "Both real provider conversations and installed iPhone/suitcase scenarios have no current acceptance evidence; implementation authorization does not include paid inference, deploy, signing/install or firmware flash.",
+      "severity": "high",
+      "blocks": [
+        "EXTERNAL"
+      ],
+      "unblockCondition": "Separately authorize required activation/tests, identify installed backend/app/firmware and device revisions, then execute and record the thirteen-scenario procedure in kufr/docs/autonomous-live-memory.md.",
+      "role": "owner"
+    }
+  ],
+  "nextAction": "For EXTERNAL acceptance separately authorize required deployment, signed iPhone install/firmware flash and paid provider sessions; record installed identities then execute the thirteen scenarios in kufr/docs/autonomous-live-memory.md. Preserve manual archives and private backup/rollback procedure.",
+  "currentNote": "Verified implementation d59d69abb72fa821652b8239342a153346500ba5 committed and pushed through Push-CurrentBranch.ps1 with exact remoteSHA verification. Source bundle36e6c0078bdd60e7d3dce4430226bf144674bb200f13e75d0cb8d2e4225394c3; main7916723 dependency/CAD work preserved. CI39196789717 fully successful, including Linux default/Twin/Twin-media/HTTP/DV10/deployment, web, firmware profiles/host tests, actual macOS Swift harnesses and unsigned Simulator build. Independent provider/native/firmware review accepted and both PR217 findings fixed/tested/resolved. Final receipt-only delivery retains identical application source; PR217 follows authorized final CI/review/merge workflow. SOFTWARE and NATIVE verified; EXTERNAL remains blocked. VPS model metadata only returned200 for both exactIDs; no provider conversation, production deploy, signed release/install, flash, CAD regeneration or realdata mutation. Scoped GPT-OVERHAUL-software target evaluates the verified source; the unchanged default installed physical target remains stale until activation/device acceptance. No acceptance exception or physical completion is claimed.",
+  "implementedSubject": {
+    "artifactDigest": "36e6c0078bdd60e7d3dce4430226bf144674bb200f13e75d0cb8d2e4225394c3",
+    "policyVersion": "two-engine-v1"
+  }
+}

@@ -34,8 +34,16 @@ int main() {
 
   RealtimeEvent event;
   assert(ParseRealtimeEvent("{\"type\":\"heartbeat\"}", event));
+  assert(ParseRealtimeEvent("{\"type\":\"audio\",\"delta\":\"AAAA\",\"responseGeneration\":0}", event));
+  assert(event.hasResponseGeneration && event.responseGeneration == 0);
+  assert(!ParseRealtimeEvent("{\"type\":\"audio\",\"delta\":\"AAAA\",\"responseGeneration\":true}", event));
+  assert(!ParseRealtimeEvent("{\"type\":\"audio\",\"delta\":\"AAAA\",\"responseGeneration\":-1}", event));
   assert(ParseRealtimeEvent("{\"type\":\"audio_cancel\",\"responseGeneration\":2}", event));
   assert(event.responseGeneration == 2);
+  assert(ParseRealtimeEvent("{\"type\":\"audio_cancel\",\"responseGeneration\":2,\"visualRevision\":3}", event));
+  assert(event.hasVisualRevision && event.visualRevision == 3);
+  assert(!ParseRealtimeEvent("{\"type\":\"audio_cancel\",\"responseGeneration\":2,\"visualRevision\":0}", event));
+  assert(!ParseRealtimeEvent("{\"type\":\"audio_cancel\",\"responseGeneration\":2,\"visualRevision\":1000001}", event));
   assert(!ParseRealtimeEvent("{\"type\":\"audio_cancel\",\"responseGeneration\":0}", event));
   assert(!ParseRealtimeEvent("{\"type\":\"audio_cancel\",\"responseGeneration\":true}", event));
   assert(!ParseRealtimeEvent("{\"type\":\"audio_cancel\",\"responseGeneration\":2,\"extra\":0}", event));
@@ -58,9 +66,15 @@ int main() {
   assert(ParseLocalControlMessage(json.data(), json.size(), message));
   assert(message.voiceMode == "gpt-live");
   assert(ParseRealtimeEvent("{\"type\":\"pause\"}", event));
+  assert(ParseRealtimeEvent("{\"type\":\"pause\",\"responseGeneration\":1}", event));
+  assert(ParseRealtimeEvent("{\"type\":\"visitor\",\"text\":\"Hello\",\"responseGeneration\":1}", event));
+  assert(ParseRealtimeEvent("{\"type\":\"closed\",\"reason\":\"conversation_terminal\",\"responseGeneration\":1}", event));
+  assert(ParseRealtimeEvent("{\"type\":\"speech_started\",\"inputId\":\"c85743d5-1b72-41b8-8500-ae3c102b27d6\",\"responseGeneration\":1}", event));
+  assert(ParseRealtimeEvent("{\"type\":\"speech_stopped\",\"inputId\":\"c85743d5-1b72-41b8-8500-ae3c102b27d6\",\"responseGeneration\":1}", event));
   assert(!ParseRealtimeEvent("{\"type\":\"pause\",\"operationId\":\"bad\"}", event));
   assert(ParseRealtimeEvent("{\"type\":\"playback_checkpoint\",\"playbackId\":\"c85743d5-1b72-41b8-8500-ae3c102b27d6\",\"pcmBytes\":48000,\"decisionRevision\":2}", event));
   assert(event.pcmBytes == 48000 && event.decisionRevision == 2);
+  assert(ParseRealtimeEvent("{\"type\":\"playback_checkpoint\",\"playbackId\":\"c85743d5-1b72-41b8-8500-ae3c102b27d6\",\"pcmBytes\":48000,\"decisionRevision\":2,\"responseGeneration\":1}", event));
   assert(!ParseRealtimeEvent("{\"type\":\"playback_checkpoint\",\"playbackId\":\"bad\",\"pcmBytes\":48000,\"decisionRevision\":2}", event));
   assert(!ParseRealtimeEvent("{\"type\":\"playback_checkpoint\",\"playbackId\":\"c85743d5-1b72-41b8-8500-ae3c102b27d6\",\"pcmBytes\":3,\"decisionRevision\":2}", event));
   json = "{" + common + ",\"type\":\"voice.start\",\"expectedRevision\":37}";

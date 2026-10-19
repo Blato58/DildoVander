@@ -19,8 +19,9 @@ A offline policy, B fake adapters, C authorized Live behavior, D actual sound/de
 
 Reduce the incident to synthetic or explicitly permitted redacted input. Retain
 session generation, source/decision/availability revisions, response cancellation
-and original operation correlation. Never put guest words or images into durable
-diagnostic/journal records. A valid quote span does not prove correct attribution.
+and original operation correlation. Never put guest words or images into technical diagnostics or operation logs.
+The canonical consent-scoped content archive is separate from diagnostics and
+preserves finalized evidence until explicit manual deletion. A valid quote span does not prove correct attribution.
 
 Check integrity before humor: Stop and opt-out, stale audio, revoked image/topic,
 wrong whole-speech wand identity, second reveal and restart uncertainty. ACK,

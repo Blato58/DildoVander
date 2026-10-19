@@ -64,8 +64,7 @@ builder.Services.AddSingleton<LogReadAccess>();
 builder.Services.AddSingleton<ServerLogStore>();
 builder.Services.AddSingleton<ILoggerProvider, ServerLogProvider>();
 builder.Services.AddSingleton<OperationJournal>();
-builder.Services.AddSingleton<TextDialogRunner>();
-builder.Services.AddSingleton<VoiceProviderRunner>();
+builder.Services.AddSingleton<CostumeVisionService>();
 builder.Services.AddSingleton<OpenAiRealtimeClient>();
 builder.Services.AddSingleton<GptLiveClient>();
 builder.Services.AddSingleton<RealtimeLiveRegistry>();
@@ -73,6 +72,7 @@ builder.Services.AddSingleton<EveningMemoryStore>();
 builder.Services.AddSingleton(sp => new ShowCoordinator(sp.GetRequiredService<IConfiguration>(),
     sp.GetRequiredService<OperationJournal>(), sp.GetRequiredService<EveningMemoryStore>(),
     sp.GetRequiredService<TimeProvider>()));
+builder.Services.AddSingleton<ShowSpeechProvider>();
 builder.Services.AddSingleton<ShowDeviceCueBridge>();
 builder.Services.AddHostedService<ShowDeviceCueWorker>();
 builder.Services.AddSingleton(GptLiveOptions.Read(builder.Configuration));
@@ -135,14 +135,7 @@ app.Services.GetRequiredService<OperationJournal>();
 // disabled. Resolve it eagerly so confirmed deletion cleanup resumes before serving.
 if (keepsakeArchiveConfigured) { app.Services.GetRequiredService<KeepsakeStore>(); }
 if (keepsakesEnabled) { app.Services.GetRequiredService<EveningMemoryStore>(); }
-app.Services.GetRequiredService<TextDialogRunner>();
-app.Services.GetRequiredService<VoiceProviderRunner>();
-// Per-instance settings enforce the fake/real boundary even when the isolated
-// provider runner is available. Loading a key alone never starts an API call.
-if (twinConfiguration is not null && builder.Configuration.GetValue<bool>("DigitalTwin:ExternalServicesAuthorized"))
-{
-    app.Services.GetRequiredService<TextDialogRunner>().SetEnabled(true);
-}
+app.Services.GetRequiredService<CostumeVisionService>();
 var logs = app.Services.GetRequiredService<ServerLogStore>();
 app.Services.GetRequiredService<LogReadAccess>();
 logs.Write("info", "server_started");
@@ -151,6 +144,7 @@ app.Lifetime.ApplicationStopping.Register(() => logs.Write("info", "server_stopp
 app.Use((context, next) => ServerLogEvents.RequestAsync(context, next, logs));
 if (keepsakeArchiveConfigured) { app.UseForwardedHeaders(); }
 app.UseRateLimiter();
+app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(20) });
 
 app.Use(async (context, next) =>
 {
@@ -201,15 +195,15 @@ app.MapGet("/v1/diagnostics", (HttpContext context, DeviceAccessStore access,
     var modes = conversations.ReadServerModes();
     return Results.Ok(new
     {
-        voiceMode = modes.VoiceMode,
-        dialogMode = modes.DialogMode,
+        engines = modes.Engines,
+        conversationContractVersion = 2,
         catalogVersion = PartyWandCatalog.Version,
-        audioFormat = "pcm16-mono-32000-wav",
+        audioFormat = "pcm16-mono-24000",
         liveActorMode = live.Mode.ToString(), personalityId = modes.PersonalityId,
         liveDecisionModel = live.DecisionModel, liveTerminalQuietMs = live.TerminalQuietMs,
         characterEnabled = modes.CharacterEnabled, characterTone = modes.CharacterTone,
         characterFinaleProfile = modes.CharacterFinaleProfile, characterVersion = modes.CharacterVersion,
-        characterVisualRoast = "permission_pending", characterNamedFinale = "blocked",
+        characterVisualRoast = "costume_observations_only", characterNamedFinale = "blocked",
         characterAudio = "unsegmented_live_stream", characterEventReady = false,
         memoryEnabled = memory.Options.Enabled, cloudIndexingEnabled = memory.Options.CloudIndexingEnabled,
         longTermPersonalEnabled = memory.Options.LongTermPersonalEnabled,

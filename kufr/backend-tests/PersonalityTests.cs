@@ -1,4 +1,3 @@
-using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -32,17 +31,14 @@ internal static class PersonalityTests
             && !instructions.Contains("nenabízej dvě možnosti"), "Realtime uses only the selected personality and its opening");
         using var live = JsonDocument.Parse(JsonSerializer.Serialize(GptLiveProtocol.Start(context)));
         Require(live.RootElement.GetProperty("session").GetProperty("instructions").GetString()!
-            .StartsWith(persona, StringComparison.Ordinal), "Live uses the identical selected prompt");
+            .StartsWith(PersonalityCatalog.AutonomousLivePersona(PersonalityCatalog.OllivanderId), StringComparison.Ordinal),
+            "Live uses the selected autonomous persona rather than the retired scripted prompt");
         var newLimit = ResponsesTextDialogBudget.RequestByteLimit("", PersonalityCatalog.OllivanderId);
         Require(newLimit > ResponsesTextDialogBudget.MaxRequestBytes, "longer prompt has an explicit request allowance");
         var maximum = new TextDialogResponse("", "ask", "", null, ResponsesTextDialogBudget.Model, newLimit, 1200, "default");
         Require(2 * ResponsesTextDialogBudget.CalculateActualMicroUsd(maximum)
             <= ResponsesTextDialogBudget.ReserveForContext("", personalityId: PersonalityCatalog.OllivanderId),
             "longer prompt reservation still covers twice the token price");
-        using var http = new HttpClient(new PromptHandler(persona));
-        await new ResponsesTextDialogClient(http, "test-key", ResponsesTextDialogBudget.Model)
-            .GenerateAsync("prostě mi nějakou vyber", 1, [], false, CancellationToken.None,
-                personalityId: PersonalityCatalog.OllivanderId);
         await VerifySettingsAndTurnsAsync();
         Console.WriteLine("Personality prompt, provider requests, persistence and conversation policy tests passed.");
     }
@@ -71,19 +67,19 @@ internal static class PersonalityTests
                 var store = new ConversationStore(TimeProvider.System, journal, dialog);
                 var state = store.ReadServerModes();
                 Require(state.PersonalityId == PersonalityCatalog.DefaultId, "existing installations default to original");
-                Require(store.ChangeServerModes(new(state.Revision, "responses", "fake", "missing")).Error == "invalid_personality",
+                Require(store.ChangeServerModes(new(state.Revision, PersonalityId: "missing")).Error == "invalid_personality",
                     "unknown personality is rejected before publishing any change");
-                var changed = store.ChangeServerModes(new(state.Revision, "responses", "fake", PersonalityCatalog.OllivanderId));
+                var changed = store.ChangeServerModes(new(state.Revision, PersonalityId: PersonalityCatalog.OllivanderId));
                 Require(changed.Status == 200 && calls == 0 && changed.State!.Revision != state.Revision,
                     "switching itself makes no AI calls and advances the shared revision");
-                Require(store.ChangeServerModes(new(state.Revision, "responses", "fake", PersonalityCatalog.DefaultId)).Status == 409,
+                Require(store.ChangeServerModes(new(state.Revision, PersonalityId: PersonalityCatalog.DefaultId)).Status == 409,
                     "stale configuration cannot overwrite selection");
                 var create = new CreateConversationRequest("test-device", Guid.NewGuid(), 0, PartyWandCatalog.Version, "cs-CZ", new(true, false));
                 var conversation = store.Create(create.DeviceId, Guid.NewGuid(), "create"u8, create).Response!;
                 var active = store.ReadServerModes();
-                Require(store.ChangeServerModes(new(active.Revision, "responses", "fake", PersonalityCatalog.DefaultId)).Error == "conversations_active",
+                Require(store.ChangeServerModes(new(active.Revision, PersonalityId: PersonalityCatalog.DefaultId)).Error == "conversations_active",
                     "active conversation freezes the personality");
-                Require(store.ChangeServerModes(new(active.Revision, "responses", "fake")).Status == 200,
+                Require(store.ChangeServerModes(new(active.Revision)).Status == 200,
                     "older client omitting personality retains it and is a valid no-op");
                 var opening = new TextTurnRequest(Guid.NewGuid(), create.BootId, 0, "", 1, 0, create.CatalogVersion);
                 var accepted = store.SubmitTurn(create.DeviceId, conversation.ConversationId, Guid.NewGuid(), "opening"u8, opening, opening: true);
@@ -93,7 +89,7 @@ internal static class PersonalityTests
                 Require((await WaitAsync(store, create.DeviceId, accepted.OperationId!)).Decision == "propose", "explicit early selection is accepted");
                 store.EndConversation(create.DeviceId, conversation.ConversationId, Guid.NewGuid());
                 state = store.ReadServerModes();
-                store.ChangeServerModes(new(state.Revision, "fake", "fake"));
+                dialog.SetEnabled(false);
                 create = create with { DeviceId = "debug-server-admin", BootId = Guid.NewGuid() };
                 conversation = store.Create(create.DeviceId, Guid.NewGuid(), "fake"u8, create).Response!;
                 for (var index = 0; index < 3; index++)
@@ -127,25 +123,6 @@ internal static class PersonalityTests
             if (operation?.Status == "completed") return (TurnResult)operation.Result!;
             Require(operation?.Status is "pending" or "running", "turn did not fail");
             await Task.Delay(10, timeout.Token);
-        }
-    }
-
-    private sealed class PromptHandler(string persona) : HttpMessageHandler
-    {
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
-        {
-            using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(token));
-            Require(body.RootElement.GetProperty("instructions").GetString() == persona + "\n\n" + PartyDialoguePrompt.SelectionInstructions,
-                "actual SDK Sol request preserves exact new prompt without mixing original");
-            return new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent(JsonSerializer.Serialize(new
-                {
-                    model = ResponsesTextDialogBudget.Model, service_tier = "default", status = "completed",
-                    output = new[] { new { type = "function_call", name = "propose_wand", call_id = "test", arguments = "{\"reply\":\"Test\",\"reason\":\"Test\",\"compartment\":1}" } },
-                    usage = new { input_tokens = 10, output_tokens = 10 }
-                }), Encoding.UTF8, "application/json")
-            };
         }
     }
 

@@ -58,7 +58,7 @@ class ProxyTests(unittest.TestCase):
 
     def test_twin_ingress_keeps_its_isolated_listener_and_exact_methods(self):
         twin_source = "Features/DigitalTwin/TwinEndpoints.cs"
-        self.assertEqual(72, sum(not source.startswith("Features/DigitalTwin/") for method, route, source in proxy.CONTRACT["routes"]))
+        self.assertEqual(78, sum(not source.startswith("Features/DigitalTwin/") for method, route, source in proxy.CONTRACT["routes"]))
         self.assertEqual(11, sum(source == twin_source for method, route, source in proxy.CONTRACT["routes"]))
         self.assertEqual(9, sum(source == "Features/DigitalTwin/TwinMediaEndpoints.cs" for method, route, source in proxy.CONTRACT["routes"]))
         paths = [
@@ -137,6 +137,13 @@ class ProxyTests(unittest.TestCase):
             ("GET", "/v1/audio/" + ID), ("DELETE", "/v1/operations/" + ID),
             ("POST", f"/v1/conversations/{ID}/gpt-live"),
             ("POST", f"/v1/conversations/{ID}/realtime-live/{ID}/played"),
+            ("GET", f"/v1/conversations/{ID}/gpt-live/{ID}/audio-stream"),
+            ("GET", f"/v1/conversations/{ID}/realtime-live/{ID}/audio-stream"),
+            ("GET", "/v1/admin/memory/context"),
+            ("DELETE", f"/v1/admin/memory/scopes/conversation/{ID}"),
+            ("DELETE", "/v1/admin/memory/scopes/guest/guest-123"),
+            ("DELETE", f"/v1/conversations/{ID}/image"),
+            ("DELETE", f"/v1/admin/conversations/{ID}/media"),
             ("POST", f"/v1/keepsakes/outcomes/{ID}"),
             ("GET", "/v1/admin/keepsakes"),
             ("POST", "/v1/admin/keepsake-deletions/preview"),
@@ -155,6 +162,8 @@ class ProxyTests(unittest.TestCase):
             ("GET", "/v1/firmware/artifacts/" + "g" * 64 + ".bin"),
             ("GET", "/v1/firmware/manifests/unknown.json"),
             ("GET", f"/v1/admin/memory/records/{ID}/anything"),
+            ("DELETE", f"/v1/admin/memory/scopes/unknown/{ID}"),
+            ("GET", f"/v1/admin/memory/scopes/conversation/{ID}"),
         ]:
             self.assertFalse(proxy.allowed_backend(method, path), (method, path))
         config = proxy.render_compatibility("keepsake.example.invalid")

@@ -16,6 +16,7 @@ internal static class CostumeImageTests
 
     internal static async Task RunAsync()
     {
+        await ConversationMediaLifecycleTests.RunAsync();
         Check(CostumeJpeg.IsValid(Jpeg()), "valid JPEG fixture");
         Check(!CostumeJpeg.IsValid([0xff, 0xd8, 0xff, 0xd9]), "truncated JPEG");
         Check(!CostumeJpeg.IsValid(new byte[CostumeJpeg.MaximumBytes + 1]), "oversized JPEG");
@@ -134,15 +135,6 @@ internal static class CostumeImageTests
         Check(JsonSerializer.Serialize(GptLiveProtocol.AutonomousStart(turn, "test")).Contains("green cloak"), "autonomous Live receives costume");
         var decisionInput = new WandDecisionInput(1, 63, 1, [], turn.LivePrompt!.Policy, 1, false, CostumeContext: cue);
         Check(WandDecisionService.BuildRequest(decisionInput).Contains("green cloak"), "Sol decision receives separate visual data");
-        using var textHttp = new HttpClient(new Handler(async (request, token) => {
-            using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(token));
-            Check(body.RootElement.GetProperty("input").GetString()!.Contains("green cloak"), "Responses opening receives costume");
-            return Response(new { status = "completed", model = ResponsesTextDialogBudget.Model, service_tier = "default",
-                output = new[] { new { type = "function_call", name = "continue_conversation", call_id = "call", status = "completed",
-                    arguments = "{\"reply\":\"Question?\",\"reason\":\"\"}" } }, usage = new { input_tokens = 10, output_tokens = 10 } });
-        }));
-        await new ResponsesTextDialogClient(textHttp, "fixture", ResponsesTextDialogBudget.Model)
-            .GenerateAsync("", 63, [], true, default, costumeContext: cue);
         await MaximumUnicodeContextAsync();
     }
 
@@ -160,22 +152,16 @@ internal static class CostumeImageTests
                 var context = new CostumeContext(description, character, "high", source, DateTimeOffset.UtcNow.AddMinutes(2));
                 var cue = context.Prompt;
                 Check(cue.Length <= CostumeContext.MaximumPromptCharacters, "all valid cue fields fit the derived serialization bound");
-                using var http = new HttpClient(new Handler(async (request, token) => {
-                    using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(token));
-                    var input = body.RootElement.GetProperty("input").GetString()!;
-                    Check(input.Contains(cue, StringComparison.Ordinal), "maximum Unicode cue reaches Responses without truncation");
-                    var start = input.IndexOf('{', input.IndexOf("Transient costume cue", StringComparison.Ordinal));
-                    using var visual = JsonDocument.Parse(input[start..(input.IndexOf('}', start) + 1)]);
-                    Check(visual.RootElement.GetProperty("Description").GetString() == description
-                        && visual.RootElement.GetProperty("PossibleCharacter").GetString() == character,
-                        "maximum Unicode and escaped descriptions survive both JSON envelopes");
-                    return Response(new { status = "completed", model = ResponsesTextDialogBudget.Model, service_tier = "default",
-                        output = new[] { new { type = "function_call", name = "continue_conversation", call_id = "call", status = "completed",
-                            arguments = "{\"reply\":\"Question?\",\"reason\":\"\"}" } }, usage = new { input_tokens = 10, output_tokens = 10 } });
-                }));
-                var response = await new ResponsesTextDialogClient(http, "fixture", ResponsesTextDialogBudget.Model)
-                    .GenerateAsync("", 63, [], true, default, costumeContext: cue);
-                Check(response.Decision == "ask", "maximum valid manual/photo cue preserves opening dialogue");
+                var request = new RealtimeTurnRequest(Guid.NewGuid(), Guid.NewGuid(), 1, 63, 1,
+                    "catalog", true, "", null, "marin", 1);
+                var input = RealtimeProtocol.SessionOptions(new RealtimeTurnContext(request, true, "", [])
+                    { CostumeContext = cue }).Instructions;
+                Check(input.Contains(cue, StringComparison.Ordinal), "maximum Unicode cue reaches retained Realtime without truncation");
+                using var visual = JsonDocument.Parse(cue[cue.IndexOf('{')..]);
+                Check(visual.RootElement.GetProperty("Description").GetString() == description
+                    && visual.RootElement.GetProperty("PossibleCharacter").GetString() == character,
+                    "maximum Unicode and escaped descriptions preserve evidence");
+                await Task.CompletedTask;
             }
         }
     }
@@ -234,7 +220,7 @@ internal static class CostumeImageTests
             await WaitAsync(() => store.GetOperation("b", other.OperationId!).Operation?.Result is TurnResult);
             Check(!prompt!.Contains("cloak"), "context never crosses conversations");
             clock.Now = clock.Now.AddSeconds(121);
-            Check(store.GetOperation("a", accepted.OperationId!).Operation?.Result is null, "image poll result expires");
+            Check(store.ReadVisualContext("a", id).Context.Contains("red cloak"), "active visual context survives old two-minute expiry");
             using (var audit = new SqliteConnection("Data Source=" + Path.Combine(directory, "journal.sqlite")))
             {
                 audit.Open();
@@ -318,8 +304,9 @@ internal static class CostumeImageTests
             expiredStore.CorrectCostume("expired-manual", expiredId, Guid.NewGuid(), upload, "expired correction");
             clock.Now = clock.Now.AddSeconds(121);
             var expiredPhoto = expiredStore.SubmitImage("expired-manual", expiredId, Guid.NewGuid(), upload);
-            Check(expiredPhoto.Status == 409 && expiredPhoto.ErrorCode == "costume_context_expired"
-                && journal.ReadSessionCharge(expiredId) == 0, "expired manual cue rejects later first photo before charging");
+            Check(expiredPhoto.Status == 202 && store.ReadVisualContext("expired-manual", expiredId).Context.Length == 0
+                && expiredStore.ReadVisualContext("expired-manual", expiredId).Context.Contains("expired correction"),
+                "active manual cue survives the retired two-minute expiry without crossing stores");
 
             var expiryStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var expiryFinish = new TaskCompletionSource<CostumeImageResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -333,10 +320,10 @@ internal static class CostumeImageTests
             expiryStore.CorrectCostume("expired-pending", expiryId, Guid.NewGuid(), upload, "manual while pending");
             clock.Now = clock.Now.AddSeconds(121);
             expiryFinish.TrySetResult(new("late draft", "", "high", 17));
-            await WaitAsync(() => expiryStore.GetOperation("expired-pending", pendingPhoto.OperationId!).Operation?.Status == "failed");
+            await WaitAsync(() => expiryStore.GetOperation("expired-pending", pendingPhoto.OperationId!).Operation?.Status == "completed");
             await WaitAsync(() => expiryRunner.TryAcquire()); expiryRunner.Release();
-            Check(expiryStore.GetOperation("expired-pending", pendingPhoto.OperationId!).Operation?.Result is null
-                && journal.ReadSessionCharge(expiryId) == 17, "late photo after manual expiry fails with usage settled, never completed-null");
+            Check(expiryStore.GetOperation("expired-pending", pendingPhoto.OperationId!).Operation?.Result is CostumeContext { Description: "manual while pending" }
+                && journal.ReadSessionCharge(expiryId) == 17, "manual correction remains authoritative beyond retired expiry with usage settled");
         }
         finally { SqliteConnection.ClearAllPools(); Directory.Delete(directory, recursive: true); }
     }
@@ -411,15 +398,15 @@ internal static class CostumeImageTests
                     Check(rejected.ErrorCode == "costume_context_discarded" && journal.ReadSessionCharge(id) == 0,
                         "clear before photo rejects admission before provider charging");
                     clock.Now = clock.Now.AddSeconds(121);
-                    Check(store.CorrectCostume(stage, id, clearKey, upload, "").Operation?.Error is not null,
-                        "clear receipt expires without replaying or restoring a prompt cue");
+                    Check(store.CorrectCostume(stage, id, clearKey, upload, "").Operation == clear.Operation,
+                        "clear acknowledgement remains idempotent beyond the retired two-minute expiry");
                     Check(store.SubmitImage(stage, id, Guid.NewGuid(), upload).ErrorCode == "costume_context_discarded",
                         "clear remains distinct from an expired manual cue");
                 }
                 var turn = store.SubmitTurn(stage, id, Guid.NewGuid(), Encoding.UTF8.GetBytes(stage + "-opening"),
                     new(Guid.NewGuid(), boot, 1, "", 63, 1, "catalog"), true);
                 await WaitAsync(() => store.GetOperation(stage, turn.OperationId!).Operation?.Result is TurnResult);
-                Check(prompt == "", "clear supplies no cue to the next Responses turn");
+                Check(prompt == "", "clear supplies no cue to the next deterministic fixture turn");
             }
 
             var restoredStore = new ConversationStore(clock, journal);

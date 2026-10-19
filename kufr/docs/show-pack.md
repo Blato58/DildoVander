@@ -1,7 +1,7 @@
 # DildoVander Show Pack
 
 Zadání `dildovander-show-pack` 2026.10.19.1 rozšiřuje DV01, DV02 a DV10.
-Aktuální akceptaci vede [SHOW-PACK](../../docs/project/work-items/SHOW-PACK.json);
+Aktuální akceptaci vede [SHOW-PACK-INTEGRATION](../../docs/project/work-items/SHOW-PACK-INTEGRATION.json);
 [mapa požadavků](show-pack-requirements.json) váže jednotlivá ID na zdroj a testy.
 Software, skutečný poskytovatel, nativní iOS, nasazení a fyzická akceptace jsou
 oddělené důkazy. Žádná nová funkce nepovyšuje Limited/Blocked na Named.
@@ -42,6 +42,8 @@ oddělené důkazy. Žádná nová funkce nepovyšuje Limited/Blocked na Named.
   proroctví, duely, kroniku a pozdní joby; nepotvrzuje smazání u poskytovatele/záloh.
 
 ## Příprava a spuštění
+
+Rozhovor používá sjednocený GPT Live/Realtime kontrakt podle [aktuální architektury](autonomous-live-memory.md). Samostatný ShowSpeechProvider čte pouze krátké autorské cue přes oficiální SDK; neobnovuje vyřazený STT/dialog/TTS rozhovor. Audituje jej původní cue journal s jediným pokusem.
 
 Použij existující backend konfiguraci podle [backend README](../backend/README.md)
 a [DV10](dv10/README.md). Nezakládej nový provider projekt ani klíč.
@@ -150,9 +152,10 @@ Browser skript `mobilni-aplikace/scripts/check-director-browser.mjs` je opakovat
 test skutečné aplikace proti izolovanému lokálnímu fake backendu, nikoli produkční
 mock. Vyžaduje stávající testovací Playwright a dostupný Edge/Chromium. Přesné
 provedené příkazy a jejich limity jsou v immutable receipts, nikoli odhadnuté v této
-příručce. [PR219 macOS CI](https://github.com/Blato58/DildoVander/actions/runs/39197061597/job/117882363878)
-ověřilo nativní Swift testy a nepodepsaný iOS Simulator build; přesné shodné zdroje
-identifikuje receipt `SHOW-PACK-PR-native-ios-v1`. Skutečný iPhone, poslech Live,
+příručce. Přesný nativní otisk a konkrétní macOS CI pro Swift testy a nepodepsaný
+iOS Simulator build vede kritérium NATIVE v
+[externí akceptaci](../../docs/project/work-items/SHOW-PACK-OPERATIONS.json).
+Starší CI neprokazuje změněné nativní zdroje. Skutečný iPhone, poslech Live,
 nová hlasová banka, nasazení a měření mechaniky zůstávají samostatné brány.
 
 `Show:DuelCommentaryEnabled=false` ponechává deterministického českého komentátora.

@@ -18,7 +18,7 @@ internal sealed partial class ShowDeviceCueBridge
     private readonly object gate = new();
     private readonly ShowCoordinator show;
     private readonly OperationJournal journal;
-    private readonly VoiceProviderRunner voice;
+    private readonly ShowSpeechProvider voice;
     private readonly TimeProvider clock;
     private readonly SpeechOptions speech;
     private readonly string speechMode;
@@ -30,7 +30,7 @@ internal sealed partial class ShowDeviceCueBridge
     private readonly SemaphoreSlim audioSlot = new(1, 1);
 
     public ShowDeviceCueBridge(IConfiguration configuration, ShowCoordinator show, OperationJournal journal,
-        VoiceProviderRunner voice, TimeProvider clock, IHostApplicationLifetime? host = null)
+        ShowSpeechProvider voice, TimeProvider clock, IHostApplicationLifetime? host = null)
     {
         this.show = show;
         this.journal = journal;
@@ -46,6 +46,10 @@ internal sealed partial class ShowDeviceCueBridge
         { throw new InvalidOperationException("Invalid configured device cue voice."); }
         show.ConfigureSceneCueAdapter(EnqueueSceneCue, ReadSceneCueStatus);
     }
+
+    internal ShowDeviceCueBridge(IConfiguration configuration, ShowCoordinator show, OperationJournal journal,
+        VoiceProviderRunner fixture, TimeProvider clock, IHostApplicationLifetime? host = null)
+        : this(configuration, show, journal, new ShowSpeechProvider(fixture), clock, host) { }
 
     private bool SpeechAvailable => speechMode == "fake" || speechMode == "configured" && voice.Enabled;
     private static string Key(string device, string duel) => device + "\n" + duel;
@@ -257,7 +261,7 @@ internal sealed partial class ShowDeviceCueBridge
                 new(device, entry.Snapshot.BootId, entry.Duel?.ToString("D") ?? entry.Id.ToString("D"),
                     entry.Id, entry.Snapshot.Generation, entry.Snapshot.DeviceRevision),
                 kind: "speech", consumesTurn: false,
-                estimatedCostMicroUsd: speechMode == "fake" ? 0 : VoiceProviderRunner.SpeechReservationMicroUsd);
+                estimatedCostMicroUsd: speechMode == "fake" ? 0 : ShowSpeechProvider.SpeechReservationMicroUsd);
             entry.Claimed = true;
             if (reservation.Existing || reservation.Conflict || reservation.OperationId.Length == 0)
             { throw new InvalidOperationException("Speech claim was already consumed or rejected."); }

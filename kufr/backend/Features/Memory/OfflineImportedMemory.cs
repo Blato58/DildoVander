@@ -16,6 +16,7 @@ internal sealed partial class EveningMemoryStore
         {
             using var connection = Open();
             using var transaction = connection.BeginTransaction();
+            if (ShowMemoryScopeDeleted(connection, transaction, deviceId, eveningId, operationId)) { return false; }
             using var catalog = Command(connection, transaction,
                 "SELECT 1 FROM evening_catalog WHERE device_id=$device AND evening_id=$evening",
                 ("$device", deviceId), ("$evening", eveningId));

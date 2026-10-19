@@ -17,7 +17,7 @@ internal sealed partial class EveningMemoryStore
         using var cmd = c.CreateCommand(); cmd.Transaction = tx;
         cmd.CommandText = """
             CREATE TABLE IF NOT EXISTS memory_meta (id INTEGER PRIMARY KEY CHECK(id=1), epoch INTEGER NOT NULL);
-            INSERT OR IGNORE INTO memory_meta VALUES(1,0);
+            INSERT OR IGNORE INTO memory_meta(id,epoch) VALUES(1,0);
             CREATE TABLE IF NOT EXISTS memory_guests (
                 device_id TEXT NOT NULL, conversation_id TEXT NOT NULL, guest_id TEXT NOT NULL,
                 identity_verified INTEGER NOT NULL, identity_source TEXT NOT NULL,
@@ -47,16 +47,32 @@ internal sealed partial class EveningMemoryStore
                 UNIQUE(memory_id,revision,store_id,action));
             CREATE TABLE IF NOT EXISTS memory_usage (
                 day TEXT NOT NULL, kind TEXT NOT NULL, amount INTEGER NOT NULL, PRIMARY KEY(day,kind));
+            CREATE TABLE IF NOT EXISTS memory_deleted_conversations (
+                app_namespace TEXT NOT NULL, device_id TEXT NOT NULL, conversation_id TEXT NOT NULL,
+                PRIMARY KEY(app_namespace,device_id,conversation_id));
+            CREATE TABLE IF NOT EXISTS memory_deleted_evenings (
+                app_namespace TEXT NOT NULL, device_id TEXT NOT NULL, evening_id TEXT NOT NULL,
+                PRIMARY KEY(app_namespace,device_id,evening_id));
+            CREATE TABLE IF NOT EXISTS memory_storage_failures (
+                code TEXT PRIMARY KEY, rejected_writes INTEGER NOT NULL, last_at_ms INTEGER NOT NULL);
+            CREATE TABLE IF NOT EXISTS memory_conversation_generations (
+                app_namespace TEXT NOT NULL, device_id TEXT NOT NULL, conversation_id TEXT NOT NULL,
+                deletion_epoch INTEGER NOT NULL DEFAULT 0, fact_epoch INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(app_namespace,device_id,conversation_id));
+            CREATE TABLE IF NOT EXISTS memory_context_scopes (
+                app_namespace TEXT NOT NULL, device_id TEXT NOT NULL, conversation_id TEXT NOT NULL,
+                evening_id TEXT NOT NULL, guest_id TEXT,
+                PRIMARY KEY(app_namespace,device_id,conversation_id));
             CREATE TABLE IF NOT EXISTS live_transcripts (
                 conversation_id TEXT NOT NULL, session_generation TEXT NOT NULL, reference TEXT NOT NULL,
                 device_id TEXT NOT NULL, evening_id TEXT NOT NULL, speaker TEXT NOT NULL,
                 start_ms INTEGER NOT NULL, end_ms INTEGER NOT NULL, event_id TEXT,
                 text TEXT NOT NULL, expires_at_ms INTEGER NOT NULL,
                 PRIMARY KEY(conversation_id,session_generation,reference));
-            PRAGMA user_version=2;
+            PRAGMA user_version=3;
             """;
         cmd.Parameters.AddWithValue("$now", memoryClock.GetUtcNow().ToUnixTimeMilliseconds());
-        cmd.Parameters.AddWithValue("$expires", memoryClock.GetUtcNow().AddHours(memoryOptions.ConversationRetentionHours).ToUnixTimeMilliseconds());
+        cmd.Parameters.AddWithValue("$expires", DateTimeOffset.MaxValue.ToUnixTimeMilliseconds());
         cmd.ExecuteNonQuery();
         using var columns = Command(c, tx, "SELECT name FROM pragma_table_info('memory_records') WHERE name='app_namespace'");
         if (columns.ExecuteScalar() is null)
@@ -72,7 +88,7 @@ internal sealed partial class EveningMemoryStore
                     NULL,NULL,'LegacyUnverified',visitor_text || char(10) || reply,'legacy_exchange:' || sequence,
                     $now,$expires,1,NULL,0,0,0,content_bytes,'' FROM exchanges;
                 """, ("$now", memoryClock.GetUtcNow().ToUnixTimeMilliseconds()),
-                ("$expires", memoryClock.GetUtcNow().AddHours(memoryOptions.ConversationRetentionHours).ToUnixTimeMilliseconds()));
+                ("$expires", DateTimeOffset.MaxValue.ToUnixTimeMilliseconds()));
             legacy.ExecuteNonQuery();
         }
         using var guestColumns = Command(c, tx, "SELECT name FROM pragma_table_info('memory_guests') WHERE name='app_namespace'");
@@ -80,11 +96,89 @@ internal sealed partial class EveningMemoryStore
         {
             using var alter = Command(c, tx, "ALTER TABLE memory_guests ADD COLUMN app_namespace TEXT NOT NULL DEFAULT ''"); alter.ExecuteNonQuery();
         }
+        using var generationColumn = Command(c, tx, "SELECT name FROM pragma_table_info('memory_meta') WHERE name='deletion_epoch'");
+        if (generationColumn.ExecuteScalar() is null)
+        {
+            using var alter = Command(c, tx, "ALTER TABLE memory_meta ADD COLUMN deletion_epoch INTEGER NOT NULL DEFAULT 0");
+            alter.ExecuteNonQuery();
+        }
+        // Retention timestamps from older releases are archive metadata, never a
+        // deletion schedule. Previously erased content cannot be reconstructed.
+        using var retain = Command(c, tx, "UPDATE memory_records SET expires_at_ms=$forever WHERE is_active=1; UPDATE live_transcripts SET expires_at_ms=$forever;",
+            ("$forever", DateTimeOffset.MaxValue.ToUnixTimeMilliseconds()));
+        retain.ExecuteNonQuery();
+        foreach (var column in new[] { "app_namespace", "guest_id", "personality_id" })
+        {
+            using var present = Command(c, tx, "SELECT name FROM pragma_table_info('live_transcripts') WHERE name=$column", ("$column", column));
+            if (present.ExecuteScalar() is null)
+            {
+                using var add = Command(c, tx, "ALTER TABLE live_transcripts ADD COLUMN " + column + " TEXT");
+                add.ExecuteNonQuery();
+            }
+        }
     }
 
     internal long MemoryEpoch
     {
         get { lock (gate) { using var c = Open(); return Epoch(c, null); } }
+    }
+    internal long MemoryDeletionEpoch
+    {
+        get
+        {
+            lock (gate)
+            {
+                using var c = Open();
+                using var command = Command(c, null, "SELECT deletion_epoch FROM memory_meta WHERE id=1");
+                return (long)command.ExecuteScalar()!;
+            }
+        }
+    }
+    internal long MemoryDeletionEpochFor(string device, string conversation)
+    {
+        lock (gate)
+        {
+            using var c = Open();
+            return ConversationEpoch(c, null, device, conversation, facts: false);
+        }
+    }
+    internal long MemoryFactEpochFor(MemoryAccess access)
+    {
+        lock (gate)
+        {
+            using var c = Open();
+            return ConversationEpoch(c, null, access.DeviceId, access.ConversationId, facts: true);
+        }
+    }
+    internal void RegisterMemoryContext(MemoryAccess access)
+    {
+        lock (gate)
+        {
+            using var c = Open();
+            using var command = Command(c, null, """
+                INSERT INTO memory_context_scopes VALUES($n,$d,$c,$e,$g)
+                ON CONFLICT(app_namespace,device_id,conversation_id) DO UPDATE SET
+                    evening_id=excluded.evening_id,guest_id=excluded.guest_id;
+                """, ("$n", memoryOptions.Namespace), ("$d", access.DeviceId), ("$c", access.ConversationId),
+                ("$e", access.EveningId), ("$g", access.Guest?.GuestId));
+            command.ExecuteNonQuery();
+        }
+    }
+    private long ConversationEpoch(SqliteConnection c, SqliteTransaction? tx, string device, string conversation, bool facts)
+    {
+        var column = facts ? "fact_epoch" : "deletion_epoch";
+        using var command = Command(c, tx, "SELECT " + column + " FROM memory_conversation_generations WHERE app_namespace=$n AND device_id=$d AND conversation_id=$c",
+            ("$n", memoryOptions.Namespace), ("$d", device), ("$c", conversation));
+        return command.ExecuteScalar() is long value ? value : 0;
+    }
+    private void AdvanceConversationEpoch(SqliteConnection c, SqliteTransaction tx, string device, string conversation, bool deletion)
+    {
+        using var command = Command(c, tx, """
+            INSERT INTO memory_conversation_generations VALUES($n,$d,$c,$deleted,1)
+            ON CONFLICT(app_namespace,device_id,conversation_id) DO UPDATE SET
+                deletion_epoch=deletion_epoch+$deleted,fact_epoch=fact_epoch+1;
+            """, ("$n", memoryOptions.Namespace), ("$d", device), ("$c", conversation), ("$deleted", deletion ? 1 : 0));
+        command.ExecuteNonQuery();
     }
     private static long Epoch(SqliteConnection c, SqliteTransaction? tx)
     {
@@ -116,31 +210,47 @@ internal sealed partial class EveningMemoryStore
     internal GuestMemoryPermission? SetGuestPermission(string device, string conversation, string guest,
         string identitySource, bool verified, bool longTerm, bool export, long expectedVersion)
     {
-        if (!Guid.TryParseExact(guest, "D", out _) || identitySource.Length is < 1 or > 128
+        if (guest.Length is < 1 or > 80
+            || guest.Any(character => !char.IsAsciiLetterOrDigit(character) && character is not ('.' or '_' or '-'))
+            || string.IsNullOrWhiteSpace(identitySource) || identitySource.Length > 128 || identitySource.Any(char.IsControl)
             || (!verified && (longTerm || export)) || export && !longTerm) throw new ArgumentException("Invalid guest permission.");
         lock (gate)
         {
             using var c = Open(); using var tx = c.BeginTransaction();
             var old = ReadGuest(c, tx, device, conversation);
             if ((old?.Version ?? 0) != expectedVersion) return null;
-            // Revoke all data for the old binding first. Permission changes
-            // cannot silently re-authorize a previously exported revision.
-            if (old is not null)
+            if (old is not null && old.GuestId == guest && old.IdentityVerified == verified
+                && old.LongTermAllowed == longTerm && old.CloudExportAllowed == export)
             {
-                using var ids = Command(c, tx, "SELECT DISTINCT memory_id FROM memory_records WHERE device_id=$d AND guest_id=$g AND app_namespace=$n AND is_active=1 AND scope='Personal'",
-                    ("$d", device), ("$g", old.GuestId), ("$n", memoryOptions.Namespace));
-                var revoked = new List<string>(); using (var r = ids.ExecuteReader()) while (r.Read()) revoked.Add(r.GetString(0));
-                foreach (var id in revoked) Invalidate(c, tx, id);
+                return old;
+            }
+            // Rebinding changes eligibility, not archived content. Revoke cloud
+            // copies belonging to this origin without erasing their local facts.
+            if (old is not null && (old.GuestId != guest || !verified || !longTerm || !export))
+            {
+                using var ids = Command(c, tx, "SELECT memory_id,revision FROM memory_records WHERE device_id=$d AND conversation_id=$c AND app_namespace=$n AND scope='Personal' AND is_active=1",
+                    ("$d", device), ("$c", conversation), ("$n", memoryOptions.Namespace));
+                var revoked = new List<(string Id, long Revision)>();
+                using (var reader = ids.ExecuteReader())
+                {
+                    while (reader.Read()) { revoked.Add((reader.GetString(0), reader.GetInt64(1))); }
+                }
+                foreach (var record in revoked) { QueueIndexRemoval(c, tx, record.Id); }
+                using var revoke = Command(c, tx, "UPDATE memory_records SET export_allowed=0 WHERE device_id=$d AND conversation_id=$c AND app_namespace=$n AND scope='Personal'",
+                    ("$d", device), ("$c", conversation), ("$n", memoryOptions.Namespace));
+                revoke.ExecuteNonQuery();
             }
             using var cmd = Command(c, tx, """
                 INSERT INTO memory_guests VALUES($d,$c,$g,$v,$source,$long,$export,$version,$namespace)
                 ON CONFLICT(device_id,conversation_id) DO UPDATE SET guest_id=excluded.guest_id,
                 identity_verified=excluded.identity_verified,identity_source=excluded.identity_source,
                 long_term_allowed=excluded.long_term_allowed,cloud_export_allowed=excluded.cloud_export_allowed,version=excluded.version,app_namespace=excluded.app_namespace;
-                UPDATE memory_meta SET epoch=epoch+1 WHERE id=1;
+                UPDATE memory_meta SET epoch=epoch+1,deletion_epoch=deletion_epoch+1 WHERE id=1;
                 """, ("$d", device), ("$c", conversation), ("$g", guest), ("$v", verified), ("$source", identitySource),
                 ("$long", longTerm), ("$export", export), ("$version", expectedVersion + 1), ("$namespace", memoryOptions.Namespace));
-            cmd.ExecuteNonQuery(); tx.Commit();
+            cmd.ExecuteNonQuery();
+            AdvanceConversationEpoch(c, tx, device, conversation, deletion: true);
+            tx.Commit();
             return new(device, conversation, guest, verified, longTerm, export, expectedVersion + 1);
         }
     }
@@ -152,12 +262,15 @@ internal sealed partial class EveningMemoryStore
             || Encoding.UTF8.GetByteCount(write.Text) > memoryOptions.MaxRecordBytes
             || write.SourceReference.Length is < 1 or > 256
             || write.Scope == MemoryScope.EveningMotif && (write.Kind != MemoryKind.TopicUsed || !AnonymousMotifs.IsAllowed(write.Text))
-            || write.Kind == MemoryKind.FictionalJoke && write.Scope == MemoryScope.Personal)
+            || write.Scope == MemoryScope.Personal && write.Kind is not (MemoryKind.UserReportedFact or MemoryKind.ConfirmedSelection))
             throw new ArgumentException("Invalid memory record.");
         lock (gate)
         {
             using var c = Open(); using var tx = c.BeginTransaction();
             if (write.ExpectedEpoch is { } expectedEpoch && Epoch(c, tx) != expectedEpoch) return null;
+            if (write.ExpectedFactEpoch is { } factEpoch
+                && ConversationEpoch(c, tx, access.DeviceId, access.ConversationId, facts: true) != factEpoch) { return null; }
+            if (!CanAppendConversation(c, tx, access, write.ExpectedDeletionEpoch)) return null;
             using var exists = Command(c, tx, "SELECT 1 FROM evening_catalog WHERE device_id=$d AND evening_id=$e", ("$d", access.DeviceId), ("$e", access.EveningId));
             if (exists.ExecuteScalar() is null) return null;
             var old = Latest(c, tx, write.MemoryId);
@@ -168,20 +281,20 @@ internal sealed partial class EveningMemoryStore
             if (write.Scope == MemoryScope.Personal && (!memoryOptions.LongTermPersonalEnabled
                 || guest is not { IdentityVerified: true, LongTermAllowed: true }
                 || access.Guest?.GuestId != guest.GuestId || access.Guest.Version != guest.Version)) return null;
-            using var capacity = Command(c, tx, "SELECT (SELECT COALESCE(SUM(content_bytes),0) FROM memory_records WHERE is_active=1)+(SELECT COALESCE(SUM(length(CAST(text AS BLOB))),0) FROM live_transcripts)");
+            using var capacity = Command(c, tx, "SELECT (SELECT COALESCE(SUM(content_bytes),0) FROM memory_records)+(SELECT COALESCE(SUM(length(CAST(text AS BLOB))),0) FROM live_transcripts)");
             var bytes = Encoding.UTF8.GetByteCount(write.Text);
-            if ((long)capacity.ExecuteScalar()! - (old is null ? 0 : Encoding.UTF8.GetByteCount(old.Text)) + bytes > memoryOptions.MaxStoredBytes
-                || !Spend(c, tx, "write", 1, memoryOptions.MaxWritesPerDay)) return null;
-            using var jobs = Command(c, tx, "SELECT COUNT(*) FROM memory_outbox WHERE state!='done'");
-            if ((long)jobs.ExecuteScalar()! >= memoryOptions.MaxPendingJobs) return null;
-            if (old is not null) Invalidate(c, tx, old.MemoryId);
-            var now = memoryClock.GetUtcNow();
-            var expires = write.Scope switch
+            if ((long)capacity.ExecuteScalar()! + bytes > memoryOptions.MaxStoredBytes)
             {
-                MemoryScope.Personal => now.AddDays(memoryOptions.PersonalRetentionDays),
-                MemoryScope.EveningMotif => now.AddDays(memoryOptions.MotifRetentionDays),
-                _ => now.AddHours(memoryOptions.ConversationRetentionHours)
-            };
+                RecordCapacityFailure(c, tx);
+                tx.Commit();
+                return null;
+            }
+            if (!Spend(c, tx, "write", 1, memoryOptions.MaxWritesPerDay)) { return null; }
+            // Local persistence remains available even when derived indexing is
+            // backlogged. Jobs are durable; workers bound network concurrency.
+            if (old is not null) Invalidate(c, tx, old.MemoryId, eraseContent: false);
+            var now = memoryClock.GetUtcNow();
+            var expires = DateTimeOffset.MaxValue;
             var exportAllowed = write.Scope == MemoryScope.EveningMotif || write.Scope == MemoryScope.Personal && guest!.CloudExportAllowed;
             var record = new MemoryRecord(write.MemoryId, write.Scope, access.DeviceId, access.EveningId, access.ConversationId,
                 write.Scope == MemoryScope.Personal ? guest!.GuestId : null, access.PersonalityId, write.Kind, write.Text,
@@ -209,16 +322,19 @@ internal sealed partial class EveningMemoryStore
             using var c = Open(); using var tx = c.BeginTransaction();
             var record = Latest(c, tx, id);
             if (record is null || record.DeviceId != device || record.Revision != expectedRevision || record.AppNamespace != memoryOptions.Namespace) return false;
-            if (record.IsActive) Invalidate(c, tx, id);
+            Invalidate(c, tx, id);
             tx.Commit(); return true;
         }
     }
 
-    internal bool ForgetOwnPersonalMemory(MemoryAccess access)
+    internal bool ForgetOwnPersonalMemory(MemoryAccess access, long? expectedFactEpoch = null, long? expectedDeletionEpoch = null)
     {
         lock (gate)
         {
             using var c = Open(); using var tx = c.BeginTransaction();
+            if (expectedFactEpoch is { } factEpoch
+                && ConversationEpoch(c, tx, access.DeviceId, access.ConversationId, facts: true) != factEpoch) { return false; }
+            if (!CanAppendConversation(c, tx, access, expectedDeletionEpoch)) { return false; }
             var permission = ReadGuest(c, tx, access.DeviceId, access.ConversationId);
             if (permission is not { IdentityVerified: true } || access.Guest?.GuestId != permission.GuestId
                 || access.Guest.Version != permission.Version) return false;
@@ -226,27 +342,170 @@ internal sealed partial class EveningMemoryStore
                 ("$d", access.DeviceId), ("$g", permission.GuestId), ("$n", memoryOptions.Namespace));
             var ids = new List<string>(); using (var r = cmd.ExecuteReader()) while (r.Read()) ids.Add(r.GetString(0));
             foreach (var id in ids) Invalidate(c, tx, id);
-            using var epoch = Command(c, tx, "UPDATE memory_meta SET epoch=epoch+1 WHERE id=1"); epoch.ExecuteNonQuery();
+            AdvanceConversationEpoch(c, tx, access.DeviceId, access.ConversationId, deletion: true);
+            using var epoch = Command(c, tx, "UPDATE memory_meta SET epoch=epoch+1,deletion_epoch=deletion_epoch+1 WHERE id=1"); epoch.ExecuteNonQuery();
             tx.Commit(); return true;
         }
     }
-    private void Invalidate(SqliteConnection c, SqliteTransaction tx, string id)
+    internal bool DeleteScopedMemory(string device, string scope, string subject, long expectedEpoch)
+        => DeleteScopedMemory(device, scope, subject, expectedEpoch, out _);
+
+    internal bool DeleteScopedMemory(string device, string scope, string subject, long expectedEpoch,
+        out IReadOnlyList<string> affectedConversations)
+    {
+        affectedConversations = [];
+        if (scope is not ("conversation" or "guest" or "evening") || string.IsNullOrWhiteSpace(subject))
+        {
+            throw new ArgumentException("Invalid memory deletion scope.");
+        }
+        lock (gate)
+        {
+            using var c = Open();
+            using var tx = c.BeginTransaction();
+            if (Epoch(c, tx) != expectedEpoch) { return false; }
+            var predicate = scope switch
+            {
+                "conversation" => "conversation_id=$subject",
+                "guest" => "guest_id=$subject",
+                "evening" => "evening_id=$subject",
+                _ => throw new ArgumentException("Invalid memory deletion scope.")
+            };
+            using var records = Command(c, tx,
+                "SELECT DISTINCT memory_id,conversation_id FROM memory_records WHERE device_id=$d AND app_namespace=$n AND " + predicate,
+                ("$d", device), ("$n", memoryOptions.Namespace), ("$subject", subject));
+            var ids = new HashSet<string>(StringComparer.Ordinal);
+            var conversations = new HashSet<string>(StringComparer.Ordinal);
+            using (var reader = records.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    ids.Add(reader.GetString(0));
+                    conversations.Add(reader.GetString(1));
+                }
+            }
+            using (var contexts = Command(c, tx,
+                "SELECT conversation_id FROM memory_context_scopes WHERE device_id=$d AND app_namespace=$n AND " + predicate,
+                ("$d", device), ("$n", memoryOptions.Namespace), ("$subject", subject)))
+            using (var reader = contexts.ExecuteReader())
+            {
+                while (reader.Read()) { conversations.Add(reader.GetString(0)); }
+            }
+            if (scope == "conversation") { conversations.Add(subject); }
+            if (scope == "guest")
+            {
+                using var bindings = Command(c, tx, "SELECT conversation_id FROM memory_guests WHERE device_id=$d AND app_namespace=$n AND guest_id=$subject",
+                    ("$d", device), ("$n", memoryOptions.Namespace), ("$subject", subject));
+                using var reader = bindings.ExecuteReader();
+                while (reader.Read()) { conversations.Add(reader.GetString(0)); }
+            }
+            if (scope == "evening")
+            {
+                using var tombstone = Command(c, tx, "INSERT OR IGNORE INTO memory_deleted_evenings VALUES($n,$d,$subject)",
+                    ("$d", device), ("$subject", subject), ("$n", memoryOptions.Namespace));
+                tombstone.ExecuteNonQuery();
+                using var sessions = Command(c, tx, "SELECT conversation_id FROM live_transcripts WHERE device_id=$d AND evening_id=$subject "
+                    + "UNION SELECT conversation_id FROM exchanges WHERE device_id=$d AND evening_id=$subject "
+                    + "UNION SELECT conversation_id FROM show_visits WHERE device_id=$d AND evening_id=$subject "
+                    + "UNION SELECT conversation_id FROM show_memory_events WHERE device_id=$d AND evening_id=$subject AND conversation_id IS NOT NULL",
+                    ("$d", device), ("$subject", subject));
+                using var reader = sessions.ExecuteReader();
+                while (reader.Read()) { conversations.Add(reader.GetString(0)); }
+            }
+            // A guest/session deletion also removes the associated raw archive;
+            // retaining it would permit re-derivation of the deleted facts.
+            foreach (var conversation in conversations)
+            {
+                using var related = Command(c, tx, "SELECT DISTINCT memory_id FROM memory_records WHERE device_id=$d AND app_namespace=$n AND conversation_id=$c",
+                    ("$d", device), ("$n", memoryOptions.Namespace), ("$c", conversation));
+                using (var reader = related.ExecuteReader())
+                {
+                    while (reader.Read()) { ids.Add(reader.GetString(0)); }
+                }
+                using var remove = Command(c, tx, """
+                    INSERT OR IGNORE INTO memory_deleted_conversations VALUES($n,$d,$c);
+                    DELETE FROM live_transcripts WHERE device_id=$d AND conversation_id=$c;
+                    DELETE FROM exchanges WHERE device_id=$d AND conversation_id=$c;
+                    """, ("$d", device), ("$n", memoryOptions.Namespace), ("$c", conversation));
+                remove.ExecuteNonQuery();
+                AdvanceConversationEpoch(c, tx, device, conversation, deletion: true);
+            }
+            var showSources = new HashSet<string>(conversations, StringComparer.Ordinal);
+            if (scope == "evening")
+            {
+                showSources.Add(subject);
+                using var showEvents = Command(c, tx,
+                    "SELECT DISTINCT source_id FROM show_memory_events WHERE device_id=$d AND evening_id=$subject",
+                    ("$d", device), ("$subject", subject));
+                using var reader = showEvents.ExecuteReader();
+                while (reader.Read()) { showSources.Add(reader.GetString(0)); }
+            }
+            RevokeShowSources(c, tx, device, showSources);
+            foreach (var id in ids) { Invalidate(c, tx, id); }
+            using var fence = Command(c, tx, "UPDATE memory_meta SET epoch=epoch+1,deletion_epoch=deletion_epoch+1 WHERE id=1");
+            fence.ExecuteNonQuery();
+            tx.Commit();
+            affectedConversations = conversations.Order(StringComparer.Ordinal).ToArray();
+            return true;
+        }
+    }
+    private void QueueIndexRemoval(SqliteConnection c, SqliteTransaction tx, string id)
     {
         using var maps = Command(c, tx, "SELECT revision,store_id FROM memory_indexes WHERE memory_id=$id AND state!='deleted'", ("$id", id));
         var targets = new List<(long, string)>(); using (var r = maps.ExecuteReader()) while (r.Read()) targets.Add((r.GetInt64(0), r.GetString(1)));
-        using var cmd = Command(c, tx, """
-            UPDATE memory_records SET is_active=0,use_allowed=0,export_allowed=0,text='',content_bytes=0 WHERE memory_id=$id;
-            UPDATE memory_meta SET epoch=epoch+1 WHERE id=1;
-            """, ("$id", id)); cmd.ExecuteNonQuery();
         foreach (var (rev, store) in targets) Queue(c, tx, id, rev, store, "delete");
+    }
+    private void Invalidate(SqliteConnection c, SqliteTransaction tx, string id, bool eraseContent = true)
+    {
+        var record = Latest(c, tx, id);
+        QueueIndexRemoval(c, tx, id);
+        using var cmd = Command(c, tx, """
+            UPDATE memory_records SET is_active=0,use_allowed=0,export_allowed=0,
+                text=CASE WHEN $erase THEN '' ELSE text END,
+                content_bytes=CASE WHEN $erase THEN 0 ELSE content_bytes END WHERE memory_id=$id;
+            UPDATE memory_meta SET epoch=epoch+1,deletion_epoch=deletion_epoch+$erase WHERE id=1;
+            """, ("$id", id), ("$erase", eraseContent));
+        cmd.ExecuteNonQuery();
+        if (record is null) { return; }
+        AdvanceConversationEpoch(c, tx, record.DeviceId, record.ConversationId, eraseContent);
+        if (record.Scope == MemoryScope.Personal && record.GuestId is not null)
+        {
+            using var bindings = Command(c, tx, "SELECT conversation_id FROM memory_guests WHERE app_namespace=$n AND device_id=$d AND guest_id=$guest",
+                ("$n", memoryOptions.Namespace), ("$d", record.DeviceId), ("$guest", record.GuestId));
+            var conversations = new List<string>();
+            using (var reader = bindings.ExecuteReader())
+            {
+                while (reader.Read()) { conversations.Add(reader.GetString(0)); }
+            }
+            foreach (var conversation in conversations)
+            {
+                AdvanceConversationEpoch(c, tx, record.DeviceId, conversation, deletion: eraseContent);
+            }
+        }
+        if (eraseContent && record.Scope == MemoryScope.EveningMotif)
+        {
+            using var contexts = Command(c, tx, "SELECT conversation_id FROM memory_context_scopes WHERE app_namespace=$n AND device_id=$d AND evening_id=$e",
+                ("$n", memoryOptions.Namespace), ("$d", record.DeviceId), ("$e", record.EveningId));
+            var conversations = new List<string>();
+            using (var reader = contexts.ExecuteReader())
+            {
+                while (reader.Read()) { conversations.Add(reader.GetString(0)); }
+            }
+            foreach (var conversation in conversations)
+            {
+                AdvanceConversationEpoch(c, tx, record.DeviceId, conversation, deletion: true);
+            }
+        }
     }
     private void InvalidateEveningMemory(SqliteConnection c, SqliteTransaction tx, string device, string evening)
     {
-        using var cmd = Command(c, tx, "SELECT DISTINCT memory_id FROM memory_records WHERE device_id=$d AND evening_id=$e AND is_active=1",
+        RevokeDeletedShowEvening(c, tx, device, evening);
+        using var cmd = Command(c, tx, "SELECT DISTINCT memory_id FROM memory_records WHERE device_id=$d AND evening_id=$e",
             ("$d", device), ("$e", evening));
         var ids = new List<string>(); using (var r = cmd.ExecuteReader()) while (r.Read()) ids.Add(r.GetString(0));
         foreach (var id in ids) Invalidate(c, tx, id);
         using var delete = Command(c, tx, "DELETE FROM live_transcripts WHERE device_id=$d AND evening_id=$e", ("$d", device), ("$e", evening)); delete.ExecuteNonQuery();
+        using var fence = Command(c, tx, "UPDATE memory_meta SET epoch=epoch+1,deletion_epoch=deletion_epoch+1 WHERE id=1");
+        fence.ExecuteNonQuery();
     }
     private void Queue(SqliteConnection c, SqliteTransaction tx, string id, long rev, string store, string action)
     {
@@ -270,9 +529,20 @@ internal sealed partial class EveningMemoryStore
         using var r = cmd.ExecuteReader(); return r.Read() ? ReadRecord(r) : null;
     }
     internal MemoryRecord? CurrentMemory(string id) { lock (gate) { using var c = Open(); return Latest(c, null, id); } }
+    internal bool IsCurrentMemoryPermitted(string id, MemoryAccess access, long expectedFactEpoch, long expectedDeletionEpoch)
+    {
+        lock (gate)
+        {
+            using var c = Open();
+            using var tx = c.BeginTransaction();
+            return ConversationEpoch(c, tx, access.DeviceId, access.ConversationId, facts: true) == expectedFactEpoch
+                && CanAppendConversation(c, tx, access, expectedDeletionEpoch)
+                && Latest(c, tx, id) is { } record && IsPermitted(record, access);
+        }
+    }
     internal bool IsPermitted(MemoryRecord record, MemoryAccess access, bool cloud = false)
     {
-        if (!record.IsActive || !record.UseAllowed || record.ExpiresAt <= memoryClock.GetUtcNow() || record.DeviceId != access.DeviceId
+        if (!record.IsActive || !record.UseAllowed || record.DeviceId != access.DeviceId
             || record.AppNamespace != memoryOptions.Namespace
             || record.Kind == MemoryKind.LegacyUnverified || cloud && !record.ExportAllowed) return false;
         if (record.Scope == MemoryScope.Conversation) return record.ConversationId == access.ConversationId && record.EveningId == access.EveningId;
@@ -282,20 +552,24 @@ internal sealed partial class EveningMemoryStore
         return memoryOptions.LongTermPersonalEnabled && access.Guest is { IdentityVerified: true, LongTermAllowed: true }
             && permission is { IdentityVerified: true, LongTermAllowed: true }
             && access.Guest.GuestId == permission.GuestId && access.Guest.Version == permission.Version
-            && record.GuestId == permission.GuestId && (!cloud || permission.CloudExportAllowed)
-            // A revocation invalidates all active personal records transactionally;
-            // a new conversation may have its own independently verified version.
-            && GuestPermission(record.DeviceId, record.ConversationId) is { } origin
-            && origin.Version == record.PermissionVersion && origin.GuestId == record.GuestId
-            && origin.LongTermAllowed && (!cloud || origin.CloudExportAllowed);
+            && record.GuestId == permission.GuestId && (!cloud || permission.CloudExportAllowed);
     }
     internal IReadOnlyList<MemoryRecord> LocalMemory(MemoryAccess access, MemoryScope? scope = null)
     {
         if (!memoryOptions.Enabled) return [];
         lock (gate)
         {
-            using var c = Open(); using var cmd = Command(c, null, "SELECT * FROM memory_records WHERE device_id=$d AND app_namespace=$namespace AND is_active=1 ORDER BY created_at_ms DESC LIMIT 200",
-                ("$d", access.DeviceId), ("$namespace", memoryOptions.Namespace));
+            using var c = Open(); using var cmd = Command(c, null, """
+                SELECT * FROM memory_records
+                WHERE device_id=$d AND app_namespace=$namespace AND is_active=1 AND use_allowed=1
+                    AND ($scope IS NULL OR scope=$scope)
+                    AND ((scope='Conversation' AND conversation_id=$conversation AND evening_id=$evening)
+                        OR (scope='EveningMotif' AND evening_id=$evening AND (personality_id IS NULL OR personality_id=$personality))
+                        OR (scope='Personal' AND guest_id=$guest))
+                ORDER BY created_at_ms DESC,revision DESC,memory_id;
+                """, ("$d", access.DeviceId), ("$namespace", memoryOptions.Namespace), ("$scope", scope?.ToString()),
+                ("$conversation", access.ConversationId), ("$evening", access.EveningId), ("$personality", access.PersonalityId),
+                ("$guest", access.Guest?.GuestId));
             var rows = new List<MemoryRecord>(); using (var r = cmd.ExecuteReader()) while (r.Read()) rows.Add(ReadRecord(r));
             return rows.Where(r => (scope is null || r.Scope == scope) && IsPermitted(r, access)).ToArray();
         }
@@ -360,10 +634,11 @@ internal sealed partial class EveningMemoryStore
         lock (gate)
         {
             using var c = Open(); using var tx = c.BeginTransaction();
-            using var cmd = Command(c, tx, "SELECT DISTINCT memory_id FROM memory_records WHERE device_id=$d AND conversation_id=$c AND app_namespace=$n AND scope='Conversation' AND is_active=1",
+            using var cmd = Command(c, tx, "SELECT DISTINCT memory_id FROM memory_records WHERE device_id=$d AND conversation_id=$c AND app_namespace=$n AND scope IN ('Conversation','Personal') AND kind IN ('UserReportedFact','ModelInterpretation','ProposedChoice','PendingQuestion') AND is_active=1",
                 ("$d", access.DeviceId), ("$c", access.ConversationId), ("$n", memoryOptions.Namespace));
             var ids = new List<string>(); using (var r = cmd.ExecuteReader()) while (r.Read()) ids.Add(r.GetString(0));
-            foreach (var id in ids) Invalidate(c, tx, id);
+            foreach (var id in ids) Invalidate(c, tx, id, eraseContent: false);
+            AdvanceConversationEpoch(c, tx, access.DeviceId, access.ConversationId, deletion: false);
             using var epoch = Command(c, tx, "UPDATE memory_meta SET epoch=epoch+1 WHERE id=1"); epoch.ExecuteNonQuery();
             tx.Commit();
         }
@@ -436,11 +711,9 @@ internal sealed partial class EveningMemoryStore
         lock (gate)
         {
             using var c = Open(); using var tx = c.BeginTransaction(); var now = memoryClock.GetUtcNow().ToUnixTimeMilliseconds();
-            using var expired = Command(c, tx, "SELECT DISTINCT memory_id FROM memory_records WHERE is_active=1 AND expires_at_ms<=$now", ("$now", now));
-            var ids = new List<string>(); using (var r = expired.ExecuteReader()) while (r.Read()) ids.Add(r.GetString(0));
-            foreach (var id in ids) Invalidate(c, tx, id);
+            // Only technical bookkeeping expires. Application content, including
+            // historical revisions and finalized transcripts, is manual-only.
             using var delete = Command(c, tx, """
-                DELETE FROM live_transcripts WHERE expires_at_ms<=$now;
                 DELETE FROM memory_usage WHERE day<$cutoff;
                 DELETE FROM memory_outbox WHERE state='done' AND next_at_ms<$retention;
                 DELETE FROM memory_indexes WHERE state='deleted' AND NOT EXISTS
@@ -452,27 +725,86 @@ internal sealed partial class EveningMemoryStore
         }
     }
 
-    internal void AppendTimedTranscripts(MemoryAccess access, string generation, IReadOnlyList<LiveTranscriptSegment> segments)
+    private bool CanAppendConversation(SqliteConnection c, SqliteTransaction tx, MemoryAccess access, long? expectedDeletionEpoch)
     {
-        if (!memoryOptions.Enabled) return;
+        using var check = Command(c, tx, """
+            SELECT 1 FROM memory_meta WHERE id=1
+                AND NOT EXISTS (SELECT 1 FROM memory_deleted_evenings WHERE app_namespace=$n AND device_id=$d AND evening_id=$e)
+                AND NOT EXISTS (SELECT 1 FROM memory_deleted_conversations
+                    WHERE app_namespace=$n AND device_id=$d AND conversation_id=$c);
+            """, ("$epoch", expectedDeletionEpoch), ("$n", memoryOptions.Namespace),
+            ("$d", access.DeviceId), ("$c", access.ConversationId), ("$e", access.EveningId));
+        if (check.ExecuteScalar() is null || expectedDeletionEpoch is { } expected
+            && ConversationEpoch(c, tx, access.DeviceId, access.ConversationId, facts: false) != expected) { return false; }
+        // Runtime persistence supplies a captured generation. Direct operator
+        // writes may omit it and still undergo scope-specific authorization.
+        if (expectedDeletionEpoch is null) { return true; }
+        var permission = ReadGuest(c, tx, access.DeviceId, access.ConversationId);
+        return permission is null ? access.Guest is null
+            : access.Guest is { } guest && permission.GuestId == guest.GuestId && permission.Version == guest.Version;
+    }
+
+    private void RecordCapacityFailure(SqliteConnection c, SqliteTransaction tx)
+    {
+        using var rejected = Command(c, tx, """
+            INSERT INTO memory_storage_failures VALUES('archive_capacity',1,$now)
+            ON CONFLICT(code) DO UPDATE SET rejected_writes=rejected_writes+1,last_at_ms=excluded.last_at_ms;
+            """, ("$now", memoryClock.GetUtcNow().ToUnixTimeMilliseconds()));
+        rejected.ExecuteNonQuery();
+    }
+
+    internal (long StoredBytes, long RejectedWrites) MemoryStorageStatus()
+    {
+        lock (gate)
+        {
+            using var c = Open();
+            using var command = Command(c, null, """
+                SELECT (SELECT COALESCE(SUM(content_bytes),0) FROM memory_records)
+                    +(SELECT COALESCE(SUM(length(CAST(text AS BLOB))),0) FROM live_transcripts),
+                    (SELECT COALESCE(SUM(rejected_writes),0) FROM memory_storage_failures);
+                """);
+            using var reader = command.ExecuteReader();
+            reader.Read();
+            return (reader.GetInt64(0), reader.GetInt64(1));
+        }
+    }
+
+    internal bool AppendTimedTranscripts(MemoryAccess access, string generation, IReadOnlyList<LiveTranscriptSegment> segments,
+        long? expectedDeletionEpoch = null, long? expectedFactEpoch = null)
+    {
+        if (!memoryOptions.Enabled) return false;
         lock (gate)
         {
             using var c = Open(); using var tx = c.BeginTransaction();
+            if (!CanAppendConversation(c, tx, access, expectedDeletionEpoch)) { return false; }
+            if (expectedFactEpoch is { } factEpoch
+                && ConversationEpoch(c, tx, access.DeviceId, access.ConversationId, facts: true) != factEpoch) { return false; }
             using var exists = Command(c, tx, "SELECT 1 FROM evening_catalog WHERE device_id=$d AND evening_id=$e", ("$d", access.DeviceId), ("$e", access.EveningId));
-            if (exists.ExecuteScalar() is null) return;
-            using var capacity = Command(c, tx, "SELECT (SELECT COALESCE(SUM(content_bytes),0) FROM memory_records WHERE is_active=1)+(SELECT COALESCE(SUM(length(CAST(text AS BLOB))),0) FROM live_transcripts)");
+            if (exists.ExecuteScalar() is null) return false;
+            using var capacity = Command(c, tx, "SELECT (SELECT COALESCE(SUM(content_bytes),0) FROM memory_records)+(SELECT COALESCE(SUM(length(CAST(text AS BLOB))),0) FROM live_transcripts)");
             var used = (long)capacity.ExecuteScalar()!;
+            var complete = true;
             foreach (var s in segments)
             {
+                using var duplicate = Command(c, tx, "SELECT 1 FROM live_transcripts WHERE conversation_id=$c AND session_generation=$g AND reference=$r",
+                    ("$c", access.ConversationId), ("$g", generation), ("$r", s.Reference));
+                if (duplicate.ExecuteScalar() is not null) { continue; }
                 var size = Encoding.UTF8.GetByteCount(s.Text);
-                if (used + size > memoryOptions.MaxStoredBytes) break;
-                using var cmd = Command(c, tx, "INSERT OR IGNORE INTO live_transcripts VALUES($c,$g,$r,$d,$e,$speaker,$start,$end,$event,$text,$expires)",
+                if (used + size > memoryOptions.MaxStoredBytes)
+                {
+                    RecordCapacityFailure(c, tx);
+                    complete = false;
+                    continue;
+                }
+                using var cmd = Command(c, tx, "INSERT OR IGNORE INTO live_transcripts(conversation_id,session_generation,reference,device_id,evening_id,speaker,start_ms,end_ms,event_id,text,expires_at_ms,app_namespace,guest_id,personality_id) VALUES($c,$g,$r,$d,$e,$speaker,$start,$end,$event,$text,$expires,$n,$guest,$personality)",
                     ("$c", access.ConversationId), ("$g", generation), ("$r", s.Reference), ("$d", access.DeviceId), ("$e", access.EveningId),
                     ("$speaker", s.Speaker), ("$start", s.StartMs), ("$end", s.EndMs), ("$event", s.EventId), ("$text", s.Text),
-                    ("$expires", memoryClock.GetUtcNow().AddHours(memoryOptions.ConversationRetentionHours).ToUnixTimeMilliseconds()));
+                    ("$expires", DateTimeOffset.MaxValue.ToUnixTimeMilliseconds()), ("$n", memoryOptions.Namespace),
+                    ("$guest", access.Guest?.GuestId), ("$personality", access.PersonalityId));
                 if (cmd.ExecuteNonQuery() == 1) used += size;
             }
             tx.Commit();
+            return complete;
         }
     }
 }

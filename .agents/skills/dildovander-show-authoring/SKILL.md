@@ -26,6 +26,10 @@ For live duel/ambient delivery inspect ShowDeviceCueBridge and the firmware
 control-loop mailbox. Require exact boot/generation/revision and playback ACK;
 web-only results and submitted audio never prove audible device narration.
 GET audio reads a claimed result; it must not start another provider attempt.
+Authored online speech uses ShowSpeechProvider and the bounded official SDK
+ShowCueSpeechClient. It is separate from the two retained conversation engines;
+do not restore the retired STT/dialog/TTS runtime. Run `--show-speech` offline
+transport tests for changes to this adapter, plus actual bridge cancellation.
 
 From the repository root:
 

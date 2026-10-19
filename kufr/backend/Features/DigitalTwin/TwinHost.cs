@@ -2,9 +2,6 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using System.Threading.Channels;
-using System.Net.Http.Json;
-using System.Net.Http.Headers;
-using System.Text;
 using Kufr.Backend.Features.Access;
 
 namespace Kufr.Backend.Features.DigitalTwin;
@@ -26,8 +23,6 @@ internal sealed partial class TwinHost : BackgroundService
         public readonly string Id = id, Executable = executable, Journal = journal, Build = build;
         public readonly string Profile = profile;
         public readonly string? Cad = cad;
-        public bool IntegrationBusy;
-        public string? ConversationId, ConversationBoot, ConversationGeneration;
         public readonly Channel<Pending> Commands = Channel.CreateBounded<Pending>(16);
         public string? Owner;
         public DateTimeOffset OwnerExpires;
@@ -42,16 +37,11 @@ internal sealed partial class TwinHost : BackgroundService
     private readonly Dictionary<string, Host> hosts = new(StringComparer.Ordinal);
     private readonly TwinStore store;
     private readonly TimeProvider clock;
-    private readonly DeviceAccessStore devices;
-    private readonly Uri? integrationUrl;
-    private readonly TwinMediaSettingsStore? mediaSettings;
     public TwinHost(IConfiguration configuration, TwinStore store, TimeProvider clock, DeviceAccessStore devices,
         TwinMediaSettingsStore? mediaSettings = null)
     {
         this.store = store;
         this.clock = clock;
-        this.devices = devices;
-        this.mediaSettings = mediaSettings;
         var root = configuration["DigitalTwin:DataRoot"];
         foreach (var entry in configuration.GetSection("DigitalTwin:Instances").GetChildren())
         {
@@ -75,14 +65,11 @@ internal sealed partial class TwinHost : BackgroundService
                 if (!entry.Key.StartsWith("sim-", StringComparison.Ordinal)
                     || database is null || !Path.GetFullPath(database).StartsWith(dataPrefix, StringComparison.Ordinal)
                     || configuration.GetValue<bool>("Backend:Memory:Enabled")
-                    || configuration["Backend:Dialog:Mode"] is not (null or "fake")
-                        && !(configuration["Backend:Dialog:Mode"] == "responses"
-                            && configuration.GetValue<bool>("DigitalTwin:ExternalServicesAuthorized"))
                     || !configuration.GetSection("Devices").GetChildren().Any(device => device["DeviceId"] == entry.Key)
-                    || !Uri.TryCreate(configuration["DigitalTwin:IntegrationBackendUrl"], UriKind.Absolute, out integrationUrl)
+                    || !Uri.TryCreate(configuration["DigitalTwin:IntegrationBackendUrl"], UriKind.Absolute, out var integrationUrl)
                     || !integrationUrl.IsLoopback || integrationUrl.Scheme != "http" || integrationUrl.AbsolutePath != "/")
                 {
-                    throw new InvalidOperationException("Integration Twin requires an isolated local backend/database/device identity and explicit authorization for external services.");
+                    throw new InvalidOperationException("Integration Twin requires an isolated local backend/database/device identity.");
                 }
             }
             var cad = entry["CadManifestRevision"];
@@ -114,9 +101,13 @@ internal sealed partial class TwinHost : BackgroundService
         {
             return new(false, "control_forbidden");
         }
+        // Retired text integration must never create a conversation, prepare
+        // physical work or contact a provider. Retained media owns its sessions.
+        if (command.Action == "integrationText")
+        {
+            return new(false, "conversation_engine_upgrade_required");
+        }
         string? line = null;
-        // Settings storage may be syncing; keep that wait outside the owner gate.
-        var mediaConfiguration = command.Action == "integrationText" ? mediaSettings?.Read(id) : null;
         var completion = new TaskCompletionSource<TwinCommandResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         lock (host.Gate)
         {
@@ -151,15 +142,6 @@ internal sealed partial class TwinHost : BackgroundService
             {
                 line = $"TEXT {command.OperationId} {command.Slot} {command.Variant}";
             }
-            else if (command.Action == "integrationText" && host.Profile == "integration"
-                && command.Text is { Length: > 0 and <= 1024 } && Guid.TryParseExact(command.OperationId, "D", out _))
-            {
-                if (mediaConfiguration is { Engine: not "fake", Availability.Realtime: false })
-                { return new(false, "provider_not_authorized_or_configured"); }
-                if (host.IntegrationBusy) { return new(false, "integration-busy"); }
-                host.IntegrationBusy = true;
-                line = "SNAPSHOT";
-            }
             else if (command.Action == "stop") { line = "STOP"; }
             else if (command.Action == "inspect") { line = "INSPECT"; }
             else if (command.Action == "dance" && Guid.TryParseExact(command.OperationId, "D", out _))
@@ -183,7 +165,6 @@ internal sealed partial class TwinHost : BackgroundService
                 host.TimeMs = previousTime;
                 host.Paused = previousPaused;
                 host.Speed = previousSpeed;
-                if (command.Action == "integrationText") { host.IntegrationBusy = false; }
                 return new(false, "command_queue_full");
             }
             // Any scoped controller may stop this virtual device. Stop does not
@@ -196,26 +177,9 @@ internal sealed partial class TwinHost : BackgroundService
                 host.Owner = session.Id;
             }
         }
-        // A disconnected HTTP observer cannot cancel an already admitted input.
-        if (command.Action != "integrationText")
-        {
-            var result = await completion.Task.WaitAsync(TimeSpan.FromSeconds(5), cancellation);
-            return result with { ExternalRequest = null, Private = null };
-        }
-        // Once admitted, a closing tab cannot abandon the pending device input.
-        // Network work still has its own bounded wall-clock deadline.
-        try
-        {
-            var accepted = await completion.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            if (!accepted.Accepted || accepted.Snapshot is null) { return accepted with { ExternalRequest = null, Private = null }; }
-            return (await IntegrationAsync(host, command, accepted.Snapshot)) with { ExternalRequest = null, Private = null };
-        }
-        finally
-        {
-            try { await InternalAsync(host, "INTEGRATION_CANCEL"); }
-            catch (TimeoutException) { /* The host remains unavailable, not reset. */ }
-            lock (host.Gate) { host.IntegrationBusy = false; }
-        }
+        // A disconnected observer does not replay an admitted physical input.
+        var result = await completion.Task.WaitAsync(TimeSpan.FromSeconds(5), cancellation);
+        return result with { ExternalRequest = null, Private = null };
     }
     protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.WhenAll(hosts.Values.Select(host => RunAsync(host, stoppingToken)));
     private async Task RunAsync(Host host, CancellationToken cancellation)
@@ -362,85 +326,6 @@ internal sealed partial class TwinHost : BackgroundService
             }
         }
         return ExchangeAsync(host, process, line, cancellation, attachment: pending.Attachment);
-    }
-    private async Task<TwinCommandResult> IntegrationAsync(Host host, TwinCommand command, TwinSnapshot initial)
-    {
-        using var http = new HttpClient { BaseAddress = integrationUrl, Timeout = TimeSpan.FromSeconds(5) };
-        using var deadlineCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-        var cancellation = deadlineCancellation.Token;
-        var token = devices.IssueToken(host.Id);
-        if (token is null) { return new(false, "isolated-token-unavailable"); }
-        http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token.AccessToken);
-        try
-        {
-            if (host.ConversationId is null || host.ConversationBoot != initial.Source.BootId
-                || host.ConversationGeneration != initial.Reported.Generation)
-            {
-                if (host.ConversationId is not null)
-                {
-                    using var closed = await http.DeleteAsync("v1/conversations/" + host.ConversationId, cancellation);
-                }
-                using var create = new HttpRequestMessage(HttpMethod.Post, "v1/conversations")
-                {
-                    Content = JsonContent.Create(new { deviceId = host.Id, bootId = initial.Source.BootId,
-                        generation = ulong.Parse(initial.Reported.Generation, CultureInfo.InvariantCulture),
-                        catalogVersion = "ollivander-private-party-v1", locale = "cs-CZ", consent = new { audio = false, image = false } })
-                };
-                create.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("D"));
-                using var created = await http.SendAsync(create, cancellation);
-                if (!created.IsSuccessStatusCode) { return new(false, "isolated-conversation-rejected"); }
-                var conversation = await created.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: cancellation);
-                host.ConversationId = conversation.GetProperty("conversationId").GetString()!;
-                host.ConversationBoot = initial.Source.BootId;
-                host.ConversationGeneration = initial.Reported.Generation;
-            }
-            var conversationId = host.ConversationId;
-            var textHex = Convert.ToHexStringLower(Encoding.UTF8.GetBytes(command.Text!));
-            var prepared = await InternalAsync(host, $"INTEGRATION_PREPARE {command.OperationId} {conversationId} {clock.GetUtcNow().ToUnixTimeSeconds()} {textHex}");
-            if (!prepared.Accepted || prepared.ExternalRequest is null) { return prepared with { ExternalRequest = null }; }
-            using var submit = new HttpRequestMessage(HttpMethod.Post, $"v1/conversations/{conversationId}/turns")
-            {
-                Content = new StringContent(prepared.ExternalRequest.Value.GetProperty("body").GetRawText(), Encoding.UTF8, "application/json")
-            };
-            submit.Headers.Add("Idempotency-Key", command.OperationId);
-            using var submitted = await http.SendAsync(submit, cancellation);
-            if (!submitted.IsSuccessStatusCode) { return new(false, "isolated-turn-rejected"); }
-            var operation = await submitted.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: cancellation);
-            var operationId = operation.GetProperty("operationId").GetString()!;
-            var bound = await InternalAsync(host, "INTEGRATION_BIND " + operationId);
-            if (!bound.Accepted) { return bound with { ExternalRequest = null }; }
-            // Network polling uses wall-clock deadlines regardless of virtual time.
-            var deadline = Stopwatch.GetTimestamp();
-            while (Stopwatch.GetElapsedTime(deadline).TotalSeconds < 20)
-            {
-                using var response = await http.GetAsync("v1/operations/" + operationId, HttpCompletionOption.ResponseHeadersRead, cancellation);
-                if (!response.IsSuccessStatusCode) { return new(false, "isolated-poll-rejected"); }
-                await using var stream = await response.Content.ReadAsStreamAsync(cancellation);
-                var buffer = new byte[4097];
-                var count = 0;
-                while (count < buffer.Length)
-                {
-                    var read = await stream.ReadAsync(buffer.AsMemory(count), cancellation);
-                    if (read == 0) { break; }
-                    count += read;
-                }
-                if (count > 4096) { return new(false, "isolated-response-too-large"); }
-                var bytes = buffer.AsSpan(0, count).ToArray();
-                using var document = JsonDocument.Parse(bytes);
-                var status = document.RootElement.GetProperty("status").GetString();
-                if (status is not ("pending" or "running"))
-                {
-                    var result = await InternalAsync(host, $"INTEGRATION_RESULT {clock.GetUtcNow().ToUnixTimeSeconds()} {Convert.ToHexStringLower(bytes)}");
-                    return result with { ExternalRequest = null };
-                }
-                await Task.Delay(100, cancellation);
-            }
-            return new(false, "isolated-network-deadline");
-        }
-        catch (Exception error) when (error is HttpRequestException or JsonException or TaskCanceledException or TimeoutException or KeyNotFoundException)
-        {
-            return new(false, "isolated-backend-unavailable");
-        }
     }
     private static async Task DrainAsync(StreamReader reader, CancellationToken cancellation)
     {

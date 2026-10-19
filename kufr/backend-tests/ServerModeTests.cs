@@ -9,6 +9,7 @@ internal static class ServerModeTests
 {
     public static void Run()
     {
+        ConversationOrchestrationTests.Run();
         var directory = Path.Combine(Path.GetTempPath(), $"kufr-modes-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
         try
@@ -56,22 +57,29 @@ internal static class ServerModeTests
             voice.SetEnabled(false);
             var store = new ConversationStore(TimeProvider.System, journal, dialog, voiceRunner: voice);
             var state = store.ReadServerModes();
-            Require(state.DialogAvailable && state.VoiceAvailable && state.DialogMode == "fake", "fake providers armed");
-            Require(store.ChangeServerModes(new(state.Revision, "other", "fake")).Status == 400, "mode allowlist");
-            Require(store.ChangeServerModes(new("stale", "responses", "openai")).Status == 409, "stale state rejected");
-            var enabled = store.ChangeServerModes(new(state.Revision, "responses", "openai"));
-            Require(enabled.Status == 200 && dialog.Enabled && voice.Enabled, "enable without provider call");
-            Require(providerCalls == 0 && enabled.State!.Revision != state.Revision, "revision and no cost");
+            Require(state.Engines is { SchemaVersion: 1, PrimaryEngine: "gpt-live" }
+                && state.Engines.Engines.Select(engine => engine.Engine).SequenceEqual(["gpt-live", "realtime"]),
+                "only the two retained engines are advertised");
+            Require(state.Engines!.Engines.All(engine => !engine.Ready && engine.UnavailableReason == "provider_credential_missing"),
+                "readiness depends on provider configuration rather than legacy test runners");
+            Require(store.ChangeServerModes(new(state.Revision, "responses", "openai")).Status == 410,
+                "retired engine selection requires client upgrade");
+            Require(store.ChangeServerModes(new("stale")).Status == 409, "stale state rejected");
+            var enabled = store.ChangeServerModes(new(state.Revision));
+            Require(enabled.Status == 200 && !dialog.Enabled && !voice.Enabled, "settings do not arm retired providers");
+            Require(providerCalls == 0 && enabled.State!.Revision == state.Revision, "no-op retains revision without provider cost");
             var request = new CreateConversationRequest("esp-test", Guid.NewGuid(), 0, "catalog", "cs-CZ", new(false, false));
             var created = store.Create("esp-test", Guid.NewGuid(), "create"u8, request).Response!;
             var activeState = store.ReadServerModes();
             Require(activeState.ActiveConversations == 1, "active count");
-            Require(store.ChangeServerModes(new(activeState.Revision, "fake", "fake")).Error == "conversations_active", "active conversation freezes modes");
-            Require(store.ChangeServerModes(new(activeState.Revision, "responses", "openai")).Status == 200, "no-op allowed");
+            Require(store.ChangeServerModes(new(activeState.Revision, PersonalityId: PersonalityCatalog.OllivanderId)).Error == "conversations_active", "active conversation freezes persona");
+            Require(store.ChangeServerModes(new(activeState.Revision)).Status == 200, "no-op allowed");
             store.EndConversation("esp-test", created.ConversationId, Guid.NewGuid());
-            Require(store.ChangeServerModes(new(activeState.Revision, "fake", "fake")).Status == 200, "cleanup permits change");
-            var unavailable = new ConversationStore(TimeProvider.System, journal);
-            Require(unavailable.ChangeServerModes(new(unavailable.ReadServerModes().Revision, "responses", "fake")).Error == "provider_unavailable", "missing provider rejected");
+            Require(store.ChangeServerModes(new(activeState.Revision, PersonalityId: PersonalityCatalog.OllivanderId)).Status == 200, "cleanup permits change");
+            configuration["OPENAI_API_KEY"] = "fixture-key-never-dispatched";
+            var unavailable = new ConversationStore(TimeProvider.System, journal, configuration: configuration);
+            Require(unavailable.ReadServerModes().Engines!.Engines.All(engine => engine.Ready),
+                "retained engines configure without legacy dialog or voice settings");
             Require(unavailable.ReadServerModes().Revision != state.Revision, "restart invalidates revision");
         }
         finally

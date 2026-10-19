@@ -1,6 +1,4 @@
 using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
 using Kufr.Backend.Features.Realtime;
 using Kufr.Backend.Features.GptLive;
 using Kufr.Backend.Features.Memory;
@@ -38,7 +36,7 @@ internal sealed partial class ConversationStore
         bool handsFree = false,
         bool gptLive = false)
     {
-        if (!RealtimeProtocol.IsValid(request, handsFree))
+        if (!RealtimeProtocol.IsValid(request, handsFree) || gptLive && request.Speed != 1)
         {
             return new(400, "invalid_request", null);
         }
@@ -93,18 +91,20 @@ internal sealed partial class ConversationStore
             {
                 return new(409, "duplicate_turn_id", null);
             }
-            if (!providerAvailable || dialogRunner?.Enabled != true || voiceRunner?.Enabled != true)
+            if (!providerAvailable)
             {
                 return new(409, "realtime_unavailable", null);
             }
-            if (activePaidCalls.Count != 0)
+            if (realtimeLifetimes.TryGetValue(conversationId, out var existingLifetime)
+                && existingLifetime.Token != disconnected)
+            {
+                return new(409, "conversation_stream_active", null);
+            }
+            if (activePaidCalls.Values.Any(call => call.ConversationId == conversationId && !call.IsImageAnalysis))
             {
                 return new(503, "dialogue_busy", null);
             }
-            var autonomous = gptLive && conversation.LivePrompt.Options.Mode == LiveActorMode.AutonomousActor;
-            var memory = autonomous
-                ? eveningMemory is null ? null : new EveningContext(eveningMemory.GetStatus(deviceId).EveningId, "")
-                : eveningMemory?.ReadContext(deviceId, conversationId, request.Text);
+            var memory = eveningMemory?.ReadContext(deviceId, conversationId, request.Text);
             var turn = new RealtimeTurnContext(
                 request,
                 conversation.CompletedQuestions < PersonalityCatalog.MinimumQuestions(conversation.PersonalityId),
@@ -134,49 +134,21 @@ internal sealed partial class ConversationStore
             var cancellation = CancellationTokenSource.CreateLinkedTokenSource(disconnected, stopping);
             cancellation.CancelAfter(TimeSpan.FromSeconds(gptLive ? 180 : 45));
             var call = new RealtimeCall(reservation.OperationId, correlation, turn, memory?.EveningId, cancellation)
-                { SessionGeneration = conversation.LiveGeneration };
+            {
+                SessionGeneration = conversation.LiveGeneration,
+                MemoryDeletionEpoch = eveningMemory?.MemoryDeletionEpochFor(deviceId, conversationId) ?? 0
+            };
             activePaidCalls.Add(call.OperationId, new PaidCall(deviceId, conversationId, cancellation));
             RecordAcceptedTurn(conversation, request.ClientTurnId, now);
             return new(200, null, call);
         }
     }
 
-    private static string BoundRealtimeMemory(string memory, int maximumBytes)
-    {
-        if (Encoding.UTF8.GetByteCount(memory) <= maximumBytes)
-        {
-            return memory;
-        }
-        using var document = JsonDocument.Parse(memory);
-        var rows = document.RootElement.EnumerateArray()
-            .Select((value, index) => (Value: value, Index: index))
-            .ToArray();
-        var retained = new List<(JsonElement Value, int Index)>();
-        var used = 2;
-        // Keep each retained speaker's introduction, then as many subsequent
-        // exchanges as fit. Prefer recent conversations without cutting JSON.
-        foreach (var conversation in rows.GroupBy(row => row.Value.GetProperty("ConversationId").GetString()).Reverse())
-        {
-            foreach (var row in conversation)
-            {
-                var bytes = Encoding.UTF8.GetByteCount(row.Value.GetRawText()) + 1;
-                if (used + bytes > maximumBytes)
-                {
-                    break;
-                }
-                retained.Add(row);
-                used += bytes;
-            }
-        }
-        return JsonSerializer.Serialize(retained.OrderBy(row => row.Index).Select(row => row.Value),
-            RealtimeProtocol.JsonOptions);
-    }
-
     internal bool StartRealtimeTurn(RealtimeCall call)
     {
         lock (gate)
         {
-            return !call.Cancellation.IsCancellationRequested && journal.MarkRunning(call.OperationId);
+            return IsRealtimeTurnCurrent(call) && journal.MarkRunning(call.OperationId);
         }
     }
 
@@ -186,7 +158,12 @@ internal sealed partial class ConversationStore
         {
             CleanupExpired(clock.GetUtcNow());
             return !call.Cancellation.IsCancellationRequested
-                && conversations.ContainsKey(call.Correlation.ConversationId)
+                && activePaidCalls.ContainsKey(call.OperationId)
+                && conversations.TryGetValue(call.Correlation.ConversationId, out var conversation)
+                && conversation.DeviceId == call.Correlation.DeviceId
+                && conversation.LiveGeneration == call.SessionGeneration
+                && (eveningMemory is null || eveningMemory.MemoryDeletionEpochFor(
+                    call.Correlation.DeviceId, call.Correlation.ConversationId) == call.MemoryDeletionEpoch)
                 && (call.EveningId is null
                     || eveningMemory!.GetStatus(call.Correlation.DeviceId).EveningId == call.EveningId);
         }
@@ -226,15 +203,19 @@ internal sealed partial class ConversationStore
                     selected, response.Reason, correlation.BootId, correlation.Generation, now.AddSeconds(60))
                 : null;
             var result = new TurnResult(response.Reply, response.Decision, response.Reason, proposal);
-            if (archive && call.EveningId is not null)
+            if (archive && call.TranscriptEvents.Count == 0 && call.EveningId is not null)
             {
-                eveningMemory!.Append(correlation.DeviceId, call.EveningId, call.OperationId,
-                    correlation.ConversationId, response.VisitorText, response.Reply);
+                if (!eveningMemory!.Append(correlation.DeviceId, call.EveningId, call.OperationId,
+                    correlation.ConversationId, response.VisitorText, response.Reply, expectedDeletionEpoch: call.MemoryDeletionEpoch))
+                {
+                    return null;
+                }
             }
             // A memory write failure must leave the operation fail-able rather
             // than publish a completed journal entry without its result.
             if (!journal.MarkSelectionCompleted(call.OperationId, proposal,
-                eveningMemory?.ReadCapturedShowEvening(call.Correlation.DeviceId, call.Correlation.ConversationId) ?? call.EveningId))
+                eveningMemory?.ReadCapturedShowEvening(call.Correlation.DeviceId, call.Correlation.ConversationId) ?? call.EveningId,
+                call.MemoryDeletionEpoch, call.Context.PersonalityId))
             {
                 return null;
             }
@@ -248,12 +229,9 @@ internal sealed partial class ConversationStore
                 conversation.CompletedQuestions++;
             }
             conversation.TerminalReplyPublished = response.Decision is "propose" or "no_selection";
-            conversation.History.Add(new DialogExchange(
-                response.VisitorText[..Math.Min(response.VisitorText.Length, 500)],
-                response.Reply[..Math.Min(response.Reply.Length, 300)]));
-            if (conversation.History.Count > 2)
+            if (call.TranscriptEvents.Count == 0)
             {
-                conversation.History.RemoveAt(0);
+                conversation.History.Add(new DialogExchange(response.VisitorText, response.Reply));
             }
             return result;
         }
@@ -310,4 +288,8 @@ internal sealed record RealtimeCall(
     CancellationTokenSource Cancellation)
 {
     internal string SessionGeneration { get; init; } = Guid.NewGuid().ToString("D");
+    internal long MemoryDeletionEpoch { get; init; }
+    // Accessed only under ConversationStore.gate. Provider event identities
+    // make final transcript persistence idempotent across duplicate callbacks.
+    internal HashSet<string> TranscriptEvents { get; } = new(StringComparer.Ordinal);
 }

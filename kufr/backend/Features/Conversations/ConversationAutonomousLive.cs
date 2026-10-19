@@ -73,17 +73,19 @@ internal sealed partial class ConversationStore
                 call.Context.Request.CatalogVersion, correlation.DeviceRevision, compartment, reply.Reason,
                 correlation.BootId, correlation.Generation, clock.GetUtcNow().AddSeconds(60)) : null;
         var result = new TurnResult(reply.Reply, proposal is null ? "no_selection" : "propose", reply.Reason, proposal);
-        if (call.EveningId is not null && call.Context.LivePrompt?.Version != "dv01-adult-v1")
+        if (call.EveningId is not null)
         {
             var access = LiveMemoryAccess(call)!;
-            eveningMemory!.AppendTimedTranscripts(access, call.SessionGeneration, outcome.Segments);
+            eveningMemory!.AppendTimedTranscripts(access, call.SessionGeneration, outcome.Segments, call.MemoryDeletionEpoch);
             var epoch = eveningMemory.MemoryEpoch;
             var motif = AnonymousMotifs.FromTranscript(string.Concat(outcome.Segments.Select(s => s.Text)));
             if (motif.Length > 0) eveningMemory.WriteMemory(access, new(Guid.NewGuid().ToString("D"), MemoryScope.EveningMotif,
-                MemoryKind.TopicUsed, motif, call.OperationId, ExpectedEpoch: epoch));
+                MemoryKind.TopicUsed, motif, call.OperationId, ExpectedEpoch: epoch, ExpectedDeletionEpoch: call.MemoryDeletionEpoch));
         }
+        if (!IsRealtimeTurnCurrent(call)) { return null; }
         var capturedEvening = eveningMemory?.ReadCapturedShowEvening(correlation.DeviceId, correlation.ConversationId) ?? call.EveningId;
-        bool CommitProposal() => journal.MarkSelectionCompleted(call.OperationId, proposal, capturedEvening);
+        bool CommitProposal() => journal.MarkSelectionCompleted(call.OperationId, proposal, capturedEvening,
+            call.MemoryDeletionEpoch, call.Context.PersonalityId);
         var published = call.Context.LivePrompt is { Version: "dv01-adult-v1" } && show is not null
             ? show.TryCommitCharacterFinale(correlation.DeviceId, call.SessionGeneration, CommitProposal)
             : CommitProposal();

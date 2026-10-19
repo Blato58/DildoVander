@@ -1,5 +1,18 @@
 # Firmware AI kufru
 
+## Kontrakt rozhovoru po GPT-OVERHAUL
+
+Aktuální firmware podporuje přímo backendové audio enginy `gpt-live`
+(`gpt-live-1`) a `realtime` (`gpt-realtime-2.1`). Telefon není prostředník.
+Staré textové/úvodní příkazy řetězeného dialogu nejsou inzerované a vracejí
+`conversation_engine_upgrade_required`; backendové staré route vracejí410.
+Použij podporovaný hlasový engine a odpovídající klient, offline ruční řízení
+zůstává dostupné. HTTP PCM cesta kufru je omezená kompatibilita stejného
+retained enginu; telefon používá trvalý WebSocket. ESP bez AEC zůstává
+poloduplex. [Aktuální architektura a migrace](../docs/autonomous-live-memory.md).
+Host build/test neprokazuje fyzický mikrofon, kameru, reproduktor ani prezentaci.
+
+
 ## DV02: source-bound scény a read-only diagnostika
 
 Obě původní presentation varianty používají jediný překlad `effects.json`;

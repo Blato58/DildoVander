@@ -48,19 +48,17 @@
     },
     {
       "id": "NATIVE",
-      "revision": 2,
+      "revision": 3,
       "expected": "macOS Swift testy a nepodepsaný iOS Simulator build aktuálního softwaru.",
       "requiredEvidenceKinds": [
         "native_ios"
       ],
       "rule": "allOf",
       "appliesTo": {
-        "iosArtifactDigest": "fdab6caca0e3b75fb79d1b9fb2c62252119a8b7961f3a199a622c7896a7ef30c",
+        "iosArtifactDigest": "3eeda531dc4aab756f058be77401025adec9a1b76238d7d8f6234d2ef9fee9b8",
         "policyVersion": "show-pack-2026.10.19.1"
       },
-      "evidenceRefs": [
-        "SHOW-PACK-PR-native-ios-v1"
-      ]
+      "evidenceRefs": []
     },
     {
       "id": "PHYSICAL",
@@ -104,8 +102,17 @@
         "PHYSICAL"
       ],
       "unblockCondition": "Identifikovat sestavu, schválit instalaci a provést skutečnou akustickou/fyzickou akceptaci s firmware/config/wiring/mechanics identitou."
+    },
+    {
+      "id": "APPLE",
+      "problem": "Předchozí nativní CI ověřilo starší zdroje. Souběžná integrace GPT-OVERHAUL změnila nativní hlasové API; je nutné nové macOS CI.",
+      "severity": "medium",
+      "blocks": [
+        "NATIVE"
+      ],
+      "unblockCondition": "Úspěšné nativní testy a nepodepsaný Simulator build přesného nového iosArtifactDigest."
     }
   ],
-  "nextAction": "Nativní macOS CI splněno. Dodat schválené nahrávky a samostatně autorizovat provider pilot či fyzickou akceptaci; nyní placené testy, deploy ani flash nespouštět.",
-  "currentNote": "PR219 macOS CI ověřilo nativní testy a nepodepsaný Simulator build přesných aktuálních iOS zdrojů. Schválené nahrávky, provider pilot a fyzická/iPhone akceptace zůstávají oddělené externí brány. Nasazení, podpis ani flash neproběhly."
+  "nextAction": "Po finálním integračním push ověřit nové macOS CI; schválené nahrávky, provider pilot a fyzickou akceptaci řešit odděleně. Placené testy, deploy a flash nespouštět.",
+  "currentNote": "Historický native-v1 receipt zůstává platný pro svůj původní otisk. Aktuální nativní zdroje po integraci main mají nový otisk a čekají na vlastní CI; žádná přenesená fyzická/iPhone akceptace."
 }

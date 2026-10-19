@@ -154,8 +154,11 @@ jako commanded output bez fyzického třesení či tvrzení měření. Audio evi
 enqueue/cancel/voice-busy zvýrazní skutečné reproduktory/zesilovače z manifestu.
 Inspector vždy odlišuje frontu/cancel/busy od slyšitelného zvuku.
 Profil `deterministic` používá syntetický text a injected clock. Profil
-`integration` odesílá skutečný vstup jako `integrationText` s klientským request
-UUID; slot/variant vybírá backend. Integrační běh používá wall-clock a nemá
+`integration` používá GPT-Live nebo Realtime 2.1 v hlasovém panelu. Původní
+`integrationText` vrací `conversation_engine_upgrade_required` ještě před
+vytvořením rozhovoru či přípravou fyzického povelu; starší klient vyžaduje
+aktualizaci. Deterministický syntetický text zůstává testovací vstup.
+Integrační běh používá wall-clock a nemá
 pauzu, krok ani změnu rychlosti. Typovaný povel `release` výslovně uvolní
 výhradní vlastnictví ovládání; následující povel může o vlastnictví znovu požádat.
 Profil je viditelný ve výběru zdroje, trvalém štítku, capabilities a exportu.

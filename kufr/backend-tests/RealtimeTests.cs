@@ -18,7 +18,10 @@ internal static class RealtimeTests
         VerifyResampling();
         VerifyOpeningContext();
         await VerifyProgressiveAudioAsync();
+        await VerifyVisualRevocationAsync();
+        await VisualResponseTests.RunAsync();
         await VerifyPersistentVoiceAsync();
+        await AutonomousLiveTests.VerifyRealtimeMemoryBoundaryAsync();
         await VerifyToolValidationAsync();
         VerifyAdmissionAndMemory();
         VerifyHandsFreeBudgetAndStop();
@@ -38,7 +41,7 @@ internal static class RealtimeTests
             Require(RealtimeProtocol.Model == "gpt-realtime-2.1"
                 && options.RootElement.GetProperty("reasoning").GetProperty("effort").GetString() == "medium",
                 "Realtime 2.1 uses medium reasoning through the official SDK wire serializer");
-            Require(RealtimeProtocol.ContextData(turn) == "", "opening has no supplied visitor archive");
+            Require(RealtimeProtocol.ContextData(turn).Contains("previous visitor"), "opening receives explicitly scoped returning-guest archive");
             Require(options.RootElement.GetProperty("instructions").GetString()!
                 .StartsWith(PartyDialoguePrompt.DecisionInstructions, StringComparison.Ordinal),
                 "Realtime receives the shared Live voice persona and its own selection tools");
@@ -46,8 +49,8 @@ internal static class RealtimeTests
                 == RealtimeProtocol.SessionOptions(turn with { OutputTokenLimit = 512 }).Instructions,
                 "reservation fallback cannot change the opening intention");
             Require(RealtimeProtocol.ReservationMicroUsd(turn)
-                == RealtimeProtocol.ReservationMicroUsd(turn with { EveningContext = "", History = [] }),
-                "opening does not reserve for an archive it will not send");
+                > RealtimeProtocol.ReservationMicroUsd(turn with { EveningContext = "", History = [] }),
+                "opening accounts for the scoped archive actually sent");
         }
         var followUp = new RealtimeTurnContext(Request() with { Opening = false, Text = "Jsem Petr." },
             true, "previous visitor", [new("current guest", "current reply")]);
@@ -88,9 +91,19 @@ internal static class RealtimeTests
             return Task.FromResult<WebSocket>(socket);
         });
         await using var connection = await provider.ConnectAsync(CancellationToken.None);
-        await connection.GenerateTurnAsync(new(request, true, "", []), null,
-            (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask, CancellationToken.None);
+        var imageId = Guid.NewGuid().ToString("D");
+        byte[]? sentImage = null;
+        VisualMediaRecord ReadImage()
+        {
+            sentImage = [255, 216, 255, 217];
+            return new(imageId, "device-a", "conversation-a", 1, "camera", DateTimeOffset.UtcNow, sentImage);
+        }
+        await connection.GenerateTurnAsync(new(request, true, "returning guest fact", []), null,
+            (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask, CancellationToken.None,
+            visualImage: ReadImage);
+        Require(sentImage!.All(value => value == 0), "image byte clone is cleared after SDK transmission");
         var inputs = 0;
+        var memoryInputs = 0;
         var stopped = 0;
         for (var turn = 0; turn < 2; turn++)
         {
@@ -110,17 +123,29 @@ internal static class RealtimeTests
                         stopped++;
                     }
                     return Task.CompletedTask;
+                }, visualImage: ReadImage,
+                inputContext: (text, _) =>
+                {
+                    Require(text is "Petr." or "Moje žena.", "canonical memory receives finalized provider input rather than model arguments");
+                    memoryInputs++;
+                    return Task.FromResult("canonical result " + memoryInputs);
                 });
             Require(reply.Decision == "ask" && reply.VisitorText.Length > 0,
                 "successive VAD turns retain the real parallel visitor transcript");
         }
+        Require(socket.Sent.Count(value => value.Contains("input_image", StringComparison.Ordinal)) == 1,
+            "current image is sent as actual image content exactly once across persistent turns");
+        Require(socket.Sent.Count(value => value.Contains("returning guest fact", StringComparison.Ordinal)) == 1,
+            "startup memory is seeded once without replacing provider conversation history");
+        Require(memoryInputs == 2 && socket.Sent.Count(value => value.Contains("canonical result", StringComparison.Ordinal)) == 2,
+            "memory is resolved before each actual response and supplied to the retained provider");
         Require(connections == 1 && inputs == 2 && stopped == 2,
             "opening and two spoken answers use one provider connection with automatic VAD boundaries");
         Require(socket.Sent.Count(value => value.Contains("input_audio_buffer.append", StringComparison.Ordinal)) == 2
             && socket.Sent.Any(value => value.Contains("\"create_response\":false", StringComparison.Ordinal)),
             "streaming input cannot trigger unreserved automatic responses");
-        Require(socket.Sent.Any(value => value.Contains("conversation.item.delete", StringComparison.Ordinal)),
-            "previous audio items are removed before reconstructing bounded memory for the next turn");
+        Require(!socket.Sent.Any(value => value.Contains("conversation.item.delete", StringComparison.Ordinal)),
+            "complete provider conversation survives every turn without deleting its earlier answers");
 
         using var cancellation = new CancellationTokenSource();
         using var liveSession = new RealtimeLiveSession("device-a", "conversation-a", connection, cancellation);
@@ -163,6 +188,34 @@ internal static class RealtimeTests
         Require(Encoding.UTF8.GetByteCount(encoded) < 65536, "largest audio envelope fits native line cap");
     }
 
+    private static async Task VerifyVisualRevocationAsync()
+    {
+        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var blocked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        long generation = 0;
+        using var old = new ScriptSocket([Created(), Updated(), ResponseCreated(), Audio(new byte[2]), Done("revoked photograph")], 4, blocked.Task);
+        using var fresh = new ScriptSocket([Created(), Updated(), ResponseCreated(), Audio(new byte[2]), Done("safe continuation")]);
+        var reconnects = 0;
+        await using var connection = new OpenAiRealtimeConnection(old, lifetime.Token,
+            _ => { reconnects++; return Task.FromResult<WebSocket>(fresh); });
+        var heard = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var audioGenerations = new List<long>();
+        var pending = connection.GenerateTurnAsync(new(Request(), true, "approved fact", []) { CostumeContext = "revoked cloak" }, null,
+            (_, _) => { audioGenerations.Add(connection.VisualGeneration); heard.TrySetResult(); return Task.CompletedTask; },
+            (_, _) => Task.CompletedTask, lifetime.Token,
+            visualRevision: () => new(generation, changed.Task), recoveryContext: () => "approved fact");
+        await heard.Task.WaitAsync(lifetime.Token);
+        var previous = changed; changed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        generation = 1; previous.TrySetResult();
+        var result = await pending.WaitAsync(lifetime.Token);
+        Require(reconnects == 1 && result.Reply == "safe continuation" && audioGenerations.SequenceEqual(new long[] { 0, 1 }),
+            "blocked Realtime response is aborted on revoke and continues through a fresh provider generation");
+        Require(!fresh.Sent.Any(item => item.Contains("revoked cloak") || item.Contains("revoked photograph"))
+            && fresh.Sent.Any(item => item.Contains("approved fact")), "provider reset retains canonical facts and removes visual/assistant context");
+        blocked.TrySetResult();
+    }
+
     private static async Task VerifyProgressiveAudioAsync()
     {
         var released = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -185,9 +238,9 @@ internal static class RealtimeTests
         var result = await pending;
         Require(result.Reply == "Jak ti říkají?" && result.Decision == "ask" && result.VisitorText == "",
             "opening stores actual answer and no invented visitor");
-        Require(!socket.Sent.Any(value => value.Contains("conversation.item.create", StringComparison.Ordinal)
-            || value.Contains("old visitor secret", StringComparison.Ordinal)),
-            "opening wire payload has no archive or fabricated user message");
+        Require(socket.Sent.Any(value => value.Contains("conversation.item.create", StringComparison.Ordinal)
+            && value.Contains("old visitor secret", StringComparison.Ordinal)),
+            "opening seeds explicitly supplied historical reference data without fabricating current visitor speech");
         Require(socket.Sent.Any(value => value.Contains("\"turn_detection\":null", StringComparison.Ordinal)),
             "PTT does not wait for a VAD timeout");
         using var update = JsonDocument.Parse(socket.Sent[0]);
@@ -522,20 +575,22 @@ internal static class RealtimeTests
     {
         private int index;
         private int fragmentOffset;
+        private readonly CancellationTokenSource aborted = new();
         public List<string> Sent { get; } = [];
         public override WebSocketCloseStatus? CloseStatus => null;
         public override string? CloseStatusDescription => null;
         public override WebSocketState State => WebSocketState.Open;
         public override string? SubProtocol => null;
-        public override void Abort() { }
-        public override void Dispose() { }
+        public override void Abort() => aborted.Cancel();
+        public override void Dispose() => aborted.Cancel();
         public override Task CloseAsync(WebSocketCloseStatus status, string? description, CancellationToken token) => Task.CompletedTask;
         public override Task CloseOutputAsync(WebSocketCloseStatus status, string? description, CancellationToken token) => Task.CompletedTask;
         public override async Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> buffer, CancellationToken token)
         {
             if (index == pauseAt)
             {
-                await released!.WaitAsync(token);
+                using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, aborted.Token);
+                await released!.WaitAsync(linked.Token);
             }
             if (index >= events.Length)
             {

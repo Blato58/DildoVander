@@ -69,7 +69,19 @@ bool RealtimeSessionEngine::Event(const RealtimeEvent& event) {
     sessionSeen_ = true; streamId_ = event.streamId; return true;
   }
   if (!sessionSeen_) return false;
+  const bool generationBound = event.type == "audio" || event.type == "started" ||
+      event.type == "completed" || event.type == "listening" || event.type == "visitor" ||
+      event.type == "pause" || event.type == "playback_checkpoint" ||
+      event.type == "speech_started" || event.type == "speech_stopped" || event.type == "closed";
+  if (generationBound) {
+    if ((!event.hasResponseGeneration && responseGeneration_ > 0) ||
+        (event.hasResponseGeneration && event.responseGeneration < responseGeneration_)) return true;
+    if (event.responseGeneration > responseGeneration_) return false;
+  }
   if (event.type == "listening") {
+    // Context refresh can repeat the same listen event. Captured PCM keeps its
+    // input epoch and sequence; it must never be relabelled as fresh input.
+    if (uploading_.load() && event.inputId == inputId_) return true;
     if (terminal_ || (!gptLive_ && !operationId_.empty()) || uploading_.load()) return false;
     std::lock_guard<std::mutex> lock(inputMutex_);
     expected_.clientTurnId = event.inputId;
@@ -85,26 +97,29 @@ bool RealtimeSessionEngine::Event(const RealtimeEvent& event) {
     audio_.Listen(false); phase_("thinking"); return true;
   }
   if (event.type == "started") {
-    if (terminal_ || !operationId_.empty() || uploading_.load() || ++turns_ > 10) return false;
+    const bool restarting = !gptLive_ && responseRestartPending_ && event.operationId == operationId_;
+    if (terminal_ || (!operationId_.empty() && !restarting) || uploading_.load()) return false;
     const auto decision = EvaluateTurnOperation(event.operationId, expected_, snapshot_.generation,
                                                snapshot_.deviceRevision, event.operation);
     if (decision != TurnPollDecision::ReplyReady) return false;
+    if (!restarting && ++turns_ > 10) return false;
+    responseRestartPending_ = false;
     operationId_ = event.operationId; audioBytes_ = 0; phase_("thinking"); return true;
   }
   if (event.type == "visitor") return !operationId_.empty();
   if (event.type == "audio_cancel") {
-    if (!gptLive_ || operationId_.empty() || !Current()) return false;
+    if (!event.responseGeneration || !Current()) return false;
     if (event.responseGeneration <= responseGeneration_) return true;
     if (!audio_.CancelPlayback()) return false;
     responseGeneration_ = event.responseGeneration;
-    inputEpoch_.fetch_add(1);
+    responseRestartPending_ = !gptLive_ && !operationId_.empty();
     segmentPlaying_ = false;
     audio_.Listen(uploading_.load());
-    phase_("listening");
+    phase_(uploading_.load() ? "listening" : "thinking");
     return true;
   }
   if (event.type == "audio") {
-    if (operationId_.empty()) return false;
+    if (operationId_.empty() || responseRestartPending_) return false;
     std::vector<uint8_t> pcm(32768);
     size_t size = 0;
     const bool decoded = DecodeRealtimePcm(event.delta, pcm.data(), pcm.size(), size);
@@ -127,7 +142,7 @@ bool RealtimeSessionEngine::Event(const RealtimeEvent& event) {
     phase_("listening"); return true;
   }
   if (event.type == "completed") {
-    if (operationId_.empty() || event.operationId != operationId_ || audioBytes_ == 0 || !Current()) return false;
+    if (operationId_.empty() || responseRestartPending_ || event.operationId != operationId_ || audioBytes_ == 0 || !Current()) return false;
     const uint64_t utc = utc_();
     if (utc <= 0) return false;
     const auto decision = EvaluateTurnOperationWithProposal(operationId_, expected_, snapshot_.generation,
@@ -135,7 +150,8 @@ bool RealtimeSessionEngine::Event(const RealtimeEvent& event) {
     if (decision != TurnPollDecision::ReplyReady && decision != TurnPollDecision::ProposalReady) return false;
     if ((!gptLive_ || segmentPlaying_) && !audio_.Drain()) return false;
     if (!Current() || !completed_(event.operation)) return false;
-    const std::string body = "{\"operationId\":\"" + operationId_ + "\"}";
+    const std::string body = "{\"operationId\":\"" + operationId_ + "\",\"responseGeneration\":" +
+        std::to_string(responseGeneration_) + "}";
     const std::string path = "/v1/conversations/" + conversationId_ + "/" + endpoint_ + "/" + streamId_ + "/played";
     if (Post(path, body.data(), body.size(), "application/json") != 204) return false;
     terminal_ = event.operation.decision != "ask" || turns_ == 10;

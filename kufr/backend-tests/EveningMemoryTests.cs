@@ -104,8 +104,8 @@ internal static class EveningMemoryTests
                 }
 
                 var bounded = memory.GetStatus("device-a");
-                Check(bounded.ExchangeCount == EveningMemoryStore.MaxExchanges
-                    && bounded.DroppedExchangeCount == 1, "row cap drops only oldest exchange");
+                Check(bounded.ExchangeCount == EveningMemoryStore.MaxExchanges + 1
+                    && bounded.DroppedExchangeCount == 0, "archive survives the former row trimming threshold");
                 memory.Clear("device-a", bounded.EveningId);
                 var byteEvening = memory.GetStatus("device-a");
                 for (var index = 0; index < 450; index++)
@@ -115,8 +115,8 @@ internal static class EveningMemoryTests
                 }
 
                 var byteBounded = memory.GetStatus("device-a");
-                Check(byteBounded.ContentBytes <= EveningMemoryStore.MaxContentBytes
-                    && byteBounded.DroppedExchangeCount > 0, "UTF-8 byte cap is enforced");
+                Check(byteBounded.ContentBytes > EveningMemoryStore.MaxContentBytes
+                    && byteBounded.DroppedExchangeCount == 0, "archive survives the former UTF-8 byte trimming threshold");
                 memory.Clear("device-a", byteBounded.EveningId);
                 CheckProfiles(journal, memory);
                 CheckMutationRetention(directory, memory);
