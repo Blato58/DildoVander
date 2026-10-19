@@ -1,7 +1,7 @@
 # DildoVander Show Pack
 
 Zadání `dildovander-show-pack` 2026.10.19.1 rozšiřuje DV01, DV02 a DV10.
-Aktuální akceptaci vede [SHOW-PACK-INTEGRATION](../../docs/project/work-items/SHOW-PACK-INTEGRATION.json);
+Aktuální akceptaci vede [privátní evidence](../../docs/development-coordination.md);
 [mapa požadavků](show-pack-requirements.json) váže jednotlivá ID na zdroj a testy.
 Software, skutečný poskytovatel, nativní iOS, nasazení a fyzická akceptace jsou
 oddělené důkazy. Žádná nová funkce nepovyšuje Limited/Blocked na Named.
@@ -144,8 +144,6 @@ python kufr/firmware/tests/run_show_tests.py
 python -m unittest discover -s kufr/web/keepsake -p test_*.py
 python -m unittest discover -s kufr/web/deploy -p test_keepsake_proxy.py
 python kufr/web/build-site.py --web-dist kufr/mobilni-aplikace/dist --destination C:/Temp/dildovander-application-new
-python scripts/project_status.py validate
-python scripts/project_status.py render --check
 ```
 
 Browser skript `mobilni-aplikace/scripts/check-director-browser.mjs` je opakovatelný
@@ -154,7 +152,7 @@ mock. Vyžaduje stávající testovací Playwright a dostupný Edge/Chromium. P�
 provedené příkazy a jejich limity jsou v immutable receipts, nikoli odhadnuté v této
 příručce. Přesný nativní otisk a konkrétní macOS CI pro Swift testy a nepodepsaný
 iOS Simulator build vede kritérium NATIVE v
-[externí akceptaci](../../docs/project/work-items/SHOW-PACK-OPERATIONS.json).
+[privátní evidence](../../docs/development-coordination.md).
 Starší CI neprokazuje změněné nativní zdroje. Skutečný iPhone, poslech Live,
 nová hlasová banka, nasazení a měření mechaniky zůstávají samostatné brány.
 

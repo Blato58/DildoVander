@@ -1,8 +1,0 @@
-{
-  "producer": "actual firmware C++ serializer with fake I/O; synthetic-live source",
-  "httpStatus": 204,
-  "calibrationRevision": null,
-  "ledGrb": null,
-  "physicalVerification": "unavailable",
-  "notRealESP": true
-}

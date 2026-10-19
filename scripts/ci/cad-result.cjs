@@ -14,15 +14,6 @@ const requiredSources = [
   'kufr/docs/zapojeni-potvrzeneho-hardwaru.md',
 ];
 
-function relevantSource(entry) {
-  // Artifacts identify a run, not its uploading job. A different job's changed
-  // application/test code can upload a counterfeit result with the same name.
-  // Compare the whole executable/dependency surface across the run, permitting
-  // only the passive tracking data that the tracking CLI parses without exec.
-  const trackingData = /^docs\/project\/(?:(?:work-items|evidence|targets|releases)\/[^/]+\.json|STATUS\.md|project\.json)$/;
-  return !(entry.type === 'blob' && entry.mode === '100644' && trackingData.test(entry.path));
-}
-
 function sourceInventory(tree, requireCadSources = true) {
   if (!Array.isArray(tree)) throw new Error('Missing source tree');
   const inventory = new Map();
@@ -31,7 +22,9 @@ function sourceInventory(tree, requireCadSources = true) {
       || entry.path.split('/').some(part => !part || part === '.' || part === '..')) {
       throw new Error('Invalid source path');
     }
-    if (!relevantSource(entry) || entry.type === 'tree') continue;
+    // Artifacts identify a run, not its uploading job. Compare the entire
+    // source surface so another job cannot upload a counterfeit result.
+    if (entry.type === 'tree') continue;
     if (!/^[a-f0-9]{40}$/.test(entry.sha)
       || !((entry.type === 'blob' && ['100644', '100755', '120000'].includes(entry.mode))
         || (entry.type === 'commit' && entry.mode === '160000'))

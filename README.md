@@ -18,7 +18,7 @@ ESP32-S3 samo komunikuje přes HTTPS s backendem a vlastní rozhovor i fyzickou 
 Jde o rozpracovaný prototyp pro soukromou party 18+: persony obsahují dospělý humor. Softwarové testy, náhled CAD ani úspěšný build neprokazují bezpečnost a úplnou akceptaci skutečného kufru nebo iPhonu. Přesné dokončené části a otevřené fyzické kontroly vede stav implementace.
 
 - [Implementační plán](kufr/docs/implementacni-plan.md) určuje architekturu, kontrakty a akceptační kritéria etap E0–E13 včetně E3a.
-- [GitHub Issues](https://github.com/Blato58/DildoVander/issues) obsahují aktuální práci a blokace, [sdílená koordinace agentů](https://github.com/Blato58/DildoVander/issues/224) umožňuje souběžnou práci. [Starý tracking](docs/project/README.md) je historický archiv.
+- [Vývojová koordinace](docs/development-coordination.md) popisuje privátní úkoly a předání agentů. Veřejná Issues slouží veřejným příspěvkům; implementační PR obsahují technické změny a ověření.
 - [Show Pack](kufr/docs/show-pack.md) popisuje živou režii, identity a proroctví, kroniku, souboje, Director iOS/web a místní offline režim včetně připravenosti audio banky.
 - [AGENTS.md](AGENTS.md) určuje postup další AI; [README kufru](kufr/README.md) odkazuje na jednotlivé komponenty a technické podklady.
 

@@ -23,7 +23,7 @@ stávající physical owner, kalibrace, Stop a oddělený Dance owner zůstávaj
 I/O stop `python kufr/firmware/tests/compare_legacy_show.py`. Host runner vyžaduje
 C++14 compiler, Node a `npm ci` v `kufr/contracts` pro původní přísný wire verifier.
 Hostitelské důkazy nejsou akceptace ESP/audio/iPhone; tu vede brána G v
-[DV02 work itemu](../../docs/project/work-items/DV02.json).
+[privátní evidenci](../../docs/development-coordination.md).
 
 > **D167 – Dance for me:** vlastní 1–12 skladeb na ověřené SD, náhodný
 > výběr bez bezprostředního opakování, WAV PCM16/mono/24 kHz po 960 B,

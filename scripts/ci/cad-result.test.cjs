@@ -103,8 +103,8 @@ function prFixture() {
     'kufr/mechanika/final/tests/test_geometry.py',
     'kufr/mechanika/final/README.md',
     'kufr/mechanika/final/exports/ignored.stl',
-    'docs/project/STATUS.md',
-    'docs/project/artifacts/check.cjs',
+    'docs/technical-note.md',
+    'docs/examples/check.cjs',
     'kufr/mobilni-aplikace/package.json',
     'kufr/backend-tests/Tests.cs',
   ];
@@ -126,9 +126,8 @@ function prFixture() {
   return f;
 }
 
-test('same PR source-identical merge tree reuses immutable result across tracking changes', async () => {
+test('same PR source-identical merge tree reuses immutable result', async () => {
   const f = prFixture();
-  f.currentTree.find(entry => entry.path === 'docs/project/STATUS.md').sha = 'f'.repeat(40);
   // Sibling merge commits need no shared merge-base assumption; compare tree bytes.
   await resolve(f.options, f.settings);
   assert.equal(f.outputs['artifact-id'], '8');
@@ -145,7 +144,7 @@ test('forged matching PR key cannot hide changed code, tests, docs, workflow or 
     '.gitattributes', '.gitmodules', 'kufr/mobilni-aplikace/.nvmrc',
     'kufr/docs/zapojeni-potvrzeneho-hardwaru.md',
     'kufr/mobilni-aplikace/package.json', 'kufr/backend-tests/Tests.cs',
-    'docs/project/artifacts/check.cjs', 'kufr/mechanika/final/exports/ignored.stl',
+    'docs/examples/check.cjs', 'docs/technical-note.md', 'kufr/mechanika/final/exports/ignored.stl',
   ]) {
     const f = prFixture();
     f.currentTree.find(entry => entry.path === path).sha = 'f'.repeat(40);
@@ -156,10 +155,10 @@ test('forged matching PR key cannot hide changed code, tests, docs, workflow or 
   f.currentTree.find(entry => entry.path.endsWith('generate.py')).mode = '100755';
   await resolve(f.options, f.settings);
   assert.deepEqual(f.outputs, {});
-  const executableTracking = prFixture();
-  executableTracking.currentTree.find(entry => entry.path === 'docs/project/STATUS.md').mode = '100755';
-  await resolve(executableTracking.options, executableTracking.settings);
-  assert.deepEqual(executableTracking.outputs, {});
+  const executableDocumentation = prFixture();
+  executableDocumentation.currentTree.find(entry => entry.path === 'docs/technical-note.md').mode = '100755';
+  await resolve(executableDocumentation.options, executableDocumentation.settings);
+  assert.deepEqual(executableDocumentation.outputs, {});
 });
 
 test('same PR provenance rejects other PR, fork source, events and workflows', async () => {
@@ -261,11 +260,10 @@ function promotionFixture() {
   return f;
 }
 
-test('main promotes content-identical merged PR with server provenance across tracking changes', async () => {
+test('main promotes content-identical merged PR with server provenance', async () => {
   for (const eventName of ['push', 'workflow_dispatch']) {
     const f = promotionFixture();
     f.options.context.eventName = eventName;
-    f.currentTree.find(entry => entry.path === 'docs/project/STATUS.md').sha = 'f'.repeat(40);
     await resolve(f.options, f.settings);
     assert.deepEqual(f.outputs, {
       'artifact-id': '8', 'run-id': '7', exact: 'true', scope: 'merged-pr',
@@ -311,7 +309,7 @@ test('main promotion rejects wrong current context, missing actual tree, key and
     f => { f.currentTree.find(entry => entry.path.endsWith('generate.py')).sha = 'f'.repeat(40); },
     f => { f.currentTree.find(entry => entry.path === 'kufr/backend-tests/Tests.cs').sha = 'f'.repeat(40); },
     f => { f.currentTree.find(entry => entry.path.endsWith('generate.py')).mode = '100755'; },
-    f => { f.currentTree.find(entry => entry.path === 'docs/project/STATUS.md').mode = '100755'; },
+    f => { f.currentTree.find(entry => entry.path === 'docs/technical-note.md').mode = '100755'; },
   ]) {
     const f = promotionFixture();
     change(f);

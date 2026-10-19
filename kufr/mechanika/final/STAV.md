@@ -60,7 +60,7 @@ Aktuální výsledek, přesné počty/vzorky a zdrojové/výstupní SHA-256 urč
 `exports/verification.json`, `printability.json`, `slicer-validation.json`
 a `generation-snapshot.json`. ZIP se vydává pouze po těchto branách;
 historické výsledky níže nepotvrzují tuto revizi. Celkové ověření a Git
-předání této práce vede také `../../../docs/project/work-items/KUFR-F2-SUPPORTFREE.json`.
+předání této práce vede také privátní evidence.
 
 Fyzický tisk a montáž nejsou provedené. Konkrétní tiskárna, PETG
 tečení/vrstvy, dotažení matic, kluzný čep, reálné konektory/FPC, prsty,

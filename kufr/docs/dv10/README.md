@@ -14,7 +14,7 @@ běží na stejném HTTPS originu stávajícího VPS. Majitel 15. 10. 2026 autor
 nasazení a zapnutí placeného generování se stávajícím backendovým klíčem;
 [veřejný přehled](https://2.28.202.220/keepsake/evening/) je nasazený a ověřený.
 Příběhy používají `gpt-6.1-sol`, obrazy `gpt-image-2`. Přesné releasy, konfiguraci
-a kontroly uvádí [produkční záznam](../../../docs/project/artifacts/DV10-production-v1.json)
+a kontroly uvádí [privátní evidence](../../../docs/development-coordination.md)
 a [VPS handoff](VPS_HANDOFF.md). [Specifikace 2.2](SPEC.md) nadále odděluje
 implementaci a nasazení od ověření kvality, iPhonu, hardware a obnovy.
 
@@ -181,7 +181,7 @@ jsou tracked repo skills. Skutečné `codex app-server` `skills/list` s
 `forceReload=true` je objevilo jako enabled/repo; samotný validator tuto
 integraci nenahrazuje. Tento již běžící chat se automaticky nepřepíše.
 
-Aktuální výsledky jsou v [projektové položce DV10](../../../docs/project/work-items/DV10.json)
+Aktuální výsledky jsou v [privátní evidenci](../../../docs/development-coordination.md)
 a [capability scorecard](CAPABILITIES.json). Veřejné nasazení a zapnutí placeného
 generování jsou dokončené. Při ověření byl přehled prázdný a neproběhla skutečná
 inference. Kvalita výstupů a portrétu ze souhlasné fotografie, skutečný iPhone

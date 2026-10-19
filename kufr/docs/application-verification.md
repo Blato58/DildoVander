@@ -1,10 +1,10 @@
 # Unified application verification
 
 Repository implementation and isolated verification, 19 October 2026. Current
-delivery and remaining acceptance are in [Issue #227](https://github.com/Blato58/DildoVander/issues/227)
+delivery and remaining acceptance are in [private acceptance](../../docs/development-coordination.md)
 and [implementation PR #218](https://github.com/Blato58/DildoVander/pull/218).
-Earlier implementation receipts remain in that PR's commit history. The frozen
-`docs/project/` snapshot is unchanged; it is not a live application tracker.
+Earlier implementation receipts remain in that PR's commit history and the
+private historical archive. They do not establish current application acceptance.
 
 The [architecture and migration map](application-architecture.md) describes the
 single entry, routes, ownership and compatibility URLs. The practical

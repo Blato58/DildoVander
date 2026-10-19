@@ -2,7 +2,7 @@
 
 Rozhodnutí majitele z19.10.2026 nahrazuje starou architekturu D128/D143.
 Aktivní implementaci a skutečné důkazy vede
-[GPT-OVERHAUL](../../docs/project/work-items/GPT-OVERHAUL.json).
+[privátní evidence](../../docs/development-coordination.md).
 Staré receipts jsou historické, nejsou návodem obnovit vyřazený engine.
 
 ## Zapojení a kompatibilita

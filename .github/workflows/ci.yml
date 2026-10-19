@@ -150,6 +150,8 @@ jobs:
         run: node --test scripts/ci/*.test.cjs
       - name: Test artifact integrity and safe extraction
         run: python3 -m unittest discover -s scripts/ci -p 'test_*.py'
+      - name: Test private coordination transport without credentials
+        run: python3 -m unittest discover -s scripts -p 'test_coordination*.py'
       - name: Check whitespace
         run: git diff --check HEAD^ HEAD
       - name: Verify Vapour Chrome design integrity

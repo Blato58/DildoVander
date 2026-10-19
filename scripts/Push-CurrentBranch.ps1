@@ -21,24 +21,38 @@ if ($LASTEXITCODE -ne 0) {
     throw 'Cannot read the local commit.'
 }
 
-$accountToken = & gh auth token --user Blato58
-if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($accountToken)) {
-    throw 'GitHub account Blato58 is not authenticated.'
+$accountRouter = Join-Path $HOME '.local/share/github-account-routing/github_accounts.py'
+$accountToken = $null
+$credentialHelper = '!gh auth git-credential'
+if (Test-Path -LiteralPath $accountRouter) {
+    $routedAccount = & python $accountRouter gh api user --jq .login
+    if ($LASTEXITCODE -ne 0 -or $routedAccount.Trim() -ne 'Blato58') {
+        throw 'Account routing must select Blato58 for this repository.'
+    }
+    $credentialHelper = '!python "' + ($accountRouter -replace '\\', '/') + '" credential Blato58'
+}
+else {
+    $accountToken = & gh auth token --user Blato58
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($accountToken)) {
+        throw 'GitHub account Blato58 is not authenticated.'
+    }
 }
 
 $previousGhToken = $env:GH_TOKEN
 $previousGitPrompt = $env:GIT_TERMINAL_PROMPT
-$env:GH_TOKEN = $accountToken
+if ($null -ne $accountToken) {
+    $env:GH_TOKEN = $accountToken
+}
 $env:GIT_TERMINAL_PROMPT = '0'
 
 try {
-    git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push --set-upstream origin $branch
+    git -c credential.helper= -c "credential.helper=$credentialHelper" push --set-upstream origin $branch
     if ($LASTEXITCODE -ne 0) {
         throw 'Git push failed.'
     }
 
     $remoteRef = "refs/heads/$branch"
-    $remoteLine = & git -c credential.helper= -c 'credential.helper=!gh auth git-credential' ls-remote --exit-code origin $remoteRef
+    $remoteLine = & git -c credential.helper= -c "credential.helper=$credentialHelper" ls-remote --exit-code origin $remoteRef
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($remoteLine)) {
         throw 'Cannot verify the pushed branch.'
     }

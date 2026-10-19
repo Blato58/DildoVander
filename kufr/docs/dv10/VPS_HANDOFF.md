@@ -11,7 +11,7 @@ The existing private workflows completed successfully:
 [backend 38755345896](https://github.com/Blato58/DildoVander-deploy/actions/runs/38755345896)
 and [site 38755728034](https://github.com/Blato58/DildoVander-deploy/actions/runs/38755728034).
 Exact artifact/runtime hashes and checks are in the
-[production record](../../../docs/project/artifacts/DV10-production-v1.json).
+[privátní evidence](../../../docs/development-coordination.md).
 
 - Backend release: `985071520f4c64c7ff98eaff5f92ab10bbbabd98-38755345896-1`;
   site release: `38755728034-1`. Backend and Twin services are active.

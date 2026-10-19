@@ -3,8 +3,8 @@
   "packId": "dildovander-show-pack",
   "packVersion": "2026.10.19.1",
   "manifestSha256": "b841bf04f46dbc73f9262e748a25f27db90dcabdad3efc990c4b04b7e46fdd6a",
-  "tracking": "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
-  "meaning": "Current software consumers and checks for all 86 requirements, including the shared Vue Director, WizardIdentity, private prophecy, Duel and Chronicle migration. Live application delivery and acceptance are in GitHub Issue #227 and PR #218. The tracking field, linked SHOW-PACK work items and earlier PR commit receipts are historical source-bound evidence. Software checks do not establish all 36 scenarios on hardware/provider/iPhone; external gates remain open.",
+  "coordination": "docs/development-coordination.md",
+  "meaning": "Current software consumers and checks for all 86 requirements, including the shared Vue Director, WizardIdentity, private prophecy, Duel and Chronicle migration. Live application delivery and acceptance are in private application acceptance and PR #218. Earlier PR commit receipts are historical source-bound evidence in the private archive. Software checks do not establish all 36 scenarios on hardware/provider/iPhone; external gates remain open.",
   "requirements": [
     {
       "id": "ARC-01",
@@ -1603,11 +1603,9 @@
       "criterion": "OPERATOR",
       "sources": [
         "kufr/docs/show-pack.md",
-        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
         ".agents/skills"
       ],
       "checks": [
-        "scripts/project_status.py",
         "scripts/check_design_system.py"
       ],
       "state": "implemented_software_verified",
@@ -1620,11 +1618,9 @@
       "criterion": "OPERATOR",
       "sources": [
         "kufr/docs/show-pack.md",
-        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
         ".agents/skills"
       ],
       "checks": [
-        "scripts/project_status.py",
         "scripts/check_design_system.py"
       ],
       "state": "implemented_software_verified",
@@ -1637,11 +1633,9 @@
       "criterion": "OPERATOR",
       "sources": [
         "kufr/docs/show-pack.md",
-        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
         ".agents/skills"
       ],
       "checks": [
-        "scripts/project_status.py",
         "scripts/check_design_system.py"
       ],
       "state": "implemented_software_verified",
@@ -1654,11 +1648,9 @@
       "criterion": "OPERATOR",
       "sources": [
         "kufr/docs/show-pack.md",
-        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
         ".agents/skills"
       ],
       "checks": [
-        "scripts/project_status.py",
         "scripts/check_design_system.py"
       ],
       "state": "implemented_software_verified",
@@ -1671,11 +1663,9 @@
       "criterion": "OPERATOR",
       "sources": [
         "kufr/docs/show-pack.md",
-        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
         ".agents/skills"
       ],
       "checks": [
-        "scripts/project_status.py",
         "scripts/check_design_system.py"
       ],
       "state": "implemented_software_verified",
@@ -1688,11 +1678,9 @@
       "criterion": "OPERATOR",
       "sources": [
         "kufr/docs/show-pack.md",
-        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
         ".agents/skills"
       ],
       "checks": [
-        "scripts/project_status.py",
         "scripts/check_design_system.py"
       ],
       "state": "implemented_software_verified",
@@ -1705,11 +1693,9 @@
       "criterion": "OPERATOR",
       "sources": [
         "kufr/docs/show-pack.md",
-        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
         ".agents/skills"
       ],
       "checks": [
-        "scripts/project_status.py",
         "scripts/check_design_system.py"
       ],
       "state": "implemented_software_verified",
@@ -1722,11 +1708,9 @@
       "criterion": "OPERATOR",
       "sources": [
         "kufr/docs/show-pack.md",
-        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
         ".agents/skills"
       ],
       "checks": [
-        "scripts/project_status.py",
         "scripts/check_design_system.py"
       ],
       "state": "implemented_software_verified",
@@ -1739,11 +1723,9 @@
       "criterion": "OPERATOR",
       "sources": [
         "kufr/docs/show-pack.md",
-        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
         ".agents/skills"
       ],
       "checks": [
-        "scripts/project_status.py",
         "scripts/check_design_system.py"
       ],
       "state": "implemented_software_verified",
@@ -1756,11 +1738,9 @@
       "criterion": "OPERATOR",
       "sources": [
         "kufr/docs/show-pack.md",
-        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
         ".agents/skills"
       ],
       "checks": [
-        "scripts/project_status.py",
         "scripts/check_design_system.py"
       ],
       "state": "implemented_software_verified",
@@ -2225,5 +2205,5 @@
       ]
     }
   ],
-  "externalAcceptanceWorkItem": "SHOW-PACK-OPERATIONS"
+  "externalAcceptance": "Private coordination; real provider, signed iPhone and physical acceptance remain separate."
 }

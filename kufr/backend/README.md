@@ -21,7 +21,7 @@ zpracovává fotografie. Deterministické adaptéry jsou testovací pomůcky.
 
 [Aktuální architektura a provozní kontrakt](../docs/autonomous-live-memory.md)
 popisuje paměť, transport, migraci a akceptaci.
-[Tracking](../../docs/project/work-items/GPT-OVERHAUL.json) odděluje implementaci,
+[privátní evidence](../../docs/development-coordination.md) odděluje implementaci,
 CI, nasazení a skutečný iPhone/kufr.
 
 ## Vlastnictví a API
