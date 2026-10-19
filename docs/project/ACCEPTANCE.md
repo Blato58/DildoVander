@@ -198,6 +198,12 @@ renderu ani vlastní commit. Atomické přejmenování používá dočasný soub
 adresáři. `render --check` nic nezapisuje. Limit je 140 řádků; cílový tokenový
 rozpočet se musí ověřit při migraci, počty tokenů bez tokenizeru jsou odhady.
 
+Vstupy pod `docs/project/` zapisujte s LF už před renderem, jak určuje
+`.gitattributes`. Na Windows použijte například `write_bytes` nebo explicitní
+`newline="\n"`; dodatečná normalizace CRLF při `git add` by změnila digest.
+Při ověření přenositelnosti porovnejte render s bytes uloženými v Git, nikoli
+jen s dosud nenormalizovaným pracovním souborem.
+
 `migration.json` má `sources` (path/sha256/archivePath), `mappings`
 (source/section/lineStart/lineEnd/classification/destinations/reason),
 `openBlockers` (source/section/workItemId/blockerId), `links` (source/href)
