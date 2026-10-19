@@ -119,3 +119,248 @@ require(AccountTransportPolicy.account(path: show + "/duels?eveningId=Legacy%20e
 require(!AccountTransportPolicy.account(path: show + "/duels?eveningId=%0a", method: "GET"), "control character evening accepted")
 require(AccountTransportPolicy.account(path: "/v1/admin/show/chronicle?eveningId=Legacy%20evening&deviceId=case.s3", method: "GET"), "bounded legacy chronicle unavailable")
 require(!AccountTransportPolicy.account(path: "/v1/admin/show/chronicle?eveningId=x&deviceId=case.s3&deviceId=other", method: "GET"), "duplicate chronicle keys accepted")
+
+// Exercise the production scheduler with real, deliberately suspended URLSession
+// requests. URLProtocol keeps this offline and lets each response settle exactly.
+private final class DelayedIdentityProtocol: URLProtocol, @unchecked Sendable {
+    @MainActor static var received: [String: DelayedIdentityProtocol] = [:]
+    override class func canInit(with request: URLRequest) -> Bool { request.url?.host == "native-account.invalid" }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() { Task { @MainActor in Self.received[self.request.url!.path] = self } }
+    override func stopLoading() {}
+    @MainActor func complete(cookie: String? = nil, status: Int = 200) {
+        var headers = ["Content-Type": "application/json"]
+        if let cookie = cookie { headers["Set-Cookie"] = cookie }
+        let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: headers)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        if status != 204 { client?.urlProtocol(self, didLoad: Data("{}".utf8)) }
+        client?.urlProtocolDidFinishLoading(self)
+    }
+}
+
+@MainActor private func eventually(_ condition: () -> Bool) async {
+    let deadline = ProcessInfo.processInfo.systemUptime + 4
+    while ProcessInfo.processInfo.systemUptime < deadline {
+        if condition() { return }
+        try? await Task.sleep(nanoseconds: 1_000_000)
+    }
+    fatalError("Native account delayed request did not reach its expected state")
+}
+
+@MainActor private func nativeAccountSchedulingTests() async throws {
+    let normalConfig = URLSessionConfiguration.ephemeral
+    normalConfig.httpCookieAcceptPolicy = .always; normalConfig.httpShouldSetCookies = true
+    normalConfig.protocolClasses = [DelayedIdentityProtocol.self]
+    let normal = URLSession(configuration: normalConfig)
+    let priorityConfig = AccountPriorityHTTP.configuration()
+    require(priorityConfig.httpCookieStorage == nil && priorityConfig.urlCredentialStorage == nil && priorityConfig.urlCache == nil,
+        "priority transport shares account cookie/credential/cache storage")
+    require(!priorityConfig.httpShouldSetCookies && priorityConfig.httpCookieAcceptPolicy == .never,
+        "priority response can accept Set-Cookie")
+    priorityConfig.protocolClasses = [DelayedIdentityProtocol.self]
+    let urgent = URLSession(configuration: priorityConfig)
+    defer { normal.invalidateAndCancel(); urgent.invalidateAndCancel() }
+    let gate = AccountRequestScheduler()
+    var entered: [String] = []
+    var attempted = Set<String>()
+    @MainActor func wire(_ name: String, priority: Bool = false) async throws {
+        var request = URLRequest(url: URL(string: "https://native-account.invalid/" + name)!)
+        request.httpMethod = name.hasPrefix("mutation") ? "POST" : "GET"
+        if priority {
+            request.httpMethod = "POST"
+            let snapshot = AccountPrioritySessionSnapshot(binding: "published-existing-session", csrf: "frozen-csrf",
+                cookieHeaders: ["Cookie": "__Host-dv-account=frozen-existing-session"])
+            request = snapshot.authorize(request)
+        }
+        _ = try await (priority ? urgent : normal).data(for: request)
+    }
+    @MainActor func ordinary(_ name: String, logout: Bool = false) async throws {
+        attempted.insert(name)
+        let lease = try await gate.acquire(logout: logout)
+        defer { gate.release(lease) }
+        try gate.requireCurrent(lease)
+        entered.append(name)
+        try await wire(name)
+    }
+    // Admin mount's concurrent refresh + operations + models wait FIFO instead
+    // of rejecting a healthy session as "requestActive".
+    let refresh = Task { @MainActor in try await ordinary("refresh") }
+    await eventually { DelayedIdentityProtocol.received["/refresh"] != nil }
+    let operations = Task { @MainActor in try await ordinary("operations") }
+    await eventually { attempted.contains("operations") }
+    let mutation = Task { @MainActor in try await ordinary("mutation-model") }
+    await eventually { attempted.contains("mutation-model") }
+    require(entered == ["refresh"], "overlapping requests escaped ordinary serialization")
+    DelayedIdentityProtocol.received["/refresh"]!.complete(cookie: "__Host-dv-account=renewed; Path=/; Secure")
+    try await refresh.value
+    await eventually { DelayedIdentityProtocol.received["/operations"] != nil }
+    require(entered == ["refresh", "operations"], "cookie renewal dropped or reordered queued account reads")
+    DelayedIdentityProtocol.received["/operations"]!.complete(); try await operations.value
+    await eventually { DelayedIdentityProtocol.received["/mutation-model"] != nil }
+    DelayedIdentityProtocol.received["/mutation-model"]!.complete(); try await mutation.value
+    require(entered == ["refresh", "operations", "mutation-model"], "ordinary mutation order changed")
+    let cancelled = Task { @MainActor in try await ordinary("cancelled-read") }
+    await eventually { DelayedIdentityProtocol.received["/cancelled-read"] != nil }
+    let afterCancelled = Task { @MainActor in try await ordinary("after-cancelled") }
+    await eventually { attempted.contains("after-cancelled") }
+    cancelled.cancel()
+    do { try await cancelled.value; fatalError("cancelled HTTP request unexpectedly succeeded") }
+    catch { }
+    await eventually { DelayedIdentityProtocol.received["/after-cancelled"] != nil }
+    DelayedIdentityProtocol.received["/after-cancelled"]!.complete(); try await afterCancelled.value
+
+
+    let body = try JSONSerialization.data(withJSONObject: ["kind": "stop", "commandId": "stop-test", "expectedStateRevision": 0])
+    require(AccountTransportPolicy.priorityCancellation(path: show + "/commands", method: "POST", deviceId: "case.s3", body: body),
+        "retained Director Stop cannot enter priority lane")
+    for kind in ["quick-finale", "override", "guest-leave", "mood"] {
+        let data = try JSONSerialization.data(withJSONObject: ["kind": kind])
+        require(!AccountTransportPolicy.priorityCancellation(path: show + "/commands", method: "POST", deviceId: "case.s3", body: data),
+            "ordinary operation escaped ceremony gate as priority")
+    }
+    require(!AccountTransportPolicy.priorityCancellation(path: show + "/commands", method: "POST", deviceId: "other", body: body),
+        "priority Stop borrowed a different device scope")
+    require(!AccountTransportPolicy.priorityCancellation(path: show + "/commands", method: "POST", deviceId: "case.s3", body: Data(repeating: 0, count: 4097)),
+        "priority body limit missing")
+
+    // Reauth/add return 204 without changing the server cookie. Stop stays live
+    // even after completion while the UI's fresh /session query is delayed.
+    let sameAccount = try await gate.acquire(ceremony: true)
+    try await gate.beginCredentialCommit(sameAccount)
+    let sameAccountHTTP = Task { @MainActor in try await wire("same-account-reauth") }
+    await eventually { DelayedIdentityProtocol.received["/same-account-reauth"] != nil }
+    let cookieBeforeReauth = normal.configuration.httpCookieStorage?.cookies(for: URL(string: "https://native-account.invalid")!)?.first(where: { $0.name == "__Host-dv-account" })?.value
+    DelayedIdentityProtocol.received["/same-account-reauth"]!.complete(status: 204)
+    try await sameAccountHTTP.value
+    let cookieAfterReauth = normal.configuration.httpCookieStorage?.cookies(for: URL(string: "https://native-account.invalid")!)?.first(where: { $0.name == "__Host-dv-account" })?.value
+    require(cookieBeforeReauth == cookieAfterReauth, "same-account 204 changed its authenticated cookie")
+    gate.release(sameAccount)
+    let freshSession = Task { @MainActor in try await ordinary("fresh-session-after-reauth") }
+    await eventually { DelayedIdentityProtocol.received["/fresh-session-after-reauth"] != nil }
+    let retainedStop = Task { @MainActor in
+        let lease = try await gate.acquirePriority(); defer { gate.releasePriority(lease) }
+        try gate.requireCurrent(lease)
+        try await wire("stop-during-fresh-session", priority: true)
+        try gate.requireCurrent(lease)
+    }
+    await eventually { DelayedIdentityProtocol.received["/stop-during-fresh-session"] != nil }
+    DelayedIdentityProtocol.received["/stop-during-fresh-session"]!.complete(); try await retainedStop.value
+    DelayedIdentityProtocol.received["/fresh-session-after-reauth"]!.complete(); try await freshSession.value
+
+    // While passkey options are suspended, the existing session may still Stop.
+    let ceremony = try await gate.acquire(ceremony: true)
+    let options = Task { @MainActor in try await wire("passkey-options") }
+    await eventually { DelayedIdentityProtocol.received["/passkey-options"] != nil }
+    let oldRead = Task { @MainActor in try await ordinary("old-queued-read") }
+    await eventually { attempted.contains("old-queued-read") }
+    let stop = Task { @MainActor in
+        let lease = try await gate.acquirePriority(); defer { gate.releasePriority(lease) }
+        try gate.requireCurrent(lease)
+        try await wire("stop-during-options", priority: true)
+        try gate.requireCurrent(lease)
+    }
+    await eventually { DelayedIdentityProtocol.received["/stop-during-options"] != nil }
+    require(DelayedIdentityProtocol.received["/old-queued-read"] == nil, "queued ordinary read bypassed ceremony")
+    require(DelayedIdentityProtocol.received["/stop-during-options"]!.request.value(forHTTPHeaderField: "Cookie") == "__Host-dv-account=frozen-existing-session",
+        "priority request did not use captured native credentials")
+    DelayedIdentityProtocol.received["/passkey-options"]!.complete(); try await options.value
+    try await gate.beginCredentialCommit(ceremony)
+    do { _ = try await gate.acquire(); fatalError("old-view request admitted during credential commit") }
+    catch AccountRequestScheduler.Failure.contextChanged { }
+    do { try await oldRead.value; fatalError("old queued account read executed under new credential scope") }
+    catch AccountRequestScheduler.Failure.contextChanged { }
+    require(DelayedIdentityProtocol.received["/old-queued-read"] == nil, "obsolete read reached HTTP transport")
+    let heldCredential = Task { @MainActor in try await wire("held-credential") }
+    await eventually { DelayedIdentityProtocol.received["/held-credential"] != nil }
+    let commitStop = Task { @MainActor in
+        let lease = try await gate.acquirePriority(); defer { gate.releasePriority(lease) }
+        try gate.requireCurrent(lease)
+        try await wire("stop-during-credential", priority: true)
+        try gate.requireCurrent(lease)
+    }
+    DelayedIdentityProtocol.received["/stop-during-options"]!.complete(cookie: "__Host-dv-account=poison; Path=/; Secure")
+    do { try await stop.value; fatalError("precommit priority result survived credential epoch") }
+    catch AccountRequestScheduler.Failure.contextChanged { }
+    await eventually { DelayedIdentityProtocol.received["/stop-during-credential"] != nil }
+    require(DelayedIdentityProtocol.received["/stop-during-credential"]!.request.value(forHTTPHeaderField: "Cookie") == "__Host-dv-account=frozen-existing-session",
+        "commit-window Stop borrowed the mutable credential jar")
+    let accountURL = URL(string: "https://native-account.invalid")!
+    require(normal.configuration.httpCookieStorage?.cookies(for: accountURL)?.contains(where: { $0.name == "__Host-dv-account" && $0.value == "poison" }) != true,
+        "priority Set-Cookie contaminated ordinary account jar")
+    DelayedIdentityProtocol.received["/held-credential"]!.complete(cookie: "__Host-dv-account=committed-session; Path=/; Secure")
+    try await heldCredential.value
+    gate.invalidateQueuedScope() // The bridge retires the old published snapshot on credential publication.
+    DelayedIdentityProtocol.received["/stop-during-credential"]!.complete(cookie: "__Host-dv-account=old-cookie; Path=/; Secure")
+    do { try await commitStop.value; fatalError("late commit-window Stop result survived new principal publication") }
+    catch AccountRequestScheduler.Failure.contextChanged { }
+    require(normal.configuration.httpCookieStorage?.cookies(for: accountURL)?.contains(where: { $0.name == "__Host-dv-account" && $0.value == "committed-session" }) == true,
+        "late priority Set-Cookie replaced committed account cookie")
+    gate.release(ceremony)
+
+    // Logout goes next after the active cookie writer; invalidated queued work
+    // cannot run under a later login. An already running Stop is fenced by epoch.
+    let first = try await gate.acquire()
+    let stale = Task { @MainActor in try await ordinary("old-before-logout") }
+    await eventually { attempted.contains("old-before-logout") }
+    let oldStop = Task { @MainActor in
+        let lease = try await gate.acquirePriority(); defer { gate.releasePriority(lease) }
+        try await wire("late-stop", priority: true)
+        try gate.requireCurrent(lease)
+    }
+    await eventually { DelayedIdentityProtocol.received["/late-stop"] != nil }
+    let logout = Task { @MainActor in try await ordinary("logout", logout: true) }
+    await eventually { attempted.contains("logout") }
+    do { try await stale.value; fatalError("old queued read survived logout admission") }
+    catch AccountRequestScheduler.Failure.contextChanged { }
+    gate.release(first)
+    await eventually { DelayedIdentityProtocol.received["/logout"] != nil }
+    gate.release(first) // Duplicate completion must not release the new owner.
+    let afterLogout = Task { @MainActor in try await ordinary("after-logout") }
+    await eventually { attempted.contains("after-logout") }
+    require(DelayedIdentityProtocol.received["/after-logout"] == nil, "duplicate release freed logout lease")
+    DelayedIdentityProtocol.received["/logout"]!.complete(cookie: "__Host-dv-account=; Path=/; Secure; Max-Age=0"); try await logout.value
+    await eventually { DelayedIdentityProtocol.received["/after-logout"] != nil }
+    DelayedIdentityProtocol.received["/after-logout"]!.complete(); try await afterLogout.value
+    let login = try await gate.acquire(ceremony: true)
+    var loginCommitting = false
+    let loginCommit = Task { @MainActor in try await gate.beginCredentialCommit(login); loginCommitting = true }
+    await eventually { loginCommitting }
+    try await loginCommit.value
+    let loginHTTP = Task { @MainActor in try await wire("credential-complete") }
+    await eventually { DelayedIdentityProtocol.received["/credential-complete"] != nil }
+    DelayedIdentityProtocol.received["/credential-complete"]!.complete(cookie: "__Host-dv-account=new-session; Path=/; Secure")
+    try await loginHTTP.value
+    gate.invalidateQueuedScope()
+    DelayedIdentityProtocol.received["/late-stop"]!.complete(cookie: "__Host-dv-account=old-session; Path=/; Secure")
+    do { try await oldStop.value; fatalError("late Stop result survived logout epoch") }
+    catch AccountRequestScheduler.Failure.contextChanged { }
+    require(normal.configuration.httpCookieStorage?.cookies(for: accountURL)?.contains(where: { $0.name == "__Host-dv-account" && $0.value == "new-session" }) == true,
+        "late priority reply replaced the newly committed session")
+    gate.release(login)
+
+    // Bounded admission still reserves logout; errors settle every waiter once.
+    let blocked = try await gate.acquire()
+    var blockedAttempts = 0
+    var queued: [Task<AccountRequestScheduler.Lease, Error>] = []
+    for _ in 0..<32 {
+        queued.append(Task { @MainActor in blockedAttempts += 1; return try await gate.acquire() })
+        await eventually { blockedAttempts == queued.count }
+    }
+    do { _ = try await gate.acquire(); fatalError("ordinary queue is unbounded") }
+    catch AccountRequestScheduler.Failure.queueFull { }
+    let reservedLogout = Task { @MainActor in try await gate.acquire(logout: true) }
+    for task in queued {
+        do { _ = try await task.value; fatalError("logout did not invalidate bounded old queue") }
+        catch AccountRequestScheduler.Failure.contextChanged { }
+    }
+    gate.release(blocked)
+    let logoutLease = try await reservedLogout.value; gate.release(logoutLease)
+    print("PASS native account delayed URLSession FIFO, ceremony/credential-commit Stop, credential scope fence, stale/logout fencing, cookie isolation and bounded admission")
+}
+
+DispatchQueue.global().asyncAfter(deadline: .now() + 20) { fatalError("Native account scheduling regression timed out") }
+Task { @MainActor in
+    do { try await nativeAccountSchedulingTests(); exit(0) }
+    catch { fatalError("Native account scheduling regression failed: \(error)") }
+}
+dispatchMain()

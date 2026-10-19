@@ -1,0 +1,59 @@
+{
+  "observedAtUtc": "2026-10-19T06:28:31.488645Z",
+  "generatorRevision": "9bc7c669b672976248e691261c4545f836d85421",
+  "sourceSubject": {
+    "artifactDigest": "e28318b69d4f6598bf2ace3f7c808ecbce7ae2a80eb3c63d706a0dcb6070e167"
+  },
+  "results": {
+    "backend": {
+      "runId": 39209712939,
+      "artifactId": 12166649516,
+      "payloadSha256": "38009459ab4d5602bd5bf82eb94a311ffc985622e8631e201c73429edc5eb407",
+      "candidateHead": "af8bcf9ee3c3758a39dcc953d5eb47c7ee1abaed",
+      "filesSha256": {
+        "kufr/backend/packages.lock.json": "72824b0fd2a3b7d955f3cb372733205e813fa74ddf0e2e28279d30744fb542fa",
+        "kufr/backend-tests/packages.lock.json": "10750858b3fbffa2a0219764949e0a058deabb229895ad4b2110b5a0ae3c4ac0"
+      },
+      "publisherValidation": {
+        "result": "pass",
+        "changed": [
+          "kufr/backend-tests/packages.lock.json"
+        ],
+        "dryRun": true,
+        "number": 198,
+        "head": "af8bcf9ee3c3758a39dcc953d5eb47c7ee1abaed",
+        "base": "9bc7c669b672976248e691261c4545f836d85421"
+      }
+    },
+    "native": {
+      "runId": 39209715389,
+      "artifactId": 12166893423,
+      "payloadSha256": "32a6720b585d1cd32fdb9c839531b95cfb2853f602436c0caf124cb8c4b39980",
+      "candidateHead": "7a5c1c44cf953a2172de6c9b1c4c83614ed179e0",
+      "filesSha256": {
+        "kufr/mobilni-aplikace/ios/App/CapApp-SPM/Package.swift": "4dd62aeb951f9e7645377f0d4b0c1a1c3bf3270617258338a941d88e851bed55",
+        "kufr/mobilni-aplikace/ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved": "87c68c5a06de7dfb809e25a5e7658b864881c302b4d336bccb266c026e49aa0d"
+      },
+      "publisherValidation": {
+        "result": "pass",
+        "changed": [
+          "kufr/mobilni-aplikace/ios/App/CapApp-SPM/Package.swift",
+          "kufr/mobilni-aplikace/ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+        ],
+        "dryRun": true,
+        "number": 196,
+        "head": "7a5c1c44cf953a2172de6c9b1c4c83614ed179e0",
+        "base": "9bc7c669b672976248e691261c4545f836d85421"
+      },
+      "capacitorPin": {
+        "identity": "capacitor-swift-pm",
+        "kind": "remoteSourceControl",
+        "location": "https://github.com/ionic-team/capacitor-swift-pm.git",
+        "state": {
+          "revision": "4c7f346d16196e21fbe23d4a7a6fc7af62af6742",
+          "version": "8.5.3"
+        }
+      }
+    }
+  }
+}

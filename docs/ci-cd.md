@@ -35,8 +35,8 @@ NuGet konfigurace zahrnuje backend i jeho testovaci projekt ve stejne skupine.
 Po otevreni nebo aktualizaci vlastniho Dependabot PR generator obnovi oba
 `packages.lock.json` prikazem `dotnet restore` nad testovacim projektem a overi
 `--locked-mode`. Zachovava oba deklarovane Linux/Windows runtime grafy.
-Zmena presne verze Capacitor core/CLI/iOS spusti na macOS `cap update ios`
-a skutecny `xcodebuild -resolvePackageDependencies`; vysledkem jsou
+Zmena presne verze Capacitor core/CLI/iOS spusti na macOS skutecny webovy build,
+`cap sync ios` a `xcodebuild -resolvePackageDependencies`; vysledkem jsou
 `Package.swift` a `Package.resolved`. Samotna zmena Vite macOS generator nespousti.
 
 Generator ma pouze read-only token, nepouziva cache ani produkcni secrets

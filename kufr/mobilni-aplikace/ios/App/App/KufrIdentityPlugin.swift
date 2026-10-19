@@ -35,9 +35,19 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
               (original.httpBody?.count ?? 0) <= 8388608 else { throw AccountError.invalidPath }
         restoreCookies(origin: origin)
         if csrf.isEmpty {
-            let current = try json(await send(path: "/app/v1/session", method: "GET"))
-            guard current["account"] as? [String: Any] != nil else { throw AccountError.verificationFailed }
-            csrf = current["csrfToken"] as? String ?? ""
+            // A restored native device profile may need its first CSRF token.
+            // This cookie-writing bootstrap shares admission with ordinary UI.
+            let lease = try await requestScheduler.acquire()
+            defer { requestScheduler.release(lease) }
+            try requestScheduler.requireCurrent(lease)
+            guard (try? accountDeviceBinding()) == binding else { throw AccountRequestScheduler.Failure.contextChanged }
+            if csrf.isEmpty {
+                let current = try json(await send(path: "/app/v1/session", method: "GET"))
+                try requestScheduler.requireCurrent(lease)
+                guard current["account"] as? [String: Any] != nil else { throw AccountError.verificationFailed }
+                guard (try? accountDeviceBinding()) == binding else { throw AccountRequestScheduler.Failure.contextChanged }
+                try publishSessionResponse(current, origin: origin)
+            }
         }
         guard try accountDeviceBinding() == binding else { throw AccountError.verificationFailed }
         let permitted = ["accept", "content-type", "idempotency-key", "client-turn-id", "boot-id", "generation", "device-revision", "catalog-version", "input-id", "input-sequence", "captured-at", "image-id", "image-source", "image-revision", "image-consent", "x-dv-confirm"]
@@ -91,8 +101,16 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
     private var completionPath = ""
     private var controller: ASAuthorizationController?
     private var restoredCookies = false
-    private var requestActive = false
+    @MainActor private lazy var requestScheduler = AccountRequestScheduler()
+    private var passkeyQueued = false
+    private var ceremonyLease: AccountRequestScheduler.Lease?
+    private var credentialCompletionActive = false
+    private let prioritySession: URLSession = {
+        let config = AccountPriorityHTTP.configuration()
+        return URLSession(configuration: config, delegate: AccountNoRedirect(), delegateQueue: nil)
+    }()
     private var publishedCookieDigest: String?
+    private var publishedPrioritySession: AccountPrioritySessionSnapshot?
     private let guestSession: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.httpCookieAcceptPolicy = .always
@@ -160,12 +178,10 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
     @objc public func accountTransport(_ call: CAPPluginCall) {
         Task { @MainActor in
             do {
-                guard pending == nil else { throw AccountError.verificationFailed }
                 let (origin, _) = try configuration()
                 let path = call.getString("path") ?? "", method = call.getString("method") ?? "GET"
                 guard Self.allowed(path: path, method: method), let url = URL(string: path, relativeTo: origin)?.absoluteURL,
                       url.scheme == "https", url.host == origin.host, url.port == origin.port else { throw AccountError.invalidPath }
-                restoreCookies(origin: origin)
                 var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
                 request.httpMethod = method
                 request.setValue(origin.absoluteString, forHTTPHeaderField: "Origin")
@@ -175,22 +191,70 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
                           !text.contains("\r"), !text.contains("\n") else { throw AccountError.invalidPath }
                     if name.lowercased() != "x-dv-csrf" { request.setValue(text, forHTTPHeaderField: name) }
                 }
-                if method != "GET" { request.setValue(csrf, forHTTPHeaderField: "X-DV-CSRF") }
                 if let encoded = call.getString("bodyBase64") {
                     guard encoded.utf8.count <= 349528, let data = Data(base64Encoded: encoded), data.count <= 262144 else { throw AccountError.invalidResponse }
                     request.httpBody = data
                 }
-                let (data, response) = try await session.data(for: request)
+                let device = request.value(forHTTPHeaderField: "X-DV-Device-Id") ?? ""
+                let result: (Data, URLResponse)
+                var ordinaryLease: AccountRequestScheduler.Lease?
+                defer { if let lease = ordinaryLease { requestScheduler.release(lease) } }
+                let priority = AccountTransportPolicy.priorityCancellation(path: path, method: method, deviceId: device, body: request.httpBody ?? Data())
+                if priority {
+                    result = try await sendPriorityCancellation(request)
+                } else {
+                    let commit = AccountTransportPolicy.credentialCommit(path: path, method: method)
+                    let lease = try await requestScheduler.acquire(ceremony: commit, logout: path == "/app/v1/session" && method == "DELETE")
+                    ordinaryLease = lease
+                    try requestScheduler.requireCurrent(lease)
+                    if commit { try await requestScheduler.beginCredentialCommit(lease) }
+                    restoreCookies(origin: origin)
+                    if method != "GET" { request.setValue(csrf, forHTTPHeaderField: "X-DV-CSRF") }
+                    result = try await session.data(for: request)
+                }
                 let archiveAsset = path.hasPrefix("/app/v1/archive/associations/") && path.contains("/assets/")
-                guard let http = response as? HTTPURLResponse, data.count <= (archiveAsset ? 33554432 : 1048576), http.url?.host == origin.host else { throw AccountError.invalidResponse }
-                try persistAccountCookie(origin: origin)
+                guard let http = result.1 as? HTTPURLResponse, result.0.count <= (archiveAsset ? 33554432 : 1048576),
+                      http.url?.host == origin.host, http.url?.scheme == origin.scheme, http.url?.port == origin.port else { throw AccountError.invalidResponse }
+                if !priority { try persistAccountCookie(origin: origin) }
                 var headers: [String: String] = [:]
                 for name in ["Content-Type", "X-Twin-Media-Accepted-Bytes", "Retry-After"] {
                     if let value = http.value(forHTTPHeaderField: name) { headers[name.lowercased()] = value }
                 }
-                call.resolve(["status": http.statusCode, "headers": headers, "bodyBase64": data.base64EncodedString()])
-            } catch { call.reject(error.localizedDescription) }
+                call.resolve(["status": http.statusCode, "headers": headers, "bodyBase64": result.0.base64EncodedString()])
+            } catch { rejectAccountCall(call, error: error) }
         }
+    }
+
+    @MainActor private func sendPriorityCancellation(_ original: URLRequest) async throws -> (Data, URLResponse) {
+        // URLSession can apply a completion response's Set-Cookie before the
+        // MainActor validates it. Only the immutable published principal is safe
+        // here; never read the mutable jar or fetch CSRF during a ceremony.
+        guard let snapshot = publishedPrioritySession else { throw AccountError.verificationFailed }
+        let lease = try await requestScheduler.acquirePriority()
+        defer { requestScheduler.releasePriority(lease) }
+        try requestScheduler.requireCurrent(lease)
+        guard publishedPrioritySession?.binding == snapshot.binding else { throw AccountRequestScheduler.Failure.contextChanged }
+        let result = try await prioritySession.data(for: snapshot.authorize(original))
+        try requestScheduler.requireCurrent(lease)
+        guard publishedPrioritySession?.binding == snapshot.binding else { throw AccountRequestScheduler.Failure.contextChanged }
+        return result
+    }
+
+    @MainActor private func publishSessionResponse(_ object: [String: Any], origin: URL) throws {
+        guard object["account"] as? [String: Any] != nil, let token = object["csrfToken"] as? String, !token.isEmpty else {
+            csrf = ""; publishedPrioritySession = nil; return
+        }
+        csrf = token
+        let binding = try accountDeviceBinding()
+        let cookies = session.configuration.httpCookieStorage?.cookies(for: origin) ?? []
+        publishedPrioritySession = AccountPrioritySessionSnapshot(binding: binding, csrf: token,
+            cookieHeaders: HTTPCookie.requestHeaderFields(with: cookies))
+    }
+
+    private func rejectAccountCall(_ call: CAPPluginCall, error: Error) {
+        if let scheduling = error as? AccountRequestScheduler.Failure {
+            call.reject(scheduling.localizedDescription, scheduling.rawValue)
+        } else { call.reject(error.localizedDescription) }
     }
 
     @objc public func guestCapabilities(_ call: CAPPluginCall) {
@@ -318,33 +382,42 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
 
     @objc public func request(_ call: CAPPluginCall) {
         Task { @MainActor in
-            guard !requestActive && pending == nil else { call.reject("Probíhá jiné ověření účtu."); return }
-            requestActive = true
-            defer { requestActive = false }
             do {
                 let path = call.getString("path") ?? ""
                 let method = call.getString("method") ?? "GET"
                 guard Self.allowed(path: path, method: method) else { throw AccountError.invalidPath }
+                let commit = AccountTransportPolicy.credentialCommit(path: path, method: method)
+                let lease = try await requestScheduler.acquire(ceremony: commit, logout: path == "/app/v1/session" && method == "DELETE")
+                defer { requestScheduler.release(lease) }
+                try requestScheduler.requireCurrent(lease)
+                if commit { try await requestScheduler.beginCredentialCommit(lease) }
                 let result = try await send(path: path, method: method, body: call.getString("body"), confirmed: call.getBool("confirmed") == true)
                 if path == "/app/v1/session", let data = result.1.data(using: .utf8),
                    let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    csrf = object["csrfToken"] as? String ?? ""
+                    try publishSessionResponse(object, origin: configuration().0)
                 }
                 call.resolve(["status": result.0, "body": result.1])
-            } catch { call.reject(error.localizedDescription) }
+            } catch { rejectAccountCall(call, error: error) }
         }
     }
 
     @objc public func passkey(_ call: CAPPluginCall) {
         Task { @MainActor in
             guard #available(iOS 16.0, *) else { call.reject("Přístupové klíče vyžadují iOS 16 nebo novější. Veřejný obsah zůstává dostupný."); return }
-            guard !requestActive && pending == nil else { call.reject("Probíhá jiné ověření účtu."); return }
-            pending = call
+            guard !passkeyQueued && pending == nil else { call.reject("Probíhá jiné ověření účtu."); return }
+            passkeyQueued = true
+            let lease: AccountRequestScheduler.Lease
+            do { lease = try await requestScheduler.acquire(ceremony: true) }
+            catch { passkeyQueued = false; rejectAccountCall(call, error: error); return }
+            passkeyQueued = false
+            ceremonyLease = lease; pending = call
             do {
+                try requestScheduler.requireCurrent(lease)
                 let config = try configuration()
                 let sessionResult = try await send(path: "/app/v1/session", method: "GET")
+                try requestScheduler.requireCurrent(lease)
                 let sessionObject = try json(sessionResult)
-                csrf = sessionObject["csrfToken"] as? String ?? ""
+                try publishSessionResponse(sessionObject, origin: config.0)
                 let mode = call.getString("mode") ?? ""
                 let optionsPath: String
                 var body: String?
@@ -358,6 +431,7 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
                 default: throw AccountError.invalidPath
                 }
                 let options = try json(await send(path: optionsPath, method: "POST", body: body))
+                try requestScheduler.requireCurrent(lease)
                 guard let challengeValue = options["challenge"] as? String, let challenge = Self.decode(challengeValue) else { throw AccountError.invalidResponse }
                 let provider = ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier: config.1)
                 let request: ASAuthorizationRequest
@@ -380,7 +454,7 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
                 authorization.presentationContextProvider = self
                 controller = authorization
                 authorization.performRequests()
-            } catch { finish(error: error.localizedDescription) }
+            } catch { finish(error: error.localizedDescription, expected: lease) }
         }
     }
 
@@ -390,7 +464,10 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
 
     public func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
         Task { @MainActor in
-            guard #available(iOS 16.0, *) else { finish(error: "Přístupové klíče vyžadují iOS 16 nebo novější."); return }
+            guard controller === self.controller, pending != nil, !credentialCompletionActive,
+                  let lease = ceremonyLease else { return }
+            credentialCompletionActive = true
+            guard #available(iOS 16.0, *) else { finish(error: "Přístupové klíče vyžadují iOS 16 nebo novější.", expected: lease); return }
             do {
                 let credential: [String: Any]
                 if let assertion = authorization.credential as? ASAuthorizationPlatformPublicKeyCredentialAssertion {
@@ -404,21 +481,27 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
                         "authenticatorAttachment": "platform", "clientExtensionResults": [:], "response": [
                             "clientDataJSON": Self.encode(registration.rawClientDataJSON), "attestationObject": Self.encode(attestation), "transports": ["internal"]]]
                 } else { throw AccountError.invalidResponse }
+                try await requestScheduler.beginCredentialCommit(lease)
                 let result = try await send(path: completionPath, method: "POST", body: encode(["credential": credential]))
                 guard result.0 == 204 else { throw AccountError.verificationFailed }
-                finish(error: nil)
-            } catch { finish(error: error.localizedDescription) }
+                finish(error: nil, expected: lease)
+            } catch { finish(error: error.localizedDescription, expected: lease) }
         }
     }
 
     public func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
-        finish(error: "Ověření přístupovým klíčem bylo zrušeno nebo není na tomto zařízení dostupné.")
+        Task { @MainActor in
+            guard controller === self.controller, !credentialCompletionActive, let lease = ceremonyLease else { return }
+            finish(error: "Ověření přístupovým klíčem bylo zrušeno nebo není na tomto zařízení dostupné.", expected: lease)
+        }
     }
 
-    private func finish(error: String?) {
+    @MainActor private func finish(error: String?, expected: AccountRequestScheduler.Lease) {
+        guard ceremonyLease?.id == expected.id else { return }
         let call = pending
-        pending = nil; controller = nil; completionPath = ""
+        pending = nil; controller = nil; completionPath = ""; ceremonyLease = nil; credentialCompletionActive = false
         if let error = error { call?.reject(error) } else { call?.resolve() }
+        requestScheduler.release(expected)
     }
 
     private func configuration() throws -> (URL, String) {
@@ -436,7 +519,7 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
         return origin
     }
 
-    private func send(path: String, method: String, body: String? = nil, confirmed: Bool = false) async throws -> (Int, String) {
+    @MainActor private func send(path: String, method: String, body: String? = nil, confirmed: Bool = false) async throws -> (Int, String) {
         guard Self.allowed(path: path, method: method) else { throw AccountError.invalidPath }
         let (origin, _) = try configuration()
         restoreCookies(origin: origin)
@@ -492,11 +575,11 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
         if let cookie = HTTPCookie(properties: converted), cookie.isSecure, cookie.name == "__Host-dv-account",
            cookie.domain == origin.host, cookie.path == "/" { session.configuration.httpCookieStorage?.setCookie(cookie) }
     }
-    private func persistAccountCookie(origin: URL) throws {
+    @MainActor private func persistAccountCookie(origin: URL) throws {
         let query = keychainQuery(origin: origin)
         let cookies = session.configuration.httpCookieStorage?.cookies(for: origin) ?? []
         guard let cookie = cookies.first(where: { $0.name == "__Host-dv-account" && $0.domain == origin.host && $0.isSecure }),
-              let properties = cookie.properties else { SecItemDelete(query as CFDictionary); publishCookieChange(nil); return }
+              let properties = cookie.properties else { SecItemDelete(query as CFDictionary); publishCookieChange(nil, origin: origin); return }
         let converted = Dictionary(uniqueKeysWithValues: properties.map { ($0.key.rawValue, $0.value) })
         let data = try PropertyListSerialization.data(fromPropertyList: converted, format: .binary, options: 0)
         var attributes = query; attributes[kSecValueData as String] = data
@@ -505,12 +588,23 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
         if result == errSecItemNotFound {
             guard SecItemAdd(attributes as CFDictionary, nil) == errSecSuccess else { throw AccountError.storageFailed }
         } else if result != errSecSuccess { throw AccountError.storageFailed }
-        publishCookieChange(cookie.value)
+        publishCookieChange(cookie.value, origin: origin)
     }
 
-    private func publishCookieChange(_ cookie: String?) {
+    @MainActor private func publishCookieChange(_ cookie: String?, origin: URL) {
         let digest = cookie.map { SHA256.hash(data: Data($0.utf8)).map { String(format: "%02x", $0) }.joined() }
         guard digest != publishedCookieDigest else { return }
+        if digest == nil || requestScheduler.credentialCommitActive {
+            publishedPrioritySession = nil
+            if digest == nil { csrf = "" }
+            requestScheduler.invalidateQueuedScope()
+        } else if let snapshot = publishedPrioritySession, let binding = digest {
+            // Ordinary renewal keeps the same authenticated session. It does
+            // not obsolete FIFO jobs or turn a healthy refresh into logout.
+            let cookies = session.configuration.httpCookieStorage?.cookies(for: origin) ?? []
+            publishedPrioritySession = AccountPrioritySessionSnapshot(binding: binding, csrf: snapshot.csrf,
+                cookieHeaders: HTTPCookie.requestHeaderFields(with: cookies))
+        }
         publishedCookieDigest = digest
         NotificationCenter.default.post(name: Notification.Name("KufrIdentityAccountChanged"), object: nil)
     }

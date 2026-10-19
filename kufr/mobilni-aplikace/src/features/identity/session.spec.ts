@@ -1,13 +1,43 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-const bridge = vi.hoisted(() => ({native: false, request: vi.fn(), passkey: vi.fn()}));
+const bridge = vi.hoisted(() => ({native: false, request: vi.fn(), passkey: vi.fn(), accountTransport: vi.fn()}));
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => bridge.native }, registerPlugin: () => bridge }));
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(complete => { resolve = complete; }); return {promise, resolve}; }
 const user = (id: string | null, token = id ?? 'anonymous') => ({ enabled: true, account: id ? {id, displayName: id, roles: ['Viewer']} : null, csrfToken: token, origin: 'https://accounts.invalid' });
 let request: ReturnType<typeof vi.fn>;
-beforeEach(() => { vi.resetModules(); bridge.native = false; bridge.request.mockReset(); bridge.passkey.mockReset(); request = vi.fn(); vi.stubGlobal('fetch', request); });
+beforeEach(() => { vi.resetModules(); bridge.native = false; bridge.request.mockReset(); bridge.passkey.mockReset(); bridge.accountTransport.mockReset(); request = vi.fn(); vi.stubGlobal('fetch', request); });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('authentication generation fences', () => {
+  it.each(['account-change', 'abort'])('never dispatches a delayed native Blob body after %s', async reason => {
+    bridge.native = true;
+    const identity = await import('./session');
+    let cookie: string | null = 'old';
+    bridge.request.mockImplementation(async ({method}: {method: string}) => {
+      if (method === 'DELETE') { cookie = null; return {status: 204, body: ''}; }
+      return {status: 200, body: JSON.stringify(user(cookie))};
+    });
+    bridge.passkey.mockImplementation(async () => { cookie = 'new'; });
+    await identity.refreshIdentity();
+    const delayedBytes = deferred<ArrayBuffer>();
+    const payload = JSON.stringify({kind: 'stop'});
+    const body = new Blob([payload]);
+    vi.spyOn(body, 'arrayBuffer').mockReturnValue(delayedBytes.promise);
+    const controller = new AbortController();
+    const pending = identity.accountTransport('/v1/show/devices/kufr-1/commands', {
+      method: 'POST', body, signal: controller.signal, headers: {'X-DV-Device-Id': 'kufr-1'},
+    });
+    const rejected = expect(pending).rejects.toMatchObject({name: 'AbortError'});
+    if (reason === 'account-change') {
+      await identity.signOut();
+      await identity.authenticatePasskey('signin');
+      expect(identity.account.value?.id).toBe('new');
+    } else controller.abort();
+    delayedBytes.resolve(new TextEncoder().encode(payload).buffer);
+    await rejected;
+    expect(bridge.accountTransport).not.toHaveBeenCalled();
+    expect(identity.account.value?.id).toBe(reason === 'account-change' ? 'new' : 'old');
+  });
+
   it.each([false, true])('rejects a cancelled observer response without clearing the current account (native=%s)', async native => {
     bridge.native = native;
     const identity = await import('./session');
@@ -77,13 +107,59 @@ describe('authentication generation fences', () => {
     expect(request.mock.calls.at(-1)![1].headers['X-DV-CSRF']).toBe('new');
   });
 
-  it('does not mask or retry a current unauthorized response', async () => {
+  it.each([false, true])('does not mask or retry a current unauthorized response (native=%s)', async native => {
+    bridge.native = native;
     const identity = await import('./session');
-    request.mockResolvedValueOnce(Response.json(user('current'))); await identity.refreshIdentity();
-    request.mockResolvedValueOnce(Response.json({code: 'session_revoked'}, {status: 401}));
+    if (native) bridge.request.mockResolvedValueOnce({status: 200, body: JSON.stringify(user('current'))});
+    else request.mockResolvedValueOnce(Response.json(user('current')));
+    await identity.refreshIdentity();
+    if (native) bridge.request.mockResolvedValueOnce({status: 401, body: JSON.stringify({code: 'session_revoked'})});
+    else request.mockResolvedValueOnce(Response.json({code: 'session_revoked'}, {status: 401}));
     await expect(identity.refreshIdentity()).rejects.toMatchObject({status: 401});
     expect(identity.account.value).toBeNull(); expect(identity.initialized.value).toBe(false);
-    expect(request).toHaveBeenCalledTimes(2); expect(identity.loading.value).toBe(false);
+    expect(native ? bridge.request : request).toHaveBeenCalledTimes(2); expect(identity.loading.value).toBe(false);
+  });
+
+  it.each(['reauth', 'add'] as const)('keeps the authenticated context when a queued refresh retires before native %s completes', async mode => {
+    bridge.native = true;
+    const identity = await import('./session');
+    bridge.request.mockResolvedValueOnce({status: 200, body: JSON.stringify(user('current'))});
+    await identity.refreshIdentity();
+    const ceremony = deferred<void>();
+    bridge.passkey.mockReturnValueOnce(ceremony.promise);
+    const authentication = identity.authenticatePasskey(mode);
+    expect(bridge.passkey).toHaveBeenCalledOnce();
+
+    let retireRefresh!: (error: unknown) => void;
+    bridge.request.mockReturnValueOnce(new Promise((_resolve, reject) => { retireRefresh = reject; }));
+    const refresh = identity.refreshIdentity();
+    retireRefresh(Object.assign(new Error('Native request scope retired'), {code: 'ACCOUNT_CONTEXT_CHANGED'}));
+    await refresh;
+    expect(identity.account.value?.id).toBe('current');
+    expect(identity.accountsEnabled.value).toBe(true);
+    expect(identity.initialized.value).toBe(true);
+    expect(identity.loading.value).toBe(false);
+    expect(bridge.request).toHaveBeenCalledTimes(2);
+
+    bridge.request.mockResolvedValueOnce({status: 200, body: JSON.stringify(user('current', 'renewed-csrf'))});
+    ceremony.resolve();
+    await authentication;
+    expect(identity.account.value?.id).toBe('current');
+    expect(bridge.request).toHaveBeenCalledTimes(3);
+  });
+
+  it('clears the account when the current native cookie scope disappears outside a ceremony', async () => {
+    bridge.native = true;
+    const identity = await import('./session');
+    bridge.request.mockResolvedValueOnce({status: 200, body: JSON.stringify(user('expired'))});
+    await identity.refreshIdentity();
+    bridge.request.mockRejectedValueOnce(Object.assign(new Error('Native cookie was cleared'), {code: 'ACCOUNT_CONTEXT_CHANGED'}));
+    await expect(identity.refreshIdentity()).rejects.toMatchObject({name: 'AbortError'});
+    expect(identity.account.value).toBeNull();
+    expect(identity.accountsEnabled.value).toBe(false);
+    expect(identity.initialized.value).toBe(false);
+    expect(identity.loading.value).toBe(false);
+    expect(bridge.request).toHaveBeenCalledTimes(2);
   });
 
   it('waits for a late logout cookie deletion before starting a new authentication or lifecycle refresh', async () => {

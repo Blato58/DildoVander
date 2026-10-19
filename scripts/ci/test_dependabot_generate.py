@@ -25,12 +25,15 @@ class DependencyGeneratorTests(unittest.TestCase):
             "-p:SelfContained=true", "--force-evaluate"], Path("checkout/kufr")))
         self.assertEqual(run.call_args_list[1].args[0][-1], "--locked-mode")
 
-    def test_native_uses_real_cli_and_xcode_resolver_without_install_hooks(self):
+    def test_native_builds_web_before_real_cli_and_xcode_resolution(self):
         with patch.object(generator, "command") as run:
             generator.regenerate(Path("checkout"), "native")
         self.assertEqual([call.args[0] for call in run.call_args_list], [
             ["npm", "ci", "--ignore-scripts"],
-            ["npx", "--no-install", "cap", "update", "ios"],
+            ["npm", "ci", "--ignore-scripts", "--prefix", "../contracts"],
+            ["npm", "ci", "--ignore-scripts", "--prefix", "../simulator"],
+            ["npm", "run", "build"],
+            ["npx", "--no-install", "cap", "sync", "ios"],
             ["xcodebuild", "-resolvePackageDependencies", "-project",
              "ios/App/App.xcodeproj", "-scheme", "App"],
         ])

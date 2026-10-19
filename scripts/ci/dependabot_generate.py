@@ -41,8 +41,11 @@ def regenerate(root, kind):
     else:
         mobile = root / "kufr/mobilni-aplikace"
         command(["npm", "ci", "--ignore-scripts"], mobile)
-        # update regenerates SPM dependencies without copying a built web bundle.
-        command(["npx", "--no-install", "cap", "update", "ios"], mobile)
+        command(["npm", "ci", "--ignore-scripts", "--prefix", "../contracts"], mobile)
+        command(["npm", "ci", "--ignore-scripts", "--prefix", "../simulator"], mobile)
+        # Capacitor's SPM update can copy web assets too. Use the complete CI path.
+        command(["npm", "run", "build"], mobile)
+        command(["npx", "--no-install", "cap", "sync", "ios"], mobile)
         command([
             "xcodebuild", "-resolvePackageDependencies",
             "-project", "ios/App/App.xcodeproj", "-scheme", "App",

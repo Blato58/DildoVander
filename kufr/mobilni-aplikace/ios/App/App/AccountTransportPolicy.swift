@@ -2,6 +2,24 @@ import Foundation
 
 // Shared by the live native bridge and standalone macOS regression tests.
 enum AccountTransportPolicy {
+    static func credentialCommit(path: String, method: String) -> Bool {
+        method == "POST" && ["/app/v1/passkeys/sign-in", "/app/v1/passkeys/reauthenticate",
+            "/app/v1/enrollment/complete", "/app/v1/passkeys/complete"].contains(path)
+    }
+
+    // Caller priority flags cannot bypass the account queue. Only cancellation
+    // operations with their exact selected-device route can use frozen cookies.
+    static func priorityCancellation(path: String, method: String, deviceId: String, body: Data) -> Bool {
+        guard method == "POST", body.count <= 4096, show(path: path, method: method, query: []),
+              let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else { return false }
+        let parts = path.split(separator: "/").map(String.init)
+        guard parts.count >= 5, parts[3] == deviceId else { return false }
+        if parts.count == 5 && parts[4] == "commands" {
+            return ["stop", "cancel-speech", "cancel-cue"].contains(object["kind"] as? String ?? "")
+        }
+        return parts.count == 7 && parts[4] == "duels" && parts[6] == "cancel"
+    }
+
     static func publicOrigin(_ raw: String) -> URL? {
         guard raw.count <= 2048, raw.rangeOfCharacter(from: .whitespacesAndNewlines) == nil,
               !raw.unicodeScalars.contains(where: { $0.value < 32 || $0.value == 127 }),
@@ -241,5 +259,123 @@ enum AccountTransportPolicy {
             let id = String(path.dropFirst(prefix.count))
             return !id.isEmpty && id.count <= 128 && id.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }
         }
+    }
+}
+
+// Native account HTTP and the complete passkey ceremony share one FIFO lease.
+// This is also compiled by the Foundation-only native identity harness.
+@MainActor final class AccountRequestScheduler {
+    struct Lease: Equatable {
+        let id = UUID()
+        let epoch: UInt64
+        let ceremony: Bool
+    }
+    enum Failure: String, LocalizedError {
+        case contextChanged = "ACCOUNT_CONTEXT_CHANGED"
+        case queueFull = "ACCOUNT_QUEUE_FULL"
+        case committing = "ACCOUNT_CREDENTIAL_COMMITTING"
+        var errorDescription: String? { rawValue }
+    }
+    private struct Waiter {
+        let lease: Lease
+        let continuation: CheckedContinuation<Lease, Error>
+    }
+    private(set) var epoch: UInt64 = 0
+    private var active: Lease?
+    private var waiting: [Waiter] = []
+    private var priorityActive: Lease?
+    private var priorityWaiting: [Waiter] = []
+    private var committing = false
+    var credentialCommitActive: Bool { committing }
+
+    func acquire(ceremony: Bool = false, logout: Bool = false) async throws -> Lease {
+        try Task.checkCancellation()
+        // No old-view job may acquire the next epoch while a credential response
+        // is still in flight. JS treats this exact code as obsolete work.
+        guard !committing else { throw Failure.contextChanged }
+        if logout { invalidateQueuedScope() }
+        let lease = Lease(epoch: epoch, ceremony: ceremony)
+        if active == nil { active = lease; return lease }
+        guard waiting.count < 32 else { throw Failure.queueFull }
+        return try await withCheckedThrowingContinuation { continuation in
+            let waiter = Waiter(lease: lease, continuation: continuation)
+            if logout { waiting.insert(waiter, at: 0) } else { waiting.append(waiter) }
+        }
+    }
+
+    func release(_ lease: Lease) {
+        guard active?.id == lease.id else { return }
+        active = nil; committing = false
+        if !waiting.isEmpty {
+            let next = waiting.removeFirst(); active = next.lease
+            next.continuation.resume(returning: next.lease)
+        }
+    }
+
+    func requireCurrent(_ lease: Lease) throws {
+        try Task.checkCancellation()
+        guard lease.epoch == epoch else { throw Failure.contextChanged }
+    }
+
+    func acquirePriority() async throws -> Lease {
+        try Task.checkCancellation()
+        let lease = Lease(epoch: epoch, ceremony: false)
+        if priorityActive == nil { priorityActive = lease; return lease }
+        guard priorityWaiting.count < 4 else { throw Failure.queueFull }
+        return try await withCheckedThrowingContinuation { continuation in
+            priorityWaiting.append(Waiter(lease: lease, continuation: continuation))
+        }
+    }
+
+    func releasePriority(_ lease: Lease) {
+        guard priorityActive?.id == lease.id else { return }
+        priorityActive = nil
+        if !priorityWaiting.isEmpty {
+            let next = priorityWaiting.removeFirst(); priorityActive = next.lease
+            next.continuation.resume(returning: next.lease)
+        }
+    }
+
+    func beginCredentialCommit(_ lease: Lease) async throws {
+        guard active?.id == lease.id, lease.ceremony, !committing else { throw Failure.committing }
+        try requireCurrent(lease)
+        committing = true
+        // Priority HTTP cannot persist cookies, so it need not hold credential
+        // completion hostage. Existing priority results are fenced by this epoch;
+        // new Stop requests keep using the published precommit snapshot.
+        invalidateQueuedScope()
+    }
+
+    func invalidateQueuedScope() {
+        epoch &+= 1
+        let invalid = waiting + priorityWaiting
+        waiting.removeAll(); priorityWaiting.removeAll()
+        for waiter in invalid { waiter.continuation.resume(throwing: Failure.contextChanged) }
+    }
+}
+
+// Shared by the bridge and actual URLSession regression tests. Priority replies
+// cannot update any account jar, credential storage, Keychain or cached response.
+enum AccountPriorityHTTP {
+    static func configuration() -> URLSessionConfiguration {
+        let config = URLSessionConfiguration.ephemeral
+        config.httpCookieStorage = nil; config.httpShouldSetCookies = false
+        config.httpCookieAcceptPolicy = .never; config.urlCredentialStorage = nil; config.urlCache = nil
+        config.timeoutIntervalForRequest = 5; config.timeoutIntervalForResource = 8
+        return config
+    }
+}
+
+struct AccountPrioritySessionSnapshot {
+    let binding: String
+    let csrf: String
+    let cookieHeaders: [String: String]
+
+    func authorize(_ original: URLRequest) -> URLRequest {
+        var request = original
+        request.httpShouldHandleCookies = false
+        for (name, value) in cookieHeaders { request.setValue(value, forHTTPHeaderField: name) }
+        request.setValue(csrf, forHTTPHeaderField: "X-DV-CSRF")
+        return request
     }
 }

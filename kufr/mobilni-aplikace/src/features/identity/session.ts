@@ -29,6 +29,15 @@ let authenticationPending: Promise<void> | null = null;
 class IdentityRequestError extends Error {
   constructor(message: string, readonly status: number, readonly code?: string, readonly rejectedGeneration?: number) { super(message); }
 }
+class AccountContextChangedError extends DOMException {
+  constructor() { super('Požadavek patřil předchozímu ověření účtu.', 'AbortError'); }
+}
+function rethrowNativeAccountError(error: unknown): never {
+  if (error && typeof error === 'object' && 'code' in error && error.code === 'ACCOUNT_CONTEXT_CHANGED') {
+    throw new AccountContextChangedError();
+  }
+  throw error;
+}
 
 function advanceAuthentication(clearAccount = false): number {
   ++authGeneration;
@@ -64,7 +73,9 @@ export async function accountTransport(path: string, init: RequestInit = {}): Pr
   else if (init.body != null) throw new Error('Nepodporovaný formát požadavku účtu.');
   if (bytes && bytes.length > 262144) throw new Error('Požadavek překročil povolenou velikost.');
   const encoded = bytes ? btoa(Array.from(bytes, byte => String.fromCharCode(byte)).join('')) : undefined;
-  const response = await nativeIdentity.accountTransport({ path, method, headers: Object.fromEntries(headers), bodyBase64: encoded });
+  requireCurrentAuthentication(generation);
+  throwIfAborted(init.signal);
+  const response = await nativeIdentity.accountTransport({ path, method, headers: Object.fromEntries(headers), bodyBase64: encoded }).catch(rethrowNativeAccountError);
   requireCurrentAuthentication(generation);
   throwIfAborted(init.signal);
   const archiveAsset = /^\/app\/v1\/archive\/associations\/[0-9a-f-]{36}\/assets\/[0-9a-f-]{36}$/i.test(path);
@@ -85,7 +96,7 @@ export async function accountRequest<T>(path: string, method = 'GET', body?: unk
   let status: number;
   let text: string;
   if (native) {
-    const response = await nativeIdentity.request({ path, method, body: serialized, confirmed });
+    const response = await nativeIdentity.request({ path, method, body: serialized, confirmed }).catch(rethrowNativeAccountError);
     status = response.status;
     text = response.body;
   } else {
@@ -146,6 +157,9 @@ export function refreshIdentity(): Promise<void> {
     accountOrigin.value = session.origin ?? '';
     initialized.value = true;
   })().catch(error => {
+    // A native queue may retire this refresh before the ceremony promise reaches
+    // JavaScript. Its cancelled scope does not establish loss of authentication.
+    if (error instanceof AccountContextChangedError && authenticationPending) return;
     if (generation !== authGeneration && !(error instanceof IdentityRequestError && error.rejectedGeneration === authGeneration)) return;
     account.value = null; csrfToken = ''; initialized.value = false; accountsEnabled.value = false;
     throw error;

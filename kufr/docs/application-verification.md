@@ -16,7 +16,7 @@ publication are in the [release guide](../web/deploy/APPLICATION-RELEASES.md).
 
 | Area | Actual checks and boundary |
 | --- | --- |
-| Shared Vue application | `npm ci`, final `npm test`, `npm run build` on Node 24.21.0; final 122 Node regressions and 193 Vue tests across 29 files passed (315 total). The standalone build checked contracts, Vue types and shared lazy feature modules without CAD. Real components, retained protocol regressions, strict compiled CSP and lazy feature routes. |
+| Shared Vue application | `npm ci`, final `npm test`, `npm run build` on Node 24.21.0; final 122 Node regressions and 199 Vue tests across 29 files passed (321 total). The standalone build checked contracts, Vue types and shared lazy feature modules without CAD. Real components, retained protocol regressions, strict compiled CSP and lazy feature routes. |
 | Show Pack Vue | `node tests/director.browser.mjs` and `node scripts/archive-show.browser.mjs`: compiled Director two-operator conflict, scoped grants, urgent/lost Stop, route navigation, guest wizard identity/private prophecy, scoped duel moves, chronicle zero/tie/withdrawn and authorized event selection; actual partial PNG bytes, keyboard and 1440/390 px layouts. All APIs in these suites are synthetic. |
 | Rendered application | `npm run test:browser`: shared navigation, direct reload, legacy destinations, unknown routes, early private claim capture, explicit demo, focus across heartbeats, stale confirmation, Stop, theme, keyboard, 1440/390/320 px layouts and 200% text. The shell measures the bottom navigation so enlarged labels do not conceal the end of the page. |
 | Accounts | `npm run test:accounts:fixture`: actual HTTPS backend, controlled private owner delivery, Chrome virtual WebAuthn authenticator, real passkey verifier and naming, invitation/replay denial, Viewer authorization, logout and safe return. A held real logout response proves that a new sign-in waits for its cookie update. Fixture configuration excludes providers; its normal shutdown removes its private temporary database and keys. |
@@ -123,9 +123,23 @@ require their existing authorization boundaries. No such action is implied by
 the implementation or its software receipts.
 
 Accepted main `706c3dd89344081fd42f6a27d95afb65b13c5182` adds dependency
-automation and one native pin regression. Fresh mobile checks pass 315 tests
+automation and one native pin regression. At that integration, fresh mobile checks passed 315 tests
 and build; all 56 rebuilt files are byte-identical to runtime-v6. Backend
 source identity is unchanged. Dependency controller tests pass 20 Node and
 19 Python cases. Source-v9/runtime-v7 explicitly transfer the prior browser
 and backend evidence through those identical bytes; no additional browser
 execution is claimed for this integration.
+
+Current native account corrections replace overlapping-request rejection with a
+bounded FIFO shared by ordinary account requests and the whole passkey ceremony.
+Strict cancellation commands have a separate bounded lane and an immutable
+published Cookie/CSRF snapshot. That transport cannot accept cookies, credentials
+or cached responses; Stop remains available during options, credential HTTP
+and a held same-account session refresh. Old queued scopes cannot use the next
+credential. Delayed native refresh cancellation preserves the account only
+during authentication; current cookie loss and real HTTP401 still clear it.
+A delayed Blob body checks generation and cancellation before bridge dispatch.
+The 15 focused Vue identity tests pass. The Foundation URLSession harness is
+configured to compile the production scheduler and policy; actual macOS execution
+belongs in a source-bound native receipt. These tests do not exercise the
+UIKit passkey dialog or a physical iPhone.

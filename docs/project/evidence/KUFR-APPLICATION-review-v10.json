@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-APPLICATION-review-v10",
+  "observedAtUtc": "2026-10-19T06:48:44.008154+00:00",
+  "kind": "source_review",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "APPLICATION",
+      "criterionRevision": 5,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "IDENTITY",
+      "criterionRevision": 5,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "RELEASES",
+      "criterionRevision": 5,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "applicationArtifactDigest": "9b9341bb190a3c796573491ecf09ac561f93637ea7c512850a5b5e1b555b342e",
+    "backendArtifactDigest": "303435d6804c5fd493bd42cabbddc6915afa2701a289eb85cb93bfdf20ebe0ea",
+    "releaseArtifactDigest": "a137e66ad59d349f933180220829c3a51c2a75e62f618b4490a1b6e28ec6124a",
+    "iosArtifactDigest": "bb9b47e502b14c426fe6da7fb3fc01956c10598abb53b561ba2a894bd34cb304"
+  },
+  "method": "Independent Sol6.1/high read-only review of native queue, priority HTTP, immutable session snapshot, passkey options/credential commit and held post-reauth session, logout epochs, exact cancellation code and delayed Blob dispatch; parent combined staged-source inspection.",
+  "environment": "Windows11; Node24.21.0, Chrome Playwright, .NET10; isolated real HTTPS account fixture, synthetic API/native browser fixtures. No local Swift compiler.",
+  "limitations": [
+    "No production deployment, paid provider call, credential rotation, signing, flashing or physical actuator execution.",
+    "Virtual WebAuthn and browser/native bridge fixtures are synthetic. Portable C++ checks prove software integration, not signed iPhone, BLE possession, acoustic output or assembly.",
+    "Current Foundation/native queue harness has source review and portable wiring checks only on Windows. Its real Swift compilation, delayed URLSession execution and unsigned Simulator build require fresh macOS CI.",
+    "Source-v10 normalizes UTF-8 text to LF and retains binary bytes/Git modes. Runtime-v8 records actual compiled browser assets; backend exact digest303435d6804c5fd493bd42cabbddc6915afa2701a289eb85cb93bfdf20ebe0ea is unchanged."
+  ],
+  "observation": "No remaining actionable finding established. Addresses GitHub P1 comments4310855615 and4310886622, then closes commit-window Stop, new queued work during credential commit, early refresh cancellation, actual cookie loss and pre-dispatch Blob races. Production scheduler/policy/session-snapshot configuration is reused by offline URLProtocol harness. Reviewer executed no builds/tests/index; actual Swift/macOS execution remains required.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-APPLICATION-source-v10.json",
+    "docs/project/artifacts/KUFR-APPLICATION-runtime-v8.json",
+    "docs/project/artifacts/KUFR-APPLICATION-source-v9.json",
+    "docs/project/artifacts/KUFR-APPLICATION-source-v8.json",
+    "kufr/docs/application-verification.md"
+  ],
+  "supersedes": [
+    "KUFR-APPLICATION-review-v9"
+  ],
+  "supersedesReason": "Fix current PR218 P1 native overlap/Stop findings and related context/dispatch races; integrate accepted main8a606. New source-v10/revision5 binds fresh frontend proof and explicit unchanged-backend transfers, leaving native acceptance separate."
+}
