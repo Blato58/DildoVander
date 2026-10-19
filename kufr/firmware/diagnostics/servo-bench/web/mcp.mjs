@@ -8,13 +8,13 @@ const PULSE_ARGUMENTS = {
 const CALIBRATION_ARGUMENTS = {
   type: "object", properties: {
     channel: { type: "integer", minimum: 0, maximum: 5 },
-    pulseWidthUs: { type: "integer", minimum: 1000, maximum: 2000 },
+    pulseWidthUs: { type: "integer", minimum: 1, maximum: 9999 },
     durationMs: { type: "integer", minimum: 500, maximum: 3000 },
   }, required: ["channel", "pulseWidthUs", "durationMs"], additionalProperties: false,
 };
 const MOTION_ACTIONS = ["arm", "pulse", "calibrate"];
 
-function validInput(input, kind) {
+function validInput(input, kind, state) {
   if (!input || typeof input !== "object" || Array.isArray(input)) return false;
   const keys = Reflect.ownKeys(input);
   if (!["pulse", "calibrate"].includes(kind)) return keys.length === 0;
@@ -22,8 +22,10 @@ function validInput(input, kind) {
   if (keys.length !== (calibration ? 3 : 2) || !keys.includes("channel") || !keys.includes("pulseWidthUs") ||
     !Number.isInteger(input.channel) || input.channel < 0 || input.channel > 5) return false;
   if (!calibration) return [1400, 1500, 1600].includes(input.pulseWidthUs);
-  return keys.includes("durationMs") && Number.isInteger(input.pulseWidthUs) && input.pulseWidthUs >= 1000 &&
-    input.pulseWidthUs <= 2000 && Number.isInteger(input.durationMs) && input.durationMs >= 500 && input.durationMs <= 3000;
+  return keys.includes("durationMs") && Number.isInteger(state.calibrationMinimumUs) &&
+    Number.isInteger(state.calibrationMaximumUs) && Number.isInteger(input.pulseWidthUs) &&
+    input.pulseWidthUs >= state.calibrationMinimumUs && input.pulseWidthUs <= state.calibrationMaximumUs &&
+    Number.isInteger(input.durationMs) && input.durationMs >= 500 && input.durationMs <= 3000;
 }
 
 export async function registerBenchTools({ modelContext, getState, getLog, subscribe,
@@ -167,7 +169,7 @@ export async function registerBenchTools({ modelContext, getState, getLog, subsc
     ["stop", "Nouzový Stop přes stejný řadič panelu; přerušit čekající nástroj a vyčkat na firmware PWM FULL_OFF. Neodpojuje 5 V.", (_, signal) => act("stop", stop, signal)],
     ["arm", "Připravit právě jeden pulz, pouze když panel dovoluje Arm. Vyčkat na potvrzení firmwaru; nezatížené servo, připravené odpojení napájení.", (_, signal) => act("arm", arm, signal)],
     ["pulse", "Spustit jeden nominální pulz 500 ms na PCA9685 kanálu 0–5 po samostatném Arm. Šířka jen 1400/1500/1600 µs. Vyčkat na DONE PWM FULL_OFF; poloha není měřena.", (input, signal) => act("pulse", () => pulse(input.channel, input.pulseWidthUs), signal)],
-    ["calibrate", "Ruční kalibrační pokus po samostatném Arm, jen s firmware calibration=v1. Jeden pulz 1000–2000 µs po dobu 500–3000 ms; vyčkat na DONE PWM FULL_OFF. Poloha a koncové dorazy nejsou měřeny; profil se neukládá automaticky.", (input, signal) => act("calibrate", () => calibrate(input.channel, input.pulseWidthUs, input.durationMs), signal, input.durationMs)],
+    ["calibrate", "Ruční kalibrační pokus po samostatném Arm v mezích oznámených firmwarem. Jeden pulz po dobu 500–3000 ms; vyčkat na DONE PWM FULL_OFF. Poloha a koncové dorazy nejsou měřeny; profil se neukládá automaticky.", (input, signal) => act("calibrate", () => calibrate(input.channel, input.pulseWidthUs, input.durationMs), signal, input.durationMs)],
   ];
   const names = [];
   try {
@@ -178,7 +180,7 @@ export async function registerBenchTools({ modelContext, getState, getLog, subsc
         annotations: { readOnlyHint: readOnly, consequentialHint: !readOnly, untrustedContentHint: suffix === "get_log" },
         execute: async (input = {}, options = {}) => {
           if (disposed || options.signal?.aborted) return result(false, "Volání bylo zrušeno.");
-          if (!validInput(input, suffix)) return result(false, "Neplatné argumenty. Další pole ani volný UART příkaz nejsou povoleny.");
+          if (!validInput(input, suffix, getState())) return result(false, "Neplatné argumenty nebo kalibrační šířka mimo meze firmwaru. Další pole ani volný UART příkaz nejsou povoleny.");
           try { return await execute(input, options.signal); }
           catch (error) { return result(false, error?.message || String(error)); }
         },

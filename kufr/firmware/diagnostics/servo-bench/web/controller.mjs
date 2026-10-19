@@ -35,12 +35,16 @@ export function parseReadback(line) {
   };
 }
 
+const LegacyCalibrationMinimumUs = 1000;
+const LegacyCalibrationMaximumUs = 3000;
+
 export class BenchController {
   constructor({ write, onChange = () => {}, onLog = () => {}, now = Date.now,
     setTimer = (callback, delay) => setTimeout(callback, delay), clearTimer = id => clearTimeout(id) }) {
     Object.assign(this, { write, onChange, onLog, now, setTimer, clearTimer });
     this.state = { connected: false, baseline: false, fault: false, pending: null, writing: false,
-      armedUntil: 0, calibrationSupported: false, lastCompleted: null,
+      armedUntil: 0, calibrationSupported: false, calibrationMinimumUs: null,
+      calibrationMaximumUs: null, lastCompleted: null,
       message: "Neaktivní · odpojeno", error: "", errorKind: "", readback: null };
     this.generation = 0;
   }
@@ -71,7 +75,8 @@ export class BenchController {
     this.clearPending();
     this.activePulse = null;
     Object.assign(this.state, { connected: true, baseline: false, fault: false, writing: false,
-      error: "", errorKind: "", readback: null, calibrationSupported: false, lastCompleted: null });
+      error: "", errorKind: "", readback: null, calibrationSupported: false,
+      calibrationMinimumUs: null, calibrationMaximumUs: null, lastCompleted: null });
     return this.stop("!\n");
   }
 
@@ -81,7 +86,7 @@ export class BenchController {
     this.clearPending();
     this.activePulse = null;
     Object.assign(this.state, { connected: false, baseline: false, writing: false, message,
-      calibrationSupported: false, lastCompleted: null });
+      calibrationSupported: false, calibrationMinimumUs: null, calibrationMaximumUs: null, lastCompleted: null });
     this.changed();
   }
 
@@ -130,7 +135,8 @@ export class BenchController {
 
   calibrate(channel, width, durationMs) {
     if (!this.capabilities.calibrate || !Number.isInteger(channel) || channel < 0 || channel > 5 ||
-      !Number.isInteger(width) || width < 1000 || width > 2000 ||
+      !Number.isInteger(width) || width < this.state.calibrationMinimumUs ||
+      width > this.state.calibrationMaximumUs ||
       !Number.isInteger(durationMs) || durationMs < 500 || durationMs > 3000) return false;
     this.clearArm();
     this.state.lastCompleted = null;
@@ -186,7 +192,20 @@ export class BenchController {
       this.state.baseline = false;
       this.state.fault = false;
       this.state.readback = null;
-      this.state.calibrationSupported = /(?:^|\s)calibration=v1(?:\s|;|$)/.test(message);
+      const configuredLimits = message.match(
+        /(?:^|\s)calibration_min_us=(\d{1,4})\s+calibration_max_us=(\d{1,4})(?=\s|;|$)/);
+      const configuredMinimum = configuredLimits ? Number(configuredLimits[1]) : null;
+      const configuredMaximum = configuredLimits ? Number(configuredLimits[2]) : null;
+      const hasValidConfiguredLimits = configuredMinimum > 0 &&
+        configuredMinimum <= configuredMaximum && configuredMaximum <= 9999;
+      const legacyCalibration = /(?:^|\s)calibration=v1(?:\s|;|$)/.test(message);
+      const configuredCalibration = /(?:^|\s)calibration=v2(?:\s|;|$)/.test(message) &&
+        hasValidConfiguredLimits;
+      this.state.calibrationSupported = legacyCalibration || configuredCalibration;
+      this.state.calibrationMinimumUs = configuredCalibration ? configuredMinimum :
+        legacyCalibration ? LegacyCalibrationMinimumUs : null;
+      this.state.calibrationMaximumUs = configuredCalibration ? configuredMaximum :
+        legacyCalibration ? LegacyCalibrationMaximumUs : null;
       this.state.lastCompleted = null;
       this.activePulse = null;
       this.state.error = "";

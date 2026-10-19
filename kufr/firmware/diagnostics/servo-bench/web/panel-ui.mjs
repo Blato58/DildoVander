@@ -14,7 +14,7 @@ export function mountBenchUi(document) {
   mount('stop-actions', button({ id: 'stop', label: 'Stop', variant: 'danger', disabled: true }) +
     button({ id: 'noise', label: 'Drhne / vrčí', variant: 'danger', disabled: true }));
   mount('calibration-fields', field({ id: 'cal-width', label: 'Cílová šířka pulzu (µs)',
-    control: '<input class="aw-input" type="number" min="1000" max="2000" step="1" value="1500" aria-describedby="cal-help">' }) +
+    control: '<input class="aw-input" type="number" min="500" max="2400" step="1" value="1500" aria-describedby="cal-help">' }) +
     field({ id: 'cal-duration', label: 'Doba pokusu (ms)',
       control: '<input class="aw-input" type="number" min="500" max="3000" step="100" value="1500" aria-describedby="cal-help">' }));
 }
@@ -52,7 +52,7 @@ export function benchGuidance(state, capabilities, { supported, connecting, clos
   if (capabilities.pulse) {
     return { title: 'Arm potvrzen · jeden pokus', message: state.calibrationSupported
       ? 'Spusťte zvolený ruční pokus. Arm platí nejvýše 10 sekund; po pokusu je třeba nové Arm.'
-      : 'Firmware dovoluje krátký zkušební pulz. Ruční kalibrace vyžaduje podporu calibration=v1. Arm platí nejvýše 10 sekund.', tone: 'warning' };
+      : 'Firmware dovoluje krátký zkušební pulz. Ruční kalibrace vyžaduje podporu calibration=v2 nebo starší v1. Arm platí nejvýše 10 sekund.', tone: 'warning' };
   }
   return { title: state.lastCompleted ? 'Firmware potvrdil dokončení pokusu' : 'Stop potvrzen · můžete připravit pokus',
     message: state.lastCompleted?.calibration
@@ -61,7 +61,7 @@ export function benchGuidance(state, capabilities, { supported, connecting, clos
       ? 'Krátký zkušební pulz je dokončený a do kalibračního profilu se neukládá. Poloha serva se neměří; další pokus vyžaduje nové Arm.'
       : state.calibrationSupported
       ? 'Zkontrolujte volné servo a napájení, zvolte kanál a cílové hodnoty. Arm připraví jediný pokus; pohyb spouštíte samostatně.'
-      : 'Ruční kalibrace čeká na firmware s calibration=v1. K dispozici je samostatný krátký zkušební pulz po novém Arm.', tone: 'info' };
+      : 'Ruční kalibrace čeká na firmware s oznámenými mezemi. K dispozici je samostatný krátký zkušební pulz po novém Arm.', tone: 'info' };
 }
 
 export { statusBadge, notice, emptyState };

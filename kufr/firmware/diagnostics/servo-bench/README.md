@@ -92,9 +92,13 @@ Zvol kanál 0, šířku 1500 µs a dobu 1500 ms, klikni na **Arm** a potom spus�
 jeden kalibrační pohyb. Pro další pokus musíš znovu kliknout na Arm;
 povolení platí nejvýše 10 sekund. Změna hodnot sama pohyb nespouští.
 
-Kalibrační firmware hlásí při startu `calibration=v1`. Panel dovoluje
-**1000–2000 µs** a dobu generování PWM **500–3000 ms**. Šířka řídí požadovanou
+Kalibrační firmware hlásí při startu `calibration=v2` spolu s nakonfigurovanými
+limity. Výchozí šířka je **500–2400 µs** a dobu generování PWM lze nastavit na
+**500–3000 ms**. Šířka řídí požadovanou
 polohu; doba určuje, jak dlouho servo dostává opakované impulzy přibližně 50 Hz.
+Tyto výchozí meze odpovídají uvedenému rozsahu 0,5–2,4 ms, nejsou však
+ověřením úhlu 180° konkrétního serva. Firmware `calibration=v1` je nadále
+podporován se svým pevným starším rozsahem 1000–3000 µs.
 Delší doba sama nezvětšuje požadovaný úhel. Začni 1500 µs, potom zkus jeden
 pohyb na 1600 µs; pro viditelnější posun jsou připravené hodnoty 1200/1500/1800 µs.
 K dalším hodnotám postupuj po malých krocích a sleduj volné servo.
@@ -115,7 +119,10 @@ přihrádky vyžaduje samostatnou kalibraci až po dokončení testu volného se
 
 Po uložení ručního středu můžeš spustit hledání dolní nebo horní meze.
 Každé spuštění projde **jeden směr**, začíná uloženým středem a mění
-cíl po **25 µs** směrem k softwarové hranici 1000 nebo 2000 µs.
+cíl po **25 µs** směrem k softwarovým hranicím oznámeným firmwarem. Výchozí
+meze změní konstanty `CalibrationMinimumUs` a `CalibrationMaximumUs` v
+`../../src/diagnostics/servo-bench/ServoBench.h`; automatický krok změní konstanta
+`AUTO_CALIBRATION_STEP_US` na začátku `web/auto-calibration.mjs`.
 Každý krok dostává PWM 1500 ms; začátky kroků jsou od sebe nejméně
 **3 sekundy**. Panel před dalším krokem vyčká na Arm a DONE z firmware
 i dokončení USB zápisu. Zpoždění nedohání dávkou povelů. Každému kroku
@@ -127,14 +134,14 @@ signál, ne napájení ani zaručeně sílu serva. Panel nevrací servo automati
 zpět. Jako návrh meze může nabídnout předchozí dokončený krok, nikoli právě
 zkoušenou hodnotu. Návrh s rezervou jednoho kroku není měření dorazu ani záruka
 klidného chodu. Uložení vyžaduje samostatné potvrzení a potvrzený Stop.
-Při dosažení 1000/2000 µs jde pouze o konec softwarového rozsahu.
+Při dosažení oznámené meze jde pouze o konec softwarového rozsahu.
 
 Běžný Stop, odpojení, chyba, restart ESP nebo skrytí stránky průchod ukončí;
 automaticky se neobnovuje. Během průchodu jsou ostatní pohybové povely
 a změny kanálu zablokované, čtení stavu a Stop zůstávají dostupné.
 Při hardwarové chybě panel neopakuje I2C operaci; vypni V+ a řeš chybu.
-Prohlížeč pouze plánuje jednotlivé omezené povely stávajícího firmware
-`calibration=v1`. Zastavení při zamrznutí ESP nebo nefunkčním I2C nezaručuje.
+Prohlížeč pouze plánuje jednotlivé omezené povely firmware `calibration=v2`.
+Zastavení při zamrznutí ESP nebo nefunkčním I2C nezaručuje.
 Napájení, poloha, vrčení ani dorazy se softwarově nesnímají.
 
 **Stop** vypíná PWM přes PCA; neodpojuje 5 V. Panel ukazuje odeslání
@@ -160,8 +167,9 @@ Otevření portu může resetovat ESP, proto před ním vypni V+.
 `channel` 0–5 a `pulseWidthUs` 1400/1500/1600; volný UART příkaz není dostupný.
 Povely se neřadí do fronty ani neopakují. Výsledek čeká na odpověď firmwaru
 nejvýše čtyři sekundy, u kalibrace šest sekund; Stop může přerušit čekající povel.
-Kalibrace přijímá `channel` 0–5, `pulseWidthUs` 1000–2000 a `durationMs`
-500–3000. Vyžaduje nový READY s `calibration=v1`, Arm a stejnou bránu jako UI.
+Kalibrace přijímá `channel` 0–5, `pulseWidthUs` v mezích oznámených firmwarem
+a `durationMs` 500–3000. Vyžaduje nový READY s `calibration=v2`, Arm a stejnou
+bránu jako UI.
 Automatické zkoušky bez serv prováděj s fyzicky odpojenými servy a vypnutým V+.
 Stav napájení, poloha a skutečný pohyb nejsou těmito nástroji měřené.
 
@@ -226,7 +234,7 @@ pio device monitor -d kufr/firmware -e diag-servo-bench --port COM7 --baud 11520
    po jednom na kanálu 0; kanály 0–5 lze volit explicitně, nikdy 6–15.
 
 Původní příkaz `pulse` nadále přijímá **1400–1600 µs** a vždy trvá 500 ms.
-Nový příkaz `cal 0 1600 1500` přijímá 1000–2000 µs a dobu 0500–3000 ms;
+Nový příkaz `cal 0 1500 1500` přijímá nakonfigurované meze a dobu 0500–3000 ms;
 kanál je jediná číslice 0–5, šířka i doba mají přesně čtyři číslice.
 Například `cal 0 1500 0500` běží 500 ms. Nevkládej dávky příkazů.
 Každý pohyb spotřebuje `arm`; během pulzu další pohybový příkaz

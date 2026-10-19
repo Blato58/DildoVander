@@ -52,7 +52,7 @@ async function fixture(options = {}) {
   controller = new BenchController({ write, now: time.now, setTimer: time.setTimer, clearTimer: time.clearTimer,
     onChange: () => { for (const listener of [...listeners]) listener(); } });
   await controller.connected();
-  controller.receive("SERVO_BENCH READY PWM FULL_OFF; calibration=v1");
+  controller.receive("SERVO_BENCH READY PWM FULL_OFF; calibration=v2 calibration_min_us=500 calibration_max_us=2400");
   await time.advance(0);
   writes.length = 0;
   initializing = false;
@@ -78,7 +78,7 @@ async function startPulse(f, overrides) {
 
 test("start validates bounds, direction, readiness and never queues a second run", async () => {
   const f = await fixture();
-  for (const values of [{ channel: 6 }, { channel: -1 }, { centerUs: 999 }, { centerUs: 2001 },
+  for (const values of [{ channel: 6 }, { channel: -1 }, { centerUs: 499 }, { centerUs: 2401 },
     { centerUs: 1500.5 }, { direction: "both" }]) assert.equal(f.start(values), false);
   f.controller.state.calibrationSupported = false;
   assert.equal(f.start(), false);
@@ -279,7 +279,7 @@ test("faults, disconnection, reset and unrelated commands immediately interrupt 
       assert.equal(f.auto.state.stage, stage);
       if (event === "fault") f.controller.receive("SERVO_BENCH FAULT PWM_OFF_FAILED; cut servo power");
       else if (event === "disconnect") f.controller.disconnected();
-      else if (event === "reset") f.controller.receive("SERVO_BENCH READY PWM FULL_OFF; calibration=v1");
+      else if (event === "reset") f.controller.receive("SERVO_BENCH READY PWM FULL_OFF; calibration=v2 calibration_min_us=500 calibration_max_us=2400");
       else if (event === "stop") await f.controller.stop();
       else if (event === "error") f.controller.fail("Unexpected transport failure");
       else {
@@ -330,9 +330,9 @@ test("restart does not inherit an old waiter, timer or deferred write", async ()
   f.auto.cancel();
 });
 
-test("bounded runs finish at the endpoint, make at most 41 attempts and require fresh Stop proof", async () => {
+test("bounded runs finish at the endpoint and require fresh Stop proof", async () => {
   for (const [centerUs, direction, expected] of [
-    [1000, "max", 41], [2000, "min", 41], [1051, "min", 4], [2000, "max", 1],
+    [500, "max", 77], [2400, "min", 77], [525, "min", 2], [2400, "max", 1],
   ]) {
     const f = await fixture();
     await startPulse(f, { centerUs, direction });
@@ -347,7 +347,7 @@ test("bounded runs finish at the endpoint, make at most 41 attempts and require 
     assert.equal(f.auto.state.stage, "completed");
     assert.equal(f.auto.state.reason, "bound");
     assert.equal(f.pulseWrites().length, expected);
-    const endpoint = direction === "min" ? 1000 : 2000;
+    const endpoint = direction === "min" ? 500 : 2400;
     assert.equal(f.auto.state.currentUs, endpoint);
     assert.equal(f.auto.state.candidateUs, centerUs === endpoint ? null : endpoint);
     assert.equal(f.stopWrites().length, 1);
@@ -364,12 +364,12 @@ test("bounded runs finish at the endpoint, make at most 41 attempts and require 
 
 test("a missing candidate Stop ACK never confirms OFF or retries Stop", async () => {
   const f = await fixture({ stopAck: false });
-  await startPulse(f, { centerUs: 1975 });
+  await startPulse(f, { centerUs: 2375 });
   await f.time.advance(1500);
   await f.time.advance(1500);
   await f.time.advance(0);
   await f.time.advance(1500);
-  assert.equal(f.auto.state.candidateUs, 2000);
+  assert.equal(f.auto.state.candidateUs, 2400);
   await f.time.advance(10000);
   assert.equal(f.auto.state.stopConfirmed, false);
   assert.equal(f.stopWrites().length, 1);

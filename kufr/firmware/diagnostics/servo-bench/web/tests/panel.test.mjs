@@ -18,7 +18,7 @@ test("shared markup preserves every panel hook and calibrated input boundary", a
   for (const id of ids) {
     assert.equal([...rendered.matchAll(new RegExp(`\\bid="${id}"`, "g"))].length, 1, `unique control hook ${id}`);
   }
-  assert.match(fragments.join(""), /min="1000" max="2000"/);
+  assert.match(fragments.join(""), /min="500" max="2400"/);
   assert.match(fragments.join(""), /min="500" max="3000"/);
   assert.match(fragments.join(""), /id="stop" disabled>Stop<\/button>/);
   assert.match(html, /REAL USB · skutečný hardware/);
@@ -40,7 +40,7 @@ test("readiness separates USB, requested commands, acknowledged gates and physic
   assert.match(benchGuidance(state, {}, context).message, /nepotvrzuje fyzický pohyb/);
   state.pending = null;
   state.baseline = true;
-  assert.match(benchGuidance(state, { arm: true }, context).message, /calibration=v1/);
+  assert.match(benchGuidance(state, { arm: true }, context).message, /oznámenými mezemi/);
   state.calibrationSupported = true;
   assert.match(benchGuidance(state, { arm: true }, context).message, /Arm připraví jediný pokus/);
   assert.match(benchGuidance(state, { pulse: true }, context).title, /Arm potvrzen/);
@@ -224,8 +224,12 @@ test("calibration edits never move, explicit Arm/move waits DONE, profiles save 
     assert.equal(el["cal-move"].disabled, true);
     assert.equal(el["profile-min"].disabled, true);
     await el.connect.click();
-    await receive("READY PWM FULL_OFF; calibration=v1");
+    await receive("READY PWM FULL_OFF; calibration=v2 calibration_min_us=500 calibration_max_us=2400");
     await receive("STOP PWM FULL_OFF");
+    assert.equal(el["cal-width"].min, "500");
+    assert.equal(el["cal-width"].max, "2400");
+    assert.equal(el["cal-range"].min, "500");
+    assert.equal(el["cal-range"].max, "2400");
     assert.equal(el["cal-arm"].disabled, false);
     await el["cal-1200"].click();
     await el["cal-arm"].click();
@@ -282,7 +286,7 @@ async function assistedPage() {
     const command = new TextDecoder().decode(bytes);
     writes.push(command);
     if (command === "!\n") {
-      feed(`${initialStop ? "SERVO_BENCH READY PWM FULL_OFF; calibration=v1\n" : ""}SERVO_BENCH STOP PWM FULL_OFF\n`);
+      feed(`${initialStop ? "SERVO_BENCH READY PWM FULL_OFF; calibration=v2 calibration_min_us=500 calibration_max_us=2400\n" : ""}SERVO_BENCH STOP PWM FULL_OFF\n`);
       initialStop = false;
     } else if (command === "arm\n") feed("SERVO_BENCH ARMED for one pulse, 10 seconds\n");
     else if (command.startsWith("cal ")) feed("SERVO_BENCH PULSE nominal 1500 ms; calibration\nSERVO_BENCH DONE PWM FULL_OFF; arm again for another pulse\n");
@@ -444,7 +448,7 @@ test("inactive proposal is discarded on Stop, changed context, manual motion, re
       if (mode === "channel") { el.channel.value = "1"; el.channel.listeners.change(); }
       if (mode === "profile") { el["profile-label"].value = "Changed"; el["profile-label"].listeners.input(); }
       if (mode === "manual") await el["cal-arm"].click();
-      if (mode === "reset") await page.receive("READY PWM FULL_OFF; calibration=v1");
+      if (mode === "reset") await page.receive("READY PWM FULL_OFF; calibration=v2 calibration_min_us=500 calibration_max_us=2400");
       if (mode === "fault") await page.receive("FAULT PWM_OFF_FAILED; cut servo power");
       if (mode === "disconnect") await el.disconnect.click();
       if (mode === "hidden") { document.visibilityState = "hidden"; page.documentListeners.get("visibilitychange")(); }
